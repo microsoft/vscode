@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import { createDecorator as createServiceDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IDisposable, Disposable } from 'vs/base/common/lifecycle';
 import { isWindows } from 'vs/base/common/platform';

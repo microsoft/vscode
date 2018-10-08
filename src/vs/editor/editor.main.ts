@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import 'vs/editor/editor.all';
 import 'vs/editor/standalone/browser/accessibilityHelp/accessibilityHelp';
 import 'vs/editor/standalone/browser/inspectTokens/inspectTokens';

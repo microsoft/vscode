@@ -2,13 +2,12 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { Event } from 'vs/base/common/event';
 import { isFalsyOrWhitespace } from 'vs/base/common/strings';
 
-export enum ContextKeyExprType {
+export const enum ContextKeyExprType {
 	Defined = 1,
 	Not = 2,
 	Equals = 3,

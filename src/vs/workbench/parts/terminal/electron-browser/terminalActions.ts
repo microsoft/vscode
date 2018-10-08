@@ -10,23 +10,25 @@ import { EndOfLinePreference } from 'vs/editor/common/model';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { ITerminalService, TERMINAL_PANEL_ID, ITerminalInstance, Direction } from 'vs/workbench/parts/terminal/common/terminal';
 import { SelectActionItem } from 'vs/base/browser/ui/actionbar/actionbar';
-import { TPromise } from 'vs/base/common/winjs.base';
 import { TogglePanelAction } from 'vs/workbench/browser/panel';
 import { IPartService } from 'vs/workbench/services/part/common/partService';
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 import { attachSelectBoxStyler } from 'vs/platform/theme/common/styler';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { IQuickOpenService, IPickOptions } from 'vs/platform/quickOpen/common/quickOpen';
-import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
+import { IQuickOpenService } from 'vs/platform/quickOpen/common/quickOpen';
+import { IQuickInputService, IPickOptions, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
 import { ActionBarContributor } from 'vs/workbench/browser/actions';
 import { TerminalEntry } from 'vs/workbench/parts/terminal/browser/terminalQuickOpen';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { PICK_WORKSPACE_FOLDER_COMMAND_ID } from 'vs/workbench/browser/actions/workspaceCommands';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { TERMINAL_COMMAND_ID } from 'vs/workbench/parts/terminal/common/terminalCommands';
+import { Command } from 'vs/editor/browser/editorExtensions';
+import { timeout } from 'vs/base/common/async';
+import { FindReplaceState } from 'vs/editor/contrib/find/findState';
 
 export const TERMINAL_PICKER_PREFIX = 'term ';
 
@@ -44,7 +46,7 @@ export class ToggleTerminalAction extends TogglePanelAction {
 		super(id, label, TERMINAL_PANEL_ID, panelService, partService);
 	}
 
-	public run(event?: any): TPromise<any> {
+	public run(event?: any): PromiseLike<any> {
 		if (this.terminalService.terminalInstances.length === 0) {
 			// If there is not yet an instance attempt to create it here so that we can suggest a
 			// new shell on Windows (and not do so when the panel is restored on reload).
@@ -71,7 +73,7 @@ export class KillTerminalAction extends Action {
 		super(id, label, 'terminal-action kill');
 	}
 
-	public run(event?: any): TPromise<any> {
+	public run(event?: any): PromiseLike<any> {
 		const instance = this.terminalService.getActiveInstance();
 		if (instance) {
 			instance.dispose();
@@ -79,7 +81,7 @@ export class KillTerminalAction extends Action {
 				this.terminalService.showPanel(true);
 			}
 		}
-		return TPromise.as(void 0);
+		return Promise.resolve(void 0);
 	}
 }
 
@@ -96,12 +98,12 @@ export class QuickKillTerminalAction extends Action {
 		super(id, label, 'terminal-action kill');
 	}
 
-	public run(event?: any): TPromise<any> {
+	public run(event?: any): Promise<any> {
 		const instance = this.terminalEntry.instance;
 		if (instance) {
 			instance.dispose();
 		}
-		return TPromise.timeout(50).then(result => this.quickOpenService.show(TERMINAL_PICKER_PREFIX, null));
+		return Promise.resolve(timeout(50)).then(result => this.quickOpenService.show(TERMINAL_PICKER_PREFIX, null));
 	}
 }
 
@@ -122,12 +124,12 @@ export class CopyTerminalSelectionAction extends Action {
 		super(id, label);
 	}
 
-	public run(event?: any): TPromise<any> {
+	public run(event?: any): Promise<any> {
 		const terminalInstance = this.terminalService.getActiveInstance();
 		if (terminalInstance) {
 			terminalInstance.copySelection();
 		}
-		return TPromise.as(void 0);
+		return Promise.resolve(void 0);
 	}
 }
 
@@ -143,12 +145,12 @@ export class SelectAllTerminalAction extends Action {
 		super(id, label);
 	}
 
-	public run(event?: any): TPromise<any> {
+	public run(event?: any): Promise<any> {
 		const terminalInstance = this.terminalService.getActiveInstance();
 		if (terminalInstance) {
 			terminalInstance.selectAll();
 		}
-		return TPromise.as(void 0);
+		return Promise.resolve(void 0);
 	}
 }
 
@@ -162,12 +164,12 @@ export abstract class BaseSendTextTerminalAction extends Action {
 		super(id, label);
 	}
 
-	public run(event?: any): TPromise<any> {
+	public run(event?: any): Promise<any> {
 		const terminalInstance = this._terminalService.getActiveInstance();
 		if (terminalInstance) {
 			terminalInstance.sendText(this._text, false);
 		}
-		return TPromise.as(void 0);
+		return Promise.resolve(void 0);
 	}
 }
 
@@ -227,6 +229,19 @@ export class MoveToLineEndTerminalAction extends BaseSendTextTerminalAction {
 	}
 }
 
+export class SendSequenceTerminalCommand extends Command {
+	public static readonly ID = TERMINAL_COMMAND_ID.SEND_SEQUENCE;
+	public static readonly LABEL = nls.localize('workbench.action.terminal.sendSequence', "Send Custom Sequence To Terminal");
+
+	public runCommand(accessor: ServicesAccessor, args: any): void {
+		const terminalInstance = accessor.get(ITerminalService).getActiveInstance();
+		if (!terminalInstance) {
+			return;
+		}
+		terminalInstance.sendText(args.text, false);
+	}
+}
+
 export class CreateNewTerminalAction extends Action {
 
 	public static readonly ID = TERMINAL_COMMAND_ID.NEW;
@@ -242,23 +257,23 @@ export class CreateNewTerminalAction extends Action {
 		super(id, label, 'terminal-action new');
 	}
 
-	public run(event?: any): TPromise<any> {
+	public run(event?: any): PromiseLike<any> {
 		const folders = this.workspaceContextService.getWorkspace().folders;
 		if (event instanceof MouseEvent && (event.altKey || event.ctrlKey)) {
 			const activeInstance = this.terminalService.getActiveInstance();
 			if (activeInstance) {
 				this.terminalService.splitInstance(activeInstance);
-				return TPromise.as(null);
+				return Promise.resolve(null);
 			}
 		}
 
-		let instancePromise: TPromise<ITerminalInstance>;
+		let instancePromise: PromiseLike<ITerminalInstance>;
 		if (folders.length <= 1) {
 			// Allow terminal service to handle the path when there is only a
 			// single root
-			instancePromise = TPromise.as(this.terminalService.createTerminal(undefined, true));
+			instancePromise = Promise.resolve(this.terminalService.createTerminal(undefined, true));
 		} else {
-			const options: IPickOptions = {
+			const options: IPickOptions<IQuickPickItem> = {
 				placeHolder: nls.localize('workbench.action.terminal.newWorkspacePlaceholder', "Select current working directory for new terminal")
 			};
 			instancePromise = this.commandService.executeCommand(PICK_WORKSPACE_FOLDER_COMMAND_ID, [options]).then(workspace => {
@@ -272,7 +287,7 @@ export class CreateNewTerminalAction extends Action {
 
 		return instancePromise.then(instance => {
 			if (!instance) {
-				return TPromise.as(void 0);
+				return Promise.resolve(void 0);
 			}
 			this.terminalService.setActiveInstance(instance);
 			return this.terminalService.showPanel(true);
@@ -292,10 +307,10 @@ export class CreateNewInActiveWorkspaceTerminalAction extends Action {
 		super(id, label);
 	}
 
-	public run(event?: any): TPromise<any> {
+	public run(event?: any): Promise<any> {
 		const instance = this.terminalService.createTerminal(undefined, true);
 		if (!instance) {
-			return TPromise.as(void 0);
+			return Promise.resolve(void 0);
 		}
 		this.terminalService.setActiveInstance(instance);
 		return this.terminalService.showPanel(true);
@@ -316,18 +331,18 @@ export class SplitTerminalAction extends Action {
 		super(id, label, 'terminal-action split');
 	}
 
-	public run(event?: any): TPromise<any> {
+	public run(event?: any): PromiseLike<any> {
 		const instance = this._terminalService.getActiveInstance();
 		if (!instance) {
-			return TPromise.as(void 0);
+			return Promise.resolve(void 0);
 		}
 
 		const folders = this.workspaceContextService.getWorkspace().folders;
 
-		let pathPromise: TPromise<any> = TPromise.as({});
+		let pathPromise: PromiseLike<any> = Promise.resolve({});
 		if (folders.length > 1) {
 			// Only choose a path when there's more than 1 folder
-			const options: IPickOptions = {
+			const options: IPickOptions<IQuickPickItem> = {
 				placeHolder: nls.localize('workbench.action.terminal.newWorkspacePlaceholder', "Select current working directory for new terminal")
 			};
 			pathPromise = this.commandService.executeCommand(PICK_WORKSPACE_FOLDER_COMMAND_ID, [options]).then(workspace => {
@@ -335,13 +350,13 @@ export class SplitTerminalAction extends Action {
 					// Don't split the instance if the workspace picker was canceled
 					return null;
 				}
-				return TPromise.as({ cwd: workspace.uri.fsPath });
+				return Promise.resolve({ cwd: workspace.uri.fsPath });
 			});
 		}
 
 		return pathPromise.then(path => {
 			if (!path) {
-				return TPromise.as(void 0);
+				return Promise.resolve(void 0);
 			}
 			this._terminalService.splitInstance(instance, path);
 			return this._terminalService.showPanel(true);
@@ -360,10 +375,10 @@ export class SplitInActiveWorkspaceTerminalAction extends Action {
 		super(id, label);
 	}
 
-	public run(event?: any): TPromise<any> {
+	public run(event?: any): Promise<any> {
 		const instance = this._terminalService.getActiveInstance();
 		if (!instance) {
-			return TPromise.as(void 0);
+			return Promise.resolve(void 0);
 		}
 		this._terminalService.splitInstance(instance);
 		return this._terminalService.showPanel(true);
@@ -381,10 +396,10 @@ export class FocusPreviousPaneTerminalAction extends Action {
 		super(id, label);
 	}
 
-	public run(event?: any): TPromise<any> {
+	public run(event?: any): Promise<any> {
 		const tab = this._terminalService.getActiveTab();
 		if (!tab) {
-			return TPromise.as(void 0);
+			return Promise.resolve(void 0);
 		}
 		tab.focusPreviousPane();
 		return this._terminalService.showPanel(true);
@@ -402,10 +417,10 @@ export class FocusNextPaneTerminalAction extends Action {
 		super(id, label);
 	}
 
-	public run(event?: any): TPromise<any> {
+	public run(event?: any): Promise<any> {
 		const tab = this._terminalService.getActiveTab();
 		if (!tab) {
-			return TPromise.as(void 0);
+			return Promise.resolve(void 0);
 		}
 		tab.focusNextPane();
 		return this._terminalService.showPanel(true);
@@ -421,12 +436,12 @@ export abstract class BaseFocusDirectionTerminalAction extends Action {
 		super(id, label);
 	}
 
-	public run(event?: any): TPromise<any> {
+	public run(event?: any): Promise<any> {
 		const tab = this._terminalService.getActiveTab();
 		if (tab) {
 			tab.resizePane(this._direction);
 		}
-		return TPromise.as(void 0);
+		return Promise.resolve(void 0);
 	}
 }
 
@@ -490,10 +505,10 @@ export class FocusActiveTerminalAction extends Action {
 		super(id, label);
 	}
 
-	public run(event?: any): TPromise<any> {
+	public run(event?: any): Promise<any> {
 		const instance = this.terminalService.getActiveOrCreateInstance(true);
 		if (!instance) {
-			return TPromise.as(void 0);
+			return Promise.resolve(void 0);
 		}
 		this.terminalService.setActiveInstance(instance);
 		return this.terminalService.showPanel(true);
@@ -512,7 +527,7 @@ export class FocusNextTerminalAction extends Action {
 		super(id, label);
 	}
 
-	public run(event?: any): TPromise<any> {
+	public run(event?: any): Promise<any> {
 		this.terminalService.setActiveTabToNext();
 		return this.terminalService.showPanel(true);
 	}
@@ -530,7 +545,7 @@ export class FocusPreviousTerminalAction extends Action {
 		super(id, label);
 	}
 
-	public run(event?: any): TPromise<any> {
+	public run(event?: any): Promise<any> {
 		this.terminalService.setActiveTabToPrevious();
 		return this.terminalService.showPanel(true);
 	}
@@ -549,12 +564,12 @@ export class TerminalPasteAction extends Action {
 		super(id, label);
 	}
 
-	public run(event?: any): TPromise<any> {
+	public run(event?: any): Promise<any> {
 		const instance = this.terminalService.getActiveOrCreateInstance();
 		if (instance) {
 			instance.paste();
 		}
-		return TPromise.as(void 0);
+		return Promise.resolve(void 0);
 	}
 }
 
@@ -570,7 +585,7 @@ export class SelectDefaultShellWindowsTerminalAction extends Action {
 		super(id, label);
 	}
 
-	public run(event?: any): TPromise<any> {
+	public run(event?: any): Promise<any> {
 		return this.terminalService.selectDefaultWindowsShell();
 	}
 }
@@ -588,14 +603,14 @@ export class RunSelectedTextInTerminalAction extends Action {
 		super(id, label);
 	}
 
-	public run(event?: any): TPromise<any> {
+	public run(event?: any): Promise<any> {
 		const instance = this.terminalService.getActiveOrCreateInstance();
 		if (!instance) {
-			return TPromise.as(void 0);
+			return Promise.resolve(void 0);
 		}
 		let editor = this.codeEditorService.getFocusedCodeEditor();
 		if (!editor) {
-			return TPromise.as(void 0);
+			return Promise.resolve(void 0);
 		}
 		let selection = editor.getSelection();
 		let text: string;
@@ -624,22 +639,25 @@ export class RunActiveFileInTerminalAction extends Action {
 		super(id, label);
 	}
 
-	public run(event?: any): TPromise<any> {
+	public run(event?: any): Promise<any> {
 		const instance = this.terminalService.getActiveOrCreateInstance();
 		if (!instance) {
-			return TPromise.as(void 0);
+			return Promise.resolve(void 0);
 		}
 		const editor = this.codeEditorService.getActiveCodeEditor();
 		if (!editor) {
-			return TPromise.as(void 0);
+			return Promise.resolve(void 0);
 		}
 		const uri = editor.getModel().uri;
 		if (uri.scheme !== 'file') {
 			this.notificationService.warn(nls.localize('workbench.action.terminal.runActiveFile.noFile', 'Only files on disk can be run in the terminal'));
-			return TPromise.as(void 0);
+			return Promise.resolve(void 0);
 		}
-		instance.sendText(uri.fsPath, true);
-		return this.terminalService.showPanel();
+
+		return instance.preparePathForTerminalAsync(uri.fsPath).then(path => {
+			instance.sendText(path, true);
+			return this.terminalService.showPanel();
+		});
 	}
 }
 
@@ -655,9 +673,9 @@ export class SwitchTerminalAction extends Action {
 		super(id, label, 'terminal-action switch-terminal');
 	}
 
-	public run(item?: string): TPromise<any> {
+	public run(item?: string): Promise<any> {
 		if (!item || !item.split) {
-			return TPromise.as(null);
+			return Promise.resolve(null);
 		}
 		const selectedTabIndex = parseInt(item.split(':')[0], 10) - 1;
 		this.terminalService.setActiveTabByIndex(selectedTabIndex);
@@ -698,12 +716,12 @@ export class ScrollDownTerminalAction extends Action {
 		super(id, label);
 	}
 
-	public run(event?: any): TPromise<any> {
+	public run(event?: any): Promise<any> {
 		const terminalInstance = this.terminalService.getActiveInstance();
 		if (terminalInstance) {
 			terminalInstance.scrollDownLine();
 		}
-		return TPromise.as(void 0);
+		return Promise.resolve(void 0);
 	}
 }
 
@@ -719,12 +737,12 @@ export class ScrollDownPageTerminalAction extends Action {
 		super(id, label);
 	}
 
-	public run(event?: any): TPromise<any> {
+	public run(event?: any): Promise<any> {
 		const terminalInstance = this.terminalService.getActiveInstance();
 		if (terminalInstance) {
 			terminalInstance.scrollDownPage();
 		}
-		return TPromise.as(void 0);
+		return Promise.resolve(void 0);
 	}
 }
 
@@ -740,12 +758,12 @@ export class ScrollToBottomTerminalAction extends Action {
 		super(id, label);
 	}
 
-	public run(event?: any): TPromise<any> {
+	public run(event?: any): Promise<any> {
 		const terminalInstance = this.terminalService.getActiveInstance();
 		if (terminalInstance) {
 			terminalInstance.scrollToBottom();
 		}
-		return TPromise.as(void 0);
+		return Promise.resolve(void 0);
 	}
 }
 
@@ -761,12 +779,12 @@ export class ScrollUpTerminalAction extends Action {
 		super(id, label);
 	}
 
-	public run(event?: any): TPromise<any> {
+	public run(event?: any): Promise<any> {
 		const terminalInstance = this.terminalService.getActiveInstance();
 		if (terminalInstance) {
 			terminalInstance.scrollUpLine();
 		}
-		return TPromise.as(void 0);
+		return Promise.resolve(void 0);
 	}
 }
 
@@ -782,12 +800,12 @@ export class ScrollUpPageTerminalAction extends Action {
 		super(id, label);
 	}
 
-	public run(event?: any): TPromise<any> {
+	public run(event?: any): Promise<any> {
 		const terminalInstance = this.terminalService.getActiveInstance();
 		if (terminalInstance) {
 			terminalInstance.scrollUpPage();
 		}
-		return TPromise.as(void 0);
+		return Promise.resolve(void 0);
 	}
 }
 
@@ -803,12 +821,12 @@ export class ScrollToTopTerminalAction extends Action {
 		super(id, label);
 	}
 
-	public run(event?: any): TPromise<any> {
+	public run(event?: any): Promise<any> {
 		const terminalInstance = this.terminalService.getActiveInstance();
 		if (terminalInstance) {
 			terminalInstance.scrollToTop();
 		}
-		return TPromise.as(void 0);
+		return Promise.resolve(void 0);
 	}
 }
 
@@ -824,12 +842,12 @@ export class ClearTerminalAction extends Action {
 		super(id, label);
 	}
 
-	public run(event?: any): TPromise<any> {
+	public run(event?: any): Promise<any> {
 		const terminalInstance = this.terminalService.getActiveInstance();
 		if (terminalInstance) {
 			terminalInstance.clear();
 		}
-		return TPromise.as(void 0);
+		return Promise.resolve(void 0);
 	}
 }
 
@@ -845,12 +863,12 @@ export class ClearSelectionTerminalAction extends Action {
 		super(id, label);
 	}
 
-	public run(event?: any): TPromise<any> {
+	public run(event?: any): Promise<any> {
 		const terminalInstance = this.terminalService.getActiveInstance();
 		if (terminalInstance && terminalInstance.hasSelection()) {
 			terminalInstance.clearSelection();
 		}
-		return TPromise.as(void 0);
+		return Promise.resolve(void 0);
 	}
 }
 
@@ -866,9 +884,9 @@ export class AllowWorkspaceShellTerminalCommand extends Action {
 		super(id, label);
 	}
 
-	public run(event?: any): TPromise<any> {
+	public run(event?: any): Promise<any> {
 		this.terminalService.setWorkspaceShellAllowed(true);
-		return TPromise.as(void 0);
+		return Promise.resolve(void 0);
 	}
 }
 
@@ -884,9 +902,9 @@ export class DisallowWorkspaceShellTerminalCommand extends Action {
 		super(id, label);
 	}
 
-	public run(event?: any): TPromise<any> {
+	public run(event?: any): Promise<any> {
 		this.terminalService.setWorkspaceShellAllowed(false);
-		return TPromise.as(void 0);
+		return Promise.resolve(void 0);
 	}
 }
 
@@ -904,10 +922,10 @@ export class RenameTerminalAction extends Action {
 		super(id, label);
 	}
 
-	public run(entry?: TerminalEntry): TPromise<any> {
+	public run(entry?: TerminalEntry): PromiseLike<any> {
 		const terminalInstance = entry ? entry.instance : this.terminalService.getActiveInstance();
 		if (!terminalInstance) {
-			return TPromise.as(void 0);
+			return Promise.resolve(void 0);
 		}
 		return this.quickInputService.input({
 			value: terminalInstance.title,
@@ -932,7 +950,7 @@ export class FocusTerminalFindWidgetAction extends Action {
 		super(id, label);
 	}
 
-	public run(): TPromise<any> {
+	public run(): Promise<any> {
 		return this.terminalService.focusFindWidget();
 	}
 }
@@ -949,8 +967,8 @@ export class HideTerminalFindWidgetAction extends Action {
 		super(id, label);
 	}
 
-	public run(): TPromise<any> {
-		return TPromise.as(this.terminalService.hideFindWidget());
+	public run(): Promise<any> {
+		return Promise.resolve(this.terminalService.hideFindWidget());
 	}
 }
 
@@ -989,7 +1007,7 @@ export class QuickOpenTermAction extends Action {
 		super(id, label);
 	}
 
-	public run(): TPromise<void> {
+	public run(): PromiseLike<void> {
 		return this.quickOpenService.show(TERMINAL_PICKER_PREFIX, null);
 	}
 }
@@ -1007,12 +1025,12 @@ export class RenameTerminalQuickOpenAction extends RenameTerminalAction {
 		this.class = 'quick-open-terminal-configure';
 	}
 
-	public run(): TPromise<any> {
+	public run(): Promise<any> {
 		super.run(this.terminal)
 			// This timeout is needed to make sure the previous quickOpen has time to close before we show the next one
-			.then(() => TPromise.timeout(50))
+			.then(() => timeout(50))
 			.then(result => this.quickOpenService.show(TERMINAL_PICKER_PREFIX, null));
-		return TPromise.as(null);
+		return Promise.resolve(null);
 	}
 }
 
@@ -1027,13 +1045,13 @@ export class ScrollToPreviousCommandAction extends Action {
 		super(id, label);
 	}
 
-	public run(): TPromise<any> {
+	public run(): Promise<any> {
 		const instance = this.terminalService.getActiveInstance();
 		if (instance) {
 			instance.commandTracker.scrollToPreviousCommand();
 			instance.focus();
 		}
-		return TPromise.as(void 0);
+		return Promise.resolve(void 0);
 	}
 }
 
@@ -1048,13 +1066,13 @@ export class ScrollToNextCommandAction extends Action {
 		super(id, label);
 	}
 
-	public run(): TPromise<any> {
+	public run(): Promise<any> {
 		const instance = this.terminalService.getActiveInstance();
 		if (instance) {
 			instance.commandTracker.scrollToNextCommand();
 			instance.focus();
 		}
-		return TPromise.as(void 0);
+		return Promise.resolve(void 0);
 	}
 }
 
@@ -1069,13 +1087,13 @@ export class SelectToPreviousCommandAction extends Action {
 		super(id, label);
 	}
 
-	public run(): TPromise<any> {
+	public run(): Promise<any> {
 		const instance = this.terminalService.getActiveInstance();
 		if (instance) {
 			instance.commandTracker.selectToPreviousCommand();
 			instance.focus();
 		}
-		return TPromise.as(void 0);
+		return Promise.resolve(void 0);
 	}
 }
 
@@ -1090,13 +1108,13 @@ export class SelectToNextCommandAction extends Action {
 		super(id, label);
 	}
 
-	public run(): TPromise<any> {
+	public run(): Promise<any> {
 		const instance = this.terminalService.getActiveInstance();
 		if (instance) {
 			instance.commandTracker.selectToNextCommand();
 			instance.focus();
 		}
-		return TPromise.as(void 0);
+		return Promise.resolve(void 0);
 	}
 }
 
@@ -1111,13 +1129,13 @@ export class SelectToPreviousLineAction extends Action {
 		super(id, label);
 	}
 
-	public run(): TPromise<any> {
+	public run(): Promise<any> {
 		const instance = this.terminalService.getActiveInstance();
 		if (instance) {
 			instance.commandTracker.selectToPreviousLine();
 			instance.focus();
 		}
-		return TPromise.as(void 0);
+		return Promise.resolve(void 0);
 	}
 }
 
@@ -1132,13 +1150,13 @@ export class SelectToNextLineAction extends Action {
 		super(id, label);
 	}
 
-	public run(): TPromise<any> {
+	public run(): Promise<any> {
 		const instance = this.terminalService.getActiveInstance();
 		if (instance) {
 			instance.commandTracker.selectToNextLine();
 			instance.focus();
 		}
-		return TPromise.as(void 0);
+		return Promise.resolve(void 0);
 	}
 }
 
@@ -1154,11 +1172,94 @@ export class ToggleEscapeSequenceLoggingAction extends Action {
 		super(id, label);
 	}
 
-	public run(): TPromise<any> {
+	public run(): Promise<any> {
 		const instance = this.terminalService.getActiveInstance();
 		if (instance) {
 			instance.toggleEscapeSequenceLogging();
 		}
-		return TPromise.as(void 0);
+		return Promise.resolve(void 0);
+	}
+}
+
+abstract class ToggleFindOptionCommand extends Action {
+	constructor(
+		id: string, label: string,
+		@ITerminalService private terminalService: ITerminalService
+	) {
+		super(id, label);
+	}
+
+	protected abstract runInner(state: FindReplaceState): void;
+
+	public run(): Promise<any> {
+		const state = this.terminalService.getFindState();
+		this.runInner(state);
+		return Promise.resolve(void 0);
+	}
+}
+
+export class ToggleRegexCommand extends ToggleFindOptionCommand {
+	public static readonly ID = TERMINAL_COMMAND_ID.TOGGLE_FIND_REGEX;
+	public static readonly ID_TERMINAL_FOCUS = TERMINAL_COMMAND_ID.TOGGLE_FIND_REGEX_TERMINAL_FOCUS;
+	public static readonly LABEL = nls.localize('workbench.action.terminal.toggleFindRegex', "Toggle find using regex");
+
+	protected runInner(state: FindReplaceState): void {
+		state.change({ isRegex: !state.isRegex }, false);
+	}
+}
+
+export class ToggleWholeWordCommand extends ToggleFindOptionCommand {
+	public static readonly ID = TERMINAL_COMMAND_ID.TOGGLE_FIND_WHOLE_WORD;
+	public static readonly ID_TERMINAL_FOCUS = TERMINAL_COMMAND_ID.TOGGLE_FIND_WHOLE_WORD_TERMINAL_FOCUS;
+	public static readonly LABEL = nls.localize('workbench.action.terminal.toggleFindWholeWord', "Toggle find using whole word");
+
+	protected runInner(state: FindReplaceState): void {
+		state.change({ wholeWord: !state.wholeWord }, false);
+	}
+}
+
+export class ToggleCaseSensitiveCommand extends ToggleFindOptionCommand {
+	public static readonly ID = TERMINAL_COMMAND_ID.TOGGLE_FIND_CASE_SENSITIVE;
+	public static readonly ID_TERMINAL_FOCUS = TERMINAL_COMMAND_ID.TOGGLE_FIND_CASE_SENSITIVE_TERMINAL_FOCUS;
+	public static readonly LABEL = nls.localize('workbench.action.terminal.toggleFindCaseSensitive', "Toggle find using case sensitive");
+
+	protected runInner(state: FindReplaceState): void {
+		state.change({ matchCase: !state.matchCase }, false);
+	}
+}
+
+export class FindNext extends Action {
+	public static readonly ID = TERMINAL_COMMAND_ID.FIND_NEXT;
+	public static readonly ID_TERMINAL_FOCUS = TERMINAL_COMMAND_ID.FIND_NEXT_TERMINAL_FOCUS;
+	public static readonly LABEL = nls.localize('workbench.action.terminal.findNext', "Find next");
+
+	constructor(
+		id: string, label: string,
+		@ITerminalService private terminalService: ITerminalService
+	) {
+		super(id, label);
+	}
+
+	public run(): Promise<any> {
+		this.terminalService.findNext();
+		return Promise.resolve(void 0);
+	}
+}
+
+export class FindPrevious extends Action {
+	public static readonly ID = TERMINAL_COMMAND_ID.FIND_PREVIOUS;
+	public static readonly ID_TERMINAL_FOCUS = TERMINAL_COMMAND_ID.FIND_PREVIOUS_TERMINAL_FOCUS;
+	public static readonly LABEL = nls.localize('workbench.action.terminal.findPrevious', "Find previous");
+
+	constructor(
+		id: string, label: string,
+		@ITerminalService private terminalService: ITerminalService
+	) {
+		super(id, label);
+	}
+
+	public run(): Promise<any> {
+		this.terminalService.findPrevious();
+		return Promise.resolve(void 0);
 	}
 }

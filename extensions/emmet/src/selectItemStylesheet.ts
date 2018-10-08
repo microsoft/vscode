@@ -7,7 +7,7 @@ import * as vscode from 'vscode';
 import { getDeepestNode, findNextWord, findPrevWord, getNode } from './util';
 import { Node, CssNode, Rule, Property } from 'EmmetNode';
 
-export function nextItemStylesheet(startOffset: vscode.Position, endOffset: vscode.Position, editor: vscode.TextEditor, rootNode: Node): vscode.Selection | undefined {
+export function nextItemStylesheet(startOffset: vscode.Position, endOffset: vscode.Position, rootNode: Node): vscode.Selection | undefined {
 	let currentNode = <CssNode>getNode(rootNode, endOffset, true);
 	if (!currentNode) {
 		currentNode = <CssNode>rootNode;
@@ -17,12 +17,12 @@ export function nextItemStylesheet(startOffset: vscode.Position, endOffset: vsco
 	}
 	// Full property is selected, so select full property value next
 	if (currentNode.type === 'property' && startOffset.isEqual(currentNode.start) && endOffset.isEqual(currentNode.end)) {
-		return getSelectionFromProperty(currentNode, editor.document, startOffset, endOffset, true, 'next');
+		return getSelectionFromProperty(currentNode, startOffset, endOffset, true, 'next');
 	}
 
 	// Part or whole of propertyValue is selected, so select the next word in the propertyValue
 	if (currentNode.type === 'property' && startOffset.isAfterOrEqual((<Property>currentNode).valueToken.start) && endOffset.isBeforeOrEqual((<Property>currentNode).valueToken.end)) {
-		let singlePropertyValue = getSelectionFromProperty(currentNode, editor.document, startOffset, endOffset, false, 'next');
+		let singlePropertyValue = getSelectionFromProperty(currentNode, startOffset, endOffset, false, 'next');
 		if (singlePropertyValue) {
 			return singlePropertyValue;
 		}
@@ -31,7 +31,7 @@ export function nextItemStylesheet(startOffset: vscode.Position, endOffset: vsco
 	// Cursor is in the selector or in a property
 	if ((currentNode.type === 'rule' && endOffset.isBefore((<Rule>currentNode).selectorToken.end))
 		|| (currentNode.type === 'property' && endOffset.isBefore((<Property>currentNode).valueToken.end))) {
-		return getSelectionFromNode(currentNode, editor.document);
+		return getSelectionFromNode(currentNode);
 	}
 
 	// Get the first child of current node which is right after the cursor
@@ -46,11 +46,11 @@ export function nextItemStylesheet(startOffset: vscode.Position, endOffset: vsco
 		currentNode = currentNode.parent;
 	}
 
-	return getSelectionFromNode(nextNode, editor.document);
+	return getSelectionFromNode(nextNode);
 
 }
 
-export function prevItemStylesheet(startOffset: vscode.Position, endOffset: vscode.Position, editor: vscode.TextEditor, rootNode: CssNode): vscode.Selection | undefined {
+export function prevItemStylesheet(startOffset: vscode.Position, endOffset: vscode.Position, rootNode: CssNode): vscode.Selection | undefined {
 	let currentNode = <CssNode>getNode(rootNode, startOffset, false);
 	if (!currentNode) {
 		currentNode = rootNode;
@@ -61,19 +61,19 @@ export function prevItemStylesheet(startOffset: vscode.Position, endOffset: vsco
 
 	// Full property value is selected, so select the whole property next
 	if (currentNode.type === 'property' && startOffset.isEqual((<Property>currentNode).valueToken.start) && endOffset.isEqual((<Property>currentNode).valueToken.end)) {
-		return getSelectionFromNode(currentNode, editor.document);
+		return getSelectionFromNode(currentNode);
 	}
 
 	// Part of propertyValue is selected, so select the prev word in the propertyValue
 	if (currentNode.type === 'property' && startOffset.isAfterOrEqual((<Property>currentNode).valueToken.start) && endOffset.isBeforeOrEqual((<Property>currentNode).valueToken.end)) {
-		let singlePropertyValue = getSelectionFromProperty(currentNode, editor.document, startOffset, endOffset, false, 'prev');
+		let singlePropertyValue = getSelectionFromProperty(currentNode, startOffset, endOffset, false, 'prev');
 		if (singlePropertyValue) {
 			return singlePropertyValue;
 		}
 	}
 
 	if (currentNode.type === 'property' || !currentNode.firstChild || (currentNode.type === 'rule' && startOffset.isBeforeOrEqual(currentNode.firstChild.start))) {
-		return getSelectionFromNode(currentNode, editor.document);
+		return getSelectionFromNode(currentNode);
 	}
 
 	// Select the child that appears just before the cursor
@@ -83,12 +83,12 @@ export function prevItemStylesheet(startOffset: vscode.Position, endOffset: vsco
 	}
 	prevNode = <CssNode>getDeepestNode(prevNode);
 
-	return getSelectionFromProperty(prevNode, editor.document, startOffset, endOffset, false, 'prev');
+	return getSelectionFromProperty(prevNode, startOffset, endOffset, false, 'prev');
 
 }
 
 
-function getSelectionFromNode(node: Node, document: vscode.TextDocument): vscode.Selection | undefined {
+function getSelectionFromNode(node: Node): vscode.Selection | undefined {
 	if (!node) {
 		return;
 	}
@@ -98,7 +98,7 @@ function getSelectionFromNode(node: Node, document: vscode.TextDocument): vscode
 }
 
 
-function getSelectionFromProperty(node: Node, document: vscode.TextDocument, selectionStart: vscode.Position, selectionEnd: vscode.Position, selectFullValue: boolean, direction: string): vscode.Selection | undefined {
+function getSelectionFromProperty(node: Node, selectionStart: vscode.Position, selectionEnd: vscode.Position, selectFullValue: boolean, direction: string): vscode.Selection | undefined {
 	if (!node || node.type !== 'property') {
 		return;
 	}

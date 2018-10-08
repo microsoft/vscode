@@ -196,6 +196,12 @@ class FocusTrait<T> extends Trait<T> {
 		super.renderIndex(index, container);
 		container.setAttribute('role', 'treeitem');
 		container.setAttribute('id', this.getDomId(index));
+
+		if (this.contains(index)) {
+			container.setAttribute('aria-selected', 'true');
+		} else {
+			container.removeAttribute('aria-selected');
+		}
 	}
 }
 
@@ -352,7 +358,7 @@ class DOMFocusController<T> implements IDisposable {
 		const focusedDomElement = this.view.domElement(focus[0]);
 		const tabIndexElement = focusedDomElement.querySelector('[tabIndex]');
 
-		if (!tabIndexElement || !(tabIndexElement instanceof HTMLElement)) {
+		if (!tabIndexElement || !(tabIndexElement instanceof HTMLElement) || tabIndexElement.tabIndex === -1) {
 			return;
 		}
 
@@ -869,6 +875,7 @@ export class List<T> implements ISpliceable<T>, IDisposable {
 
 	get onMouseClick(): Event<IListMouseEvent<T>> { return this.view.onMouseClick; }
 	get onMouseDblClick(): Event<IListMouseEvent<T>> { return this.view.onMouseDblClick; }
+	get onMouseMiddleClick(): Event<IListMouseEvent<T>> { return this.view.onMouseMiddleClick; }
 	get onMouseUp(): Event<IListMouseEvent<T>> { return this.view.onMouseUp; }
 	get onMouseDown(): Event<IListMouseEvent<T>> { return this.view.onMouseDown; }
 	get onMouseOver(): Event<IListMouseEvent<T>> { return this.view.onMouseOver; }
@@ -1222,5 +1229,9 @@ export class List<T> implements ISpliceable<T>, IDisposable {
 	dispose(): void {
 		this._onDidDispose.fire();
 		this.disposables = dispose(this.disposables);
+
+		this._onOpen.dispose();
+		this._onPin.dispose();
+		this._onDidDispose.dispose();
 	}
 }

@@ -3,14 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import * as sinon from 'sinon';
 import * as assert from 'assert';
 import * as path from 'path';
 import * as fs from 'fs';
 import * as os from 'os';
-import { TPromise } from 'vs/base/common/winjs.base';
 import * as uuid from 'vs/base/common/uuid';
 import { mkdirp } from 'vs/base/node/pfs';
 import {
@@ -27,7 +24,7 @@ import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace
 import { TestTextResourceConfigurationService, TestContextService, TestLifecycleService, TestEnvironmentService, TestStorageService } from 'vs/workbench/test/workbenchTestServices';
 import { TestNotificationService } from 'vs/platform/notification/test/common/testNotificationService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import URI from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 import { testWorkspace } from 'vs/platform/workspace/test/common/testWorkspace';
 import { IFileService } from 'vs/platform/files/common/files';
 import { FileService } from 'vs/workbench/services/files/electron-browser/fileService';
@@ -261,13 +258,13 @@ suite('ExtensionsTipsService Test', () => {
 		}
 	});
 
-	function setUpFolderWorkspace(folderName: string, recommendedExtensions: string[], ignoredRecommendations: string[] = []): TPromise<void> {
+	function setUpFolderWorkspace(folderName: string, recommendedExtensions: string[], ignoredRecommendations: string[] = []): Promise<void> {
 		const id = uuid.generateUuid();
 		parentResource = path.join(os.tmpdir(), 'vsctests', id);
 		return setUpFolder(folderName, parentResource, recommendedExtensions, ignoredRecommendations);
 	}
 
-	function setUpFolder(folderName: string, parentDir: string, recommendedExtensions: string[], ignoredRecommendations: string[] = []): TPromise<void> {
+	function setUpFolder(folderName: string, parentDir: string, recommendedExtensions: string[], ignoredRecommendations: string[] = []): Promise<void> {
 		const folderDir = path.join(parentDir, folderName);
 		const workspaceSettingsDir = path.join(folderDir, '.vscode');
 		return mkdirp(workspaceSettingsDir, 493).then(() => {
@@ -316,7 +313,7 @@ suite('ExtensionsTipsService Test', () => {
 	});
 
 	test('ExtensionTipsService: No Prompt for valid workspace recommendations during extension development', () => {
-		instantiationService.stub(IEnvironmentService, { extensionDevelopmentPath: true });
+		instantiationService.stub(IEnvironmentService, { extensionDevelopmentLocationURI: true });
 		return testNoPromptOrRecommendationsForValidRecommendations(mockTestData.validRecommendedExtensions);
 	});
 

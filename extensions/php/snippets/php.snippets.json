@@ -248,5 +248,16 @@
 			"#endregion"
 		],
 		"description": "Folding Region End"
+	},
+	"Try Catch Block": {
+		"prefix": "try",
+		"body": [
+			"try {",
+			"\t${1://code...}",
+			"} catch (\\Exception \\$$e) {",
+			"\t${2://throw $$e;}",
+			"}"
+		],
+		"description": "Try catch block"
 	}
 }

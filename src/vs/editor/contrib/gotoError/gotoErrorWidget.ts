@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import 'vs/css!./gotoErrorWidget';
 import * as nls from 'vs/nls';
 import * as dom from 'vs/base/browser/dom';
@@ -182,7 +180,7 @@ export class MarkerNavigationWidget extends ZoneWidget {
 		} else if (this._severity === MarkerSeverity.Info) {
 			colorId = editorMarkerNavigationInfo;
 		}
-		let frameColor = theme.getColor(colorId);
+		const frameColor = theme.getColor(colorId);
 		this.style({
 			arrowColor: frameColor,
 			frameColor: frameColor

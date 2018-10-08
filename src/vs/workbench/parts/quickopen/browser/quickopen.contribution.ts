@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import * as env from 'vs/base/common/platform';
 import * as nls from 'vs/nls';
 import { QuickOpenHandlerDescriptor, IQuickOpenRegistry, Extensions as QuickOpenExtensions } from 'vs/workbench/browser/quickopen';
@@ -164,4 +162,24 @@ MenuRegistry.appendMenuItem(MenuId.MenubarViewMenu, {
 		title: nls.localize({ key: 'miOpenView', comment: ['&& denotes a mnemonic'] }, "&&Open View...")
 	},
 	order: 2
+});
+
+// Go to menu
+
+MenuRegistry.appendMenuItem(MenuId.MenubarGoMenu, {
+	group: 'z_go_to',
+	command: {
+		id: 'workbench.action.gotoSymbol',
+		title: nls.localize({ key: 'miGotoSymbolInFile', comment: ['&& denotes a mnemonic'] }, "Go to &&Symbol in File...")
+	},
+	order: 2
+});
+
+MenuRegistry.appendMenuItem(MenuId.MenubarGoMenu, {
+	group: 'z_go_to',
+	command: {
+		id: 'workbench.action.gotoLine',
+		title: nls.localize({ key: 'miGotoLine', comment: ['&& denotes a mnemonic'] }, "Go to &&Line...")
+	},
+	order: 7
 });

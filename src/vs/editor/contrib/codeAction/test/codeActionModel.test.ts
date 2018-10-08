@@ -5,7 +5,7 @@
 
 import * as assert from 'assert';
 import { dispose, IDisposable } from 'vs/base/common/lifecycle';
-import URI from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { Selection } from 'vs/editor/common/core/selection';
 import { TextModel } from 'vs/editor/common/model/textModel';
@@ -135,21 +135,33 @@ suite('CodeAction', () => {
 
 			editor.setSelection({ startLineNumber: 1, startColumn: 1, endLineNumber: 4, endColumn: 1 });
 		});
+	});
 
-		// // case 2 - selection over multiple lines & manual trigger -> lightbulb
-		// await new TPromise(resolve => {
+	test('Orcale -> should only auto trigger once for cursor and marker update right after each other', done => {
+		const reg = CodeActionProviderRegistry.register(languageIdentifier.language, testProvider);
+		disposables.push(reg);
 
-		// 	editor.setSelection({ startLineNumber: 1, startColumn: 1, endLineNumber: 4, endColumn: 1 });
+		let triggerCount = 0;
+		const oracle = new CodeActionOracle(editor, markerService, e => {
+			assert.equal(e.trigger.type, 'auto');
+			++triggerCount;
 
-		// 	let oracle = new QuickFixOracle(editor, markerService, e => {
-		// 		assert.equal(e.type, 'manual');
-		// 		assert.ok(e.range.equalsRange({ startLineNumber: 1, startColumn: 1, endLineNumber: 4, endColumn: 1 }));
+			// give time for second trigger before completing test
+			setTimeout(() => {
+				oracle.dispose();
+				assert.strictEqual(triggerCount, 1);
+				done();
+			}, 50);
+		}, 5 /*delay*/);
 
-		// 		oracle.dispose();
-		// 		resolve(null);
-		// 	}, 5);
+		markerService.changeOne('fake', uri, [{
+			startLineNumber: 1, startColumn: 1, endLineNumber: 1, endColumn: 6,
+			message: 'error',
+			severity: 1,
+			code: '',
+			source: ''
+		}]);
 
-		// 	oracle.trigger('manual');
-		// });
+		editor.setSelection({ startLineNumber: 1, startColumn: 1, endLineNumber: 4, endColumn: 1 });
 	});
 });

@@ -2,7 +2,6 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 
@@ -54,7 +53,7 @@ export interface IStorageService {
 	getBoolean(key: string, scope?: StorageScope, defaultValue?: boolean): boolean;
 }
 
-export enum StorageScope {
+export const enum StorageScope {
 
 	/**
 	 * The stored data will be scoped to all workspaces of this domain.

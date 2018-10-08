@@ -2,7 +2,6 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
 import { FastDomNode, createFastDomNode } from 'vs/base/browser/fastDomNode';
 import { Position } from 'vs/editor/common/core/position';
@@ -138,8 +137,13 @@ export class ViewCursor {
 			} else {
 				width = dom.computeScreenAwareSize(1);
 			}
+			let left = visibleRange.left;
+			if (width >= 2) {
+				// try to center cursor
+				left -= 1;
+			}
 			const top = ctx.getVerticalOffsetForLineNumber(this._position.lineNumber) - ctx.bigNumbersDelta;
-			return new ViewCursorRenderData(top, visibleRange.left, width, this._lineHeight, textContent, textContentClassName);
+			return new ViewCursorRenderData(top, left, width, this._lineHeight, textContent, textContentClassName);
 		}
 
 		const visibleRangeForCharacter = ctx.linesVisibleRangesForRange(new Range(this._position.lineNumber, this._position.column, this._position.lineNumber, this._position.column + 1), false);

@@ -3,15 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import * as assert from 'assert';
 import * as sinon from 'sinon';
 import * as fs from 'fs';
 import * as path from 'path';
 import * as os from 'os';
-import URI from 'vs/base/common/uri';
-import { TPromise } from 'vs/base/common/winjs.base';
+import { URI } from 'vs/base/common/uri';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { ParsedArgs, IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { EnvironmentService } from 'vs/platform/environment/node/environmentService';
@@ -45,19 +42,19 @@ class SettingsTestEnvironmentService extends EnvironmentService {
 	get appSettingsPath(): string { return this.customAppSettingsHome; }
 }
 
-function setUpFolderWorkspace(folderName: string): TPromise<{ parentDir: string, folderDir: string }> {
+function setUpFolderWorkspace(folderName: string): Promise<{ parentDir: string, folderDir: string }> {
 	const id = uuid.generateUuid();
 	const parentDir = path.join(os.tmpdir(), 'vsctests', id);
 	return setUpFolder(folderName, parentDir).then(folderDir => ({ parentDir, folderDir }));
 }
 
-function setUpFolder(folderName: string, parentDir: string): TPromise<string> {
+function setUpFolder(folderName: string, parentDir: string): Promise<string> {
 	const folderDir = path.join(parentDir, folderName);
 	const workspaceSettingsDir = path.join(folderDir, '.vscode');
 	return pfs.mkdirp(workspaceSettingsDir, 493).then(() => folderDir);
 }
 
-function setUpWorkspace(folders: string[]): TPromise<{ parentDir: string, configPath: string }> {
+function setUpWorkspace(folders: string[]): Promise<{ parentDir: string, configPath: string }> {
 
 	const id = uuid.generateUuid();
 	const parentDir = path.join(os.tmpdir(), 'vsctests', id);
@@ -68,7 +65,7 @@ function setUpWorkspace(folders: string[]): TPromise<{ parentDir: string, config
 			const workspace = { folders: folders.map(path => ({ path })) };
 			fs.writeFileSync(configPath, JSON.stringify(workspace, null, '\t'));
 
-			return TPromise.join(folders.map(folder => setUpFolder(folder, parentDir)))
+			return Promise.all(folders.map(folder => setUpFolder(folder, parentDir)))
 				.then(() => ({ parentDir, configPath }));
 		});
 
@@ -247,7 +244,7 @@ suite('WorkspaceContextService - Workspace', () => {
 		const addedFolders = [{ uri: URI.file(path.join(workspaceDir, 'd')) }, { uri: URI.file(path.join(workspaceDir, 'c')) }];
 		return testObject.addFolders(addedFolders)
 			.then(() => {
-				assert.ok(target.calledOnce);
+				assert.equal(target.callCount, 1, `Should be called only once but called ${target.callCount} times`);
 				const actual = <IWorkspaceFoldersChangeEvent>target.args[0][0];
 				assert.deepEqual(actual.added.map(r => r.uri.toString()), addedFolders.map(a => a.uri.toString()));
 				assert.deepEqual(actual.removed, []);

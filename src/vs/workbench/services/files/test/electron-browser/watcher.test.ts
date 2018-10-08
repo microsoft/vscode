@@ -3,13 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import * as assert from 'assert';
 
 import * as platform from 'vs/base/common/platform';
 import { FileChangeType, FileChangesEvent } from 'vs/platform/files/common/files';
-import uri from 'vs/base/common/uri';
+import { URI as uri } from 'vs/base/common/uri';
 import { IRawFileChange, toFileChangesEvent, normalize } from 'vs/workbench/services/files/node/watcher/common';
 import { Event, Emitter } from 'vs/base/common/event';
 

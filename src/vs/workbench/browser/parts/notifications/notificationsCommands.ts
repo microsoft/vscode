@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { RawContextKey, ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
@@ -226,7 +224,7 @@ export function registerNotificationCommands(center: INotificationsCenterControl
 
 	// Commands for Command Palette
 	const category = localize('notifications', "Notifications");
-	MenuRegistry.appendMenuItem(MenuId.CommandPalette, { command: { id: SHOW_NOTIFICATIONS_CENTER, title: localize('showNotifications', "Show Notifications"), category }, when: NotificationsCenterVisibleContext.toNegated() });
-	MenuRegistry.appendMenuItem(MenuId.CommandPalette, { command: { id: HIDE_NOTIFICATIONS_CENTER, title: localize('hideNotifications', "Hide Notifications"), category }, when: NotificationsCenterVisibleContext });
-	MenuRegistry.appendMenuItem(MenuId.CommandPalette, { command: { id: CLEAR_ALL_NOTIFICATIONS, title: localize('clearAllNotifications', "Clear All Notifications"), category } });
+	MenuRegistry.appendMenuItem(MenuId.CommandPalette, { command: { id: SHOW_NOTIFICATIONS_CENTER, title: { value: localize('showNotifications', "Show Notifications"), original: 'Notifications: Show Notifications' }, category }, when: NotificationsCenterVisibleContext.toNegated() });
+	MenuRegistry.appendMenuItem(MenuId.CommandPalette, { command: { id: HIDE_NOTIFICATIONS_CENTER, title: { value: localize('hideNotifications', "Hide Notifications"), original: 'Notifications: Hide Notifications' }, category }, when: NotificationsCenterVisibleContext });
+	MenuRegistry.appendMenuItem(MenuId.CommandPalette, { command: { id: CLEAR_ALL_NOTIFICATIONS, title: { value: localize('clearAllNotifications', "Clear All Notifications"), original: 'Notifications: Clear All Notifications' }, category } });
 }

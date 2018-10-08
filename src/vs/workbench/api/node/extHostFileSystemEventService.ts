@@ -2,13 +2,11 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
 import { flatten } from 'vs/base/common/arrays';
 import { AsyncEmitter, Emitter, Event } from 'vs/base/common/event';
 import { IRelativePattern, parse } from 'vs/base/common/glob';
-import URI, { UriComponents } from 'vs/base/common/uri';
-import { TPromise } from 'vs/base/common/winjs.base';
+import { URI, UriComponents } from 'vs/base/common/uri';
 import { ExtHostDocumentsAndEditors } from 'vs/workbench/api/node/extHostDocumentsAndEditors';
 import { IExtensionDescription } from 'vs/workbench/services/extensions/common/extensions';
 import * as vscode from 'vscode';
@@ -141,12 +139,12 @@ export class ExtHostFileSystemEventService implements ExtHostFileSystemEventServ
 		};
 	}
 
-	$onWillRename(oldUriDto: UriComponents, newUriDto: UriComponents): TPromise<any> {
+	$onWillRename(oldUriDto: UriComponents, newUriDto: UriComponents): Thenable<any> {
 		const oldUri = URI.revive(oldUriDto);
 		const newUri = URI.revive(newUriDto);
 
 		const edits: WorkspaceEdit[] = [];
-		return TPromise.wrap(this._onWillRenameFile.fireAsync((bucket, listener) => {
+		return Promise.resolve(this._onWillRenameFile.fireAsync((bucket, _listener) => {
 			return {
 				oldUri,
 				newUri,
@@ -155,7 +153,7 @@ export class ExtHostFileSystemEventService implements ExtHostFileSystemEventServ
 						throw new TypeError('waitUntil cannot be called async');
 					}
 					const index = bucket.length;
-					const wrappedThenable = TPromise.as(thenable).then(result => {
+					const wrappedThenable = Promise.resolve(thenable).then(result => {
 						// ignore all results except for WorkspaceEdits. Those
 						// are stored in a spare array
 						if (result instanceof WorkspaceEdit) {

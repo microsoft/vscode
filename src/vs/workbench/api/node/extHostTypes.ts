@@ -2,11 +2,10 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
 import * as crypto from 'crypto';
 
-import URI from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 import { illegalArgument } from 'vs/base/common/errors';
 import * as vscode from 'vscode';
 import { isMarkdownString } from 'vs/base/common/htmlContent';
@@ -14,7 +13,7 @@ import { IRelativePattern } from 'vs/base/common/glob';
 import { relative } from 'path';
 import { startsWith } from 'vs/base/common/strings';
 import { values } from 'vs/base/common/map';
-import { coalesce } from 'vs/base/common/arrays';
+import { coalesce, equals } from 'vs/base/common/arrays';
 
 export class Disposable {
 
@@ -771,6 +770,18 @@ export class DiagnosticRelatedInformation {
 		this.location = location;
 		this.message = message;
 	}
+
+	static isEqual(a: DiagnosticRelatedInformation, b: DiagnosticRelatedInformation): boolean {
+		if (a === b) {
+			return true;
+		}
+		if (!a || !b) {
+			return false;
+		}
+		return a.message === b.message
+			&& a.location.range.isEqual(b.location.range)
+			&& a.location.uri.toString() === b.location.uri.toString();
+	}
 }
 
 export class Diagnostic {
@@ -797,6 +808,23 @@ export class Diagnostic {
 			source: this.source,
 			code: this.code,
 		};
+	}
+
+	static isEqual(a: Diagnostic, b: Diagnostic): boolean {
+		if (a === b) {
+			return true;
+		}
+		if (!a || !b) {
+			return false;
+		}
+		return a.message === b.message
+			&& a.severity === b.severity
+			&& a.code === b.code
+			&& a.severity === b.severity
+			&& a.source === b.source
+			&& a.range.isEqual(b.range)
+			&& equals(a.tags, b.tags)
+			&& equals(a.relatedInformation, b.relatedInformation, DiagnosticRelatedInformation.isEqual);
 	}
 }
 
@@ -1031,10 +1059,10 @@ export class MarkdownString {
 
 export class ParameterInformation {
 
-	label: string;
+	label: string | [number, number];
 	documentation?: string | MarkdownString;
 
-	constructor(label: string, documentation?: string | MarkdownString) {
+	constructor(label: string | [number, number], documentation?: string | MarkdownString) {
 		this.label = label;
 		this.documentation = documentation;
 	}
@@ -1062,6 +1090,12 @@ export class SignatureHelp {
 	constructor() {
 		this.signatures = [];
 	}
+}
+
+export enum SignatureHelpTriggerReason {
+	Invoke = 1,
+	TriggerCharacter = 2,
+	Retrigger = 3,
 }
 
 export enum CompletionTriggerKind {
@@ -1114,6 +1148,7 @@ export class CompletionItem implements vscode.CompletionItem {
 	preselect: boolean;
 	insertText: string | SnippetString;
 	range: Range;
+	commitCharacters: string[];
 	textEdit: TextEdit;
 	additionalTextEdits: TextEdit[];
 	command: vscode.Command;
@@ -1785,6 +1820,8 @@ export enum ConfigurationTarget {
 
 export class RelativePattern implements IRelativePattern {
 	base: string;
+	baseFolder?: URI;
+
 	pattern: string;
 
 	constructor(base: vscode.WorkspaceFolder | string, pattern: string) {
@@ -1798,7 +1835,13 @@ export class RelativePattern implements IRelativePattern {
 			throw illegalArgument('pattern');
 		}
 
-		this.base = typeof base === 'string' ? base : base.uri.fsPath;
+		if (typeof base === 'string') {
+			this.base = base;
+		} else {
+			this.baseFolder = base.uri;
+			this.base = base.uri.fsPath;
+		}
+
 		this.pattern = pattern;
 	}
 
@@ -1853,12 +1896,37 @@ export class FunctionBreakpoint extends Breakpoint {
 }
 
 export class DebugAdapterExecutable implements vscode.DebugAdapterExecutable {
+	readonly type = 'executable';
 	readonly command: string;
 	readonly args: string[];
+	readonly env?: { [key: string]: string };
+	readonly cwd?: string;
 
-	constructor(command: string, args?: string[]) {
+	constructor(command: string, args?: string[], env?: { [key: string]: string }, cwd?: string) {
 		this.command = command;
 		this.args = args;
+		this.env = env;
+		this.cwd = cwd;
+	}
+}
+
+export class DebugAdapterServer implements vscode.DebugAdapterServer {
+	readonly type = 'server';
+	readonly port: number;
+	readonly host: string;
+
+	constructor(port: number, host?: string) {
+		this.port = port;
+		this.host = host;
+	}
+}
+
+export class DebugAdapterImplementation implements vscode.DebugAdapterImplementation {
+	readonly type = 'implementation';
+	readonly implementation: any;
+
+	constructor(transport: any) {
+		this.implementation = transport;
 	}
 }
 
@@ -1955,4 +2023,11 @@ export enum CommentThreadCollapsibleState {
 	 * Determines an item is expanded
 	 */
 	Expanded = 1
+}
+
+export class QuickInputButtons {
+
+	static readonly Back: vscode.QuickInputButton = { iconPath: 'back.svg' };
+
+	private constructor() { }
 }

@@ -104,7 +104,7 @@
 .monaco-workbench .notifications-list-container .notification-list-item > .notification-list-item-details-row {
 	display: none;
 	align-items: center;
-	padding: 0 5px;
+	padding-left: 5px;
 	overflow: hidden; /* details row should never overflow */
 }
 
@@ -131,7 +131,7 @@
 .monaco-workbench .notifications-list-container .notification-list-item .notification-list-item-buttons-container .monaco-button {
 	max-width: fit-content;
 	padding: 5px 10px;
-	margin-left: 10px;
+	margin: 4px 5px; /* allows button focus outline to be visible */
 	font-size: 12px;
 	overflow: hidden;
 	text-overflow: ellipsis;

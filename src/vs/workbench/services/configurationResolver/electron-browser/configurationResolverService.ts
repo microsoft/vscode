@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import uri from 'vs/base/common/uri';
+import { URI as uri } from 'vs/base/common/uri';
 import * as nls from 'vs/nls';
 import * as paths from 'vs/base/common/paths';
 import * as platform from 'vs/base/common/platform';

@@ -2,7 +2,6 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
 import { Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
@@ -42,6 +41,7 @@ export class ViewConfigurationChangedEvent {
 	public readonly readOnly: boolean;
 	public readonly accessibilitySupport: boolean;
 	public readonly emptySelectionClipboard: boolean;
+	public readonly copyWithSyntaxHighlighting: boolean;
 	public readonly layoutInfo: boolean;
 	public readonly fontInfo: boolean;
 	public readonly viewInfo: boolean;
@@ -55,6 +55,7 @@ export class ViewConfigurationChangedEvent {
 		this.readOnly = source.readOnly;
 		this.accessibilitySupport = source.accessibilitySupport;
 		this.emptySelectionClipboard = source.emptySelectionClipboard;
+		this.copyWithSyntaxHighlighting = source.copyWithSyntaxHighlighting;
 		this.layoutInfo = source.layoutInfo;
 		this.fontInfo = source.fontInfo;
 		this.viewInfo = source.viewInfo;

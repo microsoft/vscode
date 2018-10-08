@@ -2,7 +2,6 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
 import { ScopedLineTokens, ignoreBracketsInToken } from 'vs/editor/common/modes/supports';
 import { BracketsUtils, RichEditBrackets } from 'vs/editor/common/modes/supports/richEditBrackets';
@@ -121,7 +120,8 @@ export class BracketElectricCharacterSupport {
 			}
 
 			// check if the full open bracket matches
-			let actual = line.substring(line.length - pair.open.length + 1) + character;
+			let start = column - pair.open.length + 1;
+			let actual = line.substring(start - 1, column - 1) + character;
 			if (actual !== pair.open) {
 				continue;
 			}

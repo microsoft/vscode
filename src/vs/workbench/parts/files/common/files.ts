@@ -2,9 +2,8 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
-import URI from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { IWorkbenchEditorConfiguration } from 'vs/workbench/common/editor';
 import { IFilesConfiguration, FileChangeType, IFileService } from 'vs/platform/files/common/files';
@@ -13,7 +12,6 @@ import { ContextKeyExpr, RawContextKey } from 'vs/platform/contextkey/common/con
 import { ITextModelContentProvider } from 'vs/editor/common/services/resolverService';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { TPromise } from 'vs/base/common/winjs.base';
-import { onUnexpectedError } from 'vs/base/common/errors';
 import { ITextModel } from 'vs/editor/common/model';
 import { IMode } from 'vs/editor/common/modes';
 import { IModelService } from 'vs/editor/common/services/modelService';
@@ -167,7 +165,7 @@ export class FileOnDiskContentProvider implements ITextModelContentProvider {
 			if (!this.fileWatcher) {
 				this.fileWatcher = this.fileService.onFileChanges(changes => {
 					if (changes.contains(fileOnDiskResource, FileChangeType.UPDATED)) {
-						this.resolveEditorModel(resource, false /* do not create if missing */).done(null, onUnexpectedError); // update model when resource changes
+						this.resolveEditorModel(resource, false /* do not create if missing */); // update model when resource changes
 					}
 				});
 
@@ -195,7 +193,7 @@ export class FileOnDiskContentProvider implements ITextModelContentProvider {
 				if (fileOnDiskModel) {
 					mode = this.modeService.getOrCreateMode(fileOnDiskModel.getModeId());
 				} else {
-					mode = this.modeService.getOrCreateModeByFilenameOrFirstLine(fileOnDiskResource.fsPath);
+					mode = this.modeService.getOrCreateModeByFilepathOrFirstLine(fileOnDiskResource.fsPath);
 				}
 
 				codeEditorModel = this.modelService.createModel(content.value, mode, resource);

@@ -49,9 +49,10 @@ function main() {
 		nodeMain: __filename,
 		baseUrl: path.join(path.dirname(__dirname), 'src'),
 		paths: {
+			'vs/css': '../test/css.mock',
 			'vs': `../${ out }/vs`,
 			'lib': `../${ out }/lib`,
-			'bootstrap': `../${ out }/bootstrap`
+			'bootstrap-fork': `../${ out }/bootstrap-fork`
 		},
 		catchError: true
 	};

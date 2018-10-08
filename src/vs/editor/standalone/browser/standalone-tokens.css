@@ -9,17 +9,13 @@
 	font-family: -apple-system, BlinkMacSystemFont, "Segoe WPC", "Segoe UI", "HelveticaNeue-Light", "Ubuntu", "Droid Sans", sans-serif;
 }
 
-.monaco-menu .monaco-action-bar.vertical .action-item .action-label:focus {
-	color: #0059AC;
+.monaco-menu .monaco-action-bar.vertical .action-item .action-menu-item:focus .action-label {
 	stroke-width: 1.2px;
-	text-shadow: 0px 0px 0.15px #0059AC;
 }
 
-.monaco-editor.vs-dark .monaco-menu .monaco-action-bar.vertical .action-item .action-label:focus,
-.monaco-editor.hc-black .monaco-menu .monaco-action-bar.vertical .action-item .action-label:focus {
-	color: #ACDDFF;
+.monaco-editor.vs-dark .monaco-menu .monaco-action-bar.vertical .action-menu-item:focus .action-label,
+.monaco-editor.hc-black .monaco-menu .monaco-action-bar.vertical .action-menu-item:focus .action-label {
 	stroke-width: 1.2px;
-	text-shadow: 0px 0px 0.15px #ACDDFF;
 }
 
 .monaco-editor-hover p {
@@ -211,14 +207,14 @@
 	}
 
 	/* contextmenu */
-	.monaco-editor.vs .monaco-menu .monaco-action-bar.vertical .action-item .action-label:focus,
-	.monaco-editor.vs-dark .monaco-menu .monaco-action-bar.vertical .action-item .action-label:focus {
+	.monaco-editor.vs .monaco-menu .monaco-action-bar.vertical .action-menu-item:focus .action-label,
+	.monaco-editor.vs-dark .monaco-menu .monaco-action-bar.vertical .action-menu-item:focus .action-label {
 		-ms-high-contrast-adjust: none;
 		color: highlighttext !important;
 		background-color: highlight !important;
 	}
-	.monaco-editor.vs .monaco-menu .monaco-action-bar.vertical .action-item .action-label:hover,
-	.monaco-editor.vs-dark .monaco-menu .monaco-action-bar.vertical .action-item .action-label:hover {
+	.monaco-editor.vs .monaco-menu .monaco-action-bar.vertical .action-menu-item:hover .action-label,
+	.monaco-editor.vs-dark .monaco-menu .monaco-action-bar.vertical .action-menu-item:hover .action-label {
 		-ms-high-contrast-adjust: none;
 		background: transparent !important;
 		border: 1px solid highlight;

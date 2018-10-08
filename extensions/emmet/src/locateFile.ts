@@ -5,7 +5,8 @@
 
 // Based on @sergeche's work on the emmet plugin for atom
 // TODO: Move to https://github.com/emmetio/file-utils
-'use strict';
+
+
 
 import * as path from 'path';
 import * as fs from 'fs';
@@ -50,7 +51,7 @@ function resolveAbsolute(basePath: string, filePath: string): Promise<string> {
 
 		const next = (ctx: string) => {
 			tryFile(path.resolve(ctx, filePath))
-				.then(resolve, err => {
+				.then(resolve, () => {
 					const dir = path.dirname(ctx);
 					if (!dir || dir === ctx) {
 						return reject(`Unable to locate absolute file ${filePath}`);

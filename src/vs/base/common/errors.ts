@@ -2,7 +2,6 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
 import { IAction } from 'vs/base/common/actions';
 import { TPromise, IPromiseError, IPromiseErrorDetail } from 'vs/base/common/winjs.base';

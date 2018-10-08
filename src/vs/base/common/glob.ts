@@ -2,7 +2,6 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
 import * as arrays from 'vs/base/common/arrays';
 import * as strings from 'vs/base/common/strings';
@@ -10,6 +9,7 @@ import * as paths from 'vs/base/common/paths';
 import { LRUCache } from 'vs/base/common/map';
 import { CharCode } from 'vs/base/common/charCode';
 import { TPromise } from 'vs/base/common/winjs.base';
+import { isThenable } from 'vs/base/common/async';
 
 export interface IExpression {
 	[pattern: string]: boolean | SiblingClause | any;
@@ -342,7 +342,7 @@ function wrapRelativePattern(parsedPattern: ParsedStringPattern, arg2: string | 
 			return null;
 		}
 
-		return parsedPattern(paths.normalize(arg2.pathToRelative(arg2.base, path)), basename);
+		return parsedPattern(arg2.pathToRelative(arg2.base, path), basename);
 	};
 }
 
@@ -646,7 +646,7 @@ function parseExpressionPattern(pattern: string, value: any, options: IGlobOptio
 
 				const clausePattern = when.replace('$(basename)', name);
 				const matched = hasSibling(clausePattern);
-				return TPromise.is(matched) ?
+				return isThenable(matched) ?
 					matched.then(m => m ? pattern : null) :
 					matched ? pattern : null;
 			};

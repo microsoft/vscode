@@ -2,7 +2,6 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
 import { getLanguageService as getHTMLLanguageService, DocumentContext } from 'vscode-html-languageservice';
 import {
@@ -46,7 +45,7 @@ export interface LanguageMode {
 	findDocumentColors?: (document: TextDocument) => ColorInformation[];
 	getColorPresentations?: (document: TextDocument, color: Color, range: Range) => ColorPresentation[];
 	doAutoClose?: (document: TextDocument, position: Position) => string | null;
-	getFoldingRanges?: (document: TextDocument, range: Range) => FoldingRange[];
+	getFoldingRanges?: (document: TextDocument) => FoldingRange[];
 	onDocumentRemoved(document: TextDocument): void;
 	dispose(): void;
 }
@@ -80,7 +79,7 @@ export function getLanguageModes(supportedLanguages: { [languageId: string]: boo
 		modes['css'] = getCSSMode(documentRegions, workspace);
 	}
 	if (supportedLanguages['javascript']) {
-		modes['javascript'] = getJavaScriptMode(documentRegions, workspace);
+		modes['javascript'] = getJavaScriptMode(documentRegions);
 	}
 	return {
 		getModeAtPosition(document: TextDocument, position: Position): LanguageMode | undefined {

@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import * as assert from 'assert';
 import * as labels from 'vs/base/common/labels';
 import * as platform from 'vs/base/common/platform';
@@ -112,7 +110,7 @@ suite('Labels', () => {
 		assert.deepEqual(labels.shorten(['', 'a', 'b', 'b/c', 'a/c']), ['./', 'a', 'b', 'b/c', 'a/c']);
 	});
 
-	test('template', function () {
+	test('template', () => {
 
 		// simple
 		assert.strictEqual(labels.template('Foo Bar'), 'Foo Bar');

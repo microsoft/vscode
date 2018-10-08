@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import 'vs/css!./lineNumbers';
 import { editorLineNumbers, editorActiveLineNumber } from 'vs/editor/common/view/editorColorRegistry';
 import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
@@ -171,7 +169,7 @@ export class LineNumbersOverlay extends DynamicViewOverlay {
 // theming
 
 registerThemingParticipant((theme, collector) => {
-	let lineNumbers = theme.getColor(editorLineNumbers);
+	const lineNumbers = theme.getColor(editorLineNumbers);
 	if (lineNumbers) {
 		collector.addRule(`.monaco-editor .line-numbers { color: ${lineNumbers}; }`);
 	}

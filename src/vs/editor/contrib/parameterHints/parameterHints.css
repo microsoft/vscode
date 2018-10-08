@@ -107,10 +107,6 @@
 	display: block;
 }
 
-.monaco-editor .parameter-hints-widget .signature .parameter {
-	display: inline-block;
-}
-
 .monaco-editor .parameter-hints-widget .signature .parameter.active {
 	font-weight: bold;
 	text-decoration: underline;

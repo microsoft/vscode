@@ -2,14 +2,12 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
 import * as nls from 'vs/nls';
 import { IConfigurationService, ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IWorkbenchActionRegistry, Extensions as ActionExtensions } from 'vs/workbench/common/actions';
 import { Action } from 'vs/base/common/actions';
-import { TPromise } from 'vs/base/common/winjs.base';
 import { SyncActionDescriptor, MenuRegistry, MenuId } from 'vs/platform/actions/common/actions';
 
 export class ToggleRenderWhitespaceAction extends Action {
@@ -25,7 +23,7 @@ export class ToggleRenderWhitespaceAction extends Action {
 		super(id, label);
 	}
 
-	public run(): TPromise<any> {
+	public run(): Promise<any> {
 		const renderWhitespace = this._configurationService.getValue<string>('editor.renderWhitespace');
 
 		let newRenderWhitespace: string;

@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import 'vs/workbench/parts/search/electron-browser/search.contribution'; // load contributions
 import * as assert from 'assert';
 import * as fs from 'fs';
@@ -22,7 +20,7 @@ import { ServiceCollection } from 'vs/platform/instantiation/common/serviceColle
 import { TestEnvironmentService, TestContextService, TestEditorService, TestEditorGroupsService } from 'vs/workbench/test/workbenchTestServices';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { TPromise } from 'vs/base/common/winjs.base';
-import URI from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 import { InstantiationService } from 'vs/platform/instantiation/common/instantiationService';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';

@@ -2,16 +2,15 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
 import * as strings from 'vs/base/common/strings';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { EditorInput, EditorModel, ITextEditorModel } from 'vs/workbench/common/editor';
-import URI from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 import { IReference, IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { telemetryURIDescriptor } from 'vs/platform/telemetry/common/telemetryUtils';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
-import { marked } from 'vs/base/common/marked/marked';
+import * as marked from 'vs/base/common/marked/marked';
 import { Schemas } from 'vs/base/common/network';
 import { IHashService } from 'vs/workbench/services/hash/common/hashService';
 

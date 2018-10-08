@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import * as assert from 'assert';
 import * as fs from 'fs';
 import * as os from 'os';
@@ -14,13 +12,13 @@ import { canNormalize } from 'vs/base/common/normalization';
 import { isLinux, isWindows } from 'vs/base/common/platform';
 import * as uuid from 'vs/base/common/uuid';
 import * as extfs from 'vs/base/node/extfs';
-
-
+import { getPathFromAmdModule } from 'vs/base/common/amd';
+import { CancellationTokenSource } from 'vs/base/common/cancellation';
 
 const ignore = () => { };
 
 const mkdirp = (path: string, mode: number, callback: (error) => void) => {
-	extfs.mkdirp(path, mode).done(() => callback(null), error => callback(error));
+	extfs.mkdirp(path, mode).then(() => callback(null), error => callback(error));
 };
 
 const chunkSize = 64 * 1024;
@@ -169,7 +167,7 @@ suite('Extfs', () => {
 	test('copy, move and delete', function (done) {
 		const id = uuid.generateUuid();
 		const id2 = uuid.generateUuid();
-		const sourceDir = require.toUrl('./fixtures');
+		const sourceDir = getPathFromAmdModule(require, './fixtures');
 		const parentDir = path.join(os.tmpdir(), 'vsctests', 'extfs');
 		const targetDir = path.join(parentDir, id);
 		const targetDir2 = path.join(parentDir, id2);
@@ -320,7 +318,7 @@ suite('Extfs', () => {
 	test('writeFileAndFlush (file stream)', function (done) {
 		const id = uuid.generateUuid();
 		const parentDir = path.join(os.tmpdir(), 'vsctests', id);
-		const sourceFile = require.toUrl('./fixtures/index.html');
+		const sourceFile = getPathFromAmdModule(require, './fixtures/index.html');
 		const newDir = path.join(parentDir, 'extfs', id);
 		const testFile = path.join(newDir, 'flushed.txt');
 
@@ -453,7 +451,7 @@ suite('Extfs', () => {
 	test('writeFileAndFlush (file stream, error handling)', function (done) {
 		const id = uuid.generateUuid();
 		const parentDir = path.join(os.tmpdir(), 'vsctests', id);
-		const sourceFile = require.toUrl('./fixtures/index.html');
+		const sourceFile = getPathFromAmdModule(require, './fixtures/index.html');
 		const newDir = path.join(parentDir, 'extfs', id);
 		const testFile = path.join(newDir, 'flushed.txt');
 
@@ -562,5 +560,58 @@ suite('Extfs', () => {
 
 			extfs.del(parentDir, os.tmpdir(), done, ignore);
 		});
+	});
+
+	test('mkdirp cancellation', (done) => {
+		const id = uuid.generateUuid();
+		const parentDir = path.join(os.tmpdir(), 'vsctests', id);
+		const newDir = path.join(parentDir, 'extfs', id);
+
+		const source = new CancellationTokenSource();
+
+		const mkdirpPromise = extfs.mkdirp(newDir, 493, source.token);
+		source.cancel();
+
+		return mkdirpPromise.then(res => {
+			assert.equal(res, false);
+
+			extfs.del(parentDir, os.tmpdir(), done, ignore);
+		});
+	});
+
+	test('sanitizeFilePath', () => {
+		if (isWindows) {
+			assert.equal(extfs.sanitizeFilePath('.', 'C:\\the\\cwd'), 'C:\\the\\cwd');
+			assert.equal(extfs.sanitizeFilePath('', 'C:\\the\\cwd'), 'C:\\the\\cwd');
+
+			assert.equal(extfs.sanitizeFilePath('C:', 'C:\\the\\cwd'), 'C:\\');
+			assert.equal(extfs.sanitizeFilePath('C:\\', 'C:\\the\\cwd'), 'C:\\');
+			assert.equal(extfs.sanitizeFilePath('C:\\\\', 'C:\\the\\cwd'), 'C:\\');
+
+			assert.equal(extfs.sanitizeFilePath('C:\\folder\\my.txt', 'C:\\the\\cwd'), 'C:\\folder\\my.txt');
+			assert.equal(extfs.sanitizeFilePath('C:\\folder\\my', 'C:\\the\\cwd'), 'C:\\folder\\my');
+			assert.equal(extfs.sanitizeFilePath('C:\\folder\\..\\my', 'C:\\the\\cwd'), 'C:\\my');
+			assert.equal(extfs.sanitizeFilePath('C:\\folder\\my\\', 'C:\\the\\cwd'), 'C:\\folder\\my');
+			assert.equal(extfs.sanitizeFilePath('C:\\folder\\my\\\\\\', 'C:\\the\\cwd'), 'C:\\folder\\my');
+
+			assert.equal(extfs.sanitizeFilePath('my.txt', 'C:\\the\\cwd'), 'C:\\the\\cwd\\my.txt');
+			assert.equal(extfs.sanitizeFilePath('my.txt\\', 'C:\\the\\cwd'), 'C:\\the\\cwd\\my.txt');
+
+			assert.equal(extfs.sanitizeFilePath('\\\\localhost\\folder\\my', 'C:\\the\\cwd'), '\\\\localhost\\folder\\my');
+			assert.equal(extfs.sanitizeFilePath('\\\\localhost\\folder\\my\\', 'C:\\the\\cwd'), '\\\\localhost\\folder\\my');
+		} else {
+			assert.equal(extfs.sanitizeFilePath('.', '/the/cwd'), '/the/cwd');
+			assert.equal(extfs.sanitizeFilePath('', '/the/cwd'), '/the/cwd');
+			assert.equal(extfs.sanitizeFilePath('/', '/the/cwd'), '/');
+
+			assert.equal(extfs.sanitizeFilePath('/folder/my.txt', '/the/cwd'), '/folder/my.txt');
+			assert.equal(extfs.sanitizeFilePath('/folder/my', '/the/cwd'), '/folder/my');
+			assert.equal(extfs.sanitizeFilePath('/folder/../my', '/the/cwd'), '/my');
+			assert.equal(extfs.sanitizeFilePath('/folder/my/', '/the/cwd'), '/folder/my');
+			assert.equal(extfs.sanitizeFilePath('/folder/my///', '/the/cwd'), '/folder/my');
+
+			assert.equal(extfs.sanitizeFilePath('my.txt', '/the/cwd'), '/the/cwd/my.txt');
+			assert.equal(extfs.sanitizeFilePath('my.txt/', '/the/cwd'), '/the/cwd/my.txt');
+		}
 	});
 });

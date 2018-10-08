@@ -10,20 +10,18 @@ import { IStorageService, StorageScope } from 'vs/platform/storage/common/storag
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { ILifecycleService, LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
-
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IExtensionManagementService, LocalExtensionType } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { IRequestService } from 'vs/platform/request/node/request';
-
 import { TPromise } from 'vs/base/common/winjs.base';
 import { language } from 'vs/base/common/platform';
 import { Disposable, IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { match } from 'vs/base/common/glob';
 import { asJson } from 'vs/base/node/request';
-
+import { Emitter, Event } from 'vs/base/common/event';
 import { ITextFileService, StateChange } from 'vs/workbench/services/textfile/common/textfiles';
 import { WorkspaceStats } from 'vs/workbench/parts/stats/node/workspaceStats';
-import { Emitter, Event } from 'vs/base/common/event';
-
+import { CancellationToken } from 'vs/base/common/cancellation';
 
 interface IExperimentStorageState {
 	enabled: boolean;
@@ -32,7 +30,7 @@ interface IExperimentStorageState {
 	lastEditedDate?: string;
 }
 
-export enum ExperimentState {
+export const enum ExperimentState {
 	Evaluating,
 	NoRun,
 	Run,
@@ -72,7 +70,8 @@ interface IExperimentAction {
 export enum ExperimentActionType {
 	Custom = 'Custom',
 	Prompt = 'Prompt',
-	AddToRecommendations = 'AddToRecommendations'
+	AddToRecommendations = 'AddToRecommendations',
+	ExtensionSearchResults = 'ExtensionSearchResults'
 }
 
 export interface IExperimentActionPromptProperties {
@@ -123,7 +122,8 @@ export class ExperimentService extends Disposable implements IExperimentService 
 		@IEnvironmentService private environmentService: IEnvironmentService,
 		@ITelemetryService private telemetryService: ITelemetryService,
 		@ILifecycleService private lifecycleService: ILifecycleService,
-		@IRequestService private requestService: IRequestService
+		@IRequestService private requestService: IRequestService,
+		@IConfigurationService private configurationService: IConfigurationService
 	) {
 		super();
 
@@ -167,10 +167,10 @@ export class ExperimentService extends Disposable implements IExperimentService 
 	}
 
 	protected getExperiments(): TPromise<IRawExperiment[]> {
-		if (!product.experimentsUrl) {
+		if (!product.experimentsUrl || this.configurationService.getValue('workbench.enableExperiments') === false) {
 			return TPromise.as([]);
 		}
-		return this.requestService.request({ type: 'GET', url: product.experimentsUrl }).then(context => {
+		return this.requestService.request({ type: 'GET', url: product.experimentsUrl }, CancellationToken.None).then(context => {
 			if (context.res.statusCode !== 200) {
 				return TPromise.as(null);
 			}
@@ -232,6 +232,9 @@ export class ExperimentService extends Disposable implements IExperimentService 
 							}
 						});
 					}
+					if (!processedExperiment.action.properties) {
+						processedExperiment.action.properties = {};
+					}
 				}
 				this._experiments.push(processedExperiment);
 
@@ -281,6 +284,24 @@ export class ExperimentService extends Disposable implements IExperimentService 
 		}
 	}
 
+	private checkExperimentDependencies(experiment: IRawExperiment): boolean {
+		if (experiment.condition.experimentsPreviouslyRun) {
+			const runExperimentIdsFromStorage: string[] = safeParse(this.storageService.get('currentOrPreviouslyRunExperiments', StorageScope.GLOBAL), []);
+			let includeCheck = true;
+			let excludeCheck = true;
+			if (Array.isArray(experiment.condition.experimentsPreviouslyRun.includes)) {
+				includeCheck = runExperimentIdsFromStorage.some(x => experiment.condition.experimentsPreviouslyRun.includes.indexOf(x) > -1);
+			}
+			if (includeCheck && Array.isArray(experiment.condition.experimentsPreviouslyRun.excludes)) {
+				excludeCheck = !runExperimentIdsFromStorage.some(x => experiment.condition.experimentsPreviouslyRun.excludes.indexOf(x) > -1);
+			}
+			if (!includeCheck || !excludeCheck) {
+				return false;
+			}
+		}
+		return true;
+	}
+
 	private shouldRunExperiment(experiment: IRawExperiment, processedExperiment: IExperiment): TPromise<ExperimentState> {
 		if (processedExperiment.state !== ExperimentState.Evaluating) {
 			return TPromise.wrap(processedExperiment.state);
@@ -294,19 +315,8 @@ export class ExperimentService extends Disposable implements IExperimentService 
 			return TPromise.wrap(ExperimentState.Run);
 		}
 
-		if (experiment.condition.experimentsPreviouslyRun) {
-			const runExperimentIdsFromStorage: string[] = safeParse(this.storageService.get('currentOrPreviouslyRunExperiments', StorageScope.GLOBAL), []);
-			let includeCheck = true;
-			let excludeCheck = true;
-			if (Array.isArray(experiment.condition.experimentsPreviouslyRun.includes)) {
-				includeCheck = runExperimentIdsFromStorage.some(x => experiment.condition.experimentsPreviouslyRun.includes.indexOf(x) > -1);
-			}
-			if (includeCheck && Array.isArray(experiment.condition.experimentsPreviouslyRun.excludes)) {
-				excludeCheck = !runExperimentIdsFromStorage.some(x => experiment.condition.experimentsPreviouslyRun.excludes.indexOf(x) > -1);
-			}
-			if (!includeCheck || !excludeCheck) {
-				return TPromise.wrap(ExperimentState.NoRun);
-			}
+		if (!this.checkExperimentDependencies(experiment)) {
+			return TPromise.wrap(ExperimentState.NoRun);
 		}
 
 		if (this.environmentService.appQuality === 'stable' && experiment.condition.insidersOnly === true) {
@@ -389,10 +399,10 @@ export class ExperimentService extends Disposable implements IExperimentService 
 						filePathCheck = match(experiment.condition.fileEdits.filePathPattern, event.resource.fsPath);
 					}
 					if (Array.isArray(experiment.condition.fileEdits.workspaceIncludes) && experiment.condition.fileEdits.workspaceIncludes.length) {
-						workspaceCheck = experiment.condition.fileEdits.workspaceIncludes.some(x => !!WorkspaceStats.tags[x]);
+						workspaceCheck = !!WorkspaceStats.TAGS && experiment.condition.fileEdits.workspaceIncludes.some(x => !!WorkspaceStats.TAGS[x]);
 					}
 					if (workspaceCheck && Array.isArray(experiment.condition.fileEdits.workspaceExcludes) && experiment.condition.fileEdits.workspaceExcludes.length) {
-						workspaceCheck = !experiment.condition.fileEdits.workspaceExcludes.some(x => !!WorkspaceStats.tags[x]);
+						workspaceCheck = !!WorkspaceStats.TAGS && !experiment.condition.fileEdits.workspaceExcludes.some(x => !!WorkspaceStats.TAGS[x]);
 					}
 					if (filePathCheck && workspaceCheck) {
 						latestExperimentState.editCount = (latestExperimentState.editCount || 0) + 1;
@@ -401,7 +411,7 @@ export class ExperimentService extends Disposable implements IExperimentService 
 					}
 				});
 				if (latestExperimentState.editCount >= experiment.condition.fileEdits.minEditCount) {
-					processedExperiment.state = latestExperimentState.state = Math.random() < experiment.condition.userProbability ? ExperimentState.Run : ExperimentState.NoRun;
+					processedExperiment.state = latestExperimentState.state = (Math.random() < experiment.condition.userProbability && this.checkExperimentDependencies(experiment)) ? ExperimentState.Run : ExperimentState.NoRun;
 					this.storageService.store(storageKey, JSON.stringify(latestExperimentState), StorageScope.GLOBAL);
 					if (latestExperimentState.state === ExperimentState.Run && ExperimentActionType[experiment.action.type] === ExperimentActionType.Prompt) {
 						this.fireRunExperiment(processedExperiment);

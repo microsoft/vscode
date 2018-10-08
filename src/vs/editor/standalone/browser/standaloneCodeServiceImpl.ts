@@ -2,7 +2,6 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
 import { IResourceInput } from 'vs/platform/editor/common/editor';
 import { TPromise } from 'vs/base/common/winjs.base';
@@ -13,7 +12,7 @@ import { windowOpenNoOpener } from 'vs/base/browser/dom';
 import { Schemas } from 'vs/base/common/network';
 import { IRange } from 'vs/editor/common/core/range';
 import { ITextModel } from 'vs/editor/common/model';
-import URI from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 
 export class StandaloneCodeEditorServiceImpl extends CodeEditorServiceImpl {
 

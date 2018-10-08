@@ -2,7 +2,6 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
 import * as nls from 'vs/nls';
 import { IDisposable } from 'vs/base/common/lifecycle';
@@ -10,7 +9,6 @@ import Severity from 'vs/base/common/severity';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { ExtensionDescriptionRegistry } from 'vs/workbench/services/extensions/node/extensionDescriptionRegistry';
 import { IExtensionDescription } from 'vs/workbench/services/extensions/common/extensions';
-import { ExtHostLogger } from 'vs/workbench/api/node/extHostLogService';
 
 const hasOwnProperty = Object.hasOwnProperty;
 const NO_OP_VOID_PROMISE = TPromise.wrap<void>(void 0);
@@ -27,8 +25,7 @@ export interface IExtensionContext {
 	extensionPath: string;
 	storagePath: string;
 	asAbsolutePath(relativePath: string): string;
-	logger: ExtHostLogger;
-	readonly logDirectory: string;
+	readonly logPath: string;
 }
 
 /**
@@ -246,7 +243,7 @@ export class ExtensionsActivator {
 
 			if (!depDesc) {
 				// Error condition 1: unknown dependency
-				this._host.showMessage(Severity.Error, nls.localize('unknownDep', "Extension '{1}' failed to activate. Reason: unknown dependency '{0}'.", depId, currentExtension.id));
+				this._host.showMessage(Severity.Error, nls.localize('unknownDep', "Cannot activate extension '{0}' as the depending extension '{1}' is not found. Please install or enable the depending extension and reload the window.", currentExtension.displayName || currentExtension.id, depId));
 				const error = new Error(`Unknown dependency '${depId}'`);
 				this._activatedExtensions[currentExtension.id] = new FailedExtension(error);
 				return;
@@ -256,7 +253,7 @@ export class ExtensionsActivator {
 				let dep = this._activatedExtensions[depId];
 				if (dep.activationFailed) {
 					// Error condition 2: a dependency has already failed activation
-					this._host.showMessage(Severity.Error, nls.localize('failedDep1', "Extension '{1}' failed to activate. Reason: dependency '{0}' failed to activate.", depId, currentExtension.id));
+					this._host.showMessage(Severity.Error, nls.localize('failedDep1', "Cannot activate extension '{0}' as the depending extension '{1}' is failed to activate.", currentExtension.displayName || currentExtension.id, depId));
 					const error = new Error(`Dependency ${depId} failed to activate`);
 					(<any>error).detail = dep.activationFailedError;
 					this._activatedExtensions[currentExtension.id] = new FailedExtension(error);

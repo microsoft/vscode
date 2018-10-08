@@ -2,11 +2,10 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
-import { IntervalTimer, ShallowCancelThenPromise, wireCancellationToken } from 'vs/base/common/async';
+import { IntervalTimer } from 'vs/base/common/async';
 import { Disposable, IDisposable, dispose, toDisposable } from 'vs/base/common/lifecycle';
-import URI from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { SimpleWorkerClient, logOnceWebWorkerWarning } from 'vs/base/common/worker/simpleWorker';
 import { DefaultWorkerFactory } from 'vs/base/worker/defaultWorkerFactory';
@@ -63,10 +62,10 @@ export class EditorWorkerServiceImpl extends Disposable implements IEditorWorker
 				if (!canSyncModel(this._modelService, model.uri)) {
 					return TPromise.as([]); // File too large
 				}
-				return wireCancellationToken(token, this._workerManager.withWorker().then(client => client.computeLinks(model.uri)));
+				return this._workerManager.withWorker().then(client => client.computeLinks(model.uri));
 			}
 		}));
-		this._register(modes.SuggestRegistry.register('*', new WordBasedCompletionItemProvider(this._workerManager, configurationService, this._modelService)));
+		this._register(modes.CompletionProviderRegistry.register('*', new WordBasedCompletionItemProvider(this._workerManager, configurationService, this._modelService)));
 	}
 
 	public dispose(): void {
@@ -107,9 +106,17 @@ export class EditorWorkerServiceImpl extends Disposable implements IEditorWorker
 	public navigateValueSet(resource: URI, range: IRange, up: boolean): TPromise<modes.IInplaceReplaceSupportResult> {
 		return this._workerManager.withWorker().then(client => client.navigateValueSet(resource, range, up));
 	}
+
+	canComputeWordRanges(resource: URI): boolean {
+		return canSyncModel(this._modelService, resource);
+	}
+
+	computeWordRanges(resource: URI, range: IRange): TPromise<{ [word: string]: IRange[] }> {
+		return this._workerManager.withWorker().then(client => client.computeWordRanges(resource, range));
+	}
 }
 
-class WordBasedCompletionItemProvider implements modes.ISuggestSupport {
+class WordBasedCompletionItemProvider implements modes.CompletionItemProvider {
 
 	private readonly _workerManager: WorkerManager;
 	private readonly _configurationService: ITextResourceConfigurationService;
@@ -125,7 +132,7 @@ class WordBasedCompletionItemProvider implements modes.ISuggestSupport {
 		this._modelService = modelService;
 	}
 
-	provideCompletionItems(model: ITextModel, position: Position): TPromise<modes.ISuggestResult> {
+	provideCompletionItems(model: ITextModel, position: Position): TPromise<modes.CompletionList> {
 		const { wordBasedSuggestions } = this._configurationService.getValue<IEditorOptions>(model.uri, position, 'editor');
 		if (!wordBasedSuggestions) {
 			return undefined;
@@ -321,7 +328,7 @@ class SynchronousWorkerClient<T extends IDisposable> implements IWorkerClient<T>
 	}
 
 	public getProxyObject(): TPromise<T> {
-		return new ShallowCancelThenPromise(this._proxyObj);
+		return this._proxyObj;
 	}
 }
 
@@ -356,11 +363,11 @@ export class EditorWorkerClient extends Disposable {
 	}
 
 	protected _getProxy(): TPromise<EditorSimpleWorkerImpl> {
-		return new ShallowCancelThenPromise(this._getOrCreateWorker().getProxyObject().then(null, (err) => {
+		return this._getOrCreateWorker().getProxyObject().then(null, (err) => {
 			logOnceWebWorkerWarning(err);
 			this._worker = new SynchronousWorkerClient(new EditorSimpleWorkerImpl(null));
 			return this._getOrCreateWorker().getProxyObject();
-		}));
+		});
 	}
 
 	private _getOrCreateModelManager(proxy: EditorSimpleWorkerImpl): EditorModelManager {
@@ -401,7 +408,7 @@ export class EditorWorkerClient extends Disposable {
 		});
 	}
 
-	public textualSuggest(resource: URI, position: IPosition): TPromise<modes.ISuggestResult> {
+	public textualSuggest(resource: URI, position: IPosition): TPromise<modes.CompletionList> {
 		return this._withSyncedResources([resource]).then(proxy => {
 			let model = this._modelService.getModel(resource);
 			if (!model) {
@@ -411,6 +418,19 @@ export class EditorWorkerClient extends Disposable {
 			let wordDef = wordDefRegExp.source;
 			let wordDefFlags = (wordDefRegExp.global ? 'g' : '') + (wordDefRegExp.ignoreCase ? 'i' : '') + (wordDefRegExp.multiline ? 'm' : '');
 			return proxy.textualSuggest(resource.toString(), position, wordDef, wordDefFlags);
+		});
+	}
+
+	computeWordRanges(resource: URI, range: IRange): TPromise<{ [word: string]: IRange[] }> {
+		return this._withSyncedResources([resource]).then(proxy => {
+			let model = this._modelService.getModel(resource);
+			if (!model) {
+				return null;
+			}
+			let wordDefRegExp = LanguageConfigurationRegistry.getWordDefinition(model.getLanguageIdentifier().id);
+			let wordDef = wordDefRegExp.source;
+			let wordDefFlags = (wordDefRegExp.global ? 'g' : '') + (wordDefRegExp.ignoreCase ? 'i' : '') + (wordDefRegExp.multiline ? 'm' : '');
+			return proxy.computeWordRanges(resource.toString(), range, wordDef, wordDefFlags);
 		});
 	}
 

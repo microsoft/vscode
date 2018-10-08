@@ -2,17 +2,16 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
 import {
 	TaskDefinition, Task, TaskGroup, WorkspaceFolder, RelativePattern, ShellExecution, Uri, workspace,
-	DebugConfiguration, debug, TaskProvider, ExtensionContext
+	DebugConfiguration, debug, TaskProvider, TextDocument, tasks
 } from 'vscode';
 import * as path from 'path';
 import * as fs from 'fs';
 import * as minimatch from 'minimatch';
 import * as nls from 'vscode-nls';
-import { JSONVisitor, visit, ParseErrorCode } from 'jsonc-parser/lib/main';
+import { JSONVisitor, visit, ParseErrorCode } from 'jsonc-parser';
 
 const localize = nls.loadMessageBundle();
 
@@ -26,10 +25,8 @@ type AutoDetect = 'on' | 'off';
 let cachedTasks: Task[] | undefined = undefined;
 
 export class NpmTaskProvider implements TaskProvider {
-	private extensionContext: ExtensionContext;
 
-	constructor(context: ExtensionContext) {
-		this.extensionContext = context;
+	constructor() {
 	}
 
 	public provideTasks() {
@@ -288,9 +285,18 @@ async function readFile(file: string): Promise<string> {
 	});
 }
 
+export function runScript(script: string, document: TextDocument) {
+	let uri = document.uri;
+	let folder = workspace.getWorkspaceFolder(uri);
+	if (folder) {
+		let task = createTask(script, `run ${script}`, folder, uri);
+		tasks.executeTask(task);
+	}
+}
+
 export function extractDebugArgFromScript(scriptValue: string): [string, number] | undefined {
-	// matches --debug, --debug=1234, --debug-brk, debug-brk=1234, --inspect, 
-	// --inspect=1234, --inspect-brk, --inspect-brk=1234, 
+	// matches --debug, --debug=1234, --debug-brk, debug-brk=1234, --inspect,
+	// --inspect=1234, --inspect-brk, --inspect-brk=1234,
 	// --inspect=localhost:1245, --inspect=127.0.0.1:1234, --inspect=[aa:1:0:0:0]:1234, --inspect=:1234
 	let match = scriptValue.match(/--(inspect|debug)(-brk)?(=((\[[0-9a-fA-F:]*\]|[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+|[a-zA-Z0-9\.]*):)?(\d+))?/);
 
@@ -321,7 +327,7 @@ export function startDebugging(scriptName: string, protocol: string, port: numbe
 		name: `Debug ${scriptName}`,
 		runtimeExecutable: packageManager,
 		runtimeArgs: [
-			'run-script',
+			'run',
 			scriptName,
 		],
 		port: port,
@@ -343,6 +349,7 @@ async function findAllScripts(buffer: string): Promise<StringMap> {
 
 	let visitor: JSONVisitor = {
 		onError(_error: ParseErrorCode, _offset: number, _length: number) {
+			console.log(_error);
 		},
 		onObjectEnd() {
 			if (inScripts) {
@@ -351,7 +358,9 @@ async function findAllScripts(buffer: string): Promise<StringMap> {
 		},
 		onLiteralValue(value: any, _offset: number, _length: number) {
 			if (script) {
-				scripts[script] = value;
+				if (typeof value === 'string') {
+					scripts[script] = value;
+				}
 				script = undefined;
 			}
 		},
@@ -359,8 +368,10 @@ async function findAllScripts(buffer: string): Promise<StringMap> {
 			if (property === 'scripts') {
 				inScripts = true;
 			}
-			else if (inScripts) {
+			else if (inScripts && !script) {
 				script = property;
+			} else { // nested object which is invalid, ignore the script
+				script = undefined;
 			}
 		}
 	};
@@ -405,6 +416,46 @@ export function findAllScriptRanges(buffer: string): Map<string, [number, number
 	return scripts;
 }
 
+export function findScriptAtPosition(buffer: string, offset: number): string | undefined {
+	let script: string | undefined = undefined;
+	let foundScript: string | undefined = undefined;
+	let inScripts = false;
+	let scriptStart: number | undefined;
+	let visitor: JSONVisitor = {
+		onError(_error: ParseErrorCode, _offset: number, _length: number) {
+		},
+		onObjectEnd() {
+			if (inScripts) {
+				inScripts = false;
+				scriptStart = undefined;
+			}
+		},
+		onLiteralValue(value: any, nodeOffset: number, nodeLength: number) {
+			if (inScripts && scriptStart) {
+				if (typeof value === 'string' && offset >= scriptStart && offset < nodeOffset + nodeLength) {
+					// found the script
+					inScripts = false;
+					foundScript = script;
+				} else {
+					script = undefined;
+				}
+			}
+		},
+		onObjectProperty(property: string, nodeOffset: number) {
+			if (property === 'scripts') {
+				inScripts = true;
+			}
+			else if (inScripts) {
+				scriptStart = nodeOffset;
+				script = property;
+			} else { // nested object which is invalid, ignore the script
+				script = undefined;
+			}
+		}
+	};
+	visit(buffer, visitor);
+	return foundScript;
+}
 
 export async function getScripts(packageJsonUri: Uri): Promise<StringMap | undefined> {
 

@@ -3,14 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import { alert } from 'vs/base/browser/ui/aria/aria';
 import { localize } from 'vs/nls';
-import { INotificationViewItem, INotificationsModel, NotificationChangeType, INotificationChangeEvent } from 'vs/workbench/common/notifications';
+import { INotificationViewItem, INotificationsModel, NotificationChangeType, INotificationChangeEvent, NotificationViewItemLabelKind } from 'vs/workbench/common/notifications';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
 import { Severity } from 'vs/platform/notification/common/notification';
+import { once } from 'vs/base/common/event';
 
 export class NotificationsAlerts extends Disposable {
 
@@ -18,7 +17,7 @@ export class NotificationsAlerts extends Disposable {
 		super();
 
 		// Alert initial notifications if any
-		model.notifications.forEach(n => this.ariaAlert(n));
+		model.notifications.forEach(n => this.triggerAriaAlert(n));
 
 		this.registerListeners();
 	}
@@ -31,7 +30,7 @@ export class NotificationsAlerts extends Disposable {
 		if (e.kind === NotificationChangeType.ADD) {
 
 			// ARIA alert for screen readers
-			this.ariaAlert(e.item);
+			this.triggerAriaAlert(e.item);
 
 			// Always log errors to console with full details
 			if (e.item.severity === Severity.Error) {
@@ -44,7 +43,21 @@ export class NotificationsAlerts extends Disposable {
 		}
 	}
 
-	private ariaAlert(notifiation: INotificationViewItem): void {
+	private triggerAriaAlert(notifiation: INotificationViewItem): void {
+
+		// Trigger the alert again whenever the label changes
+		const listener = notifiation.onDidLabelChange(e => {
+			if (e.kind === NotificationViewItemLabelKind.MESSAGE) {
+				this.doTriggerAriaAlert(notifiation);
+			}
+		});
+
+		once(notifiation.onDidClose)(() => listener.dispose());
+
+		this.doTriggerAriaAlert(notifiation);
+	}
+
+	private doTriggerAriaAlert(notifiation: INotificationViewItem): void {
 		let alertText: string;
 		if (notifiation.severity === Severity.Error) {
 			alertText = localize('alertErrorMessage', "Error: {0}", notifiation.message.value);

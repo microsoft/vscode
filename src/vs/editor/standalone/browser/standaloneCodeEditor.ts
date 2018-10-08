@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import { Disposable, IDisposable, combinedDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
@@ -84,7 +82,7 @@ export interface IEditorConstructionOptions extends IEditorOptions {
 	/**
 	 * The initial model associated with this code editor.
 	 */
-	model?: ITextModel;
+	model?: ITextModel | null;
 	/**
 	 * The initial value of the auto created model in the editor.
 	 * To not create automatically a model, use `model: null`.

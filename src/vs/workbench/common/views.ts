@@ -16,6 +16,7 @@ import { IDisposable } from 'vs/base/common/lifecycle';
 import { ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { values } from 'vs/base/common/map';
 import { Registry } from 'vs/platform/registry/common/platform';
+import { IKeybindings } from 'vs/platform/keybinding/common/keybindingsRegistry';
 
 export const TEST_VIEW_CONTAINER_ID = 'workbench.view.extension.test';
 
@@ -42,7 +43,7 @@ export interface IViewContainersRegistry {
 	 *
 	 * @returns the registered ViewContainer.
 	 */
-	registerViewContainer(id: string): ViewContainer;
+	registerViewContainer(id: string, extensionId?: string): ViewContainer;
 
 	/**
 	 * Returns the view container with given id.
@@ -54,7 +55,7 @@ export interface IViewContainersRegistry {
 }
 
 export class ViewContainer {
-	protected constructor(readonly id: string) { }
+	protected constructor(readonly id: string, readonly extensionId: string) { }
 }
 
 class ViewContainersRegistryImpl implements IViewContainersRegistry {
@@ -68,11 +69,11 @@ class ViewContainersRegistryImpl implements IViewContainersRegistry {
 		return values(this.viewContainers);
 	}
 
-	registerViewContainer(id: string): ViewContainer {
+	registerViewContainer(id: string, extensionId: string): ViewContainer {
 		if (!this.viewContainers.has(id)) {
 			const viewContainer = new class extends ViewContainer {
 				constructor() {
-					super(id);
+					super(id, extensionId);
 				}
 			};
 			this.viewContainers.set(id, viewContainer);
@@ -111,6 +112,13 @@ export interface IViewDescriptor {
 
 	// Applies only to newly created views
 	readonly hideByDefault?: boolean;
+
+	readonly focusCommand?: { id: string, keybindings?: IKeybindings };
+}
+
+export interface IViewDescriptorCollection {
+	readonly onDidChangeActiveViews: Event<{ added: IViewDescriptor[], removed: IViewDescriptor[] }>;
+	readonly activeViewDescriptors: IViewDescriptor[];
 }
 
 export interface IViewsRegistry {
@@ -126,6 +134,8 @@ export interface IViewsRegistry {
 	getViews(loc: ViewContainer): IViewDescriptor[];
 
 	getView(id: string): IViewDescriptor;
+
+	getAllViews(): IViewDescriptor[];
 
 }
 
@@ -193,6 +203,12 @@ export const ViewsRegistry: IViewsRegistry = new class implements IViewsRegistry
 		}
 		return null;
 	}
+
+	getAllViews(): IViewDescriptor[] {
+		const allViews: IViewDescriptor[] = [];
+		this._views.forEach(views => allViews.push(...views));
+		return allViews;
+	}
 };
 
 export interface IView {
@@ -213,6 +229,8 @@ export interface IViewsService {
 	_serviceBrand: any;
 
 	openView(id: string, focus?: boolean): TPromise<IView>;
+
+	getViewDescriptors(container: ViewContainer): IViewDescriptorCollection;
 }
 
 // Custom views
@@ -273,9 +291,9 @@ export interface ITreeItem {
 
 	label?: string;
 
-	icon?: string;
+	icon?: UriComponents;
 
-	iconDark?: string;
+	iconDark?: UriComponents;
 
 	themeIcon?: ThemeIcon;
 

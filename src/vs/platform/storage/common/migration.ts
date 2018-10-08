@@ -3,11 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import { IStorage, StorageService } from 'vs/platform/storage/common/storageService';
 import { endsWith, startsWith, rtrim } from 'vs/base/common/strings';
-import URI from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 import { IWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
 
 /**

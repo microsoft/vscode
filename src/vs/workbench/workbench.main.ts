@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 // Base
 import 'vs/base/common/strings';
 import 'vs/base/common/errors';
@@ -17,7 +15,7 @@ import 'vs/editor/editor.all';
 
 // Platform
 import 'vs/platform/widget/browser/contextScopedHistoryWidget';
-import 'vs/platform/uriDisplay/electron-browser/uriDisplay.contribution';
+import 'vs/platform/label/electron-browser/label.contribution';
 
 // Menus/Actions
 import 'vs/workbench/services/actions/electron-browser/menusExtensionPoint';

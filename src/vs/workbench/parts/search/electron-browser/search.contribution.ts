@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import 'vs/css!./media/search.contribution';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
@@ -42,7 +40,7 @@ import { registerLanguageCommand } from 'vs/editor/browser/editorExtensions';
 import { getWorkspaceSymbols } from 'vs/workbench/parts/search/common/search';
 import { illegalArgument } from 'vs/base/common/errors';
 import { WorkbenchListFocusContextKey, IListService } from 'vs/platform/list/browser/listService';
-import URI from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 import { relative } from 'path';
 import { dirname } from 'vs/base/common/resources';
 import { ResourceContextKey } from 'vs/workbench/common/resources';
@@ -52,7 +50,7 @@ import { getMultiSelectedResources } from 'vs/workbench/parts/files/browser/file
 import { Schemas } from 'vs/base/common/network';
 import { PanelRegistry, Extensions as PanelExtensions, PanelDescriptor } from 'vs/workbench/browser/panel';
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
-import { openSearchView, getSearchView, ReplaceAllInFolderAction, ReplaceAllAction, CloseReplaceAction, FocusNextSearchResultAction, FocusPreviousSearchResultAction, ReplaceInFilesAction, FindInFilesAction, toggleCaseSensitiveCommand, toggleRegexCommand, CollapseDeepestExpandedLevelAction, toggleWholeWordCommand, RemoveAction, ReplaceAction, ClearSearchResultsAction, copyPathCommand, copyMatchCommand, copyAllCommand, clearHistoryCommand, FocusNextInputAction, FocusPreviousInputAction, RefreshAction, focusSearchListCommand } from 'vs/workbench/parts/search/browser/searchActions';
+import { openSearchView, getSearchView, ReplaceAllInFolderAction, ReplaceAllAction, CloseReplaceAction, FocusNextSearchResultAction, FocusPreviousSearchResultAction, ReplaceInFilesAction, FindInFilesAction, toggleCaseSensitiveCommand, toggleRegexCommand, CollapseDeepestExpandedLevelAction, toggleWholeWordCommand, RemoveAction, ReplaceAction, ClearSearchResultsAction, copyPathCommand, copyMatchCommand, copyAllCommand, clearHistoryCommand, FocusNextInputAction, FocusPreviousInputAction, RefreshAction, focusSearchListCommand, OpenSearchViewletAction } from 'vs/workbench/parts/search/browser/searchActions';
 import { VIEW_ID, ISearchConfigurationProperties } from 'vs/platform/search/common/search';
 import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
 import { LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
@@ -474,7 +472,7 @@ const registry = Registry.as<IWorkbenchActionRegistry>(ActionExtensions.Workbenc
 
 // Show Search and Find in Files are redundant, but we can't break keybindings by removing one. So it's the same action, same keybinding, registered to different IDs.
 // Show Search 'when' is redundant but if the two conflict with exactly the same keybinding and 'when' clause, then they can show up as "unbound" - #51780
-registry.registerWorkbenchAction(new SyncActionDescriptor(FindInFilesAction, VIEW_ID, nls.localize('showSearchViewl', "Show Search"), { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_F }, Constants.SearchViewVisibleKey.toNegated()), 'View: Show Search', nls.localize('view', "View"));
+registry.registerWorkbenchAction(new SyncActionDescriptor(OpenSearchViewletAction, VIEW_ID, OpenSearchViewletAction.LABEL, { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_F }, Constants.SearchViewVisibleKey.toNegated()), 'View: Show Search', nls.localize('view', "View"));
 registry.registerWorkbenchAction(new SyncActionDescriptor(FindInFilesAction, Constants.FindInFilesActionId, nls.localize('findInFiles', "Find in Files"), { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_F }), 'Find in Files', category);
 MenuRegistry.appendMenuItem(MenuId.MenubarEditMenu, {
 	group: '4_find_global',
@@ -501,26 +499,29 @@ MenuRegistry.appendMenuItem(MenuId.MenubarEditMenu, {
 KeybindingsRegistry.registerCommandAndKeybindingRule(objects.assign({
 	id: Constants.ToggleCaseSensitiveCommandId,
 	weight: KeybindingWeight.WorkbenchContrib,
-	when: ContextKeyExpr.and(Constants.SearchViewVisibleKey, Constants.SearchInputBoxFocusedKey),
+	when: ContextKeyExpr.and(Constants.SearchViewVisibleKey, Constants.SearchViewFocusedKey, Constants.FileMatchOrFolderMatchFocusKey.toNegated()),
 	handler: toggleCaseSensitiveCommand
 }, ToggleCaseSensitiveKeybinding));
 
 KeybindingsRegistry.registerCommandAndKeybindingRule(objects.assign({
 	id: Constants.ToggleWholeWordCommandId,
 	weight: KeybindingWeight.WorkbenchContrib,
-	when: ContextKeyExpr.and(Constants.SearchViewVisibleKey, Constants.SearchInputBoxFocusedKey),
+	when: ContextKeyExpr.and(Constants.SearchViewVisibleKey, Constants.SearchViewFocusedKey),
 	handler: toggleWholeWordCommand
 }, ToggleWholeWordKeybinding));
 
 KeybindingsRegistry.registerCommandAndKeybindingRule(objects.assign({
 	id: Constants.ToggleRegexCommandId,
 	weight: KeybindingWeight.WorkbenchContrib,
-	when: ContextKeyExpr.and(Constants.SearchViewVisibleKey, Constants.SearchInputBoxFocusedKey),
+	when: ContextKeyExpr.and(Constants.SearchViewVisibleKey, Constants.SearchViewFocusedKey),
 	handler: toggleRegexCommand
 }, ToggleRegexKeybinding));
 
 registry.registerWorkbenchAction(new SyncActionDescriptor(CollapseDeepestExpandedLevelAction, CollapseDeepestExpandedLevelAction.ID, CollapseDeepestExpandedLevelAction.LABEL), 'Search: Collapse All', category);
 registry.registerWorkbenchAction(new SyncActionDescriptor(ShowAllSymbolsAction, ShowAllSymbolsAction.ID, ShowAllSymbolsAction.LABEL, { primary: KeyMod.CtrlCmd | KeyCode.KEY_T }), 'Go to Symbol in Workspace...');
+
+registry.registerWorkbenchAction(new SyncActionDescriptor(RefreshAction, RefreshAction.ID, RefreshAction.LABEL), 'Search: Refresh', category);
+registry.registerWorkbenchAction(new SyncActionDescriptor(ClearSearchResultsAction, ClearSearchResultsAction.ID, ClearSearchResultsAction.LABEL), 'Search: Clear', category);
 
 
 // Register Quick Open Handler
@@ -560,7 +561,7 @@ configurationRegistry.registerConfiguration({
 	properties: {
 		'search.exclude': {
 			type: 'object',
-			description: nls.localize('exclude', "Configure glob patterns for excluding files and folders in searches. Inherits all glob patterns from the `#files.exclude#` setting. Read more about glob patterns [here](https://code.visualstudio.com/docs/editor/codebasics#_advanced-search-options)."),
+			markdownDescription: nls.localize('exclude', "Configure glob patterns for excluding files and folders in searches. Inherits all glob patterns from the `#files.exclude#` setting. Read more about glob patterns [here](https://code.visualstudio.com/docs/editor/codebasics#_advanced-search-options)."),
 			default: { '**/node_modules': true, '**/bower_components': true },
 			additionalProperties: {
 				anyOf: [
@@ -585,19 +586,30 @@ configurationRegistry.registerConfiguration({
 		},
 		'search.useRipgrep': {
 			type: 'boolean',
-			description: nls.localize('useRipgrep', "Controls whether to use ripgrep in text and file search"),
+			description: nls.localize('useRipgrep', "Controls whether to use ripgrep in text and file search."),
 			default: true
 		},
 		'search.useIgnoreFiles': {
 			type: 'boolean',
-			description: nls.localize('useIgnoreFiles', "Controls whether to use .gitignore and .ignore files when searching for files."),
+			markdownDescription: nls.localize('useIgnoreFiles', "Controls whether to use `.gitignore` and `.ignore` files when searching for files."),
 			default: true,
+			scope: ConfigurationScope.RESOURCE
+		},
+		'search.useGlobalIgnoreFiles': {
+			type: 'boolean',
+			markdownDescription: nls.localize('useGlobalIgnoreFiles', "Controls whether to use global `.gitignore` and `.ignore` files when searching for files."),
+			default: false,
 			scope: ConfigurationScope.RESOURCE
 		},
 		'search.quickOpen.includeSymbols': {
 			type: 'boolean',
 			description: nls.localize('search.quickOpen.includeSymbols', "Whether to include results from a global symbol search in the file results for Quick Open."),
 			default: false
+		},
+		'search.quickOpen.includeHistory': {
+			type: 'boolean',
+			description: nls.localize('search.quickOpen.includeHistory', "Whether to include results from recently opened files in the file results for Quick Open."),
+			default: true
 		},
 		'search.followSymlinks': {
 			type: 'boolean',
@@ -612,7 +624,7 @@ configurationRegistry.registerConfiguration({
 		'search.globalFindClipboard': {
 			type: 'boolean',
 			default: false,
-			description: nls.localize('search.globalFindClipboard', "Controls if the search view should read or modify the shared find clipboard on macOS"),
+			description: nls.localize('search.globalFindClipboard', "Controls whether the search view should read or modify the shared find clipboard on macOS."),
 			included: platform.isMacintosh
 		},
 		'search.location': {
@@ -620,6 +632,17 @@ configurationRegistry.registerConfiguration({
 			enum: ['sidebar', 'panel'],
 			default: 'sidebar',
 			description: nls.localize('search.location', "Controls whether the search will be shown as a view in the sidebar or as a panel in the panel area for more horizontal space."),
+		},
+		'search.collapseResults': {
+			type: 'string',
+			enum: ['auto', 'alwaysCollapse', 'alwaysExpand'],
+			enumDescriptions: [
+				'Files with less than 10 results are expanded. Others are collapsed.',
+				'',
+				''
+			],
+			default: 'auto',
+			description: nls.localize('search.collapseAllResults', "Controls whether the search results will be collapsed or expanded."),
 		}
 	}
 });
@@ -641,4 +664,15 @@ MenuRegistry.appendMenuItem(MenuId.MenubarViewMenu, {
 		title: nls.localize({ key: 'miViewSearch', comment: ['&& denotes a mnemonic'] }, "&&Search")
 	},
 	order: 2
+});
+
+// Go to menu
+
+MenuRegistry.appendMenuItem(MenuId.MenubarGoMenu, {
+	group: 'z_go_to',
+	command: {
+		id: 'workbench.action.showAllSymbols',
+		title: nls.localize({ key: 'miGotoSymbolInWorkspace', comment: ['&& denotes a mnemonic'] }, "Go to Symbol in &&Workspace...")
+	},
+	order: 3
 });

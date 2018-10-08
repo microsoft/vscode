@@ -12,12 +12,12 @@ import * as nls from 'vs/nls';
 import * as panel from 'vs/workbench/browser/panel';
 import * as platform from 'vs/base/common/platform';
 import { Extensions, IConfigurationRegistry } from 'vs/platform/configuration/common/configurationRegistry';
-import { ITerminalService, KEYBINDING_CONTEXT_TERMINAL_FOCUS, KEYBINDING_CONTEXT_TERMINAL_TEXT_SELECTED, TERMINAL_PANEL_ID, KEYBINDING_CONTEXT_TERMINAL_FIND_WIDGET_VISIBLE, TerminalCursorStyle, KEYBINDING_CONTEXT_TERMINAL_FIND_WIDGET_NOT_VISIBLE, DEFAULT_LINE_HEIGHT, DEFAULT_LETTER_SPACING } from 'vs/workbench/parts/terminal/common/terminal';
-import { getTerminalDefaultShellUnixLike, getTerminalDefaultShellWindows } from 'vs/workbench/parts/terminal/node/terminal';
+import { ITerminalService, KEYBINDING_CONTEXT_TERMINAL_FOCUS, KEYBINDING_CONTEXT_TERMINAL_TEXT_SELECTED, TERMINAL_PANEL_ID, KEYBINDING_CONTEXT_TERMINAL_FIND_WIDGET_VISIBLE, TerminalCursorStyle, KEYBINDING_CONTEXT_TERMINAL_FIND_WIDGET_NOT_VISIBLE, DEFAULT_LINE_HEIGHT, DEFAULT_LETTER_SPACING, KEYBINDING_CONTEXT_TERMINAL_FIND_WIDGET_FOCUSED } from 'vs/workbench/parts/terminal/common/terminal';
+import { getDefaultShell } from 'vs/workbench/parts/terminal/node/terminal';
 import { IWorkbenchActionRegistry, Extensions as ActionExtensions } from 'vs/workbench/common/actions';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
-import { KillTerminalAction, ClearSelectionTerminalAction, CopyTerminalSelectionAction, CreateNewTerminalAction, CreateNewInActiveWorkspaceTerminalAction, FocusActiveTerminalAction, FocusNextTerminalAction, FocusPreviousTerminalAction, SelectDefaultShellWindowsTerminalAction, RunSelectedTextInTerminalAction, RunActiveFileInTerminalAction, ScrollDownTerminalAction, ScrollDownPageTerminalAction, ScrollToBottomTerminalAction, ScrollUpTerminalAction, ScrollUpPageTerminalAction, ScrollToTopTerminalAction, TerminalPasteAction, ToggleTerminalAction, ClearTerminalAction, AllowWorkspaceShellTerminalCommand, DisallowWorkspaceShellTerminalCommand, RenameTerminalAction, SelectAllTerminalAction, FocusTerminalFindWidgetAction, HideTerminalFindWidgetAction, DeleteWordLeftTerminalAction, DeleteWordRightTerminalAction, QuickOpenActionTermContributor, QuickOpenTermAction, TERMINAL_PICKER_PREFIX, MoveToLineStartTerminalAction, MoveToLineEndTerminalAction, SplitTerminalAction, SplitInActiveWorkspaceTerminalAction, FocusPreviousPaneTerminalAction, FocusNextPaneTerminalAction, ResizePaneLeftTerminalAction, ResizePaneRightTerminalAction, ResizePaneUpTerminalAction, ResizePaneDownTerminalAction, ScrollToPreviousCommandAction, ScrollToNextCommandAction, SelectToPreviousCommandAction, SelectToNextCommandAction, SelectToPreviousLineAction, SelectToNextLineAction, ToggleEscapeSequenceLoggingAction } from 'vs/workbench/parts/terminal/electron-browser/terminalActions';
+import { KillTerminalAction, ClearSelectionTerminalAction, CopyTerminalSelectionAction, CreateNewTerminalAction, CreateNewInActiveWorkspaceTerminalAction, FocusActiveTerminalAction, FocusNextTerminalAction, FocusPreviousTerminalAction, SelectDefaultShellWindowsTerminalAction, RunSelectedTextInTerminalAction, RunActiveFileInTerminalAction, ScrollDownTerminalAction, ScrollDownPageTerminalAction, ScrollToBottomTerminalAction, ScrollUpTerminalAction, ScrollUpPageTerminalAction, ScrollToTopTerminalAction, TerminalPasteAction, ToggleTerminalAction, ClearTerminalAction, AllowWorkspaceShellTerminalCommand, DisallowWorkspaceShellTerminalCommand, RenameTerminalAction, SelectAllTerminalAction, FocusTerminalFindWidgetAction, HideTerminalFindWidgetAction, DeleteWordLeftTerminalAction, DeleteWordRightTerminalAction, QuickOpenActionTermContributor, QuickOpenTermAction, TERMINAL_PICKER_PREFIX, MoveToLineStartTerminalAction, MoveToLineEndTerminalAction, SplitTerminalAction, SplitInActiveWorkspaceTerminalAction, FocusPreviousPaneTerminalAction, FocusNextPaneTerminalAction, ResizePaneLeftTerminalAction, ResizePaneRightTerminalAction, ResizePaneUpTerminalAction, ResizePaneDownTerminalAction, ScrollToPreviousCommandAction, ScrollToNextCommandAction, SelectToPreviousCommandAction, SelectToNextCommandAction, SelectToPreviousLineAction, SelectToNextLineAction, ToggleEscapeSequenceLoggingAction, SendSequenceTerminalCommand, ToggleRegexCommand, ToggleWholeWordCommand, ToggleCaseSensitiveCommand, FindNext, FindPrevious } from 'vs/workbench/parts/terminal/electron-browser/terminalActions';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { ShowAllCommandsAction } from 'vs/workbench/parts/quickopen/browser/commandsHandler';
 import { SyncActionDescriptor } from 'vs/platform/actions/common/actions';
@@ -75,12 +75,12 @@ configurationRegistry.registerConfiguration({
 	type: 'object',
 	properties: {
 		'terminal.integrated.shell.linux': {
-			description: nls.localize('terminal.integrated.shell.linux', "The path of the shell that the terminal uses on Linux. [Read more about configuring the shell](https://code.visualstudio.com/docs/editor/integrated-terminal#_configuration)."),
+			markdownDescription: nls.localize('terminal.integrated.shell.linux', "The path of the shell that the terminal uses on Linux. [Read more about configuring the shell](https://code.visualstudio.com/docs/editor/integrated-terminal#_configuration)."),
 			type: 'string',
-			default: getTerminalDefaultShellUnixLike()
+			default: getDefaultShell(platform.Platform.Linux)
 		},
 		'terminal.integrated.shellArgs.linux': {
-			description: nls.localize('terminal.integrated.shellArgs.linux', "The command line arguments to use when on the Linux terminal. [Read more about configuring the shell](https://code.visualstudio.com/docs/editor/integrated-terminal#_configuration)."),
+			markdownDescription: nls.localize('terminal.integrated.shellArgs.linux', "The command line arguments to use when on the Linux terminal. [Read more about configuring the shell](https://code.visualstudio.com/docs/editor/integrated-terminal#_configuration)."),
 			type: 'array',
 			items: {
 				type: 'string'
@@ -88,12 +88,12 @@ configurationRegistry.registerConfiguration({
 			default: []
 		},
 		'terminal.integrated.shell.osx': {
-			description: nls.localize('terminal.integrated.shell.osx', "The path of the shell that the terminal uses on macOS. [Read more about configuring the shell](https://code.visualstudio.com/docs/editor/integrated-terminal#_configuration)."),
+			markdownDescription: nls.localize('terminal.integrated.shell.osx', "The path of the shell that the terminal uses on macOS. [Read more about configuring the shell](https://code.visualstudio.com/docs/editor/integrated-terminal#_configuration)."),
 			type: 'string',
-			default: getTerminalDefaultShellUnixLike()
+			default: getDefaultShell(platform.Platform.Mac)
 		},
 		'terminal.integrated.shellArgs.osx': {
-			description: nls.localize('terminal.integrated.shellArgs.osx', "The command line arguments to use when on the macOS terminal. [Read more about configuring the shell](https://code.visualstudio.com/docs/editor/integrated-terminal#_configuration)."),
+			markdownDescription: nls.localize('terminal.integrated.shellArgs.osx', "The command line arguments to use when on the macOS terminal. [Read more about configuring the shell](https://code.visualstudio.com/docs/editor/integrated-terminal#_configuration)."),
 			type: 'array',
 			items: {
 				type: 'string'
@@ -104,16 +104,25 @@ configurationRegistry.registerConfiguration({
 			default: ['-l']
 		},
 		'terminal.integrated.shell.windows': {
-			description: nls.localize('terminal.integrated.shell.windows', "The path of the shell that the terminal uses on Windows. [Read more about configuring the shell](https://code.visualstudio.com/docs/editor/integrated-terminal#_configuration)."),
+			markdownDescription: nls.localize('terminal.integrated.shell.windows', "The path of the shell that the terminal uses on Windows. [Read more about configuring the shell](https://code.visualstudio.com/docs/editor/integrated-terminal#_configuration)."),
 			type: 'string',
-			default: getTerminalDefaultShellWindows()
+			default: getDefaultShell(platform.Platform.Windows)
 		},
 		'terminal.integrated.shellArgs.windows': {
-			description: nls.localize('terminal.integrated.shellArgs.windows', "The command line arguments to use when on the Windows terminal. [Read more about configuring the shell](https://code.visualstudio.com/docs/editor/integrated-terminal#_configuration)."),
-			type: 'array',
-			items: {
-				type: 'string'
-			},
+			markdownDescription: nls.localize('terminal.integrated.shellArgs.windows', "The command line arguments to use when on the Windows terminal. [Read more about configuring the shell](https://code.visualstudio.com/docs/editor/integrated-terminal#_configuration)."),
+			'anyOf': [
+				{
+					type: 'array',
+					items: {
+						type: 'string',
+						markdownDescription: nls.localize('terminal.integrated.shellArgs.windows', "The command line arguments to use when on the Windows terminal. [Read more about configuring the shell](https://code.visualstudio.com/docs/editor/integrated-terminal#_configuration).")
+					},
+				},
+				{
+					type: 'string',
+					markdownDescription: nls.localize('terminal.integrated.shellArgs.windows.string', "The command line arguments in [command-line format](https://msdn.microsoft.com/en-au/08dfcab2-eb6e-49a4-80eb-87d4076c98c6) to use when on the Windows terminal. [Read more about configuring the shell](https://code.visualstudio.com/docs/editor/integrated-terminal#_configuration).")
+				}
+			],
 			default: []
 		},
 		'terminal.integrated.macOptionIsMeta': {
@@ -137,7 +146,7 @@ configurationRegistry.registerConfiguration({
 			default: true
 		},
 		'terminal.integrated.fontFamily': {
-			description: nls.localize('terminal.integrated.fontFamily', "Controls the font family of the terminal, this defaults to `#editor.fontFamily#`'s value."),
+			markdownDescription: nls.localize('terminal.integrated.fontFamily', "Controls the font family of the terminal, this defaults to `#editor.fontFamily#`'s value."),
 			type: 'string'
 		},
 		// TODO: Support font ligatures
@@ -189,7 +198,7 @@ configurationRegistry.registerConfiguration({
 			default: 1000
 		},
 		'terminal.integrated.setLocaleVariables': {
-			description: nls.localize('terminal.integrated.setLocaleVariables', "Controls whether locale variables are set at startup of the terminal, this defaults to `true` on macOS, `false` on other platforms."),
+			markdownDescription: nls.localize('terminal.integrated.setLocaleVariables', "Controls whether locale variables are set at startup of the terminal, this defaults to `true` on macOS, `false` on other platforms."),
 			type: 'boolean',
 			default: platform.isMacintosh
 		},
@@ -202,7 +211,7 @@ configurationRegistry.registerConfiguration({
 				nls.localize('terminal.integrated.rendererType.dom', "Use the fallback DOM-based renderer.")
 			],
 			default: 'auto',
-			description: nls.localize('terminal.integrated.rendererType', "Controls how the terminal is rendered. This setting needs VS Code to reload in order to take effect.")
+			description: nls.localize('terminal.integrated.rendererType', "Controls how the terminal is rendered.")
 		},
 		'terminal.integrated.rightClickBehavior': {
 			type: 'string',
@@ -244,6 +253,11 @@ configurationRegistry.registerConfiguration({
 				TERMINAL_COMMAND_ID.DELETE_WORD_RIGHT,
 				TERMINAL_COMMAND_ID.FIND_WIDGET_FOCUS,
 				TERMINAL_COMMAND_ID.FIND_WIDGET_HIDE,
+				TERMINAL_COMMAND_ID.FIND_NEXT_TERMINAL_FOCUS,
+				TERMINAL_COMMAND_ID.FIND_PREVIOUS_TERMINAL_FOCUS,
+				TERMINAL_COMMAND_ID.TOGGLE_FIND_REGEX_TERMINAL_FOCUS,
+				TERMINAL_COMMAND_ID.TOGGLE_FIND_WHOLE_WORD_TERMINAL_FOCUS,
+				TERMINAL_COMMAND_ID.TOGGLE_FIND_CASE_SENSITIVE_TERMINAL_FOCUS,
 				TERMINAL_COMMAND_ID.FOCUS_NEXT_PANE,
 				TERMINAL_COMMAND_ID.FOCUS_NEXT,
 				TERMINAL_COMMAND_ID.FOCUS_PREVIOUS_PANE,
@@ -288,6 +302,7 @@ configurationRegistry.registerConfiguration({
 				'workbench.action.tasks.showTasks',
 				'workbench.action.tasks.terminate',
 				'workbench.action.tasks.test',
+				'workbench.action.toggleFullScreen',
 				'workbench.action.terminal.focusAtIndex1',
 				'workbench.action.terminal.focusAtIndex2',
 				'workbench.action.terminal.focusAtIndex3',
@@ -325,11 +340,12 @@ configurationRegistry.registerConfiguration({
 				NavigateRightAction.ID,
 				NavigateLeftAction.ID,
 				TogglePanelAction.ID,
-				'workbench.action.quickOpenView'
+				'workbench.action.quickOpenView',
+				'workbench.action.toggleMaximizedPanel'
 			].sort()
 		},
 		'terminal.integrated.env.osx': {
-			description: nls.localize('terminal.integrated.env.osx', "Object with environment variables that will be added to the VS Code process to be used by the terminal on macOS. Set to `null` to delete the environment variable."),
+			markdownDescription: nls.localize('terminal.integrated.env.osx', "Object with environment variables that will be added to the VS Code process to be used by the terminal on macOS. Set to `null` to delete the environment variable."),
 			type: 'object',
 			additionalProperties: {
 				type: ['string', 'null']
@@ -337,7 +353,7 @@ configurationRegistry.registerConfiguration({
 			default: {}
 		},
 		'terminal.integrated.env.linux': {
-			description: nls.localize('terminal.integrated.env.linux', "Object with environment variables that will be added to the VS Code process to be used by the terminal on Linux. Set to `null` to delete the environment variable."),
+			markdownDescription: nls.localize('terminal.integrated.env.linux', "Object with environment variables that will be added to the VS Code process to be used by the terminal on Linux. Set to `null` to delete the environment variable."),
 			type: 'object',
 			additionalProperties: {
 				type: ['string', 'null']
@@ -345,7 +361,7 @@ configurationRegistry.registerConfiguration({
 			default: {}
 		},
 		'terminal.integrated.env.windows': {
-			description: nls.localize('terminal.integrated.env.windows', "Object with environment variables that will be added to the VS Code process to be used by the terminal on Windows. Set to `null` to delete the environment variable."),
+			markdownDescription: nls.localize('terminal.integrated.env.windows', "Object with environment variables that will be added to the VS Code process to be used by the terminal on Windows. Set to `null` to delete the environment variable."),
 			type: 'object',
 			additionalProperties: {
 				type: ['string', 'null']
@@ -356,19 +372,7 @@ configurationRegistry.registerConfiguration({
 			description: nls.localize('terminal.integrated.showExitAlert', "Controls whether to show the alert \"The terminal process terminated with exit code\" when exit code is non-zero."),
 			type: 'boolean',
 			default: true
-		},
-		'terminal.integrated.experimentalRestore': {
-			description: nls.localize('terminal.integrated.experimentalRestore', "Controls whether to restore terminal sessions for the workspace automatically when launching VS Code. This is an experimental setting; it may be buggy and could change or be removed in the future."),
-			type: 'boolean',
-			default: false
-		},
-		// TODO: Default to dynamic and remove setting in 1.27
-		'terminal.integrated.experimentalTextureCachingStrategy': {
-			description: nls.localize('terminal.integrated.experimentalTextureCachingStrategy', "Controls how the terminal stores glyph textures. `static` is the default and uses a fixed texture to draw the characters from. `dynamic` will draw the characters to the texture as they are needed, this should boost overall performance at the cost of slightly increased draw time the first time a character is drawn. `dynamic` will eventually become the default and this setting will be removed. Changes to this setting will only apply to new terminals."),
-			type: 'string',
-			enum: ['static', 'dynamic'],
-			default: 'dynamic'
-		},
+		}
 	}
 });
 
@@ -449,8 +453,8 @@ actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(ScrollToTopTermi
 	linux: { primary: KeyMod.Shift | KeyCode.Home }
 }, KEYBINDING_CONTEXT_TERMINAL_FOCUS), 'Terminal: Scroll to Top', category);
 actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(ClearTerminalAction, ClearTerminalAction.ID, ClearTerminalAction.LABEL, {
-	primary: KeyMod.CtrlCmd | KeyCode.KEY_K,
-	linux: { primary: null }
+	primary: null,
+	mac: { primary: KeyMod.CtrlCmd | KeyCode.KEY_K }
 }, KEYBINDING_CONTEXT_TERMINAL_FOCUS, KeybindingWeight.WorkbenchContrib + 1), 'Terminal: Clear', category);
 if (platform.isWindows) {
 	actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(SelectDefaultShellWindowsTerminalAction, SelectDefaultShellWindowsTerminalAction.ID, SelectDefaultShellWindowsTerminalAction.LABEL), 'Terminal: Select Default Shell', category);
@@ -545,6 +549,53 @@ actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(SelectToNextComm
 actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(SelectToPreviousLineAction, SelectToPreviousLineAction.ID, SelectToPreviousLineAction.LABEL), 'Terminal: Select To Previous Line', category);
 actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(SelectToNextLineAction, SelectToNextLineAction.ID, SelectToNextLineAction.LABEL), 'Terminal: Select To Next Line', category);
 actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(ToggleEscapeSequenceLoggingAction, ToggleEscapeSequenceLoggingAction.ID, ToggleEscapeSequenceLoggingAction.LABEL), 'Terminal: Toggle Escape Sequence Logging', category);
+actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(ToggleRegexCommand, ToggleRegexCommand.ID, ToggleRegexCommand.LABEL, {
+	primary: KeyMod.Alt | KeyCode.KEY_R,
+	mac: { primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.KEY_R }
+}, KEYBINDING_CONTEXT_TERMINAL_FIND_WIDGET_FOCUSED), 'Terminal: Toggle find by regex');
+actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(ToggleRegexCommand, ToggleRegexCommand.ID_TERMINAL_FOCUS, ToggleRegexCommand.LABEL, {
+	primary: KeyMod.Alt | KeyCode.KEY_R,
+	mac: { primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.KEY_R }
+}, KEYBINDING_CONTEXT_TERMINAL_FOCUS), 'Terminal: Toggle find by regex', category);
+actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(ToggleWholeWordCommand, ToggleWholeWordCommand.ID, ToggleWholeWordCommand.LABEL, {
+	primary: KeyMod.Alt | KeyCode.KEY_W,
+	mac: { primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.KEY_W }
+}, KEYBINDING_CONTEXT_TERMINAL_FIND_WIDGET_FOCUSED), 'Terminal: Toggle find whole word');
+actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(ToggleWholeWordCommand, ToggleWholeWordCommand.ID_TERMINAL_FOCUS, ToggleWholeWordCommand.LABEL, {
+	primary: KeyMod.Alt | KeyCode.KEY_W,
+	mac: { primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.KEY_W }
+}, KEYBINDING_CONTEXT_TERMINAL_FOCUS), 'Terminal: Toggle find whole word', category);
+actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(ToggleCaseSensitiveCommand, ToggleCaseSensitiveCommand.ID, ToggleCaseSensitiveCommand.LABEL, {
+	primary: KeyMod.Alt | KeyCode.KEY_C,
+	mac: { primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.KEY_C }
+}, KEYBINDING_CONTEXT_TERMINAL_FIND_WIDGET_FOCUSED), 'Terminal: Toggle find match case');
+actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(ToggleCaseSensitiveCommand, ToggleCaseSensitiveCommand.ID_TERMINAL_FOCUS, ToggleCaseSensitiveCommand.LABEL, {
+	primary: KeyMod.Alt | KeyCode.KEY_C,
+	mac: { primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.KEY_C }
+}, KEYBINDING_CONTEXT_TERMINAL_FOCUS), 'Terminal: Toggle find match case', category);
+actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(FindNext, FindNext.ID_TERMINAL_FOCUS, FindNext.LABEL, {
+	primary: KeyCode.F3,
+	mac: { primary: KeyMod.CtrlCmd | KeyCode.KEY_G, secondary: [KeyCode.F3] }
+}, KEYBINDING_CONTEXT_TERMINAL_FOCUS), 'Terminal: Find next', category);
+actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(FindNext, FindNext.ID, FindNext.LABEL, {
+	primary: KeyCode.F3,
+	mac: { primary: KeyMod.CtrlCmd | KeyCode.KEY_G, secondary: [KeyCode.F3] }
+}, KEYBINDING_CONTEXT_TERMINAL_FIND_WIDGET_FOCUSED), 'Terminal: Find next');
+actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(FindPrevious, FindPrevious.ID_TERMINAL_FOCUS, FindPrevious.LABEL, {
+	primary: KeyMod.Shift | KeyCode.F3,
+	mac: { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_G, secondary: [KeyMod.Shift | KeyCode.F3] },
+}, KEYBINDING_CONTEXT_TERMINAL_FOCUS), 'Terminal: Find previous', category);
+actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(FindPrevious, FindPrevious.ID, FindPrevious.LABEL, {
+	primary: KeyMod.Shift | KeyCode.F3,
+	mac: { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_G, secondary: [KeyMod.Shift | KeyCode.F3] },
+}, KEYBINDING_CONTEXT_TERMINAL_FIND_WIDGET_FOCUSED), 'Terminal: Find previous');
+
+
+const sendSequenceTerminalCommand = new SendSequenceTerminalCommand({
+	id: SendSequenceTerminalCommand.ID,
+	precondition: null
+});
+sendSequenceTerminalCommand.register();
 
 setupTerminalCommands();
 setupTerminalMenu();

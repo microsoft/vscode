@@ -2,7 +2,6 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IQuickOpenService } from 'vs/platform/quickOpen/common/quickOpen';
@@ -67,7 +66,7 @@ KeybindingsRegistry.registerKeybindingRule({
 });
 
 MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
-	command: { id: QUICKOPEN_ACTION_ID, title: QUICKOPEN_ACION_LABEL }
+	command: { id: QUICKOPEN_ACTION_ID, title: { value: QUICKOPEN_ACION_LABEL, original: 'Go to File...' } }
 });
 
 registry.registerWorkbenchAction(new SyncActionDescriptor(QuickOpenSelectNextAction, QuickOpenSelectNextAction.ID, QuickOpenSelectNextAction.LABEL, { primary: null, mac: { primary: KeyMod.WinCtrl | KeyCode.KEY_N } }, inQuickOpenContext, KeybindingWeight.WorkbenchContrib + 50), 'Select Next in Quick Open');

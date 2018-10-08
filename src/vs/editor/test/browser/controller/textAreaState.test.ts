@@ -2,8 +2,6 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
-
 import * as assert from 'assert';
 import { TextAreaState, ITextAreaWrapper, PagedScreenReaderStrategy } from 'vs/editor/browser/controller/textAreaState';
 import { Position } from 'vs/editor/common/core/position';
@@ -515,6 +513,20 @@ suite('TextAreaState', () => {
 			'cab',
 			1, 1, true, true,
 			'c', 0
+		);
+	});
+
+	test('issue #49480: Double curly braces inserted', () => {
+		// Characters get doubled
+		testDeduceInput(
+			new TextAreaState(
+				'aa',
+				2, 2,
+				null, null
+			),
+			'aaa',
+			3, 3, true, true,
+			'a', 0
 		);
 	});
 

@@ -3,9 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
-import URI from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 import { match as matchGlobPattern, IRelativePattern } from 'vs/base/common/glob'; // TODO@Alex
 
 export interface LanguageFilter {

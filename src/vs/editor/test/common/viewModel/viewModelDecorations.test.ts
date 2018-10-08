@@ -2,8 +2,6 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
-
 import * as assert from 'assert';
 import { Range } from 'vs/editor/common/core/range';
 import { testViewModel } from 'vs/editor/test/common/viewModel/testViewModel';
@@ -81,6 +79,7 @@ suite('ViewModelDecorations', () => {
 			});
 
 			assert.deepEqual(actualDecorations, [
+				'dec1',
 				'dec2',
 				'dec3',
 				'dec4',

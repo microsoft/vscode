@@ -2,11 +2,10 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
 import { Readable, Writable } from 'stream';
 import { UTF8 } from 'vs/base/node/encoding';
-import URI from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 import { IFileSystemProvider, ITextSnapshot, FileSystemProviderCapabilities, FileWriteOptions } from 'vs/platform/files/common/files';
 import { illegalArgument } from 'vs/base/common/errors';
 

@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import { IDisposable, dispose, Disposable } from 'vs/base/common/lifecycle';
 import { IWorkbenchContributionsRegistry, IWorkbenchContribution, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
 import { Registry } from 'vs/platform/registry/common/platform';
@@ -15,7 +13,7 @@ import { IEnvironmentService } from 'vs/platform/environment/common/environment'
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { RunOnceScheduler } from 'vs/base/common/async';
-import URI from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 import { isEqual } from 'vs/base/common/resources';
 import { isLinux, isMacintosh, isWindows } from 'vs/base/common/platform';
 import { LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';

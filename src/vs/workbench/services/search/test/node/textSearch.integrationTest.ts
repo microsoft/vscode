@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import * as path from 'path';
 import * as assert from 'assert';
 
@@ -15,12 +13,13 @@ import { ISerializedFileMatch, IRawSearch, IFolderSearch } from 'vs/workbench/se
 import { Engine as TextSearchEngine } from 'vs/workbench/services/search/node/textSearch';
 import { RipgrepEngine } from 'vs/workbench/services/search/node/ripgrepTextSearch';
 import { TextSearchWorkerProvider } from 'vs/workbench/services/search/node/textSearchWorkerProvider';
+import { getPathFromAmdModule } from 'vs/base/common/amd';
 
 function countAll(matches: ISerializedFileMatch[]): number {
 	return matches.reduce((acc, m) => acc + m.numMatches, 0);
 }
 
-const TEST_FIXTURES = path.normalize(require.toUrl('./fixtures'));
+const TEST_FIXTURES = path.normalize(getPathFromAmdModule(require, './fixtures'));
 const EXAMPLES_FIXTURES = path.join(TEST_FIXTURES, 'examples');
 const MORE_FIXTURES = path.join(TEST_FIXTURES, 'more');
 const TEST_ROOT_FOLDER: IFolderSearch = { folder: TEST_FIXTURES };

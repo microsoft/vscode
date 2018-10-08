@@ -74,10 +74,10 @@ function getRgArgs(config: IRawSearch, folderQuery: IFolderSearch, includePatter
 		args.push('--quiet');
 	}
 
-	// Folder to search
-	args.push('--');
-
-	args.push('.');
+	args.push('--no-config');
+	if (config.disregardGlobalIgnoreFiles) {
+		args.push('--no-ignore-global');
+	}
 
 	return { args, siblingClauses };
 }

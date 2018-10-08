@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import * as assert from 'assert';
 import * as sinon from 'sinon';
 import { Emitter } from 'vs/base/common/event';
@@ -538,7 +536,7 @@ suite('ExtHostTreeView', function () {
 			});
 	});
 
-	function loadCompleteTree(treeId, element?: string): TPromise<void> {
+	function loadCompleteTree(treeId, element?: string) {
 		return testObject.$getChildren(treeId, element)
 			.then(elements => elements.map(e => loadCompleteTree(treeId, e.handle)))
 			.then(() => null);

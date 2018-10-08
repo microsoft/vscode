@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import 'vs/css!./aria';
 import * as nls from 'vs/nls';
 import { isMacintosh } from 'vs/base/common/platform';
@@ -50,13 +48,27 @@ export function status(msg: string): void {
 	}
 }
 
+let repeatedTimes = 0;
+let prevText: string | undefined = undefined;
 function insertMessage(target: HTMLElement, msg: string): void {
 	if (!ariaContainer) {
 		// console.warn('ARIA support needs a container. Call setARIAContainer() first.');
 		return;
 	}
-	if (target.textContent === msg) {
-		msg = nls.localize('repeated', "{0} (occurred again)", msg);
+
+	if (prevText === msg) {
+		repeatedTimes++;
+	}
+	else {
+		prevText = msg;
+		repeatedTimes = 0;
+	}
+
+
+	switch (repeatedTimes) {
+		case 0: break;
+		case 1: msg = nls.localize('repeated', "{0} (occurred again)", msg); break;
+		default: msg = nls.localize('repeatedNtimes', "{0} (occurred {1} times)", msg, repeatedTimes); break;
 	}
 
 	dom.clearNode(target);

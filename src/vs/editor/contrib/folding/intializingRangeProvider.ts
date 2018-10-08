@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import { ITextModel, IModelDeltaDecoration, TrackedRangeStickiness } from 'vs/editor/common/model';
 import { FoldingRegions, ILineRange } from 'vs/editor/contrib/folding/foldingRanges';
 import { RangeProvider } from './folding';
@@ -18,7 +16,7 @@ export class InitializingRangeProvider implements RangeProvider {
 	readonly id = ID_INIT_PROVIDER;
 
 	private decorationIds: string[] | undefined;
-	private timeout: number;
+	private timeout: any;
 
 	constructor(private editorModel: ITextModel, initialRanges: ILineRange[], onTimeout: () => void, timeoutTime: number) {
 		if (initialRanges.length) {

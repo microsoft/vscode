@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import { Event, Emitter } from 'vs/base/common/event';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { TPromise } from 'vs/base/common/winjs.base';
@@ -44,6 +42,11 @@ export class Menu implements IMenu {
 
 				// keep keys for eventing
 				Menu._fillInKbExprKeys(item.when, keysFilter);
+
+				// keep precondition keys for event if applicable
+				if (isIMenuItem(item) && item.command.precondition) {
+					Menu._fillInKbExprKeys(item.command.precondition, keysFilter);
+				}
 			}
 
 			// subscribe to context changes
@@ -74,7 +77,6 @@ export class Menu implements IMenu {
 			for (const item of items) {
 				if (this._contextKeyService.contextMatchesRules(item.when)) {
 					const action = isIMenuItem(item) ? new MenuItemAction(item.command, item.alt, options, this._contextKeyService, this._commandService) : new SubmenuItemAction(item);
-					action.order = item.order; //TODO@Ben order is menu item property, not an action property
 					activeActions.push(action);
 				}
 			}

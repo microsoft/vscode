@@ -2,7 +2,6 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
 import * as nls from 'vs/nls';
 import * as dom from 'vs/base/browser/dom';
@@ -23,7 +22,7 @@ import { nullTokenize2 } from 'vs/editor/common/modes/nullMode';
 import { generateTokensCSSForColorMap } from 'vs/editor/common/modes/supports/tokenization';
 import { Color } from 'vs/base/common/color';
 import { INotificationService } from 'vs/platform/notification/common/notification';
-import URI from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 import { IFileService } from 'vs/platform/files/common/files';
 import { ILogService } from 'vs/platform/log/common/log';
 
@@ -216,10 +215,10 @@ export class TextMateService implements ITextMateService {
 					loadGrammar: (scopeName: string) => {
 						const location = this._scopeRegistry.getGrammarLocation(scopeName);
 						if (!location) {
-							this._logService.info(`No grammar found for scope ${scopeName}`);
+							this._logService.trace(`No grammar found for scope ${scopeName}`);
 							return null;
 						}
-						return this._fileService.resolveContent(location).then(content => {
+						return this._fileService.resolveContent(location, { encoding: 'utf8' }).then(content => {
 							return parseRawGrammar(content.value, location.path);
 						}, e => {
 							this._logService.error(`Unable to load and parse grammar for scope ${scopeName} from ${location}`, e);
@@ -313,7 +312,7 @@ export class TextMateService implements ITextMateService {
 		}
 
 		const grammarLocation = resources.joinPath(extensionLocation, syntax.path);
-		if (grammarLocation.path.indexOf(extensionLocation.path) !== 0) {
+		if (!resources.isEqualOrParent(grammarLocation, extensionLocation)) {
 			collector.warn(nls.localize('invalid.path.1', "Expected `contributes.{0}.path` ({1}) to be included inside extension's folder ({2}). This might make the extension non-portable.", grammarsExtPoint.name, grammarLocation.path, extensionLocation.path));
 		}
 
@@ -397,9 +396,13 @@ export class TextMateService implements ITextMateService {
 	}
 
 	private registerDefinition(modeId: string): void {
-		this._createGrammar(modeId).then((r) => {
-			TokenizationRegistry.register(modeId, new TMTokenization(this._scopeRegistry, r.languageId, r.grammar, r.initialState, r.containsEmbeddedLanguages, this._notificationService));
-		}, onUnexpectedError);
+		const promise = this._createGrammar(modeId).then((r) => {
+			return new TMTokenization(this._scopeRegistry, r.languageId, r.grammar, r.initialState, r.containsEmbeddedLanguages, this._notificationService);
+		}, e => {
+			onUnexpectedError(e);
+			return null;
+		});
+		TokenizationRegistry.registerPromise(modeId, promise);
 	}
 }
 

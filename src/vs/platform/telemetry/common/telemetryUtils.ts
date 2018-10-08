@@ -2,14 +2,13 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { guessMimeTypes } from 'vs/base/common/mime';
 import * as paths from 'vs/base/common/paths';
-import URI from 'vs/base/common/uri';
-import { IConfigurationService, ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
+import { URI } from 'vs/base/common/uri';
+import { IConfigurationService, ConfigurationTarget, ConfigurationTargetToString } from 'vs/platform/configuration/common/configuration';
 import { IKeybindingService, KeybindingSource } from 'vs/platform/keybinding/common/keybinding';
 import { ITelemetryService, ITelemetryInfo, ITelemetryData } from 'vs/platform/telemetry/common/telemetry';
 import { ILogService } from 'vs/platform/log/common/log';
@@ -86,7 +85,6 @@ export function telemetryURIDescriptor(uri: URI, hashPath: (path: string) => str
  * Only add settings that cannot contain any personal/private information of users (PII).
  */
 const configurationValueWhitelist = [
-	'editor.tabCompletion',
 	'editor.fontFamily',
 	'editor.fontWeight',
 	'editor.fontSize',
@@ -113,8 +111,11 @@ const configurationValueWhitelist = [
 	'editor.multiCursorModifier',
 	'editor.quickSuggestions',
 	'editor.quickSuggestionsDelay',
-	'editor.parameterHints',
+	'editor.parameterHints.enabled',
+	'editor.parameterHints.cycle',
 	'editor.autoClosingBrackets',
+	'editor.autoClosingQuotes',
+	'editor.autoSurround',
 	'editor.autoIndent',
 	'editor.formatOnType',
 	'editor.formatOnPaste',
@@ -127,6 +128,7 @@ const configurationValueWhitelist = [
 	'editor.suggestSelection',
 	'editor.suggestFontSize',
 	'editor.suggestLineHeight',
+	'editor.tabCompletion',
 	'editor.selectionHighlight',
 	'editor.occurrencesHighlight',
 	'editor.overviewRulerLanes',
@@ -180,6 +182,7 @@ const configurationValueWhitelist = [
 	'workbench.editor.enablePreview',
 	'workbench.editor.enablePreviewFromQuickOpen',
 	'workbench.editor.showTabs',
+	'workbench.editor.highlightModifiedTabs',
 	'workbench.editor.swipeToNavigate',
 	'workbench.sideBar.location',
 	'workbench.startupEditor',
@@ -197,7 +200,7 @@ export function configurationTelemetry(telemetryService: ITelemetryService, conf
 				}
 			*/
 			telemetryService.publicLog('updateConfiguration', {
-				configurationSource: ConfigurationTarget[event.source],
+				configurationSource: ConfigurationTargetToString(event.source),
 				configurationKeys: flattenKeys(event.sourceConfig)
 			});
 			/* __GDPR__
@@ -207,7 +210,7 @@ export function configurationTelemetry(telemetryService: ITelemetryService, conf
 				}
 			*/
 			telemetryService.publicLog('updateConfigurationValues', {
-				configurationSource: ConfigurationTarget[event.source],
+				configurationSource: ConfigurationTargetToString(event.source),
 				configurationValues: flattenValues(event.sourceConfig, configurationValueWhitelist)
 			});
 		}

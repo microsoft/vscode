@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import { localize } from 'vs/nls';
 import { append, $, addClass, removeClass, toggleClass } from 'vs/base/browser/dom';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
@@ -16,7 +14,7 @@ import { IPagedRenderer } from 'vs/base/browser/ui/list/listPaging';
 import { once } from 'vs/base/common/event';
 import { domEvent } from 'vs/base/browser/event';
 import { IExtension, IExtensionsWorkbenchService } from 'vs/workbench/parts/extensions/common/extensions';
-import { InstallAction, UpdateAction, ManageExtensionAction, ReloadAction, extensionButtonProminentBackground, extensionButtonProminentForeground, MaliciousStatusLabelAction, DisabledStatusLabelAction, MultiServerInstallAction, MultiServerUpdateAction } from 'vs/workbench/parts/extensions/electron-browser/extensionsActions';
+import { InstallAction, UpdateAction, ManageExtensionAction, ReloadAction, extensionButtonProminentBackground, extensionButtonProminentForeground, MaliciousStatusLabelAction, DisabledStatusLabelAction } from 'vs/workbench/parts/extensions/electron-browser/extensionsActions';
 import { areSameExtensions } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { Label, RatingsWidget, InstallCountWidget } from 'vs/workbench/parts/extensions/browser/extensionsWidgets';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
@@ -89,12 +87,6 @@ export class Renderer implements IPagedRenderer<IExtension, ITemplateData> {
 				if (action.id === ManageExtensionAction.ID) {
 					return (<ManageExtensionAction>action).actionItem;
 				}
-				if (action.id === MultiServerInstallAction.ID) {
-					return (<MultiServerInstallAction>action).actionItem;
-				}
-				if (action.id === MultiServerUpdateAction.ID) {
-					return (<MultiServerUpdateAction>action).actionItem;
-				}
 				return null;
 			}
 		});
@@ -106,11 +98,9 @@ export class Renderer implements IPagedRenderer<IExtension, ITemplateData> {
 
 		const maliciousStatusAction = this.instantiationService.createInstance(MaliciousStatusLabelAction, false);
 		const disabledStatusAction = this.instantiationService.createInstance(DisabledStatusLabelAction);
-		const installAction = this.extensionManagementServerService.extensionManagementServers.length === 1 ? this.instantiationService.createInstance(InstallAction)
-			: this.instantiationService.createInstance(MultiServerInstallAction, true);
-		const updateAction = this.extensionManagementServerService.extensionManagementServers.length === 1 ? this.instantiationService.createInstance(UpdateAction)
-			: this.instantiationService.createInstance(MultiServerUpdateAction);
-		const reloadAction = this.instantiationService.createInstance(ReloadAction);
+		const installAction = this.instantiationService.createInstance(InstallAction);
+		const updateAction = this.instantiationService.createInstance(UpdateAction);
+		const reloadAction = this.instantiationService.createInstance(ReloadAction, false);
 		const manageAction = this.instantiationService.createInstance(ManageExtensionAction);
 
 		actionbar.push([updateAction, reloadAction, installAction, disabledStatusAction, maliciousStatusAction, manageAction], actionOptions);
@@ -156,7 +146,7 @@ export class Renderer implements IPagedRenderer<IExtension, ITemplateData> {
 		this.extensionService.getExtensions().then(runningExtensions => {
 			if (installed && installed.local) {
 				const installedExtensionServer = this.extensionManagementServerService.getExtensionManagementServer(installed.local.location);
-				const isSameExtensionRunning = runningExtensions.some(e => areSameExtensions(e, extension) && installedExtensionServer.location.toString() === this.extensionManagementServerService.getExtensionManagementServer(e.extensionLocation).location.toString());
+				const isSameExtensionRunning = runningExtensions.some(e => areSameExtensions(e, extension) && installedExtensionServer.authority === this.extensionManagementServerService.getExtensionManagementServer(e.extensionLocation).authority);
 				toggleClass(data.root, 'disabled', !isSameExtensionRunning);
 			} else {
 				removeClass(data.root, 'disabled');
@@ -188,10 +178,9 @@ export class Renderer implements IPagedRenderer<IExtension, ITemplateData> {
 		data.ratings.style.display = '';
 		data.extension = extension;
 
-		extension.getManifest().then(manifest => {
-			const name = manifest && manifest.contributes && manifest.contributes.localizations && manifest.contributes.localizations.length > 0 && manifest.contributes.localizations[0].localizedLanguageName;
-			if (name) { data.description.textContent = name[0].toLocaleUpperCase() + name.slice(1); }
-		});
+		if (extension.gallery && extension.gallery.properties && extension.gallery.properties.localizedLanguages && extension.gallery.properties.localizedLanguages.length) {
+			data.description.textContent = extension.gallery.properties.localizedLanguages.map(name => name[0].toLocaleUpperCase() + name.slice(1)).join(', ');
+		}
 	}
 
 	disposeElement(): void {

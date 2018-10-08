@@ -2,21 +2,9 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
-
 import * as assert from 'assert';
-import { KeyCode as StandaloneKeyCode, Severity as StandaloneSeverity } from 'vs/editor/common/standalone/standaloneBase';
+import { KeyCode as StandaloneKeyCode } from 'vs/editor/common/standalone/standaloneBase';
 import { KeyCode as RuntimeKeyCode } from 'vs/base/common/keyCodes';
-import RuntimeSeverity from 'vs/base/common/severity';
-
-suite('StandaloneBase', () => {
-	test('exports enums correctly', () => {
-		assert.equal(StandaloneSeverity.Ignore, RuntimeSeverity.Ignore);
-		assert.equal(StandaloneSeverity.Info, RuntimeSeverity.Info);
-		assert.equal(StandaloneSeverity.Warning, RuntimeSeverity.Warning);
-		assert.equal(StandaloneSeverity.Error, RuntimeSeverity.Error);
-	});
-});
 
 suite('KeyCode', () => {
 	test('is exported correctly in standalone editor', () => {

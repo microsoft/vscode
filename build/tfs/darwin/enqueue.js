@@ -40,7 +40,6 @@ var __generator = (this && this.__generator) || function (thisArg, body) {
 };
 Object.defineProperty(exports, "__esModule", { value: true });
 var child_process_1 = require("child_process");
-var documentdb_1 = require("documentdb");
 var azure = require("azure-storage");
 function queueSigningRequest(quality, commit) {
     var retryOperations = new azure.ExponentialRetryPolicyFilter();
@@ -51,39 +50,6 @@ function queueSigningRequest(quality, commit) {
     var message = quality + "/" + commit;
     return new Promise(function (c, e) { return queueSvc.createMessage('sign-darwin', message, function (err) { return err ? e(err) : c(); }); });
 }
-function isBuildSigned(quality, commit) {
-    var client = new documentdb_1.DocumentClient(process.env['AZURE_DOCUMENTDB_ENDPOINT'], { masterKey: process.env['AZURE_DOCUMENTDB_MASTERKEY'] });
-    var collection = 'dbs/builds/colls/' + quality;
-    var updateQuery = {
-        query: 'SELECT TOP 1 * FROM c WHERE c.id = @id',
-        parameters: [{ name: '@id', value: commit }]
-    };
-    return new Promise(function (c, e) {
-        client.queryDocuments(collection, updateQuery).toArray(function (err, results) {
-            if (err) {
-                return e(err);
-            }
-            if (results.length !== 1) {
-                return c(false);
-            }
-            var release = results[0];
-            var assets = release.assets;
-            var isSigned = assets.some(function (a) { return a.platform === 'darwin' && a.type === 'archive'; });
-            c(isSigned);
-        });
-    });
-}
-// async function waitForSignedBuild(quality: string, commit: string): Promise<void> {
-// 	let retries = 0;
-// 	while (retries < 180) {
-// 		if (await isBuildSigned(quality, commit)) {
-// 			return;
-// 		}
-// 		await new Promise<void>(c => setTimeout(c, 10000));
-// 		retries++;
-// 	}
-// 	throw new Error('Timed out waiting for signed build');
-// }
 function main(quality) {
     return __awaiter(this, void 0, void 0, function () {
         var commit;

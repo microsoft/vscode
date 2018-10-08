@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import * as assert from 'assert';
 import * as os from 'os';
 import * as path from 'path';
@@ -86,7 +84,7 @@ suite('KeybindingsEditing', () => {
 			instantiationService.stub(ILogService, new TestLogService());
 			instantiationService.stub(IModelService, instantiationService.createInstance(ModelServiceImpl));
 			instantiationService.stub(IFileService, new FileService(
-				new TestContextService(new Workspace(testDir, testDir, toWorkspaceFolders([{ path: testDir }]))),
+				new TestContextService(new Workspace(testDir, toWorkspaceFolders([{ path: testDir }]))),
 				TestEnvironmentService,
 				new TestTextResourceConfigurationService(),
 				new TestConfigurationService(),

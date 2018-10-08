@@ -2,13 +2,12 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
 import { TPromise } from 'vs/base/common/winjs.base';
 import { ITextModel, ITextBufferFactory } from 'vs/editor/common/model';
 import { IMode } from 'vs/editor/common/modes';
 import { EditorModel } from 'vs/workbench/common/editor';
-import URI from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 import { ITextEditorModel } from 'vs/editor/common/services/resolverService';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { IModelService } from 'vs/editor/common/services/modelService';
@@ -74,6 +73,7 @@ export abstract class BaseTextEditorModel extends EditorModel implements ITextEd
 	protected createTextEditorModel(value: ITextBufferFactory, resource?: URI, modeId?: string): TPromise<EditorModel> {
 		const firstLineText = this.getFirstLineText(value);
 		const mode = this.getOrCreateMode(this.modeService, modeId, firstLineText);
+
 		return TPromise.as(this.doCreateTextEditorModel(value, mode, resource));
 	}
 

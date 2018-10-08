@@ -2368,11 +2368,11 @@
 		"c": "(",
 		"t": "source.objc meta.implementation.objc meta.scope.implementation.objc meta.function-with-body.objc meta.block.c meta.selector.objc punctuation.definition.storage.type.objc",
 		"r": {
-			"dark_plus": "meta.selector: #D7BA7D",
-			"light_plus": "meta.selector: #800000",
-			"dark_vs": "meta.selector: #D7BA7D",
-			"light_vs": "meta.selector: #800000",
-			"hc_black": "meta.selector: #D7BA7D"
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
 		}
 	},
 	{
@@ -2381,8 +2381,8 @@
 		"r": {
 			"dark_plus": "support.function: #DCDCAA",
 			"light_plus": "support.function: #795E26",
-			"dark_vs": "meta.selector: #D7BA7D",
-			"light_vs": "meta.selector: #800000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
 			"hc_black": "support.function: #DCDCAA"
 		}
 	},
@@ -2390,11 +2390,11 @@
 		"c": ")",
 		"t": "source.objc meta.implementation.objc meta.scope.implementation.objc meta.function-with-body.objc meta.block.c meta.selector.objc punctuation.definition.storage.type.objc",
 		"r": {
-			"dark_plus": "meta.selector: #D7BA7D",
-			"light_plus": "meta.selector: #800000",
-			"dark_vs": "meta.selector: #D7BA7D",
-			"light_vs": "meta.selector: #800000",
-			"hc_black": "meta.selector: #D7BA7D"
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
 		}
 	},
 	{

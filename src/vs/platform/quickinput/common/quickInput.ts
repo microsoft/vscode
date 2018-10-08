@@ -2,21 +2,34 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { ResolvedKeybinding } from 'vs/base/common/keyCodes';
-import URI from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 import { Event } from 'vs/base/common/event';
 
 export interface IQuickPickItem {
+	type?: 'item';
 	id?: string;
 	label: string;
 	description?: string;
 	detail?: string;
+	iconClasses?: string[];
+	buttons?: IQuickInputButton[];
 	picked?: boolean;
+	alwaysShow?: boolean;
+}
+
+export interface IQuickPickSeparator {
+	type: 'separator';
+	label?: string;
+}
+
+export interface IKeyMods {
+	readonly ctrlCmd: boolean;
+	readonly alt: boolean;
 }
 
 export interface IQuickNavigateConfiguration {
@@ -50,7 +63,24 @@ export interface IPickOptions<T extends IQuickPickItem> {
 	 */
 	canPickMany?: boolean;
 
+	/**
+	 * enables quick navigate in the picker to open an element without typing
+	 */
+	quickNavigate?: IQuickNavigateConfiguration;
+
+	/**
+	 * a context key to set when this picker is active
+	 */
+	contextKey?: string;
+
+	/**
+	 * an optional property for the item to focus initially.
+	 */
+	activeItem?: TPromise<T> | T;
+
+	onKeyMods?: (keyMods: IKeyMods) => void;
 	onDidFocus?: (entry: T) => void;
+	onDidTriggerItemButton?: (context: IQuickPickItemButtonContext<T>) => void;
 }
 
 export interface IInputOptions {
@@ -85,7 +115,7 @@ export interface IInputOptions {
 	/**
 	 * an optional function that is used to validate user input.
 	 */
-	validateInput?: (input: string) => TPromise<string>;
+	validateInput?: (input: string) => Thenable<string>;
 }
 
 export interface IQuickInput {
@@ -97,6 +127,8 @@ export interface IQuickInput {
 	totalSteps: number | undefined;
 
 	enabled: boolean;
+
+	contextKey: string | undefined;
 
 	busy: boolean;
 
@@ -125,13 +157,17 @@ export interface IQuickPick<T extends IQuickPickItem> extends IQuickInput {
 
 	readonly onDidTriggerButton: Event<IQuickInputButton>;
 
-	items: ReadonlyArray<T>;
+	readonly onDidTriggerItemButton: Event<IQuickPickItemButtonEvent<T>>;
+
+	items: ReadonlyArray<T | IQuickPickSeparator>;
 
 	canSelectMany: boolean;
 
 	matchOnDescription: boolean;
 
 	matchOnDetail: boolean;
+
+	quickNavigate: IQuickNavigateConfiguration | undefined;
 
 	activeItems: ReadonlyArray<T>;
 
@@ -140,6 +176,8 @@ export interface IQuickPick<T extends IQuickPickItem> extends IQuickInput {
 	selectedItems: ReadonlyArray<T>;
 
 	readonly onDidChangeSelection: Event<T[]>;
+
+	readonly keyMods: IKeyMods;
 }
 
 export interface IInputBox extends IQuickInput {
@@ -166,11 +204,25 @@ export interface IInputBox extends IQuickInput {
 }
 
 export interface IQuickInputButton {
-	iconPath: { dark: URI; light?: URI; };
-	tooltip?: string | undefined;
+	iconPath?: { dark: URI; light?: URI; };
+	iconClass?: string;
+	tooltip?: string;
+}
+
+export interface IQuickPickItemButtonEvent<T extends IQuickPickItem> {
+	button: IQuickInputButton;
+	item: T;
+}
+
+export interface IQuickPickItemButtonContext<T extends IQuickPickItem> extends IQuickPickItemButtonEvent<T> {
+	removeItem(): void;
 }
 
 export const IQuickInputService = createDecorator<IQuickInputService>('quickInputService');
+
+export type Omit<T, K extends keyof T> = Pick<T, Exclude<keyof T, K>>;
+
+export type QuickPickInput<T = IQuickPickItem> = T | IQuickPickSeparator;
 
 export interface IQuickInputService {
 
@@ -179,7 +231,9 @@ export interface IQuickInputService {
 	/**
 	 * Opens the quick input box for selecting items and returns a promise with the user selected item(s) if any.
 	 */
-	pick<T extends IQuickPickItem, O extends IPickOptions<T>>(picks: TPromise<T[]>, options?: O, token?: CancellationToken): TPromise<O extends { canPickMany: true } ? T[] : T>;
+	pick<T extends IQuickPickItem>(picks: TPromise<QuickPickInput<T>[]> | QuickPickInput<T>[], options?: IPickOptions<T> & { canPickMany: true }, token?: CancellationToken): TPromise<T[]>;
+	pick<T extends IQuickPickItem>(picks: TPromise<QuickPickInput<T>[]> | QuickPickInput<T>[], options?: IPickOptions<T> & { canPickMany: false }, token?: CancellationToken): TPromise<T>;
+	pick<T extends IQuickPickItem>(picks: TPromise<QuickPickInput<T>[]> | QuickPickInput<T>[], options?: Omit<IPickOptions<T>, 'canPickMany'>, token?: CancellationToken): TPromise<T>;
 
 	/**
 	 * Opens the quick input box for text input and returns a promise with the user typed value if any.

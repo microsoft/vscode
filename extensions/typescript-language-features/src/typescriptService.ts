@@ -11,6 +11,20 @@ import { TypeScriptServiceConfiguration } from './utils/configuration';
 import Logger from './utils/logger';
 import { TypeScriptServerPlugin } from './utils/plugins';
 
+export class CancelledResponse {
+	readonly type: 'cancelled' = 'cancelled';
+
+	constructor(
+		public readonly reason: string
+	) { }
+}
+
+export class NoContentResponse {
+	readonly type: 'noContent' = 'noContent';
+}
+
+export type ServerResponse<T extends Proto.Response> = T | CancelledResponse | NoContentResponse;
+
 interface TypeScriptRequestTypes {
 	'applyCodeActionCommand': [Proto.ApplyCodeActionCommandRequestArgs, Proto.ApplyCodeActionCommandResponse];
 	'completionEntryDetails': [Proto.CompletionDetailsRequestArgs, Proto.CompletionDetailsResponse];
@@ -82,7 +96,7 @@ export interface ITypeScriptServiceClient {
 		command: K,
 		args: TypeScriptRequestTypes[K][0],
 		token: vscode.CancellationToken
-	): Promise<TypeScriptRequestTypes[K][1]>;
+	): Promise<ServerResponse<TypeScriptRequestTypes[K][1]>>;
 
 	executeWithoutWaitingForResponse(command: 'open', args: Proto.OpenRequestArgs): void;
 	executeWithoutWaitingForResponse(command: 'close', args: Proto.FileRequestArgs): void;

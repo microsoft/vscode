@@ -153,6 +153,10 @@
 	background-position: center;
 }
 
+.monaco-editor .suggest-widget.no-icons .monaco-list .monaco-list-row .icon {
+	display: none;
+}
+
 .monaco-editor .suggest-widget .monaco-list .monaco-list-row .icon { background-image: url('Misc_16x.svg'); }
 .monaco-editor .suggest-widget .monaco-list .monaco-list-row .icon.method,
 .monaco-editor .suggest-widget .monaco-list .monaco-list-row .icon.function,

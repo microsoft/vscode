@@ -2,7 +2,6 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { Position } from 'vs/editor/common/core/position';
@@ -272,7 +271,6 @@ export class FindDecorations implements IDisposable {
 		showIfCollapsed: true,
 		overviewRuler: {
 			color: themeColorFromId(overviewRulerFindMatchForeground),
-			darkColor: themeColorFromId(overviewRulerFindMatchForeground),
 			position: OverviewRulerLane.Center
 		}
 	});
@@ -283,7 +281,6 @@ export class FindDecorations implements IDisposable {
 		showIfCollapsed: true,
 		overviewRuler: {
 			color: themeColorFromId(overviewRulerFindMatchForeground),
-			darkColor: themeColorFromId(overviewRulerFindMatchForeground),
 			position: OverviewRulerLane.Center
 		}
 	});
@@ -298,7 +295,6 @@ export class FindDecorations implements IDisposable {
 		stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
 		overviewRuler: {
 			color: themeColorFromId(overviewRulerFindMatchForeground),
-			darkColor: themeColorFromId(overviewRulerFindMatchForeground),
 			position: OverviewRulerLane.Center
 		}
 	});

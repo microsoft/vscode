@@ -2,12 +2,11 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
 import { TextModel } from 'vs/editor/common/model/textModel';
 import { DefaultEndOfLine, ITextModelCreationOptions } from 'vs/editor/common/model';
 import { LanguageIdentifier } from 'vs/editor/common/modes';
-import URI from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 
 export function withEditorModel(text: string[], callback: (model: TextModel) => void): void {
 	let model = TextModel.createFromString(text.join('\n'));

@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import { TPromise } from 'vs/base/common/winjs.base';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 
@@ -13,7 +11,7 @@ export const IMenubarService = createDecorator<IMenubarService>('menubarService'
 export interface IMenubarService {
 	_serviceBrand: any;
 
-	updateMenubar(windowId: number, menus: IMenubarData): TPromise<void>;
+	updateMenubar(windowId: number, menus: IMenubarData, additionalKeybindings?: Array<IMenubarKeybinding>): TPromise<void>;
 }
 
 export interface IMenubarData {

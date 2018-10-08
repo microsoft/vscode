@@ -11,7 +11,7 @@ import { TableOfContentsProvider } from '../tableOfContentsProvider';
 import { InMemoryDocument } from './inMemoryDocument';
 import { createNewMarkdownEngine } from './engine';
 
-const testFileName = vscode.Uri.parse('test.md');
+const testFileName = vscode.Uri.file('test.md');
 
 suite('markdown.TableOfContentsProvider', () => {
 	test('Lookup should not return anything for empty document', async () => {

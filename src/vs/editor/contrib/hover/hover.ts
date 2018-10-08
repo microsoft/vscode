@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import 'vs/css!./hover';
 import * as nls from 'vs/nls';
 import { KeyCode, KeyMod, KeyChord } from 'vs/base/common/keyCodes';
@@ -191,8 +189,8 @@ export class ModesHoverController implements IEditorContribution {
 	}
 
 	private _onKeyDown(e: IKeyboardEvent): void {
-		if (e.keyCode !== KeyCode.Ctrl && e.keyCode !== KeyCode.Alt && e.keyCode !== KeyCode.Meta) {
-			// Do not hide hover when Ctrl/Meta is pressed
+		if (e.keyCode !== KeyCode.Ctrl && e.keyCode !== KeyCode.Alt && e.keyCode !== KeyCode.Meta && e.keyCode !== KeyCode.Shift) {
+			// Do not hide hover when a modifier key is pressed
 			this._hideWidgets();
 		}
 	}
@@ -273,24 +271,24 @@ registerEditorAction(ShowHoverAction);
 
 // theming
 registerThemingParticipant((theme, collector) => {
-	let editorHoverHighlightColor = theme.getColor(editorHoverHighlight);
+	const editorHoverHighlightColor = theme.getColor(editorHoverHighlight);
 	if (editorHoverHighlightColor) {
 		collector.addRule(`.monaco-editor .hoverHighlight { background-color: ${editorHoverHighlightColor}; }`);
 	}
-	let hoverBackground = theme.getColor(editorHoverBackground);
+	const hoverBackground = theme.getColor(editorHoverBackground);
 	if (hoverBackground) {
 		collector.addRule(`.monaco-editor .monaco-editor-hover { background-color: ${hoverBackground}; }`);
 	}
-	let hoverBorder = theme.getColor(editorHoverBorder);
+	const hoverBorder = theme.getColor(editorHoverBorder);
 	if (hoverBorder) {
 		collector.addRule(`.monaco-editor .monaco-editor-hover { border: 1px solid ${hoverBorder}; }`);
 		collector.addRule(`.monaco-editor .monaco-editor-hover .hover-row:not(:first-child):not(:empty) { border-top: 1px solid ${hoverBorder.transparent(0.5)}; }`);
 	}
-	let link = theme.getColor(textLinkForeground);
+	const link = theme.getColor(textLinkForeground);
 	if (link) {
 		collector.addRule(`.monaco-editor .monaco-editor-hover a { color: ${link}; }`);
 	}
-	let codeBackground = theme.getColor(textCodeBlockBackground);
+	const codeBackground = theme.getColor(textCodeBlockBackground);
 	if (codeBackground) {
 		collector.addRule(`.monaco-editor .monaco-editor-hover code { background-color: ${codeBackground}; }`);
 	}

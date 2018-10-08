@@ -22,7 +22,7 @@ suite('Grid', function () {
 		container = null;
 	});
 
-	test('getRelativeLocation', function () {
+	test('getRelativeLocation', () => {
 		assert.deepEqual(getRelativeLocation(Orientation.VERTICAL, [0], Direction.Up), [0]);
 		assert.deepEqual(getRelativeLocation(Orientation.VERTICAL, [0], Direction.Down), [1]);
 		assert.deepEqual(getRelativeLocation(Orientation.VERTICAL, [0], Direction.Left), [0, 0]);
@@ -54,7 +54,7 @@ suite('Grid', function () {
 		assert.deepEqual(getRelativeLocation(Orientation.VERTICAL, [1, 2, 3], Direction.Right), [1, 2, 3, 1]);
 	});
 
-	test('empty', function () {
+	test('empty', () => {
 		const view1 = new TestView(100, Number.MAX_VALUE, 100, Number.MAX_VALUE);
 		const gridview = new Grid(view1);
 		container.appendChild(gridview.element);
@@ -772,14 +772,14 @@ suite('SerializableGrid', function () {
 		assert.deepEqual(view3Copy.size, [800, 300]);
 	});
 
-	test('sanitizeGridNodeDescriptor', function () {
+	test('sanitizeGridNodeDescriptor', () => {
 		const nodeDescriptor = { groups: [{ size: 0.2 }, { size: 0.2 }, { size: 0.6, groups: [{}, {}] }] };
 		const nodeDescriptorCopy = deepClone<GridNodeDescriptor>(nodeDescriptor);
 		sanitizeGridNodeDescriptor(nodeDescriptorCopy);
 		assert.deepEqual(nodeDescriptorCopy, { groups: [{ size: 0.2 }, { size: 0.2 }, { size: 0.6, groups: [{ size: 0.5 }, { size: 0.5 }] }] });
 	});
 
-	test('createSerializedGrid', function () {
+	test('createSerializedGrid', () => {
 		const gridDescriptor = { orientation: Orientation.VERTICAL, groups: [{ size: 0.2 }, { size: 0.2 }, { size: 0.6, groups: [{}, {}] }] };
 		const serializedGrid = createSerializedGrid(gridDescriptor);
 		assert.deepEqual(serializedGrid, {

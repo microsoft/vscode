@@ -3,13 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import { IWorkbenchContribution, IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
 import { IMarkerService, IMarker, MarkerSeverity } from 'vs/platform/markers/common/markers';
 import { IDecorationsService, IDecorationsProvider, IDecorationData } from 'vs/workbench/services/decorations/browser/decorations';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
-import URI from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 import { Event } from 'vs/base/common/event';
 import { localize } from 'vs/nls';
 import { Registry } from 'vs/platform/registry/common/platform';

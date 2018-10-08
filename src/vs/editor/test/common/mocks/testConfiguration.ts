@@ -2,7 +2,6 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
 import { CommonEditorConfiguration, IEnvConfiguration } from 'vs/editor/common/config/commonEditorConfig';
 import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
@@ -39,6 +38,7 @@ export class TestConfiguration extends CommonEditorConfiguration {
 			isMonospace: true,
 			typicalHalfwidthCharacterWidth: 10,
 			typicalFullwidthCharacterWidth: 20,
+			canUseHalfwidthRightwardsArrow: true,
 			spaceWidth: 10,
 			maxDigitWidth: 10,
 		}, true);

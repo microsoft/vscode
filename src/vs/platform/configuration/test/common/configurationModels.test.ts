@@ -2,13 +2,11 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
-
 import * as assert from 'assert';
 import { ConfigurationModel, DefaultConfigurationModel, ConfigurationChangeEvent, ConfigurationModelParser } from 'vs/platform/configuration/common/configurationModels';
 import { Extensions, IConfigurationRegistry } from 'vs/platform/configuration/common/configurationRegistry';
 import { Registry } from 'vs/platform/registry/common/platform';
-import URI from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 
 suite('ConfigurationModel', () => {
 

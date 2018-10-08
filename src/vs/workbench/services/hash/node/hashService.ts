@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import { createHash } from 'crypto';
 import { IHashService } from 'vs/workbench/services/hash/common/hashService';
 

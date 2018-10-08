@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import { localize } from 'vs/nls';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { ITextModel } from 'vs/editor/common/model';
@@ -95,8 +93,6 @@ export class HtmlPreviewPart extends BaseWebviewEditor {
 
 			this._webview = this._instantiationService.createInstance(WebviewElement,
 				this._partService.getContainer(Parts.EDITOR_PART),
-				this.contextKey,
-				this.findInputFocusContextKey,
 				{
 					...webviewOptions,
 					useSameOriginForRoot: true

@@ -2,10 +2,8 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
 import * as platform from 'vs/base/common/platform';
-import { TPromise } from 'vs/base/common/winjs.base';
 import { TimeoutTimer } from 'vs/base/common/async';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { Disposable, IDisposable, dispose } from 'vs/base/common/lifecycle';
@@ -16,7 +14,7 @@ import { CharCode } from 'vs/base/common/charCode';
 import { Event, Emitter } from 'vs/base/common/event';
 import { domEvent } from 'vs/base/browser/event';
 
-export function clearNode(node: HTMLElement) {
+export function clearNode(node: HTMLElement): void {
 	while (node.firstChild) {
 		node.removeChild(node.firstChild);
 	}
@@ -277,7 +275,7 @@ interface IRequestAnimationFrame {
 let _animationFrame: IRequestAnimationFrame = null;
 function doRequestAnimationFrame(callback: (time: number) => void): number {
 	if (!_animationFrame) {
-		const emulatedRequestAnimationFrame = (callback: (time: number) => void): number => {
+		const emulatedRequestAnimationFrame = (callback: (time: number) => void): any => {
 			return setTimeout(() => callback(new Date().getTime()), 0);
 		};
 		_animationFrame = (
@@ -397,6 +395,14 @@ class AnimationFrameQueueItem implements IDisposable {
 	};
 })();
 
+export function measure(callback: () => void): IDisposable {
+	return scheduleAtNextAnimationFrame(callback, 10000 /* must be early */);
+}
+
+export function modify(callback: () => void): IDisposable {
+	return scheduleAtNextAnimationFrame(callback, -10000 /* must be late */);
+}
+
 /**
  * Add a throttled listener. `handler` is fired at most every 16ms or with the next animation frame (if browser supports it).
  */
@@ -486,8 +492,8 @@ export function getClientArea(element: HTMLElement): Dimension {
 		return new Dimension(window.innerWidth, window.innerHeight);
 	}
 
-	// Try with document.body.clientWidth / document.body.clientHeigh
-	if (document.body && document.body.clientWidth && document.body.clientWidth) {
+	// Try with document.body.clientWidth / document.body.clientHeight
+	if (document.body && document.body.clientWidth && document.body.clientHeight) {
 		return new Dimension(document.body.clientWidth, document.body.clientHeight);
 	}
 
@@ -552,6 +558,16 @@ export class Dimension {
 	constructor(width: number, height: number) {
 		this.width = width;
 		this.height = height;
+	}
+
+	static equals(a: Dimension, b: Dimension): boolean {
+		if (a === b) {
+			return true;
+		}
+		if (!a || !b) {
+			return false;
+		}
+		return a.width === b.width && a.height === b.height;
 	}
 }
 
@@ -812,7 +828,6 @@ export function isHTMLElement(o: any): o is HTMLElement {
 export const EventType = {
 	// Mouse
 	CLICK: 'click',
-	AUXCLICK: 'auxclick', // >= Chrome 56
 	DBLCLICK: 'dblclick',
 	MOUSE_UP: 'mouseup',
 	MOUSE_DOWN: 'mousedown',
@@ -920,7 +935,7 @@ class FocusTracker implements IFocusTracker {
 	private disposables: IDisposable[] = [];
 
 	constructor(element: HTMLElement | Window) {
-		let hasFocus = false;
+		let hasFocus = isAncestor(document.activeElement, <HTMLElement>element);
 		let loosingFocus = false;
 
 		let onFocus = () => {
@@ -971,7 +986,6 @@ export function prepend<T extends Node>(parent: HTMLElement, child: T): T {
 
 const SELECTOR_REGEX = /([\w\-]+)?(#([\w\-]+))?((.([\w\-]+))*)/;
 
-// Similar to builder, but much more lightweight
 export function $<T extends HTMLElement>(description: string, attrs?: { [key: string]: any; }, ...children: (Node | string)[]): T {
 	let match = SELECTOR_REGEX.exec(description);
 
@@ -1090,13 +1104,13 @@ export function finalHandler<T extends DOMEvent>(fn: (event: T) => any): (event:
 	};
 }
 
-export function domContentLoaded(): TPromise<any> {
-	return new TPromise<any>((c, e) => {
+export function domContentLoaded(): Promise<any> {
+	return new Promise<any>(resolve => {
 		const readyState = document.readyState;
 		if (readyState === 'complete' || (document && document.body !== null)) {
-			platform.setImmediate(c);
+			platform.setImmediate(resolve);
 		} else {
-			window.addEventListener('DOMContentLoaded', c, false);
+			window.addEventListener('DOMContentLoaded', resolve, false);
 		}
 	});
 }

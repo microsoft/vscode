@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import * as assert from 'assert';
 import { ExperimentService, ExperimentActionType, ExperimentState } from 'vs/workbench/parts/experiments/node/experimentService';
 import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
@@ -27,7 +25,7 @@ import { TestConfigurationService } from 'vs/platform/configuration/test/common/
 import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { assign } from 'vs/base/common/objects';
-import URI from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 
 let experimentData = {
 	experiments: []
@@ -593,6 +591,13 @@ suite('Experiment Service', () => {
 					}
 				},
 				{
+					id: 'custom-experiment-no-properties',
+					enabled: true,
+					action: {
+						type: 'Custom'
+					}
+				},
+				{
 					id: 'prompt-with-no-commands',
 					enabled: true,
 					action: {
@@ -622,9 +627,12 @@ suite('Experiment Service', () => {
 
 		testObject = instantiationService.createInstance(TestExperimentService);
 		const custom = testObject.getExperimentsByType(ExperimentActionType.Custom).then(result => {
-			assert.equal(result.length, 2);
+			assert.equal(result.length, 3);
 			assert.equal(result[0].id, 'simple-experiment');
 			assert.equal(result[1].id, 'custom-experiment');
+			assert.equal(result[1].action.properties, customProperties);
+			assert.equal(result[2].id, 'custom-experiment-no-properties');
+			assert.equal(!!result[2].action.properties, true);
 		});
 		const prompt = testObject.getExperimentsByType(ExperimentActionType.Prompt).then(result => {
 			assert.equal(result.length, 2);

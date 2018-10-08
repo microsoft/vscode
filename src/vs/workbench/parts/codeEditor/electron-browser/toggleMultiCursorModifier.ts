@@ -2,9 +2,7 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
-import { TPromise } from 'vs/base/common/winjs.base';
 import * as nls from 'vs/nls';
 import * as platform from 'vs/base/common/platform';
 import { Registry } from 'vs/platform/registry/common/platform';
@@ -31,7 +29,7 @@ export class ToggleMultiCursorModifierAction extends Action {
 		super(id, label);
 	}
 
-	public run(): TPromise<any> {
+	public run(): Promise<any> {
 		const editorConf = this.configurationService.getValue<{ multiCursorModifier: 'ctrlCmd' | 'alt' }>('editor');
 		const newValue: 'ctrlCmd' | 'alt' = (editorConf.multiCursorModifier === 'ctrlCmd' ? 'alt' : 'ctrlCmd');
 

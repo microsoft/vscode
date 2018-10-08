@@ -2,7 +2,6 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
 import * as nls from 'vs/nls';
 import * as paths from 'vs/base/common/paths';
@@ -16,7 +15,7 @@ export default class Messages {
 	public static MARKERS_PANEL_SHOW_LABEL: string = nls.localize('problems.view.focus.label', "Focus Problems (Errors, Warnings, Infos)");
 
 	public static PROBLEMS_PANEL_CONFIGURATION_TITLE: string = nls.localize('problems.panel.configuration.title', "Problems View");
-	public static PROBLEMS_PANEL_CONFIGURATION_AUTO_REVEAL: string = nls.localize('problems.panel.configuration.autoreveal', "Controls if Problems view should automatically reveal files when opening them");
+	public static PROBLEMS_PANEL_CONFIGURATION_AUTO_REVEAL: string = nls.localize('problems.panel.configuration.autoreveal', "Controls whether Problems view should automatically reveal files when opening them.");
 
 	public static MARKERS_PANEL_TITLE_PROBLEMS: string = nls.localize('markers.panel.title.problems', "Problems");
 	public static MARKERS_PANEL_ARIA_LABEL_PROBLEMS_TREE: string = nls.localize('markers.panel.aria.label.problems.tree', "Problems grouped by files");

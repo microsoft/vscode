@@ -2,7 +2,6 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
 import { equals } from 'vs/base/common/objects';
 import { compare, toValuesTree, IConfigurationChangeEvent, ConfigurationTarget, IConfigurationModel, IConfigurationOverrides } from 'vs/platform/configuration/common/configuration';
@@ -12,7 +11,7 @@ import { IConfigurationRegistry, IConfigurationPropertySchema, Extensions, Confi
 import { IStoredWorkspaceFolder } from 'vs/platform/workspaces/common/workspaces';
 import { Workspace } from 'vs/platform/workspace/common/workspace';
 import { ResourceMap } from 'vs/base/common/map';
-import URI from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 
 export class WorkspaceConfigurationModelParser extends ConfigurationModelParser {
 

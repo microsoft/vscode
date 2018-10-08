@@ -2,7 +2,6 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
 import * as nls from 'vs/nls';
 import * as Filters from 'vs/base/common/filters';
@@ -18,6 +17,7 @@ import { IQuickOpenService } from 'vs/platform/quickOpen/common/quickOpen';
 import { Task, CustomTask, ContributedTask } from 'vs/workbench/parts/tasks/common/tasks';
 import { ITaskService, RunOptions } from 'vs/workbench/parts/tasks/common/taskService';
 import { ActionBarContributor, ContributableActionProvider } from 'vs/workbench/browser/actions';
+import { CancellationToken } from 'vs/base/common/cancellation';
 
 export class TaskEntry extends Model.QuickOpenEntry {
 
@@ -68,7 +68,6 @@ export abstract class QuickOpenHandler extends Quickopen.QuickOpenHandler {
 
 	private tasks: TPromise<(CustomTask | ContributedTask)[]>;
 
-
 	constructor(
 		protected quickOpenService: IQuickOpenService,
 		protected taskService: ITaskService
@@ -87,10 +86,10 @@ export abstract class QuickOpenHandler extends Quickopen.QuickOpenHandler {
 		this.tasks = undefined;
 	}
 
-	public getResults(input: string): TPromise<Model.QuickOpenModel> {
+	public getResults(input: string, token: CancellationToken): TPromise<Model.QuickOpenModel> {
 		return this.tasks.then((tasks) => {
 			let entries: Model.QuickOpenEntry[] = [];
-			if (tasks.length === 0) {
+			if (tasks.length === 0 || token.isCancellationRequested) {
 				return new Model.QuickOpenModel(entries);
 			}
 			let recentlyUsedTasks = this.taskService.getRecentlyUsedTasks();

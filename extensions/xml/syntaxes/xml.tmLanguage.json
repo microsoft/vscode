@@ -4,7 +4,7 @@
 		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
 		"Once accepted there, we are happy to receive an update request."
 	],
-	"version": "https://github.com/atom/language-xml/commit/bd810deb404a12bea8ec5799fda2909349ba2654",
+	"version": "https://github.com/atom/language-xml/commit/7bc75dfe779ad5b35d9bf4013d9181864358cb49",
 	"name": "XML",
 	"scopeName": "text.xml",
 	"patterns": [

@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import { IWorkspacesMainService, IWorkspaceIdentifier, WORKSPACE_EXTENSION, IWorkspaceSavedEvent, UNTITLED_WORKSPACE_NAME, IResolvedWorkspace, IStoredWorkspaceFolder, isRawFileWorkspaceFolder, isStoredWorkspaceFolder, IWorkspaceFolderCreationData } from 'vs/platform/workspaces/common/workspaces';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { isParent } from 'vs/platform/files/common/files';
@@ -24,7 +22,7 @@ import * as jsonEdit from 'vs/base/common/jsonEdit';
 import { applyEdit } from 'vs/base/common/jsonFormatter';
 import { massageFolderPathForWorkspace } from 'vs/platform/workspaces/node/workspaces';
 import { toWorkspaceFolders } from 'vs/platform/workspace/common/workspace';
-import URI from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 import { Schemas } from 'vs/base/common/network';
 
 export interface IStoredWorkspace {

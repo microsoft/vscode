@@ -2,8 +2,6 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
-
 import * as assert from 'assert';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { TPromise } from 'vs/base/common/winjs.base';
@@ -43,6 +41,9 @@ class SimpleExtensionService implements IExtensionService {
 	startExtensionHostProfile(): TPromise<ProfileSession> {
 		throw new Error('Not implemented');
 	}
+	getInspectPort(): number {
+		return 0;
+	}
 	restartExtensionHost(): void {
 	}
 	startExtensionHost(): void {
@@ -63,7 +64,7 @@ suite('CommandService', function () {
 		commandRegistration.dispose();
 	});
 
-	test('activateOnCommand', function () {
+	test('activateOnCommand', () => {
 
 		let lastEvent: string;
 

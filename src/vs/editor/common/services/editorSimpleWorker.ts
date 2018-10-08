@@ -3,9 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
-import URI from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { IRequestHandler } from 'vs/base/common/worker/simpleWorker';
@@ -15,7 +13,7 @@ import { stringDiff } from 'vs/base/common/diff/diff';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import { Position, IPosition } from 'vs/editor/common/core/position';
 import { MirrorTextModel as BaseMirrorModel, IModelChangedEvent } from 'vs/editor/common/model/mirrorTextModel';
-import { IInplaceReplaceSupportResult, ILink, ISuggestResult, ISuggestion, TextEdit } from 'vs/editor/common/modes';
+import { IInplaceReplaceSupportResult, ILink, CompletionList, CompletionItem, TextEdit, CompletionItemKind } from 'vs/editor/common/modes';
 import { computeLinks, ILinkComputerTarget } from 'vs/editor/common/modes/linkComputer';
 import { BasicInplaceReplace } from 'vs/editor/common/modes/supports/inplaceReplaceSupport';
 import { getWordAtText, ensureValidWordDefinition } from 'vs/editor/common/model/wordHelper';
@@ -23,6 +21,7 @@ import { createMonacoBaseAPI } from 'vs/editor/common/standalone/standaloneBase'
 import { IWordAtPosition, EndOfLineSequence } from 'vs/editor/common/model';
 import { globals } from 'vs/base/common/platform';
 import { Iterator } from 'vs/base/common/iterator';
+import { mergeSort } from 'vs/base/common/arrays';
 
 export interface IMirrorModel {
 	readonly uri: URI;
@@ -59,6 +58,7 @@ export interface ICommonModel extends ILinkComputerTarget, IMirrorModel {
 	getLinesContent(): string[];
 	getLineCount(): number;
 	getLineContent(lineNumber: number): string;
+	getLineWords(lineNumber: number, wordDefinition: RegExp): IWordAtPosition[];
 	createWordIterator(wordDefinition: RegExp): Iterator<string>;
 	getWordUntilPosition(position: IPosition, wordDefinition: RegExp): IWordAtPosition;
 	getValueInRange(range: IRange): string;
@@ -178,6 +178,20 @@ class MirrorModel extends BaseMirrorModel implements ICommonModel {
 			return obj;
 		};
 		return { next };
+	}
+
+	public getLineWords(lineNumber: number, wordDefinition: RegExp): IWordAtPosition[] {
+		let content = this._lines[lineNumber - 1];
+		let ranges = this._wordenize(content, wordDefinition);
+		let words: IWordAtPosition[] = [];
+		for (const range of ranges) {
+			words.push({
+				word: content.substring(range.start, range.end),
+				startColumn: range.start + 1,
+				endColumn: range.end + 1
+			});
+		}
+		return words;
 	}
 
 	private _wordenize(content: string, wordDefinition: RegExp): IWordRange[] {
@@ -374,6 +388,8 @@ export abstract class BaseEditorSimpleWorker {
 		const result: TextEdit[] = [];
 		let lastEol: EndOfLineSequence;
 
+		edits = mergeSort(edits, (a, b) => Range.compareRangesUsingStarts(a.range, b.range));
+
 		for (let { range, text, eol } of edits) {
 
 			if (typeof eol === 'number') {
@@ -439,15 +455,15 @@ export abstract class BaseEditorSimpleWorker {
 
 	private static readonly _suggestionsLimit = 10000;
 
-	public textualSuggest(modelUrl: string, position: IPosition, wordDef: string, wordDefFlags: string): TPromise<ISuggestResult> {
+	public textualSuggest(modelUrl: string, position: IPosition, wordDef: string, wordDefFlags: string): TPromise<CompletionList> {
 		const model = this._getModel(modelUrl);
 		if (model) {
-			const suggestions: ISuggestion[] = [];
+			const suggestions: CompletionItem[] = [];
 			const wordDefRegExp = new RegExp(wordDef, wordDefFlags);
-			const currentWord = model.getWordUntilPosition(position, wordDefRegExp).word;
+			const currentWord = model.getWordUntilPosition(position, wordDefRegExp);
 
 			const seen: Record<string, boolean> = Object.create(null);
-			seen[currentWord] = true;
+			seen[currentWord.word] = true;
 
 			for (
 				let iter = model.createWordIterator(wordDefRegExp), e = iter.next();
@@ -464,11 +480,11 @@ export abstract class BaseEditorSimpleWorker {
 				}
 
 				suggestions.push({
-					type: 'text',
+					kind: CompletionItemKind.Text,
 					label: word,
 					insertText: word,
 					noAutoAccept: true,
-					overwriteBefore: currentWord.length
+					range: { startLineNumber: position.lineNumber, startColumn: currentWord.startColumn, endLineNumber: position.lineNumber, endColumn: currentWord.endColumn }
 				});
 			}
 
@@ -479,6 +495,39 @@ export abstract class BaseEditorSimpleWorker {
 
 
 	// ---- END suggest --------------------------------------------------------------------------
+
+	//#region -- word ranges --
+
+	computeWordRanges(modelUrl: string, range: IRange, wordDef: string, wordDefFlags: string): Promise<{ [word: string]: IRange[] }> {
+		let model = this._getModel(modelUrl);
+		if (!model) {
+			return Promise.resolve(Object.create(null));
+		}
+		const wordDefRegExp = new RegExp(wordDef, wordDefFlags);
+		const result: { [word: string]: IRange[] } = Object.create(null);
+		for (let line = range.startLineNumber; line < range.endLineNumber; line++) {
+			let words = model.getLineWords(line, wordDefRegExp);
+			for (const word of words) {
+				if (!isNaN(Number(word.word))) {
+					continue;
+				}
+				let array = result[word.word];
+				if (!array) {
+					array = [];
+					result[word.word] = array;
+				}
+				array.push({
+					startLineNumber: line,
+					startColumn: word.startColumn,
+					endLineNumber: line,
+					endColumn: word.endColumn
+				});
+			}
+		}
+		return Promise.resolve(result);
+	}
+
+	//#endregion
 
 	public navigateValueSet(modelUrl: string, range: IRange, up: boolean, wordDef: string, wordDefFlags: string): TPromise<IInplaceReplaceSupportResult> {
 		let model = this._getModel(modelUrl);
@@ -529,6 +578,7 @@ export abstract class BaseEditorSimpleWorker {
 			}
 			return TPromise.as(methods);
 		}
+		// ESM-comment-begin
 		return new TPromise<any>((c, e) => {
 			require([moduleId], (foreignModule: { create: IForeignModuleFactory }) => {
 				this._foreignModule = foreignModule.create(ctx, createData);
@@ -544,6 +594,11 @@ export abstract class BaseEditorSimpleWorker {
 
 			}, e);
 		});
+		// ESM-comment-end
+
+		// ESM-uncomment-begin
+		// return TPromise.wrapError(new Error(`Unexpected usage`));
+		// ESM-uncomment-end
 	}
 
 	// foreign method request

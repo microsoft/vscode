@@ -2,7 +2,6 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
 import { Disposable } from 'vs/base/common/lifecycle';
 import * as platform from 'vs/base/common/platform';
@@ -353,6 +352,7 @@ class MouseDownOperation extends Disposable {
 			&& e.detail < 2 // only single click on a selection can work
 			&& !this._isActive // the mouse is not down yet
 			&& !this._currentSelection.isEmpty() // we don't drag single cursor
+			&& (position.type === editorBrowser.MouseTargetType.CONTENT_TEXT) // single click on text
 			&& this._currentSelection.containsPosition(position.position) // single click on a selection
 		) {
 			this._mouseState.isDragAndDrop = true;

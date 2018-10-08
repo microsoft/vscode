@@ -2,13 +2,12 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IProgress } from 'vs/platform/progress/common/progress';
 import { ViewContainer } from 'vs/workbench/common/views';
 
-export enum ProgressLocation {
+export const enum ProgressLocation {
 	Explorer = 1,
 	Scm = 3,
 	Extensions = 5,

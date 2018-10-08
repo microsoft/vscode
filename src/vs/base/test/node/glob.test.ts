@@ -2,8 +2,6 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
-
 import * as assert from 'assert';
 import * as path from 'path';
 import * as glob from 'vs/base/common/glob';
@@ -11,7 +9,7 @@ import { isWindows } from 'vs/base/common/platform';
 
 suite('Glob', () => {
 
-	// test('perf', function () {
+	// test('perf', () => {
 
 	// 	let patterns = [
 	// 		'{**/*.cs,**/*.json,**/*.csproj,**/*.sln}',
@@ -71,7 +69,7 @@ suite('Glob', () => {
 		assert(!glob.match(pattern, input), `${pattern} should not match ${input}`);
 	}
 
-	test('simple', function () {
+	test('simple', () => {
 		let p = 'node_modules';
 
 		assertGlobMatch(p, 'node_modules');
@@ -175,7 +173,7 @@ suite('Glob', () => {
 		assertNoGlobMatch(p, 'some.js/test');
 	});
 
-	test('star', function () {
+	test('star', () => {
 		let p = 'node*modules';
 
 		assertGlobMatch(p, 'node_modules');
@@ -203,7 +201,7 @@ suite('Glob', () => {
 		assertGlobMatch(p, 'foo/node_modules/foo/bar');
 	});
 
-	test('questionmark', function () {
+	test('questionmark', () => {
 		let p = 'node?modules';
 
 		assertGlobMatch(p, 'node_modules');
@@ -220,7 +218,7 @@ suite('Glob', () => {
 		assertNoGlobMatch(p, '/node_modules/foo.js');
 	});
 
-	test('globstar', function () {
+	test('globstar', () => {
 		let p = '**/*.js';
 
 		assertGlobMatch(p, 'foo.js');
@@ -483,7 +481,7 @@ suite('Glob', () => {
 		assert.strictEqual(glob.match(expression, 'test.foo', hasSibling), null);
 	});
 
-	test('brackets', function () {
+	test('brackets', () => {
 		let p = 'foo.[0-9]';
 
 		assertGlobMatch(p, 'foo.5');
@@ -998,5 +996,17 @@ suite('Glob', () => {
 
 	test('pattern with "base" does not explode - #36081', function () {
 		assert.ok(glob.match({ 'base': true }, 'base'));
+	});
+
+	test('relative pattern - #57475', function () {
+		if (isWindows) {
+			let p: glob.IRelativePattern = { base: 'C:\\DNXConsoleApp\\foo', pattern: 'styles/style.css', pathToRelative: (from, to) => path.relative(from, to) };
+			assertGlobMatch(p, 'C:\\DNXConsoleApp\\foo\\styles\\style.css');
+			assertNoGlobMatch(p, 'C:\\DNXConsoleApp\\foo\\Program.cs');
+		} else {
+			let p: glob.IRelativePattern = { base: '/DNXConsoleApp/foo', pattern: 'styles/style.css', pathToRelative: (from, to) => path.relative(from, to) };
+			assertGlobMatch(p, '/DNXConsoleApp/foo/styles/style.css');
+			assertNoGlobMatch(p, '/DNXConsoleApp/foo/Program.cs');
+		}
 	});
 });

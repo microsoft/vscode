@@ -7,7 +7,6 @@ import * as nls from 'vs/nls';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IAction } from 'vs/base/common/actions';
 import * as lifecycle from 'vs/base/common/lifecycle';
-import * as errors from 'vs/base/common/errors';
 import { isFullWidthCharacter, removeAnsiEscapeCodes, endsWith } from 'vs/base/common/strings';
 import { IActionItem, Separator } from 'vs/base/browser/ui/actionbar/actionbar';
 import * as dom from 'vs/base/browser/dom';
@@ -16,7 +15,7 @@ import { IMouseEvent } from 'vs/base/browser/mouseEvent';
 import { ITree, IAccessibilityProvider, ContextMenuEvent, IDataSource, IRenderer, IActionProvider } from 'vs/base/parts/tree/browser/tree';
 import { ICancelableEvent } from 'vs/base/parts/tree/browser/treeDefaults';
 import { IExpressionContainer, IExpression, IReplElementSource } from 'vs/workbench/parts/debug/common/debug';
-import { Model, RawObjectReplElement, Expression, SimpleReplElement, Variable } from 'vs/workbench/parts/debug/common/debugModel';
+import { RawObjectReplElement, Expression, SimpleReplElement, Variable } from 'vs/workbench/parts/debug/common/debugModel';
 import { renderVariable, renderExpressionValue, IVariableTemplateData, BaseDebugController } from 'vs/workbench/parts/debug/browser/baseDebugView';
 import { ClearReplAction, ReplCollapseAllAction } from 'vs/workbench/parts/debug/browser/debugActions';
 import { CopyAction, CopyAllAction } from 'vs/workbench/parts/debug/electron-browser/electronDebugActions';
@@ -24,7 +23,8 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { LinkDetector } from 'vs/workbench/parts/debug/browser/linkDetector';
 import { handleANSIOutput } from 'vs/workbench/parts/debug/browser/debugANSIHandling';
-import { IUriDisplayService } from 'vs/platform/uriDisplay/common/uriDisplay';
+import { ILabelService } from 'vs/platform/label/common/label';
+import { DebugSession } from 'vs/workbench/parts/debug/electron-browser/debugSession';
 
 const $ = dom.$;
 
@@ -35,25 +35,25 @@ export class ReplExpressionsDataSource implements IDataSource {
 	}
 
 	public hasChildren(tree: ITree, element: any): boolean {
-		return element instanceof Model || (<IExpressionContainer>element).hasChildren;
+		return element instanceof DebugSession || (<IExpressionContainer>element).hasChildren;
 	}
 
 	public getChildren(tree: ITree, element: any): TPromise<any> {
-		if (element instanceof Model) {
-			return TPromise.as(element.getReplElements());
+		if (element instanceof DebugSession) {
+			return Promise.resolve(element.getReplElements());
 		}
 		if (element instanceof RawObjectReplElement) {
 			return element.getChildren();
 		}
 		if (element instanceof SimpleReplElement) {
-			return TPromise.as(null);
+			return Promise.resolve(null);
 		}
 
 		return (<IExpression>element).getChildren();
 	}
 
 	public getParent(tree: ITree, element: any): TPromise<any> {
-		return TPromise.as(null);
+		return Promise.resolve(null);
 	}
 }
 
@@ -97,7 +97,7 @@ export class ReplExpressionsRenderer implements IRenderer {
 	constructor(
 		@IEditorService private editorService: IEditorService,
 		@IInstantiationService private instantiationService: IInstantiationService,
-		@IUriDisplayService private uriDisplayService: IUriDisplayService
+		@ILabelService private labelService: ILabelService
 	) {
 		this.linkDetector = this.instantiationService.createInstance(LinkDetector);
 	}
@@ -203,7 +203,7 @@ export class ReplExpressionsRenderer implements IRenderer {
 						startColumn: source.column,
 						endLineNumber: source.lineNumber,
 						endColumn: source.column
-					}).done(undefined, errors.onUnexpectedError);
+					});
 				}
 			}));
 
@@ -260,7 +260,7 @@ export class ReplExpressionsRenderer implements IRenderer {
 
 		dom.addClass(templateData.value, (element.severity === severity.Warning) ? 'warn' : (element.severity === severity.Error) ? 'error' : (element.severity === severity.Ignore) ? 'ignore' : 'info');
 		templateData.source.textContent = element.sourceData ? `${element.sourceData.source.name}:${element.sourceData.lineNumber}` : '';
-		templateData.source.title = element.sourceData ? this.uriDisplayService.getLabel(element.sourceData.source.uri) : '';
+		templateData.source.title = element.sourceData ? this.labelService.getUriLabel(element.sourceData.source.uri) : '';
 		templateData.getReplElementSource = () => element.sourceData;
 	}
 
@@ -326,7 +326,7 @@ export class ReplExpressionsActionProvider implements IActionProvider {
 	}
 
 	public getActions(tree: ITree, element: any): TPromise<IAction[]> {
-		return TPromise.as([]);
+		return Promise.resolve([]);
 	}
 
 	public hasSecondaryActions(tree: ITree, element: any): boolean {
@@ -341,7 +341,7 @@ export class ReplExpressionsActionProvider implements IActionProvider {
 		actions.push(new Separator());
 		actions.push(this.instantiationService.createInstance(ClearReplAction, ClearReplAction.ID, ClearReplAction.LABEL));
 
-		return TPromise.as(actions);
+		return Promise.resolve(actions);
 	}
 
 	public getActionItem(tree: ITree, element: any, action: IAction): IActionItem {

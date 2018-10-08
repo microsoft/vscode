@@ -4,22 +4,24 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 Object.defineProperty(exports, "__esModule", { value: true });
-var path = require("path");
+var es = require("event-stream");
 var gulp = require("gulp");
-var sourcemaps = require("gulp-sourcemaps");
-var filter = require("gulp-filter");
+var concat = require("gulp-concat");
 var minifyCSS = require("gulp-cssnano");
+var filter = require("gulp-filter");
+var flatmap = require("gulp-flatmap");
+var sourcemaps = require("gulp-sourcemaps");
 var uglify = require("gulp-uglify");
 var composer = require("gulp-uglify/composer");
+var gulpUtil = require("gulp-util");
+var path = require("path");
+var pump = require("pump");
 var uglifyes = require("uglify-es");
-var es = require("event-stream");
-var concat = require("gulp-concat");
 var VinylFile = require("vinyl");
 var bundle = require("./bundle");
+var i18n_1 = require("./i18n");
+var stats_1 = require("./stats");
 var util = require("./util");
-var gulpUtil = require("gulp-util");
-var flatmap = require("gulp-flatmap");
-var pump = require("pump");
 var REPO_ROOT_PATH = path.join(__dirname, '../..');
 function log(prefix, message) {
     gulpUtil.log(gulpUtil.colors.cyan('[' + prefix + ']'), message);
@@ -100,7 +102,8 @@ function toConcatStream(src, bundledFileHeader, sources, dest) {
     });
     return es.readArray(treatedSources)
         .pipe(useSourcemaps ? util.loadSourcemaps() : es.through())
-        .pipe(concat(dest));
+        .pipe(concat(dest))
+        .pipe(stats_1.createStatsStream(dest));
 }
 function toBundleStream(src, bundledFileHeader, bundles) {
     return es.merge(bundles.map(function (bundle) {
@@ -121,7 +124,7 @@ function optimizeTask(opts) {
         var resourcesStream = es.through(); // this stream will contain the resources
         var bundleInfoStream = es.through(); // this stream will contain bundleInfo.json
         bundle.bundle(entryPoints, loaderConfig, function (err, result) {
-            if (err) {
+            if (err || !result) {
                 return bundlesStream.emit('error', JSON.stringify(err));
             }
             toBundleStream(src, bundledFileHeader, result.files).pipe(bundlesStream);
@@ -160,10 +163,14 @@ function optimizeTask(opts) {
         var result = es.merge(loader(src, bundledFileHeader, bundleLoader), bundlesStream, otherSourcesStream, resourcesStream, bundleInfoStream);
         return result
             .pipe(sourcemaps.write('./', {
-            sourceRoot: null,
+            sourceRoot: undefined,
             addComment: true,
             includeContent: true
         }))
+            .pipe(opts.languages && opts.languages.length ? i18n_1.processNlsFiles({
+            fileHeader: bundledFileHeader,
+            languages: opts.languages
+        }) : es.through())
             .pipe(gulp.dest(out));
     };
 }
@@ -174,7 +181,7 @@ exports.optimizeTask = optimizeTask;
  */
 function uglifyWithCopyrights() {
     var preserveComments = function (f) {
-        return function (node, comment) {
+        return function (_node, comment) {
             var text = comment.value;
             var type = comment.type;
             if (/@minifier_do_not_preserve/.test(text)) {
@@ -212,13 +219,13 @@ function uglifyWithCopyrights() {
     return es.duplex(input, output);
 }
 function minifyTask(src, sourceMapBaseUrl) {
-    var sourceMappingURL = sourceMapBaseUrl && (function (f) { return sourceMapBaseUrl + "/" + f.relative + ".map"; });
+    var sourceMappingURL = sourceMapBaseUrl ? (function (f) { return sourceMapBaseUrl + "/" + f.relative + ".map"; }) : undefined;
     return function (cb) {
         var jsFilter = filter('**/*.js', { restore: true });
         var cssFilter = filter('**/*.css', { restore: true });
         pump(gulp.src([src + '/**', '!' + src + '/**/*.map']), jsFilter, sourcemaps.init({ loadMaps: true }), uglifyWithCopyrights(), jsFilter.restore, cssFilter, minifyCSS({ reduceIdents: false }), cssFilter.restore, sourcemaps.write('./', {
             sourceMappingURL: sourceMappingURL,
-            sourceRoot: null,
+            sourceRoot: undefined,
             includeContent: true,
             addComment: true
         }), gulp.dest(src + '-min'), function (err) {

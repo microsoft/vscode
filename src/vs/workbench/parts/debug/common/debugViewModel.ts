@@ -4,17 +4,19 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Event, Emitter } from 'vs/base/common/event';
-import { CONTEXT_EXPRESSION_SELECTED, IViewModel, IStackFrame, ISession, IThread, IExpression, IFunctionBreakpoint, CONTEXT_BREAKPOINT_SELECTED, CONTEXT_LOADED_SCRIPTS_SUPPORTED } from 'vs/workbench/parts/debug/common/debug';
+import { CONTEXT_EXPRESSION_SELECTED, IViewModel, IStackFrame, IDebugSession, IThread, IExpression, IFunctionBreakpoint, CONTEXT_BREAKPOINT_SELECTED, CONTEXT_LOADED_SCRIPTS_SUPPORTED } from 'vs/workbench/parts/debug/common/debug';
 import { IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/contextkey';
 
 export class ViewModel implements IViewModel {
 
+	firstSessionStart = true;
+
 	private _focusedStackFrame: IStackFrame;
-	private _focusedSession: ISession;
+	private _focusedSession: IDebugSession;
 	private _focusedThread: IThread;
 	private selectedExpression: IExpression;
 	private selectedFunctionBreakpoint: IFunctionBreakpoint;
-	private readonly _onDidFocusSession: Emitter<ISession | undefined>;
+	private readonly _onDidFocusSession: Emitter<IDebugSession | undefined>;
 	private readonly _onDidFocusStackFrame: Emitter<{ stackFrame: IStackFrame, explicit: boolean }>;
 	private readonly _onDidSelectExpression: Emitter<IExpression>;
 	private multiSessionView: boolean;
@@ -23,7 +25,7 @@ export class ViewModel implements IViewModel {
 	private loadedScriptsSupportedContextKey: IContextKey<boolean>;
 
 	constructor(contextKeyService: IContextKeyService) {
-		this._onDidFocusSession = new Emitter<ISession | undefined>();
+		this._onDidFocusSession = new Emitter<IDebugSession | undefined>();
 		this._onDidFocusStackFrame = new Emitter<{ stackFrame: IStackFrame, explicit: boolean }>();
 		this._onDidSelectExpression = new Emitter<IExpression>();
 		this.multiSessionView = false;
@@ -32,87 +34,76 @@ export class ViewModel implements IViewModel {
 		this.loadedScriptsSupportedContextKey = CONTEXT_LOADED_SCRIPTS_SUPPORTED.bindTo(contextKeyService);
 	}
 
-	public getId(): string {
+	getId(): string {
 		return 'root';
 	}
 
-	public get focusedSession(): ISession {
+	get focusedSession(): IDebugSession {
 		return this._focusedSession;
 	}
 
-	public get focusedThread(): IThread {
-		if (this._focusedStackFrame) {
-			return this._focusedStackFrame.thread;
-		}
-		if (this._focusedSession) {
-			const threads = this._focusedSession.getAllThreads();
-			if (threads && threads.length) {
-				return threads[threads.length - 1];
-			}
-		}
-
-		return undefined;
+	get focusedThread(): IThread {
+		return this._focusedThread;
 	}
 
-	public get focusedStackFrame(): IStackFrame {
+	get focusedStackFrame(): IStackFrame {
 		return this._focusedStackFrame;
 	}
 
-	public setFocus(stackFrame: IStackFrame, thread: IThread, session: ISession, explicit: boolean): void {
-		let shouldEmit = this._focusedSession !== session || this._focusedThread !== thread || this._focusedStackFrame !== stackFrame;
+	setFocus(stackFrame: IStackFrame, thread: IThread, session: IDebugSession, explicit: boolean): void {
+		const shouldEmitForStackFrame = this._focusedStackFrame !== stackFrame;
+		const shouldEmitForSession = this._focusedSession !== session;
 
-		if (this._focusedSession !== session) {
-			this._focusedSession = session;
+		this._focusedStackFrame = stackFrame;
+		this._focusedThread = thread;
+		this._focusedSession = session;
+
+		this.loadedScriptsSupportedContextKey.set(session && session.capabilities.supportsLoadedSourcesRequest);
+
+		if (shouldEmitForSession) {
 			this._onDidFocusSession.fire(session);
 		}
-		this._focusedThread = thread;
-		this._focusedStackFrame = stackFrame;
-
-		this.loadedScriptsSupportedContextKey.set(session && session.raw.capabilities.supportsLoadedSourcesRequest);
-		// @weinand remove the next line which always disables the context for the view to be shown
-		this.loadedScriptsSupportedContextKey.set(false);
-
-		if (shouldEmit) {
+		if (shouldEmitForStackFrame) {
 			this._onDidFocusStackFrame.fire({ stackFrame, explicit });
 		}
 	}
 
-	public get onDidFocusSession(): Event<ISession> {
+	get onDidFocusSession(): Event<IDebugSession> {
 		return this._onDidFocusSession.event;
 	}
 
-	public get onDidFocusStackFrame(): Event<{ stackFrame: IStackFrame, explicit: boolean }> {
+	get onDidFocusStackFrame(): Event<{ stackFrame: IStackFrame, explicit: boolean }> {
 		return this._onDidFocusStackFrame.event;
 	}
 
-	public getSelectedExpression(): IExpression {
+	getSelectedExpression(): IExpression {
 		return this.selectedExpression;
 	}
 
-	public setSelectedExpression(expression: IExpression) {
+	setSelectedExpression(expression: IExpression) {
 		this.selectedExpression = expression;
 		this.expressionSelectedContextKey.set(!!expression);
 		this._onDidSelectExpression.fire(expression);
 	}
 
-	public get onDidSelectExpression(): Event<IExpression> {
+	get onDidSelectExpression(): Event<IExpression> {
 		return this._onDidSelectExpression.event;
 	}
 
-	public getSelectedFunctionBreakpoint(): IFunctionBreakpoint {
+	getSelectedFunctionBreakpoint(): IFunctionBreakpoint {
 		return this.selectedFunctionBreakpoint;
 	}
 
-	public setSelectedFunctionBreakpoint(functionBreakpoint: IFunctionBreakpoint): void {
+	setSelectedFunctionBreakpoint(functionBreakpoint: IFunctionBreakpoint): void {
 		this.selectedFunctionBreakpoint = functionBreakpoint;
 		this.breakpointSelectedContextKey.set(!!functionBreakpoint);
 	}
 
-	public isMultiSessionView(): boolean {
+	isMultiSessionView(): boolean {
 		return this.multiSessionView;
 	}
 
-	public setMultiSessionView(isMultiSessionView: boolean): void {
+	setMultiSessionView(isMultiSessionView: boolean): void {
 		this.multiSessionView = isMultiSessionView;
 	}
 }

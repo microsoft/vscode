@@ -30,6 +30,7 @@ function getTypeScriptCompilerOptions(src: string) {
 		options.sourceMap = false;
 	}
 	options.rootDir = rootDir;
+	options.baseUrl = rootDir;
 	options.sourceRoot = util.toFileUri(rootDir);
 	options.newLine = /\r\n/.test(fs.readFileSync(__filename, 'utf8')) ? 'CRLF' : 'LF';
 	return options;
@@ -40,7 +41,7 @@ function createCompile(src: string, build: boolean, emitError?: boolean): (token
 	opts.inlineSources = !!build;
 	opts.noFilesystemLookup = true;
 
-	const ts = tsb.create(opts, null, null, err => reporter(err.toString()));
+	const ts = tsb.create(opts, true, undefined, err => reporter(err.toString()));
 
 	return function (token?: util.ICancellationToken) {
 
@@ -65,11 +66,18 @@ function createCompile(src: string, build: boolean, emitError?: boolean): (token
 				sourceRoot: opts.sourceRoot
 			}))
 			.pipe(tsFilter.restore)
-			.pipe(reporter.end(emitError));
+			.pipe(reporter.end(!!emitError));
 
 		return es.duplex(input, output);
 	};
 }
+
+const typesDts = [
+	'node_modules/typescript/lib/*.d.ts',
+	'node_modules/@types/**/*.d.ts',
+	'!node_modules/@types/webpack/**/*',
+	'!node_modules/@types/uglify-js/**/*',
+];
 
 export function compileTask(src: string, out: string, build: boolean): () => NodeJS.ReadWriteStream {
 
@@ -78,7 +86,7 @@ export function compileTask(src: string, out: string, build: boolean): () => Nod
 
 		const srcPipe = es.merge(
 			gulp.src(`${src}/**`, { base: `${src}` }),
-			gulp.src('node_modules/typescript/lib/lib.d.ts'),
+			gulp.src(typesDts),
 		);
 
 		// Do not write .d.ts files to disk, as they are not needed there.
@@ -100,7 +108,7 @@ export function watchTask(out: string, build: boolean): () => NodeJS.ReadWriteSt
 
 		const src = es.merge(
 			gulp.src('src/**', { base: 'src' }),
-			gulp.src('node_modules/typescript/lib/lib.d.ts'),
+			gulp.src(typesDts),
 		);
 		const watchSrc = watch('src/**', { base: 'src' });
 
@@ -127,7 +135,7 @@ function monacodtsTask(out: string, isWatch: boolean): NodeJS.ReadWriteStream {
 	});
 
 	const inputFiles: { [file: string]: string; } = {};
-	for (let filePath in neededFiles) {
+	for (const filePath in neededFiles) {
 		if (/\bsrc(\/|\\)vs\b/.test(filePath)) {
 			// This file is needed from source => simply read it now
 			inputFiles[filePath] = fs.readFileSync(filePath).toString();

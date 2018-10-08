@@ -2,7 +2,6 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
 import * as nls from 'vs/nls';
 import * as arrays from 'vs/base/common/arrays';
@@ -11,7 +10,8 @@ import * as collections from 'vs/base/common/collections';
 import * as strings from 'vs/base/common/strings';
 import * as glob from 'vs/base/common/glob';
 import * as paths from 'vs/base/common/paths';
-import uri from 'vs/base/common/uri';
+import * as resources from 'vs/base/common/resources';
+import { URI as uri } from 'vs/base/common/uri';
 import { untildify } from 'vs/base/common/labels';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { IPatternInfo, IQueryOptions, IFolderQuery, ISearchQuery, QueryType, ISearchConfiguration, getExcludes, pathIncludedInQuery } from 'vs/platform/search/common/search';
@@ -64,6 +64,11 @@ export class QueryBuilder {
 			return folderConfig.search.useIgnoreFiles;
 		});
 
+		const useGlobalIgnoreFiles = !folderResources || folderResources.every(folder => {
+			const folderConfig = this.configurationService.getValue<ISearchConfiguration>({ resource: folder });
+			return folderConfig.search.useGlobalIgnoreFiles;
+		});
+
 		const useRipgrep = !folderResources || folderResources.every(folder => {
 			const folderConfig = this.configurationService.getValue<ISearchConfiguration>({ resource: folder });
 			return folderConfig.search.useRipgrep;
@@ -73,6 +78,8 @@ export class QueryBuilder {
 
 		if (contentPattern) {
 			this.resolveSmartCaseToCaseSensitive(contentPattern);
+
+			contentPattern.wordSeparators = this.configurationService.getValue<ISearchConfiguration>().editor.wordSeparators;
 		}
 
 		const query: ISearchQuery = {
@@ -88,11 +95,14 @@ export class QueryBuilder {
 			maxResults: options.maxResults,
 			sortByScore: options.sortByScore,
 			cacheKey: options.cacheKey,
-			contentPattern: contentPattern,
+			contentPattern,
 			useRipgrep,
 			disregardIgnoreFiles: options.disregardIgnoreFiles || !useIgnoreFiles,
+			disregardGlobalIgnoreFiles: options.disregardGlobalIgnoreFiles || !useGlobalIgnoreFiles,
 			disregardExcludeSettings: options.disregardExcludeSettings,
-			ignoreSymlinks
+			ignoreSymlinks,
+			previewOptions: options.previewOptions,
+			exists: options.exists
 		};
 
 		// Filter extraFileResources against global include/exclude patterns - they are already expected to not belong to a workspace
@@ -184,28 +194,6 @@ export class QueryBuilder {
 		return Object.keys(excludeExpression).length ? excludeExpression : undefined;
 	}
 
-	/**
-	 * A helper that splits positive and negative patterns from a string that combines both.
-	 */
-	public parseIncludeExcludePattern(pattern: string): { includePattern?: string, excludePattern?: string } {
-		const grouped = collections.groupBy(
-			splitGlobPattern(pattern),
-			s => strings.startsWith(s, '!') ? 'excludePattern' : 'includePattern');
-
-		const result = {};
-		if (grouped.includePattern) {
-			result['includePattern'] = grouped.includePattern.join(', ');
-		}
-
-		if (grouped.excludePattern) {
-			result['excludePattern'] = grouped.excludePattern
-				.map(s => strings.ltrim(s, '!'))
-				.join(', ');
-		}
-
-		return result;
-	}
-
 	private mergeExcludesFromFolderQueries(folderQueries: IFolderQuery[]): glob.IExpression | undefined {
 		const mergedExcludes = folderQueries.reduce((merged: glob.IExpression, fq: IFolderQuery) => {
 			if (fq.excludePattern) {
@@ -270,20 +258,20 @@ export class QueryBuilder {
 			return [uri.file(paths.normalize(searchPath))];
 		}
 
-		if (this.workspaceContextService.getWorkbenchState() === WorkbenchState.FOLDER) { // TODO: @Sandy Try checking workspace folders length instead.
+		if (this.workspaceContextService.getWorkbenchState() === WorkbenchState.FOLDER) {
 			const workspaceUri = this.workspaceContextService.getWorkspace().folders[0].uri;
-			return [workspaceUri.with({ path: paths.normalize(paths.join(workspaceUri.path, searchPath)) })];
+			return [resources.joinPath(workspaceUri, searchPath)];
 		} else if (searchPath === './') {
 			return []; // ./ or ./**/foo makes sense for single-folder but not multi-folder workspaces
 		} else {
 			const relativeSearchPathMatch = searchPath.match(/\.[\/\\]([^\/\\]+)([\/\\].+)?/);
 			if (relativeSearchPathMatch) {
 				const searchPathRoot = relativeSearchPathMatch[1];
-				const matchingRoots = this.workspaceContextService.getWorkspace().folders.filter(folder => paths.basename(folder.uri.fsPath) === searchPathRoot || folder.name === searchPathRoot);
+				const matchingRoots = this.workspaceContextService.getWorkspace().folders.filter(folder => folder.name === searchPathRoot);
 				if (matchingRoots.length) {
 					return matchingRoots.map(root => {
 						return relativeSearchPathMatch[2] ?
-							root.uri.with({ path: paths.normalize(paths.join(root.uri.path, relativeSearchPathMatch[2])) }) :
+							resources.joinPath(root.uri, relativeSearchPathMatch[2]) :
 							root.uri;
 					});
 				} else {
@@ -315,7 +303,8 @@ export class QueryBuilder {
 			folder,
 			excludePattern: this.getExcludesForFolder(folderConfig, options),
 			fileEncoding: folderConfig.files && folderConfig.files.encoding,
-			disregardIgnoreFiles: perFolderUseIgnoreFiles ? !folderConfig.search.useIgnoreFiles : undefined
+			disregardIgnoreFiles: perFolderUseIgnoreFiles ? !folderConfig.search.useIgnoreFiles : undefined,
+			disregardGlobalIgnoreFiles: perFolderUseIgnoreFiles ? !folderConfig.search.useGlobalIgnoreFiles : undefined
 		};
 	}
 }

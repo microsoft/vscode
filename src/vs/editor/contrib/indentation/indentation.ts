@@ -5,13 +5,11 @@
 
 import * as nls from 'vs/nls';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
-import { TPromise } from 'vs/base/common/winjs.base';
 import * as strings from 'vs/base/common/strings';
 import { IEditorContribution, ICommand, ICursorStateComputerData, IEditOperationBuilder } from 'vs/editor/common/editorCommon';
 import { IIdentifiedSingleEditOperation, ITextModel } from 'vs/editor/common/model';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { registerEditorAction, ServicesAccessor, IActionOptions, EditorAction, registerEditorContribution } from 'vs/editor/browser/editorExtensions';
-import { IQuickOpenService } from 'vs/platform/quickOpen/common/quickOpen';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
@@ -23,6 +21,7 @@ import { TextEdit, StandardTokenType } from 'vs/editor/common/modes';
 import * as IndentUtil from './indentUtils';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { IndentConsts } from 'vs/editor/common/modes/supports/indentRules';
+import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
 
 export function shiftIndent(tabSize: number, indentation: string, count?: number): string {
 	count = count || 1;
@@ -216,13 +215,13 @@ export class ChangeIndentationSizeAction extends EditorAction {
 		super(opts);
 	}
 
-	public run(accessor: ServicesAccessor, editor: ICodeEditor): TPromise<void> {
-		const quickOpenService = accessor.get(IQuickOpenService);
+	public run(accessor: ServicesAccessor, editor: ICodeEditor): void {
+		const quickInputService = accessor.get(IQuickInputService);
 		const modelService = accessor.get(IModelService);
 
 		let model = editor.getModel();
 		if (!model) {
-			return undefined;
+			return;
 		}
 
 		let creationOpts = modelService.getCreationOptions(model.getLanguageIdentifier().language, model.uri, model.isForSimpleWidget);
@@ -236,16 +235,16 @@ export class ChangeIndentationSizeAction extends EditorAction {
 		// auto focus the tabSize set for the current editor
 		const autoFocusIndex = Math.min(model.getOptions().tabSize - 1, 7);
 
-		return TPromise.timeout(50 /* quick open is sensitive to being opened so soon after another */).then(() =>
-			quickOpenService.pick(picks, { placeHolder: nls.localize({ key: 'selectTabWidth', comment: ['Tab corresponds to the tab key'] }, "Select Tab Size for Current File"), autoFocus: { autoFocusIndex } }).then(pick => {
+		setTimeout(() => {
+			quickInputService.pick(picks, { placeHolder: nls.localize({ key: 'selectTabWidth', comment: ['Tab corresponds to the tab key'] }, "Select Tab Size for Current File"), activeItem: picks[autoFocusIndex] }).then(pick => {
 				if (pick) {
 					model.updateOptions({
 						tabSize: parseInt(pick.label, 10),
 						insertSpaces: this.insertSpaces
 					});
 				}
-			})
-		);
+			});
+		}, 50/* quick open is sensitive to being opened so soon after another */);
 	}
 }
 

@@ -2,7 +2,6 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
 import { Position } from 'vs/editor/common/core/position';
 import { CharCode } from 'vs/base/common/charCode';
@@ -1100,7 +1099,7 @@ export class PieceTreeBase {
 		let endColumn = endOffset - this._buffers[0].lineStarts[endIndex];
 		let endPos = { line: endIndex, column: endColumn };
 		let newPiece = new Piece(
-			0, /** todo */
+			0, /** todo@peng */
 			start,
 			endPos,
 			this.getLineFeedCnt(0, start, endPos),

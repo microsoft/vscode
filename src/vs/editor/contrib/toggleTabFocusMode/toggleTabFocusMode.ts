@@ -2,7 +2,6 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
 import * as nls from 'vs/nls';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
@@ -10,6 +9,7 @@ import { registerEditorAction, ServicesAccessor, EditorAction } from 'vs/editor/
 import { TabFocus } from 'vs/editor/common/config/commonEditorConfig';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
+import { alert } from 'vs/base/browser/ui/aria/aria';
 
 export class ToggleTabFocusModeAction extends EditorAction {
 
@@ -31,8 +31,14 @@ export class ToggleTabFocusModeAction extends EditorAction {
 	}
 
 	public run(accessor: ServicesAccessor, editor: ICodeEditor): void {
-		let oldValue = TabFocus.getTabFocusMode();
-		TabFocus.setTabFocusMode(!oldValue);
+		const oldValue = TabFocus.getTabFocusMode();
+		const newValue = !oldValue;
+		TabFocus.setTabFocusMode(newValue);
+		if (newValue) {
+			alert(nls.localize('toggle.tabMovesFocus.on', "Pressing Tab will now move focus to the next focusable element"));
+		} else {
+			alert(nls.localize('toggle.tabMovesFocus.off', "Pressing Tab will now insert the tab character"));
+		}
 	}
 }
 

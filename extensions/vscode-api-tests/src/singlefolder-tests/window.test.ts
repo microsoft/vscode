@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import * as assert from 'assert';
 import { workspace, window, commands, ViewColumn, TextEditorViewColumnChangeEvent, Uri, Selection, Position, CancellationTokenSource, TextEditorSelectionChangeKind, Terminal } from 'vscode';
 import { join } from 'path';
@@ -14,19 +12,17 @@ suite('window namespace tests', () => {
 
 	teardown(closeAllEditors);
 
-	test('editor, active text editor', () => {
-		return workspace.openTextDocument(join(workspace.rootPath || '', './far.js')).then(doc => {
-			return window.showTextDocument(doc).then((editor) => {
-				const active = window.activeTextEditor;
-				assert.ok(active);
-				assert.ok(pathEquals(active!.document.uri.fsPath, doc.uri.fsPath));
-			});
-		});
+	test('editor, active text editor', async () => {
+		const doc = await workspace.openTextDocument(join(workspace.rootPath || '', './far.js'));
+		await window.showTextDocument(doc);
+		const active = window.activeTextEditor;
+		assert.ok(active);
+		assert.ok(pathEquals(active!.document.uri.fsPath, doc.uri.fsPath));
 	});
 
 	test('editor, opened via resource', () => {
 		const uri = Uri.file(join(workspace.rootPath || '', './far.js'));
-		return window.showTextDocument(uri).then((editor) => {
+		return window.showTextDocument(uri).then((_editor) => {
 			const active = window.activeTextEditor;
 			assert.ok(active);
 			assert.ok(pathEquals(active!.document.uri.fsPath, uri.fsPath));
@@ -38,47 +34,37 @@ suite('window namespace tests', () => {
 	// 	assert.ok(window.activeTextEditor === undefined);
 	// });
 
-	test('editor, assign and check view columns', () => {
-
-		return workspace.openTextDocument(join(workspace.rootPath || '', './far.js')).then(doc => {
-			let p1 = window.showTextDocument(doc, ViewColumn.One).then(editor => {
-				assert.equal(editor.viewColumn, ViewColumn.One);
-			});
-			let p2 = window.showTextDocument(doc, ViewColumn.Two).then(editor => {
-				assert.equal(editor.viewColumn, ViewColumn.Two);
-			});
-			let p3 = window.showTextDocument(doc, ViewColumn.Three).then(editor => {
-				assert.equal(editor.viewColumn, ViewColumn.Three);
-			});
-			return Promise.all([p1, p2, p3]);
+	test('editor, assign and check view columns', async () => {
+		const doc = await workspace.openTextDocument(join(workspace.rootPath || '', './far.js'));
+		let p1 = window.showTextDocument(doc, ViewColumn.One).then(editor => {
+			assert.equal(editor.viewColumn, ViewColumn.One);
 		});
+		let p2 = window.showTextDocument(doc, ViewColumn.Two).then(editor_1 => {
+			assert.equal(editor_1.viewColumn, ViewColumn.Two);
+		});
+		let p3 = window.showTextDocument(doc, ViewColumn.Three).then(editor_2 => {
+			assert.equal(editor_2.viewColumn, ViewColumn.Three);
+		});
+		return Promise.all([p1, p2, p3]);
 	});
 
-	test('editor, onDidChangeVisibleTextEditors', () => {
-
+	test('editor, onDidChangeVisibleTextEditors', async () => {
 		let eventCounter = 0;
-		let reg = window.onDidChangeVisibleTextEditors(editor => {
+		let reg = window.onDidChangeVisibleTextEditors(_editor => {
 			eventCounter += 1;
 		});
 
-		return workspace.openTextDocument(join(workspace.rootPath || '', './far.js')).then(doc => {
-			return window.showTextDocument(doc, ViewColumn.One).then(editor => {
-				assert.equal(eventCounter, 1);
-				return doc;
-			});
-		}).then(doc => {
-			return window.showTextDocument(doc, ViewColumn.Two).then(editor => {
-				assert.equal(eventCounter, 2);
-				return doc;
-			});
-		}).then(doc => {
-			return window.showTextDocument(doc, ViewColumn.Three).then(editor => {
-				assert.equal(eventCounter, 3);
-				return doc;
-			});
-		}).then(doc => {
-			reg.dispose();
-		});
+		const doc = await workspace.openTextDocument(join(workspace.rootPath || '', './far.js'));
+		await window.showTextDocument(doc, ViewColumn.One);
+		assert.equal(eventCounter, 1);
+
+		await window.showTextDocument(doc, ViewColumn.Two);
+		assert.equal(eventCounter, 2);
+
+		await window.showTextDocument(doc, ViewColumn.Three);
+		assert.equal(eventCounter, 3);
+
+		reg.dispose();
 	});
 
 	test('editor, onDidChangeTextEditorViewColumn (close editor)', () => {
@@ -94,28 +80,24 @@ suite('window namespace tests', () => {
 		return Promise.all([
 			workspace.openTextDocument(Uri.parse('bikes://testing/one')).then(doc => window.showTextDocument(doc, ViewColumn.One)),
 			workspace.openTextDocument(Uri.parse('bikes://testing/two')).then(doc => window.showTextDocument(doc, ViewColumn.Two))
-		]).then(editors => {
+		]).then(async editors => {
 
 			let [one, two] = editors;
 
-			return new Promise(resolve => {
-
+			await new Promise(resolve => {
 				let registration2 = window.onDidChangeTextEditorViewColumn(event => {
 					actualEvent = event;
 					registration2.dispose();
 					resolve();
 				});
-
 				// close editor 1, wait a little for the event to bubble
 				one.hide();
-
-			}).then(() => {
-				assert.ok(actualEvent);
-				assert.ok(actualEvent.textEditor === two);
-				assert.ok(actualEvent.viewColumn === two.viewColumn);
-
-				registration1.dispose();
 			});
+			assert.ok(actualEvent);
+			assert.ok(actualEvent.textEditor === two);
+			assert.ok(actualEvent.viewColumn === two.viewColumn);
+
+			registration1.dispose();
 		});
 	});
 
@@ -342,22 +324,20 @@ suite('window namespace tests', () => {
 		source.dispose();
 	});
 
-	test('showInputBox - undefined on cancel', function () {
+	test('showInputBox - undefined on cancel', async function () {
 		const source = new CancellationTokenSource();
 		const p = window.showInputBox(undefined, source.token);
 		source.cancel();
-		return p.then(value => {
-			assert.equal(value, undefined);
-		});
+		const value = await p;
+		assert.equal(value, undefined);
 	});
 
-	test('showInputBox - cancel early', function () {
+	test('showInputBox - cancel early', async function () {
 		const source = new CancellationTokenSource();
 		source.cancel();
 		const p = window.showInputBox(undefined, source.token);
-		return p.then(value => {
-			assert.equal(value, undefined);
-		});
+		const value = await p;
+		assert.equal(value, undefined);
 	});
 
 	test('showInputBox - \'\' on Enter', function () {
@@ -460,8 +440,8 @@ suite('window namespace tests', () => {
 			{ label: 'zwei', picked: true },
 			{ label: 'drei', picked: true }
 		], {
-			canPickMany: true
-		});
+				canPickMany: true
+			});
 		await commands.executeCommand('workbench.action.acceptSelectedQuickOpenItem');
 		assert.deepStrictEqual((await picks)!.map(pick => pick.label), ['zwei', 'drei']);
 	});
@@ -486,12 +466,13 @@ suite('window namespace tests', () => {
 
 	test('showQuickPick, canceled by another picker', function () {
 
+		const source = new CancellationTokenSource();
+
 		const result = window.showQuickPick(['eins', 'zwei', 'drei'], { ignoreFocusOut: true }).then(result => {
+			source.cancel();
 			assert.equal(result, undefined);
 		});
 
-		const source = new CancellationTokenSource();
-		source.cancel();
 		window.showQuickPick(['eins', 'zwei', 'drei'], undefined, source.token);
 
 		return result;
@@ -504,13 +485,13 @@ suite('window namespace tests', () => {
 		});
 
 		const source = new CancellationTokenSource();
-		source.cancel();
 		window.showInputBox(undefined, source.token);
+		source.cancel();
 
 		return result;
 	});
 
-	test('showQuickPick, native promise - #11754', function () {
+	test('showQuickPick, native promise - #11754', async function () {
 
 		const data = new Promise<string[]>(resolve => {
 			resolve(['a', 'b', 'c']);
@@ -519,14 +500,13 @@ suite('window namespace tests', () => {
 		const source = new CancellationTokenSource();
 		const result = window.showQuickPick(data, undefined, source.token);
 		source.cancel();
-		return result.then(value => {
-			assert.equal(value, undefined);
-		});
+		const value_1 = await result;
+		assert.equal(value_1, undefined);
 	});
 
 	test('showQuickPick, never resolve promise and cancel - #22453', function () {
 
-		const result = window.showQuickPick(new Promise<string[]>(resolve => { }));
+		const result = window.showQuickPick(new Promise<string[]>(_resolve => { }));
 
 		const a = result.then(value => {
 			assert.equal(value, undefined);
@@ -535,16 +515,17 @@ suite('window namespace tests', () => {
 		return Promise.all([a, b]);
 	});
 
-	test('showWorkspaceFolderPick', function () {
+	test('showWorkspaceFolderPick', async function () {
 		const p = window.showWorkspaceFolderPick(undefined);
 
-		return commands.executeCommand('workbench.action.acceptSelectedQuickOpenItem').then(() => {
-			return p.then(workspace => {
-				assert.ok(true);
-			}, error => {
-				assert.ok(false);
-			});
-		});
+		await commands.executeCommand('workbench.action.acceptSelectedQuickOpenItem');
+		try {
+			await p;
+			assert.ok(true);
+		}
+		catch (_error) {
+			assert.ok(false);
+		}
 	});
 
 	test('Default value for showInput Box not accepted when it fails validateInput, reversing #33691', async function () {
@@ -567,7 +548,7 @@ suite('window namespace tests', () => {
 		return workspace.openTextDocument(join(workspace.rootPath || '', './far.js')).then(doc => window.showTextDocument(doc)).then(editor => {
 
 
-			return new Promise((resolve, reject) => {
+			return new Promise((resolve, _reject) => {
 
 				let subscription = window.onDidChangeTextEditorSelection(e => {
 					assert.ok(e.textEditor === editor);
@@ -584,16 +565,6 @@ suite('window namespace tests', () => {
 	});
 
 	suite('Terminal', () => {
-		test('createTerminal, Terminal.name', () => {
-			const terminal = window.createTerminal('foo');
-			assert.equal(terminal.name, 'foo');
-
-			assert.throws(() => {
-				(<any>terminal).name = 'bar';
-			}, 'Terminal.name should be readonly');
-			terminal.dispose();
-		});
-
 		test('sendText immediately after createTerminal should not throw', () => {
 			const terminal = window.createTerminal();
 			assert.doesNotThrow(terminal.sendText.bind(terminal, 'echo "foo"'));
@@ -688,7 +659,7 @@ suite('window namespace tests', () => {
 			const renderer = window.createTerminalRenderer('foo');
 		});
 
-		test('Terminal.sendText should fire Termnial.onInput', (done) => {
+		test('Terminal.sendText should fire Terminal.onInput', (done) => {
 			const reg1 = window.onDidOpenTerminal(terminal => {
 				reg1.dispose();
 				const reg2 = renderer.onDidAcceptInput(data => {

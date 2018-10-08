@@ -7,10 +7,6 @@
 	display: none;
 }
 
-.monaco-workbench>.part.editor>.content .editor-group-container:not(.active) .breadcrumbs-control {
-	opacity: .8;
-}
-
 .monaco-workbench>.part.editor>.content .editor-group-container .breadcrumbs-control .monaco-breadcrumb-item.selected .monaco-icon-label,
 .monaco-workbench>.part.editor>.content .editor-group-container .breadcrumbs-control .monaco-breadcrumb-item.focused .monaco-icon-label {
 	text-decoration-line: underline;
@@ -22,6 +18,17 @@
 }
 
 /* todo@joh move somewhere else */
+
+.monaco-workbench .monaco-breadcrumbs-picker .arrow {
+	position: absolute;
+	width: 0;
+	border-style: solid;
+}
+
+.monaco-workbench .monaco-breadcrumbs-picker .picker-item {
+	line-height: 22px;
+	flex: 1;
+}
 
 .monaco-workbench .monaco-breadcrumbs-picker .highlighting-tree {
 	height: 100%;

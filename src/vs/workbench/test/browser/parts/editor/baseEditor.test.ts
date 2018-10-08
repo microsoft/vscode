@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import * as assert from 'assert';
 import { BaseEditor, EditorMemento } from 'vs/workbench/browser/parts/editor/baseEditor';
 import { EditorInput, EditorOptions, IEditorInputFactory, IEditorInputFactoryRegistry, Extensions as EditorExtensions } from 'vs/workbench/common/editor';
@@ -17,7 +15,7 @@ import { NullTelemetryService } from 'vs/platform/telemetry/common/telemetryUtil
 import { workbenchInstantiationService, TestEditorGroup, TestEditorGroupsService } from 'vs/workbench/test/workbenchTestServices';
 import { ResourceEditorInput } from 'vs/workbench/common/editor/resourceEditorInput';
 import { TestThemeService } from 'vs/platform/theme/test/common/testThemeService';
-import URI from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 import { IEditorRegistry, Extensions, EditorDescriptor } from 'vs/workbench/browser/editor';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { TPromise } from 'vs/base/common/winjs.base';
@@ -118,7 +116,7 @@ suite('Workbench base editor', () => {
 		});
 	});
 
-	test('EditorDescriptor', function () {
+	test('EditorDescriptor', () => {
 		let d = new EditorDescriptor(MyEditor, 'id', 'name');
 		assert.strictEqual(d.getId(), 'id');
 		assert.strictEqual(d.getName(), 'name');
@@ -250,10 +248,10 @@ suite('Workbench base editor', () => {
 		assert.ok(!memento.loadState(testGroup4, URI.file('/E')));
 		assert.ok(!memento.loadState(testGroup4, URI.file('/C')));
 
-		memento.clearState(URI.file('/C'));
+		memento.clearState(URI.file('/C'), testGroup4);
 		memento.clearState(URI.file('/E'));
 
-		assert.ok(!memento.loadState(testGroup0, URI.file('/C')));
+		assert.ok(!memento.loadState(testGroup4, URI.file('/C')));
 		assert.ok(memento.loadState(testGroup0, URI.file('/D')));
 		assert.ok(!memento.loadState(testGroup0, URI.file('/E')));
 	});

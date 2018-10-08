@@ -124,6 +124,11 @@
 	display: block;
 }
 
+.scm-viewlet .scm-status.show-actions > .monaco-list .monaco-list-row > .resource-group > .actions,
+.scm-viewlet .scm-status.show-actions > .monaco-list .monaco-list-row > .resource > .name > .monaco-icon-label > .actions {
+	display: block;
+}
+
 .scm-viewlet .monaco-list-row > .resource > .name > .monaco-icon-label > .actions .action-label,
 .scm-viewlet .monaco-list-row > .resource-group > .actions .action-label {
 	width: 16px;

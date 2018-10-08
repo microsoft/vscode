@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import 'vs/css!./zoneWidget';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import * as objects from 'vs/base/common/objects';

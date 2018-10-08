@@ -7,8 +7,8 @@ Object.defineProperty(exports, "__esModule", { value: true });
 var fs = require("fs");
 var ts = require("typescript");
 var path = require("path");
+var util = require("gulp-util");
 var tsfmt = require('../../tsfmt.json');
-var util = require('gulp-util');
 function log(message) {
     var rest = [];
     for (var _i = 1; _i < arguments.length; _i++) {
@@ -73,12 +73,6 @@ function visitTopLevelDeclarations(sourceFile, visitor) {
             case ts.SyntaxKind.ModuleDeclaration:
                 stop = visitor(node);
         }
-        // if (node.kind !== ts.SyntaxKind.SourceFile) {
-        // 	if (getNodeText(sourceFile, node).indexOf('SymbolKind') >= 0) {
-        // 		console.log('FOUND TEXT IN NODE: ' + ts.SyntaxKind[node.kind]);
-        // 		console.log(getNodeText(sourceFile, node));
-        // 	}
-        // }
         if (stop) {
             return;
         }
@@ -94,10 +88,6 @@ function getAllTopLevelDeclarations(sourceFile) {
             var triviaStart = interfaceDeclaration.pos;
             var triviaEnd = interfaceDeclaration.name.pos;
             var triviaText = getNodeText(sourceFile, { pos: triviaStart, end: triviaEnd });
-            // // let nodeText = getNodeText(sourceFile, node);
-            // if (getNodeText(sourceFile, node).indexOf('SymbolKind') >= 0) {
-            // 	console.log('TRIVIA: ', triviaText);
-            // }
             if (triviaText.indexOf('@internal') === -1) {
                 all.push(node);
             }
@@ -115,7 +105,7 @@ function getAllTopLevelDeclarations(sourceFile) {
 function getTopLevelDeclaration(sourceFile, typeName) {
     var result = null;
     visitTopLevelDeclarations(sourceFile, function (node) {
-        if (isDeclaration(node)) {
+        if (isDeclaration(node) && node.name) {
             if (node.name.text === typeName) {
                 result = node;
                 return true /*stop*/;
@@ -154,10 +144,6 @@ function isDefaultExport(declaration) {
 }
 function getMassagedTopLevelDeclarationText(sourceFile, declaration, importName, usage) {
     var result = getNodeText(sourceFile, declaration);
-    // if (result.indexOf('MonacoWorker') >= 0) {
-    // 	console.log('here!');
-    // 	// console.log(ts.SyntaxKind[declaration.kind]);
-    // }
     if (declaration.kind === ts.SyntaxKind.InterfaceDeclaration || declaration.kind === ts.SyntaxKind.ClassDeclaration) {
         var interfaceDeclaration = declaration;
         var staticTypeName_1 = (isDefaultExport(interfaceDeclaration)
@@ -177,9 +163,7 @@ function getMassagedTopLevelDeclarationText(sourceFile, declaration, importName,
             try {
                 var memberText = getNodeText(sourceFile, member);
                 if (memberText.indexOf('@internal') >= 0 || memberText.indexOf('private') >= 0) {
-                    // console.log('BEFORE: ', result);
                     result = result.replace(memberText, '');
-                    // console.log('AFTER: ', result);
                 }
                 else {
                     var memberName = member.name.text;
@@ -308,7 +292,7 @@ function generateDeclarationFile(out, inputFiles, recipe) {
                 typesToExcludeArr_1.push(typeName);
             });
             getAllTopLevelDeclarations(sourceFile_2).forEach(function (declaration) {
-                if (isDeclaration(declaration)) {
+                if (isDeclaration(declaration) && declaration.name) {
                     if (typesToExcludeMap_1[declaration.name.text]) {
                         return;
                     }
@@ -399,7 +383,7 @@ var TypeScriptLanguageServiceHost = /** @class */ (function () {
             .concat(Object.keys(this._libs))
             .concat(Object.keys(this._files)));
     };
-    TypeScriptLanguageServiceHost.prototype.getScriptVersion = function (fileName) {
+    TypeScriptLanguageServiceHost.prototype.getScriptVersion = function (_fileName) {
         return '1';
     };
     TypeScriptLanguageServiceHost.prototype.getProjectVersion = function () {
@@ -416,13 +400,13 @@ var TypeScriptLanguageServiceHost = /** @class */ (function () {
             return ts.ScriptSnapshot.fromString('');
         }
     };
-    TypeScriptLanguageServiceHost.prototype.getScriptKind = function (fileName) {
+    TypeScriptLanguageServiceHost.prototype.getScriptKind = function (_fileName) {
         return ts.ScriptKind.TS;
     };
     TypeScriptLanguageServiceHost.prototype.getCurrentDirectory = function () {
         return '';
     };
-    TypeScriptLanguageServiceHost.prototype.getDefaultLibFileName = function (options) {
+    TypeScriptLanguageServiceHost.prototype.getDefaultLibFileName = function (_options) {
         return 'defaultLib:es5';
     };
     TypeScriptLanguageServiceHost.prototype.isDefaultLibFileName = function (fileName) {
@@ -447,15 +431,10 @@ function execute() {
     var languageService = ts.createLanguageService(new TypeScriptLanguageServiceHost({}, SRC_FILES, {}));
     var t1 = Date.now();
     Object.keys(SRC_FILES).forEach(function (fileName) {
-        var t = Date.now();
         var emitOutput = languageService.getEmitOutput(fileName, true);
         OUTPUT_FILES[SRC_FILE_TO_EXPECTED_NAME[fileName]] = emitOutput.outputFiles[0].text;
-        // console.log(`Generating .d.ts for ${fileName} took ${Date.now() - t} ms`);
     });
     console.log("Generating .d.ts took " + (Date.now() - t1) + " ms");
-    // console.log(result.filePath);
-    // fs.writeFileSync(result.filePath, result.content.replace(/\r\n/gm, '\n'));
-    // fs.writeFileSync(path.join(SRC, 'user.ts'), result.usageContent.replace(/\r\n/gm, '\n'));
     return run('src', OUTPUT_FILES);
 }
 exports.execute = execute;

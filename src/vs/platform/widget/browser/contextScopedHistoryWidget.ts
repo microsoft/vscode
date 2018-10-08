@@ -2,7 +2,6 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
 import { IContextKeyService, ContextKeyDefinedExpr, ContextKeyExpr, ContextKeyAndExpr, ContextKeyEqualsExpr, RawContextKey, IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { HistoryInputBox, IHistoryInputOptions } from 'vs/base/browser/ui/inputbox/inputBox';
@@ -43,9 +42,9 @@ export class ContextScopedHistoryInputBox extends HistoryInputBox {
 export class ContextScopedFindInput extends FindInput {
 
 	constructor(container: HTMLElement, contextViewProvider: IContextViewProvider, options: IFindInputOptions,
-		@IContextKeyService contextKeyService: IContextKeyService
+		@IContextKeyService contextKeyService: IContextKeyService, showFindOptions: boolean = false
 	) {
-		super(container, contextViewProvider, options);
+		super(container, contextViewProvider, showFindOptions, options);
 		this._register(createAndBindHistoryNavigationWidgetScopedContextKeyService(contextKeyService, <IContextScopedHistoryNavigationWidget>{ target: this.inputBox.element, historyNavigator: this.inputBox }).scopedContextKeyService);
 	}
 

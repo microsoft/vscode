@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Emitter, Event } from 'vs/base/common/event';
-import URI from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 import { TPromise } from 'vs/base/common/winjs.base';
 import * as typeConverters from 'vs/workbench/api/node/extHostTypeConverters';
 import { EditorViewColumn } from 'vs/workbench/api/shared/editor';
@@ -292,14 +292,16 @@ export class ExtHostWebviews implements ExtHostWebviewsShape {
 		newState: WebviewPanelViewState
 	): void {
 		const panel = this.getWebviewPanel(handle);
-		if (panel) {
-			const viewColumn = typeConverters.ViewColumn.to(newState.position);
-			if (panel.active !== newState.active || panel.visible !== newState.visible || panel.viewColumn !== viewColumn) {
-				panel._setActive(newState.active);
-				panel._setVisible(newState.visible);
-				panel._setViewColumn(viewColumn);
-				panel._onDidChangeViewStateEmitter.fire({ webviewPanel: panel });
-			}
+		if (!panel) {
+			return;
+		}
+
+		const viewColumn = typeConverters.ViewColumn.to(newState.position);
+		if (panel.active !== newState.active || panel.visible !== newState.visible || panel.viewColumn !== viewColumn) {
+			panel._setActive(newState.active);
+			panel._setVisible(newState.visible);
+			panel._setViewColumn(viewColumn);
+			panel._onDidChangeViewStateEmitter.fire({ webviewPanel: panel });
 		}
 	}
 

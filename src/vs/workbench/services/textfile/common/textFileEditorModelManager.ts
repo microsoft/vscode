@@ -2,11 +2,10 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
 import { Event, Emitter, debounceEvent } from 'vs/base/common/event';
 import { TPromise } from 'vs/base/common/winjs.base';
-import URI from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 import { TextFileEditorModel } from 'vs/workbench/services/textfile/common/textFileEditorModel';
 import { dispose, IDisposable, Disposable } from 'vs/base/common/lifecycle';
 import { ITextFileEditorModel, ITextFileEditorModelManager, TextFileModelChangeEvent, StateChange, IModelLoadOrCreateOptions } from 'vs/workbench/services/textfile/common/textfiles';

@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import * as assert from 'assert';
 import { IssueReporterModel } from 'vs/code/electron-browser/issue/issueReporterModel';
 import { normalizeGitHubUrl } from 'vs/code/electron-browser/issue/issueReporterUtil';

@@ -2,8 +2,6 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
-
 import * as assert from 'assert';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
@@ -547,6 +545,32 @@ suite('Editor Model - TextModel', () => {
 			'        b += 1     # 8 space indent      delta 8 spaces',
 			'        b += 1     # 8 space indent',
 			'        b += 1     # 8 space indent',
+		]);
+	});
+
+	test('issue #55818: Broken indentation detection', () => {
+		assertGuess(true, 2, [
+			'',
+			'/* REQUIRE */',
+			'',
+			'const foo = require ( \'foo\' ),',
+			'      bar = require ( \'bar\' );',
+			'',
+			'/* MY FN */',
+			'',
+			'function myFn () {',
+			'',
+			'  const asd = 1,',
+			'        dsa = 2;',
+			'',
+			'  return bar ( foo ( asd ) );',
+			'',
+			'}',
+			'',
+			'/* EXPORT */',
+			'',
+			'module.exports = myFn;',
+			'',
 		]);
 	});
 

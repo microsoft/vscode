@@ -2,14 +2,13 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
 import { localize } from 'vs/nls';
 import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { WelcomePageContribution, WelcomePageAction, WelcomeInputFactory } from 'vs/workbench/parts/welcome/page/electron-browser/welcomePage';
 import { IWorkbenchActionRegistry, Extensions as ActionExtensions } from 'vs/workbench/common/actions';
-import { SyncActionDescriptor } from 'vs/platform/actions/common/actions';
+import { SyncActionDescriptor, MenuRegistry, MenuId } from 'vs/platform/actions/common/actions';
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions } from 'vs/platform/configuration/common/configurationRegistry';
 import { IEditorInputFactoryRegistry, Extensions as EditorExtensions } from 'vs/workbench/common/editor';
 import { LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
@@ -22,14 +21,15 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration)
 		'properties': {
 			'workbench.startupEditor': {
 				'type': 'string',
-				'enum': ['none', 'welcomePage', 'newUntitledFile'],
+				'enum': ['none', 'welcomePage', 'newUntitledFile', 'welcomePageInEmptyWorkbench'],
 				'enumDescriptions': [
 					localize({ comment: ['This is the description for a setting. Values surrounded by single quotes are not to be translated.'], key: 'workbench.startupEditor.none' }, "Start without an editor."),
 					localize({ comment: ['This is the description for a setting. Values surrounded by single quotes are not to be translated.'], key: 'workbench.startupEditor.welcomePage' }, "Open the Welcome page (default)."),
-					localize({ comment: ['This is the description for a setting. Values surrounded by single quotes are not to be translated.'], key: 'workbench.startupEditor.newUntitledFile' }, "Open a new untitled file."),
+					localize({ comment: ['This is the description for a setting. Values surrounded by single quotes are not to be translated.'], key: 'workbench.startupEditor.newUntitledFile' }, "Open a new untitled file (only applies when opening an empty workspace)."),
+					localize({ comment: ['This is the description for a setting. Values surrounded by single quotes are not to be translated.'], key: 'workbench.startupEditor.welcomePageInEmptyWorkbench' }, "Open the Welcome page when opening an empty workbench."),
 				],
 				'default': 'welcomePage',
-				'description': localize('workbench.startupEditor', "Controls which editor is shown at startup, if none is restored from the previous session. Select 'none' to start without an editor, 'welcomePage' to open the Welcome page (default), 'newUntitledFile' to open a new untitled file (only opening an empty workspace).")
+				'description': localize('workbench.startupEditor', "Controls which editor is shown at startup, if none are restored from the previous session.")
 			},
 		}
 	});
@@ -41,3 +41,12 @@ Registry.as<IWorkbenchActionRegistry>(ActionExtensions.WorkbenchActions)
 	.registerWorkbenchAction(new SyncActionDescriptor(WelcomePageAction, WelcomePageAction.ID, WelcomePageAction.LABEL), 'Help: Welcome', localize('help', "Help"));
 
 Registry.as<IEditorInputFactoryRegistry>(EditorExtensions.EditorInputFactories).registerEditorInputFactory(WelcomeInputFactory.ID, WelcomeInputFactory);
+
+MenuRegistry.appendMenuItem(MenuId.MenubarHelpMenu, {
+	group: '1_welcome',
+	command: {
+		id: 'workbench.action.showWelcomePage',
+		title: localize({ key: 'miWelcome', comment: ['&& denotes a mnemonic'] }, "&&Welcome")
+	},
+	order: 1
+});

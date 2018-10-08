@@ -2,10 +2,8 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { TPromise } from 'vs/base/common/winjs.base';
 import { Event } from 'vs/base/common/event';
 import { Color } from 'vs/base/common/color';
 import { ITheme, IThemeService } from 'vs/platform/theme/common/themeService';
@@ -55,14 +53,15 @@ export interface IFileIconTheme {
 
 export interface IWorkbenchThemeService extends IThemeService {
 	_serviceBrand: any;
-	setColorTheme(themeId: string, settingsTarget: ConfigurationTarget): TPromise<IColorTheme>;
+	setColorTheme(themeId: string, settingsTarget: ConfigurationTarget): Thenable<IColorTheme>;
 	getColorTheme(): IColorTheme;
-	getColorThemes(): TPromise<IColorTheme[]>;
+	getColorThemes(): Thenable<IColorTheme[]>;
 	onDidColorThemeChange: Event<IColorTheme>;
+	restoreColorTheme();
 
-	setFileIconTheme(iconThemeId: string, settingsTarget: ConfigurationTarget): TPromise<IFileIconTheme>;
+	setFileIconTheme(iconThemeId: string, settingsTarget: ConfigurationTarget): Thenable<IFileIconTheme>;
 	getFileIconTheme(): IFileIconTheme;
-	getFileIconThemes(): TPromise<IFileIconTheme[]>;
+	getFileIconThemes(): Thenable<IFileIconTheme[]>;
 	onDidFileIconThemeChange: Event<IFileIconTheme>;
 }
 

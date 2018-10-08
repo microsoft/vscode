@@ -2,7 +2,6 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
 /**
  * Return a hash value for an object.
@@ -23,7 +22,7 @@ export function hash(obj: any, hashVal = 0): number {
 		case 'number':
 			return numberHash(obj, hashVal);
 		case 'undefined':
-			return numberHash(obj, 937);
+			return 937 * 31;
 		default:
 			return numberHash(obj, 617);
 	}

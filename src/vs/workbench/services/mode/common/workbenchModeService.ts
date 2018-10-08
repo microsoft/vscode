@@ -2,10 +2,8 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
 import * as nls from 'vs/nls';
-import { onUnexpectedError } from 'vs/base/common/errors';
 import * as resources from 'vs/base/common/resources';
 import { TPromise } from 'vs/base/common/winjs.base';
 import * as mime from 'vs/base/common/mime';
@@ -17,7 +15,7 @@ import { ILanguageExtensionPoint } from 'vs/editor/common/services/modeService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ModeServiceImpl } from 'vs/editor/common/services/modeServiceImpl';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import URI from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 
 export interface IRawLanguageExtensionPoint {
 	id: string;
@@ -147,7 +145,7 @@ export class WorkbenchModeServiceImpl extends ModeServiceImpl {
 		});
 
 		this.onDidCreateMode((mode) => {
-			this._extensionService.activateByEvent(`onLanguage:${mode.getId()}`).done(null, onUnexpectedError);
+			this._extensionService.activateByEvent(`onLanguage:${mode.getId()}`);
 		});
 	}
 

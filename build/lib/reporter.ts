@@ -12,7 +12,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 
 const allErrors: string[][] = [];
-let startTime: number = null;
+let startTime: number | null = null;
 let count = 0;
 
 function onStart(): void {
@@ -55,6 +55,7 @@ function log(): void {
 	const messages = errors
 		.map(err => regex.exec(err))
 		.filter(match => !!match)
+		.map(x => x as string[])
 		.map(([, path, line, column, message]) => ({ path, line: parseInt(line), column: parseInt(column), message }));
 
 	try {
@@ -64,7 +65,7 @@ function log(): void {
 		//noop
 	}
 
-	util.log(`Finished ${util.colors.green('compilation')} with ${errors.length} errors after ${util.colors.magenta((new Date().getTime() - startTime) + ' ms')}`);
+	util.log(`Finished ${util.colors.green('compilation')} with ${errors.length} errors after ${util.colors.magenta((new Date().getTime() - startTime!) + ' ms')}`);
 }
 
 export interface IReporter {
@@ -90,15 +91,15 @@ export function createReporter(): IReporter {
 			errors.length = 0;
 			onStart();
 
-			return es.through(null, function () {
+			return es.through(undefined, function () {
 				onEnd();
 
 				if (emitError && errors.length > 0) {
-					(errors as any).__logged__ = true;
-
 					if (!(errors as any).__logged__) {
 						log();
 					}
+
+					(errors as any).__logged__ = true;
 
 					const err = new Error(`Found ${errors.length} errors`);
 					(err as any).__reporter__ = true;

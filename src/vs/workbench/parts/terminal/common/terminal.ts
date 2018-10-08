@@ -7,8 +7,8 @@ import { Event } from 'vs/base/common/event';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import * as platform from 'vs/base/common/platform';
 import { RawContextKey, ContextKeyExpr, IContextKey } from 'vs/platform/contextkey/common/contextkey';
-import { TPromise } from 'vs/base/common/winjs.base';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
+import { FindReplaceState } from 'vs/editor/contrib/find/findState';
 
 export const TERMINAL_PANEL_ID = 'workbench.panel.terminal';
 
@@ -32,6 +32,8 @@ export const KEYBINDING_CONTEXT_TERMINAL_FIND_WIDGET_VISIBLE = new RawContextKey
 export const KEYBINDING_CONTEXT_TERMINAL_FIND_WIDGET_NOT_VISIBLE: ContextKeyExpr = KEYBINDING_CONTEXT_TERMINAL_FIND_WIDGET_VISIBLE.toNegated();
 /**  A context key that is set when the find widget find input in integrated terminal is focused. */
 export const KEYBINDING_CONTEXT_TERMINAL_FIND_WIDGET_INPUT_FOCUSED = new RawContextKey<boolean>('terminalFindWidgetInputFocused', false);
+/**  A context key that is set when the find widget in integrated terminal is focused. */
+export const KEYBINDING_CONTEXT_TERMINAL_FIND_WIDGET_FOCUSED = new RawContextKey<boolean>('terminalFindWidgetFocused', false);
 /**  A context key that is set when the find widget find input in integrated terminal is not focused. */
 export const KEYBINDING_CONTEXT_TERMINAL_FIND_WIDGET_INPUT_NOT_FOCUSED: ContextKeyExpr = KEYBINDING_CONTEXT_TERMINAL_FIND_WIDGET_INPUT_FOCUSED.toNegated();
 
@@ -97,8 +99,6 @@ export interface ITerminalConfiguration {
 		windows: { [key: string]: string };
 	};
 	showExitAlert: boolean;
-	experimentalRestore: boolean;
-	experimentalTextureCachingStrategy: 'static' | 'dynamic';
 }
 
 export interface ITerminalConfigHelper {
@@ -188,7 +188,7 @@ export interface ITerminalService {
 	onInstanceDimensionsChanged: Event<ITerminalInstance>;
 	onInstanceRequestExtHostProcess: Event<ITerminalProcessExtHostRequest>;
 	onInstancesChanged: Event<void>;
-	onInstanceTitleChanged: Event<string>;
+	onInstanceTitleChanged: Event<ITerminalInstance>;
 	onActiveInstanceChanged: Event<ITerminalInstance>;
 	terminalInstances: ITerminalInstance[];
 	terminalTabs: ITerminalTab[];
@@ -224,13 +224,16 @@ export interface ITerminalService {
 	setActiveTabToPrevious(): void;
 	setActiveTabByIndex(tabIndex: number): void;
 
-	showPanel(focus?: boolean): TPromise<void>;
+	showPanel(focus?: boolean): Promise<void>;
 	hidePanel(): void;
-	focusFindWidget(): TPromise<void>;
+	focusFindWidget(): Promise<void>;
 	hideFindWidget(): void;
+	getFindState(): FindReplaceState;
+	findNext(): void;
+	findPrevious(): void;
 
 	setContainers(panelContainer: HTMLElement, terminalContainer: HTMLElement): void;
-	selectDefaultWindowsShell(): TPromise<string>;
+	selectDefaultWindowsShell(): Promise<string>;
 	setWorkspaceShellAllowed(isAllowed: boolean): void;
 
 	requestExtHostProcess(proxy: ITerminalProcessExtHostProxy, shellLaunchConfig: IShellLaunchConfig, cols: number, rows: number): void;
@@ -273,6 +276,21 @@ export interface ITerminalDimensions {
 	readonly rows: number;
 }
 
+interface ISearchOptions {
+	/**
+	 * Whether the find should be done as a regex.
+	 */
+	regex?: boolean;
+	/**
+	 * Whether only whole words should match.
+	 */
+	wholeWord?: boolean;
+	/**
+	 * Whether find should pay attention to case.
+	 */
+	caseSensitive?: boolean;
+}
+
 export interface ITerminalInstance {
 	/**
 	 * The ID of the terminal instance, this is an arbitrary number only used to identify the
@@ -292,7 +310,7 @@ export interface ITerminalInstance {
 	/**
 	 * An event that fires when the terminal instance's title changes.
 	 */
-	onTitleChanged: Event<string>;
+	onTitleChanged: Event<ITerminalInstance>;
 
 	/**
 	 * An event that fires when the terminal instance is disposed.
@@ -341,7 +359,7 @@ export interface ITerminalInstance {
 	 */
 	onExit: Event<number>;
 
-	processReady: TPromise<void>;
+	processReady: Promise<void>;
 
 	/**
 	 * The title of the terminal. This is either title or the process currently running or an
@@ -384,8 +402,11 @@ export interface ITerminalInstance {
 
 	/**
 	 * Dispose the terminal instance, removing it from the panel/service and freeing up resources.
+	 *
+	 * @param isShuttingDown Whether VS Code is shutting down, if so kill any terminal processes
+	 * immediately.
 	 */
-	dispose(): void;
+	dispose(isShuttingDown?: boolean): void;
 
 	/**
 	 * Registers a link matcher, allowing custom link patterns to be matched and handled.
@@ -435,12 +456,12 @@ export interface ITerminalInstance {
 	/**
 	 * Find the next instance of the term
 	*/
-	findNext(term: string): boolean;
+	findNext(term: string, searchOptions: ISearchOptions): boolean;
 
 	/**
 	 * Find the previous instance of the term
 	 */
-	findPrevious(term: string): boolean;
+	findPrevious(term: string, searchOptions: ISearchOptions): boolean;
 
 	/**
 	 * Notifies the terminal that the find widget's focus state has been changed.
@@ -448,11 +469,19 @@ export interface ITerminalInstance {
 	notifyFindWidgetFocusChanged(isFocused: boolean): void;
 
 	/**
-	 * Focuses the terminal instance.
+	 * Focuses the terminal instance if it's able to (xterm.js instance exists).
 	 *
 	 * @param focus Force focus even if there is a selection.
 	 */
 	focus(force?: boolean): void;
+
+	/**
+	 * Focuses the terminal instance when it's ready (the xterm.js instance is created). Use this
+	 * when the terminal is being shown.
+	 *
+	 * @param focus Force focus even if there is a selection.
+	 */
+	focusWhenReady(force?: boolean): Promise<void>;
 
 	/**
 	 * Focuses and pastes the contents of the clipboard into the terminal instance.
@@ -469,6 +498,15 @@ export interface ITerminalInstance {
 	 * depending on the platform. This defaults to `true`.
 	 */
 	sendText(text: string, addNewLine: boolean): void;
+
+	/**
+	 * Takes a path and returns the properly escaped path to send to the terminal.
+	 * On Windows, this included trying to prepare the path for WSL if needed.
+	 *
+	 * @param path The path to be escaped and formatted.
+	 * @returns An escaped version of the path to be execuded in the terminal.
+	 */
+	preparePathForTerminalAsync(path: string): Promise<string>;
 
 	/**
 	 * Write text directly to the terminal, skipping the process if it exists.
@@ -539,6 +577,8 @@ export interface ITerminalInstance {
 	 */
 	setTitle(title: string, eventFromProcess: boolean): void;
 
+	waitForTitle(): Promise<string>;
+
 	setDimensions(dimensions: ITerminalDimensions): void;
 
 	addDisposable(disposable: IDisposable): void;
@@ -557,7 +597,7 @@ export interface ITerminalCommandTracker {
 
 export interface ITerminalProcessManager extends IDisposable {
 	readonly processState: ProcessState;
-	readonly ptyProcessReady: TPromise<void>;
+	readonly ptyProcessReady: Promise<void>;
 	readonly shellProcessId: number;
 	readonly initialCwd: string;
 
@@ -567,12 +607,13 @@ export interface ITerminalProcessManager extends IDisposable {
 	readonly onProcessExit: Event<number>;
 
 	addDisposable(disposable: IDisposable);
+	dispose(immediate?: boolean);
 	createProcess(shellLaunchConfig: IShellLaunchConfig, cols: number, rows: number);
 	write(data: string): void;
 	setDimensions(cols: number, rows: number): void;
 }
 
-export enum ProcessState {
+export const enum ProcessState {
 	// The process has not been initialized yet.
 	UNINITIALIZED,
 	// The process is currently launching, the process is marked as launching
@@ -602,7 +643,7 @@ export interface ITerminalProcessExtHostProxy extends IDisposable {
 
 	onInput: Event<string>;
 	onResize: Event<{ cols: number, rows: number }>;
-	onShutdown: Event<void>;
+	onShutdown: Event<boolean>;
 }
 
 export interface ITerminalProcessExtHostRequest {

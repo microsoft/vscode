@@ -3,13 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
-import { INotification, INotificationHandle, INotificationActions, INotificationProgress, NoOpNotification, Severity, NotificationMessage } from 'vs/platform/notification/common/notification';
+import { INotification, INotificationHandle, INotificationActions, INotificationProgress, NoOpNotification, Severity, NotificationMessage, IPromptChoice } from 'vs/platform/notification/common/notification';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
 import { Event, Emitter, once } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { isPromiseCanceledError, isErrorWithActions } from 'vs/base/common/errors';
+import { Action } from 'vs/base/common/actions';
 
 export interface INotificationsModel {
 
@@ -19,7 +18,7 @@ export interface INotificationsModel {
 	notify(notification: INotification): INotificationHandle;
 }
 
-export enum NotificationChangeType {
+export const enum NotificationChangeType {
 	ADD,
 	CHANGE,
 	REMOVE
@@ -208,7 +207,7 @@ export function isNotificationViewItem(obj: any): obj is INotificationViewItem {
 	return obj instanceof NotificationViewItem;
 }
 
-export enum NotificationViewItemLabelKind {
+export const enum NotificationViewItemLabelKind {
 	SEVERITY,
 	MESSAGE,
 	ACTIONS,
@@ -543,5 +542,38 @@ export class NotificationViewItem extends Disposable implements INotificationVie
 		}
 
 		return true;
+	}
+}
+
+export class ChoiceAction extends Action {
+
+	private _onDidRun = new Emitter<void>();
+	get onDidRun(): Event<void> { return this._onDidRun.event; }
+
+	private _keepOpen: boolean;
+
+	constructor(id: string, choice: IPromptChoice) {
+		super(id, choice.label, null, true, () => {
+
+			// Pass to runner
+			choice.run();
+
+			// Emit Event
+			this._onDidRun.fire();
+
+			return Promise.resolve(void 0);
+		});
+
+		this._keepOpen = choice.keepOpen;
+	}
+
+	get keepOpen(): boolean {
+		return this._keepOpen;
+	}
+
+	dispose(): void {
+		super.dispose();
+
+		this._onDidRun.dispose();
 	}
 }

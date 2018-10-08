@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { TPromise } from 'vs/base/common/winjs.base';
-import * as errors from 'vs/base/common/errors';
 import * as DOM from 'vs/base/browser/dom';
 import { Scope } from 'vs/workbench/common/memento';
 import { dispose, IDisposable, combinedDisposable, toDisposable } from 'vs/base/common/lifecycle';
@@ -89,7 +88,7 @@ export abstract class TreeViewsViewletPanel extends ViewletPanel {
 		// Make sure the current selected element is revealed
 		const selectedElement = this.tree.getSelection()[0];
 		if (selectedElement) {
-			this.tree.reveal(selectedElement, 0.5).done(null, errors.onUnexpectedError);
+			this.tree.reveal(selectedElement, 0.5);
 		}
 
 		// Pass Focus to Viewer
@@ -124,6 +123,7 @@ export abstract class ViewContainerViewlet extends PanelViewlet implements IView
 		id: string,
 		viewletStateStorageId: string,
 		showHeaderInTitleWhenSingleView: boolean,
+		@IConfigurationService configurationService: IConfigurationService,
 		@IPartService partService: IPartService,
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IStorageService protected storageService: IStorageService,
@@ -133,7 +133,7 @@ export abstract class ViewContainerViewlet extends PanelViewlet implements IView
 		@IExtensionService protected extensionService: IExtensionService,
 		@IWorkspaceContextService protected contextService: IWorkspaceContextService
 	) {
-		super(id, { showHeaderInTitleWhenSingleView, dnd: new DefaultPanelDndController() }, partService, contextMenuService, telemetryService, themeService);
+		super(id, { showHeaderInTitleWhenSingleView, dnd: new DefaultPanelDndController() }, configurationService, partService, contextMenuService, telemetryService, themeService);
 
 		const container = Registry.as<IViewContainersRegistry>(ViewContainerExtensions.ViewContainersRegistry).get(id);
 		this.viewsModel = this._register(this.instantiationService.createInstance(PersistentContributableViewsModel, container, viewletStateStorageId));
@@ -144,7 +144,7 @@ export abstract class ViewContainerViewlet extends PanelViewlet implements IView
 		this._register(toDisposable(() => this.viewDisposables = dispose(this.viewDisposables)));
 	}
 
-	create(parent: HTMLElement): TPromise<void> {
+	create(parent: HTMLElement): Promise<void> {
 		return super.create(parent).then(() => {
 			this._register(this.onDidSashChange(() => this.saveViewSizes()));
 			this.viewsModel.onDidAdd(added => this.onDidAddViews(added));
@@ -191,9 +191,9 @@ export abstract class ViewContainerViewlet extends PanelViewlet implements IView
 		return result;
 	}
 
-	setVisible(visible: boolean): TPromise<void> {
+	setVisible(visible: boolean): Promise<void> {
 		return super.setVisible(visible)
-			.then(() => TPromise.join(this.panels.filter(view => view.isVisible() !== visible)
+			.then(() => Promise.all(this.panels.filter(view => view.isVisible() !== visible)
 				.map((view) => view.setVisible(visible))))
 			.then(() => void 0);
 	}
@@ -211,7 +211,7 @@ export abstract class ViewContainerViewlet extends PanelViewlet implements IView
 		if (focus) {
 			view.focus();
 		}
-		return TPromise.as(view);
+		return Promise.resolve(view);
 	}
 
 	movePanel(from: ViewletPanel, to: ViewletPanel): void {
@@ -330,7 +330,7 @@ export abstract class ViewContainerViewlet extends PanelViewlet implements IView
 		let anchor: { x: number, y: number } = { x: event.posx, y: event.posy };
 		this.contextMenuService.showContextMenu({
 			getAnchor: () => anchor,
-			getActions: () => TPromise.as(actions)
+			getActions: () => Promise.resolve(actions)
 		});
 	}
 
@@ -377,7 +377,7 @@ export abstract class ViewContainerViewlet extends PanelViewlet implements IView
 	private computeInitialSizes(): { [id: string]: number } {
 		let sizes = {};
 		if (this.dimension) {
-			let totalWeight = 0;
+			const totalWeight = this.viewsModel.visibleViewDescriptors.reduce((totalWeight, { weight }) => totalWeight + (weight || 20), 0);
 			for (const viewDescriptor of this.viewsModel.visibleViewDescriptors) {
 				sizes[viewDescriptor.id] = this.dimension.height * (viewDescriptor.weight || 20) / totalWeight;
 			}

@@ -2,13 +2,12 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
 import { TPromise } from 'vs/base/common/winjs.base';
 import { Event, Emitter, once } from 'vs/base/common/event';
 import * as objects from 'vs/base/common/objects';
 import * as types from 'vs/base/common/types';
-import URI from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 import { IDisposable, Disposable } from 'vs/base/common/lifecycle';
 import { IEditor as ICodeEditor, IEditorViewState, ScrollType, IDiffEditor } from 'vs/editor/common/editorCommon';
 import { IEditorModel, IEditorOptions, ITextEditorOptions, IBaseResourceInput } from 'vs/platform/editor/common/editor';
@@ -21,10 +20,12 @@ import { IEditorGroup } from 'vs/workbench/services/group/common/editorGroupsSer
 import { ICompositeControl } from 'vs/workbench/common/composite';
 import { ActionRunner, IAction } from 'vs/base/common/actions';
 
+export const ActiveEditorContext = new RawContextKey<string>('activeEditor', null);
 export const EditorsVisibleContext = new RawContextKey<boolean>('editorIsOpen', false);
 export const EditorGroupActiveEditorDirtyContext = new RawContextKey<boolean>('groupActiveEditorDirty', false);
 export const NoEditorsVisibleContext: ContextKeyExpr = EditorsVisibleContext.toNegated();
 export const TextCompareEditorVisibleContext = new RawContextKey<boolean>('textCompareEditorVisible', false);
+export const TextCompareEditorActiveContext = new RawContextKey<boolean>('textCompareEditorActive', false);
 export const ActiveEditorGroupEmptyContext = new RawContextKey<boolean>('activeEditorGroupEmpty', false);
 export const MultipleEditorGroupsContext = new RawContextKey<boolean>('multipleEditorGroups', false);
 export const SingleEditorGroupsContext = MultipleEditorGroupsContext.toNegated();
@@ -247,7 +248,7 @@ export interface IResourceSideBySideInput extends IBaseResourceInput {
 	detailResource: URI;
 }
 
-export enum Verbosity {
+export const enum Verbosity {
 	SHORT,
 	MEDIUM,
 	LONG
@@ -277,6 +278,11 @@ export interface IEditorInput extends IDisposable {
 	 * Returns the associated resource of this input.
 	 */
 	getResource(): URI;
+
+	/**
+	 * Unique type identifier for this inpput.
+	 */
+	getTypeId(): string;
 
 	/**
 	 * Returns the display name of this input.
@@ -467,13 +473,13 @@ export abstract class EditorInput extends Disposable implements IEditorInput {
 	}
 }
 
-export enum ConfirmResult {
+export const enum ConfirmResult {
 	SAVE,
 	DONT_SAVE,
 	CANCEL
 }
 
-export enum EncodingMode {
+export const enum EncodingMode {
 
 	/**
 	 * Instructs the encoding support to encode the current input with the provided encoding
@@ -931,6 +937,7 @@ export interface IWorkbenchEditorConfiguration {
 
 export interface IWorkbenchEditorPartConfiguration {
 	showTabs?: boolean;
+	highlightModifiedTabs?: boolean;
 	tabCloseButton?: 'left' | 'right' | 'off';
 	tabSizing?: 'fit' | 'shrink';
 	showIcons?: boolean;
@@ -943,6 +950,7 @@ export interface IWorkbenchEditorPartConfiguration {
 	revealIfOpen?: boolean;
 	swipeToNavigate?: boolean;
 	labelFormat?: 'default' | 'short' | 'medium' | 'long';
+	restoreViewState?: boolean;
 }
 
 export interface IResourceOptions {
@@ -990,7 +998,7 @@ export function toResource(editor: IEditorInput, options?: IResourceOptions): UR
 	return null;
 }
 
-export enum CloseDirection {
+export const enum CloseDirection {
 	LEFT,
 	RIGHT
 }
@@ -1003,8 +1011,8 @@ export interface IEditorMemento<T> {
 	loadState(group: IEditorGroup, resource: URI): T;
 	loadState(group: IEditorGroup, editor: EditorInput): T;
 
-	clearState(resource: URI): void;
-	clearState(editor: EditorInput): void;
+	clearState(resource: URI, group?: IEditorGroup): void;
+	clearState(editor: EditorInput, group?: IEditorGroup): void;
 }
 
 class EditorInputFactoryRegistry implements IEditorInputFactoryRegistry {

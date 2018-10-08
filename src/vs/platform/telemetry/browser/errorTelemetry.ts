@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import { binarySearch } from 'vs/base/common/arrays';
 import { globals } from 'vs/base/common/platform';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
@@ -55,7 +53,7 @@ export default class ErrorTelemetry {
 
 	private _telemetryService: ITelemetryService;
 	private _flushDelay: number;
-	private _flushHandle = -1;
+	private _flushHandle: any = -1;
 	private _buffer: ErrorEvent[] = [];
 	private _disposables: IDisposable[] = [];
 

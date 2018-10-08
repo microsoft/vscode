@@ -19,7 +19,6 @@ import { IControllerOptions } from 'vs/base/parts/tree/browser/treeDefaults';
 import { fillInContextMenuActions } from 'vs/platform/actions/browser/menuItemActionItem';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
-import { onUnexpectedError } from 'vs/base/common/errors';
 import { WorkbenchTreeController } from 'vs/platform/list/browser/listService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
@@ -134,6 +133,8 @@ export function renderRenameBox(debugService: IDebugService, contextViewService:
 	inputBox.value = options.initialValue ? options.initialValue : '';
 	inputBox.focus();
 	inputBox.select();
+	tree.clearFocus();
+	tree.clearSelection();
 
 	let disposed = false;
 	const toDispose: IDisposable[] = [inputBox, styler];
@@ -151,11 +152,11 @@ export function renderRenameBox(debugService: IDebugService, contextViewService:
 				if (renamed && element.value !== inputBox.value) {
 					element.setVariable(inputBox.value)
 						// if everything went fine we need to refresh ui elements since the variable update can change watch and variables view
-						.done(() => {
+						.then(() => {
 							tree.refresh(element, false);
 							// Need to force watch expressions to update since a variable change can have an effect on watches
 							debugService.focusStackFrame(debugService.getViewModel().focusedStackFrame);
-						}, onUnexpectedError);
+						});
 				}
 			}
 

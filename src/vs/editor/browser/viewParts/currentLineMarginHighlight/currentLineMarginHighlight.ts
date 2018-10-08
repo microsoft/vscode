@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import 'vs/css!./currentLineMarginHighlight';
 import { DynamicViewOverlay } from 'vs/editor/browser/view/dynamicViewOverlay';
 import { ViewContext } from 'vs/editor/common/view/viewContext';
@@ -125,11 +123,11 @@ export class CurrentLineMarginHighlightOverlay extends DynamicViewOverlay {
 }
 
 registerThemingParticipant((theme, collector) => {
-	let lineHighlight = theme.getColor(editorLineHighlight);
+	const lineHighlight = theme.getColor(editorLineHighlight);
 	if (lineHighlight) {
 		collector.addRule(`.monaco-editor .margin-view-overlays .current-line-margin { background-color: ${lineHighlight}; border: none; }`);
 	} else {
-		let lineHighlightBorder = theme.getColor(editorLineHighlightBorder);
+		const lineHighlightBorder = theme.getColor(editorLineHighlightBorder);
 		if (lineHighlightBorder) {
 			collector.addRule(`.monaco-editor .margin-view-overlays .current-line-margin { border: 2px solid ${lineHighlightBorder}; }`);
 		}

@@ -2,7 +2,6 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
 import 'vs/css!./accessibilityHelp';
 import * as nls from 'vs/nls';
@@ -26,7 +25,7 @@ import { editorWidgetBackground, widgetShadow, contrastBorder } from 'vs/platfor
 import * as platform from 'vs/base/common/platform';
 import { alert } from 'vs/base/browser/ui/aria/aria';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
-import URI from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 import { Selection } from 'vs/editor/common/core/selection';
 import * as browser from 'vs/base/browser/browser';
 import { IEditorConstructionOptions } from 'vs/editor/standalone/browser/standaloneCodeEditor';
@@ -376,17 +375,17 @@ registerEditorCommand(
 );
 
 registerThemingParticipant((theme, collector) => {
-	let widgetBackground = theme.getColor(editorWidgetBackground);
+	const widgetBackground = theme.getColor(editorWidgetBackground);
 	if (widgetBackground) {
 		collector.addRule(`.monaco-editor .accessibilityHelpWidget { background-color: ${widgetBackground}; }`);
 	}
 
-	let widgetShadowColor = theme.getColor(widgetShadow);
+	const widgetShadowColor = theme.getColor(widgetShadow);
 	if (widgetShadowColor) {
 		collector.addRule(`.monaco-editor .accessibilityHelpWidget { box-shadow: 0 2px 8px ${widgetShadowColor}; }`);
 	}
 
-	let hcBorder = theme.getColor(contrastBorder);
+	const hcBorder = theme.getColor(contrastBorder);
 	if (hcBorder) {
 		collector.addRule(`.monaco-editor .accessibilityHelpWidget { border: 2px solid ${hcBorder}; }`);
 	}

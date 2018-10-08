@@ -20,7 +20,7 @@ function createDefaultConfig(quality: string): Config {
 }
 
 function getConfig(quality: string): Promise<Config> {
-	const client = new DocumentClient(process.env['AZURE_DOCUMENTDB_ENDPOINT'], { masterKey: process.env['AZURE_DOCUMENTDB_MASTERKEY'] });
+	const client = new DocumentClient(process.env['AZURE_DOCUMENTDB_ENDPOINT']!, { masterKey: process.env['AZURE_DOCUMENTDB_MASTERKEY'] });
 	const collection = 'dbs/builds/colls/config';
 	const query = {
 		query: `SELECT TOP 1 * FROM c WHERE c.id = @quality`,

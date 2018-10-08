@@ -6,7 +6,7 @@
 'use strict';
 
 import * as es from 'event-stream';
-import * as debounce from 'debounce';
+import debounce = require('debounce');
 import * as _filter from 'gulp-filter';
 import * as rename from 'gulp-rename';
 import * as _ from 'underscore';
@@ -34,16 +34,16 @@ export function incremental(streamProvider: IStreamProvider, initial: NodeJS.Rea
 	let state = 'idle';
 	let buffer = Object.create(null);
 
-	const token: ICancellationToken = !supportsCancellation ? null : { isCancellationRequested: () => Object.keys(buffer).length > 0 };
+	const token: ICancellationToken | undefined = !supportsCancellation ? undefined : { isCancellationRequested: () => Object.keys(buffer).length > 0 };
 
-	const run = (input, isCancellable) => {
+	const run = (input: NodeJS.ReadWriteStream, isCancellable: boolean) => {
 		state = 'running';
 
 		const stream = !supportsCancellation ? streamProvider() : streamProvider(isCancellable ? token : NoCancellationToken);
 
 		input
 			.pipe(stream)
-			.pipe(es.through(null, () => {
+			.pipe(es.through(undefined, () => {
 				state = 'idle';
 				eventuallyRun();
 			}))
@@ -92,7 +92,7 @@ export function fixWin32DirectoryPermissions(): NodeJS.ReadWriteStream {
 }
 
 export function setExecutableBit(pattern: string | string[]): NodeJS.ReadWriteStream {
-	var setBit = es.mapSync<VinylFile, VinylFile>(f => {
+	const setBit = es.mapSync<VinylFile, VinylFile>(f => {
 		f.stat.mode = /* 100755 */ 33261;
 		return f;
 	});
@@ -101,9 +101,9 @@ export function setExecutableBit(pattern: string | string[]): NodeJS.ReadWriteSt
 		return setBit;
 	}
 
-	var input = es.through();
-	var filter = _filter(pattern, { restore: true });
-	var output = input
+	const input = es.through();
+	const filter = _filter(pattern, { restore: true });
+	const output = input
 		.pipe(filter)
 		.pipe(setBit)
 		.pipe(filter.restore);
@@ -122,7 +122,7 @@ export function toFileUri(filePath: string): string {
 }
 
 export function skipDirectories(): NodeJS.ReadWriteStream {
-	return es.mapSync<VinylFile, VinylFile>(f => {
+	return es.mapSync<VinylFile, VinylFile | undefined>(f => {
 		if (!f.isDirectory()) {
 			return f;
 		}
@@ -134,7 +134,7 @@ export function cleanNodeModule(name: string, excludes: string[], includes?: str
 	const negate = (str: string) => '!' + str;
 
 	const allFilter = _filter(toGlob('**'), { restore: true });
-	const globs = [toGlob('**')].concat(excludes.map(_.compose(negate, toGlob)));
+	const globs = [toGlob('**')].concat(excludes.map(_.compose(negate, toGlob) as (x: string) => string));
 
 	const input = es.through();
 	const nodeModuleInput = input.pipe(allFilter);
@@ -157,9 +157,9 @@ export function loadSourcemaps(): NodeJS.ReadWriteStream {
 	const input = es.through();
 
 	const output = input
-		.pipe(es.map<FileSourceMap, FileSourceMap>((f, cb): FileSourceMap => {
+		.pipe(es.map<FileSourceMap, FileSourceMap | undefined>((f, cb): FileSourceMap | undefined => {
 			if (f.sourceMap) {
-				cb(null, f);
+				cb(undefined, f);
 				return;
 			}
 
@@ -171,7 +171,8 @@ export function loadSourcemaps(): NodeJS.ReadWriteStream {
 			const contents = (<Buffer>f.contents).toString('utf8');
 
 			const reg = /\/\/# sourceMappingURL=(.*)$/g;
-			let lastMatch = null, match = null;
+			let lastMatch: RegExpMatchArray | null = null;
+			let match: RegExpMatchArray | null = null;
 
 			while (match = reg.exec(contents)) {
 				lastMatch = match;
@@ -179,14 +180,14 @@ export function loadSourcemaps(): NodeJS.ReadWriteStream {
 
 			if (!lastMatch) {
 				f.sourceMap = {
-					version: 3,
+					version: '3',
 					names: [],
 					mappings: '',
 					sources: [f.relative.replace(/\//g, '/')],
 					sourcesContent: [contents]
 				};
 
-				cb(null, f);
+				cb(undefined, f);
 				return;
 			}
 
@@ -196,7 +197,7 @@ export function loadSourcemaps(): NodeJS.ReadWriteStream {
 				if (err) { return cb(err); }
 
 				f.sourceMap = JSON.parse(contents);
-				cb(null, f);
+				cb(undefined, f);
 			});
 		}));
 
@@ -219,7 +220,7 @@ export function stripSourceMappingURL(): NodeJS.ReadWriteStream {
 export function rimraf(dir: string): (cb: any) => void {
 	let retries = 0;
 
-	const retry = cb => {
+	const retry = (cb: (err?: any) => void) => {
 		_rimraf(dir, { maxBusyTries: 1 }, (err: any) => {
 			if (!err) {
 				return cb();
@@ -236,7 +237,7 @@ export function rimraf(dir: string): (cb: any) => void {
 	return cb => retry(cb);
 }
 
-export function getVersion(root: string): string {
+export function getVersion(root: string): string | undefined {
 	let version = process.env['BUILD_SOURCEVERSION'];
 
 	if (!version || !/^[0-9a-f]{40}$/i.test(version)) {
@@ -248,7 +249,7 @@ export function getVersion(root: string): string {
 
 export function rebase(count: number): NodeJS.ReadWriteStream {
 	return rename(f => {
-		const parts = f.dirname.split(/[\/\\]/);
+		const parts = f.dirname ? f.dirname.split(/[\/\\]/) : [];
 		f.dirname = parts.slice(count).join(path.sep);
 	});
 }

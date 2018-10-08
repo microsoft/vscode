@@ -147,7 +147,7 @@ function isImportNode(node) {
         }); });
         // `nls.localize(...)` calls
         var nlsLocalizeCallExpressions = importDeclarations
-            .filter(function (d) { return d.importClause.namedBindings.kind === ts.SyntaxKind.NamespaceImport; })
+            .filter(function (d) { return !!(d.importClause && d.importClause.namedBindings && d.importClause.namedBindings.kind === ts.SyntaxKind.NamespaceImport); })
             .map(function (d) { return d.importClause.namedBindings.name; })
             .concat(importEqualsDeclarations.map(function (d) { return d.name; }))
             // find read-only references to `nls`
@@ -163,7 +163,7 @@ function isImportNode(node) {
             .filter(function (n) { return n.expression.kind === ts.SyntaxKind.PropertyAccessExpression && n.expression.name.getText() === 'localize'; });
         // `localize` named imports
         var allLocalizeImportDeclarations = importDeclarations
-            .filter(function (d) { return d.importClause.namedBindings.kind === ts.SyntaxKind.NamedImports; })
+            .filter(function (d) { return !!(d.importClause && d.importClause.namedBindings && d.importClause.namedBindings.kind === ts.SyntaxKind.NamedImports); })
             .map(function (d) { return [].concat(d.importClause.namedBindings.elements); })
             .flatten();
         // `localize` read-only references

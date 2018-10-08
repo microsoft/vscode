@@ -2,7 +2,6 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
 import { onUnexpectedError } from 'vs/base/common/errors';
 import * as strings from 'vs/base/common/strings';
@@ -48,16 +47,24 @@ export class OnEnterSupport {
 		// (1): `regExpRules`
 		for (let i = 0, len = this._regExpRules.length; i < len; i++) {
 			let rule = this._regExpRules[i];
-			if (rule.beforeText.test(beforeEnterText)) {
-				if (rule.afterText) {
-					if (rule.afterText.test(afterEnterText)) {
-						return rule.action;
-					}
-				} else {
-					return rule.action;
-				}
+			const regResult = [{
+				reg: rule.beforeText,
+				text: beforeEnterText
+			}, {
+				reg: rule.afterText,
+				text: afterEnterText
+			}, {
+				reg: rule.oneLineAboveText,
+				text: oneLineAboveText
+			}].every((obj): boolean => {
+				return obj.reg ? obj.reg.test(obj.text) : true;
+			});
+
+			if (regResult) {
+				return rule.action;
 			}
 		}
+
 
 		// (2): Special indent-outdent
 		if (beforeEnterText.length > 0 && afterEnterText.length > 0) {

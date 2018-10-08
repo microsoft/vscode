@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import { createMonacoBaseAPI } from 'vs/editor/common/standalone/standaloneBase';
 import { createMonacoEditorAPI } from 'vs/editor/standalone/browser/standaloneEditor';
 import { createMonacoLanguagesAPI } from 'vs/editor/standalone/browser/standaloneLanguages';
@@ -35,7 +33,6 @@ export const Position = api.Position;
 export const Range = api.Range;
 export const Selection = api.Selection;
 export const SelectionDirection = api.SelectionDirection;
-export const Severity = api.Severity;
 export const MarkerSeverity = api.MarkerSeverity;
 export const MarkerTag = api.MarkerTag;
 export const Promise = api.Promise;
@@ -56,7 +53,8 @@ if (typeof global.require !== 'undefined' && typeof global.require.config === 'f
 			'jsonc-parser',
 			'jsonc-parser/main',
 			'vscode-uri',
-			'vscode-uri/index'
+			'vscode-uri/index',
+			'vs/basic-languages/typescript/typescript'
 		]
 	});
 }

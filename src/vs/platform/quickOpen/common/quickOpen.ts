@@ -2,97 +2,11 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
 import { TPromise } from 'vs/base/common/winjs.base';
-import uri from 'vs/base/common/uri';
 import { Event } from 'vs/base/common/event';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { IQuickNavigateConfiguration, IAutoFocus, IEntryRunContext } from 'vs/base/parts/quickopen/common/quickOpen';
+import { IQuickNavigateConfiguration, IAutoFocus } from 'vs/base/parts/quickopen/common/quickOpen';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { IAction } from 'vs/base/common/actions';
-import { FileKind } from 'vs/platform/files/common/files';
-
-export interface IFilePickOpenEntry extends IPickOpenEntry {
-	resource: uri;
-	fileKind?: FileKind;
-}
-
-export interface IPickOpenAction extends IAction {
-	run(item: IPickOpenItem): TPromise<any>;
-}
-
-export interface IPickOpenEntry {
-	id?: string;
-	label: string;
-	description?: string;
-	detail?: string;
-	tooltip?: string;
-	separator?: ISeparator;
-	alwaysShow?: boolean;
-	run?: (context: IEntryRunContext) => void;
-	action?: IAction;
-	payload?: any;
-}
-
-export interface IPickOpenItem {
-	index: number;
-	remove: () => void;
-	getId: () => string;
-	getResource: () => uri;
-	getPayload: () => any;
-}
-
-export interface ISeparator {
-	border?: boolean;
-	label?: string;
-}
-
-export interface IPickOptions {
-
-	/**
-	 * an optional string to show as place holder in the input box to guide the user what she picks on
-	 */
-	placeHolder?: string;
-
-	/**
-	 * optional auto focus settings
-	 */
-	autoFocus?: IAutoFocus;
-
-	/**
-	 * an optional flag to include the description when filtering the picks
-	 */
-	matchOnDescription?: boolean;
-
-	/**
-	 * an optional flag to include the detail when filtering the picks
-	 */
-	matchOnDetail?: boolean;
-
-	/**
-	 * an optional flag to not close the picker on focus lost
-	 */
-	ignoreFocusLost?: boolean;
-
-	/**
-	 * enables quick navigate in the picker to open an element without typing
-	 */
-	quickNavigateConfiguration?: IQuickNavigateConfiguration;
-
-	/**
-	 * a context key to set when this picker is active
-	 */
-	contextKey?: string;
-}
-
-export interface IStringPickOptions extends IPickOptions {
-	onDidFocus?: (item: string) => void;
-}
-
-export interface ITypedPickOptions<T extends IPickOpenEntry> extends IPickOptions {
-	onDidFocus?: (entry: T) => void;
-}
 
 export interface IShowOptions {
 	quickNavigateConfiguration?: IQuickNavigateConfiguration;
@@ -114,18 +28,6 @@ export interface IQuickOpenService {
 	 * The returned promise completes when quick open is closing.
 	 */
 	show(prefix?: string, options?: IShowOptions): TPromise<void>;
-
-	/**
-	 * A convenient way to bring up quick open as a picker with custom elements. This bypasses the quick open handler
-	 * registry and just leverages the quick open widget to select any kind of entries.
-	 *
-	 * Passing in a promise will allow you to resolve the elements in the background while quick open will show a
-	 * progress bar spinning.
-	 */
-	pick(picks: TPromise<string[]>, options?: IStringPickOptions, token?: CancellationToken): TPromise<string>;
-	pick<T extends IPickOpenEntry>(picks: TPromise<T[]>, options?: ITypedPickOptions<T>, token?: CancellationToken): TPromise<T>;
-	pick(picks: string[], options?: IStringPickOptions, token?: CancellationToken): TPromise<string>;
-	pick<T extends IPickOpenEntry>(picks: T[], options?: ITypedPickOptions<T>, token?: CancellationToken): TPromise<T>;
 
 	/**
 	 * Allows to navigate from the outside in an opened picker.

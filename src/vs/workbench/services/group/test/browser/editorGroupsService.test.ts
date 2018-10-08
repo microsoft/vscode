@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import * as assert from 'assert';
 import { EditorPart } from 'vs/workbench/browser/parts/editor/editorPart';
 import { workbenchInstantiationService } from 'vs/workbench/test/workbenchTestServices';
@@ -15,7 +13,7 @@ import { IEditorPartOptions } from 'vs/workbench/browser/parts/editor/editor';
 import { EditorInput, IFileEditorInput, IEditorInputFactory, IEditorInputFactoryRegistry, Extensions as EditorExtensions, EditorOptions, CloseDirection } from 'vs/workbench/common/editor';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IEditorModel } from 'vs/platform/editor/common/editor';
-import URI from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IEditorRegistry, Extensions, EditorDescriptor } from 'vs/workbench/browser/editor';
 import { BaseEditor } from 'vs/workbench/browser/parts/editor/baseEditor';
@@ -337,7 +335,7 @@ suite('Editor groups service', () => {
 		});
 	});
 
-	test('whenRestored', function () {
+	test('whenRestored', () => {
 		const part = createPart();
 
 		return part.whenRestored.then(() => {
@@ -346,7 +344,7 @@ suite('Editor groups service', () => {
 		});
 	});
 
-	test('options', function () {
+	test('options', () => {
 		const part = createPart();
 
 		let oldOptions: IEditorPartOptions;
@@ -582,7 +580,7 @@ suite('Editor groups service', () => {
 		});
 	});
 
-	test('closeAllEditors', function () {
+	test('closeAllEditors', () => {
 		const part = createPart();
 		const group = part.activeGroup;
 		assert.equal(group.isEmpty(), true);
@@ -687,7 +685,7 @@ suite('Editor groups service', () => {
 		});
 	});
 
-	test('replaceEditors', function () {
+	test('replaceEditors', () => {
 		const part = createPart();
 		const group = part.activeGroup;
 		assert.equal(group.isEmpty(), true);

@@ -11,7 +11,7 @@ import { InMemoryDocument } from './inMemoryDocument';
 import { createNewMarkdownEngine } from './engine';
 
 
-const testFileName = vscode.Uri.parse('test.md');
+const testFileName = vscode.Uri.file('test.md');
 
 
 function getSymbolsForFile(fileContents: string) {

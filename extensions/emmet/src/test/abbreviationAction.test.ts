@@ -5,7 +5,7 @@
 
 import 'mocha';
 import * as assert from 'assert';
-import { Selection, workspace, CompletionList, CancellationTokenSource, CompletionTriggerKind, ConfigurationTarget } from 'vscode';
+import { Selection, workspace, CancellationTokenSource, CompletionTriggerKind, ConfigurationTarget } from 'vscode';
 import { withRandomFileEditor, closeAllEditors } from './testUtils';
 import { expandEmmetAbbreviation } from '../abbreviationActions';
 import { DefaultCompletionItemProvider } from '../defaultCompletionProvider';
@@ -36,13 +36,14 @@ const htmlContents = `
 		span.hello
 	</script>
 	<script type="text/javascript">
-		span.hello
+		span.bye
 	</script>
 </body>
 `;
 
 suite('Tests for Expand Abbreviations (HTML)', () => {
 	const oldValueForExcludeLanguages = workspace.getConfiguration('emmet').inspect('excludeLanguages');
+	const oldValueForInlcudeLanguages = workspace.getConfiguration('emmet').inspect('includeLanguages');
 	teardown(() => {
 		// close all editors
 		return closeAllEditors;
@@ -57,17 +58,16 @@ suite('Tests for Expand Abbreviations (HTML)', () => {
 	});
 
 	test('Expand snippets when no parent node (HTML)', () => {
-		return withRandomFileEditor('img', 'html', (editor, doc) => {
+		return withRandomFileEditor('img', 'html', async (editor, _doc) => {
 			editor.selection = new Selection(0, 3, 0, 3);
-			return expandEmmetAbbreviation(null).then(() => {
-				assert.equal(editor.document.getText(), '<img src=\"\" alt=\"\">');
-				return Promise.resolve();
-			});
+			await expandEmmetAbbreviation(null);
+			assert.equal(editor.document.getText(), '<img src=\"\" alt=\"\">');
+			return Promise.resolve();
 		});
 	});
 
 	test('Expand snippets when no parent node in completion list (HTML)', () => {
-		return withRandomFileEditor('img', 'html', (editor, doc) => {
+		return withRandomFileEditor('img', 'html', async (editor, _doc) => {
 			editor.selection = new Selection(0, 3, 0, 3);
 			const cancelSrc = new CancellationTokenSource();
 			const completionPromise = completionProvider.provideCompletionItems(editor.document, editor.selection.active, cancelSrc.token, { triggerKind: CompletionTriggerKind.Invoke });
@@ -75,14 +75,13 @@ suite('Tests for Expand Abbreviations (HTML)', () => {
 				assert.equal(!completionPromise, false, `Got unexpected undefined instead of a completion promise`);
 				return Promise.resolve();
 			}
-			return completionPromise.then(completionList => {
-				assert.equal(completionList && completionList.items && completionList.items.length > 0, true);
-				if (completionList) {
-					assert.equal(completionList.items[0].label, 'img');
-					assert.equal((<string>completionList.items[0].documentation || '').replace(/\|/g, ''), '<img src=\"\" alt=\"\">');
-				}
-				return Promise.resolve();
-			});
+			const completionList = await completionPromise;
+			assert.equal(completionList && completionList.items && completionList.items.length > 0, true);
+			if (completionList) {
+				assert.equal(completionList.items[0].label, 'img');
+				assert.equal(((<string>completionList.items[0].documentation) || '').replace(/\|/g, ''), '<img src=\"\" alt=\"\">');
+			}
+			return Promise.resolve();
 		});
 	});
 
@@ -159,17 +158,16 @@ suite('Tests for Expand Abbreviations (HTML)', () => {
 	});
 
 	test('No expanding text inside open tag (HTML)', () => {
-		return withRandomFileEditor(htmlContents, 'html', (editor, doc) => {
+		return withRandomFileEditor(htmlContents, 'html', async (editor, _doc) => {
 			editor.selection = new Selection(2, 4, 2, 4);
-			return expandEmmetAbbreviation(null).then(() => {
-				assert.equal(editor.document.getText(), htmlContents);
-				return Promise.resolve();
-			});
+			await expandEmmetAbbreviation(null);
+			assert.equal(editor.document.getText(), htmlContents);
+			return Promise.resolve();
 		});
 	});
 
 	test('No expanding text inside open tag in completion list (HTML)', () => {
-		return withRandomFileEditor(htmlContents, 'html', (editor, doc) => {
+		return withRandomFileEditor(htmlContents, 'html', (editor, _doc) => {
 			editor.selection = new Selection(2, 4, 2, 4);
 			const cancelSrc = new CancellationTokenSource();
 			const completionPromise = completionProvider.provideCompletionItems(editor.document, editor.selection.active, cancelSrc.token, { triggerKind: CompletionTriggerKind.Invoke });
@@ -179,17 +177,16 @@ suite('Tests for Expand Abbreviations (HTML)', () => {
 	});
 
 	test('No expanding text inside open tag when there is no closing tag (HTML)', () => {
-		return withRandomFileEditor(htmlContents, 'html', (editor, doc) => {
+		return withRandomFileEditor(htmlContents, 'html', async (editor, _doc) => {
 			editor.selection = new Selection(9, 8, 9, 8);
-			return expandEmmetAbbreviation(null).then(() => {
-				assert.equal(editor.document.getText(), htmlContents);
-				return Promise.resolve();
-			});
+			await expandEmmetAbbreviation(null);
+			assert.equal(editor.document.getText(), htmlContents);
+			return Promise.resolve();
 		});
 	});
 
 	test('No expanding text inside open tag when there is no closing tag in completion list (HTML)', () => {
-		return withRandomFileEditor(htmlContents, 'html', (editor, doc) => {
+		return withRandomFileEditor(htmlContents, 'html', (editor, _doc) => {
 			editor.selection = new Selection(9, 8, 9, 8);
 			const cancelSrc = new CancellationTokenSource();
 			const completionPromise = completionProvider.provideCompletionItems(editor.document, editor.selection.active, cancelSrc.token, { triggerKind: CompletionTriggerKind.Invoke });
@@ -200,18 +197,17 @@ suite('Tests for Expand Abbreviations (HTML)', () => {
 
 	test('No expanding text inside open tag when there is no closing tag when there is no parent node (HTML)', () => {
 		const fileContents = '<img s';
-		return withRandomFileEditor(fileContents, 'html', (editor, doc) => {
+		return withRandomFileEditor(fileContents, 'html', async (editor, _doc) => {
 			editor.selection = new Selection(0, 6, 0, 6);
-			return expandEmmetAbbreviation(null).then(() => {
-				assert.equal(editor.document.getText(), fileContents);
-				return Promise.resolve();
-			});
+			await expandEmmetAbbreviation(null);
+			assert.equal(editor.document.getText(), fileContents);
+			return Promise.resolve();
 		});
 	});
 
 	test('No expanding text in completion list inside open tag when there is no closing tag when there is no parent node (HTML)', () => {
 		const fileContents = '<img s';
-		return withRandomFileEditor(fileContents, 'html', (editor, doc) => {
+		return withRandomFileEditor(fileContents, 'html', (editor, _doc) => {
 			editor.selection = new Selection(0, 6, 0, 6);
 			const cancelSrc = new CancellationTokenSource();
 			const completionPromise = completionProvider.provideCompletionItems(editor.document, editor.selection.active, cancelSrc.token, { triggerKind: CompletionTriggerKind.Invoke });
@@ -221,16 +217,15 @@ suite('Tests for Expand Abbreviations (HTML)', () => {
 	});
 
 	test('Expand css when inside style tag (HTML)', () => {
-		return withRandomFileEditor(htmlContents, 'html', (editor, doc) => {
+		return withRandomFileEditor(htmlContents, 'html', async (editor, _doc) => {
 			editor.selection = new Selection(13, 16, 13, 19);
 			let expandPromise = expandEmmetAbbreviation({ language: 'css' });
 			if (!expandPromise) {
 				return Promise.resolve();
 			}
-			return expandPromise.then(() => {
-				assert.equal(editor.document.getText(), htmlContents.replace('m10', 'margin: 10px;'));
-				return Promise.resolve();
-			});
+			await expandPromise;
+			assert.equal(editor.document.getText(), htmlContents.replace('m10', 'margin: 10px;'));
+			return Promise.resolve();
 		});
 	});
 
@@ -238,7 +233,7 @@ suite('Tests for Expand Abbreviations (HTML)', () => {
 		const abbreviation = 'm10';
 		const expandedText = 'margin: 10px;';
 
-		return withRandomFileEditor(htmlContents, 'html', (editor, doc) => {
+		return withRandomFileEditor(htmlContents, 'html', async (editor, _doc) => {
 			editor.selection = new Selection(13, 16, 13, 19);
 			const cancelSrc = new CancellationTokenSource();
 			const completionPromise = completionProvider.provideCompletionItems(editor.document, editor.selection.active, cancelSrc.token, { triggerKind: CompletionTriggerKind.Invoke });
@@ -247,32 +242,30 @@ suite('Tests for Expand Abbreviations (HTML)', () => {
 				return Promise.resolve();
 			}
 
-			return completionPromise.then((completionList: CompletionList) => {
-				if (!completionList.items || !completionList.items.length) {
-					assert.equal(1, 2, `Problem with expanding m10`);
-					return Promise.resolve();
-				}
-				const emmetCompletionItem = completionList.items[0];
-				assert.equal(emmetCompletionItem.label, expandedText, `Label of completion item doesnt match.`);
-				assert.equal((<string>emmetCompletionItem.documentation || '').replace(/\|/g, ''), expandedText, `Docs of completion item doesnt match.`);
-				assert.equal(emmetCompletionItem.filterText, abbreviation, `FilterText of completion item doesnt match.`);
+			const completionList = await completionPromise;
+			if (!completionList || !completionList.items || !completionList.items.length) {
+				assert.equal(1, 2, `Problem with expanding m10`);
 				return Promise.resolve();
-			});
+			}
+			const emmetCompletionItem = completionList.items[0];
+			assert.equal(emmetCompletionItem.label, expandedText, `Label of completion item doesnt match.`);
+			assert.equal(((<string>emmetCompletionItem.documentation) || '').replace(/\|/g, ''), expandedText, `Docs of completion item doesnt match.`);
+			assert.equal(emmetCompletionItem.filterText, abbreviation, `FilterText of completion item doesnt match.`);
+			return Promise.resolve();
 		});
 	});
 
 	test('No expanding text inside style tag if position is not for property name (HTML)', () => {
-		return withRandomFileEditor(htmlContents, 'html', (editor, doc) => {
+		return withRandomFileEditor(htmlContents, 'html', async (editor, _doc) => {
 			editor.selection = new Selection(13, 14, 13, 14);
-			return expandEmmetAbbreviation(null).then(() => {
-				assert.equal(editor.document.getText(), htmlContents);
-				return Promise.resolve();
-			});
+			await expandEmmetAbbreviation(null);
+			assert.equal(editor.document.getText(), htmlContents);
+			return Promise.resolve();
 		});
 	});
 
 	test('No expanding text in completion list inside style tag if position is not for property name (HTML)', () => {
-		return withRandomFileEditor(htmlContents, 'html', (editor, doc) => {
+		return withRandomFileEditor(htmlContents, 'html', (editor, _doc) => {
 			editor.selection = new Selection(13, 14, 13, 14);
 			const cancelSrc = new CancellationTokenSource();
 			const completionPromise = completionProvider.provideCompletionItems(editor.document, editor.selection.active, cancelSrc.token, { triggerKind: CompletionTriggerKind.Invoke });
@@ -283,16 +276,15 @@ suite('Tests for Expand Abbreviations (HTML)', () => {
 
 	test('Expand css when inside style attribute (HTML)', () => {
 		const styleAttributeContent = '<div style="m10" class="hello"></div>';
-		return withRandomFileEditor(styleAttributeContent, 'html', (editor, doc) => {
+		return withRandomFileEditor(styleAttributeContent, 'html', async (editor, _doc) => {
 			editor.selection = new Selection(0, 15, 0, 15);
 			let expandPromise = expandEmmetAbbreviation(null);
 			if (!expandPromise) {
 				return Promise.resolve();
 			}
-			return expandPromise.then(() => {
-				assert.equal(editor.document.getText(), styleAttributeContent.replace('m10', 'margin: 10px;'));
-				return Promise.resolve();
-			});
+			await expandPromise;
+			assert.equal(editor.document.getText(), styleAttributeContent.replace('m10', 'margin: 10px;'));
+			return Promise.resolve();
 		});
 	});
 
@@ -300,7 +292,7 @@ suite('Tests for Expand Abbreviations (HTML)', () => {
 		const abbreviation = 'm10';
 		const expandedText = 'margin: 10px;';
 
-		return withRandomFileEditor('<div style="m10" class="hello"></div>', 'html', (editor, doc) => {
+		return withRandomFileEditor('<div style="m10" class="hello"></div>', 'html', async (editor, _doc) => {
 			editor.selection = new Selection(0, 15, 0, 15);
 			const cancelSrc = new CancellationTokenSource();
 			const completionPromise = completionProvider.provideCompletionItems(editor.document, editor.selection.active, cancelSrc.token, { triggerKind: CompletionTriggerKind.Invoke });
@@ -309,39 +301,37 @@ suite('Tests for Expand Abbreviations (HTML)', () => {
 				return Promise.resolve();
 			}
 
-			return completionPromise.then((completionList: CompletionList) => {
-				if (!completionList.items || !completionList.items.length) {
-					assert.equal(1, 2, `Problem with expanding m10`);
-					return Promise.resolve();
-				}
-				const emmetCompletionItem = completionList.items[0];
-				assert.equal(emmetCompletionItem.label, expandedText, `Label of completion item doesnt match.`);
-				assert.equal((<string>emmetCompletionItem.documentation || '').replace(/\|/g, ''), expandedText, `Docs of completion item doesnt match.`);
-				assert.equal(emmetCompletionItem.filterText, abbreviation, `FilterText of completion item doesnt match.`);
+			const completionList = await completionPromise;
+			if (!completionList || !completionList.items || !completionList.items.length) {
+				assert.equal(1, 2, `Problem with expanding m10`);
 				return Promise.resolve();
-			});
+			}
+			const emmetCompletionItem = completionList.items[0];
+			assert.equal(emmetCompletionItem.label, expandedText, `Label of completion item doesnt match.`);
+			assert.equal(((<string>emmetCompletionItem.documentation) || '').replace(/\|/g, ''), expandedText, `Docs of completion item doesnt match.`);
+			assert.equal(emmetCompletionItem.filterText, abbreviation, `FilterText of completion item doesnt match.`);
+			return Promise.resolve();
 		});
 	});
 
 	test('Expand html when inside script tag with html type (HTML)', () => {
-		return withRandomFileEditor(htmlContents, 'html', (editor, doc) => {
+		return withRandomFileEditor(htmlContents, 'html', async (editor, _doc) => {
 			editor.selection = new Selection(21, 12, 21, 12);
 			let expandPromise = expandEmmetAbbreviation(null);
 			if (!expandPromise) {
 				return Promise.resolve();
 			}
-			return expandPromise.then(() => {
-				assert.equal(editor.document.getText(), htmlContents.replace('span.hello', '<span class="hello"></span>'));
-				return Promise.resolve();
-			});
+			await expandPromise;
+			assert.equal(editor.document.getText(), htmlContents.replace('span.hello', '<span class="hello"></span>'));
+			return Promise.resolve();
 		});
 	});
 
-	test('Expand html when inside script tag with html type (HTML)', () => {
+	test('Expand html in completion list when inside script tag with html type (HTML)', () => {
 		const abbreviation = 'span.hello';
 		const expandedText = '<span class="hello"></span>';
 
-		return withRandomFileEditor(htmlContents, 'html', (editor, doc) => {
+		return withRandomFileEditor(htmlContents, 'html', async (editor, _doc) => {
 			editor.selection = new Selection(21, 12, 21, 12);
 			const cancelSrc = new CancellationTokenSource();
 			const completionPromise = completionProvider.provideCompletionItems(editor.document, editor.selection.active, cancelSrc.token, { triggerKind: CompletionTriggerKind.Invoke });
@@ -350,37 +340,74 @@ suite('Tests for Expand Abbreviations (HTML)', () => {
 				return Promise.resolve();
 			}
 
-			return completionPromise.then((completionList: CompletionList) => {
-				if (!completionList.items || !completionList.items.length) {
-					assert.equal(1, 2, `Problem with expanding span.hello`);
-					return Promise.resolve();
-				}
-				const emmetCompletionItem = completionList.items[0];
-				assert.equal(emmetCompletionItem.label, abbreviation, `Label of completion item doesnt match.`);
-				assert.equal((<string>emmetCompletionItem.documentation || '').replace(/\|/g, ''), expandedText, `Docs of completion item doesnt match.`);
+			const completionList = await completionPromise;
+			if (!completionList || !completionList.items || !completionList.items.length) {
+				assert.equal(1, 2, `Problem with expanding span.hello`);
 				return Promise.resolve();
-			});
+			}
+			const emmetCompletionItem = completionList.items[0];
+			assert.equal(emmetCompletionItem.label, abbreviation, `Label of completion item doesnt match.`);
+			assert.equal(((<string>emmetCompletionItem.documentation) || '').replace(/\|/g, ''), expandedText, `Docs of completion item doesnt match.`);
+			return Promise.resolve();
 		});
 	});
 
 	test('No expanding text inside script tag with javascript type (HTML)', () => {
-		return withRandomFileEditor(htmlContents, 'html', (editor, doc) => {
+		return withRandomFileEditor(htmlContents, 'html', async (editor, _doc) => {
 			editor.selection = new Selection(24, 12, 24, 12);
-			return expandEmmetAbbreviation(null).then(() => {
-				assert.equal(editor.document.getText(), htmlContents);
-				return Promise.resolve();
-			});
+			await expandEmmetAbbreviation(null);
+			assert.equal(editor.document.getText(), htmlContents);
+			return Promise.resolve();
 		});
 	});
 
 	test('No expanding text in completion list inside script tag with javascript type (HTML)', () => {
-		return withRandomFileEditor(htmlContents, 'html', (editor, doc) => {
+		return withRandomFileEditor(htmlContents, 'html', (editor, _doc) => {
 			editor.selection = new Selection(24, 12, 24, 12);
 			const cancelSrc = new CancellationTokenSource();
 			const completionPromise = completionProvider.provideCompletionItems(editor.document, editor.selection.active, cancelSrc.token, { triggerKind: CompletionTriggerKind.Invoke });
 			assert.equal(!completionPromise, true, `Got unexpected comapletion promise instead of undefined`);
 			return Promise.resolve();
 		});
+	});
+
+	test('Expand html when inside script tag with javascript type if js is mapped to html (HTML)', async () => {
+		await workspace.getConfiguration('emmet').update('includeLanguages', { "javascript": "html" }, ConfigurationTarget.Global);
+		await withRandomFileEditor(htmlContents, 'html', async (editor, _doc) => {
+			editor.selection = new Selection(24, 10, 24, 10);
+			let expandPromise = expandEmmetAbbreviation(null);
+			if (!expandPromise) {
+				return Promise.resolve();
+			}
+			await expandPromise;
+			assert.equal(editor.document.getText(), htmlContents.replace('span.bye', '<span class="bye"></span>'));
+		});
+		return workspace.getConfiguration('emmet').update('includeLanguages', oldValueForInlcudeLanguages || {}, ConfigurationTarget.Global);
+	});
+
+	test('Expand html in completion list when inside script tag with javascript type if js is mapped to html (HTML)', async () => {
+		const abbreviation = 'span.bye';
+		const expandedText = '<span class="bye"></span>';
+		await workspace.getConfiguration('emmet').update('includeLanguages', { "javascript": "html" }, ConfigurationTarget.Global);
+		await withRandomFileEditor(htmlContents, 'html', async (editor, _doc) => {
+			editor.selection = new Selection(24, 10, 24, 10);
+			const cancelSrc = new CancellationTokenSource();
+			const completionPromise = completionProvider.provideCompletionItems(editor.document, editor.selection.active, cancelSrc.token, { triggerKind: CompletionTriggerKind.Invoke });
+			if (!completionPromise) {
+				assert.equal(1, 2, `Problem with expanding span.bye`);
+				return Promise.resolve();
+			}
+			const completionList = await completionPromise;
+			if (!completionList || !completionList.items || !completionList.items.length) {
+				assert.equal(1, 2, `Problem with expanding span.bye`);
+				return Promise.resolve();
+			}
+			const emmetCompletionItem = completionList.items[0];
+			assert.equal(emmetCompletionItem.label, abbreviation, `Label of completion item (${emmetCompletionItem.label}) doesnt match.`);
+			assert.equal(((<string>emmetCompletionItem.documentation) || '').replace(/\|/g, ''), expandedText, `Docs of completion item doesnt match.`);
+			return Promise.resolve();
+		});
+		return workspace.getConfiguration('emmet').update('includeLanguages', oldValueForInlcudeLanguages || {}, ConfigurationTarget.Global);
 	});
 
 	// test('No expanding when html is excluded in the settings', () => {
@@ -391,12 +418,10 @@ suite('Tests for Expand Abbreviations (HTML)', () => {
 	// 	});
 	// });
 
-	test('No expanding when html is excluded in the settings in completion list', () => {
-		return workspace.getConfiguration('emmet').update('excludeLanguages', ['html'], ConfigurationTarget.Global).then(() => {
-			return testHtmlCompletionProvider(new Selection(9, 6, 9, 6), '', '', true).then(() => {
-				return workspace.getConfiguration('emmet').update('excludeLanguages', oldValueForExcludeLanguages ? oldValueForExcludeLanguages.globalValue : undefined, ConfigurationTarget.Global);
-			});
-		});
+	test('No expanding when html is excluded in the settings in completion list', async () => {
+		await workspace.getConfiguration('emmet').update('excludeLanguages', ['html'], ConfigurationTarget.Global);
+		await testHtmlCompletionProvider(new Selection(9, 6, 9, 6), '', '', true);
+		return workspace.getConfiguration('emmet').update('excludeLanguages', oldValueForExcludeLanguages ? oldValueForExcludeLanguages.globalValue : undefined, ConfigurationTarget.Global);
 	});
 
 	// test('No expanding when php (mapped syntax) is excluded in the settings', () => {
@@ -415,54 +440,57 @@ suite('Tests for jsx, xml and xsl', () => {
 	teardown(closeAllEditors);
 
 	test('Expand abbreviation with className instead of class in jsx', () => {
-		return withRandomFileEditor('ul.nav', 'javascriptreact', (editor, doc) => {
+		return withRandomFileEditor('ul.nav', 'javascriptreact', async (editor, _doc) => {
 			editor.selection = new Selection(0, 6, 0, 6);
-			return expandEmmetAbbreviation({ language: 'javascriptreact' }).then(() => {
-				assert.equal(editor.document.getText(), '<ul className="nav"></ul>');
-				return Promise.resolve();
-			});
+			await expandEmmetAbbreviation({ language: 'javascriptreact' });
+			assert.equal(editor.document.getText(), '<ul className="nav"></ul>');
+			return Promise.resolve();
 		});
 	});
 
 	test('Expand abbreviation with self closing tags for jsx', () => {
-		return withRandomFileEditor('img', 'javascriptreact', (editor, doc) => {
+		return withRandomFileEditor('img', 'javascriptreact', async (editor, _doc) => {
 			editor.selection = new Selection(0, 6, 0, 6);
-			return expandEmmetAbbreviation({ language: 'javascriptreact' }).then(() => {
-				assert.equal(editor.document.getText(), '<img src="" alt=""/>');
-				return Promise.resolve();
-			});
+			await expandEmmetAbbreviation({ language: 'javascriptreact' });
+			assert.equal(editor.document.getText(), '<img src="" alt=""/>');
+			return Promise.resolve();
 		});
 	});
 
-	test('Expand abbreviation with single quotes for jsx', () => {
-		return workspace.getConfiguration('emmet').update('syntaxProfiles', {jsx: {"attr_quotes": "single"}}, ConfigurationTarget.Global).then(() => {
-			return withRandomFileEditor('img', 'javascriptreact', (editor, doc) => {
-				editor.selection = new Selection(0, 6, 0, 6);
-				return expandEmmetAbbreviation({ language: 'javascriptreact' }).then(() => {
-					assert.equal(editor.document.getText(), '<img src=\'\' alt=\'\'/>');
-					return workspace.getConfiguration('emmet').update('syntaxProfiles', oldValueForSyntaxProfiles ? oldValueForSyntaxProfiles.globalValue : undefined, ConfigurationTarget.Global);
-				});
-			});
+	test('Expand abbreviation with single quotes for jsx', async () => {
+		await workspace.getConfiguration('emmet').update('syntaxProfiles', { jsx: { "attr_quotes": "single" } }, ConfigurationTarget.Global);
+		return withRandomFileEditor('img', 'javascriptreact', async (editor, _doc) => {
+			editor.selection = new Selection(0, 6, 0, 6);
+			await expandEmmetAbbreviation({ language: 'javascriptreact' });
+			assert.equal(editor.document.getText(), '<img src=\'\' alt=\'\'/>');
+			return workspace.getConfiguration('emmet').update('syntaxProfiles', oldValueForSyntaxProfiles ? oldValueForSyntaxProfiles.globalValue : undefined, ConfigurationTarget.Global);
 		});
 	});
 
 	test('Expand abbreviation with self closing tags for xml', () => {
-		return withRandomFileEditor('img', 'xml', (editor, doc) => {
+		return withRandomFileEditor('img', 'xml', async (editor, _doc) => {
 			editor.selection = new Selection(0, 6, 0, 6);
-			return expandEmmetAbbreviation({ language: 'xml' }).then(() => {
-				assert.equal(editor.document.getText(), '<img src="" alt=""/>');
-				return Promise.resolve();
-			});
+			await expandEmmetAbbreviation({ language: 'xml' });
+			assert.equal(editor.document.getText(), '<img src="" alt=""/>');
+			return Promise.resolve();
 		});
 	});
 
 	test('Expand abbreviation with no self closing tags for html', () => {
-		return withRandomFileEditor('img', 'html', (editor, doc) => {
+		return withRandomFileEditor('img', 'html', async (editor, _doc) => {
 			editor.selection = new Selection(0, 6, 0, 6);
-			return expandEmmetAbbreviation({ language: 'html' }).then(() => {
-				assert.equal(editor.document.getText(), '<img src="" alt="">');
-				return Promise.resolve();
-			});
+			await expandEmmetAbbreviation({ language: 'html' });
+			assert.equal(editor.document.getText(), '<img src="" alt="">');
+			return Promise.resolve();
+		});
+	});
+
+	test('Expand abbreviation with condition containing less than sign for jsx', () => {
+		return withRandomFileEditor('if (foo < 10) { span.bar', 'javascriptreact', async (editor, _doc) => {
+			editor.selection = new Selection(0, 27, 0, 27);
+			await expandEmmetAbbreviation({ language: 'javascriptreact' });
+			assert.equal(editor.document.getText(), 'if (foo < 10) { <span className="bar"></span>');
+			return Promise.resolve();
 		});
 	});
 
@@ -485,7 +513,7 @@ suite('Tests for jsx, xml and xsl', () => {
 });
 
 function testExpandAbbreviation(syntax: string, selection: Selection, abbreviation: string, expandedText: string, shouldFail?: boolean): Thenable<any> {
-	return withRandomFileEditor(htmlContents, syntax, (editor, doc) => {
+	return withRandomFileEditor(htmlContents, syntax, async (editor, _doc) => {
 		editor.selection = selection;
 		let expandPromise = expandEmmetAbbreviation(null);
 		if (!expandPromise) {
@@ -494,15 +522,14 @@ function testExpandAbbreviation(syntax: string, selection: Selection, abbreviati
 			}
 			return Promise.resolve();
 		}
-		return expandPromise.then(() => {
-			assert.equal(editor.document.getText(), htmlContents.replace(abbreviation, expandedText));
-			return Promise.resolve();
-		});
+		await expandPromise;
+		assert.equal(editor.document.getText(), htmlContents.replace(abbreviation, expandedText));
+		return Promise.resolve();
 	});
 }
 
 function testHtmlCompletionProvider(selection: Selection, abbreviation: string, expandedText: string, shouldFail?: boolean): Thenable<any> {
-	return withRandomFileEditor(htmlContents, 'html', (editor, doc) => {
+	return withRandomFileEditor(htmlContents, 'html', async (editor, _doc) => {
 		editor.selection = selection;
 		const cancelSrc = new CancellationTokenSource();
 		const completionPromise = completionProvider.provideCompletionItems(editor.document, editor.selection.active, cancelSrc.token, { triggerKind: CompletionTriggerKind.Invoke });
@@ -513,23 +540,22 @@ function testHtmlCompletionProvider(selection: Selection, abbreviation: string, 
 			return Promise.resolve();
 		}
 
-		return completionPromise.then((completionList: CompletionList) => {
-			if (!completionList.items || !completionList.items.length) {
-				if (!shouldFail) {
-					assert.equal(1, 2, `Problem with expanding ${abbreviation} to ${expandedText}`);
-				}
-				return Promise.resolve();
+		const completionList = await completionPromise;
+		if (!completionList || !completionList.items || !completionList.items.length) {
+			if (!shouldFail) {
+				assert.equal(1, 2, `Problem with expanding ${abbreviation} to ${expandedText}`);
 			}
-			const emmetCompletionItem = completionList.items[0];
-			assert.equal(emmetCompletionItem.label, abbreviation, `Label of completion item doesnt match.`);
-			assert.equal((<string>emmetCompletionItem.documentation || '').replace(/\|/g, ''), expandedText, `Docs of completion item doesnt match.`);
 			return Promise.resolve();
-		});
+		}
+		const emmetCompletionItem = completionList.items[0];
+		assert.equal(emmetCompletionItem.label, abbreviation, `Label of completion item doesnt match.`);
+		assert.equal(((<string>emmetCompletionItem.documentation) || '').replace(/\|/g, ''), expandedText, `Docs of completion item doesnt match.`);
+		return Promise.resolve();
 	});
 }
 
 function testNoCompletion(syntax: string, fileContents: string, selection: Selection): Thenable<any> {
-	return withRandomFileEditor(fileContents, syntax, (editor, doc) => {
+	return withRandomFileEditor(fileContents, syntax, (editor, _doc) => {
 		editor.selection = selection;
 		const cancelSrc = new CancellationTokenSource();
 		const completionPromise = completionProvider.provideCompletionItems(editor.document, editor.selection.active, cancelSrc.token, { triggerKind: CompletionTriggerKind.Invoke });

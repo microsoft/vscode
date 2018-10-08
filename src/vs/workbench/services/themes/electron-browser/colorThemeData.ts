@@ -2,14 +2,12 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
 import * as Paths from 'vs/base/common/paths';
 import * as Json from 'vs/base/common/json';
 import { Color } from 'vs/base/common/color';
 import { ExtensionData, ITokenColorCustomizations, ITokenColorizationRule, IColorTheme, IColorMap, IThemeExtensionPoint, VS_LIGHT_THEME, VS_HC_THEME } from 'vs/workbench/services/themes/common/workbenchThemeService';
 import { convertSettings } from 'vs/workbench/services/themes/electron-browser/themeCompatibility';
-import { TPromise } from 'vs/base/common/winjs.base';
 import * as nls from 'vs/nls';
 import * as types from 'vs/base/common/types';
 import * as objects from 'vs/base/common/objects';
@@ -19,7 +17,7 @@ import { ThemeType } from 'vs/platform/theme/common/themeService';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IColorCustomizations } from 'vs/workbench/services/themes/electron-browser/workbenchThemeService';
 import { getParseErrorMessage } from 'vs/base/common/jsonErrorMessages';
-import URI from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 import { IFileService } from 'vs/platform/files/common/files';
 
 let colorRegistry = Registry.as<IColorRegistry>(Extensions.ColorContribution);
@@ -136,7 +134,7 @@ export class ColorThemeData implements IColorTheme {
 		}
 	}
 
-	public ensureLoaded(fileService: IFileService): TPromise<void> {
+	public ensureLoaded(fileService: IFileService): Thenable<void> {
 		if (!this.isLoaded) {
 			if (this.location) {
 				return _loadColorTheme(fileService, this.location, this.themeTokenColors, this.colorMap).then(_ => {
@@ -145,7 +143,7 @@ export class ColorThemeData implements IColorTheme {
 				});
 			}
 		}
-		return TPromise.as(null);
+		return Promise.resolve(null);
 	}
 
 	/**
@@ -189,9 +187,12 @@ export class ColorThemeData implements IColorTheme {
 		return objects.equals(this.colorMap, other.colorMap) && objects.equals(this.tokenColors, other.tokenColors);
 	}
 
+	get baseTheme(): string {
+		return this.id.split(' ')[0];
+	}
+
 	get type(): ThemeType {
-		let baseTheme = this.id.split(' ')[0];
-		switch (baseTheme) {
+		switch (this.baseTheme) {
 			case VS_LIGHT_THEME: return 'light';
 			case VS_HC_THEME: return 'hc';
 			default: return 'dark';
@@ -270,15 +271,15 @@ function toCSSSelector(str: string) {
 	return str;
 }
 
-function _loadColorTheme(fileService: IFileService, themeLocation: URI, resultRules: ITokenColorizationRule[], resultColors: IColorMap): TPromise<any> {
+function _loadColorTheme(fileService: IFileService, themeLocation: URI, resultRules: ITokenColorizationRule[], resultColors: IColorMap): Thenable<any> {
 	if (Paths.extname(themeLocation.path) === '.json') {
-		return fileService.resolveContent(themeLocation).then(content => {
+		return fileService.resolveContent(themeLocation, { encoding: 'utf8' }).then(content => {
 			let errors: Json.ParseError[] = [];
 			let contentValue = Json.parse(content.value.toString(), errors);
 			if (errors.length > 0) {
-				return TPromise.wrapError(new Error(nls.localize('error.cannotparsejson', "Problems parsing JSON theme file: {0}", errors.map(e => getParseErrorMessage(e.error)).join(', '))));
+				return Promise.reject(new Error(nls.localize('error.cannotparsejson', "Problems parsing JSON theme file: {0}", errors.map(e => getParseErrorMessage(e.error)).join(', '))));
 			}
-			let includeCompletes = TPromise.as(null);
+			let includeCompletes: Thenable<any> = Promise.resolve(null);
 			if (contentValue.include) {
 				includeCompletes = _loadColorTheme(fileService, resources.joinPath(resources.dirname(themeLocation), contentValue.include), resultRules, resultColors);
 			}
@@ -290,7 +291,7 @@ function _loadColorTheme(fileService: IFileService, themeLocation: URI, resultRu
 				let colors = contentValue.colors;
 				if (colors) {
 					if (typeof colors !== 'object') {
-						return TPromise.wrapError(new Error(nls.localize({ key: 'error.invalidformat.colors', comment: ['{0} will be replaced by a path. Values in quotes should not be translated.'] }, "Problem parsing color theme file: {0}. Property 'colors' is not of type 'object'.", themeLocation)));
+						return Promise.reject(new Error(nls.localize({ key: 'error.invalidformat.colors', comment: ['{0} will be replaced by a path. Values in quotes should not be translated.'] }, "Problem parsing color theme file: {0}. Property 'colors' is not of type 'object'.", themeLocation.toString())));
 					}
 					// new JSON color themes format
 					for (let colorId in colors) {
@@ -308,7 +309,7 @@ function _loadColorTheme(fileService: IFileService, themeLocation: URI, resultRu
 					} else if (typeof tokenColors === 'string') {
 						return _loadSyntaxTokens(fileService, resources.joinPath(resources.dirname(themeLocation), tokenColors), resultRules, {});
 					} else {
-						return TPromise.wrapError(new Error(nls.localize({ key: 'error.invalidformat.tokenColors', comment: ['{0} will be replaced by a path. Values in quotes should not be translated.'] }, "Problem parsing color theme file: {0}. Property 'tokenColors' should be either an array specifying colors or a path to a TextMate theme file", themeLocation)));
+						return Promise.reject(new Error(nls.localize({ key: 'error.invalidformat.tokenColors', comment: ['{0} will be replaced by a path. Values in quotes should not be translated.'] }, "Problem parsing color theme file: {0}. Property 'tokenColors' should be either an array specifying colors or a path to a TextMate theme file", themeLocation.toString())));
 					}
 				}
 				return null;
@@ -324,29 +325,29 @@ function getPListParser() {
 	return pListParser || import('fast-plist');
 }
 
-function _loadSyntaxTokens(fileService: IFileService, themeLocation: URI, resultRules: ITokenColorizationRule[], resultColors: IColorMap): TPromise<any> {
-	return fileService.resolveContent(themeLocation).then(content => {
+function _loadSyntaxTokens(fileService: IFileService, themeLocation: URI, resultRules: ITokenColorizationRule[], resultColors: IColorMap): Thenable<any> {
+	return fileService.resolveContent(themeLocation, { encoding: 'utf8' }).then(content => {
 		return getPListParser().then(parser => {
 			try {
 				let contentValue = parser.parse(content.value.toString());
 				let settings: ITokenColorizationRule[] = contentValue.settings;
 				if (!Array.isArray(settings)) {
-					return TPromise.wrapError(new Error(nls.localize('error.plist.invalidformat', "Problem parsing tmTheme file: {0}. 'settings' is not array.")));
+					return Promise.reject(new Error(nls.localize('error.plist.invalidformat', "Problem parsing tmTheme file: {0}. 'settings' is not array.")));
 				}
 				convertSettings(settings, resultRules, resultColors);
-				return TPromise.as(null);
+				return Promise.resolve(null);
 			} catch (e) {
-				return TPromise.wrapError(new Error(nls.localize('error.cannotparse', "Problems parsing tmTheme file: {0}", e.message)));
+				return Promise.reject(new Error(nls.localize('error.cannotparse', "Problems parsing tmTheme file: {0}", e.message)));
 			}
 		});
 	}, error => {
-		return TPromise.wrapError(new Error(nls.localize('error.cannotload', "Problems loading tmTheme file {0}: {1}", themeLocation, error.message)));
+		return Promise.reject(new Error(nls.localize('error.cannotload', "Problems loading tmTheme file {0}: {1}", themeLocation.toString(), error.message)));
 	});
 }
 
 function updateDefaultRuleSettings(defaultRule: ITokenColorizationRule, theme: ColorThemeData): ITokenColorizationRule {
-	let foreground = theme.getColor(editorForeground) || theme.getDefault(editorForeground);
-	let background = theme.getColor(editorBackground) || theme.getDefault(editorBackground);
+	const foreground = theme.getColor(editorForeground) || theme.getDefault(editorForeground);
+	const background = theme.getColor(editorBackground) || theme.getDefault(editorBackground);
 	defaultRule.settings.foreground = Color.Format.CSS.formatHexA(foreground);
 	defaultRule.settings.background = Color.Format.CSS.formatHexA(background);
 	return defaultRule;

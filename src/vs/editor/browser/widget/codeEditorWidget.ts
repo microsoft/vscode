@@ -2,7 +2,6 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
 import 'vs/css!./media/editor';
 import 'vs/css!./media/tokens';
@@ -49,6 +48,7 @@ import { CoreEditorCommand } from 'vs/editor/browser/controller/coreCommands';
 import { editorErrorForeground, editorErrorBorder, editorWarningForeground, editorWarningBorder, editorInfoBorder, editorInfoForeground, editorHintForeground, editorHintBorder, editorUnnecessaryCodeOpacity, editorUnnecessaryCodeBorder } from 'vs/editor/common/view/editorColorRegistry';
 import { Color } from 'vs/base/common/color';
 import { ClassName } from 'vs/editor/common/model/intervalTree';
+import { mark } from 'vs/base/common/performance';
 
 let EDITOR_ID = 0;
 
@@ -126,6 +126,12 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 
 	private readonly _onDidType: Emitter<string> = this._register(new Emitter<string>());
 	public readonly onDidType = this._onDidType.event;
+
+	private readonly _onCompositionStart: Emitter<void> = this._register(new Emitter<void>());
+	public readonly onCompositionStart = this._onCompositionStart.event;
+
+	private readonly _onCompositionEnd: Emitter<void> = this._register(new Emitter<void>());
+	public readonly onCompositionEnd = this._onCompositionEnd.event;
 
 	private readonly _onDidPaste: Emitter<Range> = this._register(new Emitter<Range>());
 	public readonly onDidPaste = this._onDidPaste.event;
@@ -259,6 +265,7 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 		this.contentWidgets = {};
 		this.overlayWidgets = {};
 
+		mark('editor/start/contrib');
 		let contributions: IEditorContributionCtor[] = codeEditorWidgetOptions.contributions;
 		if (!Array.isArray(contributions)) {
 			contributions = EditorExtensionsRegistry.getEditorContributions();
@@ -272,6 +279,7 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 				onUnexpectedError(err);
 			}
 		}
+		mark('editor/end/contrib');
 
 		EditorExtensionsRegistry.getEditorActions().forEach((action) => {
 			const internalAction = new InternalEditorAction(
@@ -697,7 +705,7 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 		);
 	}
 
-	public setSelections(ranges: ISelection[]): void {
+	public setSelections(ranges: ISelection[], source: string = 'api'): void {
 		if (!this.cursor) {
 			return;
 		}
@@ -709,7 +717,7 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 				throw new Error('Invalid arguments');
 			}
 		}
-		this.cursor.setSelections('api', ranges);
+		this.cursor.setSelections(source, ranges);
 	}
 
 	public getScrollWidth(): number {
@@ -894,6 +902,13 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 			return;
 		}
 
+		if (handlerId === editorCommon.Handler.CompositionStart) {
+			this._onCompositionStart.fire();
+		}
+		if (handlerId === editorCommon.Handler.CompositionEnd) {
+			this._onCompositionEnd.fire();
+		}
+
 		const action = this.getAction(handlerId);
 		if (action) {
 			TPromise.as(action.run()).then(null, onUnexpectedError);
@@ -916,7 +931,7 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 		if (command) {
 			payload = payload || {};
 			payload.source = source;
-			TPromise.as(command.runEditorCommand(null, this, payload)).done(null, onUnexpectedError);
+			TPromise.as(command.runEditorCommand(null, this, payload)).then(null, onUnexpectedError);
 			return true;
 		}
 
@@ -1670,7 +1685,7 @@ export class EditorModeContext extends Disposable {
 		this._register(editor.onDidChangeModelLanguage(update));
 
 		// update when registries change
-		this._register(modes.SuggestRegistry.onDidChange(update));
+		this._register(modes.CompletionProviderRegistry.onDidChange(update));
 		this._register(modes.CodeActionProviderRegistry.onDidChange(update));
 		this._register(modes.CodeLensProviderRegistry.onDidChange(update));
 		this._register(modes.DefinitionProviderRegistry.onDidChange(update));
@@ -1718,7 +1733,7 @@ export class EditorModeContext extends Disposable {
 			return;
 		}
 		this._langId.set(model.getLanguageIdentifier().language);
-		this._hasCompletionItemProvider.set(modes.SuggestRegistry.has(model));
+		this._hasCompletionItemProvider.set(modes.CompletionProviderRegistry.has(model));
 		this._hasCodeActionsProvider.set(modes.CodeActionProviderRegistry.has(model));
 		this._hasCodeLensProvider.set(modes.CodeLensProviderRegistry.has(model));
 		this._hasDefinitionProvider.set(modes.DefinitionProviderRegistry.has(model));
@@ -1780,38 +1795,38 @@ function getDotDotDotSVGData(color: Color) {
 }
 
 registerThemingParticipant((theme, collector) => {
-	let errorBorderColor = theme.getColor(editorErrorBorder);
+	const errorBorderColor = theme.getColor(editorErrorBorder);
 	if (errorBorderColor) {
 		collector.addRule(`.monaco-editor .${ClassName.EditorErrorDecoration} { border-bottom: 4px double ${errorBorderColor}; }`);
 	}
-	let errorForeground = theme.getColor(editorErrorForeground);
+	const errorForeground = theme.getColor(editorErrorForeground);
 	if (errorForeground) {
 		collector.addRule(`.monaco-editor .${ClassName.EditorErrorDecoration} { background: url("data:image/svg+xml,${getSquigglySVGData(errorForeground)}") repeat-x bottom left; }`);
 	}
 
-	let warningBorderColor = theme.getColor(editorWarningBorder);
+	const warningBorderColor = theme.getColor(editorWarningBorder);
 	if (warningBorderColor) {
 		collector.addRule(`.monaco-editor .${ClassName.EditorWarningDecoration} { border-bottom: 4px double ${warningBorderColor}; }`);
 	}
-	let warningForeground = theme.getColor(editorWarningForeground);
+	const warningForeground = theme.getColor(editorWarningForeground);
 	if (warningForeground) {
 		collector.addRule(`.monaco-editor .${ClassName.EditorWarningDecoration} { background: url("data:image/svg+xml,${getSquigglySVGData(warningForeground)}") repeat-x bottom left; }`);
 	}
 
-	let infoBorderColor = theme.getColor(editorInfoBorder);
+	const infoBorderColor = theme.getColor(editorInfoBorder);
 	if (infoBorderColor) {
 		collector.addRule(`.monaco-editor .${ClassName.EditorInfoDecoration} { border-bottom: 4px double ${infoBorderColor}; }`);
 	}
-	let infoForeground = theme.getColor(editorInfoForeground);
+	const infoForeground = theme.getColor(editorInfoForeground);
 	if (infoForeground) {
 		collector.addRule(`.monaco-editor .${ClassName.EditorInfoDecoration} { background: url("data:image/svg+xml,${getSquigglySVGData(infoForeground)}") repeat-x bottom left; }`);
 	}
 
-	let hintBorderColor = theme.getColor(editorHintBorder);
+	const hintBorderColor = theme.getColor(editorHintBorder);
 	if (hintBorderColor) {
 		collector.addRule(`.monaco-editor .${ClassName.EditorHintDecoration} { border-bottom: 2px dotted ${hintBorderColor}; }`);
 	}
-	let hintForeground = theme.getColor(editorHintForeground);
+	const hintForeground = theme.getColor(editorHintForeground);
 	if (hintForeground) {
 		collector.addRule(`.monaco-editor .${ClassName.EditorHintDecoration} { background: url("data:image/svg+xml,${getDotDotDotSVGData(hintForeground)}") no-repeat bottom left; }`);
 	}

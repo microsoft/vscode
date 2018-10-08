@@ -2,7 +2,6 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
 import * as nls from 'vs/nls';
 import { onUnexpectedError } from 'vs/base/common/errors';
@@ -120,7 +119,7 @@ export class ExtensionPoint<T> implements IExtensionPoint<T> {
 }
 
 const schemaId = 'vscode://schemas/vscode-extensions';
-const schema: IJSONSchema = {
+export const schema = {
 	properties: {
 		engines: {
 			type: 'object',

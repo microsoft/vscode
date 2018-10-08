@@ -2,9 +2,8 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
-import URI from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 import { nativeSep, normalize, basename as pathsBasename, sep } from 'vs/base/common/paths';
 import { endsWith, ltrim, startsWithIgnoreCase, rtrim, startsWith } from 'vs/base/common/strings';
 import { Schemas } from 'vs/base/common/network';
@@ -23,7 +22,7 @@ export interface IUserHomeProvider {
 }
 
 /**
- * @deprecated use UriLabelService instead
+ * @deprecated use LabelService instead
  */
 export function getPathLabel(resource: URI | string, userHomeProvider: IUserHomeProvider, rootProvider?: IWorkspaceFolderProvider): string {
 	if (!resource) {

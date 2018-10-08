@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import * as assert from 'assert';
 import { LRUMemory, NoMemory, PrefixMemory, Memory } from 'vs/editor/contrib/suggest/suggestMemory';
 import { ITextModel } from 'vs/editor/common/model';
@@ -68,7 +66,7 @@ suite('SuggestMemories', function () {
 		assert.equal(new PrefixMemory().select(buffer, pos, items), 1);
 	});
 
-	test('NoMemory', function () {
+	test('NoMemory', () => {
 
 		const mem = new NoMemory();
 
@@ -79,7 +77,7 @@ suite('SuggestMemories', function () {
 		mem.memorize(buffer, pos, null);
 	});
 
-	test('LRUMemory', function () {
+	test('LRUMemory', () => {
 
 		pos = { lineNumber: 2, column: 6 };
 
@@ -116,7 +114,7 @@ suite('SuggestMemories', function () {
 		assert.equal(mem.select(buffer, { lineNumber: 3, column: 6 }, items), 1); // foo: ,|
 	});
 
-	test('PrefixMemory', function () {
+	test('PrefixMemory', () => {
 
 		const mem = new PrefixMemory();
 		buffer.setValue('constructor');

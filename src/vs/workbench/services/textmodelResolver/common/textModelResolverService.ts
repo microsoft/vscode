@@ -2,10 +2,9 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
 import { TPromise } from 'vs/base/common/winjs.base';
-import URI from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 import { first } from 'vs/base/common/async';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ITextModel } from 'vs/editor/common/model';
@@ -41,7 +40,7 @@ class ResourceModelCollection extends ReferenceCollection<TPromise<ITextEditorMo
 	}
 
 	destroyReferencedObject(modelPromise: TPromise<ITextEditorModel>): void {
-		modelPromise.done(model => {
+		modelPromise.then(model => {
 			if (model instanceof TextFileEditorModel) {
 				this.textFileService.models.disposeModel(model);
 			} else {
@@ -82,11 +81,10 @@ class ResourceModelCollection extends ReferenceCollection<TPromise<ITextEditorMo
 	private resolveTextModelContent(key: string): TPromise<ITextModel> {
 		const resource = URI.parse(key);
 		const providers = this.providers[resource.scheme] || [];
-		const factories = providers.map(p => () => p.provideTextContent(resource));
+		const factories = providers.map(p => () => TPromise.wrap(p.provideTextContent(resource)));
 
 		return first(factories).then(model => {
 			if (!model) {
-				console.error(`Unable to open '${resource}' resource is not available.`); // TODO PII
 				return TPromise.wrapError<ITextModel>(new Error('resource is not available'));
 			}
 
