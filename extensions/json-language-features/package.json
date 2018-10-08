@@ -101,6 +101,7 @@
   },
   "dependencies": {
     "vscode-extension-telemetry": "0.0.22",
+    "vscode-json-languageservice": "^3.2.0",
     "vscode-languageclient": "^5.1.0",
     "vscode-nls": "^4.0.0"
   },
