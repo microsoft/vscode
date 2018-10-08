@@ -439,9 +439,6 @@ export class MenubarControl extends Disposable {
 		// Listen to update service
 		this.updateService.onStateChange(() => this.setupMenubar());
 
-		// Listen for context changes
-		this._register(this.contextKeyService.onDidChangeContext(() => this.setupMenubar()));
-
 		// Listen for changes in recently opened menu
 		this._register(this.windowsService.onRecentlyOpenedChange(() => { this.onRecentlyOpenedChange(); }));
 
