@@ -8,8 +8,8 @@ import * as fs from 'fs';
 import * as nls from 'vscode-nls';
 const localize = nls.loadMessageBundle();
 
-import { workspace, languages, ExtensionContext, extensions, Uri, LanguageConfiguration } from 'vscode';
-import { LanguageClient, LanguageClientOptions, RequestType, ServerOptions, TransportKind, NotificationType, DidChangeConfigurationNotification } from 'vscode-languageclient';
+import { workspace, window, languages, ExtensionContext, extensions, Uri, LanguageConfiguration, Diagnostic } from 'vscode';
+import { LanguageClient, LanguageClientOptions, RequestType, ServerOptions, TransportKind, NotificationType, DidChangeConfigurationNotification, HandleDiagnosticsSignature } from 'vscode-languageclient';
 import TelemetryReporter from 'vscode-extension-telemetry';
 
 import { hash } from './utils/hash';
@@ -89,6 +89,16 @@ export function activate(context: ExtensionContext) {
 		middleware: {
 			workspace: {
 				didChangeConfiguration: () => client.sendNotification(DidChangeConfigurationNotification.type, { settings: getSettings() })
+			},
+			handleDiagnostics: (uri: Uri, diagnostics: Diagnostic[], next: HandleDiagnosticsSignature) => {
+				let schemaResolveDiagnostic = diagnostics
+					.find(candidate => candidate.code === /* SchemaResolveError */ 0x300);
+				if (schemaResolveDiagnostic) {
+					// Show schema resolution errors in status bar only; ref: #51032
+					window.showWarningMessage(schemaResolveDiagnostic.message);
+				} else {
+					next(uri, diagnostics);
+				}
 			}
 		}
 	};
