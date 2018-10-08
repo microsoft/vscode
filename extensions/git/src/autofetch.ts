@@ -17,11 +17,14 @@ function isRemoteOperation(operation: Operation): boolean {
 
 export class AutoFetcher {
 
-	private static readonly Period = 3 * 60 * 1000 /* three minutes */;
 	private static DidInformUser = 'autofetch.didInformUser';
 
 	private _onDidChange = new EventEmitter<boolean>();
 	private onDidChange = this._onDidChange.event;
+
+	private _autoFetchPeriod = workspace.getConfiguration('git').get<number>('autoFetchPeriod') as number;
+	get autoFetchPeriod(): number { return this._autoFetchPeriod; }
+	set autoFetchPeriod(autoFetchPeriod: number) { this._autoFetchPeriod = autoFetchPeriod; }
 
 	private _enabled: boolean = false;
 	get enabled(): boolean { return this._enabled; }
@@ -70,10 +73,15 @@ export class AutoFetcher {
 
 	private onConfiguration(): void {
 		const gitConfig = workspace.getConfiguration('git');
+		const Period = gitConfig.get<number>('autoFetchPeriod') as number;
 
 		if (gitConfig.get<boolean>('autofetch') === false) {
 			this.disable();
 		} else {
+			if (Period !== this.autoFetchPeriod) {
+				this.disable();
+				this.autoFetchPeriod = Period;
+			}
 			this.enable();
 		}
 	}
@@ -111,7 +119,12 @@ export class AutoFetcher {
 				return;
 			}
 
-			const timeout = new Promise(c => setTimeout(c, AutoFetcher.Period));
+			if (Math.max(0, this.autoFetchPeriod) === 0) {
+				const gitConfig = workspace.getConfiguration('git');
+				this.autoFetchPeriod = gitConfig.inspect('autoFetchPeriod')!.defaultValue as number;
+			}
+
+			const timeout = new Promise(c => setTimeout(c, this.autoFetchPeriod * 1000));
 			const whenDisabled = eventToPromise(filterEvent(this.onDidChange, enabled => !enabled));
 			await Promise.race([timeout, whenDisabled]);
 		}
