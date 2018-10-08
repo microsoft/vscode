@@ -5,7 +5,7 @@
 
 import 'vs/css!./tree';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
-import { IListOptions, List, IIdentityProvider, IMultipleSelectionController } from 'vs/base/browser/ui/list/listWidget';
+import { IListOptions, List, IIdentityProvider, IMultipleSelectionController, IListStyles } from 'vs/base/browser/ui/list/listWidget';
 import { IVirtualDelegate, IRenderer, IListMouseEvent } from 'vs/base/browser/ui/list/list';
 import { append, $ } from 'vs/base/browser/dom';
 import { Event, Relay, chain, mapEvent } from 'vs/base/common/event';
@@ -183,6 +183,10 @@ export abstract class AbstractTree<T, TFilterData, TRef> implements IDisposable 
 		return mapEvent(this.view.onSelectionChange, e => e.elements.map(e => e.element));
 	}
 
+	get onDidFocus(): Event<void> { return this.view.onDidFocus; }
+	get onDidBlur(): Event<void> { return this.view.onDidBlur; }
+	get onDidDispose(): Event<void> { return this.view.onDidDispose; }
+
 	constructor(
 		container: HTMLElement,
 		delegate: IVirtualDelegate<T>,
@@ -211,14 +215,40 @@ export abstract class AbstractTree<T, TFilterData, TRef> implements IDisposable 
 		onKeyDown.filter(e => e.keyCode === KeyCode.Space).on(this.onSpace, this, this.disposables);
 	}
 
+	// Widget
+
 	// TODO@joao rename to `get domElement`
 	getHTMLElement(): HTMLElement {
 		return this.view.getHTMLElement();
 	}
 
+	domFocus(): void {
+		this.view.domFocus();
+	}
+
 	layout(height?: number): void {
 		this.view.layout(height);
 	}
+
+	style(styles: IListStyles): void {
+		this.view.style(styles);
+	}
+
+	// Tree navigation
+
+	getParentElement(ref: TRef | null = null): T | null {
+		return this.model.getParentElement(ref);
+	}
+
+	getFirstElementChild(ref: TRef | null = null): T | null {
+		return this.model.getFirstElementChild(ref);
+	}
+
+	getLastElementAncestor(ref: TRef | null = null): T | null {
+		return this.model.getLastElementAncestor(ref);
+	}
+
+	// Tree
 
 	collapse(location: TRef): boolean {
 		return this.model.setCollapsed(location, true);
@@ -268,11 +298,11 @@ export abstract class AbstractTree<T, TFilterData, TRef> implements IDisposable 
 	}
 
 	focusNext(n = 1, loop = false): void {
-		this.view.focusNext();
+		this.view.focusNext(n, loop);
 	}
 
 	focusPrevious(n = 1, loop = false): void {
-		this.view.focusPrevious();
+		this.view.focusPrevious(n, loop);
 	}
 
 	focusNextPage(): void {
@@ -294,6 +324,11 @@ export abstract class AbstractTree<T, TFilterData, TRef> implements IDisposable 
 	getFocus(): T[] {
 		const nodes = this.view.getFocusedElements();
 		return nodes.map(n => n.element);
+	}
+
+	open(elements: TRef[]): void {
+		const indexes = elements.map(e => this.model.getListIndex(e));
+		this.view.open(indexes);
 	}
 
 	reveal(location: TRef, relativeTop?: number): void {

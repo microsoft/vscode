@@ -32,8 +32,10 @@ import { Registry } from 'vs/platform/registry/common/platform';
 import { attachInputBoxStyler, attachListStyler, computeStyles, defaultListStyles } from 'vs/platform/theme/common/styler';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { InputFocusedContextKey } from 'vs/platform/workbench/common/contextkeys';
+import { ObjectTree } from 'vs/base/browser/ui/tree/objectTree';
+import { ITreeRenderer, ITreeOptions as ITreeOptions2 } from 'vs/base/browser/ui/tree/abstractTree';
 
-export type ListWidget = List<any> | PagedList<any> | ITree;
+export type ListWidget = List<any> | PagedList<any> | ITree | ObjectTree<any, any>;
 
 export const IListService = createDecorator<IListService>('listService');
 
@@ -794,6 +796,89 @@ export class HighlightingWorkbenchTree extends WorkbenchTree {
 		return typeof this.highlighter.getHighlightsStorageKey === 'function'
 			? this.highlighter.getHighlightsStorageKey(element)
 			: element;
+	}
+}
+
+export class WorkbenchObjectTree<T extends NonNullable<any>, TFilterData = void> extends ObjectTree<T, TFilterData> {
+
+	readonly contextKeyService: IContextKeyService;
+
+	protected disposables: IDisposable[];
+
+	private hasSelectionOrFocus: IContextKey<boolean>;
+	private hasDoubleSelection: IContextKey<boolean>;
+	private hasMultiSelection: IContextKey<boolean>;
+
+	private _useAltAsMultipleSelectionModifier: boolean;
+
+	constructor(
+		container: HTMLElement,
+		delegate: IVirtualDelegate<T>,
+		renderers: ITreeRenderer<T, any>[],
+		options: ITreeOptions2<T, TFilterData>,
+		@IContextKeyService contextKeyService: IContextKeyService,
+		@IListService listService: IListService,
+		@IThemeService themeService: IThemeService,
+		@IConfigurationService private configurationService: IConfigurationService
+	) {
+		super(container, delegate, renderers, {
+			keyboardSupport: false,
+			selectOnMouseDown: true,
+			styleController: new DefaultStyleController(getSharedListStyleSheet()),
+			...computeStyles(themeService.getTheme(), defaultListStyles),
+			...handleListControllers(options, configurationService)
+		});
+
+		this.contextKeyService = createScopedContextKeyService(contextKeyService, this);
+
+		const listSupportsMultiSelect = WorkbenchListSupportsMultiSelectContextKey.bindTo(this.contextKeyService);
+		listSupportsMultiSelect.set(!(options.multipleSelectionSupport === false));
+
+		this.hasSelectionOrFocus = WorkbenchListHasSelectionOrFocus.bindTo(this.contextKeyService);
+		this.hasDoubleSelection = WorkbenchListDoubleSelection.bindTo(this.contextKeyService);
+		this.hasMultiSelection = WorkbenchListMultiSelection.bindTo(this.contextKeyService);
+
+		this._useAltAsMultipleSelectionModifier = useAltAsMultipleSelectionModifier(configurationService);
+
+		this.disposables.push(combinedDisposable([
+			this.contextKeyService,
+			(listService as ListService).register(this),
+			attachListStyler(this, themeService),
+			this.onDidChangeSelection(() => {
+				const selection = this.getSelection();
+				const focus = this.getFocus();
+
+				this.hasSelectionOrFocus.set(selection.length > 0 || focus.length > 0);
+				this.hasMultiSelection.set(selection.length > 1);
+				this.hasDoubleSelection.set(selection.length === 2);
+			}),
+			this.onDidChangeFocus(() => {
+				const selection = this.getSelection();
+				const focus = this.getFocus();
+
+				this.hasSelectionOrFocus.set(selection.length > 0 || focus.length > 0);
+			})
+		]));
+
+		this.registerListeners();
+	}
+
+	private registerListeners(): void {
+		this.disposables.push(this.configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration(multiSelectModifierSettingKey)) {
+				this._useAltAsMultipleSelectionModifier = useAltAsMultipleSelectionModifier(this.configurationService);
+			}
+		}));
+	}
+
+	get useAltAsMultipleSelectionModifier(): boolean {
+		return this._useAltAsMultipleSelectionModifier;
+	}
+
+	dispose(): void {
+		super.dispose();
+
+		this.disposables = dispose(this.disposables);
 	}
 }
 

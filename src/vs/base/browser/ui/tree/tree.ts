@@ -54,4 +54,8 @@ export interface ITreeModel<T, TFilterData, TRef> {
 
 	getNodeLocation(node: ITreeNode<T, any>): TRef;
 	getParentNodeLocation(location: TRef): TRef | null;
+
+	getParentElement(location: TRef): T | null;
+	getFirstElementChild(location: TRef): T | null;
+	getLastElementAncestor(location: TRef): T | null;
 }

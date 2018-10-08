@@ -45,6 +45,21 @@ export class ObjectTreeModel<T extends NonNullable<any>, TFilterData = void> imp
 		return this.model.splice([...location, 0], Number.MAX_VALUE, children, onDidCreateNode, onDidDeleteNode);
 	}
 
+	getParentElement(ref: T | null = null): T | null {
+		const location = this.getElementLocation(ref);
+		return this.model.getParentElement(location);
+	}
+
+	getFirstElementChild(ref: T | null = null): T | null {
+		const location = this.getElementLocation(ref);
+		return this.model.getFirstElementChild(location);
+	}
+
+	getLastElementAncestor(ref: T | null = null): T | null {
+		const location = this.getElementLocation(ref);
+		return this.model.getLastElementAncestor(location);
+	}
+
 	getListIndex(element: T): number {
 		const location = this.getElementLocation(element);
 		return this.model.getListIndex(location);
