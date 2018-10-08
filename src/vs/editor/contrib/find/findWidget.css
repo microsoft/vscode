@@ -247,7 +247,7 @@
 
 /* COLLAPSED (SMALLER THAN NARROW) */
 .monaco-editor .find-widget.collapsed-find-widget {
-	max-width: 111px !important;
+	max-width: 170px !important;
 }
 
 .monaco-editor .find-widget.collapsed-find-widget .button.previous,
