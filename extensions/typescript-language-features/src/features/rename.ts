@@ -13,7 +13,7 @@ import * as typeConverters from '../utils/typeConverters';
 
 // TODO: Remove when we pick up TS 3.2
 declare module '../protocol' {
-	interface RenameTextSpan extends TextSpan {
+	interface RenameTextSpan extends Proto.TextSpan {
 		readonly prefixText?: string;
 		readonly suffixText?: string;
 	}
