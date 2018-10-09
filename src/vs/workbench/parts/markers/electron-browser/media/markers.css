@@ -141,7 +141,7 @@
 	font-weight: bold;
 }
 
-.markers-panel .monaco-tree .monaco-tl-contents > .icon {
+.markers-panel .monaco-tl-contents > .icon {
 	height: 22px;
 	margin-right: 6px;
 	flex: 0 0 16px;
@@ -171,36 +171,36 @@
 	background: url('status-info-inverse.svg') center center no-repeat;
 }
 
-.markers-panel .monaco-tree .monaco-tl-contents .actions .action-label.icon.markers-panel-action-quickfix {
+.markers-panel .monaco-tl-contents .actions .action-label.icon.markers-panel-action-quickfix {
 	background: url('lightbulb.svg') center/80% no-repeat;
 	margin-right: 0px;
 }
 
-.vs-dark .markers-panel .monaco-tree .monaco-tl-contents .actions .action-label.icon.markers-panel-action-quickfix {
+.vs-dark .markers-panel .monaco-tl-contents .actions .action-label.icon.markers-panel-action-quickfix {
 	background: url('lightbulb-dark.svg') center/80% no-repeat;
 }
 
-.markers-panel .monaco-tree .monaco-tree-row .monaco-tl-contents > .actions {
+.markers-panel .monaco-tl-contents > .actions {
 	flex: 0 0 16px;
 }
 
-.markers-panel .monaco-tree .monaco-tree-row .monaco-tl-contents > .actions .monaco-action-bar {
+.markers-panel .monaco-tl-contents > .actions .monaco-action-bar {
 	display: none;
 }
 
-.markers-panel .monaco-tree .monaco-tree-row:hover .monaco-tl-contents > .actions .monaco-action-bar,
-.markers-panel .monaco-tree .monaco-tree-row.selected .monaco-tl-contents > .actions .monaco-action-bar,
-.markers-panel .monaco-tree .monaco-tree-row.focused .monaco-tl-contents > .actions .monaco-action-bar {
+.markers-panel .monaco-tl-row:hover .monaco-tl-contents > .actions .monaco-action-bar,
+.markers-panel .monaco-tl-row.selected .monaco-tl-contents > .actions .monaco-action-bar,
+.markers-panel .monaco-tl-row.focused .monaco-tl-contents > .actions .monaco-action-bar {
 	display: block;
 }
 
-.markers-panel .monaco-tree .monaco-tl-contents .actions .action-label {
+.markers-panel .monaco-tl-contents .actions .action-label {
 	width: 16px;
 	height: 100%;
 	background-position: 50% 50%;
 	background-repeat: no-repeat;
 }
 
-.markers-panel .monaco-tree .monaco-tl-contents .actions .action-item.disabled {
+.markers-panel .monaco-tl-contents .actions .action-item.disabled {
 	display: none;
 }
