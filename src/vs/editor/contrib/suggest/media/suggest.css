@@ -229,7 +229,7 @@
 	padding: 4px 0 4px 5px;
 }
 
-.monaco-editor .suggest-widget .details:not(.empty-docs) > .monaco-scrollable-element > .body > .header > .type {
+.monaco-editor .suggest-widget .details > .monaco-scrollable-element > .body > .header > .type {
 	padding-bottom: 12px;
 }
 
@@ -240,7 +240,12 @@
 }
 
 .monaco-editor .suggest-widget .details > .monaco-scrollable-element > .body > .docs.markdown-docs {
+	padding: 0;
 	white-space: initial;
+}
+
+.monaco-editor .suggest-widget .details > .monaco-scrollable-element > .body > .docs.markdown-docs > div {
+	padding: 4px 5px;
 }
 
 .monaco-editor .suggest-widget .details > .monaco-scrollable-element > .body > .docs.markdown-docs > div > p:first-child {

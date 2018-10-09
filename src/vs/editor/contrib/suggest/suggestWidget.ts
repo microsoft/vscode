@@ -264,8 +264,6 @@ class SuggestionDetails {
 			this.docs.appendChild(renderedContents.element);
 		}
 
-		toggleClass(this.el, 'empty-docs', this.docs.innerText.length === 0);
-
 		if (item.suggestion.detail) {
 			this.type.innerText = item.suggestion.detail;
 			show(this.type);
