@@ -19,7 +19,6 @@ import { Context as SuggestContext } from 'vs/editor/contrib/suggest/suggest';
 import { SuggestController } from 'vs/editor/contrib/suggest/suggestController';
 import { ITextModel } from 'vs/editor/common/model';
 import { Position } from 'vs/editor/common/core/position';
-import * as modes from 'vs/editor/common/modes';
 import { registerEditorAction, ServicesAccessor, EditorAction, EditorCommand, registerEditorCommand } from 'vs/editor/browser/editorExtensions';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { MenuId } from 'vs/platform/actions/common/actions';
@@ -50,6 +49,7 @@ import { IDecorationOptions } from 'vs/editor/common/editorCommon';
 import { transparent, editorForeground } from 'vs/platform/theme/common/colorRegistry';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { FocusSessionActionItem } from 'vs/workbench/parts/debug/browser/debugActionItems';
+import { CompletionContext, CompletionList, CompletionProviderRegistry } from 'vs/editor/common/modes';
 
 const $ = dom.$;
 
@@ -74,12 +74,11 @@ export class Repl extends Panel implements IPrivateReplService, IHistoryNavigati
 	_serviceBrand: any;
 
 	private static readonly HALF_WIDTH_TYPICAL = 'n';
-
-	private history: HistoryNavigator<string>;
 	private static readonly REFRESH_DELAY = 500; // delay in ms to refresh the repl for new elements to show
 	private static readonly REPL_INPUT_INITIAL_HEIGHT = 19;
 	private static readonly REPL_INPUT_MAX_HEIGHT = 170;
 
+	private history: HistoryNavigator<string>;
 	private tree: ITree;
 	private renderer: ReplExpressionsRenderer;
 	private container: HTMLElement;
@@ -126,44 +125,6 @@ export class Repl extends Panel implements IPrivateReplService, IHistoryNavigati
 		}));
 	}
 
-	private refreshReplElements(noDelay: boolean): void {
-		if (this.tree && this.isVisible()) {
-			if (this.refreshTimeoutHandle) {
-				return; // refresh already triggered
-			}
-
-			const delay = noDelay ? 0 : Repl.REFRESH_DELAY;
-			this.refreshTimeoutHandle = setTimeout(() => {
-				this.refreshTimeoutHandle = null;
-				const previousScrollPosition = this.tree.getScrollPosition();
-				this.tree.refresh().then(() => {
-					if (previousScrollPosition === 1) {
-						// Only scroll if we were scrolled all the way down before tree refreshed #10486
-						this.tree.setScrollPosition(1);
-					}
-				}, errors.onUnexpectedError);
-			}, delay);
-		}
-	}
-
-	async create(parent: HTMLElement): Promise<void> {
-		await super.create(parent);
-		this.container = dom.append(parent, $('.repl'));
-		this.treeContainer = dom.append(this.container, $('.repl-tree'));
-		this.createReplInput(this.container);
-
-		this.renderer = this.instantiationService.createInstance(ReplExpressionsRenderer);
-		const controller = this.instantiationService.createInstance(ReplExpressionsController, new ReplExpressionsActionProvider(this.clearReplAction, this.replInput), MenuId.DebugConsoleContext, { openMode: OpenMode.SINGLE_CLICK, clickBehavior: ClickBehavior.ON_MOUSE_UP /* do not change, to preserve focus behaviour in input field */ });
-		controller.toFocusOnClick = this.replInput;
-
-		this.tree = this.instantiationService.createInstance(WorkbenchTree, this.treeContainer, {
-			dataSource: new ReplExpressionsDataSource(),
-			renderer: this.renderer,
-			accessibilityProvider: new ReplExpressionsAccessibilityProvider(),
-			controller
-		}, replTreeOptions);
-	}
-
 	setVisible(visible: boolean): Promise<void> {
 		if (!visible) {
 			dispose(this.model);
@@ -180,58 +141,22 @@ export class Repl extends Panel implements IPrivateReplService, IHistoryNavigati
 		return super.setVisible(visible);
 	}
 
-	private createReplInput(container: HTMLElement): void {
-		this.replInputContainer = dom.append(container, $('.repl-input-wrapper'));
+	get isReadonly(): boolean {
+		// Do not allow to edit inactive sessions
+		const session: IDebugSession = this.tree.getInput();
+		if (session && session.state !== State.Inactive) {
+			return false;
+		}
 
-		const { scopedContextKeyService, historyNavigationEnablement } = createAndBindHistoryNavigationWidgetScopedContextKeyService(this.contextKeyService, { target: this.replInputContainer, historyNavigator: this });
-		this.historyNavigationEnablement = historyNavigationEnablement;
-		this._register(scopedContextKeyService);
-		CONTEXT_IN_DEBUG_REPL.bindTo(scopedContextKeyService).set(true);
+		return true;
+	}
 
-		this.scopedInstantiationService = this.instantiationService.createChild(new ServiceCollection(
-			[IContextKeyService, scopedContextKeyService], [IPrivateReplService, this]));
-		const options = getSimpleEditorOptions();
-		options.readOnly = true;
-		this.replInput = this.scopedInstantiationService.createInstance(CodeEditorWidget, this.replInputContainer, options, getSimpleCodeEditorWidgetOptions());
+	showPreviousValue(): void {
+		this.navigateHistory(true);
+	}
 
-		modes.CompletionProviderRegistry.register({ scheme: DEBUG_SCHEME, pattern: '**/replinput', hasAccessToAllModels: true }, {
-			triggerCharacters: ['.'],
-			provideCompletionItems: (model: ITextModel, position: Position, _context: modes.CompletionContext, token: CancellationToken): Thenable<modes.CompletionList> => {
-				// Disable history navigation because up and down are used to navigate through the suggest widget
-				this.historyNavigationEnablement.set(false);
-
-				const focusedSession = this.debugService.getViewModel().focusedSession;
-				if (focusedSession && focusedSession.capabilities.supportsCompletionsRequest) {
-
-					const word = this.replInput.getModel().getWordAtPosition(position);
-					const overwriteBefore = word ? word.word.length : 0;
-					const text = this.replInput.getModel().getLineContent(position.lineNumber);
-					const focusedStackFrame = this.debugService.getViewModel().focusedStackFrame;
-					const frameId = focusedStackFrame ? focusedStackFrame.frameId : undefined;
-
-					return focusedSession.completions(frameId, text, position, overwriteBefore).then(suggestions => {
-						return { suggestions };
-					}, err => {
-						return { suggestions: [] };
-					});
-				}
-				return Promise.resolve({ suggestions: [] });
-			}
-		});
-
-		this._register(this.replInput.onDidScrollChange(e => {
-			if (!e.scrollHeightChanged) {
-				return;
-			}
-			this.replInputHeight = Math.max(Repl.REPL_INPUT_INITIAL_HEIGHT, Math.min(Repl.REPL_INPUT_MAX_HEIGHT, e.scrollHeight, this.dimension.height));
-			this.layout(this.dimension);
-		}));
-		this._register(this.replInput.onDidChangeModelContent(() => {
-			this.historyNavigationEnablement.set(this.replInput.getModel().getValue() === '');
-		}));
-
-		this._register(dom.addStandardDisposableListener(this.replInputContainer, dom.EventType.FOCUS, () => dom.addClass(this.replInputContainer, 'synthetic-focus')));
-		this._register(dom.addStandardDisposableListener(this.replInputContainer, dom.EventType.BLUR, () => dom.removeClass(this.replInputContainer, 'synthetic-focus')));
+	showNextValue(): void {
+		this.navigateHistory(false);
 	}
 
 	private navigateHistory(previous: boolean): void {
@@ -243,14 +168,6 @@ export class Repl extends Panel implements IPrivateReplService, IHistoryNavigati
 			this.replInput.setPosition({ lineNumber: 1, column: historyInput.length + 1 });
 			this.historyNavigationEnablement.set(true);
 		}
-	}
-
-	showPreviousValue(): void {
-		this.navigateHistory(true);
-	}
-
-	showNextValue(): void {
-		this.navigateHistory(false);
 	}
 
 	selectSession(session: IDebugSession): void {
@@ -316,28 +233,6 @@ export class Repl extends Panel implements IPrivateReplService, IHistoryNavigati
 		this.replInput.layout({ width: dimension.width - 20, height: this.replInputHeight });
 	}
 
-	get isReadonly(): boolean {
-		// Do not allow to edit inactive sessions
-		const session: IDebugSession = this.tree.getInput();
-		if (session && session.state !== State.Inactive) {
-			return false;
-		}
-
-		return true;
-	}
-
-	@memoize
-	private get characterWidth(): number {
-		const characterWidthSurveyor = dom.append(this.container, $('.surveyor'));
-		characterWidthSurveyor.textContent = Repl.HALF_WIDTH_TYPICAL;
-		for (let i = 0; i < 10; i++) {
-			characterWidthSurveyor.textContent += characterWidthSurveyor.textContent;
-		}
-		characterWidthSurveyor.style.fontSize = isMacintosh ? '12px' : '14px';
-
-		return characterWidthSurveyor.clientWidth / characterWidthSurveyor.textContent.length;
-	}
-
 	focus(): void {
 		this.replInput.focus();
 	}
@@ -371,6 +266,19 @@ export class Repl extends Panel implements IPrivateReplService, IHistoryNavigati
 		}
 	}
 
+	// --- Cached locals
+	@memoize
+	private get characterWidth(): number {
+		const characterWidthSurveyor = dom.append(this.container, $('.surveyor'));
+		characterWidthSurveyor.textContent = Repl.HALF_WIDTH_TYPICAL;
+		for (let i = 0; i < 10; i++) {
+			characterWidthSurveyor.textContent += characterWidthSurveyor.textContent;
+		}
+		characterWidthSurveyor.style.fontSize = isMacintosh ? '12px' : '14px';
+
+		return characterWidthSurveyor.clientWidth / characterWidthSurveyor.textContent.length;
+	}
+
 	@memoize
 	private get selectReplAction(): SelectReplAction {
 		return this.scopedInstantiationService.createInstance(SelectReplAction, SelectReplAction.ID, SelectReplAction.LABEL);
@@ -379,6 +287,102 @@ export class Repl extends Panel implements IPrivateReplService, IHistoryNavigati
 	@memoize
 	private get clearReplAction(): ClearReplAction {
 		return this.scopedInstantiationService.createInstance(ClearReplAction, ClearReplAction.ID, ClearReplAction.LABEL);
+	}
+
+	// --- Creation
+
+	async create(parent: HTMLElement): Promise<void> {
+		await super.create(parent);
+		this.container = dom.append(parent, $('.repl'));
+		this.treeContainer = dom.append(this.container, $('.repl-tree'));
+		this.createReplInput(this.container);
+
+		this.renderer = this.instantiationService.createInstance(ReplExpressionsRenderer);
+		const controller = this.instantiationService.createInstance(ReplExpressionsController, new ReplExpressionsActionProvider(this.clearReplAction, this.replInput), MenuId.DebugConsoleContext, { openMode: OpenMode.SINGLE_CLICK, clickBehavior: ClickBehavior.ON_MOUSE_UP /* do not change, to preserve focus behaviour in input field */ });
+		controller.toFocusOnClick = this.replInput;
+
+		this.tree = this.instantiationService.createInstance(WorkbenchTree, this.treeContainer, {
+			dataSource: new ReplExpressionsDataSource(),
+			renderer: this.renderer,
+			accessibilityProvider: new ReplExpressionsAccessibilityProvider(),
+			controller
+		}, replTreeOptions);
+	}
+
+	private createReplInput(container: HTMLElement): void {
+		this.replInputContainer = dom.append(container, $('.repl-input-wrapper'));
+
+		const { scopedContextKeyService, historyNavigationEnablement } = createAndBindHistoryNavigationWidgetScopedContextKeyService(this.contextKeyService, { target: this.replInputContainer, historyNavigator: this });
+		this.historyNavigationEnablement = historyNavigationEnablement;
+		this._register(scopedContextKeyService);
+		CONTEXT_IN_DEBUG_REPL.bindTo(scopedContextKeyService).set(true);
+
+		this.scopedInstantiationService = this.instantiationService.createChild(new ServiceCollection(
+			[IContextKeyService, scopedContextKeyService], [IPrivateReplService, this]));
+		const options = getSimpleEditorOptions();
+		options.readOnly = true;
+		this.replInput = this.scopedInstantiationService.createInstance(CodeEditorWidget, this.replInputContainer, options, getSimpleCodeEditorWidgetOptions());
+
+		CompletionProviderRegistry.register({ scheme: DEBUG_SCHEME, pattern: '**/replinput', hasAccessToAllModels: true }, {
+			triggerCharacters: ['.'],
+			provideCompletionItems: (model: ITextModel, position: Position, _context: CompletionContext, token: CancellationToken): Thenable<CompletionList> => {
+				// Disable history navigation because up and down are used to navigate through the suggest widget
+				this.historyNavigationEnablement.set(false);
+
+				const focusedSession = this.debugService.getViewModel().focusedSession;
+				if (focusedSession && focusedSession.capabilities.supportsCompletionsRequest) {
+
+					const word = this.replInput.getModel().getWordAtPosition(position);
+					const overwriteBefore = word ? word.word.length : 0;
+					const text = this.replInput.getModel().getLineContent(position.lineNumber);
+					const focusedStackFrame = this.debugService.getViewModel().focusedStackFrame;
+					const frameId = focusedStackFrame ? focusedStackFrame.frameId : undefined;
+
+					return focusedSession.completions(frameId, text, position, overwriteBefore).then(suggestions => {
+						return { suggestions };
+					}, err => {
+						return { suggestions: [] };
+					});
+				}
+				return Promise.resolve({ suggestions: [] });
+			}
+		});
+
+		this._register(this.replInput.onDidScrollChange(e => {
+			if (!e.scrollHeightChanged) {
+				return;
+			}
+			this.replInputHeight = Math.max(Repl.REPL_INPUT_INITIAL_HEIGHT, Math.min(Repl.REPL_INPUT_MAX_HEIGHT, e.scrollHeight, this.dimension.height));
+			this.layout(this.dimension);
+		}));
+		this._register(this.replInput.onDidChangeModelContent(() => {
+			this.historyNavigationEnablement.set(this.replInput.getModel().getValue() === '');
+		}));
+
+		this._register(dom.addStandardDisposableListener(this.replInputContainer, dom.EventType.FOCUS, () => dom.addClass(this.replInputContainer, 'synthetic-focus')));
+		this._register(dom.addStandardDisposableListener(this.replInputContainer, dom.EventType.BLUR, () => dom.removeClass(this.replInputContainer, 'synthetic-focus')));
+	}
+
+	// --- Update
+
+	private refreshReplElements(noDelay: boolean): void {
+		if (this.tree && this.isVisible()) {
+			if (this.refreshTimeoutHandle) {
+				return; // refresh already triggered
+			}
+
+			const delay = noDelay ? 0 : Repl.REFRESH_DELAY;
+			this.refreshTimeoutHandle = setTimeout(() => {
+				this.refreshTimeoutHandle = null;
+				const previousScrollPosition = this.tree.getScrollPosition();
+				this.tree.refresh().then(() => {
+					if (previousScrollPosition === 1) {
+						// Only scroll if we were scrolled all the way down before tree refreshed #10486
+						this.tree.setScrollPosition(1);
+					}
+				}, errors.onUnexpectedError);
+			}, delay);
+		}
 	}
 
 	private updateInputDecoration(): void {
@@ -409,6 +413,9 @@ export class Repl extends Panel implements IPrivateReplService, IHistoryNavigati
 
 	dispose(): void {
 		this.replInput.dispose();
+		if (this.replElementsChangeListener) {
+			this.replElementsChangeListener.dispose();
+		}
 		super.dispose();
 	}
 }
