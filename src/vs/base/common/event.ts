@@ -398,12 +398,13 @@ export class EventBufferer {
 		};
 	}
 
-	bufferEvents(fn: () => void): void {
+	bufferEvents<R = void>(fn: () => R): R {
 		const buffer: Function[] = [];
 		this.buffers.push(buffer);
-		fn();
+		const r = fn();
 		this.buffers.pop();
 		buffer.forEach(flush => flush());
+		return r;
 	}
 }
 

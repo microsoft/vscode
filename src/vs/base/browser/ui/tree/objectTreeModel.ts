@@ -19,12 +19,14 @@ export class ObjectTreeModel<T extends NonNullable<any>, TFilterData = void> imp
 	private nodes = new Map<T, ITreeNode<T, TFilterData>>();
 
 	readonly onDidChangeCollapseState: Event<ITreeNode<T, TFilterData>>;
+	readonly onDidChangeRenderNodeCount: Event<ITreeNode<T, TFilterData>>;
 
 	get size(): number { return this.nodes.size; }
 
 	constructor(list: ISpliceable<ITreeNode<T, TFilterData>>, options: IObjectTreeModelOptions<T, TFilterData> = {}) {
 		this.model = new IndexTreeModel(list, options);
 		this.onDidChangeCollapseState = this.model.onDidChangeCollapseState;
+		this.onDidChangeRenderNodeCount = this.model.onDidChangeRenderNodeCount;
 	}
 
 	setChildren(element: T | null, children?: ISequence<ITreeElement<T>>): Iterator<ITreeElement<T>> {

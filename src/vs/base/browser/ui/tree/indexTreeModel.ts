@@ -5,7 +5,7 @@
 
 import { ISpliceable } from 'vs/base/common/sequence';
 import { Iterator, ISequence } from 'vs/base/common/iterator';
-import { Emitter, Event } from 'vs/base/common/event';
+import { Emitter, Event, EventBufferer } from 'vs/base/common/event';
 import { tail2 } from 'vs/base/common/arrays';
 import { ITreeFilterDataResult, TreeVisibility, ITreeFilter, ITreeOptions, ITreeModel, ITreeNode, ITreeElement } from 'vs/base/browser/ui/tree/tree';
 
@@ -56,8 +56,13 @@ export class IndexTreeModel<T, TFilterData = void> implements ITreeModel<T, TFil
 		filterData: undefined
 	};
 
+	private eventBufferer = new EventBufferer();
+
 	private _onDidChangeCollapseState = new Emitter<ITreeNode<T, TFilterData>>();
-	readonly onDidChangeCollapseState: Event<ITreeNode<T, TFilterData>> = this._onDidChangeCollapseState.event;
+	readonly onDidChangeCollapseState: Event<ITreeNode<T, TFilterData>> = this.eventBufferer.wrapEvent(this._onDidChangeCollapseState.event);
+
+	private _onDidChangeRenderNodeCount = new Emitter<ITreeNode<T, TFilterData>>();
+	readonly onDidChangeRenderNodeCount: Event<ITreeNode<T, TFilterData>> = this.eventBufferer.wrapEvent(this._onDidChangeRenderNodeCount.event);
 
 	private filter?: ITreeFilter<T, TFilterData>;
 
@@ -116,12 +121,12 @@ export class IndexTreeModel<T, TFilterData = void> implements ITreeModel<T, TFil
 
 	setCollapsed(location: number[], collapsed: boolean): boolean {
 		const { node, listIndex, revealed } = this.getNodeWithListIndex(location);
-		return this._setCollapsed(node, listIndex, revealed, collapsed);
+		return this.eventBufferer.bufferEvents(() => this._setCollapsed(node, listIndex, revealed, collapsed));
 	}
 
 	toggleCollapsed(location: number[]): void {
 		const { node, listIndex, revealed } = this.getNodeWithListIndex(location);
-		this._setCollapsed(node, listIndex, revealed);
+		this.eventBufferer.bufferEvents(() => this._setCollapsed(node, listIndex, revealed));
 	}
 
 	// // TODO@joao cleanup
@@ -259,6 +264,7 @@ export class IndexTreeModel<T, TFilterData = void> implements ITreeModel<T, TFil
 			}
 		}
 
+		this._onDidChangeRenderNodeCount.fire(node);
 		return node.renderNodeCount;
 	}
 
@@ -312,6 +318,7 @@ export class IndexTreeModel<T, TFilterData = void> implements ITreeModel<T, TFil
 			node.renderNodeCount += result.length - resultStartLength;
 		}
 
+		this._onDidChangeRenderNodeCount.fire(node);
 		return node.visible;
 	}
 
@@ -322,6 +329,7 @@ export class IndexTreeModel<T, TFilterData = void> implements ITreeModel<T, TFil
 
 		while (node) {
 			node.renderNodeCount += diff;
+			this._onDidChangeRenderNodeCount.fire(node);
 			node = node.parent;
 		}
 	}

@@ -16,15 +16,16 @@ import Messages from 'vs/workbench/parts/markers/electron-browser/messages';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { attachBadgeStyler } from 'vs/platform/theme/common/styler';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { IDisposable } from 'vs/base/common/lifecycle';
+import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { ActionBar, IActionItemProvider } from 'vs/base/browser/ui/actionbar/actionbar';
 import { QuickFixAction } from 'vs/workbench/parts/markers/electron-browser/markersPanelActions';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { dirname } from 'vs/base/common/resources';
 import { IVirtualDelegate } from 'vs/base/browser/ui/list/list';
-import { ITreeFilter, TreeVisibility, TreeFilterResult, ITreeRenderer, ITreeRenderElement } from 'vs/base/browser/ui/tree/tree';
+import { ITreeFilter, TreeVisibility, TreeFilterResult, ITreeRenderer, ITreeNode } from 'vs/base/browser/ui/tree/tree';
 import { FilterOptions } from 'vs/workbench/parts/markers/electron-browser/markersFilterOptions';
 import { IMatch } from 'vs/base/common/filters';
+import { Event } from 'vs/base/common/event';
 
 interface IResourceMarkersTemplateData {
 	resourceLabel: ResourceLabel;
@@ -126,11 +127,17 @@ type FilterData = ResourceMarkersFilterData | MarkerFilterData | RelatedInformat
 
 export class ResourceMarkersRenderer implements ITreeRenderer<ResourceMarkers, ResourceMarkersFilterData, IResourceMarkersTemplateData> {
 
+	private renderedNodes = new Map<ITreeNode<ResourceMarkers, ResourceMarkersFilterData>, IResourceMarkersTemplateData>();
+	private disposables: IDisposable[] = [];
+
 	constructor(
+		onDidChangeRenderNodeCount: Event<ITreeNode<ResourceMarkers, ResourceMarkersFilterData>>,
 		@IInstantiationService protected instantiationService: IInstantiationService,
 		@IThemeService private themeService: IThemeService,
 		@ILabelService private labelService: ILabelService
-	) { }
+	) {
+		onDidChangeRenderNodeCount(this.onDidChangeRenderNodeCount, this, this.disposables);
+	}
 
 	templateId = TemplateId.ResourceMarkers;
 
@@ -147,10 +154,9 @@ export class ResourceMarkersRenderer implements ITreeRenderer<ResourceMarkers, R
 		return data;
 	}
 
-	// TODO@joao
-	renderElement(element: ITreeRenderElement<ResourceMarkers, ResourceMarkersFilterData>, _: number, templateData: IResourceMarkersTemplateData): void {
-		const resourceMarkers = element.element;
-		const uriMatches = element.filterData && element.filterData.uriMatches || [];
+	renderElement(node: ITreeNode<ResourceMarkers, ResourceMarkersFilterData>, _: number, templateData: IResourceMarkersTemplateData): void {
+		const resourceMarkers = node.element;
+		const uriMatches = node.filterData && node.filterData.uriMatches || [];
 
 		if (templateData.resourceLabel instanceof FileLabel) {
 			templateData.resourceLabel.setFile(resourceMarkers.resource, { matches: uriMatches });
@@ -158,11 +164,12 @@ export class ResourceMarkersRenderer implements ITreeRenderer<ResourceMarkers, R
 			templateData.resourceLabel.setLabel({ name: resourceMarkers.name, description: this.labelService.getUriLabel(dirname(resourceMarkers.resource), { relative: true }), resource: resourceMarkers.resource }, { matches: uriMatches });
 		}
 
-		// templateData.count.setCount(element.markers.length/* filteredCount */);
+		this.updateCount(node, templateData);
+		this.renderedNodes.set(node, templateData);
 	}
 
-	disposeElement(): void {
-		// noop
+	disposeElement(node: ITreeNode<ResourceMarkers, ResourceMarkersFilterData>): void {
+		this.renderedNodes.delete(node);
 	}
 
 	disposeTemplate(templateData: IResourceMarkersTemplateData): void {
@@ -172,6 +179,24 @@ export class ResourceMarkersRenderer implements ITreeRenderer<ResourceMarkers, R
 
 	protected createResourceLabel(container: HTMLElement): ResourceLabel {
 		return this.instantiationService.createInstance(ResourceLabel, container, { supportHighlights: true });
+	}
+
+	private onDidChangeRenderNodeCount(node: ITreeNode<ResourceMarkers, ResourceMarkersFilterData>): void {
+		const templateData = this.renderedNodes.get(node);
+
+		if (!templateData) {
+			return;
+		}
+
+		this.updateCount(node, templateData);
+	}
+
+	private updateCount(node: ITreeNode<ResourceMarkers, ResourceMarkersFilterData>, templateData: IResourceMarkersTemplateData): void {
+		templateData.count.setCount(node.children.reduce((r, n) => r + (n.visible ? 1 : 0), 0));
+	}
+
+	dispose(): void {
+		this.disposables = dispose(this.disposables);
 	}
 }
 
@@ -205,11 +230,11 @@ export class MarkerRenderer implements ITreeRenderer<Marker, MarkerFilterData, I
 		return data;
 	}
 
-	renderElement(element: ITreeRenderElement<Marker, MarkerFilterData>, _: number, templateData: IMarkerTemplateData): void {
-		const marker = element.element.marker;
-		const sourceMatches = element.filterData && element.filterData.sourceMatches || [];
-		const messageMatches = element.filterData && element.filterData.messageMatches || [];
-		const codeMatches = element.filterData && element.filterData.codeMatches || [];
+	renderElement(node: ITreeNode<Marker, MarkerFilterData>, _: number, templateData: IMarkerTemplateData): void {
+		const marker = node.element.marker;
+		const sourceMatches = node.filterData && node.filterData.sourceMatches || [];
+		const messageMatches = node.filterData && node.filterData.messageMatches || [];
+		const codeMatches = node.filterData && node.filterData.codeMatches || [];
 
 		templateData.icon.className = 'icon ' + MarkerRenderer.iconClassNameFor(marker);
 
@@ -217,7 +242,7 @@ export class MarkerRenderer implements ITreeRenderer<Marker, MarkerFilterData, I
 		dom.toggleClass(templateData.source.element, 'marker-source', !!marker.source);
 
 		templateData.actionBar.clear();
-		const quickFixAction = this.instantiationService.createInstance(QuickFixAction, element.element);
+		const quickFixAction = this.instantiationService.createInstance(QuickFixAction, node.element);
 		templateData.actionBar.push([quickFixAction], { icon: true, label: false });
 
 		templateData.description.set(marker.message, messageMatches);
@@ -279,10 +304,10 @@ export class RelatedInformationRenderer implements ITreeRenderer<RelatedInformat
 		return data;
 	}
 
-	renderElement(element: ITreeRenderElement<RelatedInformation, RelatedInformationFilterData>, _: number, templateData: IRelatedInformationTemplateData): void {
-		const relatedInformation = element.element.raw;
-		const uriMatches = element.filterData && element.filterData.uriMatches || [];
-		const messageMatches = element.filterData && element.filterData.messageMatches || [];
+	renderElement(node: ITreeNode<RelatedInformation, RelatedInformationFilterData>, _: number, templateData: IRelatedInformationTemplateData): void {
+		const relatedInformation = node.element.raw;
+		const uriMatches = node.filterData && node.filterData.uriMatches || [];
+		const messageMatches = node.filterData && node.filterData.messageMatches || [];
 
 		templateData.resourceLabel.set(paths.basename(relatedInformation.resource.fsPath), uriMatches);
 		templateData.resourceLabel.element.title = this.labelService.getUriLabel(relatedInformation.resource, { relative: true });

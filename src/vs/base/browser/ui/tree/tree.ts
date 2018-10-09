@@ -49,6 +49,7 @@ export interface ITreeNode<T, TFilterData = void> {
 
 export interface ITreeModel<T, TFilterData, TRef> {
 	readonly onDidChangeCollapseState: Event<ITreeNode<T, TFilterData>>;
+	readonly onDidChangeRenderNodeCount: Event<ITreeNode<T, TFilterData>>;
 
 	getListIndex(ref: TRef): number;
 	setCollapsed(ref: TRef, collapsed: boolean): boolean;
@@ -64,12 +65,7 @@ export interface ITreeModel<T, TFilterData, TRef> {
 	getLastElementAncestor(location: TRef): T | null;
 }
 
-export interface ITreeRenderElement<T, TFilterData> {
-	readonly element: T;
-	readonly filterData: TFilterData | undefined;
-}
-
-export interface ITreeRenderer<T, TFilterData, TTemplateData> extends IRenderer<ITreeRenderElement<T, TFilterData>, TTemplateData> {
+export interface ITreeRenderer<T, TFilterData, TTemplateData> extends IRenderer<ITreeNode<T, TFilterData>, TTemplateData> {
 	renderTwistie?(element: T, twistieElement: HTMLElement): boolean;
 	onDidChangeTwistieState?: Event<T>;
 }

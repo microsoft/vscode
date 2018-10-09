@@ -6,7 +6,7 @@
 import { ITreeOptions, ComposedTreeDelegate, createComposedTreeListOptions } from 'vs/base/browser/ui/tree/abstractTree';
 import { ObjectTree } from 'vs/base/browser/ui/tree/objectTree';
 import { IVirtualDelegate } from 'vs/base/browser/ui/list/list';
-import { ITreeElement, ITreeNode, ITreeRenderer, ITreeRenderElement } from 'vs/base/browser/ui/tree/tree';
+import { ITreeElement, ITreeNode, ITreeRenderer } from 'vs/base/browser/ui/tree/tree';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { Emitter, Event } from 'vs/base/common/event';
 import { timeout } from 'vs/base/common/async';
@@ -39,11 +39,15 @@ interface IDataTreeListTemplateData<T> {
 	templateData: T;
 }
 
-function unpack<T, TFilterData>(node: ITreeRenderElement<IDataTreeNode<T>, TFilterData>): ITreeRenderElement<T, TFilterData> {
-	return {
-		get element() { return node.element.element; },
-		get filterData() { return node.filterData; }
-	};
+function unpack<T, TFilterData>(node: ITreeNode<IDataTreeNode<T>, TFilterData>): ITreeNode<T, TFilterData> {
+	return new Proxy(Object.create(null), {
+		get: (_: any, name: string) => {
+			switch (name) {
+				case 'element': return node.element.element;
+				default: return node[name];
+			}
+		}
+	});
 }
 
 class DataTreeRenderer<T, TFilterData, TTemplateData> implements ITreeRenderer<IDataTreeNode<T>, TFilterData, IDataTreeListTemplateData<TTemplateData>> {
@@ -64,7 +68,7 @@ class DataTreeRenderer<T, TFilterData, TTemplateData> implements ITreeRenderer<I
 		return { templateData };
 	}
 
-	renderElement(element: ITreeRenderElement<IDataTreeNode<T>, TFilterData>, index: number, templateData: IDataTreeListTemplateData<TTemplateData>): void {
+	renderElement(element: ITreeNode<IDataTreeNode<T>, TFilterData>, index: number, templateData: IDataTreeListTemplateData<TTemplateData>): void {
 		this.renderer.renderElement(unpack(element), index, templateData.templateData);
 	}
 
@@ -77,7 +81,7 @@ class DataTreeRenderer<T, TFilterData, TTemplateData> implements ITreeRenderer<I
 		return false;
 	}
 
-	disposeElement(element: ITreeRenderElement<IDataTreeNode<T>, TFilterData>, index: number, templateData: IDataTreeListTemplateData<TTemplateData>): void {
+	disposeElement(element: ITreeNode<IDataTreeNode<T>, TFilterData>, index: number, templateData: IDataTreeListTemplateData<TTemplateData>): void {
 		this.renderer.disposeElement(unpack(element), index, templateData.templateData);
 	}
 

@@ -169,6 +169,7 @@ export abstract class AbstractTree<T, TFilterData, TRef> implements IDisposable 
 	protected disposables: IDisposable[] = [];
 
 	readonly onDidChangeCollapseState: Event<ITreeNode<T, TFilterData>>;
+	readonly onDidChangeRenderNodeCount: Event<ITreeNode<T, TFilterData>>;
 
 	@memoize get onDidChangeFocus(): Event<T[]> {
 		return mapEvent(this.view.onFocusChange, e => e.elements.map(e => e.element));
@@ -198,6 +199,7 @@ export abstract class AbstractTree<T, TFilterData, TRef> implements IDisposable 
 		this.model = this.createModel(this.view, options);
 		onDidChangeCollapseStateRelay.input = this.model.onDidChangeCollapseState;
 		this.onDidChangeCollapseState = this.model.onDidChangeCollapseState;
+		this.onDidChangeRenderNodeCount = this.model.onDidChangeRenderNodeCount;
 
 		this.view.onMouseClick(this.onMouseClick, this, this.disposables);
 

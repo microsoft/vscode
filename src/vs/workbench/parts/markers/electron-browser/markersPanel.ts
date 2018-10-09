@@ -28,8 +28,8 @@ import { Scope } from 'vs/workbench/common/memento';
 import { localize } from 'vs/nls';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { Iterator } from 'vs/base/common/iterator';
-import { ITreeElement } from 'vs/base/browser/ui/tree/tree';
-import { debounceEvent } from 'vs/base/common/event';
+import { ITreeElement, ITreeNode } from 'vs/base/browser/ui/tree/tree';
+import { debounceEvent, Relay } from 'vs/base/common/event';
 import { WorkbenchObjectTree } from 'vs/platform/list/browser/listService';
 import { FilterOptions } from 'vs/workbench/parts/markers/electron-browser/markersFilterOptions';
 import { IExpression, getEmptyExpression } from 'vs/base/common/glob';
@@ -280,10 +280,12 @@ export class MarkersPanel extends Panel {
 		// const dnd = this.instantiationService.createInstance(SimpleFileResourceDragAndDrop, obj => obj instanceof ResourceMarkers ? obj.resource : void 0);
 		// const controller = this.instantiationService.createInstance(Controller, () => this.focusFilter());
 
+		const onDidChangeRenderNodeCount = new Relay<ITreeNode<any, any>>();
+
 		const virtualDelegate = new Viewer.VirtualDelegate();
 		const renderers = [
-			this.instantiationService.createInstance(Viewer.FileResourceMarkersRenderer),
-			this.instantiationService.createInstance(Viewer.ResourceMarkersRenderer),
+			this.instantiationService.createInstance(Viewer.FileResourceMarkersRenderer, onDidChangeRenderNodeCount.event),
+			this.instantiationService.createInstance(Viewer.ResourceMarkersRenderer, onDidChangeRenderNodeCount.event),
 			this.instantiationService.createInstance(Viewer.MarkerRenderer, a => this.getActionItem(a)),
 			this.instantiationService.createInstance(Viewer.RelatedInformationRenderer)
 		];
@@ -297,6 +299,8 @@ export class MarkersPanel extends Panel {
 				filter: this.filter
 			}
 		) as any as WorkbenchObjectTree<TreeElement>;
+
+		onDidChangeRenderNodeCount.input = this.tree.onDidChangeRenderNodeCount;
 
 		// this.tree = this.instantiationService.createInstance(WorkbenchTree, this.treeContainer, {
 		// 	dataSource: new Viewer.DataSource(),
