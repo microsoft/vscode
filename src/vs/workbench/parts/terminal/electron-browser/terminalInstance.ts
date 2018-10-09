@@ -166,6 +166,10 @@ export class TerminalInstance implements ITerminalInstance {
 		this.addDisposable(this._configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration('terminal.integrated')) {
 				this.updateConfig();
+				// HACK: Trigger another async layout to ensure xterm's CharMeasure is ready to use,
+				// this hack can be removed when https://github.com/xtermjs/xterm.js/issues/702 is
+				// supported.
+				this.setVisible(this._isVisible);
 			}
 			if (e.affectsConfiguration('editor.accessibilitySupport')) {
 				this.updateAccessibilitySupport();
