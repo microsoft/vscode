@@ -1049,6 +1049,7 @@ export class DebugModel implements IDebugModel {
 	}
 
 	public dispose(): void {
+		this.sessions.forEach(s => s.shutdown());
 		this.toDispose = lifecycle.dispose(this.toDispose);
 	}
 }
