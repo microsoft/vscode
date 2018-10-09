@@ -3,16 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { TPromise, Promise } from 'vs/base/common/winjs.base';
 import * as dom from 'vs/base/browser/dom';
 import * as network from 'vs/base/common/network';
 import * as paths from 'vs/base/common/paths';
-import { IDataSource, ITree, IAccessibilityProvider } from 'vs/base/parts/tree/browser/tree';
+import { ITree, IAccessibilityProvider } from 'vs/base/parts/tree/browser/tree';
 import { CountBadge } from 'vs/base/browser/ui/countBadge/countBadge';
 import { FileLabel, ResourceLabel } from 'vs/workbench/browser/labels';
 import { HighlightedLabel } from 'vs/base/browser/ui/highlightedlabel/highlightedLabel';
 import { IMarker, MarkerSeverity } from 'vs/platform/markers/common/markers';
-import { MarkersModel, ResourceMarkers, Marker, RelatedInformation } from 'vs/workbench/parts/markers/electron-browser/markersModel';
+import { ResourceMarkers, Marker, RelatedInformation } from 'vs/workbench/parts/markers/electron-browser/markersModel';
 import Messages from 'vs/workbench/parts/markers/electron-browser/messages';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { attachBadgeStyler } from 'vs/platform/theme/common/styler';
@@ -24,6 +23,9 @@ import { ILabelService } from 'vs/platform/label/common/label';
 import { dirname } from 'vs/base/common/resources';
 import { IVirtualDelegate } from 'vs/base/browser/ui/list/list';
 import { ITreeRenderer } from 'vs/base/browser/ui/tree/abstractTree';
+import { ITreeFilter, TreeVisibility, TreeFilterResult } from 'vs/base/browser/ui/tree/tree';
+import { FilterOptions } from 'vs/workbench/parts/markers/electron-browser/markersFilterOptions';
+import { IMatch } from 'vs/base/common/filters';
 
 interface IResourceMarkersTemplateData {
 	resourceLabel: ResourceLabel;
@@ -44,55 +46,6 @@ interface IRelatedInformationTemplateData {
 	resourceLabel: HighlightedLabel;
 	lnCol: HTMLElement;
 	description: HighlightedLabel;
-}
-
-export class DataSource implements IDataSource {
-	public getId(tree: ITree, element: any): string {
-		if (element instanceof MarkersModel) {
-			return 'root';
-		}
-		// if (element instanceof NodeWithId) {
-		// 	return element.id;
-		// }
-		return '';
-	}
-
-	public hasChildren(tree: ITree, element: any): boolean {
-		return element instanceof MarkersModel || element instanceof ResourceMarkers || (element instanceof Marker && element.relatedInformation.length > 0);
-	}
-
-	public getChildren(tree: ITree, element: any): Promise {
-		if (element instanceof MarkersModel) {
-			return Promise.as(element.resourceMarkers);
-		}
-		if (element instanceof ResourceMarkers) {
-			return Promise.as(element.markers);
-		}
-		if (element instanceof Marker && element.relatedInformation.length > 0) {
-			return Promise.as(element.relatedInformation);
-		}
-		return null;
-	}
-
-	public getParent(tree: ITree, element: any): Promise {
-		return TPromise.as(null);
-	}
-
-	public shouldAutoexpand(tree: ITree, element: any): boolean {
-		if (element instanceof MarkersModel) {
-			return true;
-		}
-
-		if (element instanceof ResourceMarkers) {
-			return true;
-		}
-
-		if (element instanceof Marker && element.relatedInformation.length > 0) {
-			return true;
-		}
-
-		return false;
-	}
 }
 
 export class MarkersTreeAccessibilityProvider implements IAccessibilityProvider {
@@ -312,5 +265,110 @@ export class RelatedInformationRenderer implements ITreeRenderer<RelatedInformat
 	disposeTemplate(templateData: IRelatedInformationTemplateData): void {
 		templateData.description.dispose();
 		templateData.resourceLabel.dispose();
+	}
+}
+
+const enum FilterDataType {
+	ResourceMarkers,
+	Marker,
+	RelatedInformation
+}
+
+interface ResourceMarkersFilterData {
+	type: FilterDataType.ResourceMarkers;
+	uriMatches: IMatch[];
+}
+
+interface MarkerFilterData {
+	type: FilterDataType.Marker;
+	messageMatches: IMatch[];
+	sourceMatches: IMatch[];
+	codeMatches: IMatch[];
+}
+
+interface RelatedInformationFilterData {
+	type: FilterDataType.RelatedInformation;
+}
+
+type FilterData = ResourceMarkersFilterData | MarkerFilterData | RelatedInformationFilterData;
+
+export class Filter implements ITreeFilter<ResourceMarkers | Marker | RelatedInformation, FilterData> {
+
+	options = new FilterOptions();
+
+	filter(element: ResourceMarkers | Marker | RelatedInformation): TreeFilterResult<FilterData> {
+		if (element instanceof ResourceMarkers) {
+			return this.filterResourceMarkers(element);
+		} else if (element instanceof Marker) {
+			return this.filterMarker(element);
+		} else {
+			return this.filterRelatedInformation(element);
+		}
+	}
+
+	private filterResourceMarkers(resourceMarkers: ResourceMarkers): TreeFilterResult<FilterData> {
+		if (resourceMarkers.resource.scheme === network.Schemas.walkThrough || resourceMarkers.resource.scheme === network.Schemas.walkThroughSnippet) {
+			return false;
+		}
+
+		if (this.options.excludePattern && !!this.options.excludePattern(resourceMarkers.resource.fsPath)) {
+			return false;
+		}
+
+		if (this.options.includePattern && this.options.includePattern(resourceMarkers.resource.fsPath)) {
+			return true;
+		}
+
+		const uriMatches = FilterOptions._filter(this.options.textFilter, paths.basename(resourceMarkers.resource.fsPath));
+
+		if (this.options.textFilter && uriMatches) {
+			return { visibility: true, data: { type: FilterDataType.ResourceMarkers, uriMatches } };
+		}
+
+		return false;
+	}
+
+
+	private filterMarker(marker: Marker): TreeFilterResult<FilterData> {
+		if (this.options.filterErrors && MarkerSeverity.Error === marker.marker.severity) {
+			return true;
+		}
+
+		if (this.options.filterWarnings && MarkerSeverity.Warning === marker.marker.severity) {
+			return true;
+		}
+
+		if (this.options.filterInfos && MarkerSeverity.Info === marker.marker.severity) {
+			return true;
+		}
+
+		if (!this.options.textFilter) {
+			return true;
+		}
+
+		const messageMatches = FilterOptions._fuzzyFilter(this.options.textFilter, marker.marker.message);
+		const sourceMatches = marker.marker.source && FilterOptions._filter(this.options.textFilter, marker.marker.source);
+		const codeMatches = marker.marker.code && FilterOptions._filter(this.options.textFilter, marker.marker.code);
+
+		if (messageMatches || sourceMatches || codeMatches) {
+			return { visibility: true, data: { type: FilterDataType.Marker, messageMatches: messageMatches || [], sourceMatches: sourceMatches || [], codeMatches: codeMatches || [] } };
+		}
+
+		return TreeVisibility.Recurse;
+	}
+
+	private filterRelatedInformation(relatedInformation: RelatedInformation): TreeFilterResult<FilterData> {
+		if (!this.options.textFilter) {
+			return true;
+		}
+
+		const uriMatches = FilterOptions._filter(this.options.textFilter, paths.basename(relatedInformation.raw.resource.fsPath));
+		const messageMatches = FilterOptions._filter(this.options.textFilter, paths.basename(relatedInformation.raw.message));
+
+		if (uriMatches || messageMatches) {
+			return { visibility: true, data: { type: FilterDataType.RelatedInformation, uriMatches: uriMatches || [], messageMatches: messageMatches || [] } };
+		}
+
+		return false;
 	}
 }

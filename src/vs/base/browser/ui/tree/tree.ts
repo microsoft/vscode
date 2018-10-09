@@ -12,13 +12,15 @@ export const enum TreeVisibility {
 	Recurse // TODO@joao come up with a better name
 }
 
-export interface ITreeFilterResult<TFilterData> {
-	visibility: TreeVisibility;
+export interface ITreeFilterDataResult<TFilterData> {
+	visibility: boolean | TreeVisibility;
 	data: TFilterData;
 }
 
+export type TreeFilterResult<TFilterData> = boolean | TreeVisibility | ITreeFilterDataResult<TFilterData>;
+
 export interface ITreeFilter<T, TFilterData = void> {
-	filter(element: T): boolean | TreeVisibility | ITreeFilterResult<TFilterData>;
+	filter(element: T): TreeFilterResult<TFilterData>;
 }
 
 export interface ITreeOptions<T, TFilterData = void> {

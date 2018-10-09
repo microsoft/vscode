@@ -16,7 +16,7 @@ import Constants from 'vs/workbench/parts/markers/electron-browser/constants';
 import { Marker, ResourceMarkers, RelatedInformation, MarkersModel } from 'vs/workbench/parts/markers/electron-browser/markersModel';
 import * as Viewer from 'vs/workbench/parts/markers/electron-browser/markersTreeViewer';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { MarkersFilterActionItem, MarkersFilterAction, QuickFixAction, QuickFixActionItem } from 'vs/workbench/parts/markers/electron-browser/markersPanelActions';
+import { MarkersFilterActionItem, MarkersFilterAction, QuickFixAction, QuickFixActionItem, IMarkersFilterActionChangeEvent } from 'vs/workbench/parts/markers/electron-browser/markersPanelActions';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import Messages from 'vs/workbench/parts/markers/electron-browser/messages';
 import { RangeHighlightDecorations } from 'vs/workbench/browser/parts/editor/rangeDecorations';
@@ -31,6 +31,11 @@ import { Iterator } from 'vs/base/common/iterator';
 import { ITreeElement } from 'vs/base/browser/ui/tree/tree';
 import { debounceEvent } from 'vs/base/common/event';
 import { WorkbenchObjectTree } from 'vs/platform/list/browser/listService';
+import { FilterOptions } from 'vs/workbench/parts/markers/electron-browser/markersFilterOptions';
+import { IExpression, getEmptyExpression } from 'vs/base/common/glob';
+import { mixin, deepClone } from 'vs/base/common/objects';
+import { IWorkspaceFolder, IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
+import { isAbsolute, join } from 'vs/base/common/paths';
 
 type TreeElement = ResourceMarkers | Marker | RelatedInformation;
 
@@ -70,6 +75,8 @@ export class MarkersPanel extends Panel {
 	private panelSettings: any;
 	private panelFoucusContextKey: IContextKey<boolean>;
 
+	private filter: Viewer.Filter;
+
 	private currentResourceGotAddedToMarkersData: boolean = false;
 
 	constructor(
@@ -80,7 +87,8 @@ export class MarkersPanel extends Panel {
 		@IThemeService themeService: IThemeService,
 		@IMarkersWorkbenchService private markersWorkbenchService: IMarkersWorkbenchService,
 		@IStorageService storageService: IStorageService,
-		@IContextKeyService contextKeyService: IContextKeyService
+		@IContextKeyService contextKeyService: IContextKeyService,
+		@IWorkspaceContextService private workspaceContextService: IWorkspaceContextService,
 	) {
 		super(Constants.MARKERS_PANEL_ID, telemetryService, themeService);
 		this.panelFoucusContextKey = Constants.MarkerPanelFocusContextKey.bindTo(contextKeyService);
@@ -103,7 +111,7 @@ export class MarkersPanel extends Panel {
 		this.createActions();
 		this.createListeners();
 
-		// this.updateFilter();
+		this.updateFilter();
 
 		this.onDidFocus(() => this.panelFoucusContextKey.set(true));
 		this.onDidBlur(() => this.panelFoucusContextKey.set(false));
@@ -211,9 +219,49 @@ export class MarkersPanel extends Panel {
 		return TPromise.as(null);
 	}
 
-	// private updateFilter() {
-	// 	this.markersWorkbenchService.filter({ filterText: this.filterAction.filterText, useFilesExclude: this.filterAction.useFilesExclude });
-	// }
+	private updateFilter() {
+		const excludeExpression = this.getExcludeExpression(this.filterAction.useFilesExclude);
+		this.filter.options = new FilterOptions(this.filterAction.filterText, excludeExpression);
+		this.tree.refilter();
+	}
+
+	private getExcludeExpression(useFilesExclude: boolean): IExpression {
+		if (!useFilesExclude) {
+			return {};
+		}
+
+		const workspaceFolders = this.workspaceContextService.getWorkspace().folders;
+		if (workspaceFolders.length) {
+			const result = getEmptyExpression();
+			for (const workspaceFolder of workspaceFolders) {
+				mixin(result, this.getExcludesForFolder(workspaceFolder));
+			}
+			return result;
+		} else {
+			return this.getFilesExclude();
+		}
+	}
+
+	private getExcludesForFolder(workspaceFolder: IWorkspaceFolder): IExpression {
+		const expression = this.getFilesExclude(workspaceFolder.uri);
+		return this.getAbsoluteExpression(expression, workspaceFolder.uri.fsPath);
+	}
+
+	private getFilesExclude(resource?: URI): IExpression {
+		return deepClone(this.configurationService.getValue('files.exclude', { resource })) || {};
+	}
+
+	private getAbsoluteExpression(expr: IExpression, root: string): IExpression {
+		return Object.keys(expr)
+			.reduce((absExpr: IExpression, key: string) => {
+				if (expr[key] && !isAbsolute(key)) {
+					const absPattern = join(root, key);
+					absExpr[absPattern] = expr[key];
+				}
+
+				return absExpr;
+			}, Object.create(null));
+	}
 
 	private createMessageBox(parent: HTMLElement): void {
 		this.messageBoxContainer = dom.append(parent, dom.$('.message-box-container'));
@@ -239,12 +287,15 @@ export class MarkersPanel extends Panel {
 			this.instantiationService.createInstance(Viewer.MarkerRenderer, a => this.getActionItem(a)),
 			this.instantiationService.createInstance(Viewer.RelatedInformationRenderer)
 		];
+		this.filter = new Viewer.Filter();
 
 		this.tree = this.instantiationService.createInstance(WorkbenchObjectTree,
 			this.treeContainer,
 			virtualDelegate,
 			renderers,
-			{}
+			{
+				filter: this.filter
+			}
 		) as any as WorkbenchObjectTree<TreeElement>;
 
 		// this.tree = this.instantiationService.createInstance(WorkbenchTree, this.treeContainer, {
@@ -296,11 +347,11 @@ export class MarkersPanel extends Panel {
 		this._register(onModelChange(this.onDidChangeModel, this));
 		this._register(this.editorService.onDidActiveEditorChange(this.onActiveEditorChanged, this));
 		this._register(this.tree.onDidChangeSelection(() => this.onSelected()));
-		// this._register(this.filterAction.onDidChange((event: IMarkersFilterActionChangeEvent) => {
-		// 	if (event.filterText || event.useFilesExclude) {
-		// 		this.updateFilter();
-		// 	}
-		// }));
+		this._register(this.filterAction.onDidChange((event: IMarkersFilterActionChangeEvent) => {
+			if (event.filterText || event.useFilesExclude) {
+				this.updateFilter();
+			}
+		}));
 		this.actions.forEach(a => this._register(a));
 	}
 

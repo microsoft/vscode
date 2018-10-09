@@ -16,7 +16,6 @@ import Messages from 'vs/workbench/parts/markers/electron-browser/messages';
 import Constants from 'vs/workbench/parts/markers/electron-browser/constants';
 import { IPartService } from 'vs/workbench/services/part/common/partService';
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { attachInputBoxStyler, attachStylerCallback, attachCheckboxStyler } from 'vs/platform/theme/common/styler';
 import { IMarkersWorkbenchService } from 'vs/workbench/parts/markers/electron-browser/markers';
@@ -134,7 +133,7 @@ export class MarkersFilterActionItem extends BaseActionItem {
 		@IContextViewService private contextViewService: IContextViewService,
 		@IThemeService private themeService: IThemeService,
 		@IMarkersWorkbenchService private markersWorkbenchService: IMarkersWorkbenchService,
-		@ITelemetryService private telemetryService: ITelemetryService,
+		// @ITelemetryService private telemetryService: ITelemetryService,
 		@IContextKeyService contextKeyService: IContextKeyService
 	) {
 		super(null, action);
@@ -277,12 +276,12 @@ export class MarkersFilterActionItem extends BaseActionItem {
 		}
 	}
 
+	// TODO@joao
 	private reportFilteringUsed(): void {
-		let data = {};
-		console.warn('reportFilteringUsed not implemented'); // TODO@joao
-		// data['errors'] = this.markersWorkbenchService.markersModel.filterOptions.filterErrors;
-		// data['warnings'] = this.markersWorkbenchService.markersModel.filterOptions.filterWarnings;
-		// data['infos'] = this.markersWorkbenchService.markersModel.filterOptions.filterInfos;
+		// let data = {};
+		// data['errors'] = this.filterOptions.filterErrors;
+		// data['warnings'] = this.filterOptions.filterWarnings;
+		// data['infos'] = this.filterOptions.filterInfos;
 		/* __GDPR__
 			"problems.filter" : {
 				"errors" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
@@ -290,7 +289,7 @@ export class MarkersFilterActionItem extends BaseActionItem {
 				"infos": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true }
 			}
 		*/
-		this.telemetryService.publicLog('problems.filter', data);
+		// this.telemetryService.publicLog('problems.filter', data);
 	}
 }
 

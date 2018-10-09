@@ -7,7 +7,7 @@ import { ISpliceable } from 'vs/base/common/sequence';
 import { Iterator, ISequence } from 'vs/base/common/iterator';
 import { Emitter, Event } from 'vs/base/common/event';
 import { tail2 } from 'vs/base/common/arrays';
-import { ITreeFilterResult, TreeVisibility, ITreeFilter, ITreeOptions, ITreeModel, ITreeNode, ITreeElement } from 'vs/base/browser/ui/tree/tree';
+import { ITreeFilterDataResult, TreeVisibility, ITreeFilter, ITreeOptions, ITreeModel, ITreeNode, ITreeElement } from 'vs/base/browser/ui/tree/tree';
 
 interface IMutableTreeNode<T, TFilterData> extends ITreeNode<T, TFilterData> {
 	readonly parent: IMutableTreeNode<T, TFilterData> | undefined;
@@ -19,7 +19,7 @@ interface IMutableTreeNode<T, TFilterData> extends ITreeNode<T, TFilterData> {
 	visible: boolean;
 }
 
-function isFilterResult<T>(obj: any): obj is ITreeFilterResult<T> {
+function isFilterResult<T>(obj: any): obj is ITreeFilterDataResult<T> {
 	return typeof obj === 'object' && 'visibility' in obj && 'data' in obj;
 }
 
@@ -30,8 +30,10 @@ function treeNodeToElement<T>(node: IMutableTreeNode<T, any>): ITreeElement<T> {
 	return { element, children, collapsed };
 }
 
-function getVisibleState(visibility: TreeVisibility): boolean | undefined {
+function getVisibleState(visibility: boolean | TreeVisibility): boolean | undefined {
 	switch (visibility) {
+		case true: return true;
+		case false: return false;
 		case TreeVisibility.Hidden: return false;
 		case TreeVisibility.Visible: return true;
 		case TreeVisibility.Recurse: return undefined;

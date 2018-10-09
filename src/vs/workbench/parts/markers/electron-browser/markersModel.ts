@@ -75,65 +75,6 @@ export class RelatedInformation {
 	constructor(readonly raw: IRelatedInformation) { }
 }
 
-// TODO@joao
-// export class FilterOptions {
-
-// 	static readonly _filter: IFilter = or(matchesPrefix, matchesContiguousSubString);
-// 	static readonly _fuzzyFilter: IFilter = or(matchesPrefix, matchesContiguousSubString, matchesFuzzy);
-
-// 	readonly filterErrors: boolean = false;
-// 	readonly filterWarnings: boolean = false;
-// 	readonly filterInfos: boolean = false;
-// 	readonly excludePattern: glob.ParsedExpression = null;
-// 	readonly includePattern: glob.ParsedExpression = null;
-// 	readonly textFilter: string = '';
-
-// 	constructor(readonly filter: string = '', excludePatterns: glob.IExpression = {}) {
-// 		filter = filter.trim();
-// 		for (const key of Object.keys(excludePatterns)) {
-// 			if (excludePatterns[key]) {
-// 				this.setPattern(excludePatterns, key);
-// 			}
-// 			delete excludePatterns[key];
-// 		}
-// 		const includePatterns: glob.IExpression = glob.getEmptyExpression();
-// 		if (filter) {
-// 			const filters = glob.splitGlobAware(filter, ',').map(s => s.trim()).filter(s => !!s.length);
-// 			for (const f of filters) {
-// 				this.filterErrors = this.filterErrors || this.matches(f, Messages.MARKERS_PANEL_FILTER_ERRORS);
-// 				this.filterWarnings = this.filterWarnings || this.matches(f, Messages.MARKERS_PANEL_FILTER_WARNINGS);
-// 				this.filterInfos = this.filterInfos || this.matches(f, Messages.MARKERS_PANEL_FILTER_INFOS);
-// 				if (strings.startsWith(f, '!')) {
-// 					this.setPattern(excludePatterns, strings.ltrim(f, '!'));
-// 				} else {
-// 					this.setPattern(includePatterns, f);
-// 					this.textFilter += ` ${f}`;
-// 				}
-// 			}
-// 		}
-// 		if (Object.keys(excludePatterns).length) {
-// 			this.excludePattern = glob.parse(excludePatterns);
-// 		}
-// 		if (Object.keys(includePatterns).length) {
-// 			this.includePattern = glob.parse(includePatterns);
-// 		}
-// 		this.textFilter = this.textFilter.trim();
-// 	}
-
-// 	private setPattern(expression: glob.IExpression, pattern: string) {
-// 		if (pattern[0] === '.') {
-// 			pattern = '*' + pattern; // convert ".js" to "*.js"
-// 		}
-// 		expression[`**/${pattern}/**`] = true;
-// 		expression[`**/${pattern}`] = true;
-// 	}
-
-// 	private matches(prefix: string, word: string): boolean {
-// 		let result = matchesPrefix(prefix, word);
-// 		return result && result.length > 0;
-// 	}
-// }
-
 export class MarkersModel {
 
 	private cachedSortedResources: ResourceMarkers[] | undefined = undefined;
