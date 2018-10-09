@@ -92,14 +92,15 @@ export function activate(context: ExtensionContext) {
 				didChangeConfiguration: () => client.sendNotification(DidChangeConfigurationNotification.type, { settings: getSettings() })
 			},
 			handleDiagnostics: (uri: Uri, diagnostics: Diagnostic[], next: HandleDiagnosticsSignature) => {
-				let schemaResolveDiagnostic = diagnostics
-					.find(candidate => candidate.code === ErrorCode.SchemaResolveError);
-				if (schemaResolveDiagnostic) {
+				const schemaErrorIndex = diagnostics
+					.findIndex(candidate => candidate.code === ErrorCode.SchemaResolveError);
+				if (schemaErrorIndex !== -1) {
 					// Show schema resolution errors in status bar only; ref: #51032
+					const schemaResolveDiagnostic = diagnostics[schemaErrorIndex];
 					window.showWarningMessage(schemaResolveDiagnostic.message);
-				} else {
-					next(uri, diagnostics);
+					diagnostics.splice(schemaErrorIndex, 1);
 				}
+				next(uri, diagnostics);
 			}
 		}
 	};
