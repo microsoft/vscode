@@ -324,7 +324,7 @@
         "command": "git.removeRemote",
         "title": "%command.removeRemote%",
         "category": "Git"
-      }
+      },
       {
         "command": "git.sync",
         "title": "%command.sync%",
