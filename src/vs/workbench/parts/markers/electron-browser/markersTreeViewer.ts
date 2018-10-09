@@ -279,7 +279,6 @@ export class RelatedInformationRenderer implements ITreeRenderer<RelatedInformat
 		return data;
 	}
 
-	// TODO@joao
 	renderElement(element: ITreeRenderElement<RelatedInformation, RelatedInformationFilterData>, _: number, templateData: IRelatedInformationTemplateData): void {
 		const relatedInformation = element.element.raw;
 		const uriMatches = element.filterData && element.filterData.uriMatches || [];
