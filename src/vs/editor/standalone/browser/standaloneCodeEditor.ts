@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable, IDisposable, combinedDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { TPromise } from 'vs/base/common/winjs.base';
 import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { CommandsRegistry, ICommandService, ICommandHandler } from 'vs/platform/commands/common/commands';
@@ -72,7 +71,7 @@ export interface IActionDescriptor {
 	 * Method that will be executed when the action is triggered.
 	 * @param editor The editor instance is passed in as a convinience
 	 */
-	run(editor: ICodeEditor): void | TPromise<void>;
+	run(editor: ICodeEditor): void | Promise<void>;
 }
 
 /**
@@ -221,9 +220,8 @@ export class StandaloneCodeEditor extends CodeEditorWidget implements IStandalon
 		);
 		const contextMenuGroupId = _descriptor.contextMenuGroupId || null;
 		const contextMenuOrder = _descriptor.contextMenuOrder || 0;
-		const run = (): TPromise<void> => {
-			const r = _descriptor.run(this);
-			return r ? r : TPromise.as(void 0);
+		const run = (): Promise<void> => {
+			return Promise.resolve(_descriptor.run(this));
 		};
 
 

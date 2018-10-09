@@ -315,7 +315,6 @@ function generateDeclarationFile(out, inputFiles, recipe) {
     var resultTxt = result.join(endl);
     resultTxt = resultTxt.replace(/\bURI\b/g, 'Uri');
     resultTxt = resultTxt.replace(/\bEvent</g, 'IEvent<');
-    resultTxt = resultTxt.replace(/\bTPromise</g, 'Promise<');
     resultTxt = format(resultTxt);
     return [
         resultTxt,
