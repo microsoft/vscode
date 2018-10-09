@@ -203,7 +203,8 @@ export class IndexTreeModel<T, TFilterData = void> implements ITreeModel<T, TFil
 		}
 
 		const childElements = Iterator.from(treeElement.children);
-		const childNodes = Iterator.map(childElements, el => this.createTreeNode(el, node, revealed && !treeElement.collapsed, treeListElements, onDidCreateNode));
+		const childRevealed = revealed && visible !== false && !node.collapsed;
+		const childNodes = Iterator.map(childElements, el => this.createTreeNode(el, node, childRevealed, treeListElements, onDidCreateNode));
 
 		let hasVisibleDescendants = false;
 		let revealedCount = 1;

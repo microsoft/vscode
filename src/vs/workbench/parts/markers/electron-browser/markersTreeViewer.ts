@@ -325,9 +325,8 @@ export class Filter implements ITreeFilter<ResourceMarkers | Marker | RelatedInf
 			return { visibility: true, data: { type: FilterDataType.ResourceMarkers, uriMatches } };
 		}
 
-		return false;
+		return TreeVisibility.Recurse;
 	}
-
 
 	private filterMarker(marker: Marker): TreeFilterResult<FilterData> {
 		if (this.options.filterErrors && MarkerSeverity.Error === marker.marker.severity) {
