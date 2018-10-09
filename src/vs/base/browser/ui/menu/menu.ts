@@ -504,7 +504,7 @@ class SubmenuActionItem extends MenuActionItem {
 	}
 
 	onClick(e: EventLike): void {
-		// stop clicking from trying to run an action
+		// Stop clicking from trying to run an action
 		EventHelper.stop(e, true);
 
 		this.cleanupExistingSubmenu(false);

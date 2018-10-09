@@ -37,7 +37,7 @@ export class HighlightedLabel implements IDisposable {
 			text = '';
 		}
 		if (escapeNewLines) {
-			// adjusts highlights inplace
+			// Adjusts highlights
 			text = HighlightedLabel.escapeNewLines(text, highlights);
 		}
 		if (this.didEverRender && this.text === text && this.title === title && objects.equals(this.highlights, highlights)) {

@@ -76,15 +76,19 @@ export class KeybindingLabel implements IDisposable {
 		if (part.ctrlKey) {
 			this.renderKey(parent, modifierLabels.ctrlKey, match && match.ctrlKey, modifierLabels.separator);
 		}
+
 		if (part.shiftKey) {
 			this.renderKey(parent, modifierLabels.shiftKey, match && match.shiftKey, modifierLabels.separator);
 		}
+
 		if (part.altKey) {
 			this.renderKey(parent, modifierLabels.altKey, match && match.altKey, modifierLabels.separator);
 		}
+
 		if (part.metaKey) {
 			this.renderKey(parent, modifierLabels.metaKey, match && match.metaKey, modifierLabels.separator);
 		}
+
 		const keyLabel = part.keyLabel;
 		if (keyLabel) {
 			this.renderKey(parent, keyLabel, match && match.keyCode, '');

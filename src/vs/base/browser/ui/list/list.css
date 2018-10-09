@@ -38,7 +38,7 @@
 	touch-action: none;
 }
 
-/* for OS X ballistic scrolling */
+/* Fsor OS X ballistic scrolling */
 .monaco-list-row.scrolling {
 	display: none !important;
 }
