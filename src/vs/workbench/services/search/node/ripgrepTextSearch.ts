@@ -285,19 +285,24 @@ export class RipgrepParser extends EventEmitter {
 
 	private submatchToResult(parsedLine: any, match: any, uri: URI): TextSearchResult {
 		const lineNumber = parsedLine.data.line_number - 1;
-		let matchText = bytesOrTextToString(parsedLine.data.lines);
-		let start = match.start;
-		let end = match.end;
+		let lineText = bytesOrTextToString(parsedLine.data.lines);
+		let matchText = bytesOrTextToString(match.match);
+		const newlineMatches = matchText.match(/\n/g);
+		const newlines = newlineMatches ? newlineMatches.length : 0;
+		let startCol = match.start;
+		const endLineNumber = lineNumber + newlines;
+		let endCol = match.end - (lineText.lastIndexOf('\n', lineText.length - 2) + 1);
+
 		if (lineNumber === 0) {
-			if (strings.startsWithUTF8BOM(matchText)) {
-				matchText = strings.stripUTF8BOM(matchText);
-				start -= 3;
-				end -= 3;
+			if (strings.startsWithUTF8BOM(lineText)) {
+				lineText = strings.stripUTF8BOM(lineText);
+				startCol -= 3;
+				endCol -= 3;
 			}
 		}
 
-		const range = new Range(lineNumber, start, lineNumber, end);
-		return new TextSearchResult(matchText, range, this.previewOptions);
+		const range = new Range(lineNumber, startCol, endLineNumber, endCol);
+		return new TextSearchResult(lineText, range, this.previewOptions);
 	}
 
 	private getFileMatch(relativeOrAbsolutePath: string): FileMatch {
@@ -489,6 +494,10 @@ function getRgArgs(config: IRawSearch) {
 	}
 
 	args.push('--json');
+
+	if (config.contentPattern.isMultiline) {
+		args.push('--multiline');
+	}
 
 	// Folder to search
 	args.push('--');
