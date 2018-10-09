@@ -81,7 +81,6 @@ export class DebugService implements IDebugService {
 	private model: DebugModel;
 	private viewModel: ViewModel;
 	private configurationManager: ConfigurationManager;
-	private allSessions = new Map<string, IDebugSession>();
 	private toDispose: IDisposable[];
 	private debugType: IContextKey<string>;
 	private debugState: IContextKey<string>;
@@ -138,7 +137,7 @@ export class DebugService implements IDebugService {
 		this.lifecycleService.onShutdown(this.dispose, this);
 
 		this.toDispose.push(this.broadcastService.onBroadcast(broadcast => {
-			const session = this.getSession(broadcast.payload.debugId);
+			const session = this.model.getSessions(true).filter(s => s.getId() === broadcast.payload.debugId).pop();
 			if (session) {
 				switch (broadcast.channel) {
 
@@ -177,10 +176,6 @@ export class DebugService implements IDebugService {
 			this.model.setBreakpointsSessionId(id);
 			this.onStateChange();
 		}));
-	}
-
-	getSession(sessionId: string): IDebugSession {
-		return this.allSessions.get(sessionId);
 	}
 
 	getModel(): IDebugModel {
@@ -270,10 +265,6 @@ export class DebugService implements IDebugService {
 		return this.extensionService.activateByEvent('onDebug').then(() =>
 			this.textFileService.saveAll().then(() => this.configurationService.reloadConfiguration(launch ? launch.workspace : undefined).then(() =>
 				this.extensionService.whenInstalledExtensionsRegistered().then(() => {
-
-					if (this.model.getSessions().length === 0) {
-						this.allSessions.clear();
-					}
 
 					let config: IConfig, compound: ICompound;
 					if (!configOrName) {
@@ -431,7 +422,6 @@ export class DebugService implements IDebugService {
 	private doCreateSession(root: IWorkspaceFolder, configuration: { resolved: IConfig, unresolved: IConfig }): TPromise<boolean> {
 
 		const session = this.instantiationService.createInstance(DebugSession, configuration, root, this.model);
-		this.allSessions.set(session.getId(), session);
 
 		// register listeners as the very first thing!
 		this.registerSessionListeners(session);

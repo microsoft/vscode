@@ -90,6 +90,10 @@ export class DebugSession implements IDebugSession {
 	}
 
 	get state(): State {
+		if (!this.raw) {
+			return State.Inactive;
+		}
+
 		const focusedThread = this.debugService.getViewModel().focusedThread;
 		if (focusedThread && focusedThread.session === this) {
 			return focusedThread.stopped ? State.Stopped : State.Running;
@@ -98,7 +102,7 @@ export class DebugSession implements IDebugSession {
 			return State.Stopped;
 		}
 
-		return !!this.raw ? State.Running : State.Inactive;
+		return State.Running;
 	}
 
 	get capabilities(): DebugProtocol.Capabilities {
@@ -747,14 +751,13 @@ export class DebugSession implements IDebugSession {
 
 	shutdown(): void {
 		dispose(this.rawListeners);
-		this.model.clearThreads(this.getId(), true);
-		this.model.removeSession(this.getId());
-		this._onDidChangeState.fire();
 		this.fetchThreadsScheduler = undefined;
 		if (this.raw) {
 			this.raw.disconnect();
 		}
 		this.raw = undefined;
+		this.model.clearThreads(this.getId(), true);
+		this._onDidChangeState.fire();
 	}
 
 	//---- sources

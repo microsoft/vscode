@@ -17,10 +17,6 @@ export class MockDebugService implements IDebugService {
 
 	public _serviceBrand: any;
 
-	getSession(sessionId: string): IDebugSession {
-		return undefined;
-	}
-
 	public get state(): State {
 		return null;
 	}

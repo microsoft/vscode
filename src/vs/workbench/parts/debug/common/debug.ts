@@ -376,7 +376,7 @@ export interface IViewModel extends ITreeElement {
 }
 
 export interface IDebugModel extends ITreeElement {
-	getSessions(): ReadonlyArray<IDebugSession>;
+	getSessions(includeInactive?: boolean): ReadonlyArray<IDebugSession>;
 	getBreakpoints(filter?: { uri?: uri, lineNumber?: number, column?: number, enabledOnly?: boolean }): ReadonlyArray<IBreakpoint>;
 	areBreakpointsActivated(): boolean;
 	getFunctionBreakpoints(): ReadonlyArray<IFunctionBreakpoint>;
@@ -771,11 +771,6 @@ export interface IDebugService {
 	 * Makes unavailable all sources with the passed uri. Source will appear as grayed out in callstack view.
 	 */
 	sourceIsNotAvailable(uri: uri): void;
-
-	/**
-	 * returns Session with the given ID (or undefined if ID is not found)
-	 */
-	getSession(sessionId: string): IDebugSession;
 
 	/**
 	 * Gets the current debug model.
