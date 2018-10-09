@@ -15,8 +15,8 @@ interface IMutableTreeNode<T, TFilterData> extends ITreeNode<T, TFilterData> {
 	collapsible: boolean;
 	collapsed: boolean;
 	revealedCount: number;
-	filterData: TFilterData | undefined;
 	visible: boolean;
+	filterData: TFilterData | undefined;
 }
 
 function isFilterResult<T>(obj: any): obj is ITreeFilterDataResult<T> {
