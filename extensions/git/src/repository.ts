@@ -669,20 +669,20 @@ export class Repository implements Disposable {
 		end = match ? match.index : text.length;
 
 		const line = text.substring(start, end);
-		const threshold = Math.max(config.get<number>('inputValidationLength') || 72, 0) || 72;
+		const subjectThreshold = Math.max(config.get<number>('subjectValidationLength') || 50, 0) || 50;
 
-		if (line.length <= threshold) {
+		if (line.length <= subjectThreshold) {
 			if (setting !== 'always') {
 				return;
 			}
 
 			return {
-				message: localize('commitMessageCountdown', "{0} characters left in current line", threshold - line.length),
+				message: localize('commitMessageCountdown', "{0} characters left in current line", subjectThreshold - line.length),
 				type: SourceControlInputBoxValidationType.Information
 			};
 		} else {
 			return {
-				message: localize('commitMessageWarning', "{0} characters over {1} in current line", line.length - threshold, threshold),
+				message: localize('commitMessageWarning', "{0} characters over {1} in current line", line.length - subjectThreshold, subjectThreshold),
 				type: SourceControlInputBoxValidationType.Warning
 			};
 		}
