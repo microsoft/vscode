@@ -185,7 +185,7 @@ export function rgErrorMsgForDisplay(msg: string): string | undefined {
 
 export class RipgrepParser extends EventEmitter {
 	private fileMatch: FileMatch;
-	private remainder: string;
+	private remainder = '';
 	private isDone: boolean;
 	private stringDecoder: NodeStringDecoder;
 
@@ -209,30 +209,41 @@ export class RipgrepParser extends EventEmitter {
 	}
 
 	public handleData(data: Buffer | string): void {
+		if (this.isDone) {
+			return;
+		}
+
 		const dataStr = typeof data === 'string' ? data : this.stringDecoder.write(data);
 		this.handleDecodedData(dataStr);
 	}
 
 	private handleDecodedData(decodedData: string): void {
+		// check for newline before appending to remainder
+		let newlineIdx = decodedData.indexOf('\n');
+
 		// If the previous data chunk didn't end in a newline, prepend it to this chunk
-		const dataStr = this.remainder ?
-			this.remainder + decodedData :
-			decodedData;
+		const dataStr = this.remainder + decodedData;
 
-		const dataLines: string[] = dataStr.split(/\r\n|\n/);
-		this.remainder = dataLines[dataLines.length - 1] ? dataLines.pop() : null;
-
-		for (let l = 0; l < dataLines.length; l++) {
-			const outputLine = dataLines[l].trim();
-
-			if (outputLine) {
-				this.handleLine(outputLine);
-			}
+		if (newlineIdx >= 0) {
+			newlineIdx += this.remainder.length;
+		} else {
+			// Shortcut
+			this.remainder = dataStr;
+			return;
 		}
+
+		let prevIdx = 0;
+		while (newlineIdx >= 0) {
+			this.handleLine(dataStr.substring(prevIdx, newlineIdx).trim());
+			prevIdx = newlineIdx + 1;
+			newlineIdx = dataStr.indexOf('\n', prevIdx);
+		}
+
+		this.remainder = dataStr.substring(prevIdx).trim();
 	}
 
 	private handleLine(outputLine: string): void {
-		if (this.isDone) {
+		if (this.isDone || !outputLine) {
 			return;
 		}
 
