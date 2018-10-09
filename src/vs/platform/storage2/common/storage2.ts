@@ -62,47 +62,47 @@ export interface INextWorkspaceStorageService {
 	 * Retrieve an element stored with the given key from storage. Use
 	 * the provided defaultValue if the element is null or undefined.
 	 *
-	 * The optional scope argument allows to define the scope of the storage
+	 * The scope argument allows to define the scope of the storage
 	 * operation to either the current workspace only or all workspaces.
 	 */
-	get(key: string, scope?: StorageScope, fallbackValue?: string): string;
+	get(key: string, scope: StorageScope, fallbackValue?: string): string;
 
 	/**
 	 * Retrieve an element stored with the given key from storage. Use
 	 * the provided defaultValue if the element is null or undefined. The element
 	 * will be converted to a boolean.
 	 *
-	 * The optional scope argument allows to define the scope of the storage
+	 * The scope argument allows to define the scope of the storage
 	 * operation to either the current workspace only or all workspaces.
 	 */
-	getBoolean(key: string, scope?: StorageScope, fallbackValue?: boolean): boolean;
+	getBoolean(key: string, scope: StorageScope, fallbackValue?: boolean): boolean;
 
 	/**
 	 * Retrieve an element stored with the given key from storage. Use
 	 * the provided defaultValue if the element is null or undefined. The element
 	 * will be converted to a number using parseInt with a base of 10.
 	 *
-	 * The optional scope argument allows to define the scope of the storage
+	 * The scope argument allows to define the scope of the storage
 	 * operation to either the current workspace only or all workspaces.
 	 */
-	getInteger(key: string, scope?: StorageScope, fallbackValue?: number): number;
+	getInteger(key: string, scope: StorageScope, fallbackValue?: number): number;
 
 	/**
 	 * Store a string value under the given key to storage. The value will
 	 * be converted to a string.
 	 *
-	 * The optional scope argument allows to define the scope of the storage
+	 * The scope argument allows to define the scope of the storage
 	 * operation to either the current workspace only or all workspaces.
 	 */
-	set(key: string, value: any, scope?: StorageScope): Promise<void>;
+	set(key: string, value: any, scope: StorageScope): Promise<void>;
 
 	/**
 	 * Delete an element stored under the provided key from storage.
 	 *
-	 * The optional scope argument allows to define the scope of the storage
+	 * The scope argument allows to define the scope of the storage
 	 * operation to either the current workspace only or all workspaces.
 	 */
-	delete(key: string, scope?: StorageScope): Promise<void>;
+	delete(key: string, scope: StorageScope): Promise<void>;
 }
 
 export const enum StorageScope {

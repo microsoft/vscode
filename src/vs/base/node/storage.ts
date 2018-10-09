@@ -213,7 +213,7 @@ class SQLiteStorageLogger {
 	private logError: boolean;
 
 	constructor(private options?: ISQLiteStorageLoggingOptions) {
-		this.logInfo = this.verbose && !!options.infoLogger;
+		this.logInfo = this.verbose && options && !!options.infoLogger;
 		this.logError = options && !!options.errorLogger;
 	}
 

@@ -35,7 +35,7 @@ export class LifecycleService extends Disposable implements ILifecycleService {
 	private _phase: LifecyclePhase = LifecyclePhase.Starting;
 	get phase(): LifecyclePhase { return this._phase; }
 
-	private _phaseWhen = new Map<LifecyclePhase, Barrier>();
+	private phaseWhen = new Map<LifecyclePhase, Barrier>();
 
 	constructor(
 		@INotificationService private notificationService: INotificationService,
@@ -150,9 +150,9 @@ export class LifecycleService extends Disposable implements ILifecycleService {
 		this._phase = value;
 		mark(`LifecyclePhase/${LifecyclePhaseToString(value)}`);
 
-		if (this._phaseWhen.has(this._phase)) {
-			this._phaseWhen.get(this._phase).open();
-			this._phaseWhen.delete(this._phase);
+		if (this.phaseWhen.has(this._phase)) {
+			this.phaseWhen.get(this._phase).open();
+			this.phaseWhen.delete(this._phase);
 		}
 	}
 
@@ -161,10 +161,10 @@ export class LifecycleService extends Disposable implements ILifecycleService {
 			return Promise.resolve();
 		}
 
-		let barrier = this._phaseWhen.get(phase);
+		let barrier = this.phaseWhen.get(phase);
 		if (!barrier) {
 			barrier = new Barrier();
-			this._phaseWhen.set(phase, barrier);
+			this.phaseWhen.set(phase, barrier);
 		}
 
 		return barrier.wait();

@@ -69,16 +69,28 @@ export interface ILifecycleService {
 	 */
 	onBeforeWindowUnload: Event<IWindowUnloadEvent>;
 
-	ready(): void;
-	registerWindow(window: ICodeWindow): void;
-
+	/**
+	 * Close a window for the provided reason. Shutdown handlers are triggered.
+	 */
 	unload(window: ICodeWindow, reason: UnloadReason): TPromise<boolean /* veto */>;
 
+	/**
+	 * Restart the application with optional arguments (CLI). Shutdown handlers are triggered.
+	 */
 	relaunch(options?: { addArgs?: string[], removeArgs?: string[] }): void;
 
+	/**
+	 * Shutdown the application normally. Shutdown handlers are triggered.
+	 */
 	quit(fromUpdate?: boolean): TPromise<boolean /* veto */>;
 
+	/**
+	 * Forcefully shutdown the application. No shutdown handlers are triggered.
+	 */
 	kill(code?: number): void;
+
+	ready(): void;
+	registerWindow(window: ICodeWindow): void;
 }
 
 export class LifecycleService extends Disposable implements ILifecycleService {

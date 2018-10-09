@@ -18,7 +18,7 @@ enum StorageState {
 	Closed
 }
 
-export class NextStorageServiceImpl extends Disposable implements INextStorageService {
+export class NextStorageService extends Disposable implements INextStorageService {
 	_serviceBrand: any;
 
 	private static readonly FLUSH_DELAY = 10;
@@ -52,7 +52,7 @@ export class NextStorageServiceImpl extends Disposable implements INextStorageSe
 			}
 		});
 
-		this.pendingScheduler = new RunOnceScheduler(() => this.flushPending(), NextStorageServiceImpl.FLUSH_DELAY);
+		this.pendingScheduler = new RunOnceScheduler(() => this.flushPending(), NextStorageService.FLUSH_DELAY);
 	}
 
 	init(): Promise<void> {

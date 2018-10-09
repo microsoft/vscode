@@ -36,7 +36,7 @@ import { IWorkspacesService, ISingleFolderWorkspaceIdentifier } from 'vs/platfor
 import { createSpdLogService } from 'vs/platform/log/node/spdlogService';
 import * as fs from 'fs';
 import { ConsoleLogService, MultiplexLogService, ILogService } from 'vs/platform/log/common/log';
-import { NextWorkspaceStorageServiceImpl } from 'vs/platform/storage2/node/nextWorkspaceStorageServiceImpl';
+import { NextWorkspaceStorageService } from 'vs/platform/storage2/node/nextWorkspaceStorageService';
 import { IssueChannelClient } from 'vs/platform/issue/node/issueIpc';
 import { IIssueService } from 'vs/platform/issue/common/issue';
 import { LogLevelSetterChannelClient, FollowerLogService } from 'vs/platform/log/node/logIpc';
@@ -166,8 +166,8 @@ function validateFolderUri(folderUri: ISingleFolderWorkspaceIdentifier, verbose:
 	});
 }
 
-function createNextWorkspaceStorageService(environmentService: IEnvironmentService, logService: ILogService): Promise<NextWorkspaceStorageServiceImpl> {
-	const nextStorageService = new NextWorkspaceStorageServiceImpl(':memory:', logService, environmentService);
+function createNextWorkspaceStorageService(environmentService: IEnvironmentService, logService: ILogService): Promise<NextWorkspaceStorageService> {
+	const nextStorageService = new NextWorkspaceStorageService(':memory:', logService, environmentService);
 
 	return nextStorageService.init().then(() => nextStorageService);
 }

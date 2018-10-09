@@ -16,7 +16,7 @@ export const ILifecycleService = createDecorator<ILifecycleService>('lifecycleSe
  * resolves to a boolean. Returning a promise is useful in cases of long running operations
  * on shutdown.
  *
- * Note: It is absolutely important to avoid long running promises on this call. Please try hard
+ * Note: It is absolutely important to avoid long running promises if possible. Please try hard
  * to return a boolean directly. Returning a promise has quite an impact on the shutdown sequence!
  */
 export interface WillShutdownEvent {
@@ -38,7 +38,7 @@ export interface WillShutdownEvent {
  * by providing a promise from the join method. Returning a promise is useful in cases of long
  * running operations on shutdown.
  *
- * Note: It is absolutely important to avoid long running promises on this call. Please try hard
+ * Note: It is absolutely important to avoid long running promises if possible. Please try hard
  * to return a boolean directly. Returning a promise has quite an impact on the shutdown sequence!
  */
 export interface ShutdownEvent {
@@ -141,11 +141,11 @@ export interface ILifecycleService {
 
 export const NullLifecycleService: ILifecycleService = {
 	_serviceBrand: null,
-	phase: LifecyclePhase.Running,
-	when() { return Promise.resolve(); },
-	startupKind: StartupKind.NewWindow,
 	onWillShutdown: Event.None,
-	onShutdown: Event.None
+	onShutdown: Event.None,
+	phase: LifecyclePhase.Running,
+	startupKind: StartupKind.NewWindow,
+	when() { return Promise.resolve(); }
 };
 
 // Shared veto handling across main and renderer

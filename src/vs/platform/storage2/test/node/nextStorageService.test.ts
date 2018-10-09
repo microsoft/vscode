@@ -5,7 +5,7 @@
 
 import { NullLogService } from 'vs/platform/log/common/log';
 import { TestEnvironmentService } from 'vs/workbench/test/workbenchTestServices';
-import { NextStorageServiceImpl } from 'vs/platform/storage2/node/nextStorageServiceImpl';
+import { NextStorageService } from 'vs/platform/storage2/node/nextStorageService';
 import { generateUuid } from 'vs/base/common/uuid';
 import { join } from 'path';
 import { tmpdir } from 'os';
@@ -33,7 +33,7 @@ suite('Workbench NextStorageService', () => {
 		const storageDir = uniqueStorageDir();
 		await mkdirp(storageDir);
 
-		const storageService = new NextStorageServiceImpl(join(storageDir, 'storage.db'), new NullLogService(), TestEnvironmentService);
+		const storageService = new NextStorageService(join(storageDir, 'storage.db'), new NullLogService(), TestEnvironmentService);
 
 		await storageService.init();
 
@@ -90,7 +90,7 @@ suite('Workbench NextStorageService', () => {
 		const storageDir = uniqueStorageDir();
 		await mkdirp(storageDir);
 
-		let storageService = new NextStorageServiceImpl(join(storageDir, 'storage.db'), new NullLogService(), TestEnvironmentService);
+		let storageService = new NextStorageService(join(storageDir, 'storage.db'), new NullLogService(), TestEnvironmentService);
 		await storageService.init();
 
 		const set1Promise = storageService.set('foo', 'bar');
@@ -106,7 +106,7 @@ suite('Workbench NextStorageService', () => {
 
 		equal(setPromiseResolved, true);
 
-		storageService = new NextStorageServiceImpl(join(storageDir, 'storage.db'), new NullLogService(), TestEnvironmentService);
+		storageService = new NextStorageService(join(storageDir, 'storage.db'), new NullLogService(), TestEnvironmentService);
 		await storageService.init();
 
 		equal(storageService.get('foo'), 'bar');
@@ -114,7 +114,7 @@ suite('Workbench NextStorageService', () => {
 
 		await storageService.close();
 
-		storageService = new NextStorageServiceImpl(join(storageDir, 'storage.db'), new NullLogService(), TestEnvironmentService);
+		storageService = new NextStorageService(join(storageDir, 'storage.db'), new NullLogService(), TestEnvironmentService);
 		await storageService.init();
 
 		const delete1Promise = storageService.delete('foo');
@@ -130,7 +130,7 @@ suite('Workbench NextStorageService', () => {
 
 		equal(deletePromiseResolved, true);
 
-		storageService = new NextStorageServiceImpl(join(storageDir, 'storage.db'), new NullLogService(), TestEnvironmentService);
+		storageService = new NextStorageService(join(storageDir, 'storage.db'), new NullLogService(), TestEnvironmentService);
 		await storageService.init();
 
 		ok(!storageService.get('foo'));
@@ -144,7 +144,7 @@ suite('Workbench NextStorageService', () => {
 		const storageDir = uniqueStorageDir();
 		await mkdirp(storageDir);
 
-		let storageService = new NextStorageServiceImpl(join(storageDir, 'storage.db'), new NullLogService(), TestEnvironmentService);
+		let storageService = new NextStorageService(join(storageDir, 'storage.db'), new NullLogService(), TestEnvironmentService);
 		await storageService.init();
 
 		const set1Promise = storageService.set('foo', 'bar1');

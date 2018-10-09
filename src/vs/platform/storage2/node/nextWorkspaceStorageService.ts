@@ -8,16 +8,16 @@ import { Event, Emitter } from 'vs/base/common/event';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { INextStorageService, IWorkspaceStorageChangeEvent, INextWorkspaceStorageService, StorageScope } from 'vs/platform/storage2/common/storage2';
-import { NextStorageServiceImpl } from 'vs/platform/storage2/node/nextStorageServiceImpl';
+import { NextStorageService } from 'vs/platform/storage2/node/nextStorageService';
 
-export class NextWorkspaceStorageServiceImpl extends Disposable implements INextWorkspaceStorageService {
+export class NextWorkspaceStorageService extends Disposable implements INextWorkspaceStorageService {
 	_serviceBrand: any;
 
 	private _onDidChangeStorage: Emitter<IWorkspaceStorageChangeEvent> = this._register(new Emitter<IWorkspaceStorageChangeEvent>());
 	get onDidChangeStorage(): Event<IWorkspaceStorageChangeEvent> { return this._onDidChangeStorage.event; }
 
-	private globalStorage: NextStorageServiceImpl;
-	private workspaceStorage: NextStorageServiceImpl;
+	private globalStorage: NextStorageService;
+	private workspaceStorage: NextStorageService;
 
 	constructor(
 		workspaceDBPath: string,
@@ -26,8 +26,8 @@ export class NextWorkspaceStorageServiceImpl extends Disposable implements INext
 	) {
 		super();
 
-		this.globalStorage = new NextStorageServiceImpl(':memory:', logService, environmentService); // TODO proxy from main side!
-		this.workspaceStorage = new NextStorageServiceImpl(workspaceDBPath, logService, environmentService);
+		this.globalStorage = new NextStorageService(':memory:', logService, environmentService);
+		this.workspaceStorage = new NextStorageService(workspaceDBPath, logService, environmentService);
 
 		this.registerListeners();
 	}
@@ -45,28 +45,31 @@ export class NextWorkspaceStorageServiceImpl extends Disposable implements INext
 		return Promise.all([this.globalStorage.init(), this.workspaceStorage.init()]).then(() => void 0);
 	}
 
-	get(key: string, scope: StorageScope = StorageScope.GLOBAL, fallbackValue?: any): string {
+	get(key: string, scope: StorageScope, fallbackValue?: any): string {
 		return this.getStorage(scope).get(key, fallbackValue);
 	}
 
-	getBoolean(key: string, scope: StorageScope = StorageScope.GLOBAL, fallbackValue?: boolean): boolean {
+	getBoolean(key: string, scope: StorageScope, fallbackValue?: boolean): boolean {
 		return this.getStorage(scope).getBoolean(key, fallbackValue);
 	}
 
-	getInteger(key: string, scope: StorageScope = StorageScope.GLOBAL, fallbackValue?: number): number {
+	getInteger(key: string, scope: StorageScope, fallbackValue?: number): number {
 		return this.getStorage(scope).getInteger(key, fallbackValue);
 	}
 
-	set(key: string, value: any, scope: StorageScope = StorageScope.GLOBAL): Promise<void> {
+	set(key: string, value: any, scope: StorageScope): Promise<void> {
 		return this.getStorage(scope).set(key, value);
 	}
 
-	delete(key: string, scope: StorageScope = StorageScope.GLOBAL): Promise<void> {
+	delete(key: string, scope: StorageScope): Promise<void> {
 		return this.getStorage(scope).delete(key);
 	}
 
 	close(): Promise<void> {
-		return this.workspaceStorage.close();
+		return Promise.all([
+			this.globalStorage.close(),
+			this.workspaceStorage.close()
+		]).then(() => void 0);
 	}
 
 	private getStorage(scope: StorageScope): INextStorageService {
