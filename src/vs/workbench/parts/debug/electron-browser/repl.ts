@@ -30,7 +30,6 @@ import { IInstantiationService, createDecorator } from 'vs/platform/instantiatio
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { ReplExpressionsRenderer, ReplExpressionsController, ReplExpressionsDataSource, ReplExpressionsActionProvider, ReplExpressionsAccessibilityProvider } from 'vs/workbench/parts/debug/electron-browser/replViewer';
 import { Panel } from 'vs/workbench/browser/panel';
-import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { clipboard } from 'electron';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
@@ -100,7 +99,6 @@ export class Repl extends Panel implements IPrivateReplService, IHistoryNavigati
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@IStorageService private storageService: IStorageService,
-		@IPanelService private panelService: IPanelService,
 		@IThemeService protected themeService: IThemeService,
 		@IModelService private modelService: IModelService,
 		@IContextKeyService private contextKeyService: IContextKeyService,
@@ -116,9 +114,10 @@ export class Repl extends Panel implements IPrivateReplService, IHistoryNavigati
 
 	private registerListeners(): void {
 		this._register(this.debugService.getViewModel().onDidFocusSession(session => {
-			this.selectSession(session);
+			if (this.isVisible()) {
+				this.selectSession(session);
+			}
 		}));
-		this._register(this.panelService.onDidPanelOpen(() => this.refreshReplElements(true)));
 		this._register(this.debugService.onDidNewSession(() => this.updateTitleArea()));
 		this._register(this.themeService.onThemeChange(() => {
 			if (this.isVisible()) {
@@ -263,15 +262,13 @@ export class Repl extends Panel implements IPrivateReplService, IHistoryNavigati
 				this.refreshReplElements(session.getReplElements().length === 0);
 			});
 
-			if (this.tree && this.isVisible() && this.tree.getInput() !== session) {
+			if (this.tree && this.tree.getInput() !== session) {
 				this.tree.setInput(session);
 			}
 		}
 
 		this.replInput.updateOptions({ readOnly: this.isReadonly });
-		if (this.isVisible()) {
-			this.updateInputDecoration();
-		}
+		this.updateInputDecoration();
 	}
 
 	clearRepl(): void {
