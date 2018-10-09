@@ -1711,49 +1711,48 @@ export class CommandCenter {
 		await this._push(repository, { pushType: PushType.PushTo, forcePush: true });
 	}
 
-	private async _remote(repository: Repository, rebase: boolean): Promise<void> {
-		const HEAD = repository.HEAD;
+	@command('git.addRemote', { repository: true })
+	async addRemote(repository: Repository): Promise<void> {
+		const config = workspace.getConfiguration('git');
+		const branchValidationRegex = config.get<string>('branchValidationRegex')!;
+		const branchWhitespaceChar = config.get<string>('branchWhitespaceChar')!;
+		const validateName = new RegExp(branchValidationRegex);
+		const sanitize = (name: string) => {
+			name = name.trim();
 
-		if (!HEAD || !HEAD.upstream) {
+			if (!name) {
+				return name;
+			}
+
+			return name.replace(/^\.|\/\.|\.\.|~|\^|:|\/$|\.lock$|\.lock\/|\\|\*|\s|^\s*$|\.$|\[|\]$/g, branchWhitespaceChar);
+		};
+
+		const result = await window.showInputBox({
+			placeHolder: localize('remote name', "Remote name"),
+			prompt: localize('provide remote name', "Please provide a remote name"),
+			ignoreFocusOut: true,
+			validateInput: (name: string) => {
+				if (validateName.test(sanitize(name))) {
+					return null;
+				}
+
+				return localize('branch name format invalid', "Branch name needs to match regex: {0}", branchValidationRegex);
+			}
+		});
+
+		const name = sanitize(result || '');
+
+		if (!name) {
 			return;
 		}
 
-		const remoteName = HEAD.remote || HEAD.upstream.remote;
-		const remote = repository.remotes.find(r => r.name === remoteName);
-		const isReadonly = remote && remote.isReadOnly;
-
-		const config = workspace.getConfiguration('git');
-		const shouldPrompt = !isReadonly && config.get<boolean>('confirmSync') === true;
-
-		if (shouldPrompt) {
-			const message = localize('sync is unpredictable', "This action will push and pull commits to and from '{0}/{1}'.", HEAD.upstream.remote, HEAD.upstream.name);
-			const yes = localize('ok', "OK");
-			const neverAgain = localize('never again', "OK, Don't Show Again");
-			const pick = await window.showWarningMessage(message, { modal: true }, yes, neverAgain);
-
-			if (pick === neverAgain) {
-				await config.update('confirmSync', false, true);
-			} else if (pick !== yes) {
-				return;
-			}
-		}
-
-		if (rebase) {
-			await repository.syncRebase(HEAD);
-		} else {
-			await repository.sync(HEAD);
-		}
+		await repository.branch(name, true);
 	}
 
-	// @command('git.addRemote', { repository: true })
-	// async addRemote(repository: Repository): Promise<void> {
-	// 	await this._remote(repository, { pushType: PushType.PushTo });
-	// }
+	@command('git.removeRemote', { repository: true })
+	async removeRemote(repository: Repository): Promise<void> {
 
-	// @command('git.removeRemote', { repository: true })
-	// async removeRemote(repository: Repository): Promise<void> {
-	// 	await this._remote(repository, { pushType: PushType.PushTo, forcePush: true });
-	// }
+	}
 
 	private async _sync(repository: Repository, rebase: boolean): Promise<void> {
 		const HEAD = repository.HEAD;
