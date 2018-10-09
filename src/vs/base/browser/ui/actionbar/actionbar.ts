@@ -49,7 +49,7 @@ export class BaseActionItem extends Disposable implements IActionItem {
 		if (action instanceof Action) {
 			this._register(action.onDidChange(event => {
 				if (!this.element) {
-					// we have not been rendered yet, so there
+					// We have not been rendered yet, so there
 					// is no point in updating the UI
 					return;
 				}
@@ -185,23 +185,23 @@ export class BaseActionItem extends Disposable implements IActionItem {
 	}
 
 	protected updateEnabled(): void {
-		// implement in subclass
+		// Implement in subclass
 	}
 
 	protected updateLabel(): void {
-		// implement in subclass
+		// Implement in subclass
 	}
 
 	protected updateTooltip(): void {
-		// implement in subclass
+		// Implement in subclass
 	}
 
 	protected updateClass(): void {
-		// implement in subclass
+		// Implement in subclass
 	}
 
 	protected updateChecked(): void {
-		// implement in subclass
+		// Implement in subclass
 	}
 
 	dispose(): void {
@@ -746,10 +746,10 @@ export class ActionBar extends Disposable implements IActionRunner {
 
 	private doTrigger(event: StandardKeyboardEvent): void {
 		if (typeof this.focusedItem === 'undefined') {
-			return; //nothing to focus
+			return; // Nothing to focus
 		}
 
-		// trigger action
+		// Trigger action
 		let actionItem = this.items[this.focusedItem];
 		if (actionItem instanceof BaseActionItem) {
 			const context = (actionItem._context === null || actionItem._context === undefined) ? event : actionItem._context;
@@ -759,7 +759,8 @@ export class ActionBar extends Disposable implements IActionRunner {
 
 	private cancel(): void {
 		if (document.activeElement instanceof HTMLElement) {
-			(<HTMLElement>document.activeElement).blur(); // remove focus from focused action
+			// Unfocus focused action
+			(<HTMLElement>document.activeElement).blur();
 		}
 
 		this._onDidCancel.fire();
@@ -773,10 +774,10 @@ export class ActionBar extends Disposable implements IActionRunner {
 		if (this.items !== null) {
 			dispose(this.items);
 		}
+
 		this.items = null;
 
 		this.getContainer().remove();
-
 		super.dispose();
 	}
 }
