@@ -1591,6 +1591,7 @@ export class CommandCenter {
 		}
 
 		await repository.pull(repository.HEAD);
+		await repository.fetchDefault();
 	}
 
 	@command('git.pullRebase', { repository: true })
