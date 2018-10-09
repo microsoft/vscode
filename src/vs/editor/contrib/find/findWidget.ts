@@ -868,11 +868,12 @@ export class FindWidget extends Widget implements IOverlayWidget, IHorizontalSas
 		this._preserveCase = this._register(new Checkbox({
 			actionClassName: 'preserve-case',
 			title: NLS_PRESERVE_CASE_LABEL,
-			isChecked: false
+			isChecked: false,
 		}));
 		this._preserveCase.checked = !!this._state.preserveCase;
 		this._register(this._preserveCase.onChange(viaKeyboard => {
 			if (!viaKeyboard) {
+				this._state.change({ preserveCase: !this._state.preserveCase }, false);
 				this._replaceInputBox.focus();
 			}
 		}));

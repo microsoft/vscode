@@ -109,7 +109,8 @@ export class CommonFindController extends Disposable implements editorCommon.IEd
 				searchScope: null,
 				matchCase: this._storageService.getBoolean('editor.matchCase', StorageScope.WORKSPACE, false),
 				wholeWord: this._storageService.getBoolean('editor.wholeWord', StorageScope.WORKSPACE, false),
-				isRegex: this._storageService.getBoolean('editor.isRegex', StorageScope.WORKSPACE, false)
+				isRegex: this._storageService.getBoolean('editor.isRegex', StorageScope.WORKSPACE, false),
+				preserveCase: this._storageService.getBoolean('editor.preserveCase', StorageScope.WORKSPACE, false)
 			}, false);
 
 			if (shouldRestartFind) {
@@ -167,13 +168,17 @@ export class CommonFindController extends Disposable implements editorCommon.IEd
 		if (e.matchCase) {
 			this._storageService.store('editor.matchCase', this._state.actualMatchCase, StorageScope.WORKSPACE);
 		}
+		if (e.preserveCase) {
+			this._storageService.store('editor.preserveCase', this._state.actualPreserveCase, StorageScope.WORKSPACE);
+		}
 	}
 
 	private loadQueryState() {
 		this._state.change({
 			matchCase: this._storageService.getBoolean('editor.matchCase', StorageScope.WORKSPACE, this._state.matchCase),
 			wholeWord: this._storageService.getBoolean('editor.wholeWord', StorageScope.WORKSPACE, this._state.wholeWord),
-			isRegex: this._storageService.getBoolean('editor.isRegex', StorageScope.WORKSPACE, this._state.isRegex)
+			isRegex: this._storageService.getBoolean('editor.isRegex', StorageScope.WORKSPACE, this._state.isRegex),
+			preserveCase: this._storageService.getBoolean('editor.preserveCase', StorageScope.WORKSPACE, this._state.preserveCase)
 		}, false);
 	}
 
@@ -212,6 +217,11 @@ export class CommonFindController extends Disposable implements editorCommon.IEd
 		if (!this._state.isRevealed) {
 			this.highlightFindOptions();
 		}
+	}
+
+	public togglePreserveCase(): void {
+		this._state.change({ preserveCase: !this._state.preserveCase }, false);
+		this.highlightFindOptions();
 	}
 
 	public toggleSearchScope(): void {
