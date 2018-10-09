@@ -1402,7 +1402,8 @@ export class SearchView extends Viewlet implements IViewlet, IPanel {
 			return TPromise.as(true);
 		}
 
-		return (this.viewModel.isReplaceActive() && !!this.viewModel.replaceString) ?
+		const useReplacePreview = this.configurationService.getValue<ISearchConfiguration>().search.useReplacePreview;
+		return (useReplacePreview && this.viewModel.isReplaceActive() && !!this.viewModel.replaceString) ?
 			this.replaceService.openReplacePreview(lineMatch, preserveFocus, sideBySide, pinned) :
 			this.open(lineMatch, preserveFocus, sideBySide, pinned);
 	}

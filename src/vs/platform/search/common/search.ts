@@ -295,6 +295,7 @@ export interface ISearchConfigurationProperties {
 	smartCase: boolean;
 	globalFindClipboard: boolean;
 	location: 'sidebar' | 'panel';
+	useReplacePreview: boolean;
 }
 
 export interface ISearchConfiguration extends IFilesConfiguration {
