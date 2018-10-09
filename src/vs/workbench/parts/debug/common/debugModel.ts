@@ -1049,6 +1049,7 @@ export class DebugModel implements IDebugModel {
 	}
 
 	public dispose(): void {
+		// Make sure to shutdown each session, such that no debugged process is left laying around
 		this.sessions.forEach(s => s.shutdown());
 		this.toDispose = lifecycle.dispose(this.toDispose);
 	}
