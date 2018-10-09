@@ -22,8 +22,7 @@ import { QuickFixAction } from 'vs/workbench/parts/markers/electron-browser/mark
 import { ILabelService } from 'vs/platform/label/common/label';
 import { dirname } from 'vs/base/common/resources';
 import { IVirtualDelegate } from 'vs/base/browser/ui/list/list';
-import { ITreeRenderer } from 'vs/base/browser/ui/tree/abstractTree';
-import { ITreeFilter, TreeVisibility, TreeFilterResult } from 'vs/base/browser/ui/tree/tree';
+import { ITreeFilter, TreeVisibility, TreeFilterResult, ITreeRenderer, ITreeRenderElement } from 'vs/base/browser/ui/tree/tree';
 import { FilterOptions } from 'vs/workbench/parts/markers/electron-browser/markersFilterOptions';
 import { IMatch } from 'vs/base/common/filters';
 
@@ -99,7 +98,33 @@ export class VirtualDelegate implements IVirtualDelegate<ResourceMarkers | Marke
 	}
 }
 
-export class ResourceMarkersRenderer implements ITreeRenderer<ResourceMarkers, IResourceMarkersTemplateData> {
+const enum FilterDataType {
+	ResourceMarkers,
+	Marker,
+	RelatedInformation
+}
+
+interface ResourceMarkersFilterData {
+	type: FilterDataType.ResourceMarkers;
+	uriMatches: IMatch[];
+}
+
+interface MarkerFilterData {
+	type: FilterDataType.Marker;
+	messageMatches: IMatch[];
+	sourceMatches: IMatch[];
+	codeMatches: IMatch[];
+}
+
+interface RelatedInformationFilterData {
+	type: FilterDataType.RelatedInformation;
+	uriMatches: IMatch[];
+	messageMatches: IMatch[];
+}
+
+type FilterData = ResourceMarkersFilterData | MarkerFilterData | RelatedInformationFilterData;
+
+export class ResourceMarkersRenderer implements ITreeRenderer<ResourceMarkers, ResourceMarkersFilterData, IResourceMarkersTemplateData> {
 
 	constructor(
 		@IInstantiationService protected instantiationService: IInstantiationService,
@@ -123,14 +148,17 @@ export class ResourceMarkersRenderer implements ITreeRenderer<ResourceMarkers, I
 	}
 
 	// TODO@joao
-	renderElement(element: ResourceMarkers, _: number, templateData: IResourceMarkersTemplateData): void {
+	renderElement(element: ITreeRenderElement<ResourceMarkers, ResourceMarkersFilterData>, _: number, templateData: IResourceMarkersTemplateData): void {
+		const resourceMarkers = element.element;
+		const uriMatches = element.filterData && element.filterData.uriMatches || [];
+
 		if (templateData.resourceLabel instanceof FileLabel) {
-			templateData.resourceLabel.setFile(element.resource/* , { matches: element.uriMatches } */);
+			templateData.resourceLabel.setFile(resourceMarkers.resource, { matches: uriMatches });
 		} else {
-			templateData.resourceLabel.setLabel({ name: element.name, description: this.labelService.getUriLabel(dirname(element.resource), { relative: true }), resource: element.resource }/* , { matches: element.uriMatches } */);
+			templateData.resourceLabel.setLabel({ name: resourceMarkers.name, description: this.labelService.getUriLabel(dirname(resourceMarkers.resource), { relative: true }), resource: resourceMarkers.resource }, { matches: uriMatches });
 		}
 
-		templateData.count.setCount(element.markers.length/* filteredCount */);
+		// templateData.count.setCount(element.markers.length/* filteredCount */);
 	}
 
 	disposeElement(): void {
@@ -156,7 +184,7 @@ export class FileResourceMarkersRenderer extends ResourceMarkersRenderer {
 	}
 }
 
-export class MarkerRenderer implements ITreeRenderer<Marker, IMarkerTemplateData> {
+export class MarkerRenderer implements ITreeRenderer<Marker, MarkerFilterData, IMarkerTemplateData> {
 
 	constructor(
 		private actionItemProvider: IActionItemProvider,
@@ -177,24 +205,26 @@ export class MarkerRenderer implements ITreeRenderer<Marker, IMarkerTemplateData
 		return data;
 	}
 
-	// TODO@joao
-	renderElement(element: Marker, _: number, templateData: IMarkerTemplateData): void {
-		let marker = element.marker;
+	renderElement(element: ITreeRenderElement<Marker, MarkerFilterData>, _: number, templateData: IMarkerTemplateData): void {
+		const marker = element.element.marker;
+		const sourceMatches = element.filterData && element.filterData.sourceMatches || [];
+		const messageMatches = element.filterData && element.filterData.messageMatches || [];
+		const codeMatches = element.filterData && element.filterData.codeMatches || [];
 
 		templateData.icon.className = 'icon ' + MarkerRenderer.iconClassNameFor(marker);
 
-		templateData.source.set(marker.source/* , element.sourceMatches */);
+		templateData.source.set(marker.source, sourceMatches);
 		dom.toggleClass(templateData.source.element, 'marker-source', !!marker.source);
 
 		templateData.actionBar.clear();
-		const quickFixAction = this.instantiationService.createInstance(QuickFixAction, element);
+		const quickFixAction = this.instantiationService.createInstance(QuickFixAction, element.element);
 		templateData.actionBar.push([quickFixAction], { icon: true, label: false });
 
-		templateData.description.set(marker.message/* , element.messageMatches */);
+		templateData.description.set(marker.message, messageMatches);
 		templateData.description.element.title = marker.message;
 
 		dom.toggleClass(templateData.code.element, 'marker-code', !!marker.code);
-		templateData.code.set(marker.code || ''/* , element.codeMatches */);
+		templateData.code.set(marker.code || '', codeMatches);
 
 		templateData.lnCol.textContent = Messages.MARKERS_PANEL_AT_LINE_COL_NUMBER(marker.startLineNumber, marker.startColumn);
 	}
@@ -224,7 +254,7 @@ export class MarkerRenderer implements ITreeRenderer<Marker, IMarkerTemplateData
 	}
 }
 
-export class RelatedInformationRenderer implements ITreeRenderer<RelatedInformation, IRelatedInformationTemplateData> {
+export class RelatedInformationRenderer implements ITreeRenderer<RelatedInformation, RelatedInformationFilterData, IRelatedInformationTemplateData> {
 
 	constructor(
 		@ILabelService private labelService: ILabelService
@@ -250,12 +280,16 @@ export class RelatedInformationRenderer implements ITreeRenderer<RelatedInformat
 	}
 
 	// TODO@joao
-	renderElement(element: RelatedInformation, _: number, templateData: IRelatedInformationTemplateData): void {
-		templateData.resourceLabel.set(paths.basename(element.raw.resource.fsPath)/* , element.uriMatches */);
-		templateData.resourceLabel.element.title = this.labelService.getUriLabel(element.raw.resource, { relative: true });
-		templateData.lnCol.textContent = Messages.MARKERS_PANEL_AT_LINE_COL_NUMBER(element.raw.startLineNumber, element.raw.startColumn);
-		templateData.description.set(element.raw.message/* , element.messageMatches */);
-		templateData.description.element.title = element.raw.message;
+	renderElement(element: ITreeRenderElement<RelatedInformation, RelatedInformationFilterData>, _: number, templateData: IRelatedInformationTemplateData): void {
+		const relatedInformation = element.element.raw;
+		const uriMatches = element.filterData && element.filterData.uriMatches || [];
+		const messageMatches = element.filterData && element.filterData.messageMatches || [];
+
+		templateData.resourceLabel.set(paths.basename(relatedInformation.resource.fsPath), uriMatches);
+		templateData.resourceLabel.element.title = this.labelService.getUriLabel(relatedInformation.resource, { relative: true });
+		templateData.lnCol.textContent = Messages.MARKERS_PANEL_AT_LINE_COL_NUMBER(relatedInformation.startLineNumber, relatedInformation.startColumn);
+		templateData.description.set(relatedInformation.message, messageMatches);
+		templateData.description.element.title = relatedInformation.message;
 	}
 
 	disposeElement(): void {
@@ -267,30 +301,6 @@ export class RelatedInformationRenderer implements ITreeRenderer<RelatedInformat
 		templateData.resourceLabel.dispose();
 	}
 }
-
-const enum FilterDataType {
-	ResourceMarkers,
-	Marker,
-	RelatedInformation
-}
-
-interface ResourceMarkersFilterData {
-	type: FilterDataType.ResourceMarkers;
-	uriMatches: IMatch[];
-}
-
-interface MarkerFilterData {
-	type: FilterDataType.Marker;
-	messageMatches: IMatch[];
-	sourceMatches: IMatch[];
-	codeMatches: IMatch[];
-}
-
-interface RelatedInformationFilterData {
-	type: FilterDataType.RelatedInformation;
-}
-
-type FilterData = ResourceMarkersFilterData | MarkerFilterData | RelatedInformationFilterData;
 
 export class Filter implements ITreeFilter<ResourceMarkers | Marker | RelatedInformation, FilterData> {
 

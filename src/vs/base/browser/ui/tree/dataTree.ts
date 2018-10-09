@@ -3,10 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ITreeOptions, ComposedTreeDelegate, createComposedTreeListOptions, ITreeRenderer } from 'vs/base/browser/ui/tree/abstractTree';
+import { ITreeOptions, ComposedTreeDelegate, createComposedTreeListOptions } from 'vs/base/browser/ui/tree/abstractTree';
 import { ObjectTree } from 'vs/base/browser/ui/tree/objectTree';
-import { IVirtualDelegate, IRenderer } from 'vs/base/browser/ui/list/list';
-import { ITreeElement, ITreeNode } from 'vs/base/browser/ui/tree/tree';
+import { IVirtualDelegate } from 'vs/base/browser/ui/list/list';
+import { ITreeElement, ITreeNode, ITreeRenderer, ITreeRenderElement } from 'vs/base/browser/ui/tree/tree';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { Emitter, Event } from 'vs/base/common/event';
 import { timeout } from 'vs/base/common/async';
@@ -39,14 +39,21 @@ interface IDataTreeListTemplateData<T> {
 	templateData: T;
 }
 
-class DataTreeRenderer<T, TTemplateData> implements ITreeRenderer<IDataTreeNode<T>, IDataTreeListTemplateData<TTemplateData>> {
+function unpack<T, TFilterData>(node: ITreeRenderElement<IDataTreeNode<T>, TFilterData>): ITreeRenderElement<T, TFilterData> {
+	return {
+		get element() { return node.element.element; },
+		get filterData() { return node.filterData; }
+	};
+}
+
+class DataTreeRenderer<T, TFilterData, TTemplateData> implements ITreeRenderer<IDataTreeNode<T>, TFilterData, IDataTreeListTemplateData<TTemplateData>> {
 
 	readonly templateId: string;
 	private renderedNodes = new Map<IDataTreeNode<T>, IDataTreeListTemplateData<TTemplateData>>();
 	private disposables: IDisposable[] = [];
 
 	constructor(
-		private renderer: IRenderer<T, TTemplateData>,
+		private renderer: ITreeRenderer<T, TFilterData, TTemplateData>,
 		readonly onDidChangeTwistieState: Event<IDataTreeNode<T>>
 	) {
 		this.templateId = renderer.templateId;
@@ -57,8 +64,8 @@ class DataTreeRenderer<T, TTemplateData> implements ITreeRenderer<IDataTreeNode<
 		return { templateData };
 	}
 
-	renderElement(node: IDataTreeNode<T>, index: number, templateData: IDataTreeListTemplateData<TTemplateData>): void {
-		this.renderer.renderElement(node.element, index, templateData.templateData);
+	renderElement(element: ITreeRenderElement<IDataTreeNode<T>, TFilterData>, index: number, templateData: IDataTreeListTemplateData<TTemplateData>): void {
+		this.renderer.renderElement(unpack(element), index, templateData.templateData);
 	}
 
 	renderTwistie(element: IDataTreeNode<T>, twistieElement: HTMLElement): boolean {
@@ -70,8 +77,8 @@ class DataTreeRenderer<T, TTemplateData> implements ITreeRenderer<IDataTreeNode<
 		return false;
 	}
 
-	disposeElement(node: IDataTreeNode<T>, index: number, templateData: IDataTreeListTemplateData<TTemplateData>): void {
-		this.renderer.disposeElement(node.element, index, templateData.templateData);
+	disposeElement(element: ITreeRenderElement<IDataTreeNode<T>, TFilterData>, index: number, templateData: IDataTreeListTemplateData<TTemplateData>): void {
+		this.renderer.disposeElement(unpack(element), index, templateData.templateData);
 	}
 
 	disposeTemplate(templateData: IDataTreeListTemplateData<TTemplateData>): void {
@@ -97,7 +104,7 @@ export class DataTree<T extends NonNullable<any>, TFilterData = void> implements
 	constructor(
 		container: HTMLElement,
 		delegate: IVirtualDelegate<T>,
-		renderers: ITreeRenderer<T, any>[],
+		renderers: ITreeRenderer<T, TFilterData, any>[],
 		private dataSource: IDataSource<T>,
 		options?: ITreeOptions<T, TFilterData>
 	) {

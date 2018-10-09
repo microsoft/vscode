@@ -11,7 +11,7 @@ import { append, $ } from 'vs/base/browser/dom';
 import { Event, Relay, chain, mapEvent } from 'vs/base/common/event';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { KeyCode } from 'vs/base/common/keyCodes';
-import { ITreeModel, ITreeNode } from 'vs/base/browser/ui/tree/tree';
+import { ITreeModel, ITreeNode, ITreeRenderer } from 'vs/base/browser/ui/tree/tree';
 import { ISpliceable } from 'vs/base/common/sequence';
 import { IIndexTreeModelOptions } from 'vs/base/browser/ui/tree/indexTreeModel';
 import { memoize } from 'vs/base/common/decorators';
@@ -72,11 +72,6 @@ function renderDefaultTwistie<T>(node: ITreeNode<T, any>, twistie: HTMLElement):
 	}
 }
 
-export interface ITreeRenderer<TElement, TTemplateData> extends IRenderer<TElement, TTemplateData> {
-	renderTwistie?(element: TElement, twistieElement: HTMLElement): boolean;
-	onDidChangeTwistieState?: Event<TElement>;
-}
-
 class TreeRenderer<T, TFilterData, TTemplateData> implements IRenderer<ITreeNode<T, TFilterData>, ITreeListTemplateData<TTemplateData>> {
 
 	readonly templateId: string;
@@ -85,7 +80,7 @@ class TreeRenderer<T, TFilterData, TTemplateData> implements IRenderer<ITreeNode
 	private disposables: IDisposable[] = [];
 
 	constructor(
-		private renderer: ITreeRenderer<T, TTemplateData>,
+		private renderer: ITreeRenderer<T, TFilterData, TTemplateData>,
 		onDidChangeCollapseState: Event<ITreeNode<T, TFilterData>>
 	) {
 		this.templateId = renderer.templateId;
@@ -113,11 +108,11 @@ class TreeRenderer<T, TFilterData, TTemplateData> implements IRenderer<ITreeNode
 		templateData.twistie.style.width = `${10 + node.depth * 10}px`;
 		this.renderTwistie(node, templateData.twistie);
 
-		this.renderer.renderElement(node.element, index, templateData.templateData);
+		this.renderer.renderElement(node, index, templateData.templateData);
 	}
 
 	disposeElement(node: ITreeNode<T, TFilterData>, index: number, templateData: ITreeListTemplateData<TTemplateData>): void {
-		this.renderer.disposeElement(node.element, index, templateData.templateData);
+		this.renderer.disposeElement(node, index, templateData.templateData);
 		this.renderedNodes.delete(node);
 		this.renderedElements.set(node.element);
 	}
@@ -190,7 +185,7 @@ export abstract class AbstractTree<T, TFilterData, TRef> implements IDisposable 
 	constructor(
 		container: HTMLElement,
 		delegate: IVirtualDelegate<T>,
-		renderers: ITreeRenderer<T, any>[],
+		renderers: ITreeRenderer<T, TFilterData, any>[],
 		options?: ITreeOptions<T, TFilterData>
 	) {
 		const treeDelegate = new ComposedTreeDelegate<T, ITreeNode<T, TFilterData>>(delegate);
