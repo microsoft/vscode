@@ -189,11 +189,11 @@ export class SwitchPanelViewAction extends Action {
 		super(id, name);
 	}
 
-	run(offset: number): TPromise<any> {
+	run(offset: number): Thenable<any> {
 		const pinnedPanels = this.panelService.getPinnedPanels();
 		const activePanel = this.panelService.getActivePanel();
 		if (!activePanel) {
-			return TPromise.as(null);
+			return Promise.resolve(null);
 		}
 		let targetPanelId: string;
 		for (let i = 0; i < pinnedPanels.length; i++) {
@@ -219,7 +219,7 @@ export class PreviousPanelViewAction extends SwitchPanelViewAction {
 		super(id, name, panelService);
 	}
 
-	run(): TPromise<any> {
+	run(): Thenable<any> {
 		return super.run(-1);
 	}
 }
@@ -237,7 +237,7 @@ export class NextPanelViewAction extends SwitchPanelViewAction {
 		super(id, name, panelService);
 	}
 
-	public run(): TPromise<any> {
+	public run(): Thenable<any> {
 		return super.run(1);
 	}
 }
