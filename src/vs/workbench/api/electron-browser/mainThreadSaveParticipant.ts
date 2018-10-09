@@ -223,8 +223,7 @@ class FormatOnSaveParticipant implements ISaveParticipantParticipant {
 	participate(editorModel: ITextFileEditorModel, env: { reason: SaveReason }): Promise<void> {
 
 		const model = editorModel.textEditorModel;
-		if (env.reason === SaveReason.AUTO
-			|| !this._configurationService.getValue('editor.formatOnSave', { overrideIdentifier: model.getLanguageIdentifier().language, resource: editorModel.getResource() })) {
+		if (!this._configurationService.getValue('editor.formatOnSave', { overrideIdentifier: model.getLanguageIdentifier().language, resource: editorModel.getResource() })) {
 			return undefined;
 		}
 
@@ -299,10 +298,6 @@ class CodeActionOnParticipant implements ISaveParticipant {
 	) { }
 
 	async participate(editorModel: ITextFileEditorModel, env: { reason: SaveReason }): Promise<void> {
-		if (env.reason === SaveReason.AUTO) {
-			return undefined;
-		}
-
 		const model = editorModel.textEditorModel;
 
 		const settingsOverrides = { overrideIdentifier: model.getLanguageIdentifier().language, resource: editorModel.getResource() };
