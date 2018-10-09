@@ -206,7 +206,7 @@ export class MockSession implements IDebugSession {
 	launchOrAttach(config: IConfig): TPromise<void> {
 		throw new Error('Method not implemented.');
 	}
-	restart(): TPromise<DebugProtocol.RestartResponse> {
+	restart(): TPromise<void> {
 		throw new Error('Method not implemented.');
 	}
 	sendBreakpoints(modelUri: uri, bpts: IBreakpoint[], sourceModified: boolean): TPromise<ActualBreakpoints> {
@@ -215,7 +215,7 @@ export class MockSession implements IDebugSession {
 	sendFunctionBreakpoints(fbps: IFunctionBreakpoint[]): TPromise<ActualBreakpoints> {
 		throw new Error('Method not implemented.');
 	}
-	sendExceptionBreakpoints(exbpts: IExceptionBreakpoint[]): TPromise<any> {
+	sendExceptionBreakpoints(exbpts: IExceptionBreakpoint[]): TPromise<void> {
 		throw new Error('Method not implemented.');
 	}
 	customRequest(request: string, args: any): TPromise<DebugProtocol.Response> {
@@ -236,31 +236,31 @@ export class MockSession implements IDebugSession {
 	evaluate(expression: string, frameId: number, context?: string): TPromise<DebugProtocol.EvaluateResponse> {
 		throw new Error('Method not implemented.');
 	}
-	restartFrame(frameId: number, threadId: number): TPromise<DebugProtocol.RestartFrameResponse> {
+	restartFrame(frameId: number, threadId: number): TPromise<void> {
 		throw new Error('Method not implemented.');
 	}
-	next(threadId: number): TPromise<DebugProtocol.NextResponse> {
+	next(threadId: number): TPromise<void> {
 		throw new Error('Method not implemented.');
 	}
-	stepIn(threadId: number): TPromise<DebugProtocol.StepInResponse> {
+	stepIn(threadId: number): TPromise<void> {
 		throw new Error('Method not implemented.');
 	}
-	stepOut(threadId: number): TPromise<DebugProtocol.StepOutResponse> {
+	stepOut(threadId: number): TPromise<void> {
 		throw new Error('Method not implemented.');
 	}
-	stepBack(threadId: number): TPromise<DebugProtocol.StepBackResponse> {
+	stepBack(threadId: number): TPromise<void> {
 		throw new Error('Method not implemented.');
 	}
-	continue(threadId: number): TPromise<DebugProtocol.ContinueResponse> {
+	continue(threadId: number): TPromise<void> {
 		throw new Error('Method not implemented.');
 	}
-	reverseContinue(threadId: number): TPromise<DebugProtocol.ReverseContinueResponse> {
+	reverseContinue(threadId: number): TPromise<void> {
 		throw new Error('Method not implemented.');
 	}
-	pause(threadId: number): TPromise<DebugProtocol.PauseResponse> {
+	pause(threadId: number): TPromise<void> {
 		throw new Error('Method not implemented.');
 	}
-	terminateThreads(threadIds: number[]): TPromise<DebugProtocol.TerminateThreadsResponse> {
+	terminateThreads(threadIds: number[]): TPromise<void> {
 		throw new Error('Method not implemented.');
 	}
 	setVariable(variablesReference: number, name: string, value: string): TPromise<DebugProtocol.SetVariableResponse> {

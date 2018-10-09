@@ -165,7 +165,7 @@ export class DebugSession implements IDebugSession {
 						supportsVariablePaging: true, // #9537
 						supportsRunInTerminalRequest: true, // #10574
 						locale: platform.locale
-					}).then(response => {
+					}).then(() => {
 						this.model.addSession(this);
 						this._onDidChangeState.fire();
 						this.model.setExceptionBreakpoints(this.raw.capabilities.exceptionBreakpointFilters);
@@ -223,9 +223,9 @@ export class DebugSession implements IDebugSession {
 	/**
 	 * restart debug adapter session
 	 */
-	restart(): TPromise<DebugProtocol.RestartResponse> {
+	restart(): TPromise<void> {
 		if (this.raw) {
-			return this.raw.restart();
+			return this.raw.restart().then(() => undefined);
 		}
 		return Promise.reject(new Error('no debug adapter'));
 	}
@@ -293,10 +293,10 @@ export class DebugSession implements IDebugSession {
 		return Promise.reject(new Error('no debug adapter'));
 	}
 
-	sendExceptionBreakpoints(exbpts: IExceptionBreakpoint[]): TPromise<any> {
+	sendExceptionBreakpoints(exbpts: IExceptionBreakpoint[]): TPromise<void> {
 		if (this.raw) {
 			if (this.raw.readyForBreakpoints) {
-				return this.raw.setExceptionBreakpoints({ filters: exbpts.map(exb => exb.filter) });
+				return this.raw.setExceptionBreakpoints({ filters: exbpts.map(exb => exb.filter) }).then(() => undefined);
 			}
 			return Promise.resolve(null);
 		}
@@ -355,65 +355,65 @@ export class DebugSession implements IDebugSession {
 		return Promise.reject(new Error('no debug adapter'));
 	}
 
-	restartFrame(frameId: number, threadId: number): TPromise<DebugProtocol.RestartFrameResponse> {
+	restartFrame(frameId: number, threadId: number): TPromise<void> {
 		if (this.raw) {
-			return this.raw.restartFrame({ frameId }, threadId);
+			return this.raw.restartFrame({ frameId }, threadId).then(() => undefined);
 		}
 		return Promise.reject(new Error('no debug adapter'));
 	}
 
-	next(threadId: number): TPromise<DebugProtocol.NextResponse> {
+	next(threadId: number): TPromise<void> {
 		if (this.raw) {
-			return this.raw.next({ threadId });
+			return this.raw.next({ threadId }).then(() => undefined);
 		}
 		return Promise.reject(new Error('no debug adapter'));
 	}
 
-	stepIn(threadId: number): TPromise<DebugProtocol.StepInResponse> {
+	stepIn(threadId: number): TPromise<void> {
 		if (this.raw) {
-			return this.raw.stepIn({ threadId });
+			return this.raw.stepIn({ threadId }).then(() => undefined);
 		}
 		return Promise.reject(new Error('no debug adapter'));
 	}
 
-	stepOut(threadId: number): TPromise<DebugProtocol.StepOutResponse> {
+	stepOut(threadId: number): TPromise<void> {
 		if (this.raw) {
-			return this.raw.stepOut({ threadId });
+			return this.raw.stepOut({ threadId }).then(() => undefined);
 		}
 		return Promise.reject(new Error('no debug adapter'));
 	}
 
-	stepBack(threadId: number): TPromise<DebugProtocol.StepBackResponse> {
+	stepBack(threadId: number): TPromise<void> {
 		if (this.raw) {
-			return this.raw.stepBack({ threadId });
+			return this.raw.stepBack({ threadId }).then(() => undefined);
 		}
 		return Promise.reject(new Error('no debug adapter'));
 	}
 
-	continue(threadId: number): TPromise<DebugProtocol.ContinueResponse> {
+	continue(threadId: number): TPromise<void> {
 		if (this.raw) {
-			return this.raw.continue({ threadId });
+			return this.raw.continue({ threadId }).then(() => undefined);
 		}
 		return Promise.reject(new Error('no debug adapter'));
 	}
 
-	reverseContinue(threadId: number): TPromise<DebugProtocol.ReverseContinueResponse> {
+	reverseContinue(threadId: number): TPromise<void> {
 		if (this.raw) {
-			return this.raw.reverseContinue({ threadId });
+			return this.raw.reverseContinue({ threadId }).then(() => undefined);
 		}
 		return Promise.reject(new Error('no debug adapter'));
 	}
 
-	pause(threadId: number): TPromise<DebugProtocol.PauseResponse> {
+	pause(threadId: number): TPromise<void> {
 		if (this.raw) {
-			return this.raw.pause({ threadId });
+			return this.raw.pause({ threadId }).then(() => undefined);
 		}
 		return Promise.reject(new Error('no debug adapter'));
 	}
 
-	terminateThreads(threadIds?: number[]): TPromise<DebugProtocol.TerminateThreadsResponse> {
+	terminateThreads(threadIds?: number[]): TPromise<void> {
 		if (this.raw) {
-			return this.raw.terminateThreads({ threadIds });
+			return this.raw.terminateThreads({ threadIds }).then(() => undefined);
 		}
 		return Promise.reject(new Error('no debug adapter'));
 	}

@@ -376,7 +376,7 @@ export class StackFrame implements IStackFrame {
 		});
 	}
 
-	public restart(): TPromise<any> {
+	public restart(): TPromise<void> {
 		return this.thread.session.restartFrame(this.frameId, this.thread.threadId);
 	}
 

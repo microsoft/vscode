@@ -183,13 +183,13 @@ export interface IDebugSession extends ITreeElement {
 
 	initialize(dbgr: IDebugger): TPromise<void>;
 	launchOrAttach(config: IConfig): TPromise<void>;
-	restart(): TPromise<DebugProtocol.RestartResponse>;
+	restart(): TPromise<void>;
 	terminate(restart?: boolean /* false */): TPromise<void>;
 	disconnect(restart?: boolean /* false */): TPromise<void>;
 
 	sendBreakpoints(modelUri: uri, bpts: IBreakpoint[], sourceModified: boolean): TPromise<ActualBreakpoints | undefined>;
 	sendFunctionBreakpoints(fbps: IFunctionBreakpoint[]): TPromise<ActualBreakpoints | undefined>;
-	sendExceptionBreakpoints(exbpts: IExceptionBreakpoint[]): TPromise<any>;
+	sendExceptionBreakpoints(exbpts: IExceptionBreakpoint[]): TPromise<void>;
 
 	stackTrace(threadId: number, startFrame: number, levels: number): TPromise<DebugProtocol.StackTraceResponse>;
 	exceptionInfo(threadId: number): TPromise<IExceptionInfo>;
@@ -198,15 +198,15 @@ export interface IDebugSession extends ITreeElement {
 	evaluate(expression: string, frameId?: number, context?: string): TPromise<DebugProtocol.EvaluateResponse>;
 	customRequest(request: string, args: any): TPromise<DebugProtocol.Response>;
 
-	restartFrame(frameId: number, threadId: number): TPromise<DebugProtocol.RestartFrameResponse>;
-	next(threadId: number): TPromise<DebugProtocol.NextResponse>;
-	stepIn(threadId: number): TPromise<DebugProtocol.StepInResponse>;
-	stepOut(threadId: number): TPromise<DebugProtocol.StepOutResponse>;
-	stepBack(threadId: number): TPromise<DebugProtocol.StepBackResponse>;
-	continue(threadId: number): TPromise<DebugProtocol.ContinueResponse>;
-	reverseContinue(threadId: number): TPromise<DebugProtocol.ReverseContinueResponse>;
-	pause(threadId: number): TPromise<DebugProtocol.PauseResponse>;
-	terminateThreads(threadIds: number[]): TPromise<DebugProtocol.TerminateThreadsResponse>;
+	restartFrame(frameId: number, threadId: number): TPromise<void>;
+	next(threadId: number): TPromise<void>;
+	stepIn(threadId: number): TPromise<void>;
+	stepOut(threadId: number): TPromise<void>;
+	stepBack(threadId: number): TPromise<void>;
+	continue(threadId: number): TPromise<void>;
+	reverseContinue(threadId: number): TPromise<void>;
+	pause(threadId: number): TPromise<void>;
+	terminateThreads(threadIds: number[]): TPromise<void>;
 
 	completions(frameId: number, text: string, position: Position, overwriteBefore: number): TPromise<CompletionItem[]>;
 	setVariable(variablesReference: number, name: string, value: string): TPromise<DebugProtocol.SetVariableResponse>;
