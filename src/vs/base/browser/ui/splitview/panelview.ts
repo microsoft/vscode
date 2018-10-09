@@ -188,9 +188,9 @@ export abstract class Panel implements IView {
 
 	layout(size: number): void {
 		const headerSize = this.headerVisible ? Panel.HEADER_SIZE : 0;
-		this.layoutBody(size - headerSize);
 
 		if (this.isExpanded()) {
+			this.layoutBody(size - headerSize);
 			this.expandedSize = size;
 		}
 	}
