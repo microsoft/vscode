@@ -135,7 +135,7 @@ function monacodtsTask(out: string, isWatch: boolean): NodeJS.ReadWriteStream {
 	});
 
 	const inputFiles: { [file: string]: string; } = {};
-	for (let filePath in neededFiles) {
+	for (const filePath in neededFiles) {
 		if (/\bsrc(\/|\\)vs\b/.test(filePath)) {
 			// This file is needed from source => simply read it now
 			inputFiles[filePath] = fs.readFileSync(filePath).toString();

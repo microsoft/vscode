@@ -179,10 +179,6 @@ export class MenubarControl extends Disposable {
 		return enableMenuBarMnemonics;
 	}
 
-	private get currentAutoSaveSetting(): string {
-		return this.configurationService.getValue<string>('files.autoSave');
-	}
-
 	private get currentSidebarPosition(): string {
 		return this.configurationService.getValue<string>('workbench.sideBar.location');
 	}
@@ -468,8 +464,7 @@ export class MenubarControl extends Disposable {
 	private doSetupMenubar(): void {
 		if (!isMacintosh && this.currentTitlebarStyleSetting === 'custom') {
 			this.setupCustomMenubar();
-		} else if (isMacintosh) {
-			// TODO@sbatten currently limiting dynamic native menus to macOS #55347
+		} else {
 			// Send menus to main process to be rendered by Electron
 			const menubarData = {};
 			if (this.getMenubarMenus(menubarData)) {
@@ -484,17 +479,6 @@ export class MenubarControl extends Disposable {
 
 	private registerMnemonic(menuIndex: number, mnemonic: string): void {
 		this.mnemonics.set(KeyCodeUtils.fromString(mnemonic), menuIndex);
-	}
-
-	private setCheckedStatus(action: IAction | IMenubarMenuItemAction) {
-		switch (action.id) {
-			case 'workbench.action.toggleAutoSave':
-				action.checked = this.currentAutoSaveSetting !== 'off';
-				break;
-
-			default:
-				break;
-		}
 	}
 
 	private calculateActionLabel(action: IAction | IMenubarMenuItemAction): string {
@@ -718,7 +702,6 @@ export class MenubarControl extends Disposable {
 							target.push(new SubmenuAction(action.label, submenuActions));
 						} else {
 							action.label = this.calculateActionLabel(action);
-							this.setCheckedStatus(action);
 							target.push(action);
 						}
 					}
@@ -988,9 +971,7 @@ export class MenubarControl extends Disposable {
 						keybinding: this.getMenubarKeybinding(menuItem.id)
 					};
 
-					this.setCheckedStatus(menubarMenuItem);
 					menubarMenuItem.label = this.calculateActionLabel(menubarMenuItem);
-
 					menuToPopulate.items.push(menubarMenuItem);
 				}
 			});

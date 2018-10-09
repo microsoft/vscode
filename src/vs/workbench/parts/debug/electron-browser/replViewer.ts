@@ -15,7 +15,7 @@ import { IMouseEvent } from 'vs/base/browser/mouseEvent';
 import { ITree, IAccessibilityProvider, ContextMenuEvent, IDataSource, IRenderer, IActionProvider } from 'vs/base/parts/tree/browser/tree';
 import { ICancelableEvent } from 'vs/base/parts/tree/browser/treeDefaults';
 import { IExpressionContainer, IExpression, IReplElementSource } from 'vs/workbench/parts/debug/common/debug';
-import { DebugModel, RawObjectReplElement, Expression, SimpleReplElement, Variable } from 'vs/workbench/parts/debug/common/debugModel';
+import { RawObjectReplElement, Expression, SimpleReplElement, Variable } from 'vs/workbench/parts/debug/common/debugModel';
 import { renderVariable, renderExpressionValue, IVariableTemplateData, BaseDebugController } from 'vs/workbench/parts/debug/browser/baseDebugView';
 import { ClearReplAction, ReplCollapseAllAction } from 'vs/workbench/parts/debug/browser/debugActions';
 import { CopyAction, CopyAllAction } from 'vs/workbench/parts/debug/electron-browser/electronDebugActions';
@@ -24,6 +24,7 @@ import { IEditorService } from 'vs/workbench/services/editor/common/editorServic
 import { LinkDetector } from 'vs/workbench/parts/debug/browser/linkDetector';
 import { handleANSIOutput } from 'vs/workbench/parts/debug/browser/debugANSIHandling';
 import { ILabelService } from 'vs/platform/label/common/label';
+import { DebugSession } from 'vs/workbench/parts/debug/electron-browser/debugSession';
 
 const $ = dom.$;
 
@@ -34,11 +35,11 @@ export class ReplExpressionsDataSource implements IDataSource {
 	}
 
 	public hasChildren(tree: ITree, element: any): boolean {
-		return element instanceof DebugModel || (<IExpressionContainer>element).hasChildren;
+		return element instanceof DebugSession || (<IExpressionContainer>element).hasChildren;
 	}
 
 	public getChildren(tree: ITree, element: any): TPromise<any> {
-		if (element instanceof DebugModel) {
+		if (element instanceof DebugSession) {
 			return Promise.resolve(element.getReplElements());
 		}
 		if (element instanceof RawObjectReplElement) {

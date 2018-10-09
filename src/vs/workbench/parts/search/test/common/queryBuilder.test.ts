@@ -16,8 +16,8 @@ import { ISearchPathsResult, QueryBuilder } from 'vs/workbench/parts/search/comm
 import { TestContextService, TestEnvironmentService } from 'vs/workbench/test/workbenchTestServices';
 
 const DEFAULT_EDITOR_CONFIG = {};
-const DEFAULT_USER_CONFIG = { useRipgrep: true, useIgnoreFiles: true };
-const DEFAULT_QUERY_PROPS = { useRipgrep: true, disregardIgnoreFiles: false };
+const DEFAULT_USER_CONFIG = { useRipgrep: true, useIgnoreFiles: true, useGlobalIgnoreFiles: true };
+const DEFAULT_QUERY_PROPS = { useRipgrep: true, disregardIgnoreFiles: false, disregardGlobalIgnoreFiles: false };
 
 suite('QueryBuilder', () => {
 	const PATTERN_INFO: IPatternInfo = { pattern: 'a' };

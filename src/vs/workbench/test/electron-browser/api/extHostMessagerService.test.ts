@@ -76,20 +76,19 @@ class EmptyNotificationService implements INotificationService {
 
 suite('ExtHostMessageService', function () {
 
-	test('propagte handle on select', function () {
+	test('propagte handle on select', async function () {
 
 		let service = new MainThreadMessageService(null, new EmptyNotificationService(notification => {
 			assert.equal(notification.actions.primary.length, 1);
 			setImmediate(() => notification.actions.primary[0].run());
 		}), emptyCommandService, emptyDialogService);
 
-		return service.$showMessage(1, 'h', {}, [{ handle: 42, title: 'a thing', isCloseAffordance: true }]).then(handle => {
-			assert.equal(handle, 42);
-		});
+		const handle = await service.$showMessage(1, 'h', {}, [{ handle: 42, title: 'a thing', isCloseAffordance: true }]);
+		assert.equal(handle, 42);
 	});
 
 	suite('modal', () => {
-		test('calls dialog service', () => {
+		test('calls dialog service', async () => {
 			const service = new MainThreadMessageService(null, emptyNotificationService, emptyCommandService, {
 				show(severity, message, buttons) {
 					assert.equal(severity, 1);
@@ -100,24 +99,22 @@ suite('ExtHostMessageService', function () {
 				}
 			} as IDialogService);
 
-			return service.$showMessage(1, 'h', { modal: true }, [{ handle: 42, title: 'a thing', isCloseAffordance: false }]).then(handle => {
-				assert.equal(handle, 42);
-			});
+			const handle = await service.$showMessage(1, 'h', { modal: true }, [{ handle: 42, title: 'a thing', isCloseAffordance: false }]);
+			assert.equal(handle, 42);
 		});
 
-		test('returns undefined when cancelled', () => {
+		test('returns undefined when cancelled', async () => {
 			const service = new MainThreadMessageService(null, emptyNotificationService, emptyCommandService, {
 				show(severity, message, buttons) {
 					return TPromise.as(1);
 				}
 			} as IDialogService);
 
-			return service.$showMessage(1, 'h', { modal: true }, [{ handle: 42, title: 'a thing', isCloseAffordance: false }]).then(handle => {
-				assert.equal(handle, undefined);
-			});
+			const handle = await service.$showMessage(1, 'h', { modal: true }, [{ handle: 42, title: 'a thing', isCloseAffordance: false }]);
+			assert.equal(handle, undefined);
 		});
 
-		test('hides Cancel button when not needed', () => {
+		test('hides Cancel button when not needed', async () => {
 			const service = new MainThreadMessageService(null, emptyNotificationService, emptyCommandService, {
 				show(severity, message, buttons) {
 					assert.equal(buttons.length, 1);
@@ -125,9 +122,8 @@ suite('ExtHostMessageService', function () {
 				}
 			} as IDialogService);
 
-			return service.$showMessage(1, 'h', { modal: true }, [{ handle: 42, title: 'a thing', isCloseAffordance: true }]).then(handle => {
-				assert.equal(handle, 42);
-			});
+			const handle = await service.$showMessage(1, 'h', { modal: true }, [{ handle: 42, title: 'a thing', isCloseAffordance: true }]);
+			assert.equal(handle, 42);
 		});
 	});
 });

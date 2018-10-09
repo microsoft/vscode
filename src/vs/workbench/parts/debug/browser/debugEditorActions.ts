@@ -159,7 +159,9 @@ class SelectionToReplAction extends EditorAction {
 		const panelService = accessor.get(IPanelService);
 
 		const text = editor.getModel().getValueInRange(editor.getSelection());
-		return debugService.addReplExpression(text)
+		const viewModel = debugService.getViewModel();
+		const session = viewModel.focusedSession;
+		return session.addReplExpression(viewModel.focusedStackFrame, text)
 			.then(() => panelService.openPanel(REPL_ID, true))
 			.then(_ => void 0);
 	}

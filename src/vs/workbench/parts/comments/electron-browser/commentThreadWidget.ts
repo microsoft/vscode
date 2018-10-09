@@ -573,7 +573,7 @@ export class ReviewZoneWidget extends ZoneWidget {
 	}
 
 	private _applyTheme(theme: ITheme) {
-		let borderColor = theme.getColor(peekViewBorder) || Color.transparent;
+		const borderColor = theme.getColor(peekViewBorder) || Color.transparent;
 		this.style({
 			arrowColor: borderColor,
 			frameColor: borderColor

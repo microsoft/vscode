@@ -177,7 +177,8 @@ export class ExtensionHostProcessWorker implements IExtensionHostStarter {
 						VSCODE_IPC_HOOK_EXTHOST: pipeName,
 						VSCODE_HANDLES_UNCAUGHT_ERRORS: true,
 						VSCODE_LOG_STACK: !this._isExtensionDevTestFromCli && (this._isExtensionDevHost || !this._environmentService.isBuilt || product.quality !== 'stable' || this._environmentService.verbose),
-						VSCODE_LOG_LEVEL: this._environmentService.verbose ? 'trace' : this._environmentService.log
+						VSCODE_LOG_LEVEL: this._environmentService.verbose ? 'trace' : this._environmentService.log,
+						VSCODE_NODE_CACHED_DATA_DIR: ''
 					}),
 					// We only detach the extension host on windows. Linux and Mac orphan by default
 					// and detach under Linux and Mac create another process group.

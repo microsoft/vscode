@@ -186,7 +186,7 @@ registerEditorAction(InPlaceReplaceUp);
 registerEditorAction(InPlaceReplaceDown);
 
 registerThemingParticipant((theme, collector) => {
-	let border = theme.getColor(editorBracketMatchBorder);
+	const border = theme.getColor(editorBracketMatchBorder);
 	if (border) {
 		collector.addRule(`.monaco-editor.vs .valueSetReplacement { outline: solid 2px ${border}; }`);
 	}

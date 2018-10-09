@@ -11,6 +11,19 @@ declare module 'vscode' {
 		export function sampleFunction(): Thenable<any>;
 	}
 
+	//#region Joh - clipboard https://github.com/Microsoft/vscode/issues/217
+
+	export interface Clipboard {
+		readText(): Promise<string>;
+		writeText(value: string): Promise<void>;
+	}
+
+	export namespace env {
+		export const clipboard: Clipboard;
+	}
+
+	//#endregion
+
 	//#region Joh - read/write in chunks
 
 	export interface FileSystemProvider {
@@ -86,6 +99,13 @@ declare module 'vscode' {
 		 * See the vscode setting `"search.followSymlinks"`.
 		 */
 		followSymlinks: boolean;
+
+		/**
+		 * Whether global files that exclude files, like .gitignore, should be respected.
+		 * See the vscode setting `"search.useGlobalIgnoreFiles"`.
+		 */
+		useGlobalIgnoreFiles: boolean;
+
 	}
 
 	/**
@@ -290,6 +310,12 @@ declare module 'vscode' {
 		 * See the vscode setting `"search.useIgnoreFiles"`.
 		 */
 		useIgnoreFiles?: boolean;
+
+		/**
+		 * Whether global files that exclude files, like .gitignore, should be respected.
+		 * See the vscode setting `"search.useGlobalIgnoreFiles"`.
+		 */
+		useGlobalIgnoreFiles?: boolean;
 
 		/**
 		 * Whether symlinks should be followed while searching.
@@ -1064,6 +1090,18 @@ declare module 'vscode' {
 		provideSignatureHelp(document: TextDocument, position: Position, token: CancellationToken, context: SignatureHelpContext): ProviderResult<SignatureHelp>;
 	}
 
+	export interface SignatureHelpProviderMetadata {
+		readonly triggerCharacters: ReadonlyArray<string>;
+		readonly retriggerCharacters: ReadonlyArray<string>;
+	}
+
+	namespace languages {
+		export function registerSignatureHelpProvider(
+			selector: DocumentSelector,
+			provider: SignatureHelpProvider,
+			metadata: SignatureHelpProviderMetadata
+		): Disposable;
+	}
 	//#endregion
 
 	//#region Alex - OnEnter enhancement

@@ -73,7 +73,7 @@ interface OutputChannel extends IOutputChannel {
 	loadModel(): TPromise<ITextModel>;
 }
 
-abstract class AbstractFileOutputChannel extends Disposable {
+abstract class AbstractFileOutputChannel extends Disposable implements OutputChannel {
 
 	scrollLock: boolean = false;
 
@@ -151,6 +151,9 @@ abstract class AbstractFileOutputChannel extends Disposable {
 			this._onDidAppendedContent.fire();
 		}
 	}
+
+	abstract loadModel(): TPromise<ITextModel>;
+	abstract append(message: string);
 
 	protected onModelCreated(model: ITextModel) { }
 	protected onModelWillDispose(model: ITextModel) { }
@@ -560,16 +563,17 @@ export class OutputService extends Disposable implements IOutputService, ITextMo
 			}
 		}, channelDisposables);
 		channel.onDispose(() => {
-			Registry.as<IOutputChannelRegistry>(Extensions.OutputChannels).removeChannel(id);
 			if (this.activeChannel === channel) {
 				const channels = this.getChannelDescriptors();
-				if (this.isPanelShown() && channels.length) {
-					this.doShowChannel(this.getChannel(channels[0].id), true);
-					this._onActiveOutputChannel.fire(channels[0].id);
+				const channel = channels.length ? this.getChannel(channels[0].id) : null;
+				if (channel && this.isPanelShown()) {
+					this.showChannel(channel.id, true);
 				} else {
-					this._onActiveOutputChannel.fire(void 0);
+					this.activeChannel = channel;
+					this._onActiveOutputChannel.fire(channel ? channel.id : void 0);
 				}
 			}
+			Registry.as<IOutputChannelRegistry>(Extensions.OutputChannels).removeChannel(id);
 			dispose(channelDisposables);
 		}, channelDisposables);
 

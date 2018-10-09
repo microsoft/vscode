@@ -64,6 +64,11 @@ export class QueryBuilder {
 			return folderConfig.search.useIgnoreFiles;
 		});
 
+		const useGlobalIgnoreFiles = !folderResources || folderResources.every(folder => {
+			const folderConfig = this.configurationService.getValue<ISearchConfiguration>({ resource: folder });
+			return folderConfig.search.useGlobalIgnoreFiles;
+		});
+
 		const useRipgrep = !folderResources || folderResources.every(folder => {
 			const folderConfig = this.configurationService.getValue<ISearchConfiguration>({ resource: folder });
 			return folderConfig.search.useRipgrep;
@@ -93,6 +98,7 @@ export class QueryBuilder {
 			contentPattern,
 			useRipgrep,
 			disregardIgnoreFiles: options.disregardIgnoreFiles || !useIgnoreFiles,
+			disregardGlobalIgnoreFiles: options.disregardGlobalIgnoreFiles || !useGlobalIgnoreFiles,
 			disregardExcludeSettings: options.disregardExcludeSettings,
 			ignoreSymlinks,
 			previewOptions: options.previewOptions,
@@ -297,7 +303,8 @@ export class QueryBuilder {
 			folder,
 			excludePattern: this.getExcludesForFolder(folderConfig, options),
 			fileEncoding: folderConfig.files && folderConfig.files.encoding,
-			disregardIgnoreFiles: perFolderUseIgnoreFiles ? !folderConfig.search.useIgnoreFiles : undefined
+			disregardIgnoreFiles: perFolderUseIgnoreFiles ? !folderConfig.search.useIgnoreFiles : undefined,
+			disregardGlobalIgnoreFiles: perFolderUseIgnoreFiles ? !folderConfig.search.useGlobalIgnoreFiles : undefined
 		};
 	}
 }

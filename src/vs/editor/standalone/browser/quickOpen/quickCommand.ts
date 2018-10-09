@@ -6,7 +6,6 @@
 import * as nls from 'vs/nls';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { matchesFuzzy } from 'vs/base/common/filters';
-import { TPromise } from 'vs/base/common/winjs.base';
 import { IContext, IHighlight, QuickOpenEntryGroup, QuickOpenModel } from 'vs/base/parts/quickopen/browser/quickOpenModel';
 import { IAutoFocus, Mode } from 'vs/base/parts/quickopen/common/quickOpen';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
@@ -55,7 +54,7 @@ export class EditorActionCommandEntry extends QuickOpenEntryGroup {
 				this.editor.focus();
 
 				try {
-					let promise = this.action.run() || TPromise.as(null);
+					let promise = this.action.run() || Promise.resolve();
 					promise.then(null, onUnexpectedError);
 				} catch (error) {
 					onUnexpectedError(error);

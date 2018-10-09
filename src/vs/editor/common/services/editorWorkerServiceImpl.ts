@@ -6,7 +6,6 @@
 import { IntervalTimer } from 'vs/base/common/async';
 import { Disposable, IDisposable, dispose, toDisposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
-import { TPromise } from 'vs/base/common/winjs.base';
 import { SimpleWorkerClient, logOnceWebWorkerWarning } from 'vs/base/common/worker/simpleWorker';
 import { DefaultWorkerFactory } from 'vs/base/worker/defaultWorkerFactory';
 import * as editorCommon from 'vs/editor/common/editorCommon';
@@ -60,7 +59,7 @@ export class EditorWorkerServiceImpl extends Disposable implements IEditorWorker
 		this._register(modes.LinkProviderRegistry.register('*', <modes.LinkProvider>{
 			provideLinks: (model, token) => {
 				if (!canSyncModel(this._modelService, model.uri)) {
-					return TPromise.as([]); // File too large
+					return Promise.resolve([]); // File too large
 				}
 				return this._workerManager.withWorker().then(client => client.computeLinks(model.uri));
 			}
@@ -76,7 +75,7 @@ export class EditorWorkerServiceImpl extends Disposable implements IEditorWorker
 		return (canSyncModel(this._modelService, original) && canSyncModel(this._modelService, modified));
 	}
 
-	public computeDiff(original: URI, modified: URI, ignoreTrimWhitespace: boolean): TPromise<editorCommon.ILineChange[]> {
+	public computeDiff(original: URI, modified: URI, ignoreTrimWhitespace: boolean): Promise<editorCommon.ILineChange[]> {
 		return this._workerManager.withWorker().then(client => client.computeDiff(original, modified, ignoreTrimWhitespace));
 	}
 
@@ -84,16 +83,16 @@ export class EditorWorkerServiceImpl extends Disposable implements IEditorWorker
 		return (canSyncModel(this._modelService, original) && canSyncModel(this._modelService, modified));
 	}
 
-	public computeDirtyDiff(original: URI, modified: URI, ignoreTrimWhitespace: boolean): TPromise<editorCommon.IChange[]> {
+	public computeDirtyDiff(original: URI, modified: URI, ignoreTrimWhitespace: boolean): Promise<editorCommon.IChange[]> {
 		return this._workerManager.withWorker().then(client => client.computeDirtyDiff(original, modified, ignoreTrimWhitespace));
 	}
 
-	public computeMoreMinimalEdits(resource: URI, edits: modes.TextEdit[]): TPromise<modes.TextEdit[]> {
+	public computeMoreMinimalEdits(resource: URI, edits: modes.TextEdit[]): Promise<modes.TextEdit[]> {
 		if (!Array.isArray(edits) || edits.length === 0) {
-			return TPromise.as(edits);
+			return Promise.resolve(edits);
 		} else {
 			if (!canSyncModel(this._modelService, resource)) {
-				return TPromise.as(edits); // File too large
+				return Promise.resolve(edits); // File too large
 			}
 			return this._workerManager.withWorker().then(client => client.computeMoreMinimalEdits(resource, edits));
 		}
@@ -103,7 +102,7 @@ export class EditorWorkerServiceImpl extends Disposable implements IEditorWorker
 		return (canSyncModel(this._modelService, resource));
 	}
 
-	public navigateValueSet(resource: URI, range: IRange, up: boolean): TPromise<modes.IInplaceReplaceSupportResult> {
+	public navigateValueSet(resource: URI, range: IRange, up: boolean): Promise<modes.IInplaceReplaceSupportResult> {
 		return this._workerManager.withWorker().then(client => client.navigateValueSet(resource, range, up));
 	}
 
@@ -111,7 +110,7 @@ export class EditorWorkerServiceImpl extends Disposable implements IEditorWorker
 		return canSyncModel(this._modelService, resource);
 	}
 
-	computeWordRanges(resource: URI, range: IRange): TPromise<{ [word: string]: IRange[] }> {
+	computeWordRanges(resource: URI, range: IRange): Promise<{ [word: string]: IRange[] }> {
 		return this._workerManager.withWorker().then(client => client.computeWordRanges(resource, range));
 	}
 }
@@ -132,7 +131,7 @@ class WordBasedCompletionItemProvider implements modes.CompletionItemProvider {
 		this._modelService = modelService;
 	}
 
-	provideCompletionItems(model: ITextModel, position: Position): TPromise<modes.CompletionList> {
+	provideCompletionItems(model: ITextModel, position: Position): Promise<modes.CompletionList> {
 		const { wordBasedSuggestions } = this._configurationService.getValue<IEditorOptions>(model.uri, position, 'editor');
 		if (!wordBasedSuggestions) {
 			return undefined;
@@ -200,12 +199,12 @@ class WorkerManager extends Disposable {
 		}
 	}
 
-	public withWorker(): TPromise<EditorWorkerClient> {
+	public withWorker(): Promise<EditorWorkerClient> {
 		this._lastWorkerUsedTime = (new Date()).getTime();
 		if (!this._editorWorkerClient) {
 			this._editorWorkerClient = new EditorWorkerClient(this._modelService, 'editorWorkerService');
 		}
-		return TPromise.as(this._editorWorkerClient);
+		return Promise.resolve(this._editorWorkerClient);
 	}
 }
 
@@ -308,17 +307,17 @@ class EditorModelManager extends Disposable {
 }
 
 interface IWorkerClient<T> {
-	getProxyObject(): TPromise<T>;
+	getProxyObject(): Promise<T>;
 	dispose(): void;
 }
 
 class SynchronousWorkerClient<T extends IDisposable> implements IWorkerClient<T> {
 	private _instance: T;
-	private _proxyObj: TPromise<T>;
+	private _proxyObj: Promise<T>;
 
 	constructor(instance: T) {
 		this._instance = instance;
-		this._proxyObj = TPromise.as(this._instance);
+		this._proxyObj = Promise.resolve(this._instance);
 	}
 
 	public dispose(): void {
@@ -327,7 +326,7 @@ class SynchronousWorkerClient<T extends IDisposable> implements IWorkerClient<T>
 		this._proxyObj = null;
 	}
 
-	public getProxyObject(): TPromise<T> {
+	public getProxyObject(): Promise<T> {
 		return this._proxyObj;
 	}
 }
@@ -362,7 +361,7 @@ export class EditorWorkerClient extends Disposable {
 		return this._worker;
 	}
 
-	protected _getProxy(): TPromise<EditorSimpleWorkerImpl> {
+	protected _getProxy(): Promise<EditorSimpleWorkerImpl> {
 		return this._getOrCreateWorker().getProxyObject().then(null, (err) => {
 			logOnceWebWorkerWarning(err);
 			this._worker = new SynchronousWorkerClient(new EditorSimpleWorkerImpl(null));
@@ -377,38 +376,38 @@ export class EditorWorkerClient extends Disposable {
 		return this._modelManager;
 	}
 
-	protected _withSyncedResources(resources: URI[]): TPromise<EditorSimpleWorkerImpl> {
+	protected _withSyncedResources(resources: URI[]): Promise<EditorSimpleWorkerImpl> {
 		return this._getProxy().then((proxy) => {
 			this._getOrCreateModelManager(proxy).esureSyncedResources(resources);
 			return proxy;
 		});
 	}
 
-	public computeDiff(original: URI, modified: URI, ignoreTrimWhitespace: boolean): TPromise<editorCommon.ILineChange[]> {
+	public computeDiff(original: URI, modified: URI, ignoreTrimWhitespace: boolean): Promise<editorCommon.ILineChange[]> {
 		return this._withSyncedResources([original, modified]).then(proxy => {
 			return proxy.computeDiff(original.toString(), modified.toString(), ignoreTrimWhitespace);
 		});
 	}
 
-	public computeDirtyDiff(original: URI, modified: URI, ignoreTrimWhitespace: boolean): TPromise<editorCommon.IChange[]> {
+	public computeDirtyDiff(original: URI, modified: URI, ignoreTrimWhitespace: boolean): Promise<editorCommon.IChange[]> {
 		return this._withSyncedResources([original, modified]).then(proxy => {
 			return proxy.computeDirtyDiff(original.toString(), modified.toString(), ignoreTrimWhitespace);
 		});
 	}
 
-	public computeMoreMinimalEdits(resource: URI, edits: modes.TextEdit[]): TPromise<modes.TextEdit[]> {
+	public computeMoreMinimalEdits(resource: URI, edits: modes.TextEdit[]): Promise<modes.TextEdit[]> {
 		return this._withSyncedResources([resource]).then(proxy => {
 			return proxy.computeMoreMinimalEdits(resource.toString(), edits);
 		});
 	}
 
-	public computeLinks(resource: URI): TPromise<modes.ILink[]> {
+	public computeLinks(resource: URI): Promise<modes.ILink[]> {
 		return this._withSyncedResources([resource]).then(proxy => {
 			return proxy.computeLinks(resource.toString());
 		});
 	}
 
-	public textualSuggest(resource: URI, position: IPosition): TPromise<modes.CompletionList> {
+	public textualSuggest(resource: URI, position: IPosition): Promise<modes.CompletionList> {
 		return this._withSyncedResources([resource]).then(proxy => {
 			let model = this._modelService.getModel(resource);
 			if (!model) {
@@ -421,7 +420,7 @@ export class EditorWorkerClient extends Disposable {
 		});
 	}
 
-	computeWordRanges(resource: URI, range: IRange): TPromise<{ [word: string]: IRange[] }> {
+	computeWordRanges(resource: URI, range: IRange): Promise<{ [word: string]: IRange[] }> {
 		return this._withSyncedResources([resource]).then(proxy => {
 			let model = this._modelService.getModel(resource);
 			if (!model) {
@@ -434,7 +433,7 @@ export class EditorWorkerClient extends Disposable {
 		});
 	}
 
-	public navigateValueSet(resource: URI, range: IRange, up: boolean): TPromise<modes.IInplaceReplaceSupportResult> {
+	public navigateValueSet(resource: URI, range: IRange, up: boolean): Promise<modes.IInplaceReplaceSupportResult> {
 		return this._withSyncedResources([resource]).then(proxy => {
 			let model = this._modelService.getModel(resource);
 			if (!model) {

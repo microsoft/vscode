@@ -61,7 +61,6 @@ import { IMenubarService } from 'vs/platform/menubar/common/menubar';
 import { MenubarService } from 'vs/platform/menubar/electron-main/menubarService';
 import { MenubarChannel } from 'vs/platform/menubar/node/menubarIpc';
 import { ILabelService, RegisterFormatterEvent } from 'vs/platform/label/common/label';
-import { CodeMenu } from 'vs/code/electron-main/menus';
 import { hasArgs } from 'vs/platform/environment/node/argv';
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { registerContextMenuListener } from 'vs/base/parts/contextmenu/electron-main/contextmenu';
@@ -592,23 +591,6 @@ export class CodeApplication {
 					});
 				}
 			}
-		}
-
-		// Install Menu
-		const instantiationService = accessor.get(IInstantiationService);
-		const configurationService = accessor.get(IConfigurationService);
-
-		// Initial value sets the value for macOS. false indicates using Dynamic Menus
-		// Eventually this will not be necessary as the dynamic menu will takeover
-		let createNativeMenu = false;
-		if (platform.isLinux) {
-			createNativeMenu = configurationService.getValue<string>('window.titleBarStyle') !== 'custom';
-		} else if (platform.isWindows) {
-			createNativeMenu = configurationService.getValue<string>('window.titleBarStyle') === 'native';
-		}
-
-		if (createNativeMenu) {
-			instantiationService.createInstance(CodeMenu);
 		}
 
 		// Jump List

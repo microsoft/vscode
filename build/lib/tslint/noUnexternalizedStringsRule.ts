@@ -63,8 +63,8 @@ class NoUnexternalizedStringsRuleWalker extends Lint.RuleWalker {
 		this.messageIndex = undefined;
 		this.keyIndex = undefined;
 		this.usedKeys = Object.create(null);
-		let options: any[] = this.getOptions();
-		let first: UnexternalizedStringsOptions = options && options.length > 0 ? options[0] : null;
+		const options: any[] = this.getOptions();
+		const first: UnexternalizedStringsOptions = options && options.length > 0 ? options[0] : null;
 		if (first) {
 			if (Array.isArray(first.signatures)) {
 				first.signatures.forEach((signature: string) => this.signatures[signature] = true);
@@ -84,7 +84,7 @@ class NoUnexternalizedStringsRuleWalker extends Lint.RuleWalker {
 	protected visitSourceFile(node: ts.SourceFile): void {
 		super.visitSourceFile(node);
 		Object.keys(this.usedKeys).forEach(key => {
-			let occurrences = this.usedKeys[key];
+			const occurrences = this.usedKeys[key];
 			if (occurrences.length > 1) {
 				occurrences.forEach(occurrence => {
 					this.addFailure((this.createFailure(occurrence.key.getStart(), occurrence.key.getWidth(), `Duplicate key ${occurrence.key.getText()} with different message value.`)));
@@ -99,9 +99,9 @@ class NoUnexternalizedStringsRuleWalker extends Lint.RuleWalker {
 	}
 
 	private checkStringLiteral(node: ts.StringLiteral): void {
-		let text = node.getText();
-		let doubleQuoted = text.length >= 2 && text[0] === NoUnexternalizedStringsRuleWalker.DOUBLE_QUOTE && text[text.length - 1] === NoUnexternalizedStringsRuleWalker.DOUBLE_QUOTE;
-		let info = this.findDescribingParent(node);
+		const text = node.getText();
+		const doubleQuoted = text.length >= 2 && text[0] === NoUnexternalizedStringsRuleWalker.DOUBLE_QUOTE && text[text.length - 1] === NoUnexternalizedStringsRuleWalker.DOUBLE_QUOTE;
+		const info = this.findDescribingParent(node);
 		// Ignore strings in import and export nodes.
 		if (info && info.isImport && doubleQuoted) {
 			const fix = [
@@ -115,8 +115,8 @@ class NoUnexternalizedStringsRuleWalker extends Lint.RuleWalker {
 			);
 			return;
 		}
-		let callInfo = info ? info.callInfo : null;
-		let functionName = callInfo ? callInfo.callExpression.expression.getText() : null;
+		const callInfo = info ? info.callInfo : null;
+		const functionName = callInfo ? callInfo.callExpression.expression.getText() : null;
 		if (functionName && this.ignores[functionName]) {
 			return;
 		}
@@ -134,7 +134,7 @@ class NoUnexternalizedStringsRuleWalker extends Lint.RuleWalker {
 			return;
 		}
 		// We have a string that is a direct argument into the localize call.
-		let keyArg: ts.Expression | null = callInfo && callInfo.argIndex === this.keyIndex
+		const keyArg: ts.Expression | null = callInfo && callInfo.argIndex === this.keyIndex
 			? callInfo.callExpression.arguments[this.keyIndex]
 			: null;
 		if (keyArg) {
@@ -142,11 +142,11 @@ class NoUnexternalizedStringsRuleWalker extends Lint.RuleWalker {
 				this.recordKey(keyArg, this.messageIndex && callInfo ? callInfo.callExpression.arguments[this.messageIndex] : undefined);
 			} else if (isObjectLiteral(keyArg)) {
 				for (let i = 0; i < keyArg.properties.length; i++) {
-					let property = keyArg.properties[i];
+					const property = keyArg.properties[i];
 					if (isPropertyAssignment(property)) {
-						let name = property.name.getText();
+						const name = property.name.getText();
 						if (name === 'key') {
-							let initializer = property.initializer;
+							const initializer = property.initializer;
 							if (isStringLiteral(initializer)) {
 								this.recordKey(initializer, this.messageIndex && callInfo ? callInfo.callExpression.arguments[this.messageIndex] : undefined);
 							}
@@ -168,7 +168,7 @@ class NoUnexternalizedStringsRuleWalker extends Lint.RuleWalker {
 	}
 
 	private recordKey(keyNode: ts.StringLiteral, messageNode: ts.Node | undefined) {
-		let text = keyNode.getText();
+		const text = keyNode.getText();
 		// We have an empty key
 		if (text.match(/(['"]) *\1/)) {
 			if (messageNode) {
@@ -194,9 +194,9 @@ class NoUnexternalizedStringsRuleWalker extends Lint.RuleWalker {
 	private findDescribingParent(node: ts.Node): { callInfo?: { callExpression: ts.CallExpression, argIndex: number }, isImport?: boolean; } | null {
 		let parent: ts.Node;
 		while ((parent = node.parent)) {
-			let kind = parent.kind;
+			const kind = parent.kind;
 			if (kind === ts.SyntaxKind.CallExpression) {
-				let callExpression = parent as ts.CallExpression;
+				const callExpression = parent as ts.CallExpression;
 				return { callInfo: { callExpression: callExpression, argIndex: callExpression.arguments.indexOf(<any>node) } };
 			} else if (kind === ts.SyntaxKind.ImportEqualsDeclaration || kind === ts.SyntaxKind.ImportDeclaration || kind === ts.SyntaxKind.ExportDeclaration) {
 				return { isImport: true };

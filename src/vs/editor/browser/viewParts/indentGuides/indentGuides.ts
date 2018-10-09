@@ -158,11 +158,11 @@ export class IndentGuidesOverlay extends DynamicViewOverlay {
 }
 
 registerThemingParticipant((theme, collector) => {
-	let editorIndentGuidesColor = theme.getColor(editorIndentGuides);
+	const editorIndentGuidesColor = theme.getColor(editorIndentGuides);
 	if (editorIndentGuidesColor) {
 		collector.addRule(`.monaco-editor .lines-content .cigr { box-shadow: 1px 0 0 0 ${editorIndentGuidesColor} inset; }`);
 	}
-	let editorActiveIndentGuidesColor = theme.getColor(editorActiveIndentGuides) || editorIndentGuidesColor;
+	const editorActiveIndentGuidesColor = theme.getColor(editorActiveIndentGuides) || editorIndentGuidesColor;
 	if (editorActiveIndentGuidesColor) {
 		collector.addRule(`.monaco-editor .lines-content .cigra { box-shadow: 1px 0 0 0 ${editorActiveIndentGuidesColor} inset; }`);
 	}

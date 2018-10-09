@@ -383,7 +383,8 @@ function positionToOffset(str, desiredLine, desiredCol) {
     if (desiredLine === 1) {
         return desiredCol - 1;
     }
-    var line = 1, lastNewLineOffset = -1;
+    var line = 1;
+    var lastNewLineOffset = -1;
     do {
         if (desiredLine === line) {
             return lastNewLineOffset + 1 + desiredCol - 1;
@@ -397,7 +398,8 @@ function positionToOffset(str, desiredLine, desiredCol) {
  * Return a set of reachable nodes in `graph` starting from `rootNodes`
  */
 function visit(rootNodes, graph) {
-    var result = {}, queue = rootNodes;
+    var result = {};
+    var queue = rootNodes;
     rootNodes.forEach(function (node) {
         result[node] = true;
     });

@@ -347,7 +347,7 @@ export class ViewCursors extends ViewPart {
 }
 
 registerThemingParticipant((theme, collector) => {
-	let caret = theme.getColor(editorCursorForeground);
+	const caret = theme.getColor(editorCursorForeground);
 	if (caret) {
 		let caretBackground = theme.getColor(editorCursorBackground);
 		if (!caretBackground) {

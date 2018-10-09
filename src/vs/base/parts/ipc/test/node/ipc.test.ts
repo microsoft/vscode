@@ -231,23 +231,27 @@ suite('Base IPC', function () {
 			server.dispose();
 		});
 
-		test('call success', function () {
-			return ipcService.marco()
-				.then(r => assert.equal(r, 'polo'));
+		test('call success', async function () {
+			const r = await ipcService.marco();
+			return assert.equal(r, 'polo');
 		});
 
-		test('call error', function () {
-			return ipcService.error('nice error').then(
-				() => assert.fail('should not reach here'),
-				err => assert.equal(err.message, 'nice error')
-			);
+		test('call error', async function () {
+			try {
+				await ipcService.error('nice error');
+				return assert.fail('should not reach here');
+			} catch (err) {
+				return assert.equal(err.message, 'nice error');
+			}
 		});
 
-		test('cancel call with cancelled cancellation token', function () {
-			return ipcService.neverCompleteCT(CancellationToken.Cancelled).then(
-				_ => assert.fail('should not reach here'),
-				err => assert(err.message === 'Canceled')
-			);
+		test('cancel call with cancelled cancellation token', async function () {
+			try {
+				await ipcService.neverCompleteCT(CancellationToken.Cancelled);
+				return assert.fail('should not reach here');
+			} catch (err) {
+				return assert(err.message === 'Canceled');
+			}
 		});
 
 		test('cancel call with cancellation token (sync)', function () {

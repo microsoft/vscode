@@ -91,7 +91,7 @@ suite('SearchService', () => {
 		path: path.normalize('/some/where')
 	};
 
-	test('Individual results', function () {
+	test('Individual results', async function () {
 		this.timeout(testTimeout);
 		let i = 5;
 		const Engine = TestSearchEngine.bind(null, () => i-- && rawMatch);
@@ -107,11 +107,11 @@ suite('SearchService', () => {
 			}
 		};
 
-		return service.doFileSearch(Engine, rawSearch, cb)
-			.then(() => assert.strictEqual(results, 5));
+		await service.doFileSearch(Engine, rawSearch, cb);
+		return assert.strictEqual(results, 5);
 	});
 
-	test('Batch results', function () {
+	test('Batch results', async function () {
 		this.timeout(testTimeout);
 		let i = 25;
 		const Engine = TestSearchEngine.bind(null, () => i-- && rawMatch);
@@ -129,12 +129,11 @@ suite('SearchService', () => {
 			}
 		};
 
-		return service.doFileSearch(Engine, rawSearch, cb, undefined, 10).then(() => {
-			assert.deepStrictEqual(results, [10, 10, 5]);
-		});
+		await service.doFileSearch(Engine, rawSearch, cb, undefined, 10);
+		assert.deepStrictEqual(results, [10, 10, 5]);
 	});
 
-	test('Collect batched results', function () {
+	test('Collect batched results', async function () {
 		this.timeout(testTimeout);
 		const uriPath = '/some/where';
 		let i = 25;
@@ -163,14 +162,12 @@ suite('SearchService', () => {
 			progressResults.push(match);
 		};
 
-		return DiskSearch.collectResultsFromEvent(fileSearch(rawSearch, 10), onProgress)
-			.then(result => {
-				assert.strictEqual(result.results.length, 25, 'Result');
-				assert.strictEqual(progressResults.length, 25, 'Progress');
-			});
+		const result_2 = await DiskSearch.collectResultsFromEvent(fileSearch(rawSearch, 10), onProgress);
+		assert.strictEqual(result_2.results.length, 25, 'Result');
+		assert.strictEqual(progressResults.length, 25, 'Progress');
 	});
 
-	test('Multi-root with include pattern and maxResults', function () {
+	test('Multi-root with include pattern and maxResults', async function () {
 		this.timeout(testTimeout);
 		const service = new RawSearchService();
 
@@ -183,13 +180,11 @@ suite('SearchService', () => {
 			},
 		};
 
-		return DiskSearch.collectResultsFromEvent(service.fileSearch(query))
-			.then(result => {
-				assert.strictEqual(result.results.length, 1, 'Result');
-			});
+		const result = await DiskSearch.collectResultsFromEvent(service.fileSearch(query));
+		assert.strictEqual(result.results.length, 1, 'Result');
 	});
 
-	test('Multi-root with include pattern and exists', function () {
+	test('Multi-root with include pattern and exists', async function () {
 		this.timeout(testTimeout);
 		const service = new RawSearchService();
 
@@ -202,14 +197,12 @@ suite('SearchService', () => {
 			},
 		};
 
-		return DiskSearch.collectResultsFromEvent(service.fileSearch(query))
-			.then(result => {
-				assert.strictEqual(result.results.length, 0, 'Result');
-				assert.ok(result.limitHit);
-			});
+		const result = await DiskSearch.collectResultsFromEvent(service.fileSearch(query));
+		assert.strictEqual(result.results.length, 0, 'Result');
+		assert.ok(result.limitHit);
 	});
 
-	test('Sorted results', function () {
+	test('Sorted results', async function () {
 		this.timeout(testTimeout);
 		const paths = ['bab', 'bbc', 'abb'];
 		const matches: IRawFileMatch[] = paths.map(relativePath => ({
@@ -230,18 +223,17 @@ suite('SearchService', () => {
 			}
 		};
 
-		return service.doFileSearch(Engine, {
+		await service.doFileSearch(Engine, {
 			folderQueries: TEST_FOLDER_QUERIES,
 			filePattern: 'bb',
 			sortByScore: true,
 			maxResults: 2
-		}, cb, undefined, 1).then(() => {
-			assert.notStrictEqual(typeof TestSearchEngine.last.config.maxResults, 'number');
-			assert.deepStrictEqual(results, [path.normalize('/some/where/bbc'), path.normalize('/some/where/bab')]);
-		});
+		}, cb, undefined, 1);
+		assert.notStrictEqual(typeof TestSearchEngine.last.config.maxResults, 'number');
+		assert.deepStrictEqual(results, [path.normalize('/some/where/bbc'), path.normalize('/some/where/bab')]);
 	});
 
-	test('Sorted result batches', function () {
+	test('Sorted result batches', async function () {
 		this.timeout(testTimeout);
 		let i = 25;
 		const Engine = TestSearchEngine.bind(null, () => i-- && rawMatch);
@@ -258,15 +250,13 @@ suite('SearchService', () => {
 				assert.fail(JSON.stringify(value));
 			}
 		};
-		return service.doFileSearch(Engine, {
+		await service.doFileSearch(Engine, {
 			folderQueries: TEST_FOLDER_QUERIES,
 			filePattern: 'a',
 			sortByScore: true,
 			maxResults: 23
-		}, cb, undefined, 10)
-			.then(() => {
-				assert.deepStrictEqual(results, [10, 10, 3]);
-			});
+		}, cb, undefined, 10);
+		assert.deepStrictEqual(results, [10, 10, 3]);
 	});
 
 	test('Cached results', function () {
@@ -297,7 +287,7 @@ suite('SearchService', () => {
 		}, cb, undefined, -1).then(complete => {
 			assert.strictEqual((<IFileSearchStats>complete.stats).fromCache, false);
 			assert.deepStrictEqual(results, [path.normalize('/some/where/bcb'), path.normalize('/some/where/bbc'), path.normalize('/some/where/aab')]);
-		}).then(() => {
+		}).then(async () => {
 			const results = [];
 			const cb = value => {
 				if (Array.isArray(value)) {
@@ -306,18 +296,20 @@ suite('SearchService', () => {
 					assert.fail(JSON.stringify(value));
 				}
 			};
-			return service.doFileSearch(Engine, {
-				folderQueries: TEST_FOLDER_QUERIES,
-				filePattern: 'bc',
-				sortByScore: true,
-				cacheKey: 'x'
-			}, cb, undefined, -1).then(complete => {
+			try {
+				const complete = await service.doFileSearch(Engine, {
+					folderQueries: TEST_FOLDER_QUERIES,
+					filePattern: 'bc',
+					sortByScore: true,
+					cacheKey: 'x'
+				}, cb, undefined, -1);
 				assert.ok((<IFileSearchStats>complete.stats).fromCache);
 				assert.deepStrictEqual(results, [path.normalize('/some/where/bcb'), path.normalize('/some/where/bbc')]);
-			}, null);
+			}
+			catch (e) { }
 		}).then(() => {
 			return service.clearCache('x');
-		}).then(() => {
+		}).then(async () => {
 			matches.push({
 				base: path.normalize('/some/where'),
 				relativePath: 'bc',
@@ -332,15 +324,14 @@ suite('SearchService', () => {
 					assert.fail(JSON.stringify(value));
 				}
 			};
-			return service.doFileSearch(Engine, {
+			const complete = await service.doFileSearch(Engine, {
 				folderQueries: TEST_FOLDER_QUERIES,
 				filePattern: 'bc',
 				sortByScore: true,
 				cacheKey: 'x'
-			}, cb, undefined, -1).then(complete => {
-				assert.strictEqual((<IFileSearchStats>complete.stats).fromCache, false);
-				assert.deepStrictEqual(results, [path.normalize('/some/where/bc')]);
-			});
+			}, cb, undefined, -1);
+			assert.strictEqual((<IFileSearchStats>complete.stats).fromCache, false);
+			assert.deepStrictEqual(results, [path.normalize('/some/where/bc')]);
 		});
 	});
 });

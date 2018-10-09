@@ -95,7 +95,7 @@ export class ScrollDecorationViewPart extends ViewPart {
 }
 
 registerThemingParticipant((theme, collector) => {
-	let shadow = theme.getColor(scrollbarShadow);
+	const shadow = theme.getColor(scrollbarShadow);
 	if (shadow) {
 		collector.addRule(`.monaco-editor .scroll-decoration { box-shadow: ${shadow} 0 6px 6px -6px inset; }`);
 	}

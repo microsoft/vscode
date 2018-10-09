@@ -19,7 +19,6 @@ import { ITree, IActionProvider, IDataSource, IRenderer, IAccessibilityProvider 
 import { IAction, IActionItem } from 'vs/base/common/actions';
 import { RestartAction, StopAction, ContinueAction, StepOverAction, StepIntoAction, StepOutAction, PauseAction, RestartFrameAction, TerminateThreadAction } from 'vs/workbench/parts/debug/browser/debugActions';
 import { CopyStackTraceAction } from 'vs/workbench/parts/debug/electron-browser/electronDebugActions';
-import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { TreeResourceNavigator, WorkbenchTree } from 'vs/platform/list/browser/listService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -397,7 +396,6 @@ class CallStackRenderer implements IRenderer {
 	private static readonly SESSION_TEMPLATE_ID = 'session';
 
 	constructor(
-		@IWorkspaceContextService private contextService: IWorkspaceContextService,
 		@ILabelService private labelService: ILabelService
 	) {
 		// noop
@@ -484,7 +482,7 @@ class CallStackRenderer implements IRenderer {
 
 	private renderSession(session: IDebugSession, data: ISessionTemplateData): void {
 		data.session.title = nls.localize({ key: 'session', comment: ['Session is a noun'] }, "Session");
-		data.name.textContent = session.getName(this.contextService.getWorkbenchState() === WorkbenchState.WORKSPACE);
+		data.name.textContent = session.getLabel();
 		const stoppedThread = session.getAllThreads().filter(t => t.stopped).pop();
 
 		data.stateLabel.textContent = stoppedThread ? nls.localize('paused', "Paused")

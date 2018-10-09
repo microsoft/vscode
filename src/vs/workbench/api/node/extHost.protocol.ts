@@ -86,6 +86,11 @@ export interface IMainContext extends IRPCProtocol {
 
 // --- main thread
 
+export interface MainThreadClipboardShape extends IDisposable {
+	$readText(): Promise<string>;
+	$writeText(value: string): Promise<void>;
+}
+
 export interface MainThreadCommandsShape extends IDisposable {
 	$registerCommand(id: string): void;
 	$unregisterCommand(id: string): void;
@@ -261,6 +266,11 @@ export interface ISerializedDocumentFilter {
 	exclusive?: boolean;
 }
 
+export interface ISerializedSignatureHelpProviderMetadata {
+	readonly triggerCharacters: ReadonlyArray<string>;
+	readonly retriggerCharacters: ReadonlyArray<string>;
+}
+
 export interface MainThreadLanguageFeaturesShape extends IDisposable {
 	$unregister(handle: number): void;
 	$registerOutlineSupport(handle: number, selector: ISerializedDocumentFilter[], extensionId: string): void;
@@ -279,7 +289,7 @@ export interface MainThreadLanguageFeaturesShape extends IDisposable {
 	$registerNavigateTypeSupport(handle: number): void;
 	$registerRenameSupport(handle: number, selector: ISerializedDocumentFilter[], supportsResolveInitialValues: boolean): void;
 	$registerSuggestSupport(handle: number, selector: ISerializedDocumentFilter[], triggerCharacters: string[], supportsResolveDetails: boolean): void;
-	$registerSignatureHelpProvider(handle: number, selector: ISerializedDocumentFilter[], triggerCharacter: string[]): void;
+	$registerSignatureHelpProvider(handle: number, selector: ISerializedDocumentFilter[], metadata: ISerializedSignatureHelpProviderMetadata): void;
 	$registerDocumentLinkProvider(handle: number, selector: ISerializedDocumentFilter[]): void;
 	$registerDocumentColorProvider(handle: number, selector: ISerializedDocumentFilter[]): void;
 	$registerFoldingRangeProvider(handle: number, selector: ISerializedDocumentFilter[]): void;
@@ -1009,6 +1019,7 @@ export interface ExtHostCommentsShape {
 // --- proxy identifiers
 
 export const MainContext = {
+	MainThreadClipboard: <ProxyIdentifier<MainThreadClipboardShape>>createMainId<MainThreadClipboardShape>('MainThreadClipboard'),
 	MainThreadCommands: <ProxyIdentifier<MainThreadCommandsShape>>createMainId<MainThreadCommandsShape>('MainThreadCommands'),
 	MainThreadComments: createMainId<MainThreadCommentsShape>('MainThreadComments'),
 	MainThreadConfiguration: createMainId<MainThreadConfigurationShape>('MainThreadConfiguration'),

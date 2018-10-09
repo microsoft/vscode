@@ -16,7 +16,7 @@ export class Rule extends Lint.Rules.AbstractRule {
 	public apply(sourceFile: ts.SourceFile): Lint.RuleFailure[] {
 
 		const parts = dirname(sourceFile.fileName).split(/\\|\//);
-		let ruleArgs = this.getOptions().ruleArguments[0];
+		const ruleArgs = this.getOptions().ruleArguments[0];
 
 		let config: Config | undefined;
 		for (let i = parts.length - 1; i >= 0; i--) {
@@ -98,7 +98,7 @@ class LayeringRule extends Lint.RuleWalker {
 	}
 
 	static _print(set: Set<string>): string {
-		let r: string[] = [];
+		const r: string[] = [];
 		set.forEach(e => r.push(e));
 		return r.join(', ');
 	}
