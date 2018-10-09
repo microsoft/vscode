@@ -212,7 +212,6 @@ export abstract class AbstractTree<T, TFilterData, TRef> implements IDisposable 
 
 	// Widget
 
-	// TODO@joao rename to `get domElement`
 	getHTMLElement(): HTMLElement {
 		return this.view.getHTMLElement();
 	}
