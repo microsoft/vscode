@@ -13,7 +13,7 @@ import { Event, Emitter } from 'vs/base/common/event';
 import { CompletionItem, completionKindFromLegacyString } from 'vs/editor/common/modes';
 import { Position } from 'vs/editor/common/core/position';
 import * as aria from 'vs/base/browser/ui/aria/aria';
-import { IDebugSession, IConfig, IThread, IRawModelUpdate, IDebugService, IRawStoppedDetails, State, LoadedSourceEvent, IFunctionBreakpoint, IExceptionBreakpoint, ActualBreakpoints, IBreakpoint, IExceptionInfo, AdapterEndEvent, IDebugger, VIEWLET_ID, IDebugConfiguration, IReplElement, IStackFrame, IExpression, IReplElementSource } from 'vs/workbench/parts/debug/common/debug';
+import { IDebugSession, IConfig, IThread, IRawModelUpdate, IDebugService, IRawStoppedDetails, State, LoadedSourceEvent, IFunctionBreakpoint, IExceptionBreakpoint, IBreakpoint, IExceptionInfo, AdapterEndEvent, IDebugger, VIEWLET_ID, IDebugConfiguration, IReplElement, IStackFrame, IExpression, IReplElementSource } from 'vs/workbench/parts/debug/common/debug';
 import { Source } from 'vs/workbench/parts/debug/common/debugSource';
 import { mixin } from 'vs/base/common/objects';
 import { Thread, ExpressionContainer, DebugModel } from 'vs/workbench/parts/debug/common/debugModel';
@@ -230,7 +230,7 @@ export class DebugSession implements IDebugSession {
 		return Promise.reject(new Error('no debug adapter'));
 	}
 
-	sendBreakpoints(modelUri: URI, breakpointsToSend: IBreakpoint[], sourceModified: boolean): TPromise<ActualBreakpoints | undefined> {
+	sendBreakpoints(modelUri: URI, breakpointsToSend: IBreakpoint[], sourceModified: boolean): TPromise<void> {
 
 		if (!this.raw) {
 			return Promise.reject(new Error('no debug adapter'));
@@ -261,35 +261,34 @@ export class DebugSession implements IDebugSession {
 			breakpoints: breakpointsToSend.map(bp => ({ line: bp.lineNumber, column: bp.column, condition: bp.condition, hitCondition: bp.hitCondition, logMessage: bp.logMessage })),
 			sourceModified
 		}).then(response => {
-
 			if (response && response.body) {
-				const data: ActualBreakpoints = Object.create(null);
+				const data: { [id: string]: DebugProtocol.Breakpoint } = Object.create(null);
 				for (let i = 0; i < breakpointsToSend.length; i++) {
 					data[breakpointsToSend[i].getId()] = response.body.breakpoints[i];
 				}
+
 				this.model.setBreakpointSessionData(this.getId(), data);
-				return data;
 			}
-			return undefined;
 		});
 	}
 
-	sendFunctionBreakpoints(fbpts: IFunctionBreakpoint[]): TPromise<ActualBreakpoints | undefined> {
+	sendFunctionBreakpoints(fbpts: IFunctionBreakpoint[]): TPromise<void> {
 		if (this.raw) {
 			if (this.raw.readyForBreakpoints) {
 				return this.raw.setFunctionBreakpoints({ breakpoints: fbpts }).then(response => {
 					if (response && response.body) {
-						const data: ActualBreakpoints = Object.create(null);
+						const data: { [id: string]: DebugProtocol.Breakpoint } = Object.create(null);
 						for (let i = 0; i < fbpts.length; i++) {
 							data[fbpts[i].getId()] = response.body.breakpoints[i];
 						}
-						return data;
+						this.model.setBreakpointSessionData(this.getId(), data);
 					}
-					return undefined;
 				});
 			}
-			return Promise.resolve(undefined);
+
+			return TPromise.as(undefined);
 		}
+
 		return Promise.reject(new Error('no debug adapter'));
 	}
 

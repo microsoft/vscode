@@ -871,13 +871,9 @@ export class DebugService implements IDebugService {
 
 		const breakpointsToSend = this.model.getBreakpoints({ uri: modelUri, enabledOnly: true });
 
-		return this.sendToOneOrAllSessions(session, s => {
-			return s.sendBreakpoints(modelUri, breakpointsToSend, sourceModified).then(data => {
-				if (data) {
-					this.model.setBreakpointSessionData(s.getId(), data);
-				}
-			});
-		});
+		return this.sendToOneOrAllSessions(session, s =>
+			s.sendBreakpoints(modelUri, breakpointsToSend, sourceModified)
+		);
 	}
 
 	private sendFunctionBreakpoints(session?: IDebugSession): TPromise<void> {
@@ -885,11 +881,7 @@ export class DebugService implements IDebugService {
 		const breakpointsToSend = this.model.getFunctionBreakpoints().filter(fbp => fbp.enabled && this.model.areBreakpointsActivated());
 
 		return this.sendToOneOrAllSessions(session, s => {
-			return s.capabilities.supportsFunctionBreakpoints ? s.sendFunctionBreakpoints(breakpointsToSend).then(data => {
-				if (data) {
-					this.model.setBreakpointSessionData(s.getId(), data);
-				}
-			}) : Promise.resolve(undefined);
+			return s.capabilities.supportsFunctionBreakpoints ? s.sendFunctionBreakpoints(breakpointsToSend) : Promise.resolve(undefined);
 		});
 	}
 

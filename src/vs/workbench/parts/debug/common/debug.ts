@@ -116,8 +116,6 @@ export interface IDebugger {
 	getCustomTelemetryService(): TPromise<TelemetryService>;
 }
 
-export type ActualBreakpoints = { [id: string]: DebugProtocol.Breakpoint };
-
 export enum State {
 	Inactive,
 	Initializing,
@@ -186,8 +184,8 @@ export interface IDebugSession extends ITreeElement {
 	terminate(restart?: boolean /* false */): TPromise<void>;
 	disconnect(restart?: boolean /* false */): TPromise<void>;
 
-	sendBreakpoints(modelUri: uri, bpts: IBreakpoint[], sourceModified: boolean): TPromise<ActualBreakpoints | undefined>;
-	sendFunctionBreakpoints(fbps: IFunctionBreakpoint[]): TPromise<ActualBreakpoints | undefined>;
+	sendBreakpoints(modelUri: uri, bpts: IBreakpoint[], sourceModified: boolean): TPromise<void>;
+	sendFunctionBreakpoints(fbps: IFunctionBreakpoint[]): TPromise<void>;
 	sendExceptionBreakpoints(exbpts: IExceptionBreakpoint[]): TPromise<void>;
 
 	stackTrace(threadId: number, startFrame: number, levels: number): TPromise<DebugProtocol.StackTraceResponse>;
