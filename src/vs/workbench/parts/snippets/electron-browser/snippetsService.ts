@@ -31,7 +31,7 @@ import { IWorkspaceContextService, IWorkspace } from 'vs/platform/workspace/comm
 import { isFalsyOrEmpty } from 'vs/base/common/arrays';
 import { IRange, Range } from 'vs/editor/common/core/range';
 
-namespace schema {
+namespace ext {
 
 	export interface ISnippetsExtensionPoint {
 		language: string;
@@ -109,6 +109,12 @@ namespace schema {
 			}
 		}
 	};
+
+	export let snippetExtensions: ReadonlyArray<IExtensionPointUser<ISnippetsExtensionPoint[]>> = [];
+
+	ExtensionsRegistry.registerExtensionPoint<ext.ISnippetsExtensionPoint[]>('snippets', [languagesExtPoint], ext.snippetsContribution).setHandler(extensions => {
+		snippetExtensions = snippetExtensions.concat(extensions);
+	});
 }
 
 function watch(service: IFileService, resource: URI, callback: (type: FileChangeType, resource: URI) => any): IDisposable {
@@ -144,8 +150,8 @@ class SnippetsService implements ISnippetsService {
 		@IFileService private readonly _fileService: IFileService,
 		@ILifecycleService lifecycleService: ILifecycleService,
 	) {
-		this._initExtensionSnippets();
 		this._pendingWork.push(Promise.resolve(lifecycleService.when(LifecyclePhase.Running).then(() => {
+			this._initExtensionSnippets();
 			this._initUserSnippets();
 			this._initWorkspaceSnippets();
 		})));
@@ -197,45 +203,43 @@ class SnippetsService implements ISnippetsService {
 	// --- loading, watching
 
 	private _initExtensionSnippets(): void {
-		ExtensionsRegistry.registerExtensionPoint<schema.ISnippetsExtensionPoint[]>('snippets', [languagesExtPoint], schema.snippetsContribution).setHandler(extensions => {
-			for (const extension of extensions) {
-				for (const contribution of extension.value) {
-					const validContribution = schema.toValidSnippet(extension, contribution, this._modeService);
-					if (!validContribution) {
-						continue;
-					}
+		for (const extension of ext.snippetExtensions) {
+			for (const contribution of extension.value) {
+				const validContribution = ext.toValidSnippet(extension, contribution, this._modeService);
+				if (!validContribution) {
+					continue;
+				}
 
-					if (this._files.has(validContribution.location.toString())) {
-						this._files.get(validContribution.location.toString()).defaultScopes.push(validContribution.language);
+				if (this._files.has(validContribution.location.toString())) {
+					this._files.get(validContribution.location.toString()).defaultScopes.push(validContribution.language);
 
-					} else {
-						const file = new SnippetFile(SnippetSource.Extension, validContribution.location, validContribution.language ? [validContribution.language] : undefined, extension.description, this._fileService);
-						this._files.set(file.location.toString(), file);
+				} else {
+					const file = new SnippetFile(SnippetSource.Extension, validContribution.location, validContribution.language ? [validContribution.language] : undefined, extension.description, this._fileService);
+					this._files.set(file.location.toString(), file);
 
-						if (this._environmentService.isExtensionDevelopment) {
-							file.load().then(file => {
-								// warn about bad tabstop/variable usage
-								if (file.data.some(snippet => snippet.isBogous)) {
-									extension.collector.warn(localize(
-										'badVariableUse',
-										"One or more snippets from the extension '{0}' very likely confuse snippet-variables and snippet-placeholders (see https://code.visualstudio.com/docs/editor/userdefinedsnippets#_snippet-syntax for more details)",
-										extension.description.name
-									));
-								}
-							}, err => {
-								// generic error
+					if (this._environmentService.isExtensionDevelopment) {
+						file.load().then(file => {
+							// warn about bad tabstop/variable usage
+							if (file.data.some(snippet => snippet.isBogous)) {
 								extension.collector.warn(localize(
-									'badFile',
-									"The snippet file \"{0}\" could not be read.",
-									file.location.toString()
+									'badVariableUse',
+									"One or more snippets from the extension '{0}' very likely confuse snippet-variables and snippet-placeholders (see https://code.visualstudio.com/docs/editor/userdefinedsnippets#_snippet-syntax for more details)",
+									extension.description.name
 								));
-							});
-						}
-
+							}
+						}, err => {
+							// generic error
+							extension.collector.warn(localize(
+								'badFile',
+								"The snippet file \"{0}\" could not be read.",
+								file.location.toString()
+							));
+						});
 					}
+
 				}
 			}
-		});
+		}
 	}
 
 	private _initWorkspaceSnippets(): void {
