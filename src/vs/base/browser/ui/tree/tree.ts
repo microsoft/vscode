@@ -42,7 +42,7 @@ export interface ITreeNode<T, TFilterData = void> {
 	readonly depth: number;
 	readonly collapsible: boolean;
 	readonly collapsed: boolean;
-	readonly revealedCount: number;
+	readonly renderNodeCount: number;
 	readonly visible: boolean;
 	readonly filterData: TFilterData | undefined;
 }
