@@ -653,9 +653,19 @@
           "when": "scmProvider == git"
         },
         {
+          "command": "git.pushForce",
+          "group": "1_sync",
+          "when": "scmProvider == git && config.git.allowForcePush"
+        },
+        {
           "command": "git.pushTo",
           "group": "1_sync",
           "when": "scmProvider == git"
+        },
+        {
+          "command": "git.pushToForce",
+          "group": "1_sync",
+          "when": "scmProvider == git && config.git.allowForcePush"
         },
         {
           "command": "git.publish",
