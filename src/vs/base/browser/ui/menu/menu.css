@@ -53,6 +53,10 @@
 	line-height: 1;
 }
 
+.monaco-menu .monaco-action-bar.vertical .keybinding {
+	opacity: 0.55;
+}
+
 .monaco-menu .monaco-action-bar.vertical .submenu-indicator {
 	height: 100%;
 	-webkit-mask: url('submenu.svg') no-repeat 90% 50%/14px 14px;
@@ -124,6 +128,8 @@
 
 .monaco-menu .monaco-action-bar.vertical .action-item {
 	border: 1px solid transparent; /* prevents jumping behaviour on hover or focus */
+	border-left: 0;
+	border-right: 0;
 }
 
 
