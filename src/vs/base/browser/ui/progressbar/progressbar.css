@@ -6,7 +6,7 @@
 .monaco-progress-container {
 	width: 100%;
 	height: 5px;
-	overflow: hidden; /* keep progress bit in bounds */
+	overflow: hidden; /* Keep progress bit in bounds */
 }
 
 .monaco-progress-container .progress-bit {

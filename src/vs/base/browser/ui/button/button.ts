@@ -97,13 +97,16 @@ export class Button extends Disposable {
 		}));
 
 		this._register(DOM.addDisposableListener(this._element, DOM.EventType.MOUSE_OUT, e => {
-			this.applyStyles(); // restore standard styles
+			// Restore default styles
+			this.applyStyles();
 		}));
 
 		// Also set hover background when button is focused for feedback
 		this.focusTracker = this._register(DOM.trackFocus(this._element));
 		this._register(this.focusTracker.onDidFocus(() => this.setHoverBackground()));
-		this._register(this.focusTracker.onDidBlur(() => this.applyStyles())); // restore standard styles
+
+		// Restore default styles
+		this._register(this.focusTracker.onDidBlur(() => this.applyStyles()));
 
 		this.applyStyles();
 	}

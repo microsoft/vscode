@@ -3,10 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-/* ---------- Icon label ---------- */
-
 .monaco-icon-label {
-	display: flex; /* required for icons support :before rule */
+	display: flex; /* Required for icons support :before rule */
 	overflow: hidden;
 	text-overflow: ellipsis;
 }
@@ -26,24 +24,24 @@
 	-webkit-font-smoothing: antialiased;
 	vertical-align: top;
 
-	flex-shrink: 0; /* fix for https://github.com/Microsoft/vscode/issues/13787 */
+	flex-shrink: 0; /* Fix for https://github.com/Microsoft/vscode/issues/13787 */
 }
 
 .monaco-icon-label > .monaco-icon-label-description-container {
-	overflow: hidden; /* this causes the label/description to shrink first if decorations are enabled */
+	overflow: hidden; /* This causes the label/description to shrink first if decorations are enabled */
 	text-overflow: ellipsis;
 }
 
 .monaco-icon-label > .monaco-icon-label-description-container > .label-name {
 	color: inherit;
-	white-space: pre; /* enable to show labels that include multiple whitespaces */
+	white-space: pre; /* Enable to show labels that include multiple whitespaces */
 }
 
 .monaco-icon-label > .monaco-icon-label-description-container > .label-description {
 	opacity: .7;
 	margin-left: 0.5em;
 	font-size: 0.9em;
-	white-space: pre; /* enable to show labels that include multiple whitespaces */
+	white-space: pre; /* Enable to show labels that include multiple whitespaces */
 }
 
 .monaco-icon-label.italic > .monaco-icon-label-description-container > .label-name,
@@ -60,7 +58,7 @@
 	text-align: center;
 }
 
-/* make sure selection color wins when a label is being selected */
+/* Make sure selection color wins when a label is being selected */
 .monaco-tree.focused .selected .monaco-icon-label, /* tree */
 .monaco-tree.focused .selected .monaco-icon-label::after,
 .monaco-list:focus .selected .monaco-icon-label, /* list */

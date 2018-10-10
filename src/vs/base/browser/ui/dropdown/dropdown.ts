@@ -35,7 +35,6 @@ export class BaseDropdown extends ActionRunner {
 		super();
 
 		this._element = append(container, $('.monaco-dropdown'));
-
 		this._label = append(this._element, $('.dropdown-label'));
 
 		let labelRenderer = options.labelRenderer;
@@ -48,13 +47,18 @@ export class BaseDropdown extends ActionRunner {
 		}
 
 		[EventType.CLICK, EventType.MOUSE_DOWN, GestureEventType.Tap].forEach(event => {
-			this._register(addDisposableListener(this._label, event, e => EventHelper.stop(e, true))); // prevent default click behaviour to trigger
+
+			// Prevent default click behavior to trigger
+			this._register(addDisposableListener(this._label, event, e => EventHelper.stop(e, true)));
 		});
 
 		[EventType.MOUSE_DOWN, GestureEventType.Tap].forEach(event => {
 			this._register(addDisposableListener(this._label, event, e => {
 				if (e instanceof MouseEvent && e.detail > 1) {
-					return; // prevent multiple clicks to open multiple context menus (https://github.com/Microsoft/vscode/issues/41363)
+					/** Prevent multiple clicks to open multiple context menus
+						* (https://github.com/Microsoft/vscode/issues/41363)
+					 */
+					return;
 				}
 
 				if (this.visible) {
@@ -68,7 +72,11 @@ export class BaseDropdown extends ActionRunner {
 		this._register(addDisposableListener(this._label, EventType.KEY_UP, e => {
 			const event = new StandardKeyboardEvent(e as KeyboardEvent);
 			if (event.equals(KeyCode.Enter) || event.equals(KeyCode.Space)) {
-				EventHelper.stop(e, true); // https://github.com/Microsoft/vscode/issues/57997
+
+				/**
+				 * (https://github.com/Microsoft/vscode/issues/57997)
+				 */
+				EventHelper.stop(e, true);
 
 				if (this.visible) {
 					this.hide();
