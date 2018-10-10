@@ -57,7 +57,7 @@
 	opacity: 0.55;
 }
 
-.monaco-menu .monaco-action-bar.vertical .focused .keybinding {
+.monaco-menu .focused>.action-menu-item>.keybinding {
 	opacity: 1;
 }
 
