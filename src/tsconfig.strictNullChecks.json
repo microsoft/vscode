@@ -8,8 +8,11 @@
 		"./typings",
 		"./vs/base/common/charCode.ts",
 		"./vs/base/common/iterator.ts",
+		"./vs/base/common/strings.ts",
+		"./vs/base/common/paths.ts",
 		"./vs/base/common/platform.ts",
-		"./vs/base/common/uri.ts"
+		"./vs/base/common/uri.ts",
+		"./vs/base/common/uuid.ts"
 	],
 	"exclude": [
 		"./typings/require-monaco.d.ts"
