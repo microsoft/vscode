@@ -10,7 +10,6 @@ const localize = nls.loadMessageBundle();
 
 import { workspace, window, languages, ExtensionContext, extensions, Uri, LanguageConfiguration, Diagnostic } from 'vscode';
 import { LanguageClient, LanguageClientOptions, RequestType, ServerOptions, TransportKind, NotificationType, DidChangeConfigurationNotification, HandleDiagnosticsSignature } from 'vscode-languageclient';
-import { ErrorCode } from 'vscode-json-languageservice';
 import TelemetryReporter from 'vscode-extension-telemetry';
 
 import { hash } from './utils/hash';
@@ -93,7 +92,7 @@ export function activate(context: ExtensionContext) {
 			},
 			handleDiagnostics: (uri: Uri, diagnostics: Diagnostic[], next: HandleDiagnosticsSignature) => {
 				const schemaErrorIndex = diagnostics
-					.findIndex(candidate => candidate.code === ErrorCode.SchemaResolveError);
+					.findIndex(candidate => candidate.code === /* SchemaResolveError */ 0x300);
 				if (schemaErrorIndex !== -1) {
 					// Show schema resolution errors in status bar only; ref: #51032
 					const schemaResolveDiagnostic = diagnostics[schemaErrorIndex];
