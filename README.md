@@ -6,8 +6,8 @@
 [![Gitter](https://img.shields.io/badge/chat-on%20gitter-blue.svg)](https://gitter.im/Microsoft/vscode)
 
 [VS Code](https://code.visualstudio.com) is a new type of tool that combines the simplicity of
-a code editor with what developers need for their core edit-build-debug cycle. Code
-provides comprehensive editing and debugging support, an extensibility model, and lightweight integration with existing tools.
+a code editor with what developers need for their core edit-build-debug cycle. VS Code
+provides comprehensive editing and debugging support, an extensibility model and lightweight integration with existing tools.
 
 VS Code is updated monthly with new features and bug fixes. You can download it for Windows, macOS, and Linux on [VS Code's website](https://code.visualstudio.com/Download). To get the latest releases every day, you can install the [Insiders version of VS Code](https://code.visualstudio.com/insiders). This builds from the master branch and is updated at least daily.
 
@@ -44,7 +44,7 @@ Please see also our [Code of Conduct](CODE_OF_CONDUCT.md).
 
 ## Related Projects
 
-Many of the core components and extensions to Code live in their own repositories on GitHub. For example, the [node debug adapter](https://github.com/microsoft/vscode-node-debug) and the [mono debug adapter](https://github.com/microsoft/vscode-mono-debug).
+Many of the core components and extensions to VS Code live in their own repositories on GitHub. For example, the [node debug adapter](https://github.com/microsoft/vscode-node-debug) and the [mono debug adapter](https://github.com/microsoft/vscode-mono-debug).
 
 For a complete list, please see the [Related Projects](https://github.com/Microsoft/vscode/wiki/Related-Projects) page on our [wiki](https://github.com/Microsoft/vscode/wiki).
 
