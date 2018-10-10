@@ -35,6 +35,7 @@ import { IEditorGroupsService } from 'vs/workbench/services/group/common/editorG
 import { ILabelService } from 'vs/platform/label/common/label';
 import { nativeSep } from 'vs/base/common/paths';
 import { IPartService } from 'vs/workbench/services/part/common/partService';
+import { CONTEXT_NOT_IN_DEBUG_MODE } from 'vs/workbench/parts/debug/common/debug';
 
 // Viewlet Action
 export class OpenExplorerViewletAction extends ShowViewletAction {
@@ -414,3 +415,19 @@ MenuRegistry.appendMenuItem(MenuId.MenubarViewMenu, {
 	},
 	order: 1
 });
+
+// Touch Bar
+if (platform.isMacintosh) {
+	MenuRegistry.appendMenuItem(MenuId.TouchBarContext, {
+		command: {
+			id: OpenExplorerViewletAction.ID,
+			title: OpenExplorerViewletAction.LABEL,
+			iconLocation: {
+				dark: URI.parse(require.toUrl(`vs/workbench/parts/files/electron-browser/media/files-dark.png`))
+			}
+		},
+		when: CONTEXT_NOT_IN_DEBUG_MODE,
+		group: '2_activitybar',
+		order: 0
+	});
+}

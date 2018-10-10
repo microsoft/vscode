@@ -24,6 +24,9 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { IPartService } from 'vs/workbench/services/part/common/partService';
+import { isMacintosh } from 'vs/base/common/platform';
+import { URI } from 'vs/base/common/uri';
+import { CONTEXT_NOT_IN_DEBUG_MODE } from 'vs/workbench/parts/debug/common/debug';
 
 class OpenSCMViewletAction extends ShowViewletAction {
 
@@ -131,3 +134,19 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 		return commandService.executeCommand(id, ...args);
 	}
 });
+
+// Touch Bar
+if (isMacintosh) {
+	MenuRegistry.appendMenuItem(MenuId.TouchBarContext, {
+		command: {
+			id: OpenSCMViewletAction.ID,
+			title: OpenSCMViewletAction.LABEL,
+			iconLocation: {
+				dark: URI.parse(require.toUrl(`vs/workbench/parts/scm/electron-browser/media/icon-dark.png`))
+			}
+		},
+		when: CONTEXT_NOT_IN_DEBUG_MODE,
+		group: '2_activitybar',
+		order: 2
+	});
+}
