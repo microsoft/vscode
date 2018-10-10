@@ -17,6 +17,7 @@ import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/
 import { IPatternInfo, IQueryOptions, IFolderQuery, ISearchQuery, QueryType, ISearchConfiguration, getExcludes, pathIncludedInQuery } from 'vs/platform/search/common/search';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
+import { isMultilineRegexSource } from 'vs/editor/common/model/textModelSearch';
 
 export interface ISearchPathPattern {
 	searchPath: uri;
@@ -77,7 +78,8 @@ export class QueryBuilder {
 		const ignoreSymlinks = !this.configurationService.getValue<ISearchConfiguration>().search.followSymlinks;
 
 		if (contentPattern) {
-			this.resolveSmartCaseToCaseSensitive(contentPattern);
+			contentPattern.isCaseSensitive = this.isCaseSensitive(contentPattern);
+			contentPattern.isMultiline = this.isMultiline(contentPattern);
 
 			contentPattern.wordSeparators = this.configurationService.getValue<ISearchConfiguration>().editor.wordSeparators;
 		}
@@ -113,19 +115,33 @@ export class QueryBuilder {
 	}
 
 	/**
-	 * Fix the isCaseSensitive flag based on the query and the isSmartCase flag, for search providers that don't support smart case natively.
+	 * Resolve isCaseSensitive flag based on the query and the isSmartCase flag, for search providers that don't support smart case natively.
 	 */
-	private resolveSmartCaseToCaseSensitive(contentPattern: IPatternInfo): void {
+	private isCaseSensitive(contentPattern: IPatternInfo): boolean {
 		if (contentPattern.isSmartCase) {
 			if (contentPattern.isRegExp) {
 				// Consider it case sensitive if it contains an unescaped capital letter
 				if (strings.containsUppercaseCharacter(contentPattern.pattern, true)) {
-					contentPattern.isCaseSensitive = true;
+					return true;
 				}
 			} else if (strings.containsUppercaseCharacter(contentPattern.pattern)) {
-				contentPattern.isCaseSensitive = true;
+				return true;
 			}
 		}
+
+		return contentPattern.isCaseSensitive;
+	}
+
+	private isMultiline(contentPattern: IPatternInfo): boolean {
+		if (contentPattern.isMultiline) {
+			return true;
+		}
+
+		if (contentPattern.isRegExp && isMultilineRegexSource(contentPattern.pattern)) {
+			return true;
+		}
+
+		return false;
 	}
 
 	/**

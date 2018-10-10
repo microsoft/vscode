@@ -366,7 +366,6 @@ function generateDeclarationFile(out: string, inputFiles: { [file: string]: stri
 	let resultTxt = result.join(endl);
 	resultTxt = resultTxt.replace(/\bURI\b/g, 'Uri');
 	resultTxt = resultTxt.replace(/\bEvent</g, 'IEvent<');
-	resultTxt = resultTxt.replace(/\bTPromise</g, 'Promise<');
 
 	resultTxt = format(resultTxt);
 

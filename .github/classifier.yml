@@ -20,7 +20,10 @@
         },
         diff-editor: [],
         dropdown: [],
-        editor: [],
+        editor: {
+            assignees: [],
+            assignLabel: false
+        },
         editor-1000-limit: [],
         editor-autoclosing: [],
         editor-autoindent: [],

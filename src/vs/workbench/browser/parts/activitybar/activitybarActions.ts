@@ -4,24 +4,30 @@
  *--------------------------------------------------------------------------------------------*/
 
 import 'vs/css!./media/activityaction';
+import * as nls from 'vs/nls';
 import * as DOM from 'vs/base/browser/dom';
+import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
+import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
 import { EventType as TouchEventType, GestureEvent } from 'vs/base/browser/touch';
 import { Action } from 'vs/base/common/actions';
-import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
-import { ViewletDescriptor } from 'vs/workbench/browser/viewlet';
-import { IActivity, IGlobalActivity } from 'vs/workbench/common/activity';
-import { dispose } from 'vs/base/common/lifecycle';
-import { IViewletService, } from 'vs/workbench/services/viewlet/browser/viewlet';
-import { IPartService, Parts } from 'vs/workbench/services/part/common/partService';
-import { IThemeService, ITheme, registerThemingParticipant, ICssStyleCollector } from 'vs/platform/theme/common/themeService';
-import { activeContrastBorder, focusBorder } from 'vs/platform/theme/common/colorRegistry';
-import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
 import { KeyCode } from 'vs/base/common/keyCodes';
-import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
-import { ActivityAction, ActivityActionItem, ICompositeBarColors, ToggleCompositePinnedAction, ICompositeBar } from 'vs/workbench/browser/parts/compositeBarActions';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { dispose } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
+import { TPromise } from 'vs/base/common/winjs.base';
+import { SyncActionDescriptor } from 'vs/platform/actions/common/actions';
+import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
+import { Registry } from 'vs/platform/registry/common/platform';
+import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { activeContrastBorder, focusBorder } from 'vs/platform/theme/common/colorRegistry';
+import { ICssStyleCollector, ITheme, IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
+import { ActivityAction, ActivityActionItem, ICompositeBar, ICompositeBarColors, ToggleCompositePinnedAction } from 'vs/workbench/browser/parts/compositeBarActions';
+import { ViewletDescriptor } from 'vs/workbench/browser/viewlet';
+import { Extensions as ActionExtensions, IWorkbenchActionRegistry } from 'vs/workbench/common/actions';
+import { IActivity, IGlobalActivity } from 'vs/workbench/common/activity';
 import { ACTIVITY_BAR_FOREGROUND } from 'vs/workbench/common/theme';
+import { IActivityService } from 'vs/workbench/services/activity/common/activity';
+import { IPartService, Parts } from 'vs/workbench/services/part/common/partService';
+import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 
 export class ViewletActivityAction extends ActivityAction {
 
@@ -187,6 +193,77 @@ export class PlaceHolderToggleCompositePinnedAction extends ToggleCompositePinne
 		this.label = activity.name;
 	}
 }
+
+class SwitchSidebarViewAction extends Action {
+
+	constructor(
+		id: string,
+		name: string,
+		@IViewletService private viewletService: IViewletService,
+		@IActivityService private activityService: IActivityService
+	) {
+		super(id, name);
+	}
+
+	run(offset: number): TPromise<any> {
+		const pinnedViewletIds = this.activityService.getPinnedViewletIds();
+
+		const activeViewlet = this.viewletService.getActiveViewlet();
+		if (!activeViewlet) {
+			return TPromise.as(null);
+		}
+		let targetViewletId: string;
+		for (let i = 0; i < pinnedViewletIds.length; i++) {
+			if (pinnedViewletIds[i] === activeViewlet.getId()) {
+				targetViewletId = pinnedViewletIds[(i + pinnedViewletIds.length + offset) % pinnedViewletIds.length];
+				break;
+			}
+		}
+		return this.viewletService.openViewlet(targetViewletId, true);
+	}
+}
+
+export class PreviousSidebarViewAction extends SwitchSidebarViewAction {
+
+	static readonly ID = 'workbench.action.previousSidebarView';
+	static LABEL = nls.localize('previousSidebarView', 'Previous Sidebar View');
+
+	constructor(
+		id: string,
+		name: string,
+		@IViewletService viewletService: IViewletService,
+		@IActivityService activityService: IActivityService
+	) {
+		super(id, name, viewletService, activityService);
+	}
+
+	run(): TPromise<any> {
+		return super.run(-1);
+	}
+}
+
+export class NextSidebarViewAction extends SwitchSidebarViewAction {
+
+	static readonly ID = 'workbench.action.nextSidebarView';
+	static LABEL = nls.localize('nextSidebarView', 'Next Sidebar View');
+
+	constructor(
+		id: string,
+		name: string,
+		@IViewletService viewletService: IViewletService,
+		@IActivityService activityService: IActivityService
+	) {
+		super(id, name, viewletService, activityService);
+	}
+
+	run(): TPromise<any> {
+		return super.run(1);
+	}
+}
+
+const registry = Registry.as<IWorkbenchActionRegistry>(ActionExtensions.WorkbenchActions);
+registry.registerWorkbenchAction(new SyncActionDescriptor(PreviousSidebarViewAction, PreviousSidebarViewAction.ID, PreviousSidebarViewAction.LABEL), 'View: Open Previous Sidebar View', nls.localize('view', "View"));
+registry.registerWorkbenchAction(new SyncActionDescriptor(NextSidebarViewAction, NextSidebarViewAction.ID, NextSidebarViewAction.LABEL), 'View: Open Next Sidebar View', nls.localize('view', "View"));
 
 registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
 
