@@ -608,6 +608,9 @@ export class CommandCenter {
 
 				uris = resources.map(r => r.resourceUri);
 			}
+			else {
+				uris = [(window.activeTextEditor && window.activeTextEditor.document.uri)] as Uri[];
+			}
 		}
 
 		if (!uris) {
