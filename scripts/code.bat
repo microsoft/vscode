@@ -17,7 +17,7 @@ set CODE=".build\electron\%NAMESHORT%"
 node build\lib\electron.js
 if %errorlevel% neq 0 node .\node_modules\gulp\bin\gulp.js electron
 
-:: Manage build-in extensions
+:: Manage built-in extensions
 if "%1"=="--builtin" goto builtin
 
 :: Sync built-in extensions
