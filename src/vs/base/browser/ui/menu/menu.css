@@ -57,6 +57,10 @@
 	opacity: 0.55;
 }
 
+.monaco-menu .monaco-action-bar.vertical .focused .keybinding {
+	opacity: 1;
+}
+
 .monaco-menu .monaco-action-bar.vertical .submenu-indicator {
 	height: 100%;
 	-webkit-mask: url('submenu.svg') no-repeat 90% 50%/14px 14px;
