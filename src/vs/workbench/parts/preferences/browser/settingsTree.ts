@@ -1062,7 +1062,7 @@ export class SettingsRenderer implements ITreeRenderer {
 		}
 
 		// List row label overrides labeling - is not full label must use local label
-		template.containerElement.parentElement.removeAttribute('aria-label');
+		// template.containerElement.parentElement.removeAttribute('aria-label');
 		const baseId = (element.displayCategory + '_' + element.displayLabel).replace(/ /g, '_').toLowerCase();
 		template.descriptionElement.id = baseId + '_setting_description';
 
@@ -1272,6 +1272,11 @@ export class SettingsRenderer implements ITreeRenderer {
 			return '';
 		}
 
+		// We don't have control element, return empty label
+		if (!itemElement) {
+			return '';
+		}
+
 		// Labels will not be read on descendent input elements of the parent treeitem
 		// unless defined as roles for input items
 		// voiceover does not seem to use labeledby correctly, set labels directly on input elements
@@ -1418,6 +1423,9 @@ export class SettingsAccessibilityProvider implements IAccessibilityProvider {
 		}
 
 		if (element instanceof SettingsTreeSettingElement) {
+			if (element.valueType === 'boolean') {
+				return '';
+			}
 			return localize('settingRowAriaLabel', "{0} {1}, Setting", element.displayCategory, element.displayLabel);
 		}
 
