@@ -518,7 +518,7 @@ export class SearchView extends Viewlet implements IViewlet, IPanel {
 	private createSearchResultsView(container: HTMLElement): void {
 		this.resultsElement = dom.append(container, $('.results.show-file-icons'));
 		const dataSource = this._register(this.instantiationService.createInstance(SearchDataSource));
-		const renderer = this._register(this.instantiationService.createInstance(SearchRenderer, this.getActionRunner(), this));
+		const renderer = this._register(this.instantiationService.createInstance(SearchRenderer, this));
 		const dnd = this.instantiationService.createInstance(SimpleFileResourceDragAndDrop, (obj: any) => obj instanceof FileMatch ? obj.resource() : void 0);
 
 		this.tree = this._register(this.instantiationService.createInstance(WorkbenchTree, this.resultsElement, {

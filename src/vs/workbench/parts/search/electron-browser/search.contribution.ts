@@ -648,6 +648,11 @@ configurationRegistry.registerConfiguration({
 			type: 'boolean',
 			default: true,
 			description: nls.localize('search.useReplacePreview', "Controls whether to open Replace Preview when selecting or replacing a match."),
+		},
+		'search.showLineNumbers': {
+			type: 'boolean',
+			default: false,
+			description: nls.localize('search.showLineNumbers', "Controls whether to show line numbers for search results."),
 		}
 	}
 });

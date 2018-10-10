@@ -296,6 +296,7 @@ export interface ISearchConfigurationProperties {
 	globalFindClipboard: boolean;
 	location: 'sidebar' | 'panel';
 	useReplacePreview: boolean;
+	showLineNumbers: boolean;
 }
 
 export interface ISearchConfiguration extends IFilesConfiguration {

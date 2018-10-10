@@ -214,6 +214,18 @@
 	text-overflow: ellipsis;
 }
 
+.search-view .linematch .matchLineNum {
+	margin-left: 7px;
+	margin-right: 4px;
+	opacity: .7;
+	font-size: 0.9em;
+	display: none;
+}
+
+.search-view .linematch .matchLineNum.show {
+	display: block;
+}
+
 .search-view .linematch.changedOrRemoved {
 	font-style: italic;
 }
@@ -239,6 +251,10 @@
 
 .search-view:not(.wide) .monaco-tree .monaco-tree-row .linematch .actionBarContainer {
 	flex: 1;
+}
+
+.search-view:not(.wide) .monaco-tree .monaco-tree-row .monaco-action-bar {
+	float: right;
 }
 
 .search-view .monaco-tree .monaco-tree-row .monaco-action-bar .action-label {
