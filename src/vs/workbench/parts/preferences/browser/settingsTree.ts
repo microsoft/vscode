@@ -1237,7 +1237,7 @@ export class SettingsRenderer implements ITreeRenderer {
 		const modifiedText = template.otherOverridesElement.textContent ?
 			template.otherOverridesElement.textContent : (dataElement.isConfigured ? localize('settings.Modified', ' Modified. ') : '');
 
-		let itemElement = Object(HTMLElement);
+		let itemElement = null;
 
 		// Use '.' as reader pause
 		let label = dataElement.displayCategory + ' ' + dataElement.displayLabel + '. ';
