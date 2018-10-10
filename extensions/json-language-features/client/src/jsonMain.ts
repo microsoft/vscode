@@ -8,7 +8,7 @@ import * as fs from 'fs';
 import * as nls from 'vscode-nls';
 const localize = nls.loadMessageBundle();
 
-import { workspace, window, languages, ExtensionContext, extensions, Uri, LanguageConfiguration, Diagnostic, StatusBarAlignment, TextEditor } from 'vscode';
+import { workspace, window, languages, commands, ExtensionContext, extensions, Uri, LanguageConfiguration, Diagnostic, StatusBarAlignment } from 'vscode';
 import { LanguageClient, LanguageClientOptions, RequestType, ServerOptions, TransportKind, NotificationType, DidChangeConfigurationNotification, HandleDiagnosticsSignature } from 'vscode-languageclient';
 import TelemetryReporter from 'vscode-extension-telemetry';
 
@@ -20,6 +20,10 @@ namespace VSCodeContentRequest {
 
 namespace SchemaContentChangeNotification {
 	export const type: NotificationType<string, any> = new NotificationType('json/schemaContent');
+}
+
+namespace SchemaRetryNotification {
+	export const type: NotificationType<string, any> = new NotificationType('json/schemaRetry');
 }
 
 export interface ISchemaAssociations {
@@ -78,7 +82,7 @@ export function activate(context: ExtensionContext) {
 	let documentSelector = ['json', 'jsonc'];
 
 	let statusBarItem = window.createStatusBarItem(StatusBarAlignment.Right, 0);
-	statusBarItem.text = '$(alert)  JSON';
+	statusBarItem.command = '_json.retrySchema';
 	toDispose.push(statusBarItem);
 
 	// Options to control the language client
@@ -100,7 +104,9 @@ export function activate(context: ExtensionContext) {
 				if (schemaErrorIndex !== -1) {
 					// Show schema resolution errors in status bar only; ref: #51032
 					const schemaResolveDiagnostic = diagnostics[schemaErrorIndex];
-					statusBarItem.tooltip = schemaResolveDiagnostic.message;
+					statusBarItem.tooltip = schemaResolveDiagnostic.message +
+						'\n' + localize('json.clickToRetry', 'Click to retry.');
+					statusBarItem.text = '$(alert)  JSON';
 					statusBarItem.show();
 					diagnostics.splice(schemaErrorIndex, 1);
 				} else {
@@ -140,13 +146,22 @@ export function activate(context: ExtensionContext) {
 			}
 		};
 
-		let handleActiveEditorChange = (_?: TextEditor) => {
+		let handleActiveEditorChange = () => {
 			statusBarItem.hide();
 		};
 
 		toDispose.push(workspace.onDidChangeTextDocument(e => handleContentChange(e.document.uri)));
 		toDispose.push(workspace.onDidCloseTextDocument(d => handleContentChange(d.uri)));
 		toDispose.push(window.onDidChangeActiveTextEditor(handleActiveEditorChange));
+
+		let handleRetrySchemaCommand = () => {
+			if (window.activeTextEditor) {
+				client.sendNotification(SchemaRetryNotification.type, window.activeTextEditor.document.uri.toString());
+				statusBarItem.text = '$(watch)  JSON';
+			}
+		};
+
+		toDispose.push(commands.registerCommand('_json.retrySchema', handleRetrySchemaCommand));
 
 		client.sendNotification(SchemaAssociationNotification.type, getSchemaAssociation(context));
 	});
