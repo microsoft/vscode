@@ -7,8 +7,8 @@ import { Disposable } from 'vs/base/common/lifecycle';
 import { Event, Emitter } from 'vs/base/common/event';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { INextStorageService, IWorkspaceStorageChangeEvent, INextWorkspaceStorageService, StorageScope } from 'vs/platform/storage2/common/storage2';
-import { NextStorageService } from 'vs/platform/storage2/node/nextStorageService';
+import { IWorkspaceStorageChangeEvent, INextWorkspaceStorageService, StorageScope } from 'vs/platform/storage2/common/storage2';
+import { Storage, IStorageLoggingOptions } from 'vs/base/node/storage';
 
 export class NextWorkspaceStorageService extends Disposable implements INextWorkspaceStorageService {
 	_serviceBrand: any;
@@ -16,8 +16,8 @@ export class NextWorkspaceStorageService extends Disposable implements INextWork
 	private _onDidChangeStorage: Emitter<IWorkspaceStorageChangeEvent> = this._register(new Emitter<IWorkspaceStorageChangeEvent>());
 	get onDidChangeStorage(): Event<IWorkspaceStorageChangeEvent> { return this._onDidChangeStorage.event; }
 
-	private globalStorage: NextStorageService;
-	private workspaceStorage: NextStorageService;
+	private globalStorage: Storage;
+	private workspaceStorage: Storage;
 
 	constructor(
 		workspaceDBPath: string,
@@ -26,8 +26,14 @@ export class NextWorkspaceStorageService extends Disposable implements INextWork
 	) {
 		super();
 
-		this.globalStorage = new NextStorageService(':memory:', logService, environmentService);
-		this.workspaceStorage = new NextStorageService(workspaceDBPath, logService, environmentService);
+		const loggingOptions: IStorageLoggingOptions = {
+			verbose: environmentService.verbose,
+			infoLogger: msg => logService.info(msg),
+			errorLogger: error => logService.error(error)
+		};
+
+		this.globalStorage = new Storage({ path: ':memory:', logging: loggingOptions });
+		this.workspaceStorage = new Storage({ path: workspaceDBPath, logging: loggingOptions });
 
 		this.registerListeners();
 	}
@@ -72,7 +78,7 @@ export class NextWorkspaceStorageService extends Disposable implements INextWork
 		]).then(() => void 0);
 	}
 
-	private getStorage(scope: StorageScope): INextStorageService {
+	private getStorage(scope: StorageScope): Storage {
 		return scope === StorageScope.GLOBAL ? this.globalStorage : this.workspaceStorage;
 	}
 }

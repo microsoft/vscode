@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { SQLiteStorage, ISQLiteStorageOptions } from 'vs/base/node/storage';
+import { Storage, SQLiteStorageImpl, IStorageOptions } from 'vs/base/node/storage';
 import { generateUuid } from 'vs/base/common/uuid';
 import { join } from 'path';
 import { tmpdir } from 'os';
@@ -11,6 +11,174 @@ import { equal, ok } from 'assert';
 import { mkdirp, del } from 'vs/base/node/pfs';
 
 suite('Storage', () => {
+
+	function uniqueStorageDir(): string {
+		const id = generateUuid();
+
+		return join(tmpdir(), 'vsctests', id, 'storage2', id);
+	}
+
+	function onDidChangeStorage(storage: Storage): Promise<Set<string>> {
+		return new Promise(resolve => {
+			storage.onDidChangeStorage(changes => {
+				resolve(changes);
+			});
+		});
+	}
+
+	test('basics', async () => {
+		const storageDir = uniqueStorageDir();
+		await mkdirp(storageDir);
+
+		const storageService = new Storage({ path: join(storageDir, 'storage.db') });
+
+		await storageService.init();
+
+		// Empty fallbacks
+		equal(storageService.get('foo', 'bar'), 'bar');
+		equal(storageService.getInteger('foo', 55), 55);
+		equal(storageService.getBoolean('foo', true), true);
+
+		// Simple updates
+		const set1Promise = storageService.set('bar', 'foo');
+		const set2Promise = storageService.set('barNumber', 55);
+		const set3Promise = storageService.set('barBoolean', true);
+
+		let setPromiseResolved = false;
+		Promise.all([set1Promise, set2Promise, set3Promise]).then(() => setPromiseResolved = true);
+
+		equal(storageService.get('bar'), 'foo');
+		equal(storageService.getInteger('barNumber'), 55);
+		equal(storageService.getBoolean('barBoolean'), true);
+
+		let changes = await onDidChangeStorage(storageService);
+		equal(changes.size, 3);
+		ok(changes.has('bar'));
+		ok(changes.has('barNumber'));
+		ok(changes.has('barBoolean'));
+
+		equal(setPromiseResolved, true);
+
+		// Simple deletes
+		const delete1Promise = storageService.delete('bar');
+		const delete2Promise = storageService.delete('barNumber');
+		const delete3Promise = storageService.delete('barBoolean');
+
+		let deletePromiseResolved = false;
+		Promise.all([delete1Promise, delete2Promise, delete3Promise]).then(() => deletePromiseResolved = true);
+
+		ok(!storageService.get('bar'));
+		ok(!storageService.getInteger('barNumber'));
+		ok(!storageService.getBoolean('barBoolean'));
+
+		changes = await onDidChangeStorage(storageService);
+		equal(changes.size, 3);
+		ok(changes.has('bar'));
+		ok(changes.has('barNumber'));
+		ok(changes.has('barBoolean'));
+
+		equal(deletePromiseResolved, true);
+
+		await storageService.close();
+		await del(storageDir, tmpdir());
+	});
+
+	test('close flushes data', async () => {
+		const storageDir = uniqueStorageDir();
+		await mkdirp(storageDir);
+
+		let storageService = new Storage({ path: join(storageDir, 'storage.db') });
+		await storageService.init();
+
+		const set1Promise = storageService.set('foo', 'bar');
+		const set2Promise = storageService.set('bar', 'foo');
+
+		equal(storageService.get('foo'), 'bar');
+		equal(storageService.get('bar'), 'foo');
+
+		let setPromiseResolved = false;
+		Promise.all([set1Promise, set2Promise]).then(() => setPromiseResolved = true);
+
+		await storageService.close();
+
+		equal(setPromiseResolved, true);
+
+		storageService = new Storage({ path: join(storageDir, 'storage.db') });
+		await storageService.init();
+
+		equal(storageService.get('foo'), 'bar');
+		equal(storageService.get('bar'), 'foo');
+
+		await storageService.close();
+
+		storageService = new Storage({ path: join(storageDir, 'storage.db') });
+		await storageService.init();
+
+		const delete1Promise = storageService.delete('foo');
+		const delete2Promise = storageService.delete('bar');
+
+		ok(!storageService.get('foo'));
+		ok(!storageService.get('bar'));
+
+		let deletePromiseResolved = false;
+		Promise.all([delete1Promise, delete2Promise]).then(() => deletePromiseResolved = true);
+
+		await storageService.close();
+
+		equal(deletePromiseResolved, true);
+
+		storageService = new Storage({ path: join(storageDir, 'storage.db') });
+		await storageService.init();
+
+		ok(!storageService.get('foo'));
+		ok(!storageService.get('bar'));
+
+		await storageService.close();
+		await del(storageDir, tmpdir());
+	});
+
+	test('conflicting updates', async () => {
+		const storageDir = uniqueStorageDir();
+		await mkdirp(storageDir);
+
+		let storageService = new Storage({ path: join(storageDir, 'storage.db') });
+		await storageService.init();
+
+		const set1Promise = storageService.set('foo', 'bar1');
+		const set2Promise = storageService.set('foo', 'bar2');
+		const set3Promise = storageService.set('foo', 'bar3');
+
+		equal(storageService.get('foo'), 'bar3');
+
+		let setPromiseResolved = false;
+		Promise.all([set1Promise, set2Promise, set3Promise]).then(() => setPromiseResolved = true);
+
+		let changes = await onDidChangeStorage(storageService);
+		equal(changes.size, 1);
+		ok(changes.has('foo'));
+
+		ok(setPromiseResolved);
+
+		const set4Promise = storageService.set('bar', 'foo');
+		const delete1Promise = storageService.delete('bar');
+
+		ok(!storageService.get('bar'));
+
+		let setAndDeletePromiseResolved = false;
+		Promise.all([set4Promise, delete1Promise]).then(() => setAndDeletePromiseResolved = true);
+
+		changes = await onDidChangeStorage(storageService);
+		equal(changes.size, 1);
+		ok(changes.has('bar'));
+
+		ok(setAndDeletePromiseResolved);
+
+		await storageService.close();
+		await del(storageDir, tmpdir());
+	});
+});
+
+suite('SQLite Storage Impl ', () => {
 
 	function uniqueStorageDir(): string {
 		const id = generateUuid();
@@ -26,14 +194,14 @@ suite('Storage', () => {
 	}
 
 	async function testDBBasics(path, errorLogger?: (error) => void) {
-		const options: ISQLiteStorageOptions = { path };
+		const options: IStorageOptions = { path };
 		if (errorLogger) {
 			options.logging = {
 				errorLogger
 			};
 		}
 
-		const storage = new SQLiteStorage(options);
+		const storage = new SQLiteStorageImpl(options);
 
 		const items = new Map<string, string>();
 		items.set('foo', 'bar');
@@ -115,7 +283,7 @@ suite('Storage', () => {
 
 		await mkdirp(storageDir);
 
-		const storage = new SQLiteStorage({
+		const storage = new SQLiteStorageImpl({
 			path: join(storageDir, 'storage.db')
 		});
 
