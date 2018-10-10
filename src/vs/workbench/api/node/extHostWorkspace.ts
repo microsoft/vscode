@@ -13,7 +13,6 @@ import { isLinux } from 'vs/base/common/platform';
 import { basenameOrAuthority, dirname, isEqual } from 'vs/base/common/resources';
 import { compare } from 'vs/base/common/strings';
 import { URI } from 'vs/base/common/uri';
-import { TPromise } from 'vs/base/common/winjs.base';
 import { localize } from 'vs/nls';
 import { ILogService } from 'vs/platform/log/common/log';
 import { Severity } from 'vs/platform/notification/common/notification';
@@ -373,7 +372,7 @@ export class ExtHostWorkspace implements ExtHostWorkspaceShape {
 		}
 
 		if (token && token.isCancellationRequested) {
-			return TPromise.wrap([]);
+			return Promise.resolve([]);
 		}
 
 		return this._proxy.$startFileSearch(includePattern, includeFolder, excludePatternOrDisregardExcludes, maxResults, token)
@@ -403,6 +402,7 @@ export class ExtHostWorkspace implements ExtHostWorkspaceShape {
 		const queryOptions: IQueryOptions = {
 			ignoreSymlinks: typeof options.followSymlinks === 'boolean' ? !options.followSymlinks : undefined,
 			disregardIgnoreFiles: typeof options.useIgnoreFiles === 'boolean' ? !options.useIgnoreFiles : undefined,
+			disregardGlobalIgnoreFiles: typeof options.useGlobalIgnoreFiles === 'boolean' ? !options.useGlobalIgnoreFiles : undefined,
 			disregardExcludeSettings: options.exclude === null,
 			fileEncoding: options.encoding,
 			maxResults: options.maxResults,
@@ -432,18 +432,16 @@ export class ExtHostWorkspace implements ExtHostWorkspaceShape {
 		};
 
 		if (token.isCancellationRequested) {
-			return TPromise.wrap(undefined);
+			return Promise.resolve(undefined);
 		}
 
-		return this._proxy.$startTextSearch(query, queryOptions, requestId, token).then(
-			result => {
-				delete this._activeSearchCallbacks[requestId];
-				return result;
-			},
-			err => {
-				delete this._activeSearchCallbacks[requestId];
-				return TPromise.wrapError(err);
-			});
+		return this._proxy.$startTextSearch(query, queryOptions, requestId, token).then(result => {
+			delete this._activeSearchCallbacks[requestId];
+			return result;
+		}, err => {
+			delete this._activeSearchCallbacks[requestId];
+			return Promise.reject(err);
+		});
 	}
 
 	$handleTextSearchResult(result: IRawFileMatch2, requestId: number): void {

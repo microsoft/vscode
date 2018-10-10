@@ -3,8 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ILocalExtension, IGalleryExtension, IExtensionIdentifier, IReportedExtension, IExtensionManifest } from 'vs/platform/extensionManagement/common/extensionManagement';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { ILocalExtension, IGalleryExtension, IExtensionIdentifier, IReportedExtension } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { compareIgnoreCase } from 'vs/base/common/strings';
 
 export function areSameExtensions(a: IExtensionIdentifier, b: IExtensionIdentifier): boolean {
@@ -117,27 +116,4 @@ export function getMaliciousExtensionsSet(report: IReportedExtension[]): Set<str
 	}
 
 	return result;
-}
-
-const nonWorkspaceExtensions = new Set<string>();
-
-export function isWorkspaceExtension(manifest: IExtensionManifest, configurationService: IConfigurationService): boolean {
-	const extensionId = getGalleryExtensionId(manifest.publisher, manifest.name);
-	const configuredWorkspaceExtensions = configurationService.getValue<string[]>('_workbench.workspaceExtensions') || [];
-	if (configuredWorkspaceExtensions.length) {
-		if (configuredWorkspaceExtensions.indexOf(extensionId) !== -1) {
-			return true;
-		}
-		if (configuredWorkspaceExtensions.indexOf(`-${extensionId}`) !== -1) {
-			return false;
-		}
-	}
-
-	if (manifest.main) {
-		if ((manifest.categories || []).indexOf('Workspace Extension') !== -1) {
-			return true;
-		}
-		return !nonWorkspaceExtensions.has(extensionId);
-	}
-	return false;
 }

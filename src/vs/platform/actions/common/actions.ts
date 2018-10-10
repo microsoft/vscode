@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Action } from 'vs/base/common/actions';
-import { TPromise } from 'vs/base/common/winjs.base';
 import { SyncDescriptor0, createSyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { IConstructorSignature2, createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IKeybindings } from 'vs/platform/keybinding/common/keybindingsRegistry';
@@ -28,6 +27,7 @@ export interface IBaseCommandAction {
 export interface ICommandAction extends IBaseCommandAction {
 	iconLocation?: { dark: URI; light?: URI; };
 	precondition?: ContextKeyExpr;
+	toggled?: ContextKeyExpr;
 }
 
 export interface ISerializableCommandAction extends IBaseCommandAction {
@@ -215,13 +215,12 @@ export class ExecuteCommandAction extends Action {
 		super(id, label);
 	}
 
-	run(...args: any[]): TPromise<any> {
+	run(...args: any[]): Promise<any> {
 		return this._commandService.executeCommand(this.id, ...args);
 	}
 }
 
 export class SubmenuItemAction extends Action {
-	// private _options: IMenuActionOptions;
 
 	readonly item: ISubmenuItem;
 	constructor(item: ISubmenuItem) {
@@ -247,13 +246,15 @@ export class MenuItemAction extends ExecuteCommandAction {
 		typeof item.title === 'string' ? super(item.id, item.title, commandService) : super(item.id, item.title.value, commandService);
 		this._cssClass = undefined;
 		this._enabled = !item.precondition || contextKeyService.contextMatchesRules(item.precondition);
+		this._checked = item.toggled && contextKeyService.contextMatchesRules(item.toggled);
+
 		this._options = options || {};
 
 		this.item = item;
 		this.alt = alt ? new MenuItemAction(alt, undefined, this._options, contextKeyService, commandService) : undefined;
 	}
 
-	run(...args: any[]): TPromise<any> {
+	run(...args: any[]): Promise<any> {
 		let runArgs: any[] = [];
 
 		if (this._options.arg) {

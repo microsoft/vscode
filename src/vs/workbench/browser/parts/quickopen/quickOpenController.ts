@@ -27,7 +27,7 @@ import { EditorInput, IWorkbenchEditorConfiguration, IEditorInput } from 'vs/wor
 import { Component } from 'vs/workbench/common/component';
 import { Event, Emitter } from 'vs/base/common/event';
 import { IPartService } from 'vs/workbench/services/part/common/partService';
-import { QuickOpenHandler, QuickOpenHandlerDescriptor, IQuickOpenRegistry, Extensions, EditorQuickOpenEntry, CLOSE_ON_FOCUS_LOST_CONFIG, SEARCH_EDITOR_HISTORY, PREFILL_CONFIG } from 'vs/workbench/browser/quickopen';
+import { QuickOpenHandler, QuickOpenHandlerDescriptor, IQuickOpenRegistry, Extensions, EditorQuickOpenEntry, CLOSE_ON_FOCUS_LOST_CONFIG, SEARCH_EDITOR_HISTORY, PRESERVE_INPUT_CONFIG } from 'vs/workbench/browser/quickopen';
 import * as errors from 'vs/base/common/errors';
 import { IQuickOpenService, IShowOptions } from 'vs/platform/quickOpen/common/quickOpen';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -66,7 +66,7 @@ export class QuickOpenController extends Component implements IQuickOpenService 
 	private readonly _onHide: Emitter<void> = this._register(new Emitter<void>());
 	get onHide(): Event<void> { return this._onHide.event; }
 
-	private prefill: boolean;
+	private preserveInput: boolean;
 	private isQuickOpen: boolean;
 	private lastInputValue: string;
 	private lastSubmittedInputValue: string;
@@ -114,7 +114,7 @@ export class QuickOpenController extends Component implements IQuickOpenService 
 		} else {
 			this.closeOnFocusLost = this.configurationService.getValue(CLOSE_ON_FOCUS_LOST_CONFIG);
 		}
-		this.prefill = this.configurationService.getValue(PREFILL_CONFIG);
+		this.preserveInput = this.configurationService.getValue(PRESERVE_INPUT_CONFIG);
 
 		this.searchInEditorHistory = this.configurationService.getValue(SEARCH_EDITOR_HISTORY);
 	}
@@ -219,7 +219,7 @@ export class QuickOpenController extends Component implements IQuickOpenService 
 				// Update context
 				const registry = Registry.as<IQuickOpenRegistry>(Extensions.Quickopen);
 				this.setQuickOpenContextKey(registry.getDefaultQuickOpenHandler().contextKey);
-				if (this.prefill) {
+				if (this.preserveInput) {
 					this.quickOpenWidget.show(editorHistory, { value: this.lastSubmittedInputValue, quickNavigateConfiguration, autoFocus, inputSelection });
 				} else {
 					this.quickOpenWidget.show(editorHistory, { quickNavigateConfiguration, autoFocus, inputSelection });

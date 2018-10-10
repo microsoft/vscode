@@ -15,7 +15,7 @@ suite('XLF Parser Tests', () => {
 	const translatedMessages = { key1: 'Кнопка #1', key2: 'Кнопка #2 &' };
 
 	test('Keys & messages to XLF conversion', () => {
-		let xlf = new i18n.XLF('vscode-workbench');
+		const xlf = new i18n.XLF('vscode-workbench');
 		xlf.addFile(originalFilePath, keys, messages);
 		const xlfString = xlf.toString();
 

@@ -265,17 +265,6 @@ export class EventMultiplexer<T> implements IDisposable {
 	}
 }
 
-export function fromCallback<T>(fn: (handler: (e: T) => void) => IDisposable): Event<T> {
-	let listener: IDisposable;
-
-	const emitter = new Emitter<T>({
-		onFirstListenerAdd: () => listener = fn(e => emitter.fire(e)),
-		onLastListenerRemove: () => listener.dispose()
-	});
-
-	return emitter.event;
-}
-
 export function fromPromise<T =any>(promise: Thenable<T>): Event<T> {
 	const emitter = new Emitter<T>();
 	let shouldEmit = false;

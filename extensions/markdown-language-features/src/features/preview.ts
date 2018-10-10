@@ -361,7 +361,6 @@ export class MarkdownPreview {
 	): vscode.WebviewOptions {
 		return {
 			enableScripts: true,
-			enableCommandUris: true,
 			localResourceRoots: MarkdownPreview.getLocalResourceRoots(resource, contributions)
 		};
 	}

@@ -687,3 +687,19 @@ export function containsUppercaseCharacter(target: string, ignoreEscapedChars = 
 export function uppercaseFirstLetter(str: string): string {
 	return str.charAt(0).toUpperCase() + str.slice(1);
 }
+
+export function getNLines(str: string, n = 1): string {
+	if (n === 0) {
+		return '';
+	}
+
+	let idx = -1;
+	do {
+		idx = str.indexOf('\n', idx + 1);
+		n--;
+	} while (n > 0 && idx >= 0);
+
+	return idx >= 0 ?
+		str.substr(0, idx) :
+		str;
+}

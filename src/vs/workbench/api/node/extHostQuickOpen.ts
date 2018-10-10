@@ -231,6 +231,7 @@ class ExtHostQuickInput implements QuickInput {
 	private _steps: number;
 	private _totalSteps: number;
 	private _visible = false;
+	private _expectingHide = false;
 	private _enabled = true;
 	private _busy = false;
 	private _ignoreFocusOut = true;
@@ -356,6 +357,7 @@ class ExtHostQuickInput implements QuickInput {
 
 	show(): void {
 		this._visible = true;
+		this._expectingHide = true;
 		this.update({ visible: true });
 	}
 
@@ -381,7 +383,10 @@ class ExtHostQuickInput implements QuickInput {
 	}
 
 	_fireDidHide() {
-		this._onDidHideEmitter.fire();
+		if (this._expectingHide) {
+			this._expectingHide = false;
+			this._onDidHideEmitter.fire();
+		}
 	}
 
 	public dispose(): void {

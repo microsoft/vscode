@@ -135,22 +135,6 @@ suite('CodeAction', () => {
 
 			editor.setSelection({ startLineNumber: 1, startColumn: 1, endLineNumber: 4, endColumn: 1 });
 		});
-
-		// // case 2 - selection over multiple lines & manual trigger -> lightbulb
-		// await new TPromise(resolve => {
-
-		// 	editor.setSelection({ startLineNumber: 1, startColumn: 1, endLineNumber: 4, endColumn: 1 });
-
-		// 	let oracle = new QuickFixOracle(editor, markerService, e => {
-		// 		assert.equal(e.type, 'manual');
-		// 		assert.ok(e.range.equalsRange({ startLineNumber: 1, startColumn: 1, endLineNumber: 4, endColumn: 1 }));
-
-		// 		oracle.dispose();
-		// 		resolve(null);
-		// 	}, 5);
-
-		// 	oracle.trigger('manual');
-		// });
 	});
 
 	test('Orcale -> should only auto trigger once for cursor and marker update right after each other', done => {

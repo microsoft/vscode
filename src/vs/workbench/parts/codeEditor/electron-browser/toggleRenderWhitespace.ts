@@ -8,8 +8,8 @@ import { IConfigurationService, ConfigurationTarget } from 'vs/platform/configur
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IWorkbenchActionRegistry, Extensions as ActionExtensions } from 'vs/workbench/common/actions';
 import { Action } from 'vs/base/common/actions';
-import { TPromise } from 'vs/base/common/winjs.base';
 import { SyncActionDescriptor, MenuRegistry, MenuId } from 'vs/platform/actions/common/actions';
+import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 
 export class ToggleRenderWhitespaceAction extends Action {
 
@@ -24,7 +24,7 @@ export class ToggleRenderWhitespaceAction extends Action {
 		super(id, label);
 	}
 
-	public run(): TPromise<any> {
+	public run(): Promise<any> {
 		const renderWhitespace = this._configurationService.getValue<string>('editor.renderWhitespace');
 
 		let newRenderWhitespace: string;
@@ -45,7 +45,8 @@ MenuRegistry.appendMenuItem(MenuId.MenubarViewMenu, {
 	group: '5_editor',
 	command: {
 		id: ToggleRenderWhitespaceAction.ID,
-		title: nls.localize({ key: 'miToggleRenderWhitespace', comment: ['&& denotes a mnemonic'] }, "Toggle &&Render Whitespace")
+		title: nls.localize({ key: 'miToggleRenderWhitespace', comment: ['&& denotes a mnemonic'] }, "Toggle &&Render Whitespace"),
+		toggled: ContextKeyExpr.notEquals('config.editor.renderWhitespace', 'none')
 	},
 	order: 3
 });

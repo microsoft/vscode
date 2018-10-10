@@ -5,10 +5,8 @@
 
 import * as nls from 'vs/nls';
 import { Event, Emitter } from 'vs/base/common/event';
-import * as resources from 'vs/base/common/resources';
 import { URI as uri } from 'vs/base/common/uri';
 import { first, distinct } from 'vs/base/common/arrays';
-import { isObject, isUndefinedOrNull } from 'vs/base/common/types';
 import * as errors from 'vs/base/common/errors';
 import severity from 'vs/base/common/severity';
 import { TPromise } from 'vs/base/common/winjs.base';
@@ -21,7 +19,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { FileChangesEvent, FileChangeType, IFileService } from 'vs/platform/files/common/files';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
-import { DebugModel, ExceptionBreakpoint, FunctionBreakpoint, Breakpoint, Expression, RawObjectReplElement } from 'vs/workbench/parts/debug/common/debugModel';
+import { DebugModel, ExceptionBreakpoint, FunctionBreakpoint, Breakpoint, Expression } from 'vs/workbench/parts/debug/common/debugModel';
 import { ViewModel } from 'vs/workbench/parts/debug/common/debugViewModel';
 import * as debugactions from 'vs/workbench/parts/debug/browser/debugActions';
 import { ConfigurationManager } from 'vs/workbench/parts/debug/electron-browser/debugConfigurationManager';
@@ -46,7 +44,7 @@ import { IAction, Action } from 'vs/base/common/actions';
 import { deepClone, equals } from 'vs/base/common/objects';
 import { DebugSession } from 'vs/workbench/parts/debug/electron-browser/debugSession';
 import { dispose, IDisposable } from 'vs/base/common/lifecycle';
-import { IDebugService, State, IDebugSession, CONTEXT_DEBUG_TYPE, CONTEXT_DEBUG_STATE, CONTEXT_IN_DEBUG_MODE, IThread, IDebugConfiguration, VIEWLET_ID, REPL_ID, IConfig, ILaunch, IViewModel, IConfigurationManager, IDebugModel, IReplElementSource, IEnablement, IBreakpoint, IBreakpointData, IExpression, ICompound, IGlobalConfig, IStackFrame, AdapterEndEvent } from 'vs/workbench/parts/debug/common/debug';
+import { IDebugService, State, IDebugSession, CONTEXT_DEBUG_TYPE, CONTEXT_DEBUG_STATE, CONTEXT_IN_DEBUG_MODE, IThread, IDebugConfiguration, VIEWLET_ID, REPL_ID, IConfig, ILaunch, IViewModel, IConfigurationManager, IDebugModel, IEnablement, IBreakpoint, IBreakpointData, ICompound, IGlobalConfig, IStackFrame, AdapterEndEvent } from 'vs/workbench/parts/debug/common/debug';
 import { isExtensionHostDebugging } from 'vs/workbench/parts/debug/common/debugUtils';
 import { RunOnceScheduler } from 'vs/base/common/async';
 
@@ -83,7 +81,6 @@ export class DebugService implements IDebugService {
 	private model: DebugModel;
 	private viewModel: ViewModel;
 	private configurationManager: ConfigurationManager;
-	private allSessions = new Map<string, IDebugSession>();
 	private toDispose: IDisposable[];
 	private debugType: IContextKey<string>;
 	private debugState: IContextKey<string>;
@@ -140,7 +137,7 @@ export class DebugService implements IDebugService {
 		this.lifecycleService.onShutdown(this.dispose, this);
 
 		this.toDispose.push(this.broadcastService.onBroadcast(broadcast => {
-			const session = this.getSession(broadcast.payload.debugId);
+			const session = this.model.getSessions(true).filter(s => s.getId() === broadcast.payload.debugId).pop();
 			if (session) {
 				switch (broadcast.channel) {
 
@@ -158,7 +155,14 @@ export class DebugService implements IDebugService {
 
 					case EXTENSION_LOG_BROADCAST_CHANNEL:
 						// extension logged output -> show it in REPL
-						this.addToRepl(session, broadcast.payload.logEntry);
+						const extensionOutput = <IRemoteConsoleLog>broadcast.payload.logEntry;
+						const sev = extensionOutput.severity === 'warn' ? severity.Warning : extensionOutput.severity === 'error' ? severity.Error : severity.Info;
+						const { args, stack } = parse(extensionOutput);
+						let frame = undefined;
+						if (stack) {
+							frame = getFirstFrame(stack);
+						}
+						session.logToRepl(sev, args, frame);
 						break;
 				}
 			}
@@ -172,10 +176,6 @@ export class DebugService implements IDebugService {
 			this.model.setBreakpointsSessionId(id);
 			this.onStateChange();
 		}));
-	}
-
-	getSession(sessionId: string): IDebugSession {
-		return this.allSessions.get(sessionId);
 	}
 
 	getModel(): IDebugModel {
@@ -266,12 +266,6 @@ export class DebugService implements IDebugService {
 			this.textFileService.saveAll().then(() => this.configurationService.reloadConfiguration(launch ? launch.workspace : undefined).then(() =>
 				this.extensionService.whenInstalledExtensionsRegistered().then(() => {
 
-					// If it is the very first start debugging we need to clear the repl and our sessions map
-					if (this.model.getSessions().length === 0) {
-						this.removeReplExpressions();
-						this.allSessions.clear();
-					}
-
 					let config: IConfig, compound: ICompound;
 					if (!configOrName) {
 						configOrName = this.configurationManager.selectedConfiguration.name;
@@ -282,10 +276,10 @@ export class DebugService implements IDebugService {
 
 						const sessions = this.model.getSessions();
 						const alreadyRunningMessage = nls.localize('configurationAlreadyRunning', "There is already a debug configuration \"{0}\" running.", configOrName);
-						if (sessions.some(s => s.getName(false) === configOrName && (!launch || !launch.workspace || !s.root || s.root.uri.toString() === launch.workspace.uri.toString()))) {
+						if (sessions.some(s => s.configuration.name === configOrName && (!launch || !launch.workspace || !s.root || s.root.uri.toString() === launch.workspace.uri.toString()))) {
 							return Promise.reject(new Error(alreadyRunningMessage));
 						}
-						if (compound && compound.configurations && sessions.some(p => compound.configurations.indexOf(p.getName(false)) !== -1)) {
+						if (compound && compound.configurations && sessions.some(p => compound.configurations.indexOf(p.configuration.name) !== -1)) {
 							return Promise.reject(new Error(alreadyRunningMessage));
 						}
 					} else if (typeof configOrName !== 'string') {
@@ -428,7 +422,6 @@ export class DebugService implements IDebugService {
 	private doCreateSession(root: IWorkspaceFolder, configuration: { resolved: IConfig, unresolved: IConfig }): TPromise<boolean> {
 
 		const session = this.instantiationService.createInstance(DebugSession, configuration, root, this.model);
-		this.allSessions.set(session.getId(), session);
 
 		// register listeners as the very first thing!
 		this.registerSessionListeners(session);
@@ -468,7 +461,7 @@ export class DebugService implements IDebugService {
 			}
 
 			// Show the repl if some error got logged there #5870
-			if (this.model.getReplElements().length > 0) {
+			if (session && session.getReplElements().length > 0) {
 				this.panelService.openPanel(REPL_ID, false);
 			}
 
@@ -500,7 +493,7 @@ export class DebugService implements IDebugService {
 	private registerSessionListeners(session: IDebugSession): void {
 		const sessionRunningScheduler = new RunOnceScheduler(() => {
 			// Do not immediatly focus another session or thread if a session is running
-			// Stepping in a session should preserve that session focussed even if some continued events happen
+			// Stepping in a session should preserve that session focused even if some continued events happen
 			if (session.state === State.Running && this.viewModel.focusedSession === session) {
 				this.focusStackFrame(undefined);
 			}
@@ -784,109 +777,6 @@ export class DebugService implements IDebugService {
 		this.viewModel.setFocus(stackFrame, thread, session, explicit);
 	}
 
-	//---- REPL
-
-	addReplExpression(name: string): TPromise<void> {
-		return this.model.addReplExpression(this.viewModel.focusedSession, this.viewModel.focusedStackFrame, name)
-			// Evaluate all watch expressions and fetch variables again since repl evaluation might have changed some.
-			.then(() => this.focusStackFrame(this.viewModel.focusedStackFrame, this.viewModel.focusedThread, this.viewModel.focusedSession));
-	}
-
-	removeReplExpressions(): void {
-		this.model.removeReplExpressions();
-	}
-
-	private addToRepl(session: IDebugSession, extensionOutput: IRemoteConsoleLog) {
-
-		let sev = extensionOutput.severity === 'warn' ? severity.Warning : extensionOutput.severity === 'error' ? severity.Error : severity.Info;
-
-		const { args, stack } = parse(extensionOutput);
-		let source: IReplElementSource;
-		if (stack) {
-			const frame = getFirstFrame(stack);
-			if (frame) {
-				source = {
-					column: frame.column,
-					lineNumber: frame.line,
-					source: session.getSource({
-						name: resources.basenameOrAuthority(frame.uri),
-						path: frame.uri.fsPath
-					})
-				};
-			}
-		}
-
-		// add output for each argument logged
-		let simpleVals: any[] = [];
-		for (let i = 0; i < args.length; i++) {
-			let a = args[i];
-
-			// undefined gets printed as 'undefined'
-			if (typeof a === 'undefined') {
-				simpleVals.push('undefined');
-			}
-
-			// null gets printed as 'null'
-			else if (a === null) {
-				simpleVals.push('null');
-			}
-
-			// objects & arrays are special because we want to inspect them in the REPL
-			else if (isObject(a) || Array.isArray(a)) {
-
-				// flush any existing simple values logged
-				if (simpleVals.length) {
-					this.logToRepl(simpleVals.join(' '), sev, source);
-					simpleVals = [];
-				}
-
-				// show object
-				this.logToRepl(new RawObjectReplElement((<any>a).prototype, a, undefined, nls.localize('snapshotObj', "Only primitive values are shown for this object.")), sev, source);
-			}
-
-			// string: watch out for % replacement directive
-			// string substitution and formatting @ https://developer.chrome.com/devtools/docs/console
-			else if (typeof a === 'string') {
-				let buf = '';
-
-				for (let j = 0, len = a.length; j < len; j++) {
-					if (a[j] === '%' && (a[j + 1] === 's' || a[j + 1] === 'i' || a[j + 1] === 'd' || a[j + 1] === 'O')) {
-						i++; // read over substitution
-						buf += !isUndefinedOrNull(args[i]) ? args[i] : ''; // replace
-						j++; // read over directive
-					} else {
-						buf += a[j];
-					}
-				}
-
-				simpleVals.push(buf);
-			}
-
-			// number or boolean is joined together
-			else {
-				simpleVals.push(a);
-			}
-		}
-
-		// flush simple values
-		// always append a new line for output coming from an extension such that separate logs go to separate lines #23695
-		if (simpleVals.length) {
-			this.logToRepl(simpleVals.join(' ') + '\n', sev, source);
-		}
-	}
-
-	logToRepl(value: string | IExpression, sev = severity.Info, source?: IReplElementSource): void {
-		const clearAnsiSequence = '\u001b[2J';
-		if (typeof value === 'string' && value.indexOf(clearAnsiSequence) >= 0) {
-			// [2J is the ansi escape sequence for clearing the display http://ascii-table.com/ansi-escape-sequences.php
-			this.model.removeReplExpressions();
-			this.model.appendToRepl(nls.localize('consoleCleared', "Console was cleared"), severity.Ignore);
-			value = value.substr(value.lastIndexOf(clearAnsiSequence) + clearAnsiSequence.length);
-		}
-
-		this.model.appendToRepl(value, sev, source);
-	}
-
 	//---- watches
 
 	addWatchExpression(name: string): void {
@@ -981,13 +871,9 @@ export class DebugService implements IDebugService {
 
 		const breakpointsToSend = this.model.getBreakpoints({ uri: modelUri, enabledOnly: true });
 
-		return this.sendToOneOrAllSessions(session, s => {
-			return s.sendBreakpoints(modelUri, breakpointsToSend, sourceModified).then(data => {
-				if (data) {
-					this.model.setBreakpointSessionData(s.getId(), data);
-				}
-			});
-		});
+		return this.sendToOneOrAllSessions(session, s =>
+			s.sendBreakpoints(modelUri, breakpointsToSend, sourceModified)
+		);
 	}
 
 	private sendFunctionBreakpoints(session?: IDebugSession): TPromise<void> {
@@ -995,11 +881,7 @@ export class DebugService implements IDebugService {
 		const breakpointsToSend = this.model.getFunctionBreakpoints().filter(fbp => fbp.enabled && this.model.areBreakpointsActivated());
 
 		return this.sendToOneOrAllSessions(session, s => {
-			return s.capabilities.supportsFunctionBreakpoints ? s.sendFunctionBreakpoints(breakpointsToSend).then(data => {
-				if (data) {
-					this.model.setBreakpointSessionData(s.getId(), data);
-				}
-			}) : Promise.resolve(undefined);
+			return s.capabilities.supportsFunctionBreakpoints ? s.sendFunctionBreakpoints(breakpointsToSend) : Promise.resolve(undefined);
 		});
 	}
 

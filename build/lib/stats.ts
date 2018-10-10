@@ -25,7 +25,7 @@ class Entry {
 				return `Stats for '${util.colors.grey(this.name)}': ${Math.round(this.totalSize / 1204)}KB`;
 
 			} else {
-				let count = this.totalCount < 100
+				const count = this.totalCount < 100
 					? util.colors.green(this.totalCount.toString())
 					: util.colors.red(this.totalCount.toString());
 
@@ -43,7 +43,7 @@ export function createStatsStream(group: string, log?: boolean): es.ThroughStrea
 	_entries.set(entry.name, entry);
 
 	return es.through(function (data) {
-		let file = data as File;
+		const file = data as File;
 		if (typeof file.path === 'string') {
 			entry.totalCount += 1;
 			if (Buffer.isBuffer(file.contents)) {
@@ -61,7 +61,7 @@ export function createStatsStream(group: string, log?: boolean): es.ThroughStrea
 				util.log(`Stats for '${util.colors.grey(entry.name)}': ${Math.round(entry.totalSize / 1204)}KB`);
 
 			} else {
-				let count = entry.totalCount < 100
+				const count = entry.totalCount < 100
 					? util.colors.green(entry.totalCount.toString())
 					: util.colors.red(entry.totalCount.toString());
 
@@ -75,7 +75,7 @@ export function createStatsStream(group: string, log?: boolean): es.ThroughStrea
 
 export function submitAllStats(productJson: any, commit: string): Promise<boolean> {
 
-	let sorted: Entry[] = [];
+	const sorted: Entry[] = [];
 	// move entries for single files to the front
 	_entries.forEach(value => {
 		if (value.totalCount === 1) {

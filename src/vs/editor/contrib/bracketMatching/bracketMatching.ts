@@ -314,11 +314,11 @@ registerEditorContribution(BracketMatchingController);
 registerEditorAction(SelectToBracketAction);
 registerEditorAction(JumpToBracketAction);
 registerThemingParticipant((theme, collector) => {
-	let bracketMatchBackground = theme.getColor(editorBracketMatchBackground);
+	const bracketMatchBackground = theme.getColor(editorBracketMatchBackground);
 	if (bracketMatchBackground) {
 		collector.addRule(`.monaco-editor .bracket-match { background-color: ${bracketMatchBackground}; }`);
 	}
-	let bracketMatchBorder = theme.getColor(editorBracketMatchBorder);
+	const bracketMatchBorder = theme.getColor(editorBracketMatchBorder);
 	if (bracketMatchBorder) {
 		collector.addRule(`.monaco-editor .bracket-match { border: 1px solid ${bracketMatchBorder}; }`);
 	}

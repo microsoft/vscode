@@ -32,6 +32,7 @@ import { ISelectedSuggestion, SuggestWidget } from './suggestWidget';
 import { WordContextKey } from 'vs/editor/contrib/suggest/wordContextKey';
 import { once, anyEvent } from 'vs/base/common/event';
 import { IEditorWorkerService } from 'vs/editor/common/services/editorWorkerService';
+import { IdleValue } from 'vs/base/common/async';
 
 class AcceptOnCharacterOracle {
 
@@ -89,8 +90,8 @@ export class SuggestController implements IEditorContribution {
 
 	private _model: SuggestModel;
 	private _widget: SuggestWidget;
-	private _memory: SuggestMemories;
-	private _alternatives: SuggestAlternatives;
+	private readonly _memory: IdleValue<SuggestMemories>;
+	private readonly _alternatives: IdleValue<SuggestAlternatives>;
 	private _toDispose: IDisposable[] = [];
 
 	private readonly _sticky = false; // for development purposes only
@@ -104,9 +105,17 @@ export class SuggestController implements IEditorContribution {
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 	) {
 		this._model = new SuggestModel(this._editor, editorWorker);
-		this._memory = _instantiationService.createInstance(SuggestMemories, this._editor.getConfiguration().contribInfo.suggestSelection);
+		this._memory = new IdleValue(() => {
+			let res = _instantiationService.createInstance(SuggestMemories, this._editor);
+			this._toDispose.push(res);
+			return res;
+		});
 
-		this._alternatives = new SuggestAlternatives(this._editor, item => this._onDidSelectItem(item, false, false), this._contextKeyService);
+		this._alternatives = new IdleValue(() => {
+			let res = new SuggestAlternatives(this._editor, item => this._onDidSelectItem(item, false, false), this._contextKeyService);
+			this._toDispose.push(res);
+			return res;
+		});
 
 		this._toDispose.push(_instantiationService.createInstance(WordContextKey, _editor));
 
@@ -118,7 +127,7 @@ export class SuggestController implements IEditorContribution {
 		}));
 		this._toDispose.push(this._model.onDidSuggest(e => {
 			if (!e.shy) {
-				let index = this._memory.select(this._editor.getModel(), this._editor.getPosition(), e.completionModel.items);
+				let index = this._memory.getValue().select(this._editor.getModel(), this._editor.getPosition(), e.completionModel.items);
 				this._widget.showSuggestions(e.completionModel, index, e.isFrozen, e.auto);
 			}
 		}));
@@ -136,9 +145,8 @@ export class SuggestController implements IEditorContribution {
 		// Manage the acceptSuggestionsOnEnter context key
 		let acceptSuggestionsOnEnter = SuggestContext.AcceptSuggestionsOnEnter.bindTo(_contextKeyService);
 		let updateFromConfig = () => {
-			const { acceptSuggestionOnEnter, suggestSelection } = this._editor.getConfiguration().contribInfo;
+			const { acceptSuggestionOnEnter } = this._editor.getConfiguration().contribInfo;
 			acceptSuggestionsOnEnter.set(acceptSuggestionOnEnter === 'on' || acceptSuggestionOnEnter === 'smart');
-			this._memory.setMode(suggestSelection);
 		};
 		this._toDispose.push(this._editor.onDidChangeConfiguration((e) => updateFromConfig()));
 		updateFromConfig();
@@ -208,7 +216,7 @@ export class SuggestController implements IEditorContribution {
 
 	protected _onDidSelectItem(event: ISelectedSuggestion, keepAlternativeSuggestions: boolean, undoStops: boolean): void {
 		if (!event || !event.item) {
-			this._alternatives.reset();
+			this._alternatives.getValue().reset();
 			this._model.cancel();
 			return;
 		}
@@ -228,7 +236,7 @@ export class SuggestController implements IEditorContribution {
 		}
 
 		// keep item in memory
-		this._memory.memorize(this._editor.getModel(), this._editor.getPosition(), event.item);
+		this._memory.getValue().memorize(this._editor.getModel(), this._editor.getPosition(), event.item);
 
 		let { insertText } = suggestion;
 		if (!suggestion.insertTextIsSnippet) {
@@ -265,7 +273,7 @@ export class SuggestController implements IEditorContribution {
 		}
 
 		if (keepAlternativeSuggestions) {
-			this._alternatives.set(event);
+			this._alternatives.getValue().set(event);
 		}
 
 		this._alertCompletionItem(event.item);
@@ -276,7 +284,7 @@ export class SuggestController implements IEditorContribution {
 		/* __GDPR__
 			"acceptSuggestion" : {
 				"type" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-				"multiline" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+				"multiline" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true }
 			}
 		*/
 		service.publicLog('acceptSuggestion', {
@@ -344,7 +352,7 @@ export class SuggestController implements IEditorContribution {
 					fallback();
 					return;
 				}
-				const index = this._memory.select(this._editor.getModel(), this._editor.getPosition(), completionModel.items);
+				const index = this._memory.getValue().select(this._editor.getModel(), this._editor.getPosition(), completionModel.items);
 				const item = completionModel.items[index];
 				if (!makesTextEdit(item)) {
 					fallback();
@@ -369,11 +377,11 @@ export class SuggestController implements IEditorContribution {
 	}
 
 	acceptNextSuggestion() {
-		this._alternatives.next();
+		this._alternatives.getValue().next();
 	}
 
 	acceptPrevSuggestion() {
-		this._alternatives.prev();
+		this._alternatives.getValue().prev();
 	}
 
 	cancelSuggestWidget(): void {

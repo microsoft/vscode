@@ -399,7 +399,8 @@ export class RuntimeExtensionsEditor extends BaseEditor {
 		};
 
 		this._list = this._instantiationService.createInstance(WorkbenchList, parent, delegate, [renderer], {
-			multipleSelectionSupport: false
+			multipleSelectionSupport: false,
+			setRowLineHeight: false
 		}) as WorkbenchList<IRuntimeExtension>;
 
 		this._list.splice(0, this._list.length, this._elements);
@@ -407,7 +408,7 @@ export class RuntimeExtensionsEditor extends BaseEditor {
 		this._list.onContextMenu((e) => {
 			const actions: IAction[] = [];
 
-			if (e.element.marketplaceInfo.type === LocalExtensionType.User) {
+			if (e.element.marketplaceInfo && e.element.marketplaceInfo.type === LocalExtensionType.User) {
 				actions.push(this._instantiationService.createInstance(DisableForWorkspaceAction, DisableForWorkspaceAction.LABEL));
 				actions.push(this._instantiationService.createInstance(DisableGloballyAction, DisableGloballyAction.LABEL));
 				actions.forEach((a: DisableForWorkspaceAction | DisableGloballyAction) => a.extension = e.element.marketplaceInfo);

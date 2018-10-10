@@ -17,15 +17,13 @@ import { distinct } from 'vs/base/common/arrays';
 import { Range, IRange } from 'vs/editor/common/core/range';
 import {
 	ITreeElement, IExpression, IExpressionContainer, IDebugSession, IStackFrame, IExceptionBreakpoint, IBreakpoint, IFunctionBreakpoint, IDebugModel, IReplElementSource,
-	IThread, IRawModelUpdate, IScope, IRawStoppedDetails, IEnablement, IBreakpointData, IExceptionInfo, IReplElement, IBreakpointsChangeEvent, IBreakpointUpdateData, IBaseBreakpoint
+	IThread, IRawModelUpdate, IScope, IRawStoppedDetails, IEnablement, IBreakpointData, IExceptionInfo, IReplElement, IBreakpointsChangeEvent, IBreakpointUpdateData, IBaseBreakpoint, State
 } from 'vs/workbench/parts/debug/common/debug';
 import { Source } from 'vs/workbench/parts/debug/common/debugSource';
 import { commonSuffixLength } from 'vs/base/common/strings';
 import { sep } from 'vs/base/common/paths';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
-
-const MAX_REPL_LENGTH = 10000;
 
 export abstract class AbstractReplElement implements IReplElement {
 	private static ID_COUNTER = 0;
@@ -282,7 +280,7 @@ export class Variable extends ExpressionContainer implements IExpression {
 	}
 
 	public setVariable(value: string): TPromise<any> {
-		return this.session.setVariable((<ExpressionContainer>this.parent).reference, name, value).then(response => {
+		return this.session.setVariable((<ExpressionContainer>this.parent).reference, this.name, value).then(response => {
 			if (response && response.body) {
 				this.value = response.body.value;
 				this.type = response.body.type || this.type;
@@ -378,7 +376,7 @@ export class StackFrame implements IStackFrame {
 		});
 	}
 
-	public restart(): TPromise<any> {
+	public restart(): TPromise<void> {
 		return this.thread.session.restartFrame(this.frameId, this.thread.threadId);
 	}
 
@@ -728,13 +726,11 @@ export class DebugModel implements IDebugModel {
 
 	private sessions: IDebugSession[];
 	private toDispose: lifecycle.IDisposable[];
-	private replElements: IReplElement[];
 	private schedulers = new Map<string, RunOnceScheduler>();
 	private breakpointsSessionId: string;
 	private readonly _onDidChangeBreakpoints: Emitter<IBreakpointsChangeEvent>;
 	private readonly _onDidChangeCallStack: Emitter<void>;
 	private readonly _onDidChangeWatchExpressions: Emitter<IExpression>;
-	private readonly _onDidChangeREPLElements: Emitter<void>;
 
 	constructor(
 		private breakpoints: Breakpoint[],
@@ -745,28 +741,26 @@ export class DebugModel implements IDebugModel {
 		private textFileService: ITextFileService
 	) {
 		this.sessions = [];
-		this.replElements = [];
 		this.toDispose = [];
 		this._onDidChangeBreakpoints = new Emitter<IBreakpointsChangeEvent>();
 		this._onDidChangeCallStack = new Emitter<void>();
 		this._onDidChangeWatchExpressions = new Emitter<IExpression>();
-		this._onDidChangeREPLElements = new Emitter<void>();
 	}
 
 	public getId(): string {
 		return 'root';
 	}
 
-	public getSessions(): IDebugSession[] {
-		return this.sessions;
+	public getSessions(includeInactive = false): IDebugSession[] {
+		// By default do not return inactive sesions.
+		// However we are still holding onto inactive sessions due to repl and debug service session revival (eh scenario)
+		return this.sessions.filter(s => includeInactive || s.state !== State.Inactive);
 	}
 
 	public addSession(session: IDebugSession): void {
+		// Make sure to remove all inactive sessions once a new session is started
+		this.sessions = this.sessions.filter(s => s.state !== State.Inactive);
 		this.sessions.push(session);
-	}
-
-	public removeSession(id: string): void {
-		this.sessions = this.sessions.filter(p => p.getId() !== id);
 		this._onDidChangeCallStack.fire();
 	}
 
@@ -780,10 +774,6 @@ export class DebugModel implements IDebugModel {
 
 	public get onDidChangeWatchExpressions(): Event<IExpression> {
 		return this._onDidChangeWatchExpressions.event;
-	}
-
-	public get onDidChangeReplElements(): Event<void> {
-		return this._onDidChangeREPLElements.event;
 	}
 
 	public rawUpdate(data: IRawModelUpdate): void {
@@ -1015,53 +1005,6 @@ export class DebugModel implements IDebugModel {
 		this._onDidChangeBreakpoints.fire({ removed: removed });
 	}
 
-	public getReplElements(): IReplElement[] {
-		return this.replElements;
-	}
-
-	public addReplExpression(session: IDebugSession, stackFrame: IStackFrame, name: string): TPromise<void> {
-		const expression = new Expression(name);
-		this.addReplElements([expression]);
-		return expression.evaluate(session, stackFrame, 'repl')
-			.then(() => this._onDidChangeREPLElements.fire());
-	}
-
-	public appendToRepl(data: string | IExpression, severity: severity, source?: IReplElementSource): void {
-		if (typeof data === 'string') {
-			const previousElement = this.replElements.length && (this.replElements[this.replElements.length - 1] as SimpleReplElement);
-
-			const toAdd = data.split('\n').map((line, index) => new SimpleReplElement(line, severity, index === 0 ? source : undefined));
-			if (previousElement && previousElement.value === '') {
-				// remove potential empty lines between different repl types
-				this.replElements.pop();
-			} else if (previousElement instanceof SimpleReplElement && severity === previousElement.severity && toAdd.length && toAdd[0].sourceData === previousElement.sourceData) {
-				previousElement.value += toAdd.shift().value;
-			}
-			this.addReplElements(toAdd);
-		} else {
-			// TODO@Isidor hack, we should introduce a new type which is an output that can fetch children like an expression
-			(<any>data).severity = severity;
-			(<any>data).sourceData = source;
-			this.addReplElements([data]);
-		}
-
-		this._onDidChangeREPLElements.fire();
-	}
-
-	private addReplElements(newElements: IReplElement[]): void {
-		this.replElements.push(...newElements);
-		if (this.replElements.length > MAX_REPL_LENGTH) {
-			this.replElements.splice(0, this.replElements.length - MAX_REPL_LENGTH);
-		}
-	}
-
-	public removeReplExpressions(): void {
-		if (this.replElements.length > 0) {
-			this.replElements = [];
-			this._onDidChangeREPLElements.fire();
-		}
-	}
-
 	public getWatchExpressions(): Expression[] {
 		return this.watchExpressions;
 	}
@@ -1106,6 +1049,8 @@ export class DebugModel implements IDebugModel {
 	}
 
 	public dispose(): void {
+		// Make sure to shutdown each session, such that no debugged process is left laying around
+		this.sessions.forEach(s => s.shutdown());
 		this.toDispose = lifecycle.dispose(this.toDispose);
 	}
 }

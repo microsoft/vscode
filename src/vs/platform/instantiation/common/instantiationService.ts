@@ -186,13 +186,21 @@ export class InstantiationService implements IInstantiationService {
 
 			for (let { data } of roots) {
 				// create instance and overwrite the service collections
-				const instance = this._createServiceInstance(data.desc.ctor, data.desc.staticArguments, data._trace);
+				const instance = this._createServiceInstanceWithOwner(data.id, data.desc.ctor, data.desc.staticArguments, data._trace);
 				this._setServiceInstance(data.id, instance);
 				graph.removeNode(data);
 			}
 		}
 
 		return <T>this._getServiceInstanceOrDescriptor(id);
+	}
+
+	private _createServiceInstanceWithOwner<T>(id: ServiceIdentifier<T>, ctor: any, args: any[] = [], _trace: Trace): T {
+		if (this._services.get(id) instanceof SyncDescriptor) {
+			return this._createServiceInstance(ctor, args, _trace);
+		} else {
+			return this._parent._createServiceInstanceWithOwner(id, ctor, args, _trace);
+		}
 	}
 
 	protected _createServiceInstance<T>(ctor: any, args: any[] = [], _trace: Trace): T {

@@ -595,6 +595,12 @@ configurationRegistry.registerConfiguration({
 			default: true,
 			scope: ConfigurationScope.RESOURCE
 		},
+		'search.useGlobalIgnoreFiles': {
+			type: 'boolean',
+			markdownDescription: nls.localize('useGlobalIgnoreFiles', "Controls whether to use global `.gitignore` and `.ignore` files when searching for files."),
+			default: false,
+			scope: ConfigurationScope.RESOURCE
+		},
 		'search.quickOpen.includeSymbols': {
 			type: 'boolean',
 			description: nls.localize('search.quickOpen.includeSymbols', "Whether to include results from a global symbol search in the file results for Quick Open."),
@@ -637,6 +643,16 @@ configurationRegistry.registerConfiguration({
 			],
 			default: 'auto',
 			description: nls.localize('search.collapseAllResults', "Controls whether the search results will be collapsed or expanded."),
+		},
+		'search.useReplacePreview': {
+			type: 'boolean',
+			default: true,
+			description: nls.localize('search.useReplacePreview', "Controls whether to open Replace Preview when selecting or replacing a match."),
+		},
+		'search.showLineNumbers': {
+			type: 'boolean',
+			default: false,
+			description: nls.localize('search.showLineNumbers', "Controls whether to show line numbers for search results."),
 		}
 	}
 });

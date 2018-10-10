@@ -50,3 +50,12 @@ export function closeAllEditors(): Thenable<any> {
 	return vscode.commands.executeCommand('workbench.action.closeAllEditors');
 
 }
+
+export function disposeAll(disposables: vscode.Disposable[]) {
+	while (disposables.length) {
+		let item = disposables.pop();
+		if (item) {
+			item.dispose();
+		}
+	}
+}

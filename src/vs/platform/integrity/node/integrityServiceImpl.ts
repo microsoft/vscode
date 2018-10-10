@@ -6,7 +6,6 @@
 import * as nls from 'vs/nls';
 import * as fs from 'fs';
 import * as crypto from 'crypto';
-import { TPromise } from 'vs/base/common/winjs.base';
 import { IIntegrityService, IntegrityTestResult, ChecksumPair } from 'vs/platform/integrity/common/integrity';
 import product from 'vs/platform/node/product';
 import { URI } from 'vs/base/common/uri';
@@ -109,11 +108,11 @@ export class IntegrityServiceImpl implements IIntegrityService {
 		const expectedChecksums = product.checksums || {};
 
 		return this.lifecycleService.when(LifecyclePhase.Eventually).then(() => {
-			let asyncResults: TPromise<ChecksumPair>[] = Object.keys(expectedChecksums).map((filename) => {
+			let asyncResults: Promise<ChecksumPair>[] = Object.keys(expectedChecksums).map((filename) => {
 				return this._resolve(filename, expectedChecksums[filename]);
 			});
 
-			return TPromise.join(asyncResults).then<IntegrityTestResult>((allResults) => {
+			return Promise.all(asyncResults).then<IntegrityTestResult>((allResults) => {
 				let isPure = true;
 				for (let i = 0, len = allResults.length; isPure && i < len; i++) {
 					if (!allResults[i].isPure) {
@@ -130,14 +129,14 @@ export class IntegrityServiceImpl implements IIntegrityService {
 		});
 	}
 
-	private _resolve(filename: string, expected: string): TPromise<ChecksumPair> {
+	private _resolve(filename: string, expected: string): Promise<ChecksumPair> {
 		let fileUri = URI.parse(require.toUrl(filename));
-		return new TPromise<ChecksumPair>((c, e) => {
+		return new Promise<ChecksumPair>((resolve, reject) => {
 			fs.readFile(fileUri.fsPath, (err, buff) => {
 				if (err) {
-					return e(err);
+					return reject(err);
 				}
-				c(IntegrityServiceImpl._createChecksumPair(fileUri, this._computeChecksum(buff), expected));
+				resolve(IntegrityServiceImpl._createChecksumPair(fileUri, this._computeChecksum(buff), expected));
 			});
 		});
 	}

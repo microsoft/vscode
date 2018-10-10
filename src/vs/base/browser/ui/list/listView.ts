@@ -45,11 +45,13 @@ interface IItem<T> {
 export interface IListViewOptions {
 	useShadows?: boolean;
 	verticalScrollMode?: ScrollbarVisibility;
+	setRowLineHeight?: boolean;
 }
 
 const DefaultOptions: IListViewOptions = {
 	useShadows: true,
-	verticalScrollMode: ScrollbarVisibility.Auto
+	verticalScrollMode: ScrollbarVisibility.Auto,
+	setRowLineHeight: true
 };
 
 export class ListView<T> implements ISpliceable<T>, IDisposable {
@@ -71,6 +73,7 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 	private dragAndDropScrollInterval: number;
 	private dragAndDropScrollTimeout: number;
 	private dragAndDropMouseY: number;
+	private setRowLineHeight: boolean;
 	private disposables: IDisposable[];
 
 	constructor(
@@ -121,6 +124,8 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 
 		const onDragOver = mapEvent(domEvent(this.rowsContainer, 'dragover'), e => new DragMouseEvent(e));
 		onDragOver(this.onDragOver, this, this.disposables);
+
+		this.setRowLineHeight = getOrDefault(options, o => o.setRowLineHeight, DefaultOptions.setRowLineHeight);
 
 		this.layout();
 	}
@@ -306,6 +311,11 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 		}
 
 		item.row.domNode.style.height = `${item.size}px`;
+
+		if (this.setRowLineHeight) {
+			item.row.domNode.style.lineHeight = `${item.size}px`;
+		}
+
 		this.updateItemInDOM(item, index);
 
 		const renderer = this.renderers.get(item.templateId);

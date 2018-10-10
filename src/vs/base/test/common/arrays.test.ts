@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 import * as assert from 'assert';
-import { TPromise } from 'vs/base/common/winjs.base';
 import * as arrays from 'vs/base/common/arrays';
 
 suite('Arrays', () => {
@@ -220,56 +219,46 @@ suite('Arrays', () => {
 		assert.deepEqual(arrays.top([4, 6, 2, 7, 8, 3, 5, 1], cmp, 3), [1, 2, 3]);
 	});
 
-	test('topAsync', () => {
+	test('topAsync', async () => {
 		const cmp = (a: number, b: number) => {
 			assert.strictEqual(typeof a, 'number', 'typeof a');
 			assert.strictEqual(typeof b, 'number', 'typeof b');
 			return a - b;
 		};
 
-		return testTopAsync(cmp, 1)
-			.then(() => {
-				return testTopAsync(cmp, 2);
-			});
+		await testTopAsync(cmp, 1);
+		return testTopAsync(cmp, 2);
 	});
 
-	function testTopAsync(cmp: any, m: number) {
-		return TPromise.as(null).then(() => {
-			return arrays.topAsync([], cmp, 1, m)
-				.then(result => {
-					assert.deepEqual(result, []);
-				});
-		}).then(() => {
-			return arrays.topAsync([1], cmp, 0, m)
-				.then(result => {
-					assert.deepEqual(result, []);
-				});
-		}).then(() => {
-			return arrays.topAsync([1, 2], cmp, 1, m)
-				.then(result => {
-					assert.deepEqual(result, [1]);
-				});
-		}).then(() => {
-			return arrays.topAsync([2, 1], cmp, 1, m)
-				.then(result => {
-					assert.deepEqual(result, [1]);
-				});
-		}).then(() => {
-			return arrays.topAsync([1, 3, 2], cmp, 2, m)
-				.then(result => {
-					assert.deepEqual(result, [1, 2]);
-				});
-		}).then(() => {
-			return arrays.topAsync([3, 2, 1], cmp, 3, m)
-				.then(result => {
-					assert.deepEqual(result, [1, 2, 3]);
-				});
-		}).then(() => {
-			return arrays.topAsync([4, 6, 2, 7, 8, 3, 5, 1], cmp, 3, m)
-				.then(result => {
-					assert.deepEqual(result, [1, 2, 3]);
-				});
-		});
+	async function testTopAsync(cmp: any, m: number) {
+		{
+			const result = await arrays.topAsync([], cmp, 1, m);
+			assert.deepEqual(result, []);
+		}
+		{
+			const result = await arrays.topAsync([1], cmp, 0, m);
+			assert.deepEqual(result, []);
+		}
+		{
+			const result = await arrays.topAsync([1, 2], cmp, 1, m);
+			assert.deepEqual(result, [1]);
+		}
+		{
+			const result = await arrays.topAsync([2, 1], cmp, 1, m);
+			assert.deepEqual(result, [1]);
+		}
+		{
+			const result = await arrays.topAsync([1, 3, 2], cmp, 2, m);
+			assert.deepEqual(result, [1, 2]);
+		}
+		{
+			const result = await arrays.topAsync([3, 2, 1], cmp, 3, m);
+			assert.deepEqual(result, [1, 2, 3]);
+		}
+		{
+			const result = await arrays.topAsync([4, 6, 2, 7, 8, 3, 5, 1], cmp, 3, m);
+			assert.deepEqual(result, [1, 2, 3]);
+		}
 	}
 
 	test('coalesce', () => {

@@ -12,7 +12,6 @@ import { IEditorService } from 'vs/workbench/services/editor/common/editorServic
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { TextDiffEditor } from 'vs/workbench/browser/parts/editor/textDiffEditor';
 import { KeyMod, KeyCode, KeyChord } from 'vs/base/common/keyCodes';
-import { TPromise } from 'vs/base/common/winjs.base';
 import { URI } from 'vs/base/common/uri';
 import { IQuickOpenService } from 'vs/platform/quickOpen/common/quickOpen';
 import { IListService } from 'vs/platform/list/browser/listService';
@@ -592,7 +591,7 @@ function registerCloseEditorCommands() {
 				return group.closeEditors({ direction: CloseDirection.RIGHT, except: editor });
 			}
 
-			return TPromise.as(false);
+			return Promise.resolve(false);
 		}
 	});
 
@@ -609,7 +608,7 @@ function registerCloseEditorCommands() {
 				return group.pinEditor(editor);
 			}
 
-			return TPromise.as(false);
+			return Promise.resolve(false);
 		}
 	});
 

@@ -225,7 +225,7 @@ class FileSeemsBinaryFileView {
 		}
 
 		if (metadataClb) {
-			metadataClb(BinarySize.formatSize(descriptor.size));
+			metadataClb(typeof descriptor.size === 'number' ? BinarySize.formatSize(descriptor.size) : '');
 		}
 
 		scrollbar.scanDomNode();
@@ -543,7 +543,14 @@ class InlineImageView {
 		image.style.visibility = 'hidden';
 
 		disposables.push(DOM.addDisposableListener(image, DOM.EventType.LOAD, e => {
-			metadataClb(nls.localize('imgMeta', '{0}x{1} {2}', image.naturalWidth, image.naturalHeight, BinarySize.formatSize(descriptor.size)));
+			let metadata: string;
+			if (typeof descriptor.size === 'number') {
+				metadataClb(nls.localize('imgMeta', '{0}x{1} {2}', image.naturalWidth, image.naturalHeight, BinarySize.formatSize(descriptor.size)));
+			} else {
+				metadataClb(nls.localize('imgMetaNoSize', '{0}x{1}', image.naturalWidth, image.naturalHeight));
+			}
+			metadataClb(metadata);
+
 			scrollbar.scanDomNode();
 			image.style.visibility = 'visible';
 			updateScale(scale);

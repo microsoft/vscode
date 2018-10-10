@@ -35,11 +35,11 @@ function fromLocal(extensionPath: string, sourceMappingURLBase?: string): Stream
 }
 
 function fromLocalWebpack(extensionPath: string, sourceMappingURLBase: string | undefined): Stream {
-	let result = es.through();
+	const result = es.through();
 
-	let packagedDependencies: string[] = [];
-	let packageJsonConfig = require(path.join(extensionPath, 'package.json'));
-	let webpackRootConfig = require(path.join(extensionPath, 'extension.webpack.config.js'));
+	const packagedDependencies: string[] = [];
+	const packageJsonConfig = require(path.join(extensionPath, 'package.json'));
+	const webpackRootConfig = require(path.join(extensionPath, 'extension.webpack.config.js'));
 	for (const key in webpackRootConfig.externals) {
 		if (key in packageJsonConfig.dependencies) {
 			packagedDependencies.push(key);
@@ -107,7 +107,7 @@ function fromLocalWebpack(extensionPath: string, sourceMappingURLBase: string | 
 				...require(webpackConfigPath),
 				...{ mode: 'production' }
 			};
-			let relativeOutputPath = path.relative(extensionPath, webpackConfig.output.path);
+			const relativeOutputPath = path.relative(extensionPath, webpackConfig.output.path);
 
 			return webpackGulp(webpackConfig, webpack, webpackDone)
 				.pipe(es.through(function (data) {

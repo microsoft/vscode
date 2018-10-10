@@ -15,6 +15,7 @@ export interface IFolderSearch {
 	includePattern?: IExpression;
 	fileEncoding?: string;
 	disregardIgnoreFiles?: boolean;
+	disregardGlobalIgnoreFiles?: boolean;
 }
 
 export interface IRawSearch {
@@ -33,6 +34,7 @@ export interface IRawSearch {
 	useRipgrep?: boolean;
 	disregardIgnoreFiles?: boolean;
 	previewOptions?: ITextSearchPreviewOptions;
+	disregardGlobalIgnoreFiles?: boolean;
 }
 
 export interface ITelemetryEvent {

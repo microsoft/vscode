@@ -488,6 +488,7 @@ export class DiskSearch implements ISearchResultProvider {
 			cacheKey: query.cacheKey,
 			useRipgrep: query.useRipgrep,
 			disregardIgnoreFiles: query.disregardIgnoreFiles,
+			disregardGlobalIgnoreFiles: query.disregardGlobalIgnoreFiles,
 			ignoreSymlinks: query.ignoreSymlinks,
 			previewOptions: query.previewOptions
 		};
@@ -498,6 +499,7 @@ export class DiskSearch implements ISearchResultProvider {
 				includePattern: q.includePattern,
 				fileEncoding: q.fileEncoding,
 				disregardIgnoreFiles: q.disregardIgnoreFiles,
+				disregardGlobalIgnoreFiles: q.disregardGlobalIgnoreFiles,
 				folder: q.folder.fsPath
 			});
 		}
@@ -587,19 +589,9 @@ export class DiskSearch implements ISearchResultProvider {
 	}
 }
 
-/**
- * While search doesn't support multiline matches, collapse editor matches to a single line
- */
 function editorMatchToTextSearchResult(match: FindMatch, model: ITextModel, previewOptions: ITextSearchPreviewOptions): TextSearchResult {
-	let endLineNumber = match.range.endLineNumber - 1;
-	let endCol = match.range.endColumn - 1;
-	if (match.range.endLineNumber !== match.range.startLineNumber) {
-		endLineNumber = match.range.startLineNumber - 1;
-		endCol = model.getLineLength(match.range.startLineNumber);
-	}
-
 	return new TextSearchResult(
 		model.getLineContent(match.range.startLineNumber),
-		new Range(match.range.startLineNumber - 1, match.range.startColumn - 1, endLineNumber, endCol),
+		new Range(match.range.startLineNumber - 1, match.range.startColumn - 1, match.range.endLineNumber - 1, match.range.endColumn - 1),
 		previewOptions);
 }

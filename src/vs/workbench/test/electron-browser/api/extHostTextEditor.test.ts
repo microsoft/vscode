@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 import * as assert from 'assert';
-import { TPromise } from 'vs/base/common/winjs.base';
 import { TextEditorLineNumbersStyle, Range } from 'vs/workbench/api/node/extHostTypes';
 import { TextEditorCursorStyle } from 'vs/editor/common/config/editorOptions';
 import { MainThreadTextEditorsShape, IResolvedTextEditorConfiguration, ITextEditorConfigurationUpdate } from 'vs/workbench/api/node/extHost.protocol';
@@ -42,7 +41,7 @@ suite('ExtHostTextEditor', () => {
 	test('API [bug]: registerTextEditorCommand clears redo stack even if no edits are made #55163', async function () {
 		let applyCount = 0;
 		let editor = new ExtHostTextEditor(new class extends mock<MainThreadTextEditorsShape>() {
-			$tryApplyEdits(): TPromise<boolean> {
+			$tryApplyEdits(): Promise<boolean> {
 				applyCount += 1;
 				return Promise.resolve(true);
 			}

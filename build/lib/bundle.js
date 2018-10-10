@@ -32,8 +32,12 @@ function bundle(entryPoints, config, callback) {
     var loader = loaderModule.exports;
     config.isBuild = true;
     config.paths = config.paths || {};
-    config.paths['vs/nls'] = 'out-build/vs/nls.build';
-    config.paths['vs/css'] = 'out-build/vs/css.build';
+    if (!config.paths['vs/nls']) {
+        config.paths['vs/nls'] = 'out-build/vs/nls.build';
+    }
+    if (!config.paths['vs/css']) {
+        config.paths['vs/css'] = 'out-build/vs/css.build';
+    }
     loader.config(config);
     loader(['require'], function (localRequire) {
         var resolvePath = function (path) {
@@ -383,7 +387,8 @@ function positionToOffset(str, desiredLine, desiredCol) {
     if (desiredLine === 1) {
         return desiredCol - 1;
     }
-    var line = 1, lastNewLineOffset = -1;
+    var line = 1;
+    var lastNewLineOffset = -1;
     do {
         if (desiredLine === line) {
             return lastNewLineOffset + 1 + desiredCol - 1;
@@ -397,7 +402,8 @@ function positionToOffset(str, desiredLine, desiredCol) {
  * Return a set of reachable nodes in `graph` starting from `rootNodes`
  */
 function visit(rootNodes, graph) {
-    var result = {}, queue = rootNodes;
+    var result = {};
+    var queue = rootNodes;
     rootNodes.forEach(function (node) {
         result[node] = true;
     });

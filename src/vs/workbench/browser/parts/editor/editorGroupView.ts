@@ -1424,7 +1424,7 @@ registerThemingParticipant((theme, collector, environment) => {
 	const letterpress = `resources/letterpress${theme.type === 'dark' ? '-dark' : theme.type === 'hc' ? '-hc' : ''}.svg`;
 	collector.addRule(`
 		.monaco-workbench > .part.editor > .content .editor-group-container.empty .editor-group-letterpress {
-			background-image: url('${join(environment.appRoot, letterpress)}')
+			background-image: url('${join(environment.appRoot, letterpress).replace(/#/g, '%23')}')
 		}
 	`);
 

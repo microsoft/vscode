@@ -169,7 +169,7 @@ export class LineNumbersOverlay extends DynamicViewOverlay {
 // theming
 
 registerThemingParticipant((theme, collector) => {
-	let lineNumbers = theme.getColor(editorLineNumbers);
+	const lineNumbers = theme.getColor(editorLineNumbers);
 	if (lineNumbers) {
 		collector.addRule(`.monaco-editor .line-numbers { color: ${lineNumbers}; }`);
 	}

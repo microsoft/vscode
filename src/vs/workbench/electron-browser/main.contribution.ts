@@ -478,6 +478,11 @@ configurationRegistry.registerConfiguration({
 			'description': nls.localize('showEditorTabs', "Controls whether opened editors should show in tabs or not."),
 			'default': true
 		},
+		'workbench.editor.highlightModifiedTabs': {
+			'type': 'boolean',
+			'description': nls.localize('highlightModifiedTabs', "Controls whether a top border is drawn on modified (dirty) editor tabs or not."),
+			'default': false
+		},
 		'workbench.editor.labelFormat': {
 			'type': 'string',
 			'enum': ['default', 'short', 'medium', 'long'],
@@ -562,6 +567,11 @@ configurationRegistry.registerConfiguration({
 			'description': nls.localize('restoreViewState', "Restores the last view state (e.g. scroll position) when re-opening files after they have been closed."),
 			'default': true,
 		},
+		'workbench.editor.centeredLayoutAutoResize': {
+			'type': 'boolean',
+			'default': true,
+			'description': nls.localize('centeredLayoutAutoResize', "Controls if the centered layout should automatically resize to maximum width when more than one group is open. Once only one group is open it will resize back to the original centered width.")
+		},
 		'workbench.commandPalette.history': {
 			'type': 'number',
 			'description': nls.localize('commandHistory', "Controls the number of recently used commands to keep in history for the command palette. Set to 0 to disable command history."),
@@ -577,9 +587,9 @@ configurationRegistry.registerConfiguration({
 			'description': nls.localize('closeOnFocusLost', "Controls whether Quick Open should close automatically once it loses focus."),
 			'default': true
 		},
-		'workbench.quickOpen.prefill': {
+		'workbench.quickOpen.preserveInput': {
 			'type': 'boolean',
-			'description': nls.localize('workbench.quickOpen.prefill', "Controls whether to prefill Quick Open with the last input."),
+			'description': nls.localize('workbench.quickOpen.preserveInput', "Controls whether the last typed input to Quick Open should be restored when opening it the next time."),
 			'default': false
 		},
 		'workbench.settings.openDefaultSettings': {

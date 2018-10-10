@@ -157,7 +157,8 @@ export class SwitchOutputActionItem extends SelectActionItem {
 		if (selectedChannel) {
 			selected = this.outputChannels.map(c => c.id).indexOf(selectedChannel);
 			if (selected === -1) {
-				selected = separatorIndex + 1 + this.logChannels.map(c => c.id).indexOf(selectedChannel);
+				const logChannelIndex = this.logChannels.map(c => c.id).indexOf(selectedChannel);
+				selected = logChannelIndex !== -1 ? separatorIndex + 1 + logChannelIndex : 0;
 			}
 		}
 		this.setOptions(options, Math.max(0, selected), separatorIndex !== -1 ? separatorIndex : void 0);

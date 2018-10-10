@@ -21,7 +21,7 @@ import { CancellationToken } from 'vs/base/common/cancellation';
 import { dispose } from 'vs/base/common/lifecycle';
 
 export interface IOpenCallbacks {
-	openInternal: (input: EditorInput, options: EditorOptions) => void;
+	openInternal: (input: EditorInput, options: EditorOptions) => Thenable<void>;
 	openExternal: (uri: URI) => void;
 }
 
@@ -32,6 +32,9 @@ export abstract class BaseBinaryResourceEditor extends BaseEditor {
 
 	private readonly _onMetadataChanged: Emitter<void> = this._register(new Emitter<void>());
 	get onMetadataChanged(): Event<void> { return this._onMetadataChanged.event; }
+
+	private readonly _onDidOpenInPlace: Emitter<void> = this._register(new Emitter<void>());
+	get onDidOpenInPlace(): Event<void> { return this._onDidOpenInPlace.event; }
 
 	private callbacks: IOpenCallbacks;
 	private metadata: string;
@@ -88,13 +91,21 @@ export abstract class BaseBinaryResourceEditor extends BaseEditor {
 					this._fileService,
 					this.binaryContainer,
 					this.scrollbar,
-					resource => this.callbacks.openInternal(input, options),
+					resource => this.handleOpenInternalCallback(input, options),
 					resource => this.callbacks.openExternal(resource),
 					meta => this.handleMetadataChanged(meta)
 				);
 
 				return void 0;
 			});
+		});
+	}
+
+	private handleOpenInternalCallback(input: EditorInput, options: EditorOptions) {
+		this.callbacks.openInternal(input, options).then(() => {
+
+			// Signal to listeners that the binary editor has been opened in-place
+			this._onDidOpenInPlace.fire();
 		});
 	}
 

@@ -375,13 +375,13 @@ registerEditorContribution(InspectTMScopesController);
 registerEditorAction(InspectTMScopes);
 
 registerThemingParticipant((theme, collector) => {
-	let border = theme.getColor(editorHoverBorder);
+	const border = theme.getColor(editorHoverBorder);
 	if (border) {
 		let borderWidth = theme.type === HIGH_CONTRAST ? 2 : 1;
 		collector.addRule(`.monaco-editor .tm-inspect-widget { border: ${borderWidth}px solid ${border}; }`);
 		collector.addRule(`.monaco-editor .tm-inspect-widget .tm-metadata-separator { background-color: ${border}; }`);
 	}
-	let background = theme.getColor(editorHoverBackground);
+	const background = theme.getColor(editorHoverBackground);
 	if (background) {
 		collector.addRule(`.monaco-editor .tm-inspect-widget { background-color: ${background}; }`);
 	}

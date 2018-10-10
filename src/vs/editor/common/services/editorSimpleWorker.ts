@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { URI } from 'vs/base/common/uri';
-import { TPromise } from 'vs/base/common/winjs.base';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { IRequestHandler } from 'vs/base/common/worker/simpleWorker';
 import { Range, IRange } from 'vs/editor/common/core/range';
@@ -336,7 +335,7 @@ export abstract class BaseEditorSimpleWorker {
 
 	// ---- BEGIN diff --------------------------------------------------------------------------
 
-	public computeDiff(originalUrl: string, modifiedUrl: string, ignoreTrimWhitespace: boolean): TPromise<editorCommon.ILineChange[]> {
+	public computeDiff(originalUrl: string, modifiedUrl: string, ignoreTrimWhitespace: boolean): Promise<editorCommon.ILineChange[]> {
 		let original = this._getModel(originalUrl);
 		let modified = this._getModel(modifiedUrl);
 		if (!original || !modified) {
@@ -351,10 +350,10 @@ export abstract class BaseEditorSimpleWorker {
 			shouldIgnoreTrimWhitespace: ignoreTrimWhitespace,
 			shouldMakePrettyDiff: true
 		});
-		return TPromise.as(diffComputer.computeDiff());
+		return Promise.resolve(diffComputer.computeDiff());
 	}
 
-	public computeDirtyDiff(originalUrl: string, modifiedUrl: string, ignoreTrimWhitespace: boolean): TPromise<editorCommon.IChange[]> {
+	public computeDirtyDiff(originalUrl: string, modifiedUrl: string, ignoreTrimWhitespace: boolean): Promise<editorCommon.IChange[]> {
 		let original = this._getModel(originalUrl);
 		let modified = this._getModel(modifiedUrl);
 		if (!original || !modified) {
@@ -369,7 +368,7 @@ export abstract class BaseEditorSimpleWorker {
 			shouldIgnoreTrimWhitespace: ignoreTrimWhitespace,
 			shouldMakePrettyDiff: true
 		});
-		return TPromise.as(diffComputer.computeDiff());
+		return Promise.resolve(diffComputer.computeDiff());
 	}
 
 	// ---- END diff --------------------------------------------------------------------------
@@ -379,10 +378,10 @@ export abstract class BaseEditorSimpleWorker {
 
 	private static readonly _diffLimit = 10000;
 
-	public computeMoreMinimalEdits(modelUrl: string, edits: TextEdit[]): TPromise<TextEdit[]> {
+	public computeMoreMinimalEdits(modelUrl: string, edits: TextEdit[]): Promise<TextEdit[]> {
 		const model = this._getModel(modelUrl);
 		if (!model) {
-			return TPromise.as(edits);
+			return Promise.resolve(edits);
 		}
 
 		const result: TextEdit[] = [];
@@ -437,25 +436,25 @@ export abstract class BaseEditorSimpleWorker {
 			result.push({ eol: lastEol, text: undefined, range: undefined });
 		}
 
-		return TPromise.as(result);
+		return Promise.resolve(result);
 	}
 
 	// ---- END minimal edits ---------------------------------------------------------------
 
-	public computeLinks(modelUrl: string): TPromise<ILink[]> {
+	public computeLinks(modelUrl: string): Promise<ILink[]> {
 		let model = this._getModel(modelUrl);
 		if (!model) {
 			return null;
 		}
 
-		return TPromise.as(computeLinks(model));
+		return Promise.resolve(computeLinks(model));
 	}
 
 	// ---- BEGIN suggest --------------------------------------------------------------------------
 
 	private static readonly _suggestionsLimit = 10000;
 
-	public textualSuggest(modelUrl: string, position: IPosition, wordDef: string, wordDefFlags: string): TPromise<CompletionList> {
+	public textualSuggest(modelUrl: string, position: IPosition, wordDef: string, wordDefFlags: string): Promise<CompletionList> {
 		const model = this._getModel(modelUrl);
 		if (model) {
 			const suggestions: CompletionItem[] = [];
@@ -488,7 +487,7 @@ export abstract class BaseEditorSimpleWorker {
 				});
 			}
 
-			return TPromise.as({ suggestions });
+			return Promise.resolve({ suggestions });
 		}
 		return undefined;
 	}
@@ -529,7 +528,7 @@ export abstract class BaseEditorSimpleWorker {
 
 	//#endregion
 
-	public navigateValueSet(modelUrl: string, range: IRange, up: boolean, wordDef: string, wordDefFlags: string): TPromise<IInplaceReplaceSupportResult> {
+	public navigateValueSet(modelUrl: string, range: IRange, up: boolean, wordDef: string, wordDefFlags: string): Promise<IInplaceReplaceSupportResult> {
 		let model = this._getModel(modelUrl);
 		if (!model) {
 			return null;
@@ -555,12 +554,12 @@ export abstract class BaseEditorSimpleWorker {
 		}
 
 		let result = BasicInplaceReplace.INSTANCE.navigateValueSet(range, selectionText, wordRange, word, up);
-		return TPromise.as(result);
+		return Promise.resolve(result);
 	}
 
 	// ---- BEGIN foreign module support --------------------------------------------------------------------------
 
-	public loadForeignModule(moduleId: string, createData: any): TPromise<string[]> {
+	public loadForeignModule(moduleId: string, createData: any): Promise<string[]> {
 		let ctx: IWorkerContext = {
 			getMirrorModels: (): IMirrorModel[] => {
 				return this._getModels();
@@ -576,10 +575,10 @@ export abstract class BaseEditorSimpleWorker {
 					methods.push(prop);
 				}
 			}
-			return TPromise.as(methods);
+			return Promise.resolve(methods);
 		}
 		// ESM-comment-begin
-		return new TPromise<any>((c, e) => {
+		return new Promise<any>((resolve, reject) => {
 			require([moduleId], (foreignModule: { create: IForeignModuleFactory }) => {
 				this._foreignModule = foreignModule.create(ctx, createData);
 
@@ -590,27 +589,27 @@ export abstract class BaseEditorSimpleWorker {
 					}
 				}
 
-				c(methods);
+				resolve(methods);
 
-			}, e);
+			}, reject);
 		});
 		// ESM-comment-end
 
 		// ESM-uncomment-begin
-		// return TPromise.wrapError(new Error(`Unexpected usage`));
+		// return Promise.reject(new Error(`Unexpected usage`));
 		// ESM-uncomment-end
 	}
 
 	// foreign method request
-	public fmr(method: string, args: any[]): TPromise<any> {
+	public fmr(method: string, args: any[]): Promise<any> {
 		if (!this._foreignModule || typeof this._foreignModule[method] !== 'function') {
-			return TPromise.wrapError(new Error('Missing requestHandler or method: ' + method));
+			return Promise.reject(new Error('Missing requestHandler or method: ' + method));
 		}
 
 		try {
-			return TPromise.as(this._foreignModule[method].apply(this._foreignModule, args));
+			return Promise.resolve(this._foreignModule[method].apply(this._foreignModule, args));
 		} catch (e) {
-			return TPromise.wrapError(e);
+			return Promise.reject(e);
 		}
 	}
 

@@ -539,7 +539,7 @@ export class ReferenceWidget extends PeekViewWidget {
 	}
 
 	private _applyTheme(theme: ITheme) {
-		let borderColor = theme.getColor(peekViewBorder) || Color.transparent;
+		const borderColor = theme.getColor(peekViewBorder) || Color.transparent;
 		this.style({
 			arrowColor: borderColor,
 			frameColor: borderColor,
@@ -829,43 +829,43 @@ export const peekViewEditorMatchHighlightBorder = registerColor('peekViewEditor.
 
 
 registerThemingParticipant((theme, collector) => {
-	let findMatchHighlightColor = theme.getColor(peekViewResultsMatchHighlight);
+	const findMatchHighlightColor = theme.getColor(peekViewResultsMatchHighlight);
 	if (findMatchHighlightColor) {
 		collector.addRule(`.monaco-editor .reference-zone-widget .ref-tree .referenceMatch { background-color: ${findMatchHighlightColor}; }`);
 	}
-	let referenceHighlightColor = theme.getColor(peekViewEditorMatchHighlight);
+	const referenceHighlightColor = theme.getColor(peekViewEditorMatchHighlight);
 	if (referenceHighlightColor) {
 		collector.addRule(`.monaco-editor .reference-zone-widget .preview .reference-decoration { background-color: ${referenceHighlightColor}; }`);
 	}
-	let referenceHighlightBorder = theme.getColor(peekViewEditorMatchHighlightBorder);
+	const referenceHighlightBorder = theme.getColor(peekViewEditorMatchHighlightBorder);
 	if (referenceHighlightBorder) {
 		collector.addRule(`.monaco-editor .reference-zone-widget .preview .reference-decoration { border: 2px solid ${referenceHighlightBorder}; box-sizing: border-box; }`);
 	}
-	let hcOutline = theme.getColor(activeContrastBorder);
+	const hcOutline = theme.getColor(activeContrastBorder);
 	if (hcOutline) {
 		collector.addRule(`.monaco-editor .reference-zone-widget .ref-tree .referenceMatch { border: 1px dotted ${hcOutline}; box-sizing: border-box; }`);
 	}
-	let resultsBackground = theme.getColor(peekViewResultsBackground);
+	const resultsBackground = theme.getColor(peekViewResultsBackground);
 	if (resultsBackground) {
 		collector.addRule(`.monaco-editor .reference-zone-widget .ref-tree { background-color: ${resultsBackground}; }`);
 	}
-	let resultsMatchForeground = theme.getColor(peekViewResultsMatchForeground);
+	const resultsMatchForeground = theme.getColor(peekViewResultsMatchForeground);
 	if (resultsMatchForeground) {
 		collector.addRule(`.monaco-editor .reference-zone-widget .ref-tree { color: ${resultsMatchForeground}; }`);
 	}
-	let resultsFileForeground = theme.getColor(peekViewResultsFileForeground);
+	const resultsFileForeground = theme.getColor(peekViewResultsFileForeground);
 	if (resultsFileForeground) {
 		collector.addRule(`.monaco-editor .reference-zone-widget .ref-tree .reference-file { color: ${resultsFileForeground}; }`);
 	}
-	let resultsSelectedBackground = theme.getColor(peekViewResultsSelectionBackground);
+	const resultsSelectedBackground = theme.getColor(peekViewResultsSelectionBackground);
 	if (resultsSelectedBackground) {
 		collector.addRule(`.monaco-editor .reference-zone-widget .ref-tree .monaco-tree.focused .monaco-tree-rows > .monaco-tree-row.selected:not(.highlighted) { background-color: ${resultsSelectedBackground}; }`);
 	}
-	let resultsSelectedForeground = theme.getColor(peekViewResultsSelectionForeground);
+	const resultsSelectedForeground = theme.getColor(peekViewResultsSelectionForeground);
 	if (resultsSelectedForeground) {
 		collector.addRule(`.monaco-editor .reference-zone-widget .ref-tree .monaco-tree.focused .monaco-tree-rows > .monaco-tree-row.selected:not(.highlighted) { color: ${resultsSelectedForeground} !important; }`);
 	}
-	let editorBackground = theme.getColor(peekViewEditorBackground);
+	const editorBackground = theme.getColor(peekViewEditorBackground);
 	if (editorBackground) {
 		collector.addRule(
 			`.monaco-editor .reference-zone-widget .preview .monaco-editor .monaco-editor-background,` +
@@ -873,7 +873,7 @@ registerThemingParticipant((theme, collector) => {
 			`	background-color: ${editorBackground};` +
 			`}`);
 	}
-	let editorGutterBackground = theme.getColor(peekViewEditorGutterBackground);
+	const editorGutterBackground = theme.getColor(peekViewEditorGutterBackground);
 	if (editorGutterBackground) {
 		collector.addRule(
 			`.monaco-editor .reference-zone-widget .preview .monaco-editor .margin {` +

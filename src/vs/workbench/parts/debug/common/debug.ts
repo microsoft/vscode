@@ -41,7 +41,6 @@ export const CONTEXT_DEBUG_TYPE = new RawContextKey<string>('debugType', undefin
 export const CONTEXT_DEBUG_CONFIGURATION_TYPE = new RawContextKey<string>('debugConfigurationType', undefined);
 export const CONTEXT_DEBUG_STATE = new RawContextKey<string>('debugState', 'inactive');
 export const CONTEXT_IN_DEBUG_MODE = new RawContextKey<boolean>('inDebugMode', false);
-export const CONTEXT_NOT_IN_DEBUG_MODE = CONTEXT_IN_DEBUG_MODE.toNegated();
 export const CONTEXT_IN_DEBUG_REPL = new RawContextKey<boolean>('inDebugRepl', false);
 export const CONTEXT_BREAKPOINT_WIDGET_VISIBLE = new RawContextKey<boolean>('breakpointWidgetVisible', false);
 export const CONTEXT_IN_BREAKPOINT_WIDGET = new RawContextKey<boolean>('inBreakpointWidget', false);
@@ -117,8 +116,6 @@ export interface IDebugger {
 	getCustomTelemetryService(): TPromise<TelemetryService>;
 }
 
-export type ActualBreakpoints = { [id: string]: DebugProtocol.Breakpoint };
-
 export enum State {
 	Inactive,
 	Initializing,
@@ -144,7 +141,7 @@ export interface IDebugSession extends ITreeElement {
 	readonly state: State;
 	readonly root: IWorkspaceFolder;
 
-	getName(includeRoot: boolean): string;
+	getLabel(): string;
 
 	getSourceForUri(modelUri: uri): Source;
 	getSource(raw: DebugProtocol.Source): Source;
@@ -152,9 +149,21 @@ export interface IDebugSession extends ITreeElement {
 	setConfiguration(configuration: { resolved: IConfig, unresolved: IConfig }): void;
 	rawUpdate(data: IRawModelUpdate): void;
 
+	getThread(threadId: number): IThread;
+	getAllThreads(): ReadonlyArray<IThread>;
+	clearThreads(removeThreads: boolean, reference?: number): void;
+
+	getReplElements(): ReadonlyArray<IReplElement>;
+
+	removeReplExpressions(): void;
+	addReplExpression(stackFrame: IStackFrame, name: string): TPromise<void>;
+	appendToRepl(data: string | IExpression, severity: severity, source?: IReplElementSource): void;
+	logToRepl(sev: severity, args: any[], frame?: { uri: uri, line: number, column: number });
+
 	// session events
 	readonly onDidEndAdapter: Event<AdapterEndEvent>;
 	readonly onDidChangeState: Event<void>;
+	readonly onDidChangeReplElements: Event<void>;
 
 	// DA capabilities
 	readonly capabilities: DebugProtocol.Capabilities;
@@ -171,13 +180,13 @@ export interface IDebugSession extends ITreeElement {
 
 	initialize(dbgr: IDebugger): TPromise<void>;
 	launchOrAttach(config: IConfig): TPromise<void>;
-	restart(): TPromise<DebugProtocol.RestartResponse>;
+	restart(): TPromise<void>;
 	terminate(restart?: boolean /* false */): TPromise<void>;
 	disconnect(restart?: boolean /* false */): TPromise<void>;
 
-	sendBreakpoints(modelUri: uri, bpts: IBreakpoint[], sourceModified: boolean): TPromise<ActualBreakpoints | undefined>;
-	sendFunctionBreakpoints(fbps: IFunctionBreakpoint[]): TPromise<ActualBreakpoints | undefined>;
-	sendExceptionBreakpoints(exbpts: IExceptionBreakpoint[]): TPromise<any>;
+	sendBreakpoints(modelUri: uri, bpts: IBreakpoint[], sourceModified: boolean): TPromise<void>;
+	sendFunctionBreakpoints(fbps: IFunctionBreakpoint[]): TPromise<void>;
+	sendExceptionBreakpoints(exbpts: IExceptionBreakpoint[]): TPromise<void>;
 
 	stackTrace(threadId: number, startFrame: number, levels: number): TPromise<DebugProtocol.StackTraceResponse>;
 	exceptionInfo(threadId: number): TPromise<IExceptionInfo>;
@@ -186,24 +195,20 @@ export interface IDebugSession extends ITreeElement {
 	evaluate(expression: string, frameId?: number, context?: string): TPromise<DebugProtocol.EvaluateResponse>;
 	customRequest(request: string, args: any): TPromise<DebugProtocol.Response>;
 
-	restartFrame(frameId: number, threadId: number): TPromise<DebugProtocol.RestartFrameResponse>;
-	next(threadId: number): TPromise<DebugProtocol.NextResponse>;
-	stepIn(threadId: number): TPromise<DebugProtocol.StepInResponse>;
-	stepOut(threadId: number): TPromise<DebugProtocol.StepOutResponse>;
-	stepBack(threadId: number): TPromise<DebugProtocol.StepBackResponse>;
-	continue(threadId: number): TPromise<DebugProtocol.ContinueResponse>;
-	reverseContinue(threadId: number): TPromise<DebugProtocol.ReverseContinueResponse>;
-	pause(threadId: number): TPromise<DebugProtocol.PauseResponse>;
-	terminateThreads(threadIds: number[]): TPromise<DebugProtocol.TerminateThreadsResponse>;
+	restartFrame(frameId: number, threadId: number): TPromise<void>;
+	next(threadId: number): TPromise<void>;
+	stepIn(threadId: number): TPromise<void>;
+	stepOut(threadId: number): TPromise<void>;
+	stepBack(threadId: number): TPromise<void>;
+	continue(threadId: number): TPromise<void>;
+	reverseContinue(threadId: number): TPromise<void>;
+	pause(threadId: number): TPromise<void>;
+	terminateThreads(threadIds: number[]): TPromise<void>;
 
 	completions(frameId: number, text: string, position: Position, overwriteBefore: number): TPromise<CompletionItem[]>;
 	setVariable(variablesReference: number, name: string, value: string): TPromise<DebugProtocol.SetVariableResponse>;
 	loadSource(resource: uri): TPromise<DebugProtocol.SourceResponse>;
 	getLoadedSources(): TPromise<Source[]>;
-
-	getThread(threadId: number): IThread;
-	getAllThreads(): ReadonlyArray<IThread>;
-	clearThreads(removeThreads: boolean, reference?: number): void;
 }
 
 export interface IThread extends ITreeElement {
@@ -368,18 +373,16 @@ export interface IViewModel extends ITreeElement {
 }
 
 export interface IDebugModel extends ITreeElement {
-	getSessions(): ReadonlyArray<IDebugSession>;
+	getSessions(includeInactive?: boolean): ReadonlyArray<IDebugSession>;
 	getBreakpoints(filter?: { uri?: uri, lineNumber?: number, column?: number, enabledOnly?: boolean }): ReadonlyArray<IBreakpoint>;
 	areBreakpointsActivated(): boolean;
 	getFunctionBreakpoints(): ReadonlyArray<IFunctionBreakpoint>;
 	getExceptionBreakpoints(): ReadonlyArray<IExceptionBreakpoint>;
 	getWatchExpressions(): ReadonlyArray<IExpression>;
-	getReplElements(): ReadonlyArray<IReplElement>;
 
 	onDidChangeBreakpoints: Event<IBreakpointsChangeEvent>;
 	onDidChangeCallStack: Event<void>;
 	onDidChangeWatchExpressions: Event<IExpression>;
-	onDidChangeReplElements: Event<void>;
 }
 
 /**
@@ -722,21 +725,6 @@ export interface IDebugService {
 	sendAllBreakpoints(session?: IDebugSession): TPromise<any>;
 
 	/**
-	 * Adds a new expression to the repl.
-	 */
-	addReplExpression(name: string): TPromise<void>;
-
-	/**
-	 * Removes all repl expressions.
-	 */
-	removeReplExpressions(): void;
-
-	/**
-	 * Appends the passed string to the debug repl.
-	 */
-	logToRepl(value: string | IExpression, sev?: severity, source?: IReplElementSource): void;
-
-	/**
 	 * Adds a new watch expression and evaluates it against the debug adapter.
 	 */
 	addWatchExpression(name?: string): void;
@@ -780,11 +768,6 @@ export interface IDebugService {
 	 * Makes unavailable all sources with the passed uri. Source will appear as grayed out in callstack view.
 	 */
 	sourceIsNotAvailable(uri: uri): void;
-
-	/**
-	 * returns Session with the given ID (or undefined if ID is not found)
-	 */
-	getSession(sessionId: string): IDebugSession;
 
 	/**
 	 * Gets the current debug model.

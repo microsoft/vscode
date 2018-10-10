@@ -226,7 +226,7 @@ class SessionTreeItem extends BaseTreeItem {
 	private _map: Map<string, BaseTreeItem>;
 
 	constructor(parent: BaseTreeItem, session: IDebugSession, private _environmentService: IEnvironmentService, private rootProvider: IWorkspaceContextService) {
-		super(parent, session.getName(true));
+		super(parent, session.getLabel());
 		this._initialized = false;
 		this._session = session;
 		this._map = new Map();

@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { TPromise } from 'vs/base/common/winjs.base';
 import * as nls from 'vs/nls';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
 import * as paths from 'vs/base/common/paths';
@@ -198,7 +197,7 @@ class ResolveConflictLearnMoreAction extends Action {
 		super('workbench.files.action.resolveConflictLearnMore', nls.localize('learnMore', "Learn More"));
 	}
 
-	run(): TPromise<any> {
+	run(): Promise<any> {
 		return this.openerService.open(URI.parse('https://go.microsoft.com/fwlink/?linkid=868264'));
 	}
 }
@@ -211,7 +210,7 @@ class DoNotShowResolveConflictLearnMoreAction extends Action {
 		super('workbench.files.action.resolveConflictLearnMoreDoNotShowAgain', nls.localize('dontShowAgain', "Don't Show Again"));
 	}
 
-	run(notification: IDisposable): TPromise<any> {
+	run(notification: IDisposable): Promise<any> {
 		this.storageService.store(LEARN_MORE_DIRTY_WRITE_IGNORE_KEY, true);
 
 		// Hide notification
@@ -234,7 +233,7 @@ class ResolveSaveConflictAction extends Action {
 		super('workbench.files.action.resolveConflict', nls.localize('compareChanges', "Compare"));
 	}
 
-	run(): TPromise<any> {
+	run(): Thenable<any> {
 		if (!this.model.isDisposed()) {
 			const resource = this.model.getResource();
 			const name = paths.basename(resource.fsPath);
@@ -276,7 +275,7 @@ class SaveElevatedAction extends Action {
 		super('workbench.files.action.saveElevated', triedToMakeWriteable ? nls.localize('overwriteElevated', "Overwrite as Admin...") : nls.localize('saveElevated', "Retry as Admin..."));
 	}
 
-	run(): TPromise<any> {
+	run(): Promise<any> {
 		if (!this.model.isDisposed()) {
 			this.model.save({
 				writeElevated: true,
@@ -296,7 +295,7 @@ class OverwriteReadonlyAction extends Action {
 		super('workbench.files.action.overwrite', nls.localize('overwrite', "Overwrite"));
 	}
 
-	run(): TPromise<any> {
+	run(): Promise<any> {
 		if (!this.model.isDisposed()) {
 			this.model.save({ overwriteReadonly: true });
 		}

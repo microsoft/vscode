@@ -5,7 +5,7 @@
 
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { URI as uri } from 'vs/base/common/uri';
-import { IDebugService, IConfig, IDebugConfigurationProvider, IBreakpoint, IFunctionBreakpoint, IBreakpointData, ITerminalSettings, IDebugAdapter, IDebugAdapterProvider, IDebugSession } from 'vs/workbench/parts/debug/common/debug';
+import { IDebugService, IConfig, IDebugConfigurationProvider, IBreakpoint, IFunctionBreakpoint, IBreakpointData, ITerminalSettings, IDebugAdapter, IDebugAdapterProvider, IDebugSession, DEBUG_SCHEME } from 'vs/workbench/parts/debug/common/debug';
 import { TPromise } from 'vs/base/common/winjs.base';
 import {
 	ExtHostContext, ExtHostDebugServiceShape, MainThreadDebugServiceShape, DebugSessionUUID, MainContext,
@@ -190,7 +190,7 @@ export class MainThreadDebugService implements MainThreadDebugServiceShape, IDeb
 	}
 
 	public $customDebugAdapterRequest(sessionId: DebugSessionUUID, request: string, args: any): Thenable<any> {
-		const session = this.debugService.getSession(sessionId);
+		const session = this.debugService.getModel().getSessions(true).filter(s => s.getId() === sessionId).pop();
 		if (session) {
 			return session.customRequest(request, args).then(response => {
 				if (response && response.success) {
@@ -205,7 +205,10 @@ export class MainThreadDebugService implements MainThreadDebugServiceShape, IDeb
 
 	public $appendDebugConsole(value: string): Thenable<void> {
 		// Use warning as severity to get the orange color for messages coming from the debug extension
-		this.debugService.logToRepl(value, severity.Warning);
+		const session = this.debugService.getViewModel().focusedSession;
+		if (session) {
+			session.appendToRepl(value, severity.Warning);
+		}
 		return TPromise.wrap<void>(undefined);
 	}
 
@@ -235,7 +238,7 @@ export class MainThreadDebugService implements MainThreadDebugServiceShape, IDeb
 			return {
 				id: <DebugSessionUUID>session.getId(),
 				type: session.configuration.type,
-				name: session.getName(false)
+				name: session.configuration.name
 			};
 		}
 		return undefined;
@@ -299,7 +302,7 @@ class ExtensionHostDebugAdapter extends AbstractDebugAdapter {
 			if (paths.isAbsolute(source.path)) {
 				(<any>source).path = uri.file(source.path);
 			} else {
-				(<any>source).path = uri.parse(source.path);
+				(<any>source).path = uri.parse(`${DEBUG_SCHEME}:${source.path}`);
 			}
 		});
 
