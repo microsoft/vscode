@@ -1061,8 +1061,6 @@ export class SettingsRenderer implements ITreeRenderer {
 			template.descriptionElement.innerText = element.description;
 		}
 
-		// List row label overrides labeling - is not full label must use local label
-		// template.containerElement.parentElement.removeAttribute('aria-label');
 		const baseId = (element.displayCategory + '_' + element.displayLabel).replace(/ /g, '_').toLowerCase();
 		template.descriptionElement.id = baseId + '_setting_description';
 
