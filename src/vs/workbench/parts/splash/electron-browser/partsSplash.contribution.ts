@@ -98,7 +98,7 @@ class PartsSplash {
 	private _removePartsSplash(): void {
 		let element = document.getElementById(PartsSplash._splashElementId);
 		if (element) {
-			element.remove();
+			element.style.display = 'none';
 		}
 		// remove initial colors
 		let defaultStyles = document.head.getElementsByClassName('initialShellColors');

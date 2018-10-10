@@ -377,10 +377,6 @@ export class OutlinePanel extends ViewletPanel {
 	}
 
 	protected layoutBody(height: number): void {
-		if (!this.isExpanded()) {
-			// workaround https://github.com/Microsoft/vscode/issues/60018
-			return;
-		}
 		if (height !== this._cachedHeight) {
 			this._cachedHeight = height;
 			if (this._pendingLayout) {

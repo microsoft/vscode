@@ -17,7 +17,7 @@ import { distinct } from 'vs/base/common/arrays';
 import { Range, IRange } from 'vs/editor/common/core/range';
 import {
 	ITreeElement, IExpression, IExpressionContainer, IDebugSession, IStackFrame, IExceptionBreakpoint, IBreakpoint, IFunctionBreakpoint, IDebugModel, IReplElementSource,
-	IThread, IRawModelUpdate, IScope, IRawStoppedDetails, IEnablement, IBreakpointData, IExceptionInfo, IReplElement, IBreakpointsChangeEvent, IBreakpointUpdateData, IBaseBreakpoint
+	IThread, IRawModelUpdate, IScope, IRawStoppedDetails, IEnablement, IBreakpointData, IExceptionInfo, IReplElement, IBreakpointsChangeEvent, IBreakpointUpdateData, IBaseBreakpoint, State
 } from 'vs/workbench/parts/debug/common/debug';
 import { Source } from 'vs/workbench/parts/debug/common/debugSource';
 import { commonSuffixLength } from 'vs/base/common/strings';
@@ -376,7 +376,7 @@ export class StackFrame implements IStackFrame {
 		});
 	}
 
-	public restart(): TPromise<any> {
+	public restart(): TPromise<void> {
 		return this.thread.session.restartFrame(this.frameId, this.thread.threadId);
 	}
 
@@ -751,16 +751,16 @@ export class DebugModel implements IDebugModel {
 		return 'root';
 	}
 
-	public getSessions(): IDebugSession[] {
-		return this.sessions;
+	public getSessions(includeInactive = false): IDebugSession[] {
+		// By default do not return inactive sesions.
+		// However we are still holding onto inactive sessions due to repl and debug service session revival (eh scenario)
+		return this.sessions.filter(s => includeInactive || s.state !== State.Inactive);
 	}
 
 	public addSession(session: IDebugSession): void {
+		// Make sure to remove all inactive sessions once a new session is started
+		this.sessions = this.sessions.filter(s => s.state !== State.Inactive);
 		this.sessions.push(session);
-	}
-
-	public removeSession(id: string): void {
-		this.sessions = this.sessions.filter(p => p.getId() !== id);
 		this._onDidChangeCallStack.fire();
 	}
 
@@ -1049,6 +1049,8 @@ export class DebugModel implements IDebugModel {
 	}
 
 	public dispose(): void {
+		// Make sure to shutdown each session, such that no debugged process is left laying around
+		this.sessions.forEach(s => s.shutdown());
 		this.toDispose = lifecycle.dispose(this.toDispose);
 	}
 }

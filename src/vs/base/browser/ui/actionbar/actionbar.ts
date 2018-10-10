@@ -419,6 +419,10 @@ export class ActionBar extends Disposable implements IActionRunner {
 		this._context = options.context;
 		this._actionRunner = this.options.actionRunner;
 
+		if (!this.options.triggerKeys) {
+			this.options.triggerKeys = defaultOptions.triggerKeys;
+		}
+
 		if (!this._actionRunner) {
 			this._actionRunner = new ActionRunner();
 			this._register(this._actionRunner);

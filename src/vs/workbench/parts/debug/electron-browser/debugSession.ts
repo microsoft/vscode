@@ -13,7 +13,7 @@ import { Event, Emitter } from 'vs/base/common/event';
 import { CompletionItem, completionKindFromLegacyString } from 'vs/editor/common/modes';
 import { Position } from 'vs/editor/common/core/position';
 import * as aria from 'vs/base/browser/ui/aria/aria';
-import { IDebugSession, IConfig, IThread, IRawModelUpdate, IDebugService, IRawStoppedDetails, State, LoadedSourceEvent, IFunctionBreakpoint, IExceptionBreakpoint, ActualBreakpoints, IBreakpoint, IExceptionInfo, AdapterEndEvent, IDebugger, VIEWLET_ID, IDebugConfiguration, IReplElement, IStackFrame, IExpression, IReplElementSource } from 'vs/workbench/parts/debug/common/debug';
+import { IDebugSession, IConfig, IThread, IRawModelUpdate, IDebugService, IRawStoppedDetails, State, LoadedSourceEvent, IFunctionBreakpoint, IExceptionBreakpoint, IBreakpoint, IExceptionInfo, AdapterEndEvent, IDebugger, VIEWLET_ID, IDebugConfiguration, IReplElement, IStackFrame, IExpression, IReplElementSource } from 'vs/workbench/parts/debug/common/debug';
 import { Source } from 'vs/workbench/parts/debug/common/debugSource';
 import { mixin } from 'vs/base/common/objects';
 import { Thread, ExpressionContainer, DebugModel } from 'vs/workbench/parts/debug/common/debugModel';
@@ -90,6 +90,10 @@ export class DebugSession implements IDebugSession {
 	}
 
 	get state(): State {
+		if (!this.raw) {
+			return State.Inactive;
+		}
+
 		const focusedThread = this.debugService.getViewModel().focusedThread;
 		if (focusedThread && focusedThread.session === this) {
 			return focusedThread.stopped ? State.Stopped : State.Running;
@@ -98,7 +102,7 @@ export class DebugSession implements IDebugSession {
 			return State.Stopped;
 		}
 
-		return !!this.raw ? State.Running : State.Inactive;
+		return State.Running;
 	}
 
 	get capabilities(): DebugProtocol.Capabilities {
@@ -161,7 +165,7 @@ export class DebugSession implements IDebugSession {
 						supportsVariablePaging: true, // #9537
 						supportsRunInTerminalRequest: true, // #10574
 						locale: platform.locale
-					}).then(response => {
+					}).then(() => {
 						this.model.addSession(this);
 						this._onDidChangeState.fire();
 						this.model.setExceptionBreakpoints(this.raw.capabilities.exceptionBreakpointFilters);
@@ -219,14 +223,14 @@ export class DebugSession implements IDebugSession {
 	/**
 	 * restart debug adapter session
 	 */
-	restart(): TPromise<DebugProtocol.RestartResponse> {
+	restart(): TPromise<void> {
 		if (this.raw) {
-			return this.raw.restart();
+			return this.raw.restart().then(() => undefined);
 		}
 		return Promise.reject(new Error('no debug adapter'));
 	}
 
-	sendBreakpoints(modelUri: URI, breakpointsToSend: IBreakpoint[], sourceModified: boolean): TPromise<ActualBreakpoints | undefined> {
+	sendBreakpoints(modelUri: URI, breakpointsToSend: IBreakpoint[], sourceModified: boolean): TPromise<void> {
 
 		if (!this.raw) {
 			return Promise.reject(new Error('no debug adapter'));
@@ -257,42 +261,41 @@ export class DebugSession implements IDebugSession {
 			breakpoints: breakpointsToSend.map(bp => ({ line: bp.lineNumber, column: bp.column, condition: bp.condition, hitCondition: bp.hitCondition, logMessage: bp.logMessage })),
 			sourceModified
 		}).then(response => {
-
 			if (response && response.body) {
-				const data: ActualBreakpoints = Object.create(null);
+				const data: { [id: string]: DebugProtocol.Breakpoint } = Object.create(null);
 				for (let i = 0; i < breakpointsToSend.length; i++) {
 					data[breakpointsToSend[i].getId()] = response.body.breakpoints[i];
 				}
+
 				this.model.setBreakpointSessionData(this.getId(), data);
-				return data;
 			}
-			return undefined;
 		});
 	}
 
-	sendFunctionBreakpoints(fbpts: IFunctionBreakpoint[]): TPromise<ActualBreakpoints | undefined> {
+	sendFunctionBreakpoints(fbpts: IFunctionBreakpoint[]): TPromise<void> {
 		if (this.raw) {
 			if (this.raw.readyForBreakpoints) {
 				return this.raw.setFunctionBreakpoints({ breakpoints: fbpts }).then(response => {
 					if (response && response.body) {
-						const data: ActualBreakpoints = Object.create(null);
+						const data: { [id: string]: DebugProtocol.Breakpoint } = Object.create(null);
 						for (let i = 0; i < fbpts.length; i++) {
 							data[fbpts[i].getId()] = response.body.breakpoints[i];
 						}
-						return data;
+						this.model.setBreakpointSessionData(this.getId(), data);
 					}
-					return undefined;
 				});
 			}
-			return Promise.resolve(undefined);
+
+			return TPromise.as(undefined);
 		}
+
 		return Promise.reject(new Error('no debug adapter'));
 	}
 
-	sendExceptionBreakpoints(exbpts: IExceptionBreakpoint[]): TPromise<any> {
+	sendExceptionBreakpoints(exbpts: IExceptionBreakpoint[]): TPromise<void> {
 		if (this.raw) {
 			if (this.raw.readyForBreakpoints) {
-				return this.raw.setExceptionBreakpoints({ filters: exbpts.map(exb => exb.filter) });
+				return this.raw.setExceptionBreakpoints({ filters: exbpts.map(exb => exb.filter) }).then(() => undefined);
 			}
 			return Promise.resolve(null);
 		}
@@ -351,65 +354,65 @@ export class DebugSession implements IDebugSession {
 		return Promise.reject(new Error('no debug adapter'));
 	}
 
-	restartFrame(frameId: number, threadId: number): TPromise<DebugProtocol.RestartFrameResponse> {
+	restartFrame(frameId: number, threadId: number): TPromise<void> {
 		if (this.raw) {
-			return this.raw.restartFrame({ frameId }, threadId);
+			return this.raw.restartFrame({ frameId }, threadId).then(() => undefined);
 		}
 		return Promise.reject(new Error('no debug adapter'));
 	}
 
-	next(threadId: number): TPromise<DebugProtocol.NextResponse> {
+	next(threadId: number): TPromise<void> {
 		if (this.raw) {
-			return this.raw.next({ threadId });
+			return this.raw.next({ threadId }).then(() => undefined);
 		}
 		return Promise.reject(new Error('no debug adapter'));
 	}
 
-	stepIn(threadId: number): TPromise<DebugProtocol.StepInResponse> {
+	stepIn(threadId: number): TPromise<void> {
 		if (this.raw) {
-			return this.raw.stepIn({ threadId });
+			return this.raw.stepIn({ threadId }).then(() => undefined);
 		}
 		return Promise.reject(new Error('no debug adapter'));
 	}
 
-	stepOut(threadId: number): TPromise<DebugProtocol.StepOutResponse> {
+	stepOut(threadId: number): TPromise<void> {
 		if (this.raw) {
-			return this.raw.stepOut({ threadId });
+			return this.raw.stepOut({ threadId }).then(() => undefined);
 		}
 		return Promise.reject(new Error('no debug adapter'));
 	}
 
-	stepBack(threadId: number): TPromise<DebugProtocol.StepBackResponse> {
+	stepBack(threadId: number): TPromise<void> {
 		if (this.raw) {
-			return this.raw.stepBack({ threadId });
+			return this.raw.stepBack({ threadId }).then(() => undefined);
 		}
 		return Promise.reject(new Error('no debug adapter'));
 	}
 
-	continue(threadId: number): TPromise<DebugProtocol.ContinueResponse> {
+	continue(threadId: number): TPromise<void> {
 		if (this.raw) {
-			return this.raw.continue({ threadId });
+			return this.raw.continue({ threadId }).then(() => undefined);
 		}
 		return Promise.reject(new Error('no debug adapter'));
 	}
 
-	reverseContinue(threadId: number): TPromise<DebugProtocol.ReverseContinueResponse> {
+	reverseContinue(threadId: number): TPromise<void> {
 		if (this.raw) {
-			return this.raw.reverseContinue({ threadId });
+			return this.raw.reverseContinue({ threadId }).then(() => undefined);
 		}
 		return Promise.reject(new Error('no debug adapter'));
 	}
 
-	pause(threadId: number): TPromise<DebugProtocol.PauseResponse> {
+	pause(threadId: number): TPromise<void> {
 		if (this.raw) {
-			return this.raw.pause({ threadId });
+			return this.raw.pause({ threadId }).then(() => undefined);
 		}
 		return Promise.reject(new Error('no debug adapter'));
 	}
 
-	terminateThreads(threadIds?: number[]): TPromise<DebugProtocol.TerminateThreadsResponse> {
+	terminateThreads(threadIds?: number[]): TPromise<void> {
 		if (this.raw) {
-			return this.raw.terminateThreads({ threadIds });
+			return this.raw.terminateThreads({ threadIds }).then(() => undefined);
 		}
 		return Promise.reject(new Error('no debug adapter'));
 	}
@@ -747,14 +750,13 @@ export class DebugSession implements IDebugSession {
 
 	shutdown(): void {
 		dispose(this.rawListeners);
-		this.model.clearThreads(this.getId(), true);
-		this.model.removeSession(this.getId());
-		this._onDidChangeState.fire();
 		this.fetchThreadsScheduler = undefined;
 		if (this.raw) {
 			this.raw.disconnect();
 		}
 		this.raw = undefined;
+		this.model.clearThreads(this.getId(), true);
+		this._onDidChangeState.fire();
 	}
 
 	//---- sources

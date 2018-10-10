@@ -138,7 +138,7 @@ export class ViewCursor {
 				width = dom.computeScreenAwareSize(1);
 			}
 			let left = visibleRange.left;
-			if (width >= 2) {
+			if (width >= 2 && left >= 1) {
 				// try to center cursor
 				left -= 1;
 			}

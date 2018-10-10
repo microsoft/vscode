@@ -86,6 +86,11 @@ export interface IMainContext extends IRPCProtocol {
 
 // --- main thread
 
+export interface MainThreadClipboardShape extends IDisposable {
+	$readText(): Promise<string>;
+	$writeText(value: string): Promise<void>;
+}
+
 export interface MainThreadCommandsShape extends IDisposable {
 	$registerCommand(id: string): void;
 	$unregisterCommand(id: string): void;
@@ -1014,6 +1019,7 @@ export interface ExtHostCommentsShape {
 // --- proxy identifiers
 
 export const MainContext = {
+	MainThreadClipboard: <ProxyIdentifier<MainThreadClipboardShape>>createMainId<MainThreadClipboardShape>('MainThreadClipboard'),
 	MainThreadCommands: <ProxyIdentifier<MainThreadCommandsShape>>createMainId<MainThreadCommandsShape>('MainThreadCommands'),
 	MainThreadComments: createMainId<MainThreadCommentsShape>('MainThreadComments'),
 	MainThreadConfiguration: createMainId<MainThreadConfigurationShape>('MainThreadConfiguration'),
