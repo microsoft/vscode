@@ -8,7 +8,7 @@ import * as fs from 'fs';
 import * as nls from 'vscode-nls';
 const localize = nls.loadMessageBundle();
 
-import { workspace, window, languages, ExtensionContext, extensions, Uri, LanguageConfiguration, Diagnostic } from 'vscode';
+import { workspace, window, languages, ExtensionContext, extensions, Uri, LanguageConfiguration, Diagnostic, StatusBarAlignment, TextEditor } from 'vscode';
 import { LanguageClient, LanguageClientOptions, RequestType, ServerOptions, TransportKind, NotificationType, DidChangeConfigurationNotification, HandleDiagnosticsSignature } from 'vscode-languageclient';
 import TelemetryReporter from 'vscode-extension-telemetry';
 
@@ -77,6 +77,10 @@ export function activate(context: ExtensionContext) {
 
 	let documentSelector = ['json', 'jsonc'];
 
+	let statusBarItem = window.createStatusBarItem(StatusBarAlignment.Right, 0);
+	statusBarItem.text = '$(alert)  JSON';
+	toDispose.push(statusBarItem);
+
 	// Options to control the language client
 	let clientOptions: LanguageClientOptions = {
 		// Register the server for json documents
@@ -96,8 +100,11 @@ export function activate(context: ExtensionContext) {
 				if (schemaErrorIndex !== -1) {
 					// Show schema resolution errors in status bar only; ref: #51032
 					const schemaResolveDiagnostic = diagnostics[schemaErrorIndex];
-					window.showWarningMessage(schemaResolveDiagnostic.message);
+					statusBarItem.tooltip = schemaResolveDiagnostic.message;
+					statusBarItem.show();
 					diagnostics.splice(schemaErrorIndex, 1);
+				} else {
+					statusBarItem.hide();
 				}
 				next(uri, diagnostics);
 			}
@@ -132,8 +139,14 @@ export function activate(context: ExtensionContext) {
 				client.sendNotification(SchemaContentChangeNotification.type, uri.toString());
 			}
 		};
+
+		let handleActiveEditorChange = (_?: TextEditor) => {
+			statusBarItem.hide();
+		};
+
 		toDispose.push(workspace.onDidChangeTextDocument(e => handleContentChange(e.document.uri)));
 		toDispose.push(workspace.onDidCloseTextDocument(d => handleContentChange(d.uri)));
+		toDispose.push(window.onDidChangeActiveTextEditor(handleActiveEditorChange));
 
 		client.sendNotification(SchemaAssociationNotification.type, getSchemaAssociation(context));
 	});
