@@ -34,6 +34,10 @@ namespace SchemaContentChangeNotification {
 	export const type: NotificationType<string, any> = new NotificationType('json/schemaContent');
 }
 
+namespace SchemaRetryNotification {
+	export const type: NotificationType<string, any> = new NotificationType('json/schemaRetry');
+}
+
 // Create a connection for the server
 const connection: IConnection = createConnection();
 
@@ -205,6 +209,14 @@ connection.onNotification(SchemaAssociationNotification.type, associations => {
 // A schema has changed
 connection.onNotification(SchemaContentChangeNotification.type, uri => {
 	languageService.resetSchema(uri);
+});
+
+// Retry schema validation on all open documents
+connection.onNotification(SchemaRetryNotification.type, uri => {
+	const document = documents.get(uri);
+	if (document) {
+		triggerValidation(document);
+	}
 });
 
 function updateConfiguration() {
