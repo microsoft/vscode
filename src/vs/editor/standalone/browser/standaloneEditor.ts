@@ -11,7 +11,6 @@ import { ScrollbarVisibility } from 'vs/base/common/scrollable';
 import { IEditorOverrideServices, DynamicStandaloneServices, StaticServices } from 'vs/editor/standalone/browser/standaloneServices';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
-import { TPromise } from 'vs/base/common/winjs.base';
 import { OpenerService } from 'vs/editor/browser/services/openerService';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { Colorizer, IColorizerElementOptions, IColorizerOptions } from 'vs/editor/standalone/browser/colorizer';
@@ -136,7 +135,7 @@ export function createDiffNavigator(diffEditor: IStandaloneDiffEditor, opts?: ID
 	return new DiffNavigator(diffEditor, opts);
 }
 
-function doCreateModel(value: string, mode: TPromise<modes.IMode>, uri?: URI): ITextModel {
+function doCreateModel(value: string, mode: Promise<modes.IMode>, uri?: URI): ITextModel {
 	return StaticServices.modelService.get().createModel(value, mode, uri);
 }
 
