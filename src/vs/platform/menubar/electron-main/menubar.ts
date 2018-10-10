@@ -652,8 +652,6 @@ export class Menubar {
 				options['role'] = 'copy';
 			} else if (commandId === 'editor.action.clipboardPasteAction') {
 				options['role'] = 'paste';
-			} else if (commandId === 'editor.action.selectAll') {
-				options['role'] = 'selectAll';
 			}
 
 			// Add context aware click handlers for special case menu items

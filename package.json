@@ -15,14 +15,15 @@
     "watch": "gulp watch --max_old_space_size=4095",
     "watch-client": "gulp watch-client --max_old_space_size=4095",
     "monaco-editor-test": "mocha --only-monaco-editor",
-    "precommit": "node build/gulpfile.hygiene.js",
+    "precommit": "node build/gulpfile.hygiene.js && npm run strict-null-check",
     "gulp": "gulp --max_old_space_size=4095",
     "7z": "7z",
     "update-grammars": "node build/npm/update-all-grammars.js",
     "update-localization-extension": "node build/npm/update-localization-extension.js",
     "smoketest": "cd test/smoke && node test/index.js",
     "monaco-compile-check": "tsc -p src/tsconfig.monaco.json --noEmit",
-    "download-builtin-extensions": "node build/lib/builtInExtensions.js"
+    "download-builtin-extensions": "node build/lib/builtInExtensions.js",
+    "strict-null-check": "tsc -p src/tsconfig.strictNullChecks.json"
   },
   "dependencies": {
     "applicationinsights": "1.0.5",
@@ -49,7 +50,7 @@
     "vscode-nsfw": "1.0.17",
     "vscode-ripgrep": "^1.2.2",
     "vscode-textmate": "^4.0.1",
-    "vscode-xterm": "3.9.0-beta5",
+    "vscode-xterm": "3.9.0-beta6",
     "winreg": "^1.2.4",
     "yauzl": "^2.9.1",
     "yazl": "^2.4.3"

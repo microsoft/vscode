@@ -5,25 +5,32 @@
 
 'use strict';
 
-import * as gulp from 'gulp';
-import * as tsb from 'gulp-tsb';
 import * as es from 'event-stream';
-const watch = require('./watch');
-import * as nls from './nls';
-import * as util from './util';
-import { createReporter } from './reporter';
-import * as path from 'path';
+import * as fs from 'fs';
+import * as gulp from 'gulp';
 import * as bom from 'gulp-bom';
 import * as sourcemaps from 'gulp-sourcemaps';
+import * as tsb from 'gulp-tsb';
+import * as path from 'path';
 import * as _ from 'underscore';
 import * as monacodts from '../monaco/api';
-import * as fs from 'fs';
+import * as nls from './nls';
+import { createReporter } from './reporter';
+import * as util from './util';
+const watch = require('./watch');
+import assign = require('object-assign');
 
 const reporter = createReporter();
 
 function getTypeScriptCompilerOptions(src: string) {
 	const rootDir = path.join(__dirname, `../../${src}`);
-	const options = require(`../../${src}/tsconfig.json`).compilerOptions;
+	const tsconfig = require(`../../${src}/tsconfig.json`);
+	let options: { [key: string]: any };
+	if (tsconfig.extends) {
+		options = assign({}, require(path.join(rootDir, tsconfig.extends)).compilerOptions, tsconfig.compilerOptions);
+	} else {
+		options = tsconfig.compilerOptions;
+	}
 	options.verbose = false;
 	options.sourceMap = true;
 	if (process.env['VSCODE_NO_SOURCEMAP']) { // To be used by developers in a hurry
