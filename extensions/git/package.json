@@ -1121,10 +1121,10 @@
           "default": 50,
           "description": "%config.subjectValidationLength%"
         },
-        "git.descriptionValidationLength": {
+        "git.bodyValidationLength": {
           "type": "number",
           "default": 72,
-          "description": "%config.descriptionValidationLength%"
+          "description": "%config.bodyValidationLength%"
         },
         "git.detectSubmodules": {
           "type": "boolean",
