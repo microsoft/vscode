@@ -1,15 +1,12 @@
 {
 	"extends": "./tsconfig.base.json",
 	"compilerOptions": {
-		"removeComments": false,
-		"preserveConstEnums": true,
-		"sourceMap": false,
-		"declaration": true,
-		"outDir": "../out"
+		"noEmit": true,
+		"strictNullChecks": true
 	},
 	"include": [
 		"./typings",
-		"./vs"
+		"./vs/base/common/iterator.ts"
 	],
 	"exclude": [
 		"./typings/require-monaco.d.ts"

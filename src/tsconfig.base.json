@@ -1,0 +1,34 @@
+{
+	"compilerOptions": {
+		"module": "amd",
+		"moduleResolution": "node",
+		"noImplicitAny": false,
+		"target": "es5",
+		"experimentalDecorators": true,
+		"noImplicitReturns": true,
+		"noUnusedLocals": true,
+		"noImplicitThis": true,
+		"alwaysStrict": true,
+		"baseUrl": ".",
+		"paths": {
+			"vs/*": [
+				"./vs/*"
+			]
+		},
+		"types": [
+			"keytar",
+			"minimist",
+			"mocha",
+			"semver",
+			"sinon",
+			"winreg"
+		]
+	},
+	"include": [
+		"./typings",
+		"./vs"
+	],
+	"exclude": [
+		"./typings/require-monaco.d.ts"
+	]
+}
