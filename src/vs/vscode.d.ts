@@ -3023,10 +3023,13 @@ declare module 'vscode' {
 	export class ParameterInformation {
 
 		/**
-		 * The label of this signature. *Note*: Must be a substring of its
-		 * containing signature information's [label](#SignatureInformation.label).
+		 * The label of this signature.
+		 *
+		 * Either a string or inclusive start and exclusive end offsets within its containing
+		 * [signature label](#SignatureInformation.label). *Note*: A label of type string must be
+		 * a substring of its containing signature information's [label](#SignatureInformation.label).
 		 */
-		label: string;
+		label: string | [number, number];
 
 		/**
 		 * The human-readable doc-comment of this signature. Will be shown
@@ -5916,6 +5919,19 @@ declare module 'vscode' {
 		 * The currently opened terminals or an empty array.
 		 */
 		export const terminals: ReadonlyArray<Terminal>;
+
+		/**
+		 * The currently active terminal or `undefined`. The active terminal is the one that
+		 * currently has focus or most recently had focus.
+		 */
+		export const activeTerminal: Terminal | undefined;
+
+		/**
+		 * An [event](#Event) which fires when the [active terminal](#window.activeTerminal)
+		 * has changed. *Note* that the event also fires when the active terminal changes
+		 * to `undefined`.
+		 */
+		export const onDidChangeActiveTerminal: Event<Terminal | undefined>;
 
 		/**
 		 * An [event](#Event) which fires when a terminal has been created, either through the

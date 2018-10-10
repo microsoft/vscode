@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IDisposable } from 'vs/base/common/lifecycle';
-import { TPromise } from 'vs/base/common/winjs.base';
 import { ITextModel } from 'vs/editor/common/model';
 import { ColorId, MetadataConsts, FontStyle, TokenizationRegistry, ITokenizationSupport } from 'vs/editor/common/modes';
 import { IModeService } from 'vs/editor/common/services/modeService';
@@ -26,7 +25,7 @@ export interface IColorizerElementOptions extends IColorizerOptions {
 
 export class Colorizer {
 
-	public static colorizeElement(themeService: IStandaloneThemeService, modeService: IModeService, domNode: HTMLElement, options: IColorizerElementOptions): TPromise<void> {
+	public static colorizeElement(themeService: IStandaloneThemeService, modeService: IModeService, domNode: HTMLElement, options: IColorizerElementOptions): Promise<void> {
 		options = options || {};
 		let theme = options.theme || 'vs';
 		let mimeType = options.mimeType || domNode.getAttribute('lang') || domNode.getAttribute('data-lang');
@@ -45,7 +44,7 @@ export class Colorizer {
 		return this.colorize(modeService, text, mimeType, options).then(render, (err) => console.error(err));
 	}
 
-	public static colorize(modeService: IModeService, text: string, mimeType: string, options: IColorizerOptions): TPromise<string> {
+	public static colorize(modeService: IModeService, text: string, mimeType: string, options: IColorizerOptions): Promise<string> {
 		if (strings.startsWithUTF8BOM(text)) {
 			text = text.substr(1);
 		}
@@ -62,10 +61,10 @@ export class Colorizer {
 
 		let tokenizationSupport = TokenizationRegistry.get(language);
 		if (tokenizationSupport) {
-			return TPromise.as(_colorize(lines, options.tabSize, tokenizationSupport));
+			return Promise.resolve(_colorize(lines, options.tabSize, tokenizationSupport));
 		}
 
-		return new TPromise<string>((resolve, reject) => {
+		return new Promise<string>((resolve, reject) => {
 			let listener: IDisposable = null;
 			let timeout: TimeoutTimer = null;
 

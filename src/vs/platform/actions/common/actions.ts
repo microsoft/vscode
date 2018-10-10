@@ -27,6 +27,7 @@ export interface IBaseCommandAction {
 export interface ICommandAction extends IBaseCommandAction {
 	iconLocation?: { dark: URI; light?: URI; };
 	precondition?: ContextKeyExpr;
+	toggled?: ContextKeyExpr;
 }
 
 export interface ISerializableCommandAction extends IBaseCommandAction {
@@ -220,7 +221,6 @@ export class ExecuteCommandAction extends Action {
 }
 
 export class SubmenuItemAction extends Action {
-	// private _options: IMenuActionOptions;
 
 	readonly item: ISubmenuItem;
 	constructor(item: ISubmenuItem) {
@@ -246,6 +246,8 @@ export class MenuItemAction extends ExecuteCommandAction {
 		typeof item.title === 'string' ? super(item.id, item.title, commandService) : super(item.id, item.title.value, commandService);
 		this._cssClass = undefined;
 		this._enabled = !item.precondition || contextKeyService.contextMatchesRules(item.precondition);
+		this._checked = item.toggled && contextKeyService.contextMatchesRules(item.toggled);
+
 		this._options = options || {};
 
 		this.item = item;

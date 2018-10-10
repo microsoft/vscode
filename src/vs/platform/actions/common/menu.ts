@@ -47,6 +47,11 @@ export class Menu implements IMenu {
 				if (isIMenuItem(item) && item.command.precondition) {
 					Menu._fillInKbExprKeys(item.command.precondition, keysFilter);
 				}
+
+				// keep toggled keys for event if applicable
+				if (isIMenuItem(item) && item.command.toggled) {
+					Menu._fillInKbExprKeys(item.command.toggled, keysFilter);
+				}
 			}
 
 			// subscribe to context changes

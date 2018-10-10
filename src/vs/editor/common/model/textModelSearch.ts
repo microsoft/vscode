@@ -26,34 +26,6 @@ export class SearchParams {
 		this.wordSeparators = wordSeparators;
 	}
 
-	private static _isMultilineRegexSource(searchString: string): boolean {
-		if (!searchString || searchString.length === 0) {
-			return false;
-		}
-
-		for (let i = 0, len = searchString.length; i < len; i++) {
-			const chCode = searchString.charCodeAt(i);
-
-			if (chCode === CharCode.Backslash) {
-
-				// move to next char
-				i++;
-
-				if (i >= len) {
-					// string ends with a \
-					break;
-				}
-
-				const nextChCode = searchString.charCodeAt(i);
-				if (nextChCode === CharCode.n || nextChCode === CharCode.r || nextChCode === CharCode.W) {
-					return true;
-				}
-			}
-		}
-
-		return false;
-	}
-
 	public parseSearchRequest(): SearchData {
 		if (this.searchString === '') {
 			return null;
@@ -62,7 +34,7 @@ export class SearchParams {
 		// Try to create a RegExp out of the params
 		let multiline: boolean;
 		if (this.isRegex) {
-			multiline = SearchParams._isMultilineRegexSource(this.searchString);
+			multiline = isMultilineRegexSource(this.searchString);
 		} else {
 			multiline = (this.searchString.indexOf('\n') >= 0);
 		}
@@ -91,6 +63,34 @@ export class SearchParams {
 
 		return new SearchData(regex, this.wordSeparators ? getMapForWordSeparators(this.wordSeparators) : null, canUseSimpleSearch ? this.searchString : null);
 	}
+}
+
+export function isMultilineRegexSource(searchString: string): boolean {
+	if (!searchString || searchString.length === 0) {
+		return false;
+	}
+
+	for (let i = 0, len = searchString.length; i < len; i++) {
+		const chCode = searchString.charCodeAt(i);
+
+		if (chCode === CharCode.Backslash) {
+
+			// move to next char
+			i++;
+
+			if (i >= len) {
+				// string ends with a \
+				break;
+			}
+
+			const nextChCode = searchString.charCodeAt(i);
+			if (nextChCode === CharCode.n || nextChCode === CharCode.r || nextChCode === CharCode.W) {
+				return true;
+			}
+		}
+	}
+
+	return false;
 }
 
 export class SearchData {

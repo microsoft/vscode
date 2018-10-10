@@ -304,7 +304,7 @@ abstract class BaseCommandEntry extends QuickOpenEntryGroup {
 						}
 					*/
 					this.telemetryService.publicLog('workbenchActionExecuted', { id: action.id, from: 'quick open' });
-					(action.run() || TPromise.as(null)).then(() => {
+					(action.run() || Promise.resolve()).then(() => {
 						if (action instanceof Action) {
 							action.dispose();
 						}

@@ -241,7 +241,7 @@ function generateDeclarationFile(out, inputFiles, recipe) {
     usage.push("var b;");
     var generateUsageImport = function (moduleId) {
         var importName = 'm' + (++usageCounter);
-        usageImports.push("import * as " + importName + " from '" + moduleId.replace(/\.d\.ts$/, '') + "';");
+        usageImports.push("import * as " + importName + " from './" + moduleId.replace(/\.d\.ts$/, '') + "';");
         return importName;
     };
     lines.forEach(function (line) {
@@ -315,7 +315,6 @@ function generateDeclarationFile(out, inputFiles, recipe) {
     var resultTxt = result.join(endl);
     resultTxt = resultTxt.replace(/\bURI\b/g, 'Uri');
     resultTxt = resultTxt.replace(/\bEvent</g, 'IEvent<');
-    resultTxt = resultTxt.replace(/\bTPromise</g, 'Promise<');
     resultTxt = format(resultTxt);
     return [
         resultTxt,

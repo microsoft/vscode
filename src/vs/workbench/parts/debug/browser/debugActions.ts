@@ -9,7 +9,6 @@ import * as lifecycle from 'vs/base/common/lifecycle';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { ICommandService } from 'vs/platform/commands/common/commands';
-import * as aria from 'vs/base/browser/ui/aria/aria';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { IFileService } from 'vs/platform/files/common/files';
 import { IDebugService, State, IDebugSession, IThread, IEnablement, IBreakpoint, IStackFrame, REPL_ID }
@@ -197,7 +196,6 @@ export class SelectAndStartAction extends AbstractDebugAction {
 		@IQuickOpenService private quickOpenService: IQuickOpenService
 	) {
 		super(id, label, undefined, debugService, keybindingService);
-		this.quickOpenService = quickOpenService;
 	}
 
 	public run(): TPromise<any> {
@@ -674,30 +672,6 @@ export class RemoveAllWatchExpressionsAction extends AbstractDebugAction {
 
 	protected isEnabled(state: State): boolean {
 		return super.isEnabled(state) && this.debugService.getModel().getWatchExpressions().length > 0;
-	}
-}
-
-export class ClearReplAction extends AbstractDebugAction {
-	static readonly ID = 'workbench.debug.panel.action.clearReplAction';
-	static LABEL = nls.localize('clearRepl', "Clear Console");
-
-	constructor(id: string, label: string,
-		@IDebugService debugService: IDebugService,
-		@IKeybindingService keybindingService: IKeybindingService,
-		@IPanelService private panelService: IPanelService
-	) {
-		super(id, label, 'debug-action clear-repl', debugService, keybindingService);
-	}
-
-	public run(): TPromise<any> {
-		const session = this.debugService.getViewModel().focusedSession;
-		if (session) {
-			session.removeReplExpressions();
-			aria.status(nls.localize('debugConsoleCleared', "Debug console was cleared"));
-		}
-
-		// focus back to repl
-		return this.panelService.openPanel(REPL_ID, true);
 	}
 }
 
