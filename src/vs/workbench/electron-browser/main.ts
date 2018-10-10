@@ -167,9 +167,15 @@ function validateFolderUri(folderUri: ISingleFolderWorkspaceIdentifier, verbose:
 }
 
 function createNextWorkspaceStorageService(environmentService: IEnvironmentService, logService: ILogService): Promise<NextWorkspaceStorageService> {
+	perf.mark('willCreateNextStorageService');
+
 	const nextStorageService = new NextWorkspaceStorageService(':memory:', logService, environmentService);
 
-	return nextStorageService.init().then(() => nextStorageService);
+	return nextStorageService.init().then(() => {
+		perf.mark('didCreateNextStorageService');
+
+		return nextStorageService;
+	});
 }
 
 function createStorageService(workspaceService: IWorkspaceContextService, environmentService: IEnvironmentService): IStorageService {
