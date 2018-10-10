@@ -583,7 +583,12 @@ export class SearchResult extends Disposable {
 		const otherFileMatches: IFileMatch[] = [];
 		this._folderMatches.forEach((folderMatch) => rawPerFolder.set(folderMatch.resource(), []));
 		allRaw.forEach(rawFileMatch => {
-			let folderMatch = this.getFolderMatch(rawFileMatch.resource);
+			const folderMatch = this.getFolderMatch(rawFileMatch.resource);
+			if (!folderMatch) {
+				// foldermatch was previously removed by user or disposed for some reason
+				return;
+			}
+
 			if (folderMatch.resource()) {
 				rawPerFolder.get(folderMatch.resource()).push(rawFileMatch);
 			} else {
