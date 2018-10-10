@@ -6,9 +6,9 @@
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { Event } from 'vs/base/common/event';
 
-export const INextWorkspaceStorageService = createDecorator<INextWorkspaceStorageService>('nextWorkspaceStorageService');
+export const INextStorageService = createDecorator<INextStorageService>('nextStorageService');
 
-export interface INextWorkspaceStorageService {
+export interface INextStorageService {
 	_serviceBrand: any;
 
 	/**

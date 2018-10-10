@@ -36,7 +36,7 @@ import { IWorkspacesService, ISingleFolderWorkspaceIdentifier } from 'vs/platfor
 import { createSpdLogService } from 'vs/platform/log/node/spdlogService';
 import * as fs from 'fs';
 import { ConsoleLogService, MultiplexLogService, ILogService } from 'vs/platform/log/common/log';
-import { NextWorkspaceStorageService } from 'vs/platform/storage2/node/nextWorkspaceStorageService';
+import { NextStorageService } from 'vs/platform/storage2/node/nextStorageService';
 import { IssueChannelClient } from 'vs/platform/issue/node/issueIpc';
 import { IIssueService } from 'vs/platform/issue/common/issue';
 import { LogLevelSetterChannelClient, FollowerLogService } from 'vs/platform/log/node/logIpc';
@@ -100,7 +100,7 @@ function openWorkbench(configuration: IWindowConfiguration): Promise<void> {
 
 	return Promise.all([
 		createAndInitializeWorkspaceService(configuration, environmentService),
-		createNextWorkspaceStorageService(environmentService, logService)
+		createNextStorageService(environmentService, logService)
 	]).then(services => {
 		const workspaceService = services[0];
 		const nextStorageService = services[1];
@@ -166,10 +166,10 @@ function validateFolderUri(folderUri: ISingleFolderWorkspaceIdentifier, verbose:
 	});
 }
 
-function createNextWorkspaceStorageService(environmentService: IEnvironmentService, logService: ILogService): Promise<NextWorkspaceStorageService> {
+function createNextStorageService(environmentService: IEnvironmentService, logService: ILogService): Promise<NextStorageService> {
 	perf.mark('willCreateNextStorageService');
 
-	const nextStorageService = new NextWorkspaceStorageService(':memory:', logService, environmentService);
+	const nextStorageService = new NextStorageService(':memory:', logService, environmentService);
 
 	return nextStorageService.init().then(() => {
 		perf.mark('didCreateNextStorageService');

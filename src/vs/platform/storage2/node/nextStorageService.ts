@@ -7,10 +7,10 @@ import { Disposable } from 'vs/base/common/lifecycle';
 import { Event, Emitter } from 'vs/base/common/event';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { IWorkspaceStorageChangeEvent, INextWorkspaceStorageService, StorageScope } from 'vs/platform/storage2/common/storage2';
+import { IWorkspaceStorageChangeEvent, INextStorageService, StorageScope } from 'vs/platform/storage2/common/storage2';
 import { Storage, IStorageLoggingOptions } from 'vs/base/node/storage';
 
-export class NextWorkspaceStorageService extends Disposable implements INextWorkspaceStorageService {
+export class NextStorageService extends Disposable implements INextStorageService {
 	_serviceBrand: any;
 
 	private _onDidChangeStorage: Emitter<IWorkspaceStorageChangeEvent> = this._register(new Emitter<IWorkspaceStorageChangeEvent>());
