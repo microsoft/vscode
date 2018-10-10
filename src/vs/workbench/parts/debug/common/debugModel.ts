@@ -280,7 +280,7 @@ export class Variable extends ExpressionContainer implements IExpression {
 	}
 
 	public setVariable(value: string): TPromise<any> {
-		return this.session.setVariable((<ExpressionContainer>this.parent).reference, name, value).then(response => {
+		return this.session.setVariable((<ExpressionContainer>this.parent).reference, this.name, value).then(response => {
 			if (response && response.body) {
 				this.value = response.body.value;
 				this.type = response.body.type || this.type;
