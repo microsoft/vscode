@@ -1713,10 +1713,6 @@ export class CommandCenter {
 
 	@command('git.addRemote', { repository: true })
 	async addRemote(repository: Repository): Promise<void> {
-		const config = workspace.getConfiguration('git');
-		const branchValidationRegex = config.get<string>('branchValidationRegex')!;
-		const branchWhitespaceChar = config.get<string>('branchWhitespaceChar')!;
-		const validateName = new RegExp(branchValidationRegex);
 		const sanitize = (name: string) => {
 			name = name.trim();
 
@@ -1724,34 +1720,67 @@ export class CommandCenter {
 				return name;
 			}
 
-			return name.replace(/^\.|\/\.|\.\.|~|\^|:|\/$|\.lock$|\.lock\/|\\|\*|\s|^\s*$|\.$|\[|\]$/g, branchWhitespaceChar);
+			return name.replace(/^\.|\/\.|\.\.|~|\^|:|\/$|\.lock$|\.lock\/|\\|\*|\s|^\s*$|\.$|\[|\]$/g, '-');
 		};
 
-		const result = await window.showInputBox({
+		const resultName = await window.showInputBox({
 			placeHolder: localize('remote name', "Remote name"),
 			prompt: localize('provide remote name', "Please provide a remote name"),
 			ignoreFocusOut: true,
 			validateInput: (name: string) => {
-				if (validateName.test(sanitize(name))) {
+				if (sanitize(name)) {
 					return null;
 				}
-
-				return localize('branch name format invalid', "Branch name needs to match regex: {0}", branchValidationRegex);
+				return localize('remote name format invalid', "Remote name format invalid");
 			}
 		});
 
-		const name = sanitize(result || '');
+		const name = sanitize(resultName || '');
 
 		if (!name) {
 			return;
 		}
 
-		await repository.branch(name, true);
+		const resultUrl = await window.showInputBox({
+			placeHolder: localize('remote url', "Remote URL"),
+			prompt: localize('provide remote URL', "Enter URL for remote {0}", name),
+			ignoreFocusOut: true,
+			validateInput: (name: string) => {
+				if (sanitize(name)) {
+					return null;
+				}
+				return localize('remote url format invalid', "Remote URL format invalid");
+			}
+		});
+
+		const url = sanitize(resultUrl || '');
+
+		if (!url) {
+			return;
+		}
+
+		await repository.addRemote(name, url);
 	}
 
 	@command('git.removeRemote', { repository: true })
 	async removeRemote(repository: Repository): Promise<void> {
+		const remotes = repository.remotes;
 
+		if (remotes.length === 0) {
+			window.showWarningMessage(localize('no remotes added', "Your repository has no remotes"));
+			return;
+		}
+
+		const picks = remotes.map(r => r.name);
+		const placeHolder = localize('remove remote', "Pick a remote to remove");
+
+		const remoteName = await window.showQuickPick(picks, { placeHolder });
+
+		if (!remoteName) {
+			return;
+		}
+
+		await repository.removeRemote(remoteName);
 	}
 
 	private async _sync(repository: Repository, rebase: boolean): Promise<void> {
