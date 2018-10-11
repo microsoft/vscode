@@ -124,7 +124,7 @@ export const CommandsRegistry: ICommandRegistry = new class implements ICommandR
 export const NullCommandService: ICommandService = {
 	_serviceBrand: undefined,
 	onWillExecuteCommand: () => ({ dispose: () => { } }),
-	executeCommand() {
-		return Promise.resolve(undefined);
+	executeCommand<T = any>() {
+		return Promise.resolve<T>(undefined);
 	}
 };

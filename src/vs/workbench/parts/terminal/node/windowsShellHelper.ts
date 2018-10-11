@@ -27,7 +27,7 @@ let windowsProcessTree: typeof WindowsProcessTreeType;
 export class WindowsShellHelper {
 	private _onCheckShell: Emitter<Promise<string>>;
 	private _isDisposed: boolean;
-	private _currentRequest: Promise<string>;
+	private _currentRequest: Promise<string> | null;
 	private _newLineFeed: boolean;
 
 	public constructor(
