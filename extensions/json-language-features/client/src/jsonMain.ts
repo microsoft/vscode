@@ -22,8 +22,8 @@ namespace SchemaContentChangeNotification {
 	export const type: NotificationType<string, any> = new NotificationType('json/schemaContent');
 }
 
-namespace SchemaRetryNotification {
-	export const type: NotificationType<string, any> = new NotificationType('json/schemaRetry');
+namespace ForceValidateRequest {
+	export const type: RequestType<string, Diagnostic[], any, any> = new RequestType('json/validate');
 }
 
 export interface ISchemaAssociations {
@@ -171,7 +171,7 @@ export function activate(context: ExtensionContext) {
 
 		let handleRetrySchemaCommand = () => {
 			if (window.activeTextEditor) {
-				client.sendNotification(SchemaRetryNotification.type, window.activeTextEditor.document.uri.toString());
+				client.sendRequest(ForceValidateRequest.type, window.activeTextEditor.document.uri.toString());
 				statusBarItem.text = '$(watch)  JSON';
 			}
 		};
