@@ -32,7 +32,7 @@ export interface ILexerMin {
 
 export interface ILexer extends ILexerMin {
 	maxStack: number;
-	start: string;
+	start: string | null;
 	ignoreCase: boolean;
 	tokenPostfix: string;
 
@@ -93,7 +93,7 @@ export interface IAction {
 export interface IBranch {
 	name: string;
 	value: FuzzyAction;
-	test: (id: string, matches: string[], state: string, eos: boolean) => boolean;
+	test?: (id: string, matches: string[], state: string, eos: boolean) => boolean;
 }
 
 // Small helper functions

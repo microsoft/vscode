@@ -7,8 +7,9 @@ import { INotification, INotificationHandle, INotificationActions, INotification
 import { toErrorMessage } from 'vs/base/common/errorMessage';
 import { Event, Emitter, once } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
-import { isPromiseCanceledError, isErrorWithActions } from 'vs/base/common/errors';
+import { isPromiseCanceledError } from 'vs/base/common/errors';
 import { Action } from 'vs/base/common/actions';
+import { isErrorWithActions } from 'vs/base/common/errorsWithActions';
 
 export interface INotificationsModel {
 

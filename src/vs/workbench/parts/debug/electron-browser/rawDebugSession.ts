@@ -12,6 +12,7 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { formatPII } from 'vs/workbench/parts/debug/common/debugUtils';
 import { IDebugAdapter, IConfig, AdapterEndEvent, IDebugger } from 'vs/workbench/parts/debug/common/debug';
+import { createErrorWithActions } from 'vs/base/common/errorsWithActions';
 
 /**
  * Encapsulates the DebugAdapter lifecycle and some idiosyncrasies of the Debug Adapter Protocol.
@@ -536,7 +537,7 @@ export class RawDebugSession {
 		const userMessage = error ? formatPII(error.format, false, error.variables) : errorMessage;
 		if (error && error.url) {
 			const label = error.urlLabel ? error.urlLabel : nls.localize('moreInfo', "More Info");
-			return errors.create(userMessage, {
+			return createErrorWithActions(userMessage, {
 				actions: [new Action('debug.moreInfo', label, null, true, () => {
 					window.open(error.url);
 					return Promise.resolve(null);

@@ -47,6 +47,7 @@ import { dispose, IDisposable } from 'vs/base/common/lifecycle';
 import { IDebugService, State, IDebugSession, CONTEXT_DEBUG_TYPE, CONTEXT_DEBUG_STATE, CONTEXT_IN_DEBUG_MODE, IThread, IDebugConfiguration, VIEWLET_ID, REPL_ID, IConfig, ILaunch, IViewModel, IConfigurationManager, IDebugModel, IEnablement, IBreakpoint, IBreakpointData, ICompound, IGlobalConfig, IStackFrame, AdapterEndEvent } from 'vs/workbench/parts/debug/common/debug';
 import { isExtensionHostDebugging } from 'vs/workbench/parts/debug/common/debugUtils';
 import { RunOnceScheduler } from 'vs/base/common/async';
+import { isErrorWithActions, createErrorWithActions } from 'vs/base/common/errorsWithActions';
 
 const DEBUG_BREAKPOINTS_KEY = 'debug.breakpoint';
 const DEBUG_BREAKPOINTS_ACTIVATED_KEY = 'debug.breakpointactivated';
@@ -472,7 +473,7 @@ export class DebugService implements IDebugService {
 
 			const errorMessage = error instanceof Error ? error.message : error;
 			this.telemetryDebugMisconfiguration(session.configuration ? session.configuration.type : undefined, errorMessage);
-			return this.showError(errorMessage, errors.isErrorWithActions(error) ? error.actions : []).then(() => false);
+			return this.showError(errorMessage, isErrorWithActions(error) ? error.actions : []).then(() => false);
 		});
 	}
 
@@ -702,7 +703,7 @@ export class DebugService implements IDebugService {
 				const errorMessage = typeof taskId === 'string'
 					? nls.localize('DebugTaskNotFoundWithTaskId', "Could not find the task '{0}'.", taskId)
 					: nls.localize('DebugTaskNotFound', "Could not find the specified task.");
-				return Promise.reject(errors.create(errorMessage));
+				return Promise.reject(createErrorWithActions(errorMessage));
 			}
 
 			// If a task is missing the problem matcher the promise will never complete, so we need to have a workaround #35340
