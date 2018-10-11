@@ -1,4 +1,4 @@
-// Type definitions for Electron 3.0.3
+// Type definitions for Electron 3.0.4
 // Project: http://electronjs.org/
 // Definitions by: The Electron Team <https://github.com/electron/electron>
 // Definitions: https://github.com/electron/electron-typescript-definitions
@@ -1736,7 +1736,8 @@ declare namespace Electron {
 		 */
 		setSimpleFullScreen(flag: boolean): void;
 		/**
-		 * Resizes the window to width and height.
+		 * Resizes the window to width and height. If width or height are below any set
+		 * minimum size constraints the window will snap to its minimum size.
 		 */
 		setSize(width: number, height: number, animate?: boolean): void;
 		/**

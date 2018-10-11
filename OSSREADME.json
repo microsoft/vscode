@@ -51,7 +51,7 @@
 },
 {
 	"name": "electron",
-	"version": "3.0.3",
+	"version": "3.0.4",
 	"license": "MIT",
 	"repositoryURL": "https://github.com/electron/electron",
 	"isProd": true
