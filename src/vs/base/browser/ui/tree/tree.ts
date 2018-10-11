@@ -58,6 +58,7 @@ export interface ITreeModel<T, TFilterData, TRef> {
 	isCollapsed(ref: TRef): boolean;
 	refilter(): void;
 
+	getNode(location?: TRef): ITreeNode<T, any>;
 	getNodeLocation(node: ITreeNode<T, any>): TRef;
 	getParentNodeLocation(location: TRef): TRef | null;
 

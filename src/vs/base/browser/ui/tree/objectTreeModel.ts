@@ -90,6 +90,11 @@ export class ObjectTreeModel<T extends NonNullable<any>, TFilterData = void> imp
 		this.model.refilter();
 	}
 
+	getNode(element: T = null): ITreeNode<T, TFilterData> {
+		const location = this.getElementLocation(element);
+		return this.model.getNode(location);
+	}
+
 	getNodeLocation(node: ITreeNode<T, TFilterData>): T {
 		return node.element;
 	}

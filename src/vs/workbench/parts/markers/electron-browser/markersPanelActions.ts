@@ -40,6 +40,9 @@ import { IMarkerData } from 'vs/platform/markers/common/markers';
 import { getCodeActions } from 'vs/editor/contrib/codeAction/codeAction';
 import { URI } from 'vs/base/common/uri';
 import { CodeActionKind } from 'vs/editor/contrib/codeAction/codeActionTrigger';
+import { Event } from 'vs/base/common/event';
+import { FilterOptions } from 'vs/workbench/parts/markers/electron-browser/markersFilterOptions';
+import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 
 export class ToggleMarkersPanelAction extends TogglePanelAction {
 
@@ -118,6 +121,12 @@ export class MarkersFilterAction extends Action {
 	}
 }
 
+export interface IMarkerFilterController {
+	onDidFilter: Event<void>;
+	getFilterOptions(): FilterOptions;
+	getFilterStats(): { total: number, filtered: number };
+}
+
 export class MarkersFilterActionItem extends BaseActionItem {
 
 	private delayedFilterUpdate: Delayer<void>;
@@ -129,11 +138,11 @@ export class MarkersFilterActionItem extends BaseActionItem {
 
 	constructor(
 		readonly action: MarkersFilterAction,
+		private filterController: IMarkerFilterController,
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@IContextViewService private contextViewService: IContextViewService,
 		@IThemeService private themeService: IThemeService,
-		@IMarkersWorkbenchService private markersWorkbenchService: IMarkersWorkbenchService,
-		// @ITelemetryService private telemetryService: ITelemetryService,
+		@ITelemetryService private telemetryService: ITelemetryService,
 		@IContextKeyService contextKeyService: IContextKeyService
 	) {
 		super(null, action);
@@ -209,7 +218,7 @@ export class MarkersFilterActionItem extends BaseActionItem {
 			this.filterBadge.style.borderColor = border;
 		}));
 		this.updateBadge();
-		this._register(this.markersWorkbenchService.markersModel.onDidChange(() => this.updateBadge()));
+		this._register(this.filterController.onDidFilter(() => this.updateBadge()));
 	}
 
 	private createFilesExcludeCheckbox(container: HTMLElement): void {
@@ -240,7 +249,7 @@ export class MarkersFilterActionItem extends BaseActionItem {
 	}
 
 	private updateBadge(): void {
-		const { total, filtered } = this.markersWorkbenchService.markersModel.stats();
+		const { total, filtered } = this.filterController.getFilterStats();
 		DOM.toggleClass(this.filterBadge, 'hidden', total === filtered || filtered === 0);
 		this.filterBadge.textContent = localize('showing filtered problems', "Showing {0} of {1}", filtered, total);
 		this.adjustInputBox();
@@ -276,12 +285,12 @@ export class MarkersFilterActionItem extends BaseActionItem {
 		}
 	}
 
-	// TODO@joao
 	private reportFilteringUsed(): void {
-		// let data = {};
-		// data['errors'] = this.filterOptions.filterErrors;
-		// data['warnings'] = this.filterOptions.filterWarnings;
-		// data['infos'] = this.filterOptions.filterInfos;
+		const filterOptions = this.filterController.getFilterOptions();
+		const data = {};
+		data['errors'] = filterOptions.filterErrors;
+		data['warnings'] = filterOptions.filterWarnings;
+		data['infos'] = filterOptions.filterInfos;
 		/* __GDPR__
 			"problems.filter" : {
 				"errors" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
@@ -289,7 +298,7 @@ export class MarkersFilterActionItem extends BaseActionItem {
 				"infos": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true }
 			}
 		*/
-		// this.telemetryService.publicLog('problems.filter', data);
+		this.telemetryService.publicLog('problems.filter', data);
 	}
 }
 

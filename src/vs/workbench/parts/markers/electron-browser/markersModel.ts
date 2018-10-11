@@ -125,16 +125,6 @@ export class MarkersModel {
 		this._onDidChange.fire(resource);
 	}
 
-	stats(): { total: number, filtered: number } {
-		let total = 0;
-		// let filtered = 0;
-		this.resourcesByUri.forEach(resource => {
-			total += resource.markers.length;
-			// filtered += resource.filteredCount; // TODO@joao
-		});
-		return { total, filtered: total };
-	}
-
 	dispose(): void {
 		this._onDidChange.dispose();
 		this.resourcesByUri.clear();

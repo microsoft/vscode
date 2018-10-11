@@ -247,6 +247,10 @@ export abstract class AbstractTree<T, TFilterData, TRef> implements IDisposable 
 
 	// Tree
 
+	getNode(location?: TRef): ITreeNode<T, TFilterData> {
+		return this.model.getNode(location);
+	}
+
 	collapse(location: TRef): boolean {
 		return this.model.setCollapsed(location, true);
 	}

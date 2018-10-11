@@ -15,7 +15,7 @@ import { IEditorService, SIDE_GROUP, ACTIVE_GROUP } from 'vs/workbench/services/
 import Constants from 'vs/workbench/parts/markers/electron-browser/constants';
 import { Marker, ResourceMarkers, RelatedInformation, MarkersModel } from 'vs/workbench/parts/markers/electron-browser/markersModel';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { MarkersFilterActionItem, MarkersFilterAction, QuickFixAction, QuickFixActionItem, IMarkersFilterActionChangeEvent } from 'vs/workbench/parts/markers/electron-browser/markersPanelActions';
+import { MarkersFilterActionItem, MarkersFilterAction, QuickFixAction, QuickFixActionItem, IMarkersFilterActionChangeEvent, IMarkerFilterController } from 'vs/workbench/parts/markers/electron-browser/markersPanelActions';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import Messages from 'vs/workbench/parts/markers/electron-browser/messages';
 import { RangeHighlightDecorations } from 'vs/workbench/browser/parts/editor/rangeDecorations';
@@ -28,7 +28,7 @@ import { localize } from 'vs/nls';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { Iterator } from 'vs/base/common/iterator';
 import { ITreeElement, ITreeNode } from 'vs/base/browser/ui/tree/tree';
-import { debounceEvent, Relay } from 'vs/base/common/event';
+import { debounceEvent, Relay, Event, Emitter } from 'vs/base/common/event';
 import { WorkbenchObjectTree, ObjectTreeResourceNavigator } from 'vs/platform/list/browser/listService';
 import { FilterOptions } from 'vs/workbench/parts/markers/electron-browser/markersFilterOptions';
 import { IExpression, getEmptyExpression } from 'vs/base/common/glob';
@@ -61,7 +61,7 @@ function createModelIterator(model: MarkersModel): Iterator<ITreeElement<TreeEle
 	});
 }
 
-export class MarkersPanel extends Panel {
+export class MarkersPanel extends Panel implements IMarkerFilterController {
 
 	private lastSelectedRelativeTop: number = 0;
 	private currentActiveResource: URI = null;
@@ -81,6 +81,10 @@ export class MarkersPanel extends Panel {
 	private panelFoucusContextKey: IContextKey<boolean>;
 
 	private filter: Filter;
+
+	private _onDidFilter = new Emitter<void>();
+	readonly onDidFilter: Event<void> = this._onDidFilter.event;
+	private cachedFilterStats: { total: number; filtered: number; } | undefined = undefined;
 
 	private currentResourceGotAddedToMarkersData: boolean = false;
 
@@ -217,20 +221,22 @@ export class MarkersPanel extends Panel {
 	// TODO@joao
 	private refreshPanel(): TPromise<any> {
 		if (this.isVisible()) {
+			this.cachedFilterStats = undefined;
 			this.collapseAllAction.enabled = true /* this.markersWorkbenchService.markersModel.hasFilteredResources() */;
 			dom.toggleClass(this.treeContainer, 'hidden', false/* !this.markersWorkbenchService.markersModel.hasFilteredResources() */);
 			this.renderMessage();
-			// if (this.markersWorkbenchService.markersModel.hasFilteredResources()) {
 			this.tree.setChildren(null, createModelIterator(this.markersWorkbenchService.markersModel));
-			// }
+			this._onDidFilter.fire();
 		}
 		return TPromise.as(null);
 	}
 
 	private updateFilter() {
+		this.cachedFilterStats = undefined;
 		const excludeExpression = this.getExcludeExpression(this.filterAction.useFilesExclude);
 		this.filter.options = new FilterOptions(this.filterAction.filterText, excludeExpression);
 		this.tree.refilter();
+		this._onDidFilter.fire();
 	}
 
 	private getExcludeExpression(useFilesExclude: boolean): IExpression {
@@ -408,10 +414,9 @@ export class MarkersPanel extends Panel {
 	// TODO@joao
 	private renderMessage(): void {
 		dom.clearNode(this.messageBoxContainer);
-		const markersModel = this.markersWorkbenchService.markersModel;
 		// if (markersModel.hasFilteredResources()) {
 		this.messageBoxContainer.style.display = 'none';
-		const { total, filtered } = markersModel.stats();
+		const { total, filtered } = this.getFilterStats();
 		if (filtered === total) {
 			this.ariaLabelElement.setAttribute('aria-label', localize('No problems filtered', "Showing {0} problems", total));
 		} else {
@@ -598,13 +603,43 @@ export class MarkersPanel extends Panel {
 
 	public getActionItem(action: IAction): IActionItem {
 		if (action.id === MarkersFilterAction.ID) {
-			this.filterInputActionItem = this.instantiationService.createInstance(MarkersFilterActionItem, this.filterAction);
+			this.filterInputActionItem = this.instantiationService.createInstance(MarkersFilterActionItem, this.filterAction, this);
 			return this.filterInputActionItem;
 		}
 		if (action.id === QuickFixAction.ID) {
 			return this.instantiationService.createInstance(QuickFixActionItem, action);
 		}
 		return super.getActionItem(action);
+	}
+
+	getFilterOptions(): FilterOptions {
+		return this.filter.options;
+	}
+
+	getFilterStats(): { total: number; filtered: number; } {
+		if (!this.cachedFilterStats) {
+			this.cachedFilterStats = this.computeFilterStats();
+		}
+
+		return this.cachedFilterStats;
+	}
+
+	private computeFilterStats(): { total: number; filtered: number; } {
+		const root = this.tree.getNode();
+		let total = 0;
+		let filtered = 0;
+
+		for (const resourceMarkerNode of root.children) {
+			for (const markerNode of resourceMarkerNode.children) {
+				total++;
+
+				if (resourceMarkerNode.visible && markerNode.visible) {
+					filtered++;
+				}
+			}
+		}
+
+		return { total, filtered };
 	}
 
 	public shutdown(): void {

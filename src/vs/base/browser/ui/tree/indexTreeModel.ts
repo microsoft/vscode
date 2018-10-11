@@ -116,16 +116,16 @@ export class IndexTreeModel<T, TFilterData = void> implements ITreeModel<T, TFil
 	}
 
 	getListIndex(location: number[]): number {
-		return this.getNodeWithListIndex(location).listIndex;
+		return this.getTreeNodeWithListIndex(location).listIndex;
 	}
 
 	setCollapsed(location: number[], collapsed: boolean): boolean {
-		const { node, listIndex, revealed } = this.getNodeWithListIndex(location);
+		const { node, listIndex, revealed } = this.getTreeNodeWithListIndex(location);
 		return this.eventBufferer.bufferEvents(() => this._setCollapsed(node, listIndex, revealed, collapsed));
 	}
 
 	toggleCollapsed(location: number[]): void {
-		const { node, listIndex, revealed } = this.getNodeWithListIndex(location);
+		const { node, listIndex, revealed } = this.getTreeNodeWithListIndex(location);
 		this.eventBufferer.bufferEvents(() => this._setCollapsed(node, listIndex, revealed));
 	}
 
@@ -146,7 +146,7 @@ export class IndexTreeModel<T, TFilterData = void> implements ITreeModel<T, TFil
 	}
 
 	isCollapsed(location: number[]): boolean {
-		return this.getNode(location).collapsed;
+		return this.getTreeNode(location).collapsed;
 	}
 
 	refilter(): void {
@@ -348,10 +348,8 @@ export class IndexTreeModel<T, TFilterData = void> implements ITreeModel<T, TFil
 		}
 	}
 
-	/**
-	 * Cheaper version of findNode, which doesn't require list indices.
-	 */
-	private getNode(location: number[], node: IMutableTreeNode<T, TFilterData> = this.root): IMutableTreeNode<T, TFilterData> {
+	// cheap
+	private getTreeNode(location: number[], node: IMutableTreeNode<T, TFilterData> = this.root): IMutableTreeNode<T, TFilterData> {
 		if (location.length === 0) {
 			return node;
 		}
@@ -362,10 +360,11 @@ export class IndexTreeModel<T, TFilterData = void> implements ITreeModel<T, TFil
 			throw new Error('Invalid tree location');
 		}
 
-		return this.getNode(rest, node.children[index]);
+		return this.getTreeNode(rest, node.children[index]);
 	}
 
-	private getNodeWithListIndex(location: number[]): { node: IMutableTreeNode<T, TFilterData>, listIndex: number, revealed: boolean } {
+	// expensive
+	private getTreeNodeWithListIndex(location: number[]): { node: IMutableTreeNode<T, TFilterData>, listIndex: number, revealed: boolean } {
 		const { parentNode, listIndex, revealed } = this.getParentNodeWithListIndex(location);
 		const index = location[location.length - 1];
 
@@ -399,6 +398,10 @@ export class IndexTreeModel<T, TFilterData = void> implements ITreeModel<T, TFil
 		return this.getParentNodeWithListIndex(rest, node.children[index], listIndex + 1, revealed);
 	}
 
+	getNode(location: number[] = []): ITreeNode<T, TFilterData> {
+		return this.getTreeNode(location);
+	}
+
 	// TODO@joao perf!
 	getNodeLocation(node: ITreeNode<T, TFilterData>): number[] {
 		const location = [];
@@ -421,12 +424,12 @@ export class IndexTreeModel<T, TFilterData = void> implements ITreeModel<T, TFil
 
 	getParentElement(location: number[]): T | null {
 		const parentLocation = this.getParentNodeLocation(location);
-		const node = this.getNode(parentLocation);
+		const node = this.getTreeNode(parentLocation);
 		return node === this.root ? null : node.element;
 	}
 
 	getFirstElementChild(location: number[]): T | null {
-		const node = this.getNode(location);
+		const node = this.getTreeNode(location);
 
 		if (node.children.length === 0) {
 			return null;
@@ -436,7 +439,7 @@ export class IndexTreeModel<T, TFilterData = void> implements ITreeModel<T, TFil
 	}
 
 	getLastElementAncestor(location: number[]): T | null {
-		const node = this.getNode(location);
+		const node = this.getTreeNode(location);
 
 		if (node.children.length === 0) {
 			return null;

@@ -59,7 +59,7 @@ export class MarkersWorkbenchService extends Disposable implements IMarkersWorkb
 	}
 
 	private refreshBadge(): void {
-		const { total } = this.markersModel.stats();
+		const total = this.markersModel.resourceMarkers.reduce((r, rm) => r + rm.markers.length, 0);
 		const message = localize('totalProblems', 'Total {0} Problems', total);
 		this.activityService.showActivity(Constants.MARKERS_PANEL_ID, new NumberBadge(total, () => message));
 	}
