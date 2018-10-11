@@ -13,10 +13,14 @@ import { StopWatch } from 'vs/base/common/stopwatch';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { TPromise } from 'vs/base/common/winjs.base';
 import * as extfs from 'vs/base/node/extfs';
+import { ILogService } from 'vs/platform/log/common/log';
 import { IFileMatch, IFileSearchProviderStats, IFolderQuery, IPatternInfo, IRawSearchQuery, ISearchCompleteStats, ISearchQuery, ITextSearchResult } from 'vs/platform/search/common/search';
+import { ExtHostConfiguration } from 'vs/workbench/api/node/extHostConfiguration';
 import { FileIndexSearchManager, IDirectoryEntry, IDirectoryTree, IInternalFileMatch, QueryGlobTester, resolvePatternsForProvider } from 'vs/workbench/api/node/extHostSearch.fileIndex';
+import { OutputChannel } from 'vs/workbench/services/search/node/ripgrepSearchUtils';
 import * as vscode from 'vscode';
 import { ExtHostSearchShape, IMainContext, MainContext, MainThreadSearchShape } from './extHost.protocol';
+import { RipgrepSearchProvider } from 'vs/workbench/services/search/node/ripgrepSearchEH';
 
 export interface ISchemeTransformer {
 	transformOutgoing(scheme: string): string;
@@ -33,10 +37,12 @@ export class ExtHostSearch implements ExtHostSearchShape {
 	private _fileSearchManager: FileSearchManager;
 	private _fileIndexSearchManager: FileIndexSearchManager;
 
-	constructor(mainContext: IMainContext, private _schemeTransformer: ISchemeTransformer, private _extfs = extfs) {
+	constructor(mainContext: IMainContext, private _schemeTransformer: ISchemeTransformer, logService: ILogService, configService: ExtHostConfiguration, private _extfs = extfs) {
 		this._proxy = mainContext.getProxy(MainContext.MainThreadSearch);
 		this._fileSearchManager = new FileSearchManager();
 		this._fileIndexSearchManager = new FileIndexSearchManager();
+
+		registerEHProviders(this, logService, configService);
 	}
 
 	private _transformScheme(scheme: string): string {
@@ -109,6 +115,15 @@ export class ExtHostSearch implements ExtHostSearchShape {
 	}
 }
 
+function registerEHProviders(extHostSearch: ExtHostSearch, logService: ILogService, configService: ExtHostConfiguration) {
+	if (configService.getConfiguration('searchRipgrep').enable) {
+		console.log(`enabled`);
+	}
+
+	const outputChannel = new OutputChannel(logService);
+	extHostSearch.registerTextSearchProvider('file', new RipgrepSearchProvider(outputChannel));
+}
+
 function reviveQuery(rawQuery: IRawSearchQuery): ISearchQuery {
 	return {
 		...rawQuery,
@@ -175,6 +190,7 @@ class TextSearchResultsCollector {
 }
 
 function extensionResultToFrontendResult(data: vscode.TextSearchResult): ITextSearchResult {
+	// Warning: result from RipgrepTextSearchEH has fake vscode.Range. Don't depend on any other props beyond these...
 	return {
 		preview: {
 			match: {
