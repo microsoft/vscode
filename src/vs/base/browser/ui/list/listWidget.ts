@@ -16,7 +16,7 @@ import { KeyCode } from 'vs/base/common/keyCodes';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { Event, Emitter, EventBufferer, chain, mapEvent, anyEvent } from 'vs/base/common/event';
 import { domEvent } from 'vs/base/browser/event';
-import { IVirtualDelegate, IRenderer, IListEvent, IListContextMenuEvent, IListMouseEvent, IListTouchEvent, IListGestureEvent, IListOpenEvent } from './list';
+import { IVirtualDelegate, IRenderer, IListEvent, IListContextMenuEvent, IListMouseEvent, IListTouchEvent, IListGestureEvent } from './list';
 import { ListView, IListViewOptions } from './listView';
 import { Color } from 'vs/base/common/color';
 import { mixin } from 'vs/base/common/objects';
@@ -865,8 +865,8 @@ export class List<T> implements ISpliceable<T>, IDisposable {
 
 	readonly onContextMenu: Event<IListContextMenuEvent<T>> = Event.None;
 
-	private _onOpen = new Emitter<IListOpenEvent<T>>();
-	readonly onOpen: Event<IListOpenEvent<T>> = this._onOpen.event;
+	private _onOpen = new Emitter<IListEvent<T>>();
+	readonly onOpen: Event<IListEvent<T>> = this._onOpen.event;
 
 	private _onPin = new Emitter<number[]>();
 	@memoize get onPin(): Event<IListEvent<T>> {
