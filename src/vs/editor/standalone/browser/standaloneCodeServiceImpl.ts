@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IResourceInput } from 'vs/platform/editor/common/editor';
-import { TPromise } from 'vs/base/common/winjs.base';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { CodeEditorServiceImpl } from 'vs/editor/browser/services/codeEditorServiceImpl';
 import { ScrollType } from 'vs/editor/common/editorCommon';
@@ -20,12 +19,12 @@ export class StandaloneCodeEditorServiceImpl extends CodeEditorServiceImpl {
 		return null; // not supported in the standalone case
 	}
 
-	public openCodeEditor(input: IResourceInput, source: ICodeEditor, sideBySide?: boolean): TPromise<ICodeEditor> {
+	public openCodeEditor(input: IResourceInput, source: ICodeEditor, sideBySide?: boolean): Thenable<ICodeEditor> {
 		if (!source) {
-			return TPromise.as(null);
+			return Promise.resolve(null);
 		}
 
-		return TPromise.as(this.doOpenEditor(source, input));
+		return Promise.resolve(this.doOpenEditor(source, input));
 	}
 
 	private doOpenEditor(editor: ICodeEditor, input: IResourceInput): ICodeEditor {
