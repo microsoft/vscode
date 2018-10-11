@@ -23,10 +23,7 @@ export interface IFilter {
 
 export interface IMarkersWorkbenchService {
 	_serviceBrand: any;
-
 	readonly markersModel: MarkersModel;
-
-	// filter(filter: IFilter): void;
 }
 
 export class MarkersWorkbenchService extends Disposable implements IMarkersWorkbenchService {
@@ -34,12 +31,8 @@ export class MarkersWorkbenchService extends Disposable implements IMarkersWorkb
 
 	readonly markersModel: MarkersModel;
 
-	// private useFilesExclude: boolean = false;
-
 	constructor(
 		@IMarkerService private markerService: IMarkerService,
-		// @IConfigurationService private configurationService: IConfigurationService,
-		// @IWorkspaceContextService private workspaceContextService: IWorkspaceContextService,
 		@IActivityService private activityService: IActivityService,
 		@IInstantiationService instantiationService: IInstantiationService
 	) {
@@ -51,18 +44,7 @@ export class MarkersWorkbenchService extends Disposable implements IMarkersWorkb
 		}
 
 		this._register(markerService.onMarkerChanged(resources => this.onMarkerChanged(resources)));
-		// TODO@joao
-		// this._register(configurationService.onDidChangeConfiguration(e => {
-		// 	if (this.useFilesExclude && e.affectsConfiguration('files.exclude')) {
-		// 		this.doFilter(this.markersModel.filterOptions.filter, this.getExcludeExpression());
-		// 	}
-		// }));
 	}
-
-	// filter(filter: IFilter): void {
-	// 	this.useFilesExclude = filter.useFilesExclude;
-	// 	this.doFilter(filter.filterText, this.getExcludeExpression());
-	// }
 
 	private onMarkerChanged(resources: URI[]): void {
 		for (const resource of resources) {
@@ -76,54 +58,11 @@ export class MarkersWorkbenchService extends Disposable implements IMarkersWorkb
 		return this.markerService.read({ resource, severities: MarkerSeverity.Error | MarkerSeverity.Warning | MarkerSeverity.Info });
 	}
 
-	// private getExcludeExpression(): IExpression {
-	// 	if (this.useFilesExclude) {
-	// 		const workspaceFolders = this.workspaceContextService.getWorkspace().folders;
-	// 		if (workspaceFolders.length) {
-	// 			const result = getEmptyExpression();
-	// 			for (const workspaceFolder of workspaceFolders) {
-	// 				mixin(result, this.getExcludesForFolder(workspaceFolder));
-	// 			}
-	// 			return result;
-	// 		} else {
-	// 			return this.getFilesExclude();
-	// 		}
-	// 	}
-	// 	return {};
-	// }
-
-	// private doFilter(filterText: string, filesExclude: IExpression): void {
-	// 	console.warn('marker filter not implemented');
-	// 	this.refreshBadge();
-	// 	this._onDidChange.fire([]);
-	// }
-
 	private refreshBadge(): void {
 		const { total } = this.markersModel.stats();
 		const message = localize('totalProblems', 'Total {0} Problems', total);
 		this.activityService.showActivity(Constants.MARKERS_PANEL_ID, new NumberBadge(total, () => message));
 	}
-
-	// private getExcludesForFolder(workspaceFolder: IWorkspaceFolder): IExpression {
-	// 	const expression = this.getFilesExclude(workspaceFolder.uri);
-	// 	return this.getAbsoluteExpression(expression, workspaceFolder.uri.fsPath);
-	// }
-
-	// private getFilesExclude(resource?: URI): IExpression {
-	// 	return deepClone(this.configurationService.getValue('files.exclude', { resource })) || {};
-	// }
-
-	// private getAbsoluteExpression(expr: IExpression, root: string): IExpression {
-	// 	return Object.keys(expr)
-	// 		.reduce((absExpr: IExpression, key: string) => {
-	// 			if (expr[key] && !isAbsolute(key)) {
-	// 				const absPattern = join(root, key);
-	// 				absExpr[absPattern] = expr[key];
-	// 			}
-
-	// 			return absExpr;
-	// 		}, Object.create(null));
-	// }
 }
 
 registerSingleton(IMarkersWorkbenchService, MarkersWorkbenchService);
