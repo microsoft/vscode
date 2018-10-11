@@ -41,6 +41,8 @@ import { IContextMenuService } from 'vs/platform/contextview/browser/contextView
 import { Separator, ActionItem } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IMenuService, MenuId } from 'vs/platform/actions/common/actions';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
+import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
+import { KeyCode } from 'vs/base/common/keyCodes';
 
 type TreeElement = ResourceMarkers | Marker | RelatedInformation;
 
@@ -151,18 +153,6 @@ export class MarkersPanel extends Panel implements IMarkerFilterController {
 		}
 
 		this.tree.getHTMLElement().focus();
-
-		// TODO@joao
-		// if (this.markersWorkbenchService.markersModel.hasFilteredResources()) {
-		// 	this.tree.domFocus();
-		// 	if (this.tree.getSelection().length === 0) {
-		// 		this.tree.focusFirst();
-		// 	}
-		// 	this.highlightCurrentSelectedMarkerRange();
-		// 	this.autoReveal(true);
-		// } else {
-		// 	this.messageBoxContainer.focus();
-		// }
 	}
 
 	public focusFilter(): void {
@@ -218,14 +208,14 @@ export class MarkersPanel extends Panel implements IMarkerFilterController {
 		return false;
 	}
 
-	// TODO@joao
 	private refreshPanel(): TPromise<any> {
 		if (this.isVisible()) {
 			this.cachedFilterStats = undefined;
-			this.collapseAllAction.enabled = true /* this.markersWorkbenchService.markersModel.hasFilteredResources() */;
-			dom.toggleClass(this.treeContainer, 'hidden', false/* !this.markersWorkbenchService.markersModel.hasFilteredResources() */);
-			this.renderMessage();
 			this.tree.setChildren(null, createModelIterator(this.markersWorkbenchService.markersModel));
+
+			const { total, filtered } = this.getFilterStats();
+			dom.toggleClass(this.treeContainer, 'hidden', total > 0 && filtered === 0);
+			this.renderMessage();
 			this._onDidFilter.fire();
 		}
 		return TPromise.as(null);
@@ -237,6 +227,7 @@ export class MarkersPanel extends Panel implements IMarkerFilterController {
 		this.filter.options = new FilterOptions(this.filterAction.filterText, excludeExpression);
 		this.tree.refilter();
 		this._onDidFilter.fire();
+		this.renderMessage();
 	}
 
 	private getExcludeExpression(useFilesExclude: boolean): IExpression {
@@ -404,77 +395,77 @@ export class MarkersPanel extends Panel implements IMarkerFilterController {
 		}
 	}
 
-	// TODO@joao
 	private render(): void {
-		dom.toggleClass(this.treeContainer, 'hidden', false/* !this.markersWorkbenchService.markersModel.hasFilteredResources() */);
 		this.tree.setChildren(null, createModelIterator(this.markersWorkbenchService.markersModel));
+		const { total, filtered } = this.getFilterStats();
+		dom.toggleClass(this.treeContainer, 'hidden', total > 0 && filtered === 0);
 		this.renderMessage();
 	}
 
-	// TODO@joao
 	private renderMessage(): void {
 		dom.clearNode(this.messageBoxContainer);
-		// if (markersModel.hasFilteredResources()) {
-		this.messageBoxContainer.style.display = 'none';
 		const { total, filtered } = this.getFilterStats();
-		if (filtered === total) {
-			this.ariaLabelElement.setAttribute('aria-label', localize('No problems filtered', "Showing {0} problems", total));
+
+		if (filtered === 0) {
+			this.messageBoxContainer.style.display = 'block';
+			this.messageBoxContainer.setAttribute('tabIndex', '0');
+			if (total > 0) {
+				if (this.filter.options.filter) {
+					this.renderFilteredByFilterMessage(this.messageBoxContainer);
+				} else {
+					this.renderFilteredByFilesExcludeMessage(this.messageBoxContainer);
+				}
+			} else {
+				this.renderNoProblemsMessage(this.messageBoxContainer);
+			}
 		} else {
-			this.ariaLabelElement.setAttribute('aria-label', localize('problems filtered', "Showing {0} of {1} problems", filtered, total));
+			this.messageBoxContainer.style.display = 'none';
+			if (filtered === total) {
+				this.ariaLabelElement.setAttribute('aria-label', localize('No problems filtered', "Showing {0} problems", total));
+			} else {
+				this.ariaLabelElement.setAttribute('aria-label', localize('problems filtered', "Showing {0} of {1} problems", filtered, total));
+			}
+			this.messageBoxContainer.removeAttribute('tabIndex');
 		}
-		this.messageBoxContainer.removeAttribute('tabIndex');
-		// } else {
-		// 	this.messageBoxContainer.style.display = 'block';
-		// 	this.messageBoxContainer.setAttribute('tabIndex', '0');
-		// 	if (markersModel.hasResources()) {
-		// 		if (markersModel.filterOptions.filter) {
-		// 			this.renderFilteredByFilterMessage(this.messageBoxContainer);
-		// 		} else {
-		// 			this.renderFilteredByFilesExcludeMessage(this.messageBoxContainer);
-		// 		}
-		// 	} else {
-		// 		this.renderNoProblemsMessage(this.messageBoxContainer);
-		// 	}
-		// }
 	}
 
-	// private renderFilteredByFilesExcludeMessage(container: HTMLElement) {
-	// 	const span1 = dom.append(container, dom.$('span'));
-	// 	span1.textContent = Messages.MARKERS_PANEL_NO_PROBLEMS_FILE_EXCLUSIONS_FILTER;
-	// 	const link = dom.append(container, dom.$('a.messageAction'));
-	// 	link.textContent = localize('disableFilesExclude', "Disable Files Exclude Filter.");
-	// 	link.setAttribute('tabIndex', '0');
-	// 	dom.addStandardDisposableListener(link, dom.EventType.CLICK, () => this.filterAction.useFilesExclude = false);
-	// 	dom.addStandardDisposableListener(link, dom.EventType.KEY_DOWN, (e: IKeyboardEvent) => {
-	// 		if (e.equals(KeyCode.Enter) || e.equals(KeyCode.Space)) {
-	// 			this.filterAction.useFilesExclude = false;
-	// 			e.stopPropagation();
-	// 		}
-	// 	});
-	// 	this.ariaLabelElement.setAttribute('aria-label', Messages.MARKERS_PANEL_NO_PROBLEMS_FILE_EXCLUSIONS_FILTER);
-	// }
+	private renderFilteredByFilesExcludeMessage(container: HTMLElement) {
+		const span1 = dom.append(container, dom.$('span'));
+		span1.textContent = Messages.MARKERS_PANEL_NO_PROBLEMS_FILE_EXCLUSIONS_FILTER;
+		const link = dom.append(container, dom.$('a.messageAction'));
+		link.textContent = localize('disableFilesExclude', "Disable Files Exclude Filter.");
+		link.setAttribute('tabIndex', '0');
+		dom.addStandardDisposableListener(link, dom.EventType.CLICK, () => this.filterAction.useFilesExclude = false);
+		dom.addStandardDisposableListener(link, dom.EventType.KEY_DOWN, (e: IKeyboardEvent) => {
+			if (e.equals(KeyCode.Enter) || e.equals(KeyCode.Space)) {
+				this.filterAction.useFilesExclude = false;
+				e.stopPropagation();
+			}
+		});
+		this.ariaLabelElement.setAttribute('aria-label', Messages.MARKERS_PANEL_NO_PROBLEMS_FILE_EXCLUSIONS_FILTER);
+	}
 
-	// private renderFilteredByFilterMessage(container: HTMLElement) {
-	// 	const span1 = dom.append(container, dom.$('span'));
-	// 	span1.textContent = Messages.MARKERS_PANEL_NO_PROBLEMS_FILTERS;
-	// 	const link = dom.append(container, dom.$('a.messageAction'));
-	// 	link.textContent = localize('clearFilter', "Clear Filter.");
-	// 	link.setAttribute('tabIndex', '0');
-	// 	dom.addStandardDisposableListener(link, dom.EventType.CLICK, () => this.filterAction.filterText = '');
-	// 	dom.addStandardDisposableListener(link, dom.EventType.KEY_DOWN, (e: IKeyboardEvent) => {
-	// 		if (e.equals(KeyCode.Enter) || e.equals(KeyCode.Space)) {
-	// 			this.filterAction.filterText = '';
-	// 			e.stopPropagation();
-	// 		}
-	// 	});
-	// 	this.ariaLabelElement.setAttribute('aria-label', Messages.MARKERS_PANEL_NO_PROBLEMS_FILTERS);
-	// }
+	private renderFilteredByFilterMessage(container: HTMLElement) {
+		const span1 = dom.append(container, dom.$('span'));
+		span1.textContent = Messages.MARKERS_PANEL_NO_PROBLEMS_FILTERS;
+		const link = dom.append(container, dom.$('a.messageAction'));
+		link.textContent = localize('clearFilter', "Clear Filter.");
+		link.setAttribute('tabIndex', '0');
+		dom.addStandardDisposableListener(link, dom.EventType.CLICK, () => this.filterAction.filterText = '');
+		dom.addStandardDisposableListener(link, dom.EventType.KEY_DOWN, (e: IKeyboardEvent) => {
+			if (e.equals(KeyCode.Enter) || e.equals(KeyCode.Space)) {
+				this.filterAction.filterText = '';
+				e.stopPropagation();
+			}
+		});
+		this.ariaLabelElement.setAttribute('aria-label', Messages.MARKERS_PANEL_NO_PROBLEMS_FILTERS);
+	}
 
-	// private renderNoProblemsMessage(container: HTMLElement) {
-	// 	const span = dom.append(container, dom.$('span'));
-	// 	span.textContent = Messages.MARKERS_PANEL_NO_PROBLEMS_BUILT;
-	// 	this.ariaLabelElement.setAttribute('aria-label', Messages.MARKERS_PANEL_NO_PROBLEMS_BUILT);
-	// }
+	private renderNoProblemsMessage(container: HTMLElement) {
+		const span = dom.append(container, dom.$('span'));
+		span.textContent = Messages.MARKERS_PANEL_NO_PROBLEMS_BUILT;
+		this.ariaLabelElement.setAttribute('aria-label', Messages.MARKERS_PANEL_NO_PROBLEMS_BUILT);
+	}
 
 	private autoReveal(focus: boolean = false): void {
 		let autoReveal = this.configurationService.getValue<boolean>('problems.autoReveal');
