@@ -61,8 +61,9 @@ export class Controller extends WorkbenchTreeController {
 		return false;
 	}
 
+	// TODO@Joao
 	public onContextMenu(tree: WorkbenchTree, element: any, event: tree.ContextMenuEvent): boolean {
-		tree.setFocus(element, { preventOpenOnFocus: true });
+		tree.setFocus(element/* , { preventOpenOnFocus: true } */);
 
 		const anchor = { x: event.posx, y: event.posy };
 		this.contextMenuService.showContextMenu({

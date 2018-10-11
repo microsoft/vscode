@@ -33,7 +33,7 @@ import { attachInputBoxStyler, attachListStyler, computeStyles, defaultListStyle
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { InputFocusedContextKey } from 'vs/platform/workbench/common/contextkeys';
 import { ObjectTree } from 'vs/base/browser/ui/tree/objectTree';
-import { ITreeOptions as ITreeOptions2 } from 'vs/base/browser/ui/tree/abstractTree';
+import { ITreeOptions as ITreeOptions2, ITreeEvent } from 'vs/base/browser/ui/tree/abstractTree';
 import { ITreeRenderer } from 'vs/base/browser/ui/tree/tree';
 
 export type ListWidget = List<any> | PagedList<any> | ITree | ObjectTree<any, any>;
@@ -565,6 +565,84 @@ export class TreeResourceNavigator extends Disposable {
 	}
 }
 
+export interface IOpenEvent<T> {
+	editorOptions: IEditorOptions;
+	sideBySide: boolean;
+	element: T;
+}
+
+export interface IResourceResultsNavigationOptions {
+	openOnFocus: boolean;
+}
+
+export class ObjectTreeResourceNavigator<T, TFilterData> extends Disposable {
+
+	private readonly _openResource: Emitter<IOpenEvent<T>> = new Emitter<IOpenEvent<T>>();
+	readonly openResource: Event<IOpenEvent<T>> = this._openResource.event;
+
+	constructor(private tree: WorkbenchObjectTree<T, TFilterData>, private options?: IResourceResultsNavigationOptions) {
+		super();
+
+		this.registerListeners();
+	}
+
+	private registerListeners(): void {
+		if (this.options && this.options.openOnFocus) {
+			this._register(this.tree.onDidChangeFocus(e => this.onFocus(e)));
+		}
+
+		this._register(this.tree.onDidChangeSelection(e => this.onSelection(e)));
+	}
+
+	private onFocus(e: ITreeEvent<T, TFilterData>): void {
+		const focus = this.tree.getFocus();
+
+		this.tree.setSelection(focus, e.browserEvent);
+
+		const isMouseEvent = e.browserEvent instanceof MouseEvent;
+		const isDoubleClick = isMouseEvent && e.browserEvent && e.browserEvent.detail === 2;
+
+		if (!isMouseEvent || this.tree.openOnSingleClick || isDoubleClick) {
+			this._openResource.fire({
+				editorOptions: {
+					preserveFocus: true,
+					pinned: false,
+					revealIfVisible: true
+				},
+				sideBySide: false,
+				element: focus[0]
+			});
+		}
+	}
+
+	private onSelection(e: ITreeEvent<T, TFilterData>): void {
+		const isMouseEvent = e.browserEvent && e.browserEvent instanceof MouseEvent;
+		if (!isMouseEvent || this.tree.openOnSingleClick) {
+			return;
+		}
+
+		const isDoubleClick = isMouseEvent && e.browserEvent && e.browserEvent.detail === 2;
+
+		if (!isMouseEvent || this.tree.openOnSingleClick || isDoubleClick) {
+			if (isDoubleClick && e.browserEvent) {
+				e.browserEvent.preventDefault(); // focus moves to editor, we need to prevent default
+			}
+
+			const sideBySide = e.browserEvent && e.browserEvent instanceof KeyboardEvent && (e.browserEvent.ctrlKey || e.browserEvent.metaKey || e.browserEvent.altKey);
+
+			this._openResource.fire({
+				editorOptions: {
+					preserveFocus: isDoubleClick,
+					pinned: isDoubleClick,
+					revealIfVisible: true
+				},
+				sideBySide,
+				element: this.tree.getSelection()[0]
+			});
+		}
+	}
+}
+
 export interface IHighlighter {
 	getHighlights(tree: ITree, element: any, pattern: string): FuzzyScore;
 	getHighlightsStorageKey?(element: any): any;
@@ -810,6 +888,7 @@ export class WorkbenchObjectTree<T extends NonNullable<any>, TFilterData = void>
 	private hasDoubleSelection: IContextKey<boolean>;
 	private hasMultiSelection: IContextKey<boolean>;
 
+	private _openOnSingleClick: boolean;
 	private _useAltAsMultipleSelectionModifier: boolean;
 
 	constructor(
@@ -820,7 +899,7 @@ export class WorkbenchObjectTree<T extends NonNullable<any>, TFilterData = void>
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IListService listService: IListService,
 		@IThemeService themeService: IThemeService,
-		@IConfigurationService private configurationService: IConfigurationService
+		@IConfigurationService configurationService: IConfigurationService
 	) {
 		super(container, delegate, renderers, {
 			keyboardSupport: false,
@@ -839,9 +918,10 @@ export class WorkbenchObjectTree<T extends NonNullable<any>, TFilterData = void>
 		this.hasDoubleSelection = WorkbenchListDoubleSelection.bindTo(this.contextKeyService);
 		this.hasMultiSelection = WorkbenchListMultiSelection.bindTo(this.contextKeyService);
 
+		this._openOnSingleClick = useSingleClickToOpen(configurationService);
 		this._useAltAsMultipleSelectionModifier = useAltAsMultipleSelectionModifier(configurationService);
 
-		this.disposables.push(combinedDisposable([
+		this.disposables.push(
 			this.contextKeyService,
 			(listService as ListService).register(this),
 			attachListStyler(this, themeService),
@@ -858,18 +938,21 @@ export class WorkbenchObjectTree<T extends NonNullable<any>, TFilterData = void>
 				const focus = this.getFocus();
 
 				this.hasSelectionOrFocus.set(selection.length > 0 || focus.length > 0);
-			})
-		]));
+			}),
+			configurationService.onDidChangeConfiguration(e => {
+				if (e.affectsConfiguration(openModeSettingKey)) {
+					this._openOnSingleClick = useSingleClickToOpen(configurationService);
+				}
 
-		this.registerListeners();
+				if (e.affectsConfiguration(multiSelectModifierSettingKey)) {
+					this._useAltAsMultipleSelectionModifier = useAltAsMultipleSelectionModifier(configurationService);
+				}
+			})
+		);
 	}
 
-	private registerListeners(): void {
-		this.disposables.push(this.configurationService.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration(multiSelectModifierSettingKey)) {
-				this._useAltAsMultipleSelectionModifier = useAltAsMultipleSelectionModifier(this.configurationService);
-			}
-		}));
+	get openOnSingleClick(): boolean {
+		return this._openOnSingleClick;
 	}
 
 	get useAltAsMultipleSelectionModifier(): boolean {
