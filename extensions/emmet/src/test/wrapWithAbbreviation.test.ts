@@ -315,6 +315,54 @@ suite('Tests for Wrap with Abbreviations', () => {
 
 		return testWrapIndividualLinesWithAbbreviation([new Selection(2,2,3,33)], '.hello$*', wrapIndividualLinesJsxExpected, htmlContentsForWrapTests, 'jsx');
 	});
+
+	test('Wrap maintains href', () => {
+		const contents = `
+			www.google.com
+		`;
+		const expectedContents = `
+			<a href="www.google.com">www.google.com</a>
+		`;
+
+		return withRandomFileEditor(contents, 'html', (editor, _) => {
+			editor.selections = [new Selection(1, 1, 1, 1)];
+			const promise = wrapWithAbbreviation({ abbreviation: 'a' });
+			if (!promise) {
+				assert.equal(1, 2, 'Wrap with Abbreviation returned undefined.');
+				return Promise.resolve();
+			}
+
+			return promise.then(() => {
+				assert.equal(editor.document.getText(), expectedContents);
+				return Promise.resolve();
+			});
+		});
+	});
+
+	test('Wrap Individual Lines maintains href', () => {
+		const contents = `
+			www.google.com
+			www.google.com.au
+		`;
+		const expectedContents = `
+			<a href="www.google.com">www.google.com</a>
+			<a href="www.google.com.au">www.google.com.au</a>
+		`;
+
+		return withRandomFileEditor(contents, 'html', (editor, _) => {
+			editor.selections = [new Selection(1, 0, 1, 17), new Selection(2, 0, 2, 20)];
+			const promise = wrapIndividualLinesWithAbbreviation({ abbreviation: 'a' });
+			if (!promise) {
+				assert.equal(1, 2, 'Wrap Individual Lines with Abbreviation returned undefined.');
+				return Promise.resolve();
+			}
+
+			return promise.then(() => {
+				assert.equal(editor.document.getText(), expectedContents);
+				return Promise.resolve();
+			});
+		});
+	});
 });
 
 
