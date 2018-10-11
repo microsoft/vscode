@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Iterator } from 'vs/base/common/iterator';
+import { Iterator, IteratorResult, FIN } from 'vs/base/common/iterator';
 
 class Node<E> {
 	element: E;
@@ -94,26 +94,20 @@ export class LinkedList<E> {
 	}
 
 	iterator(): Iterator<E> {
-		let element: { done: boolean; value: E | undefined };
+		let element: { done: false; value: E; };
 		let node = this._first;
 		return {
-			next(): { done: boolean; value: E | undefined } {
+			next(): IteratorResult<E> {
 				if (!node) {
-					if (!element) {
-						element = { done: true, value: undefined };
-					} else {
-						element.done = true;
-						element.value = undefined;
-					}
-				} else {
-					if (!element) {
-						element = { done: false, value: node.element };
-					} else {
-						element.done = false;
-						element.value = node.element;
-					}
-					node = node.next;
+					return FIN;
 				}
+
+				if (!element) {
+					element = { done: false, value: node.element };
+				} else {
+					element.value = node.element;
+				}
+				node = node.next;
 				return element;
 			}
 		};

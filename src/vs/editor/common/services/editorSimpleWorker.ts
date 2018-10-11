@@ -19,7 +19,7 @@ import { getWordAtText, ensureValidWordDefinition } from 'vs/editor/common/model
 import { createMonacoBaseAPI } from 'vs/editor/common/standalone/standaloneBase';
 import { IWordAtPosition, EndOfLineSequence } from 'vs/editor/common/model';
 import { globals } from 'vs/base/common/platform';
-import { Iterator } from 'vs/base/common/iterator';
+import { Iterator, IteratorResult, FIN } from 'vs/base/common/iterator';
 import { mergeSort } from 'vs/base/common/arrays';
 
 export interface IMirrorModel {
@@ -147,24 +147,25 @@ class MirrorModel extends BaseMirrorModel implements ICommonModel {
 	}
 
 	public createWordIterator(wordDefinition: RegExp): Iterator<string> {
-		let obj = {
-			done: false,
-			value: ''
-		};
+		let obj: { done: false; value: string; };
 		let lineNumber = 0;
 		let lineText: string;
 		let wordRangesIdx = 0;
 		let wordRanges: IWordRange[] = [];
-		let next = (): { done: boolean; value: string } => {
+		let next = (): IteratorResult<string> => {
 
 			if (wordRangesIdx < wordRanges.length) {
-				obj.done = false;
-				obj.value = lineText.substring(wordRanges[wordRangesIdx].start, wordRanges[wordRangesIdx].end);
+				const value = lineText.substring(wordRanges[wordRangesIdx].start, wordRanges[wordRangesIdx].end);
 				wordRangesIdx += 1;
+				if (!obj) {
+					obj = { done: false, value: value };
+				} else {
+					obj.value = value;
+				}
+				return obj;
 
 			} else if (lineNumber >= this._lines.length) {
-				obj.done = true;
-				obj.value = undefined;
+				return FIN;
 
 			} else {
 				lineText = this._lines[lineNumber];
@@ -173,8 +174,6 @@ class MirrorModel extends BaseMirrorModel implements ICommonModel {
 				lineNumber += 1;
 				return next();
 			}
-
-			return obj;
 		};
 		return { next };
 	}
