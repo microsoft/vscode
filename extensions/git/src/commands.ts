@@ -1713,6 +1713,8 @@ export class CommandCenter {
 
 	@command('git.addRemote', { repository: true })
 	async addRemote(repository: Repository): Promise<void> {
+		const remotes = repository.remotes;
+
 		const sanitize = (name: string) => {
 			name = name.trim();
 
@@ -1737,20 +1739,15 @@ export class CommandCenter {
 
 		const name = sanitize(resultName || '');
 
-		if (!name) {
+		if (!name && !remotes.find(r => r.name === name)) {
+			window.showErrorMessage(localize('remote already exists', 'Remote by name {0} already exists.', name));
 			return;
 		}
 
 		const resultUrl = await window.showInputBox({
 			placeHolder: localize('remote url', "Remote URL"),
 			prompt: localize('provide remote URL', "Enter URL for remote {0}", name),
-			ignoreFocusOut: true,
-			validateInput: (name: string) => {
-				if (sanitize(name)) {
-					return null;
-				}
-				return localize('remote url format invalid', "Remote URL format invalid");
-			}
+			ignoreFocusOut: true
 		});
 
 		const url = sanitize(resultUrl || '');
@@ -1767,7 +1764,7 @@ export class CommandCenter {
 		const remotes = repository.remotes;
 
 		if (remotes.length === 0) {
-			window.showWarningMessage(localize('no remotes added', "Your repository has no remotes"));
+			window.showErrorMessage(localize('no remotes added', "Your repository has no remotes."));
 			return;
 		}
 
