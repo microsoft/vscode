@@ -10,6 +10,8 @@ import { IEnvironmentService } from 'vs/platform/environment/common/environment'
 import { IWorkspaceStorageChangeEvent, INextStorage2Service, StorageScope } from 'vs/platform/storage2/common/storage2';
 import { Storage, IStorageLoggingOptions } from 'vs/base/node/storage';
 import { IStorageService, StorageScope as LocalStorageScope } from 'vs/platform/storage/common/storage';
+import { addDisposableListener } from 'vs/base/browser/dom';
+import { startsWith } from 'vs/base/common/strings';
 
 export class NextStorage2Service extends Disposable implements INextStorage2Service {
 	_serviceBrand: any;
@@ -109,8 +111,21 @@ export class NextDelegatingStorageService extends Disposable implements INextSto
 	) {
 		super();
 
+		this.registerListeners();
+	}
+
+	private registerListeners(): void {
 		this._register(this.nextStorage2Service.onDidChangeStorage(e => this._onDidChangeStorage.fire(e)));
 		this._register(this.nextStorage2Service.onWillClose(e => this._onWillClose.fire()));
+
+		const globalKeyMarker = 'storage://global/';
+		this._register(addDisposableListener(window, 'storage', (e: StorageEvent) => {
+			if (startsWith(e.key, globalKeyMarker)) {
+				const key = e.key.substr(globalKeyMarker.length);
+
+				this._onDidChangeStorage.fire({ key, scope: StorageScope.GLOBAL });
+			}
+		}));
 	}
 
 	get(key: string, scope: StorageScope, fallbackValue?: any): string {

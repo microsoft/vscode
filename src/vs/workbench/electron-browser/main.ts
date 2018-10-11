@@ -36,7 +36,7 @@ import { IWorkspacesService, ISingleFolderWorkspaceIdentifier } from 'vs/platfor
 import { createSpdLogService } from 'vs/platform/log/node/spdlogService';
 import * as fs from 'fs';
 import { ConsoleLogService, MultiplexLogService, ILogService } from 'vs/platform/log/common/log';
-import { NextStorage2Service, NextDelegatingStorageService } from 'vs/platform/storage2/node/nextStorage2Service';
+import { NextStorage2Service, NextDelegatingStorageService } from 'vs/platform/storage2/electron-browser/nextStorage2Service';
 import { IssueChannelClient } from 'vs/platform/issue/node/issueIpc';
 import { IIssueService } from 'vs/platform/issue/common/issue';
 import { LogLevelSetterChannelClient, FollowerLogService } from 'vs/platform/log/node/logIpc';
