@@ -99,6 +99,7 @@
 		"./vs/workbench/common/extensionHostProtocol.ts",
 		"./vs/workbench/parts/execution/common/execution.ts",
 		"./vs/workbench/parts/logs/common/logConstants.ts",
+		"./vs/workbench/parts/terminal/browser/terminalWidgetManager.ts",
 		"./vs/workbench/services/activity/common/activity.ts",
 		"./vs/workbench/services/configuration/common/jsonEditing.ts",
 		"./vs/workbench/services/extensions/node/lazyPromise.ts",
