@@ -5,7 +5,6 @@
 
 import 'vs/css!./selectBoxCustom';
 
-import * as nls from 'vs/nls';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { Event, Emitter, chain } from 'vs/base/common/event';
 import { KeyCode, KeyCodeUtils } from 'vs/base/common/keyCodes';
@@ -50,6 +49,7 @@ class SelectListRenderer implements IRenderer<ISelectOptionItem, ISelectListTemp
 		data.root = container;
 		data.optionText = dom.append(container, $('.option-text'));
 		data.optionDescriptionText = dom.append(container, $('.option-text-description'));
+		dom.addClass(data.optionDescriptionText, 'visually-hidden');
 
 		return data;
 	}
@@ -60,17 +60,13 @@ class SelectListRenderer implements IRenderer<ISelectOptionItem, ISelectListTemp
 		const optionDisabled = (<ISelectOptionItem>element).optionDisabled;
 
 		data.optionText.textContent = optionText;
-		data.root.setAttribute('aria-label', nls.localize('selectAriaOption', "{0}", optionText) + ',.');
 
 		if (typeof element.optionDescriptionText === 'string') {
 			const optionDescriptionId = (optionText.replace(/ /g, '_').toLowerCase() + '_description_' + data.root.id);
-			data.root.setAttribute('aria-describedby', optionDescriptionId);
+			data.optionText.setAttribute('aria-describedby', optionDescriptionId);
 			data.optionDescriptionText.id = optionDescriptionId;
-			data.optionDescriptionText.setAttribute('aria-label', element.optionDescriptionText);
+			data.optionDescriptionText.innerText = element.optionDescriptionText;
 		}
-
-		// Workaround for list labels
-		data.root.setAttribute('aria-selected', 'true');
 
 		// pseudo-select disabled option
 		if (optionDisabled) {
