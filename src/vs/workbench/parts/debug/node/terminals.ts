@@ -14,7 +14,7 @@ import { getPathFromAmdModule } from 'vs/base/common/amd';
 
 const TERMINAL_TITLE = nls.localize('console.title', "VS Code Console");
 
-let terminalLauncher: ITerminalLauncher = undefined;
+let terminalLauncher: ITerminalLauncher | undefined = undefined;
 
 export function getTerminalLauncher() {
 	if (!terminalLauncher) {

@@ -784,7 +784,7 @@ export class DebugModel implements IDebugModel {
 		}
 	}
 
-	public clearThreads(id: string, removeThreads: boolean, reference: number = undefined): void {
+	public clearThreads(id: string, removeThreads: boolean, reference: number | undefined = undefined): void {
 		const session = this.sessions.filter(p => p.getId() === id).pop();
 		this.schedulers.forEach(scheduler => scheduler.dispose());
 		this.schedulers.clear();

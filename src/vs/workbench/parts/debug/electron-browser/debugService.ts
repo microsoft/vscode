@@ -629,7 +629,7 @@ export class DebugService implements IDebugService {
 	private substituteVariables(launch: ILaunch | undefined, config: IConfig): TPromise<IConfig> {
 		const dbg = this.configurationManager.getDebugger(config.type);
 		if (dbg) {
-			let folder: IWorkspaceFolder = undefined;
+			let folder: IWorkspaceFolder | undefined = undefined;
 			if (launch && launch.workspace) {
 				folder = launch.workspace;
 			} else {

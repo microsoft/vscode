@@ -1264,8 +1264,8 @@ export class ProblemMatcherParser extends Parser {
 		if (!applyTo) {
 			applyTo = ApplyToKind.allDocuments;
 		}
-		let fileLocation: FileLocationKind = undefined;
-		let filePrefix: string = undefined;
+		let fileLocation: FileLocationKind | undefined = undefined;
+		let filePrefix: string | undefined = undefined;
 
 		let kind: FileLocationKind;
 		if (Types.isUndefined(description.fileLocation)) {
