@@ -275,14 +275,6 @@ export abstract class AbstractTree<T, TFilterData, TRef> implements IDisposable 
 		this.view.setSelection(indexes);
 	}
 
-	selectNext(n = 1, loop = false): void {
-		this.view.selectNext(n, loop);
-	}
-
-	selectPrevious(n = 1, loop = false): void {
-		this.view.selectPrevious(n, loop);
-	}
-
 	getSelection(): T[] {
 		const nodes = this.view.getSelectedElements();
 		return nodes.map(n => n.element);
