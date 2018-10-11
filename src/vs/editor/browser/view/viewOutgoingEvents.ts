@@ -19,18 +19,18 @@ export interface EventCallback<T> {
 
 export class ViewOutgoingEvents extends Disposable {
 
-	public onDidScroll: EventCallback<IScrollEvent> = null;
-	public onDidGainFocus: EventCallback<void> = null;
-	public onDidLoseFocus: EventCallback<void> = null;
-	public onKeyDown: EventCallback<IKeyboardEvent> = null;
-	public onKeyUp: EventCallback<IKeyboardEvent> = null;
-	public onContextMenu: EventCallback<IEditorMouseEvent> = null;
-	public onMouseMove: EventCallback<IEditorMouseEvent> = null;
-	public onMouseLeave: EventCallback<IEditorMouseEvent> = null;
-	public onMouseUp: EventCallback<IEditorMouseEvent> = null;
-	public onMouseDown: EventCallback<IEditorMouseEvent> = null;
-	public onMouseDrag: EventCallback<IEditorMouseEvent> = null;
-	public onMouseDrop: EventCallback<IEditorMouseEvent> = null;
+	public onDidScroll: EventCallback<IScrollEvent> | null = null;
+	public onDidGainFocus: EventCallback<void> | null = null;
+	public onDidLoseFocus: EventCallback<void> | null = null;
+	public onKeyDown: EventCallback<IKeyboardEvent> | null = null;
+	public onKeyUp: EventCallback<IKeyboardEvent> | null = null;
+	public onContextMenu: EventCallback<IEditorMouseEvent> | null = null;
+	public onMouseMove: EventCallback<IEditorMouseEvent> | null = null;
+	public onMouseLeave: EventCallback<IEditorMouseEvent> | null = null;
+	public onMouseUp: EventCallback<IEditorMouseEvent> | null = null;
+	public onMouseDown: EventCallback<IEditorMouseEvent> | null = null;
+	public onMouseDrag: EventCallback<IEditorMouseEvent> | null = null;
+	public onMouseDrop: EventCallback<IEditorMouseEvent> | null = null;
 
 	private _viewModel: IViewModel;
 

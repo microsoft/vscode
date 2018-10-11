@@ -123,7 +123,7 @@ const enum CharacterClass {
 	CannotEndIn = 2
 }
 
-let _classifier: CharacterClassifier<CharacterClass> = null;
+let _classifier: CharacterClassifier<CharacterClass> | null = null;
 function getClassifier(): CharacterClassifier<CharacterClass> {
 	if (_classifier === null) {
 		_classifier = new CharacterClassifier<CharacterClass>(CharacterClass.None);

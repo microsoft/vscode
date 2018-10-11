@@ -6,7 +6,7 @@
 import * as env from 'vs/base/common/platform';
 import * as pfs from 'vs/base/node/pfs';
 
-let _DEFAULT_TERMINAL_LINUX_READY: Promise<string> = null;
+let _DEFAULT_TERMINAL_LINUX_READY: Promise<string> | null = null;
 export function getDefaultTerminalLinuxReady(): Promise<string> {
 	if (!_DEFAULT_TERMINAL_LINUX_READY) {
 		_DEFAULT_TERMINAL_LINUX_READY = new Promise<string>(c => {

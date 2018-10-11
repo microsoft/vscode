@@ -29,7 +29,7 @@ export function getTerminalLauncher() {
 	return terminalLauncher;
 }
 
-let _DEFAULT_TERMINAL_LINUX_READY: TPromise<string> = null;
+let _DEFAULT_TERMINAL_LINUX_READY: TPromise<string> | null = null;
 export function getDefaultTerminalLinuxReady(): TPromise<string> {
 	if (!_DEFAULT_TERMINAL_LINUX_READY) {
 		_DEFAULT_TERMINAL_LINUX_READY = new Promise<string>(c => {

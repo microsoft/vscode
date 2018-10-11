@@ -65,7 +65,7 @@ export abstract class EmmetEditorAction extends EditorAction {
 
 	private static readonly emmetSupportedModes = ['html', 'css', 'xml', 'xsl', 'haml', 'jade', 'jsx', 'slim', 'scss', 'sass', 'less', 'stylus', 'styl', 'svg'];
 
-	private _lastGrammarContributions: TPromise<GrammarContributions> = null;
+	private _lastGrammarContributions: TPromise<GrammarContributions> | null = null;
 	private _lastExtensionService: IExtensionService | null = null;
 	private _withGrammarContributions(extensionService: IExtensionService): TPromise<GrammarContributions> {
 		if (this._lastExtensionService !== extensionService) {

@@ -132,6 +132,7 @@
 		"./vs/editor/common/modes/languageConfigurationRegistry.ts",
 		"./vs/editor/common/modes/languageFeatureRegistry.ts",
 		"./vs/editor/common/modes/languageSelector.ts",
+		"./vs/editor/common/modes/linkComputer.ts",
 		"./vs/editor/common/modes/nullMode.ts",
 		"./vs/editor/common/modes/supports.ts",
 		"./vs/editor/common/modes/supports/characterPair.ts",
