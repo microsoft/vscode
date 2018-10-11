@@ -5,7 +5,7 @@
 
 import { URI } from 'vs/base/common/uri';
 import { CharCode } from 'vs/base/common/charCode';
-import { Iterator } from './iterator';
+import { Iterator, IteratorResult, FIN } from './iterator';
 
 export function values<V = any>(set: Set<V>): V[];
 export function values<K = any, V = any>(map: Map<K, V>): V[];
@@ -332,13 +332,10 @@ export class TernarySearchTree<E> {
 	}
 
 	private _nodeIterator(node: TernarySearchTreeNode<E>): Iterator<E> {
-		let res = {
-			done: false,
-			value: undefined
-		};
+		let res: { done: false; value: E; };
 		let idx: number;
 		let data: E[];
-		let next = () => {
+		let next = (): IteratorResult<E> => {
 			if (!data) {
 				// lazy till first invocation
 				data = [];
@@ -346,10 +343,12 @@ export class TernarySearchTree<E> {
 				this._forEach(node, value => data.push(value));
 			}
 			if (idx >= data.length) {
-				res.done = true;
-				res.value = undefined;
+				return FIN;
+			}
+
+			if (!res) {
+				res = { done: false, value: data[idx++] };
 			} else {
-				res.done = false;
 				res.value = data[idx++];
 			}
 			return res;
