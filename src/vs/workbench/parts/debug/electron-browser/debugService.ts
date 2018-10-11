@@ -547,32 +547,39 @@ export class DebugService implements IDebugService {
 
 	restartSession(session: IDebugSession, restartData?: any): TPromise<any> {
 		return this.textFileService.saveAll().then(() => {
-			// Do not run preLaunch and postDebug tasks for automatic restarts
 			const isAutoRestart = !!restartData;
-			const taskThenable: Thenable<TaskRunResult> = isAutoRestart ? Promise.resolve(TaskRunResult.Success) :
-				this.runTask(session.root, session.configuration.postDebugTask).then(() => this.runTaskAndCheckErrors(session.root, session.configuration.preLaunchTask));
-
-			return taskThenable.then(taskRunResult => {
-				if (taskRunResult !== TaskRunResult.Success) {
-					return;
-				}
-				if (session.capabilities.supportsRestartRequest) {
-					return session.restart().then(() => void 0);
+			const runTasks: () => Thenable<TaskRunResult> = () => {
+				if (isAutoRestart) {
+					// Do not run preLaunch and postDebug tasks for automatic restarts
+					return Promise.resolve(TaskRunResult.Success);
 				}
 
-				const shouldFocus = this.viewModel.focusedSession && session.getId() === this.viewModel.focusedSession.getId();
-				if (isExtensionHostDebugging(session.configuration) && session.root) {
-					return this.broadcastService.broadcast({
-						channel: EXTENSION_RELOAD_BROADCAST_CHANNEL,
-						payload: [session.root.uri.toString()]
-					});
-				}
+				return this.runTask(session.root, session.configuration.postDebugTask)
+					.then(() => this.runTaskAndCheckErrors(session.root, session.configuration.preLaunchTask));
+			};
 
-				// If the restart is automatic  -> disconnect, otherwise -> terminate #55064
-				return (isAutoRestart ? session.disconnect(true) : session.terminate(true)).then(() => {
+			if (session.capabilities.supportsRestartRequest) {
+				return runTasks().then(taskResult => taskResult === TaskRunResult.Success ? session.restart() : undefined);
+			}
 
-					return new Promise<void>((c, e) => {
-						setTimeout(() => {
+			if (isExtensionHostDebugging(session.configuration) && session.root) {
+				return runTasks().then(taskResult => taskResult === TaskRunResult.Success ? this.broadcastService.broadcast({
+					channel: EXTENSION_RELOAD_BROADCAST_CHANNEL,
+					payload: [session.root.uri.toString()]
+				}) : undefined);
+			}
+
+			const shouldFocus = this.viewModel.focusedSession && session.getId() === this.viewModel.focusedSession.getId();
+			// If the restart is automatic  -> disconnect, otherwise -> terminate #55064
+			return (isAutoRestart ? session.disconnect(true) : session.terminate(true)).then(() => {
+
+				return new Promise<void>((c, e) => {
+					setTimeout(() => {
+						runTasks().then(taskResult => {
+							if (taskResult !== TaskRunResult.Success) {
+								return;
+							}
+
 							// Read the configuration again if a launch.json has been changed, if not just use the inmemory configuration
 							let needsToSubstitute = false;
 							let unresolved: IConfig;
@@ -601,8 +608,8 @@ export class DebugService implements IDebugService {
 									c(null);
 								}, err => e(err));
 							});
-						}, 300);
-					});
+						});
+					}, 300);
 				});
 			});
 		});
