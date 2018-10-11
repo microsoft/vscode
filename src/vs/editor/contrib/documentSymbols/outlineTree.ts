@@ -2,27 +2,26 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
 import * as dom from 'vs/base/browser/dom';
-import 'vs/css!./media/symbol-icons';
 import { IMouseEvent } from 'vs/base/browser/mouseEvent';
 import { HighlightedLabel } from 'vs/base/browser/ui/highlightedlabel/highlightedLabel';
 import { values } from 'vs/base/common/collections';
 import { createMatches } from 'vs/base/common/filters';
-import { TPromise } from 'vs/base/common/winjs.base';
 import { IDataSource, IFilter, IRenderer, ISorter, ITree } from 'vs/base/parts/tree/browser/tree';
+import 'vs/css!./media/outlineTree';
+import 'vs/css!./media/symbol-icons';
 import { Range } from 'vs/editor/common/core/range';
-import { symbolKindToCssClass, SymbolKind } from 'vs/editor/common/modes';
+import { SymbolKind, symbolKindToCssClass } from 'vs/editor/common/modes';
 import { OutlineElement, OutlineGroup, OutlineModel, TreeElement } from 'vs/editor/contrib/documentSymbols/outlineModel';
 import { localize } from 'vs/nls';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { WorkbenchTreeController } from 'vs/platform/list/browser/listService';
 import { MarkerSeverity } from 'vs/platform/markers/common/markers';
 import { listErrorForeground, listWarningForeground } from 'vs/platform/theme/common/colorRegistry';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
-export enum OutlineItemCompareType {
+export const enum OutlineItemCompareType {
 	ByPosition,
 	ByName,
 	ByKind
@@ -96,14 +95,14 @@ export class OutlineDataSource implements IDataSource {
 		return false;
 	}
 
-	getChildren(tree: ITree, element: TreeElement): TPromise<TreeElement[]> {
+	getChildren(tree: ITree, element: TreeElement): Promise<TreeElement[]> {
 		let res = values(element.children);
 		// console.log(element.id + ' with children ' + res.length);
-		return TPromise.wrap(res);
+		return Promise.resolve(res);
 	}
 
-	getParent(tree: ITree, element: TreeElement | any): TPromise<TreeElement> {
-		return TPromise.wrap(element && element.parent);
+	getParent(tree: ITree, element: TreeElement | any): Promise<TreeElement> {
+		return Promise.resolve(element && element.parent);
 	}
 
 	shouldAutoexpand(tree: ITree, element: TreeElement): boolean {
@@ -161,7 +160,7 @@ export class OutlineRenderer implements IRenderer {
 
 	renderElement(tree: ITree, element: OutlineGroup | OutlineElement, templateId: string, template: OutlineTemplate): void {
 		if (element instanceof OutlineElement) {
-			template.icon.className = `outline-element-icon symbol-icon ${symbolKindToCssClass(element.symbol.kind)}`;
+			template.icon.className = `outline-element-icon ${symbolKindToCssClass(element.symbol.kind)}`;
 			template.label.set(element.symbol.name, element.score ? createMatches(element.score[1]) : undefined, localize('title.template', "{0} ({1})", element.symbol.name, OutlineRenderer._symbolKindNames[element.symbol.kind]));
 			template.detail.innerText = element.symbol.detail || '';
 			this._renderMarkerInfo(element, template);
@@ -284,7 +283,7 @@ export class OutlineTreeState {
 	static async restore(tree: ITree, state: OutlineTreeState, eventPayload: any): Promise<void> {
 		let model = <OutlineModel>tree.getInput();
 		if (!state || !(model instanceof OutlineModel)) {
-			return TPromise.as(undefined);
+			return Promise.resolve(undefined);
 		}
 
 		// expansion

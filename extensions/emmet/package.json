@@ -39,17 +39,17 @@
                         "inMarkupAndStylesheetFilesOnly"
                     ],
                     "default": "always",
-                    "description": "%emmetShowExpandedAbbreviation%"
+                    "markdownDescription": "%emmetShowExpandedAbbreviation%"
                 },
                 "emmet.showAbbreviationSuggestions": {
                     "type": "boolean",
                     "default": true,
-                    "description": "%emmetShowAbbreviationSuggestions%"
+                    "markdownDescription": "%emmetShowAbbreviationSuggestions%"
                 },
                 "emmet.includeLanguages": {
                     "type": "object",
                     "default": {},
-                    "description": "%emmetIncludeLanguages%"
+                    "markdownDescription": "%emmetIncludeLanguages%"
                 },
                 "emmet.variables": {
                     "type": "object",
@@ -183,22 +183,22 @@
                         "css.webkitProperties": {
                             "type": "string",
                             "default": null,
-                            "description": "%emmetPreferencesCssWebkitProperties%"
+                            "markdownDescription": "%emmetPreferencesCssWebkitProperties%"
                         },
                         "css.mozProperties": {
                             "type": "string",
                             "default": null,
-                            "description": "%emmetPreferencesCssMozProperties%"
+                            "markdownDescription": "%emmetPreferencesCssMozProperties%"
                         },
                         "css.oProperties": {
                             "type": "string",
                             "default": null,
-                            "description": "%emmetPreferencesCssOProperties%"
+                            "markdownDescription": "%emmetPreferencesCssOProperties%"
                         },
                         "css.msProperties": {
                             "type": "string",
                             "default": null,
-                            "description": "%emmetPreferencesCssMsProperties%"
+                            "markdownDescription": "%emmetPreferencesCssMsProperties%"
                         },
                         "css.fuzzySearchMinScore": {
                             "type": "number",
@@ -210,12 +210,12 @@
                 "emmet.showSuggestionsAsSnippets": {
                     "type": "boolean",
                     "default": false,
-                    "description": "%emmetShowSuggestionsAsSnippets%"
+                    "markdownDescription": "%emmetShowSuggestionsAsSnippets%"
                 },
                 "emmet.optimizeStylesheetParsing": {
                     "type": "boolean",
                     "default": true,
-                    "description": "%emmetOptimizeStylesheetParsing%"
+                    "markdownDescription": "%emmetOptimizeStylesheetParsing%"
                 }
             }
         },
@@ -447,8 +447,6 @@
         "@emmetio/html-matcher": "^0.3.3",
         "@emmetio/math-expression": "^0.1.1",
         "image-size": "^0.5.2",
-        "vscode-emmet-helper": "^1.2.10",
-        "vscode-languageserver-types": "^3.5.0",
-        "vscode-nls": "3.2.4"
+        "vscode-emmet-helper": "^1.2.12"
     }
 }

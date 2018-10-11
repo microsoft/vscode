@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import 'vs/css!./media/notificationsList';
 import { addClass, isAncestor, trackFocus } from 'vs/base/browser/dom';
 import { WorkbenchList } from 'vs/platform/list/browser/listService';
@@ -18,7 +16,6 @@ import { NotificationsListDelegate, NotificationRenderer } from 'vs/workbench/br
 import { NotificationActionRunner, CopyNotificationMessageAction } from 'vs/workbench/browser/parts/notifications/notificationsActions';
 import { NotificationFocusedContext } from 'vs/workbench/browser/parts/notifications/notificationsCommands';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
-import { TPromise } from 'vs/base/common/winjs.base';
 
 export class NotificationsList extends Themable {
 	private listContainer: HTMLElement;
@@ -78,7 +75,10 @@ export class NotificationsList extends Themable {
 			this.listContainer,
 			new NotificationsListDelegate(this.listContainer),
 			[renderer],
-			this.options
+			{
+				...this.options,
+				setRowLineHeight: false
+			}
 		));
 
 		// Context menu to copy message
@@ -86,7 +86,7 @@ export class NotificationsList extends Themable {
 		this._register((this.list.onContextMenu(e => {
 			this.contextMenuService.showContextMenu({
 				getAnchor: () => e.anchor,
-				getActions: () => TPromise.as([copyAction]),
+				getActions: () => Promise.resolve([copyAction]),
 				getActionsContext: () => e.element,
 				actionRunner
 			});

@@ -2,7 +2,6 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
 import { ContextKeyExpr, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 
@@ -30,6 +29,8 @@ export namespace EditorContextKeys {
 	export const tabMovesFocus = new RawContextKey<boolean>('editorTabMovesFocus', false);
 	export const tabDoesNotMoveFocus: ContextKeyExpr = tabMovesFocus.toNegated();
 	export const isInEmbeddedEditor = new RawContextKey<boolean>('isInEmbeddedEditor', undefined);
+	export const canUndo = new RawContextKey<boolean>('canUndo', false);
+	export const canRedo = new RawContextKey<boolean>('canRedo', false);
 
 	// -- mode context keys
 	export const languageId = new RawContextKey<string>('editorLangId', undefined);

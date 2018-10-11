@@ -4,9 +4,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 var __extends = (this && this.__extends) || (function () {
-    var extendStatics = Object.setPrototypeOf ||
-        ({ __proto__: [] } instanceof Array && function (d, b) { d.__proto__ = b; }) ||
-        function (d, b) { for (var p in b) if (b.hasOwnProperty(p)) d[p] = b[p]; };
+    var extendStatics = function (d, b) {
+        extendStatics = Object.setPrototypeOf ||
+            ({ __proto__: [] } instanceof Array && function (d, b) { d.__proto__ = b; }) ||
+            function (d, b) { for (var p in b) if (b.hasOwnProperty(p)) d[p] = b[p]; };
+        return extendStatics(d, b);
+    }
     return function (d, b) {
         extendStatics(d, b);
         function __() { this.constructor = d; }
@@ -113,12 +116,12 @@ var NoUnexternalizedStringsRuleWalker = /** @class */ (function (_super) {
             return;
         }
         // We have a string that is a direct argument into the localize call.
-        var keyArg = callInfo.argIndex === this.keyIndex
+        var keyArg = callInfo && callInfo.argIndex === this.keyIndex
             ? callInfo.callExpression.arguments[this.keyIndex]
             : null;
         if (keyArg) {
             if (isStringLiteral(keyArg)) {
-                this.recordKey(keyArg, this.messageIndex ? callInfo.callExpression.arguments[this.messageIndex] : undefined);
+                this.recordKey(keyArg, this.messageIndex && callInfo ? callInfo.callExpression.arguments[this.messageIndex] : undefined);
             }
             else if (isObjectLiteral(keyArg)) {
                 for (var i = 0; i < keyArg.properties.length; i++) {
@@ -128,7 +131,7 @@ var NoUnexternalizedStringsRuleWalker = /** @class */ (function (_super) {
                         if (name_1 === 'key') {
                             var initializer = property.initializer;
                             if (isStringLiteral(initializer)) {
-                                this.recordKey(initializer, this.messageIndex ? callInfo.callExpression.arguments[this.messageIndex] : undefined);
+                                this.recordKey(initializer, this.messageIndex && callInfo ? callInfo.callExpression.arguments[this.messageIndex] : undefined);
                             }
                             break;
                         }
@@ -185,6 +188,7 @@ var NoUnexternalizedStringsRuleWalker = /** @class */ (function (_super) {
             }
             node = parent;
         }
+        return null;
     };
     NoUnexternalizedStringsRuleWalker.ImportFailureMessage = 'Do not use double quotes for imports.';
     NoUnexternalizedStringsRuleWalker.DOUBLE_QUOTE = '"';

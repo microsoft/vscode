@@ -2,7 +2,6 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
 import * as nls from 'vs/nls';
 import { TPromise } from 'vs/base/common/winjs.base';
@@ -19,8 +18,11 @@ import { IResourceInput, IEditorOptions } from 'vs/platform/editor/common/editor
 import { IQuickOpenService } from 'vs/platform/quickOpen/common/quickOpen';
 import { IConstructorSignature0, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IEditorService, SIDE_GROUP, ACTIVE_GROUP } from 'vs/workbench/services/editor/common/editorService';
+import { CancellationToken } from 'vs/base/common/cancellation';
 
 export const CLOSE_ON_FOCUS_LOST_CONFIG = 'workbench.quickOpen.closeOnFocusLost';
+export const PRESERVE_INPUT_CONFIG = 'workbench.quickOpen.preserveInput';
+export const SEARCH_EDITOR_HISTORY = 'search.quickOpen.includeHistory';
 
 export interface IWorkbenchQuickOpenConfiguration {
 	workbench: {
@@ -42,8 +44,8 @@ export class QuickOpenHandler {
 	 * As such, returning the same model instance across multiple searches will yield best
 	 * results in terms of performance when many items are shown.
 	 */
-	getResults(searchValue: string): TPromise<IModel<any>> {
-		return TPromise.as(null);
+	getResults(searchValue: string, token: CancellationToken): TPromise<IModel<any>> {
+		return Promise.resolve(null);
 	}
 
 	/**
@@ -329,6 +331,6 @@ export class QuickOpenAction extends Action {
 		// Show with prefix
 		this.quickOpenService.show(this.prefix);
 
-		return TPromise.as(null);
+		return Promise.resolve(null);
 	}
 }

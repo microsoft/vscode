@@ -2,8 +2,6 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
-
 import 'mocha';
 import * as assert from 'assert';
 import * as path from 'path';
@@ -21,7 +19,7 @@ export interface ItemDescription {
 	notAvailable?: boolean;
 }
 
-export function assertCompletion(completions: CompletionList, expected: ItemDescription, document: TextDocument, offset: number) {
+export function assertCompletion(completions: CompletionList, expected: ItemDescription, document: TextDocument) {
 	let matches = completions.items.filter(completion => {
 		return completion.label === expected.label;
 	});
@@ -66,11 +64,11 @@ export function testCompletionFor(value: string, expected: { count?: number, ite
 	let list = mode.doComplete!(document, position);
 
 	if (expected.count) {
-		assert.equal(list.items, expected.count);
+		assert.equal(list.items.length, expected.count);
 	}
 	if (expected.items) {
 		for (let item of expected.items) {
-			assertCompletion(list, item, document, offset);
+			assertCompletion(list, item, document);
 		}
 	}
 }
@@ -96,7 +94,7 @@ suite('HTML Path Completion', () => {
 		command: 'editor.action.triggerSuggest'
 	};
 
-	const fixtureRoot = path.resolve(__dirname, 'pathCompletionFixtures');
+	const fixtureRoot = path.resolve(__dirname, '../../src/test/pathCompletionFixtures');
 	const fixtureWorkspace = { name: 'fixture', uri: Uri.file(fixtureRoot).toString() };
 	const indexHtmlUri = Uri.file(path.resolve(fixtureRoot, 'index.html')).toString();
 	const aboutHtmlUri = Uri.file(path.resolve(fixtureRoot, 'about/about.html')).toString();
@@ -294,6 +292,12 @@ suite('HTML Path Completion', () => {
 				{ label: 'index.html', resultText: '<script src="./index.html /about.html>' },
 				{ label: 'src/', resultText: '<script src="./src/ /about.html>' },
 			]
+		}, indexHtmlUri, [fixtureWorkspace]);
+	});
+
+	test('Completion should ignore files/folders starting with dot', () => {
+		testCompletionFor('<script src="./|"', {
+			count: 3
 		}, indexHtmlUri, [fixtureWorkspace]);
 	});
 

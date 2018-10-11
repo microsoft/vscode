@@ -3,24 +3,21 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import 'vs/css!./media/shell';
 
 import * as platform from 'vs/base/common/platform';
 import * as perf from 'vs/base/common/performance';
 import * as aria from 'vs/base/browser/ui/aria/aria';
-import { Disposable, toDisposable } from 'vs/base/common/lifecycle';
+import { Disposable } from 'vs/base/common/lifecycle';
 import * as errors from 'vs/base/common/errors';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
 import product from 'vs/platform/node/product';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import pkg from 'vs/platform/node/package';
-import { ContextViewService } from 'vs/platform/contextview/browser/contextViewService';
 import { Workbench, IWorkbenchStartedInfo } from 'vs/workbench/electron-browser/workbench';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { NullTelemetryService, configurationTelemetry } from 'vs/platform/telemetry/common/telemetryUtils';
-import { ITelemetryAppenderChannel, TelemetryAppenderClient } from 'vs/platform/telemetry/common/telemetryIpc';
+import { NullTelemetryService, configurationTelemetry, combinedAppender, LogAppender } from 'vs/platform/telemetry/common/telemetryUtils';
+import { ITelemetryAppenderChannel, TelemetryAppenderClient } from 'vs/platform/telemetry/node/telemetryIpc';
 import { TelemetryService, ITelemetryServiceConfig } from 'vs/platform/telemetry/common/telemetryService';
 import ErrorTelemetry from 'vs/platform/telemetry/browser/errorTelemetry';
 import { ElectronWindow } from 'vs/workbench/electron-browser/window';
@@ -45,8 +42,8 @@ import { ExtensionService } from 'vs/workbench/services/extensions/electron-brow
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
-import { InstantiationService } from 'vs/platform/instantiation/common/instantiationService';
-import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
+import { InstantiationService } from 'vs/platform/instantiation/node/instantiationService';
+// import { InstantiationService } from 'vs/platform/instantiation/common/instantiationService';
 import { ILifecycleService, LifecyclePhase, ShutdownReason, StartupKind } from 'vs/platform/lifecycle/common/lifecycle';
 import { IMarkerService } from 'vs/platform/markers/common/markers';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
@@ -59,13 +56,11 @@ import { WorkbenchModeServiceImpl } from 'vs/workbench/services/mode/common/work
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { IUntitledEditorService, UntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
 import { ICrashReporterService, NullCrashReporterService, CrashReporterService } from 'vs/workbench/services/crashReporter/electron-browser/crashReporterService';
-import { getDelayedChannel, IPCClient } from 'vs/base/parts/ipc/common/ipc';
+import { getDelayedChannel, IPCClient } from 'vs/base/parts/ipc/node/ipc';
 import { connect as connectNet } from 'vs/base/parts/ipc/node/ipc.net';
-import { DefaultURITransformer } from 'vs/base/common/uriIpc';
-import { IExtensionManagementChannel, ExtensionManagementChannelClient } from 'vs/platform/extensionManagement/common/extensionManagementIpc';
-import { IExtensionManagementService, IExtensionEnablementService, IExtensionManagementServerService } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { IExtensionManagementChannel, ExtensionManagementChannelClient } from 'vs/platform/extensionManagement/node/extensionManagementIpc';
+import { IExtensionManagementService, IExtensionEnablementService, IExtensionManagementServerService, IExtensionGalleryService } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { ExtensionEnablementService } from 'vs/platform/extensionManagement/common/extensionEnablementService';
-import { ITimerService } from 'vs/workbench/services/timer/common/timerService';
 import { BareFontInfo } from 'vs/editor/common/config/fontInfo';
 import { restoreFontInfo, readFontInfo, saveFontInfo } from 'vs/editor/browser/config/configuration';
 import * as browser from 'vs/base/browser/browser';
@@ -84,7 +79,7 @@ import { ILogService } from 'vs/platform/log/common/log';
 import { WORKBENCH_BACKGROUND } from 'vs/workbench/common/theme';
 import { stat } from 'fs';
 import { join } from 'path';
-import { ILocalizationsChannel, LocalizationsChannelClient } from 'vs/platform/localizations/common/localizationsIpc';
+import { ILocalizationsChannel, LocalizationsChannelClient } from 'vs/platform/localizations/node/localizationsIpc';
 import { ILocalizationsService } from 'vs/platform/localizations/common/localizations';
 import { IWorkbenchIssueService } from 'vs/workbench/services/issue/common/issue';
 import { WorkbenchIssueService } from 'vs/workbench/services/issue/electron-browser/workbenchIssueService';
@@ -92,13 +87,18 @@ import { INotificationService } from 'vs/platform/notification/common/notificati
 import { NotificationService } from 'vs/workbench/services/notification/common/notificationService';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { DialogService } from 'vs/workbench/services/dialogs/electron-browser/dialogService';
-import { DialogChannel } from 'vs/platform/dialogs/common/dialogIpc';
-import { EventType, addDisposableListener, addClass, getClientArea } from 'vs/base/browser/dom';
+import { DialogChannel } from 'vs/platform/dialogs/node/dialogIpc';
+import { EventType, addDisposableListener, addClass } from 'vs/base/browser/dom';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { OpenerService } from 'vs/editor/browser/services/openerService';
 import { SearchHistoryService } from 'vs/workbench/services/search/node/searchHistoryService';
-import { MulitExtensionManagementService } from 'vs/platform/extensionManagement/common/multiExtensionManagement';
 import { ExtensionManagementServerService } from 'vs/workbench/services/extensions/node/extensionManagementServerService';
+import { DefaultURITransformer } from 'vs/base/common/uriIpc';
+import { ExtensionGalleryService } from 'vs/platform/extensionManagement/node/extensionGalleryService';
+import { ILabelService, LabelService } from 'vs/platform/label/common/label';
+import { IDownloadService } from 'vs/platform/download/common/download';
+import { DownloadService } from 'vs/platform/download/node/downloadService';
+import { runWhenIdle } from 'vs/base/common/async';
 
 /**
  * Services that we require for the Shell
@@ -108,7 +108,6 @@ export interface ICoreServices {
 	configurationService: IConfigurationService;
 	environmentService: IEnvironmentService;
 	logService: ILogService;
-	timerService: ITimerService;
 	storageService: IStorageService;
 }
 
@@ -120,13 +119,10 @@ export class WorkbenchShell extends Disposable {
 	private storageService: IStorageService;
 	private environmentService: IEnvironmentService;
 	private logService: ILogService;
-	private contextViewService: ContextViewService;
 	private configurationService: IConfigurationService;
 	private contextService: IWorkspaceContextService;
 	private telemetryService: ITelemetryService;
-	private extensionService: ExtensionService;
 	private broadcastService: IBroadcastService;
-	private timerService: ITimerService;
 	private themeService: WorkbenchThemeService;
 	private lifecycleService: LifecycleService;
 	private mainProcessServices: ServiceCollection;
@@ -135,8 +131,6 @@ export class WorkbenchShell extends Disposable {
 	private container: HTMLElement;
 	private previousErrorValue: string;
 	private previousErrorTime: number;
-	private content: HTMLElement;
-	private contentsContainer: HTMLElement;
 
 	private configuration: IWindowConfiguration;
 	private workbench: Workbench;
@@ -152,7 +146,6 @@ export class WorkbenchShell extends Disposable {
 		this.configurationService = coreServices.configurationService;
 		this.environmentService = coreServices.environmentService;
 		this.logService = coreServices.logService;
-		this.timerService = coreServices.timerService;
 		this.storageService = coreServices.storageService;
 
 		this.mainProcessServices = mainProcessServices;
@@ -160,20 +153,20 @@ export class WorkbenchShell extends Disposable {
 		this.previousErrorTime = 0;
 	}
 
-	private createContents(parent: HTMLElement): HTMLElement {
+	private renderContents(): void {
 
 		// ARIA
 		aria.setARIAContainer(document.body);
 
-		// Workbench Container
-		const workbenchContainer = document.createElement('div');
-		parent.appendChild(workbenchContainer);
-
 		// Instantiation service with services
-		const [instantiationService, serviceCollection] = this.initServiceCollection(parent);
+		const [instantiationService, serviceCollection] = this.initServiceCollection(this.container);
+
+		// Warm up font cache information before building up too many dom elements
+		restoreFontInfo(this.storageService);
+		readFontInfo(BareFontInfo.createFromRawSettings(this.configurationService.getValue('editor'), browser.getZoomLevel()));
 
 		// Workbench
-		this.workbench = this.createWorkbench(instantiationService, serviceCollection, parent, workbenchContainer);
+		this.workbench = this.createWorkbench(instantiationService, serviceCollection, this.container);
 
 		// Window
 		this.workbench.getInstantiationService().createInstance(ElectronWindow);
@@ -186,19 +179,27 @@ export class WorkbenchShell extends Disposable {
 		this.lifecycleService.when(LifecyclePhase.Running).then(() => {
 			clearTimeout(timeoutHandle);
 		});
-
-		return workbenchContainer;
 	}
 
-	private createWorkbench(instantiationService: IInstantiationService, serviceCollection: ServiceCollection, parent: HTMLElement, workbenchContainer: HTMLElement): Workbench {
+	private createWorkbench(instantiationService: IInstantiationService, serviceCollection: ServiceCollection, container: HTMLElement): Workbench {
+
+		function handleStartupError(logService: ILogService, error: Error): void {
+
+			// Log it
+			logService.error(toErrorMessage(error, true));
+
+			// Rethrow
+			throw error;
+		}
+
 		try {
-			const workbench = instantiationService.createInstance(Workbench, parent, workbenchContainer, this.configuration, serviceCollection, this.lifecycleService, this.mainProcessClient);
+			const workbench = instantiationService.createInstance(Workbench, container, this.configuration, serviceCollection, this.lifecycleService, this.mainProcessClient);
 
 			// Set lifecycle phase to `Restoring`
 			this.lifecycleService.phase = LifecyclePhase.Restoring;
 
 			// Startup Workbench
-			workbench.startup().done(startupInfos => {
+			workbench.startup().then(startupInfos => {
 
 				// Set lifecycle phase to `Runnning` so that other contributions can now do something
 				this.lifecycleService.phase = LifecyclePhase.Running;
@@ -207,31 +208,24 @@ export class WorkbenchShell extends Disposable {
 				this.logStartupTelemetry(startupInfos);
 
 				// Set lifecycle phase to `Runnning For A Bit` after a short delay
-				let eventuallPhaseTimeoutHandle = setTimeout(() => {
+				let eventuallPhaseTimeoutHandle = runWhenIdle(() => {
 					eventuallPhaseTimeoutHandle = void 0;
 					this.lifecycleService.phase = LifecyclePhase.Eventually;
-				}, 3000);
+				}, 5000);
 
-				this._register(toDisposable(() => {
-					if (eventuallPhaseTimeoutHandle) {
-						clearTimeout(eventuallPhaseTimeoutHandle);
-					}
-				}));
+				this._register(eventuallPhaseTimeoutHandle);
 
 				// localStorage metrics (TODO@Ben remove me later)
 				if (!this.environmentService.extensionTestsPath && this.contextService.getWorkbenchState() === WorkbenchState.FOLDER) {
 					this.logLocalStorageMetrics();
 				}
-			});
+			}, error => handleStartupError(this.logService, error));
 
 			return workbench;
 		} catch (error) {
+			handleStartupError(this.logService, error);
 
-			// Log it
-			this.logService.error(toErrorMessage(error, true));
-
-			// Rethrow
-			throw error;
+			return void 0;
 		}
 	}
 
@@ -330,9 +324,9 @@ export class WorkbenchShell extends Disposable {
 		serviceCollection.set(IWorkspaceContextService, this.contextService);
 		serviceCollection.set(IConfigurationService, this.configurationService);
 		serviceCollection.set(IEnvironmentService, this.environmentService);
+		serviceCollection.set(ILabelService, new SyncDescriptor(LabelService));
 		serviceCollection.set(ILogService, this._register(this.logService));
 
-		serviceCollection.set(ITimerService, this.timerService);
 		serviceCollection.set(IStorageService, this.storageService);
 		this.mainProcessServices.forEach((serviceIdentifier, serviceInstance) => {
 			serviceCollection.set(serviceIdentifier, serviceInstance);
@@ -351,25 +345,20 @@ export class WorkbenchShell extends Disposable {
 		const sharedProcess = (<IWindowsService>serviceCollection.get(IWindowsService)).whenSharedProcessReady()
 			.then(() => connectNet(this.environmentService.sharedIPCHandle, `window:${this.configuration.windowId}`));
 
-		sharedProcess
-			.done(client => client.registerChannel('dialog', instantiationService.createInstance(DialogChannel)));
-
-		// Warm up font cache information before building up too many dom elements
-		restoreFontInfo(this.storageService);
-		readFontInfo(BareFontInfo.createFromRawSettings(this.configurationService.getValue('editor'), browser.getZoomLevel()));
+		sharedProcess.then(client => {
+			client.registerChannel('dialog', instantiationService.createInstance(DialogChannel));
+		});
 
 		// Hash
 		serviceCollection.set(IHashService, new SyncDescriptor(HashService));
 
 		// Telemetry
-		if (this.environmentService.isBuilt && !this.environmentService.isExtensionDevelopment && !this.environmentService.args['disable-telemetry'] && !!product.enableTelemetry) {
-			const channel = getDelayedChannel<ITelemetryAppenderChannel>(sharedProcess.then(c => c.getChannel('telemetryAppender')));
-			const commit = product.commit;
-			const version = pkg.version;
 
+		if (!this.environmentService.isExtensionDevelopment && !this.environmentService.args['disable-telemetry'] && !!product.enableTelemetry) {
+			const channel = getDelayedChannel<ITelemetryAppenderChannel>(sharedProcess.then(c => c.getChannel('telemetryAppender')));
 			const config: ITelemetryServiceConfig = {
-				appender: new TelemetryAppenderClient(channel),
-				commonProperties: resolveWorkbenchCommonProperties(this.storageService, commit, version, this.configuration.machineId, this.environmentService.installSourcePath),
+				appender: combinedAppender(new TelemetryAppenderClient(channel), new LogAppender(this.logService)),
+				commonProperties: resolveWorkbenchCommonProperties(this.storageService, product.commit, pkg.version, this.configuration.machineId, this.environmentService.installSourcePath),
 				piiPaths: [this.environmentService.appRoot, this.environmentService.extensionsPath]
 			};
 
@@ -395,31 +384,24 @@ export class WorkbenchShell extends Disposable {
 		serviceCollection.set(ILifecycleService, lifecycleService);
 		this.lifecycleService = lifecycleService;
 
+		serviceCollection.set(IRequestService, new SyncDescriptor(RequestService));
+		serviceCollection.set(IDownloadService, new SyncDescriptor(DownloadService));
+		serviceCollection.set(IExtensionGalleryService, new SyncDescriptor(ExtensionGalleryService));
+
 		const extensionManagementChannel = getDelayedChannel<IExtensionManagementChannel>(sharedProcess.then(c => c.getChannel('extensions')));
 		const extensionManagementChannelClient = new ExtensionManagementChannelClient(extensionManagementChannel, DefaultURITransformer);
 		serviceCollection.set(IExtensionManagementServerService, new SyncDescriptor(ExtensionManagementServerService, extensionManagementChannelClient));
-		serviceCollection.set(IExtensionManagementService, new SyncDescriptor(MulitExtensionManagementService));
+		serviceCollection.set(IExtensionManagementService, extensionManagementChannelClient);
 
 		const extensionEnablementService = this._register(instantiationService.createInstance(ExtensionEnablementService));
 		serviceCollection.set(IExtensionEnablementService, extensionEnablementService);
 
-		serviceCollection.set(IRequestService, new SyncDescriptor(RequestService));
-
-		this.extensionService = instantiationService.createInstance(ExtensionService);
-		serviceCollection.set(IExtensionService, this.extensionService);
-
-		perf.mark('willLoadExtensions');
-		this.extensionService.whenInstalledExtensionsRegistered().done(() => {
-			perf.mark('didLoadExtensions');
-		});
+		serviceCollection.set(IExtensionService, instantiationService.createInstance(ExtensionService));
 
 		this.themeService = instantiationService.createInstance(WorkbenchThemeService, document.body);
 		serviceCollection.set(IWorkbenchThemeService, this.themeService);
 
 		serviceCollection.set(ICommandService, new SyncDescriptor(CommandService));
-
-		this.contextViewService = instantiationService.createInstance(ContextViewService, this.container);
-		serviceCollection.set(IContextViewService, this.contextViewService);
 
 		serviceCollection.set(IMarkerService, new SyncDescriptor(MarkerService));
 
@@ -456,9 +438,10 @@ export class WorkbenchShell extends Disposable {
 	open(): void {
 
 		// Listen on unhandled rejection events
-		window.addEventListener('unhandledrejection', (event) => {
+		window.addEventListener('unhandledrejection', (event: PromiseRejectionEvent) => {
+
 			// See https://developer.mozilla.org/en-US/docs/Web/API/PromiseRejectionEvent
-			errors.onUnexpectedError((<any>event).reason);
+			errors.onUnexpectedError(event.reason);
 
 			// Prevent the printing of this event to the console
 			event.preventDefault();
@@ -472,13 +455,8 @@ export class WorkbenchShell extends Disposable {
 		// Shell Class for CSS Scoping
 		addClass(this.container, 'monaco-shell');
 
-		// Controls
-		this.content = document.createElement('div');
-		addClass(this.content, 'monaco-shell-content');
-		this.container.appendChild(this.content);
-
 		// Create Contents
-		this.contentsContainer = this.createContents(this.content);
+		this.renderContents();
 
 		// Layout
 		this.layout();
@@ -521,12 +499,6 @@ export class WorkbenchShell extends Disposable {
 	}
 
 	private layout(): void {
-		const clientArea = getClientArea(this.container);
-
-		this.contentsContainer.style.width = `${clientArea.width}px`;
-		this.contentsContainer.style.height = `${clientArea.height}px`;
-
-		this.contextViewService.layout();
 		this.workbench.layout();
 	}
 
@@ -540,8 +512,11 @@ export class WorkbenchShell extends Disposable {
 		if (this.workbench) {
 			this.workbench.dispose(reason);
 		}
+
+		this.mainProcessClient.dispose();
 	}
 }
+
 
 registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
 

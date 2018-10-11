@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IExperimentService, ExperimentService } from 'vs/workbench/parts/experiments/node/experimentService';
 import { Registry } from 'vs/platform/registry/common/platform';

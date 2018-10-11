@@ -2,7 +2,6 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
 import 'vs/css!./media/editor';
 import 'vs/css!./media/tokens';
@@ -11,7 +10,6 @@ import * as dom from 'vs/base/browser/dom';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { Event, Emitter } from 'vs/base/common/event';
 import { Disposable, IDisposable, dispose } from 'vs/base/common/lifecycle';
-import { TPromise } from 'vs/base/common/winjs.base';
 import { ServicesAccessor, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
@@ -49,6 +47,7 @@ import { CoreEditorCommand } from 'vs/editor/browser/controller/coreCommands';
 import { editorErrorForeground, editorErrorBorder, editorWarningForeground, editorWarningBorder, editorInfoBorder, editorInfoForeground, editorHintForeground, editorHintBorder, editorUnnecessaryCodeOpacity, editorUnnecessaryCodeBorder } from 'vs/editor/common/view/editorColorRegistry';
 import { Color } from 'vs/base/common/color';
 import { ClassName } from 'vs/editor/common/model/intervalTree';
+import { mark } from 'vs/base/common/performance';
 
 let EDITOR_ID = 0;
 
@@ -126,6 +125,12 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 
 	private readonly _onDidType: Emitter<string> = this._register(new Emitter<string>());
 	public readonly onDidType = this._onDidType.event;
+
+	private readonly _onCompositionStart: Emitter<void> = this._register(new Emitter<void>());
+	public readonly onCompositionStart = this._onCompositionStart.event;
+
+	private readonly _onCompositionEnd: Emitter<void> = this._register(new Emitter<void>());
+	public readonly onCompositionEnd = this._onCompositionEnd.event;
 
 	private readonly _onDidPaste: Emitter<Range> = this._register(new Emitter<Range>());
 	public readonly onDidPaste = this._onDidPaste.event;
@@ -259,6 +264,7 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 		this.contentWidgets = {};
 		this.overlayWidgets = {};
 
+		mark('editor/start/contrib');
 		let contributions: IEditorContributionCtor[] = codeEditorWidgetOptions.contributions;
 		if (!Array.isArray(contributions)) {
 			contributions = EditorExtensionsRegistry.getEditorContributions();
@@ -272,6 +278,7 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 				onUnexpectedError(err);
 			}
 		}
+		mark('editor/end/contrib');
 
 		EditorExtensionsRegistry.getEditorActions().forEach((action) => {
 			const internalAction = new InternalEditorAction(
@@ -279,9 +286,9 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 				action.label,
 				action.alias,
 				action.precondition,
-				(): void | TPromise<void> => {
+				(): Promise<void> => {
 					return this._instantiationService.invokeFunction((accessor) => {
-						return action.runEditorCommand(accessor, this, null);
+						return Promise.resolve(action.runEditorCommand(accessor, this, null));
 					});
 				},
 				this._contextKeyService
@@ -697,7 +704,7 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 		);
 	}
 
-	public setSelections(ranges: ISelection[]): void {
+	public setSelections(ranges: ISelection[], source: string = 'api'): void {
 		if (!this.cursor) {
 			return;
 		}
@@ -709,7 +716,7 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 				throw new Error('Invalid arguments');
 			}
 		}
-		this.cursor.setSelections('api', ranges);
+		this.cursor.setSelections(source, ranges);
 	}
 
 	public getScrollWidth(): number {
@@ -894,9 +901,16 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 			return;
 		}
 
+		if (handlerId === editorCommon.Handler.CompositionStart) {
+			this._onCompositionStart.fire();
+		}
+		if (handlerId === editorCommon.Handler.CompositionEnd) {
+			this._onCompositionEnd.fire();
+		}
+
 		const action = this.getAction(handlerId);
 		if (action) {
-			TPromise.as(action.run()).then(null, onUnexpectedError);
+			Promise.resolve(action.run()).then(null, onUnexpectedError);
 			return;
 		}
 
@@ -916,7 +930,7 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 		if (command) {
 			payload = payload || {};
 			payload.source = source;
-			TPromise.as(command.runEditorCommand(null, this, payload)).done(null, onUnexpectedError);
+			Promise.resolve(command.runEditorCommand(null, this, payload)).then(null, onUnexpectedError);
 			return true;
 		}
 
@@ -1356,22 +1370,22 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 		if (this.isSimpleWidget) {
 			commandDelegate = {
 				paste: (source: string, text: string, pasteOnNewLine: boolean, multicursorText: string[]) => {
-					this.cursor.trigger(source, editorCommon.Handler.Paste, { text, pasteOnNewLine, multicursorText });
+					this.trigger(source, editorCommon.Handler.Paste, { text, pasteOnNewLine, multicursorText });
 				},
 				type: (source: string, text: string) => {
-					this.cursor.trigger(source, editorCommon.Handler.Type, { text });
+					this.trigger(source, editorCommon.Handler.Type, { text });
 				},
 				replacePreviousChar: (source: string, text: string, replaceCharCnt: number) => {
-					this.cursor.trigger(source, editorCommon.Handler.ReplacePreviousChar, { text, replaceCharCnt });
+					this.trigger(source, editorCommon.Handler.ReplacePreviousChar, { text, replaceCharCnt });
 				},
 				compositionStart: (source: string) => {
-					this.cursor.trigger(source, editorCommon.Handler.CompositionStart, undefined);
+					this.trigger(source, editorCommon.Handler.CompositionStart, undefined);
 				},
 				compositionEnd: (source: string) => {
-					this.cursor.trigger(source, editorCommon.Handler.CompositionEnd, undefined);
+					this.trigger(source, editorCommon.Handler.CompositionEnd, undefined);
 				},
 				cut: (source: string) => {
-					this.cursor.trigger(source, editorCommon.Handler.Cut, undefined);
+					this.trigger(source, editorCommon.Handler.Cut, undefined);
 				}
 			};
 		} else {
@@ -1550,6 +1564,8 @@ class EditorContextKeysManager extends Disposable {
 	private _editorReadonly: IContextKey<boolean>;
 	private _hasMultipleSelections: IContextKey<boolean>;
 	private _hasNonEmptySelection: IContextKey<boolean>;
+	private _canUndo: IContextKey<boolean>;
+	private _canRedo: IContextKey<boolean>;
 
 	constructor(
 		editor: CodeEditorWidget,
@@ -1567,6 +1583,8 @@ class EditorContextKeysManager extends Disposable {
 		this._editorReadonly = EditorContextKeys.readOnly.bindTo(contextKeyService);
 		this._hasMultipleSelections = EditorContextKeys.hasMultipleSelections.bindTo(contextKeyService);
 		this._hasNonEmptySelection = EditorContextKeys.hasNonEmptySelection.bindTo(contextKeyService);
+		this._canUndo = EditorContextKeys.canUndo.bindTo(contextKeyService);
+		this._canRedo = EditorContextKeys.canRedo.bindTo(contextKeyService);
 
 		this._register(this._editor.onDidChangeConfiguration(() => this._updateFromConfig()));
 		this._register(this._editor.onDidChangeCursorSelection(() => this._updateFromSelection()));
@@ -1574,10 +1592,13 @@ class EditorContextKeysManager extends Disposable {
 		this._register(this._editor.onDidBlurEditorWidget(() => this._updateFromFocus()));
 		this._register(this._editor.onDidFocusEditorText(() => this._updateFromFocus()));
 		this._register(this._editor.onDidBlurEditorText(() => this._updateFromFocus()));
+		this._register(this._editor.onDidChangeModel(() => this._updateFromModel()));
+		this._register(this._editor.onDidChangeConfiguration(() => this._updateFromModel()));
 
 		this._updateFromConfig();
 		this._updateFromSelection();
 		this._updateFromFocus();
+		this._updateFromModel();
 	}
 
 	private _updateFromConfig(): void {
@@ -1602,6 +1623,12 @@ class EditorContextKeysManager extends Disposable {
 		this._editorFocus.set(this._editor.hasWidgetFocus() && !this._editor.isSimpleWidget);
 		this._editorTextFocus.set(this._editor.hasTextFocus() && !this._editor.isSimpleWidget);
 		this._textInputFocus.set(this._editor.hasTextFocus());
+	}
+
+	private _updateFromModel(): void {
+		const model = this._editor.getModel();
+		this._canUndo.set(model && model.canUndo());
+		this._canRedo.set(model && model.canRedo());
 	}
 }
 
@@ -1657,7 +1684,7 @@ export class EditorModeContext extends Disposable {
 		this._register(editor.onDidChangeModelLanguage(update));
 
 		// update when registries change
-		this._register(modes.SuggestRegistry.onDidChange(update));
+		this._register(modes.CompletionProviderRegistry.onDidChange(update));
 		this._register(modes.CodeActionProviderRegistry.onDidChange(update));
 		this._register(modes.CodeLensProviderRegistry.onDidChange(update));
 		this._register(modes.DefinitionProviderRegistry.onDidChange(update));
@@ -1705,7 +1732,7 @@ export class EditorModeContext extends Disposable {
 			return;
 		}
 		this._langId.set(model.getLanguageIdentifier().language);
-		this._hasCompletionItemProvider.set(modes.SuggestRegistry.has(model));
+		this._hasCompletionItemProvider.set(modes.CompletionProviderRegistry.has(model));
 		this._hasCodeActionsProvider.set(modes.CodeActionProviderRegistry.has(model));
 		this._hasCodeLensProvider.set(modes.CodeLensProviderRegistry.has(model));
 		this._hasDefinitionProvider.set(modes.DefinitionProviderRegistry.has(model));
@@ -1767,45 +1794,45 @@ function getDotDotDotSVGData(color: Color) {
 }
 
 registerThemingParticipant((theme, collector) => {
-	let errorBorderColor = theme.getColor(editorErrorBorder);
+	const errorBorderColor = theme.getColor(editorErrorBorder);
 	if (errorBorderColor) {
 		collector.addRule(`.monaco-editor .${ClassName.EditorErrorDecoration} { border-bottom: 4px double ${errorBorderColor}; }`);
 	}
-	let errorForeground = theme.getColor(editorErrorForeground);
+	const errorForeground = theme.getColor(editorErrorForeground);
 	if (errorForeground) {
 		collector.addRule(`.monaco-editor .${ClassName.EditorErrorDecoration} { background: url("data:image/svg+xml,${getSquigglySVGData(errorForeground)}") repeat-x bottom left; }`);
 	}
 
-	let warningBorderColor = theme.getColor(editorWarningBorder);
+	const warningBorderColor = theme.getColor(editorWarningBorder);
 	if (warningBorderColor) {
 		collector.addRule(`.monaco-editor .${ClassName.EditorWarningDecoration} { border-bottom: 4px double ${warningBorderColor}; }`);
 	}
-	let warningForeground = theme.getColor(editorWarningForeground);
+	const warningForeground = theme.getColor(editorWarningForeground);
 	if (warningForeground) {
 		collector.addRule(`.monaco-editor .${ClassName.EditorWarningDecoration} { background: url("data:image/svg+xml,${getSquigglySVGData(warningForeground)}") repeat-x bottom left; }`);
 	}
 
-	let infoBorderColor = theme.getColor(editorInfoBorder);
+	const infoBorderColor = theme.getColor(editorInfoBorder);
 	if (infoBorderColor) {
 		collector.addRule(`.monaco-editor .${ClassName.EditorInfoDecoration} { border-bottom: 4px double ${infoBorderColor}; }`);
 	}
-	let infoForeground = theme.getColor(editorInfoForeground);
+	const infoForeground = theme.getColor(editorInfoForeground);
 	if (infoForeground) {
 		collector.addRule(`.monaco-editor .${ClassName.EditorInfoDecoration} { background: url("data:image/svg+xml,${getSquigglySVGData(infoForeground)}") repeat-x bottom left; }`);
 	}
 
-	let hintBorderColor = theme.getColor(editorHintBorder);
+	const hintBorderColor = theme.getColor(editorHintBorder);
 	if (hintBorderColor) {
 		collector.addRule(`.monaco-editor .${ClassName.EditorHintDecoration} { border-bottom: 2px dotted ${hintBorderColor}; }`);
 	}
-	let hintForeground = theme.getColor(editorHintForeground);
+	const hintForeground = theme.getColor(editorHintForeground);
 	if (hintForeground) {
 		collector.addRule(`.monaco-editor .${ClassName.EditorHintDecoration} { background: url("data:image/svg+xml,${getDotDotDotSVGData(hintForeground)}") no-repeat bottom left; }`);
 	}
 
 	const unnecessaryForeground = theme.getColor(editorUnnecessaryCodeOpacity);
 	if (unnecessaryForeground) {
-		collector.addRule(`.${SHOW_UNUSED_ENABLED_CLASS} .monaco-editor .${ClassName.EditorUnnecessaryInlineDecoration} { opacity: ${unnecessaryForeground.rgba.a}; }`);
+		collector.addRule(`.${SHOW_UNUSED_ENABLED_CLASS} .monaco-editor .${ClassName.EditorUnnecessaryInlineDecoration} { opacity: ${unnecessaryForeground.rgba.a}; will-change: opacity; }`); // TODO@Ben: 'will-change: opacity' is a workaround for https://github.com/Microsoft/vscode/issues/52196
 	}
 
 	const unnecessaryBorder = theme.getColor(editorUnnecessaryCodeBorder);

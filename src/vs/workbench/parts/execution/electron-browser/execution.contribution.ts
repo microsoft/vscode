@@ -2,7 +2,6 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
 import * as nls from 'vs/nls';
 import * as env from 'vs/base/common/platform';
@@ -10,7 +9,7 @@ import { Registry } from 'vs/platform/registry/common/platform';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import * as paths from 'vs/base/common/paths';
-import uri from 'vs/base/common/uri';
+import { URI as uri } from 'vs/base/common/uri';
 import { ITerminalService } from 'vs/workbench/parts/execution/common/execution';
 import { MenuId, MenuRegistry } from 'vs/platform/actions/common/actions';
 import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
@@ -20,7 +19,7 @@ import { getDefaultTerminalWindows, getDefaultTerminalLinuxReady, DEFAULT_TERMIN
 import { WinTerminalService, MacTerminalService, LinuxTerminalService } from 'vs/workbench/parts/execution/electron-browser/terminalService';
 import { IHistoryService } from 'vs/workbench/services/history/common/history';
 import { ResourceContextKey } from 'vs/workbench/common/resources';
-import { KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
+import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { IFileService } from 'vs/platform/files/common/files';
 import { IListService } from 'vs/platform/list/browser/listService';
 import { getMultiSelectedResources } from 'vs/workbench/parts/files/browser/files';
@@ -40,37 +39,41 @@ if (env.isWindows) {
 getDefaultTerminalLinuxReady().then(defaultTerminalLinux => {
 	let configurationRegistry = Registry.as<IConfigurationRegistry>(Extensions.Configuration);
 	configurationRegistry.registerConfiguration({
-		'id': 'externalTerminal',
-		'order': 100,
-		'title': nls.localize('terminalConfigurationTitle', "External Terminal"),
-		'type': 'object',
-		'properties': {
+		id: 'externalTerminal',
+		order: 100,
+		title: nls.localize('terminalConfigurationTitle', "External Terminal"),
+		type: 'object',
+		properties: {
 			'terminal.explorerKind': {
-				'type': 'string',
-				'enum': [
+				type: 'string',
+				enum: [
 					'integrated',
 					'external'
 				],
-				'description': nls.localize('explorer.openInTerminalKind', "Customizes what kind of terminal to launch."),
-				'default': 'integrated'
+				enumDescriptions: [
+					nls.localize('terminal.explorerKind.integrated', "Use VS Code's integrated terminal."),
+					nls.localize('terminal.explorerKind.external', "Use the configured external terminal.")
+				],
+				description: nls.localize('explorer.openInTerminalKind', "Customizes what kind of terminal to launch."),
+				default: 'integrated'
 			},
 			'terminal.external.windowsExec': {
-				'type': 'string',
-				'description': nls.localize('terminal.external.windowsExec', "Customizes which terminal to run on Windows."),
-				'default': getDefaultTerminalWindows(),
-				'scope': ConfigurationScope.APPLICATION
+				type: 'string',
+				description: nls.localize('terminal.external.windowsExec', "Customizes which terminal to run on Windows."),
+				default: getDefaultTerminalWindows(),
+				scope: ConfigurationScope.APPLICATION
 			},
 			'terminal.external.osxExec': {
-				'type': 'string',
-				'description': nls.localize('terminal.external.osxExec', "Customizes which terminal application to run on OS X."),
-				'default': DEFAULT_TERMINAL_OSX,
-				'scope': ConfigurationScope.APPLICATION
+				type: 'string',
+				description: nls.localize('terminal.external.osxExec', "Customizes which terminal application to run on macOS."),
+				default: DEFAULT_TERMINAL_OSX,
+				scope: ConfigurationScope.APPLICATION
 			},
 			'terminal.external.linuxExec': {
-				'type': 'string',
-				'description': nls.localize('terminal.external.linuxExec', "Customizes which terminal to run on Linux."),
-				'default': defaultTerminalLinux,
-				'scope': ConfigurationScope.APPLICATION
+				type: 'string',
+				description: nls.localize('terminal.external.linuxExec', "Customizes which terminal to run on Linux."),
+				default: defaultTerminalLinux,
+				scope: ConfigurationScope.APPLICATION
 			}
 		}
 	});
@@ -109,7 +112,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: OPEN_NATIVE_CONSOLE_COMMAND_ID,
 	primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_C,
 	when: KEYBINDING_CONTEXT_TERMINAL_NOT_FOCUSED,
-	weight: KeybindingsRegistry.WEIGHT.workbenchContrib(),
+	weight: KeybindingWeight.WorkbenchContrib,
 	handler: (accessor) => {
 		const historyService = accessor.get(IHistoryService);
 		const terminalService = accessor.get(ITerminalService);
@@ -118,7 +121,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 			terminalService.openTerminal(root.fsPath);
 		} else {
 			// Opens current file's folder, if no folder is open in editor
-			const activeFile = historyService.getLastActiveFile();
+			const activeFile = historyService.getLastActiveFile(Schemas.file);
 			if (activeFile) {
 				terminalService.openTerminal(paths.dirname(activeFile.fsPath));
 			}
@@ -129,7 +132,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
 	command: {
 		id: OPEN_NATIVE_CONSOLE_COMMAND_ID,
-		title: nls.localize('globalConsoleAction', "Open New Terminal")
+		title: { value: nls.localize('globalConsoleAction', "Open New Terminal"), original: 'Open New Terminal' }
 	}
 });
 

@@ -2,25 +2,31 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
-import { DocumentSymbolProviderRegistry, DocumentSymbolProvider, DocumentSymbol } from 'vs/editor/common/modes';
-import { ITextModel } from 'vs/editor/common/model';
-import { fuzzyScore, FuzzyScore } from 'vs/base/common/filters';
-import { IPosition } from 'vs/editor/common/core/position';
-import { Range, IRange } from 'vs/editor/common/core/range';
-import { first, size } from 'vs/base/common/collections';
-import { isFalsyOrEmpty, binarySearch, coalesce } from 'vs/base/common/arrays';
-import { commonPrefixLength } from 'vs/base/common/strings';
-import { IMarker, MarkerSeverity } from 'vs/platform/markers/common/markers';
-import { onUnexpectedExternalError } from 'vs/base/common/errors';
-import { LRUCache } from 'vs/base/common/map';
+import { binarySearch, coalesce, isFalsyOrEmpty } from 'vs/base/common/arrays';
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
+import { first, forEach, size } from 'vs/base/common/collections';
+import { onUnexpectedExternalError } from 'vs/base/common/errors';
+import { fuzzyScore, FuzzyScore } from 'vs/base/common/filters';
+import { LRUCache } from 'vs/base/common/map';
+import { commonPrefixLength } from 'vs/base/common/strings';
+import { IPosition } from 'vs/editor/common/core/position';
+import { IRange, Range } from 'vs/editor/common/core/range';
+import { ITextModel } from 'vs/editor/common/model';
+import { DocumentSymbol, DocumentSymbolProvider, DocumentSymbolProviderRegistry } from 'vs/editor/common/modes';
+import { IMarker, MarkerSeverity } from 'vs/platform/markers/common/markers';
 
 export abstract class TreeElement {
+
 	abstract id: string;
 	abstract children: { [id: string]: TreeElement };
-	abstract parent: TreeElement | any;
+	abstract parent: TreeElement;
+
+	abstract adopt(newParent: TreeElement): TreeElement;
+
+	remove(): void {
+		delete this.parent.children[this.id];
+	}
 
 	static findId(candidate: DocumentSymbol | string, container: TreeElement): string {
 		// complex id-computation which contains the origin/extension,
@@ -70,6 +76,13 @@ export abstract class TreeElement {
 		}
 		return res;
 	}
+
+	static empty(element: TreeElement): boolean {
+		for (const _key in element.children) {
+			return false;
+		}
+		return true;
+	}
 }
 
 export class OutlineElement extends TreeElement {
@@ -84,6 +97,12 @@ export class OutlineElement extends TreeElement {
 		readonly symbol: DocumentSymbol
 	) {
 		super();
+	}
+
+	adopt(parent: OutlineModel | OutlineGroup | OutlineElement): OutlineElement {
+		let res = new OutlineElement(this.id, parent, this.symbol);
+		forEach(this.children, entry => res.children[entry.key] = entry.value.adopt(res));
+		return res;
 	}
 }
 
@@ -100,6 +119,12 @@ export class OutlineGroup extends TreeElement {
 		super();
 	}
 
+	adopt(parent: OutlineModel): OutlineGroup {
+		let res = new OutlineGroup(this.id, parent, this.provider, this.providerIndex);
+		forEach(this.children, entry => res.children[entry.key] = entry.value.adopt(res));
+		return res;
+	}
+
 	updateMatches(pattern: string, topMatch: OutlineElement): OutlineElement {
 		for (const key in this.children) {
 			topMatch = this._updateMatches(pattern, this.children[key], topMatch);
@@ -108,7 +133,7 @@ export class OutlineGroup extends TreeElement {
 	}
 
 	private _updateMatches(pattern: string, item: OutlineElement, topMatch: OutlineElement): OutlineElement {
-		item.score = fuzzyScore(pattern, item.symbol.name, undefined, true);
+		item.score = fuzzyScore(pattern, pattern.toLowerCase(), 0, item.symbol.name, item.symbol.name.toLowerCase(), 0, true);
 		if (item.score && (!topMatch || item.score[0] > topMatch.score[0])) {
 			topMatch = item;
 		}
@@ -124,13 +149,13 @@ export class OutlineGroup extends TreeElement {
 	}
 
 	getItemEnclosingPosition(position: IPosition): OutlineElement {
-		return this._getItemEnclosingPosition(position, this.children);
+		return position ? this._getItemEnclosingPosition(position, this.children) : undefined;
 	}
 
 	private _getItemEnclosingPosition(position: IPosition, children: { [id: string]: OutlineElement }): OutlineElement {
 		for (let key in children) {
 			let item = children[key];
-			if (!Range.containsPosition(item.symbol.range, position)) {
+			if (!item.symbol.range || !Range.containsPosition(item.symbol.range, position)) {
 				continue;
 			}
 			return this._getItemEnclosingPosition(position, item.children) || item;
@@ -282,38 +307,15 @@ export class OutlineModel extends TreeElement {
 				onUnexpectedExternalError(err);
 				return group;
 			}).then(group => {
-				result._groups[id] = group;
+				if (!TreeElement.empty(group)) {
+					result._groups[id] = group;
+				} else {
+					group.remove();
+				}
 			});
 		});
 
-		return Promise.all(promises).then(() => {
-
-			let count = 0;
-			for (const key in result._groups) {
-				let group = result._groups[key];
-				if (first(group.children) === undefined) { // empty
-					delete result._groups[key];
-				} else {
-					count += 1;
-				}
-			}
-
-			if (count !== 1) {
-				//
-				result.children = result._groups;
-
-			} else {
-				// adopt all elements of the first group
-				let group = first(result._groups);
-				for (let key in group.children) {
-					let child = group.children[key];
-					child.parent = result;
-					result.children[child.id] = child;
-				}
-			}
-
-			return result;
-		});
+		return Promise.all(promises).then(() => result._compact());
 	}
 
 	private static _makeOutlineElement(info: DocumentSymbol, container: OutlineGroup | OutlineElement): void {
@@ -347,11 +349,38 @@ export class OutlineModel extends TreeElement {
 		super();
 	}
 
-	dispose(): void {
-
+	adopt(): OutlineModel {
+		let res = new OutlineModel(this.textModel);
+		forEach(this._groups, entry => res._groups[entry.key] = entry.value.adopt(res));
+		return res._compact();
 	}
 
-	adopt(other: OutlineModel): boolean {
+	private _compact(): this {
+		let count = 0;
+		for (const key in this._groups) {
+			let group = this._groups[key];
+			if (first(group.children) === undefined) { // empty
+				delete this._groups[key];
+			} else {
+				count += 1;
+			}
+		}
+		if (count !== 1) {
+			//
+			this.children = this._groups;
+		} else {
+			// adopt all elements of the first group
+			let group = first(this._groups);
+			for (let key in group.children) {
+				let child = group.children[key];
+				child.parent = this;
+				this.children[child.id] = child;
+			}
+		}
+		return this;
+	}
+
+	merge(other: OutlineModel): boolean {
 		if (this.textModel.uri.toString() !== other.textModel.uri.toString()) {
 			return false;
 		}
@@ -363,11 +392,17 @@ export class OutlineModel extends TreeElement {
 		return true;
 	}
 
+	private _matches: [string, OutlineElement];
+
 	updateMatches(pattern: string): OutlineElement {
+		if (this._matches && this._matches[0] === pattern) {
+			return this._matches[1];
+		}
 		let topMatch: OutlineElement;
 		for (const key in this._groups) {
 			topMatch = this._groups[key].updateMatches(pattern, topMatch);
 		}
+		this._matches = [pattern, topMatch];
 		return topMatch;
 	}
 

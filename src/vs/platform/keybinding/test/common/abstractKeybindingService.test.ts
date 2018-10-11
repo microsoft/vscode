@@ -2,8 +2,6 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
-
 import * as assert from 'assert';
 import { ResolvedKeybinding, KeyCode, KeyMod, KeyChord, Keybinding, createKeybinding, createSimpleKeybinding, SimpleKeybinding } from 'vs/base/common/keyCodes';
 import { AbstractKeybindingService } from 'vs/platform/keybinding/common/abstractKeybindingService';
@@ -14,7 +12,6 @@ import { ICommandService } from 'vs/platform/commands/common/commands';
 import { KeybindingResolver } from 'vs/platform/keybinding/common/keybindingResolver';
 import { IContext, ContextKeyExpr, IContextKeyService, IContextKeyServiceTarget } from 'vs/platform/contextkey/common/contextkey';
 import { IStatusbarService } from 'vs/platform/statusbar/common/statusbar';
-import { TPromise } from 'vs/base/common/winjs.base';
 import { ResolvedKeybindingItem } from 'vs/platform/keybinding/common/resolvedKeybindingItem';
 import { OS } from 'vs/base/common/platform';
 import { IKeyboardEvent } from 'vs/platform/keybinding/common/keybinding';
@@ -116,12 +113,12 @@ suite('AbstractKeybindingService', () => {
 			let commandService: ICommandService = {
 				_serviceBrand: undefined,
 				onWillExecuteCommand: () => ({ dispose: () => { } }),
-				executeCommand: (commandId: string, ...args: any[]): TPromise<any> => {
+				executeCommand: (commandId: string, ...args: any[]): Promise<any> => {
 					executeCommandCalls.push({
 						commandId: commandId,
 						args: args
 					});
-					return TPromise.as(void 0);
+					return Promise.resolve(void 0);
 				}
 			};
 

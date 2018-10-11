@@ -7,29 +7,18 @@ import * as cp from 'child_process';
 import { Readable } from 'stream';
 import { NodeStringDecoder, StringDecoder } from 'string_decoder';
 import * as vscode from 'vscode';
-import { normalizeNFC, normalizeNFD } from './common/normalization';
+import { normalizeNFC, normalizeNFD } from './normalization';
 import { rgPath } from './ripgrep';
-import { anchorGlob } from './utils';
 import { rgErrorMsgForDisplay } from './ripgrepTextSearch';
-import { IInternalFileSearchProvider } from './cachedSearchProvider';
+import { anchorGlob, Maybe } from './utils';
 
 const isMac = process.platform === 'darwin';
 
 // If vscode-ripgrep is in an .asar file, then the binary is unpacked.
 const rgDiskPath = rgPath.replace(/\bnode_modules\.asar\b/, 'node_modules.asar.unpacked');
 
-export class RipgrepFileSearchEngine implements IInternalFileSearchProvider {
-	private rgProc: cp.ChildProcess;
-	private isDone: boolean;
-
+export class RipgrepFileSearchEngine {
 	constructor(private outputChannel: vscode.OutputChannel) { }
-
-	cancel() {
-		this.isDone = true;
-		if (this.rgProc) {
-			this.rgProc.kill();
-		}
-	}
 
 	provideFileSearchResults(options: vscode.FileSearchOptions, progress: vscode.Progress<string>, token: vscode.CancellationToken): Thenable<void> {
 		this.outputChannel.appendLine(`provideFileSearchResults ${JSON.stringify({
@@ -40,7 +29,16 @@ export class RipgrepFileSearchEngine implements IInternalFileSearchProvider {
 		})}`);
 
 		return new Promise((resolve, reject) => {
-			token.onCancellationRequested(() => this.cancel());
+			let isDone = false;
+
+			const cancel = () => {
+				isDone = true;
+				if (rgProc) {
+					rgProc.kill();
+				}
+			};
+
+			token.onCancellationRequested(() => cancel());
 
 			const rgArgs = getRgArgs(options);
 
@@ -51,22 +49,22 @@ export class RipgrepFileSearchEngine implements IInternalFileSearchProvider {
 				.join(' ');
 			this.outputChannel.appendLine(`rg ${escapedArgs}\n - cwd: ${cwd}\n`);
 
-			this.rgProc = cp.spawn(rgDiskPath, rgArgs, { cwd });
+			let rgProc: Maybe<cp.ChildProcess> = cp.spawn(rgDiskPath, rgArgs, { cwd });
 
-			this.rgProc.on('error', e => {
+			rgProc.on('error', e => {
 				console.log(e);
 				reject(e);
 			});
 
 			let leftover = '';
-			this.collectStdout(this.rgProc, (err, stdout, last) => {
+			this.collectStdout(rgProc, (err, stdout, last) => {
 				if (err) {
 					reject(err);
 					return;
 				}
 
 				// Mac: uses NFD unicode form on disk, but we want NFC
-				const normalized = leftover + (isMac ? normalizeNFC(stdout) : stdout);
+				const normalized = leftover + (isMac ? normalizeNFC(stdout || '') : stdout);
 				const relativeFiles = normalized.split('\n');
 
 				if (last) {
@@ -76,7 +74,7 @@ export class RipgrepFileSearchEngine implements IInternalFileSearchProvider {
 						relativeFiles.pop();
 					}
 				} else {
-					leftover = relativeFiles.pop();
+					leftover = <string>relativeFiles.pop();
 				}
 
 				if (relativeFiles.length && relativeFiles[0].indexOf('\n') !== -1) {
@@ -89,11 +87,11 @@ export class RipgrepFileSearchEngine implements IInternalFileSearchProvider {
 				});
 
 				if (last) {
-					if (this.isDone) {
+					if (isDone) {
 						resolve();
 					} else {
 						// Trigger last result
-						this.rgProc = null;
+						rgProc = null;
 						if (err) {
 							reject(err);
 						} else {
@@ -105,8 +103,8 @@ export class RipgrepFileSearchEngine implements IInternalFileSearchProvider {
 		});
 	}
 
-	private collectStdout(cmd: cp.ChildProcess, cb: (err: Error, stdout?: string, last?: boolean) => void): void {
-		let onData = (err: Error, stdout?: string, last?: boolean) => {
+	private collectStdout(cmd: cp.ChildProcess, cb: (err?: Error, stdout?: string, last?: boolean) => void): void {
+		let onData = (err?: Error, stdout?: string, last?: boolean) => {
 			if (err || last) {
 				onData = () => { };
 			}
@@ -114,16 +112,22 @@ export class RipgrepFileSearchEngine implements IInternalFileSearchProvider {
 			cb(err, stdout, last);
 		};
 
+		let gotData = false;
 		if (cmd.stdout) {
+			// Should be non-null, but #38195
 			this.forwardData(cmd.stdout, onData);
+			cmd.stdout.once('data', () => gotData = true);
 		} else {
 			this.outputChannel.appendLine('stdout is null');
 		}
 
-		const stderr = this.collectData(cmd.stderr);
-
-		let gotData = false;
-		cmd.stdout.once('data', () => gotData = true);
+		let stderr: Buffer[];
+		if (cmd.stderr) {
+			// Should be non-null, but #38195
+			stderr = this.collectData(cmd.stderr);
+		} else {
+			this.outputChannel.appendLine('stderr is null');
+		}
 
 		cmd.on('error', (err: Error) => {
 			onData(err);
@@ -131,19 +135,19 @@ export class RipgrepFileSearchEngine implements IInternalFileSearchProvider {
 
 		cmd.on('close', (code: number) => {
 			// ripgrep returns code=1 when no results are found
-			let stderrText, displayMsg: string;
+			let stderrText, displayMsg: Maybe<string>;
 			if (!gotData && (stderrText = this.decodeData(stderr)) && (displayMsg = rgErrorMsgForDisplay(stderrText))) {
 				onData(new Error(`command failed with error code ${code}: ${displayMsg}`));
 			} else {
-				onData(null, '', true);
+				onData(undefined, '', true);
 			}
 		});
 	}
 
-	private forwardData(stream: Readable, cb: (err: Error, stdout?: string) => void): NodeStringDecoder {
+	private forwardData(stream: Readable, cb: (err?: Error, stdout?: string) => void): NodeStringDecoder {
 		const decoder = new StringDecoder();
 		stream.on('data', (data: Buffer) => {
-			cb(null, decoder.write(data));
+			cb(undefined, decoder.write(data));
 		});
 		return decoder;
 	}
@@ -199,10 +203,10 @@ function getRgArgs(options: vscode.FileSearchOptions): string[] {
 		args.push('--follow');
 	}
 
-	// Folder to search
-	args.push('--');
-
-	args.push('.');
+	args.push('--no-config');
+	if (!options.useGlobalIgnoreFiles) {
+		args.push('--no-ignore-global');
+	}
 
 	return args;
 }

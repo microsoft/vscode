@@ -2,7 +2,6 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
 import { TPromise } from 'vs/base/common/winjs.base';
 import { Panel } from 'vs/workbench/browser/panel';
@@ -13,10 +12,11 @@ import { CancellationToken } from 'vs/base/common/cancellation';
 import { IEditorGroup, IEditorGroupsService } from 'vs/workbench/services/group/common/editorGroupsService';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { LRUCache } from 'vs/base/common/map';
-import URI from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 import { once, Event } from 'vs/base/common/event';
 import { isEmptyObject } from 'vs/base/common/types';
 import { DEFAULT_EDITOR_MIN_DIMENSIONS, DEFAULT_EDITOR_MAX_DIMENSIONS } from 'vs/workbench/browser/parts/editor/editor';
+import { Scope } from 'vs/workbench/common/memento';
 
 /**
  * The base class of editors in the workbench. Editors register themselves for specific editor inputs.
@@ -106,8 +106,8 @@ export abstract class BaseEditor extends Panel implements IEditor {
 	}
 
 	create(parent: HTMLElement): void; // create is sync for editors
-	create(parent: HTMLElement): TPromise<void>;
-	create(parent: HTMLElement): TPromise<void> {
+	create(parent: HTMLElement): Promise<void>;
+	create(parent: HTMLElement): Promise<void> {
 		const res = super.create(parent);
 
 		// Create Editor
@@ -122,8 +122,8 @@ export abstract class BaseEditor extends Panel implements IEditor {
 	protected abstract createEditor(parent: HTMLElement): void;
 
 	setVisible(visible: boolean, group?: IEditorGroup): void; // setVisible is sync for editors
-	setVisible(visible: boolean, group?: IEditorGroup): TPromise<void>;
-	setVisible(visible: boolean, group?: IEditorGroup): TPromise<void> {
+	setVisible(visible: boolean, group?: IEditorGroup): Promise<void>;
+	setVisible(visible: boolean, group?: IEditorGroup): Promise<void> {
 		const promise = super.setVisible(visible);
 
 		// Propagate to Editor
@@ -148,7 +148,7 @@ export abstract class BaseEditor extends Panel implements IEditor {
 
 		let editorMemento = BaseEditor.EDITOR_MEMENTOS.get(mementoKey);
 		if (!editorMemento) {
-			editorMemento = new EditorMemento(this.getId(), key, this.getMemento(storageService), limit, editorGroupService);
+			editorMemento = new EditorMemento(this.getId(), key, this.getMemento(storageService, Scope.WORKSPACE), limit, editorGroupService);
 			BaseEditor.EDITOR_MEMENTOS.set(mementoKey, editorMemento);
 		}
 
@@ -239,13 +239,21 @@ export class EditorMemento<T> implements IEditorMemento<T> {
 		return void 0;
 	}
 
-	clearState(resource: URI): void;
-	clearState(editor: EditorInput): void;
-	clearState(resourceOrEditor: URI | EditorInput): void {
+	clearState(resource: URI, group?: IEditorGroup): void;
+	clearState(editor: EditorInput, group?: IEditorGroup): void;
+	clearState(resourceOrEditor: URI | EditorInput, group?: IEditorGroup): void {
 		const resource = this.doGetResource(resourceOrEditor);
 		if (resource) {
 			const cache = this.doLoad();
-			cache.delete(resource.toString());
+
+			if (group) {
+				const resourceViewState = cache.get(resource.toString());
+				if (resourceViewState) {
+					delete resourceViewState[group.id];
+				}
+			} else {
+				cache.delete(resource.toString());
+			}
 		}
 	}
 

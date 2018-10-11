@@ -3,11 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
-import { getNextTickChannel } from 'vs/base/parts/ipc/common/ipc';
+import { getNextTickChannel } from 'vs/base/parts/ipc/node/ipc';
 import { Client } from 'vs/base/parts/ipc/node/ipc.cp';
-import uri from 'vs/base/common/uri';
 import { toFileChangesEvent, IRawFileChange } from 'vs/workbench/services/files/node/watcher/common';
 import { IWatcherChannel, WatcherChannelClient } from 'vs/workbench/services/files/node/watcher/nsfw/watcherIpc';
 import { FileChangesEvent, IFilesConfiguration } from 'vs/platform/files/common/files';
@@ -17,6 +14,7 @@ import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { Schemas } from 'vs/base/common/network';
 import { filterEvent } from 'vs/base/common/event';
 import { IWatchError } from 'vs/workbench/services/files/node/watcher/nsfw/watcher';
+import { getPathFromAmdModule } from 'vs/base/common/amd';
 
 export class FileWatcher {
 	private static readonly MAX_RESTARTS = 5;
@@ -39,9 +37,9 @@ export class FileWatcher {
 
 	public startWatching(): () => void {
 		const client = new Client(
-			uri.parse(require.toUrl('bootstrap')).fsPath,
+			getPathFromAmdModule(require, 'bootstrap-fork'),
 			{
-				serverName: 'Watcher',
+				serverName: 'File Watcher (nsfw)',
 				args: ['--type=watcherService'],
 				env: {
 					AMD_ENTRYPOINT: 'vs/workbench/services/files/node/watcher/nsfw/watcherApp',

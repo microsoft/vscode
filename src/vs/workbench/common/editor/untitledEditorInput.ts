@@ -2,25 +2,22 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
 import { TPromise } from 'vs/base/common/winjs.base';
-import URI from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 import { suggestFilename } from 'vs/base/common/mime';
 import { memoize } from 'vs/base/common/decorators';
-import * as labels from 'vs/base/common/labels';
 import { PLAINTEXT_MODE_ID } from 'vs/editor/common/modes/modesRegistry';
 import * as paths from 'vs/base/common/paths';
 import * as resources from 'vs/base/common/resources';
 import { EditorInput, IEncodingSupport, EncodingMode, ConfirmResult, Verbosity } from 'vs/workbench/common/editor';
 import { UntitledEditorModel } from 'vs/workbench/common/editor/untitledEditorModel';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { Event, Emitter } from 'vs/base/common/event';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { telemetryURIDescriptor } from 'vs/platform/telemetry/common/telemetryUtils';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IHashService } from 'vs/workbench/services/hash/common/hashService';
+import { ILabelService } from 'vs/platform/label/common/label';
 
 /**
  * An editor input to be used for untitled text buffers.
@@ -46,10 +43,9 @@ export class UntitledEditorInput extends EditorInput implements IEncodingSupport
 		private initialValue: string,
 		private preferredEncoding: string,
 		@IInstantiationService private instantiationService: IInstantiationService,
-		@IWorkspaceContextService private contextService: IWorkspaceContextService,
 		@ITextFileService private textFileService: ITextFileService,
-		@IEnvironmentService private environmentService: IEnvironmentService,
-		@IHashService private hashService: IHashService
+		@IHashService private hashService: IHashService,
+		@ILabelService private labelService: ILabelService
 	) {
 		super();
 
@@ -82,17 +78,17 @@ export class UntitledEditorInput extends EditorInput implements IEncodingSupport
 
 	@memoize
 	private get shortDescription(): string {
-		return paths.basename(labels.getPathLabel(resources.dirname(this.resource), this.environmentService));
+		return paths.basename(this.labelService.getUriLabel(resources.dirname(this.resource)));
 	}
 
 	@memoize
 	private get mediumDescription(): string {
-		return labels.getPathLabel(resources.dirname(this.resource), this.environmentService, this.contextService);
+		return this.labelService.getUriLabel(resources.dirname(this.resource), { relative: true });
 	}
 
 	@memoize
 	private get longDescription(): string {
-		return labels.getPathLabel(resources.dirname(this.resource), this.environmentService);
+		return this.labelService.getUriLabel(resources.dirname(this.resource));
 	}
 
 	getDescription(verbosity: Verbosity = Verbosity.MEDIUM): string {
@@ -124,12 +120,12 @@ export class UntitledEditorInput extends EditorInput implements IEncodingSupport
 
 	@memoize
 	private get mediumTitle(): string {
-		return labels.getPathLabel(this.resource, this.environmentService, this.contextService);
+		return this.labelService.getUriLabel(this.resource, { relative: true });
 	}
 
 	@memoize
 	private get longTitle(): string {
-		return labels.getPathLabel(this.resource, this.environmentService);
+		return this.labelService.getUriLabel(this.resource);
 	}
 
 	getTitle(verbosity: Verbosity): string {

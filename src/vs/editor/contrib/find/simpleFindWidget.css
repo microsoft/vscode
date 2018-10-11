@@ -22,11 +22,6 @@
 	padding: 4px;
 	align-items: center;
 	pointer-events: all;
-
-	-webkit-transition: top 200ms linear;
-	-o-transition: top 200ms linear;
-	-moz-transition: top 200ms linear;
-	-ms-transition: top 200ms linear;
 	transition: top 200ms linear;
 }
 
@@ -38,10 +33,6 @@
 	flex: 1;
 }
 
-/* Temporarily we don't show match numbers */
-.monaco-workbench .simple-find-part .monaco-findInput .controls {
-	display: none;
-}
 .monaco-workbench .simple-find-part .monaco-findInput .monaco-inputbox .wrapper .input {
 	width: 100% !important;
 }

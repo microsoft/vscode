@@ -2,7 +2,6 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
 import { RunOnceScheduler, TimeoutTimer } from 'vs/base/common/async';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
@@ -179,8 +178,12 @@ export class FindModelBoundToEditorModel {
 		}
 		if (findScope !== null) {
 			if (findScope.startLineNumber !== findScope.endLineNumber) {
-				// multiline find scope => expand to line starts / ends
-				findScope = new Range(findScope.startLineNumber, 1, findScope.endLineNumber, this._editor.getModel().getLineMaxColumn(findScope.endLineNumber));
+				if (findScope.endColumn === 1) {
+					findScope = new Range(findScope.startLineNumber, 1, findScope.endLineNumber - 1, this._editor.getModel().getLineMaxColumn(findScope.endLineNumber - 1));
+				} else {
+					// multiline find scope => expand to line starts / ends
+					findScope = new Range(findScope.startLineNumber, 1, findScope.endLineNumber, this._editor.getModel().getLineMaxColumn(findScope.endLineNumber));
+				}
 			}
 		}
 

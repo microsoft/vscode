@@ -5,7 +5,7 @@
 
 import { Code } from '../../vscode/code';
 
-export enum ProblemSeverity {
+export const enum ProblemSeverity {
 	WARNING = 0,
 	ERROR = 1
 }

@@ -3,14 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-
-'use strict';
-
 import 'vs/css!./quickOutline';
 import * as nls from 'vs/nls';
 import { matchesFuzzy } from 'vs/base/common/filters';
 import * as strings from 'vs/base/common/strings';
-import { TPromise } from 'vs/base/common/winjs.base';
 import { IContext, IHighlight, QuickOpenEntryGroup, QuickOpenModel } from 'vs/base/parts/quickopen/browser/quickOpenModel';
 import { IAutoFocus, Mode } from 'vs/base/parts/quickopen/common/quickOpen';
 import { ScrollType } from 'vs/editor/common/editorCommon';
@@ -22,6 +18,8 @@ import { registerEditorAction, ServicesAccessor } from 'vs/editor/browser/editor
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { Range, IRange } from 'vs/editor/common/core/range';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
+import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
+import { CancellationToken } from 'vs/base/common/cancellation';
 
 let SCOPE_PREFIX = ':';
 
@@ -120,7 +118,8 @@ export class QuickOutlineAction extends BaseEditorQuickOpenAction {
 			precondition: EditorContextKeys.hasDocumentSymbolProvider,
 			kbOpts: {
 				kbExpr: EditorContextKeys.focus,
-				primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_O
+				primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_O,
+				weight: KeybindingWeight.EditorContrib
 			},
 			menuOpts: {
 				group: 'navigation',
@@ -129,7 +128,7 @@ export class QuickOutlineAction extends BaseEditorQuickOpenAction {
 		});
 	}
 
-	public run(accessor: ServicesAccessor, editor: ICodeEditor): TPromise<void> {
+	public run(accessor: ServicesAccessor, editor: ICodeEditor): Thenable<void> {
 
 		let model = editor.getModel();
 
@@ -138,7 +137,7 @@ export class QuickOutlineAction extends BaseEditorQuickOpenAction {
 		}
 
 		// Resolve outline
-		return getDocumentSymbols(model).then((result: DocumentSymbol[]) => {
+		return getDocumentSymbols(model, true, CancellationToken.None).then((result: DocumentSymbol[]) => {
 			if (result.length === 0) {
 				return;
 			}

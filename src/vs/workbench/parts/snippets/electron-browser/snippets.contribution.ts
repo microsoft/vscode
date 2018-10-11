@@ -2,7 +2,6 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
 import { IJSONSchema } from 'vs/base/common/jsonSchema';
 import { Registry } from 'vs/platform/registry/common/platform';
@@ -41,7 +40,7 @@ const languageScopeSchema: IJSONSchema = {
 		properties: {
 			prefix: {
 				description: nls.localize('snippetSchema.json.prefix', 'The prefix to used when selecting the snippet in intellisense'),
-				type: 'string'
+				type: ['string', 'array']
 			},
 			body: {
 				description: nls.localize('snippetSchema.json.body', 'The snippet content. Use \'$1\', \'${1:defaultText}\' to define cursor positions, use \'$0\' for the final cursor position. Insert variable values with \'${varName}\' and \'${varName:defaultText}\', e.g \'This is file: $TM_FILENAME\'.'),
@@ -76,7 +75,7 @@ const globalSchema: IJSONSchema = {
 		properties: {
 			prefix: {
 				description: nls.localize('snippetSchema.json.prefix', 'The prefix to used when selecting the snippet in intellisense'),
-				type: 'string'
+				type: ['string', 'array']
 			},
 			scope: {
 				description: nls.localize('snippetSchema.json.scope', "A list of language names to which this snippet applies, e.g 'typescript,javascript'."),

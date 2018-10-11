@@ -2,7 +2,6 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
@@ -24,7 +23,7 @@ export class MainThreadStorage implements MainThreadStorageShape {
 	dispose(): void {
 	}
 
-	$getValue<T>(shared: boolean, key: string): TPromise<T> {
+	$getValue<T>(shared: boolean, key: string): Thenable<T> {
 		let jsonValue = this._storageService.get(key, shared ? StorageScope.GLOBAL : StorageScope.WORKSPACE);
 		if (!jsonValue) {
 			return TPromise.as(undefined);
@@ -38,7 +37,7 @@ export class MainThreadStorage implements MainThreadStorageShape {
 		}
 	}
 
-	$setValue(shared: boolean, key: string, value: any): TPromise<void> {
+	$setValue(shared: boolean, key: string, value: any): Thenable<void> {
 		let jsonValue: any;
 		try {
 			jsonValue = JSON.stringify(value);

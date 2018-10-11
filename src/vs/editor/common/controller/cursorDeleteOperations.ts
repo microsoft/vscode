@@ -2,10 +2,9 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
 import { ReplaceCommand } from 'vs/editor/common/commands/replaceCommand';
-import { CursorColumns, CursorConfiguration, ICursorSimpleModel, EditOperationResult, EditOperationType } from 'vs/editor/common/controller/cursorCommon';
+import { CursorColumns, CursorConfiguration, ICursorSimpleModel, EditOperationResult, EditOperationType, isQuote } from 'vs/editor/common/controller/cursorCommon';
 import { Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
 import { MoveOperations } from 'vs/editor/common/controller/cursorMoveOperations';
@@ -49,7 +48,7 @@ export class DeleteOperations {
 	}
 
 	private static _isAutoClosingPairDelete(config: CursorConfiguration, model: ICursorSimpleModel, selections: Selection[]): boolean {
-		if (!config.autoClosingBrackets) {
+		if (config.autoClosingBrackets === 'never' && config.autoClosingQuotes === 'never') {
 			return false;
 		}
 
@@ -66,6 +65,16 @@ export class DeleteOperations {
 
 			if (!config.autoClosingPairsOpen.hasOwnProperty(character)) {
 				return false;
+			}
+
+			if (isQuote(character)) {
+				if (config.autoClosingQuotes === 'never') {
+					return false;
+				}
+			} else {
+				if (config.autoClosingBrackets === 'never') {
+					return false;
+				}
 			}
 
 			const afterCharacter = lineText[position.column - 1];

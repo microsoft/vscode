@@ -2,23 +2,23 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-import { IDisposable, dispose } from 'vs/base/common/lifecycle';
+import { dispose, IDisposable } from 'vs/base/common/lifecycle';
 import * as map from 'vs/base/common/map';
-import URI, { UriComponents } from 'vs/base/common/uri';
+import { URI, UriComponents } from 'vs/base/common/uri';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { localize } from 'vs/nls';
-import { EditorViewColumn, viewColumnToEditorGroup, editorGroupToViewColumn } from 'vs/workbench/api/shared/editor';
 import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
-import { ExtHostContext, ExtHostWebviewsShape, IExtHostContext, MainContext, MainThreadWebviewsShape, WebviewPanelHandle } from 'vs/workbench/api/node/extHost.protocol';
+import { ExtHostContext, ExtHostWebviewsShape, IExtHostContext, MainContext, MainThreadWebviewsShape, WebviewPanelHandle, WebviewPanelShowOptions } from 'vs/workbench/api/node/extHost.protocol';
+import { editorGroupToViewColumn, EditorViewColumn, viewColumnToEditorGroup } from 'vs/workbench/api/shared/editor';
 import { WebviewEditor } from 'vs/workbench/parts/webview/electron-browser/webviewEditor';
 import { WebviewEditorInput } from 'vs/workbench/parts/webview/electron-browser/webviewEditorInput';
-import { IWebviewEditorService, WebviewInputOptions, WebviewReviver, ICreateWebViewShowOptions } from 'vs/workbench/parts/webview/electron-browser/webviewEditorService';
+import { ICreateWebViewShowOptions, IWebviewEditorService, WebviewInputOptions, WebviewReviver } from 'vs/workbench/parts/webview/electron-browser/webviewEditorService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { IEditorGroupsService } from 'vs/workbench/services/group/common/editorGroupsService';
-import { extHostNamedCustomer } from './extHostCustomers';
 import * as vscode from 'vscode';
+import { extHostNamedCustomer } from './extHostCustomers';
 
 @extHostNamedCustomer(MainContext.MainThreadWebviews)
 export class MainThreadWebviews implements MainThreadWebviewsShape, WebviewReviver {
@@ -96,6 +96,11 @@ export class MainThreadWebviews implements MainThreadWebviewsShape, WebviewReviv
 		webview.setName(value);
 	}
 
+	public $setIconPath(handle: WebviewPanelHandle, value: { light: UriComponents, dark: UriComponents } | undefined): void {
+		const webview = this.getWebview(handle);
+		webview.iconPath = reviveWebviewIcon(value);
+	}
+
 	public $setHtml(handle: WebviewPanelHandle, value: string): void {
 		const webview = this.getWebview(handle);
 		webview.html = value;
@@ -106,18 +111,18 @@ export class MainThreadWebviews implements MainThreadWebviewsShape, WebviewReviv
 		webview.setOptions(reviveWebviewOptions(options));
 	}
 
-	public $reveal(handle: WebviewPanelHandle, viewColumn: EditorViewColumn | null, preserveFocus: boolean): void {
+	public $reveal(handle: WebviewPanelHandle, showOptions: WebviewPanelShowOptions): void {
 		const webview = this.getWebview(handle);
 		if (webview.isDisposed()) {
 			return;
 		}
 
-		const targetGroup = this._editorGroupService.getGroup(viewColumnToEditorGroup(this._editorGroupService, viewColumn));
+		const targetGroup = this._editorGroupService.getGroup(viewColumnToEditorGroup(this._editorGroupService, showOptions.viewColumn));
 
-		this._webviewService.revealWebview(webview, targetGroup || this._editorGroupService.activeGroup, preserveFocus);
+		this._webviewService.revealWebview(webview, targetGroup || this._editorGroupService.activeGroup, showOptions.preserveFocus);
 	}
 
-	public $postMessage(handle: WebviewPanelHandle, message: any): TPromise<boolean> {
+	public $postMessage(handle: WebviewPanelHandle, message: any): Thenable<boolean> {
 		const webview = this.getWebview(handle);
 		const editors = this._editorService.visibleControls
 			.filter(e => e instanceof WebviewEditor)
@@ -185,9 +190,12 @@ export class MainThreadWebviews implements MainThreadWebviewsShape, WebviewReviv
 			onDidClickLink: uri => this.onDidClickLink(handle, uri),
 			onMessage: message => this._proxy.$onMessage(handle, message),
 			onDispose: () => {
+				const cleanUp = () => {
+					this._webviews.delete(handle);
+				};
 				this._proxy.$onDidDisposeWebviewPanel(handle).then(
-					() => this._webviews.delete(handle),
-					() => this._webviews.delete(handle));
+					cleanUp,
+					cleanUp);
 			}
 		};
 	}
@@ -295,5 +303,18 @@ function reviveWebviewOptions(options: WebviewInputOptions): WebviewInputOptions
 	return {
 		...options,
 		localResourceRoots: Array.isArray(options.localResourceRoots) ? options.localResourceRoots.map(URI.revive) : undefined
+	};
+}
+
+function reviveWebviewIcon(
+	value: { light: UriComponents, dark: UriComponents } | undefined
+): { light: URI, dark: URI } | undefined {
+	if (!value) {
+		return undefined;
+	}
+
+	return {
+		light: URI.revive(value.light),
+		dark: URI.revive(value.dark)
 	};
 }

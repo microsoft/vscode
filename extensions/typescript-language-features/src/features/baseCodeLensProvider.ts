@@ -3,31 +3,31 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CodeLensProvider, CodeLens, CancellationToken, TextDocument, Range, Uri, Position, Event, EventEmitter } from 'vscode';
+import * as vscode from 'vscode';
 import * as Proto from '../protocol';
-
-import { ITypeScriptServiceClient } from '../typescriptService';
-import * as typeConverters from '../utils/typeConverters';
+import { ITypeScriptServiceClient, ServerResponse } from '../typescriptService';
 import { escapeRegExp } from '../utils/regexp';
+import * as typeConverters from '../utils/typeConverters';
 
-export class ReferencesCodeLens extends CodeLens {
+
+export class ReferencesCodeLens extends vscode.CodeLens {
 	constructor(
-		public document: Uri,
+		public document: vscode.Uri,
 		public file: string,
-		range: Range
+		range: vscode.Range
 	) {
 		super(range);
 	}
 }
 
 export class CachedNavTreeResponse {
-	private response?: Promise<Proto.NavTreeResponse>;
+	private response?: Promise<ServerResponse<Proto.NavTreeResponse>>;
 	private version: number = -1;
 	private document: string = '';
 
 	public execute(
-		document: TextDocument,
-		f: () => Promise<Proto.NavTreeResponse>
+		document: vscode.TextDocument,
+		f: () => Promise<ServerResponse<Proto.NavTreeResponse>>
 	) {
 		if (this.matches(document)) {
 			return this.response;
@@ -36,14 +36,14 @@ export class CachedNavTreeResponse {
 		return this.update(document, f());
 	}
 
-	private matches(document: TextDocument): boolean {
+	private matches(document: vscode.TextDocument): boolean {
 		return this.version === document.version && this.document === document.uri.toString();
 	}
 
 	private update(
-		document: TextDocument,
-		response: Promise<Proto.NavTreeResponse>
-	): Promise<Proto.NavTreeResponse> {
+		document: vscode.TextDocument,
+		response: Promise<ServerResponse<Proto.NavTreeResponse>>
+	): Promise<ServerResponse<Proto.NavTreeResponse>> {
 		this.response = response;
 		this.version = document.version;
 		this.document = document.uri.toString();
@@ -51,52 +51,48 @@ export class CachedNavTreeResponse {
 	}
 }
 
-export abstract class TypeScriptBaseCodeLensProvider implements CodeLensProvider {
-	private onDidChangeCodeLensesEmitter = new EventEmitter<void>();
+export abstract class TypeScriptBaseCodeLensProvider implements vscode.CodeLensProvider {
+	private onDidChangeCodeLensesEmitter = new vscode.EventEmitter<void>();
 
 	public constructor(
 		protected client: ITypeScriptServiceClient,
 		private cachedResponse: CachedNavTreeResponse
 	) { }
 
-	public get onDidChangeCodeLenses(): Event<void> {
+	public get onDidChangeCodeLenses(): vscode.Event<void> {
 		return this.onDidChangeCodeLensesEmitter.event;
 	}
 
-	async provideCodeLenses(document: TextDocument, token: CancellationToken): Promise<CodeLens[]> {
+	async provideCodeLenses(document: vscode.TextDocument, token: vscode.CancellationToken): Promise<vscode.CodeLens[]> {
 		const filepath = this.client.toPath(document.uri);
 		if (!filepath) {
 			return [];
 		}
 
-		try {
-			const response = await this.cachedResponse.execute(document, () => this.client.execute('navtree', { file: filepath }, token));
-			if (!response) {
-				return [];
-			}
-
-			const tree = response.body;
-			const referenceableSpans: Range[] = [];
-			if (tree && tree.childItems) {
-				tree.childItems.forEach(item => this.walkNavTree(document, item, null, referenceableSpans));
-			}
-			return referenceableSpans.map(span => new ReferencesCodeLens(document.uri, filepath, span));
-		} catch {
+		const response = await this.cachedResponse.execute(document, () => this.client.execute('navtree', { file: filepath }, token));
+		if (!response || response.type !== 'response') {
 			return [];
 		}
+
+		const tree = response.body;
+		const referenceableSpans: vscode.Range[] = [];
+		if (tree && tree.childItems) {
+			tree.childItems.forEach(item => this.walkNavTree(document, item, null, referenceableSpans));
+		}
+		return referenceableSpans.map(span => new ReferencesCodeLens(document.uri, filepath, span));
 	}
 
 	protected abstract extractSymbol(
-		document: TextDocument,
+		document: vscode.TextDocument,
 		item: Proto.NavigationTree,
 		parent: Proto.NavigationTree | null
-	): Range | null;
+	): vscode.Range | null;
 
 	private walkNavTree(
-		document: TextDocument,
+		document: vscode.TextDocument,
 		item: Proto.NavigationTree,
 		parent: Proto.NavigationTree | null,
-		results: Range[]
+		results: vscode.Range[]
 	): void {
 		if (!item) {
 			return;
@@ -109,13 +105,13 @@ export abstract class TypeScriptBaseCodeLensProvider implements CodeLensProvider
 
 		(item.childItems || []).forEach(child => this.walkNavTree(document, child, item, results));
 	}
-	protected getSymbolRange(document: TextDocument, item: Proto.NavigationTree): Range | null {
+	protected getSymbolRange(document: vscode.TextDocument, item: Proto.NavigationTree): vscode.Range | null {
 		if (!item) {
 			return null;
 		}
 
 		// TS 3.0+ provides a span for just the symbol
-		if ((item as any).nameSpan) {
+		if (item.nameSpan) {
 			return typeConverters.Range.fromTextSpan((item as any).nameSpan);
 		}
 
@@ -131,8 +127,8 @@ export abstract class TypeScriptBaseCodeLensProvider implements CodeLensProvider
 		const identifierMatch = new RegExp(`^(.*?(\\b|\\W))${escapeRegExp(item.text || '')}(\\b|\\W)`, 'gm');
 		const match = identifierMatch.exec(text);
 		const prefixLength = match ? match.index + match[1].length : 0;
-		const startOffset = document.offsetAt(new Position(range.start.line, range.start.character)) + prefixLength;
-		return new Range(
+		const startOffset = document.offsetAt(new vscode.Position(range.start.line, range.start.character)) + prefixLength;
+		return new vscode.Range(
 			document.positionAt(startOffset),
 			document.positionAt(startOffset + item.text.length));
 	}

@@ -2,8 +2,6 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
-
 import * as assert from 'assert';
 import * as objects from 'vs/base/common/objects';
 
@@ -19,7 +17,7 @@ let checkNot = (one: any, other: any, msg: string) => {
 
 suite('Objects', () => {
 
-	test('equals', function () {
+	test('equals', () => {
 		check(null, null, 'null');
 		check(undefined, undefined, 'undefined');
 		check(1234, 1234, 'numbers');
@@ -91,7 +89,7 @@ suite('Objects', () => {
 		assert.deepEqual(objects.cloneAndChange(o, () => { }), o);
 	});
 
-	test('safeStringify', function () {
+	test('safeStringify', () => {
 		let obj1: any = {
 			friend: null
 		};
@@ -138,7 +136,7 @@ suite('Objects', () => {
 		});
 	});
 
-	test('distinct', function () {
+	test('distinct', () => {
 		let base = {
 			one: 'one',
 			two: 2,

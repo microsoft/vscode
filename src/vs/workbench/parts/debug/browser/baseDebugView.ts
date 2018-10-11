@@ -19,7 +19,6 @@ import { IControllerOptions } from 'vs/base/parts/tree/browser/treeDefaults';
 import { fillInContextMenuActions } from 'vs/platform/actions/browser/menuItemActionItem';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
-import { onUnexpectedError } from 'vs/base/common/errors';
 import { WorkbenchTreeController } from 'vs/platform/list/browser/listService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
@@ -83,16 +82,16 @@ export function renderExpressionValue(expressionOrValue: IExpression | string, c
 		}
 	}
 
-	if (options.maxValueLength && value.length > options.maxValueLength) {
+	if (options.maxValueLength && value && value.length > options.maxValueLength) {
 		value = value.substr(0, options.maxValueLength) + '...';
 	}
 	if (value && !options.preserveWhitespace) {
 		container.textContent = replaceWhitespace(value);
 	} else {
-		container.textContent = value;
+		container.textContent = value || '';
 	}
 	if (options.showHover) {
-		container.title = value;
+		container.title = value || '';
 	}
 }
 
@@ -103,18 +102,15 @@ export function renderVariable(variable: Variable, data: IVariableTemplateData, 
 		dom.toggleClass(data.name, 'virtual', !!variable.presentationHint && variable.presentationHint.kind === 'virtual');
 	}
 
-	if (variable.value) {
-		data.name.textContent += (typeof variable.name === 'string') ? ':' : '';
-		renderExpressionValue(variable, data.value, {
-			showChanged,
-			maxValueLength: MAX_VALUE_RENDER_LENGTH_IN_VIEWLET,
-			preserveWhitespace: false,
-			showHover: true,
-			colorize: true
-		});
-	} else {
-		data.value.textContent = '';
-		data.value.title = '';
+	renderExpressionValue(variable, data.value, {
+		showChanged,
+		maxValueLength: MAX_VALUE_RENDER_LENGTH_IN_VIEWLET,
+		preserveWhitespace: false,
+		showHover: true,
+		colorize: true
+	});
+	if (variable.value && typeof variable.name === 'string') {
+		data.name.textContent += ':';
 	}
 }
 
@@ -137,6 +133,8 @@ export function renderRenameBox(debugService: IDebugService, contextViewService:
 	inputBox.value = options.initialValue ? options.initialValue : '';
 	inputBox.focus();
 	inputBox.select();
+	tree.clearFocus();
+	tree.clearSelection();
 
 	let disposed = false;
 	const toDispose: IDisposable[] = [inputBox, styler];
@@ -154,11 +152,11 @@ export function renderRenameBox(debugService: IDebugService, contextViewService:
 				if (renamed && element.value !== inputBox.value) {
 					element.setVariable(inputBox.value)
 						// if everything went fine we need to refresh ui elements since the variable update can change watch and variables view
-						.done(() => {
+						.then(() => {
 							tree.refresh(element, false);
 							// Need to force watch expressions to update since a variable change can have an effect on watches
 							debugService.focusStackFrame(debugService.getViewModel().focusedStackFrame);
-						}, onUnexpectedError);
+						});
 				}
 			}
 

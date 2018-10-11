@@ -2,11 +2,9 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
 import { Event } from 'vs/base/common/event';
-import URI from 'vs/base/common/uri';
-import { TPromise } from 'vs/base/common/winjs.base';
+import { URI } from 'vs/base/common/uri';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { ITextModel, ITextModelCreationOptions, ITextBufferFactory } from 'vs/editor/common/model';
 import { IMode } from 'vs/editor/common/modes';
@@ -16,11 +14,11 @@ export const IModelService = createDecorator<IModelService>('modelService');
 export interface IModelService {
 	_serviceBrand: any;
 
-	createModel(value: string | ITextBufferFactory, modeOrPromise: TPromise<IMode> | IMode, resource: URI, isForSimpleWidget?: boolean): ITextModel;
+	createModel(value: string | ITextBufferFactory, modeOrPromise: Promise<IMode> | IMode, resource: URI, isForSimpleWidget?: boolean): ITextModel;
 
 	updateModel(model: ITextModel, value: string | ITextBufferFactory): void;
 
-	setMode(model: ITextModel, modeOrPromise: TPromise<IMode> | IMode): void;
+	setMode(model: ITextModel, modeOrPromise: Promise<IMode> | IMode): void;
 
 	destroyModel(resource: URI): void;
 

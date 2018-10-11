@@ -3,15 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import * as assert from 'assert';
 
 import * as stream from 'vs/base/node/stream';
+import { getPathFromAmdModule } from 'vs/base/common/amd';
 
 suite('Stream', () => {
 	test('readExactlyByFile - ANSI', function () {
-		const file = require.toUrl('./fixtures/file.css');
+		const file = getPathFromAmdModule(require, './fixtures/file.css');
 
 		return stream.readExactlyByFile(file, 10).then(({ buffer, bytesRead }) => {
 			assert.equal(bytesRead, 10);
@@ -20,7 +19,7 @@ suite('Stream', () => {
 	});
 
 	test('readExactlyByFile - empty', function () {
-		const file = require.toUrl('./fixtures/empty.txt');
+		const file = getPathFromAmdModule(require, './fixtures/empty.txt');
 
 		return stream.readExactlyByFile(file, 10).then(({ bytesRead }) => {
 			assert.equal(bytesRead, 0);
@@ -28,7 +27,7 @@ suite('Stream', () => {
 	});
 
 	test('readToMatchingString - ANSI', function () {
-		const file = require.toUrl('./fixtures/file.css');
+		const file = getPathFromAmdModule(require, './fixtures/file.css');
 
 		return stream.readToMatchingString(file, '\n', 10, 100).then((result: string) => {
 			// \r may be present on Windows
@@ -37,7 +36,7 @@ suite('Stream', () => {
 	});
 
 	test('readToMatchingString - empty', function () {
-		const file = require.toUrl('./fixtures/empty.txt');
+		const file = getPathFromAmdModule(require, './fixtures/empty.txt');
 
 		return stream.readToMatchingString(file, '\n', 10, 100).then((result: string) => {
 			assert.equal(result, null);

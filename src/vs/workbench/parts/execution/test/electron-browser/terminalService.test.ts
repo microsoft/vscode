@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import { deepEqual, equal } from 'assert';
 import { WinTerminalService, LinuxTerminalService, MacTerminalService } from 'vs/workbench/parts/execution/electron-browser/terminalService';
 import { getDefaultTerminalWindows, getDefaultTerminalLinuxReady, DEFAULT_TERMINAL_OSX } from 'vs/workbench/parts/execution/electron-browser/terminal';

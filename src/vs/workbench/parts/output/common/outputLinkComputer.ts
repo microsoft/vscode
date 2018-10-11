@@ -2,13 +2,12 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
 import { IMirrorModel, IWorkerContext } from 'vs/editor/common/services/editorSimpleWorker';
 import { ILink } from 'vs/editor/common/modes';
-import { TPromise } from 'vs/base/common/winjs.base';
-import URI from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 import * as paths from 'vs/base/common/paths';
+import * as resources from 'vs/base/common/resources';
 import * as strings from 'vs/base/common/strings';
 import * as arrays from 'vs/base/common/arrays';
 import { Range } from 'vs/editor/common/core/range';
@@ -56,7 +55,7 @@ export class OutputLinkComputer {
 		return null;
 	}
 
-	public computeLinks(uri: string): TPromise<ILink[]> {
+	public computeLinks(uri: string): Promise<ILink[]> {
 		const model = this.getModel(uri);
 		if (!model) {
 			return void 0;
@@ -70,7 +69,7 @@ export class OutputLinkComputer {
 			const resourceCreator: IResourceCreator = {
 				toResource: (folderRelativePath: string): URI => {
 					if (typeof folderRelativePath === 'string') {
-						return folderUri.with({ path: paths.join(folderUri.path, folderRelativePath) });
+						return resources.joinPath(folderUri, folderRelativePath);
 					}
 
 					return null;
@@ -82,7 +81,7 @@ export class OutputLinkComputer {
 			}
 		});
 
-		return TPromise.as(links);
+		return Promise.resolve(links);
 	}
 
 	public static createPatterns(workspaceFolder: URI): RegExp[] {

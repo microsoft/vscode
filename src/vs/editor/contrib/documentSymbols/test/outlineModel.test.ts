@@ -3,15 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import * as assert from 'assert';
 import { OutlineElement, OutlineGroup, OutlineModel } from '../outlineModel';
 import { SymbolKind, DocumentSymbol, DocumentSymbolProviderRegistry } from 'vs/editor/common/modes';
 import { Range } from 'vs/editor/common/core/range';
 import { IMarker, MarkerSeverity } from 'vs/platform/markers/common/markers';
 import { TextModel } from 'vs/editor/common/model/textModel';
-import URI from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 
 suite('OutlineModel', function () {

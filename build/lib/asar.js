@@ -6,8 +6,8 @@
 Object.defineProperty(exports, "__esModule", { value: true });
 var path = require("path");
 var es = require("event-stream");
-var pickle = require("chromium-pickle-js");
-var Filesystem = require("asar/lib/filesystem");
+var pickle = require('chromium-pickle-js');
+var Filesystem = require('asar/lib/filesystem');
 var VinylFile = require("vinyl");
 var minimatch = require("minimatch");
 function createAsar(folderPath, unpackGlobs, destFilename) {

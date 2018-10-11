@@ -1,7 +1,8 @@
 # Visual Studio Code - Open Source
 
-[![Build Status](https://vscode.visualstudio.com/_apis/public/build/definitions/a4cdce18-a05c-4bb8-9476-5d07e63bfd76/1/badge?branch=master)](https://aka.ms/vscode-builds)
-[![Coverage Status](https://img.shields.io/coveralls/Microsoft/vscode/master.svg)](https://coveralls.io/github/Microsoft/vscode?branch=master)
+[![Build Status](https://vscode.visualstudio.com/_apis/public/build/definitions/a4cdce18-a05c-4bb8-9476-5d07e63bfd76/1/badge?branchName=master)](https://aka.ms/vscode-builds)
+[![Feature Requests](https://img.shields.io/github/issues/Microsoft/vscode/feature-request.svg)](https://github.com/Microsoft/vscode/issues?q=is%3Aopen+is%3Aissue+label%3Afeature-request+sort%3Areactions-%2B1-desc)
+[![Bugs](https://img.shields.io/github/issues/Microsoft/vscode/bug.svg)](https://github.com/Microsoft/vscode/issues?utf8=✓&q=is%3Aissue+is%3Aopen+label%3Abug)
 [![Gitter](https://img.shields.io/badge/chat-on%20gitter-blue.svg)](https://gitter.im/Microsoft/vscode)
 
 [VS Code](https://code.visualstudio.com) is a new type of tool that combines the simplicity of
@@ -25,8 +26,8 @@ The [`vscode`](https://github.com/microsoft/vscode) repository is where we do de
 If you are interested in fixing issues and contributing directly to the code base,
 please see the document [How to Contribute](https://github.com/Microsoft/vscode/wiki/How-to-Contribute), which covers the following:
 
-* [How to build and run from source](https://github.com/Microsoft/vscode/wiki/How-to-Contribute#build-and-run-from-source)
-* [The development workflow, including debugging and running tests](https://github.com/Microsoft/vscode/wiki/How-to-Contribute#development-workflow)
+* [How to build and run from source](https://github.com/Microsoft/vscode/wiki/How-to-Contribute#build-and-run)
+* [The development workflow, including debugging and running tests](https://github.com/Microsoft/vscode/wiki/How-to-Contribute#debugging)
 * [Coding Guidelines](https://github.com/Microsoft/vscode/wiki/Coding-Guidelines)
 * [Submitting pull requests](https://github.com/Microsoft/vscode/wiki/How-to-Contribute#pull-requests)
 * [Contributing to translations](https://aka.ms/vscodeloc)
@@ -45,7 +46,7 @@ Please see also our [Code of Conduct](CODE_OF_CONDUCT.md).
 
 Many of the core components and extensions to Code live in their own repositories on GitHub. For example, the [node debug adapter](https://github.com/microsoft/vscode-node-debug) and the [mono debug adapter](https://github.com/microsoft/vscode-mono-debug).
 
-For a complete list, please see the [Related Projects](https://github.com/Microsoft/vscode/wiki/Related-Projects) page on our wiki.
+For a complete list, please see the [Related Projects](https://github.com/Microsoft/vscode/wiki/Related-Projects) page on our [wiki](https://github.com/Microsoft/vscode/wiki).
 
 ## License
 

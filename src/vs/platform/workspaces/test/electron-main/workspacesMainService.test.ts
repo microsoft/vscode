@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import * as assert from 'assert';
 import * as fs from 'fs';
 import * as os from 'os';
@@ -16,7 +14,7 @@ import { parseArgs } from 'vs/platform/environment/node/argv';
 import { WorkspacesMainService, IStoredWorkspace } from 'vs/platform/workspaces/electron-main/workspacesMainService';
 import { WORKSPACE_EXTENSION, IWorkspaceSavedEvent, IWorkspaceIdentifier, IRawFileWorkspaceFolder, IWorkspaceFolderCreationData, IRawUriWorkspaceFolder } from 'vs/platform/workspaces/common/workspaces';
 import { NullLogService } from 'vs/platform/log/common/log';
-import URI from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 import { getRandomTestPath } from 'vs/workbench/test/workbenchTestServices';
 import { isWindows } from 'vs/base/common/platform';
 import { normalizeDriveLetter } from 'vs/base/common/labels';
@@ -366,13 +364,21 @@ suite('WorkspacesMainService', () => {
 		assert.equal(0, untitled.length);
 
 		return createWorkspace([process.cwd(), os.tmpdir()]).then(untitledOne => {
+			assert.ok(fs.existsSync(untitledOne.configPath));
+
 			untitled = service.getUntitledWorkspacesSync();
 
 			assert.equal(1, untitled.length);
 			assert.equal(untitledOne.id, untitled[0].id);
 
 			return createWorkspace([os.tmpdir(), process.cwd()]).then(untitledTwo => {
+				assert.ok(fs.existsSync(untitledTwo.configPath));
+
 				untitled = service.getUntitledWorkspacesSync();
+
+				if (untitled.length === 1) {
+					assert.fail('Unexpected workspaces count, contents:\n' + fs.readFileSync(untitledTwo.configPath, 'utf8'));
+				}
 
 				assert.equal(2, untitled.length);
 

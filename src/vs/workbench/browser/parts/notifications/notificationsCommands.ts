@@ -3,11 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { RawContextKey, ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
-import { KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
+import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { INotificationViewItem, isNotificationViewItem } from 'vs/workbench/common/notifications';
 import { MenuRegistry, MenuId } from 'vs/platform/actions/common/actions';
@@ -88,7 +86,7 @@ export function registerNotificationCommands(center: INotificationsCenterControl
 	// Hide Notifications Center
 	KeybindingsRegistry.registerCommandAndKeybindingRule({
 		id: HIDE_NOTIFICATIONS_CENTER,
-		weight: KeybindingsRegistry.WEIGHT.workbenchContrib(50),
+		weight: KeybindingWeight.WorkbenchContrib + 50,
 		when: NotificationsCenterVisibleContext,
 		primary: KeyCode.Escape,
 		handler: accessor => center.hide()
@@ -106,7 +104,7 @@ export function registerNotificationCommands(center: INotificationsCenterControl
 	// Clear Notification
 	KeybindingsRegistry.registerCommandAndKeybindingRule({
 		id: CLEAR_NOTIFICATION,
-		weight: KeybindingsRegistry.WEIGHT.workbenchContrib(),
+		weight: KeybindingWeight.WorkbenchContrib,
 		when: NotificationFocusedContext,
 		primary: KeyCode.Delete,
 		mac: {
@@ -123,7 +121,7 @@ export function registerNotificationCommands(center: INotificationsCenterControl
 	// Expand Notification
 	KeybindingsRegistry.registerCommandAndKeybindingRule({
 		id: EXPAND_NOTIFICATION,
-		weight: KeybindingsRegistry.WEIGHT.workbenchContrib(),
+		weight: KeybindingWeight.WorkbenchContrib,
 		when: NotificationFocusedContext,
 		primary: KeyCode.RightArrow,
 		handler: (accessor, args?: any) => {
@@ -137,7 +135,7 @@ export function registerNotificationCommands(center: INotificationsCenterControl
 	// Collapse Notification
 	KeybindingsRegistry.registerCommandAndKeybindingRule({
 		id: COLLAPSE_NOTIFICATION,
-		weight: KeybindingsRegistry.WEIGHT.workbenchContrib(),
+		weight: KeybindingWeight.WorkbenchContrib,
 		when: NotificationFocusedContext,
 		primary: KeyCode.LeftArrow,
 		handler: (accessor, args?: any) => {
@@ -151,7 +149,7 @@ export function registerNotificationCommands(center: INotificationsCenterControl
 	// Toggle Notification
 	KeybindingsRegistry.registerCommandAndKeybindingRule({
 		id: TOGGLE_NOTIFICATION,
-		weight: KeybindingsRegistry.WEIGHT.workbenchContrib(),
+		weight: KeybindingWeight.WorkbenchContrib,
 		when: NotificationFocusedContext,
 		primary: KeyCode.Space,
 		secondary: [KeyCode.Enter],
@@ -166,7 +164,7 @@ export function registerNotificationCommands(center: INotificationsCenterControl
 	// Hide Toasts
 	KeybindingsRegistry.registerCommandAndKeybindingRule({
 		id: HIDE_NOTIFICATION_TOAST,
-		weight: KeybindingsRegistry.WEIGHT.workbenchContrib(50),
+		weight: KeybindingWeight.WorkbenchContrib + 50,
 		when: NotificationsToastsVisibleContext,
 		primary: KeyCode.Escape,
 		handler: accessor => toasts.hide()
@@ -178,7 +176,7 @@ export function registerNotificationCommands(center: INotificationsCenterControl
 	// Focus Next Toast
 	KeybindingsRegistry.registerCommandAndKeybindingRule({
 		id: FOCUS_NEXT_NOTIFICATION_TOAST,
-		weight: KeybindingsRegistry.WEIGHT.workbenchContrib(),
+		weight: KeybindingWeight.WorkbenchContrib,
 		when: ContextKeyExpr.and(NotificationFocusedContext, NotificationsToastsVisibleContext),
 		primary: KeyCode.DownArrow,
 		handler: (accessor) => {
@@ -189,7 +187,7 @@ export function registerNotificationCommands(center: INotificationsCenterControl
 	// Focus Previous Toast
 	KeybindingsRegistry.registerCommandAndKeybindingRule({
 		id: FOCUS_PREVIOUS_NOTIFICATION_TOAST,
-		weight: KeybindingsRegistry.WEIGHT.workbenchContrib(),
+		weight: KeybindingWeight.WorkbenchContrib,
 		when: ContextKeyExpr.and(NotificationFocusedContext, NotificationsToastsVisibleContext),
 		primary: KeyCode.UpArrow,
 		handler: (accessor) => {
@@ -200,7 +198,7 @@ export function registerNotificationCommands(center: INotificationsCenterControl
 	// Focus First Toast
 	KeybindingsRegistry.registerCommandAndKeybindingRule({
 		id: FOCUS_FIRST_NOTIFICATION_TOAST,
-		weight: KeybindingsRegistry.WEIGHT.workbenchContrib(),
+		weight: KeybindingWeight.WorkbenchContrib,
 		when: ContextKeyExpr.and(NotificationFocusedContext, NotificationsToastsVisibleContext),
 		primary: KeyCode.PageUp,
 		secondary: [KeyCode.Home],
@@ -212,7 +210,7 @@ export function registerNotificationCommands(center: INotificationsCenterControl
 	// Focus Last Toast
 	KeybindingsRegistry.registerCommandAndKeybindingRule({
 		id: FOCUS_LAST_NOTIFICATION_TOAST,
-		weight: KeybindingsRegistry.WEIGHT.workbenchContrib(),
+		weight: KeybindingWeight.WorkbenchContrib,
 		when: ContextKeyExpr.and(NotificationFocusedContext, NotificationsToastsVisibleContext),
 		primary: KeyCode.PageDown,
 		secondary: [KeyCode.End],
@@ -226,7 +224,7 @@ export function registerNotificationCommands(center: INotificationsCenterControl
 
 	// Commands for Command Palette
 	const category = localize('notifications', "Notifications");
-	MenuRegistry.appendMenuItem(MenuId.CommandPalette, { command: { id: SHOW_NOTIFICATIONS_CENTER, title: localize('showNotifications', "Show Notifications"), category }, when: NotificationsCenterVisibleContext.toNegated() });
-	MenuRegistry.appendMenuItem(MenuId.CommandPalette, { command: { id: HIDE_NOTIFICATIONS_CENTER, title: localize('hideNotifications', "Hide Notifications"), category }, when: NotificationsCenterVisibleContext });
-	MenuRegistry.appendMenuItem(MenuId.CommandPalette, { command: { id: CLEAR_ALL_NOTIFICATIONS, title: localize('clearAllNotifications', "Clear All Notifications"), category } });
+	MenuRegistry.appendMenuItem(MenuId.CommandPalette, { command: { id: SHOW_NOTIFICATIONS_CENTER, title: { value: localize('showNotifications', "Show Notifications"), original: 'Notifications: Show Notifications' }, category }, when: NotificationsCenterVisibleContext.toNegated() });
+	MenuRegistry.appendMenuItem(MenuId.CommandPalette, { command: { id: HIDE_NOTIFICATIONS_CENTER, title: { value: localize('hideNotifications', "Hide Notifications"), original: 'Notifications: Hide Notifications' }, category }, when: NotificationsCenterVisibleContext });
+	MenuRegistry.appendMenuItem(MenuId.CommandPalette, { command: { id: CLEAR_ALL_NOTIFICATIONS, title: { value: localize('clearAllNotifications', "Clear All Notifications"), original: 'Notifications: Clear All Notifications' }, category } });
 }

@@ -3,15 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import * as assert from 'assert';
 import { FileDecorationsService } from 'vs/workbench/services/decorations/browser/decorationsService';
 import { IDecorationsProvider, IDecorationData } from 'vs/workbench/services/decorations/browser/decorations';
-import URI from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 import { Event, toPromise, Emitter } from 'vs/base/common/event';
 import { TestThemeService } from 'vs/platform/theme/test/common/testThemeService';
-import { TPromise } from 'vs/base/common/winjs.base';
 import { CancellationToken } from 'vs/base/common/cancellation';
 
 suite('DecorationsService', function () {
@@ -185,19 +182,17 @@ suite('DecorationsService', function () {
 
 			label: string = 'foo';
 
-			provideDecorations(uri: URI, token: CancellationToken): TPromise<IDecorationData> {
+			provideDecorations(uri: URI, token: CancellationToken): Promise<IDecorationData> {
 
 				token.onCancellationRequested(() => {
 					cancelCount += 1;
 				});
 
-				return new TPromise(resolve => {
+				return new Promise(resolve => {
 					callCount += 1;
 					setTimeout(() => {
 						resolve({ letter: 'foo' });
 					}, 10);
-				}, () => {
-					winjsCancelCount += 1;
 				});
 			}
 		};
@@ -219,7 +214,6 @@ suite('DecorationsService', function () {
 
 	test('Decorations not bubbling... #48745', function () {
 
-		let resolve: Function;
 		let reg = service.registerDecorationsProvider({
 			label: 'Test',
 			onDidChange: Event.None,
@@ -227,7 +221,7 @@ suite('DecorationsService', function () {
 				if (uri.path.match(/hello$/)) {
 					return { tooltip: 'FOO', weight: 17, bubble: true };
 				} else {
-					return new Promise<IDecorationData>(_resolve => resolve = _resolve);
+					return new Promise<IDecorationData>(_resolve => { });
 				}
 			}
 		});

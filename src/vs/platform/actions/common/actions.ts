@@ -2,10 +2,8 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
 import { Action } from 'vs/base/common/actions';
-import { TPromise } from 'vs/base/common/winjs.base';
 import { SyncDescriptor0, createSyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { IConstructorSignature2, createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IKeybindings } from 'vs/platform/keybinding/common/keybindingsRegistry';
@@ -13,7 +11,7 @@ import { ContextKeyExpr, IContextKeyService } from 'vs/platform/contextkey/commo
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { Event } from 'vs/base/common/event';
-import URI, { UriComponents } from 'vs/base/common/uri';
+import { URI, UriComponents } from 'vs/base/common/uri';
 
 export interface ILocalizedString {
 	value: string;
@@ -29,6 +27,7 @@ export interface IBaseCommandAction {
 export interface ICommandAction extends IBaseCommandAction {
 	iconLocation?: { dark: URI; light?: URI; };
 	precondition?: ContextKeyExpr;
+	toggled?: ContextKeyExpr;
 }
 
 export interface ISerializableCommandAction extends IBaseCommandAction {
@@ -90,11 +89,13 @@ export class MenuId {
 	static readonly MenubarRecentMenu = new MenuId();
 	static readonly MenubarSelectionMenu = new MenuId();
 	static readonly MenubarViewMenu = new MenuId();
+	static readonly MenubarAppearanceMenu = new MenuId();
 	static readonly MenubarLayoutMenu = new MenuId();
 	static readonly MenubarGoMenu = new MenuId();
+	static readonly MenubarSwitchEditorMenu = new MenuId();
+	static readonly MenubarSwitchGroupMenu = new MenuId();
 	static readonly MenubarDebugMenu = new MenuId();
-	static readonly MenubarTasksMenu = new MenuId();
-	static readonly MenubarWindowMenu = new MenuId();
+	static readonly MenubarNewBreakpointMenu = new MenuId();
 	static readonly MenubarPreferencesMenu = new MenuId();
 	static readonly MenubarHelpMenu = new MenuId();
 	static readonly MenubarTerminalMenu = new MenuId();
@@ -124,8 +125,13 @@ export interface IMenuService {
 export interface IMenuRegistry {
 	addCommand(userCommand: ICommandAction): boolean;
 	getCommand(id: string): ICommandAction;
+	getCommands(): ICommandsMap;
 	appendMenuItem(menu: MenuId, item: IMenuItem | ISubmenuItem): IDisposable;
 	getMenuItems(loc: MenuId): (IMenuItem | ISubmenuItem)[];
+}
+
+export interface ICommandsMap {
+	[id: string]: ICommandAction;
 }
 
 export const MenuRegistry: IMenuRegistry = new class implements IMenuRegistry {
@@ -142,6 +148,14 @@ export const MenuRegistry: IMenuRegistry = new class implements IMenuRegistry {
 
 	getCommand(id: string): ICommandAction {
 		return this._commands[id];
+	}
+
+	getCommands(): ICommandsMap {
+		const result: ICommandsMap = Object.create(null);
+		for (const key in this._commands) {
+			result[key] = this.getCommand(key);
+		}
+		return result;
 	}
 
 	appendMenuItem({ id }: MenuId, item: IMenuItem | ISubmenuItem): IDisposable {
@@ -201,13 +215,12 @@ export class ExecuteCommandAction extends Action {
 		super(id, label);
 	}
 
-	run(...args: any[]): TPromise<any> {
+	run(...args: any[]): Promise<any> {
 		return this._commandService.executeCommand(this.id, ...args);
 	}
 }
 
 export class SubmenuItemAction extends Action {
-	// private _options: IMenuActionOptions;
 
 	readonly item: ISubmenuItem;
 	constructor(item: ISubmenuItem) {
@@ -218,10 +231,10 @@ export class SubmenuItemAction extends Action {
 
 export class MenuItemAction extends ExecuteCommandAction {
 
-	private _options: IMenuActionOptions;
-
 	readonly item: ICommandAction;
 	readonly alt: MenuItemAction;
+
+	private _options: IMenuActionOptions;
 
 	constructor(
 		item: ICommandAction,
@@ -233,13 +246,15 @@ export class MenuItemAction extends ExecuteCommandAction {
 		typeof item.title === 'string' ? super(item.id, item.title, commandService) : super(item.id, item.title.value, commandService);
 		this._cssClass = undefined;
 		this._enabled = !item.precondition || contextKeyService.contextMatchesRules(item.precondition);
+		this._checked = item.toggled && contextKeyService.contextMatchesRules(item.toggled);
+
 		this._options = options || {};
 
 		this.item = item;
 		this.alt = alt ? new MenuItemAction(alt, undefined, this._options, contextKeyService, commandService) : undefined;
 	}
 
-	run(...args: any[]): TPromise<any> {
+	run(...args: any[]): Promise<any> {
 		let runArgs: any[] = [];
 
 		if (this._options.arg) {

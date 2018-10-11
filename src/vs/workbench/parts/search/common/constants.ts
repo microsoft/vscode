@@ -16,6 +16,7 @@ export const CopyPathCommandId = 'search.action.copyPath';
 export const CopyMatchCommandId = 'search.action.copyMatch';
 export const CopyAllCommandId = 'search.action.copyAll';
 export const ClearSearchHistoryCommandId = 'search.action.clearHistory';
+export const FocusSearchListCommandID = 'search.action.focusSearchList';
 export const ReplaceActionId = 'search.action.replace';
 export const ReplaceAllInFileActionId = 'search.action.replaceAllInFile';
 export const ReplaceAllInFolderActionId = 'search.action.replaceAllInFolder';
@@ -27,6 +28,7 @@ export const ToggleRegexCommandId = 'toggleSearchRegex';
 export const ToggleSearchViewPositionCommandId = 'search.action.toggleSearchViewPosition';
 
 export const SearchViewVisibleKey = new RawContextKey<boolean>('searchViewletVisible', true);
+export const SearchViewFocusedKey = new RawContextKey<boolean>('searchViewletFocus', false);
 export const InputBoxFocusedKey = new RawContextKey<boolean>('inputBoxFocus', false);
 export const SearchInputBoxFocusedKey = new RawContextKey<boolean>('searchInputBoxFocus', false);
 export const ReplaceInputBoxFocusedKey = new RawContextKey<boolean>('replaceInputBoxFocus', false);

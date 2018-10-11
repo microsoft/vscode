@@ -2,7 +2,6 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
@@ -123,6 +122,11 @@ export interface IContentWidgetPosition {
 	 * `preference` will also affect the placement.
 	 */
 	position: IPosition;
+	/**
+	 * Optionally, a range can be provided to further
+	 * define the position of the content widget.
+	 */
+	range?: IRange;
 	/**
 	 * Placement preference for position, in order of preference.
 	 */
@@ -397,6 +401,14 @@ export interface ICodeEditor extends editorCommon.IEditor {
 	 */
 	onDidType(listener: (text: string) => void): IDisposable;
 	/**
+	 * An event emitted after composition has started.
+	 */
+	onCompositionStart(listener: () => void): IDisposable;
+	/**
+	 * An event emitted after composition has ended.
+	 */
+	onCompositionEnd(listener: () => void): IDisposable;
+	/**
 	 * An event emitted when editing failed because the editor is read-only.
 	 * @event
 	 * @internal
@@ -578,9 +590,9 @@ export interface ICodeEditor extends editorCommon.IEditor {
 	 * The edits will land on the undo-redo stack, but no "undo stop" will be pushed.
 	 * @param source The source of the call.
 	 * @param edits The edits to execute.
-	 * @param endCursoState Cursor state after the edits were applied.
+	 * @param endCursorState Cursor state after the edits were applied.
 	 */
-	executeEdits(source: string, edits: IIdentifiedSingleEditOperation[], endCursoState?: Selection[]): boolean;
+	executeEdits(source: string, edits: IIdentifiedSingleEditOperation[], endCursorState?: Selection[]): boolean;
 
 	/**
 	 * Execute multiple (concommitent) commands on the editor.

@@ -3,13 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import { mapEvent, fromNodeEventEmitter, filterEvent, once } from 'vs/base/common/event';
 import { IURLService } from 'vs/platform/url/common/url';
 import product from 'vs/platform/node/product';
 import { app } from 'electron';
-import URI from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { IWindowsMainService } from 'vs/platform/windows/electron-main/windows';
 import { ReadyState } from 'vs/platform/windows/common/windows';

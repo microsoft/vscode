@@ -3,15 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import * as sinon from 'sinon';
 import * as assert from 'assert';
 import * as os from 'os';
 import * as path from 'path';
 import * as fs from 'fs';
 import * as json from 'vs/base/common/json';
-import { TPromise } from 'vs/base/common/winjs.base';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { ParsedArgs, IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { parseArgs } from 'vs/platform/environment/node/argv';
@@ -38,6 +35,7 @@ import { mkdirp } from 'vs/base/node/pfs';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { CommandService } from 'vs/workbench/services/commands/common/commandService';
+import { URI } from 'vs/base/common/uri';
 
 class SettingsTestEnvironmentService extends EnvironmentService {
 
@@ -84,7 +82,7 @@ suite('ConfigurationEditingService', () => {
 			.then(() => setUpServices());
 	});
 
-	function setUpWorkspace(): TPromise<boolean> {
+	function setUpWorkspace(): Promise<boolean> {
 		const id = uuid.generateUuid();
 		parentDir = path.join(os.tmpdir(), 'vsctests', id);
 		workspaceDir = path.join(parentDir, 'workspaceconfig', id);
@@ -94,7 +92,7 @@ suite('ConfigurationEditingService', () => {
 		return mkdirp(workspaceSettingsDir, 493);
 	}
 
-	function setUpServices(noWorkspace: boolean = false): TPromise<void> {
+	function setUpServices(noWorkspace: boolean = false): Promise<void> {
 		// Clear services if they are already created
 		clearServices();
 
@@ -103,7 +101,7 @@ suite('ConfigurationEditingService', () => {
 		instantiationService.stub(IEnvironmentService, environmentService);
 		const workspaceService = new WorkspaceService(environmentService);
 		instantiationService.stub(IWorkspaceContextService, workspaceService);
-		return workspaceService.initialize(noWorkspace ? {} as IWindowConfiguration : workspaceDir).then(() => {
+		return workspaceService.initialize(noWorkspace ? {} as IWindowConfiguration : URI.file(workspaceDir)).then(() => {
 			instantiationService.stub(IConfigurationService, workspaceService);
 			instantiationService.stub(IFileService, new FileService(workspaceService, TestEnvironmentService, new TestTextResourceConfigurationService(), new TestConfigurationService(), new TestLifecycleService(), new TestStorageService(), new TestNotificationService(), { disableWatcher: true }));
 			instantiationService.stub(ITextFileService, instantiationService.createInstance(TestTextFileService));
@@ -128,8 +126,8 @@ suite('ConfigurationEditingService', () => {
 		}
 	}
 
-	function clearWorkspace(): TPromise<void> {
-		return new TPromise<void>((c, e) => {
+	function clearWorkspace(): Promise<void> {
+		return new Promise<void>((c, e) => {
 			if (parentDir) {
 				extfs.del(parentDir, os.tmpdir(), () => c(null), () => c(null));
 			} else {

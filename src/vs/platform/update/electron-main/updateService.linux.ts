@@ -3,13 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import product from 'vs/platform/node/product';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ILifecycleService } from 'vs/platform/lifecycle/electron-main/lifecycleMain';
 import { IRequestService } from 'vs/platform/request/node/request';
-import { State, IUpdate, AvailableForDownload } from 'vs/platform/update/common/update';
+import { State, IUpdate, AvailableForDownload, UpdateType } from 'vs/platform/update/common/update';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { ILogService } from 'vs/platform/log/common/log';
@@ -17,6 +15,7 @@ import { createUpdateURL, AbstractUpdateService } from 'vs/platform/update/elect
 import { asJson } from 'vs/base/node/request';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { shell } from 'electron';
+import { CancellationToken } from 'vs/base/common/cancellation';
 
 export class LinuxUpdateService extends AbstractUpdateService {
 
@@ -44,7 +43,7 @@ export class LinuxUpdateService extends AbstractUpdateService {
 
 		this.setState(State.CheckingForUpdates(context));
 
-		this.requestService.request({ url: this.url })
+		this.requestService.request({ url: this.url }, CancellationToken.None)
 			.then<IUpdate>(asJson)
 			.then(update => {
 				if (!update || !update.url || !update.version || !update.productVersion) {
@@ -55,7 +54,7 @@ export class LinuxUpdateService extends AbstractUpdateService {
 						*/
 					this.telemetryService.publicLog('update:notAvailable', { explicit: !!context });
 
-					this.setState(State.Idle);
+					this.setState(State.Idle(UpdateType.Archive));
 				} else {
 					this.setState(State.AvailableForDownload(update));
 				}
@@ -69,7 +68,7 @@ export class LinuxUpdateService extends AbstractUpdateService {
 					}
 					*/
 				this.telemetryService.publicLog('update:notAvailable', { explicit: !!context });
-				this.setState(State.Idle);
+				this.setState(State.Idle(UpdateType.Archive, err.message || err));
 			});
 	}
 
@@ -82,7 +81,7 @@ export class LinuxUpdateService extends AbstractUpdateService {
 			shell.openExternal(state.update.url);
 		}
 
-		this.setState(State.Idle);
+		this.setState(State.Idle(UpdateType.Archive));
 		return TPromise.as(null);
 	}
 }

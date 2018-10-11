@@ -10,7 +10,6 @@ import * as PConst from '../protocol.const';
 import { ITypeScriptServiceClient } from '../typescriptService';
 import API from '../utils/api';
 import { ConfigurationDependentRegistration, VersionDependentRegistration } from '../utils/dependentRegistration';
-import * as typeConverters from '../utils/typeConverters';
 import { CachedNavTreeResponse, ReferencesCodeLens, TypeScriptBaseCodeLensProvider } from './baseCodeLensProvider';
 const localize = nls.loadMessageBundle();
 
@@ -18,28 +17,12 @@ export default class TypeScriptImplementationsCodeLensProvider extends TypeScrip
 
 	public async resolveCodeLens(
 		inputCodeLens: vscode.CodeLens,
-		token: vscode.CancellationToken,
+		_token: vscode.CancellationToken,
 	): Promise<vscode.CodeLens> {
 		const codeLens = inputCodeLens as ReferencesCodeLens;
-		const args = typeConverters.Position.toFileLocationRequestArgs(codeLens.file, codeLens.range.start);
 		try {
-			const response = await this.client.execute('implementation', args, token);
-			if (response && response.body) {
-				const locations = response.body
-					.map(reference =>
-						// Only take first line on implementation: https://github.com/Microsoft/vscode/issues/23924
-						new vscode.Location(this.client.toResource(reference.file),
-							reference.start.line === reference.end.line
-								? typeConverters.Range.fromTextSpan(reference)
-								: new vscode.Range(
-									typeConverters.Position.fromLocation(reference.start),
-									new vscode.Position(reference.start.line, 0))))
-					// Exclude original from implementations
-					.filter(location =>
-						!(location.uri.toString() === codeLens.document.toString() &&
-							location.range.start.line === codeLens.range.start.line &&
-							location.range.start.character === codeLens.range.start.character));
-
+			const locations: vscode.Location[] | undefined = await vscode.commands.executeCommand<vscode.Location[]>('vscode.executeImplementationProvider', codeLens.document, codeLens.range.start);
+			if (locations) {
 				codeLens.command = this.getCommand(locations, codeLens);
 				return codeLens;
 			}

@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import { IFileStat } from 'vs/platform/files/common/files';
 
 export function getByName(root: IFileStat, name: string): IFileStat {

@@ -1,0 +1,81 @@
+
+// This file is adding references to various symbols which should not be removed via tree shaking
+
+import { ServiceIdentifier } from './vs/platform/instantiation/common/instantiation';
+import { IContextViewService } from './vs/platform/contextview/browser/contextView';
+import { IHighlight } from './vs/base/parts/quickopen/browser/quickOpenModel';
+import { IWorkspaceContextService } from './vs/platform/workspace/common/workspace';
+import { IEnvironmentService } from './vs/platform/environment/common/environment';
+import { CountBadge } from './vs/base/browser/ui/countBadge/countBadge';
+import { SimpleWorkerClient, create as create1 } from './vs/base/common/worker/simpleWorker';
+import { create as create2 } from './vs/editor/common/services/editorSimpleWorker';
+import { QuickOpenWidget } from './vs/base/parts/quickopen/browser/quickOpenWidget';
+import { SyncDescriptor0, SyncDescriptor1, SyncDescriptor2, SyncDescriptor3, SyncDescriptor4, SyncDescriptor5, SyncDescriptor6, SyncDescriptor7, SyncDescriptor8 } from './vs/platform/instantiation/common/descriptors';
+import { PolyfillPromise } from './vs/base/common/winjs.polyfill.promise';
+import { DiffNavigator } from './vs/editor/browser/widget/diffNavigator';
+import * as editorAPI from './vs/editor/editor.api';
+
+(function () {
+	var a: any;
+	var b: any;
+	a = (<IContextViewService>b).layout; // IContextViewProvider
+	a = (<IWorkspaceContextService>b).getWorkspaceFolder; // IWorkspaceFolderProvider
+	a = (<IWorkspaceContextService>b).getWorkspace; // IWorkspaceFolderProvider
+	a = (<CountBadge>b).style; // IThemable
+	a = (<QuickOpenWidget>b).style; // IThemable
+	a = (<IEnvironmentService>b).userHome; // IUserHomeProvider
+	a = (<DiffNavigator>b).previous; // IDiffNavigator
+	a = (<ServiceIdentifier<any>>b).type;
+	a = (<IHighlight>b).start;
+	a = (<IHighlight>b).end;
+	a = (<SimpleWorkerClient<any>>b).getProxyObject; // IWorkerClient
+	a = create1;
+	a = create2;
+
+	// promise polyfill
+	a = PolyfillPromise.all;
+	a = PolyfillPromise.race;
+	a = PolyfillPromise.resolve;
+	a = PolyfillPromise.reject;
+	a = (<PolyfillPromise>b).then;
+	a = (<PolyfillPromise>b).catch;
+
+	// injection madness
+	a = (<SyncDescriptor0<any>>b).ctor;
+	a = (<SyncDescriptor0<any>>b).bind;
+	a = (<SyncDescriptor1<any, any>>b).ctor;
+	a = (<SyncDescriptor1<any, any>>b).bind;
+	a = (<SyncDescriptor1<any, any>>b).ctor;
+	a = (<SyncDescriptor1<any, any>>b).bind;
+	a = (<SyncDescriptor2<any, any, any>>b).ctor;
+	a = (<SyncDescriptor2<any, any, any>>b).bind;
+	a = (<SyncDescriptor3<any, any, any, any>>b).ctor;
+	a = (<SyncDescriptor3<any, any, any, any>>b).bind;
+	a = (<SyncDescriptor4<any, any, any, any, any>>b).ctor;
+	a = (<SyncDescriptor4<any, any, any, any, any>>b).bind;
+	a = (<SyncDescriptor5<any, any, any, any, any, any>>b).ctor;
+	a = (<SyncDescriptor5<any, any, any, any, any, any>>b).bind;
+	a = (<SyncDescriptor6<any, any, any, any, any, any, any>>b).ctor;
+	a = (<SyncDescriptor6<any, any, any, any, any, any, any>>b).bind;
+	a = (<SyncDescriptor7<any, any, any, any, any, any, any, any>>b).ctor;
+	a = (<SyncDescriptor7<any, any, any, any, any, any, any, any>>b).bind;
+	a = (<SyncDescriptor8<any, any, any, any, any, any, any, any, any>>b).ctor;
+	a = (<SyncDescriptor8<any, any, any, any, any, any, any, any, any>>b).bind;
+
+	// exported API
+	a = editorAPI.CancellationTokenSource;
+	a = editorAPI.Emitter;
+	a = editorAPI.KeyCode;
+	a = editorAPI.KeyMod;
+	a = editorAPI.Position;
+	a = editorAPI.Range;
+	a = editorAPI.Selection;
+	a = editorAPI.SelectionDirection;
+	a = editorAPI.MarkerSeverity;
+	a = editorAPI.MarkerTag;
+	a = editorAPI.Promise;
+	a = editorAPI.Uri;
+	a = editorAPI.Token;
+	a = editorAPI.editor;
+	a = editorAPI.languages;
+})();

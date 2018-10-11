@@ -2,7 +2,6 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
 import * as strings from 'vs/base/common/strings';
 import * as paths from 'vs/base/common/paths';
@@ -99,7 +98,7 @@ function noIntlCompareFileExtensions(one: string, other: string): number {
 }
 
 function extractNameAndExtension(str?: string): [string, string] {
-	const match = str ? FileNameMatch.exec(str) : [] as RegExpExecArray;
+	const match = str ? FileNameMatch.exec(str) as Array<string> : ([] as Array<string>);
 
 	return [(match && match[1]) || '', (match && match[3]) || ''];
 }

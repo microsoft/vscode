@@ -3,10 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import { IURLService, IURLHandler } from 'vs/platform/url/common/url';
-import URI from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 import { IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { first } from 'vs/base/common/async';

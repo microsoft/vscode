@@ -2,7 +2,6 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { ICursorStateComputer, IIdentifiedSingleEditOperation, EndOfLineSequence } from 'vs/editor/common/model';
@@ -210,6 +209,10 @@ export class EditStack {
 		return null;
 	}
 
+	public canUndo(): boolean {
+		return (this.past.length > 0);
+	}
+
 	public redo(): IUndoRedoResult {
 
 		if (this.future.length > 0) {
@@ -232,5 +235,9 @@ export class EditStack {
 		}
 
 		return null;
+	}
+
+	public canRedo(): boolean {
+		return (this.future.length > 0);
 	}
 }

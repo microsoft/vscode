@@ -4,35 +4,47 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 Object.defineProperty(exports, "__esModule", { value: true });
-var gulp = require("gulp");
-var tsb = require("gulp-tsb");
 var es = require("event-stream");
-var watch = require('./watch');
-var nls = require("./nls");
-var util = require("./util");
-var reporter_1 = require("./reporter");
-var path = require("path");
+var fs = require("fs");
+var gulp = require("gulp");
 var bom = require("gulp-bom");
 var sourcemaps = require("gulp-sourcemaps");
+var tsb = require("gulp-tsb");
+var path = require("path");
 var _ = require("underscore");
 var monacodts = require("../monaco/api");
-var fs = require("fs");
+var nls = require("./nls");
+var reporter_1 = require("./reporter");
+var util = require("./util");
+var watch = require('./watch');
+var assign = require("object-assign");
 var reporter = reporter_1.createReporter();
-var rootDir = path.join(__dirname, '../../src');
-var options = require('../../src/tsconfig.json').compilerOptions;
-options.verbose = false;
-options.sourceMap = true;
-if (process.env['VSCODE_NO_SOURCEMAP']) { // To be used by developers in a hurry
-    options.sourceMap = false;
+function getTypeScriptCompilerOptions(src) {
+    var rootDir = path.join(__dirname, "../../" + src);
+    var tsconfig = require("../../" + src + "/tsconfig.json");
+    var options;
+    if (tsconfig.extends) {
+        options = assign({}, require(path.join(rootDir, tsconfig.extends)).compilerOptions, tsconfig.compilerOptions);
+    }
+    else {
+        options = tsconfig.compilerOptions;
+    }
+    options.verbose = false;
+    options.sourceMap = true;
+    if (process.env['VSCODE_NO_SOURCEMAP']) { // To be used by developers in a hurry
+        options.sourceMap = false;
+    }
+    options.rootDir = rootDir;
+    options.baseUrl = rootDir;
+    options.sourceRoot = util.toFileUri(rootDir);
+    options.newLine = /\r\n/.test(fs.readFileSync(__filename, 'utf8')) ? 'CRLF' : 'LF';
+    return options;
 }
-options.rootDir = rootDir;
-options.sourceRoot = util.toFileUri(rootDir);
-options.newLine = /\r\n/.test(fs.readFileSync(__filename, 'utf8')) ? 'CRLF' : 'LF';
-function createCompile(build, emitError) {
-    var opts = _.clone(options);
+function createCompile(src, build, emitError) {
+    var opts = _.clone(getTypeScriptCompilerOptions(src));
     opts.inlineSources = !!build;
     opts.noFilesystemLookup = true;
-    var ts = tsb.create(opts, null, null, function (err) { return reporter(err.toString()); });
+    var ts = tsb.create(opts, true, undefined, function (err) { return reporter(err.toString()); });
     return function (token) {
         var utf8Filter = util.filter(function (data) { return /(\/|\\)test(\/|\\).*utf8/.test(data.path); });
         var tsFilter = util.filter(function (data) { return /\.ts$/.test(data.path); });
@@ -51,32 +63,38 @@ function createCompile(build, emitError) {
             .pipe(sourcemaps.write('.', {
             addComment: false,
             includeContent: !!build,
-            sourceRoot: options.sourceRoot
+            sourceRoot: opts.sourceRoot
         }))
             .pipe(tsFilter.restore)
-            .pipe(reporter.end(emitError));
+            .pipe(reporter.end(!!emitError));
         return es.duplex(input, output);
     };
 }
-function compileTask(out, build) {
+var typesDts = [
+    'node_modules/typescript/lib/*.d.ts',
+    'node_modules/@types/**/*.d.ts',
+    '!node_modules/@types/webpack/**/*',
+    '!node_modules/@types/uglify-js/**/*',
+];
+function compileTask(src, out, build) {
     return function () {
-        var compile = createCompile(build, true);
-        var src = es.merge(gulp.src('src/**', { base: 'src' }), gulp.src('node_modules/typescript/lib/lib.d.ts'));
+        var compile = createCompile(src, build, true);
+        var srcPipe = es.merge(gulp.src(src + "/**", { base: "" + src }), gulp.src(typesDts));
         // Do not write .d.ts files to disk, as they are not needed there.
         var dtsFilter = util.filter(function (data) { return !/\.d\.ts$/.test(data.path); });
-        return src
+        return srcPipe
             .pipe(compile())
             .pipe(dtsFilter)
             .pipe(gulp.dest(out))
             .pipe(dtsFilter.restore)
-            .pipe(monacodtsTask(out, false));
+            .pipe(src !== 'src' ? es.through() : monacodtsTask(out, false));
     };
 }
 exports.compileTask = compileTask;
 function watchTask(out, build) {
     return function () {
-        var compile = createCompile(build);
-        var src = es.merge(gulp.src('src/**', { base: 'src' }), gulp.src('node_modules/typescript/lib/lib.d.ts'));
+        var compile = createCompile('src', build);
+        var src = es.merge(gulp.src('src/**', { base: 'src' }), gulp.src(typesDts));
         var watchSrc = watch('src/**', { base: 'src' });
         // Do not write .d.ts files to disk, as they are not needed there.
         var dtsFilter = util.filter(function (data) { return !/\.d\.ts$/.test(data.path); });
@@ -122,6 +140,7 @@ function monacodtsTask(out, isWatch) {
                 fs.writeFileSync(result.filePath, result.content);
             }
             else {
+                fs.writeFileSync(result.filePath, result.content);
                 resultStream.emit('error', 'monaco.d.ts is no longer up to date. Please run gulp watch and commit the new file.');
             }
         }

@@ -2,14 +2,12 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
-
 import * as assert from 'assert';
 import * as winjs from 'vs/base/common/winjs.base';
 
 suite('WinJS and ES6 Promises', function () {
 
-	test('Promise.resolve', function () {
+	test('Promise.resolve', () => {
 		let resolveTPromise;
 		const tPromise = new winjs.Promise((c, e) => {
 			resolveTPromise = c;

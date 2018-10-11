@@ -2,10 +2,9 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
 import * as strings from 'vs/base/common/strings';
-import URI from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 import * as dom from 'vs/base/browser/dom';
 import { IDecorationRenderOptions, IThemeDecorationRenderOptions, IContentDecorationRenderOptions, isThemeColor } from 'vs/editor/common/editorCommon';
 import { IModelDecorationOptions, IModelDecorationOverviewRulerOptions, OverviewRulerLane, TrackedRangeStickiness } from 'vs/editor/common/model';
@@ -13,7 +12,6 @@ import { AbstractCodeEditorService } from 'vs/editor/browser/services/abstractCo
 import { IDisposable, dispose as disposeAll } from 'vs/base/common/lifecycle';
 import { IThemeService, ITheme, ThemeColor } from 'vs/platform/theme/common/themeService';
 import { IResourceInput } from 'vs/platform/editor/common/editor';
-import { TPromise } from 'vs/base/common/winjs.base';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 
 export abstract class CodeEditorServiceImpl extends AbstractCodeEditorService {
@@ -69,7 +67,7 @@ export abstract class CodeEditorServiceImpl extends AbstractCodeEditorService {
 	}
 
 	abstract getActiveCodeEditor(): ICodeEditor;
-	abstract openCodeEditor(input: IResourceInput, source: ICodeEditor, sideBySide?: boolean): TPromise<ICodeEditor>;
+	abstract openCodeEditor(input: IResourceInput, source: ICodeEditor, sideBySide?: boolean): Thenable<ICodeEditor>;
 }
 
 interface IModelDecorationOptionsProvider extends IDisposable {
@@ -212,7 +210,7 @@ class DecorationTypeOptionsProvider implements IModelDecorationOptionsProvider {
 
 const _CSS_MAP: { [prop: string]: string; } = {
 	color: 'color:{0} !important;',
-	opacity: 'opacity:{0};',
+	opacity: 'opacity:{0}; will-change: opacity;', // TODO@Ben: 'will-change: opacity' is a workaround for https://github.com/Microsoft/vscode/issues/52196
 	backgroundColor: 'background-color:{0};',
 
 	outline: 'outline:{0};',

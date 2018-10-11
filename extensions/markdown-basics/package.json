@@ -17,9 +17,14 @@
 				],
 				"extensions": [
 					".md",
+          ".mkd",
+          ".mdwn",
 					".mdown",
 					".markdown",
-					".markdn"
+					".markdn",
+          ".mdtxt",
+          ".mdtext",
+					".workbook"
 				],
 				"configuration": "./language-configuration.json"
 			}

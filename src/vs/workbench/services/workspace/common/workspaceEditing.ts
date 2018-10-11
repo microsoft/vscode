@@ -2,12 +2,11 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
 import { TPromise } from 'vs/base/common/winjs.base';
 import { createDecorator, ServiceIdentifier } from 'vs/platform/instantiation/common/instantiation';
 import { IWorkspaceIdentifier, IWorkspaceFolderCreationData } from 'vs/platform/workspaces/common/workspaces';
-import URI from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 
 export const IWorkspaceEditingService = createDecorator<IWorkspaceEditingService>('workspaceEditingService');
 
@@ -32,6 +31,11 @@ export interface IWorkspaceEditingService {
 	 * When `donotNotifyError` is `true`, error will be bubbled up otherwise, the service handles the error with proper message and action
 	 */
 	updateFolders(index: number, deleteCount?: number, foldersToAdd?: IWorkspaceFolderCreationData[], donotNotifyError?: boolean): TPromise<void>;
+
+	/**
+	 * enters the workspace with the provided path.
+	 */
+	enterWorkspace(path: string): TPromise<void>;
 
 	/**
 	 * creates a new workspace with the provided folders and opens it. if path is provided

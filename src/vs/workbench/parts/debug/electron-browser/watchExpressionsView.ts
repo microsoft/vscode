@@ -8,12 +8,11 @@ import { RunOnceScheduler } from 'vs/base/common/async';
 import * as dom from 'vs/base/browser/dom';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { TPromise } from 'vs/base/common/winjs.base';
-import * as errors from 'vs/base/common/errors';
 import { IActionProvider, ITree, IDataSource, IRenderer, IAccessibilityProvider, IDragAndDropData, IDragOverReaction, DRAG_OVER_REJECT } from 'vs/base/parts/tree/browser/tree';
 import { CollapseAction } from 'vs/workbench/browser/viewlet';
 import { TreeViewsViewletPanel, IViewletViewOptions } from 'vs/workbench/browser/parts/views/viewsViewlet';
 import { IDebugService, IExpression, CONTEXT_WATCH_EXPRESSIONS_FOCUSED } from 'vs/workbench/parts/debug/common/debug';
-import { Expression, Variable, Model } from 'vs/workbench/parts/debug/common/debugModel';
+import { Expression, Variable, DebugModel } from 'vs/workbench/parts/debug/common/debugModel';
 import { AddWatchExpressionAction, RemoveAllWatchExpressionsAction, EditWatchExpressionAction, RemoveWatchExpressionAction } from 'vs/workbench/parts/debug/browser/debugActions';
 import { IContextMenuService, IContextViewService } from 'vs/platform/contextview/browser/contextView';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -55,7 +54,7 @@ export class WatchExpressionsView extends TreeViewsViewletPanel {
 
 		this.onWatchExpressionsUpdatedScheduler = new RunOnceScheduler(() => {
 			this.needsRefresh = false;
-			this.tree.refresh().done(undefined, errors.onUnexpectedError);
+			this.tree.refresh();
 		}, 50);
 	}
 
@@ -90,9 +89,9 @@ export class WatchExpressionsView extends TreeViewsViewletPanel {
 				return;
 			}
 
-			this.tree.refresh().done(() => {
-				return we instanceof Expression ? this.tree.reveal(we) : TPromise.as(true);
-			}, errors.onUnexpectedError);
+			this.tree.refresh().then(() => {
+				return we instanceof Expression ? this.tree.reveal(we) : Promise.resolve(true);
+			});
 		}));
 		this.disposables.push(this.debugService.getViewModel().onDidFocusStackFrame(() => {
 			if (!this.isExpanded() || !this.isVisible()) {
@@ -107,7 +106,7 @@ export class WatchExpressionsView extends TreeViewsViewletPanel {
 
 		this.disposables.push(this.debugService.getViewModel().onDidSelectExpression(expression => {
 			if (expression instanceof Expression) {
-				this.tree.refresh(expression, false).done(null, errors.onUnexpectedError);
+				this.tree.refresh(expression, false);
 			}
 		}));
 	}
@@ -156,7 +155,7 @@ class WatchExpressionsActionProvider implements IActionProvider {
 	}
 
 	public getActions(tree: ITree, element: any): TPromise<IAction[]> {
-		return TPromise.as([]);
+		return Promise.resolve([]);
 	}
 
 	public getSecondaryActions(tree: ITree, element: any): TPromise<IAction[]> {
@@ -177,14 +176,14 @@ class WatchExpressionsActionProvider implements IActionProvider {
 			if (element instanceof Variable) {
 				const variable = <Variable>element;
 				if (!variable.hasChildren) {
-					actions.push(new CopyValueAction(CopyValueAction.ID, CopyValueAction.LABEL, variable.value, this.debugService));
+					actions.push(new CopyValueAction(CopyValueAction.ID, CopyValueAction.LABEL, variable, this.debugService));
 				}
 				actions.push(new Separator());
 			}
 			actions.push(new RemoveAllWatchExpressionsAction(RemoveAllWatchExpressionsAction.ID, RemoveAllWatchExpressionsAction.LABEL, this.debugService, this.keybindingService));
 		}
 
-		return TPromise.as(actions);
+		return Promise.resolve(actions);
 	}
 
 	public getActionItem(tree: ITree, element: any, action: IAction): IActionItem {
@@ -203,7 +202,7 @@ class WatchExpressionsDataSource implements IDataSource {
 	}
 
 	public hasChildren(tree: ITree, element: any): boolean {
-		if (element instanceof Model) {
+		if (element instanceof DebugModel) {
 			return true;
 		}
 
@@ -212,10 +211,10 @@ class WatchExpressionsDataSource implements IDataSource {
 	}
 
 	public getChildren(tree: ITree, element: any): TPromise<any> {
-		if (element instanceof Model) {
+		if (element instanceof DebugModel) {
 			const viewModel = this.debugService.getViewModel();
-			return TPromise.join(element.getWatchExpressions().map(we =>
-				we.name ? we.evaluate(viewModel.focusedSession, viewModel.focusedStackFrame, 'watch').then(() => we) : TPromise.as(we)));
+			return Promise.all(element.getWatchExpressions().map(we =>
+				we.name ? we.evaluate(viewModel.focusedSession, viewModel.focusedStackFrame, 'watch').then(() => we) : Promise.resolve(we)));
 		}
 
 		let expression = <Expression>element;
@@ -223,7 +222,7 @@ class WatchExpressionsDataSource implements IDataSource {
 	}
 
 	public getParent(tree: ITree, element: any): TPromise<any> {
-		return TPromise.as(null);
+		return Promise.resolve(null);
 	}
 }
 
@@ -300,16 +299,17 @@ class WatchExpressionsRenderer implements IRenderer {
 		}
 
 		data.name.textContent = watchExpression.name;
-		if (watchExpression.value) {
+		renderExpressionValue(watchExpression, data.value, {
+			showChanged: true,
+			maxValueLength: MAX_VALUE_RENDER_LENGTH_IN_VIEWLET,
+			preserveWhitespace: false,
+			showHover: true,
+			colorize: true
+		});
+		data.name.title = watchExpression.type ? watchExpression.type : watchExpression.value;
+
+		if (typeof watchExpression.value === 'string') {
 			data.name.textContent += ':';
-			renderExpressionValue(watchExpression, data.value, {
-				showChanged: true,
-				maxValueLength: MAX_VALUE_RENDER_LENGTH_IN_VIEWLET,
-				preserveWhitespace: false,
-				showHover: true,
-				colorize: true
-			});
-			data.name.title = watchExpression.type ? watchExpression.type : watchExpression.value;
 		}
 	}
 
@@ -344,7 +344,7 @@ class WatchExpressionsController extends BaseDebugController {
 			const expression = <IExpression>element;
 			this.debugService.getViewModel().setSelectedExpression(expression);
 			return true;
-		} else if (element instanceof Model && event.detail === 2) {
+		} else if (element instanceof DebugModel && event.detail === 2) {
 			// Double click in watch panel triggers to add a new watch expression
 			this.debugService.addWatchExpression();
 			return true;
@@ -376,8 +376,8 @@ class WatchExpressionsDragAndDrop extends DefaultDragAndDrop {
 		return elements[0].name;
 	}
 
-	public onDragOver(tree: ITree, data: IDragAndDropData, target: Expression | Model, originalEvent: DragMouseEvent): IDragOverReaction {
-		if (target instanceof Expression || target instanceof Model) {
+	public onDragOver(tree: ITree, data: IDragAndDropData, target: Expression | DebugModel, originalEvent: DragMouseEvent): IDragOverReaction {
+		if (target instanceof Expression || target instanceof DebugModel) {
 			return {
 				accept: true,
 				autoExpand: false
@@ -387,12 +387,12 @@ class WatchExpressionsDragAndDrop extends DefaultDragAndDrop {
 		return DRAG_OVER_REJECT;
 	}
 
-	public drop(tree: ITree, data: IDragAndDropData, target: Expression | Model, originalEvent: DragMouseEvent): void {
+	public drop(tree: ITree, data: IDragAndDropData, target: Expression | DebugModel, originalEvent: DragMouseEvent): void {
 		const draggedData = data.getData();
 		if (Array.isArray(draggedData)) {
 			const draggedElement = <Expression>draggedData[0];
 			const watches = this.debugService.getModel().getWatchExpressions();
-			const position = target instanceof Model ? watches.length - 1 : watches.indexOf(target);
+			const position = target instanceof DebugModel ? watches.length - 1 : watches.indexOf(target);
 			this.debugService.moveWatchExpression(draggedElement.getId(), position);
 		}
 	}

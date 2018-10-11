@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import { OperatingSystem } from 'vs/base/common/platform';
 
 /**
@@ -412,7 +410,7 @@ export function KeyChord(firstPart: number, secondPart: number): number {
 	return (firstPart | chordPart) >>> 0;
 }
 
-export function createKeybinding(keybinding: number, OS: OperatingSystem): Keybinding {
+export function createKeybinding(keybinding: number, OS: OperatingSystem): Keybinding | null {
 	if (keybinding === 0) {
 		return null;
 	}

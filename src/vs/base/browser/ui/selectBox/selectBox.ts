@@ -14,6 +14,7 @@ import { IListStyles } from 'vs/base/browser/ui/list/listWidget';
 import { SelectBoxNative } from 'vs/base/browser/ui/selectBox/selectBoxNative';
 import { SelectBoxList } from 'vs/base/browser/ui/selectBox/selectBoxCustom';
 import { isMacintosh } from 'vs/base/common/platform';
+import { IContentActionHandler } from 'vs/base/browser/htmlContentRenderer';
 
 // Public SelectBox interface - Calls routed to appropriate select implementation class
 
@@ -23,6 +24,8 @@ export interface ISelectBoxDelegate {
 	readonly onDidSelect: Event<ISelectData>;
 	setOptions(options: string[], selected?: number, disabled?: number): void;
 	select(index: number): void;
+	setAriaLabel(label: string);
+	setDetailsProvider(provider: (index: number) => { details: string, isMarkdown: boolean });
 	focus(): void;
 	blur(): void;
 	dispose(): void;
@@ -34,7 +37,10 @@ export interface ISelectBoxDelegate {
 }
 
 export interface ISelectBoxOptions {
+	ariaLabel?: string;
 	minBottomMargin?: number;
+	hasDetails?: boolean;
+	markdownActionHandler?: IContentActionHandler;
 }
 
 export interface ISelectBoxStyles extends IListStyles {
@@ -42,6 +48,7 @@ export interface ISelectBoxStyles extends IListStyles {
 	selectListBackground?: Color;
 	selectForeground?: Color;
 	selectBorder?: Color;
+	selectListBorder?: Color;
 	focusBorder?: Color;
 }
 
@@ -66,8 +73,8 @@ export class SelectBox extends Widget implements ISelectBoxDelegate {
 		mixin(this.styles, defaultStyles, false);
 
 		// Instantiate select implementation based on platform
-		if (isMacintosh) {
-			this.selectBoxDelegate = new SelectBoxNative(options, selected, styles);
+		if (isMacintosh && !(selectBoxOptions && selectBoxOptions.hasDetails)) {
+			this.selectBoxDelegate = new SelectBoxNative(options, selected, styles, selectBoxOptions);
 		} else {
 			this.selectBoxDelegate = new SelectBoxList(options, selected, contextViewProvider, styles, selectBoxOptions);
 		}
@@ -87,6 +94,14 @@ export class SelectBox extends Widget implements ISelectBoxDelegate {
 
 	public select(index: number): void {
 		this.selectBoxDelegate.select(index);
+	}
+
+	public setAriaLabel(label: string): void {
+		this.selectBoxDelegate.setAriaLabel(label);
+	}
+
+	public setDetailsProvider(provider: (index: number) => { details: string, isMarkdown: boolean }): void {
+		this.selectBoxDelegate.setDetailsProvider(provider);
 	}
 
 	public focus(): void {

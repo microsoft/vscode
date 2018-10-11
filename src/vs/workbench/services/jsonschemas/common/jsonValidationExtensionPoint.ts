@@ -2,7 +2,6 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
 import * as nls from 'vs/nls';
 import { ExtensionsRegistry } from 'vs/workbench/services/extensions/common/extensionsRegistry';
@@ -60,8 +59,8 @@ export class JSONValidationExtensionPoint {
 					if (strings.startsWith(uri, './')) {
 						try {
 							const colorThemeLocation = resources.joinPath(extensionLocation, uri);
-							if (colorThemeLocation.path.indexOf(extensionLocation.path) !== 0) {
-								collector.warn(nls.localize('invalid.path.1', "Expected `contributes.{0}.url` ({1}) to be included inside extension's folder ({2}). This might make the extension non-portable.", configurationExtPoint.name, location, extensionLocation.path));
+							if (!resources.isEqualOrParent(colorThemeLocation, extensionLocation)) {
+								collector.warn(nls.localize('invalid.path.1', "Expected `contributes.{0}.url` ({1}) to be included inside extension's folder ({2}). This might make the extension non-portable.", configurationExtPoint.name, colorThemeLocation.toString(), extensionLocation.path));
 							}
 						} catch (e) {
 							collector.error(nls.localize('invalid.url.fileschema', "'configuration.jsonValidation.url' is an invalid relative URL: {0}", e.message));

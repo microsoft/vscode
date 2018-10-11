@@ -2,13 +2,12 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
 import Severity from 'vs/base/common/severity';
-import URI from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IConfigurationService, IConfigurationChangeEvent, IConfigurationOverrides, IConfigurationData } from 'vs/platform/configuration/common/configuration';
-import { ISingleFolderWorkspaceIdentifier, IWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
+import { IWorkspaceIdentifier, ISingleFolderWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
 import { ICommandService, ICommand, ICommandEvent, ICommandHandler, CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { AbstractKeybindingService } from 'vs/platform/keybinding/common/abstractKeybindingService';
 import { USLayoutResolvedKeybinding } from 'vs/platform/keybinding/common/usLayoutResolvedKeybinding';
@@ -24,7 +23,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { IProgressService, IProgressRunner } from 'vs/platform/progress/common/progress';
 import { ITextResourceConfigurationService } from 'vs/editor/common/services/resourceConfiguration';
 import { ITextModelService, ITextModelContentProvider, ITextEditorModel } from 'vs/editor/common/services/resolverService';
-import { IDisposable, IReference, ImmortalReference, combinedDisposable } from 'vs/base/common/lifecycle';
+import { IDisposable, IReference, ImmortalReference, combinedDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import * as dom from 'vs/base/browser/dom';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { KeybindingsRegistry, IKeybindingItem } from 'vs/platform/keybinding/common/keybindingsRegistry';
@@ -45,6 +44,7 @@ import { WorkspaceEdit, isResourceTextEdit, TextEdit } from 'vs/editor/common/mo
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { EditOperation } from 'vs/editor/common/core/editOperation';
 import { localize } from 'vs/nls';
+import { ILabelService, LabelRules, RegisterFormatterEvent } from 'vs/platform/label/common/label';
 
 export class SimpleModel implements ITextEditorModel {
 
@@ -66,6 +66,10 @@ export class SimpleModel implements ITextEditorModel {
 
 	public get textEditorModel(): ITextModel {
 		return this.model;
+	}
+
+	public isReadonly(): boolean {
+		return false;
 	}
 
 	public dispose(): void {
@@ -142,7 +146,7 @@ export class SimpleProgressService implements IProgressService {
 		return SimpleProgressService.NULL_PROGRESS_RUNNER;
 	}
 
-	showWhile(promise: TPromise<any>, delay?: number): TPromise<void> {
+	showWhile(promise: Thenable<any>, delay?: number): Thenable<void> {
 		return null;
 	}
 }
@@ -151,7 +155,7 @@ export class SimpleDialogService implements IDialogService {
 
 	public _serviceBrand: any;
 
-	public confirm(confirmation: IConfirmation): TPromise<IConfirmationResult> {
+	public confirm(confirmation: IConfirmation): Thenable<IConfirmationResult> {
 		return this.doConfirm(confirmation).then(confirmed => {
 			return {
 				confirmed,
@@ -160,17 +164,17 @@ export class SimpleDialogService implements IDialogService {
 		});
 	}
 
-	private doConfirm(confirmation: IConfirmation): TPromise<boolean> {
+	private doConfirm(confirmation: IConfirmation): Thenable<boolean> {
 		let messageText = confirmation.message;
 		if (confirmation.detail) {
 			messageText = messageText + '\n\n' + confirmation.detail;
 		}
 
-		return TPromise.wrap(window.confirm(messageText));
+		return Promise.resolve(window.confirm(messageText));
 	}
 
-	public show(severity: Severity, message: string, buttons: string[], options?: IDialogOptions): TPromise<number> {
-		return TPromise.as(0);
+	public show(severity: Severity, message: string, buttons: string[], options?: IDialogOptions): Thenable<number> {
+		return Promise.resolve(0);
 	}
 }
 
@@ -230,25 +234,23 @@ export class StandaloneCommandService implements ICommandService {
 	public addCommand(command: ICommand): IDisposable {
 		const { id } = command;
 		this._dynamicCommands[id] = command;
-		return {
-			dispose: () => {
-				delete this._dynamicCommands[id];
-			}
-		};
+		return toDisposable(() => {
+			delete this._dynamicCommands[id];
+		});
 	}
 
-	public executeCommand<T>(id: string, ...args: any[]): TPromise<T> {
+	public executeCommand<T>(id: string, ...args: any[]): Promise<T> {
 		const command = (CommandsRegistry.getCommand(id) || this._dynamicCommands[id]);
 		if (!command) {
-			return TPromise.wrapError<T>(new Error(`command '${id}' not found`));
+			return Promise.reject(new Error(`command '${id}' not found`));
 		}
 
 		try {
 			this._onWillExecuteCommand.fire({ commandId: id });
 			const result = this._instantiationService.invokeFunction.apply(this._instantiationService, [command.handler].concat(args));
-			return TPromise.as(result);
+			return Promise.resolve(result);
 		} catch (err) {
-			return TPromise.wrapError<T>(err);
+			return Promise.reject(err);
 		}
 	}
 }
@@ -289,18 +291,16 @@ export class StandaloneKeybindingService extends AbstractKeybindingService {
 			weight2: 0
 		});
 
-		toDispose.push({
-			dispose: () => {
-				for (let i = 0; i < this._dynamicKeybindings.length; i++) {
-					let kb = this._dynamicKeybindings[i];
-					if (kb.command === commandId) {
-						this._dynamicKeybindings.splice(i, 1);
-						this.updateResolver({ source: KeybindingSource.Default });
-						return;
-					}
+		toDispose.push(toDisposable(() => {
+			for (let i = 0; i < this._dynamicKeybindings.length; i++) {
+				let kb = this._dynamicKeybindings[i];
+				if (kb.command === commandId) {
+					this._dynamicKeybindings.splice(i, 1);
+					this.updateResolver({ source: KeybindingSource.Default });
+					return;
 				}
 			}
-		});
+		}));
 
 		let commandService = this._commandService;
 		if (commandService instanceof StandaloneCommandService) {
@@ -409,9 +409,9 @@ export class SimpleConfigurationService implements IConfigurationService {
 		return this.configuration().getValue(section, overrides, null);
 	}
 
-	public updateValue(key: string, value: any, arg3?: any, arg4?: any): TPromise<void> {
+	public updateValue(key: string, value: any, arg3?: any, arg4?: any): Promise<void> {
 		this.configuration().updateValue(key, value);
-		return TPromise.as(null);
+		return Promise.resolve(null);
 	}
 
 	public inspect<C>(key: string, options: IConfigurationOverrides = {}): {
@@ -428,8 +428,8 @@ export class SimpleConfigurationService implements IConfigurationService {
 		return this.configuration().keys(null);
 	}
 
-	public reloadConfiguration(): TPromise<void> {
-		return TPromise.as(null);
+	public reloadConfiguration(): Promise<void> {
+		return Promise.resolve(null);
 	}
 
 	public getConfigurationData(): IConfigurationData {
@@ -470,7 +470,7 @@ export class SimpleMenuService implements IMenuService {
 	}
 
 	public createMenu(id: MenuId, contextKeyService: IContextKeyService): IMenu {
-		return new Menu(id, TPromise.as(true), this._commandService, contextKeyService);
+		return new Menu(id, Promise.resolve(true), this._commandService, contextKeyService);
 	}
 }
 
@@ -492,7 +492,7 @@ export class SimpleWorkspaceContextService implements IWorkspaceContextService {
 
 	public _serviceBrand: any;
 
-	private static SCHEME: 'inmemory';
+	private static SCHEME = 'inmemory';
 
 	private readonly _onDidChangeWorkspaceName: Emitter<void> = new Emitter<void>();
 	public readonly onDidChangeWorkspaceName: Event<void> = this._onDidChangeWorkspaceName.event;
@@ -507,7 +507,7 @@ export class SimpleWorkspaceContextService implements IWorkspaceContextService {
 
 	constructor() {
 		const resource = URI.from({ scheme: SimpleWorkspaceContextService.SCHEME, authority: 'model', path: '/' });
-		this.workspace = { id: '4064f6ec-cb38-4ad0-af64-ee6467e63c82', folders: [new WorkspaceFolder({ uri: resource, name: '', index: 0 })], name: resource.fsPath };
+		this.workspace = { id: '4064f6ec-cb38-4ad0-af64-ee6467e63c82', folders: [new WorkspaceFolder({ uri: resource, name: '', index: 0 })] };
 	}
 
 	public getWorkspace(): IWorkspace {
@@ -561,17 +561,17 @@ export class SimpleBulkEditService implements IBulkEditService {
 		//
 	}
 
-	apply(workspaceEdit: WorkspaceEdit, options: IBulkEditOptions): TPromise<IBulkEditResult> {
+	apply(workspaceEdit: WorkspaceEdit, options: IBulkEditOptions): Promise<IBulkEditResult> {
 
 		let edits = new Map<ITextModel, TextEdit[]>();
 
 		for (let edit of workspaceEdit.edits) {
 			if (!isResourceTextEdit(edit)) {
-				return TPromise.wrapError(new Error('bad edit - only text edits are supported'));
+				return Promise.reject(new Error('bad edit - only text edits are supported'));
 			}
 			let model = this._modelService.getModel(edit.resource);
 			if (!model) {
-				return TPromise.wrapError(new Error('bad edit - model not found'));
+				return Promise.reject(new Error('bad edit - model not found'));
 			}
 			let array = edits.get(model);
 			if (!array) {
@@ -588,9 +588,31 @@ export class SimpleBulkEditService implements IBulkEditService {
 			totalEdits += edits.length;
 		});
 
-		return TPromise.as({
+		return Promise.resolve({
 			selection: undefined,
 			ariaSummary: localize('summary', 'Made {0} edits in {1} files', totalEdits, totalFiles)
 		});
+	}
+}
+
+export class SimpleUriLabelService implements ILabelService {
+	_serviceBrand: any;
+
+	private readonly _onDidRegisterFormatter: Emitter<RegisterFormatterEvent> = new Emitter<RegisterFormatterEvent>();
+	public readonly onDidRegisterFormatter: Event<RegisterFormatterEvent> = this._onDidRegisterFormatter.event;
+
+	public getUriLabel(resource: URI, options?: { relative?: boolean, forceNoTildify?: boolean }): string {
+		if (resource.scheme === 'file') {
+			return resource.fsPath;
+		}
+		return resource.path;
+	}
+
+	public getWorkspaceLabel(workspace: IWorkspaceIdentifier | URI | IWorkspace, options?: { verbose: boolean; }): string {
+		return '';
+	}
+
+	public registerFormatter(selector: string, formatter: LabelRules): IDisposable {
+		throw new Error('Not implemented');
 	}
 }

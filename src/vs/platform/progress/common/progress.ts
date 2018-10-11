@@ -2,7 +2,6 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
@@ -78,7 +77,7 @@ export class LongRunningOperation {
 	private currentOperationId = 0;
 	private currentOperationDisposables: IDisposable[] = [];
 	private currentProgressRunner: IProgressRunner;
-	private currentProgressTimeout: number;
+	private currentProgressTimeout: any;
 
 	constructor(
 		private progressService: IProgressService

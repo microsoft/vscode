@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import * as assert from 'assert';
 import { MainThreadDocumentsAndEditors } from 'vs/workbench/api/electron-browser/mainThreadDocumentsAndEditors';
 import { SingleProxyRPCProtocol, TestRPCProtocol } from './testRPCProtocol';
@@ -16,7 +14,7 @@ import { ExtHostDocumentsAndEditorsShape, ExtHostContext, ExtHostDocumentsShape 
 import { mock } from 'vs/workbench/test/electron-browser/api/mock';
 import { Event } from 'vs/base/common/event';
 import { MainThreadTextEditors } from 'vs/workbench/api/electron-browser/mainThreadEditors';
-import URI from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 import { Range } from 'vs/editor/common/core/range';
 import { Position } from 'vs/editor/common/core/position';
 import { IModelService } from 'vs/editor/common/services/modelService';
@@ -26,6 +24,10 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import { ResourceTextEdit } from 'vs/editor/common/modes';
 import { BulkEditService } from 'vs/workbench/services/bulkEdit/electron-browser/bulkEditService';
 import { NullLogService } from 'vs/platform/log/common/log';
+import { ITextModelService, ITextEditorModel } from 'vs/editor/common/services/resolverService';
+import { IReference, ImmortalReference } from 'vs/base/common/lifecycle';
+import { LabelService } from 'vs/platform/label/common/label';
+import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 
 suite('MainThreadEditors', () => {
 
@@ -53,15 +55,15 @@ suite('MainThreadEditors', () => {
 			isDirty() { return false; }
 			create(uri: URI, contents?: string, options?: any) {
 				createdResources.add(uri);
-				return TPromise.as(void 0);
+				return Promise.resolve(void 0);
 			}
 			delete(resource: URI) {
 				deletedResources.add(resource);
-				return TPromise.as(void 0);
+				return Promise.resolve(void 0);
 			}
 			move(source: URI, target: URI) {
 				movedResources.set(source, target);
-				return TPromise.as(void 0);
+				return Promise.resolve(void 0);
 			}
 			models = <any>{
 				onModelSaved: Event.None,
@@ -71,8 +73,17 @@ suite('MainThreadEditors', () => {
 		};
 		const workbenchEditorService = new TestEditorService();
 		const editorGroupService = new TestEditorGroupsService();
+		const textModelService = new class extends mock<ITextModelService>() {
+			createModelReference(resource: URI): TPromise<IReference<ITextEditorModel>> {
+				const textEditorModel: ITextEditorModel = new class extends mock<ITextEditorModel>() {
+					textEditorModel = modelService.getModel(resource);
+				};
+				textEditorModel.isReadonly = () => false;
+				return Promise.resolve(new ImmortalReference(textEditorModel));
+			}
+		};
 
-		const bulkEditService = new BulkEditService(new NullLogService(), modelService, new TestEditorService(), null, new TestFileService(), textFileService, TestEnvironmentService, new TestContextService());
+		const bulkEditService = new BulkEditService(new NullLogService(), modelService, new TestEditorService(), textModelService, new TestFileService(), textFileService, new LabelService(TestEnvironmentService, new TestContextService()), configService);
 
 		const rpcProtocol = new TestRPCProtocol();
 		rpcProtocol.set(ExtHostContext.ExtHostDocuments, new class extends mock<ExtHostDocumentsShape>() {
@@ -96,6 +107,14 @@ suite('MainThreadEditors', () => {
 			null,
 			editorGroupService,
 			bulkEditService,
+			new class extends mock<IPanelService>() implements IPanelService {
+				_serviceBrand: any;
+				onDidPanelOpen = Event.None;
+				onDidPanelClose = Event.None;
+				getActivePanel() {
+					return null;
+				}
+			}
 		);
 
 		editors = new MainThreadTextEditors(
@@ -129,7 +148,39 @@ suite('MainThreadEditors', () => {
 		});
 	});
 
-	test(`pasero applyWorkspaceEdit with only resource edit`, () => {
+	test(`issue #54773: applyWorkspaceEdit checks model version in race situation`, () => {
+
+		let model = modelService.createModel('something', null, resource);
+
+		let workspaceResourceEdit1: ResourceTextEdit = {
+			resource: resource,
+			modelVersionId: model.getVersionId(),
+			edits: [{
+				text: 'asdfg',
+				range: new Range(1, 1, 1, 1)
+			}]
+		};
+		let workspaceResourceEdit2: ResourceTextEdit = {
+			resource: resource,
+			modelVersionId: model.getVersionId(),
+			edits: [{
+				text: 'asdfg',
+				range: new Range(1, 1, 1, 1)
+			}]
+		};
+
+		let p1 = editors.$tryApplyWorkspaceEdit({ edits: [workspaceResourceEdit1] }).then((result) => {
+			// first edit request succeeds
+			assert.equal(result, true);
+		});
+		let p2 = editors.$tryApplyWorkspaceEdit({ edits: [workspaceResourceEdit2] }).then((result) => {
+			// second edit request fails
+			assert.equal(result, false);
+		});
+		return TPromise.join([p1, p2]);
+	});
+
+	test(`applyWorkspaceEdit with only resource edit`, () => {
 		return editors.$tryApplyWorkspaceEdit({
 			edits: [
 				{ oldUri: resource, newUri: resource, options: undefined },

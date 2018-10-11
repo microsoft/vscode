@@ -1,0 +1,11 @@
+{
+	"displayName": "Node Debug Auto-attach",
+	"description": "Helper for auto-attach feature when node-debug extensions are not active.",
+
+	"debug.node.autoAttach.description": "Automatically attach node debugger when node.js was launched in debug mode from integrated terminal.",
+	"debug.node.autoAttach.disabled.description": "Auto attach is disabled and not shown in status bar.",
+	"debug.node.autoAttach.on.description": "Auto attach is active.",
+	"debug.node.autoAttach.off.description": "Auto attach is inactive.",
+
+	"toggle.auto.attach": "Toggle Auto Attach"
+}

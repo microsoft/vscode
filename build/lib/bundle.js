@@ -32,8 +32,12 @@ function bundle(entryPoints, config, callback) {
     var loader = loaderModule.exports;
     config.isBuild = true;
     config.paths = config.paths || {};
-    config.paths['vs/nls'] = 'out-build/vs/nls.build';
-    config.paths['vs/css'] = 'out-build/vs/css.build';
+    if (!config.paths['vs/nls']) {
+        config.paths['vs/nls'] = 'out-build/vs/nls.build';
+    }
+    if (!config.paths['vs/css']) {
+        config.paths['vs/css'] = 'out-build/vs/css.build';
+    }
     loader.config(config);
     loader(['require'], function (localRequire) {
         var resolvePath = function (path) {
@@ -96,7 +100,7 @@ function emitEntryPoints(modules, entryPoints) {
             return allDependencies[module];
         });
         bundleData.bundles[moduleToBundle] = includedModules;
-        var res = emitEntryPoint(modulesMap, modulesGraph, moduleToBundle, includedModules, info.prepend, info.append, info.dest);
+        var res = emitEntryPoint(modulesMap, modulesGraph, moduleToBundle, includedModules, info.prepend || [], info.append || [], info.dest);
         result = result.concat(res.files);
         for (var pluginName in res.usedPlugins) {
             usedPlugins[pluginName] = usedPlugins[pluginName] || res.usedPlugins[pluginName];
@@ -153,7 +157,7 @@ function extractStrings(destFiles) {
             deps: deps
         };
     };
-    destFiles.forEach(function (destFile, index) {
+    destFiles.forEach(function (destFile) {
         if (!/\.js$/.test(destFile.dest)) {
             return;
         }
@@ -291,7 +295,7 @@ function emitEntryPoint(modulesMap, deps, entryPoint, includedModules, prepend, 
             mainResult.sources.push(emitShimmedModule(c, deps[c], module.shim, module.path, contents));
         }
         else {
-            mainResult.sources.push(emitNamedModule(c, deps[c], module.defineLocation, module.path, contents));
+            mainResult.sources.push(emitNamedModule(c, module.defineLocation, module.path, contents));
         }
     });
     Object.keys(usedPlugins).forEach(function (pluginName) {
@@ -357,7 +361,7 @@ function emitPlugin(entryPoint, plugin, pluginName, moduleName) {
         contents: result
     };
 }
-function emitNamedModule(moduleId, myDeps, defineCallPosition, path, contents) {
+function emitNamedModule(moduleId, defineCallPosition, path, contents) {
     // `defineCallPosition` is the position in code: |define()
     var defineCallOffset = positionToOffset(contents, defineCallPosition.line, defineCallPosition.col);
     // `parensOffset` is the position in code: define|()
@@ -383,7 +387,8 @@ function positionToOffset(str, desiredLine, desiredCol) {
     if (desiredLine === 1) {
         return desiredCol - 1;
     }
-    var line = 1, lastNewLineOffset = -1;
+    var line = 1;
+    var lastNewLineOffset = -1;
     do {
         if (desiredLine === line) {
             return lastNewLineOffset + 1 + desiredCol - 1;
@@ -397,7 +402,8 @@ function positionToOffset(str, desiredLine, desiredCol) {
  * Return a set of reachable nodes in `graph` starting from `rootNodes`
  */
 function visit(rootNodes, graph) {
-    var result = {}, queue = rootNodes;
+    var result = {};
+    var queue = rootNodes;
     rootNodes.forEach(function (node) {
         result[node] = true;
     });

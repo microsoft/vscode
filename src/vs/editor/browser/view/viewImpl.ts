@@ -2,13 +2,12 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import * as dom from 'vs/base/browser/dom';
 import { FastDomNode, createFastDomNode } from 'vs/base/browser/fastDomNode';
-import { Range } from 'vs/editor/common/core/range';
+import { Position } from 'vs/editor/common/core/position';
 import { ViewEventHandler } from 'vs/editor/common/viewModel/viewEventHandler';
 import { IConfiguration } from 'vs/editor/common/editorCommon';
 import { TextAreaHandler, ITextAreaHandlerHelper } from 'vs/editor/browser/controller/textAreaHandler';
@@ -263,11 +262,7 @@ export class View extends ViewEventHandler {
 
 			visibleRangeForPosition2: (lineNumber: number, column: number) => {
 				this._flushAccumulatedAndRenderNow();
-				let visibleRanges = this.viewLines.visibleRangesForRange2(new Range(lineNumber, column, lineNumber, column));
-				if (!visibleRanges) {
-					return null;
-				}
-				return visibleRanges[0];
+				return this.viewLines.visibleRangeForPosition(new Position(lineNumber, column));
 			},
 
 			getLineWidth: (lineNumber: number) => {
@@ -281,11 +276,7 @@ export class View extends ViewEventHandler {
 		return {
 			visibleRangeForPositionRelativeToEditor: (lineNumber: number, column: number) => {
 				this._flushAccumulatedAndRenderNow();
-				let visibleRanges = this.viewLines.visibleRangesForRange2(new Range(lineNumber, column, lineNumber, column));
-				if (!visibleRanges) {
-					return null;
-				}
-				return visibleRanges[0];
+				return this.viewLines.visibleRangeForPosition(new Position(lineNumber, column));
 			}
 		};
 	}
@@ -464,11 +455,11 @@ export class View extends ViewEventHandler {
 		});
 		let viewPosition = this._context.model.coordinatesConverter.convertModelPositionToViewPosition(modelPosition);
 		this._flushAccumulatedAndRenderNow();
-		let visibleRanges = this.viewLines.visibleRangesForRange2(new Range(viewPosition.lineNumber, viewPosition.column, viewPosition.lineNumber, viewPosition.column));
-		if (!visibleRanges) {
+		const visibleRange = this.viewLines.visibleRangeForPosition(new Position(viewPosition.lineNumber, viewPosition.column));
+		if (!visibleRange) {
 			return -1;
 		}
-		return visibleRanges[0].left;
+		return visibleRange.left;
 	}
 
 	public getTargetAtClientPoint(clientX: number, clientY: number): editorBrowser.IMouseTarget {
@@ -552,8 +543,9 @@ export class View extends ViewEventHandler {
 
 	public layoutContentWidget(widgetData: IContentWidgetData): void {
 		let newPosition = widgetData.position ? widgetData.position.position : null;
+		let newRange = widgetData.position ? widgetData.position.range : null;
 		let newPreference = widgetData.position ? widgetData.position.preference : null;
-		this.contentWidgets.setWidgetPosition(widgetData.widget, newPosition, newPreference);
+		this.contentWidgets.setWidgetPosition(widgetData.widget, newPosition, newRange, newPreference);
 		this._scheduleRender();
 	}
 

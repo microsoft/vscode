@@ -2,13 +2,11 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
 import * as nls from 'vs/nls';
 import { IAction } from 'vs/base/common/actions';
 import { ResolvedKeybinding, KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
-import { TPromise } from 'vs/base/common/winjs.base';
 import * as dom from 'vs/base/browser/dom';
 import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { ActionItem, Separator } from 'vs/base/browser/ui/actionbar/actionbar';
@@ -20,6 +18,8 @@ import { IEditorContribution, IScrollEvent, ScrollType } from 'vs/editor/common/
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { registerEditorAction, registerEditorContribution, ServicesAccessor, EditorAction } from 'vs/editor/browser/editorExtensions';
 import { ICodeEditor, IEditorMouseEvent, MouseTargetType } from 'vs/editor/browser/editorBrowser';
+import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
+import { IAnchor } from 'vs/base/browser/ui/contextview/contextview';
 
 export interface IPosition {
 	x: number;
@@ -147,8 +147,8 @@ export class ContextMenuController implements IEditorContribution {
 			}
 		});
 
-		let menuPosition = forcedPosition;
-		if (!menuPosition) {
+		let anchor: IAnchor = forcedPosition;
+		if (!anchor) {
 			// Ensure selection is visible
 			this._editor.revealPosition(this._editor.getPosition(), ScrollType.Immediate);
 
@@ -160,16 +160,20 @@ export class ContextMenuController implements IEditorContribution {
 			const posx = editorCoords.left + cursorCoords.left;
 			const posy = editorCoords.top + cursorCoords.top + cursorCoords.height;
 
-			menuPosition = { x: posx, y: posy };
+			anchor = { x: posx, y: posy };
 		}
+
+		// prevent menu from appearing right below the cursor
+		anchor.height = 1;
+		anchor.width = 2;
 
 		// Show menu
 		this._contextMenuIsBeingShownCount++;
 		this._contextMenuService.showContextMenu({
-			getAnchor: () => menuPosition,
+			getAnchor: () => anchor,
 
 			getActions: () => {
-				return TPromise.as(actions);
+				return Promise.resolve(actions);
 			},
 
 			getActionItem: (action) => {
@@ -227,7 +231,8 @@ class ShowContextMenu extends EditorAction {
 			precondition: null,
 			kbOpts: {
 				kbExpr: EditorContextKeys.textInputFocus,
-				primary: KeyMod.Shift | KeyCode.F10
+				primary: KeyMod.Shift | KeyCode.F10,
+				weight: KeybindingWeight.EditorContrib
 			}
 		});
 	}

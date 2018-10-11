@@ -2,25 +2,23 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
-
 import * as assert from 'assert';
-import { TPromise } from 'vs/base/common/winjs.base';
-import { TextEditorLineNumbersStyle } from 'vs/workbench/api/node/extHostTypes';
+import { TextEditorLineNumbersStyle, Range } from 'vs/workbench/api/node/extHostTypes';
 import { TextEditorCursorStyle } from 'vs/editor/common/config/editorOptions';
 import { MainThreadTextEditorsShape, IResolvedTextEditorConfiguration, ITextEditorConfigurationUpdate } from 'vs/workbench/api/node/extHost.protocol';
 import { ExtHostTextEditorOptions, ExtHostTextEditor } from 'vs/workbench/api/node/extHostTextEditor';
 import { ExtHostDocumentData } from 'vs/workbench/api/node/extHostDocumentData';
-import URI from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
+import { mock } from 'vs/workbench/test/electron-browser/api/mock';
 
 suite('ExtHostTextEditor', () => {
 
 	let editor: ExtHostTextEditor;
+	let doc = new ExtHostDocumentData(undefined, URI.file(''), [
+		'aaaa bbbb+cccc abc'
+	], '\n', 'text', 1, false);
 
 	setup(() => {
-		let doc = new ExtHostDocumentData(undefined, URI.file(''), [
-			'aaaa bbbb+cccc abc'
-		], '\n', 'text', 1, false);
 		editor = new ExtHostTextEditor(null, 'fake', doc, [], { cursorStyle: 0, insertSpaces: true, lineNumbers: 1, tabSize: 4 }, [], 1);
 	});
 
@@ -39,6 +37,25 @@ suite('ExtHostTextEditor', () => {
 		assert.throws(() => editor._acceptOptions(null));
 		assert.throws(() => editor._acceptSelections([]));
 	});
+
+	test('API [bug]: registerTextEditorCommand clears redo stack even if no edits are made #55163', async function () {
+		let applyCount = 0;
+		let editor = new ExtHostTextEditor(new class extends mock<MainThreadTextEditorsShape>() {
+			$tryApplyEdits(): Promise<boolean> {
+				applyCount += 1;
+				return Promise.resolve(true);
+			}
+		}, 'edt1', doc, [], { cursorStyle: 0, insertSpaces: true, lineNumbers: 1, tabSize: 4 }, [], 1);
+
+		await editor.edit(edit => { });
+		assert.equal(applyCount, 0);
+
+		await editor.edit(edit => { edit.setEndOfLine(1); });
+		assert.equal(applyCount, 1);
+
+		await editor.edit(edit => { edit.delete(new Range(0, 0, 1, 1)); });
+		assert.equal(applyCount, 2);
+	});
 });
 
 suite('ExtHostTextEditorOptions', () => {
@@ -53,7 +70,7 @@ suite('ExtHostTextEditorOptions', () => {
 			$trySetOptions: (id: string, options: ITextEditorConfigurationUpdate) => {
 				assert.equal(id, '1');
 				calls.push(options);
-				return TPromise.as(void 0);
+				return Promise.resolve(void 0);
 			},
 			$tryShowTextDocument: undefined,
 			$registerTextEditorDecorationType: undefined,

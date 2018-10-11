@@ -3,16 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
-import * as errors from 'vs/base/common/errors';
 import * as paths from 'vs/base/common/paths';
-import URI from 'vs/base/common/uri';
-import { PPromise, TProgressCallback, TPromise, TValueCallback } from 'vs/base/common/winjs.base';
+import { URI } from 'vs/base/common/uri';
+import { TPromise, TValueCallback } from 'vs/base/common/winjs.base';
+import { canceled } from 'vs/base/common/errors';
 
 export class DeferredTPromise<T> extends TPromise<T> {
-
-	public canceled: boolean;
 
 	private completeCallback: TValueCallback<T>;
 	private errorCallback: (err: any) => void;
@@ -21,8 +17,7 @@ export class DeferredTPromise<T> extends TPromise<T> {
 		let captured: any;
 		super((c, e) => {
 			captured = { c, e };
-		}, () => this.oncancel());
-		this.canceled = false;
+		});
 		this.completeCallback = captured.c;
 		this.errorCallback = captured.e;
 	}
@@ -35,41 +30,8 @@ export class DeferredTPromise<T> extends TPromise<T> {
 		this.errorCallback(err);
 	}
 
-	private oncancel(): void {
-		this.canceled = true;
-	}
-}
-
-export class DeferredPPromise<C, P> extends PPromise<C, P> {
-
-	private completeCallback: TValueCallback<C>;
-	private errorCallback: (err: any) => void;
-	private progressCallback: TProgressCallback<P>;
-
-	constructor(init: (complete: TValueCallback<C>, error: (err: any) => void, progress: TProgressCallback<P>) => void = (c, e, p) => { }, oncancel?: any) {
-		let captured: any;
-		super((c, e, p) => {
-			captured = { c, e, p };
-		}, oncancel ? oncancel : () => this.oncancel);
-		this.completeCallback = captured.c;
-		this.errorCallback = captured.e;
-		this.progressCallback = captured.p;
-	}
-
-	private oncancel(): void {
-		this.errorCallback(errors.canceled());
-	}
-
-	public complete(c: C) {
-		this.completeCallback(c);
-	}
-
-	public progress(p: P) {
-		this.progressCallback(p);
-	}
-
-	public error(e: any) {
-		this.errorCallback(e);
+	public cancel() {
+		this.errorCallback(canceled());
 	}
 }
 
@@ -87,4 +49,8 @@ export function testRepeat(n: number, description: string, callback: (this: any,
 	for (let i = 0; i < n; i++) {
 		test(`${description} (iteration ${i})`, callback);
 	}
+}
+
+export function testRepeatOnly(n: number, description: string, callback: (this: any, done: MochaDone) => any): void {
+	suite.only('repeat', () => testRepeat(n, description, callback));
 }

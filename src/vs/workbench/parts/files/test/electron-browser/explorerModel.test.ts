@@ -3,12 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import * as assert from 'assert';
 import { isUndefinedOrNull } from 'vs/base/common/types';
 import { isLinux, isWindows } from 'vs/base/common/platform';
-import URI from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 import { join } from 'vs/base/common/paths';
 import { validateFileName } from 'vs/workbench/parts/files/electron-browser/fileActions';
 import { ExplorerItem } from 'vs/workbench/parts/files/common/explorerModel';
@@ -18,12 +16,17 @@ function createStat(path: string, name: string, isFolder: boolean, hasChildren: 
 }
 
 function toResource(path) {
-	return URI.file(join('C:\\', path));
+	if (isWindows) {
+		return URI.file(join('C:\\', path));
+	} else {
+		return URI.file(join('/home/john', path));
+	}
+
 }
 
 suite('Files - View Model', () => {
 
-	test('Properties', function () {
+	test('Properties', () => {
 		const d = new Date().getTime();
 		let s = createStat('/path/to/stat', 'sName', true, true, 8096, d);
 
@@ -61,7 +64,7 @@ suite('Files - View Model', () => {
 		assert.strictEqual(child4.resource.fsPath, toResource('/path/to/stat/' + child4.name).fsPath);
 	});
 
-	test('Move', function () {
+	test('Move', () => {
 		const d = new Date().getTime();
 
 		const s1 = createStat('/', '/', true, false, 8096, d);
@@ -96,7 +99,7 @@ suite('Files - View Model', () => {
 		assert.strictEqual(leafCC2.resource.fsPath, URI.file(leafC1.resource.fsPath + '/' + leafCC2.name).fsPath);
 	});
 
-	test('Rename', function () {
+	test('Rename', () => {
 		const d = new Date().getTime();
 
 		const s1 = createStat('/', '/', true, false, 8096, d);
@@ -126,7 +129,7 @@ suite('Files - View Model', () => {
 		assert.strictEqual(s4.resource.fsPath, s4renamed.resource.fsPath);
 	});
 
-	test('Find', function () {
+	test('Find', () => {
 		const d = new Date().getTime();
 
 		const s1 = createStat('/', '/', true, false, 8096, d);

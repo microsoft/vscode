@@ -2,7 +2,6 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
 import * as nls from 'vs/nls';
 
@@ -25,7 +24,7 @@ import { TaskDefinitionRegistry } from '../common/taskDefinitionRegistry';
 
 import { TaskDefinition } from 'vs/workbench/parts/tasks/node/tasks';
 
-export enum ShellQuoting {
+export const enum ShellQuoting {
 	/**
 	 * Default is character escaping.
 	 */
@@ -858,7 +857,7 @@ namespace CommandConfiguration {
 			osConfig = fromBase(config.linux, context);
 		}
 		if (osConfig) {
-			result = assignProperties(result, osConfig);
+			result = assignProperties(result, osConfig, context.schemaVersion === Tasks.JsonSchemaVersion.V2_0_0);
 		}
 		return isEmpty(result) ? undefined : result;
 	}
@@ -890,7 +889,12 @@ namespace CommandConfiguration {
 				if (converted !== void 0) {
 					result.args.push(converted);
 				} else {
-					context.problemReporter.error(nls.localize('ConfigurationParser.inValidArg', 'Error: command argument must either be a string or a quoted string. Provided value is:\n{0}', context.problemReporter.error(nls.localize('ConfigurationParser.noargs', 'Error: command arguments must be an array of strings. Provided value is:\n{0}', arg ? JSON.stringify(arg, undefined, 4) : 'undefined'))));
+					context.problemReporter.error(
+						nls.localize(
+							'ConfigurationParser.inValidArg',
+							'Error: command argument must either be a string or a quoted string. Provided value is:\n{0}',
+							arg ? JSON.stringify(arg, undefined, 4) : 'undefined'
+						));
 				}
 			}
 		}
@@ -924,7 +928,7 @@ namespace CommandConfiguration {
 		return _isEmpty(value, properties);
 	}
 
-	export function assignProperties(target: Tasks.CommandConfiguration, source: Tasks.CommandConfiguration): Tasks.CommandConfiguration {
+	export function assignProperties(target: Tasks.CommandConfiguration, source: Tasks.CommandConfiguration, overwriteArgs: boolean): Tasks.CommandConfiguration {
 		if (isEmpty(source)) {
 			return target;
 		}
@@ -936,7 +940,7 @@ namespace CommandConfiguration {
 		assignProperty(target, source, 'taskSelector');
 		assignProperty(target, source, 'suppressTaskName');
 		if (source.args !== void 0) {
-			if (target.args === void 0) {
+			if (target.args === void 0 || overwriteArgs) {
 				target.args = source.args;
 			} else {
 				target.args = target.args.concat(source.args);

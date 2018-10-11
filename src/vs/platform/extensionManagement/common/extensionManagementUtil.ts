@@ -3,9 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
-import { ILocalExtension, IGalleryExtension, EXTENSION_IDENTIFIER_REGEX, IExtensionIdentifier, IReportedExtension } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { ILocalExtension, IGalleryExtension, IExtensionIdentifier, IReportedExtension } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { compareIgnoreCase } from 'vs/base/common/strings';
 
 export function areSameExtensions(a: IExtensionIdentifier, b: IExtensionIdentifier): boolean {
 	if (a.uuid && b.uuid) {
@@ -14,7 +13,11 @@ export function areSameExtensions(a: IExtensionIdentifier, b: IExtensionIdentifi
 	if (a.id === b.id) {
 		return true;
 	}
-	return adoptToGalleryExtensionId(a.id) === adoptToGalleryExtensionId(b.id);
+	return compareIgnoreCase(a.id, b.id) === 0;
+}
+
+export function adoptToGalleryExtensionId(id: string): string {
+	return id.toLocaleLowerCase();
 }
 
 export function getGalleryExtensionId(publisher: string, name: string): string {
@@ -33,10 +36,6 @@ export function getIdFromLocalExtensionId(localExtensionId: string): string {
 		return adoptToGalleryExtensionId(matches[1]);
 	}
 	return adoptToGalleryExtensionId(localExtensionId);
-}
-
-export function adoptToGalleryExtensionId(id: string): string {
-	return id.replace(EXTENSION_IDENTIFIER_REGEX, (match, publisher: string, name: string) => getGalleryExtensionId(publisher, name));
 }
 
 export function getLocalExtensionId(id: string, version: string): string {

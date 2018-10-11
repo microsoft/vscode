@@ -3,15 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import * as electron from 'electron';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { Event, fromNodeEventEmitter } from 'vs/base/common/event';
 import { memoize } from 'vs/base/common/decorators';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ILifecycleService } from 'vs/platform/lifecycle/electron-main/lifecycleMain';
-import { State, IUpdate, StateType } from 'vs/platform/update/common/update';
+import { State, IUpdate, StateType, UpdateType } from 'vs/platform/update/common/update';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { ILogService } from 'vs/platform/log/common/log';
@@ -45,14 +43,14 @@ export class DarwinUpdateService extends AbstractUpdateService {
 	}
 
 	private onError(err: string): void {
-		this.logService.error('UpdateService error: ', err);
-		this.setState(State.Idle);
+		this.logService.error('UpdateService error:', err);
+		this.setState(State.Idle(UpdateType.Archive, err));
 	}
 
 	protected buildUpdateFeedUrl(quality: string): string | undefined {
 		const url = createUpdateURL('darwin', quality);
 		try {
-			electron.autoUpdater.setFeedURL(url);
+			electron.autoUpdater.setFeedURL({ url });
 		} catch (e) {
 			// application is very likely not signed
 			this.logService.error('Failed to set update feed URL', e);
@@ -101,7 +99,7 @@ export class DarwinUpdateService extends AbstractUpdateService {
 			*/
 		this.telemetryService.publicLog('update:notAvailable', { explicit: !!this.state.context });
 
-		this.setState(State.Idle);
+		this.setState(State.Idle(UpdateType.Archive));
 	}
 
 	protected doQuitAndInstall(): void {

@@ -2,7 +2,6 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
 import { Event, Emitter } from 'vs/base/common/event';
 import { IDecorationRenderOptions } from 'vs/editor/common/editorCommon';
@@ -10,27 +9,35 @@ import { IModelDecorationOptions, ITextModel } from 'vs/editor/common/model';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { ICodeEditor, IDiffEditor } from 'vs/editor/browser/editorBrowser';
 import { IResourceInput } from 'vs/platform/editor/common/editor';
-import { TPromise } from 'vs/base/common/winjs.base';
+import { Disposable } from 'vs/base/common/lifecycle';
 
-export abstract class AbstractCodeEditorService implements ICodeEditorService {
+export abstract class AbstractCodeEditorService extends Disposable implements ICodeEditorService {
 
 	_serviceBrand: any;
 
-	private readonly _onCodeEditorAdd: Emitter<ICodeEditor>;
-	private readonly _onCodeEditorRemove: Emitter<ICodeEditor>;
-	private _codeEditors: { [editorId: string]: ICodeEditor; };
+	private readonly _onCodeEditorAdd: Emitter<ICodeEditor> = this._register(new Emitter<ICodeEditor>());
+	public readonly onCodeEditorAdd: Event<ICodeEditor> = this._onCodeEditorAdd.event;
 
-	private readonly _onDiffEditorAdd: Emitter<IDiffEditor>;
-	private readonly _onDiffEditorRemove: Emitter<IDiffEditor>;
+	private readonly _onCodeEditorRemove: Emitter<ICodeEditor> = this._register(new Emitter<ICodeEditor>());
+	public readonly onCodeEditorRemove: Event<ICodeEditor> = this._onCodeEditorRemove.event;
+
+	private readonly _onDiffEditorAdd: Emitter<IDiffEditor> = this._register(new Emitter<IDiffEditor>());
+	public readonly onDiffEditorAdd: Event<IDiffEditor> = this._onDiffEditorAdd.event;
+
+	private readonly _onDiffEditorRemove: Emitter<IDiffEditor> = this._register(new Emitter<IDiffEditor>());
+	public readonly onDiffEditorRemove: Event<IDiffEditor> = this._onDiffEditorRemove.event;
+
+	private readonly _onDidChangeTransientModelProperty: Emitter<ITextModel> = this._register(new Emitter<ITextModel>());
+	public readonly onDidChangeTransientModelProperty: Event<ITextModel> = this._onDidChangeTransientModelProperty.event;
+
+
+	private _codeEditors: { [editorId: string]: ICodeEditor; };
 	private _diffEditors: { [editorId: string]: IDiffEditor; };
 
 	constructor() {
+		super();
 		this._codeEditors = Object.create(null);
 		this._diffEditors = Object.create(null);
-		this._onCodeEditorAdd = new Emitter<ICodeEditor>();
-		this._onCodeEditorRemove = new Emitter<ICodeEditor>();
-		this._onDiffEditorAdd = new Emitter<IDiffEditor>();
-		this._onDiffEditorRemove = new Emitter<IDiffEditor>();
 	}
 
 	addCodeEditor(editor: ICodeEditor): void {
@@ -38,18 +45,10 @@ export abstract class AbstractCodeEditorService implements ICodeEditorService {
 		this._onCodeEditorAdd.fire(editor);
 	}
 
-	get onCodeEditorAdd(): Event<ICodeEditor> {
-		return this._onCodeEditorAdd.event;
-	}
-
 	removeCodeEditor(editor: ICodeEditor): void {
 		if (delete this._codeEditors[editor.getId()]) {
 			this._onCodeEditorRemove.fire(editor);
 		}
-	}
-
-	get onCodeEditorRemove(): Event<ICodeEditor> {
-		return this._onCodeEditorRemove.event;
 	}
 
 	listCodeEditors(): ICodeEditor[] {
@@ -61,18 +60,10 @@ export abstract class AbstractCodeEditorService implements ICodeEditorService {
 		this._onDiffEditorAdd.fire(editor);
 	}
 
-	get onDiffEditorAdd(): Event<IDiffEditor> {
-		return this._onDiffEditorAdd.event;
-	}
-
 	removeDiffEditor(editor: IDiffEditor): void {
 		if (delete this._diffEditors[editor.getId()]) {
 			this._onDiffEditorRemove.fire(editor);
 		}
-	}
-
-	get onDiffEditorRemove(): Event<IDiffEditor> {
-		return this._onDiffEditorRemove.event;
 	}
 
 	listDiffEditors(): IDiffEditor[] {
@@ -117,6 +108,7 @@ export abstract class AbstractCodeEditorService implements ICodeEditorService {
 		}
 
 		w.set(key, value);
+		this._onDidChangeTransientModelProperty.fire(model);
 	}
 
 	public getTransientModelProperty(model: ITextModel, key: string): any {
@@ -134,7 +126,7 @@ export abstract class AbstractCodeEditorService implements ICodeEditorService {
 	}
 
 	abstract getActiveCodeEditor(): ICodeEditor;
-	abstract openCodeEditor(input: IResourceInput, source: ICodeEditor, sideBySide?: boolean): TPromise<ICodeEditor>;
+	abstract openCodeEditor(input: IResourceInput, source: ICodeEditor, sideBySide?: boolean): Thenable<ICodeEditor>;
 }
 
 export class ModelTransientSettingWatcher {

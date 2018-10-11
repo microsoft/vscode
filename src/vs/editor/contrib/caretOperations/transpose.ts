@@ -2,7 +2,6 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
 import * as nls from 'vs/nls';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
@@ -15,6 +14,7 @@ import { registerEditorAction, EditorAction, ServicesAccessor } from 'vs/editor/
 import { ReplaceCommand } from 'vs/editor/common/commands/replaceCommand';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { ITextModel } from 'vs/editor/common/model';
+import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 
 class TransposeLettersAction extends EditorAction {
 
@@ -67,7 +67,8 @@ class TransposeLettersAction extends EditorAction {
 				primary: 0,
 				mac: {
 					primary: KeyMod.WinCtrl | KeyCode.KEY_T
-				}
+				},
+				weight: KeybindingWeight.EditorContrib
 			}
 		});
 	}

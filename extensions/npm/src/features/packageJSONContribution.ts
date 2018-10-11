@@ -2,9 +2,8 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
-import { MarkedString, CompletionItemKind, CompletionItem, DocumentSelector, SnippetString } from 'vscode';
+import { MarkedString, CompletionItemKind, CompletionItem, DocumentSelector, SnippetString, workspace } from 'vscode';
 import { IJSONContribution, ISuggestionsCollector } from './jsonContributions';
 import { XHRRequest } from 'request-light';
 import { Location } from 'jsonc-parser';
@@ -28,12 +27,14 @@ export class PackageJSONContribution implements IJSONContribution {
 		'jsdom', 'stylus', 'when', 'readable-stream', 'aws-sdk', 'concat-stream', 'chai', 'Thenable', 'wrench'];
 
 	private knownScopes = ['@types', '@angular'];
+	private xhr: XHRRequest;
 
 	public getDocumentSelector(): DocumentSelector {
 		return [{ language: 'json', scheme: '*', pattern: '**/package.json' }];
 	}
 
-	public constructor(private xhr: XHRRequest) {
+	public constructor(xhr: XHRRequest) {
+		this.xhr = xhr;
 	}
 
 	public collectDefaultSuggestions(_fileName: string, result: ISuggestionsCollector): Thenable<any> {
@@ -52,6 +53,10 @@ export class PackageJSONContribution implements IJSONContribution {
 		return Promise.resolve(null);
 	}
 
+	private onlineEnabled() {
+		return !!workspace.getConfiguration('npm').get('fetchOnlinePackageInfo');
+	}
+
 	public collectPropertySuggestions(
 		_resource: string,
 		location: Location,
@@ -60,6 +65,10 @@ export class PackageJSONContribution implements IJSONContribution {
 		isLast: boolean,
 		collector: ISuggestionsCollector
 	): Thenable<any> | null {
+		if (!this.onlineEnabled()) {
+			return null;
+		}
+
 		if ((location.matches(['dependencies']) || location.matches(['devDependencies']) || location.matches(['optionalDependencies']) || location.matches(['peerDependencies']))) {
 			let queryUrl: string;
 			if (currentWord.length > 0) {
@@ -209,6 +218,10 @@ export class PackageJSONContribution implements IJSONContribution {
 		location: Location,
 		result: ISuggestionsCollector
 	): Thenable<any> | null {
+		if (!this.onlineEnabled()) {
+			return null;
+		}
+
 		if ((location.matches(['dependencies', '*']) || location.matches(['devDependencies', '*']) || location.matches(['optionalDependencies', '*']) || location.matches(['peerDependencies', '*']))) {
 			const currentKey = location.path[location.path.length - 1];
 			if (typeof currentKey === 'string') {

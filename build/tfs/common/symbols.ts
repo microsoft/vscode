@@ -97,7 +97,7 @@ function updateVersion(accessor: IVersionAccessor, symbolsPath: string) {
 
 function asyncRequest<T>(options: request.UrlOptions & request.CoreOptions): Promise<T> {
 	return new Promise<T>((resolve, reject) => {
-		request(options, (error, response, body) => {
+		request(options, (error, _response, body) => {
 			if (error) {
 				reject(error);
 			} else {
@@ -107,17 +107,17 @@ function asyncRequest<T>(options: request.UrlOptions & request.CoreOptions): Pro
 	});
 }
 
-function downloadAsset(repository, assetName: string, targetPath: string, electronVersion: string) {
+function downloadAsset(repository: any, assetName: string, targetPath: string, electronVersion: string) {
 	return new Promise((resolve, reject) => {
-		repository.getReleases({ tag_name: `v${electronVersion}` }, (err, releases) => {
+		repository.getReleases({ tag_name: `v${electronVersion}` }, (err: any, releases: any) => {
 			if (err) {
 				reject(err);
 			} else {
-				const asset = releases[0].assets.filter(asset => asset.name === assetName)[0];
+				const asset = releases[0].assets.filter((asset: any) => asset.name === assetName)[0];
 				if (!asset) {
 					reject(new Error(`Asset with name ${assetName} not found`));
 				} else {
-					repository.downloadAsset(asset, (err, reader) => {
+					repository.downloadAsset(asset, (err: any, reader: any) => {
 						if (err) {
 							reject(err);
 						} else {
@@ -156,7 +156,7 @@ async function ensureVersionAndSymbols(options: IOptions) {
 	const symbolsName = symbolsZipName(options.platform, options.versions.electron, options.versions.insiders);
 	const symbolsPath = await tmpFile('symbols.zip');
 	console.log(`HockeyApp: downloading symbols ${symbolsName} for electron ${options.versions.electron} (${options.platform}) into ${symbolsPath}`);
-	await downloadAsset(new github({ repo: options.repository, token: options.access.githubToken }), symbolsName, symbolsPath, options.versions.electron);
+	await downloadAsset(new (github as any)({ repo: options.repository, token: options.access.githubToken }), symbolsName, symbolsPath, options.versions.electron);
 
 	// Create version
 	console.log(`HockeyApp: creating new version ${options.versions.code} (${options.platform})`);

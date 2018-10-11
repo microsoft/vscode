@@ -2,7 +2,6 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
 import * as nls from 'vs/nls';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
@@ -15,7 +14,8 @@ import { registerEditorAction, registerEditorContribution, ServicesAccessor, Edi
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { ParameterHintsWidget } from './parameterHintsWidget';
 import { Context } from 'vs/editor/contrib/parameterHints/provideSignatureHelp';
-import { KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
+import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
+import * as modes from 'vs/editor/common/modes';
 
 class ParameterHintsController implements IEditorContribution {
 
@@ -49,8 +49,8 @@ class ParameterHintsController implements IEditorContribution {
 		this.widget.next();
 	}
 
-	trigger(): void {
-		this.widget.trigger();
+	trigger(context: modes.SignatureHelpContext): void {
+		this.widget.trigger(context);
 	}
 
 	dispose(): void {
@@ -68,7 +68,8 @@ export class TriggerParameterHintsAction extends EditorAction {
 			precondition: EditorContextKeys.hasSignatureHelpProvider,
 			kbOpts: {
 				kbExpr: EditorContextKeys.editorTextFocus,
-				primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.Space
+				primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.Space,
+				weight: KeybindingWeight.EditorContrib
 			}
 		});
 	}
@@ -76,7 +77,7 @@ export class TriggerParameterHintsAction extends EditorAction {
 	public run(accessor: ServicesAccessor, editor: ICodeEditor): void {
 		let controller = ParameterHintsController.get(editor);
 		if (controller) {
-			controller.trigger();
+			controller.trigger({ triggerReason: modes.SignatureHelpTriggerReason.Invoke });
 		}
 	}
 }
@@ -84,7 +85,7 @@ export class TriggerParameterHintsAction extends EditorAction {
 registerEditorContribution(ParameterHintsController);
 registerEditorAction(TriggerParameterHintsAction);
 
-const weight = KeybindingsRegistry.WEIGHT.editorContrib(75);
+const weight = KeybindingWeight.EditorContrib + 75;
 
 const ParameterHintsCommand = EditorCommand.bindToContribution<ParameterHintsController>(ParameterHintsController.get);
 

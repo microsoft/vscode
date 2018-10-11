@@ -2,19 +2,18 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
-import URI from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 import { Event, Emitter, debounceEvent, anyEvent } from 'vs/base/common/event';
 import { IDecorationsService, IDecoration, IResourceDecorationChangeEvent, IDecorationsProvider, IDecorationData } from './decorations';
 import { TernarySearchTree } from 'vs/base/common/map';
-import { IDisposable, dispose } from 'vs/base/common/lifecycle';
+import { IDisposable, dispose, toDisposable } from 'vs/base/common/lifecycle';
 import { isThenable } from 'vs/base/common/async';
 import { LinkedList } from 'vs/base/common/linkedList';
 import { createStyleSheet, createCSSRule, removeCSSRulesContainingSelector } from 'vs/base/browser/dom';
 import { IThemeService, ITheme } from 'vs/platform/theme/common/themeService';
 import { IdGenerator } from 'vs/base/common/idGenerator';
-import { IIterator } from 'vs/base/common/iterator';
+import { Iterator } from 'vs/base/common/iterator';
 import { isFalsyOrWhitespace } from 'vs/base/common/strings';
 import { localize } from 'vs/nls';
 import { isPromiseCanceledError } from 'vs/base/common/errors';
@@ -141,25 +140,12 @@ class DecorationStyles {
 			labelClassName,
 			badgeClassName,
 			tooltip,
-			update: (source, insert) => {
+			update: (replace) => {
 				let newData = data.slice();
-				if (!source) {
-					// add -> just append
-					newData.push(insert);
-
-				} else {
-					// remove/replace -> require a walk
-					for (let i = 0; i < newData.length; i++) {
-						if (newData[i].source === source) {
-							if (!insert) {
-								// remove
-								newData.splice(i, 1);
-								i--;
-							} else {
-								// replace
-								newData[i] = insert;
-							}
-						}
+				for (let i = 0; i < newData.length; i++) {
+					if (newData[i].source === replace.source) {
+						// replace
+						newData[i] = replace;
 					}
 				}
 				return this.asDecoration(newData, onlyChildren);
@@ -174,7 +160,7 @@ class DecorationStyles {
 		});
 	}
 
-	cleanUp(iter: IIterator<DecorationProviderWrapper>): void {
+	cleanUp(iter: Iterator<DecorationProviderWrapper>): void {
 		// remove every rule for which no more
 		// decoration (data) is kept. this isn't cheap
 		let usedDecorations = new Set<string>();
@@ -402,15 +388,13 @@ export class FileDecorationsService implements IDecorationsService {
 			affectsResource() { return true; }
 		});
 
-		return {
-			dispose: () => {
-				// fire event that says 'yes' for any resource
-				// known to this provider. then dispose and remove it.
-				remove();
-				this._onDidChangeDecorations.fire({ affectsResource: uri => wrapper.knowsAbout(uri) });
-				wrapper.dispose();
-			}
-		};
+		return toDisposable(() => {
+			// fire event that says 'yes' for any resource
+			// known to this provider. then dispose and remove it.
+			remove();
+			this._onDidChangeDecorations.fire({ affectsResource: uri => wrapper.knowsAbout(uri) });
+			wrapper.dispose();
+		});
 	}
 
 	getDecoration(uri: URI, includeChildren: boolean, overwrite?: IDecorationData): IDecoration {
@@ -436,7 +420,7 @@ export class FileDecorationsService implements IDecorationsService {
 			// result, maybe overwrite
 			let result = this._decorationStyles.asDecoration(data, containsChildren);
 			if (overwrite) {
-				return result.update(overwrite.source, overwrite);
+				return result.update(overwrite);
 			} else {
 				return result;
 			}

@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { IResourceInput, ITextEditorOptions, IEditorOptions } from 'vs/platform/editor/common/editor';
 import { IEditorInput, IEditor, GroupIdentifier, IFileEditorInput, IUntitledResourceInput, IResourceDiffInput, IResourceSideBySideInput, IEditorInputFactoryRegistry, Extensions as EditorExtensions, IFileInputFactory, EditorInput, SideBySideEditorInput, IEditorInputWithOptions, isEditorInputWithOptions, EditorOptions, TextEditorOptions, IEditorIdentifier, IEditorCloseEvent, ITextEditor, ITextDiffEditor, ITextSideBySideEditor, toResource } from 'vs/workbench/common/editor';
@@ -13,13 +11,10 @@ import { DataUriEditorInput } from 'vs/workbench/common/editor/dataUriEditorInpu
 import { Registry } from 'vs/platform/registry/common/platform';
 import { ResourceMap } from 'vs/base/common/map';
 import { IUntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
-import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IFileService } from 'vs/platform/files/common/files';
 import { Schemas } from 'vs/base/common/network';
-import { getPathLabel } from 'vs/base/common/labels';
 import { Event, once, Emitter } from 'vs/base/common/event';
-import URI from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 import { basename } from 'vs/base/common/paths';
 import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
 import { localize } from 'vs/nls';
@@ -31,6 +26,7 @@ import { Disposable, IDisposable, dispose, toDisposable } from 'vs/base/common/l
 import { coalesce } from 'vs/base/common/arrays';
 import { isCodeEditor, isDiffEditor, ICodeEditor, IDiffEditor } from 'vs/editor/browser/editorBrowser';
 import { IEditorGroupView, IEditorOpeningEvent, EditorGroupsServiceImpl, EditorServiceImpl } from 'vs/workbench/browser/parts/editor/editor';
+import { ILabelService } from 'vs/platform/label/common/label';
 
 type ICachedEditorInput = ResourceEditorInput | IFileEditorInput | DataUriEditorInput;
 
@@ -65,9 +61,8 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 	constructor(
 		@IEditorGroupsService private editorGroupService: EditorGroupsServiceImpl,
 		@IUntitledEditorService private untitledEditorService: IUntitledEditorService,
-		@IWorkspaceContextService private workspaceContextService: IWorkspaceContextService,
 		@IInstantiationService private instantiationService: IInstantiationService,
-		@IEnvironmentService private environmentService: IEnvironmentService,
+		@ILabelService private labelService: ILabelService,
 		@IFileService private fileService: IFileService,
 		@IConfigurationService private configurationService: IConfigurationService
 	) {
@@ -379,6 +374,25 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 	//#region isOpen()
 
 	isOpen(editor: IEditorInput | IResourceInput | IUntitledResourceInput, group?: IEditorGroup | GroupIdentifier): boolean {
+		return !!this.doGetOpened(editor);
+	}
+
+	//#endregion
+
+	//#region getOpend()
+
+	getOpened(editor: IResourceInput | IUntitledResourceInput, group?: IEditorGroup | GroupIdentifier): IEditorInput {
+		return this.doGetOpened(editor);
+	}
+
+	private doGetOpened(editor: IEditorInput | IResourceInput | IUntitledResourceInput, group?: IEditorGroup | GroupIdentifier): IEditorInput {
+		if (!(editor instanceof EditorInput)) {
+			const resourceInput = editor as IResourceInput | IUntitledResourceInput;
+			if (!resourceInput.resource) {
+				return void 0; // we need a resource at least
+			}
+		}
+
 		let groups: IEditorGroup[] = [];
 		if (typeof group === 'number') {
 			groups.push(this.editorGroupService.getGroup(group));
@@ -388,22 +402,35 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 			groups = [...this.editorGroupService.groups];
 		}
 
-		return groups.some(group => {
+		// For each editor group
+		for (let i = 0; i < groups.length; i++) {
+			const group = groups[i];
+
+			// Typed editor
 			if (editor instanceof EditorInput) {
-				return group.isOpened(editor);
+				if (group.isOpened(editor)) {
+					return editor;
+				}
 			}
 
-			const resourceInput = editor as IResourceInput | IUntitledResourceInput;
-			if (!resourceInput.resource) {
-				return false;
+			// Resource editor
+			else {
+				for (let j = 0; j < group.editors.length; j++) {
+					const editorInGroup = group.editors[j];
+					const resource = toResource(editorInGroup, { supportSideBySide: true });
+					if (!resource) {
+						continue; // need a resource to compare with
+					}
+
+					const resourceInput = editor as IResourceInput | IUntitledResourceInput;
+					if (resource.toString() === resourceInput.resource.toString()) {
+						return editorInGroup;
+					}
+				}
 			}
+		}
 
-			return group.editors.some(editorInGroup => {
-				const resource = toResource(editorInGroup, { supportSideBySide: true });
-
-				return resource && resource.toString() === resourceInput.resource.toString();
-			});
-		});
+		return void 0;
 	}
 
 	//#endregion
@@ -457,7 +484,7 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 
 	//#region createInput()
 
-	createInput(input: IEditorInputWithOptions | IEditorInput | IResourceEditor, options?: { forceFileInput: boolean }): EditorInput {
+	createInput(input: IEditorInputWithOptions | IEditorInput | IResourceEditor): EditorInput {
 
 		// Typed Editor Input Support (EditorInput)
 		if (input instanceof EditorInput) {
@@ -473,8 +500,8 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 		// Side by Side Support
 		const resourceSideBySideInput = <IResourceSideBySideInput>input;
 		if (resourceSideBySideInput.masterResource && resourceSideBySideInput.detailResource) {
-			const masterInput = this.createInput({ resource: resourceSideBySideInput.masterResource }, options);
-			const detailInput = this.createInput({ resource: resourceSideBySideInput.detailResource }, options);
+			const masterInput = this.createInput({ resource: resourceSideBySideInput.masterResource, forceFile: resourceSideBySideInput.forceFile });
+			const detailInput = this.createInput({ resource: resourceSideBySideInput.detailResource, forceFile: resourceSideBySideInput.forceFile });
 
 			return new SideBySideEditorInput(
 				resourceSideBySideInput.label || masterInput.getName(),
@@ -487,9 +514,9 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 		// Diff Editor Support
 		const resourceDiffInput = <IResourceDiffInput>input;
 		if (resourceDiffInput.leftResource && resourceDiffInput.rightResource) {
-			const leftInput = this.createInput({ resource: resourceDiffInput.leftResource }, options);
-			const rightInput = this.createInput({ resource: resourceDiffInput.rightResource }, options);
-			const label = resourceDiffInput.label || localize('compareLabels', "{0} ↔ {1}", this.toDiffLabel(leftInput, this.workspaceContextService, this.environmentService), this.toDiffLabel(rightInput, this.workspaceContextService, this.environmentService));
+			const leftInput = this.createInput({ resource: resourceDiffInput.leftResource, forceFile: resourceDiffInput.forceFile });
+			const rightInput = this.createInput({ resource: resourceDiffInput.rightResource, forceFile: resourceDiffInput.forceFile });
+			const label = resourceDiffInput.label || localize('compareLabels', "{0} ↔ {1}", this.toDiffLabel(leftInput), this.toDiffLabel(rightInput));
 
 			return new DiffEditorInput(label, resourceDiffInput.description, leftInput, rightInput);
 		}
@@ -513,13 +540,13 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 				label = basename(resourceInput.resource.fsPath); // derive the label from the path (but not for data URIs)
 			}
 
-			return this.createOrGet(resourceInput.resource, this.instantiationService, label, resourceInput.description, resourceInput.encoding, options && options.forceFileInput) as EditorInput;
+			return this.createOrGet(resourceInput.resource, this.instantiationService, label, resourceInput.description, resourceInput.encoding, resourceInput.forceFile) as EditorInput;
 		}
 
 		return null;
 	}
 
-	private createOrGet(resource: URI, instantiationService: IInstantiationService, label: string, description: string, encoding?: string, forceFileInput?: boolean): ICachedEditorInput {
+	private createOrGet(resource: URI, instantiationService: IInstantiationService, label: string, description: string, encoding?: string, forceFile?: boolean): ICachedEditorInput {
 		if (EditorService.CACHE.has(resource)) {
 			const input = EditorService.CACHE.get(resource);
 			if (input instanceof ResourceEditorInput) {
@@ -535,7 +562,7 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 		let input: ICachedEditorInput;
 
 		// File
-		if (this.fileService.canHandleResource(resource) || forceFileInput /* fix for https://github.com/Microsoft/vscode/issues/48275 */) {
+		if (forceFile /* fix for https://github.com/Microsoft/vscode/issues/48275 */ || this.fileService.canHandleResource(resource)) {
 			input = this.fileInputFactory.createFileInput(resource, encoding, instantiationService);
 		}
 
@@ -557,7 +584,7 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 		return input;
 	}
 
-	private toDiffLabel(input: EditorInput, context: IWorkspaceContextService, environment: IEnvironmentService): string {
+	private toDiffLabel(input: EditorInput): string {
 		const res = input.getResource();
 
 		// Do not try to extract any paths from simple untitled editors
@@ -566,7 +593,7 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 		}
 
 		// Otherwise: for diff labels prefer to see the path as part of the label
-		return getPathLabel(res.fsPath, environment, context);
+		return this.labelService.getUriLabel(res, { relative: true });
 	}
 
 	//#endregion
@@ -586,18 +613,16 @@ export class DelegatingEditorService extends EditorService {
 	constructor(
 		@IEditorGroupsService editorGroupService: EditorGroupsServiceImpl,
 		@IUntitledEditorService untitledEditorService: IUntitledEditorService,
-		@IWorkspaceContextService workspaceContextService: IWorkspaceContextService,
 		@IInstantiationService instantiationService: IInstantiationService,
-		@IEnvironmentService environmentService: IEnvironmentService,
+		@ILabelService labelService: ILabelService,
 		@IFileService fileService: IFileService,
 		@IConfigurationService configurationService: IConfigurationService
 	) {
 		super(
 			editorGroupService,
 			untitledEditorService,
-			workspaceContextService,
 			instantiationService,
-			environmentService,
+			labelService,
 			fileService,
 			configurationService
 		);

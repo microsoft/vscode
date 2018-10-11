@@ -6,7 +6,7 @@
 import * as nls from 'vs/nls';
 import * as errors from 'vs/base/common/errors';
 import { TPromise } from 'vs/base/common/winjs.base';
-import URI from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 import * as network from 'vs/base/common/network';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { IReplaceService } from 'vs/workbench/parts/search/common/replace';
@@ -24,6 +24,9 @@ import { ResourceTextEdit } from 'vs/editor/common/modes';
 import { createTextBufferFactoryFromSnapshot } from 'vs/editor/common/model/textModel';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { IBulkEditService } from 'vs/editor/browser/services/bulkEditService';
+import { Range } from 'vs/editor/common/core/range';
+import { EditOperation } from 'vs/editor/common/core/editOperation';
+import { mergeSort } from 'vs/base/common/arrays';
 
 const REPLACE_PREVIEW = 'replacePreview';
 
@@ -103,26 +106,7 @@ export class ReplaceService implements IReplaceService {
 	public replace(match: FileMatchOrMatch, progress?: IProgressRunner, resource?: URI): TPromise<any>;
 	public replace(arg: any, progress: IProgressRunner = null, resource: URI = null): TPromise<any> {
 
-		const edits: ResourceTextEdit[] = [];
-
-		if (arg instanceof Match) {
-			let match = <Match>arg;
-			edits.push(this.createEdit(match, match.replaceString, resource));
-		}
-
-		if (arg instanceof FileMatch) {
-			arg = [arg];
-		}
-
-		if (arg instanceof Array) {
-			arg.forEach(element => {
-				let fileMatch = <FileMatch>element;
-				if (fileMatch.count() > 0) {
-					edits.push(...fileMatch.matches().map(match => this.createEdit(match, match.replaceString, resource)));
-				}
-			});
-		}
-
+		const edits: ResourceTextEdit[] = this.createEdits(arg, resource);
 		return this.bulkEditorService.apply({ edits }, { progress }).then(() => this.textFileService.saveAll(edits.map(e => e.resource)));
 
 	}
@@ -140,6 +124,12 @@ export class ReplaceService implements IReplaceService {
 				revealIfVisible: true
 			}
 		}).then(editor => {
+			const disposable = fileMatch.onDispose(() => {
+				if (editor && editor.input) {
+					editor.input.dispose();
+				}
+				disposable.dispose();
+			});
 			this.updateReplacePreview(fileMatch).then(() => {
 				let editorControl = editor.getControl();
 				if (element instanceof Match) {
@@ -163,13 +153,49 @@ export class ReplaceService implements IReplaceService {
 					} else {
 						replaceModel.undo();
 					}
-					returnValue = this.replace(fileMatch, null, replacePreviewUri);
+					this.applyEditsToPreview(fileMatch, replaceModel);
 				}
 				return returnValue.then(() => {
 					sourceModelRef.dispose();
 					replaceModelRef.dispose();
 				});
 			});
+	}
+
+	private applyEditsToPreview(fileMatch: FileMatch, replaceModel: ITextModel): void {
+		const resourceEdits = this.createEdits(fileMatch, replaceModel.uri);
+		const modelEdits = [];
+		for (const resourceEdit of resourceEdits) {
+			for (const edit of resourceEdit.edits) {
+				const range = Range.lift(edit.range);
+				modelEdits.push(EditOperation.replaceMove(range, edit.text));
+			}
+		}
+		replaceModel.pushEditOperations([], mergeSort(modelEdits, (a, b) => Range.compareRangesUsingStarts(a.range, b.range)), () => []);
+	}
+
+	private createEdits(arg: FileMatchOrMatch | FileMatch[], resource: URI = null): ResourceTextEdit[] {
+		const edits: ResourceTextEdit[] = [];
+
+		if (arg instanceof Match) {
+			let match = <Match>arg;
+			edits.push(this.createEdit(match, match.replaceString, resource));
+		}
+
+		if (arg instanceof FileMatch) {
+			arg = [arg];
+		}
+
+		if (arg instanceof Array) {
+			arg.forEach(element => {
+				let fileMatch = <FileMatch>element;
+				if (fileMatch.count() > 0) {
+					edits.push(...fileMatch.matches().map(match => this.createEdit(match, match.replaceString, resource)));
+				}
+			});
+		}
+
+		return edits;
 	}
 
 	private createEdit(match: Match, text: string, resource: URI = null): ResourceTextEdit {

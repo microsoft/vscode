@@ -2,80 +2,35 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
-import * as vscode from 'vscode';
 import { join } from 'vs/base/common/paths';
 import { LogLevel } from 'vs/workbench/api/node/extHostTypes';
 import { ILogService, DelegatedLogService } from 'vs/platform/log/common/log';
 import { createSpdLogService } from 'vs/platform/log/node/spdlogService';
 import { ExtHostLogServiceShape } from 'vs/workbench/api/node/extHost.protocol';
+import { ExtensionHostLogFileName } from 'vs/workbench/services/extensions/common/extensions';
+import { URI } from 'vs/base/common/uri';
 
 
 export class ExtHostLogService extends DelegatedLogService implements ILogService, ExtHostLogServiceShape {
 
-	private _loggers: Map<string, ExtHostLogger> = new Map();
+	private _logsPath: string;
+	readonly logFile: URI;
 
 	constructor(
-		private _windowId: number,
 		logLevel: LogLevel,
-		private _logsPath: string
+		logsPath: string,
 	) {
-		super(createSpdLogService(`exthost${_windowId}`, logLevel, _logsPath));
+		super(createSpdLogService(ExtensionHostLogFileName, logLevel, logsPath));
+		this._logsPath = logsPath;
+		this.logFile = URI.file(join(logsPath, `${ExtensionHostLogFileName}.log`));
 	}
 
 	$setLevel(level: LogLevel): void {
 		this.setLevel(level);
 	}
 
-	getExtLogger(extensionID: string): ExtHostLogger {
-		let logger = this._loggers.get(extensionID);
-		if (!logger) {
-			logger = this.createLogger(extensionID);
-			this._loggers.set(extensionID, logger);
-		}
-		return logger;
-	}
-
 	getLogDirectory(extensionID: string): string {
-		return join(this._logsPath, `${extensionID}_${this._windowId}`);
-	}
-
-	private createLogger(extensionID: string): ExtHostLogger {
-		const logsDirPath = this.getLogDirectory(extensionID);
-		const logService = createSpdLogService(extensionID, this.getLevel(), logsDirPath);
-		this._register(this.onDidChangeLogLevel(level => logService.setLevel(level)));
-		return new ExtHostLogger(logService);
-	}
-}
-
-export class ExtHostLogger implements vscode.Logger {
-
-	constructor(
-		private readonly _logService: ILogService
-	) { }
-
-	trace(message: string, ...args: any[]): void {
-		return this._logService.trace(message, ...args);
-	}
-
-	debug(message: string, ...args: any[]): void {
-		return this._logService.debug(message, ...args);
-	}
-
-	info(message: string, ...args: any[]): void {
-		return this._logService.info(message, ...args);
-	}
-
-	warn(message: string, ...args: any[]): void {
-		return this._logService.warn(message, ...args);
-	}
-
-	error(message: string | Error, ...args: any[]): void {
-		return this._logService.error(message, ...args);
-	}
-
-	critical(message: string | Error, ...args: any[]): void {
-		return this._logService.critical(message, ...args);
+		return join(this._logsPath, extensionID);
 	}
 }

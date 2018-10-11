@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import { Event } from 'vscode';
 import { dirname, sep } from 'path';
 import { Readable } from 'stream';
@@ -268,7 +266,7 @@ export function readBytes(stream: Readable, bytes: number): Promise<Buffer> {
 	});
 }
 
-export enum Encoding {
+export const enum Encoding {
 	UTF8 = 'utf8',
 	UTF16be = 'utf16be',
 	UTF16le = 'utf16le'

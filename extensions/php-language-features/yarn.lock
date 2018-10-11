@@ -2,10 +2,12 @@
 # yarn lockfile v1
 
 
-"@types/node@7.0.43":
-  version "7.0.43"
-  resolved "https://registry.yarnpkg.com/@types/node/-/node-7.0.43.tgz#a187e08495a075f200ca946079c914e1a5fe962c"
+"@types/node@^8.10.25":
+  version "8.10.25"
+  resolved "https://registry.yarnpkg.com/@types/node/-/node-8.10.25.tgz#801fe4e39372cef18f268db880a5fbfcf71adc7e"
+  integrity sha512-WXvAXaknB0c2cJ7N44e1kUrVu5K90mSfPPaT5XxfuSMxEWva86EYIwxUZM3jNZ2P1CIC9e2z4WJqpAF69PQxeA==
 
-vscode-nls@^3.2.4:
-  version "3.2.4"
-  resolved "https://registry.yarnpkg.com/vscode-nls/-/vscode-nls-3.2.4.tgz#2166b4183c8aea884d20727f5449e62be69fd398"
+vscode-nls@^4.0.0:
+  version "4.0.0"
+  resolved "https://registry.yarnpkg.com/vscode-nls/-/vscode-nls-4.0.0.tgz#4001c8a6caba5cedb23a9c5ce1090395c0e44002"
+  integrity sha512-qCfdzcH+0LgQnBpZA53bA32kzp9rpq/f66Som577ObeuDlFIrtbEJ+A/+CCxjIh4G8dpJYNCKIsxpRAHIfsbNw==

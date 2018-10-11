@@ -7,11 +7,13 @@ import * as vscode from 'vscode';
 import * as nls from 'vscode-nls';
 import * as Proto from '../protocol';
 import { ITypeScriptServiceClient } from '../typescriptService';
+import API from '../utils/api';
 import { Command, CommandManager } from '../utils/commandManager';
+import { VersionDependentRegistration } from '../utils/dependentRegistration';
 import * as typeconverts from '../utils/typeConverters';
 import FileConfigurationManager from './fileConfigurationManager';
-import { VersionDependentRegistration } from '../utils/dependentRegistration';
-import API from '../utils/api';
+import TelemetryReporter from '../utils/telemetry';
+import { nulToken } from '../utils/cancellation';
 
 const localize = nls.loadMessageBundle();
 
@@ -22,10 +24,20 @@ class OrganizeImportsCommand implements Command {
 	public readonly id = OrganizeImportsCommand.Id;
 
 	constructor(
-		private readonly client: ITypeScriptServiceClient
+		private readonly client: ITypeScriptServiceClient,
+		private readonly telemetryReporter: TelemetryReporter,
 	) { }
 
 	public async execute(file: string): Promise<boolean> {
+		/* __GDPR__
+			"organizeImports.execute" : {
+				"${include}": [
+					"${TypeScriptCommonProperties}"
+				]
+			}
+		*/
+		this.telemetryReporter.logTelemetry('organizeImports.execute', {});
+
 		const args: Proto.OrganizeImportsRequestArgs = {
 			scope: {
 				type: 'file',
@@ -34,13 +46,13 @@ class OrganizeImportsCommand implements Command {
 				}
 			}
 		};
-		const response = await this.client.execute('organizeImports', args);
-		if (!response || !response.success) {
+		const response = await this.client.execute('organizeImports', args, nulToken);
+		if (response.type !== 'response' || !response.body) {
 			return false;
 		}
 
 		const edits = typeconverts.WorkspaceEdit.fromFileCodeEdits(this.client, response.body);
-		return await vscode.workspace.applyEdit(edits);
+		return vscode.workspace.applyEdit(edits);
 	}
 }
 
@@ -49,8 +61,10 @@ export class OrganizeImportsCodeActionProvider implements vscode.CodeActionProvi
 		private readonly client: ITypeScriptServiceClient,
 		commandManager: CommandManager,
 		private readonly fileConfigManager: FileConfigurationManager,
+		telemetryReporter: TelemetryReporter,
+
 	) {
-		commandManager.register(new OrganizeImportsCommand(client));
+		commandManager.register(new OrganizeImportsCommand(client, telemetryReporter));
 	}
 
 	public readonly metadata: vscode.CodeActionProviderMetadata = {
@@ -60,11 +74,15 @@ export class OrganizeImportsCodeActionProvider implements vscode.CodeActionProvi
 	public provideCodeActions(
 		document: vscode.TextDocument,
 		_range: vscode.Range,
-		_context: vscode.CodeActionContext,
+		context: vscode.CodeActionContext,
 		token: vscode.CancellationToken
 	): vscode.CodeAction[] {
 		const file = this.client.toPath(document.uri);
 		if (!file) {
+			return [];
+		}
+
+		if (!context.only || !context.only.contains(vscode.CodeActionKind.SourceOrganizeImports)) {
 			return [];
 		}
 
@@ -82,10 +100,11 @@ export function register(
 	selector: vscode.DocumentSelector,
 	client: ITypeScriptServiceClient,
 	commandManager: CommandManager,
-	fileConfigurationManager: FileConfigurationManager
+	fileConfigurationManager: FileConfigurationManager,
+	telemetryReporter: TelemetryReporter,
 ) {
 	return new VersionDependentRegistration(client, API.v280, () => {
-		const organizeImportsProvider = new OrganizeImportsCodeActionProvider(client, commandManager, fileConfigurationManager);
+		const organizeImportsProvider = new OrganizeImportsCodeActionProvider(client, commandManager, fileConfigurationManager, telemetryReporter);
 		return vscode.languages.registerCodeActionsProvider(selector,
 			organizeImportsProvider,
 			organizeImportsProvider.metadata);

@@ -81,16 +81,19 @@
 }
 
 .monaco-workbench  > .part.panel > .title > .panel-switcher-container > .monaco-action-bar .badge {
-	margin-left: 4px;
+	margin-left: 8px;
 }
 
 .monaco-workbench  > .part.panel > .title > .panel-switcher-container > .monaco-action-bar .badge .badge-content {
-	padding: 0.2em 0.5em;
+	padding: 0.3em 0.5em;
 	border-radius: 1em;
 	font-weight: normal;
 	text-align: center;
-	display: inline;
-}
+	display: inline-block;
+	min-width: 1.6em;
+	line-height: 1em;
+	box-sizing: border-box;
+	}
 
 /** Actions */
 
@@ -142,24 +145,6 @@
 .vs-dark .monaco-workbench .panel.right .minimize-panel-action,
 .hc-black .monaco-workbench .panel.right .minimize-panel-action {
 	background-image: url('right-inverse.svg');
-}
-
-.monaco-workbench .move-panel-to-right {
-	background: url('panel-right.svg') center center no-repeat;
-}
-
-.vs-dark .monaco-workbench .move-panel-to-right,
-.hc-black .monaco-workbench .move-panel-to-right {
-	background: url('panel-right-inverse.svg') center center no-repeat;
-}
-
-.monaco-workbench .move-panel-to-bottom {
-	background: url('panel-bottom.svg') center center no-repeat;
-}
-
-.vs-dark .monaco-workbench .move-panel-to-bottom,
-.hc-black .monaco-workbench .move-panel-to-bottom {
-	background: url('panel-bottom-inverse.svg') center center no-repeat;
 }
 
 .vs-dark .monaco-workbench .hide-panel-action,

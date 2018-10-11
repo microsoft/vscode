@@ -2,7 +2,6 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
 import 'vs/css!./media/diffReview';
 import * as nls from 'vs/nls';
@@ -30,6 +29,7 @@ import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { ITextModel, TextModelResolvedOptions } from 'vs/editor/common/model';
 import { ViewLineRenderingData } from 'vs/editor/common/viewModel/viewModel';
+import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 
 const DIFF_LINES_PADDING = 3;
 
@@ -768,6 +768,7 @@ export class DiffReview extends Disposable {
 		const containsRTL = ViewLineRenderingData.containsRTL(lineContent, isBasicASCII, model.mightContainRTL());
 		const r = renderViewLine(new RenderLineInput(
 			(config.fontInfo.isMonospace && !config.viewInfo.disableMonospaceOptimizations),
+			config.fontInfo.canUseHalfwidthRightwardsArrow,
 			lineContent,
 			false,
 			isBasicASCII,
@@ -790,7 +791,7 @@ export class DiffReview extends Disposable {
 // theming
 
 registerThemingParticipant((theme, collector) => {
-	let lineNumbers = theme.getColor(editorLineNumbers);
+	const lineNumbers = theme.getColor(editorLineNumbers);
 	if (lineNumbers) {
 		collector.addRule(`.monaco-diff-editor .diff-review-line-number { color: ${lineNumbers}; }`);
 	}
@@ -810,7 +811,8 @@ class DiffReviewNext extends EditorAction {
 			precondition: ContextKeyExpr.has('isInDiffEditor'),
 			kbOpts: {
 				kbExpr: null,
-				primary: KeyCode.F7
+				primary: KeyCode.F7,
+				weight: KeybindingWeight.EditorContrib
 			}
 		});
 	}
@@ -832,7 +834,8 @@ class DiffReviewPrev extends EditorAction {
 			precondition: ContextKeyExpr.has('isInDiffEditor'),
 			kbOpts: {
 				kbExpr: null,
-				primary: KeyMod.Shift | KeyCode.F7
+				primary: KeyMod.Shift | KeyCode.F7,
+				weight: KeybindingWeight.EditorContrib
 			}
 		});
 	}

@@ -3,10 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { TPromise } from 'vs/base/common/winjs.base';
 import * as objects from 'vs/base/common/objects';
 import * as types from 'vs/base/common/types';
-import URI from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 import { Event } from 'vs/base/common/event';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
@@ -28,12 +27,21 @@ export interface IConfigurationOverrides {
 	resource?: URI;
 }
 
-export enum ConfigurationTarget {
+export const enum ConfigurationTarget {
 	USER = 1,
 	WORKSPACE,
 	WORKSPACE_FOLDER,
 	DEFAULT,
 	MEMORY
+}
+export function ConfigurationTargetToString(configurationTarget: ConfigurationTarget) {
+	switch (configurationTarget) {
+		case ConfigurationTarget.USER: return 'USER';
+		case ConfigurationTarget.WORKSPACE: return 'WORKSPACE';
+		case ConfigurationTarget.WORKSPACE_FOLDER: return 'WORKSPACE_FOLDER';
+		case ConfigurationTarget.DEFAULT: return 'DEFAULT';
+		case ConfigurationTarget.MEMORY: return 'MEMORY';
+	}
 }
 
 export interface IConfigurationChangeEvent {
@@ -70,13 +78,13 @@ export interface IConfigurationService {
 	getValue<T>(overrides: IConfigurationOverrides): T;
 	getValue<T>(section: string, overrides: IConfigurationOverrides): T;
 
-	updateValue(key: string, value: any): TPromise<void>;
-	updateValue(key: string, value: any, overrides: IConfigurationOverrides): TPromise<void>;
-	updateValue(key: string, value: any, target: ConfigurationTarget): TPromise<void>;
-	updateValue(key: string, value: any, overrides: IConfigurationOverrides, target: ConfigurationTarget, donotNotifyError?: boolean): TPromise<void>;
+	updateValue(key: string, value: any): Promise<void>;
+	updateValue(key: string, value: any, overrides: IConfigurationOverrides): Promise<void>;
+	updateValue(key: string, value: any, target: ConfigurationTarget): Promise<void>;
+	updateValue(key: string, value: any, overrides: IConfigurationOverrides, target: ConfigurationTarget, donotNotifyError?: boolean): Promise<void>;
 
-	reloadConfiguration(): TPromise<void>;
-	reloadConfiguration(folder: IWorkspaceFolder): TPromise<void>;
+	reloadConfiguration(): Promise<void>;
+	reloadConfiguration(folder: IWorkspaceFolder): Promise<void>;
 
 	inspect<T>(key: string, overrides?: IConfigurationOverrides): {
 		default: T,

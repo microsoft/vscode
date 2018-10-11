@@ -2,7 +2,6 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { ITerminalService, ITerminalInstance, IShellLaunchConfig, ITerminalProcessExtHostProxy, ITerminalProcessExtHostRequest, ITerminalDimensions, EXT_HOST_CREATION_DELAY } from 'vs/workbench/parts/terminal/common/terminal';
@@ -16,6 +15,8 @@ export class MainThreadTerminalService implements MainThreadTerminalServiceShape
 	private _proxy: ExtHostTerminalServiceShape;
 	private _toDispose: IDisposable[] = [];
 	private _terminalProcesses: { [id: number]: ITerminalProcessExtHostProxy } = {};
+	private _terminalOnDidWriteDataListeners: { [id: number]: IDisposable } = {};
+	private _terminalOnDidAcceptInputListeners: { [id: number]: IDisposable } = {};
 
 	constructor(
 		extHostContext: IExtHostContext,
@@ -33,6 +34,7 @@ export class MainThreadTerminalService implements MainThreadTerminalServiceShape
 		this._toDispose.push(terminalService.onInstanceDimensionsChanged(instance => this._onInstanceDimensionsChanged(instance)));
 		this._toDispose.push(terminalService.onInstanceRequestExtHostProcess(request => this._onTerminalRequestExtHostProcess(request)));
 		this._toDispose.push(terminalService.onActiveInstanceChanged(instance => this._onActiveTerminalChanged(instance ? instance.id : undefined)));
+		this._toDispose.push(terminalService.onInstanceTitleChanged(instance => this._onTitleChanged(instance.id, instance.title)));
 
 		// Set initial ext host state
 		this.terminalService.terminalInstances.forEach(t => {
@@ -52,7 +54,7 @@ export class MainThreadTerminalService implements MainThreadTerminalServiceShape
 		// when the extension host process goes down ?
 	}
 
-	public $createTerminal(name?: string, shellPath?: string, shellArgs?: string[], cwd?: string, env?: { [key: string]: string }, waitOnExit?: boolean): TPromise<number> {
+	public $createTerminal(name?: string, shellPath?: string, shellArgs?: string[], cwd?: string, env?: { [key: string]: string }, waitOnExit?: boolean): Thenable<number> {
 		const shellLaunchConfig: IShellLaunchConfig = {
 			name,
 			executable: shellPath,
@@ -65,7 +67,7 @@ export class MainThreadTerminalService implements MainThreadTerminalServiceShape
 		return TPromise.as(this.terminalService.createTerminal(shellLaunchConfig).id);
 	}
 
-	public $createTerminalRenderer(name: string): TPromise<number> {
+	public $createTerminalRenderer(name: string): Thenable<number> {
 		const instance = this.terminalService.createTerminalRenderer(name);
 		return TPromise.as(instance.id);
 	}
@@ -114,9 +116,18 @@ export class MainThreadTerminalService implements MainThreadTerminalServiceShape
 
 	public $terminalRendererRegisterOnInputListener(terminalId: number): void {
 		const terminalInstance = this.terminalService.getInstanceFromId(terminalId);
-		if (terminalInstance) {
-			terminalInstance.addDisposable(terminalInstance.onRendererInput(data => this._onTerminalRendererInput(terminalId, data)));
+		if (!terminalInstance) {
+			return;
 		}
+
+		// Listener already registered
+		if (this._terminalOnDidAcceptInputListeners.hasOwnProperty(terminalId)) {
+			return;
+		}
+
+		// Register
+		this._terminalOnDidAcceptInputListeners[terminalId] = terminalInstance.onRendererInput(data => this._onTerminalRendererInput(terminalId, data));
+		terminalInstance.addDisposable(this._terminalOnDidAcceptInputListeners[terminalId]);
 	}
 
 	public $sendText(terminalId: number, text: string, addNewLine: boolean): void {
@@ -128,11 +139,20 @@ export class MainThreadTerminalService implements MainThreadTerminalServiceShape
 
 	public $registerOnDataListener(terminalId: number): void {
 		const terminalInstance = this.terminalService.getInstanceFromId(terminalId);
-		if (terminalInstance) {
-			terminalInstance.addDisposable(terminalInstance.onData(data => {
-				this._onTerminalData(terminalId, data);
-			}));
+		if (!terminalInstance) {
+			return;
 		}
+
+		// Listener already registered
+		if (this._terminalOnDidWriteDataListeners[terminalId]) {
+			return;
+		}
+
+		// Register
+		this._terminalOnDidWriteDataListeners[terminalId] = terminalInstance.onData(data => {
+			this._onTerminalData(terminalId, data);
+		});
+		terminalInstance.addDisposable(this._terminalOnDidWriteDataListeners[terminalId]);
 	}
 
 	private _onActiveTerminalChanged(terminalId: number | undefined): void {
@@ -141,6 +161,10 @@ export class MainThreadTerminalService implements MainThreadTerminalServiceShape
 
 	private _onTerminalData(terminalId: number, data: string): void {
 		this._proxy.$acceptTerminalProcessData(terminalId, data);
+	}
+
+	private _onTitleChanged(terminalId: number, name: string): void {
+		this._proxy.$acceptTerminalTitleChange(terminalId, name);
 	}
 
 	private _onTerminalRendererInput(terminalId: number, data: string): void {
@@ -152,7 +176,13 @@ export class MainThreadTerminalService implements MainThreadTerminalServiceShape
 	}
 
 	private _onTerminalOpened(terminalInstance: ITerminalInstance): void {
-		this._proxy.$acceptTerminalOpened(terminalInstance.id, terminalInstance.title);
+		if (terminalInstance.title) {
+			this._proxy.$acceptTerminalOpened(terminalInstance.id, terminalInstance.title);
+		} else {
+			terminalInstance.waitForTitle().then(title => {
+				this._proxy.$acceptTerminalOpened(terminalInstance.id, title);
+			});
+		}
 	}
 
 	private _onTerminalProcessIdReady(terminalInstance: ITerminalInstance): void {
@@ -178,8 +208,8 @@ export class MainThreadTerminalService implements MainThreadTerminalServiceShape
 		};
 		this._proxy.$createProcess(request.proxy.terminalId, shellLaunchConfigDto, request.cols, request.rows);
 		request.proxy.onInput(data => this._proxy.$acceptProcessInput(request.proxy.terminalId, data));
-		request.proxy.onResize((cols, rows) => this._proxy.$acceptProcessResize(request.proxy.terminalId, cols, rows));
-		request.proxy.onShutdown(() => this._proxy.$acceptProcessShutdown(request.proxy.terminalId));
+		request.proxy.onResize(dimensions => this._proxy.$acceptProcessResize(request.proxy.terminalId, dimensions.cols, dimensions.rows));
+		request.proxy.onShutdown(immediate => this._proxy.$acceptProcessShutdown(request.proxy.terminalId, immediate));
 	}
 
 	public $sendProcessTitle(terminalId: number, title: string): void {

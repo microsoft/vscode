@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import { isObject, isUndefinedOrNull, isArray } from 'vs/base/common/types';
 
 export function deepClone<T>(obj: T): T {
@@ -220,7 +218,7 @@ export function safeStringify(obj: any): string {
 	});
 }
 
-export function getOrDefault<T, R>(obj: T, fn: (obj: T) => R, defaultValue: R = null): R {
+export function getOrDefault<T, R>(obj: T, fn: (obj: T) => R, defaultValue: R | null = null): R | null {
 	const result = fn(obj);
 	return typeof result === 'undefined' ? defaultValue : result;
 }

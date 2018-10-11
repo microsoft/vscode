@@ -92,28 +92,33 @@
 	display: none; /* hidden by default until a color is provided (see below) */
 }
 
-.monaco-workbench > .part.editor > .content .editor-group-container > .title .tabs-container > .tab.active.tab-border-top > .tab-border-top-container {
+.monaco-workbench > .part.editor > .content .editor-group-container > .title .tabs-container > .tab.active.tab-border-top > .tab-border-top-container,
+.monaco-workbench > .part.editor > .content .editor-group-container > .title .tabs-container > .tab.active.tab-border-bottom > .tab-border-bottom-container,
+.monaco-workbench > .part.editor > .content .editor-group-container > .title .tabs-container > .tab.dirty-border-top > .tab-border-top-container {
 	display: block;
 	position: absolute;
-	top: 0;
 	left: 0;
 	z-index: 6; /* over possible title border */
 	pointer-events: none;
-	background-color: var(--tab-border-top-color);
 	width: 100%;
+}
+
+.monaco-workbench > .part.editor > .content .editor-group-container > .title .tabs-container > .tab.active.tab-border-top > .tab-border-top-container {
+	top: 0;
 	height: 1px;
+	background-color: var(--tab-border-top-color);
 }
 
 .monaco-workbench > .part.editor > .content .editor-group-container > .title .tabs-container > .tab.active.tab-border-bottom > .tab-border-bottom-container {
-	display: block;
-	position: absolute;
 	bottom: 0;
-	left: 0;
-	z-index: 6; /* over possible title border */
-	pointer-events: none;
-	background-color: var(--tab-border-bottom-color);
-	width: 100%;
 	height: 1px;
+	background-color: var(--tab-border-bottom-color);
+}
+
+.monaco-workbench > .part.editor > .content .editor-group-container > .title .tabs-container > .tab.dirty-border-top > .tab-border-top-container {
+	top: 0;
+	height: 2px;
+	background-color: var(--tab-dirty-border-top-color);
 }
 
 /* Tab Label */
@@ -135,6 +140,10 @@
 	width: 5px;
 	opacity: 1;
 	padding: 0;
+}
+
+.monaco-workbench > .part.editor > .content .editor-group-container > .title .tabs-container >  .tab.sizing-shrink:focus > .tab-label::after {
+	opacity: 0; /* when tab has the focus this shade breaks the tab border (fixes https://github.com/Microsoft/vscode/issues/57819) */
 }
 
 .monaco-workbench > .part.editor > .content .editor-group-container > .title .tabs-container > .tab.sizing-fit .monaco-icon-label,
@@ -168,8 +177,9 @@
 }
 
 .monaco-workbench > .part.editor > .content .editor-group-container > .title .tabs-container > .tab.dirty.close-button-right.sizing-shrink > .tab-close,
-.monaco-workbench > .part.editor > .content .editor-group-container > .title .tabs-container > .tab.close-button-right.sizing-shrink:hover > .tab-close {
-	overflow: visible; /* ...but still show the close button on hover and when dirty */
+.monaco-workbench > .part.editor > .content .editor-group-container > .title .tabs-container > .tab.close-button-right.sizing-shrink:hover > .tab-close,
+.monaco-workbench > .part.editor > .content .editor-group-container > .title .tabs-container > .tab.close-button-right.sizing-shrink > .tab-close:focus-within {
+	overflow: visible; /* ...but still show the close button on hover, focus and when dirty */
 }
 
 .monaco-workbench > .part.editor > .content .editor-group-container > .title .tabs-container > .tab.close-button-off > .tab-close {
@@ -252,4 +262,35 @@
 	cursor: default;
 	flex: initial;
 	padding-left: 4px;
+	height: 35px;
+}
+
+/* Breadcrumbs */
+
+.monaco-workbench > .part.editor > .content .editor-group-container > .title .tabs-breadcrumbs .breadcrumbs-control {
+	flex: 1 100%;
+	height: 22px;
+	cursor: default;
+}
+
+.monaco-workbench > .part.editor > .content .editor-group-container > .title .tabs-breadcrumbs .breadcrumbs-control .monaco-icon-label {
+	height: 22px;
+	line-height: 22px;
+}
+
+.monaco-workbench > .part.editor > .content .editor-group-container > .title .tabs-breadcrumbs .breadcrumbs-control .monaco-icon-label::before {
+	height: 22px; /* tweak the icon size of the editor labels when icons are enabled */
+}
+
+.monaco-workbench > .part.editor > .content .editor-group-container > .title .tabs-breadcrumbs  .breadcrumbs-control .monaco-breadcrumb-item {
+	max-width: 80%;
+}
+
+.monaco-workbench > .part.editor > .content .editor-group-container > .title .tabs-breadcrumbs  .breadcrumbs-control .monaco-breadcrumb-item::before {
+	min-width: 16px;
+	height: 22px;
+}
+
+.monaco-workbench > .part.editor > .content .editor-group-container > .title .tabs-breadcrumbs  .breadcrumbs-control .monaco-breadcrumb-item:last-child {
+	padding-right: 8px;
 }

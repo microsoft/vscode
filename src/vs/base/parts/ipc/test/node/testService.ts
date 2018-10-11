@@ -2,11 +2,10 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
-import { TPromise, PPromise } from 'vs/base/common/winjs.base';
-import { IChannel } from 'vs/base/parts/ipc/common/ipc';
+import { IChannel } from 'vs/base/parts/ipc/node/ipc';
 import { Event, Emitter } from 'vs/base/common/event';
+import { timeout } from 'vs/base/common/async';
 
 export interface IMarcoPoloEvent {
 	answer: string;
@@ -14,10 +13,9 @@ export interface IMarcoPoloEvent {
 
 export interface ITestService {
 	onMarco: Event<IMarcoPoloEvent>;
-	marco(): TPromise<string>;
-	pong(ping: string): TPromise<{ incoming: string, outgoing: string }>;
-	cancelMe(): TPromise<boolean>;
-	batchPerf(batches: number, size: number, dataSize: number): PPromise<any, any[]>;
+	marco(): Thenable<string>;
+	pong(ping: string): Thenable<{ incoming: string, outgoing: string }>;
+	cancelMe(): Thenable<boolean>;
 }
 
 export class TestService implements ITestService {
@@ -25,45 +23,17 @@ export class TestService implements ITestService {
 	private _onMarco = new Emitter<IMarcoPoloEvent>();
 	onMarco: Event<IMarcoPoloEvent> = this._onMarco.event;
 
-	private _data = 'abcdefghijklmnopqrstuvwxyz';
-
-	marco(): TPromise<string> {
+	marco(): Thenable<string> {
 		this._onMarco.fire({ answer: 'polo' });
-		return TPromise.as('polo');
+		return Promise.resolve('polo');
 	}
 
-	pong(ping: string): TPromise<{ incoming: string, outgoing: string }> {
-		return TPromise.as({ incoming: ping, outgoing: 'pong' });
+	pong(ping: string): Thenable<{ incoming: string, outgoing: string }> {
+		return Promise.resolve({ incoming: ping, outgoing: 'pong' });
 	}
 
-	cancelMe(): TPromise<boolean> {
-		return TPromise.timeout(100).then(() => true);
-	}
-
-	batchPerf(batches: number, size: number, dataSize: number): PPromise<any, any[]> {
-		while (this._data.length < dataSize) {
-			this._data += this._data;
-		}
-		const self = this;
-		return new PPromise<any, any[]>((complete, error, progress) => {
-			let j = 0;
-			function send() {
-				if (j >= batches) {
-					complete(null);
-					return;
-				}
-				j++;
-				const batch = [];
-				for (let i = 0; i < size; i++) {
-					batch.push({
-						prop: `${i}${self._data}`.substr(0, dataSize)
-					});
-				}
-				progress(batch);
-				process.nextTick(send);
-			}
-			process.nextTick(send);
-		});
+	cancelMe(): Thenable<boolean> {
+		return Promise.resolve(timeout(100)).then(() => true);
 	}
 }
 
@@ -71,11 +41,10 @@ export interface ITestChannel extends IChannel {
 	listen<IMarcoPoloEvent>(event: 'marco'): Event<IMarcoPoloEvent>;
 	listen<T>(event: string, arg?: any): Event<T>;
 
-	call(command: 'marco'): TPromise<any>;
-	call(command: 'pong', ping: string): TPromise<any>;
-	call(command: 'cancelMe'): TPromise<any>;
-	call(command: 'batchPerf', args: { batches: number; size: number; dataSize: number; }): PPromise<any, any[]>;
-	call(command: string, ...args: any[]): TPromise<any>;
+	call(command: 'marco'): Thenable<any>;
+	call(command: 'pong', ping: string): Thenable<any>;
+	call(command: 'cancelMe'): Thenable<any>;
+	call(command: string, ...args: any[]): Thenable<any>;
 }
 
 export class TestChannel implements ITestChannel {
@@ -90,13 +59,12 @@ export class TestChannel implements ITestChannel {
 		throw new Error('Event not found');
 	}
 
-	call(command: string, ...args: any[]): TPromise<any> {
+	call(command: string, ...args: any[]): Thenable<any> {
 		switch (command) {
 			case 'pong': return this.testService.pong(args[0]);
 			case 'cancelMe': return this.testService.cancelMe();
 			case 'marco': return this.testService.marco();
-			case 'batchPerf': return this.testService.batchPerf(args[0].batches, args[0].size, args[0].dataSize);
-			default: return TPromise.wrapError(new Error('command not found'));
+			default: return Promise.reject(new Error('command not found'));
 		}
 	}
 }
@@ -107,19 +75,15 @@ export class TestServiceClient implements ITestService {
 
 	constructor(private channel: ITestChannel) { }
 
-	marco(): TPromise<string> {
+	marco(): Thenable<string> {
 		return this.channel.call('marco');
 	}
 
-	pong(ping: string): TPromise<{ incoming: string, outgoing: string }> {
+	pong(ping: string): Thenable<{ incoming: string, outgoing: string }> {
 		return this.channel.call('pong', ping);
 	}
 
-	cancelMe(): TPromise<boolean> {
+	cancelMe(): Thenable<boolean> {
 		return this.channel.call('cancelMe');
-	}
-
-	batchPerf(batches: number, size: number, dataSize: number): PPromise<any, any[]> {
-		return this.channel.call('batchPerf', { batches, size, dataSize });
 	}
 }

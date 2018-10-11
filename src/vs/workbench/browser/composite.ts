@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { TPromise } from 'vs/base/common/winjs.base';
 import { IAction, IActionRunner, ActionRunner } from 'vs/base/common/actions';
 import { IActionItem } from 'vs/base/browser/ui/actionbar/actionbar';
 import { Component } from 'vs/workbench/common/component';
@@ -32,13 +31,26 @@ export abstract class Composite extends Component implements IComposite {
 	private _onDidFocus: Emitter<void>;
 	get onDidFocus(): Event<void> {
 		if (!this._onDidFocus) {
-			this._onDidFocus = this._register(new Emitter<void>());
-
-			const focusTracker = this._register(trackFocus(this.getContainer()));
-			this._register(focusTracker.onDidFocus(() => this._onDidFocus.fire()));
+			this._registerFocusTrackEvents();
 		}
-
 		return this._onDidFocus.event;
+	}
+
+	private _onDidBlur: Emitter<void>;
+	get onDidBlur(): Event<void> {
+		if (!this._onDidBlur) {
+			this._registerFocusTrackEvents();
+		}
+		return this._onDidBlur.event;
+	}
+
+	private _registerFocusTrackEvents(): void {
+		this._onDidFocus = this._register(new Emitter<void>());
+		this._onDidBlur = this._register(new Emitter<void>());
+
+		const focusTracker = this._register(trackFocus(this.getContainer()));
+		this._register(focusTracker.onDidFocus(() => this._onDidFocus.fire()));
+		this._register(focusTracker.onDidBlur(() => this._onDidBlur.fire()));
 	}
 
 	protected actionRunner: IActionRunner;
@@ -71,15 +83,15 @@ export abstract class Composite extends Component implements IComposite {
 	 * Note: Clients should not call this method, the workbench calls this
 	 * method. Calling it otherwise may result in unexpected behavior.
 	 *
-	 * Called to create this composite on the provided builder. This method is only
+	 * Called to create this composite on the provided parent. This method is only
 	 * called once during the lifetime of the workbench.
 	 * Note that DOM-dependent calculations should be performed from the setVisible()
 	 * call. Only then the composite will be part of the DOM.
 	 */
-	create(parent: HTMLElement): TPromise<void> {
+	create(parent: HTMLElement): Promise<void> {
 		this.parent = parent;
 
-		return TPromise.as(null);
+		return Promise.resolve(null);
 	}
 
 	updateStyles(): void {
@@ -105,10 +117,10 @@ export abstract class Composite extends Component implements IComposite {
 	 * to do a long running operation from this call. Typically this operation should be
 	 * fast though because setVisible might be called many times during a session.
 	 */
-	setVisible(visible: boolean): TPromise<void> {
+	setVisible(visible: boolean): Promise<void> {
 		this.visible = visible;
 
-		return TPromise.as(null);
+		return Promise.resolve(null);
 	}
 
 	/**

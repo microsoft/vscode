@@ -2,7 +2,6 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
 import * as cp from 'child_process';
 import { NodeStringDecoder, StringDecoder } from 'string_decoder';
@@ -23,7 +22,7 @@ export class LineDecoder {
 		this.remaining = null;
 	}
 
-	public write(buffer: NodeBuffer): string[] {
+	public write(buffer: Buffer): string[] {
 		var result: string[] = [];
 		var value = this.remaining
 			? this.remaining + this.stringDecoder.write(buffer)

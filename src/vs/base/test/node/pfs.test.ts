@@ -2,8 +2,6 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
-
 import { TPromise } from 'vs/base/common/winjs.base';
 
 import * as assert from 'assert';
@@ -18,7 +16,7 @@ import { timeout } from 'vs/base/common/async';
 
 suite('PFS', () => {
 
-	test('writeFile', function () {
+	test('writeFile', () => {
 		const id = uuid.generateUuid();
 		const parentDir = path.join(os.tmpdir(), 'vsctests', id);
 		const newDir = path.join(parentDir, 'pfs', id);

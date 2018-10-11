@@ -2,8 +2,6 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
-
 import * as assert from 'assert';
 import { TokenizationRegistry, IState, LanguageIdentifier, ColorId, FontStyle, MetadataConsts } from 'vs/editor/common/modes';
 import { tokenizeToString, tokenizeLineToHTML } from 'vs/editor/common/modes/textToHtmlTokenizer';
@@ -19,8 +17,9 @@ suite('Editor Modes - textToHtmlTokenizer', () => {
 
 	test('TextToHtmlTokenizer 1', () => {
 		let mode = new Mode();
+		let support = TokenizationRegistry.get(mode.getId());
 
-		let actual = tokenizeToString('.abc..def...gh', mode.getId());
+		let actual = tokenizeToString('.abc..def...gh', support);
 		let expected = [
 			{ className: 'mtk7', text: '.' },
 			{ className: 'mtk9', text: 'abc' },
@@ -38,8 +37,9 @@ suite('Editor Modes - textToHtmlTokenizer', () => {
 
 	test('TextToHtmlTokenizer 2', () => {
 		let mode = new Mode();
+		let support = TokenizationRegistry.get(mode.getId());
 
-		let actual = tokenizeToString('.abc..def...gh\n.abc..def...gh', mode.getId());
+		let actual = tokenizeToString('.abc..def...gh\n.abc..def...gh', support);
 		let expected1 = [
 			{ className: 'mtk7', text: '.' },
 			{ className: 'mtk9', text: 'abc' },

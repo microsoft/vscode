@@ -4,9 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import uri from 'vs/base/common/uri';
+import { URI as uri } from 'vs/base/common/uri';
 import * as platform from 'vs/base/common/platform';
-import { TPromise } from 'vs/base/common/winjs.base';
 import { IConfigurationService, getConfigurationValue, IConfigurationOverrides } from 'vs/platform/configuration/common/configuration';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IConfigurationResolverService } from 'vs/workbench/services/configurationResolver/common/configurationResolver';
@@ -14,6 +13,7 @@ import { ConfigurationResolverService } from 'vs/workbench/services/configuratio
 import { IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import { TestEnvironmentService, TestEditorService, TestContextService } from 'vs/workbench/test/workbenchTestServices';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
+import { Disposable } from 'vs/base/common/lifecycle';
 
 suite('Configuration Resolver Service', () => {
 	let configurationResolverService: IConfigurationResolverService;
@@ -380,7 +380,7 @@ class MockConfigurationService implements IConfigurationService {
 
 		return object;
 	}
-	public updateValue(): TPromise<void> { return null; }
+	public updateValue(): Promise<void> { return null; }
 	public getConfigurationData(): any { return null; }
 	public onDidChangeConfiguration() { return { dispose() { } }; }
 	public reloadConfiguration() { return null; }
@@ -391,8 +391,8 @@ class MockCommandService implements ICommandService {
 	public _serviceBrand: any;
 	public callCount = 0;
 
-	onWillExecuteCommand = () => ({ dispose: () => { } });
-	public executeCommand(commandId: string, ...args: any[]): TPromise<any> {
+	onWillExecuteCommand = () => Disposable.None;
+	public executeCommand(commandId: string, ...args: any[]): Promise<any> {
 		this.callCount++;
 
 		let result = `${commandId}-result`;
@@ -402,6 +402,6 @@ class MockCommandService implements ICommandService {
 			}
 		}
 
-		return TPromise.as(result);
+		return Promise.resolve(result);
 	}
 }

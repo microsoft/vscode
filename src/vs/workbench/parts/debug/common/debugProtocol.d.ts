@@ -418,6 +418,8 @@ declare module DebugProtocol {
 
 	/** Arguments for 'disconnect' request. */
 	export interface DisconnectArguments {
+		/** A value of true indicates that this 'disconnect' request is part of a restart sequence. */
+		restart?: boolean;
 		/** Indicates whether the debuggee should be terminated when the debugger is disconnected.
 			If unspecified, the debug adapter is free to do whatever it thinks is best.
 			A client can only rely on this attribute being properly honored if a debug adapter returns true for the 'supportTerminateDebuggee' capability.
@@ -427,6 +429,24 @@ declare module DebugProtocol {
 
 	/** Response to 'disconnect' request. This is just an acknowledgement, so no body field is required. */
 	export interface DisconnectResponse extends Response {
+	}
+
+	/** Terminate request; value of command field is 'terminate'.
+		The 'terminate' request is sent from the client to the debug adapter in order to give the debuggee a chance for terminating itself.
+	*/
+	export interface TerminateRequest extends Request {
+		// command: 'terminate';
+		arguments?: TerminateArguments;
+	}
+
+	/** Arguments for 'terminate' request. */
+	export interface TerminateArguments {
+		/** A value of true indicates that this 'terminate' request is part of a restart sequence. */
+		restart?: boolean;
+	}
+
+	/** Response to 'terminate' request. This is just an acknowledgement, so no body field is required. */
+	export interface TerminateResponse extends Response {
 	}
 
 	/** SetBreakpoints request; value of command field is 'setBreakpoints'.
@@ -1176,6 +1196,8 @@ declare module DebugProtocol {
 		supportsTerminateThreadsRequest?: boolean;
 		/** The debug adapter supports the 'setExpression' request. */
 		supportsSetExpression?: boolean;
+		/** The debug adapter supports the 'terminate' request. */
+		supportsTerminateRequest?: boolean;
 	}
 
 	/** An ExceptionBreakpointsFilter is shown in the UI as an option for configuring how exceptions are dealt with. */

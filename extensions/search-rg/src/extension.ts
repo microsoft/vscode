@@ -4,51 +4,60 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
-import { RipgrepTextSearchEngine } from './ripgrepTextSearch';
 import { RipgrepFileSearchEngine } from './ripgrepFileSearch';
-import { CachedSearchProvider } from './cachedSearchProvider';
+import { RipgrepTextSearchEngine } from './ripgrepTextSearch';
 
 export function activate(): void {
 	if (vscode.workspace.getConfiguration('searchRipgrep').get('enable')) {
 		const outputChannel = vscode.window.createOutputChannel('search-rg');
+
 		const provider = new RipgrepSearchProvider(outputChannel);
-		vscode.workspace.registerSearchProvider('file', provider);
+		vscode.workspace.registerFileIndexProvider('file', provider);
+		vscode.workspace.registerTextSearchProvider('file', provider);
 	}
 }
 
-type SearchEngine = RipgrepFileSearchEngine | RipgrepTextSearchEngine;
-
-class RipgrepSearchProvider implements vscode.SearchProvider {
-	private cachedProvider: CachedSearchProvider;
-	private inProgress: Set<SearchEngine> = new Set();
+class RipgrepSearchProvider implements vscode.FileIndexProvider, vscode.TextSearchProvider {
+	private inProgress: Set<vscode.CancellationTokenSource> = new Set();
 
 	constructor(private outputChannel: vscode.OutputChannel) {
-		this.cachedProvider = new CachedSearchProvider();
 		process.once('exit', () => this.dispose());
 	}
 
-	provideTextSearchResults(query: vscode.TextSearchQuery, options: vscode.TextSearchOptions, progress: vscode.Progress<vscode.TextSearchResult>, token: vscode.CancellationToken): Thenable<void> {
+	provideTextSearchResults(query: vscode.TextSearchQuery, options: vscode.TextSearchOptions, progress: vscode.Progress<vscode.TextSearchResult>, token: vscode.CancellationToken): Promise<vscode.TextSearchComplete> {
 		const engine = new RipgrepTextSearchEngine(this.outputChannel);
-		return this.withEngine(engine, () => engine.provideTextSearchResults(query, options, progress, token));
+		return this.withToken(token, token => engine.provideTextSearchResults(query, options, progress, token));
 	}
 
-	provideFileSearchResults(query: vscode.FileSearchQuery, options: vscode.SearchOptions, progress: vscode.Progress<vscode.Uri>, token: vscode.CancellationToken): Thenable<void> {
+	provideFileIndex(options: vscode.FileSearchOptions, token: vscode.CancellationToken): Thenable<vscode.Uri[]> {
 		const engine = new RipgrepFileSearchEngine(this.outputChannel);
-		return this.withEngine(engine, () => this.cachedProvider.provideFileSearchResults(engine, query, options, progress, token));
+
+		const results: vscode.Uri[] = [];
+		const onResult = (relativePathMatch: string) => {
+			results.push(vscode.Uri.file(options.folder.fsPath + '/' + relativePathMatch));
+		};
+
+		return this.withToken(token, token => engine.provideFileSearchResults(options, { report: onResult }, token))
+			.then(() => results);
 	}
 
-	clearCache(cacheKey: string): void {
-		this.cachedProvider.clearCache(cacheKey);
-	}
+	private async withToken<T>(token: vscode.CancellationToken, fn: (token: vscode.CancellationToken) => Thenable<T>): Promise<T> {
+		const merged = mergedTokenSource(token);
+		this.inProgress.add(merged);
+		const result = await fn(merged.token);
+		this.inProgress.delete(merged);
 
-	private withEngine(engine: SearchEngine, fn: () => Thenable<void>): Thenable<void> {
-		this.inProgress.add(engine);
-		return fn().then(() => {
-			this.inProgress.delete(engine);
-		});
+		return result;
 	}
 
 	private dispose() {
 		this.inProgress.forEach(engine => engine.cancel());
 	}
+}
+
+function mergedTokenSource(token: vscode.CancellationToken): vscode.CancellationTokenSource {
+	const tokenSource = new vscode.CancellationTokenSource();
+	token.onCancellationRequested(() => tokenSource.cancel());
+
+	return tokenSource;
 }

@@ -3,9 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
-import URI from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 import * as objects from 'vs/base/common/objects';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { Disposable } from 'vs/base/common/lifecycle';

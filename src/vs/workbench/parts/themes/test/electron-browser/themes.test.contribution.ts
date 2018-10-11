@@ -3,11 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
-import { TPromise } from 'vs/base/common/winjs.base';
 import * as paths from 'vs/base/common/paths';
-import URI from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import * as pfs from 'vs/base/node/pfs';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
@@ -162,7 +159,7 @@ class Snapper {
 		return result;
 	}
 
-	private _getThemesResult(grammar: IGrammar, lines: string[]): TPromise<IThemesResult> {
+	private async _getThemesResult(grammar: IGrammar, lines: string[]): Promise<IThemesResult> {
 		let currentTheme = this.themeService.getColorTheme();
 
 		let getThemeName = (id: string) => {
@@ -176,25 +173,21 @@ class Snapper {
 
 		let result: IThemesResult = {};
 
-		return this.themeService.getColorThemes().then(themeDatas => {
-			let defaultThemes = themeDatas.filter(themeData => !!getThemeName(themeData.id));
-			return TPromise.join(defaultThemes.map(defaultTheme => {
-				let themeId = defaultTheme.id;
-				return this.themeService.setColorTheme(themeId, null).then(success => {
-					if (success) {
-						let themeName = getThemeName(themeId);
-						result[themeName] = {
-							document: new ThemeDocument(this.themeService.getColorTheme()),
-							tokens: this._themedTokenize(grammar, lines)
-						};
-					}
-				});
-			}));
-		}).then(_ => {
-			return this.themeService.setColorTheme(currentTheme.id, null).then(_ => {
-				return result;
-			});
-		});
+		let themeDatas = await this.themeService.getColorThemes();
+		let defaultThemes = themeDatas.filter(themeData => !!getThemeName(themeData.id));
+		for (let defaultTheme of defaultThemes) {
+			let themeId = defaultTheme.id;
+			let success = await this.themeService.setColorTheme(themeId, null);
+			if (success) {
+				let themeName = getThemeName(themeId);
+				result[themeName] = {
+					document: new ThemeDocument(this.themeService.getColorTheme()),
+					tokens: this._themedTokenize(grammar, lines)
+				};
+			}
+		}
+		await this.themeService.setColorTheme(currentTheme.id, null);
+		return result;
 	}
 
 	private _enrichResult(result: IToken[], themesResult: IThemesResult): void {
@@ -221,8 +214,8 @@ class Snapper {
 		}
 	}
 
-	public captureSyntaxTokens(fileName: string, content: string): TPromise<IToken[]> {
-		return this.modeService.getOrCreateModeByFilenameOrFirstLine(fileName).then(mode => {
+	public captureSyntaxTokens(fileName: string, content: string): Thenable<IToken[]> {
+		return this.modeService.getOrCreateModeByFilepathOrFirstLine(fileName).then(mode => {
 			return this.textMateService.createGrammar(mode.getId()).then((grammar) => {
 				let lines = content.split(/\r\n|\r|\n/);
 

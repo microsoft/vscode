@@ -3,11 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
-export interface ISpliceable<T> {
-	splice(start: number, deleteCount: number, elements: T[]): void;
-}
+import { ISpliceable } from 'vs/base/common/sequence';
 
 export interface ISpreadSpliceable<T> {
 	splice(start: number, deleteCount: number, ...elements: T[]): void;

@@ -3,27 +3,25 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import * as nls from 'vs/nls';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { assign } from 'vs/base/common/objects';
-import URI from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 import product from 'vs/platform/node/product';
-import { IWindowsService, OpenContext, INativeOpenDialogOptions, IEnterWorkspaceResult, IMessageBoxResult, IDevToolsOptions } from 'vs/platform/windows/common/windows';
+import { IWindowsService, OpenContext, INativeOpenDialogOptions, IEnterWorkspaceResult, IMessageBoxResult, IDevToolsOptions, INewWindowOptions } from 'vs/platform/windows/common/windows';
 import { IEnvironmentService, ParsedArgs } from 'vs/platform/environment/common/environment';
-import { shell, crashReporter, app, Menu, clipboard, BrowserWindow } from 'electron';
-import { Event, fromNodeEventEmitter, mapEvent, filterEvent, anyEvent } from 'vs/base/common/event';
+import { shell, crashReporter, app, Menu, clipboard } from 'electron';
+import { Event, fromNodeEventEmitter, mapEvent, filterEvent, anyEvent, latch } from 'vs/base/common/event';
 import { IURLService, IURLHandler } from 'vs/platform/url/common/url';
 import { ILifecycleService } from 'vs/platform/lifecycle/electron-main/lifecycleMain';
 import { IWindowsMainService, ISharedProcess } from 'vs/platform/windows/electron-main/windows';
 import { IHistoryMainService, IRecentlyOpened } from 'vs/platform/history/common/history';
-import { IWorkspaceIdentifier, IWorkspaceFolderCreationData } from 'vs/platform/workspaces/common/workspaces';
+import { IWorkspaceIdentifier, IWorkspaceFolderCreationData, ISingleFolderWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
 import { ISerializableCommandAction } from 'vs/platform/actions/common/actions';
 import { Schemas } from 'vs/base/common/network';
 import { mnemonicButtonLabel } from 'vs/base/common/labels';
-import { isWindows, isMacintosh } from 'vs/base/common/platform';
+import { isMacintosh, isLinux } from 'vs/base/common/platform';
 import { ILogService } from 'vs/platform/log/common/log';
 
 export class WindowsService implements IWindowsService, IURLHandler, IDisposable {
@@ -32,15 +30,16 @@ export class WindowsService implements IWindowsService, IURLHandler, IDisposable
 
 	private disposables: IDisposable[] = [];
 
+	private _activeWindowId: number | undefined;
+
 	readonly onWindowOpen: Event<number> = filterEvent(fromNodeEventEmitter(app, 'browser-window-created', (_, w: Electron.BrowserWindow) => w.id), id => !!this.windowsMainService.getWindowById(id));
+	readonly onWindowBlur: Event<number> = filterEvent(fromNodeEventEmitter(app, 'browser-window-blur', (_, w: Electron.BrowserWindow) => w.id), id => !!this.windowsMainService.getWindowById(id));
+	readonly onWindowMaximize: Event<number> = filterEvent(fromNodeEventEmitter(app, 'browser-window-maximize', (_, w: Electron.BrowserWindow) => w.id), id => !!this.windowsMainService.getWindowById(id));
+	readonly onWindowUnmaximize: Event<number> = filterEvent(fromNodeEventEmitter(app, 'browser-window-unmaximize', (_, w: Electron.BrowserWindow) => w.id), id => !!this.windowsMainService.getWindowById(id));
 	readonly onWindowFocus: Event<number> = anyEvent(
 		mapEvent(filterEvent(mapEvent(this.windowsMainService.onWindowsCountChanged, () => this.windowsMainService.getLastActiveWindow()), w => !!w), w => w.id),
 		filterEvent(fromNodeEventEmitter(app, 'browser-window-focus', (_, w: Electron.BrowserWindow) => w.id), id => !!this.windowsMainService.getWindowById(id))
 	);
-
-	readonly onWindowBlur: Event<number> = filterEvent(fromNodeEventEmitter(app, 'browser-window-blur', (_, w: Electron.BrowserWindow) => w.id), id => !!this.windowsMainService.getWindowById(id));
-	readonly onWindowMaximize: Event<number> = filterEvent(fromNodeEventEmitter(app, 'browser-window-maximize', (_, w: Electron.BrowserWindow) => w.id), id => !!this.windowsMainService.getWindowById(id));
-	readonly onWindowUnmaximize: Event<number> = filterEvent(fromNodeEventEmitter(app, 'browser-window-unmaximize', (_, w: Electron.BrowserWindow) => w.id), id => !!this.windowsMainService.getWindowById(id));
 
 	readonly onRecentlyOpenedChange: Event<void> = this.historyService.onRecentlyOpenedChange;
 
@@ -54,6 +53,10 @@ export class WindowsService implements IWindowsService, IURLHandler, IDisposable
 		@ILogService private logService: ILogService
 	) {
 		urlService.registerHandler(this);
+
+		// remember last active window id
+		latch(anyEvent(this.onWindowOpen, this.onWindowFocus))
+			(id => this._activeWindowId = id, null, this.disposables);
 	}
 
 	pickFileFolderAndOpen(options: INativeOpenDialogOptions): TPromise<void> {
@@ -165,6 +168,17 @@ export class WindowsService implements IWindowsService, IURLHandler, IDisposable
 		return TPromise.as(null);
 	}
 
+	enterWorkspace(windowId: number, path: string): TPromise<IEnterWorkspaceResult> {
+		this.logService.trace('windowsService#enterWorkspace', windowId);
+		const codeWindow = this.windowsMainService.getWindowById(windowId);
+
+		if (codeWindow) {
+			return this.windowsMainService.enterWorkspace(codeWindow, path);
+		}
+
+		return TPromise.as(null);
+	}
+
 	createAndEnterWorkspace(windowId: number, folders?: IWorkspaceFolderCreationData[], path?: string): TPromise<IEnterWorkspaceResult> {
 		this.logService.trace('windowsService#createAndEnterWorkspace', windowId);
 		const codeWindow = this.windowsMainService.getWindowById(windowId);
@@ -209,14 +223,14 @@ export class WindowsService implements IWindowsService, IURLHandler, IDisposable
 		return TPromise.as(null);
 	}
 
-	addRecentlyOpened(files: string[]): TPromise<void> {
+	addRecentlyOpened(files: URI[]): TPromise<void> {
 		this.logService.trace('windowsService#addRecentlyOpened');
 		this.historyService.addRecentlyOpened(void 0, files);
 
 		return TPromise.as(null);
 	}
 
-	removeFromRecentlyOpened(paths: string[]): TPromise<void> {
+	removeFromRecentlyOpened(paths: (IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier | URI | string)[]): TPromise<void> {
 		this.logService.trace('windowsService#removeFromRecentlyOpened');
 		this.historyService.removeFromRecentlyOpened(paths);
 
@@ -235,10 +249,18 @@ export class WindowsService implements IWindowsService, IURLHandler, IDisposable
 		const codeWindow = this.windowsMainService.getWindowById(windowId);
 
 		if (codeWindow) {
-			return TPromise.as(this.historyService.getRecentlyOpened(codeWindow.config.workspace || codeWindow.config.folderPath, codeWindow.config.filesToOpen));
+			return TPromise.as(this.historyService.getRecentlyOpened(codeWindow.config.workspace || codeWindow.config.folderUri, codeWindow.config.filesToOpen));
 		}
 
 		return TPromise.as(this.historyService.getRecentlyOpened());
+	}
+
+	newWindowTab(): TPromise<void> {
+		this.logService.trace('windowsService#newWindowTab');
+
+		this.windowsMainService.openNewTabbedWindow(OpenContext.API);
+
+		return TPromise.as(void 0);
 	}
 
 	showPreviousWindowTab(): TPromise<void> {
@@ -375,7 +397,7 @@ export class WindowsService implements IWindowsService, IURLHandler, IDisposable
 		return TPromise.as(null);
 	}
 
-	openWindow(windowId: number, paths: string[], options?: { forceNewWindow?: boolean, forceReuseWindow?: boolean, forceOpenWorkspaceAsFile?: boolean }): TPromise<void> {
+	openWindow(windowId: number, paths: URI[], options?: { forceNewWindow?: boolean, forceReuseWindow?: boolean, forceOpenWorkspaceAsFile?: boolean, args?: ParsedArgs }): TPromise<void> {
 		this.logService.trace('windowsService#openWindow');
 		if (!paths || !paths.length) {
 			return TPromise.as(null);
@@ -384,8 +406,8 @@ export class WindowsService implements IWindowsService, IURLHandler, IDisposable
 		this.windowsMainService.open({
 			context: OpenContext.API,
 			contextWindowId: windowId,
-			cli: this.environmentService.args,
-			pathsToOpen: paths,
+			urisToOpen: paths,
+			cli: options && options.args ? { ...this.environmentService.args, ...options.args } : this.environmentService.args,
 			forceNewWindow: options && options.forceNewWindow,
 			forceReuseWindow: options && options.forceReuseWindow,
 			forceOpenWorkspaceAsFile: options && options.forceOpenWorkspaceAsFile
@@ -394,9 +416,11 @@ export class WindowsService implements IWindowsService, IURLHandler, IDisposable
 		return TPromise.as(null);
 	}
 
-	openNewWindow(): TPromise<void> {
-		this.logService.trace('windowsService#openNewWindow');
-		this.windowsMainService.openNewWindow(OpenContext.API);
+	openNewWindow(options?: INewWindowOptions): TPromise<void> {
+		this.logService.trace('windowsService#openNewWindow ' + JSON.stringify(options));
+
+		this.windowsMainService.openNewWindow(OpenContext.API, options);
+
 		return TPromise.as(null);
 	}
 
@@ -411,10 +435,10 @@ export class WindowsService implements IWindowsService, IURLHandler, IDisposable
 		return TPromise.as(null);
 	}
 
-	getWindows(): TPromise<{ id: number; workspace?: IWorkspaceIdentifier; folderPath?: string; title: string; filename?: string; }[]> {
+	getWindows(): TPromise<{ id: number; workspace?: IWorkspaceIdentifier; folderUri?: ISingleFolderWorkspaceIdentifier; title: string; filename?: string; }[]> {
 		this.logService.trace('windowsService#getWindows');
 		const windows = this.windowsMainService.getWindows();
-		const result = windows.map(w => ({ id: w.id, workspace: w.openedWorkspace, openedFolderPath: w.openedFolderPath, title: w.win.getTitle(), filename: w.getRepresentedFilename() }));
+		const result = windows.map(w => ({ id: w.id, workspace: w.openedWorkspace, folderUri: w.openedFolderUri, title: w.win.getTitle(), filename: w.getRepresentedFilename() }));
 
 		return TPromise.as(result);
 	}
@@ -433,6 +457,10 @@ export class WindowsService implements IWindowsService, IURLHandler, IDisposable
 		this.logService.trace('windowsService#showItemInFolder');
 		shell.showItemInFolder(path);
 		return TPromise.as(null);
+	}
+
+	getActiveWindowId(): TPromise<number | undefined> {
+		return TPromise.as(this._activeWindowId);
 	}
 
 	openExternal(url: string): TPromise<boolean> {
@@ -470,36 +498,19 @@ export class WindowsService implements IWindowsService, IURLHandler, IDisposable
 		return TPromise.as(null);
 	}
 
-	openAccessibilityOptions(): TPromise<void> {
-		this.logService.trace('windowsService#openAccessibilityOptions');
-
-		const win = new BrowserWindow({
-			alwaysOnTop: true,
-			skipTaskbar: true,
-			resizable: false,
-			width: 450,
-			height: 300,
-			show: true,
-			title: nls.localize('accessibilityOptionsWindowTitle', "Accessibility Options"),
-			webPreferences: {
-				disableBlinkFeatures: 'Auxclick'
-			}
-		});
-
-		win.setMenuBarVisibility(false);
-
-		win.loadURL('chrome://accessibility');
-
-		return TPromise.as(null);
-	}
-
 	openAboutDialog(): TPromise<void> {
 		this.logService.trace('windowsService#openAboutDialog');
 		const lastActiveWindow = this.windowsMainService.getFocusedWindow() || this.windowsMainService.getLastActiveWindow();
 
+		let version = app.getVersion();
+
+		if (product.target) {
+			version = `${version} (${product.target} setup)`;
+		}
+
 		const detail = nls.localize('aboutDetail',
 			"Version: {0}\nCommit: {1}\nDate: {2}\nElectron: {3}\nChrome: {4}\nNode.js: {5}\nV8: {6}\nArchitecture: {7}",
-			app.getVersion(),
+			version,
 			product.commit || 'Unknown',
 			product.date || 'Unknown',
 			process.versions['electron'],
@@ -509,9 +520,13 @@ export class WindowsService implements IWindowsService, IURLHandler, IDisposable
 			process.arch
 		);
 
-		const buttons = [nls.localize('okButton', "OK")];
-		if (isWindows) {
-			buttons.push(mnemonicButtonLabel(nls.localize({ key: 'copy', comment: ['&& denotes a mnemonic'] }, "&&Copy"))); // https://github.com/Microsoft/vscode/issues/37608
+		const ok = nls.localize('okButton', "OK");
+		const copy = mnemonicButtonLabel(nls.localize({ key: 'copy', comment: ['&& denotes a mnemonic'] }, "&&Copy"));
+		let buttons: string[];
+		if (isLinux) {
+			buttons = [copy, ok];
+		} else {
+			buttons = [ok, copy];
 		}
 
 		this.windowsMainService.showMessageBox({
@@ -520,9 +535,10 @@ export class WindowsService implements IWindowsService, IURLHandler, IDisposable
 			message: product.nameLong,
 			detail: `\n${detail}`,
 			buttons,
-			noLink: true
+			noLink: true,
+			defaultId: buttons.indexOf(ok)
 		}, lastActiveWindow).then(result => {
-			if (isWindows && result.button === 1) {
+			if (buttons[result.button] === copy) {
 				clipboard.writeText(detail);
 			}
 		});
@@ -542,9 +558,9 @@ export class WindowsService implements IWindowsService, IURLHandler, IDisposable
 
 	private openFileForURI(uri: URI): TPromise<boolean> {
 		const cli = assign(Object.create(null), this.environmentService.args, { goto: true });
-		const pathsToOpen = [uri.fsPath];
+		const urisToOpen = [uri];
 
-		this.windowsMainService.open({ context: OpenContext.API, cli, pathsToOpen });
+		this.windowsMainService.open({ context: OpenContext.API, cli, urisToOpen });
 		return TPromise.wrap(true);
 	}
 

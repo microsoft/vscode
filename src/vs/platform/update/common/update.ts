@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import { Event, NodeEventEmitter } from 'vs/base/common/event';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { TPromise } from 'vs/base/common/winjs.base';
@@ -37,7 +35,7 @@ export interface IUpdate {
  * Donwloaded: There is an update ready to be installed in the background (win32).
  */
 
-export enum StateType {
+export const enum StateType {
 	Uninitialized = 'uninitialized',
 	Idle = 'idle',
 	CheckingForUpdates = 'checking for updates',
@@ -48,8 +46,13 @@ export enum StateType {
 	Ready = 'ready',
 }
 
+export const enum UpdateType {
+	Setup,
+	Archive
+}
+
 export type Uninitialized = { type: StateType.Uninitialized };
-export type Idle = { type: StateType.Idle };
+export type Idle = { type: StateType.Idle, updateType: UpdateType, error?: string; };
 export type CheckingForUpdates = { type: StateType.CheckingForUpdates, context: any };
 export type AvailableForDownload = { type: StateType.AvailableForDownload, update: IUpdate };
 export type Downloading = { type: StateType.Downloading, update: IUpdate };
@@ -61,7 +64,7 @@ export type State = Uninitialized | Idle | CheckingForUpdates | AvailableForDown
 
 export const State = {
 	Uninitialized: { type: StateType.Uninitialized } as Uninitialized,
-	Idle: { type: StateType.Idle } as Idle,
+	Idle: (updateType: UpdateType, error?: string) => ({ type: StateType.Idle, updateType, error }) as Idle,
 	CheckingForUpdates: (context: any) => ({ type: StateType.CheckingForUpdates, context } as CheckingForUpdates),
 	AvailableForDownload: (update: IUpdate) => ({ type: StateType.AvailableForDownload, update } as AvailableForDownload),
 	Downloading: (update: IUpdate) => ({ type: StateType.Downloading, update } as Downloading),

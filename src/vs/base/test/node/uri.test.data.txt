@@ -1052,7 +1052,7 @@
 /users/foo/src/vs/workbench/parts/extensions/browser/extensionsList.ts
 /users/foo/src/vs/workbench/parts/extensions/browser/extensionsActions.ts
 /users/foo/src/vs/workbench/parts/extensions/browser/media
-/users/foo/src/vs/workbench/parts/extensions/browser/media/language-icon.png
+/users/foo/src/vs/workbench/parts/extensions/browser/media/language-icon.svg
 /users/foo/src/vs/workbench/parts/extensions/browser/media/theme-icon.png
 /users/foo/src/vs/workbench/parts/extensions/browser/media/clear.svg
 /users/foo/src/vs/workbench/parts/extensions/browser/media/HalfStarLight.svg
@@ -2299,8 +2299,8 @@
 /users/foo/src/vs/base/parts/ipc/test/node/ipc.test.ts
 /users/foo/src/vs/base/parts/ipc/test/node/testService.ts
 /users/foo/src/vs/base/parts/ipc/common
-/users/foo/src/vs/base/parts/ipc/common/ipc.electron.ts
-/users/foo/src/vs/base/parts/ipc/common/ipc.ts
+/users/foo/src/vs/base/parts/ipc/node/ipc.electron.ts
+/users/foo/src/vs/base/parts/ipc/node/ipc.ts
 /users/foo/src/vs/base/parts/ipc/electron-browser
 /users/foo/src/vs/base/parts/ipc/electron-browser/ipc.electron-browser.ts
 /users/foo/src/vs/base/parts/ipc/node

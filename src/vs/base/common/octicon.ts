@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import { matchesFuzzy, IMatch } from 'vs/base/common/filters';
 import { ltrim } from 'vs/base/common/strings';
 
@@ -118,7 +116,7 @@ export function matchesFuzzyOcticonAware(query: string, target: IParsedOcticons,
 	// Map matches back to offsets with octicons and trimming
 	if (matches) {
 		for (let i = 0; i < matches.length; i++) {
-			const octiconOffset = octiconOffsets[matches[i].start] /* octicon offsets at index */ + leadingWhitespaceOffset /* overall leading whitespace offset */;
+			const octiconOffset = octiconOffsets[matches[i].start + leadingWhitespaceOffset] /* octicon offsets at index */ + leadingWhitespaceOffset /* overall leading whitespace offset */;
 			matches[i].start += octiconOffset;
 			matches[i].end += octiconOffset;
 		}

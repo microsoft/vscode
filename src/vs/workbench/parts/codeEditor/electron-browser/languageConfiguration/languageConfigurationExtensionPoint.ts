@@ -2,7 +2,6 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
 import * as nls from 'vs/nls';
 import * as types from 'vs/base/common/types';
@@ -15,7 +14,7 @@ import { Registry } from 'vs/platform/registry/common/platform';
 import { IJSONSchema } from 'vs/base/common/jsonSchema';
 import { LanguageIdentifier } from 'vs/editor/common/modes';
 import { ITextMateService } from 'vs/workbench/services/textMate/electron-browser/textMateService';
-import URI from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 import { IFileService } from 'vs/platform/files/common/files';
 
 interface IRegExp {
@@ -38,6 +37,7 @@ interface ILanguageConfiguration {
 	wordPattern?: string | IRegExp;
 	indentationRules?: IIndentationRules;
 	folding?: FoldingRules;
+	autoCloseBefore?: string;
 }
 
 function isStringArr(something: string[]): boolean {
@@ -89,11 +89,11 @@ export class LanguageConfigurationFileHandler {
 	}
 
 	private _handleConfigFile(languageIdentifier: LanguageIdentifier, configFileLocation: URI): void {
-		this._fileService.resolveContent(configFileLocation).then((contents) => {
+		this._fileService.resolveContent(configFileLocation, { encoding: 'utf8' }).then((contents) => {
 			const errors: ParseError[] = [];
 			const configuration = <ILanguageConfiguration>parse(contents.value.toString(), errors);
 			if (errors.length) {
-				console.error(nls.localize('parseErrors', "Errors parsing {0}: {1}", configFileLocation, errors.join('\n')));
+				console.error(nls.localize('parseErrors', "Errors parsing {0}: {1}", configFileLocation.toString(), errors.join('\n')));
 			}
 			this._handleConfig(languageIdentifier, configuration);
 		}, (err) => {
@@ -274,6 +274,11 @@ export class LanguageConfigurationFileHandler {
 			richEditConfig.surroundingPairs = surroundingPairs;
 		}
 
+		const autoCloseBefore = configuration.autoCloseBefore;
+		if (typeof autoCloseBefore === 'string') {
+			richEditConfig.autoCloseBefore = autoCloseBefore;
+		}
+
 		if (configuration.wordPattern) {
 			try {
 				let wordPattern = this._parseRegex(configuration.wordPattern);
@@ -432,6 +437,11 @@ const schema: IJSONSchema = {
 					}
 				}]
 			}
+		},
+		autoCloseBefore: {
+			default: ';:.,=}])> \n\t',
+			description: nls.localize('schema.autoCloseBefore', 'Defines what characters must be after the cursor in order for bracket or quote autoclosing to occur when using the \'languageDefined\' autoclosing setting. This is typically the set of characters which can not start an expression.'),
+			type: 'string',
 		},
 		surroundingPairs: {
 			default: [['(', ')'], ['[', ']'], ['{', '}']],

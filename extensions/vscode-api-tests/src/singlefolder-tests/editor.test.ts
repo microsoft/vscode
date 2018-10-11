@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import * as assert from 'assert';
 import { workspace, window, Position, Range, commands, TextEditor, TextDocument, TextEditorCursorStyle, TextEditorLineNumbersStyle, SnippetString, Selection } from 'vscode';
 import { createRandomFile, deleteFile, closeAllEditors } from '../utils';
@@ -152,7 +150,7 @@ suite('editor tests', () => {
 	});
 
 	test('issue #16573: Extension API: insertSpaces and tabSize are undefined', () => {
-		return withRandomFileEditor('Hello world!\n\tHello world!', (editor, doc) => {
+		return withRandomFileEditor('Hello world!\n\tHello world!', (editor, _doc) => {
 
 			assert.equal(editor.options.tabSize, 4);
 			assert.equal(editor.options.insertSpaces, false);
@@ -180,21 +178,21 @@ suite('editor tests', () => {
 	});
 
 	test('issue #20757: Overlapping ranges are not allowed!', () => {
-		return withRandomFileEditor('Hello world!\n\tHello world!', (editor, doc) => {
+		return withRandomFileEditor('Hello world!\n\tHello world!', (editor, _doc) => {
 			return editor.edit((builder) => {
 				// create two edits that overlap (i.e. are illegal)
 				builder.replace(new Range(0, 0, 0, 2), 'He');
 				builder.replace(new Range(0, 1, 0, 3), 'el');
 			}).then(
 
-				(applied) => {
+				(_applied) => {
 					assert.ok(false, 'edit with overlapping ranges should fail');
 				},
 
-				(err) => {
+				(_err) => {
 					assert.ok(true, 'edit with overlapping ranges should fail');
 				}
-				);
+			);
 		});
 	});
 });

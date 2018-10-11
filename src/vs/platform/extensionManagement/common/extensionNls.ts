@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import { cloneAndChange } from 'vs/base/common/objects';
 import { IExtensionManifest } from 'vs/platform/extensionManagement/common/extensionManagement';
 

@@ -2,7 +2,6 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
 import * as paths from 'vs/base/common/paths';
 import * as strings from 'vs/base/common/strings';
@@ -225,19 +224,24 @@ export function isUnspecific(mime: string[] | string): boolean {
 	return mime.length === 1 && isUnspecific(mime[0]);
 }
 
+/**
+ * Returns a suggestion for the filename by the following logic:
+ * 1. If a relevant extension exists and is an actual filename extension (starting with a dot), suggest the prefix appended by the first one.
+ * 2. Otherwise, if there are other extensions, suggest the first one.
+ * 3. Otherwise, suggest the prefix.
+ */
 export function suggestFilename(langId: string, prefix: string): string {
-	for (let i = 0; i < registeredAssociations.length; i++) {
-		const association = registeredAssociations[i];
-		if (association.userConfigured) {
-			continue; // only support registered ones
-		}
+	const extensions = registeredAssociations
+		.filter(assoc => !assoc.userConfigured && assoc.extension && assoc.id === langId)
+		.map(assoc => assoc.extension);
+	const extensionsWithDotFirst = extensions
+		.filter(assoc => strings.startsWith(assoc, '.'));
 
-		if (association.id === langId && association.extension) {
-			return prefix + association.extension;
-		}
+	if (extensionsWithDotFirst.length > 0) {
+		return prefix + extensionsWithDotFirst[0];
 	}
 
-	return prefix; // without any known extension, just return the prefix
+	return extensions[0] || prefix;
 }
 
 interface MapExtToMediaMimes {

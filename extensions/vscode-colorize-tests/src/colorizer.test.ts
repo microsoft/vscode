@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import 'mocha';
 import * as assert from 'assert';
 import { commands, Uri } from 'vscode';

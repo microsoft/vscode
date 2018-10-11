@@ -2,7 +2,6 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
 import { Disposable } from 'vs/base/common/lifecycle';
 import { IDimension } from 'vs/editor/common/editorCommon';
@@ -10,7 +9,7 @@ import { IDimension } from 'vs/editor/common/editorCommon';
 export class ElementSizeObserver extends Disposable {
 
 	private referenceDomElement: HTMLElement;
-	private measureReferenceDomElementToken: number;
+	private measureReferenceDomElementToken: any;
 	private changeCallback: () => void;
 	private width: number;
 	private height: number;

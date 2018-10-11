@@ -2,7 +2,6 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
 import 'vs/css!./media/scrollbars';
 
@@ -163,6 +162,8 @@ export abstract class AbstractScrollableElement extends Widget {
 	private readonly _hideTimeout: TimeoutTimer;
 	private _shouldRender: boolean;
 
+	private _revealOnScroll: boolean;
+
 	private readonly _onScroll = this._register(new Emitter<ScrollEvent>());
 	public readonly onScroll: Event<ScrollEvent> = this._onScroll.event;
 
@@ -221,6 +222,8 @@ export abstract class AbstractScrollableElement extends Widget {
 		this._mouseIsOver = false;
 
 		this._shouldRender = true;
+
+		this._revealOnScroll = true;
 	}
 
 	public dispose(): void {
@@ -284,6 +287,10 @@ export abstract class AbstractScrollableElement extends Widget {
 		if (!this._options.lazyRender) {
 			this._render();
 		}
+	}
+
+	public setRevealOnScroll(value: boolean) {
+		this._revealOnScroll = value;
 	}
 
 	// -------------------- mouse wheel scrolling --------------------
@@ -382,7 +389,9 @@ export abstract class AbstractScrollableElement extends Widget {
 			this._shouldRender = true;
 		}
 
-		this._reveal();
+		if (this._revealOnScroll) {
+			this._reveal();
+		}
 
 		if (!this._options.lazyRender) {
 			this._render();

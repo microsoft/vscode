@@ -2,16 +2,14 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { Event, Emitter } from 'vs/base/common/event';
-import { TPromise } from 'vs/base/common/winjs.base';
 import { IMode, LanguageId, LanguageIdentifier } from 'vs/editor/common/modes';
 import { FrankensteinMode } from 'vs/editor/common/modes/abstractMode';
 import { LanguagesRegistry } from 'vs/editor/common/services/languagesRegistry';
 import { IModeService } from 'vs/editor/common/services/modeService';
-import URI from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 
 export class ModeServiceImpl implements IModeService {
 	public _serviceBrand: any;
@@ -28,8 +26,8 @@ export class ModeServiceImpl implements IModeService {
 		this._registry = new LanguagesRegistry(true, warnOnOverwrite);
 	}
 
-	protected _onReady(): TPromise<boolean> {
-		return TPromise.as(true);
+	protected _onReady(): Promise<boolean> {
+		return Promise.resolve(true);
 	}
 
 	public isRegisteredMode(mimetypeOrModeId: string): boolean {
@@ -64,8 +62,8 @@ export class ModeServiceImpl implements IModeService {
 		return this._registry.getModeIdForLanguageNameLowercase(alias);
 	}
 
-	public getModeIdByFilenameOrFirstLine(filename: string, firstLine?: string): string {
-		const modeIds = this._registry.getModeIdsFromFilenameOrFirstLine(filename, firstLine);
+	public getModeIdByFilepathOrFirstLine(filepath: string, firstLine?: string): string {
+		const modeIds = this._registry.getModeIdsFromFilepathOrFirstLine(filepath, firstLine);
 
 		if (modeIds.length > 0) {
 			return modeIds[0];
@@ -110,13 +108,13 @@ export class ModeServiceImpl implements IModeService {
 			let r: IMode = null;
 			this.getOrCreateMode(commaSeparatedMimetypesOrCommaSeparatedIds).then((mode) => {
 				r = mode;
-			}).done(null, onUnexpectedError);
+			}, onUnexpectedError);
 			return r;
 		}
 		return null;
 	}
 
-	public getOrCreateMode(commaSeparatedMimetypesOrCommaSeparatedIds: string): TPromise<IMode> {
+	public getOrCreateMode(commaSeparatedMimetypesOrCommaSeparatedIds: string): Promise<IMode> {
 		return this._onReady().then(() => {
 			const modeId = this.getModeId(commaSeparatedMimetypesOrCommaSeparatedIds);
 			// Fall back to plain text if no mode was found
@@ -124,7 +122,7 @@ export class ModeServiceImpl implements IModeService {
 		});
 	}
 
-	public getOrCreateModeByLanguageName(languageName: string): TPromise<IMode> {
+	public getOrCreateModeByLanguageName(languageName: string): Promise<IMode> {
 		return this._onReady().then(() => {
 			const modeId = this._getModeIdByLanguageName(languageName);
 			// Fall back to plain text if no mode was found
@@ -142,9 +140,9 @@ export class ModeServiceImpl implements IModeService {
 		return null;
 	}
 
-	public getOrCreateModeByFilenameOrFirstLine(filename: string, firstLine?: string): TPromise<IMode> {
+	public getOrCreateModeByFilepathOrFirstLine(filepath: string, firstLine?: string): Promise<IMode> {
 		return this._onReady().then(() => {
-			const modeId = this.getModeIdByFilenameOrFirstLine(filename, firstLine);
+			const modeId = this.getModeIdByFilepathOrFirstLine(filepath, firstLine);
 			// Fall back to plain text if no mode was found
 			return this._getOrCreateMode(modeId || 'plaintext');
 		});

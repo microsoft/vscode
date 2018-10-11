@@ -17,13 +17,44 @@ async function getTree(fsPath, level) {
 	const element = path.basename(fsPath);
 	const stat = await fs.stat(fsPath);
 
-	if (!stat.isDirectory() || element === '.git' || element === '.build' || level >= 3) {
+	if (!stat.isDirectory() || element === '.git' || element === '.build' || level >= 5) {
 		return { element };
 	}
 
 	const childNames = await fs.readdir(fsPath);
 	const children = await Promise.all(childNames.map(async childName => await getTree(path.join(fsPath, childName), level + 1)));
-	return { element, collapsed: false, children };
+	return { element, collapsible: true, collapsed: false, children };
+}
+
+async function readdir(relativePath) {
+	const absolutePath = relativePath ? path.join(root, relativePath) : root;
+	const childNames = await fs.readdir(absolutePath);
+	const childStats = await Promise.all(childNames.map(async name => await fs.stat(path.join(absolutePath, name))));
+	const result = [];
+
+	for (let i = 0; i < childNames.length; i++) {
+		const name = childNames[i];
+		const path = relativePath ? `${relativePath}/${name}` : name;
+		const stat = childStats[i];
+
+		if (stat.isFile()) {
+			result.push({ type: 'file', name, path });
+		} else if (!stat.isDirectory() || name === '.git' || name === '.build') {
+			continue;
+		} else {
+			result.push({ type: 'dir', name, path });
+		}
+	}
+
+	result.sort((a, b) => {
+		if (a.type === b.type) {
+			return a.name < b.name ? -1 : 1;
+		}
+
+		return a.type === 'dir' ? -1 : 1;
+	});
+
+	return result;
 }
 
 app.use(serve('public'));
@@ -33,7 +64,13 @@ app.use(_.get('/api/ls', async ctx => {
 	const absolutePath = path.join(root, relativePath);
 
 	ctx.body = await getTree(absolutePath, 0);
-}))
+}));
+
+app.use(_.get('/api/readdir', async ctx => {
+	const relativePath = ctx.query.path;
+
+	ctx.body = await readdir(relativePath);
+}));
 
 app.listen(3000);
 console.log('http://localhost:3000');

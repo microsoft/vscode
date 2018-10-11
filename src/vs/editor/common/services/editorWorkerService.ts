@@ -2,10 +2,8 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
-import URI from 'vs/base/common/uri';
-import { TPromise } from 'vs/base/common/winjs.base';
+import { URI } from 'vs/base/common/uri';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IChange, ILineChange } from 'vs/editor/common/editorCommon';
 import { IInplaceReplaceSupportResult, TextEdit } from 'vs/editor/common/modes';
@@ -18,13 +16,16 @@ export interface IEditorWorkerService {
 	_serviceBrand: any;
 
 	canComputeDiff(original: URI, modified: URI): boolean;
-	computeDiff(original: URI, modified: URI, ignoreTrimWhitespace: boolean): TPromise<ILineChange[]>;
+	computeDiff(original: URI, modified: URI, ignoreTrimWhitespace: boolean): Promise<ILineChange[]>;
 
 	canComputeDirtyDiff(original: URI, modified: URI): boolean;
-	computeDirtyDiff(original: URI, modified: URI, ignoreTrimWhitespace: boolean): TPromise<IChange[]>;
+	computeDirtyDiff(original: URI, modified: URI, ignoreTrimWhitespace: boolean): Promise<IChange[]>;
 
-	computeMoreMinimalEdits(resource: URI, edits: TextEdit[]): TPromise<TextEdit[]>;
+	computeMoreMinimalEdits(resource: URI, edits: TextEdit[]): Promise<TextEdit[]>;
+
+	canComputeWordRanges(resource: URI): boolean;
+	computeWordRanges(resource: URI, range: IRange): Promise<{ [word: string]: IRange[] }>;
 
 	canNavigateValueSet(resource: URI): boolean;
-	navigateValueSet(resource: URI, range: IRange, up: boolean): TPromise<IInplaceReplaceSupportResult>;
+	navigateValueSet(resource: URI, range: IRange, up: boolean): Promise<IInplaceReplaceSupportResult>;
 }

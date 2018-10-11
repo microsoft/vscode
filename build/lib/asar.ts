@@ -7,8 +7,8 @@
 
 import * as path from 'path';
 import * as es from 'event-stream';
-import * as pickle from 'chromium-pickle-js';
-import * as Filesystem from 'asar/lib/filesystem';
+const pickle = require('chromium-pickle-js');
+const Filesystem = require('asar/lib/filesystem');
 import * as VinylFile from 'vinyl';
 import * as minimatch from 'minimatch';
 

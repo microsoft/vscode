@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import 'vs/css!./rulers';
 import { FastDomNode, createFastDomNode } from 'vs/base/browser/fastDomNode';
 import { ViewPart } from 'vs/editor/browser/view/viewPart';
@@ -101,7 +99,7 @@ export class Rulers extends ViewPart {
 }
 
 registerThemingParticipant((theme, collector) => {
-	let rulerColor = theme.getColor(editorRuler);
+	const rulerColor = theme.getColor(editorRuler);
 	if (rulerColor) {
 		collector.addRule(`.monaco-editor .view-ruler { box-shadow: 1px 0 0 0 ${rulerColor} inset; }`);
 	}

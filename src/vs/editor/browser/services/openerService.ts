@@ -2,15 +2,13 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
-import URI from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 import * as dom from 'vs/base/browser/dom';
+import * as resources from 'vs/base/common/resources';
 import { parse } from 'vs/base/common/marshalling';
 import { Schemas } from 'vs/base/common/network';
-import { TPromise } from 'vs/base/common/winjs.base';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
-import { normalize } from 'vs/base/common/paths';
 import { ICommandService, CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
@@ -29,7 +27,7 @@ export class OpenerService implements IOpenerService {
 		//
 	}
 
-	open(resource: URI, options?: { openToSide?: boolean }): TPromise<any> {
+	open(resource: URI, options?: { openToSide?: boolean }): Promise<any> {
 
 		/* __GDPR__
 			"openerService" : {
@@ -39,7 +37,7 @@ export class OpenerService implements IOpenerService {
 		this._telemetryService.publicLog('openerService', { scheme: resource.scheme });
 
 		const { scheme, path, query, fragment } = resource;
-		let promise: TPromise<any> = TPromise.wrap(void 0);
+		let promise: Thenable<any>;
 
 		if (scheme === Schemas.http || scheme === Schemas.https || scheme === Schemas.mailto) {
 			// open http or default mail application
@@ -76,14 +74,14 @@ export class OpenerService implements IOpenerService {
 
 			if (!resource.scheme) {
 				// we cannot handle those
-				return TPromise.as(undefined);
+				return Promise.resolve(undefined);
 
 			} else if (resource.scheme === Schemas.file) {
-				resource = resource.with({ path: normalize(resource.path) }); // workaround for non-normalized paths (https://github.com/Microsoft/vscode/issues/12954)
+				resource = resources.normalizePath(resource); // workaround for non-normalized paths (https://github.com/Microsoft/vscode/issues/12954)
 			}
 			promise = this._editorService.openCodeEditor({ resource, options: { selection, } }, this._editorService.getFocusedCodeEditor(), options && options.openToSide);
 		}
 
-		return promise;
+		return Promise.resolve(promise);
 	}
 }

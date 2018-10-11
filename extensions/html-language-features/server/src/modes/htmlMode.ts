@@ -2,14 +2,11 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
 import { getLanguageModelCache } from '../languageModelCache';
 import { LanguageService as HTMLLanguageService, HTMLDocument, DocumentContext, FormattingOptions, HTMLFormatConfiguration } from 'vscode-html-languageservice';
-import { TextDocument, Position, Range, CompletionItem } from 'vscode-languageserver-types';
+import { TextDocument, Position, Range, CompletionItem, FoldingRange } from 'vscode-languageserver-types';
 import { LanguageMode, Workspace } from './languageModes';
-
-import { FoldingRange } from 'vscode-languageserver-protocol-foldingprovider';
 import { getPathCompletionParticipant } from './pathCompletion';
 
 export function getHTMLMode(htmlLanguageService: HTMLLanguageService, workspace: Workspace): LanguageMode {
@@ -60,9 +57,8 @@ export function getHTMLMode(htmlLanguageService: HTMLLanguageService, workspace:
 			formatSettings = merge(formatParams, formatSettings);
 			return htmlLanguageService.format(document, range, formatSettings);
 		},
-		getFoldingRanges(document: TextDocument, range: Range): FoldingRange[] {
-			let ranges = htmlLanguageService.getFoldingRanges(document);
-			return ranges.filter(r => r.startLine >= range.start.line && r.endLine < range.end.line);
+		getFoldingRanges(document: TextDocument): FoldingRange[] {
+			return htmlLanguageService.getFoldingRanges(document);
 		},
 		doAutoClose(document: TextDocument, position: Position) {
 			let offset = document.offsetAt(position);

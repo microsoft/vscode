@@ -5,15 +5,17 @@
 
 import { GestureEvent } from 'vs/base/browser/touch';
 
-export interface IDelegate<T> {
+export interface IVirtualDelegate<T> {
 	getHeight(element: T): number;
 	getTemplateId(element: T): string;
 }
 
+// TODO@joao rename to IListRenderer
 export interface IRenderer<TElement, TTemplateData> {
 	templateId: string;
 	renderTemplate(container: HTMLElement): TTemplateData;
 	renderElement(element: TElement, index: number, templateData: TTemplateData): void;
+	disposeElement(element: TElement, index: number, templateData: TTemplateData): void;
 	disposeTemplate(templateData: TTemplateData): void;
 }
 

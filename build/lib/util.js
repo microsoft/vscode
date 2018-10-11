@@ -14,20 +14,19 @@ var fs = require("fs");
 var _rimraf = require("rimraf");
 var git = require("./git");
 var VinylFile = require("vinyl");
-var cp = require("child_process");
 var NoCancellationToken = { isCancellationRequested: function () { return false; } };
 function incremental(streamProvider, initial, supportsCancellation) {
     var input = es.through();
     var output = es.through();
     var state = 'idle';
     var buffer = Object.create(null);
-    var token = !supportsCancellation ? null : { isCancellationRequested: function () { return Object.keys(buffer).length > 0; } };
+    var token = !supportsCancellation ? undefined : { isCancellationRequested: function () { return Object.keys(buffer).length > 0; } };
     var run = function (input, isCancellable) {
         state = 'running';
         var stream = !supportsCancellation ? streamProvider() : streamProvider(isCancellable ? token : NoCancellationToken);
         input
             .pipe(stream)
-            .pipe(es.through(null, function () {
+            .pipe(es.through(undefined, function () {
             state = 'idle';
             eventuallyRun();
         }))
@@ -120,7 +119,7 @@ function loadSourcemaps() {
     var output = input
         .pipe(es.map(function (f, cb) {
         if (f.sourceMap) {
-            cb(null, f);
+            cb(undefined, f);
             return;
         }
         if (!f.contents) {
@@ -129,19 +128,20 @@ function loadSourcemaps() {
         }
         var contents = f.contents.toString('utf8');
         var reg = /\/\/# sourceMappingURL=(.*)$/g;
-        var lastMatch = null, match = null;
+        var lastMatch = null;
+        var match = null;
         while (match = reg.exec(contents)) {
             lastMatch = match;
         }
         if (!lastMatch) {
             f.sourceMap = {
-                version: 3,
+                version: '3',
                 names: [],
                 mappings: '',
                 sources: [f.relative.replace(/\//g, '/')],
                 sourcesContent: [contents]
             };
-            cb(null, f);
+            cb(undefined, f);
             return;
         }
         f.contents = Buffer.from(contents.replace(/\/\/# sourceMappingURL=(.*)$/g, ''), 'utf8');
@@ -150,7 +150,7 @@ function loadSourcemaps() {
                 return cb(err);
             }
             f.sourceMap = JSON.parse(contents);
-            cb(null, f);
+            cb(undefined, f);
         });
     }));
     return es.duplex(input, output);
@@ -193,7 +193,7 @@ function getVersion(root) {
 exports.getVersion = getVersion;
 function rebase(count) {
     return rename(function (f) {
-        var parts = f.dirname.split(/[\/\\]/);
+        var parts = f.dirname ? f.dirname.split(/[\/\\]/) : [];
         f.dirname = parts.slice(count).join(path.sep);
     });
 }
@@ -211,62 +211,6 @@ function filter(fn) {
     return result;
 }
 exports.filter = filter;
-function tagExists(tagName) {
-    try {
-        cp.execSync("git rev-parse " + tagName, { stdio: 'ignore' });
-        return true;
-    }
-    catch (e) {
-        return false;
-    }
-}
-/**
- * Returns the version previous to the given version. Throws if a git tag for that version doesn't exist.
- * Given 1.17.2, return 1.17.1
- * 1.18.0 => 1.17.2. (or the highest 1.17.x)
- * 2.0.0 => 1.18.0 (or the highest 1.x)
- */
-function getPreviousVersion(versionStr, _tagExists) {
-    if (_tagExists === void 0) { _tagExists = tagExists; }
-    function getLatestTagFromBase(semverArr, componentToTest) {
-        var baseVersion = semverArr.join('.');
-        if (!_tagExists(baseVersion)) {
-            throw new Error('Failed to find git tag for base version, ' + baseVersion);
-        }
-        var goodTag;
-        do {
-            goodTag = semverArr.join('.');
-            semverArr[componentToTest]++;
-        } while (_tagExists(semverArr.join('.')));
-        return goodTag;
-    }
-    var semverArr = versionStringToNumberArray(versionStr);
-    if (semverArr[2] > 0) {
-        semverArr[2]--;
-        var previous = semverArr.join('.');
-        if (!_tagExists(previous)) {
-            throw new Error('Failed to find git tag for previous version, ' + previous);
-        }
-        return previous;
-    }
-    else if (semverArr[1] > 0) {
-        semverArr[1]--;
-        return getLatestTagFromBase(semverArr, 2);
-    }
-    else {
-        semverArr[0]--;
-        // Find 1.x.0 for latest x
-        var latestMinorVersion = getLatestTagFromBase(semverArr, 1);
-        // Find 1.x.y for latest y
-        return getLatestTagFromBase(versionStringToNumberArray(latestMinorVersion), 2);
-    }
-}
-exports.getPreviousVersion = getPreviousVersion;
-function versionStringToNumberArray(versionStr) {
-    return versionStr
-        .split('.')
-        .map(function (s) { return parseInt(s); });
-}
 function versionStringToNumber(versionStr) {
     var semverRegex = /(\d+)\.(\d+)\.(\d+)/;
     var match = versionStr.match(semverRegex);

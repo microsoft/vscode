@@ -2,17 +2,15 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
-
 import * as assert from 'assert';
-import URI from 'vs/base/common/uri';
-import { TextModel } from 'vs/editor/common/model/textModel';
-import { CodeActionProviderRegistry, LanguageIdentifier, CodeActionProvider, Command, WorkspaceEdit, ResourceTextEdit, CodeAction, CodeActionContext } from 'vs/editor/common/modes';
-import { IDisposable, dispose } from 'vs/base/common/lifecycle';
+import { dispose, IDisposable } from 'vs/base/common/lifecycle';
+import { URI } from 'vs/base/common/uri';
 import { Range } from 'vs/editor/common/core/range';
+import { TextModel } from 'vs/editor/common/model/textModel';
+import { CodeAction, CodeActionContext, CodeActionProvider, CodeActionProviderRegistry, Command, LanguageIdentifier, ResourceTextEdit, WorkspaceEdit } from 'vs/editor/common/modes';
 import { getCodeActions } from 'vs/editor/contrib/codeAction/codeAction';
 import { CodeActionKind } from 'vs/editor/contrib/codeAction/codeActionTrigger';
-import { MarkerSeverity, IMarkerData } from 'vs/platform/markers/common/markers';
+import { IMarkerData, MarkerSeverity } from 'vs/platform/markers/common/markers';
 
 suite('CodeAction', () => {
 
@@ -193,5 +191,28 @@ suite('CodeAction', () => {
 			assert.equal(actions.length, 1);
 			assert.strictEqual(actions[0].title, 'a');
 		}
+	});
+
+	test('getCodeActions should not invoke code action providers filtered out by providedCodeActionKinds', async function () {
+		let wasInvoked = false;
+		const provider = new class implements CodeActionProvider {
+			provideCodeActions() {
+				wasInvoked = true;
+				return [];
+			}
+
+			providedCodeActionKinds = [CodeActionKind.Refactor.value];
+		};
+
+		disposables.push(CodeActionProviderRegistry.register('fooLang', provider));
+
+		const actions = await getCodeActions(model, new Range(1, 1, 2, 1), {
+			type: 'auto',
+			filter: {
+				kind: CodeActionKind.QuickFix
+			}
+		});
+		assert.strictEqual(actions.length, 0);
+		assert.strictEqual(wasInvoked, false);
 	});
 });

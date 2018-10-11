@@ -3,21 +3,21 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
-import { TPromise } from 'vs/base/common/winjs.base';
 import { IAction, IActionRunner, ActionRunner } from 'vs/base/common/actions';
 import { Separator } from 'vs/base/browser/ui/actionbar/actionbar';
 import * as dom from 'vs/base/browser/dom';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { remote, webFrame } from 'electron';
+import { webFrame } from 'electron';
 import { unmnemonicLabel } from 'vs/base/common/labels';
 import { Event, Emitter } from 'vs/base/common/event';
 import { INotificationService } from 'vs/platform/notification/common/notification';
-import { IContextMenuDelegate, ContextSubMenu, IEvent } from 'vs/base/browser/contextmenu';
+import { IContextMenuDelegate, ContextSubMenu, IContextMenuEvent } from 'vs/base/browser/contextmenu';
+import { once } from 'vs/base/common/functional';
 import { Disposable } from 'vs/base/common/lifecycle';
+import { IContextMenuItem } from 'vs/base/parts/contextmenu/common/contextmenu';
+import { popup } from 'vs/base/parts/contextmenu/electron-browser/contextmenu';
 
 export class ContextMenuService extends Disposable implements IContextMenuService {
 
@@ -36,12 +36,16 @@ export class ContextMenuService extends Disposable implements IContextMenuServic
 
 	showContextMenu(delegate: IContextMenuDelegate): void {
 		delegate.getActions().then(actions => {
-			if (!actions.length) {
-				return TPromise.as(null);
-			}
+			if (actions.length) {
+				const onHide = once(() => {
+					if (delegate.onHide) {
+						delegate.onHide(undefined);
+					}
 
-			return TPromise.timeout(0).then(() => { // https://github.com/Microsoft/vscode/issues/3638
-				const menu = this.createMenu(delegate, actions);
+					this._onDidContextMenu.fire();
+				});
+
+				const menu = this.createMenu(delegate, actions, onHide);
 				const anchor = delegate.getAnchor();
 				let x: number, y: number;
 
@@ -60,63 +64,74 @@ export class ContextMenuService extends Disposable implements IContextMenuServic
 				x *= zoom;
 				y *= zoom;
 
-				menu.popup(remote.getCurrentWindow(), { x: Math.floor(x), y: Math.floor(y), positioningItem: delegate.autoSelectFirstItem ? 0 : void 0 });
-				this._onDidContextMenu.fire();
-				if (delegate.onHide) {
-					delegate.onHide(undefined);
-				}
-			});
-		});
-	}
-
-	private createMenu(delegate: IContextMenuDelegate, entries: (IAction | ContextSubMenu)[]): Electron.Menu {
-		const menu = new remote.Menu();
-		const actionRunner = delegate.actionRunner || new ActionRunner();
-
-		entries.forEach(e => {
-			if (e instanceof Separator) {
-				menu.append(new remote.MenuItem({ type: 'separator' }));
-			} else if (e instanceof ContextSubMenu) {
-				const submenu = new remote.MenuItem({
-					submenu: this.createMenu(delegate, e.entries),
-					label: unmnemonicLabel(e.label)
+				popup(menu, {
+					x: Math.floor(x),
+					y: Math.floor(y),
+					positioningItem: delegate.autoSelectFirstItem ? 0 : void 0,
+					onHide: () => onHide()
 				});
-
-				menu.append(submenu);
-			} else {
-				const options: Electron.MenuItemConstructorOptions = {
-					label: unmnemonicLabel(e.label),
-					checked: !!e.checked || !!e.radio,
-					type: !!e.checked ? 'checkbox' : !!e.radio ? 'radio' : void 0,
-					enabled: !!e.enabled,
-					click: (menuItem, win, event) => {
-						this.runAction(actionRunner, e, delegate, event);
-					}
-				};
-
-				const keybinding = !!delegate.getKeyBinding ? delegate.getKeyBinding(e) : this.keybindingService.lookupKeybinding(e.id);
-				if (keybinding) {
-					const electronAccelerator = keybinding.getElectronAccelerator();
-					if (electronAccelerator) {
-						options.accelerator = electronAccelerator;
-					} else {
-						const label = keybinding.getLabel();
-						if (label) {
-							options.label = `${options.label} [${label}]`;
-						}
-					}
-				}
-
-				const item = new remote.MenuItem(options);
-
-				menu.append(item);
 			}
 		});
-
-		return menu;
 	}
 
-	private runAction(actionRunner: IActionRunner, actionToRun: IAction, delegate: IContextMenuDelegate, event: IEvent): void {
+	private createMenu(delegate: IContextMenuDelegate, entries: (IAction | ContextSubMenu)[], onHide: () => void): IContextMenuItem[] {
+		const actionRunner = delegate.actionRunner || new ActionRunner();
+
+		return entries.map(entry => this.createMenuItem(delegate, entry, actionRunner, onHide));
+	}
+
+	private createMenuItem(delegate: IContextMenuDelegate, entry: IAction | ContextSubMenu, actionRunner: IActionRunner, onHide: () => void): IContextMenuItem {
+
+		// Separator
+		if (entry instanceof Separator) {
+			return { type: 'separator' } as IContextMenuItem;
+		}
+
+		// Submenu
+		if (entry instanceof ContextSubMenu) {
+			return {
+				label: unmnemonicLabel(entry.label),
+				submenu: this.createMenu(delegate, entry.entries, onHide)
+			} as IContextMenuItem;
+		}
+
+		// Normal Menu Item
+		else {
+			const item: IContextMenuItem = {
+				label: unmnemonicLabel(entry.label),
+				checked: !!entry.checked || !!entry.radio,
+				type: !!entry.checked ? 'checkbox' : !!entry.radio ? 'radio' : void 0,
+				enabled: !!entry.enabled,
+				click: event => {
+
+					// To preserve pre-electron-2.x behaviour, we first trigger
+					// the onHide callback and then the action.
+					// Fixes https://github.com/Microsoft/vscode/issues/45601
+					onHide();
+
+					// Run action which will close the menu
+					this.runAction(actionRunner, entry, delegate, event);
+				}
+			};
+
+			const keybinding = !!delegate.getKeyBinding ? delegate.getKeyBinding(entry) : this.keybindingService.lookupKeybinding(entry.id);
+			if (keybinding) {
+				const electronAccelerator = keybinding.getElectronAccelerator();
+				if (electronAccelerator) {
+					item.accelerator = electronAccelerator;
+				} else {
+					const label = keybinding.getLabel();
+					if (label) {
+						item.label = `${item.label} [${label}]`;
+					}
+				}
+			}
+
+			return item;
+		}
+	}
+
+	private runAction(actionRunner: IActionRunner, actionToRun: IAction, delegate: IContextMenuDelegate, event: IContextMenuEvent): void {
 		/* __GDPR__
 			"workbenchActionExecuted" : {
 				"id" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
@@ -126,8 +141,8 @@ export class ContextMenuService extends Disposable implements IContextMenuServic
 		this.telemetryService.publicLog('workbenchActionExecuted', { id: actionToRun.id, from: 'contextMenu' });
 
 		const context = delegate.getActionsContext ? delegate.getActionsContext(event) : event;
-		const res = actionRunner.run(actionToRun, context) || TPromise.as(null);
+		const res = actionRunner.run(actionToRun, context) || Promise.resolve(null);
 
-		res.done(null, e => this.notificationService.error(e));
+		res.then(null, e => this.notificationService.error(e));
 	}
 }

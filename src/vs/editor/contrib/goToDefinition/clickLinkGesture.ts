@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import 'vs/css!./goToDefinitionMouse';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import * as browser from 'vs/base/browser/browser';
@@ -52,19 +50,20 @@ export class ClickLinkKeyboardEvent {
 		this.hasTriggerModifier = hasModifier(source, opts.triggerModifier);
 	}
 }
+export type TriggerModifier = 'ctrlKey' | 'shiftKey' | 'altKey' | 'metaKey';
 
 export class ClickLinkOptions {
 
 	public readonly triggerKey: KeyCode;
-	public readonly triggerModifier: 'ctrlKey' | 'shiftKey' | 'altKey' | 'metaKey';
+	public readonly triggerModifier: TriggerModifier;
 	public readonly triggerSideBySideKey: KeyCode;
-	public readonly triggerSideBySideModifier: 'ctrlKey' | 'shiftKey' | 'altKey' | 'metaKey';
+	public readonly triggerSideBySideModifier: TriggerModifier;
 
 	constructor(
 		triggerKey: KeyCode,
-		triggerModifier: 'ctrlKey' | 'shiftKey' | 'altKey' | 'metaKey',
+		triggerModifier: TriggerModifier,
 		triggerSideBySideKey: KeyCode,
-		triggerSideBySideModifier: 'ctrlKey' | 'shiftKey' | 'altKey' | 'metaKey'
+		triggerSideBySideModifier: TriggerModifier
 	) {
 		this.triggerKey = triggerKey;
 		this.triggerModifier = triggerModifier;

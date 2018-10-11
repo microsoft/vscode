@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import * as assert from 'assert';
 import * as os from 'os';
 
@@ -16,7 +14,7 @@ import { testFile } from 'vs/base/test/node/utils';
 
 suite('Config', () => {
 
-	test('defaults', function () {
+	test('defaults', () => {
 		const id = uuid.generateUuid();
 		const parentDir = path.join(os.tmpdir(), 'vsctests', id);
 		const newDir = path.join(parentDir, 'config', id);

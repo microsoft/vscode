@@ -3,12 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import * as assert from 'assert';
 import { EditorGroup, ISerializedEditorGroup, EditorCloseEvent } from 'vs/workbench/common/editor/editorGroup';
 import { Extensions as EditorExtensions, IEditorInputFactoryRegistry, EditorInput, IFileEditorInput, IEditorInputFactory, CloseDirection } from 'vs/workbench/common/editor';
-import URI from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 import { TestStorageService, TestLifecycleService, TestContextService } from 'vs/workbench/test/workbenchTestServices';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
 import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';

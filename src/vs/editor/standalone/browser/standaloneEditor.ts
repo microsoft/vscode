@@ -2,7 +2,6 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
 import 'vs/css!./standalone-tokens';
 import * as editorCommon from 'vs/editor/common/editorCommon';
@@ -11,8 +10,7 @@ import { StandaloneEditor, IStandaloneCodeEditor, StandaloneDiffEditor, IStandal
 import { ScrollbarVisibility } from 'vs/base/common/scrollable';
 import { IEditorOverrideServices, DynamicStandaloneServices, StaticServices } from 'vs/editor/standalone/browser/standaloneServices';
 import { IDisposable } from 'vs/base/common/lifecycle';
-import URI from 'vs/base/common/uri';
-import { TPromise } from 'vs/base/common/winjs.base';
+import { URI } from 'vs/base/common/uri';
 import { OpenerService } from 'vs/editor/browser/services/openerService';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { Colorizer, IColorizerElementOptions, IColorizerOptions } from 'vs/editor/standalone/browser/colorizer';
@@ -137,7 +135,7 @@ export function createDiffNavigator(diffEditor: IStandaloneDiffEditor, opts?: ID
 	return new DiffNavigator(diffEditor, opts);
 }
 
-function doCreateModel(value: string, mode: TPromise<modes.IMode>, uri?: URI): ITextModel {
+function doCreateModel(value: string, mode: Promise<modes.IMode>, uri?: URI): ITextModel {
 	return StaticServices.modelService.get().createModel(value, mode, uri);
 }
 
@@ -157,7 +155,7 @@ export function createModel(value: string, language?: string, uri?: URI): ITextM
 			firstLine = value.substring(0, firstLF);
 		}
 
-		return doCreateModel(value, StaticServices.modeService.get().getOrCreateModeByFilenameOrFirstLine(path, firstLine), uri);
+		return doCreateModel(value, StaticServices.modeService.get().getOrCreateModeByFilepathOrFirstLine(path, firstLine), uri);
 	}
 	return doCreateModel(value, StaticServices.modeService.get().getOrCreateMode(language), uri);
 }
@@ -241,14 +239,14 @@ export function createWebWorker<T>(opts: IWebWorkerOptions): MonacoWebWorker<T> 
 /**
  * Colorize the contents of `domNode` using attribute `data-lang`.
  */
-export function colorizeElement(domNode: HTMLElement, options: IColorizerElementOptions): TPromise<void> {
+export function colorizeElement(domNode: HTMLElement, options: IColorizerElementOptions): Promise<void> {
 	return Colorizer.colorizeElement(StaticServices.standaloneThemeService.get(), StaticServices.modeService.get(), domNode, options);
 }
 
 /**
  * Colorize `text` using language `languageId`.
  */
-export function colorize(text: string, languageId: string, options: IColorizerOptions): TPromise<string> {
+export function colorize(text: string, languageId: string, options: IColorizerOptions): Promise<string> {
 	return Colorizer.colorize(StaticServices.modeService.get(), text, languageId, options);
 }
 

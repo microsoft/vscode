@@ -4,11 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
-
 import * as Proto from '../protocol';
 import { ITypeScriptServiceClient } from '../typescriptService';
 import { tagsMarkdownPreview } from '../utils/previewer';
 import * as typeConverters from '../utils/typeConverters';
+
 
 class TypeScriptHoverProvider implements vscode.HoverProvider {
 
@@ -25,19 +25,16 @@ class TypeScriptHoverProvider implements vscode.HoverProvider {
 		if (!filepath) {
 			return undefined;
 		}
+
 		const args = typeConverters.Position.toFileLocationRequestArgs(filepath, position);
-		try {
-			const response = await this.client.execute('quickinfo', args, token);
-			if (response && response.body) {
-				const data = response.body;
-				return new vscode.Hover(
-					TypeScriptHoverProvider.getContents(data),
-					typeConverters.Range.fromTextSpan(data));
-			}
-		} catch (e) {
-			// noop
+		const response = await this.client.interuptGetErr(() => this.client.execute('quickinfo', args, token));
+		if (response.type !== 'response' || !response.body) {
+			return undefined;
 		}
-		return undefined;
+
+		return new vscode.Hover(
+			TypeScriptHoverProvider.getContents(response.body),
+			typeConverters.Range.fromTextSpan(response.body));
 	}
 
 	private static getContents(

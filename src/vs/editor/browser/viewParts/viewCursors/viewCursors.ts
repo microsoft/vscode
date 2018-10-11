@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import 'vs/css!./viewCursors';
 import { ViewPart } from 'vs/editor/browser/view/viewPart';
 import { Position } from 'vs/editor/common/core/position';
@@ -349,7 +347,7 @@ export class ViewCursors extends ViewPart {
 }
 
 registerThemingParticipant((theme, collector) => {
-	let caret = theme.getColor(editorCursorForeground);
+	const caret = theme.getColor(editorCursorForeground);
 	if (caret) {
 		let caretBackground = theme.getColor(editorCursorBackground);
 		if (!caretBackground) {

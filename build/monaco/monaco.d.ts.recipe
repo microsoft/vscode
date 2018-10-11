@@ -25,13 +25,6 @@ declare namespace monaco {
 		dispose(): void;
 	}
 
-	export enum Severity {
-		Ignore = 0,
-		Info = 1,
-		Warning = 2,
-		Error = 3,
-	}
-
 	export enum MarkerTag {
 		Unnecessary = 1,
 	}
@@ -43,8 +36,7 @@ declare namespace monaco {
 		Error = 8,
 	}
 
-
-#include(vs/base/common/winjs.base.d.ts): TValueCallback, ProgressCallback, Promise
+#include(vs/base/common/winjs.base.d.ts): Promise
 #include(vs/base/common/cancellation): CancellationTokenSource, CancellationToken
 #include(vs/base/common/uri): URI, UriComponents
 #include(vs/editor/common/standalone/standaloneBase): KeyCode, KeyMod

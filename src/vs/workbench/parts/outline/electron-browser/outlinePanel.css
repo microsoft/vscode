@@ -71,64 +71,17 @@
 	display: none;
 }
 
-.monaco-tree.focused .selected .outline-element-label, .monaco-tree.focused .selected .outline-element-decoration {
+.monaco-tree.focused .selected .outline-element-label, .monaco-tree.focused .selected .outline-element-decoration{
 	/* make sure selection color wins when a label is being selected */
 	color: inherit !important;
 }
 
-.monaco-workbench .outline-panel .outline-element {
-	display: flex;
-	flex: 1;
-	flex-flow: row nowrap;
-	align-items: center;
-}
-
-.monaco-workbench .outline-panel .outline-element .outline-element-icon {
-	padding-right: 3px;
+.monaco-tree.focused .selected .outline-element-label .monaco-highlighted-label .highlight,
+.monaco-tree.focused .selected .monaco-icon-label .monaco-highlighted-label .highlight{
+	/* allows text color to use the default when selected  */
+	color: inherit !important;
 }
 
 .monaco-workbench .outline-panel.no-icons .outline-element .outline-element-icon {
 	display: none;
-}
-
-.monaco-workbench .outline-panel .outline-element .outline-element-label {
-	text-overflow: ellipsis;
-	overflow: hidden;
-	color: var(--outline-element-color);
-}
-
-.monaco-workbench .outline-panel .outline-element .outline-element-label .monaco-highlighted-label .highlight {
-	font-weight: bold;
-}
-
-.monaco-workbench .outline-panel .outline-element .outline-element-detail {
-	visibility: hidden;
-	flex: 1;
-	flex-basis: 10%;
-	opacity: 0.8;
-	overflow: hidden;
-	text-overflow: ellipsis;
-	font-size: 90%;
-	padding-left: 4px;
-	padding-top: 3px;
-}
-
-.monaco-workbench .outline-panel .monaco-tree-row.focused .outline-element .outline-element-detail {
-	visibility: inherit;
-}
-
-.monaco-workbench .outline-panel .outline-element .outline-element-decoration {
-	opacity: 0.75;
-	font-size: 90%;
-	font-weight: 600;
-	padding: 0 12px 0 5px;
-	margin-left: auto;
-	text-align: center;
-	color: var(--outline-element-color);
-}
-
-.monaco-workbench .outline-panel .outline-element .outline-element-decoration.bubble {
-	font-family: octicons;
-	font-size: 14px;
-	opacity: 0.4;
 }

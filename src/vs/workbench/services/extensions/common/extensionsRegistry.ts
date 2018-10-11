@@ -2,7 +2,6 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
 import * as nls from 'vs/nls';
 import { onUnexpectedError } from 'vs/base/common/errors';
@@ -120,7 +119,7 @@ export class ExtensionPoint<T> implements IExtensionPoint<T> {
 }
 
 const schemaId = 'vscode://schemas/vscode-extensions';
-const schema: IJSONSchema = {
+export const schema = {
 	properties: {
 		engines: {
 			type: 'object',
@@ -221,6 +220,16 @@ const schema: IJSONSchema = {
 						body: 'workspaceContains:${4:filePattern}'
 					},
 					{
+						label: 'onFileSystem',
+						description: nls.localize('vscode.extension.activationEvents.onFileSystem', 'An activation event emitted whenever a file or folder is accessed with the given scheme.'),
+						body: 'onFileSystem:${1:scheme}'
+					},
+					{
+						label: 'onSearch',
+						description: nls.localize('vscode.extension.activationEvents.onSearch', 'An activation event emitted whenever a search is started in the folder with the given scheme.'),
+						body: 'onSearch:${7:scheme}'
+					},
+					{
 						label: 'onView',
 						body: 'onView:${5:viewId}',
 						description: nls.localize('vscode.extension.activationEvents.onView', 'An activation event emitted whenever the specified view is expanded.'),
@@ -281,6 +290,15 @@ const schema: IJSONSchema = {
 		},
 		extensionDependencies: {
 			description: nls.localize('vscode.extension.extensionDependencies', 'Dependencies to other extensions. The identifier of an extension is always ${publisher}.${name}. For example: vscode.csharp.'),
+			type: 'array',
+			uniqueItems: true,
+			items: {
+				type: 'string',
+				pattern: EXTENSION_IDENTIFIER_PATTERN
+			}
+		},
+		extensionPack: {
+			description: nls.localize('vscode.extension.contributes.extensionPack', "A set of extensions that can be installed together. The identifier of an extension is always ${publisher}.${name}. For example: vscode.csharp."),
 			type: 'array',
 			uniqueItems: true,
 			items: {

@@ -2,13 +2,11 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
 import * as nls from 'vs/nls';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
-import { TPromise } from 'vs/base/common/winjs.base';
 import { IContextKeyService, ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
-import { KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
+import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { Position, IPosition } from 'vs/editor/common/core/position';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import { registerEditorAction, ServicesAccessor, EditorAction, registerEditorContribution, registerDefaultLanguageCommand } from 'vs/editor/browser/editorExtensions';
@@ -17,7 +15,7 @@ import { Range } from 'vs/editor/common/core/range';
 import { PeekContext, getOuterEditor } from './peekViewWidget';
 import { ReferencesController, RequestOptions, ctxReferenceSearchVisible } from './referencesController';
 import { ReferencesModel, OneReference } from './referencesModel';
-import { asWinJsPromise, createCancelablePromise } from 'vs/base/common/async';
+import { createCancelablePromise } from 'vs/base/common/async';
 import { onUnexpectedExternalError } from 'vs/base/common/errors';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { EmbeddedCodeEditorWidget } from 'vs/editor/browser/widget/embeddedCodeEditorWidget';
@@ -26,7 +24,7 @@ import { ITextModel } from 'vs/editor/common/model';
 import { IListService } from 'vs/platform/list/browser/listService';
 import { ctxReferenceWidgetSearchTreeFocused } from 'vs/editor/contrib/referenceSearch/referencesWidget';
 import { CommandsRegistry, ICommandHandler } from 'vs/platform/commands/common/commands';
-import URI from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { CancellationToken } from 'vs/base/common/cancellation';
 
@@ -70,7 +68,8 @@ export class ReferenceAction extends EditorAction {
 				EditorContextKeys.isInEmbeddedEditor.toNegated()),
 			kbOpts: {
 				kbExpr: EditorContextKeys.editorTextFocus,
-				primary: KeyMod.Shift | KeyCode.F12
+				primary: KeyMod.Shift | KeyCode.F12,
+				weight: KeybindingWeight.EditorContrib
 			},
 			menuOpts: {
 				group: 'navigation',
@@ -116,13 +115,17 @@ let findReferencesCommand: ICommandHandler = (accessor: ServicesAccessor, resour
 
 		let references = createCancelablePromise(token => provideReferences(control.getModel(), Position.lift(position), token).then(references => new ReferencesModel(references)));
 		let range = new Range(position.lineNumber, position.column, position.lineNumber, position.column);
-		return TPromise.as(controller.toggleWidget(range, references, defaultReferenceSearchOptions));
+		return Promise.resolve(controller.toggleWidget(range, references, defaultReferenceSearchOptions));
 	});
 };
 
 let showReferencesCommand: ICommandHandler = (accessor: ServicesAccessor, resource: URI, position: IPosition, references: Location[]) => {
 	if (!(resource instanceof URI)) {
 		throw new Error('illegal argument, uri expected');
+	}
+
+	if (!references) {
+		throw new Error('missing references');
 	}
 
 	const codeEditorService = accessor.get(ICodeEditorService);
@@ -136,9 +139,9 @@ let showReferencesCommand: ICommandHandler = (accessor: ServicesAccessor, resour
 			return undefined;
 		}
 
-		return TPromise.as(controller.toggleWidget(
+		return Promise.resolve(controller.toggleWidget(
 			new Range(position.lineNumber, position.column, position.lineNumber, position.column),
-			createCancelablePromise(_ => Promise.reject(new ReferencesModel(references))),
+			createCancelablePromise(_ => Promise.resolve(new ReferencesModel(references))),
 			defaultReferenceSearchOptions)).then(() => true);
 	});
 };
@@ -192,7 +195,7 @@ function withController(accessor: ServicesAccessor, fn: (controller: ReferencesC
 
 KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: 'goToNextReference',
-	weight: KeybindingsRegistry.WEIGHT.workbenchContrib(50),
+	weight: KeybindingWeight.WorkbenchContrib + 50,
 	primary: KeyCode.F4,
 	when: ctxReferenceSearchVisible,
 	handler(accessor) {
@@ -204,7 +207,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 
 KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: 'goToNextReferenceFromEmbeddedEditor',
-	weight: KeybindingsRegistry.WEIGHT.editorContrib(50),
+	weight: KeybindingWeight.EditorContrib + 50,
 	primary: KeyCode.F4,
 	when: PeekContext.inPeekEditor,
 	handler(accessor) {
@@ -216,7 +219,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 
 KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: 'goToPreviousReference',
-	weight: KeybindingsRegistry.WEIGHT.workbenchContrib(50),
+	weight: KeybindingWeight.WorkbenchContrib + 50,
 	primary: KeyMod.Shift | KeyCode.F4,
 	when: ctxReferenceSearchVisible,
 	handler(accessor) {
@@ -228,7 +231,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 
 KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: 'goToPreviousReferenceFromEmbeddedEditor',
-	weight: KeybindingsRegistry.WEIGHT.editorContrib(50),
+	weight: KeybindingWeight.EditorContrib + 50,
 	primary: KeyMod.Shift | KeyCode.F4,
 	when: PeekContext.inPeekEditor,
 	handler(accessor) {
@@ -240,7 +243,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 
 KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: 'closeReferenceSearch',
-	weight: KeybindingsRegistry.WEIGHT.workbenchContrib(50),
+	weight: KeybindingWeight.WorkbenchContrib + 50,
 	primary: KeyCode.Escape,
 	secondary: [KeyMod.Shift | KeyCode.Escape],
 	when: ContextKeyExpr.and(ctxReferenceSearchVisible, ContextKeyExpr.not('config.editor.stablePeek')),
@@ -249,7 +252,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 
 KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: 'closeReferenceSearchEditor',
-	weight: KeybindingsRegistry.WEIGHT.editorContrib(-101),
+	weight: KeybindingWeight.EditorContrib - 101,
 	primary: KeyCode.Escape,
 	secondary: [KeyMod.Shift | KeyCode.Escape],
 	when: ContextKeyExpr.and(PeekContext.inPeekEditor, ContextKeyExpr.not('config.editor.stablePeek')),
@@ -258,7 +261,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 
 KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: 'openReferenceToSide',
-	weight: KeybindingsRegistry.WEIGHT.editorContrib(),
+	weight: KeybindingWeight.EditorContrib,
 	primary: KeyMod.CtrlCmd | KeyCode.Enter,
 	mac: {
 		primary: KeyMod.WinCtrl | KeyCode.Enter
@@ -271,9 +274,7 @@ export function provideReferences(model: ITextModel, position: Position, token: 
 
 	// collect references from all providers
 	const promises = ReferenceProviderRegistry.ordered(model).map(provider => {
-		return asWinJsPromise((token) => {
-			return provider.provideReferences(model, position, { includeDeclaration: true }, token);
-		}).then(result => {
+		return Promise.resolve(provider.provideReferences(model, position, { includeDeclaration: true }, token)).then(result => {
 			if (Array.isArray(result)) {
 				return <Location[]>result;
 			}
@@ -294,4 +295,4 @@ export function provideReferences(model: ITextModel, position: Position, token: 
 	});
 }
 
-registerDefaultLanguageCommand('_executeReferenceProvider', provideReferences);
+registerDefaultLanguageCommand('_executeReferenceProvider', (model, position) => provideReferences(model, position, CancellationToken.None));

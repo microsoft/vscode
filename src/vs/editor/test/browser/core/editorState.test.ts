@@ -3,10 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import * as assert from 'assert';
-import URI from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 import { ITextModel } from 'vs/editor/common/model';
 import { EditorState, CodeEditorStateFlag } from 'vs/editor/browser/core/editorState';
 import { Selection } from 'vs/editor/common/core/selection';

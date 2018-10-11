@@ -2,7 +2,6 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
 import { isWindows } from 'vs/base/common/platform';
 import { startsWithIgnoreCase, equalsIgnoreCase } from 'vs/base/common/strings';
@@ -19,9 +18,12 @@ export const sep = '/';
 export const nativeSep = isWindows ? '\\' : '/';
 
 /**
+ * @param path the path to get the dirname from
+ * @param separator the separator to use
  * @returns the directory name of a path.
+ *
  */
-export function dirname(path: string): string {
+export function dirname(path: string, separator = nativeSep): string {
 	const idx = ~path.lastIndexOf('/') || ~path.lastIndexOf('\\');
 	if (idx === 0) {
 		return '.';
@@ -32,7 +34,7 @@ export function dirname(path: string): string {
 	} else {
 		let res = path.substring(0, ~idx);
 		if (isWindows && res[res.length - 1] === ':') {
-			res += nativeSep; // make sure drive letters end with backslash
+			res += separator; // make sure drive letters end with backslash
 		}
 		return res;
 	}
@@ -81,7 +83,7 @@ export function normalize(path: string, toOSPath?: boolean): string {
 		return '.';
 	}
 
-	const wantsBackslash = isWindows && toOSPath;
+	const wantsBackslash = !!(isWindows && toOSPath);
 	if (_isNormal(path, wantsBackslash)) {
 		return path;
 	}
@@ -328,7 +330,7 @@ export function isEqual(pathA: string, pathB: string, ignoreCase?: boolean): boo
 	return equalsIgnoreCase(pathA, pathB);
 }
 
-export function isEqualOrParent(path: string, candidate: string, ignoreCase?: boolean): boolean {
+export function isEqualOrParent(path: string, candidate: string, ignoreCase?: boolean, separator = nativeSep): boolean {
 	if (path === candidate) {
 		return true;
 	}
@@ -352,15 +354,15 @@ export function isEqualOrParent(path: string, candidate: string, ignoreCase?: bo
 		}
 
 		let sepOffset = candidate.length;
-		if (candidate.charAt(candidate.length - 1) === nativeSep) {
+		if (candidate.charAt(candidate.length - 1) === separator) {
 			sepOffset--; // adjust the expected sep offset in case our candidate already ends in separator character
 		}
 
-		return path.charAt(sepOffset) === nativeSep;
+		return path.charAt(sepOffset) === separator;
 	}
 
-	if (candidate.charAt(candidate.length - 1) !== nativeSep) {
-		candidate += nativeSep;
+	if (candidate.charAt(candidate.length - 1) !== separator) {
+		candidate += separator;
 	}
 
 	return path.indexOf(candidate) === 0;
@@ -396,5 +398,5 @@ export function isAbsolute_win32(path: string): boolean {
 }
 
 export function isAbsolute_posix(path: string): boolean {
-	return path && path.charCodeAt(0) === CharCode.Slash;
+	return !!(path && path.charCodeAt(0) === CharCode.Slash);
 }

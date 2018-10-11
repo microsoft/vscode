@@ -15,11 +15,16 @@
 
 /* Font Families (with CJK support) */
 
-.monaco-shell { font-family: -apple-system, BlinkMacSystemFont, "Segoe WPC", "Segoe UI", "HelveticaNeue-Light", "Ubuntu", "Droid Sans", sans-serif; }
-.monaco-shell:lang(zh-Hans) { font-family: -apple-system, BlinkMacSystemFont, "Segoe WPC", "Segoe UI", "HelveticaNeue-Light", "Noto Sans", "Microsoft YaHei", "PingFang SC", "Hiragino Sans GB", "Source Han Sans SC", "Source Han Sans CN", "Source Han Sans", sans-serif; }
-.monaco-shell:lang(zh-Hant) { font-family: -apple-system, BlinkMacSystemFont, "Segoe WPC", "Segoe UI", "HelveticaNeue-Light", "Noto Sans", "Microsoft Jhenghei", "PingFang TC", "Source Han Sans TC", "Source Han Sans", "Source Han Sans TW", sans-serif; }
-.monaco-shell:lang(ja) { font-family: -apple-system, BlinkMacSystemFont, "Segoe WPC", "Segoe UI", "HelveticaNeue-Light", "Noto Sans", "Meiryo", "Hiragino Kaku Gothic Pro", "Source Han Sans J", "Source Han Sans JP", "Source Han Sans", "Sazanami Gothic", "IPA Gothic", sans-serif; }
-.monaco-shell:lang(ko) { font-family: -apple-system, BlinkMacSystemFont, "Segoe WPC", "Segoe UI", "HelveticaNeue-Light", "Noto Sans", "Malgun Gothic", "Nanum Gothic", "Dotom", "Apple SD Gothic Neo", "AppleGothic", "Source Han Sans K", "Source Han Sans JR", "Source Han Sans", "UnDotum", "FBaekmuk Gulim", sans-serif; }
+.monaco-shell,
+.monaco-shell .monaco-menu-container .monaco-menu { font-family: -apple-system, BlinkMacSystemFont, "Segoe WPC", "Segoe UI", "HelveticaNeue-Light", "Ubuntu", "Droid Sans", sans-serif; }
+.monaco-shell:lang(zh-Hans),
+.monaco-shell:lang(zh-Hans) .monaco-menu-container .monaco-menu { font-family: -apple-system, BlinkMacSystemFont, "Segoe WPC", "Segoe UI", "HelveticaNeue-Light", "Noto Sans", "Microsoft YaHei", "PingFang SC", "Hiragino Sans GB", "Source Han Sans SC", "Source Han Sans CN", "Source Han Sans", sans-serif; }
+.monaco-shell:lang(zh-Hant),
+.monaco-shell:lang(zh-Hant) .monaco-menu-container .monaco-menu { font-family: -apple-system, BlinkMacSystemFont, "Segoe WPC", "Segoe UI", "HelveticaNeue-Light", "Noto Sans", "Microsoft Jhenghei", "PingFang TC", "Source Han Sans TC", "Source Han Sans", "Source Han Sans TW", sans-serif; }
+.monaco-shell:lang(ja),
+.monaco-shell:lang(ja) .monaco-menu-container .monaco-menu { font-family: -apple-system, BlinkMacSystemFont, "Segoe WPC", "Segoe UI", "HelveticaNeue-Light", "Noto Sans", "Meiryo", "Hiragino Kaku Gothic Pro", "Source Han Sans J", "Source Han Sans JP", "Source Han Sans", "Sazanami Gothic", "IPA Gothic", sans-serif; }
+.monaco-shell:lang(ko),
+.monaco-shell:lang(ko) .monaco-menu-container .monaco-menu { font-family: -apple-system, BlinkMacSystemFont, "Segoe WPC", "Segoe UI", "HelveticaNeue-Light", "Noto Sans", "Malgun Gothic", "Nanum Gothic", "Dotom", "Apple SD Gothic Neo", "AppleGothic", "Source Han Sans K", "Source Han Sans JR", "Source Han Sans", "UnDotum", "FBaekmuk Gulim", sans-serif; }
 
 @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
 
@@ -65,22 +70,44 @@
 	cursor: pointer;
 }
 
+.monaco-shell .context-view {
+	-webkit-app-region: no-drag;
+}
+
 .monaco-shell .monaco-menu .monaco-action-bar.vertical {
 	padding: .5em 0;
 }
 
+.monaco-shell .monaco-menu .monaco-action-bar.vertical .action-menu-item {
+	height: 1.8em;
+}
+
 .monaco-shell .monaco-menu .monaco-action-bar.vertical .action-label:not(.separator),
 .monaco-shell .monaco-menu .monaco-action-bar.vertical .keybinding {
-	padding: 0.5em 2em;
+	font-size: inherit;
+	padding: 0 2em;
+}
+
+.monaco-shell .monaco-menu .monaco-action-bar.vertical .menu-item-check {
+	font-size: inherit;
+	width: 2em;
 }
 
 .monaco-shell .monaco-menu .monaco-action-bar.vertical .action-label.separator {
+	font-size: inherit;
 	padding: 0.2em 0 0 0;
 	margin-bottom: 0.2em;
 }
 
 .monaco-shell .monaco-menu .monaco-action-bar.vertical .submenu-indicator {
-	padding: 0.5em 1em;
+	font-size: 60%;
+	padding: 0 1.8em;
+}
+
+.monaco-shell .linux .monaco-menu .monaco-action-bar.vertical .submenu-indicator {
+	height: 100%;
+	-webkit-mask-size: 10px 10px;
+	mask-size: 10px 10px;
 }
 
 .monaco-shell .monaco-menu .action-item {
@@ -107,13 +134,12 @@
 .monaco-shell input[type="button"]:active,
 .monaco-shell input[type="checkbox"]:active,
 .monaco-shell .monaco-tree .monaco-tree-row
-.monaco-action-bar .action-item [tabindex="0"]:hover,
 .monaco-shell .monaco-tree.focused.no-focused-item:active:before {
 	outline: 0 !important; /* fixes some flashing outlines from showing up when clicking */
 }
 
 .monaco-shell .mac select:focus {
-	border: none; /* outline is a square, but border has a radius, so we avoid this glitch when focused (https://github.com/Microsoft/vscode/issues/26045) */
+	border-color: transparent; /* outline is a square, but border has a radius, so we avoid this glitch when focused (https://github.com/Microsoft/vscode/issues/26045) */
 }
 
 .monaco-shell .monaco-tree.focused .monaco-tree-row.focused [tabindex="0"]:focus {

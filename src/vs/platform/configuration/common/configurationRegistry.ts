@@ -2,7 +2,6 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
 import * as nls from 'vs/nls';
 import { Event, Emitter } from 'vs/base/common/event';
@@ -67,7 +66,7 @@ export interface IConfigurationRegistry {
 	registerOverrideIdentifiers(identifiers: string[]): void;
 }
 
-export enum ConfigurationScope {
+export const enum ConfigurationScope {
 	APPLICATION = 1,
 	WINDOW,
 	RESOURCE,
@@ -76,8 +75,8 @@ export enum ConfigurationScope {
 export interface IConfigurationPropertySchema extends IJSONSchema {
 	overridable?: boolean;
 	scope?: ConfigurationScope;
-	notMultiRootAdopted?: boolean;
 	included?: boolean;
+	tags?: string[];
 }
 
 export interface IConfigurationNode {

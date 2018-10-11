@@ -2,7 +2,6 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { once as onceFn } from 'vs/base/common/functional';
@@ -266,18 +265,7 @@ export class EventMultiplexer<T> implements IDisposable {
 	}
 }
 
-export function fromCallback<T>(fn: (handler: (e: T) => void) => IDisposable): Event<T> {
-	let listener: IDisposable;
-
-	const emitter = new Emitter<T>({
-		onFirstListenerAdd: () => listener = fn(e => emitter.fire(e)),
-		onLastListenerRemove: () => listener.dispose()
-	});
-
-	return emitter.event;
-}
-
-export function fromPromise<T =any>(promise: TPromise<T>): Event<T> {
+export function fromPromise<T =any>(promise: Thenable<T>): Event<T> {
 	const emitter = new Emitter<T>();
 	let shouldEmit = false;
 
@@ -295,21 +283,34 @@ export function fromPromise<T =any>(promise: TPromise<T>): Event<T> {
 	return emitter.event;
 }
 
-export function toPromise<T>(event: Event<T>): TPromise<T> {
-	return new TPromise(complete => {
-		const sub = event(e => {
-			sub.dispose();
-			complete(e);
-		});
-	});
+export function toPromise<T>(event: Event<T>): Thenable<T> {
+	return new TPromise(c => once(event)(c));
+}
+
+export function toNativePromise<T>(event: Event<T>): Thenable<T> {
+	return new Promise(c => once(event)(c));
 }
 
 export function once<T>(event: Event<T>): Event<T> {
 	return (listener, thisArgs = null, disposables?) => {
+		// we need this, in case the event fires during the listener call
+		let didFire = false;
+
 		const result = event(e => {
-			result.dispose();
+			if (didFire) {
+				return;
+			} else if (result) {
+				result.dispose();
+			} else {
+				didFire = true;
+			}
+
 			return listener.call(thisArgs, e);
 		}, null, disposables);
+
+		if (didFire) {
+			result.dispose();
+		}
 
 		return result;
 	};
@@ -413,6 +414,7 @@ export interface IChainableEvent<T> {
 	filter(fn: (e: T) => boolean): IChainableEvent<T>;
 	latch(): IChainableEvent<T>;
 	on(listener: (e: T) => any, thisArgs?: any, disposables?: IDisposable[]): IDisposable;
+	once(listener: (e: T) => any, thisArgs?: any, disposables?: IDisposable[]): IDisposable;
 }
 
 export function mapEvent<I, O>(event: Event<I>, map: (i: I) => O): Event<O> {
@@ -427,6 +429,10 @@ export function filterEvent<T>(event: Event<T>, filter: (e: T) => boolean): Even
 export function filterEvent<T, R>(event: Event<T | R>, filter: (e: T | R) => e is R): Event<R>;
 export function filterEvent<T>(event: Event<T>, filter: (e: T) => boolean): Event<T> {
 	return (listener, thisArgs = null, disposables?) => event(e => filter(e) && listener.call(thisArgs, e), null, disposables);
+}
+
+export function signalEvent<T>(event: Event<T>): Event<void> {
+	return event as Event<any> as Event<void>;
 }
 
 class ChainableEvent<T> implements IChainableEvent<T> {
@@ -453,6 +459,10 @@ class ChainableEvent<T> implements IChainableEvent<T> {
 
 	on(listener: (e: T) => any, thisArgs: any, disposables: IDisposable[]) {
 		return this._event(listener, thisArgs, disposables);
+	}
+
+	once(listener: (e: T) => any, thisArgs: any, disposables: IDisposable[]) {
+		return once(this._event)(listener, thisArgs, disposables);
 	}
 }
 
@@ -558,18 +568,34 @@ export function echo<T>(event: Event<T>, nextTick = false, buffer: T[] = []): Ev
 
 export class Relay<T> implements IDisposable {
 
-	private emitter = new Emitter<T>();
+	private listening = false;
+	private inputEvent: Event<T> = Event.None;
+	private inputEventListener: IDisposable = Disposable.None;
+
+	private emitter = new Emitter<T>({
+		onFirstListenerDidAdd: () => {
+			this.listening = true;
+			this.inputEventListener = this.inputEvent(this.emitter.fire, this.emitter);
+		},
+		onLastListenerRemove: () => {
+			this.listening = false;
+			this.inputEventListener.dispose();
+		}
+	});
+
 	readonly event: Event<T> = this.emitter.event;
 
-	private disposable: IDisposable = Disposable.None;
-
 	set input(event: Event<T>) {
-		this.disposable.dispose();
-		this.disposable = event(this.emitter.fire, this.emitter);
+		this.inputEvent = event;
+
+		if (this.listening) {
+			this.inputEventListener.dispose();
+			this.inputEventListener = event(this.emitter.fire, this.emitter);
+		}
 	}
 
 	dispose() {
-		this.disposable.dispose();
+		this.inputEventListener.dispose();
 		this.emitter.dispose();
 	}
 }

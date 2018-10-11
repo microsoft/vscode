@@ -18,9 +18,12 @@ const options: minimist.Opts = {
 		'locale',
 		'user-data-dir',
 		'extensions-dir',
+		'folder-uri',
+		'file-uri',
 		'extensionDevelopmentPath',
 		'extensionTestsPath',
 		'install-extension',
+		'disable-extension',
 		'uninstall-extension',
 		'debugId',
 		'debugPluginHost',
@@ -31,7 +34,10 @@ const options: minimist.Opts = {
 		'export-default-configuration',
 		'install-source',
 		'upload-logs',
-		'driver'
+		'driver',
+		'trace-category-filter',
+		'trace-options',
+		'_'
 	],
 	boolean: [
 		'help',
@@ -64,7 +70,8 @@ const options: minimist.Opts = {
 		'status',
 		'file-write',
 		'file-chmod',
-		'driver-verbose'
+		'driver-verbose',
+		'trace'
 	],
 	alias: {
 		add: 'a',
@@ -158,8 +165,8 @@ const extensionsHelp: { [name: string]: string; } = {
 	'--extensions-dir <dir>': localize('extensionHomePath', "Set the root path for extensions."),
 	'--list-extensions': localize('listExtensions', "List the installed extensions."),
 	'--show-versions': localize('showVersions', "Show versions of installed extensions, when using --list-extension."),
-	'--install-extension (<extension-id> | <extension-vsix-path>)': localize('installExtension', "Installs an extension."),
 	'--uninstall-extension (<extension-id> | <extension-vsix-path>)': localize('uninstallExtension', "Uninstalls an extension."),
+	'--install-extension (<extension-id> | <extension-vsix-path>)': localize('installExtension', "Installs or updates the extension. Use `--force` argument to avoid prompts."),
 	'--enable-proposed-api (<extension-id>)': localize('experimentalApis', "Enables proposed API features for extensions. Can receive one or more extension IDs to enable individually.")
 };
 
@@ -170,6 +177,7 @@ const troubleshootingHelp: { [name: string]: string; } = {
 	'-p, --performance': localize('performance', "Start with the 'Developer: Startup Performance' command enabled."),
 	'--prof-startup': localize('prof-startup', "Run CPU profiler during startup"),
 	'--disable-extensions': localize('disableExtensions', "Disable all installed extensions."),
+	'--disable-extension <extension-id>': localize('disableExtension', "Disable an extension."),
 	'--inspect-extensions': localize('inspect-extensions', "Allow debugging and profiling of extensions. Check the developer tools for the connection URI."),
 	'--inspect-brk-extensions': localize('inspect-brk-extensions', "Allow debugging and profiling of extensions with the extension host being paused after start. Check the developer tools for the connection URI."),
 	'--disable-gpu': localize('disableGPU', "Disable GPU hardware acceleration."),
@@ -229,4 +237,31 @@ ${formatOptions(extensionsHelp, columns)}
 
 ${ localize('troubleshooting', "Troubleshooting")}:
 ${formatOptions(troubleshootingHelp, columns)}`;
+}
+
+/**
+ * Converts an argument into an array
+ * @param arg a argument value. Can be undefined, an entry or an array
+ */
+export function asArray(arg: string | string[] | undefined): string[] {
+	if (arg) {
+		if (Array.isArray(arg)) {
+			return arg;
+		}
+		return [arg];
+	}
+	return [];
+}
+
+/**
+ * Returns whether an argument is present.
+ */
+export function hasArgs(arg: string | string[] | undefined): boolean {
+	if (arg) {
+		if (Array.isArray(arg)) {
+			return !!arg.length;
+		}
+		return true;
+	}
+	return false;
 }

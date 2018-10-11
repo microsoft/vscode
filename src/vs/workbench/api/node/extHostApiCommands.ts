@@ -2,10 +2,8 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
-import URI from 'vs/base/common/uri';
-import { TPromise } from 'vs/base/common/winjs.base';
+import { URI } from 'vs/base/common/uri';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import * as vscode from 'vscode';
 import * as typeConverters from 'vs/workbench/api/node/extHostTypeConverters';
@@ -112,7 +110,7 @@ export class ExtHostApiCommands {
 			args: [
 				{ name: 'uri', description: 'Uri of a text document', constraint: URI }
 			],
-			returns: 'A promise that resolves to an array of SymbolInformation-instances.'
+			returns: 'A promise that resolves to an array of SymbolInformation and DocumentSymbol instances.'
 		});
 		this._register('vscode.executeCompletionItemProvider', this._executeCompletionItemProvider, {
 			description: 'Execute completion item provider.',
@@ -253,7 +251,7 @@ export class ExtHostApiCommands {
 		});
 
 		this._register(SetEditorLayoutAPICommand.ID, adjustHandler(SetEditorLayoutAPICommand.execute), {
-			description: 'Sets the editor layout. The layout is described as object with an initial (optional) orientation (0 = horizontal, 1 = vertical) and an array of editor groups within. Each editor group can have a size and another array of editor groups that will be layed out orthogonal to the orientation. If editor group sizes are provided, their sum must be 1 to be applied per row or column. Example for a 2x2 grid: `{ orientation: 0, groups: [{ groups: [{}, {}], size: 0.5 }, { groups: [{}, {}], size: 0.5 }] }`',
+			description: 'Sets the editor layout. The layout is described as object with an initial (optional) orientation (0 = horizontal, 1 = vertical) and an array of editor groups within. Each editor group can have a size and another array of editor groups that will be laid out orthogonal to the orientation. If editor group sizes are provided, their sum must be 1 to be applied per row or column. Example for a 2x2 grid: `{ orientation: 0, groups: [{ groups: [{}, {}], size: 0.5 }, { groups: [{}, {}], size: 0.5 }] }`',
 			args: [
 				{ name: 'layout', description: 'The editor layout to set.', constraint: (value: EditorGroupLayout) => typeof value === 'object' && Array.isArray(value.groups) }
 			]
@@ -350,7 +348,7 @@ export class ExtHostApiCommands {
 				return undefined;
 			}
 			if (value.rejectReason) {
-				return TPromise.wrapError<types.WorkspaceEdit>(new Error(value.rejectReason));
+				return Promise.reject(new Error(value.rejectReason));
 			}
 			return typeConverters.WorkspaceEdit.to(value);
 		});
@@ -377,9 +375,9 @@ export class ExtHostApiCommands {
 			triggerCharacter,
 			maxItemsToResolve
 		};
-		return this._commands.executeCommand<modes.ISuggestResult>('_executeCompletionItemProvider', args).then(result => {
+		return this._commands.executeCommand<modes.CompletionList>('_executeCompletionItemProvider', args).then(result => {
 			if (result) {
-				const items = result.suggestions.map(suggestion => typeConverters.Suggest.to(position, suggestion));
+				const items = result.suggestions.map(suggestion => typeConverters.Suggest.to(suggestion));
 				return new types.CompletionList(items, result.incomplete);
 			}
 			return undefined;
@@ -420,16 +418,27 @@ export class ExtHostApiCommands {
 			if (isFalsyOrEmpty(value)) {
 				return undefined;
 			}
-			let result: vscode.SymbolInformation[] = [];
-			for (const symbol of value) {
-				result.push(new types.SymbolInformation(
-					symbol.name,
-					typeConverters.SymbolKind.to(symbol.kind),
-					symbol.containerName,
-					new types.Location(resource, typeConverters.Range.to(symbol.range))
-				));
+			class MergedInfo extends types.SymbolInformation implements vscode.DocumentSymbol {
+				static to(symbol: modes.DocumentSymbol): MergedInfo {
+					let res = new MergedInfo(
+						symbol.name,
+						typeConverters.SymbolKind.to(symbol.kind),
+						symbol.containerName,
+						new types.Location(resource, typeConverters.Range.to(symbol.range))
+					);
+					res.detail = symbol.detail;
+					res.range = res.location.range;
+					res.selectionRange = typeConverters.Range.to(symbol.selectionRange);
+					res.children = symbol.children && symbol.children.map(MergedInfo.to);
+					return res;
+				}
+
+				detail: string;
+				range: vscode.Range;
+				selectionRange: vscode.Range;
+				children: vscode.DocumentSymbol[];
 			}
-			return result;
+			return value.map(MergedInfo.to);
 		});
 	}
 

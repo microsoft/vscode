@@ -2,9 +2,7 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
-import { TPromise } from 'vs/base/common/winjs.base';
 import { IEditorAction } from 'vs/editor/common/editorCommon';
 import { IContextKeyService, ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 
@@ -15,7 +13,7 @@ export class InternalEditorAction implements IEditorAction {
 	public readonly alias: string;
 
 	private readonly _precondition: ContextKeyExpr;
-	private readonly _run: () => void | TPromise<void>;
+	private readonly _run: () => Promise<void>;
 	private readonly _contextKeyService: IContextKeyService;
 
 	constructor(
@@ -23,7 +21,7 @@ export class InternalEditorAction implements IEditorAction {
 		label: string,
 		alias: string,
 		precondition: ContextKeyExpr,
-		run: () => void,
+		run: () => Promise<void>,
 		contextKeyService: IContextKeyService
 	) {
 		this.id = id;
@@ -38,12 +36,12 @@ export class InternalEditorAction implements IEditorAction {
 		return this._contextKeyService.contextMatchesRules(this._precondition);
 	}
 
-	public run(): TPromise<void> {
+	public run(): Promise<void> {
 		if (!this.isSupported()) {
-			return TPromise.as(void 0);
+			return Promise.resolve(void 0);
 		}
 
 		const r = this._run();
-		return r ? r : TPromise.as(void 0);
+		return r ? r : Promise.resolve(void 0);
 	}
 }

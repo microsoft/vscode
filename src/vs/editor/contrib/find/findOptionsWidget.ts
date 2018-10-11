@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import * as dom from 'vs/base/browser/dom';
 import { Widget } from 'vs/base/browser/ui/widget';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
@@ -190,17 +188,17 @@ export class FindOptionsWidget extends Widget implements IOverlayWidget {
 
 
 registerThemingParticipant((theme, collector) => {
-	let widgetBackground = theme.getColor(editorWidgetBackground);
+	const widgetBackground = theme.getColor(editorWidgetBackground);
 	if (widgetBackground) {
 		collector.addRule(`.monaco-editor .findOptionsWidget { background-color: ${widgetBackground}; }`);
 	}
 
-	let widgetShadowColor = theme.getColor(widgetShadow);
+	const widgetShadowColor = theme.getColor(widgetShadow);
 	if (widgetShadowColor) {
 		collector.addRule(`.monaco-editor .findOptionsWidget { box-shadow: 0 2px 8px ${widgetShadowColor}; }`);
 	}
 
-	let hcBorder = theme.getColor(contrastBorder);
+	const hcBorder = theme.getColor(contrastBorder);
 	if (hcBorder) {
 		collector.addRule(`.monaco-editor .findOptionsWidget { border: 2px solid ${hcBorder}; }`);
 	}

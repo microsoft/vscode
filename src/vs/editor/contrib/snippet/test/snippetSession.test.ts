@@ -2,17 +2,15 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
-
 import * as assert from 'assert';
-import { Selection } from 'vs/editor/common/core/selection';
-import { Range } from 'vs/editor/common/core/range';
+import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { IPosition, Position } from 'vs/editor/common/core/position';
+import { Range } from 'vs/editor/common/core/range';
+import { Selection } from 'vs/editor/common/core/selection';
+import { TextModel } from 'vs/editor/common/model/textModel';
+import { SnippetParser } from 'vs/editor/contrib/snippet/snippetParser';
 import { SnippetSession } from 'vs/editor/contrib/snippet/snippetSession';
 import { createTestCodeEditor } from 'vs/editor/test/browser/testCodeEditor';
-import { TextModel } from 'vs/editor/common/model/textModel';
-import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { SnippetParser } from 'vs/editor/contrib/snippet/snippetParser';
 
 suite('SnippetSession', function () {
 
@@ -43,7 +41,7 @@ suite('SnippetSession', function () {
 
 		function assertNormalized(position: IPosition, input: string, expected: string): void {
 			const snippet = new SnippetParser().parse(input);
-			SnippetSession.adjustWhitespace2(model, position, snippet);
+			SnippetSession.adjustWhitespace(model, position, snippet);
 			assert.equal(snippet.toTextmateString(), expected);
 		}
 
@@ -123,6 +121,14 @@ suite('SnippetSession', function () {
 
 		session.next();
 		assertSelections(editor, new Selection(3, 1, 3, 1), new Selection(6, 5, 6, 5));
+	});
+
+	test('snippets, newline NO whitespace adjust', () => {
+
+		editor.setSelection(new Selection(2, 5, 2, 5));
+		const session = new SnippetSession(editor, 'abc\n    foo\n        bar\n$0', 0, 0, false);
+		session.insert();
+		assert.equal(editor.getModel().getValue(), 'function foo() {\n    abc\n    foo\n        bar\nconsole.log(a);\n}');
 	});
 
 	test('snippets, selections -> next/prev', () => {

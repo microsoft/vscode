@@ -2,7 +2,6 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
 import * as Types from 'vs/base/common/types';
 import { IJSONSchemaMap } from 'vs/base/common/jsonSchema';
@@ -12,6 +11,9 @@ import { UriComponents } from 'vs/base/common/uri';
 import { IExtensionDescription } from 'vs/workbench/services/extensions/common/extensions';
 import { ProblemMatcher } from 'vs/workbench/parts/tasks/common/problemMatcher';
 import { IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
+import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
+
+export const TASK_RUNNING_STATE = new RawContextKey<boolean>('taskRunning', false);
 
 export enum ShellQuoting {
 	/**
@@ -294,7 +296,7 @@ export namespace TaskGroup {
 export type TaskGroup = 'clean' | 'build' | 'rebuild' | 'test';
 
 
-export enum TaskScope {
+export const enum TaskScope {
 	Global = 1,
 	Workspace = 2,
 	Folder = 3
@@ -354,7 +356,7 @@ export interface TaskDependency {
 	task: string | KeyedTaskIdentifier;
 }
 
-export enum GroupType {
+export const enum GroupType {
 	default = 'default',
 	user = 'user'
 }
@@ -671,7 +673,7 @@ export namespace ExecutionEngine {
 	export const _default: ExecutionEngine = ExecutionEngine.Terminal;
 }
 
-export enum JsonSchemaVersion {
+export const enum JsonSchemaVersion {
 	V0_1_0 = 1,
 	V2_0_0 = 2
 }
@@ -721,7 +723,7 @@ export class TaskSorter {
 	}
 }
 
-export enum TaskEventKind {
+export const enum TaskEventKind {
 	Start = 'start',
 	ProcessStarted = 'processStarted',
 	Active = 'active',
@@ -733,7 +735,7 @@ export enum TaskEventKind {
 }
 
 
-export enum TaskRunType {
+export const enum TaskRunType {
 	SingleRun = 'singleRun',
 	Background = 'background'
 }

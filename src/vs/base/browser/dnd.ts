@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import { Disposable } from 'vs/base/common/lifecycle';
 import { addDisposableListener } from 'vs/base/browser/dom';
 
@@ -13,7 +11,7 @@ import { addDisposableListener } from 'vs/base/browser/dom';
  *  dragover event for 800ms. If the drag is aborted before, the callback will not be triggered.
  */
 export class DelayedDragHandler extends Disposable {
-	private timeout: number;
+	private timeout: any;
 
 	constructor(container: HTMLElement, callback: () => void) {
 		super();

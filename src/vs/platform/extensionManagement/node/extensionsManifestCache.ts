@@ -2,7 +2,6 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
 import { Disposable } from 'vs/base/common/lifecycle';
 import { join } from 'path';
@@ -37,6 +36,6 @@ export class ExtensionsManifestCache extends Disposable {
 	}
 
 	invalidate(): void {
-		pfs.del(this.extensionsManifestCache).done(() => { }, () => { });
+		pfs.del(this.extensionsManifestCache).then(() => { }, () => { });
 	}
 }

@@ -3,12 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import fs = require('fs');
-import ts = require('typescript');
-import path = require('path');
+import * as fs from 'fs';
+import * as ts from 'typescript';
+import * as path from 'path';
+import * as util from 'gulp-util';
+
 const tsfmt = require('../../tsfmt.json');
 
-var util = require('gulp-util');
 function log(message: any, ...rest: any[]): void {
 	util.log(util.colors.cyan('[monaco.d.ts]'), message, ...rest);
 }
@@ -32,7 +33,7 @@ function moduleIdToPath(out: string, moduleId: string): string {
 }
 
 let SOURCE_FILE_MAP: { [moduleId: string]: ts.SourceFile; } = {};
-function getSourceFile(out: string, inputFiles: { [file: string]: string; }, moduleId: string): ts.SourceFile {
+function getSourceFile(out: string, inputFiles: { [file: string]: string; }, moduleId: string): ts.SourceFile | null {
 	if (!SOURCE_FILE_MAP[moduleId]) {
 		let filePath = path.normalize(moduleIdToPath(out, moduleId));
 
@@ -83,13 +84,6 @@ function visitTopLevelDeclarations(sourceFile: ts.SourceFile, visitor: (node: TS
 				stop = visitor(<TSTopLevelDeclare>node);
 		}
 
-		// if (node.kind !== ts.SyntaxKind.SourceFile) {
-		// 	if (getNodeText(sourceFile, node).indexOf('SymbolKind') >= 0) {
-		// 		console.log('FOUND TEXT IN NODE: ' + ts.SyntaxKind[node.kind]);
-		// 		console.log(getNodeText(sourceFile, node));
-		// 	}
-		// }
-
 		if (stop) {
 			return;
 		}
@@ -109,10 +103,6 @@ function getAllTopLevelDeclarations(sourceFile: ts.SourceFile): TSTopLevelDeclar
 			let triviaEnd = interfaceDeclaration.name.pos;
 			let triviaText = getNodeText(sourceFile, { pos: triviaStart, end: triviaEnd });
 
-			// // let nodeText = getNodeText(sourceFile, node);
-			// if (getNodeText(sourceFile, node).indexOf('SymbolKind') >= 0) {
-			// 	console.log('TRIVIA: ', triviaText);
-			// }
 			if (triviaText.indexOf('@internal') === -1) {
 				all.push(node);
 			}
@@ -128,10 +118,10 @@ function getAllTopLevelDeclarations(sourceFile: ts.SourceFile): TSTopLevelDeclar
 }
 
 
-function getTopLevelDeclaration(sourceFile: ts.SourceFile, typeName: string): TSTopLevelDeclare {
-	let result: TSTopLevelDeclare = null;
+function getTopLevelDeclaration(sourceFile: ts.SourceFile, typeName: string): TSTopLevelDeclare | null {
+	let result: TSTopLevelDeclare | null = null;
 	visitTopLevelDeclarations(sourceFile, (node) => {
-		if (isDeclaration(node)) {
+		if (isDeclaration(node) && node.name) {
 			if (node.name.text === typeName) {
 				result = node;
 				return true /*stop*/;
@@ -153,24 +143,63 @@ function getNodeText(sourceFile: ts.SourceFile, node: { pos: number; end: number
 	return sourceFile.getFullText().substring(node.pos, node.end);
 }
 
+function hasModifier(modifiers: ts.NodeArray<ts.Modifier> | undefined, kind: ts.SyntaxKind): boolean {
+	if (modifiers) {
+		for (let i = 0; i < modifiers.length; i++) {
+			let mod = modifiers[i];
+			if (mod.kind === kind) {
+				return true;
+			}
+		}
+	}
+	return false;
+}
 
-function getMassagedTopLevelDeclarationText(sourceFile: ts.SourceFile, declaration: TSTopLevelDeclare): string {
+function isStatic(member: ts.ClassElement | ts.TypeElement): boolean {
+	return hasModifier(member.modifiers, ts.SyntaxKind.StaticKeyword);
+}
+
+function isDefaultExport(declaration: ts.InterfaceDeclaration | ts.ClassDeclaration): boolean {
+	return (
+		hasModifier(declaration.modifiers, ts.SyntaxKind.DefaultKeyword)
+		&& hasModifier(declaration.modifiers, ts.SyntaxKind.ExportKeyword)
+	);
+}
+
+function getMassagedTopLevelDeclarationText(sourceFile: ts.SourceFile, declaration: TSTopLevelDeclare, importName: string, usage: string[]): string {
 	let result = getNodeText(sourceFile, declaration);
-	// if (result.indexOf('MonacoWorker') >= 0) {
-	// 	console.log('here!');
-	// 	// console.log(ts.SyntaxKind[declaration.kind]);
-	// }
 	if (declaration.kind === ts.SyntaxKind.InterfaceDeclaration || declaration.kind === ts.SyntaxKind.ClassDeclaration) {
 		let interfaceDeclaration = <ts.InterfaceDeclaration | ts.ClassDeclaration>declaration;
 
-		let members: ts.NodeArray<ts.Node> = interfaceDeclaration.members;
+		const staticTypeName = (
+			isDefaultExport(interfaceDeclaration)
+				? `${importName}.default`
+				: `${importName}.${declaration.name!.text}`
+		);
+
+		let instanceTypeName = staticTypeName;
+		const typeParametersCnt = (interfaceDeclaration.typeParameters ? interfaceDeclaration.typeParameters.length : 0);
+		if (typeParametersCnt > 0) {
+			let arr: string[] = [];
+			for (let i = 0; i < typeParametersCnt; i++) {
+				arr.push('any');
+			}
+			instanceTypeName = `${instanceTypeName}<${arr.join(',')}>`;
+		}
+
+		const members: ts.NodeArray<ts.ClassElement | ts.TypeElement> = interfaceDeclaration.members;
 		members.forEach((member) => {
 			try {
 				let memberText = getNodeText(sourceFile, member);
 				if (memberText.indexOf('@internal') >= 0 || memberText.indexOf('private') >= 0) {
-					// console.log('BEFORE: ', result);
 					result = result.replace(memberText, '');
-					// console.log('AFTER: ', result);
+				} else {
+					const memberName = (<ts.Identifier | ts.StringLiteral>member.name).text;
+					if (isStatic(member)) {
+						usage.push(`a = ${staticTypeName}.${memberName};`);
+					} else {
+						usage.push(`a = (<${instanceTypeName}>b).${memberName};`);
+					}
 				}
 			} catch (err) {
 				// life..
@@ -237,11 +266,24 @@ function createReplacer(data: string): (str: string) => string {
 	};
 }
 
-function generateDeclarationFile(out: string, inputFiles: { [file: string]: string; }, recipe: string): string {
+function generateDeclarationFile(out: string, inputFiles: { [file: string]: string; }, recipe: string): [string, string] {
 	const endl = /\r\n/.test(recipe) ? '\r\n' : '\n';
 
 	let lines = recipe.split(endl);
-	let result = [];
+	let result: string[] = [];
+
+	let usageCounter = 0;
+	let usageImports: string[] = [];
+	let usage: string[] = [];
+
+	usage.push(`var a;`);
+	usage.push(`var b;`);
+
+	const generateUsageImport = (moduleId: string) => {
+		let importName = 'm' + (++usageCounter);
+		usageImports.push(`import * as ${importName} from './${moduleId.replace(/\.d\.ts$/, '')}';`);
+		return importName;
+	};
 
 	lines.forEach(line => {
 
@@ -249,10 +291,12 @@ function generateDeclarationFile(out: string, inputFiles: { [file: string]: stri
 		if (m1) {
 			CURRENT_PROCESSING_RULE = line;
 			let moduleId = m1[1];
-			let sourceFile = getSourceFile(out, inputFiles, moduleId);
+			const sourceFile = getSourceFile(out, inputFiles, moduleId);
 			if (!sourceFile) {
 				return;
 			}
+
+			const importName = generateUsageImport(moduleId);
 
 			let replacer = createReplacer(m1[2]);
 
@@ -267,7 +311,7 @@ function generateDeclarationFile(out: string, inputFiles: { [file: string]: stri
 					logErr('Cannot find type ' + typeName);
 					return;
 				}
-				result.push(replacer(getMassagedTopLevelDeclarationText(sourceFile, declaration)));
+				result.push(replacer(getMassagedTopLevelDeclarationText(sourceFile, declaration, importName, usage)));
 			});
 			return;
 		}
@@ -276,10 +320,12 @@ function generateDeclarationFile(out: string, inputFiles: { [file: string]: stri
 		if (m2) {
 			CURRENT_PROCESSING_RULE = line;
 			let moduleId = m2[1];
-			let sourceFile = getSourceFile(out, inputFiles, moduleId);
+			const sourceFile = getSourceFile(out, inputFiles, moduleId);
 			if (!sourceFile) {
 				return;
 			}
+
+			const importName = generateUsageImport(moduleId);
 
 			let replacer = createReplacer(m2[2]);
 
@@ -296,7 +342,7 @@ function generateDeclarationFile(out: string, inputFiles: { [file: string]: stri
 			});
 
 			getAllTopLevelDeclarations(sourceFile).forEach((declaration) => {
-				if (isDeclaration(declaration)) {
+				if (isDeclaration(declaration) && declaration.name) {
 					if (typesToExcludeMap[declaration.name.text]) {
 						return;
 					}
@@ -309,7 +355,7 @@ function generateDeclarationFile(out: string, inputFiles: { [file: string]: stri
 						}
 					}
 				}
-				result.push(replacer(getMassagedTopLevelDeclarationText(sourceFile, declaration)));
+				result.push(replacer(getMassagedTopLevelDeclarationText(sourceFile, declaration, importName, usage)));
 			});
 			return;
 		}
@@ -320,31 +366,33 @@ function generateDeclarationFile(out: string, inputFiles: { [file: string]: stri
 	let resultTxt = result.join(endl);
 	resultTxt = resultTxt.replace(/\bURI\b/g, 'Uri');
 	resultTxt = resultTxt.replace(/\bEvent</g, 'IEvent<');
-	resultTxt = resultTxt.replace(/\bTPromise</g, 'Promise<');
 
 	resultTxt = format(resultTxt);
 
-	return resultTxt;
+	return [
+		resultTxt,
+		`${usageImports.join('\n')}\n\n${usage.join('\n')}`
+	];
 }
 
-export function getFilesToWatch(out: string): string[] {
+function getIncludesInRecipe(): string[] {
 	let recipe = fs.readFileSync(RECIPE_PATH).toString();
 	let lines = recipe.split(/\r\n|\n|\r/);
-	let result = [];
+	let result: string[] = [];
 
 	lines.forEach(line => {
 
 		let m1 = line.match(/^\s*#include\(([^;)]*)(;[^)]*)?\)\:(.*)$/);
 		if (m1) {
 			let moduleId = m1[1];
-			result.push(moduleIdToPath(out, moduleId));
+			result.push(moduleId);
 			return;
 		}
 
 		let m2 = line.match(/^\s*#includeAll\(([^;)]*)(;[^)]*)?\)\:(.*)$/);
 		if (m2) {
 			let moduleId = m2[1];
-			result.push(moduleIdToPath(out, moduleId));
+			result.push(moduleId);
 			return;
 		}
 	});
@@ -352,8 +400,13 @@ export function getFilesToWatch(out: string): string[] {
 	return result;
 }
 
+export function getFilesToWatch(out: string): string[] {
+	return getIncludesInRecipe().map((moduleId) => moduleIdToPath(out, moduleId));
+}
+
 export interface IMonacoDeclarationResult {
 	content: string;
+	usageContent: string;
 	filePath: string;
 	isTheSame: boolean;
 }
@@ -363,7 +416,7 @@ export function run(out: string, inputFiles: { [file: string]: string; }): IMona
 	SOURCE_FILE_MAP = {};
 
 	let recipe = fs.readFileSync(RECIPE_PATH).toString();
-	let result = generateDeclarationFile(out, inputFiles, recipe);
+	let [result, usageContent] = generateDeclarationFile(out, inputFiles, recipe);
 
 	let currentContent = fs.readFileSync(DECLARATION_PATH).toString();
 	log('Finished monaco.d.ts generation');
@@ -374,6 +427,7 @@ export function run(out: string, inputFiles: { [file: string]: string; }): IMona
 
 	return {
 		content: result,
+		usageContent: usageContent,
 		filePath: DECLARATION_PATH,
 		isTheSame
 	};
@@ -381,4 +435,91 @@ export function run(out: string, inputFiles: { [file: string]: string; }): IMona
 
 export function complainErrors() {
 	logErr('Not running monaco.d.ts generation due to compile errors');
+}
+
+
+
+interface ILibMap { [libName: string]: string; }
+interface IFileMap { [fileName: string]: string; }
+
+class TypeScriptLanguageServiceHost implements ts.LanguageServiceHost {
+
+	private readonly _libs: ILibMap;
+	private readonly _files: IFileMap;
+	private readonly _compilerOptions: ts.CompilerOptions;
+
+	constructor(libs: ILibMap, files: IFileMap, compilerOptions: ts.CompilerOptions) {
+		this._libs = libs;
+		this._files = files;
+		this._compilerOptions = compilerOptions;
+	}
+
+	// --- language service host ---------------
+
+	getCompilationSettings(): ts.CompilerOptions {
+		return this._compilerOptions;
+	}
+	getScriptFileNames(): string[] {
+		return (
+			([] as string[])
+				.concat(Object.keys(this._libs))
+				.concat(Object.keys(this._files))
+		);
+	}
+	getScriptVersion(_fileName: string): string {
+		return '1';
+	}
+	getProjectVersion(): string {
+		return '1';
+	}
+	getScriptSnapshot(fileName: string): ts.IScriptSnapshot {
+		if (this._files.hasOwnProperty(fileName)) {
+			return ts.ScriptSnapshot.fromString(this._files[fileName]);
+		} else if (this._libs.hasOwnProperty(fileName)) {
+			return ts.ScriptSnapshot.fromString(this._libs[fileName]);
+		} else {
+			return ts.ScriptSnapshot.fromString('');
+		}
+	}
+	getScriptKind(_fileName: string): ts.ScriptKind {
+		return ts.ScriptKind.TS;
+	}
+	getCurrentDirectory(): string {
+		return '';
+	}
+	getDefaultLibFileName(_options: ts.CompilerOptions): string {
+		return 'defaultLib:es5';
+	}
+	isDefaultLibFileName(fileName: string): boolean {
+		return fileName === this.getDefaultLibFileName(this._compilerOptions);
+	}
+}
+
+export function execute(): IMonacoDeclarationResult {
+
+	const OUTPUT_FILES: { [file: string]: string; } = {};
+	const SRC_FILES: IFileMap = {};
+	const SRC_FILE_TO_EXPECTED_NAME: { [filename: string]: string; } = {};
+	getIncludesInRecipe().forEach((moduleId) => {
+		if (/\.d\.ts$/.test(moduleId)) {
+			let fileName = path.join(SRC, moduleId);
+			OUTPUT_FILES[moduleIdToPath('src', moduleId)] = fs.readFileSync(fileName).toString();
+			return;
+		}
+
+		let fileName = path.join(SRC, moduleId) + '.ts';
+		SRC_FILES[fileName] = fs.readFileSync(fileName).toString();
+		SRC_FILE_TO_EXPECTED_NAME[fileName] = moduleIdToPath('src', moduleId);
+	});
+
+	const languageService = ts.createLanguageService(new TypeScriptLanguageServiceHost({}, SRC_FILES, {}));
+
+	var t1 = Date.now();
+	Object.keys(SRC_FILES).forEach((fileName) => {
+		const emitOutput = languageService.getEmitOutput(fileName, true);
+		OUTPUT_FILES[SRC_FILE_TO_EXPECTED_NAME[fileName]] = emitOutput.outputFiles[0].text;
+	});
+	console.log(`Generating .d.ts took ${Date.now() - t1} ms`);
+
+	return run('src', OUTPUT_FILES);
 }

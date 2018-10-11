@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import 'vs/css!./iPadShowKeyboard';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import * as browser from 'vs/base/browser/browser';

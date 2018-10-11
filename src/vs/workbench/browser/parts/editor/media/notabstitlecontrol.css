@@ -3,6 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+.monaco-workbench > .part.editor > .content .editor-group-container > .title > .label-container {
+	display: flex;
+	justify-content: flex-start;
+	align-items: center;
+	overflow: hidden;
+	flex: auto;
+}
+
 /* Title Label */
 
 .monaco-workbench > .part.editor > .content .editor-group-container > .title .title-label {
@@ -13,8 +21,57 @@
 	padding-left: 20px;
 }
 
+.monaco-workbench > .part.editor > .content .editor-group-container > .title.breadcrumbs .no-tabs.title-label {
+	flex: none;
+}
+
 .monaco-workbench > .part.editor > .content .editor-group-container > .title .monaco-icon-label::before {
 	height: 35px; /* tweak the icon size of the editor labels when icons are enabled */
+}
+
+/* Breadcrumbs */
+
+.monaco-workbench > .part.editor > .content .editor-group-container > .title.breadcrumbs .breadcrumbs-control {
+	flex: 1 50%;
+	overflow: hidden;
+	margin-left: .45em;
+}
+
+.monaco-workbench > .part.editor > .content .editor-group-container > .title.breadcrumbs .breadcrumbs-control .monaco-breadcrumb-item {
+	font-size: 0.9em;
+}
+
+.monaco-workbench > .part.editor > .content .editor-group-container > .title.breadcrumbs .breadcrumbs-control.preview .monaco-breadcrumb-item {
+	font-style: italic;
+}
+
+.monaco-workbench > .part.editor > .content .editor-group-container > .title.breadcrumbs .breadcrumbs-control .monaco-breadcrumb-item::before {
+	content: '/';
+	opacity: 1;
+	height: inherit;
+	width: inherit;
+	background-image: none;
+}
+
+.monaco-workbench.windows > .part.editor > .content .editor-group-container > .title.breadcrumbs .breadcrumbs-control .monaco-breadcrumb-item::before  {
+	content: '\\';
+}
+
+.monaco-workbench > .part.editor > .content .editor-group-container > .title.breadcrumbs .breadcrumbs-control .monaco-breadcrumb-item.root_folder::before,
+.monaco-workbench > .part.editor > .content .editor-group-container > .title.breadcrumbs .breadcrumbs-control .monaco-breadcrumb-item.root_folder + .monaco-breadcrumb-item::before,
+.monaco-workbench > .part.editor > .content .editor-group-container > .title.breadcrumbs .breadcrumbs-control.relative-path .monaco-breadcrumb-item:nth-child(2)::before {
+	/* workspace folder, item following workspace folder, or relative path -> hide first seperator */
+	display: none;
+}
+
+.monaco-workbench > .part.editor > .content .editor-group-container > .title.breadcrumbs .breadcrumbs-control .monaco-breadcrumb-item.root_folder::after {
+	/* use dot separator for workspace folder */
+	content: '\00a0•\00a0';
+	padding: 0px;
+}
+
+.monaco-workbench > .part.editor > .content .editor-group-container > .title.breadcrumbs .breadcrumbs-control .monaco-breadcrumb-item:last-child {
+	padding-right: 4px; /* does not have trailing separator*/
 }
 
 /* Title Actions */
@@ -22,6 +79,7 @@
 	display: flex;
 	flex: initial;
 	opacity: 0.5;
+	height: 35px;
 }
 
 .monaco-workbench > .part.editor > .content .editor-group-container.active > .title .title-actions {

@@ -2,7 +2,6 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
 import 'vs/css!./viewLines';
 import { RunOnceScheduler } from 'vs/base/common/async';
@@ -412,7 +411,7 @@ export class ViewLines extends ViewPart implements IVisibleLinesHost<ViewLine>, 
 		return visibleRanges;
 	}
 
-	public visibleRangesForRange2(range: Range): HorizontalRange[] {
+	private visibleRangesForRange2(range: Range): HorizontalRange[] {
 
 		if (this.shouldRender()) {
 			// Cannot read from the DOM because it is dirty
@@ -452,6 +451,14 @@ export class ViewLines extends ViewPart implements IVisibleLinesHost<ViewLine>, 
 		}
 
 		return result;
+	}
+
+	public visibleRangeForPosition(position: Position): HorizontalRange {
+		const visibleRanges = this.visibleRangesForRange2(new Range(position.lineNumber, position.column, position.lineNumber, position.column));
+		if (!visibleRanges) {
+			return null;
+		}
+		return visibleRanges[0];
 	}
 
 	// --- implementation

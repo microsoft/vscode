@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import 'vs/css!./bracketMatching';
 import * as nls from 'vs/nls';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
@@ -22,6 +20,7 @@ import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { registerColor } from 'vs/platform/theme/common/colorRegistry';
 import { TrackedRangeStickiness, IModelDeltaDecoration, OverviewRulerLane } from 'vs/editor/common/model';
+import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 
 const overviewRulerBracketMatchForeground = registerColor('editorOverviewRuler.bracketMatchForeground', { dark: '#A0A0A0', light: '#A0A0A0', hc: '#A0A0A0' }, nls.localize('overviewRulerBracketMatchForeground', 'Overview ruler marker color for matching brackets.'));
 
@@ -34,7 +33,8 @@ class JumpToBracketAction extends EditorAction {
 			precondition: null,
 			kbOpts: {
 				kbExpr: EditorContextKeys.editorTextFocus,
-				primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.US_BACKSLASH
+				primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.US_BACKSLASH,
+				weight: KeybindingWeight.EditorContrib
 			}
 		});
 	}
@@ -116,7 +116,14 @@ export class BracketMatchingController extends Disposable implements editorCommo
 
 			this._updateBracketsSoon.schedule();
 		}));
-		this._register(editor.onDidChangeModel((e) => { this._decorations = []; this._updateBracketsSoon.schedule(); }));
+		this._register(editor.onDidChangeModelContent((e) => {
+			this._updateBracketsSoon.schedule();
+		}));
+		this._register(editor.onDidChangeModel((e) => {
+			this._lastBracketsData = [];
+			this._decorations = [];
+			this._updateBracketsSoon.schedule();
+		}));
 		this._register(editor.onDidChangeModelLanguageConfiguration((e) => {
 			this._lastBracketsData = [];
 			this._updateBracketsSoon.schedule();
@@ -226,7 +233,6 @@ export class BracketMatchingController extends Disposable implements editorCommo
 		className: 'bracket-match',
 		overviewRuler: {
 			color: themeColorFromId(overviewRulerBracketMatchForeground),
-			darkColor: themeColorFromId(overviewRulerBracketMatchForeground),
 			position: OverviewRulerLane.Center
 		}
 	});
@@ -308,11 +314,11 @@ registerEditorContribution(BracketMatchingController);
 registerEditorAction(SelectToBracketAction);
 registerEditorAction(JumpToBracketAction);
 registerThemingParticipant((theme, collector) => {
-	let bracketMatchBackground = theme.getColor(editorBracketMatchBackground);
+	const bracketMatchBackground = theme.getColor(editorBracketMatchBackground);
 	if (bracketMatchBackground) {
 		collector.addRule(`.monaco-editor .bracket-match { background-color: ${bracketMatchBackground}; }`);
 	}
-	let bracketMatchBorder = theme.getColor(editorBracketMatchBorder);
+	const bracketMatchBorder = theme.getColor(editorBracketMatchBorder);
 	if (bracketMatchBorder) {
 		collector.addRule(`.monaco-editor .bracket-match { border: 1px solid ${bracketMatchBorder}; }`);
 	}

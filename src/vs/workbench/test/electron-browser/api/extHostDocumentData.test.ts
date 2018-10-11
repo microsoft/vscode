@@ -3,15 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import * as assert from 'assert';
-import URI from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 import { ExtHostDocumentData } from 'vs/workbench/api/node/extHostDocumentData';
 import { Position } from 'vs/workbench/api/node/extHostTypes';
 import { Range } from 'vs/editor/common/core/range';
 import { MainThreadDocumentsShape } from 'vs/workbench/api/node/extHost.protocol';
-import { TPromise } from 'vs/base/common/winjs.base';
 import { IModelChangedEvent } from 'vs/editor/common/model/mirrorTextModel';
 import { mock } from 'vs/workbench/test/electron-browser/api/mock';
 
@@ -41,7 +38,7 @@ suite('ExtHostDocumentData', () => {
 		], '\n', 'text', 1, false);
 	});
 
-	test('readonly-ness', function () {
+	test('readonly-ness', () => {
 		assert.throws((): void => (data as any).document.uri = null);
 		assert.throws(() => (data as any).document.fileName = 'foofile');
 		assert.throws(() => (data as any).document.isDirty = false);
@@ -56,7 +53,7 @@ suite('ExtHostDocumentData', () => {
 			$trySaveDocument(uri: URI) {
 				assert.ok(!saved);
 				saved = uri;
-				return TPromise.as(true);
+				return Promise.resolve(true);
 			}
 		}, URI.parse('foo:bar'), [], '\n', 'text', 1, true);
 
@@ -81,7 +78,7 @@ suite('ExtHostDocumentData', () => {
 		assert.equal(document.lineAt(0).text, 'This is line one');
 	});
 
-	test('lines', function () {
+	test('lines', () => {
 
 		assert.equal(data.document.lineCount, 4);
 
@@ -138,7 +135,7 @@ suite('ExtHostDocumentData', () => {
 
 	});
 
-	test('offsetAt', function () {
+	test('offsetAt', () => {
 		assertOffsetAt(0, 0, 0);
 		assertOffsetAt(0, 1, 1);
 		assertOffsetAt(0, 16, 16);
@@ -228,7 +225,7 @@ suite('ExtHostDocumentData', () => {
 		assertOffsetAt(1, 0, 25);
 	});
 
-	test('positionAt', function () {
+	test('positionAt', () => {
 		assertPositionAt(0, 0, 0);
 		assertPositionAt(Number.MIN_VALUE, 0, 0);
 		assertPositionAt(1, 0, 1);
@@ -242,7 +239,7 @@ suite('ExtHostDocumentData', () => {
 		assertPositionAt(Number.MAX_VALUE, 3, 29);
 	});
 
-	test('getWordRangeAtPosition', function () {
+	test('getWordRangeAtPosition', () => {
 		data = new ExtHostDocumentData(undefined, URI.file(''), [
 			'aaaa bbbb+cccc abc'
 		], '\n', 'text', 1, false);

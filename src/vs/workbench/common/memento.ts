@@ -2,7 +2,6 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
 import * as types from 'vs/base/common/types';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
@@ -10,7 +9,7 @@ import { IStorageService, StorageScope } from 'vs/platform/storage/common/storag
 /**
  * Supported memento scopes.
  */
-export enum Scope {
+export const enum Scope {
 
 	/**
 	 * The memento will be scoped to all workspaces of this domain.

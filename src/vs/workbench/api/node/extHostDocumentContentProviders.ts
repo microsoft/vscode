@@ -2,19 +2,17 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
 import { onUnexpectedError } from 'vs/base/common/errors';
-import URI, { UriComponents } from 'vs/base/common/uri';
+import { URI, UriComponents } from 'vs/base/common/uri';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { Disposable } from 'vs/workbench/api/node/extHostTypes';
-import { TPromise } from 'vs/base/common/winjs.base';
 import * as vscode from 'vscode';
-import { asWinJsPromise } from 'vs/base/common/async';
 import { MainContext, ExtHostDocumentContentProvidersShape, MainThreadDocumentContentProvidersShape, IMainContext } from './extHost.protocol';
 import { ExtHostDocumentsAndEditors } from './extHostDocumentsAndEditors';
 import { Schemas } from 'vs/base/common/network';
 import { ILogService } from 'vs/platform/log/common/log';
+import { CancellationToken } from 'vs/base/common/cancellation';
 
 export class ExtHostDocumentContentProvider implements ExtHostDocumentContentProvidersShape {
 
@@ -86,11 +84,11 @@ export class ExtHostDocumentContentProvider implements ExtHostDocumentContentPro
 		});
 	}
 
-	$provideTextDocumentContent(handle: number, uri: UriComponents): TPromise<string> {
+	$provideTextDocumentContent(handle: number, uri: UriComponents): Promise<string> {
 		const provider = this._documentContentProviders.get(handle);
 		if (!provider) {
-			return TPromise.wrapError<string>(new Error(`unsupported uri-scheme: ${uri.scheme}`));
+			return Promise.reject(new Error(`unsupported uri-scheme: ${uri.scheme}`));
 		}
-		return asWinJsPromise(token => provider.provideTextDocumentContent(URI.revive(uri), token));
+		return Promise.resolve(provider.provideTextDocumentContent(URI.revive(uri), CancellationToken.None));
 	}
 }

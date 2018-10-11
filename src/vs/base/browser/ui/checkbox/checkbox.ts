@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import 'vs/css!./checkbox';
 import * as DOM from 'vs/base/browser/dom';
 import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
@@ -13,6 +11,8 @@ import { Color } from 'vs/base/common/color';
 import { Emitter, Event } from 'vs/base/common/event';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import * as objects from 'vs/base/common/objects';
+import { BaseActionItem } from 'vs/base/browser/ui/actionbar/actionbar';
+import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 
 export interface ICheckboxOpts extends ICheckboxStyles {
 	readonly actionClassName: string;
@@ -27,6 +27,48 @@ export interface ICheckboxStyles {
 const defaultOpts = {
 	inputActiveOptionBorder: Color.fromHex('#007ACC')
 };
+
+export class CheckboxActionItem extends BaseActionItem {
+
+	private checkbox: Checkbox;
+	private disposables: IDisposable[] = [];
+
+	render(container: HTMLElement): void {
+		this.element = container;
+
+		this.disposables = dispose(this.disposables);
+		this.checkbox = new Checkbox({
+			actionClassName: this._action.class,
+			isChecked: this._action.checked,
+			title: this._action.label
+		});
+		this.disposables.push(this.checkbox);
+		this.checkbox.onChange(() => this._action.checked = this.checkbox.checked, this, this.disposables);
+		this.element.appendChild(this.checkbox.domNode);
+	}
+
+	updateEnabled(): void {
+		if (this.checkbox) {
+			if (this.isEnabled()) {
+				this.checkbox.enable();
+			} else {
+				this.checkbox.disable();
+			}
+		}
+	}
+
+	updateChecked(): void {
+		if (this.checkbox) {
+			this.checkbox.checked = this._action.checked;
+		}
+	}
+
+	dipsose(): void {
+		this.disposables = dispose(this.disposables);
+		super.dispose();
+	}
+
+}
 
 export class Checkbox extends Widget {
 

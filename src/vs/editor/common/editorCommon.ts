@@ -2,11 +2,9 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
 import { IMarkdownString } from 'vs/base/common/htmlContent';
-import URI, { UriComponents } from 'vs/base/common/uri';
-import { TPromise } from 'vs/base/common/winjs.base';
+import { URI, UriComponents } from 'vs/base/common/uri';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { Position, IPosition } from 'vs/editor/common/core/position';
 import { Range, IRange } from 'vs/editor/common/core/range';
@@ -186,7 +184,7 @@ export interface IEditorAction {
 	readonly label: string;
 	readonly alias: string;
 	isSupported(): boolean;
-	run(): TPromise<void>;
+	run(): Promise<void>;
 }
 
 export type IEditorModel = ITextModel | IDiffEditorModel;
@@ -439,7 +437,7 @@ export interface IEditor {
 	/**
 	 * Gets the current model attached to this editor.
 	 */
-	getModel(): IEditorModel;
+	getModel(): IEditorModel | null;
 
 	/**
 	 * Sets the current model attached to this editor.
@@ -449,7 +447,7 @@ export interface IEditor {
 	 * will not be destroyed.
 	 * It is safe to call setModel(null) to simply detach the current model from the editor.
 	 */
-	setModel(model: IEditorModel): void;
+	setModel(model: IEditorModel | null): void;
 
 	/**
 	 * Change the decorations. All decorations added through this changeAccessor

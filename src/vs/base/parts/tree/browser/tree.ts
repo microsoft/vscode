@@ -2,7 +2,6 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
 import * as WinJS from 'vs/base/common/winjs.base';
 import * as Touch from 'vs/base/browser/touch';
@@ -108,13 +107,6 @@ export interface ITree {
 	 * The returned promise returns a boolean for whether the elements were collapsed or not.
 	 */
 	collapseAll(elements?: any[], recursive?: boolean): WinJS.Promise;
-
-	/**
-	 * Collapses several elements.
-	 * Collapses all elements at the greatest tree depth that has expanded elements.
-	 * The returned promise returns a boolean for whether the elements were collapsed or not.
-	 */
-	collapseDeepestExpandedLevel(): WinJS.Promise;
 
 	/**
 	 * Toggles an element's expansion state.
@@ -371,6 +363,10 @@ export interface IDataSource {
 	/**
 	 * Returns the unique identifier of the given element.
 	 * No more than one element may use a given identifier.
+	 *
+	 * You should not attempt to "move" an element to a different
+	 * parent by keeping its ID. The idea here is to have tree location
+	 * related IDs (eg. full file path, in the Explorer example).
 	 */
 	getId(tree: ITree, element: any): string;
 
@@ -559,6 +555,11 @@ export interface IController {
 	onKeyUp(tree: ITree, event: Keyboard.IKeyboardEvent): boolean;
 
 	/**
+	 * Called when a mouse middle button is pressed down on an element.
+	 */
+	onMouseMiddleClick?(tree: ITree, element: any, event: Mouse.IMouseEvent): boolean;
+
+	/**
 	 * Called when a mouse button is pressed down on an element.
 	 */
 	onMouseDown?(tree: ITree, element: any, event: Mouse.IMouseEvent): boolean;
@@ -569,12 +570,12 @@ export interface IController {
 	onMouseUp?(tree: ITree, element: any, event: Mouse.IMouseEvent): boolean;
 }
 
-export enum DragOverEffect {
+export const enum DragOverEffect {
 	COPY,
 	MOVE
 }
 
-export enum DragOverBubble {
+export const enum DragOverBubble {
 	BUBBLE_DOWN,
 	BUBBLE_UP
 }

@@ -15,7 +15,6 @@
 
 .scm-viewlet .empty-message {
 	padding: 10px 22px 0 22px;
-	opacity: 0.5;
 }
 
 .scm-viewlet:not(.empty) .empty-message,
@@ -51,6 +50,7 @@
 	display: none;
 }
 
+.scm-viewlet .scm-provider > .type,
 .scm-viewlet .scm-provider > .name > .type {
 	opacity: 0.7;
 	margin-left: 0.5em;
@@ -121,6 +121,11 @@
 .scm-viewlet .monaco-list .monaco-list-row.selected > .resource > .name > .monaco-icon-label > .actions,
 .scm-viewlet .monaco-list .monaco-list-row.focused > .resource > .name > .monaco-icon-label > .actions,
 .scm-viewlet .monaco-list:not(.selection-multiple) .monaco-list-row > .resource:hover > .actions {
+	display: block;
+}
+
+.scm-viewlet .scm-status.show-actions > .monaco-list .monaco-list-row > .resource-group > .actions,
+.scm-viewlet .scm-status.show-actions > .monaco-list .monaco-list-row > .resource > .name > .monaco-icon-label > .actions {
 	display: block;
 }
 

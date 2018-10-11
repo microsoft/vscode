@@ -24,7 +24,7 @@ export function activate(context: vscode.ExtensionContext) {
 	const telemetryReporter = loadDefaultTelemetryReporter();
 	context.subscriptions.push(telemetryReporter);
 
-	const contributions = getMarkdownExtensionContributions();
+	const contributions = getMarkdownExtensionContributions(context);
 
 	const cspArbiter = new ExtensionContentSecurityPolicyArbiter(context.globalState, context.workspaceState);
 	const engine = new MarkdownEngine(contributions, githubSlugifier);
@@ -56,7 +56,6 @@ export function activate(context: vscode.ExtensionContext) {
 	commandManager.register(new commands.RefreshPreviewCommand(previewManager));
 	commandManager.register(new commands.MoveCursorToPositionCommand());
 	commandManager.register(new commands.ShowPreviewSecuritySelectorCommand(previewSecuritySelector, previewManager));
-	commandManager.register(new commands.OnPreviewStyleLoadErrorCommand());
 	commandManager.register(new commands.OpenDocumentLinkCommand(engine));
 	commandManager.register(new commands.ToggleLockCommand(previewManager));
 

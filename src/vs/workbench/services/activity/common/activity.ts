@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 
@@ -67,4 +65,9 @@ export interface IActivityService {
 	 * Show activity in the panel for the given panel or in the activitybar for the given viewlet or global action.
 	 */
 	showActivity(compositeOrActionId: string, badge: IBadge, clazz?: string, priority?: number): IDisposable;
+
+	/**
+	 * Returns id of pinned viewlets following the visual order
+	 */
+	getPinnedViewletIds(): string[];
 }

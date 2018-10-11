@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import { Event, Emitter } from 'vs/base/common/event';
 import { IThemeService, ITheme, DARK } from 'vs/platform/theme/common/themeService';
 import { Color } from 'vs/base/common/color';

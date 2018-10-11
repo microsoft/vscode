@@ -2,10 +2,8 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
 import { IResourceInput } from 'vs/platform/editor/common/editor';
-import { TPromise } from 'vs/base/common/winjs.base';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { CodeEditorServiceImpl } from 'vs/editor/browser/services/codeEditorServiceImpl';
 import { ScrollType } from 'vs/editor/common/editorCommon';
@@ -13,7 +11,7 @@ import { windowOpenNoOpener } from 'vs/base/browser/dom';
 import { Schemas } from 'vs/base/common/network';
 import { IRange } from 'vs/editor/common/core/range';
 import { ITextModel } from 'vs/editor/common/model';
-import URI from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 
 export class StandaloneCodeEditorServiceImpl extends CodeEditorServiceImpl {
 
@@ -21,12 +19,12 @@ export class StandaloneCodeEditorServiceImpl extends CodeEditorServiceImpl {
 		return null; // not supported in the standalone case
 	}
 
-	public openCodeEditor(input: IResourceInput, source: ICodeEditor, sideBySide?: boolean): TPromise<ICodeEditor> {
+	public openCodeEditor(input: IResourceInput, source: ICodeEditor, sideBySide?: boolean): Thenable<ICodeEditor> {
 		if (!source) {
-			return TPromise.as(null);
+			return Promise.resolve(null);
 		}
 
-		return TPromise.as(this.doOpenEditor(source, input));
+		return Promise.resolve(this.doOpenEditor(source, input));
 	}
 
 	private doOpenEditor(editor: ICodeEditor, input: IResourceInput): ICodeEditor {

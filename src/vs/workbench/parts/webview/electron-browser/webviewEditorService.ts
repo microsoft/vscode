@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import URI from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IInstantiationService, createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IEditorService, ACTIVE_GROUP_TYPE, SIDE_GROUP_TYPE } from 'vs/workbench/services/editor/common/editorService';
@@ -35,7 +35,9 @@ export interface IWebviewEditorService {
 
 	reviveWebview(
 		viewType: string,
+		id: number,
 		title: string,
+		iconPath: { light: URI, dark: URI } | undefined,
 		state: any,
 		options: WebviewInputOptions,
 		extensionLocation: URI
@@ -106,7 +108,7 @@ export class WebviewEditorService implements IWebviewEditorService {
 		extensionLocation: URI,
 		events: WebviewEvents
 	): WebviewEditorInput {
-		const webviewInput = this._instantiationService.createInstance(WebviewEditorInput, viewType, title, options, {}, events, extensionLocation, undefined);
+		const webviewInput = this._instantiationService.createInstance(WebviewEditorInput, viewType, undefined, title, options, {}, events, extensionLocation, undefined);
 		this._editorService.openEditor(webviewInput, { pinned: true, preserveFocus: showOptions.preserveFocus }, showOptions.group);
 		return webviewInput;
 	}
@@ -125,12 +127,14 @@ export class WebviewEditorService implements IWebviewEditorService {
 
 	reviveWebview(
 		viewType: string,
+		id: number,
 		title: string,
+		iconPath: { light: URI, dark: URI } | undefined,
 		state: any,
 		options: WebviewInputOptions,
 		extensionLocation: URI
 	): WebviewEditorInput {
-		const webviewInput = this._instantiationService.createInstance(WebviewEditorInput, viewType, title, options, state, {}, extensionLocation, {
+		const webviewInput = this._instantiationService.createInstance(WebviewEditorInput, viewType, id, title, options, state, {}, extensionLocation, {
 			canRevive: (_webview) => {
 				return true;
 			},
@@ -148,7 +152,7 @@ export class WebviewEditorService implements IWebviewEditorService {
 				});
 			}
 		});
-
+		webviewInput.iconPath = iconPath;
 		return webviewInput;
 	}
 

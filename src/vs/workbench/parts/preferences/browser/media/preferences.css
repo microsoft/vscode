@@ -10,20 +10,6 @@
 	padding-top: 11px;
 }
 
-.preferences-editor > .preferences-header > .new-settings-ad {
-	color: #6f6f6f;
-	margin-bottom: 4px;
-	font-size: 12px;
-}
-
-.vs-dark .preferences-editor > .preferences-header > .new-settings-ad {
-	color: #bbbbbb;
-}
-
-.hc-black .preferences-editor > .preferences-header > .new-settings-ad {
-	color: white;
-}
-
 .preferences-editor > .preferences-header > .new-settings-ad > .open-settings2-button {
 	padding: 0;
 	text-decoration: underline;
@@ -76,6 +62,7 @@
 	justify-content: flex-start;
 }
 
+.default-preferences-editor-container > .preferences-header-container > .default-preferences-header,
 .settings-tabs-widget > .monaco-action-bar .action-item {
 	padding: 3px 0px;
 }
@@ -100,25 +87,6 @@
 
 .settings-tabs-widget .monaco-action-bar .action-item .dropdown-icon.hide {
 	display: none;
-}
-
-.vs .settings-tabs-widget > .monaco-action-bar .action-item .action-label {
-	color: #424242;
-	opacity: 0.75;
-}
-
-.vs-dark .settings-tabs-widget > .monaco-action-bar .action-item .action-label {
-	color: #e7e7e7;
-	opacity: 0.5;
-}
-
-.hc-black .settings-tabs-widget > .monaco-action-bar .action-item .action-label {
-	color: #fff;
-}
-
-.settings-tabs-widget > .monaco-action-bar .action-item:hover .action-label,
-.settings-tabs-widget > .monaco-action-bar .action-item .action-label.checked {
-	opacity: 1;
 }
 
 .preferences-header > .settings-header-widget {

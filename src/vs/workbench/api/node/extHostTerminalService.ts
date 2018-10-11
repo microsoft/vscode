@@ -2,20 +2,18 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
 import * as vscode from 'vscode';
-import * as cp from 'child_process';
 import * as os from 'os';
 import * as platform from 'vs/base/common/platform';
 import * as terminalEnvironment from 'vs/workbench/parts/terminal/node/terminalEnvironment';
-import Uri from 'vs/base/common/uri';
 import { Event, Emitter } from 'vs/base/common/event';
 import { ExtHostTerminalServiceShape, MainContext, MainThreadTerminalServiceShape, IMainContext, ShellLaunchConfigDto } from 'vs/workbench/api/node/extHost.protocol';
-import { IMessageFromTerminalProcess } from 'vs/workbench/parts/terminal/node/terminal';
 import { ExtHostConfiguration } from 'vs/workbench/api/node/extHostConfiguration';
 import { ILogService } from 'vs/platform/log/common/log';
 import { EXT_HOST_CREATION_DELAY } from 'vs/workbench/parts/terminal/common/terminal';
+import { TerminalProcess } from 'vs/workbench/parts/terminal/node/terminalProcess';
+import { timeout } from 'vs/base/common/async';
 
 const RENDERER_NO_PROCESS_ID = -1;
 
@@ -79,7 +77,9 @@ export class ExtHostTerminal extends BaseExtHostTerminal implements vscode.Termi
 	private readonly _onData: Emitter<string> = new Emitter<string>();
 	public get onDidWriteData(): Event<string> {
 		// Tell the main side to start sending data if it's not already
-		this._proxy.$registerOnDataListener(this._id);
+		this._idPromise.then(c => {
+			this._proxy.$registerOnDataListener(this._id);
+		});
 		return this._onData && this._onData.event;
 	}
 
@@ -113,6 +113,10 @@ export class ExtHostTerminal extends BaseExtHostTerminal implements vscode.Termi
 
 	public get name(): string {
 		return this._name;
+	}
+
+	public set name(name: string) {
+		this._name = name;
 	}
 
 	public get processId(): Thenable<number> {
@@ -226,8 +230,9 @@ export class ExtHostTerminalService implements ExtHostTerminalServiceShape {
 	private _proxy: MainThreadTerminalServiceShape;
 	private _activeTerminal: ExtHostTerminal;
 	private _terminals: ExtHostTerminal[] = [];
-	private _terminalProcesses: { [id: number]: cp.ChildProcess } = {};
+	private _terminalProcesses: { [id: number]: TerminalProcess } = {};
 	private _terminalRenderers: ExtHostTerminalRenderer[] = [];
+	private _getTerminalPromises: { [id: number]: Promise<ExtHostTerminal> } = {};
 
 	public get activeTerminal(): ExtHostTerminal { return this._activeTerminal; }
 	public get terminals(): ExtHostTerminal[] { return this._terminals; }
@@ -291,11 +296,11 @@ export class ExtHostTerminalService implements ExtHostTerminalServiceShape {
 	}
 
 	public $acceptTerminalProcessData(id: number, data: string): void {
-		// TODO: Queue requests, currently the first 100ms of data may get missed
-		const terminal = this._getTerminalById(id);
-		if (terminal) {
-			terminal._fireOnData(data);
-		}
+		this._getTerminalByIdEventually(id).then(terminal => {
+			if (terminal) {
+				terminal._fireOnData(data);
+			}
+		});
 	}
 
 	public $acceptTerminalRendererDimensions(id: number, cols: number, rows: number): void {
@@ -309,6 +314,13 @@ export class ExtHostTerminalService implements ExtHostTerminalServiceShape {
 		const renderer = this._getTerminalRendererById(id);
 		if (renderer) {
 			renderer._fireOnInput(data);
+		}
+	}
+
+	public $acceptTerminalTitleChange(id: number, name: string): void {
+		const extHostTerminal = this._getTerminalObjectById(this.terminals, id);
+		if (extHostTerminal) {
+			extHostTerminal.name = name;
 		}
 	}
 
@@ -359,7 +371,6 @@ export class ExtHostTerminalService implements ExtHostTerminalServiceShape {
 
 		const terminalConfig = this._extHostConfiguration.getConfiguration('terminal.integrated');
 
-		const locale = terminalConfig.get('setLocaleVariables') ? platform.locale : undefined;
 		if (!shellLaunchConfig.executable) {
 			// TODO: This duplicates some of TerminalConfigHelper.mergeDefaultShellPathAndArgs and should be merged
 			// this._configHelper.mergeDefaultShellPathAndArgs(shellLaunchConfig);
@@ -373,7 +384,7 @@ export class ExtHostTerminalService implements ExtHostTerminalServiceShape {
 		}
 
 		// TODO: Base the cwd on the last active workspace root
-		// const lastActiveWorkspaceRootUri = this._historyService.getLastActiveWorkspaceRoot('file');
+		// const lastActiveWorkspaceRootUri = this._historyService.getLastActiveWorkspaceRoot(Schemas.file);
 		// this.initialCwd = terminalEnvironment.getCwd(shellLaunchConfig, lastActiveWorkspaceRootUri, this._configHelper);
 		const initialCwd = os.homedir();
 
@@ -383,61 +394,48 @@ export class ExtHostTerminalService implements ExtHostTerminalServiceShape {
 		// const platformKey = platform.isWindows ? 'windows' : (platform.isMacintosh ? 'osx' : 'linux');
 		// const envFromConfig = terminalEnvironment.resolveConfigurationVariables(this._configurationResolverService, { ...this._configHelper.config.env[platformKey] }, lastActiveWorkspaceRoot);
 		// const envFromShell = terminalEnvironment.resolveConfigurationVariables(this._configurationResolverService, { ...shellLaunchConfig.env }, lastActiveWorkspaceRoot);
-		// shellLaunchConfig.env = envFromShell;
 
 		// Merge process env with the env from config
-		const parentEnv = { ...process.env };
-		// terminalEnvironment.mergeEnvironments(parentEnv, envFromConfig);
+		const env = { ...process.env };
+		// terminalEnvironment.mergeEnvironments(env, envFromConfig);
+		terminalEnvironment.mergeEnvironments(env, shellLaunchConfig.env);
 
 		// Continue env initialization, merging in the env from the launch
 		// config and adding keys that are needed to create the process
-		const env = terminalEnvironment.createTerminalEnv(parentEnv, shellLaunchConfig, initialCwd, locale, cols, rows);
-		const cwd = Uri.parse(require.toUrl('../../parts/terminal/node')).fsPath;
-		const options = { env, cwd, execArgv: [] };
+		const locale = terminalConfig.get('setLocaleVariables') ? platform.locale : undefined;
+		terminalEnvironment.addTerminalEnvironmentKeys(env, platform.isWindows, locale);
 
 		// Fork the process and listen for messages
-		this._logService.debug(`Terminal process launching on ext host`, options);
-		this._terminalProcesses[id] = cp.fork(Uri.parse(require.toUrl('bootstrap')).fsPath, ['--type=terminal'], options);
-		this._terminalProcesses[id].on('message', (message: IMessageFromTerminalProcess) => {
-			switch (message.type) {
-				case 'pid': this._proxy.$sendProcessPid(id, <number>message.content); break;
-				case 'title': this._proxy.$sendProcessTitle(id, <string>message.content); break;
-				case 'data': this._proxy.$sendProcessData(id, <string>message.content); break;
-			}
-		});
-		this._terminalProcesses[id].on('exit', (exitCode) => this._onProcessExit(id, exitCode));
+		this._logService.debug(`Terminal process launching on ext host`, shellLaunchConfig, initialCwd, cols, rows, env);
+		this._terminalProcesses[id] = new TerminalProcess(shellLaunchConfig, initialCwd, cols, rows, env);
+		this._terminalProcesses[id].onProcessIdReady(pid => this._proxy.$sendProcessPid(id, pid));
+		this._terminalProcesses[id].onProcessTitleChanged(title => this._proxy.$sendProcessTitle(id, title));
+		this._terminalProcesses[id].onProcessData(data => this._proxy.$sendProcessData(id, data));
+		this._terminalProcesses[id].onProcessExit((exitCode) => this._onProcessExit(id, exitCode));
 	}
 
 	public $acceptProcessInput(id: number, data: string): void {
-		if (this._terminalProcesses[id].connected) {
-			this._terminalProcesses[id].send({ event: 'input', data });
-		}
+		this._terminalProcesses[id].input(data);
 	}
 
 	public $acceptProcessResize(id: number, cols: number, rows: number): void {
-		if (this._terminalProcesses[id].connected) {
-			try {
-				this._terminalProcesses[id].send({ event: 'resize', cols, rows });
-			} catch (error) {
-				// We tried to write to a closed pipe / channel.
-				if (error.code !== 'EPIPE' && error.code !== 'ERR_IPC_CHANNEL_CLOSED') {
-					throw (error);
-				}
+		try {
+			this._terminalProcesses[id].resize(cols, rows);
+		} catch (error) {
+			// We tried to write to a closed pipe / channel.
+			if (error.code !== 'EPIPE' && error.code !== 'ERR_IPC_CHANNEL_CLOSED') {
+				throw (error);
 			}
 		}
 	}
 
-	public $acceptProcessShutdown(id: number): void {
-		if (this._terminalProcesses[id].connected) {
-			this._terminalProcesses[id].send({ event: 'shutdown' });
-		}
+	public $acceptProcessShutdown(id: number, immediate: boolean): void {
+		this._terminalProcesses[id].shutdown(immediate);
 	}
 
 	private _onProcessExit(id: number, exitCode: number): void {
 		// Remove listeners
-		const process = this._terminalProcesses[id];
-		process.removeAllListeners('message');
-		process.removeAllListeners('exit');
+		this._terminalProcesses[id].dispose();
 
 		// Remove process reference
 		delete this._terminalProcesses[id];
@@ -447,6 +445,17 @@ export class ExtHostTerminalService implements ExtHostTerminalServiceShape {
 	}
 
 	private _getTerminalByIdEventually(id: number, retries: number = 5): Promise<ExtHostTerminal> {
+		if (!this._getTerminalPromises[id]) {
+			this._getTerminalPromises[id] = this._createGetTerminalPromise(id, retries);
+		} else {
+			this._getTerminalPromises[id].then(c => {
+				return this._createGetTerminalPromise(id, retries);
+			});
+		}
+		return this._getTerminalPromises[id];
+	}
+
+	private _createGetTerminalPromise(id: number, retries: number = 5): Promise<ExtHostTerminal> {
 		return new Promise(c => {
 			if (retries === 0) {
 				c(undefined);
@@ -459,9 +468,7 @@ export class ExtHostTerminalService implements ExtHostTerminalServiceShape {
 			} else {
 				// This should only be needed immediately after createTerminalRenderer is called as
 				// the ExtHostTerminal has not yet been iniitalized
-				setTimeout(() => {
-					c(this._getTerminalByIdEventually(id, retries - 1));
-				}, 200);
+				timeout(200).then(() => c(this._getTerminalByIdEventually(id, retries - 1)));
 			}
 		});
 	}

@@ -2,7 +2,6 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
 import * as nls from 'vs/nls';
 import * as Objects from 'vs/base/common/objects';
@@ -139,7 +138,7 @@ export class ProcessTaskSystem implements ITaskSystem {
 
 	private executeTask(task: Task, trigger: string = Triggers.command): ITaskExecuteResult {
 		if (!CustomTask.is(task)) {
-			throw new Error('The process task system can only execute custom tasks.');
+			throw new Error(nls.localize('version1_0', 'The task system is configured for version 0.1.0 (see tasks.json file), which can only execute custom tasks. Upgrade to version 2.0.0 to run the task: {0}', task._label));
 		}
 		let telemetryEvent: TelemetryEvent = {
 			trigger: trigger,
@@ -249,7 +248,21 @@ export class ProcessTaskSystem implements ITaskSystem {
 			this.activeTask = task;
 			const inactiveEvent = TaskEvent.create(TaskEventKind.Inactive, task);
 			let processStartedSignaled: boolean = false;
-			const startPromise = this.childProcess.start();
+			const onProgress = (progress: LineData) => {
+				let line = Strings.removeAnsiEscapeCodes(progress.line);
+				this.outputChannel.append(line + '\n');
+				watchingProblemMatcher.processLine(line);
+				if (delayer === null) {
+					delayer = new Async.Delayer(3000);
+				}
+				delayer.trigger(() => {
+					watchingProblemMatcher.forceDelivery();
+					return null;
+				}).then(() => {
+					delayer = null;
+				});
+			};
+			const startPromise = this.childProcess.start(onProgress);
 			this.childProcess.pid.then(pid => {
 				if (pid !== -1) {
 					processStartedSignaled = true;
@@ -287,19 +300,6 @@ export class ProcessTaskSystem implements ITaskSystem {
 				}
 				eventCounter = 0;
 				return this.handleError(task, error);
-			}, (progress: LineData) => {
-				let line = Strings.removeAnsiEscapeCodes(progress.line);
-				this.outputChannel.append(line + '\n');
-				watchingProblemMatcher.processLine(line);
-				if (delayer === null) {
-					delayer = new Async.Delayer(3000);
-				}
-				delayer.trigger(() => {
-					watchingProblemMatcher.forceDelivery();
-					return null;
-				}).then(() => {
-					delayer = null;
-				});
 			});
 			let result: ITaskExecuteResult = (<any>task).tscWatch
 				? { kind: TaskExecuteKind.Started, started: { restartOnFileChanges: '**/*.ts' }, promise: this.activeTaskPromise }
@@ -312,7 +312,12 @@ export class ProcessTaskSystem implements ITaskSystem {
 			this.activeTask = task;
 			const inactiveEvent = TaskEvent.create(TaskEventKind.Inactive, task);
 			let processStartedSignaled: boolean = false;
-			const startPromise = this.childProcess.start();
+			const onProgress = (progress) => {
+				let line = Strings.removeAnsiEscapeCodes(progress.line);
+				this.outputChannel.append(line + '\n');
+				startStopProblemMatcher.processLine(line);
+			};
+			const startPromise = this.childProcess.start(onProgress);
 			this.childProcess.pid.then(pid => {
 				if (pid !== -1) {
 					processStartedSignaled = true;
@@ -340,10 +345,6 @@ export class ProcessTaskSystem implements ITaskSystem {
 				this._onDidStateChange.fire(inactiveEvent);
 				this._onDidStateChange.fire(TaskEvent.create(TaskEventKind.End, task));
 				return this.handleError(task, error);
-			}, (progress) => {
-				let line = Strings.removeAnsiEscapeCodes(progress.line);
-				this.outputChannel.append(line + '\n');
-				startStopProblemMatcher.processLine(line);
 			});
 			return { kind: TaskExecuteKind.Started, started: {}, promise: this.activeTaskPromise };
 		}
@@ -359,7 +360,7 @@ export class ProcessTaskSystem implements ITaskSystem {
 		let makeVisible = false;
 		if (errorData.error && !errorData.terminated) {
 			let args: string = task.command.args ? task.command.args.join(' ') : '';
-			this.log(nls.localize('TaskRunnerSystem.childProcessError', 'Failed to launch external program {0} {1}.', task.command.name, args));
+			this.log(nls.localize('TaskRunnerSystem.childProcessError', 'Failed to launch external program {0} {1}.', JSON.stringify(task.command.name), args));
 			this.outputChannel.append(errorData.error.message);
 			makeVisible = true;
 		}

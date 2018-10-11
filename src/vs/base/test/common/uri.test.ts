@@ -2,30 +2,27 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
-
 import * as assert from 'assert';
-import URI from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 import { normalize } from 'vs/base/common/paths';
 import { isWindows } from 'vs/base/common/platform';
 
 
 suite('URI', () => {
 	test('file#toString', () => {
-		assert.equal(URI.file('c:/win/path').toString(), 'file:///c%3A/win/path');
-		assert.equal(URI.file('C:/win/path').toString(), 'file:///c%3A/win/path');
-		assert.equal(URI.file('c:/win/path/').toString(), 'file:///c%3A/win/path/');
-		assert.equal(URI.file('/c:/win/path').toString(), 'file:///c%3A/win/path');
+		assert.equal(URI.file('c:/win/path').toString(), 'file:///c:/win/path');
+		assert.equal(URI.file('C:/win/path').toString(), 'file:///c:/win/path');
+		assert.equal(URI.file('c:/win/path/').toString(), 'file:///c:/win/path/');
+		assert.equal(URI.file('/c:/win/path').toString(), 'file:///c:/win/path');
 	});
 
 	test('URI.file (win-special)', () => {
 		if (isWindows) {
-			assert.equal(URI.file('c:\\win\\path').toString(), 'file:///c%3A/win/path');
-			assert.equal(URI.file('c:\\win/path').toString(), 'file:///c%3A/win/path');
+			assert.equal(URI.file('c:\\win\\path').toString(), 'file:///c:/win/path');
+			assert.equal(URI.file('c:\\win/path').toString(), 'file:///c:/win/path');
 		} else {
 			assert.equal(URI.file('c:\\win\\path').toString(), 'file:///c%3A%5Cwin%5Cpath');
 			assert.equal(URI.file('c:\\win/path').toString(), 'file:///c%3A%5Cwin/path');
-
 		}
 	});
 
@@ -65,8 +62,6 @@ suite('URI', () => {
 		assert.equal(URI.from({ scheme: 'http', authority: 'www.MSFT.com', path: '/my/path' }).toString(), 'http://www.msft.com/my/path');
 		assert.equal(URI.from({ scheme: 'http', authority: '', path: 'my/path' }).toString(), 'http:/my/path');
 		assert.equal(URI.from({ scheme: 'http', authority: '', path: '/my/path' }).toString(), 'http:/my/path');
-		assert.equal(URI.from({ scheme: '', authority: '', path: 'my/path' }).toString(), 'my/path');
-		assert.equal(URI.from({ scheme: '', authority: '', path: '/my/path' }).toString(), '/my/path');
 		//http://a-test-site.com/#test=true
 		assert.equal(URI.from({ scheme: 'http', authority: 'a-test-site.com', path: '/', query: 'test=true' }).toString(), 'http://a-test-site.com/?test%3Dtrue');
 		assert.equal(URI.from({ scheme: 'http', authority: 'a-test-site.com', path: '/', query: '', fragment: 'test=true' }).toString(), 'http://a-test-site.com/#test%3Dtrue');
@@ -75,7 +70,7 @@ suite('URI', () => {
 	test('http#toString, encode=FALSE', () => {
 		assert.equal(URI.from({ scheme: 'http', authority: 'a-test-site.com', path: '/', query: 'test=true' }).toString(true), 'http://a-test-site.com/?test=true');
 		assert.equal(URI.from({ scheme: 'http', authority: 'a-test-site.com', path: '/', query: '', fragment: 'test=true' }).toString(true), 'http://a-test-site.com/#test=true');
-		assert.equal(URI.from({}).with({ scheme: 'http', path: '/api/files/test.me', query: 't=1234' }).toString(true), 'http:/api/files/test.me?t=1234');
+		assert.equal(URI.from({ scheme: 'http', path: '/api/files/test.me', query: 't=1234' }).toString(true), 'http:/api/files/test.me?t=1234');
 
 		var value = URI.parse('file://shares/pröjects/c%23/#l12');
 		assert.equal(value.authority, 'shares');
@@ -107,12 +102,12 @@ suite('URI', () => {
 
 	test('with, changes', () => {
 		assert.equal(URI.parse('before:some/file/path').with({ scheme: 'after' }).toString(), 'after:some/file/path');
-		assert.equal(URI.from({}).with({ scheme: 'http', path: '/api/files/test.me', query: 't=1234' }).toString(), 'http:/api/files/test.me?t%3D1234');
-		assert.equal(URI.from({}).with({ scheme: 'http', authority: '', path: '/api/files/test.me', query: 't=1234', fragment: '' }).toString(), 'http:/api/files/test.me?t%3D1234');
-		assert.equal(URI.from({}).with({ scheme: 'https', authority: '', path: '/api/files/test.me', query: 't=1234', fragment: '' }).toString(), 'https:/api/files/test.me?t%3D1234');
-		assert.equal(URI.from({}).with({ scheme: 'HTTP', authority: '', path: '/api/files/test.me', query: 't=1234', fragment: '' }).toString(), 'HTTP:/api/files/test.me?t%3D1234');
-		assert.equal(URI.from({}).with({ scheme: 'HTTPS', authority: '', path: '/api/files/test.me', query: 't=1234', fragment: '' }).toString(), 'HTTPS:/api/files/test.me?t%3D1234');
-		assert.equal(URI.from({}).with({ scheme: 'boo', authority: '', path: '/api/files/test.me', query: 't=1234', fragment: '' }).toString(), 'boo:/api/files/test.me?t%3D1234');
+		assert.equal(URI.from({ scheme: 's' }).with({ scheme: 'http', path: '/api/files/test.me', query: 't=1234' }).toString(), 'http:/api/files/test.me?t%3D1234');
+		assert.equal(URI.from({ scheme: 's' }).with({ scheme: 'http', authority: '', path: '/api/files/test.me', query: 't=1234', fragment: '' }).toString(), 'http:/api/files/test.me?t%3D1234');
+		assert.equal(URI.from({ scheme: 's' }).with({ scheme: 'https', authority: '', path: '/api/files/test.me', query: 't=1234', fragment: '' }).toString(), 'https:/api/files/test.me?t%3D1234');
+		assert.equal(URI.from({ scheme: 's' }).with({ scheme: 'HTTP', authority: '', path: '/api/files/test.me', query: 't=1234', fragment: '' }).toString(), 'HTTP:/api/files/test.me?t%3D1234');
+		assert.equal(URI.from({ scheme: 's' }).with({ scheme: 'HTTPS', authority: '', path: '/api/files/test.me', query: 't=1234', fragment: '' }).toString(), 'HTTPS:/api/files/test.me?t%3D1234');
+		assert.equal(URI.from({ scheme: 's' }).with({ scheme: 'boo', authority: '', path: '/api/files/test.me', query: 't=1234', fragment: '' }).toString(), 'boo:/api/files/test.me?t%3D1234');
 	});
 
 	test('with, remove components #8465', () => {
@@ -186,32 +181,11 @@ suite('URI', () => {
 		assert.equal(value.query, '');
 		assert.equal(value.fragment, '');
 
-		value = URI.parse('api/files/test');
-		assert.equal(value.scheme, '');
+		value = URI.parse('foo:api/files/test');
+		assert.equal(value.scheme, 'foo');
 		assert.equal(value.authority, '');
 		assert.equal(value.path, 'api/files/test');
 		assert.equal(value.query, '');
-		assert.equal(value.fragment, '');
-
-		value = URI.parse('api');
-		assert.equal(value.scheme, '');
-		assert.equal(value.authority, '');
-		assert.equal(value.path, 'api');
-		assert.equal(value.query, '');
-		assert.equal(value.fragment, '');
-
-		value = URI.parse('/api/files/test');
-		assert.equal(value.scheme, '');
-		assert.equal(value.authority, '');
-		assert.equal(value.path, '/api/files/test');
-		assert.equal(value.query, '');
-		assert.equal(value.fragment, '');
-
-		value = URI.parse('?test');
-		assert.equal(value.scheme, '');
-		assert.equal(value.authority, '');
-		assert.equal(value.path, '');
-		assert.equal(value.query, 'test');
 		assert.equal(value.fragment, '');
 
 		value = URI.parse('file:?q');
@@ -220,13 +194,6 @@ suite('URI', () => {
 		assert.equal(value.path, '/');
 		assert.equal(value.query, 'q');
 		assert.equal(value.fragment, '');
-
-		value = URI.parse('#test');
-		assert.equal(value.scheme, '');
-		assert.equal(value.authority, '');
-		assert.equal(value.path, '');
-		assert.equal(value.query, '');
-		assert.equal(value.fragment, 'test');
 
 		value = URI.parse('file:#d');
 		assert.equal(value.scheme, 'file');
@@ -272,7 +239,7 @@ suite('URI', () => {
 		if (isWindows) {
 			var value = URI.file('c:\\test\\drive');
 			assert.equal(value.path, '/c:/test/drive');
-			assert.equal(value.toString(), 'file:///c%3A/test/drive');
+			assert.equal(value.toString(), 'file:///c:/test/drive');
 
 			value = URI.file('\\\\shäres\\path\\c#\\plugin.json');
 			assert.equal(value.scheme, 'file');
@@ -292,15 +259,15 @@ suite('URI', () => {
 
 			value = URI.file('c:\\test with %\\path');
 			assert.equal(value.path, '/c:/test with %/path');
-			assert.equal(value.toString(), 'file:///c%3A/test%20with%20%25/path');
+			assert.equal(value.toString(), 'file:///c:/test%20with%20%25/path');
 
 			value = URI.file('c:\\test with %25\\path');
 			assert.equal(value.path, '/c:/test with %25/path');
-			assert.equal(value.toString(), 'file:///c%3A/test%20with%20%2525/path');
+			assert.equal(value.toString(), 'file:///c:/test%20with%20%2525/path');
 
 			value = URI.file('c:\\test with %25\\c#code');
 			assert.equal(value.path, '/c:/test with %25/c#code');
-			assert.equal(value.toString(), 'file:///c%3A/test%20with%20%2525/c%23code');
+			assert.equal(value.toString(), 'file:///c:/test%20with%20%2525/c%23code');
 
 			value = URI.file('\\\\shares');
 			assert.equal(value.scheme, 'file');

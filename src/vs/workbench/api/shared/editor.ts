@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import { IEditorGroupsService, IEditorGroup, GroupsOrder } from 'vs/workbench/services/group/common/editorGroupsService';
 import { GroupIdentifier } from 'vs/workbench/common/editor';
 import { ACTIVE_GROUP, SIDE_GROUP } from 'vs/workbench/services/editor/common/editorService';

@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import * as assert from 'assert';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -371,7 +369,7 @@ suite('Files - TextFileEditorModel', () => {
 		let nextDone = false;
 		const res = sequentializer.setNext(() => TPromise.as(null).then(() => { nextDone = true; return null; }));
 
-		return res.done(() => {
+		return res.then(() => {
 			assert.ok(pendingDone);
 			assert.ok(nextDone);
 		});
@@ -387,7 +385,7 @@ suite('Files - TextFileEditorModel', () => {
 		let nextDone = false;
 		const res = sequentializer.setNext(() => timeout(1).then(() => { nextDone = true; return null; }));
 
-		return res.done(() => {
+		return res.then(() => {
 			assert.ok(pendingDone);
 			assert.ok(nextDone);
 		});

@@ -3,40 +3,40 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
-import 'vs/css!./media/titlecontrol';
-import { localize } from 'vs/nls';
-import { prepareActions } from 'vs/workbench/browser/actions';
-import { IAction, Action, IRunEvent } from 'vs/base/common/actions';
-import { TPromise } from 'vs/base/common/winjs.base';
-import { BaseEditor } from 'vs/workbench/browser/parts/editor/baseEditor';
-import * as arrays from 'vs/base/common/arrays';
-import { toResource, IEditorCommandsContext, IEditorInput, EditorCommandsContextActionRunner } from 'vs/workbench/common/editor';
-import { IActionItem, ActionsOrientation } from 'vs/base/browser/ui/actionbar/actionbar';
-import { ToolBar } from 'vs/base/browser/ui/toolbar/toolbar';
-import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
-import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IQuickOpenService } from 'vs/platform/quickOpen/common/quickOpen';
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { ResolvedKeybinding } from 'vs/base/common/keyCodes';
-import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { IDisposable, dispose } from 'vs/base/common/lifecycle';
-import { createActionItem, fillInContextMenuActions, fillInActionBarActions } from 'vs/platform/actions/browser/menuItemActionItem';
-import { IMenuService, MenuId, IMenu, ExecuteCommandAction } from 'vs/platform/actions/common/actions';
-import { ResourceContextKey } from 'vs/workbench/common/resources';
-import { IThemeService, registerThemingParticipant, ITheme, ICssStyleCollector } from 'vs/platform/theme/common/themeService';
-import { Themable } from 'vs/workbench/common/theme';
-import { getCodeEditor } from 'vs/editor/browser/editorBrowser';
-import { INotificationService } from 'vs/platform/notification/common/notification';
-import { Dimension, addDisposableListener, EventType } from 'vs/base/browser/dom';
-import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
-import { IEditorGroupsAccessor, IEditorPartOptions, IEditorGroupView } from 'vs/workbench/browser/parts/editor/editor';
-import { listActiveSelectionBackground, listActiveSelectionForeground } from 'vs/platform/theme/common/colorRegistry';
-import { LocalSelectionTransfer, DraggedEditorGroupIdentifier, DraggedEditorIdentifier, fillResourceDataTransfers } from 'vs/workbench/browser/dnd';
 import { applyDragImage } from 'vs/base/browser/dnd';
+import { addDisposableListener, Dimension, EventType } from 'vs/base/browser/dom';
+import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
+import { ActionsOrientation, IActionItem } from 'vs/base/browser/ui/actionbar/actionbar';
+import { ToolBar } from 'vs/base/browser/ui/toolbar/toolbar';
+import { Action, IAction, IRunEvent } from 'vs/base/common/actions';
+import * as arrays from 'vs/base/common/arrays';
+import { ResolvedKeybinding } from 'vs/base/common/keyCodes';
+import { dispose, IDisposable } from 'vs/base/common/lifecycle';
+import 'vs/css!./media/titlecontrol';
+import { getCodeEditor } from 'vs/editor/browser/editorBrowser';
+import { localize } from 'vs/nls';
+import { createActionItem, fillInActionBarActions, fillInContextMenuActions } from 'vs/platform/actions/browser/menuItemActionItem';
+import { ExecuteCommandAction, IMenu, IMenuService, MenuId } from 'vs/platform/actions/common/actions';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
+import { INotificationService } from 'vs/platform/notification/common/notification';
+import { IQuickOpenService } from 'vs/platform/quickOpen/common/quickOpen';
+import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { listActiveSelectionBackground, listActiveSelectionForeground } from 'vs/platform/theme/common/colorRegistry';
+import { ICssStyleCollector, ITheme, IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
+import { prepareActions } from 'vs/workbench/browser/actions';
+import { DraggedEditorGroupIdentifier, DraggedEditorIdentifier, fillResourceDataTransfers, LocalSelectionTransfer } from 'vs/workbench/browser/dnd';
+import { BaseEditor } from 'vs/workbench/browser/parts/editor/baseEditor';
+import { BreadcrumbsConfig } from 'vs/workbench/browser/parts/editor/breadcrumbs';
+import { BreadcrumbsControl, IBreadcrumbsControlOptions } from 'vs/workbench/browser/parts/editor/breadcrumbsControl';
+import { EDITOR_TITLE_HEIGHT, IEditorGroupsAccessor, IEditorGroupView, IEditorPartOptions } from 'vs/workbench/browser/parts/editor/editor';
+import { EditorCommandsContextActionRunner, IEditorCommandsContext, IEditorInput, toResource } from 'vs/workbench/common/editor';
+import { ResourceContextKey } from 'vs/workbench/common/resources';
+import { Themable } from 'vs/workbench/common/theme';
+import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 
 export interface IToolbarActions {
 	primary: IAction[];
@@ -48,11 +48,11 @@ export abstract class TitleControl extends Themable {
 	protected readonly groupTransfer = LocalSelectionTransfer.getInstance<DraggedEditorGroupIdentifier>();
 	protected readonly editorTransfer = LocalSelectionTransfer.getInstance<DraggedEditorIdentifier>();
 
+	protected breadcrumbsControl: BreadcrumbsControl;
+
 	private currentPrimaryEditorActionIds: string[] = [];
 	private currentSecondaryEditorActionIds: string[] = [];
 	protected editorActionsToolbar: ToolBar;
-
-	private mapEditorToActions: Map<string, IToolbarActions> = new Map();
 
 	private resourceContext: ResourceContextKey;
 	private editorToolBarMenuDisposables: IDisposable[] = [];
@@ -72,7 +72,8 @@ export abstract class TitleControl extends Themable {
 		@IMenuService private menuService: IMenuService,
 		@IQuickOpenService protected quickOpenService: IQuickOpenService,
 		@IThemeService themeService: IThemeService,
-		@IExtensionService private extensionService: IExtensionService
+		@IExtensionService private extensionService: IExtensionService,
+		@IConfigurationService protected configurationService: IConfigurationService
 	) {
 		super(themeService);
 
@@ -88,6 +89,27 @@ export abstract class TitleControl extends Themable {
 	}
 
 	protected abstract create(parent: HTMLElement): void;
+
+	protected createBreadcrumbsControl(container: HTMLElement, options: IBreadcrumbsControlOptions): void {
+		const config = this._register(BreadcrumbsConfig.IsEnabled.bindTo(this.configurationService));
+		this._register(config.onDidChange(() => {
+			const value = config.getValue();
+			if (!value && this.breadcrumbsControl) {
+				this.breadcrumbsControl.dispose();
+				this.breadcrumbsControl = undefined;
+				this.handleBreadcrumbsEnablementChange();
+			} else if (value && !this.breadcrumbsControl) {
+				this.breadcrumbsControl = this.instantiationService.createInstance(BreadcrumbsControl, container, options, this.group);
+				this.breadcrumbsControl.update();
+				this.handleBreadcrumbsEnablementChange();
+			}
+		}));
+		if (config.getValue()) {
+			this.breadcrumbsControl = this.instantiationService.createInstance(BreadcrumbsControl, container, options, this.group);
+		}
+	}
+
+	protected abstract handleBreadcrumbsEnablementChange(): void;
 
 	protected createEditorActionsToolBar(container: HTMLElement): void {
 		const context = { groupId: this.group.id } as IEditorCommandsContext;
@@ -190,17 +212,6 @@ export abstract class TitleControl extends Themable {
 		// Editor actions require the editor control to be there, so we retrieve it via service
 		const activeControl = this.group.activeControl;
 		if (activeControl instanceof BaseEditor) {
-
-			// Editor Control Actions
-			let editorActions = this.mapEditorToActions.get(activeControl.getId());
-			if (!editorActions) {
-				editorActions = { primary: activeControl.getActions(), secondary: activeControl.getSecondaryActions() };
-				this.mapEditorToActions.set(activeControl.getId(), editorActions);
-			}
-			primary.push(...editorActions.primary);
-			secondary.push(...editorActions.secondary);
-
-			// Contributed Actions
 			const codeEditor = getCodeEditor(activeControl.getControl());
 			const scopedContextKeyService = codeEditor && codeEditor.invokeWithinContext(accessor => accessor.get(IContextKeyService)) || this.contextKeyService;
 			const titleBarMenu = this.menuService.createMenu(MenuId.EditorTitle, scopedContextKeyService);
@@ -277,7 +288,7 @@ export abstract class TitleControl extends Themable {
 		// Show it
 		this.contextMenuService.showContextMenu({
 			getAnchor: () => anchor,
-			getActions: () => TPromise.as(actions),
+			getActions: () => Promise.resolve(actions),
 			getActionsContext: () => ({ groupId: this.group.id, editorIndex: this.group.getIndexOfEditor(editor) } as IEditorCommandsContext),
 			getKeyBinding: (action) => this.getKeybinding(action),
 			onHide: () => {
@@ -291,7 +302,7 @@ export abstract class TitleControl extends Themable {
 		});
 	}
 
-	protected getKeybinding(action: IAction): ResolvedKeybinding {
+	private getKeybinding(action: IAction): ResolvedKeybinding {
 		return this.keybindingService.lookupKeybinding(action.id);
 	}
 
@@ -327,9 +338,18 @@ export abstract class TitleControl extends Themable {
 
 	layout(dimension: Dimension): void {
 		// Optionally implemented in subclasses
+
+		if (this.breadcrumbsControl) {
+			this.breadcrumbsControl.layout(undefined);
+		}
+	}
+
+	getPreferredHeight(): number {
+		return EDITOR_TITLE_HEIGHT + (this.breadcrumbsControl && !this.breadcrumbsControl.isHidden() ? BreadcrumbsControl.HEIGHT : 0);
 	}
 
 	dispose(): void {
+		this.breadcrumbsControl = dispose(this.breadcrumbsControl);
 		this.editorToolBarMenuDisposables = dispose(this.editorToolBarMenuDisposables);
 
 		super.dispose();

@@ -29,13 +29,19 @@
             type: 'label',
             name: '*out-of-scope',
             action: 'close',
-            comment: "This issue is being closed to keep the number of issues in our inbox on a manageable level, we are closing issues that have been on the backlog for a long time but have not gained traction: We look at the number of votes the issue has received and the number of duplicate issues filed. If you disagree and feel that this issue is crucial: We are happy to listen and to reconsider.\n\nIf you wonder what we are up to, please see our [roadmap](https://aka.ms/vscoderoadmap) and [issue reporting](https://aka.ms/vscodeissuereporting) guidelines.\n\nThanks for your understanding and happy coding!"
+            comment: "This issue is being closed to keep the number of issues in our inbox on a manageable level, we are closing issues that are not going to be addressed in the foreseeable future: We look at the number of votes the issue has received and the number of duplicate issues filed. More details [here](https://aka.ms/vscode-out-of-scope). If you disagree and feel that this issue is crucial: We are happy to listen and to reconsider.\n\nIf you wonder what we are up to, please see our [roadmap](https://aka.ms/vscoderoadmap) and [issue reporting](https://aka.ms/vscodeissuereporting) guidelines.\n\nThanks for your understanding and happy coding!"
         },
         {
             type: 'label',
             name: '*caused-by-extension',
             action: 'close',
             comment: "This issue is caused by an extension, please file it with the repository (or contact) the extension has linked in its overview in VS Code or the [marketplace](https://aka.ms/vscodemarketplace) for VS Code. See also our [issue reporting](https://aka.ms/vscodeissuereporting) guidelines.\n\nHappy Coding!"
+        },
+        {
+            type: 'label',
+            name: '*as-designed',
+            action: 'close',
+            comment: "The described behavior is how it is expected to work. If you disagree, please explain what is expected and what is not in more detail. See also our [issue reporting](https://aka.ms/vscodeissuereporting) guidelines.\n\nHappy Coding!"
         },
         {
             type: 'comment',
@@ -61,6 +67,20 @@
             name: 'findDuplicates',
             action: 'comment',
             comment: "Potential duplicates:\n${potentialDuplicates}"
+        },
+        {
+            type: 'comment',
+            name: 'needsMoreInfo',
+            action: 'updateLabels',
+            addLabel: 'needs more info',
+            comment: "Thanks for creating this issue! We figured it's missing some basic information or in some other way doesn't follow our [issue reporting](https://aka.ms/vscodeissuereporting) guidelines. Please take the time to review these and update the issue.\n\nHappy Coding!"
+        },
+        {
+            type: 'comment',
+            name: 'a11ymas',
+            allowUsers: ['AccessibilityTestingTeam-TCS'],
+            action: 'updateLabels',
+            addLabel: 'a11ymas'
         },
     ]
 }
