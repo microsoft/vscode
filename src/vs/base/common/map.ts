@@ -639,16 +639,18 @@ export class LinkedMap<K, V> {
 			this.clear();
 			return;
 		}
-		let current = this._head!;
+		let current = this._head;
 		let currentSize = this.size;
 		while (current && currentSize > newSize) {
 			this._map.delete(current.key);
-			current = current.next!;
+			current = current.next;
 			currentSize--;
 		}
 		this._head = current;
 		this._size = currentSize;
-		current.previous = void 0;
+		if (current) {
+			current.previous = void 0;
+		}
 	}
 
 	private addItemFirst(item: Item<K, V>): void {
