@@ -306,7 +306,7 @@ export interface ISearchConfiguration extends IFilesConfiguration {
 	};
 }
 
-export function getExcludes(configuration: ISearchConfiguration): glob.IExpression {
+export function getExcludes(configuration: ISearchConfiguration): glob.IExpression | undefined {
 	const fileExcludes = configuration && configuration.files && configuration.files.exclude;
 	const searchExcludes = configuration && configuration.search && configuration.search.exclude;
 
@@ -337,7 +337,7 @@ export function pathIncludedInQuery(query: ISearchQuery, fsPath: string): boolea
 
 	// If searchPaths are being used, the extra file must be in a subfolder and match the pattern, if present
 	if (query.usingSearchPaths) {
-		return query.folderQueries.every(fq => {
+		return !!query.folderQueries && query.folderQueries.every(fq => {
 			const searchPath = fq.folder.fsPath;
 			if (paths.isEqualOrParent(fsPath, searchPath)) {
 				return !fq.includePattern || !!glob.match(fq.includePattern, fsPath);
