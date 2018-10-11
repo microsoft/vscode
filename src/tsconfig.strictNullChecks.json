@@ -28,6 +28,7 @@
 		"./vs/base/common/decorators.ts",
 		"./vs/base/common/diff/diff.ts",
 		"./vs/base/common/diff/diffChange.ts",
+		"./vs/base/common/history.ts",
 		"./vs/base/common/errors.ts",
 		"./vs/base/common/event.ts",
 		"./vs/base/common/functional.ts",
