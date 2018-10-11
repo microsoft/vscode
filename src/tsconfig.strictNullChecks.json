@@ -58,6 +58,7 @@
 		"./vs/base/common/severity.ts",
 		"./vs/base/common/stopwatch.ts",
 		"./vs/base/common/strings.ts",
+		"./vs/base/common/labels.ts",
 		"./vs/base/common/types.ts",
 		"./vs/base/common/uri.ts",
 		"./vs/base/common/uriIpc.ts",
