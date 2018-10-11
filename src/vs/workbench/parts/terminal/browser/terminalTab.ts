@@ -2,7 +2,8 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-
+import * as aria from 'vs/base/browser/ui/aria/aria';
+import * as nls from 'vs/nls';
 import { ITerminalInstance, IShellLaunchConfig, ITerminalTab, Direction, ITerminalService, ITerminalConfigHelper } from 'vs/workbench/parts/terminal/common/terminal';
 import { IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { Event, Emitter, anyEvent } from 'vs/base/common/event';
@@ -299,6 +300,7 @@ export class TerminalTab extends Disposable implements ITerminalTab {
 	}
 
 	private _setActiveInstance(instance: ITerminalInstance): void {
+		aria.alert(nls.localize('terminalFocus', "Terminal {0}", this._terminalService.activeTabIndex + 1));
 		this.setActiveInstanceByIndex(this._getIndexFromId(instance.id));
 	}
 
