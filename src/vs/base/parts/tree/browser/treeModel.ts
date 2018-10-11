@@ -1030,7 +1030,7 @@ export class TreeModel {
 		return item.collapse(recursive);
 	}
 
-	public collapseAll(elements: any[] = null, recursive: boolean = false): WinJS.Promise {
+	public collapseAll(elements: any[] | null = null, recursive: boolean = false): WinJS.Promise {
 		if (!elements) {
 			elements = [this.input];
 			recursive = true;

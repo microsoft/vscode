@@ -250,7 +250,7 @@ export class TextAreaHandler extends ViewPart {
 			const metadata = LocalClipboardMetadataManager.INSTANCE.get(e.text);
 
 			let pasteOnNewLine = false;
-			let multicursorText: string[] = null;
+			let multicursorText: string[] | null = null;
 			if (metadata) {
 				pasteOnNewLine = (this._emptySelectionClipboard && metadata.isFromEmptySelection);
 				multicursorText = metadata.multicursorText;

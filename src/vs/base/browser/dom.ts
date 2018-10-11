@@ -347,7 +347,7 @@ class AnimationFrameQueueItem implements IDisposable {
 	/**
 	 * The runners scheduled at the current animation frame
 	 */
-	let CURRENT_QUEUE: AnimationFrameQueueItem[] = null;
+	let CURRENT_QUEUE: AnimationFrameQueueItem[] | null = null;
 	/**
 	 * A flag to keep track if the native requestAnimationFrame was already called
 	 */

@@ -86,8 +86,8 @@ suite('AbstractKeybindingService', () => {
 	let currentContextValue: IContext | null = null;
 	let executeCommandCalls: { commandId: string; args: any[]; }[] = null;
 	let showMessageCalls: { sev: Severity, message: any; }[] = null;
-	let statusMessageCalls: string[] = null;
-	let statusMessageCallsDisposed: string[] = null;
+	let statusMessageCalls: string[] | null = null;
+	let statusMessageCallsDisposed: string[] | null = null;
 
 	setup(() => {
 		executeCommandCalls = [];

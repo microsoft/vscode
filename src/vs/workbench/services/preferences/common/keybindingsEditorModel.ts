@@ -254,11 +254,11 @@ export class KeybindingsEditorModel extends EditorModel {
 
 class KeybindingItemMatches {
 
-	public readonly commandIdMatches: IMatch[] = null;
-	public readonly commandLabelMatches: IMatch[] = null;
-	public readonly commandDefaultLabelMatches: IMatch[] = null;
-	public readonly sourceMatches: IMatch[] = null;
-	public readonly whenMatches: IMatch[] = null;
+	public readonly commandIdMatches: IMatch[] | null = null;
+	public readonly commandLabelMatches: IMatch[] | null = null;
+	public readonly commandDefaultLabelMatches: IMatch[] | null = null;
+	public readonly sourceMatches: IMatch[] | null = null;
+	public readonly whenMatches: IMatch[] | null = null;
 	public readonly keybindingMatches: KeybindingMatches | null = null;
 
 	constructor(private modifierLabels: ModifierLabels, keybindingItem: IKeybindingItem, searchValue: string, words: string[], keybindingWords: string[], completeMatch: boolean) {

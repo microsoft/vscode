@@ -62,7 +62,7 @@ export function restoreFontInfo(storageService: IStorageService): void {
 	if (typeof strStoredFontInfo !== 'string') {
 		return;
 	}
-	let storedFontInfo: ISerializedFontInfo[] = null;
+	let storedFontInfo: ISerializedFontInfo[] | null = null;
 	try {
 		storedFontInfo = JSON.parse(strStoredFontInfo);
 	} catch (err) {

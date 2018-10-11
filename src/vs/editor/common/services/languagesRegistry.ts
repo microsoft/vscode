@@ -159,7 +159,7 @@ export class LanguagesRegistry {
 
 		resolvedLanguage.aliases.push(langId);
 
-		let langAliases: string[] = null;
+		let langAliases: string[] | null = null;
 		if (typeof lang.aliases !== 'undefined' && Array.isArray(lang.aliases)) {
 			if (lang.aliases.length === 0) {
 				// signal that this language should not get a name
