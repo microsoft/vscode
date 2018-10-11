@@ -156,7 +156,7 @@ export class NextDelegatingStorageService extends Disposable implements INextSto
 	}
 
 	private assertStorageValue(key: string, scope: StorageScope, dbValue: any, storageValue: any): void {
-		if (dbValue !== storageValue) {
+		if (dbValue && dbValue !== storageValue) {
 			this.logService.error(`Unexpected storage value (key: ${key}, scope: ${scope === StorageScope.GLOBAL ? 'global' : 'workspace'}), actual: ${dbValue}, expected: ${storageValue}`);
 		}
 	}
