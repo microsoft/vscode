@@ -274,11 +274,8 @@ export class MarkersPanel extends Panel {
 		this.ariaLabelElement.setAttribute('aria-live', 'polite');
 	}
 
-	// TODO@joao
 	private createTree(parent: HTMLElement): void {
 		this.treeContainer = dom.append(parent, dom.$('.tree-container.show-file-icons'));
-		// const dnd = this.instantiationService.createInstance(SimpleFileResourceDragAndDrop, obj => obj instanceof ResourceMarkers ? obj.resource : void 0);
-		// const controller = this.instantiationService.createInstance(Controller, () => this.focusFilter());
 
 		const onDidChangeRenderNodeCount = new Relay<ITreeNode<any, any>>();
 
@@ -302,28 +299,17 @@ export class MarkersPanel extends Panel {
 
 		onDidChangeRenderNodeCount.input = this.tree.onDidChangeRenderNodeCount;
 
-		// this.tree = this.instantiationService.createInstance(WorkbenchTree, this.treeContainer, {
-		// 	dataSource: new Viewer.DataSource(),
-		// 	renderer,
-		// 	controller,
-		// 	accessibilityProvider: this.instantiationService.createInstance(Viewer.MarkersTreeAccessibilityProvider),
-		// 	dnd
-		// }, {
-		// 		twistiePixels: 20,
-		// 		ariaLabel: Messages.MARKERS_PANEL_ARIA_LABEL_PROBLEMS_TREE
-		// 	});
-
-		// const markerFocusContextKey = Constants.MarkerFocusContextKey.bindTo(this.tree.contextKeyService);
-		// const relatedInformationFocusContextKey = Constants.RelatedInformationFocusContextKey.bindTo(this.tree.contextKeyService);
-		// this._register(this.tree.onDidChangeFocus(elements => {
-		// 	markerFocusContextKey.set(elements.some(e => e instanceof Marker));
-		// 	relatedInformationFocusContextKey.set(elements.some(e => e instanceof RelatedInformation));
-		// }));
-		// const focusTracker = this._register(dom.trackFocus(this.tree.getHTMLElement()));
-		// this._register(focusTracker.onDidBlur(() => {
-		// 	markerFocusContextKey.set(false);
-		// 	relatedInformationFocusContextKey.set(false);
-		// }));
+		const markerFocusContextKey = Constants.MarkerFocusContextKey.bindTo(this.tree.contextKeyService);
+		const relatedInformationFocusContextKey = Constants.RelatedInformationFocusContextKey.bindTo(this.tree.contextKeyService);
+		this._register(this.tree.onDidChangeFocus(focus => {
+			markerFocusContextKey.set(focus.elements.some(e => e.element instanceof Marker));
+			relatedInformationFocusContextKey.set(focus.elements.some(e => e.element instanceof RelatedInformation));
+		}));
+		const focusTracker = this._register(dom.trackFocus(this.tree.getHTMLElement()));
+		this._register(focusTracker.onDidBlur(() => {
+			markerFocusContextKey.set(false);
+			relatedInformationFocusContextKey.set(false);
+		}));
 
 		const markersNavigator = this._register(new ObjectTreeResourceNavigator(this.tree, { openOnFocus: true }));
 		this._register(debounceEvent(markersNavigator.openResource, (last, event) => event, 75, true)(options => {
