@@ -75,7 +75,7 @@ import { IBroadcastService, BroadcastService } from 'vs/platform/broadcast/elect
 import { HashService } from 'vs/workbench/services/hash/node/hashService';
 import { IHashService } from 'vs/workbench/services/hash/common/hashService';
 import { ILogService } from 'vs/platform/log/common/log';
-import { INextStorageService } from 'vs/platform/storage2/common/storage2';
+import { INextStorage2Service } from 'vs/platform/storage2/common/storage2';
 import { Event, Emitter } from 'vs/base/common/event';
 import { WORKBENCH_BACKGROUND } from 'vs/workbench/common/theme';
 import { stat } from 'fs';
@@ -110,7 +110,7 @@ export interface ICoreServices {
 	environmentService: IEnvironmentService;
 	logService: ILogService;
 	storageService: IStorageService;
-	nextStorageService: INextStorageService;
+	nextStorage2Service: INextStorage2Service;
 }
 
 /**
@@ -123,7 +123,7 @@ export class WorkbenchShell extends Disposable {
 	get onShutdown(): Event<ShutdownEvent> { return this._onShutdown.event; }
 
 	private storageService: IStorageService;
-	private nextStorageService: INextStorageService;
+	private nextStorage2Service: INextStorage2Service;
 	private environmentService: IEnvironmentService;
 	private logService: ILogService;
 	private configurationService: IConfigurationService;
@@ -154,7 +154,7 @@ export class WorkbenchShell extends Disposable {
 		this.environmentService = coreServices.environmentService;
 		this.logService = coreServices.logService;
 		this.storageService = coreServices.storageService;
-		this.nextStorageService = coreServices.nextStorageService;
+		this.nextStorage2Service = coreServices.nextStorage2Service;
 
 		this.mainProcessServices = mainProcessServices;
 
@@ -335,7 +335,7 @@ export class WorkbenchShell extends Disposable {
 		serviceCollection.set(ILabelService, new SyncDescriptor(LabelService));
 		serviceCollection.set(ILogService, this._register(this.logService));
 		serviceCollection.set(IStorageService, this.storageService);
-		serviceCollection.set(INextStorageService, this.nextStorageService);
+		serviceCollection.set(INextStorage2Service, this.nextStorage2Service);
 
 		this.mainProcessServices.forEach((serviceIdentifier, serviceInstance) => {
 			serviceCollection.set(serviceIdentifier, serviceInstance);

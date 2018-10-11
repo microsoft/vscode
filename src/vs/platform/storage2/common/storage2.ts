@@ -6,9 +6,9 @@
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { Event } from 'vs/base/common/event';
 
-export const INextStorageService = createDecorator<INextStorageService>('nextStorageService');
+export const INextStorage2Service = createDecorator<INextStorage2Service>('nextStorage2Service');
 
-export interface INextStorageService {
+export interface INextStorage2Service {
 	_serviceBrand: any;
 
 	/**
@@ -80,3 +80,29 @@ export interface IWorkspaceStorageChangeEvent {
 	key: string;
 	scope: StorageScope;
 }
+
+export const NullNextStorage2Service: INextStorage2Service = {
+	_serviceBrand: undefined,
+
+	onDidChangeStorage: Event.None,
+
+	get(key: string, scope: StorageScope, fallbackValue?: string): string {
+		return fallbackValue;
+	},
+
+	getBoolean(key: string, scope: StorageScope, fallbackValue?: boolean): boolean {
+		return fallbackValue;
+	},
+
+	getInteger(key: string, scope: StorageScope, fallbackValue?: number): number {
+		return fallbackValue;
+	},
+
+	set(key: string, value: any, scope: StorageScope): Promise<void> {
+		return Promise.resolve();
+	},
+
+	delete(key: string, scope: StorageScope): Promise<void> {
+		return Promise.resolve();
+	}
+};

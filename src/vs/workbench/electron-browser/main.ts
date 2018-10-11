@@ -36,7 +36,7 @@ import { IWorkspacesService, ISingleFolderWorkspaceIdentifier } from 'vs/platfor
 import { createSpdLogService } from 'vs/platform/log/node/spdlogService';
 import * as fs from 'fs';
 import { ConsoleLogService, MultiplexLogService, ILogService } from 'vs/platform/log/common/log';
-import { NextStorageService, NextDelegatingStorageService } from 'vs/platform/storage2/node/nextStorageService';
+import { NextStorage2Service, NextDelegatingStorageService } from 'vs/platform/storage2/node/nextStorage2Service';
 import { IssueChannelClient } from 'vs/platform/issue/node/issueIpc';
 import { IIssueService } from 'vs/platform/issue/common/issue';
 import { LogLevelSetterChannelClient, FollowerLogService } from 'vs/platform/log/node/logIpc';
@@ -100,11 +100,11 @@ function openWorkbench(configuration: IWindowConfiguration): Promise<void> {
 
 	return Promise.all([
 		createAndInitializeWorkspaceService(configuration, environmentService),
-		createNextStorageService(environmentService, logService)
+		createNextStorage2Service(environmentService, logService)
 	]).then(services => {
 		const workspaceService = services[0];
 		const storageService = createStorageService(workspaceService, environmentService);
-		const nextStorageService = new NextDelegatingStorageService(services[1], storageService, logService, environmentService);
+		const nextStorage2Service = new NextDelegatingStorageService(services[1], storageService, logService, environmentService);
 
 		return domContentLoaded().then(() => {
 			perf.mark('willStartWorkbench');
@@ -116,12 +116,12 @@ function openWorkbench(configuration: IWindowConfiguration): Promise<void> {
 				environmentService,
 				logService,
 				storageService,
-				nextStorageService
+				nextStorage2Service
 			}, mainServices, mainProcessClient, configuration);
 
 			// Gracefully Shutdown Storage
 			shell.onShutdown(event => {
-				event.join(nextStorageService.close());
+				event.join(nextStorage2Service.close());
 			});
 
 			// Open Shell
@@ -166,15 +166,15 @@ function validateFolderUri(folderUri: ISingleFolderWorkspaceIdentifier, verbose:
 	});
 }
 
-function createNextStorageService(environmentService: IEnvironmentService, logService: ILogService): Promise<NextStorageService> {
-	perf.mark('willCreateNextStorageService');
+function createNextStorage2Service(environmentService: IEnvironmentService, logService: ILogService): Promise<NextStorage2Service> {
+	perf.mark('willCreateNextStorage2Service');
 
-	const nextStorageService = new NextStorageService(':memory:', logService, environmentService);
+	const nextStorage2Service = new NextStorage2Service(':memory:', logService, environmentService);
 
-	return nextStorageService.init().then(() => {
-		perf.mark('didCreateNextStorageService');
+	return nextStorage2Service.init().then(() => {
+		perf.mark('didCreateNextStorage2Service');
 
-		return nextStorageService;
+		return nextStorage2Service;
 	});
 }
 

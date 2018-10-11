@@ -7,11 +7,11 @@ import { Disposable } from 'vs/base/common/lifecycle';
 import { Event, Emitter } from 'vs/base/common/event';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { IWorkspaceStorageChangeEvent, INextStorageService, StorageScope } from 'vs/platform/storage2/common/storage2';
+import { IWorkspaceStorageChangeEvent, INextStorage2Service, StorageScope } from 'vs/platform/storage2/common/storage2';
 import { Storage, IStorageLoggingOptions } from 'vs/base/node/storage';
 import { IStorageService, StorageScope as LocalStorageScope } from 'vs/platform/storage/common/storage';
 
-export class NextStorageService extends Disposable implements INextStorageService {
+export class NextStorage2Service extends Disposable implements INextStorage2Service {
 	_serviceBrand: any;
 
 	private _onDidChangeStorage: Emitter<IWorkspaceStorageChangeEvent> = this._register(new Emitter<IWorkspaceStorageChangeEvent>());
@@ -84,25 +84,25 @@ export class NextStorageService extends Disposable implements INextStorageServic
 	}
 }
 
-export class NextDelegatingStorageService extends Disposable implements INextStorageService {
+export class NextDelegatingStorageService extends Disposable implements INextStorage2Service {
 	_serviceBrand: any;
 
 	private _onDidChangeStorage: Emitter<IWorkspaceStorageChangeEvent> = this._register(new Emitter<IWorkspaceStorageChangeEvent>());
 	get onDidChangeStorage(): Event<IWorkspaceStorageChangeEvent> { return this._onDidChangeStorage.event; }
 
 	constructor(
-		@INextStorageService private nextStorageService: NextStorageService,
+		@INextStorage2Service private nextStorage2Service: NextStorage2Service,
 		@IStorageService private storageService: IStorageService,
 		@ILogService private logService: ILogService,
 		@IEnvironmentService environmentService: IEnvironmentService
 	) {
 		super();
 
-		this._register(this.nextStorageService.onDidChangeStorage(e => this._onDidChangeStorage.fire(e)));
+		this._register(this.nextStorage2Service.onDidChangeStorage(e => this._onDidChangeStorage.fire(e)));
 	}
 
 	get(key: string, scope: StorageScope, fallbackValue?: any): string {
-		const dbValue = this.nextStorageService.get(key, scope, fallbackValue);
+		const dbValue = this.nextStorage2Service.get(key, scope, fallbackValue);
 		const localStorageValue = this.storageService.get(key, this.convertScope(scope), fallbackValue);
 
 		this.assertStorageValue(key, scope, dbValue, localStorageValue);
@@ -111,7 +111,7 @@ export class NextDelegatingStorageService extends Disposable implements INextSto
 	}
 
 	getBoolean(key: string, scope: StorageScope, fallbackValue?: boolean): boolean {
-		const dbValue = this.nextStorageService.getBoolean(key, scope, fallbackValue);
+		const dbValue = this.nextStorage2Service.getBoolean(key, scope, fallbackValue);
 		const localStorageValue = this.storageService.getBoolean(key, this.convertScope(scope), fallbackValue);
 
 		this.assertStorageValue(key, scope, dbValue, localStorageValue);
@@ -120,7 +120,7 @@ export class NextDelegatingStorageService extends Disposable implements INextSto
 	}
 
 	getInteger(key: string, scope: StorageScope, fallbackValue?: number): number {
-		const dbValue = this.nextStorageService.getInteger(key, scope, fallbackValue);
+		const dbValue = this.nextStorage2Service.getInteger(key, scope, fallbackValue);
 		const localStorageValue = this.storageService.getInteger(key, this.convertScope(scope), fallbackValue);
 
 		this.assertStorageValue(key, scope, dbValue, localStorageValue);
@@ -137,17 +137,17 @@ export class NextDelegatingStorageService extends Disposable implements INextSto
 	set(key: string, value: any, scope: StorageScope): Promise<void> {
 		this.storageService.store(key, value, this.convertScope(scope));
 
-		return this.nextStorageService.set(key, value, scope);
+		return this.nextStorage2Service.set(key, value, scope);
 	}
 
 	delete(key: string, scope: StorageScope): Promise<void> {
 		this.storageService.remove(key, this.convertScope(scope));
 
-		return this.nextStorageService.delete(key, scope);
+		return this.nextStorage2Service.delete(key, scope);
 	}
 
 	close(): Promise<void> {
-		return this.nextStorageService.close();
+		return this.nextStorage2Service.close();
 	}
 
 	private convertScope(scope: StorageScope): LocalStorageScope {
