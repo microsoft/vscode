@@ -26,7 +26,7 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { attachListStyler } from 'vs/platform/theme/common/styler';
 import { IThemeService, ITheme, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { registerColor, editorWidgetBackground, listFocusBackground, activeContrastBorder, listHighlightForeground, editorForeground, editorWidgetBorder, focusBorder, textLinkForeground, textCodeBlockBackground } from 'vs/platform/theme/common/colorRegistry';
-import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
+import { INextStorage2Service, StorageScope } from 'vs/platform/storage2/common/storage2';
 import { MarkdownRenderer } from 'vs/editor/contrib/markdown/markdownRenderer';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
@@ -397,12 +397,9 @@ export class SuggestWidget implements IContentWidget, IVirtualDelegate<ICompleti
 
 	private readonly maxWidgetWidth = 660;
 	private readonly listWidth = 330;
-	private storageService: IStorageService;
+	private nextStorage2Service: INextStorage2Service;
 	private detailsFocusBorderColor: string;
 	private detailsBorderColor: string;
-
-	private storageServiceAvailable: boolean = true;
-	private expandSuggestionDocs: boolean = false;
 
 	private firstFocusInCurrentList: boolean = false;
 
@@ -411,7 +408,7 @@ export class SuggestWidget implements IContentWidget, IVirtualDelegate<ICompleti
 		@ITelemetryService private telemetryService: ITelemetryService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IThemeService themeService: IThemeService,
-		@IStorageService storageService: IStorageService,
+		@INextStorage2Service nextStorage2Service: INextStorage2Service,
 		@IKeybindingService keybindingService: IKeybindingService,
 		@IModeService modeService: IModeService,
 		@IOpenerService openerService: IOpenerService
@@ -422,14 +419,7 @@ export class SuggestWidget implements IContentWidget, IVirtualDelegate<ICompleti
 
 		this.isAuto = false;
 		this.focusedItem = null;
-		this.storageService = storageService;
-
-		if (this.expandDocsSettingFromStorage() === undefined) {
-			this.storageService.store('expandSuggestionDocs', expandSuggestionDocsByDefault, StorageScope.GLOBAL);
-			if (this.expandDocsSettingFromStorage() === undefined) {
-				this.storageServiceAvailable = false;
-			}
-		}
+		this.nextStorage2Service = nextStorage2Service;
 
 		this.element = $('.editor-widget.suggest-widget');
 		if (!this.editor.getConfiguration().contribInfo.iconsInSuggestions) {
@@ -1053,22 +1043,12 @@ export class SuggestWidget implements IContentWidget, IVirtualDelegate<ICompleti
 		return 'suggestion';
 	}
 
-	// Monaco Editor does not have a storage service
 	private expandDocsSettingFromStorage(): boolean {
-		if (this.storageServiceAvailable) {
-			return this.storageService.getBoolean('expandSuggestionDocs', StorageScope.GLOBAL);
-		} else {
-			return this.expandSuggestionDocs;
-		}
+		return this.nextStorage2Service.getBoolean('expandSuggestionDocs', StorageScope.GLOBAL, expandSuggestionDocsByDefault);
 	}
 
-	// Monaco Editor does not have a storage service
 	private updateExpandDocsSetting(value: boolean) {
-		if (this.storageServiceAvailable) {
-			this.storageService.store('expandSuggestionDocs', value, StorageScope.GLOBAL);
-		} else {
-			this.expandSuggestionDocs = value;
-		}
+		this.nextStorage2Service.set('expandSuggestionDocs', value, StorageScope.GLOBAL);
 	}
 
 	dispose(): void {

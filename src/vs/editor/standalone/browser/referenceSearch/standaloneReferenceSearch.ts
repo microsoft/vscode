@@ -7,7 +7,7 @@ import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IStorageService } from 'vs/platform/storage/common/storage';
+import { INextStorage2Service } from 'vs/platform/storage2/common/storage2';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { registerEditorContribution } from 'vs/editor/browser/editorExtensions';
 import { INotificationService } from 'vs/platform/notification/common/notification';
@@ -21,7 +21,7 @@ export class StandaloneReferencesController extends ReferencesController {
 		@ICodeEditorService editorService: ICodeEditorService,
 		@INotificationService notificationService: INotificationService,
 		@IInstantiationService instantiationService: IInstantiationService,
-		@IStorageService storageService: IStorageService,
+		@INextStorage2Service nextStorage2Service: INextStorage2Service,
 		@IConfigurationService configurationService: IConfigurationService,
 	) {
 		super(
@@ -31,8 +31,8 @@ export class StandaloneReferencesController extends ReferencesController {
 			editorService,
 			notificationService,
 			instantiationService,
-			storageService,
-			configurationService,
+			nextStorage2Service,
+			configurationService
 		);
 	}
 }

@@ -17,6 +17,7 @@ import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { MarkerService } from 'vs/platform/markers/common/markerService';
 import { IMarkerService } from 'vs/platform/markers/common/markers';
 import { IProgressService } from 'vs/platform/progress/common/progress';
+import { INextStorage2Service, NullNextStorage2Service } from 'vs/platform/storage2/common/storage2';
 import { IStorageService, NullStorageService } from 'vs/platform/storage/common/storage';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
@@ -143,6 +144,8 @@ export module StaticServices {
 	export const codeEditorService = define(ICodeEditorService, (o) => new StandaloneCodeEditorServiceImpl(standaloneThemeService.get(o)));
 
 	export const progressService = define(IProgressService, () => new SimpleProgressService());
+
+	export const nextStorage2Service = define(INextStorage2Service, () => NullNextStorage2Service);
 
 	export const storageService = define(IStorageService, () => NullStorageService);
 

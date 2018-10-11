@@ -13,7 +13,7 @@ import { FontInfo, BareFontInfo } from 'vs/editor/common/config/fontInfo';
 import { ElementSizeObserver } from 'vs/editor/browser/config/elementSizeObserver';
 import { FastDomNode } from 'vs/base/browser/fastDomNode';
 import { CharWidthRequest, CharWidthRequestType, readCharWidths } from 'vs/editor/browser/config/charWidthReader';
-import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
+import { INextStorage2Service, StorageScope } from 'vs/platform/storage2/common/storage2';
 import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
 
 class CSSBasedConfigurationCache {
@@ -57,8 +57,8 @@ export function readFontInfo(bareFontInfo: BareFontInfo): FontInfo {
 	return CSSBasedConfiguration.INSTANCE.readConfiguration(bareFontInfo);
 }
 
-export function restoreFontInfo(storageService: IStorageService): void {
-	let strStoredFontInfo = storageService.get('editorFontInfo', StorageScope.GLOBAL);
+export function restoreFontInfo(nextStorage2Service: INextStorage2Service): void {
+	let strStoredFontInfo = nextStorage2Service.get('editorFontInfo', StorageScope.GLOBAL);
 	if (typeof strStoredFontInfo !== 'string') {
 		return;
 	}
@@ -74,9 +74,9 @@ export function restoreFontInfo(storageService: IStorageService): void {
 	CSSBasedConfiguration.INSTANCE.restoreFontInfo(storedFontInfo);
 }
 
-export function saveFontInfo(storageService: IStorageService): void {
+export function saveFontInfo(nextStorage2Service: INextStorage2Service): void {
 	let knownFontInfo = CSSBasedConfiguration.INSTANCE.saveFontInfo();
-	storageService.store('editorFontInfo', JSON.stringify(knownFontInfo), StorageScope.GLOBAL);
+	nextStorage2Service.set('editorFontInfo', JSON.stringify(knownFontInfo), StorageScope.GLOBAL);
 }
 
 export interface ISerializedFontInfo {

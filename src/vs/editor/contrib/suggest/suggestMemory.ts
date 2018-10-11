@@ -5,7 +5,7 @@
 
 import { ICompletionItem } from 'vs/editor/contrib/suggest/completionModel';
 import { LRUCache, TernarySearchTree } from 'vs/base/common/map';
-import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
+import { INextStorage2Service, StorageScope } from 'vs/platform/storage2/common/storage2';
 import { ITextModel } from 'vs/editor/common/model';
 import { IPosition } from 'vs/editor/common/core/position';
 import { RunOnceScheduler } from 'vs/base/common/async';
@@ -205,7 +205,7 @@ export class SuggestMemories {
 
 	constructor(
 		editor: ICodeEditor,
-		@IStorageService private readonly _storageService: IStorageService,
+		@INextStorage2Service private readonly _nextStorage2Service: INextStorage2Service,
 	) {
 		this._persistSoon = new RunOnceScheduler(() => this._flush(), 3000);
 		this._setMode(editor.getConfiguration().contribInfo.suggestSelection);
@@ -224,7 +224,7 @@ export class SuggestMemories {
 		this._strategy = mode === 'recentlyUsedByPrefix' ? new PrefixMemory() : mode === 'recentlyUsed' ? new LRUMemory() : new NoMemory();
 
 		try {
-			const raw = this._storageService.get(`${this._storagePrefix}/${this._mode}`, StorageScope.WORKSPACE);
+			const raw = this._nextStorage2Service.get(`${this._storagePrefix}/${this._mode}`, StorageScope.WORKSPACE);
 			if (raw) {
 				this._strategy.fromJSON(JSON.parse(raw));
 			}
@@ -244,6 +244,6 @@ export class SuggestMemories {
 
 	private _flush() {
 		const raw = JSON.stringify(this._strategy);
-		this._storageService.store(`${this._storagePrefix}/${this._mode}`, raw, StorageScope.WORKSPACE);
+		this._nextStorage2Service.set(`${this._storagePrefix}/${this._mode}`, raw, StorageScope.WORKSPACE);
 	}
 }

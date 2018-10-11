@@ -75,7 +75,7 @@ import { IBroadcastService, BroadcastService } from 'vs/platform/broadcast/elect
 import { HashService } from 'vs/workbench/services/hash/node/hashService';
 import { IHashService } from 'vs/workbench/services/hash/common/hashService';
 import { ILogService } from 'vs/platform/log/common/log';
-import { INextStorage2Service } from 'vs/platform/storage2/common/storage2';
+import { INextStorage2Service, StorageScope } from 'vs/platform/storage2/common/storage2';
 import { Event, Emitter } from 'vs/base/common/event';
 import { WORKBENCH_BACKGROUND } from 'vs/workbench/common/theme';
 import { stat } from 'fs';
@@ -170,8 +170,11 @@ export class WorkbenchShell extends Disposable {
 		const [instantiationService, serviceCollection] = this.initServiceCollection(this.container);
 
 		// Warm up font cache information before building up too many dom elements
-		restoreFontInfo(this.storageService);
+		restoreFontInfo(this.nextStorage2Service);
 		readFontInfo(BareFontInfo.createFromRawSettings(this.configurationService.getValue('editor'), browser.getZoomLevel()));
+		this._register(this.nextStorage2Service.onWillClose(() => {
+			saveFontInfo(this.nextStorage2Service); // Keep font info for next startup around
+		}));
 
 		// Workbench
 		this.workbench = this.createWorkbench(instantiationService, serviceCollection, this.container);
@@ -286,17 +289,17 @@ export class WorkbenchShell extends Disposable {
 		}
 
 		perf.mark('willReadLocalStorage');
-		const readyToSend = this.storageService.getBoolean('localStorageMetricsReadyToSend2');
+		const readyToSend = this.nextStorage2Service.getBoolean('localStorageMetricsReadyToSend2', StorageScope.GLOBAL);
 		perf.mark('didReadLocalStorage');
 
 		if (!readyToSend) {
-			this.storageService.store('localStorageMetricsReadyToSend2', true);
+			this.nextStorage2Service.set('localStorageMetricsReadyToSend2', true, StorageScope.GLOBAL);
 			return; // avoid logging localStorage metrics directly after the update, we prefer cold startup numbers
 		}
 
-		if (!this.storageService.getBoolean('localStorageMetricsSent2')) {
+		if (!this.nextStorage2Service.getBoolean('localStorageMetricsSent2', StorageScope.GLOBAL)) {
 			perf.mark('willWriteLocalStorage');
-			this.storageService.store('localStorageMetricsSent2', true);
+			this.nextStorage2Service.set('localStorageMetricsSent2', true, StorageScope.GLOBAL);
 			perf.mark('didWriteLocalStorage');
 
 			perf.mark('willStatLocalStorage');
@@ -366,7 +369,7 @@ export class WorkbenchShell extends Disposable {
 			const channel = getDelayedChannel<ITelemetryAppenderChannel>(sharedProcess.then(c => c.getChannel('telemetryAppender')));
 			const config: ITelemetryServiceConfig = {
 				appender: combinedAppender(new TelemetryAppenderClient(channel), new LogAppender(this.logService)),
-				commonProperties: resolveWorkbenchCommonProperties(this.storageService, product.commit, pkg.version, this.configuration.machineId, this.environmentService.installSourcePath),
+				commonProperties: resolveWorkbenchCommonProperties(this.nextStorage2Service, product.commit, pkg.version, this.configuration.machineId, this.environmentService.installSourcePath),
 				piiPaths: [this.environmentService.appRoot, this.environmentService.extensionsPath]
 			};
 
@@ -517,9 +520,6 @@ export class WorkbenchShell extends Disposable {
 	dispose(reason = ShutdownReason.QUIT): void {
 		super.dispose();
 
-		// Keep font info for next startup around
-		saveFontInfo(this.storageService);
-
 		// Dispose Workbench
 		if (this.workbench) {
 			this.workbench.dispose(reason);
@@ -528,7 +528,6 @@ export class WorkbenchShell extends Disposable {
 		this.mainProcessClient.dispose();
 	}
 }
-
 
 registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
 

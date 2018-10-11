@@ -94,7 +94,7 @@ export class NextStorage2Service extends Disposable implements INextStorage2Serv
 	}
 }
 
-export class NextDelegatingStorageService extends Disposable implements INextStorage2Service {
+export class NextDelegatingStorage2Service extends Disposable implements INextStorage2Service {
 	_serviceBrand: any;
 
 	private _onDidChangeStorage: Emitter<IWorkspaceStorageChangeEvent> = this._register(new Emitter<IWorkspaceStorageChangeEvent>());

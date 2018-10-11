@@ -14,7 +14,8 @@ import { CONTEXT_FIND_INPUT_FOCUSED } from 'vs/editor/contrib/find/findModel';
 import { withTestCodeEditor } from 'vs/editor/test/browser/testCodeEditor';
 import { IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
-import { IStorageService } from 'vs/platform/storage/common/storage';
+import { INextStorage2Service } from 'vs/platform/storage2/common/storage2';
+import { Event } from 'vs/base/common/event';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { Delayer } from 'vs/base/common/async';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
@@ -30,10 +31,10 @@ export class TestFindController extends CommonFindController {
 	constructor(
 		editor: ICodeEditor,
 		@IContextKeyService contextKeyService: IContextKeyService,
-		@IStorageService storageService: IStorageService,
+		@INextStorage2Service nextStorage2Service: INextStorage2Service,
 		@IClipboardService clipboardService: IClipboardService
 	) {
-		super(editor, contextKeyService, storageService, clipboardService);
+		super(editor, contextKeyService, nextStorage2Service, clipboardService);
 		this._findInputFocused = CONTEXT_FIND_INPUT_FOCUSED.bindTo(contextKeyService);
 		this._updateHistoryDelayer = new Delayer<void>(50);
 	}
@@ -58,11 +59,16 @@ suite('FindController', () => {
 	let queryState: { [key: string]: any; } = {};
 	let clipboardState = '';
 	let serviceCollection = new ServiceCollection();
-	serviceCollection.set(IStorageService, {
+	serviceCollection.set(INextStorage2Service, {
+		_serviceBrand: undefined,
+		onDidChangeStorage: Event.None,
+		onWillClose: Event.None,
 		get: (key: string) => queryState[key],
 		getBoolean: (key: string) => !!queryState[key],
-		store: (key: string, value: any) => { queryState[key] = value; }
-	} as IStorageService);
+		getInteger: (key: string) => undefined,
+		set: (key: string, value: any) => { queryState[key] = value; return Promise.resolve(); },
+		delete: (key) => void 0
+	} as INextStorage2Service);
 
 	if (platform.isMacintosh) {
 		serviceCollection.set(IClipboardService, <any>{
@@ -428,11 +434,16 @@ suite('FindController query options persistence', () => {
 	queryState['editor.matchCase'] = false;
 	queryState['editor.wholeWord'] = false;
 	let serviceCollection = new ServiceCollection();
-	serviceCollection.set(IStorageService, {
+	serviceCollection.set(INextStorage2Service, {
+		_serviceBrand: undefined,
+		onDidChangeStorage: Event.None,
+		onWillClose: Event.None,
 		get: (key: string) => queryState[key],
 		getBoolean: (key: string) => !!queryState[key],
-		store: (key: string, value: any) => { queryState[key] = value; }
-	} as IStorageService);
+		getInteger: (key: string) => undefined,
+		set: (key: string, value: any) => { queryState[key] = value; return Promise.resolve(); },
+		delete: (key) => void 0
+	} as INextStorage2Service);
 
 	test('matchCase', () => {
 		withTestCodeEditor([

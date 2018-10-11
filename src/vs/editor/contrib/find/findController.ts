@@ -14,7 +14,7 @@ import { FIND_IDS, FindModelBoundToEditorModel, ToggleCaseSensitiveKeybinding, T
 import { FindReplaceState, FindReplaceStateChangedEvent, INewFindReplaceState } from 'vs/editor/contrib/find/findState';
 import { Delayer } from 'vs/base/common/async';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
-import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
+import { INextStorage2Service, StorageScope } from 'vs/platform/storage2/common/storage2';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
@@ -72,7 +72,7 @@ export class CommonFindController extends Disposable implements editorCommon.IEd
 	protected _state: FindReplaceState;
 	protected _updateHistoryDelayer: Delayer<void>;
 	private _model: FindModelBoundToEditorModel;
-	protected _storageService: IStorageService;
+	private _nextStorage2Service: INextStorage2Service;
 	private _clipboardService: IClipboardService;
 	protected readonly _contextKeyService: IContextKeyService;
 
@@ -83,14 +83,14 @@ export class CommonFindController extends Disposable implements editorCommon.IEd
 	constructor(
 		editor: ICodeEditor,
 		@IContextKeyService contextKeyService: IContextKeyService,
-		@IStorageService storageService: IStorageService,
+		@INextStorage2Service nextStorage2Service: INextStorage2Service,
 		@IClipboardService clipboardService: IClipboardService
 	) {
 		super();
 		this._editor = editor;
 		this._findWidgetVisible = CONTEXT_FIND_WIDGET_VISIBLE.bindTo(contextKeyService);
 		this._contextKeyService = contextKeyService;
-		this._storageService = storageService;
+		this._nextStorage2Service = nextStorage2Service;
 		this._clipboardService = clipboardService;
 
 		this._updateHistoryDelayer = new Delayer<void>(500);
@@ -107,9 +107,9 @@ export class CommonFindController extends Disposable implements editorCommon.IEd
 
 			this._state.change({
 				searchScope: null,
-				matchCase: this._storageService.getBoolean('editor.matchCase', StorageScope.WORKSPACE, false),
-				wholeWord: this._storageService.getBoolean('editor.wholeWord', StorageScope.WORKSPACE, false),
-				isRegex: this._storageService.getBoolean('editor.isRegex', StorageScope.WORKSPACE, false)
+				matchCase: this._nextStorage2Service.getBoolean('editor.matchCase', StorageScope.WORKSPACE, false),
+				wholeWord: this._nextStorage2Service.getBoolean('editor.wholeWord', StorageScope.WORKSPACE, false),
+				isRegex: this._nextStorage2Service.getBoolean('editor.isRegex', StorageScope.WORKSPACE, false)
 			}, false);
 
 			if (shouldRestartFind) {
@@ -159,21 +159,21 @@ export class CommonFindController extends Disposable implements editorCommon.IEd
 
 	private saveQueryState(e: FindReplaceStateChangedEvent) {
 		if (e.isRegex) {
-			this._storageService.store('editor.isRegex', this._state.actualIsRegex, StorageScope.WORKSPACE);
+			this._nextStorage2Service.set('editor.isRegex', this._state.actualIsRegex, StorageScope.WORKSPACE);
 		}
 		if (e.wholeWord) {
-			this._storageService.store('editor.wholeWord', this._state.actualWholeWord, StorageScope.WORKSPACE);
+			this._nextStorage2Service.set('editor.wholeWord', this._state.actualWholeWord, StorageScope.WORKSPACE);
 		}
 		if (e.matchCase) {
-			this._storageService.store('editor.matchCase', this._state.actualMatchCase, StorageScope.WORKSPACE);
+			this._nextStorage2Service.set('editor.matchCase', this._state.actualMatchCase, StorageScope.WORKSPACE);
 		}
 	}
 
 	private loadQueryState() {
 		this._state.change({
-			matchCase: this._storageService.getBoolean('editor.matchCase', StorageScope.WORKSPACE, this._state.matchCase),
-			wholeWord: this._storageService.getBoolean('editor.wholeWord', StorageScope.WORKSPACE, this._state.wholeWord),
-			isRegex: this._storageService.getBoolean('editor.isRegex', StorageScope.WORKSPACE, this._state.isRegex)
+			matchCase: this._nextStorage2Service.getBoolean('editor.matchCase', StorageScope.WORKSPACE, this._state.matchCase),
+			wholeWord: this._nextStorage2Service.getBoolean('editor.wholeWord', StorageScope.WORKSPACE, this._state.wholeWord),
+			isRegex: this._nextStorage2Service.getBoolean('editor.isRegex', StorageScope.WORKSPACE, this._state.isRegex)
 		}, false);
 	}
 
@@ -366,10 +366,10 @@ export class FindController extends CommonFindController implements IFindControl
 		@IContextKeyService _contextKeyService: IContextKeyService,
 		@IKeybindingService private readonly _keybindingService: IKeybindingService,
 		@IThemeService private readonly _themeService: IThemeService,
-		@IStorageService storageService: IStorageService,
+		@INextStorage2Service nextStorage2Service: INextStorage2Service,
 		@optional(IClipboardService) clipboardService: IClipboardService
 	) {
-		super(editor, _contextKeyService, storageService, clipboardService);
+		super(editor, _contextKeyService, nextStorage2Service, clipboardService);
 	}
 
 	protected _start(opts: IFindStartOptions): void {

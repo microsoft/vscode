@@ -14,7 +14,7 @@ import { TextModel } from 'vs/editor/common/model/textModel';
 import * as modes from 'vs/editor/common/modes';
 import { createTestCodeEditor } from 'vs/editor/test/browser/testCodeEditor';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
-import { IStorageService, NullStorageService } from 'vs/platform/storage/common/storage';
+import { INextStorage2Service, NullNextStorage2Service } from 'vs/platform/storage2/common/storage2';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { NullTelemetryService } from 'vs/platform/telemetry/common/telemetryUtils';
 import { ParameterHintsModel } from '../parameterHintsWidget';
@@ -44,7 +44,7 @@ suite('ParameterHintsModel', () => {
 			model: textModel,
 			serviceCollection: new ServiceCollection(
 				[ITelemetryService, NullTelemetryService],
-				[IStorageService, NullStorageService]
+				[INextStorage2Service, NullNextStorage2Service]
 			)
 		});
 		disposables.push(textModel);
