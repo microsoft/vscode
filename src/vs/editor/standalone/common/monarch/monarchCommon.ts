@@ -150,7 +150,7 @@ export function throwError(lexer: ILexerMin, msg: string) {
  */
 export function substituteMatches(lexer: ILexerMin, str: string, id: string, matches: string[], state: string): string {
 	const re = /\$((\$)|(#)|(\d\d?)|[sS](\d\d?)|@(\w+))/g;
-	let stateMatches: string[] = null;
+	let stateMatches: string[] | null = null;
 	return str.replace(re, function (full, sub?, dollar?, hash?, n?, s?, attr?, ofs?, total?) {
 		if (!empty(dollar)) {
 			return '$'; // $$
@@ -178,7 +178,7 @@ export function substituteMatches(lexer: ILexerMin, str: string, id: string, mat
 /**
  * Find the tokenizer rules for a specific state (i.e. next action)
  */
-export function findRules(lexer: ILexer, state: string): IRule[] {
+export function findRules(lexer: ILexer, state: string | null): IRule[] | null {
 	while (state && state.length > 0) {
 		const rules = lexer.tokenizer[state];
 		if (rules) {
@@ -200,7 +200,7 @@ export function findRules(lexer: ILexer, state: string): IRule[] {
  * This is used during compilation where we may know the defined states
  * but not yet whether the corresponding rules are correct.
  */
-export function stateExists(lexer: ILexerMin, state: string): boolean {
+export function stateExists(lexer: ILexerMin, state: string | null): boolean {
 	while (state && state.length > 0) {
 		const exist = lexer.stateNames[state];
 		if (exist) {
