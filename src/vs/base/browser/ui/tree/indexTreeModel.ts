@@ -129,22 +129,21 @@ export class IndexTreeModel<T, TFilterData = void> implements ITreeModel<T, TFil
 		this.eventBufferer.bufferEvents(() => this._setCollapsed(node, listIndex, revealed));
 	}
 
-	// // TODO@joao cleanup
-	// setCollapsedAll(collapsed: boolean): void {
-	// 	if (collapsed) {
-	// 		const queue = [...this.root.children]; // TODO@joao use a linked list
-	// 		let listIndex = 0;
+	collapseAll(): void {
+		const queue = [...this.root.children]; // TODO@joao use a linked list
+		let listIndex = 0;
 
-	// 		while (queue.length > 0) {
-	// 			const node = queue.shift();
-	// 			const revealed = listIndex < this.root.children.length;
-	// 			this._setCollapsed(node, listIndex, revealed, collapsed);
+		this.eventBufferer.bufferEvents(() => {
+			while (queue.length > 0) {
+				const node = queue.shift();
+				const revealed = listIndex < this.root.children.length;
+				this._setCollapsed(node, listIndex, revealed, true);
 
-	// 			queue.push(...node.children);
-	// 			listIndex++;
-	// 		}
-	// 	}
-	// }
+				queue.push(...node.children);
+				listIndex++;
+			}
+		});
+	}
 
 	isCollapsed(location: number[]): boolean {
 		return this.getNode(location).collapsed;

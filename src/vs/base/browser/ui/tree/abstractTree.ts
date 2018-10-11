@@ -259,6 +259,10 @@ export abstract class AbstractTree<T, TFilterData, TRef> implements IDisposable 
 		this.model.toggleCollapsed(ref);
 	}
 
+	collapseAll(): void {
+		this.model.collapseAll();
+	}
+
 	isCollapsed(ref: TRef): boolean {
 		return this.model.isCollapsed(ref);
 	}

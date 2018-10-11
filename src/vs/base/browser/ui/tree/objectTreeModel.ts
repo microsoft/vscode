@@ -77,6 +77,10 @@ export class ObjectTreeModel<T extends NonNullable<any>, TFilterData = void> imp
 		this.model.toggleCollapsed(location);
 	}
 
+	collapseAll(): void {
+		this.model.collapseAll();
+	}
+
 	isCollapsed(element: T): boolean {
 		const location = this.getElementLocation(element);
 		return this.model.isCollapsed(location);

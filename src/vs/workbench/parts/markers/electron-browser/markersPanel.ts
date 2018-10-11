@@ -327,10 +327,9 @@ export class MarkersPanel extends Panel {
 		this.tree.onContextMenu(this.onContextMenu, this, this._toDispose);
 	}
 
-	// TODO@joao
 	private createActions(): void {
 		this.collapseAllAction = new Action('vs.tree.collapse', localize('collapse', "Collapse"), 'monaco-tree-action collapse-all', true, async () => {
-			// this.tree.collapseAll();
+			this.tree.collapseAll();
 			this.tree.setSelection([]);
 			this.tree.setFocus([]);
 			this.tree.getHTMLElement().focus();

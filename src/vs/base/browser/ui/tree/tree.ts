@@ -54,6 +54,7 @@ export interface ITreeModel<T, TFilterData, TRef> {
 	getListIndex(ref: TRef): number;
 	setCollapsed(ref: TRef, collapsed: boolean): boolean;
 	toggleCollapsed(ref: TRef): void;
+	collapseAll(): void;
 	isCollapsed(ref: TRef): boolean;
 	refilter(): void;
 
