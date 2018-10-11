@@ -37,7 +37,7 @@ export function getDefaultTerminalLinuxReady(): Promise<string> {
 
 export const DEFAULT_TERMINAL_OSX = 'Terminal.app';
 
-let _DEFAULT_TERMINAL_WINDOWS: string = null;
+let _DEFAULT_TERMINAL_WINDOWS: string | null = null;
 export function getDefaultTerminalWindows(): string {
 	if (!_DEFAULT_TERMINAL_WINDOWS) {
 		const isWoW64 = !!process.env.hasOwnProperty('PROCESSOR_ARCHITEW6432');

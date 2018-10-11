@@ -271,7 +271,7 @@ export class Variable extends ExpressionContainer implements IExpression {
 		namedVariables: number,
 		indexedVariables: number,
 		public presentationHint: DebugProtocol.VariablePresentationHint,
-		public type: string = null,
+		public type: string | null = null,
 		public available = true,
 		startOfVariables = 0
 	) {
@@ -1025,7 +1025,7 @@ export class DebugModel implements IDebugModel {
 		}
 	}
 
-	public removeWatchExpressions(id: string = null): void {
+	public removeWatchExpressions(id: string | null = null): void {
 		this.watchExpressions = id ? this.watchExpressions.filter(we => we.getId() !== id) : [];
 		this._onDidChangeWatchExpressions.fire();
 	}

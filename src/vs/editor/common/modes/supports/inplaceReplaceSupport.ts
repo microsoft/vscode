@@ -76,7 +76,7 @@ export class BasicInplaceReplace {
 	}
 
 	private valueSetsReplace(valueSets: string[][], value: string, up: boolean): string {
-		let result: string = null;
+		let result: string | null = null;
 		for (let i = 0, len = valueSets.length; result === null && i < len; i++) {
 			result = this.valueSetReplace(valueSets[i], value, up);
 		}

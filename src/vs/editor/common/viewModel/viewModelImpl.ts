@@ -127,7 +127,7 @@ export class ViewModel extends viewEvents.ViewEventEmitter implements IViewModel
 	private _onConfigurationChanged(eventsCollector: viewEvents.ViewEventsCollector, e: IConfigurationChangedEvent): void {
 
 		// We might need to restore the current centered view range, so save it (if available)
-		let previousViewportStartModelPosition: Position = null;
+		let previousViewportStartModelPosition: Position | null = null;
 		if (this.viewportStartLine !== -1) {
 			let previousViewportStartViewPosition = new Position(this.viewportStartLine, this.getLineMinColumn(this.viewportStartLine));
 			previousViewportStartModelPosition = this.coordinatesConverter.convertViewPositionToModelPosition(previousViewportStartViewPosition);

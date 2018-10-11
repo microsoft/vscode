@@ -172,7 +172,7 @@ export class TextAreaHandler extends ViewPart {
 				const multicursorText = (Array.isArray(rawWhatToCopy) ? rawWhatToCopy : null);
 				const whatToCopy = (Array.isArray(rawWhatToCopy) ? rawWhatToCopy.join(newLineCharacter) : rawWhatToCopy);
 
-				let metadata: LocalClipboardMetadata = null;
+				let metadata: LocalClipboardMetadata | null = null;
 				if (isFromEmptySelection || multicursorText) {
 					// Only store the non-default metadata
 
@@ -442,7 +442,7 @@ export class TextAreaHandler extends ViewPart {
 
 	// --- end view API
 
-	private _primaryCursorVisibleRange: HorizontalRange = null;
+	private _primaryCursorVisibleRange: HorizontalRange | null = null;
 
 	public prepareRender(ctx: RenderingContext): void {
 		if (this._accessibilitySupport === platform.AccessibilitySupport.Enabled) {

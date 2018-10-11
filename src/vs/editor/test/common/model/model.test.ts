@@ -104,7 +104,7 @@ suite('Editor Model - Model', () => {
 	});
 
 	test('model insert text without newline eventing', () => {
-		let e: ModelRawContentChangedEvent = null;
+		let e: ModelRawContentChangedEvent | null = null;
 		thisModel.onDidChangeRawContent((_e) => {
 			if (e !== null) {
 				assert.fail('Unexpected assertion error');
@@ -123,7 +123,7 @@ suite('Editor Model - Model', () => {
 	});
 
 	test('model insert text with one newline eventing', () => {
-		let e: ModelRawContentChangedEvent = null;
+		let e: ModelRawContentChangedEvent | null = null;
 		thisModel.onDidChangeRawContent((_e) => {
 			if (e !== null) {
 				assert.fail('Unexpected assertion error');
@@ -200,7 +200,7 @@ suite('Editor Model - Model', () => {
 	});
 
 	test('model delete text from one line eventing', () => {
-		let e: ModelRawContentChangedEvent = null;
+		let e: ModelRawContentChangedEvent | null = null;
 		thisModel.onDidChangeRawContent((_e) => {
 			if (e !== null) {
 				assert.fail('Unexpected assertion error');
@@ -219,7 +219,7 @@ suite('Editor Model - Model', () => {
 	});
 
 	test('model delete all text from a line eventing', () => {
-		let e: ModelRawContentChangedEvent = null;
+		let e: ModelRawContentChangedEvent | null = null;
 		thisModel.onDidChangeRawContent((_e) => {
 			if (e !== null) {
 				assert.fail('Unexpected assertion error');
@@ -238,7 +238,7 @@ suite('Editor Model - Model', () => {
 	});
 
 	test('model delete text from two lines eventing', () => {
-		let e: ModelRawContentChangedEvent = null;
+		let e: ModelRawContentChangedEvent | null = null;
 		thisModel.onDidChangeRawContent((_e) => {
 			if (e !== null) {
 				assert.fail('Unexpected assertion error');
@@ -258,7 +258,7 @@ suite('Editor Model - Model', () => {
 	});
 
 	test('model delete text from many lines eventing', () => {
-		let e: ModelRawContentChangedEvent = null;
+		let e: ModelRawContentChangedEvent | null = null;
 		thisModel.onDidChangeRawContent((_e) => {
 			if (e !== null) {
 				assert.fail('Unexpected assertion error');
@@ -309,7 +309,7 @@ suite('Editor Model - Model', () => {
 
 	// --------- setValue
 	test('setValue eventing', () => {
-		let e: ModelRawContentChangedEvent = null;
+		let e: ModelRawContentChangedEvent | null = null;
 		thisModel.onDidChangeRawContent((_e) => {
 			if (e !== null) {
 				assert.fail('Unexpected assertion error');

@@ -199,7 +199,7 @@ export class Tree implements _.ITree {
 		return this.model.getExpandedElements();
 	}
 
-	public reveal(element: any, relativeTop: number = null): WinJS.Promise {
+	public reveal(element: any, relativeTop: number | null = null): WinJS.Promise {
 		return this.model.reveal(element, relativeTop);
 	}
 

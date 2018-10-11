@@ -163,7 +163,7 @@ class ModelMarkerHandler {
 			}
 		}
 
-		let hoverMessage: MarkdownString = null;
+		let hoverMessage: MarkdownString | null = null;
 		let { message, source, relatedInformation } = marker;
 
 		if (typeof message === 'string') {

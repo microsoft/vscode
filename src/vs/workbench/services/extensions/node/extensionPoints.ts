@@ -527,7 +527,7 @@ export class ExtensionScanner {
 	/**
 	 * Scan a list of extensions defined in `absoluteFolderPath`
 	 */
-	public static async scanExtensions(input: ExtensionScannerInput, log: ILog, resolver: IExtensionResolver = null): Promise<IExtensionDescription[]> {
+	public static async scanExtensions(input: ExtensionScannerInput, log: ILog, resolver: IExtensionResolver | null = null): Promise<IExtensionDescription[]> {
 		const absoluteFolderPath = input.absoluteFolderPath;
 		const isBuiltin = input.isBuiltin;
 		const isUnderDevelopment = input.isUnderDevelopment;

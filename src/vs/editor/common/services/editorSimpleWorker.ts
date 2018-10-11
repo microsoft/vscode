@@ -547,7 +547,7 @@ export abstract class BaseEditorSimpleWorker {
 		let selectionText = model.getValueInRange(range);
 
 		let wordRange = model.getWordAtPosition({ lineNumber: range.startLineNumber, column: range.startColumn }, wordDefRegExp);
-		let word: string = null;
+		let word: string | null = null;
 		if (wordRange !== null) {
 			word = model.getValueInRange(wordRange);
 		}

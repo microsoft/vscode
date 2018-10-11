@@ -74,7 +74,7 @@ export class EditorState {
 export class StableEditorScrollState {
 
 	public static capture(editor: ICodeEditor): StableEditorScrollState {
-		let visiblePosition: Position = null;
+		let visiblePosition: Position | null = null;
 		let visiblePositionScrollDelta = 0;
 		if (editor.getScrollTop() !== 0) {
 			const visibleRanges = editor.getVisibleRanges();

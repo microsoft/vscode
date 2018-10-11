@@ -145,7 +145,7 @@ export class Workspace implements IWorkspace {
 	constructor(
 		private _id: string,
 		folders: WorkspaceFolder[] = [],
-		private _configuration: URI = null,
+		private _configuration: URI | null = null,
 		private _ctime?: number
 	) {
 		this.folders = folders;

@@ -1177,7 +1177,7 @@ export class Workbench extends Disposable implements IPartService {
 	}
 
 	getContainer(part: Parts): HTMLElement {
-		let container: HTMLElement = null;
+		let container: HTMLElement | null = null;
 		switch (part) {
 			case Parts.TITLEBAR_PART:
 				container = this.titlebarPart.getContainer();

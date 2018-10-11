@@ -153,7 +153,7 @@ export class TextAreaState {
 			// the only hints we can use is that the selection is immediately after the inserted emoji
 			// and that none of the old text has been deleted
 
-			let potentialEmojiInput: string = null;
+			let potentialEmojiInput: string | null = null;
 
 			if (currentSelectionStart === currentValue.length) {
 				// emoji potentially inserted "somewhere" after the previous selection => it should appear at the end of `currentValue`
@@ -255,7 +255,7 @@ export class PagedScreenReaderStrategy {
 		let posttextRange = selectionEndPageRange.intersectRanges(new Range(selection.endLineNumber, selection.endColumn, lastLine, lastLineMaxColumn));
 		let posttext = model.getValueInRange(posttextRange, EndOfLinePreference.LF);
 
-		let text: string = null;
+		let text: string | null = null;
 		if (selectionStartPage === selectionEndPage || selectionStartPage + 1 === selectionEndPage) {
 			// take full selection
 			text = model.getValueInRange(selection, EndOfLinePreference.LF);

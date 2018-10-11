@@ -278,7 +278,7 @@ export class ContextKeyService extends AbstractContextKeyService implements ICon
 		this._toDispose.push(myContext);
 
 		// Uncomment this to see the contexts continuously logged
-		// let lastLoggedValue: string = null;
+		// let lastLoggedValue: string | null = null;
 		// setInterval(() => {
 		// 	let values = Object.keys(this._contexts).map((key) => this._contexts[key]);
 		// 	let logValue = values.map(v => JSON.stringify(v._value, null, '\t')).join('\n');

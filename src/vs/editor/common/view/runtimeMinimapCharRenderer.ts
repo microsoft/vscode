@@ -13,7 +13,7 @@ function toUint8ClampedArrat(arr: number[]): Uint8ClampedArray {
 	return r;
 }
 
-let minimapCharRenderer: MinimapCharRenderer = null;
+let minimapCharRenderer: MinimapCharRenderer | null = null;
 export function getOrCreateMinimapCharRenderer(): MinimapCharRenderer {
 	if (!minimapCharRenderer) {
 		let _x1Data = toUint8ClampedArrat(x1Data);

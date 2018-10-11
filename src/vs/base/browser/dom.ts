@@ -272,7 +272,7 @@ export function addDisposableNonBubblingMouseOutListener(node: Element, handler:
 interface IRequestAnimationFrame {
 	(callback: (time: number) => void): number;
 }
-let _animationFrame: IRequestAnimationFrame = null;
+let _animationFrame: IRequestAnimationFrame | null = null;
 function doRequestAnimationFrame(callback: (time: number) => void): number {
 	if (!_animationFrame) {
 		const emulatedRequestAnimationFrame = (callback: (time: number) => void): any => {
@@ -425,7 +425,7 @@ class TimeoutThrottledDomListener<R, E extends DOMEvent> extends Disposable {
 	constructor(node: any, type: string, handler: (event: R) => void, eventMerger: IEventMerger<R, E> = <any>DEFAULT_EVENT_MERGER, minimumTimeMs: number = MINIMUM_TIME_MS) {
 		super();
 
-		let lastEvent: R = null;
+		let lastEvent: R | null = null;
 		let lastHandlerTime = 0;
 		let timeout = this._register(new TimeoutTimer());
 
@@ -771,7 +771,7 @@ export function createStyleSheet(container: HTMLElement = document.getElementsBy
 	return style;
 }
 
-let _sharedStyleSheet: HTMLStyleElement = null;
+let _sharedStyleSheet: HTMLStyleElement | null = null;
 function getSharedStyleSheet(): HTMLStyleElement {
 	if (!_sharedStyleSheet) {
 		_sharedStyleSheet = createStyleSheet();

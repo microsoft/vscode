@@ -206,7 +206,7 @@ export class MultiCursorSession {
 		const s = editor.getSelection();
 
 		let searchText: string;
-		let currentMatch: Selection = null;
+		let currentMatch: Selection | null = null;
 
 		if (s.isEmpty()) {
 			// selection is empty => expand to current word

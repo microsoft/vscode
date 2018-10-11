@@ -73,12 +73,12 @@ export function parseTokenTheme(source: ITokenThemeRule[]): ParsedTokenThemeRule
 			}
 		}
 
-		let foreground: string = null;
+		let foreground: string | null = null;
 		if (typeof entry.foreground === 'string') {
 			foreground = entry.foreground;
 		}
 
-		let background: string = null;
+		let background: string | null = null;
 		if (typeof entry.background === 'string') {
 			background = entry.background;
 		}

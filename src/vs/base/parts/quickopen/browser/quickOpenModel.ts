@@ -328,7 +328,7 @@ class Renderer implements IRenderer<QuickOpenEntry> {
 	private actionProvider: IActionProvider;
 	private actionRunner: IActionRunner;
 
-	constructor(actionProvider: IActionProvider = new NoActionProvider(), actionRunner: IActionRunner = null) {
+	constructor(actionProvider: IActionProvider = new NoActionProvider(), actionRunner: IActionRunner | null = null) {
 		this.actionProvider = actionProvider;
 		this.actionRunner = actionRunner;
 	}

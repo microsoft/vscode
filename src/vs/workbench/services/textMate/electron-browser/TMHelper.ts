@@ -18,7 +18,7 @@ export function findMatchingThemeRule(theme: IColorTheme, scopes: string[], only
 }
 
 function findMatchingThemeRule2(theme: IColorTheme, scope: string, parentScopes: string[], onlyColorRules: boolean): ThemeRule {
-	let result: ThemeRule = null;
+	let result: ThemeRule | null = null;
 
 	// Loop backwards, to ensure the last most specific rule wins
 	for (let i = theme.tokenColors.length - 1; i >= 0; i--) {

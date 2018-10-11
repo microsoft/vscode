@@ -376,7 +376,7 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 		return this.model;
 	}
 
-	public setModel(model: ITextModel = null): void {
+	public setModel(model: ITextModel | null = null): void {
 		if (this.model === model) {
 			// Current model is the new model
 			return;
@@ -1462,7 +1462,7 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 	}
 
 	private _detachModel(): ITextModel {
-		let removeDomNode: HTMLElement = null;
+		let removeDomNode: HTMLElement | null = null;
 
 		if (this._view) {
 			this._view.dispose();

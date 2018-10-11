@@ -75,7 +75,7 @@ class StateMachine {
 }
 
 // State machine for http:// or https:// or file://
-let _stateMachine: StateMachine = null;
+let _stateMachine: StateMachine | null = null;
 function getStateMachine(): StateMachine {
 	if (_stateMachine === null) {
 		_stateMachine = new StateMachine([

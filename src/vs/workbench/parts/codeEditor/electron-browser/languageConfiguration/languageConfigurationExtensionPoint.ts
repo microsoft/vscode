@@ -111,7 +111,7 @@ export class LanguageConfigurationFileHandler {
 			return null;
 		}
 
-		let result: CommentRule = null;
+		let result: CommentRule | null = null;
 		if (typeof source.lineComment !== 'undefined') {
 			if (typeof source.lineComment !== 'string') {
 				console.warn(`[${languageIdentifier.language}]: language configuration: expected \`comments.lineComment\` to be a string.`);

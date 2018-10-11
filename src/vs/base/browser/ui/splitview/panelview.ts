@@ -334,7 +334,7 @@ class PanelDraggable extends Disposable {
 	}
 
 	private render(): void {
-		let backgroundColor: string = null;
+		let backgroundColor: string | null = null;
 
 		if (this.dragOverCounter > 0) {
 			backgroundColor = (this.panel.dropBackground || PanelDraggable.DefaultDragOverBackgroundColor).toString();

@@ -170,7 +170,7 @@ class LanguagePacksCache extends Disposable {
 
 	private withLanguagePacks<T>(fn: (languagePacks: { [language: string]: ILanguagePack }) => T = () => null): TPromise<T> {
 		return this.languagePacksFileLimiter.queue(() => {
-			let result: T = null;
+			let result: T | null = null;
 			return pfs.readFile(this.languagePacksFilePath, 'utf8')
 				.then(null, err => err.code === 'ENOENT' ? TPromise.as('{}') : TPromise.wrapError(err))
 				.then<{ [language: string]: ILanguagePack }>(raw => { try { return JSON.parse(raw); } catch (e) { return {}; } })

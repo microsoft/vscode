@@ -8,7 +8,7 @@ import { Event, Emitter } from 'vs/base/common/event';
 import { RGBA8 } from 'vs/editor/common/core/rgba';
 
 export class MinimapTokensColorTracker {
-	private static _INSTANCE: MinimapTokensColorTracker = null;
+	private static _INSTANCE: MinimapTokensColorTracker | null = null;
 	public static getInstance(): MinimapTokensColorTracker {
 		if (!this._INSTANCE) {
 			this._INSTANCE = new MinimapTokensColorTracker();

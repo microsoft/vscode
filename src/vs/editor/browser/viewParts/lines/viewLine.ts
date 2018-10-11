@@ -225,7 +225,7 @@ export class ViewLine implements IVisibleLine {
 
 		sb.appendASCIIString('</div>');
 
-		let renderedViewLine: IRenderedViewLine = null;
+		let renderedViewLine: IRenderedViewLine | null = null;
 		if (canUseFastRenderedViewLine && lineData.isBasicASCII && options.useMonospaceOptimizations && output.containsForeignElements === ForeignElementType.None) {
 			if (lineData.content.length < 300 && renderLineInput.lineTokens.getCount() < 100) {
 				// Browser rounding errors have been observed in Chrome and IE, so using the fast

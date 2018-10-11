@@ -21,11 +21,11 @@ import Severity from 'vs/base/common/severity';
 import { ILogService } from 'vs/platform/log/common/log';
 import { getPathFromAmdModule } from 'vs/base/common/amd';
 
-function ignore<T>(code: string, value: T = null): (err: any) => TPromise<T> {
+function ignore<T>(code: string, value: T | null = null): (err: any) => TPromise<T> {
 	return err => err.code === code ? TPromise.as<T>(value) : TPromise.wrapError<T>(err);
 }
 
-let _source: string = null;
+let _source: string | null = null;
 function getSource(): string {
 	if (!_source) {
 		const root = getPathFromAmdModule(require, '');

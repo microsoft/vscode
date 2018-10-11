@@ -547,7 +547,7 @@ export class SplitLinesCollection implements IViewModelLinesCollection {
 		const modelStartLineIndex = modelStart.lineNumber - 1;
 		const modelEndLineIndex = modelEnd.lineNumber - 1;
 
-		let reqStart: Position = null;
+		let reqStart: Position | null = null;
 		for (let modelLineIndex = modelStartLineIndex; modelLineIndex <= modelEndLineIndex; modelLineIndex++) {
 			const line = this.lines[modelLineIndex];
 			if (line.isVisible()) {
@@ -818,7 +818,7 @@ export class SplitLinesCollection implements IViewModelLinesCollection {
 		const modelStartLineIndex = modelStart.lineNumber - 1;
 		const modelEndLineIndex = modelEnd.lineNumber - 1;
 
-		let reqStart: Position = null;
+		let reqStart: Position | null = null;
 		for (let modelLineIndex = modelStartLineIndex; modelLineIndex <= modelEndLineIndex; modelLineIndex++) {
 			const line = this.lines[modelLineIndex];
 			if (line.isVisible()) {
@@ -857,7 +857,7 @@ export class SplitLinesCollection implements IViewModelLinesCollection {
 
 		// Eliminate duplicate decorations that might have intersected our visible ranges multiple times
 		let finalResult: IModelDecoration[] = [], finalResultLen = 0;
-		let prevDecId: string = null;
+		let prevDecId: string | null = null;
 		for (let i = 0, len = result.length; i < len; i++) {
 			const dec = result[i];
 			const decId = dec.id;

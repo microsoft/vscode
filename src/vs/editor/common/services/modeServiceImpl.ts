@@ -105,7 +105,7 @@ export class ModeServiceImpl implements IModeService {
 
 		if (isPlainText) {
 			// Try to do it synchronously
-			let r: IMode = null;
+			let r: IMode | null = null;
 			this.getOrCreateMode(commaSeparatedMimetypesOrCommaSeparatedIds).then((mode) => {
 				r = mode;
 			}, onUnexpectedError);

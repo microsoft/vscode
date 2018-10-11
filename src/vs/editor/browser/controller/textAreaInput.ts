@@ -479,7 +479,7 @@ export class TextAreaInput extends Disposable {
 			return;
 		}
 
-		let copyHTML: string = null;
+		let copyHTML: string | null = null;
 		if (browser.hasClipboardSupport() && (copyPlainText.length < 65536 || CopyOptions.forceCopyWithSyntaxHighlighting)) {
 			copyHTML = this._host.getHTMLToCopy();
 		}

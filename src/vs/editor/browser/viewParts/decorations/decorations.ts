@@ -149,9 +149,9 @@ export class DecorationsOverlay extends DynamicViewOverlay {
 		const lineHeight = String(this._lineHeight);
 		const visibleStartLineNumber = ctx.visibleRange.startLineNumber;
 
-		let prevClassName: string = null;
+		let prevClassName: string | null = null;
 		let prevShowIfCollapsed: boolean = false;
-		let prevRange: Range = null;
+		let prevRange: Range | null = null;
 
 		for (let i = 0, lenI = decorations.length; i < lenI; i++) {
 			const d = decorations[i];

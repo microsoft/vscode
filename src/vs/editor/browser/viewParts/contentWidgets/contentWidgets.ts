@@ -443,7 +443,7 @@ class Widget {
 			return null;
 		}
 
-		let placement: IBoxLayoutResult = null;
+		let placement: IBoxLayoutResult | null = null;
 		let fetchPlacement = (): void => {
 			if (placement) {
 				return;

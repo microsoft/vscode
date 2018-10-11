@@ -58,7 +58,7 @@ export function getDefaultTerminalLinuxReady(): TPromise<string> {
 	return _DEFAULT_TERMINAL_LINUX_READY;
 }
 
-let _DEFAULT_TERMINAL_WINDOWS: string = null;
+let _DEFAULT_TERMINAL_WINDOWS: string | null = null;
 export function getDefaultTerminalWindows(): string {
 	if (!_DEFAULT_TERMINAL_WINDOWS) {
 		const isWoW64 = !!process.env.hasOwnProperty('PROCESSOR_ARCHITEW6432');

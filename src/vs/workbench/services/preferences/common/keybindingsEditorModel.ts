@@ -259,7 +259,7 @@ class KeybindingItemMatches {
 	public readonly commandDefaultLabelMatches: IMatch[] = null;
 	public readonly sourceMatches: IMatch[] = null;
 	public readonly whenMatches: IMatch[] = null;
-	public readonly keybindingMatches: KeybindingMatches = null;
+	public readonly keybindingMatches: KeybindingMatches | null = null;
 
 	constructor(private modifierLabels: ModifierLabels, keybindingItem: IKeybindingItem, searchValue: string, words: string[], keybindingWords: string[], completeMatch: boolean) {
 		if (!completeMatch) {

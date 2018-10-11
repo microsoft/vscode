@@ -71,7 +71,7 @@ export abstract class AbstractCodeEditorService extends Disposable implements IC
 	}
 
 	getFocusedCodeEditor(): ICodeEditor {
-		let editorWithWidgetFocus: ICodeEditor = null;
+		let editorWithWidgetFocus: ICodeEditor | null = null;
 
 		let editors = this.listCodeEditors();
 		for (let i = 0; i < editors.length; i++) {

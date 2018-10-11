@@ -186,7 +186,7 @@ export class RuntimeExtensionsEditor extends BaseEditor {
 		for (let i = 0, len = this._extensionsDescriptions.length; i < len; i++) {
 			const extensionDescription = this._extensionsDescriptions[i];
 
-			let profileInfo: IExtensionProfileInformation = null;
+			let profileInfo: IExtensionProfileInformation | null = null;
 			if (this._profileInfo) {
 				let extensionSegments = segments[extensionDescription.id] || [];
 				let extensionTotalTime = 0;

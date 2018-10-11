@@ -53,7 +53,7 @@ export function readRawMapping<T>(file: string): TPromise<T> {
 	return readFile(getPathFromAmdModule(require, `vs/workbench/services/keybinding/test/${file}.js`)).then((buff) => {
 		let contents = buff.toString();
 		let func = new Function('define', contents);
-		let rawMappings: T = null;
+		let rawMappings: T | null = null;
 		func(function (value: T) {
 			rawMappings = value;
 		});

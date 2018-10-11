@@ -47,7 +47,7 @@ export abstract class DedupOverlay extends DynamicViewOverlay {
 			return (a.className < b.className ? -1 : 1);
 		});
 
-		let prevClassName: string = null;
+		let prevClassName: string | null = null;
 		let prevEndLineIndex = 0;
 		for (let i = 0, len = decorations.length; i < len; i++) {
 			let d = decorations[i];

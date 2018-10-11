@@ -346,7 +346,7 @@ export class Item {
 		this.expanded = value;
 	}
 
-	public reveal(relativeTop: number = null): void {
+	public reveal(relativeTop: number | null = null): void {
 		var eventData: IItemRevealEvent = { item: this, relativeTop: relativeTop };
 		this._onDidReveal.fire(eventData);
 	}
@@ -838,8 +838,8 @@ function getRange(one: Item, other: Item): Item[] {
 	var item = oneHierarchy[length - 1];
 	var nav = item.getNavigator();
 
-	var oneIndex: number = null;
-	var otherIndex: number = null;
+	var oneIndex: number | null = null;
+	var otherIndex: number | null = null;
 
 	var index = 0;
 	var result: Item[] = [];
@@ -1078,7 +1078,7 @@ export class TreeModel {
 		return result;
 	}
 
-	public reveal(element: any, relativeTop: number = null): WinJS.Promise {
+	public reveal(element: any, relativeTop: number | null = null): WinJS.Promise {
 		return this.resolveUnknownParentChain(element).then((chain: any[]) => {
 			var result = WinJS.TPromise.as(null);
 
@@ -1221,8 +1221,8 @@ export class TreeModel {
 
 	public selectPrevious(count: number = 1, clearSelection: boolean = true, eventPayload?: any): void {
 		var selection = this.getSelection(),
-			item: Item = null,
-			previousItem: Item = null;
+			item: Item | null = null,
+			previousItem: Item | null = null;
 
 		if (selection.length === 0) {
 			let nav = this.getNavigator(this.input);
