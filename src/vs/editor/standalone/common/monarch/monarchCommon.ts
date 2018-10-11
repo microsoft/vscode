@@ -178,7 +178,8 @@ export function substituteMatches(lexer: ILexerMin, str: string, id: string, mat
 /**
  * Find the tokenizer rules for a specific state (i.e. next action)
  */
-export function findRules(lexer: ILexer, state: string | null): IRule[] | null {
+export function findRules(lexer: ILexer, inState: string): IRule[] | null {
+	let state: string | null = inState;
 	while (state && state.length > 0) {
 		const rules = lexer.tokenizer[state];
 		if (rules) {
@@ -200,7 +201,8 @@ export function findRules(lexer: ILexer, state: string | null): IRule[] | null {
  * This is used during compilation where we may know the defined states
  * but not yet whether the corresponding rules are correct.
  */
-export function stateExists(lexer: ILexerMin, state: string | null): boolean {
+export function stateExists(lexer: ILexerMin, inState: string): boolean {
+	let state: string | null = inState;
 	while (state && state.length > 0) {
 		const exist = lexer.stateNames[state];
 		if (exist) {
