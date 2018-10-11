@@ -99,6 +99,9 @@ export class Storage extends Disposable {
 	}
 
 	set(key: string, value: any): Promise<void> {
+		if (this.state === StorageState.Closed) {
+			return Promise.resolve(); // Return early if we are already closed
+		}
 
 		// We remove the key for undefined/null values
 		if (isUndefinedOrNull(value)) {
@@ -107,6 +110,12 @@ export class Storage extends Disposable {
 
 		// Otherwise, convert to String and store
 		const valueStr = String(value);
+
+		// Return early if value already set
+		const currentValue = this.cache.get(key);
+		if (currentValue === valueStr) {
+			return Promise.resolve();
+		}
 
 		// Update in cache and pending
 		this.cache.set(key, valueStr);
@@ -120,12 +129,20 @@ export class Storage extends Disposable {
 	}
 
 	delete(key: string): Promise<void> {
+		if (this.state === StorageState.Closed) {
+			return Promise.resolve(); // Return early if we are already closed
+		}
 
 		// Remove from cache and add to pending
-		this.cache.delete(key);
+		const wasDeleted = this.cache.delete(key);
+		if (!wasDeleted) {
+			return Promise.resolve(); // Return early if value already deleted
+		}
+
 		if (!this.pendingDeletes.has(key)) {
 			this.pendingDeletes.add(key);
 		}
+
 		this.pendingUpdates.delete(key);
 
 		// Event
@@ -136,11 +153,6 @@ export class Storage extends Disposable {
 
 	private update(): Promise<void> {
 
-		// Return early if we are already closed
-		if (this.state === StorageState.Closed) {
-			return Promise.resolve();
-		}
-
 		// Schedule
 		if (!this.pendingScheduler.isScheduled()) {
 			this.pendingScheduler.schedule();
@@ -150,6 +162,9 @@ export class Storage extends Disposable {
 	}
 
 	close(): Promise<void> {
+		if (this.state === StorageState.Closed) {
+			return Promise.resolve(); // return if already closed
+		}
 
 		// Update state
 		this.state = StorageState.Closed;

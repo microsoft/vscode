@@ -10,7 +10,7 @@ import { tmpdir } from 'os';
 import { equal, ok } from 'assert';
 import { mkdirp, del } from 'vs/base/node/pfs';
 
-suite('Storage', () => {
+suite('Storage Library', () => {
 
 	function uniqueStorageDir(): string {
 		const id = generateUuid();
@@ -56,6 +56,12 @@ suite('Storage', () => {
 
 		changes = new Set<string>();
 
+		// Does not trigger events for same update values
+		storage.set('bar', 'foo');
+		storage.set('barNumber', 55);
+		storage.set('barBoolean', true);
+		equal(changes.size, 0);
+
 		// Simple deletes
 		const delete1Promise = storage.delete('bar');
 		const delete2Promise = storage.delete('barNumber');
@@ -69,6 +75,14 @@ suite('Storage', () => {
 		ok(changes.has('bar'));
 		ok(changes.has('barNumber'));
 		ok(changes.has('barBoolean'));
+
+		changes = new Set<string>();
+
+		// Does not trigger events for same delete values
+		storage.delete('bar');
+		storage.delete('barNumber');
+		storage.delete('barBoolean');
+		equal(changes.size, 0);
 
 		let deletePromiseResolved = false;
 		await Promise.all([delete1Promise, delete2Promise, delete3Promise]).then(() => deletePromiseResolved = true);
@@ -175,7 +189,7 @@ suite('Storage', () => {
 	});
 });
 
-suite('SQLite Storage Impl ', () => {
+suite('SQLite Storage Library', () => {
 
 	function uniqueStorageDir(): string {
 		const id = generateUuid();
