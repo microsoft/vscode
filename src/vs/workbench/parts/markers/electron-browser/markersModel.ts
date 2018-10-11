@@ -96,17 +96,6 @@ export class MarkersModel {
 		this.resourcesByUri = new Map<string, ResourceMarkers>();
 	}
 
-	// updateMarkers(callback: (updater: (resource: URI, markers: IMarker[]) => any) => void): void {
-	// 	callback((resource, markers) => {
-	// 		if (isFalsyOrEmpty(markers)) {
-	// 			this.resourcesByUri.delete(resource.toString());
-	// 		} else {
-	// 			this.resourcesByUri.set(resource.toString(), this.createResource(resource, markers));
-	// 		}
-	// 	});
-	// 	this.cachedSortedResources = undefined;
-	// }
-
 	getResourceMarkers(resource: URI): ResourceMarkers | null {
 		return this.resourcesByUri.get(resource.toString()) || null;
 	}
@@ -136,24 +125,6 @@ export class MarkersModel {
 		this._onDidChange.fire(resource);
 	}
 
-	// TODO@joao
-	// forEachFilteredResource(callback: (resource: ResourceMarkers) => any) {
-	// 	this._markersByResource.forEach(resource => {
-	// 		if (resource.filteredCount > 0) {
-	// 			callback(resource);
-	// 		}
-	// 	});
-	// }
-
-	// TODO@joao
-	// hasFilteredResources(): boolean {
-	// 	let res = false;
-	// 	this._markersByResource.forEach(resource => {
-	// 		res = res || resource.filteredCount > 0;
-	// 	});
-	// 	return res;
-	// }
-
 	stats(): { total: number, filtered: number } {
 		let total = 0;
 		// let filtered = 0;
@@ -161,7 +132,6 @@ export class MarkersModel {
 			total += resource.markers.length;
 			// filtered += resource.filteredCount; // TODO@joao
 		});
-		console.warn('stats not implemented'); // TODO@joao
 		return { total, filtered: total };
 	}
 
