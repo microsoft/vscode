@@ -432,7 +432,6 @@ class TaskService implements ITaskService {
 
 	// private static autoDetectTelemetryName: string = 'taskServer.autoDetect';
 	private static readonly RecentlyUsedTasks_Key = 'workbench.tasks.recentlyUsedTasks';
-	private static readonly RanTaskBefore_Key = 'workbench.tasks.ranTaskBefore';
 	private static readonly IgnoreTask010DonotShowAgain_key = 'workbench.tasks.ignoreTask010Shown';
 
 	private static CustomizationTelemetryEventName: string = 'taskService.customize';
@@ -1209,9 +1208,6 @@ class TaskService implements ITaskService {
 	}
 
 	private executeTask(task: Task, resolver: ITaskResolver): TPromise<ITaskSummary> {
-		if (!this.storageService.get(TaskService.RanTaskBefore_Key, StorageScope.GLOBAL)) {
-			this.storageService.store(TaskService.RanTaskBefore_Key, true, StorageScope.GLOBAL);
-		}
 		return ProblemMatcherRegistry.onReady().then(() => {
 			return this.textFileService.saveAll().then((value) => { // make sure all dirty files are saved
 				let executeResult = this.getTaskSystem().run(task, resolver);
