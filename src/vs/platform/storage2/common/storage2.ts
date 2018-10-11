@@ -77,6 +77,6 @@ export const enum StorageScope {
 }
 
 export interface IWorkspaceStorageChangeEvent {
-	keys: Set<string>;
+	key: string;
 	scope: StorageScope;
 }

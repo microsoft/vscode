@@ -35,8 +35,8 @@ export class Storage extends Disposable {
 
 	private static readonly FLUSH_DELAY = 10;
 
-	private _onDidChangeStorage: Emitter<Set<string>> = this._register(new Emitter<Set<string>>());
-	get onDidChangeStorage(): Event<Set<string>> { return this._onDidChangeStorage.event; }
+	private _onDidChangeStorage: Emitter<string> = this._register(new Emitter<string>());
+	get onDidChangeStorage(): Event<string> { return this._onDidChangeStorage.event; }
 
 	private state = StorageState.None;
 
@@ -113,6 +113,9 @@ export class Storage extends Disposable {
 		this.pendingUpdates.set(key, valueStr);
 		this.pendingDeletes.delete(key);
 
+		// Event
+		this._onDidChangeStorage.fire(key);
+
 		return this.update();
 	}
 
@@ -124,6 +127,9 @@ export class Storage extends Disposable {
 			this.pendingDeletes.add(key);
 		}
 		this.pendingUpdates.delete(key);
+
+		// Event
+		this._onDidChangeStorage.fire(key);
 
 		return this.update();
 	}
@@ -173,14 +179,6 @@ export class Storage extends Disposable {
 
 			// Resolve pending
 			pendingPromises.forEach(promise => promise.resolve());
-
-			// Events (unless closed)
-			if (this.state !== StorageState.Closed) {
-				const keys = new Set<string>();
-				pendingDeletes.forEach(key => keys.add(key));
-				pendingUpdates.forEach((value, key) => keys.add(key));
-				this._onDidChangeStorage.fire(keys);
-			}
 		}, error => {
 
 			// Forward error to pending

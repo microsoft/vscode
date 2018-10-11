@@ -18,14 +18,6 @@ suite('Storage', () => {
 		return join(tmpdir(), 'vsctests', id, 'storage2', id);
 	}
 
-	function onDidChangeStorage(storage: Storage): Promise<Set<string>> {
-		return new Promise(resolve => {
-			storage.onDidChangeStorage(changes => {
-				resolve(changes);
-			});
-		});
-	}
-
 	test('basics', async () => {
 		const storageDir = uniqueStorageDir();
 		await mkdirp(storageDir);
@@ -39,44 +31,47 @@ suite('Storage', () => {
 		equal(storageService.getInteger('foo', 55), 55);
 		equal(storageService.getBoolean('foo', true), true);
 
+		let changes = new Set<string>();
+		storageService.onDidChangeStorage(key => {
+			changes.add(key);
+		});
+
 		// Simple updates
 		const set1Promise = storageService.set('bar', 'foo');
 		const set2Promise = storageService.set('barNumber', 55);
 		const set3Promise = storageService.set('barBoolean', true);
 
-		let setPromiseResolved = false;
-		Promise.all([set1Promise, set2Promise, set3Promise]).then(() => setPromiseResolved = true);
-
 		equal(storageService.get('bar'), 'foo');
 		equal(storageService.getInteger('barNumber'), 55);
 		equal(storageService.getBoolean('barBoolean'), true);
 
-		let changes = await onDidChangeStorage(storageService);
 		equal(changes.size, 3);
 		ok(changes.has('bar'));
 		ok(changes.has('barNumber'));
 		ok(changes.has('barBoolean'));
 
+		let setPromiseResolved = false;
+		await Promise.all([set1Promise, set2Promise, set3Promise]).then(() => setPromiseResolved = true);
 		equal(setPromiseResolved, true);
+
+		changes = new Set<string>();
 
 		// Simple deletes
 		const delete1Promise = storageService.delete('bar');
 		const delete2Promise = storageService.delete('barNumber');
 		const delete3Promise = storageService.delete('barBoolean');
 
-		let deletePromiseResolved = false;
-		Promise.all([delete1Promise, delete2Promise, delete3Promise]).then(() => deletePromiseResolved = true);
-
 		ok(!storageService.get('bar'));
 		ok(!storageService.getInteger('barNumber'));
 		ok(!storageService.getBoolean('barBoolean'));
 
-		changes = await onDidChangeStorage(storageService);
 		equal(changes.size, 3);
 		ok(changes.has('bar'));
 		ok(changes.has('barNumber'));
 		ok(changes.has('barBoolean'));
 
+		let deletePromiseResolved = false;
+		await Promise.all([delete1Promise, delete2Promise, delete3Promise]).then(() => deletePromiseResolved = true);
 		equal(deletePromiseResolved, true);
 
 		await storageService.close();
@@ -144,33 +139,35 @@ suite('Storage', () => {
 		let storageService = new Storage({ path: join(storageDir, 'storage.db') });
 		await storageService.init();
 
+		let changes = new Set<string>();
+		storageService.onDidChangeStorage(key => {
+			changes.add(key);
+		});
+
 		const set1Promise = storageService.set('foo', 'bar1');
 		const set2Promise = storageService.set('foo', 'bar2');
 		const set3Promise = storageService.set('foo', 'bar3');
 
 		equal(storageService.get('foo'), 'bar3');
-
-		let setPromiseResolved = false;
-		Promise.all([set1Promise, set2Promise, set3Promise]).then(() => setPromiseResolved = true);
-
-		let changes = await onDidChangeStorage(storageService);
 		equal(changes.size, 1);
 		ok(changes.has('foo'));
 
+		let setPromiseResolved = false;
+		await Promise.all([set1Promise, set2Promise, set3Promise]).then(() => setPromiseResolved = true);
 		ok(setPromiseResolved);
+
+		changes = new Set<string>();
 
 		const set4Promise = storageService.set('bar', 'foo');
 		const delete1Promise = storageService.delete('bar');
 
 		ok(!storageService.get('bar'));
 
-		let setAndDeletePromiseResolved = false;
-		Promise.all([set4Promise, delete1Promise]).then(() => setAndDeletePromiseResolved = true);
-
-		changes = await onDidChangeStorage(storageService);
 		equal(changes.size, 1);
 		ok(changes.has('bar'));
 
+		let setAndDeletePromiseResolved = false;
+		await Promise.all([set4Promise, delete1Promise]).then(() => setAndDeletePromiseResolved = true);
 		ok(setAndDeletePromiseResolved);
 
 		await storageService.close();

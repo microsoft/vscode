@@ -39,12 +39,12 @@ export class NextStorageService extends Disposable implements INextStorageServic
 	}
 
 	private registerListeners(): void {
-		this._register(this.globalStorage.onDidChangeStorage(keys => this.handleDidChangeStorage(keys, StorageScope.GLOBAL)));
-		this._register(this.workspaceStorage.onDidChangeStorage(keys => this.handleDidChangeStorage(keys, StorageScope.WORKSPACE)));
+		this._register(this.globalStorage.onDidChangeStorage(key => this.handleDidChangeStorage(key, StorageScope.GLOBAL)));
+		this._register(this.workspaceStorage.onDidChangeStorage(key => this.handleDidChangeStorage(key, StorageScope.WORKSPACE)));
 	}
 
-	private handleDidChangeStorage(keys: Set<string>, scope: StorageScope): void {
-		this._onDidChangeStorage.fire({ keys, scope });
+	private handleDidChangeStorage(key: string, scope: StorageScope): void {
+		this._onDidChangeStorage.fire({ key, scope });
 	}
 
 	init(): Promise<void> {
