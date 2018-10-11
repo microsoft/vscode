@@ -72,6 +72,7 @@ interface RequestItem {
 	readonly request: Proto.Request;
 	readonly expectsResponse: boolean;
 	readonly isAsync: boolean;
+	readonly priority: string;
 }
 
 class RequestQueue {
@@ -83,7 +84,12 @@ class RequestQueue {
 	}
 
 	public push(item: RequestItem): void {
-		this.queue.push(item);
+		if (item.priority === 'high') {
+			this.queue.unshift(item);
+		}
+		else {
+			this.queue.push(item);
+		}
 	}
 
 	public shift(): RequestItem | undefined {
@@ -381,12 +387,13 @@ export class TypeScriptServer extends Disposable {
 		}
 	}
 
-	public executeImpl(command: string, args: any, executeInfo: { isAsync: boolean, token?: vscode.CancellationToken, expectsResult: boolean }): Promise<any> {
+	public executeImpl(command: string, args: any, executeInfo: { isAsync: boolean, token?: vscode.CancellationToken, expectsResult: boolean, priority: string }): Promise<any> {
 		const request = this._requestQueue.createRequest(command, args);
 		const requestInfo: RequestItem = {
 			request: request,
 			expectsResponse: executeInfo.expectsResult,
-			isAsync: executeInfo.isAsync
+			isAsync: executeInfo.isAsync,
+			priority: executeInfo.priority
 		};
 		let result: Promise<any>;
 		if (executeInfo.expectsResult) {
