@@ -17,6 +17,13 @@ export interface INextStorage2Service {
 	readonly onDidChangeStorage: Event<IWorkspaceStorageChangeEvent>;
 
 	/**
+	 * Emitted when the storage is about to close. This is the right time
+	 * to persist data to ensure it is stored before the application shuts
+	 * down.
+	 */
+	readonly onWillClose: Event<void>;
+
+	/**
 	 * Retrieve an element stored with the given key from storage. Use
 	 * the provided defaultValue if the element is null or undefined.
 	 *
@@ -85,6 +92,7 @@ export const NullNextStorage2Service: INextStorage2Service = {
 	_serviceBrand: undefined,
 
 	onDidChangeStorage: Event.None,
+	onWillClose: Event.None,
 
 	get(key: string, scope: StorageScope, fallbackValue?: string): string {
 		return fallbackValue;

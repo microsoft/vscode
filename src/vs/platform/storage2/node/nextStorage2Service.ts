@@ -17,6 +17,9 @@ export class NextStorage2Service extends Disposable implements INextStorage2Serv
 	private _onDidChangeStorage: Emitter<IWorkspaceStorageChangeEvent> = this._register(new Emitter<IWorkspaceStorageChangeEvent>());
 	get onDidChangeStorage(): Event<IWorkspaceStorageChangeEvent> { return this._onDidChangeStorage.event; }
 
+	private _onWillClose: Emitter<void> = this._register(new Emitter<void>());
+	get onWillClose(): Event<void> { return this._onWillClose.event; }
+
 	private globalStorage: Storage;
 	private workspaceStorage: Storage;
 
@@ -73,6 +76,11 @@ export class NextStorage2Service extends Disposable implements INextStorage2Serv
 	}
 
 	close(): Promise<void> {
+
+		// Signal as event so that clients can still store data
+		this._onWillClose.fire();
+
+		// Do it
 		return Promise.all([
 			this.globalStorage.close(),
 			this.workspaceStorage.close()
@@ -90,6 +98,9 @@ export class NextDelegatingStorageService extends Disposable implements INextSto
 	private _onDidChangeStorage: Emitter<IWorkspaceStorageChangeEvent> = this._register(new Emitter<IWorkspaceStorageChangeEvent>());
 	get onDidChangeStorage(): Event<IWorkspaceStorageChangeEvent> { return this._onDidChangeStorage.event; }
 
+	private _onWillClose: Emitter<void> = this._register(new Emitter<void>());
+	get onWillClose(): Event<void> { return this._onWillClose.event; }
+
 	constructor(
 		@INextStorage2Service private nextStorage2Service: NextStorage2Service,
 		@IStorageService private storageService: IStorageService,
@@ -99,6 +110,7 @@ export class NextDelegatingStorageService extends Disposable implements INextSto
 		super();
 
 		this._register(this.nextStorage2Service.onDidChangeStorage(e => this._onDidChangeStorage.fire(e)));
+		this._register(this.nextStorage2Service.onWillClose(e => this._onWillClose.fire()));
 	}
 
 	get(key: string, scope: StorageScope, fallbackValue?: any): string {
