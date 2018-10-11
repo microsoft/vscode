@@ -141,7 +141,7 @@ export class WindowsChannel implements IWindowsChannel {
 			case 'removeFromRecentlyOpened': {
 				let paths: (IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier | URI | string)[] = arg;
 				if (Array.isArray(paths)) {
-					paths = paths.map(path => URI.isUri(path) ? URI.revive(path) : path);
+					paths = paths.map(path => isWorkspaceIdentifier(path) ? path : URI.revive(path));
 				}
 				return this.service.removeFromRecentlyOpened(paths);
 			}
