@@ -15,6 +15,9 @@ set CODE=".build\electron\%NAMESHORT%"
 node build\lib\electron.js
 if %errorlevel% neq 0 node .\node_modules\gulp\bin\gulp.js electron
 
+:: Pretest
+yarn strict-null-check
+
 :: Run tests
 %CODE% .\test\electron\index.js %*
 
