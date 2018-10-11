@@ -36,6 +36,7 @@
 		"./vs/base/common/errors.ts",
 		"./vs/base/common/errorsWithActions.ts",
 		"./vs/base/common/event.ts",
+		"./vs/base/common/filters.ts",
 		"./vs/base/common/functional.ts",
 		"./vs/base/common/glob.ts",
 		"./vs/base/common/hash.ts",
@@ -105,6 +106,7 @@
 		"./vs/editor/common/model.ts",
 		"./vs/editor/common/model/editStack.ts",
 		"./vs/editor/common/model/intervalTree.ts",
+		"./vs/editor/common/editorContextKeys.ts",
 		"./vs/editor/common/model/mirrorTextModel.ts",
 		"./vs/editor/common/model/pieceTreeTextBuffer/pieceTreeBase.ts",
 		"./vs/editor/common/model/pieceTreeTextBuffer/pieceTreeTextBuffer.ts",
@@ -170,6 +172,7 @@
 		"./vs/platform/quickOpen/common/quickOpen.ts",
 		"./vs/platform/quickinput/common/quickInput.ts",
 		"./vs/platform/registry/common/platform.ts",
+		"./vs/platform/search/common/search.ts",
 		"./vs/platform/state/common/state.ts",
 		"./vs/platform/statusbar/common/statusbar.ts",
 		"./vs/platform/telemetry/common/telemetry.ts",
@@ -211,8 +214,7 @@
 		"./vs/workbench/services/panel/common/panelService.ts",
 		"./vs/workbench/services/search/node/search.ts",
 		"./vs/workbench/services/title/common/titleService.ts",
-		"./vs/workbench/test/electron-browser/api/mock.ts",
-		"vs/platform/search/common/search.ts"
+		"./vs/workbench/test/electron-browser/api/mock.ts"
 	],
 	"exclude": [
 		"./typings/require-monaco.d.ts"
