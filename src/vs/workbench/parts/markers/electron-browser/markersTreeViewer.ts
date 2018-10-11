@@ -123,7 +123,7 @@ interface RelatedInformationFilterData {
 	messageMatches: IMatch[];
 }
 
-type FilterData = ResourceMarkersFilterData | MarkerFilterData | RelatedInformationFilterData;
+export type FilterData = ResourceMarkersFilterData | MarkerFilterData | RelatedInformationFilterData;
 
 export class ResourceMarkersRenderer implements ITreeRenderer<ResourceMarkers, ResourceMarkersFilterData, IResourceMarkersTemplateData> {
 

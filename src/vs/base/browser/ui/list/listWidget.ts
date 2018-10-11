@@ -418,7 +418,13 @@ class MouseController<T> implements IDisposable {
 			.map(e => new StandardKeyboardEvent(e))
 			.filter(e => this.didJustPressContextMenuKey = e.keyCode === KeyCode.ContextMenu || (e.shiftKey && e.keyCode === KeyCode.F10))
 			.filter(e => { e.preventDefault(); e.stopPropagation(); return false; })
-			.event as Event<any>;
+			.map(event => {
+				const index = this.list.getFocus()[0];
+				const element = this.view.element(index);
+				const anchor = this.view.domElement(index);
+				return { index, element, anchor, browserEvent: event.browserEvent };
+			})
+			.event;
 
 		const fromKeyup = chain(domEvent(this.view.domNode, 'keyup'))
 			.filter(() => {
@@ -427,18 +433,18 @@ class MouseController<T> implements IDisposable {
 				return didJustPressContextMenuKey;
 			})
 			.filter(() => this.list.getFocus().length > 0)
-			.map(() => {
+			.map(browserEvent => {
 				const index = this.list.getFocus()[0];
 				const element = this.view.element(index);
 				const anchor = this.view.domElement(index);
-				return { index, element, anchor };
+				return { index, element, anchor, browserEvent };
 			})
 			.filter(({ anchor }) => !!anchor)
 			.event;
 
 		const fromMouse = chain(this.view.onContextMenu)
 			.filter(() => !this.didJustPressContextMenuKey)
-			.map(({ element, index, browserEvent }) => ({ element, index, anchor: { x: browserEvent.clientX + 1, y: browserEvent.clientY } }))
+			.map(({ element, index, browserEvent }) => ({ element, index, anchor: { x: browserEvent.clientX + 1, y: browserEvent.clientY }, browserEvent }))
 			.event;
 
 		return anyEvent<IListContextMenuEvent<T>>(fromKeydown, fromKeyup, fromMouse);

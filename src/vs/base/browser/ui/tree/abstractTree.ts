@@ -6,7 +6,7 @@
 import 'vs/css!./tree';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { IListOptions, List, IIdentityProvider, IMultipleSelectionController, IListStyles } from 'vs/base/browser/ui/list/listWidget';
-import { IVirtualDelegate, IRenderer, IListMouseEvent, IListEvent } from 'vs/base/browser/ui/list/list';
+import { IVirtualDelegate, IRenderer, IListMouseEvent, IListEvent, IListContextMenuEvent } from 'vs/base/browser/ui/list/list';
 import { append, $ } from 'vs/base/browser/dom';
 import { Event, Relay, chain } from 'vs/base/common/event';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
@@ -161,6 +161,7 @@ function isInputElement(e: HTMLElement): boolean {
 
 export interface ITreeOptions<T, TFilterData = void> extends IListOptions<T>, IIndexTreeModelOptions<T, TFilterData> { }
 export interface ITreeEvent<T, TFilterData> extends IListEvent<ITreeNode<T, TFilterData>> { }
+export interface ITreeContextMenuEvent<T, TFilterData> extends IListContextMenuEvent<ITreeNode<T, TFilterData>> { }
 
 export abstract class AbstractTree<T, TFilterData, TRef> implements IDisposable {
 
@@ -172,6 +173,8 @@ export abstract class AbstractTree<T, TFilterData, TRef> implements IDisposable 
 	readonly onDidChangeRenderNodeCount: Event<ITreeNode<T, TFilterData>>;
 	readonly onDidChangeFocus: Event<ITreeEvent<T, TFilterData>>;
 	readonly onDidChangeSelection: Event<ITreeEvent<T, TFilterData>>;
+
+	readonly onContextMenu: Event<ITreeContextMenuEvent<T, TFilterData>>;
 
 	get onDidFocus(): Event<void> { return this.view.onDidFocus; }
 	get onDidBlur(): Event<void> { return this.view.onDidBlur; }
@@ -192,6 +195,7 @@ export abstract class AbstractTree<T, TFilterData, TRef> implements IDisposable 
 		this.view = new List(container, treeDelegate, treeRenderers, createComposedTreeListOptions<T, ITreeNode<T, TFilterData>>(options));
 		this.onDidChangeFocus = this.view.onFocusChange;
 		this.onDidChangeSelection = this.view.onSelectionChange;
+		this.onContextMenu = this.view.onContextMenu;
 
 		this.model = this.createModel(this.view, options);
 		onDidChangeCollapseStateRelay.input = this.model.onDidChangeCollapseState;

@@ -14,7 +14,6 @@ import { Panel } from 'vs/workbench/browser/panel';
 import { IEditorService, SIDE_GROUP, ACTIVE_GROUP } from 'vs/workbench/services/editor/common/editorService';
 import Constants from 'vs/workbench/parts/markers/electron-browser/constants';
 import { Marker, ResourceMarkers, RelatedInformation, MarkersModel } from 'vs/workbench/parts/markers/electron-browser/markersModel';
-import * as Viewer from 'vs/workbench/parts/markers/electron-browser/markersTreeViewer';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { MarkersFilterActionItem, MarkersFilterAction, QuickFixAction, QuickFixActionItem, IMarkersFilterActionChangeEvent } from 'vs/workbench/parts/markers/electron-browser/markersPanelActions';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -36,6 +35,12 @@ import { IExpression, getEmptyExpression } from 'vs/base/common/glob';
 import { mixin, deepClone } from 'vs/base/common/objects';
 import { IWorkspaceFolder, IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { isAbsolute, join } from 'vs/base/common/paths';
+import { ITreeContextMenuEvent } from 'vs/base/browser/ui/tree/abstractTree';
+import { FilterData, FileResourceMarkersRenderer, Filter, VirtualDelegate, ResourceMarkersRenderer, MarkerRenderer, RelatedInformationRenderer } from 'vs/workbench/parts/markers/electron-browser/markersTreeViewer';
+import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
+import { Separator, ActionItem } from 'vs/base/browser/ui/actionbar/actionbar';
+import { IMenuService, MenuId } from 'vs/platform/actions/common/actions';
+import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 
 type TreeElement = ResourceMarkers | Marker | RelatedInformation;
 
@@ -61,7 +66,7 @@ export class MarkersPanel extends Panel {
 	private lastSelectedRelativeTop: number = 0;
 	private currentActiveResource: URI = null;
 
-	private tree: WorkbenchObjectTree<TreeElement>;
+	private tree: WorkbenchObjectTree<TreeElement, FilterData>;
 	private rangeHighlightDecorations: RangeHighlightDecorations;
 
 	private actions: IAction[];
@@ -75,7 +80,7 @@ export class MarkersPanel extends Panel {
 	private panelSettings: any;
 	private panelFoucusContextKey: IContextKey<boolean>;
 
-	private filter: Viewer.Filter;
+	private filter: Filter;
 
 	private currentResourceGotAddedToMarkersData: boolean = false;
 
@@ -89,6 +94,9 @@ export class MarkersPanel extends Panel {
 		@IStorageService storageService: IStorageService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IWorkspaceContextService private workspaceContextService: IWorkspaceContextService,
+		@IContextMenuService private contextMenuService: IContextMenuService,
+		@IMenuService private menuService: IMenuService,
+		@IKeybindingService private keybindingService: IKeybindingService,
 	) {
 		super(Constants.MARKERS_PANEL_ID, telemetryService, themeService);
 		this.panelFoucusContextKey = Constants.MarkerPanelFocusContextKey.bindTo(contextKeyService);
@@ -279,14 +287,14 @@ export class MarkersPanel extends Panel {
 
 		const onDidChangeRenderNodeCount = new Relay<ITreeNode<any, any>>();
 
-		const virtualDelegate = new Viewer.VirtualDelegate();
+		const virtualDelegate = new VirtualDelegate();
 		const renderers = [
-			this.instantiationService.createInstance(Viewer.FileResourceMarkersRenderer, onDidChangeRenderNodeCount.event),
-			this.instantiationService.createInstance(Viewer.ResourceMarkersRenderer, onDidChangeRenderNodeCount.event),
-			this.instantiationService.createInstance(Viewer.MarkerRenderer, a => this.getActionItem(a)),
-			this.instantiationService.createInstance(Viewer.RelatedInformationRenderer)
+			this.instantiationService.createInstance(FileResourceMarkersRenderer, onDidChangeRenderNodeCount.event),
+			this.instantiationService.createInstance(ResourceMarkersRenderer, onDidChangeRenderNodeCount.event),
+			this.instantiationService.createInstance(MarkerRenderer, a => this.getActionItem(a)),
+			this.instantiationService.createInstance(RelatedInformationRenderer)
 		];
-		this.filter = new Viewer.Filter();
+		this.filter = new Filter();
 
 		this.tree = this.instantiationService.createInstance(WorkbenchObjectTree,
 			this.treeContainer,
@@ -295,7 +303,7 @@ export class MarkersPanel extends Panel {
 			{
 				filter: this.filter
 			}
-		) as any as WorkbenchObjectTree<TreeElement>;
+		) as any as WorkbenchObjectTree<TreeElement, FilterData>;
 
 		onDidChangeRenderNodeCount.input = this.tree.onDidChangeRenderNodeCount;
 
@@ -315,6 +323,8 @@ export class MarkersPanel extends Panel {
 		this._register(debounceEvent(markersNavigator.openResource, (last, event) => event, 75, true)(options => {
 			this.openFileAtElement(options.element, options.editorOptions.preserveFocus, options.sideBySide, options.editorOptions.pinned);
 		}));
+
+		this.tree.onContextMenu(this.onContextMenu, this, this._toDispose);
 	}
 
 	// TODO@joao
@@ -525,7 +535,59 @@ export class MarkersPanel extends Panel {
 		this.rangeHighlightDecorations.highlightRange(selection);
 	}
 
-	public getFocusElement(): ResourceMarkers | Marker | RelatedInformation {
+	private onContextMenu(e: ITreeContextMenuEvent<TreeElement, FilterData>): void {
+		if (!e.element) {
+			return;
+		}
+
+		e.browserEvent.preventDefault();
+		e.browserEvent.stopPropagation();
+
+		this.contextMenuService.showContextMenu({
+			getAnchor: () => e.anchor,
+			getActions: () => TPromise.wrap(this._getMenuActions(e.element.element)),
+			getActionItem: (action) => {
+				const keybinding = this.keybindingService.lookupKeybinding(action.id);
+				if (keybinding) {
+					return new ActionItem(action, action, { label: true, keybinding: keybinding.getLabel() });
+				}
+				return null;
+			},
+			onHide: (wasCancelled?: boolean) => {
+				if (wasCancelled) {
+					this.tree.domFocus();
+				}
+			}
+		});
+	}
+
+	private async _getMenuActions(element: TreeElement): Promise<IAction[]> {
+		const result: IAction[] = [];
+
+		if (element instanceof Marker) {
+			const quickFixAction = this.instantiationService.createInstance(QuickFixAction, element);
+			const quickFixActions = await quickFixAction.getQuickFixActions();
+			if (quickFixActions.length) {
+				result.push(...quickFixActions);
+				result.push(new Separator());
+			}
+		}
+
+		const menu = this.menuService.createMenu(MenuId.ProblemsPanelContext, this.tree.contextKeyService);
+		const groups = menu.getActions();
+		menu.dispose();
+
+		for (let group of groups) {
+			const [, actions] = group;
+			result.push(...actions);
+			result.push(new Separator());
+		}
+
+		result.pop(); // remove last separator
+		return result;
+	}
+
+	public getFocusElement(): TreeElement {
 		return this.tree.getFocus()[0];
 	}
 
