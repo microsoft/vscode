@@ -7,7 +7,6 @@ import { IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { Event, Emitter } from 'vs/base/common/event';
 import { ColorId, ITokenizationRegistry, ITokenizationSupport, ITokenizationSupportChangedEvent } from 'vs/editor/common/modes';
 import { Color } from 'vs/base/common/color';
-import { TPromise } from 'vs/base/common/winjs.base';
 
 export class TokenizationRegistryImpl implements ITokenizationRegistry {
 
@@ -55,7 +54,7 @@ export class TokenizationRegistryImpl implements ITokenizationRegistry {
 	public getPromise(language: string): Thenable<ITokenizationSupport> {
 		const support = this.get(language);
 		if (support) {
-			return TPromise.as(support);
+			return Promise.resolve(support);
 		}
 		const promise = this._promises[language];
 		if (promise) {

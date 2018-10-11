@@ -189,7 +189,7 @@ export class FileOnDiskContentProvider implements ITextModelContentProvider {
 			} else if (createAsNeeded) {
 				const fileOnDiskModel = this.modelService.getModel(fileOnDiskResource);
 
-				let mode: TPromise<IMode>;
+				let mode: Promise<IMode>;
 				if (fileOnDiskModel) {
 					mode = this.modeService.getOrCreateMode(fileOnDiskModel.getModeId());
 				} else {

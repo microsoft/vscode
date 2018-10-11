@@ -49,7 +49,7 @@ export module Iterator {
 		return {
 			next() {
 				const { done, value } = iterator.next();
-				return { done, value: done ? undefined : fn(value) };
+				return { done, value: done ? undefined : fn(value!) };
 			}
 		};
 	}
@@ -64,7 +64,7 @@ export module Iterator {
 						return { done, value: undefined };
 					}
 
-					if (fn(value)) {
+					if (fn(value!)) {
 						return { done, value };
 					}
 				}
@@ -74,7 +74,7 @@ export module Iterator {
 
 	export function forEach<T>(iterator: Iterator<T>, fn: (t: T) => void): void {
 		for (let next = iterator.next(); !next.done; next = iterator.next()) {
-			fn(next.value);
+			fn(next.value!);
 		}
 	}
 
@@ -96,7 +96,7 @@ export function getSequenceIterator<T>(arg: Iterator<T> | T[]): Iterator<T> {
 }
 
 export interface INextIterator<T> {
-	next(): T;
+	next(): T | null;
 }
 
 export class ArrayIterator<T> implements INextIterator<T> {
@@ -113,17 +113,17 @@ export class ArrayIterator<T> implements INextIterator<T> {
 		this.index = index;
 	}
 
-	public first(): T {
+	public first(): T | null {
 		this.index = this.start;
 		return this.current();
 	}
 
-	public next(): T {
+	public next(): T | null {
 		this.index = Math.min(this.index + 1, this.end);
 		return this.current();
 	}
 
-	protected current(): T {
+	protected current(): T | null {
 		if (this.index === this.start - 1 || this.index === this.end) {
 			return null;
 		}
@@ -138,34 +138,33 @@ export class ArrayNavigator<T> extends ArrayIterator<T> implements INavigator<T>
 		super(items, start, end, index);
 	}
 
-	public current(): T {
+	public current(): T | null {
 		return super.current();
 	}
 
-	public previous(): T {
+	public previous(): T | null {
 		this.index = Math.max(this.index - 1, this.start - 1);
 		return this.current();
 	}
 
-	public first(): T {
+	public first(): T | null {
 		this.index = this.start;
 		return this.current();
 	}
 
-	public last(): T {
+	public last(): T | null {
 		this.index = this.end - 1;
 		return this.current();
 	}
 
-	public parent(): T {
+	public parent(): T | null {
 		return null;
 	}
-
 }
 
 export class MappedIterator<T, R> implements INextIterator<R> {
 
-	constructor(protected iterator: INextIterator<T>, protected fn: (item: T) => R) {
+	constructor(protected iterator: INextIterator<T>, protected fn: (item: T | null) => R) {
 		// noop
 	}
 
@@ -173,12 +172,12 @@ export class MappedIterator<T, R> implements INextIterator<R> {
 }
 
 export interface INavigator<T> extends INextIterator<T> {
-	current(): T;
-	previous(): T;
-	parent(): T;
-	first(): T;
-	last(): T;
-	next(): T;
+	current(): T | null;
+	previous(): T | null;
+	parent(): T | null;
+	first(): T | null;
+	last(): T | null;
+	next(): T | null;
 }
 
 export class MappedNavigator<T, R> extends MappedIterator<T, R> implements INavigator<R> {

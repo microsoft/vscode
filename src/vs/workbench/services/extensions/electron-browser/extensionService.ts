@@ -426,7 +426,10 @@ export class ExtensionService extends Disposable implements IExtensionService {
 	}
 
 	private _onResponsiveStateChanged(state: ResponsiveState): void {
-		if (this._isDev) {
+		// Do not show the notification anymore
+		// See https://github.com/Microsoft/vscode/issues/60318
+		const DISABLE_PROMPT = true;
+		if (this._isDev || DISABLE_PROMPT) {
 			return; // do not show any notification when developing an extension (https://github.com/Microsoft/vscode/issues/59251)
 		}
 

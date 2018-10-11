@@ -9,7 +9,6 @@ import { IModelDecorationOptions, ITextModel } from 'vs/editor/common/model';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { ICodeEditor, IDiffEditor } from 'vs/editor/browser/editorBrowser';
 import { IResourceInput } from 'vs/platform/editor/common/editor';
-import { TPromise } from 'vs/base/common/winjs.base';
 import { Disposable } from 'vs/base/common/lifecycle';
 
 export abstract class AbstractCodeEditorService extends Disposable implements ICodeEditorService {
@@ -127,7 +126,7 @@ export abstract class AbstractCodeEditorService extends Disposable implements IC
 	}
 
 	abstract getActiveCodeEditor(): ICodeEditor;
-	abstract openCodeEditor(input: IResourceInput, source: ICodeEditor, sideBySide?: boolean): TPromise<ICodeEditor>;
+	abstract openCodeEditor(input: IResourceInput, source: ICodeEditor, sideBySide?: boolean): Thenable<ICodeEditor>;
 }
 
 export class ModelTransientSettingWatcher {

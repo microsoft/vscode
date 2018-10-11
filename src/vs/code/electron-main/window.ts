@@ -57,7 +57,7 @@ export class CodeWindow implements ICodeWindow {
 	private static readonly MIN_WIDTH = 200;
 	private static readonly MIN_HEIGHT = 120;
 
-	private static readonly MAX_URL_LENGTH = 2000000; // https://github.com/electron/electron/issues/4470#issuecomment-183962330
+	private static readonly MAX_URL_LENGTH = 2 * 1024 * 1024; // https://cs.chromium.org/chromium/src/url/url_constants.cc?l=32
 
 	private hiddenTitleBarStyle: boolean;
 	private showTimeoutHandle: any;

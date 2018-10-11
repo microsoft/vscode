@@ -612,11 +612,11 @@ declare namespace monaco {
 		/**
 		 * A intersection of the two ranges.
 		 */
-		intersectRanges(range: IRange): Range;
+		intersectRanges(range: IRange): Range | null;
 		/**
 		 * A intersection of the two ranges.
 		 */
-		static intersectRanges(a: IRange, b: IRange): Range;
+		static intersectRanges(a: IRange, b: IRange): Range | null;
 		/**
 		 * Test if this range equals other.
 		 */
@@ -657,6 +657,7 @@ declare namespace monaco {
 		/**
 		 * Create a `Range` from an `IRange`.
 		 */
+		static lift(range: undefined | null): null;
 		static lift(range: IRange): Range;
 		/**
 		 * Test if `obj` is an `IRange`.

@@ -5,7 +5,6 @@
 
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { Event, Emitter } from 'vs/base/common/event';
-import { TPromise } from 'vs/base/common/winjs.base';
 import { IMode, LanguageId, LanguageIdentifier } from 'vs/editor/common/modes';
 import { FrankensteinMode } from 'vs/editor/common/modes/abstractMode';
 import { LanguagesRegistry } from 'vs/editor/common/services/languagesRegistry';
@@ -27,8 +26,8 @@ export class ModeServiceImpl implements IModeService {
 		this._registry = new LanguagesRegistry(true, warnOnOverwrite);
 	}
 
-	protected _onReady(): TPromise<boolean> {
-		return TPromise.as(true);
+	protected _onReady(): Promise<boolean> {
+		return Promise.resolve(true);
 	}
 
 	public isRegisteredMode(mimetypeOrModeId: string): boolean {
@@ -115,7 +114,7 @@ export class ModeServiceImpl implements IModeService {
 		return null;
 	}
 
-	public getOrCreateMode(commaSeparatedMimetypesOrCommaSeparatedIds: string): TPromise<IMode> {
+	public getOrCreateMode(commaSeparatedMimetypesOrCommaSeparatedIds: string): Promise<IMode> {
 		return this._onReady().then(() => {
 			const modeId = this.getModeId(commaSeparatedMimetypesOrCommaSeparatedIds);
 			// Fall back to plain text if no mode was found
@@ -123,7 +122,7 @@ export class ModeServiceImpl implements IModeService {
 		});
 	}
 
-	public getOrCreateModeByLanguageName(languageName: string): TPromise<IMode> {
+	public getOrCreateModeByLanguageName(languageName: string): Promise<IMode> {
 		return this._onReady().then(() => {
 			const modeId = this._getModeIdByLanguageName(languageName);
 			// Fall back to plain text if no mode was found
@@ -141,7 +140,7 @@ export class ModeServiceImpl implements IModeService {
 		return null;
 	}
 
-	public getOrCreateModeByFilepathOrFirstLine(filepath: string, firstLine?: string): TPromise<IMode> {
+	public getOrCreateModeByFilepathOrFirstLine(filepath: string, firstLine?: string): Promise<IMode> {
 		return this._onReady().then(() => {
 			const modeId = this.getModeIdByFilepathOrFirstLine(filepath, firstLine);
 			// Fall back to plain text if no mode was found
