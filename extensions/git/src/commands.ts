@@ -1739,14 +1739,18 @@ export class CommandCenter {
 
 		const name = sanitize(resultName || '');
 
-		if (!name && !remotes.find(r => r.name === name)) {
-			window.showErrorMessage(localize('remote already exists', 'Remote by name {0} already exists.', name));
+		if (!name) {
+			return;
+		}
+
+		if (remotes.find(r => r.name === name)) {
+			window.showErrorMessage(localize('remote already exists', 'Remote by name \"{0}\" already exists.', name));
 			return;
 		}
 
 		const resultUrl = await window.showInputBox({
 			placeHolder: localize('remote url', "Remote URL"),
-			prompt: localize('provide remote URL', "Enter URL for remote {0}", name),
+			prompt: localize('provide remote URL', "Enter URL for remote \"{0}\"", name),
 			ignoreFocusOut: true
 		});
 
