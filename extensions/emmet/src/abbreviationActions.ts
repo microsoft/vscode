@@ -14,6 +14,7 @@ const inlineElements = ['a', 'abbr', 'acronym', 'applet', 'b', 'basefont', 'bdo'
 	'iframe', 'img', 'input', 'ins', 'kbd', 'label', 'map', 'object', 'q',
 	's', 'samp', 'select', 'small', 'span', 'strike', 'strong', 'sub', 'sup',
 	'textarea', 'tt', 'u', 'var'];
+const selectedTextPlaceholder = '$TM_SELECTED_TEXT';
 
 interface ExpandAbbreviationInput {
 	syntax: string;
@@ -123,7 +124,7 @@ function doWrapping(individualLines: boolean, args: any) {
 
 		return editor.edit(builder => {
 			for (let i = 0; i < rangesToReplace.length; i++) {
-				const expandedText = expandAbbr(expandAbbrList[i]) || '';
+				const expandedText = expandAbbr(expandAbbrList[i], true) || '';
 				if (!expandedText) {
 					// Failed to expand text. We already showed an error inside expandAbbr.
 					break;
@@ -190,12 +191,7 @@ function doWrapping(individualLines: boolean, args: any) {
 			return revertPromise.then(() => {
 				const expandAbbrList: ExpandAbbreviationInput[] = rangesToReplace.map(rangesAndContent => {
 					let rangeToReplace = rangesAndContent.originalRange;
-					let textToWrap: string[];
-					if (individualLines) {
-						textToWrap = rangesAndContent.textToWrapInPreview;
-					} else {
-						textToWrap = rangeToReplace.isSingleLine ? ['$TM_SELECTED_TEXT'] : ['\n\t$TM_SELECTED_TEXT\n'];
-					}
+					let textToWrap = rangesAndContent.textToWrapInPreview;
 					return { syntax: syntax || '', abbreviation, rangeToReplace, textToWrap, filter };
 				});
 				return expandAbbreviationInRange(editor, expandAbbrList, !individualLines).then(() => { return true; });
@@ -608,7 +604,7 @@ function expandAbbreviationInRange(editor: vscode.TextEditor, expandAbbrList: Ex
 /**
  * Expands abbreviation as detailed in given input.
  */
-function expandAbbr(input: ExpandAbbreviationInput): string {
+function expandAbbr(input: ExpandAbbreviationInput, isPreviewing: boolean = false): string {
 	const helper = getEmmetHelper();
 	const expandOptions = helper.getExpandOptions(input.syntax, getEmmetConfiguration(input.syntax), input.filter);
 
@@ -644,21 +640,18 @@ function expandAbbr(input: ExpandAbbreviationInput): string {
 
 				// If wrapping with a block element, insert newline in the text to wrap.
 				if (wrappingNode && (expandOptions['profile'].hasOwnProperty('format') ? expandOptions['profile'].format : true)) {
+					wrappingNode.value = isPreviewing ? wrappingNode.value : selectedTextPlaceholder;
 					if (inlineElements.indexOf(wrappingNode.name) === -1) {
 						wrappingNode.value = '\n\t' + wrappingNode.value + '\n';
 					}
 
 					// Fixes #54711
-					if (wrappingNode.name === 'a') {
-						let hrefAtt = wrappingNode.attributes.filter((a) => a.name === 'href')[0];
-						if (hrefAtt) {
-							hrefAtt.value = input.textToWrap[0]; // This is safe because we've already checked that length is 1.
-						} else {
-							wrappingNode.attributes.push({
-								name: 'href',
-								options: {},
-								value: input.textToWrap[0] // This is safe because we've already checked that length is 1.
-							});
+					if (wrappingNode.name === 'a' && !isPreviewing) {
+						wrappingNode.value = selectedTextPlaceholder;
+						let hrefAtt = wrappingNode.attributes.filter((a: any) => a.name === 'href')[0];
+						if (hrefAtt && hrefAtt.value) {
+							// Replace a *valid* with $TM_SELECTED_TEXT so that multi-cursor mode works correctly.
+							hrefAtt.value = selectedTextPlaceholder;
 						}
 					}
 				}
@@ -666,7 +659,7 @@ function expandAbbr(input: ExpandAbbreviationInput): string {
 			expandedText = helper.expandAbbreviation(parsedAbbr, expandOptions);
 			// All $anyword would have been escaped by the emmet helper.
 			// Remove the escaping backslash from $TM_SELECTED_TEXT so that VS Code Snippet controller can treat it as a variable
-			expandedText = expandedText.replace(/\\\$TM_SELECTED_TEXT/g, '$TM_SELECTED_TEXT');
+			expandedText = expandedText.replace(/\\\$TM_SELECTED_TEXT/g, selectedTextPlaceholder);
 		} else {
 			expandedText = helper.expandAbbreviation(input.abbreviation, expandOptions);
 		}
