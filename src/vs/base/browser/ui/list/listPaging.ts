@@ -164,14 +164,6 @@ export class PagedList<T> implements IDisposable {
 		this.list.focusPrevious(n, loop);
 	}
 
-	selectNext(n?: number, loop?: boolean): void {
-		this.list.selectNext(n, loop);
-	}
-
-	selectPrevious(n?: number, loop?: boolean): void {
-		this.list.selectPrevious(n, loop);
-	}
-
 	focusNextPage(): void {
 		this.list.focusNextPage();
 	}
