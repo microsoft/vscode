@@ -560,8 +560,8 @@ export class DebugSession implements IDebugSession {
 		}
 	}
 
-	private fetchThreads(stoppedDetails?: IRawStoppedDetails): TPromise<any> {
-		return this.raw.threads().then(response => {
+	private fetchThreads(stoppedDetails?: IRawStoppedDetails): TPromise<void> {
+		return this.raw ? this.raw.threads().then(response => {
 			if (response && response.body && response.body.threads) {
 				response.body.threads.forEach(thread => {
 					this.model.rawUpdate({
@@ -572,13 +572,12 @@ export class DebugSession implements IDebugSession {
 					});
 				});
 			}
-		});
+		}) : TPromise.as(undefined);
 	}
 
 	//---- private
 
 	private registerListeners(): void {
-
 		this.rawListeners.push(this.raw.onDidInitialize(() => {
 			aria.status(nls.localize('debuggingStarted', "Debugging started."));
 			const sendConfigurationDone = () => {

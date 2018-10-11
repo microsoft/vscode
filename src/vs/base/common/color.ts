@@ -416,7 +416,7 @@ export class Color {
 	}
 
 	toString(): string {
-		return Color.Format.CSS.format(this);
+		return '' + Color.Format.CSS.format(this);
 	}
 
 	static getLighterColor(of: Color, relative: Color, factor?: number): Color {

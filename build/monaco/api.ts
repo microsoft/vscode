@@ -281,7 +281,7 @@ function generateDeclarationFile(out: string, inputFiles: { [file: string]: stri
 
 	const generateUsageImport = (moduleId: string) => {
 		let importName = 'm' + (++usageCounter);
-		usageImports.push(`import * as ${importName} from '${moduleId.replace(/\.d\.ts$/, '')}';`);
+		usageImports.push(`import * as ${importName} from './${moduleId.replace(/\.d\.ts$/, '')}';`);
 		return importName;
 	};
 

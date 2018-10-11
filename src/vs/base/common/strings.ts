@@ -78,7 +78,7 @@ export function escapeRegExpCharacters(value: string): string {
  * @param haystack string to trim
  * @param needle the thing to trim (default is a blank)
  */
-export function trim(haystack: string, needle: string = ' '): string {
+export function trim(haystack: string, needle: string = ' '): string | undefined {
 	let trimmed = ltrim(haystack, needle);
 	return rtrim(trimmed, needle);
 }
@@ -88,7 +88,7 @@ export function trim(haystack: string, needle: string = ' '): string {
  * @param haystack string to trim
  * @param needle the thing to trim
  */
-export function ltrim(haystack?: string, needle?: string): string {
+export function ltrim(haystack?: string, needle?: string): string | undefined {
 	if (!haystack || !needle) {
 		return haystack;
 	}
@@ -111,7 +111,7 @@ export function ltrim(haystack?: string, needle?: string): string {
  * @param haystack string to trim
  * @param needle the thing to trim
  */
-export function rtrim(haystack?: string, needle?: string): string {
+export function rtrim(haystack?: string, needle?: string): string | undefined {
 	if (!haystack || !needle) {
 		return haystack;
 	}
@@ -229,7 +229,7 @@ export function regExpLeadsToEndlessLoop(regexp: RegExp): boolean {
 	// We check against an empty string. If the regular expression doesn't advance
 	// (e.g. ends in an endless loop) it will match an empty string.
 	let match = regexp.exec('');
-	return (match && <any>regexp.lastIndex === 0);
+	return !!(match && <any>regexp.lastIndex === 0);
 }
 
 export function regExpContainsBackreference(regexpValue: string): boolean {
@@ -621,7 +621,7 @@ export function removeAnsiEscapeCodes(str: string): string {
 export const UTF8_BOM_CHARACTER = String.fromCharCode(CharCode.UTF8_BOM);
 
 export function startsWithUTF8BOM(str: string): boolean {
-	return (str && str.length > 0 && str.charCodeAt(0) === CharCode.UTF8_BOM);
+	return !!(str && str.length > 0 && str.charCodeAt(0) === CharCode.UTF8_BOM);
 }
 
 export function stripUTF8BOM(str: string): string {

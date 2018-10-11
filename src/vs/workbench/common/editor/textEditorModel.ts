@@ -77,7 +77,7 @@ export abstract class BaseTextEditorModel extends EditorModel implements ITextEd
 		return TPromise.as(this.doCreateTextEditorModel(value, mode, resource));
 	}
 
-	private doCreateTextEditorModel(value: ITextBufferFactory, mode: TPromise<IMode>, resource: URI): EditorModel {
+	private doCreateTextEditorModel(value: ITextBufferFactory, mode: Promise<IMode>, resource: URI): EditorModel {
 		let model = resource && this.modelService.getModel(resource);
 		if (!model) {
 			model = this.modelService.createModel(value, mode, resource);
@@ -113,7 +113,7 @@ export abstract class BaseTextEditorModel extends EditorModel implements ITextEd
 	 *
 	 * @param firstLineText optional first line of the text buffer to set the mode on. This can be used to guess a mode from content.
 	 */
-	protected getOrCreateMode(modeService: IModeService, modeId: string, firstLineText?: string): TPromise<IMode> {
+	protected getOrCreateMode(modeService: IModeService, modeId: string, firstLineText?: string): Promise<IMode> {
 		return modeService.getOrCreateMode(modeId);
 	}
 

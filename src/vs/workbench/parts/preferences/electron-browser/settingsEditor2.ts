@@ -1176,7 +1176,7 @@ export class SettingsEditor2 extends BaseEditor {
 		return this.localSearchDelayer.trigger(() => {
 			if (searchInProgress && !searchInProgress.token.isCancellationRequested) {
 				return this.localFilterPreferences(query).then(result => {
-					if (!result.exactMatch) {
+					if (result && !result.exactMatch) {
 						this.remoteSearchThrottle.trigger(() => {
 							return searchInProgress && !searchInProgress.token.isCancellationRequested ?
 								this.remoteSearchPreferences(query, this.searchInProgress.token) :
