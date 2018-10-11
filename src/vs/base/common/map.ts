@@ -139,11 +139,11 @@ export class PathIterator implements IKeyIterator {
 
 class TernarySearchTreeNode<E> {
 	segment: string;
-	value: E;
+	value: E | undefined;
 	key: string;
-	left: TernarySearchTreeNode<E>;
-	mid: TernarySearchTreeNode<E>;
-	right: TernarySearchTreeNode<E>;
+	left: TernarySearchTreeNode<E> | undefined;
+	mid: TernarySearchTreeNode<E> | undefined;
+	right: TernarySearchTreeNode<E> | undefined;
 
 	isEmpty(): boolean {
 		return !this.left && !this.mid && !this.right && !this.value;
@@ -161,7 +161,7 @@ export class TernarySearchTree<E> {
 	}
 
 	private _iter: IKeyIterator;
-	private _root: TernarySearchTreeNode<E>;
+	private _root: TernarySearchTreeNode<E> | undefined;
 
 	constructor(segments: IKeyIterator) {
 		this._iter = segments;
@@ -171,7 +171,7 @@ export class TernarySearchTree<E> {
 		this._root = undefined;
 	}
 
-	set(key: string, element: E): E {
+	set(key: string, element: E): E | undefined {
 		let iter = this._iter.reset(key);
 		let node: TernarySearchTreeNode<E>;
 
@@ -217,7 +217,7 @@ export class TernarySearchTree<E> {
 		return oldElement;
 	}
 
-	get(key: string): E {
+	get(key: string): E | undefined {
 		let iter = this._iter.reset(key);
 		let node = this._root;
 		while (node) {
@@ -267,7 +267,7 @@ export class TernarySearchTree<E> {
 
 				// clean up empty nodes
 				while (stack.length > 0 && node.isEmpty()) {
-					let [dir, parent] = stack.pop();
+					let [dir, parent] = stack.pop()!;
 					switch (dir) {
 						case 1: parent.left = undefined; break;
 						case 0: parent.mid = undefined; break;
@@ -280,10 +280,10 @@ export class TernarySearchTree<E> {
 		}
 	}
 
-	findSubstr(key: string): E {
+	findSubstr(key: string): E | undefined {
 		let iter = this._iter.reset(key);
 		let node = this._root;
-		let candidate: E;
+		let candidate: E | undefined = undefined;
 		while (node) {
 			let val = iter.cmp(node.segment);
 			if (val > 0) {
@@ -304,7 +304,7 @@ export class TernarySearchTree<E> {
 		return node && node.value || candidate;
 	}
 
-	findSuperstr(key: string): Iterator<E> {
+	findSuperstr(key: string): Iterator<E> | undefined {
 		let iter = this._iter.reset(key);
 		let node = this._root;
 		while (node) {
@@ -360,7 +360,7 @@ export class TernarySearchTree<E> {
 		this._forEach(this._root, callback);
 	}
 
-	private _forEach(node: TernarySearchTreeNode<E>, callback: (value: E, index: string) => any) {
+	private _forEach(node: TernarySearchTreeNode<E> | undefined, callback: (value: E, index: string) => any) {
 		if (node) {
 			// left
 			this._forEach(node.left, callback);
@@ -639,11 +639,11 @@ export class LinkedMap<K, V> {
 			this.clear();
 			return;
 		}
-		let current = this._head;
+		let current = this._head!;
 		let currentSize = this.size;
 		while (current && currentSize > newSize) {
 			this._map.delete(current.key);
-			current = current.next;
+			current = current.next!;
 			currentSize--;
 		}
 		this._head = current;

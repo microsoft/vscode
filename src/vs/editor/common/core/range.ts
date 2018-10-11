@@ -223,7 +223,7 @@ export class Range {
 	/**
 	 * Test if range `a` equals `b`.
 	 */
-	public static equalsRange(a: IRange, b: IRange): boolean {
+	public static equalsRange(a: IRange | null, b: IRange | null): boolean {
 		return (
 			!!a &&
 			!!b &&

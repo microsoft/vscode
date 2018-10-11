@@ -624,7 +624,7 @@ declare namespace monaco {
 		/**
 		 * Test if range `a` equals `b`.
 		 */
-		static equalsRange(a: IRange, b: IRange): boolean;
+		static equalsRange(a: IRange | null, b: IRange | null): boolean;
 		/**
 		 * Return the end position (which will be after or equal to the start position)
 		 */
