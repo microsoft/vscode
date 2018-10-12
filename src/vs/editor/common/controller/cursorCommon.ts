@@ -464,13 +464,13 @@ export class EditOperationResult {
 	_editOperationResultBrand: void;
 
 	readonly type: EditOperationType;
-	readonly commands: ICommand[];
+	readonly commands: (ICommand | null)[];
 	readonly shouldPushStackElementBefore: boolean;
 	readonly shouldPushStackElementAfter: boolean;
 
 	constructor(
 		type: EditOperationType,
-		commands: ICommand[],
+		commands: (ICommand | null)[],
 		opts: {
 			shouldPushStackElementBefore: boolean;
 			shouldPushStackElementAfter: boolean;

@@ -259,7 +259,7 @@ export class CursorMoveCommands {
 		return CursorState.fromViewState(cursor.viewState.move(inSelectionMode, viewPosition.lineNumber, viewPosition.column, 0));
 	}
 
-	public static move(context: CursorContext, cursors: CursorState[], args: CursorMove.ParsedArguments): PartialCursorState[] {
+	public static move(context: CursorContext, cursors: CursorState[], args: CursorMove.ParsedArguments): PartialCursorState[] | null {
 		const inSelectionMode = args.select;
 		const value = args.value;
 
@@ -663,7 +663,7 @@ export namespace CursorMove {
 		value?: number;
 	}
 
-	export function parse(args: RawArguments): ParsedArguments {
+	export function parse(args: RawArguments): ParsedArguments | null {
 		if (!args.to) {
 			// illegal arguments
 			return null;

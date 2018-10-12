@@ -620,7 +620,7 @@ declare namespace monaco {
 		/**
 		 * Test if this range equals other.
 		 */
-		equalsRange(other: IRange): boolean;
+		equalsRange(other: IRange | null): boolean;
 		/**
 		 * Test if range `a` equals `b`.
 		 */
@@ -1198,7 +1198,7 @@ declare namespace monaco.editor {
 		 * CSS color to render in the overview ruler.
 		 * e.g.: rgba(100, 100, 100, 0.5) or a color from the color registry
 		 */
-		color: string | ThemeColor;
+		color: string | ThemeColor | undefined;
 		/**
 		 * CSS color to render in the overview ruler.
 		 * e.g.: rgba(100, 100, 100, 0.5) or a color from the color registry
@@ -5094,11 +5094,15 @@ declare namespace monaco.languages {
 		provideDocumentSymbols(model: editor.ITextModel, token: CancellationToken): ProviderResult<DocumentSymbol[]>;
 	}
 
-	export interface TextEdit {
+	export type TextEdit = {
 		range: IRange;
 		text: string;
 		eol?: editor.EndOfLineSequence;
-	}
+	} | {
+		range: undefined;
+		text: undefined;
+		eol: editor.EndOfLineSequence;
+	};
 
 	/**
 	 * Interface used to format a model

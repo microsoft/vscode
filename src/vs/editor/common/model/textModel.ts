@@ -1552,6 +1552,8 @@ export class TextModel extends Disposable implements model.ITextModel {
 		return this.getDecorationRange(id);
 	}
 
+	_setTrackedRange(id: string | null, newRange: null, newStickiness: model.TrackedRangeStickiness): null;
+	_setTrackedRange(id: string | null, newRange: Range, newStickiness: model.TrackedRangeStickiness): string;
 	_setTrackedRange(id: string | null, newRange: Range | null, newStickiness: model.TrackedRangeStickiness): string | null {
 		const node = (id ? this._decorations[id] : null);
 

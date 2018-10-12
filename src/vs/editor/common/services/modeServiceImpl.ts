@@ -10,6 +10,7 @@ import { FrankensteinMode } from 'vs/editor/common/modes/abstractMode';
 import { LanguagesRegistry } from 'vs/editor/common/services/languagesRegistry';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { URI } from 'vs/base/common/uri';
+import { NULL_LANGUAGE_IDENTIFIER } from 'vs/editor/common/modes/nullMode';
 
 export class ModeServiceImpl implements IModeService {
 	public _serviceBrand: any;
@@ -50,19 +51,19 @@ export class ModeServiceImpl implements IModeService {
 		return this._registry.getFilenames(alias);
 	}
 
-	public getMimeForMode(modeId: string): string {
+	public getMimeForMode(modeId: string): string | null {
 		return this._registry.getMimeForMode(modeId);
 	}
 
-	public getLanguageName(modeId: string): string {
+	public getLanguageName(modeId: string): string | null {
 		return this._registry.getLanguageName(modeId);
 	}
 
-	public getModeIdForLanguageName(alias: string): string {
+	public getModeIdForLanguageName(alias: string): string | null {
 		return this._registry.getModeIdForLanguageNameLowercase(alias);
 	}
 
-	public getModeIdByFilepathOrFirstLine(filepath: string, firstLine?: string): string {
+	public getModeIdByFilepathOrFirstLine(filepath: string, firstLine?: string): string | null {
 		const modeIds = this._registry.getModeIdsFromFilepathOrFirstLine(filepath, firstLine);
 
 		if (modeIds.length > 0) {
@@ -72,7 +73,7 @@ export class ModeServiceImpl implements IModeService {
 		return null;
 	}
 
-	public getModeId(commaSeparatedMimetypesOrCommaSeparatedIds: string): string {
+	public getModeId(commaSeparatedMimetypesOrCommaSeparatedIds: string): string | null {
 		const modeIds = this._registry.extractModeIds(commaSeparatedMimetypesOrCommaSeparatedIds);
 
 		if (modeIds.length > 0) {
@@ -82,7 +83,7 @@ export class ModeServiceImpl implements IModeService {
 		return null;
 	}
 
-	public getLanguageIdentifier(modeId: string | LanguageId): LanguageIdentifier {
+	public getLanguageIdentifier(modeId: string | LanguageId): LanguageIdentifier | null {
 		return this._registry.getLanguageIdentifier(modeId);
 	}
 
@@ -92,7 +93,7 @@ export class ModeServiceImpl implements IModeService {
 
 	// --- instantiation
 
-	public getMode(commaSeparatedMimetypesOrCommaSeparatedIds: string): IMode {
+	public getMode(commaSeparatedMimetypesOrCommaSeparatedIds: string): IMode | null {
 		const modeIds = this._registry.extractModeIds(commaSeparatedMimetypesOrCommaSeparatedIds);
 
 		let isPlainText = false;
@@ -130,7 +131,7 @@ export class ModeServiceImpl implements IModeService {
 		});
 	}
 
-	private _getModeIdByLanguageName(languageName: string): string {
+	private _getModeIdByLanguageName(languageName: string): string | null {
 		const modeIds = this._registry.getModeIdsFromLanguageName(languageName);
 
 		if (modeIds.length > 0) {
@@ -150,7 +151,7 @@ export class ModeServiceImpl implements IModeService {
 
 	private _getOrCreateMode(modeId: string): IMode {
 		if (!this._instantiatedModes.hasOwnProperty(modeId)) {
-			let languageIdentifier = this.getLanguageIdentifier(modeId);
+			let languageIdentifier = this.getLanguageIdentifier(modeId) || NULL_LANGUAGE_IDENTIFIER;
 			this._instantiatedModes[modeId] = new FrankensteinMode(languageIdentifier);
 
 			this._onDidCreateMode.fire(this._instantiatedModes[modeId]);

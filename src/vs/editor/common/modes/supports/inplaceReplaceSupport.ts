@@ -10,7 +10,7 @@ export class BasicInplaceReplace {
 
 	public static readonly INSTANCE = new BasicInplaceReplace();
 
-	public navigateValueSet(range1: IRange, text1: string, range2: IRange, text2: string, up: boolean): IInplaceReplaceSupportResult | null {
+	public navigateValueSet(range1: IRange, text1: string, range2: IRange, text2: string | null, up: boolean): IInplaceReplaceSupportResult | null {
 
 		if (range1 && text1) {
 			let result = this.doNavigateValueSet(text1, up);

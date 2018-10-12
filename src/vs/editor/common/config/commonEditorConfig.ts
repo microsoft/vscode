@@ -85,7 +85,6 @@ export abstract class CommonEditorConfiguration extends Disposable implements ed
 		this._rawOptions.parameterHints = objects.mixin({}, this._rawOptions.parameterHints || {});
 
 		this._validatedOptions = editorOptions.EditorOptionsValidator.validate(this._rawOptions, EDITOR_DEFAULTS);
-		this.editor = null;
 		this._isDominatedByLongLines = false;
 		this._lineNumbersDigitCount = 1;
 
@@ -866,12 +865,12 @@ const editorConfiguration: IConfigurationNode = {
 	}
 };
 
-let cachedEditorConfigurationKeys: { [key: string]: boolean; } = null;
+let cachedEditorConfigurationKeys: { [key: string]: boolean; } | null = null;
 function getEditorConfigurationKeys(): { [key: string]: boolean; } {
 	if (cachedEditorConfigurationKeys === null) {
-		cachedEditorConfigurationKeys = Object.create(null);
-		Object.keys(editorConfiguration.properties).forEach((prop) => {
-			cachedEditorConfigurationKeys[prop] = true;
+		cachedEditorConfigurationKeys = <{ [key: string]: boolean; }>Object.create(null);
+		Object.keys(editorConfiguration.properties!).forEach((prop) => {
+			cachedEditorConfigurationKeys![prop] = true;
 		});
 	}
 	return cachedEditorConfigurationKeys;
