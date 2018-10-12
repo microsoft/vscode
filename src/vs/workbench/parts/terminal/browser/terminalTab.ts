@@ -267,7 +267,10 @@ export class TerminalTab extends Disposable implements ITerminalTab {
 
 	private _initInstanceListeners(instance: ITerminalInstance): void {
 		instance.addDisposable(instance.onDisposed(instance => this._onInstanceDisposed(instance)));
-		instance.addDisposable(instance.onFocused(instance => this._setActiveInstance(instance)));
+		instance.addDisposable(instance.onFocused(instance => {
+			aria.alert(nls.localize('terminalFocus', "Terminal {0}", this._terminalService.activeTabIndex + 1));
+			this._setActiveInstance(instance);
+		}));
 	}
 
 	private _onInstanceDisposed(instance: ITerminalInstance): void {
@@ -300,7 +303,6 @@ export class TerminalTab extends Disposable implements ITerminalTab {
 	}
 
 	private _setActiveInstance(instance: ITerminalInstance): void {
-		aria.alert(nls.localize('terminalFocus', "Terminal {0}", this._terminalService.activeTabIndex + 1));
 		this.setActiveInstanceByIndex(this._getIndexFromId(instance.id));
 	}
 
