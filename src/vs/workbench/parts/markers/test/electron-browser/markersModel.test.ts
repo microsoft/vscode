@@ -7,55 +7,25 @@ import * as assert from 'assert';
 import { URI } from 'vs/base/common/uri';
 import { IMarker, MarkerSeverity, IRelatedInformation } from 'vs/platform/markers/common/markers';
 import { MarkersModel, Marker, ResourceMarkers, RelatedInformation } from 'vs/workbench/parts/markers/electron-browser/markersModel';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { workbenchInstantiationService } from 'vs/workbench/test/workbenchTestServices';
+import { groupBy } from 'vs/base/common/collections';
 
 class TestMarkersModel extends MarkersModel {
 
-	get filteredResources(): ResourceMarkers[] {
-		return this.resourceMarkers;
+	constructor(markers: IMarker[]) {
+		super();
+
+		const byResource = groupBy(markers, r => r.resource.toString());
+
+		Object.keys(byResource).forEach(key => {
+			const markers = byResource[key];
+			const resource = markers[0].resource;
+
+			this.setResourceMarkers(resource, markers);
+		});
 	}
 }
 
 suite('MarkersModel Test', () => {
-
-	let instantiationService: IInstantiationService;
-
-	setup(() => {
-		instantiationService = workbenchInstantiationService();
-	});
-
-	test('getFilteredResource return markers grouped by resource', function () {
-		const marker1 = aMarker('res1');
-		const marker2 = aMarker('res2');
-		const marker3 = aMarker('res1');
-		const marker4 = aMarker('res3');
-		const marker5 = aMarker('res4');
-		const marker6 = aMarker('res2');
-		const testObject = instantiationService.createInstance(TestMarkersModel, [marker1, marker2, marker3, marker4, marker5, marker6]);
-
-		const actuals = testObject.filteredResources;
-
-		assert.equal(4, actuals.length);
-
-		assert.ok(compareResource(actuals[0], 'res1'));
-		assert.equal(2, actuals[0].markers.length);
-		assert.ok(hasMarker(actuals[0].markers, marker1));
-		assert.ok(hasMarker(actuals[0].markers, marker3));
-
-		assert.ok(compareResource(actuals[1], 'res2'));
-		assert.equal(2, actuals[1].markers.length);
-		assert.ok(hasMarker(actuals[1].markers, marker2));
-		assert.ok(hasMarker(actuals[1].markers, marker6));
-
-		assert.ok(compareResource(actuals[2], 'res3'));
-		assert.equal(1, actuals[2].markers.length);
-		assert.ok(hasMarker(actuals[2].markers, marker4));
-
-		assert.ok(compareResource(actuals[3], 'res4'));
-		assert.equal(1, actuals[3].markers.length);
-		assert.ok(hasMarker(actuals[3].markers, marker5));
-	});
 
 	test('sort palces resources with no errors at the end', function () {
 		const marker1 = aMarker('a/res1', MarkerSeverity.Warning);
@@ -64,7 +34,7 @@ suite('MarkersModel Test', () => {
 		const marker4 = aMarker('b/res3');
 		const marker5 = aMarker('res4');
 		const marker6 = aMarker('c/res2', MarkerSeverity.Info);
-		const testObject = instantiationService.createInstance(TestMarkersModel, [marker1, marker2, marker3, marker4, marker5, marker6]);
+		const testObject = new TestMarkersModel([marker1, marker2, marker3, marker4, marker5, marker6]);
 
 		const actuals = testObject.resourceMarkers;
 
@@ -83,7 +53,7 @@ suite('MarkersModel Test', () => {
 		const marker4 = aMarker('b/res3');
 		const marker5 = aMarker('res4');
 		const marker6 = aMarker('c/res2');
-		const testObject = instantiationService.createInstance(TestMarkersModel, [marker1, marker2, marker3, marker4, marker5, marker6]);
+		const testObject = new TestMarkersModel([marker1, marker2, marker3, marker4, marker5, marker6]);
 
 		const actuals = testObject.resourceMarkers;
 
@@ -111,7 +81,7 @@ suite('MarkersModel Test', () => {
 		const marker13 = aWarningWithRange(5);
 		const marker14 = anErrorWithRange(4);
 		const marker15 = anErrorWithRange(8, 2, 8, 4);
-		const testObject = instantiationService.createInstance(TestMarkersModel, [marker1, marker2, marker3, marker4, marker5, marker6, marker7, marker8, marker9, marker10, marker11, marker12, marker13, marker14, marker15]);
+		const testObject = new TestMarkersModel([marker1, marker2, marker3, marker4, marker5, marker6, marker7, marker8, marker9, marker10, marker11, marker12, marker13, marker14, marker15]);
 
 		const actuals = testObject.resourceMarkers[0].markers;
 
@@ -135,30 +105,24 @@ suite('MarkersModel Test', () => {
 	test('toString()', () => {
 		let marker = aMarker('a/res1');
 		marker.code = '1234';
-		assert.equal(JSON.stringify({ ...marker, resource: marker.resource.path }, null, '\t'), instantiationService.createInstance(Marker, marker, null).toString());
+		assert.equal(JSON.stringify({ ...marker, resource: marker.resource.path }, null, '\t'), new Marker(marker).toString());
 
 		marker = aMarker('a/res2', MarkerSeverity.Warning);
-		assert.equal(JSON.stringify({ ...marker, resource: marker.resource.path }, null, '\t'), instantiationService.createInstance(Marker, marker, null).toString());
+		assert.equal(JSON.stringify({ ...marker, resource: marker.resource.path }, null, '\t'), new Marker(marker).toString());
 
 		marker = aMarker('a/res2', MarkerSeverity.Info, 1, 2, 1, 8, 'Info', '');
-		assert.equal(JSON.stringify({ ...marker, resource: marker.resource.path }, null, '\t'), instantiationService.createInstance(Marker, marker, null).toString());
+		assert.equal(JSON.stringify({ ...marker, resource: marker.resource.path }, null, '\t'), new Marker(marker).toString());
 
 		marker = aMarker('a/res2', MarkerSeverity.Hint, 1, 2, 1, 8, 'Ignore message', 'Ignore');
-		assert.equal(JSON.stringify({ ...marker, resource: marker.resource.path }, null, '\t'), instantiationService.createInstance(Marker, marker, null).toString());
+		assert.equal(JSON.stringify({ ...marker, resource: marker.resource.path }, null, '\t'), new Marker(marker).toString());
 
 		marker = aMarker('a/res2', MarkerSeverity.Warning, 1, 2, 1, 8, 'Warning message', '', [{ startLineNumber: 2, startColumn: 5, endLineNumber: 2, endColumn: 10, message: 'some info', resource: URI.file('a/res3') }]);
-		const testObject = instantiationService.createInstance(Marker, marker, null);
+		const testObject = new Marker(marker, null);
 
 		// hack
 		(testObject as any).relatedInformation = marker.relatedInformation.map(r => new RelatedInformation(r));
 		assert.equal(JSON.stringify({ ...marker, resource: marker.resource.path, relatedInformation: marker.relatedInformation.map(r => ({ ...r, resource: r.resource.path })) }, null, '\t'), testObject.toString());
 	});
-
-	function hasMarker(markers: Marker[], marker: IMarker): boolean {
-		return markers.filter((m): boolean => {
-			return m.marker === marker;
-		}).length === 1;
-	}
 
 	function compareResource(a: ResourceMarkers, b: string): boolean {
 		return a.resource.toString() === URI.file(b).toString();
