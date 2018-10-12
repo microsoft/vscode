@@ -6,6 +6,8 @@
 	},
 	"include": [
 		"./typings",
+	],
+	"files": [
 		"./vs/base/browser/browser.ts",
 		"./vs/base/browser/dom.ts",
 		"./vs/base/browser/event.ts",
