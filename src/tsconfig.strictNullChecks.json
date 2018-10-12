@@ -403,7 +403,6 @@
 		"./vs/workbench/parts/terminal/browser/terminalWidgetManager.ts",
 		"./vs/workbench/parts/terminal/common/terminal.ts",
 		"./vs/workbench/parts/terminal/node/terminalCommandTracker.ts",
-		"./vs/workbench/parts/terminal/node/windowsShellHelper.ts",
 		"./vs/workbench/parts/webview/electron-browser/webviewProtocols.ts",
 		"./vs/workbench/parts/welcome/gettingStarted/electron-browser/gettingStarted.ts",
 		"./vs/workbench/parts/welcome/page/electron-browser/vs_code_welcome_page.ts",
@@ -433,7 +432,6 @@
 		"./vs/workbench/test/electron-browser/api/mock.ts"
 	],
 	"exclude": [
-		"./typings/require-monaco.d.ts",
-		"./typings/windows-process-tree.d.ts"
+		"./typings/require-monaco.d.ts"
 	]
 }
