@@ -366,6 +366,17 @@ export class TerminalTab extends Disposable implements ITerminalTab {
 		if (newTerminalSize < TERMINAL_MIN_USEFUL_SIZE) {
 			return undefined;
 		}
+
+		switch (configHelper.config.splitCwdSource) {
+			case 'ShellDefault': {
+				// allow default behavior
+				break;
+			}
+			case 'SourceInitialCwd': {
+				shellLaunchConfig.cwd = this.activeInstance.getInitialCwd();
+			}
+		}
+
 		const instance = this._terminalService.createInstance(
 			terminalFocusContextKey,
 			configHelper,
