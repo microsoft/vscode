@@ -54,7 +54,7 @@ suite('Reference Collection', () => {
 		private _count = 0;
 		get count() { return this._count; }
 		protected createReferencedObject(key: string): number { this._count++; return key.length; }
-		protected destroyReferencedObject(object: number): void { this._count--; }
+		protected destroyReferencedObject(key: string, object: number): void { this._count--; }
 	}
 
 	test('simple', () => {
