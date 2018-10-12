@@ -100,6 +100,7 @@ export interface ITerminalConfiguration {
 	};
 	showExitAlert: boolean;
 	experimentalBufferImpl: 'JsArray' | 'TypedArray';
+	splitCwdSource: 'ShellDefault' | 'SourceInitialCwd';
 }
 
 export interface ITerminalConfigHelper {
@@ -585,6 +586,8 @@ export interface ITerminalInstance {
 	addDisposable(disposable: IDisposable): void;
 
 	toggleEscapeSequenceLogging(): void;
+
+	getInitialCwd(): string;
 }
 
 export interface ITerminalCommandTracker {
