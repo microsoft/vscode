@@ -10,7 +10,7 @@ import { IEditorContribution } from 'vs/editor/common/editorCommon';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { registerEditorContribution } from 'vs/editor/browser/editorExtensions';
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
-import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
+import { INextStorage2Service, StorageScope } from 'vs/platform/storage2/common/storage2';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
 /**
@@ -26,11 +26,11 @@ export class LargeFileOptimizationsWarner extends Disposable implements IEditorC
 		private readonly _editor: ICodeEditor,
 		@INotificationService private readonly _notificationService: INotificationService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
-		@IStorageService private readonly _storageService: IStorageService,
+		@INextStorage2Service private readonly _nextStorage2Service: INextStorage2Service,
 	) {
 		super();
 
-		this._isDisabled = this._storageService.getBoolean('editor.neverPromptForLargeFiles', StorageScope.GLOBAL, false);
+		this._isDisabled = this._nextStorage2Service.getBoolean('editor.neverPromptForLargeFiles', StorageScope.GLOBAL, false);
 
 		this._register(this._editor.onDidChangeModel((e) => {
 			const model = this._editor.getModel();
@@ -58,7 +58,7 @@ export class LargeFileOptimizationsWarner extends Disposable implements IEditorC
 						label: nls.localize('neverShowAgain', "OK. Never show again"),
 						run: () => {
 							this._isDisabled = true;
-							this._storageService.store('editor.neverPromptForLargeFiles', true, StorageScope.GLOBAL);
+							this._nextStorage2Service.set('editor.neverPromptForLargeFiles', true, StorageScope.GLOBAL);
 						}
 					},
 					{

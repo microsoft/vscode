@@ -10,7 +10,7 @@ import { IIntegrityService, IntegrityTestResult, ChecksumPair } from 'vs/platfor
 import product from 'vs/platform/node/product';
 import { URI } from 'vs/base/common/uri';
 import Severity from 'vs/base/common/severity';
-import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
+import { INextStorage2Service, StorageScope } from 'vs/platform/storage2/common/storage2';
 import { ILifecycleService, LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 
@@ -22,16 +22,16 @@ interface IStorageData {
 class IntegrityStorage {
 	private static readonly KEY = 'integrityService';
 
-	private _storageService: IStorageService;
+	private _nextStorage2Service: INextStorage2Service;
 	private _value: IStorageData;
 
-	constructor(storageService: IStorageService) {
-		this._storageService = storageService;
+	constructor(nextStorage2Service: INextStorage2Service) {
+		this._nextStorage2Service = nextStorage2Service;
 		this._value = this._read();
 	}
 
 	private _read(): IStorageData {
-		let jsonValue = this._storageService.get(IntegrityStorage.KEY, StorageScope.GLOBAL);
+		let jsonValue = this._nextStorage2Service.get(IntegrityStorage.KEY, StorageScope.GLOBAL);
 		if (!jsonValue) {
 			return null;
 		}
@@ -48,7 +48,7 @@ class IntegrityStorage {
 
 	public set(data: IStorageData): void {
 		this._value = data;
-		this._storageService.store(IntegrityStorage.KEY, JSON.stringify(this._value), StorageScope.GLOBAL);
+		this._nextStorage2Service.set(IntegrityStorage.KEY, JSON.stringify(this._value), StorageScope.GLOBAL);
 	}
 }
 
@@ -61,10 +61,10 @@ export class IntegrityServiceImpl implements IIntegrityService {
 
 	constructor(
 		@INotificationService private notificationService: INotificationService,
-		@IStorageService storageService: IStorageService,
+		@INextStorage2Service nextStorage2Service: INextStorage2Service,
 		@ILifecycleService private lifecycleService: ILifecycleService
 	) {
-		this._storage = new IntegrityStorage(storageService);
+		this._storage = new IntegrityStorage(nextStorage2Service);
 
 		this._isPurePromise = this._isPure();
 

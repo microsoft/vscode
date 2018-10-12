@@ -6,7 +6,7 @@
 import product from 'vs/platform/node/product';
 
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
+import { INextStorage2Service, StorageScope } from 'vs/platform/storage2/common/storage2';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { ILifecycleService, LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
@@ -116,7 +116,7 @@ export class ExperimentService extends Disposable implements IExperimentService 
 
 	onExperimentEnabled: Event<IExperiment> = this._onExperimentEnabled.event;
 	constructor(
-		@IStorageService private storageService: IStorageService,
+		@INextStorage2Service private nextStorage2Service: INextStorage2Service,
 		@IExtensionManagementService private extensionManagementService: IExtensionManagementService,
 		@ITextFileService private textFileService: ITextFileService,
 		@IEnvironmentService private environmentService: IEnvironmentService,
@@ -161,9 +161,9 @@ export class ExperimentService extends Disposable implements IExperimentService 
 
 	public markAsCompleted(experimentId: string): void {
 		const storageKey = 'experiments.' + experimentId;
-		const experimentState: IExperimentStorageState = safeParse(this.storageService.get(storageKey, StorageScope.GLOBAL), {});
+		const experimentState: IExperimentStorageState = safeParse(this.nextStorage2Service.get(storageKey, StorageScope.GLOBAL), {});
 		experimentState.state = ExperimentState.Complete;
-		this.storageService.store(storageKey, JSON.stringify(experimentState), StorageScope.GLOBAL);
+		this.nextStorage2Service.set(storageKey, JSON.stringify(experimentState), StorageScope.GLOBAL);
 	}
 
 	protected getExperiments(): TPromise<IRawExperiment[]> {
@@ -184,11 +184,11 @@ export class ExperimentService extends Disposable implements IExperimentService 
 		return this.getExperiments().then(rawExperiments => {
 			// Offline mode
 			if (!rawExperiments) {
-				const allExperimentIdsFromStorage = safeParse(this.storageService.get('allExperiments', StorageScope.GLOBAL), []);
+				const allExperimentIdsFromStorage = safeParse(this.nextStorage2Service.get('allExperiments', StorageScope.GLOBAL), []);
 				if (Array.isArray(allExperimentIdsFromStorage)) {
 					allExperimentIdsFromStorage.forEach(experimentId => {
 						const storageKey = 'experiments.' + experimentId;
-						const experimentState: IExperimentStorageState = safeParse(this.storageService.get(storageKey, StorageScope.GLOBAL), null);
+						const experimentState: IExperimentStorageState = safeParse(this.nextStorage2Service.get(storageKey, StorageScope.GLOBAL), null);
 						if (experimentState) {
 							this._experiments.push({
 								id: experimentId,
@@ -202,16 +202,16 @@ export class ExperimentService extends Disposable implements IExperimentService 
 			}
 
 			// Clear disbaled/deleted experiments from storage
-			const allExperimentIdsFromStorage = safeParse(this.storageService.get('allExperiments', StorageScope.GLOBAL), []);
+			const allExperimentIdsFromStorage = safeParse(this.nextStorage2Service.get('allExperiments', StorageScope.GLOBAL), []);
 			const enabledExperiments = rawExperiments.filter(experiment => !!experiment.enabled).map(experiment => experiment.id.toLowerCase());
 			if (Array.isArray(allExperimentIdsFromStorage)) {
 				allExperimentIdsFromStorage.forEach(experiment => {
 					if (enabledExperiments.indexOf(experiment) === -1) {
-						this.storageService.remove('experiments.' + experiment);
+						this.nextStorage2Service.delete(`experiments.${experiment}`, StorageScope.GLOBAL);
 					}
 				});
 			}
-			this.storageService.store('allExperiments', JSON.stringify(enabledExperiments), StorageScope.GLOBAL);
+			this.nextStorage2Service.set('allExperiments', JSON.stringify(enabledExperiments), StorageScope.GLOBAL);
 
 			const promises = rawExperiments.map(experiment => {
 				const processedExperiment: IExperiment = {
@@ -243,7 +243,7 @@ export class ExperimentService extends Disposable implements IExperimentService 
 				}
 
 				const storageKey = 'experiments.' + experiment.id;
-				const experimentState: IExperimentStorageState = safeParse(this.storageService.get(storageKey, StorageScope.GLOBAL), {});
+				const experimentState: IExperimentStorageState = safeParse(this.nextStorage2Service.get(storageKey, StorageScope.GLOBAL), {});
 				if (!experimentState.hasOwnProperty('enabled')) {
 					experimentState.enabled = processedExperiment.enabled;
 				}
@@ -255,7 +255,7 @@ export class ExperimentService extends Disposable implements IExperimentService 
 
 				return this.shouldRunExperiment(experiment, processedExperiment).then((state: ExperimentState) => {
 					experimentState.state = processedExperiment.state = state;
-					this.storageService.store(storageKey, JSON.stringify(experimentState));
+					this.nextStorage2Service.set(storageKey, JSON.stringify(experimentState), StorageScope.GLOBAL);
 
 					if (state === ExperimentState.Run) {
 						this.fireRunExperiment(processedExperiment);
@@ -277,16 +277,16 @@ export class ExperimentService extends Disposable implements IExperimentService 
 
 	private fireRunExperiment(experiment: IExperiment) {
 		this._onExperimentEnabled.fire(experiment);
-		const runExperimentIdsFromStorage: string[] = safeParse(this.storageService.get('currentOrPreviouslyRunExperiments', StorageScope.GLOBAL), []);
+		const runExperimentIdsFromStorage: string[] = safeParse(this.nextStorage2Service.get('currentOrPreviouslyRunExperiments', StorageScope.GLOBAL), []);
 		if (runExperimentIdsFromStorage.indexOf(experiment.id)) {
 			runExperimentIdsFromStorage.push(experiment.id);
-			this.storageService.store('currentOrPreviouslyRunExperiments', JSON.stringify(runExperimentIdsFromStorage));
+			this.nextStorage2Service.set('currentOrPreviouslyRunExperiments', JSON.stringify(runExperimentIdsFromStorage), StorageScope.GLOBAL);
 		}
 	}
 
 	private checkExperimentDependencies(experiment: IRawExperiment): boolean {
 		if (experiment.condition.experimentsPreviouslyRun) {
-			const runExperimentIdsFromStorage: string[] = safeParse(this.storageService.get('currentOrPreviouslyRunExperiments', StorageScope.GLOBAL), []);
+			const runExperimentIdsFromStorage: string[] = safeParse(this.nextStorage2Service.get('currentOrPreviouslyRunExperiments', StorageScope.GLOBAL), []);
 			let includeCheck = true;
 			let excludeCheck = true;
 			if (Array.isArray(experiment.condition.experimentsPreviouslyRun.includes)) {
@@ -365,7 +365,7 @@ export class ExperimentService extends Disposable implements IExperimentService 
 		}
 
 		const storageKey = 'experiments.' + experiment.id;
-		const experimentState: IExperimentStorageState = safeParse(this.storageService.get(storageKey, StorageScope.GLOBAL), {});
+		const experimentState: IExperimentStorageState = safeParse(this.nextStorage2Service.get(storageKey, StorageScope.GLOBAL), {});
 
 		return extensionsCheckPromise.then(success => {
 			if (!success || !experiment.condition.fileEdits || typeof experiment.condition.fileEdits.minEditCount !== 'number') {
@@ -380,7 +380,7 @@ export class ExperimentService extends Disposable implements IExperimentService 
 
 			const onSaveHandler = this.textFileService.models.onModelsSaved(e => {
 				const date = new Date().toDateString();
-				const latestExperimentState: IExperimentStorageState = safeParse(this.storageService.get(storageKey, StorageScope.GLOBAL), {});
+				const latestExperimentState: IExperimentStorageState = safeParse(this.nextStorage2Service.get(storageKey, StorageScope.GLOBAL), {});
 				if (latestExperimentState.state !== ExperimentState.Evaluating) {
 					onSaveHandler.dispose();
 					return;
@@ -407,12 +407,12 @@ export class ExperimentService extends Disposable implements IExperimentService 
 					if (filePathCheck && workspaceCheck) {
 						latestExperimentState.editCount = (latestExperimentState.editCount || 0) + 1;
 						latestExperimentState.lastEditedDate = date;
-						this.storageService.store(storageKey, JSON.stringify(latestExperimentState), StorageScope.GLOBAL);
+						this.nextStorage2Service.set(storageKey, JSON.stringify(latestExperimentState), StorageScope.GLOBAL);
 					}
 				});
 				if (latestExperimentState.editCount >= experiment.condition.fileEdits.minEditCount) {
 					processedExperiment.state = latestExperimentState.state = (Math.random() < experiment.condition.userProbability && this.checkExperimentDependencies(experiment)) ? ExperimentState.Run : ExperimentState.NoRun;
-					this.storageService.store(storageKey, JSON.stringify(latestExperimentState), StorageScope.GLOBAL);
+					this.nextStorage2Service.set(storageKey, JSON.stringify(latestExperimentState), StorageScope.GLOBAL);
 					if (latestExperimentState.state === ExperimentState.Run && ExperimentActionType[experiment.action.type] === ExperimentActionType.Prompt) {
 						this.fireRunExperiment(processedExperiment);
 					}

@@ -7,7 +7,6 @@ import * as nls from 'vs/nls';
 import * as types from 'vs/base/common/types';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { IWorkbenchThemeService, IColorTheme, ITokenColorCustomizations, IFileIconTheme, ExtensionData, VS_LIGHT_THEME, VS_DARK_THEME, VS_HC_THEME, COLOR_THEME_SETTING, ICON_THEME_SETTING, CUSTOM_WORKBENCH_COLORS_SETTING, CUSTOM_EDITOR_COLORS_SETTING, CUSTOM_EDITOR_SCOPE_COLORS_SETTING, DETECT_HC_SETTING, HC_THEME_ID } from 'vs/workbench/services/themes/common/workbenchThemeService';
-import { IStorageService } from 'vs/platform/storage/common/storage';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { Registry } from 'vs/platform/registry/common/platform';
 import * as errors from 'vs/base/common/errors';
@@ -27,6 +26,7 @@ import { IWindowService } from 'vs/platform/windows/common/windows';
 import { removeClasses, addClasses } from 'vs/base/browser/dom';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IFileService } from 'vs/platform/files/common/files';
+import { INextStorage2Service, StorageScope } from 'vs/platform/storage2/common/storage2';
 
 // implementation
 
@@ -91,7 +91,7 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 	constructor(
 		container: HTMLElement,
 		@IExtensionService extensionService: IExtensionService,
-		@IStorageService private storageService: IStorageService,
+		@INextStorage2Service private nextStorage2Service: INextStorage2Service,
 		@IConfigurationService private configurationService: IConfigurationService,
 		@ITelemetryService private telemetryService: ITelemetryService,
 		@IWindowService private windowService: IWindowService,
@@ -120,7 +120,7 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 		// themes are loaded asynchronously, we need to initialize
 		// a color theme document with good defaults until the theme is loaded
 		let themeData: ColorThemeData | null = null;
-		let persistedThemeData = this.storageService.get(PERSISTED_THEME_STORAGE_KEY);
+		let persistedThemeData = this.nextStorage2Service.get(PERSISTED_THEME_STORAGE_KEY, StorageScope.GLOBAL);
 		if (persistedThemeData) {
 			themeData = ColorThemeData.fromStorageData(persistedThemeData);
 		}
@@ -134,7 +134,7 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 		this.applyTheme(themeData, null, true);
 
 		let iconData: FileIconThemeData | null = null;
-		let persistedIconThemeData = this.storageService.get(PERSISTED_ICON_THEME_STORAGE_KEY);
+		let persistedIconThemeData = this.nextStorage2Service.get(PERSISTED_ICON_THEME_STORAGE_KEY, StorageScope.GLOBAL);
 		if (persistedIconThemeData) {
 			iconData = FileIconThemeData.fromStorageData(persistedIconThemeData);
 			if (iconData) {
@@ -348,7 +348,7 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 		this.onColorThemeChange.fire(this.currentColorTheme);
 
 		// remember theme data for a quick restore
-		this.storageService.store(PERSISTED_THEME_STORAGE_KEY, newTheme.toStorageData());
+		this.nextStorage2Service.set(PERSISTED_THEME_STORAGE_KEY, newTheme.toStorageData(), StorageScope.GLOBAL);
 
 		return this.writeColorThemeConfiguration(settingsTarget);
 	}
@@ -403,7 +403,7 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 			this.doSetFileIconTheme(newIconTheme);
 
 			// remember theme data for a quick restore
-			this.storageService.store(PERSISTED_ICON_THEME_STORAGE_KEY, newIconTheme.toStorageData());
+			this.nextStorage2Service.set(PERSISTED_ICON_THEME_STORAGE_KEY, newIconTheme.toStorageData(), StorageScope.GLOBAL);
 
 			return this.writeFileIconConfiguration(settingsTarget);
 		};

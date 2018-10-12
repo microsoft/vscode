@@ -9,7 +9,7 @@ import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { IExtensionManagementService, DidUninstallExtensionEvent, IExtensionEnablementService, IExtensionIdentifier, EnablementState, ILocalExtension, isIExtensionIdentifier, LocalExtensionType } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { getIdFromLocalExtensionId, areSameExtensions } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
-import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
+import { INextStorage2Service, StorageScope } from 'vs/platform/storage2/common/storage2';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 
 const DISABLED_EXTENSIONS_STORAGE_PATH = 'extensionsIdentifiers/disabled';
@@ -25,7 +25,7 @@ export class ExtensionEnablementService implements IExtensionEnablementService {
 	public readonly onEnablementChanged: Event<IExtensionIdentifier> = this._onEnablementChanged.event;
 
 	constructor(
-		@IStorageService private storageService: IStorageService,
+		@INextStorage2Service private nextStorage2Service: INextStorage2Service,
 		@IWorkspaceContextService private contextService: IWorkspaceContextService,
 		@IEnvironmentService private environmentService: IEnvironmentService,
 		@IExtensionManagementService private extensionManagementService: IExtensionManagementService
@@ -275,15 +275,15 @@ export class ExtensionEnablementService implements IExtensionEnablementService {
 		if (scope === StorageScope.WORKSPACE && !this.hasWorkspace) {
 			return [];
 		}
-		const value = this.storageService.get(storageId, scope, '');
+		const value = this.nextStorage2Service.get(storageId, scope, '');
 		return value ? JSON.parse(value) : [];
 	}
 
 	private _setExtensions(storageId: string, extensions: IExtensionIdentifier[], scope: StorageScope, extension: IExtensionIdentifier): void {
 		if (extensions.length) {
-			this.storageService.store(storageId, JSON.stringify(extensions.map(({ id, uuid }) => (<IExtensionIdentifier>{ id, uuid }))), scope);
+			this.nextStorage2Service.set(storageId, JSON.stringify(extensions.map(({ id, uuid }) => (<IExtensionIdentifier>{ id, uuid }))), scope);
 		} else {
-			this.storageService.remove(storageId, scope);
+			this.nextStorage2Service.delete(storageId, scope);
 		}
 	}
 

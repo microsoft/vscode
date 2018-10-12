@@ -14,9 +14,8 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import { KeyCode, SimpleKeybinding, ChordKeybinding } from 'vs/base/common/keyCodes';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import * as extfs from 'vs/base/node/extfs';
-import { TestTextFileService, TestLifecycleService, TestBackupFileService, TestContextService, TestTextResourceConfigurationService, TestHashService, TestEnvironmentService, TestEditorGroupsService, TestEditorService, TestLogService } from 'vs/workbench/test/workbenchTestServices';
-import { ILogService, NullLogService } from 'vs/platform/log/common/log';
-import { NextInMemoryStorage2Service } from 'vs/platform/storage2/electron-browser/nextStorage2Service';
+import { TestTextFileService, TestLifecycleService, TestBackupFileService, TestContextService, TestTextResourceConfigurationService, TestHashService, TestEnvironmentService, TestEditorGroupsService, TestEditorService, TestLogService, TestNextStorage2Service } from 'vs/workbench/test/workbenchTestServices';
+import { ILogService } from 'vs/platform/log/common/log';
 import { IEditorGroupsService } from 'vs/workbench/services/group/common/editorGroupsService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { TestNotificationService } from 'vs/platform/notification/test/common/testNotificationService';
@@ -90,7 +89,7 @@ suite('KeybindingsEditing', () => {
 				new TestTextResourceConfigurationService(),
 				new TestConfigurationService(),
 				lifecycleService,
-				new NextInMemoryStorage2Service(new NullLogService(), TestEnvironmentService),
+				new TestNextStorage2Service(),
 				new TestNotificationService(),
 				{ disableWatcher: true })
 			);

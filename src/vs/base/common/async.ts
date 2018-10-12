@@ -172,7 +172,7 @@ export class SimpleThrottler {
  * 			delayer.trigger(() => { return makeTheTrip(); });
  * 		}
  */
-export class Delayer<T> {
+export class Delayer<T> implements IDisposable {
 
 	private timeout: any;
 	private completionPromise: TPromise | null;
@@ -231,6 +231,10 @@ export class Delayer<T> {
 			clearTimeout(this.timeout);
 			this.timeout = null;
 		}
+	}
+
+	dispose(): void {
+		this.cancelTimeout();
 	}
 }
 

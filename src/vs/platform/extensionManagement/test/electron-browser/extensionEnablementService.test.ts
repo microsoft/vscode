@@ -8,13 +8,13 @@ import { IExtensionManagementService, IExtensionEnablementService, DidUninstallE
 import { ExtensionEnablementService } from 'vs/platform/extensionManagement/common/extensionEnablementService';
 import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
 import { Emitter } from 'vs/base/common/event';
-import { StorageService, InMemoryLocalStorage } from 'vs/platform/storage/common/storageService';
-import { IStorageService } from 'vs/platform/storage/common/storage';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
+import { INextStorage2Service } from 'vs/platform/storage2/common/storage2';
+import { TestNextStorage2Service } from 'vs/workbench/test/workbenchTestServices';
 
-function storageService(instantiationService: TestInstantiationService): IStorageService {
-	let service = instantiationService.get(IStorageService);
+function nextStorage2Service(instantiationService: TestInstantiationService): INextStorage2Service {
+	let service = instantiationService.get(INextStorage2Service);
 	if (!service) {
 		let workspaceContextService = instantiationService.get(IWorkspaceContextService);
 		if (!workspaceContextService) {
@@ -22,15 +22,14 @@ function storageService(instantiationService: TestInstantiationService): IStorag
 				getWorkbenchState: () => WorkbenchState.FOLDER,
 			});
 		}
-		service = instantiationService.stub(IStorageService, instantiationService.createInstance(StorageService, new InMemoryLocalStorage(), new InMemoryLocalStorage()));
+		service = instantiationService.stub(INextStorage2Service, new TestNextStorage2Service());
 	}
 	return service;
 }
 
-
 export class TestExtensionEnablementService extends ExtensionEnablementService {
 	constructor(instantiationService: TestInstantiationService) {
-		super(storageService(instantiationService), instantiationService.get(IWorkspaceContextService),
+		super(nextStorage2Service(instantiationService), instantiationService.get(IWorkspaceContextService),
 			instantiationService.get(IEnvironmentService) || instantiationService.stub(IEnvironmentService, {} as IEnvironmentService),
 			instantiationService.get(IExtensionManagementService) || instantiationService.stub(IExtensionManagementService,
 				{ onDidUninstallExtension: new Emitter<DidUninstallExtensionEvent>().event } as IExtensionManagementService));

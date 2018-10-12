@@ -5,7 +5,7 @@
 
 import { Emitter, Event } from 'vs/base/common/event';
 import { ISearchHistoryValues, ISearchHistoryService } from 'vs/platform/search/common/search';
-import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
+import { INextStorage2Service, StorageScope } from 'vs/platform/storage2/common/storage2';
 
 export class SearchHistoryService implements ISearchHistoryService {
 	public _serviceBrand: any;
@@ -16,17 +16,17 @@ export class SearchHistoryService implements ISearchHistoryService {
 	public readonly onDidClearHistory: Event<void> = this._onDidClearHistory.event;
 
 	constructor(
-		@IStorageService private storageService: IStorageService
+		@INextStorage2Service private nextStorage2Service: INextStorage2Service
 	) { }
 
 	public clearHistory(): void {
-		this.storageService.remove(SearchHistoryService.SEARCH_HISTORY_KEY, StorageScope.WORKSPACE);
+		this.nextStorage2Service.delete(SearchHistoryService.SEARCH_HISTORY_KEY, StorageScope.WORKSPACE);
 		this._onDidClearHistory.fire();
 	}
 
 	public load(): ISearchHistoryValues {
 		let result: ISearchHistoryValues;
-		const raw = this.storageService.get(SearchHistoryService.SEARCH_HISTORY_KEY, StorageScope.WORKSPACE);
+		const raw = this.nextStorage2Service.get(SearchHistoryService.SEARCH_HISTORY_KEY, StorageScope.WORKSPACE);
 
 		if (raw) {
 			try {
@@ -40,6 +40,6 @@ export class SearchHistoryService implements ISearchHistoryService {
 	}
 
 	public save(history: ISearchHistoryValues): void {
-		this.storageService.store(SearchHistoryService.SEARCH_HISTORY_KEY, JSON.stringify(history), StorageScope.WORKSPACE);
+		this.nextStorage2Service.set(SearchHistoryService.SEARCH_HISTORY_KEY, JSON.stringify(history), StorageScope.WORKSPACE);
 	}
 }

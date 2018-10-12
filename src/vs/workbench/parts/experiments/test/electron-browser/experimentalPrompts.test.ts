@@ -9,9 +9,8 @@ import { IExperiment, ExperimentActionType, IExperimentService, ExperimentState 
 
 import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
 import { Emitter } from 'vs/base/common/event';
-import { TestExperimentService } from 'vs/workbench/parts/experiments/test/node/experimentService.test';
+import { TestExperimentService } from 'vs/workbench/parts/experiments/test/electron-browser/experimentService.test';
 import { ExperimentalPrompts } from 'vs/workbench/parts/experiments/electron-browser/experimentalPrompt';
-import { IStorageService } from 'vs/platform/storage/common/storage';
 import { INotificationService, Severity, IPromptChoice } from 'vs/platform/notification/common/notification';
 import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
 import { TestLifecycleService } from 'vs/workbench/test/workbenchTestServices';
@@ -19,6 +18,7 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { NullTelemetryService } from 'vs/platform/telemetry/common/telemetryUtils';
 import { TestNotificationService } from 'vs/platform/notification/test/common/testNotificationService';
 import { TPromise } from 'vs/base/common/winjs.base';
+import { INextStorage2Service } from 'vs/platform/storage2/common/storage2';
 
 suite('Experimental Prompts', () => {
 	let instantiationService: TestInstantiationService;
@@ -62,9 +62,9 @@ suite('Experimental Prompts', () => {
 
 	setup(() => {
 		storageData = {};
-		instantiationService.stub(IStorageService, {
+		instantiationService.stub(INextStorage2Service, {
 			get: (a, b, c) => a === 'experiments.experiment1' ? JSON.stringify(storageData) : c,
-			store: (a, b, c) => {
+			set: (a, b, c) => {
 				if (a === 'experiments.experiment1') {
 					storageData = JSON.parse(b);
 				}

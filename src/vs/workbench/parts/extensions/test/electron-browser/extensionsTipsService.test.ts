@@ -21,9 +21,7 @@ import { Emitter } from 'vs/base/common/event';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { NullTelemetryService } from 'vs/platform/telemetry/common/telemetryUtils';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { TestTextResourceConfigurationService, TestContextService, TestLifecycleService, TestEnvironmentService } from 'vs/workbench/test/workbenchTestServices';
-import { NextInMemoryStorage2Service } from 'vs/platform/storage2/electron-browser/nextStorage2Service';
-import { NullLogService } from 'vs/platform/log/common/log';
+import { TestTextResourceConfigurationService, TestContextService, TestLifecycleService, TestEnvironmentService, TestNextStorage2Service } from 'vs/workbench/test/workbenchTestServices';
 import { TestNotificationService } from 'vs/platform/notification/test/common/testNotificationService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { URI } from 'vs/base/common/uri';
@@ -36,10 +34,9 @@ import { IPager } from 'vs/base/common/paging';
 import { assign } from 'vs/base/common/objects';
 import { getGalleryExtensionId } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { ConfigurationKey } from 'vs/workbench/parts/extensions/common/extensions';
 import { ExtensionManagementService } from 'vs/platform/extensionManagement/node/extensionManagementService';
-import { TestExtensionEnablementService } from 'vs/platform/extensionManagement/test/common/extensionEnablementService.test';
+import { TestExtensionEnablementService } from 'vs/platform/extensionManagement/test/electron-browser/extensionEnablementService.test';
 import { IURLService } from 'vs/platform/url/common/url';
 import product from 'vs/platform/node/product';
 import { ITextModel } from 'vs/editor/common/model';
@@ -48,7 +45,8 @@ import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
 import { INotificationService, Severity, IPromptChoice, IPromptOptions } from 'vs/platform/notification/common/notification';
 import { URLService } from 'vs/platform/url/common/urlService';
 import { IExperimentService } from 'vs/workbench/parts/experiments/node/experimentService';
-import { TestExperimentService } from 'vs/workbench/parts/experiments/test/node/experimentService.test';
+import { TestExperimentService } from 'vs/workbench/parts/experiments/test/electron-browser/experimentService.test';
+import { INextStorage2Service, StorageScope } from 'vs/platform/storage2/common/storage2';
 
 const mockExtensionGallery: IGalleryExtension[] = [
 	aGalleryExtension('MockExtension1', {
@@ -244,7 +242,7 @@ suite('ExtensionsTipsService Test', () => {
 		instantiationService.stub(INotificationService, new TestNotificationService2());
 
 		testConfigurationService.setUserConfiguration(ConfigurationKey, { ignoreRecommendations: false, showRecommendationsOnlyOnDemand: false });
-		instantiationService.stub(IStorageService, { get: (a, b, c) => c, getBoolean: (a, b, c) => c, store: () => { } });
+		instantiationService.stub(INextStorage2Service, { get: (a, b, c) => c, getBoolean: (a, b, c) => c, set: () => { } });
 		instantiationService.stub(IModelService, <IModelService>{
 			getModels(): any { return []; },
 			onModelAdded: onModelAddedEvent.event
@@ -279,7 +277,7 @@ suite('ExtensionsTipsService Test', () => {
 			const myWorkspace = testWorkspace(URI.from({ scheme: 'file', path: folderDir }));
 			workspaceService = new TestContextService(myWorkspace);
 			instantiationService.stub(IWorkspaceContextService, workspaceService);
-			instantiationService.stub(IFileService, new FileService(workspaceService, TestEnvironmentService, new TestTextResourceConfigurationService(), new TestConfigurationService(), new TestLifecycleService(), new NextInMemoryStorage2Service(new NullLogService(), TestEnvironmentService), new TestNotificationService(), { disableWatcher: true }));
+			instantiationService.stub(IFileService, new FileService(workspaceService, TestEnvironmentService, new TestTextResourceConfigurationService(), new TestConfigurationService(), new TestLifecycleService(), new TestNextStorage2Service(), new TestNotificationService(), { disableWatcher: true }));
 		});
 	}
 
@@ -366,7 +364,7 @@ suite('ExtensionsTipsService Test', () => {
 	});
 
 	test('ExtensionTipsService: No Prompt for valid workspace recommendations if ignoreRecommendations is set for current workspace', () => {
-		instantiationService.stub(IStorageService, { get: (a, b, c) => c, getBoolean: (a, b, c) => a === 'extensionsAssistant/workspaceRecommendationsIgnore' || c });
+		instantiationService.stub(INextStorage2Service, { get: (a, b, c) => c, getBoolean: (a, b, c) => a === 'extensionsAssistant/workspaceRecommendationsIgnore' || c });
 		return testNoPromptForValidRecommendations(mockTestData.validRecommendedExtensions);
 	});
 
@@ -379,7 +377,7 @@ suite('ExtensionsTipsService Test', () => {
 			return c;
 		};
 
-		instantiationService.stub(IStorageService, {
+		instantiationService.stub(INextStorage2Service, {
 			get: storageGetterStub,
 			getBoolean: (a, _, c) => a === 'extensionsAssistant/workspaceRecommendationsIgnore' || c
 		});
@@ -399,7 +397,7 @@ suite('ExtensionsTipsService Test', () => {
 	test('ExtensionTipsService: No Recommendations of workspace ignored recommendations', () => {
 		const ignoredRecommendations = ['ms-vscode.csharp', 'mockpublisher2.mockextension2']; // ignore a stored recommendation and a workspace recommendation.
 		const storedRecommendations = '["ms-vscode.csharp", "ms-python.python"]';
-		instantiationService.stub(IStorageService, {
+		instantiationService.stub(INextStorage2Service, {
 			get: (a, b, c) => a === 'extensionsAssistant/recommendations' ? storedRecommendations : c,
 			getBoolean: (a, _, c) => a === 'extensionsAssistant/workspaceRecommendationsIgnore' || c
 		});
@@ -427,7 +425,7 @@ suite('ExtensionsTipsService Test', () => {
 		};
 
 		const workspaceIgnoredRecommendations = ['ms-vscode.csharp']; // ignore a stored recommendation and a workspace recommendation.
-		instantiationService.stub(IStorageService, {
+		instantiationService.stub(INextStorage2Service, {
 			get: storageGetterStub,
 			getBoolean: (a, _, c) => a === 'extensionsAssistant/workspaceRecommendationsIgnore' || c
 		});
@@ -453,9 +451,9 @@ suite('ExtensionsTipsService Test', () => {
 			return c;
 		};
 
-		instantiationService.stub(IStorageService, {
+		instantiationService.stub(INextStorage2Service, {
 			get: storageGetterStub,
-			store: () => { },
+			set: () => { },
 			getBoolean: (a, _, c) => a === 'extensionsAssistant/workspaceRecommendationsIgnore' || c
 		});
 
@@ -491,9 +489,9 @@ suite('ExtensionsTipsService Test', () => {
 		const storageSetterTarget = sinon.spy();
 		const changeHandlerTarget = sinon.spy();
 		const ignoredExtensionId = 'Some.Extension';
-		instantiationService.stub(IStorageService, {
+		instantiationService.stub(INextStorage2Service, {
 			get: (a, b, c) => a === 'extensionsAssistant/ignored_recommendations' ? '["ms-vscode.vscode"]' : c,
-			store: (...args) => {
+			set: (...args) => {
 				storageSetterTarget(...args);
 			}
 		});
@@ -511,7 +509,7 @@ suite('ExtensionsTipsService Test', () => {
 
 	test('ExtensionTipsService: Get file based recommendations from storage (old format)', () => {
 		const storedRecommendations = '["ms-vscode.csharp", "ms-python.python", "eg2.tslint"]';
-		instantiationService.stub(IStorageService, { get: (a, b, c) => a === 'extensionsAssistant/recommendations' ? storedRecommendations : c });
+		instantiationService.stub(INextStorage2Service, { get: (a, b, c) => a === 'extensionsAssistant/recommendations' ? storedRecommendations : c });
 
 		return setUpFolderWorkspace('myFolder', []).then(() => {
 			testObject = instantiationService.createInstance(ExtensionTipsService);
@@ -530,7 +528,7 @@ suite('ExtensionsTipsService Test', () => {
 		const now = Date.now();
 		const tenDaysOld = 10 * milliSecondsInADay;
 		const storedRecommendations = `{"ms-vscode.csharp": ${now}, "ms-python.python": ${now}, "eg2.tslint": ${now}, "lukehoban.Go": ${tenDaysOld}}`;
-		instantiationService.stub(IStorageService, { get: (a, b, c) => a === 'extensionsAssistant/recommendations' ? storedRecommendations : c });
+		instantiationService.stub(INextStorage2Service, { get: (a, b, c) => a === 'extensionsAssistant/recommendations' ? storedRecommendations : c });
 
 		return setUpFolderWorkspace('myFolder', []).then(() => {
 			testObject = instantiationService.createInstance(ExtensionTipsService);

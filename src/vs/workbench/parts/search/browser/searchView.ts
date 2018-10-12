@@ -34,7 +34,8 @@ import { TreeResourceNavigator, WorkbenchTree } from 'vs/platform/list/browser/l
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { IProgressService } from 'vs/platform/progress/common/progress';
 import { IPatternInfo, IQueryOptions, ISearchComplete, ISearchConfiguration, ISearchHistoryService, ISearchProgressItem, ISearchQuery, VIEW_ID } from 'vs/platform/search/common/search';
-import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
+import { IStorageService } from 'vs/platform/storage/common/storage';
+import { INextStorage2Service, StorageScope } from 'vs/platform/storage2/common/storage2';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { diffInserted, diffInsertedOutline, diffRemoved, diffRemovedOutline, editorFindMatchHighlight, editorFindMatchHighlightBorder, listActiveSelectionForeground } from 'vs/platform/theme/common/colorRegistry';
 import { ICssStyleCollector, ITheme, IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
@@ -121,7 +122,8 @@ export class SearchView extends Viewlet implements IViewlet, IPanel {
 		@IProgressService private progressService: IProgressService,
 		@INotificationService private notificationService: INotificationService,
 		@IDialogService private dialogService: IDialogService,
-		@IStorageService private storageService: IStorageService,
+		@IStorageService storageService: IStorageService,
+		@INextStorage2Service private nextStorage2Service: INextStorage2Service,
 		@IContextViewService private contextViewService: IContextViewService,
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@IConfigurationService configurationService: IConfigurationService,
@@ -157,12 +159,13 @@ export class SearchView extends Viewlet implements IViewlet, IPanel {
 		this._register(this.untitledEditorService.onDidChangeDirty(e => this.onUntitledDidChangeDirty(e)));
 		this._register(this.contextService.onDidChangeWorkbenchState(() => this.onDidChangeWorkbenchState()));
 		this._register(this.searchHistoryService.onDidClearHistory(() => this.clearHistory()));
+		this._register(this.nextStorage2Service.onWillClose(() => this.saveState()));
 
-		this.selectCurrentMatchEmitter = new Emitter<string>();
-		debounceEvent(this.selectCurrentMatchEmitter.event, (l, e) => e, 100, /*leading=*/true)
-			(() => this.selectCurrentMatch());
+		this.selectCurrentMatchEmitter = this._register(new Emitter<string>());
+		this._register(debounceEvent(this.selectCurrentMatchEmitter.event, (l, e) => e, 100, /*leading=*/true)
+			(() => this.selectCurrentMatch()));
 
-		this.delayedRefresh = new Delayer<void>(250);
+		this.delayedRefresh = this._register(new Delayer<void>(250));
 	}
 
 	private onDidChangeWorkbenchState(): void {
@@ -321,7 +324,7 @@ export class SearchView extends Viewlet implements IViewlet, IPanel {
 			replaceHistory: replaceHistory
 		}));
 
-		if (this.storageService.getBoolean(SearchView.SHOW_REPLACE_STORAGE_KEY, StorageScope.WORKSPACE, true)) {
+		if (this.nextStorage2Service.getBoolean(SearchView.SHOW_REPLACE_STORAGE_KEY, StorageScope.WORKSPACE, true)) {
 			this.searchWidget.toggleReplace(true);
 		}
 
@@ -371,9 +374,9 @@ export class SearchView extends Viewlet implements IViewlet, IPanel {
 
 		const isReplaceShown = this.searchAndReplaceWidget.isReplaceShown();
 		if (!isReplaceShown) {
-			this.storageService.store(SearchView.SHOW_REPLACE_STORAGE_KEY, false, StorageScope.WORKSPACE);
+			this.nextStorage2Service.set(SearchView.SHOW_REPLACE_STORAGE_KEY, false, StorageScope.WORKSPACE);
 		} else {
-			this.storageService.remove(SearchView.SHOW_REPLACE_STORAGE_KEY, StorageScope.WORKSPACE);
+			this.nextStorage2Service.delete(SearchView.SHOW_REPLACE_STORAGE_KEY, StorageScope.WORKSPACE);
 		}
 	}
 
@@ -1524,6 +1527,10 @@ export class SearchView extends Viewlet implements IViewlet, IPanel {
 		this.viewletSettings['query.folderIncludes'] = patternIncludes;
 		this.viewletSettings['query.useExcludesAndIgnoreFiles'] = useExcludesAndIgnoreFiles;
 
+		super.shutdown();
+	}
+
+	private saveState(): void {
 		const searchHistory = this.searchWidget.getSearchHistory();
 		const replaceHistory = this.searchWidget.getReplaceHistory();
 		const patternExcludesHistory = this.inputPatternExcludes.getHistory();
@@ -1535,8 +1542,6 @@ export class SearchView extends Viewlet implements IViewlet, IPanel {
 			exclude: patternExcludesHistory,
 			include: patternIncludesHistory
 		});
-
-		super.shutdown();
 	}
 
 	public dispose(): void {

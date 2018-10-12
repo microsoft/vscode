@@ -18,7 +18,7 @@ import { IGlobalActivity } from 'vs/workbench/common/activity';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
-import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
+import { INextStorage2Service, StorageScope } from 'vs/platform/storage2/common/storage2';
 import { IUpdateService, State as UpdateState, StateType, IUpdate } from 'vs/platform/update/common/update';
 import * as semver from 'semver';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
@@ -111,14 +111,14 @@ export class ProductContribution implements IWorkbenchContribution {
 	private static readonly KEY = 'releaseNotes/lastVersion';
 
 	constructor(
-		@IStorageService storageService: IStorageService,
+		@INextStorage2Service nextStorage2Service: INextStorage2Service,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@INotificationService notificationService: INotificationService,
 		@IEnvironmentService environmentService: IEnvironmentService,
 		@IOpenerService openerService: IOpenerService,
 		@IConfigurationService configurationService: IConfigurationService
 	) {
-		const lastVersion = storageService.get(ProductContribution.KEY, StorageScope.GLOBAL, '');
+		const lastVersion = nextStorage2Service.get(ProductContribution.KEY, StorageScope.GLOBAL, '');
 		const shouldShowReleaseNotes = configurationService.getValue<boolean>('update.showReleaseNotes');
 
 		// was there an update? if so, open release notes
@@ -145,7 +145,7 @@ export class ProductContribution implements IWorkbenchContribution {
 			notificationService.info(nls.localize('licenseChanged', "Our license terms have changed, please click [here]({0}) to go through them.", product.licenseUrl));
 		}
 
-		storageService.store(ProductContribution.KEY, pkg.version, StorageScope.GLOBAL);
+		nextStorage2Service.set(ProductContribution.KEY, pkg.version, StorageScope.GLOBAL);
 	}
 }
 
@@ -158,15 +158,15 @@ class NeverShowAgain {
 		// Hide notification
 		notification.close();
 
-		return TPromise.wrap(this.storageService.store(this.key, true, StorageScope.GLOBAL));
+		return TPromise.wrap(this.nextStorage2Service.set(this.key, true, StorageScope.GLOBAL));
 	});
 
-	constructor(key: string, @IStorageService private storageService: IStorageService) {
+	constructor(key: string, @INextStorage2Service private nextStorage2Service: INextStorage2Service) {
 		this.key = `neverShowAgain:${key}`;
 	}
 
 	shouldShow(): boolean {
-		return !this.storageService.getBoolean(this.key, StorageScope.GLOBAL, false);
+		return !this.nextStorage2Service.getBoolean(this.key, StorageScope.GLOBAL, false);
 	}
 }
 
@@ -177,7 +177,7 @@ export class Win3264BitContribution implements IWorkbenchContribution {
 	private static readonly INSIDER_URL = 'https://github.com/Microsoft/vscode-docs/blob/vnext/release-notes/v1_15.md#windows-64-bit';
 
 	constructor(
-		@IStorageService storageService: IStorageService,
+		@INextStorage2Service nextStorage2Service: INextStorage2Service,
 		@INotificationService notificationService: INotificationService,
 		@IEnvironmentService environmentService: IEnvironmentService
 	) {
@@ -185,7 +185,7 @@ export class Win3264BitContribution implements IWorkbenchContribution {
 			return;
 		}
 
-		const neverShowAgain = new NeverShowAgain(Win3264BitContribution.KEY, storageService);
+		const neverShowAgain = new NeverShowAgain(Win3264BitContribution.KEY, nextStorage2Service);
 
 		if (!neverShowAgain.shouldShow()) {
 			return;
@@ -241,7 +241,7 @@ export class UpdateContribution implements IGlobalActivity {
 	private disposables: IDisposable[] = [];
 
 	constructor(
-		@IStorageService private storageService: IStorageService,
+		@INextStorage2Service private nextStorage2Service: INextStorage2Service,
 		@ICommandService private commandService: ICommandService,
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@INotificationService private notificationService: INotificationService,
@@ -264,12 +264,12 @@ export class UpdateContribution implements IGlobalActivity {
 		*/
 
 		const currentVersion = product.commit;
-		const lastKnownVersion = this.storageService.get('update/lastKnownVersion', StorageScope.GLOBAL);
+		const lastKnownVersion = this.nextStorage2Service.get('update/lastKnownVersion', StorageScope.GLOBAL);
 
 		// if current version != stored version, clear both fields
 		if (currentVersion !== lastKnownVersion) {
-			this.storageService.remove('update/lastKnownVersion', StorageScope.GLOBAL);
-			this.storageService.remove('update/updateNotificationTime', StorageScope.GLOBAL);
+			this.nextStorage2Service.delete('update/lastKnownVersion', StorageScope.GLOBAL);
+			this.nextStorage2Service.delete('update/updateNotificationTime', StorageScope.GLOBAL);
 		}
 	}
 
@@ -398,7 +398,7 @@ export class UpdateContribution implements IGlobalActivity {
 		}
 
 		// windows fast updates (target === system)
-		const neverShowAgain = new NeverShowAgain('update/win32-fast-updates', this.storageService);
+		const neverShowAgain = new NeverShowAgain('update/win32-fast-updates', this.nextStorage2Service);
 
 		if (!neverShowAgain.shouldShow()) {
 			return;
@@ -449,15 +449,15 @@ export class UpdateContribution implements IGlobalActivity {
 	private shouldShowNotification(): boolean {
 		const currentVersion = product.commit;
 		const currentMillis = new Date().getTime();
-		const lastKnownVersion = this.storageService.get('update/lastKnownVersion', StorageScope.GLOBAL);
+		const lastKnownVersion = this.nextStorage2Service.get('update/lastKnownVersion', StorageScope.GLOBAL);
 
 		// if version != stored version, save version and date
 		if (currentVersion !== lastKnownVersion) {
-			this.storageService.store('update/lastKnownVersion', currentVersion, StorageScope.GLOBAL);
-			this.storageService.store('update/updateNotificationTime', currentMillis, StorageScope.GLOBAL);
+			this.nextStorage2Service.set('update/lastKnownVersion', currentVersion, StorageScope.GLOBAL);
+			this.nextStorage2Service.set('update/updateNotificationTime', currentMillis, StorageScope.GLOBAL);
 		}
 
-		const updateNotificationMillis = this.storageService.getInteger('update/updateNotificationTime', StorageScope.GLOBAL, currentMillis);
+		const updateNotificationMillis = this.nextStorage2Service.getInteger('update/updateNotificationTime', StorageScope.GLOBAL, currentMillis);
 		const diffDays = (currentMillis - updateNotificationMillis) / (1000 * 60 * 60 * 24);
 
 		return diffDays > 5;

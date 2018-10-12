@@ -17,7 +17,6 @@ import { IDebugConfiguration, IDebugService, State } from 'vs/workbench/parts/de
 import { AbstractDebugAction, PauseAction, ContinueAction, StepBackAction, ReverseContinueAction, StopAction, DisconnectAction, StepOverAction, StepIntoAction, StepOutAction, RestartAction, FocusSessionAction } from 'vs/workbench/parts/debug/browser/debugActions';
 import { FocusSessionActionItem } from 'vs/workbench/parts/debug/browser/debugActionItems';
 import { IConfigurationService, IConfigurationChangeEvent } from 'vs/platform/configuration/common/configuration';
-import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { Themable } from 'vs/workbench/common/theme';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
@@ -30,6 +29,7 @@ import { RunOnceScheduler } from 'vs/base/common/async';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { isExtensionHostDebugging } from 'vs/workbench/parts/debug/common/debugUtils';
+import { INextStorage2Service, StorageScope } from 'vs/platform/storage2/common/storage2';
 
 const DEBUG_TOOLBAR_POSITION_KEY = 'debug.actionswidgetposition';
 const DEBUG_TOOLBAR_Y_KEY = 'debug.actionswidgety';
@@ -62,7 +62,7 @@ export class DebugToolbar extends Themable implements IWorkbenchContribution {
 		@ITelemetryService private telemetryService: ITelemetryService,
 		@IDebugService private debugService: IDebugService,
 		@IPartService private partService: IPartService,
-		@IStorageService private storageService: IStorageService,
+		@INextStorage2Service private nextStorage2Service: INextStorage2Service,
 		@IConfigurationService private configurationService: IConfigurationService,
 		@IThemeService themeService: IThemeService,
 		@IKeybindingService private keybindingService: IKeybindingService,
@@ -173,7 +173,7 @@ export class DebugToolbar extends Themable implements IWorkbenchContribution {
 
 	private storePosition(): void {
 		const position = parseFloat(dom.getComputedStyle(this.$el).left) / window.innerWidth;
-		this.storageService.store(DEBUG_TOOLBAR_POSITION_KEY, position, StorageScope.GLOBAL);
+		this.nextStorage2Service.set(DEBUG_TOOLBAR_POSITION_KEY, position, StorageScope.GLOBAL);
 	}
 
 	protected updateStyles(): void {
@@ -208,7 +208,7 @@ export class DebugToolbar extends Themable implements IWorkbenchContribution {
 		}
 		const widgetWidth = this.$el.clientWidth;
 		if (x === undefined) {
-			const positionPercentage = this.storageService.get(DEBUG_TOOLBAR_POSITION_KEY, StorageScope.GLOBAL);
+			const positionPercentage = this.nextStorage2Service.get(DEBUG_TOOLBAR_POSITION_KEY, StorageScope.GLOBAL);
 			x = positionPercentage !== undefined ? parseFloat(positionPercentage) * window.innerWidth : (0.5 * window.innerWidth - 0.5 * widgetWidth);
 		}
 
@@ -216,13 +216,13 @@ export class DebugToolbar extends Themable implements IWorkbenchContribution {
 		this.$el.style.left = `${x}px`;
 
 		if (y === undefined) {
-			y = this.storageService.getInteger(DEBUG_TOOLBAR_Y_KEY, StorageScope.GLOBAL, 0);
+			y = this.nextStorage2Service.getInteger(DEBUG_TOOLBAR_Y_KEY, StorageScope.GLOBAL, 0);
 		}
 		const titleAreaHeight = 35;
 		if ((y < titleAreaHeight / 2) || (y > titleAreaHeight + titleAreaHeight / 2)) {
 			const moveToTop = y < titleAreaHeight;
 			this.setYCoordinate(moveToTop ? 0 : titleAreaHeight);
-			this.storageService.store(DEBUG_TOOLBAR_Y_KEY, moveToTop ? 0 : 2 * titleAreaHeight, StorageScope.GLOBAL);
+			this.nextStorage2Service.set(DEBUG_TOOLBAR_Y_KEY, moveToTop ? 0 : 2 * titleAreaHeight, StorageScope.GLOBAL);
 		}
 	}
 

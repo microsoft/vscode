@@ -72,13 +72,15 @@ import { ICodeEditor, IDiffEditor } from 'vs/editor/browser/editorBrowser';
 import { IDecorationRenderOptions } from 'vs/editor/common/editorCommon';
 import { EditorGroup } from 'vs/workbench/common/editor/editorGroup';
 import { Dimension } from 'vs/base/browser/dom';
-import { ILogService, LogLevel } from 'vs/platform/log/common/log';
+import { ILogService, LogLevel, NullLogService } from 'vs/platform/log/common/log';
 import { ILabelService, LabelService } from 'vs/platform/label/common/label';
 import { timeout } from 'vs/base/common/async';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { ViewletDescriptor } from 'vs/workbench/browser/viewlet';
 import { IViewlet } from 'vs/workbench/common/viewlet';
 import { IProgressService } from 'vs/platform/progress/common/progress';
+import { NextStorage2Service } from 'vs/platform/storage2/electron-browser/nextStorage2Service';
+import { INextStorage2Service } from 'vs/platform/storage2/common/storage2';
 
 export function createFileInput(instantiationService: IInstantiationService, resource: URI): FileEditorInput {
 	return instantiationService.createInstance(FileEditorInput, resource, void 0);
@@ -253,6 +255,7 @@ export function workbenchInstantiationService(): IInstantiationService {
 	instantiationService.stub(ITextResourceConfigurationService, new TestTextResourceConfigurationService(configService));
 	instantiationService.stub(IUntitledEditorService, instantiationService.createInstance(UntitledEditorService));
 	instantiationService.stub(IStorageService, new TestStorageService());
+	instantiationService.stub(INextStorage2Service, new TestNextStorage2Service());
 	instantiationService.stub(IPartService, new TestPartService());
 	instantiationService.stub(IModeService, ModeServiceImpl);
 	instantiationService.stub(IHistoryService, new TestHistoryService());
@@ -553,6 +556,13 @@ export class TestStorageService implements IStorageService {
 
 	getBoolean(key: string, scope: StorageScope = StorageScope.GLOBAL, defaultValue?: boolean): boolean {
 		return this.storage.getBoolean(key, scope, defaultValue);
+	}
+}
+
+export class TestNextStorage2Service extends NextStorage2Service {
+
+	constructor() {
+		super(':memory:', new NullLogService(), TestEnvironmentService);
 	}
 }
 

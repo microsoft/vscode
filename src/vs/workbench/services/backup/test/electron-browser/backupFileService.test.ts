@@ -14,9 +14,7 @@ import { URI as Uri } from 'vs/base/common/uri';
 import { BackupFileService, BackupFilesModel } from 'vs/workbench/services/backup/node/backupFileService';
 import { FileService } from 'vs/workbench/services/files/electron-browser/fileService';
 import { TextModel, createTextBufferFactory } from 'vs/editor/common/model/textModel';
-import { TestContextService, TestTextResourceConfigurationService, getRandomTestPath, TestLifecycleService, TestEnvironmentService } from 'vs/workbench/test/workbenchTestServices';
-import { NextInMemoryStorage2Service } from 'vs/platform/storage2/electron-browser/nextStorage2Service';
-import { NullLogService } from 'vs/platform/log/common/log';
+import { TestContextService, TestTextResourceConfigurationService, getRandomTestPath, TestLifecycleService, TestEnvironmentService, TestNextStorage2Service } from 'vs/workbench/test/workbenchTestServices';
 import { TestNotificationService } from 'vs/platform/notification/test/common/testNotificationService';
 import { Workspace, toWorkspaceFolders } from 'vs/platform/workspace/common/workspace';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
@@ -39,7 +37,7 @@ const untitledBackupPath = path.join(workspaceBackupPath, 'untitled', crypto.cre
 
 class TestBackupFileService extends BackupFileService {
 	constructor(workspace: Uri, backupHome: string, workspacesJsonPath: string) {
-		const fileService = new FileService(new TestContextService(new Workspace(workspace.fsPath, toWorkspaceFolders([{ path: workspace.fsPath }]))), TestEnvironmentService, new TestTextResourceConfigurationService(), new TestConfigurationService(), new TestLifecycleService(), new NextInMemoryStorage2Service(new NullLogService(), TestEnvironmentService), new TestNotificationService(), { disableWatcher: true });
+		const fileService = new FileService(new TestContextService(new Workspace(workspace.fsPath, toWorkspaceFolders([{ path: workspace.fsPath }]))), TestEnvironmentService, new TestTextResourceConfigurationService(), new TestConfigurationService(), new TestLifecycleService(), new TestNextStorage2Service(), new TestNotificationService(), { disableWatcher: true });
 
 		super(workspaceBackupPath, fileService);
 	}
