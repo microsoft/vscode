@@ -35,7 +35,7 @@ export interface ICodeEditorService {
 	/**
 	 * Returns the current focused code editor (if the focus is in the editor or in an editor widget) or null.
 	 */
-	getFocusedCodeEditor(): ICodeEditor;
+	getFocusedCodeEditor(): ICodeEditor | null;
 
 	registerDecorationType(key: string, options: IDecorationRenderOptions, parentTypeKey?: string): void;
 	removeDecorationType(key: string): void;

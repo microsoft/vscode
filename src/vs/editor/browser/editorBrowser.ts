@@ -855,7 +855,7 @@ export function isDiffEditor(thing: any): thing is IDiffEditor {
 /**
  *@internal
  */
-export function getCodeEditor(thing: any): ICodeEditor {
+export function getCodeEditor(thing: any): ICodeEditor | null {
 	if (isCodeEditor(thing)) {
 		return thing;
 	}

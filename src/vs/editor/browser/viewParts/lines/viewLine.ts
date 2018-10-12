@@ -114,7 +114,7 @@ export class ViewLine implements IVisibleLine {
 
 	private _options: ViewLineOptions;
 	private _isMaybeInvalid: boolean;
-	private _renderedViewLine: IRenderedViewLine;
+	private _renderedViewLine: IRenderedViewLine | null;
 
 	constructor(options: ViewLineOptions) {
 		this._options = options;
@@ -124,7 +124,7 @@ export class ViewLine implements IVisibleLine {
 
 	// --- begin IVisibleLineData
 
-	public getDomNode(): HTMLElement {
+	public getDomNode(): HTMLElement | null {
 		if (this._renderedViewLine && this._renderedViewLine.domNode) {
 			return this._renderedViewLine.domNode.domNode;
 		}
@@ -282,7 +282,10 @@ export class ViewLine implements IVisibleLine {
 		return this._renderedViewLine.getWidthIsFast();
 	}
 
-	public getVisibleRangesForRange(startColumn: number, endColumn: number, context: DomReadingContext): HorizontalRange[] {
+	public getVisibleRangesForRange(startColumn: number, endColumn: number, context: DomReadingContext): HorizontalRange[] | null {
+		if (!this._renderedViewLine) {
+			return null;
+		}
 		startColumn = startColumn | 0; // @perf
 		endColumn = endColumn | 0; // @perf
 
@@ -308,16 +311,19 @@ export class ViewLine implements IVisibleLine {
 	}
 
 	public getColumnOfNodeOffset(lineNumber: number, spanNode: HTMLElement, offset: number): number {
+		if (!this._renderedViewLine) {
+			return 1;
+		}
 		return this._renderedViewLine.getColumnOfNodeOffset(lineNumber, spanNode, offset);
 	}
 }
 
 interface IRenderedViewLine {
-	domNode: FastDomNode<HTMLElement>;
+	domNode: FastDomNode<HTMLElement> | null;
 	readonly input: RenderLineInput;
 	getWidth(): number;
 	getWidthIsFast(): boolean;
-	getVisibleRangesForRange(startColumn: number, endColumn: number, context: DomReadingContext): HorizontalRange[];
+	getVisibleRangesForRange(startColumn: number, endColumn: number, context: DomReadingContext): HorizontalRange[] | null;
 	getColumnOfNodeOffset(lineNumber: number, spanNode: HTMLElement, offset: number): number;
 }
 
@@ -326,13 +332,13 @@ interface IRenderedViewLine {
  */
 class FastRenderedViewLine implements IRenderedViewLine {
 
-	public domNode: FastDomNode<HTMLElement>;
+	public domNode: FastDomNode<HTMLElement> | null;
 	public readonly input: RenderLineInput;
 
 	private readonly _characterMapping: CharacterMapping;
 	private readonly _charWidth: number;
 
-	constructor(domNode: FastDomNode<HTMLElement>, renderLineInput: RenderLineInput, characterMapping: CharacterMapping) {
+	constructor(domNode: FastDomNode<HTMLElement> | null, renderLineInput: RenderLineInput, characterMapping: CharacterMapping) {
 		this.domNode = domNode;
 		this.input = renderLineInput;
 
@@ -348,7 +354,7 @@ class FastRenderedViewLine implements IRenderedViewLine {
 		return true;
 	}
 
-	public getVisibleRangesForRange(startColumn: number, endColumn: number, context: DomReadingContext): HorizontalRange[] {
+	public getVisibleRangesForRange(startColumn: number, endColumn: number, context: DomReadingContext): HorizontalRange[] | null {
 		const startPosition = this._getCharPosition(startColumn);
 		const endPosition = this._getCharPosition(endColumn);
 		return [new HorizontalRange(startPosition, endPosition - startPosition)];
@@ -364,7 +370,7 @@ class FastRenderedViewLine implements IRenderedViewLine {
 	}
 
 	public getColumnOfNodeOffset(lineNumber: number, spanNode: HTMLElement, offset: number): number {
-		let spanNodeTextContentLength = spanNode.textContent.length;
+		let spanNodeTextContentLength = spanNode.textContent!.length;
 
 		let spanIndex = -1;
 		while (spanNode) {
@@ -393,7 +399,7 @@ class RenderedViewLine implements IRenderedViewLine {
 	/**
 	 * This is a map that is used only when the line is guaranteed to have no RTL text.
 	 */
-	private _pixelOffsetCache: Int32Array;
+	private _pixelOffsetCache: Int32Array | null;
 
 	constructor(domNode: FastDomNode<HTMLElement>, renderLineInput: RenderLineInput, characterMapping: CharacterMapping, containsRTL: boolean, containsForeignElements: ForeignElementType) {
 		this.domNode = domNode;
@@ -438,7 +444,7 @@ class RenderedViewLine implements IRenderedViewLine {
 	/**
 	 * Visible ranges for a model range
 	 */
-	public getVisibleRangesForRange(startColumn: number, endColumn: number, context: DomReadingContext): HorizontalRange[] {
+	public getVisibleRangesForRange(startColumn: number, endColumn: number, context: DomReadingContext): HorizontalRange[] | null {
 		if (this._pixelOffsetCache !== null) {
 			// the text is LTR
 			let startOffset = this._readPixelOffset(startColumn, context);
@@ -457,7 +463,7 @@ class RenderedViewLine implements IRenderedViewLine {
 		return this._readVisibleRangesForRange(startColumn, endColumn, context);
 	}
 
-	protected _readVisibleRangesForRange(startColumn: number, endColumn: number, context: DomReadingContext): HorizontalRange[] {
+	protected _readVisibleRangesForRange(startColumn: number, endColumn: number, context: DomReadingContext): HorizontalRange[] | null {
 		if (startColumn === endColumn) {
 			let pixelOffset = this._readPixelOffset(startColumn, context);
 			if (pixelOffset === -1) {
@@ -529,7 +535,7 @@ class RenderedViewLine implements IRenderedViewLine {
 		return r[0].left;
 	}
 
-	private _readRawVisibleRangesForRange(startColumn: number, endColumn: number, context: DomReadingContext): HorizontalRange[] {
+	private _readRawVisibleRangesForRange(startColumn: number, endColumn: number, context: DomReadingContext): HorizontalRange[] | null {
 
 		if (startColumn === 1 && endColumn === this._characterMapping.length) {
 			// This branch helps IE with bidi text & gives a performance boost to other browsers when reading visible ranges for an entire line
@@ -552,7 +558,7 @@ class RenderedViewLine implements IRenderedViewLine {
 	 * Returns the column for the text found at a specific offset inside a rendered dom node
 	 */
 	public getColumnOfNodeOffset(lineNumber: number, spanNode: HTMLElement, offset: number): number {
-		let spanNodeTextContentLength = spanNode.textContent.length;
+		let spanNodeTextContentLength = spanNode.textContent!.length;
 
 		let spanIndex = -1;
 		while (spanNode) {
@@ -566,7 +572,7 @@ class RenderedViewLine implements IRenderedViewLine {
 }
 
 class WebKitRenderedViewLine extends RenderedViewLine {
-	protected _readVisibleRangesForRange(startColumn: number, endColumn: number, context: DomReadingContext): HorizontalRange[] {
+	protected _readVisibleRangesForRange(startColumn: number, endColumn: number, context: DomReadingContext): HorizontalRange[] | null {
 		let output = super._readVisibleRangesForRange(startColumn, endColumn, context);
 
 		if (!output || output.length === 0 || startColumn === endColumn || (startColumn === 1 && endColumn === this._characterMapping.length)) {
@@ -592,7 +598,7 @@ class WebKitRenderedViewLine extends RenderedViewLine {
 	}
 }
 
-const createRenderedLine: (domNode: FastDomNode<HTMLElement>, renderLineInput: RenderLineInput, characterMapping: CharacterMapping, containsRTL: boolean, containsForeignElements: ForeignElementType) => RenderedViewLine = (function () {
+const createRenderedLine: (domNode: FastDomNode<HTMLElement> | null, renderLineInput: RenderLineInput, characterMapping: CharacterMapping, containsRTL: boolean, containsForeignElements: ForeignElementType) => RenderedViewLine = (function () {
 	if (browser.isWebKit) {
 		return createWebKitRenderedLine;
 	}

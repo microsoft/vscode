@@ -18,7 +18,7 @@ export class IndentGuidesOverlay extends DynamicViewOverlay {
 	private _primaryLineNumber: number;
 	private _lineHeight: number;
 	private _spaceWidth: number;
-	private _renderResult: string[];
+	private _renderResult: string[] | null;
 	private _enabled: boolean;
 	private _activeIndentEnabled: boolean;
 
@@ -37,7 +37,6 @@ export class IndentGuidesOverlay extends DynamicViewOverlay {
 
 	public dispose(): void {
 		this._context.removeEventHandler(this);
-		this._context = null;
 		this._renderResult = null;
 		super.dispose();
 	}

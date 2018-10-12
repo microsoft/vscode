@@ -21,7 +21,7 @@ export class EditorState {
 
 	private readonly position: Position;
 	private readonly selection: Range;
-	private readonly modelVersionId: string;
+	private readonly modelVersionId: string | null;
 	private readonly scrollLeft: number;
 	private readonly scrollTop: number;
 
@@ -88,7 +88,7 @@ export class StableEditorScrollState {
 	}
 
 	constructor(
-		private readonly _visiblePosition: Position,
+		private readonly _visiblePosition: Position | null,
 		private readonly _visiblePositionScrollDelta: number
 	) {
 	}

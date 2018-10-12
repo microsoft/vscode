@@ -201,7 +201,7 @@ class Widget {
 	private _maxWidth: number;
 	private _isVisible: boolean;
 
-	private _renderData: Coordinate;
+	private _renderData: Coordinate | null;
 
 	constructor(context: ViewContext, viewDomNode: FastDomNode<HTMLElement>, actual: IContentWidget) {
 		this._context = context;
@@ -437,7 +437,7 @@ class Widget {
 		return [topLeft, bottomLeft];
 	}
 
-	private _prepareRenderWidget(ctx: RenderingContext): Coordinate {
+	private _prepareRenderWidget(ctx: RenderingContext): Coordinate | null {
 		const [topLeft, bottomLeft] = this._getTopAndBottomLeft(ctx);
 		if (!topLeft) {
 			return null;

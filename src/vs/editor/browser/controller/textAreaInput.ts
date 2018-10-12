@@ -400,10 +400,10 @@ export class TextAreaInput extends Disposable {
 			}
 
 			const _newSelectionStartPosition = this._textAreaState.deduceEditorPosition(newSelectionStart);
-			const newSelectionStartPosition = this._host.deduceModelPosition(_newSelectionStartPosition[0], _newSelectionStartPosition[1], _newSelectionStartPosition[2]);
+			const newSelectionStartPosition = this._host.deduceModelPosition(_newSelectionStartPosition[0]!, _newSelectionStartPosition[1], _newSelectionStartPosition[2]);
 
 			const _newSelectionEndPosition = this._textAreaState.deduceEditorPosition(newSelectionEnd);
-			const newSelectionEndPosition = this._host.deduceModelPosition(_newSelectionEndPosition[0], _newSelectionEndPosition[1], _newSelectionEndPosition[2]);
+			const newSelectionEndPosition = this._host.deduceModelPosition(_newSelectionEndPosition[0]!, _newSelectionEndPosition[1], _newSelectionEndPosition[2]);
 
 			const newSelection = new Selection(
 				newSelectionStartPosition.lineNumber, newSelectionStartPosition.column,
@@ -513,7 +513,7 @@ class ClipboardEventUtils {
 		throw new Error('ClipboardEventUtils.getTextData: Cannot use text data!');
 	}
 
-	public static setTextData(e: ClipboardEvent, text: string, richText: string): void {
+	public static setTextData(e: ClipboardEvent, text: string, richText: string | null): void {
 		if (e.clipboardData) {
 			e.clipboardData.setData('text/plain', text);
 			if (richText !== null) {
