@@ -108,7 +108,7 @@ export class CursorCollection {
 		return this.primaryCursor.asCursorState();
 	}
 
-	public setStates(states: PartialCursorState[]): void {
+	public setStates(states: PartialCursorState[] | null): void {
 		if (states === null) {
 			return;
 		}

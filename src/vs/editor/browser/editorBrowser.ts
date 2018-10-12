@@ -273,7 +273,7 @@ export interface IMouseTarget {
 	/**
 	 * The target element
 	 */
-	readonly element: Element;
+	readonly element: Element | null;
 	/**
 	 * The target type
 	 */
@@ -281,7 +281,7 @@ export interface IMouseTarget {
 	/**
 	 * The 'approximate' editor position
 	 */
-	readonly position: Position;
+	readonly position: Position | null;
 	/**
 	 * Desired mouse column (e.g. when position.column gets clamped to text length -- clicking after text on a line).
 	 */
@@ -289,7 +289,7 @@ export interface IMouseTarget {
 	/**
 	 * The 'approximate' editor range
 	 */
-	readonly range: Range;
+	readonly range: Range | null;
 	/**
 	 * Some extra detail.
 	 */
@@ -300,7 +300,7 @@ export interface IMouseTarget {
  */
 export interface IEditorMouseEvent {
 	readonly event: IMouseEvent;
-	readonly target: IMouseTarget;
+	readonly target: IMouseTarget | null;
 }
 
 /**
@@ -599,7 +599,7 @@ export interface ICodeEditor extends editorCommon.IEditor {
 	 * @param source The source of the call.
 	 * @param command The commands to execute
 	 */
-	executeCommands(source: string, commands: editorCommon.ICommand[]): void;
+	executeCommands(source: string, commands: (editorCommon.ICommand | null)[]): void;
 
 	/**
 	 * @internal

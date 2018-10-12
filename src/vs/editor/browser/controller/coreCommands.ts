@@ -121,7 +121,7 @@ export namespace EditorScroll_ {
 		select?: boolean;
 	}
 
-	export function parse(args: RawArguments): ParsedArguments {
+	export function parse(args: RawArguments): ParsedArguments | null {
 		let direction: Direction;
 		switch (args.to) {
 			case RawDirection.Up:
@@ -720,11 +720,11 @@ export namespace CoreNavigationCommands {
 				for (let i = 0, len = states.length; i < len; i++) {
 					const state = states[i];
 
-					if (newModelPosition && !state.modelState.selection.containsPosition(newModelPosition)) {
+					if (newModelPosition && !state.modelState!.selection.containsPosition(newModelPosition)) {
 						continue;
 					}
 
-					if (newViewPosition && !state.viewState.selection.containsPosition(newViewPosition)) {
+					if (newViewPosition && !state.viewState!.selection.containsPosition(newViewPosition)) {
 						continue;
 					}
 
@@ -1419,7 +1419,7 @@ export namespace CoreNavigationCommands {
 
 		public runCoreEditorCommand(cursors: ICursors, args: any): void {
 			const revealLineArg = <RevealLine_.RawArguments>args;
-			let lineNumber = revealLineArg.lineNumber + 1;
+			let lineNumber = (revealLineArg.lineNumber || 0) + 1;
 			if (lineNumber < 1) {
 				lineNumber = 1;
 			}
@@ -1507,7 +1507,7 @@ export namespace CoreEditingCommands {
 				kbOpts: {
 					weight: CORE_WEIGHT,
 					kbExpr: EditorContextKeys.textInputFocus,
-					primary: null,
+					primary: 0,
 					mac: { primary: KeyMod.WinCtrl | KeyCode.KEY_O }
 				}
 			});
@@ -1618,10 +1618,6 @@ export namespace CoreEditingCommands {
 
 }
 
-function findFocusedEditor(accessor: ServicesAccessor): ICodeEditor {
-	return accessor.get(ICodeEditorService).getFocusedCodeEditor();
-}
-
 function registerCommand(command: Command) {
 	command.register();
 }
@@ -1645,10 +1641,10 @@ class EditorOrNativeTextInputCommand extends Command {
 
 	public runCommand(accessor: ServicesAccessor, args: any): void {
 
-		let focusedEditor = findFocusedEditor(accessor);
+		let focusedEditor = accessor.get(ICodeEditorService).getFocusedCodeEditor();
 		// Only if editor text focus (i.e. not if editor has widget focus).
 		if (focusedEditor && focusedEditor.hasTextFocus()) {
-			return this._runEditorHandler(focusedEditor, args);
+			return this._runEditorHandler(accessor, focusedEditor, args);
 		}
 
 		// Ignore this action when user is focused on an element that allows for entering text
@@ -1662,18 +1658,18 @@ class EditorOrNativeTextInputCommand extends Command {
 		let activeEditor = accessor.get(ICodeEditorService).getActiveCodeEditor();
 		if (activeEditor) {
 			activeEditor.focus();
-			return this._runEditorHandler(activeEditor, args);
+			return this._runEditorHandler(accessor, activeEditor, args);
 		}
 	}
 
-	private _runEditorHandler(editor: ICodeEditor, args: any): void {
+	private _runEditorHandler(accessor: ServicesAccessor, editor: ICodeEditor, args: any): void {
 		let HANDLER = this._editorHandler;
 		if (typeof HANDLER === 'string') {
 			editor.trigger('keyboard', HANDLER, args);
 		} else {
 			args = args || {};
 			args.source = 'keyboard';
-			HANDLER.runEditorCommand(null, editor, args);
+			HANDLER.runEditorCommand(accessor, editor, args);
 		}
 	}
 }
@@ -1694,7 +1690,7 @@ class EditorHandlerCommand extends Command {
 	}
 
 	public runCommand(accessor: ServicesAccessor, args: any): void {
-		const editor = findFocusedEditor(accessor);
+		const editor = accessor.get(ICodeEditorService).getFocusedCodeEditor();
 		if (!editor) {
 			return;
 		}

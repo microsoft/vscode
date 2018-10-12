@@ -25,7 +25,7 @@ import { ViewController } from 'vs/editor/browser/view/viewController';
 /**
  * Merges mouse events when mouse move events are throttled
  */
-function createMouseMoveEventMerger(mouseTargetFactory: MouseTargetFactory) {
+function createMouseMoveEventMerger(mouseTargetFactory: MouseTargetFactory | null) {
 	return function (lastEvent: EditorMouseEvent, currentEvent: EditorMouseEvent): EditorMouseEvent {
 		let targetIsWidget = false;
 		if (mouseTargetFactory) {
@@ -148,7 +148,7 @@ export class MouseHandler extends ViewEventHandler {
 	}
 	// --- end event handlers
 
-	public getTargetAtClientPoint(clientX: number, clientY: number): editorBrowser.IMouseTarget {
+	public getTargetAtClientPoint(clientX: number, clientY: number): editorBrowser.IMouseTarget | null {
 		let clientPos = new ClientCoordinates(clientX, clientY);
 		let pos = clientPos.toPageCoordinates();
 		let editorPos = createEditorPagePosition(this.viewHelper.viewDomNode);
@@ -276,7 +276,7 @@ class MouseDownOperation extends Disposable {
 
 	private _currentSelection: Selection;
 	private _isActive: boolean;
-	private _lastMouseEvent: EditorMouseEvent;
+	private _lastMouseEvent: EditorMouseEvent | null;
 
 	constructor(
 		context: ViewContext,
@@ -336,7 +336,7 @@ class MouseDownOperation extends Disposable {
 		this._mouseState.setStartButtons(e);
 		this._mouseState.setModifiers(e);
 		let position = this._findMousePosition(e, true);
-		if (!position) {
+		if (!position || !position.position) {
 			// Ignoring because position is unknown
 			return;
 		}
@@ -353,7 +353,7 @@ class MouseDownOperation extends Disposable {
 			&& !this._isActive // the mouse is not down yet
 			&& !this._currentSelection.isEmpty() // we don't drag single cursor
 			&& (position.type === editorBrowser.MouseTargetType.CONTENT_TEXT) // single click on text
-			&& this._currentSelection.containsPosition(position.position) // single click on a selection
+			&& position.position && this._currentSelection.containsPosition(position.position) // single click on a selection
 		) {
 			this._mouseState.isDragAndDrop = true;
 			this._isActive = true;
@@ -362,11 +362,11 @@ class MouseDownOperation extends Disposable {
 				createMouseMoveEventMerger(null),
 				(e) => this._onMouseDownThenMove(e),
 				() => {
-					let position = this._findMousePosition(this._lastMouseEvent, true);
+					let position = this._findMousePosition(this._lastMouseEvent!, true);
 
 					this._viewController.emitMouseDrop({
-						event: this._lastMouseEvent,
-						target: position ? this._createMouseTarget(this._lastMouseEvent, true) : null // Ignoring because position is unknown, e.g., Content View Zone
+						event: this._lastMouseEvent!,
+						target: (position ? this._createMouseTarget(this._lastMouseEvent!, true) : null) // Ignoring because position is unknown, e.g., Content View Zone
 					});
 
 					this._stop();
@@ -399,6 +399,9 @@ class MouseDownOperation extends Disposable {
 			return;
 		}
 		this._onScrollTimeout.setIfNotSet(() => {
+			if (!this._lastMouseEvent) {
+				return;
+			}
 			let position = this._findMousePosition(this._lastMouseEvent, false);
 			if (!position) {
 				// Ignoring because position is unknown
@@ -416,7 +419,7 @@ class MouseDownOperation extends Disposable {
 		this._currentSelection = e.selections[0];
 	}
 
-	private _getPositionOutsideEditor(e: EditorMouseEvent): MouseTarget {
+	private _getPositionOutsideEditor(e: EditorMouseEvent): MouseTarget | null {
 		const editorContent = e.editorPos;
 		const model = this._context.model;
 		const viewLayout = this._context.viewLayout;
@@ -464,7 +467,7 @@ class MouseDownOperation extends Disposable {
 		return null;
 	}
 
-	private _findMousePosition(e: EditorMouseEvent, testEventTarget: boolean): MouseTarget {
+	private _findMousePosition(e: EditorMouseEvent, testEventTarget: boolean): MouseTarget | null {
 		let positionOutsideEditor = this._getPositionOutsideEditor(e);
 		if (positionOutsideEditor) {
 			return positionOutsideEditor;
@@ -486,7 +489,7 @@ class MouseDownOperation extends Disposable {
 		return t;
 	}
 
-	private _helpPositionJumpOverViewZone(viewZoneData: IViewZoneData): Position {
+	private _helpPositionJumpOverViewZone(viewZoneData: IViewZoneData): Position | null {
 		// Force position on view zones to go above or below depending on where selection started from
 		let selectionStart = new Position(this._currentSelection.selectionStartLineNumber, this._currentSelection.selectionStartColumn);
 		let positionBefore = viewZoneData.positionBefore;
@@ -503,6 +506,9 @@ class MouseDownOperation extends Disposable {
 	}
 
 	private _dispatchMouse(position: MouseTarget, inSelectionMode: boolean): void {
+		if (!position.position) {
+			return;
+		}
 		this._viewController.dispatchMouse({
 			position: position.position,
 			mouseColumn: position.mouseColumn,
@@ -546,7 +552,7 @@ class MouseDownState {
 	private _startedOnLineNumbers: boolean;
 	public get startedOnLineNumbers(): boolean { return this._startedOnLineNumbers; }
 
-	private _lastMouseDownPosition: Position;
+	private _lastMouseDownPosition: Position | null;
 	private _lastMouseDownPositionEqualCount: number;
 	private _lastMouseDownCount: number;
 	private _lastSetMouseDownCountTime: number;

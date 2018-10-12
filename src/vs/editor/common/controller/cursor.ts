@@ -191,8 +191,8 @@ export class Cursor extends viewEvents.ViewEventEmitter implements ICursors {
 		return this._cursors.getAll();
 	}
 
-	public setStates(source: string, reason: CursorChangeReason, states: PartialCursorState[]): void {
-		if (states.length > Cursor.MAX_CURSOR_COUNT) {
+	public setStates(source: string, reason: CursorChangeReason, states: PartialCursorState[] | null): void {
+		if (states !== null && states.length > Cursor.MAX_CURSOR_COUNT) {
 			states = states.slice(0, Cursor.MAX_CURSOR_COUNT);
 			this._onDidReachMaxCursorCount.fire(void 0);
 		}

@@ -3714,7 +3714,7 @@ declare namespace monaco.editor {
 		/**
 		 * The target element
 		 */
-		readonly element: Element;
+		readonly element: Element | null;
 		/**
 		 * The target type
 		 */
@@ -3722,7 +3722,7 @@ declare namespace monaco.editor {
 		/**
 		 * The 'approximate' editor position
 		 */
-		readonly position: Position;
+		readonly position: Position | null;
 		/**
 		 * Desired mouse column (e.g. when position.column gets clamped to text length -- clicking after text on a line).
 		 */
@@ -3730,7 +3730,7 @@ declare namespace monaco.editor {
 		/**
 		 * The 'approximate' editor range
 		 */
-		readonly range: Range;
+		readonly range: Range | null;
 		/**
 		 * Some extra detail.
 		 */
@@ -3742,7 +3742,7 @@ declare namespace monaco.editor {
 	 */
 	export interface IEditorMouseEvent {
 		readonly event: IMouseEvent;
-		readonly target: IMouseTarget;
+		readonly target: IMouseTarget | null;
 	}
 
 	/**
@@ -3964,7 +3964,7 @@ declare namespace monaco.editor {
 		 * @param source The source of the call.
 		 * @param command The commands to execute
 		 */
-		executeCommands(source: string, commands: ICommand[]): void;
+		executeCommands(source: string, commands: (ICommand | null)[]): void;
 		/**
 		 * Get all the decorations on a line (filtering out decorations from other editors).
 		 */

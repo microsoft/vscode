@@ -13,7 +13,7 @@ export interface IKeybindingItem {
 	keybinding: Keybinding;
 	command: string;
 	commandArgs?: any;
-	when: ContextKeyExpr;
+	when: ContextKeyExpr | null;
 	weight1: number;
 	weight2: number;
 }
@@ -38,7 +38,7 @@ export interface IKeybindings {
 export interface IKeybindingRule extends IKeybindings {
 	id: string;
 	weight: number;
-	when: ContextKeyExpr;
+	when: ContextKeyExpr | null;
 }
 
 export interface IKeybindingRule2 {
@@ -132,13 +132,19 @@ class KeybindingsRegistryImpl implements IKeybindingsRegistry {
 		let actualKb = KeybindingsRegistryImpl.bindToCurrentPlatform(rule);
 
 		if (actualKb && actualKb.primary) {
-			this._registerDefaultKeybinding(createKeybinding(actualKb.primary, OS), rule.id, rule.weight, 0, rule.when, source);
+			const kk = createKeybinding(actualKb.primary, OS);
+			if (kk) {
+				this._registerDefaultKeybinding(kk, rule.id, rule.weight, 0, rule.when, source);
+			}
 		}
 
 		if (actualKb && Array.isArray(actualKb.secondary)) {
 			for (let i = 0, len = actualKb.secondary.length; i < len; i++) {
 				const k = actualKb.secondary[i];
-				this._registerDefaultKeybinding(createKeybinding(k, OS), rule.id, rule.weight, -i - 1, rule.when, source);
+				const kk = createKeybinding(k, OS);
+				if (kk) {
+					this._registerDefaultKeybinding(kk, rule.id, rule.weight, -i - 1, rule.when, source);
+				}
 			}
 		}
 	}
@@ -190,7 +196,7 @@ class KeybindingsRegistryImpl implements IKeybindingsRegistry {
 		}
 	}
 
-	private _registerDefaultKeybinding(keybinding: Keybinding, commandId: string, weight1: number, weight2: number, when: ContextKeyExpr, source: KeybindingRuleSource): void {
+	private _registerDefaultKeybinding(keybinding: Keybinding, commandId: string, weight1: number, weight2: number, when: ContextKeyExpr | null, source: KeybindingRuleSource): void {
 		if (source === KeybindingRuleSource.Core && OS === OperatingSystem.Windows) {
 			if (keybinding.type === KeybindingType.Chord) {
 				this._assertNoCtrlAlt(keybinding.firstPart, commandId);

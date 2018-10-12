@@ -26,7 +26,7 @@ export type IEditorContributionCtor = IConstructorSignature1<ICodeEditor, editor
 //#region Command
 
 export interface ICommandKeybindingsOptions extends IKeybindings {
-	kbExpr?: ContextKeyExpr;
+	kbExpr?: ContextKeyExpr | null;
 	weight: number;
 }
 export interface ICommandMenubarOptions {
@@ -38,17 +38,17 @@ export interface ICommandMenubarOptions {
 }
 export interface ICommandOptions {
 	id: string;
-	precondition: ContextKeyExpr;
+	precondition: ContextKeyExpr | null;
 	kbOpts?: ICommandKeybindingsOptions;
 	description?: ICommandHandlerDescription;
 	menubarOpts?: ICommandMenubarOptions;
 }
 export abstract class Command {
 	public readonly id: string;
-	public readonly precondition: ContextKeyExpr;
-	private readonly _kbOpts: ICommandKeybindingsOptions;
-	private readonly _menubarOpts: ICommandMenubarOptions;
-	private readonly _description: ICommandHandlerDescription;
+	public readonly precondition: ContextKeyExpr | null;
+	private readonly _kbOpts: ICommandKeybindingsOptions | undefined;
+	private readonly _menubarOpts: ICommandMenubarOptions | undefined;
+	private readonly _description: ICommandHandlerDescription | undefined;
 
 	constructor(opts: ICommandOptions) {
 		this.id = opts.id;
@@ -87,7 +87,7 @@ export abstract class Command {
 				id: this.id,
 				handler: (accessor, args) => this.runCommand(accessor, args),
 				weight: this._kbOpts.weight,
-				when: kbWhen,
+				when: kbWhen || null,
 				primary: this._kbOpts.primary,
 				secondary: this._kbOpts.secondary,
 				win: this._kbOpts.win,
@@ -185,7 +185,7 @@ export abstract class EditorAction extends EditorCommand {
 
 	public label: string;
 	public alias: string;
-	private menuOpts: IEditorCommandMenuOptions;
+	private menuOpts: IEditorCommandMenuOptions | undefined;
 
 	constructor(opts: IActionOptions) {
 		super(opts);
