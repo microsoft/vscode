@@ -7,7 +7,6 @@ import 'vs/css!./media/extensionActions';
 import { localize } from 'vs/nls';
 import { IAction, Action } from 'vs/base/common/actions';
 import { Throttler } from 'vs/base/common/async';
-import severity from 'vs/base/common/severity';
 import * as DOM from 'vs/base/browser/dom';
 import * as paths from 'vs/base/common/paths';
 import { Event } from 'vs/base/common/event';
@@ -823,7 +822,7 @@ export class CheckForUpdatesAction extends Action {
 			extensions => {
 				const outdatedExtensions = extensions.filter(ext => ext.outdated === true);
 				if (!outdatedExtensions.length) {
-					this.notificationService.notify({ severity: severity.Info, message: localize('noUpdatesAvailable', "All Extensions are up to date.") });
+					this.notificationService.info(localize('noUpdatesAvailable', "All Extensions are up to date."));
 					return;
 				}
 
@@ -846,7 +845,7 @@ export class CheckForUpdatesAction extends Action {
 					.then(viewlet => viewlet as IExtensionsViewlet)
 					.then(viewlet => viewlet.search(''));
 
-				this.notificationService.notify({ severity: severity.Info, message: msgAvailableExtensions });
+				this.notificationService.info(msgAvailableExtensions);
 			}
 		);
 	}
@@ -2351,7 +2350,8 @@ export class InstallVSIXAction extends Action {
 					[{
 						label: localize('InstallVSIXAction.reloadNow', "Reload Now"),
 						run: () => this.windowService.reloadWindow()
-					}]
+					}],
+					{ sticky: true }
 				);
 			});
 		});
@@ -2408,7 +2408,8 @@ export class ReinstallAction extends Action {
 					[{
 						label: localize('ReinstallAction.reloadNow', "Reload Now"),
 						run: () => this.windowService.reloadWindow()
-					}]
+					}],
+					{ sticky: true }
 				);
 			}, error => this.notificationService.error(error));
 	}
