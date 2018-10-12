@@ -18,7 +18,7 @@ import { IExtensionService } from 'vs/workbench/services/extensions/common/exten
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { FileChangesEvent, FileChangeType, IFileService } from 'vs/platform/files/common/files';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
+import { INextStorage2Service, StorageScope } from 'vs/platform/storage2/common/storage2';
 import { DebugModel, ExceptionBreakpoint, FunctionBreakpoint, Breakpoint, Expression } from 'vs/workbench/parts/debug/common/debugModel';
 import { ViewModel } from 'vs/workbench/parts/debug/common/debugViewModel';
 import * as debugactions from 'vs/workbench/parts/debug/browser/debugActions';
@@ -91,7 +91,7 @@ export class DebugService implements IDebugService {
 	private previousState: State;
 
 	constructor(
-		@IStorageService private storageService: IStorageService,
+		@INextStorage2Service private nextStorage2Service: INextStorage2Service,
 		@IEditorService private editorService: IEditorService,
 		@ITextFileService private textFileService: ITextFileService,
 		@IViewletService private viewletService: IViewletService,
@@ -127,14 +127,14 @@ export class DebugService implements IDebugService {
 		this.debugState = CONTEXT_DEBUG_STATE.bindTo(contextKeyService);
 		this.inDebugMode = CONTEXT_IN_DEBUG_MODE.bindTo(contextKeyService);
 
-		this.model = new DebugModel(this.loadBreakpoints(), this.storageService.getBoolean(DEBUG_BREAKPOINTS_ACTIVATED_KEY, StorageScope.WORKSPACE, true), this.loadFunctionBreakpoints(),
+		this.model = new DebugModel(this.loadBreakpoints(), this.nextStorage2Service.getBoolean(DEBUG_BREAKPOINTS_ACTIVATED_KEY, StorageScope.WORKSPACE, true), this.loadFunctionBreakpoints(),
 			this.loadExceptionBreakpoints(), this.loadWatchExpressions(), this.textFileService);
 		this.toDispose.push(this.model);
 
 		this.viewModel = new ViewModel(contextKeyService);
 
 		this.toDispose.push(this.fileService.onFileChanges(e => this.onFileChanges(e)));
-		this.lifecycleService.onShutdown(this.store, this);
+		this.toDispose.push(this.nextStorage2Service.onWillClose(this.store, this));
 		this.lifecycleService.onShutdown(this.dispose, this);
 
 		this.toDispose.push(this.broadcastService.onBroadcast(broadcast => {
@@ -927,7 +927,7 @@ export class DebugService implements IDebugService {
 	private loadBreakpoints(): Breakpoint[] {
 		let result: Breakpoint[];
 		try {
-			result = JSON.parse(this.storageService.get(DEBUG_BREAKPOINTS_KEY, StorageScope.WORKSPACE, '[]')).map((breakpoint: any) => {
+			result = JSON.parse(this.nextStorage2Service.get(DEBUG_BREAKPOINTS_KEY, StorageScope.WORKSPACE, '[]')).map((breakpoint: any) => {
 				return new Breakpoint(uri.parse(breakpoint.uri.external || breakpoint.source.uri.external), breakpoint.lineNumber, breakpoint.column, breakpoint.enabled, breakpoint.condition, breakpoint.hitCondition, breakpoint.logMessage, breakpoint.adapterData, this.textFileService);
 			});
 		} catch (e) { }
@@ -938,7 +938,7 @@ export class DebugService implements IDebugService {
 	private loadFunctionBreakpoints(): FunctionBreakpoint[] {
 		let result: FunctionBreakpoint[];
 		try {
-			result = JSON.parse(this.storageService.get(DEBUG_FUNCTION_BREAKPOINTS_KEY, StorageScope.WORKSPACE, '[]')).map((fb: any) => {
+			result = JSON.parse(this.nextStorage2Service.get(DEBUG_FUNCTION_BREAKPOINTS_KEY, StorageScope.WORKSPACE, '[]')).map((fb: any) => {
 				return new FunctionBreakpoint(fb.name, fb.enabled, fb.hitCondition, fb.condition, fb.logMessage);
 			});
 		} catch (e) { }
@@ -949,7 +949,7 @@ export class DebugService implements IDebugService {
 	private loadExceptionBreakpoints(): ExceptionBreakpoint[] {
 		let result: ExceptionBreakpoint[];
 		try {
-			result = JSON.parse(this.storageService.get(DEBUG_EXCEPTION_BREAKPOINTS_KEY, StorageScope.WORKSPACE, '[]')).map((exBreakpoint: any) => {
+			result = JSON.parse(this.nextStorage2Service.get(DEBUG_EXCEPTION_BREAKPOINTS_KEY, StorageScope.WORKSPACE, '[]')).map((exBreakpoint: any) => {
 				return new ExceptionBreakpoint(exBreakpoint.filter, exBreakpoint.label, exBreakpoint.enabled);
 			});
 		} catch (e) { }
@@ -960,7 +960,7 @@ export class DebugService implements IDebugService {
 	private loadWatchExpressions(): Expression[] {
 		let result: Expression[];
 		try {
-			result = JSON.parse(this.storageService.get(DEBUG_WATCH_EXPRESSIONS_KEY, StorageScope.WORKSPACE, '[]')).map((watchStoredData: { name: string, id: string }) => {
+			result = JSON.parse(this.nextStorage2Service.get(DEBUG_WATCH_EXPRESSIONS_KEY, StorageScope.WORKSPACE, '[]')).map((watchStoredData: { name: string, id: string }) => {
 				return new Expression(watchStoredData.name, watchStoredData.id);
 			});
 		} catch (e) { }
@@ -971,36 +971,36 @@ export class DebugService implements IDebugService {
 	private store(): void {
 		const breakpoints = this.model.getBreakpoints();
 		if (breakpoints.length) {
-			this.storageService.store(DEBUG_BREAKPOINTS_KEY, JSON.stringify(breakpoints), StorageScope.WORKSPACE);
+			this.nextStorage2Service.set(DEBUG_BREAKPOINTS_KEY, JSON.stringify(breakpoints), StorageScope.WORKSPACE);
 		} else {
-			this.storageService.remove(DEBUG_BREAKPOINTS_KEY, StorageScope.WORKSPACE);
+			this.nextStorage2Service.delete(DEBUG_BREAKPOINTS_KEY, StorageScope.WORKSPACE);
 		}
 
 		if (!this.model.areBreakpointsActivated()) {
-			this.storageService.store(DEBUG_BREAKPOINTS_ACTIVATED_KEY, 'false', StorageScope.WORKSPACE);
+			this.nextStorage2Service.set(DEBUG_BREAKPOINTS_ACTIVATED_KEY, 'false', StorageScope.WORKSPACE);
 		} else {
-			this.storageService.remove(DEBUG_BREAKPOINTS_ACTIVATED_KEY, StorageScope.WORKSPACE);
+			this.nextStorage2Service.delete(DEBUG_BREAKPOINTS_ACTIVATED_KEY, StorageScope.WORKSPACE);
 		}
 
 		const functionBreakpoints = this.model.getFunctionBreakpoints();
 		if (functionBreakpoints.length) {
-			this.storageService.store(DEBUG_FUNCTION_BREAKPOINTS_KEY, JSON.stringify(functionBreakpoints), StorageScope.WORKSPACE);
+			this.nextStorage2Service.set(DEBUG_FUNCTION_BREAKPOINTS_KEY, JSON.stringify(functionBreakpoints), StorageScope.WORKSPACE);
 		} else {
-			this.storageService.remove(DEBUG_FUNCTION_BREAKPOINTS_KEY, StorageScope.WORKSPACE);
+			this.nextStorage2Service.delete(DEBUG_FUNCTION_BREAKPOINTS_KEY, StorageScope.WORKSPACE);
 		}
 
 		const exceptionBreakpoints = this.model.getExceptionBreakpoints();
 		if (exceptionBreakpoints.length) {
-			this.storageService.store(DEBUG_EXCEPTION_BREAKPOINTS_KEY, JSON.stringify(exceptionBreakpoints), StorageScope.WORKSPACE);
+			this.nextStorage2Service.set(DEBUG_EXCEPTION_BREAKPOINTS_KEY, JSON.stringify(exceptionBreakpoints), StorageScope.WORKSPACE);
 		} else {
-			this.storageService.remove(DEBUG_EXCEPTION_BREAKPOINTS_KEY, StorageScope.WORKSPACE);
+			this.nextStorage2Service.delete(DEBUG_EXCEPTION_BREAKPOINTS_KEY, StorageScope.WORKSPACE);
 		}
 
 		const watchExpressions = this.model.getWatchExpressions();
 		if (watchExpressions.length) {
-			this.storageService.store(DEBUG_WATCH_EXPRESSIONS_KEY, JSON.stringify(watchExpressions.map(we => ({ name: we.name, id: we.getId() }))), StorageScope.WORKSPACE);
+			this.nextStorage2Service.set(DEBUG_WATCH_EXPRESSIONS_KEY, JSON.stringify(watchExpressions.map(we => ({ name: we.name, id: we.getId() }))), StorageScope.WORKSPACE);
 		} else {
-			this.storageService.remove(DEBUG_WATCH_EXPRESSIONS_KEY, StorageScope.WORKSPACE);
+			this.nextStorage2Service.delete(DEBUG_WATCH_EXPRESSIONS_KEY, StorageScope.WORKSPACE);
 		}
 	}
 

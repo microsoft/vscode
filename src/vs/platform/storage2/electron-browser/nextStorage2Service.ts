@@ -12,6 +12,7 @@ import { Storage, IStorageLoggingOptions } from 'vs/base/node/storage';
 import { IStorageService, StorageScope as LocalStorageScope } from 'vs/platform/storage/common/storage';
 import { addDisposableListener } from 'vs/base/browser/dom';
 import { startsWith } from 'vs/base/common/strings';
+import { ShutdownReason } from 'vs/platform/lifecycle/common/lifecycle';
 
 export class NextStorage2Service extends Disposable implements INextStorage2Service {
 	_serviceBrand: any;
@@ -19,8 +20,8 @@ export class NextStorage2Service extends Disposable implements INextStorage2Serv
 	private _onDidChangeStorage: Emitter<IWorkspaceStorageChangeEvent> = this._register(new Emitter<IWorkspaceStorageChangeEvent>());
 	get onDidChangeStorage(): Event<IWorkspaceStorageChangeEvent> { return this._onDidChangeStorage.event; }
 
-	private _onWillClose: Emitter<void> = this._register(new Emitter<void>());
-	get onWillClose(): Event<void> { return this._onWillClose.event; }
+	private _onWillClose: Emitter<ShutdownReason> = this._register(new Emitter<ShutdownReason>());
+	get onWillClose(): Event<ShutdownReason> { return this._onWillClose.event; }
 
 	private globalStorage: Storage;
 	private workspaceStorage: Storage;
@@ -77,10 +78,10 @@ export class NextStorage2Service extends Disposable implements INextStorage2Serv
 		return this.getStorage(scope).delete(key);
 	}
 
-	close(): Promise<void> {
+	close(reason: ShutdownReason): Promise<void> {
 
 		// Signal as event so that clients can still store data
-		this._onWillClose.fire();
+		this._onWillClose.fire(reason);
 
 		// Do it
 		return Promise.all([
@@ -100,8 +101,8 @@ export class NextDelegatingStorage2Service extends Disposable implements INextSt
 	private _onDidChangeStorage: Emitter<IWorkspaceStorageChangeEvent> = this._register(new Emitter<IWorkspaceStorageChangeEvent>());
 	get onDidChangeStorage(): Event<IWorkspaceStorageChangeEvent> { return this._onDidChangeStorage.event; }
 
-	private _onWillClose: Emitter<void> = this._register(new Emitter<void>());
-	get onWillClose(): Event<void> { return this._onWillClose.event; }
+	private _onWillClose: Emitter<ShutdownReason> = this._register(new Emitter<ShutdownReason>());
+	get onWillClose(): Event<ShutdownReason> { return this._onWillClose.event; }
 
 	constructor(
 		@INextStorage2Service private nextStorage2Service: NextStorage2Service,
@@ -116,7 +117,7 @@ export class NextDelegatingStorage2Service extends Disposable implements INextSt
 
 	private registerListeners(): void {
 		this._register(this.nextStorage2Service.onDidChangeStorage(e => this._onDidChangeStorage.fire(e)));
-		this._register(this.nextStorage2Service.onWillClose(e => this._onWillClose.fire()));
+		this._register(this.nextStorage2Service.onWillClose(reason => this._onWillClose.fire(reason)));
 
 		const globalKeyMarker = 'storage://global/';
 		this._register(addDisposableListener(window, 'storage', (e: StorageEvent) => {
@@ -173,8 +174,8 @@ export class NextDelegatingStorage2Service extends Disposable implements INextSt
 		return this.nextStorage2Service.delete(key, scope);
 	}
 
-	close(): Promise<void> {
-		return this.nextStorage2Service.close();
+	close(reason: ShutdownReason): Promise<void> {
+		return this.nextStorage2Service.close(reason);
 	}
 
 	private convertScope(scope: StorageScope): LocalStorageScope {

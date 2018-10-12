@@ -13,7 +13,7 @@ import { URI } from 'vs/base/common/uri';
 import { IDisposable, dispose, Disposable, toDisposable } from 'vs/base/common/lifecycle';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
+import { INextStorage2Service, StorageScope } from 'vs/platform/storage2/common/storage2';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { EditorOptions } from 'vs/workbench/common/editor';
 import { IOutputChannelDescriptor, IOutputChannel, IOutputService, Extensions, OUTPUT_PANEL_ID, IOutputChannelRegistry, OUTPUT_SCHEME, OUTPUT_MIME, LOG_SCHEME, LOG_MIME, CONTEXT_ACTIVE_LOG_OUTPUT, MAX_OUTPUT_LENGTH } from 'vs/workbench/parts/output/common/output';
@@ -434,7 +434,7 @@ export class OutputService extends Disposable implements IOutputService, ITextMo
 	private _outputPanel: OutputPanel;
 
 	constructor(
-		@IStorageService private storageService: IStorageService,
+		@INextStorage2Service private nextStorage2Service: INextStorage2Service,
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@IPanelService private panelService: IPanelService,
 		@IWorkspaceContextService contextService: IWorkspaceContextService,
@@ -447,7 +447,7 @@ export class OutputService extends Disposable implements IOutputService, ITextMo
 		@IContextKeyService private contextKeyService: IContextKeyService,
 	) {
 		super();
-		this.activeChannelIdInStorage = this.storageService.get(OUTPUT_ACTIVE_CHANNEL_KEY, StorageScope.WORKSPACE, null);
+		this.activeChannelIdInStorage = this.nextStorage2Service.get(OUTPUT_ACTIVE_CHANNEL_KEY, StorageScope.WORKSPACE, null);
 		this.outputDir = paths.join(environmentService.logsPath, `output_${windowService.getCurrentWindowId()}_${toLocalISOString(new Date()).replace(/-|:|\.\d+Z$/g, '')}`);
 
 		// Register as text model content provider for output
@@ -461,8 +461,8 @@ export class OutputService extends Disposable implements IOutputService, ITextMo
 		}
 		this._register(registry.onDidRegisterChannel(this.onDidRegisterChannel, this));
 
-		panelService.onDidPanelOpen(this.onDidPanelOpen, this);
-		panelService.onDidPanelClose(this.onDidPanelClose, this);
+		this._register(panelService.onDidPanelOpen(this.onDidPanelOpen, this));
+		this._register(panelService.onDidPanelClose(this.onDidPanelClose, this));
 
 		// Set active channel to first channel if not set
 		if (!this.activeChannel) {
@@ -470,7 +470,14 @@ export class OutputService extends Disposable implements IOutputService, ITextMo
 			this.activeChannel = channels && channels.length > 0 ? this.getChannel(channels[0].id) : null;
 		}
 
-		this.lifecycleService.onShutdown(() => this.onShutdown());
+		this._register(this.lifecycleService.onShutdown(() => this.dispose()));
+		this._register(this.nextStorage2Service.onWillClose(() => this.saveState()));
+	}
+
+	private saveState(): void {
+		if (this.activeChannel) {
+			this.nextStorage2Service.set(OUTPUT_ACTIVE_CHANNEL_KEY, this.activeChannel.id, StorageScope.WORKSPACE);
+		}
 	}
 
 	provideTextContent(resource: URI): TPromise<ITextModel> {
@@ -631,13 +638,6 @@ export class OutputService extends Disposable implements IOutputService, ITextMo
 	private createInput(channel: IOutputChannel): ResourceEditorInput {
 		const resource = URI.from({ scheme: OUTPUT_SCHEME, path: channel.id });
 		return this.instantiationService.createInstance(ResourceEditorInput, nls.localize('output', "{0} - Output", channel.label), nls.localize('channel', "Output channel for '{0}'", channel.label), resource);
-	}
-
-	onShutdown(): void {
-		if (this.activeChannel) {
-			this.storageService.store(OUTPUT_ACTIVE_CHANNEL_KEY, this.activeChannel.id, StorageScope.WORKSPACE);
-		}
-		this.dispose();
 	}
 }
 

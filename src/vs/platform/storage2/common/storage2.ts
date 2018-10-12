@@ -5,6 +5,7 @@
 
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { Event } from 'vs/base/common/event';
+import { ShutdownReason } from 'vs/platform/lifecycle/common/lifecycle';
 
 export const INextStorage2Service = createDecorator<INextStorage2Service>('nextStorage2Service');
 
@@ -21,7 +22,7 @@ export interface INextStorage2Service {
 	 * to persist data to ensure it is stored before the application shuts
 	 * down.
 	 */
-	readonly onWillClose: Event<void>;
+	readonly onWillClose: Event<ShutdownReason>;
 
 	/**
 	 * Retrieve an element stored with the given key from storage. Use

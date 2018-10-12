@@ -14,8 +14,7 @@ import { FileChangesEvent, IFileService, FileChangeType, FILES_EXCLUDE_CONFIG } 
 import { Selection } from 'vs/editor/common/core/selection';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IDisposable, dispose, Disposable } from 'vs/base/common/lifecycle';
-import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
-import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
+import { INextStorage2Service, StorageScope } from 'vs/platform/storage2/common/storage2';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { once, debounceEvent } from 'vs/base/common/event';
 import { IConfigurationService, IConfigurationChangeEvent } from 'vs/platform/configuration/common/configuration';
@@ -128,9 +127,8 @@ export class HistoryService extends Disposable implements IHistoryService {
 		@IEditorService private editorService: EditorServiceImpl,
 		@IEditorGroupsService private editorGroupService: IEditorGroupsService,
 		@IWorkspaceContextService private contextService: IWorkspaceContextService,
-		@IStorageService private storageService: IStorageService,
+		@INextStorage2Service private nextStorage2Service: INextStorage2Service,
 		@IConfigurationService private configurationService: IConfigurationService,
-		@ILifecycleService private lifecycleService: ILifecycleService,
 		@IFileService private fileService: IFileService,
 		@IWindowsService private windowService: IWindowsService,
 		@IInstantiationService private instantiationService: IInstantiationService,
@@ -177,7 +175,7 @@ export class HistoryService extends Disposable implements IHistoryService {
 		this._register(this.editorService.onDidActiveEditorChange(() => this.onActiveEditorChanged()));
 		this._register(this.editorService.onDidOpenEditorFail(event => this.remove(event.editor)));
 		this._register(this.editorService.onDidCloseEditor(event => this.onEditorClosed(event)));
-		this._register(this.lifecycleService.onShutdown(reason => this.saveHistory()));
+		this._register(this.nextStorage2Service.onWillClose(reason => this.saveHistory()));
 		this._register(this.fileService.onFileChanges(event => this.onFileChanges(event)));
 		this._register(this.resourceFilter.onExpressionChange(() => this.handleExcludesChange()));
 	}
@@ -774,13 +772,13 @@ export class HistoryService extends Disposable implements IHistoryService {
 			return void 0;
 		}).filter(serialized => !!serialized);
 
-		this.storageService.store(HistoryService.STORAGE_KEY, JSON.stringify(entries), StorageScope.WORKSPACE);
+		this.nextStorage2Service.set(HistoryService.STORAGE_KEY, JSON.stringify(entries), StorageScope.WORKSPACE);
 	}
 
 	private loadHistory(): void {
 		let entries: ISerializedEditorHistoryEntry[] = [];
 
-		const entriesRaw = this.storageService.get(HistoryService.STORAGE_KEY, StorageScope.WORKSPACE);
+		const entriesRaw = this.nextStorage2Service.get(HistoryService.STORAGE_KEY, StorageScope.WORKSPACE);
 		if (entriesRaw) {
 			entries = JSON.parse(entriesRaw).filter((entry: object) => !!entry);
 		}

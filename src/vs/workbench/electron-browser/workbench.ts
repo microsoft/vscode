@@ -37,7 +37,7 @@ import { QuickInputService } from 'vs/workbench/browser/parts/quickinput/quickIn
 import { getServices } from 'vs/platform/instantiation/common/extensions';
 import { Position, Parts, IPartService, ILayoutOptions, IDimension, PositionToString } from 'vs/workbench/services/part/common/partService';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
-import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
+import { INextStorage2Service, StorageScope } from 'vs/platform/storage2/common/storage2';
 import { ContextMenuService as NativeContextMenuService } from 'vs/workbench/services/contextview/electron-browser/contextmenuService';
 import { ContextMenuService as HTMLContextMenuService } from 'vs/platform/contextview/browser/contextMenuService';
 import { WorkbenchKeybindingService } from 'vs/workbench/services/keybinding/electron-browser/keybindingService';
@@ -239,7 +239,7 @@ export class Workbench extends Disposable implements IPartService {
 		private mainProcessClient: IPCClient,
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@IWorkspaceContextService private contextService: IWorkspaceContextService,
-		@IStorageService private storageService: IStorageService,
+		@INextStorage2Service private nextStorage2Service: INextStorage2Service,
 		@IConfigurationService private configurationService: WorkspaceService,
 		@IWorkbenchThemeService private themeService: WorkbenchThemeService,
 		@IEnvironmentService private environmentService: IEnvironmentService,
@@ -482,6 +482,9 @@ export class Workbench extends Disposable implements IPartService {
 	//#region event handling
 
 	private registerListeners(): void {
+
+		// Storage lifecycle
+		this._register(this.nextStorage2Service.onWillClose(reason => this.saveState(reason)));
 
 		// Listen to visible editor changes
 		this._register(this.editorService.onDidVisibleEditorsChange(() => this.onDidVisibleEditorsChange()));
@@ -738,7 +741,7 @@ export class Workbench extends Disposable implements IPartService {
 			this.sideBarVisibleContext.set(true);
 
 			if (this.shouldRestoreLastOpenedViewlet()) {
-				viewletIdToRestore = this.storageService.get(SidebarPart.activeViewletSettingsKey, StorageScope.WORKSPACE);
+				viewletIdToRestore = this.nextStorage2Service.get(SidebarPart.activeViewletSettingsKey, StorageScope.WORKSPACE);
 			}
 
 			if (!viewletIdToRestore) {
@@ -755,7 +758,7 @@ export class Workbench extends Disposable implements IPartService {
 
 		// Restore Panel
 		const panelRegistry = Registry.as<PanelRegistry>(PanelExtensions.Panels);
-		const panelId = this.storageService.get(PanelPart.activePanelSettingsKey, StorageScope.WORKSPACE, panelRegistry.getDefaultPanelId());
+		const panelId = this.nextStorage2Service.get(PanelPart.activePanelSettingsKey, StorageScope.WORKSPACE, panelRegistry.getDefaultPanelId());
 		if (!this.panelHidden && !!panelId) {
 			perf.mark('willRestorePanel');
 			const isPanelToRestoreEnabled = !!this.panelPart.getPanels().filter(p => p.id === panelId).length;
@@ -764,12 +767,12 @@ export class Workbench extends Disposable implements IPartService {
 		}
 
 		// Restore Zen Mode if active
-		if (this.storageService.getBoolean(Workbench.zenModeActiveStorageKey, StorageScope.WORKSPACE, false)) {
+		if (this.nextStorage2Service.getBoolean(Workbench.zenModeActiveStorageKey, StorageScope.WORKSPACE, false)) {
 			this.toggleZenMode(true, true);
 		}
 
 		// Restore Forced Editor Center Mode
-		if (this.storageService.getBoolean(Workbench.centeredEditorLayoutActiveStorageKey, StorageScope.WORKSPACE, false)) {
+		if (this.nextStorage2Service.getBoolean(Workbench.centeredEditorLayoutActiveStorageKey, StorageScope.WORKSPACE, false)) {
 			this.centerEditorLayout(true);
 		}
 
@@ -796,9 +799,9 @@ export class Workbench extends Disposable implements IPartService {
 			return true; // always restore sidebar when we are in development mode
 		}
 
-		const restore = this.storageService.getBoolean(Workbench.sidebarRestoreStorageKey, StorageScope.WORKSPACE);
+		const restore = this.nextStorage2Service.getBoolean(Workbench.sidebarRestoreStorageKey, StorageScope.WORKSPACE);
 		if (restore) {
-			this.storageService.remove(Workbench.sidebarRestoreStorageKey, StorageScope.WORKSPACE); // only support once
+			this.nextStorage2Service.delete(Workbench.sidebarRestoreStorageKey, StorageScope.WORKSPACE); // only support once
 		}
 
 		return restore;
@@ -889,11 +892,11 @@ export class Workbench extends Disposable implements IPartService {
 	private initSettings(): void {
 
 		// Sidebar visibility
-		this.sideBarHidden = this.storageService.getBoolean(Workbench.sidebarHiddenStorageKey, StorageScope.WORKSPACE, this.contextService.getWorkbenchState() === WorkbenchState.EMPTY);
+		this.sideBarHidden = this.nextStorage2Service.getBoolean(Workbench.sidebarHiddenStorageKey, StorageScope.WORKSPACE, this.contextService.getWorkbenchState() === WorkbenchState.EMPTY);
 
 		// Panel part visibility
 		const panelRegistry = Registry.as<PanelRegistry>(PanelExtensions.Panels);
-		this.panelHidden = this.storageService.getBoolean(Workbench.panelHiddenStorageKey, StorageScope.WORKSPACE, true);
+		this.panelHidden = this.nextStorage2Service.getBoolean(Workbench.panelHiddenStorageKey, StorageScope.WORKSPACE, true);
 		if (!panelRegistry.getDefaultPanelId()) {
 			this.panelHidden = true; // we hide panel part if there is no default panel
 		}
@@ -933,7 +936,8 @@ export class Workbench extends Disposable implements IPartService {
 
 	private setPanelPositionFromStorageOrConfig() {
 		const defaultPanelPosition = this.configurationService.getValue<string>(Workbench.defaultPanelPositionStorageKey);
-		const panelPosition = this.storageService.get(Workbench.panelPositionStorageKey, StorageScope.WORKSPACE, defaultPanelPosition);
+		const panelPosition = this.nextStorage2Service.get(Workbench.panelPositionStorageKey, StorageScope.WORKSPACE, defaultPanelPosition);
+
 		this.panelPosition = (panelPosition === 'right') ? Position.RIGHT : Position.BOTTOM;
 	}
 
@@ -1132,25 +1136,29 @@ export class Workbench extends Disposable implements IPartService {
 		return this.instantiationService;
 	}
 
-	dispose(reason = ShutdownReason.QUIT): void {
-		super.dispose();
+	private saveState(reason: ShutdownReason): void {
 
 		// Restore sidebar if we are being shutdown as a matter of a reload
 		if (reason === ShutdownReason.RELOAD) {
-			this.storageService.store(Workbench.sidebarRestoreStorageKey, 'true', StorageScope.WORKSPACE);
+			this.nextStorage2Service.set(Workbench.sidebarRestoreStorageKey, 'true', StorageScope.WORKSPACE);
 		}
 
 		// Preserve zen mode only on reload. Real quit gets out of zen mode so novice users do not get stuck in zen mode.
 		const zenConfig = this.configurationService.getValue<IZenModeSettings>('zenMode');
 		const restoreZenMode = this.zenMode.active && (zenConfig.restore || reason === ShutdownReason.RELOAD);
 		if (restoreZenMode) {
-			this.storageService.store(Workbench.zenModeActiveStorageKey, true, StorageScope.WORKSPACE);
+			this.nextStorage2Service.set(Workbench.zenModeActiveStorageKey, true, StorageScope.WORKSPACE);
 		} else {
 			if (this.zenMode.active) {
 				this.toggleZenMode(true);
 			}
-			this.storageService.remove(Workbench.zenModeActiveStorageKey, StorageScope.WORKSPACE);
+
+			this.nextStorage2Service.delete(Workbench.zenModeActiveStorageKey, StorageScope.WORKSPACE);
 		}
+	}
+
+	dispose(reason = ShutdownReason.QUIT): void {
+		super.dispose();
 
 		this.workbenchShutdown = true;
 	}
@@ -1331,7 +1339,7 @@ export class Workbench extends Disposable implements IPartService {
 	}
 
 	centerEditorLayout(active: boolean, skipLayout?: boolean): void {
-		this.storageService.store(Workbench.centeredEditorLayoutActiveStorageKey, active, StorageScope.WORKSPACE);
+		this.nextStorage2Service.set(Workbench.centeredEditorLayoutActiveStorageKey, active, StorageScope.WORKSPACE);
 		this.shouldCenterLayout = active;
 		let smartActive = active;
 		if (this.editorPart.groups.length > 1 && this.configurationService.getValue('workbench.editor.centeredLayoutAutoResize')) {
@@ -1410,9 +1418,9 @@ export class Workbench extends Disposable implements IPartService {
 			// Remember in settings
 			const defaultHidden = this.contextService.getWorkbenchState() === WorkbenchState.EMPTY;
 			if (hidden !== defaultHidden) {
-				this.storageService.store(Workbench.sidebarHiddenStorageKey, hidden ? 'true' : 'false', StorageScope.WORKSPACE);
+				this.nextStorage2Service.set(Workbench.sidebarHiddenStorageKey, hidden ? 'true' : 'false', StorageScope.WORKSPACE);
 			} else {
-				this.storageService.remove(Workbench.sidebarHiddenStorageKey, StorageScope.WORKSPACE);
+				this.nextStorage2Service.delete(Workbench.sidebarHiddenStorageKey, StorageScope.WORKSPACE);
 			}
 
 			// Layout
@@ -1452,9 +1460,9 @@ export class Workbench extends Disposable implements IPartService {
 
 			// Remember in settings
 			if (!hidden) {
-				this.storageService.store(Workbench.panelHiddenStorageKey, 'false', StorageScope.WORKSPACE);
+				this.nextStorage2Service.set(Workbench.panelHiddenStorageKey, 'false', StorageScope.WORKSPACE);
 			} else {
-				this.storageService.remove(Workbench.panelHiddenStorageKey, StorageScope.WORKSPACE);
+				this.nextStorage2Service.delete(Workbench.panelHiddenStorageKey, StorageScope.WORKSPACE);
 			}
 
 			// Layout
@@ -1522,7 +1530,7 @@ export class Workbench extends Disposable implements IPartService {
 			const newPositionValue = (position === Position.BOTTOM) ? 'bottom' : 'right';
 			const oldPositionValue = (this.panelPosition === Position.BOTTOM) ? 'bottom' : 'right';
 			this.panelPosition = position;
-			this.storageService.store(Workbench.panelPositionStorageKey, PositionToString(this.panelPosition).toLowerCase(), StorageScope.WORKSPACE);
+			this.nextStorage2Service.set(Workbench.panelPositionStorageKey, PositionToString(this.panelPosition).toLowerCase(), StorageScope.WORKSPACE);
 
 			// Adjust CSS
 			DOM.removeClass(this.panelPart.getContainer(), oldPositionValue);
