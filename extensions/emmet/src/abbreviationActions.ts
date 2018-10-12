@@ -647,7 +647,6 @@ function expandAbbr(input: ExpandAbbreviationInput, isPreviewing: boolean = fals
 
 					// Fixes #54711
 					if (wrappingNode.name === 'a' && !isPreviewing) {
-						wrappingNode.value = selectedTextPlaceholder;
 						let hrefAtt = wrappingNode.attributes.filter((a: any) => a.name === 'href')[0];
 						if (hrefAtt && hrefAtt.value) {
 							// Replace a *valid* with $TM_SELECTED_TEXT so that multi-cursor mode works correctly.

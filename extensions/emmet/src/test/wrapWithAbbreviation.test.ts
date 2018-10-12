@@ -345,13 +345,13 @@ suite('Tests for Wrap with Abbreviations', () => {
 			www.google.com.au
 		`;
 		const expectedContents = `
-			<a href="www.google.com">www.google.com</a>
-			<a href="www.google.com.au">www.google.com.au</a>
+			<a href="http://www.google.com">www.google.com</a>
+			<a href="http://www.google.com.au">www.google.com.au</a>
 		`;
 
 		return withRandomFileEditor(contents, 'html', (editor, _) => {
-			editor.selections = [new Selection(1, 0, 1, 17), new Selection(2, 0, 2, 20)];
-			const promise = wrapIndividualLinesWithAbbreviation({ abbreviation: 'a' });
+			editor.selections = [new Selection(1, 0, 2, 20)];
+			const promise = wrapIndividualLinesWithAbbreviation({ abbreviation: 'a*' });
 			if (!promise) {
 				assert.equal(1, 2, 'Wrap Individual Lines with Abbreviation returned undefined.');
 				return Promise.resolve();
