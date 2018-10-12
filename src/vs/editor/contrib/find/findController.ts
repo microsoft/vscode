@@ -9,6 +9,7 @@ import { Disposable } from 'vs/base/common/lifecycle';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import * as strings from 'vs/base/common/strings';
 import * as editorCommon from 'vs/editor/common/editorCommon';
+import { Selection } from 'vs/editor/common/core/selection';
 import { registerEditorContribution, registerEditorAction, ServicesAccessor, EditorAction, EditorCommand, registerEditorCommand } from 'vs/editor/browser/editorExtensions';
 import { FIND_IDS, FindModelBoundToEditorModel, ToggleCaseSensitiveKeybinding, ToggleRegexKeybinding, ToggleWholeWordKeybinding, ToggleSearchScopeKeybinding, CONTEXT_FIND_WIDGET_VISIBLE, CONTEXT_FIND_INPUT_FOCUSED } from 'vs/editor/contrib/find/findModel';
 import { FindReplaceState, FindReplaceStateChangedEvent, INewFindReplaceState } from 'vs/editor/contrib/find/findState';
@@ -185,11 +186,25 @@ export class CommonFindController extends Disposable implements editorCommon.IEd
 		return this._state;
 	}
 
+	private clearSelection(): void {
+		const currentSelection: Selection = this._editor.getSelection();
+		const newSelection: Selection = (
+			new Selection(
+				currentSelection.startLineNumber,
+				currentSelection.startColumn,
+				currentSelection.startLineNumber,
+				currentSelection.startColumn
+			)
+		);
+		this._editor.setSelection(newSelection);
+	}
+
 	public closeFindWidget(): void {
 		this._state.change({
 			isRevealed: false,
 			searchScope: null
 		}, false);
+		this.clearSelection();
 		this._editor.focus();
 	}
 
