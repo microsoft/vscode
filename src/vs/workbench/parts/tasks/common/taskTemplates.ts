@@ -123,7 +123,7 @@ const maven: TaskEntry = {
 	].join('\n')
 };
 
-let _templates: TaskEntry[] = null;
+let _templates: TaskEntry[] | null = null;
 export function getTemplates(): TaskEntry[] {
 	if (!_templates) {
 		_templates = [dotnetBuild, msbuild, maven].sort((a, b) => {

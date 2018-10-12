@@ -7,8 +7,9 @@ import { INotification, INotificationHandle, INotificationActions, INotification
 import { toErrorMessage } from 'vs/base/common/errorMessage';
 import { Event, Emitter, once } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
-import { isPromiseCanceledError, isErrorWithActions } from 'vs/base/common/errors';
+import { isPromiseCanceledError } from 'vs/base/common/errors';
 import { Action } from 'vs/base/common/actions';
+import { isErrorWithActions } from 'vs/base/common/errorsWithActions';
 
 export interface INotificationsModel {
 
@@ -176,6 +177,7 @@ export class NotificationsModel extends Disposable implements INotificationsMode
 
 export interface INotificationViewItem {
 	readonly severity: Severity;
+	readonly sticky: boolean;
 	readonly message: INotificationMessage;
 	readonly source: string;
 	readonly actions: INotificationActions;
@@ -362,7 +364,7 @@ export class NotificationViewItem extends Disposable implements INotificationVie
 			actions = { primary: notification.message.actions };
 		}
 
-		return new NotificationViewItem(severity, message, notification.source, actions);
+		return new NotificationViewItem(severity, notification.sticky, message, notification.source, actions);
 	}
 
 	private static parseNotificationMessage(input: NotificationMessage): INotificationMessage {
@@ -396,11 +398,10 @@ export class NotificationViewItem extends Disposable implements INotificationVie
 			return matchString;
 		});
 
-
 		return { raw, value: message, links, original: input };
 	}
 
-	private constructor(private _severity: Severity, private _message: INotificationMessage, private _source: string, actions?: INotificationActions) {
+	private constructor(private _severity: Severity, private _sticky: boolean, private _message: INotificationMessage, private _source: string, actions?: INotificationActions) {
 		super();
 
 		this.setActions(actions);
@@ -433,6 +434,23 @@ export class NotificationViewItem extends Disposable implements INotificationVie
 
 	get severity(): Severity {
 		return this._severity;
+	}
+
+	get sticky(): boolean {
+		if (this._sticky) {
+			return true; // explicitly sticky
+		}
+
+		const hasPrimaryActions = Array.isArray(this._actions.primary) && this._actions.primary.length > 0;
+		if (
+			(hasPrimaryActions && this._severity === Severity.Error) || // notification errors with actions are sticky
+			(!hasPrimaryActions && this._expanded) ||					// notifications that got expanded are sticky
+			(this._progress && !this._progress.state.done)				// notifications with running progress are sticky
+		) {
+			return true;
+		}
+
+		return false; // not sticky
 	}
 
 	hasProgress(): boolean {

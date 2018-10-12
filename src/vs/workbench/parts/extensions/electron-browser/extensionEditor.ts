@@ -81,7 +81,7 @@ class NavBar {
 	private _onChange = new Emitter<{ id: string, focus: boolean }>();
 	get onChange(): Event<{ id: string, focus: boolean }> { return this._onChange.event; }
 
-	private currentId: string = null;
+	private currentId: string | null = null;
 	private actions: Action[];
 	private actionbar: ActionBar;
 

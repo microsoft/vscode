@@ -360,7 +360,7 @@ export class ExtHostDebugService implements ExtHostDebugServiceShape {
 
 		return this.getAdapterDescriptor(this._providerByType.get(config.type), sessionDto, folderUri, config).then(adapter => {
 
-			let da: AbstractDebugAdapter = undefined;
+			let da: AbstractDebugAdapter | undefined = undefined;
 
 			switch (adapter.type) {
 

@@ -45,7 +45,7 @@ export function size<T>(from: IStringDictionary<T> | INumberDictionary<T>): numb
 	return count;
 }
 
-export function first<T>(from: IStringDictionary<T> | INumberDictionary<T>): T {
+export function first<T>(from: IStringDictionary<T> | INumberDictionary<T>): T | undefined {
 	for (let key in from) {
 		if (hasOwnProperty.call(from, key)) {
 			return from[key];

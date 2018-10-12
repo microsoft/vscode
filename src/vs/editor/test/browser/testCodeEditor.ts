@@ -54,7 +54,7 @@ export class TestCodeEditor extends CodeEditorWidget implements editorBrowser.IC
 }
 
 class TestEditorDomElement {
-	parentElement: IContextKeyServiceTarget = null;
+	parentElement: IContextKeyServiceTarget | null = null;
 	setAttribute(attr: string, value: string): void { }
 	removeAttribute(attr: string): void { }
 	hasAttribute(attr: string): boolean { return false; }

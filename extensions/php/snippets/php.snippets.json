@@ -254,8 +254,8 @@
 		"body": [
 			"try {",
 			"\t${1://code...}",
-			"} catch (\\Exception \\$$e) {",
-			"\t${2://throw $$e;}",
+			"} catch (${2:\\Throwable} ${3:$$th}) {",
+			"\t${4://throw $$th;}",
 			"}"
 		],
 		"description": "Try catch block"

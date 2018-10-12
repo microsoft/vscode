@@ -612,19 +612,19 @@ declare namespace monaco {
 		/**
 		 * A intersection of the two ranges.
 		 */
-		intersectRanges(range: IRange): Range;
+		intersectRanges(range: IRange): Range | null;
 		/**
 		 * A intersection of the two ranges.
 		 */
-		static intersectRanges(a: IRange, b: IRange): Range;
+		static intersectRanges(a: IRange, b: IRange): Range | null;
 		/**
 		 * Test if this range equals other.
 		 */
-		equalsRange(other: IRange): boolean;
+		equalsRange(other: IRange | null): boolean;
 		/**
 		 * Test if range `a` equals `b`.
 		 */
-		static equalsRange(a: IRange, b: IRange): boolean;
+		static equalsRange(a: IRange | null, b: IRange | null): boolean;
 		/**
 		 * Return the end position (which will be after or equal to the start position)
 		 */
@@ -657,6 +657,7 @@ declare namespace monaco {
 		/**
 		 * Create a `Range` from an `IRange`.
 		 */
+		static lift(range: undefined | null): null;
 		static lift(range: IRange): Range;
 		/**
 		 * Test if `obj` is an `IRange`.
@@ -1197,7 +1198,7 @@ declare namespace monaco.editor {
 		 * CSS color to render in the overview ruler.
 		 * e.g.: rgba(100, 100, 100, 0.5) or a color from the color registry
 		 */
-		color: string | ThemeColor;
+		color: string | ThemeColor | undefined;
 		/**
 		 * CSS color to render in the overview ruler.
 		 * e.g.: rgba(100, 100, 100, 0.5) or a color from the color registry
@@ -1221,15 +1222,15 @@ declare namespace monaco.editor {
 		/**
 		 * CSS class name describing the decoration.
 		 */
-		className?: string;
+		className?: string | null;
 		/**
 		 * Message to be rendered when hovering over the glyph margin decoration.
 		 */
-		glyphMarginHoverMessage?: IMarkdownString | IMarkdownString[];
+		glyphMarginHoverMessage?: IMarkdownString | IMarkdownString[] | null;
 		/**
 		 * Array of MarkdownString to render as the decoration message.
 		 */
-		hoverMessage?: IMarkdownString | IMarkdownString[];
+		hoverMessage?: IMarkdownString | IMarkdownString[] | null;
 		/**
 		 * Should the decoration expand to encompass a whole line.
 		 */
@@ -1242,25 +1243,25 @@ declare namespace monaco.editor {
 		/**
 		 * If set, render this decoration in the overview ruler.
 		 */
-		overviewRuler?: IModelDecorationOverviewRulerOptions;
+		overviewRuler?: IModelDecorationOverviewRulerOptions | null;
 		/**
 		 * If set, the decoration will be rendered in the glyph margin with this CSS class name.
 		 */
-		glyphMarginClassName?: string;
+		glyphMarginClassName?: string | null;
 		/**
 		 * If set, the decoration will be rendered in the lines decorations with this CSS class name.
 		 */
-		linesDecorationsClassName?: string;
+		linesDecorationsClassName?: string | null;
 		/**
 		 * If set, the decoration will be rendered in the margin (covering its full width) with this CSS class name.
 		 */
-		marginClassName?: string;
+		marginClassName?: string | null;
 		/**
 		 * If set, the decoration will be rendered inline with the text with this CSS class name.
 		 * Please use this only for CSS rules that must impact the text. For example, use `className`
 		 * to have a background color decoration.
 		 */
-		inlineClassName?: string;
+		inlineClassName?: string | null;
 		/**
 		 * If there is an `inlineClassName` which affects letter spacing.
 		 */
@@ -1268,11 +1269,11 @@ declare namespace monaco.editor {
 		/**
 		 * If set, the decoration will be rendered before the text with this CSS class name.
 		 */
-		beforeContentClassName?: string;
+		beforeContentClassName?: string | null;
 		/**
 		 * If set, the decoration will be rendered after the text with this CSS class name.
 		 */
-		afterContentClassName?: string;
+		afterContentClassName?: string | null;
 	}
 
 	/**
@@ -1420,7 +1421,7 @@ declare namespace monaco.editor {
 		/**
 		 * The text to replace with. This can be null to emulate a simple delete.
 		 */
-		text: string;
+		text: string | null;
 		/**
 		 * This indicates that this operation has "insert" semantics.
 		 * i.e. forceMoveMarkers = true => if `range` is collapsed, all markers at the position will be moved.
@@ -1455,7 +1456,7 @@ declare namespace monaco.editor {
 	export class FindMatch {
 		_findMatchBrand: void;
 		readonly range: Range;
-		readonly matches: string[];
+		readonly matches: string[] | null;
 	}
 
 	/**
@@ -1641,7 +1642,7 @@ declare namespace monaco.editor {
 		 * @param captureMatches The result will contain the captured groups.
 		 * @return The range where the next match is. It is null if no next match has been found.
 		 */
-		findNextMatch(searchString: string, searchStart: IPosition, isRegex: boolean, matchCase: boolean, wordSeparators: string | null, captureMatches: boolean): FindMatch;
+		findNextMatch(searchString: string, searchStart: IPosition, isRegex: boolean, matchCase: boolean, wordSeparators: string | null, captureMatches: boolean): FindMatch | null;
 		/**
 		 * Search the model for the previous match. Loops to the end of the model if needed.
 		 * @param searchString The string used to search. If it is a regular expression, set `isRegex` to true.
@@ -1652,7 +1653,7 @@ declare namespace monaco.editor {
 		 * @param captureMatches The result will contain the captured groups.
 		 * @return The range where the previous match is. It is null if no previous match has been found.
 		 */
-		findPreviousMatch(searchString: string, searchStart: IPosition, isRegex: boolean, matchCase: boolean, wordSeparators: string | null, captureMatches: boolean): FindMatch;
+		findPreviousMatch(searchString: string, searchStart: IPosition, isRegex: boolean, matchCase: boolean, wordSeparators: string | null, captureMatches: boolean): FindMatch | null;
 		/**
 		 * Get the language associated with this model.
 		 */
@@ -1662,7 +1663,7 @@ declare namespace monaco.editor {
 		 * @param position The position to look for a word.
 		 * @return The word under or besides `position`. Might be null.
 		 */
-		getWordAtPosition(position: IPosition): IWordAtPosition;
+		getWordAtPosition(position: IPosition): IWordAtPosition | null;
 		/**
 		 * Get the word under or besides `position` trimmed to `position`.column
 		 * @param position The position to look for a word.
@@ -1685,13 +1686,13 @@ declare namespace monaco.editor {
 		 * @param id The decoration id.
 		 * @return The decoration options or null if the decoration was not found.
 		 */
-		getDecorationOptions(id: string): IModelDecorationOptions;
+		getDecorationOptions(id: string): IModelDecorationOptions | null;
 		/**
 		 * Get the range associated with a decoration.
 		 * @param id The decoration id.
 		 * @return The decoration range or null if the decoration was not found.
 		 */
-		getDecorationRange(id: string): Range;
+		getDecorationRange(id: string): Range | null;
 		/**
 		 * Gets all the decorations for the line `lineNumber` as an array.
 		 * @param lineNumber The line number
@@ -1760,7 +1761,7 @@ declare namespace monaco.editor {
 		 * @param cursorStateComputer A callback that can compute the resulting cursors state after the edit operations have been executed.
 		 * @return The cursor state returned by the `cursorStateComputer`.
 		 */
-		pushEditOperations(beforeCursorState: Selection[], editOperations: IIdentifiedSingleEditOperation[], cursorStateComputer: ICursorStateComputer): Selection[];
+		pushEditOperations(beforeCursorState: Selection[], editOperations: IIdentifiedSingleEditOperation[], cursorStateComputer: ICursorStateComputer): Selection[] | null;
 		/**
 		 * Change the end of line sequence. This is the preferred way of
 		 * changing the eol sequence. This will land on the undo stack.
@@ -1824,7 +1825,7 @@ declare namespace monaco.editor {
 		 * @param range The range to replace (delete). May be empty to represent a simple insert.
 		 * @param text The text to replace with. May be null to represent a simple delete.
 		 */
-		addEditOperation(range: Range, text: string): void;
+		addEditOperation(range: Range, text: string | null): void;
 		/**
 		 * Add a new edit operation (a replace operation).
 		 * The inverse edits will be accessible in `ICursorStateComputerData.getInverseEditOperations()`
@@ -1936,7 +1937,7 @@ declare namespace monaco.editor {
 	 * A line change
 	 */
 	export interface ILineChange extends IChange {
-		readonly charChanges: ICharChange[];
+		readonly charChanges: ICharChange[] | undefined;
 	}
 
 	export interface INewScrollPosition {
@@ -3221,7 +3222,7 @@ declare namespace monaco.editor {
 		readonly rulers: number[];
 		readonly ariaLabel: string;
 		readonly renderLineNumbers: RenderLineNumbersType;
-		readonly renderCustomLineNumbers: (lineNumber: number) => string;
+		readonly renderCustomLineNumbers: ((lineNumber: number) => string) | null;
 		readonly selectOnLineNumbers: boolean;
 		readonly glyphMargin: boolean;
 		readonly revealHorizontalRightPadding: number;
@@ -5093,11 +5094,15 @@ declare namespace monaco.languages {
 		provideDocumentSymbols(model: editor.ITextModel, token: CancellationToken): ProviderResult<DocumentSymbol[]>;
 	}
 
-	export interface TextEdit {
+	export type TextEdit = {
 		range: IRange;
 		text: string;
 		eol?: editor.EndOfLineSequence;
-	}
+	} | {
+		range: undefined;
+		text: undefined;
+		eol: editor.EndOfLineSequence;
+	};
 
 	/**
 	 * Interface used to format a model

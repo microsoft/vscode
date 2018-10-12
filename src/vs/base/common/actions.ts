@@ -60,7 +60,7 @@ export class Action implements IAction {
 	protected _enabled: boolean;
 	protected _checked: boolean;
 	protected _radio: boolean;
-	protected _actionCallback: (event?: any) => Thenable<any>;
+	protected _actionCallback?: (event?: any) => Thenable<any>;
 
 	constructor(id: string, label: string = '', cssClass: string = '', enabled: boolean = true, actionCallback?: (event?: any) => Thenable<any>) {
 		this._id = id;
@@ -165,7 +165,7 @@ export class Action implements IAction {
 	}
 
 	run(event?: any, _data?: ITelemetryData): Thenable<any> {
-		if (this._actionCallback !== void 0) {
+		if (this._actionCallback) {
 			return this._actionCallback(event);
 		}
 

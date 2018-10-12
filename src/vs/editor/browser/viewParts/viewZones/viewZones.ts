@@ -18,7 +18,7 @@ export interface IMyViewZone {
 	delegate: IViewZone;
 	isVisible: boolean;
 	domNode: FastDomNode<HTMLElement>;
-	marginDomNode: FastDomNode<HTMLElement>;
+	marginDomNode: FastDomNode<HTMLElement> | null;
 }
 
 interface IComputedViewZoneProps {
@@ -227,12 +227,12 @@ export class ViewZones extends ViewPart {
 
 			zone.domNode.removeAttribute('monaco-visible-view-zone');
 			zone.domNode.removeAttribute('monaco-view-zone');
-			zone.domNode.domNode.parentNode.removeChild(zone.domNode.domNode);
+			zone.domNode.domNode.parentNode!.removeChild(zone.domNode.domNode);
 
 			if (zone.marginDomNode) {
 				zone.marginDomNode.removeAttribute('monaco-visible-view-zone');
 				zone.marginDomNode.removeAttribute('monaco-view-zone');
-				zone.marginDomNode.domNode.parentNode.removeChild(zone.marginDomNode.domNode);
+				zone.marginDomNode.domNode.parentNode!.removeChild(zone.marginDomNode.domNode);
 			}
 
 			this.setShouldRender();
@@ -262,7 +262,7 @@ export class ViewZones extends ViewPart {
 	public shouldSuppressMouseDownOnViewZone(id: number): boolean {
 		if (this._zones.hasOwnProperty(id.toString())) {
 			let zone = this._zones[id.toString()];
-			return zone.delegate.suppressMouseDown;
+			return Boolean(zone.delegate.suppressMouseDown);
 		}
 		return false;
 	}

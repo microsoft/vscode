@@ -286,7 +286,7 @@ export class ActionItem extends BaseActionItem {
 	}
 
 	updateTooltip(): void {
-		let title: string = null;
+		let title: string | null = null;
 
 		if (this.getAction().tooltip) {
 			title = this.getAction().tooltip;
@@ -602,7 +602,7 @@ export class ActionBar extends Disposable implements IActionRunner {
 				e.stopPropagation();
 			}));
 
-			let item: IActionItem = null;
+			let item: IActionItem | null = null;
 
 			if (this.options.actionItemProvider) {
 				item = this.options.actionItemProvider(action);

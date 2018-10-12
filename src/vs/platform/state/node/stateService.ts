@@ -13,7 +13,7 @@ import { ILogService } from 'vs/platform/log/common/log';
 
 export class FileStorage {
 
-	private database: object = null;
+	private database: object | null = null;
 
 	constructor(private dbPath: string, private onError: (error) => void) { }
 

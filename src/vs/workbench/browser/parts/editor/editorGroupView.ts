@@ -24,7 +24,7 @@ import { IProgressService } from 'vs/platform/progress/common/progress';
 import { ProgressService } from 'vs/workbench/services/progress/browser/progressService';
 import { BaseEditor } from 'vs/workbench/browser/parts/editor/baseEditor';
 import { localize } from 'vs/nls';
-import { isPromiseCanceledError, isErrorWithActions, IErrorWithActions } from 'vs/base/common/errors';
+import { isPromiseCanceledError } from 'vs/base/common/errors';
 import { dispose, IDisposable } from 'vs/base/common/lifecycle';
 import { Severity, INotificationService, INotificationActions } from 'vs/platform/notification/common/notification';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
@@ -44,6 +44,7 @@ import { IMenuService, MenuId, IMenu } from 'vs/platform/actions/common/actions'
 import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
 import { fillInContextMenuActions } from 'vs/platform/actions/browser/menuItemActionItem';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
+import { isErrorWithActions, IErrorWithActions } from 'vs/base/common/errorsWithActions';
 
 export class EditorGroupView extends Themable implements IEditorGroupView {
 
@@ -1424,7 +1425,7 @@ registerThemingParticipant((theme, collector, environment) => {
 	const letterpress = `resources/letterpress${theme.type === 'dark' ? '-dark' : theme.type === 'hc' ? '-hc' : ''}.svg`;
 	collector.addRule(`
 		.monaco-workbench > .part.editor > .content .editor-group-container.empty .editor-group-letterpress {
-			background-image: url('${join(environment.appRoot, letterpress)}')
+			background-image: url('${join(environment.appRoot, letterpress).replace(/#/g, '%23')}')
 		}
 	`);
 

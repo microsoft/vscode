@@ -44,7 +44,7 @@ export class GotoLineAction extends QuickOpenAction {
 		if (isDiffEditor(activeTextEditorWidget)) {
 			activeTextEditorWidget = activeTextEditorWidget.getModifiedEditor();
 		}
-		let restoreOptions: IEditorOptions = null;
+		let restoreOptions: IEditorOptions | null = null;
 
 		if (isCodeEditor(activeTextEditorWidget)) {
 			const config = activeTextEditorWidget.getConfiguration();

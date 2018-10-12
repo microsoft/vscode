@@ -22,7 +22,7 @@ export interface IEditOperationBuilder {
 	 * @param range The range to replace (delete). May be empty to represent a simple insert.
 	 * @param text The text to replace with. May be null to represent a simple delete.
 	 */
-	addEditOperation(range: Range, text: string): void;
+	addEditOperation(range: Range, text: string | null): void;
 
 	/**
 	 * Add a new edit operation (a replace operation).
@@ -142,7 +142,7 @@ export interface ICharChange extends IChange {
  * A line change
  */
 export interface ILineChange extends IChange {
-	readonly charChanges: ICharChange[];
+	readonly charChanges: ICharChange[] | undefined;
 }
 
 /**

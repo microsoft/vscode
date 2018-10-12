@@ -65,7 +65,7 @@ function createModelIterator(model: MarkersModel): Iterator<ITreeElement<TreeEle
 export class MarkersPanel extends Panel implements IMarkerFilterController {
 
 	private lastSelectedRelativeTop: number = 0;
-	private currentActiveResource: URI = null;
+	private currentActiveResource: URI | null = null;
 
 	private tree: WorkbenchObjectTree<TreeElement, FilterData>;
 	private rangeHighlightDecorations: RangeHighlightDecorations;

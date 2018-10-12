@@ -283,6 +283,7 @@ configurationRegistry.registerConfiguration({
 				TERMINAL_COMMAND_ID.SCROLL_TO_TOP,
 				TERMINAL_COMMAND_ID.SCROLL_UP_LINE,
 				TERMINAL_COMMAND_ID.SCROLL_UP_PAGE,
+				TERMINAL_COMMAND_ID.SEND_SEQUENCE,
 				TERMINAL_COMMAND_ID.SELECT_ALL,
 				TERMINAL_COMMAND_ID.SELECT_TO_NEXT_COMMAND,
 				TERMINAL_COMMAND_ID.SELECT_TO_NEXT_LINE,
@@ -471,6 +472,9 @@ actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(RenameTerminalAc
 actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(FocusTerminalFindWidgetAction, FocusTerminalFindWidgetAction.ID, FocusTerminalFindWidgetAction.LABEL, {
 	primary: KeyMod.CtrlCmd | KeyCode.KEY_F
 }, KEYBINDING_CONTEXT_TERMINAL_FOCUS), 'Terminal: Focus Find Widget', category);
+actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(FocusTerminalFindWidgetAction, FocusTerminalFindWidgetAction.ID, FocusTerminalFindWidgetAction.LABEL, {
+	primary: KeyMod.CtrlCmd | KeyCode.KEY_F
+}, KEYBINDING_CONTEXT_TERMINAL_FIND_WIDGET_FOCUSED), 'Terminal: Focus Find Widget', category);
 actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(HideTerminalFindWidgetAction, HideTerminalFindWidgetAction.ID, HideTerminalFindWidgetAction.LABEL, {
 	primary: KeyCode.Escape,
 	secondary: [KeyMod.Shift | KeyCode.Escape]

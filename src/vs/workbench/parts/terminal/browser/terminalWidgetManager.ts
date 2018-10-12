@@ -8,8 +8,8 @@ import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 const WIDGET_HEIGHT = 29;
 
 export class TerminalWidgetManager implements IDisposable {
-	private _container: HTMLElement;
-	private _xtermViewport: HTMLElement;
+	private _container: HTMLElement | null;
+	private _xtermViewport: HTMLElement | null;
 
 	private _messageWidget: MessageWidget;
 	private _messageListeners: IDisposable[] = [];
@@ -25,7 +25,7 @@ export class TerminalWidgetManager implements IDisposable {
 	}
 
 	public dispose(): void {
-		if (this._container) {
+		if (this._container && this._container.parentElement) {
 			this._container.parentElement.removeChild(this._container);
 			this._container = null;
 		}
@@ -35,11 +35,17 @@ export class TerminalWidgetManager implements IDisposable {
 	private _initTerminalHeightWatcher(terminalWrapper: HTMLElement) {
 		// Watch the xterm.js viewport for style changes and do a layout if it changes
 		this._xtermViewport = <HTMLElement>terminalWrapper.querySelector('.xterm-viewport');
+		if (!this._xtermViewport) {
+			return;
+		}
 		const mutationObserver = new MutationObserver(() => this._refreshHeight());
 		mutationObserver.observe(this._xtermViewport, { attributes: true, attributeFilter: ['style'] });
 	}
 
 	public showMessage(left: number, top: number, text: string): void {
+		if (!this._container) {
+			return;
+		}
 		dispose(this._messageWidget);
 		this._messageListeners = dispose(this._messageListeners);
 		this._messageWidget = new MessageWidget(this._container, left, top, text);
@@ -53,6 +59,9 @@ export class TerminalWidgetManager implements IDisposable {
 	}
 
 	private _refreshHeight(): void {
+		if (!this._container || !this._xtermViewport) {
+			return;
+		}
 		this._container.style.height = this._xtermViewport.style.height;
 	}
 }

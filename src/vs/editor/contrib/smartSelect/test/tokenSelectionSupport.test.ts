@@ -35,9 +35,9 @@ class MockJSMode extends MockMode {
 
 suite('TokenSelectionSupport', () => {
 
-	let modelService: ModelServiceImpl = null;
+	let modelService: ModelServiceImpl | null = null;
 	let tokenSelectionSupport: TokenSelectionSupport;
-	let mode: MockJSMode = null;
+	let mode: MockJSMode | null = null;
 
 	setup(() => {
 		modelService = new ModelServiceImpl(null, new TestConfigurationService());

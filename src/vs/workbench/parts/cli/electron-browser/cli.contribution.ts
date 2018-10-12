@@ -9,7 +9,6 @@ import * as cp from 'child_process';
 import * as pfs from 'vs/base/node/pfs';
 import * as platform from 'vs/base/common/platform';
 import { nfcall } from 'vs/base/common/async';
-import { TPromise } from 'vs/base/common/winjs.base';
 import { Action } from 'vs/base/common/actions';
 import { IWorkbenchActionRegistry, Extensions as ActionExtensions } from 'vs/workbench/common/actions';
 import { Registry } from 'vs/platform/registry/common/platform';
@@ -21,11 +20,11 @@ import Severity from 'vs/base/common/severity';
 import { ILogService } from 'vs/platform/log/common/log';
 import { getPathFromAmdModule } from 'vs/base/common/amd';
 
-function ignore<T>(code: string, value: T = null): (err: any) => TPromise<T> {
-	return err => err.code === code ? TPromise.as<T>(value) : TPromise.wrapError<T>(err);
+function ignore<T>(code: string, value: T | null = null): (err: any) => Promise<T> {
+	return err => err.code === code ? Promise.resolve<T>(value) : Promise.reject<T>(err);
 }
 
-let _source: string = null;
+let _source: string | null = null;
 function getSource(): string {
 	if (!_source) {
 		const root = getPathFromAmdModule(require, '');
@@ -34,7 +33,7 @@ function getSource(): string {
 	return _source;
 }
 
-function isAvailable(): TPromise<boolean> {
+function isAvailable(): Promise<boolean> {
 	return pfs.exists(getSource());
 }
 
@@ -57,7 +56,7 @@ class InstallAction extends Action {
 		return `/usr/local/bin/${product.applicationName}`;
 	}
 
-	run(): TPromise<void> {
+	run(): Promise<void> {
 		return isAvailable().then(isAvailable => {
 			if (!isAvailable) {
 				const message = nls.localize('not available', "This command is not available");
@@ -68,7 +67,7 @@ class InstallAction extends Action {
 			return this.isInstalled()
 				.then(isInstalled => {
 					if (!isAvailable || isInstalled) {
-						return TPromise.as(null);
+						return Promise.resolve(null);
 					} else {
 						return pfs.unlink(this.target)
 							.then(null, ignore('ENOENT'))
@@ -78,7 +77,7 @@ class InstallAction extends Action {
 									return this.createBinFolderAndSymlinkAsAdmin();
 								}
 
-								return TPromise.wrapError(err);
+								return Promise.reject(err);
 							});
 					}
 				})
@@ -89,7 +88,7 @@ class InstallAction extends Action {
 		});
 	}
 
-	private isInstalled(): TPromise<boolean> {
+	private isInstalled(): Promise<boolean> {
 		return pfs.lstat(this.target)
 			.then(stat => stat.isSymbolicLink())
 			.then(() => pfs.readlink(this.target))
@@ -97,8 +96,8 @@ class InstallAction extends Action {
 			.then(null, ignore('ENOENT', false));
 	}
 
-	private createBinFolderAndSymlinkAsAdmin(): TPromise<void> {
-		return new TPromise<void>((c, e) => {
+	private createBinFolderAndSymlinkAsAdmin(): Promise<void> {
+		return new Promise<void>((resolve, reject) => {
 			const buttons = [nls.localize('ok', "OK"), nls.localize('cancel2', "Cancel")];
 
 			this.dialogService.show(Severity.Info, nls.localize('warnEscalation', "Code will now prompt with 'osascript' for Administrator privileges to install the shell command."), buttons, { cancelId: 1 }).then(choice => {
@@ -107,11 +106,11 @@ class InstallAction extends Action {
 						const command = 'osascript -e "do shell script \\"mkdir -p /usr/local/bin && ln -sf \'' + getSource() + '\' \'' + this.target + '\'\\" with administrator privileges"';
 
 						nfcall(cp.exec, command, {})
-							.then(null, _ => TPromise.wrapError(new Error(nls.localize('cantCreateBinFolder', "Unable to create '/usr/local/bin'."))))
-							.then(c, e);
+							.then(null, _ => Promise.reject(new Error(nls.localize('cantCreateBinFolder', "Unable to create '/usr/local/bin'."))))
+							.then(resolve, reject);
 						break;
 					case 1 /* Cancel */:
-						e(new Error(nls.localize('aborted', "Aborted")));
+						reject(new Error(nls.localize('aborted', "Aborted")));
 						break;
 				}
 			});
@@ -138,7 +137,7 @@ class UninstallAction extends Action {
 		return `/usr/local/bin/${product.applicationName}`;
 	}
 
-	run(): TPromise<void> {
+	run(): Promise<void> {
 		return isAvailable().then(isAvailable => {
 			if (!isAvailable) {
 				const message = nls.localize('not available', "This command is not available");
@@ -156,7 +155,7 @@ class UninstallAction extends Action {
 					return this.deleteSymlinkAsAdmin();
 				}
 
-				return TPromise.wrapError(err);
+				return Promise.reject(err);
 			}).then(() => {
 				this.logService.trace('cli#uninstall', this.target);
 				this.notificationService.info(nls.localize('successFrom', "Shell command '{0}' successfully uninstalled from PATH.", product.applicationName));
@@ -164,8 +163,8 @@ class UninstallAction extends Action {
 		});
 	}
 
-	private deleteSymlinkAsAdmin(): TPromise<void> {
-		return new TPromise<void>((c, e) => {
+	private deleteSymlinkAsAdmin(): Promise<void> {
+		return new Promise<void>((resolve, reject) => {
 			const buttons = [nls.localize('ok', "OK"), nls.localize('cancel2', "Cancel")];
 
 			this.dialogService.show(Severity.Info, nls.localize('warnEscalationUninstall', "Code will now prompt with 'osascript' for Administrator privileges to uninstall the shell command."), buttons, { cancelId: 1 }).then(choice => {
@@ -174,11 +173,11 @@ class UninstallAction extends Action {
 						const command = 'osascript -e "do shell script \\"rm \'' + this.target + '\'\\" with administrator privileges"';
 
 						nfcall(cp.exec, command, {})
-							.then(null, _ => TPromise.wrapError(new Error(nls.localize('cantUninstall', "Unable to uninstall the shell command '{0}'.", this.target))))
-							.then(c, e);
+							.then(null, _ => Promise.reject(new Error(nls.localize('cantUninstall', "Unable to uninstall the shell command '{0}'.", this.target))))
+							.then(resolve, reject);
 						break;
 					case 1 /* Cancel */:
-						e(new Error(nls.localize('aborted', "Aborted")));
+						reject(new Error(nls.localize('aborted', "Aborted")));
 						break;
 				}
 			});

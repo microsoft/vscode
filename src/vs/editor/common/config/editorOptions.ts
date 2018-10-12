@@ -834,7 +834,7 @@ export function cursorStyleToString(cursorStyle: TextEditorCursorStyle): string 
 	}
 }
 
-function _cursorStyleFromString(cursorStyle: string, defaultValue: TextEditorCursorStyle): TextEditorCursorStyle {
+function _cursorStyleFromString(cursorStyle: string | undefined, defaultValue: TextEditorCursorStyle): TextEditorCursorStyle {
 	if (typeof cursorStyle !== 'string') {
 		return defaultValue;
 	}
@@ -930,7 +930,7 @@ export interface InternalEditorViewOptions {
 	readonly rulers: number[];
 	readonly ariaLabel: string;
 	readonly renderLineNumbers: RenderLineNumbersType;
-	readonly renderCustomLineNumbers: (lineNumber: number) => string;
+	readonly renderCustomLineNumbers: ((lineNumber: number) => string) | null;
 	readonly selectOnLineNumbers: boolean;
 	readonly glyphMargin: boolean;
 	readonly revealHorizontalRightPadding: number;
@@ -1597,7 +1597,7 @@ function _boolean<T>(value: any, defaultValue: T): boolean | T {
 	return Boolean(value);
 }
 
-function _booleanMap(value: { [key: string]: boolean }, defaultValue: { [key: string]: boolean }): { [key: string]: boolean } {
+function _booleanMap(value: { [key: string]: boolean } | undefined, defaultValue: { [key: string]: boolean }): { [key: string]: boolean } {
 	if (!value) {
 		return defaultValue;
 	}
@@ -1619,7 +1619,7 @@ function _string(value: any, defaultValue: string): string {
 	return value;
 }
 
-function _stringSet<T>(value: T, defaultValue: T, allowedValues: T[]): T {
+function _stringSet<T>(value: T | undefined, defaultValue: T, allowedValues: T[]): T {
 	if (typeof value !== 'string') {
 		return defaultValue;
 	}
@@ -1652,7 +1652,7 @@ function _float(value: any, defaultValue: number): number {
 	return r;
 }
 
-function _wrappingIndentFromString(wrappingIndent: string, defaultValue: WrappingIndent): WrappingIndent {
+function _wrappingIndentFromString(wrappingIndent: string | undefined, defaultValue: WrappingIndent): WrappingIndent {
 	if (typeof wrappingIndent !== 'string') {
 		return defaultValue;
 	}
@@ -1667,7 +1667,7 @@ function _wrappingIndentFromString(wrappingIndent: string, defaultValue: Wrappin
 	}
 }
 
-function _cursorBlinkingStyleFromString(cursorBlinkingStyle: string, defaultValue: TextEditorCursorBlinkingStyle): TextEditorCursorBlinkingStyle {
+function _cursorBlinkingStyleFromString(cursorBlinkingStyle: string | undefined, defaultValue: TextEditorCursorBlinkingStyle): TextEditorCursorBlinkingStyle {
 	if (typeof cursorBlinkingStyle !== 'string') {
 		return defaultValue;
 	}
@@ -1687,7 +1687,7 @@ function _cursorBlinkingStyleFromString(cursorBlinkingStyle: string, defaultValu
 	return TextEditorCursorBlinkingStyle.Blink;
 }
 
-function _scrollbarVisibilityFromString(visibility: string, defaultValue: ScrollbarVisibility): ScrollbarVisibility {
+function _scrollbarVisibilityFromString(visibility: string | undefined, defaultValue: ScrollbarVisibility): ScrollbarVisibility {
 	if (typeof visibility !== 'string') {
 		return defaultValue;
 	}
@@ -1726,7 +1726,7 @@ export class EditorOptionsValidator {
 		const viewInfo = this._sanitizeViewInfo(opts, defaults.viewInfo);
 		const contribInfo = this._sanitizeContribInfo(opts, defaults.contribInfo);
 
-		let configuredMulticursorModifier: 'altKey' | 'metaKey' | 'ctrlKey';
+		let configuredMulticursorModifier: 'altKey' | 'metaKey' | 'ctrlKey' | undefined = undefined;
 		if (typeof opts.multiCursorModifier === 'string') {
 			if (opts.multiCursorModifier === 'ctrlCmd') {
 				configuredMulticursorModifier = platform.isMacintosh ? 'metaKey' : 'ctrlKey';
@@ -1783,7 +1783,7 @@ export class EditorOptionsValidator {
 		};
 	}
 
-	private static _sanitizeScrollbarOpts(opts: IEditorScrollbarOptions, defaults: InternalEditorScrollbarOptions, mouseWheelScrollSensitivity: number): InternalEditorScrollbarOptions {
+	private static _sanitizeScrollbarOpts(opts: IEditorScrollbarOptions | undefined, defaults: InternalEditorScrollbarOptions, mouseWheelScrollSensitivity: number): InternalEditorScrollbarOptions {
 		if (typeof opts !== 'object') {
 			return defaults;
 		}
@@ -1810,7 +1810,7 @@ export class EditorOptionsValidator {
 		};
 	}
 
-	private static _sanitizeMinimapOpts(opts: IEditorMinimapOptions, defaults: InternalEditorMinimapOptions): InternalEditorMinimapOptions {
+	private static _sanitizeMinimapOpts(opts: IEditorMinimapOptions | undefined, defaults: InternalEditorMinimapOptions): InternalEditorMinimapOptions {
 		if (typeof opts !== 'object') {
 			return defaults;
 		}
@@ -1823,7 +1823,7 @@ export class EditorOptionsValidator {
 		};
 	}
 
-	private static _santizeFindOpts(opts: IEditorFindOptions, defaults: InternalEditorFindOptions): InternalEditorFindOptions {
+	private static _santizeFindOpts(opts: IEditorFindOptions | undefined, defaults: InternalEditorFindOptions): InternalEditorFindOptions {
 		if (typeof opts !== 'object') {
 			return defaults;
 		}
@@ -1835,7 +1835,7 @@ export class EditorOptionsValidator {
 		};
 	}
 
-	private static _sanitizeParameterHintOpts(opts: IEditorParameterHintOptions, defaults: InternalParameterHintOptions): InternalParameterHintOptions {
+	private static _sanitizeParameterHintOpts(opts: IEditorParameterHintOptions | undefined, defaults: InternalParameterHintOptions): InternalParameterHintOptions {
 		if (typeof opts !== 'object') {
 			return defaults;
 		}
@@ -1846,7 +1846,7 @@ export class EditorOptionsValidator {
 		};
 	}
 
-	private static _santizeHoverOpts(_opts: boolean | IEditorHoverOptions, defaults: InternalEditorHoverOptions): InternalEditorHoverOptions {
+	private static _santizeHoverOpts(_opts: boolean | IEditorHoverOptions | undefined, defaults: InternalEditorHoverOptions): InternalEditorHoverOptions {
 		let opts: IEditorHoverOptions;
 		if (typeof _opts === 'boolean') {
 			opts = {
@@ -1875,7 +1875,7 @@ export class EditorOptionsValidator {
 		};
 	}
 
-	private static _sanitizeTabCompletionOpts(opts: boolean | 'on' | 'off' | 'onlySnippets', defaults: 'on' | 'off' | 'onlySnippets'): 'on' | 'off' | 'onlySnippets' {
+	private static _sanitizeTabCompletionOpts(opts: boolean | 'on' | 'off' | 'onlySnippets' | undefined, defaults: 'on' | 'off' | 'onlySnippets'): 'on' | 'off' | 'onlySnippets' {
 		if (opts === false) {
 			return 'off';
 		} else if (opts === true) {
@@ -1896,7 +1896,7 @@ export class EditorOptionsValidator {
 		}
 
 		let renderLineNumbers: RenderLineNumbersType = defaults.renderLineNumbers;
-		let renderCustomLineNumbers: (lineNumber: number) => string = defaults.renderCustomLineNumbers;
+		let renderCustomLineNumbers: ((lineNumber: number) => string) | null = defaults.renderCustomLineNumbers;
 
 		if (typeof opts.lineNumbers !== 'undefined') {
 			let lineNumbers = opts.lineNumbers;
@@ -2198,7 +2198,7 @@ export class InternalEditorOptionsFactory {
 			pixelRatio: env.pixelRatio
 		});
 
-		let bareWrappingInfo: { isWordWrapMinified: boolean; isViewportWrapping: boolean; wrappingColumn: number; } = null;
+		let bareWrappingInfo: { isWordWrapMinified: boolean; isViewportWrapping: boolean; wrappingColumn: number; } | null = null;
 		{
 			const wordWrap = opts.wordWrap;
 			const wordWrapColumn = opts.wordWrapColumn;

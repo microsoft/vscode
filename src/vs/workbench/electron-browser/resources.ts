@@ -15,7 +15,7 @@ import { normalize } from 'vs/base/common/paths';
 
 export class ResourceGlobMatcher extends Disposable {
 
-	private static readonly NO_ROOT: string = null;
+	private static readonly NO_ROOT: string | null = null;
 
 	private readonly _onExpressionChange: Emitter<void> = this._register(new Emitter<void>());
 	get onExpressionChange(): Event<void> { return this._onExpressionChange.event; }

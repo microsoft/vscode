@@ -45,7 +45,7 @@ export class SyntaxRangeProvider implements RangeProvider {
 }
 
 function collectSyntaxRanges(providers: FoldingRangeProvider[], model: ITextModel, cancellationToken: CancellationToken): Thenable<IFoldingRangeData[] | null> {
-	let rangeData: IFoldingRangeData[] = null;
+	let rangeData: IFoldingRangeData[] | null = null;
 	let promises = providers.map((provider, i) => {
 		return Promise.resolve(provider.provideFoldingRanges(model, foldingContext, cancellationToken)).then(ranges => {
 			if (cancellationToken.isCancellationRequested) {
@@ -156,7 +156,7 @@ export function sanitizeRanges(rangeData: IFoldingRangeData[], limit: number): F
 	});
 	let collector = new RangesCollector(limit);
 
-	let top: IFoldingRangeData = null;
+	let top: IFoldingRangeData | null = null;
 	let previous = [];
 	for (let entry of sorted) {
 		if (!top) {

@@ -97,7 +97,7 @@ export function createApiFactory(
 	extHostLogService: ExtHostLogService
 ): IExtensionApiFactory {
 
-	let schemeTransformer: ISchemeTransformer = null;
+	let schemeTransformer: ISchemeTransformer | null = null;
 
 	// Addressable instances
 	rpcProtocol.set(ExtHostContext.ExtHostLogService, extHostLogService);
@@ -354,7 +354,7 @@ export function createApiFactory(
 				return extHostEditors.getVisibleTextEditors();
 			},
 			get activeTerminal() {
-				return proposedApiFunction(extension, extHostTerminalService.activeTerminal);
+				return extHostTerminalService.activeTerminal;
 			},
 			get terminals() {
 				return extHostTerminalService.terminals;
@@ -397,9 +397,9 @@ export function createApiFactory(
 			onDidOpenTerminal(listener, thisArg?, disposables?) {
 				return extHostTerminalService.onDidOpenTerminal(listener, thisArg, disposables);
 			},
-			onDidChangeActiveTerminal: proposedApiFunction(extension, (listener, thisArg?, disposables?) => {
+			onDidChangeActiveTerminal(listener, thisArg?, disposables?) {
 				return extHostTerminalService.onDidChangeActiveTerminal(listener, thisArg, disposables);
-			}),
+			},
 			get state() {
 				return extHostWindow.state;
 			},

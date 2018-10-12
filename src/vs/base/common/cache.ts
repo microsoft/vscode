@@ -13,7 +13,7 @@ export interface CacheResult<T> {
 
 export class Cache<T> {
 
-	private result: CacheResult<T> = null;
+	private result: CacheResult<T> | null = null;
 	constructor(private task: (ct: CancellationToken) => Promise<T>) { }
 
 	get(): CacheResult<T> {

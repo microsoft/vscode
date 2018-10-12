@@ -42,7 +42,7 @@ export abstract class ContextKeyExpr {
 		return new ContextKeyAndExpr(expr);
 	}
 
-	public static deserialize(serialized: string): ContextKeyExpr {
+	public static deserialize(serialized: string): ContextKeyExpr | null {
 		if (!serialized) {
 			return null;
 		}
@@ -96,7 +96,7 @@ export abstract class ContextKeyExpr {
 		return serializedValue;
 	}
 
-	private static _deserializeRegexValue(serializedValue: string): RegExp {
+	private static _deserializeRegexValue(serializedValue: string): RegExp | null {
 
 		if (isFalsyOrWhitespace(serializedValue)) {
 			console.warn('missing regexp-value for =~-expression');
@@ -123,7 +123,7 @@ export abstract class ContextKeyExpr {
 	public abstract getType(): ContextKeyExprType;
 	public abstract equals(other: ContextKeyExpr): boolean;
 	public abstract evaluate(context: IContext): boolean;
-	public abstract normalize(): ContextKeyExpr;
+	public abstract normalize(): ContextKeyExpr | null;
 	public abstract serialize(): string;
 	public abstract keys(): string[];
 }
@@ -358,7 +358,7 @@ export class ContextKeyNotExpr implements ContextKeyExpr {
 
 export class ContextKeyRegexExpr implements ContextKeyExpr {
 
-	constructor(private key: string, private regexp: RegExp) {
+	constructor(private key: string, private regexp: RegExp | null) {
 		//
 	}
 
@@ -373,11 +373,12 @@ export class ContextKeyRegexExpr implements ContextKeyExpr {
 		if (this.key > other.key) {
 			return 1;
 		}
-		const source = this.regexp ? this.regexp.source : undefined;
-		if (source < other.regexp.source) {
+		const thisSource = this.regexp ? this.regexp.source : '';
+		const otherSource = other.regexp ? other.regexp.source : '';
+		if (thisSource < otherSource) {
 			return -1;
 		}
-		if (source > other.regexp.source) {
+		if (thisSource > otherSource) {
 			return 1;
 		}
 		return 0;
@@ -385,8 +386,9 @@ export class ContextKeyRegexExpr implements ContextKeyExpr {
 
 	public equals(other: ContextKeyExpr): boolean {
 		if (other instanceof ContextKeyRegexExpr) {
-			const source = this.regexp ? this.regexp.source : undefined;
-			return (this.key === other.key && source === other.regexp.source);
+			const thisSource = this.regexp ? this.regexp.source : '';
+			const otherSource = other.regexp ? other.regexp.source : '';
+			return (this.key === other.key && thisSource === otherSource);
 		}
 		return false;
 	}
@@ -451,7 +453,7 @@ export class ContextKeyAndExpr implements ContextKeyExpr {
 
 		if (arr) {
 			for (let i = 0, len = arr.length; i < len; i++) {
-				let e = arr[i];
+				let e: ContextKeyExpr | null = arr[i];
 				if (!e) {
 					continue;
 				}
@@ -475,7 +477,7 @@ export class ContextKeyAndExpr implements ContextKeyExpr {
 		return expr;
 	}
 
-	public normalize(): ContextKeyExpr {
+	public normalize(): ContextKeyExpr | null {
 		if (this.expr.length === 0) {
 			return null;
 		}
@@ -492,7 +494,11 @@ export class ContextKeyAndExpr implements ContextKeyExpr {
 			return '';
 		}
 		if (this.expr.length === 1) {
-			return this.normalize().serialize();
+			const normalized = this.normalize();
+			if (!normalized) {
+				return '';
+			}
+			return normalized.serialize();
 		}
 		return this.expr.map(e => e.serialize()).join(' && ');
 	}
@@ -508,9 +514,9 @@ export class ContextKeyAndExpr implements ContextKeyExpr {
 
 export class RawContextKey<T> extends ContextKeyDefinedExpr {
 
-	private _defaultValue: T;
+	private _defaultValue: T | undefined;
 
-	constructor(key: string, defaultValue: T) {
+	constructor(key: string, defaultValue: T | undefined) {
 		super(key);
 		this._defaultValue = defaultValue;
 	}
@@ -569,7 +575,7 @@ export interface IContextKeyService {
 	dispose(): void;
 
 	onDidChangeContext: Event<IContextKeyChangeEvent>;
-	createKey<T>(key: string, defaultValue: T): IContextKey<T>;
+	createKey<T>(key: string, defaultValue: T | undefined): IContextKey<T>;
 	contextMatchesRules(rules: ContextKeyExpr): boolean;
 	getContextKeyValue<T>(key: string): T;
 

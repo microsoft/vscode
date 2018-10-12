@@ -58,7 +58,7 @@ export class DiffNavigator {
 		this.nextIdx = -1;
 		this.ranges = [];
 		this.ignoreSelectionChange = false;
-		this.revealFirst = this._options.alwaysRevealFirst;
+		this.revealFirst = Boolean(this._options.alwaysRevealFirst);
 
 		// hook up to diff editor for diff, disposal, and caret move
 		this._disposables.push(this._editor.onDidDispose(() => this.dispose()));
@@ -215,7 +215,7 @@ export class DiffNavigator {
 		dispose(this._disposables);
 		this._disposables.length = 0;
 		this._onDidUpdate.dispose();
-		this.ranges = null;
+		this.ranges = [];
 		this.disposed = true;
 	}
 }

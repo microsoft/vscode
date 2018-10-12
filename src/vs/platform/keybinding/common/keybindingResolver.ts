@@ -230,7 +230,7 @@ export class KeybindingResolver {
 	}
 
 	public resolve(context: IContext, currentChord: string, keypress: string): IResolveResult {
-		let lookupMap: ResolvedKeybindingItem[] = null;
+		let lookupMap: ResolvedKeybindingItem[] | null = null;
 
 		if (currentChord !== null) {
 			// Fetch all chord bindings for `currentChord`

@@ -97,7 +97,7 @@ export class MouseTarget implements IMouseTarget {
 	public readonly range: EditorRange;
 	public readonly detail: any;
 
-	constructor(element: Element, type: MouseTargetType, mouseColumn: number = 0, position: Position = null, range: EditorRange = null, detail: any = null) {
+	constructor(element: Element, type: MouseTargetType, mouseColumn: number = 0, position: Position | null = null, range: EditorRange | null = null, detail: any = null) {
 		this.element = element;
 		this.type = type;
 		this.mouseColumn = mouseColumn;
@@ -258,9 +258,9 @@ export class HitTestContext {
 		if (viewZoneWhitespace) {
 			let viewZoneMiddle = viewZoneWhitespace.verticalOffset + viewZoneWhitespace.height / 2,
 				lineCount = context.model.getLineCount(),
-				positionBefore: Position = null,
+				positionBefore: Position | null = null,
 				position: Position,
-				positionAfter: Position = null;
+				positionAfter: Position | null = null;
 
 			if (viewZoneWhitespace.afterLineNumber !== lineCount) {
 				// There are more lines after this view zone
@@ -406,7 +406,7 @@ class HitTestRequest extends BareHitTestRequest {
 		return `pos(${this.pos.x},${this.pos.y}), editorPos(${this.editorPos.x},${this.editorPos.y}), mouseVerticalOffset: ${this.mouseVerticalOffset}, mouseContentHorizontalOffset: ${this.mouseContentHorizontalOffset}\n\ttarget: ${this.target ? (<HTMLElement>this.target).outerHTML : null}`;
 	}
 
-	public fulfill(type: MouseTargetType, position: Position = null, range: EditorRange = null, detail: any = null): MouseTarget {
+	public fulfill(type: MouseTargetType, position: Position | null = null, range: EditorRange | null = null, detail: any = null): MouseTarget {
 		return new MouseTarget(this.target, type, this.mouseColumn, position, range, detail);
 	}
 
@@ -484,7 +484,7 @@ export class MouseTargetFactory {
 			return this._createMouseTarget(ctx, request.withTarget(hitTestResult.hitTarget), true);
 		}
 
-		let result: MouseTarget = null;
+		let result: MouseTarget | null = null;
 
 		result = result || MouseTargetFactory._hitTestContentWidget(ctx, request);
 		result = result || MouseTargetFactory._hitTestOverlayWidget(ctx, request);
@@ -895,8 +895,8 @@ export class MouseTargetFactory {
 	 * Most probably IE
 	 */
 	private static _doHitTestWithMoveToPoint(ctx: HitTestContext, coords: ClientCoordinates): IHitTestResult {
-		let resultPosition: Position = null;
-		let resultHitTarget: Element = null;
+		let resultPosition: Position | null = null;
+		let resultHitTarget: Element | null = null;
 
 		let textRange: IETextRange = (<any>document.body).createTextRange();
 		try {

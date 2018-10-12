@@ -31,9 +31,9 @@ suite('Workbench - TerminalConfigHelper', () => {
 		configHelper = new TerminalConfigHelper(configurationService, null, null, null);
 		configHelper.panelContainer = fixture;
 		if (isFedora) {
-			assert.equal(configHelper.getFont().fontFamily, '\'DejaVu Sans Mono\'', 'Fedora should have its font overridden when terminal.integrated.fontFamily not set');
+			assert.equal(configHelper.getFont().fontFamily, '\'DejaVu Sans Mono\', monospace', 'Fedora should have its font overridden when terminal.integrated.fontFamily not set');
 		} if (isUbuntu) {
-			assert.equal(configHelper.getFont().fontFamily, '\'Ubuntu Mono\'', 'Ubuntu should have its font overridden when terminal.integrated.fontFamily not set');
+			assert.equal(configHelper.getFont().fontFamily, '\'Ubuntu Mono\', monospace', 'Ubuntu should have its font overridden when terminal.integrated.fontFamily not set');
 		} else {
 			assert.equal(configHelper.getFont().fontFamily, 'foo', 'editor.fontFamily should be the fallback when terminal.integrated.fontFamily not set');
 		}

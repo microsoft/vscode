@@ -19,7 +19,7 @@ export function getBackgroundColor(stateService: IStateService): string {
 		return DEFAULT_BG_HC_BLACK;
 	}
 
-	let background = stateService.getItem<string>(THEME_BG_STORAGE_KEY, null);
+	let background = stateService.getItem<string | null>(THEME_BG_STORAGE_KEY, null);
 	if (!background) {
 		let baseTheme: string;
 		if (isWindows && systemPreferences.isInvertedColorScheme()) {

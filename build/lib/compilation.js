@@ -4,23 +4,31 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 Object.defineProperty(exports, "__esModule", { value: true });
-var gulp = require("gulp");
-var tsb = require("gulp-tsb");
 var es = require("event-stream");
-var watch = require('./watch');
-var nls = require("./nls");
-var util = require("./util");
-var reporter_1 = require("./reporter");
-var path = require("path");
+var fs = require("fs");
+var gulp = require("gulp");
 var bom = require("gulp-bom");
 var sourcemaps = require("gulp-sourcemaps");
+var tsb = require("gulp-tsb");
+var path = require("path");
 var _ = require("underscore");
 var monacodts = require("../monaco/api");
-var fs = require("fs");
+var nls = require("./nls");
+var reporter_1 = require("./reporter");
+var util = require("./util");
+var watch = require('./watch');
+var assign = require("object-assign");
 var reporter = reporter_1.createReporter();
 function getTypeScriptCompilerOptions(src) {
     var rootDir = path.join(__dirname, "../../" + src);
-    var options = require("../../" + src + "/tsconfig.json").compilerOptions;
+    var tsconfig = require("../../" + src + "/tsconfig.json");
+    var options;
+    if (tsconfig.extends) {
+        options = assign({}, require(path.join(rootDir, tsconfig.extends)).compilerOptions, tsconfig.compilerOptions);
+    }
+    else {
+        options = tsconfig.compilerOptions;
+    }
     options.verbose = false;
     options.sourceMap = true;
     if (process.env['VSCODE_NO_SOURCEMAP']) { // To be used by developers in a hurry

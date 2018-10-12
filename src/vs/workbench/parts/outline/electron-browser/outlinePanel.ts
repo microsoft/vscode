@@ -98,7 +98,7 @@ class RequestOracle {
 	private _update(): void {
 
 		let widget = this._editorService.activeTextEditorWidget;
-		let codeEditor: ICodeEditor = undefined;
+		let codeEditor: ICodeEditor | undefined = undefined;
 		if (isCodeEditor(widget)) {
 			codeEditor = widget;
 		} else if (isDiffEditor(widget)) {
@@ -377,10 +377,6 @@ export class OutlinePanel extends ViewletPanel {
 	}
 
 	protected layoutBody(height: number): void {
-		if (!this.isExpanded()) {
-			// workaround https://github.com/Microsoft/vscode/issues/60018
-			return;
-		}
 		if (height !== this._cachedHeight) {
 			this._cachedHeight = height;
 			if (this._pendingLayout) {

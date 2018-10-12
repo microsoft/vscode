@@ -96,7 +96,8 @@ export class IntegrityServiceImpl implements IIntegrityService {
 					isSecondary: true,
 					run: () => this._storage.set({ dontShowPrompt: true, commit: product.commit })
 				}
-			]
+			],
+			{ sticky: true }
 		);
 	}
 

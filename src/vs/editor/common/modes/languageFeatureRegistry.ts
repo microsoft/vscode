@@ -22,7 +22,7 @@ function isExclusive(selector: LanguageSelector): boolean {
 	} else if (Array.isArray(selector)) {
 		return selector.every(isExclusive);
 	} else {
-		return selector.exclusive;
+		return !!selector.exclusive;
 	}
 }
 
@@ -41,7 +41,7 @@ export default class LanguageFeatureRegistry<T> {
 
 	register(selector: LanguageSelector, provider: T): IDisposable {
 
-		let entry: Entry<T> = {
+		let entry: Entry<T> | undefined = {
 			selector,
 			provider,
 			_score: -1,
@@ -127,7 +127,7 @@ export default class LanguageFeatureRegistry<T> {
 		}
 	}
 
-	private _lastCandidate: { uri: string; language: string; };
+	private _lastCandidate: { uri: string; language: string; } | undefined;
 
 	private _updateScores(model: ITextModel): void {
 

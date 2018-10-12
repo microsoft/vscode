@@ -583,7 +583,12 @@ export class SearchResult extends Disposable {
 		const otherFileMatches: IFileMatch[] = [];
 		this._folderMatches.forEach((folderMatch) => rawPerFolder.set(folderMatch.resource(), []));
 		allRaw.forEach(rawFileMatch => {
-			let folderMatch = this.getFolderMatch(rawFileMatch.resource);
+			const folderMatch = this.getFolderMatch(rawFileMatch.resource);
+			if (!folderMatch) {
+				// foldermatch was previously removed by user or disposed for some reason
+				return;
+			}
+
 			if (folderMatch.resource()) {
 				rawPerFolder.get(folderMatch.resource()).push(rawFileMatch);
 			} else {
@@ -677,7 +682,7 @@ export class SearchResult extends Disposable {
 			return;
 		}
 		this._showHighlights = value;
-		let selectedMatch: Match = null;
+		let selectedMatch: Match | null = null;
 		this.matches().forEach((fileMatch: FileMatch) => {
 			fileMatch.updateHighlights();
 			if (!selectedMatch) {
@@ -731,10 +736,10 @@ export class SearchResult extends Disposable {
 export class SearchModel extends Disposable {
 
 	private _searchResult: SearchResult;
-	private _searchQuery: ISearchQuery = null;
+	private _searchQuery: ISearchQuery | null = null;
 	private _replaceActive: boolean = false;
-	private _replaceString: string = null;
-	private _replacePattern: ReplacePattern = null;
+	private _replaceString: string | null = null;
+	private _replacePattern: ReplacePattern | null = null;
 
 	private readonly _onReplaceTermChanged: Emitter<void> = this._register(new Emitter<void>());
 	public readonly onReplaceTermChanged: Event<void> = this._onReplaceTermChanged.event;
@@ -920,8 +925,8 @@ export interface ISearchWorkbenchService {
  */
 export class RangeHighlightDecorations implements IDisposable {
 
-	private _decorationId: string = null;
-	private _model: ITextModel = null;
+	private _decorationId: string | null = null;
+	private _model: ITextModel | null = null;
 	private _modelDisposables: IDisposable[] = [];
 
 	constructor(
@@ -992,19 +997,9 @@ export class RangeHighlightDecorations implements IDisposable {
 	});
 }
 
-/**
- * While search doesn't support multiline matches, collapse editor matches to a single line
- */
 export function editorMatchToTextSearchResult(match: FindMatch, model: ITextModel, previewOptions: ITextSearchPreviewOptions): TextSearchResult {
-	let endLineNumber = match.range.endLineNumber - 1;
-	let endCol = match.range.endColumn - 1;
-	if (match.range.endLineNumber !== match.range.startLineNumber) {
-		endLineNumber = match.range.startLineNumber - 1;
-		endCol = model.getLineLength(match.range.startLineNumber);
-	}
-
 	return new TextSearchResult(
 		model.getLineContent(match.range.startLineNumber),
-		new Range(match.range.startLineNumber - 1, match.range.startColumn - 1, endLineNumber, endCol),
+		new Range(match.range.startLineNumber - 1, match.range.startColumn - 1, match.range.endLineNumber - 1, match.range.endColumn - 1),
 		previewOptions);
 }

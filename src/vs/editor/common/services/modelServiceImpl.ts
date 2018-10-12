@@ -7,9 +7,8 @@ import * as nls from 'vs/nls';
 import * as network from 'vs/base/common/network';
 import { Event, Emitter } from 'vs/base/common/event';
 import { MarkdownString } from 'vs/base/common/htmlContent';
-import { IDisposable, dispose } from 'vs/base/common/lifecycle';
+import { IDisposable, dispose, Disposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
-import { TPromise } from 'vs/base/common/winjs.base';
 import { IMarker, IMarkerService, MarkerSeverity, MarkerTag } from 'vs/platform/markers/common/markers';
 import { Range } from 'vs/editor/common/core/range';
 import { TextModel, createTextBuffer } from 'vs/editor/common/model/textModel';
@@ -56,7 +55,6 @@ class ModelData implements IDisposable {
 	public dispose(): void {
 		this._markerDecorations = this.model.deltaDecorations(this._markerDecorations, []);
 		this._modelEventListeners = dispose(this._modelEventListeners);
-		this.model = null;
 	}
 
 	public acceptMarkerDecorations(newDecorations: IModelDeltaDecoration[]): void {
@@ -127,9 +125,9 @@ class ModelMarkerHandler {
 	private static _createDecorationOption(marker: IMarker): IModelDecorationOptions {
 
 		let className: string;
-		let color: ThemeColor;
+		let color: ThemeColor | undefined = undefined;
 		let zIndex: number;
-		let inlineClassName: string;
+		let inlineClassName: string | undefined = undefined;
 
 		switch (marker.severity) {
 			case MarkerSeverity.Hint:
@@ -164,7 +162,7 @@ class ModelMarkerHandler {
 			}
 		}
 
-		let hoverMessage: MarkdownString = null;
+		let hoverMessage: MarkdownString | null = null;
 		let { message, source, relatedInformation } = marker;
 
 		if (typeof message === 'string') {
@@ -182,7 +180,7 @@ class ModelMarkerHandler {
 
 			if (!isFalsyOrEmpty(relatedInformation)) {
 				hoverMessage.appendMarkdown('\n');
-				for (const { message, resource, startLineNumber, startColumn } of relatedInformation) {
+				for (const { message, resource, startLineNumber, startColumn } of relatedInformation!) {
 					hoverMessage.appendMarkdown(
 						`* [${basename(resource.path)}(${startLineNumber}, ${startColumn})](${resource.toString(false)}#${startLineNumber},${startColumn}): `
 					);
@@ -224,7 +222,7 @@ interface IRawConfig {
 
 const DEFAULT_EOL = (platform.isLinux || platform.isMacintosh) ? DefaultEndOfLine.LF : DefaultEndOfLine.CRLF;
 
-export class ModelServiceImpl implements IModelService {
+export class ModelServiceImpl extends Disposable implements IModelService {
 	public _serviceBrand: any;
 
 	private _markerService: IMarkerService;
@@ -232,9 +230,14 @@ export class ModelServiceImpl implements IModelService {
 	private _configurationService: IConfigurationService;
 	private _configurationServiceSubscription: IDisposable;
 
-	private readonly _onModelAdded: Emitter<ITextModel>;
-	private readonly _onModelRemoved: Emitter<ITextModel>;
-	private readonly _onModelModeChanged: Emitter<{ model: ITextModel; oldModeId: string; }>;
+	private readonly _onModelAdded: Emitter<ITextModel> = this._register(new Emitter<ITextModel>());
+	public readonly onModelAdded: Event<ITextModel> = this._onModelAdded.event;
+
+	private readonly _onModelRemoved: Emitter<ITextModel> = this._register(new Emitter<ITextModel>());
+	public readonly onModelRemoved: Event<ITextModel> = this._onModelRemoved.event;
+
+	private readonly _onModelModeChanged: Emitter<{ model: ITextModel; oldModeId: string; }> = this._register(new Emitter<{ model: ITextModel; oldModeId: string; }>());
+	public readonly onModelModeChanged: Event<{ model: ITextModel; oldModeId: string; }> = this._onModelModeChanged.event;
 
 	private _modelCreationOptionsByLanguageAndResource: {
 		[languageAndResource: string]: ITextModelCreationOptions;
@@ -249,13 +252,11 @@ export class ModelServiceImpl implements IModelService {
 		@IMarkerService markerService: IMarkerService,
 		@IConfigurationService configurationService: IConfigurationService,
 	) {
+		super();
 		this._markerService = markerService;
 		this._configurationService = configurationService;
 		this._models = {};
 		this._modelCreationOptionsByLanguageAndResource = Object.create(null);
-		this._onModelAdded = new Emitter<ITextModel>();
-		this._onModelRemoved = new Emitter<ITextModel>();
-		this._onModelModeChanged = new Emitter<{ model: ITextModel; oldModeId: string; }>();
 
 		if (this._markerService) {
 			this._markerServiceSubscription = this._markerService.onMarkerChanged(this._handleMarkerChange, this);
@@ -372,6 +373,7 @@ export class ModelServiceImpl implements IModelService {
 			this._markerServiceSubscription.dispose();
 		}
 		this._configurationServiceSubscription.dispose();
+		super.dispose();
 	}
 
 	private _handleMarkerChange(changedResources: URI[]): void {
@@ -492,7 +494,7 @@ export class ModelServiceImpl implements IModelService {
 		return [EditOperation.replaceMove(oldRange, textBuffer.getValueInRange(newRange, EndOfLinePreference.TextDefined))];
 	}
 
-	public createModel(value: string | ITextBufferFactory, modeOrPromise: TPromise<IMode> | IMode, resource: URI, isForSimpleWidget: boolean = false): ITextModel {
+	public createModel(value: string | ITextBufferFactory, modeOrPromise: Promise<IMode> | IMode, resource: URI, isForSimpleWidget: boolean = false): ITextModel {
 		let modelData: ModelData;
 
 		if (!modeOrPromise || isThenable(modeOrPromise)) {
@@ -512,7 +514,7 @@ export class ModelServiceImpl implements IModelService {
 		return modelData.model;
 	}
 
-	public setMode(model: ITextModel, modeOrPromise: TPromise<IMode> | IMode): void {
+	public setMode(model: ITextModel, modeOrPromise: Promise<IMode> | IMode): void {
 		if (!modeOrPromise) {
 			return;
 		}
@@ -548,25 +550,13 @@ export class ModelServiceImpl implements IModelService {
 		return ret;
 	}
 
-	public getModel(resource: URI): ITextModel {
+	public getModel(resource: URI): ITextModel | null {
 		let modelId = MODEL_ID(resource);
 		let modelData = this._models[modelId];
 		if (!modelData) {
 			return null;
 		}
 		return modelData.model;
-	}
-
-	public get onModelAdded(): Event<ITextModel> {
-		return this._onModelAdded ? this._onModelAdded.event : null;
-	}
-
-	public get onModelRemoved(): Event<ITextModel> {
-		return this._onModelRemoved ? this._onModelRemoved.event : null;
-	}
-
-	public get onModelModeChanged(): Event<{ model: ITextModel; oldModeId: string; }> {
-		return this._onModelModeChanged ? this._onModelModeChanged.event : null;
 	}
 
 	// --- end IModelService

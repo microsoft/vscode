@@ -14,13 +14,13 @@ export interface IWindowChainElement {
 	/**
 	 * The iframe element inside the window.parent corresponding to window
 	 */
-	iframeElement: HTMLIFrameElement;
+	iframeElement: HTMLIFrameElement | null;
 }
 
 let hasDifferentOriginAncestorFlag: boolean = false;
-let sameOriginWindowChainCache: IWindowChainElement[] = null;
+let sameOriginWindowChainCache: IWindowChainElement[] | null = null;
 
-function getParentWindowIfSameOrigin(w: Window): Window {
+function getParentWindowIfSameOrigin(w: Window): Window | null {
 	if (!w.parent || w.parent === w) {
 		return null;
 	}
@@ -41,7 +41,7 @@ function getParentWindowIfSameOrigin(w: Window): Window {
 	return w.parent;
 }
 
-function findIframeElementInParentWindow(parentWindow: Window, childWindow: Window): HTMLIFrameElement {
+function findIframeElementInParentWindow(parentWindow: Window, childWindow: Window): HTMLIFrameElement | null {
 	let parentWindowIframes = parentWindow.document.getElementsByTagName('iframe');
 	let iframe: HTMLIFrameElement;
 	for (let i = 0, len = parentWindowIframes.length; i < len; i++) {
@@ -63,7 +63,8 @@ export class IframeUtils {
 	public static getSameOriginWindowChain(): IWindowChainElement[] {
 		if (!sameOriginWindowChainCache) {
 			sameOriginWindowChainCache = [];
-			let w = window, parent: Window;
+			let w: Window | null = window;
+			let parent: Window | null;
 			do {
 				parent = getParentWindowIfSameOrigin(w);
 				if (parent) {

@@ -144,7 +144,8 @@ export class FileService extends Disposable implements IFileService {
 					label: nls.localize('neverShowAgain', "Don't Show Again"),
 					isSecondary: true,
 					run: () => this.storageService.store(FileService.NET_VERSION_ERROR_IGNORE_KEY, true, StorageScope.WORKSPACE)
-				}]
+				}],
+				{ sticky: true }
 			);
 		}
 
@@ -161,7 +162,8 @@ export class FileService extends Disposable implements IFileService {
 					label: nls.localize('neverShowAgain', "Don't Show Again"),
 					isSecondary: true,
 					run: () => this.storageService.store(FileService.ENOSPC_ERROR_IGNORE_KEY, true, StorageScope.WORKSPACE)
-				}]
+				}],
+				{ sticky: true }
 			);
 		}
 	}
@@ -1147,7 +1149,7 @@ export class StatResolver {
 		else {
 
 			// Convert the paths from options.resolveTo to absolute paths
-			let absoluteTargetPaths: string[] = null;
+			let absoluteTargetPaths: string[] | null = null;
 			if (options && options.resolveTo) {
 				absoluteTargetPaths = [];
 				options.resolveTo.forEach(resource => {
