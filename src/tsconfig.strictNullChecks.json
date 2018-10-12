@@ -322,6 +322,7 @@
 		"./vs/workbench/parts/terminal/browser/terminalWidgetManager.ts",
 		"./vs/workbench/parts/terminal/common/terminal.ts",
 		"./vs/workbench/parts/terminal/node/terminalCommandTracker.ts",
+		"./vs/workbench/parts/terminal/node/windowsShellHelper.ts",
 		"./vs/workbench/parts/welcome/page/electron-browser/vs_code_welcome_page.ts",
 		"./vs/workbench/services/activity/common/activity.ts",
 		"./vs/workbench/services/backup/common/backup.ts",
