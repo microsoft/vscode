@@ -5,7 +5,7 @@
 
 import { ITreeOptions, ComposedTreeDelegate, createComposedTreeListOptions } from 'vs/base/browser/ui/tree/abstractTree';
 import { ObjectTree } from 'vs/base/browser/ui/tree/objectTree';
-import { IVirtualDelegate } from 'vs/base/browser/ui/list/list';
+import { IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
 import { ITreeElement, ITreeNode, ITreeRenderer } from 'vs/base/browser/ui/tree/tree';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { Emitter, Event } from 'vs/base/common/event';
@@ -107,7 +107,7 @@ export class DataTree<T extends NonNullable<any>, TFilterData = void> implements
 
 	constructor(
 		container: HTMLElement,
-		delegate: IVirtualDelegate<T>,
+		delegate: IListVirtualDelegate<T>,
 		renderers: ITreeRenderer<T, TFilterData, any>[],
 		private dataSource: IDataSource<T>,
 		options?: ITreeOptions<T, TFilterData>

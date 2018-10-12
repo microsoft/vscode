@@ -6,13 +6,13 @@
 import 'vs/css!./list';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { range } from 'vs/base/common/arrays';
-import { IVirtualDelegate, IRenderer, IListEvent, IListContextMenuEvent } from './list';
+import { IListVirtualDelegate, IListRenderer, IListEvent, IListContextMenuEvent } from './list';
 import { List, IListStyles, IListOptions } from './listWidget';
 import { IPagedModel } from 'vs/base/common/paging';
 import { Event, mapEvent } from 'vs/base/common/event';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
 
-export interface IPagedRenderer<TElement, TTemplateData> extends IRenderer<TElement, TTemplateData> {
+export interface IPagedRenderer<TElement, TTemplateData> extends IListRenderer<TElement, TTemplateData> {
 	renderPlaceholder(index: number, templateData: TTemplateData): void;
 }
 
@@ -21,7 +21,7 @@ export interface ITemplateData<T> {
 	disposable: IDisposable;
 }
 
-class PagedRenderer<TElement, TTemplateData> implements IRenderer<number, ITemplateData<TTemplateData>> {
+class PagedRenderer<TElement, TTemplateData> implements IListRenderer<number, ITemplateData<TTemplateData>> {
 
 	get templateId(): string { return this.renderer.templateId; }
 
@@ -71,7 +71,7 @@ export class PagedList<T> implements IDisposable {
 
 	constructor(
 		container: HTMLElement,
-		virtualDelegate: IVirtualDelegate<number>,
+		virtualDelegate: IListVirtualDelegate<number>,
 		renderers: IPagedRenderer<T, any>[],
 		options: IListOptions<any> = {}
 	) {

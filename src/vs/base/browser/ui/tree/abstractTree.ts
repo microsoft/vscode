@@ -6,7 +6,7 @@
 import 'vs/css!./tree';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { IListOptions, List, IIdentityProvider, IMultipleSelectionController, IListStyles } from 'vs/base/browser/ui/list/listWidget';
-import { IVirtualDelegate, IRenderer, IListMouseEvent, IListEvent, IListContextMenuEvent } from 'vs/base/browser/ui/list/list';
+import { IListVirtualDelegate, IListRenderer, IListMouseEvent, IListEvent, IListContextMenuEvent } from 'vs/base/browser/ui/list/list';
 import { append, $ } from 'vs/base/browser/dom';
 import { Event, Relay, chain } from 'vs/base/common/event';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
@@ -45,9 +45,9 @@ export function createComposedTreeListOptions<T, N extends { element: T }>(optio
 	};
 }
 
-export class ComposedTreeDelegate<T, N extends { element: T }> implements IVirtualDelegate<N> {
+export class ComposedTreeDelegate<T, N extends { element: T }> implements IListVirtualDelegate<N> {
 
-	constructor(private delegate: IVirtualDelegate<T>) { }
+	constructor(private delegate: IListVirtualDelegate<T>) { }
 
 	getHeight(element: N): number {
 		return this.delegate.getHeight(element.element);
@@ -71,7 +71,7 @@ function renderDefaultTwistie<T>(node: ITreeNode<T, any>, twistie: HTMLElement):
 	}
 }
 
-class TreeRenderer<T, TFilterData, TTemplateData> implements IRenderer<ITreeNode<T, TFilterData>, ITreeListTemplateData<TTemplateData>> {
+class TreeRenderer<T, TFilterData, TTemplateData> implements IListRenderer<ITreeNode<T, TFilterData>, ITreeListTemplateData<TTemplateData>> {
 
 	readonly templateId: string;
 	private renderedElements = new Map<T, ITreeNode<T, TFilterData>>();
@@ -182,7 +182,7 @@ export abstract class AbstractTree<T, TFilterData, TRef> implements IDisposable 
 
 	constructor(
 		container: HTMLElement,
-		delegate: IVirtualDelegate<T>,
+		delegate: IListVirtualDelegate<T>,
 		renderers: ITreeRenderer<T, TFilterData, any>[],
 		options?: ITreeOptions<T, TFilterData>
 	) {

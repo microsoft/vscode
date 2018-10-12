@@ -6,7 +6,7 @@
 import { addClass, addStandardDisposableListener, createStyleSheet, getTotalHeight, removeClass } from 'vs/base/browser/dom';
 import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { IInputOptions, InputBox } from 'vs/base/browser/ui/inputbox/inputBox';
-import { IListMouseEvent, IListTouchEvent, IRenderer, IVirtualDelegate } from 'vs/base/browser/ui/list/list';
+import { IListMouseEvent, IListTouchEvent, IListRenderer, IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
 import { IPagedRenderer, PagedList } from 'vs/base/browser/ui/list/listPaging';
 import { DefaultStyleController, IListOptions, IMultipleSelectionController, IOpenController, isSelectionRangeChangeEvent, isSelectionSingleChangeEvent, List } from 'vs/base/browser/ui/list/listWidget';
 import { canceled, onUnexpectedError } from 'vs/base/common/errors';
@@ -213,8 +213,8 @@ export class WorkbenchList<T> extends List<T> {
 
 	constructor(
 		container: HTMLElement,
-		delegate: IVirtualDelegate<T>,
-		renderers: IRenderer<T, any>[],
+		delegate: IListVirtualDelegate<T>,
+		renderers: IListRenderer<T, any>[],
 		options: IListOptions<T>,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IListService listService: IListService,
@@ -288,7 +288,7 @@ export class WorkbenchPagedList<T> extends PagedList<T> {
 
 	constructor(
 		container: HTMLElement,
-		delegate: IVirtualDelegate<number>,
+		delegate: IListVirtualDelegate<number>,
 		renderers: IPagedRenderer<T, any>[],
 		options: IListOptions<T>,
 		@IContextKeyService contextKeyService: IContextKeyService,
@@ -893,7 +893,7 @@ export class WorkbenchObjectTree<T extends NonNullable<any>, TFilterData = void>
 
 	constructor(
 		container: HTMLElement,
-		delegate: IVirtualDelegate<T>,
+		delegate: IListVirtualDelegate<T>,
 		renderers: ITreeRenderer<T, TFilterData, any>[],
 		options: ITreeOptions2<T, TFilterData>,
 		@IContextKeyService contextKeyService: IContextKeyService,

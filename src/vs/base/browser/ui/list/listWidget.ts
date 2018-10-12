@@ -16,7 +16,7 @@ import { KeyCode } from 'vs/base/common/keyCodes';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { Event, Emitter, EventBufferer, chain, mapEvent, anyEvent } from 'vs/base/common/event';
 import { domEvent } from 'vs/base/browser/event';
-import { IVirtualDelegate, IRenderer, IListEvent, IListContextMenuEvent, IListMouseEvent, IListTouchEvent, IListGestureEvent } from './list';
+import { IListVirtualDelegate, IListRenderer, IListEvent, IListContextMenuEvent, IListMouseEvent, IListTouchEvent, IListGestureEvent } from './list';
 import { ListView, IListViewOptions } from './listView';
 import { Color } from 'vs/base/common/color';
 import { mixin } from 'vs/base/common/objects';
@@ -41,7 +41,7 @@ interface IRenderedContainer {
 	index: number;
 }
 
-class TraitRenderer<T> implements IRenderer<T, ITraitTemplateData>
+class TraitRenderer<T> implements IListRenderer<T, ITraitTemplateData>
 {
 	private renderedElements: IRenderedContainer[] = [];
 
@@ -807,11 +807,11 @@ function relativeComplement(one: number[], other: number[]): number[] {
 
 const numericSort = (a: number, b: number) => a - b;
 
-class PipelineRenderer<T> implements IRenderer<T, any> {
+class PipelineRenderer<T> implements IListRenderer<T, any> {
 
 	constructor(
 		private _templateId: string,
-		private renderers: IRenderer<T, any>[]
+		private renderers: IListRenderer<T, any>[]
 	) { }
 
 	get templateId(): string {
@@ -903,8 +903,8 @@ export class List<T> implements ISpliceable<T>, IDisposable {
 
 	constructor(
 		container: HTMLElement,
-		virtualDelegate: IVirtualDelegate<T>,
-		renderers: IRenderer<T, any>[],
+		virtualDelegate: IListVirtualDelegate<T>,
+		renderers: IListRenderer<T, any>[],
 		options: IListOptions<T> = DefaultOptions
 	) {
 		this.focus = new FocusTrait(i => this.getElementDomId(i));

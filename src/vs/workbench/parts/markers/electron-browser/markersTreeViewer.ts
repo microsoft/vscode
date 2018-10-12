@@ -21,7 +21,7 @@ import { ActionBar, IActionItemProvider } from 'vs/base/browser/ui/actionbar/act
 import { QuickFixAction } from 'vs/workbench/parts/markers/electron-browser/markersPanelActions';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { dirname } from 'vs/base/common/resources';
-import { IVirtualDelegate } from 'vs/base/browser/ui/list/list';
+import { IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
 import { ITreeFilter, TreeVisibility, TreeFilterResult, ITreeRenderer, ITreeNode } from 'vs/base/browser/ui/tree/tree';
 import { FilterOptions } from 'vs/workbench/parts/markers/electron-browser/markersFilterOptions';
 import { IMatch } from 'vs/base/common/filters';
@@ -78,7 +78,7 @@ const enum TemplateId {
 	RelatedInformation = 'ri'
 }
 
-export class VirtualDelegate implements IVirtualDelegate<ResourceMarkers | Marker | RelatedInformation> {
+export class VirtualDelegate implements IListVirtualDelegate<ResourceMarkers | Marker | RelatedInformation> {
 
 	getHeight(): number {
 		return 22;
