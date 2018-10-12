@@ -934,7 +934,7 @@ export interface ITextModel {
 	/**
 	 * @internal
 	 */
-	_setTrackedRange(id: string, newRange: Range, newStickiness: TrackedRangeStickiness): string | null;
+	_setTrackedRange(id: string | null, newRange: Range | null, newStickiness: TrackedRangeStickiness): string | null;
 
 	/**
 	 * Normalize a string containing whitespace according to indentation rules (converts to spaces or to tabs).

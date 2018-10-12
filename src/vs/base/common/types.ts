@@ -129,14 +129,14 @@ export function areFunctions(...objects: any[]): boolean {
 
 export type TypeConstraint = string | Function;
 
-export function validateConstraints(args: any[], constraints: TypeConstraint[]): void {
+export function validateConstraints(args: any[], constraints: (TypeConstraint | undefined)[]): void {
 	const len = Math.min(args.length, constraints.length);
 	for (let i = 0; i < len; i++) {
 		validateConstraint(args[i], constraints[i]);
 	}
 }
 
-export function validateConstraint(arg: any, constraint: TypeConstraint): void {
+export function validateConstraint(arg: any, constraint: TypeConstraint | undefined): void {
 
 	if (isString(constraint)) {
 		if (typeof arg !== constraint) {

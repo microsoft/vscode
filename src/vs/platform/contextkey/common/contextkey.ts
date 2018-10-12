@@ -514,9 +514,9 @@ export class ContextKeyAndExpr implements ContextKeyExpr {
 
 export class RawContextKey<T> extends ContextKeyDefinedExpr {
 
-	private _defaultValue: T;
+	private _defaultValue: T | undefined;
 
-	constructor(key: string, defaultValue: T) {
+	constructor(key: string, defaultValue: T | undefined) {
 		super(key);
 		this._defaultValue = defaultValue;
 	}
@@ -575,7 +575,7 @@ export interface IContextKeyService {
 	dispose(): void;
 
 	onDidChangeContext: Event<IContextKeyChangeEvent>;
-	createKey<T>(key: string, defaultValue: T): IContextKey<T>;
+	createKey<T>(key: string, defaultValue: T | undefined): IContextKey<T>;
 	contextMatchesRules(rules: ContextKeyExpr): boolean;
 	getContextKeyValue<T>(key: string): T;
 

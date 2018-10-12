@@ -142,9 +142,9 @@ class ContextKey<T> implements IContextKey<T> {
 
 	private _parent: AbstractContextKeyService;
 	private _key: string;
-	private _defaultValue: T;
+	private _defaultValue: T | undefined;
 
-	constructor(parent: AbstractContextKeyService, key: string, defaultValue: T) {
+	constructor(parent: AbstractContextKeyService, key: string, defaultValue: T | undefined) {
 		this._parent = parent;
 		this._key = key;
 		this._defaultValue = defaultValue;
@@ -200,7 +200,7 @@ export abstract class AbstractContextKeyService implements IContextKeyService {
 
 	abstract dispose(): void;
 
-	public createKey<T>(key: string, defaultValue: T): IContextKey<T> {
+	public createKey<T>(key: string, defaultValue: T | undefined): IContextKey<T> {
 		return new ContextKey(this, key, defaultValue);
 	}
 

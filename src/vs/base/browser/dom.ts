@@ -20,7 +20,7 @@ export function clearNode(node: HTMLElement): void {
 	}
 }
 
-export function isInDOM(node: Node): boolean {
+export function isInDOM(node: Node | null): boolean {
 	while (node) {
 		if (node === document.body) {
 			return true;
@@ -151,7 +151,7 @@ const _manualClassList = new class implements IDomClassList {
 
 const _nativeClassList = new class implements IDomClassList {
 	hasClass(node: HTMLElement, className: string): boolean {
-		return className && node.classList && node.classList.contains(className);
+		return Boolean(className) && node.classList && node.classList.contains(className);
 	}
 
 	addClasses(node: HTMLElement, ...classNames: string[]): void {
@@ -198,7 +198,7 @@ class DomListener implements IDisposable {
 	private readonly _type: string;
 	private readonly _useCapture: boolean;
 
-	constructor(node: Element | Window | Document, type: string, handler: (e: any) => void, useCapture: boolean) {
+	constructor(node: Element | Window | Document, type: string, handler: (e: any) => void, useCapture?: boolean) {
 		this._node = node;
 		this._type = type;
 		this._handler = handler;
@@ -215,8 +215,8 @@ class DomListener implements IDisposable {
 		this._node.removeEventListener(this._type, this._handler, this._useCapture);
 
 		// Prevent leakers from holding on to the dom or handler func
-		this._node = null;
-		this._handler = null;
+		this._node = null!;
+		this._handler = null!;
 	}
 }
 
@@ -257,7 +257,7 @@ export let addStandardDisposableListener: IAddStandardDisposableListenerSignatur
 export function addDisposableNonBubblingMouseOutListener(node: Element, handler: (event: MouseEvent) => void): IDisposable {
 	return addDisposableListener(node, 'mouseout', (e: MouseEvent) => {
 		// Mouse out bubbles, so this is an attempt to ignore faux mouse outs coming from children elements
-		let toElement = <Node>(e.relatedTarget || e.toElement);
+		let toElement: Node | null = <Node>(e.relatedTarget || e.toElement);
 		while (toElement && toElement !== node) {
 			toElement = toElement.parentNode;
 		}
@@ -311,7 +311,7 @@ class AnimationFrameQueueItem implements IDisposable {
 	public priority: number;
 	private _canceled: boolean;
 
-	constructor(runner: () => void, priority: number) {
+	constructor(runner: () => void, priority: number = 0) {
 		this._runner = runner;
 		this.priority = priority;
 		this._canceled = false;
@@ -366,7 +366,7 @@ class AnimationFrameQueueItem implements IDisposable {
 		inAnimationFrameRunner = true;
 		while (CURRENT_QUEUE.length > 0) {
 			CURRENT_QUEUE.sort(AnimationFrameQueueItem.sort);
-			let top = CURRENT_QUEUE.shift();
+			let top = CURRENT_QUEUE.shift()!;
 			top.execute();
 		}
 		inAnimationFrameRunner = false;
@@ -387,7 +387,7 @@ class AnimationFrameQueueItem implements IDisposable {
 	runAtThisOrScheduleAtNextAnimationFrame = (runner: () => void, priority?: number) => {
 		if (inAnimationFrameRunner) {
 			let item = new AnimationFrameQueueItem(runner, priority);
-			CURRENT_QUEUE.push(item);
+			CURRENT_QUEUE!.push(item);
 			return item;
 		} else {
 			return scheduleAtNextAnimationFrame(runner, priority);
@@ -407,7 +407,7 @@ export function modify(callback: () => void): IDisposable {
  * Add a throttled listener. `handler` is fired at most every 16ms or with the next animation frame (if browser supports it).
  */
 export interface IEventMerger<R, E> {
-	(lastEvent: R, currentEvent: E): R;
+	(lastEvent: R | null, currentEvent: E): R;
 }
 
 export interface DOMEvent {
@@ -431,7 +431,7 @@ class TimeoutThrottledDomListener<R, E extends DOMEvent> extends Disposable {
 
 		let invokeHandler = () => {
 			lastHandlerTime = (new Date()).getTime();
-			handler(lastEvent);
+			handler(<R>lastEvent);
 			lastEvent = null;
 		};
 
@@ -455,7 +455,7 @@ export function addDisposableThrottledListener<R, E extends DOMEvent = DOMEvent>
 }
 
 export function getComputedStyle(el: HTMLElement): CSSStyleDeclaration {
-	return document.defaultView.getComputedStyle(el, null);
+	return document.defaultView!.getComputedStyle(el, null);
 }
 
 // Adapted from WinJS
@@ -660,7 +660,7 @@ export const StandardWindow: IStandardWindow = new class implements IStandardWin
 			// modern browsers
 			return window.scrollX;
 		} else {
-			return document.body.scrollLeft + document.documentElement.scrollLeft;
+			return document.body.scrollLeft + document.documentElement!.scrollLeft;
 		}
 	}
 
@@ -669,7 +669,7 @@ export const StandardWindow: IStandardWindow = new class implements IStandardWin
 			// modern browsers
 			return window.scrollY;
 		} else {
-			return document.body.scrollTop + document.documentElement.scrollTop;
+			return document.body.scrollTop + document.documentElement!.scrollTop;
 		}
 	}
 };
@@ -728,7 +728,7 @@ export function getLargestChildWidth(parent: HTMLElement, children: HTMLElement[
 
 // ----------------------------------------------------------------------------------------
 
-export function isAncestor(testChild: Node, testAncestor: Node): boolean {
+export function isAncestor(testChild: Node | null, testAncestor: Node): boolean {
 	while (testChild) {
 		if (testChild === testAncestor) {
 			return true;
@@ -739,7 +739,7 @@ export function isAncestor(testChild: Node, testAncestor: Node): boolean {
 	return false;
 }
 
-export function findParentWithClass(node: HTMLElement, clazz: string, stopAtClazzOrNode?: string | HTMLElement): HTMLElement {
+export function findParentWithClass(node: HTMLElement, clazz: string, stopAtClazzOrNode?: string | HTMLElement): HTMLElement | null {
 	while (node) {
 		if (hasClass(node, clazz)) {
 			return node;
@@ -1002,17 +1002,18 @@ export function $<T extends HTMLElement>(description: string, attrs?: { [key: st
 		result.className = match[4].replace(/\./g, ' ').trim();
 	}
 
-	Object.keys(attrs || {}).forEach(name => {
+	attrs = attrs || {};
+	Object.keys(attrs).forEach(name => {
+		const value = attrs![name];
 		if (/^on\w+$/.test(name)) {
-			(<any>result)[name] = attrs[name];
+			(<any>result)[name] = value;
 		} else if (name === 'selected') {
-			const value = attrs[name];
 			if (value) {
 				result.setAttribute(name, 'true');
 			}
 
 		} else {
-			result.setAttribute(name, attrs[name]);
+			result.setAttribute(name, value);
 		}
 	});
 
@@ -1061,7 +1062,7 @@ export function hide(...elements: HTMLElement[]): void {
 	}
 }
 
-function findParentWithAttribute(node: Node, attribute: string): HTMLElement {
+function findParentWithAttribute(node: Node | null, attribute: string): HTMLElement | null {
 	while (node) {
 		if (node instanceof HTMLElement && node.hasAttribute(attribute)) {
 			return node;
