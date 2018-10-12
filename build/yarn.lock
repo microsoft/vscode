@@ -42,16 +42,6 @@
   dependencies:
     "@types/node" "*"
 
-"@types/es6-collections@0.5.31":
-  version "0.5.31"
-  resolved "https://registry.yarnpkg.com/@types/es6-collections/-/es6-collections-0.5.31.tgz#faad21c930cd0ea7f71f51b9e5b555796c5ab23f"
-  integrity sha512-djEvbdTH5Uw7V0WqdMQLG4NK3+iu/FMZy/ylyhWEFnW5xOsXEWpivo/dhP+cR43Az+ipytza7dTSnpsWCxKYAw==
-
-"@types/es6-promise@0.0.33":
-  version "0.0.33"
-  resolved "https://registry.yarnpkg.com/@types/es6-promise/-/es6-promise-0.0.33.tgz#280a707e62b1b6bef1a86cc0861ec63cd06c7ff3"
-  integrity sha512-HKJFVLCGrWQ/1unEw8JdaTxu6n3EUxmwTxJ6D0O1x0gD8joCsgoTWxEgevb7fp2XIogNjof3KEd+3bJoGne/nw==
-
 "@types/events@*":
   version "1.2.0"
   resolved "https://registry.yarnpkg.com/@types/events/-/events-1.2.0.tgz#81a6731ce4df43619e5c8c945383b3e62a89ea86"
