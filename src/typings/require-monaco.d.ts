@@ -4,7 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 interface NodeRequire {
- 	(moduleName: string): any;
- }
+	toUrl(path: string): string;
+	(dependencies: string[], callback: (...args: any[]) => any, errorback?: (err: any) => void): any;
+	config(data: any): any;
+}
 
 declare var require: NodeRequire;

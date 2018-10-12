@@ -40,7 +40,7 @@ export class MarkersPanel extends Panel {
 	private delayedRefresh: Delayer<void>;
 
 	private lastSelectedRelativeTop: number = 0;
-	private currentActiveResource: URI = null;
+	private currentActiveResource: URI | null = null;
 
 	private tree: WorkbenchTree;
 	private rangeHighlightDecorations: RangeHighlightDecorations;
@@ -403,7 +403,7 @@ export class MarkersPanel extends Panel {
 	}
 
 	private getResourceForCurrentActiveResource(): ResourceMarkers {
-		let res: ResourceMarkers = null;
+		let res: ResourceMarkers | null = null;
 		if (this.currentActiveResource) {
 			this.markersWorkbenchService.markersModel.forEachFilteredResource(resource => {
 				if (!res && resource.uri.toString() === this.currentActiveResource.toString()) {

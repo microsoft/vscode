@@ -19,18 +19,18 @@ export interface ColorContribution {
 	readonly description: string;
 	readonly defaults: ColorDefaults;
 	readonly needsTransparency: boolean;
-	readonly deprecationMessage: string;
+	readonly deprecationMessage: string | undefined;
 }
 
 
 export interface ColorFunction {
-	(theme: ITheme): Color;
+	(theme: ITheme): Color | null;
 }
 
 export interface ColorDefaults {
-	light: ColorValue;
-	dark: ColorValue;
-	hc: ColorValue;
+	light: ColorValue | null;
+	dark: ColorValue | null;
+	hc: ColorValue | null;
 }
 
 /**
@@ -61,7 +61,7 @@ export interface IColorRegistry {
 	/**
 	 * Gets the default color of the given id
 	 */
-	resolveDefaultColor(id: ColorIdentifier, theme: ITheme): Color;
+	resolveDefaultColor(id: ColorIdentifier, theme: ITheme): Color | null;
 
 	/**
 	 * JSON schema for an object to assign color values to one of the color contrbutions.
@@ -93,9 +93,9 @@ class ColorRegistry implements IColorRegistry {
 		if (deprecationMessage) {
 			propertySchema.deprecationMessage = deprecationMessage;
 		}
-		this.colorSchema.properties[id] = propertySchema;
-		this.colorReferenceSchema.enum.push(id);
-		this.colorReferenceSchema.enumDescriptions.push(description);
+		this.colorSchema.properties![id] = propertySchema;
+		this.colorReferenceSchema.enum!.push(id);
+		this.colorReferenceSchema.enumDescriptions!.push(description);
 		return id;
 	}
 
@@ -103,7 +103,7 @@ class ColorRegistry implements IColorRegistry {
 		return Object.keys(this.colorsById).map(id => this.colorsById[id]);
 	}
 
-	public resolveDefaultColor(id: ColorIdentifier, theme: ITheme): Color {
+	public resolveDefaultColor(id: ColorIdentifier, theme: ITheme): Color | null {
 		let colorDesc = this.colorsById[id];
 		if (colorDesc && colorDesc.defaults) {
 			let colorValue = colorDesc.defaults[theme.type];
@@ -412,7 +412,7 @@ function lessProminent(colorValue: ColorValue, backgroundColorValue: ColorValue,
 /**
  * @param colorValue Resolve a color value in the context of a theme
  */
-function resolveColorValue(colorValue: ColorValue, theme: ITheme): Color {
+function resolveColorValue(colorValue: ColorValue | null, theme: ITheme): Color | null {
 	if (colorValue === null) {
 		return null;
 	} else if (typeof colorValue === 'string') {

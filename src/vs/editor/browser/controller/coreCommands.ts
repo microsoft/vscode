@@ -7,7 +7,7 @@ import * as nls from 'vs/nls';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import * as editorCommon from 'vs/editor/common/editorCommon';
-import { CursorState, ICursors, RevealTarget, IColumnSelectData, CursorContext, EditOperationType } from 'vs/editor/common/controller/cursorCommon';
+import { CursorState, ICursors, RevealTarget, IColumnSelectData, CursorContext, EditOperationType, PartialCursorState } from 'vs/editor/common/controller/cursorCommon';
 import { CursorChangeReason } from 'vs/editor/common/controller/cursorEvents';
 import { CursorMoveCommands, CursorMove as CursorMove_ } from 'vs/editor/common/controller/cursorMoveCommands';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
@@ -703,14 +703,14 @@ export namespace CoreNavigationCommands {
 		public runCoreEditorCommand(cursors: ICursors, args: any): void {
 			const context = cursors.context;
 
-			let newState: CursorState;
+			let newState: PartialCursorState;
 			if (args.wholeLine) {
 				newState = CursorMoveCommands.line(context, cursors.getPrimaryCursor(), false, args.position, args.viewPosition);
 			} else {
 				newState = CursorMoveCommands.moveTo(context, cursors.getPrimaryCursor(), false, args.position, args.viewPosition);
 			}
 
-			const states = cursors.getAll();
+			const states: PartialCursorState[] = cursors.getAll();
 
 			// Check if we should remove a cursor (sort of like a toggle)
 			if (states.length > 1) {
@@ -766,8 +766,9 @@ export namespace CoreNavigationCommands {
 
 			const lastAddedCursorIndex = cursors.getLastAddedCursorIndex();
 
-			let newStates = cursors.getAll().slice(0);
-			newStates[lastAddedCursorIndex] = CursorMoveCommands.moveTo(context, newStates[lastAddedCursorIndex], true, args.position, args.viewPosition);
+			const states = cursors.getAll();
+			let newStates: PartialCursorState[] = states.slice(0);
+			newStates[lastAddedCursorIndex] = CursorMoveCommands.moveTo(context, states[lastAddedCursorIndex], true, args.position, args.viewPosition);
 
 			cursors.context.model.pushStackElement();
 			cursors.setStates(
@@ -846,8 +847,8 @@ export namespace CoreNavigationCommands {
 			cursors.reveal(true, RevealTarget.Primary, editorCommon.ScrollType.Smooth);
 		}
 
-		private _exec(context: CursorContext, cursors: CursorState[]): CursorState[] {
-			let result: CursorState[] = [];
+		private _exec(context: CursorContext, cursors: CursorState[]): PartialCursorState[] {
+			let result: PartialCursorState[] = [];
 			for (let i = 0, len = cursors.length; i < len; i++) {
 				const cursor = cursors[i];
 				const lineNumber = cursor.modelState.position.lineNumber;
@@ -925,8 +926,8 @@ export namespace CoreNavigationCommands {
 			cursors.reveal(true, RevealTarget.Primary, editorCommon.ScrollType.Smooth);
 		}
 
-		private _exec(context: CursorContext, cursors: CursorState[]): CursorState[] {
-			let result: CursorState[] = [];
+		private _exec(context: CursorContext, cursors: CursorState[]): PartialCursorState[] {
+			let result: PartialCursorState[] = [];
 			for (let i = 0, len = cursors.length; i < len; i++) {
 				const cursor = cursors[i];
 				const lineNumber = cursor.modelState.position.lineNumber;
@@ -1245,8 +1246,9 @@ export namespace CoreNavigationCommands {
 
 			const lastAddedCursorIndex = cursors.getLastAddedCursorIndex();
 
-			let newStates = cursors.getAll().slice(0);
-			let lastAddedState = newStates[lastAddedCursorIndex];
+			const states = cursors.getAll();
+			let newStates: PartialCursorState[] = states.slice(0);
+			let lastAddedState = states[lastAddedCursorIndex];
 			newStates[lastAddedCursorIndex] = CursorMoveCommands.word(context, lastAddedState, lastAddedState.modelState.hasSelection(), args.position);
 
 			context.model.pushStackElement();
@@ -1302,8 +1304,9 @@ export namespace CoreNavigationCommands {
 		public runCoreEditorCommand(cursors: ICursors, args: any): void {
 			const lastAddedCursorIndex = cursors.getLastAddedCursorIndex();
 
-			let newStates = cursors.getAll().slice(0);
-			newStates[lastAddedCursorIndex] = CursorMoveCommands.line(cursors.context, newStates[lastAddedCursorIndex], this._inSelectionMode, args.position, args.viewPosition);
+			const states = cursors.getAll();
+			let newStates: PartialCursorState[] = states.slice(0);
+			newStates[lastAddedCursorIndex] = CursorMoveCommands.line(cursors.context, states[lastAddedCursorIndex], this._inSelectionMode, args.position, args.viewPosition);
 
 			cursors.context.model.pushStackElement();
 			cursors.setStates(

@@ -142,9 +142,9 @@ class ContextKey<T> implements IContextKey<T> {
 
 	private _parent: AbstractContextKeyService;
 	private _key: string;
-	private _defaultValue: T;
+	private _defaultValue: T | undefined;
 
-	constructor(parent: AbstractContextKeyService, key: string, defaultValue: T) {
+	constructor(parent: AbstractContextKeyService, key: string, defaultValue: T | undefined) {
 		this._parent = parent;
 		this._key = key;
 		this._defaultValue = defaultValue;
@@ -200,7 +200,7 @@ export abstract class AbstractContextKeyService implements IContextKeyService {
 
 	abstract dispose(): void;
 
-	public createKey<T>(key: string, defaultValue: T): IContextKey<T> {
+	public createKey<T>(key: string, defaultValue: T | undefined): IContextKey<T> {
 		return new ContextKey(this, key, defaultValue);
 	}
 
@@ -278,7 +278,7 @@ export class ContextKeyService extends AbstractContextKeyService implements ICon
 		this._toDispose.push(myContext);
 
 		// Uncomment this to see the contexts continuously logged
-		// let lastLoggedValue: string = null;
+		// let lastLoggedValue: string | null = null;
 		// setInterval(() => {
 		// 	let values = Object.keys(this._contexts).map((key) => this._contexts[key]);
 		// 	let logValue = values.map(v => JSON.stringify(v._value, null, '\t')).join('\n');

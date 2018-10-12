@@ -11,7 +11,7 @@ import { StorageService, InMemoryLocalStorage } from 'vs/platform/storage/common
 import { TestWorkspace } from 'vs/platform/workspace/test/common/testWorkspace';
 
 suite('Memento', () => {
-	let context: Scope = undefined;
+	let context: Scope | undefined = undefined;
 	let storage: StorageService;
 
 	setup(() => {

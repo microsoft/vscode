@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Event } from 'vs/base/common/event';
-import { TPromise } from 'vs/base/common/winjs.base';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IMode, LanguageId, LanguageIdentifier } from 'vs/editor/common/modes';
 import { URI } from 'vs/base/common/uri';
@@ -43,7 +42,7 @@ export interface IModeService {
 
 	// --- instantiation
 	getMode(commaSeparatedMimetypesOrCommaSeparatedIds: string): IMode;
-	getOrCreateMode(commaSeparatedMimetypesOrCommaSeparatedIds: string): TPromise<IMode>;
-	getOrCreateModeByLanguageName(languageName: string): TPromise<IMode>;
-	getOrCreateModeByFilepathOrFirstLine(filepath: string, firstLine?: string): TPromise<IMode>;
+	getOrCreateMode(commaSeparatedMimetypesOrCommaSeparatedIds: string): Promise<IMode>;
+	getOrCreateModeByLanguageName(languageName: string): Promise<IMode>;
+	getOrCreateModeByFilepathOrFirstLine(filepath: string, firstLine?: string): Promise<IMode>;
 }

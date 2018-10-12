@@ -78,8 +78,16 @@
 	white-space: nowrap;
 }
 
-.monaco-select-box-dropdown-container > .select-box-dropdown-list-container .monaco-list .monaco-list-row > .option-text-description {
-	display: none;
+/* Accepted CSS hiding technique for accessibility reader text  */
+/* https://webaim.org/techniques/css/invisiblecontent/ */
+
+.monaco-select-box-dropdown-container > .select-box-dropdown-list-container .monaco-list .monaco-list-row > .visually-hidden {
+		position: absolute;
+		left: -10000px;
+		top: auto;
+		width: 1px;
+		height: 1px;
+		overflow: hidden;
 }
 
 .monaco-select-box-dropdown-container > .select-box-dropdown-container-width-control {

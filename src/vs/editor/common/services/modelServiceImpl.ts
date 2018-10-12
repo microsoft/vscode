@@ -9,7 +9,6 @@ import { Event, Emitter } from 'vs/base/common/event';
 import { MarkdownString } from 'vs/base/common/htmlContent';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
-import { TPromise } from 'vs/base/common/winjs.base';
 import { IMarker, IMarkerService, MarkerSeverity, MarkerTag } from 'vs/platform/markers/common/markers';
 import { Range } from 'vs/editor/common/core/range';
 import { TextModel, createTextBuffer } from 'vs/editor/common/model/textModel';
@@ -164,7 +163,7 @@ class ModelMarkerHandler {
 			}
 		}
 
-		let hoverMessage: MarkdownString = null;
+		let hoverMessage: MarkdownString | null = null;
 		let { message, source, relatedInformation } = marker;
 
 		if (typeof message === 'string') {
@@ -492,7 +491,7 @@ export class ModelServiceImpl implements IModelService {
 		return [EditOperation.replaceMove(oldRange, textBuffer.getValueInRange(newRange, EndOfLinePreference.TextDefined))];
 	}
 
-	public createModel(value: string | ITextBufferFactory, modeOrPromise: TPromise<IMode> | IMode, resource: URI, isForSimpleWidget: boolean = false): ITextModel {
+	public createModel(value: string | ITextBufferFactory, modeOrPromise: Promise<IMode> | IMode, resource: URI, isForSimpleWidget: boolean = false): ITextModel {
 		let modelData: ModelData;
 
 		if (!modeOrPromise || isThenable(modeOrPromise)) {
@@ -512,7 +511,7 @@ export class ModelServiceImpl implements IModelService {
 		return modelData.model;
 	}
 
-	public setMode(model: ITextModel, modeOrPromise: TPromise<IMode> | IMode): void {
+	public setMode(model: ITextModel, modeOrPromise: Promise<IMode> | IMode): void {
 		if (!modeOrPromise) {
 			return;
 		}

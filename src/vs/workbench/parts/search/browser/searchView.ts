@@ -1429,12 +1429,16 @@ export class SearchView extends Viewlet implements IViewlet, IPanel {
 				this.viewModel.searchResult.rangeHighlightDecorations.removeHighlightRange();
 			}
 
-			return this.editorGroupsService.activateGroup(editor.group);
+			if (editor) {
+				return this.editorGroupsService.activateGroup(editor.group);
+			} else {
+				return TPromise.wrap(null);
+			}
 		}, errors.onUnexpectedError);
 	}
 
 	private getSelectionFrom(element: FileMatchOrMatch): any {
-		let match: Match = null;
+		let match: Match | null = null;
 		if (element instanceof Match) {
 			match = element;
 		}

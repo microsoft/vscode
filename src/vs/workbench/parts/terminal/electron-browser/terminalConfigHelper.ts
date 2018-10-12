@@ -119,10 +119,10 @@ export class TerminalConfigHelper implements ITerminalConfigHelper {
 		// Work around bad font on Fedora/Ubuntu
 		if (!this.config.fontFamily) {
 			if (isFedora) {
-				fontFamily = '\'DejaVu Sans Mono\'';
+				fontFamily = '\'DejaVu Sans Mono\', monospace';
 			}
 			if (isUbuntu) {
-				fontFamily = '\'Ubuntu Mono\'';
+				fontFamily = '\'Ubuntu Mono\', monospace';
 
 				// Ubuntu mono is somehow smaller, so set fontSize a bit larger to get the same perceived size.
 				fontSize = this._toInteger(fontSize + 2, MINIMUM_FONT_SIZE, MAXIMUM_FONT_SIZE, EDITOR_FONT_DEFAULTS.fontSize);

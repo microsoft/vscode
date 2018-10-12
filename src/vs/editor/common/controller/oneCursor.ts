@@ -14,13 +14,10 @@ export class OneCursor {
 	public modelState: SingleCursorState;
 	public viewState: SingleCursorState;
 
-	private _selTrackedRange: string;
+	private _selTrackedRange: string | null;
 	private _trackSelection: boolean;
 
 	constructor(context: CursorContext) {
-		this.modelState = null;
-		this.viewState = null;
-
 		this._selTrackedRange = null;
 		this._trackSelection = true;
 
@@ -62,7 +59,7 @@ export class OneCursor {
 	}
 
 	public readSelectionFromMarkers(context: CursorContext): Selection {
-		const range = context.model._getTrackedRange(this._selTrackedRange);
+		const range = context.model._getTrackedRange(this._selTrackedRange!)!;
 		if (this.modelState.selection.getDirection() === SelectionDirection.LTR) {
 			return new Selection(range.startLineNumber, range.startColumn, range.endLineNumber, range.endColumn);
 		}

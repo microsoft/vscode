@@ -273,7 +273,8 @@ export class ExtensionHostProcessWorker implements IExtensionHostStarter {
 							[{
 								label: nls.localize('reloadWindow', "Reload Window"),
 								run: () => this._windowService.reloadWindow()
-							}]
+							}],
+							{ sticky: true }
 						);
 					}, 10000);
 				}

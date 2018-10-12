@@ -172,14 +172,14 @@ export class Range {
 	/**
 	 * A intersection of the two ranges.
 	 */
-	public intersectRanges(range: IRange): Range {
+	public intersectRanges(range: IRange): Range | null {
 		return Range.intersectRanges(this, range);
 	}
 
 	/**
 	 * A intersection of the two ranges.
 	 */
-	public static intersectRanges(a: IRange, b: IRange): Range {
+	public static intersectRanges(a: IRange, b: IRange): Range | null {
 		let resultStartLineNumber = a.startLineNumber;
 		let resultStartColumn = a.startColumn;
 		let resultEndLineNumber = a.endLineNumber;
@@ -223,7 +223,7 @@ export class Range {
 	/**
 	 * Test if range `a` equals `b`.
 	 */
-	public static equalsRange(a: IRange, b: IRange): boolean {
+	public static equalsRange(a: IRange | null, b: IRange | null): boolean {
 		return (
 			!!a &&
 			!!b &&
@@ -292,7 +292,9 @@ export class Range {
 	/**
 	 * Create a `Range` from an `IRange`.
 	 */
-	public static lift(range: IRange): Range {
+	public static lift(range: undefined | null): null;
+	public static lift(range: IRange): Range;
+	public static lift(range: IRange | undefined | null): Range | null {
 		if (!range) {
 			return null;
 		}

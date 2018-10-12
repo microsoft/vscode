@@ -17,7 +17,7 @@ export function isDisposable<E extends object>(thing: E): thing is E & IDisposab
 export function dispose<T extends IDisposable>(disposable: T): T;
 export function dispose<T extends IDisposable>(...disposables: T[]): T[];
 export function dispose<T extends IDisposable>(disposables: T[]): T[];
-export function dispose<T extends IDisposable>(first: T | T[], ...rest: T[]): T | T[] {
+export function dispose<T extends IDisposable>(first: T | T[], ...rest: T[]): T | T[] | undefined {
 	if (Array.isArray(first)) {
 		first.forEach(d => d && d.dispose());
 		return [];

@@ -241,7 +241,7 @@ function generateDeclarationFile(out, inputFiles, recipe) {
     usage.push("var b;");
     var generateUsageImport = function (moduleId) {
         var importName = 'm' + (++usageCounter);
-        usageImports.push("import * as " + importName + " from '" + moduleId.replace(/\.d\.ts$/, '') + "';");
+        usageImports.push("import * as " + importName + " from './" + moduleId.replace(/\.d\.ts$/, '') + "';");
         return importName;
     };
     lines.forEach(function (line) {

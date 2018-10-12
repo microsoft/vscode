@@ -487,7 +487,7 @@ export class ExtHostTerminalService implements ExtHostTerminalServiceShape {
 	}
 
 	private _getTerminalObjectIndexById<T extends ExtHostTerminal | ExtHostTerminalRenderer>(array: T[], id: number): number {
-		let index: number = null;
+		let index: number | null = null;
 		array.some((item, i) => {
 			const thisId = item._id;
 			if (thisId === id) {

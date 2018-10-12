@@ -31,7 +31,7 @@ function getWorker(workerId: string, label: string): Worker {
 class WebWorker implements IWorker {
 
 	private id: number;
-	private worker: Worker;
+	private worker: Worker | null;
 
 	constructor(moduleId: string, id: number, label: string, onMessageCallback: IWorkerCallback, onErrorCallback: (err: any) => void) {
 		this.id = id;
@@ -56,7 +56,9 @@ class WebWorker implements IWorker {
 	}
 
 	public dispose(): void {
-		this.worker.terminate();
+		if (this.worker) {
+			this.worker.terminate();
+		}
 		this.worker = null;
 	}
 }

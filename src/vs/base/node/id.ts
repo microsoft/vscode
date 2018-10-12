@@ -45,7 +45,7 @@ export const virtualMachineHint: { value(): number } = new class {
 			this._virtualMachineOUIs.set('00:16:3E', true);
 			this._virtualMachineOUIs.set('08:00:27', true);
 		}
-		return this._virtualMachineOUIs.findSubstr(mac);
+		return !!this._virtualMachineOUIs.findSubstr(mac);
 	}
 
 	value(): number {

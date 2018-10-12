@@ -9,7 +9,7 @@ import * as strings from 'vs/base/common/strings';
 
 export interface IFilter {
 	// Returns null if word doesn't match.
-	(word: string, wordToMatchAgainst: string): IMatch[];
+	(word: string, wordToMatchAgainst: string): IMatch[] | null;
 }
 
 export interface IMatch {
@@ -26,7 +26,7 @@ export interface IMatch {
  * filter.
  */
 export function or(...filter: IFilter[]): IFilter {
-	return function (word: string, wordToMatchAgainst: string): IMatch[] {
+	return function (word: string, wordToMatchAgainst: string): IMatch[] | null {
 		for (let i = 0, len = filter.length; i < len; i++) {
 			let match = filter[i](word, wordToMatchAgainst);
 			if (match) {
@@ -42,7 +42,7 @@ export function or(...filter: IFilter[]): IFilter {
 export const matchesStrictPrefix: IFilter = _matchesPrefix.bind(undefined, false);
 export const matchesPrefix: IFilter = _matchesPrefix.bind(undefined, true);
 
-function _matchesPrefix(ignoreCase: boolean, word: string, wordToMatchAgainst: string): IMatch[] {
+function _matchesPrefix(ignoreCase: boolean, word: string, wordToMatchAgainst: string): IMatch[] | null {
 	if (!wordToMatchAgainst || wordToMatchAgainst.length < word.length) {
 		return null;
 	}
@@ -63,7 +63,7 @@ function _matchesPrefix(ignoreCase: boolean, word: string, wordToMatchAgainst: s
 
 // Contiguous Substring
 
-export function matchesContiguousSubString(word: string, wordToMatchAgainst: string): IMatch[] {
+export function matchesContiguousSubString(word: string, wordToMatchAgainst: string): IMatch[] | null {
 	let index = wordToMatchAgainst.toLowerCase().indexOf(word.toLowerCase());
 	if (index === -1) {
 		return null;
@@ -74,18 +74,18 @@ export function matchesContiguousSubString(word: string, wordToMatchAgainst: str
 
 // Substring
 
-export function matchesSubString(word: string, wordToMatchAgainst: string): IMatch[] {
+export function matchesSubString(word: string, wordToMatchAgainst: string): IMatch[] | null {
 	return _matchesSubString(word.toLowerCase(), wordToMatchAgainst.toLowerCase(), 0, 0);
 }
 
-function _matchesSubString(word: string, wordToMatchAgainst: string, i: number, j: number): IMatch[] {
+function _matchesSubString(word: string, wordToMatchAgainst: string, i: number, j: number): IMatch[] | null {
 	if (i === word.length) {
 		return [];
 	} else if (j === wordToMatchAgainst.length) {
 		return null;
 	} else {
 		if (word[i] === wordToMatchAgainst[j]) {
-			let result: IMatch[] = null;
+			let result: IMatch[] | null = null;
 			if (result = _matchesSubString(word, wordToMatchAgainst, i + 1, j + 1)) {
 				return join({ start: j, end: j + 1 }, result);
 			}
@@ -144,7 +144,7 @@ function nextAnchor(camelCaseWord: string, start: number): number {
 	return camelCaseWord.length;
 }
 
-function _matchesCamelCase(word: string, camelCaseWord: string, i: number, j: number): IMatch[] {
+function _matchesCamelCase(word: string, camelCaseWord: string, i: number, j: number): IMatch[] | null {
 	if (i === word.length) {
 		return [];
 	} else if (j === camelCaseWord.length) {
@@ -152,7 +152,7 @@ function _matchesCamelCase(word: string, camelCaseWord: string, i: number, j: nu
 	} else if (word[i] !== camelCaseWord[j].toLowerCase()) {
 		return null;
 	} else {
-		let result: IMatch[] = null;
+		let result: IMatch[] | null = null;
 		let nextUpperIndex = j + 1;
 		result = _matchesCamelCase(word, camelCaseWord, i + 1, j + 1);
 		while (!result && (nextUpperIndex = nextAnchor(camelCaseWord, nextUpperIndex)) < camelCaseWord.length) {
@@ -222,7 +222,7 @@ function isCamelCasePattern(word: string): boolean {
 	}
 }
 
-export function matchesCamelCase(word: string, camelCaseWord: string): IMatch[] {
+export function matchesCamelCase(word: string, camelCaseWord: string): IMatch[] | null {
 	if (!camelCaseWord) {
 		return null;
 	}
@@ -251,7 +251,7 @@ export function matchesCamelCase(word: string, camelCaseWord: string): IMatch[] 
 		camelCaseWord = camelCaseWord.toLowerCase();
 	}
 
-	let result: IMatch[] = null;
+	let result: IMatch[] | null = null;
 	let i = 0;
 
 	word = word.toLowerCase();
@@ -267,12 +267,12 @@ export function matchesCamelCase(word: string, camelCaseWord: string): IMatch[] 
 // Otherwise also matches sub string of the word with beginnings of the words in the target. E.g. "gp" or "g p" will match "Git: Pull"
 // Useful in cases where the target is words (e.g. command labels)
 
-export function matchesWords(word: string, target: string, contiguous: boolean = false): IMatch[] {
+export function matchesWords(word: string, target: string, contiguous: boolean = false): IMatch[] | null {
 	if (!target || target.length === 0) {
 		return null;
 	}
 
-	let result: IMatch[] = null;
+	let result: IMatch[] | null = null;
 	let i = 0;
 
 	word = word.toLowerCase();
@@ -284,7 +284,7 @@ export function matchesWords(word: string, target: string, contiguous: boolean =
 	return result;
 }
 
-function _matchesWords(word: string, target: string, i: number, j: number, contiguous: boolean): IMatch[] {
+function _matchesWords(word: string, target: string, i: number, j: number, contiguous: boolean): IMatch[] | null {
 	if (i === word.length) {
 		return [];
 	} else if (j === target.length) {
@@ -292,7 +292,7 @@ function _matchesWords(word: string, target: string, i: number, j: number, conti
 	} else if (word[i] !== target[j]) {
 		return null;
 	} else {
-		let result: IMatch[] = null;
+		let result: IMatch[] | null = null;
 		let nextWordIndex = j + 1;
 		result = _matchesWords(word, target, i + 1, j + 1, contiguous);
 		if (!contiguous) {
@@ -321,7 +321,7 @@ export const fuzzyContiguousFilter = or(matchesPrefix, matchesCamelCase, matches
 const fuzzySeparateFilter = or(matchesPrefix, matchesCamelCase, matchesSubString);
 const fuzzyRegExpCache = new LRUCache<string, RegExp>(10000); // bounded to 10000 elements
 
-export function matchesFuzzy(word: string, wordToMatchAgainst: string, enableSeparateSubstringMatching = false): IMatch[] {
+export function matchesFuzzy(word: string, wordToMatchAgainst: string, enableSeparateSubstringMatching = false): IMatch[] | null {
 	if (typeof word !== 'string' || typeof wordToMatchAgainst !== 'string') {
 		return null; // return early for invalid input
 	}
@@ -334,7 +334,7 @@ export function matchesFuzzy(word: string, wordToMatchAgainst: string, enableSep
 	}
 
 	// RegExp Filter
-	let match: RegExpExecArray = regexp.exec(wordToMatchAgainst);
+	let match = regexp.exec(wordToMatchAgainst);
 	if (match) {
 		return [{ start: match.index, end: match.index + match[0].length }];
 	}
@@ -372,7 +372,7 @@ export function createMatches(offsetOrScore: number[] | FuzzyScore): IMatch[] {
 	} else {
 		offsets = offsetOrScore as number[];
 	}
-	let last: IMatch;
+	let last: IMatch | undefined;
 	for (const pos of offsets) {
 		if (last && last.end === pos) {
 			last.end += 1;
@@ -466,7 +466,7 @@ export interface FuzzyScorer {
 	(pattern: string, lowPattern: string, patternPos: number, word: string, lowWord: string, wordPos: number, firstMatchCanBeWeak: boolean): FuzzyScore;
 }
 
-export function fuzzyScore(pattern: string, lowPattern: string, patternPos: number, word: string, lowWord: string, wordPos: number, firstMatchCanBeWeak: boolean): FuzzyScore {
+export function fuzzyScore(pattern: string, lowPattern: string, patternPos: number, word: string, lowWord: string, wordPos: number, firstMatchCanBeWeak: boolean): FuzzyScore | undefined {
 
 	const patternLen = pattern.length > 100 ? 100 : pattern.length;
 	const wordLen = word.length > 100 ? 100 : word.length;
@@ -711,16 +711,16 @@ class LazyArray {
 
 //#region --- graceful ---
 
-export function fuzzyScoreGracefulAggressive(pattern: string, lowPattern: string, patternPos: number, word: string, lowWord: string, wordPos: number, firstMatchCanBeWeak: boolean): FuzzyScore {
+export function fuzzyScoreGracefulAggressive(pattern: string, lowPattern: string, patternPos: number, word: string, lowWord: string, wordPos: number, firstMatchCanBeWeak: boolean): FuzzyScore | undefined {
 	return fuzzyScoreWithPermutations(pattern, lowPattern, patternPos, word, lowWord, wordPos, true, firstMatchCanBeWeak);
 }
 
-export function fuzzyScoreGraceful(pattern: string, lowPattern: string, patternPos: number, word: string, lowWord: string, wordPos: number, firstMatchCanBeWeak: boolean): FuzzyScore {
+export function fuzzyScoreGraceful(pattern: string, lowPattern: string, patternPos: number, word: string, lowWord: string, wordPos: number, firstMatchCanBeWeak: boolean): FuzzyScore | undefined {
 	return fuzzyScoreWithPermutations(pattern, lowPattern, patternPos, word, lowWord, wordPos, false, firstMatchCanBeWeak);
 }
 
-function fuzzyScoreWithPermutations(pattern: string, lowPattern: string, patternPos: number, word: string, lowWord: string, wordPos: number, aggressive: boolean, firstMatchCanBeWeak: boolean): FuzzyScore {
-	let top: [number, number[]] = fuzzyScore(pattern, lowPattern, patternPos, word, lowWord, wordPos, firstMatchCanBeWeak);
+function fuzzyScoreWithPermutations(pattern: string, lowPattern: string, patternPos: number, word: string, lowWord: string, wordPos: number, aggressive: boolean, firstMatchCanBeWeak: boolean): FuzzyScore | undefined {
+	let top = fuzzyScore(pattern, lowPattern, patternPos, word, lowWord, wordPos, firstMatchCanBeWeak);
 
 	if (top && !aggressive) {
 		// when using the original pattern yield a result we`
@@ -752,7 +752,7 @@ function fuzzyScoreWithPermutations(pattern: string, lowPattern: string, pattern
 	return top;
 }
 
-function nextTypoPermutation(pattern: string, patternPos: number): string {
+function nextTypoPermutation(pattern: string, patternPos: number): string | undefined {
 
 	if (patternPos + 1 >= pattern.length) {
 		return undefined;

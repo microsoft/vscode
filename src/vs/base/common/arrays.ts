@@ -138,7 +138,7 @@ function _sort<T>(a: T[], compare: Compare<T>, lo: number, hi: number, aux: T[])
 
 export function groupBy<T>(data: T[], compare: (a: T, b: T) => number): T[][] {
 	const result: T[][] = [];
-	let currentGroup: T[];
+	let currentGroup: T[] | undefined = undefined;
 	for (const element of mergeSort(data.slice(0), compare)) {
 		if (!currentGroup || compare(currentGroup[0], element) !== 0) {
 			currentGroup = [element];
@@ -388,7 +388,9 @@ export function firstIndex<T>(array: T[] | ReadonlyArray<T>, fn: (item: T) => bo
 	return -1;
 }
 
-export function first<T>(array: T[] | ReadonlyArray<T>, fn: (item: T) => boolean, notFoundValue: T = null): T {
+export function first<T>(array: T[] | ReadonlyArray<T>, fn: (item: T) => boolean, notFoundValue: T): T;
+export function first<T>(array: T[] | ReadonlyArray<T>, fn: (item: T) => boolean): T | null;
+export function first<T>(array: T[] | ReadonlyArray<T>, fn: (item: T) => boolean, notFoundValue: T | null = null): T | null {
 	const index = firstIndex(array, fn);
 	return index < 0 ? notFoundValue : array[index];
 }
@@ -404,7 +406,7 @@ export function commonPrefixLength<T>(one: T[], other: T[], equals: (a: T, b: T)
 }
 
 export function flatten<T>(arr: T[][]): T[] {
-	return [].concat(...arr);
+	return (<T[]>[]).concat(...arr);
 }
 
 export function range(to: number): number[];
@@ -481,15 +483,20 @@ export function arrayInsert<T>(target: T[], insertIndex: number, insertArr: T[])
  * Uses Fisher-Yates shuffle to shuffle the given array
  * @param array
  */
-export function shuffle<T>(array: T[], seed?: number): void {
-	// Seeded random number generator in JS. Modified from:
-	// https://stackoverflow.com/questions/521295/seeding-the-random-number-generator-in-javascript
-	const random = () => {
-		var x = Math.sin(seed++) * 179426549; // throw away most significant digits and reduce any potential bias
-		return x - Math.floor(x);
-	};
+export function shuffle<T>(array: T[], _seed?: number): void {
+	let rand: () => number;
 
-	const rand = typeof seed === 'number' ? random : Math.random;
+	if (typeof _seed === 'number') {
+		let seed = _seed;
+		// Seeded random number generator in JS. Modified from:
+		// https://stackoverflow.com/questions/521295/seeding-the-random-number-generator-in-javascript
+		rand = () => {
+			var x = Math.sin(seed++) * 179426549; // throw away most significant digits and reduce any potential bias
+			return x - Math.floor(x);
+		};
+	} else {
+		rand = Math.random;
+	}
 
 	for (let i = array.length - 1; i > 0; i -= 1) {
 		let j = Math.floor(rand() * (i + 1));

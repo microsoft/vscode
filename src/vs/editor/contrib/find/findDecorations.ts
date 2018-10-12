@@ -93,7 +93,7 @@ export class FindDecorations implements IDisposable {
 	}
 
 	public setCurrentFindMatch(nextMatch: Range): number {
-		let newCurrentDecorationId: string = null;
+		let newCurrentDecorationId: string | null = null;
 		let matchPosition = 0;
 		if (nextMatch) {
 			for (let i = 0, len = this._decorations.length; i < len; i++) {

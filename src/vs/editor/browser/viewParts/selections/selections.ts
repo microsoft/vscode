@@ -158,8 +158,8 @@ export class SelectionsOverlay extends DynamicViewOverlay {
 
 	private _enrichVisibleRangesWithStyle(viewport: Range, linesVisibleRanges: LineVisibleRangesWithStyle[], previousFrame: LineVisibleRangesWithStyle[]): void {
 		const epsilon = this._typicalHalfwidthCharacterWidth / 4;
-		let previousFrameTop: HorizontalRangeWithStyle = null;
-		let previousFrameBottom: HorizontalRangeWithStyle = null;
+		let previousFrameTop: HorizontalRangeWithStyle | null = null;
+		let previousFrameBottom: HorizontalRangeWithStyle | null = null;
 
 		if (previousFrame && previousFrame.length > 0 && linesVisibleRanges.length > 0) {
 

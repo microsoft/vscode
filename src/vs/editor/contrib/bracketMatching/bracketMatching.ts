@@ -153,7 +153,7 @@ export class BracketMatchingController extends Disposable implements editorCommo
 
 			// find matching brackets if position is on a bracket
 			const brackets = model.matchBracket(position);
-			let newCursorPosition: Position = null;
+			let newCursorPosition: Position | null = null;
 			if (brackets) {
 				if (brackets[0].containsPosition(position)) {
 					newCursorPosition = brackets[1].getStartPosition();
@@ -191,8 +191,8 @@ export class BracketMatchingController extends Disposable implements editorCommo
 
 			let brackets = model.matchBracket(position);
 
-			let openBracket: Position = null;
-			let closeBracket: Position = null;
+			let openBracket: Position | null = null;
+			let closeBracket: Position | null = null;
 
 			if (!brackets) {
 				const nextBracket = model.findNextBracket(position);

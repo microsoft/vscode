@@ -681,7 +681,7 @@ class BufferredOutputChannel extends Disposable implements OutputChannel {
 
 	readonly id: string;
 	readonly label: string;
-	readonly file: URI = null;
+	readonly file: URI | null = null;
 	scrollLock: boolean = false;
 
 	protected _onDidAppendedContent: Emitter<void> = new Emitter<void>();

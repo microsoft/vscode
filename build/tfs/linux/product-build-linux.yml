@@ -18,6 +18,7 @@ steps:
     CHILD_CONCURRENCY=1 yarn
     npm run gulp -- hygiene
     npm run monaco-compile-check
+    npm run strict-null-check
     VSCODE_MIXIN_PASSWORD="$(VSCODE_MIXIN_PASSWORD)" npm run gulp -- mixin
     node build/tfs/common/installDistro.js
     node build/lib/builtInExtensions.js

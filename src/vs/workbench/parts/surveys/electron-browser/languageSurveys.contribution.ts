@@ -112,7 +112,8 @@ class LanguageSurvey {
 					nextStorage2Service.set(IS_CANDIDATE_KEY, false, StorageScope.GLOBAL);
 					nextStorage2Service.set(SKIP_VERSION_KEY, pkg.version, StorageScope.GLOBAL);
 				}
-			}]
+			}],
+			{ sticky: true }
 		);
 	}
 }

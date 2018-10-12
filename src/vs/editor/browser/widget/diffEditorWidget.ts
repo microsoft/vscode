@@ -847,8 +847,8 @@ export class DiffEditorWidget extends Disposable implements editorBrowser.IDiffE
 		this._beginUpdateDecorationsTimeout = window.setTimeout(() => this._beginUpdateDecorations(), DiffEditorWidget.UPDATE_DIFF_DECORATIONS_DELAY);
 	}
 
-	private _lastOriginalWarning: URI = null;
-	private _lastModifiedWarning: URI = null;
+	private _lastOriginalWarning: URI | null = null;
+	private _lastModifiedWarning: URI | null = null;
 
 	private static _equals(a: URI, b: URI): boolean {
 		if (!a && !b) {
@@ -1334,7 +1334,7 @@ abstract class ViewZonesComputer {
 					viewZoneLineNumber = originalEndEquivalentLineNumber;
 				}
 
-				let marginDomNode: HTMLDivElement = null;
+				let marginDomNode: HTMLDivElement | null = null;
 				if (lineChange && lineChange.modifiedStartLineNumber <= modifiedForeignVZ.current.afterLineNumber && modifiedForeignVZ.current.afterLineNumber <= lineChange.modifiedEndLineNumber) {
 					marginDomNode = this._createOriginalMarginDomNodeForModifiedForeignViewZoneInAddedRegion();
 				}

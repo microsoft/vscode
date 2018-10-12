@@ -35,8 +35,8 @@ export abstract class NodeWithId {
 
 export class ResourceMarkers extends NodeWithId {
 
-	private _name: string = null;
-	private _path: string = null;
+	private _name: string | null = null;
+	private _path: string | null = null;
 	private _allFixesPromise: Promise<CodeAction[]>;
 
 	markers: Marker[] = [];

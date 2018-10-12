@@ -225,7 +225,7 @@ export class Configuration extends BaseConfiguration {
 
 export class AllKeysConfigurationChangeEvent extends AbstractConfigurationChangeEvent implements IConfigurationChangeEvent {
 
-	private _changedConfiguration: ConfigurationModel = null;
+	private _changedConfiguration: ConfigurationModel | null = null;
 
 	constructor(private _configuration: Configuration, readonly source: ConfigurationTarget, readonly sourceConfig: any) { super(); }
 

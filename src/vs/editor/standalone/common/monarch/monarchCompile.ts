@@ -38,25 +38,18 @@ function isArrayOf(elemType: (x: any) => boolean, obj: any): boolean {
 	return true;
 }
 
-function bool(prop: any, def?: boolean, onerr?: () => void): boolean {
-	if (typeof (prop) === 'boolean') {
+function bool(prop: any, defValue: boolean): boolean {
+	if (typeof prop === 'boolean') {
 		return prop;
 	}
-	if (onerr && (prop || def === undefined)) {
-		onerr(); // type is wrong, or there is no default
-	}
-	return (def === undefined ? null : def);
+	return defValue;
 }
 
-function string(prop: any, def?: string, onerr?: () => void): string {
+function string(prop: any, defValue: string): string {
 	if (typeof (prop) === 'string') {
 		return prop;
 	}
-	if (onerr && (prop || def === undefined)) {
-		onerr(); // type is wrong, or there is no default
-	}
-	return (def === undefined ? null : def);
-
+	return defValue;
 }
 
 // Lexer helpers
@@ -66,10 +59,6 @@ function string(prop: any, def?: string, onerr?: () => void): string {
  * Also replaces @\w+ or sequences with the content of the specified attribute
  */
 function compileRegExp(lexer: monarchCommon.ILexerMin, str: string): RegExp {
-	if (typeof (str) !== 'string') {
-		return null;
-	}
-
 	let n = 0;
 	while (str.indexOf('@') >= 0 && n < 5) { // at most 5 expansions
 		n++;
@@ -98,7 +87,7 @@ function compileRegExp(lexer: monarchCommon.ILexerMin, str: string): RegExp {
  * This compiles 'cases' attributes into efficient match functions.
  *
  */
-function selectScrutinee(id: string, matches: string[], state: string, num: number): string {
+function selectScrutinee(id: string, matches: string[], state: string, num: number): string | null {
 	if (num < 0) {
 		return id;
 	}
@@ -120,7 +109,7 @@ function createGuard(lexer: monarchCommon.ILexerMin, ruleName: string, tkey: str
 	// get the scrutinee and pattern
 	let scrut = -1; // -1: $!, 0-99: $n, 100+n: $Sn
 	let oppat = tkey;
-	let matches: string[] = tkey.match(/^\$(([sS]?)(\d\d?)|#)(.*)$/);
+	let matches = tkey.match(/^\$(([sS]?)(\d\d?)|#)(.*)$/);
 	if (matches) {
 		if (matches[3]) { // if digits
 			scrut = parseInt(matches[3]);
@@ -302,7 +291,7 @@ function compileAction(lexer: monarchCommon.ILexerMin, ruleName: string, action:
 
 				// what kind of case
 				if (tkey === '@default' || tkey === '@' || tkey === '') {
-					cases.push({ test: null, value: val, name: tkey });
+					cases.push({ test: undefined, value: val, name: tkey });
 				}
 				else if (tkey === '@eos') {
 					cases.push({ test: function (id, matches, state, eos) { return eos; }, value: val, name: tkey });
@@ -319,9 +308,10 @@ function compileAction(lexer: monarchCommon.ILexerMin, ruleName: string, action:
 			test: function (id, matches, state, eos) {
 				for (let idx in cases) {
 					if (cases.hasOwnProperty(idx)) {
-						const didmatch = (!cases[idx].test || cases[idx].test(id, matches, state, eos));
+						const _case = cases[idx];
+						const didmatch = (!_case.test || _case.test(id, matches, state, eos));
 						if (didmatch) {
-							return cases[idx].value;
+							return _case.value;
 						}
 					}
 				}
@@ -357,7 +347,7 @@ class Rule implements monarchCommon.IRule {
 			sregex = (<RegExp>re).source;
 		}
 		else {
-			monarchCommon.throwError(lexer, 'rules must start with a match string or regular expression: ' + this.name);
+			return monarchCommon.throwError(lexer, 'rules must start with a match string or regular expression: ' + this.name);
 		}
 
 		this.matchOnlyAtLineStart = (sregex.length > 0 && sregex[0] === '^');
@@ -391,11 +381,11 @@ export function compile(languageId: string, json: IMonarchLanguage): monarchComm
 	lexer.maxStack = 100;
 
 	// Set standard fields: be defensive about types
-	lexer.start = string(json.start);
+	lexer.start = (typeof json.start === 'string' ? json.start : null);
 	lexer.ignoreCase = bool(json.ignoreCase, false);
 
 	lexer.tokenPostfix = string(json.tokenPostfix, '.' + lexer.languageId);
-	lexer.defaultToken = string(json.defaultToken, 'source', function () { monarchCommon.throwError(lexer, 'the \'defaultToken\' must be a string'); });
+	lexer.defaultToken = string(json.defaultToken, 'source');
 
 	lexer.usesEmbedded = false; // becomes true if we find a nextEmbedded action
 
@@ -456,10 +446,12 @@ export function compile(languageId: string, json: IMonarchLanguage): monarchComm
 							monarchCommon.throwError(lexer, 'a rule must either be an array, or an object with a \'regex\' or \'include\' field at: ' + state);
 						}
 						if (rule.name) {
-							newrule.name = string(rule.name);
+							if (typeof rule.name === 'string') {
+								newrule.name = rule.name;
+							}
 						}
 						if (rule.matchOnlyAtStart) {
-							newrule.matchOnlyAtLineStart = bool(rule.matchOnlyAtLineStart);
+							newrule.matchOnlyAtLineStart = bool(rule.matchOnlyAtLineStart, false);
 						}
 						newrule.setRegex(lexerMin, rule.regex);
 						newrule.setAction(lexerMin, rule.action);
@@ -514,11 +506,11 @@ export function compile(languageId: string, json: IMonarchLanguage): monarchComm
 				monarchCommon.throwError(lexer, 'open and close brackets in a \'brackets\' attribute must be different: ' + desc.open +
 					'\n hint: use the \'bracket\' attribute if matching on equal brackets is required.');
 			}
-			if (typeof (desc.open) === 'string' && typeof (desc.token) === 'string') {
+			if (typeof desc.open === 'string' && typeof desc.token === 'string' && typeof desc.close === 'string') {
 				brackets.push({
-					token: string(desc.token) + lexer.tokenPostfix
-					, open: monarchCommon.fixCase(lexer, string(desc.open))
-					, close: monarchCommon.fixCase(lexer, string(desc.close))
+					token: desc.token + lexer.tokenPostfix,
+					open: monarchCommon.fixCase(lexer, desc.open),
+					close: monarchCommon.fixCase(lexer, desc.close)
 				});
 			}
 			else {

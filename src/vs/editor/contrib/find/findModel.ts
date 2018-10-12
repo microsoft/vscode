@@ -170,7 +170,7 @@ export class FindModelBoundToEditorModel {
 	}
 
 	private research(moveCursor: boolean, newFindScope?: Range): void {
-		let findScope: Range = null;
+		let findScope: Range | null = null;
 		if (typeof newFindScope !== 'undefined') {
 			findScope = newFindScope;
 		} else {

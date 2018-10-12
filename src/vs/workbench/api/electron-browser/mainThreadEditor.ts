@@ -32,7 +32,7 @@ export class MainThreadTextEditorProperties {
 	}
 
 	private static _readSelectionsFromCodeEditor(previousProperties: MainThreadTextEditorProperties, codeEditor: ICodeEditor): Selection[] {
-		let result: Selection[] = null;
+		let result: Selection[] | null = null;
 		if (codeEditor) {
 			result = codeEditor.getSelections();
 		}

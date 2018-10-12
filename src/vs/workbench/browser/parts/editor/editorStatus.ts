@@ -512,7 +512,8 @@ export class EditorStatus implements IStatusbarItem {
 					run: () => {
 						this.configurationService.updateValue('editor.accessibilitySupport', 'off', ConfigurationTarget.USER);
 					}
-				}]
+				}],
+				{ sticky: true }
 			);
 
 			once(this.screenReaderNotification.onDidClose)(() => {
@@ -976,7 +977,7 @@ export class ChangeModeAction extends Action {
 			}
 
 			// Find mode
-			let mode: TPromise<IMode>;
+			let mode: Promise<IMode>;
 			if (pick === autoDetectMode) {
 				mode = this.modeService.getOrCreateModeByFilepathOrFirstLine(toResource(activeEditor, { supportSideBySide: true }).fsPath, textModel.getLineContent(1));
 			} else {

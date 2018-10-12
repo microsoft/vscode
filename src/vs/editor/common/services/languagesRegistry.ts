@@ -85,7 +85,7 @@ export class LanguagesRegistry {
 	private _registerLanguage(lang: ILanguageExtensionPoint): void {
 		const langId = lang.id;
 
-		let resolvedLanguage: IResolvedLanguage = null;
+		let resolvedLanguage: IResolvedLanguage | null = null;
 		if (hasOwnProperty.call(this._languages, langId)) {
 			resolvedLanguage = this._languages[langId];
 		} else {
@@ -109,7 +109,7 @@ export class LanguagesRegistry {
 	private _mergeLanguage(resolvedLanguage: IResolvedLanguage, lang: ILanguageExtensionPoint): void {
 		const langId = lang.id;
 
-		let primaryMime: string = null;
+		let primaryMime: string | null = null;
 
 		if (Array.isArray(lang.mimetypes) && lang.mimetypes.length > 0) {
 			resolvedLanguage.mimetypes.push(...lang.mimetypes);
@@ -159,7 +159,7 @@ export class LanguagesRegistry {
 
 		resolvedLanguage.aliases.push(langId);
 
-		let langAliases: string[] = null;
+		let langAliases: string[] | null = null;
 		if (typeof lang.aliases !== 'undefined' && Array.isArray(lang.aliases)) {
 			if (lang.aliases.length === 0) {
 				// signal that this language should not get a name

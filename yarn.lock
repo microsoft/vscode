@@ -5649,7 +5649,7 @@ minimatch@0.3:
   dependencies:
     brace-expansion "^1.1.7"
 
-minimatch@2.x, minimatch@^2.0.1, minimatch@^2.0.10:
+minimatch@2.x, minimatch@^2.0.1:
   version "2.0.10"
   resolved "https://registry.yarnpkg.com/minimatch/-/minimatch-2.0.10.tgz#8d087c39c6b38c001b97fca7ce6d0e1e80afbac7"
   integrity sha1-jQh8OcazjAAbl/ynzm0OHoCvusc=
@@ -9357,10 +9357,10 @@ vscode-textmate@^4.0.1:
   dependencies:
     oniguruma "^7.0.0"
 
-vscode-xterm@3.9.0-beta5:
-  version "3.9.0-beta5"
-  resolved "https://registry.yarnpkg.com/vscode-xterm/-/vscode-xterm-3.9.0-beta5.tgz#3730966ed586632f40883852252333744ba5b9b7"
-  integrity sha512-MWLnQieNviCsvuV8He93N2usI2FXBGeUyNzIQNO7HsxjgIhn4zEwg3e2aSeQAAABeEkqLec5hp4vHpcqdPGU7Q==
+vscode-xterm@3.9.0-beta7:
+  version "3.9.0-beta7"
+  resolved "https://registry.yarnpkg.com/vscode-xterm/-/vscode-xterm-3.9.0-beta7.tgz#435b929001354309c25e330cc187785add938c8e"
+  integrity sha512-UTDnACoqpQbAzzxBfwZf+sWsUxcJ+t2CHprGJ5gjXEnI6soNB3C/MFEnASMjkz0FttQafVvDMu9vhByH5xTvjg==
 
 vso-node-api@6.1.2-preview:
   version "6.1.2-preview"

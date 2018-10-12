@@ -145,7 +145,7 @@ export class DragAndDropController implements editorCommon.IEditorContribution {
 			let newCursorPosition = new Position(mouseEvent.target.position.lineNumber, mouseEvent.target.position.column);
 
 			if (this._dragSelection === null) {
-				let newSelections: Selection[] = null;
+				let newSelections: Selection[] | null = null;
 				if (mouseEvent.event.shiftKey) {
 					let primarySelection = this._editor.getSelection();
 					let { selectionStartLineNumber, selectionStartColumn } = primarySelection;

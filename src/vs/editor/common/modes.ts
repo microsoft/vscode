@@ -200,7 +200,7 @@ export interface ITokenizationSupport {
 	getInitialState(): IState;
 
 	// add offsetDelta to each of the returned indices
-	tokenize(line: string, state: IState, offsetDelta: number): TokenizationResult;
+	tokenize?(line: string, state: IState, offsetDelta: number): TokenizationResult;
 
 	tokenize2(line: string, state: IState, offsetDelta: number): TokenizationResult2;
 }
@@ -1366,16 +1366,16 @@ export interface ITokenizationRegistry {
 	 * Get the promise of a tokenization support for a language.
 	 * `null` is returned if no support is available and no promise for the support has been registered yet.
 	 */
-	getPromise(language: string): Thenable<ITokenizationSupport>;
+	getPromise(language: string): Thenable<ITokenizationSupport> | null;
 
 	/**
 	 * Set the new color map that all tokens will use in their ColorId binary encoded bits for foreground and background.
 	 */
 	setColorMap(colorMap: Color[]): void;
 
-	getColorMap(): Color[];
+	getColorMap(): Color[] | null;
 
-	getDefaultBackground(): Color;
+	getDefaultBackground(): Color | null;
 }
 
 /**
