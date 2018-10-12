@@ -65,8 +65,8 @@ export class Colorizer {
 		}
 
 		return new Promise<string>((resolve, reject) => {
-			let listener: IDisposable = null;
-			let timeout: TimeoutTimer = null;
+			let listener: IDisposable | null = null;
+			let timeout: TimeoutTimer | null = null;
 
 			const execute = () => {
 				if (listener) {

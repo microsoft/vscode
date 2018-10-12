@@ -47,6 +47,7 @@ import { dispose, IDisposable } from 'vs/base/common/lifecycle';
 import { IDebugService, State, IDebugSession, CONTEXT_DEBUG_TYPE, CONTEXT_DEBUG_STATE, CONTEXT_IN_DEBUG_MODE, IThread, IDebugConfiguration, VIEWLET_ID, REPL_ID, IConfig, ILaunch, IViewModel, IConfigurationManager, IDebugModel, IEnablement, IBreakpoint, IBreakpointData, ICompound, IGlobalConfig, IStackFrame, AdapterEndEvent } from 'vs/workbench/parts/debug/common/debug';
 import { isExtensionHostDebugging } from 'vs/workbench/parts/debug/common/debugUtils';
 import { RunOnceScheduler } from 'vs/base/common/async';
+import { isErrorWithActions, createErrorWithActions } from 'vs/base/common/errorsWithActions';
 
 const DEBUG_BREAKPOINTS_KEY = 'debug.breakpoint';
 const DEBUG_BREAKPOINTS_ACTIVATED_KEY = 'debug.breakpointactivated';
@@ -472,7 +473,7 @@ export class DebugService implements IDebugService {
 
 			const errorMessage = error instanceof Error ? error.message : error;
 			this.telemetryDebugMisconfiguration(session.configuration ? session.configuration.type : undefined, errorMessage);
-			return this.showError(errorMessage, errors.isErrorWithActions(error) ? error.actions : []).then(() => false);
+			return this.showError(errorMessage, isErrorWithActions(error) ? error.actions : []).then(() => false);
 		});
 	}
 
@@ -547,32 +548,39 @@ export class DebugService implements IDebugService {
 
 	restartSession(session: IDebugSession, restartData?: any): TPromise<any> {
 		return this.textFileService.saveAll().then(() => {
-			// Do not run preLaunch and postDebug tasks for automatic restarts
 			const isAutoRestart = !!restartData;
-			const taskThenable: Thenable<TaskRunResult> = isAutoRestart ? Promise.resolve(TaskRunResult.Success) :
-				this.runTask(session.root, session.configuration.postDebugTask).then(() => this.runTaskAndCheckErrors(session.root, session.configuration.preLaunchTask));
-
-			return taskThenable.then(taskRunResult => {
-				if (taskRunResult !== TaskRunResult.Success) {
-					return;
-				}
-				if (session.capabilities.supportsRestartRequest) {
-					return session.restart().then(() => void 0);
+			const runTasks: () => Thenable<TaskRunResult> = () => {
+				if (isAutoRestart) {
+					// Do not run preLaunch and postDebug tasks for automatic restarts
+					return Promise.resolve(TaskRunResult.Success);
 				}
 
-				const shouldFocus = this.viewModel.focusedSession && session.getId() === this.viewModel.focusedSession.getId();
-				if (isExtensionHostDebugging(session.configuration) && session.root) {
-					return this.broadcastService.broadcast({
-						channel: EXTENSION_RELOAD_BROADCAST_CHANNEL,
-						payload: [session.root.uri.toString()]
-					});
-				}
+				return this.runTask(session.root, session.configuration.postDebugTask)
+					.then(() => this.runTaskAndCheckErrors(session.root, session.configuration.preLaunchTask));
+			};
 
-				// If the restart is automatic  -> disconnect, otherwise -> terminate #55064
-				return (isAutoRestart ? session.disconnect(true) : session.terminate(true)).then(() => {
+			if (session.capabilities.supportsRestartRequest) {
+				return runTasks().then(taskResult => taskResult === TaskRunResult.Success ? session.restart() : undefined);
+			}
 
-					return new Promise<void>((c, e) => {
-						setTimeout(() => {
+			if (isExtensionHostDebugging(session.configuration) && session.root) {
+				return runTasks().then(taskResult => taskResult === TaskRunResult.Success ? this.broadcastService.broadcast({
+					channel: EXTENSION_RELOAD_BROADCAST_CHANNEL,
+					payload: [session.root.uri.toString()]
+				}) : undefined);
+			}
+
+			const shouldFocus = this.viewModel.focusedSession && session.getId() === this.viewModel.focusedSession.getId();
+			// If the restart is automatic  -> disconnect, otherwise -> terminate #55064
+			return (isAutoRestart ? session.disconnect(true) : session.terminate(true)).then(() => {
+
+				return new Promise<void>((c, e) => {
+					setTimeout(() => {
+						runTasks().then(taskResult => {
+							if (taskResult !== TaskRunResult.Success) {
+								return;
+							}
+
 							// Read the configuration again if a launch.json has been changed, if not just use the inmemory configuration
 							let needsToSubstitute = false;
 							let unresolved: IConfig;
@@ -601,8 +609,8 @@ export class DebugService implements IDebugService {
 									c(null);
 								}, err => e(err));
 							});
-						}, 300);
-					});
+						});
+					}, 300);
 				});
 			});
 		});
@@ -621,7 +629,7 @@ export class DebugService implements IDebugService {
 	private substituteVariables(launch: ILaunch | undefined, config: IConfig): TPromise<IConfig> {
 		const dbg = this.configurationManager.getDebugger(config.type);
 		if (dbg) {
-			let folder: IWorkspaceFolder = undefined;
+			let folder: IWorkspaceFolder | undefined = undefined;
 			if (launch && launch.workspace) {
 				folder = launch.workspace;
 			} else {
@@ -695,7 +703,7 @@ export class DebugService implements IDebugService {
 				const errorMessage = typeof taskId === 'string'
 					? nls.localize('DebugTaskNotFoundWithTaskId', "Could not find the task '{0}'.", taskId)
 					: nls.localize('DebugTaskNotFound', "Could not find the specified task.");
-				return Promise.reject(errors.create(errorMessage));
+				return Promise.reject(createErrorWithActions(errorMessage));
 			}
 
 			// If a task is missing the problem matcher the promise will never complete, so we need to have a workaround #35340

@@ -98,7 +98,7 @@ class RequestOracle {
 	private _update(): void {
 
 		let widget = this._editorService.activeTextEditorWidget;
-		let codeEditor: ICodeEditor = undefined;
+		let codeEditor: ICodeEditor | undefined = undefined;
 		if (isCodeEditor(widget)) {
 			codeEditor = widget;
 		} else if (isDiffEditor(widget)) {

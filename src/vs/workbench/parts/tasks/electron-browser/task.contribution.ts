@@ -509,7 +509,8 @@ class TaskService implements ITaskService {
 						[{
 							label: nls.localize('reloadWindow', "Reload Window"),
 							run: () => this._windowService.reloadWindow()
-						}]
+						}],
+						{ sticky: true }
 					);
 					return;
 				} else {
@@ -1236,7 +1237,8 @@ class TaskService implements ITaskService {
 							{
 								label: nls.localize('restartTask', "Restart Task"),
 								run: () => this.restart(task)
-							}]
+							}],
+							{ sticky: true }
 						);
 					} else {
 						throw new TaskError(Severity.Warning, nls.localize('TaskSystem.active', 'There is already a task running. Terminate it first before executing another task.'), TaskErrors.RunningTask);
@@ -1725,7 +1727,7 @@ class TaskService implements ITaskService {
 			if (res.confirmed) {
 				return this._taskSystem.terminateAll().then((responses) => {
 					let success = true;
-					let code: number = undefined;
+					let code: number | undefined = undefined;
 					for (let response of responses) {
 						success = success && response.success;
 						// We only have a code in the old output runner which only has one task

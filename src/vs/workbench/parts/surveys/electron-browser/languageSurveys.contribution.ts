@@ -112,7 +112,8 @@ class LanguageSurvey {
 					storageService.store(IS_CANDIDATE_KEY, false, StorageScope.GLOBAL);
 					storageService.store(SKIP_VERSION_KEY, pkg.version, StorageScope.GLOBAL);
 				}
-			}]
+			}],
+			{ sticky: true }
 		);
 	}
 }

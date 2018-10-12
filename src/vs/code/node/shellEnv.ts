@@ -21,7 +21,7 @@ function getUnixShellEnvironment(): Promise<typeof process.env> {
 		});
 
 		const command = `'${process.execPath}' -p '"${mark}" + JSON.stringify(process.env) + "${mark}"'`;
-		const child = cp.spawn(process.env.SHELL, ['-ilc', command], {
+		const child = cp.spawn(process.env.SHELL!, ['-ilc', command], {
 			detached: true,
 			stdio: ['ignore', 'pipe', process.stderr],
 			env
@@ -66,7 +66,7 @@ function getUnixShellEnvironment(): Promise<typeof process.env> {
 	});
 
 	// swallow errors
-	return promise.then(null, () => ({}));
+	return promise.then(undefined, () => ({}));
 }
 
 

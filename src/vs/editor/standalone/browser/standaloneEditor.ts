@@ -40,7 +40,7 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 function withAllStandaloneServices<T extends editorCommon.IEditor>(domElement: HTMLElement, override: IEditorOverrideServices, callback: (services: DynamicStandaloneServices) => T): T {
 	let services = new DynamicStandaloneServices(domElement, override);
 
-	let simpleEditorModelResolverService: SimpleEditorModelResolverService = null;
+	let simpleEditorModelResolverService: SimpleEditorModelResolverService | null = null;
 	if (!services.has(ITextModelService)) {
 		simpleEditorModelResolverService = new SimpleEditorModelResolverService();
 		services.set(ITextModelService, simpleEditorModelResolverService);

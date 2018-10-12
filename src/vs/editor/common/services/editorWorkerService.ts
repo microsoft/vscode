@@ -16,16 +16,16 @@ export interface IEditorWorkerService {
 	_serviceBrand: any;
 
 	canComputeDiff(original: URI, modified: URI): boolean;
-	computeDiff(original: URI, modified: URI, ignoreTrimWhitespace: boolean): Promise<ILineChange[]>;
+	computeDiff(original: URI, modified: URI, ignoreTrimWhitespace: boolean): Promise<ILineChange[] | null>;
 
 	canComputeDirtyDiff(original: URI, modified: URI): boolean;
-	computeDirtyDiff(original: URI, modified: URI, ignoreTrimWhitespace: boolean): Promise<IChange[]>;
+	computeDirtyDiff(original: URI, modified: URI, ignoreTrimWhitespace: boolean): Promise<IChange[] | null>;
 
 	computeMoreMinimalEdits(resource: URI, edits: TextEdit[]): Promise<TextEdit[]>;
 
 	canComputeWordRanges(resource: URI): boolean;
-	computeWordRanges(resource: URI, range: IRange): Promise<{ [word: string]: IRange[] }>;
+	computeWordRanges(resource: URI, range: IRange): Promise<{ [word: string]: IRange[] } | null>;
 
 	canNavigateValueSet(resource: URI): boolean;
-	navigateValueSet(resource: URI, range: IRange, up: boolean): Promise<IInplaceReplaceSupportResult>;
+	navigateValueSet(resource: URI, range: IRange, up: boolean): Promise<IInplaceReplaceSupportResult | null>;
 }

@@ -65,10 +65,10 @@ export class FindReplaceState implements IDisposable {
 	private _wholeWordOverride: FindOptionOverride;
 	private _matchCase: boolean;
 	private _matchCaseOverride: FindOptionOverride;
-	private _searchScope: Range;
+	private _searchScope: Range | null;
 	private _matchesPosition: number;
 	private _matchesCount: number;
-	private _currentMatch: Range;
+	private _currentMatch: Range | null;
 	private readonly _onFindReplaceStateChange: Emitter<FindReplaceStateChangedEvent>;
 
 	public get searchString(): string { return this._searchString; }
@@ -83,10 +83,10 @@ export class FindReplaceState implements IDisposable {
 	public get actualWholeWord(): boolean { return this._wholeWord; }
 	public get actualMatchCase(): boolean { return this._matchCase; }
 
-	public get searchScope(): Range { return this._searchScope; }
+	public get searchScope(): Range | null { return this._searchScope; }
 	public get matchesPosition(): number { return this._matchesPosition; }
 	public get matchesCount(): number { return this._matchesCount; }
-	public get currentMatch(): Range { return this._currentMatch; }
+	public get currentMatch(): Range | null { return this._currentMatch; }
 	public get onFindReplaceStateChange(): Event<FindReplaceStateChangedEvent> { return this._onFindReplaceStateChange.event; }
 
 	constructor() {

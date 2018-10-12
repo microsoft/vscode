@@ -349,7 +349,7 @@ class InspectTMScopesWidget extends Disposable implements IContentWidget {
 	}
 
 	private _getStateBeforeLine(grammar: IGrammar, lineNumber: number): StackElement {
-		let state: StackElement = null;
+		let state: StackElement | null = null;
 
 		for (let i = 1; i < lineNumber; i++) {
 			let tokenizationResult = grammar.tokenizeLine(this._model.getLineContent(i), state);

@@ -10,7 +10,6 @@ import * as dom from 'vs/base/browser/dom';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { Event, Emitter } from 'vs/base/common/event';
 import { Disposable, IDisposable, dispose } from 'vs/base/common/lifecycle';
-import { TPromise } from 'vs/base/common/winjs.base';
 import { ServicesAccessor, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
@@ -377,7 +376,7 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 		return this.model;
 	}
 
-	public setModel(model: ITextModel = null): void {
+	public setModel(model: ITextModel | null = null): void {
 		if (this.model === model) {
 			// Current model is the new model
 			return;
@@ -911,7 +910,7 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 
 		const action = this.getAction(handlerId);
 		if (action) {
-			TPromise.as(action.run()).then(null, onUnexpectedError);
+			Promise.resolve(action.run()).then(null, onUnexpectedError);
 			return;
 		}
 
@@ -931,7 +930,7 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 		if (command) {
 			payload = payload || {};
 			payload.source = source;
-			TPromise.as(command.runEditorCommand(null, this, payload)).then(null, onUnexpectedError);
+			Promise.resolve(command.runEditorCommand(null, this, payload)).then(null, onUnexpectedError);
 			return true;
 		}
 
@@ -1463,7 +1462,7 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 	}
 
 	private _detachModel(): ITextModel {
-		let removeDomNode: HTMLElement = null;
+		let removeDomNode: HTMLElement | null = null;
 
 		if (this._view) {
 			this._view.dispose();

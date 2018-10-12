@@ -28,7 +28,7 @@ export class MarkdownRenderer {
 	constructor(
 		private readonly _editor: ICodeEditor,
 		@IModeService private readonly _modeService: IModeService,
-		@optional(IOpenerService) private readonly _openerService: IOpenerService = NullOpenerService,
+		@optional(IOpenerService) private readonly _openerService: IOpenerService | null = NullOpenerService,
 	) {
 	}
 

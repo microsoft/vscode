@@ -1,7 +1,7 @@
 {
   "name": "code-oss-dev",
   "version": "1.29.0",
-  "distro": "d880cac56e2f97abfbd0a6b8388caebfa96bb40c",
+  "distro": "41eb7ae09bf97fe9448a168eb37838124a2a3695",
   "author": {
     "name": "Microsoft Corporation"
   },
@@ -15,7 +15,7 @@
     "watch": "gulp watch --max_old_space_size=4095",
     "watch-client": "gulp watch-client --max_old_space_size=4095",
     "monaco-editor-test": "mocha --only-monaco-editor",
-    "precommit": "node build/gulpfile.hygiene.js && npm run strict-null-check",
+    "precommit": "node build/gulpfile.hygiene.js",
     "gulp": "gulp --max_old_space_size=4095",
     "7z": "7z",
     "update-grammars": "node build/npm/update-all-grammars.js",
@@ -50,7 +50,7 @@
     "vscode-nsfw": "1.0.17",
     "vscode-ripgrep": "^1.2.2",
     "vscode-textmate": "^4.0.1",
-    "vscode-xterm": "3.9.0-beta6",
+    "vscode-xterm": "3.9.0-beta7",
     "winreg": "^1.2.4",
     "yauzl": "^2.9.1",
     "yazl": "^2.4.3"
@@ -111,7 +111,6 @@
     "mkdirp": "^0.5.0",
     "mocha": "^2.2.5",
     "mocha-junit-reporter": "^1.17.0",
-    "object-assign": "^4.0.1",
     "optimist": "0.3.5",
     "p-all": "^1.0.0",
     "pump": "^1.0.1",

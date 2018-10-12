@@ -8,7 +8,7 @@ import 'vs/css!./media/workbench';
 import { localize } from 'vs/nls';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IDisposable, dispose, toDisposable, Disposable } from 'vs/base/common/lifecycle';
-import { Event, Emitter } from 'vs/base/common/event';
+import { Event, Emitter, once } from 'vs/base/common/event';
 import * as DOM from 'vs/base/browser/dom';
 import { RunOnceScheduler } from 'vs/base/common/async';
 import * as browser from 'vs/base/browser/browser';
@@ -501,6 +501,10 @@ export class Workbench extends Disposable implements IPartService {
 
 		// Fullscreen changes
 		this._register(browser.onDidChangeFullscreen(() => this.onFullscreenChanged()));
+
+		// Group changes
+		this._register(this.editorGroupService.onDidAddGroup(() => this.centerEditorLayout(this.shouldCenterLayout)));
+		this._register(this.editorGroupService.onDidRemoveGroup(() => this.centerEditorLayout(this.shouldCenterLayout)));
 	}
 
 	private onFullscreenChanged(): void {
@@ -658,19 +662,30 @@ export class Workbench extends Disposable implements IPartService {
 		this.editorPart.whenRestored.then(() => updateEditorContextKeys());
 		this._register(this.editorService.onDidActiveEditorChange(() => updateEditorContextKeys()));
 		this._register(this.editorService.onDidVisibleEditorsChange(() => updateEditorContextKeys()));
-		this._register(this.editorGroupService.onDidAddGroup(() => {
-			updateEditorContextKeys();
-			this.centerEditorLayout(this.shouldCenterLayout);
-		}));
-		this._register(this.editorGroupService.onDidRemoveGroup(() => {
-			updateEditorContextKeys();
-			this.centerEditorLayout(this.shouldCenterLayout);
-		}));
+		this._register(this.editorGroupService.onDidAddGroup(() => updateEditorContextKeys()));
+		this._register(this.editorGroupService.onDidRemoveGroup(() => updateEditorContextKeys()));
 
 		const inputFocused = InputFocusedContext.bindTo(this.contextKeyService);
-		this._register(DOM.addDisposableListener(window, 'focusin', () => {
-			inputFocused.set(document.activeElement && (document.activeElement.tagName === 'INPUT' || document.activeElement.tagName === 'TEXTAREA'));
-		}, true));
+
+		function activeElementIsInput(): boolean {
+			return document.activeElement && (document.activeElement.tagName === 'INPUT' || document.activeElement.tagName === 'TEXTAREA');
+		}
+
+		function trackInputFocus(): void {
+			const isInputFocused = activeElementIsInput();
+			inputFocused.set(isInputFocused);
+
+			if (isInputFocused) {
+				const tracker = DOM.trackFocus(document.activeElement as HTMLElement);
+				once(tracker.onDidBlur)(() => {
+					inputFocused.set(activeElementIsInput());
+
+					tracker.dispose();
+				});
+			}
+		}
+
+		this._register(DOM.addDisposableListener(window, 'focusin', () => trackInputFocus(), true));
 
 		const workbenchStateRawContext = new RawContextKey<string>('workbenchState', getWorkbenchStateString(this.configurationService.getWorkbenchState()));
 		const workbenchStateContext = workbenchStateRawContext.bindTo(this.contextKeyService);
@@ -1162,7 +1177,7 @@ export class Workbench extends Disposable implements IPartService {
 	}
 
 	getContainer(part: Parts): HTMLElement {
-		let container: HTMLElement = null;
+		let container: HTMLElement | null = null;
 		switch (part) {
 			case Parts.TITLEBAR_PART:
 				container = this.titlebarPart.getContainer();

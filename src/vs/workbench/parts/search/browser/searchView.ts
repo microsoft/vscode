@@ -1438,7 +1438,7 @@ export class SearchView extends Viewlet implements IViewlet, IPanel {
 	}
 
 	private getSelectionFrom(element: FileMatchOrMatch): any {
-		let match: Match = null;
+		let match: Match | null = null;
 		if (element instanceof Match) {
 			match = element;
 		}

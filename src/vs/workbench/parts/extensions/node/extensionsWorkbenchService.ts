@@ -313,9 +313,9 @@ ${this.description}
 
 class ExtensionDependencies implements IExtensionDependencies {
 
-	private _hasDependencies: boolean = null;
+	private _hasDependencies: boolean | null = null;
 
-	constructor(private _extension: IExtension, private _identifier: string, private _map: Map<string, IExtension>, private _dependent: IExtensionDependencies = null) { }
+	constructor(private _extension: IExtension, private _identifier: string, private _map: Map<string, IExtension>, private _dependent: IExtensionDependencies | null = null) { }
 
 	get hasDependencies(): boolean {
 		if (this._hasDependencies === null) {
@@ -1033,7 +1033,8 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService, 
 							[{
 								label: nls.localize('install', "Install"),
 								run: () => this.install(extension).then(undefined, error => this.onError(error))
-							}]
+							}],
+							{ sticky: true }
 						);
 					});
 				});

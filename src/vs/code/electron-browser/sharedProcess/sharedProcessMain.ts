@@ -99,7 +99,7 @@ function main(server: Server, initData: ISharedProcessInitData, configuration: I
 		telemetryLogService.info('The below are logs for every telemetry event sent from VS Code once the log level is set to trace.');
 		telemetryLogService.info('===========================================================');
 
-		let appInsightsAppender: ITelemetryAppender = NullAppender;
+		let appInsightsAppender: ITelemetryAppender | null = NullAppender;
 		if (product.aiConfig && product.aiConfig.asimovKey && isBuilt) {
 			appInsightsAppender = new AppInsightsAppender(eventPrefix, null, product.aiConfig.asimovKey, telemetryLogService);
 			disposables.push(appInsightsAppender); // Ensure the AI appender is disposed so that it flushes remaining data

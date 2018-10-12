@@ -682,7 +682,7 @@ export class SearchResult extends Disposable {
 			return;
 		}
 		this._showHighlights = value;
-		let selectedMatch: Match = null;
+		let selectedMatch: Match | null = null;
 		this.matches().forEach((fileMatch: FileMatch) => {
 			fileMatch.updateHighlights();
 			if (!selectedMatch) {
@@ -736,10 +736,10 @@ export class SearchResult extends Disposable {
 export class SearchModel extends Disposable {
 
 	private _searchResult: SearchResult;
-	private _searchQuery: ISearchQuery = null;
+	private _searchQuery: ISearchQuery | null = null;
 	private _replaceActive: boolean = false;
-	private _replaceString: string = null;
-	private _replacePattern: ReplacePattern = null;
+	private _replaceString: string | null = null;
+	private _replacePattern: ReplacePattern | null = null;
 
 	private readonly _onReplaceTermChanged: Emitter<void> = this._register(new Emitter<void>());
 	public readonly onReplaceTermChanged: Event<void> = this._onReplaceTermChanged.event;
@@ -925,8 +925,8 @@ export interface ISearchWorkbenchService {
  */
 export class RangeHighlightDecorations implements IDisposable {
 
-	private _decorationId: string = null;
-	private _model: ITextModel = null;
+	private _decorationId: string | null = null;
+	private _model: ITextModel | null = null;
 	private _modelDisposables: IDisposable[] = [];
 
 	constructor(

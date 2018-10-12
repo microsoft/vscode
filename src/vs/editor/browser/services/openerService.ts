@@ -22,7 +22,7 @@ export class OpenerService implements IOpenerService {
 	constructor(
 		@ICodeEditorService private readonly _editorService: ICodeEditorService,
 		@ICommandService private readonly _commandService: ICommandService,
-		@optional(ITelemetryService) private _telemetryService: ITelemetryService = NullTelemetryService
+		@optional(ITelemetryService) private _telemetryService: ITelemetryService | null = NullTelemetryService
 	) {
 		//
 	}

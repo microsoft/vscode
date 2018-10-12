@@ -5,13 +5,13 @@
 
 import 'vs/css!./tree';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
-import { IListOptions, List, IIdentityProvider, IMultipleSelectionController } from 'vs/base/browser/ui/list/listWidget';
-import { IVirtualDelegate, IRenderer, IListMouseEvent } from 'vs/base/browser/ui/list/list';
+import { IListOptions, List, IIdentityProvider, IMultipleSelectionController, IListStyles } from 'vs/base/browser/ui/list/listWidget';
+import { IListVirtualDelegate, IListRenderer, IListMouseEvent, IListEvent, IListContextMenuEvent } from 'vs/base/browser/ui/list/list';
 import { append, $ } from 'vs/base/browser/dom';
 import { Event, Relay, chain } from 'vs/base/common/event';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { KeyCode } from 'vs/base/common/keyCodes';
-import { ITreeModel, ITreeNode } from 'vs/base/browser/ui/tree/tree';
+import { ITreeModel, ITreeNode, ITreeRenderer } from 'vs/base/browser/ui/tree/tree';
 import { ISpliceable } from 'vs/base/common/sequence';
 import { IIndexTreeModelOptions } from 'vs/base/browser/ui/tree/indexTreeModel';
 
@@ -45,9 +45,9 @@ export function createComposedTreeListOptions<T, N extends { element: T }>(optio
 	};
 }
 
-export class ComposedTreeDelegate<T, N extends { element: T }> implements IVirtualDelegate<N> {
+export class ComposedTreeDelegate<T, N extends { element: T }> implements IListVirtualDelegate<N> {
 
-	constructor(private delegate: IVirtualDelegate<T>) { }
+	constructor(private delegate: IListVirtualDelegate<T>) { }
 
 	getHeight(element: N): number {
 		return this.delegate.getHeight(element.element);
@@ -71,12 +71,7 @@ function renderDefaultTwistie<T>(node: ITreeNode<T, any>, twistie: HTMLElement):
 	}
 }
 
-export interface ITreeRenderer<TElement, TTemplateData> extends IRenderer<TElement, TTemplateData> {
-	renderTwistie?(element: TElement, twistieElement: HTMLElement): boolean;
-	onDidChangeTwistieState?: Event<TElement>;
-}
-
-class TreeRenderer<T, TFilterData, TTemplateData> implements IRenderer<ITreeNode<T, TFilterData>, ITreeListTemplateData<TTemplateData>> {
+class TreeRenderer<T, TFilterData, TTemplateData> implements IListRenderer<ITreeNode<T, TFilterData>, ITreeListTemplateData<TTemplateData>> {
 
 	readonly templateId: string;
 	private renderedElements = new Map<T, ITreeNode<T, TFilterData>>();
@@ -84,7 +79,7 @@ class TreeRenderer<T, TFilterData, TTemplateData> implements IRenderer<ITreeNode
 	private disposables: IDisposable[] = [];
 
 	constructor(
-		private renderer: ITreeRenderer<T, TTemplateData>,
+		private renderer: ITreeRenderer<T, TFilterData, TTemplateData>,
 		onDidChangeCollapseState: Event<ITreeNode<T, TFilterData>>
 	) {
 		this.templateId = renderer.templateId;
@@ -98,8 +93,8 @@ class TreeRenderer<T, TFilterData, TTemplateData> implements IRenderer<ITreeNode
 
 	renderTemplate(container: HTMLElement): ITreeListTemplateData<TTemplateData> {
 		const el = append(container, $('.monaco-tl-row'));
-		const twistie = append(el, $('.tl-twistie'));
-		const contents = append(el, $('.tl-contents'));
+		const twistie = append(el, $('.monaco-tl-twistie'));
+		const contents = append(el, $('.monaco-tl-contents'));
 		const templateData = this.renderer.renderTemplate(contents);
 
 		return { twistie, templateData };
@@ -112,11 +107,11 @@ class TreeRenderer<T, TFilterData, TTemplateData> implements IRenderer<ITreeNode
 		templateData.twistie.style.width = `${10 + node.depth * 10}px`;
 		this.renderTwistie(node, templateData.twistie);
 
-		this.renderer.renderElement(node.element, index, templateData.templateData);
+		this.renderer.renderElement(node, index, templateData.templateData);
 	}
 
 	disposeElement(node: ITreeNode<T, TFilterData>, index: number, templateData: ITreeListTemplateData<TTemplateData>): void {
-		this.renderer.disposeElement(node.element, index, templateData.templateData);
+		this.renderer.disposeElement(node, index, templateData.templateData);
 		this.renderedNodes.delete(node);
 		this.renderedElements.set(node.element);
 	}
@@ -165,6 +160,8 @@ function isInputElement(e: HTMLElement): boolean {
 }
 
 export interface ITreeOptions<T, TFilterData = void> extends IListOptions<T>, IIndexTreeModelOptions<T, TFilterData> { }
+export interface ITreeEvent<T, TFilterData> extends IListEvent<ITreeNode<T, TFilterData>> { }
+export interface ITreeContextMenuEvent<T, TFilterData> extends IListContextMenuEvent<ITreeNode<T, TFilterData>> { }
 
 export abstract class AbstractTree<T, TFilterData, TRef> implements IDisposable {
 
@@ -173,11 +170,20 @@ export abstract class AbstractTree<T, TFilterData, TRef> implements IDisposable 
 	protected disposables: IDisposable[] = [];
 
 	readonly onDidChangeCollapseState: Event<ITreeNode<T, TFilterData>>;
+	readonly onDidChangeRenderNodeCount: Event<ITreeNode<T, TFilterData>>;
+	readonly onDidChangeFocus: Event<ITreeEvent<T, TFilterData>>;
+	readonly onDidChangeSelection: Event<ITreeEvent<T, TFilterData>>;
+
+	readonly onContextMenu: Event<ITreeContextMenuEvent<T, TFilterData>>;
+
+	get onDidFocus(): Event<void> { return this.view.onDidFocus; }
+	get onDidBlur(): Event<void> { return this.view.onDidBlur; }
+	get onDidDispose(): Event<void> { return this.view.onDidDispose; }
 
 	constructor(
 		container: HTMLElement,
-		delegate: IVirtualDelegate<T>,
-		renderers: ITreeRenderer<T, any>[],
+		delegate: IListVirtualDelegate<T>,
+		renderers: ITreeRenderer<T, TFilterData, any>[],
 		options?: ITreeOptions<T, TFilterData>
 	) {
 		const treeDelegate = new ComposedTreeDelegate<T, ITreeNode<T, TFilterData>>(delegate);
@@ -187,9 +193,14 @@ export abstract class AbstractTree<T, TFilterData, TRef> implements IDisposable 
 		this.disposables.push(...treeRenderers);
 
 		this.view = new List(container, treeDelegate, treeRenderers, createComposedTreeListOptions<T, ITreeNode<T, TFilterData>>(options));
+		this.onDidChangeFocus = this.view.onFocusChange;
+		this.onDidChangeSelection = this.view.onSelectionChange;
+		this.onContextMenu = this.view.onContextMenu;
+
 		this.model = this.createModel(this.view, options);
 		onDidChangeCollapseStateRelay.input = this.model.onDidChangeCollapseState;
 		this.onDidChangeCollapseState = this.model.onDidChangeCollapseState;
+		this.onDidChangeRenderNodeCount = this.model.onDidChangeRenderNodeCount;
 
 		this.view.onMouseClick(this.onMouseClick, this, this.disposables);
 
@@ -202,10 +213,42 @@ export abstract class AbstractTree<T, TFilterData, TRef> implements IDisposable 
 		onKeyDown.filter(e => e.keyCode === KeyCode.Space).on(this.onSpace, this, this.disposables);
 	}
 
-	protected abstract createModel(view: ISpliceable<ITreeNode<T, TFilterData>>, options: ITreeOptions<T, TFilterData>): ITreeModel<T, TFilterData, TRef>;
+	// Widget
 
-	refilter(): void {
-		this.model.refilter();
+	getHTMLElement(): HTMLElement {
+		return this.view.getHTMLElement();
+	}
+
+	domFocus(): void {
+		this.view.domFocus();
+	}
+
+	layout(height?: number): void {
+		this.view.layout(height);
+	}
+
+	style(styles: IListStyles): void {
+		this.view.style(styles);
+	}
+
+	// Tree navigation
+
+	getParentElement(ref: TRef | null = null): T | null {
+		return this.model.getParentElement(ref);
+	}
+
+	getFirstElementChild(ref: TRef | null = null): T | null {
+		return this.model.getFirstElementChild(ref);
+	}
+
+	getLastElementAncestor(ref: TRef | null = null): T | null {
+		return this.model.getLastElementAncestor(ref);
+	}
+
+	// Tree
+
+	getNode(location?: TRef): ITreeNode<T, TFilterData> {
+		return this.model.getNode(location);
 	}
 
 	collapse(location: TRef): boolean {
@@ -214,6 +257,89 @@ export abstract class AbstractTree<T, TFilterData, TRef> implements IDisposable 
 
 	expand(location: TRef): boolean {
 		return this.model.setCollapsed(location, false);
+	}
+
+	toggleCollapsed(ref: TRef): void {
+		this.model.toggleCollapsed(ref);
+	}
+
+	collapseAll(): void {
+		this.model.collapseAll();
+	}
+
+	isCollapsed(ref: TRef): boolean {
+		return this.model.isCollapsed(ref);
+	}
+
+	isExpanded(ref: TRef): boolean {
+		return !this.isCollapsed(ref);
+	}
+
+	refilter(): void {
+		this.model.refilter();
+	}
+
+	setSelection(elements: TRef[], browserEvent?: UIEvent): void {
+		const indexes = elements.map(e => this.model.getListIndex(e));
+		this.view.setSelection(indexes, browserEvent);
+	}
+
+	getSelection(): T[] {
+		const nodes = this.view.getSelectedElements();
+		return nodes.map(n => n.element);
+	}
+
+	setFocus(elements: TRef[]): void {
+		const indexes = elements.map(e => this.model.getListIndex(e));
+		this.view.setFocus(indexes);
+	}
+
+	focusNext(n = 1, loop = false): void {
+		this.view.focusNext(n, loop);
+	}
+
+	focusPrevious(n = 1, loop = false): void {
+		this.view.focusPrevious(n, loop);
+	}
+
+	focusNextPage(): void {
+		this.view.focusNextPage();
+	}
+
+	focusPreviousPage(): void {
+		this.view.focusPreviousPage();
+	}
+
+	focusLast(): void {
+		this.view.focusLast();
+	}
+
+	focusFirst(): void {
+		this.view.focusFirst();
+	}
+
+	getFocus(): T[] {
+		const nodes = this.view.getFocusedElements();
+		return nodes.map(n => n.element);
+	}
+
+	open(elements: TRef[]): void {
+		const indexes = elements.map(e => this.model.getListIndex(e));
+		this.view.open(indexes);
+	}
+
+	reveal(location: TRef, relativeTop?: number): void {
+		const index = this.model.getListIndex(location);
+		this.view.reveal(index, relativeTop);
+	}
+
+	/**
+	 * Returns the relative position of an element rendered in the list.
+	 * Returns `null` if the element isn't *entirely* in the visible viewport.
+	 */
+	getRelativeTop(location: TRef): number | null {
+		const index = this.model.getListIndex(location);
+		return this.view.getRelativeTop(index);
 	}
 
 	private onMouseClick(e: IListMouseEvent<ITreeNode<T, TFilterData>>): void {
@@ -292,6 +418,8 @@ export abstract class AbstractTree<T, TFilterData, TRef> implements IDisposable 
 		const location = this.model.getNodeLocation(node);
 		this.model.toggleCollapsed(location);
 	}
+
+	protected abstract createModel(view: ISpliceable<ITreeNode<T, TFilterData>>, options: ITreeOptions<T, TFilterData>): ITreeModel<T, TFilterData, TRef>;
 
 	dispose(): void {
 		this.disposables = dispose(this.disposables);

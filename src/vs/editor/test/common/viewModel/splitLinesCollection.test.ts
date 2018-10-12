@@ -321,8 +321,8 @@ suite('SplitLinesCollection', () => {
 		]
 	];
 
-	let model: TextModel = null;
-	let languageRegistration: IDisposable = null;
+	let model: TextModel | null = null;
+	let languageRegistration: IDisposable | null = null;
 
 	setup(() => {
 		let _lineIndex = 0;

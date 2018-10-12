@@ -419,7 +419,7 @@ export class OutlineModel extends TreeElement {
 			}
 		}
 
-		let result: OutlineElement = undefined;
+		let result: OutlineElement | undefined = undefined;
 		for (const key in this._groups) {
 			const group = this._groups[key];
 			result = group.getItemEnclosingPosition(position);

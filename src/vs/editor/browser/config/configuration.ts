@@ -62,7 +62,7 @@ export function restoreFontInfo(storageService: IStorageService): void {
 	if (typeof strStoredFontInfo !== 'string') {
 		return;
 	}
-	let storedFontInfo: ISerializedFontInfo[] = null;
+	let storedFontInfo: ISerializedFontInfo[] | null = null;
 	try {
 		storedFontInfo = JSON.parse(strStoredFontInfo);
 	} catch (err) {
@@ -187,7 +187,7 @@ class CSSBasedConfiguration extends Disposable {
 		return this._cache.get(bareFontInfo);
 	}
 
-	private static createRequest(chr: string, type: CharWidthRequestType, all: CharWidthRequest[], monospace: CharWidthRequest[]): CharWidthRequest {
+	private static createRequest(chr: string, type: CharWidthRequestType, all: CharWidthRequest[], monospace: CharWidthRequest[] | null): CharWidthRequest {
 		let result = new CharWidthRequest(chr, type);
 		all.push(result);
 		if (monospace) {
@@ -321,7 +321,7 @@ export class Configuration extends CommonEditorConfiguration {
 
 	private readonly _elementSizeObserver: ElementSizeObserver;
 
-	constructor(options: IEditorOptions, referenceDomElement: HTMLElement = null) {
+	constructor(options: IEditorOptions, referenceDomElement: HTMLElement | null = null) {
 		super(options);
 
 		this._elementSizeObserver = this._register(new ElementSizeObserver(referenceDomElement, () => this._onReferenceDomElementSizeChanged()));

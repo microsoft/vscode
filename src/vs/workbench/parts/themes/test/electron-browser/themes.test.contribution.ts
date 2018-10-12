@@ -95,7 +95,7 @@ class Snapper {
 
 	private _themedTokenize(grammar: IGrammar, lines: string[]): IThemedToken[] {
 		let colorMap = TokenizationRegistry.getColorMap();
-		let state: StackElement = null;
+		let state: StackElement | null = null;
 		let result: IThemedToken[] = [], resultLen = 0;
 		for (let i = 0, len = lines.length; i < len; i++) {
 			let line = lines[i];
@@ -123,13 +123,13 @@ class Snapper {
 	}
 
 	private _tokenize(grammar: IGrammar, lines: string[]): IToken[] {
-		let state: StackElement = null;
+		let state: StackElement | null = null;
 		let result: IToken[] = [], resultLen = 0;
 		for (let i = 0, len = lines.length; i < len; i++) {
 			let line = lines[i];
 
 			let tokenizationResult = grammar.tokenizeLine(line, state);
-			let lastScopes: string = null;
+			let lastScopes: string | null = null;
 
 			for (let j = 0, lenJ = tokenizationResult.tokens.length; j < lenJ; j++) {
 				let token = tokenizationResult.tokens[j];

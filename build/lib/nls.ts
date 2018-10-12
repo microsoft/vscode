@@ -8,7 +8,6 @@ import * as lazy from 'lazy.js';
 import { duplex, through } from 'event-stream';
 import * as File from 'vinyl';
 import * as sm from 'source-map';
-import assign = require('object-assign');
 import * as  path from 'path';
 
 declare class FileSourceMap extends File {
@@ -174,7 +173,7 @@ module nls {
 
 	export function analyze(contents: string, options: ts.CompilerOptions = {}): ILocalizeAnalysisResult {
 		const filename = 'file.ts';
-		const serviceHost = new SingleFileServiceHost(assign(clone(options), { noResolve: true }), filename, contents);
+		const serviceHost = new SingleFileServiceHost(Object.assign(clone(options), { noResolve: true }), filename, contents);
 		const service = ts.createLanguageService(serviceHost);
 		const sourceFile = ts.createSourceFile(filename, contents, ts.ScriptTarget.ES5, true);
 

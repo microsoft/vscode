@@ -168,7 +168,7 @@ export class DynamicStandaloneServices extends Disposable {
 		const themeService = this.get(IThemeService);
 
 		let ensure = <T>(serviceId: ServiceIdentifier<T>, factory: () => T): T => {
-			let value: T = null;
+			let value: T | null = null;
 			if (overrides) {
 				value = overrides[serviceId.toString()];
 			}

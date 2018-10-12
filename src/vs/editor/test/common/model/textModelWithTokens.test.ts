@@ -157,7 +157,7 @@ suite('TextModelWithTokens - bracket matching', () => {
 	}
 
 	const languageIdentifier = new LanguageIdentifier('bracketMode1', LanguageId.PlainText);
-	let registration: IDisposable = null;
+	let registration: IDisposable | null = null;
 
 	setup(() => {
 		registration = LanguageConfigurationRegistry.register(languageIdentifier, {

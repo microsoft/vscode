@@ -93,7 +93,7 @@ export class ReplacePattern {
 				}
 
 				let nextChCode = replaceString.charCodeAt(i);
-				let replaceWithCharacter: string = null;
+				let replaceWithCharacter: string | null = null;
 
 				switch (nextChCode) {
 					case CharCode.Backslash:
@@ -127,7 +127,7 @@ export class ReplacePattern {
 				}
 
 				let nextChCode = replaceString.charCodeAt(i);
-				let replaceWithCharacter: string = null;
+				let replaceWithCharacter: string | null = null;
 
 				switch (nextChCode) {
 					case CharCode.Digit0:

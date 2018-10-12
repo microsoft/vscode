@@ -13,7 +13,7 @@ import * as viewEvents from 'vs/editor/common/view/viewEvents';
 
 interface IWidgetData {
 	widget: IOverlayWidget;
-	preference: OverlayWidgetPositionPreference;
+	preference: OverlayWidgetPositionPreference | null;
 	domNode: FastDomNode<HTMLElement>;
 }
 
@@ -49,7 +49,7 @@ export class ViewOverlayWidgets extends ViewPart {
 
 	public dispose(): void {
 		super.dispose();
-		this._widgets = null;
+		this._widgets = {};
 	}
 
 	public getDomNode(): FastDomNode<HTMLElement> {
@@ -108,7 +108,7 @@ export class ViewOverlayWidgets extends ViewPart {
 			const domNode = widgetData.domNode.domNode;
 			delete this._widgets[widgetId];
 
-			domNode.parentNode.removeChild(domNode);
+			domNode.parentNode!.removeChild(domNode);
 			this.setShouldRender();
 		}
 	}
