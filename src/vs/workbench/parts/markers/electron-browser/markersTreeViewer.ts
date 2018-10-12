@@ -27,6 +27,8 @@ import { FilterOptions } from 'vs/workbench/parts/markers/electron-browser/marke
 import { IMatch } from 'vs/base/common/filters';
 import { Event } from 'vs/base/common/event';
 
+export type TreeElement = ResourceMarkers | Marker | RelatedInformation;
+
 interface IResourceMarkersTemplateData {
 	resourceLabel: ResourceLabel;
 	count: CountBadge;
@@ -78,13 +80,13 @@ const enum TemplateId {
 	RelatedInformation = 'ri'
 }
 
-export class VirtualDelegate implements IListVirtualDelegate<ResourceMarkers | Marker | RelatedInformation> {
+export class VirtualDelegate implements IListVirtualDelegate<TreeElement> {
 
 	getHeight(): number {
 		return 22;
 	}
 
-	getTemplateId(element: ResourceMarkers | Marker | RelatedInformation): string {
+	getTemplateId(element: TreeElement): string {
 		if (element instanceof ResourceMarkers) {
 			if ((element).resource.scheme === network.Schemas.file || (<ResourceMarkers>element).resource.scheme === network.Schemas.untitled) {
 				return TemplateId.FileResourceMarkers;
@@ -326,11 +328,11 @@ export class RelatedInformationRenderer implements ITreeRenderer<RelatedInformat
 	}
 }
 
-export class Filter implements ITreeFilter<ResourceMarkers | Marker | RelatedInformation, FilterData> {
+export class Filter implements ITreeFilter<TreeElement, FilterData> {
 
 	options = new FilterOptions();
 
-	filter(element: ResourceMarkers | Marker | RelatedInformation): TreeFilterResult<FilterData> {
+	filter(element: TreeElement): TreeFilterResult<FilterData> {
 		if (element instanceof ResourceMarkers) {
 			return this.filterResourceMarkers(element);
 		} else if (element instanceof Marker) {

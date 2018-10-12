@@ -36,15 +36,13 @@ import { mixin, deepClone } from 'vs/base/common/objects';
 import { IWorkspaceFolder, IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { isAbsolute, join } from 'vs/base/common/paths';
 import { ITreeContextMenuEvent } from 'vs/base/browser/ui/tree/abstractTree';
-import { FilterData, FileResourceMarkersRenderer, Filter, VirtualDelegate, ResourceMarkersRenderer, MarkerRenderer, RelatedInformationRenderer } from 'vs/workbench/parts/markers/electron-browser/markersTreeViewer';
+import { FilterData, FileResourceMarkersRenderer, Filter, VirtualDelegate, ResourceMarkersRenderer, MarkerRenderer, RelatedInformationRenderer, TreeElement } from 'vs/workbench/parts/markers/electron-browser/markersTreeViewer';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { Separator, ActionItem } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IMenuService, MenuId } from 'vs/platform/actions/common/actions';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { KeyCode } from 'vs/base/common/keyCodes';
-
-type TreeElement = ResourceMarkers | Marker | RelatedInformation;
 
 function createModelIterator(model: MarkersModel): Iterator<ITreeElement<TreeElement>> {
 	const resourcesIt = Iterator.fromArray(model.resourceMarkers);
