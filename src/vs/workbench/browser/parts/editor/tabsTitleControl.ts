@@ -953,12 +953,12 @@ export class TabsTitleControl extends TitleControl {
 	}
 
 	layout(dimension: Dimension): void {
+		this.dimension = dimension;
+
 		const activeTab = this.getTab(this.group.activeEditor);
-		if (!activeTab || !dimension) {
+		if (!activeTab || !this.dimension) {
 			return;
 		}
-
-		this.dimension = dimension;
 
 		// The layout of tabs can be an expensive operation because we access DOM properties
 		// that can result in the browser doing a full page layout to validate them. To buffer
