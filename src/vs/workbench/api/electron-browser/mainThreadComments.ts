@@ -71,7 +71,6 @@ export class MainThreadComments extends Disposable implements MainThreadComments
 			}
 
 			editors.forEach(editor => {
-				console.log(editor.getId());
 				const controller = ReviewController.get(editor);
 				if (!controller) {
 					return;
