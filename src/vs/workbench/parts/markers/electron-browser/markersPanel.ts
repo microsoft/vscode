@@ -43,6 +43,7 @@ import { IMenuService, MenuId } from 'vs/platform/actions/common/actions';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { KeyCode } from 'vs/base/common/keyCodes';
+import { domEvent } from 'vs/base/browser/event';
 
 function createModelIterator(model: MarkersModel): Iterator<ITreeElement<TreeElement>> {
 	const resourcesIt = Iterator.fromArray(model.resourceMarkers);
@@ -324,6 +325,13 @@ export class MarkersPanel extends Panel implements IMarkerFilterController {
 		this._register(this.configurationService.onDidChangeConfiguration(e => {
 			if (this.filterAction.useFilesExclude && e.affectsConfiguration('files.exclude')) {
 				this.updateFilter();
+			}
+		}));
+
+		// move focus to input, whenever a key is pressed in the panel container
+		this._register(domEvent(parent, 'keydown', true)(() => {
+			if (this.filterInputActionItem) {
+				this.filterInputActionItem.focus();
 			}
 		}));
 	}
