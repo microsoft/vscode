@@ -78,6 +78,7 @@
 		"./vs/base/common/winjs.base.d.ts",
 		"./vs/base/common/winjs.polyfill.promise.ts",
 		"./vs/base/common/worker/simpleWorker.ts",
+		"./vs/workbench/common/resources.ts",
 		"./vs/base/node/decoder.ts",
 		"./vs/base/node/id.ts",
 		"./vs/base/node/paths.ts",
