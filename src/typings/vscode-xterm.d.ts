@@ -381,37 +381,37 @@ declare module 'vscode-xterm' {
 		 * @param type The type of the event.
 		 * @param listener The listener.
 		 */
-		on(type: 'key', listener: (key?: string, event?: KeyboardEvent) => void): void;
+		on(type: 'key', listener: (key: string, event: KeyboardEvent) => void): void;
 		/**
 		 * Registers an event listener.
 		 * @param type The type of the event.
 		 * @param listener The listener.
 		 */
-		on(type: 'keypress' | 'keydown', listener: (event?: KeyboardEvent) => void): void;
+		on(type: 'keypress' | 'keydown', listener: (event: KeyboardEvent) => void): void;
 		/**
 		 * Registers an event listener.
 		 * @param type The type of the event.
 		 * @param listener The listener.
 		 */
-		on(type: 'refresh', listener: (data?: { start: number, end: number }) => void): void;
+		on(type: 'refresh', listener: (data: {start: number, end: number}) => void): void;
 		/**
 		 * Registers an event listener.
 		 * @param type The type of the event.
 		 * @param listener The listener.
 		 */
-		on(type: 'resize', listener: (data?: { cols: number, rows: number }) => void): void;
+		on(type: 'resize', listener: (data: {cols: number, rows: number}) => void): void;
 		/**
 		 * Registers an event listener.
 		 * @param type The type of the event.
 		 * @param listener The listener.
 		 */
-		on(type: 'scroll', listener: (ydisp?: number) => void): void;
+		on(type: 'scroll', listener: (ydisp: number) => void): void;
 		/**
 		 * Registers an event listener.
 		 * @param type The type of the event.
 		 * @param listener The listener.
 		 */
-		on(type: 'title', listener: (title?: string) => void): void;
+		on(type: 'title', listener: (title: string) => void): void;
 		/**
 		 * Registers an event listener.
 		 * @param type The type of the event.
