@@ -77,6 +77,13 @@ export class KeybindingsEditorInput extends EditorInput {
 	matches(otherInput: any): boolean {
 		return otherInput instanceof KeybindingsEditorInput;
 	}
+
+	public getResource(): URI {
+		return URI.from({
+			scheme: 'vscode-settings',
+			path: `keybindings_editor`
+		});
+	}
 }
 
 export class SettingsEditor2Input extends EditorInput {
