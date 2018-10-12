@@ -34,7 +34,7 @@ export class CodeEditorService extends CodeEditorServiceImpl {
 		return null;
 	}
 
-	openCodeEditor(input: IResourceInput, source: ICodeEditor, sideBySide?: boolean): TPromise<ICodeEditor> {
+	openCodeEditor(input: IResourceInput, source: ICodeEditor | null, sideBySide?: boolean): TPromise<ICodeEditor> {
 
 		// Special case: If the active editor is a diff editor and the request to open originates and
 		// targets the modified side of it, we just apply the request there to prevent opening the modified

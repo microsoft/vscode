@@ -19,8 +19,8 @@ export class EditorState {
 
 	private readonly flags: number;
 
-	private readonly position: Position;
-	private readonly selection: Range;
+	private readonly position: Position | null;
+	private readonly selection: Range | null;
 	private readonly modelVersionId: string | null;
 	private readonly scrollLeft: number;
 	private readonly scrollTop: number;

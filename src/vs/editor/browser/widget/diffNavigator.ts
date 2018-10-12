@@ -150,6 +150,10 @@ export class DiffNavigator {
 	private _initIdx(fwd: boolean): void {
 		let found = false;
 		let position = this._editor.getPosition();
+		if (!position) {
+			this.nextIdx = 0;
+			return;
+		}
 		for (let i = 0, len = this.ranges.length; i < len && !found; i++) {
 			let range = this.ranges[i].range;
 			if (position.isBeforeOrEqual(range.getStartPosition())) {

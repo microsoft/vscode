@@ -344,11 +344,11 @@ export class HitTestContext {
 		return this._viewHelper.getLineWidth(lineNumber);
 	}
 
-	public visibleRangeForPosition2(lineNumber: number, column: number): HorizontalRange {
+	public visibleRangeForPosition2(lineNumber: number, column: number): HorizontalRange | null {
 		return this._viewHelper.visibleRangeForPosition2(lineNumber, column);
 	}
 
-	public getPositionFromDOMInfo(spanNode: HTMLElement, offset: number): Position {
+	public getPositionFromDOMInfo(spanNode: HTMLElement, offset: number): Position | null {
 		return this._viewHelper.getPositionFromDOMInfo(spanNode, offset);
 	}
 

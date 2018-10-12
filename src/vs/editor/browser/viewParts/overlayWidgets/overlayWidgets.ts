@@ -89,7 +89,7 @@ export class ViewOverlayWidgets extends ViewPart {
 		this.setShouldRender();
 	}
 
-	public setWidgetPosition(widget: IOverlayWidget, preference: OverlayWidgetPositionPreference): boolean {
+	public setWidgetPosition(widget: IOverlayWidget, preference: OverlayWidgetPositionPreference | null): boolean {
 		let widgetData = this._widgets[widget.getId()];
 		if (widgetData.preference === preference) {
 			return false;

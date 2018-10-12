@@ -1499,7 +1499,20 @@ export namespace CoreNavigationCommands {
 
 export namespace CoreEditingCommands {
 
-	export const LineBreakInsert: EditorCommand = registerEditorCommand(new class extends EditorCommand {
+	export abstract class CoreEditingCommand extends EditorCommand {
+		public runEditorCommand(accessor: ServicesAccessor, editor: ICodeEditor, args: any): void {
+			const cursors = editor._getCursors();
+			if (!cursors) {
+				// the editor has no view => has no cursors
+				return;
+			}
+			this.runCoreEditingCommand(editor, cursors, args || {});
+		}
+
+		public abstract runCoreEditingCommand(editor: ICodeEditor, cursors: ICursors, args: any): void;
+	}
+
+	export const LineBreakInsert: EditorCommand = registerEditorCommand(new class extends CoreEditingCommand {
 		constructor() {
 			super({
 				id: 'lineBreakInsert',
@@ -1513,13 +1526,13 @@ export namespace CoreEditingCommands {
 			});
 		}
 
-		public runEditorCommand(accessor: ServicesAccessor, editor: ICodeEditor, args: any): void {
+		public runCoreEditingCommand(editor: ICodeEditor, cursors: ICursors, args: any): void {
 			editor.pushUndoStop();
-			editor.executeCommands(this.id, TypeOperations.lineBreakInsert(editor._getCursorConfiguration(), editor.getModel(), editor.getSelections()));
+			editor.executeCommands(this.id, TypeOperations.lineBreakInsert(cursors.context.config, cursors.context.model, cursors.getAll().map(s => s.modelState.selection)));
 		}
 	});
 
-	export const Outdent: EditorCommand = registerEditorCommand(new class extends EditorCommand {
+	export const Outdent: EditorCommand = registerEditorCommand(new class extends CoreEditingCommand {
 		constructor() {
 			super({
 				id: 'outdent',
@@ -1535,14 +1548,14 @@ export namespace CoreEditingCommands {
 			});
 		}
 
-		public runEditorCommand(accessor: ServicesAccessor, editor: ICodeEditor, args: any): void {
+		public runCoreEditingCommand(editor: ICodeEditor, cursors: ICursors, args: any): void {
 			editor.pushUndoStop();
-			editor.executeCommands(this.id, TypeOperations.outdent(editor._getCursorConfiguration(), editor.getModel(), editor.getSelections()));
+			editor.executeCommands(this.id, TypeOperations.outdent(cursors.context.config, cursors.context.model, cursors.getAll().map(s => s.modelState.selection)));
 			editor.pushUndoStop();
 		}
 	});
 
-	export const Tab: EditorCommand = registerEditorCommand(new class extends EditorCommand {
+	export const Tab: EditorCommand = registerEditorCommand(new class extends CoreEditingCommand {
 		constructor() {
 			super({
 				id: 'tab',
@@ -1558,14 +1571,14 @@ export namespace CoreEditingCommands {
 			});
 		}
 
-		public runEditorCommand(accessor: ServicesAccessor, editor: ICodeEditor, args: any): void {
+		public runCoreEditingCommand(editor: ICodeEditor, cursors: ICursors, args: any): void {
 			editor.pushUndoStop();
-			editor.executeCommands(this.id, TypeOperations.tab(editor._getCursorConfiguration(), editor.getModel(), editor.getSelections()));
+			editor.executeCommands(this.id, TypeOperations.tab(cursors.context.config, cursors.context.model, cursors.getAll().map(s => s.modelState.selection)));
 			editor.pushUndoStop();
 		}
 	});
 
-	export const DeleteLeft: EditorCommand = registerEditorCommand(new class extends EditorCommand {
+	export const DeleteLeft: EditorCommand = registerEditorCommand(new class extends CoreEditingCommand {
 		constructor() {
 			super({
 				id: 'deleteLeft',
@@ -1580,9 +1593,8 @@ export namespace CoreEditingCommands {
 			});
 		}
 
-		public runEditorCommand(accessor: ServicesAccessor, editor: ICodeEditor, args: any): void {
-			const cursors = editor._getCursors();
-			const [shouldPushStackElementBefore, commands] = DeleteOperations.deleteLeft(cursors.getPrevEditOperationType(), editor._getCursorConfiguration(), editor.getModel(), editor.getSelections());
+		public runCoreEditingCommand(editor: ICodeEditor, cursors: ICursors, args: any): void {
+			const [shouldPushStackElementBefore, commands] = DeleteOperations.deleteLeft(cursors.getPrevEditOperationType(), cursors.context.config, cursors.context.model, cursors.getAll().map(s => s.modelState.selection));
 			if (shouldPushStackElementBefore) {
 				editor.pushUndoStop();
 			}
@@ -1591,7 +1603,7 @@ export namespace CoreEditingCommands {
 		}
 	});
 
-	export const DeleteRight: EditorCommand = registerEditorCommand(new class extends EditorCommand {
+	export const DeleteRight: EditorCommand = registerEditorCommand(new class extends CoreEditingCommand {
 		constructor() {
 			super({
 				id: 'deleteRight',
@@ -1605,9 +1617,8 @@ export namespace CoreEditingCommands {
 			});
 		}
 
-		public runEditorCommand(accessor: ServicesAccessor, editor: ICodeEditor, args: any): void {
-			const cursors = editor._getCursors();
-			const [shouldPushStackElementBefore, commands] = DeleteOperations.deleteRight(cursors.getPrevEditOperationType(), editor._getCursorConfiguration(), editor.getModel(), editor.getSelections());
+		public runCoreEditingCommand(editor: ICodeEditor, cursors: ICursors, args: any): void {
+			const [shouldPushStackElementBefore, commands] = DeleteOperations.deleteRight(cursors.getPrevEditOperationType(), cursors.context.config, cursors.context.model, cursors.getAll().map(s => s.modelState.selection));
 			if (shouldPushStackElementBefore) {
 				editor.pushUndoStop();
 			}

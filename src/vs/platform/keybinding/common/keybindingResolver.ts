@@ -11,7 +11,7 @@ import { MenuRegistry } from 'vs/platform/actions/common/actions';
 
 export interface IResolveResult {
 	enterChord: boolean;
-	commandId: string;
+	commandId: string | null;
 	commandArgs: any;
 	bubble: boolean;
 }
@@ -47,7 +47,7 @@ export class KeybindingResolver {
 		}
 	}
 
-	private static _isTargetedForRemoval(defaultKb: ResolvedKeybindingItem, keypressFirstPart: string, keypressChordPart: string, command: string, when: ContextKeyExpr): boolean {
+	private static _isTargetedForRemoval(defaultKb: ResolvedKeybindingItem, keypressFirstPart: string | null, keypressChordPart: string | null, command: string, when: ContextKeyExpr): boolean {
 		if (defaultKb.command !== command) {
 			return false;
 		}
@@ -220,7 +220,7 @@ export class KeybindingResolver {
 		return result;
 	}
 
-	public lookupPrimaryKeybinding(commandId: string): ResolvedKeybindingItem {
+	public lookupPrimaryKeybinding(commandId: string): ResolvedKeybindingItem | null {
 		let items = this._lookupMap.get(commandId);
 		if (typeof items === 'undefined' || items.length === 0) {
 			return null;
@@ -229,7 +229,7 @@ export class KeybindingResolver {
 		return items[items.length - 1];
 	}
 
-	public resolve(context: IContext, currentChord: string, keypress: string): IResolveResult {
+	public resolve(context: IContext, currentChord: string, keypress: string): IResolveResult | null {
 		let lookupMap: ResolvedKeybindingItem[] | null = null;
 
 		if (currentChord !== null) {
@@ -280,7 +280,7 @@ export class KeybindingResolver {
 		};
 	}
 
-	private _findCommand(context: IContext, matches: ResolvedKeybindingItem[]): ResolvedKeybindingItem {
+	private _findCommand(context: IContext, matches: ResolvedKeybindingItem[]): ResolvedKeybindingItem | null {
 		for (let i = matches.length - 1; i >= 0; i--) {
 			let k = matches[i];
 

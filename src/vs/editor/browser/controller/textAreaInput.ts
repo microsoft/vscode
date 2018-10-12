@@ -36,7 +36,7 @@ export interface IPasteData {
 
 export interface ITextAreaInputHost {
 	getPlainTextToCopy(): string;
-	getHTMLToCopy(): string;
+	getHTMLToCopy(): string | null;
 	getScreenReaderContent(currentState: TextAreaState): TextAreaState;
 	deduceModelPosition(viewAnchorPosition: Position, deltaOffset: number, lineFeedCnt: number): Position;
 }

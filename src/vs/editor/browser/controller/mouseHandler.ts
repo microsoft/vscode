@@ -55,9 +55,9 @@ export interface IPointerHandlerHelper {
 	/**
 	 * Decode a position from a rendered dom node
 	 */
-	getPositionFromDOMInfo(spanNode: HTMLElement, offset: number): Position;
+	getPositionFromDOMInfo(spanNode: HTMLElement, offset: number): Position | null;
 
-	visibleRangeForPosition2(lineNumber: number, column: number): HorizontalRange;
+	visibleRangeForPosition2(lineNumber: number, column: number): HorizontalRange | null;
 	getLineWidth(lineNumber: number): number;
 }
 
@@ -113,7 +113,7 @@ export class MouseHandler extends ViewEventHandler {
 				return;
 			}
 			let e = new StandardMouseWheelEvent(browserEvent);
-			if (e.browserEvent.ctrlKey || e.browserEvent.metaKey) {
+			if (e.browserEvent!.ctrlKey || e.browserEvent!.metaKey) {
 				let zoomLevel: number = EditorZoom.getZoomLevel();
 				let delta = e.deltaY > 0 ? 1 : -1;
 				EditorZoom.setZoomLevel(zoomLevel + delta);

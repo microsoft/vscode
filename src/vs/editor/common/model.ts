@@ -339,7 +339,7 @@ export interface ICursorStateComputer {
 	/**
 	 * A callback that can compute the resulting cursors state after some edit operations have been executed.
 	 */
-	(inverseEditOperations: IIdentifiedSingleEditOperation[]): Selection[];
+	(inverseEditOperations: IIdentifiedSingleEditOperation[]): Selection[] | null;
 }
 
 export class TextModelResolvedOptions {

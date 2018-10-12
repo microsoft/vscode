@@ -67,7 +67,7 @@ export abstract class CodeEditorServiceImpl extends AbstractCodeEditorService {
 	}
 
 	abstract getActiveCodeEditor(): ICodeEditor;
-	abstract openCodeEditor(input: IResourceInput, source: ICodeEditor, sideBySide?: boolean): Thenable<ICodeEditor>;
+	abstract openCodeEditor(input: IResourceInput, source: ICodeEditor | null, sideBySide?: boolean): Thenable<ICodeEditor>;
 }
 
 interface IModelDecorationOptionsProvider extends IDisposable {

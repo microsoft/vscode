@@ -352,8 +352,12 @@ export class IndentLinesAction extends EditorAction {
 	}
 
 	public run(_accessor: ServicesAccessor, editor: ICodeEditor): void {
+		const cursors = editor._getCursors();
+		if (!cursors) {
+			return;
+		}
 		editor.pushUndoStop();
-		editor.executeCommands(this.id, TypeOperations.indent(editor._getCursorConfiguration(), editor.getModel(), editor.getSelections()));
+		editor.executeCommands(this.id, TypeOperations.indent(cursors.context.config, editor.getModel(), editor.getSelections()));
 		editor.pushUndoStop();
 	}
 }
@@ -394,8 +398,12 @@ export class InsertLineBeforeAction extends EditorAction {
 	}
 
 	public run(_accessor: ServicesAccessor, editor: ICodeEditor): void {
+		const cursors = editor._getCursors();
+		if (!cursors) {
+			return;
+		}
 		editor.pushUndoStop();
-		editor.executeCommands(this.id, TypeOperations.lineInsertBefore(editor._getCursorConfiguration(), editor.getModel(), editor.getSelections()));
+		editor.executeCommands(this.id, TypeOperations.lineInsertBefore(cursors.context.config, editor.getModel(), editor.getSelections()));
 	}
 }
 
@@ -415,8 +423,12 @@ export class InsertLineAfterAction extends EditorAction {
 	}
 
 	public run(_accessor: ServicesAccessor, editor: ICodeEditor): void {
+		const cursors = editor._getCursors();
+		if (!cursors) {
+			return;
+		}
 		editor.pushUndoStop();
-		editor.executeCommands(this.id, TypeOperations.lineInsertAfter(editor._getCursorConfiguration(), editor.getModel(), editor.getSelections()));
+		editor.executeCommands(this.id, TypeOperations.lineInsertAfter(cursors.context.config, editor.getModel(), editor.getSelections()));
 	}
 }
 

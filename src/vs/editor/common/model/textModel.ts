@@ -153,23 +153,7 @@ class TextModelSnapshot implements ITextSnapshot {
 	}
 }
 
-const invalidChangeAccessor: model.IModelDecorationsChangeAccessor = {
-	addDecoration: (range: IRange, options: model.IModelDecorationOptions): string => {
-		throw new Error(`Invalid change accessor`);
-	},
-	changeDecoration: (id: string, newRange: IRange): void => {
-		throw new Error(`Invalid change accessor`);
-	},
-	changeDecorationOptions: (id: string, options: model.IModelDecorationOptions) => {
-		throw new Error(`Invalid change accessor`);
-	},
-	removeDecoration: (id: string): void => {
-		throw new Error(`Invalid change accessor`);
-	},
-	deltaDecorations: (oldDecorations: string[], newDecorations: model.IModelDeltaDecoration[]): string[] => {
-		throw new Error(`Invalid change accessor`);
-	}
-};
+const invalidFunc = () => { throw new Error(`Invalid change accessor`); };
 
 export class TextModel extends Disposable implements model.ITextModel {
 
@@ -1521,11 +1505,11 @@ export class TextModel extends Disposable implements model.ITextModel {
 			onUnexpectedError(e);
 		}
 		// Invalidate change accessor
-		changeAccessor.addDecoration = invalidChangeAccessor.addDecoration;
-		changeAccessor.changeDecoration = invalidChangeAccessor.changeDecoration;
-		changeAccessor.changeDecorationOptions = invalidChangeAccessor.changeDecorationOptions;
-		changeAccessor.removeDecoration = invalidChangeAccessor.removeDecoration;
-		changeAccessor.deltaDecorations = invalidChangeAccessor.deltaDecorations;
+		changeAccessor.addDecoration = invalidFunc;
+		changeAccessor.changeDecoration = invalidFunc;
+		changeAccessor.changeDecorationOptions = invalidFunc;
+		changeAccessor.removeDecoration = invalidFunc;
+		changeAccessor.deltaDecorations = invalidFunc;
 		return result;
 	}
 
