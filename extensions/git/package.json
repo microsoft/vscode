@@ -341,6 +341,26 @@
         "category": "Git"
       },
       {
+        "command": "git.setGitEditor",
+        "title": "%command.setGitEditor%",
+        "category": "Git"
+      },
+      {
+        "command": "git.setGitDiffTool",
+        "title": "%command.setGitDiffTool%",
+        "category": "Git"
+      },
+      {
+        "command": "git.setGitMergeTool",
+        "title": "%command.setGitMergeTool%",
+        "category": "Git"
+      },
+      {
+        "command": "git.setGitTools",
+        "title": "%command.setGitTools%",
+        "category": "Git"
+      },
+      {
         "command": "git.stashIncludeUntracked",
         "title": "%command.stashIncludeUntracked%",
         "category": "Git"

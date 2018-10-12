@@ -16,6 +16,7 @@ import * as os from 'os';
 import TelemetryReporter from 'vscode-extension-telemetry';
 import * as nls from 'vscode-nls';
 import { Ref, RefType, Branch, GitErrorCodes, Status } from './api/git';
+import * as which from 'which';
 
 const localize = nls.loadMessageBundle();
 
@@ -1911,6 +1912,101 @@ export class CommandCenter {
 		const picks = stashes.map(stash => ({ label: `#${stash.index}:  ${stash.description}`, description: '', details: '', stash }));
 		const result = await window.showQuickPick(picks, { placeHolder });
 		return result && result.stash;
+	}
+
+	@command('git.setGitEditor')
+	async setVsCodeAsGitEditor(): Promise<boolean> {
+		const vscodeExe = this.getVsCodePath();
+		if (vscodeExe === undefined) {
+			return false;
+		}
+
+		if (await this.setGitGlobalConfig('core.editor', `"${vscodeExe}" --wait`)) {
+			window.showInformationMessage(localize('successGitEditor', "Visual Studio Code has been successfully set as git editor"));
+			return true;
+		} else {
+			window.showErrorMessage(localize('failGitEditor', "Failed to set Visual Studio Code as git editor"))
+			.then(_ =>{
+				this.outputChannel.show();
+			});
+			return false;
+		}
+	}
+
+	@command('git.setGitDiffTool')
+	async setVsCodeAsGitDiffTool(): Promise<boolean> {
+		const vscodeExe = this.getVsCodePath();
+		if (vscodeExe === undefined) {
+			return false;
+		}
+
+		if (await this.setGitGlobalConfig('difftool.vscode.cmd', `"${vscodeExe}" --wait --diff "$LOCAL" "$REMOTE"`)
+			&& await this.setGitGlobalConfig('diff.tool', 'vscode')) {
+			window.showInformationMessage(localize('successDiffTool', "Visual Studio Code has been successfully set as diff tool"));
+			return true;
+		} else {
+			window.showErrorMessage(localize('failDiffTool', "Failed to set Visual Studio Code as diff tool"))
+				.then(_ =>{
+					this.outputChannel.show();
+				});
+			return false;
+		}
+	}
+
+	@command('git.setGitMergeTool')
+	async setVsCodeAsGitMergeTool(): Promise<boolean> {
+		const vscodeExe = await this.getVsCodePath();
+		if (vscodeExe === undefined) {
+			return false;
+		}
+
+		if (await this.setGitGlobalConfig('mergetool.vscode.cmd', `"${vscodeExe}" --wait "$MERGED"`)
+			&& await this.setGitGlobalConfig('merge.tool', 'vscode')) {
+			window.showInformationMessage(localize('successMergeTool', "Visual Studio Code has been successfully set as merge tool"));
+			return true;
+		} else {
+			window.showErrorMessage(localize('failMergeTool', "Failed to set Visual Studio Code as merge tool"))
+			.then(_ =>{
+				this.outputChannel.show();
+			});
+			return false;
+		}
+	}
+
+	@command('git.setGitTools')
+	async setVsCodeAsGitTools(): Promise<boolean> {
+		return await this.setVsCodeAsGitEditor()
+			&& await this.setVsCodeAsGitDiffTool()
+			&& await this.setVsCodeAsGitMergeTool();
+	}
+
+	private findInPath(exeName: string): Promise<undefined | string> {
+		return new Promise<string>((c, _) => which(exeName, (err, path) => err ? c(undefined) : c(path)));
+	}
+
+	private async getVsCodePath(): Promise<undefined | string> {
+		const exePath = await this.findInPath('code') || await this.findInPath('code-insiders');
+
+		if (exePath !== undefined) {
+			return exePath;
+		}
+
+		window.showWarningMessage(localize('failFindVsCodeInPath', "Please add Visual Studio Code to the path before setting it as git tool"));
+		return undefined;
+	}
+
+	private async setGitGlobalConfig(key: string, value: string): Promise<boolean> {
+		try {
+			const res = await this.git.exec('.', ['config', '--global', key, value]);
+			if (res.exitCode !== 0) {
+				console.error('Fail to set git setting. Error: \n' + res.stderr);
+				return false;
+			}
+			return true;
+		} catch (error) {
+			console.error('Fail to set git setting. Error: \n' + error);
+			return false;
+		}
 	}
 
 	private createCommand(id: string, key: string, method: Function, options: CommandOptions): (...args: any[]) => any {
