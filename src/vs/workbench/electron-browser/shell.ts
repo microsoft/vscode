@@ -43,7 +43,7 @@ import { IStorageService } from 'vs/platform/storage/common/storage';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { InstantiationService } from 'vs/platform/instantiation/node/instantiationService';
-import { ILifecycleService, LifecyclePhase, ShutdownReason, StartupKind, ShutdownEvent } from 'vs/platform/lifecycle/common/lifecycle';
+import { ILifecycleService, LifecyclePhase, ShutdownReason, ShutdownEvent } from 'vs/platform/lifecycle/common/lifecycle';
 import { IMarkerService } from 'vs/platform/markers/common/markers';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { ISearchService, ISearchHistoryService } from 'vs/platform/search/common/search';
@@ -75,11 +75,9 @@ import { IBroadcastService, BroadcastService } from 'vs/platform/broadcast/elect
 import { HashService } from 'vs/workbench/services/hash/node/hashService';
 import { IHashService } from 'vs/workbench/services/hash/common/hashService';
 import { ILogService } from 'vs/platform/log/common/log';
-import { INextStorage2Service, StorageScope } from 'vs/platform/storage2/common/storage2';
+import { INextStorage2Service } from 'vs/platform/storage2/common/storage2';
 import { Event, Emitter } from 'vs/base/common/event';
 import { WORKBENCH_BACKGROUND } from 'vs/workbench/common/theme';
-import { stat } from 'fs';
-import { join } from 'path';
 import { ILocalizationsChannel, LocalizationsChannelClient } from 'vs/platform/localizations/node/localizationsIpc';
 import { ILocalizationsService } from 'vs/platform/localizations/common/localizations';
 import { IWorkbenchIssueService } from 'vs/workbench/services/issue/common/issue';
@@ -225,11 +223,6 @@ export class WorkbenchShell extends Disposable {
 				}, 5000);
 
 				this._register(eventuallPhaseTimeoutHandle);
-
-				// localStorage metrics (TODO@Ben remove me later)
-				if (!this.environmentService.extensionTestsPath && this.contextService.getWorkbenchState() === WorkbenchState.FOLDER) {
-					this.logLocalStorageMetrics();
-				}
 			}, error => handleStartupError(this.logService, error));
 
 			return workbench;
@@ -281,53 +274,6 @@ export class WorkbenchShell extends Disposable {
 
 		// Telemetry: startup metrics
 		perf.mark('didStartWorkbench');
-	}
-
-	private logLocalStorageMetrics(): void {
-		if (this.lifecycleService.startupKind === StartupKind.ReloadedWindow || this.lifecycleService.startupKind === StartupKind.ReopenedWindow) {
-			return; // avoid logging localStorage metrics for reload/reopen, we prefer cold startup numbers
-		}
-
-		perf.mark('willReadLocalStorage');
-		const readyToSend = this.nextStorage2Service.getBoolean('localStorageMetricsReadyToSend2', StorageScope.GLOBAL);
-		perf.mark('didReadLocalStorage');
-
-		if (!readyToSend) {
-			this.nextStorage2Service.set('localStorageMetricsReadyToSend2', true, StorageScope.GLOBAL);
-			return; // avoid logging localStorage metrics directly after the update, we prefer cold startup numbers
-		}
-
-		if (!this.nextStorage2Service.getBoolean('localStorageMetricsSent2', StorageScope.GLOBAL)) {
-			perf.mark('willWriteLocalStorage');
-			this.nextStorage2Service.set('localStorageMetricsSent2', true, StorageScope.GLOBAL);
-			perf.mark('didWriteLocalStorage');
-
-			perf.mark('willStatLocalStorage');
-			stat(join(this.environmentService.userDataPath, 'Local Storage', 'file__0.localstorage'), (error, stat) => {
-				perf.mark('didStatLocalStorage');
-
-				/* __GDPR__
-					"localStorageTimers<NUMBER>" : {
-						"statTime" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-						"accessTime" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-						"firstReadTime" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-						"subsequentReadTime" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-						"writeTime" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-						"keys" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-						"size": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true }
-					}
-				*/
-				this.telemetryService.publicLog('localStorageTimers2', {
-					'statTime': perf.getDuration('willStatLocalStorage', 'didStatLocalStorage'),
-					'accessTime': perf.getDuration('willAccessLocalStorage', 'didAccessLocalStorage'),
-					'firstReadTime': perf.getDuration('willReadWorkspaceIdentifier', 'didReadWorkspaceIdentifier'),
-					'subsequentReadTime': perf.getDuration('willReadLocalStorage', 'didReadLocalStorage'),
-					'writeTime': perf.getDuration('willWriteLocalStorage', 'didWriteLocalStorage'),
-					'keys': window.localStorage.length,
-					'size': stat ? stat.size : -1
-				});
-			});
-		}
 	}
 
 	private initServiceCollection(container: HTMLElement): [IInstantiationService, ServiceCollection] {

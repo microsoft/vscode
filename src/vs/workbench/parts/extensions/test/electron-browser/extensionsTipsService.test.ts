@@ -21,7 +21,9 @@ import { Emitter } from 'vs/base/common/event';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { NullTelemetryService } from 'vs/platform/telemetry/common/telemetryUtils';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { TestTextResourceConfigurationService, TestContextService, TestLifecycleService, TestEnvironmentService, TestStorageService } from 'vs/workbench/test/workbenchTestServices';
+import { TestTextResourceConfigurationService, TestContextService, TestLifecycleService, TestEnvironmentService } from 'vs/workbench/test/workbenchTestServices';
+import { NextInMemoryStorage2Service } from 'vs/platform/storage2/electron-browser/nextStorage2Service';
+import { NullLogService } from 'vs/platform/log/common/log';
 import { TestNotificationService } from 'vs/platform/notification/test/common/testNotificationService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { URI } from 'vs/base/common/uri';
@@ -277,7 +279,7 @@ suite('ExtensionsTipsService Test', () => {
 			const myWorkspace = testWorkspace(URI.from({ scheme: 'file', path: folderDir }));
 			workspaceService = new TestContextService(myWorkspace);
 			instantiationService.stub(IWorkspaceContextService, workspaceService);
-			instantiationService.stub(IFileService, new FileService(workspaceService, TestEnvironmentService, new TestTextResourceConfigurationService(), new TestConfigurationService(), new TestLifecycleService(), new TestStorageService(), new TestNotificationService(), { disableWatcher: true }));
+			instantiationService.stub(IFileService, new FileService(workspaceService, TestEnvironmentService, new TestTextResourceConfigurationService(), new TestConfigurationService(), new TestLifecycleService(), new NextInMemoryStorage2Service(new NullLogService(), TestEnvironmentService), new TestNotificationService(), { disableWatcher: true }));
 		});
 	}
 

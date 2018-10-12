@@ -15,7 +15,9 @@ import { parseArgs } from 'vs/platform/environment/node/argv';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { EnvironmentService } from 'vs/platform/environment/node/environmentService';
 import * as extfs from 'vs/base/node/extfs';
-import { TestTextFileService, TestTextResourceConfigurationService, workbenchInstantiationService, TestLifecycleService, TestEnvironmentService, TestStorageService } from 'vs/workbench/test/workbenchTestServices';
+import { TestTextFileService, TestTextResourceConfigurationService, workbenchInstantiationService, TestLifecycleService, TestEnvironmentService } from 'vs/workbench/test/workbenchTestServices';
+import { NextInMemoryStorage2Service } from 'vs/platform/storage2/electron-browser/nextStorage2Service';
+import { NullLogService } from 'vs/platform/log/common/log';
 import { TestNotificationService } from 'vs/platform/notification/test/common/testNotificationService';
 import * as uuid from 'vs/base/common/uuid';
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions } from 'vs/platform/configuration/common/configurationRegistry';
@@ -103,7 +105,7 @@ suite('ConfigurationEditingService', () => {
 		instantiationService.stub(IWorkspaceContextService, workspaceService);
 		return workspaceService.initialize(noWorkspace ? {} as IWindowConfiguration : URI.file(workspaceDir)).then(() => {
 			instantiationService.stub(IConfigurationService, workspaceService);
-			instantiationService.stub(IFileService, new FileService(workspaceService, TestEnvironmentService, new TestTextResourceConfigurationService(), new TestConfigurationService(), new TestLifecycleService(), new TestStorageService(), new TestNotificationService(), { disableWatcher: true }));
+			instantiationService.stub(IFileService, new FileService(workspaceService, TestEnvironmentService, new TestTextResourceConfigurationService(), new TestConfigurationService(), new TestLifecycleService(), new NextInMemoryStorage2Service(new NullLogService(), TestEnvironmentService), new TestNotificationService(), { disableWatcher: true }));
 			instantiationService.stub(ITextFileService, instantiationService.createInstance(TestTextFileService));
 			instantiationService.stub(ITextModelService, <ITextModelService>instantiationService.createInstance(TextModelResolverService));
 			instantiationService.stub(ICommandService, CommandService);

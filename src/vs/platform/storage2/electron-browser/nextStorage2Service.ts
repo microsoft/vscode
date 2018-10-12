@@ -181,3 +181,13 @@ export class NextDelegatingStorage2Service extends Disposable implements INextSt
 		return scope === StorageScope.GLOBAL ? LocalStorageScope.GLOBAL : LocalStorageScope.WORKSPACE;
 	}
 }
+
+export class NextInMemoryStorage2Service extends NextStorage2Service {
+
+	constructor(
+		@ILogService logService: ILogService,
+		@IEnvironmentService environmentService: IEnvironmentService
+	) {
+		super(':memory:', logService, environmentService);
+	}
+}

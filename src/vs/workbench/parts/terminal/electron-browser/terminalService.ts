@@ -16,7 +16,7 @@ import { ITerminalInstance, ITerminalService, IShellLaunchConfig, ITerminalConfi
 import { TerminalService as AbstractTerminalService } from 'vs/workbench/parts/terminal/common/terminalService';
 import { TerminalConfigHelper } from 'vs/workbench/parts/terminal/electron-browser/terminalConfigHelper';
 import Severity from 'vs/base/common/severity';
-import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
+import { INextStorage2Service, StorageScope } from 'vs/platform/storage2/common/storage2';
 import { getDefaultShell } from 'vs/workbench/parts/terminal/node/terminal';
 import { TerminalPanel } from 'vs/workbench/parts/terminal/electron-browser/terminalPanel';
 import { TerminalTab } from 'vs/workbench/parts/terminal/browser/terminalTab';
@@ -41,7 +41,7 @@ export class TerminalService extends AbstractTerminalService implements ITermina
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IPanelService panelService: IPanelService,
 		@IPartService partService: IPartService,
-		@IStorageService storageService: IStorageService,
+		@INextStorage2Service nextStorage2Service: INextStorage2Service,
 		@ILifecycleService lifecycleService: ILifecycleService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
@@ -50,7 +50,7 @@ export class TerminalService extends AbstractTerminalService implements ITermina
 		@IDialogService private readonly _dialogService: IDialogService,
 		@IExtensionService private readonly _extensionService: IExtensionService
 	) {
-		super(contextKeyService, panelService, partService, lifecycleService, storageService);
+		super(contextKeyService, panelService, partService, lifecycleService, nextStorage2Service);
 
 		this._terminalTabs = [];
 		this._configHelper = this._instantiationService.createInstance(TerminalConfigHelper);
@@ -154,14 +154,14 @@ export class TerminalService extends AbstractTerminalService implements ITermina
 		}
 
 		// Don't suggest if the user has explicitly opted out
-		const neverSuggest = this._storageService.getBoolean(NEVER_SUGGEST_SELECT_WINDOWS_SHELL_STORAGE_KEY, StorageScope.GLOBAL, false);
+		const neverSuggest = this._nextStorage2Service.getBoolean(NEVER_SUGGEST_SELECT_WINDOWS_SHELL_STORAGE_KEY, StorageScope.GLOBAL, false);
 		if (neverSuggest) {
 			return;
 		}
 
 		// Never suggest if the setting is non-default already (ie. they set the setting manually)
 		if (this._configHelper.config.shell.windows !== getDefaultShell(platform.Platform.Windows)) {
-			this._storageService.store(NEVER_SUGGEST_SELECT_WINDOWS_SHELL_STORAGE_KEY, true);
+			this._nextStorage2Service.set(NEVER_SUGGEST_SELECT_WINDOWS_SHELL_STORAGE_KEY, true, StorageScope.GLOBAL);
 			return;
 		}
 
@@ -190,7 +190,7 @@ export class TerminalService extends AbstractTerminalService implements ITermina
 			{
 				label: nls.localize('never again', "Don't Show Again"),
 				isSecondary: true,
-				run: () => this._storageService.store(NEVER_SUGGEST_SELECT_WINDOWS_SHELL_STORAGE_KEY, true)
+				run: () => this._nextStorage2Service.set(NEVER_SUGGEST_SELECT_WINDOWS_SHELL_STORAGE_KEY, true, StorageScope.GLOBAL)
 			}]
 		);
 	}

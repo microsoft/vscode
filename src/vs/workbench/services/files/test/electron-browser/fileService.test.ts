@@ -16,7 +16,9 @@ import * as uuid from 'vs/base/common/uuid';
 import * as pfs from 'vs/base/node/pfs';
 import * as encodingLib from 'vs/base/node/encoding';
 import * as utils from 'vs/workbench/services/files/test/electron-browser/utils';
-import { TestEnvironmentService, TestContextService, TestTextResourceConfigurationService, getRandomTestPath, TestLifecycleService, TestStorageService } from 'vs/workbench/test/workbenchTestServices';
+import { TestEnvironmentService, TestContextService, TestTextResourceConfigurationService, getRandomTestPath, TestLifecycleService } from 'vs/workbench/test/workbenchTestServices';
+import { NextInMemoryStorage2Service } from 'vs/platform/storage2/electron-browser/nextStorage2Service';
+import { NullLogService } from 'vs/platform/log/common/log';
 import { TestNotificationService } from 'vs/platform/notification/test/common/testNotificationService';
 import { Workspace, toWorkspaceFolders } from 'vs/platform/workspace/common/workspace';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
@@ -35,7 +37,7 @@ suite('FileService', () => {
 		const sourceDir = getPathFromAmdModule(require, './fixtures/service');
 
 		return pfs.copy(sourceDir, testDir).then(() => {
-			service = new FileService(new TestContextService(new Workspace(testDir, toWorkspaceFolders([{ path: testDir }]))), TestEnvironmentService, new TestTextResourceConfigurationService(), new TestConfigurationService(), new TestLifecycleService(), new TestStorageService(), new TestNotificationService(), { disableWatcher: true });
+			service = new FileService(new TestContextService(new Workspace(testDir, toWorkspaceFolders([{ path: testDir }]))), TestEnvironmentService, new TestTextResourceConfigurationService(), new TestConfigurationService(), new TestLifecycleService(), new NextInMemoryStorage2Service(new NullLogService(), TestEnvironmentService), new TestNotificationService(), { disableWatcher: true });
 		});
 	});
 
@@ -856,7 +858,7 @@ suite('FileService', () => {
 				textResourceConfigurationService,
 				configurationService,
 				new TestLifecycleService(),
-				new TestStorageService(),
+				new NextInMemoryStorage2Service(new NullLogService(), TestEnvironmentService),
 				new TestNotificationService(),
 				{
 					encodingOverride,
@@ -901,7 +903,7 @@ suite('FileService', () => {
 				textResourceConfigurationService,
 				configurationService,
 				new TestLifecycleService(),
-				new TestStorageService(),
+				new NextInMemoryStorage2Service(new NullLogService(), TestEnvironmentService),
 				new TestNotificationService(),
 				{
 					encodingOverride,
@@ -935,7 +937,7 @@ suite('FileService', () => {
 			new TestTextResourceConfigurationService(),
 			new TestConfigurationService(),
 			new TestLifecycleService(),
-			new TestStorageService(),
+			new NextInMemoryStorage2Service(new NullLogService(), TestEnvironmentService),
 			new TestNotificationService(),
 			{
 				disableWatcher: true

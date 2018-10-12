@@ -37,13 +37,12 @@ import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cance
 import { ILifecycleService, LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
 import { getBaseLabel } from 'vs/base/common/labels';
 import { Schemas } from 'vs/base/common/network';
-import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
+import { INextStorage2Service, StorageScope } from 'vs/platform/storage2/common/storage2';
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import product from 'vs/platform/node/product';
 import { IEncodingOverride, ResourceEncodings } from 'vs/workbench/services/files/electron-browser/encoding';
 import { createReadableOfSnapshot } from 'vs/workbench/services/files/electron-browser/streams';
-
 
 export interface IFileServiceTestOptions {
 	disableWatcher?: boolean;
@@ -85,7 +84,7 @@ export class FileService extends Disposable implements IFileService {
 		private textResourceConfigurationService: ITextResourceConfigurationService,
 		private configurationService: IConfigurationService,
 		private lifecycleService: ILifecycleService,
-		private storageService: IStorageService,
+		private nextStorage2Service: INextStorage2Service,
 		private notificationService: INotificationService,
 		private options: IFileServiceTestOptions = Object.create(null)
 	) {
@@ -132,7 +131,7 @@ export class FileService extends Disposable implements IFileService {
 		onUnexpectedError(msg);
 
 		// Detect if we run < .NET Framework 4.5 (TODO@ben remove with new watcher impl)
-		if (msg.indexOf(FileService.NET_VERSION_ERROR) >= 0 && !this.storageService.getBoolean(FileService.NET_VERSION_ERROR_IGNORE_KEY, StorageScope.WORKSPACE)) {
+		if (msg.indexOf(FileService.NET_VERSION_ERROR) >= 0 && !this.nextStorage2Service.getBoolean(FileService.NET_VERSION_ERROR_IGNORE_KEY, StorageScope.WORKSPACE)) {
 			this.notificationService.prompt(
 				Severity.Warning,
 				nls.localize('netVersionError', "The Microsoft .NET Framework 4.5 is required. Please follow the link to install it."),
@@ -143,14 +142,14 @@ export class FileService extends Disposable implements IFileService {
 				{
 					label: nls.localize('neverShowAgain', "Don't Show Again"),
 					isSecondary: true,
-					run: () => this.storageService.store(FileService.NET_VERSION_ERROR_IGNORE_KEY, true, StorageScope.WORKSPACE)
+					run: () => this.nextStorage2Service.set(FileService.NET_VERSION_ERROR_IGNORE_KEY, true, StorageScope.WORKSPACE)
 				}],
 				{ sticky: true }
 			);
 		}
 
 		// Detect if we run into ENOSPC issues
-		if (msg.indexOf(FileService.ENOSPC_ERROR) >= 0 && !this.storageService.getBoolean(FileService.ENOSPC_ERROR_IGNORE_KEY, StorageScope.WORKSPACE)) {
+		if (msg.indexOf(FileService.ENOSPC_ERROR) >= 0 && !this.nextStorage2Service.getBoolean(FileService.ENOSPC_ERROR_IGNORE_KEY, StorageScope.WORKSPACE)) {
 			this.notificationService.prompt(
 				Severity.Warning,
 				nls.localize('enospcError', "{0} is unable to watch for file changes in this large workspace. Please follow the instructions link to resolve this issue.", product.nameLong),
@@ -161,7 +160,7 @@ export class FileService extends Disposable implements IFileService {
 				{
 					label: nls.localize('neverShowAgain', "Don't Show Again"),
 					isSecondary: true,
-					run: () => this.storageService.store(FileService.ENOSPC_ERROR_IGNORE_KEY, true, StorageScope.WORKSPACE)
+					run: () => this.nextStorage2Service.set(FileService.ENOSPC_ERROR_IGNORE_KEY, true, StorageScope.WORKSPACE)
 				}],
 				{ sticky: true }
 			);

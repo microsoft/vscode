@@ -20,7 +20,7 @@ import { INotificationService, Severity, IPromptChoice } from 'vs/platform/notif
 import { extname, join } from 'path';
 import { WORKSPACE_EXTENSION } from 'vs/platform/workspaces/common/workspaces';
 import { IQuickInputService, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
-import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
+import { INextStorage2Service, StorageScope } from 'vs/platform/storage2/common/storage2';
 
 const SshProtocolMatcher = /^([^@:]+@)?([^:]+):/;
 const SshUrlMatcher = /^([^@:]+@)?([^:]+):(.+)$/;
@@ -211,7 +211,7 @@ export class WorkspaceStats implements IWorkbenchContribution {
 		@IWindowService private windowService: IWindowService,
 		@INotificationService private notificationService: INotificationService,
 		@IQuickInputService private quickInputService: IQuickInputService,
-		@IStorageService private storageService: IStorageService
+		@INextStorage2Service private nextStorage2Service: INextStorage2Service
 	) {
 		this.report();
 	}
@@ -494,14 +494,14 @@ export class WorkspaceStats implements IWorkbenchContribution {
 	}
 
 	private doHandleWorkspaceFiles(folder: URI, workspaces: string[]): void {
-		if (this.storageService.getBoolean(WorkspaceStats.DISABLE_WORKSPACE_PROMPT_KEY, StorageScope.WORKSPACE)) {
+		if (this.nextStorage2Service.getBoolean(WorkspaceStats.DISABLE_WORKSPACE_PROMPT_KEY, StorageScope.WORKSPACE)) {
 			return; // prompt disabled by user
 		}
 
 		const doNotShowAgain: IPromptChoice = {
 			label: localize('never again', "Don't Show Again"),
 			isSecondary: true,
-			run: () => this.storageService.store(WorkspaceStats.DISABLE_WORKSPACE_PROMPT_KEY, true, StorageScope.WORKSPACE)
+			run: () => this.nextStorage2Service.set(WorkspaceStats.DISABLE_WORKSPACE_PROMPT_KEY, true, StorageScope.WORKSPACE)
 		};
 
 		// Prompt to open one workspace

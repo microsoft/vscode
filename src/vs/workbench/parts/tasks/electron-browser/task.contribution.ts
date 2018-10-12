@@ -16,7 +16,7 @@ import { URI } from 'vs/base/common/uri';
 import { IStringDictionary } from 'vs/base/common/collections';
 import { Action } from 'vs/base/common/actions';
 import * as Dom from 'vs/base/browser/dom';
-import { IDisposable, dispose, toDisposable } from 'vs/base/common/lifecycle';
+import { IDisposable, dispose, toDisposable, Disposable } from 'vs/base/common/lifecycle';
 import { Event, Emitter } from 'vs/base/common/event';
 import * as Types from 'vs/base/common/types';
 import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
@@ -40,7 +40,7 @@ import { IExtensionService } from 'vs/workbench/services/extensions/common/exten
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { ProblemMatcherRegistry, NamedProblemMatcher } from 'vs/workbench/parts/tasks/common/problemMatcher';
-import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
+import { INextStorage2Service, StorageScope } from 'vs/platform/storage2/common/storage2';
 import { IProgressService2, IProgressOptions, ProgressLocation } from 'vs/workbench/services/progress/common/progress';
 
 import { IOpenerService } from 'vs/platform/opener/common/opener';
@@ -90,6 +90,9 @@ import { QuickOpenActionContributor } from '../browser/quickOpen';
 import { Themable, STATUS_BAR_FOREGROUND, STATUS_BAR_NO_FOLDER_FOREGROUND } from 'vs/workbench/common/theme';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IQuickInputService, IQuickPickItem, QuickPickInput } from 'vs/platform/quickinput/common/quickInput';
+
+import { TaskDefinitionRegistry } from 'vs/workbench/parts/tasks/common/taskDefinitionRegistry';
+import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 
 let tasksCategory = nls.localize('tasksCategory', "Tasks");
 
@@ -428,7 +431,7 @@ interface TaskQuickPickEntry extends IQuickPickItem {
 	task: Task;
 }
 
-class TaskService implements ITaskService {
+class TaskService extends Disposable implements ITaskService {
 
 	// private static autoDetectTelemetryName: string = 'taskServer.autoDetect';
 	private static readonly RecentlyUsedTasks_Key = 'workbench.tasks.recentlyUsedTasks';
@@ -476,15 +479,16 @@ class TaskService implements ITaskService {
 		@IQuickInputService private quickInputService: IQuickInputService,
 		@IConfigurationResolverService private configurationResolverService: IConfigurationResolverService,
 		@ITerminalService private terminalService: ITerminalService,
-		@IStorageService private storageService: IStorageService,
+		@INextStorage2Service private nextStorage2Service: INextStorage2Service,
 		@IProgressService2 private progressService: IProgressService2,
 		@IOpenerService private openerService: IOpenerService,
 		@IWindowService private readonly _windowService: IWindowService,
 		@IDialogService private dialogService: IDialogService,
 		@INotificationService private notificationService: INotificationService,
 		@IContextKeyService contextKeyService: IContextKeyService,
-
 	) {
+		super();
+
 		this._configHasErrors = false;
 		this._workspaceTasksPromise = undefined;
 		this._taskSystem = undefined;
@@ -492,7 +496,7 @@ class TaskService implements ITaskService {
 		this._outputChannel = this.outputService.getChannel(TaskService.OutputChannelId);
 		this._providers = new Map<number, ITaskProvider>();
 		this._taskSystemInfos = new Map<string, TaskSystemInfo>();
-		this.contextService.onDidChangeWorkspaceFolders(() => {
+		this._register(this.contextService.onDidChangeWorkspaceFolders(() => {
 			if (!this._taskSystem && !this._workspaceTasksPromise) {
 				return;
 			}
@@ -519,8 +523,8 @@ class TaskService implements ITaskService {
 			}
 			this.updateSetup(folderSetup);
 			this.updateWorkspaceTasks();
-		});
-		this.configurationService.onDidChangeConfiguration(() => {
+		}));
+		this._register(this.configurationService.onDidChangeConfiguration(() => {
 			if (!this._taskSystem && !this._workspaceTasksPromise) {
 				return;
 			}
@@ -528,10 +532,11 @@ class TaskService implements ITaskService {
 				this._outputChannel.clear();
 			}
 			this.updateWorkspaceTasks();
-		});
+		}));
 		this._taskRunningState = TASK_RUNNING_STATE.bindTo(contextKeyService);
-		lifecycleService.onWillShutdown(event => event.veto(this.beforeShutdown()));
-		this._onDidStateChange = new Emitter();
+		this._register(lifecycleService.onWillShutdown(event => event.veto(this.beforeShutdown())));
+		this._register(nextStorage2Service.onWillClose(() => this.saveRecentlyUsedTasks()));
+		this._onDidStateChange = this._register(new Emitter());
 		this.registerCommands();
 	}
 
@@ -631,7 +636,7 @@ class TaskService implements ITaskService {
 
 	private get showIgnoreMessage(): boolean {
 		if (this._showIgnoreMessage === void 0) {
-			this._showIgnoreMessage = !this.storageService.getBoolean(TaskService.IgnoreTask010DonotShowAgain_key, StorageScope.WORKSPACE, false);
+			this._showIgnoreMessage = !this.nextStorage2Service.getBoolean(TaskService.IgnoreTask010DonotShowAgain_key, StorageScope.WORKSPACE, false);
 		}
 		return this._showIgnoreMessage;
 	}
@@ -768,7 +773,7 @@ class TaskService implements ITaskService {
 			return this._recentlyUsedTasks;
 		}
 		this._recentlyUsedTasks = new LinkedMap<string, string>();
-		let storageValue = this.storageService.get(TaskService.RecentlyUsedTasks_Key, StorageScope.WORKSPACE);
+		let storageValue = this.nextStorage2Service.get(TaskService.RecentlyUsedTasks_Key, StorageScope.WORKSPACE);
 		if (storageValue) {
 			try {
 				let values: string[] = JSON.parse(storageValue);
@@ -785,14 +790,14 @@ class TaskService implements ITaskService {
 	}
 
 	private saveRecentlyUsedTasks(): void {
-		if (!this._recentlyUsedTasks) {
+		if (!this._taskSystem || !this._recentlyUsedTasks) {
 			return;
 		}
 		let values = this._recentlyUsedTasks.values();
 		if (values.length > 30) {
 			values = values.slice(0, 30);
 		}
-		this.storageService.store(TaskService.RecentlyUsedTasks_Key, JSON.stringify(values), StorageScope.WORKSPACE);
+		this.nextStorage2Service.set(TaskService.RecentlyUsedTasks_Key, JSON.stringify(values), StorageScope.WORKSPACE);
 	}
 
 	private openDocumentation(): void {
@@ -1698,7 +1703,6 @@ class TaskService implements ITaskService {
 		if (!this._taskSystem) {
 			return false;
 		}
-		this.saveRecentlyUsedTasks();
 		if (!this._taskSystem.isActiveSync()) {
 			return false;
 		}
@@ -1908,7 +1912,7 @@ class TaskService implements ITaskService {
 				label: nls.localize('TaskService.notAgain', 'Don\'t Show Again'),
 				isSecondary: true,
 				run: () => {
-					this.storageService.store(TaskService.IgnoreTask010DonotShowAgain_key, true, StorageScope.WORKSPACE);
+					this.nextStorage2Service.set(TaskService.IgnoreTask010DonotShowAgain_key, true, StorageScope.WORKSPACE);
 					this._showIgnoreMessage = false;
 				}
 			}]
@@ -2559,8 +2563,6 @@ let schema: IJSONSchema = {
 
 import schemaVersion1 from './jsonSchema_v1';
 import schemaVersion2 from './jsonSchema_v2';
-import { TaskDefinitionRegistry } from 'vs/workbench/parts/tasks/common/taskDefinitionRegistry';
-import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 schema.definitions = {
 	...schemaVersion1.definitions,
 	...schemaVersion2.definitions,
