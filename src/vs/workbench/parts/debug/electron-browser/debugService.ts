@@ -540,7 +540,7 @@ export class DebugService implements IDebugService {
 	restartSession(session: IDebugSession, restartData?: any): TPromise<any> {
 		return this.textFileService.saveAll().then(() => {
 			const isAutoRestart = !!restartData;
-			const runTasks: () => Thenable<TaskRunResult> = () => {
+			const runTasks: () => TPromise<TaskRunResult> = () => {
 				if (isAutoRestart) {
 					// Do not run preLaunch and postDebug tasks for automatic restarts
 					return TPromise.as(TaskRunResult.Success);
