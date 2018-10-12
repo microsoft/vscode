@@ -366,13 +366,17 @@ export class MenubarControl extends Disposable {
 	}
 
 	private hideMenubar(): void {
-		this.container.style.display = 'none';
-		this._onVisibilityChange.fire(false);
+		if (this.container.style.display !== 'none') {
+			this.container.style.display = 'none';
+			this._onVisibilityChange.fire(false);
+		}
 	}
 
 	private showMenubar(): void {
-		this.container.style.display = 'flex';
-		this._onVisibilityChange.fire(true);
+		if (this.container.style.display !== 'flex') {
+			this.container.style.display = 'flex';
+			this._onVisibilityChange.fire(true);
+		}
 	}
 
 	private onModifierKeyToggled(modifierKeyStatus: IModifierKeyStatus): void {
