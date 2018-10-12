@@ -403,6 +403,7 @@
 		"./vs/workbench/test/electron-browser/api/mock.ts"
 	],
 	"exclude": [
-		"./typings/require-monaco.d.ts"
+		"./typings/require-monaco.d.ts",
+		"./typings/windows-process-tree.d.ts"
 	]
 }
