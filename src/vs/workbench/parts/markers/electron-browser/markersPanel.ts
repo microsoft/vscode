@@ -402,6 +402,7 @@ export class MarkersPanel extends Panel implements IMarkerFilterController {
 	}
 
 	private render(): void {
+		this.cachedFilterStats = undefined;
 		this.tree.setChildren(null, createModelIterator(this.markersWorkbenchService.markersModel));
 		const { total, filtered } = this.getFilterStats();
 		dom.toggleClass(this.treeContainer, 'hidden', total > 0 && filtered === 0);
