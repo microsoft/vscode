@@ -490,8 +490,9 @@ export class TitlebarPart extends Part implements ITitleService {
 	private adjustTitleMarginToCenter(): void {
 		setTimeout(() => {
 			// Cannot center
-			if (this.appIcon.clientWidth + this.menubar.clientWidth + 10 > (this.titleContainer.clientWidth - this.title.clientWidth) / 2 ||
-				this.titleContainer.clientWidth - this.windowControls.clientWidth - 10 < (this.titleContainer.clientWidth + this.title.clientWidth) / 2) {
+			if (!isMacintosh &&
+				(this.appIcon.clientWidth + this.menubar.clientWidth + 10 > (this.titleContainer.clientWidth - this.title.clientWidth) / 2 ||
+					this.titleContainer.clientWidth - this.windowControls.clientWidth - 10 < (this.titleContainer.clientWidth + this.title.clientWidth) / 2)) {
 				this.title.style.position = null;
 				this.title.style.left = null;
 				this.title.style.transform = null;
@@ -500,7 +501,7 @@ export class TitlebarPart extends Part implements ITitleService {
 				this.title.style.left = '50%';
 				this.title.style.transform = 'translate(-50%, 0)';
 			}
-		}, 0);
+		}, 0); // delay so that we can get accurate information about widths
 	}
 
 	layout(dimension: Dimension): Dimension[] {
