@@ -18,7 +18,6 @@ import * as nls from './nls';
 import { createReporter } from './reporter';
 import * as util from './util';
 const watch = require('./watch');
-import assign = require('object-assign');
 
 const reporter = createReporter();
 
@@ -27,7 +26,7 @@ function getTypeScriptCompilerOptions(src: string) {
 	const tsconfig = require(`../../${src}/tsconfig.json`);
 	let options: { [key: string]: any };
 	if (tsconfig.extends) {
-		options = assign({}, require(path.join(rootDir, tsconfig.extends)).compilerOptions, tsconfig.compilerOptions);
+		options = Object.assign({}, require(path.join(rootDir, tsconfig.extends)).compilerOptions, tsconfig.compilerOptions);
 	} else {
 		options = tsconfig.compilerOptions;
 	}

@@ -4,27 +4,26 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 Object.defineProperty(exports, "__esModule", { value: true });
-var es = require("event-stream");
-var fs = require("fs");
-var gulp = require("gulp");
-var bom = require("gulp-bom");
-var sourcemaps = require("gulp-sourcemaps");
-var tsb = require("gulp-tsb");
-var path = require("path");
-var _ = require("underscore");
-var monacodts = require("../monaco/api");
-var nls = require("./nls");
-var reporter_1 = require("./reporter");
-var util = require("./util");
-var watch = require('./watch');
-var assign = require("object-assign");
-var reporter = reporter_1.createReporter();
+const es = require("event-stream");
+const fs = require("fs");
+const gulp = require("gulp");
+const bom = require("gulp-bom");
+const sourcemaps = require("gulp-sourcemaps");
+const tsb = require("gulp-tsb");
+const path = require("path");
+const _ = require("underscore");
+const monacodts = require("../monaco/api");
+const nls = require("./nls");
+const reporter_1 = require("./reporter");
+const util = require("./util");
+const watch = require('./watch');
+const reporter = reporter_1.createReporter();
 function getTypeScriptCompilerOptions(src) {
-    var rootDir = path.join(__dirname, "../../" + src);
-    var tsconfig = require("../../" + src + "/tsconfig.json");
-    var options;
+    const rootDir = path.join(__dirname, `../../${src}`);
+    const tsconfig = require(`../../${src}/tsconfig.json`);
+    let options;
     if (tsconfig.extends) {
-        options = assign({}, require(path.join(rootDir, tsconfig.extends)).compilerOptions, tsconfig.compilerOptions);
+        options = Object.assign({}, require(path.join(rootDir, tsconfig.extends)).compilerOptions, tsconfig.compilerOptions);
     }
     else {
         options = tsconfig.compilerOptions;
@@ -41,16 +40,16 @@ function getTypeScriptCompilerOptions(src) {
     return options;
 }
 function createCompile(src, build, emitError) {
-    var opts = _.clone(getTypeScriptCompilerOptions(src));
+    const opts = _.clone(getTypeScriptCompilerOptions(src));
     opts.inlineSources = !!build;
     opts.noFilesystemLookup = true;
-    var ts = tsb.create(opts, true, undefined, function (err) { return reporter(err.toString()); });
+    const ts = tsb.create(opts, true, undefined, err => reporter(err.toString()));
     return function (token) {
-        var utf8Filter = util.filter(function (data) { return /(\/|\\)test(\/|\\).*utf8/.test(data.path); });
-        var tsFilter = util.filter(function (data) { return /\.ts$/.test(data.path); });
-        var noDeclarationsFilter = util.filter(function (data) { return !(/\.d\.ts$/.test(data.path)); });
-        var input = es.through();
-        var output = input
+        const utf8Filter = util.filter(data => /(\/|\\)test(\/|\\).*utf8/.test(data.path));
+        const tsFilter = util.filter(data => /\.ts$/.test(data.path));
+        const noDeclarationsFilter = util.filter(data => !(/\.d\.ts$/.test(data.path)));
+        const input = es.through();
+        const output = input
             .pipe(utf8Filter)
             .pipe(bom())
             .pipe(utf8Filter.restore)
@@ -70,7 +69,7 @@ function createCompile(src, build, emitError) {
         return es.duplex(input, output);
     };
 }
-var typesDts = [
+const typesDts = [
     'node_modules/typescript/lib/*.d.ts',
     'node_modules/@types/**/*.d.ts',
     '!node_modules/@types/webpack/**/*',
@@ -78,10 +77,10 @@ var typesDts = [
 ];
 function compileTask(src, out, build) {
     return function () {
-        var compile = createCompile(src, build, true);
-        var srcPipe = es.merge(gulp.src(src + "/**", { base: "" + src }), gulp.src(typesDts));
+        const compile = createCompile(src, build, true);
+        const srcPipe = es.merge(gulp.src(`${src}/**`, { base: `${src}` }), gulp.src(typesDts));
         // Do not write .d.ts files to disk, as they are not needed there.
-        var dtsFilter = util.filter(function (data) { return !/\.d\.ts$/.test(data.path); });
+        const dtsFilter = util.filter(data => !/\.d\.ts$/.test(data.path));
         return srcPipe
             .pipe(compile())
             .pipe(dtsFilter)
@@ -93,11 +92,11 @@ function compileTask(src, out, build) {
 exports.compileTask = compileTask;
 function watchTask(out, build) {
     return function () {
-        var compile = createCompile('src', build);
-        var src = es.merge(gulp.src('src/**', { base: 'src' }), gulp.src(typesDts));
-        var watchSrc = watch('src/**', { base: 'src' });
+        const compile = createCompile('src', build);
+        const src = es.merge(gulp.src('src/**', { base: 'src' }), gulp.src(typesDts));
+        const watchSrc = watch('src/**', { base: 'src' });
         // Do not write .d.ts files to disk, as they are not needed there.
-        var dtsFilter = util.filter(function (data) { return !/\.d\.ts$/.test(data.path); });
+        const dtsFilter = util.filter(data => !/\.d\.ts$/.test(data.path));
         return watchSrc
             .pipe(util.incremental(compile, src, true))
             .pipe(dtsFilter)
@@ -108,33 +107,33 @@ function watchTask(out, build) {
 }
 exports.watchTask = watchTask;
 function monacodtsTask(out, isWatch) {
-    var basePath = path.resolve(process.cwd(), out);
-    var neededFiles = {};
+    const basePath = path.resolve(process.cwd(), out);
+    const neededFiles = {};
     monacodts.getFilesToWatch(out).forEach(function (filePath) {
         filePath = path.normalize(filePath);
         neededFiles[filePath] = true;
     });
-    var inputFiles = {};
-    for (var filePath in neededFiles) {
+    const inputFiles = {};
+    for (const filePath in neededFiles) {
         if (/\bsrc(\/|\\)vs\b/.test(filePath)) {
             // This file is needed from source => simply read it now
             inputFiles[filePath] = fs.readFileSync(filePath).toString();
         }
     }
-    var setInputFile = function (filePath, contents) {
+    const setInputFile = (filePath, contents) => {
         if (inputFiles[filePath] === contents) {
             // no change
             return;
         }
         inputFiles[filePath] = contents;
-        var neededInputFilesCount = Object.keys(neededFiles).length;
-        var availableInputFilesCount = Object.keys(inputFiles).length;
+        const neededInputFilesCount = Object.keys(neededFiles).length;
+        const availableInputFilesCount = Object.keys(inputFiles).length;
         if (neededInputFilesCount === availableInputFilesCount) {
             run();
         }
     };
-    var run = function () {
-        var result = monacodts.run(out, inputFiles);
+    const run = () => {
+        const result = monacodts.run(out, inputFiles);
         if (!result.isTheSame) {
             if (isWatch) {
                 fs.writeFileSync(result.filePath, result.content);
@@ -145,14 +144,14 @@ function monacodtsTask(out, isWatch) {
             }
         }
     };
-    var resultStream;
+    let resultStream;
     if (isWatch) {
         watch('build/monaco/*').pipe(es.through(function () {
             run();
         }));
     }
     resultStream = es.through(function (data) {
-        var filePath = path.normalize(path.resolve(basePath, data.relative));
+        const filePath = path.normalize(path.resolve(basePath, data.relative));
         if (neededFiles[filePath]) {
             setInputFile(filePath, data.contents.toString());
         }
