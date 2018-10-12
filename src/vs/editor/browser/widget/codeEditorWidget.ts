@@ -1519,6 +1519,10 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 	public getTelemetryData(): { [key: string]: any; } | null {
 		return this._telemetryData;
 	}
+
+	public hasModel(): this is editorBrowser.IActiveCodeEditor {
+		return (this._modelData !== null);
+	}
 }
 
 const enum BooleanEventValue {

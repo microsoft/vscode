@@ -786,7 +786,7 @@ class CommandExecutor {
 		};
 
 		let hadTrackedEditOperation = false;
-		const addTrackedEditOperation = (selection: Range, text: string) => {
+		const addTrackedEditOperation = (selection: Range, text: string | null) => {
 			hadTrackedEditOperation = true;
 			addEditOperation(selection, text);
 		};

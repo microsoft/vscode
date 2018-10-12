@@ -570,7 +570,7 @@ class TriggerWordHighlightAction extends EditorAction {
 			precondition: ctxHasWordHighlights.toNegated(),
 			kbOpts: {
 				kbExpr: EditorContextKeys.editorTextFocus,
-				primary: null,
+				primary: 0,
 				weight: KeybindingWeight.EditorContrib
 			}
 		});

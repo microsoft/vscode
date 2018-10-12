@@ -1832,7 +1832,7 @@ declare namespace monaco.editor {
 		 * @param range The range to replace (delete). May be empty to represent a simple insert.
 		 * @param text The text to replace with. May be null to represent a simple delete.
 		 */
-		addTrackedEditOperation(range: Range, text: string): void;
+		addTrackedEditOperation(range: Range, text: string | null): void;
 		/**
 		 * Track `selection` when applying edit operations.
 		 * A best effort will be made to not grow/expand the selection.
@@ -3503,7 +3503,7 @@ declare namespace monaco.editor {
 		/**
 		 * An optional dom node for the view zone that will be placed in the margin area.
 		 */
-		marginDomNode?: HTMLElement;
+		marginDomNode?: HTMLElement | null;
 		/**
 		 * Callback which gives the relative top of the view zone as it appears (taking scrolling into account).
 		 */
@@ -3562,12 +3562,12 @@ declare namespace monaco.editor {
 		 * Desired position for the content widget.
 		 * `preference` will also affect the placement.
 		 */
-		position: IPosition;
+		position: IPosition | null;
 		/**
 		 * Optionally, a range can be provided to further
 		 * define the position of the content widget.
 		 */
-		range?: IRange;
+		range?: IRange | null;
 		/**
 		 * Placement preference for position, in order of preference.
 		 */
@@ -3595,7 +3595,7 @@ declare namespace monaco.editor {
 		 * Get the placement of the content widget.
 		 * If null is returned, the content widget will be placed off screen.
 		 */
-		getPosition(): IContentWidgetPosition;
+		getPosition(): IContentWidgetPosition | null;
 	}
 
 	/**
@@ -3642,7 +3642,7 @@ declare namespace monaco.editor {
 		 * Get the placement of the overlay widget.
 		 * If null is returned, the overlay widget is responsible to place itself.
 		 */
-		getPosition(): IOverlayWidgetPosition;
+		getPosition(): IOverlayWidgetPosition | null;
 	}
 
 	/**
@@ -4121,17 +4121,17 @@ declare namespace monaco.editor {
 		/**
 		 * Get the computed diff information.
 		 */
-		getLineChanges(): ILineChange[];
+		getLineChanges(): ILineChange[] | null;
 		/**
 		 * Get information based on computed diff about a line number from the original model.
 		 * If the diff computation is not finished or the model is missing, will return null.
 		 */
-		getDiffLineInformationForOriginal(lineNumber: number): IDiffLineInformation;
+		getDiffLineInformationForOriginal(lineNumber: number): IDiffLineInformation | null;
 		/**
 		 * Get information based on computed diff about a line number from the modified model.
 		 * If the diff computation is not finished or the model is missing, will return null.
 		 */
-		getDiffLineInformationForModified(lineNumber: number): IDiffLineInformation;
+		getDiffLineInformationForModified(lineNumber: number): IDiffLineInformation | null;
 	}
 
 	export class FontInfo extends BareFontInfo {

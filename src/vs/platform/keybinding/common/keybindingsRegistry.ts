@@ -13,7 +13,7 @@ export interface IKeybindingItem {
 	keybinding: Keybinding;
 	command: string;
 	commandArgs?: any;
-	when: ContextKeyExpr | null;
+	when: ContextKeyExpr | null | undefined;
 	weight1: number;
 	weight2: number;
 }
@@ -38,7 +38,7 @@ export interface IKeybindings {
 export interface IKeybindingRule extends IKeybindings {
 	id: string;
 	weight: number;
-	when: ContextKeyExpr | null;
+	when: ContextKeyExpr | null | undefined;
 }
 
 export interface IKeybindingRule2 {
@@ -66,7 +66,7 @@ export const enum KeybindingWeight {
 
 export interface ICommandAndKeybindingRule extends IKeybindingRule {
 	handler: ICommandHandler;
-	description?: ICommandHandlerDescription;
+	description?: ICommandHandlerDescription | null;
 }
 
 export interface IKeybindingsRegistry {
@@ -196,7 +196,7 @@ class KeybindingsRegistryImpl implements IKeybindingsRegistry {
 		}
 	}
 
-	private _registerDefaultKeybinding(keybinding: Keybinding, commandId: string, weight1: number, weight2: number, when: ContextKeyExpr | null, source: KeybindingRuleSource): void {
+	private _registerDefaultKeybinding(keybinding: Keybinding, commandId: string, weight1: number, weight2: number, when: ContextKeyExpr | null | undefined, source: KeybindingRuleSource): void {
 		if (source === KeybindingRuleSource.Core && OS === OperatingSystem.Windows) {
 			if (keybinding.type === KeybindingType.Chord) {
 				this._assertNoCtrlAlt(keybinding.firstPart, commandId);

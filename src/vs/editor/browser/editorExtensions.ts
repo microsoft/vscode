@@ -39,16 +39,16 @@ export interface ICommandMenubarOptions {
 export interface ICommandOptions {
 	id: string;
 	precondition: ContextKeyExpr | null;
-	kbOpts?: ICommandKeybindingsOptions;
+	kbOpts?: ICommandKeybindingsOptions | null;
 	description?: ICommandHandlerDescription;
 	menubarOpts?: ICommandMenubarOptions;
 }
 export abstract class Command {
 	public readonly id: string;
 	public readonly precondition: ContextKeyExpr | null;
-	private readonly _kbOpts: ICommandKeybindingsOptions | undefined;
-	private readonly _menubarOpts: ICommandMenubarOptions | undefined;
-	private readonly _description: ICommandHandlerDescription | undefined;
+	private readonly _kbOpts: ICommandKeybindingsOptions | null | undefined;
+	private readonly _menubarOpts: ICommandMenubarOptions | null | undefined;
+	private readonly _description: ICommandHandlerDescription | null | undefined;
 
 	constructor(opts: ICommandOptions) {
 		this.id = opts.id;
@@ -160,7 +160,7 @@ export abstract class EditorCommand extends Command {
 				return;
 			}
 
-			return this.runEditorCommand(editorAccessor, editor, args);
+			return this.runEditorCommand(editorAccessor, editor!, args);
 		});
 	}
 

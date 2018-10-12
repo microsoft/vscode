@@ -33,7 +33,7 @@ export class Link implements ILink {
 		return this._link.range;
 	}
 
-	get url(): string {
+	get url(): string | undefined {
 		return this._link.url;
 	}
 

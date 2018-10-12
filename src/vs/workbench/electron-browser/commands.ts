@@ -443,7 +443,7 @@ export function registerCommands(): void {
 		id: 'list.focusFirstChild',
 		weight: KeybindingWeight.WorkbenchContrib,
 		when: WorkbenchListFocusContextKey,
-		primary: null,
+		primary: 0,
 		handler: accessor => listFocusFirst(accessor, { fromFocused: true })
 	});
 
@@ -495,7 +495,7 @@ export function registerCommands(): void {
 		id: 'list.focusLastChild',
 		weight: KeybindingWeight.WorkbenchContrib,
 		when: WorkbenchListFocusContextKey,
-		primary: null,
+		primary: 0,
 		handler: accessor => listFocusLast(accessor, { fromFocused: true })
 	});
 

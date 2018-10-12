@@ -15,11 +15,11 @@ import { URI } from 'vs/base/common/uri';
 
 export class StandaloneCodeEditorServiceImpl extends CodeEditorServiceImpl {
 
-	public getActiveCodeEditor(): ICodeEditor {
+	public getActiveCodeEditor(): ICodeEditor | null {
 		return null; // not supported in the standalone case
 	}
 
-	public openCodeEditor(input: IResourceInput, source: ICodeEditor | null, sideBySide?: boolean): Thenable<ICodeEditor> {
+	public openCodeEditor(input: IResourceInput, source: ICodeEditor | null, sideBySide?: boolean): Thenable<ICodeEditor | null> {
 		if (!source) {
 			return Promise.resolve(null);
 		}
@@ -27,7 +27,7 @@ export class StandaloneCodeEditorServiceImpl extends CodeEditorServiceImpl {
 		return Promise.resolve(this.doOpenEditor(source, input));
 	}
 
-	private doOpenEditor(editor: ICodeEditor, input: IResourceInput): ICodeEditor {
+	private doOpenEditor(editor: ICodeEditor, input: IResourceInput): ICodeEditor | null {
 		const model = this.findModel(editor, input.resource);
 		if (!model) {
 			if (input.resource) {
@@ -42,7 +42,7 @@ export class StandaloneCodeEditorServiceImpl extends CodeEditorServiceImpl {
 			return null;
 		}
 
-		const selection = <IRange>input.options.selection;
+		const selection = <IRange>(input.options ? input.options.selection : null);
 		if (selection) {
 			if (typeof selection.endLineNumber === 'number' && typeof selection.endColumn === 'number') {
 				editor.setSelection(selection);
@@ -60,9 +60,9 @@ export class StandaloneCodeEditorServiceImpl extends CodeEditorServiceImpl {
 		return editor;
 	}
 
-	private findModel(editor: ICodeEditor, resource: URI): ITextModel {
+	private findModel(editor: ICodeEditor, resource: URI): ITextModel | null {
 		const model = editor.getModel();
-		if (model.uri.toString() !== resource.toString()) {
+		if (model && model.uri.toString() !== resource.toString()) {
 			return null;
 		}
 

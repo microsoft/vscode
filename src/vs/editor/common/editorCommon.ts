@@ -30,7 +30,7 @@ export interface IEditOperationBuilder {
 	 * @param range The range to replace (delete). May be empty to represent a simple insert.
 	 * @param text The text to replace with. May be null to represent a simple delete.
 	 */
-	addTrackedEditOperation(range: Range, text: string): void;
+	addTrackedEditOperation(range: Range, text: string | null): void;
 
 	/**
 	 * Track `selection` when applying edit operations.

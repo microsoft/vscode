@@ -480,7 +480,7 @@ export class DeleteAllLeftAction extends AbstractDeleteAllToBoundaryAction {
 			precondition: EditorContextKeys.writable,
 			kbOpts: {
 				kbExpr: EditorContextKeys.textInputFocus,
-				primary: null,
+				primary: 0,
 				mac: { primary: KeyMod.CtrlCmd | KeyCode.Backspace },
 				weight: KeybindingWeight.EditorContrib
 			}
@@ -549,7 +549,7 @@ export class DeleteAllRightAction extends AbstractDeleteAllToBoundaryAction {
 			precondition: EditorContextKeys.writable,
 			kbOpts: {
 				kbExpr: EditorContextKeys.textInputFocus,
-				primary: null,
+				primary: 0,
 				mac: { primary: KeyMod.WinCtrl | KeyCode.KEY_K, secondary: [KeyMod.CtrlCmd | KeyCode.Delete] },
 				weight: KeybindingWeight.EditorContrib
 			}

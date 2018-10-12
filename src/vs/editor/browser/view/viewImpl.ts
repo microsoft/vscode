@@ -51,12 +51,12 @@ import { IMouseEvent } from 'vs/base/browser/mouseEvent';
 
 export interface IContentWidgetData {
 	widget: editorBrowser.IContentWidget;
-	position: editorBrowser.IContentWidgetPosition;
+	position: editorBrowser.IContentWidgetPosition | null;
 }
 
 export interface IOverlayWidgetData {
 	widget: editorBrowser.IOverlayWidget;
-	position: editorBrowser.IOverlayWidgetPosition;
+	position: editorBrowser.IOverlayWidgetPosition | null;
 }
 
 const invalidFunc = () => { throw new Error(`Invalid change accessor`); };

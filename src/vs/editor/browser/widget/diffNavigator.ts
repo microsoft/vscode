@@ -103,7 +103,7 @@ export class DiffNavigator {
 		}
 	}
 
-	private _compute(lineChanges: ILineChange[]): void {
+	private _compute(lineChanges: ILineChange[] | null): void {
 
 		// new ranges
 		this.ranges = [];

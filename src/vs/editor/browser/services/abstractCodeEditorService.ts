@@ -125,8 +125,8 @@ export abstract class AbstractCodeEditorService extends Disposable implements IC
 		delete this._transientWatchers[w.uri];
 	}
 
-	abstract getActiveCodeEditor(): ICodeEditor;
-	abstract openCodeEditor(input: IResourceInput, source: ICodeEditor | null, sideBySide?: boolean): Thenable<ICodeEditor>;
+	abstract getActiveCodeEditor(): ICodeEditor | null;
+	abstract openCodeEditor(input: IResourceInput, source: ICodeEditor | null, sideBySide?: boolean): Thenable<ICodeEditor | null>;
 }
 
 export class ModelTransientSettingWatcher {

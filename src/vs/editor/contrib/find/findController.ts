@@ -455,7 +455,7 @@ export class StartFindWithSelectionAction extends EditorAction {
 			precondition: null,
 			kbOpts: {
 				kbExpr: null,
-				primary: null,
+				primary: 0,
 				mac: {
 					primary: KeyMod.CtrlCmd | KeyCode.KEY_E,
 				},

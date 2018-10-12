@@ -64,7 +64,7 @@ export interface IViewZone {
 	/**
 	 * An optional dom node for the view zone that will be placed in the margin area.
 	 */
-	marginDomNode?: HTMLElement;
+	marginDomNode?: HTMLElement | null;
 	/**
 	 * Callback which gives the relative top of the view zone as it appears (taking scrolling into account).
 	 */
@@ -121,12 +121,12 @@ export interface IContentWidgetPosition {
 	 * Desired position for the content widget.
 	 * `preference` will also affect the placement.
 	 */
-	position: IPosition;
+	position: IPosition | null;
 	/**
 	 * Optionally, a range can be provided to further
 	 * define the position of the content widget.
 	 */
-	range?: IRange;
+	range?: IRange | null;
 	/**
 	 * Placement preference for position, in order of preference.
 	 */
@@ -154,7 +154,7 @@ export interface IContentWidget {
 	 * Get the placement of the content widget.
 	 * If null is returned, the content widget will be placed off screen.
 	 */
-	getPosition(): IContentWidgetPosition;
+	getPosition(): IContentWidgetPosition | null;
 }
 
 /**
@@ -201,7 +201,7 @@ export interface IOverlayWidget {
 	 * Get the placement of the overlay widget.
 	 * If null is returned, the overlay widget is responsible to place itself.
 	 */
-	getPosition(): IOverlayWidgetPosition;
+	getPosition(): IOverlayWidgetPosition | null;
 }
 
 /**
@@ -751,6 +751,74 @@ export interface ICodeEditor extends editorCommon.IEditor {
 	 * Apply the same font settings as the editor to `target`.
 	 */
 	applyFontInfo(target: HTMLElement): void;
+
+	/**
+	 * Check if the current instance has a model attached.
+	 * @internal
+	 */
+	hasModel(): this is IActiveCodeEditor;
+}
+
+/**
+ * @internal
+ */
+export interface IActiveCodeEditor extends ICodeEditor {
+	/**
+	 * Returns the primary position of the cursor.
+	 */
+	getPosition(): Position;
+
+	/**
+	 * Returns the primary selection of the editor.
+	 */
+	getSelection(): Selection;
+
+	/**
+	 * Returns all the selections of the editor.
+	 */
+	getSelections(): Selection[];
+
+	/**
+	 * Saves current view state of the editor in a serializable object.
+	 */
+	saveViewState(): editorCommon.ICodeEditorViewState;
+
+	/**
+	 * Type the getModel() of IEditor.
+	 */
+	getModel(): ITextModel;
+
+	/**
+	 * @internal
+	 */
+	_getCursors(): ICursors;
+
+	/**
+	 * Get all the decorations on a line (filtering out decorations from other editors).
+	 */
+	getLineDecorations(lineNumber: number): IModelDecoration[];
+
+	/**
+	 * Returns the editor's dom node
+	 */
+	getDomNode(): HTMLElement;
+
+	/**
+	 * Get the hit test target at coordinates `clientX` and `clientY`.
+	 * The coordinates are relative to the top-left of the viewport.
+	 *
+	 * @returns Hit test target or null if the coordinates fall outside the editor or the editor has no model.
+	 */
+	getTargetAtClientPoint(clientX: number, clientY: number): IMouseTarget;
+
+	/**
+	 * Get the visible position for `position`.
+	 * The result position takes scrolling into account and is relative to the top left corner of the editor.
+	 * Explanation 1: the results of this method will change for the same `position` if the user scrolls the editor.
+	 * Explanation 2: the results of this method will not change if the container of the editor gets repositioned.
+	 * Warning: the results of this method are innacurate for positions that are outside the current editor viewport.
+	 */
+	getScrolledVisiblePosition(position: IPosition): { top: number; left: number; height: number; };
 }
 
 /**
@@ -830,19 +898,19 @@ export interface IDiffEditor extends editorCommon.IEditor {
 	/**
 	 * Get the computed diff information.
 	 */
-	getLineChanges(): editorCommon.ILineChange[];
+	getLineChanges(): editorCommon.ILineChange[] | null;
 
 	/**
 	 * Get information based on computed diff about a line number from the original model.
 	 * If the diff computation is not finished or the model is missing, will return null.
 	 */
-	getDiffLineInformationForOriginal(lineNumber: number): IDiffLineInformation;
+	getDiffLineInformationForOriginal(lineNumber: number): IDiffLineInformation | null;
 
 	/**
 	 * Get information based on computed diff about a line number from the modified model.
 	 * If the diff computation is not finished or the model is missing, will return null.
 	 */
-	getDiffLineInformationForModified(lineNumber: number): IDiffLineInformation;
+	getDiffLineInformationForModified(lineNumber: number): IDiffLineInformation | null;
 }
 
 /**
