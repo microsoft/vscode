@@ -565,7 +565,7 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 			isAsync: false,
 			token,
 			expectsResult: true,
-			priority: 'normal'
+			lowPriority: true
 		});
 	}
 
@@ -574,7 +574,7 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 			isAsync: false,
 			token: undefined,
 			expectsResult: false,
-			priority: 'high'
+			lowPriority: false
 		});
 	}
 
@@ -583,11 +583,11 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 			isAsync: true,
 			token,
 			expectsResult: true,
-			priority: 'normal'
+			lowPriority: false
 		});
 	}
 
-	private executeImpl(command: string, args: any, executeInfo: { isAsync: boolean, token?: vscode.CancellationToken, expectsResult: boolean, priority: string }): Promise<any> {
+	private executeImpl(command: string, args: any, executeInfo: { isAsync: boolean, token?: vscode.CancellationToken, expectsResult: boolean, lowPriority: boolean }): Promise<any> {
 		const server = this.service();
 		if (!server) {
 			return Promise.reject(new Error('Could not load TS Server'));
