@@ -1,32 +1,32 @@
-# Tests
+# टेस्ट
 
-## Run
+## भागो
 
-The best way to run the Code tests is from the terminal. To make development changes to unit tests you need to be running `yarn run watch`. See [Development Workflow](https://github.com/Microsoft/vscode/wiki/How-to-Contribute#incremental-build) for more details. From the `vscode` folder run:
+कोड परीक्षण चलाने का सबसे अच्छा तरीका टर्मिनल से है। यूनिट परीक्षणों में विकास में बदलाव करने के लिए आपको 'यार्न रन घड़ी' चलाने की आवश्यकता है। अधिक जानकारी के लिए [विकास वर्कफ़्लो] देखें (https://github.com/Microsoft/vscode/wiki/How-to-Contribute#incremental-build)। 'बनामोडोड' फ़ोल्डर रन से:
 
-**OS X and Linux**
+** ओएस एक्स और लिनक्स **
 
-	./scripts/test.sh
+./scripts/test.sh
 
-**Windows**
+**विंडोज**
 
-	scripts\test
+स्क्रिप्ट \ परीक्षण
 
 
-## Debug
+## डीबग
 
-To debug tests use `--debug` when running the test script. Also, the set of tests can be reduced with the `--run` and `--runGlob` flags. Both require a file path/pattern. Like so:
+टेस्ट स्क्रिप्ट चलाने पर परीक्षणों को डीबग करने के लिए `--debug` का उपयोग करें। इसके अलावा, परीक्षणों का सेट `--run` और` --runGlob` झंडे से घटाया जा सकता है। दोनों को फ़ाइल पथ / पैटर्न की आवश्यकता होती है। इस तरह:
 
-	./scripts/test.sh --debug --runGrep **/extHost*.test.js
+./scripts/test.sh --debug --runGrep ** / extHost * .test.js
 
-## Coverage
+## कवरेज
 
-The following command will create a `coverage` folder at the root of the workspace:
+निम्न आदेश वर्कस्पेस की जड़ पर 'कवरेज' फ़ोल्डर बनाएगा:
 
-**OS X and Linux**
+** ओएस एक्स और लिनक्स **
 
-	./scripts/test.sh --coverage
+./scripts/test.sh --coverage
 
-**Windows**
+**विंडोज**
 
-	scripts\test --coverage
+स्क्रिप्ट \ test --coverage
