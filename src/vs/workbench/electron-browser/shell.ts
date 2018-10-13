@@ -39,7 +39,7 @@ import { IIntegrityService } from 'vs/platform/integrity/common/integrity';
 import { EditorWorkerServiceImpl } from 'vs/editor/common/services/editorWorkerServiceImpl';
 import { IEditorWorkerService } from 'vs/editor/common/services/editorWorkerService';
 import { ExtensionService } from 'vs/workbench/services/extensions/electron-browser/extensionService';
-import { IStorageService } from 'vs/platform/storage/common/storage';
+import { IStorageLegacyService } from 'vs/platform/storage/common/storageLegacyService';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { InstantiationService } from 'vs/platform/instantiation/node/instantiationService';
@@ -107,7 +107,7 @@ export interface ICoreServices {
 	configurationService: IConfigurationService;
 	environmentService: IEnvironmentService;
 	logService: ILogService;
-	storageService: IStorageService;
+	storageLegacyService: IStorageLegacyService;
 	nextStorage2Service: INextStorage2Service;
 }
 
@@ -120,7 +120,7 @@ export class WorkbenchShell extends Disposable {
 	private readonly _onShutdown = this._register(new Emitter<ShutdownEvent>());
 	get onShutdown(): Event<ShutdownEvent> { return this._onShutdown.event; }
 
-	private storageService: IStorageService;
+	private storageLegacyService: IStorageLegacyService;
 	private nextStorage2Service: INextStorage2Service;
 	private environmentService: IEnvironmentService;
 	private logService: ILogService;
@@ -151,7 +151,7 @@ export class WorkbenchShell extends Disposable {
 		this.configurationService = coreServices.configurationService;
 		this.environmentService = coreServices.environmentService;
 		this.logService = coreServices.logService;
-		this.storageService = coreServices.storageService;
+		this.storageLegacyService = coreServices.storageLegacyService;
 		this.nextStorage2Service = coreServices.nextStorage2Service;
 
 		this.mainProcessServices = mainProcessServices;
@@ -283,7 +283,7 @@ export class WorkbenchShell extends Disposable {
 		serviceCollection.set(IEnvironmentService, this.environmentService);
 		serviceCollection.set(ILabelService, new SyncDescriptor(LabelService));
 		serviceCollection.set(ILogService, this._register(this.logService));
-		serviceCollection.set(IStorageService, this.storageService);
+		serviceCollection.set(IStorageLegacyService, this.storageLegacyService);
 		serviceCollection.set(INextStorage2Service, this.nextStorage2Service);
 
 		this.mainProcessServices.forEach((serviceIdentifier, serviceInstance) => {

@@ -9,7 +9,7 @@ import { ILogService } from 'vs/platform/log/common/log';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IWorkspaceStorageChangeEvent, INextStorage2Service, StorageScope } from 'vs/platform/storage2/common/storage2';
 import { Storage, IStorageLoggingOptions } from 'vs/base/node/storage';
-import { IStorageService, StorageScope as LocalStorageScope } from 'vs/platform/storage/common/storage';
+import { IStorageLegacyService, StorageLegacyScope } from 'vs/platform/storage/common/storageLegacyService';
 import { addDisposableListener } from 'vs/base/browser/dom';
 import { startsWith } from 'vs/base/common/strings';
 import { ShutdownReason } from 'vs/platform/lifecycle/common/lifecycle';
@@ -108,7 +108,7 @@ export class NextDelegatingStorage2Service extends Disposable implements INextSt
 
 	constructor(
 		@INextStorage2Service private nextStorage2Service: NextStorage2Service,
-		@IStorageService private storageService: IStorageService,
+		@IStorageLegacyService private storageLegacyService: IStorageLegacyService,
 		@ILogService private logService: ILogService,
 		@IEnvironmentService environmentService: IEnvironmentService
 	) {
@@ -133,7 +133,7 @@ export class NextDelegatingStorage2Service extends Disposable implements INextSt
 
 	get(key: string, scope: StorageScope, fallbackValue?: any): string {
 		const dbValue = this.nextStorage2Service.get(key, scope, fallbackValue);
-		const localStorageValue = this.storageService.get(key, this.convertScope(scope), fallbackValue);
+		const localStorageValue = this.storageLegacyService.get(key, this.convertScope(scope), fallbackValue);
 
 		this.assertStorageValue(key, scope, dbValue, localStorageValue);
 
@@ -142,7 +142,7 @@ export class NextDelegatingStorage2Service extends Disposable implements INextSt
 
 	getBoolean(key: string, scope: StorageScope, fallbackValue?: boolean): boolean {
 		const dbValue = this.nextStorage2Service.getBoolean(key, scope, fallbackValue);
-		const localStorageValue = this.storageService.getBoolean(key, this.convertScope(scope), fallbackValue);
+		const localStorageValue = this.storageLegacyService.getBoolean(key, this.convertScope(scope), fallbackValue);
 
 		this.assertStorageValue(key, scope, dbValue, localStorageValue);
 
@@ -151,7 +151,7 @@ export class NextDelegatingStorage2Service extends Disposable implements INextSt
 
 	getInteger(key: string, scope: StorageScope, fallbackValue?: number): number {
 		const dbValue = this.nextStorage2Service.getInteger(key, scope, fallbackValue);
-		const localStorageValue = this.storageService.getInteger(key, this.convertScope(scope), fallbackValue);
+		const localStorageValue = this.storageLegacyService.getInteger(key, this.convertScope(scope), fallbackValue);
 
 		this.assertStorageValue(key, scope, dbValue, localStorageValue);
 
@@ -171,7 +171,7 @@ export class NextDelegatingStorage2Service extends Disposable implements INextSt
 			return Promise.resolve(); // prevent writing after close to detect late write access
 		}
 
-		this.storageService.store(key, value, this.convertScope(scope));
+		this.storageLegacyService.store(key, value, this.convertScope(scope));
 
 		return this.nextStorage2Service.set(key, value, scope);
 	}
@@ -183,7 +183,7 @@ export class NextDelegatingStorage2Service extends Disposable implements INextSt
 			return Promise.resolve(); // prevent writing after close to detect late write access
 		}
 
-		this.storageService.remove(key, this.convertScope(scope));
+		this.storageLegacyService.remove(key, this.convertScope(scope));
 
 		return this.nextStorage2Service.delete(key, scope);
 	}
@@ -194,7 +194,7 @@ export class NextDelegatingStorage2Service extends Disposable implements INextSt
 		return this.nextStorage2Service.close(reason);
 	}
 
-	private convertScope(scope: StorageScope): LocalStorageScope {
-		return scope === StorageScope.GLOBAL ? LocalStorageScope.GLOBAL : LocalStorageScope.WORKSPACE;
+	private convertScope(scope: StorageScope): StorageLegacyScope {
+		return scope === StorageScope.GLOBAL ? StorageLegacyScope.GLOBAL : StorageLegacyScope.WORKSPACE;
 	}
 }

@@ -22,9 +22,8 @@ import * as gracefulFs from 'graceful-fs';
 import { KeyboardMapperFactory } from 'vs/workbench/services/keybinding/electron-browser/keybindingService';
 import { IWindowConfiguration, IWindowsService } from 'vs/platform/windows/common/windows';
 import { WindowsChannelClient } from 'vs/platform/windows/node/windowsIpc';
-import { IStorageService } from 'vs/platform/storage/common/storage';
+import { IStorageLegacyService, StorageLegacyService, inMemoryLocalStorageInstance, IStorageLegacy } from 'vs/platform/storage/common/storageLegacyService';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { StorageService, inMemoryLocalStorageInstance, IStorage } from 'vs/platform/storage/common/storageService';
 import { Client as ElectronIPCClient } from 'vs/base/parts/ipc/electron-browser/ipc.electron-browser';
 import { webFrame } from 'electron';
 import { UpdateChannelClient } from 'vs/platform/update/node/updateIpc';
@@ -103,8 +102,8 @@ function openWorkbench(configuration: IWindowConfiguration): Promise<void> {
 		createNextStorage2Service(environmentService, logService)
 	]).then(services => {
 		const workspaceService = services[0];
-		const storageService = createStorageService(workspaceService, environmentService);
-		const nextStorage2Service = new NextDelegatingStorage2Service(services[1], storageService, logService, environmentService);
+		const storageLegacyService = createStorageLegacyService(workspaceService, environmentService);
+		const nextStorage2Service = new NextDelegatingStorage2Service(services[1], storageLegacyService, logService, environmentService);
 
 		return domContentLoaded().then(() => {
 			perf.mark('willStartWorkbench');
@@ -115,7 +114,7 @@ function openWorkbench(configuration: IWindowConfiguration): Promise<void> {
 				configurationService: workspaceService,
 				environmentService,
 				logService,
-				storageService,
+				storageLegacyService,
 				nextStorage2Service
 			}, mainServices, mainProcessClient, configuration);
 
@@ -178,7 +177,7 @@ function createNextStorage2Service(environmentService: IEnvironmentService, logS
 	});
 }
 
-function createStorageService(workspaceService: IWorkspaceContextService, environmentService: IEnvironmentService): IStorageService {
+function createStorageLegacyService(workspaceService: IWorkspaceContextService, environmentService: IEnvironmentService): IStorageLegacyService {
 	let workspaceId: string;
 	let secondaryWorkspaceId: number;
 
@@ -210,14 +209,14 @@ function createStorageService(workspaceService: IWorkspaceContextService, enviro
 
 	const disableStorage = !!environmentService.extensionTestsPath; // never keep any state when running extension tests!
 
-	let storage: IStorage;
+	let storage: IStorageLegacy;
 	if (disableStorage) {
 		storage = inMemoryLocalStorageInstance;
 	} else {
 		storage = window.localStorage;
 	}
 
-	return new StorageService(storage, storage, workspaceId, secondaryWorkspaceId);
+	return new StorageLegacyService(storage, storage, workspaceId, secondaryWorkspaceId);
 }
 
 function createLogService(mainProcessClient: ElectronIPCClient, configuration: IWindowConfiguration, environmentService: IEnvironmentService): ILogService {
