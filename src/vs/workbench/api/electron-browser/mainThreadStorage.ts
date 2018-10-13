@@ -41,7 +41,7 @@ export class MainThreadStorage implements MainThreadStorageShape {
 		let jsonValue: any;
 		try {
 			jsonValue = JSON.stringify(value);
-			this.storageService.set(key, jsonValue, shared ? StorageScope.GLOBAL : StorageScope.WORKSPACE);
+			this.storageService.store(key, jsonValue, shared ? StorageScope.GLOBAL : StorageScope.WORKSPACE);
 		} catch (err) {
 			return TPromise.wrapError(err);
 		}

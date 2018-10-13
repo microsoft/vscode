@@ -20,7 +20,7 @@ export class SearchHistoryService implements ISearchHistoryService {
 	) { }
 
 	public clearHistory(): void {
-		this.storageService.delete(SearchHistoryService.SEARCH_HISTORY_KEY, StorageScope.WORKSPACE);
+		this.storageService.remove(SearchHistoryService.SEARCH_HISTORY_KEY, StorageScope.WORKSPACE);
 		this._onDidClearHistory.fire();
 	}
 
@@ -40,6 +40,6 @@ export class SearchHistoryService implements ISearchHistoryService {
 	}
 
 	public save(history: ISearchHistoryValues): void {
-		this.storageService.set(SearchHistoryService.SEARCH_HISTORY_KEY, JSON.stringify(history), StorageScope.WORKSPACE);
+		this.storageService.store(SearchHistoryService.SEARCH_HISTORY_KEY, JSON.stringify(history), StorageScope.WORKSPACE);
 	}
 }

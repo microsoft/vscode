@@ -383,9 +383,9 @@ export class ConfigurationManager implements IConfigurationManager {
 	}
 
 	private saveState(): void {
-		this.storageService.set(DEBUG_SELECTED_CONFIG_NAME_KEY, this.selectedName, StorageScope.WORKSPACE);
+		this.storageService.store(DEBUG_SELECTED_CONFIG_NAME_KEY, this.selectedName, StorageScope.WORKSPACE);
 		if (this.selectedLaunch) {
-			this.storageService.set(DEBUG_SELECTED_ROOT, this.selectedLaunch.uri.toString(), StorageScope.WORKSPACE);
+			this.storageService.store(DEBUG_SELECTED_ROOT, this.selectedLaunch.uri.toString(), StorageScope.WORKSPACE);
 		}
 	}
 

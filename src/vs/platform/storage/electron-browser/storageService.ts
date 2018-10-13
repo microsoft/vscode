@@ -70,11 +70,11 @@ export class StorageService extends Disposable implements IStorageService {
 		return this.getStorage(scope).getInteger(key, fallbackValue);
 	}
 
-	set(key: string, value: any, scope: StorageScope): Promise<void> {
+	store(key: string, value: any, scope: StorageScope): Promise<void> {
 		return this.getStorage(scope).set(key, value);
 	}
 
-	delete(key: string, scope: StorageScope): Promise<void> {
+	remove(key: string, scope: StorageScope): Promise<void> {
 		return this.getStorage(scope).delete(key);
 	}
 
@@ -164,28 +164,28 @@ export class DelegatingStorageService extends Disposable implements IStorageServ
 		}
 	}
 
-	set(key: string, value: any, scope: StorageScope): Promise<void> {
+	store(key: string, value: any, scope: StorageScope): Promise<void> {
 		if (this.closed) {
-			this.logService.warn(`Unsupported write (set) access after close (key: ${key})`);
+			this.logService.warn(`Unsupported write (store) access after close (key: ${key})`);
 
 			return Promise.resolve(); // prevent writing after close to detect late write access
 		}
 
 		this.storageLegacyService.store(key, value, this.convertScope(scope));
 
-		return this.storageService.set(key, value, scope);
+		return this.storageService.store(key, value, scope);
 	}
 
-	delete(key: string, scope: StorageScope): Promise<void> {
+	remove(key: string, scope: StorageScope): Promise<void> {
 		if (this.closed) {
-			this.logService.warn(`Unsupported write (delete) access after close (key: ${key})`);
+			this.logService.warn(`Unsupported write (remove) access after close (key: ${key})`);
 
 			return Promise.resolve(); // prevent writing after close to detect late write access
 		}
 
 		this.storageLegacyService.remove(key, this.convertScope(scope));
 
-		return this.storageService.delete(key, scope);
+		return this.storageService.remove(key, scope);
 	}
 
 	close(reason: ShutdownReason): Promise<void> {

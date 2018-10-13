@@ -67,7 +67,7 @@ class PartsSplash {
 			sideBarWidth: getTotalWidth(this._partService.getContainer(Parts.SIDEBAR_PART)),
 			statusBarHeight: getTotalHeight(this._partService.getContainer(Parts.STATUSBAR_PART)),
 		};
-		this.storageService.set('parts-splash-data', JSON.stringify({
+		this.storageService.store('parts-splash-data', JSON.stringify({
 			id: PartsSplash._splashElementId,
 			colorInfo,
 			layoutInfo,

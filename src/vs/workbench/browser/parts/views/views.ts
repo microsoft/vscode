@@ -442,7 +442,7 @@ export class PersistentContributableViewsModel extends ContributableViewsModel {
 				storedViewsStates[viewDescriptor.id] = { collapsed: viewState.collapsed, size: viewState.size, order: viewState.order };
 			}
 		}
-		this.storageService.set(this.viewletStateStorageId, JSON.stringify(storedViewsStates), this.contextService.getWorkbenchState() !== WorkbenchState.EMPTY ? StorageScope.WORKSPACE : StorageScope.GLOBAL);
+		this.storageService.store(this.viewletStateStorageId, JSON.stringify(storedViewsStates), this.contextService.getWorkbenchState() !== WorkbenchState.EMPTY ? StorageScope.WORKSPACE : StorageScope.GLOBAL);
 	}
 
 	private saveVisibilityStates(viewDescriptors: IViewDescriptor[]): void {
@@ -453,7 +453,7 @@ export class PersistentContributableViewsModel extends ContributableViewsModel {
 				storedViewsVisibilityStates.push({ id: viewDescriptor.id, isHidden: viewState ? !viewState.visible : void 0 });
 			}
 		}
-		this.storageService.set(this.hiddenViewsStorageId, JSON.stringify(storedViewsVisibilityStates), StorageScope.GLOBAL);
+		this.storageService.store(this.hiddenViewsStorageId, JSON.stringify(storedViewsVisibilityStates), StorageScope.GLOBAL);
 	}
 
 	private static loadViewsStates(viewletStateStorageId: string, hiddenViewsStorageId: string, storageService: IStorageService, contextService: IWorkspaceContextService): Map<string, IViewState> {
@@ -604,7 +604,7 @@ export class ViewsService extends Disposable implements IViewsService {
 	private updateViewletEnablement(viewContainer: ViewContainer, viewDescriptorCollection: IViewDescriptorCollection): void {
 		const enabled = viewDescriptorCollection.activeViewDescriptors.length > 0;
 		this.viewletService.setViewletEnablement(viewContainer.id, enabled);
-		this.storageService.set(`viewservice.${viewContainer.id}.enablement`, enabled, this.getStorageScope());
+		this.storageService.store(`viewservice.${viewContainer.id}.enablement`, enabled, this.getStorageScope());
 	}
 
 	private getStorageScope(): StorageScope {

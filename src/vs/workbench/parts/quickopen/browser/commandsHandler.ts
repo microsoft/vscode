@@ -116,8 +116,8 @@ class CommandsHistory {
 		const serializedCache: ISerializedCommandHistory = { usesLRU: true, entries: [] };
 		commandHistory.forEach((value, key) => serializedCache.entries.push({ key, value }));
 
-		this.storageService.set(CommandsHistory.PREF_KEY_CACHE, JSON.stringify(serializedCache), StorageScope.GLOBAL);
-		this.storageService.set(CommandsHistory.PREF_KEY_COUNTER, commandCounter, StorageScope.GLOBAL);
+		this.storageService.store(CommandsHistory.PREF_KEY_CACHE, JSON.stringify(serializedCache), StorageScope.GLOBAL);
+		this.storageService.store(CommandsHistory.PREF_KEY_COUNTER, commandCounter, StorageScope.GLOBAL);
 	}
 
 	push(commandId: string): void {

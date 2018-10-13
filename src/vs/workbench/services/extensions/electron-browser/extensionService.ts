@@ -686,7 +686,7 @@ export class ExtensionService extends Disposable implements IExtensionService {
 							return TPromise.join(toDisable.map(e => this._extensionEnablementService.setEnablement(e, EnablementState.Disabled)));
 						})
 						.then(() => {
-							this.storageService.set(BetterMergeDisabledNowKey, true, StorageScope.GLOBAL);
+							this.storageService.store(BetterMergeDisabledNowKey, true, StorageScope.GLOBAL);
 							return runtimeExtensions;
 						});
 				} else {

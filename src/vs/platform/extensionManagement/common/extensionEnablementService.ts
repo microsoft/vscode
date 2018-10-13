@@ -281,9 +281,9 @@ export class ExtensionEnablementService implements IExtensionEnablementService {
 
 	private _setExtensions(storageId: string, extensions: IExtensionIdentifier[], scope: StorageScope, extension: IExtensionIdentifier): void {
 		if (extensions.length) {
-			this.storageService.set(storageId, JSON.stringify(extensions.map(({ id, uuid }) => (<IExtensionIdentifier>{ id, uuid }))), scope);
+			this.storageService.store(storageId, JSON.stringify(extensions.map(({ id, uuid }) => (<IExtensionIdentifier>{ id, uuid }))), scope);
 		} else {
-			this.storageService.delete(storageId, scope);
+			this.storageService.remove(storageId, scope);
 		}
 	}
 

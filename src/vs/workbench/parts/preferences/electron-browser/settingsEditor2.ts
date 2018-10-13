@@ -664,7 +664,7 @@ export class SettingsEditor2 extends BaseEditor {
 
 	public notifyNoSaveNeeded(force: boolean = true) {
 		if (force || !this.storageService.getBoolean('hasNotifiedOfSettingsAutosave', StorageScope.GLOBAL, false)) {
-			this.storageService.set('hasNotifiedOfSettingsAutosave', true, StorageScope.GLOBAL);
+			this.storageService.store('hasNotifiedOfSettingsAutosave', true, StorageScope.GLOBAL);
 			this.notificationService.info(localize('settingsNoSaveNeeded', "Your changes are automatically saved as you edit."));
 		}
 	}

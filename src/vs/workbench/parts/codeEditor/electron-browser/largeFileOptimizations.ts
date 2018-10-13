@@ -58,7 +58,7 @@ export class LargeFileOptimizationsWarner extends Disposable implements IEditorC
 						label: nls.localize('neverShowAgain', "OK. Never show again"),
 						run: () => {
 							this._isDisabled = true;
-							this.storageService.set('editor.neverPromptForLargeFiles', true, StorageScope.GLOBAL);
+							this.storageService.store('editor.neverPromptForLargeFiles', true, StorageScope.GLOBAL);
 						}
 					},
 					{

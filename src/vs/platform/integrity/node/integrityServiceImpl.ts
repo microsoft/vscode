@@ -48,7 +48,7 @@ class IntegrityStorage {
 
 	public set(data: IStorageData): void {
 		this._value = data;
-		this.storageService.set(IntegrityStorage.KEY, JSON.stringify(this._value), StorageScope.GLOBAL);
+		this.storageService.store(IntegrityStorage.KEY, JSON.stringify(this._value), StorageScope.GLOBAL);
 	}
 }
 

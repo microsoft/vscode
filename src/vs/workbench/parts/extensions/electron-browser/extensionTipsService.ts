@@ -531,7 +531,7 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 				}
 			});
 
-			this.storageService.set(
+			this.storageService.store(
 				'extensionsAssistant/recommendations',
 				JSON.stringify(Object.keys(this._fileBasedRecommendations).reduce((result, key) => { result[key] = this._fileBasedRecommendations[key].recommendedTime; return result; }, {})),
 				StorageScope.GLOBAL
@@ -596,7 +596,7 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 						isSecondary: true,
 						run: () => {
 							importantRecommendationsIgnoreList.push(id);
-							this.storageService.set(
+							this.storageService.store(
 								'extensionsAssistant/importantRecommendationsIgnore',
 								JSON.stringify(importantRecommendationsIgnoreList),
 								StorageScope.GLOBAL
@@ -676,7 +676,7 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 							label: localize('dontShowAgainExtension', "Don't Show Again for '.{0}' files", fileExtension),
 							run: () => {
 								fileExtensionSuggestionIgnoreList.push(fileExtension);
-								this.storageService.set(
+								this.storageService.store(
 									'extensionsAssistant/fileExtensionsSuggestionIgnore',
 									JSON.stringify(fileExtensionSuggestionIgnoreList),
 									StorageScope.GLOBAL
@@ -773,7 +773,7 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 								}
 							*/
 							this.telemetryService.publicLog('extensionWorkspaceRecommendations:popup', { userReaction: 'neverShowAgain' });
-							this.storageService.set(storageKey, true, StorageScope.WORKSPACE);
+							this.storageService.store(storageKey, true, StorageScope.WORKSPACE);
 
 							c(void 0);
 						}
@@ -859,7 +859,7 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 		this.configurationService.updateValue('extensions.ignoreRecommendations', configVal, ConfigurationTarget.USER);
 		if (configVal) {
 			const ignoreWorkspaceRecommendationsStorageKey = 'extensionsAssistant/workspaceRecommendationsIgnore';
-			this.storageService.set(ignoreWorkspaceRecommendationsStorageKey, true, StorageScope.WORKSPACE);
+			this.storageService.store(ignoreWorkspaceRecommendationsStorageKey, true, StorageScope.WORKSPACE);
 		}
 	}
 
@@ -873,7 +873,7 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 		try {
 			storedRecommendationsJson = JSON.parse(this.storageService.get(storageKey, StorageScope.WORKSPACE, '{}'));
 		} catch (e) {
-			this.storageService.delete(storageKey, StorageScope.WORKSPACE);
+			this.storageService.remove(storageKey, StorageScope.WORKSPACE);
 		}
 
 		if (Array.isArray(storedRecommendationsJson['recommendations'])
@@ -923,7 +923,7 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 							if (Array.isArray(allRecommendations[j].remoteSet) && allRecommendations[j].remoteSet.indexOf(hashedRemotes[i]) > -1) {
 								foundRemote = true;
 								this._dynamicWorkspaceRecommendations = allRecommendations[j].recommendations.filter(id => this.isExtensionAllowedToBeRecommended(id)) || [];
-								this.storageService.set(storageKey, JSON.stringify({
+								this.storageService.store(storageKey, JSON.stringify({
 									recommendations: this._dynamicWorkspaceRecommendations,
 									timestamp: Date.now()
 								}), StorageScope.WORKSPACE);
@@ -978,7 +978,7 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 			distinct([...this._globallyIgnoredRecommendations, lowerId].map(id => id.toLowerCase())) :
 			this._globallyIgnoredRecommendations.filter(id => id !== lowerId);
 
-		this.storageService.set('extensionsAssistant/ignored_recommendations', JSON.stringify(this._globallyIgnoredRecommendations), StorageScope.GLOBAL);
+		this.storageService.store('extensionsAssistant/ignored_recommendations', JSON.stringify(this._globallyIgnoredRecommendations), StorageScope.GLOBAL);
 		this._allIgnoredRecommendations = distinct([...this._globallyIgnoredRecommendations, ...this._workspaceIgnoredRecommendations]);
 
 		this._onRecommendationChange.fire({ extensionId: extensionId, isRecommended: !shouldIgnore });

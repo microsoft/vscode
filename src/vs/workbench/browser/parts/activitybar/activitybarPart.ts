@@ -334,7 +334,7 @@ export class ActivitybarPart extends Part {
 
 	protected saveState(): void {
 		const state = this.viewletService.getAllViewlets().map(({ id, iconUrl }) => ({ id, iconUrl }));
-		this.storageService.set(ActivitybarPart.PLACEHOLDER_VIEWLETS, JSON.stringify(state), StorageScope.GLOBAL);
+		this.storageService.store(ActivitybarPart.PLACEHOLDER_VIEWLETS, JSON.stringify(state), StorageScope.GLOBAL);
 
 		super.saveState();
 	}

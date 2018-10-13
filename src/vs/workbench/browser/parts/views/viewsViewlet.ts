@@ -379,7 +379,7 @@ export abstract class ViewContainerViewlet extends PanelViewlet implements IView
 
 	protected saveState(): void {
 		this.panels.forEach((view) => view.saveState());
-		this.storageService.set(this.visibleViewsStorageId, this.length, this.contextService.getWorkbenchState() !== WorkbenchState.EMPTY ? StorageScope.WORKSPACE : StorageScope.GLOBAL);
+		this.storageService.store(this.visibleViewsStorageId, this.length, this.contextService.getWorkbenchState() !== WorkbenchState.EMPTY ? StorageScope.WORKSPACE : StorageScope.GLOBAL);
 
 		super.saveState();
 	}

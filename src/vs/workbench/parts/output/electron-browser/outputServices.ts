@@ -476,7 +476,7 @@ export class OutputService extends Disposable implements IOutputService, ITextMo
 
 	private saveState(): void {
 		if (this.activeChannel) {
-			this.storageService.set(OUTPUT_ACTIVE_CHANNEL_KEY, this.activeChannel.id, StorageScope.WORKSPACE);
+			this.storageService.store(OUTPUT_ACTIVE_CHANNEL_KEY, this.activeChannel.id, StorageScope.WORKSPACE);
 		}
 	}
 

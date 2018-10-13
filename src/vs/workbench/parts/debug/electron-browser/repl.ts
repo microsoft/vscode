@@ -128,9 +128,9 @@ export class Repl extends Panel implements IPrivateReplService, IHistoryNavigati
 	protected saveState(): void {
 		const replHistory = this.history.getHistory();
 		if (replHistory.length) {
-			this.storageService.set(HISTORY_STORAGE_KEY, JSON.stringify(replHistory), StorageScope.WORKSPACE);
+			this.storageService.store(HISTORY_STORAGE_KEY, JSON.stringify(replHistory), StorageScope.WORKSPACE);
 		} else {
-			this.storageService.delete(HISTORY_STORAGE_KEY, StorageScope.WORKSPACE);
+			this.storageService.remove(HISTORY_STORAGE_KEY, StorageScope.WORKSPACE);
 		}
 
 		super.saveState();

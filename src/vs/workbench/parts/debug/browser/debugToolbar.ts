@@ -173,7 +173,7 @@ export class DebugToolbar extends Themable implements IWorkbenchContribution {
 
 	private storePosition(): void {
 		const position = parseFloat(dom.getComputedStyle(this.$el).left) / window.innerWidth;
-		this.storageService.set(DEBUG_TOOLBAR_POSITION_KEY, position, StorageScope.GLOBAL);
+		this.storageService.store(DEBUG_TOOLBAR_POSITION_KEY, position, StorageScope.GLOBAL);
 	}
 
 	protected updateStyles(): void {
@@ -222,7 +222,7 @@ export class DebugToolbar extends Themable implements IWorkbenchContribution {
 		if ((y < titleAreaHeight / 2) || (y > titleAreaHeight + titleAreaHeight / 2)) {
 			const moveToTop = y < titleAreaHeight;
 			this.setYCoordinate(moveToTop ? 0 : titleAreaHeight);
-			this.storageService.set(DEBUG_TOOLBAR_Y_KEY, moveToTop ? 0 : 2 * titleAreaHeight, StorageScope.GLOBAL);
+			this.storageService.store(DEBUG_TOOLBAR_Y_KEY, moveToTop ? 0 : 2 * titleAreaHeight, StorageScope.GLOBAL);
 		}
 	}
 

@@ -60,7 +60,7 @@ export interface IStorageService {
 	 * The scope argument allows to define the scope of the storage
 	 * operation to either the current workspace only or all workspaces.
 	 */
-	set(key: string, value: any, scope: StorageScope): Promise<void>;
+	store(key: string, value: any, scope: StorageScope): Promise<void>;
 
 	/**
 	 * Delete an element stored under the provided key from storage.
@@ -68,7 +68,7 @@ export interface IStorageService {
 	 * The scope argument allows to define the scope of the storage
 	 * operation to either the current workspace only or all workspaces.
 	 */
-	delete(key: string, scope: StorageScope): Promise<void>;
+	remove(key: string, scope: StorageScope): Promise<void>;
 }
 
 export const enum StorageScope {
@@ -107,11 +107,11 @@ export const NullStorageService: IStorageService = {
 		return fallbackValue;
 	},
 
-	set(key: string, value: any, scope: StorageScope): Promise<void> {
+	store(key: string, value: any, scope: StorageScope): Promise<void> {
 		return Promise.resolve();
 	},
 
-	delete(key: string, scope: StorageScope): Promise<void> {
+	remove(key: string, scope: StorageScope): Promise<void> {
 		return Promise.resolve();
 	}
 };

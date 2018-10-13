@@ -204,9 +204,9 @@ export abstract class CompositePart<T extends Composite> extends Part {
 		// Store in preferences
 		const id = this.activeComposite.getId();
 		if (id !== this.defaultCompositeId) {
-			this.storageService.set(this.activeCompositeSettingsKey, id, StorageScope.WORKSPACE);
+			this.storageService.store(this.activeCompositeSettingsKey, id, StorageScope.WORKSPACE);
 		} else {
-			this.storageService.delete(this.activeCompositeSettingsKey, StorageScope.WORKSPACE);
+			this.storageService.remove(this.activeCompositeSettingsKey, StorageScope.WORKSPACE);
 		}
 
 		// Remember

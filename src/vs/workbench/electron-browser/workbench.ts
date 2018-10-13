@@ -793,7 +793,7 @@ export class Workbench extends Disposable implements IPartService {
 
 		const restore = this.storageService.getBoolean(Workbench.sidebarRestoreStorageKey, StorageScope.WORKSPACE);
 		if (restore) {
-			this.storageService.delete(Workbench.sidebarRestoreStorageKey, StorageScope.WORKSPACE); // only support once
+			this.storageService.remove(Workbench.sidebarRestoreStorageKey, StorageScope.WORKSPACE); // only support once
 		}
 
 		return restore;
@@ -1132,20 +1132,20 @@ export class Workbench extends Disposable implements IPartService {
 
 		// Restore sidebar if we are being shutdown as a matter of a reload
 		if (reason === ShutdownReason.RELOAD) {
-			this.storageService.set(Workbench.sidebarRestoreStorageKey, 'true', StorageScope.WORKSPACE);
+			this.storageService.store(Workbench.sidebarRestoreStorageKey, 'true', StorageScope.WORKSPACE);
 		}
 
 		// Preserve zen mode only on reload. Real quit gets out of zen mode so novice users do not get stuck in zen mode.
 		const zenConfig = this.configurationService.getValue<IZenModeSettings>('zenMode');
 		const restoreZenMode = this.zenMode.active && (zenConfig.restore || reason === ShutdownReason.RELOAD);
 		if (restoreZenMode) {
-			this.storageService.set(Workbench.zenModeActiveStorageKey, true, StorageScope.WORKSPACE);
+			this.storageService.store(Workbench.zenModeActiveStorageKey, true, StorageScope.WORKSPACE);
 		} else {
 			if (this.zenMode.active) {
 				this.toggleZenMode(true);
 			}
 
-			this.storageService.delete(Workbench.zenModeActiveStorageKey, StorageScope.WORKSPACE);
+			this.storageService.remove(Workbench.zenModeActiveStorageKey, StorageScope.WORKSPACE);
 		}
 	}
 
@@ -1331,7 +1331,7 @@ export class Workbench extends Disposable implements IPartService {
 	}
 
 	centerEditorLayout(active: boolean, skipLayout?: boolean): void {
-		this.storageService.set(Workbench.centeredEditorLayoutActiveStorageKey, active, StorageScope.WORKSPACE);
+		this.storageService.store(Workbench.centeredEditorLayoutActiveStorageKey, active, StorageScope.WORKSPACE);
 		this.shouldCenterLayout = active;
 		let smartActive = active;
 		if (this.editorPart.groups.length > 1 && this.configurationService.getValue('workbench.editor.centeredLayoutAutoResize')) {
@@ -1410,9 +1410,9 @@ export class Workbench extends Disposable implements IPartService {
 			// Remember in settings
 			const defaultHidden = this.contextService.getWorkbenchState() === WorkbenchState.EMPTY;
 			if (hidden !== defaultHidden) {
-				this.storageService.set(Workbench.sidebarHiddenStorageKey, hidden ? 'true' : 'false', StorageScope.WORKSPACE);
+				this.storageService.store(Workbench.sidebarHiddenStorageKey, hidden ? 'true' : 'false', StorageScope.WORKSPACE);
 			} else {
-				this.storageService.delete(Workbench.sidebarHiddenStorageKey, StorageScope.WORKSPACE);
+				this.storageService.remove(Workbench.sidebarHiddenStorageKey, StorageScope.WORKSPACE);
 			}
 
 			// Layout
@@ -1452,9 +1452,9 @@ export class Workbench extends Disposable implements IPartService {
 
 			// Remember in settings
 			if (!hidden) {
-				this.storageService.set(Workbench.panelHiddenStorageKey, 'false', StorageScope.WORKSPACE);
+				this.storageService.store(Workbench.panelHiddenStorageKey, 'false', StorageScope.WORKSPACE);
 			} else {
-				this.storageService.delete(Workbench.panelHiddenStorageKey, StorageScope.WORKSPACE);
+				this.storageService.remove(Workbench.panelHiddenStorageKey, StorageScope.WORKSPACE);
 			}
 
 			// Layout
@@ -1522,7 +1522,7 @@ export class Workbench extends Disposable implements IPartService {
 			const newPositionValue = (position === Position.BOTTOM) ? 'bottom' : 'right';
 			const oldPositionValue = (this.panelPosition === Position.BOTTOM) ? 'bottom' : 'right';
 			this.panelPosition = position;
-			this.storageService.set(Workbench.panelPositionStorageKey, PositionToString(this.panelPosition).toLowerCase(), StorageScope.WORKSPACE);
+			this.storageService.store(Workbench.panelPositionStorageKey, PositionToString(this.panelPosition).toLowerCase(), StorageScope.WORKSPACE);
 
 			// Adjust CSS
 			DOM.removeClass(this.panelPart.getContainer(), oldPositionValue);

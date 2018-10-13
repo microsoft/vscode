@@ -48,7 +48,7 @@ export class TelemetryOptOut implements IWorkbenchContribution {
 			if (!focused && count > 1) {
 				return null;
 			}
-			storageService.set(TelemetryOptOut.TELEMETRY_OPT_OUT_SHOWN, true, StorageScope.GLOBAL);
+			storageService.store(TelemetryOptOut.TELEMETRY_OPT_OUT_SHOWN, true, StorageScope.GLOBAL);
 
 			this.optOutUrl = product.telemetryOptOutUrl;
 			this.privacyUrl = product.privacyStatementUrl || product.telemetryOptOutUrl;

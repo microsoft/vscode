@@ -971,36 +971,36 @@ export class DebugService implements IDebugService {
 	private saveState(): void {
 		const breakpoints = this.model.getBreakpoints();
 		if (breakpoints.length) {
-			this.storageService.set(DEBUG_BREAKPOINTS_KEY, JSON.stringify(breakpoints), StorageScope.WORKSPACE);
+			this.storageService.store(DEBUG_BREAKPOINTS_KEY, JSON.stringify(breakpoints), StorageScope.WORKSPACE);
 		} else {
-			this.storageService.delete(DEBUG_BREAKPOINTS_KEY, StorageScope.WORKSPACE);
+			this.storageService.remove(DEBUG_BREAKPOINTS_KEY, StorageScope.WORKSPACE);
 		}
 
 		if (!this.model.areBreakpointsActivated()) {
-			this.storageService.set(DEBUG_BREAKPOINTS_ACTIVATED_KEY, 'false', StorageScope.WORKSPACE);
+			this.storageService.store(DEBUG_BREAKPOINTS_ACTIVATED_KEY, 'false', StorageScope.WORKSPACE);
 		} else {
-			this.storageService.delete(DEBUG_BREAKPOINTS_ACTIVATED_KEY, StorageScope.WORKSPACE);
+			this.storageService.remove(DEBUG_BREAKPOINTS_ACTIVATED_KEY, StorageScope.WORKSPACE);
 		}
 
 		const functionBreakpoints = this.model.getFunctionBreakpoints();
 		if (functionBreakpoints.length) {
-			this.storageService.set(DEBUG_FUNCTION_BREAKPOINTS_KEY, JSON.stringify(functionBreakpoints), StorageScope.WORKSPACE);
+			this.storageService.store(DEBUG_FUNCTION_BREAKPOINTS_KEY, JSON.stringify(functionBreakpoints), StorageScope.WORKSPACE);
 		} else {
-			this.storageService.delete(DEBUG_FUNCTION_BREAKPOINTS_KEY, StorageScope.WORKSPACE);
+			this.storageService.remove(DEBUG_FUNCTION_BREAKPOINTS_KEY, StorageScope.WORKSPACE);
 		}
 
 		const exceptionBreakpoints = this.model.getExceptionBreakpoints();
 		if (exceptionBreakpoints.length) {
-			this.storageService.set(DEBUG_EXCEPTION_BREAKPOINTS_KEY, JSON.stringify(exceptionBreakpoints), StorageScope.WORKSPACE);
+			this.storageService.store(DEBUG_EXCEPTION_BREAKPOINTS_KEY, JSON.stringify(exceptionBreakpoints), StorageScope.WORKSPACE);
 		} else {
-			this.storageService.delete(DEBUG_EXCEPTION_BREAKPOINTS_KEY, StorageScope.WORKSPACE);
+			this.storageService.remove(DEBUG_EXCEPTION_BREAKPOINTS_KEY, StorageScope.WORKSPACE);
 		}
 
 		const watchExpressions = this.model.getWatchExpressions();
 		if (watchExpressions.length) {
-			this.storageService.set(DEBUG_WATCH_EXPRESSIONS_KEY, JSON.stringify(watchExpressions.map(we => ({ name: we.name, id: we.getId() }))), StorageScope.WORKSPACE);
+			this.storageService.store(DEBUG_WATCH_EXPRESSIONS_KEY, JSON.stringify(watchExpressions.map(we => ({ name: we.name, id: we.getId() }))), StorageScope.WORKSPACE);
 		} else {
-			this.storageService.delete(DEBUG_WATCH_EXPRESSIONS_KEY, StorageScope.WORKSPACE);
+			this.storageService.remove(DEBUG_WATCH_EXPRESSIONS_KEY, StorageScope.WORKSPACE);
 		}
 	}
 

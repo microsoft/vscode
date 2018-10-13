@@ -160,7 +160,7 @@ export class TerminalConfigHelper implements ITerminalConfigHelper {
 	}
 
 	public setWorkspaceShellAllowed(isAllowed: boolean): void {
-		this.storageService.set(IS_WORKSPACE_SHELL_ALLOWED_STORAGE_KEY, isAllowed, StorageScope.WORKSPACE);
+		this.storageService.store(IS_WORKSPACE_SHELL_ALLOWED_STORAGE_KEY, isAllowed, StorageScope.WORKSPACE);
 	}
 
 	public mergeDefaultShellPathAndArgs(shell: IShellLaunchConfig, platformOverride: platform.Platform = platform.platform): void {
@@ -205,11 +205,11 @@ export class TerminalConfigHelper implements ITerminalConfigHelper {
 			this._notificationService.prompt(Severity.Info, nls.localize('terminal.integrated.allowWorkspaceShell', "Do you allow {0} (defined as a workspace setting) to be launched in the terminal?", changeString),
 				[{
 					label: nls.localize('allow', "Allow"),
-					run: () => this.storageService.set(IS_WORKSPACE_SHELL_ALLOWED_STORAGE_KEY, true, StorageScope.WORKSPACE)
+					run: () => this.storageService.store(IS_WORKSPACE_SHELL_ALLOWED_STORAGE_KEY, true, StorageScope.WORKSPACE)
 				},
 				{
 					label: nls.localize('disallow', "Disallow"),
-					run: () => this.storageService.set(IS_WORKSPACE_SHELL_ALLOWED_STORAGE_KEY, false, StorageScope.WORKSPACE)
+					run: () => this.storageService.store(IS_WORKSPACE_SHELL_ALLOWED_STORAGE_KEY, false, StorageScope.WORKSPACE)
 				}]
 			);
 		}

@@ -370,9 +370,9 @@ export class SearchView extends Viewlet implements IViewlet, IPanel {
 
 		const isReplaceShown = this.searchAndReplaceWidget.isReplaceShown();
 		if (!isReplaceShown) {
-			this.storageService.set(SearchView.SHOW_REPLACE_STORAGE_KEY, false, StorageScope.WORKSPACE);
+			this.storageService.store(SearchView.SHOW_REPLACE_STORAGE_KEY, false, StorageScope.WORKSPACE);
 		} else {
-			this.storageService.delete(SearchView.SHOW_REPLACE_STORAGE_KEY, StorageScope.WORKSPACE);
+			this.storageService.remove(SearchView.SHOW_REPLACE_STORAGE_KEY, StorageScope.WORKSPACE);
 		}
 	}
 

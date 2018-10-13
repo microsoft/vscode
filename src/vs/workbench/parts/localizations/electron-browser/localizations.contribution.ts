@@ -92,7 +92,7 @@ export class LocalizationWorkbenchContribution extends Disposable implements IWo
 					}, {
 						label: localize('neverAgain', "Don't Show Again"),
 						isSecondary: true,
-						run: () => this.storageService.set(donotAskUpdateKey, true, StorageScope.GLOBAL)
+						run: () => this.storageService.store(donotAskUpdateKey, true, StorageScope.GLOBAL)
 					}],
 					{ sticky: true }
 				);
@@ -193,7 +193,7 @@ export class LocalizationWorkbenchContribution extends Disposable implements IWo
 									isSecondary: true,
 									run: () => {
 										languagePackSuggestionIgnoreList.push(language);
-										this.storageService.set(
+										this.storageService.store(
 											'extensionsAssistant/languagePackSuggestionIgnore',
 											JSON.stringify(languagePackSuggestionIgnoreList),
 											StorageScope.GLOBAL

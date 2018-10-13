@@ -102,7 +102,7 @@ export abstract class ReferencesController implements editorCommon.IEditorContri
 		this._disposables.push(this._widget.onDidClose(() => {
 			modelPromise.cancel();
 
-			this.storageService.set(storageKey, JSON.stringify(this._widget.layoutData), StorageScope.GLOBAL);
+			this.storageService.store(storageKey, JSON.stringify(this._widget.layoutData), StorageScope.GLOBAL);
 			this._widget = null;
 			this.closeWidget();
 		}));

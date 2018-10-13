@@ -204,7 +204,7 @@ class OutlineViewState {
 	}
 
 	persist(storageService: IStorageService): void {
-		storageService.set('outline/state', JSON.stringify({ followCursor: this.followCursor, sortBy: this.sortBy }), StorageScope.WORKSPACE);
+		storageService.store('outline/state', JSON.stringify({ followCursor: this.followCursor, sortBy: this.sortBy }), StorageScope.WORKSPACE);
 	}
 
 	restore(storageService: IStorageService): void {

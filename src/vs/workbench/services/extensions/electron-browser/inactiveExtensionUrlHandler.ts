@@ -65,7 +65,7 @@ export class ExtensionUrlHandler implements IExtensionUrlHandler, IURLHandler {
 		const interval = setInterval(() => this.garbageCollect(), THIRTY_SECONDS);
 		const urlToHandleValue = this.storageService.get(URL_TO_HANDLE, StorageScope.WORKSPACE);
 		if (urlToHandleValue) {
-			this.storageService.delete(URL_TO_HANDLE, StorageScope.WORKSPACE);
+			this.storageService.remove(URL_TO_HANDLE, StorageScope.WORKSPACE);
 			this.handleURL(URI.revive(JSON.parse(urlToHandleValue)), true);
 		}
 
@@ -244,7 +244,7 @@ export class ExtensionUrlHandler implements IExtensionUrlHandler, IURLHandler {
 	}
 
 	private reloadAndHandle(url: URI): TPromise<void> {
-		this.storageService.set(URL_TO_HANDLE, JSON.stringify(url.toJSON()), StorageScope.WORKSPACE);
+		this.storageService.store(URL_TO_HANDLE, JSON.stringify(url.toJSON()), StorageScope.WORKSPACE);
 		return this.windowService.reloadWindow();
 	}
 

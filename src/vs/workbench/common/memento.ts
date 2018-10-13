@@ -80,9 +80,9 @@ class ScopedMemento {
 
 	save(): void {
 		if (!isEmptyObject(this.mementoObj)) {
-			this.storageService.set(this.id, JSON.stringify(this.mementoObj), this.scope);
+			this.storageService.store(this.id, JSON.stringify(this.mementoObj), this.scope);
 		} else {
-			this.storageService.delete(this.id, this.scope);
+			this.storageService.remove(this.id, this.scope);
 		}
 	}
 }

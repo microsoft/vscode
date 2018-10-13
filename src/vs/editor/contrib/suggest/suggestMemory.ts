@@ -244,6 +244,6 @@ export class SuggestMemories {
 
 	private _flush() {
 		const raw = JSON.stringify(this._strategy);
-		this.storageService.set(`${this._storagePrefix}/${this._mode}`, raw, StorageScope.WORKSPACE);
+		this.storageService.store(`${this._storagePrefix}/${this._mode}`, raw, StorageScope.WORKSPACE);
 	}
 }

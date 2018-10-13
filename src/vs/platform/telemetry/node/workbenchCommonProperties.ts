@@ -16,7 +16,7 @@ export function resolveWorkbenchCommonProperties(storageService: IStorageService
 		result['common.version.renderer'] = process.versions && (<any>process).versions['chrome'];
 
 		const lastSessionDate = storageService.get('telemetry.lastSessionDate', StorageScope.GLOBAL);
-		storageService.set('telemetry.lastSessionDate', new Date().toUTCString(), StorageScope.GLOBAL);
+		storageService.store('telemetry.lastSessionDate', new Date().toUTCString(), StorageScope.GLOBAL);
 
 		// __GDPR__COMMON__ "common.firstSessionDate" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
 		result['common.firstSessionDate'] = getOrCreateFirstSessionDate(storageService);
@@ -33,14 +33,14 @@ export function resolveWorkbenchCommonProperties(storageService: IStorageService
 
 function getOrCreateInstanceId(storageService: IStorageService): string {
 	const result = storageService.get('telemetry.instanceId', StorageScope.GLOBAL, uuid.generateUuid());
-	storageService.set('telemetry.instanceId', result, StorageScope.GLOBAL);
+	storageService.store('telemetry.instanceId', result, StorageScope.GLOBAL);
 
 	return result;
 }
 
 function getOrCreateFirstSessionDate(storageService: IStorageService): string {
 	const firstSessionDate = storageService.get('telemetry.firstSessionDate', StorageScope.GLOBAL, new Date().toUTCString());
-	storageService.set('telemetry.firstSessionDate', firstSessionDate, StorageScope.GLOBAL);
+	storageService.store('telemetry.firstSessionDate', firstSessionDate, StorageScope.GLOBAL);
 
 	return firstSessionDate;
 }

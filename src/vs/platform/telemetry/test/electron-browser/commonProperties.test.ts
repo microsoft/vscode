@@ -61,7 +61,7 @@ suite('Telemetry - common properties', function () {
 
 	test('lastSessionDate when aviablale', async function () {
 
-		nestStorage2Service.set('telemetry.lastSessionDate', new Date().toUTCString(), StorageScope.GLOBAL);
+		nestStorage2Service.store('telemetry.lastSessionDate', new Date().toUTCString(), StorageScope.GLOBAL);
 
 		const props = await resolveWorkbenchCommonProperties(nestStorage2Service, commit, version, 'someMachineId', installSource);
 		assert.ok('common.lastSessionDate' in props); // conditional, see below

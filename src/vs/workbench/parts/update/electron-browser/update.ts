@@ -145,7 +145,7 @@ export class ProductContribution implements IWorkbenchContribution {
 			notificationService.info(nls.localize('licenseChanged', "Our license terms have changed, please click [here]({0}) to go through them.", product.licenseUrl));
 		}
 
-		storageService.set(ProductContribution.KEY, pkg.version, StorageScope.GLOBAL);
+		storageService.store(ProductContribution.KEY, pkg.version, StorageScope.GLOBAL);
 	}
 }
 
@@ -158,7 +158,7 @@ class NeverShowAgain {
 		// Hide notification
 		notification.close();
 
-		return TPromise.wrap(this.storageService.set(this.key, true, StorageScope.GLOBAL));
+		return TPromise.wrap(this.storageService.store(this.key, true, StorageScope.GLOBAL));
 	});
 
 	constructor(key: string, @IStorageService private storageService: IStorageService) {
@@ -268,8 +268,8 @@ export class UpdateContribution implements IGlobalActivity {
 
 		// if current version != stored version, clear both fields
 		if (currentVersion !== lastKnownVersion) {
-			this.storageService.delete('update/lastKnownVersion', StorageScope.GLOBAL);
-			this.storageService.delete('update/updateNotificationTime', StorageScope.GLOBAL);
+			this.storageService.remove('update/lastKnownVersion', StorageScope.GLOBAL);
+			this.storageService.remove('update/updateNotificationTime', StorageScope.GLOBAL);
 		}
 	}
 
@@ -453,8 +453,8 @@ export class UpdateContribution implements IGlobalActivity {
 
 		// if version != stored version, save version and date
 		if (currentVersion !== lastKnownVersion) {
-			this.storageService.set('update/lastKnownVersion', currentVersion, StorageScope.GLOBAL);
-			this.storageService.set('update/updateNotificationTime', currentMillis, StorageScope.GLOBAL);
+			this.storageService.store('update/lastKnownVersion', currentVersion, StorageScope.GLOBAL);
+			this.storageService.store('update/updateNotificationTime', currentMillis, StorageScope.GLOBAL);
 		}
 
 		const updateNotificationMillis = this.storageService.getInteger('update/updateNotificationTime', StorageScope.GLOBAL, currentMillis);

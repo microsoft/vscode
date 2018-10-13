@@ -659,6 +659,6 @@ class CompositeBarModel {
 
 	saveState(): void {
 		const serialized = this.items.map(({ id, pinned, order, visible }) => ({ id, pinned, order, visible }));
-		this.storageService.set(this.options.storageId, JSON.stringify(serialized), StorageScope.GLOBAL);
+		this.storageService.store(this.options.storageId, JSON.stringify(serialized), StorageScope.GLOBAL);
 	}
 }

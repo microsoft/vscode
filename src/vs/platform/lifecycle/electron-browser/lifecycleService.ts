@@ -52,7 +52,7 @@ export class LifecycleService extends Disposable implements ILifecycleService {
 
 	private resolveStartupKind(): StartupKind {
 		const lastShutdownReason = this.storageService.getInteger(LifecycleService.LAST_SHUTDOWN_REASON_KEY, StorageScope.WORKSPACE);
-		this.storageService.delete(LifecycleService.LAST_SHUTDOWN_REASON_KEY, StorageScope.WORKSPACE);
+		this.storageService.remove(LifecycleService.LAST_SHUTDOWN_REASON_KEY, StorageScope.WORKSPACE);
 
 		let startupKind: StartupKind;
 		if (lastShutdownReason === ShutdownReason.RELOAD) {
@@ -76,13 +76,13 @@ export class LifecycleService extends Disposable implements ILifecycleService {
 			this.logService.trace(`lifecycle: onBeforeUnload (reason: ${reply.reason})`);
 
 			// store shutdown reason to retrieve next startup
-			this.storageService.set(LifecycleService.LAST_SHUTDOWN_REASON_KEY, JSON.stringify(reply.reason), StorageScope.WORKSPACE);
+			this.storageService.store(LifecycleService.LAST_SHUTDOWN_REASON_KEY, JSON.stringify(reply.reason), StorageScope.WORKSPACE);
 
 			// trigger onWillShutdown events and veto collecting
 			this.handleWillShutdown(reply.reason).then(veto => {
 				if (veto) {
 					this.logService.trace('lifecycle: onBeforeUnload prevented via veto');
-					this.storageService.delete(LifecycleService.LAST_SHUTDOWN_REASON_KEY, StorageScope.WORKSPACE);
+					this.storageService.remove(LifecycleService.LAST_SHUTDOWN_REASON_KEY, StorageScope.WORKSPACE);
 					ipc.send(reply.cancelChannel, windowId);
 				} else {
 					this.logService.trace('lifecycle: onBeforeUnload continues without veto');

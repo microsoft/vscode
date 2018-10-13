@@ -501,7 +501,7 @@ export class WorkspaceStats implements IWorkbenchContribution {
 		const doNotShowAgain: IPromptChoice = {
 			label: localize('never again', "Don't Show Again"),
 			isSecondary: true,
-			run: () => this.storageService.set(WorkspaceStats.DISABLE_WORKSPACE_PROMPT_KEY, true, StorageScope.WORKSPACE)
+			run: () => this.storageService.store(WorkspaceStats.DISABLE_WORKSPACE_PROMPT_KEY, true, StorageScope.WORKSPACE)
 		};
 
 		// Prompt to open one workspace

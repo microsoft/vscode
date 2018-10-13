@@ -772,7 +772,7 @@ export class HistoryService extends Disposable implements IHistoryService {
 			return void 0;
 		}).filter(serialized => !!serialized);
 
-		this.storageService.set(HistoryService.STORAGE_KEY, JSON.stringify(entries), StorageScope.WORKSPACE);
+		this.storageService.store(HistoryService.STORAGE_KEY, JSON.stringify(entries), StorageScope.WORKSPACE);
 	}
 
 	private loadHistory(): void {

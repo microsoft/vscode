@@ -161,7 +161,7 @@ export class TerminalService extends AbstractTerminalService implements ITermina
 
 		// Never suggest if the setting is non-default already (ie. they set the setting manually)
 		if (this._configHelper.config.shell.windows !== getDefaultShell(platform.Platform.Windows)) {
-			this.storageService.set(NEVER_SUGGEST_SELECT_WINDOWS_SHELL_STORAGE_KEY, true, StorageScope.GLOBAL);
+			this.storageService.store(NEVER_SUGGEST_SELECT_WINDOWS_SHELL_STORAGE_KEY, true, StorageScope.GLOBAL);
 			return;
 		}
 
@@ -190,7 +190,7 @@ export class TerminalService extends AbstractTerminalService implements ITermina
 			{
 				label: nls.localize('never again', "Don't Show Again"),
 				isSecondary: true,
-				run: () => this.storageService.set(NEVER_SUGGEST_SELECT_WINDOWS_SHELL_STORAGE_KEY, true, StorageScope.GLOBAL)
+				run: () => this.storageService.store(NEVER_SUGGEST_SELECT_WINDOWS_SHELL_STORAGE_KEY, true, StorageScope.GLOBAL)
 			}]
 		);
 	}

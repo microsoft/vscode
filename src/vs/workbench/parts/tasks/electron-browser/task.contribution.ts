@@ -797,7 +797,7 @@ class TaskService extends Disposable implements ITaskService {
 		if (values.length > 30) {
 			values = values.slice(0, 30);
 		}
-		this.storageService.set(TaskService.RecentlyUsedTasks_Key, JSON.stringify(values), StorageScope.WORKSPACE);
+		this.storageService.store(TaskService.RecentlyUsedTasks_Key, JSON.stringify(values), StorageScope.WORKSPACE);
 	}
 
 	private openDocumentation(): void {
@@ -1912,7 +1912,7 @@ class TaskService extends Disposable implements ITaskService {
 				label: nls.localize('TaskService.notAgain', 'Don\'t Show Again'),
 				isSecondary: true,
 				run: () => {
-					this.storageService.set(TaskService.IgnoreTask010DonotShowAgain_key, true, StorageScope.WORKSPACE);
+					this.storageService.store(TaskService.IgnoreTask010DonotShowAgain_key, true, StorageScope.WORKSPACE);
 					this._showIgnoreMessage = false;
 				}
 			}]

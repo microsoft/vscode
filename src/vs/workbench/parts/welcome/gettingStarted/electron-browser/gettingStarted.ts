@@ -65,7 +65,7 @@ export class GettingStarted implements IWorkbenchContribution {
 			this.telemetryService.getTelemetryInfo().then(info => {
 				let url = this.getUrl(info);
 				this.openExternal(url);
-				this.storageService.set(GettingStarted.hideWelcomeSettingskey, true, StorageScope.GLOBAL);
+				this.storageService.store(GettingStarted.hideWelcomeSettingskey, true, StorageScope.GLOBAL);
 			});
 		}
 	}

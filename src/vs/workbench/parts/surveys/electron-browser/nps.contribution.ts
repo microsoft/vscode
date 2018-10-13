@@ -40,8 +40,8 @@ class NPSContribution implements IWorkbenchContribution {
 		}
 
 		const sessionCount = storageService.getInteger(SESSION_COUNT_KEY, StorageScope.GLOBAL, 0) + 1;
-		storageService.set(LAST_SESSION_DATE_KEY, date, StorageScope.GLOBAL);
-		storageService.set(SESSION_COUNT_KEY, sessionCount, StorageScope.GLOBAL);
+		storageService.store(LAST_SESSION_DATE_KEY, date, StorageScope.GLOBAL);
+		storageService.store(SESSION_COUNT_KEY, sessionCount, StorageScope.GLOBAL);
 
 		if (sessionCount < 9) {
 			return;
@@ -50,10 +50,10 @@ class NPSContribution implements IWorkbenchContribution {
 		const isCandidate = storageService.getBoolean(IS_CANDIDATE_KEY, StorageScope.GLOBAL, false)
 			|| Math.random() < PROBABILITY;
 
-		storageService.set(IS_CANDIDATE_KEY, isCandidate, StorageScope.GLOBAL);
+		storageService.store(IS_CANDIDATE_KEY, isCandidate, StorageScope.GLOBAL);
 
 		if (!isCandidate) {
-			storageService.set(SKIP_VERSION_KEY, pkg.version, StorageScope.GLOBAL);
+			storageService.store(SKIP_VERSION_KEY, pkg.version, StorageScope.GLOBAL);
 			return;
 		}
 
@@ -65,19 +65,19 @@ class NPSContribution implements IWorkbenchContribution {
 				run: () => {
 					telemetryService.getTelemetryInfo().then(info => {
 						window.open(`${product.npsSurveyUrl}?o=${encodeURIComponent(process.platform)}&v=${encodeURIComponent(pkg.version)}&m=${encodeURIComponent(info.machineId)}`);
-						storageService.set(IS_CANDIDATE_KEY, false, StorageScope.GLOBAL);
-						storageService.set(SKIP_VERSION_KEY, pkg.version, StorageScope.GLOBAL);
+						storageService.store(IS_CANDIDATE_KEY, false, StorageScope.GLOBAL);
+						storageService.store(SKIP_VERSION_KEY, pkg.version, StorageScope.GLOBAL);
 					});
 				}
 			}, {
 				label: nls.localize('remindLater', "Remind Me later"),
-				run: () => storageService.set(SESSION_COUNT_KEY, sessionCount - 3, StorageScope.GLOBAL)
+				run: () => storageService.store(SESSION_COUNT_KEY, sessionCount - 3, StorageScope.GLOBAL)
 			}, {
 				label: nls.localize('neverAgain', "Don't Show Again"),
 				isSecondary: true,
 				run: () => {
-					storageService.set(IS_CANDIDATE_KEY, false, StorageScope.GLOBAL);
-					storageService.set(SKIP_VERSION_KEY, pkg.version, StorageScope.GLOBAL);
+					storageService.store(IS_CANDIDATE_KEY, false, StorageScope.GLOBAL);
+					storageService.store(SKIP_VERSION_KEY, pkg.version, StorageScope.GLOBAL);
 				}
 			}],
 			{ sticky: true }

@@ -1048,7 +1048,7 @@ export class SuggestWidget implements IContentWidget, IListVirtualDelegate<IComp
 	}
 
 	private updateExpandDocsSetting(value: boolean) {
-		this.storageService.set('expandSuggestionDocs', value, StorageScope.GLOBAL);
+		this.storageService.store('expandSuggestionDocs', value, StorageScope.GLOBAL);
 	}
 
 	dispose(): void {

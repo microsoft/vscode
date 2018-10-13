@@ -211,7 +211,7 @@ class DoNotShowResolveConflictLearnMoreAction extends Action {
 	}
 
 	run(notification: IDisposable): Promise<any> {
-		this.storageService.set(LEARN_MORE_DIRTY_WRITE_IGNORE_KEY, true, StorageScope.GLOBAL);
+		this.storageService.store(LEARN_MORE_DIRTY_WRITE_IGNORE_KEY, true, StorageScope.GLOBAL);
 
 		// Hide notification
 		notification.dispose();
