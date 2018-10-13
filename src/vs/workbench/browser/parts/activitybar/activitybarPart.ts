@@ -25,7 +25,7 @@ import { isMacintosh } from 'vs/base/common/platform';
 import { ILifecycleService, LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
 import { scheduleAtNextAnimationFrame, Dimension, addClass } from 'vs/base/browser/dom';
 import { Color } from 'vs/base/common/color';
-import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
+import { INextStorage2Service, StorageScope } from 'vs/platform/storage2/common/storage2';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { URI } from 'vs/base/common/uri';
 import { ToggleCompositePinnedAction, ICompositeBarColors } from 'vs/workbench/browser/parts/compositeBarActions';
@@ -58,7 +58,7 @@ export class ActivitybarPart extends Part {
 		@IPartService private partService: IPartService,
 		@IThemeService themeService: IThemeService,
 		@ILifecycleService private lifecycleService: ILifecycleService,
-		@IStorageService private storageService: IStorageService,
+		@INextStorage2Service private nextStorage2Service: INextStorage2Service,
 		@IExtensionService private extensionService: IExtensionService
 	) {
 		super(id, { hasTitle: false }, themeService);
@@ -79,7 +79,7 @@ export class ActivitybarPart extends Part {
 			overflowActionSize: ActivitybarPart.ACTION_HEIGHT
 		}));
 
-		const previousState = this.storageService.get(ActivitybarPart.PLACEHOLDER_VIEWLETS, StorageScope.GLOBAL, '[]');
+		const previousState = this.nextStorage2Service.get(ActivitybarPart.PLACEHOLDER_VIEWLETS, StorageScope.GLOBAL, '[]');
 		this.placeholderComposites = <IPlaceholderComposite[]>JSON.parse(previousState);
 		this.placeholderComposites.forEach((s) => {
 			if (typeof s.iconUrl === 'object') {
@@ -110,6 +110,11 @@ export class ActivitybarPart extends Part {
 		}));
 
 		this._register(this.extensionService.onDidRegisterExtensions(() => this.onDidRegisterExtensions()));
+
+		this._register(this.nextStorage2Service.onWillClose(() => {
+			const state = this.viewletService.getAllViewlets().map(({ id, iconUrl }) => ({ id, iconUrl }));
+			this.nextStorage2Service.set(ActivitybarPart.PLACEHOLDER_VIEWLETS, JSON.stringify(state), StorageScope.GLOBAL);
+		}));
 	}
 
 	private onDidRegisterExtensions(): void {
@@ -330,12 +335,5 @@ export class ActivitybarPart extends Part {
 		this.compositeBar.layout(new Dimension(dimension.width, availableHeight));
 
 		return sizes;
-	}
-
-	shutdown(): void {
-		const state = this.viewletService.getAllViewlets().map(({ id, iconUrl }) => ({ id, iconUrl }));
-		this.storageService.store(ActivitybarPart.PLACEHOLDER_VIEWLETS, JSON.stringify(state), StorageScope.GLOBAL);
-
-		super.shutdown();
 	}
 }

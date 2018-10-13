@@ -104,6 +104,8 @@ export class NextDelegatingStorage2Service extends Disposable implements INextSt
 	private _onWillClose: Emitter<ShutdownReason> = this._register(new Emitter<ShutdownReason>());
 	get onWillClose(): Event<ShutdownReason> { return this._onWillClose.event; }
 
+	private closed: boolean;
+
 	constructor(
 		@INextStorage2Service private nextStorage2Service: NextStorage2Service,
 		@IStorageService private storageService: IStorageService,
@@ -163,18 +165,32 @@ export class NextDelegatingStorage2Service extends Disposable implements INextSt
 	}
 
 	set(key: string, value: any, scope: StorageScope): Promise<void> {
+		if (this.closed) {
+			this.logService.warn(`Unsupported write (set) access after close (key: ${key})`);
+
+			return Promise.resolve(); // prevent writing after close to detect late write access
+		}
+
 		this.storageService.store(key, value, this.convertScope(scope));
 
 		return this.nextStorage2Service.set(key, value, scope);
 	}
 
 	delete(key: string, scope: StorageScope): Promise<void> {
+		if (this.closed) {
+			this.logService.warn(`Unsupported write (delete) access after close (key: ${key})`);
+
+			return Promise.resolve(); // prevent writing after close to detect late write access
+		}
+
 		this.storageService.remove(key, this.convertScope(scope));
 
 		return this.nextStorage2Service.delete(key, scope);
 	}
 
 	close(reason: ShutdownReason): Promise<void> {
+		this.closed = true;
+
 		return this.nextStorage2Service.close(reason);
 	}
 

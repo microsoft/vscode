@@ -22,7 +22,7 @@ import { Composite, CompositeRegistry } from 'vs/workbench/browser/composite';
 import { IComposite } from 'vs/workbench/common/composite';
 import { ScopedProgressService } from 'vs/workbench/services/progress/browser/progressService';
 import { IPartService } from 'vs/workbench/services/part/common/partService';
-import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
+import { INextStorage2Service, StorageScope } from 'vs/platform/storage2/common/storage2';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
@@ -69,7 +69,7 @@ export abstract class CompositePart<T extends Composite> extends Part {
 
 	constructor(
 		private notificationService: INotificationService,
-		private storageService: IStorageService,
+		private nextStorage2Service: INextStorage2Service,
 		private telemetryService: ITelemetryService,
 		protected contextMenuService: IContextMenuService,
 		protected partService: IPartService,
@@ -93,7 +93,7 @@ export abstract class CompositePart<T extends Composite> extends Part {
 		this.mapProgressServiceToComposite = {};
 		this.activeComposite = null;
 		this.instantiatedComposites = [];
-		this.lastActiveCompositeId = storageService.get(activeCompositeSettingsKey, StorageScope.WORKSPACE, this.defaultCompositeId);
+		this.lastActiveCompositeId = nextStorage2Service.get(activeCompositeSettingsKey, StorageScope.WORKSPACE, this.defaultCompositeId);
 	}
 
 	protected openComposite(id: string, focus?: boolean): TPromise<Composite> {
@@ -204,9 +204,9 @@ export abstract class CompositePart<T extends Composite> extends Part {
 		// Store in preferences
 		const id = this.activeComposite.getId();
 		if (id !== this.defaultCompositeId) {
-			this.storageService.store(this.activeCompositeSettingsKey, id, StorageScope.WORKSPACE);
+			this.nextStorage2Service.set(this.activeCompositeSettingsKey, id, StorageScope.WORKSPACE);
 		} else {
-			this.storageService.remove(this.activeCompositeSettingsKey, StorageScope.WORKSPACE);
+			this.nextStorage2Service.delete(this.activeCompositeSettingsKey, StorageScope.WORKSPACE);
 		}
 
 		// Remember

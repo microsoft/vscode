@@ -244,7 +244,6 @@ export abstract class ViewContainerViewlet extends PanelViewlet implements IView
 	shutdown(): void {
 		this.panels.forEach((view) => view.shutdown());
 		this.storageService.store(this.visibleViewsStorageId, this.length, this.contextService.getWorkbenchState() !== WorkbenchState.EMPTY ? StorageScope.WORKSPACE : StorageScope.GLOBAL);
-		this.viewsModel.saveViewsStates();
 		super.shutdown();
 	}
 
