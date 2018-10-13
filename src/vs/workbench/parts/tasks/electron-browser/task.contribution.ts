@@ -40,7 +40,7 @@ import { IExtensionService } from 'vs/workbench/services/extensions/common/exten
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { ProblemMatcherRegistry, NamedProblemMatcher } from 'vs/workbench/parts/tasks/common/problemMatcher';
-import { INextStorage2Service, StorageScope } from 'vs/platform/storage2/common/storage2';
+import { IStorageService, StorageScope } from 'vs/platform/storage2/common/storage2';
 import { IProgressService2, IProgressOptions, ProgressLocation } from 'vs/workbench/services/progress/common/progress';
 
 import { IOpenerService } from 'vs/platform/opener/common/opener';
@@ -479,7 +479,7 @@ class TaskService extends Disposable implements ITaskService {
 		@IQuickInputService private quickInputService: IQuickInputService,
 		@IConfigurationResolverService private configurationResolverService: IConfigurationResolverService,
 		@ITerminalService private terminalService: ITerminalService,
-		@INextStorage2Service private nextStorage2Service: INextStorage2Service,
+		@IStorageService private storageService: IStorageService,
 		@IProgressService2 private progressService: IProgressService2,
 		@IOpenerService private openerService: IOpenerService,
 		@IWindowService private readonly _windowService: IWindowService,
@@ -535,7 +535,7 @@ class TaskService extends Disposable implements ITaskService {
 		}));
 		this._taskRunningState = TASK_RUNNING_STATE.bindTo(contextKeyService);
 		this._register(lifecycleService.onWillShutdown(event => event.veto(this.beforeShutdown())));
-		this._register(nextStorage2Service.onWillClose(() => this.saveState()));
+		this._register(storageService.onWillClose(() => this.saveState()));
 		this._onDidStateChange = this._register(new Emitter());
 		this.registerCommands();
 	}
@@ -636,7 +636,7 @@ class TaskService extends Disposable implements ITaskService {
 
 	private get showIgnoreMessage(): boolean {
 		if (this._showIgnoreMessage === void 0) {
-			this._showIgnoreMessage = !this.nextStorage2Service.getBoolean(TaskService.IgnoreTask010DonotShowAgain_key, StorageScope.WORKSPACE, false);
+			this._showIgnoreMessage = !this.storageService.getBoolean(TaskService.IgnoreTask010DonotShowAgain_key, StorageScope.WORKSPACE, false);
 		}
 		return this._showIgnoreMessage;
 	}
@@ -773,7 +773,7 @@ class TaskService extends Disposable implements ITaskService {
 			return this._recentlyUsedTasks;
 		}
 		this._recentlyUsedTasks = new LinkedMap<string, string>();
-		let storageValue = this.nextStorage2Service.get(TaskService.RecentlyUsedTasks_Key, StorageScope.WORKSPACE);
+		let storageValue = this.storageService.get(TaskService.RecentlyUsedTasks_Key, StorageScope.WORKSPACE);
 		if (storageValue) {
 			try {
 				let values: string[] = JSON.parse(storageValue);
@@ -797,7 +797,7 @@ class TaskService extends Disposable implements ITaskService {
 		if (values.length > 30) {
 			values = values.slice(0, 30);
 		}
-		this.nextStorage2Service.set(TaskService.RecentlyUsedTasks_Key, JSON.stringify(values), StorageScope.WORKSPACE);
+		this.storageService.set(TaskService.RecentlyUsedTasks_Key, JSON.stringify(values), StorageScope.WORKSPACE);
 	}
 
 	private openDocumentation(): void {
@@ -1912,7 +1912,7 @@ class TaskService extends Disposable implements ITaskService {
 				label: nls.localize('TaskService.notAgain', 'Don\'t Show Again'),
 				isSecondary: true,
 				run: () => {
-					this.nextStorage2Service.set(TaskService.IgnoreTask010DonotShowAgain_key, true, StorageScope.WORKSPACE);
+					this.storageService.set(TaskService.IgnoreTask010DonotShowAgain_key, true, StorageScope.WORKSPACE);
 					this._showIgnoreMessage = false;
 				}
 			}]

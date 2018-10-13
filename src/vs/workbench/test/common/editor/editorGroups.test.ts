@@ -7,7 +7,7 @@ import * as assert from 'assert';
 import { EditorGroup, ISerializedEditorGroup, EditorCloseEvent } from 'vs/workbench/common/editor/editorGroup';
 import { Extensions as EditorExtensions, IEditorInputFactoryRegistry, EditorInput, IFileEditorInput, IEditorInputFactory, CloseDirection } from 'vs/workbench/common/editor';
 import { URI } from 'vs/base/common/uri';
-import { TestLifecycleService, TestContextService, TestNextStorage2Service } from 'vs/workbench/test/workbenchTestServices';
+import { TestLifecycleService, TestContextService, TestStorageService } from 'vs/workbench/test/workbenchTestServices';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
 import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -20,11 +20,11 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { NullTelemetryService } from 'vs/platform/telemetry/common/telemetryUtils';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
-import { INextStorage2Service } from 'vs/platform/storage2/common/storage2';
+import { IStorageService } from 'vs/platform/storage2/common/storage2';
 
 function inst(): IInstantiationService {
 	let inst = new TestInstantiationService();
-	inst.stub(INextStorage2Service, new TestNextStorage2Service());
+	inst.stub(IStorageService, new TestStorageService());
 	inst.stub(ILifecycleService, new TestLifecycleService());
 	inst.stub(IWorkspaceContextService, new TestContextService());
 	inst.stub(ITelemetryService, NullTelemetryService);
@@ -412,7 +412,7 @@ suite('Workbench editor groups', () => {
 
 	test('Multiple Editors - Pinned and Active (DEFAULT_OPEN_EDITOR_DIRECTION = Direction.LEFT)', function () {
 		let inst = new TestInstantiationService();
-		inst.stub(INextStorage2Service, new TestNextStorage2Service());
+		inst.stub(IStorageService, new TestStorageService());
 		inst.stub(ILifecycleService, new TestLifecycleService());
 		inst.stub(IWorkspaceContextService, new TestContextService());
 		inst.stub(ITelemetryService, NullTelemetryService);
@@ -936,7 +936,7 @@ suite('Workbench editor groups', () => {
 	test('Single Group, Single Editor - persist', function () {
 		let inst = new TestInstantiationService();
 
-		inst.stub(INextStorage2Service, new TestNextStorage2Service());
+		inst.stub(IStorageService, new TestStorageService());
 		inst.stub(IWorkspaceContextService, new TestContextService());
 		const lifecycle = new TestLifecycleService();
 		inst.stub(ILifecycleService, lifecycle);
@@ -970,7 +970,7 @@ suite('Workbench editor groups', () => {
 	test('Multiple Groups, Multiple editors - persist', function () {
 		let inst = new TestInstantiationService();
 
-		inst.stub(INextStorage2Service, new TestNextStorage2Service());
+		inst.stub(IStorageService, new TestStorageService());
 		inst.stub(IWorkspaceContextService, new TestContextService());
 		const lifecycle = new TestLifecycleService();
 		inst.stub(ILifecycleService, lifecycle);
@@ -1040,7 +1040,7 @@ suite('Workbench editor groups', () => {
 	test('Single group, multiple editors - persist (some not persistable)', function () {
 		let inst = new TestInstantiationService();
 
-		inst.stub(INextStorage2Service, new TestNextStorage2Service());
+		inst.stub(IStorageService, new TestStorageService());
 		inst.stub(IWorkspaceContextService, new TestContextService());
 		const lifecycle = new TestLifecycleService();
 		inst.stub(ILifecycleService, lifecycle);
@@ -1084,7 +1084,7 @@ suite('Workbench editor groups', () => {
 	test('Multiple groups, multiple editors - persist (some not persistable, causes empty group)', function () {
 		let inst = new TestInstantiationService();
 
-		inst.stub(INextStorage2Service, new TestNextStorage2Service());
+		inst.stub(IStorageService, new TestStorageService());
 		inst.stub(IWorkspaceContextService, new TestContextService());
 		const lifecycle = new TestLifecycleService();
 		inst.stub(ILifecycleService, lifecycle);

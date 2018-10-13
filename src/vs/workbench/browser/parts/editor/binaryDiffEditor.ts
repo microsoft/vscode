@@ -10,7 +10,7 @@ import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { SideBySideEditor } from 'vs/workbench/browser/parts/editor/sideBySideEditor';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { BaseBinaryResourceEditor } from 'vs/workbench/browser/parts/editor/binaryEditor';
-import { INextStorage2Service } from 'vs/platform/storage2/common/storage2';
+import { IStorageService } from 'vs/platform/storage2/common/storage2';
 
 /**
  * An implementation of editor for diffing binary files like images or videos.
@@ -23,9 +23,9 @@ export class BinaryResourceDiffEditor extends SideBySideEditor {
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IThemeService themeService: IThemeService,
-		@INextStorage2Service nextStorage2Service: INextStorage2Service
+		@IStorageService storageService: IStorageService
 	) {
-		super(telemetryService, instantiationService, themeService, nextStorage2Service);
+		super(telemetryService, instantiationService, themeService, storageService);
 	}
 
 	getMetadata(): string {

@@ -26,7 +26,7 @@ import { SAVE_FILE_COMMAND_ID, REVERT_FILE_COMMAND_ID, SAVE_FILE_AS_COMMAND_ID, 
 import { createTextBufferFactoryFromSnapshot } from 'vs/editor/common/model/textModel';
 import { INotificationService, INotificationHandle, INotificationActions, Severity } from 'vs/platform/notification/common/notification';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
-import { INextStorage2Service, StorageScope } from 'vs/platform/storage2/common/storage2';
+import { IStorageService, StorageScope } from 'vs/platform/storage2/common/storage2';
 import { ExecuteCommandAction } from 'vs/platform/actions/common/actions';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { once } from 'vs/base/common/event';
@@ -52,7 +52,7 @@ export class SaveErrorHandler extends Disposable implements ISaveErrorHandler, I
 		@IEditorService private editorService: IEditorService,
 		@ITextModelService textModelService: ITextModelService,
 		@IInstantiationService private instantiationService: IInstantiationService,
-		@INextStorage2Service private nextStorage2Service: INextStorage2Service
+		@IStorageService private storageService: IStorageService
 	) {
 		super();
 
@@ -111,7 +111,7 @@ export class SaveErrorHandler extends Disposable implements ISaveErrorHandler, I
 
 			// If the user tried to save from the opened conflict editor, show its message again
 			if (this.activeConflictResolutionResource && this.activeConflictResolutionResource.toString() === model.getResource().toString()) {
-				if (this.nextStorage2Service.getBoolean(LEARN_MORE_DIRTY_WRITE_IGNORE_KEY, StorageScope.GLOBAL)) {
+				if (this.storageService.getBoolean(LEARN_MORE_DIRTY_WRITE_IGNORE_KEY, StorageScope.GLOBAL)) {
 					return; // return if this message is ignored
 				}
 
@@ -205,13 +205,13 @@ class ResolveConflictLearnMoreAction extends Action {
 class DoNotShowResolveConflictLearnMoreAction extends Action {
 
 	constructor(
-		@INextStorage2Service private nextStorage2Service: INextStorage2Service
+		@IStorageService private storageService: IStorageService
 	) {
 		super('workbench.files.action.resolveConflictLearnMoreDoNotShowAgain', nls.localize('dontShowAgain', "Don't Show Again"));
 	}
 
 	run(notification: IDisposable): Promise<any> {
-		this.nextStorage2Service.set(LEARN_MORE_DIRTY_WRITE_IGNORE_KEY, true, StorageScope.GLOBAL);
+		this.storageService.set(LEARN_MORE_DIRTY_WRITE_IGNORE_KEY, true, StorageScope.GLOBAL);
 
 		// Hide notification
 		notification.dispose();
@@ -227,7 +227,7 @@ class ResolveSaveConflictAction extends Action {
 		@IEditorService private editorService: IEditorService,
 		@INotificationService private notificationService: INotificationService,
 		@IInstantiationService private instantiationService: IInstantiationService,
-		@INextStorage2Service private nextStorage2Service: INextStorage2Service,
+		@IStorageService private storageService: IStorageService,
 		@IEnvironmentService private environmentService: IEnvironmentService
 	) {
 		super('workbench.files.action.resolveConflict', nls.localize('compareChanges', "Compare"));
@@ -247,7 +247,7 @@ class ResolveSaveConflictAction extends Action {
 					options: { pinned: true }
 				}
 			).then(() => {
-				if (this.nextStorage2Service.getBoolean(LEARN_MORE_DIRTY_WRITE_IGNORE_KEY, StorageScope.GLOBAL)) {
+				if (this.storageService.getBoolean(LEARN_MORE_DIRTY_WRITE_IGNORE_KEY, StorageScope.GLOBAL)) {
 					return; // return if this message is ignored
 				}
 

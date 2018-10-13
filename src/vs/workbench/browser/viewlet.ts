@@ -20,7 +20,7 @@ import { IEditorGroupsService } from 'vs/workbench/services/group/common/editorG
 import { URI } from 'vs/base/common/uri';
 import { ToggleSidebarPositionAction } from 'vs/workbench/browser/actions/toggleSidebarPosition';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { INextStorage2Service } from 'vs/platform/storage2/common/storage2';
+import { IStorageService } from 'vs/platform/storage2/common/storage2';
 
 export abstract class Viewlet extends Composite implements IViewlet {
 
@@ -29,9 +29,9 @@ export abstract class Viewlet extends Composite implements IViewlet {
 		private partService: IPartService,
 		telemetryService: ITelemetryService,
 		themeService: IThemeService,
-		nextStorage2Service: INextStorage2Service
+		storageService: IStorageService
 	) {
-		super(id, telemetryService, themeService, nextStorage2Service);
+		super(id, telemetryService, themeService, storageService);
 	}
 
 	getOptimalWidth(): number {

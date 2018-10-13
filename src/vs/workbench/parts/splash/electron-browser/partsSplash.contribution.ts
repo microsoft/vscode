@@ -11,7 +11,7 @@ import { dispose, IDisposable } from 'vs/base/common/lifecycle';
 import { IBroadcastService } from 'vs/platform/broadcast/electron-browser/broadcastService';
 import { ILifecycleService, LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
 import { Registry } from 'vs/platform/registry/common/platform';
-import { INextStorage2Service, StorageScope } from 'vs/platform/storage2/common/storage2';
+import { IStorageService, StorageScope } from 'vs/platform/storage2/common/storage2';
 import { ColorIdentifier, editorBackground, foreground } from 'vs/platform/theme/common/colorRegistry';
 import { getThemeTypeSelector, IThemeService } from 'vs/platform/theme/common/themeService';
 import { DEFAULT_EDITOR_MIN_DIMENSIONS } from 'vs/workbench/browser/parts/editor/editor';
@@ -32,7 +32,7 @@ class PartsSplash {
 	constructor(
 		@IThemeService private readonly _themeService: IThemeService,
 		@IPartService private readonly _partService: IPartService,
-		@INextStorage2Service private readonly _nextStorage2Service: INextStorage2Service,
+		@IStorageService private readonly storageService: IStorageService,
 		@IEnvironmentService private readonly _envService: IEnvironmentService,
 		@ILifecycleService lifecycleService: ILifecycleService,
 		@IBroadcastService private broadcastService: IBroadcastService
@@ -67,7 +67,7 @@ class PartsSplash {
 			sideBarWidth: getTotalWidth(this._partService.getContainer(Parts.SIDEBAR_PART)),
 			statusBarHeight: getTotalHeight(this._partService.getContainer(Parts.STATUSBAR_PART)),
 		};
-		this._nextStorage2Service.set('parts-splash-data', JSON.stringify({
+		this.storageService.set('parts-splash-data', JSON.stringify({
 			id: PartsSplash._splashElementId,
 			colorInfo,
 			layoutInfo,

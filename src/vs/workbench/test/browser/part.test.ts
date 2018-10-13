@@ -8,13 +8,13 @@ import { Part } from 'vs/workbench/browser/part';
 import * as Types from 'vs/base/common/types';
 import { TestThemeService } from 'vs/platform/theme/test/common/testThemeService';
 import { append, $, hide } from 'vs/base/browser/dom';
-import { TestNextStorage2Service } from 'vs/workbench/test/workbenchTestServices';
+import { TestStorageService } from 'vs/workbench/test/workbenchTestServices';
 import { StorageScope } from 'vs/platform/storage2/common/storage2';
 
 class MyPart extends Part {
 
 	constructor(private expectedParent: HTMLElement) {
-		super('myPart', { hasTitle: true }, new TestThemeService(), new TestNextStorage2Service());
+		super('myPart', { hasTitle: true }, new TestThemeService(), new TestStorageService());
 	}
 
 	createTitleArea(parent: HTMLElement): HTMLElement {
@@ -39,7 +39,7 @@ class MyPart extends Part {
 class MyPart2 extends Part {
 
 	constructor() {
-		super('myPart2', { hasTitle: true }, new TestThemeService(), new TestNextStorage2Service());
+		super('myPart2', { hasTitle: true }, new TestThemeService(), new TestStorageService());
 	}
 
 	createTitleArea(parent: HTMLElement): HTMLElement {
@@ -64,7 +64,7 @@ class MyPart2 extends Part {
 class MyPart3 extends Part {
 
 	constructor() {
-		super('myPart2', { hasTitle: false }, new TestThemeService(), new TestNextStorage2Service());
+		super('myPart2', { hasTitle: false }, new TestThemeService(), new TestStorageService());
 	}
 
 	createTitleArea(parent: HTMLElement): HTMLElement {

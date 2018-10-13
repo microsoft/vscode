@@ -7,7 +7,7 @@ import 'vs/css!./media/part';
 import { Component } from 'vs/workbench/common/component';
 import { IThemeService, ITheme } from 'vs/platform/theme/common/themeService';
 import { Dimension, size } from 'vs/base/browser/dom';
-import { INextStorage2Service } from 'vs/platform/storage2/common/storage2';
+import { IStorageService } from 'vs/platform/storage2/common/storage2';
 
 export interface IPartOptions {
 	hasTitle?: boolean;
@@ -28,9 +28,9 @@ export abstract class Part extends Component {
 		id: string,
 		private options: IPartOptions,
 		themeService: IThemeService,
-		nextStorage2Service: INextStorage2Service
+		storageService: IStorageService
 	) {
-		super(id, themeService, nextStorage2Service);
+		super(id, themeService, storageService);
 	}
 
 	protected onThemeChange(theme: ITheme): void {

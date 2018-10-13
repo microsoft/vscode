@@ -15,7 +15,7 @@ import {
 } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { ITextModel } from 'vs/editor/common/model';
-import { INextStorage2Service, StorageScope } from 'vs/platform/storage2/common/storage2';
+import { IStorageService, StorageScope } from 'vs/platform/storage2/common/storage2';
 import product from 'vs/platform/node/product';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ShowRecommendedExtensionsAction, InstallWorkspaceRecommendedExtensionsAction, InstallRecommendedExtensionAction } from 'vs/workbench/parts/extensions/electron-browser/extensionsActions';
@@ -91,7 +91,7 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 	constructor(
 		@IExtensionGalleryService private readonly _galleryService: IExtensionGalleryService,
 		@IModelService private readonly _modelService: IModelService,
-		@INextStorage2Service private nextStorage2Service: INextStorage2Service,
+		@IStorageService private storageService: IStorageService,
 		@IExtensionManagementService private extensionsService: IExtensionManagementService,
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@IFileService private fileService: IFileService,
@@ -119,7 +119,7 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 
 		this.sessionSeed = +new Date();
 
-		let globallyIgnored = <string[]>JSON.parse(this.nextStorage2Service.get('extensionsAssistant/ignored_recommendations', StorageScope.GLOBAL, '[]'));
+		let globallyIgnored = <string[]>JSON.parse(this.storageService.get('extensionsAssistant/ignored_recommendations', StorageScope.GLOBAL, '[]'));
 		this._globallyIgnoredRecommendations = globallyIgnored.map(id => id.toLowerCase());
 
 		this.fetchCachedDynamicWorkspaceRecommendations();
@@ -465,7 +465,7 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 		const allRecommendations: string[] = flatten((Object.keys(this._availableRecommendations).map(key => this._availableRecommendations[key])));
 
 		// retrieve ids of previous recommendations
-		const storedRecommendationsJson = JSON.parse(this.nextStorage2Service.get('extensionsAssistant/recommendations', StorageScope.GLOBAL, '[]'));
+		const storedRecommendationsJson = JSON.parse(this.storageService.get('extensionsAssistant/recommendations', StorageScope.GLOBAL, '[]'));
 
 		if (Array.isArray<string>(storedRecommendationsJson)) {
 			for (let id of <string[]>storedRecommendationsJson) {
@@ -531,7 +531,7 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 				}
 			});
 
-			this.nextStorage2Service.set(
+			this.storageService.set(
 				'extensionsAssistant/recommendations',
 				JSON.stringify(Object.keys(this._fileBasedRecommendations).reduce((result, key) => { result[key] = this._fileBasedRecommendations[key].recommendedTime; return result; }, {})),
 				StorageScope.GLOBAL
@@ -542,7 +542,7 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 				return;
 			}
 
-			const importantRecommendationsIgnoreList = <string[]>JSON.parse(this.nextStorage2Service.get('extensionsAssistant/importantRecommendationsIgnore', StorageScope.GLOBAL, '[]'));
+			const importantRecommendationsIgnoreList = <string[]>JSON.parse(this.storageService.get('extensionsAssistant/importantRecommendationsIgnore', StorageScope.GLOBAL, '[]'));
 			recommendationsToSuggest = recommendationsToSuggest.filter(id => importantRecommendationsIgnoreList.indexOf(id) === -1 && this.isExtensionAllowedToBeRecommended(id));
 
 			const importantTipsPromise = recommendationsToSuggest.length === 0 ? Promise.resolve(null) : this.extensionWorkbenchService.queryLocal().then(local => {
@@ -596,7 +596,7 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 						isSecondary: true,
 						run: () => {
 							importantRecommendationsIgnoreList.push(id);
-							this.nextStorage2Service.set(
+							this.storageService.set(
 								'extensionsAssistant/importantRecommendationsIgnore',
 								JSON.stringify(importantRecommendationsIgnoreList),
 								StorageScope.GLOBAL
@@ -629,7 +629,7 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 			const mimeTypesPromise = this.getMimeTypes(uri.fsPath);
 			Promise.all([importantTipsPromise, mimeTypesPromise]).then(result => {
 
-				const fileExtensionSuggestionIgnoreList = <string[]>JSON.parse(this.nextStorage2Service.get
+				const fileExtensionSuggestionIgnoreList = <string[]>JSON.parse(this.storageService.get
 					('extensionsAssistant/fileExtensionsSuggestionIgnore', StorageScope.GLOBAL, '[]'));
 				const mimeTypes = result[1];
 
@@ -676,7 +676,7 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 							label: localize('dontShowAgainExtension', "Don't Show Again for '.{0}' files", fileExtension),
 							run: () => {
 								fileExtensionSuggestionIgnoreList.push(fileExtension);
-								this.nextStorage2Service.set(
+								this.storageService.set(
 									'extensionsAssistant/fileExtensionsSuggestionIgnore',
 									JSON.stringify(fileExtensionSuggestionIgnoreList),
 									StorageScope.GLOBAL
@@ -716,7 +716,7 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 		if (filteredRecs.length === 0
 			|| config.ignoreRecommendations
 			|| config.showRecommendationsOnlyOnDemand
-			|| this.nextStorage2Service.getBoolean(storageKey, StorageScope.WORKSPACE, false)) {
+			|| this.storageService.getBoolean(storageKey, StorageScope.WORKSPACE, false)) {
 			return;
 		}
 
@@ -773,7 +773,7 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 								}
 							*/
 							this.telemetryService.publicLog('extensionWorkspaceRecommendations:popup', { userReaction: 'neverShowAgain' });
-							this.nextStorage2Service.set(storageKey, true, StorageScope.WORKSPACE);
+							this.storageService.set(storageKey, true, StorageScope.WORKSPACE);
 
 							c(void 0);
 						}
@@ -859,7 +859,7 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 		this.configurationService.updateValue('extensions.ignoreRecommendations', configVal, ConfigurationTarget.USER);
 		if (configVal) {
 			const ignoreWorkspaceRecommendationsStorageKey = 'extensionsAssistant/workspaceRecommendationsIgnore';
-			this.nextStorage2Service.set(ignoreWorkspaceRecommendationsStorageKey, true, StorageScope.WORKSPACE);
+			this.storageService.set(ignoreWorkspaceRecommendationsStorageKey, true, StorageScope.WORKSPACE);
 		}
 	}
 
@@ -871,9 +871,9 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 		const storageKey = 'extensionsAssistant/dynamicWorkspaceRecommendations';
 		let storedRecommendationsJson = {};
 		try {
-			storedRecommendationsJson = JSON.parse(this.nextStorage2Service.get(storageKey, StorageScope.WORKSPACE, '{}'));
+			storedRecommendationsJson = JSON.parse(this.storageService.get(storageKey, StorageScope.WORKSPACE, '{}'));
 		} catch (e) {
-			this.nextStorage2Service.delete(storageKey, StorageScope.WORKSPACE);
+			this.storageService.delete(storageKey, StorageScope.WORKSPACE);
 		}
 
 		if (Array.isArray(storedRecommendationsJson['recommendations'])
@@ -923,7 +923,7 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 							if (Array.isArray(allRecommendations[j].remoteSet) && allRecommendations[j].remoteSet.indexOf(hashedRemotes[i]) > -1) {
 								foundRemote = true;
 								this._dynamicWorkspaceRecommendations = allRecommendations[j].recommendations.filter(id => this.isExtensionAllowedToBeRecommended(id)) || [];
-								this.nextStorage2Service.set(storageKey, JSON.stringify({
+								this.storageService.set(storageKey, JSON.stringify({
 									recommendations: this._dynamicWorkspaceRecommendations,
 									timestamp: Date.now()
 								}), StorageScope.WORKSPACE);
@@ -978,7 +978,7 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 			distinct([...this._globallyIgnoredRecommendations, lowerId].map(id => id.toLowerCase())) :
 			this._globallyIgnoredRecommendations.filter(id => id !== lowerId);
 
-		this.nextStorage2Service.set('extensionsAssistant/ignored_recommendations', JSON.stringify(this._globallyIgnoredRecommendations), StorageScope.GLOBAL);
+		this.storageService.set('extensionsAssistant/ignored_recommendations', JSON.stringify(this._globallyIgnoredRecommendations), StorageScope.GLOBAL);
 		this._allIgnoredRecommendations = distinct([...this._globallyIgnoredRecommendations, ...this._workspaceIgnoredRecommendations]);
 
 		this._onRecommendationChange.fire({ extensionId: extensionId, isRecommended: !shouldIgnore });

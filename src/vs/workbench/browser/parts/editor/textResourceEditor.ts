@@ -14,7 +14,7 @@ import { BaseTextEditorModel } from 'vs/workbench/common/editor/textEditorModel'
 import { UntitledEditorInput } from 'vs/workbench/common/editor/untitledEditorInput';
 import { BaseTextEditor } from 'vs/workbench/browser/parts/editor/textEditor';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { INextStorage2Service } from 'vs/platform/storage2/common/storage2';
+import { IStorageService } from 'vs/platform/storage2/common/storage2';
 import { ITextResourceConfigurationService } from 'vs/editor/common/services/resourceConfiguration';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
@@ -36,7 +36,7 @@ export class AbstractTextResourceEditor extends BaseTextEditor {
 		id: string,
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IInstantiationService instantiationService: IInstantiationService,
-		@INextStorage2Service nextStorage2Service: INextStorage2Service,
+		@IStorageService storageService: IStorageService,
 		@ITextResourceConfigurationService configurationService: ITextResourceConfigurationService,
 		@IThemeService themeService: IThemeService,
 		@IEditorGroupsService editorGroupService: IEditorGroupsService,
@@ -44,7 +44,7 @@ export class AbstractTextResourceEditor extends BaseTextEditor {
 		@IEditorService editorService: IEditorService,
 		@IWindowService windowService: IWindowService
 	) {
-		super(id, telemetryService, instantiationService, nextStorage2Service, configurationService, themeService, textFileService, editorService, editorGroupService, windowService);
+		super(id, telemetryService, instantiationService, storageService, configurationService, themeService, textFileService, editorService, editorGroupService, windowService);
 	}
 
 	getTitle(): string {
@@ -205,7 +205,7 @@ export class TextResourceEditor extends AbstractTextResourceEditor {
 	constructor(
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IInstantiationService instantiationService: IInstantiationService,
-		@INextStorage2Service nextStorage2Service: INextStorage2Service,
+		@IStorageService storageService: IStorageService,
 		@ITextResourceConfigurationService configurationService: ITextResourceConfigurationService,
 		@IThemeService themeService: IThemeService,
 		@ITextFileService textFileService: ITextFileService,
@@ -213,6 +213,6 @@ export class TextResourceEditor extends AbstractTextResourceEditor {
 		@IEditorGroupsService editorGroupService: IEditorGroupsService,
 		@IWindowService windowService: IWindowService
 	) {
-		super(TextResourceEditor.ID, telemetryService, instantiationService, nextStorage2Service, configurationService, themeService, editorGroupService, textFileService, editorService, windowService);
+		super(TextResourceEditor.ID, telemetryService, instantiationService, storageService, configurationService, themeService, editorGroupService, textFileService, editorService, windowService);
 	}
 }

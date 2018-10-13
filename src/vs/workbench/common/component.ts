@@ -6,7 +6,7 @@
 import { Memento } from 'vs/workbench/common/memento';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { Themable } from 'vs/workbench/common/theme';
-import { INextStorage2Service, StorageScope } from 'vs/platform/storage2/common/storage2';
+import { IStorageService, StorageScope } from 'vs/platform/storage2/common/storage2';
 
 export class Component extends Themable {
 	private id: string;
@@ -15,14 +15,14 @@ export class Component extends Themable {
 	constructor(
 		id: string,
 		themeService: IThemeService,
-		nextStorage2Service: INextStorage2Service
+		storageService: IStorageService
 	) {
 		super(themeService);
 
 		this.id = id;
-		this.memento = new Memento(this.id, nextStorage2Service);
+		this.memento = new Memento(this.id, storageService);
 
-		this._register(nextStorage2Service.onWillClose(() => {
+		this._register(storageService.onWillClose(() => {
 
 			// Ask the component to persist state into the memento
 			this.saveState();

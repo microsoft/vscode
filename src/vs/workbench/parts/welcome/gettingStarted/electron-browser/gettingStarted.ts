@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
-import { INextStorage2Service, StorageScope } from 'vs/platform/storage2/common/storage2';
+import { IStorageService, StorageScope } from 'vs/platform/storage2/common/storage2';
 import { ITelemetryService, ITelemetryInfo } from 'vs/platform/telemetry/common/telemetry';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import * as platform from 'vs/base/common/platform';
@@ -18,7 +18,7 @@ export class GettingStarted implements IWorkbenchContribution {
 	private appName: string;
 
 	constructor(
-		@INextStorage2Service private nextStorage2Service: INextStorage2Service,
+		@IStorageService private storageService: IStorageService,
 		@IEnvironmentService environmentService: IEnvironmentService,
 		@ITelemetryService private telemetryService: ITelemetryService
 	) {
@@ -59,13 +59,13 @@ export class GettingStarted implements IWorkbenchContribution {
 			return;
 		}
 
-		let firstStartup = !this.nextStorage2Service.get(GettingStarted.hideWelcomeSettingskey, StorageScope.GLOBAL);
+		let firstStartup = !this.storageService.get(GettingStarted.hideWelcomeSettingskey, StorageScope.GLOBAL);
 
 		if (firstStartup && this.welcomePageURL) {
 			this.telemetryService.getTelemetryInfo().then(info => {
 				let url = this.getUrl(info);
 				this.openExternal(url);
-				this.nextStorage2Service.set(GettingStarted.hideWelcomeSettingskey, true, StorageScope.GLOBAL);
+				this.storageService.set(GettingStarted.hideWelcomeSettingskey, true, StorageScope.GLOBAL);
 			});
 		}
 	}

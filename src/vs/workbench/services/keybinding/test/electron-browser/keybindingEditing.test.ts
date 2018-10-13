@@ -14,7 +14,7 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import { KeyCode, SimpleKeybinding, ChordKeybinding } from 'vs/base/common/keyCodes';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import * as extfs from 'vs/base/node/extfs';
-import { TestTextFileService, TestLifecycleService, TestBackupFileService, TestContextService, TestTextResourceConfigurationService, TestHashService, TestEnvironmentService, TestEditorGroupsService, TestEditorService, TestLogService, TestNextStorage2Service } from 'vs/workbench/test/workbenchTestServices';
+import { TestTextFileService, TestLifecycleService, TestBackupFileService, TestContextService, TestTextResourceConfigurationService, TestHashService, TestEnvironmentService, TestEditorGroupsService, TestEditorService, TestLogService, TestStorageService } from 'vs/workbench/test/workbenchTestServices';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IEditorGroupsService } from 'vs/workbench/services/group/common/editorGroupsService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
@@ -89,7 +89,7 @@ suite('KeybindingsEditing', () => {
 				new TestTextResourceConfigurationService(),
 				new TestConfigurationService(),
 				lifecycleService,
-				new TestNextStorage2Service(),
+				new TestStorageService(),
 				new TestNotificationService(),
 				{ disableWatcher: true })
 			);

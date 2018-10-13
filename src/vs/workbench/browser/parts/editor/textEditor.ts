@@ -12,7 +12,7 @@ import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditorWidget';
 import { EditorInput, EditorOptions, IEditorMemento, ITextEditor } from 'vs/workbench/common/editor';
 import { BaseEditor } from 'vs/workbench/browser/parts/editor/baseEditor';
 import { IEditorViewState, IEditor } from 'vs/editor/common/editorCommon';
-import { INextStorage2Service } from 'vs/platform/storage2/common/storage2';
+import { IStorageService } from 'vs/platform/storage2/common/storage2';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
@@ -47,7 +47,7 @@ export abstract class BaseTextEditor extends BaseEditor implements ITextEditor {
 		id: string,
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
-		@INextStorage2Service nextStorage2Service: INextStorage2Service,
+		@IStorageService storageService: IStorageService,
 		@ITextResourceConfigurationService private readonly _configurationService: ITextResourceConfigurationService,
 		@IThemeService protected themeService: IThemeService,
 		@ITextFileService private readonly _textFileService: ITextFileService,
@@ -55,7 +55,7 @@ export abstract class BaseTextEditor extends BaseEditor implements ITextEditor {
 		@IEditorGroupsService protected editorGroupService: IEditorGroupsService,
 		@IWindowService private windowService: IWindowService
 	) {
-		super(id, telemetryService, themeService, nextStorage2Service);
+		super(id, telemetryService, themeService, storageService);
 
 		this.editorMemento = this.getEditorMemento<IEditorViewState>(editorGroupService, TEXT_EDITOR_VIEW_STATE_PREFERENCE_KEY, 100);
 

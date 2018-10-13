@@ -9,7 +9,7 @@ import { Range } from 'vs/editor/common/core/range';
 import { InsertCursorAbove, InsertCursorBelow, MultiCursorSelectionController, SelectHighlightsAction, AddSelectionToNextFindMatchAction } from 'vs/editor/contrib/multicursor/multicursor';
 import { Handler } from 'vs/editor/common/editorCommon';
 import { EndOfLineSequence } from 'vs/editor/common/model';
-import { INextStorage2Service } from 'vs/platform/storage2/common/storage2';
+import { IStorageService } from 'vs/platform/storage2/common/storage2';
 import { Event } from 'vs/base/common/event';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { CommonFindController } from 'vs/editor/contrib/find/findController';
@@ -59,7 +59,7 @@ function fromRange(rng: Range): number[] {
 suite('Multicursor selection', () => {
 	let queryState: { [key: string]: any; } = {};
 	let serviceCollection = new ServiceCollection();
-	serviceCollection.set(INextStorage2Service, {
+	serviceCollection.set(IStorageService, {
 		_serviceBrand: undefined,
 		onDidChangeStorage: Event.None,
 		onWillClose: Event.None,
@@ -68,7 +68,7 @@ suite('Multicursor selection', () => {
 		getInteger: (key: string) => undefined,
 		set: (key: string, value: any) => { queryState[key] = value; return Promise.resolve(); },
 		delete: (key) => void 0
-	} as INextStorage2Service);
+	} as IStorageService);
 
 	test('issue #8817: Cursor position changes when you cancel multicursor', () => {
 		withTestCodeEditor([

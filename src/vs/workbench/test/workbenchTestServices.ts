@@ -77,8 +77,8 @@ import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { ViewletDescriptor } from 'vs/workbench/browser/viewlet';
 import { IViewlet } from 'vs/workbench/common/viewlet';
 import { IProgressService } from 'vs/platform/progress/common/progress';
-import { NextStorage2Service } from 'vs/platform/storage2/electron-browser/nextStorage2Service';
-import { INextStorage2Service } from 'vs/platform/storage2/common/storage2';
+import { StorageService } from 'vs/platform/storage2/electron-browser/nextStorage2Service';
+import { IStorageService } from 'vs/platform/storage2/common/storage2';
 
 export function createFileInput(instantiationService: IInstantiationService, resource: URI): FileEditorInput {
 	return instantiationService.createInstance(FileEditorInput, resource, void 0);
@@ -252,7 +252,7 @@ export function workbenchInstantiationService(): IInstantiationService {
 	instantiationService.stub(IConfigurationService, configService);
 	instantiationService.stub(ITextResourceConfigurationService, new TestTextResourceConfigurationService(configService));
 	instantiationService.stub(IUntitledEditorService, instantiationService.createInstance(UntitledEditorService));
-	instantiationService.stub(INextStorage2Service, new TestNextStorage2Service());
+	instantiationService.stub(IStorageService, new TestStorageService());
 	instantiationService.stub(IPartService, new TestPartService());
 	instantiationService.stub(IModeService, ModeServiceImpl);
 	instantiationService.stub(IHistoryService, new TestHistoryService());
@@ -525,7 +525,7 @@ export class TestPartService implements IPartService {
 	public resizePart(_part: Parts, _sizeChange: number): void { }
 }
 
-export class TestNextStorage2Service extends NextStorage2Service {
+export class TestStorageService extends StorageService {
 
 	constructor() {
 		super(':memory:', new NullLogService(), TestEnvironmentService);

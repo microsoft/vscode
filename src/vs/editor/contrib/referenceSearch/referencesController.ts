@@ -10,7 +10,7 @@ import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IContextKey, IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { INextStorage2Service, StorageScope } from 'vs/platform/storage2/common/storage2';
+import { IStorageService, StorageScope } from 'vs/platform/storage2/common/storage2';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { ReferencesModel } from './referencesModel';
@@ -52,7 +52,7 @@ export abstract class ReferencesController implements editorCommon.IEditorContri
 		@ICodeEditorService private readonly _editorService: ICodeEditorService,
 		@INotificationService private readonly _notificationService: INotificationService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
-		@INextStorage2Service private readonly _nextStorage2Service: INextStorage2Service,
+		@IStorageService private readonly storageService: IStorageService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 	) {
 		this._editor = editor;
@@ -95,14 +95,14 @@ export abstract class ReferencesController implements editorCommon.IEditorContri
 			}
 		}));
 		const storageKey = 'peekViewLayout';
-		const data = <LayoutData>JSON.parse(this._nextStorage2Service.get(storageKey, StorageScope.GLOBAL, '{}'));
+		const data = <LayoutData>JSON.parse(this.storageService.get(storageKey, StorageScope.GLOBAL, '{}'));
 		this._widget = this._instantiationService.createInstance(ReferenceWidget, this._editor, this._defaultTreeKeyboardSupport, data);
 		this._widget.setTitle(nls.localize('labelLoading', "Loading..."));
 		this._widget.show(range);
 		this._disposables.push(this._widget.onDidClose(() => {
 			modelPromise.cancel();
 
-			this._nextStorage2Service.set(storageKey, JSON.stringify(this._widget.layoutData), StorageScope.GLOBAL);
+			this.storageService.set(storageKey, JSON.stringify(this._widget.layoutData), StorageScope.GLOBAL);
 			this._widget = null;
 			this.closeWidget();
 		}));

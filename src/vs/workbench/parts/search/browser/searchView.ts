@@ -34,7 +34,7 @@ import { TreeResourceNavigator, WorkbenchTree } from 'vs/platform/list/browser/l
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { IProgressService } from 'vs/platform/progress/common/progress';
 import { IPatternInfo, IQueryOptions, ISearchComplete, ISearchConfiguration, ISearchHistoryService, ISearchProgressItem, ISearchQuery, VIEW_ID } from 'vs/platform/search/common/search';
-import { INextStorage2Service, StorageScope } from 'vs/platform/storage2/common/storage2';
+import { IStorageService, StorageScope } from 'vs/platform/storage2/common/storage2';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { diffInserted, diffInsertedOutline, diffRemoved, diffRemovedOutline, editorFindMatchHighlight, editorFindMatchHighlightBorder, listActiveSelectionForeground } from 'vs/platform/theme/common/colorRegistry';
 import { ICssStyleCollector, ITheme, IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
@@ -120,7 +120,7 @@ export class SearchView extends Viewlet implements IViewlet, IPanel {
 		@IProgressService private progressService: IProgressService,
 		@INotificationService private notificationService: INotificationService,
 		@IDialogService private dialogService: IDialogService,
-		@INextStorage2Service private nextStorage2Service: INextStorage2Service,
+		@IStorageService private storageService: IStorageService,
 		@IContextViewService private contextViewService: IContextViewService,
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@IConfigurationService configurationService: IConfigurationService,
@@ -134,7 +134,7 @@ export class SearchView extends Viewlet implements IViewlet, IPanel {
 		@ISearchHistoryService private searchHistoryService: ISearchHistoryService,
 		@IEditorGroupsService private editorGroupsService: IEditorGroupsService
 	) {
-		super(VIEW_ID, configurationService, partService, telemetryService, themeService, nextStorage2Service);
+		super(VIEW_ID, configurationService, partService, telemetryService, themeService, storageService);
 
 		this.viewletVisible = Constants.SearchViewVisibleKey.bindTo(contextKeyService);
 		this.viewletFocused = Constants.SearchViewFocusedKey.bindTo(contextKeyService);
@@ -320,7 +320,7 @@ export class SearchView extends Viewlet implements IViewlet, IPanel {
 			replaceHistory: replaceHistory
 		}));
 
-		if (this.nextStorage2Service.getBoolean(SearchView.SHOW_REPLACE_STORAGE_KEY, StorageScope.WORKSPACE, true)) {
+		if (this.storageService.getBoolean(SearchView.SHOW_REPLACE_STORAGE_KEY, StorageScope.WORKSPACE, true)) {
 			this.searchWidget.toggleReplace(true);
 		}
 
@@ -370,9 +370,9 @@ export class SearchView extends Viewlet implements IViewlet, IPanel {
 
 		const isReplaceShown = this.searchAndReplaceWidget.isReplaceShown();
 		if (!isReplaceShown) {
-			this.nextStorage2Service.set(SearchView.SHOW_REPLACE_STORAGE_KEY, false, StorageScope.WORKSPACE);
+			this.storageService.set(SearchView.SHOW_REPLACE_STORAGE_KEY, false, StorageScope.WORKSPACE);
 		} else {
-			this.nextStorage2Service.delete(SearchView.SHOW_REPLACE_STORAGE_KEY, StorageScope.WORKSPACE);
+			this.storageService.delete(SearchView.SHOW_REPLACE_STORAGE_KEY, StorageScope.WORKSPACE);
 		}
 	}
 

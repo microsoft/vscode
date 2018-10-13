@@ -20,7 +20,7 @@ import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditorWidget';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { localize } from 'vs/nls';
-import { INextStorage2Service } from 'vs/platform/storage2/common/storage2';
+import { IStorageService } from 'vs/platform/storage2/common/storage2';
 import { RawContextKey, IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { once } from 'vs/base/common/event';
@@ -72,13 +72,13 @@ export class WalkThroughPart extends BaseEditor {
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@IOpenerService private openerService: IOpenerService,
 		@IKeybindingService private keybindingService: IKeybindingService,
-		@INextStorage2Service nextStorage2Service: INextStorage2Service,
+		@IStorageService storageService: IStorageService,
 		@IContextKeyService private contextKeyService: IContextKeyService,
 		@IConfigurationService private configurationService: IConfigurationService,
 		@INotificationService private notificationService: INotificationService,
 		@IEditorGroupsService editorGroupService: IEditorGroupsService
 	) {
-		super(WalkThroughPart.ID, telemetryService, themeService, nextStorage2Service);
+		super(WalkThroughPart.ID, telemetryService, themeService, storageService);
 		this.editorFocus = WALK_THROUGH_FOCUS.bindTo(this.contextKeyService);
 		this.editorMemento = this.getEditorMemento<IWalkThroughEditorViewState>(editorGroupService, WALK_THROUGH_EDITOR_VIEW_STATE_PREFERENCE_KEY);
 	}

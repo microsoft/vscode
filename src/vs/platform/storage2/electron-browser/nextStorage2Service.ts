@@ -7,14 +7,14 @@ import { Disposable } from 'vs/base/common/lifecycle';
 import { Event, Emitter } from 'vs/base/common/event';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { IWorkspaceStorageChangeEvent, INextStorage2Service, StorageScope } from 'vs/platform/storage2/common/storage2';
+import { IWorkspaceStorageChangeEvent, IStorageService, StorageScope } from 'vs/platform/storage2/common/storage2';
 import { Storage, IStorageLoggingOptions } from 'vs/base/node/storage';
 import { IStorageLegacyService, StorageLegacyScope } from 'vs/platform/storage/common/storageLegacyService';
 import { addDisposableListener } from 'vs/base/browser/dom';
 import { startsWith } from 'vs/base/common/strings';
 import { ShutdownReason } from 'vs/platform/lifecycle/common/lifecycle';
 
-export class NextStorage2Service extends Disposable implements INextStorage2Service {
+export class StorageService extends Disposable implements IStorageService {
 	_serviceBrand: any;
 
 	private _onDidChangeStorage: Emitter<IWorkspaceStorageChangeEvent> = this._register(new Emitter<IWorkspaceStorageChangeEvent>());
@@ -95,7 +95,7 @@ export class NextStorage2Service extends Disposable implements INextStorage2Serv
 	}
 }
 
-export class NextDelegatingStorage2Service extends Disposable implements INextStorage2Service {
+export class DelegatingStorageService extends Disposable implements IStorageService {
 	_serviceBrand: any;
 
 	private _onDidChangeStorage: Emitter<IWorkspaceStorageChangeEvent> = this._register(new Emitter<IWorkspaceStorageChangeEvent>());
@@ -107,7 +107,7 @@ export class NextDelegatingStorage2Service extends Disposable implements INextSt
 	private closed: boolean;
 
 	constructor(
-		@INextStorage2Service private nextStorage2Service: NextStorage2Service,
+		@IStorageService private storageService: StorageService,
 		@IStorageLegacyService private storageLegacyService: IStorageLegacyService,
 		@ILogService private logService: ILogService,
 		@IEnvironmentService environmentService: IEnvironmentService
@@ -118,8 +118,8 @@ export class NextDelegatingStorage2Service extends Disposable implements INextSt
 	}
 
 	private registerListeners(): void {
-		this._register(this.nextStorage2Service.onDidChangeStorage(e => this._onDidChangeStorage.fire(e)));
-		this._register(this.nextStorage2Service.onWillClose(reason => this._onWillClose.fire(reason)));
+		this._register(this.storageService.onDidChangeStorage(e => this._onDidChangeStorage.fire(e)));
+		this._register(this.storageService.onWillClose(reason => this._onWillClose.fire(reason)));
 
 		const globalKeyMarker = 'storage://global/';
 		this._register(addDisposableListener(window, 'storage', (e: StorageEvent) => {
@@ -132,7 +132,7 @@ export class NextDelegatingStorage2Service extends Disposable implements INextSt
 	}
 
 	get(key: string, scope: StorageScope, fallbackValue?: any): string {
-		const dbValue = this.nextStorage2Service.get(key, scope, fallbackValue);
+		const dbValue = this.storageService.get(key, scope, fallbackValue);
 		const localStorageValue = this.storageLegacyService.get(key, this.convertScope(scope), fallbackValue);
 
 		this.assertStorageValue(key, scope, dbValue, localStorageValue);
@@ -141,7 +141,7 @@ export class NextDelegatingStorage2Service extends Disposable implements INextSt
 	}
 
 	getBoolean(key: string, scope: StorageScope, fallbackValue?: boolean): boolean {
-		const dbValue = this.nextStorage2Service.getBoolean(key, scope, fallbackValue);
+		const dbValue = this.storageService.getBoolean(key, scope, fallbackValue);
 		const localStorageValue = this.storageLegacyService.getBoolean(key, this.convertScope(scope), fallbackValue);
 
 		this.assertStorageValue(key, scope, dbValue, localStorageValue);
@@ -150,7 +150,7 @@ export class NextDelegatingStorage2Service extends Disposable implements INextSt
 	}
 
 	getInteger(key: string, scope: StorageScope, fallbackValue?: number): number {
-		const dbValue = this.nextStorage2Service.getInteger(key, scope, fallbackValue);
+		const dbValue = this.storageService.getInteger(key, scope, fallbackValue);
 		const localStorageValue = this.storageLegacyService.getInteger(key, this.convertScope(scope), fallbackValue);
 
 		this.assertStorageValue(key, scope, dbValue, localStorageValue);
@@ -173,7 +173,7 @@ export class NextDelegatingStorage2Service extends Disposable implements INextSt
 
 		this.storageLegacyService.store(key, value, this.convertScope(scope));
 
-		return this.nextStorage2Service.set(key, value, scope);
+		return this.storageService.set(key, value, scope);
 	}
 
 	delete(key: string, scope: StorageScope): Promise<void> {
@@ -185,13 +185,13 @@ export class NextDelegatingStorage2Service extends Disposable implements INextSt
 
 		this.storageLegacyService.remove(key, this.convertScope(scope));
 
-		return this.nextStorage2Service.delete(key, scope);
+		return this.storageService.delete(key, scope);
 	}
 
 	close(reason: ShutdownReason): Promise<void> {
 		this.closed = true;
 
-		return this.nextStorage2Service.close(reason);
+		return this.storageService.close(reason);
 	}
 
 	private convertScope(scope: StorageScope): StorageLegacyScope {

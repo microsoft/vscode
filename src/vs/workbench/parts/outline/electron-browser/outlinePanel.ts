@@ -43,7 +43,7 @@ import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { WorkbenchTree } from 'vs/platform/list/browser/listService';
 import { IMarkerService, MarkerSeverity } from 'vs/platform/markers/common/markers';
-import { INextStorage2Service, StorageScope } from 'vs/platform/storage2/common/storage2';
+import { IStorageService, StorageScope } from 'vs/platform/storage2/common/storage2';
 import { attachInputBoxStyler, attachProgressBarStyler } from 'vs/platform/theme/common/styler';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { ViewletPanel } from 'vs/workbench/browser/parts/views/panelViewlet';
@@ -203,12 +203,12 @@ class OutlineViewState {
 		return this._sortBy;
 	}
 
-	persist(nextStorage2Service: INextStorage2Service): void {
-		nextStorage2Service.set('outline/state', JSON.stringify({ followCursor: this.followCursor, sortBy: this.sortBy }), StorageScope.WORKSPACE);
+	persist(storageService: IStorageService): void {
+		storageService.set('outline/state', JSON.stringify({ followCursor: this.followCursor, sortBy: this.sortBy }), StorageScope.WORKSPACE);
 	}
 
-	restore(nextStorage2Service: INextStorage2Service): void {
-		let raw = nextStorage2Service.get('outline/state', StorageScope.WORKSPACE);
+	restore(storageService: IStorageService): void {
+		let raw = storageService.get('outline/state', StorageScope.WORKSPACE);
 		if (!raw) {
 			return;
 		}
@@ -251,7 +251,7 @@ export class OutlinePanel extends ViewletPanel {
 		options: IViewletViewOptions,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IThemeService private readonly _themeService: IThemeService,
-		@INextStorage2Service private readonly _nextStorage2Service: INextStorage2Service,
+		@IStorageService private readonly storageService: IStorageService,
 		@IEditorService private readonly _editorService: IEditorService,
 		@IMarkerService private readonly _markerService: IMarkerService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
@@ -261,7 +261,7 @@ export class OutlinePanel extends ViewletPanel {
 		@IContextMenuService contextMenuService: IContextMenuService,
 	) {
 		super(options, _keybindingService, contextMenuService, configurationService);
-		this._outlineViewState.restore(this._nextStorage2Service);
+		this._outlineViewState.restore(this.storageService);
 		this._contextKeyFocused = OutlineViewFocused.bindTo(contextKeyService);
 		this._contextKeyFiltered = OutlineViewFiltered.bindTo(contextKeyService);
 		this._disposables.push(this.onDidFocus(_ => this._contextKeyFocused.set(true)));
@@ -436,7 +436,7 @@ export class OutlinePanel extends ViewletPanel {
 	}
 
 	private _onDidChangeUserState(e: { followCursor?: boolean, sortBy?: boolean, filterOnType?: boolean }) {
-		this._outlineViewState.persist(this._nextStorage2Service);
+		this._outlineViewState.persist(this.storageService);
 		if (e.followCursor) {
 			// todo@joh update immediately
 		}

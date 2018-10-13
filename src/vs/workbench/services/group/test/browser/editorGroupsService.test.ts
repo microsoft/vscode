@@ -5,7 +5,7 @@
 
 import * as assert from 'assert';
 import { EditorPart } from 'vs/workbench/browser/parts/editor/editorPart';
-import { workbenchInstantiationService, TestNextStorage2Service } from 'vs/workbench/test/workbenchTestServices';
+import { workbenchInstantiationService, TestStorageService } from 'vs/workbench/test/workbenchTestServices';
 import { GroupDirection, GroupsOrder, MergeGroupMode, GroupOrientation, GroupChangeKind, EditorsOrder, GroupLocation } from 'vs/workbench/services/group/common/editorGroupsService';
 import { Dimension } from 'vs/base/browser/dom';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -24,7 +24,7 @@ import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 
 export class TestEditorControl extends BaseEditor {
 
-	constructor(@ITelemetryService telemetryService: ITelemetryService) { super('MyFileEditorForEditorGroupService', NullTelemetryService, new TestThemeService(), new TestNextStorage2Service()); }
+	constructor(@ITelemetryService telemetryService: ITelemetryService) { super('MyFileEditorForEditorGroupService', NullTelemetryService, new TestThemeService(), new TestStorageService()); }
 
 	getId(): string { return 'MyFileEditorForEditorGroupService'; }
 	layout(): void { }

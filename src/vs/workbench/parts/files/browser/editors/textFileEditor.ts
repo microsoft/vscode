@@ -18,7 +18,7 @@ import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { FileOperationError, FileOperationResult, FileChangesEvent, IFileService, FALLBACK_MAX_MEMORY_SIZE_MB, MIN_MAX_MEMORY_SIZE_MB } from 'vs/platform/files/common/files';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { INextStorage2Service } from 'vs/platform/storage2/common/storage2';
+import { IStorageService } from 'vs/platform/storage2/common/storage2';
 import { ITextResourceConfigurationService } from 'vs/editor/common/services/resourceConfiguration';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IPreferencesService } from 'vs/workbench/services/preferences/common/preferences';
@@ -46,7 +46,7 @@ export class TextFileEditor extends BaseTextEditor {
 		@IViewletService private viewletService: IViewletService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IWorkspaceContextService private contextService: IWorkspaceContextService,
-		@INextStorage2Service nextStorage2Service: INextStorage2Service,
+		@IStorageService storageService: IStorageService,
 		@ITextResourceConfigurationService configurationService: ITextResourceConfigurationService,
 		@IEditorService editorService: IEditorService,
 		@IThemeService themeService: IThemeService,
@@ -56,7 +56,7 @@ export class TextFileEditor extends BaseTextEditor {
 		@IPreferencesService private preferencesService: IPreferencesService,
 		@IWindowService windowService: IWindowService
 	) {
-		super(TextFileEditor.ID, telemetryService, instantiationService, nextStorage2Service, configurationService, themeService, textFileService, editorService, editorGroupService, windowService);
+		super(TextFileEditor.ID, telemetryService, instantiationService, storageService, configurationService, themeService, textFileService, editorService, editorGroupService, windowService);
 
 		this.updateRestoreViewStateConfiguration();
 

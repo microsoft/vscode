@@ -13,7 +13,7 @@ import { URI } from 'vs/base/common/uri';
 import { IDisposable, dispose, Disposable, toDisposable } from 'vs/base/common/lifecycle';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { INextStorage2Service, StorageScope } from 'vs/platform/storage2/common/storage2';
+import { IStorageService, StorageScope } from 'vs/platform/storage2/common/storage2';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { EditorOptions } from 'vs/workbench/common/editor';
 import { IOutputChannelDescriptor, IOutputChannel, IOutputService, Extensions, OUTPUT_PANEL_ID, IOutputChannelRegistry, OUTPUT_SCHEME, OUTPUT_MIME, LOG_SCHEME, LOG_MIME, CONTEXT_ACTIVE_LOG_OUTPUT, MAX_OUTPUT_LENGTH } from 'vs/workbench/parts/output/common/output';
@@ -434,7 +434,7 @@ export class OutputService extends Disposable implements IOutputService, ITextMo
 	private _outputPanel: OutputPanel;
 
 	constructor(
-		@INextStorage2Service private nextStorage2Service: INextStorage2Service,
+		@IStorageService private storageService: IStorageService,
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@IPanelService private panelService: IPanelService,
 		@IWorkspaceContextService contextService: IWorkspaceContextService,
@@ -447,7 +447,7 @@ export class OutputService extends Disposable implements IOutputService, ITextMo
 		@IContextKeyService private contextKeyService: IContextKeyService,
 	) {
 		super();
-		this.activeChannelIdInStorage = this.nextStorage2Service.get(OUTPUT_ACTIVE_CHANNEL_KEY, StorageScope.WORKSPACE, null);
+		this.activeChannelIdInStorage = this.storageService.get(OUTPUT_ACTIVE_CHANNEL_KEY, StorageScope.WORKSPACE, null);
 		this.outputDir = paths.join(environmentService.logsPath, `output_${windowService.getCurrentWindowId()}_${toLocalISOString(new Date()).replace(/-|:|\.\d+Z$/g, '')}`);
 
 		// Register as text model content provider for output
@@ -471,12 +471,12 @@ export class OutputService extends Disposable implements IOutputService, ITextMo
 		}
 
 		this._register(this.lifecycleService.onShutdown(() => this.dispose()));
-		this._register(this.nextStorage2Service.onWillClose(() => this.saveState()));
+		this._register(this.storageService.onWillClose(() => this.saveState()));
 	}
 
 	private saveState(): void {
 		if (this.activeChannel) {
-			this.nextStorage2Service.set(OUTPUT_ACTIVE_CHANNEL_KEY, this.activeChannel.id, StorageScope.WORKSPACE);
+			this.storageService.set(OUTPUT_ACTIVE_CHANNEL_KEY, this.activeChannel.id, StorageScope.WORKSPACE);
 		}
 	}
 

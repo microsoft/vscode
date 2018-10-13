@@ -25,7 +25,7 @@ import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { assign } from 'vs/base/common/objects';
 import { URI } from 'vs/base/common/uri';
-import { INextStorage2Service } from 'vs/platform/storage2/common/storage2';
+import { IStorageService } from 'vs/platform/storage2/common/storage2';
 
 let experimentData = {
 	experiments: []
@@ -76,11 +76,11 @@ suite('Experiment Service', () => {
 		testConfigurationService = new TestConfigurationService();
 		instantiationService.stub(IConfigurationService, testConfigurationService);
 		instantiationService.stub(ILifecycleService, new TestLifecycleService());
-		instantiationService.stub(INextStorage2Service, { get: (a, b, c) => c, getBoolean: (a, b, c) => c, set: () => { } });
+		instantiationService.stub(IStorageService, { get: (a, b, c) => c, getBoolean: (a, b, c) => c, set: () => { } });
 
 		setup(() => {
 			instantiationService.stub(IEnvironmentService, {});
-			instantiationService.stub(INextStorage2Service, { get: (a, b, c) => c, getBoolean: (a, b, c) => c, set: () => { } });
+			instantiationService.stub(IStorageService, { get: (a, b, c) => c, getBoolean: (a, b, c) => c, set: () => { } });
 		});
 
 		teardown(() => {
@@ -274,7 +274,7 @@ suite('Experiment Service', () => {
 			]
 		};
 
-		instantiationService.stub(INextStorage2Service, {
+		instantiationService.stub(IStorageService, {
 			get: (a, b, c) => a === 'experiments.experiment1' ? JSON.stringify({ state: ExperimentState.Complete }) : c,
 			set: (a, b, c) => { }
 		});
@@ -302,7 +302,7 @@ suite('Experiment Service', () => {
 			]
 		};
 
-		instantiationService.stub(INextStorage2Service, {
+		instantiationService.stub(IStorageService, {
 			get: (a, b, c) => a === 'experiments.experiment1' ? JSON.stringify({ enabled: true, state: ExperimentState.Run }) : c,
 			set: (a, b, c) => { }
 		});
@@ -410,7 +410,7 @@ suite('Experiment Service', () => {
 		let storageDataExperiment1 = { enabled: false };
 		let storageDataExperiment2 = { enabled: false };
 		let storageDataAllExperiments = ['experiment1', 'experiment2', 'experiment3'];
-		instantiationService.stub(INextStorage2Service, {
+		instantiationService.stub(IStorageService, {
 			get: (a, b, c) => {
 				switch (a) {
 					case 'experiments.experiment1':
@@ -482,7 +482,7 @@ suite('Experiment Service', () => {
 		let storageDataExperiment3 = { enabled: true, state: ExperimentState.Evaluating };
 		let storageDataExperiment4 = { enabled: true, state: ExperimentState.Complete };
 		let storageDataAllExperiments = ['experiment1', 'experiment2', 'experiment3', 'experiment4'];
-		instantiationService.stub(INextStorage2Service, {
+		instantiationService.stub(IStorageService, {
 			get: (a, b, c) => {
 				switch (a) {
 					case 'experiments.experiment1':
@@ -670,7 +670,7 @@ suite('Experiment Service', () => {
 
 		let storageDataExperiment3 = { enabled: true, state: ExperimentState.Evaluating };
 		let storageDataExperiment4 = { enabled: true, state: ExperimentState.Evaluating };
-		instantiationService.stub(INextStorage2Service, {
+		instantiationService.stub(IStorageService, {
 			get: (a, b, c) => {
 				switch (a) {
 					case 'currentOrPreviouslyRunExperiments':

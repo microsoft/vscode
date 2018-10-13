@@ -24,7 +24,7 @@ import { ProxyIdentifier } from 'vs/workbench/services/extensions/node/proxyIden
 import { ExtHostContext, ExtHostExtensionServiceShape, IExtHostContext, MainContext } from 'vs/workbench/api/node/extHost.protocol';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { INextStorage2Service, StorageScope } from 'vs/platform/storage2/common/storage2';
+import { IStorageService, StorageScope } from 'vs/platform/storage2/common/storage2';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ExtensionHostProcessWorker, IExtensionHostStarter } from 'vs/workbench/services/extensions/electron-browser/extensionHost';
 import { IMessagePassingProtocol } from 'vs/base/parts/ipc/node/ipc';
@@ -290,7 +290,7 @@ export class ExtensionService extends Disposable implements IExtensionService {
 		@IEnvironmentService private readonly _environmentService: IEnvironmentService,
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 		@IExtensionEnablementService private readonly _extensionEnablementService: IExtensionEnablementService,
-		@INextStorage2Service private readonly _nextStorage2Service: INextStorage2Service,
+		@IStorageService private readonly storageService: IStorageService,
 		@IWindowService private readonly _windowService: IWindowService,
 		@ILifecycleService lifecycleService: ILifecycleService,
 		@IExtensionManagementService private extensionManagementService: IExtensionManagementService
@@ -686,7 +686,7 @@ export class ExtensionService extends Disposable implements IExtensionService {
 							return TPromise.join(toDisable.map(e => this._extensionEnablementService.setEnablement(e, EnablementState.Disabled)));
 						})
 						.then(() => {
-							this._nextStorage2Service.set(BetterMergeDisabledNowKey, true, StorageScope.GLOBAL);
+							this.storageService.set(BetterMergeDisabledNowKey, true, StorageScope.GLOBAL);
 							return runtimeExtensions;
 						});
 				} else {

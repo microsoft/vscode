@@ -5,16 +5,16 @@
 
 import * as assert from 'assert';
 
-import { StorageScope, INextStorage2Service } from 'vs/platform/storage2/common/storage2';
+import { StorageScope, IStorageService } from 'vs/platform/storage2/common/storage2';
 import { Memento } from 'vs/workbench/common/memento';
-import { TestNextStorage2Service } from 'vs/workbench/test/workbenchTestServices';
+import { TestStorageService } from 'vs/workbench/test/workbenchTestServices';
 
 suite('Memento', () => {
 	let context: StorageScope | undefined = undefined;
-	let storage: INextStorage2Service;
+	let storage: IStorageService;
 
 	setup(() => {
-		storage = new TestNextStorage2Service();
+		storage = new TestStorageService();
 	});
 
 	test('Loading and Saving Memento with Scopes', () => {

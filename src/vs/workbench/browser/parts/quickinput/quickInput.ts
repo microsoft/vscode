@@ -44,7 +44,7 @@ import { getIconClass } from 'vs/workbench/browser/parts/quickinput/quickInputUt
 import { AccessibilitySupport } from 'vs/base/common/platform';
 import * as browser from 'vs/base/browser/browser';
 import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
-import { INextStorage2Service } from 'vs/platform/storage2/common/storage2';
+import { IStorageService } from 'vs/platform/storage2/common/storage2';
 
 const $ = dom.$;
 
@@ -798,9 +798,9 @@ export class QuickInputService extends Component implements IQuickInputService {
 		@IKeybindingService private keybindingService: IKeybindingService,
 		@IContextKeyService private contextKeyService: IContextKeyService,
 		@IThemeService themeService: IThemeService,
-		@INextStorage2Service nextStorage2Service: INextStorage2Service
+		@IStorageService storageService: IStorageService
 	) {
-		super(QuickInputService.ID, themeService, nextStorage2Service);
+		super(QuickInputService.ID, themeService, storageService);
 		this.inQuickOpenContext = new RawContextKey<boolean>('inQuickOpen', false).bindTo(contextKeyService);
 		this._register(this.quickOpenService.onShow(() => this.inQuickOpen('quickOpen', true)));
 		this._register(this.quickOpenService.onHide(() => this.inQuickOpen('quickOpen', false)));

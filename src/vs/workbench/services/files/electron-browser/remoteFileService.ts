@@ -18,7 +18,7 @@ import { IEnvironmentService } from 'vs/platform/environment/common/environment'
 import { FileChangesEvent, FileOperation, FileOperationError, FileOperationEvent, FileOperationResult, FileWriteOptions, FileSystemProviderCapabilities, IContent, ICreateFileOptions, IFileStat, IFileSystemProvider, IFilesConfiguration, IResolveContentOptions, IResolveFileOptions, IResolveFileResult, IStat, IStreamContent, ITextSnapshot, IUpdateContentOptions, StringSnapshot, IWatchOptions, FileType } from 'vs/platform/files/common/files';
 import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
 import { INotificationService } from 'vs/platform/notification/common/notification';
-import { INextStorage2Service } from 'vs/platform/storage2/common/storage2';
+import { IStorageService } from 'vs/platform/storage2/common/storage2';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { FileService } from 'vs/workbench/services/files/electron-browser/fileService';
@@ -163,7 +163,7 @@ export class RemoteFileService extends FileService {
 
 	constructor(
 		@IExtensionService private readonly _extensionService: IExtensionService,
-		@INextStorage2Service nextStorage2Service: INextStorage2Service,
+		@IStorageService storageService: IStorageService,
 		@IEnvironmentService environmentService: IEnvironmentService,
 		@IConfigurationService configurationService: IConfigurationService,
 		@IWorkspaceContextService contextService: IWorkspaceContextService,
@@ -177,7 +177,7 @@ export class RemoteFileService extends FileService {
 			textResourceConfigurationService,
 			configurationService,
 			lifecycleService,
-			nextStorage2Service,
+			storageService,
 			notificationService
 		);
 

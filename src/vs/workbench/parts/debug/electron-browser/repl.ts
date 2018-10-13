@@ -26,7 +26,7 @@ import { ServiceCollection } from 'vs/platform/instantiation/common/serviceColle
 import { IContextKeyService, ContextKeyExpr, IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IInstantiationService, createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { INextStorage2Service, StorageScope } from 'vs/platform/storage2/common/storage2';
+import { IStorageService, StorageScope } from 'vs/platform/storage2/common/storage2';
 import { ReplExpressionsRenderer, ReplExpressionsController, ReplExpressionsDataSource, ReplExpressionsActionProvider, ReplExpressionsAccessibilityProvider } from 'vs/workbench/parts/debug/electron-browser/replViewer';
 import { Panel } from 'vs/workbench/browser/panel';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
@@ -97,16 +97,16 @@ export class Repl extends Panel implements IPrivateReplService, IHistoryNavigati
 		@IDebugService private debugService: IDebugService,
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IInstantiationService private instantiationService: IInstantiationService,
-		@INextStorage2Service private nextStorage2Service: INextStorage2Service,
+		@IStorageService private storageService: IStorageService,
 		@IThemeService protected themeService: IThemeService,
 		@IModelService private modelService: IModelService,
 		@IContextKeyService private contextKeyService: IContextKeyService,
 		@ICodeEditorService codeEditorService: ICodeEditorService
 	) {
-		super(REPL_ID, telemetryService, themeService, nextStorage2Service);
+		super(REPL_ID, telemetryService, themeService, storageService);
 
 		this.replInputHeight = Repl.REPL_INPUT_INITIAL_HEIGHT;
-		this.history = new HistoryNavigator(JSON.parse(this.nextStorage2Service.get(HISTORY_STORAGE_KEY, StorageScope.WORKSPACE, '[]')), 50);
+		this.history = new HistoryNavigator(JSON.parse(this.storageService.get(HISTORY_STORAGE_KEY, StorageScope.WORKSPACE, '[]')), 50);
 		this.registerListeners();
 		codeEditorService.registerDecorationType(DECORATION_KEY, {});
 	}
@@ -128,9 +128,9 @@ export class Repl extends Panel implements IPrivateReplService, IHistoryNavigati
 	protected saveState(): void {
 		const replHistory = this.history.getHistory();
 		if (replHistory.length) {
-			this.nextStorage2Service.set(HISTORY_STORAGE_KEY, JSON.stringify(replHistory), StorageScope.WORKSPACE);
+			this.storageService.set(HISTORY_STORAGE_KEY, JSON.stringify(replHistory), StorageScope.WORKSPACE);
 		} else {
-			this.nextStorage2Service.delete(HISTORY_STORAGE_KEY, StorageScope.WORKSPACE);
+			this.storageService.delete(HISTORY_STORAGE_KEY, StorageScope.WORKSPACE);
 		}
 
 		super.saveState();

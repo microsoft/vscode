@@ -75,7 +75,7 @@ import { IBroadcastService, BroadcastService } from 'vs/platform/broadcast/elect
 import { HashService } from 'vs/workbench/services/hash/node/hashService';
 import { IHashService } from 'vs/workbench/services/hash/common/hashService';
 import { ILogService } from 'vs/platform/log/common/log';
-import { INextStorage2Service } from 'vs/platform/storage2/common/storage2';
+import { IStorageService } from 'vs/platform/storage2/common/storage2';
 import { Event, Emitter } from 'vs/base/common/event';
 import { WORKBENCH_BACKGROUND } from 'vs/workbench/common/theme';
 import { ILocalizationsChannel, LocalizationsChannelClient } from 'vs/platform/localizations/node/localizationsIpc';
@@ -108,7 +108,7 @@ export interface ICoreServices {
 	environmentService: IEnvironmentService;
 	logService: ILogService;
 	storageLegacyService: IStorageLegacyService;
-	nextStorage2Service: INextStorage2Service;
+	storageService: IStorageService;
 }
 
 /**
@@ -121,7 +121,7 @@ export class WorkbenchShell extends Disposable {
 	get onShutdown(): Event<ShutdownEvent> { return this._onShutdown.event; }
 
 	private storageLegacyService: IStorageLegacyService;
-	private nextStorage2Service: INextStorage2Service;
+	private storageService: IStorageService;
 	private environmentService: IEnvironmentService;
 	private logService: ILogService;
 	private configurationService: IConfigurationService;
@@ -152,7 +152,7 @@ export class WorkbenchShell extends Disposable {
 		this.environmentService = coreServices.environmentService;
 		this.logService = coreServices.logService;
 		this.storageLegacyService = coreServices.storageLegacyService;
-		this.nextStorage2Service = coreServices.nextStorage2Service;
+		this.storageService = coreServices.storageService;
 
 		this.mainProcessServices = mainProcessServices;
 
@@ -168,10 +168,10 @@ export class WorkbenchShell extends Disposable {
 		const [instantiationService, serviceCollection] = this.initServiceCollection(this.container);
 
 		// Warm up font cache information before building up too many dom elements
-		restoreFontInfo(this.nextStorage2Service);
+		restoreFontInfo(this.storageService);
 		readFontInfo(BareFontInfo.createFromRawSettings(this.configurationService.getValue('editor'), browser.getZoomLevel()));
-		this._register(this.nextStorage2Service.onWillClose(() => {
-			saveFontInfo(this.nextStorage2Service); // Keep font info for next startup around
+		this._register(this.storageService.onWillClose(() => {
+			saveFontInfo(this.storageService); // Keep font info for next startup around
 		}));
 
 		// Workbench
@@ -284,7 +284,7 @@ export class WorkbenchShell extends Disposable {
 		serviceCollection.set(ILabelService, new SyncDescriptor(LabelService));
 		serviceCollection.set(ILogService, this._register(this.logService));
 		serviceCollection.set(IStorageLegacyService, this.storageLegacyService);
-		serviceCollection.set(INextStorage2Service, this.nextStorage2Service);
+		serviceCollection.set(IStorageService, this.storageService);
 
 		this.mainProcessServices.forEach((serviceIdentifier, serviceInstance) => {
 			serviceCollection.set(serviceIdentifier, serviceInstance);
@@ -315,7 +315,7 @@ export class WorkbenchShell extends Disposable {
 			const channel = getDelayedChannel<ITelemetryAppenderChannel>(sharedProcess.then(c => c.getChannel('telemetryAppender')));
 			const config: ITelemetryServiceConfig = {
 				appender: combinedAppender(new TelemetryAppenderClient(channel), new LogAppender(this.logService)),
-				commonProperties: resolveWorkbenchCommonProperties(this.nextStorage2Service, product.commit, pkg.version, this.configuration.machineId, this.environmentService.installSourcePath),
+				commonProperties: resolveWorkbenchCommonProperties(this.storageService, product.commit, pkg.version, this.configuration.machineId, this.environmentService.installSourcePath),
 				piiPaths: [this.environmentService.appRoot, this.environmentService.extensionsPath]
 			};
 

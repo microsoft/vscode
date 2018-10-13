@@ -10,7 +10,7 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { IEditorGroup, IEditorGroupsService } from 'vs/workbench/services/group/common/editorGroupsService';
-import { INextStorage2Service, StorageScope } from 'vs/platform/storage2/common/storage2';
+import { IStorageService, StorageScope } from 'vs/platform/storage2/common/storage2';
 import { LRUCache } from 'vs/base/common/map';
 import { URI } from 'vs/base/common/uri';
 import { once, Event } from 'vs/base/common/event';
@@ -50,9 +50,9 @@ export abstract class BaseEditor extends Panel implements IEditor {
 		id: string,
 		telemetryService: ITelemetryService,
 		themeService: IThemeService,
-		nextStorage2Service: INextStorage2Service
+		storageService: IStorageService
 	) {
-		super(id, telemetryService, themeService, nextStorage2Service);
+		super(id, telemetryService, themeService, storageService);
 	}
 
 	get input(): EditorInput {

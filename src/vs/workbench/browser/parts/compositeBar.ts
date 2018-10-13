@@ -9,7 +9,7 @@ import { illegalArgument } from 'vs/base/common/errors';
 import * as arrays from 'vs/base/common/arrays';
 import { IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { IBadge } from 'vs/workbench/services/activity/common/activity';
-import { INextStorage2Service, StorageScope } from 'vs/platform/storage2/common/storage2';
+import { IStorageService, StorageScope } from 'vs/platform/storage2/common/storage2';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ActionBar, ActionsOrientation, Separator } from 'vs/base/browser/ui/actionbar/actionbar';
 import { CompositeActionItem, CompositeOverflowActivityAction, ICompositeActivity, CompositeOverflowActivityActionItem, ActivityAction, ICompositeBar, ICompositeBarColors, DraggedCompositeIdentifier } from 'vs/workbench/browser/parts/compositeBarActions';
@@ -55,12 +55,12 @@ export class CompositeBar extends Widget implements ICompositeBar {
 	constructor(
 		private options: ICompositeBarOptions,
 		@IInstantiationService private instantiationService: IInstantiationService,
-		@INextStorage2Service nextStorage2Service: INextStorage2Service,
+		@IStorageService storageService: IStorageService,
 		@IContextMenuService private contextMenuService: IContextMenuService
 	) {
 		super();
 
-		this.model = new CompositeBarModel(options, nextStorage2Service);
+		this.model = new CompositeBarModel(options, storageService);
 		this.visibleComposites = [];
 		this.compositeSizeInBar = new Map<string, number>();
 		this.compositeTransfer = LocalSelectionTransfer.getInstance<DraggedCompositeIdentifier>();
@@ -452,7 +452,7 @@ class CompositeBarModel {
 
 	constructor(
 		options: ICompositeBarOptions,
-		private nextStorage2Service: INextStorage2Service,
+		private storageService: IStorageService,
 	) {
 		this.options = options;
 		this.items = this.loadItemStates();
@@ -650,7 +650,7 @@ class CompositeBarModel {
 	}
 
 	private loadItemStates(): ICompositeBarItem[] {
-		const storedStates = <Array<string | ISerializedCompositeBarItem>>JSON.parse(this.nextStorage2Service.get(this.options.storageId, StorageScope.GLOBAL, '[]'));
+		const storedStates = <Array<string | ISerializedCompositeBarItem>>JSON.parse(this.storageService.get(this.options.storageId, StorageScope.GLOBAL, '[]'));
 		return <ICompositeBarItem[]>storedStates.map(c => {
 			const serialized: ISerializedCompositeBarItem = typeof c === 'string' /* migration from pinned states to composites states */ ? { id: c, pinned: true, order: void 0, visible: true } : c;
 			return this.createCompositeBarItem(serialized.id, void 0, serialized.order, serialized.pinned, isUndefinedOrNull(serialized.visible) ? true : serialized.visible);
@@ -659,6 +659,6 @@ class CompositeBarModel {
 
 	saveState(): void {
 		const serialized = this.items.map(({ id, pinned, order, visible }) => ({ id, pinned, order, visible }));
-		this.nextStorage2Service.set(this.options.storageId, JSON.stringify(serialized), StorageScope.GLOBAL);
+		this.storageService.set(this.options.storageId, JSON.stringify(serialized), StorageScope.GLOBAL);
 	}
 }

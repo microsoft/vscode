@@ -9,7 +9,7 @@ import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 import { IPartService } from 'vs/workbench/services/part/common/partService';
 import { ITerminalService, ITerminalInstance, IShellLaunchConfig, ITerminalConfigHelper, KEYBINDING_CONTEXT_TERMINAL_FOCUS, KEYBINDING_CONTEXT_TERMINAL_FIND_WIDGET_VISIBLE, TERMINAL_PANEL_ID, ITerminalTab, ITerminalProcessExtHostProxy, ITerminalProcessExtHostRequest, KEYBINDING_CONTEXT_TERMINAL_IS_OPEN } from 'vs/workbench/parts/terminal/common/terminal';
-import { INextStorage2Service } from 'vs/platform/storage2/common/storage2';
+import { IStorageService } from 'vs/platform/storage2/common/storage2';
 import { FindReplaceState } from 'vs/editor/contrib/find/findState';
 
 export abstract class TerminalService implements ITerminalService {
@@ -57,7 +57,7 @@ export abstract class TerminalService implements ITerminalService {
 		@IPanelService protected readonly _panelService: IPanelService,
 		@IPartService private readonly _partService: IPartService,
 		@ILifecycleService lifecycleService: ILifecycleService,
-		@INextStorage2Service protected readonly _nextStorage2Service: INextStorage2Service
+		@IStorageService protected readonly storageService: IStorageService
 	) {
 		this._activeTabIndex = 0;
 		this._isShuttingDown = false;

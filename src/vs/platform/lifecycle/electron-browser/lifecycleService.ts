@@ -6,7 +6,7 @@
 import { TPromise } from 'vs/base/common/winjs.base';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
 import { ILifecycleService, WillShutdownEvent, ShutdownReason, StartupKind, LifecyclePhase, handleVetos, LifecyclePhaseToString, ShutdownEvent } from 'vs/platform/lifecycle/common/lifecycle';
-import { INextStorage2Service, StorageScope } from 'vs/platform/storage2/common/storage2';
+import { IStorageService, StorageScope } from 'vs/platform/storage2/common/storage2';
 import { ipcRenderer as ipc } from 'electron';
 import { Event, Emitter } from 'vs/base/common/event';
 import { IWindowService } from 'vs/platform/windows/common/windows';
@@ -40,7 +40,7 @@ export class LifecycleService extends Disposable implements ILifecycleService {
 	constructor(
 		@INotificationService private notificationService: INotificationService,
 		@IWindowService private windowService: IWindowService,
-		@INextStorage2Service private nextStorage2Service: INextStorage2Service,
+		@IStorageService private storageService: IStorageService,
 		@ILogService private logService: ILogService
 	) {
 		super();
@@ -51,8 +51,8 @@ export class LifecycleService extends Disposable implements ILifecycleService {
 	}
 
 	private resolveStartupKind(): StartupKind {
-		const lastShutdownReason = this.nextStorage2Service.getInteger(LifecycleService.LAST_SHUTDOWN_REASON_KEY, StorageScope.WORKSPACE);
-		this.nextStorage2Service.delete(LifecycleService.LAST_SHUTDOWN_REASON_KEY, StorageScope.WORKSPACE);
+		const lastShutdownReason = this.storageService.getInteger(LifecycleService.LAST_SHUTDOWN_REASON_KEY, StorageScope.WORKSPACE);
+		this.storageService.delete(LifecycleService.LAST_SHUTDOWN_REASON_KEY, StorageScope.WORKSPACE);
 
 		let startupKind: StartupKind;
 		if (lastShutdownReason === ShutdownReason.RELOAD) {
@@ -76,13 +76,13 @@ export class LifecycleService extends Disposable implements ILifecycleService {
 			this.logService.trace(`lifecycle: onBeforeUnload (reason: ${reply.reason})`);
 
 			// store shutdown reason to retrieve next startup
-			this.nextStorage2Service.set(LifecycleService.LAST_SHUTDOWN_REASON_KEY, JSON.stringify(reply.reason), StorageScope.WORKSPACE);
+			this.storageService.set(LifecycleService.LAST_SHUTDOWN_REASON_KEY, JSON.stringify(reply.reason), StorageScope.WORKSPACE);
 
 			// trigger onWillShutdown events and veto collecting
 			this.handleWillShutdown(reply.reason).then(veto => {
 				if (veto) {
 					this.logService.trace('lifecycle: onBeforeUnload prevented via veto');
-					this.nextStorage2Service.delete(LifecycleService.LAST_SHUTDOWN_REASON_KEY, StorageScope.WORKSPACE);
+					this.storageService.delete(LifecycleService.LAST_SHUTDOWN_REASON_KEY, StorageScope.WORKSPACE);
 					ipc.send(reply.cancelChannel, windowId);
 				} else {
 					this.logService.trace('lifecycle: onBeforeUnload continues without veto');

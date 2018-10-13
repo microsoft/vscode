@@ -16,7 +16,7 @@ import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { ITextModelService, ITextEditorModel } from 'vs/editor/common/services/resolverService';
 import { Parts, IPartService } from 'vs/workbench/services/part/common/partService';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { INextStorage2Service } from 'vs/platform/storage2/common/storage2';
+import { IStorageService } from 'vs/platform/storage2/common/storage2';
 import { Dimension } from 'vs/base/browser/dom';
 import { BaseWebviewEditor } from 'vs/workbench/parts/webview/electron-browser/baseWebviewEditor';
 import { WebviewElement, WebviewOptions } from 'vs/workbench/parts/webview/electron-browser/webviewElement';
@@ -54,12 +54,12 @@ export class HtmlPreviewPart extends BaseWebviewEditor {
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IOpenerService private readonly _openerService: IOpenerService,
 		@IPartService private readonly _partService: IPartService,
-		@INextStorage2Service readonly nextStorage2Service: INextStorage2Service,
+		@IStorageService readonly storageService: IStorageService,
 		@ITextModelService private readonly _textModelResolverService: ITextModelService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IEditorGroupsService readonly editorGroupService: IEditorGroupsService
 	) {
-		super(HtmlPreviewPart.ID, telemetryService, themeService, contextKeyService, nextStorage2Service);
+		super(HtmlPreviewPart.ID, telemetryService, themeService, contextKeyService, storageService);
 
 		this.editorMemento = this.getEditorMemento<HtmlPreviewEditorViewState>(editorGroupService, this.viewStateStorageKey);
 	}

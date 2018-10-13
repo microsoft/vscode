@@ -26,7 +26,7 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { attachListStyler } from 'vs/platform/theme/common/styler';
 import { IThemeService, ITheme, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { registerColor, editorWidgetBackground, listFocusBackground, activeContrastBorder, listHighlightForeground, editorForeground, editorWidgetBorder, focusBorder, textLinkForeground, textCodeBlockBackground } from 'vs/platform/theme/common/colorRegistry';
-import { INextStorage2Service, StorageScope } from 'vs/platform/storage2/common/storage2';
+import { IStorageService, StorageScope } from 'vs/platform/storage2/common/storage2';
 import { MarkdownRenderer } from 'vs/editor/contrib/markdown/markdownRenderer';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
@@ -397,7 +397,7 @@ export class SuggestWidget implements IContentWidget, IListVirtualDelegate<IComp
 
 	private readonly maxWidgetWidth = 660;
 	private readonly listWidth = 330;
-	private nextStorage2Service: INextStorage2Service;
+	private storageService: IStorageService;
 	private detailsFocusBorderColor: string;
 	private detailsBorderColor: string;
 
@@ -408,7 +408,7 @@ export class SuggestWidget implements IContentWidget, IListVirtualDelegate<IComp
 		@ITelemetryService private telemetryService: ITelemetryService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IThemeService themeService: IThemeService,
-		@INextStorage2Service nextStorage2Service: INextStorage2Service,
+		@IStorageService storageService: IStorageService,
 		@IKeybindingService keybindingService: IKeybindingService,
 		@IModeService modeService: IModeService,
 		@IOpenerService openerService: IOpenerService
@@ -419,7 +419,7 @@ export class SuggestWidget implements IContentWidget, IListVirtualDelegate<IComp
 
 		this.isAuto = false;
 		this.focusedItem = null;
-		this.nextStorage2Service = nextStorage2Service;
+		this.storageService = storageService;
 
 		this.element = $('.editor-widget.suggest-widget');
 		if (!this.editor.getConfiguration().contribInfo.iconsInSuggestions) {
@@ -1044,11 +1044,11 @@ export class SuggestWidget implements IContentWidget, IListVirtualDelegate<IComp
 	}
 
 	private expandDocsSettingFromStorage(): boolean {
-		return this.nextStorage2Service.getBoolean('expandSuggestionDocs', StorageScope.GLOBAL, expandSuggestionDocsByDefault);
+		return this.storageService.getBoolean('expandSuggestionDocs', StorageScope.GLOBAL, expandSuggestionDocsByDefault);
 	}
 
 	private updateExpandDocsSetting(value: boolean) {
-		this.nextStorage2Service.set('expandSuggestionDocs', value, StorageScope.GLOBAL);
+		this.storageService.set('expandSuggestionDocs', value, StorageScope.GLOBAL);
 	}
 
 	dispose(): void {

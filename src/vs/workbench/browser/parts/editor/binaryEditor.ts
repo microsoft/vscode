@@ -19,7 +19,7 @@ import { Dimension, size, clearNode } from 'vs/base/browser/dom';
 import { IFileService } from 'vs/platform/files/common/files';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { dispose } from 'vs/base/common/lifecycle';
-import { INextStorage2Service } from 'vs/platform/storage2/common/storage2';
+import { IStorageService } from 'vs/platform/storage2/common/storage2';
 
 export interface IOpenCallbacks {
 	openInternal: (input: EditorInput, options: EditorOptions) => Thenable<void>;
@@ -49,9 +49,9 @@ export abstract class BaseBinaryResourceEditor extends BaseEditor {
 		telemetryService: ITelemetryService,
 		themeService: IThemeService,
 		@IFileService private readonly _fileService: IFileService,
-		@INextStorage2Service nextStorage2Service: INextStorage2Service
+		@IStorageService storageService: IStorageService
 	) {
-		super(id, telemetryService, themeService, nextStorage2Service);
+		super(id, telemetryService, themeService, storageService);
 
 		this.callbacks = callbacks;
 	}

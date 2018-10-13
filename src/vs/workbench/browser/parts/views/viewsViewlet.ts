@@ -15,7 +15,7 @@ import { IViewDescriptor, IViewsViewlet, IViewContainersRegistry, Extensions as 
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { INextStorage2Service, StorageScope } from 'vs/platform/storage2/common/storage2';
+import { IStorageService, StorageScope } from 'vs/platform/storage2/common/storage2';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
@@ -125,21 +125,21 @@ export abstract class ViewContainerViewlet extends PanelViewlet implements IView
 		@IConfigurationService configurationService: IConfigurationService,
 		@IPartService partService: IPartService,
 		@ITelemetryService telemetryService: ITelemetryService,
-		@INextStorage2Service protected nextStorage2Service: INextStorage2Service,
+		@IStorageService protected storageService: IStorageService,
 		@IInstantiationService protected instantiationService: IInstantiationService,
 		@IThemeService themeService: IThemeService,
 		@IContextMenuService protected contextMenuService: IContextMenuService,
 		@IExtensionService protected extensionService: IExtensionService,
 		@IWorkspaceContextService protected contextService: IWorkspaceContextService
 	) {
-		super(id, { showHeaderInTitleWhenSingleView, dnd: new DefaultPanelDndController() }, configurationService, partService, contextMenuService, telemetryService, themeService, nextStorage2Service);
+		super(id, { showHeaderInTitleWhenSingleView, dnd: new DefaultPanelDndController() }, configurationService, partService, contextMenuService, telemetryService, themeService, storageService);
 
 		const container = Registry.as<IViewContainersRegistry>(ViewContainerExtensions.ViewContainersRegistry).get(id);
 		this.viewsModel = this._register(this.instantiationService.createInstance(PersistentContributableViewsModel, container, viewletStateStorageId));
 		this.viewletState = this.getMemento(StorageScope.WORKSPACE);
 
 		this.visibleViewsStorageId = `${id}.numberOfVisibleViews`;
-		this.visibleViewsCountFromCache = this.nextStorage2Service.getInteger(this.visibleViewsStorageId, this.contextService.getWorkbenchState() === WorkbenchState.EMPTY ? StorageScope.GLOBAL : StorageScope.WORKSPACE, 0);
+		this.visibleViewsCountFromCache = this.storageService.getInteger(this.visibleViewsStorageId, this.contextService.getWorkbenchState() === WorkbenchState.EMPTY ? StorageScope.GLOBAL : StorageScope.WORKSPACE, 0);
 		this._register(toDisposable(() => this.viewDisposables = dispose(this.viewDisposables)));
 	}
 
@@ -379,7 +379,7 @@ export abstract class ViewContainerViewlet extends PanelViewlet implements IView
 
 	protected saveState(): void {
 		this.panels.forEach((view) => view.saveState());
-		this.nextStorage2Service.set(this.visibleViewsStorageId, this.length, this.contextService.getWorkbenchState() !== WorkbenchState.EMPTY ? StorageScope.WORKSPACE : StorageScope.GLOBAL);
+		this.storageService.set(this.visibleViewsStorageId, this.length, this.contextService.getWorkbenchState() !== WorkbenchState.EMPTY ? StorageScope.WORKSPACE : StorageScope.GLOBAL);
 
 		super.saveState();
 	}

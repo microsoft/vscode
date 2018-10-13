@@ -12,7 +12,7 @@ import * as Platform from 'vs/platform/registry/common/platform';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { NullTelemetryService } from 'vs/platform/telemetry/common/telemetryUtils';
-import { workbenchInstantiationService, TestEditorGroup, TestEditorGroupsService, TestNextStorage2Service } from 'vs/workbench/test/workbenchTestServices';
+import { workbenchInstantiationService, TestEditorGroup, TestEditorGroupsService, TestStorageService } from 'vs/workbench/test/workbenchTestServices';
 import { ResourceEditorInput } from 'vs/workbench/common/editor/resourceEditorInput';
 import { TestThemeService } from 'vs/platform/theme/test/common/testThemeService';
 import { URI } from 'vs/base/common/uri';
@@ -29,7 +29,7 @@ let EditorInputRegistry: IEditorInputFactoryRegistry = Platform.Registry.as(Edit
 export class MyEditor extends BaseEditor {
 
 	constructor(@ITelemetryService telemetryService: ITelemetryService) {
-		super('MyEditor', NullTelemetryService, NullThemeService, new TestNextStorage2Service());
+		super('MyEditor', NullTelemetryService, NullThemeService, new TestStorageService());
 	}
 
 	getId(): string { return 'myEditor'; }
@@ -40,7 +40,7 @@ export class MyEditor extends BaseEditor {
 export class MyOtherEditor extends BaseEditor {
 
 	constructor(@ITelemetryService telemetryService: ITelemetryService) {
-		super('myOtherEditor', NullTelemetryService, NullThemeService, new TestNextStorage2Service());
+		super('myOtherEditor', NullTelemetryService, NullThemeService, new TestStorageService());
 	}
 
 	getId(): string { return 'myOtherEditor'; }

@@ -16,7 +16,7 @@ import { areSameExtensions } from 'vs/platform/extensionManagement/common/extens
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
 import { IWindowService } from 'vs/platform/windows/common/windows';
 import { Action } from 'vs/base/common/actions';
-import { INextStorage2Service, StorageScope } from 'vs/platform/storage2/common/storage2';
+import { IStorageService, StorageScope } from 'vs/platform/storage2/common/storage2';
 
 const FIVE_MINUTES = 5 * 60 * 1000;
 const THIRTY_SECONDS = 30 * 1000;
@@ -60,12 +60,12 @@ export class ExtensionUrlHandler implements IExtensionUrlHandler, IURLHandler {
 		@IExtensionEnablementService private extensionEnablementService: IExtensionEnablementService,
 		@IWindowService private windowService: IWindowService,
 		@IExtensionGalleryService private galleryService: IExtensionGalleryService,
-		@INextStorage2Service private nextStorage2Service: INextStorage2Service
+		@IStorageService private storageService: IStorageService
 	) {
 		const interval = setInterval(() => this.garbageCollect(), THIRTY_SECONDS);
-		const urlToHandleValue = this.nextStorage2Service.get(URL_TO_HANDLE, StorageScope.WORKSPACE);
+		const urlToHandleValue = this.storageService.get(URL_TO_HANDLE, StorageScope.WORKSPACE);
 		if (urlToHandleValue) {
-			this.nextStorage2Service.delete(URL_TO_HANDLE, StorageScope.WORKSPACE);
+			this.storageService.delete(URL_TO_HANDLE, StorageScope.WORKSPACE);
 			this.handleURL(URI.revive(JSON.parse(urlToHandleValue)), true);
 		}
 
@@ -244,7 +244,7 @@ export class ExtensionUrlHandler implements IExtensionUrlHandler, IURLHandler {
 	}
 
 	private reloadAndHandle(url: URI): TPromise<void> {
-		this.nextStorage2Service.set(URL_TO_HANDLE, JSON.stringify(url.toJSON()), StorageScope.WORKSPACE);
+		this.storageService.set(URL_TO_HANDLE, JSON.stringify(url.toJSON()), StorageScope.WORKSPACE);
 		return this.windowService.reloadWindow();
 	}
 

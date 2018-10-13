@@ -35,7 +35,7 @@ import { IWorkspacesService, ISingleFolderWorkspaceIdentifier } from 'vs/platfor
 import { createSpdLogService } from 'vs/platform/log/node/spdlogService';
 import * as fs from 'fs';
 import { ConsoleLogService, MultiplexLogService, ILogService } from 'vs/platform/log/common/log';
-import { NextStorage2Service, NextDelegatingStorage2Service } from 'vs/platform/storage2/electron-browser/nextStorage2Service';
+import { StorageService, DelegatingStorageService } from 'vs/platform/storage2/electron-browser/nextStorage2Service';
 import { IssueChannelClient } from 'vs/platform/issue/node/issueIpc';
 import { IIssueService } from 'vs/platform/issue/common/issue';
 import { LogLevelSetterChannelClient, FollowerLogService } from 'vs/platform/log/node/logIpc';
@@ -99,11 +99,11 @@ function openWorkbench(configuration: IWindowConfiguration): Promise<void> {
 
 	return Promise.all([
 		createAndInitializeWorkspaceService(configuration, environmentService),
-		createNextStorage2Service(environmentService, logService)
+		createStorageService(environmentService, logService)
 	]).then(services => {
 		const workspaceService = services[0];
 		const storageLegacyService = createStorageLegacyService(workspaceService, environmentService);
-		const nextStorage2Service = new NextDelegatingStorage2Service(services[1], storageLegacyService, logService, environmentService);
+		const storageService = new DelegatingStorageService(services[1], storageLegacyService, logService, environmentService);
 
 		return domContentLoaded().then(() => {
 			perf.mark('willStartWorkbench');
@@ -115,12 +115,12 @@ function openWorkbench(configuration: IWindowConfiguration): Promise<void> {
 				environmentService,
 				logService,
 				storageLegacyService,
-				nextStorage2Service
+				storageService
 			}, mainServices, mainProcessClient, configuration);
 
 			// Gracefully Shutdown Storage
 			shell.onShutdown(event => {
-				event.join(nextStorage2Service.close(event.reason));
+				event.join(storageService.close(event.reason));
 			});
 
 			// Open Shell
@@ -165,15 +165,15 @@ function validateFolderUri(folderUri: ISingleFolderWorkspaceIdentifier, verbose:
 	});
 }
 
-function createNextStorage2Service(environmentService: IEnvironmentService, logService: ILogService): Promise<NextStorage2Service> {
-	perf.mark('willCreateNextStorage2Service');
+function createStorageService(environmentService: IEnvironmentService, logService: ILogService): Promise<StorageService> {
+	perf.mark('willCreateStorageService');
 
-	const nextStorage2Service = new NextStorage2Service(':memory:', logService, environmentService);
+	const storageService = new StorageService(':memory:', logService, environmentService);
 
-	return nextStorage2Service.init().then(() => {
-		perf.mark('didCreateNextStorage2Service');
+	return storageService.init().then(() => {
+		perf.mark('didCreateStorageService');
 
-		return nextStorage2Service;
+		return storageService;
 	});
 }
 

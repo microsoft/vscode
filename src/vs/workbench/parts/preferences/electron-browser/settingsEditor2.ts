@@ -28,7 +28,7 @@ import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { WorkbenchTree } from 'vs/platform/list/browser/listService';
 import { ILogService } from 'vs/platform/log/common/log';
 import { INotificationService } from 'vs/platform/notification/common/notification';
-import { INextStorage2Service, StorageScope } from 'vs/platform/storage2/common/storage2';
+import { IStorageService, StorageScope } from 'vs/platform/storage2/common/storage2';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { badgeBackground, badgeForeground, contrastBorder, editorForeground } from 'vs/platform/theme/common/colorRegistry';
 import { attachStylerCallback } from 'vs/platform/theme/common/styler';
@@ -132,12 +132,12 @@ export class SettingsEditor2 extends BaseEditor {
 		@IEnvironmentService private environmentService: IEnvironmentService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IContextMenuService private contextMenuService: IContextMenuService,
-		@INextStorage2Service private nextStorage2Service: INextStorage2Service,
+		@IStorageService private storageService: IStorageService,
 		@INotificationService private notificationService: INotificationService,
 		@IEditorGroupsService protected editorGroupService: IEditorGroupsService,
 		@IKeybindingService private keybindingService: IKeybindingService
 	) {
-		super(SettingsEditor2.ID, telemetryService, themeService, nextStorage2Service);
+		super(SettingsEditor2.ID, telemetryService, themeService, storageService);
 		this.delayedFilterLogging = new Delayer<void>(1000);
 		this.localSearchDelayer = new Delayer(300);
 		this.remoteSearchThrottle = new ThrottledDelayer(200);
@@ -663,8 +663,8 @@ export class SettingsEditor2 extends BaseEditor {
 	}
 
 	public notifyNoSaveNeeded(force: boolean = true) {
-		if (force || !this.nextStorage2Service.getBoolean('hasNotifiedOfSettingsAutosave', StorageScope.GLOBAL, false)) {
-			this.nextStorage2Service.set('hasNotifiedOfSettingsAutosave', true, StorageScope.GLOBAL);
+		if (force || !this.storageService.getBoolean('hasNotifiedOfSettingsAutosave', StorageScope.GLOBAL, false)) {
+			this.storageService.set('hasNotifiedOfSettingsAutosave', true, StorageScope.GLOBAL);
 			this.notificationService.info(localize('settingsNoSaveNeeded', "Your changes are automatically saved as you edit."));
 		}
 	}

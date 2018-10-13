@@ -22,7 +22,7 @@ import { RangeHighlightDecorations } from 'vs/workbench/browser/parts/editor/ran
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { IMarkersWorkbenchService } from 'vs/workbench/parts/markers/electron-browser/markers';
-import { INextStorage2Service, StorageScope } from 'vs/platform/storage2/common/storage2';
+import { IStorageService, StorageScope } from 'vs/platform/storage2/common/storage2';
 import { localize } from 'vs/nls';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { Iterator } from 'vs/base/common/iterator';
@@ -95,14 +95,14 @@ export class MarkersPanel extends Panel implements IMarkerFilterController {
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IThemeService themeService: IThemeService,
 		@IMarkersWorkbenchService private markersWorkbenchService: IMarkersWorkbenchService,
-		@INextStorage2Service nextStorage2Service: INextStorage2Service,
+		@IStorageService storageService: IStorageService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IWorkspaceContextService private workspaceContextService: IWorkspaceContextService,
 		@IContextMenuService private contextMenuService: IContextMenuService,
 		@IMenuService private menuService: IMenuService,
 		@IKeybindingService private keybindingService: IKeybindingService,
 	) {
-		super(Constants.MARKERS_PANEL_ID, telemetryService, themeService, nextStorage2Service);
+		super(Constants.MARKERS_PANEL_ID, telemetryService, themeService, storageService);
 		this.panelFoucusContextKey = Constants.MarkerPanelFocusContextKey.bindTo(contextKeyService);
 		this.panelState = this.getMemento(StorageScope.WORKSPACE);
 		this.setCurrentActiveEditor();

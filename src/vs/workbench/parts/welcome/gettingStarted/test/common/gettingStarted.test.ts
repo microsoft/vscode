@@ -5,7 +5,7 @@
 
 import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { INextStorage2Service } from 'vs/platform/storage2/common/storage2';
+import { IStorageService } from 'vs/platform/storage2/common/storage2';
 
 suite('Workbench - GettingStarted', () => {
 	let instantiation: TestInstantiationService | null = null;
@@ -26,7 +26,7 @@ suite('Workbench - GettingStarted', () => {
 				};
 			}
 		});
-		instantiation.stub(INextStorage2Service, {
+		instantiation.stub(IStorageService, {
 			get: () => hideWelcomeSettingsValue,
 			set: (value) => hideWelcomeSettingsValue = value
 		});

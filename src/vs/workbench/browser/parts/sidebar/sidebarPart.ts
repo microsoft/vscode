@@ -15,7 +15,7 @@ import { SyncActionDescriptor } from 'vs/platform/actions/common/actions';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { IPartService, Parts, Position as SideBarPosition } from 'vs/workbench/services/part/common/partService';
 import { IViewlet } from 'vs/workbench/common/viewlet';
-import { INextStorage2Service } from 'vs/platform/storage2/common/storage2';
+import { IStorageService } from 'vs/platform/storage2/common/storage2';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
@@ -38,7 +38,7 @@ export class SidebarPart extends CompositePart<Viewlet> {
 	constructor(
 		id: string,
 		@INotificationService notificationService: INotificationService,
-		@INextStorage2Service nextStorage2Service: INextStorage2Service,
+		@IStorageService storageService: IStorageService,
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IContextMenuService contextMenuService: IContextMenuService,
 		@IPartService partService: IPartService,
@@ -48,7 +48,7 @@ export class SidebarPart extends CompositePart<Viewlet> {
 	) {
 		super(
 			notificationService,
-			nextStorage2Service,
+			storageService,
 			telemetryService,
 			contextMenuService,
 			partService,

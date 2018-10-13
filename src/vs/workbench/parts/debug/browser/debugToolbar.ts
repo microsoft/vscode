@@ -29,7 +29,7 @@ import { RunOnceScheduler } from 'vs/base/common/async';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { isExtensionHostDebugging } from 'vs/workbench/parts/debug/common/debugUtils';
-import { INextStorage2Service, StorageScope } from 'vs/platform/storage2/common/storage2';
+import { IStorageService, StorageScope } from 'vs/platform/storage2/common/storage2';
 
 const DEBUG_TOOLBAR_POSITION_KEY = 'debug.actionswidgetposition';
 const DEBUG_TOOLBAR_Y_KEY = 'debug.actionswidgety';
@@ -62,7 +62,7 @@ export class DebugToolbar extends Themable implements IWorkbenchContribution {
 		@ITelemetryService private telemetryService: ITelemetryService,
 		@IDebugService private debugService: IDebugService,
 		@IPartService private partService: IPartService,
-		@INextStorage2Service private nextStorage2Service: INextStorage2Service,
+		@IStorageService private storageService: IStorageService,
 		@IConfigurationService private configurationService: IConfigurationService,
 		@IThemeService themeService: IThemeService,
 		@IKeybindingService private keybindingService: IKeybindingService,
@@ -173,7 +173,7 @@ export class DebugToolbar extends Themable implements IWorkbenchContribution {
 
 	private storePosition(): void {
 		const position = parseFloat(dom.getComputedStyle(this.$el).left) / window.innerWidth;
-		this.nextStorage2Service.set(DEBUG_TOOLBAR_POSITION_KEY, position, StorageScope.GLOBAL);
+		this.storageService.set(DEBUG_TOOLBAR_POSITION_KEY, position, StorageScope.GLOBAL);
 	}
 
 	protected updateStyles(): void {
@@ -208,7 +208,7 @@ export class DebugToolbar extends Themable implements IWorkbenchContribution {
 		}
 		const widgetWidth = this.$el.clientWidth;
 		if (x === undefined) {
-			const positionPercentage = this.nextStorage2Service.get(DEBUG_TOOLBAR_POSITION_KEY, StorageScope.GLOBAL);
+			const positionPercentage = this.storageService.get(DEBUG_TOOLBAR_POSITION_KEY, StorageScope.GLOBAL);
 			x = positionPercentage !== undefined ? parseFloat(positionPercentage) * window.innerWidth : (0.5 * window.innerWidth - 0.5 * widgetWidth);
 		}
 
@@ -216,13 +216,13 @@ export class DebugToolbar extends Themable implements IWorkbenchContribution {
 		this.$el.style.left = `${x}px`;
 
 		if (y === undefined) {
-			y = this.nextStorage2Service.getInteger(DEBUG_TOOLBAR_Y_KEY, StorageScope.GLOBAL, 0);
+			y = this.storageService.getInteger(DEBUG_TOOLBAR_Y_KEY, StorageScope.GLOBAL, 0);
 		}
 		const titleAreaHeight = 35;
 		if ((y < titleAreaHeight / 2) || (y > titleAreaHeight + titleAreaHeight / 2)) {
 			const moveToTop = y < titleAreaHeight;
 			this.setYCoordinate(moveToTop ? 0 : titleAreaHeight);
-			this.nextStorage2Service.set(DEBUG_TOOLBAR_Y_KEY, moveToTop ? 0 : 2 * titleAreaHeight, StorageScope.GLOBAL);
+			this.storageService.set(DEBUG_TOOLBAR_Y_KEY, moveToTop ? 0 : 2 * titleAreaHeight, StorageScope.GLOBAL);
 		}
 	}
 

@@ -4,27 +4,27 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { TPromise } from 'vs/base/common/winjs.base';
-import { INextStorage2Service, StorageScope } from 'vs/platform/storage2/common/storage2';
+import { IStorageService, StorageScope } from 'vs/platform/storage2/common/storage2';
 import { MainThreadStorageShape, MainContext, IExtHostContext } from '../node/extHost.protocol';
 import { extHostNamedCustomer } from 'vs/workbench/api/electron-browser/extHostCustomers';
 
 @extHostNamedCustomer(MainContext.MainThreadStorage)
 export class MainThreadStorage implements MainThreadStorageShape {
 
-	private _nextStorage2Service: INextStorage2Service;
+	private storageService: IStorageService;
 
 	constructor(
 		extHostContext: IExtHostContext,
-		@INextStorage2Service nextStorage2Service: INextStorage2Service
+		@IStorageService storageService: IStorageService
 	) {
-		this._nextStorage2Service = nextStorage2Service;
+		this.storageService = storageService;
 	}
 
 	dispose(): void {
 	}
 
 	$getValue<T>(shared: boolean, key: string): Thenable<T> {
-		let jsonValue = this._nextStorage2Service.get(key, shared ? StorageScope.GLOBAL : StorageScope.WORKSPACE);
+		let jsonValue = this.storageService.get(key, shared ? StorageScope.GLOBAL : StorageScope.WORKSPACE);
 		if (!jsonValue) {
 			return TPromise.as(undefined);
 		}
@@ -41,7 +41,7 @@ export class MainThreadStorage implements MainThreadStorageShape {
 		let jsonValue: any;
 		try {
 			jsonValue = JSON.stringify(value);
-			this._nextStorage2Service.set(key, jsonValue, shared ? StorageScope.GLOBAL : StorageScope.WORKSPACE);
+			this.storageService.set(key, jsonValue, shared ? StorageScope.GLOBAL : StorageScope.WORKSPACE);
 		} catch (err) {
 			return TPromise.wrapError(err);
 		}

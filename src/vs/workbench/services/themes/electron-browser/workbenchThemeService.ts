@@ -26,7 +26,7 @@ import { IWindowService } from 'vs/platform/windows/common/windows';
 import { removeClasses, addClasses } from 'vs/base/browser/dom';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IFileService } from 'vs/platform/files/common/files';
-import { INextStorage2Service, StorageScope } from 'vs/platform/storage2/common/storage2';
+import { IStorageService, StorageScope } from 'vs/platform/storage2/common/storage2';
 
 // implementation
 
@@ -91,7 +91,7 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 	constructor(
 		container: HTMLElement,
 		@IExtensionService extensionService: IExtensionService,
-		@INextStorage2Service private nextStorage2Service: INextStorage2Service,
+		@IStorageService private storageService: IStorageService,
 		@IConfigurationService private configurationService: IConfigurationService,
 		@ITelemetryService private telemetryService: ITelemetryService,
 		@IWindowService private windowService: IWindowService,
@@ -120,7 +120,7 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 		// themes are loaded asynchronously, we need to initialize
 		// a color theme document with good defaults until the theme is loaded
 		let themeData: ColorThemeData | null = null;
-		let persistedThemeData = this.nextStorage2Service.get(PERSISTED_THEME_STORAGE_KEY, StorageScope.GLOBAL);
+		let persistedThemeData = this.storageService.get(PERSISTED_THEME_STORAGE_KEY, StorageScope.GLOBAL);
 		if (persistedThemeData) {
 			themeData = ColorThemeData.fromStorageData(persistedThemeData);
 		}
@@ -134,7 +134,7 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 		this.applyTheme(themeData, null, true);
 
 		let iconData: FileIconThemeData | null = null;
-		let persistedIconThemeData = this.nextStorage2Service.get(PERSISTED_ICON_THEME_STORAGE_KEY, StorageScope.GLOBAL);
+		let persistedIconThemeData = this.storageService.get(PERSISTED_ICON_THEME_STORAGE_KEY, StorageScope.GLOBAL);
 		if (persistedIconThemeData) {
 			iconData = FileIconThemeData.fromStorageData(persistedIconThemeData);
 			if (iconData) {
@@ -348,7 +348,7 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 		this.onColorThemeChange.fire(this.currentColorTheme);
 
 		// remember theme data for a quick restore
-		this.nextStorage2Service.set(PERSISTED_THEME_STORAGE_KEY, newTheme.toStorageData(), StorageScope.GLOBAL);
+		this.storageService.set(PERSISTED_THEME_STORAGE_KEY, newTheme.toStorageData(), StorageScope.GLOBAL);
 
 		return this.writeColorThemeConfiguration(settingsTarget);
 	}
@@ -403,7 +403,7 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 			this.doSetFileIconTheme(newIconTheme);
 
 			// remember theme data for a quick restore
-			this.nextStorage2Service.set(PERSISTED_ICON_THEME_STORAGE_KEY, newIconTheme.toStorageData(), StorageScope.GLOBAL);
+			this.storageService.set(PERSISTED_ICON_THEME_STORAGE_KEY, newIconTheme.toStorageData(), StorageScope.GLOBAL);
 
 			return this.writeFileIconConfiguration(settingsTarget);
 		};

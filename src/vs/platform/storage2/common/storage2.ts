@@ -7,9 +7,9 @@ import { createDecorator } from 'vs/platform/instantiation/common/instantiation'
 import { Event } from 'vs/base/common/event';
 import { ShutdownReason } from 'vs/platform/lifecycle/common/lifecycle';
 
-export const INextStorage2Service = createDecorator<INextStorage2Service>('nextStorage2Service');
+export const IStorageService = createDecorator<IStorageService>('storageService');
 
-export interface INextStorage2Service {
+export interface IStorageService {
 	_serviceBrand: any;
 
 	/**
@@ -89,7 +89,7 @@ export interface IWorkspaceStorageChangeEvent {
 	scope: StorageScope;
 }
 
-export const NullNextStorage2Service: INextStorage2Service = {
+export const NullStorageService: IStorageService = {
 	_serviceBrand: undefined,
 
 	onDidChangeStorage: Event.None,

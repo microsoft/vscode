@@ -21,7 +21,7 @@ import { EditorGroupView } from 'vs/workbench/browser/parts/editor/editorGroupVi
 import { IConfigurationService, IConfigurationChangeEvent } from 'vs/platform/configuration/common/configuration';
 import { IDisposable, dispose, toDisposable } from 'vs/base/common/lifecycle';
 import { assign } from 'vs/base/common/objects';
-import { INextStorage2Service, StorageScope } from 'vs/platform/storage2/common/storage2';
+import { IStorageService, StorageScope } from 'vs/platform/storage2/common/storage2';
 import { ISerializedEditorGroup, isSerializedEditorGroup } from 'vs/workbench/common/editor/editorGroup';
 import { TValueCallback, TPromise } from 'vs/base/common/winjs.base';
 import { always } from 'vs/base/common/async';
@@ -139,9 +139,9 @@ export class EditorPart extends Part implements EditorGroupsServiceImpl, IEditor
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@IThemeService themeService: IThemeService,
 		@IConfigurationService private configurationService: IConfigurationService,
-		@INextStorage2Service nextStorage2Service: INextStorage2Service
+		@IStorageService storageService: IStorageService
 	) {
-		super(id, { hasTitle: false }, themeService, nextStorage2Service);
+		super(id, { hasTitle: false }, themeService, storageService);
 
 		this.gridWidgetView = new GridWidgetView<IEditorGroupView>();
 

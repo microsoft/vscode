@@ -21,7 +21,7 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IQuickOpenService } from 'vs/platform/quickOpen/common/quickOpen';
 import { registerEditorAction, EditorAction, IEditorCommandMenuOptions } from 'vs/editor/browser/editorExtensions';
-import { INextStorage2Service, StorageScope } from 'vs/platform/storage2/common/storage2';
+import { IStorageService, StorageScope } from 'vs/platform/storage2/common/storage2';
 import { once } from 'vs/base/common/event';
 import { LRUCache } from 'vs/base/common/map';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -65,7 +65,7 @@ class CommandsHistory {
 	private commandHistoryLength: number;
 
 	constructor(
-		@INextStorage2Service private nextStorage2Service: INextStorage2Service,
+		@IStorageService private storageService: IStorageService,
 		@IConfigurationService private configurationService: IConfigurationService
 	) {
 		this.updateConfiguration();
@@ -83,7 +83,7 @@ class CommandsHistory {
 	}
 
 	private load(): void {
-		const raw = this.nextStorage2Service.get(CommandsHistory.PREF_KEY_CACHE, StorageScope.GLOBAL);
+		const raw = this.storageService.get(CommandsHistory.PREF_KEY_CACHE, StorageScope.GLOBAL);
 		let serializedCache: ISerializedCommandHistory;
 		if (raw) {
 			try {
@@ -104,20 +104,20 @@ class CommandsHistory {
 			entries.forEach(entry => commandHistory.set(entry.key, entry.value));
 		}
 
-		commandCounter = this.nextStorage2Service.getInteger(CommandsHistory.PREF_KEY_COUNTER, StorageScope.GLOBAL, commandCounter);
+		commandCounter = this.storageService.getInteger(CommandsHistory.PREF_KEY_COUNTER, StorageScope.GLOBAL, commandCounter);
 	}
 
 	private registerListeners(): void {
 		this.configurationService.onDidChangeConfiguration(e => this.updateConfiguration());
-		once(this.nextStorage2Service.onWillClose)(() => this.saveState());
+		once(this.storageService.onWillClose)(() => this.saveState());
 	}
 
 	private saveState(): void {
 		const serializedCache: ISerializedCommandHistory = { usesLRU: true, entries: [] };
 		commandHistory.forEach((value, key) => serializedCache.entries.push({ key, value }));
 
-		this.nextStorage2Service.set(CommandsHistory.PREF_KEY_CACHE, JSON.stringify(serializedCache), StorageScope.GLOBAL);
-		this.nextStorage2Service.set(CommandsHistory.PREF_KEY_COUNTER, commandCounter, StorageScope.GLOBAL);
+		this.storageService.set(CommandsHistory.PREF_KEY_CACHE, JSON.stringify(serializedCache), StorageScope.GLOBAL);
+		this.storageService.set(CommandsHistory.PREF_KEY_COUNTER, commandCounter, StorageScope.GLOBAL);
 	}
 
 	push(commandId: string): void {

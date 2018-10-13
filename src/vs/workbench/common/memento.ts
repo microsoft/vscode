@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { INextStorage2Service, StorageScope } from 'vs/platform/storage2/common/storage2';
+import { IStorageService, StorageScope } from 'vs/platform/storage2/common/storage2';
 import { isEmptyObject } from 'vs/base/common/types';
 
 export class Memento {
@@ -15,7 +15,7 @@ export class Memento {
 
 	private id: string;
 
-	constructor(id: string, private nextStorage2Service: INextStorage2Service) {
+	constructor(id: string, private storageService: IStorageService) {
 		this.id = Memento.COMMON_PREFIX + id.toLowerCase();
 	}
 
@@ -25,7 +25,7 @@ export class Memento {
 		if (scope === StorageScope.WORKSPACE) {
 			let workspaceMemento = Memento.workspaceMementos[this.id];
 			if (!workspaceMemento) {
-				workspaceMemento = new ScopedMemento(this.id, scope, this.nextStorage2Service);
+				workspaceMemento = new ScopedMemento(this.id, scope, this.storageService);
 				Memento.workspaceMementos[this.id] = workspaceMemento;
 			}
 
@@ -35,7 +35,7 @@ export class Memento {
 		// Scope Global
 		let globalMemento = Memento.globalMementos[this.id];
 		if (!globalMemento) {
-			globalMemento = new ScopedMemento(this.id, scope, this.nextStorage2Service);
+			globalMemento = new ScopedMemento(this.id, scope, this.storageService);
 			Memento.globalMementos[this.id] = globalMemento;
 		}
 
@@ -61,7 +61,7 @@ export class Memento {
 class ScopedMemento {
 	private mementoObj: object;
 
-	constructor(private id: string, private scope: StorageScope, private nextStorage2Service: INextStorage2Service) {
+	constructor(private id: string, private scope: StorageScope, private storageService: IStorageService) {
 		this.mementoObj = this.load();
 	}
 
@@ -70,7 +70,7 @@ class ScopedMemento {
 	}
 
 	private load(): object {
-		const memento = this.nextStorage2Service.get(this.id, this.scope);
+		const memento = this.storageService.get(this.id, this.scope);
 		if (memento) {
 			return JSON.parse(memento);
 		}
@@ -80,9 +80,9 @@ class ScopedMemento {
 
 	save(): void {
 		if (!isEmptyObject(this.mementoObj)) {
-			this.nextStorage2Service.set(this.id, JSON.stringify(this.mementoObj), this.scope);
+			this.storageService.set(this.id, JSON.stringify(this.mementoObj), this.scope);
 		} else {
-			this.nextStorage2Service.delete(this.id, this.scope);
+			this.storageService.delete(this.id, this.scope);
 		}
 	}
 }

@@ -33,7 +33,7 @@ import { INotificationService, Severity, IPromptChoice } from 'vs/platform/notif
 import { ILogService } from 'vs/platform/log/common/log';
 import { TerminalCommandTracker } from 'vs/workbench/parts/terminal/node/terminalCommandTracker';
 import { TerminalProcessManager } from './terminalProcessManager';
-import { INextStorage2Service, StorageScope } from 'vs/platform/storage2/common/storage2';
+import { IStorageService, StorageScope } from 'vs/platform/storage2/common/storage2';
 import { execFile } from 'child_process';
 
 // How long in milliseconds should an average frame take to render for a notification to appear
@@ -129,7 +129,7 @@ export class TerminalInstance implements ITerminalInstance {
 		@IThemeService private readonly _themeService: IThemeService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@ILogService private _logService: ILogService,
-		@INextStorage2Service private readonly _nextStorage2Service: INextStorage2Service
+		@IStorageService private readonly storageService: IStorageService
 	) {
 		this._disposables = [];
 		this._skipTerminalCommands = [];
@@ -471,7 +471,7 @@ export class TerminalInstance implements ITerminalInstance {
 				this._attachPressAnyKeyToCloseListener();
 			}
 
-			const neverMeasureRenderTime = this._nextStorage2Service.getBoolean(NEVER_MEASURE_RENDER_TIME_STORAGE_KEY, StorageScope.GLOBAL, false);
+			const neverMeasureRenderTime = this.storageService.getBoolean(NEVER_MEASURE_RENDER_TIME_STORAGE_KEY, StorageScope.GLOBAL, false);
 			if (!neverMeasureRenderTime && this._configHelper.config.rendererType === 'auto') {
 				this._measureRenderTime();
 			}
@@ -505,7 +505,7 @@ export class TerminalInstance implements ITerminalInstance {
 					{
 						label: nls.localize('dontShowAgain', "Don't Show Again"),
 						isSecondary: true,
-						run: () => this._nextStorage2Service.set(NEVER_MEASURE_RENDER_TIME_STORAGE_KEY, true, StorageScope.GLOBAL)
+						run: () => this.storageService.set(NEVER_MEASURE_RENDER_TIME_STORAGE_KEY, true, StorageScope.GLOBAL)
 					} as IPromptChoice
 				];
 				this._notificationService.prompt(

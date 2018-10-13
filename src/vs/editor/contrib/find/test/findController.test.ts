@@ -14,7 +14,7 @@ import { CONTEXT_FIND_INPUT_FOCUSED } from 'vs/editor/contrib/find/findModel';
 import { withTestCodeEditor } from 'vs/editor/test/browser/testCodeEditor';
 import { IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
-import { INextStorage2Service } from 'vs/platform/storage2/common/storage2';
+import { IStorageService } from 'vs/platform/storage2/common/storage2';
 import { Event } from 'vs/base/common/event';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { Delayer } from 'vs/base/common/async';
@@ -31,10 +31,10 @@ export class TestFindController extends CommonFindController {
 	constructor(
 		editor: ICodeEditor,
 		@IContextKeyService contextKeyService: IContextKeyService,
-		@INextStorage2Service nextStorage2Service: INextStorage2Service,
+		@IStorageService storageService: IStorageService,
 		@IClipboardService clipboardService: IClipboardService
 	) {
-		super(editor, contextKeyService, nextStorage2Service, clipboardService);
+		super(editor, contextKeyService, storageService, clipboardService);
 		this._findInputFocused = CONTEXT_FIND_INPUT_FOCUSED.bindTo(contextKeyService);
 		this._updateHistoryDelayer = new Delayer<void>(50);
 	}
@@ -59,7 +59,7 @@ suite('FindController', () => {
 	let queryState: { [key: string]: any; } = {};
 	let clipboardState = '';
 	let serviceCollection = new ServiceCollection();
-	serviceCollection.set(INextStorage2Service, {
+	serviceCollection.set(IStorageService, {
 		_serviceBrand: undefined,
 		onDidChangeStorage: Event.None,
 		onWillClose: Event.None,
@@ -68,7 +68,7 @@ suite('FindController', () => {
 		getInteger: (key: string) => undefined,
 		set: (key: string, value: any) => { queryState[key] = value; return Promise.resolve(); },
 		delete: (key) => void 0
-	} as INextStorage2Service);
+	} as IStorageService);
 
 	if (platform.isMacintosh) {
 		serviceCollection.set(IClipboardService, <any>{
@@ -434,7 +434,7 @@ suite('FindController query options persistence', () => {
 	queryState['editor.matchCase'] = false;
 	queryState['editor.wholeWord'] = false;
 	let serviceCollection = new ServiceCollection();
-	serviceCollection.set(INextStorage2Service, {
+	serviceCollection.set(IStorageService, {
 		_serviceBrand: undefined,
 		onDidChangeStorage: Event.None,
 		onWillClose: Event.None,
@@ -443,7 +443,7 @@ suite('FindController query options persistence', () => {
 		getInteger: (key: string) => undefined,
 		set: (key: string, value: any) => { queryState[key] = value; return Promise.resolve(); },
 		delete: (key) => void 0
-	} as INextStorage2Service);
+	} as IStorageService);
 
 	test('matchCase', () => {
 		withTestCodeEditor([

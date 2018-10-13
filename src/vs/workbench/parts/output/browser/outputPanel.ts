@@ -10,7 +10,7 @@ import { Action, IAction } from 'vs/base/common/actions';
 import { IActionItem } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { INextStorage2Service } from 'vs/platform/storage2/common/storage2';
+import { IStorageService } from 'vs/platform/storage2/common/storage2';
 import { ITextResourceConfigurationService } from 'vs/editor/common/services/resourceConfiguration';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
@@ -35,7 +35,7 @@ export class OutputPanel extends AbstractTextResourceEditor {
 	constructor(
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IInstantiationService instantiationService: IInstantiationService,
-		@INextStorage2Service nextStorage2Service: INextStorage2Service,
+		@IStorageService storageService: IStorageService,
 		@IConfigurationService private baseConfigurationService: IConfigurationService,
 		@ITextResourceConfigurationService textResourceConfigurationService: ITextResourceConfigurationService,
 		@IThemeService themeService: IThemeService,
@@ -46,7 +46,7 @@ export class OutputPanel extends AbstractTextResourceEditor {
 		@IEditorService editorService: IEditorService,
 		@IWindowService windowService: IWindowService
 	) {
-		super(OUTPUT_PANEL_ID, telemetryService, instantiationService, nextStorage2Service, textResourceConfigurationService, themeService, editorGroupService, textFileService, editorService, windowService);
+		super(OUTPUT_PANEL_ID, telemetryService, instantiationService, storageService, textResourceConfigurationService, themeService, editorGroupService, textFileService, editorService, windowService);
 
 		this.scopedInstantiationService = instantiationService;
 	}

@@ -23,7 +23,7 @@ import { IEnvironmentService } from 'vs/platform/environment/common/environment'
 import { URI } from 'vs/base/common/uri';
 import { join } from 'vs/base/common/paths';
 import { IWindowsService } from 'vs/platform/windows/common/windows';
-import { INextStorage2Service, StorageScope } from 'vs/platform/storage2/common/storage2';
+import { IStorageService, StorageScope } from 'vs/platform/storage2/common/storage2';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { VIEWLET_ID as EXTENSIONS_VIEWLET_ID, IExtensionsViewlet } from 'vs/workbench/parts/extensions/common/extensions';
@@ -42,7 +42,7 @@ export class LocalizationWorkbenchContribution extends Disposable implements IWo
 		@IJSONEditingService private jsonEditingService: IJSONEditingService,
 		@IEnvironmentService private environmentService: IEnvironmentService,
 		@IWindowsService private windowsService: IWindowsService,
-		@INextStorage2Service private nextStorage2Service: INextStorage2Service,
+		@IStorageService private storageService: IStorageService,
 		@IExtensionManagementService private extensionManagementService: IExtensionManagementService,
 		@IExtensionGalleryService private galleryService: IExtensionGalleryService,
 		@IViewletService private viewletService: IViewletService,
@@ -71,7 +71,7 @@ export class LocalizationWorkbenchContribution extends Disposable implements IWo
 
 	private onDidInstallExtension(e: DidInstallExtensionEvent): void {
 		const donotAskUpdateKey = 'langugage.update.donotask';
-		if (!this.nextStorage2Service.getBoolean(donotAskUpdateKey, StorageScope.GLOBAL) && e.local && e.operation === InstallOperation.Install && e.local.manifest.contributes && e.local.manifest.contributes.localizations && e.local.manifest.contributes.localizations.length) {
+		if (!this.storageService.getBoolean(donotAskUpdateKey, StorageScope.GLOBAL) && e.local && e.operation === InstallOperation.Install && e.local.manifest.contributes && e.local.manifest.contributes.localizations && e.local.manifest.contributes.localizations.length) {
 			const locale = e.local.manifest.contributes.localizations[0].languageId;
 			if (platform.language !== locale) {
 				const updateAndRestart = platform.locale !== locale;
@@ -92,7 +92,7 @@ export class LocalizationWorkbenchContribution extends Disposable implements IWo
 					}, {
 						label: localize('neverAgain', "Don't Show Again"),
 						isSecondary: true,
-						run: () => this.nextStorage2Service.set(donotAskUpdateKey, true, StorageScope.GLOBAL)
+						run: () => this.storageService.set(donotAskUpdateKey, true, StorageScope.GLOBAL)
 					}],
 					{ sticky: true }
 				);
@@ -103,7 +103,7 @@ export class LocalizationWorkbenchContribution extends Disposable implements IWo
 	private checkAndInstall(): void {
 		const language = platform.language;
 		const locale = platform.locale;
-		const languagePackSuggestionIgnoreList = <string[]>JSON.parse(this.nextStorage2Service.get('extensionsAssistant/languagePackSuggestionIgnore', StorageScope.GLOBAL, '[]'));
+		const languagePackSuggestionIgnoreList = <string[]>JSON.parse(this.storageService.get('extensionsAssistant/languagePackSuggestionIgnore', StorageScope.GLOBAL, '[]'));
 
 		if (!this.galleryService.isEnabled()) {
 			return;
@@ -193,7 +193,7 @@ export class LocalizationWorkbenchContribution extends Disposable implements IWo
 									isSecondary: true,
 									run: () => {
 										languagePackSuggestionIgnoreList.push(language);
-										this.nextStorage2Service.set(
+										this.storageService.set(
 											'extensionsAssistant/languagePackSuggestionIgnore',
 											JSON.stringify(languagePackSuggestionIgnoreList),
 											StorageScope.GLOBAL

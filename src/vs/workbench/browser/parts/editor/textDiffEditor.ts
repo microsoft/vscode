@@ -18,7 +18,7 @@ import { DiffEditorWidget } from 'vs/editor/browser/widget/diffEditorWidget';
 import { TextDiffEditorModel } from 'vs/workbench/common/editor/textDiffEditorModel';
 import { FileOperationError, FileOperationResult } from 'vs/platform/files/common/files';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { INextStorage2Service } from 'vs/platform/storage2/common/storage2';
+import { IStorageService } from 'vs/platform/storage2/common/storage2';
 import { ITextResourceConfigurationService } from 'vs/editor/common/services/resourceConfiguration';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
@@ -47,7 +47,7 @@ export class TextDiffEditor extends BaseTextEditor implements ITextDiffEditor {
 	constructor(
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IInstantiationService instantiationService: IInstantiationService,
-		@INextStorage2Service nextStorage2Service: INextStorage2Service,
+		@IStorageService storageService: IStorageService,
 		@ITextResourceConfigurationService configurationService: ITextResourceConfigurationService,
 		@IEditorService editorService: IEditorService,
 		@IThemeService themeService: IThemeService,
@@ -55,7 +55,7 @@ export class TextDiffEditor extends BaseTextEditor implements ITextDiffEditor {
 		@ITextFileService textFileService: ITextFileService,
 		@IWindowService windowService: IWindowService
 	) {
-		super(TextDiffEditor.ID, telemetryService, instantiationService, nextStorage2Service, configurationService, themeService, textFileService, editorService, editorGroupService, windowService);
+		super(TextDiffEditor.ID, telemetryService, instantiationService, storageService, configurationService, themeService, textFileService, editorService, editorGroupService, windowService);
 	}
 
 	protected getEditorMemento<T>(editorGroupService: IEditorGroupsService, key: string, limit: number = 10): IEditorMemento<T> {

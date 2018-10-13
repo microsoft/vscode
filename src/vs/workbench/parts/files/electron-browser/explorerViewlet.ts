@@ -14,7 +14,7 @@ import { ActionRunner, FileViewletState } from 'vs/workbench/parts/files/electro
 import { ExplorerView, IExplorerViewOptions } from 'vs/workbench/parts/files/electron-browser/views/explorerView';
 import { EmptyView } from 'vs/workbench/parts/files/electron-browser/views/emptyView';
 import { OpenEditorsView } from 'vs/workbench/parts/files/electron-browser/views/openEditorsView';
-import { INextStorage2Service } from 'vs/platform/storage2/common/storage2';
+import { IStorageService } from 'vs/platform/storage2/common/storage2';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
@@ -157,7 +157,7 @@ export class ExplorerViewlet extends ViewContainerViewlet implements IExplorerVi
 		@IPartService partService: IPartService,
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IWorkspaceContextService protected contextService: IWorkspaceContextService,
-		@INextStorage2Service protected nextStorage2Service: INextStorage2Service,
+		@IStorageService protected storageService: IStorageService,
 		@IEditorService private editorService: IEditorService,
 		@IEditorGroupsService private editorGroupService: IEditorGroupsService,
 		@IConfigurationService configurationService: IConfigurationService,
@@ -167,7 +167,7 @@ export class ExplorerViewlet extends ViewContainerViewlet implements IExplorerVi
 		@IContextMenuService contextMenuService: IContextMenuService,
 		@IExtensionService extensionService: IExtensionService
 	) {
-		super(VIEWLET_ID, ExplorerViewlet.EXPLORER_VIEWS_STATE, true, configurationService, partService, telemetryService, nextStorage2Service, instantiationService, themeService, contextMenuService, extensionService, contextService);
+		super(VIEWLET_ID, ExplorerViewlet.EXPLORER_VIEWS_STATE, true, configurationService, partService, telemetryService, storageService, instantiationService, themeService, contextMenuService, extensionService, contextService);
 
 		this.fileViewletState = new FileViewletState();
 		this.viewletVisibleContextKey = ExplorerViewletVisibleContext.bindTo(contextKeyService);

@@ -10,11 +10,11 @@ import { TestInstantiationService } from 'vs/platform/instantiation/test/common/
 import { Emitter } from 'vs/base/common/event';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { INextStorage2Service } from 'vs/platform/storage2/common/storage2';
-import { TestNextStorage2Service } from 'vs/workbench/test/workbenchTestServices';
+import { IStorageService } from 'vs/platform/storage2/common/storage2';
+import { TestStorageService } from 'vs/workbench/test/workbenchTestServices';
 
-function nextStorage2Service(instantiationService: TestInstantiationService): INextStorage2Service {
-	let service = instantiationService.get(INextStorage2Service);
+function storageService(instantiationService: TestInstantiationService): IStorageService {
+	let service = instantiationService.get(IStorageService);
 	if (!service) {
 		let workspaceContextService = instantiationService.get(IWorkspaceContextService);
 		if (!workspaceContextService) {
@@ -22,14 +22,14 @@ function nextStorage2Service(instantiationService: TestInstantiationService): IN
 				getWorkbenchState: () => WorkbenchState.FOLDER,
 			});
 		}
-		service = instantiationService.stub(INextStorage2Service, new TestNextStorage2Service());
+		service = instantiationService.stub(IStorageService, new TestStorageService());
 	}
 	return service;
 }
 
 export class TestExtensionEnablementService extends ExtensionEnablementService {
 	constructor(instantiationService: TestInstantiationService) {
-		super(nextStorage2Service(instantiationService), instantiationService.get(IWorkspaceContextService),
+		super(storageService(instantiationService), instantiationService.get(IWorkspaceContextService),
 			instantiationService.get(IEnvironmentService) || instantiationService.stub(IEnvironmentService, {} as IEnvironmentService),
 			instantiationService.get(IExtensionManagementService) || instantiationService.stub(IExtensionManagementService,
 				{ onDidUninstallExtension: new Emitter<DidUninstallExtensionEvent>().event } as IExtensionManagementService));

@@ -6,7 +6,7 @@
 import * as paths from 'vs/base/common/paths';
 import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { INextStorage2Service } from 'vs/platform/storage2/common/storage2';
+import { IStorageService } from 'vs/platform/storage2/common/storage2';
 import { ITextResourceConfigurationService } from 'vs/editor/common/services/resourceConfiguration';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { AbstractTextResourceEditor } from 'vs/workbench/browser/parts/editor/textResourceEditor';
@@ -49,7 +49,7 @@ export class LogViewer extends AbstractTextResourceEditor {
 	constructor(
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IInstantiationService instantiationService: IInstantiationService,
-		@INextStorage2Service nextStorage2Service: INextStorage2Service,
+		@IStorageService storageService: IStorageService,
 		@IConfigurationService baseConfigurationService: IConfigurationService,
 		@ITextResourceConfigurationService textResourceConfigurationService: ITextResourceConfigurationService,
 		@IThemeService themeService: IThemeService,
@@ -58,7 +58,7 @@ export class LogViewer extends AbstractTextResourceEditor {
 		@IEditorService editorService: IEditorService,
 		@IWindowService windowService: IWindowService
 	) {
-		super(LogViewer.LOG_VIEWER_EDITOR_ID, telemetryService, instantiationService, nextStorage2Service, textResourceConfigurationService, themeService, editorGroupService, textFileService, editorService, windowService);
+		super(LogViewer.LOG_VIEWER_EDITOR_ID, telemetryService, instantiationService, storageService, textResourceConfigurationService, themeService, editorGroupService, textFileService, editorService, windowService);
 	}
 
 	protected getConfigurationOverrides(): IEditorOptions {

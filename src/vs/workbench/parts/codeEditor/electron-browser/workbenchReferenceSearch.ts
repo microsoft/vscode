@@ -6,7 +6,7 @@
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { INextStorage2Service } from 'vs/platform/storage2/common/storage2';
+import { IStorageService } from 'vs/platform/storage2/common/storage2';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { registerEditorContribution } from 'vs/editor/browser/editorExtensions';
 import { INotificationService } from 'vs/platform/notification/common/notification';
@@ -21,7 +21,7 @@ export class WorkbenchReferencesController extends ReferencesController {
 		@ICodeEditorService editorService: ICodeEditorService,
 		@INotificationService notificationService: INotificationService,
 		@IInstantiationService instantiationService: IInstantiationService,
-		@INextStorage2Service nextStorage2Service: INextStorage2Service,
+		@IStorageService storageService: IStorageService,
 		@IConfigurationService configurationService: IConfigurationService,
 	) {
 		super(
@@ -31,7 +31,7 @@ export class WorkbenchReferencesController extends ReferencesController {
 			editorService,
 			notificationService,
 			instantiationService,
-			nextStorage2Service,
+			storageService,
 			configurationService
 		);
 	}

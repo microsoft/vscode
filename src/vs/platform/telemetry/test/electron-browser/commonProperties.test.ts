@@ -8,8 +8,8 @@ import * as os from 'os';
 import * as fs from 'fs';
 import { resolveWorkbenchCommonProperties } from 'vs/platform/telemetry/node/workbenchCommonProperties';
 import { getRandomTestPath, TestEnvironmentService } from 'vs/workbench/test/workbenchTestServices';
-import { INextStorage2Service, StorageScope } from 'vs/platform/storage2/common/storage2';
-import { NextStorage2Service } from 'vs/platform/storage2/electron-browser/nextStorage2Service';
+import { IStorageService, StorageScope } from 'vs/platform/storage2/common/storage2';
+import { StorageService } from 'vs/platform/storage2/electron-browser/nextStorage2Service';
 import { NullLogService } from 'vs/platform/log/common/log';
 import { del } from 'vs/base/node/extfs';
 import { mkdirp } from 'vs/base/node/pfs';
@@ -21,10 +21,10 @@ suite('Telemetry - common properties', function () {
 
 	const commit: string = void 0;
 	const version: string = void 0;
-	let nestStorage2Service: INextStorage2Service;
+	let nestStorage2Service: IStorageService;
 
 	setup(() => {
-		nestStorage2Service = new NextStorage2Service(':memory:', new NullLogService(), TestEnvironmentService);
+		nestStorage2Service = new StorageService(':memory:', new NullLogService(), TestEnvironmentService);
 	});
 
 	teardown(done => {

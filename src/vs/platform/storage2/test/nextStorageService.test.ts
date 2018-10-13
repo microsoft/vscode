@@ -5,12 +5,12 @@
 
 import * as assert from 'assert';
 import { StorageScope } from 'vs/platform/storage2/common/storage2';
-import { TestNextStorage2Service } from 'vs/workbench/test/workbenchTestServices';
+import { TestStorageService } from 'vs/workbench/test/workbenchTestServices';
 
-suite('NextStorage2Service', () => {
+suite('StorageService', () => {
 
 	test('Remove Data', () => {
-		let storage = new TestNextStorage2Service();
+		let storage = new TestStorageService();
 		storage.set('Monaco.IDE.Core.Storage.Test.remove', 'foobar', StorageScope.GLOBAL);
 		assert.strictEqual('foobar', storage.get('Monaco.IDE.Core.Storage.Test.remove', StorageScope.GLOBAL));
 
@@ -19,7 +19,7 @@ suite('NextStorage2Service', () => {
 	});
 
 	test('Get Data, Integer, Boolean', () => {
-		let storage = new TestNextStorage2Service();
+		let storage = new TestStorageService();
 
 		assert.strictEqual(storage.get('Monaco.IDE.Core.Storage.Test.get', StorageScope.GLOBAL, 'foobar'), 'foobar');
 		assert.strictEqual(storage.get('Monaco.IDE.Core.Storage.Test.get', StorageScope.GLOBAL, ''), '');

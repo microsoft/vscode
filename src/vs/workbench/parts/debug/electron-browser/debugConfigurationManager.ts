@@ -15,7 +15,7 @@ import { IJSONSchema } from 'vs/base/common/jsonSchema';
 import { ITextModel } from 'vs/editor/common/model';
 import { IEditor } from 'vs/workbench/common/editor';
 import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
-import { INextStorage2Service, StorageScope } from 'vs/platform/storage2/common/storage2';
+import { IStorageService, StorageScope } from 'vs/platform/storage2/common/storage2';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IFileService } from 'vs/platform/files/common/files';
@@ -61,7 +61,7 @@ export class ConfigurationManager implements IConfigurationManager {
 		@IQuickInputService private quickInputService: IQuickInputService,
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@ICommandService private commandService: ICommandService,
-		@INextStorage2Service private nextStorage2Service: INextStorage2Service,
+		@IStorageService private storageService: IStorageService,
 		@ILifecycleService lifecycleService: ILifecycleService,
 		@IExtensionService private extensionService: IExtensionService,
 		@IContextKeyService contextKeyService: IContextKeyService
@@ -71,12 +71,12 @@ export class ConfigurationManager implements IConfigurationManager {
 		this.toDispose = [];
 		this.registerListeners(lifecycleService);
 		this.initLaunches();
-		const previousSelectedRoot = this.nextStorage2Service.get(DEBUG_SELECTED_ROOT, StorageScope.WORKSPACE);
+		const previousSelectedRoot = this.storageService.get(DEBUG_SELECTED_ROOT, StorageScope.WORKSPACE);
 		const previousSelectedLaunch = this.launches.filter(l => l.uri.toString() === previousSelectedRoot).pop();
 		this.debugConfigurationTypeContext = CONTEXT_DEBUG_CONFIGURATION_TYPE.bindTo(contextKeyService);
 		this.debugAdapterProviders = new Map<string, IDebugAdapterProvider>();
 		if (previousSelectedLaunch) {
-			this.selectConfiguration(previousSelectedLaunch, this.nextStorage2Service.get(DEBUG_SELECTED_CONFIG_NAME_KEY, StorageScope.WORKSPACE));
+			this.selectConfiguration(previousSelectedLaunch, this.storageService.get(DEBUG_SELECTED_CONFIG_NAME_KEY, StorageScope.WORKSPACE));
 		}
 	}
 
@@ -238,7 +238,7 @@ export class ConfigurationManager implements IConfigurationManager {
 			}
 		}));
 
-		this.toDispose.push(this.nextStorage2Service.onWillClose(this.saveState, this));
+		this.toDispose.push(this.storageService.onWillClose(this.saveState, this));
 	}
 
 	private initLaunches(): void {
@@ -383,9 +383,9 @@ export class ConfigurationManager implements IConfigurationManager {
 	}
 
 	private saveState(): void {
-		this.nextStorage2Service.set(DEBUG_SELECTED_CONFIG_NAME_KEY, this.selectedName, StorageScope.WORKSPACE);
+		this.storageService.set(DEBUG_SELECTED_CONFIG_NAME_KEY, this.selectedName, StorageScope.WORKSPACE);
 		if (this.selectedLaunch) {
-			this.nextStorage2Service.set(DEBUG_SELECTED_ROOT, this.selectedLaunch.uri.toString(), StorageScope.WORKSPACE);
+			this.storageService.set(DEBUG_SELECTED_ROOT, this.selectedLaunch.uri.toString(), StorageScope.WORKSPACE);
 		}
 	}
 

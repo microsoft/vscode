@@ -9,7 +9,7 @@ import * as platform from 'vs/base/common/platform';
 import { EDITOR_FONT_DEFAULTS, IEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IWorkspaceConfigurationService } from 'vs/workbench/services/configuration/common/configuration';
-import { INextStorage2Service, StorageScope } from 'vs/platform/storage2/common/storage2';
+import { IStorageService, StorageScope } from 'vs/platform/storage2/common/storage2';
 import { ITerminalConfiguration, ITerminalConfigHelper, ITerminalFont, IShellLaunchConfig, IS_WORKSPACE_SHELL_ALLOWED_STORAGE_KEY, TERMINAL_CONFIG_SECTION, DEFAULT_LETTER_SPACING, DEFAULT_LINE_HEIGHT, MINIMUM_LETTER_SPACING } from 'vs/workbench/parts/terminal/common/terminal';
 import Severity from 'vs/base/common/severity';
 import { isFedora, isUbuntu } from 'vs/workbench/parts/terminal/node/terminal';
@@ -34,7 +34,7 @@ export class TerminalConfigHelper implements ITerminalConfigHelper {
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IWorkspaceConfigurationService private readonly _workspaceConfigurationService: IWorkspaceConfigurationService,
 		@INotificationService private readonly _notificationService: INotificationService,
-		@INextStorage2Service private readonly _nextStorage2Service: INextStorage2Service
+		@IStorageService private readonly storageService: IStorageService
 	) {
 		this._updateConfig();
 		this._configurationService.onDidChangeConfiguration(e => {
@@ -160,7 +160,7 @@ export class TerminalConfigHelper implements ITerminalConfigHelper {
 	}
 
 	public setWorkspaceShellAllowed(isAllowed: boolean): void {
-		this._nextStorage2Service.set(IS_WORKSPACE_SHELL_ALLOWED_STORAGE_KEY, isAllowed, StorageScope.WORKSPACE);
+		this.storageService.set(IS_WORKSPACE_SHELL_ALLOWED_STORAGE_KEY, isAllowed, StorageScope.WORKSPACE);
 	}
 
 	public mergeDefaultShellPathAndArgs(shell: IShellLaunchConfig, platformOverride: platform.Platform = platform.platform): void {
@@ -172,7 +172,7 @@ export class TerminalConfigHelper implements ITerminalConfigHelper {
 		// Check if workspace setting exists and whether it's whitelisted
 		let isWorkspaceShellAllowed = false;
 		if (shellConfigValue.workspace !== undefined || shellArgsConfigValue.workspace !== undefined) {
-			isWorkspaceShellAllowed = this._nextStorage2Service.getBoolean(IS_WORKSPACE_SHELL_ALLOWED_STORAGE_KEY, StorageScope.WORKSPACE, undefined);
+			isWorkspaceShellAllowed = this.storageService.getBoolean(IS_WORKSPACE_SHELL_ALLOWED_STORAGE_KEY, StorageScope.WORKSPACE, undefined);
 		}
 
 		// Always allow [] args as it would lead to an odd error message and should not be dangerous
@@ -205,11 +205,11 @@ export class TerminalConfigHelper implements ITerminalConfigHelper {
 			this._notificationService.prompt(Severity.Info, nls.localize('terminal.integrated.allowWorkspaceShell', "Do you allow {0} (defined as a workspace setting) to be launched in the terminal?", changeString),
 				[{
 					label: nls.localize('allow', "Allow"),
-					run: () => this._nextStorage2Service.set(IS_WORKSPACE_SHELL_ALLOWED_STORAGE_KEY, true, StorageScope.WORKSPACE)
+					run: () => this.storageService.set(IS_WORKSPACE_SHELL_ALLOWED_STORAGE_KEY, true, StorageScope.WORKSPACE)
 				},
 				{
 					label: nls.localize('disallow', "Disallow"),
-					run: () => this._nextStorage2Service.set(IS_WORKSPACE_SHELL_ALLOWED_STORAGE_KEY, false, StorageScope.WORKSPACE)
+					run: () => this.storageService.set(IS_WORKSPACE_SHELL_ALLOWED_STORAGE_KEY, false, StorageScope.WORKSPACE)
 				}]
 			);
 		}
