@@ -105,8 +105,6 @@ export interface IEnvironmentService {
 	backupHome: string;
 	backupWorkspacesPath: string;
 
-	storageHome: string;
-
 	workspacesHome: string;
 
 	isExtensionDevelopment: boolean;

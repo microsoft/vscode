@@ -99,8 +99,7 @@ function createPaths(environmentService: IEnvironmentService): TPromise<any> {
 		environmentService.appSettingsHome,
 		environmentService.extensionsPath,
 		environmentService.nodeCachedDataDir,
-		environmentService.logsPath,
-		environmentService.storageHome
+		environmentService.logsPath
 	];
 
 	return TPromise.join(paths.map(p => p && mkdirp(p))) as TPromise<any>;
