@@ -18,7 +18,6 @@ import { MarkerService } from 'vs/platform/markers/common/markerService';
 import { IMarkerService } from 'vs/platform/markers/common/markers';
 import { IProgressService } from 'vs/platform/progress/common/progress';
 import { INextStorage2Service, NullNextStorage2Service } from 'vs/platform/storage2/common/storage2';
-import { IStorageService, NullStorageService } from 'vs/platform/storage/common/storage';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
@@ -147,10 +146,7 @@ export module StaticServices {
 
 	export const nextStorage2Service = define(INextStorage2Service, () => NullNextStorage2Service);
 
-	export const storageService = define(IStorageService, () => NullStorageService);
-
 	export const logService = define(ILogService, () => new NullLogService());
-
 }
 
 export class DynamicStandaloneServices extends Disposable {

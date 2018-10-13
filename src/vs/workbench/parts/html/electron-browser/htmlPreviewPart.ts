@@ -16,7 +16,7 @@ import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { ITextModelService, ITextEditorModel } from 'vs/editor/common/services/resolverService';
 import { Parts, IPartService } from 'vs/workbench/services/part/common/partService';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { IStorageService } from 'vs/platform/storage/common/storage';
+import { INextStorage2Service } from 'vs/platform/storage2/common/storage2';
 import { Dimension } from 'vs/base/browser/dom';
 import { BaseWebviewEditor } from 'vs/workbench/parts/webview/electron-browser/baseWebviewEditor';
 import { WebviewElement, WebviewOptions } from 'vs/workbench/parts/webview/electron-browser/webviewElement';
@@ -54,14 +54,14 @@ export class HtmlPreviewPart extends BaseWebviewEditor {
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IOpenerService private readonly _openerService: IOpenerService,
 		@IPartService private readonly _partService: IPartService,
-		@IStorageService readonly _storageService: IStorageService,
+		@INextStorage2Service readonly nextStorage2Service: INextStorage2Service,
 		@ITextModelService private readonly _textModelResolverService: ITextModelService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IEditorGroupsService readonly editorGroupService: IEditorGroupsService
 	) {
-		super(HtmlPreviewPart.ID, telemetryService, themeService, contextKeyService);
+		super(HtmlPreviewPart.ID, telemetryService, themeService, contextKeyService, nextStorage2Service);
 
-		this.editorMemento = this.getEditorMemento<HtmlPreviewEditorViewState>(_storageService, editorGroupService, this.viewStateStorageKey);
+		this.editorMemento = this.getEditorMemento<HtmlPreviewEditorViewState>(editorGroupService, this.viewStateStorageKey);
 	}
 
 	dispose(): void {
@@ -162,13 +162,14 @@ export class HtmlPreviewPart extends BaseWebviewEditor {
 		super.clearInput();
 	}
 
-	public shutdown(): void {
+	protected saveState(): void {
 		if (this.input instanceof HtmlInput) {
 			this.saveHTMLPreviewViewState(this.input, {
 				scrollYPercentage: this._scrollYPercentage
 			});
 		}
-		super.shutdown();
+
+		super.saveState();
 	}
 
 	public sendMessage(data: any): void {

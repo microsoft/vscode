@@ -28,8 +28,7 @@ import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { TreeResourceNavigator, WorkbenchTree } from 'vs/platform/list/browser/listService';
 import { IMarkersWorkbenchService } from 'vs/workbench/parts/markers/electron-browser/markers';
 import { SimpleFileResourceDragAndDrop } from 'vs/workbench/browser/dnd';
-import { IStorageService } from 'vs/platform/storage/common/storage';
-import { Scope } from 'vs/workbench/common/memento';
+import { INextStorage2Service, StorageScope } from 'vs/platform/storage2/common/storage2';
 import { localize } from 'vs/nls';
 import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { KeyCode } from 'vs/base/common/keyCodes';
@@ -53,7 +52,7 @@ export class MarkersPanel extends Panel {
 	private treeContainer: HTMLElement;
 	private messageBoxContainer: HTMLElement;
 	private ariaLabelElement: HTMLElement;
-	private panelSettings: any;
+	private panelState: object;
 	private panelFoucusContextKey: IContextKey<boolean>;
 
 	private currentResourceGotAddedToMarkersData: boolean = false;
@@ -65,13 +64,13 @@ export class MarkersPanel extends Panel {
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IThemeService themeService: IThemeService,
 		@IMarkersWorkbenchService private markersWorkbenchService: IMarkersWorkbenchService,
-		@IStorageService storageService: IStorageService,
+		@INextStorage2Service nextStorage2Service: INextStorage2Service,
 		@IContextKeyService contextKeyService: IContextKeyService
 	) {
-		super(Constants.MARKERS_PANEL_ID, telemetryService, themeService);
+		super(Constants.MARKERS_PANEL_ID, telemetryService, themeService, nextStorage2Service);
 		this.panelFoucusContextKey = Constants.MarkerPanelFocusContextKey.bindTo(contextKeyService);
 		this.delayedRefresh = new Delayer<void>(500);
-		this.panelSettings = this.getMemento(storageService, Scope.WORKSPACE);
+		this.panelState = this.getMemento(StorageScope.WORKSPACE);
 		this.setCurrentActiveEditor();
 	}
 
@@ -244,7 +243,7 @@ export class MarkersPanel extends Panel {
 
 	private createActions(): void {
 		this.collapseAllAction = this.instantiationService.createInstance(CollapseAllAction, this.tree, true);
-		this.filterAction = this.instantiationService.createInstance(MarkersFilterAction, { filterText: this.panelSettings['filter'] || '', filterHistory: this.panelSettings['filterHistory'] || [], useFilesExclude: !!this.panelSettings['useFilesExclude'] });
+		this.filterAction = this.instantiationService.createInstance(MarkersFilterAction, { filterText: this.panelState['filter'] || '', filterHistory: this.panelState['filterHistory'] || [], useFilesExclude: !!this.panelState['useFilesExclude'] });
 		this.actions = [this.filterAction, this.collapseAllAction];
 	}
 
@@ -456,13 +455,12 @@ export class MarkersPanel extends Panel {
 		return super.getActionItem(action);
 	}
 
-	public shutdown(): void {
-		// store memento
-		this.panelSettings['filter'] = this.filterAction.filterText;
-		this.panelSettings['filterHistory'] = this.filterAction.filterHistory;
-		this.panelSettings['useFilesExclude'] = this.filterAction.useFilesExclude;
+	protected saveState(): void {
+		this.panelState['filter'] = this.filterAction.filterText;
+		this.panelState['filterHistory'] = this.filterAction.filterHistory;
+		this.panelState['useFilesExclude'] = this.filterAction.useFilesExclude;
 
-		super.shutdown();
+		super.saveState();
 	}
 
 	public dispose(): void {

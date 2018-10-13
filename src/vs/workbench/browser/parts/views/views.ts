@@ -481,11 +481,6 @@ export class PersistentContributableViewsModel extends ContributableViewsModel {
 		const storedVisibilityStates = <Array<string | { id: string, isHidden: boolean }>>JSON.parse(nextStorage2Service.get(hiddenViewsStorageId, StorageScope.GLOBAL, '[]'));
 		return <{ id: string, isHidden: boolean }[]>storedVisibilityStates.map(c => typeof c === 'string' /* migration */ ? { id: c, isHidden: true } : c);
 	}
-
-	dispose(): void {
-		this.saveViewsStates();
-		super.dispose();
-	}
 }
 
 const SCM_VIEWLET_ID = 'workbench.view.scm';

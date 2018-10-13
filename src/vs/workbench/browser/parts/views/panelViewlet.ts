@@ -28,6 +28,7 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { IPartService } from 'vs/workbench/services/part/common/partService';
 import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
 import { IView } from 'vs/workbench/common/views';
+import { INextStorage2Service } from 'vs/platform/storage2/common/storage2';
 
 export interface IPanelColors extends IColorMapping {
 	dropBackground?: ColorIdentifier;
@@ -165,7 +166,8 @@ export abstract class ViewletPanel extends Panel implements IView {
 		return 0;
 	}
 
-	shutdown(): void {
+	saveState(): void {
+		// Subclasses to implement for saving state
 	}
 }
 
@@ -203,9 +205,10 @@ export class PanelViewlet extends Viewlet {
 		@IPartService partService: IPartService,
 		@IContextMenuService protected contextMenuService: IContextMenuService,
 		@ITelemetryService telemetryService: ITelemetryService,
-		@IThemeService themeService: IThemeService
+		@IThemeService themeService: IThemeService,
+		@INextStorage2Service nextStorage2Service: INextStorage2Service
 	) {
-		super(id, configurationService, partService, telemetryService, themeService);
+		super(id, configurationService, partService, telemetryService, themeService, nextStorage2Service);
 	}
 
 	create(parent: HTMLElement): Promise<void> {

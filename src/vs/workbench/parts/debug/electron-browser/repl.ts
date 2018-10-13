@@ -101,9 +101,9 @@ export class Repl extends Panel implements IPrivateReplService, IHistoryNavigati
 		@IThemeService protected themeService: IThemeService,
 		@IModelService private modelService: IModelService,
 		@IContextKeyService private contextKeyService: IContextKeyService,
-		@ICodeEditorService codeEditorService: ICodeEditorService,
+		@ICodeEditorService codeEditorService: ICodeEditorService
 	) {
-		super(REPL_ID, telemetryService, themeService);
+		super(REPL_ID, telemetryService, themeService, nextStorage2Service);
 
 		this.replInputHeight = Repl.REPL_INPUT_INITIAL_HEIGHT;
 		this.history = new HistoryNavigator(JSON.parse(this.nextStorage2Service.get(HISTORY_STORAGE_KEY, StorageScope.WORKSPACE, '[]')), 50);
@@ -123,16 +123,17 @@ export class Repl extends Panel implements IPrivateReplService, IHistoryNavigati
 				this.updateInputDecoration();
 			}
 		}));
-		this._register(this.nextStorage2Service.onWillClose(() => this.saveState()));
 	}
 
-	private saveState(): void {
+	protected saveState(): void {
 		const replHistory = this.history.getHistory();
 		if (replHistory.length) {
 			this.nextStorage2Service.set(HISTORY_STORAGE_KEY, JSON.stringify(replHistory), StorageScope.WORKSPACE);
 		} else {
 			this.nextStorage2Service.delete(HISTORY_STORAGE_KEY, StorageScope.WORKSPACE);
 		}
+
+		super.saveState();
 	}
 
 	setVisible(visible: boolean): Promise<void> {

@@ -44,6 +44,7 @@ import { INotificationService } from 'vs/platform/notification/common/notificati
 import { KeybindingsEditorInput } from 'vs/workbench/services/preferences/common/preferencesEditorInput';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { attachStylerCallback } from 'vs/platform/theme/common/styler';
+import { INextStorage2Service } from 'vs/platform/storage2/common/storage2';
 
 let $ = DOM.$;
 
@@ -89,9 +90,10 @@ export class KeybindingsEditor extends BaseEditor implements IKeybindingsEditor 
 		@INotificationService private notificationService: INotificationService,
 		@IClipboardService private clipboardService: IClipboardService,
 		@IInstantiationService private instantiationService: IInstantiationService,
-		@IEditorService private editorService: IEditorService
+		@IEditorService private editorService: IEditorService,
+		@INextStorage2Service nextStorage2Service: INextStorage2Service
 	) {
-		super(KeybindingsEditor.ID, telemetryService, themeService);
+		super(KeybindingsEditor.ID, telemetryService, themeService, nextStorage2Service);
 		this.delayedFiltering = new Delayer<void>(300);
 		this._register(keybindingsService.onDidUpdateKeybindings(() => this.render(false, CancellationToken.None)));
 

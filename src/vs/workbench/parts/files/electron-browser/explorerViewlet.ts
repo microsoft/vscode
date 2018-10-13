@@ -14,7 +14,7 @@ import { ActionRunner, FileViewletState } from 'vs/workbench/parts/files/electro
 import { ExplorerView, IExplorerViewOptions } from 'vs/workbench/parts/files/electron-browser/views/explorerView';
 import { EmptyView } from 'vs/workbench/parts/files/electron-browser/views/emptyView';
 import { OpenEditorsView } from 'vs/workbench/parts/files/electron-browser/views/openEditorsView';
-import { IStorageService } from 'vs/platform/storage/common/storage';
+import { INextStorage2Service } from 'vs/platform/storage2/common/storage2';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
@@ -150,14 +150,14 @@ export class ExplorerViewlet extends ViewContainerViewlet implements IExplorerVi
 
 	private static readonly EXPLORER_VIEWS_STATE = 'workbench.explorer.views.state';
 
-	private viewletState: FileViewletState;
+	private fileViewletState: FileViewletState;
 	private viewletVisibleContextKey: IContextKey<boolean>;
 
 	constructor(
 		@IPartService partService: IPartService,
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IWorkspaceContextService protected contextService: IWorkspaceContextService,
-		@IStorageService protected storageService: IStorageService,
+		@INextStorage2Service protected nextStorage2Service: INextStorage2Service,
 		@IEditorService private editorService: IEditorService,
 		@IEditorGroupsService private editorGroupService: IEditorGroupsService,
 		@IConfigurationService configurationService: IConfigurationService,
@@ -167,9 +167,9 @@ export class ExplorerViewlet extends ViewContainerViewlet implements IExplorerVi
 		@IContextMenuService contextMenuService: IContextMenuService,
 		@IExtensionService extensionService: IExtensionService
 	) {
-		super(VIEWLET_ID, ExplorerViewlet.EXPLORER_VIEWS_STATE, true, configurationService, partService, telemetryService, storageService, instantiationService, themeService, contextMenuService, extensionService, contextService);
+		super(VIEWLET_ID, ExplorerViewlet.EXPLORER_VIEWS_STATE, true, configurationService, partService, telemetryService, nextStorage2Service, instantiationService, themeService, contextMenuService, extensionService, contextService);
 
-		this.viewletState = new FileViewletState();
+		this.fileViewletState = new FileViewletState();
 		this.viewletVisibleContextKey = ExplorerViewletVisibleContext.bindTo(contextKeyService);
 
 		this._register(this.contextService.onDidChangeWorkspaceName(e => this.updateTitleArea()));
@@ -218,7 +218,7 @@ export class ExplorerViewlet extends ViewContainerViewlet implements IExplorerVi
 			});
 
 			const explorerInstantiator = this.instantiationService.createChild(new ServiceCollection([IEditorService, delegatingEditorService]));
-			return explorerInstantiator.createInstance(ExplorerView, <IExplorerViewOptions>{ ...options, viewletState: this.viewletState });
+			return explorerInstantiator.createInstance(ExplorerView, <IExplorerViewOptions>{ ...options, viewletState: this.fileViewletState });
 		}
 		return super.createView(viewDescriptor, options);
 	}
@@ -242,13 +242,13 @@ export class ExplorerViewlet extends ViewContainerViewlet implements IExplorerVi
 
 	public getActionRunner(): IActionRunner {
 		if (!this.actionRunner) {
-			this.actionRunner = new ActionRunner(this.viewletState);
+			this.actionRunner = new ActionRunner(this.fileViewletState);
 		}
 		return this.actionRunner;
 	}
 
 	public getViewletState(): FileViewletState {
-		return this.viewletState;
+		return this.fileViewletState;
 	}
 
 	focus(): void {

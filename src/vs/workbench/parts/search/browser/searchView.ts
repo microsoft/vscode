@@ -34,7 +34,6 @@ import { TreeResourceNavigator, WorkbenchTree } from 'vs/platform/list/browser/l
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { IProgressService } from 'vs/platform/progress/common/progress';
 import { IPatternInfo, IQueryOptions, ISearchComplete, ISearchConfiguration, ISearchHistoryService, ISearchProgressItem, ISearchQuery, VIEW_ID } from 'vs/platform/search/common/search';
-import { IStorageService } from 'vs/platform/storage/common/storage';
 import { INextStorage2Service, StorageScope } from 'vs/platform/storage2/common/storage2';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { diffInserted, diffInsertedOutline, diffRemoved, diffRemovedOutline, editorFindMatchHighlight, editorFindMatchHighlightBorder, listActiveSelectionForeground } from 'vs/platform/theme/common/colorRegistry';
@@ -43,7 +42,6 @@ import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/
 import { OpenFileFolderAction, OpenFolderAction } from 'vs/workbench/browser/actions/workspaceActions';
 import { SimpleFileResourceDragAndDrop } from 'vs/workbench/browser/dnd';
 import { Viewlet } from 'vs/workbench/browser/viewlet';
-import { Scope } from 'vs/workbench/common/memento';
 import { IPanel } from 'vs/workbench/common/panel';
 import { IViewlet } from 'vs/workbench/common/viewlet';
 import { ExcludePatternInputWidget, PatternInputWidget } from 'vs/workbench/parts/search/browser/patternInputWidget';
@@ -94,7 +92,7 @@ export class SearchView extends Viewlet implements IViewlet, IPanel {
 
 	private actions: (RefreshAction | CollapseDeepestExpandedLevelAction | ClearSearchResultsAction | CancelSearchAction)[] = [];
 	private tree: WorkbenchTree;
-	private viewletSettings: any;
+	private viewletState: object;
 	private messagesElement: HTMLElement;
 	private messageDisposables: IDisposable[] = [];
 	private searchWidgetsContainerElement: HTMLElement;
@@ -122,7 +120,6 @@ export class SearchView extends Viewlet implements IViewlet, IPanel {
 		@IProgressService private progressService: IProgressService,
 		@INotificationService private notificationService: INotificationService,
 		@IDialogService private dialogService: IDialogService,
-		@IStorageService storageService: IStorageService,
 		@INextStorage2Service private nextStorage2Service: INextStorage2Service,
 		@IContextViewService private contextViewService: IContextViewService,
 		@IInstantiationService private instantiationService: IInstantiationService,
@@ -137,7 +134,7 @@ export class SearchView extends Viewlet implements IViewlet, IPanel {
 		@ISearchHistoryService private searchHistoryService: ISearchHistoryService,
 		@IEditorGroupsService private editorGroupsService: IEditorGroupsService
 	) {
-		super(VIEW_ID, configurationService, partService, telemetryService, themeService);
+		super(VIEW_ID, configurationService, partService, telemetryService, themeService, nextStorage2Service);
 
 		this.viewletVisible = Constants.SearchViewVisibleKey.bindTo(contextKeyService);
 		this.viewletFocused = Constants.SearchViewFocusedKey.bindTo(contextKeyService);
@@ -153,13 +150,12 @@ export class SearchView extends Viewlet implements IViewlet, IPanel {
 		this.hasSearchResultsKey = Constants.HasSearchResults.bindTo(this.contextKeyService);
 
 		this.queryBuilder = this.instantiationService.createInstance(QueryBuilder);
-		this.viewletSettings = this.getMemento(storageService, Scope.WORKSPACE);
+		this.viewletState = this.getMemento(StorageScope.WORKSPACE);
 
 		this._register(this.fileService.onFileChanges(e => this.onFilesChanged(e)));
 		this._register(this.untitledEditorService.onDidChangeDirty(e => this.onUntitledDidChangeDirty(e)));
 		this._register(this.contextService.onDidChangeWorkbenchState(() => this.onDidChangeWorkbenchState()));
 		this._register(this.searchHistoryService.onDidClearHistory(() => this.clearHistory()));
-		this._register(this.nextStorage2Service.onWillClose(() => this.saveState()));
 
 		this.selectCurrentMatchEmitter = this._register(new Emitter<string>());
 		this._register(debounceEvent(this.selectCurrentMatchEmitter.event, (l, e) => e, 100, /*leading=*/true)
@@ -184,14 +180,14 @@ export class SearchView extends Viewlet implements IViewlet, IPanel {
 		this.createSearchWidget(this.searchWidgetsContainerElement);
 
 		const history = this.searchHistoryService.load();
-		const filePatterns = this.viewletSettings['query.filePatterns'] || '';
-		const patternExclusions = this.viewletSettings['query.folderExclusions'] || '';
+		const filePatterns = this.viewletState['query.filePatterns'] || '';
+		const patternExclusions = this.viewletState['query.folderExclusions'] || '';
 		const patternExclusionsHistory: string[] = history.exclude || [];
-		const patternIncludes = this.viewletSettings['query.folderIncludes'] || '';
+		const patternIncludes = this.viewletState['query.folderIncludes'] || '';
 		const patternIncludesHistory: string[] = history.include || [];
-		const queryDetailsExpanded = this.viewletSettings['query.queryDetailsExpanded'] || '';
-		const useExcludesAndIgnoreFiles = typeof this.viewletSettings['query.useExcludesAndIgnoreFiles'] === 'boolean' ?
-			this.viewletSettings['query.useExcludesAndIgnoreFiles'] : true;
+		const queryDetailsExpanded = this.viewletState['query.queryDetailsExpanded'] || '';
+		const useExcludesAndIgnoreFiles = typeof this.viewletState['query.useExcludesAndIgnoreFiles'] === 'boolean' ?
+			this.viewletState['query.useExcludesAndIgnoreFiles'] : true;
 
 		this.queryDetails = dom.append(this.searchWidgetsContainerElement, $('.query-details'));
 
@@ -307,13 +303,13 @@ export class SearchView extends Viewlet implements IViewlet, IPanel {
 	}
 
 	private createSearchWidget(container: HTMLElement): void {
-		let contentPattern = this.viewletSettings['query.contentPattern'] || '';
-		let isRegex = this.viewletSettings['query.regex'] === true;
-		let isWholeWords = this.viewletSettings['query.wholeWords'] === true;
-		let isCaseSensitive = this.viewletSettings['query.caseSensitive'] === true;
+		let contentPattern = this.viewletState['query.contentPattern'] || '';
+		let isRegex = this.viewletState['query.regex'] === true;
+		let isWholeWords = this.viewletState['query.wholeWords'] === true;
+		let isCaseSensitive = this.viewletState['query.caseSensitive'] === true;
 		const history = this.searchHistoryService.load();
-		let searchHistory = history.search || this.viewletSettings['query.searchHistory'] || [];
-		let replaceHistory = history.replace || this.viewletSettings['query.replaceHistory'] || [];
+		let searchHistory = history.search || this.viewletState['query.searchHistory'] || [];
+		let replaceHistory = history.replace || this.viewletState['query.replaceHistory'] || [];
 
 		this.searchWidget = this._register(this.instantiationService.createInstance(SearchWidget, container, <ISearchWidgetOptions>{
 			value: contentPattern,
@@ -939,7 +935,7 @@ export class SearchView extends Viewlet implements IViewlet, IPanel {
 	public toggleQueryDetails(moveFocus = true, show?: boolean, skipLayout?: boolean, reverse?: boolean): void {
 		let cls = 'more';
 		show = typeof show === 'undefined' ? !dom.hasClass(this.queryDetails, cls) : Boolean(show);
-		this.viewletSettings['query.queryDetailsExpanded'] = show;
+		this.viewletState['query.queryDetailsExpanded'] = show;
 		skipLayout = Boolean(skipLayout);
 
 		if (show) {
@@ -1509,7 +1505,7 @@ export class SearchView extends Viewlet implements IViewlet, IPanel {
 		this.inputPatternIncludes.clearHistory();
 	}
 
-	public shutdown(): void {
+	protected saveState(): void {
 		const isRegex = this.searchWidget.searchInput.getRegex();
 		const isWholeWords = this.searchWidget.searchInput.getWholeWords();
 		const isCaseSensitive = this.searchWidget.searchInput.getCaseSensitive();
@@ -1518,19 +1514,14 @@ export class SearchView extends Viewlet implements IViewlet, IPanel {
 		const patternIncludes = this.inputPatternIncludes.getValue().trim();
 		const useExcludesAndIgnoreFiles = this.inputPatternExcludes.useExcludesAndIgnoreFiles();
 
-		// store memento
-		this.viewletSettings['query.contentPattern'] = contentPattern;
-		this.viewletSettings['query.regex'] = isRegex;
-		this.viewletSettings['query.wholeWords'] = isWholeWords;
-		this.viewletSettings['query.caseSensitive'] = isCaseSensitive;
-		this.viewletSettings['query.folderExclusions'] = patternExcludes;
-		this.viewletSettings['query.folderIncludes'] = patternIncludes;
-		this.viewletSettings['query.useExcludesAndIgnoreFiles'] = useExcludesAndIgnoreFiles;
+		this.viewletState['query.contentPattern'] = contentPattern;
+		this.viewletState['query.regex'] = isRegex;
+		this.viewletState['query.wholeWords'] = isWholeWords;
+		this.viewletState['query.caseSensitive'] = isCaseSensitive;
+		this.viewletState['query.folderExclusions'] = patternExcludes;
+		this.viewletState['query.folderIncludes'] = patternIncludes;
+		this.viewletState['query.useExcludesAndIgnoreFiles'] = useExcludesAndIgnoreFiles;
 
-		super.shutdown();
-	}
-
-	private saveState(): void {
 		const searchHistory = this.searchWidget.getSearchHistory();
 		const replaceHistory = this.searchWidget.getReplaceHistory();
 		const patternExcludesHistory = this.inputPatternExcludes.getHistory();
@@ -1542,6 +1533,8 @@ export class SearchView extends Viewlet implements IViewlet, IPanel {
 			exclude: patternExcludesHistory,
 			include: patternIncludesHistory
 		});
+
+		super.saveState();
 	}
 
 	public dispose(): void {

@@ -12,12 +12,16 @@ import { Event, Emitter } from 'vs/base/common/event';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IConstructorSignature0, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { trackFocus, Dimension } from 'vs/base/browser/dom';
+import { INextStorage2Service } from 'vs/platform/storage2/common/storage2';
+import { Disposable } from 'vs/base/common/lifecycle';
 
 /**
  * Composites are layed out in the sidebar and panel part of the workbench. At a time only one composite
  * can be open in the sidebar, and only one composite can be open in the panel.
+ *
  * Each composite has a minimized representation that is good enough to provide some
  * information about the state of the composite data.
+ * 
  * The workbench will keep a composite alive after it has been created and show/hide it based on
  * user interaction. The lifecycle of a composite goes in the order create(), setVisible(true|false),
  * layout(), focus(), dispose(). During use of the workbench, a composite will often receive a setVisible,
@@ -33,6 +37,7 @@ export abstract class Composite extends Component implements IComposite {
 		if (!this._onDidFocus) {
 			this._registerFocusTrackEvents();
 		}
+
 		return this._onDidFocus.event;
 	}
 
@@ -41,6 +46,7 @@ export abstract class Composite extends Component implements IComposite {
 		if (!this._onDidBlur) {
 			this._registerFocusTrackEvents();
 		}
+
 		return this._onDidBlur.event;
 	}
 
@@ -64,9 +70,10 @@ export abstract class Composite extends Component implements IComposite {
 	constructor(
 		id: string,
 		private _telemetryService: ITelemetryService,
-		themeService: IThemeService
+		themeService: IThemeService,
+		nextStorage2Service: INextStorage2Service
 	) {
-		super(id, themeService);
+		super(id, themeService, nextStorage2Service);
 
 		this.visible = false;
 	}
@@ -232,9 +239,9 @@ export abstract class CompositeDescriptor<T extends Composite> {
 	}
 }
 
-export abstract class CompositeRegistry<T extends Composite> {
+export abstract class CompositeRegistry<T extends Composite> extends Disposable {
 
-	private readonly _onDidRegister: Emitter<CompositeDescriptor<T>> = new Emitter<CompositeDescriptor<T>>();
+	private readonly _onDidRegister: Emitter<CompositeDescriptor<T>> = this._register(new Emitter<CompositeDescriptor<T>>());
 	get onDidRegister(): Event<CompositeDescriptor<T>> { return this._onDidRegister.event; }
 
 	private composites: CompositeDescriptor<T>[] = [];

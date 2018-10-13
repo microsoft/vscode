@@ -134,7 +134,7 @@ export class DebugService implements IDebugService {
 		this.viewModel = new ViewModel(contextKeyService);
 
 		this.toDispose.push(this.fileService.onFileChanges(e => this.onFileChanges(e)));
-		this.toDispose.push(this.nextStorage2Service.onWillClose(this.store, this));
+		this.toDispose.push(this.nextStorage2Service.onWillClose(this.saveState, this));
 		this.lifecycleService.onShutdown(this.dispose, this);
 
 		this.toDispose.push(this.broadcastService.onBroadcast(broadcast => {
@@ -968,7 +968,7 @@ export class DebugService implements IDebugService {
 		return result || [];
 	}
 
-	private store(): void {
+	private saveState(): void {
 		const breakpoints = this.model.getBreakpoints();
 		if (breakpoints.length) {
 			this.nextStorage2Service.set(DEBUG_BREAKPOINTS_KEY, JSON.stringify(breakpoints), StorageScope.WORKSPACE);

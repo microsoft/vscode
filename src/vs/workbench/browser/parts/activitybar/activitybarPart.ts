@@ -61,7 +61,7 @@ export class ActivitybarPart extends Part {
 		@INextStorage2Service private nextStorage2Service: INextStorage2Service,
 		@IExtensionService private extensionService: IExtensionService
 	) {
-		super(id, { hasTitle: false }, themeService);
+		super(id, { hasTitle: false }, themeService, nextStorage2Service);
 
 		this.compositeBar = this._register(this.instantiationService.createInstance(CompositeBar, {
 			icon: true,
@@ -110,11 +110,6 @@ export class ActivitybarPart extends Part {
 		}));
 
 		this._register(this.extensionService.onDidRegisterExtensions(() => this.onDidRegisterExtensions()));
-
-		this._register(this.nextStorage2Service.onWillClose(() => {
-			const state = this.viewletService.getAllViewlets().map(({ id, iconUrl }) => ({ id, iconUrl }));
-			this.nextStorage2Service.set(ActivitybarPart.PLACEHOLDER_VIEWLETS, JSON.stringify(state), StorageScope.GLOBAL);
-		}));
 	}
 
 	private onDidRegisterExtensions(): void {
@@ -335,5 +330,12 @@ export class ActivitybarPart extends Part {
 		this.compositeBar.layout(new Dimension(dimension.width, availableHeight));
 
 		return sizes;
+	}
+
+	protected saveState(): void {
+		const state = this.viewletService.getAllViewlets().map(({ id, iconUrl }) => ({ id, iconUrl }));
+		this.nextStorage2Service.set(ActivitybarPart.PLACEHOLDER_VIEWLETS, JSON.stringify(state), StorageScope.GLOBAL);
+
+		super.saveState();
 	}
 }

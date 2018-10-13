@@ -17,6 +17,7 @@ import { CancellationToken } from 'vs/base/common/cancellation';
 import { IEditorGroup } from 'vs/workbench/services/group/common/editorGroupsService';
 import { SplitView, Sizing, Orientation } from 'vs/base/browser/ui/splitview/splitview';
 import { Event, Relay, anyEvent, mapEvent, Emitter } from 'vs/base/common/event';
+import { INextStorage2Service } from 'vs/platform/storage2/common/storage2';
 
 export class SideBySideEditor extends BaseEditor {
 
@@ -59,9 +60,10 @@ export class SideBySideEditor extends BaseEditor {
 	constructor(
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IInstantiationService private instantiationService: IInstantiationService,
-		@IThemeService themeService: IThemeService
+		@IThemeService themeService: IThemeService,
+		@INextStorage2Service nextStorage2Service: INextStorage2Service
 	) {
-		super(SideBySideEditor.ID, telemetryService, themeService);
+		super(SideBySideEditor.ID, telemetryService, themeService, nextStorage2Service);
 	}
 
 	protected createEditor(parent: HTMLElement): void {

@@ -109,10 +109,10 @@ class CommandsHistory {
 
 	private registerListeners(): void {
 		this.configurationService.onDidChangeConfiguration(e => this.updateConfiguration());
-		once(this.nextStorage2Service.onWillClose)(() => this.save());
+		once(this.nextStorage2Service.onWillClose)(() => this.saveState());
 	}
 
-	private save(): void {
+	private saveState(): void {
 		const serializedCache: ISerializedCommandHistory = { usesLRU: true, entries: [] };
 		commandHistory.forEach((value, key) => serializedCache.entries.push({ key, value }));
 

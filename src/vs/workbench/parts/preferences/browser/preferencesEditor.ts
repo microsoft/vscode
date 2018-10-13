@@ -34,7 +34,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { ILogService } from 'vs/platform/log/common/log';
 import { IProgressService } from 'vs/platform/progress/common/progress';
 import { Registry } from 'vs/platform/registry/common/platform';
-import { IStorageService } from 'vs/platform/storage/common/storage';
+import { INextStorage2Service } from 'vs/platform/storage2/common/storage2';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { scrollbarShadow } from 'vs/platform/theme/common/colorRegistry';
 import { attachStylerCallback } from 'vs/platform/theme/common/styler';
@@ -94,9 +94,10 @@ export class PreferencesEditor extends BaseEditor {
 		@IContextKeyService private contextKeyService: IContextKeyService,
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@IThemeService themeService: IThemeService,
-		@IProgressService private progressService: IProgressService
+		@IProgressService private progressService: IProgressService,
+		@INextStorage2Service nextStorage2Service: INextStorage2Service
 	) {
-		super(PreferencesEditor.ID, telemetryService, themeService);
+		super(PreferencesEditor.ID, telemetryService, themeService, nextStorage2Service);
 		this.defaultSettingsEditorContextKey = CONTEXT_SETTINGS_EDITOR.bindTo(this.contextKeyService);
 		this.searchFocusContextKey = CONTEXT_SETTINGS_SEARCH_FOCUS.bindTo(this.contextKeyService);
 		this.delayedFilterLogging = new Delayer<void>(1000);
@@ -982,7 +983,7 @@ export class DefaultPreferencesEditor extends BaseTextEditor {
 	constructor(
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IInstantiationService instantiationService: IInstantiationService,
-		@IStorageService storageService: IStorageService,
+		@INextStorage2Service nextStorage2Service: INextStorage2Service,
 		@ITextResourceConfigurationService configurationService: ITextResourceConfigurationService,
 		@IThemeService themeService: IThemeService,
 		@ITextFileService textFileService: ITextFileService,
@@ -990,7 +991,7 @@ export class DefaultPreferencesEditor extends BaseTextEditor {
 		@IEditorService editorService: IEditorService,
 		@IWindowService windowService: IWindowService
 	) {
-		super(DefaultPreferencesEditor.ID, telemetryService, instantiationService, storageService, configurationService, themeService, textFileService, editorService, editorGroupService, windowService);
+		super(DefaultPreferencesEditor.ID, telemetryService, instantiationService, nextStorage2Service, configurationService, themeService, textFileService, editorService, editorGroupService, windowService);
 	}
 
 	private static _getContributions(): IEditorContributionCtor[] {

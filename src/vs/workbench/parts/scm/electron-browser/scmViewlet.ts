@@ -49,6 +49,7 @@ import { IViewDescriptorRef, PersistentContributableViewsModel, IAddedViewDescri
 import { IViewDescriptor, IViewsViewlet, IView } from 'vs/workbench/common/views';
 import { IPanelDndController, Panel } from 'vs/base/browser/ui/splitview/panelview';
 import * as platform from 'vs/base/common/platform';
+import { INextStorage2Service } from 'vs/platform/storage2/common/storage2';
 
 export interface ISpliceEvent<T> {
 	index: number;
@@ -1055,8 +1056,9 @@ export class SCMViewlet extends PanelViewlet implements IViewModel, IViewsViewle
 		@IThemeService protected themeService: IThemeService,
 		@ICommandService protected commandService: ICommandService,
 		@IConfigurationService configurationService: IConfigurationService,
+		@INextStorage2Service nextStorage2Service: INextStorage2Service
 	) {
-		super(VIEWLET_ID, { showHeaderInTitleWhenSingleView: true, dnd: new SCMPanelDndController() }, configurationService, partService, contextMenuService, telemetryService, themeService);
+		super(VIEWLET_ID, { showHeaderInTitleWhenSingleView: true, dnd: new SCMPanelDndController() }, configurationService, partService, contextMenuService, telemetryService, themeService, nextStorage2Service);
 
 		this.menus = instantiationService.createInstance(SCMMenus, undefined);
 		this.menus.onDidChangeTitle(this.updateTitleArea, this, this.disposables);

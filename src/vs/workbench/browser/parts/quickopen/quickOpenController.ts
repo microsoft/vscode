@@ -50,6 +50,7 @@ import { ILabelService } from 'vs/platform/label/common/label';
 import { timeout } from 'vs/base/common/async';
 import { IQuickInputService, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
 import { CancellationTokenSource, CancellationToken } from 'vs/base/common/cancellation';
+import { INextStorage2Service } from 'vs/platform/storage2/common/storage2';
 
 const HELP_PREFIX = '?';
 
@@ -91,9 +92,10 @@ export class QuickOpenController extends Component implements IQuickOpenService 
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@IPartService private partService: IPartService,
 		@IEnvironmentService private environmentService: IEnvironmentService,
-		@IThemeService themeService: IThemeService
+		@IThemeService themeService: IThemeService,
+		@INextStorage2Service nextStorage2Service: INextStorage2Service
 	) {
-		super(QuickOpenController.ID, themeService);
+		super(QuickOpenController.ID, themeService, nextStorage2Service);
 
 		this.editorHistoryHandler = this.instantiationService.createInstance(EditorHistoryHandler);
 

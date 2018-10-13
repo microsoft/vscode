@@ -15,7 +15,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { IPartService } from 'vs/workbench/services/part/common/partService';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { IStorageService } from 'vs/platform/storage/common/storage';
+import { INextStorage2Service } from 'vs/platform/storage2/common/storage2';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IExtensionService, IExtensionDescription } from 'vs/workbench/services/extensions/common/extensions';
@@ -165,14 +165,14 @@ class ViewsContainersExtensionHandler implements IWorkbenchContribution {
 					@IPartService partService: IPartService,
 					@ITelemetryService telemetryService: ITelemetryService,
 					@IWorkspaceContextService contextService: IWorkspaceContextService,
-					@IStorageService storageService: IStorageService,
+					@INextStorage2Service nextStorage2Service: INextStorage2Service,
 					@IEditorService editorService: IEditorService,
 					@IInstantiationService instantiationService: IInstantiationService,
 					@IThemeService themeService: IThemeService,
 					@IContextMenuService contextMenuService: IContextMenuService,
 					@IExtensionService extensionService: IExtensionService
 				) {
-					super(id, `${id}.state`, true, configurationService, partService, telemetryService, storageService, instantiationService, themeService, contextMenuService, extensionService, contextService);
+					super(id, `${id}.state`, true, configurationService, partService, telemetryService, nextStorage2Service, instantiationService, themeService, contextMenuService, extensionService, contextService);
 				}
 			}
 			const viewletDescriptor = new ViewletDescriptor(

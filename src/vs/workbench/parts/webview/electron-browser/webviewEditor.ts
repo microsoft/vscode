@@ -21,6 +21,7 @@ import { IPartService, Parts } from 'vs/workbench/services/part/common/partServi
 import { BaseWebviewEditor, KEYBINDING_CONTEXT_WEBVIEW_FIND_WIDGET_VISIBLE } from './baseWebviewEditor';
 import { WebviewElement } from './webviewElement';
 import { IWindowService } from 'vs/platform/windows/common/windows';
+import { INextStorage2Service } from 'vs/platform/storage2/common/storage2';
 
 export class WebviewEditor extends BaseWebviewEditor {
 
@@ -44,9 +45,10 @@ export class WebviewEditor extends BaseWebviewEditor {
 		@IWorkspaceContextService private readonly _contextService: IWorkspaceContextService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IEditorService private readonly _editorService: IEditorService,
-		@IWindowService private readonly _windowService: IWindowService
+		@IWindowService private readonly _windowService: IWindowService,
+		@INextStorage2Service nextStorage2Service: INextStorage2Service
 	) {
-		super(WebviewEditor.ID, telemetryService, themeService, _contextKeyService);
+		super(WebviewEditor.ID, telemetryService, themeService, _contextKeyService, nextStorage2Service);
 	}
 
 	protected createEditor(parent: HTMLElement): void {

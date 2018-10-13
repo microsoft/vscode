@@ -47,6 +47,7 @@ import { CancellationToken } from 'vs/base/common/cancellation';
 import { ExtensionsTree, IExtensionData } from 'vs/workbench/parts/extensions/browser/extensionsViewer';
 import { ShowCurrentReleaseNotesAction } from 'vs/workbench/parts/update/electron-browser/update';
 import { KeybindingParser } from 'vs/base/common/keybindingParser';
+import { INextStorage2Service } from 'vs/platform/storage2/common/storage2';
 
 function renderBody(body: string): string {
 	const styleSheetPath = require.toUrl('./media/markdown.css').replace('file://', 'vscode-core-resource://');
@@ -187,8 +188,9 @@ export class ExtensionEditor extends BaseEditor {
 		@IOpenerService private readonly openerService: IOpenerService,
 		@IPartService private readonly partService: IPartService,
 		@IExtensionTipsService private readonly extensionTipsService: IExtensionTipsService,
+		@INextStorage2Service nextStorage2Service: INextStorage2Service
 	) {
-		super(ExtensionEditor.ID, telemetryService, themeService);
+		super(ExtensionEditor.ID, telemetryService, themeService, nextStorage2Service);
 		this.disposables = [];
 		this.extensionReadme = null;
 		this.extensionChangelog = null;

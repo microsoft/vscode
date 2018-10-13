@@ -21,8 +21,7 @@ import { EditorGroupView } from 'vs/workbench/browser/parts/editor/editorGroupVi
 import { IConfigurationService, IConfigurationChangeEvent } from 'vs/platform/configuration/common/configuration';
 import { IDisposable, dispose, toDisposable } from 'vs/base/common/lifecycle';
 import { assign } from 'vs/base/common/objects';
-import { IStorageService } from 'vs/platform/storage/common/storage';
-import { Scope } from 'vs/workbench/common/memento';
+import { INextStorage2Service, StorageScope } from 'vs/platform/storage2/common/storage2';
 import { ISerializedEditorGroup, isSerializedEditorGroup } from 'vs/workbench/common/editor/editorGroup';
 import { TValueCallback, TPromise } from 'vs/base/common/winjs.base';
 import { always } from 'vs/base/common/async';
@@ -117,7 +116,7 @@ export class EditorPart extends Part implements EditorGroupsServiceImpl, IEditor
 	private dimension: Dimension;
 	private _preferredSize: Dimension;
 
-	private memento: object;
+	private workspaceMemento: object;
 	private globalMemento: object;
 
 	private _partOptions: IEditorPartOptions;
@@ -140,15 +139,16 @@ export class EditorPart extends Part implements EditorGroupsServiceImpl, IEditor
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@IThemeService themeService: IThemeService,
 		@IConfigurationService private configurationService: IConfigurationService,
-		@IStorageService private storageService: IStorageService
+		@INextStorage2Service nextStorage2Service: INextStorage2Service
 	) {
-		super(id, { hasTitle: false }, themeService);
+		super(id, { hasTitle: false }, themeService, nextStorage2Service);
 
 		this.gridWidgetView = new GridWidgetView<IEditorGroupView>();
 
 		this._partOptions = getEditorPartOptions(this.configurationService.getValue<IWorkbenchEditorConfiguration>());
-		this.memento = this.getMemento(this.storageService, Scope.WORKSPACE);
-		this.globalMemento = this.getMemento(this.storageService, Scope.GLOBAL);
+
+		this.workspaceMemento = this.getMemento(StorageScope.WORKSPACE);
+		this.globalMemento = this.getMemento(StorageScope.GLOBAL);
 
 		this._whenRestored = new TPromise(resolve => {
 			this.whenRestoredComplete = resolve;
@@ -818,7 +818,7 @@ export class EditorPart extends Part implements EditorGroupsServiceImpl, IEditor
 	}
 
 	private doCreateGridControlWithPreviousState(): void {
-		const uiState = this.memento[EditorPart.EDITOR_PART_UI_STATE_STORAGE_KEY] as IEditorPartUIState;
+		const uiState = this.workspaceMemento[EditorPart.EDITOR_PART_UI_STATE_STORAGE_KEY] as IEditorPartUIState;
 		if (uiState && uiState.serializedGrid) {
 			try {
 
@@ -955,7 +955,7 @@ export class EditorPart extends Part implements EditorGroupsServiceImpl, IEditor
 		this._onDidLayout.fire(dimension);
 	}
 
-	shutdown(): void {
+	protected saveState(): void {
 
 		// Persist grid UI state
 		if (this.gridWidget) {
@@ -966,19 +966,16 @@ export class EditorPart extends Part implements EditorGroupsServiceImpl, IEditor
 			};
 
 			if (this.isEmpty()) {
-				delete this.memento[EditorPart.EDITOR_PART_UI_STATE_STORAGE_KEY];
+				delete this.workspaceMemento[EditorPart.EDITOR_PART_UI_STATE_STORAGE_KEY];
 			} else {
-				this.memento[EditorPart.EDITOR_PART_UI_STATE_STORAGE_KEY] = uiState;
+				this.workspaceMemento[EditorPart.EDITOR_PART_UI_STATE_STORAGE_KEY] = uiState;
 			}
 		}
 
 		// Persist centered view state
 		this.globalMemento[EditorPart.EDITOR_PART_CENTERED_VIEW_STORAGE_KEY] = this.centeredLayoutWidget.state;
 
-		// Forward to all groups
-		this.groupViews.forEach(group => group.shutdown());
-
-		super.shutdown();
+		super.saveState();
 	}
 
 	dispose(): void {

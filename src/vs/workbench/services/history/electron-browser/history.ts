@@ -175,7 +175,7 @@ export class HistoryService extends Disposable implements IHistoryService {
 		this._register(this.editorService.onDidActiveEditorChange(() => this.onActiveEditorChanged()));
 		this._register(this.editorService.onDidOpenEditorFail(event => this.remove(event.editor)));
 		this._register(this.editorService.onDidCloseEditor(event => this.onEditorClosed(event)));
-		this._register(this.nextStorage2Service.onWillClose(reason => this.saveHistory()));
+		this._register(this.nextStorage2Service.onWillClose(reason => this.saveState()));
 		this._register(this.fileService.onFileChanges(event => this.onFileChanges(event)));
 		this._register(this.resourceFilter.onExpressionChange(() => this.handleExcludesChange()));
 	}
@@ -744,7 +744,7 @@ export class HistoryService extends Disposable implements IHistoryService {
 		this.loaded = true;
 	}
 
-	private saveHistory(): void {
+	private saveState(): void {
 		if (!this.history) {
 			return; // nothing to save because history was not used
 		}

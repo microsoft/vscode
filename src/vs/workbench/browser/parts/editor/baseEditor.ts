@@ -10,13 +10,12 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { IEditorGroup, IEditorGroupsService } from 'vs/workbench/services/group/common/editorGroupsService';
-import { IStorageService } from 'vs/platform/storage/common/storage';
+import { INextStorage2Service, StorageScope } from 'vs/platform/storage2/common/storage2';
 import { LRUCache } from 'vs/base/common/map';
 import { URI } from 'vs/base/common/uri';
 import { once, Event } from 'vs/base/common/event';
 import { isEmptyObject } from 'vs/base/common/types';
 import { DEFAULT_EDITOR_MIN_DIMENSIONS, DEFAULT_EDITOR_MAX_DIMENSIONS } from 'vs/workbench/browser/parts/editor/editor';
-import { Scope } from 'vs/workbench/common/memento';
 
 /**
  * The base class of editors in the workbench. Editors register themselves for specific editor inputs.
@@ -50,9 +49,10 @@ export abstract class BaseEditor extends Panel implements IEditor {
 	constructor(
 		id: string,
 		telemetryService: ITelemetryService,
-		themeService: IThemeService
+		themeService: IThemeService,
+		nextStorage2Service: INextStorage2Service
 	) {
-		super(id, telemetryService, themeService);
+		super(id, telemetryService, themeService, nextStorage2Service);
 	}
 
 	get input(): EditorInput {
@@ -143,28 +143,26 @@ export abstract class BaseEditor extends Panel implements IEditor {
 		this._group = group;
 	}
 
-	protected getEditorMemento<T>(storageService: IStorageService, editorGroupService: IEditorGroupsService, key: string, limit: number = 10): IEditorMemento<T> {
+	protected getEditorMemento<T>(editorGroupService: IEditorGroupsService, key: string, limit: number = 10): IEditorMemento<T> {
 		const mementoKey = `${this.getId()}${key}`;
 
 		let editorMemento = BaseEditor.EDITOR_MEMENTOS.get(mementoKey);
 		if (!editorMemento) {
-			editorMemento = new EditorMemento(this.getId(), key, this.getMemento(storageService, Scope.WORKSPACE), limit, editorGroupService);
+			editorMemento = new EditorMemento(this.getId(), key, this.getMemento(StorageScope.WORKSPACE), limit, editorGroupService);
 			BaseEditor.EDITOR_MEMENTOS.set(mementoKey, editorMemento);
 		}
 
 		return editorMemento;
 	}
 
-	shutdown(): void {
+	protected saveState(): void {
 
-		// Shutdown all editor memento for this editor type
+		// Save all editor memento for this editor type
 		BaseEditor.EDITOR_MEMENTOS.forEach(editorMemento => {
 			if (editorMemento.id === this.getId()) {
-				editorMemento.shutdown();
+				editorMemento.save();
 			}
 		});
-
-		super.shutdown();
 	}
 
 	dispose(): void {
@@ -279,7 +277,7 @@ export class EditorMemento<T> implements IEditorMemento<T> {
 		return this.cache;
 	}
 
-	shutdown(): void {
+	save(): void {
 		const cache = this.doLoad();
 
 		// Cleanup once during shutdown

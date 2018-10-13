@@ -7,11 +7,10 @@ import * as assert from 'assert';
 import { EditorGroup, ISerializedEditorGroup, EditorCloseEvent } from 'vs/workbench/common/editor/editorGroup';
 import { Extensions as EditorExtensions, IEditorInputFactoryRegistry, EditorInput, IFileEditorInput, IEditorInputFactory, CloseDirection } from 'vs/workbench/common/editor';
 import { URI } from 'vs/base/common/uri';
-import { TestStorageService, TestLifecycleService, TestContextService, TestNextStorage2Service } from 'vs/workbench/test/workbenchTestServices';
+import { TestLifecycleService, TestContextService, TestNextStorage2Service } from 'vs/workbench/test/workbenchTestServices';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
 import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IStorageService } from 'vs/platform/storage/common/storage';
 import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { Registry } from 'vs/platform/registry/common/platform';
@@ -25,7 +24,6 @@ import { INextStorage2Service } from 'vs/platform/storage2/common/storage2';
 
 function inst(): IInstantiationService {
 	let inst = new TestInstantiationService();
-	inst.stub(IStorageService, new TestStorageService());
 	inst.stub(INextStorage2Service, new TestNextStorage2Service());
 	inst.stub(ILifecycleService, new TestLifecycleService());
 	inst.stub(IWorkspaceContextService, new TestContextService());
@@ -414,7 +412,6 @@ suite('Workbench editor groups', () => {
 
 	test('Multiple Editors - Pinned and Active (DEFAULT_OPEN_EDITOR_DIRECTION = Direction.LEFT)', function () {
 		let inst = new TestInstantiationService();
-		inst.stub(IStorageService, new TestStorageService());
 		inst.stub(INextStorage2Service, new TestNextStorage2Service());
 		inst.stub(ILifecycleService, new TestLifecycleService());
 		inst.stub(IWorkspaceContextService, new TestContextService());
@@ -939,7 +936,6 @@ suite('Workbench editor groups', () => {
 	test('Single Group, Single Editor - persist', function () {
 		let inst = new TestInstantiationService();
 
-		inst.stub(IStorageService, new TestStorageService());
 		inst.stub(INextStorage2Service, new TestNextStorage2Service());
 		inst.stub(IWorkspaceContextService, new TestContextService());
 		const lifecycle = new TestLifecycleService();
@@ -974,7 +970,6 @@ suite('Workbench editor groups', () => {
 	test('Multiple Groups, Multiple editors - persist', function () {
 		let inst = new TestInstantiationService();
 
-		inst.stub(IStorageService, new TestStorageService());
 		inst.stub(INextStorage2Service, new TestNextStorage2Service());
 		inst.stub(IWorkspaceContextService, new TestContextService());
 		const lifecycle = new TestLifecycleService();
@@ -1045,7 +1040,6 @@ suite('Workbench editor groups', () => {
 	test('Single group, multiple editors - persist (some not persistable)', function () {
 		let inst = new TestInstantiationService();
 
-		inst.stub(IStorageService, new TestStorageService());
 		inst.stub(INextStorage2Service, new TestNextStorage2Service());
 		inst.stub(IWorkspaceContextService, new TestContextService());
 		const lifecycle = new TestLifecycleService();
@@ -1090,7 +1084,6 @@ suite('Workbench editor groups', () => {
 	test('Multiple groups, multiple editors - persist (some not persistable, causes empty group)', function () {
 		let inst = new TestInstantiationService();
 
-		inst.stub(IStorageService, new TestStorageService());
 		inst.stub(INextStorage2Service, new TestNextStorage2Service());
 		inst.stub(IWorkspaceContextService, new TestContextService());
 		const lifecycle = new TestLifecycleService();

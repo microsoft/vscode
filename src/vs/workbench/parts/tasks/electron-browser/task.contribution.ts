@@ -535,7 +535,7 @@ class TaskService extends Disposable implements ITaskService {
 		}));
 		this._taskRunningState = TASK_RUNNING_STATE.bindTo(contextKeyService);
 		this._register(lifecycleService.onWillShutdown(event => event.veto(this.beforeShutdown())));
-		this._register(nextStorage2Service.onWillClose(() => this.saveRecentlyUsedTasks()));
+		this._register(nextStorage2Service.onWillClose(() => this.saveState()));
 		this._onDidStateChange = this._register(new Emitter());
 		this.registerCommands();
 	}
@@ -789,7 +789,7 @@ class TaskService extends Disposable implements ITaskService {
 		return this._recentlyUsedTasks;
 	}
 
-	private saveRecentlyUsedTasks(): void {
+	private saveState(): void {
 		if (!this._taskSystem || !this._recentlyUsedTasks) {
 			return;
 		}

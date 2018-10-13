@@ -32,6 +32,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { template, getBaseLabel } from 'vs/base/common/labels';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { Event } from 'vs/base/common/event';
+import { INextStorage2Service } from 'vs/platform/storage2/common/storage2';
 
 export class TitlebarPart extends Part implements ITitleService {
 
@@ -80,9 +81,10 @@ export class TitlebarPart extends Part implements ITitleService {
 		@IWorkspaceContextService private contextService: IWorkspaceContextService,
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@IThemeService themeService: IThemeService,
-		@ILabelService private labelService: ILabelService
+		@ILabelService private labelService: ILabelService,
+		@INextStorage2Service nextStorage2Service: INextStorage2Service
 	) {
-		super(id, { hasTitle: false }, themeService);
+		super(id, { hasTitle: false }, themeService, nextStorage2Service);
 
 		this.properties = { isPure: true, isAdmin: false };
 		this.activeEditorListeners = [];

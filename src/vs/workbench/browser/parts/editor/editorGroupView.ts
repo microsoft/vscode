@@ -1366,10 +1366,6 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 
 	//#endregion
 
-	shutdown(): void {
-		this.editorControl.shutdown();
-	}
-
 	dispose(): void {
 		this._disposed = true;
 

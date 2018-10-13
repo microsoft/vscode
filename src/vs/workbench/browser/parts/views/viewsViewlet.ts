@@ -5,7 +5,6 @@
 
 import { TPromise } from 'vs/base/common/winjs.base';
 import * as DOM from 'vs/base/browser/dom';
-import { Scope } from 'vs/workbench/common/memento';
 import { dispose, IDisposable, combinedDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { IAction } from 'vs/base/common/actions';
 import { Separator } from 'vs/base/browser/ui/actionbar/actionbar';
@@ -16,7 +15,7 @@ import { IViewDescriptor, IViewsViewlet, IViewContainersRegistry, Extensions as 
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
+import { INextStorage2Service, StorageScope } from 'vs/platform/storage2/common/storage2';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
@@ -104,12 +103,12 @@ export abstract class TreeViewsViewletPanel extends ViewletPanel {
 }
 
 export interface IViewletViewOptions extends IViewletPanelOptions {
-	viewletSettings: object;
+	viewletState: object;
 }
 
 export abstract class ViewContainerViewlet extends PanelViewlet implements IViewsViewlet {
 
-	private readonly viewletSettings: Object;
+	private readonly viewletState: object;
 	private didLayout = false;
 	private dimension: DOM.Dimension;
 	private areExtensionsReady: boolean = false;
@@ -126,21 +125,21 @@ export abstract class ViewContainerViewlet extends PanelViewlet implements IView
 		@IConfigurationService configurationService: IConfigurationService,
 		@IPartService partService: IPartService,
 		@ITelemetryService telemetryService: ITelemetryService,
-		@IStorageService protected storageService: IStorageService,
+		@INextStorage2Service protected nextStorage2Service: INextStorage2Service,
 		@IInstantiationService protected instantiationService: IInstantiationService,
 		@IThemeService themeService: IThemeService,
 		@IContextMenuService protected contextMenuService: IContextMenuService,
 		@IExtensionService protected extensionService: IExtensionService,
 		@IWorkspaceContextService protected contextService: IWorkspaceContextService
 	) {
-		super(id, { showHeaderInTitleWhenSingleView, dnd: new DefaultPanelDndController() }, configurationService, partService, contextMenuService, telemetryService, themeService);
+		super(id, { showHeaderInTitleWhenSingleView, dnd: new DefaultPanelDndController() }, configurationService, partService, contextMenuService, telemetryService, themeService, nextStorage2Service);
 
 		const container = Registry.as<IViewContainersRegistry>(ViewContainerExtensions.ViewContainersRegistry).get(id);
 		this.viewsModel = this._register(this.instantiationService.createInstance(PersistentContributableViewsModel, container, viewletStateStorageId));
-		this.viewletSettings = this.getMemento(storageService, Scope.WORKSPACE);
+		this.viewletState = this.getMemento(StorageScope.WORKSPACE);
 
 		this.visibleViewsStorageId = `${id}.numberOfVisibleViews`;
-		this.visibleViewsCountFromCache = this.storageService.getInteger(this.visibleViewsStorageId, this.contextService.getWorkbenchState() === WorkbenchState.EMPTY ? StorageScope.GLOBAL : StorageScope.WORKSPACE, 0);
+		this.visibleViewsCountFromCache = this.nextStorage2Service.getInteger(this.visibleViewsStorageId, this.contextService.getWorkbenchState() === WorkbenchState.EMPTY ? StorageScope.GLOBAL : StorageScope.WORKSPACE, 0);
 		this._register(toDisposable(() => this.viewDisposables = dispose(this.viewDisposables)));
 	}
 
@@ -241,12 +240,6 @@ export abstract class ViewContainerViewlet extends PanelViewlet implements IView
 		return optimalWidth + additionalMargin;
 	}
 
-	shutdown(): void {
-		this.panels.forEach((view) => view.shutdown());
-		this.storageService.store(this.visibleViewsStorageId, this.length, this.contextService.getWorkbenchState() !== WorkbenchState.EMPTY ? StorageScope.WORKSPACE : StorageScope.GLOBAL);
-		super.shutdown();
-	}
-
 	protected isSingleView(): boolean {
 		if (!super.isSingleView()) {
 			return false;
@@ -275,7 +268,7 @@ export abstract class ViewContainerViewlet extends PanelViewlet implements IView
 					title: viewDescriptor.name,
 					actionRunner: this.getActionRunner(),
 					expanded: !collapsed,
-					viewletSettings: this.viewletSettings
+					viewletState: this.viewletState
 				});
 			panel.render();
 			panel.setVisible(true);
@@ -382,6 +375,13 @@ export abstract class ViewContainerViewlet extends PanelViewlet implements IView
 			}
 		}
 		return sizes;
+	}
+
+	protected saveState(): void {
+		this.panels.forEach((view) => view.saveState());
+		this.nextStorage2Service.set(this.visibleViewsStorageId, this.length, this.contextService.getWorkbenchState() !== WorkbenchState.EMPTY ? StorageScope.WORKSPACE : StorageScope.GLOBAL);
+
+		super.saveState();
 	}
 }
 
