@@ -45,10 +45,13 @@ const $ = dom.$;
 export class OpenEditorsView extends ViewletPanel {
 
 	private static readonly DEFAULT_VISIBLE_OPEN_EDITORS = 9;
+	private static readonly DEFAULT_NO_OPEN_EDITOR_MESSAGE_HEIGHT = 66;
 	static readonly ID = 'workbench.explorer.openEditorsView';
 	static NAME = nls.localize({ key: 'openEditors', comment: ['Open is an adjective'] }, "Open Editors");
 
 	private dirtyCountElement: HTMLElement;
+	private messageElement: HTMLElement;
+	private noOpenEditorMessageVisible: Boolean;
 	private listRefreshScheduler: RunOnceScheduler;
 	private structuralRefreshDelay: number;
 	private list: WorkbenchList<OpenEditor | IEditorGroup>;
@@ -86,6 +89,7 @@ export class OpenEditorsView extends ViewletPanel {
 			if (previousLength !== this.list.length) {
 				this.updateSize();
 			}
+			this.noOpenEditorMessageVisible = (this.list.length === 0);
 			this.needsRefresh = false;
 		}, this.structuralRefreshDelay);
 
@@ -120,7 +124,6 @@ export class OpenEditorsView extends ViewletPanel {
 				}
 				if (!this.isVisible() || !this.list || !this.isExpanded()) {
 					this.needsRefresh = true;
-					return;
 				}
 
 				const index = this.getIndex(group, e.editor);
@@ -144,12 +147,18 @@ export class OpenEditorsView extends ViewletPanel {
 					}
 					case GroupChangeKind.EDITOR_OPEN: {
 						this.list.splice(index, 0, [new OpenEditor(e.editor, group)]);
+						// Hide the noOpenFileMessage
+						this.setNoOpenEditorMessageVisible(false);
 						setTimeout(() => this.updateSize(), this.structuralRefreshDelay);
 						break;
 					}
 					case GroupChangeKind.EDITOR_CLOSE: {
 						const previousIndex = this.getIndex(group, undefined) + e.editorIndex + (this.showGroups ? 1 : 0);
 						this.list.splice(previousIndex, 1);
+						// Show the noOpenFileMessage if there are no more open editors
+						if (this.list.length === 0) {
+							this.setNoOpenEditorMessageVisible(true);
+						}
 						this.updateSize();
 						break;
 					}
@@ -199,6 +208,8 @@ export class OpenEditorsView extends ViewletPanel {
 	public renderBody(container: HTMLElement): void {
 		dom.addClass(container, 'explorer-open-editors');
 		dom.addClass(container, 'show-file-icons');
+
+		this.initNoOpenFileMessage(container);
 
 		const delegate = new OpenEditorsDelegate();
 		const getSelectedElements = () => {
@@ -291,9 +302,33 @@ export class OpenEditorsView extends ViewletPanel {
 
 	public setExpanded(expanded: boolean): void {
 		super.setExpanded(expanded);
+		this.setNoOpenEditorMessageVisible(expanded);
 		this.updateListVisibility(expanded);
 		if (expanded && this.needsRefresh) {
 			this.listRefreshScheduler.schedule(0);
+		}
+	}
+
+	private initNoOpenFileMessage(container: HTMLElement): void {
+		const messageContainer = document.createElement('div');
+		dom.addClass(messageContainer, 'explorer-message');
+		container.appendChild(messageContainer);
+
+		this.messageElement = document.createElement('p');
+		messageContainer.appendChild(this.messageElement);
+
+		this.messageElement.textContent = nls.localize('noFileHelp', "You have not yet opened a file.");
+		dom.hide(this.messageElement);
+		this.noOpenEditorMessageVisible = false;
+	}
+
+	private setNoOpenEditorMessageVisible(isVisible: boolean): void {
+		if (isVisible && this.list.length === 0) {
+			dom.show(this.messageElement);
+			this.noOpenEditorMessageVisible = true;
+		} else {
+			dom.hide(this.messageElement);
+			this.noOpenEditorMessageVisible = false;
 		}
 	}
 
@@ -445,7 +480,11 @@ export class OpenEditorsView extends ViewletPanel {
 	}
 
 	private getMaxExpandedBodySize(): number {
-		return this.elementCount * OpenEditorsDelegate.ITEM_HEIGHT;
+		if (this.noOpenEditorMessageVisible) {
+			return OpenEditorsView.DEFAULT_NO_OPEN_EDITOR_MESSAGE_HEIGHT;
+		} else {
+			return this.elementCount * OpenEditorsDelegate.ITEM_HEIGHT;
+		}
 	}
 
 	private getMinExpandedBodySize(): number {
@@ -458,8 +497,12 @@ export class OpenEditorsView extends ViewletPanel {
 	}
 
 	private computeMinExpandedBodySize(visibleOpenEditors = OpenEditorsView.DEFAULT_VISIBLE_OPEN_EDITORS): number {
-		const itemsToShow = Math.min(Math.max(visibleOpenEditors, 1), this.elementCount);
-		return itemsToShow * OpenEditorsDelegate.ITEM_HEIGHT;
+		if (this.noOpenEditorMessageVisible) {
+			return OpenEditorsView.DEFAULT_NO_OPEN_EDITOR_MESSAGE_HEIGHT;
+		} else {
+			const itemsToShow = Math.min(Math.max(visibleOpenEditors, 1), this.elementCount);
+			return itemsToShow * OpenEditorsDelegate.ITEM_HEIGHT;
+		}
 	}
 
 	public setStructuralRefreshDelay(delay: number): void {
