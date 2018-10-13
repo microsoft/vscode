@@ -20,7 +20,7 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { NullTelemetryService } from 'vs/platform/telemetry/common/telemetryUtils';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
-import { IStorageService } from 'vs/platform/storage2/common/storage2';
+import { IStorageService } from 'vs/platform/storage/common/storage';
 
 function inst(): IInstantiationService {
 	let inst = new TestInstantiationService();

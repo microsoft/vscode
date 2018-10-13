@@ -6,7 +6,7 @@
 import { Memento } from 'vs/workbench/common/memento';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { Themable } from 'vs/workbench/common/theme';
-import { IStorageService, StorageScope } from 'vs/platform/storage2/common/storage2';
+import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 
 export class Component extends Themable {
 	private id: string;

@@ -9,7 +9,7 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { BaseEditor } from 'vs/workbench/browser/parts/editor/baseEditor';
 import { WebviewElement } from './webviewElement';
-import { IStorageService } from 'vs/platform/storage2/common/storage2';
+import { IStorageService } from 'vs/platform/storage/common/storage';
 
 /**  A context key that is set when the find widget in a webview is visible. */
 export const KEYBINDING_CONTEXT_WEBVIEW_FIND_WIDGET_VISIBLE = new RawContextKey<boolean>('webviewFindWidgetVisible', false);

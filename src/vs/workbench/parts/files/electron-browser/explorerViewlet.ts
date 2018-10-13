@@ -14,7 +14,7 @@ import { ActionRunner, FileViewletState } from 'vs/workbench/parts/files/electro
 import { ExplorerView, IExplorerViewOptions } from 'vs/workbench/parts/files/electron-browser/views/explorerView';
 import { EmptyView } from 'vs/workbench/parts/files/electron-browser/views/emptyView';
 import { OpenEditorsView } from 'vs/workbench/parts/files/electron-browser/views/openEditorsView';
-import { IStorageService } from 'vs/platform/storage2/common/storage2';
+import { IStorageService } from 'vs/platform/storage/common/storage';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';

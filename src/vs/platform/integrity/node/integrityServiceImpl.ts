@@ -10,7 +10,7 @@ import { IIntegrityService, IntegrityTestResult, ChecksumPair } from 'vs/platfor
 import product from 'vs/platform/node/product';
 import { URI } from 'vs/base/common/uri';
 import Severity from 'vs/base/common/severity';
-import { IStorageService, StorageScope } from 'vs/platform/storage2/common/storage2';
+import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { ILifecycleService, LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 

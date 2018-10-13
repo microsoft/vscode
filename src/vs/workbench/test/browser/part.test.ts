@@ -9,7 +9,7 @@ import * as Types from 'vs/base/common/types';
 import { TestThemeService } from 'vs/platform/theme/test/common/testThemeService';
 import { append, $, hide } from 'vs/base/browser/dom';
 import { TestStorageService } from 'vs/workbench/test/workbenchTestServices';
-import { StorageScope } from 'vs/platform/storage2/common/storage2';
+import { StorageScope } from 'vs/platform/storage/common/storage';
 
 class MyPart extends Part {
 

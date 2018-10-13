@@ -4,7 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { StorageScope } from 'vs/platform/storage2/common/storage2';
+import { StorageScope } from 'vs/platform/storage/common/storage';
+// tslint:disable-next-line:import-patterns
 import { TestStorageService } from 'vs/workbench/test/workbenchTestServices';
 
 suite('StorageService', () => {

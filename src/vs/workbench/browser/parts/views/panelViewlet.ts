@@ -28,7 +28,7 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { IPartService } from 'vs/workbench/services/part/common/partService';
 import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
 import { IView } from 'vs/workbench/common/views';
-import { IStorageService } from 'vs/platform/storage2/common/storage2';
+import { IStorageService } from 'vs/platform/storage/common/storage';
 
 export interface IPanelColors extends IColorMapping {
 	dropBackground?: ColorIdentifier;

@@ -5,7 +5,7 @@
 
 import { Emitter, Event } from 'vs/base/common/event';
 import { ISearchHistoryValues, ISearchHistoryService } from 'vs/platform/search/common/search';
-import { IStorageService, StorageScope } from 'vs/platform/storage2/common/storage2';
+import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 
 export class SearchHistoryService implements ISearchHistoryService {
 	public _serviceBrand: any;

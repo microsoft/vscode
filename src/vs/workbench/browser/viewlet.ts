@@ -20,7 +20,7 @@ import { IEditorGroupsService } from 'vs/workbench/services/group/common/editorG
 import { URI } from 'vs/base/common/uri';
 import { ToggleSidebarPositionAction } from 'vs/workbench/browser/actions/toggleSidebarPosition';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IStorageService } from 'vs/platform/storage2/common/storage2';
+import { IStorageService } from 'vs/platform/storage/common/storage';
 
 export abstract class Viewlet extends Composite implements IViewlet {
 

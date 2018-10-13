@@ -18,7 +18,7 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { NullTelemetryService } from 'vs/platform/telemetry/common/telemetryUtils';
 import { TestNotificationService } from 'vs/platform/notification/test/common/testNotificationService';
 import { TPromise } from 'vs/base/common/winjs.base';
-import { IStorageService } from 'vs/platform/storage2/common/storage2';
+import { IStorageService } from 'vs/platform/storage/common/storage';
 
 suite('Experimental Prompts', () => {
 	let instantiationService: TestInstantiationService;

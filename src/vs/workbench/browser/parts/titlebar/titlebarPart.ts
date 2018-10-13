@@ -32,7 +32,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { template, getBaseLabel } from 'vs/base/common/labels';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { Event } from 'vs/base/common/event';
-import { IStorageService } from 'vs/platform/storage2/common/storage2';
+import { IStorageService } from 'vs/platform/storage/common/storage';
 
 export class TitlebarPart extends Part implements ITitleService {
 

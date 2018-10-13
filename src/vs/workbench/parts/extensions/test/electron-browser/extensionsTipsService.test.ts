@@ -46,7 +46,7 @@ import { INotificationService, Severity, IPromptChoice, IPromptOptions } from 'v
 import { URLService } from 'vs/platform/url/common/urlService';
 import { IExperimentService } from 'vs/workbench/parts/experiments/node/experimentService';
 import { TestExperimentService } from 'vs/workbench/parts/experiments/test/electron-browser/experimentService.test';
-import { IStorageService, StorageScope } from 'vs/platform/storage2/common/storage2';
+import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 
 const mockExtensionGallery: IGalleryExtension[] = [
 	aGalleryExtension('MockExtension1', {

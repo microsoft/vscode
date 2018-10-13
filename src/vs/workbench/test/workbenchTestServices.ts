@@ -77,8 +77,8 @@ import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { ViewletDescriptor } from 'vs/workbench/browser/viewlet';
 import { IViewlet } from 'vs/workbench/common/viewlet';
 import { IProgressService } from 'vs/platform/progress/common/progress';
-import { StorageService } from 'vs/platform/storage2/electron-browser/nextStorage2Service';
-import { IStorageService } from 'vs/platform/storage2/common/storage2';
+import { StorageService } from 'vs/platform/storage/electron-browser/storageService';
+import { IStorageService } from 'vs/platform/storage/common/storage';
 
 export function createFileInput(instantiationService: IInstantiationService, resource: URI): FileEditorInput {
 	return instantiationService.createInstance(FileEditorInput, resource, void 0);

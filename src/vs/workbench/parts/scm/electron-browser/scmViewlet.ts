@@ -49,7 +49,7 @@ import { IViewDescriptorRef, PersistentContributableViewsModel, IAddedViewDescri
 import { IViewDescriptor, IViewsViewlet, IView } from 'vs/workbench/common/views';
 import { IPanelDndController, Panel } from 'vs/base/browser/ui/splitview/panelview';
 import * as platform from 'vs/base/common/platform';
-import { IStorageService } from 'vs/platform/storage2/common/storage2';
+import { IStorageService } from 'vs/platform/storage/common/storage';
 
 export interface ISpliceEvent<T> {
 	index: number;

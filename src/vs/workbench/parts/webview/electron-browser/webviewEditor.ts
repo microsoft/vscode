@@ -21,7 +21,7 @@ import { IPartService, Parts } from 'vs/workbench/services/part/common/partServi
 import { BaseWebviewEditor, KEYBINDING_CONTEXT_WEBVIEW_FIND_WIDGET_VISIBLE } from './baseWebviewEditor';
 import { WebviewElement } from './webviewElement';
 import { IWindowService } from 'vs/platform/windows/common/windows';
-import { IStorageService } from 'vs/platform/storage2/common/storage2';
+import { IStorageService } from 'vs/platform/storage/common/storage';
 
 export class WebviewEditor extends BaseWebviewEditor {
 

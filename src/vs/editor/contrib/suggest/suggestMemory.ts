@@ -5,7 +5,7 @@
 
 import { ICompletionItem } from 'vs/editor/contrib/suggest/completionModel';
 import { LRUCache, TernarySearchTree } from 'vs/base/common/map';
-import { IStorageService, StorageScope } from 'vs/platform/storage2/common/storage2';
+import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { ITextModel } from 'vs/editor/common/model';
 import { IPosition } from 'vs/editor/common/core/position';
 import { RunOnceScheduler } from 'vs/base/common/async';

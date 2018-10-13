@@ -33,7 +33,7 @@ import { INotificationService, Severity, IPromptChoice } from 'vs/platform/notif
 import { ILogService } from 'vs/platform/log/common/log';
 import { TerminalCommandTracker } from 'vs/workbench/parts/terminal/node/terminalCommandTracker';
 import { TerminalProcessManager } from './terminalProcessManager';
-import { IStorageService, StorageScope } from 'vs/platform/storage2/common/storage2';
+import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { execFile } from 'child_process';
 
 // How long in milliseconds should an average frame take to render for a notification to appear

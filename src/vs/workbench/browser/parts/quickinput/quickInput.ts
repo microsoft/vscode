@@ -44,7 +44,7 @@ import { getIconClass } from 'vs/workbench/browser/parts/quickinput/quickInputUt
 import { AccessibilitySupport } from 'vs/base/common/platform';
 import * as browser from 'vs/base/browser/browser';
 import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
-import { IStorageService } from 'vs/platform/storage2/common/storage2';
+import { IStorageService } from 'vs/platform/storage/common/storage';
 
 const $ = dom.$;
 
