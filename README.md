@@ -5,34 +5,35 @@
 [![Bugs](https://img.shields.io/github/issues/Microsoft/vscode/bug.svg)](https://github.com/Microsoft/vscode/issues?utf8=✓&q=is%3Aissue+is%3Aopen+label%3Abug)
 [![Gitter](https://img.shields.io/badge/chat-on%20gitter-blue.svg)](https://gitter.im/Microsoft/vscode)
 
-[VS Code](https://code.visualstudio.com) is a new type of tool that combines the simplicity of
-a code editor with what developers need for their core edit-build-debug cycle. Code
-provides comprehensive editing and debugging support, an extensibility model, and lightweight integration with existing tools.
 
-VS Code is updated monthly with new features and bug fixes. You can download it for Windows, macOS, and Linux on [VS Code's website](https://code.visualstudio.com/Download). To get the latest releases every day, you can install the [Insiders version of VS Code](https://code.visualstudio.com/insiders). This builds from the master branch and is updated at least daily.
+[वीएस कोड] (https://code.visualstudio.com) एक नया प्रकार का टूल है जो सादगी को जोड़ता है
+एक कोड संपादक जो डेवलपर्स को उनके मूल संपादन-निर्माण-डीबग चक्र के लिए आवश्यक है। कोड
+व्यापक संपादन और डिबगिंग समर्थन, एक विस्तारशीलता मॉडल, और मौजूदा उपकरणों के साथ हल्के एकीकरण प्रदान करता है।
 
-<p align="center">
-  <img alt="VS Code in action" src="https://cloud.githubusercontent.com/assets/11839736/16642200/6624dde0-43bd-11e6-8595-c81885ba0dc2.png">
-</p>
+वीएस कोड नई सुविधाओं और बग फिक्स के साथ मासिक अद्यतन किया जाता है। आप इसे विंडोज़, मैकोज़ और लिनक्स के लिए [वीएस कोड की वेबसाइट] (https://code.visualstudio.com/Download) पर डाउनलोड कर सकते हैं। हर दिन नवीनतम रिलीज प्राप्त करने के लिए, आप [वीएस कोड के अंदरूनी संस्करण] स्थापित कर सकते हैं (https://code.visualstudio.com/insiders)। यह मास्टर शाखा से बनाता है और कम से कम दैनिक अद्यतन किया जाता है।
 
-The [`vscode`](https://github.com/microsoft/vscode) repository is where we do development and there are many ways you can participate in the project, for example:
+<पी align = "center">
+  <img alt = "कार्रवाई में वीएस कोड" src = "https://cloud.githubusercontent.com/assets/11839736/16642200/6624dde0-43bd-11e6-8595-c81885ba0dc2.png">
+</ P>
 
-* [Submit bugs and feature requests](https://github.com/microsoft/vscode/issues) and help us verify as they are checked in.
-* Review [source code changes](https://github.com/microsoft/vscode/pulls).
-* Review the [documentation](https://github.com/microsoft/vscode-docs) and make pull requests for anything from typos to new content.
+[`बनामोड`] (https://github.com/microsoft/vscode) भंडार वह जगह है जहां हम विकास करते हैं और इस परियोजना में भाग लेने के कई तरीके हैं, उदाहरण के लिए:
 
-## Contributing
+* [बग और फीचर अनुरोध सबमिट करें] (https://github.com/microsoft/vscode/issues) और इन्हें सत्यापित करने में हमारी सहायता करें।
+* समीक्षा [स्रोत कोड परिवर्तन] (https://github.com/microsoft/vscode/pulls)।
+* [दस्तावेज़ीकरण] की समीक्षा करें (https://github.com/microsoft/vscode-docs) और टाइपो से नई सामग्री तक किसी भी चीज़ के लिए पुल अनुरोध करें।
 
-If you are interested in fixing issues and contributing directly to the code base,
-please see the document [How to Contribute](https://github.com/Microsoft/vscode/wiki/How-to-Contribute), which covers the following:
+## योगदान
 
-* [How to build and run from source](https://github.com/Microsoft/vscode/wiki/How-to-Contribute#build-and-run)
-* [The development workflow, including debugging and running tests](https://github.com/Microsoft/vscode/wiki/How-to-Contribute#debugging)
-* [Coding Guidelines](https://github.com/Microsoft/vscode/wiki/Coding-Guidelines)
-* [Submitting pull requests](https://github.com/Microsoft/vscode/wiki/How-to-Contribute#pull-requests)
-* [Contributing to translations](https://aka.ms/vscodeloc)
+यदि आप मुद्दों को ठीक करने और सीधे कोड आधार पर योगदान करने में रुचि रखते हैं,
+कृपया दस्तावेज़ [योगदान कैसे करें] देखें (https://github.com/Microsoft/vscode/wiki/How-to- योगदान), जिसमें निम्न शामिल हैं:
 
-Please see also our [Code of Conduct](CODE_OF_CONDUCT.md).
+* [स्रोत से कैसे निर्माण और चलाने के लिए] (https://github.com/Microsoft/vscode/wiki/How-to- योगदान#build-and-run)
+* [विकास वर्कफ़्लो, जिसमें डिबगिंग और चल रहे परीक्षण शामिल हैं] (https://github.com/Microsoft/vscode/wiki/How-to-Contribute#debugging)
+* [कोडिंग दिशानिर्देश] (https://github.com/Microsoft/vscode/wiki/Coding- दिशानिर्देश)
+* [पुल अनुरोध सबमिट करना] (https://github.com/Microsoft/vscode/wiki/How-to- योगदान#pull-requests)
+* [अनुवादों में योगदान] (https://aka.ms/vscodeloc)
+
+कृपया हमारे [आचार संहिता] (CODE_OF_CONDUCT.md) भी देखें।
 
 ## Feedback
 
