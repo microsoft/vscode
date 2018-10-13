@@ -70,7 +70,7 @@ export abstract class AbstractCodeEditorService extends Disposable implements IC
 		return Object.keys(this._diffEditors).map(id => this._diffEditors[id]);
 	}
 
-	getFocusedCodeEditor(): ICodeEditor {
+	getFocusedCodeEditor(): ICodeEditor | null {
 		let editorWithWidgetFocus: ICodeEditor | null = null;
 
 		let editors = this.listCodeEditors();
@@ -92,7 +92,7 @@ export abstract class AbstractCodeEditorService extends Disposable implements IC
 
 	abstract registerDecorationType(key: string, options: IDecorationRenderOptions, parentTypeKey?: string): void;
 	abstract removeDecorationType(key: string): void;
-	abstract resolveDecorationOptions(decorationTypeKey: string, writable: boolean): IModelDecorationOptions;
+	abstract resolveDecorationOptions(decorationTypeKey: string | undefined, writable: boolean): IModelDecorationOptions;
 
 	private _transientWatchers: { [uri: string]: ModelTransientSettingWatcher; } = {};
 
@@ -125,8 +125,8 @@ export abstract class AbstractCodeEditorService extends Disposable implements IC
 		delete this._transientWatchers[w.uri];
 	}
 
-	abstract getActiveCodeEditor(): ICodeEditor;
-	abstract openCodeEditor(input: IResourceInput, source: ICodeEditor, sideBySide?: boolean): Thenable<ICodeEditor>;
+	abstract getActiveCodeEditor(): ICodeEditor | null;
+	abstract openCodeEditor(input: IResourceInput, source: ICodeEditor | null, sideBySide?: boolean): Thenable<ICodeEditor | null>;
 }
 
 export class ModelTransientSettingWatcher {

@@ -728,7 +728,7 @@ export function getLargestChildWidth(parent: HTMLElement, children: HTMLElement[
 
 // ----------------------------------------------------------------------------------------
 
-export function isAncestor(testChild: Node | null, testAncestor: Node): boolean {
+export function isAncestor(testChild: Node | null, testAncestor: Node | null): boolean {
 	while (testChild) {
 		if (testChild === testAncestor) {
 			return true;

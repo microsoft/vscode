@@ -17,9 +17,9 @@ export class FindDecorations implements IDisposable {
 	private _editor: ICodeEditor;
 	private _decorations: string[];
 	private _overviewRulerApproximateDecorations: string[];
-	private _findScopeDecorationId: string;
-	private _rangeHighlightDecorationId: string;
-	private _highlightedDecorationId: string;
+	private _findScopeDecorationId: string | null;
+	private _rangeHighlightDecorationId: string | null;
+	private _highlightedDecorationId: string | null;
 	private _startPosition: Position;
 
 	constructor(editor: ICodeEditor) {

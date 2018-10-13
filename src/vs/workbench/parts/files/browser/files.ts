@@ -19,7 +19,7 @@ export function getResourceForCommand(resource: URI | object, listService: IList
 	}
 
 	let list = listService.lastFocusedList;
-	if (list && list.isDOMFocused()) {
+	if (list && list.getHTMLElement() === document.activeElement) {
 		let focus: any;
 		if (list instanceof List) {
 			const focused = list.getFocusedElements();
@@ -42,7 +42,7 @@ export function getResourceForCommand(resource: URI | object, listService: IList
 
 export function getMultiSelectedResources(resource: URI | object, listService: IListService, editorService: IEditorService): URI[] {
 	const list = listService.lastFocusedList;
-	if (list && list.isDOMFocused()) {
+	if (list && list.getHTMLElement() === document.activeElement) {
 		// Explorer
 		if (list instanceof Tree) {
 			const selection = list.getSelection().map((fs: ExplorerItem) => fs.resource);

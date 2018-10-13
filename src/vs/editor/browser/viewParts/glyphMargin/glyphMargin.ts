@@ -79,7 +79,7 @@ export class GlyphMarginOverlay extends DedupOverlay {
 	private _glyphMargin: boolean;
 	private _glyphMarginLeft: number;
 	private _glyphMarginWidth: number;
-	private _renderResult: string[];
+	private _renderResult: string[] | null;
 
 	constructor(context: ViewContext) {
 		super();
@@ -94,7 +94,6 @@ export class GlyphMarginOverlay extends DedupOverlay {
 
 	public dispose(): void {
 		this._context.removeEventHandler(this);
-		this._context = null;
 		this._renderResult = null;
 		super.dispose();
 	}

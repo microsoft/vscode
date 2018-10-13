@@ -120,7 +120,7 @@ export interface ScrollableElementResolvedOptions {
 	mouseWheelScrollSensitivity: number;
 	mouseWheelSmoothScroll: boolean;
 	arrowSize: number;
-	listenOnDomNode: HTMLElement;
+	listenOnDomNode: HTMLElement | null;
 	horizontal: ScrollbarVisibility;
 	horizontalScrollbarSize: number;
 	horizontalSliderSize: number;

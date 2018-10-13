@@ -121,7 +121,7 @@ export namespace EditorScroll_ {
 		select?: boolean;
 	}
 
-	export function parse(args: RawArguments): ParsedArguments {
+	export function parse(args: RawArguments): ParsedArguments | null {
 		let direction: Direction;
 		switch (args.to) {
 			case RawDirection.Up:
@@ -720,11 +720,11 @@ export namespace CoreNavigationCommands {
 				for (let i = 0, len = states.length; i < len; i++) {
 					const state = states[i];
 
-					if (newModelPosition && !state.modelState.selection.containsPosition(newModelPosition)) {
+					if (newModelPosition && !state.modelState!.selection.containsPosition(newModelPosition)) {
 						continue;
 					}
 
-					if (newViewPosition && !state.viewState.selection.containsPosition(newViewPosition)) {
+					if (newViewPosition && !state.viewState!.selection.containsPosition(newViewPosition)) {
 						continue;
 					}
 
@@ -1419,7 +1419,7 @@ export namespace CoreNavigationCommands {
 
 		public runCoreEditorCommand(cursors: ICursors, args: any): void {
 			const revealLineArg = <RevealLine_.RawArguments>args;
-			let lineNumber = revealLineArg.lineNumber + 1;
+			let lineNumber = (revealLineArg.lineNumber || 0) + 1;
 			if (lineNumber < 1) {
 				lineNumber = 1;
 			}
@@ -1499,7 +1499,20 @@ export namespace CoreNavigationCommands {
 
 export namespace CoreEditingCommands {
 
-	export const LineBreakInsert: EditorCommand = registerEditorCommand(new class extends EditorCommand {
+	export abstract class CoreEditingCommand extends EditorCommand {
+		public runEditorCommand(accessor: ServicesAccessor, editor: ICodeEditor, args: any): void {
+			const cursors = editor._getCursors();
+			if (!cursors) {
+				// the editor has no view => has no cursors
+				return;
+			}
+			this.runCoreEditingCommand(editor, cursors, args || {});
+		}
+
+		public abstract runCoreEditingCommand(editor: ICodeEditor, cursors: ICursors, args: any): void;
+	}
+
+	export const LineBreakInsert: EditorCommand = registerEditorCommand(new class extends CoreEditingCommand {
 		constructor() {
 			super({
 				id: 'lineBreakInsert',
@@ -1507,19 +1520,19 @@ export namespace CoreEditingCommands {
 				kbOpts: {
 					weight: CORE_WEIGHT,
 					kbExpr: EditorContextKeys.textInputFocus,
-					primary: null,
+					primary: 0,
 					mac: { primary: KeyMod.WinCtrl | KeyCode.KEY_O }
 				}
 			});
 		}
 
-		public runEditorCommand(accessor: ServicesAccessor, editor: ICodeEditor, args: any): void {
+		public runCoreEditingCommand(editor: ICodeEditor, cursors: ICursors, args: any): void {
 			editor.pushUndoStop();
-			editor.executeCommands(this.id, TypeOperations.lineBreakInsert(editor._getCursorConfiguration(), editor.getModel(), editor.getSelections()));
+			editor.executeCommands(this.id, TypeOperations.lineBreakInsert(cursors.context.config, cursors.context.model, cursors.getAll().map(s => s.modelState.selection)));
 		}
 	});
 
-	export const Outdent: EditorCommand = registerEditorCommand(new class extends EditorCommand {
+	export const Outdent: EditorCommand = registerEditorCommand(new class extends CoreEditingCommand {
 		constructor() {
 			super({
 				id: 'outdent',
@@ -1535,14 +1548,14 @@ export namespace CoreEditingCommands {
 			});
 		}
 
-		public runEditorCommand(accessor: ServicesAccessor, editor: ICodeEditor, args: any): void {
+		public runCoreEditingCommand(editor: ICodeEditor, cursors: ICursors, args: any): void {
 			editor.pushUndoStop();
-			editor.executeCommands(this.id, TypeOperations.outdent(editor._getCursorConfiguration(), editor.getModel(), editor.getSelections()));
+			editor.executeCommands(this.id, TypeOperations.outdent(cursors.context.config, cursors.context.model, cursors.getAll().map(s => s.modelState.selection)));
 			editor.pushUndoStop();
 		}
 	});
 
-	export const Tab: EditorCommand = registerEditorCommand(new class extends EditorCommand {
+	export const Tab: EditorCommand = registerEditorCommand(new class extends CoreEditingCommand {
 		constructor() {
 			super({
 				id: 'tab',
@@ -1558,14 +1571,14 @@ export namespace CoreEditingCommands {
 			});
 		}
 
-		public runEditorCommand(accessor: ServicesAccessor, editor: ICodeEditor, args: any): void {
+		public runCoreEditingCommand(editor: ICodeEditor, cursors: ICursors, args: any): void {
 			editor.pushUndoStop();
-			editor.executeCommands(this.id, TypeOperations.tab(editor._getCursorConfiguration(), editor.getModel(), editor.getSelections()));
+			editor.executeCommands(this.id, TypeOperations.tab(cursors.context.config, cursors.context.model, cursors.getAll().map(s => s.modelState.selection)));
 			editor.pushUndoStop();
 		}
 	});
 
-	export const DeleteLeft: EditorCommand = registerEditorCommand(new class extends EditorCommand {
+	export const DeleteLeft: EditorCommand = registerEditorCommand(new class extends CoreEditingCommand {
 		constructor() {
 			super({
 				id: 'deleteLeft',
@@ -1580,9 +1593,8 @@ export namespace CoreEditingCommands {
 			});
 		}
 
-		public runEditorCommand(accessor: ServicesAccessor, editor: ICodeEditor, args: any): void {
-			const cursors = editor._getCursors();
-			const [shouldPushStackElementBefore, commands] = DeleteOperations.deleteLeft(cursors.getPrevEditOperationType(), editor._getCursorConfiguration(), editor.getModel(), editor.getSelections());
+		public runCoreEditingCommand(editor: ICodeEditor, cursors: ICursors, args: any): void {
+			const [shouldPushStackElementBefore, commands] = DeleteOperations.deleteLeft(cursors.getPrevEditOperationType(), cursors.context.config, cursors.context.model, cursors.getAll().map(s => s.modelState.selection));
 			if (shouldPushStackElementBefore) {
 				editor.pushUndoStop();
 			}
@@ -1591,7 +1603,7 @@ export namespace CoreEditingCommands {
 		}
 	});
 
-	export const DeleteRight: EditorCommand = registerEditorCommand(new class extends EditorCommand {
+	export const DeleteRight: EditorCommand = registerEditorCommand(new class extends CoreEditingCommand {
 		constructor() {
 			super({
 				id: 'deleteRight',
@@ -1605,9 +1617,8 @@ export namespace CoreEditingCommands {
 			});
 		}
 
-		public runEditorCommand(accessor: ServicesAccessor, editor: ICodeEditor, args: any): void {
-			const cursors = editor._getCursors();
-			const [shouldPushStackElementBefore, commands] = DeleteOperations.deleteRight(cursors.getPrevEditOperationType(), editor._getCursorConfiguration(), editor.getModel(), editor.getSelections());
+		public runCoreEditingCommand(editor: ICodeEditor, cursors: ICursors, args: any): void {
+			const [shouldPushStackElementBefore, commands] = DeleteOperations.deleteRight(cursors.getPrevEditOperationType(), cursors.context.config, cursors.context.model, cursors.getAll().map(s => s.modelState.selection));
 			if (shouldPushStackElementBefore) {
 				editor.pushUndoStop();
 			}
@@ -1616,10 +1627,6 @@ export namespace CoreEditingCommands {
 		}
 	});
 
-}
-
-function findFocusedEditor(accessor: ServicesAccessor): ICodeEditor {
-	return accessor.get(ICodeEditorService).getFocusedCodeEditor();
 }
 
 function registerCommand(command: Command) {
@@ -1645,10 +1652,10 @@ class EditorOrNativeTextInputCommand extends Command {
 
 	public runCommand(accessor: ServicesAccessor, args: any): void {
 
-		let focusedEditor = findFocusedEditor(accessor);
+		let focusedEditor = accessor.get(ICodeEditorService).getFocusedCodeEditor();
 		// Only if editor text focus (i.e. not if editor has widget focus).
 		if (focusedEditor && focusedEditor.hasTextFocus()) {
-			return this._runEditorHandler(focusedEditor, args);
+			return this._runEditorHandler(accessor, focusedEditor, args);
 		}
 
 		// Ignore this action when user is focused on an element that allows for entering text
@@ -1662,18 +1669,18 @@ class EditorOrNativeTextInputCommand extends Command {
 		let activeEditor = accessor.get(ICodeEditorService).getActiveCodeEditor();
 		if (activeEditor) {
 			activeEditor.focus();
-			return this._runEditorHandler(activeEditor, args);
+			return this._runEditorHandler(accessor, activeEditor, args);
 		}
 	}
 
-	private _runEditorHandler(editor: ICodeEditor, args: any): void {
+	private _runEditorHandler(accessor: ServicesAccessor, editor: ICodeEditor, args: any): void {
 		let HANDLER = this._editorHandler;
 		if (typeof HANDLER === 'string') {
 			editor.trigger('keyboard', HANDLER, args);
 		} else {
 			args = args || {};
 			args.source = 'keyboard';
-			HANDLER.runEditorCommand(null, editor, args);
+			HANDLER.runEditorCommand(accessor, editor, args);
 		}
 	}
 }
@@ -1694,7 +1701,7 @@ class EditorHandlerCommand extends Command {
 	}
 
 	public runCommand(accessor: ServicesAccessor, args: any): void {
-		const editor = findFocusedEditor(accessor);
+		const editor = accessor.get(ICodeEditorService).getFocusedCodeEditor();
 		if (!editor) {
 			return;
 		}

@@ -71,9 +71,9 @@ type Brackets = [Range, Range];
 
 class BracketsData {
 	public readonly position: Position;
-	public readonly brackets: Brackets;
+	public readonly brackets: Brackets | null;
 
-	constructor(position: Position, brackets: Brackets) {
+	constructor(position: Position, brackets: Brackets | null) {
 		this.position = position;
 		this.brackets = brackets;
 	}
@@ -143,12 +143,12 @@ export class BracketMatchingController extends Disposable implements editorCommo
 	}
 
 	public jumpToBracket(): void {
-		const model = this._editor.getModel();
-		if (!model) {
+		if (!this._editor.hasModel()) {
 			return;
 		}
 
-		let newSelections = this._editor.getSelections().map(selection => {
+		const model = this._editor.getModel();
+		const newSelections = this._editor.getSelections().map(selection => {
 			const position = selection.getStartPosition();
 
 			// find matching brackets if position is on a bracket
@@ -179,12 +179,12 @@ export class BracketMatchingController extends Disposable implements editorCommo
 	}
 
 	public selectToBracket(): void {
-		const model = this._editor.getModel();
-		if (!model) {
+		if (!this._editor.hasModel()) {
 			return;
 		}
 
-		let newSelections: Selection[] = [];
+		const model = this._editor.getModel();
+		const newSelections: Selection[] = [];
 
 		this._editor.getSelections().forEach(selection => {
 			const position = selection.getStartPosition();
@@ -256,14 +256,14 @@ export class BracketMatchingController extends Disposable implements editorCommo
 	}
 
 	private _recomputeBrackets(): void {
-		const model = this._editor.getModel();
-		if (!model) {
+		if (!this._editor.hasModel()) {
 			// no model => no brackets!
 			this._lastBracketsData = [];
 			this._lastVersionId = 0;
 			return;
 		}
 
+		const model = this._editor.getModel();
 		const versionId = model.getVersionId();
 		let previousData: BracketsData[] = [];
 		if (this._lastVersionId === versionId) {

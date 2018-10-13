@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IRenderer } from './list';
+import { IListRenderer } from './list';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { $, removeClass } from 'vs/base/browser/dom';
 
@@ -25,7 +25,7 @@ export class RowCache<T> implements IDisposable {
 
 	private cache = new Map<string, IRow[]>();
 
-	constructor(private renderers: Map<string, IRenderer<T, any>>) { }
+	constructor(private renderers: Map<string, IListRenderer<T, any>>) { }
 
 	/**
 	 * Returns a row either by creating a new one or reusing

@@ -34,7 +34,7 @@ class InspectTokensController extends Disposable implements IEditorContribution 
 	private _editor: ICodeEditor;
 	private _standaloneThemeService: IStandaloneThemeService;
 	private _modeService: IModeService;
-	private _widget: InspectTokensWidget;
+	private _widget: InspectTokensWidget | null;
 
 	constructor(
 		editor: ICodeEditor,
@@ -65,7 +65,7 @@ class InspectTokensController extends Disposable implements IEditorContribution 
 		if (this._widget) {
 			return;
 		}
-		if (!this._editor.getModel()) {
+		if (!this._editor.hasModel()) {
 			return;
 		}
 		this._widget = new InspectTokensWidget(this._editor, this._standaloneThemeService, this._modeService);

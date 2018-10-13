@@ -18,7 +18,7 @@ import { Constants } from 'vs/editor/common/core/uint';
 import { dispose, IDisposable } from 'vs/base/common/lifecycle';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { Separator } from 'vs/base/browser/ui/actionbar/actionbar';
-import { IVirtualDelegate, IListContextMenuEvent, IRenderer } from 'vs/base/browser/ui/list/list';
+import { IListVirtualDelegate, IListContextMenuEvent, IListRenderer } from 'vs/base/browser/ui/list/list';
 import { IEditor } from 'vs/workbench/common/editor';
 import { InputBox } from 'vs/base/browser/ui/inputbox/inputBox';
 import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
@@ -238,7 +238,7 @@ export class BreakpointsView extends ViewletPanel {
 	}
 }
 
-class BreakpointsDelegate implements IVirtualDelegate<IEnablement> {
+class BreakpointsDelegate implements IListVirtualDelegate<IEnablement> {
 
 	constructor(private debugService: IDebugService) {
 		// noop
@@ -294,7 +294,7 @@ interface IInputTemplateData {
 	toDispose: IDisposable[];
 }
 
-class BreakpointsRenderer implements IRenderer<IBreakpoint, IBreakpointTemplateData> {
+class BreakpointsRenderer implements IListRenderer<IBreakpoint, IBreakpointTemplateData> {
 
 	constructor(
 		@IDebugService private debugService: IDebugService,
@@ -363,7 +363,7 @@ class BreakpointsRenderer implements IRenderer<IBreakpoint, IBreakpointTemplateD
 	}
 }
 
-class ExceptionBreakpointsRenderer implements IRenderer<IExceptionBreakpoint, IBaseBreakpointTemplateData> {
+class ExceptionBreakpointsRenderer implements IListRenderer<IExceptionBreakpoint, IBaseBreakpointTemplateData> {
 
 	constructor(
 		private debugService: IDebugService
@@ -411,7 +411,7 @@ class ExceptionBreakpointsRenderer implements IRenderer<IExceptionBreakpoint, IB
 	}
 }
 
-class FunctionBreakpointsRenderer implements IRenderer<FunctionBreakpoint, IBaseBreakpointWithIconTemplateData> {
+class FunctionBreakpointsRenderer implements IListRenderer<FunctionBreakpoint, IBaseBreakpointWithIconTemplateData> {
 
 	constructor(
 		@IDebugService private debugService: IDebugService
@@ -470,7 +470,7 @@ class FunctionBreakpointsRenderer implements IRenderer<FunctionBreakpoint, IBase
 	}
 }
 
-class FunctionBreakpointInputRenderer implements IRenderer<IFunctionBreakpoint, IInputTemplateData> {
+class FunctionBreakpointInputRenderer implements IListRenderer<IFunctionBreakpoint, IInputTemplateData> {
 
 	constructor(
 		private debugService: IDebugService,

@@ -34,7 +34,7 @@ export interface IModelDecorationOverviewRulerOptions {
 	 * CSS color to render in the overview ruler.
 	 * e.g.: rgba(100, 100, 100, 0.5) or a color from the color registry
 	 */
-	color: string | ThemeColor;
+	color: string | ThemeColor | undefined;
 	/**
 	 * CSS color to render in the overview ruler.
 	 * e.g.: rgba(100, 100, 100, 0.5) or a color from the color registry
@@ -339,7 +339,7 @@ export interface ICursorStateComputer {
 	/**
 	 * A callback that can compute the resulting cursors state after some edit operations have been executed.
 	 */
-	(inverseEditOperations: IIdentifiedSingleEditOperation[]): Selection[];
+	(inverseEditOperations: IIdentifiedSingleEditOperation[]): Selection[] | null;
 }
 
 export class TextModelResolvedOptions {
@@ -934,7 +934,11 @@ export interface ITextModel {
 	/**
 	 * @internal
 	 */
-	_setTrackedRange(id: string | null, newRange: Range | null, newStickiness: TrackedRangeStickiness): string | null;
+	_setTrackedRange(id: string | null, newRange: null, newStickiness: TrackedRangeStickiness): null;
+	/**
+	 * @internal
+	 */
+	_setTrackedRange(id: string | null, newRange: Range, newStickiness: TrackedRangeStickiness): string;
 
 	/**
 	 * Normalize a string containing whitespace according to indentation rules (converts to spaces or to tabs).

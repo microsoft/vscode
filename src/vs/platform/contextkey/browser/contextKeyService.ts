@@ -221,7 +221,7 @@ export abstract class AbstractContextKeyService implements IContextKeyService {
 		return new ScopedContextKeyService(this, this._onDidChangeContextKey, domNode);
 	}
 
-	public contextMatchesRules(rules: ContextKeyExpr): boolean {
+	public contextMatchesRules(rules: ContextKeyExpr | null): boolean {
 		const context = this.getContextValuesContainer(this._myContextId);
 		const result = KeybindingResolver.contextMatchesRules(context, rules);
 		// console.group(rules.serialize() + ' -> ' + result);

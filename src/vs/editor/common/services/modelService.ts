@@ -26,7 +26,7 @@ export interface IModelService {
 
 	getCreationOptions(language: string, resource: URI, isForSimpleWidget: boolean): ITextModelCreationOptions;
 
-	getModel(resource: URI): ITextModel;
+	getModel(resource: URI): ITextModel | null;
 
 	onModelAdded: Event<ITextModel>;
 

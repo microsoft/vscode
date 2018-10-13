@@ -9,13 +9,17 @@
 	align-items: center;
 }
 
-.monaco-tl-row > .tl-twistie,
-.monaco-tl-row > .tl-contents {
+.monaco-tl-row > .monaco-tl-twistie,
+.monaco-tl-row > .monaco-tl-contents {
 	height: 100%;
 }
 
-.monaco-tl-row > .tl-twistie {
+.monaco-tl-row > .monaco-tl-twistie {
 	font-size: 10px;
 	text-align: right;
 	padding-right: 10px;
+}
+
+.monaco-tl-row > .monaco-tl-contents {
+	flex: 1;
 }

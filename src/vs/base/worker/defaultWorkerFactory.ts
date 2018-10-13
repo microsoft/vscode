@@ -67,10 +67,10 @@ export class DefaultWorkerFactory implements IWorkerFactory {
 
 	private static LAST_WORKER_ID = 0;
 
-	private _label: string;
+	private _label: string | undefined;
 	private _webWorkerFailedBeforeError: any;
 
-	constructor(label: string) {
+	constructor(label: string | undefined) {
 		this._label = label;
 		this._webWorkerFailedBeforeError = false;
 	}

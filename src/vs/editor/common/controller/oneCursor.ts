@@ -70,12 +70,15 @@ export class OneCursor {
 		this._setState(context, this.modelState, this.viewState);
 	}
 
-	public setState(context: CursorContext, modelState: SingleCursorState, viewState: SingleCursorState): void {
+	public setState(context: CursorContext, modelState: SingleCursorState | null, viewState: SingleCursorState | null): void {
 		this._setState(context, modelState, viewState);
 	}
 
-	private _setState(context: CursorContext, modelState: SingleCursorState, viewState: SingleCursorState): void {
+	private _setState(context: CursorContext, modelState: SingleCursorState | null, viewState: SingleCursorState | null): void {
 		if (!modelState) {
+			if (!viewState) {
+				return;
+			}
 			// We only have the view state => compute the model state
 			const selectionStart = context.model.validateRange(
 				context.convertViewRangeToModelRange(viewState.selectionStart)

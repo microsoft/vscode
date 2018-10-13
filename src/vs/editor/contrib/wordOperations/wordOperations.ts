@@ -36,6 +36,9 @@ export abstract class MoveWordCommand extends EditorCommand {
 	}
 
 	public runEditorCommand(accessor: ServicesAccessor, editor: ICodeEditor, args: any): void {
+		if (!editor.hasModel()) {
+			return;
+		}
 		const config = editor.getConfiguration();
 		const wordSeparators = getMapForWordSeparators(config.wordSeparators);
 		const model = editor.getModel();
@@ -261,6 +264,9 @@ export abstract class DeleteWordCommand extends EditorCommand {
 	}
 
 	public runEditorCommand(accessor: ServicesAccessor, editor: ICodeEditor, args: any): void {
+		if (!editor.hasModel()) {
+			return;
+		}
 		const config = editor.getConfiguration();
 		const wordSeparators = getMapForWordSeparators(config.wordSeparators);
 		const model = editor.getModel();

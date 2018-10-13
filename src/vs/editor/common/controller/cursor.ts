@@ -65,7 +65,7 @@ export class CursorModelState {
 		this.cursorState = cursor.getAll();
 	}
 
-	public equals(other: CursorModelState): boolean {
+	public equals(other: CursorModelState | null): boolean {
 		if (!other) {
 			return false;
 		}
@@ -106,7 +106,7 @@ export class Cursor extends viewEvents.ViewEventEmitter implements ICursors {
 
 	private _isHandling: boolean;
 	private _isDoingComposition: boolean;
-	private _columnSelectData: IColumnSelectData;
+	private _columnSelectData: IColumnSelectData | null;
 	private _prevEditOperationType: EditOperationType;
 
 	constructor(configuration: editorCommon.IConfiguration, model: ITextModel, viewModel: IViewModel) {
@@ -191,8 +191,8 @@ export class Cursor extends viewEvents.ViewEventEmitter implements ICursors {
 		return this._cursors.getAll();
 	}
 
-	public setStates(source: string, reason: CursorChangeReason, states: PartialCursorState[]): void {
-		if (states.length > Cursor.MAX_CURSOR_COUNT) {
+	public setStates(source: string, reason: CursorChangeReason, states: PartialCursorState[] | null): void {
+		if (states !== null && states.length > Cursor.MAX_CURSOR_COUNT) {
 			states = states.slice(0, Cursor.MAX_CURSOR_COUNT);
 			this._onDidReachMaxCursorCount.fire(void 0);
 		}
@@ -347,7 +347,7 @@ export class Cursor extends viewEvents.ViewEventEmitter implements ICursors {
 
 	// ------ auxiliary handling logic
 
-	private _executeEditOperation(opResult: EditOperationResult): void {
+	private _executeEditOperation(opResult: EditOperationResult | null): void {
 
 		if (!opResult) {
 			// Nothing to execute
@@ -371,7 +371,7 @@ export class Cursor extends viewEvents.ViewEventEmitter implements ICursors {
 		}
 	}
 
-	private _interpretCommandResult(cursorState: Selection[]): void {
+	private _interpretCommandResult(cursorState: Selection[] | null): void {
 		if (!cursorState || cursorState.length === 0) {
 			cursorState = this._cursors.readSelectionFromMarkers();
 		}
@@ -384,7 +384,7 @@ export class Cursor extends viewEvents.ViewEventEmitter implements ICursors {
 	// -----------------------------------------------------------------------------------------------------------
 	// ----- emitting events
 
-	private _emitStateChangedIfNecessary(source: string, reason: CursorChangeReason, oldState: CursorModelState): boolean {
+	private _emitStateChangedIfNecessary(source: string, reason: CursorChangeReason, oldState: CursorModelState | null): boolean {
 		const newState = new CursorModelState(this._model, this);
 		if (newState.equals(oldState)) {
 			return false;
@@ -619,7 +619,7 @@ interface ICommandsData {
 
 class CommandExecutor {
 
-	public static executeCommands(model: ITextModel, selectionsBefore: Selection[], commands: editorCommon.ICommand[]): Selection[] {
+	public static executeCommands(model: ITextModel, selectionsBefore: Selection[], commands: (editorCommon.ICommand | null)[]): Selection[] | null {
 
 		const ctx: IExecContext = {
 			model: model,
@@ -637,7 +637,7 @@ class CommandExecutor {
 		return result;
 	}
 
-	private static _innerExecuteCommands(ctx: IExecContext, commands: editorCommon.ICommand[]): Selection[] {
+	private static _innerExecuteCommands(ctx: IExecContext, commands: (editorCommon.ICommand | null)[]): Selection[] | null {
 
 		if (this._arrayIsEmpty(commands)) {
 			return null;
@@ -660,7 +660,7 @@ class CommandExecutor {
 		// Remove operations belonging to losing cursors
 		let filteredOperations: IIdentifiedSingleEditOperation[] = [];
 		for (let i = 0, len = rawOperations.length; i < len; i++) {
-			if (!loserCursorsMap.hasOwnProperty(rawOperations[i].identifier.major.toString())) {
+			if (!loserCursorsMap.hasOwnProperty(rawOperations[i].identifier!.major.toString())) {
 				filteredOperations.push(rawOperations[i]);
 			}
 		}
@@ -670,7 +670,7 @@ class CommandExecutor {
 		if (commandsData.hadTrackedEditOperation && filteredOperations.length > 0) {
 			filteredOperations[0]._isTracked = true;
 		}
-		const selectionsAfter = ctx.model.pushEditOperations(ctx.selectionsBefore, filteredOperations, (inverseEditOperations: IIdentifiedSingleEditOperation[]): Selection[] => {
+		let selectionsAfter = ctx.model.pushEditOperations(ctx.selectionsBefore, filteredOperations, (inverseEditOperations: IIdentifiedSingleEditOperation[]): Selection[] => {
 			let groupedInverseEditOperations: IIdentifiedSingleEditOperation[][] = [];
 			for (let i = 0; i < ctx.selectionsBefore.length; i++) {
 				groupedInverseEditOperations[i] = [];
@@ -684,20 +684,20 @@ class CommandExecutor {
 				groupedInverseEditOperations[op.identifier.major].push(op);
 			}
 			const minorBasedSorter = (a: IIdentifiedSingleEditOperation, b: IIdentifiedSingleEditOperation) => {
-				return a.identifier.minor - b.identifier.minor;
+				return a.identifier!.minor - b.identifier!.minor;
 			};
 			let cursorSelections: Selection[] = [];
 			for (let i = 0; i < ctx.selectionsBefore.length; i++) {
 				if (groupedInverseEditOperations[i].length > 0) {
 					groupedInverseEditOperations[i].sort(minorBasedSorter);
-					cursorSelections[i] = commands[i].computeCursorState(ctx.model, {
+					cursorSelections[i] = commands[i]!.computeCursorState(ctx.model, {
 						getInverseEditOperations: () => {
 							return groupedInverseEditOperations[i];
 						},
 
 						getTrackedSelection: (id: string) => {
 							const idx = parseInt(id, 10);
-							const range = ctx.model._getTrackedRange(ctx.trackedRanges[idx]);
+							const range = ctx.model._getTrackedRange(ctx.trackedRanges[idx])!;
 							if (ctx.trackedRangesDirection[idx] === SelectionDirection.LTR) {
 								return new Selection(range.startLineNumber, range.startColumn, range.endLineNumber, range.endColumn);
 							}
@@ -710,6 +710,9 @@ class CommandExecutor {
 			}
 			return cursorSelections;
 		});
+		if (!selectionsAfter) {
+			selectionsAfter = ctx.selectionsBefore;
+		}
 
 		// Extract losing cursors
 		let losingCursors: number[] = [];
@@ -732,7 +735,7 @@ class CommandExecutor {
 		return selectionsAfter;
 	}
 
-	private static _arrayIsEmpty(commands: editorCommon.ICommand[]): boolean {
+	private static _arrayIsEmpty(commands: (editorCommon.ICommand | null)[]): boolean {
 		for (let i = 0, len = commands.length; i < len; i++) {
 			if (commands[i]) {
 				return false;
@@ -741,13 +744,14 @@ class CommandExecutor {
 		return true;
 	}
 
-	private static _getEditOperations(ctx: IExecContext, commands: editorCommon.ICommand[]): ICommandsData {
+	private static _getEditOperations(ctx: IExecContext, commands: (editorCommon.ICommand | null)[]): ICommandsData {
 		let operations: IIdentifiedSingleEditOperation[] = [];
 		let hadTrackedEditOperation: boolean = false;
 
 		for (let i = 0, len = commands.length; i < len; i++) {
-			if (commands[i]) {
-				const r = this._getEditOperationsFromCommand(ctx, i, commands[i]);
+			const command = commands[i];
+			if (command) {
+				const r = this._getEditOperationsFromCommand(ctx, i, command);
 				operations = operations.concat(r.operations);
 				hadTrackedEditOperation = hadTrackedEditOperation || r.hadTrackedEditOperation;
 			}
@@ -782,7 +786,7 @@ class CommandExecutor {
 		};
 
 		let hadTrackedEditOperation = false;
-		const addTrackedEditOperation = (selection: Range, text: string) => {
+		const addTrackedEditOperation = (selection: Range, text: string | null) => {
 			hadTrackedEditOperation = true;
 			addEditOperation(selection, text);
 		};
@@ -860,17 +864,17 @@ class CommandExecutor {
 
 				let loserMajor: number;
 
-				if (previousOp.identifier.major > currentOp.identifier.major) {
+				if (previousOp.identifier!.major > currentOp.identifier!.major) {
 					// previousOp loses the battle
-					loserMajor = previousOp.identifier.major;
+					loserMajor = previousOp.identifier!.major;
 				} else {
-					loserMajor = currentOp.identifier.major;
+					loserMajor = currentOp.identifier!.major;
 				}
 
 				loserCursorsMap[loserMajor.toString()] = true;
 
 				for (let j = 0; j < operations.length; j++) {
-					if (operations[j].identifier.major === loserMajor) {
+					if (operations[j].identifier!.major === loserMajor) {
 						operations.splice(j, 1);
 						if (j < i) {
 							i--;

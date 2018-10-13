@@ -38,7 +38,7 @@ export abstract class ContextKeyExpr {
 		return new ContextKeyNotExpr(key);
 	}
 
-	public static and(...expr: ContextKeyExpr[]): ContextKeyExpr {
+	public static and(...expr: (ContextKeyExpr | undefined | null)[]): ContextKeyExpr {
 		return new ContextKeyAndExpr(expr);
 	}
 
@@ -416,7 +416,7 @@ export class ContextKeyRegexExpr implements ContextKeyExpr {
 export class ContextKeyAndExpr implements ContextKeyExpr {
 	public readonly expr: ContextKeyExpr[];
 
-	constructor(expr: ContextKeyExpr[]) {
+	constructor(expr: (ContextKeyExpr | null | undefined)[]) {
 		this.expr = ContextKeyAndExpr._normalizeArr(expr);
 	}
 
@@ -448,12 +448,12 @@ export class ContextKeyAndExpr implements ContextKeyExpr {
 		return true;
 	}
 
-	private static _normalizeArr(arr: ContextKeyExpr[]): ContextKeyExpr[] {
+	private static _normalizeArr(arr: (ContextKeyExpr | null | undefined)[]): ContextKeyExpr[] {
 		let expr: ContextKeyExpr[] = [];
 
 		if (arr) {
 			for (let i = 0, len = arr.length; i < len; i++) {
-				let e: ContextKeyExpr | null = arr[i];
+				let e: ContextKeyExpr | null | undefined = arr[i];
 				if (!e) {
 					continue;
 				}
@@ -553,11 +553,11 @@ export interface IContextKey<T> {
 }
 
 export interface IContextKeyServiceTarget {
-	parentElement: IContextKeyServiceTarget;
+	parentElement: IContextKeyServiceTarget | null;
 	setAttribute(attr: string, value: string): void;
 	removeAttribute(attr: string): void;
 	hasAttribute(attr: string): boolean;
-	getAttribute(attr: string): string;
+	getAttribute(attr: string): string | null;
 }
 
 export const IContextKeyService = createDecorator<IContextKeyService>('contextKeyService');
@@ -576,7 +576,7 @@ export interface IContextKeyService {
 
 	onDidChangeContext: Event<IContextKeyChangeEvent>;
 	createKey<T>(key: string, defaultValue: T | undefined): IContextKey<T>;
-	contextMatchesRules(rules: ContextKeyExpr): boolean;
+	contextMatchesRules(rules: ContextKeyExpr | null): boolean;
 	getContextKeyValue<T>(key: string): T;
 
 	createScoped(target?: IContextKeyServiceTarget): IContextKeyService;

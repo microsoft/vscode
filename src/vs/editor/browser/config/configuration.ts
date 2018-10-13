@@ -187,7 +187,7 @@ class CSSBasedConfiguration extends Disposable {
 		return this._cache.get(bareFontInfo);
 	}
 
-	private static createRequest(chr: string, type: CharWidthRequestType, all: CharWidthRequest[], monospace: CharWidthRequest[]): CharWidthRequest {
+	private static createRequest(chr: string, type: CharWidthRequestType, all: CharWidthRequest[], monospace: CharWidthRequest[] | null): CharWidthRequest {
 		let result = new CharWidthRequest(chr, type);
 		all.push(result);
 		if (monospace) {

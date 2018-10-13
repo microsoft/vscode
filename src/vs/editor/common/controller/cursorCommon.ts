@@ -51,7 +51,7 @@ export interface ICursors {
 	getColumnSelectData(): IColumnSelectData;
 	setColumnSelectData(columnSelectData: IColumnSelectData): void;
 
-	setStates(source: string, reason: CursorChangeReason, states: PartialCursorState[]): void;
+	setStates(source: string, reason: CursorChangeReason, states: PartialCursorState[] | null): void;
 	reveal(horizontal: boolean, target: RevealTarget, scrollType: ScrollType): void;
 	revealRange(revealHorizontal: boolean, viewRange: Range, verticalType: VerticalRevealType, scrollType: ScrollType): void;
 
@@ -464,13 +464,13 @@ export class EditOperationResult {
 	_editOperationResultBrand: void;
 
 	readonly type: EditOperationType;
-	readonly commands: ICommand[];
+	readonly commands: (ICommand | null)[];
 	readonly shouldPushStackElementBefore: boolean;
 	readonly shouldPushStackElementAfter: boolean;
 
 	constructor(
 		type: EditOperationType,
-		commands: ICommand[],
+		commands: (ICommand | null)[],
 		opts: {
 			shouldPushStackElementBefore: boolean;
 			shouldPushStackElementAfter: boolean;

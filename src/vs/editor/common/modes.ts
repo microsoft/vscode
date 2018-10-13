@@ -853,11 +853,7 @@ export interface DocumentSymbolProvider {
 	provideDocumentSymbols(model: model.ITextModel, token: CancellationToken): ProviderResult<DocumentSymbol[]>;
 }
 
-export interface TextEdit {
-	range: IRange;
-	text: string;
-	eol?: model.EndOfLineSequence;
-}
+export type TextEdit = { range: IRange; text: string; eol?: model.EndOfLineSequence; } | { range: undefined; text: undefined; eol: model.EndOfLineSequence; };
 
 /**
  * Interface used to format a model

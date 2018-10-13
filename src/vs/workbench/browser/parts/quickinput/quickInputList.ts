@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import 'vs/css!./quickInput';
-import { IVirtualDelegate, IRenderer } from 'vs/base/browser/ui/list/list';
+import { IListVirtualDelegate, IListRenderer } from 'vs/base/browser/ui/list/list';
 import * as dom from 'vs/base/browser/dom';
 import { dispose, IDisposable } from 'vs/base/common/lifecycle';
 import { WorkbenchList } from 'vs/platform/list/browser/listService';
@@ -83,7 +83,7 @@ interface IListElementTemplateData {
 	toDisposeTemplate: IDisposable[];
 }
 
-class ListElementRenderer implements IRenderer<ListElement, IListElementTemplateData> {
+class ListElementRenderer implements IListRenderer<ListElement, IListElementTemplateData> {
 
 	static readonly ID = 'listelement';
 
@@ -198,7 +198,7 @@ class ListElementRenderer implements IRenderer<ListElement, IListElementTemplate
 	}
 }
 
-class ListElementDelegate implements IVirtualDelegate<ListElement> {
+class ListElementDelegate implements IListVirtualDelegate<ListElement> {
 
 	getHeight(element: ListElement): number {
 		return element.saneDetail ? 44 : 22;
