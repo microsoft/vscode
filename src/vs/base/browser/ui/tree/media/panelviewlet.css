@@ -3,23 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-.monaco-tl-row {
-	display: flex;
-	height: 100%;
-	align-items: center;
-}
-
-.monaco-tl-row > .monaco-tl-twistie,
-.monaco-tl-row > .monaco-tl-contents {
-	height: 100%;
-}
-
-.monaco-tl-row > .monaco-tl-twistie {
-	font-size: 10px;
-	text-align: right;
-	padding-right: 10px;
-}
-
-.monaco-tl-row > .monaco-tl-contents {
-	flex: 1;
+.monaco-panel-view .panel > .panel-header h3.title {
+	white-space: nowrap;
+	text-overflow: ellipsis;
+	overflow: hidden;
+	font-size: 11px;
+	-webkit-margin-before: 0;
+	-webkit-margin-after: 0;
 }

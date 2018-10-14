@@ -3,11 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/css!./tree';
+import 'vs/css!./media/tree';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { IListOptions, List, IIdentityProvider, IMultipleSelectionController, IListStyles } from 'vs/base/browser/ui/list/listWidget';
 import { IListVirtualDelegate, IListRenderer, IListMouseEvent, IListEvent, IListContextMenuEvent } from 'vs/base/browser/ui/list/list';
-import { append, $ } from 'vs/base/browser/dom';
+import { append, $, toggleClass } from 'vs/base/browser/dom';
 import { Event, Relay, chain } from 'vs/base/common/event';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { KeyCode } from 'vs/base/common/keyCodes';
@@ -61,14 +61,6 @@ export class ComposedTreeDelegate<T, N extends { element: T }> implements IListV
 interface ITreeListTemplateData<T> {
 	twistie: HTMLElement;
 	templateData: T;
-}
-
-function renderDefaultTwistie<T>(node: ITreeNode<T, any>, twistie: HTMLElement): void {
-	if (node.children.length === 0 && !node.collapsible) {
-		twistie.innerText = '';
-	} else {
-		twistie.innerText = node.collapsed ? '▹' : '◢';
-	}
 }
 
 class TreeRenderer<T, TFilterData, TTemplateData> implements IListRenderer<ITreeNode<T, TFilterData>, ITreeListTemplateData<TTemplateData>> {
@@ -145,7 +137,12 @@ class TreeRenderer<T, TFilterData, TTemplateData> implements IListRenderer<ITree
 			return;
 		}
 
-		renderDefaultTwistie(node, twistieElement);
+		TreeRenderer.renderDefaultTwistie(node, twistieElement);
+	}
+
+	private static renderDefaultTwistie<T>(node: ITreeNode<T, any>, twistie: HTMLElement): void {
+		toggleClass(twistie, 'collapsible', node.collapsible);
+		toggleClass(twistie, 'collapsed', node.collapsed);
 	}
 
 	dispose(): void {
