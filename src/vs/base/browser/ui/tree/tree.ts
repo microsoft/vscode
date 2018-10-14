@@ -51,20 +51,21 @@ export interface ITreeModel<T, TFilterData, TRef> {
 	readonly onDidChangeCollapseState: Event<ITreeNode<T, TFilterData>>;
 	readonly onDidChangeRenderNodeCount: Event<ITreeNode<T, TFilterData>>;
 
-	getListIndex(ref: TRef): number;
-	setCollapsed(ref: TRef, collapsed: boolean): boolean;
-	toggleCollapsed(ref: TRef): void;
-	collapseAll(): void;
-	isCollapsed(ref: TRef): boolean;
-	refilter(): void;
-
+	getListIndex(location: TRef): number;
 	getNode(location?: TRef): ITreeNode<T, any>;
 	getNodeLocation(node: ITreeNode<T, any>): TRef;
 	getParentNodeLocation(location: TRef): TRef | null;
 
 	getParentElement(location: TRef): T | null;
-	getFirstElementChild(location: TRef): T | null;
-	getLastElementAncestor(location: TRef): T | null;
+	getFirstChildElement(location: TRef): T | null;
+	getLastAncestorElement(location: TRef): T | null;
+
+	isCollapsed(location: TRef): boolean;
+	setCollapsed(location: TRef, collapsed: boolean): boolean;
+	toggleCollapsed(location: TRef): void;
+	collapseAll(): void;
+
+	refilter(): void;
 }
 
 export interface ITreeRenderer<T, TFilterData, TTemplateData> extends IListRenderer<ITreeNode<T, TFilterData>, TTemplateData> {

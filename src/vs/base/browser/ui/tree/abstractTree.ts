@@ -233,16 +233,16 @@ export abstract class AbstractTree<T, TFilterData, TRef> implements IDisposable 
 
 	// Tree navigation
 
-	getParentElement(ref: TRef | null = null): T | null {
-		return this.model.getParentElement(ref);
+	getParentElement(location: TRef | null = null): T | null {
+		return this.model.getParentElement(location);
 	}
 
-	getFirstElementChild(ref: TRef | null = null): T | null {
-		return this.model.getFirstElementChild(ref);
+	getFirstElementChild(location: TRef | null = null): T | null {
+		return this.model.getFirstChildElement(location);
 	}
 
-	getLastElementAncestor(ref: TRef | null = null): T | null {
-		return this.model.getLastElementAncestor(ref);
+	getLastElementAncestor(location: TRef | null = null): T | null {
+		return this.model.getLastAncestorElement(location);
 	}
 
 	// Tree
@@ -259,20 +259,20 @@ export abstract class AbstractTree<T, TFilterData, TRef> implements IDisposable 
 		return this.model.setCollapsed(location, false);
 	}
 
-	toggleCollapsed(ref: TRef): void {
-		this.model.toggleCollapsed(ref);
+	toggleCollapsed(location: TRef): void {
+		this.model.toggleCollapsed(location);
 	}
 
 	collapseAll(): void {
 		this.model.collapseAll();
 	}
 
-	isCollapsed(ref: TRef): boolean {
-		return this.model.isCollapsed(ref);
+	isCollapsed(location: TRef): boolean {
+		return this.model.isCollapsed(location);
 	}
 
-	isExpanded(ref: TRef): boolean {
-		return !this.isCollapsed(ref);
+	isExpanded(location: TRef): boolean {
+		return !this.isCollapsed(location);
 	}
 
 	refilter(): void {

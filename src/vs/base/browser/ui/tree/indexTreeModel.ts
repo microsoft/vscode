@@ -130,7 +130,7 @@ export class IndexTreeModel<T, TFilterData = void> implements ITreeModel<T, TFil
 	}
 
 	collapseAll(): void {
-		const queue = [...this.root.children]; // TODO@joao use a linked list
+		const queue = [...this.root.children];
 		let listIndex = 0;
 
 		this.eventBufferer.bufferEvents(() => {
@@ -428,7 +428,7 @@ export class IndexTreeModel<T, TFilterData = void> implements ITreeModel<T, TFil
 		return node === this.root ? null : node.element;
 	}
 
-	getFirstElementChild(location: number[]): T | null {
+	getFirstChildElement(location: number[]): T | null {
 		const node = this.getTreeNode(location);
 
 		if (node.children.length === 0) {
@@ -438,7 +438,7 @@ export class IndexTreeModel<T, TFilterData = void> implements ITreeModel<T, TFil
 		return node.children[0].element;
 	}
 
-	getLastElementAncestor(location: number[]): T | null {
+	getLastAncestorElement(location: number[]): T | null {
 		const node = this.getTreeNode(location);
 
 		if (node.children.length === 0) {
