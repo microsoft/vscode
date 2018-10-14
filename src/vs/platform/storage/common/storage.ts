@@ -31,7 +31,7 @@ export interface IStorageService {
 	 * The scope argument allows to define the scope of the storage
 	 * operation to either the current workspace only or all workspaces.
 	 */
-	get(key: string, scope: StorageScope, fallbackValue?: string): string;
+	get(key: string, scope: StorageScope, fallbackValue?: string): string | undefined;
 
 	/**
 	 * Retrieve an element stored with the given key from storage. Use
@@ -41,7 +41,7 @@ export interface IStorageService {
 	 * The scope argument allows to define the scope of the storage
 	 * operation to either the current workspace only or all workspaces.
 	 */
-	getBoolean(key: string, scope: StorageScope, fallbackValue?: boolean): boolean;
+	getBoolean(key: string, scope: StorageScope, fallbackValue?: boolean): boolean | undefined;
 
 	/**
 	 * Retrieve an element stored with the given key from storage. Use
@@ -51,7 +51,7 @@ export interface IStorageService {
 	 * The scope argument allows to define the scope of the storage
 	 * operation to either the current workspace only or all workspaces.
 	 */
-	getInteger(key: string, scope: StorageScope, fallbackValue?: number): number;
+	getInteger(key: string, scope: StorageScope, fallbackValue?: number): number | undefined;
 
 	/**
 	 * Store a string value under the given key to storage. The value will
@@ -95,15 +95,15 @@ export const NullStorageService: IStorageService = {
 	onDidChangeStorage: Event.None,
 	onWillClose: Event.None,
 
-	get(key: string, scope: StorageScope, fallbackValue?: string): string {
+	get(key: string, scope: StorageScope, fallbackValue?: string): string | undefined {
 		return fallbackValue;
 	},
 
-	getBoolean(key: string, scope: StorageScope, fallbackValue?: boolean): boolean {
+	getBoolean(key: string, scope: StorageScope, fallbackValue?: boolean): boolean | undefined {
 		return fallbackValue;
 	},
 
-	getInteger(key: string, scope: StorageScope, fallbackValue?: number): number {
+	getInteger(key: string, scope: StorageScope, fallbackValue?: number): number | undefined {
 		return fallbackValue;
 	},
 
