@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Database, Statement } from 'sqlite3';
+import { Database, Statement } from 'vscode-sqlite3';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { Emitter, Event } from 'vs/base/common/event';
 import { RunOnceScheduler } from 'vs/base/common/async';
@@ -291,7 +291,7 @@ export class SQLiteStorageImpl {
 
 	private doOpen(path: string): Promise<Database> {
 		return new Promise((resolve, reject) => {
-			import('sqlite3').then(sqlite3 => {
+			import('vscode-sqlite3').then(sqlite3 => {
 				const db = new (this.logger.verbose ? sqlite3.verbose().Database : sqlite3.Database)(path, error => {
 					if (error) {
 						return reject(error);

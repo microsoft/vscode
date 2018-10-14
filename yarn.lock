@@ -8132,12 +8132,6 @@ sprintf-js@~1.0.2:
   resolved "https://registry.yarnpkg.com/sprintf-js/-/sprintf-js-1.0.3.tgz#04e6926f662895354f3dd015203633b857297e2c"
   integrity sha1-BOaSb2YolTVPPdAVIDYzuFcpfiw=
 
-sqlite3@bpasero/node-sqlite3#vscode:
-  version "4.0.2"
-  resolved "https://codeload.github.com/bpasero/node-sqlite3/tar.gz/5e89b68e6979c09cc46313ade84046f391edceda"
-  dependencies:
-    nan "~2.10.0"
-
 sshpk@^1.7.0:
   version "1.13.1"
   resolved "https://registry.yarnpkg.com/sshpk/-/sshpk-1.13.1.tgz#512df6da6287144316dc4c18fe1cf1d940739be3"
@@ -9349,6 +9343,13 @@ vscode-ripgrep@^1.2.2:
   version "1.2.2"
   resolved "https://registry.yarnpkg.com/vscode-ripgrep/-/vscode-ripgrep-1.2.2.tgz#c21b91bb558638a7124fe3d9719b2666b12dbfdc"
   integrity sha512-rPbCj4LUnPzivezk3pC94G5sB17HbayjV9mSvNTDYFg5llHN/XozAmkoDOC0KG9UveuQ71MADX1//CeHtUTmZw==
+
+vscode-sqlite3@4.0.2:
+  version "4.0.2"
+  resolved "https://registry.yarnpkg.com/vscode-sqlite3/-/vscode-sqlite3-4.0.2.tgz#35389b7ee973f7ba6a8e57cbbdde1608ffc6d60c"
+  integrity sha512-QuXKvwtkjsQgIlU2mDhkp+pNIpwKY99MNwE4PJTOFkck7dtfwnYQwLvuuJ666a2QMDMqCEKYHG5+0bhrGh+gZg==
+  dependencies:
+    nan "~2.10.0"
 
 vscode-textmate@^4.0.1:
   version "4.0.1"

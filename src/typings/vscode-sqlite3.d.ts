@@ -12,7 +12,7 @@
 
 /// <reference types="node" />
 
-declare module 'sqlite3' {
+declare module 'vscode-sqlite3' {
 	import events = require("events");
 
 	export const OPEN_READONLY: number;
