@@ -160,9 +160,11 @@ export abstract class BaseEditor extends Panel implements IEditor {
 		// Save all editor memento for this editor type
 		BaseEditor.EDITOR_MEMENTOS.forEach(editorMemento => {
 			if (editorMemento.id === this.getId()) {
-				editorMemento.save();
+				editorMemento.saveState();
 			}
 		});
+
+		super.saveState();
 	}
 
 	dispose(): void {
@@ -193,9 +195,9 @@ export class EditorMemento<T> implements IEditorMemento<T> {
 		return this._id;
 	}
 
-	saveState(group: IEditorGroup, resource: URI, state: T): void;
-	saveState(group: IEditorGroup, editor: EditorInput, state: T): void;
-	saveState(group: IEditorGroup, resourceOrEditor: URI | EditorInput, state: T): void {
+	saveEditorState(group: IEditorGroup, resource: URI, state: T): void;
+	saveEditorState(group: IEditorGroup, editor: EditorInput, state: T): void;
+	saveEditorState(group: IEditorGroup, resourceOrEditor: URI | EditorInput, state: T): void {
 		const resource = this.doGetResource(resourceOrEditor);
 		if (!resource || !group) {
 			return; // we are not in a good state to save any state for a resource
@@ -214,14 +216,14 @@ export class EditorMemento<T> implements IEditorMemento<T> {
 		// Automatically clear when editor input gets disposed if any
 		if (resourceOrEditor instanceof EditorInput) {
 			once(resourceOrEditor.onDispose)(() => {
-				this.clearState(resource);
+				this.clearEditorState(resource);
 			});
 		}
 	}
 
-	loadState(group: IEditorGroup, resource: URI): T;
-	loadState(group: IEditorGroup, editor: EditorInput): T;
-	loadState(group: IEditorGroup, resourceOrEditor: URI | EditorInput): T {
+	loadEditorState(group: IEditorGroup, resource: URI): T;
+	loadEditorState(group: IEditorGroup, editor: EditorInput): T;
+	loadEditorState(group: IEditorGroup, resourceOrEditor: URI | EditorInput): T {
 		const resource = this.doGetResource(resourceOrEditor);
 		if (!resource || !group) {
 			return void 0; // we are not in a good state to load any state for a resource
@@ -237,9 +239,9 @@ export class EditorMemento<T> implements IEditorMemento<T> {
 		return void 0;
 	}
 
-	clearState(resource: URI, group?: IEditorGroup): void;
-	clearState(editor: EditorInput, group?: IEditorGroup): void;
-	clearState(resourceOrEditor: URI | EditorInput, group?: IEditorGroup): void {
+	clearEditorState(resource: URI, group?: IEditorGroup): void;
+	clearEditorState(editor: EditorInput, group?: IEditorGroup): void;
+	clearEditorState(resourceOrEditor: URI | EditorInput, group?: IEditorGroup): void {
 		const resource = this.doGetResource(resourceOrEditor);
 		if (resource) {
 			const cache = this.doLoad();
@@ -277,7 +279,7 @@ export class EditorMemento<T> implements IEditorMemento<T> {
 		return this.cache;
 	}
 
-	save(): void {
+	saveState(): void {
 		const cache = this.doLoad();
 
 		// Cleanup once during shutdown

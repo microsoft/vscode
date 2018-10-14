@@ -33,6 +33,7 @@ import { ActionBar, IActionItemProvider, Separator, ActionItem } from 'vs/base/b
 import { IThemeService, LIGHT } from 'vs/platform/theme/common/themeService';
 import { isSCMResource, getSCMResourceContextKey } from './scmUtil';
 import { attachBadgeStyler, attachInputBoxStyler } from 'vs/platform/theme/common/styler';
+import { IStorageService } from 'vs/platform/storage/common/storage';
 import { InputBox, MessageType } from 'vs/base/browser/ui/inputbox/inputBox';
 import { Command } from 'vs/editor/common/modes';
 import { renderOcticons } from 'vs/base/browser/ui/octiconLabel/octiconLabel';
@@ -49,7 +50,6 @@ import { IViewDescriptorRef, PersistentContributableViewsModel, IAddedViewDescri
 import { IViewDescriptor, IViewsViewlet, IView } from 'vs/workbench/common/views';
 import { IPanelDndController, Panel } from 'vs/base/browser/ui/splitview/panelview';
 import * as platform from 'vs/base/common/platform';
-import { IStorageService } from 'vs/platform/storage/common/storage';
 
 export interface ISpliceEvent<T> {
 	index: number;
@@ -1055,8 +1055,8 @@ export class SCMViewlet extends PanelViewlet implements IViewModel, IViewsViewle
 		@IContextMenuService protected contextMenuService: IContextMenuService,
 		@IThemeService protected themeService: IThemeService,
 		@ICommandService protected commandService: ICommandService,
-		@IConfigurationService configurationService: IConfigurationService,
-		@IStorageService storageService: IStorageService
+		@IStorageService storageService: IStorageService,
+		@IConfigurationService configurationService: IConfigurationService
 	) {
 		super(VIEWLET_ID, { showHeaderInTitleWhenSingleView: true, dnd: new SCMPanelDndController() }, configurationService, partService, contextMenuService, telemetryService, themeService, storageService);
 

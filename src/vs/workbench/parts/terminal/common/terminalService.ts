@@ -57,7 +57,7 @@ export abstract class TerminalService implements ITerminalService {
 		@IPanelService protected readonly _panelService: IPanelService,
 		@IPartService private readonly _partService: IPartService,
 		@ILifecycleService lifecycleService: ILifecycleService,
-		@IStorageService protected readonly storageService: IStorageService
+		@IStorageService protected readonly _storageService: IStorageService
 	) {
 		this._activeTabIndex = 0;
 		this._isShuttingDown = false;

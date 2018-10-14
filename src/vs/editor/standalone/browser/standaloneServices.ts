@@ -147,6 +147,7 @@ export module StaticServices {
 	export const storageService = define(IStorageService, () => NullStorageService);
 
 	export const logService = define(ILogService, () => new NullLogService());
+
 }
 
 export class DynamicStandaloneServices extends Disposable {

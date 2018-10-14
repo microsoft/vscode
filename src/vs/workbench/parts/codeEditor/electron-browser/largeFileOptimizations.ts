@@ -26,11 +26,11 @@ export class LargeFileOptimizationsWarner extends Disposable implements IEditorC
 		private readonly _editor: ICodeEditor,
 		@INotificationService private readonly _notificationService: INotificationService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
-		@IStorageService private readonly storageService: IStorageService,
+		@IStorageService private readonly _storageService: IStorageService,
 	) {
 		super();
 
-		this._isDisabled = this.storageService.getBoolean('editor.neverPromptForLargeFiles', StorageScope.GLOBAL, false);
+		this._isDisabled = this._storageService.getBoolean('editor.neverPromptForLargeFiles', StorageScope.GLOBAL, false);
 
 		this._register(this._editor.onDidChangeModel((e) => {
 			const model = this._editor.getModel();
@@ -58,7 +58,7 @@ export class LargeFileOptimizationsWarner extends Disposable implements IEditorC
 						label: nls.localize('neverShowAgain', "OK. Never show again"),
 						run: () => {
 							this._isDisabled = true;
-							this.storageService.store('editor.neverPromptForLargeFiles', true, StorageScope.GLOBAL);
+							this._storageService.store('editor.neverPromptForLargeFiles', true, StorageScope.GLOBAL);
 						}
 					},
 					{

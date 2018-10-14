@@ -72,7 +72,7 @@ export class CommonFindController extends Disposable implements editorCommon.IEd
 	protected _state: FindReplaceState;
 	protected _updateHistoryDelayer: Delayer<void>;
 	private _model: FindModelBoundToEditorModel;
-	private storageService: IStorageService;
+	private _storageService: IStorageService;
 	private _clipboardService: IClipboardService;
 	protected readonly _contextKeyService: IContextKeyService;
 
@@ -90,7 +90,7 @@ export class CommonFindController extends Disposable implements editorCommon.IEd
 		this._editor = editor;
 		this._findWidgetVisible = CONTEXT_FIND_WIDGET_VISIBLE.bindTo(contextKeyService);
 		this._contextKeyService = contextKeyService;
-		this.storageService = storageService;
+		this._storageService = storageService;
 		this._clipboardService = clipboardService;
 
 		this._updateHistoryDelayer = new Delayer<void>(500);
@@ -107,9 +107,9 @@ export class CommonFindController extends Disposable implements editorCommon.IEd
 
 			this._state.change({
 				searchScope: null,
-				matchCase: this.storageService.getBoolean('editor.matchCase', StorageScope.WORKSPACE, false),
-				wholeWord: this.storageService.getBoolean('editor.wholeWord', StorageScope.WORKSPACE, false),
-				isRegex: this.storageService.getBoolean('editor.isRegex', StorageScope.WORKSPACE, false)
+				matchCase: this._storageService.getBoolean('editor.matchCase', StorageScope.WORKSPACE, false),
+				wholeWord: this._storageService.getBoolean('editor.wholeWord', StorageScope.WORKSPACE, false),
+				isRegex: this._storageService.getBoolean('editor.isRegex', StorageScope.WORKSPACE, false)
 			}, false);
 
 			if (shouldRestartFind) {
@@ -159,21 +159,21 @@ export class CommonFindController extends Disposable implements editorCommon.IEd
 
 	private saveQueryState(e: FindReplaceStateChangedEvent) {
 		if (e.isRegex) {
-			this.storageService.store('editor.isRegex', this._state.actualIsRegex, StorageScope.WORKSPACE);
+			this._storageService.store('editor.isRegex', this._state.actualIsRegex, StorageScope.WORKSPACE);
 		}
 		if (e.wholeWord) {
-			this.storageService.store('editor.wholeWord', this._state.actualWholeWord, StorageScope.WORKSPACE);
+			this._storageService.store('editor.wholeWord', this._state.actualWholeWord, StorageScope.WORKSPACE);
 		}
 		if (e.matchCase) {
-			this.storageService.store('editor.matchCase', this._state.actualMatchCase, StorageScope.WORKSPACE);
+			this._storageService.store('editor.matchCase', this._state.actualMatchCase, StorageScope.WORKSPACE);
 		}
 	}
 
 	private loadQueryState() {
 		this._state.change({
-			matchCase: this.storageService.getBoolean('editor.matchCase', StorageScope.WORKSPACE, this._state.matchCase),
-			wholeWord: this.storageService.getBoolean('editor.wholeWord', StorageScope.WORKSPACE, this._state.wholeWord),
-			isRegex: this.storageService.getBoolean('editor.isRegex', StorageScope.WORKSPACE, this._state.isRegex)
+			matchCase: this._storageService.getBoolean('editor.matchCase', StorageScope.WORKSPACE, this._state.matchCase),
+			wholeWord: this._storageService.getBoolean('editor.wholeWord', StorageScope.WORKSPACE, this._state.wholeWord),
+			isRegex: this._storageService.getBoolean('editor.isRegex', StorageScope.WORKSPACE, this._state.isRegex)
 		}, false);
 	}
 

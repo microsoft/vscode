@@ -251,7 +251,7 @@ export class OutlinePanel extends ViewletPanel {
 		options: IViewletViewOptions,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IThemeService private readonly _themeService: IThemeService,
-		@IStorageService private readonly storageService: IStorageService,
+		@IStorageService private readonly _storageService: IStorageService,
 		@IEditorService private readonly _editorService: IEditorService,
 		@IMarkerService private readonly _markerService: IMarkerService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
@@ -261,7 +261,7 @@ export class OutlinePanel extends ViewletPanel {
 		@IContextMenuService contextMenuService: IContextMenuService,
 	) {
 		super(options, _keybindingService, contextMenuService, configurationService);
-		this._outlineViewState.restore(this.storageService);
+		this._outlineViewState.restore(this._storageService);
 		this._contextKeyFocused = OutlineViewFocused.bindTo(contextKeyService);
 		this._contextKeyFiltered = OutlineViewFiltered.bindTo(contextKeyService);
 		this._disposables.push(this.onDidFocus(_ => this._contextKeyFocused.set(true)));
@@ -436,7 +436,7 @@ export class OutlinePanel extends ViewletPanel {
 	}
 
 	private _onDidChangeUserState(e: { followCursor?: boolean, sortBy?: boolean, filterOnType?: boolean }) {
-		this._outlineViewState.persist(this.storageService);
+		this._outlineViewState.persist(this._storageService);
 		if (e.followCursor) {
 			// todo@joh update immediately
 		}

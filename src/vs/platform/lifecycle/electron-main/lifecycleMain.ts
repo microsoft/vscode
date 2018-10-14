@@ -41,7 +41,7 @@ export interface ILifecycleService {
 	/**
 	 * Will be true if the program was requested to quit.
 	 */
-	isQuitRequested: boolean;
+	quitRequested: boolean;
 
 	/**
 	 * Due to the way we handle lifecycle with eventing, the general app.on('before-quit')
@@ -100,11 +100,13 @@ export class LifecycleService extends Disposable implements ILifecycleService {
 	private static readonly QUIT_FROM_RESTART_MARKER = 'quit.from.restart'; // use a marker to find out if the session was restarted
 
 	private windowToCloseRequest: { [windowId: string]: boolean } = Object.create(null);
-	private quitRequested = false;
 	private pendingQuitPromise: TPromise<boolean>;
 	private pendingQuitPromiseComplete: TValueCallback<boolean>;
 	private oneTimeListenerTokenGenerator = 0;
 	private windowCounter = 0;
+
+	private _quitRequested = false;
+	get quitRequested(): boolean { return this._quitRequested; }
 
 	private _wasRestarted: boolean = false;
 	get wasRestarted(): boolean { return this._wasRestarted; }
@@ -138,10 +140,6 @@ export class LifecycleService extends Disposable implements ILifecycleService {
 		}
 	}
 
-	get isQuitRequested(): boolean {
-		return !!this.quitRequested;
-	}
-
 	ready(): void {
 		this.registerListeners();
 	}
@@ -152,12 +150,12 @@ export class LifecycleService extends Disposable implements ILifecycleService {
 		app.on('before-quit', e => {
 			this.logService.trace('Lifecycle#before-quit');
 
-			if (this.quitRequested) {
+			if (this._quitRequested) {
 				this.logService.trace('Lifecycle#before-quit - returning because quit was already requested');
 				return;
 			}
 
-			this.quitRequested = true;
+			this._quitRequested = true;
 
 			// Emit event to indicate that we are about to shutdown
 			this.logService.trace('Lifecycle#onBeforeShutdown.fire()');
@@ -177,7 +175,7 @@ export class LifecycleService extends Disposable implements ILifecycleService {
 
 			// Windows/Linux: we quit when all windows have closed
 			// Mac: we only quit when quit was requested
-			if (this.quitRequested || process.platform !== 'darwin') {
+			if (this._quitRequested || process.platform !== 'darwin') {
 				app.quit();
 			}
 		});
@@ -213,7 +211,7 @@ export class LifecycleService extends Disposable implements ILifecycleService {
 
 					window.close();
 				} else {
-					this.quitRequested = false;
+					this._quitRequested = false;
 					delete this.windowToCloseRequest[windowId];
 				}
 			});
@@ -230,7 +228,7 @@ export class LifecycleService extends Disposable implements ILifecycleService {
 			// if there are no more code windows opened, fire the onShutdown event, unless
 			// we are on macOS where it is perfectly fine to close the last window and
 			// the application continues running (unless quit was actually requested)
-			if (this.windowCounter === 0 && (!isMacintosh || this.isQuitRequested)) {
+			if (this.windowCounter === 0 && (!isMacintosh || this._quitRequested)) {
 				this.logService.trace('Lifecycle#onShutdown.fire()');
 				this._onShutdown.fire();
 			}
@@ -246,7 +244,7 @@ export class LifecycleService extends Disposable implements ILifecycleService {
 
 		this.logService.trace('Lifecycle#unload()', window.id);
 
-		const windowUnloadReason = this.quitRequested ? UnloadReason.QUIT : reason;
+		const windowUnloadReason = this._quitRequested ? UnloadReason.QUIT : reason;
 
 		// first ask the window itself if it vetos the unload
 		return this.onBeforeUnloadWindowInRenderer(window, windowUnloadReason).then(veto => {

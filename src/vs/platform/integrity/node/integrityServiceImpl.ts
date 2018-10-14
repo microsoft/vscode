@@ -23,11 +23,11 @@ class IntegrityStorage {
 	private static readonly KEY = 'integrityService';
 
 	private storageService: IStorageService;
-	private _value: IStorageData;
+	private value: IStorageData;
 
 	constructor(storageService: IStorageService) {
 		this.storageService = storageService;
-		this._value = this._read();
+		this.value = this._read();
 	}
 
 	private _read(): IStorageData {
@@ -42,19 +42,19 @@ class IntegrityStorage {
 		}
 	}
 
-	public get(): IStorageData {
-		return this._value;
+	get(): IStorageData {
+		return this.value;
 	}
 
-	public set(data: IStorageData): void {
-		this._value = data;
-		this.storageService.store(IntegrityStorage.KEY, JSON.stringify(this._value), StorageScope.GLOBAL);
+	set(data: IStorageData): void {
+		this.value = data;
+		this.storageService.store(IntegrityStorage.KEY, JSON.stringify(this.value), StorageScope.GLOBAL);
 	}
 }
 
 export class IntegrityServiceImpl implements IIntegrityService {
 
-	public _serviceBrand: any;
+	_serviceBrand: any;
 
 	private _storage: IntegrityStorage;
 	private _isPurePromise: Thenable<IntegrityTestResult>;
@@ -101,7 +101,7 @@ export class IntegrityServiceImpl implements IIntegrityService {
 		);
 	}
 
-	public isPure(): Thenable<IntegrityTestResult> {
+	isPure(): Thenable<IntegrityTestResult> {
 		return this._isPurePromise;
 	}
 

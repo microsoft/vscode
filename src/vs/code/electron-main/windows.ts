@@ -322,7 +322,7 @@ export class WindowsManager implements IWindowsMainService {
 
 	// See note on #onBeforeShutdown() for details how these events are flowing
 	private onBeforeWindowClose(win: ICodeWindow): void {
-		if (this.lifecycleService.isQuitRequested) {
+		if (this.lifecycleService.quitRequested) {
 			return; // during quit, many windows close in parallel so let it be handled in the before-quit handler
 		}
 

@@ -205,7 +205,7 @@ export class SuggestMemories {
 
 	constructor(
 		editor: ICodeEditor,
-		@IStorageService private readonly storageService: IStorageService,
+		@IStorageService private readonly _storageService: IStorageService,
 	) {
 		this._persistSoon = new RunOnceScheduler(() => this._flush(), 3000);
 		this._setMode(editor.getConfiguration().contribInfo.suggestSelection);
@@ -224,7 +224,7 @@ export class SuggestMemories {
 		this._strategy = mode === 'recentlyUsedByPrefix' ? new PrefixMemory() : mode === 'recentlyUsed' ? new LRUMemory() : new NoMemory();
 
 		try {
-			const raw = this.storageService.get(`${this._storagePrefix}/${this._mode}`, StorageScope.WORKSPACE);
+			const raw = this._storageService.get(`${this._storagePrefix}/${this._mode}`, StorageScope.WORKSPACE);
 			if (raw) {
 				this._strategy.fromJSON(JSON.parse(raw));
 			}
@@ -244,6 +244,6 @@ export class SuggestMemories {
 
 	private _flush() {
 		const raw = JSON.stringify(this._strategy);
-		this.storageService.store(`${this._storagePrefix}/${this._mode}`, raw, StorageScope.WORKSPACE);
+		this._storageService.store(`${this._storagePrefix}/${this._mode}`, raw, StorageScope.WORKSPACE);
 	}
 }

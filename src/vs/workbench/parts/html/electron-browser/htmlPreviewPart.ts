@@ -54,12 +54,12 @@ export class HtmlPreviewPart extends BaseWebviewEditor {
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IOpenerService private readonly _openerService: IOpenerService,
 		@IPartService private readonly _partService: IPartService,
-		@IStorageService readonly storageService: IStorageService,
+		@IStorageService readonly _storageService: IStorageService,
 		@ITextModelService private readonly _textModelResolverService: ITextModelService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IEditorGroupsService readonly editorGroupService: IEditorGroupsService
 	) {
-		super(HtmlPreviewPart.ID, telemetryService, themeService, contextKeyService, storageService);
+		super(HtmlPreviewPart.ID, telemetryService, themeService, contextKeyService, _storageService);
 
 		this.editorMemento = this.getEditorMemento<HtmlPreviewEditorViewState>(editorGroupService, this.viewStateStorageKey);
 	}
@@ -243,10 +243,10 @@ export class HtmlPreviewPart extends BaseWebviewEditor {
 	}
 
 	private saveHTMLPreviewViewState(input: HtmlInput, editorViewState: HtmlPreviewEditorViewState): void {
-		this.editorMemento.saveState(this.group, input, editorViewState);
+		this.editorMemento.saveEditorState(this.group, input, editorViewState);
 	}
 
 	private loadHTMLPreviewViewState(input: HtmlInput): HtmlPreviewEditorViewState {
-		return this.editorMemento.loadState(this.group, input);
+		return this.editorMemento.loadEditorState(this.group, input);
 	}
 }

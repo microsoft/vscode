@@ -32,7 +32,7 @@ class PartsSplash {
 	constructor(
 		@IThemeService private readonly _themeService: IThemeService,
 		@IPartService private readonly _partService: IPartService,
-		@IStorageService private readonly storageService: IStorageService,
+		@IStorageService private readonly _storageService: IStorageService,
 		@IEnvironmentService private readonly _envService: IEnvironmentService,
 		@ILifecycleService lifecycleService: ILifecycleService,
 		@IBroadcastService private broadcastService: IBroadcastService
@@ -67,7 +67,7 @@ class PartsSplash {
 			sideBarWidth: getTotalWidth(this._partService.getContainer(Parts.SIDEBAR_PART)),
 			statusBarHeight: getTotalHeight(this._partService.getContainer(Parts.STATUSBAR_PART)),
 		};
-		this.storageService.store('parts-splash-data', JSON.stringify({
+		this._storageService.store('parts-splash-data', JSON.stringify({
 			id: PartsSplash._splashElementId,
 			colorInfo,
 			layoutInfo,

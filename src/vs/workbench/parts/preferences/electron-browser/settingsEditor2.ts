@@ -222,7 +222,7 @@ export class SettingsEditor2 extends BaseEditor {
 	}
 
 	private restoreCachedState(): void {
-		const cachedState = this.editorMemento.loadState(this.group, this.input);
+		const cachedState = this.editorMemento.loadEditorState(this.group, this.input);
 		if (cachedState && typeof cachedState.target === 'object') {
 			cachedState.target = URI.revive(cachedState.target);
 		}
@@ -257,7 +257,7 @@ export class SettingsEditor2 extends BaseEditor {
 
 	clearInput(): void {
 		this.inSettingsEditorContextKey.set(false);
-		this.editorMemento.clearState(this.input, this.group);
+		this.editorMemento.clearEditorState(this.input, this.group);
 		super.clearInput();
 	}
 
@@ -920,7 +920,7 @@ export class SettingsEditor2 extends BaseEditor {
 			this.settingsTreeModel.update(resolvedSettingsRoot);
 
 			// Make sure that all extensions' settings are included in search results
-			const cachedState = this.editorMemento.loadState(this.group, this.input);
+			const cachedState = this.editorMemento.loadEditorState(this.group, this.input);
 			if (cachedState && cachedState.searchQuery) {
 				this.triggerSearch(cachedState.searchQuery);
 			} else {
@@ -1295,7 +1295,7 @@ export class SettingsEditor2 extends BaseEditor {
 		if (this.isVisible()) {
 			const searchQuery = this.searchWidget.getValue().trim();
 			const target = this.settingsTargetsWidget.settingsTarget as SettingsTarget;
-			this.editorMemento.saveState(this.group, this.input, { searchQuery, target });
+			this.editorMemento.saveEditorState(this.group, this.input, { searchQuery, target });
 		}
 
 		super.saveState();

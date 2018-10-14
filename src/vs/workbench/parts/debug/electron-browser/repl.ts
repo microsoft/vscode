@@ -125,17 +125,6 @@ export class Repl extends Panel implements IPrivateReplService, IHistoryNavigati
 		}));
 	}
 
-	protected saveState(): void {
-		const replHistory = this.history.getHistory();
-		if (replHistory.length) {
-			this.storageService.store(HISTORY_STORAGE_KEY, JSON.stringify(replHistory), StorageScope.WORKSPACE);
-		} else {
-			this.storageService.remove(HISTORY_STORAGE_KEY, StorageScope.WORKSPACE);
-		}
-
-		super.saveState();
-	}
-
 	setVisible(visible: boolean): Promise<void> {
 		if (!visible) {
 			dispose(this.model);
@@ -411,6 +400,17 @@ export class Repl extends Panel implements IPrivateReplService, IHistoryNavigati
 		}
 
 		this.replInput.setDecorations(DECORATION_KEY, decorations);
+	}
+
+	protected saveState(): void {
+		const replHistory = this.history.getHistory();
+		if (replHistory.length) {
+			this.storageService.store(HISTORY_STORAGE_KEY, JSON.stringify(replHistory), StorageScope.WORKSPACE);
+		} else {
+			this.storageService.remove(HISTORY_STORAGE_KEY, StorageScope.WORKSPACE);
+		}
+
+		super.saveState();
 	}
 
 	dispose(): void {

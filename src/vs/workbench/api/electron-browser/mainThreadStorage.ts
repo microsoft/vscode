@@ -11,20 +11,20 @@ import { extHostNamedCustomer } from 'vs/workbench/api/electron-browser/extHostC
 @extHostNamedCustomer(MainContext.MainThreadStorage)
 export class MainThreadStorage implements MainThreadStorageShape {
 
-	private storageService: IStorageService;
+	private _storageService: IStorageService;
 
 	constructor(
 		extHostContext: IExtHostContext,
 		@IStorageService storageService: IStorageService
 	) {
-		this.storageService = storageService;
+		this._storageService = storageService;
 	}
 
 	dispose(): void {
 	}
 
 	$getValue<T>(shared: boolean, key: string): Thenable<T> {
-		let jsonValue = this.storageService.get(key, shared ? StorageScope.GLOBAL : StorageScope.WORKSPACE);
+		let jsonValue = this._storageService.get(key, shared ? StorageScope.GLOBAL : StorageScope.WORKSPACE);
 		if (!jsonValue) {
 			return TPromise.as(undefined);
 		}
@@ -41,7 +41,7 @@ export class MainThreadStorage implements MainThreadStorageShape {
 		let jsonValue: any;
 		try {
 			jsonValue = JSON.stringify(value);
-			this.storageService.store(key, jsonValue, shared ? StorageScope.GLOBAL : StorageScope.WORKSPACE);
+			this._storageService.store(key, jsonValue, shared ? StorageScope.GLOBAL : StorageScope.WORKSPACE);
 		} catch (err) {
 			return TPromise.wrapError(err);
 		}

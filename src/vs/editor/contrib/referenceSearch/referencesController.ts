@@ -52,7 +52,7 @@ export abstract class ReferencesController implements editorCommon.IEditorContri
 		@ICodeEditorService private readonly _editorService: ICodeEditorService,
 		@INotificationService private readonly _notificationService: INotificationService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
-		@IStorageService private readonly storageService: IStorageService,
+		@IStorageService private readonly _storageService: IStorageService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 	) {
 		this._editor = editor;
@@ -95,14 +95,14 @@ export abstract class ReferencesController implements editorCommon.IEditorContri
 			}
 		}));
 		const storageKey = 'peekViewLayout';
-		const data = <LayoutData>JSON.parse(this.storageService.get(storageKey, StorageScope.GLOBAL, '{}'));
+		const data = <LayoutData>JSON.parse(this._storageService.get(storageKey, StorageScope.GLOBAL, '{}'));
 		this._widget = this._instantiationService.createInstance(ReferenceWidget, this._editor, this._defaultTreeKeyboardSupport, data);
 		this._widget.setTitle(nls.localize('labelLoading', "Loading..."));
 		this._widget.show(range);
 		this._disposables.push(this._widget.onDidClose(() => {
 			modelPromise.cancel();
 
-			this.storageService.store(storageKey, JSON.stringify(this._widget.layoutData), StorageScope.GLOBAL);
+			this._storageService.store(storageKey, JSON.stringify(this._widget.layoutData), StorageScope.GLOBAL);
 			this._widget = null;
 			this.closeWidget();
 		}));

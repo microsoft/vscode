@@ -434,7 +434,7 @@ export class PersistentContributableViewsModel extends ContributableViewsModel {
 		this._register(this.storageService.onWillClose(() => this.saveViewsStates()));
 	}
 
-	saveViewsStates(): void {
+	private saveViewsStates(): void {
 		const storedViewsStates: { [id: string]: { collapsed: boolean, size: number, order: number } } = {};
 		for (const viewDescriptor of this.viewDescriptors) {
 			const viewState = this.viewStates.get(viewDescriptor.id);

@@ -34,7 +34,7 @@ export class TerminalConfigHelper implements ITerminalConfigHelper {
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IWorkspaceConfigurationService private readonly _workspaceConfigurationService: IWorkspaceConfigurationService,
 		@INotificationService private readonly _notificationService: INotificationService,
-		@IStorageService private readonly storageService: IStorageService
+		@IStorageService private readonly _storageService: IStorageService
 	) {
 		this._updateConfig();
 		this._configurationService.onDidChangeConfiguration(e => {
@@ -160,7 +160,7 @@ export class TerminalConfigHelper implements ITerminalConfigHelper {
 	}
 
 	public setWorkspaceShellAllowed(isAllowed: boolean): void {
-		this.storageService.store(IS_WORKSPACE_SHELL_ALLOWED_STORAGE_KEY, isAllowed, StorageScope.WORKSPACE);
+		this._storageService.store(IS_WORKSPACE_SHELL_ALLOWED_STORAGE_KEY, isAllowed, StorageScope.WORKSPACE);
 	}
 
 	public mergeDefaultShellPathAndArgs(shell: IShellLaunchConfig, platformOverride: platform.Platform = platform.platform): void {
@@ -172,7 +172,7 @@ export class TerminalConfigHelper implements ITerminalConfigHelper {
 		// Check if workspace setting exists and whether it's whitelisted
 		let isWorkspaceShellAllowed = false;
 		if (shellConfigValue.workspace !== undefined || shellArgsConfigValue.workspace !== undefined) {
-			isWorkspaceShellAllowed = this.storageService.getBoolean(IS_WORKSPACE_SHELL_ALLOWED_STORAGE_KEY, StorageScope.WORKSPACE, undefined);
+			isWorkspaceShellAllowed = this._storageService.getBoolean(IS_WORKSPACE_SHELL_ALLOWED_STORAGE_KEY, StorageScope.WORKSPACE, undefined);
 		}
 
 		// Always allow [] args as it would lead to an odd error message and should not be dangerous
@@ -205,11 +205,11 @@ export class TerminalConfigHelper implements ITerminalConfigHelper {
 			this._notificationService.prompt(Severity.Info, nls.localize('terminal.integrated.allowWorkspaceShell', "Do you allow {0} (defined as a workspace setting) to be launched in the terminal?", changeString),
 				[{
 					label: nls.localize('allow', "Allow"),
-					run: () => this.storageService.store(IS_WORKSPACE_SHELL_ALLOWED_STORAGE_KEY, true, StorageScope.WORKSPACE)
+					run: () => this._storageService.store(IS_WORKSPACE_SHELL_ALLOWED_STORAGE_KEY, true, StorageScope.WORKSPACE)
 				},
 				{
 					label: nls.localize('disallow', "Disallow"),
-					run: () => this.storageService.store(IS_WORKSPACE_SHELL_ALLOWED_STORAGE_KEY, false, StorageScope.WORKSPACE)
+					run: () => this._storageService.store(IS_WORKSPACE_SHELL_ALLOWED_STORAGE_KEY, false, StorageScope.WORKSPACE)
 				}]
 			);
 		}

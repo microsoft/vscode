@@ -154,14 +154,14 @@ export class TerminalService extends AbstractTerminalService implements ITermina
 		}
 
 		// Don't suggest if the user has explicitly opted out
-		const neverSuggest = this.storageService.getBoolean(NEVER_SUGGEST_SELECT_WINDOWS_SHELL_STORAGE_KEY, StorageScope.GLOBAL, false);
+		const neverSuggest = this._storageService.getBoolean(NEVER_SUGGEST_SELECT_WINDOWS_SHELL_STORAGE_KEY, StorageScope.GLOBAL, false);
 		if (neverSuggest) {
 			return;
 		}
 
 		// Never suggest if the setting is non-default already (ie. they set the setting manually)
 		if (this._configHelper.config.shell.windows !== getDefaultShell(platform.Platform.Windows)) {
-			this.storageService.store(NEVER_SUGGEST_SELECT_WINDOWS_SHELL_STORAGE_KEY, true, StorageScope.GLOBAL);
+			this._storageService.store(NEVER_SUGGEST_SELECT_WINDOWS_SHELL_STORAGE_KEY, true, StorageScope.GLOBAL);
 			return;
 		}
 
@@ -190,7 +190,7 @@ export class TerminalService extends AbstractTerminalService implements ITermina
 			{
 				label: nls.localize('never again', "Don't Show Again"),
 				isSecondary: true,
-				run: () => this.storageService.store(NEVER_SUGGEST_SELECT_WINDOWS_SHELL_STORAGE_KEY, true, StorageScope.GLOBAL)
+				run: () => this._storageService.store(NEVER_SUGGEST_SELECT_WINDOWS_SHELL_STORAGE_KEY, true, StorageScope.GLOBAL)
 			}]
 		);
 	}

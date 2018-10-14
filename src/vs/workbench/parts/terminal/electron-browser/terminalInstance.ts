@@ -129,7 +129,7 @@ export class TerminalInstance implements ITerminalInstance {
 		@IThemeService private readonly _themeService: IThemeService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@ILogService private _logService: ILogService,
-		@IStorageService private readonly storageService: IStorageService
+		@IStorageService private readonly _storageService: IStorageService
 	) {
 		this._disposables = [];
 		this._skipTerminalCommands = [];
@@ -471,7 +471,7 @@ export class TerminalInstance implements ITerminalInstance {
 				this._attachPressAnyKeyToCloseListener();
 			}
 
-			const neverMeasureRenderTime = this.storageService.getBoolean(NEVER_MEASURE_RENDER_TIME_STORAGE_KEY, StorageScope.GLOBAL, false);
+			const neverMeasureRenderTime = this._storageService.getBoolean(NEVER_MEASURE_RENDER_TIME_STORAGE_KEY, StorageScope.GLOBAL, false);
 			if (!neverMeasureRenderTime && this._configHelper.config.rendererType === 'auto') {
 				this._measureRenderTime();
 			}
@@ -505,7 +505,7 @@ export class TerminalInstance implements ITerminalInstance {
 					{
 						label: nls.localize('dontShowAgain', "Don't Show Again"),
 						isSecondary: true,
-						run: () => this.storageService.store(NEVER_MEASURE_RENDER_TIME_STORAGE_KEY, true, StorageScope.GLOBAL)
+						run: () => this._storageService.store(NEVER_MEASURE_RENDER_TIME_STORAGE_KEY, true, StorageScope.GLOBAL)
 					} as IPromptChoice
 				];
 				this._notificationService.prompt(
