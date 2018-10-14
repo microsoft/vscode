@@ -383,6 +383,8 @@ suite('SQLite Storage Library', () => {
 		storedItems = await storage.getItems();
 		equal(storedItems.size, items1.size + items2.size + items3.size);
 
+		await storage.close();
+
 		await del(storageDir, tmpdir());
 	});
 });
