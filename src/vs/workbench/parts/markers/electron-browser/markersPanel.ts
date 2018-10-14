@@ -36,7 +36,7 @@ import { mixin, deepClone } from 'vs/base/common/objects';
 import { IWorkspaceFolder, IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { isAbsolute, join } from 'vs/base/common/paths';
 import { ITreeContextMenuEvent } from 'vs/base/browser/ui/tree/abstractTree';
-import { FilterData, FileResourceMarkersRenderer, Filter, VirtualDelegate, ResourceMarkersRenderer, MarkerRenderer, RelatedInformationRenderer, TreeElement } from 'vs/workbench/parts/markers/electron-browser/markersTreeViewer';
+import { FilterData, FileResourceMarkersRenderer, Filter, VirtualDelegate, ResourceMarkersRenderer, MarkerRenderer, RelatedInformationRenderer, TreeElement, MarkersTreeAccessibilityProvider } from 'vs/workbench/parts/markers/electron-browser/markersTreeViewer';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { Separator, ActionItem } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IMenuService, MenuId } from 'vs/platform/actions/common/actions';
@@ -291,13 +291,15 @@ export class MarkersPanel extends Panel implements IMarkerFilterController {
 			this.instantiationService.createInstance(RelatedInformationRenderer)
 		];
 		this.filter = new Filter();
+		const accessibilityProvider = this.instantiationService.createInstance(MarkersTreeAccessibilityProvider);
 
 		this.tree = this.instantiationService.createInstance(WorkbenchObjectTree,
 			this.treeContainer,
 			virtualDelegate,
 			renderers,
 			{
-				filter: this.filter
+				filter: this.filter,
+				accessibilityProvider
 			}
 		) as any as WorkbenchObjectTree<TreeElement, FilterData>;
 

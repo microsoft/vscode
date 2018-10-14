@@ -6,7 +6,6 @@
 import * as dom from 'vs/base/browser/dom';
 import * as network from 'vs/base/common/network';
 import * as paths from 'vs/base/common/paths';
-import { ITree, IAccessibilityProvider } from 'vs/base/parts/tree/browser/tree';
 import { CountBadge } from 'vs/base/browser/ui/countBadge/countBadge';
 import { FileLabel, ResourceLabel } from 'vs/workbench/browser/labels';
 import { HighlightedLabel } from 'vs/base/browser/ui/highlightedlabel/highlightedLabel';
@@ -26,6 +25,7 @@ import { ITreeFilter, TreeVisibility, TreeFilterResult, ITreeRenderer, ITreeNode
 import { FilterOptions } from 'vs/workbench/parts/markers/electron-browser/markersFilterOptions';
 import { IMatch } from 'vs/base/common/filters';
 import { Event } from 'vs/base/common/event';
+import { IAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
 
 export type TreeElement = ResourceMarkers | Marker | RelatedInformation;
 
@@ -50,18 +50,14 @@ interface IRelatedInformationTemplateData {
 	description: HighlightedLabel;
 }
 
-export class MarkersTreeAccessibilityProvider implements IAccessibilityProvider {
+export class MarkersTreeAccessibilityProvider implements IAccessibilityProvider<TreeElement> {
 
-	constructor(
-		@ILabelService private labelServie: ILabelService
-	) {
-	}
+	constructor(@ILabelService private labelService: ILabelService) { }
 
-	// TODO@joao
-	public getAriaLabel(tree: ITree, element: any): string {
+	public getAriaLabel(element: TreeElement): string {
 		if (element instanceof ResourceMarkers) {
-			const path = this.labelServie.getUriLabel(element.resource, { relative: true }) || element.resource.fsPath;
-			return Messages.MARKERS_TREE_ARIA_LABEL_RESOURCE(element.markers.length/* element.filteredCount */, element.name, paths.dirname(path));
+			const path = this.labelService.getUriLabel(element.resource, { relative: true }) || element.resource.fsPath;
+			return Messages.MARKERS_TREE_ARIA_LABEL_RESOURCE(element.markers.length, element.name, paths.dirname(path));
 		}
 		if (element instanceof Marker) {
 			return Messages.MARKERS_TREE_ARIA_LABEL_MARKER(element);

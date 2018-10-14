@@ -597,6 +597,21 @@ export interface IStyleController {
 	style(styles: IListStyles): void;
 }
 
+export interface IAccessibilityProvider<T> {
+
+	/**
+	 * Given an element in the tree, return the ARIA label that should be associated with the
+	 * item. This helps screen readers to provide a meaningful label for the currently focused
+	 * tree element.
+	 *
+	 * Returning null will not disable ARIA for the element. Instead it is up to the screen reader
+	 * to compute a meaningful label based on the contents of the element in the DOM
+	 *
+	 * See also: https://www.w3.org/TR/wai-aria/states_and_properties#aria-label
+	 */
+	getAriaLabel(element: T): string | null;
+}
+
 export class DefaultStyleController implements IStyleController {
 
 	constructor(private styleElement: HTMLStyleElement, private selectorSuffix?: string) { }
@@ -688,6 +703,7 @@ export interface IListOptions<T> extends IListViewOptions, IListStyles {
 	multipleSelectionController?: IMultipleSelectionController<T>;
 	openController?: IOpenController;
 	styleController?: IStyleController;
+	accessibilityProvider?: IAccessibilityProvider<T>;
 }
 
 export interface IListStyles {
@@ -847,6 +863,37 @@ class PipelineRenderer<T> implements IListRenderer<T, any> {
 	}
 }
 
+class AccessibiltyRenderer<T> implements IListRenderer<T, HTMLElement> {
+
+	templateId: string = 'a18n';
+
+	constructor(private accessibilityProvider: IAccessibilityProvider<T>) {
+
+	}
+
+	renderTemplate(container: HTMLElement): HTMLElement {
+		return container;
+	}
+
+	renderElement(element: T, index: number, container: HTMLElement): void {
+		const ariaLabel = this.accessibilityProvider.getAriaLabel(element);
+
+		if (ariaLabel) {
+			container.setAttribute('aria-label', ariaLabel);
+		} else {
+			container.removeAttribute('aria-label');
+		}
+	}
+
+	disposeElement(element: T, index: number, container: HTMLElement): void {
+		// noop
+	}
+
+	disposeTemplate(templateData: any): void {
+		// noop
+	}
+}
+
 export class List<T> implements ISpliceable<T>, IDisposable {
 
 	private static InstanceCount = 0;
@@ -912,7 +959,13 @@ export class List<T> implements ISpliceable<T>, IDisposable {
 
 		mixin(options, defaultStyles, false);
 
-		renderers = renderers.map(r => new PipelineRenderer(r.templateId, [this.focus.renderer, this.selection.renderer, r]));
+		const baseRenderers: IListRenderer<T, ITraitTemplateData>[] = [this.focus.renderer, this.selection.renderer];
+
+		if (options.accessibilityProvider) {
+			baseRenderers.push(new AccessibiltyRenderer<T>(options.accessibilityProvider));
+		}
+
+		renderers = renderers.map(r => new PipelineRenderer(r.templateId, [...baseRenderers, r]));
 
 		this.view = new ListView(container, virtualDelegate, renderers, options);
 		this.view.domNode.setAttribute('role', 'tree');

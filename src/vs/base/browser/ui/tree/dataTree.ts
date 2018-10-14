@@ -112,11 +112,11 @@ export class DataTree<T extends NonNullable<any>, TFilterData = void> implements
 		private dataSource: IDataSource<T>,
 		options?: ITreeOptions<T, TFilterData>
 	) {
-		const treeDelegate = new ComposedTreeDelegate<T, IDataTreeNode<T>>(delegate);
-		const treeRenderers = renderers.map(r => new DataTreeRenderer(r, this._onDidChangeNodeState.event));
-		const treeOptions = createComposedTreeListOptions<T, IDataTreeNode<T>>(options);
+		const objectTreeDelegate = new ComposedTreeDelegate<T, IDataTreeNode<T>>(delegate);
+		const objectTreeRenderers = renderers.map(r => new DataTreeRenderer(r, this._onDidChangeNodeState.event));
+		const objectTreeOptions = createComposedTreeListOptions<T, IDataTreeNode<T>>(options);
 
-		this.tree = new ObjectTree(container, treeDelegate, treeRenderers, treeOptions);
+		this.tree = new ObjectTree(container, objectTreeDelegate, objectTreeRenderers, objectTreeOptions);
 		this.root = {
 			element: null,
 			parent: null,

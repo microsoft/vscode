@@ -5,7 +5,7 @@
 
 import 'vs/css!./media/tree';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
-import { IListOptions, List, IIdentityProvider, IMultipleSelectionController, IListStyles } from 'vs/base/browser/ui/list/listWidget';
+import { IListOptions, List, IIdentityProvider, IMultipleSelectionController, IListStyles, IAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
 import { IListVirtualDelegate, IListRenderer, IListMouseEvent, IListEvent, IListContextMenuEvent } from 'vs/base/browser/ui/list/list';
 import { append, $, toggleClass } from 'vs/base/browser/dom';
 import { Event, Relay, chain } from 'vs/base/common/event';
@@ -15,17 +15,18 @@ import { ITreeModel, ITreeNode, ITreeRenderer } from 'vs/base/browser/ui/tree/tr
 import { ISpliceable } from 'vs/base/common/sequence';
 import { IIndexTreeModelOptions } from 'vs/base/browser/ui/tree/indexTreeModel';
 
-export function createComposedTreeListOptions<T, N extends { element: T }>(options?: IListOptions<T>): IListOptions<N> {
+export function createComposedTreeListOptions<T, R extends { element: T }>(options?: IListOptions<T>): IListOptions<R> {
 	if (!options) {
 		return undefined;
 	}
 
-	let identityProvider: IIdentityProvider<N> | undefined = undefined;
-	let multipleSelectionController: IMultipleSelectionController<N> | undefined = undefined;
+	let identityProvider: IIdentityProvider<R> | undefined = undefined;
 
 	if (options.identityProvider) {
 		identityProvider = el => options.identityProvider(el.element);
 	}
+
+	let multipleSelectionController: IMultipleSelectionController<R> | undefined = undefined;
 
 	if (options.multipleSelectionController) {
 		multipleSelectionController = {
@@ -38,10 +39,21 @@ export function createComposedTreeListOptions<T, N extends { element: T }>(optio
 		};
 	}
 
+	let accessibilityProvider: IAccessibilityProvider<R> | undefined = undefined;
+
+	if (options.accessibilityProvider) {
+		accessibilityProvider = {
+			getAriaLabel(e) {
+				return options.accessibilityProvider.getAriaLabel(e.element);
+			}
+		};
+	}
+
 	return {
 		...options,
 		identityProvider,
-		multipleSelectionController
+		multipleSelectionController,
+		accessibilityProvider
 	};
 }
 
@@ -189,7 +201,7 @@ export abstract class AbstractTree<T, TFilterData, TRef> implements IDisposable 
 		const treeRenderers = renderers.map(r => new TreeRenderer<T, TFilterData, any>(r, onDidChangeCollapseStateRelay.event));
 		this.disposables.push(...treeRenderers);
 
-		this.view = new List(container, treeDelegate, treeRenderers, createComposedTreeListOptions<T, ITreeNode<T, TFilterData>>(options));
+		this.view = new List(container, treeDelegate, treeRenderers, createComposedTreeListOptions(options));
 		this.onDidChangeFocus = this.view.onFocusChange;
 		this.onDidChangeSelection = this.view.onSelectionChange;
 		this.onContextMenu = this.view.onContextMenu;
