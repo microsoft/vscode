@@ -6,7 +6,8 @@
 'use strict';
 
 import * as es from 'event-stream';
-import * as util from 'gulp-util';
+import * as colors from 'ansi-colors';
+import * as Log from 'fancy-log';
 import * as File from 'vinyl';
 import * as appInsights from 'applicationinsights';
 
@@ -22,14 +23,14 @@ class Entry {
 			}
 		} else {
 			if (this.totalCount === 1) {
-				return `Stats for '${util.colors.grey(this.name)}': ${Math.round(this.totalSize / 1204)}KB`;
+				return `Stats for '${colors.grey(this.name)}': ${Math.round(this.totalSize / 1204)}KB`;
 
 			} else {
 				const count = this.totalCount < 100
-					? util.colors.green(this.totalCount.toString())
-					: util.colors.red(this.totalCount.toString());
+					? colors.green(this.totalCount.toString())
+					: colors.red(this.totalCount.toString());
 
-				return `Stats for '${util.colors.grey(this.name)}': ${count} files, ${Math.round(this.totalSize / 1204)}KB`;
+				return `Stats for '${colors.grey(this.name)}': ${count} files, ${Math.round(this.totalSize / 1204)}KB`;
 			}
 		}
 	}
@@ -58,14 +59,14 @@ export function createStatsStream(group: string, log?: boolean): es.ThroughStrea
 	}, function () {
 		if (log) {
 			if (entry.totalCount === 1) {
-				util.log(`Stats for '${util.colors.grey(entry.name)}': ${Math.round(entry.totalSize / 1204)}KB`);
+				Log(`Stats for '${colors.grey(entry.name)}': ${Math.round(entry.totalSize / 1204)}KB`);
 
 			} else {
 				const count = entry.totalCount < 100
-					? util.colors.green(entry.totalCount.toString())
-					: util.colors.red(entry.totalCount.toString());
+					? colors.green(entry.totalCount.toString())
+					: colors.red(entry.totalCount.toString());
 
-				util.log(`Stats for '${util.colors.grey(entry.name)}': ${count} files, ${Math.round(entry.totalSize / 1204)}KB`);
+				Log(`Stats for '${colors.grey(entry.name)}': ${count} files, ${Math.round(entry.totalSize / 1204)}KB`);
 			}
 		}
 

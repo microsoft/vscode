@@ -6,12 +6,13 @@
 import * as fs from 'fs';
 import * as ts from 'typescript';
 import * as path from 'path';
-import * as util from 'gulp-util';
+import * as colors from 'ansi-colors';
+import * as Log from 'fancy-log';
 
 const tsfmt = require('../../tsfmt.json');
 
 function log(message: any, ...rest: any[]): void {
-	util.log(util.colors.cyan('[monaco.d.ts]'), message, ...rest);
+	Log(colors.cyan('[monaco.d.ts]'), message, ...rest);
 }
 
 const SRC = path.join(__dirname, '../../src');
@@ -21,8 +22,8 @@ const DECLARATION_PATH = path.join(__dirname, '../../src/vs/monaco.d.ts');
 
 var CURRENT_PROCESSING_RULE = '';
 function logErr(message: any, ...rest: any[]): void {
-	util.log(util.colors.red('[monaco.d.ts]'), 'WHILE HANDLING RULE: ', CURRENT_PROCESSING_RULE);
-	util.log(util.colors.red('[monaco.d.ts]'), message, ...rest);
+	Log(colors.red('[monaco.d.ts]'), 'WHILE HANDLING RULE: ', CURRENT_PROCESSING_RULE);
+	Log(colors.red('[monaco.d.ts]'), message, ...rest);
 }
 
 function moduleIdToPath(out: string, moduleId: string): string {

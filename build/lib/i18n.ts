@@ -14,13 +14,14 @@ import * as glob from 'glob';
 import * as https from 'https';
 import * as gulp from 'gulp';
 
-import * as util from 'gulp-util';
+import * as colors from 'ansi-colors';
+import * as Log from 'fancy-log';
 import * as iconv from 'iconv-lite';
 
 const NUMBER_OF_CONCURRENT_DOWNLOADS = 4;
 
 function log(message: any, ...rest: any[]): void {
-	util.log(util.colors.green('[i18n]'), message, ...rest);
+	Log(colors.green('[i18n]'), message, ...rest);
 }
 
 export interface Language {

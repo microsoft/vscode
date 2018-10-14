@@ -6,7 +6,8 @@
 Object.defineProperty(exports, "__esModule", { value: true });
 const es = require("event-stream");
 const _ = require("underscore");
-const util = require("gulp-util");
+const colors = require("ansi-colors");
+const Log = require("fancy-log");
 const fs = require("fs");
 const path = require("path");
 const allErrors = [];
@@ -17,7 +18,7 @@ function onStart() {
         return;
     }
     startTime = new Date().getTime();
-    util.log(`Starting ${util.colors.green('compilation')}...`);
+    Log(`Starting ${colors.green('compilation')}...`);
 }
 function onEnd() {
     if (--count > 0) {
@@ -38,7 +39,7 @@ function log() {
     errors.map(err => {
         if (!seen.has(err)) {
             seen.add(err);
-            util.log(`${util.colors.red('Error')}: ${err}`);
+            Log(`${colors.red('Error')}: ${err}`);
         }
     });
     const regex = /^([^(]+)\((\d+),(\d+)\): (.*)$/;
@@ -53,7 +54,7 @@ function log() {
     catch (err) {
         //noop
     }
-    util.log(`Finished ${util.colors.green('compilation')} with ${errors.length} errors after ${util.colors.magenta((new Date().getTime() - startTime) + ' ms')}`);
+    Log(`Finished ${colors.green('compilation')} with ${errors.length} errors after ${colors.magenta((new Date().getTime() - startTime) + ' ms')}`);
 }
 function createReporter() {
     const errors = [];

@@ -7,10 +7,11 @@ Object.defineProperty(exports, "__esModule", { value: true });
 const fs = require("fs");
 const ts = require("typescript");
 const path = require("path");
-const util = require("gulp-util");
+const colors = require("ansi-colors");
+const Log = require("fancy-log");
 const tsfmt = require('../../tsfmt.json');
 function log(message, ...rest) {
-    util.log(util.colors.cyan('[monaco.d.ts]'), message, ...rest);
+    Log(colors.cyan('[monaco.d.ts]'), message, ...rest);
 }
 const SRC = path.join(__dirname, '../../src');
 const OUT_ROOT = path.join(__dirname, '../../');
@@ -18,8 +19,8 @@ const RECIPE_PATH = path.join(__dirname, './monaco.d.ts.recipe');
 const DECLARATION_PATH = path.join(__dirname, '../../src/vs/monaco.d.ts');
 var CURRENT_PROCESSING_RULE = '';
 function logErr(message, ...rest) {
-    util.log(util.colors.red('[monaco.d.ts]'), 'WHILE HANDLING RULE: ', CURRENT_PROCESSING_RULE);
-    util.log(util.colors.red('[monaco.d.ts]'), message, ...rest);
+    Log(colors.red('[monaco.d.ts]'), 'WHILE HANDLING RULE: ', CURRENT_PROCESSING_RULE);
+    Log(colors.red('[monaco.d.ts]'), message, ...rest);
 }
 function moduleIdToPath(out, moduleId) {
     if (/\.d\.ts/.test(moduleId)) {

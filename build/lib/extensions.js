@@ -12,12 +12,13 @@ const path = require("path");
 const File = require("vinyl");
 const vsce = require("vsce");
 const stats_1 = require("./stats");
-const util2 = require("./util");
+const util = require("./util");
 const remote = require("gulp-remote-src");
 const vzip = require('gulp-vinyl-zip');
 const filter = require("gulp-filter");
 const rename = require("gulp-rename");
-const util = require('gulp-util');
+const colors = require("ansi-colors");
+const Log = require("fancy-log");
 const buffer = require('gulp-buffer');
 const json = require("gulp-json-editor");
 const webpack = require('webpack');
@@ -75,7 +76,7 @@ function fromLocalWebpack(extensionPath, sourceMappingURLBase) {
             .pipe(packageJsonFilter.restore);
         const webpackStreams = webpackConfigLocations.map(webpackConfigPath => {
             const webpackDone = (err, stats) => {
-                util.log(`Bundled extension: ${util.colors.yellow(path.join(path.basename(extensionPath), path.relative(extensionPath, webpackConfigPath)))}...`);
+                Log(`Bundled extension: ${colors.yellow(path.join(path.basename(extensionPath), path.relative(extensionPath, webpackConfigPath)))}...`);
                 if (err) {
                     result.emit('error', err);
                 }
@@ -153,7 +154,7 @@ const baseHeaders = {
 function fromMarketplace(extensionName, version, metadata) {
     const [publisher, name] = extensionName.split('.');
     const url = `https://marketplace.visualstudio.com/_apis/public/gallery/publishers/${publisher}/vsextensions/${name}/${version}/vspackage`;
-    util.log('Downloading extension:', util.colors.yellow(`${extensionName}@${version}`), '...');
+    Log('Downloading extension:', colors.yellow(`${extensionName}@${version}`), '...');
     const options = {
         base: url,
         requestOptions: {
@@ -224,7 +225,7 @@ function packageExtensionsStream(optsIn) {
             .pipe(rename(p => p.dirname = `extensions/${extension.name}/${p.dirname}`));
     }));
     return sequence([localExtensions, localExtensionDependencies, marketplaceExtensions])
-        .pipe(util2.setExecutableBit(['**/*.sh']))
+        .pipe(util.setExecutableBit(['**/*.sh']))
         .pipe(filter(['**', '!**/*.js.map']));
 }
 exports.packageExtensionsStream = packageExtensionsStream;

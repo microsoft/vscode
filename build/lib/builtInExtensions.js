@@ -14,7 +14,8 @@ const es = require('event-stream');
 const rename = require('gulp-rename');
 const vfs = require('vinyl-fs');
 const ext = require('./extensions');
-const util = require('gulp-util');
+const colors = require("ansi-colors");
+const Log = require("fancy-log");
 
 const root = path.dirname(path.dirname(__dirname));
 const builtInExtensions = require('../builtInExtensions.json');
@@ -43,7 +44,7 @@ function isUpToDate(extension) {
 
 function syncMarketplaceExtension(extension) {
 	if (isUpToDate(extension)) {
-		util.log(util.colors.blue('[marketplace]'), `${extension.name}@${extension.version}`, util.colors.green('✔︎'));
+		Log(colors.blue('[marketplace]'), `${extension.name}@${extension.version}`, colors.green('✔︎'));
 		return es.readArray([]);
 	}
 
@@ -52,13 +53,13 @@ function syncMarketplaceExtension(extension) {
 	return ext.fromMarketplace(extension.name, extension.version, extension.metadata)
 		.pipe(rename(p => p.dirname = `${extension.name}/${p.dirname}`))
 		.pipe(vfs.dest('.build/builtInExtensions'))
-		.on('end', () => util.log(util.colors.blue('[marketplace]'), extension.name, util.colors.green('✔︎')));
+		.on('end', () => Log(colors.blue('[marketplace]'), extension.name, colors.green('✔︎')));
 }
 
 function syncExtension(extension, controlState) {
 	switch (controlState) {
 		case 'disabled':
-			util.log(util.colors.blue('[disabled]'), util.colors.gray(extension.name));
+			Log(colors.blue('[disabled]'), colors.gray(extension.name));
 			return es.readArray([]);
 
 		case 'marketplace':
@@ -66,15 +67,15 @@ function syncExtension(extension, controlState) {
 
 		default:
 			if (!fs.existsSync(controlState)) {
-				util.log(util.colors.red(`Error: Built-in extension '${extension.name}' is configured to run from '${controlState}' but that path does not exist.`));
+				Log(colors.red(`Error: Built-in extension '${extension.name}' is configured to run from '${controlState}' but that path does not exist.`));
 				return es.readArray([]);
 
 			} else if (!fs.existsSync(path.join(controlState, 'package.json'))) {
-				util.log(util.colors.red(`Error: Built-in extension '${extension.name}' is configured to run from '${controlState}' but there is no 'package.json' file in that directory.`));
+				Log(colors.red(`Error: Built-in extension '${extension.name}' is configured to run from '${controlState}' but there is no 'package.json' file in that directory.`));
 				return es.readArray([]);
 			}
 
-			util.log(util.colors.blue('[local]'), `${extension.name}: ${util.colors.cyan(controlState)}`, util.colors.green('✔︎'));
+			Log(colors.blue('[local]'), `${extension.name}: ${colors.cyan(controlState)}`, colors.green('✔︎'));
 			return es.readArray([]);
 	}
 }
@@ -93,8 +94,8 @@ function writeControlFile(control) {
 }
 
 function main() {
-	util.log('Syncronizing built-in extensions...');
-	util.log(`You can manage built-in extensions with the ${util.colors.cyan('--builtin')} flag`);
+	Log('Syncronizing built-in extensions...');
+	Log(`You can manage built-in extensions with the ${colors.cyan('--builtin')} flag`);
 
 	const control = readControlFile();
 	const streams = [];

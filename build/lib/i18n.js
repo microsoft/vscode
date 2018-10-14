@@ -13,11 +13,12 @@ const xml2js = require("xml2js");
 const glob = require("glob");
 const https = require("https");
 const gulp = require("gulp");
-const util = require("gulp-util");
+const colors = require("ansi-colors");
+const Log = require("fancy-log");
 const iconv = require("iconv-lite");
 const NUMBER_OF_CONCURRENT_DOWNLOADS = 4;
 function log(message, ...rest) {
-    util.log(util.colors.green('[i18n]'), message, ...rest);
+    Log(colors.green('[i18n]'), message, ...rest);
 }
 exports.defaultLanguages = [
     { id: 'zh-tw', folderName: 'cht', transifexId: 'zh-hant' },

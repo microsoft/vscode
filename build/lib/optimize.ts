@@ -14,7 +14,8 @@ import * as flatmap from 'gulp-flatmap';
 import * as sourcemaps from 'gulp-sourcemaps';
 import * as uglify from 'gulp-uglify';
 import * as composer from 'gulp-uglify/composer';
-import * as gulpUtil from 'gulp-util';
+import * as colors from 'ansi-colors';
+import * as Log from 'fancy-log';
 import * as path from 'path';
 import * as pump from 'pump';
 import * as sm from 'source-map';
@@ -28,7 +29,7 @@ import * as util from './util';
 const REPO_ROOT_PATH = path.join(__dirname, '../..');
 
 function log(prefix: string, message: string): void {
-	gulpUtil.log(gulpUtil.colors.cyan('[' + prefix + ']'), message);
+	Log(colors.cyan('[' + prefix + ']'), message);
 }
 
 export function loaderConfig(emptyPaths?: string[]) {
