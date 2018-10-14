@@ -67,7 +67,8 @@ export class TelemetryOptOut implements IWorkbenchContribution {
 				[{
 					label: localize('telemetryOptOut.readMore', "Read More"),
 					run: () => openerService.open(URI.parse(this.optOutUrl))
-				}]
+				}],
+				{ sticky: true }
 			);
 		})
 			.then(null, onUnexpectedError);
@@ -136,7 +137,10 @@ export class TelemetryOptOut implements IWorkbenchContribution {
 						}
 					}
 				],
-				logTelemetry
+				{
+					sticky: true,
+					onCancel: logTelemetry
+				}
 			);
 			this.experimentService.markAsCompleted(experimentId);
 		});

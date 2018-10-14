@@ -5,8 +5,6 @@
     "@types/azure": "0.9.19",
     "@types/debounce": "^1.0.0",
     "@types/documentdb": "1.10.2",
-    "@types/es6-collections": "0.5.31",
-    "@types/es6-promise": "0.0.33",
     "@types/glob": "^7.1.1",
     "@types/gulp": "^4.0.5",
     "@types/gulp-concat": "^0.0.32",

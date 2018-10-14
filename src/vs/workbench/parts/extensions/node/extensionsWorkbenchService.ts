@@ -1033,7 +1033,8 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService, 
 							[{
 								label: nls.localize('install', "Install"),
 								run: () => this.install(extension).then(undefined, error => this.onError(error))
-							}]
+							}],
+							{ sticky: true }
 						);
 					});
 				});

@@ -4,30 +4,30 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 Object.defineProperty(exports, "__esModule", { value: true });
-var es = require("event-stream");
-var gulp = require("gulp");
-var concat = require("gulp-concat");
-var minifyCSS = require("gulp-cssnano");
-var filter = require("gulp-filter");
-var flatmap = require("gulp-flatmap");
-var sourcemaps = require("gulp-sourcemaps");
-var uglify = require("gulp-uglify");
-var composer = require("gulp-uglify/composer");
-var gulpUtil = require("gulp-util");
-var path = require("path");
-var pump = require("pump");
-var uglifyes = require("uglify-es");
-var VinylFile = require("vinyl");
-var bundle = require("./bundle");
-var i18n_1 = require("./i18n");
-var stats_1 = require("./stats");
-var util = require("./util");
-var REPO_ROOT_PATH = path.join(__dirname, '../..');
+const es = require("event-stream");
+const gulp = require("gulp");
+const concat = require("gulp-concat");
+const minifyCSS = require("gulp-cssnano");
+const filter = require("gulp-filter");
+const flatmap = require("gulp-flatmap");
+const sourcemaps = require("gulp-sourcemaps");
+const uglify = require("gulp-uglify");
+const composer = require("gulp-uglify/composer");
+const gulpUtil = require("gulp-util");
+const path = require("path");
+const pump = require("pump");
+const uglifyes = require("uglify-es");
+const VinylFile = require("vinyl");
+const bundle = require("./bundle");
+const i18n_1 = require("./i18n");
+const stats_1 = require("./stats");
+const util = require("./util");
+const REPO_ROOT_PATH = path.join(__dirname, '../..');
 function log(prefix, message) {
     gulpUtil.log(gulpUtil.colors.cyan('[' + prefix + ']'), message);
 }
 function loaderConfig(emptyPaths) {
-    var result = {
+    const result = {
         paths: {
             'vs': 'out-build/vs',
             'vscode': 'empty:'
@@ -38,20 +38,20 @@ function loaderConfig(emptyPaths) {
     return result;
 }
 exports.loaderConfig = loaderConfig;
-var IS_OUR_COPYRIGHT_REGEXP = /Copyright \(C\) Microsoft Corporation/i;
+const IS_OUR_COPYRIGHT_REGEXP = /Copyright \(C\) Microsoft Corporation/i;
 function loader(src, bundledFileHeader, bundleLoader) {
-    var sources = [
-        src + "/vs/loader.js"
+    let sources = [
+        `${src}/vs/loader.js`
     ];
     if (bundleLoader) {
         sources = sources.concat([
-            src + "/vs/css.js",
-            src + "/vs/nls.js"
+            `${src}/vs/css.js`,
+            `${src}/vs/nls.js`
         ]);
     }
-    var isFirst = true;
+    let isFirst = true;
     return (gulp
-        .src(sources, { base: "" + src })
+        .src(sources, { base: `${src}` })
         .pipe(es.through(function (data) {
         if (isFirst) {
             isFirst = false;
@@ -74,12 +74,12 @@ function loader(src, bundledFileHeader, bundleLoader) {
     })));
 }
 function toConcatStream(src, bundledFileHeader, sources, dest) {
-    var useSourcemaps = /\.js$/.test(dest) && !/\.nls\.js$/.test(dest);
+    const useSourcemaps = /\.js$/.test(dest) && !/\.nls\.js$/.test(dest);
     // If a bundle ends up including in any of the sources our copyright, then
     // insert a fake source at the beginning of each bundle with our copyright
-    var containsOurCopyright = false;
-    for (var i = 0, len = sources.length; i < len; i++) {
-        var fileContents = sources[i].contents;
+    let containsOurCopyright = false;
+    for (let i = 0, len = sources.length; i < len; i++) {
+        const fileContents = sources[i].contents;
         if (IS_OUR_COPYRIGHT_REGEXP.test(fileContents)) {
             containsOurCopyright = true;
             break;
@@ -91,9 +91,9 @@ function toConcatStream(src, bundledFileHeader, sources, dest) {
             contents: bundledFileHeader
         });
     }
-    var treatedSources = sources.map(function (source) {
-        var root = source.path ? REPO_ROOT_PATH.replace(/\\/g, '/') : '';
-        var base = source.path ? root + ("/" + src) : '';
+    const treatedSources = sources.map(function (source) {
+        const root = source.path ? REPO_ROOT_PATH.replace(/\\/g, '/') : '';
+        const base = source.path ? root + `/${src}` : '';
         return new VinylFile({
             path: source.path ? root + '/' + source.path.replace(/\\/g, '/') : 'fake',
             base: base,
@@ -111,33 +111,33 @@ function toBundleStream(src, bundledFileHeader, bundles) {
     }));
 }
 function optimizeTask(opts) {
-    var src = opts.src;
-    var entryPoints = opts.entryPoints;
-    var otherSources = opts.otherSources;
-    var resources = opts.resources;
-    var loaderConfig = opts.loaderConfig;
-    var bundledFileHeader = opts.header;
-    var bundleLoader = (typeof opts.bundleLoader === 'undefined' ? true : opts.bundleLoader);
-    var out = opts.out;
+    const src = opts.src;
+    const entryPoints = opts.entryPoints;
+    const otherSources = opts.otherSources;
+    const resources = opts.resources;
+    const loaderConfig = opts.loaderConfig;
+    const bundledFileHeader = opts.header;
+    const bundleLoader = (typeof opts.bundleLoader === 'undefined' ? true : opts.bundleLoader);
+    const out = opts.out;
     return function () {
-        var bundlesStream = es.through(); // this stream will contain the bundled files
-        var resourcesStream = es.through(); // this stream will contain the resources
-        var bundleInfoStream = es.through(); // this stream will contain bundleInfo.json
+        const bundlesStream = es.through(); // this stream will contain the bundled files
+        const resourcesStream = es.through(); // this stream will contain the resources
+        const bundleInfoStream = es.through(); // this stream will contain bundleInfo.json
         bundle.bundle(entryPoints, loaderConfig, function (err, result) {
             if (err || !result) {
                 return bundlesStream.emit('error', JSON.stringify(err));
             }
             toBundleStream(src, bundledFileHeader, result.files).pipe(bundlesStream);
             // Remove css inlined resources
-            var filteredResources = resources.slice();
+            const filteredResources = resources.slice();
             result.cssInlinedResources.forEach(function (resource) {
                 if (process.env['VSCODE_BUILD_VERBOSE']) {
                     log('optimizer', 'excluding inlined: ' + resource);
                 }
                 filteredResources.push('!' + resource);
             });
-            gulp.src(filteredResources, { base: "" + src }).pipe(resourcesStream);
-            var bundleInfoArray = [];
+            gulp.src(filteredResources, { base: `${src}` }).pipe(resourcesStream);
+            const bundleInfoArray = [];
             if (opts.bundleInfo) {
                 bundleInfoArray.push(new VinylFile({
                     path: 'bundleInfo.json',
@@ -147,9 +147,9 @@ function optimizeTask(opts) {
             }
             es.readArray(bundleInfoArray).pipe(bundleInfoStream);
         });
-        var otherSourcesStream = es.through();
-        var otherSourcesStreamArr = [];
-        gulp.src(otherSources, { base: "" + src })
+        const otherSourcesStream = es.through();
+        const otherSourcesStreamArr = [];
+        gulp.src(otherSources, { base: `${src}` })
             .pipe(es.through(function (data) {
             otherSourcesStreamArr.push(toConcatStream(src, bundledFileHeader, [data], data.relative));
         }, function () {
@@ -160,7 +160,7 @@ function optimizeTask(opts) {
                 es.merge(otherSourcesStreamArr).pipe(otherSourcesStream);
             }
         }));
-        var result = es.merge(loader(src, bundledFileHeader, bundleLoader), bundlesStream, otherSourcesStream, resourcesStream, bundleInfoStream);
+        const result = es.merge(loader(src, bundledFileHeader, bundleLoader), bundlesStream, otherSourcesStream, resourcesStream, bundleInfoStream);
         return result
             .pipe(sourcemaps.write('./', {
             sourceRoot: undefined,
@@ -180,14 +180,14 @@ exports.optimizeTask = optimizeTask;
  * to have a file "context" to include our copyright only once per file.
  */
 function uglifyWithCopyrights() {
-    var preserveComments = function (f) {
-        return function (_node, comment) {
-            var text = comment.value;
-            var type = comment.type;
+    const preserveComments = (f) => {
+        return (_node, comment) => {
+            const text = comment.value;
+            const type = comment.type;
             if (/@minifier_do_not_preserve/.test(text)) {
                 return false;
             }
-            var isOurCopyright = IS_OUR_COPYRIGHT_REGEXP.test(text);
+            const isOurCopyright = IS_OUR_COPYRIGHT_REGEXP.test(text);
             if (isOurCopyright) {
                 if (f.__hasOurCopyright) {
                     return false;
@@ -205,10 +205,10 @@ function uglifyWithCopyrights() {
             return false;
         };
     };
-    var minify = composer(uglifyes);
-    var input = es.through();
-    var output = input
-        .pipe(flatmap(function (stream, f) {
+    const minify = composer(uglifyes);
+    const input = es.through();
+    const output = input
+        .pipe(flatmap((stream, f) => {
         return stream.pipe(minify({
             output: {
                 comments: preserveComments(f),
@@ -219,18 +219,18 @@ function uglifyWithCopyrights() {
     return es.duplex(input, output);
 }
 function minifyTask(src, sourceMapBaseUrl) {
-    var sourceMappingURL = sourceMapBaseUrl ? (function (f) { return sourceMapBaseUrl + "/" + f.relative + ".map"; }) : undefined;
-    return function (cb) {
-        var jsFilter = filter('**/*.js', { restore: true });
-        var cssFilter = filter('**/*.css', { restore: true });
+    const sourceMappingURL = sourceMapBaseUrl ? ((f) => `${sourceMapBaseUrl}/${f.relative}.map`) : undefined;
+    return cb => {
+        const jsFilter = filter('**/*.js', { restore: true });
+        const cssFilter = filter('**/*.css', { restore: true });
         pump(gulp.src([src + '/**', '!' + src + '/**/*.map']), jsFilter, sourcemaps.init({ loadMaps: true }), uglifyWithCopyrights(), jsFilter.restore, cssFilter, minifyCSS({ reduceIdents: false }), cssFilter.restore, sourcemaps.write('./', {
-            sourceMappingURL: sourceMappingURL,
+            sourceMappingURL,
             sourceRoot: undefined,
             includeContent: true,
             addComment: true
-        }), gulp.dest(src + '-min'), function (err) {
+        }), gulp.dest(src + '-min'), (err) => {
             if (err instanceof uglify.GulpUglifyError) {
-                console.error("Uglify error in '" + (err.cause && err.cause.filename) + "'");
+                console.error(`Uglify error in '${err.cause && err.cause.filename}'`);
             }
             cb(err);
         });

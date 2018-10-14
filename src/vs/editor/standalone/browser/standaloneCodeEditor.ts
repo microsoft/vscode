@@ -337,8 +337,8 @@ export class StandaloneEditor extends StandaloneCodeEditor implements IStandalon
 
 	_attachModel(model: ITextModel): void {
 		super._attachModel(model);
-		if (this._view) {
-			this._contextViewService.setContainer(this._view.domNode.domNode);
+		if (this._modelData) {
+			this._contextViewService.setContainer(this._modelData.view.domNode.domNode);
 		}
 	}
 

@@ -29,15 +29,17 @@ export class OpenerService implements IOpenerService {
 
 	open(resource: URI, options?: { openToSide?: boolean }): Promise<any> {
 
-		/* __GDPR__
-			"openerService" : {
-				"scheme" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
-			}
-		*/
-		this._telemetryService.publicLog('openerService', { scheme: resource.scheme });
+		if (this._telemetryService) {
+			/* __GDPR__
+				"openerService" : {
+					"scheme" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+				}
+			*/
+			this._telemetryService.publicLog('openerService', { scheme: resource.scheme });
+		}
 
 		const { scheme, path, query, fragment } = resource;
-		let promise: Thenable<any>;
+		let promise: Thenable<any> | undefined = undefined;
 
 		if (scheme === Schemas.http || scheme === Schemas.https || scheme === Schemas.mailto) {
 			// open http or default mail application
@@ -59,7 +61,7 @@ export class OpenerService implements IOpenerService {
 			let selection: {
 				startLineNumber: number;
 				startColumn: number;
-			};
+			} | undefined = undefined;
 			const match = /^L?(\d+)(?:,(\d+))?/.exec(fragment);
 			if (match) {
 				// support file:///some/file.js#73,84

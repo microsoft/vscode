@@ -18,7 +18,7 @@ const hasOwnProperty = Object.prototype.hasOwnProperty;
 
 export interface IResolvedLanguage {
 	identifier: LanguageIdentifier;
-	name: string;
+	name: string | null;
 	mimetypes: string[];
 	aliases: string[];
 	extensions: string[];
@@ -85,7 +85,7 @@ export class LanguagesRegistry {
 	private _registerLanguage(lang: ILanguageExtensionPoint): void {
 		const langId = lang.id;
 
-		let resolvedLanguage: IResolvedLanguage | null = null;
+		let resolvedLanguage: IResolvedLanguage;
 		if (hasOwnProperty.call(this._languages, langId)) {
 			resolvedLanguage = this._languages[langId];
 		} else {
@@ -159,7 +159,7 @@ export class LanguagesRegistry {
 
 		resolvedLanguage.aliases.push(langId);
 
-		let langAliases: string[] | null = null;
+		let langAliases: (string | null)[] | null = null;
 		if (typeof lang.aliases !== 'undefined' && Array.isArray(lang.aliases)) {
 			if (lang.aliases.length === 0) {
 				// signal that this language should not get a name
@@ -171,18 +171,19 @@ export class LanguagesRegistry {
 
 		if (langAliases !== null) {
 			for (let i = 0; i < langAliases.length; i++) {
-				if (!langAliases[i] || langAliases[i].length === 0) {
+				const langAlias = langAliases[i];
+				if (!langAlias || langAlias.length === 0) {
 					continue;
 				}
-				resolvedLanguage.aliases.push(langAliases[i]);
+				resolvedLanguage.aliases.push(langAlias);
 			}
 		}
 
 		let containsAliases = (langAliases !== null && langAliases.length > 0);
-		if (containsAliases && langAliases[0] === null) {
+		if (containsAliases && langAliases![0] === null) {
 			// signal that this language should not get a name
 		} else {
-			let bestName = (containsAliases ? langAliases[0] : null) || langId;
+			let bestName = (containsAliases ? langAliases![0] : null) || langId;
 			if (containsAliases || !resolvedLanguage.name) {
 				resolvedLanguage.name = bestName;
 			}
@@ -210,14 +211,14 @@ export class LanguagesRegistry {
 		return Object.keys(this._nameMap);
 	}
 
-	public getLanguageName(modeId: string): string {
+	public getLanguageName(modeId: string): string | null {
 		if (!hasOwnProperty.call(this._languages, modeId)) {
 			return null;
 		}
 		return this._languages[modeId].name;
 	}
 
-	public getModeIdForLanguageNameLowercase(languageNameLower: string): string {
+	public getModeIdForLanguageNameLowercase(languageNameLower: string): string | null {
 		if (!hasOwnProperty.call(this._lowercaseNameMap, languageNameLower)) {
 			return null;
 		}
@@ -231,7 +232,7 @@ export class LanguagesRegistry {
 		return this._languages[modeId].configurationFiles || [];
 	}
 
-	public getMimeForMode(modeId: string): string {
+	public getMimeForMode(modeId: string): string | null {
 		if (!hasOwnProperty.call(this._languages, modeId)) {
 			return null;
 		}
@@ -260,7 +261,7 @@ export class LanguagesRegistry {
 		);
 	}
 
-	public getLanguageIdentifier(_modeId: string | LanguageId): LanguageIdentifier {
+	public getLanguageIdentifier(_modeId: string | LanguageId): LanguageIdentifier | null {
 		if (_modeId === NULL_MODE_ID || _modeId === LanguageId.Null) {
 			return NULL_LANGUAGE_IDENTIFIER;
 		}

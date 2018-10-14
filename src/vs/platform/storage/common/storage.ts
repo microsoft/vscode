@@ -32,7 +32,7 @@ export interface IStorageService {
 	 *
 	 * The optional scope argument allows to define the scope of the operation.
 	 */
-	get(key: string, scope?: StorageScope, defaultValue?: string): string;
+	get(key: string, scope?: StorageScope, defaultValue?: string): string | undefined;
 
 	/**
 	 * Retrieve an element stored with the given key from local storage. Use
@@ -41,7 +41,7 @@ export interface IStorageService {
 	 *
 	 * The optional scope argument allows to define the scope of the operation.
 	 */
-	getInteger(key: string, scope?: StorageScope, defaultValue?: number): number;
+	getInteger(key: string, scope?: StorageScope, defaultValue?: number): number | undefined;
 
 	/**
 	 * Retrieve an element stored with the given key from local storage. Use
@@ -50,7 +50,7 @@ export interface IStorageService {
 	 *
 	 * The optional scope argument allows to define the scope of the operation.
 	 */
-	getBoolean(key: string, scope?: StorageScope, defaultValue?: boolean): boolean;
+	getBoolean(key: string, scope?: StorageScope, defaultValue?: boolean): boolean | undefined;
 }
 
 export const enum StorageScope {

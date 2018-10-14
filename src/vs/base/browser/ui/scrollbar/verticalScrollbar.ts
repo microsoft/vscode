@@ -54,7 +54,7 @@ export class VerticalScrollbar extends AbstractScrollbar {
 			});
 		}
 
-		this._createSlider(0, Math.floor((options.verticalScrollbarSize - options.verticalSliderSize) / 2), options.verticalSliderSize, null);
+		this._createSlider(0, Math.floor((options.verticalScrollbarSize - options.verticalSliderSize) / 2), options.verticalSliderSize, undefined);
 	}
 
 	protected _updateSlider(sliderSize: number, sliderPosition: number): void {

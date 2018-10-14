@@ -61,7 +61,7 @@ export interface ICommonModel extends ILinkComputerTarget, IMirrorModel {
 	createWordIterator(wordDefinition: RegExp): Iterator<string>;
 	getWordUntilPosition(position: IPosition, wordDefinition: RegExp): IWordAtPosition;
 	getValueInRange(range: IRange): string;
-	getWordAtPosition(position: IPosition, wordDefinition: RegExp): Range;
+	getWordAtPosition(position: IPosition, wordDefinition: RegExp): Range | null;
 	offsetAt(position: IPosition): number;
 	positionAt(offset: number): IPosition;
 }
@@ -114,7 +114,7 @@ class MirrorModel extends BaseMirrorModel implements ICommonModel {
 		return this._lines[lineNumber - 1];
 	}
 
-	public getWordAtPosition(position: IPosition, wordDefinition: RegExp): Range {
+	public getWordAtPosition(position: IPosition, wordDefinition: RegExp): Range | null {
 
 		let wordAtText = getWordAtText(
 			position.column,
@@ -194,7 +194,7 @@ class MirrorModel extends BaseMirrorModel implements ICommonModel {
 
 	private _wordenize(content: string, wordDefinition: RegExp): IWordRange[] {
 		const result: IWordRange[] = [];
-		let match: RegExpExecArray;
+		let match: RegExpExecArray | null;
 
 		wordDefinition.lastIndex = 0; // reset lastIndex just to be sure
 
@@ -232,7 +232,7 @@ class MirrorModel extends BaseMirrorModel implements ICommonModel {
 	public offsetAt(position: IPosition): number {
 		position = this._validatePosition(position);
 		this._ensureLineStarts();
-		return this._lineStarts.getAccumulatedValue(position.lineNumber - 2) + (position.column - 1);
+		return this._lineStarts!.getAccumulatedValue(position.lineNumber - 2) + (position.column - 1);
 	}
 
 	public positionAt(offset: number): IPosition {
@@ -240,7 +240,7 @@ class MirrorModel extends BaseMirrorModel implements ICommonModel {
 		offset = Math.max(0, offset);
 
 		this._ensureLineStarts();
-		let out = this._lineStarts.getIndexOf(offset);
+		let out = this._lineStarts!.getIndexOf(offset);
 		let lineLength = this._lines[out.index].length;
 
 		// Ensure we return a valid position
@@ -321,10 +321,10 @@ declare var require: any;
  * @internal
  */
 export abstract class BaseEditorSimpleWorker {
-	private _foreignModuleFactory: IForeignModuleFactory;
+	private _foreignModuleFactory: IForeignModuleFactory | null;
 	private _foreignModule: any;
 
-	constructor(foreignModuleFactory: IForeignModuleFactory) {
+	constructor(foreignModuleFactory: IForeignModuleFactory | null) {
 		this._foreignModuleFactory = foreignModuleFactory;
 		this._foreignModule = null;
 	}
@@ -334,11 +334,11 @@ export abstract class BaseEditorSimpleWorker {
 
 	// ---- BEGIN diff --------------------------------------------------------------------------
 
-	public computeDiff(originalUrl: string, modifiedUrl: string, ignoreTrimWhitespace: boolean): Promise<editorCommon.ILineChange[]> {
+	public computeDiff(originalUrl: string, modifiedUrl: string, ignoreTrimWhitespace: boolean): Promise<editorCommon.ILineChange[] | null> {
 		let original = this._getModel(originalUrl);
 		let modified = this._getModel(modifiedUrl);
 		if (!original || !modified) {
-			return null;
+			return Promise.resolve(null);
 		}
 
 		let originalLines = original.getLinesContent();
@@ -352,11 +352,11 @@ export abstract class BaseEditorSimpleWorker {
 		return Promise.resolve(diffComputer.computeDiff());
 	}
 
-	public computeDirtyDiff(originalUrl: string, modifiedUrl: string, ignoreTrimWhitespace: boolean): Promise<editorCommon.IChange[]> {
+	public computeDirtyDiff(originalUrl: string, modifiedUrl: string, ignoreTrimWhitespace: boolean): Promise<editorCommon.IChange[] | null> {
 		let original = this._getModel(originalUrl);
 		let modified = this._getModel(modifiedUrl);
 		if (!original || !modified) {
-			return null;
+			return Promise.resolve(null);
 		}
 
 		let originalLines = original.getLinesContent();
@@ -384,9 +384,17 @@ export abstract class BaseEditorSimpleWorker {
 		}
 
 		const result: TextEdit[] = [];
-		let lastEol: EndOfLineSequence;
+		let lastEol: EndOfLineSequence | undefined = undefined;
 
-		edits = mergeSort(edits, (a, b) => Range.compareRangesUsingStarts(a.range, b.range));
+		edits = mergeSort(edits, (a, b) => {
+			if (a.range && b.range) {
+				return Range.compareRangesUsingStarts(a.range, b.range);
+			}
+			// eol only changes should go to the end
+			let aRng = a.range ? 0 : 1;
+			let bRng = b.range ? 0 : 1;
+			return aRng - bRng;
+		});
 
 		for (let { range, text, eol } of edits) {
 
@@ -400,7 +408,7 @@ export abstract class BaseEditorSimpleWorker {
 			}
 
 			const original = model.getValueInRange(range);
-			text = text.replace(/\r\n|\n|\r/g, model.eol);
+			text = text!.replace(/\r\n|\n|\r/g, model.eol);
 
 			if (original === text) {
 				// noop
@@ -440,10 +448,10 @@ export abstract class BaseEditorSimpleWorker {
 
 	// ---- END minimal edits ---------------------------------------------------------------
 
-	public computeLinks(modelUrl: string): Promise<ILink[]> {
+	public computeLinks(modelUrl: string): Promise<ILink[] | null> {
 		let model = this._getModel(modelUrl);
 		if (!model) {
-			return null;
+			return Promise.resolve(null);
 		}
 
 		return Promise.resolve(computeLinks(model));
@@ -453,42 +461,43 @@ export abstract class BaseEditorSimpleWorker {
 
 	private static readonly _suggestionsLimit = 10000;
 
-	public textualSuggest(modelUrl: string, position: IPosition, wordDef: string, wordDefFlags: string): Promise<CompletionList> {
+	public textualSuggest(modelUrl: string, position: IPosition, wordDef: string, wordDefFlags: string): Promise<CompletionList | null> {
 		const model = this._getModel(modelUrl);
-		if (model) {
-			const suggestions: CompletionItem[] = [];
-			const wordDefRegExp = new RegExp(wordDef, wordDefFlags);
-			const currentWord = model.getWordUntilPosition(position, wordDefRegExp);
+		if (!model) {
+			return Promise.resolve(null);
+		}
 
-			const seen: Record<string, boolean> = Object.create(null);
-			seen[currentWord.word] = true;
+		const suggestions: CompletionItem[] = [];
+		const wordDefRegExp = new RegExp(wordDef, wordDefFlags);
+		const currentWord = model.getWordUntilPosition(position, wordDefRegExp);
 
-			for (
-				let iter = model.createWordIterator(wordDefRegExp), e = iter.next();
-				!e.done && suggestions.length <= BaseEditorSimpleWorker._suggestionsLimit;
-				e = iter.next()
-			) {
-				const word = e.value;
-				if (seen[word]) {
-					continue;
-				}
-				seen[word] = true;
-				if (!isNaN(Number(word))) {
-					continue;
-				}
+		const seen: Record<string, boolean> = Object.create(null);
+		seen[currentWord.word] = true;
 
-				suggestions.push({
-					kind: CompletionItemKind.Text,
-					label: word,
-					insertText: word,
-					noAutoAccept: true,
-					range: { startLineNumber: position.lineNumber, startColumn: currentWord.startColumn, endLineNumber: position.lineNumber, endColumn: currentWord.endColumn }
-				});
+		for (
+			let iter = model.createWordIterator(wordDefRegExp), e = iter.next();
+			!e.done && suggestions.length <= BaseEditorSimpleWorker._suggestionsLimit;
+			e = iter.next()
+		) {
+			const word = e.value;
+			if (seen[word]) {
+				continue;
+			}
+			seen[word] = true;
+			if (!isNaN(Number(word))) {
+				continue;
 			}
 
-			return Promise.resolve({ suggestions });
+			suggestions.push({
+				kind: CompletionItemKind.Text,
+				label: word,
+				insertText: word,
+				noAutoAccept: true,
+				range: { startLineNumber: position.lineNumber, startColumn: currentWord.startColumn, endLineNumber: position.lineNumber, endColumn: currentWord.endColumn }
+			});
 		}
-		return undefined;
+
+		return Promise.resolve({ suggestions });
 	}
 
 
@@ -527,10 +536,10 @@ export abstract class BaseEditorSimpleWorker {
 
 	//#endregion
 
-	public navigateValueSet(modelUrl: string, range: IRange, up: boolean, wordDef: string, wordDefFlags: string): Promise<IInplaceReplaceSupportResult> {
+	public navigateValueSet(modelUrl: string, range: IRange, up: boolean, wordDef: string, wordDefFlags: string): Promise<IInplaceReplaceSupportResult | null> {
 		let model = this._getModel(modelUrl);
 		if (!model) {
-			return null;
+			return Promise.resolve(null);
 		}
 
 		let wordDefRegExp = new RegExp(wordDef, wordDefFlags);
@@ -547,11 +556,10 @@ export abstract class BaseEditorSimpleWorker {
 		let selectionText = model.getValueInRange(range);
 
 		let wordRange = model.getWordAtPosition({ lineNumber: range.startLineNumber, column: range.startColumn }, wordDefRegExp);
-		let word: string | null = null;
-		if (wordRange !== null) {
-			word = model.getValueInRange(wordRange);
+		if (!wordRange) {
+			return Promise.resolve(null);
 		}
-
+		let word = model.getValueInRange(wordRange);
 		let result = BasicInplaceReplace.INSTANCE.navigateValueSet(range, selectionText, wordRange, word, up);
 		return Promise.resolve(result);
 	}
@@ -623,7 +631,7 @@ export class EditorSimpleWorkerImpl extends BaseEditorSimpleWorker implements IR
 
 	private _models: { [uri: string]: MirrorModel; };
 
-	constructor(foreignModuleFactory: IForeignModuleFactory) {
+	constructor(foreignModuleFactory: IForeignModuleFactory | null) {
 		super(foreignModuleFactory);
 		this._models = Object.create(null);
 	}

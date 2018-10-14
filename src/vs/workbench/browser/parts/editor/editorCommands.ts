@@ -83,7 +83,7 @@ function registerActiveEditorMoveCommand(): void {
 		id: MOVE_ACTIVE_EDITOR_COMMAND_ID,
 		weight: KeybindingWeight.WorkbenchContrib,
 		when: EditorContextKeys.editorTextFocus,
-		primary: null,
+		primary: 0,
 		handler: (accessor, args: any) => moveActiveEditor(args, accessor),
 		description: {
 			description: nls.localize('editorCommand.activeEditorMove.description', "Move the active editor by tabs or groups"),
@@ -687,7 +687,7 @@ export function getMultiSelectedEditorContexts(editorContext: IEditorCommandsCon
 
 	// First check for a focused list to return the selected items from
 	const list = listService.lastFocusedList;
-	if (list instanceof List && list.isDOMFocused()) {
+	if (list instanceof List && list.getHTMLElement() === document.activeElement) {
 		const elementToContext = (element: IEditorIdentifier | IEditorGroup) => {
 			if (isEditorGroup(element)) {
 				return { groupId: element.id, editorIndex: void 0 };

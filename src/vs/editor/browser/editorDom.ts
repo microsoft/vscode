@@ -135,7 +135,7 @@ export class GlobalEditorMouseMoveMonitor extends Disposable {
 
 	private _editorViewDomNode: HTMLElement;
 	private _globalMouseMoveMonitor: GlobalMouseMoveMonitor<EditorMouseEvent>;
-	private _keydownListener: IDisposable;
+	private _keydownListener: IDisposable | null;
 
 	constructor(editorViewDomNode: HTMLElement) {
 		super();
@@ -162,7 +162,7 @@ export class GlobalEditorMouseMoveMonitor extends Disposable {
 		};
 
 		this._globalMouseMoveMonitor.startMonitoring(myMerger, mouseMoveCallback, () => {
-			this._keydownListener.dispose();
+			this._keydownListener!.dispose();
 			onStopCallback();
 		});
 	}

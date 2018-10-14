@@ -171,7 +171,7 @@ export class DiffEditorWidget extends Disposable implements editorBrowser.IDiffE
 	private _currentlyChangingViewZones: boolean;
 	private _beginUpdateDecorationsTimeout: number;
 	private _diffComputationToken: number;
-	private _lineChanges: editorCommon.ILineChange[];
+	private _lineChanges: editorCommon.ILineChange[] | null;
 
 	private _isVisible: boolean;
 	private _isHandlingScrollEvent: boolean;
@@ -523,7 +523,7 @@ export class DiffEditorWidget extends Disposable implements editorBrowser.IDiffE
 		return editorCommon.EditorType.IDiffEditor;
 	}
 
-	public getLineChanges(): editorCommon.ILineChange[] {
+	public getLineChanges(): editorCommon.ILineChange[] | null {
 		return this._lineChanges;
 	}
 
@@ -642,7 +642,7 @@ export class DiffEditorWidget extends Disposable implements editorBrowser.IDiffE
 		return this.modifiedEditor.getVisibleColumnFromPosition(position);
 	}
 
-	public getPosition(): Position {
+	public getPosition(): Position | null {
 		return this.modifiedEditor.getPosition();
 	}
 
@@ -674,11 +674,11 @@ export class DiffEditorWidget extends Disposable implements editorBrowser.IDiffE
 		this.modifiedEditor.revealPositionInCenterIfOutsideViewport(position, scrollType);
 	}
 
-	public getSelection(): Selection {
+	public getSelection(): Selection | null {
 		return this.modifiedEditor.getSelection();
 	}
 
-	public getSelections(): Selection[] {
+	public getSelections(): Selection[] | null {
 		return this.modifiedEditor.getSelections();
 	}
 
@@ -850,7 +850,7 @@ export class DiffEditorWidget extends Disposable implements editorBrowser.IDiffE
 	private _lastOriginalWarning: URI | null = null;
 	private _lastModifiedWarning: URI | null = null;
 
-	private static _equals(a: URI, b: URI): boolean {
+	private static _equals(a: URI | null, b: URI | null): boolean {
 		if (!a && !b) {
 			return true;
 		}
@@ -1009,7 +1009,7 @@ export class DiffEditorWidget extends Disposable implements editorBrowser.IDiffE
 		}
 	}
 
-	private _computeOverviewViewport(): { height: number; top: number; } {
+	private _computeOverviewViewport(): { height: number; top: number; } | null {
 		let layoutInfo = this.modifiedEditor.getLayoutInfo();
 		if (!layoutInfo) {
 			return null;
@@ -1075,7 +1075,7 @@ export class DiffEditorWidget extends Disposable implements editorBrowser.IDiffE
 		this._measureDomElement(true);
 	}
 
-	private _getLineChangeAtOrBeforeLineNumber(lineNumber: number, startLineNumberExtractor: (lineChange: editorCommon.ILineChange) => number): editorCommon.ILineChange {
+	private _getLineChangeAtOrBeforeLineNumber(lineNumber: number, startLineNumberExtractor: (lineChange: editorCommon.ILineChange) => number): editorCommon.ILineChange | null {
 		if (this._lineChanges.length === 0 || lineNumber < startLineNumberExtractor(this._lineChanges[0])) {
 			// There are no changes or `lineNumber` is before the first change
 			return null;
@@ -1144,7 +1144,7 @@ export class DiffEditorWidget extends Disposable implements editorBrowser.IDiffE
 		return originalEquivalentLineNumber + lineChangeOriginalLength - lineChangeModifiedLength + delta;
 	}
 
-	public getDiffLineInformationForOriginal(lineNumber: number): editorBrowser.IDiffLineInformation {
+	public getDiffLineInformationForOriginal(lineNumber: number): editorBrowser.IDiffLineInformation | null {
 		if (!this._lineChanges) {
 			// Cannot answer that which I don't know
 			return null;
@@ -1154,7 +1154,7 @@ export class DiffEditorWidget extends Disposable implements editorBrowser.IDiffE
 		};
 	}
 
-	public getDiffLineInformationForModified(lineNumber: number): editorBrowser.IDiffLineInformation {
+	public getDiffLineInformationForModified(lineNumber: number): editorBrowser.IDiffLineInformation | null {
 		if (!this._lineChanges) {
 			// Cannot answer that which I don't know
 			return null;
@@ -1239,7 +1239,7 @@ class ForeignViewZonesIterator {
 
 	private _index: number;
 	private _source: IEditorWhitespace[];
-	public current: IEditorWhitespace;
+	public current: IEditorWhitespace | null;
 
 	constructor(source: IEditorWhitespace[]) {
 		this._source = source;
@@ -1449,11 +1449,11 @@ abstract class ViewZonesComputer {
 		return result;
 	}
 
-	protected abstract _createOriginalMarginDomNodeForModifiedForeignViewZoneInAddedRegion(): HTMLDivElement;
+	protected abstract _createOriginalMarginDomNodeForModifiedForeignViewZoneInAddedRegion(): HTMLDivElement | null;
 
-	protected abstract _produceOriginalFromDiff(lineChange: editorCommon.ILineChange, lineChangeOriginalLength: number, lineChangeModifiedLength: number): IMyViewZone;
+	protected abstract _produceOriginalFromDiff(lineChange: editorCommon.ILineChange, lineChangeOriginalLength: number, lineChangeModifiedLength: number): IMyViewZone | null;
 
-	protected abstract _produceModifiedFromDiff(lineChange: editorCommon.ILineChange, lineChangeOriginalLength: number, lineChangeModifiedLength: number): IMyViewZone;
+	protected abstract _produceModifiedFromDiff(lineChange: editorCommon.ILineChange, lineChangeOriginalLength: number, lineChangeModifiedLength: number): IMyViewZone | null;
 }
 
 function createDecoration(startLineNumber: number, startColumn: number, endLineNumber: number, endColumn: number, options: ModelDecorationOptions) {
@@ -1744,11 +1744,11 @@ class SideBySideViewZonesComputer extends ViewZonesComputer {
 		super(lineChanges, originalForeignVZ, modifiedForeignVZ);
 	}
 
-	protected _createOriginalMarginDomNodeForModifiedForeignViewZoneInAddedRegion(): HTMLDivElement {
+	protected _createOriginalMarginDomNodeForModifiedForeignViewZoneInAddedRegion(): HTMLDivElement | null {
 		return null;
 	}
 
-	protected _produceOriginalFromDiff(lineChange: editorCommon.ILineChange, lineChangeOriginalLength: number, lineChangeModifiedLength: number): IMyViewZone {
+	protected _produceOriginalFromDiff(lineChange: editorCommon.ILineChange, lineChangeOriginalLength: number, lineChangeModifiedLength: number): IMyViewZone | null {
 		if (lineChangeModifiedLength > lineChangeOriginalLength) {
 			return {
 				afterLineNumber: Math.max(lineChange.originalStartLineNumber, lineChange.originalEndLineNumber),
@@ -1759,7 +1759,7 @@ class SideBySideViewZonesComputer extends ViewZonesComputer {
 		return null;
 	}
 
-	protected _produceModifiedFromDiff(lineChange: editorCommon.ILineChange, lineChangeOriginalLength: number, lineChangeModifiedLength: number): IMyViewZone {
+	protected _produceModifiedFromDiff(lineChange: editorCommon.ILineChange, lineChangeOriginalLength: number, lineChangeModifiedLength: number): IMyViewZone | null {
 		if (lineChangeOriginalLength > lineChangeModifiedLength) {
 			return {
 				afterLineNumber: Math.max(lineChange.modifiedStartLineNumber, lineChange.modifiedEndLineNumber),
@@ -1908,13 +1908,13 @@ class InlineViewZonesComputer extends ViewZonesComputer {
 		this.renderIndicators = renderIndicators;
 	}
 
-	protected _createOriginalMarginDomNodeForModifiedForeignViewZoneInAddedRegion(): HTMLDivElement {
+	protected _createOriginalMarginDomNodeForModifiedForeignViewZoneInAddedRegion(): HTMLDivElement | null {
 		let result = document.createElement('div');
 		result.className = 'inline-added-margin-view-zone';
 		return result;
 	}
 
-	protected _produceOriginalFromDiff(lineChange: editorCommon.ILineChange, lineChangeOriginalLength: number, lineChangeModifiedLength: number): IMyViewZone {
+	protected _produceOriginalFromDiff(lineChange: editorCommon.ILineChange, lineChangeOriginalLength: number, lineChangeModifiedLength: number): IMyViewZone | null {
 		let marginDomNode = document.createElement('div');
 		marginDomNode.className = 'inline-added-margin-view-zone';
 
@@ -1926,7 +1926,7 @@ class InlineViewZonesComputer extends ViewZonesComputer {
 		};
 	}
 
-	protected _produceModifiedFromDiff(lineChange: editorCommon.ILineChange, lineChangeOriginalLength: number, lineChangeModifiedLength: number): IMyViewZone {
+	protected _produceModifiedFromDiff(lineChange: editorCommon.ILineChange, lineChangeOriginalLength: number, lineChangeModifiedLength: number): IMyViewZone | null {
 		let decorations: InlineDecoration[] = [];
 		if (lineChange.charChanges) {
 			for (let j = 0, lengthJ = lineChange.charChanges.length; j < lengthJ; j++) {

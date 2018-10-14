@@ -143,14 +143,14 @@ export class ViewOutgoingEvents extends Disposable {
 
 class ExternalMouseTarget implements IMouseTarget {
 
-	public readonly element: Element;
+	public readonly element: Element | null;
 	public readonly type: MouseTargetType;
 	public readonly mouseColumn: number;
-	public readonly position: Position;
-	public readonly range: Range;
+	public readonly position: Position | null;
+	public readonly range: Range | null;
 	public readonly detail: any;
 
-	constructor(element: Element, type: MouseTargetType, mouseColumn: number, position: Position, range: Range, detail: any) {
+	constructor(element: Element | null, type: MouseTargetType, mouseColumn: number, position: Position | null, range: Range | null, detail: any) {
 		this.element = element;
 		this.type = type;
 		this.mouseColumn = mouseColumn;

@@ -34,11 +34,11 @@ export class MinimapTokensColorTracker {
 	private _updateColorMap(): void {
 		const colorMap = TokenizationRegistry.getColorMap();
 		if (!colorMap) {
-			this._colors = [null];
+			this._colors = [RGBA8.Empty];
 			this._backgroundIsLight = true;
 			return;
 		}
-		this._colors = [null];
+		this._colors = [RGBA8.Empty];
 		for (let colorId = 1; colorId < colorMap.length; colorId++) {
 			const source = colorMap[colorId].rgba;
 			// Use a VM friendly data-type

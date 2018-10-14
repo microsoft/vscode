@@ -93,7 +93,8 @@ export class LocalizationWorkbenchContribution extends Disposable implements IWo
 						label: localize('neverAgain', "Don't Show Again"),
 						isSecondary: true,
 						run: () => this.storageService.store(donotAskUpdateKey, true)
-					}]
+					}],
+					{ sticky: true }
 				);
 			}
 		}
@@ -200,8 +201,10 @@ export class LocalizationWorkbenchContribution extends Disposable implements IWo
 										logUserReaction('neverShowAgain');
 									}
 								}],
-								() => {
-									logUserReaction('cancelled');
+								{
+									onCancel: () => {
+										logUserReaction('cancelled');
+									}
 								}
 							);
 

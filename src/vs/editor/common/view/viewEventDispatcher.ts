@@ -10,7 +10,7 @@ export class ViewEventDispatcher {
 
 	private _eventHandlerGateKeeper: (callback: () => void) => void;
 	private _eventHandlers: ViewEventHandler[];
-	private _eventQueue: ViewEvent[];
+	private _eventQueue: ViewEvent[] | null;
 	private _isConsumingQueue: boolean;
 
 	constructor(eventHandlerGateKeeper: (callback: () => void) => void) {
