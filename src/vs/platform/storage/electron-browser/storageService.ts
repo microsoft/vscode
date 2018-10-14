@@ -189,9 +189,11 @@ export class DelegatingStorageService extends Disposable implements IStorageServ
 	}
 
 	close(reason: ShutdownReason): Promise<void> {
+		const promise = this.storageService.close(reason);
+
 		this.closed = true;
 
-		return this.storageService.close(reason);
+		return promise;
 	}
 
 	private convertScope(scope: StorageScope): StorageLegacyScope {

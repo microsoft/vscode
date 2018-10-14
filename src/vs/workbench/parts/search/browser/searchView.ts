@@ -64,7 +64,6 @@ const $ = dom.$;
 export class SearchView extends Viewlet implements IViewlet, IPanel {
 
 	private static readonly MAX_TEXT_RESULTS = 10000;
-	private static readonly SHOW_REPLACE_STORAGE_KEY = 'vs.search.show.replace';
 
 	private static readonly WIDE_CLASS_NAME = 'wide';
 	private static readonly WIDE_VIEW_SIZE = 600;
@@ -120,7 +119,7 @@ export class SearchView extends Viewlet implements IViewlet, IPanel {
 		@IProgressService private progressService: IProgressService,
 		@INotificationService private notificationService: INotificationService,
 		@IDialogService private dialogService: IDialogService,
-		@IStorageService private storageService: IStorageService,
+		@IStorageService storageService: IStorageService,
 		@IContextViewService private contextViewService: IContextViewService,
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@IConfigurationService configurationService: IConfigurationService,
@@ -310,6 +309,7 @@ export class SearchView extends Viewlet implements IViewlet, IPanel {
 		const history = this.searchHistoryService.load();
 		let searchHistory = history.search || this.viewletState['query.searchHistory'] || [];
 		let replaceHistory = history.replace || this.viewletState['query.replaceHistory'] || [];
+		let showReplace = typeof this.viewletState['view.showReplace'] === 'boolean' ? this.viewletState['view.showReplace'] : true;
 
 		this.searchWidget = this._register(this.instantiationService.createInstance(SearchWidget, container, <ISearchWidgetOptions>{
 			value: contentPattern,
@@ -320,7 +320,7 @@ export class SearchView extends Viewlet implements IViewlet, IPanel {
 			replaceHistory: replaceHistory
 		}));
 
-		if (this.storageService.getBoolean(SearchView.SHOW_REPLACE_STORAGE_KEY, StorageScope.WORKSPACE, true)) {
+		if (showReplace) {
 			this.searchWidget.toggleReplace(true);
 		}
 
@@ -367,13 +367,6 @@ export class SearchView extends Viewlet implements IViewlet, IPanel {
 
 	private onReplaceToggled(): void {
 		this.layout(this.size);
-
-		const isReplaceShown = this.searchAndReplaceWidget.isReplaceShown();
-		if (!isReplaceShown) {
-			this.storageService.store(SearchView.SHOW_REPLACE_STORAGE_KEY, false, StorageScope.WORKSPACE);
-		} else {
-			this.storageService.remove(SearchView.SHOW_REPLACE_STORAGE_KEY, StorageScope.WORKSPACE);
-		}
 	}
 
 	private onSearchResultsChanged(event?: IChangeEvent): TPromise<any> {
@@ -1521,6 +1514,9 @@ export class SearchView extends Viewlet implements IViewlet, IPanel {
 		this.viewletState['query.folderExclusions'] = patternExcludes;
 		this.viewletState['query.folderIncludes'] = patternIncludes;
 		this.viewletState['query.useExcludesAndIgnoreFiles'] = useExcludesAndIgnoreFiles;
+
+		const isReplaceShown = this.searchAndReplaceWidget.isReplaceShown();
+		this.viewletState['view.showReplace'] = isReplaceShown;
 
 		const searchHistory = this.searchWidget.getSearchHistory();
 		const replaceHistory = this.searchWidget.getReplaceHistory();

@@ -11,7 +11,7 @@ import { IPosition } from 'vs/editor/common/core/position';
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { CompletionItemKind, completionKindFromLegacyString } from 'vs/editor/common/modes';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { IDisposable } from 'vs/base/common/lifecycle';
+import { Disposable } from 'vs/base/common/lifecycle';
 
 export abstract class Memory {
 
@@ -194,26 +194,24 @@ export class PrefixMemory extends Memory {
 
 export type MemMode = 'first' | 'recentlyUsed' | 'recentlyUsedByPrefix';
 
-export class SuggestMemories {
+export class SuggestMemories extends Disposable {
 
 	private readonly _storagePrefix = 'suggest/memories';
 
 	private _mode: MemMode;
 	private _strategy: Memory;
 	private readonly _persistSoon: RunOnceScheduler;
-	private readonly _listener: IDisposable;
 
 	constructor(
 		editor: ICodeEditor,
 		@IStorageService private readonly _storageService: IStorageService,
 	) {
-		this._persistSoon = new RunOnceScheduler(() => this._flush(), 3000);
-		this._setMode(editor.getConfiguration().contribInfo.suggestSelection);
-		this._listener = editor.onDidChangeConfiguration(e => e.contribInfo && this._setMode(editor.getConfiguration().contribInfo.suggestSelection));
-	}
+		super();
 
-	dispose(): void {
-		this._listener.dispose();
+		this._persistSoon = this._register(new RunOnceScheduler(() => this._flush(), 3000));
+		this._setMode(editor.getConfiguration().contribInfo.suggestSelection);
+		this._register(editor.onDidChangeConfiguration(e => e.contribInfo && this._setMode(editor.getConfiguration().contribInfo.suggestSelection)));
+		this._register(_storageService.onWillClose(() => this._flush()));
 	}
 
 	private _setMode(mode: MemMode): void {
