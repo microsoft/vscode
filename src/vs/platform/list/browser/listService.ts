@@ -606,12 +606,12 @@ export class ObjectTreeResourceNavigator<T, TFilterData> extends Disposable {
 	}
 
 	private onSelection(e: ITreeEvent<T, TFilterData>): void {
-		if (!e.browserEvent) {
+		if (!e.browserEvent || !(e.browserEvent instanceof MouseEvent)) {
 			return;
 		}
 
-		const isDoubleClick = e.browserEvent instanceof MouseEvent && e.browserEvent.detail === 2;
-		const sideBySide = e.browserEvent instanceof KeyboardEvent && (e.browserEvent.ctrlKey || e.browserEvent.metaKey || e.browserEvent.altKey);
+		const isDoubleClick = e.browserEvent.detail === 2;
+		const sideBySide = e.browserEvent.ctrlKey || e.browserEvent.metaKey || e.browserEvent.altKey;
 		this.open(!isDoubleClick, isDoubleClick, sideBySide);
 	}
 
