@@ -45,7 +45,7 @@ export class Storage extends Disposable {
 
 	private pendingScheduler: RunOnceScheduler;
 	private pendingDeletes: Set<string> = new Set<string>();
-	private pendingUpdates: Map<string, string> = new Map();
+	private pendingInserts: Map<string, string> = new Map();
 	private pendingPromises: { resolve: Function, reject: Function }[] = [];
 
 	constructor(options: IStorageOptions) {
@@ -119,7 +119,7 @@ export class Storage extends Disposable {
 
 		// Update in cache and pending
 		this.cache.set(key, valueStr);
-		this.pendingUpdates.set(key, valueStr);
+		this.pendingInserts.set(key, valueStr);
 		this.pendingDeletes.delete(key);
 
 		// Event
@@ -143,7 +143,7 @@ export class Storage extends Disposable {
 			this.pendingDeletes.add(key);
 		}
 
-		this.pendingUpdates.delete(key);
+		this.pendingInserts.delete(key);
 
 		// Event
 		this._onDidChangeStorage.fire(key);
@@ -183,14 +183,14 @@ export class Storage extends Disposable {
 		// Get pending data
 		const pendingPromises = this.pendingPromises;
 		const pendingDeletes = this.pendingDeletes;
-		const pendingUpdates = this.pendingUpdates;
+		const pendingInserts = this.pendingInserts;
 
 		// Reset pending data for next run
 		this.pendingPromises = [];
 		this.pendingDeletes = new Set<string>();
-		this.pendingUpdates = new Map<string, string>();
+		this.pendingInserts = new Map<string, string>();
 
-		return this.storage.deleteItems(pendingDeletes).then(() => this.storage.setItems(pendingUpdates)).then(() => {
+		return this.storage.updateItems({ insert: pendingInserts, delete: pendingDeletes }).then(() => {
 
 			// Resolve pending
 			pendingPromises.forEach(promise => promise.resolve());
@@ -200,6 +200,11 @@ export class Storage extends Disposable {
 			pendingPromises.forEach(promise => promise.reject(error));
 		});
 	}
+}
+
+export interface IUpdateRequest {
+	insert?: Map<string, string>;
+	delete?: Set<string>;
 }
 
 export class SQLiteStorageImpl {
@@ -221,34 +226,36 @@ export class SQLiteStorageImpl {
 		});
 	}
 
-	setItems(keyValueMap: Map<string, string>): Promise<void> {
-		if (keyValueMap.size === 0) {
+	updateItems(request: IUpdateRequest): Promise<void> {
+		let updateCount = 0;
+		if (request.insert) {
+			updateCount += request.insert.size;
+		}
+		if (request.delete) {
+			updateCount += request.delete.size;
+		}
+
+		if (updateCount === 0) {
 			return Promise.resolve();
 		}
 
 		return this.db.then(db => {
 			return this.transaction(db, () => {
-				this.prepare(db, 'INSERT INTO ItemTable VALUES (?,?)', stmt => {
-					keyValueMap.forEach((value, key) => {
-						stmt.run([key, value]);
+				if (request.insert && request.insert.size > 0) {
+					this.prepare(db, 'INSERT INTO ItemTable VALUES (?,?)', stmt => {
+						request.insert.forEach((value, key) => {
+							stmt.run([key, value]);
+						});
 					});
-				});
-			});
-		});
-	}
+				}
 
-	deleteItems(keys: Set<string>): Promise<void> {
-		if (keys.size === 0) {
-			return Promise.resolve();
-		}
-
-		return this.db.then(db => {
-			return this.transaction(db, () => {
-				this.prepare(db, 'DELETE FROM ItemTable WHERE key=?', stmt => {
-					keys.forEach(key => {
-						stmt.run(key);
+				if (request.delete && request.delete.size) {
+					this.prepare(db, 'DELETE FROM ItemTable WHERE key=?', stmt => {
+						request.delete.forEach(key => {
+							stmt.run(key);
+						});
 					});
-				});
+				}
 			});
 		});
 	}

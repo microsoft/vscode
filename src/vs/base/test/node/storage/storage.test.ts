@@ -222,7 +222,7 @@ suite('SQLite Storage Library', () => {
 		let storedItems = await storage.getItems();
 		equal(storedItems.size, 0);
 
-		await storage.setItems(items);
+		await storage.updateItems({ insert: items });
 
 		storedItems = await storage.getItems();
 		equal(storedItems.size, items.size);
@@ -230,14 +230,14 @@ suite('SQLite Storage Library', () => {
 		equal(storedItems.get('some/foo/path'), 'some/bar/path');
 		equal(storedItems.get(JSON.stringify({ foo: 'bar' })), JSON.stringify({ bar: 'foo' }));
 
-		await storage.deleteItems(toSet(['foo']));
+		await storage.updateItems({ delete: toSet(['foo']) });
 		storedItems = await storage.getItems();
 		equal(storedItems.size, items.size - 1);
 		ok(!storedItems.has('foo'));
 		equal(storedItems.get('some/foo/path'), 'some/bar/path');
 		equal(storedItems.get(JSON.stringify({ foo: 'bar' })), JSON.stringify({ bar: 'foo' }));
 
-		await storage.setItems(items);
+		await storage.updateItems({ insert: items });
 		storedItems = await storage.getItems();
 		equal(storedItems.size, items.size);
 		equal(storedItems.get('foo'), 'bar');
@@ -246,12 +246,21 @@ suite('SQLite Storage Library', () => {
 
 		const itemsChange = new Map<string, string>();
 		itemsChange.set('foo', 'otherbar');
-		await storage.setItems(itemsChange);
+		await storage.updateItems({ insert: itemsChange });
 
 		storedItems = await storage.getItems();
 		equal(storedItems.get('foo'), 'otherbar');
 
-		await storage.deleteItems(toSet(['foo', 'some/foo/path', JSON.stringify({ foo: 'bar' })]));
+		await storage.updateItems({ delete: toSet(['foo', 'bar', 'some/foo/path', JSON.stringify({ foo: 'bar' })]) });
+		storedItems = await storage.getItems();
+		equal(storedItems.size, 0);
+
+		await storage.updateItems({ insert: items, delete: toSet(['foo', 'some/foo/path', 'other']) });
+		storedItems = await storage.getItems();
+		equal(storedItems.size, 1);
+		equal(storedItems.get(JSON.stringify({ foo: 'bar' })), JSON.stringify({ bar: 'foo' }));
+
+		await storage.updateItems({ delete: toSet([JSON.stringify({ foo: 'bar' })]) });
 		storedItems = await storage.getItems();
 		equal(storedItems.size, 0);
 
@@ -294,7 +303,7 @@ suite('SQLite Storage Library', () => {
 
 		await mkdirp(storageDir);
 
-		const storage = new SQLiteStorageImpl({
+		let storage = new SQLiteStorageImpl({
 			path: join(storageDir, 'storage.db')
 		});
 
@@ -318,9 +327,9 @@ suite('SQLite Storage Library', () => {
 		equal(storedItems.size, 0);
 
 		await Promise.all([
-			await storage.setItems(items1),
-			await storage.setItems(items2),
-			await storage.setItems(items3)
+			await storage.updateItems({ insert: items1 }),
+			await storage.updateItems({ insert: items2 }),
+			await storage.updateItems({ insert: items3 })
 		]);
 
 		storedItems = await storage.getItems();
@@ -345,20 +354,20 @@ suite('SQLite Storage Library', () => {
 		});
 
 		await Promise.all([
-			await storage.deleteItems(toSet(items1Keys)),
-			await storage.deleteItems(toSet(items2Keys)),
-			await storage.deleteItems(toSet(items3Keys))
+			await storage.updateItems({ delete: toSet(items1Keys) }),
+			await storage.updateItems({ delete: toSet(items2Keys) }),
+			await storage.updateItems({ delete: toSet(items3Keys) })
 		]);
 
 		storedItems = await storage.getItems();
 		equal(storedItems.size, 0);
 
 		await Promise.all([
-			await storage.setItems(items1),
+			await storage.updateItems({ insert: items1 }),
 			await storage.getItems(),
-			await storage.setItems(items2),
+			await storage.updateItems({ insert: items2 }),
 			await storage.getItems(),
-			await storage.setItems(items3),
+			await storage.updateItems({ insert: items3 }),
 			await storage.getItems(),
 		]);
 
@@ -366,6 +375,13 @@ suite('SQLite Storage Library', () => {
 		equal(storedItems.size, items1.size + items2.size + items3.size);
 
 		await storage.close();
+
+		storage = new SQLiteStorageImpl({
+			path: join(storageDir, 'storage.db')
+		});
+
+		storedItems = await storage.getItems();
+		equal(storedItems.size, items1.size + items2.size + items3.size);
 
 		await del(storageDir, tmpdir());
 	});
