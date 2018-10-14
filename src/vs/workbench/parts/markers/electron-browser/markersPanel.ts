@@ -329,8 +329,8 @@ export class MarkersPanel extends Panel implements IMarkerFilterController {
 		}));
 
 		// move focus to input, whenever a key is pressed in the panel container
-		this._register(domEvent(parent, 'keydown', true)(() => {
-			if (this.filterInputActionItem) {
+		this._register(domEvent(parent, 'keydown')(e => {
+			if (this.filterInputActionItem && this.keybindingService.mightProducePrintableCharacter(e)) {
 				this.filterInputActionItem.focus();
 			}
 		}));
