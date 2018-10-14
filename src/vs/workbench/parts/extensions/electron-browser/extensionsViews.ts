@@ -145,30 +145,6 @@ export class ExtensionsListView extends ViewletPanel {
 		return await this.queryGallery(parsedQuery, options).then(successCallback).catch(errorCallback);
 	}
 
-	select(): void {
-		this.list.setSelection(this.list.getFocus());
-	}
-
-	showPrevious(): void {
-		this.list.focusPrevious();
-		this.list.reveal(this.list.getFocus()[0]);
-	}
-
-	showPreviousPage(): void {
-		this.list.focusPreviousPage();
-		this.list.reveal(this.list.getFocus()[0]);
-	}
-
-	showNext(): void {
-		this.list.focusNext();
-		this.list.reveal(this.list.getFocus()[0]);
-	}
-
-	showNextPage(): void {
-		this.list.focusNextPage();
-		this.list.reveal(this.list.getFocus()[0]);
-	}
-
 	count(): number {
 		return this.list.length;
 	}

@@ -81,7 +81,7 @@ function registerOpenTerminalAtIndexCommands(): void {
 			id: `workbench.action.terminal.focusAtIndex${visibleIndex}`,
 			weight: KeybindingWeight.WorkbenchContrib,
 			when: void 0,
-			primary: null,
+			primary: 0,
 			handler: accessor => {
 				const terminalService = accessor.get(ITerminalService);
 				terminalService.setActiveInstanceByIndex(terminalIndex);

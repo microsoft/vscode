@@ -74,6 +74,10 @@ class TransposeLettersAction extends EditorAction {
 	}
 
 	public run(accessor: ServicesAccessor, editor: ICodeEditor): void {
+		if (!editor.hasModel()) {
+			return;
+		}
+
 		let model = editor.getModel();
 		let commands: ICommand[] = [];
 		let selections = editor.getSelections();

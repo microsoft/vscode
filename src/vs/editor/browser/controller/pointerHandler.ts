@@ -234,7 +234,7 @@ export class PointerHandler implements IDisposable {
 		}
 	}
 
-	public getTargetAtClientPoint(clientX: number, clientY: number): IMouseTarget {
+	public getTargetAtClientPoint(clientX: number, clientY: number): IMouseTarget | null {
 		return this.handler.getTargetAtClientPoint(clientX, clientY);
 	}
 

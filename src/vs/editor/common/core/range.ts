@@ -216,7 +216,7 @@ export class Range {
 	/**
 	 * Test if this range equals other.
 	 */
-	public equalsRange(other: IRange): boolean {
+	public equalsRange(other: IRange | null): boolean {
 		return Range.equalsRange(this, other);
 	}
 

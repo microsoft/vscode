@@ -53,8 +53,7 @@ export class ViewContentWidgets extends ViewPart {
 
 	public dispose(): void {
 		super.dispose();
-		this._widgets = null;
-		this.domNode = null;
+		this._widgets = {};
 	}
 
 	// --- begin event handlers
@@ -113,7 +112,7 @@ export class ViewContentWidgets extends ViewPart {
 		this.setShouldRender();
 	}
 
-	public setWidgetPosition(widget: IContentWidget, position: IPosition, range: IRange, preference: ContentWidgetPositionPreference[]): void {
+	public setWidgetPosition(widget: IContentWidget, position: IPosition | null | undefined, range: IRange | null | undefined, preference: ContentWidgetPositionPreference[] | null | undefined): void {
 		const myWidget = this._widgets[widget.getId()];
 		myWidget.setPosition(position, range, preference);
 
@@ -127,7 +126,7 @@ export class ViewContentWidgets extends ViewPart {
 			delete this._widgets[widgetId];
 
 			const domNode = myWidget.domNode.domNode;
-			domNode.parentNode.removeChild(domNode);
+			domNode.parentNode!.removeChild(domNode);
 			domNode.removeAttribute('monaco-visible-content-widget');
 
 			this.setShouldRender();
@@ -191,17 +190,17 @@ class Widget {
 	private _contentLeft: number;
 	private _lineHeight: number;
 
-	private _position: IPosition;
-	private _viewPosition: Position;
-	private _range: IRange;
-	private _viewRange: Range;
-	private _preference: ContentWidgetPositionPreference[];
+	private _position: IPosition | null;
+	private _viewPosition: Position | null;
+	private _range: IRange | null;
+	private _viewRange: Range | null;
+	private _preference: ContentWidgetPositionPreference[] | null;
 	private _cachedDomNodeClientWidth: number;
 	private _cachedDomNodeClientHeight: number;
 	private _maxWidth: number;
 	private _isVisible: boolean;
 
-	private _renderData: Coordinate;
+	private _renderData: Coordinate | null;
 
 	constructor(context: ViewContext, viewDomNode: FastDomNode<HTMLElement>, actual: IContentWidget) {
 		this._context = context;
@@ -219,7 +218,7 @@ class Widget {
 		this._lineHeight = this._context.configuration.editor.lineHeight;
 
 		this._setPosition(null, null);
-		this._preference = null;
+		this._preference = [];
 		this._cachedDomNodeClientWidth = -1;
 		this._cachedDomNodeClientHeight = -1;
 		this._maxWidth = this._getMaxWidth();
@@ -247,9 +246,9 @@ class Widget {
 		this._setPosition(this._position, this._range);
 	}
 
-	private _setPosition(position: IPosition, range: IRange): void {
-		this._position = position;
-		this._range = range;
+	private _setPosition(position: IPosition | null | undefined, range: IRange | null | undefined): void {
+		this._position = position || null;
+		this._range = range || null;
 		this._viewPosition = null;
 		this._viewRange = null;
 
@@ -270,14 +269,14 @@ class Widget {
 	private _getMaxWidth(): number {
 		return (
 			this.allowEditorOverflow
-				? window.innerWidth || document.documentElement.clientWidth || document.body.clientWidth
+				? window.innerWidth || document.documentElement!.clientWidth || document.body.clientWidth
 				: this._contentWidth
 		);
 	}
 
-	public setPosition(position: IPosition, range: IRange, preference: ContentWidgetPositionPreference[]): void {
+	public setPosition(position: IPosition | null | undefined, range: IRange | null | undefined, preference: ContentWidgetPositionPreference[] | null | undefined): void {
 		this._setPosition(position, range);
-		this._preference = preference;
+		this._preference = preference || null;
 		this._cachedDomNodeClientWidth = -1;
 		this._cachedDomNodeClientHeight = -1;
 	}
@@ -325,7 +324,7 @@ class Widget {
 		};
 	}
 
-	private _layoutBoxInPage(topLeft: Coordinate, bottomLeft: Coordinate, width: number, height: number, ctx: RenderingContext): IBoxLayoutResult {
+	private _layoutBoxInPage(topLeft: Coordinate, bottomLeft: Coordinate, width: number, height: number, ctx: RenderingContext): IBoxLayoutResult | null {
 		let aboveLeft0 = topLeft.left - ctx.scrollLeft;
 		let belowLeft0 = bottomLeft.left - ctx.scrollLeft;
 
@@ -345,8 +344,8 @@ class Widget {
 		let absoluteAboveLeft = domNodePosition.left + aboveLeft - dom.StandardWindow.scrollX;
 		let absoluteBelowLeft = domNodePosition.left + belowLeft - dom.StandardWindow.scrollX;
 
-		let INNER_WIDTH = window.innerWidth || document.documentElement.clientWidth || document.body.clientWidth;
-		let INNER_HEIGHT = window.innerHeight || document.documentElement.clientHeight || document.body.clientHeight;
+		let INNER_WIDTH = window.innerWidth || document.documentElement!.clientWidth || document.body.clientWidth;
+		let INNER_HEIGHT = window.innerHeight || document.documentElement!.clientHeight || document.body.clientHeight;
 
 		// Leave some clearance to the bottom
 		let TOP_PADDING = 22;
@@ -393,7 +392,7 @@ class Widget {
 	/**
 	 * Compute `this._topLeft`
 	 */
-	private _getTopAndBottomLeft(ctx: RenderingContext): [Coordinate, Coordinate] {
+	private _getTopAndBottomLeft(ctx: RenderingContext): [Coordinate, Coordinate] | [null, null] {
 		if (!this._viewPosition) {
 			return [null, null];
 		}
@@ -437,58 +436,53 @@ class Widget {
 		return [topLeft, bottomLeft];
 	}
 
-	private _prepareRenderWidget(ctx: RenderingContext): Coordinate {
+	private _prepareRenderWidget(ctx: RenderingContext): Coordinate | null {
 		const [topLeft, bottomLeft] = this._getTopAndBottomLeft(ctx);
-		if (!topLeft) {
+		if (!topLeft || !bottomLeft) {
 			return null;
 		}
 
-		let placement: IBoxLayoutResult | null = null;
-		let fetchPlacement = (): void => {
-			if (placement) {
-				return;
-			}
+		if (this._cachedDomNodeClientWidth === -1 || this._cachedDomNodeClientHeight === -1) {
+			const domNode = this.domNode.domNode;
+			this._cachedDomNodeClientWidth = domNode.clientWidth;
+			this._cachedDomNodeClientHeight = domNode.clientHeight;
+		}
 
-			if (this._cachedDomNodeClientWidth === -1 || this._cachedDomNodeClientHeight === -1) {
-				const domNode = this.domNode.domNode;
-				this._cachedDomNodeClientWidth = domNode.clientWidth;
-				this._cachedDomNodeClientHeight = domNode.clientHeight;
-			}
-
-			if (this.allowEditorOverflow) {
-				placement = this._layoutBoxInPage(topLeft, bottomLeft, this._cachedDomNodeClientWidth, this._cachedDomNodeClientHeight, ctx);
-			} else {
-				placement = this._layoutBoxInViewport(topLeft, bottomLeft, this._cachedDomNodeClientWidth, this._cachedDomNodeClientHeight, ctx);
-			}
-		};
+		let placement: IBoxLayoutResult | null;
+		if (this.allowEditorOverflow) {
+			placement = this._layoutBoxInPage(topLeft, bottomLeft, this._cachedDomNodeClientWidth, this._cachedDomNodeClientHeight, ctx);
+		} else {
+			placement = this._layoutBoxInViewport(topLeft, bottomLeft, this._cachedDomNodeClientWidth, this._cachedDomNodeClientHeight, ctx);
+		}
 
 		// Do two passes, first for perfect fit, second picks first option
-		for (let pass = 1; pass <= 2; pass++) {
-			for (let i = 0; i < this._preference.length; i++) {
-				let pref = this._preference[i];
-				if (pref === ContentWidgetPositionPreference.ABOVE) {
-					fetchPlacement();
-					if (!placement) {
-						// Widget outside of viewport
-						return null;
-					}
-					if (pass === 2 || placement.fitsAbove) {
-						return new Coordinate(placement.aboveTop, placement.aboveLeft);
-					}
-				} else if (pref === ContentWidgetPositionPreference.BELOW) {
-					fetchPlacement();
-					if (!placement) {
-						// Widget outside of viewport
-						return null;
-					}
-					if (pass === 2 || placement.fitsBelow) {
-						return new Coordinate(placement.belowTop, placement.belowLeft);
-					}
-				} else {
-					if (this.allowEditorOverflow) {
-						return this._prepareRenderWidgetAtExactPositionOverflowing(topLeft);
+		if (this._preference) {
+			for (let pass = 1; pass <= 2; pass++) {
+				for (let i = 0; i < this._preference.length; i++) {
+					// placement
+					let pref = this._preference[i];
+					if (pref === ContentWidgetPositionPreference.ABOVE) {
+						if (!placement) {
+							// Widget outside of viewport
+							return null;
+						}
+						if (pass === 2 || placement.fitsAbove) {
+							return new Coordinate(placement.aboveTop, placement.aboveLeft);
+						}
+					} else if (pref === ContentWidgetPositionPreference.BELOW) {
+						if (!placement) {
+							// Widget outside of viewport
+							return null;
+						}
+						if (pass === 2 || placement.fitsBelow) {
+							return new Coordinate(placement.belowTop, placement.belowLeft);
+						}
 					} else {
-						return topLeft;
+						if (this.allowEditorOverflow) {
+							return this._prepareRenderWidgetAtExactPositionOverflowing(topLeft);
+						} else {
+							return topLeft;
+						}
 					}
 				}
 			}

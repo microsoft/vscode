@@ -9,7 +9,7 @@ import { LineTokens, IViewLineTokens } from 'vs/editor/common/core/lineTokens';
 import { CharCode } from 'vs/base/common/charCode';
 import { NULL_STATE, nullTokenize2 } from 'vs/editor/common/modes/nullMode';
 
-const fallback = {
+const fallback: ITokenizationSupport = {
 	getInitialState: () => NULL_STATE,
 	tokenize: undefined,
 	tokenize2: (buffer: string, state: IState, deltaOffset: number) => nullTokenize2(LanguageId.Null, buffer, state, deltaOffset)

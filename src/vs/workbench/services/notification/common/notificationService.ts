@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { INotificationService, INotification, INotificationHandle, Severity, NotificationMessage, INotificationActions, IPromptChoice } from 'vs/platform/notification/common/notification';
+import { INotificationService, INotification, INotificationHandle, Severity, NotificationMessage, INotificationActions, IPromptChoice, IPromptOptions } from 'vs/platform/notification/common/notification';
 import { INotificationsModel, NotificationsModel, ChoiceAction } from 'vs/workbench/common/notifications';
 import { dispose, Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import { once } from 'vs/base/common/event';
@@ -52,7 +52,7 @@ export class NotificationService extends Disposable implements INotificationServ
 		return this.model.notify(notification);
 	}
 
-	prompt(severity: Severity, message: string, choices: IPromptChoice[], onCancel?: () => void): INotificationHandle {
+	prompt(severity: Severity, message: string, choices: IPromptChoice[], options?: IPromptOptions): INotificationHandle {
 		const toDispose: IDisposable[] = [];
 
 		let choiceClicked = false;
@@ -82,7 +82,7 @@ export class NotificationService extends Disposable implements INotificationServ
 		});
 
 		// Show notification with actions
-		handle = this.notify({ severity, message, actions });
+		handle = this.notify({ severity, message, actions, sticky: options && options.sticky });
 
 		once(handle.onDidClose)(() => {
 
@@ -90,8 +90,8 @@ export class NotificationService extends Disposable implements INotificationServ
 			dispose(toDispose);
 
 			// Indicate cancellation to the outside if no action was executed
-			if (typeof onCancel === 'function' && !choiceClicked) {
-				onCancel();
+			if (options && typeof options.onCancel === 'function' && !choiceClicked) {
+				options.onCancel();
 			}
 		});
 

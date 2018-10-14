@@ -17,7 +17,7 @@ export type ColorIdentifier = string;
 export interface ColorContribution {
 	readonly id: ColorIdentifier;
 	readonly description: string;
-	readonly defaults: ColorDefaults;
+	readonly defaults: ColorDefaults | null;
 	readonly needsTransparency: boolean;
 	readonly deprecationMessage: string | undefined;
 }
@@ -86,7 +86,7 @@ class ColorRegistry implements IColorRegistry {
 		this.colorsById = {};
 	}
 
-	public registerColor(id: string, defaults: ColorDefaults, description: string, needsTransparency = false, deprecationMessage?: string): ColorIdentifier {
+	public registerColor(id: string, defaults: ColorDefaults | null, description: string, needsTransparency = false, deprecationMessage?: string): ColorIdentifier {
 		let colorContribution: ColorContribution = { id, description, defaults, needsTransparency, deprecationMessage };
 		this.colorsById[id] = colorContribution;
 		let propertySchema: IJSONSchema = { type: 'string', description, format: 'color-hex', default: '#ff0000' };
@@ -138,7 +138,7 @@ class ColorRegistry implements IColorRegistry {
 const colorRegistry = new ColorRegistry();
 platform.Registry.add(Extensions.ColorContribution, colorRegistry);
 
-export function registerColor(id: string, defaults: ColorDefaults, description: string, needsTransparency?: boolean, deprecationMessage?: string): ColorIdentifier {
+export function registerColor(id: string, defaults: ColorDefaults | null, description: string, needsTransparency?: boolean, deprecationMessage?: string): ColorIdentifier {
 	return colorRegistry.registerColor(id, defaults, description, needsTransparency, deprecationMessage);
 }
 

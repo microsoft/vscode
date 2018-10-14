@@ -25,7 +25,7 @@ export class ResourceContextKey extends Disposable implements IContextKey<URI> {
 	private _resourceKey: IContextKey<URI>;
 	private _schemeKey: IContextKey<string>;
 	private _filenameKey: IContextKey<string>;
-	private _langIdKey: IContextKey<string>;
+	private _langIdKey: IContextKey<string | null>;
 	private _extensionKey: IContextKey<string>;
 	private _hasResource: IContextKey<boolean>;
 	private _isfileSystemResource: IContextKey<boolean>;
@@ -58,7 +58,7 @@ export class ResourceContextKey extends Disposable implements IContextKey<URI> {
 		this._resourceKey.set(value);
 		this._schemeKey.set(value && value.scheme);
 		this._filenameKey.set(value && paths.basename(value.fsPath));
-		this._langIdKey.set(value && this._modeService.getModeIdByFilepathOrFirstLine(value.fsPath));
+		this._langIdKey.set(value ? this._modeService.getModeIdByFilepathOrFirstLine(value.fsPath) : null);
 		this._extensionKey.set(value && paths.extname(value.fsPath));
 		this._hasResource.set(!!value);
 		this._isfileSystemResource.set(value && this._fileService.canHandleResource(value));

@@ -15,7 +15,7 @@ export class LinesDecorationsOverlay extends DedupOverlay {
 
 	private _decorationsLeft: number;
 	private _decorationsWidth: number;
-	private _renderResult: string[];
+	private _renderResult: string[] | null;
 
 	constructor(context: ViewContext) {
 		super();
@@ -28,7 +28,6 @@ export class LinesDecorationsOverlay extends DedupOverlay {
 
 	public dispose(): void {
 		this._context.removeEventHandler(this);
-		this._context = null;
 		this._renderResult = null;
 		super.dispose();
 	}

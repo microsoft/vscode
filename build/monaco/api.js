@@ -4,30 +4,22 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 Object.defineProperty(exports, "__esModule", { value: true });
-var fs = require("fs");
-var ts = require("typescript");
-var path = require("path");
-var util = require("gulp-util");
-var tsfmt = require('../../tsfmt.json');
-function log(message) {
-    var rest = [];
-    for (var _i = 1; _i < arguments.length; _i++) {
-        rest[_i - 1] = arguments[_i];
-    }
-    util.log.apply(util, [util.colors.cyan('[monaco.d.ts]'), message].concat(rest));
+const fs = require("fs");
+const ts = require("typescript");
+const path = require("path");
+const util = require("gulp-util");
+const tsfmt = require('../../tsfmt.json');
+function log(message, ...rest) {
+    util.log(util.colors.cyan('[monaco.d.ts]'), message, ...rest);
 }
-var SRC = path.join(__dirname, '../../src');
-var OUT_ROOT = path.join(__dirname, '../../');
-var RECIPE_PATH = path.join(__dirname, './monaco.d.ts.recipe');
-var DECLARATION_PATH = path.join(__dirname, '../../src/vs/monaco.d.ts');
+const SRC = path.join(__dirname, '../../src');
+const OUT_ROOT = path.join(__dirname, '../../');
+const RECIPE_PATH = path.join(__dirname, './monaco.d.ts.recipe');
+const DECLARATION_PATH = path.join(__dirname, '../../src/vs/monaco.d.ts');
 var CURRENT_PROCESSING_RULE = '';
-function logErr(message) {
-    var rest = [];
-    for (var _i = 1; _i < arguments.length; _i++) {
-        rest[_i - 1] = arguments[_i];
-    }
+function logErr(message, ...rest) {
     util.log(util.colors.red('[monaco.d.ts]'), 'WHILE HANDLING RULE: ', CURRENT_PROCESSING_RULE);
-    util.log.apply(util, [util.colors.red('[monaco.d.ts]'), message].concat(rest));
+    util.log(util.colors.red('[monaco.d.ts]'), message, ...rest);
 }
 function moduleIdToPath(out, moduleId) {
     if (/\.d\.ts/.test(moduleId)) {
@@ -35,16 +27,16 @@ function moduleIdToPath(out, moduleId) {
     }
     return path.join(OUT_ROOT, out, moduleId) + '.d.ts';
 }
-var SOURCE_FILE_MAP = {};
+let SOURCE_FILE_MAP = {};
 function getSourceFile(out, inputFiles, moduleId) {
     if (!SOURCE_FILE_MAP[moduleId]) {
-        var filePath = path.normalize(moduleIdToPath(out, moduleId));
+        let filePath = path.normalize(moduleIdToPath(out, moduleId));
         if (!inputFiles.hasOwnProperty(filePath)) {
             logErr('CANNOT FIND FILE ' + filePath + '. YOU MIGHT NEED TO RESTART gulp');
             return null;
         }
-        var fileContents = inputFiles[filePath];
-        var sourceFile = ts.createSourceFile(filePath, fileContents, ts.ScriptTarget.ES5);
+        let fileContents = inputFiles[filePath];
+        let sourceFile = ts.createSourceFile(filePath, fileContents, ts.ScriptTarget.ES5);
         SOURCE_FILE_MAP[moduleId] = sourceFile;
     }
     return SOURCE_FILE_MAP[moduleId];
@@ -58,8 +50,8 @@ function isDeclaration(a) {
         || a.kind === ts.SyntaxKind.ModuleDeclaration);
 }
 function visitTopLevelDeclarations(sourceFile, visitor) {
-    var stop = false;
-    var visit = function (node) {
+    let stop = false;
+    let visit = (node) => {
         if (stop) {
             return;
         }
@@ -81,19 +73,19 @@ function visitTopLevelDeclarations(sourceFile, visitor) {
     visit(sourceFile);
 }
 function getAllTopLevelDeclarations(sourceFile) {
-    var all = [];
-    visitTopLevelDeclarations(sourceFile, function (node) {
+    let all = [];
+    visitTopLevelDeclarations(sourceFile, (node) => {
         if (node.kind === ts.SyntaxKind.InterfaceDeclaration || node.kind === ts.SyntaxKind.ClassDeclaration || node.kind === ts.SyntaxKind.ModuleDeclaration) {
-            var interfaceDeclaration = node;
-            var triviaStart = interfaceDeclaration.pos;
-            var triviaEnd = interfaceDeclaration.name.pos;
-            var triviaText = getNodeText(sourceFile, { pos: triviaStart, end: triviaEnd });
+            let interfaceDeclaration = node;
+            let triviaStart = interfaceDeclaration.pos;
+            let triviaEnd = interfaceDeclaration.name.pos;
+            let triviaText = getNodeText(sourceFile, { pos: triviaStart, end: triviaEnd });
             if (triviaText.indexOf('@internal') === -1) {
                 all.push(node);
             }
         }
         else {
-            var nodeText = getNodeText(sourceFile, node);
+            let nodeText = getNodeText(sourceFile, node);
             if (nodeText.indexOf('@internal') === -1) {
                 all.push(node);
             }
@@ -103,8 +95,8 @@ function getAllTopLevelDeclarations(sourceFile) {
     return all;
 }
 function getTopLevelDeclaration(sourceFile, typeName) {
-    var result = null;
-    visitTopLevelDeclarations(sourceFile, function (node) {
+    let result = null;
+    visitTopLevelDeclarations(sourceFile, (node) => {
         if (isDeclaration(node) && node.name) {
             if (node.name.text === typeName) {
                 result = node;
@@ -126,8 +118,8 @@ function getNodeText(sourceFile, node) {
 }
 function hasModifier(modifiers, kind) {
     if (modifiers) {
-        for (var i = 0; i < modifiers.length; i++) {
-            var mod = modifiers[i];
+        for (let i = 0; i < modifiers.length; i++) {
+            let mod = modifiers[i];
             if (mod.kind === kind) {
                 return true;
             }
@@ -143,35 +135,35 @@ function isDefaultExport(declaration) {
         && hasModifier(declaration.modifiers, ts.SyntaxKind.ExportKeyword));
 }
 function getMassagedTopLevelDeclarationText(sourceFile, declaration, importName, usage) {
-    var result = getNodeText(sourceFile, declaration);
+    let result = getNodeText(sourceFile, declaration);
     if (declaration.kind === ts.SyntaxKind.InterfaceDeclaration || declaration.kind === ts.SyntaxKind.ClassDeclaration) {
-        var interfaceDeclaration = declaration;
-        var staticTypeName_1 = (isDefaultExport(interfaceDeclaration)
-            ? importName + ".default"
-            : importName + "." + declaration.name.text);
-        var instanceTypeName_1 = staticTypeName_1;
-        var typeParametersCnt = (interfaceDeclaration.typeParameters ? interfaceDeclaration.typeParameters.length : 0);
+        let interfaceDeclaration = declaration;
+        const staticTypeName = (isDefaultExport(interfaceDeclaration)
+            ? `${importName}.default`
+            : `${importName}.${declaration.name.text}`);
+        let instanceTypeName = staticTypeName;
+        const typeParametersCnt = (interfaceDeclaration.typeParameters ? interfaceDeclaration.typeParameters.length : 0);
         if (typeParametersCnt > 0) {
-            var arr = [];
-            for (var i = 0; i < typeParametersCnt; i++) {
+            let arr = [];
+            for (let i = 0; i < typeParametersCnt; i++) {
                 arr.push('any');
             }
-            instanceTypeName_1 = instanceTypeName_1 + "<" + arr.join(',') + ">";
+            instanceTypeName = `${instanceTypeName}<${arr.join(',')}>`;
         }
-        var members = interfaceDeclaration.members;
-        members.forEach(function (member) {
+        const members = interfaceDeclaration.members;
+        members.forEach((member) => {
             try {
-                var memberText = getNodeText(sourceFile, member);
+                let memberText = getNodeText(sourceFile, member);
                 if (memberText.indexOf('@internal') >= 0 || memberText.indexOf('private') >= 0) {
                     result = result.replace(memberText, '');
                 }
                 else {
-                    var memberName = member.name.text;
+                    const memberName = member.name.text;
                     if (isStatic(member)) {
-                        usage.push("a = " + staticTypeName_1 + "." + memberName + ";");
+                        usage.push(`a = ${staticTypeName}.${memberName};`);
                     }
                     else {
-                        usage.push("a = (<" + instanceTypeName_1 + ">b)." + memberName + ";");
+                        usage.push(`a = (<${instanceTypeName}>b).${memberName};`);
                     }
                 }
             }
@@ -186,9 +178,9 @@ function getMassagedTopLevelDeclarationText(sourceFile, declaration, importName,
 }
 function format(text) {
     // Parse the source text
-    var sourceFile = ts.createSourceFile('file.ts', text, ts.ScriptTarget.Latest, /*setParentPointers*/ true);
+    let sourceFile = ts.createSourceFile('file.ts', text, ts.ScriptTarget.Latest, /*setParentPointers*/ true);
     // Get the formatting edits on the input sources
-    var edits = ts.formatting.formatDocument(sourceFile, getRuleProvider(tsfmt), tsfmt);
+    let edits = ts.formatting.formatDocument(sourceFile, getRuleProvider(tsfmt), tsfmt);
     // Apply the edits on the input code
     return applyEdits(text, edits);
     function getRuleProvider(options) {
@@ -198,11 +190,11 @@ function format(text) {
     }
     function applyEdits(text, edits) {
         // Apply edits in reverse on the existing text
-        var result = text;
-        for (var i = edits.length - 1; i >= 0; i--) {
-            var change = edits[i];
-            var head = result.slice(0, change.span.start);
-            var tail = result.slice(change.span.start + change.span.length);
+        let result = text;
+        for (let i = edits.length - 1; i >= 0; i--) {
+            let change = edits[i];
+            let head = result.slice(0, change.span.start);
+            let tail = result.slice(change.span.start + change.span.length);
             result = head + change.newText + tail;
         }
         return result;
@@ -210,131 +202,131 @@ function format(text) {
 }
 function createReplacer(data) {
     data = data || '';
-    var rawDirectives = data.split(';');
-    var directives = [];
-    rawDirectives.forEach(function (rawDirective) {
+    let rawDirectives = data.split(';');
+    let directives = [];
+    rawDirectives.forEach((rawDirective) => {
         if (rawDirective.length === 0) {
             return;
         }
-        var pieces = rawDirective.split('=>');
-        var findStr = pieces[0];
-        var replaceStr = pieces[1];
+        let pieces = rawDirective.split('=>');
+        let findStr = pieces[0];
+        let replaceStr = pieces[1];
         findStr = findStr.replace(/[\-\\\{\}\*\+\?\|\^\$\.\,\[\]\(\)\#\s]/g, '\\$&');
         findStr = '\\b' + findStr + '\\b';
         directives.push([new RegExp(findStr, 'g'), replaceStr]);
     });
-    return function (str) {
-        for (var i = 0; i < directives.length; i++) {
+    return (str) => {
+        for (let i = 0; i < directives.length; i++) {
             str = str.replace(directives[i][0], directives[i][1]);
         }
         return str;
     };
 }
 function generateDeclarationFile(out, inputFiles, recipe) {
-    var endl = /\r\n/.test(recipe) ? '\r\n' : '\n';
-    var lines = recipe.split(endl);
-    var result = [];
-    var usageCounter = 0;
-    var usageImports = [];
-    var usage = [];
-    usage.push("var a;");
-    usage.push("var b;");
-    var generateUsageImport = function (moduleId) {
-        var importName = 'm' + (++usageCounter);
-        usageImports.push("import * as " + importName + " from './" + moduleId.replace(/\.d\.ts$/, '') + "';");
+    const endl = /\r\n/.test(recipe) ? '\r\n' : '\n';
+    let lines = recipe.split(endl);
+    let result = [];
+    let usageCounter = 0;
+    let usageImports = [];
+    let usage = [];
+    usage.push(`var a;`);
+    usage.push(`var b;`);
+    const generateUsageImport = (moduleId) => {
+        let importName = 'm' + (++usageCounter);
+        usageImports.push(`import * as ${importName} from './${moduleId.replace(/\.d\.ts$/, '')}';`);
         return importName;
     };
-    lines.forEach(function (line) {
-        var m1 = line.match(/^\s*#include\(([^;)]*)(;[^)]*)?\)\:(.*)$/);
+    lines.forEach(line => {
+        let m1 = line.match(/^\s*#include\(([^;)]*)(;[^)]*)?\)\:(.*)$/);
         if (m1) {
             CURRENT_PROCESSING_RULE = line;
-            var moduleId = m1[1];
-            var sourceFile_1 = getSourceFile(out, inputFiles, moduleId);
-            if (!sourceFile_1) {
+            let moduleId = m1[1];
+            const sourceFile = getSourceFile(out, inputFiles, moduleId);
+            if (!sourceFile) {
                 return;
             }
-            var importName_1 = generateUsageImport(moduleId);
-            var replacer_1 = createReplacer(m1[2]);
-            var typeNames = m1[3].split(/,/);
-            typeNames.forEach(function (typeName) {
+            const importName = generateUsageImport(moduleId);
+            let replacer = createReplacer(m1[2]);
+            let typeNames = m1[3].split(/,/);
+            typeNames.forEach((typeName) => {
                 typeName = typeName.trim();
                 if (typeName.length === 0) {
                     return;
                 }
-                var declaration = getTopLevelDeclaration(sourceFile_1, typeName);
+                let declaration = getTopLevelDeclaration(sourceFile, typeName);
                 if (!declaration) {
                     logErr('Cannot find type ' + typeName);
                     return;
                 }
-                result.push(replacer_1(getMassagedTopLevelDeclarationText(sourceFile_1, declaration, importName_1, usage)));
+                result.push(replacer(getMassagedTopLevelDeclarationText(sourceFile, declaration, importName, usage)));
             });
             return;
         }
-        var m2 = line.match(/^\s*#includeAll\(([^;)]*)(;[^)]*)?\)\:(.*)$/);
+        let m2 = line.match(/^\s*#includeAll\(([^;)]*)(;[^)]*)?\)\:(.*)$/);
         if (m2) {
             CURRENT_PROCESSING_RULE = line;
-            var moduleId = m2[1];
-            var sourceFile_2 = getSourceFile(out, inputFiles, moduleId);
-            if (!sourceFile_2) {
+            let moduleId = m2[1];
+            const sourceFile = getSourceFile(out, inputFiles, moduleId);
+            if (!sourceFile) {
                 return;
             }
-            var importName_2 = generateUsageImport(moduleId);
-            var replacer_2 = createReplacer(m2[2]);
-            var typeNames = m2[3].split(/,/);
-            var typesToExcludeMap_1 = {};
-            var typesToExcludeArr_1 = [];
-            typeNames.forEach(function (typeName) {
+            const importName = generateUsageImport(moduleId);
+            let replacer = createReplacer(m2[2]);
+            let typeNames = m2[3].split(/,/);
+            let typesToExcludeMap = {};
+            let typesToExcludeArr = [];
+            typeNames.forEach((typeName) => {
                 typeName = typeName.trim();
                 if (typeName.length === 0) {
                     return;
                 }
-                typesToExcludeMap_1[typeName] = true;
-                typesToExcludeArr_1.push(typeName);
+                typesToExcludeMap[typeName] = true;
+                typesToExcludeArr.push(typeName);
             });
-            getAllTopLevelDeclarations(sourceFile_2).forEach(function (declaration) {
+            getAllTopLevelDeclarations(sourceFile).forEach((declaration) => {
                 if (isDeclaration(declaration) && declaration.name) {
-                    if (typesToExcludeMap_1[declaration.name.text]) {
+                    if (typesToExcludeMap[declaration.name.text]) {
                         return;
                     }
                 }
                 else {
                     // node is ts.VariableStatement
-                    var nodeText = getNodeText(sourceFile_2, declaration);
-                    for (var i = 0; i < typesToExcludeArr_1.length; i++) {
-                        if (nodeText.indexOf(typesToExcludeArr_1[i]) >= 0) {
+                    let nodeText = getNodeText(sourceFile, declaration);
+                    for (let i = 0; i < typesToExcludeArr.length; i++) {
+                        if (nodeText.indexOf(typesToExcludeArr[i]) >= 0) {
                             return;
                         }
                     }
                 }
-                result.push(replacer_2(getMassagedTopLevelDeclarationText(sourceFile_2, declaration, importName_2, usage)));
+                result.push(replacer(getMassagedTopLevelDeclarationText(sourceFile, declaration, importName, usage)));
             });
             return;
         }
         result.push(line);
     });
-    var resultTxt = result.join(endl);
+    let resultTxt = result.join(endl);
     resultTxt = resultTxt.replace(/\bURI\b/g, 'Uri');
     resultTxt = resultTxt.replace(/\bEvent</g, 'IEvent<');
     resultTxt = format(resultTxt);
     return [
         resultTxt,
-        usageImports.join('\n') + "\n\n" + usage.join('\n')
+        `${usageImports.join('\n')}\n\n${usage.join('\n')}`
     ];
 }
 function getIncludesInRecipe() {
-    var recipe = fs.readFileSync(RECIPE_PATH).toString();
-    var lines = recipe.split(/\r\n|\n|\r/);
-    var result = [];
-    lines.forEach(function (line) {
-        var m1 = line.match(/^\s*#include\(([^;)]*)(;[^)]*)?\)\:(.*)$/);
+    let recipe = fs.readFileSync(RECIPE_PATH).toString();
+    let lines = recipe.split(/\r\n|\n|\r/);
+    let result = [];
+    lines.forEach(line => {
+        let m1 = line.match(/^\s*#include\(([^;)]*)(;[^)]*)?\)\:(.*)$/);
         if (m1) {
-            var moduleId = m1[1];
+            let moduleId = m1[1];
             result.push(moduleId);
             return;
         }
-        var m2 = line.match(/^\s*#includeAll\(([^;)]*)(;[^)]*)?\)\:(.*)$/);
+        let m2 = line.match(/^\s*#includeAll\(([^;)]*)(;[^)]*)?\)\:(.*)$/);
         if (m2) {
-            var moduleId = m2[1];
+            let moduleId = m2[1];
             result.push(moduleId);
             return;
         }
@@ -342,24 +334,24 @@ function getIncludesInRecipe() {
     return result;
 }
 function getFilesToWatch(out) {
-    return getIncludesInRecipe().map(function (moduleId) { return moduleIdToPath(out, moduleId); });
+    return getIncludesInRecipe().map((moduleId) => moduleIdToPath(out, moduleId));
 }
 exports.getFilesToWatch = getFilesToWatch;
 function run(out, inputFiles) {
     log('Starting monaco.d.ts generation');
     SOURCE_FILE_MAP = {};
-    var recipe = fs.readFileSync(RECIPE_PATH).toString();
-    var _a = generateDeclarationFile(out, inputFiles, recipe), result = _a[0], usageContent = _a[1];
-    var currentContent = fs.readFileSync(DECLARATION_PATH).toString();
+    let recipe = fs.readFileSync(RECIPE_PATH).toString();
+    let [result, usageContent] = generateDeclarationFile(out, inputFiles, recipe);
+    let currentContent = fs.readFileSync(DECLARATION_PATH).toString();
     log('Finished monaco.d.ts generation');
-    var one = currentContent.replace(/\r\n/gm, '\n');
-    var other = result.replace(/\r\n/gm, '\n');
-    var isTheSame = one === other;
+    const one = currentContent.replace(/\r\n/gm, '\n');
+    const other = result.replace(/\r\n/gm, '\n');
+    const isTheSame = one === other;
     return {
         content: result,
         usageContent: usageContent,
         filePath: DECLARATION_PATH,
-        isTheSame: isTheSame
+        isTheSame
     };
 }
 exports.run = run;
@@ -367,28 +359,28 @@ function complainErrors() {
     logErr('Not running monaco.d.ts generation due to compile errors');
 }
 exports.complainErrors = complainErrors;
-var TypeScriptLanguageServiceHost = /** @class */ (function () {
-    function TypeScriptLanguageServiceHost(libs, files, compilerOptions) {
+class TypeScriptLanguageServiceHost {
+    constructor(libs, files, compilerOptions) {
         this._libs = libs;
         this._files = files;
         this._compilerOptions = compilerOptions;
     }
     // --- language service host ---------------
-    TypeScriptLanguageServiceHost.prototype.getCompilationSettings = function () {
+    getCompilationSettings() {
         return this._compilerOptions;
-    };
-    TypeScriptLanguageServiceHost.prototype.getScriptFileNames = function () {
+    }
+    getScriptFileNames() {
         return ([]
             .concat(Object.keys(this._libs))
             .concat(Object.keys(this._files)));
-    };
-    TypeScriptLanguageServiceHost.prototype.getScriptVersion = function (_fileName) {
+    }
+    getScriptVersion(_fileName) {
         return '1';
-    };
-    TypeScriptLanguageServiceHost.prototype.getProjectVersion = function () {
+    }
+    getProjectVersion() {
         return '1';
-    };
-    TypeScriptLanguageServiceHost.prototype.getScriptSnapshot = function (fileName) {
+    }
+    getScriptSnapshot(fileName) {
         if (this._files.hasOwnProperty(fileName)) {
             return ts.ScriptSnapshot.fromString(this._files[fileName]);
         }
@@ -398,42 +390,41 @@ var TypeScriptLanguageServiceHost = /** @class */ (function () {
         else {
             return ts.ScriptSnapshot.fromString('');
         }
-    };
-    TypeScriptLanguageServiceHost.prototype.getScriptKind = function (_fileName) {
+    }
+    getScriptKind(_fileName) {
         return ts.ScriptKind.TS;
-    };
-    TypeScriptLanguageServiceHost.prototype.getCurrentDirectory = function () {
+    }
+    getCurrentDirectory() {
         return '';
-    };
-    TypeScriptLanguageServiceHost.prototype.getDefaultLibFileName = function (_options) {
+    }
+    getDefaultLibFileName(_options) {
         return 'defaultLib:es5';
-    };
-    TypeScriptLanguageServiceHost.prototype.isDefaultLibFileName = function (fileName) {
+    }
+    isDefaultLibFileName(fileName) {
         return fileName === this.getDefaultLibFileName(this._compilerOptions);
-    };
-    return TypeScriptLanguageServiceHost;
-}());
+    }
+}
 function execute() {
-    var OUTPUT_FILES = {};
-    var SRC_FILES = {};
-    var SRC_FILE_TO_EXPECTED_NAME = {};
-    getIncludesInRecipe().forEach(function (moduleId) {
+    const OUTPUT_FILES = {};
+    const SRC_FILES = {};
+    const SRC_FILE_TO_EXPECTED_NAME = {};
+    getIncludesInRecipe().forEach((moduleId) => {
         if (/\.d\.ts$/.test(moduleId)) {
-            var fileName_1 = path.join(SRC, moduleId);
-            OUTPUT_FILES[moduleIdToPath('src', moduleId)] = fs.readFileSync(fileName_1).toString();
+            let fileName = path.join(SRC, moduleId);
+            OUTPUT_FILES[moduleIdToPath('src', moduleId)] = fs.readFileSync(fileName).toString();
             return;
         }
-        var fileName = path.join(SRC, moduleId) + '.ts';
+        let fileName = path.join(SRC, moduleId) + '.ts';
         SRC_FILES[fileName] = fs.readFileSync(fileName).toString();
         SRC_FILE_TO_EXPECTED_NAME[fileName] = moduleIdToPath('src', moduleId);
     });
-    var languageService = ts.createLanguageService(new TypeScriptLanguageServiceHost({}, SRC_FILES, {}));
+    const languageService = ts.createLanguageService(new TypeScriptLanguageServiceHost({}, SRC_FILES, {}));
     var t1 = Date.now();
-    Object.keys(SRC_FILES).forEach(function (fileName) {
-        var emitOutput = languageService.getEmitOutput(fileName, true);
+    Object.keys(SRC_FILES).forEach((fileName) => {
+        const emitOutput = languageService.getEmitOutput(fileName, true);
         OUTPUT_FILES[SRC_FILE_TO_EXPECTED_NAME[fileName]] = emitOutput.outputFiles[0].text;
     });
-    console.log("Generating .d.ts took " + (Date.now() - t1) + " ms");
+    console.log(`Generating .d.ts took ${Date.now() - t1} ms`);
     return run('src', OUTPUT_FILES);
 }
 exports.execute = execute;

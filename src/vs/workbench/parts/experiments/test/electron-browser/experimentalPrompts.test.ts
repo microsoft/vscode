@@ -94,7 +94,7 @@ suite('Experimental Prompts', () => {
 		};
 
 		instantiationService.stub(INotificationService, {
-			prompt: (a: Severity, b: string, c: IPromptChoice[], d) => {
+			prompt: (a: Severity, b: string, c: IPromptChoice[], options) => {
 				assert.equal(b, promptText);
 				assert.equal(c.length, 2);
 				c[0].run();
@@ -118,7 +118,7 @@ suite('Experimental Prompts', () => {
 		};
 
 		instantiationService.stub(INotificationService, {
-			prompt: (a: Severity, b: string, c: IPromptChoice[], d) => {
+			prompt: (a: Severity, b: string, c: IPromptChoice[], options) => {
 				assert.equal(b, promptText);
 				assert.equal(c.length, 2);
 				c[1].run();
@@ -142,10 +142,10 @@ suite('Experimental Prompts', () => {
 		};
 
 		instantiationService.stub(INotificationService, {
-			prompt: (a: Severity, b: string, c: IPromptChoice[], d) => {
+			prompt: (a: Severity, b: string, c: IPromptChoice[], options) => {
 				assert.equal(b, promptText);
 				assert.equal(c.length, 2);
-				d();
+				options.onCancel();
 			}
 		});
 

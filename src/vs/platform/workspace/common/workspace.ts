@@ -99,7 +99,7 @@ export interface IWorkspace {
 	/**
 	 * the location of the workspace configuration
 	 */
-	readonly configuration?: URI;
+	readonly configuration?: URI | null;
 }
 
 export interface IWorkspaceFolderData {
@@ -171,19 +171,19 @@ export class Workspace implements IWorkspace {
 		return this._id;
 	}
 
-	get ctime(): number {
+	get ctime(): number | undefined {
 		return this._ctime;
 	}
 
-	get configuration(): URI {
+	get configuration(): URI | null {
 		return this._configuration;
 	}
 
-	set configuration(configuration: URI) {
+	set configuration(configuration: URI | null) {
 		this._configuration = configuration;
 	}
 
-	getFolder(resource: URI): IWorkspaceFolder {
+	getFolder(resource: URI): IWorkspaceFolder | null | undefined {
 		if (!resource) {
 			return null;
 		}
@@ -231,9 +231,9 @@ export function toWorkspaceFolders(configuredFolders: IStoredWorkspaceFolder[], 
 		.map(({ uri, raw, name }, index) => new WorkspaceFolder({ uri, name: name || resources.basenameOrAuthority(uri), index }, raw));
 }
 
-function parseWorkspaceFolders(configuredFolders: IStoredWorkspaceFolder[], relativeTo: URI): WorkspaceFolder[] {
+function parseWorkspaceFolders(configuredFolders: IStoredWorkspaceFolder[], relativeTo: URI | undefined): (WorkspaceFolder | undefined)[] {
 	return configuredFolders.map((configuredFolder, index) => {
-		let uri: URI;
+		let uri: URI | null = null;
 		if (isRawFileWorkspaceFolder(configuredFolder)) {
 			uri = toUri(configuredFolder.path, relativeTo);
 		} else if (isRawUriWorkspaceFolder(configuredFolder)) {
@@ -251,11 +251,11 @@ function parseWorkspaceFolders(configuredFolders: IStoredWorkspaceFolder[], rela
 		if (!uri) {
 			return void 0;
 		}
-		return new WorkspaceFolder({ uri, name: configuredFolder.name, index }, configuredFolder);
+		return new WorkspaceFolder({ uri, name: configuredFolder.name! /*is ensured in caller*/, index }, configuredFolder);
 	});
 }
 
-function toUri(path: string, relativeTo: URI): URI {
+function toUri(path: string, relativeTo: URI | undefined): URI | null {
 	if (path) {
 		if (paths.isAbsolute(path)) {
 			return URI.file(path);

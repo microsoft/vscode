@@ -11,8 +11,8 @@ export class ResolvedKeybindingItem {
 	_resolvedKeybindingItemBrand: void;
 
 	public readonly resolvedKeybinding: ResolvedKeybinding;
-	public readonly keypressFirstPart: string;
-	public readonly keypressChordPart: string;
+	public readonly keypressFirstPart: string | null;
+	public readonly keypressChordPart: string | null;
 	public readonly bubble: boolean;
 	public readonly command: string;
 	public readonly commandArgs: any;

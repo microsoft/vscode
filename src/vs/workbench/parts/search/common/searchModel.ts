@@ -170,8 +170,8 @@ export class FileMatch extends Disposable {
 			this.bindModel(model);
 			this.updateMatchesForModel();
 		} else {
-			this.rawMatch.matches.forEach((rawLineMatch) => {
-				let match = new Match(this, rawLineMatch);
+			this.rawMatch.matches.forEach(rawMatch => {
+				let match = new Match(this, rawMatch);
 				this.add(match);
 			});
 		}
@@ -410,20 +410,28 @@ export class FolderMatch extends Disposable {
 	}
 
 	public add(raw: IFileMatch[], silent: boolean): void {
-		const changed: FileMatch[] = [];
+		const added: FileMatch[] = [];
+		const updated: FileMatch[] = [];
 		raw.forEach((rawFileMatch) => {
 			if (this._fileMatches.has(rawFileMatch.resource)) {
-				this._fileMatches.get(rawFileMatch.resource).dispose();
+				const existingFileMatch = this._fileMatches.get(rawFileMatch.resource);
+				rawFileMatch.matches.forEach(m => {
+					let match = new Match(existingFileMatch, m);
+					existingFileMatch.add(match);
+				});
+				updated.push(existingFileMatch);
+			} else {
+				const fileMatch = this.instantiationService.createInstance(FileMatch, this._query.contentPattern, this._query.previewOptions, this._query.maxResults, this, rawFileMatch);
+				this.doAdd(fileMatch);
+				added.push(fileMatch);
+				const disposable = fileMatch.onChange(() => this.onFileChange(fileMatch));
+				fileMatch.onDispose(() => disposable.dispose());
 			}
-
-			const fileMatch = this.instantiationService.createInstance(FileMatch, this._query.contentPattern, this._query.previewOptions, this._query.maxResults, this, rawFileMatch);
-			this.doAdd(fileMatch);
-			changed.push(fileMatch);
-			const disposable = fileMatch.onChange(() => this.onFileChange(fileMatch));
-			fileMatch.onDispose(() => disposable.dispose());
 		});
-		if (!silent && changed.length) {
-			this._onChange.fire({ elements: changed, added: true });
+
+		const elements = [...added, ...updated];
+		if (!silent && elements.length) {
+			this._onChange.fire({ elements, added: !!added.length });
 		}
 	}
 

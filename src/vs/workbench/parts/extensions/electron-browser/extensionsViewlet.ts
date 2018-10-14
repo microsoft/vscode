@@ -635,7 +635,8 @@ export class MaliciousExtensionChecker implements IWorkbenchContribution {
 							[{
 								label: localize('reloadNow', "Reload Now"),
 								run: () => this.windowService.reloadWindow()
-							}]
+							}],
+							{ sticky: true }
 						);
 					})));
 				} else {

@@ -23,6 +23,8 @@ import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { TestThemeService } from 'vs/platform/theme/test/common/testThemeService';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
+import { View } from 'vs/editor/browser/view/viewImpl';
+import { ViewModel } from 'vs/editor/common/viewModel/viewModelImpl';
 
 export class TestCodeEditor extends CodeEditorWidget implements editorBrowser.ICodeEditor {
 
@@ -30,14 +32,15 @@ export class TestCodeEditor extends CodeEditorWidget implements editorBrowser.IC
 	protected _createConfiguration(options: editorOptions.IEditorOptions): editorCommon.IConfiguration {
 		return new TestConfiguration(options);
 	}
-	protected _createView(): void {
+	protected _createView(viewModel: ViewModel, cursor: Cursor): [View, boolean] {
 		// Never create a view
+		return [null, false];
 	}
 	//#endregion
 
 	//#region Testing utils
 	public getCursor(): Cursor {
-		return this.cursor;
+		return this._modelData.cursor;
 	}
 	public registerAndInstantiateContribution<T extends editorCommon.IEditorContribution>(ctor: any): T {
 		let r = <T>this._instantiationService.createInstance(ctor, this);
@@ -46,9 +49,8 @@ export class TestCodeEditor extends CodeEditorWidget implements editorBrowser.IC
 	}
 	public dispose() {
 		super.dispose();
-		if (this.model) {
-			this.model.dispose();
-			this.model = null;
+		if (this._modelData) {
+			this._modelData.model.dispose();
 		}
 	}
 }
