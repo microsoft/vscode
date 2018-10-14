@@ -242,7 +242,7 @@ suite('ExtensionsTipsService Test', () => {
 		instantiationService.stub(INotificationService, new TestNotificationService2());
 
 		testConfigurationService.setUserConfiguration(ConfigurationKey, { ignoreRecommendations: false, showRecommendationsOnlyOnDemand: false });
-		instantiationService.stub(IStorageService, { get: (a, b, c) => c, getBoolean: (a, b, c) => c, set: () => { } });
+		instantiationService.stub(IStorageService, { get: (a, b, c) => c, getBoolean: (a, b, c) => c, store: () => { } });
 		instantiationService.stub(IModelService, <IModelService>{
 			getModels(): any { return []; },
 			onModelAdded: onModelAddedEvent.event
@@ -453,7 +453,7 @@ suite('ExtensionsTipsService Test', () => {
 
 		instantiationService.stub(IStorageService, {
 			get: storageGetterStub,
-			set: () => { },
+			store: () => { },
 			getBoolean: (a, _, c) => a === 'extensionsAssistant/workspaceRecommendationsIgnore' || c
 		});
 
@@ -491,7 +491,7 @@ suite('ExtensionsTipsService Test', () => {
 		const ignoredExtensionId = 'Some.Extension';
 		instantiationService.stub(IStorageService, {
 			get: (a, b, c) => a === 'extensionsAssistant/ignored_recommendations' ? '["ms-vscode.vscode"]' : c,
-			set: (...args) => {
+			store: (...args) => {
 				storageSetterTarget(...args);
 			}
 		});

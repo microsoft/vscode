@@ -28,7 +28,7 @@ suite('Workbench - GettingStarted', () => {
 		});
 		instantiation.stub(IStorageService, {
 			get: () => hideWelcomeSettingsValue,
-			set: (value) => hideWelcomeSettingsValue = value
+			store: (value) => hideWelcomeSettingsValue = value
 		});
 	});
 

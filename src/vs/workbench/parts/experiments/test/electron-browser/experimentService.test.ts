@@ -76,11 +76,11 @@ suite('Experiment Service', () => {
 		testConfigurationService = new TestConfigurationService();
 		instantiationService.stub(IConfigurationService, testConfigurationService);
 		instantiationService.stub(ILifecycleService, new TestLifecycleService());
-		instantiationService.stub(IStorageService, { get: (a, b, c) => c, getBoolean: (a, b, c) => c, set: () => { } });
+		instantiationService.stub(IStorageService, { get: (a, b, c) => c, getBoolean: (a, b, c) => c, store: () => { } });
 
 		setup(() => {
 			instantiationService.stub(IEnvironmentService, {});
-			instantiationService.stub(IStorageService, { get: (a, b, c) => c, getBoolean: (a, b, c) => c, set: () => { } });
+			instantiationService.stub(IStorageService, { get: (a, b, c) => c, getBoolean: (a, b, c) => c, store: () => { } });
 		});
 
 		teardown(() => {
@@ -276,7 +276,7 @@ suite('Experiment Service', () => {
 
 		instantiationService.stub(IStorageService, {
 			get: (a, b, c) => a === 'experiments.experiment1' ? JSON.stringify({ state: ExperimentState.Complete }) : c,
-			set: (a, b, c) => { }
+			store: (a, b, c) => { }
 		});
 
 		testObject = instantiationService.createInstance(TestExperimentService);
@@ -304,7 +304,7 @@ suite('Experiment Service', () => {
 
 		instantiationService.stub(IStorageService, {
 			get: (a, b, c) => a === 'experiments.experiment1' ? JSON.stringify({ enabled: true, state: ExperimentState.Run }) : c,
-			set: (a, b, c) => { }
+			store: (a, b, c) => { }
 		});
 		testObject = instantiationService.createInstance(TestExperimentService);
 		return testObject.getExperimentById('experiment1').then(result => {
@@ -424,7 +424,7 @@ suite('Experiment Service', () => {
 				}
 				return c;
 			},
-			set: (a, b, c) => {
+			store: (a, b, c) => {
 				switch (a) {
 					case 'experiments.experiment1':
 						storageDataExperiment1 = JSON.parse(b);
@@ -439,7 +439,7 @@ suite('Experiment Service', () => {
 						break;
 				}
 			},
-			delete: a => {
+			remove: a => {
 				switch (a) {
 					case 'experiments.experiment1':
 						storageDataExperiment1 = null;
@@ -500,7 +500,7 @@ suite('Experiment Service', () => {
 				}
 				return c;
 			},
-			set: (a, b, c) => {
+			store: (a, b, c) => {
 				switch (a) {
 					case 'experiments.experiment1':
 						storageDataExperiment1 = JSON.parse(b);
@@ -521,7 +521,7 @@ suite('Experiment Service', () => {
 						break;
 				}
 			},
-			delete: a => {
+			remove: a => {
 				switch (a) {
 					case 'experiments.experiment1':
 						storageDataExperiment1 = null;
@@ -680,7 +680,7 @@ suite('Experiment Service', () => {
 				}
 				return c;
 			},
-			set: (a, b, c) => {
+			store: (a, b, c) => {
 				switch (a) {
 					case 'experiments.experiment3':
 						storageDataExperiment3 = JSON.parse(b);

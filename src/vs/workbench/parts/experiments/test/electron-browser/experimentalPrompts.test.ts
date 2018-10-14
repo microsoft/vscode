@@ -64,7 +64,7 @@ suite('Experimental Prompts', () => {
 		storageData = {};
 		instantiationService.stub(IStorageService, {
 			get: (a, b, c) => a === 'experiments.experiment1' ? JSON.stringify(storageData) : c,
-			set: (a, b, c) => {
+			store: (a, b, c) => {
 				if (a === 'experiments.experiment1') {
 					storageData = JSON.parse(b);
 				}
