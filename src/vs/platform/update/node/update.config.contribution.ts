@@ -19,7 +19,14 @@ configurationRegistry.registerConfiguration({
 			'enum': ['none', 'default'],
 			'default': 'default',
 			'scope': ConfigurationScope.APPLICATION,
-			'description': nls.localize('updateChannel', "Configure whether you receive automatic updates from an update channel. Requires a restart after change. The updates are fetched from a Microsoft online service."),
+			'description': nls.localize('updateChannel', "Defines the channel from which updates are fetched. Requires a restart after change. The updates are fetched from a Microsoft online service."),
+			'tags': ['usesOnlineServices']
+		},
+		'update.autoCheckForUpdates': {
+			'type': 'boolean',
+			'default': true,
+			'scope': ConfigurationScope.APPLICATION,
+			'description': nls.localize('autoCheckForUpdates', "Controls whether you receive automatic updates. Requires a restart after change. The updates are fetched from a Microsoft online service."),
 			'tags': ['usesOnlineServices']
 		},
 		'update.enableWindowsBackgroundUpdates': {
