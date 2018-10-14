@@ -199,15 +199,19 @@ export abstract class AbstractTree<T, TFilterData, TRef> implements IDisposable 
 		this.onDidChangeCollapseState = this.model.onDidChangeCollapseState;
 		this.onDidChangeRenderNodeCount = this.model.onDidChangeRenderNodeCount;
 
-		this.view.onMouseClick(this.onMouseClick, this, this.disposables);
+		if (options.mouseSupport !== false) {
+			this.view.onMouseClick(this.onMouseClick, this, this.disposables);
+		}
 
-		const onKeyDown = chain(this.view.onKeyDown)
-			.filter(e => !isInputElement(e.target as HTMLElement))
-			.map(e => new StandardKeyboardEvent(e));
+		if (options.keyboardSupport !== false) {
+			const onKeyDown = chain(this.view.onKeyDown)
+				.filter(e => !isInputElement(e.target as HTMLElement))
+				.map(e => new StandardKeyboardEvent(e));
 
-		onKeyDown.filter(e => e.keyCode === KeyCode.LeftArrow).on(this.onLeftArrow, this, this.disposables);
-		onKeyDown.filter(e => e.keyCode === KeyCode.RightArrow).on(this.onRightArrow, this, this.disposables);
-		onKeyDown.filter(e => e.keyCode === KeyCode.Space).on(this.onSpace, this, this.disposables);
+			onKeyDown.filter(e => e.keyCode === KeyCode.LeftArrow).on(this.onLeftArrow, this, this.disposables);
+			onKeyDown.filter(e => e.keyCode === KeyCode.RightArrow).on(this.onRightArrow, this, this.disposables);
+			onKeyDown.filter(e => e.keyCode === KeyCode.Space).on(this.onSpace, this, this.disposables);
+		}
 	}
 
 	// Widget

@@ -596,50 +596,35 @@ export class ObjectTreeResourceNavigator<T, TFilterData> extends Disposable {
 
 	private onFocus(e: ITreeEvent<T, TFilterData>): void {
 		const focus = this.tree.getFocus();
-
 		this.tree.setSelection(focus, e.browserEvent);
 
-		const isMouseEvent = e.browserEvent instanceof MouseEvent;
-		const isDoubleClick = isMouseEvent && e.browserEvent && e.browserEvent.detail === 2;
+		const isMouseEvent = e.browserEvent && e.browserEvent instanceof MouseEvent;
 
-		if (!isMouseEvent || this.tree.openOnSingleClick || isDoubleClick) {
-			this._openResource.fire({
-				editorOptions: {
-					preserveFocus: true,
-					pinned: false,
-					revealIfVisible: true
-				},
-				sideBySide: false,
-				element: focus[0]
-			});
+		if (!isMouseEvent) {
+			this.open(true, false, false);
 		}
 	}
 
 	private onSelection(e: ITreeEvent<T, TFilterData>): void {
-		const isMouseEvent = e.browserEvent && e.browserEvent instanceof MouseEvent;
-		if (!isMouseEvent || this.tree.openOnSingleClick) {
+		if (!e.browserEvent) {
 			return;
 		}
 
-		const isDoubleClick = isMouseEvent && e.browserEvent && e.browserEvent.detail === 2;
+		const isDoubleClick = e.browserEvent instanceof MouseEvent && e.browserEvent.detail === 2;
+		const sideBySide = e.browserEvent instanceof KeyboardEvent && (e.browserEvent.ctrlKey || e.browserEvent.metaKey || e.browserEvent.altKey);
+		this.open(!isDoubleClick, isDoubleClick, sideBySide);
+	}
 
-		if (!isMouseEvent || this.tree.openOnSingleClick || isDoubleClick) {
-			if (isDoubleClick && e.browserEvent) {
-				e.browserEvent.preventDefault(); // focus moves to editor, we need to prevent default
-			}
-
-			const sideBySide = e.browserEvent && e.browserEvent instanceof KeyboardEvent && (e.browserEvent.ctrlKey || e.browserEvent.metaKey || e.browserEvent.altKey);
-
-			this._openResource.fire({
-				editorOptions: {
-					preserveFocus: isDoubleClick,
-					pinned: isDoubleClick,
-					revealIfVisible: true
-				},
-				sideBySide,
-				element: this.tree.getSelection()[0]
-			});
-		}
+	private open(preserveFocus: boolean, pinned: boolean, sideBySide: boolean): void {
+		this._openResource.fire({
+			editorOptions: {
+				preserveFocus,
+				pinned,
+				revealIfVisible: true
+			},
+			sideBySide,
+			element: this.tree.getSelection()[0]
+		});
 	}
 }
 
