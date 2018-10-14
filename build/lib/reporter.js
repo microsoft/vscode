@@ -58,33 +58,27 @@ function log() {
 function createReporter() {
     const errors = [];
     allErrors.push(errors);
-    class ReportFunc {
-        constructor(err) {
-            errors.push(err);
-        }
-        static hasErrors() {
-            return errors.length > 0;
-        }
-        static end(emitError) {
-            errors.length = 0;
-            onStart();
-            return es.through(undefined, function () {
-                onEnd();
-                if (emitError && errors.length > 0) {
-                    if (!errors.__logged__) {
-                        log();
-                    }
-                    errors.__logged__ = true;
-                    const err = new Error(`Found ${errors.length} errors`);
-                    err.__reporter__ = true;
-                    this.emit('error', err);
+    const result = (err) => errors.push(err);
+    result.hasErrors = () => errors.length > 0;
+    result.end = (emitError) => {
+        errors.length = 0;
+        onStart();
+        return es.through(undefined, function () {
+            onEnd();
+            if (emitError && errors.length > 0) {
+                if (!errors.__logged__) {
+                    log();
                 }
-                else {
-                    this.emit('end');
-                }
-            });
-        }
-    }
-    return ReportFunc;
+                errors.__logged__ = true;
+                const err = new Error(`Found ${errors.length} errors`);
+                err.__reporter__ = true;
+                this.emit('error', err);
+            }
+            else {
+                this.emit('end');
+            }
+        });
+    };
+    return result;
 }
 exports.createReporter = createReporter;

@@ -78,38 +78,32 @@ export function createReporter(): IReporter {
 	const errors: string[] = [];
 	allErrors.push(errors);
 
-	class ReportFunc {
-		constructor(err: string) {
-			errors.push(err);
-		}
+	const result = (err: string) => errors.push(err);
 
-		static hasErrors(): boolean {
-			return errors.length > 0;
-		}
+	result.hasErrors = () => errors.length > 0;
 
-		static end(emitError: boolean): NodeJS.ReadWriteStream {
-			errors.length = 0;
-			onStart();
+	result.end = (emitError: boolean): NodeJS.ReadWriteStream => {
+		errors.length = 0;
+		onStart();
 
-			return es.through(undefined, function () {
-				onEnd();
+		return es.through(undefined, function () {
+			onEnd();
 
-				if (emitError && errors.length > 0) {
-					if (!(errors as any).__logged__) {
-						log();
-					}
-
-					(errors as any).__logged__ = true;
-
-					const err = new Error(`Found ${errors.length} errors`);
-					(err as any).__reporter__ = true;
-					this.emit('error', err);
-				} else {
-					this.emit('end');
+			if (emitError && errors.length > 0) {
+				if (!(errors as any).__logged__) {
+					log();
 				}
-			});
-		}
-	}
 
-	return <IReporter><any>ReportFunc;
+				(errors as any).__logged__ = true;
+
+				const err = new Error(`Found ${errors.length} errors`);
+				(err as any).__reporter__ = true;
+				this.emit('error', err);
+			} else {
+				this.emit('end');
+			}
+		});
+	};
+
+	return result;
 }
