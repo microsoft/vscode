@@ -8,24 +8,63 @@ import { Iterator } from 'vs/base/common/iterator';
 import { IListRenderer } from 'vs/base/browser/ui/list/list';
 
 export const enum TreeVisibility {
+
+	/**
+	 * The tree node should be hidden.
+	 */
 	Hidden,
+
+	/**
+	 * The tree node should be visible.
+	 */
 	Visible,
-	Recurse // TODO@joao come up with a better name
+
+	/**
+	 * The tree node should be visible if any of its descendants is visible.
+	 */
+	Recurse
 }
 
+/**
+ * A composed filter result containing the visibility result as well as
+ * metadata.
+ */
 export interface ITreeFilterDataResult<TFilterData> {
+
+	/**
+	 * Whether the node should be visibile.
+	 */
 	visibility: boolean | TreeVisibility;
+
+	/**
+	 * Metadata about the element's visibility which gets forwarded to the
+	 * renderer once the element gets rendered.
+	 */
 	data: TFilterData;
 }
 
+/**
+ * The result of a filter call can be a boolean value indicating whether
+ * the element should be visible or not, a value of type `TreeVisibility` or
+ * an object composed of the visibility result as well as additional metadata
+ * which gets forwarded to the renderer once the element gets rendered.
+ */
 export type TreeFilterResult<TFilterData> = boolean | TreeVisibility | ITreeFilterDataResult<TFilterData>;
 
+/**
+ * A tree filter is responsible for controlling the visibility of
+ * elements in a tree.
+ */
 export interface ITreeFilter<T, TFilterData = void> {
-	filter(element: T): TreeFilterResult<TFilterData>;
-}
 
-export interface ITreeOptions<T, TFilterData = void> {
-	filter?: ITreeFilter<T, TFilterData>;
+	/**
+	 * Returns whether this elements should be visible and, if affirmative,
+	 * additional metadata which gets forwarded to the renderer once the element
+	 * gets rendered.
+	 *
+	 * @param element The tree element.
+	 */
+	filter(element: T): TreeFilterResult<TFilterData>;
 }
 
 export interface ITreeElement<T> {
@@ -36,13 +75,12 @@ export interface ITreeElement<T> {
 }
 
 export interface ITreeNode<T, TFilterData = void> {
-	readonly parent: ITreeNode<T, TFilterData> | undefined;
 	readonly element: T;
+	readonly parent: ITreeNode<T, TFilterData> | undefined;
 	readonly children: ITreeNode<T, TFilterData>[];
 	readonly depth: number;
 	readonly collapsible: boolean;
 	readonly collapsed: boolean;
-	readonly renderNodeCount: number;
 	readonly visible: boolean;
 	readonly filterData: TFilterData | undefined;
 }
