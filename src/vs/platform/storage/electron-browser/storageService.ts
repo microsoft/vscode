@@ -13,7 +13,6 @@ import { IStorageLegacyService, StorageLegacyScope } from 'vs/platform/storage/c
 import { addDisposableListener } from 'vs/base/browser/dom';
 import { startsWith } from 'vs/base/common/strings';
 import { ShutdownReason } from 'vs/platform/lifecycle/common/lifecycle';
-import { isUndefinedOrNull } from 'vs/base/common/types';
 
 export class StorageService extends Disposable implements IStorageService {
 	_serviceBrand: any;
@@ -133,34 +132,34 @@ export class DelegatingStorageService extends Disposable implements IStorageServ
 	}
 
 	get(key: string, scope: StorageScope, fallbackValue?: any): string {
-		const dbValue = this.storageService.get(key, scope);
 		const localStorageValue = this.storageLegacyService.get(key, this.convertScope(scope), fallbackValue);
+		const dbValue = this.storageService.get(key, scope, localStorageValue);
 
 		this.assertStorageValue(key, scope, dbValue, localStorageValue);
 
-		return localStorageValue;
+		return dbValue;
 	}
 
 	getBoolean(key: string, scope: StorageScope, fallbackValue?: boolean): boolean {
-		const dbValue = this.storageService.getBoolean(key, scope);
 		const localStorageValue = this.storageLegacyService.getBoolean(key, this.convertScope(scope), fallbackValue);
+		const dbValue = this.storageService.getBoolean(key, scope, localStorageValue);
 
 		this.assertStorageValue(key, scope, dbValue, localStorageValue);
 
-		return localStorageValue;
+		return dbValue;
 	}
 
 	getInteger(key: string, scope: StorageScope, fallbackValue?: number): number {
-		const dbValue = this.storageService.getInteger(key, scope);
 		const localStorageValue = this.storageLegacyService.getInteger(key, this.convertScope(scope), fallbackValue);
+		const dbValue = this.storageService.getInteger(key, scope, localStorageValue);
 
 		this.assertStorageValue(key, scope, dbValue, localStorageValue);
 
-		return localStorageValue;
+		return dbValue;
 	}
 
 	private assertStorageValue(key: string, scope: StorageScope, dbValue: any, storageValue: any): void {
-		if (!isUndefinedOrNull(dbValue) && dbValue !== storageValue) {
+		if (dbValue !== storageValue) {
 			this.logService.error(`Unexpected storage value (key: ${key}, scope: ${scope === StorageScope.GLOBAL ? 'global' : 'workspace'}), actual: ${dbValue}, expected: ${storageValue}`);
 		}
 	}

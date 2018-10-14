@@ -33,7 +33,7 @@ enum StorageState {
 export class Storage extends Disposable {
 	_serviceBrand: any;
 
-	private static readonly FLUSH_DELAY = 10;
+	private static readonly FLUSH_DELAY = 100;
 
 	private _onDidChangeStorage: Emitter<string> = this._register(new Emitter<string>());
 	get onDidChangeStorage(): Event<string> { return this._onDidChangeStorage.event; }
