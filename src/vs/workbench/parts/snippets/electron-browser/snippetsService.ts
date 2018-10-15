@@ -360,6 +360,8 @@ export class SnippetSuggestion implements CompletionItem {
 
 export class SnippetSuggestProvider implements CompletionItemProvider {
 
+	private static readonly _maxPrefix = 10000;
+
 	constructor(
 		@IModeService private readonly _modeService: IModeService,
 		@ISnippetsService private readonly _snippets: ISnippetsService
@@ -369,14 +371,17 @@ export class SnippetSuggestProvider implements CompletionItemProvider {
 
 	provideCompletionItems(model: ITextModel, position: Position, context: CompletionContext): Promise<CompletionList> {
 
+		if (position.column >= SnippetSuggestProvider._maxPrefix) {
+			return undefined;
+		}
+
 		const languageId = this._getLanguageIdAtPosition(model, position);
 		return this._snippets.getSnippets(languageId).then(snippets => {
 
 			let suggestions: SnippetSuggestion[];
-			let shift = Math.max(0, position.column - 100);
-			let pos = { lineNumber: position.lineNumber, column: Math.max(1, position.column - 100) };
+			let pos = { lineNumber: position.lineNumber, column: 1 };
 			let lineOffsets: number[] = [];
-			let linePrefixLow = model.getLineContent(position.lineNumber).substr(Math.max(0, position.column - 100), position.column - 1).toLowerCase();
+			let linePrefixLow = model.getLineContent(position.lineNumber).substr(0, position.column - 1).toLowerCase();
 
 			while (pos.column < position.column) {
 				let word = model.getWordAtPosition(pos);
@@ -407,7 +412,6 @@ export class SnippetSuggestProvider implements CompletionItemProvider {
 				let consumed = new Set<Snippet>();
 				suggestions = [];
 				for (let start of lineOffsets) {
-					start -= shift;
 					for (const snippet of snippets) {
 						if (!consumed.has(snippet) && matches(linePrefixLow, start, snippet.prefixLow, 0)) {
 							suggestions.push(new SnippetSuggestion(snippet, Range.fromPositions(position.delta(0, -(linePrefixLow.length - start)), position)));

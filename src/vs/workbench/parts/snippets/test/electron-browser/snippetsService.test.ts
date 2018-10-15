@@ -310,4 +310,23 @@ suite('SnippetsService', function () {
 		assert.equal(result.suggestions.length, 1);
 		assert.equal(result.suggestions[0].label, 'mytemplate');
 	});
+
+	test('No snippets suggestion beyond character 100 if not at end of line #60247', async function () {
+		snippetService = new SimpleSnippetService([new Snippet(
+			['fooLang'],
+			'bug',
+			'bug',
+			'',
+			'second',
+			'',
+			SnippetSource.User
+		)]);
+
+		const provider = new SnippetSuggestProvider(modeService, snippetService);
+
+		let model = TextModel.createFromString('Thisisaverylonglinegoingwithmore100bcharactersandthismakesintellisensebecomea Thisisaverylonglinegoingwithmore100bcharactersandthismakesintellisensebecomea b text_after_b', undefined, modeService.getLanguageIdentifier('fooLang'));
+		let result = await provider.provideCompletionItems(model, new Position(1, 158), suggestContext);
+
+		assert.equal(result.suggestions.length, 1);
+	});
 });
