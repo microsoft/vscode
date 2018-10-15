@@ -123,9 +123,11 @@ suite('Debug - Debugger', () => {
 		}
 	};
 
+	const configurationService = new TestConfigurationService();
+	const testResourcePropertiesService = new TestTextResourcePropertiesService(configurationService);
+
 	setup(() => {
-		const configurationService = new TestConfigurationService();
-		_debugger = new Debugger(configurationManager, debuggerContribution, extensionDescriptor0, configurationService, new TestTextResourcePropertiesService(configurationService), undefined, undefined, undefined);
+		_debugger = new Debugger(configurationManager, debuggerContribution, extensionDescriptor0, configurationService, testResourcePropertiesService, undefined, undefined, undefined);
 	});
 
 	teardown(() => {
@@ -178,7 +180,7 @@ suite('Debug - Debugger', () => {
 			'			"program": "readme.md"',
 			'		}',
 			'	]',
-			'}'].join('\n');
+			'}'].join(testResourcePropertiesService.getEOL(URI.file('somefile')));
 
 		return _debugger.getInitialConfigurationContent().then(content => {
 			assert.equal(content, expected);
