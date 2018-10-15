@@ -383,7 +383,7 @@ configurationRegistry.registerConfiguration({
 		'terminal.integrated.splitCwdSource': {
 			description: nls.localize('terminal.integrated.splitCwdSource', "Controls the source of the starting cwd for terminals created by splitting."),
 			type: 'string',
-			enum: ['ShellDefault', 'SourceInitialCwd'],
+			enum: ['ShellDefault', 'SourceInitialCwd', 'Cwd'],
 			default: 'ShellDefault'
 		},
 	}

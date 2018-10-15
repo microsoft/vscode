@@ -100,7 +100,7 @@ export interface ITerminalConfiguration {
 	};
 	showExitAlert: boolean;
 	experimentalBufferImpl: 'JsArray' | 'TypedArray';
-	splitCwdSource: 'ShellDefault' | 'SourceInitialCwd';
+	splitCwdSource: 'ShellDefault' | 'SourceInitialCwd' | 'Cwd';
 }
 
 export interface ITerminalConfigHelper {
