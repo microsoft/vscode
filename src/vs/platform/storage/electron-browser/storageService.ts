@@ -13,6 +13,9 @@ import { IStorageLegacyService, StorageLegacyScope } from 'vs/platform/storage/c
 import { addDisposableListener } from 'vs/base/browser/dom';
 import { startsWith } from 'vs/base/common/strings';
 import { ShutdownReason } from 'vs/platform/lifecycle/common/lifecycle';
+import { Action } from 'vs/base/common/actions';
+import { IWindowService } from 'vs/platform/windows/common/windows';
+import { localize } from 'vs/nls';
 
 export class StorageService extends Disposable implements IStorageService {
 	_serviceBrand: any;
@@ -96,6 +99,45 @@ export class StorageService extends Disposable implements IStorageService {
 
 	private getStorage(scope: StorageScope): Storage {
 		return scope === StorageScope.GLOBAL ? this.globalStorage : this.workspaceStorage;
+	}
+
+	logStorage(): Promise<void> {
+		return Promise.all([this.globalStorage.getItems(), this.workspaceStorage.getItems()]).then(items => {
+			const globalItems = Object.create(null);
+			items[0].forEach((value, key) => globalItems[key] = value);
+
+			const workspaceItems = Object.create(null);
+			items[1].forEach((value, key) => workspaceItems[key] = value);
+
+			console.group('Storage: Global');
+			console.table(globalItems);
+			console.groupEnd();
+
+			console.group('Storage: Workspace');
+			console.table(workspaceItems);
+			console.groupEnd();
+		});
+	}
+}
+
+export class LogStorageAction extends Action {
+
+	static readonly ID = 'workbench.action.logStorage';
+	static LABEL = localize('logStorage', "Log Storage");
+
+	constructor(
+		id: string,
+		label: string,
+		@IStorageService private storageService: DelegatingStorageService,
+		@IWindowService private windowService: IWindowService
+	) {
+		super(id, label);
+	}
+
+	run(): Thenable<void> {
+		this.storageService.logStorage();
+
+		return this.windowService.openDevTools();
 	}
 }
 
@@ -202,5 +244,10 @@ export class DelegatingStorageService extends Disposable implements IStorageServ
 
 	private convertScope(scope: StorageScope): StorageLegacyScope {
 		return scope === StorageScope.GLOBAL ? StorageLegacyScope.GLOBAL : StorageLegacyScope.WORKSPACE;
+	}
+
+	logStorage(): Promise<void> {
+		return this.storageService.logStorage();
+
 	}
 }

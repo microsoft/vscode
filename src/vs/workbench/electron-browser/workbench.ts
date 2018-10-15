@@ -114,6 +114,7 @@ import { WorkbenchThemeService } from 'vs/workbench/services/themes/electron-bro
 import { IWorkbenchThemeService } from 'vs/workbench/services/themes/common/workbenchThemeService';
 import { IFileDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { FileDialogService } from 'vs/workbench/services/dialogs/electron-browser/dialogService';
+import { LogStorageAction } from 'vs/platform/storage/electron-browser/storageService';
 
 interface WorkbenchParams {
 	configuration: IWindowConfiguration;
@@ -311,6 +312,7 @@ export class Workbench extends Disposable implements IPartService {
 		registry.registerWorkbenchAction(new SyncActionDescriptor(ToggleDevToolsAction, ToggleDevToolsAction.ID, ToggleDevToolsAction.LABEL, isDeveloping ? { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_I, mac: { primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.KEY_I } } : void 0), 'Developer: Toggle Developer Tools', localize('developer', "Developer"));
 		registry.registerWorkbenchAction(new SyncActionDescriptor(OpenRecentAction, OpenRecentAction.ID, OpenRecentAction.LABEL, { primary: isDeveloping ? null : KeyMod.CtrlCmd | KeyCode.KEY_R, mac: { primary: KeyMod.WinCtrl | KeyCode.KEY_R } }), 'File: Open Recent...', localize('file', "File"));
 		registry.registerWorkbenchAction(new SyncActionDescriptor(ReloadWindowWithExtensionsDisabledAction, ReloadWindowWithExtensionsDisabledAction.ID, ReloadWindowWithExtensionsDisabledAction.LABEL), 'Reload Window Without Extensions');
+		registry.registerWorkbenchAction(new SyncActionDescriptor(LogStorageAction, LogStorageAction.ID, LogStorageAction.LABEL), 'Developer: Log Storage', localize('developer', "Developer"));
 
 		// Actions for macOS native tabs management (only when enabled)
 		const windowConfig = this.configurationService.getValue<IWindowConfiguration>();
