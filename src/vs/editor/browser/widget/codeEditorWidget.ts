@@ -201,16 +201,15 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 	public readonly isSimpleWidget: boolean;
 	private readonly _telemetryData: object | null;
 
-	private readonly domElement: HTMLElement;
-	private readonly id: number;
+	private readonly _domElement: HTMLElement;
+	private readonly _id: number;
 	private readonly _configuration: editorCommon.IConfiguration;
 
-	protected _contributions: { [key: string]: editorCommon.IEditorContribution; };
-	protected _actions: { [key: string]: editorCommon.IEditorAction; };
+	protected readonly _contributions: { [key: string]: editorCommon.IEditorContribution; };
+	protected readonly _actions: { [key: string]: editorCommon.IEditorAction; };
 
 	// --- Members logically associated to a model
 	protected _modelData: ModelData | null;
-
 
 	protected readonly _instantiationService: IInstantiationService;
 	protected readonly _contextKeyService: IContextKeyService;
@@ -219,10 +218,10 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 	private readonly _commandService: ICommandService;
 	private readonly _themeService: IThemeService;
 
-	private _focusTracker: CodeEditorWidgetFocusTracker;
+	private readonly _focusTracker: CodeEditorWidgetFocusTracker;
 
-	private contentWidgets: { [key: string]: IContentWidgetData; };
-	private overlayWidgets: { [key: string]: IOverlayWidgetData; };
+	private readonly _contentWidgets: { [key: string]: IContentWidgetData; };
+	private readonly _overlayWidgets: { [key: string]: IOverlayWidgetData; };
 
 	/**
 	 * map from "parent" decoration type to live decoration ids.
@@ -242,8 +241,8 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 		@INotificationService notificationService: INotificationService
 	) {
 		super();
-		this.domElement = domElement;
-		this.id = (++EDITOR_ID);
+		this._domElement = domElement;
+		this._id = (++EDITOR_ID);
 		this._decorationTypeKeysToIds = {};
 		this._decorationTypeSubtypes = {};
 		this.isSimpleWidget = codeEditorWidgetOptions.isSimpleWidget || false;
@@ -258,13 +257,13 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 				this._onDidLayoutChange.fire(this._configuration.editor.layoutInfo);
 			}
 			if (this._configuration.editor.showUnused) {
-				this.domElement.classList.add(SHOW_UNUSED_ENABLED_CLASS);
+				this._domElement.classList.add(SHOW_UNUSED_ENABLED_CLASS);
 			} else {
-				this.domElement.classList.remove(SHOW_UNUSED_ENABLED_CLASS);
+				this._domElement.classList.remove(SHOW_UNUSED_ENABLED_CLASS);
 			}
 		}));
 
-		this._contextKeyService = this._register(contextKeyService.createScoped(this.domElement));
+		this._contextKeyService = this._register(contextKeyService.createScoped(this._domElement));
 		this._notificationService = notificationService;
 		this._codeEditorService = codeEditorService;
 		this._commandService = commandService;
@@ -284,8 +283,8 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 			this._editorWidgetFocus.setValue(this._focusTracker.hasFocus());
 		});
 
-		this.contentWidgets = {};
-		this.overlayWidgets = {};
+		this._contentWidgets = {};
+		this._overlayWidgets = {};
 
 		mark('editor/start/contrib');
 		let contributions: IEditorContributionCtor[];
@@ -325,11 +324,11 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 	}
 
 	protected _createConfiguration(options: editorOptions.IEditorOptions): editorCommon.IConfiguration {
-		return new Configuration(options, this.domElement);
+		return new Configuration(options, this._domElement);
 	}
 
 	public getId(): string {
-		return this.getEditorType() + ':' + this.id;
+		return this.getEditorType() + ':' + this._id;
 	}
 
 	public getEditorType(): string {
@@ -339,9 +338,6 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 	public dispose(): void {
 		this._codeEditorService.removeCodeEditor(this);
 
-		this.contentWidgets = {};
-		this.overlayWidgets = {};
-
 		this._focusTracker.dispose();
 
 		let keys = Object.keys(this._contributions);
@@ -349,10 +345,7 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 			let contributionId = keys[i];
 			this._contributions[contributionId].dispose();
 		}
-		this._contributions = {};
 
-		// editor actions don't need to be disposed
-		this._actions = {};
 		this._removeDecorationTypes();
 		this._postDetachModelCleanup(this._detachModel());
 
@@ -1026,14 +1019,14 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 			// callback will not be called
 			return null;
 		}
-		return this._modelData.model.changeDecorations(callback, this.id);
+		return this._modelData.model.changeDecorations(callback, this._id);
 	}
 
 	public getLineDecorations(lineNumber: number): IModelDecoration[] | null {
 		if (!this._modelData) {
 			return null;
 		}
-		return this._modelData.model.getLineDecorations(lineNumber, this.id, this._configuration.editor.readOnly);
+		return this._modelData.model.getLineDecorations(lineNumber, this._id, this._configuration.editor.readOnly);
 	}
 
 	public deltaDecorations(oldDecorations: string[], newDecorations: IModelDeltaDecoration[]): string[] {
@@ -1045,7 +1038,7 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 			return oldDecorations;
 		}
 
-		return this._modelData.model.deltaDecorations(oldDecorations, newDecorations, this.id);
+		return this._modelData.model.deltaDecorations(oldDecorations, newDecorations, this._id);
 	}
 
 	public setDecorations(decorationTypeKey: string, decorationOptions: editorCommon.IDecorationOptions[]): void {
@@ -1178,11 +1171,11 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 			position: widget.getPosition()
 		};
 
-		if (this.contentWidgets.hasOwnProperty(widget.getId())) {
+		if (this._contentWidgets.hasOwnProperty(widget.getId())) {
 			console.warn('Overwriting a content widget with the same id.');
 		}
 
-		this.contentWidgets[widget.getId()] = widgetData;
+		this._contentWidgets[widget.getId()] = widgetData;
 
 		if (this._modelData && this._modelData.hasRealView) {
 			this._modelData.view.addContentWidget(widgetData);
@@ -1191,8 +1184,8 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 
 	public layoutContentWidget(widget: editorBrowser.IContentWidget): void {
 		let widgetId = widget.getId();
-		if (this.contentWidgets.hasOwnProperty(widgetId)) {
-			let widgetData = this.contentWidgets[widgetId];
+		if (this._contentWidgets.hasOwnProperty(widgetId)) {
+			let widgetData = this._contentWidgets[widgetId];
 			widgetData.position = widget.getPosition();
 			if (this._modelData && this._modelData.hasRealView) {
 				this._modelData.view.layoutContentWidget(widgetData);
@@ -1202,9 +1195,9 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 
 	public removeContentWidget(widget: editorBrowser.IContentWidget): void {
 		let widgetId = widget.getId();
-		if (this.contentWidgets.hasOwnProperty(widgetId)) {
-			let widgetData = this.contentWidgets[widgetId];
-			delete this.contentWidgets[widgetId];
+		if (this._contentWidgets.hasOwnProperty(widgetId)) {
+			let widgetData = this._contentWidgets[widgetId];
+			delete this._contentWidgets[widgetId];
 			if (this._modelData && this._modelData.hasRealView) {
 				this._modelData.view.removeContentWidget(widgetData);
 			}
@@ -1217,11 +1210,11 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 			position: widget.getPosition()
 		};
 
-		if (this.overlayWidgets.hasOwnProperty(widget.getId())) {
+		if (this._overlayWidgets.hasOwnProperty(widget.getId())) {
 			console.warn('Overwriting an overlay widget with the same id.');
 		}
 
-		this.overlayWidgets[widget.getId()] = widgetData;
+		this._overlayWidgets[widget.getId()] = widgetData;
 
 		if (this._modelData && this._modelData.hasRealView) {
 			this._modelData.view.addOverlayWidget(widgetData);
@@ -1230,8 +1223,8 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 
 	public layoutOverlayWidget(widget: editorBrowser.IOverlayWidget): void {
 		let widgetId = widget.getId();
-		if (this.overlayWidgets.hasOwnProperty(widgetId)) {
-			let widgetData = this.overlayWidgets[widgetId];
+		if (this._overlayWidgets.hasOwnProperty(widgetId)) {
+			let widgetData = this._overlayWidgets[widgetId];
 			widgetData.position = widget.getPosition();
 			if (this._modelData && this._modelData.hasRealView) {
 				this._modelData.view.layoutOverlayWidget(widgetData);
@@ -1241,9 +1234,9 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 
 	public removeOverlayWidget(widget: editorBrowser.IOverlayWidget): void {
 		let widgetId = widget.getId();
-		if (this.overlayWidgets.hasOwnProperty(widgetId)) {
-			let widgetData = this.overlayWidgets[widgetId];
-			delete this.overlayWidgets[widgetId];
+		if (this._overlayWidgets.hasOwnProperty(widgetId)) {
+			let widgetData = this._overlayWidgets[widgetId];
+			delete this._overlayWidgets[widgetId];
 			if (this._modelData && this._modelData.hasRealView) {
 				this._modelData.view.removeOverlayWidget(widgetData);
 			}
@@ -1311,17 +1304,17 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 
 		const listenersToRemove: IDisposable[] = [];
 
-		this.domElement.setAttribute('data-mode-id', model.getLanguageIdentifier().language);
+		this._domElement.setAttribute('data-mode-id', model.getLanguageIdentifier().language);
 		this._configuration.setIsDominatedByLongLines(model.isDominatedByLongLines());
 		this._configuration.setMaxLineNumber(model.getLineCount());
 
 		model.onBeforeAttached();
 
-		const viewModel = new ViewModel(this.id, this._configuration, model, (callback) => dom.scheduleAtNextAnimationFrame(callback));
+		const viewModel = new ViewModel(this._id, this._configuration, model, (callback) => dom.scheduleAtNextAnimationFrame(callback));
 
 		listenersToRemove.push(model.onDidChangeDecorations((e) => this._onDidChangeModelDecorations.fire(e)));
 		listenersToRemove.push(model.onDidChangeLanguage((e) => {
-			this.domElement.setAttribute('data-mode-id', model.getLanguageIdentifier().language);
+			this._domElement.setAttribute('data-mode-id', model.getLanguageIdentifier().language);
 			this._onDidChangeModelLanguage.fire(e);
 		}));
 		listenersToRemove.push(model.onDidChangeLanguageConfiguration((e) => this._onDidChangeModelLanguageConfiguration.fire(e)));
@@ -1365,18 +1358,18 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 
 		const [view, hasRealView] = this._createView(viewModel, cursor);
 		if (hasRealView) {
-			this.domElement.appendChild(view.domNode.domNode);
+			this._domElement.appendChild(view.domNode.domNode);
 
-			let keys = Object.keys(this.contentWidgets);
+			let keys = Object.keys(this._contentWidgets);
 			for (let i = 0, len = keys.length; i < len; i++) {
 				let widgetId = keys[i];
-				view.addContentWidget(this.contentWidgets[widgetId]);
+				view.addContentWidget(this._contentWidgets[widgetId]);
 			}
 
-			keys = Object.keys(this.overlayWidgets);
+			keys = Object.keys(this._overlayWidgets);
 			for (let i = 0, len = keys.length; i < len; i++) {
 				let widgetId = keys[i];
-				view.addOverlayWidget(this.overlayWidgets[widgetId]);
+				view.addOverlayWidget(this._overlayWidgets[widgetId]);
 			}
 
 			view.render(false, true);
@@ -1479,7 +1472,7 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 
 	protected _postDetachModelCleanup(detachedModel: ITextModel | null): void {
 		if (detachedModel) {
-			detachedModel.removeAllDecorationsWithOwnerId(this.id);
+			detachedModel.removeAllDecorationsWithOwnerId(this._id);
 		}
 	}
 
@@ -1493,9 +1486,9 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 		this._modelData.dispose();
 		this._modelData = null;
 
-		this.domElement.removeAttribute('data-mode-id');
+		this._domElement.removeAttribute('data-mode-id');
 		if (removeDomNode) {
-			this.domElement.removeChild(removeDomNode);
+			this._domElement.removeChild(removeDomNode);
 		}
 
 		return model;

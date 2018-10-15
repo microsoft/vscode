@@ -27,9 +27,9 @@ class StandaloneTheme implements IStandaloneTheme {
 	public readonly themeName: string;
 
 	private themeData: IStandaloneThemeData;
-	private colors: { [colorId: string]: Color };
-	private defaultColors: { [colorId: string]: Color };
-	private _tokenTheme: TokenTheme;
+	private colors: { [colorId: string]: Color } | null;
+	private defaultColors: { [colorId: string]: Color | null; };
+	private _tokenTheme: TokenTheme | null;
 
 	constructor(name: string, standaloneThemeData: IStandaloneThemeData) {
 		this.themeData = standaloneThemeData;
@@ -77,7 +77,7 @@ class StandaloneTheme implements IStandaloneTheme {
 		return this.colors;
 	}
 
-	public getColor(colorId: ColorIdentifier, useDefault?: boolean): Color {
+	public getColor(colorId: ColorIdentifier, useDefault?: boolean): Color | null {
 		const color = this.getColors()[colorId];
 		if (color) {
 			return color;
@@ -88,7 +88,7 @@ class StandaloneTheme implements IStandaloneTheme {
 		return null;
 	}
 
-	private getDefault(colorId: ColorIdentifier): Color {
+	private getDefault(colorId: ColorIdentifier): Color | null {
 		let color = this.defaultColors[colorId];
 		if (color) {
 			return color;
@@ -113,7 +113,7 @@ class StandaloneTheme implements IStandaloneTheme {
 	public get tokenTheme(): TokenTheme {
 		if (!this._tokenTheme) {
 			let rules: ITokenThemeRule[] = [];
-			let encodedTokensColors = [];
+			let encodedTokensColors: string[] = [];
 			if (this.themeData.inherit) {
 				let baseData = getBuiltinRules(this.themeData.base);
 				rules = baseData.rules;

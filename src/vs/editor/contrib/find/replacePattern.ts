@@ -48,7 +48,7 @@ export class ReplacePattern {
 		}
 	}
 
-	public buildReplaceString(matches: string[]): string {
+	public buildReplaceString(matches: string[] | null): string {
 		if (this._state.kind === ReplacePatternKind.StaticValue) {
 			return this._state.staticValue;
 		}
@@ -69,7 +69,10 @@ export class ReplacePattern {
 		return result;
 	}
 
-	private static _substitute(matchIndex: number, matches: string[]): string {
+	private static _substitute(matchIndex: number, matches: string[] | null): string {
+		if (matches === null) {
+			return '';
+		}
 		if (matchIndex === 0) {
 			return matches[0];
 		}

@@ -804,14 +804,6 @@ export interface IActiveCodeEditor extends ICodeEditor {
 	getDomNode(): HTMLElement;
 
 	/**
-	 * Get the hit test target at coordinates `clientX` and `clientY`.
-	 * The coordinates are relative to the top-left of the viewport.
-	 *
-	 * @returns Hit test target or null if the coordinates fall outside the editor or the editor has no model.
-	 */
-	getTargetAtClientPoint(clientX: number, clientY: number): IMouseTarget;
-
-	/**
 	 * Get the visible position for `position`.
 	 * The result position takes scrolling into account and is relative to the top left corner of the editor.
 	 * Explanation 1: the results of this method will change for the same `position` if the user scrolls the editor.

@@ -1231,8 +1231,13 @@ abstract class DiffEditorWidgetStyle extends Disposable implements IDiffEditorWi
 	public abstract layout(): number;
 }
 
-interface IMyViewZone extends editorBrowser.IViewZone {
+interface IMyViewZone {
 	shouldNotShrink?: boolean;
+	afterLineNumber: number;
+	heightInLines: number;
+	minWidthInPx?: number;
+	domNode: HTMLElement | null;
+	marginDomNode?: HTMLElement | null;
 }
 
 class ForeignViewZonesIterator {
@@ -1270,7 +1275,7 @@ abstract class ViewZonesComputer {
 	}
 
 	public getViewZones(): IEditorsZones {
-		let result: IEditorsZones = {
+		let result: { original: IMyViewZone[]; modified: IMyViewZone[]; } = {
 			original: [],
 			modified: []
 		};
@@ -1286,7 +1291,7 @@ abstract class ViewZonesComputer {
 			return a.afterLineNumber - b.afterLineNumber;
 		};
 
-		let addAndCombineIfPossible = (destination: editorBrowser.IViewZone[], item: IMyViewZone) => {
+		let addAndCombineIfPossible = (destination: IMyViewZone[], item: IMyViewZone) => {
 			if (item.domNode === null && destination.length > 0) {
 				let lastItem = destination[destination.length - 1];
 				if (lastItem.afterLineNumber === item.afterLineNumber && lastItem.domNode === null) {

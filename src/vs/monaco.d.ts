@@ -675,7 +675,7 @@ declare namespace monaco {
 		 * A function that compares ranges, useful for sorting ranges
 		 * It will first compare ranges on the startPosition and then on the endPosition
 		 */
-		static compareRangesUsingStarts(a: IRange, b: IRange): number;
+		static compareRangesUsingStarts(a: IRange | null | undefined, b: IRange | null | undefined): number;
 		/**
 		 * A function that compares ranges, useful for sorting ranges
 		 * It will first compare ranges on the endPosition and then on the startPosition
@@ -4403,11 +4403,11 @@ declare namespace monaco.languages {
 		/**
 		 * The line comment token, like `// this is a comment`
 		 */
-		lineComment?: string;
+		lineComment?: string | null;
 		/**
 		 * The block comment character pair, like `/* block comment *&#47;`
 		 */
-		blockComment?: CharacterPair;
+		blockComment?: CharacterPair | null;
 	}
 
 	/**
