@@ -175,8 +175,8 @@ suite('FindController', () => {
 			findController.closeFindWidget();
 			findController.hasFocus = false;
 
-			// The cursor is now at end of the first line, with ABC on that line highlighted.
-			assert.deepEqual(fromRange(editor.getSelection()), [1, 1, 1, 4]);
+			// The cursor is now at the beginning of ABC
+			assert.deepEqual(fromRange(editor.getSelection()), [1, 1, 1, 1]);
 
 			// I hit delete to remove it and change the text to XYZ.
 			editor.pushUndoStop();
@@ -569,6 +569,30 @@ suite('FindController query options persistence', () => {
 			});
 
 			assert.deepEqual(findController.getState().searchScope, new Selection(1, 2, 1, 3));
+		});
+	});
+
+	test('Clear Editor Selection When Find Widget Is Closed', () => {
+		withTestCodeEditor([
+			'ABC',
+			'AB',
+			'XYZ',
+			'ABC'
+		], { serviceCollection: serviceCollection }, (editor, cursor) => {
+			// The cursor is at the very top, of the file, at the first line
+			const findController = editor.registerAndInstantiateContribution<TestFindController>(TestFindController);
+			const findState = findController.getState();
+			const startFindAction = new StartFindAction();
+			// I hit Ctrl+F to show the Find dialog
+			startFindAction.run(null, editor);
+			// I type "AB"
+			findState.change({ searchString: 'AB' }, true);
+			// The second "AB" is highlighted as wholeWord is true.
+			assert.deepEqual(fromRange(editor.getSelection()), [2, 1, 2, 3]);
+			// Close the find widget
+			findController.closeFindWidget();
+			// Test to make sure that the selection is now at the beginning of the word which was found
+			assert.deepEqual(fromRange(editor.getSelection()), [2, 1, 2, 1]);
 		});
 	});
 });
