@@ -288,4 +288,43 @@ suite('SnippetsService', function () {
 
 		assert.equal(result.suggestions.length, 1);
 	});
+
+	test('Type colon will trigger snippet #60746', async function () {
+		snippetService = new SimpleSnippetService([new Snippet(
+			['fooLang'],
+			'bug',
+			'bug',
+			'',
+			'second',
+			'',
+			SnippetSource.User
+		)]);
+
+		const provider = new SnippetSuggestProvider(modeService, snippetService);
+
+		let model = TextModel.createFromString(':', undefined, modeService.getLanguageIdentifier('fooLang'));
+		let result = await provider.provideCompletionItems(model, new Position(1, 1));
+
+		assert.equal(result.suggestions.length, 0);
+	});
+
+	test('substring of prefix can\'t trigger snippet #60737', async function () {
+		snippetService = new SimpleSnippetService([new Snippet(
+			['fooLang'],
+			'mytemplate',
+			'mytemplate',
+			'',
+			'second',
+			'',
+			SnippetSource.User
+		)]);
+
+		const provider = new SnippetSuggestProvider(modeService, snippetService);
+
+		let model = TextModel.createFromString('template', undefined, modeService.getLanguageIdentifier('fooLang'));
+		let result = await provider.provideCompletionItems(model, new Position(1, 9));
+
+		assert.equal(result.suggestions.length, 1);
+		assert.equal(result.suggestions[0].label, 'mytemplate');
+	});
 });
