@@ -5,7 +5,6 @@
 
 import * as vscode from 'vscode';
 import { RipgrepFileSearchEngine } from './ripgrepFileSearch';
-import { RipgrepTextSearchEngine } from './ripgrepTextSearch';
 
 export function activate(): void {
 	if (vscode.workspace.getConfiguration('searchRipgrep').get('enable')) {
@@ -13,20 +12,14 @@ export function activate(): void {
 
 		const provider = new RipgrepSearchProvider(outputChannel);
 		vscode.workspace.registerFileIndexProvider('file', provider);
-		vscode.workspace.registerTextSearchProvider('file', provider);
 	}
 }
 
-class RipgrepSearchProvider implements vscode.FileIndexProvider, vscode.TextSearchProvider {
+class RipgrepSearchProvider implements vscode.FileIndexProvider {
 	private inProgress: Set<vscode.CancellationTokenSource> = new Set();
 
 	constructor(private outputChannel: vscode.OutputChannel) {
 		process.once('exit', () => this.dispose());
-	}
-
-	provideTextSearchResults(query: vscode.TextSearchQuery, options: vscode.TextSearchOptions, progress: vscode.Progress<vscode.TextSearchResult>, token: vscode.CancellationToken): Promise<vscode.TextSearchComplete> {
-		const engine = new RipgrepTextSearchEngine(this.outputChannel);
-		return this.withToken(token, token => engine.provideTextSearchResults(query, options, progress, token));
 	}
 
 	provideFileIndex(options: vscode.FileSearchOptions, token: vscode.CancellationToken): Thenable<vscode.Uri[]> {

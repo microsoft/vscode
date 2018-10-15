@@ -9,7 +9,6 @@ import { NodeStringDecoder, StringDecoder } from 'string_decoder';
 import * as vscode from 'vscode';
 import { normalizeNFC, normalizeNFD } from './normalization';
 import { rgPath } from './ripgrep';
-import { rgErrorMsgForDisplay } from './ripgrepTextSearch';
 import { anchorGlob, Maybe } from './utils';
 
 const isMac = process.platform === 'darwin';
@@ -209,4 +208,35 @@ function getRgArgs(options: vscode.FileSearchOptions): string[] {
 	}
 
 	return args;
+}
+
+/**
+ * Read the first line of stderr and return an error for display or undefined, based on a whitelist.
+ * Ripgrep produces stderr output which is not from a fatal error, and we only want the search to be
+ * "failed" when a fatal error was produced.
+ */
+export function rgErrorMsgForDisplay(msg: string): Maybe<string> {
+	const firstLine = msg.split('\n')[0].trim();
+
+	if (firstLine.startsWith('Error parsing regex')) {
+		return firstLine;
+	}
+
+	if (firstLine.startsWith('error parsing glob') ||
+		firstLine.startsWith('unsupported encoding')) {
+		// Uppercase first letter
+		return firstLine.charAt(0).toUpperCase() + firstLine.substr(1);
+	}
+
+	if (firstLine === `Literal '\\n' not allowed.`) {
+		// I won't localize this because none of the Ripgrep error messages are localized
+		return `Literal '\\n' currently not supported`;
+	}
+
+	if (firstLine.startsWith('Literal ')) {
+		// Other unsupported chars
+		return firstLine;
+	}
+
+	return undefined;
 }
