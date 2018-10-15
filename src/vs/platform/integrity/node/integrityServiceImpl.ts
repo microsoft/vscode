@@ -16,21 +16,21 @@ import { INotificationService } from 'vs/platform/notification/common/notificati
 
 interface IStorageData {
 	dontShowPrompt: boolean;
-	commit: string;
+	commit: string | undefined;
 }
 
 class IntegrityStorage {
 	private static readonly KEY = 'integrityService';
 
 	private storageService: IStorageService;
-	private value: IStorageData;
+	private value: IStorageData | null;
 
 	constructor(storageService: IStorageService) {
 		this.storageService = storageService;
 		this.value = this._read();
 	}
 
-	private _read(): IStorageData {
+	private _read(): IStorageData | null {
 		let jsonValue = this.storageService.get(IntegrityStorage.KEY, StorageScope.GLOBAL);
 		if (!jsonValue) {
 			return null;
@@ -42,11 +42,11 @@ class IntegrityStorage {
 		}
 	}
 
-	get(): IStorageData {
+	get(): IStorageData | null {
 		return this.value;
 	}
 
-	set(data: IStorageData): void {
+	set(data: IStorageData | null): void {
 		this.value = data;
 		this.storageService.store(IntegrityStorage.KEY, JSON.stringify(this.value), StorageScope.GLOBAL);
 	}

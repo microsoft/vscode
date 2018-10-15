@@ -36,18 +36,18 @@ export class SelectionClipboard extends Disposable implements IEditorContributio
 				if (!isEnabled) {
 					return;
 				}
-				if (!editor.getModel()) {
+				if (!editor.hasModel()) {
 					return;
 				}
 				if (e.event.middleButton) {
 					e.event.preventDefault();
 					editor.focus();
 
-					if (e.target.position) {
+					if (e.target && e.target.position) {
 						editor.setPosition(e.target.position);
 					}
 
-					if (e.target.type === MouseTargetType.SCROLLBAR) {
+					if (e.target && e.target.type === MouseTargetType.SCROLLBAR) {
 						return;
 					}
 
@@ -63,11 +63,10 @@ export class SelectionClipboard extends Disposable implements IEditorContributio
 			}));
 
 			let setSelectionToClipboard = this._register(new RunOnceScheduler(() => {
-				let model = editor.getModel();
-				if (!model) {
+				if (!editor.hasModel()) {
 					return;
 				}
-
+				let model = editor.getModel();
 				let selections = editor.getSelections();
 				selections = selections.slice(0);
 				selections.sort(Range.compareRangesUsingStarts);

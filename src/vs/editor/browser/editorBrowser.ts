@@ -183,7 +183,7 @@ export interface IOverlayWidgetPosition {
 	/**
 	 * The position preference for the overlay widget.
 	 */
-	preference: OverlayWidgetPositionPreference;
+	preference: OverlayWidgetPositionPreference | null;
 }
 /**
  * An overlay widgets renders on top of the text.

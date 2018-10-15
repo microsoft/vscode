@@ -33,15 +33,15 @@ interface IWordWrapTransientState {
 }
 
 interface IWordWrapState {
-	readonly configuredWordWrap: 'on' | 'off' | 'wordWrapColumn' | 'bounded';
+	readonly configuredWordWrap: 'on' | 'off' | 'wordWrapColumn' | 'bounded' | undefined;
 	readonly configuredWordWrapMinified: boolean;
-	readonly transientState: IWordWrapTransientState;
+	readonly transientState: IWordWrapTransientState | null;
 }
 
 /**
  * Store (in memory) the word wrap state for a particular model.
  */
-function writeTransientState(model: ITextModel, state: IWordWrapTransientState, codeEditorService: ICodeEditorService): void {
+function writeTransientState(model: ITextModel, state: IWordWrapTransientState | null, codeEditorService: ICodeEditorService): void {
 	codeEditorService.setTransientModelProperty(model, transientWordWrapState, state);
 }
 
@@ -131,6 +131,9 @@ class ToggleWordWrapAction extends EditorAction {
 	}
 
 	public run(accessor: ServicesAccessor, editor: ICodeEditor): void {
+		if (!editor.hasModel()) {
+			return;
+		}
 		const editorConfiguration = editor.getConfiguration();
 		if (editorConfiguration.wrappingInfo.inDiffEditor) {
 			// Cannot change wrapping settings inside the diff editor

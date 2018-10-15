@@ -39,7 +39,7 @@ export function getLanguages(): ILanguageExtensionPoint[] {
 
 export function getEncodedLanguageId(languageId: string): number {
 	let lid = StaticServices.modeService.get().getLanguageIdentifier(languageId);
-	return lid && lid.id;
+	return lid ? lid.id : 0;
 }
 
 /**
@@ -347,7 +347,7 @@ export function registerHoverProvider(languageId: string, provider: modes.HoverP
 		provideHover: (model: model.ITextModel, position: Position, token: CancellationToken): Thenable<modes.Hover> => {
 			let word = model.getWordAtPosition(position);
 
-			return Promise.resolve<modes.Hover>(provider.provideHover(model, position, token)).then((value) => {
+			return Promise.resolve<modes.Hover | null | undefined>(provider.provideHover(model, position, token)).then((value) => {
 				if (!value) {
 					return undefined;
 				}

@@ -42,7 +42,7 @@ export abstract class ContextKeyExpr {
 		return new ContextKeyAndExpr(expr);
 	}
 
-	public static deserialize(serialized: string): ContextKeyExpr | null {
+	public static deserialize(serialized: string | null | undefined): ContextKeyExpr | null {
 		if (!serialized) {
 			return null;
 		}

@@ -11,7 +11,7 @@ export interface IKeyboardMapper {
 	dumpDebugInfo(): string;
 	resolveKeybinding(keybinding: Keybinding): ResolvedKeybinding[];
 	resolveKeyboardEvent(keyboardEvent: IKeyboardEvent): ResolvedKeybinding;
-	resolveUserBinding(firstPart: SimpleKeybinding | ScanCodeBinding, chordPart: SimpleKeybinding | ScanCodeBinding): ResolvedKeybinding[];
+	resolveUserBinding(firstPart: SimpleKeybinding | ScanCodeBinding | null, chordPart: SimpleKeybinding | ScanCodeBinding | null): ResolvedKeybinding[];
 }
 
 export class CachedKeyboardMapper implements IKeyboardMapper {

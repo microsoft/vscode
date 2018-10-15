@@ -14,7 +14,7 @@ export const IModelService = createDecorator<IModelService>('modelService');
 export interface IModelService {
 	_serviceBrand: any;
 
-	createModel(value: string | ITextBufferFactory, modeOrPromise: Promise<IMode> | IMode, resource: URI, isForSimpleWidget?: boolean): ITextModel;
+	createModel(value: string | ITextBufferFactory, modeOrPromise: Promise<IMode> | IMode, resource: URI | undefined, isForSimpleWidget?: boolean): ITextModel;
 
 	updateModel(model: ITextModel, value: string | ITextBufferFactory): void;
 

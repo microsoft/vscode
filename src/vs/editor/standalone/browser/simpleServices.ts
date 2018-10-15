@@ -121,9 +121,9 @@ export class SimpleEditorModelResolverService implements ITextModelService {
 		};
 	}
 
-	private findModel(editor: ICodeEditor, resource: URI): ITextModel {
+	private findModel(editor: ICodeEditor, resource: URI): ITextModel | null {
 		let model = editor.getModel();
-		if (model.uri.toString() !== resource.toString()) {
+		if (model && model.uri.toString() !== resource.toString()) {
 			return null;
 		}
 
@@ -256,7 +256,7 @@ export class StandaloneCommandService implements ICommandService {
 }
 
 export class StandaloneKeybindingService extends AbstractKeybindingService {
-	private _cachedResolver: KeybindingResolver;
+	private _cachedResolver: KeybindingResolver | null;
 	private _dynamicKeybindings: IKeybindingItem[];
 
 	constructor(
@@ -280,7 +280,7 @@ export class StandaloneKeybindingService extends AbstractKeybindingService {
 		}));
 	}
 
-	public addDynamicKeybinding(commandId: string, keybinding: number, handler: ICommandHandler, when: ContextKeyExpr): IDisposable {
+	public addDynamicKeybinding(commandId: string, keybinding: number, handler: ICommandHandler, when: ContextKeyExpr | null): IDisposable {
 		let toDispose: IDisposable[] = [];
 
 		this._dynamicKeybindings.push({
@@ -411,7 +411,7 @@ export class SimpleConfigurationService implements IConfigurationService {
 
 	public updateValue(key: string, value: any, arg3?: any, arg4?: any): Promise<void> {
 		this.configuration().updateValue(key, value);
-		return Promise.resolve(null);
+		return Promise.resolve();
 	}
 
 	public inspect<C>(key: string, options: IConfigurationOverrides = {}): {
