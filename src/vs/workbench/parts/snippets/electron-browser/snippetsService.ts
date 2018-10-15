@@ -13,7 +13,7 @@ import { compare, endsWith, isFalsyOrWhitespace } from 'vs/base/common/strings';
 import { URI } from 'vs/base/common/uri';
 import { Position } from 'vs/editor/common/core/position';
 import { ITextModel } from 'vs/editor/common/model';
-import { CompletionItem, CompletionList, CompletionItemProvider, LanguageId, CompletionItemKind } from 'vs/editor/common/modes';
+import { CompletionItem, CompletionList, CompletionItemProvider, LanguageId, CompletionContext, CompletionItemKind } from 'vs/editor/common/modes';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { SnippetParser } from 'vs/editor/contrib/snippet/snippetParser';
 import { setSnippetSuggestSupport } from 'vs/editor/contrib/suggest/suggest';
@@ -367,35 +367,53 @@ export class SnippetSuggestProvider implements CompletionItemProvider {
 		//
 	}
 
-	provideCompletionItems(model: ITextModel, pos: Position): Promise<CompletionList> {
+	provideCompletionItems(model: ITextModel, position: Position, context: CompletionContext): Promise<CompletionList> {
 
-		const languageId = this._getLanguageIdAtPosition(model, pos);
+		const languageId = this._getLanguageIdAtPosition(model, position);
 		return this._snippets.getSnippets(languageId).then(snippets => {
 
-			let suggestions: SnippetSuggestion[] = [];
-			let atWord = Boolean(model.getWordAtPosition(pos));
-			let lineLow = model.getLineContent(pos.lineNumber).substring(0, pos.column - 1).toLowerCase();
+			let suggestions: SnippetSuggestion[];
+			let shift = Math.max(0, position.column - 100);
+			let pos = { lineNumber: position.lineNumber, column: Math.max(1, position.column - 100) };
+			let lineOffsets: number[] = [];
+			let linePrefixLow = model.getLineContent(position.lineNumber).substr(Math.max(0, position.column - 100), position.column - 1).toLowerCase();
 
-			for (const snippet of snippets) {
+			while (pos.column < position.column) {
+				let word = model.getWordAtPosition(pos);
+				if (word) {
+					// at a word
+					lineOffsets.push(word.startColumn - 1);
+					pos.column = word.endColumn + 1;
 
-				let prefixLow = snippet.prefix;
-				let prefixPos = prefixLow.length - 1;
-				let linePos = lineLow.length - 1;
-				let linePosStart = linePos;
-				while (linePos >= 0 && prefixPos >= 0) {
-					if (lineLow[linePos] === prefixLow[prefixPos]) {
-						linePos -= 1;
+					if (word.endColumn - 1 < linePrefixLow.length && !/\s/.test(linePrefixLow[word.endColumn - 1])) {
+						lineOffsets.push(word.endColumn - 1);
 					}
-					prefixPos -= 1;
+
+				} else if (!/\s/.test(linePrefixLow[pos.column - 1])) {
+					// at a none-whitespace character
+					lineOffsets.push(pos.column - 1);
+					pos.column += 1;
+				} else {
+					// always advance!
+					pos.column += 1;
 				}
+			}
 
-				if (linePos !== linePosStart) {
-					// some overlap
-					suggestions.push(new SnippetSuggestion(snippet, Range.fromPositions(pos.delta(0, linePos - linePosStart), pos)));
+			if (lineOffsets.length === 0) {
+				// no interesting spans found -> pick all snippets
+				suggestions = snippets.map(snippet => new SnippetSuggestion(snippet, Range.fromPositions(position)));
 
-				} else if (!atWord) {
-					// no overlap but not at a word
-					suggestions.push(new SnippetSuggestion(snippet, Range.fromPositions(pos)));
+			} else {
+				let consumed = new Set<Snippet>();
+				suggestions = [];
+				for (let start of lineOffsets) {
+					start -= shift;
+					for (const snippet of snippets) {
+						if (!consumed.has(snippet) && matches(linePrefixLow, start, snippet.prefixLow, 0)) {
+							suggestions.push(new SnippetSuggestion(snippet, Range.fromPositions(position.delta(0, -(linePrefixLow.length - start)), position)));
+							consumed.add(snippet);
+						}
+					}
 				}
 			}
 
@@ -433,6 +451,16 @@ export class SnippetSuggestProvider implements CompletionItemProvider {
 		}
 		return languageId;
 	}
+}
+
+function matches(pattern: string, patternStart: number, word: string, wordStart: number): boolean {
+	while (patternStart < pattern.length && wordStart < word.length) {
+		if (pattern[patternStart] === word[wordStart]) {
+			patternStart += 1;
+		}
+		wordStart += 1;
+	}
+	return patternStart === pattern.length;
 }
 
 export function getNonWhitespacePrefix(model: ISimpleModel, position: Position): string {
