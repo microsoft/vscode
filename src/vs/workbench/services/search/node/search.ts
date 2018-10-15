@@ -159,7 +159,7 @@ export class QueryGlobTester {
 		this._parsedExcludeExpression = glob.parse(this._excludeExpression);
 
 		// Empty includeExpression means include nothing, so no {} shortcuts
-		let includeExpression: glob.IExpression = config.includePattern;
+		let includeExpression: glob.IExpression | undefined = config.includePattern;
 		if (folderQuery.includePattern) {
 			if (includeExpression) {
 				includeExpression = {
