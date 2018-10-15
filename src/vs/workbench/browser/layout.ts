@@ -103,7 +103,7 @@ export class WorkbenchLayout extends Disposable implements IVerticalSashLayoutPr
 		this.sashY = new Sash(this.workbenchContainer, this, { orientation: Orientation.HORIZONTAL });
 
 		// State scheduler
-		this.saveStateScheduler = new RunOnceScheduler(() => this.saveState(), 1000);
+		this.saveStateScheduler = this._register(new RunOnceScheduler(() => this.saveState(), 800));
 
 		this.registerListeners();
 	}
