@@ -505,7 +505,7 @@ export class TerminalInstance implements ITerminalInstance {
 					{
 						label: nls.localize('dontShowAgain', "Don't Show Again"),
 						isSecondary: true,
-						run: () => this._storageService.store(NEVER_MEASURE_RENDER_TIME_STORAGE_KEY, true)
+						run: () => this._storageService.store(NEVER_MEASURE_RENDER_TIME_STORAGE_KEY, true, StorageScope.GLOBAL)
 					} as IPromptChoice
 				];
 				this._notificationService.prompt(

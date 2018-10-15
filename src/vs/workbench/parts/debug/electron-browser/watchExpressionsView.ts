@@ -38,7 +38,7 @@ export class WatchExpressionsView extends TreeViewsViewletPanel {
 	private static readonly MEMENTO = 'watchexpressionsview.memento';
 	private onWatchExpressionsUpdatedScheduler: RunOnceScheduler;
 	private treeContainer: HTMLElement;
-	private settings: any;
+	private viewState: object;
 	private needsRefresh: boolean;
 
 	constructor(
@@ -50,7 +50,7 @@ export class WatchExpressionsView extends TreeViewsViewletPanel {
 		@IConfigurationService configurationService: IConfigurationService
 	) {
 		super({ ...(options as IViewletPanelOptions), ariaHeaderLabel: nls.localize('watchExpressionsSection', "Watch Expressions Section") }, keybindingService, contextMenuService, configurationService);
-		this.settings = options.viewletSettings;
+		this.viewState = options.viewletState;
 
 		this.onWatchExpressionsUpdatedScheduler = new RunOnceScheduler(() => {
 			this.needsRefresh = false;
@@ -133,9 +133,10 @@ export class WatchExpressionsView extends TreeViewsViewletPanel {
 		});
 	}
 
-	public shutdown(): void {
-		this.settings[WatchExpressionsView.MEMENTO] = !this.isExpanded();
-		super.shutdown();
+	public saveState(): void {
+		this.viewState[WatchExpressionsView.MEMENTO] = !this.isExpanded();
+
+		super.saveState();
 	}
 }
 

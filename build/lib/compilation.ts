@@ -47,7 +47,7 @@ function createCompile(src: string, build: boolean, emitError?: boolean): (token
 	opts.inlineSources = !!build;
 	opts.noFilesystemLookup = true;
 
-	const ts = tsb.create(opts, true, undefined, err => reporter(err.toString()));
+	const ts = tsb.create(opts, true, undefined, err => new (<any>reporter)(err.toString()));
 
 	return function (token?: util.ICancellationToken) {
 

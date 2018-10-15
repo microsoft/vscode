@@ -5,7 +5,6 @@
 
 import * as nls from 'vs/nls';
 import * as perf from 'vs/base/common/performance';
-import { TPromise } from 'vs/base/common/winjs.base';
 import { WorkbenchShell } from 'vs/workbench/electron-browser/shell';
 import * as browser from 'vs/base/browser/browser';
 import { domContentLoaded } from 'vs/base/browser/dom';
@@ -23,9 +22,8 @@ import * as gracefulFs from 'graceful-fs';
 import { KeyboardMapperFactory } from 'vs/workbench/services/keybinding/electron-browser/keybindingService';
 import { IWindowConfiguration, IWindowsService } from 'vs/platform/windows/common/windows';
 import { WindowsChannelClient } from 'vs/platform/windows/node/windowsIpc';
-import { IStorageService } from 'vs/platform/storage/common/storage';
+import { IStorageLegacyService, StorageLegacyService, inMemoryLocalStorageInstance, IStorageLegacy } from 'vs/platform/storage/common/storageLegacyService';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { StorageService, inMemoryLocalStorageInstance, IStorage } from 'vs/platform/storage/common/storageService';
 import { Client as ElectronIPCClient } from 'vs/base/parts/ipc/electron-browser/ipc.electron-browser';
 import { webFrame } from 'electron';
 import { UpdateChannelClient } from 'vs/platform/update/node/updateIpc';
@@ -37,6 +35,7 @@ import { IWorkspacesService, ISingleFolderWorkspaceIdentifier } from 'vs/platfor
 import { createSpdLogService } from 'vs/platform/log/node/spdlogService';
 import * as fs from 'fs';
 import { ConsoleLogService, MultiplexLogService, ILogService } from 'vs/platform/log/common/log';
+import { StorageService, DelegatingStorageService } from 'vs/platform/storage/electron-browser/storageService';
 import { IssueChannelClient } from 'vs/platform/issue/node/issueIpc';
 import { IIssueService } from 'vs/platform/issue/common/issue';
 import { LogLevelSetterChannelClient, FollowerLogService } from 'vs/platform/log/node/logIpc';
@@ -48,26 +47,24 @@ import { sanitizeFilePath } from 'vs/base/node/extfs';
 
 gracefulFs.gracefulify(fs); // enable gracefulFs
 
-export function startup(configuration: IWindowConfiguration): TPromise<void> {
+export function startup(configuration: IWindowConfiguration): Promise<void> {
 
+	// Massage configuration file URIs
 	revive(configuration);
 
+	// Setup perf
 	perf.importEntries(configuration.perfEntries);
 
-	// Ensure others can listen to zoom level changes
-	browser.setZoomFactor(webFrame.getZoomFactor());
-
-	// See https://github.com/Microsoft/vscode/issues/26151
-	// Can be trusted because we are not setting it ourselves.
-	browser.setZoomLevel(webFrame.getZoomLevel(), true /* isTrusted */);
-
+	// Browser config
+	browser.setZoomFactor(webFrame.getZoomFactor()); // Ensure others can listen to zoom level changes
+	browser.setZoomLevel(webFrame.getZoomLevel(), true /* isTrusted */); // Can be trusted because we are not setting it ourselves (https://github.com/Microsoft/vscode/issues/26151)
 	browser.setFullscreen(!!configuration.fullscreen);
-
-	KeyboardMapperFactory.INSTANCE._onKeyboardLayoutChanged();
-
 	browser.setAccessibilitySupport(configuration.accessibilitySupport ? platform.AccessibilitySupport.Enabled : platform.AccessibilitySupport.Disabled);
 
-	// Setup Intl
+	// Keyboard support
+	KeyboardMapperFactory.INSTANCE._onKeyboardLayoutChanged();
+
+	// Setup Intl for comparers
 	comparer.setFileNameComparer(new Intl.Collator(undefined, { numeric: true, sensitivity: 'base' }));
 
 	// Open workbench
@@ -78,6 +75,7 @@ function revive(workbench: IWindowConfiguration) {
 	if (workbench.folderUri) {
 		workbench.folderUri = uri.revive(workbench.folderUri);
 	}
+
 	const filesToWaitPaths = workbench.filesToWait && workbench.filesToWait.paths;
 	[filesToWaitPaths, workbench.filesToOpen, workbench.filesToCreate, workbench.filesToDiff].forEach(paths => {
 		if (Array.isArray(paths)) {
@@ -90,30 +88,42 @@ function revive(workbench: IWindowConfiguration) {
 	});
 }
 
-function openWorkbench(configuration: IWindowConfiguration): TPromise<void> {
+function openWorkbench(configuration: IWindowConfiguration): Promise<void> {
 	const mainProcessClient = new ElectronIPCClient(`window:${configuration.windowId}`);
 	const mainServices = createMainProcessServices(mainProcessClient, configuration);
 
 	const environmentService = new EnvironmentService(configuration, configuration.execPath);
+
 	const logService = createLogService(mainProcessClient, configuration, environmentService);
 	logService.trace('openWorkbench configuration', JSON.stringify(configuration));
 
-	// Since the configuration service is one of the core services that is used in so many places, we initialize it
-	// right before startup of the workbench shell to have its data ready for consumers
-	return createAndInitializeWorkspaceService(configuration, environmentService).then(workspaceService => {
-		const storageService = createStorageService(workspaceService, environmentService);
+	return Promise.all([
+		createAndInitializeWorkspaceService(configuration, environmentService),
+		createStorageService(environmentService, logService)
+	]).then(services => {
+		const workspaceService = services[0];
+		const storageLegacyService = createStorageLegacyService(workspaceService, environmentService);
+		const storageService = new DelegatingStorageService(services[1], storageLegacyService, logService, environmentService);
 
 		return domContentLoaded().then(() => {
-
-			// Open Shell
 			perf.mark('willStartWorkbench');
+
+			// Create Shell
 			const shell = new WorkbenchShell(document.body, {
 				contextService: workspaceService,
 				configurationService: workspaceService,
 				environmentService,
 				logService,
+				storageLegacyService,
 				storageService
 			}, mainServices, mainProcessClient, configuration);
+
+			// Gracefully Shutdown Storage
+			shell.onShutdown(event => {
+				event.join(storageService.close(event.reason));
+			});
+
+			// Open Shell
 			shell.open();
 
 			// Inform user about loading issues from the loader
@@ -128,20 +138,19 @@ function openWorkbench(configuration: IWindowConfiguration): TPromise<void> {
 	});
 }
 
-function createAndInitializeWorkspaceService(configuration: IWindowConfiguration, environmentService: EnvironmentService): TPromise<WorkspaceService> {
+function createAndInitializeWorkspaceService(configuration: IWindowConfiguration, environmentService: EnvironmentService): Promise<WorkspaceService> {
 	return validateFolderUri(configuration.folderUri, configuration.verbose).then(validatedFolderUri => {
-
 		const workspaceService = new WorkspaceService(environmentService);
 
 		return workspaceService.initialize(configuration.workspace || validatedFolderUri || configuration).then(() => workspaceService, error => workspaceService);
 	});
 }
 
-function validateFolderUri(folderUri: ISingleFolderWorkspaceIdentifier, verbose: boolean): TPromise<uri> {
+function validateFolderUri(folderUri: ISingleFolderWorkspaceIdentifier, verbose: boolean): Promise<uri> {
 
 	// Return early if we do not have a single folder uri or if it is a non file uri
 	if (!folderUri || folderUri.scheme !== Schemas.file) {
-		return TPromise.as(folderUri);
+		return Promise.resolve(folderUri);
 	}
 
 	// Ensure absolute existing folder path
@@ -156,7 +165,19 @@ function validateFolderUri(folderUri: ISingleFolderWorkspaceIdentifier, verbose:
 	});
 }
 
-function createStorageService(workspaceService: IWorkspaceContextService, environmentService: IEnvironmentService): IStorageService {
+function createStorageService(environmentService: IEnvironmentService, logService: ILogService): Promise<StorageService> {
+	perf.mark('willCreateStorageService');
+
+	const storageService = new StorageService(':memory:', logService, environmentService);
+
+	return storageService.init().then(() => {
+		perf.mark('didCreateStorageService');
+
+		return storageService;
+	});
+}
+
+function createStorageLegacyService(workspaceService: IWorkspaceContextService, environmentService: IEnvironmentService): IStorageLegacyService {
 	let workspaceId: string;
 	let secondaryWorkspaceId: number;
 
@@ -188,14 +209,14 @@ function createStorageService(workspaceService: IWorkspaceContextService, enviro
 
 	const disableStorage = !!environmentService.extensionTestsPath; // never keep any state when running extension tests!
 
-	let storage: IStorage;
+	let storage: IStorageLegacy;
 	if (disableStorage) {
 		storage = inMemoryLocalStorageInstance;
 	} else {
 		storage = window.localStorage;
 	}
 
-	return new StorageService(storage, storage, workspaceId, secondaryWorkspaceId);
+	return new StorageLegacyService(storage, storage, workspaceId, secondaryWorkspaceId);
 }
 
 function createLogService(mainProcessClient: ElectronIPCClient, configuration: IWindowConfiguration, environmentService: IEnvironmentService): ILogService {
@@ -203,6 +224,7 @@ function createLogService(mainProcessClient: ElectronIPCClient, configuration: I
 	const consoleLogService = new ConsoleLogService(configuration.logLevel);
 	const logService = new MultiplexLogService([consoleLogService, spdlogService]);
 	const logLevelClient = new LogLevelSetterChannelClient(mainProcessClient.getChannel('loglevel'));
+
 	return new FollowerLogService(logLevelClient, logService);
 }
 

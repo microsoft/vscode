@@ -61,7 +61,7 @@ export class ActivitybarPart extends Part {
 		@IStorageService private storageService: IStorageService,
 		@IExtensionService private extensionService: IExtensionService
 	) {
-		super(id, { hasTitle: false }, themeService);
+		super(id, { hasTitle: false }, themeService, storageService);
 
 		this.compositeBar = this._register(this.instantiationService.createInstance(CompositeBar, {
 			icon: true,
@@ -332,10 +332,10 @@ export class ActivitybarPart extends Part {
 		return sizes;
 	}
 
-	shutdown(): void {
+	protected saveState(): void {
 		const state = this.viewletService.getAllViewlets().map(({ id, iconUrl }) => ({ id, iconUrl }));
 		this.storageService.store(ActivitybarPart.PLACEHOLDER_VIEWLETS, JSON.stringify(state), StorageScope.GLOBAL);
 
-		super.shutdown();
+		super.saveState();
 	}
 }

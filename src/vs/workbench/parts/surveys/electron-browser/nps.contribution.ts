@@ -7,7 +7,6 @@ import * as nls from 'vs/nls';
 import { language } from 'vs/base/common/platform';
 import { IWorkbenchContributionsRegistry, IWorkbenchContribution, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
 import { Registry } from 'vs/platform/registry/common/platform';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import pkg from 'vs/platform/node/package';
@@ -24,13 +23,11 @@ const IS_CANDIDATE_KEY = 'nps/isCandidate';
 class NPSContribution implements IWorkbenchContribution {
 
 	constructor(
-		@IInstantiationService instantiationService: IInstantiationService,
 		@IStorageService storageService: IStorageService,
 		@INotificationService notificationService: INotificationService,
 		@ITelemetryService telemetryService: ITelemetryService
 	) {
 		const skipVersion = storageService.get(SKIP_VERSION_KEY, StorageScope.GLOBAL, '');
-
 		if (skipVersion) {
 			return;
 		}

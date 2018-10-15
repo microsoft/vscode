@@ -39,12 +39,11 @@ import { IIntegrityService } from 'vs/platform/integrity/common/integrity';
 import { EditorWorkerServiceImpl } from 'vs/editor/common/services/editorWorkerServiceImpl';
 import { IEditorWorkerService } from 'vs/editor/common/services/editorWorkerService';
 import { ExtensionService } from 'vs/workbench/services/extensions/electron-browser/extensionService';
-import { IStorageService } from 'vs/platform/storage/common/storage';
+import { IStorageLegacyService } from 'vs/platform/storage/common/storageLegacyService';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { InstantiationService } from 'vs/platform/instantiation/node/instantiationService';
-// import { InstantiationService } from 'vs/platform/instantiation/common/instantiationService';
-import { ILifecycleService, LifecyclePhase, ShutdownReason, StartupKind } from 'vs/platform/lifecycle/common/lifecycle';
+import { ILifecycleService, LifecyclePhase, ShutdownReason, ShutdownEvent } from 'vs/platform/lifecycle/common/lifecycle';
 import { IMarkerService } from 'vs/platform/markers/common/markers';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { ISearchService, ISearchHistoryService } from 'vs/platform/search/common/search';
@@ -76,9 +75,9 @@ import { IBroadcastService, BroadcastService } from 'vs/platform/broadcast/elect
 import { HashService } from 'vs/workbench/services/hash/node/hashService';
 import { IHashService } from 'vs/workbench/services/hash/common/hashService';
 import { ILogService } from 'vs/platform/log/common/log';
+import { IStorageService } from 'vs/platform/storage/common/storage';
+import { Event, Emitter } from 'vs/base/common/event';
 import { WORKBENCH_BACKGROUND } from 'vs/workbench/common/theme';
-import { stat } from 'fs';
-import { join } from 'path';
 import { ILocalizationsChannel, LocalizationsChannelClient } from 'vs/platform/localizations/node/localizationsIpc';
 import { ILocalizationsService } from 'vs/platform/localizations/common/localizations';
 import { IWorkbenchIssueService } from 'vs/workbench/services/issue/common/issue';
@@ -108,6 +107,7 @@ export interface ICoreServices {
 	configurationService: IConfigurationService;
 	environmentService: IEnvironmentService;
 	logService: ILogService;
+	storageLegacyService: IStorageLegacyService;
 	storageService: IStorageService;
 }
 
@@ -116,6 +116,11 @@ export interface ICoreServices {
  * With the Shell being the top level element in the page, it is also responsible for driving the layouting.
  */
 export class WorkbenchShell extends Disposable {
+
+	private readonly _onShutdown = this._register(new Emitter<ShutdownEvent>());
+	get onShutdown(): Event<ShutdownEvent> { return this._onShutdown.event; }
+
+	private storageLegacyService: IStorageLegacyService;
 	private storageService: IStorageService;
 	private environmentService: IEnvironmentService;
 	private logService: ILogService;
@@ -146,6 +151,7 @@ export class WorkbenchShell extends Disposable {
 		this.configurationService = coreServices.configurationService;
 		this.environmentService = coreServices.environmentService;
 		this.logService = coreServices.logService;
+		this.storageLegacyService = coreServices.storageLegacyService;
 		this.storageService = coreServices.storageService;
 
 		this.mainProcessServices = mainProcessServices;
@@ -164,6 +170,9 @@ export class WorkbenchShell extends Disposable {
 		// Warm up font cache information before building up too many dom elements
 		restoreFontInfo(this.storageService);
 		readFontInfo(BareFontInfo.createFromRawSettings(this.configurationService.getValue('editor'), browser.getZoomLevel()));
+		this._register(this.storageService.onWillSaveState(() => {
+			saveFontInfo(this.storageService); // Keep font info for next startup around
+		}));
 
 		// Workbench
 		this.workbench = this.createWorkbench(instantiationService, serviceCollection, this.container);
@@ -214,11 +223,6 @@ export class WorkbenchShell extends Disposable {
 				}, 5000);
 
 				this._register(eventuallPhaseTimeoutHandle);
-
-				// localStorage metrics (TODO@Ben remove me later)
-				if (!this.environmentService.extensionTestsPath && this.contextService.getWorkbenchState() === WorkbenchState.FOLDER) {
-					this.logLocalStorageMetrics();
-				}
 			}, error => handleStartupError(this.logService, error));
 
 			return workbench;
@@ -272,53 +276,6 @@ export class WorkbenchShell extends Disposable {
 		perf.mark('didStartWorkbench');
 	}
 
-	private logLocalStorageMetrics(): void {
-		if (this.lifecycleService.startupKind === StartupKind.ReloadedWindow || this.lifecycleService.startupKind === StartupKind.ReopenedWindow) {
-			return; // avoid logging localStorage metrics for reload/reopen, we prefer cold startup numbers
-		}
-
-		perf.mark('willReadLocalStorage');
-		const readyToSend = this.storageService.getBoolean('localStorageMetricsReadyToSend2');
-		perf.mark('didReadLocalStorage');
-
-		if (!readyToSend) {
-			this.storageService.store('localStorageMetricsReadyToSend2', true);
-			return; // avoid logging localStorage metrics directly after the update, we prefer cold startup numbers
-		}
-
-		if (!this.storageService.getBoolean('localStorageMetricsSent2')) {
-			perf.mark('willWriteLocalStorage');
-			this.storageService.store('localStorageMetricsSent2', true);
-			perf.mark('didWriteLocalStorage');
-
-			perf.mark('willStatLocalStorage');
-			stat(join(this.environmentService.userDataPath, 'Local Storage', 'file__0.localstorage'), (error, stat) => {
-				perf.mark('didStatLocalStorage');
-
-				/* __GDPR__
-					"localStorageTimers<NUMBER>" : {
-						"statTime" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-						"accessTime" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-						"firstReadTime" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-						"subsequentReadTime" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-						"writeTime" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-						"keys" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-						"size": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true }
-					}
-				*/
-				this.telemetryService.publicLog('localStorageTimers2', {
-					'statTime': perf.getDuration('willStatLocalStorage', 'didStatLocalStorage'),
-					'accessTime': perf.getDuration('willAccessLocalStorage', 'didAccessLocalStorage'),
-					'firstReadTime': perf.getDuration('willReadWorkspaceIdentifier', 'didReadWorkspaceIdentifier'),
-					'subsequentReadTime': perf.getDuration('willReadLocalStorage', 'didReadLocalStorage'),
-					'writeTime': perf.getDuration('willWriteLocalStorage', 'didWriteLocalStorage'),
-					'keys': window.localStorage.length,
-					'size': stat ? stat.size : -1
-				});
-			});
-		}
-	}
-
 	private initServiceCollection(container: HTMLElement): [IInstantiationService, ServiceCollection] {
 		const serviceCollection = new ServiceCollection();
 		serviceCollection.set(IWorkspaceContextService, this.contextService);
@@ -326,8 +283,9 @@ export class WorkbenchShell extends Disposable {
 		serviceCollection.set(IEnvironmentService, this.environmentService);
 		serviceCollection.set(ILabelService, new SyncDescriptor(LabelService));
 		serviceCollection.set(ILogService, this._register(this.logService));
-
+		serviceCollection.set(IStorageLegacyService, this.storageLegacyService);
 		serviceCollection.set(IStorageService, this.storageService);
+
 		this.mainProcessServices.forEach((serviceIdentifier, serviceInstance) => {
 			serviceCollection.set(serviceIdentifier, serviceInstance);
 		});
@@ -353,7 +311,6 @@ export class WorkbenchShell extends Disposable {
 		serviceCollection.set(IHashService, new SyncDescriptor(HashService));
 
 		// Telemetry
-
 		if (!this.environmentService.isExtensionDevelopment && !this.environmentService.args['disable-telemetry'] && !!product.enableTelemetry) {
 			const channel = getDelayedChannel<ITelemetryAppenderChannel>(sharedProcess.then(c => c.getChannel('telemetryAppender')));
 			const config: ITelemetryServiceConfig = {
@@ -380,7 +337,11 @@ export class WorkbenchShell extends Disposable {
 		serviceCollection.set(IDialogService, instantiationService.createInstance(DialogService));
 
 		const lifecycleService = instantiationService.createInstance(LifecycleService);
-		this._register(lifecycleService.onShutdown(reason => this.dispose(reason)));
+		this._register(lifecycleService.onShutdown(event => {
+			this._onShutdown.fire(event);
+
+			this.dispose(event.reason);
+		}));
 		serviceCollection.set(ILifecycleService, lifecycleService);
 		this.lifecycleService = lifecycleService;
 
@@ -505,9 +466,6 @@ export class WorkbenchShell extends Disposable {
 	dispose(reason = ShutdownReason.QUIT): void {
 		super.dispose();
 
-		// Keep font info for next startup around
-		saveFontInfo(this.storageService);
-
 		// Dispose Workbench
 		if (this.workbench) {
 			this.workbench.dispose(reason);
@@ -516,7 +474,6 @@ export class WorkbenchShell extends Disposable {
 		this.mainProcessClient.dispose();
 	}
 }
-
 
 registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
 

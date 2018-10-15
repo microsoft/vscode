@@ -55,9 +55,9 @@ export abstract class BaseTextEditor extends BaseEditor implements ITextEditor {
 		@IEditorGroupsService protected editorGroupService: IEditorGroupsService,
 		@IWindowService private windowService: IWindowService
 	) {
-		super(id, telemetryService, themeService);
+		super(id, telemetryService, themeService, storageService);
 
-		this.editorMemento = this.getEditorMemento<IEditorViewState>(storageService, editorGroupService, TEXT_EDITOR_VIEW_STATE_PREFERENCE_KEY, 100);
+		this.editorMemento = this.getEditorMemento<IEditorViewState>(editorGroupService, TEXT_EDITOR_VIEW_STATE_PREFERENCE_KEY, 100);
 
 		this._register(this.configurationService.onDidChangeConfiguration(e => this.handleConfigurationChangeEvent(this.configurationService.getValue<IEditorConfiguration>(this.getResource()))));
 	}
@@ -233,7 +233,7 @@ export abstract class BaseTextEditor extends BaseEditor implements ITextEditor {
 			return;
 		}
 
-		this.editorMemento.saveState(this.group, resource, editorViewState);
+		this.editorMemento.saveEditorState(this.group, resource, editorViewState);
 	}
 
 	protected retrieveTextEditorViewState(resource: URI): IEditorViewState {
@@ -260,7 +260,7 @@ export abstract class BaseTextEditor extends BaseEditor implements ITextEditor {
 	 */
 	protected clearTextEditorViewState(resources: URI[], group?: IEditorGroup): void {
 		resources.forEach(resource => {
-			this.editorMemento.clearState(resource, group);
+			this.editorMemento.clearEditorState(resource, group);
 		});
 	}
 
@@ -268,7 +268,7 @@ export abstract class BaseTextEditor extends BaseEditor implements ITextEditor {
 	 * Loads the text editor view state for the given resource and returns it.
 	 */
 	protected loadTextEditorViewState(resource: URI): IEditorViewState {
-		return this.editorMemento.loadState(this.group, resource);
+		return this.editorMemento.loadEditorState(this.group, resource);
 	}
 
 	private updateEditorConfiguration(configuration = this.configurationService.getValue<IEditorConfiguration>(this.getResource())): void {

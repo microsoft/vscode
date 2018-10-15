@@ -22,16 +22,16 @@ interface IStorageData {
 class IntegrityStorage {
 	private static readonly KEY = 'integrityService';
 
-	private _storageService: IStorageService;
-	private _value: IStorageData;
+	private storageService: IStorageService;
+	private value: IStorageData;
 
 	constructor(storageService: IStorageService) {
-		this._storageService = storageService;
-		this._value = this._read();
+		this.storageService = storageService;
+		this.value = this._read();
 	}
 
 	private _read(): IStorageData {
-		let jsonValue = this._storageService.get(IntegrityStorage.KEY, StorageScope.GLOBAL);
+		let jsonValue = this.storageService.get(IntegrityStorage.KEY, StorageScope.GLOBAL);
 		if (!jsonValue) {
 			return null;
 		}
@@ -42,19 +42,19 @@ class IntegrityStorage {
 		}
 	}
 
-	public get(): IStorageData {
-		return this._value;
+	get(): IStorageData {
+		return this.value;
 	}
 
-	public set(data: IStorageData): void {
-		this._value = data;
-		this._storageService.store(IntegrityStorage.KEY, JSON.stringify(this._value), StorageScope.GLOBAL);
+	set(data: IStorageData): void {
+		this.value = data;
+		this.storageService.store(IntegrityStorage.KEY, JSON.stringify(this.value), StorageScope.GLOBAL);
 	}
 }
 
 export class IntegrityServiceImpl implements IIntegrityService {
 
-	public _serviceBrand: any;
+	_serviceBrand: any;
 
 	private _storage: IntegrityStorage;
 	private _isPurePromise: Thenable<IntegrityTestResult>;
@@ -101,7 +101,7 @@ export class IntegrityServiceImpl implements IIntegrityService {
 		);
 	}
 
-	public isPure(): Thenable<IntegrityTestResult> {
+	isPure(): Thenable<IntegrityTestResult> {
 		return this._isPurePromise;
 	}
 

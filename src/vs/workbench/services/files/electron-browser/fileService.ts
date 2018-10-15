@@ -44,7 +44,6 @@ import product from 'vs/platform/node/product';
 import { IEncodingOverride, ResourceEncodings } from 'vs/workbench/services/files/electron-browser/encoding';
 import { createReadableOfSnapshot } from 'vs/workbench/services/files/electron-browser/streams';
 
-
 export interface IFileServiceTestOptions {
 	disableWatcher?: boolean;
 	encodingOverride?: IEncodingOverride[];

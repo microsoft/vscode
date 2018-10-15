@@ -238,7 +238,7 @@ export class ConfigurationManager implements IConfigurationManager {
 			}
 		}));
 
-		this.toDispose.push(lifecycleService.onShutdown(this.store, this));
+		this.toDispose.push(this.storageService.onWillSaveState(this.saveState, this));
 	}
 
 	private initLaunches(): void {
@@ -382,7 +382,7 @@ export class ConfigurationManager implements IConfigurationManager {
 		return this.extensionService.activateByEvent(activationEvent).then(() => this.extensionService.activateByEvent('onDebug'));
 	}
 
-	private store(): void {
+	private saveState(): void {
 		this.storageService.store(DEBUG_SELECTED_CONFIG_NAME_KEY, this.selectedName, StorageScope.WORKSPACE);
 		if (this.selectedLaunch) {
 			this.storageService.store(DEBUG_SELECTED_ROOT, this.selectedLaunch.uri.toString(), StorageScope.WORKSPACE);

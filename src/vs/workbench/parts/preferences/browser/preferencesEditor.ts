@@ -94,9 +94,10 @@ export class PreferencesEditor extends BaseEditor {
 		@IContextKeyService private contextKeyService: IContextKeyService,
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@IThemeService themeService: IThemeService,
-		@IProgressService private progressService: IProgressService
+		@IProgressService private progressService: IProgressService,
+		@IStorageService storageService: IStorageService
 	) {
-		super(PreferencesEditor.ID, telemetryService, themeService);
+		super(PreferencesEditor.ID, telemetryService, themeService, storageService);
 		this.defaultSettingsEditorContextKey = CONTEXT_SETTINGS_EDITOR.bindTo(this.contextKeyService);
 		this.searchFocusContextKey = CONTEXT_SETTINGS_SEARCH_FOCUS.bindTo(this.contextKeyService);
 		this.delayedFilterLogging = new Delayer<void>(1000);

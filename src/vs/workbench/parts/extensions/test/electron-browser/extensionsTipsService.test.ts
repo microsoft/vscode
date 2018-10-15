@@ -34,10 +34,9 @@ import { IPager } from 'vs/base/common/paging';
 import { assign } from 'vs/base/common/objects';
 import { getGalleryExtensionId } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { ConfigurationKey } from 'vs/workbench/parts/extensions/common/extensions';
 import { ExtensionManagementService } from 'vs/platform/extensionManagement/node/extensionManagementService';
-import { TestExtensionEnablementService } from 'vs/platform/extensionManagement/test/common/extensionEnablementService.test';
+import { TestExtensionEnablementService } from 'vs/platform/extensionManagement/test/electron-browser/extensionEnablementService.test';
 import { IURLService } from 'vs/platform/url/common/url';
 import product from 'vs/platform/node/product';
 import { ITextModel } from 'vs/editor/common/model';
@@ -46,7 +45,8 @@ import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
 import { INotificationService, Severity, IPromptChoice, IPromptOptions } from 'vs/platform/notification/common/notification';
 import { URLService } from 'vs/platform/url/common/urlService';
 import { IExperimentService } from 'vs/workbench/parts/experiments/node/experimentService';
-import { TestExperimentService } from 'vs/workbench/parts/experiments/test/node/experimentService.test';
+import { TestExperimentService } from 'vs/workbench/parts/experiments/test/electron-browser/experimentService.test';
+import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 
 const mockExtensionGallery: IGalleryExtension[] = [
 	aGalleryExtension('MockExtension1', {

@@ -17,7 +17,7 @@ import {
 import { getGalleryExtensionId, getGalleryExtensionIdFromLocal } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { ExtensionManagementService, getLocalExtensionIdFromManifest } from 'vs/platform/extensionManagement/node/extensionManagementService';
 import { ExtensionTipsService } from 'vs/workbench/parts/extensions/electron-browser/extensionTipsService';
-import { TestExtensionEnablementService } from 'vs/platform/extensionManagement/test/common/extensionEnablementService.test';
+import { TestExtensionEnablementService } from 'vs/platform/extensionManagement/test/electron-browser/extensionEnablementService.test';
 import { ExtensionGalleryService } from 'vs/platform/extensionManagement/node/extensionGalleryService';
 import { IURLService } from 'vs/platform/url/common/url';
 import { Emitter } from 'vs/base/common/event';

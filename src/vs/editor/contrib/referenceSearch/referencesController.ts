@@ -10,7 +10,7 @@ import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IContextKey, IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IStorageService } from 'vs/platform/storage/common/storage';
+import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { ReferencesModel } from './referencesModel';
@@ -95,14 +95,14 @@ export abstract class ReferencesController implements editorCommon.IEditorContri
 			}
 		}));
 		const storageKey = 'peekViewLayout';
-		const data = <LayoutData>JSON.parse(this._storageService.get(storageKey, undefined, '{}'));
+		const data = <LayoutData>JSON.parse(this._storageService.get(storageKey, StorageScope.GLOBAL, '{}'));
 		this._widget = this._instantiationService.createInstance(ReferenceWidget, this._editor, this._defaultTreeKeyboardSupport, data);
 		this._widget.setTitle(nls.localize('labelLoading', "Loading..."));
 		this._widget.show(range);
 		this._disposables.push(this._widget.onDidClose(() => {
 			modelPromise.cancel();
 
-			this._storageService.store(storageKey, JSON.stringify(this._widget.layoutData));
+			this._storageService.store(storageKey, JSON.stringify(this._widget.layoutData), StorageScope.GLOBAL);
 			this._widget = null;
 			this.closeWidget();
 		}));

@@ -401,9 +401,6 @@ export class SuggestWidget implements IContentWidget, IListVirtualDelegate<IComp
 	private detailsFocusBorderColor: string;
 	private detailsBorderColor: string;
 
-	private storageServiceAvailable: boolean = true;
-	private expandSuggestionDocs: boolean = false;
-
 	private firstFocusInCurrentList: boolean = false;
 
 	constructor(
@@ -423,13 +420,6 @@ export class SuggestWidget implements IContentWidget, IListVirtualDelegate<IComp
 		this.isAuto = false;
 		this.focusedItem = null;
 		this.storageService = storageService;
-
-		if (this.expandDocsSettingFromStorage() === undefined) {
-			this.storageService.store('expandSuggestionDocs', expandSuggestionDocsByDefault, StorageScope.GLOBAL);
-			if (this.expandDocsSettingFromStorage() === undefined) {
-				this.storageServiceAvailable = false;
-			}
-		}
 
 		this.element = $('.editor-widget.suggest-widget');
 		if (!this.editor.getConfiguration().contribInfo.iconsInSuggestions) {
@@ -1053,22 +1043,12 @@ export class SuggestWidget implements IContentWidget, IListVirtualDelegate<IComp
 		return 'suggestion';
 	}
 
-	// Monaco Editor does not have a storage service
 	private expandDocsSettingFromStorage(): boolean {
-		if (this.storageServiceAvailable) {
-			return this.storageService.getBoolean('expandSuggestionDocs', StorageScope.GLOBAL);
-		} else {
-			return this.expandSuggestionDocs;
-		}
+		return this.storageService.getBoolean('expandSuggestionDocs', StorageScope.GLOBAL, expandSuggestionDocsByDefault);
 	}
 
-	// Monaco Editor does not have a storage service
 	private updateExpandDocsSetting(value: boolean) {
-		if (this.storageServiceAvailable) {
-			this.storageService.store('expandSuggestionDocs', value, StorageScope.GLOBAL);
-		} else {
-			this.expandSuggestionDocs = value;
-		}
+		this.storageService.store('expandSuggestionDocs', value, StorageScope.GLOBAL);
 	}
 
 	dispose(): void {

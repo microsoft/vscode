@@ -9,7 +9,7 @@ import * as objects from 'vs/base/common/objects';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { isWindows } from 'vs/base/common/platform';
 import { findFreePort } from 'vs/base/node/ports';
-import { ILifecycleService, ShutdownEvent } from 'vs/platform/lifecycle/common/lifecycle';
+import { ILifecycleService, WillShutdownEvent } from 'vs/platform/lifecycle/common/lifecycle';
 import { IWindowsService, IWindowService } from 'vs/platform/windows/common/windows';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
@@ -537,7 +537,7 @@ export class ExtensionHostProcessWorker implements IExtensionHostStarter {
 		}
 	}
 
-	private _onWillShutdown(event: ShutdownEvent): void {
+	private _onWillShutdown(event: WillShutdownEvent): void {
 
 		// If the extension development host was started without debugger attached we need
 		// to communicate this back to the main side to terminate the debug session

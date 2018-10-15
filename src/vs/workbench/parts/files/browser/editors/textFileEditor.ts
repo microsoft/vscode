@@ -263,13 +263,12 @@ export class TextFileEditor extends BaseTextEditor {
 		super.clearInput();
 	}
 
-	shutdown(): void {
+	protected saveState(): void {
 
 		// Update/clear editor view State
 		this.doSaveOrClearTextEditorViewState(this.input);
 
-		// Call Super
-		super.shutdown();
+		super.saveState();
 	}
 
 	private doSaveOrClearTextEditorViewState(input: FileEditorInput): void {

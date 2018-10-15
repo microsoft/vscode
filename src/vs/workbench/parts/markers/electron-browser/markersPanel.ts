@@ -22,8 +22,7 @@ import { RangeHighlightDecorations } from 'vs/workbench/browser/parts/editor/ran
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { IMarkersWorkbenchService } from 'vs/workbench/parts/markers/electron-browser/markers';
-import { IStorageService } from 'vs/platform/storage/common/storage';
-import { Scope } from 'vs/workbench/common/memento';
+import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { localize } from 'vs/nls';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { Iterator } from 'vs/base/common/iterator';
@@ -78,7 +77,7 @@ export class MarkersPanel extends Panel implements IMarkerFilterController {
 	private treeContainer: HTMLElement;
 	private messageBoxContainer: HTMLElement;
 	private ariaLabelElement: HTMLElement;
-	private panelSettings: any;
+	private panelState: object;
 	private panelFoucusContextKey: IContextKey<boolean>;
 
 	private filter: Filter;
@@ -103,9 +102,9 @@ export class MarkersPanel extends Panel implements IMarkerFilterController {
 		@IMenuService private menuService: IMenuService,
 		@IKeybindingService private keybindingService: IKeybindingService,
 	) {
-		super(Constants.MARKERS_PANEL_ID, telemetryService, themeService);
+		super(Constants.MARKERS_PANEL_ID, telemetryService, themeService, storageService);
 		this.panelFoucusContextKey = Constants.MarkerPanelFocusContextKey.bindTo(contextKeyService);
-		this.panelSettings = this.getMemento(storageService, Scope.WORKSPACE);
+		this.panelState = this.getMemento(StorageScope.WORKSPACE);
 		this.setCurrentActiveEditor();
 	}
 
@@ -347,7 +346,7 @@ export class MarkersPanel extends Panel implements IMarkerFilterController {
 			this.tree.focusFirst();
 		});
 
-		this.filterAction = this.instantiationService.createInstance(MarkersFilterAction, { filterText: this.panelSettings['filter'] || '', filterHistory: this.panelSettings['filterHistory'] || [], useFilesExclude: !!this.panelSettings['useFilesExclude'] });
+		this.filterAction = this.instantiationService.createInstance(MarkersFilterAction, { filterText: this.panelState['filter'] || '', filterHistory: this.panelState['filterHistory'] || [], useFilesExclude: !!this.panelState['useFilesExclude'] });
 		this.actions = [this.filterAction, this.collapseAllAction];
 	}
 
@@ -642,13 +641,12 @@ export class MarkersPanel extends Panel implements IMarkerFilterController {
 		return { total, filtered };
 	}
 
-	public shutdown(): void {
-		// store memento
-		this.panelSettings['filter'] = this.filterAction.filterText;
-		this.panelSettings['filterHistory'] = this.filterAction.filterHistory;
-		this.panelSettings['useFilesExclude'] = this.filterAction.useFilesExclude;
+	protected saveState(): void {
+		this.panelState['filter'] = this.filterAction.filterText;
+		this.panelState['filterHistory'] = this.filterAction.filterHistory;
+		this.panelState['useFilesExclude'] = this.filterAction.useFilesExclude;
 
-		super.shutdown();
+		super.saveState();
 	}
 
 	public dispose(): void {

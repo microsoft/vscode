@@ -46,7 +46,7 @@ export class BreakpointsView extends ViewletPanel {
 
 	private static readonly MAX_VISIBLE_FILES = 9;
 	private static readonly MEMENTO = 'breakopintsview.memento';
-	private settings: any;
+	private viewState: object;
 	private list: WorkbenchList<IEnablement>;
 	private needsRefresh: boolean;
 
@@ -64,7 +64,7 @@ export class BreakpointsView extends ViewletPanel {
 		super({ ...(options as IViewletPanelOptions), ariaHeaderLabel: nls.localize('breakpointsSection', "Breakpoints Section") }, keybindingService, contextMenuService, configurationService);
 
 		this.minimumBodySize = this.maximumBodySize = this.getExpandedBodySize();
-		this.settings = options.viewletSettings;
+		this.viewState = options.viewletState;
 		this.disposables.push(this.debugService.getModel().onDidChangeBreakpoints(() => this.onBreakpointsChange()));
 	}
 
@@ -231,8 +231,10 @@ export class BreakpointsView extends ViewletPanel {
 		return Math.min(BreakpointsView.MAX_VISIBLE_FILES, length) * 22;
 	}
 
-	public shutdown(): void {
-		this.settings[BreakpointsView.MEMENTO] = !this.isExpanded();
+	public saveState(): void {
+		this.viewState[BreakpointsView.MEMENTO] = !this.isExpanded();
+
+		super.saveState();
 	}
 }
 
