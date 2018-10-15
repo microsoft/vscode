@@ -103,19 +103,39 @@ export class StorageService extends Disposable implements IStorageService {
 
 	logStorage(): Promise<void> {
 		return Promise.all([this.globalStorage.getItems(), this.workspaceStorage.getItems()]).then(items => {
+			const safeParse = (value: string) => {
+				try {
+					return JSON.parse(value);
+				} catch (error) {
+					return value;
+				}
+			};
+
 			const globalItems = Object.create(null);
-			items[0].forEach((value, key) => globalItems[key] = value);
+			const globalItemsParsed = Object.create(null);
+			items[0].forEach((value, key) => {
+				globalItems[key] = value;
+				globalItemsParsed[key] = safeParse(value);
+			});
 
 			const workspaceItems = Object.create(null);
-			items[1].forEach((value, key) => workspaceItems[key] = value);
+			const workspaceItemsParsed = Object.create(null);
+			items[1].forEach((value, key) => {
+				workspaceItems[key] = value;
+				workspaceItemsParsed[key] = safeParse(value);
+			});
 
 			console.group('Storage: Global');
 			console.table(globalItems);
 			console.groupEnd();
 
+			console.log(globalItemsParsed);
+
 			console.group('Storage: Workspace');
 			console.table(workspaceItems);
 			console.groupEnd();
+
+			console.log(workspaceItemsParsed);
 		});
 	}
 }
@@ -248,6 +268,5 @@ export class DelegatingStorageService extends Disposable implements IStorageServ
 
 	logStorage(): Promise<void> {
 		return this.storageService.logStorage();
-
 	}
 }
