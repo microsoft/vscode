@@ -358,7 +358,7 @@ echo "Performing $operation $operand"
 ParseConfigFile "$configFile"
 
 # Exit if no operation was specified
-if [ -z "operation" ]; then
+if [ -z "$operation" ]; then
     Usage
 fi
 
