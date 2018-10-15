@@ -152,7 +152,7 @@ export class ChannelServer implements IChannelServer, IDisposable {
 
 	private channels = new Map<string, IChannel>();
 	private activeRequests = new Map<number, IDisposable>();
-	private protocolListener: IDisposable;
+	private protocolListener: IDisposable | null;
 
 	constructor(private protocol: IMessagePassingProtocol) {
 		this.protocolListener = this.protocol.onMessage(msg => this.onRawMessage(msg));
@@ -256,8 +256,10 @@ export class ChannelServer implements IChannelServer, IDisposable {
 	}
 
 	public dispose(): void {
-		this.protocolListener.dispose();
-		this.protocolListener = null;
+		if (this.protocolListener) {
+			this.protocolListener.dispose();
+			this.protocolListener = null;
+		}
 		this.activeRequests.forEach(d => d.dispose());
 		this.activeRequests.clear();
 	}
@@ -269,7 +271,7 @@ export class ChannelClient implements IChannelClient, IDisposable {
 	private activeRequests = new Set<IDisposable>();
 	private handlers = new Map<number, IHandler>();
 	private lastRequestId: number = 0;
-	private protocolListener: IDisposable;
+	private protocolListener: IDisposable | null;
 
 	private _onDidInitialize = new Emitter<void>();
 	readonly onDidInitialize = this._onDidInitialize.event;
@@ -307,7 +309,7 @@ export class ChannelClient implements IChannelClient, IDisposable {
 				return e(errors.canceled());
 			}
 
-			let uninitializedPromise = createCancelablePromise(_ => this.whenInitialized());
+			let uninitializedPromise: CancelablePromise<void> | null = createCancelablePromise(_ => this.whenInitialized());
 			uninitializedPromise.then(() => {
 				uninitializedPromise = null;
 
@@ -350,9 +352,9 @@ export class ChannelClient implements IChannelClient, IDisposable {
 
 			const cancellationTokenListener = cancellationToken.onCancellationRequested(cancel);
 			disposable = combinedDisposable([toDisposable(cancel), cancellationTokenListener]);
+			this.activeRequests.add(disposable);
 		});
 
-		this.activeRequests.add(disposable);
 		always(result, () => this.activeRequests.delete(disposable));
 
 		return result;
@@ -443,15 +445,17 @@ export class ChannelClient implements IChannelClient, IDisposable {
 
 	private whenInitialized(): Thenable<void> {
 		if (this.state === State.Idle) {
-			return Promise.resolve(null);
+			return Promise.resolve();
 		} else {
 			return toNativePromise(this.onDidInitialize);
 		}
 	}
 
 	dispose(): void {
-		this.protocolListener.dispose();
-		this.protocolListener = null;
+		if (this.protocolListener) {
+			this.protocolListener.dispose();
+			this.protocolListener = null;
+		}
 		this.activeRequests.forEach(p => p.dispose());
 		this.activeRequests.clear();
 	}
@@ -477,7 +481,7 @@ export class IPCServer implements IChannelServer, IRoutingChannelClient, IDispos
 	private onClientAdded = new Emitter<string>();
 
 	private get clientKeys(): string[] {
-		const result = [];
+		const result: string[] = [];
 		this.channelClients.forEach((_, key) => result.push(key));
 		return result;
 	}
@@ -589,9 +593,7 @@ export class IPCClient implements IChannelClient, IChannelServer, IDisposable {
 
 	dispose(): void {
 		this.channelClient.dispose();
-		this.channelClient = null;
 		this.channelServer.dispose();
-		this.channelServer = null;
 	}
 }
 
