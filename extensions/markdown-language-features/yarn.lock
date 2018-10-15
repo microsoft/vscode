@@ -3895,13 +3895,6 @@ map-visit@^1.0.0:
   dependencies:
     object-visit "^1.0.0"
 
-markdown-it-named-headers@0.0.4:
-  version "0.0.4"
-  resolved "https://registry.yarnpkg.com/markdown-it-named-headers/-/markdown-it-named-headers-0.0.4.tgz#82efc28324240a6b1e77b9aae501771d5f351c1f"
-  integrity sha1-gu/CgyQkCmsed7mq5QF3HV81HB8=
-  dependencies:
-    string "^3.0.1"
-
 markdown-it@^8.4.1:
   version "8.4.1"
   resolved "https://registry.yarnpkg.com/markdown-it/-/markdown-it-8.4.1.tgz#206fe59b0e4e1b78a7c73250af9b34a4ad0aaf44"
@@ -5710,11 +5703,6 @@ string-width@^2.0.0, string-width@^2.1.0:
   dependencies:
     is-fullwidth-code-point "^2.0.0"
     strip-ansi "^4.0.0"
-
-string@^3.0.1:
-  version "3.3.1"
-  resolved "https://registry.yarnpkg.com/string/-/string-3.3.1.tgz#8d2757ec1c0e6c526796fbb6b14036a4098398b7"
-  integrity sha1-jSdX7BwObFJnlvu2sUA2pAmDmLc=
 
 string_decoder@^1.0.0, string_decoder@~1.0.3:
   version "1.0.3"

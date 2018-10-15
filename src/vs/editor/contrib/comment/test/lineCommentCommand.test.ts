@@ -91,6 +91,9 @@ suite('Editor Contrib - Line Comment Command', () => {
 			'    c',
 			'\t\td'
 		]), createBasicLinePreflightData(['//', 'rem', '!@#', '!@#']), 1);
+		if (!r.supported) {
+			throw new Error(`unexpected`);
+		}
 
 		assert.equal(r.shouldRemoveComments, false);
 
@@ -119,6 +122,9 @@ suite('Editor Contrib - Line Comment Command', () => {
 			'    !@# c',
 			'\t\t!@#d'
 		]), createBasicLinePreflightData(['//', 'rem', '!@#', '!@#']), 1);
+		if (!r.supported) {
+			throw new Error(`unexpected`);
+		}
 
 		assert.equal(r.shouldRemoveComments, true);
 

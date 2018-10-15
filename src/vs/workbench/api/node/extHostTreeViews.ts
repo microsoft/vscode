@@ -122,7 +122,7 @@ class ExtHostTreeView<T> extends Disposable {
 	private static LABEL_HANDLE_PREFIX = '0';
 	private static ID_HANDLE_PREFIX = '1';
 
-	private roots: TreeNode[] = null;
+	private roots: TreeNode[] | null = null;
 	private elements: Map<TreeItemHandle, T> = new Map<TreeItemHandle, T>();
 	private nodes: Map<T, TreeNode> = new Map<T, TreeNode>();
 

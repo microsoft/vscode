@@ -9,7 +9,7 @@ import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { Action } from 'vs/base/common/actions';
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IVirtualDelegate } from 'vs/base/browser/ui/list/list';
+import { IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
 import { IPagedRenderer } from 'vs/base/browser/ui/list/listPaging';
 import { once } from 'vs/base/common/event';
 import { domEvent } from 'vs/base/browser/event';
@@ -36,7 +36,7 @@ export interface ITemplateData {
 	extensionDisposables: IDisposable[];
 }
 
-export class Delegate implements IVirtualDelegate<IExtension> {
+export class Delegate implements IListVirtualDelegate<IExtension> {
 	getHeight() { return 62; }
 	getTemplateId() { return 'extension'; }
 }

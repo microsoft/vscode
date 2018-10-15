@@ -124,7 +124,7 @@ export class RPCProtocol extends Disposable implements IRPCProtocol {
 	private _unresponsiveTime: number;
 	private _asyncCheckUresponsive: RunOnceScheduler;
 
-	constructor(protocol: IMessagePassingProtocol, logger: IRPCProtocolLogger = null, transformer: IURITransformer = null) {
+	constructor(protocol: IMessagePassingProtocol, logger: IRPCProtocolLogger | null = null, transformer: IURITransformer | null = null) {
 		super();
 		this._protocol = protocol;
 		this._logger = logger;
@@ -409,7 +409,7 @@ export class RPCProtocol extends Disposable implements IRPCProtocol {
 		const pendingReply = this._pendingRPCReplies[callId];
 		delete this._pendingRPCReplies[callId];
 
-		let err: Error = null;
+		let err: Error | null = null;
 		if (value && value.$isError) {
 			err = new Error();
 			err.name = value.name;
@@ -443,7 +443,7 @@ export class RPCProtocol extends Disposable implements IRPCProtocol {
 		if (this._isDisposed) {
 			return TPromise.wrapError<any>(errors.canceled());
 		}
-		let cancellationToken: CancellationToken = null;
+		let cancellationToken: CancellationToken | null = null;
 		if (args.length > 0 && CancellationToken.isCancellationToken(args[args.length - 1])) {
 			cancellationToken = args.pop();
 		}

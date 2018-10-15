@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable, IDisposable, combinedDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { TPromise } from 'vs/base/common/winjs.base';
 import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { CommandsRegistry, ICommandService, ICommandHandler } from 'vs/platform/commands/common/commands';
@@ -72,7 +71,7 @@ export interface IActionDescriptor {
 	 * Method that will be executed when the action is triggered.
 	 * @param editor The editor instance is passed in as a convinience
 	 */
-	run(editor: ICodeEditor): void | TPromise<void>;
+	run(editor: ICodeEditor): void | Promise<void>;
 }
 
 /**
@@ -123,13 +122,13 @@ export interface IDiffEditorConstructionOptions extends IDiffEditorOptions {
 }
 
 export interface IStandaloneCodeEditor extends ICodeEditor {
-	addCommand(keybinding: number, handler: ICommandHandler, context: string): string;
+	addCommand(keybinding: number, handler: ICommandHandler, context: string): string | null;
 	createContextKey<T>(key: string, defaultValue: T): IContextKey<T>;
 	addAction(descriptor: IActionDescriptor): IDisposable;
 }
 
 export interface IStandaloneDiffEditor extends IDiffEditor {
-	addCommand(keybinding: number, handler: ICommandHandler, context: string): string;
+	addCommand(keybinding: number, handler: ICommandHandler, context: string): string | null;
 	createContextKey<T>(key: string, defaultValue: T): IContextKey<T>;
 	addAction(descriptor: IActionDescriptor): IDisposable;
 
@@ -183,7 +182,7 @@ export class StandaloneCodeEditor extends CodeEditorWidget implements IStandalon
 		createAriaDomNode();
 	}
 
-	public addCommand(keybinding: number, handler: ICommandHandler, context: string): string {
+	public addCommand(keybinding: number, handler: ICommandHandler, context: string): string | null {
 		if (!this._standaloneKeybindingService) {
 			console.warn('Cannot add command because the editor is configured with an unrecognized KeybindingService');
 			return null;
@@ -221,9 +220,8 @@ export class StandaloneCodeEditor extends CodeEditorWidget implements IStandalon
 		);
 		const contextMenuGroupId = _descriptor.contextMenuGroupId || null;
 		const contextMenuOrder = _descriptor.contextMenuOrder || 0;
-		const run = (): TPromise<void> => {
-			const r = _descriptor.run(this);
-			return r ? r : TPromise.as(void 0);
+		const run = (): Promise<void> => {
+			return Promise.resolve(_descriptor.run(this));
 		};
 
 
@@ -286,7 +284,7 @@ export class StandaloneEditor extends StandaloneCodeEditor implements IStandalon
 
 	constructor(
 		domElement: HTMLElement,
-		options: IEditorConstructionOptions,
+		options: IEditorConstructionOptions | undefined,
 		toDispose: IDisposable,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@ICodeEditorService codeEditorService: ICodeEditorService,
@@ -303,7 +301,7 @@ export class StandaloneEditor extends StandaloneCodeEditor implements IStandalon
 		if (typeof options.theme === 'string') {
 			themeService.setTheme(options.theme);
 		}
-		let model: ITextModel = options.model;
+		let _model: ITextModel | null | undefined = options.model;
 		delete options.model;
 		super(domElement, options, instantiationService, codeEditorService, commandService, contextKeyService, keybindingService, themeService, notificationService);
 
@@ -311,10 +309,12 @@ export class StandaloneEditor extends StandaloneCodeEditor implements IStandalon
 		this._configurationService = configurationService;
 		this._register(toDispose);
 
-		if (typeof model === 'undefined') {
+		let model: ITextModel | null;
+		if (typeof _model === 'undefined') {
 			model = (<any>self).monaco.editor.createModel(options.value || '', options.language || 'text/plain');
 			this._ownsModel = true;
 		} else {
+			model = _model;
 			this._ownsModel = false;
 		}
 
@@ -337,10 +337,10 @@ export class StandaloneEditor extends StandaloneCodeEditor implements IStandalon
 		super.updateOptions(newOptions);
 	}
 
-	_attachModel(model: ITextModel): void {
+	_attachModel(model: ITextModel | null): void {
 		super._attachModel(model);
-		if (this._view) {
-			this._contextViewService.setContainer(this._view.domNode.domNode);
+		if (this._modelData) {
+			this._contextViewService.setContainer(this._modelData.view.domNode.domNode);
 		}
 	}
 
@@ -409,7 +409,7 @@ export class StandaloneDiffEditor extends DiffEditorWidget implements IStandalon
 		return <StandaloneCodeEditor>super.getModifiedEditor();
 	}
 
-	public addCommand(keybinding: number, handler: ICommandHandler, context: string): string {
+	public addCommand(keybinding: number, handler: ICommandHandler, context: string): string | null {
 		return this.getModifiedEditor().addCommand(keybinding, handler, context);
 	}
 

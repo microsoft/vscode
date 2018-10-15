@@ -21,7 +21,7 @@ import { Event, Emitter } from 'vs/base/common/event';
 import { Configuration, DefaultConfigurationModel, ConfigurationModel } from 'vs/platform/configuration/common/configurationModels';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IProgressService, IProgressRunner } from 'vs/platform/progress/common/progress';
-import { ITextResourceConfigurationService } from 'vs/editor/common/services/resourceConfiguration';
+import { ITextResourceConfigurationService, ITextResourcePropertiesService } from 'vs/editor/common/services/resourceConfiguration';
 import { ITextModelService, ITextModelContentProvider, ITextEditorModel } from 'vs/editor/common/services/resolverService';
 import { IDisposable, IReference, ImmortalReference, combinedDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import * as dom from 'vs/base/browser/dom';
@@ -32,10 +32,10 @@ import { Menu } from 'vs/platform/actions/common/menu';
 import { ITelemetryService, ITelemetryInfo } from 'vs/platform/telemetry/common/telemetry';
 import { ResolvedKeybinding, Keybinding, createKeybinding, SimpleKeybinding } from 'vs/base/common/keyCodes';
 import { ResolvedKeybindingItem } from 'vs/platform/keybinding/common/resolvedKeybindingItem';
-import { OS } from 'vs/base/common/platform';
+import { OS, isLinux, isMacintosh } from 'vs/base/common/platform';
 import { Range } from 'vs/editor/common/core/range';
 import { ITextModel } from 'vs/editor/common/model';
-import { INotificationService, INotification, INotificationHandle, NoOpNotification, IPromptChoice } from 'vs/platform/notification/common/notification';
+import { INotificationService, INotification, INotificationHandle, NoOpNotification, IPromptChoice, IPromptOptions } from 'vs/platform/notification/common/notification';
 import { IConfirmation, IConfirmationResult, IDialogService, IDialogOptions } from 'vs/platform/dialogs/common/dialogs';
 import { IPosition, Position as Pos } from 'vs/editor/common/core/position';
 import { isEditorConfigurationKey, isDiffEditorConfigurationKey } from 'vs/editor/common/config/commonEditorConfig';
@@ -121,9 +121,9 @@ export class SimpleEditorModelResolverService implements ITextModelService {
 		};
 	}
 
-	private findModel(editor: ICodeEditor, resource: URI): ITextModel {
+	private findModel(editor: ICodeEditor, resource: URI): ITextModel | null {
 		let model = editor.getModel();
-		if (model.uri.toString() !== resource.toString()) {
+		if (model && model.uri.toString() !== resource.toString()) {
 			return null;
 		}
 
@@ -146,7 +146,7 @@ export class SimpleProgressService implements IProgressService {
 		return SimpleProgressService.NULL_PROGRESS_RUNNER;
 	}
 
-	showWhile(promise: TPromise<any>, delay?: number): TPromise<void> {
+	showWhile(promise: Thenable<any>, delay?: number): Thenable<void> {
 		return null;
 	}
 }
@@ -155,7 +155,7 @@ export class SimpleDialogService implements IDialogService {
 
 	public _serviceBrand: any;
 
-	public confirm(confirmation: IConfirmation): TPromise<IConfirmationResult> {
+	public confirm(confirmation: IConfirmation): Thenable<IConfirmationResult> {
 		return this.doConfirm(confirmation).then(confirmed => {
 			return {
 				confirmed,
@@ -164,17 +164,17 @@ export class SimpleDialogService implements IDialogService {
 		});
 	}
 
-	private doConfirm(confirmation: IConfirmation): TPromise<boolean> {
+	private doConfirm(confirmation: IConfirmation): Thenable<boolean> {
 		let messageText = confirmation.message;
 		if (confirmation.detail) {
 			messageText = messageText + '\n\n' + confirmation.detail;
 		}
 
-		return TPromise.wrap(window.confirm(messageText));
+		return Promise.resolve(window.confirm(messageText));
 	}
 
-	public show(severity: Severity, message: string, buttons: string[], options?: IDialogOptions): TPromise<number> {
-		return TPromise.as(0);
+	public show(severity: Severity, message: string, buttons: string[], options?: IDialogOptions): Thenable<number> {
+		return Promise.resolve(0);
 	}
 }
 
@@ -212,7 +212,7 @@ export class SimpleNotificationService implements INotificationService {
 		return SimpleNotificationService.NO_OP;
 	}
 
-	public prompt(severity: Severity, message: string, choices: IPromptChoice[], onCancel?: () => void): INotificationHandle {
+	public prompt(severity: Severity, message: string, choices: IPromptChoice[], options?: IPromptOptions): INotificationHandle {
 		return SimpleNotificationService.NO_OP;
 	}
 }
@@ -256,7 +256,7 @@ export class StandaloneCommandService implements ICommandService {
 }
 
 export class StandaloneKeybindingService extends AbstractKeybindingService {
-	private _cachedResolver: KeybindingResolver;
+	private _cachedResolver: KeybindingResolver | null;
 	private _dynamicKeybindings: IKeybindingItem[];
 
 	constructor(
@@ -280,7 +280,7 @@ export class StandaloneKeybindingService extends AbstractKeybindingService {
 		}));
 	}
 
-	public addDynamicKeybinding(commandId: string, keybinding: number, handler: ICommandHandler, when: ContextKeyExpr): IDisposable {
+	public addDynamicKeybinding(commandId: string, keybinding: number, handler: ICommandHandler, when: ContextKeyExpr | null): IDisposable {
 		let toDispose: IDisposable[] = [];
 
 		this._dynamicKeybindings.push({
@@ -411,7 +411,7 @@ export class SimpleConfigurationService implements IConfigurationService {
 
 	public updateValue(key: string, value: any, arg3?: any, arg4?: any): Promise<void> {
 		this.configuration().updateValue(key, value);
-		return Promise.resolve(null);
+		return Promise.resolve();
 	}
 
 	public inspect<C>(key: string, options: IConfigurationOverrides = {}): {
@@ -459,6 +459,26 @@ export class SimpleResourceConfigurationService implements ITextResourceConfigur
 	}
 }
 
+export class SimpleResourcePropertiesService implements ITextResourcePropertiesService {
+
+	_serviceBrand: any;
+
+	constructor(
+		@IConfigurationService private configurationService: IConfigurationService,
+	) {
+	}
+
+	getEOL(resource: URI): string {
+		const filesConfiguration = this.configurationService.getValue<{ eol: string }>('files');
+		if (filesConfiguration && filesConfiguration.eol) {
+			if (filesConfiguration.eol !== 'auto') {
+				return filesConfiguration.eol;
+			}
+		}
+		return (isLinux || isMacintosh) ? '\n' : '\r\n';
+	}
+}
+
 export class SimpleMenuService implements IMenuService {
 
 	_serviceBrand: any;
@@ -470,7 +490,7 @@ export class SimpleMenuService implements IMenuService {
 	}
 
 	public createMenu(id: MenuId, contextKeyService: IContextKeyService): IMenu {
-		return new Menu(id, TPromise.as(true), this._commandService, contextKeyService);
+		return new Menu(id, Promise.resolve(true), this._commandService, contextKeyService);
 	}
 }
 

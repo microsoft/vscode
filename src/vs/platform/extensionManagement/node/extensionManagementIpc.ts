@@ -107,7 +107,7 @@ export class ExtensionManagementChannelClient implements IExtensionManagementSer
 		return Promise.resolve(this.channel.call('reinstallFromGallery', [this._transformOutgoing(extension)]));
 	}
 
-	getInstalled(type: LocalExtensionType = null): Promise<ILocalExtension[]> {
+	getInstalled(type: LocalExtensionType | null = null): Promise<ILocalExtension[]> {
 		return Promise.resolve(this.channel.call('getInstalled', [type]))
 			.then(extensions => extensions.map(extension => this._transformIncoming(extension)));
 	}

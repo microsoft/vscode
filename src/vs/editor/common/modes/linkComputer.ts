@@ -75,7 +75,7 @@ class StateMachine {
 }
 
 // State machine for http:// or https:// or file://
-let _stateMachine: StateMachine = null;
+let _stateMachine: StateMachine | null = null;
 function getStateMachine(): StateMachine {
 	if (_stateMachine === null) {
 		_stateMachine = new StateMachine([
@@ -123,7 +123,7 @@ const enum CharacterClass {
 	CannotEndIn = 2
 }
 
-let _classifier: CharacterClassifier<CharacterClass> = null;
+let _classifier: CharacterClassifier<CharacterClass> | null = null;
 function getClassifier(): CharacterClassifier<CharacterClass> {
 	if (_classifier === null) {
 		_classifier = new CharacterClassifier<CharacterClass>(CharacterClass.None);

@@ -83,7 +83,7 @@ class SearchOperation {
 			this.matches.set(match.resource.toString(), match);
 		}
 
-		this.progress(this.matches.get(match.resource.toString()));
+		this.progress(match);
 	}
 }
 

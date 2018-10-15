@@ -4,29 +4,29 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 Object.defineProperty(exports, "__esModule", { value: true });
-var es = require("event-stream");
-var debounce = require("debounce");
-var _filter = require("gulp-filter");
-var rename = require("gulp-rename");
-var _ = require("underscore");
-var path = require("path");
-var fs = require("fs");
-var _rimraf = require("rimraf");
-var git = require("./git");
-var VinylFile = require("vinyl");
-var NoCancellationToken = { isCancellationRequested: function () { return false; } };
+const es = require("event-stream");
+const debounce = require("debounce");
+const _filter = require("gulp-filter");
+const rename = require("gulp-rename");
+const _ = require("underscore");
+const path = require("path");
+const fs = require("fs");
+const _rimraf = require("rimraf");
+const git = require("./git");
+const VinylFile = require("vinyl");
+const NoCancellationToken = { isCancellationRequested: () => false };
 function incremental(streamProvider, initial, supportsCancellation) {
-    var input = es.through();
-    var output = es.through();
-    var state = 'idle';
-    var buffer = Object.create(null);
-    var token = !supportsCancellation ? undefined : { isCancellationRequested: function () { return Object.keys(buffer).length > 0; } };
-    var run = function (input, isCancellable) {
+    const input = es.through();
+    const output = es.through();
+    let state = 'idle';
+    let buffer = Object.create(null);
+    const token = !supportsCancellation ? undefined : { isCancellationRequested: () => Object.keys(buffer).length > 0 };
+    const run = (input, isCancellable) => {
         state = 'running';
-        var stream = !supportsCancellation ? streamProvider() : streamProvider(isCancellable ? token : NoCancellationToken);
+        const stream = !supportsCancellation ? streamProvider() : streamProvider(isCancellable ? token : NoCancellationToken);
         input
             .pipe(stream)
-            .pipe(es.through(undefined, function () {
+            .pipe(es.through(undefined, () => {
             state = 'idle';
             eventuallyRun();
         }))
@@ -35,16 +35,16 @@ function incremental(streamProvider, initial, supportsCancellation) {
     if (initial) {
         run(initial, false);
     }
-    var eventuallyRun = debounce(function () {
-        var paths = Object.keys(buffer);
+    const eventuallyRun = debounce(() => {
+        const paths = Object.keys(buffer);
         if (paths.length === 0) {
             return;
         }
-        var data = paths.map(function (path) { return buffer[path]; });
+        const data = paths.map(path => buffer[path]);
         buffer = Object.create(null);
         run(es.readArray(data), true);
     }, 500);
-    input.on('data', function (f) {
+    input.on('data', (f) => {
         buffer[f.path] = f;
         if (state === 'idle') {
             eventuallyRun();
@@ -57,7 +57,7 @@ function fixWin32DirectoryPermissions() {
     if (!/win32/.test(process.platform)) {
         return es.through();
     }
-    return es.mapSync(function (f) {
+    return es.mapSync(f => {
         if (f.stat && f.stat.isDirectory && f.stat.isDirectory()) {
             f.stat.mode = 16877;
         }
@@ -66,16 +66,16 @@ function fixWin32DirectoryPermissions() {
 }
 exports.fixWin32DirectoryPermissions = fixWin32DirectoryPermissions;
 function setExecutableBit(pattern) {
-    var setBit = es.mapSync(function (f) {
+    const setBit = es.mapSync(f => {
         f.stat.mode = /* 100755 */ 33261;
         return f;
     });
     if (!pattern) {
         return setBit;
     }
-    var input = es.through();
-    var filter = _filter(pattern, { restore: true });
-    var output = input
+    const input = es.through();
+    const filter = _filter(pattern, { restore: true });
+    const output = input
         .pipe(filter)
         .pipe(setBit)
         .pipe(filter.restore);
@@ -83,7 +83,7 @@ function setExecutableBit(pattern) {
 }
 exports.setExecutableBit = setExecutableBit;
 function toFileUri(filePath) {
-    var match = filePath.match(/^([a-z])\:(.*)$/i);
+    const match = filePath.match(/^([a-z])\:(.*)$/i);
     if (match) {
         filePath = '/' + match[1].toUpperCase() + ':' + match[2];
     }
@@ -91,7 +91,7 @@ function toFileUri(filePath) {
 }
 exports.toFileUri = toFileUri;
 function skipDirectories() {
-    return es.mapSync(function (f) {
+    return es.mapSync(f => {
         if (!f.isDirectory()) {
             return f;
         }
@@ -99,15 +99,15 @@ function skipDirectories() {
 }
 exports.skipDirectories = skipDirectories;
 function cleanNodeModule(name, excludes, includes) {
-    var toGlob = function (path) { return '**/node_modules/' + name + (path ? '/' + path : ''); };
-    var negate = function (str) { return '!' + str; };
-    var allFilter = _filter(toGlob('**'), { restore: true });
-    var globs = [toGlob('**')].concat(excludes.map(_.compose(negate, toGlob)));
-    var input = es.through();
-    var nodeModuleInput = input.pipe(allFilter);
-    var output = nodeModuleInput.pipe(_filter(globs));
+    const toGlob = (path) => '**/node_modules/' + name + (path ? '/' + path : '');
+    const negate = (str) => '!' + str;
+    const allFilter = _filter(toGlob('**'), { restore: true });
+    const globs = [toGlob('**')].concat(excludes.map(_.compose(negate, toGlob)));
+    const input = es.through();
+    const nodeModuleInput = input.pipe(allFilter);
+    let output = nodeModuleInput.pipe(_filter(globs));
     if (includes) {
-        var includeGlobs = includes.map(toGlob);
+        const includeGlobs = includes.map(toGlob);
         output = es.merge(output, nodeModuleInput.pipe(_filter(includeGlobs)));
     }
     output = output.pipe(allFilter.restore);
@@ -115,9 +115,9 @@ function cleanNodeModule(name, excludes, includes) {
 }
 exports.cleanNodeModule = cleanNodeModule;
 function loadSourcemaps() {
-    var input = es.through();
-    var output = input
-        .pipe(es.map(function (f, cb) {
+    const input = es.through();
+    const output = input
+        .pipe(es.map((f, cb) => {
         if (f.sourceMap) {
             cb(undefined, f);
             return;
@@ -126,10 +126,10 @@ function loadSourcemaps() {
             cb(new Error('empty file'));
             return;
         }
-        var contents = f.contents.toString('utf8');
-        var reg = /\/\/# sourceMappingURL=(.*)$/g;
-        var lastMatch = null;
-        var match = null;
+        const contents = f.contents.toString('utf8');
+        const reg = /\/\/# sourceMappingURL=(.*)$/g;
+        let lastMatch = null;
+        let match = null;
         while (match = reg.exec(contents)) {
             lastMatch = match;
         }
@@ -145,7 +145,7 @@ function loadSourcemaps() {
             return;
         }
         f.contents = Buffer.from(contents.replace(/\/\/# sourceMappingURL=(.*)$/g, ''), 'utf8');
-        fs.readFile(path.join(path.dirname(f.path), lastMatch[1]), 'utf8', function (err, contents) {
+        fs.readFile(path.join(path.dirname(f.path), lastMatch[1]), 'utf8', (err, contents) => {
             if (err) {
                 return cb(err);
             }
@@ -157,10 +157,10 @@ function loadSourcemaps() {
 }
 exports.loadSourcemaps = loadSourcemaps;
 function stripSourceMappingURL() {
-    var input = es.through();
-    var output = input
-        .pipe(es.mapSync(function (f) {
-        var contents = f.contents.toString('utf8');
+    const input = es.through();
+    const output = input
+        .pipe(es.mapSync(f => {
+        const contents = f.contents.toString('utf8');
         f.contents = Buffer.from(contents.replace(/\n\/\/# sourceMappingURL=(.*)$/gm, ''), 'utf8');
         return f;
     }));
@@ -168,23 +168,23 @@ function stripSourceMappingURL() {
 }
 exports.stripSourceMappingURL = stripSourceMappingURL;
 function rimraf(dir) {
-    var retries = 0;
-    var retry = function (cb) {
-        _rimraf(dir, { maxBusyTries: 1 }, function (err) {
+    let retries = 0;
+    const retry = (cb) => {
+        _rimraf(dir, { maxBusyTries: 1 }, (err) => {
             if (!err) {
                 return cb();
             }
             if (err.code === 'ENOTEMPTY' && ++retries < 5) {
-                return setTimeout(function () { return retry(cb); }, 10);
+                return setTimeout(() => retry(cb), 10);
             }
             return cb(err);
         });
     };
-    return function (cb) { return retry(cb); };
+    return cb => retry(cb);
 }
 exports.rimraf = rimraf;
 function getVersion(root) {
-    var version = process.env['BUILD_SOURCEVERSION'];
+    let version = process.env['BUILD_SOURCEVERSION'];
     if (!version || !/^[0-9a-f]{40}$/i.test(version)) {
         version = git.getVersion(root);
     }
@@ -192,14 +192,14 @@ function getVersion(root) {
 }
 exports.getVersion = getVersion;
 function rebase(count) {
-    return rename(function (f) {
-        var parts = f.dirname ? f.dirname.split(/[\/\\]/) : [];
+    return rename(f => {
+        const parts = f.dirname ? f.dirname.split(/[\/\\]/) : [];
         f.dirname = parts.slice(count).join(path.sep);
     });
 }
 exports.rebase = rebase;
 function filter(fn) {
-    var result = es.through(function (data) {
+    const result = es.through(function (data) {
         if (fn(data)) {
             this.emit('data', data);
         }
@@ -212,8 +212,8 @@ function filter(fn) {
 }
 exports.filter = filter;
 function versionStringToNumber(versionStr) {
-    var semverRegex = /(\d+)\.(\d+)\.(\d+)/;
-    var match = versionStr.match(semverRegex);
+    const semverRegex = /(\d+)\.(\d+)\.(\d+)/;
+    const match = versionStr.match(semverRegex);
     if (!match) {
         throw new Error('Version string is not properly formatted: ' + versionStr);
     }

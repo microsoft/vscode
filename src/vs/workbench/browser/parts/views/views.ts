@@ -431,9 +431,10 @@ export class PersistentContributableViewsModel extends ContributableViewsModel {
 
 		this._register(this.onDidAdd(viewDescriptorRefs => this.saveVisibilityStates(viewDescriptorRefs.map(r => r.viewDescriptor))));
 		this._register(this.onDidRemove(viewDescriptorRefs => this.saveVisibilityStates(viewDescriptorRefs.map(r => r.viewDescriptor))));
+		this._register(this.storageService.onWillSaveState(() => this.saveViewsStates()));
 	}
 
-	saveViewsStates(): void {
+	private saveViewsStates(): void {
 		const storedViewsStates: { [id: string]: { collapsed: boolean, size: number, order: number } } = {};
 		for (const viewDescriptor of this.viewDescriptors) {
 			const viewState = this.viewStates.get(viewDescriptor.id);
@@ -479,11 +480,6 @@ export class PersistentContributableViewsModel extends ContributableViewsModel {
 	private static loadViewsVisibilityState(hiddenViewsStorageId: string, storageService: IStorageService, contextService: IWorkspaceContextService): { id: string, isHidden: boolean }[] {
 		const storedVisibilityStates = <Array<string | { id: string, isHidden: boolean }>>JSON.parse(storageService.get(hiddenViewsStorageId, StorageScope.GLOBAL, '[]'));
 		return <{ id: string, isHidden: boolean }[]>storedVisibilityStates.map(c => typeof c === 'string' /* migration */ ? { id: c, isHidden: true } : c);
-	}
-
-	dispose(): void {
-		this.saveViewsStates();
-		super.dispose();
 	}
 }
 

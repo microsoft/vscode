@@ -247,9 +247,9 @@ export class Settings2EditorModel extends AbstractSettingsModel implements ISett
 
 function parse(model: ITextModel, isSettingsProperty: (currentProperty: string, previousParents: string[]) => boolean): ISettingsGroup[] {
 	const settings: ISetting[] = [];
-	let overrideSetting: ISetting = null;
+	let overrideSetting: ISetting | null = null;
 
-	let currentProperty: string = null;
+	let currentProperty: string | null = null;
 	let currentParent: any = [];
 	let previousParents: any[] = [];
 	let settingsPropertyIndex: number = -1;
@@ -910,7 +910,7 @@ class SettingsContentBuilder {
 
 	private _pushGroup(group: ISettingsGroup): ISetting {
 		const indent = '  ';
-		let lastSetting: ISetting = null;
+		let lastSetting: ISetting | null = null;
 		let groupStart = this.lineCountWithOffset + 1;
 		for (const section of group.sections) {
 			if (section.title) {

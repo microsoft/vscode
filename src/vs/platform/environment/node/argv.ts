@@ -54,6 +54,7 @@ const options: minimist.Opts = {
 		'prof-startup',
 		'verbose',
 		'logExtensionHostCommunication',
+		'logStorage',
 		'disable-extensions',
 		'list-extensions',
 		'show-versions',

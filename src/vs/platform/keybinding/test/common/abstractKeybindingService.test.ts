@@ -16,7 +16,7 @@ import { ResolvedKeybindingItem } from 'vs/platform/keybinding/common/resolvedKe
 import { OS } from 'vs/base/common/platform';
 import { IKeyboardEvent } from 'vs/platform/keybinding/common/keybinding';
 import { NullTelemetryService } from 'vs/platform/telemetry/common/telemetryUtils';
-import { INotificationService, NoOpNotification, INotification, IPromptChoice } from 'vs/platform/notification/common/notification';
+import { INotificationService, NoOpNotification, INotification, IPromptChoice, IPromptOptions } from 'vs/platform/notification/common/notification';
 
 function createContext(ctx: any) {
 	return {
@@ -83,11 +83,11 @@ suite('AbstractKeybindingService', () => {
 	}
 
 	let createTestKeybindingService: (items: ResolvedKeybindingItem[], contextValue?: any) => TestKeybindingService = null;
-	let currentContextValue: IContext = null;
+	let currentContextValue: IContext | null = null;
 	let executeCommandCalls: { commandId: string; args: any[]; }[] = null;
 	let showMessageCalls: { sev: Severity, message: any; }[] = null;
-	let statusMessageCalls: string[] = null;
-	let statusMessageCallsDisposed: string[] = null;
+	let statusMessageCalls: string[] | null = null;
+	let statusMessageCallsDisposed: string[] | null = null;
 
 	setup(() => {
 		executeCommandCalls = [];
@@ -140,7 +140,7 @@ suite('AbstractKeybindingService', () => {
 					showMessageCalls.push({ sev: Severity.Error, message });
 					return new NoOpNotification();
 				},
-				prompt(severity: Severity, message: string, choices: IPromptChoice[], onCancel?: () => void) {
+				prompt(severity: Severity, message: string, choices: IPromptChoice[], options?: IPromptOptions) {
 					throw new Error('not implemented');
 				}
 			};
@@ -173,7 +173,7 @@ suite('AbstractKeybindingService', () => {
 		statusMessageCallsDisposed = null;
 	});
 
-	function kbItem(keybinding: number, command: string, when: ContextKeyExpr = null): ResolvedKeybindingItem {
+	function kbItem(keybinding: number, command: string, when: ContextKeyExpr | null = null): ResolvedKeybindingItem {
 		const resolvedKeybinding = (keybinding !== 0 ? new USLayoutResolvedKeybinding(createKeybinding(keybinding, OS), OS) : null);
 		return new ResolvedKeybindingItem(
 			resolvedKeybinding,

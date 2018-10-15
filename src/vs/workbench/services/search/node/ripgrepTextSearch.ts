@@ -185,7 +185,7 @@ export function rgErrorMsgForDisplay(msg: string): string | undefined {
 
 export class RipgrepParser extends EventEmitter {
 	private fileMatch: FileMatch;
-	private remainder: string;
+	private remainder = '';
 	private isDone: boolean;
 	private stringDecoder: NodeStringDecoder;
 
@@ -209,30 +209,41 @@ export class RipgrepParser extends EventEmitter {
 	}
 
 	public handleData(data: Buffer | string): void {
+		if (this.isDone) {
+			return;
+		}
+
 		const dataStr = typeof data === 'string' ? data : this.stringDecoder.write(data);
 		this.handleDecodedData(dataStr);
 	}
 
 	private handleDecodedData(decodedData: string): void {
+		// check for newline before appending to remainder
+		let newlineIdx = decodedData.indexOf('\n');
+
 		// If the previous data chunk didn't end in a newline, prepend it to this chunk
-		const dataStr = this.remainder ?
-			this.remainder + decodedData :
-			decodedData;
+		const dataStr = this.remainder + decodedData;
 
-		const dataLines: string[] = dataStr.split(/\r\n|\n/);
-		this.remainder = dataLines[dataLines.length - 1] ? dataLines.pop() : null;
-
-		for (let l = 0; l < dataLines.length; l++) {
-			const outputLine = dataLines[l].trim();
-
-			if (outputLine) {
-				this.handleLine(outputLine);
-			}
+		if (newlineIdx >= 0) {
+			newlineIdx += this.remainder.length;
+		} else {
+			// Shortcut
+			this.remainder = dataStr;
+			return;
 		}
+
+		let prevIdx = 0;
+		while (newlineIdx >= 0) {
+			this.handleLine(dataStr.substring(prevIdx, newlineIdx).trim());
+			prevIdx = newlineIdx + 1;
+			newlineIdx = dataStr.indexOf('\n', prevIdx);
+		}
+
+		this.remainder = dataStr.substring(prevIdx).trim();
 	}
 
 	private handleLine(outputLine: string): void {
-		if (this.isDone) {
+		if (this.isDone || !outputLine) {
 			return;
 		}
 
@@ -285,19 +296,24 @@ export class RipgrepParser extends EventEmitter {
 
 	private submatchToResult(parsedLine: any, match: any, uri: URI): TextSearchResult {
 		const lineNumber = parsedLine.data.line_number - 1;
-		let matchText = bytesOrTextToString(parsedLine.data.lines);
-		let start = match.start;
-		let end = match.end;
+		let lineText = bytesOrTextToString(parsedLine.data.lines);
+		let matchText = bytesOrTextToString(match.match);
+		const newlineMatches = matchText.match(/\n/g);
+		const newlines = newlineMatches ? newlineMatches.length : 0;
+		let startCol = match.start;
+		const endLineNumber = lineNumber + newlines;
+		let endCol = match.end - (lineText.lastIndexOf('\n', lineText.length - 2) + 1);
+
 		if (lineNumber === 0) {
-			if (strings.startsWithUTF8BOM(matchText)) {
-				matchText = strings.stripUTF8BOM(matchText);
-				start -= 3;
-				end -= 3;
+			if (strings.startsWithUTF8BOM(lineText)) {
+				lineText = strings.stripUTF8BOM(lineText);
+				startCol -= 3;
+				endCol -= 3;
 			}
 		}
 
-		const range = new Range(lineNumber, start, lineNumber, end);
-		return new TextSearchResult(matchText, range, this.previewOptions);
+		const range = new Range(lineNumber, startCol, endLineNumber, endCol);
+		return new TextSearchResult(lineText, range, this.previewOptions);
 	}
 
 	private getFileMatch(relativeOrAbsolutePath: string): FileMatch {
@@ -489,6 +505,10 @@ function getRgArgs(config: IRawSearch) {
 	}
 
 	args.push('--json');
+
+	if (config.contentPattern.isMultiline) {
+		args.push('--multiline');
+	}
 
 	// Folder to search
 	args.push('--');

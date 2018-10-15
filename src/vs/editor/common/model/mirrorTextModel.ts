@@ -30,13 +30,14 @@ export class MirrorTextModel {
 	protected _lines: string[];
 	protected _eol: string;
 	protected _versionId: number;
-	protected _lineStarts: PrefixSumComputer;
+	protected _lineStarts: PrefixSumComputer | null;
 
 	constructor(uri: URI, lines: string[], eol: string, versionId: number) {
 		this._uri = uri;
 		this._lines = lines;
 		this._eol = eol;
 		this._versionId = versionId;
+		this._lineStarts = null;
 	}
 
 	dispose(): void {

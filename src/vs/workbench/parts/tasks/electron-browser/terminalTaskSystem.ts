@@ -320,10 +320,10 @@ export class TerminalTaskSystem implements ITaskSystem {
 	}
 
 	private executeInTerminal(task: CustomTask | ContributedTask, trigger: string, resolver: VariableResolver): TPromise<ITaskSummary> {
-		let terminal: ITerminalInstance = undefined;
-		let executedCommand: string = undefined;
-		let error: TaskError = undefined;
-		let promise: TPromise<ITaskSummary> = undefined;
+		let terminal: ITerminalInstance | undefined = undefined;
+		let executedCommand: string | undefined = undefined;
+		let error: TaskError | undefined = undefined;
+		let promise: TPromise<ITaskSummary> | undefined = undefined;
 		if (task.isBackground) {
 			promise = new TPromise<ITaskSummary>((resolve, reject) => {
 				const problemMatchers = this.resolveMatchers(resolver, task.problemMatchers);
@@ -533,7 +533,7 @@ export class TerminalTaskSystem implements ITaskSystem {
 				waitOnExit = '\u200B';
 			}
 		}
-		let shellLaunchConfig: IShellLaunchConfig = undefined;
+		let shellLaunchConfig: IShellLaunchConfig | undefined = undefined;
 		let isShellCommand = task.command.runtime === RuntimeType.Shell;
 		if (isShellCommand) {
 			shellLaunchConfig = { name: terminalName, executable: null, args: null, waitOnExit };
@@ -896,7 +896,7 @@ export class TerminalTaskSystem implements ITaskSystem {
 			// to the current working directory.
 			return path.join(cwd, command);
 		}
-		let paths: string[] = undefined;
+		let paths: string[] | undefined = undefined;
 		// The options can override the PATH. So consider that PATH if present.
 		if (options && options.env) {
 			// Path can be named in many different ways and for the execution it doesn't matter

@@ -23,9 +23,12 @@ const MAXIMUM_LINE_HEIGHT = 150;
 const MINIMUM_LETTER_SPACING = -5;
 const MAXIMUM_LETTER_SPACING = 20;
 
-function safeParseFloat(n: number | string, defaultValue: number): number {
+function safeParseFloat(n: number | string | undefined, defaultValue: number): number {
 	if (typeof n === 'number') {
 		return n;
+	}
+	if (typeof n === 'undefined') {
+		return defaultValue;
 	}
 	let r = parseFloat(n);
 	if (isNaN(r)) {
@@ -34,9 +37,12 @@ function safeParseFloat(n: number | string, defaultValue: number): number {
 	return r;
 }
 
-function safeParseInt(n: number | string, defaultValue: number): number {
+function safeParseInt(n: number | string | undefined, defaultValue: number): number {
 	if (typeof n === 'number') {
 		return Math.round(n);
+	}
+	if (typeof n === 'undefined') {
+		return defaultValue;
 	}
 	let r = parseInt(n);
 	if (isNaN(r)) {

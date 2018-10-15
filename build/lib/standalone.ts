@@ -31,6 +31,15 @@ function writeFile(filePath: string, contents: Buffer | string): void {
 }
 
 export function extractEditor(options: tss.ITreeShakingOptions & { destRoot: string }): void {
+	const tsConfig = JSON.parse(fs.readFileSync(path.join(options.sourcesRoot, 'tsconfig.json')).toString());
+	tsConfig.compilerOptions.noUnusedLocals = false;
+	tsConfig.compilerOptions.preserveConstEnums = false;
+	tsConfig.compilerOptions.declaration = false;
+	delete tsConfig.compilerOptions.types;
+	tsConfig.exclude = [];
+
+	options.compilerOptions = tsConfig.compilerOptions;
+
 	let result = tss.shake(options);
 	for (let fileName in result) {
 		if (result.hasOwnProperty(fileName)) {
@@ -79,10 +88,6 @@ export function extractEditor(options: tss.ITreeShakingOptions & { destRoot: str
 		}
 	}
 
-	const tsConfig = JSON.parse(fs.readFileSync(path.join(options.sourcesRoot, 'tsconfig.json')).toString());
-	tsConfig.compilerOptions.noUnusedLocals = false;
-	tsConfig.compilerOptions.preserveConstEnums = false;
-	tsConfig.compilerOptions.declaration = false;
 	writeOutputFile('tsconfig.json', JSON.stringify(tsConfig, null, '\t'));
 
 	[
@@ -90,15 +95,10 @@ export function extractEditor(options: tss.ITreeShakingOptions & { destRoot: str
 		'vs/css.d.ts',
 		'vs/css.js',
 		'vs/loader.js',
-		'vs/monaco.d.ts',
 		'vs/nls.build.js',
 		'vs/nls.d.ts',
 		'vs/nls.js',
 		'vs/nls.mock.ts',
-		'typings/lib.ie11_safe_es6.d.ts',
-		'typings/thenable.d.ts',
-		'typings/es6-promise.d.ts',
-		'typings/require.d.ts',
 	].forEach(copyFile);
 }
 
@@ -118,7 +118,7 @@ export function createESMSourcesAndResources2(options: IOptions2): void {
 	const getDestAbsoluteFilePath = (file: string): string => {
 		let dest = options.renames[file.replace(/\\/g, '/')] || file;
 		if (dest === 'tsconfig.json') {
-			return path.join(OUT_FOLDER, `../tsconfig.json`);
+			return path.join(OUT_FOLDER, `tsconfig.json`);
 		}
 		if (/\.ts$/.test(dest)) {
 			return path.join(OUT_FOLDER, dest);
@@ -136,11 +136,8 @@ export function createESMSourcesAndResources2(options: IOptions2): void {
 
 		if (file === 'tsconfig.json') {
 			const tsConfig = JSON.parse(fs.readFileSync(path.join(SRC_FOLDER, file)).toString());
-			tsConfig.compilerOptions.moduleResolution = undefined;
-			tsConfig.compilerOptions.baseUrl = undefined;
 			tsConfig.compilerOptions.module = 'es6';
-			tsConfig.compilerOptions.rootDir = 'src';
-			tsConfig.compilerOptions.outDir = path.relative(path.dirname(OUT_FOLDER), OUT_RESOURCES_FOLDER);
+			tsConfig.compilerOptions.outDir = path.join(path.relative(OUT_FOLDER, OUT_RESOURCES_FOLDER), 'vs');
 			write(getDestAbsoluteFilePath(file), JSON.stringify(tsConfig, null, '\t'));
 			continue;
 		}

@@ -137,7 +137,7 @@ export class ContextMenuController implements IEditorContribution {
 		return result;
 	}
 
-	private _doShowContextMenu(actions: IAction[], forcedPosition: IPosition = null): void {
+	private _doShowContextMenu(actions: IAction[], forcedPosition: IPosition | null = null): void {
 
 		// Disable hover
 		const oldHoverSetting = this._editor.getConfiguration().contribInfo.hover;

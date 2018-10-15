@@ -21,6 +21,7 @@ import { IFileService } from 'vs/platform/files/common/files';
 class ResourceModelCollection extends ReferenceCollection<TPromise<ITextEditorModel>> {
 
 	private providers: { [scheme: string]: ITextModelContentProvider[] } = Object.create(null);
+	private modelsToDispose = new Set<string>();
 
 	constructor(
 		@IInstantiationService private instantiationService: IInstantiationService,
@@ -31,6 +32,8 @@ class ResourceModelCollection extends ReferenceCollection<TPromise<ITextEditorMo
 	}
 
 	createReferencedObject(key: string): TPromise<ITextEditorModel> {
+		this.modelsToDispose.delete(key);
+
 		const resource = URI.parse(key);
 		if (this.fileService.canHandleResource(resource)) {
 			return this.textFileService.models.loadOrCreate(resource, { reason: LoadReason.REFERENCE });
@@ -39,12 +42,16 @@ class ResourceModelCollection extends ReferenceCollection<TPromise<ITextEditorMo
 		return this.resolveTextModelContent(key).then(() => this.instantiationService.createInstance(ResourceEditorModel, resource));
 	}
 
-	destroyReferencedObject(modelPromise: TPromise<ITextEditorModel>): void {
+	destroyReferencedObject(key: string, modelPromise: TPromise<ITextEditorModel>): void {
+		this.modelsToDispose.add(key);
+
 		modelPromise.then(model => {
-			if (model instanceof TextFileEditorModel) {
-				this.textFileService.models.disposeModel(model);
-			} else {
-				model.dispose();
+			if (this.modelsToDispose.has(key)) {
+				if (model instanceof TextFileEditorModel) {
+					this.textFileService.models.disposeModel(model);
+				} else {
+					model.dispose();
+				}
 			}
 		}, err => {
 			// ignore

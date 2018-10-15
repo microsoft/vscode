@@ -78,7 +78,7 @@ export class ViewLines extends ViewPart implements IVisibleLinesHost<ViewLine>, 
 	private _maxLineWidth: number;
 	private _asyncUpdateLineWidths: RunOnceScheduler;
 
-	private _horizontalRevealRequest: HorizontalRevealRequest;
+	private _horizontalRevealRequest: HorizontalRevealRequest | null;
 	private _lastRenderedData: LastRenderedData;
 
 	constructor(context: ViewContext, linesContent: FastDomNode<HTMLElement>) {
@@ -281,7 +281,7 @@ export class ViewLines extends ViewPart implements IVisibleLinesHost<ViewLine>, 
 
 	// ----------- HELPERS FOR OTHERS
 
-	public getPositionFromDOMInfo(spanNode: HTMLElement, offset: number): Position {
+	public getPositionFromDOMInfo(spanNode: HTMLElement, offset: number): Position | null {
 		let viewLineDomNode = this._getViewLineDomNode(spanNode);
 		if (viewLineDomNode === null) {
 			// Couldn't find view line node
@@ -319,7 +319,7 @@ export class ViewLines extends ViewPart implements IVisibleLinesHost<ViewLine>, 
 		return new Position(lineNumber, column);
 	}
 
-	private _getViewLineDomNode(node: HTMLElement): HTMLElement {
+	private _getViewLineDomNode(node: HTMLElement | null): HTMLElement | null {
 		while (node && node.nodeType === 1) {
 			if (node.className === ViewLine.CLASS_NAME) {
 				return node;
@@ -355,15 +355,15 @@ export class ViewLines extends ViewPart implements IVisibleLinesHost<ViewLine>, 
 		return this._visibleLines.getVisibleLine(lineNumber).getWidth();
 	}
 
-	public linesVisibleRangesForRange(range: Range, includeNewLines: boolean): LineVisibleRanges[] {
+	public linesVisibleRangesForRange(_range: Range, includeNewLines: boolean): LineVisibleRanges[] | null {
 		if (this.shouldRender()) {
 			// Cannot read from the DOM because it is dirty
 			// i.e. the model & the dom are out of sync, so I'd be reading something stale
 			return null;
 		}
 
-		let originalEndLineNumber = range.endLineNumber;
-		range = Range.intersectRanges(range, this._lastRenderedData.getCurrentVisibleRange());
+		let originalEndLineNumber = _range.endLineNumber;
+		const range = Range.intersectRanges(_range, this._lastRenderedData.getCurrentVisibleRange());
 		if (!range) {
 			return null;
 		}
@@ -371,7 +371,7 @@ export class ViewLines extends ViewPart implements IVisibleLinesHost<ViewLine>, 
 		let visibleRanges: LineVisibleRanges[] = [], visibleRangesLen = 0;
 		let domReadingContext = new DomReadingContext(this.domNode.domNode, this._textRangeRestingSpot);
 
-		let nextLineModelLineNumber: number;
+		let nextLineModelLineNumber: number = 0;
 		if (includeNewLines) {
 			nextLineModelLineNumber = this._context.model.coordinatesConverter.convertViewPositionToModelPosition(new Position(range.startLineNumber, 1)).lineNumber;
 		}
@@ -411,7 +411,7 @@ export class ViewLines extends ViewPart implements IVisibleLinesHost<ViewLine>, 
 		return visibleRanges;
 	}
 
-	private visibleRangesForRange2(range: Range): HorizontalRange[] {
+	private visibleRangesForRange2(_range: Range): HorizontalRange[] | null {
 
 		if (this.shouldRender()) {
 			// Cannot read from the DOM because it is dirty
@@ -419,7 +419,7 @@ export class ViewLines extends ViewPart implements IVisibleLinesHost<ViewLine>, 
 			return null;
 		}
 
-		range = Range.intersectRanges(range, this._lastRenderedData.getCurrentVisibleRange());
+		const range = Range.intersectRanges(_range, this._lastRenderedData.getCurrentVisibleRange());
 		if (!range) {
 			return null;
 		}
@@ -453,7 +453,7 @@ export class ViewLines extends ViewPart implements IVisibleLinesHost<ViewLine>, 
 		return result;
 	}
 
-	public visibleRangeForPosition(position: Position): HorizontalRange {
+	public visibleRangeForPosition(position: Position): HorizontalRange | null {
 		const visibleRanges = this.visibleRangesForRange2(new Range(position.lineNumber, position.column, position.lineNumber, position.column));
 		if (!visibleRanges) {
 			return null;

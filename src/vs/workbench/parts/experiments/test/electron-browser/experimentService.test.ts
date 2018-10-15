@@ -6,7 +6,6 @@
 import * as assert from 'assert';
 import { ExperimentService, ExperimentActionType, ExperimentState } from 'vs/workbench/parts/experiments/node/experimentService';
 import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
-import { IStorageService } from 'vs/platform/storage/common/storage';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { TestLifecycleService } from 'vs/workbench/test/workbenchTestServices';
 import {
@@ -15,7 +14,7 @@ import {
 } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { ExtensionManagementService, getLocalExtensionIdFromManifest } from 'vs/platform/extensionManagement/node/extensionManagementService';
 import { Emitter } from 'vs/base/common/event';
-import { TestExtensionEnablementService } from 'vs/platform/extensionManagement/test/common/extensionEnablementService.test';
+import { TestExtensionEnablementService } from 'vs/platform/extensionManagement/test/electron-browser/extensionEnablementService.test';
 import { URLService } from 'vs/platform/url/common/urlService';
 import { IURLService } from 'vs/platform/url/common/url';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
@@ -26,6 +25,7 @@ import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { assign } from 'vs/base/common/objects';
 import { URI } from 'vs/base/common/uri';
+import { IStorageService } from 'vs/platform/storage/common/storage';
 
 let experimentData = {
 	experiments: []

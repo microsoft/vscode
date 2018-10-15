@@ -194,7 +194,7 @@ export class ExtensionUrlHandler implements IExtensionUrlHandler, IURLHandler {
 			}
 		}
 
-		// Extnesion is not installed
+		// Extension is not installed
 		else {
 			const galleryExtension = await this.galleryService.getExtension(extensionIdentifier);
 			if (galleryExtension) {
@@ -224,7 +224,8 @@ export class ExtensionUrlHandler implements IExtensionUrlHandler, IURLHandler {
 									[{
 										label: reloadActionLabel,
 										run: () => this.reloadAndHandle(uri)
-									}]
+									}],
+									{ sticky: true }
 								);
 							}
 						} catch (e) {

@@ -113,7 +113,7 @@ suite('Debug - Model', () => {
 		const session = new DebugSession({ resolved: { name: 'mockSession', type: 'node', request: 'launch' }, unresolved: undefined }, undefined, model, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined);
 		model.addSession(session);
 
-		assert.equal(model.getSessions().length, 1);
+		assert.equal(model.getSessions(true).length, 1);
 		model.rawUpdate({
 			sessionId: session.getId(),
 			threadId: threadId,
@@ -127,9 +127,7 @@ suite('Debug - Model', () => {
 
 		model.clearThreads(session.getId(), true);
 		assert.equal(session.getThread(threadId), null);
-		assert.equal(model.getSessions().length, 1);
-		model.removeSession(session.getId());
-		assert.equal(model.getSessions().length, 0);
+		assert.equal(model.getSessions(true).length, 1);
 	});
 
 	test('threads multiple wtih allThreadsStopped', () => {

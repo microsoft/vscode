@@ -7,7 +7,6 @@ import 'vs/css!./quickOutline';
 import * as nls from 'vs/nls';
 import { matchesFuzzy } from 'vs/base/common/filters';
 import * as strings from 'vs/base/common/strings';
-import { TPromise } from 'vs/base/common/winjs.base';
 import { IContext, IHighlight, QuickOpenEntryGroup, QuickOpenModel } from 'vs/base/parts/quickopen/browser/quickOpenModel';
 import { IAutoFocus, Mode } from 'vs/base/parts/quickopen/common/quickOpen';
 import { ScrollType } from 'vs/editor/common/editorCommon';
@@ -129,7 +128,7 @@ export class QuickOutlineAction extends BaseEditorQuickOpenAction {
 		});
 	}
 
-	public run(accessor: ServicesAccessor, editor: ICodeEditor): TPromise<void> {
+	public run(accessor: ServicesAccessor, editor: ICodeEditor): Thenable<void> {
 
 		let model = editor.getModel();
 
@@ -138,13 +137,13 @@ export class QuickOutlineAction extends BaseEditorQuickOpenAction {
 		}
 
 		// Resolve outline
-		return TPromise.wrap(getDocumentSymbols(model, true, CancellationToken.None).then((result: DocumentSymbol[]) => {
+		return getDocumentSymbols(model, true, CancellationToken.None).then((result: DocumentSymbol[]) => {
 			if (result.length === 0) {
 				return;
 			}
 
 			this._run(editor, result);
-		}));
+		});
 	}
 
 	private _run(editor: ICodeEditor, result: DocumentSymbol[]): void {
@@ -191,7 +190,7 @@ export class QuickOutlineAction extends BaseEditorQuickOpenAction {
 			if (highlights) {
 
 				// Show parent scope as description
-				let description: string = null;
+				let description: string | null = null;
 				if (element.containerName) {
 					description = element.containerName;
 				}
@@ -212,8 +211,8 @@ export class QuickOutlineAction extends BaseEditorQuickOpenAction {
 
 		// Mark all type groups
 		if (results.length > 0 && searchValue.indexOf(SCOPE_PREFIX) === 0) {
-			let currentType: string = null;
-			let currentResult: SymbolEntry = null;
+			let currentType: string | null = null;
+			let currentResult: SymbolEntry | null = null;
 			let typeCounter = 0;
 
 			for (let i = 0; i < results.length; i++) {

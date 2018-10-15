@@ -21,8 +21,8 @@ export class ContentHoverWidget extends Widget implements editorBrowser.IContent
 	private _isVisible: boolean;
 	private _containerDomNode: HTMLElement;
 	private _domNode: HTMLElement;
-	protected _showAtPosition: Position;
-	protected _showAtRange: Range;
+	protected _showAtPosition: Position | null;
+	protected _showAtRange: Range | null;
 	private _stoleFocus: boolean;
 	private scrollbar: DomScrollableElement;
 	private disposables: IDisposable[] = [];
@@ -113,7 +113,7 @@ export class ContentHoverWidget extends Widget implements editorBrowser.IContent
 		}
 	}
 
-	public getPosition(): editorBrowser.IContentWidgetPosition {
+	public getPosition(): editorBrowser.IContentWidgetPosition | null {
 		if (this.isVisible) {
 			return {
 				position: this._showAtPosition,
@@ -233,7 +233,7 @@ export class GlyphHoverWidget extends Widget implements editorBrowser.IOverlayWi
 		this.isVisible = false;
 	}
 
-	public getPosition(): editorBrowser.IOverlayWidgetPosition {
+	public getPosition(): editorBrowser.IOverlayWidgetPosition | null {
 		return null;
 	}
 

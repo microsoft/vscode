@@ -17,8 +17,8 @@ export class MarkdownEngine {
 	private md?: MarkdownIt;
 
 	private firstLine?: number;
-
 	private currentDocument?: vscode.Uri;
+	private _slugCount = new Map<string, number>();
 
 	public constructor(
 		private readonly extensionPreviewResourceProvider: MarkdownContributions,
@@ -36,7 +36,6 @@ export class MarkdownEngine {
 	private async getEngine(resource: vscode.Uri): Promise<MarkdownIt> {
 		if (!this.md) {
 			const hljs = await import('highlight.js');
-			const mdnh = await import('markdown-it-named-headers');
 			this.md = (await import('markdown-it'))({
 				html: true,
 				highlight: (str: string, lang?: string) => {
@@ -54,8 +53,6 @@ export class MarkdownEngine {
 					}
 					return `<code><div>${this.md!.utils.escapeHtml(str)}</div></code>`;
 				}
-			}).use(mdnh, {
-				slugify: (header: string) => this.slugifier.fromHeading(header).value
 			});
 
 			for (const plugin of this.extensionPreviewResourceProvider.markdownItPlugins) {
@@ -71,6 +68,7 @@ export class MarkdownEngine {
 
 			this.addLinkNormalizer(this.md);
 			this.addLinkValidator(this.md);
+			this.addNamedHeaders(this.md);
 		}
 
 		const config = vscode.workspace.getConfiguration('markdown', resource);
@@ -101,6 +99,8 @@ export class MarkdownEngine {
 		}
 		this.currentDocument = document;
 		this.firstLine = offset;
+		this._slugCount = new Map<string, number>();
+
 		const engine = await this.getEngine(document);
 		return engine.render(text);
 	}
@@ -108,6 +108,8 @@ export class MarkdownEngine {
 	public async parse(document: vscode.Uri, source: string): Promise<Token[]> {
 		const { text, offset } = this.stripFrontmatter(source);
 		this.currentDocument = document;
+		this._slugCount = new Map<string, number>();
+
 		const engine = await this.getEngine(document);
 
 		return engine.parse(text, {}).map(token => {
@@ -217,6 +219,31 @@ export class MarkdownEngine {
 		md.validateLink = (link: string) => {
 			// support file:// links
 			return validateLink(link) || link.indexOf('file:') === 0;
+		};
+	}
+
+	private addNamedHeaders(md: any): void {
+		const original = md.renderer.rules.heading_open;
+		md.renderer.rules.heading_open = (tokens: any, idx: number, options: any, env: any, self: any) => {
+			const title = tokens[idx + 1].children.reduce((acc: string, t: any) => acc + t.content, '');
+			let slug = this.slugifier.fromHeading(title);
+
+			if (this._slugCount.has(slug.value)) {
+				const count = this._slugCount.get(slug.value)!;
+				this._slugCount.set(slug.value, count + 1);
+				slug = this.slugifier.fromHeading(slug.value + '-' + (count + 1));
+			} else {
+				this._slugCount.set(slug.value, 0);
+			}
+
+			tokens[idx].attrs = tokens[idx].attrs || [];
+			tokens[idx].attrs.push(['id', slug.value]);
+
+			if (original) {
+				return original(tokens, idx, options, env, self);
+			} else {
+				return self.renderToken(tokens, idx, options, env, self);
+			}
 		};
 	}
 }

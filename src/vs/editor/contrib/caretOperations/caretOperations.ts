@@ -21,6 +21,9 @@ class MoveCaretAction extends EditorAction {
 	}
 
 	public run(accessor: ServicesAccessor, editor: ICodeEditor): void {
+		if (!editor.hasModel()) {
+			return;
+		}
 
 		let commands: ICommand[] = [];
 		let selections = editor.getSelections();

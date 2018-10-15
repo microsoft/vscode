@@ -53,7 +53,7 @@ export class HorizontalScrollbar extends AbstractScrollbar {
 			});
 		}
 
-		this._createSlider(Math.floor((options.horizontalScrollbarSize - options.horizontalSliderSize) / 2), 0, null, options.horizontalSliderSize);
+		this._createSlider(Math.floor((options.horizontalScrollbarSize - options.horizontalSliderSize) / 2), 0, undefined, options.horizontalSliderSize);
 	}
 
 	protected _updateSlider(sliderSize: number, sliderPosition: number): void {

@@ -401,7 +401,7 @@ export class LinesLayout {
 	 * @param verticalOffset The vertical offset.
 	 * @return Precisely the whitespace that is layouted at `verticaloffset` or null.
 	 */
-	public getWhitespaceAtVerticalOffset(verticalOffset: number): IViewWhitespaceViewportData {
+	public getWhitespaceAtVerticalOffset(verticalOffset: number): IViewWhitespaceViewportData | null {
 		verticalOffset = verticalOffset | 0;
 
 		let candidateIndex = this.getWhitespaceIndexAtOrAfterVerticallOffset(verticalOffset);

@@ -18,18 +18,22 @@ import { mnemonicMenuLabel as baseMnemonicLabel, unmnemonicLabel } from 'vs/base
 import { IWindowsMainService, IWindowsCountChangedEvent } from 'vs/platform/windows/electron-main/windows';
 import { IHistoryMainService } from 'vs/platform/history/common/history';
 import { IWorkspaceIdentifier, ISingleFolderWorkspaceIdentifier, isSingleFolderWorkspaceIdentifier, isWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
-import { IMenubarData, IMenubarKeybinding, MenubarMenuItem, isMenubarMenuItemSeparator, isMenubarMenuItemSubmenu, isMenubarMenuItemAction } from 'vs/platform/menubar/common/menubar';
+import { IMenubarData, IMenubarKeybinding, MenubarMenuItem, isMenubarMenuItemSeparator, isMenubarMenuItemSubmenu, isMenubarMenuItemAction, IMenubarMenu } from 'vs/platform/menubar/common/menubar';
 import { URI } from 'vs/base/common/uri';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { IStateService } from 'vs/platform/state/common/state';
 
 const telemetryFrom = 'menu';
 
+interface IMenuItemClickHandler {
+	inDevTools: (contents: Electron.WebContents) => void;
+	inNoWindow: () => void;
+}
+
 export class Menubar {
 
 	private static readonly MAX_MENU_RECENT_ENTRIES = 10;
-	private static readonly lastKnownMenubarStorageKey = 'lastKnownMenubar';
-	private static readonly lastKnownAdditionalKeybindings = 'lastKnownAdditionalKeybindings';
+	private static readonly lastKnownMenubarStorageKey = 'lastKnownMenubarData';
 
 	private isQuitting: boolean;
 	private appMenuInstalled: boolean;
@@ -42,7 +46,7 @@ export class Menubar {
 	// TODO@sbatten Remove this when fixed upstream by Electron
 	private oldMenus: Menu[];
 
-	private menubarMenus: IMenubarData;
+	private menubarMenus: { [id: string]: IMenubarMenu };
 
 	private keybindings: { [commandId: string]: IMenubarKeybinding };
 
@@ -63,9 +67,10 @@ export class Menubar {
 
 		this.menuGC = new RunOnceScheduler(() => { this.oldMenus = []; }, 10000);
 
-		this.menubarMenus = this.stateService.getItem<IMenubarData>(Menubar.lastKnownMenubarStorageKey) || Object.create(null);
+		this.menubarMenus = Object.create(null);
+		this.keybindings = Object.create(null);
 
-		this.keybindings = this.stateService.getItem<IMenubarData>(Menubar.lastKnownAdditionalKeybindings) || Object.create(null);
+		this.restoreCachedMenubarData();
 
 		this.addFallbackHandlers();
 
@@ -76,6 +81,23 @@ export class Menubar {
 		this.install();
 
 		this.registerListeners();
+	}
+
+	private restoreCachedMenubarData() {
+		// TODO@sbatten remove this at some point down the road
+		const outdatedKeys = ['lastKnownAdditionalKeybindings', 'lastKnownKeybindings', 'lastKnownMenubar'];
+		outdatedKeys.forEach(key => this.stateService.removeItem(key));
+
+		const menubarData = this.stateService.getItem<IMenubarData>(Menubar.lastKnownMenubarStorageKey);
+		if (menubarData) {
+			if (menubarData.menus) {
+				this.menubarMenus = menubarData.menus;
+			}
+
+			if (menubarData.keybindings) {
+				this.keybindings = menubarData.keybindings;
+			}
+		}
 	}
 
 	private addFallbackHandlers(): void {
@@ -162,17 +184,12 @@ export class Menubar {
 		return enableNativeTabs;
 	}
 
-	updateMenu(menus: IMenubarData, windowId: number, additionalKeybindings?: Array<IMenubarKeybinding>) {
-		this.menubarMenus = menus;
-		if (additionalKeybindings) {
-			additionalKeybindings.forEach(keybinding => {
-				this.keybindings[keybinding.id] = keybinding;
-			});
-		}
+	updateMenu(menubarData: IMenubarData, windowId: number) {
+		this.menubarMenus = menubarData.menus;
+		this.keybindings = menubarData.keybindings;
 
 		// Save off new menu and keybindings
-		this.stateService.setItem(Menubar.lastKnownMenubarStorageKey, this.menubarMenus);
-		this.stateService.setItem(Menubar.lastKnownAdditionalKeybindings, this.keybindings);
+		this.stateService.setItem(Menubar.lastKnownMenubarStorageKey, menubarData);
 
 		this.scheduleUpdateMenu();
 	}
@@ -413,13 +430,6 @@ export class Menubar {
 					this.insertCheckForUpdatesItems(menu);
 				}
 
-				// Store the keybinding
-				if (item.keybinding) {
-					this.keybindings[item.id] = item.keybinding;
-				} else if (this.keybindings[item.id]) {
-					this.keybindings[item.id] = undefined;
-				}
-
 				if (isMacintosh) {
 					if (this.windowsMainService.getWindowCount() === 0 && this.closedLastWindow) {
 						// In the fallback scenario, we are either disabled or using a fallback handler
@@ -429,10 +439,10 @@ export class Menubar {
 							menu.append(this.createMenuItem(item.label, item.id, false, item.checked));
 						}
 					} else {
-						menu.append(this.createMenuItem(item.label, item.id, item.enabled, item.checked));
+						menu.append(this.createMenuItem(item.label, item.id, item.enabled === false ? false : true, !!item.checked));
 					}
 				} else {
-					menu.append(this.createMenuItem(item.label, item.id, item.enabled, item.checked));
+					menu.append(this.createMenuItem(item.label, item.id, item.enabled === false ? false : true, !!item.checked));
 				}
 			}
 		});
@@ -634,8 +644,8 @@ export class Menubar {
 			commandId = arg2[0];
 		}
 
-		// Add role for special case menu items
 		if (isMacintosh) {
+			// Add role for special case menu items
 			if (commandId === 'editor.action.clipboardCutAction') {
 				options['role'] = 'cut';
 			} else if (commandId === 'editor.action.clipboardCopyAction') {
@@ -643,9 +653,45 @@ export class Menubar {
 			} else if (commandId === 'editor.action.clipboardPasteAction') {
 				options['role'] = 'paste';
 			}
+
+			// Add context aware click handlers for special case menu items
+			if (commandId === 'undo') {
+				options.click = this.makeContextAwareClickHandler(click, {
+					inDevTools: devTools => devTools.undo(),
+					inNoWindow: () => Menu.sendActionToFirstResponder('undo:')
+				});
+			} else if (commandId === 'redo') {
+				options.click = this.makeContextAwareClickHandler(click, {
+					inDevTools: devTools => devTools.redo(),
+					inNoWindow: () => Menu.sendActionToFirstResponder('redo:')
+				});
+			} else if (commandId === 'editor.action.selectAll') {
+				options.click = this.makeContextAwareClickHandler(click, {
+					inDevTools: devTools => devTools.selectAll(),
+					inNoWindow: () => Menu.sendActionToFirstResponder('selectAll:')
+				});
+			}
 		}
 
 		return new MenuItem(this.withKeybinding(commandId, options));
+	}
+
+	private makeContextAwareClickHandler(click: () => void, contextSpecificHandlers: IMenuItemClickHandler): () => void {
+		return () => {
+			// No Active Window
+			const activeWindow = this.windowsMainService.getFocusedWindow();
+			if (!activeWindow) {
+				return contextSpecificHandlers.inNoWindow();
+			}
+
+			// DevTools focused
+			if (activeWindow.win.webContents.isDevToolsFocused()) {
+				return contextSpecificHandlers.inDevTools(activeWindow.win.webContents.devToolsWebContents);
+			}
+
+			// Finally execute command in Window
+			click();
+		};
 	}
 
 	private runActionInRenderer(id: string): void {
@@ -665,7 +711,7 @@ export class Menubar {
 		if (binding && binding.label) {
 
 			// if the binding is native, we can just apply it
-			if (binding.isNative) {
+			if (binding.isNative !== false) {
 				options.accelerator = binding.label;
 			}
 

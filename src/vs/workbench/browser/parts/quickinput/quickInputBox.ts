@@ -46,7 +46,7 @@ export class QuickInputBox {
 		this.inputBox.value = value;
 	}
 
-	select(range: IRange = null): void {
+	select(range: IRange | null = null): void {
 		this.inputBox.select(range);
 	}
 

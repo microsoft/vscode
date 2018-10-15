@@ -206,7 +206,7 @@ export class ReviewZoneWidget extends ZoneWidget {
 			this._commentsElement.removeChild(commentElementsToDel[i].domNode);
 		}
 
-		let lastCommentElement: HTMLElement = null;
+		let lastCommentElement: HTMLElement | null = null;
 		let newCommentNodeList: CommentNode[] = [];
 		for (let i = newCommentsLen - 1; i >= 0; i--) {
 			let currentComment = commentThread.comments[i];

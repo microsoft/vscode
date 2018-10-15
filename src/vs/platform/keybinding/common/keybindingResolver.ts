@@ -11,7 +11,7 @@ import { MenuRegistry } from 'vs/platform/actions/common/actions';
 
 export interface IResolveResult {
 	enterChord: boolean;
-	commandId: string;
+	commandId: string | null;
 	commandArgs: any;
 	bubble: boolean;
 }
@@ -29,7 +29,9 @@ export class KeybindingResolver {
 		this._defaultBoundCommands = new Map<string, boolean>();
 		for (let i = 0, len = defaultKeybindings.length; i < len; i++) {
 			const command = defaultKeybindings[i].command;
-			this._defaultBoundCommands.set(command, true);
+			if (command) {
+				this._defaultBoundCommands.set(command, true);
+			}
 		}
 
 		this._map = new Map<string, ResolvedKeybindingItem[]>();
@@ -47,7 +49,7 @@ export class KeybindingResolver {
 		}
 	}
 
-	private static _isTargetedForRemoval(defaultKb: ResolvedKeybindingItem, keypressFirstPart: string, keypressChordPart: string, command: string, when: ContextKeyExpr): boolean {
+	private static _isTargetedForRemoval(defaultKb: ResolvedKeybindingItem, keypressFirstPart: string | null, keypressChordPart: string | null, command: string, when: ContextKeyExpr | null): boolean {
 		if (defaultKb.command !== command) {
 			return false;
 		}
@@ -147,6 +149,9 @@ export class KeybindingResolver {
 	}
 
 	private _removeFromLookupMap(item: ResolvedKeybindingItem): void {
+		if (!item.command) {
+			return;
+		}
 		let arr = this._lookupMap.get(item.command);
 		if (typeof arr === 'undefined') {
 			return;
@@ -163,7 +168,7 @@ export class KeybindingResolver {
 	 * Returns true if it is provable `a` implies `b`.
 	 * **Precondition**: Assumes `a` and `b` are normalized!
 	 */
-	public static whenIsEntirelyIncluded(a: ContextKeyExpr, b: ContextKeyExpr): boolean {
+	public static whenIsEntirelyIncluded(a: ContextKeyExpr | null, b: ContextKeyExpr | null): boolean {
 		if (!b) {
 			return true;
 		}
@@ -220,7 +225,7 @@ export class KeybindingResolver {
 		return result;
 	}
 
-	public lookupPrimaryKeybinding(commandId: string): ResolvedKeybindingItem {
+	public lookupPrimaryKeybinding(commandId: string): ResolvedKeybindingItem | null {
 		let items = this._lookupMap.get(commandId);
 		if (typeof items === 'undefined' || items.length === 0) {
 			return null;
@@ -229,8 +234,8 @@ export class KeybindingResolver {
 		return items[items.length - 1];
 	}
 
-	public resolve(context: IContext, currentChord: string, keypress: string): IResolveResult {
-		let lookupMap: ResolvedKeybindingItem[] = null;
+	public resolve(context: IContext, currentChord: string | null, keypress: string): IResolveResult | null {
+		let lookupMap: ResolvedKeybindingItem[] | null = null;
 
 		if (currentChord !== null) {
 			// Fetch all chord bindings for `currentChord`
@@ -280,7 +285,7 @@ export class KeybindingResolver {
 		};
 	}
 
-	private _findCommand(context: IContext, matches: ResolvedKeybindingItem[]): ResolvedKeybindingItem {
+	private _findCommand(context: IContext, matches: ResolvedKeybindingItem[]): ResolvedKeybindingItem | null {
 		for (let i = matches.length - 1; i >= 0; i--) {
 			let k = matches[i];
 
@@ -294,7 +299,7 @@ export class KeybindingResolver {
 		return null;
 	}
 
-	public static contextMatchesRules(context: IContext, rules: ContextKeyExpr): boolean {
+	public static contextMatchesRules(context: IContext, rules: ContextKeyExpr | null): boolean {
 		if (!rules) {
 			return true;
 		}

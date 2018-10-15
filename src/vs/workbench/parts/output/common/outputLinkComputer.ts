@@ -55,7 +55,7 @@ export class OutputLinkComputer {
 		return null;
 	}
 
-	public computeLinks(uri: string): ILink[] {
+	public computeLinks(uri: string): Promise<ILink[]> {
 		const model = this.getModel(uri);
 		if (!model) {
 			return void 0;
@@ -81,7 +81,7 @@ export class OutputLinkComputer {
 			}
 		});
 
-		return links;
+		return Promise.resolve(links);
 	}
 
 	public static createPatterns(workspaceFolder: URI): RegExp[] {

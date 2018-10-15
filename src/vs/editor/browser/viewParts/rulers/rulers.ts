@@ -79,7 +79,7 @@ export class Rulers extends ViewPart {
 
 		let removeCount = currentCount - desiredCount;
 		while (removeCount > 0) {
-			let node = this._renderedRulers.pop();
+			let node = this._renderedRulers.pop()!;
 			this.domNode.removeChild(node);
 			removeCount--;
 		}

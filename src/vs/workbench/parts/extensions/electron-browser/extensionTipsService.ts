@@ -611,14 +611,17 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 							this.promptIgnoreExtensionRecommendations();
 						}
 					}],
-					() => {
-						/* __GDPR__
-							"extensionRecommendations:popup" : {
-								"userReaction" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-								"extensionId": { "classification": "PublicNonPersonalData", "purpose": "FeatureInsight" }
-							}
-						*/
-						this.telemetryService.publicLog('extensionRecommendations:popup', { userReaction: 'cancelled', extensionId: name });
+					{
+						sticky: true,
+						onCancel: () => {
+							/* __GDPR__
+								"extensionRecommendations:popup" : {
+									"userReaction" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+									"extensionId": { "classification": "PublicNonPersonalData", "purpose": "FeatureInsight" }
+								}
+							*/
+							this.telemetryService.publicLog('extensionRecommendations:popup', { userReaction: 'cancelled', extensionId: name });
+						}
 					}
 				);
 			});
@@ -687,14 +690,17 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 								this.telemetryService.publicLog('fileExtensionSuggestion:popup', { userReaction: 'neverShowAgain', fileExtension: fileExtension });
 							}
 						}],
-						() => {
-							/* __GDPR__
-								"fileExtensionSuggestion:popup" : {
-									"userReaction" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-									"fileExtension": { "classification": "PublicNonPersonalData", "purpose": "FeatureInsight" }
-								}
-							*/
-							this.telemetryService.publicLog('fileExtensionSuggestion:popup', { userReaction: 'cancelled', fileExtension: fileExtension });
+						{
+							sticky: true,
+							onCancel: () => {
+								/* __GDPR__
+									"fileExtensionSuggestion:popup" : {
+										"userReaction" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+										"fileExtension": { "classification": "PublicNonPersonalData", "purpose": "FeatureInsight" }
+									}
+								*/
+								this.telemetryService.publicLog('fileExtensionSuggestion:popup', { userReaction: 'cancelled', fileExtension: fileExtension });
+							}
 						}
 					);
 				});
@@ -772,15 +778,18 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 							c(void 0);
 						}
 					}],
-					() => {
-						/* __GDPR__
-							"extensionWorkspaceRecommendations:popup" : {
-								"userReaction" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
-							}
-						*/
-						this.telemetryService.publicLog('extensionWorkspaceRecommendations:popup', { userReaction: 'cancelled' });
+					{
+						sticky: true,
+						onCancel: () => {
+							/* __GDPR__
+								"extensionWorkspaceRecommendations:popup" : {
+									"userReaction" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+								}
+							*/
+							this.telemetryService.publicLog('extensionWorkspaceRecommendations:popup', { userReaction: 'cancelled' });
 
-						c(void 0);
+							c(void 0);
+						}
 					}
 				);
 			});

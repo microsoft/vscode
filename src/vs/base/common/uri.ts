@@ -141,7 +141,7 @@ export class URI implements UriComponents {
 	/**
 	 * @internal
 	 */
-	protected constructor(scheme: string, authority: string, path: string, query: string, fragment: string);
+	protected constructor(scheme: string, authority?: string, path?: string, query?: string, fragment?: string);
 
 	/**
 	 * @internal
@@ -386,8 +386,8 @@ interface UriState extends UriComponents {
 // tslint:disable-next-line:class-name
 class _URI extends URI {
 
-	_formatted: string = null;
-	_fsPath: string = null;
+	_formatted: string | null = null;
+	_fsPath: string | null = null;
 
 	get fsPath(): string {
 		if (!this._fsPath) {
@@ -465,7 +465,7 @@ const encodeTable: { [ch: number]: string } = {
 };
 
 function encodeURIComponentFast(uriComponent: string, allowSlash: boolean, firstPos: number = 0): string {
-	let res: string = undefined;
+	let res: string | undefined = undefined;
 	let nativeEncodePos = -1;
 
 	for (let pos = firstPos; pos < uriComponent.length; pos++) {
@@ -526,7 +526,7 @@ function encodeURIComponentFast(uriComponent: string, allowSlash: boolean, first
 }
 
 function encodeURIComponentMinimal(path: string): string {
-	let res: string = undefined;
+	let res: string | undefined = undefined;
 	for (let pos = 0; pos < path.length; pos++) {
 		let code = path.charCodeAt(pos);
 		if (code === CharCode.Hash || code === CharCode.QuestionMark) {

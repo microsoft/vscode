@@ -168,7 +168,7 @@ export class OpenAnythingHandler extends QuickOpenHandler {
 			return null;
 		}
 
-		let range: IRange = null;
+		let range: IRange | null = null;
 
 		// Find Line/Column number from search value using RegExp
 		const patternMatch = OpenAnythingHandler.LINE_COLON_PATTERN.exec(value);

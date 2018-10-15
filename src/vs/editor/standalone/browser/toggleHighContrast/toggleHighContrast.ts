@@ -10,7 +10,7 @@ import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 
 class ToggleHighContrast extends EditorAction {
 
-	private _originalThemeName: string;
+	private _originalThemeName: string | null;
 
 	constructor() {
 		super({

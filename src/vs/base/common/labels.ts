@@ -24,9 +24,9 @@ export interface IUserHomeProvider {
 /**
  * @deprecated use LabelService instead
  */
-export function getPathLabel(resource: URI | string, userHomeProvider: IUserHomeProvider, rootProvider?: IWorkspaceFolderProvider): string {
+export function getPathLabel(resource: URI | string, userHomeProvider: IUserHomeProvider, rootProvider?: IWorkspaceFolderProvider): string | undefined {
 	if (!resource) {
-		return null;
+		return undefined;
 	}
 
 	if (typeof resource === 'string') {
@@ -34,23 +34,25 @@ export function getPathLabel(resource: URI | string, userHomeProvider: IUserHome
 	}
 
 	// return early if we can resolve a relative path label from the root
-	const baseResource = rootProvider ? rootProvider.getWorkspaceFolder(resource) : null;
-	if (baseResource) {
-		const hasMultipleRoots = rootProvider.getWorkspace().folders.length > 1;
+	if (rootProvider) {
+		const baseResource = rootProvider.getWorkspaceFolder(resource);
+		if (baseResource) {
+			const hasMultipleRoots = rootProvider.getWorkspace().folders.length > 1;
 
-		let pathLabel: string;
-		if (isEqual(baseResource.uri, resource, !isLinux)) {
-			pathLabel = ''; // no label if paths are identical
-		} else {
-			pathLabel = normalize(ltrim(resource.path.substr(baseResource.uri.path.length), sep), true);
+			let pathLabel: string;
+			if (isEqual(baseResource.uri, resource, !isLinux)) {
+				pathLabel = ''; // no label if paths are identical
+			} else {
+				pathLabel = normalize(ltrim(resource.path.substr(baseResource.uri.path.length), sep)!, true);
+			}
+
+			if (hasMultipleRoots) {
+				const rootName = (baseResource && baseResource.name) ? baseResource.name : pathsBasename(baseResource.uri.fsPath);
+				pathLabel = pathLabel ? (rootName + ' • ' + pathLabel) : rootName; // always show root basename if there are multiple
+			}
+
+			return pathLabel;
 		}
-
-		if (hasMultipleRoots) {
-			const rootName = (baseResource && baseResource.name) ? baseResource.name : pathsBasename(baseResource.uri.fsPath);
-			pathLabel = pathLabel ? (rootName + ' • ' + pathLabel) : rootName; // always show root basename if there are multiple
-		}
-
-		return pathLabel;
 	}
 
 	// return if the resource is neither file:// nor untitled:// and no baseResource was provided
@@ -72,9 +74,9 @@ export function getPathLabel(resource: URI | string, userHomeProvider: IUserHome
 	return res;
 }
 
-export function getBaseLabel(resource: URI | string): string {
+export function getBaseLabel(resource: URI | string): string | undefined {
 	if (!resource) {
-		return null;
+		return undefined;
 	}
 
 	if (typeof resource === 'string') {
@@ -92,7 +94,7 @@ export function getBaseLabel(resource: URI | string): string {
 }
 
 function hasDriveLetter(path: string): boolean {
-	return isWindows && path && path[1] === ':';
+	return !!(isWindows && path && path[1] === ':');
 }
 
 export function normalizeDriveLetter(path: string): string {

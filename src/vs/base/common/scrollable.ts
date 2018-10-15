@@ -182,7 +182,7 @@ export class Scrollable extends Disposable {
 	private _smoothScrollDuration: number;
 	private readonly _scheduleAtNextAnimationFrame: (callback: () => void) => IDisposable;
 	private _state: ScrollState;
-	private _smoothScrolling: SmoothScrollingOperation;
+	private _smoothScrolling: SmoothScrollingOperation | null;
 
 	private _onScroll = this._register(new Emitter<ScrollEvent>());
 	public readonly onScroll: Event<ScrollEvent> = this._onScroll.event;
@@ -300,6 +300,9 @@ export class Scrollable extends Disposable {
 	}
 
 	private _performSmoothScrolling(): void {
+		if (!this._smoothScrolling) {
+			return;
+		}
 		const update = this._smoothScrolling.tick();
 		const newState = this._state.withScrollPosition(update);
 
@@ -372,7 +375,7 @@ export class SmoothScrollingOperation {
 	public to: ISmoothScrollPosition;
 	public readonly duration: number;
 	private readonly _startTime: number;
-	public animationFrameDisposable: IDisposable;
+	public animationFrameDisposable: IDisposable | null;
 
 	private scrollLeft: IAnimation;
 	private scrollTop: IAnimation;

@@ -14,6 +14,7 @@ import { URI } from 'vs/base/common/uri';
 import { BINARY_FILE_EDITOR_ID } from 'vs/workbench/parts/files/common/files';
 import { IFileService } from 'vs/platform/files/common/files';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { IStorageService } from 'vs/platform/storage/common/storage';
 
 /**
  * An implementation of editor for binary files like images.
@@ -27,7 +28,8 @@ export class BinaryFileEditor extends BaseBinaryResourceEditor {
 		@IThemeService themeService: IThemeService,
 		@IFileService fileService: IFileService,
 		@IWindowsService private windowsService: IWindowsService,
-		@IEditorService private editorService: IEditorService
+		@IEditorService private editorService: IEditorService,
+		@IStorageService storageService: IStorageService
 	) {
 		super(
 			BinaryFileEditor.ID,
@@ -37,7 +39,8 @@ export class BinaryFileEditor extends BaseBinaryResourceEditor {
 			},
 			telemetryService,
 			themeService,
-			fileService
+			fileService,
+			storageService
 		);
 	}
 

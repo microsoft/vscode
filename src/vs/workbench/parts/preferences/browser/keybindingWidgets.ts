@@ -150,8 +150,8 @@ export class DefineKeybindingWidget extends Widget {
 	private _outputNode: HTMLElement;
 	private _showExistingKeybindingsNode: HTMLElement;
 
-	private _firstPart: ResolvedKeybinding = null;
-	private _chordPart: ResolvedKeybinding = null;
+	private _firstPart: ResolvedKeybinding | null = null;
+	private _chordPart: ResolvedKeybinding | null = null;
 	private _isVisible: boolean = false;
 
 	private _onHide = this._register(new Emitter<void>());

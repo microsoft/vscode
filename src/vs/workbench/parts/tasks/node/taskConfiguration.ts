@@ -1561,7 +1561,7 @@ namespace Globals {
 
 	export function from(config: ExternalTaskRunnerConfiguration, context: ParseContext): Globals {
 		let result = fromBase(config, context);
-		let osGlobals: Globals = undefined;
+		let osGlobals: Globals | undefined = undefined;
 		if (config.windows && context.platform === Platform.Windows) {
 			osGlobals = fromBase(config.windows, context);
 		} else if (config.osx && context.platform === Platform.Mac) {

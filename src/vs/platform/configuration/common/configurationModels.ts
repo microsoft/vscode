@@ -190,7 +190,7 @@ export class DefaultConfigurationModel extends ConfigurationModel {
 
 export class ConfigurationModelParser {
 
-	private _configurationModel: ConfigurationModel = null;
+	private _configurationModel: ConfigurationModel | null = null;
 	private _parseErrors: any[] = [];
 
 	constructor(protected readonly _name: string) { }
@@ -211,7 +211,7 @@ export class ConfigurationModelParser {
 
 	protected parseContent(content: string): any {
 		let raw: any = {};
-		let currentProperty: string = null;
+		let currentProperty: string | null = null;
 		let currentParent: any = [];
 		let previousParents: any[] = [];
 		let parseErrors: json.ParseError[] = [];
@@ -276,7 +276,7 @@ export class ConfigurationModelParser {
 
 export class Configuration {
 
-	private _workspaceConsolidatedConfiguration: ConfigurationModel = null;
+	private _workspaceConsolidatedConfiguration: ConfigurationModel | null = null;
 	private _foldersConsolidatedConfigurations: ResourceMap<ConfigurationModel> = new ResourceMap<ConfigurationModel>();
 
 	constructor(

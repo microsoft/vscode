@@ -18,7 +18,7 @@ import { IQuickOpenRegistry, Extensions } from 'vs/workbench/browser/quickopen';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { SearchService } from 'vs/workbench/services/search/node/searchService';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
-import { TestEnvironmentService, TestContextService, TestEditorService, TestEditorGroupsService } from 'vs/workbench/test/workbenchTestServices';
+import { TestEnvironmentService, TestContextService, TestEditorService, TestEditorGroupsService, TestTextResourcePropertiesService } from 'vs/workbench/test/workbenchTestServices';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { URI } from 'vs/base/common/uri';
@@ -29,6 +29,7 @@ import { ModelServiceImpl } from 'vs/editor/common/services/modelServiceImpl';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { testWorkspace } from 'vs/platform/workspace/test/common/testWorkspace';
 import { CancellationToken } from 'vs/base/common/cancellation';
+import { ITextResourcePropertiesService } from 'vs/editor/common/services/resourceConfiguration';
 
 namespace Timer {
 	export interface ITimerEvent {
@@ -67,10 +68,12 @@ suite.skip('QuickOpen performance (integration)', () => {
 
 		const telemetryService = new TestTelemetryService();
 		const configurationService = new TestConfigurationService();
+		const textResourcePropertiesService = new TestTextResourcePropertiesService(configurationService);
 		const instantiationService = new InstantiationService(new ServiceCollection(
 			[ITelemetryService, telemetryService],
 			[IConfigurationService, configurationService],
-			[IModelService, new ModelServiceImpl(null, configurationService)],
+			[ITextResourcePropertiesService, textResourcePropertiesService],
+			[IModelService, new ModelServiceImpl(null, configurationService, textResourcePropertiesService)],
 			[IWorkspaceContextService, new TestContextService(testWorkspace(URI.file(testWorkspacePath)))],
 			[IEditorService, new TestEditorService()],
 			[IEditorGroupsService, new TestEditorGroupsService()],

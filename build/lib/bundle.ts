@@ -123,8 +123,12 @@ export function bundle(entryPoints: IEntryPoint[], config: ILoaderConfig, callba
 	const loader: any = loaderModule.exports;
 	config.isBuild = true;
 	config.paths = config.paths || {};
-	config.paths['vs/nls'] = 'out-build/vs/nls.build';
-	config.paths['vs/css'] = 'out-build/vs/css.build';
+	if (!config.paths['vs/nls']) {
+		config.paths['vs/nls'] = 'out-build/vs/nls.build';
+	}
+	if (!config.paths['vs/css']) {
+		config.paths['vs/css'] = 'out-build/vs/css.build';
+	}
 	loader.config(config);
 
 	loader(['require'], (localRequire: any) => {

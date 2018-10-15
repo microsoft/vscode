@@ -26,7 +26,7 @@ class ProblemReporter implements IProblemReporter {
 	private _validationStatus: ValidationStatus = new ValidationStatus();
 
 	public receivedMessage: boolean = false;
-	public lastMessage: string = undefined;
+	public lastMessage: string | undefined = undefined;
 
 	public info(message: string): void {
 		this.log(message);

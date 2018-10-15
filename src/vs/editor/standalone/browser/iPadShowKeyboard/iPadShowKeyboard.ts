@@ -16,7 +16,7 @@ export class IPadShowKeyboard implements IEditorContribution {
 	private static readonly ID = 'editor.contrib.iPadShowKeyboard';
 
 	private editor: ICodeEditor;
-	private widget: ShowKeyboardWidget;
+	private widget: ShowKeyboardWidget | null;
 	private toDispose: IDisposable[];
 
 	constructor(editor: ICodeEditor) {
@@ -29,14 +29,13 @@ export class IPadShowKeyboard implements IEditorContribution {
 	}
 
 	private update(): void {
-		const hasWidget = (!!this.widget);
 		const shouldHaveWidget = (!this.editor.getConfiguration().readOnly);
 
-		if (!hasWidget && shouldHaveWidget) {
+		if (!this.widget && shouldHaveWidget) {
 
 			this.widget = new ShowKeyboardWidget(this.editor);
 
-		} else if (hasWidget && !shouldHaveWidget) {
+		} else if (this.widget && !shouldHaveWidget) {
 
 			this.widget.dispose();
 			this.widget = null;

@@ -636,7 +636,7 @@ export interface ParseOptions {
  * Therefore always check the errors list to find out if the input was valid.
  */
 export function parse(text: string, errors: ParseError[] = [], options?: ParseOptions): any {
-	let currentProperty: string = null;
+	let currentProperty: string | null = null;
 	let currentParent: any = [];
 	let previousParents: any[] = [];
 

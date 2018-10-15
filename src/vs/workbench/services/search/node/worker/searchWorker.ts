@@ -124,7 +124,7 @@ export class SearchWorkerEngine {
 	}
 
 	private searchInFile(absolutePath: string, contentPattern: RegExp, fileEncoding: string, maxResults?: number, previewOptions?: ITextSearchPreviewOptions): TPromise<IFileSearchResult> {
-		let fileMatch: FileMatch = null;
+		let fileMatch: FileMatch | null = null;
 		let limitReached = false;
 		let numMatches = 0;
 

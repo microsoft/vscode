@@ -348,7 +348,7 @@ export interface ITask<T> {
 
 interface ILimitedTaskFactory<T> {
 	factory: ITask<Promise<T>>;
-	c: (value?: T | Thenable<T>) => void;
+	c: (value?: T | Promise<T>) => void;
 	e: (error?: any) => void;
 }
 

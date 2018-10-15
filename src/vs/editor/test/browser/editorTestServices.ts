@@ -15,14 +15,14 @@ import { IResourceInput } from 'vs/platform/editor/common/editor';
 
 export class TestCodeEditorService extends AbstractCodeEditorService {
 	public lastInput: IResourceInput;
-	public getActiveCodeEditor(): ICodeEditor { return null; }
-	public openCodeEditor(input: IResourceInput, source: ICodeEditor, sideBySide?: boolean): TPromise<ICodeEditor> {
+	public getActiveCodeEditor(): ICodeEditor | null { return null; }
+	public openCodeEditor(input: IResourceInput, source: ICodeEditor | null, sideBySide?: boolean): TPromise<ICodeEditor | null> {
 		this.lastInput = input;
 		return TPromise.as(null);
 	}
 	public registerDecorationType(key: string, options: IDecorationRenderOptions, parentTypeKey?: string): void { }
 	public removeDecorationType(key: string): void { }
-	public resolveDecorationOptions(decorationTypeKey: string, writable: boolean): IModelDecorationOptions { return null; }
+	public resolveDecorationOptions(decorationTypeKey: string, writable: boolean): IModelDecorationOptions { return {}; }
 }
 
 export class TestCommandService implements ICommandService {

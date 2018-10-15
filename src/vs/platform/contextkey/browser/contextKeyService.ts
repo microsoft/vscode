@@ -15,11 +15,11 @@ const KEYBINDING_CONTEXT_ATTR = 'data-keybinding-context';
 
 export class Context implements IContext {
 
-	protected _parent: Context;
+	protected _parent: Context | null;
 	protected _value: { [key: string]: any; };
 	protected _id: number;
 
-	constructor(id: number, parent: Context) {
+	constructor(id: number, parent: Context | null) {
 		this._id = id;
 		this._parent = parent;
 		this._value = Object.create(null);
@@ -142,9 +142,9 @@ class ContextKey<T> implements IContextKey<T> {
 
 	private _parent: AbstractContextKeyService;
 	private _key: string;
-	private _defaultValue: T;
+	private _defaultValue: T | undefined;
 
-	constructor(parent: AbstractContextKeyService, key: string, defaultValue: T) {
+	constructor(parent: AbstractContextKeyService, key: string, defaultValue: T | undefined) {
 		this._parent = parent;
 		this._key = key;
 		this._defaultValue = defaultValue;
@@ -200,7 +200,7 @@ export abstract class AbstractContextKeyService implements IContextKeyService {
 
 	abstract dispose(): void;
 
-	public createKey<T>(key: string, defaultValue: T): IContextKey<T> {
+	public createKey<T>(key: string, defaultValue: T | undefined): IContextKey<T> {
 		return new ContextKey(this, key, defaultValue);
 	}
 
@@ -221,7 +221,7 @@ export abstract class AbstractContextKeyService implements IContextKeyService {
 		return new ScopedContextKeyService(this, this._onDidChangeContextKey, domNode);
 	}
 
-	public contextMatchesRules(rules: ContextKeyExpr): boolean {
+	public contextMatchesRules(rules: ContextKeyExpr | null): boolean {
 		const context = this.getContextValuesContainer(this._myContextId);
 		const result = KeybindingResolver.contextMatchesRules(context, rules);
 		// console.group(rules.serialize() + ' -> ' + result);
@@ -278,7 +278,7 @@ export class ContextKeyService extends AbstractContextKeyService implements ICon
 		this._toDispose.push(myContext);
 
 		// Uncomment this to see the contexts continuously logged
-		// let lastLoggedValue: string = null;
+		// let lastLoggedValue: string | null = null;
 		// setInterval(() => {
 		// 	let values = Object.keys(this._contexts).map((key) => this._contexts[key]);
 		// 	let logValue = values.map(v => JSON.stringify(v._value, null, '\t')).join('\n');
@@ -311,7 +311,7 @@ export class ContextKeyService extends AbstractContextKeyService implements ICon
 class ScopedContextKeyService extends AbstractContextKeyService {
 
 	private _parent: AbstractContextKeyService;
-	private _domNode: IContextKeyServiceTarget;
+	private _domNode: IContextKeyServiceTarget | undefined;
 
 	constructor(parent: AbstractContextKeyService, emitter: Emitter<string | string[]>, domNode?: IContextKeyServiceTarget) {
 		super(parent.createChildContext());
@@ -349,10 +349,14 @@ class ScopedContextKeyService extends AbstractContextKeyService {
 	}
 }
 
-function findContextAttr(domNode: IContextKeyServiceTarget): number {
+function findContextAttr(domNode: IContextKeyServiceTarget | null): number {
 	while (domNode) {
 		if (domNode.hasAttribute(KEYBINDING_CONTEXT_ATTR)) {
-			return parseInt(domNode.getAttribute(KEYBINDING_CONTEXT_ATTR), 10);
+			const attr = domNode.getAttribute(KEYBINDING_CONTEXT_ATTR);
+			if (attr) {
+				return parseInt(attr, 10);
+			}
+			return NaN;
 		}
 		domNode = domNode.parentElement;
 	}

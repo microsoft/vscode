@@ -32,8 +32,8 @@ suite('Editor Model - Model Modes 1', () => {
 		}
 	};
 
-	let thisModel: TextModel = null;
-	let languageRegistration: IDisposable = null;
+	let thisModel: TextModel | null = null;
+	let languageRegistration: IDisposable | null = null;
 
 	setup(() => {
 		const TEXT =
@@ -202,8 +202,8 @@ suite('Editor Model - Model Modes 2', () => {
 		stateEqual((<any>model)._tokens._lastState, states[len]);
 	}
 
-	let thisModel: TextModel = null;
-	let languageRegistration: IDisposable = null;
+	let thisModel: TextModel | null = null;
+	let languageRegistration: IDisposable | null = null;
 
 	setup(() => {
 		const TEXT =

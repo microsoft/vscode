@@ -27,6 +27,7 @@ export interface IBaseCommandAction {
 export interface ICommandAction extends IBaseCommandAction {
 	iconLocation?: { dark: URI; light?: URI; };
 	precondition?: ContextKeyExpr;
+	toggled?: ContextKeyExpr;
 }
 
 export interface ISerializableCommandAction extends IBaseCommandAction {
@@ -220,7 +221,6 @@ export class ExecuteCommandAction extends Action {
 }
 
 export class SubmenuItemAction extends Action {
-	// private _options: IMenuActionOptions;
 
 	readonly item: ISubmenuItem;
 	constructor(item: ISubmenuItem) {
@@ -232,13 +232,13 @@ export class SubmenuItemAction extends Action {
 export class MenuItemAction extends ExecuteCommandAction {
 
 	readonly item: ICommandAction;
-	readonly alt: MenuItemAction;
+	readonly alt: MenuItemAction | undefined;
 
 	private _options: IMenuActionOptions;
 
 	constructor(
 		item: ICommandAction,
-		alt: ICommandAction,
+		alt: ICommandAction | undefined,
 		options: IMenuActionOptions,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@ICommandService commandService: ICommandService
@@ -246,6 +246,8 @@ export class MenuItemAction extends ExecuteCommandAction {
 		typeof item.title === 'string' ? super(item.id, item.title, commandService) : super(item.id, item.title.value, commandService);
 		this._cssClass = undefined;
 		this._enabled = !item.precondition || contextKeyService.contextMatchesRules(item.precondition);
+		this._checked = Boolean(item.toggled && contextKeyService.contextMatchesRules(item.toggled));
+
 		this._options = options || {};
 
 		this.item = item;
@@ -273,9 +275,9 @@ export class SyncActionDescriptor {
 
 	private _id: string;
 	private _label: string;
-	private _keybindings: IKeybindings;
-	private _keybindingContext: ContextKeyExpr;
-	private _keybindingWeight: number;
+	private _keybindings: IKeybindings | undefined;
+	private _keybindingContext: ContextKeyExpr | undefined;
+	private _keybindingWeight: number | undefined;
 
 	constructor(ctor: IConstructorSignature2<string, string, Action>,
 		id: string, label: string, keybindings?: IKeybindings, keybindingContext?: ContextKeyExpr, keybindingWeight?: number
@@ -300,15 +302,15 @@ export class SyncActionDescriptor {
 		return this._label;
 	}
 
-	public get keybindings(): IKeybindings {
+	public get keybindings(): IKeybindings | undefined {
 		return this._keybindings;
 	}
 
-	public get keybindingContext(): ContextKeyExpr {
+	public get keybindingContext(): ContextKeyExpr | undefined {
 		return this._keybindingContext;
 	}
 
-	public get keybindingWeight(): number {
+	public get keybindingWeight(): number | undefined {
 		return this._keybindingWeight;
 	}
 }

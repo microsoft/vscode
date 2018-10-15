@@ -9,7 +9,6 @@ import { IModelDecorationOptions, ITextModel } from 'vs/editor/common/model';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { ICodeEditor, IDiffEditor } from 'vs/editor/browser/editorBrowser';
 import { IResourceInput } from 'vs/platform/editor/common/editor';
-import { TPromise } from 'vs/base/common/winjs.base';
 import { Disposable } from 'vs/base/common/lifecycle';
 
 export abstract class AbstractCodeEditorService extends Disposable implements ICodeEditorService {
@@ -71,8 +70,8 @@ export abstract class AbstractCodeEditorService extends Disposable implements IC
 		return Object.keys(this._diffEditors).map(id => this._diffEditors[id]);
 	}
 
-	getFocusedCodeEditor(): ICodeEditor {
-		let editorWithWidgetFocus: ICodeEditor = null;
+	getFocusedCodeEditor(): ICodeEditor | null {
+		let editorWithWidgetFocus: ICodeEditor | null = null;
 
 		let editors = this.listCodeEditors();
 		for (let i = 0; i < editors.length; i++) {
@@ -93,7 +92,7 @@ export abstract class AbstractCodeEditorService extends Disposable implements IC
 
 	abstract registerDecorationType(key: string, options: IDecorationRenderOptions, parentTypeKey?: string): void;
 	abstract removeDecorationType(key: string): void;
-	abstract resolveDecorationOptions(decorationTypeKey: string, writable: boolean): IModelDecorationOptions;
+	abstract resolveDecorationOptions(decorationTypeKey: string | undefined, writable: boolean): IModelDecorationOptions;
 
 	private _transientWatchers: { [uri: string]: ModelTransientSettingWatcher; } = {};
 
@@ -126,8 +125,8 @@ export abstract class AbstractCodeEditorService extends Disposable implements IC
 		delete this._transientWatchers[w.uri];
 	}
 
-	abstract getActiveCodeEditor(): ICodeEditor;
-	abstract openCodeEditor(input: IResourceInput, source: ICodeEditor, sideBySide?: boolean): TPromise<ICodeEditor>;
+	abstract getActiveCodeEditor(): ICodeEditor | null;
+	abstract openCodeEditor(input: IResourceInput, source: ICodeEditor | null, sideBySide?: boolean): Thenable<ICodeEditor | null>;
 }
 
 export class ModelTransientSettingWatcher {

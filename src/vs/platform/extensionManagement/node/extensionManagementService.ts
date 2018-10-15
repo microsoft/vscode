@@ -713,7 +713,7 @@ export class ExtensionManagementService extends Disposable implements IExtension
 		this._onDidUninstallExtension.fire({ identifier: extension.identifier, error: errorcode });
 	}
 
-	getInstalled(type: LocalExtensionType = null): Promise<ILocalExtension[]> {
+	getInstalled(type: LocalExtensionType | null = null): Promise<ILocalExtension[]> {
 		const promises = [];
 
 		if (type === null || type === LocalExtensionType.System) {
@@ -852,7 +852,7 @@ export class ExtensionManagementService extends Disposable implements IExtension
 
 	private async withUninstalledExtensions<T>(fn: (uninstalled: { [id: string]: boolean; }) => T): Promise<T> {
 		return await this.uninstalledFileLimiter.queue(() => {
-			let result: T = null;
+			let result: T | null = null;
 			return pfs.readFile(this.uninstalledPath, 'utf8')
 				.then(null, err => err.code === 'ENOENT' ? Promise.resolve('{}') : Promise.reject(err))
 				.then<{ [id: string]: boolean }>(raw => { try { return JSON.parse(raw); } catch (e) { return {}; } })

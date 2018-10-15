@@ -8,9 +8,9 @@ let _isMacintosh = false;
 let _isLinux = false;
 let _isNative = false;
 let _isWeb = false;
-let _locale: string = undefined;
-let _language: string = undefined;
-let _translationsConfigFile: string = undefined;
+let _locale: string | undefined = undefined;
+let _language: string | undefined = undefined;
+let _translationsConfigFile: string | undefined = undefined;
 
 interface NLSConfig {
 	locale: string;
@@ -129,7 +129,7 @@ export const translationsConfigFile = _translationsConfigFile;
 const _globals = (typeof self === 'object' ? self : typeof global === 'object' ? global : {} as any);
 export const globals: any = _globals;
 
-let _setImmediate: (callback: (...args: any[]) => void) => number = null;
+let _setImmediate: ((callback: (...args: any[]) => void) => number) | null = null;
 export function setImmediate(callback: (...args: any[]) => void): number {
 	if (_setImmediate === null) {
 		if (globals.setImmediate) {
@@ -140,7 +140,7 @@ export function setImmediate(callback: (...args: any[]) => void): number {
 			_setImmediate = globals.setTimeout.bind(globals);
 		}
 	}
-	return _setImmediate(callback);
+	return _setImmediate!(callback);
 }
 
 export const enum OperatingSystem {

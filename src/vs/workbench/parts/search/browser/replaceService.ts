@@ -104,7 +104,7 @@ export class ReplaceService implements IReplaceService {
 	public replace(match: Match): TPromise<any>;
 	public replace(files: FileMatch[], progress?: IProgressRunner): TPromise<any>;
 	public replace(match: FileMatchOrMatch, progress?: IProgressRunner, resource?: URI): TPromise<any>;
-	public replace(arg: any, progress: IProgressRunner = null, resource: URI = null): TPromise<any> {
+	public replace(arg: any, progress: IProgressRunner | null = null, resource: URI | null = null): TPromise<any> {
 
 		const edits: ResourceTextEdit[] = this.createEdits(arg, resource);
 		return this.bulkEditorService.apply({ edits }, { progress }).then(() => this.textFileService.saveAll(edits.map(e => e.resource)));
@@ -174,7 +174,7 @@ export class ReplaceService implements IReplaceService {
 		replaceModel.pushEditOperations([], mergeSort(modelEdits, (a, b) => Range.compareRangesUsingStarts(a.range, b.range)), () => []);
 	}
 
-	private createEdits(arg: FileMatchOrMatch | FileMatch[], resource: URI = null): ResourceTextEdit[] {
+	private createEdits(arg: FileMatchOrMatch | FileMatch[], resource: URI | null = null): ResourceTextEdit[] {
 		const edits: ResourceTextEdit[] = [];
 
 		if (arg instanceof Match) {
@@ -198,7 +198,7 @@ export class ReplaceService implements IReplaceService {
 		return edits;
 	}
 
-	private createEdit(match: Match, text: string, resource: URI = null): ResourceTextEdit {
+	private createEdit(match: Match, text: string, resource: URI | null = null): ResourceTextEdit {
 		let fileMatch: FileMatch = match.parent();
 		let resourceEdit: ResourceTextEdit = {
 			resource: resource !== null ? resource : fileMatch.resource(),

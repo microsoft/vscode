@@ -21,6 +21,7 @@ import { localize } from 'vs/nls';
 import { Severity } from 'vs/platform/notification/common/notification';
 import { ScrollbarVisibility } from 'vs/base/common/scrollable';
 import { ILifecycleService, LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
+import { IWindowService } from 'vs/platform/windows/common/windows';
 
 interface INotificationToast {
 	item: INotificationViewItem;
@@ -52,6 +53,7 @@ export class NotificationsToasts extends Themable {
 
 	private notificationsToastsContainer: HTMLElement;
 	private workbenchDimensions: Dimension;
+	private windowHasFocus: boolean;
 	private isNotificationsCenterVisible: boolean;
 	private mapNotificationToToast: Map<INotificationViewItem, INotificationToast>;
 	private notificationsToastsVisibleContextKey: IContextKey<boolean>;
@@ -64,12 +66,15 @@ export class NotificationsToasts extends Themable {
 		@IThemeService themeService: IThemeService,
 		@IEditorGroupsService private editorGroupService: IEditorGroupsService,
 		@IContextKeyService contextKeyService: IContextKeyService,
-		@ILifecycleService private lifecycleService: ILifecycleService
+		@ILifecycleService private lifecycleService: ILifecycleService,
+		@IWindowService private windowService: IWindowService
 	) {
 		super(themeService);
 
 		this.mapNotificationToToast = new Map<INotificationViewItem, INotificationToast>();
 		this.notificationsToastsVisibleContextKey = NotificationsToastsVisibleContext.bindTo(contextKeyService);
+
+		this.windowService.isFocused().then(isFocused => this.windowHasFocus = isFocused);
 
 		this.registerListeners();
 	}
@@ -85,6 +90,9 @@ export class NotificationsToasts extends Themable {
 			// Update toasts on notification changes
 			this._register(this.model.onDidNotificationChange(e => this.onDidNotificationChange(e)));
 		});
+
+		// Track window focus
+		this.windowService.onDidChangeFocus(hasFocus => this.windowHasFocus = hasFocus);
 	}
 
 	private onDidNotificationChange(e: INotificationChangeEvent): void {
@@ -177,31 +185,8 @@ export class NotificationsToasts extends Themable {
 			this.removeToast(item);
 		});
 
-		// Automatically hide collapsed notifications
-		if (!item.expanded) {
-
-			// Track mouse over item
-			let isMouseOverToast = false;
-			itemDisposeables.push(addDisposableListener(notificationToastContainer, EventType.MOUSE_OVER, () => isMouseOverToast = true));
-			itemDisposeables.push(addDisposableListener(notificationToastContainer, EventType.MOUSE_OUT, () => isMouseOverToast = false));
-
-			// Install Timers
-			let timeoutHandle: any;
-			const hideAfterTimeout = () => {
-				timeoutHandle = setTimeout(() => {
-					const showsProgress = item.hasProgress() && !item.progress.state.done;
-					if (!notificationList.hasFocus() && !item.expanded && !isMouseOverToast && !showsProgress) {
-						this.removeToast(item);
-					} else {
-						hideAfterTimeout(); // push out disposal if item has focus or is expanded
-					}
-				}, NotificationsToasts.PURGE_TIMEOUT[item.severity]);
-			};
-
-			hideAfterTimeout();
-
-			itemDisposeables.push(toDisposable(() => clearTimeout(timeoutHandle)));
-		}
+		// Automatically purge non-sticky notifications
+		this.purgeNotification(item, notificationToastContainer, notificationList, itemDisposeables);
 
 		// Theming
 		this.updateStyles();
@@ -215,6 +200,35 @@ export class NotificationsToasts extends Themable {
 			removeClass(notificationToast, 'notification-fade-in');
 			addClass(notificationToast, 'notification-fade-in-done');
 		}));
+	}
+
+	private purgeNotification(item: INotificationViewItem, notificationToastContainer: HTMLElement, notificationList: NotificationsList, disposables: IDisposable[]): void {
+
+		// Track mouse over item
+		let isMouseOverToast = false;
+		disposables.push(addDisposableListener(notificationToastContainer, EventType.MOUSE_OVER, () => isMouseOverToast = true));
+		disposables.push(addDisposableListener(notificationToastContainer, EventType.MOUSE_OUT, () => isMouseOverToast = false));
+
+		// Install Timers
+		let timeoutHandle: any;
+		const hideAfterTimeout = () => {
+			timeoutHandle = setTimeout(() => {
+				if (
+					item.sticky ||					// never hide sticky notifications
+					notificationList.hasFocus() ||	// never hide notifications with focus
+					isMouseOverToast ||				// never hide notifications under mouse
+					!this.windowHasFocus			// never hide when window has no focus
+				) {
+					hideAfterTimeout();
+				} else {
+					this.removeToast(item);
+				}
+			}, NotificationsToasts.PURGE_TIMEOUT[item.severity]);
+		};
+
+		hideAfterTimeout();
+
+		disposables.push(toDisposable(() => clearTimeout(timeoutHandle)));
 	}
 
 	private removeToast(item: INotificationViewItem): void {

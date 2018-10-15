@@ -407,7 +407,7 @@ export class ExtHostExtensionService implements ExtHostExtensionServiceShape {
 }
 
 function loadCommonJSModule<T>(logService: ILogService, modulePath: string, activationTimesBuilder: ExtensionActivationTimesBuilder): TPromise<T> {
-	let r: T = null;
+	let r: T | null = null;
 	activationTimesBuilder.codeLoadingStart();
 	logService.info(`ExtensionService#loadCommonJSModule ${modulePath}`);
 	try {

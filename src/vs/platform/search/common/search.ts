@@ -13,6 +13,7 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import { IFilesConfiguration } from 'vs/platform/files/common/files';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { CancellationToken } from 'vs/base/common/cancellation';
+import { getNLines } from 'vs/base/common/strings';
 
 export const VIEW_ID = 'workbench.view.search';
 
@@ -235,38 +236,50 @@ export class TextSearchResult implements ITextSearchResult {
 	range: ISearchRange;
 	preview: ITextSearchResultPreview;
 
-	constructor(fullLine: string, range: ISearchRange, previewOptions?: ITextSearchPreviewOptions) {
+	constructor(text: string, range: ISearchRange, previewOptions?: ITextSearchPreviewOptions) {
 		this.range = range;
 		if (previewOptions) {
+			text = getNLines(text, previewOptions.matchLines);
 			const leadingChars = Math.floor(previewOptions.charsPerLine / 5);
+			const endColumnByTrimmedLines = (range.startLineNumber + previewOptions.matchLines - 1) === range.endLineNumber ? // if single line...
+				range.endColumn :
+				previewOptions.charsPerLine;
+
+			// This doesn't handle all previewOptions correctly
 			const previewStart = Math.max(range.startColumn - leadingChars, 0);
-			const previewEnd = previewOptions.charsPerLine + previewStart;
-			const endOfMatchRangeInPreview = Math.min(previewEnd, range.endColumn - previewStart);
+			const endByCharsPerLine = previewOptions.charsPerLine + previewStart;
+			const trimmedEndOfMatchRangeInPreview = Math.min(endByCharsPerLine, endColumnByTrimmedLines - previewStart);
 
 			this.preview = {
-				text: fullLine.substring(previewStart, previewEnd),
-				match: new OneLineRange(0, range.startColumn - previewStart, endOfMatchRangeInPreview)
+				text: text.substring(previewStart, endByCharsPerLine),
+				match: new OneLineRange(0, range.startColumn - previewStart, trimmedEndOfMatchRangeInPreview)
 			};
 		} else {
 			this.preview = {
-				text: fullLine,
+				text: text,
 				match: new OneLineRange(0, range.startColumn, range.endColumn)
 			};
 		}
 	}
 }
 
-export class OneLineRange implements ISearchRange {
+export class SearchRange implements ISearchRange {
 	startLineNumber: number;
 	startColumn: number;
 	endLineNumber: number;
 	endColumn: number;
 
-	constructor(lineNumber: number, startColumn: number, endColumn: number) {
-		this.startLineNumber = lineNumber;
+	constructor(startLineNumber: number, startColumn: number, endLineNumber: number, endColumn: number) {
+		this.startLineNumber = startLineNumber;
 		this.startColumn = startColumn;
-		this.endLineNumber = lineNumber;
+		this.endLineNumber = endLineNumber;
 		this.endColumn = endColumn;
+	}
+}
+
+export class OneLineRange extends SearchRange {
+	constructor(lineNumber: number, startColumn: number, endColumn: number) {
+		super(lineNumber, startColumn, lineNumber, endColumn);
 	}
 }
 
@@ -282,6 +295,8 @@ export interface ISearchConfigurationProperties {
 	smartCase: boolean;
 	globalFindClipboard: boolean;
 	location: 'sidebar' | 'panel';
+	useReplacePreview: boolean;
+	showLineNumbers: boolean;
 }
 
 export interface ISearchConfiguration extends IFilesConfiguration {
@@ -291,7 +306,7 @@ export interface ISearchConfiguration extends IFilesConfiguration {
 	};
 }
 
-export function getExcludes(configuration: ISearchConfiguration): glob.IExpression {
+export function getExcludes(configuration: ISearchConfiguration): glob.IExpression | undefined {
 	const fileExcludes = configuration && configuration.files && configuration.files.exclude;
 	const searchExcludes = configuration && configuration.search && configuration.search.exclude;
 
@@ -322,7 +337,7 @@ export function pathIncludedInQuery(query: ISearchQuery, fsPath: string): boolea
 
 	// If searchPaths are being used, the extra file must be in a subfolder and match the pattern, if present
 	if (query.usingSearchPaths) {
-		return query.folderQueries.every(fq => {
+		return !!query.folderQueries && query.folderQueries.every(fq => {
 			const searchPath = fq.folder.fsPath;
 			if (paths.isEqualOrParent(fsPath, searchPath)) {
 				return !fq.includePattern || !!glob.match(fq.includePattern, fsPath);

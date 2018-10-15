@@ -86,14 +86,18 @@ export abstract class AbstractScrollbar extends Widget {
 	/**
 	 * Creates the slider dom node, adds it to the container & hooks up the events
 	 */
-	protected _createSlider(top: number, left: number, width: number, height: number): void {
+	protected _createSlider(top: number, left: number, width: number | undefined, height: number | undefined): void {
 		this.slider = createFastDomNode(document.createElement('div'));
 		this.slider.setClassName('slider');
 		this.slider.setPosition('absolute');
 		this.slider.setTop(top);
 		this.slider.setLeft(left);
-		this.slider.setWidth(width);
-		this.slider.setHeight(height);
+		if (typeof width === 'number') {
+			this.slider.setWidth(width);
+		}
+		if (typeof height === 'number') {
+			this.slider.setHeight(height);
+		}
 		this.slider.setLayerHinting(true);
 
 		this.domNode.domNode.appendChild(this.slider.domNode);

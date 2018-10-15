@@ -383,7 +383,7 @@ class InlineImageView {
 
 		const initialState: ImageState = InlineImageView.imageStateCache.get(cacheKey) || { scale: 'fit', offsetX: 0, offsetY: 0 };
 		let scale = initialState.scale;
-		let image: HTMLImageElement = null;
+		let image: HTMLImageElement | null = null;
 
 		function updateScale(newScale: Scale) {
 			if (!image || !image.parentElement) {

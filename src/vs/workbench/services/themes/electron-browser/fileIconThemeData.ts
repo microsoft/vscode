@@ -58,7 +58,7 @@ export class FileIconThemeData implements IFileIconTheme {
 		return themeData;
 	}
 
-	private static _noIconTheme: FileIconThemeData = null;
+	private static _noIconTheme: FileIconThemeData | null = null;
 
 	static noIconTheme(): FileIconThemeData {
 		let themeData = FileIconThemeData._noIconTheme;

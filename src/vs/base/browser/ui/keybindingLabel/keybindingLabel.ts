@@ -71,23 +71,23 @@ export class KeybindingLabel implements IDisposable {
 		this.didEverRender = true;
 	}
 
-	private renderPart(parent: HTMLElement, part: ResolvedKeybindingPart, match: PartMatches) {
+	private renderPart(parent: HTMLElement, part: ResolvedKeybindingPart, match: PartMatches | null) {
 		const modifierLabels = UILabelProvider.modifierLabels[this.os];
 		if (part.ctrlKey) {
-			this.renderKey(parent, modifierLabels.ctrlKey, match && match.ctrlKey, modifierLabels.separator);
+			this.renderKey(parent, modifierLabels.ctrlKey, Boolean(match && match.ctrlKey), modifierLabels.separator);
 		}
 		if (part.shiftKey) {
-			this.renderKey(parent, modifierLabels.shiftKey, match && match.shiftKey, modifierLabels.separator);
+			this.renderKey(parent, modifierLabels.shiftKey, Boolean(match && match.shiftKey), modifierLabels.separator);
 		}
 		if (part.altKey) {
-			this.renderKey(parent, modifierLabels.altKey, match && match.altKey, modifierLabels.separator);
+			this.renderKey(parent, modifierLabels.altKey, Boolean(match && match.altKey), modifierLabels.separator);
 		}
 		if (part.metaKey) {
-			this.renderKey(parent, modifierLabels.metaKey, match && match.metaKey, modifierLabels.separator);
+			this.renderKey(parent, modifierLabels.metaKey, Boolean(match && match.metaKey), modifierLabels.separator);
 		}
 		const keyLabel = part.keyLabel;
 		if (keyLabel) {
-			this.renderKey(parent, keyLabel, match && match.keyCode, '');
+			this.renderKey(parent, keyLabel, Boolean(match && match.keyCode), '');
 		}
 	}
 
@@ -99,7 +99,6 @@ export class KeybindingLabel implements IDisposable {
 	}
 
 	dispose() {
-		this.keybinding = null;
 	}
 
 	private static areSame(a: Matches, b: Matches): boolean {

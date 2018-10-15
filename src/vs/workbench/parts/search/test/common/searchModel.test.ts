@@ -80,7 +80,7 @@ suite('SearchModel', () => {
 		});
 	});
 
-	function searchServiceWithResults(results: IFileMatch[], complete: ISearchComplete = null): ISearchService {
+	function searchServiceWithResults(results: IFileMatch[], complete: ISearchComplete | null = null): ISearchService {
 		return <ISearchService>{
 			search(query: ISearchQuery, token?: CancellationToken, onProgress?: (result: ISearchProgressItem) => void): TPromise<ISearchComplete> {
 				return new TPromise(resolve => {
