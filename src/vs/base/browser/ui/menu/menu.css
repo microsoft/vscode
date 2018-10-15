@@ -145,10 +145,10 @@
 	background: none;
 }
 
-.hc-black .monaco-menu .monaco-action-bar.vertical .keybinding {
-	opacity: 1;
-}
-
 .hc-black .monaco-menu .monaco-action-bar.vertical .action-menu-item {
 	margin: 0;
+}
+
+.hc-black .monaco-menu .monaco-action-bar.vertical .keybinding {
+	opacity: 1;
 }
