@@ -22,7 +22,7 @@ export class Component extends Themable {
 		this.id = id;
 		this.memento = new Memento(this.id, storageService);
 
-		this._register(storageService.onWillClose(() => {
+		this._register(storageService.onWillSaveState(() => {
 
 			// Ask the component to persist state into the memento
 			this.saveState();

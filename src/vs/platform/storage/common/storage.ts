@@ -18,11 +18,11 @@ export interface IStorageService {
 	readonly onDidChangeStorage: Event<IWorkspaceStorageChangeEvent>;
 
 	/**
-	 * Emitted when the storage is about to close. This is the right time
+	 * Emitted when the storage is about to persist. This is the right time
 	 * to persist data to ensure it is stored before the application shuts
 	 * down.
 	 */
-	readonly onWillClose: Event<ShutdownReason>;
+	readonly onWillSaveState: Event<ShutdownReason>;
 
 	/**
 	 * Retrieve an element stored with the given key from storage. Use
@@ -93,7 +93,7 @@ export const NullStorageService: IStorageService = {
 	_serviceBrand: undefined,
 
 	onDidChangeStorage: Event.None,
-	onWillClose: Event.None,
+	onWillSaveState: Event.None,
 
 	get(key: string, scope: StorageScope, fallbackValue?: string): string | undefined {
 		return fallbackValue;

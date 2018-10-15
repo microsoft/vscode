@@ -23,7 +23,7 @@ export class StorageService extends Disposable implements IStorageService {
 	get onDidChangeStorage(): Event<IWorkspaceStorageChangeEvent> { return this._onDidChangeStorage.event; }
 
 	private _onWillClose: Emitter<ShutdownReason> = this._register(new Emitter<ShutdownReason>());
-	get onWillClose(): Event<ShutdownReason> { return this._onWillClose.event; }
+	get onWillSaveState(): Event<ShutdownReason> { return this._onWillClose.event; }
 
 	private globalStorage: Storage;
 	private workspaceStorage: Storage;
@@ -106,7 +106,7 @@ export class DelegatingStorageService extends Disposable implements IStorageServ
 	get onDidChangeStorage(): Event<IWorkspaceStorageChangeEvent> { return this._onDidChangeStorage.event; }
 
 	private _onWillClose: Emitter<ShutdownReason> = this._register(new Emitter<ShutdownReason>());
-	get onWillClose(): Event<ShutdownReason> { return this._onWillClose.event; }
+	get onWillSaveState(): Event<ShutdownReason> { return this._onWillClose.event; }
 
 	private closed: boolean;
 
@@ -123,7 +123,7 @@ export class DelegatingStorageService extends Disposable implements IStorageServ
 
 	private registerListeners(): void {
 		this._register(this.storageService.onDidChangeStorage(e => this._onDidChangeStorage.fire(e)));
-		this._register(this.storageService.onWillClose(reason => this._onWillClose.fire(reason)));
+		this._register(this.storageService.onWillSaveState(reason => this._onWillClose.fire(reason)));
 
 		const globalKeyMarker = 'storage://global/';
 		this._register(addDisposableListener(window, 'storage', (e: StorageEvent) => {

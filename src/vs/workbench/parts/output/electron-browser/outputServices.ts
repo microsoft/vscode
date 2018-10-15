@@ -471,7 +471,7 @@ export class OutputService extends Disposable implements IOutputService, ITextMo
 		}
 
 		this._register(this.lifecycleService.onShutdown(() => this.dispose()));
-		this._register(this.storageService.onWillClose(() => this.saveState()));
+		this._register(this.storageService.onWillSaveState(() => this.saveState()));
 	}
 
 	provideTextContent(resource: URI): TPromise<ITextModel> {

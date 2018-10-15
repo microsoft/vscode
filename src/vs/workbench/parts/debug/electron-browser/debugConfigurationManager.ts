@@ -238,7 +238,7 @@ export class ConfigurationManager implements IConfigurationManager {
 			}
 		}));
 
-		this.toDispose.push(this.storageService.onWillClose(this.saveState, this));
+		this.toDispose.push(this.storageService.onWillSaveState(this.saveState, this));
 	}
 
 	private initLaunches(): void {

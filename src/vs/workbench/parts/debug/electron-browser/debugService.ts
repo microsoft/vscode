@@ -134,7 +134,7 @@ export class DebugService implements IDebugService {
 		this.viewModel = new ViewModel(contextKeyService);
 
 		this.toDispose.push(this.fileService.onFileChanges(e => this.onFileChanges(e)));
-		this.toDispose.push(this.storageService.onWillClose(this.saveState, this));
+		this.toDispose.push(this.storageService.onWillSaveState(this.saveState, this));
 		this.lifecycleService.onShutdown(this.dispose, this);
 
 		this.toDispose.push(this.broadcastService.onBroadcast(broadcast => {

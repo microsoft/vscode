@@ -121,7 +121,7 @@ export class WorkbenchLayout extends Disposable implements IVerticalSashLayoutPr
 	private registerListeners(): void {
 		this._register(this.themeService.onThemeChange(_ => this.layout()));
 		this._register(this.parts.editor.onDidSizeConstraintsChange(() => this.onDidEditorSizeConstraintsChange()));
-		this._register(this.storageService.onWillClose(() => {
+		this._register(this.storageService.onWillSaveState(() => {
 			this.saveStateScheduler.dispose();
 			this.saveState();
 		}));

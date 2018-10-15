@@ -170,7 +170,7 @@ export class WorkbenchShell extends Disposable {
 		// Warm up font cache information before building up too many dom elements
 		restoreFontInfo(this.storageService);
 		readFontInfo(BareFontInfo.createFromRawSettings(this.configurationService.getValue('editor'), browser.getZoomLevel()));
-		this._register(this.storageService.onWillClose(() => {
+		this._register(this.storageService.onWillSaveState(() => {
 			saveFontInfo(this.storageService); // Keep font info for next startup around
 		}));
 

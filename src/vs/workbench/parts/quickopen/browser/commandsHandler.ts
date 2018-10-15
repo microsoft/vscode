@@ -109,7 +109,7 @@ class CommandsHistory {
 
 	private registerListeners(): void {
 		this.configurationService.onDidChangeConfiguration(e => this.updateConfiguration());
-		once(this.storageService.onWillClose)(() => this.saveState());
+		once(this.storageService.onWillSaveState)(() => this.saveState());
 	}
 
 	private saveState(): void {

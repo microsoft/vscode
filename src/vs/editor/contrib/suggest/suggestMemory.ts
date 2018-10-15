@@ -208,7 +208,7 @@ export class SuggestMemories extends Disposable {
 
 		this._setMode(editor.getConfiguration().contribInfo.suggestSelection);
 		this._register(editor.onDidChangeConfiguration(e => e.contribInfo && this._setMode(editor.getConfiguration().contribInfo.suggestSelection)));
-		this._register(_storageService.onWillClose(() => this._saveState()));
+		this._register(_storageService.onWillSaveState(() => this._saveState()));
 	}
 
 	private _setMode(mode: MemMode): void {

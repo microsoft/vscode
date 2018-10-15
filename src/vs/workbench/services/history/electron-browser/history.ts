@@ -175,7 +175,7 @@ export class HistoryService extends Disposable implements IHistoryService {
 		this._register(this.editorService.onDidActiveEditorChange(() => this.onActiveEditorChanged()));
 		this._register(this.editorService.onDidOpenEditorFail(event => this.remove(event.editor)));
 		this._register(this.editorService.onDidCloseEditor(event => this.onEditorClosed(event)));
-		this._register(this.storageService.onWillClose(reason => this.saveState()));
+		this._register(this.storageService.onWillSaveState(reason => this.saveState()));
 		this._register(this.fileService.onFileChanges(event => this.onFileChanges(event)));
 		this._register(this.resourceFilter.onExpressionChange(() => this.handleExcludesChange()));
 	}

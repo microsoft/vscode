@@ -431,7 +431,7 @@ export class PersistentContributableViewsModel extends ContributableViewsModel {
 
 		this._register(this.onDidAdd(viewDescriptorRefs => this.saveVisibilityStates(viewDescriptorRefs.map(r => r.viewDescriptor))));
 		this._register(this.onDidRemove(viewDescriptorRefs => this.saveVisibilityStates(viewDescriptorRefs.map(r => r.viewDescriptor))));
-		this._register(this.storageService.onWillClose(() => this.saveViewsStates()));
+		this._register(this.storageService.onWillSaveState(() => this.saveViewsStates()));
 	}
 
 	private saveViewsStates(): void {
