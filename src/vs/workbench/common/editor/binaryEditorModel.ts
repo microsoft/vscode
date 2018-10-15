@@ -8,7 +8,7 @@ import { EditorModel } from 'vs/workbench/common/editor';
 import { URI } from 'vs/base/common/uri';
 import { IFileService } from 'vs/platform/files/common/files';
 import { Schemas } from 'vs/base/common/network';
-import { DataUri } from 'vs/workbench/common/resources';
+import { DataUri } from 'vs/base/common/resources';
 
 /**
  * An editor model that just represents a resource that can be loaded.

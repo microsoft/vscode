@@ -20,7 +20,6 @@ import { FileKind, FILES_ASSOCIATIONS_CONFIG } from 'vs/platform/files/common/fi
 import { ITextModel } from 'vs/editor/common/model';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { Event, Emitter } from 'vs/base/common/event';
-import { DataUri } from 'vs/workbench/common/resources';
 import { ILabelService } from 'vs/platform/label/common/label';
 
 export interface IResourceLabel {
@@ -318,8 +317,8 @@ export function getIconClasses(modelService: IModelService, modeService: IModeSe
 		let name: string;
 		let path: string;
 		if (resource.scheme === Schemas.data) {
-			const metadata = DataUri.parseMetaData(resource);
-			name = metadata.get(DataUri.META_DATA_LABEL);
+			const metadata = resources.DataUri.parseMetaData(resource);
+			name = metadata.get(resources.DataUri.META_DATA_LABEL);
 			path = name;
 		} else {
 			name = cssEscape(resources.basenameOrAuthority(resource).toLowerCase());
