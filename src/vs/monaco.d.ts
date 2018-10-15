@@ -1111,7 +1111,7 @@ declare namespace monaco.editor {
 	export interface IContextKey<T> {
 		set(value: T): void;
 		reset(): void;
-		get(): T;
+		get(): T | undefined;
 	}
 
 	export interface IEditorOverrideServices {
@@ -3742,6 +3742,11 @@ declare namespace monaco.editor {
 	 */
 	export interface IEditorMouseEvent {
 		readonly event: IMouseEvent;
+		readonly target: IMouseTarget;
+	}
+
+	export interface IPartialEditorMouseEvent {
+		readonly event: IMouseEvent;
 		readonly target: IMouseTarget | null;
 	}
 
@@ -3846,7 +3851,7 @@ declare namespace monaco.editor {
 		 * An event emitted on a "mouseleave".
 		 * @event
 		 */
-		onMouseLeave(listener: (e: IEditorMouseEvent) => void): IDisposable;
+		onMouseLeave(listener: (e: IPartialEditorMouseEvent) => void): IDisposable;
 		/**
 		 * An event emitted on a "keyup".
 		 * @event

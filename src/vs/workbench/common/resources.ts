@@ -49,7 +49,7 @@ export class ResourceContextKey extends Disposable implements IContextKey<URI> {
 
 		this._register(_fileService.onDidChangeFileSystemProviderRegistrations(() => {
 			const resource = this._resourceKey.get();
-			this._isfileSystemResource.set(resource && _fileService.canHandleResource(resource));
+			this._isfileSystemResource.set(Boolean(resource && _fileService.canHandleResource(resource)));
 			this._isFileSystemResourceOrUntitled.set(this._isfileSystemResource.get() || this._schemeKey.get() === Schemas.untitled);
 		}));
 	}
@@ -74,7 +74,7 @@ export class ResourceContextKey extends Disposable implements IContextKey<URI> {
 		this._hasResource.reset();
 	}
 
-	get(): URI {
+	get(): URI | undefined {
 		return this._resourceKey.get();
 	}
 }

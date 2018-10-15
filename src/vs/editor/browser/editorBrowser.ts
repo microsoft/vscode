@@ -300,6 +300,10 @@ export interface IMouseTarget {
  */
 export interface IEditorMouseEvent {
 	readonly event: IMouseEvent;
+	readonly target: IMouseTarget;
+}
+export interface IPartialEditorMouseEvent {
+	readonly event: IMouseEvent;
 	readonly target: IMouseTarget | null;
 }
 
@@ -441,7 +445,7 @@ export interface ICodeEditor extends editorCommon.IEditor {
 	 * @internal
 	 * @event
 	 */
-	onMouseDrop(listener: (e: IEditorMouseEvent) => void): IDisposable;
+	onMouseDrop(listener: (e: IPartialEditorMouseEvent) => void): IDisposable;
 	/**
 	 * An event emitted on a "contextmenu".
 	 * @event
@@ -456,7 +460,7 @@ export interface ICodeEditor extends editorCommon.IEditor {
 	 * An event emitted on a "mouseleave".
 	 * @event
 	 */
-	onMouseLeave(listener: (e: IEditorMouseEvent) => void): IDisposable;
+	onMouseLeave(listener: (e: IPartialEditorMouseEvent) => void): IDisposable;
 	/**
 	 * An event emitted on a "keyup".
 	 * @event

@@ -43,11 +43,11 @@ export class SelectionClipboard extends Disposable implements IEditorContributio
 					e.event.preventDefault();
 					editor.focus();
 
-					if (e.target && e.target.position) {
+					if (e.target.position) {
 						editor.setPosition(e.target.position);
 					}
 
-					if (e.target && e.target.type === MouseTargetType.SCROLLBAR) {
+					if (e.target.type === MouseTargetType.SCROLLBAR) {
 						return;
 					}
 

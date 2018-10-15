@@ -22,7 +22,7 @@ function hasModifier(e: { ctrlKey: boolean; shiftKey: boolean; altKey: boolean; 
  */
 export class ClickLinkMouseEvent {
 
-	public readonly target: IMouseTarget | null;
+	public readonly target: IMouseTarget;
 	public readonly hasTriggerModifier: boolean;
 	public readonly hasSideBySideModifier: boolean;
 	public readonly isNoneOrSingleMouseDown: boolean;

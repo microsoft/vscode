@@ -115,7 +115,7 @@ export class WorkbenchModeServiceImpl extends ModeServiceImpl {
 				for (let j = 0, lenJ = extension.value.length; j < lenJ; j++) {
 					let ext = extension.value[j];
 					if (isValidLanguageExtensionPoint(ext, extension.collector)) {
-						let configuration: URI;
+						let configuration: URI | undefined = undefined;
 						if (ext.configuration) {
 							configuration = resources.joinPath(extension.description.extensionLocation, ext.configuration);
 						}

@@ -549,7 +549,7 @@ export interface IContext {
 export interface IContextKey<T> {
 	set(value: T): void;
 	reset(): void;
-	get(): T;
+	get(): T | undefined;
 }
 
 export interface IContextKeyServiceTarget {
