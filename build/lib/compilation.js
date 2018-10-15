@@ -43,7 +43,7 @@ function createCompile(src, build, emitError) {
     const opts = _.clone(getTypeScriptCompilerOptions(src));
     opts.inlineSources = !!build;
     opts.noFilesystemLookup = true;
-    const ts = tsb.create(opts, true, undefined, err => new reporter(err.toString()));
+    const ts = tsb.create(opts, true, undefined, err => reporter(err.toString()));
     return function (token) {
         const utf8Filter = util.filter(data => /(\/|\\)test(\/|\\).*utf8/.test(data.path));
         const tsFilter = util.filter(data => /\.ts$/.test(data.path));
