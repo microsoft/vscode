@@ -22,6 +22,7 @@ import { Emitter, Event } from 'vs/base/common/event';
 import { ITextFileService, StateChange } from 'vs/workbench/services/textfile/common/textfiles';
 import { WorkspaceStats } from 'vs/workbench/parts/stats/node/workspaceStats';
 import { CancellationToken } from 'vs/base/common/cancellation';
+import { distinct } from 'vs/base/common/arrays';
 
 interface IExperimentStorageState {
 	enabled: boolean;
@@ -278,9 +279,14 @@ export class ExperimentService extends Disposable implements IExperimentService 
 	private fireRunExperiment(experiment: IExperiment) {
 		this._onExperimentEnabled.fire(experiment);
 		const runExperimentIdsFromStorage: string[] = safeParse(this.storageService.get('currentOrPreviouslyRunExperiments', StorageScope.GLOBAL), []);
-		if (runExperimentIdsFromStorage.indexOf(experiment.id)) {
+		if (runExperimentIdsFromStorage.indexOf(experiment.id) === -1) {
 			runExperimentIdsFromStorage.push(experiment.id);
-			this.storageService.store('currentOrPreviouslyRunExperiments', JSON.stringify(runExperimentIdsFromStorage), StorageScope.GLOBAL);
+		}
+
+		// Ensure we dont store duplicates
+		const distinctExperiments = distinct(runExperimentIdsFromStorage);
+		if (runExperimentIdsFromStorage.length !== distinctExperiments.length) {
+			this.storageService.store('currentOrPreviouslyRunExperiments', JSON.stringify(distinctExperiments), StorageScope.GLOBAL);
 		}
 	}
 
