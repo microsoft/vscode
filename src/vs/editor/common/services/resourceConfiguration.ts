@@ -33,3 +33,15 @@ export interface ITextResourceConfigurationService {
 	getValue<T>(resource: URI, position?: IPosition, section?: string): T;
 
 }
+
+export const ITextResourcePropertiesService = createDecorator<ITextResourcePropertiesService>('textResourcePropertiesService');
+
+export interface ITextResourcePropertiesService {
+
+	_serviceBrand: any;
+
+	/**
+	 * Returns the End of Line characters for the given resource
+	 */
+	getEOL(resource: URI): string;
+}

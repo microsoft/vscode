@@ -123,7 +123,7 @@ suite('Debug - Debugger', () => {
 	};
 
 	setup(() => {
-		_debugger = new Debugger(configurationManager, debuggerContribution, extensionDescriptor0, new TestConfigurationService(), undefined, undefined, undefined);
+		_debugger = new Debugger(configurationManager, debuggerContribution, extensionDescriptor0, new TestConfigurationService(), undefined, undefined, undefined, undefined);
 	});
 
 	teardown(() => {

@@ -47,7 +47,7 @@ import { generateUuid } from 'vs/base/common/uuid';
 import { TestThemeService } from 'vs/platform/theme/test/common/testThemeService';
 import { IWorkspaceIdentifier, IWorkspaceFolderCreationData, ISingleFolderWorkspaceIdentifier, isSingleFolderWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
 import { IRecentlyOpened } from 'vs/platform/history/common/history';
-import { ITextResourceConfigurationService } from 'vs/editor/common/services/resourceConfiguration';
+import { ITextResourceConfigurationService, ITextResourcePropertiesService } from 'vs/editor/common/services/resourceConfiguration';
 import { IPosition, Position as EditorPosition } from 'vs/editor/common/core/position';
 import { IMenuService, MenuId, IMenu, ISerializableCommandAction } from 'vs/platform/actions/common/actions';
 import { IHashService } from 'vs/workbench/services/hash/common/hashService';
@@ -79,6 +79,7 @@ import { IViewlet } from 'vs/workbench/common/viewlet';
 import { IProgressService } from 'vs/platform/progress/common/progress';
 import { StorageService } from 'vs/platform/storage/electron-browser/storageService';
 import { IStorageService } from 'vs/platform/storage/common/storage';
+import { isLinux, isMacintosh } from 'vs/base/common/platform';
 
 export function createFileInput(instantiationService: IInstantiationService, resource: URI): FileEditorInput {
 	return instantiationService.createInstance(FileEditorInput, resource, void 0);
@@ -1393,6 +1394,27 @@ export class TestTextResourceConfigurationService implements ITextResourceConfig
 		return this.configurationService.getValue(section, { resource });
 	}
 }
+
+export class TestTextResourcePropertiesService implements ITextResourcePropertiesService {
+
+	_serviceBrand: any;
+
+	constructor(
+		@IConfigurationService private configurationService: IConfigurationService,
+	) {
+	}
+
+	getEOL(resource: URI): string {
+		const filesConfiguration = this.configurationService.getValue<{ eol: string }>('files');
+		if (filesConfiguration && filesConfiguration.eol) {
+			if (filesConfiguration.eol !== 'auto') {
+				return filesConfiguration.eol;
+			}
+		}
+		return (isLinux || isMacintosh) ? '\n' : '\r\n';
+	}
+}
+
 
 export class TestHashService implements IHashService {
 	_serviceBrand: any;
