@@ -411,10 +411,11 @@ class MinimapBuffers {
 		return result;
 	}
 
-	private static _createBackgroundFillData(WIDTH: number, HEIGHT: number, background: RGBA8): Uint8ClampedArray {
+	private static _createBackgroundFillData(WIDTH: number, HEIGHT: number, background: RGBA8): Uint8ClampedArray {///////////////////
 		const backgroundR = background.r;
 		const backgroundG = background.g;
 		const backgroundB = background.b;
+		const backgroundA = background.a;
 
 		let result = new Uint8ClampedArray(WIDTH * HEIGHT * 4);
 		let offset = 0;
@@ -423,7 +424,7 @@ class MinimapBuffers {
 				result[offset] = backgroundR;
 				result[offset + 1] = backgroundG;
 				result[offset + 2] = backgroundB;
-				result[offset + 3] = 255;
+				result[offset + 3] = backgroundA;
 				offset += 4;
 			}
 		}
@@ -580,11 +581,13 @@ export class Minimap extends ViewPart {
 
 	private _getBuffer(): ImageData {
 		if (!this._buffers) {
-			this._buffers = new MinimapBuffers(
+			let backgroundColor = this._tokensColorTracker.getColor(ColorId.DefaultBackground);
+			console.log('making buffers');
+			this._buffers = new MinimapBuffers( // NAC
 				this._canvas.domNode.getContext('2d')!,
 				this._options.canvasInnerWidth,
 				this._options.canvasInnerHeight,
-				this._tokensColorTracker.getColor(ColorId.DefaultBackground)
+				backgroundColor
 			);
 		}
 		return this._buffers!.getBuffer();
@@ -857,7 +860,7 @@ export class Minimap extends ViewPart {
 
 	private static _renderLine(
 		target: ImageData,
-		backgroundColor: RGBA8,
+		backgroundColor: RGBA8, // nac
 		useLighterFont: boolean,
 		renderMinimap: RenderMinimap,
 		colorTracker: MinimapTokensColorTracker,
