@@ -34,7 +34,7 @@ export class StorageService extends Disposable implements IStorageService {
 		super();
 
 		const loggingOptions: IStorageLoggingOptions = {
-			verbose: environmentService.verbose,
+			info: environmentService.verbose || environmentService.logStorage,
 			infoLogger: msg => logService.info(msg),
 			errorLogger: error => logService.error(error)
 		};

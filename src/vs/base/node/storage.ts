@@ -8,6 +8,8 @@ import { Disposable } from 'vs/base/common/lifecycle';
 import { Emitter, Event } from 'vs/base/common/event';
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { isUndefinedOrNull } from 'vs/base/common/types';
+import { mapToString, setToString } from 'vs/base/common/map';
+import { basename } from 'path';
 
 export interface IStorageOptions {
 	path: string;
@@ -19,7 +21,7 @@ export interface IStorageLoggingOptions {
 	errorLogger?: (error: string | Error) => void;
 	infoLogger?: (msg: string) => void;
 
-	verbose?: boolean;
+	info?: boolean;
 	trace?: boolean;
 	profile?: boolean;
 }
@@ -209,9 +211,11 @@ export interface IUpdateRequest {
 
 export class SQLiteStorageImpl {
 	private db: Promise<Database>;
+	private name: string;
 	private logger: SQLiteStorageLogger;
 
 	constructor(private options: IStorageOptions) {
+		this.name = basename(options.path);
 		this.logger = new SQLiteStorageLogger(options.logging);
 		this.db = this.open();
 	}
@@ -222,7 +226,13 @@ export class SQLiteStorageImpl {
 
 			return this.each(db, 'SELECT * FROM ItemTable', row => {
 				items.set(row.key, row.value);
-			}).then(() => items);
+			}).then(() => {
+				if (this.logger.verbose) {
+					this.logger.info(`[storage ${this.name}] getItems(): ${mapToString(items)}`);
+				}
+
+				return items;
+			});
 		});
 	}
 
@@ -237,6 +247,10 @@ export class SQLiteStorageImpl {
 
 		if (updateCount === 0) {
 			return Promise.resolve();
+		}
+
+		if (this.logger.verbose) {
+			this.logger.info(`[storage ${this.name}] updateItems(): insert(${request.insert ? mapToString(request.insert) : '0'}), delete(${request.delete ? setToString(request.delete) : '0'})`);
 		}
 
 		return this.db.then(db => {
@@ -261,11 +275,13 @@ export class SQLiteStorageImpl {
 	}
 
 	close(): Promise<void> {
+		this.logger.info(`[storage ${this.name}] close()`);
+
 		return this.db.then(db => {
 			return new Promise((resolve, reject) => {
 				db.close(error => {
 					if (error) {
-						this.logger.error(error);
+						this.logger.error(`[storage ${this.name}] close(): ${error}`);
 
 						return reject(error);
 					}
@@ -277,10 +293,12 @@ export class SQLiteStorageImpl {
 	}
 
 	private open(): Promise<Database> {
+		this.logger.info(`[storage ${this.name}] open()`);
+
 		return new Promise((resolve, reject) => {
 			this.doOpen(this.options.path).then(resolve, error => {
-				this.logger.error(`Error (open DB): ${error}`);
-				this.logger.error('Falling back to in-memory DB');
+				this.logger.error(`[storage ${this.name}] open(): Error (open DB): ${error}`);
+				this.logger.error(`[storage ${this.name}] open(): Falling back to in-memory DB`);
 
 				// In case of any error to open the DB, use an in-memory
 				// DB so that we always have a valid DB to talk to.
@@ -305,16 +323,16 @@ export class SQLiteStorageImpl {
 				});
 
 				// Check for errors
-				db.on('error', error => this.logger.error(`Error (event): ${error}`));
+				db.on('error', error => this.logger.error(`[storage ${this.name}] Error (event): ${error}`));
 
 				// Tracing
-				if (this.options.logging && this.options.logging.trace) {
-					db.on('trace', sql => this.logger.info(`Trace (event): ${sql}`));
+				if (this.logger.trace) {
+					db.on('trace', sql => this.logger.info(`[storage ${this.name}] Trace (event): ${sql}`));
 				}
 
 				// Profiling
-				if (this.options.logging && this.options.logging.profile) {
-					db.on('profile', (sql, time) => this.logger.info(`Profile (event): ${sql} (${time}ms)`));
+				if (this.logger.profile) {
+					db.on('profile', (sql, time) => this.logger.info(`[storage ${this.name}] Profile (event): ${sql} (${time}ms)`));
 				}
 			});
 		});
@@ -324,7 +342,7 @@ export class SQLiteStorageImpl {
 		return new Promise((resolve, reject) => {
 			db.exec(sql, error => {
 				if (error) {
-					this.logger.error(error);
+					this.logger.error(`[storage ${this.name}] exec(): ${error}`);
 
 					return reject(error);
 				}
@@ -338,7 +356,7 @@ export class SQLiteStorageImpl {
 		return new Promise((resolve, reject) => {
 			db.each(sql, (error, row) => {
 				if (error) {
-					this.logger.error(error);
+					this.logger.error(`[storage ${this.name}] each(): ${error}`);
 
 					return reject(error);
 				}
@@ -346,7 +364,7 @@ export class SQLiteStorageImpl {
 				callback(row);
 			}, error => {
 				if (error) {
-					this.logger.error(error);
+					this.logger.error(`[storage ${this.name}] each(): ${error}`);
 
 					return reject(error);
 				}
@@ -365,7 +383,7 @@ export class SQLiteStorageImpl {
 
 				db.run('END TRANSACTION', error => {
 					if (error) {
-						this.logger.error(error);
+						this.logger.error(`[storage ${this.name}] transaction(): ${error}`);
 
 						return reject(error);
 					}
@@ -382,7 +400,7 @@ export class SQLiteStorageImpl {
 		runCallback(stmt);
 
 		const statementErrorListener = error => {
-			this.logger.error(`Error (statement): ${error} (${sql})`);
+			this.logger.error(`[storage ${this.name}] prepare(): ${error} (${sql})`);
 		};
 
 		stmt.on('error', statementErrorListener);
@@ -407,7 +425,15 @@ class SQLiteStorageLogger {
 	}
 
 	get verbose(): boolean {
-		return this.options && (this.options.verbose || this.options.trace || this.options.profile);
+		return this.options && (this.options.info || this.options.trace || this.options.profile);
+	}
+
+	get trace(): boolean {
+		return this.options && this.options.trace;
+	}
+
+	get profile(): boolean {
+		return this.options && this.options.profile;
 	}
 
 	info(msg: string): void {
