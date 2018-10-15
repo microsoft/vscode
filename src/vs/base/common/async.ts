@@ -187,7 +187,7 @@ export class Delayer<T> implements IDisposable {
 		this.task = null;
 	}
 
-	trigger(task: ITask<T | TPromise<T>>, delay: number = this.defaultDelay): TPromise<T> {
+	trigger(task: ITask<T | TPromise<T>>, delay: number = this.defaultDelay): Thenable<T> {
 		this.task = task;
 		this.cancelTimeout();
 
