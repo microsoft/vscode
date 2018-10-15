@@ -9358,10 +9358,10 @@ vscode-textmate@^4.0.1:
   dependencies:
     oniguruma "^7.0.0"
 
-vscode-xterm@3.9.0-beta7:
-  version "3.9.0-beta7"
-  resolved "https://registry.yarnpkg.com/vscode-xterm/-/vscode-xterm-3.9.0-beta7.tgz#435b929001354309c25e330cc187785add938c8e"
-  integrity sha512-UTDnACoqpQbAzzxBfwZf+sWsUxcJ+t2CHprGJ5gjXEnI6soNB3C/MFEnASMjkz0FttQafVvDMu9vhByH5xTvjg==
+vscode-xterm@3.9.0-beta8:
+  version "3.9.0-beta8"
+  resolved "https://registry.yarnpkg.com/vscode-xterm/-/vscode-xterm-3.9.0-beta8.tgz#0beb3d946e5291255decee7f0115d5267897462d"
+  integrity sha512-XKvDS3CywxvcX0jRfOi09fC0KNotzWB9xiIh1E2OBPSSHLH1Ydl0ZMYlQK9fNbZBFvRzJosJEBWLjRsf3a0DJg==
 
 vso-node-api@6.1.2-preview:
   version "6.1.2-preview"
