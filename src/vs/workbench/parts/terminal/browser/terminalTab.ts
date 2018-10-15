@@ -9,8 +9,6 @@ import { Event, Emitter, anyEvent } from 'vs/base/common/event';
 import { IDisposable, Disposable } from 'vs/base/common/lifecycle';
 import { SplitView, Orientation, IView, Sizing } from 'vs/base/browser/ui/splitview/splitview';
 import { IPartService, Position } from 'vs/workbench/services/part/common/partService';
-import { isWindows } from 'vs/base/common/platform';
-import { execSync } from 'child_process';
 
 const SPLIT_PANE_MIN_SIZE = 120;
 const TERMINAL_MIN_USEFUL_SIZE = 250;
@@ -367,25 +365,6 @@ export class TerminalTab extends Disposable implements ITerminalTab {
 		const newTerminalSize = ((this._panelPosition === Position.BOTTOM ? this._container.clientWidth : this._container.clientHeight) / (this._terminalInstances.length + 1));
 		if (newTerminalSize < TERMINAL_MIN_USEFUL_SIZE) {
 			return undefined;
-		}
-
-		switch (configHelper.config.splitCwdSource) {
-			case 'ShellDefault': {
-				// allow default behavior
-				break;
-			}
-			case 'SourceInitialCwd': {
-				shellLaunchConfig.cwd = this.activeInstance.getInitialCwd();
-			}
-			case 'Cwd': {
-				if (!isWindows) {
-					let pid = this.activeInstance.processId;
-					let output = execSync('lsof -p ' + pid + ' | grep cwd').toString();
-					shellLaunchConfig.cwd = output.substring(output.indexOf('/'), output.length - 1);
-				} else {
-					shellLaunchConfig.cwd = this.activeInstance.getInitialCwd();
-				}
-			}
 		}
 
 		const instance = this._terminalService.createInstance(

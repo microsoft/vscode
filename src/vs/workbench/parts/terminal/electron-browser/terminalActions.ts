@@ -8,7 +8,7 @@ import * as os from 'os';
 import { Action, IAction } from 'vs/base/common/actions';
 import { EndOfLinePreference } from 'vs/editor/common/model';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
-import { ITerminalService, TERMINAL_PANEL_ID, ITerminalInstance, Direction } from 'vs/workbench/parts/terminal/common/terminal';
+import { ITerminalService, TERMINAL_PANEL_ID, ITerminalInstance, Direction, IShellLaunchConfig, ITerminalConfigHelper } from 'vs/workbench/parts/terminal/common/terminal';
 import { SelectActionItem } from 'vs/base/browser/ui/actionbar/actionbar';
 import { TogglePanelAction } from 'vs/workbench/browser/panel';
 import { IPartService } from 'vs/workbench/services/part/common/partService';
@@ -29,8 +29,31 @@ import { TERMINAL_COMMAND_ID } from 'vs/workbench/parts/terminal/common/terminal
 import { Command } from 'vs/editor/browser/editorExtensions';
 import { timeout } from 'vs/base/common/async';
 import { FindReplaceState } from 'vs/editor/contrib/find/findState';
+import { execSync } from 'child_process';
+import { isWindows } from 'vs/base/common/platform';
 
 export const TERMINAL_PICKER_PREFIX = 'term ';
+
+function getCwd(configHelper: ITerminalConfigHelper, activeInstance: ITerminalInstance): string {
+	switch (configHelper.config.splitCwdSource) {
+		case 'ShellDefault': {
+			// allow default behavior
+			return '';
+		}
+		case 'SourceInitialCwd': {
+			return activeInstance.getInitialCwd();
+		}
+		case 'Cwd': {
+			if (!isWindows) {
+				let pid = activeInstance.processId;
+				let output = execSync('lsof -p ' + pid + ' | grep cwd').toString();
+				return output.substring(output.indexOf('/'), output.length - 1);
+			} else {
+				return activeInstance.getInitialCwd();
+			}
+		}
+	}
+}
 
 export class ToggleTerminalAction extends TogglePanelAction {
 
@@ -262,7 +285,7 @@ export class CreateNewTerminalAction extends Action {
 		if (event instanceof MouseEvent && (event.altKey || event.ctrlKey)) {
 			const activeInstance = this.terminalService.getActiveInstance();
 			if (activeInstance) {
-				this.terminalService.splitInstance(activeInstance);
+				this.terminalService.splitInstance(activeInstance, { cwd: getCwd(this.terminalService.configHelper, activeInstance) });
 				return Promise.resolve(null);
 			}
 		}
@@ -358,6 +381,7 @@ export class SplitTerminalAction extends Action {
 			if (!path) {
 				return Promise.resolve(void 0);
 			}
+			(path as IShellLaunchConfig).cwd = getCwd(this._terminalService.configHelper, instance);
 			this._terminalService.splitInstance(instance, path);
 			return this._terminalService.showPanel(true);
 		});
@@ -380,7 +404,7 @@ export class SplitInActiveWorkspaceTerminalAction extends Action {
 		if (!instance) {
 			return Promise.resolve(void 0);
 		}
-		this._terminalService.splitInstance(instance);
+		this._terminalService.splitInstance(instance, { cwd: getCwd(this._terminalService.configHelper, instance) });
 		return this._terminalService.showPanel(true);
 	}
 }
