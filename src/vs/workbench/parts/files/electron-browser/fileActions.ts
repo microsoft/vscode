@@ -1446,12 +1446,12 @@ export function validateFileName(parent: ExplorerItem, name: string): string {
 	// Do not allow to overwrite existing file
 	if (names.length > 1) {
 		// If it's a file in the sub-folder
-		// const resource = parent.resource;
-		// const fulPath = resources.joinPath(resource, name);
-		// const childExists = pfs.existsSync(paths.normalize(fulPath.fsPath));
-		// if (childExists) {
-		// 	return nls.localize('fileNameExistsError', "A file or folder **{0}** already exists at this location. Please choose a different name.", name);
-		// }
+		const resource = parent.resource;
+		const fulPath = resources.joinPath(resource, name);
+		const childExists = pfs.existsSync(paths.normalize(fulPath.fsPath));
+		if (childExists) {
+			return nls.localize('fileNameExistsError', "A file or folder **{0}** already exists at this location. Please choose a different name.", name);
+		}
 	} else {
 		// If it's a file/folder in current folder
 		const childExists = !!parent.getChild(name);
