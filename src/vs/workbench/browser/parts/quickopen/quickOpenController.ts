@@ -21,7 +21,7 @@ import { ITextFileService, AutoSaveMode } from 'vs/workbench/services/textfile/c
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IResourceInput } from 'vs/platform/editor/common/editor';
 import { IModeService } from 'vs/editor/common/services/modeService';
-import { getIconClasses } from 'vs/workbench/browser/labels';
+import { getIconClasses } from 'vs/workbench/browser/getIconClasses';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { EditorInput, IWorkbenchEditorConfiguration, IEditorInput } from 'vs/workbench/common/editor';
 import { Component } from 'vs/workbench/common/component';

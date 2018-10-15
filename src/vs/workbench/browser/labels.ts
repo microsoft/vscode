@@ -21,6 +21,7 @@ import { ITextModel } from 'vs/editor/common/model';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { Event, Emitter } from 'vs/base/common/event';
 import { ILabelService } from 'vs/platform/label/common/label';
+import { getIconClasses, getConfiguredLangId } from './getIconClasses';
 
 export interface IResourceLabel {
 	name: string;
@@ -304,74 +305,4 @@ export class FileLabel extends ResourceLabel {
 
 		this.setLabel({ resource, name, description }, options);
 	}
-}
-
-export function getIconClasses(modelService: IModelService, modeService: IModeService, resource: uri, fileKind?: FileKind): string[] {
-
-	// we always set these base classes even if we do not have a path
-	const classes = fileKind === FileKind.ROOT_FOLDER ? ['rootfolder-icon'] : fileKind === FileKind.FOLDER ? ['folder-icon'] : ['file-icon'];
-
-	if (resource) {
-
-		// Get the path and name of the resource. For data-URIs, we need to parse specially
-		let name: string;
-		let path: string;
-		if (resource.scheme === Schemas.data) {
-			const metadata = resources.DataUri.parseMetaData(resource);
-			name = metadata.get(resources.DataUri.META_DATA_LABEL);
-			path = name;
-		} else {
-			name = cssEscape(resources.basenameOrAuthority(resource).toLowerCase());
-			path = resource.path.toLowerCase();
-		}
-
-		// Folders
-		if (fileKind === FileKind.FOLDER) {
-			classes.push(`${name}-name-folder-icon`);
-		}
-
-		// Files
-		else {
-
-			// Name & Extension(s)
-			if (name) {
-				classes.push(`${name}-name-file-icon`);
-
-				const dotSegments = name.split('.');
-				for (let i = 1; i < dotSegments.length; i++) {
-					classes.push(`${dotSegments.slice(i).join('.')}-ext-file-icon`); // add each combination of all found extensions if more than one
-				}
-
-				classes.push(`ext-file-icon`); // extra segment to increase file-ext score
-			}
-
-			// Configured Language
-			let configuredLangId = getConfiguredLangId(modelService, resource);
-			configuredLangId = configuredLangId || modeService.getModeIdByFilepathOrFirstLine(path);
-			if (configuredLangId) {
-				classes.push(`${cssEscape(configuredLangId)}-lang-file-icon`);
-			}
-		}
-	}
-
-	return classes;
-}
-
-function getConfiguredLangId(modelService: IModelService, resource: uri): string {
-	let configuredLangId: string;
-	if (resource) {
-		const model = modelService.getModel(resource);
-		if (model) {
-			const modeId = model.getLanguageIdentifier().language;
-			if (modeId && modeId !== PLAINTEXT_MODE_ID) {
-				configuredLangId = modeId; // only take if the mode is specific (aka no just plain text)
-			}
-		}
-	}
-
-	return configuredLangId;
-}
-
-function cssEscape(val: string): string {
-	return val.replace(/\s/g, '\\$&'); // make sure to not introduce CSS classes from files that contain whitespace
 }
