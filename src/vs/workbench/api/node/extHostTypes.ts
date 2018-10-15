@@ -791,6 +791,7 @@ export class Diagnostic {
 	message: string;
 	source: string;
 	code: string | number;
+	url?: string;
 	severity: DiagnosticSeverity;
 	relatedInformation: DiagnosticRelatedInformation[];
 	tags?: DiagnosticTag[];
@@ -808,6 +809,7 @@ export class Diagnostic {
 			range: this.range,
 			source: this.source,
 			code: this.code,
+			url: this.url,
 		};
 	}
 
@@ -821,6 +823,7 @@ export class Diagnostic {
 		return a.message === b.message
 			&& a.severity === b.severity
 			&& a.code === b.code
+			&& a.url === b.url
 			&& a.severity === b.severity
 			&& a.source === b.source
 			&& a.range.isEqual(b.range)

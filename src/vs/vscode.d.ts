@@ -4097,6 +4097,11 @@ declare module 'vscode' {
 		code?: string | number;
 
 		/**
+		 * A HTTP URL to a resource explaining the diagnostic.
+		 */
+		url?: string;
+
+		/**
 		 * An array of related diagnostic information, e.g. when symbol-names within
 		 * a scope collide all definitions can be marked via this property.
 		 */
