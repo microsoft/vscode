@@ -16,10 +16,10 @@ configurationRegistry.registerConfiguration({
 	'properties': {
 		'update.channel': {
 			'type': 'string',
-			'enum': ['none', 'default'],
+			'enum': ['none', 'manual', 'default'],
 			'default': 'default',
 			'scope': ConfigurationScope.APPLICATION,
-			'description': nls.localize('updateChannel', "Configure whether you receive automatic updates from an update channel. Requires a restart after change. The updates are fetched from a Microsoft online service."),
+			'description': nls.localize('updateChannel', "Configure whether you receive automatic updates from an update channel. Requires a restart after change. The updates are fetched from a Microsoft online service. None disables all updates, manual allows a user to check for updates, and default keeps the updates automatic."),
 			'tags': ['usesOnlineServices']
 		},
 		'update.enableWindowsBackgroundUpdates': {

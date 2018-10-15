@@ -49,29 +49,35 @@ export abstract class AbstractUpdateService implements IUpdateService {
 		@ILogService protected logService: ILogService,
 	) {
 		if (this.environmentService.disableUpdates) {
-			this.logService.info('update#ctor - updates are disabled');
+			this.logService.info('update#ctor - updates are disabled by the environment');
 			return;
 		}
 
 		if (!product.updateUrl || !product.commit) {
-			this.logService.info('update#ctor - updates are disabled');
+			this.logService.info('update#ctor - updates are disabled as there is no update URL');
 			return;
 		}
 
 		const quality = this.getProductQuality();
+		const channel = this.configurationService.getValue<string>('update.channel');
 
 		if (!quality) {
-			this.logService.info('update#ctor - updates are disabled');
+			this.logService.info('update#ctor - updates are disabled by user preference');
 			return;
 		}
 
 		this.url = this.buildUpdateFeedUrl(quality);
 		if (!this.url) {
-			this.logService.info('update#ctor - updates are disabled');
+			this.logService.info('update#ctor - updates are disabled as the update URL is badly formed');
 			return;
 		}
 
 		this.setState(State.Idle(this.getUpdateType()));
+
+		if (channel === 'manual') {
+			this.logService.info('update#ctor - manual checks only; automatic updates are disabled by user preference');
+			return;
+		}
 
 		// Start checking for updates after 30 seconds
 		this.scheduleCheckForUpdates(30 * 1000).then(null, err => this.logService.error(err));
