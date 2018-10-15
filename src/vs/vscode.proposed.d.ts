@@ -47,6 +47,11 @@ declare module 'vscode' {
 		pattern: string;
 
 		/**
+		 * Whether or not `pattern` should match multiple lines of text.
+		 */
+		isMultiline?: boolean;
+
+		/**
 		 * Whether or not `pattern` should be interpreted as a regular expression.
 		 */
 		isRegExp?: boolean;
