@@ -30,6 +30,7 @@
 	display: flex;
 	height: 2em;
 	align-items: center;
+	margin: 0 -1px;
 }
 
 .monaco-menu .monaco-action-bar.vertical .action-label {
@@ -54,7 +55,7 @@
 }
 
 .monaco-menu .monaco-action-bar.vertical .keybinding {
-	opacity: 0.55;
+	opacity: 0.6;
 }
 
 .monaco-menu .focused>.action-menu-item>.keybinding {
@@ -132,8 +133,6 @@
 
 .monaco-menu .monaco-action-bar.vertical .action-item {
 	border: 1px solid transparent; /* prevents jumping behaviour on hover or focus */
-	border-left: 0;
-	border-right: 0;
 }
 
 
@@ -144,4 +143,12 @@
 
 .hc-black .monaco-menu .monaco-action-bar.vertical .action-item.focused {
 	background: none;
+}
+
+.hc-black .monaco-menu .monaco-action-bar.vertical .keybinding {
+	opacity: 1;
+}
+
+.hc-black .monaco-menu .monaco-action-bar.vertical .action-menu-item {
+	margin: 0;
 }
