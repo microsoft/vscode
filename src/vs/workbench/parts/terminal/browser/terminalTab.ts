@@ -366,7 +366,6 @@ export class TerminalTab extends Disposable implements ITerminalTab {
 		if (newTerminalSize < TERMINAL_MIN_USEFUL_SIZE) {
 			return undefined;
 		}
-
 		const instance = this._terminalService.createInstance(
 			terminalFocusContextKey,
 			configHelper,
