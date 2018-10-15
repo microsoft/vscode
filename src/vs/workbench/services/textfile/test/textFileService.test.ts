@@ -7,7 +7,7 @@ import * as sinon from 'sinon';
 import * as platform from 'vs/base/common/platform';
 import { URI } from 'vs/base/common/uri';
 import { TPromise } from 'vs/base/common/winjs.base';
-import { ILifecycleService, ShutdownEvent, ShutdownReason } from 'vs/platform/lifecycle/common/lifecycle';
+import { ILifecycleService, WillShutdownEvent, ShutdownReason } from 'vs/platform/lifecycle/common/lifecycle';
 import { workbenchInstantiationService, TestLifecycleService, TestTextFileService, TestWindowsService, TestContextService, TestFileService } from 'vs/workbench/test/workbenchTestServices';
 import { toResource } from 'vs/base/test/common/utils';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -37,7 +37,7 @@ class ServiceAccessor {
 	}
 }
 
-class ShutdownEventImpl implements ShutdownEvent {
+class ShutdownEventImpl implements WillShutdownEvent {
 
 	public value: boolean | TPromise<boolean>;
 	public reason = ShutdownReason.CLOSE;

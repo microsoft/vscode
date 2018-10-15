@@ -72,7 +72,7 @@ export class CommonFindController extends Disposable implements editorCommon.IEd
 	protected _state: FindReplaceState;
 	protected _updateHistoryDelayer: Delayer<void>;
 	private _model: FindModelBoundToEditorModel;
-	protected _storageService: IStorageService;
+	private _storageService: IStorageService;
 	private _clipboardService: IClipboardService;
 	protected readonly _contextKeyService: IContextKeyService;
 
@@ -455,7 +455,7 @@ export class StartFindWithSelectionAction extends EditorAction {
 			precondition: null,
 			kbOpts: {
 				kbExpr: null,
-				primary: null,
+				primary: 0,
 				mac: {
 					primary: KeyMod.CtrlCmd | KeyCode.KEY_E,
 				},

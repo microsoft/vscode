@@ -97,7 +97,7 @@ export function createApiFactory(
 	extHostLogService: ExtHostLogService
 ): IExtensionApiFactory {
 
-	let schemeTransformer: ISchemeTransformer = null;
+	let schemeTransformer: ISchemeTransformer | null = null;
 
 	// Addressable instances
 	rpcProtocol.set(ExtHostContext.ExtHostLogService, extHostLogService);

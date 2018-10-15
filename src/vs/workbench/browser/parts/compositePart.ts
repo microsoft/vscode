@@ -85,7 +85,7 @@ export abstract class CompositePart<T extends Composite> extends Part {
 		id: string,
 		options: IPartOptions
 	) {
-		super(id, options, themeService);
+		super(id, options, themeService, storageService);
 
 		this.instantiatedCompositeListeners = [];
 		this.mapCompositeToCompositeContainer = {};
@@ -493,12 +493,6 @@ export abstract class CompositePart<T extends Composite> extends Part {
 		}
 
 		return sizes;
-	}
-
-	shutdown(): void {
-		this.instantiatedComposites.forEach(i => i.shutdown());
-
-		super.shutdown();
 	}
 
 	dispose(): void {

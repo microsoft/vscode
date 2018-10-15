@@ -252,7 +252,7 @@ function rmRecursive(path: string, callback: (error: Error) => void): void {
 						} else if (children.length === 0) {
 							fs.rmdir(path, callback);
 						} else {
-							let firstError: Error = null;
+							let firstError: Error | null = null;
 							let childrenLeft = children.length;
 							children.forEach(child => {
 								rmRecursive(paths.join(path, child), (err: Error) => {
@@ -643,7 +643,7 @@ export function watch(path: string, onChange: (type: string, path?: string) => v
 		const watcher = fs.watch(path);
 
 		watcher.on('change', (type, raw) => {
-			let file: string = null;
+			let file: string | null = null;
 			if (raw) { // https://github.com/Microsoft/vscode/issues/38191
 				file = raw.toString();
 				if (platform.isMacintosh) {

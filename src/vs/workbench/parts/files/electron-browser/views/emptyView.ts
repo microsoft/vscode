@@ -149,8 +149,4 @@ export class EmptyView extends ViewletPanel {
 	public getActionItem(action: IAction): IActionItem {
 		return null;
 	}
-
-	public shutdown(): void {
-		// Subclass to implement
-	}
 }

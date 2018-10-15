@@ -88,7 +88,7 @@ export function trim(haystack: string, needle: string = ' '): string | undefined
  * @param haystack string to trim
  * @param needle the thing to trim
  */
-export function ltrim(haystack?: string, needle?: string): string | undefined {
+export function ltrim(haystack: string, needle: string): string {
 	if (!haystack || !needle) {
 		return haystack;
 	}
@@ -111,7 +111,7 @@ export function ltrim(haystack?: string, needle?: string): string | undefined {
  * @param haystack string to trim
  * @param needle the thing to trim
  */
-export function rtrim(haystack?: string, needle?: string): string | undefined {
+export function rtrim(haystack: string, needle: string): string {
 	if (!haystack || !needle) {
 		return haystack;
 	}

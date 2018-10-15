@@ -101,9 +101,9 @@ export class Repl extends Panel implements IPrivateReplService, IHistoryNavigati
 		@IThemeService protected themeService: IThemeService,
 		@IModelService private modelService: IModelService,
 		@IContextKeyService private contextKeyService: IContextKeyService,
-		@ICodeEditorService codeEditorService: ICodeEditorService,
+		@ICodeEditorService codeEditorService: ICodeEditorService
 	) {
-		super(REPL_ID, telemetryService, themeService);
+		super(REPL_ID, telemetryService, themeService, storageService);
 
 		this.replInputHeight = Repl.REPL_INPUT_INITIAL_HEIGHT;
 		this.history = new HistoryNavigator(JSON.parse(this.storageService.get(HISTORY_STORAGE_KEY, StorageScope.WORKSPACE, '[]')), 50);
@@ -257,15 +257,6 @@ export class Repl extends Panel implements IPrivateReplService, IHistoryNavigati
 		return result;
 	}
 
-	shutdown(): void {
-		const replHistory = this.history.getHistory();
-		if (replHistory.length) {
-			this.storageService.store(HISTORY_STORAGE_KEY, JSON.stringify(replHistory), StorageScope.WORKSPACE);
-		} else {
-			this.storageService.remove(HISTORY_STORAGE_KEY, StorageScope.WORKSPACE);
-		}
-	}
-
 	// --- Cached locals
 	@memoize
 	private get characterWidth(): number {
@@ -409,6 +400,17 @@ export class Repl extends Panel implements IPrivateReplService, IHistoryNavigati
 		}
 
 		this.replInput.setDecorations(DECORATION_KEY, decorations);
+	}
+
+	protected saveState(): void {
+		const replHistory = this.history.getHistory();
+		if (replHistory.length) {
+			this.storageService.store(HISTORY_STORAGE_KEY, JSON.stringify(replHistory), StorageScope.WORKSPACE);
+		} else {
+			this.storageService.remove(HISTORY_STORAGE_KEY, StorageScope.WORKSPACE);
+		}
+
+		super.saveState();
 	}
 
 	dispose(): void {

@@ -512,7 +512,8 @@ export class EditorStatus implements IStatusbarItem {
 					run: () => {
 						this.configurationService.updateValue('editor.accessibilitySupport', 'off', ConfigurationTarget.USER);
 					}
-				}]
+				}],
+				{ sticky: true }
 			);
 
 			once(this.screenReaderNotification.onDidClose)(() => {

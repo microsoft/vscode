@@ -41,7 +41,7 @@ class PartsSplash {
 		debounceEvent(anyEvent<any>(
 			onDidChangeFullscreen,
 			_partService.onEditorLayout
-		), () => { }, 150)(this._savePartsSplash, this, this._disposables);
+		), () => { }, 800)(this._savePartsSplash, this, this._disposables);
 	}
 
 	dispose(): void {

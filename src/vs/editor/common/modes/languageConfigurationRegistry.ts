@@ -37,8 +37,8 @@ export interface IVirtualModel {
 }
 
 export interface IIndentConverter {
-	shiftIndent?(indentation: string): string;
-	unshiftIndent?(indentation: string): string;
+	shiftIndent(indentation: string): string;
+	unshiftIndent(indentation: string): string;
 	normalizeIndentation?(indentation: string): string;
 }
 
@@ -46,15 +46,15 @@ export class RichEditSupport {
 
 	private readonly _conf: LanguageConfiguration;
 	private readonly _languageIdentifier: LanguageIdentifier;
-	private _brackets: RichEditBrackets;
-	private _electricCharacter: BracketElectricCharacterSupport;
+	private _brackets: RichEditBrackets | null;
+	private _electricCharacter: BracketElectricCharacterSupport | null;
 
-	public readonly comments: ICommentsConfiguration;
+	public readonly comments: ICommentsConfiguration | null;
 	public readonly characterPair: CharacterPairSupport;
 	public readonly wordDefinition: RegExp;
-	public readonly onEnter: OnEnterSupport;
+	public readonly onEnter: OnEnterSupport | null;
 	public readonly indentRulesSupport: IndentRulesSupport;
-	public readonly indentationRules: IndentationRule;
+	public readonly indentationRules: IndentationRule | undefined;
 	public readonly foldingRules: FoldingRules;
 
 	constructor(languageIdentifier: LanguageIdentifier, previous: RichEditSupport, rawConf: LanguageConfiguration) {
@@ -63,7 +63,7 @@ export class RichEditSupport {
 		this._brackets = null;
 		this._electricCharacter = null;
 
-		let prev: LanguageConfiguration = null;
+		let prev: LanguageConfiguration | null = null;
 		if (previous) {
 			prev = previous._conf;
 		}
@@ -86,14 +86,14 @@ export class RichEditSupport {
 		this.foldingRules = this._conf.folding || {};
 	}
 
-	public get brackets(): RichEditBrackets {
+	public get brackets(): RichEditBrackets | null {
 		if (!this._brackets && this._conf.brackets) {
 			this._brackets = new RichEditBrackets(this._languageIdentifier, this._conf.brackets);
 		}
 		return this._brackets;
 	}
 
-	public get electricCharacter(): BracketElectricCharacterSupport {
+	public get electricCharacter(): BracketElectricCharacterSupport | null {
 		if (!this._electricCharacter) {
 			let autoClosingPairs: IAutoClosingPairConditional[] = [];
 			if (this._conf.autoClosingPairs) {
@@ -109,7 +109,7 @@ export class RichEditSupport {
 		return this._electricCharacter;
 	}
 
-	private static _mergeConf(prev: LanguageConfiguration, current: LanguageConfiguration): LanguageConfiguration {
+	private static _mergeConf(prev: LanguageConfiguration | null, current: LanguageConfiguration): LanguageConfiguration {
 		return {
 			comments: (prev ? current.comments || prev.comments : current.comments),
 			brackets: (prev ? current.brackets || prev.brackets : current.brackets),
@@ -124,7 +124,7 @@ export class RichEditSupport {
 		};
 	}
 
-	private static _handleOnEnter(conf: LanguageConfiguration): OnEnterSupport {
+	private static _handleOnEnter(conf: LanguageConfiguration): OnEnterSupport | null {
 		// on enter
 		let onEnter: IOnEnterSupportOptions = {};
 		let empty = true;
@@ -147,7 +147,7 @@ export class RichEditSupport {
 		return null;
 	}
 
-	private static _handleComments(conf: LanguageConfiguration): ICommentsConfiguration {
+	private static _handleComments(conf: LanguageConfiguration): ICommentsConfiguration | null {
 		let commentRule = conf.comments;
 		if (!commentRule) {
 			return null;
@@ -213,7 +213,7 @@ export class LanguageConfigurationRegistryImpl {
 
 	// begin electricCharacter
 
-	private _getElectricCharacterSupport(languageId: LanguageId): BracketElectricCharacterSupport {
+	private _getElectricCharacterSupport(languageId: LanguageId): BracketElectricCharacterSupport | null {
 		let value = this._getRichEditSupport(languageId);
 		if (!value) {
 			return null;
@@ -232,7 +232,7 @@ export class LanguageConfigurationRegistryImpl {
 	/**
 	 * Should return opening bracket type to match indentation with
 	 */
-	public onElectricCharacter(character: string, context: LineTokens, column: number): IElectricAction {
+	public onElectricCharacter(character: string, context: LineTokens, column: number): IElectricAction | null {
 		let scopedLineTokens = createScopedLineTokens(context, column - 1);
 		let electricCharacterSupport = this._getElectricCharacterSupport(scopedLineTokens.languageId);
 		if (!electricCharacterSupport) {
@@ -243,7 +243,7 @@ export class LanguageConfigurationRegistryImpl {
 
 	// end electricCharacter
 
-	public getComments(languageId: LanguageId): ICommentsConfiguration {
+	public getComments(languageId: LanguageId): ICommentsConfiguration | null {
 		let value = this._getRichEditSupport(languageId);
 		if (!value) {
 			return null;
@@ -253,7 +253,7 @@ export class LanguageConfigurationRegistryImpl {
 
 	// begin characterPair
 
-	private _getCharacterPairSupport(languageId: LanguageId): CharacterPairSupport {
+	private _getCharacterPairSupport(languageId: LanguageId): CharacterPairSupport | null {
 		let value = this._getRichEditSupport(languageId);
 		if (!value) {
 			return null;
@@ -314,7 +314,7 @@ export class LanguageConfigurationRegistryImpl {
 
 	// begin Indent Rules
 
-	public getIndentRulesSupport(languageId: LanguageId): IndentRulesSupport {
+	public getIndentRulesSupport(languageId: LanguageId): IndentRulesSupport | null {
 		let value = this._getRichEditSupport(languageId);
 		if (!value) {
 			return null;
@@ -364,7 +364,7 @@ export class LanguageConfigurationRegistryImpl {
 	 *
 	 * This function only return the inherited indent based on above lines, it doesn't check whether current line should decrease or not.
 	 */
-	public getInheritIndentForLine(model: IVirtualModel, lineNumber: number, honorIntentialIndent: boolean = true): { indentation: string, action: IndentAction, line?: number } {
+	public getInheritIndentForLine(model: IVirtualModel, lineNumber: number, honorIntentialIndent: boolean = true): { indentation: string; action: IndentAction | null; line?: number; } | null {
 		let indentRulesSupport = this.getIndentRulesSupport(model.getLanguageIdentifier().id);
 		if (!indentRulesSupport) {
 			return null;
@@ -485,7 +485,7 @@ export class LanguageConfigurationRegistryImpl {
 		}
 	}
 
-	public getGoodIndentForLine(virtualModel: IVirtualModel, languageId: LanguageId, lineNumber: number, indentConverter: IIndentConverter): string {
+	public getGoodIndentForLine(virtualModel: IVirtualModel, languageId: LanguageId, lineNumber: number, indentConverter: IIndentConverter): string | null {
 		let indentRulesSupport = this.getIndentRulesSupport(languageId);
 		if (!indentRulesSupport) {
 			return null;
@@ -498,9 +498,11 @@ export class LanguageConfigurationRegistryImpl {
 			let inheritLine = indent.line;
 			if (inheritLine !== undefined) {
 				let onEnterSupport = this._getOnEnterSupport(languageId);
-				let enterResult: EnterAction = null;
+				let enterResult: EnterAction | null = null;
 				try {
-					enterResult = onEnterSupport.onEnter('', virtualModel.getLineContent(inheritLine), '');
+					if (onEnterSupport) {
+						enterResult = onEnterSupport.onEnter('', virtualModel.getLineContent(inheritLine), '');
+					}
 				} catch (e) {
 					onUnexpectedError(e);
 				}
@@ -550,7 +552,7 @@ export class LanguageConfigurationRegistryImpl {
 		return null;
 	}
 
-	public getIndentForEnter(model: ITextModel, range: Range, indentConverter: IIndentConverter, autoIndent: boolean): { beforeEnter: string, afterEnter: string } {
+	public getIndentForEnter(model: ITextModel, range: Range, indentConverter: IIndentConverter, autoIndent: boolean): { beforeEnter: string, afterEnter: string } | null {
 		model.forceTokenization(range.startLineNumber);
 		let lineTokens = model.getLineTokens(range.startLineNumber);
 
@@ -648,7 +650,7 @@ export class LanguageConfigurationRegistryImpl {
 	 * We should always allow intentional indentation. It means, if users change the indentation of `lineNumber` and the content of
 	 * this line doesn't match decreaseIndentPattern, we should not adjust the indentation.
 	 */
-	public getIndentActionForType(model: ITextModel, range: Range, ch: string, indentConverter: IIndentConverter): string {
+	public getIndentActionForType(model: ITextModel, range: Range, ch: string, indentConverter: IIndentConverter): string | null {
 		let scopedLineTokens = this.getScopedLineTokens(model, range.startLineNumber, range.startColumn);
 		let indentRulesSupport = this.getIndentRulesSupport(scopedLineTokens.languageId);
 		if (!indentRulesSupport) {
@@ -689,7 +691,7 @@ export class LanguageConfigurationRegistryImpl {
 		return null;
 	}
 
-	public getIndentMetadata(model: ITextModel, lineNumber: number): number {
+	public getIndentMetadata(model: ITextModel, lineNumber: number): number | null {
 		let indentRulesSupport = this.getIndentRulesSupport(model.getLanguageIdentifier().id);
 		if (!indentRulesSupport) {
 			return null;
@@ -706,7 +708,7 @@ export class LanguageConfigurationRegistryImpl {
 
 	// begin onEnter
 
-	private _getOnEnterSupport(languageId: LanguageId): OnEnterSupport {
+	private _getOnEnterSupport(languageId: LanguageId): OnEnterSupport | null {
 		let value = this._getRichEditSupport(languageId);
 		if (!value) {
 			return null;
@@ -714,13 +716,13 @@ export class LanguageConfigurationRegistryImpl {
 		return value.onEnter || null;
 	}
 
-	public getRawEnterActionAtPosition(model: ITextModel, lineNumber: number, column: number): EnterAction {
+	public getRawEnterActionAtPosition(model: ITextModel, lineNumber: number, column: number): EnterAction | null {
 		let r = this.getEnterAction(model, new Range(lineNumber, column, lineNumber, column));
 
 		return r ? r.enterAction : null;
 	}
 
-	public getEnterAction(model: ITextModel, range: Range): { enterAction: EnterAction; indentation: string; } {
+	public getEnterAction(model: ITextModel, range: Range): { enterAction: EnterAction; indentation: string; } | null {
 		let indentation = this.getIndentationAtPosition(model, range.startLineNumber, range.startColumn);
 
 		let scopedLineTokens = this.getScopedLineTokens(model, range.startLineNumber, range.startColumn);
@@ -753,7 +755,7 @@ export class LanguageConfigurationRegistryImpl {
 			}
 		}
 
-		let enterResult: EnterAction = null;
+		let enterResult: EnterAction | null = null;
 		try {
 			enterResult = onEnterSupport.onEnter(oneLineAboveText, beforeEnterText, afterEnterText);
 		} catch (e) {
@@ -799,14 +801,14 @@ export class LanguageConfigurationRegistryImpl {
 	private getScopedLineTokens(model: ITextModel, lineNumber: number, columnNumber?: number) {
 		model.forceTokenization(lineNumber);
 		let lineTokens = model.getLineTokens(lineNumber);
-		let column = isNaN(columnNumber) ? model.getLineMaxColumn(lineNumber) - 1 : columnNumber - 1;
+		let column = (typeof columnNumber === 'undefined' ? model.getLineMaxColumn(lineNumber) - 1 : columnNumber - 1);
 		let scopedLineTokens = createScopedLineTokens(lineTokens, column);
 		return scopedLineTokens;
 	}
 
 	// end onEnter
 
-	public getBracketsSupport(languageId: LanguageId): RichEditBrackets {
+	public getBracketsSupport(languageId: LanguageId): RichEditBrackets | null {
 		let value = this._getRichEditSupport(languageId);
 		if (!value) {
 			return null;

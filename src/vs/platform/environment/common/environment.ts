@@ -35,6 +35,7 @@ export interface ParsedArgs {
 	'trace-options'?: string;
 	log?: string;
 	logExtensionHostCommunication?: boolean;
+	logStorage?: boolean;
 	'extensions-dir'?: string;
 	'builtin-extensions-dir'?: string;
 	extensionDevelopmentPath?: string;
@@ -117,8 +118,8 @@ export interface IEnvironmentService {
 	debugExtensionHost: IExtensionHostDebugParams;
 	debugSearch: IDebugParams;
 
-
 	logExtensionHostCommunication: boolean;
+	logStorage: boolean;
 
 	isBuilt: boolean;
 	wait: boolean;

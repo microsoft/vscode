@@ -84,24 +84,18 @@ class SimpleWorkerProtocol {
 
 	public sendMessage(method: string, args: any[]): Promise<any> {
 		let req = String(++this._lastSentReq);
-		let reply: IMessageReply = {
-			resolve: null,
-			reject: null
-		};
-		let result = new Promise<any>((resolve, reject) => {
-			reply.resolve = resolve;
-			reply.reject = reject;
+		return new Promise<any>((resolve, reject) => {
+			this._pendingReplies[req] = {
+				resolve: resolve,
+				reject: reject
+			};
+			this._send({
+				vsWorker: this._workerId,
+				req: req,
+				method: method,
+				args: args
+			});
 		});
-		this._pendingReplies[req] = reply;
-
-		this._send({
-			vsWorker: this._workerId,
-			req: req,
-			method: method,
-			args: args
-		});
-
-		return result;
 	}
 
 	public handleMessage(serializedMessage: string): void {
@@ -110,6 +104,7 @@ class SimpleWorkerProtocol {
 			message = JSON.parse(serializedMessage);
 		} catch (e) {
 			// nothing
+			return;
 		}
 		if (!message || !message.vsWorker) {
 			return;
@@ -191,8 +186,7 @@ export class SimpleWorkerClient<T> extends Disposable {
 	constructor(workerFactory: IWorkerFactory, moduleId: string) {
 		super();
 
-		let lazyProxyResolve: (v: T) => void = null;
-		let lazyProxyReject: (err: any) => void = null;
+		let lazyProxyReject: ((err: any) => void) | null = null;
 
 		this._worker = this._register(workerFactory.create(
 			'vs/base/common/worker/simpleWorker',
@@ -202,7 +196,9 @@ export class SimpleWorkerClient<T> extends Disposable {
 			(err: any) => {
 				// in Firefox, web workers fail lazily :(
 				// we will reject the proxy
-				lazyProxyReject(err);
+				if (lazyProxyReject) {
+					lazyProxyReject(err);
+				}
 			}
 		));
 
@@ -227,26 +223,25 @@ export class SimpleWorkerClient<T> extends Disposable {
 			loaderConfiguration = (<any>self).requirejs.s.contexts._.config;
 		}
 
-		this._lazyProxy = new Promise<T>((resolve, reject) => {
-			lazyProxyResolve = resolve;
-			lazyProxyReject = reject;
-		});
-
 		// Send initialize message
 		this._onModuleLoaded = this._protocol.sendMessage(INITIALIZE, [
 			this._worker.getId(),
 			moduleId,
 			loaderConfiguration
 		]);
-		this._onModuleLoaded.then((availableMethods: string[]) => {
-			let proxy = <T>{};
-			for (let i = 0; i < availableMethods.length; i++) {
-				(proxy as any)[availableMethods[i]] = createProxyMethod(availableMethods[i], proxyMethodRequest);
-			}
-			lazyProxyResolve(proxy);
-		}, (e) => {
-			lazyProxyReject(e);
-			this._onError('Worker failed to load ' + moduleId, e);
+
+		this._lazyProxy = new Promise<T>((resolve, reject) => {
+			lazyProxyReject = reject;
+			this._onModuleLoaded.then((availableMethods: string[]) => {
+				let proxy = <T>{};
+				for (let i = 0; i < availableMethods.length; i++) {
+					(proxy as any)[availableMethods[i]] = createProxyMethod(availableMethods[i], proxyMethodRequest);
+				}
+				resolve(proxy);
+			}, (e) => {
+				reject(e);
+				this._onError('Worker failed to load ' + moduleId, e);
+			});
 		});
 
 		// Create proxy to loaded code
@@ -290,10 +285,10 @@ export interface IRequestHandler {
  */
 export class SimpleWorkerServer {
 
-	private _requestHandler: IRequestHandler;
+	private _requestHandler: IRequestHandler | null;
 	private _protocol: SimpleWorkerProtocol;
 
-	constructor(postSerializedMessage: (msg: string) => void, requestHandler: IRequestHandler) {
+	constructor(postSerializedMessage: (msg: string) => void, requestHandler: IRequestHandler | null) {
 		this._requestHandler = requestHandler;
 		this._protocol = new SimpleWorkerProtocol({
 			sendMessage: (msg: string): void => {
@@ -353,29 +348,27 @@ export class SimpleWorkerServer {
 			(<any>self).require.config(loaderConfig);
 		}
 
-		let resolve: (value?: string[]) => void;
-		let reject: (error?: any) => void;
-		let r = new Promise<string[]>((_resolve, _reject) => {
-			resolve = _resolve;
-			reject = _reject;
-		});
+		return new Promise<string[]>((resolve, reject) => {
+			// Use the global require to be sure to get the global config
+			(<any>self).require([moduleId], (...result: any[]) => {
+				let handlerModule = result[0];
+				this._requestHandler = handlerModule.create();
 
-		// Use the global require to be sure to get the global config
-		(<any>self).require([moduleId], (...result: any[]) => {
-			let handlerModule = result[0];
-			this._requestHandler = handlerModule.create();
-
-			let methods: string[] = [];
-			for (let prop in this._requestHandler) {
-				if (typeof this._requestHandler[prop] === 'function') {
-					methods.push(prop);
+				if (!this._requestHandler) {
+					reject(new Error(`No RequestHandler!`));
+					return;
 				}
-			}
 
-			resolve(methods);
-		}, reject);
+				let methods: string[] = [];
+				for (let prop in this._requestHandler) {
+					if (typeof this._requestHandler[prop] === 'function') {
+						methods.push(prop);
+					}
+				}
 
-		return r;
+				resolve(methods);
+			}, reject);
+		});
 	}
 }
 

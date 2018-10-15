@@ -230,12 +230,6 @@ export class EditorControl extends Disposable {
 		}
 	}
 
-	shutdown(): void {
-
-		// Forward to all editor controls
-		this.controls.forEach(editor => editor.shutdown());
-	}
-
 	dispose(): void {
 		this.activeControlDisposeables = dispose(this.activeControlDisposeables);
 

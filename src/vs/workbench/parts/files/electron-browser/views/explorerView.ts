@@ -74,7 +74,7 @@ export class ExplorerView extends TreeViewsViewletPanel implements IExplorerView
 	private shouldRefresh: boolean;
 	private autoReveal: boolean;
 	private sortOrder: SortOrder;
-	private settings: object;
+	private viewState: object;
 	private treeContainer: HTMLElement;
 	private dragHandler: DelayedDragHandler;
 	private decorationProvider: ExplorerDecorationsProvider;
@@ -98,7 +98,7 @@ export class ExplorerView extends TreeViewsViewletPanel implements IExplorerView
 	) {
 		super({ ...(options as IViewletPanelOptions), ariaHeaderLabel: nls.localize('explorerSection', "Files Explorer Section") }, keybindingService, contextMenuService, configurationService);
 
-		this.settings = options.viewletSettings;
+		this.viewState = options.viewletState;
 		this.viewletState = options.viewletState;
 		this.autoReveal = true;
 
@@ -173,8 +173,8 @@ export class ExplorerView extends TreeViewsViewletPanel implements IExplorerView
 
 		// Load and Fill Viewer
 		let targetsToExpand = [];
-		if (this.settings[ExplorerView.MEMENTO_EXPANDED_FOLDER_RESOURCES]) {
-			targetsToExpand = this.settings[ExplorerView.MEMENTO_EXPANDED_FOLDER_RESOURCES].map((e: string) => URI.parse(e));
+		if (this.viewState[ExplorerView.MEMENTO_EXPANDED_FOLDER_RESOURCES]) {
+			targetsToExpand = this.viewState[ExplorerView.MEMENTO_EXPANDED_FOLDER_RESOURCES].map((e: string) => URI.parse(e));
 		}
 		this.doRefresh(targetsToExpand).then(() => {
 
@@ -236,7 +236,7 @@ export class ExplorerView extends TreeViewsViewletPanel implements IExplorerView
 		if (activeFile) {
 
 			// Always remember last opened file
-			this.settings[ExplorerView.MEMENTO_LAST_ACTIVE_FILE_RESOURCE] = activeFile.toString();
+			this.viewState[ExplorerView.MEMENTO_LAST_ACTIVE_FILE_RESOURCE] = activeFile.toString();
 
 			// Select file if input is inside workspace
 			if (this.isVisible() && !this.isDisposed && this.contextService.isInsideWorkspace(activeFile)) {
@@ -252,7 +252,7 @@ export class ExplorerView extends TreeViewsViewletPanel implements IExplorerView
 		// Handle closed or untitled file (convince explorer to not reopen any file when getting visible)
 		const activeInput = this.editorService.activeEditor;
 		if (!activeInput || toResource(activeInput, { supportSideBySide: true, filter: Schemas.untitled })) {
-			this.settings[ExplorerView.MEMENTO_LAST_ACTIVE_FILE_RESOURCE] = void 0;
+			this.viewState[ExplorerView.MEMENTO_LAST_ACTIVE_FILE_RESOURCE] = void 0;
 			clearFocus = true;
 		}
 
@@ -355,8 +355,8 @@ export class ExplorerView extends TreeViewsViewletPanel implements IExplorerView
 
 				// Otherwise restore last used file: By lastActiveFileResource
 				let lastActiveFileResource: URI;
-				if (this.settings[ExplorerView.MEMENTO_LAST_ACTIVE_FILE_RESOURCE]) {
-					lastActiveFileResource = URI.parse(this.settings[ExplorerView.MEMENTO_LAST_ACTIVE_FILE_RESOURCE]);
+				if (this.viewState[ExplorerView.MEMENTO_LAST_ACTIVE_FILE_RESOURCE]) {
+					lastActiveFileResource = URI.parse(this.viewState[ExplorerView.MEMENTO_LAST_ACTIVE_FILE_RESOURCE]);
 				}
 
 				if (lastActiveFileResource && this.isCreated && this.model.findClosest(lastActiveFileResource)) {
@@ -608,9 +608,9 @@ export class ExplorerView extends TreeViewsViewletPanel implements IExplorerView
 		// delete events can result in UI activity that will fill the memento again when multiple
 		// editors are closing)
 		setTimeout(() => {
-			const lastActiveResource: string = this.settings[ExplorerView.MEMENTO_LAST_ACTIVE_FILE_RESOURCE];
+			const lastActiveResource: string = this.viewState[ExplorerView.MEMENTO_LAST_ACTIVE_FILE_RESOURCE];
 			if (lastActiveResource && e.contains(URI.parse(lastActiveResource), FileChangeType.DELETED)) {
-				this.settings[ExplorerView.MEMENTO_LAST_ACTIVE_FILE_RESOURCE] = null;
+				this.viewState[ExplorerView.MEMENTO_LAST_ACTIVE_FILE_RESOURCE] = null;
 			}
 		});
 
@@ -1003,7 +1003,7 @@ export class ExplorerView extends TreeViewsViewletPanel implements IExplorerView
 		return this.tree.reveal(element, relativeTop);
 	}
 
-	public shutdown(): void {
+	saveState(): void {
 
 		// Keep list of expanded folders to restore on next load
 		if (this.isCreated) {
@@ -1012,18 +1012,18 @@ export class ExplorerView extends TreeViewsViewletPanel implements IExplorerView
 				.map((e: ExplorerItem) => e.resource.toString());
 
 			if (expanded.length) {
-				this.settings[ExplorerView.MEMENTO_EXPANDED_FOLDER_RESOURCES] = expanded;
+				this.viewState[ExplorerView.MEMENTO_EXPANDED_FOLDER_RESOURCES] = expanded;
 			} else {
-				delete this.settings[ExplorerView.MEMENTO_EXPANDED_FOLDER_RESOURCES];
+				delete this.viewState[ExplorerView.MEMENTO_EXPANDED_FOLDER_RESOURCES];
 			}
 		}
 
 		// Clean up last focused if not set
-		if (!this.settings[ExplorerView.MEMENTO_LAST_ACTIVE_FILE_RESOURCE]) {
-			delete this.settings[ExplorerView.MEMENTO_LAST_ACTIVE_FILE_RESOURCE];
+		if (!this.viewState[ExplorerView.MEMENTO_LAST_ACTIVE_FILE_RESOURCE]) {
+			delete this.viewState[ExplorerView.MEMENTO_LAST_ACTIVE_FILE_RESOURCE];
 		}
 
-		super.shutdown();
+		super.saveState();
 	}
 
 	dispose(): void {

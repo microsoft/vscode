@@ -190,7 +190,7 @@ export class QuickOutlineAction extends BaseEditorQuickOpenAction {
 			if (highlights) {
 
 				// Show parent scope as description
-				let description: string = null;
+				let description: string | null = null;
 				if (element.containerName) {
 					description = element.containerName;
 				}
@@ -211,8 +211,8 @@ export class QuickOutlineAction extends BaseEditorQuickOpenAction {
 
 		// Mark all type groups
 		if (results.length > 0 && searchValue.indexOf(SCOPE_PREFIX) === 0) {
-			let currentType: string = null;
-			let currentResult: SymbolEntry = null;
+			let currentType: string | null = null;
+			let currentResult: SymbolEntry | null = null;
 			let typeCounter = 0;
 
 			for (let i = 0; i < results.length; i++) {

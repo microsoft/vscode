@@ -8,10 +8,9 @@ import { LRUCache, TernarySearchTree } from 'vs/base/common/map';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { ITextModel } from 'vs/editor/common/model';
 import { IPosition } from 'vs/editor/common/core/position';
-import { RunOnceScheduler } from 'vs/base/common/async';
 import { CompletionItemKind, completionKindFromLegacyString } from 'vs/editor/common/modes';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { IDisposable } from 'vs/base/common/lifecycle';
+import { Disposable } from 'vs/base/common/lifecycle';
 
 export abstract class Memory {
 
@@ -194,26 +193,22 @@ export class PrefixMemory extends Memory {
 
 export type MemMode = 'first' | 'recentlyUsed' | 'recentlyUsedByPrefix';
 
-export class SuggestMemories {
+export class SuggestMemories extends Disposable {
 
 	private readonly _storagePrefix = 'suggest/memories';
 
 	private _mode: MemMode;
 	private _strategy: Memory;
-	private readonly _persistSoon: RunOnceScheduler;
-	private readonly _listener: IDisposable;
 
 	constructor(
 		editor: ICodeEditor,
 		@IStorageService private readonly _storageService: IStorageService,
 	) {
-		this._persistSoon = new RunOnceScheduler(() => this._flush(), 3000);
-		this._setMode(editor.getConfiguration().contribInfo.suggestSelection);
-		this._listener = editor.onDidChangeConfiguration(e => e.contribInfo && this._setMode(editor.getConfiguration().contribInfo.suggestSelection));
-	}
+		super();
 
-	dispose(): void {
-		this._listener.dispose();
+		this._setMode(editor.getConfiguration().contribInfo.suggestSelection);
+		this._register(editor.onDidChangeConfiguration(e => e.contribInfo && this._setMode(editor.getConfiguration().contribInfo.suggestSelection)));
+		this._register(_storageService.onWillSaveState(() => this._saveState()));
 	}
 
 	private _setMode(mode: MemMode): void {
@@ -235,15 +230,14 @@ export class SuggestMemories {
 
 	memorize(model: ITextModel, pos: IPosition, item: ICompletionItem): void {
 		this._strategy.memorize(model, pos, item);
-		this._persistSoon.schedule();
 	}
 
 	select(model: ITextModel, pos: IPosition, items: ICompletionItem[]): number {
 		return this._strategy.select(model, pos, items);
 	}
 
-	private _flush() {
+	private _saveState() {
 		const raw = JSON.stringify(this._strategy);
-		this._storageService.store(`${this._storagePrefix}/${this._mode}`, raw, StorageScope.WORKSPACE);
+		this._storageService.store(`${this._storagePrefix}/${this._mode}`, raw, StorageScope.WORKSPACE); //
 	}
 }

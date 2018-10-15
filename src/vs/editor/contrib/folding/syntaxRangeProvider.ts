@@ -7,7 +7,6 @@ import { FoldingRangeProvider, FoldingRange, FoldingContext } from 'vs/editor/co
 import { onUnexpectedExternalError } from 'vs/base/common/errors';
 import { ITextModel } from 'vs/editor/common/model';
 import { RangeProvider } from './folding';
-import { TPromise } from 'vs/base/common/winjs.base';
 import { MAX_LINE_NUMBER, FoldingRegions } from './foldingRanges';
 import { CancellationToken } from 'vs/base/common/cancellation';
 
@@ -45,7 +44,7 @@ export class SyntaxRangeProvider implements RangeProvider {
 }
 
 function collectSyntaxRanges(providers: FoldingRangeProvider[], model: ITextModel, cancellationToken: CancellationToken): Thenable<IFoldingRangeData[] | null> {
-	let rangeData: IFoldingRangeData[] = null;
+	let rangeData: IFoldingRangeData[] | null = null;
 	let promises = providers.map((provider, i) => {
 		return Promise.resolve(provider.provideFoldingRanges(model, foldingContext, cancellationToken)).then(ranges => {
 			if (cancellationToken.isCancellationRequested) {
@@ -64,7 +63,7 @@ function collectSyntaxRanges(providers: FoldingRangeProvider[], model: ITextMode
 			}
 		}, onUnexpectedExternalError);
 	});
-	return TPromise.join(promises).then(_ => {
+	return Promise.all(promises).then(_ => {
 		return rangeData;
 	});
 }
@@ -156,7 +155,7 @@ export function sanitizeRanges(rangeData: IFoldingRangeData[], limit: number): F
 	});
 	let collector = new RangesCollector(limit);
 
-	let top: IFoldingRangeData = null;
+	let top: IFoldingRangeData | null = null;
 	let previous = [];
 	for (let entry of sorted) {
 		if (!top) {

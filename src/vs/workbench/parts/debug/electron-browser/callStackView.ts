@@ -36,7 +36,7 @@ export class CallStackView extends TreeViewsViewletPanel {
 	private pauseMessage: HTMLSpanElement;
 	private pauseMessageLabel: HTMLSpanElement;
 	private onCallStackChangeScheduler: RunOnceScheduler;
-	private settings: any;
+	private viewState: object;
 	private needsRefresh: boolean;
 	private ignoreSelectionChangedEvent: boolean;
 	private treeContainer: HTMLElement;
@@ -53,7 +53,7 @@ export class CallStackView extends TreeViewsViewletPanel {
 		@IContextKeyService contextKeyService: IContextKeyService
 	) {
 		super({ ...(options as IViewletPanelOptions), ariaHeaderLabel: nls.localize('callstackSection', "Call Stack Section") }, keybindingService, contextMenuService, configurationService);
-		this.settings = options.viewletSettings;
+		this.viewState = options.viewletState;
 		this.callStackItemType = CONTEXT_CALLSTACK_ITEM_TYPE.bindTo(contextKeyService);
 
 		// Create scheduler to prevent unnecessary flashing of tree when reacting to changes
@@ -228,9 +228,10 @@ export class CallStackView extends TreeViewsViewletPanel {
 		});
 	}
 
-	public shutdown(): void {
-		this.settings[CallStackView.MEMENTO] = !this.isExpanded();
-		super.shutdown();
+	public saveState(): void {
+		this.viewState[CallStackView.MEMENTO] = !this.isExpanded();
+
+		super.saveState();
 	}
 }
 

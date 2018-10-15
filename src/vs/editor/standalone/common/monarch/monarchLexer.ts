@@ -518,8 +518,8 @@ class MonarchTokenizer implements modes.ITokenizationSupport {
 		// regular expression group matching
 		// these never need cloning or equality since they are only used within a line match
 		let groupActions: monarchCommon.FuzzyAction[] = null;
-		let groupMatches: string[] = null;
-		let groupMatched: string[] = null;
+		let groupMatches: string[] | null = null;
+		let groupMatched: string[] | null = null;
 		let groupRule: monarchCommon.IRule = null;
 
 		while (pos < lineLength) {
@@ -528,12 +528,12 @@ class MonarchTokenizer implements modes.ITokenizationSupport {
 			const groupLen0 = groupActions ? groupActions.length : 0;
 			const state = stack.state;
 
-			let matches: string[] = null;
-			let matched: string = null;
+			let matches: string[] | null = null;
+			let matched: string | null = null;
 			let action: monarchCommon.FuzzyAction | monarchCommon.FuzzyAction[] = null;
 			let rule: monarchCommon.IRule = null;
 
-			let enteringEmbeddedMode: string = null;
+			let enteringEmbeddedMode: string | null = null;
 
 			// check if we need to process group matches first
 			if (groupActions) {
@@ -738,7 +738,7 @@ class MonarchTokenizer implements modes.ITokenizationSupport {
 
 				// return the result (and check for brace matching)
 				// todo: for efficiency we could pre-sanitize tokenPostfix and substitutions
-				let tokenType: string = null;
+				let tokenType: string | null = null;
 				if (monarchCommon.isString(result) && result.indexOf('@brackets') === 0) {
 					let rest = result.substr('@brackets'.length);
 					let bracket = findBracket(this._lexer, matched);

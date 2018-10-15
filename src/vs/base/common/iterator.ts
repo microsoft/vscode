@@ -3,10 +3,16 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-export interface IteratorResult<T> {
-	readonly done: boolean;
-	readonly value: T | undefined;
+export interface IteratorDefinedResult<T> {
+	readonly done: false;
+	readonly value: T;
 }
+export interface IteratorUndefinedResult {
+	readonly done: true;
+	readonly value: undefined;
+}
+export const FIN: IteratorUndefinedResult = { done: true, value: undefined };
+export type IteratorResult<T> = IteratorDefinedResult<T> | IteratorUndefinedResult;
 
 export interface Iterator<T> {
 	next(): IteratorResult<T>;
@@ -15,7 +21,7 @@ export interface Iterator<T> {
 export module Iterator {
 	const _empty: Iterator<any> = {
 		next() {
-			return { done: true, value: undefined };
+			return FIN;
 		}
 	};
 
@@ -27,7 +33,7 @@ export module Iterator {
 		return {
 			next(): IteratorResult<T> {
 				if (index >= length) {
-					return { done: true, value: undefined };
+					return FIN;
 				}
 
 				return { done: false, value: array[index++] };
@@ -48,8 +54,12 @@ export module Iterator {
 	export function map<T, R>(iterator: Iterator<T>, fn: (t: T) => R): Iterator<R> {
 		return {
 			next() {
-				const { done, value } = iterator.next();
-				return { done, value: done ? undefined : fn(value!) };
+				const element = iterator.next();
+				if (element.done) {
+					return FIN;
+				} else {
+					return { done: false, value: fn(element.value) };
+				}
 			}
 		};
 	}
@@ -58,14 +68,12 @@ export module Iterator {
 		return {
 			next() {
 				while (true) {
-					const { done, value } = iterator.next();
-
-					if (done) {
-						return { done, value: undefined };
+					const element = iterator.next();
+					if (element.done) {
+						return FIN;
 					}
-
-					if (fn(value!)) {
-						return { done, value };
+					if (fn(element.value)) {
+						return { done: false, value: element.value };
 					}
 				}
 			}
@@ -74,7 +82,7 @@ export module Iterator {
 
 	export function forEach<T>(iterator: Iterator<T>, fn: (t: T) => void): void {
 		for (let next = iterator.next(); !next.done; next = iterator.next()) {
-			fn(next.value!);
+			fn(next.value);
 		}
 	}
 

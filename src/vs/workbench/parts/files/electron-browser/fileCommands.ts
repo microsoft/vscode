@@ -491,7 +491,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_S,
 	handler: (accessor, resourceOrObject: URI | object | { from: string }) => {
 		const editorService = accessor.get(IEditorService);
-		let resource: URI = undefined;
+		let resource: URI | undefined = undefined;
 		if (resourceOrObject && 'from' in resourceOrObject && resourceOrObject.from === 'menu') {
 			resource = toResource(editorService.activeEditor);
 		} else {

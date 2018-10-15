@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IStorage, StorageService } from 'vs/platform/storage/common/storageService';
+import { StorageLegacyService, IStorageLegacy } from 'vs/platform/storage/common/storageLegacyService';
 import { endsWith, startsWith, rtrim } from 'vs/base/common/strings';
 import { URI } from 'vs/base/common/uri';
 import { IWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
@@ -29,8 +29,8 @@ import { IWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
  * => no longer being used (used for empty workspaces previously)
  */
 
-const EMPTY_WORKSPACE_PREFIX = `${StorageService.COMMON_PREFIX}workspace/empty:`;
-const MULTI_ROOT_WORKSPACE_PREFIX = `${StorageService.COMMON_PREFIX}workspace/root:`;
+const EMPTY_WORKSPACE_PREFIX = `${StorageLegacyService.COMMON_PREFIX}workspace/empty:`;
+const MULTI_ROOT_WORKSPACE_PREFIX = `${StorageLegacyService.COMMON_PREFIX}workspace/root:`;
 
 export type StorageObject = { [key: string]: string };
 
@@ -44,7 +44,7 @@ export interface IParsedStorage {
 /**
  * Parses the local storage implementation into global, multi root, folder and empty storage.
  */
-export function parseStorage(storage: IStorage): IParsedStorage {
+export function parseStorage(storage: IStorageLegacy): IParsedStorage {
 	const globalStorage = new Map<string, string>();
 	const folderWorkspacesStorage = new Map<string /* workspace file resource */, StorageObject>();
 	const emptyWorkspacesStorage = new Map<string /* empty workspace id */, StorageObject>();
@@ -55,14 +55,14 @@ export function parseStorage(storage: IStorage): IParsedStorage {
 		const key = storage.key(i);
 
 		// Workspace Storage (storage://workspace/)
-		if (startsWith(key, StorageService.WORKSPACE_PREFIX)) {
+		if (startsWith(key, StorageLegacyService.WORKSPACE_PREFIX)) {
 
 			// We are looking for key: storage://workspace/<folder>/workspaceIdentifier to be able to find all folder
 			// paths that are known to the storage. is the only way how to parse all folder paths known in storage.
-			if (endsWith(key, StorageService.WORKSPACE_IDENTIFIER)) {
+			if (endsWith(key, StorageLegacyService.WORKSPACE_IDENTIFIER)) {
 
 				// storage://workspace/<folder>/workspaceIdentifier => <folder>/
-				let workspace = key.substring(StorageService.WORKSPACE_PREFIX.length, key.length - StorageService.WORKSPACE_IDENTIFIER.length);
+				let workspace = key.substring(StorageLegacyService.WORKSPACE_PREFIX.length, key.length - StorageLegacyService.WORKSPACE_IDENTIFIER.length);
 
 				// macOS/Unix: Users/name/folder/
 				//    Windows: c%3A/Users/name/folder/
@@ -76,7 +76,7 @@ export function parseStorage(storage: IStorage): IParsedStorage {
 				}
 
 				// storage://workspace/<folder>/workspaceIdentifier => storage://workspace/<folder>/
-				const prefix = key.substr(0, key.length - StorageService.WORKSPACE_IDENTIFIER.length);
+				const prefix = key.substr(0, key.length - StorageLegacyService.WORKSPACE_IDENTIFIER.length);
 				workspaces.push({ prefix, resource: workspace });
 			}
 
@@ -120,11 +120,11 @@ export function parseStorage(storage: IStorage): IParsedStorage {
 		}
 
 		// Global Storage (storage://global)
-		else if (startsWith(key, StorageService.GLOBAL_PREFIX)) {
+		else if (startsWith(key, StorageLegacyService.GLOBAL_PREFIX)) {
 
 			// storage://global/someKey => someKey
-			const globalStorageKey = key.substr(StorageService.GLOBAL_PREFIX.length);
-			if (startsWith(globalStorageKey, StorageService.COMMON_PREFIX)) {
+			const globalStorageKey = key.substr(StorageLegacyService.GLOBAL_PREFIX.length);
+			if (startsWith(globalStorageKey, StorageLegacyService.COMMON_PREFIX)) {
 				continue; // filter out faulty keys that have the form storage://something/storage://
 			}
 
@@ -168,7 +168,7 @@ export function parseStorage(storage: IStorage): IParsedStorage {
 	};
 }
 
-export function migrateStorageToMultiRootWorkspace(fromWorkspaceId: string, toWorkspace: IWorkspaceIdentifier, storage: IStorage): string {
+export function migrateStorageToMultiRootWorkspace(fromWorkspaceId: string, toWorkspace: IWorkspaceIdentifier, storage: IStorageLegacy): string {
 	const parsed = parseStorage(storage);
 
 	const newWorkspaceId = URI.from({ path: toWorkspace.id, scheme: 'root' }).toString();
@@ -186,11 +186,11 @@ export function migrateStorageToMultiRootWorkspace(fromWorkspaceId: string, toWo
 	// Migrate existing storage to new workspace id
 	if (storageForWorkspace) {
 		Object.keys(storageForWorkspace).forEach(key => {
-			if (key === StorageService.WORKSPACE_IDENTIFIER) {
+			if (key === StorageLegacyService.WORKSPACE_IDENTIFIER) {
 				return; // make sure to never migrate the workspace identifier
 			}
 
-			storage.setItem(`${StorageService.WORKSPACE_PREFIX}${newWorkspaceId}/${key}`, storageForWorkspace[key]);
+			storage.setItem(`${StorageLegacyService.WORKSPACE_PREFIX}${newWorkspaceId}/${key}`, storageForWorkspace[key]);
 		});
 	}
 

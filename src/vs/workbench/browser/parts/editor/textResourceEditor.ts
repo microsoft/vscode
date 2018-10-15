@@ -164,15 +164,14 @@ export class AbstractTextResourceEditor extends BaseTextEditor {
 		super.clearInput();
 	}
 
-	shutdown(): void {
+	protected saveState(): void {
 
 		// Save View State (only for untitled)
 		if (this.input instanceof UntitledEditorInput) {
 			this.saveTextResourceEditorViewState(this.input);
 		}
 
-		// Call Super
-		super.shutdown();
+		super.saveState();
 	}
 
 	private saveTextResourceEditorViewState(input: EditorInput): void {

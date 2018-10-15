@@ -1053,7 +1053,6 @@ export class SettingsRenderer implements ITreeRenderer {
 		template.labelElement.textContent = element.displayLabel;
 		template.labelElement.title = titleTooltip;
 
-		this.renderValue(element, templateId, <ISettingItemTemplate>template);
 		template.descriptionElement.innerHTML = '';
 		if (element.setting.descriptionIsMarkdown) {
 			const renderedDescription = this.renderDescriptionMarkdown(element, element.description, template.toDispose);
@@ -1064,11 +1063,6 @@ export class SettingsRenderer implements ITreeRenderer {
 
 		const baseId = (element.displayCategory + '_' + element.displayLabel).replace(/ /g, '_').toLowerCase();
 		template.descriptionElement.id = baseId + '_setting_description';
-
-		if (templateId === SETTINGS_BOOL_TEMPLATE_ID) {
-			// Add checkbox target to description clickable and able to toggle checkbox
-			template.descriptionElement.setAttribute('checkbox_label_target_id', baseId + '_setting_item');
-		}
 
 		template.otherOverridesElement.innerHTML = '';
 
@@ -1097,7 +1091,10 @@ export class SettingsRenderer implements ITreeRenderer {
 					e.stopPropagation();
 				});
 			}
+
 		}
+
+		this.renderValue(element, templateId, <ISettingItemTemplate>template);
 
 		// Remove tree attributes - sometimes overridden by tree - should be managed there
 		template.containerElement.parentElement.removeAttribute('role');
@@ -1165,23 +1162,7 @@ export class SettingsRenderer implements ITreeRenderer {
 		template.onChange = onChange;
 
 		// Setup and add ARIA attributes
-		// Create id and label for control/input element - parent is wrapper div
-		const baseId = (dataElement.displayCategory + '_' + dataElement.displayLabel).replace(/ /g, '_').toLowerCase();
-		const modifiedText = dataElement.isConfigured ? 'Modified' : '';
-		const label = dataElement.displayCategory + ' ' + dataElement.displayLabel + ' ' + modifiedText;
-
-		// We use the parent control div for the aria-labelledby target
-		// Does not appear you can use the direct label on the element itself within a tree
-		template.checkbox.domNode.parentElement.id = baseId + '_setting_label';
-		template.checkbox.domNode.parentElement.setAttribute('aria-label', label);
-
-		// Labels will not be read on descendent input elements of the parent treeitem
-		// unless defined as role=treeitem and indirect aria-labelledby approach
-		template.checkbox.domNode.id = baseId + '_setting_item';
-		template.checkbox.domNode.setAttribute('role', 'checkbox');
-		template.checkbox.domNode.setAttribute('aria-labelledby', baseId + '_setting_label');
-		template.checkbox.domNode.setAttribute('aria-describedby', baseId + '_setting_description');
-
+		this.setElementAriaLabels(dataElement, SETTINGS_BOOL_TEMPLATE_ID, template);
 	}
 
 	private renderEnum(dataElement: SettingsTreeSettingElement, template: ISettingEnumItemTemplate, onChange: (value: string) => void): void {
@@ -1198,12 +1179,7 @@ export class SettingsRenderer implements ITreeRenderer {
 				isMarkdown: enumDescriptionsAreMarkdown
 			}));
 
-		const modifiedText = dataElement.isConfigured ? 'Modified' : '';
-
-		// Use ',.' as reader pause
-		const label = dataElement.displayCategory + ' ' + dataElement.displayLabel + ',. ' + modifiedText;
-		const baseId = (dataElement.displayCategory + '_' + dataElement.displayLabel).replace(/ /g, '_').toLowerCase();
-
+		const label = this.setElementAriaLabels(dataElement, SETTINGS_ENUM_TEMPLATE_ID, template);
 		template.selectBox.setAriaLabel(label);
 
 		const idx = dataElement.setting.enum.indexOf(dataElement.value);
@@ -1211,74 +1187,32 @@ export class SettingsRenderer implements ITreeRenderer {
 		template.selectBox.select(idx);
 		template.onChange = idx => onChange(dataElement.setting.enum[idx]);
 
-		if (template.controlElement.firstElementChild) {
-			// SelectBox needs to have treeitem changed to combobox to read correctly within tree
-			template.controlElement.firstElementChild.setAttribute('role', 'combobox');
-			template.controlElement.firstElementChild.setAttribute('aria-describedby', baseId + '_setting_description settings_aria_more_actions_shortcut_label');
-		}
-
 		template.enumDescriptionElement.innerHTML = '';
 	}
 
 	private renderText(dataElement: SettingsTreeSettingElement, template: ISettingTextItemTemplate, onChange: (value: string) => void): void {
-		const modifiedText = dataElement.isConfigured ? 'Modified' : '';
 
-		// Use ',.' as reader pause
-		const label = dataElement.displayCategory + ' ' + dataElement.displayLabel + ',. ' + modifiedText;
+		const label = this.setElementAriaLabels(dataElement, SETTINGS_TEXT_TEMPLATE_ID, template);
+
 		template.onChange = null;
 		template.inputBox.value = dataElement.value;
 		template.onChange = value => { renderValidations(dataElement, template, false, label); onChange(value); };
 
-		// Setup and add ARIA attributes
-		// Create id and label for control/input element - parent is wrapper div
-		const baseId = (dataElement.displayCategory + '_' + dataElement.displayLabel).replace(/ /g, '_').toLowerCase();
-
-		// We use the parent control div for the aria-labelledby target
-		// Does not appear you can use the direct label on the element itself within a tree
-		template.inputBox.inputElement.parentElement.id = baseId + '_setting_label';
-		template.inputBox.inputElement.parentElement.setAttribute('aria-label', label);
-
-		// Labels will not be read on descendent input elements of the parent treeitem
-		// unless defined as role=treeitem and indirect aria-labelledby approach
-		template.inputBox.inputElement.id = baseId + '_setting_item';
-		template.inputBox.inputElement.setAttribute('role', 'textbox');
-		template.inputBox.inputElement.setAttribute('aria-labelledby', baseId + '_setting_label');
-		template.inputBox.inputElement.setAttribute('aria-describedby', baseId + '_setting_description settings_aria_more_actions_shortcut_label');
-
 		renderValidations(dataElement, template, true, label);
 	}
 
-
 	private renderNumber(dataElement: SettingsTreeSettingElement, template: ISettingTextItemTemplate, onChange: (value: number) => void): void {
-		const modifiedText = dataElement.isConfigured ? 'Modified' : '';
-
-		// Use ',.' as reader pause
-		const label = dataElement.displayCategory + ' ' + dataElement.displayLabel + ' number,. ' + modifiedText;
 		const numParseFn = (dataElement.valueType === 'integer' || dataElement.valueType === 'nullable-integer')
 			? parseInt : parseFloat;
 
 		const nullNumParseFn = (dataElement.valueType === 'nullable-integer' || dataElement.valueType === 'nullable-number')
 			? (v => v === '' ? null : numParseFn(v)) : numParseFn;
 
+		const label = this.setElementAriaLabels(dataElement, SETTINGS_NUMBER_TEMPLATE_ID, template);
+
 		template.onChange = null;
 		template.inputBox.value = dataElement.value;
 		template.onChange = value => { renderValidations(dataElement, template, false, label); onChange(nullNumParseFn(value)); };
-
-		// Setup and add ARIA attributes
-		// Create id and label for control/input element - parent is wrapper div
-		const baseId = (dataElement.displayCategory + '_' + dataElement.displayLabel).replace(/ /g, '_').toLowerCase();
-
-		// We use the parent control div for the aria-labelledby target
-		// Does not appear you can use the direct label on the element itself within a tree
-		template.inputBox.inputElement.parentElement.id = baseId + '_setting_label';
-		template.inputBox.inputElement.parentElement.setAttribute('aria-label', label);
-
-		// Labels will not be read on descendent input elements of the parent treeitem
-		// unless defined as role=treeitem and indirect aria-labelledby approach
-		template.inputBox.inputElement.id = baseId + '_setting_item';
-		template.inputBox.inputElement.setAttribute('role', 'textbox');
-		template.inputBox.inputElement.setAttribute('aria-labelledby', baseId + '_setting_label');
-		template.inputBox.inputElement.setAttribute('aria-describedby', baseId + '_setting_description settings_aria_more_actions_shortcut_label');
 
 		renderValidations(dataElement, template, true, label);
 	}
@@ -1291,6 +1225,64 @@ export class SettingsRenderer implements ITreeRenderer {
 
 	private renderComplexSetting(dataElement: SettingsTreeSettingElement, template: ISettingComplexItemTemplate): void {
 		template.onChange = () => this._onDidOpenSettings.fire(dataElement.setting.key);
+	}
+
+
+	private setElementAriaLabels(dataElement: SettingsTreeSettingElement, templateId: string, template: ISettingItemTemplate): string {
+		// Create base Id for element references
+		const baseId = (dataElement.displayCategory + '_' + dataElement.displayLabel).replace(/ /g, '_').toLowerCase();
+
+		const modifiedText = template.otherOverridesElement.textContent ?
+			template.otherOverridesElement.textContent : (dataElement.isConfigured ? localize('settings.Modified', ' Modified. ') : '');
+
+		let itemElement = null;
+
+		// Use '.' as reader pause
+		let label = dataElement.displayCategory + ' ' + dataElement.displayLabel + '. ';
+
+		// Setup and add ARIA attributes
+		// Create id and label for control/input element - parent is wrapper div
+
+		if (templateId === SETTINGS_TEXT_TEMPLATE_ID) {
+			if (itemElement = (<ISettingTextItemTemplate>template).inputBox.inputElement) {
+				itemElement.setAttribute('role', 'textbox');
+				label += modifiedText;
+			}
+		} else if (templateId === SETTINGS_NUMBER_TEMPLATE_ID) {
+			if (itemElement = (<ISettingNumberItemTemplate>template).inputBox.inputElement) {
+				itemElement.setAttribute('role', 'textbox');
+				label += ' number. ' + modifiedText;
+			}
+		} else if (templateId === SETTINGS_BOOL_TEMPLATE_ID) {
+			if (itemElement = (<ISettingBoolItemTemplate>template).checkbox.domNode) {
+				itemElement.setAttribute('role', 'checkbox');
+				label += modifiedText;
+				// Add checkbox target to description clickable and able to toggle checkbox
+				template.descriptionElement.setAttribute('checkbox_label_target_id', baseId + '_setting_item');
+			}
+		} else if (templateId === SETTINGS_ENUM_TEMPLATE_ID) {
+			if (itemElement = template.controlElement.firstElementChild) {
+				itemElement.setAttribute('role', 'combobox');
+				label += modifiedText;
+			}
+		} else {
+			// Don't change attributes if we don't know what we areFunctions
+			return '';
+		}
+
+		// We don't have control element, return empty label
+		if (!itemElement) {
+			return '';
+		}
+
+		// Labels will not be read on descendent input elements of the parent treeitem
+		// unless defined as roles for input items
+		// voiceover does not seem to use labeledby correctly, set labels directly on input elements
+		itemElement.id = baseId + '_setting_item';
+		itemElement.setAttribute('aria-label', label);
+		itemElement.setAttribute('aria-describedby', baseId + '_setting_description settings_aria_more_actions_shortcut_label');
+
+		return label;
 	}
 
 	disposeTemplate(tree: ITree, templateId: string, template: IDisposableTemplate): void {
@@ -1429,6 +1421,9 @@ export class SettingsAccessibilityProvider implements IAccessibilityProvider {
 		}
 
 		if (element instanceof SettingsTreeSettingElement) {
+			if (element.valueType === 'boolean') {
+				return '';
+			}
 			return localize('settingRowAriaLabel', "{0} {1}, Setting", element.displayCategory, element.displayLabel);
 		}
 

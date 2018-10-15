@@ -36,7 +36,7 @@ export class VariablesView extends TreeViewsViewletPanel {
 
 	private static readonly MEMENTO = 'variablesview.memento';
 	private onFocusStackFrameScheduler: RunOnceScheduler;
-	private settings: any;
+	private viewState: object;
 	private expandedElements: any[];
 	private needsRefresh: boolean;
 	private treeContainer: HTMLElement;
@@ -51,7 +51,7 @@ export class VariablesView extends TreeViewsViewletPanel {
 	) {
 		super({ ...(options as IViewletPanelOptions), ariaHeaderLabel: nls.localize('variablesSection', "Variables Section") }, keybindingService, contextMenuService, configurationService);
 
-		this.settings = options.viewletSettings;
+		this.viewState = options.viewletState;
 		this.expandedElements = [];
 		// Use scheduler to prevent unnecessary flashing
 		this.onFocusStackFrameScheduler = new RunOnceScheduler(() => {
@@ -150,9 +150,10 @@ export class VariablesView extends TreeViewsViewletPanel {
 		});
 	}
 
-	public shutdown(): void {
-		this.settings[VariablesView.MEMENTO] = !this.isExpanded();
-		super.shutdown();
+	public saveState(): void {
+		this.viewState[VariablesView.MEMENTO] = !this.isExpanded();
+
+		super.saveState();
 	}
 }
 

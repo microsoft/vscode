@@ -25,6 +25,7 @@ import { TERMINAL_BACKGROUND_COLOR, TERMINAL_BORDER_COLOR } from 'vs/workbench/p
 import { DataTransfers } from 'vs/base/browser/dnd';
 import { INotificationService, IPromptChoice, Severity } from 'vs/platform/notification/common/notification';
 import { TerminalConfigHelper } from 'vs/workbench/parts/terminal/electron-browser/terminalConfigHelper';
+import { IStorageService } from 'vs/platform/storage/common/storage';
 
 const FIND_FOCUS_CLASS = 'find-focused';
 
@@ -46,9 +47,10 @@ export class TerminalPanel extends Panel {
 		@ITerminalService private readonly _terminalService: ITerminalService,
 		@IThemeService protected readonly _themeService: IThemeService,
 		@ITelemetryService telemetryService: ITelemetryService,
-		@INotificationService private readonly _notificationService: INotificationService
+		@INotificationService private readonly _notificationService: INotificationService,
+		@IStorageService storageService: IStorageService
 	) {
-		super(TERMINAL_PANEL_ID, telemetryService, _themeService);
+		super(TERMINAL_PANEL_ID, telemetryService, _themeService, storageService);
 	}
 
 	public create(parent: HTMLElement): Promise<any> {

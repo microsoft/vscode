@@ -16,7 +16,7 @@ suite('TextModelSearch', () => {
 
 	const usualWordSeparators = getMapForWordSeparators(USUAL_WORD_SEPARATORS);
 
-	function assertFindMatch(actual: FindMatch, expectedRange: Range, expectedMatches: string[] = null): void {
+	function assertFindMatch(actual: FindMatch, expectedRange: Range, expectedMatches: string[] | null = null): void {
 		assert.deepEqual(actual, new FindMatch(expectedRange, expectedMatches));
 	}
 

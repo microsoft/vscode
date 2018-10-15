@@ -24,11 +24,11 @@ abstract class CommentLineAction extends EditorAction {
 	}
 
 	public run(accessor: ServicesAccessor, editor: ICodeEditor): void {
-		let model = editor.getModel();
-		if (!model) {
+		if (!editor.hasModel()) {
 			return;
 		}
 
+		let model = editor.getModel();
 		let commands: ICommand[] = [];
 		let selections = editor.getSelections();
 		let opts = model.getOptions();
@@ -122,9 +122,12 @@ class BlockCommentAction extends EditorAction {
 	}
 
 	public run(accessor: ServicesAccessor, editor: ICodeEditor): void {
+		if (!editor.hasModel()) {
+			return;
+		}
+
 		let commands: ICommand[] = [];
 		let selections = editor.getSelections();
-
 		for (let i = 0; i < selections.length; i++) {
 			commands.push(new BlockCommentCommand(selections[i]));
 		}

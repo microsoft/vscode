@@ -355,7 +355,7 @@ export class LoadedScriptsView extends TreeViewsViewletPanel {
 
 	private treeContainer: HTMLElement;
 	private loadedScriptsItemType: IContextKey<string>;
-	private settings: any;
+	private viewState: object;
 
 	constructor(
 		options: IViewletViewOptions,
@@ -370,7 +370,7 @@ export class LoadedScriptsView extends TreeViewsViewletPanel {
 		@IDebugService private debugService: IDebugService
 	) {
 		super({ ...(options as IViewletPanelOptions), ariaHeaderLabel: nls.localize('loadedScriptsSection', "Loaded Scripts Section") }, keybindingService, contextMenuService, configurationService);
-		this.settings = options.viewletSettings;
+		this.viewState = options.viewletState;
 		this.loadedScriptsItemType = CONTEXT_LOADED_SCRIPTS_ITEM_TYPE.bindTo(contextKeyService);
 	}
 
@@ -464,9 +464,10 @@ export class LoadedScriptsView extends TreeViewsViewletPanel {
 		super.layoutBody(size);
 	}
 
-	public shutdown(): void {
-		this.settings[LoadedScriptsView.MEMENTO] = !this.isExpanded();
-		super.shutdown();
+	public saveState(): void {
+		this.viewState[LoadedScriptsView.MEMENTO] = !this.isExpanded();
+
+		super.saveState();
 	}
 
 	dispose(): void {

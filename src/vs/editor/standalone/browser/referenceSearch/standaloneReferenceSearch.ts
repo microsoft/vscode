@@ -32,7 +32,7 @@ export class StandaloneReferencesController extends ReferencesController {
 			notificationService,
 			instantiationService,
 			storageService,
-			configurationService,
+			configurationService
 		);
 	}
 }

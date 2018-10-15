@@ -37,7 +37,9 @@ exports.enableASARSupport = function (nodeModulesPath) {
 
 	const NODE_MODULES_ASAR_PATH = NODE_MODULES_PATH + '.asar';
 
+	// @ts-ignore
 	const originalResolveLookupPaths = Module._resolveLookupPaths;
+	// @ts-ignore
 	Module._resolveLookupPaths = function (request, parent, newReturn) {
 		const result = originalResolveLookupPaths(request, parent, newReturn);
 
@@ -225,6 +227,7 @@ exports.configurePortable = function () {
  * This should be called before importing the applicationinsights module
  */
 exports.avoidMonkeyPatchFromAppInsights = function () {
+	// @ts-ignore
 	process.env['APPLICATION_INSIGHTS_NO_DIAGNOSTIC_CHANNEL'] = true; // Skip monkey patching of 3rd party modules by appinsights
 	global['diagnosticsSource'] = {}; // Prevents diagnostic channel (which patches "require") from initializing entirely
 };

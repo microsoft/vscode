@@ -63,7 +63,7 @@ function getSortData(model: ITextModel, selection: Selection, descending: boolea
 		return null;
 	}
 
-	let linesToSort = [];
+	let linesToSort: string[] = [];
 
 	// Get the contents of the selection to be sorted.
 	for (let lineNumber = startLineNumber; lineNumber <= endLineNumber; lineNumber++) {
@@ -91,7 +91,7 @@ function getSortData(model: ITextModel, selection: Selection, descending: boolea
 /**
  * Generate commands for sorting lines on a model.
  */
-function sortLines(model: ITextModel, selection: Selection, descending: boolean): IIdentifiedSingleEditOperation {
+function sortLines(model: ITextModel, selection: Selection, descending: boolean): IIdentifiedSingleEditOperation | null {
 	let data = getSortData(model, selection, descending);
 
 	if (!data) {

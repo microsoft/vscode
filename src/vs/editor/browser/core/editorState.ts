@@ -19,9 +19,9 @@ export class EditorState {
 
 	private readonly flags: number;
 
-	private readonly position: Position;
-	private readonly selection: Range;
-	private readonly modelVersionId: string;
+	private readonly position: Position | null;
+	private readonly selection: Range | null;
+	private readonly modelVersionId: string | null;
 	private readonly scrollLeft: number;
 	private readonly scrollTop: number;
 
@@ -74,7 +74,7 @@ export class EditorState {
 export class StableEditorScrollState {
 
 	public static capture(editor: ICodeEditor): StableEditorScrollState {
-		let visiblePosition: Position = null;
+		let visiblePosition: Position | null = null;
 		let visiblePositionScrollDelta = 0;
 		if (editor.getScrollTop() !== 0) {
 			const visibleRanges = editor.getVisibleRanges();
@@ -88,7 +88,7 @@ export class StableEditorScrollState {
 	}
 
 	constructor(
-		private readonly _visiblePosition: Position,
+		private readonly _visiblePosition: Position | null,
 		private readonly _visiblePositionScrollDelta: number
 	) {
 	}

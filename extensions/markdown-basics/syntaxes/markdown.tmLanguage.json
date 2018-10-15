@@ -4,7 +4,7 @@
 		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
 		"Once accepted there, we are happy to receive an update request."
 	],
-	"version": "https://github.com/microsoft/vscode-markdown-tm-grammar/commit/0bd394a33046eeb204a9ebebdffb113d39587591",
+	"version": "https://github.com/microsoft/vscode-markdown-tm-grammar/commit/ee6a11d0bbbe8ef6bcf8e664f446c00fb14212f2",
 	"name": "Markdown",
 	"scopeName": "text.html.markdown",
 	"patterns": [
@@ -2469,7 +2469,7 @@
 						"2": {
 							"name": "string.other.link.title.markdown"
 						},
-						"4": {
+						"3": {
 							"name": "punctuation.definition.string.end.markdown"
 						}
 					},

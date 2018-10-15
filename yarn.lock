@@ -5848,7 +5848,7 @@ mute-stream@0.0.7, mute-stream@~0.0.4:
   resolved "https://registry.yarnpkg.com/mute-stream/-/mute-stream-0.0.7.tgz#3075ce93bc21b8fab43e1bc4da7e8115ed1e7bab"
   integrity sha1-MHXOk7whuPq0PhvE2n6BFe0ee6s=
 
-nan@2.10.0, nan@^2.9.2:
+nan@2.10.0, nan@^2.9.2, nan@~2.10.0:
   version "2.10.0"
   resolved "https://registry.yarnpkg.com/nan/-/nan-2.10.0.tgz#96d0cd610ebd58d4b4de9cc0c6828cda99c7548f"
   integrity sha512-bAdJv7fBLhWC+/Bls0Oza+mvTaNQtP+1RyhhhvD95pgUJz6XM5IzgmxOkItJ9tkoCiplvAnXI1tNmmUD/eScyA==
@@ -9350,6 +9350,13 @@ vscode-ripgrep@^1.2.2:
   resolved "https://registry.yarnpkg.com/vscode-ripgrep/-/vscode-ripgrep-1.2.2.tgz#c21b91bb558638a7124fe3d9719b2666b12dbfdc"
   integrity sha512-rPbCj4LUnPzivezk3pC94G5sB17HbayjV9mSvNTDYFg5llHN/XozAmkoDOC0KG9UveuQ71MADX1//CeHtUTmZw==
 
+vscode-sqlite3@4.0.2:
+  version "4.0.2"
+  resolved "https://registry.yarnpkg.com/vscode-sqlite3/-/vscode-sqlite3-4.0.2.tgz#35389b7ee973f7ba6a8e57cbbdde1608ffc6d60c"
+  integrity sha512-QuXKvwtkjsQgIlU2mDhkp+pNIpwKY99MNwE4PJTOFkck7dtfwnYQwLvuuJ666a2QMDMqCEKYHG5+0bhrGh+gZg==
+  dependencies:
+    nan "~2.10.0"
+
 vscode-textmate@^4.0.1:
   version "4.0.1"
   resolved "https://registry.yarnpkg.com/vscode-textmate/-/vscode-textmate-4.0.1.tgz#6c36f28e9059ce12bc34907f7a33ea43166b26a8"
@@ -9357,10 +9364,10 @@ vscode-textmate@^4.0.1:
   dependencies:
     oniguruma "^7.0.0"
 
-vscode-xterm@3.9.0-beta6:
-  version "3.9.0-beta6"
-  resolved "https://registry.yarnpkg.com/vscode-xterm/-/vscode-xterm-3.9.0-beta6.tgz#1a3a3897c721fa3bb56c04a885083c265dc7e52c"
-  integrity sha512-XguLjW9NvYfORqfaNPU0BgKfCLD3HDLBqiCd8rwxtm3nB++0sfcO5CZBfKma0V2z4YgfBM986G8R1FNWqle30A==
+vscode-xterm@3.9.0-beta7:
+  version "3.9.0-beta7"
+  resolved "https://registry.yarnpkg.com/vscode-xterm/-/vscode-xterm-3.9.0-beta7.tgz#435b929001354309c25e330cc187785add938c8e"
+  integrity sha512-UTDnACoqpQbAzzxBfwZf+sWsUxcJ+t2CHprGJ5gjXEnI6soNB3C/MFEnASMjkz0FttQafVvDMu9vhByH5xTvjg==
 
 vso-node-api@6.1.2-preview:
   version "6.1.2-preview"

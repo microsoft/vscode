@@ -157,7 +157,7 @@ export function fileExists(path: string): Promise<boolean> {
 /**
  * Deletes a path from disk.
  */
-let _tmpDir: string = null;
+let _tmpDir: string | null = null;
 function getTmpDir(): string {
 	if (!_tmpDir) {
 		_tmpDir = os.tmpdir();

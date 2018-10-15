@@ -9,8 +9,8 @@ import { Range } from 'vs/editor/common/core/range';
 import { Position } from 'vs/editor/common/core/position';
 
 export interface IViewLines {
-	linesVisibleRangesForRange(range: Range, includeNewLines: boolean): LineVisibleRanges[];
-	visibleRangeForPosition(position: Position): HorizontalRange;
+	linesVisibleRangesForRange(range: Range, includeNewLines: boolean): LineVisibleRanges[] | null;
+	visibleRangeForPosition(position: Position): HorizontalRange | null;
 }
 
 export abstract class RestrictedRenderingContext {
@@ -73,11 +73,11 @@ export class RenderingContext extends RestrictedRenderingContext {
 		this._viewLines = viewLines;
 	}
 
-	public linesVisibleRangesForRange(range: Range, includeNewLines: boolean): LineVisibleRanges[] {
+	public linesVisibleRangesForRange(range: Range, includeNewLines: boolean): LineVisibleRanges[] | null {
 		return this._viewLines.linesVisibleRangesForRange(range, includeNewLines);
 	}
 
-	public visibleRangeForPosition(position: Position): HorizontalRange {
+	public visibleRangeForPosition(position: Position): HorizontalRange | null {
 		return this._viewLines.visibleRangeForPosition(position);
 	}
 }

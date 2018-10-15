@@ -111,7 +111,7 @@ class LinkOccurrence {
 	}
 
 	private static _getOptions(link: Link, useMetaKey: boolean, isActive: boolean): ModelDecorationOptions {
-		if (/^command:/i.test(link.url)) {
+		if (link.url && /^command:/i.test(link.url)) {
 			if (useMetaKey) {
 				return (isActive ? decoration.metaCommandActive : decoration.metaCommand);
 			} else {
@@ -157,8 +157,8 @@ class LinkDetector implements editorCommon.IEditorContribution {
 	private enabled: boolean;
 	private listenersToRemove: IDisposable[];
 	private timeout: async.TimeoutTimer;
-	private computePromise: async.CancelablePromise<Link[]>;
-	private activeLinkDecorationId: string;
+	private computePromise: async.CancelablePromise<Link[]> | null;
+	private activeLinkDecorationId: string | null;
 	private openerService: IOpenerService;
 	private notificationService: INotificationService;
 	private currentOccurrences: { [decorationId: string]: LinkOccurrence; };
@@ -236,15 +236,17 @@ class LinkDetector implements editorCommon.IEditorContribution {
 	}
 
 	private async beginCompute(): Promise<void> {
-		if (!this.editor.getModel() || !this.enabled) {
+		if (!this.editor.hasModel() || !this.enabled) {
 			return;
 		}
 
-		if (!LinkProviderRegistry.has(this.editor.getModel())) {
+		const model = this.editor.getModel();
+
+		if (!LinkProviderRegistry.has(model)) {
 			return;
 		}
 
-		this.computePromise = async.createCancelablePromise(token => getLinks(this.editor.getModel(), token));
+		this.computePromise = async.createCancelablePromise(token => getLinks(model, token));
 		try {
 			const links = await this.computePromise;
 			this.updateDecorations(links);
@@ -283,11 +285,11 @@ class LinkDetector implements editorCommon.IEditorContribution {
 		}
 	}
 
-	private _onEditorMouseMove(mouseEvent: ClickLinkMouseEvent, withKey?: ClickLinkKeyboardEvent): void {
+	private _onEditorMouseMove(mouseEvent: ClickLinkMouseEvent, withKey: ClickLinkKeyboardEvent | null): void {
 		const useMetaKey = (this.editor.getConfiguration().multiCursorModifier === 'altKey');
 		if (this.isEnabled(mouseEvent, withKey)) {
 			this.cleanUpActiveLinkDecoration(); // always remove previous link decoration as their can only be one
-			const occurrence = this.getLinkOccurrence(mouseEvent.target.position);
+			const occurrence = this.getLinkOccurrence(mouseEvent.target!.position);
 			if (occurrence) {
 				this.editor.changeDecorations((changeAccessor) => {
 					occurrence.activate(changeAccessor, useMetaKey);
@@ -317,7 +319,7 @@ class LinkDetector implements editorCommon.IEditorContribution {
 		if (!this.isEnabled(mouseEvent)) {
 			return;
 		}
-		const occurrence = this.getLinkOccurrence(mouseEvent.target.position);
+		const occurrence = this.getLinkOccurrence(mouseEvent.target!.position);
 		if (!occurrence) {
 			return;
 		}
@@ -348,7 +350,10 @@ class LinkDetector implements editorCommon.IEditorContribution {
 		});
 	}
 
-	public getLinkOccurrence(position: Position): LinkOccurrence {
+	public getLinkOccurrence(position: Position | null): LinkOccurrence | null {
+		if (!this.editor.hasModel() || !position) {
+			return null;
+		}
 		const decorations = this.editor.getModel().getDecorationsInRange({
 			startLineNumber: position.lineNumber,
 			startColumn: position.column,
@@ -367,9 +372,9 @@ class LinkDetector implements editorCommon.IEditorContribution {
 		return null;
 	}
 
-	private isEnabled(mouseEvent: ClickLinkMouseEvent, withKey?: ClickLinkKeyboardEvent): boolean {
-		return (
-			mouseEvent.target.type === MouseTargetType.CONTENT_TEXT
+	private isEnabled(mouseEvent: ClickLinkMouseEvent, withKey?: ClickLinkKeyboardEvent | null): boolean {
+		return Boolean(
+			(mouseEvent.target && mouseEvent.target.type === MouseTargetType.CONTENT_TEXT)
 			&& (mouseEvent.hasTriggerModifier || (withKey && withKey.keyCodeIsTriggerKey))
 		);
 	}
@@ -403,6 +408,9 @@ class OpenLinkAction extends EditorAction {
 	public run(accessor: ServicesAccessor, editor: ICodeEditor): void {
 		let linkDetector = LinkDetector.get(editor);
 		if (!linkDetector) {
+			return;
+		}
+		if (!editor.hasModel()) {
 			return;
 		}
 

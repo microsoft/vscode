@@ -26,11 +26,15 @@ export interface ILinePreflightData {
 	commentStrLength: number;
 }
 
-export interface IPreflightData {
-	supported: boolean;
+export interface IPreflightDataSupported {
+	supported: true;
 	shouldRemoveComments: boolean;
 	lines: ILinePreflightData[];
 }
+export interface IPreflightDataUnsupported {
+	supported: false;
+}
+export type IPreflightData = IPreflightDataSupported | IPreflightDataUnsupported;
 
 export interface ISimpleModel {
 	getLineContent(lineNumber: number): string;
@@ -62,7 +66,7 @@ export class LineCommentCommand implements editorCommon.ICommand {
 	 * Do an initial pass over the lines and gather info about the line comment string.
 	 * Returns null if any of the lines doesn't support a line comment string.
 	 */
-	public static _gatherPreflightCommentStrings(model: ITextModel, startLineNumber: number, endLineNumber: number): ILinePreflightData[] {
+	public static _gatherPreflightCommentStrings(model: ITextModel, startLineNumber: number, endLineNumber: number): ILinePreflightData[] | null {
 
 		model.tokenizeIfCheap(startLineNumber);
 		const languageId = model.getLanguageIdAtPosition(startLineNumber, 1);
@@ -170,9 +174,7 @@ export class LineCommentCommand implements editorCommon.ICommand {
 		const lines = LineCommentCommand._gatherPreflightCommentStrings(model, startLineNumber, endLineNumber);
 		if (lines === null) {
 			return {
-				supported: false,
-				shouldRemoveComments: false,
-				lines: null
+				supported: false
 			};
 		}
 
@@ -182,7 +184,7 @@ export class LineCommentCommand implements editorCommon.ICommand {
 	/**
 	 * Given a successful analysis, execute either insert line comments, either remove line comments
 	 */
-	private _executeLineComments(model: ISimpleModel, builder: editorCommon.IEditOperationBuilder, data: IPreflightData, s: Selection): void {
+	private _executeLineComments(model: ISimpleModel, builder: editorCommon.IEditOperationBuilder, data: IPreflightDataSupported, s: Selection): void {
 
 		let ops: IIdentifiedSingleEditOperation[];
 
@@ -200,7 +202,7 @@ export class LineCommentCommand implements editorCommon.ICommand {
 			if (ops[i].range.isEmpty() && ops[i].range.getStartPosition().equals(cursorPosition)) {
 				const lineContent = model.getLineContent(cursorPosition.lineNumber);
 				if (lineContent.length + 1 === cursorPosition.column) {
-					this._deltaColumn = ops[i].text.length;
+					this._deltaColumn = (ops[i].text || '').length;
 				}
 			}
 		}
@@ -208,7 +210,7 @@ export class LineCommentCommand implements editorCommon.ICommand {
 		this._selectionId = builder.trackSelection(s);
 	}
 
-	private _attemptRemoveBlockComment(model: ITextModel, s: Selection, startToken: string, endToken: string): IIdentifiedSingleEditOperation[] {
+	private _attemptRemoveBlockComment(model: ITextModel, s: Selection, startToken: string, endToken: string): IIdentifiedSingleEditOperation[] | null {
 		let startLineNumber = s.startLineNumber;
 		let endLineNumber = s.endLineNumber;
 

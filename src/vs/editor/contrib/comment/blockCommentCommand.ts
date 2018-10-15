@@ -8,14 +8,14 @@ import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
 import * as editorCommon from 'vs/editor/common/editorCommon';
-import { ICommentsConfiguration, LanguageConfigurationRegistry } from 'vs/editor/common/modes/languageConfigurationRegistry';
+import { LanguageConfigurationRegistry } from 'vs/editor/common/modes/languageConfigurationRegistry';
 import { CharCode } from 'vs/base/common/charCode';
 import { ITextModel, IIdentifiedSingleEditOperation } from 'vs/editor/common/model';
 
 export class BlockCommentCommand implements editorCommon.ICommand {
 
 	private _selection: Selection;
-	private _usedEndToken: string;
+	private _usedEndToken: string | null;
 
 	constructor(selection: Selection) {
 		this._selection = selection;
@@ -53,7 +53,7 @@ export class BlockCommentCommand implements editorCommon.ICommand {
 		return true;
 	}
 
-	private _createOperationsForBlockComment(selection: Range, config: ICommentsConfiguration, model: ITextModel, builder: editorCommon.IEditOperationBuilder): void {
+	private _createOperationsForBlockComment(selection: Range, startToken: string, endToken: string, model: ITextModel, builder: editorCommon.IEditOperationBuilder): void {
 		const startLineNumber = selection.startLineNumber;
 		const startColumn = selection.startColumn;
 		const endLineNumber = selection.endLineNumber;
@@ -61,9 +61,6 @@ export class BlockCommentCommand implements editorCommon.ICommand {
 
 		const startLineText = model.getLineContent(startLineNumber);
 		const endLineText = model.getLineContent(endLineNumber);
-
-		let startToken = config.blockCommentStartToken;
-		let endToken = config.blockCommentEndToken;
 
 		let startTokenIndex = startLineText.lastIndexOf(startToken, startColumn - 1 + startToken.length);
 		let endTokenIndex = endLineText.indexOf(endToken, endColumn - 1 - endToken.length);
@@ -179,9 +176,7 @@ export class BlockCommentCommand implements editorCommon.ICommand {
 			return;
 		}
 
-		this._createOperationsForBlockComment(
-			this._selection, config, model, builder
-		);
+		this._createOperationsForBlockComment(this._selection, config.blockCommentStartToken, config.blockCommentEndToken, model, builder);
 	}
 
 	public computeCursorState(model: ITextModel, helper: editorCommon.ICursorStateComputerData): Selection {

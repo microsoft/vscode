@@ -351,7 +351,7 @@ export class ReplExpressionsActionProvider implements IActionProvider {
 
 export class ReplExpressionsController extends BaseDebugController {
 
-	private lastSelectedString: string = null;
+	private lastSelectedString: string | null = null;
 	public toFocusOnClick: { focus(): void };
 
 	protected onLeftClick(tree: ITree, element: any, eventish: ICancelableEvent, origin: string = 'mouse'): boolean {

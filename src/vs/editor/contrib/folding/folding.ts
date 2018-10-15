@@ -10,7 +10,6 @@ import { escapeRegExpCharacters } from 'vs/base/common/strings';
 import { RunOnceScheduler, Delayer, CancelablePromise, createCancelablePromise } from 'vs/base/common/async';
 import { KeyCode, KeyMod, KeyChord } from 'vs/base/common/keyCodes';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
-import { TPromise } from 'vs/base/common/winjs.base';
 import { ScrollType, IEditorContribution } from 'vs/editor/common/editorCommon';
 import { ITextModel } from 'vs/editor/common/model';
 import { registerEditorAction, registerEditorContribution, ServicesAccessor, EditorAction, registerInstantiatedEditorAction } from 'vs/editor/browser/editorExtensions';
@@ -71,7 +70,7 @@ export class FoldingController implements IEditorContribution {
 
 	private foldingStateMemento: FoldingStateMemento;
 
-	private foldingModelPromise: TPromise<FoldingModel>;
+	private foldingModelPromise: Thenable<FoldingModel>;
 	private updateScheduler: Delayer<FoldingModel>;
 
 	private globalToDispose: IDisposable[];
@@ -262,7 +261,7 @@ export class FoldingController implements IEditorContribution {
 					return null;
 				}
 				let foldingRegionPromise = this.foldingRegionPromise = createCancelablePromise(token => this.getRangeProvider(this.foldingModel.textModel).compute(token));
-				return TPromise.wrap(foldingRegionPromise.then(foldingRanges => {
+				return foldingRegionPromise.then(foldingRanges => {
 					if (foldingRanges && foldingRegionPromise === this.foldingRegionPromise) { // new request or cancelled in the meantime?
 						// some cursors might have moved into hidden regions, make sure they are in expanded regions
 						let selections = this.editor.getSelections();
@@ -270,7 +269,7 @@ export class FoldingController implements IEditorContribution {
 						this.foldingModel.update(foldingRanges, selectionLineNumbers);
 					}
 					return this.foldingModel;
-				}));
+				});
 			});
 		}
 	}
@@ -418,7 +417,7 @@ abstract class FoldingAction<T> extends EditorAction {
 
 	abstract invoke(foldingController: FoldingController, foldingModel: FoldingModel, editor: ICodeEditor, args: T): void;
 
-	public runEditorCommand(accessor: ServicesAccessor, editor: ICodeEditor, args: T): void | TPromise<void> {
+	public runEditorCommand(accessor: ServicesAccessor, editor: ICodeEditor, args: T): void | Thenable<void> {
 		let foldingController = FoldingController.get(editor);
 		if (!foldingController) {
 			return;

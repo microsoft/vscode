@@ -207,7 +207,7 @@ export class ExperimentService extends Disposable implements IExperimentService 
 			if (Array.isArray(allExperimentIdsFromStorage)) {
 				allExperimentIdsFromStorage.forEach(experiment => {
 					if (enabledExperiments.indexOf(experiment) === -1) {
-						this.storageService.remove('experiments.' + experiment);
+						this.storageService.remove(`experiments.${experiment}`, StorageScope.GLOBAL);
 					}
 				});
 			}
@@ -255,7 +255,7 @@ export class ExperimentService extends Disposable implements IExperimentService 
 
 				return this.shouldRunExperiment(experiment, processedExperiment).then((state: ExperimentState) => {
 					experimentState.state = processedExperiment.state = state;
-					this.storageService.store(storageKey, JSON.stringify(experimentState));
+					this.storageService.store(storageKey, JSON.stringify(experimentState), StorageScope.GLOBAL);
 
 					if (state === ExperimentState.Run) {
 						this.fireRunExperiment(processedExperiment);
@@ -280,7 +280,7 @@ export class ExperimentService extends Disposable implements IExperimentService 
 		const runExperimentIdsFromStorage: string[] = safeParse(this.storageService.get('currentOrPreviouslyRunExperiments', StorageScope.GLOBAL), []);
 		if (runExperimentIdsFromStorage.indexOf(experiment.id)) {
 			runExperimentIdsFromStorage.push(experiment.id);
-			this.storageService.store('currentOrPreviouslyRunExperiments', JSON.stringify(runExperimentIdsFromStorage));
+			this.storageService.store('currentOrPreviouslyRunExperiments', JSON.stringify(runExperimentIdsFromStorage), StorageScope.GLOBAL);
 		}
 	}
 

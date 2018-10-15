@@ -11,7 +11,7 @@ import { Position } from 'vs/editor/common/core/position';
 import { IEditorContribution } from 'vs/editor/common/editorCommon';
 import { ITextModel } from 'vs/editor/common/model';
 import { registerEditorAction, registerEditorContribution, EditorAction, ServicesAccessor } from 'vs/editor/browser/editorExtensions';
-import { ICodeEditor, ContentWidgetPositionPreference, IContentWidget, IContentWidgetPosition } from 'vs/editor/browser/editorBrowser';
+import { ICodeEditor, ContentWidgetPositionPreference, IContentWidget, IContentWidgetPosition, IActiveCodeEditor } from 'vs/editor/browser/editorBrowser';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { TokenizationRegistry, LanguageIdentifier, FontStyle, StandardTokenType, ITokenizationSupport, IState, TokenMetadata } from 'vs/editor/common/modes';
 import { CharCode } from 'vs/base/common/charCode';
@@ -32,9 +32,8 @@ class InspectTokensController extends Disposable implements IEditorContribution 
 	}
 
 	private _editor: ICodeEditor;
-	private _standaloneThemeService: IStandaloneThemeService;
 	private _modeService: IModeService;
-	private _widget: InspectTokensWidget;
+	private _widget: InspectTokensWidget | null;
 
 	constructor(
 		editor: ICodeEditor,
@@ -43,7 +42,6 @@ class InspectTokensController extends Disposable implements IEditorContribution 
 	) {
 		super();
 		this._editor = editor;
-		this._standaloneThemeService = standaloneColorService;
 		this._modeService = modeService;
 		this._widget = null;
 
@@ -65,10 +63,10 @@ class InspectTokensController extends Disposable implements IEditorContribution 
 		if (this._widget) {
 			return;
 		}
-		if (!this._editor.getModel()) {
+		if (!this._editor.hasModel()) {
 			return;
 		}
-		this._widget = new InspectTokensWidget(this._editor, this._standaloneThemeService, this._modeService);
+		this._widget = new InspectTokensWidget(this._editor, this._modeService);
 	}
 
 	public stop(): void {
@@ -164,15 +162,14 @@ class InspectTokensWidget extends Disposable implements IContentWidget {
 	// Editor.IContentWidget.allowEditorOverflow
 	public allowEditorOverflow = true;
 
-	private _editor: ICodeEditor;
+	private _editor: IActiveCodeEditor;
 	private _modeService: IModeService;
 	private _tokenizationSupport: ITokenizationSupport;
 	private _model: ITextModel;
 	private _domNode: HTMLElement;
 
 	constructor(
-		editor: ICodeEditor,
-		standaloneThemeService: IStandaloneThemeService,
+		editor: IActiveCodeEditor,
 		modeService: IModeService
 	) {
 		super();
@@ -249,14 +246,14 @@ class InspectTokensWidget extends Disposable implements IContentWidget {
 	}
 
 	private _decodeMetadata(metadata: number): IDecodedMetadata {
-		let colorMap = TokenizationRegistry.getColorMap();
+		let colorMap = TokenizationRegistry.getColorMap()!;
 		let languageId = TokenMetadata.getLanguageId(metadata);
 		let tokenType = TokenMetadata.getTokenType(metadata);
 		let fontStyle = TokenMetadata.getFontStyle(metadata);
 		let foreground = TokenMetadata.getForeground(metadata);
 		let background = TokenMetadata.getBackground(metadata);
 		return {
-			languageIdentifier: this._modeService.getLanguageIdentifier(languageId),
+			languageIdentifier: this._modeService.getLanguageIdentifier(languageId)!,
 			tokenType: tokenType,
 			fontStyle: fontStyle,
 			foreground: colorMap[foreground],

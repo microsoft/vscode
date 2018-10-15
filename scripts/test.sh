@@ -28,9 +28,6 @@ test -d node_modules || yarn
 # Get electron
 node build/lib/electron.js || ./node_modules/.bin/gulp electron
 
-# Pretest
-yarn strict-null-check
-
 # Unit Tests
 if [[ "$OSTYPE" == "darwin"* ]]; then
 	cd $ROOT ; ulimit -n 4096 ; \

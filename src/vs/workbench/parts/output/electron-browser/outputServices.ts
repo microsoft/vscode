@@ -461,8 +461,8 @@ export class OutputService extends Disposable implements IOutputService, ITextMo
 		}
 		this._register(registry.onDidRegisterChannel(this.onDidRegisterChannel, this));
 
-		panelService.onDidPanelOpen(this.onDidPanelOpen, this);
-		panelService.onDidPanelClose(this.onDidPanelClose, this);
+		this._register(panelService.onDidPanelOpen(this.onDidPanelOpen, this));
+		this._register(panelService.onDidPanelClose(this.onDidPanelClose, this));
 
 		// Set active channel to first channel if not set
 		if (!this.activeChannel) {
@@ -470,7 +470,8 @@ export class OutputService extends Disposable implements IOutputService, ITextMo
 			this.activeChannel = channels && channels.length > 0 ? this.getChannel(channels[0].id) : null;
 		}
 
-		this.lifecycleService.onShutdown(() => this.onShutdown());
+		this._register(this.lifecycleService.onShutdown(() => this.dispose()));
+		this._register(this.storageService.onWillSaveState(() => this.saveState()));
 	}
 
 	provideTextContent(resource: URI): TPromise<ITextModel> {
@@ -633,11 +634,10 @@ export class OutputService extends Disposable implements IOutputService, ITextMo
 		return this.instantiationService.createInstance(ResourceEditorInput, nls.localize('output', "{0} - Output", channel.label), nls.localize('channel', "Output channel for '{0}'", channel.label), resource);
 	}
 
-	onShutdown(): void {
+	private saveState(): void {
 		if (this.activeChannel) {
 			this.storageService.store(OUTPUT_ACTIVE_CHANNEL_KEY, this.activeChannel.id, StorageScope.WORKSPACE);
 		}
-		this.dispose();
 	}
 }
 
@@ -681,7 +681,7 @@ class BufferredOutputChannel extends Disposable implements OutputChannel {
 
 	readonly id: string;
 	readonly label: string;
-	readonly file: URI = null;
+	readonly file: URI | null = null;
 	scrollLock: boolean = false;
 
 	protected _onDidAppendedContent: Emitter<void> = new Emitter<void>();
