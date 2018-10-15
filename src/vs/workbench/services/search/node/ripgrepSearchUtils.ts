@@ -5,6 +5,7 @@
 
 import { startsWith } from 'vs/base/common/strings';
 import { ILogService } from 'vs/platform/log/common/log';
+import { SearchRange, TextSearchResult } from 'vs/platform/search/common/search';
 import * as vscode from 'vscode';
 
 export type Maybe<T> = T | null | undefined;
@@ -13,29 +14,23 @@ export function anchorGlob(glob: string): string {
 	return startsWith(glob, '**') || startsWith(glob, '/') ? glob : `/${glob}`;
 }
 
-export function createTextSearchResult(uri: vscode.Uri, fullText: string, range: Range, previewOptions?: vscode.TextSearchPreviewOptions): vscode.TextSearchResult {
-	let preview: vscode.TextSearchResultPreview;
-	if (previewOptions) {
-		const leadingChars = Math.floor(previewOptions.charsPerLine / 5);
-		const previewStart = Math.max(range.start.character - leadingChars, 0);
-		const previewEnd = previewOptions.charsPerLine + previewStart;
-		const endOfMatchRangeInPreview = Math.min(previewEnd, range.end.character - previewStart);
+export function createTextSearchResult(uri: vscode.Uri, text: string, range: Range, previewOptions?: vscode.TextSearchPreviewOptions): vscode.TextSearchResult {
+	const searchRange: SearchRange = {
+		startLineNumber: range.start.line,
+		startColumn: range.start.character,
+		endLineNumber: range.end.line,
+		endColumn: range.end.character,
+	};
 
-		preview = {
-			text: fullText.substring(previewStart, previewEnd),
-			match: new Range(0, range.start.character - previewStart, 0, endOfMatchRangeInPreview)
-		};
-	} else {
-		preview = {
-			text: fullText,
-			match: new Range(0, range.start.character, 0, range.end.character)
-		};
-	}
-
-	return <vscode.TextSearchResult>{
+	const internalResult = new TextSearchResult(text, searchRange, previewOptions);
+	const internalPreviewRange = internalResult.preview.match;
+	return {
+		range: new Range(internalResult.range.startLineNumber, internalResult.range.startColumn, internalResult.range.endLineNumber, internalResult.range.endColumn),
 		uri,
-		range,
-		preview
+		preview: {
+			text: internalResult.preview.text,
+			match: new Range(internalPreviewRange.startLineNumber, internalPreviewRange.startColumn, internalPreviewRange.endLineNumber, internalPreviewRange.endColumn),
+		}
 	};
 }
 
