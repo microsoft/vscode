@@ -236,7 +236,6 @@ export interface IWindowSettings {
 	nativeTabs: boolean;
 	enableMenuBarMnemonics: boolean;
 	closeWhenEmpty: boolean;
-	smoothScrollingWorkaround: boolean;
 	clickThroughInactive: boolean;
 }
 
