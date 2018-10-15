@@ -1328,10 +1328,13 @@ class TaskService extends Disposable implements ITaskService {
 				};
 				let error = (error: any) => {
 					try {
-						if (Types.isString(error.message)) {
+						if (error && Types.isString(error.message)) {
 							this._outputChannel.append('Error: ');
 							this._outputChannel.append(error.message);
 							this._outputChannel.append('\n');
+							this.outputService.showChannel(this._outputChannel.id, true);
+						} else {
+							this._outputChannel.append('Unknown error received while collecting tasks from providers.\n');
 							this.outputService.showChannel(this._outputChannel.id, true);
 						}
 					} finally {
