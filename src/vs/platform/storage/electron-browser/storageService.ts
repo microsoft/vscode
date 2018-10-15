@@ -17,6 +17,8 @@ import { ShutdownReason } from 'vs/platform/lifecycle/common/lifecycle';
 export class StorageService extends Disposable implements IStorageService {
 	_serviceBrand: any;
 
+	private static IN_MEMORY_PATH = ':memory:';
+
 	private _onDidChangeStorage: Emitter<IWorkspaceStorageChangeEvent> = this._register(new Emitter<IWorkspaceStorageChangeEvent>());
 	get onDidChangeStorage(): Event<IWorkspaceStorageChangeEvent> { return this._onDidChangeStorage.event; }
 
@@ -39,8 +41,10 @@ export class StorageService extends Disposable implements IStorageService {
 			errorLogger: error => logService.error(error)
 		};
 
-		this.globalStorage = new Storage({ path: ':memory:', logging: loggingOptions });
-		this.workspaceStorage = new Storage({ path: workspaceDBPath, logging: loggingOptions });
+		const useInMemoryStorage = !!environmentService.extensionTestsPath; // never keep any state when running extension tests
+
+		this.globalStorage = new Storage({ path: useInMemoryStorage ? StorageService.IN_MEMORY_PATH : StorageService.IN_MEMORY_PATH, logging: loggingOptions });
+		this.workspaceStorage = new Storage({ path: useInMemoryStorage ? StorageService.IN_MEMORY_PATH : workspaceDBPath, logging: loggingOptions });
 
 		this.registerListeners();
 	}
