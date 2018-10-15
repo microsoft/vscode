@@ -16,8 +16,8 @@ export class TextResourcePropertiesService implements ITextResourcePropertiesSer
 		@IConfigurationService private configurationService: IConfigurationService
 	) { }
 
-	getEOL(resource: URI): string {
-		const filesConfiguration = this.configurationService.getValue<{ eol: string }>('files');
+	getEOL(resource: URI, language?: string): string {
+		const filesConfiguration = this.configurationService.getValue<{ eol: string }>('files', { overrideIdentifier: language, resource });
 		if (filesConfiguration && filesConfiguration.eol && filesConfiguration.eol !== 'auto') {
 			return filesConfiguration.eol;
 		}

@@ -12,6 +12,7 @@ import { TestConfigurationService } from 'vs/platform/configuration/test/common/
 import { URI } from 'vs/base/common/uri';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { ExecutableDebugAdapter } from 'vs/workbench/parts/debug/node/debugAdapter';
+import { TestTextResourcePropertiesService } from 'vs/workbench/test/workbenchTestServices';
 
 
 suite('Debug - Debugger', () => {
@@ -123,7 +124,8 @@ suite('Debug - Debugger', () => {
 	};
 
 	setup(() => {
-		_debugger = new Debugger(configurationManager, debuggerContribution, extensionDescriptor0, new TestConfigurationService(), undefined, undefined, undefined, undefined);
+		const configurationService = new TestConfigurationService();
+		_debugger = new Debugger(configurationManager, debuggerContribution, extensionDescriptor0, configurationService, new TestTextResourcePropertiesService(configurationService), undefined, undefined, undefined);
 	});
 
 	teardown(() => {
