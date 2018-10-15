@@ -286,7 +286,7 @@ suite('SnippetsService', function () {
 		const provider = new SnippetSuggestProvider(modeService, snippetService);
 
 		let model = TextModel.createFromString(':', undefined, modeService.getLanguageIdentifier('fooLang'));
-		let result = await provider.provideCompletionItems(model, new Position(1, 1), suggestContext);
+		let result = await provider.provideCompletionItems(model, new Position(1, 2), suggestContext);
 
 		assert.equal(result.suggestions.length, 0);
 	});
