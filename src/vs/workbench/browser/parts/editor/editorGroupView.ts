@@ -45,6 +45,7 @@ import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
 import { fillInContextMenuActions } from 'vs/platform/actions/browser/menuItemActionItem';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { isErrorWithActions, IErrorWithActions } from 'vs/base/common/errorsWithActions';
+import { URI } from 'vs/base/common/uri';
 
 export class EditorGroupView extends Themable implements IEditorGroupView {
 
@@ -1421,7 +1422,7 @@ registerThemingParticipant((theme, collector, environment) => {
 	const letterpress = `resources/letterpress${theme.type === 'dark' ? '-dark' : theme.type === 'hc' ? '-hc' : ''}.svg`;
 	collector.addRule(`
 		.monaco-workbench > .part.editor > .content .editor-group-container.empty .editor-group-letterpress {
-			background-image: url('${join(environment.appRoot, letterpress).replace(/#/g, '%23')}')
+			background-image: url('${URI.file(join(environment.appRoot, letterpress)).toString()}')
 		}
 	`);
 
