@@ -19,15 +19,18 @@ export class TestConfigurationService implements IConfigurationService {
 	}
 
 	public getValue(arg1?: any, arg2?: any): any {
-		if (arg1 && typeof arg1 === 'string') {
-			return this.inspect(<string>arg1).value;
-		}
+		let configuration;
 		const overrides = isConfigurationOverrides(arg1) ? arg1 : isConfigurationOverrides(arg2) ? arg2 : void 0;
-		if (overrides && overrides.resource) {
-			const configForResource = this.configurationByRoot.findSubstr(overrides.resource.fsPath);
-			return configForResource || this.configuration;
+		if (overrides) {
+			if (overrides.resource) {
+				configuration = this.configurationByRoot.findSubstr(overrides.resource.fsPath);
+			}
 		}
-		return this.configuration;
+		configuration = configuration ? configuration : this.configuration;
+		if (arg1 && typeof arg1 === 'string') {
+			return getConfigurationValue(configuration, arg1);
+		}
+		return configuration;
 	}
 
 	public updateValue(key: string, overrides?: IConfigurationOverrides): Promise<void> {

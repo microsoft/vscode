@@ -35,12 +35,12 @@ suite('ModelService', () => {
 
 	test('EOL setting respected depending on root', () => {
 		const model1 = modelService.createModel('farboo', null, null);
-		// const model2 = modelService.createModel('farboo', null, URI.file(platform.isWindows ? 'c:\\myroot\\myfile.txt' : '/myroot/myfile.txt'));
-		// const model3 = modelService.createModel('farboo', null, URI.file(platform.isWindows ? 'c:\\other\\myfile.txt' : '/other/myfile.txt'));
+		const model2 = modelService.createModel('farboo', null, URI.file(platform.isWindows ? 'c:\\myroot\\myfile.txt' : '/myroot/myfile.txt'));
+		const model3 = modelService.createModel('farboo', null, URI.file(platform.isWindows ? 'c:\\other\\myfile.txt' : '/other/myfile.txt'));
 
 		assert.equal(model1.getOptions().defaultEOL, DefaultEndOfLine.LF);
-		// assert.equal(model2.getOptions().defaultEOL, DefaultEndOfLine.CRLF);
-		// assert.equal(model3.getOptions().defaultEOL, DefaultEndOfLine.LF);
+		assert.equal(model2.getOptions().defaultEOL, DefaultEndOfLine.CRLF);
+		assert.equal(model3.getOptions().defaultEOL, DefaultEndOfLine.LF);
 	});
 
 	test('_computeEdits no change', function () {
