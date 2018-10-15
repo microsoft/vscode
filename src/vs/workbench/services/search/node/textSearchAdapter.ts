@@ -34,6 +34,8 @@ export class TextSearchEngineAdapter {
 			cacheKey: this.config.cacheKey,
 			contentPattern: this.config.contentPattern,
 
+			excludePattern: this.config.excludePattern,
+			includePattern: this.config.includePattern,
 			extraFileResources: this.config.extraFiles && this.config.extraFiles.map(f => URI.file(f)),
 			fileEncoding: this.config.folderQueries[0].fileEncoding, // ?
 			maxResults: this.config.maxResults,
@@ -56,7 +58,7 @@ export class TextSearchEngineAdapter {
 
 		const pretendOutputChannel = {
 			appendLine(msg) {
-				onMessage(msg);
+				onMessage({ message: msg });
 			}
 		};
 		const textSearchEngine = new TextSearchEngine(this.config.contentPattern, query, new RipgrepTextSearchEngine(pretendOutputChannel), extfs);
@@ -73,6 +75,7 @@ export class TextSearchEngineAdapter {
 function fileMatchToSerialized(match: IFileMatch): ISerializedFileMatch {
 	return {
 		path: match.resource.fsPath,
-		matches: match.matches
+		matches: match.matches,
+		numMatches: match.matches.length
 	};
 }
