@@ -148,6 +148,7 @@ suite('Editor ViewLayout - EditorLayoutProvider', () => {
 			minimapSide: 'right',
 			minimapRenderCharacters: true,
 			minimapMaxColumn: 150,
+			minimapBackgroundAlpha: 255,
 			pixelRatio: 1,
 		}, {
 				width: 900,

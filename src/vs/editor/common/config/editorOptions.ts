@@ -133,6 +133,11 @@ export interface IEditorMinimapOptions {
 	 * Defaults to 120.
 	 */
 	maxColumn?: number;
+	/**
+	 * Set the transparency of the minimap's background.
+	 * Defaults to 255.
+	 */
+	backgroundAlpha?: number;
 }
 
 /**
@@ -875,6 +880,7 @@ export interface InternalEditorMinimapOptions {
 	readonly showSlider: 'always' | 'mouseover';
 	readonly renderCharacters: boolean;
 	readonly maxColumn: number;
+	readonly backgroundAlpha: number;
 }
 
 export interface InternalEditorFindOptions {
@@ -1294,6 +1300,7 @@ export class InternalEditorOptions {
 			&& a.showSlider === b.showSlider
 			&& a.renderCharacters === b.renderCharacters
 			&& a.maxColumn === b.maxColumn
+			&& a.backgroundAlpha === b.backgroundAlpha
 		);
 	}
 
@@ -1820,6 +1827,7 @@ export class EditorOptionsValidator {
 			showSlider: _stringSet<'always' | 'mouseover'>(opts.showSlider, defaults.showSlider, ['always', 'mouseover']),
 			renderCharacters: _boolean(opts.renderCharacters, defaults.renderCharacters),
 			maxColumn: _clampedInt(opts.maxColumn, defaults.maxColumn, 1, 10000),
+			backgroundAlpha: _clampedInt(opts.backgroundAlpha, defaults.backgroundAlpha, 0, 255)
 		};
 	}
 
@@ -2333,6 +2341,7 @@ export interface IEditorLayoutProviderOpts {
 	readonly minimapSide: string;
 	readonly minimapRenderCharacters: boolean;
 	readonly minimapMaxColumn: number;
+	readonly minimapBackgroundAlpha: 255;
 	readonly pixelRatio: number;
 }
 
@@ -2582,7 +2591,8 @@ export const EDITOR_DEFAULTS: IValidatedEditorOptions = {
 			side: 'right',
 			showSlider: 'mouseover',
 			renderCharacters: true,
-			maxColumn: 120
+			maxColumn: 120,
+			backgroundAlpha: 255,
 		},
 		fixedOverflowWidgets: false,
 	},

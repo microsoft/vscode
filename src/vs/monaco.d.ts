@@ -2496,6 +2496,11 @@ declare namespace monaco.editor {
 		 * Defaults to 120.
 		 */
 		maxColumn?: number;
+		/**
+		 * Set the transparency of the minimap's background.
+		 * Defaults to 255.
+		 */
+		backgroundAlpha?: number;
 	}
 
 	/**
@@ -3171,6 +3176,7 @@ declare namespace monaco.editor {
 		readonly showSlider: 'always' | 'mouseover';
 		readonly renderCharacters: boolean;
 		readonly maxColumn: number;
+		readonly backgroundAlpha: number;
 	}
 
 	export interface InternalEditorFindOptions {

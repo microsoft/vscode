@@ -335,11 +335,11 @@ const editorConfiguration: IConfigurationNode = {
 			'default': EDITOR_DEFAULTS.viewInfo.minimap.renderCharacters,
 			'description': nls.localize('minimap.renderCharacters', "Render the actual characters on a line as opposed to color blocks.")
 		},
-		// 'editor.minimap.renderCharacters': {
-		// 	'type': 'boolean',
-		// 	'default': EDITOR_DEFAULTS.viewInfo.minimap.renderCharacters,
-		// 	'description': nls.localize('minimap.renderCharacters', "Render the actual characters on a line as opposed to color blocks.")
-		// },
+		'editor.minimap.backgroundAlpha': {
+			'type': 'boolean',
+			'default': EDITOR_DEFAULTS.viewInfo.minimap.backgroundAlpha,
+			'description': nls.localize('minimap.backgroundAlpha', "Controls the opacity of the minimap background.")
+		},
 		'editor.minimap.maxColumn': {
 			'type': 'number',
 			'default': EDITOR_DEFAULTS.viewInfo.minimap.maxColumn,
