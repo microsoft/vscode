@@ -19,10 +19,11 @@ import { compareItemsByScore, IItemAccessor, prepareQuery, ScorerCache } from 'v
 import { MAX_FILE_SIZE } from 'vs/platform/files/node/files';
 import { ICachedSearchStats, IFileSearchStats, IProgress } from 'vs/platform/search/common/search';
 import { Engine as FileSearchEngine, FileWalker } from 'vs/workbench/services/search/node/fileSearch';
-import { RipgrepEngine } from 'vs/workbench/services/search/node/ripgrepTextSearch';
+import { TextSearchEngineAdapter } from 'vs/workbench/services/search/node/textSearchAdapter';
 import { Engine as TextSearchEngine } from 'vs/workbench/services/search/node/textSearch';
 import { TextSearchWorkerProvider } from 'vs/workbench/services/search/node/textSearchWorkerProvider';
 import { IFileSearchProgressItem, IRawFileMatch, IRawSearch, IRawSearchService, ISearchEngine, ISearchEngineSuccess, ISerializedFileMatch, ISerializedSearchComplete, ISerializedSearchProgressItem, ISerializedSearchSuccess } from './search';
+import { BatchedCollector } from 'vs/workbench/services/search/node/textSearchEngine';
 
 gracefulFs.gracefulify(fs);
 
@@ -81,20 +82,10 @@ export class SearchService implements IRawSearchService {
 
 	private ripgrepTextSearch(config: IRawSearch, progressCallback: IProgressCallback, token: CancellationToken): Promise<ISerializedSearchSuccess> {
 		config.maxFilesize = MAX_FILE_SIZE;
-		let engine = new RipgrepEngine(config);
-
-		token.onCancellationRequested(() => engine.cancel());
+		const engine = new TextSearchEngineAdapter(config);
 
 		return new Promise<ISerializedSearchSuccess>((c, e) => {
-			// Use BatchedCollector to get new results to the frontend every 2s at least, until 50 results have been returned
-			const collector = new BatchedCollector<ISerializedFileMatch>(SearchService.BATCH_SIZE, progressCallback);
-			engine.search((match) => {
-				collector.addItem(match, match.numMatches);
-			}, (message) => {
-				progressCallback(message);
-			}, (error, stats) => {
-				collector.flush();
-
+			engine.search(token, progressCallback, progressCallback, (error, stats) => {
 				if (error) {
 					e(error);
 				} else {
@@ -486,89 +477,3 @@ const FileMatchItemAccessor = new class implements IItemAccessor<IRawFileMatch> 
 		return match.relativePath; // e.g. some/path/to/file/myFile.txt
 	}
 };
-
-/**
- * Collects items that have a size - before the cumulative size of collected items reaches START_BATCH_AFTER_COUNT, the callback is called for every
- * set of items collected.
- * But after that point, the callback is called with batches of maxBatchSize.
- * If the batch isn't filled within some time, the callback is also called.
- */
-class BatchedCollector<T> {
-	private static readonly TIMEOUT = 4000;
-
-	// After RUN_TIMEOUT_UNTIL_COUNT items have been collected, stop flushing on timeout
-	private static readonly START_BATCH_AFTER_COUNT = 50;
-
-	private totalNumberCompleted = 0;
-	private batch: T[] = [];
-	private batchSize = 0;
-	private timeoutHandle: any;
-
-	constructor(private maxBatchSize: number, private cb: (items: T | T[]) => void) {
-	}
-
-	addItem(item: T, size: number): void {
-		if (!item) {
-			return;
-		}
-
-		if (this.maxBatchSize > 0) {
-			this.addItemToBatch(item, size);
-		} else {
-			this.cb(item);
-		}
-	}
-
-	addItems(items: T[], size: number): void {
-		if (!items) {
-			return;
-		}
-
-		if (this.maxBatchSize > 0) {
-			this.addItemsToBatch(items, size);
-		} else {
-			this.cb(items);
-		}
-	}
-
-	private addItemToBatch(item: T, size: number): void {
-		this.batch.push(item);
-		this.batchSize += size;
-		this.onUpdate();
-	}
-
-	private addItemsToBatch(item: T[], size: number): void {
-		this.batch = this.batch.concat(item);
-		this.batchSize += size;
-		this.onUpdate();
-	}
-
-	private onUpdate(): void {
-		if (this.totalNumberCompleted < BatchedCollector.START_BATCH_AFTER_COUNT) {
-			// Flush because we aren't batching yet
-			this.flush();
-		} else if (this.batchSize >= this.maxBatchSize) {
-			// Flush because the batch is full
-			this.flush();
-		} else if (!this.timeoutHandle) {
-			// No timeout running, start a timeout to flush
-			this.timeoutHandle = setTimeout(() => {
-				this.flush();
-			}, BatchedCollector.TIMEOUT);
-		}
-	}
-
-	flush(): void {
-		if (this.batchSize) {
-			this.totalNumberCompleted += this.batchSize;
-			this.cb(this.batch);
-			this.batch = [];
-			this.batchSize = 0;
-
-			if (this.timeoutHandle) {
-				clearTimeout(this.timeoutHandle);
-				this.timeoutHandle = 0;
-			}
-		}
-	}
-}

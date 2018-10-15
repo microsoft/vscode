@@ -3,19 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as path from 'path';
 import { startsWith } from 'vs/base/common/strings';
 import { ILogService } from 'vs/platform/log/common/log';
 import * as vscode from 'vscode';
 
 export type Maybe<T> = T | null | undefined;
-
-export function fixDriveC(_path: string): string {
-	const root = path.parse(_path).root;
-	return root.toLowerCase() === 'c:/' ?
-		_path.replace(/^c:[/\\]/i, '/') :
-		_path;
-}
 
 export function anchorGlob(glob: string): string {
 	return startsWith(glob, '**') || startsWith(glob, '/') ? glob : `/${glob}`;
@@ -85,7 +77,11 @@ export class Range {
 	with(_: any): Range { return null; }
 }
 
-export class OutputChannel {
+export interface IOutputChannel {
+	appendLine(msg: string): void;
+}
+
+export class OutputChannel implements IOutputChannel {
 	constructor(@ILogService private logService: ILogService) { }
 
 	appendLine(msg: string): void {

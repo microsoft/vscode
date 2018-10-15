@@ -7,18 +7,18 @@ import * as cp from 'child_process';
 import { EventEmitter } from 'events';
 import * as path from 'path';
 import { NodeStringDecoder, StringDecoder } from 'string_decoder';
+import { startsWith } from 'vs/base/common/strings';
+import { URI } from 'vs/base/common/uri';
 import * as vscode from 'vscode';
 import { rgPath } from 'vscode-ripgrep';
-import { anchorGlob, createTextSearchResult, Maybe, Range, OutputChannel } from './ripgrepSearchUtils';
-import { URI } from 'vs/base/common/uri';
-import { startsWith } from 'vs/base/common/strings';
+import { anchorGlob, createTextSearchResult, IOutputChannel, Maybe, Range } from './ripgrepSearchUtils';
 
 // If vscode-ripgrep is in an .asar file, then the binary is unpacked.
 const rgDiskPath = rgPath.replace(/\bnode_modules\.asar\b/, 'node_modules.asar.unpacked');
 
 export class RipgrepTextSearchEngine {
 
-	constructor(private outputChannel: OutputChannel) { }
+	constructor(private outputChannel: IOutputChannel) { }
 
 	provideTextSearchResults(query: vscode.TextSearchQuery, options: vscode.TextSearchOptions, progress: vscode.Progress<vscode.TextSearchResult>, token: vscode.CancellationToken): Thenable<vscode.TextSearchComplete> {
 		this.outputChannel.appendLine(`provideTextSearchResults ${query.pattern}, ${JSON.stringify({
@@ -302,6 +302,10 @@ function getRgArgs(query: vscode.TextSearchQuery, options: vscode.TextSearchOpti
 
 	args.push('--json');
 
+	if (query.isMultiline) {
+		args.push('--multiline');
+	}
+
 	// Folder to search
 	args.push('--');
 
@@ -370,7 +374,7 @@ function stripUTF8BOM(str: string): string {
 	return startsWithUTF8BOM(str) ? str.substr(1) : str;
 }
 
-function fixRegexEndingPattern(pattern: string): string {
+export function fixRegexEndingPattern(pattern: string): string {
 	// Replace an unescaped $ at the end of the pattern with \r?$
 	// Match $ preceeded by none or even number of literal \
 	return pattern.match(/([^\\]|^)(\\\\)*\$$/) ?
