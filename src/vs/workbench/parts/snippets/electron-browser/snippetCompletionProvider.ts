@@ -10,7 +10,7 @@ import { compare } from 'vs/base/common/strings';
 import { Position } from 'vs/editor/common/core/position';
 import { IRange, Range } from 'vs/editor/common/core/range';
 import { ITextModel } from 'vs/editor/common/model';
-import { CompletionContext, CompletionItem, CompletionItemKind, CompletionItemProvider, CompletionList, LanguageId } from 'vs/editor/common/modes';
+import { CompletionItem, CompletionItemKind, CompletionItemProvider, CompletionList, LanguageId } from 'vs/editor/common/modes';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { SnippetParser } from 'vs/editor/contrib/snippet/snippetParser';
 import { localize } from 'vs/nls';
@@ -77,7 +77,7 @@ export class SnippetCompletionProvider implements CompletionItemProvider {
 		//
 	}
 
-	provideCompletionItems(model: ITextModel, position: Position, context: CompletionContext): Promise<CompletionList> {
+	provideCompletionItems(model: ITextModel, position: Position): Promise<CompletionList> {
 
 		if (position.column >= SnippetCompletionProvider._maxPrefix) {
 			return undefined;
