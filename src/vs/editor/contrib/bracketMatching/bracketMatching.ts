@@ -188,7 +188,6 @@ export class BracketMatchingController extends Disposable implements editorCommo
 
 		this._editor.getSelections().forEach(selection => {
 			const position = selection.getStartPosition();
-
 			let brackets = model.matchBracket(position);
 
 			let openBracket: Position | null = null;
