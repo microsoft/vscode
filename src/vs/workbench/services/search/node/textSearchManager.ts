@@ -15,7 +15,7 @@ import { IFileMatch, IFolderQuery, IPatternInfo, ISearchCompleteStats, ISearchQu
 import * as vscode from 'vscode';
 import { QueryGlobTester, resolvePatternsForProvider } from 'vs/workbench/services/search/node/search';
 
-export class TextSearchEngine {
+export class TextSearchManager {
 
 	private collector: TextSearchResultsCollector;
 

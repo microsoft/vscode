@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { fixRegexEndingPattern } from 'vs/workbench/services/search/node/ripgrepTextSearchEH';
+import { fixRegexEndingPattern } from 'vs/workbench/services/search/node/ripgrepTextSearchEngine';
 
 suite('RipgrepTextSearch - etc', () => {
 	test('fixRegexEndingPattern', () => {

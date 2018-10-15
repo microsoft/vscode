@@ -17,10 +17,10 @@ import { ILogService } from 'vs/platform/log/common/log';
 import { IFileMatch, IFileSearchProviderStats, IFolderQuery, IPatternInfo, IRawSearchQuery, ISearchCompleteStats, ISearchQuery } from 'vs/platform/search/common/search';
 import { ExtHostConfiguration } from 'vs/workbench/api/node/extHostConfiguration';
 import { FileIndexSearchManager, IDirectoryEntry, IDirectoryTree, IInternalFileMatch } from 'vs/workbench/api/node/extHostSearch.fileIndex';
-import { RipgrepSearchProvider } from 'vs/workbench/services/search/node/ripgrepSearchEH';
+import { RipgrepSearchProvider } from 'vs/workbench/services/search/node/ripgrepSearchProvider';
 import { OutputChannel } from 'vs/workbench/services/search/node/ripgrepSearchUtils';
 import { QueryGlobTester, resolvePatternsForProvider } from 'vs/workbench/services/search/node/search';
-import { TextSearchEngine } from 'vs/workbench/services/search/node/textSearchEngine';
+import { TextSearchManager } from 'vs/workbench/services/search/node/textSearchManager';
 import * as vscode from 'vscode';
 import { ExtHostSearchShape, IMainContext, MainContext, MainThreadSearchShape } from './extHost.protocol';
 
@@ -127,7 +127,7 @@ export class ExtHostSearch implements ExtHostSearchShape {
 		}
 
 		const query = reviveQuery(rawQuery);
-		const engine = new TextSearchEngine(pattern, query, provider, this._extfs);
+		const engine = new TextSearchManager(pattern, query, provider, this._extfs);
 		return engine.search(progress => this._proxy.$handleTextMatch(handle, session, progress), token);
 	}
 }

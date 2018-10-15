@@ -5,7 +5,7 @@
 
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { OutputChannel } from 'vs/workbench/services/search/node/ripgrepSearchUtils';
-import { RipgrepTextSearchEngine } from 'vs/workbench/services/search/node/ripgrepTextSearchEH';
+import { RipgrepTextSearchEngine } from 'vs/workbench/services/search/node/ripgrepTextSearchEngine';
 import * as vscode from 'vscode';
 
 export class RipgrepSearchProvider implements vscode.TextSearchProvider {

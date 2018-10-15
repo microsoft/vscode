@@ -23,7 +23,7 @@ import { TextSearchEngineAdapter } from 'vs/workbench/services/search/node/textS
 import { Engine as TextSearchEngine } from 'vs/workbench/services/search/node/textSearch';
 import { TextSearchWorkerProvider } from 'vs/workbench/services/search/node/textSearchWorkerProvider';
 import { IFileSearchProgressItem, IRawFileMatch, IRawSearch, IRawSearchService, ISearchEngine, ISearchEngineSuccess, ISerializedFileMatch, ISerializedSearchComplete, ISerializedSearchProgressItem, ISerializedSearchSuccess } from './search';
-import { BatchedCollector } from 'vs/workbench/services/search/node/textSearchEngine';
+import { BatchedCollector } from 'vs/workbench/services/search/node/textSearchManager';
 
 gracefulFs.gracefulify(fs);
 

@@ -7,8 +7,8 @@ import { CancellationToken } from 'vs/base/common/cancellation';
 import { URI } from 'vs/base/common/uri';
 import * as extfs from 'vs/base/node/extfs';
 import { IFolderQuery, IProgress, ISearchQuery, ITextSearchStats, QueryType, IFileMatch } from 'vs/platform/search/common/search';
-import { RipgrepTextSearchEngine } from 'vs/workbench/services/search/node/ripgrepTextSearchEH';
-import { TextSearchEngine } from 'vs/workbench/services/search/node/textSearchEngine';
+import { RipgrepTextSearchEngine } from 'vs/workbench/services/search/node/ripgrepTextSearchEngine';
+import { TextSearchManager } from 'vs/workbench/services/search/node/textSearchManager';
 import { IRawSearch, ISerializedFileMatch, ISerializedSearchSuccess } from './search';
 
 export class TextSearchEngineAdapter {
@@ -61,7 +61,7 @@ export class TextSearchEngineAdapter {
 				onMessage({ message: msg });
 			}
 		};
-		const textSearchEngine = new TextSearchEngine(this.config.contentPattern, query, new RipgrepTextSearchEngine(pretendOutputChannel), extfs);
+		const textSearchEngine = new TextSearchManager(this.config.contentPattern, query, new RipgrepTextSearchEngine(pretendOutputChannel), extfs);
 		textSearchEngine
 			.search(
 				matches => {

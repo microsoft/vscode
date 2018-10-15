@@ -43,7 +43,7 @@ export class RipgrepTextSearchEngine {
 			let rgProc: Maybe<cp.ChildProcess> = cp.spawn(rgDiskPath, rgArgs, { cwd });
 			rgProc.on('error', e => {
 				console.error(e);
-				// this.outputChannel.append('Error: ' + (e && e.message));
+				this.outputChannel.appendLine('Error: ' + (e && e.message));
 				reject(e);
 			});
 
