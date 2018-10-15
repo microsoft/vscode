@@ -19,6 +19,10 @@ export function exists(path: string): Promise<boolean> {
 	return new Promise(c => fs.exists(path, c));
 }
 
+export function existsSync(path: string): boolean {
+	return fs.existsSync(path);
+}
+
 export function chmod(path: string, mode: number): Promise<boolean> {
 	return nfcall(fs.chmod, path, mode);
 }
