@@ -19,25 +19,7 @@ import { compareItemsByScore, IItemAccessor, prepareQuery, ScorerCache } from 'v
 import { ICachedSearchStats, IFileIndexProviderStats, IFileMatch, IFileSearchStats, IFolderQuery, IRawSearchQuery, ISearchCompleteStats, ISearchQuery } from 'vs/platform/search/common/search';
 import * as vscode from 'vscode';
 import { resolvePatternsForProvider, QueryGlobTester } from 'vs/workbench/services/search/node/search';
-
-export interface IInternalFileMatch {
-	base: URI;
-	original?: URI;
-	relativePath?: string; // Not present for extraFiles or absolute path matches
-	basename: string;
-	size?: number;
-}
-
-export interface IDirectoryEntry {
-	base: URI;
-	relativePath: string;
-	basename: string;
-}
-
-export interface IDirectoryTree {
-	rootEntries: IDirectoryEntry[];
-	pathToEntries: { [relativePath: string]: IDirectoryEntry[] };
-}
+import { IInternalFileMatch, IDirectoryTree, IDirectoryEntry } from 'vs/workbench/services/search/node/fileSearchManager';
 
 interface IInternalSearchComplete<T = IFileSearchStats> {
 	limitHit: boolean;
