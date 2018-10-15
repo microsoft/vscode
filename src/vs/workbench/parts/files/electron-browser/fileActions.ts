@@ -1443,6 +1443,19 @@ export function validateFileName(parent: ExplorerItem, name: string): string {
 
 	const names: string[] = name.split(/[\\/]/).filter(part => !!part);
 
+	// Invalid File name
+	if (names.some((folderName) => !paths.isValidBasename(folderName))) {
+		return nls.localize('invalidFileNameError', "The name **{0}** is not valid as a file or folder name. Please choose a different name.", trimLongName(name));
+	}
+
+	// Max length restriction (on Windows)
+	if (isWindows) {
+		const fullPathLength = name.length + parent.resource.fsPath.length + 1 /* path segment */;
+		if (fullPathLength > 255) {
+			return nls.localize('filePathTooLongError', "The name **{0}** results in a path that is too long. Please choose a shorter name.", trimLongName(name));
+		}
+	}
+
 	// Do not allow to overwrite existing file
 	if (names.length > 1) {
 		// If it's a file in the sub-folder
@@ -1457,19 +1470,6 @@ export function validateFileName(parent: ExplorerItem, name: string): string {
 		const childExists = !!parent.getChild(name);
 		if (childExists) {
 			return nls.localize('fileNameExistsError', "A file or folder **{0}** already exists at this location. Please choose a different name.", name);
-		}
-	}
-
-	// Invalid File name
-	if (names.some((folderName) => !paths.isValidBasename(folderName))) {
-		return nls.localize('invalidFileNameError', "The name **{0}** is not valid as a file or folder name. Please choose a different name.", trimLongName(name));
-	}
-
-	// Max length restriction (on Windows)
-	if (isWindows) {
-		const fullPathLength = name.length + parent.resource.fsPath.length + 1 /* path segment */;
-		if (fullPathLength > 255) {
-			return nls.localize('filePathTooLongError', "The name **{0}** results in a path that is too long. Please choose a shorter name.", trimLongName(name));
 		}
 	}
 
