@@ -41,7 +41,7 @@ import { dirname } from 'vs/base/common/resources';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { IQuickInputService, IQuickPickItem, IQuickInputButton, IQuickPickSeparator, IKeyMods } from 'vs/platform/quickinput/common/quickInput';
-import { getIconClasses } from 'vs/workbench/browser/getIconClasses';
+import { getIconClasses } from 'vs/editor/common/services/getIconClasses';
 
 // --- actions
 

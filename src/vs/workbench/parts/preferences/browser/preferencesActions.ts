@@ -14,7 +14,7 @@ import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IQuickInputService, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
 import { IWorkspaceContextService, IWorkspaceFolder, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { PICK_WORKSPACE_FOLDER_COMMAND_ID } from 'vs/workbench/browser/actions/workspaceCommands';
-import { getIconClasses } from 'vs/workbench/browser/getIconClasses';
+import { getIconClasses } from 'vs/editor/common/services/getIconClasses';
 import { IPreferencesService } from 'vs/workbench/services/preferences/common/preferences';
 
 export class OpenRawDefaultSettingsAction extends Action {

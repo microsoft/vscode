@@ -21,7 +21,7 @@ import { ITextModel } from 'vs/editor/common/model';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { Event, Emitter } from 'vs/base/common/event';
 import { ILabelService } from 'vs/platform/label/common/label';
-import { getIconClasses, getConfiguredLangId } from './getIconClasses';
+import { getIconClasses, getConfiguredLangId } from 'vs/editor/common/services/getIconClasses';
 
 export interface IResourceLabel {
 	name: string;
