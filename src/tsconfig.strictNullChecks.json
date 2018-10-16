@@ -508,6 +508,7 @@
 		"./vs/workbench/services/files/node/watcher/common.ts",
 		"./vs/workbench/services/files/node/watcher/nsfw/watcher.ts",
 		"./vs/workbench/services/files/node/watcher/unix/watcher.ts",
+		"./vs/workbench/services/files/test/electron-browser/utils.ts",
 		"./vs/workbench/services/hash/common/hashService.ts",
 		"./vs/workbench/services/hash/node/hashService.ts",
 		"./vs/workbench/services/issue/common/issue.ts",
