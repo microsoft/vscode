@@ -146,12 +146,14 @@
 
 .monaco-editor .suggest-widget .monaco-list .monaco-list-row .monaco-icon-label::before {
 	height: 16px;
+	padding-right: 4px;
 }
 
 .monaco-editor .suggest-widget .monaco-list .monaco-list-row .icon {
 	display: block;
 	height: 16px;
 	width: 16px;
+	margin-right: 2px;
 	background-repeat: no-repeat;
 	background-size: 80%;
 	background-position: center;
