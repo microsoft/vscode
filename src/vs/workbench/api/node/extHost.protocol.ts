@@ -430,7 +430,7 @@ export interface MainThreadStatusBarShape extends IDisposable {
 
 export interface MainThreadStorageShape extends IDisposable {
 	$getValue<T>(shared: boolean, key: string): Thenable<T>;
-	$setValue(shared: boolean, key: string, value: any): Thenable<void>;
+	$setValue(shared: boolean, key: string, value: object): Thenable<void>;
 }
 
 export interface MainThreadTelemetryShape extends IDisposable {
@@ -1016,6 +1016,10 @@ export interface ExtHostCommentsShape {
 	$provideWorkspaceComments(handle: number): Thenable<modes.CommentThread[]>;
 }
 
+export interface ExtHostStorageShape {
+	$acceptValue(shared: boolean, key: string, value: object): void;
+}
+
 // --- proxy identifiers
 
 export const MainContext = {
@@ -1081,6 +1085,7 @@ export const ExtHostContext = {
 	ExtHostWebviews: createExtId<ExtHostWebviewsShape>('ExtHostWebviews'),
 	ExtHostProgress: createMainId<ExtHostProgressShape>('ExtHostProgress'),
 	ExtHostComments: createMainId<ExtHostCommentsShape>('ExtHostComments'),
+	ExtHostStorage: createMainId<ExtHostStorageShape>('ExtHostStorage'),
 	ExtHostUrls: createExtId<ExtHostUrlsShape>('ExtHostUrls'),
 	ExtHostOutputService: createMainId<ExtHostOutputServiceShape>('ExtHostOutputService'),
 };
