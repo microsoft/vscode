@@ -31,29 +31,32 @@ export class Colorizer {
 		let mimeType = options.mimeType || domNode.getAttribute('lang') || domNode.getAttribute('data-lang');
 		if (!mimeType) {
 			console.error('Mode not detected');
-			return undefined;
+			return Promise.resolve();
 		}
 
 		themeService.setTheme(theme);
 
-		let text = domNode.firstChild.nodeValue;
+		let text = domNode.firstChild ? domNode.firstChild.nodeValue : '';
 		domNode.className += ' ' + theme;
 		let render = (str: string) => {
 			domNode.innerHTML = str;
 		};
-		return this.colorize(modeService, text, mimeType, options).then(render, (err) => console.error(err));
+		return this.colorize(modeService, text || '', mimeType, options).then(render, (err) => console.error(err));
 	}
 
-	public static colorize(modeService: IModeService, text: string, mimeType: string, options: IColorizerOptions): Promise<string> {
+	public static colorize(modeService: IModeService, text: string, mimeType: string, options: IColorizerOptions | null | undefined): Promise<string> {
+		let tabSize = 4;
+		if (options && typeof options.tabSize === 'number') {
+			tabSize = options.tabSize;
+		}
+
 		if (strings.startsWithUTF8BOM(text)) {
 			text = text.substr(1);
 		}
 		let lines = text.split(/\r\n|\r|\n/);
 		let language = modeService.getModeId(mimeType);
-
-		options = options || {};
-		if (typeof options.tabSize === 'undefined') {
-			options.tabSize = 4;
+		if (!language) {
+			return Promise.resolve(_fakeColorize(lines, tabSize));
 		}
 
 		// Send out the event to create the mode
@@ -61,7 +64,7 @@ export class Colorizer {
 
 		let tokenizationSupport = TokenizationRegistry.get(language);
 		if (tokenizationSupport) {
-			return Promise.resolve(_colorize(lines, options.tabSize, tokenizationSupport));
+			return Promise.resolve(_colorize(lines, tabSize, tokenizationSupport));
 		}
 
 		return new Promise<string>((resolve, reject) => {
@@ -77,18 +80,18 @@ export class Colorizer {
 					timeout.dispose();
 					timeout = null;
 				}
-				const tokenizationSupport = TokenizationRegistry.get(language);
+				const tokenizationSupport = TokenizationRegistry.get(language!);
 				if (tokenizationSupport) {
-					return resolve(_colorize(lines, options.tabSize, tokenizationSupport));
+					return resolve(_colorize(lines, tabSize, tokenizationSupport));
 				}
-				return resolve(_fakeColorize(lines, options.tabSize));
+				return resolve(_fakeColorize(lines, tabSize));
 			};
 
 			// wait 500ms for mode to load, then give up
 			timeout = new TimeoutTimer();
 			timeout.cancelAndSet(execute, 500);
 			listener = TokenizationRegistry.onDidChange((e) => {
-				if (e.changedLanguages.indexOf(language) >= 0) {
+				if (e.changedLanguages.indexOf(language!) >= 0) {
 					execute();
 				}
 			});

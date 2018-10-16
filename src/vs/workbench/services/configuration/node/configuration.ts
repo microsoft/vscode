@@ -400,7 +400,7 @@ export class CachedFolderConfiguration extends Disposable implements IFolderConf
 	}
 
 	private createCachedFolder(): Promise<boolean> {
-		return pfs.exists(this.cachedFolderPath)
+		return Promise.resolve(pfs.exists(this.cachedFolderPath))
 			.then(null, () => false)
 			.then(exists => exists ? exists : pfs.mkdirp(this.cachedFolderPath).then(() => true, () => false));
 	}

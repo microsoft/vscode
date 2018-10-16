@@ -686,17 +686,22 @@ export function parse(text: string, errors: ParseError[] = [], options?: ParseOp
  * Parses the given text and returns a tree representation the JSON content. On invalid input, the parser tries to be as fault tolerant as possible, but still return a result.
  */
 export function parseTree(text: string, errors: ParseError[] = [], options?: ParseOptions): Node {
-	let currentParent: Node = { type: 'array', offset: -1, length: -1, children: [] }; // artificial root
+	let currentParent: Node | undefined = { type: 'array', offset: -1, length: -1, children: [] }; // artificial root
 
 	function ensurePropertyComplete(endOffset: number) {
-		if (currentParent.type === 'property') {
+		if (currentParent && currentParent.type === 'property') {
 			currentParent.length = endOffset - currentParent.offset;
 			currentParent = currentParent.parent;
 		}
 	}
 
 	function onValue(valueNode: Node): Node {
-		currentParent.children.push(valueNode);
+		if (currentParent) {
+			if (!currentParent.children) {
+				currentParent.children = [];
+			}
+			currentParent.children.push(valueNode);
+		}
 		return valueNode;
 	}
 
@@ -706,9 +711,12 @@ export function parseTree(text: string, errors: ParseError[] = [], options?: Par
 		},
 		onObjectProperty: (name: string, offset: number, length: number) => {
 			currentParent = onValue({ type: 'property', offset, length: -1, parent: currentParent, children: [] });
-			currentParent.children.push({ type: 'string', value: name, offset, length, parent: currentParent });
+			currentParent.children!.push({ type: 'string', value: name, offset, length, parent: currentParent });
 		},
 		onObjectEnd: (offset: number, length: number) => {
+			if (!currentParent) {
+				throw new Error('No current parent node');
+			}
 			currentParent.length = offset + length - currentParent.offset;
 			currentParent = currentParent.parent;
 			ensurePropertyComplete(offset + length);
@@ -717,6 +725,9 @@ export function parseTree(text: string, errors: ParseError[] = [], options?: Par
 			currentParent = onValue({ type: 'array', offset, length: -1, parent: currentParent, children: [] });
 		},
 		onArrayEnd: (offset: number, length: number) => {
+			if (!currentParent) {
+				throw new Error('No current parent node');
+			}
 			currentParent.length = offset + length - currentParent.offset;
 			currentParent = currentParent.parent;
 			ensurePropertyComplete(offset + length);
@@ -726,7 +737,7 @@ export function parseTree(text: string, errors: ParseError[] = [], options?: Par
 			ensurePropertyComplete(offset + length);
 		},
 		onSeparator: (sep: string, offset: number, length: number) => {
-			if (currentParent.type === 'property') {
+			if (currentParent && currentParent.type === 'property') {
 				if (sep === ':') {
 					currentParent.columnOffset = offset;
 				} else if (sep === ',') {
@@ -740,14 +751,14 @@ export function parseTree(text: string, errors: ParseError[] = [], options?: Par
 	};
 	visit(text, visitor, options);
 
-	let result = currentParent.children[0];
+	let result = currentParent!.children![0];
 	if (result) {
 		delete result.parent;
 	}
 	return result;
 }
 
-export function findNodeAtLocation(root: Node, path: JSONPath): Node {
+export function findNodeAtLocation(root: Node, path: JSONPath): Node | undefined {
 	if (!root) {
 		return void 0;
 	}
@@ -758,8 +769,8 @@ export function findNodeAtLocation(root: Node, path: JSONPath): Node {
 				return void 0;
 			}
 			let found = false;
-			for (let propertyNode of node.children) {
-				if (propertyNode.children[0].value === segment) {
+			for (const propertyNode of node.children || []) {
+				if (propertyNode.children && propertyNode.children[0].value === segment) {
 					node = propertyNode.children[1];
 					found = true;
 					break;
@@ -770,10 +781,10 @@ export function findNodeAtLocation(root: Node, path: JSONPath): Node {
 			}
 		} else {
 			let index = <number>segment;
-			if (node.type !== 'array' || index < 0 || index >= node.children.length) {
+			if (node.type !== 'array' || index < 0 || index >= node.children!.length) {
 				return void 0;
 			}
-			node = node.children[index];
+			node = node.children![index];
 		}
 	}
 	return node;
@@ -781,11 +792,11 @@ export function findNodeAtLocation(root: Node, path: JSONPath): Node {
 
 export function getNodeValue(node: Node): any {
 	if (node.type === 'array') {
-		return node.children.map(getNodeValue);
+		return node.children ? node.children.map(getNodeValue) : [];
 	} else if (node.type === 'object') {
 		let obj = {};
-		for (let prop of node.children) {
-			obj[prop.children[0].value] = getNodeValue(prop.children[1]);
+		for (let prop of node.children || []) {
+			obj[prop.children![0].value] = getNodeValue(prop.children![1]);
 		}
 		return obj;
 	}
@@ -800,10 +811,10 @@ export function visit(text: string, visitor: JSONVisitor, options?: ParseOptions
 
 	let _scanner = createScanner(text, false);
 
-	function toNoArgVisit(visitFunction: (offset: number, length: number) => void): () => void {
+	function toNoArgVisit(visitFunction: ((offset: number, length: number) => void) | undefined): () => void {
 		return visitFunction ? () => visitFunction(_scanner.getTokenOffset(), _scanner.getTokenLength()) : () => true;
 	}
-	function toOneArgVisit<T>(visitFunction: (arg: T, offset: number, length: number) => void): (arg: T) => void {
+	function toOneArgVisit<T>(visitFunction: ((arg: T, offset: number, length: number) => void) | undefined): (arg: T) => void {
 		return visitFunction ? (arg: T) => visitFunction(arg, _scanner.getTokenOffset(), _scanner.getTokenLength()) : () => true;
 	}
 

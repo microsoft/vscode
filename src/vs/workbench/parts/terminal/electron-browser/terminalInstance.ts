@@ -505,7 +505,7 @@ export class TerminalInstance implements ITerminalInstance {
 					{
 						label: nls.localize('dontShowAgain', "Don't Show Again"),
 						isSecondary: true,
-						run: () => this._storageService.store(NEVER_MEASURE_RENDER_TIME_STORAGE_KEY, true)
+						run: () => this._storageService.store(NEVER_MEASURE_RENDER_TIME_STORAGE_KEY, true, StorageScope.GLOBAL)
 					} as IPromptChoice
 				];
 				this._notificationService.prompt(
@@ -513,6 +513,7 @@ export class TerminalInstance implements ITerminalInstance {
 					nls.localize('terminal.slowRendering', 'The standard renderer for the integrated terminal appears to be slow on your computer. Would you like to switch to the alternative DOM-based renderer which may improve performance? [Read more about terminal settings](https://code.visualstudio.com/docs/editor/integrated-terminal#_changing-how-the-terminal-is-rendered).'),
 					promptChoices
 				);
+				console.warn('The standard renderer for the integrated terminal appears to be slow, frame times follow:', frameTimes);
 			}
 		};
 
@@ -673,12 +674,15 @@ export class TerminalInstance implements ITerminalInstance {
 					execFile('bash.exe', ['-c', 'echo $(wslpath ' + this._escapeNonWindowsPath(path) + ')'], {}, (error, stdout, stderr) => {
 						c(this._escapeNonWindowsPath(stdout.trim()));
 					});
+					return;
 				} else if (hasSpace) {
 					c('"' + path + '"');
+				} else {
+					c(path);
 				}
-			} else if (!platform.isWindows) {
-				c(this._escapeNonWindowsPath(path));
+				return;
 			}
+			c(this._escapeNonWindowsPath(path));
 		});
 	}
 

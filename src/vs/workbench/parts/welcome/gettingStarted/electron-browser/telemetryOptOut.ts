@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
-import { IStorageService } from 'vs/platform/storage/common/storage';
+import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import product from 'vs/platform/node/product';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
@@ -36,7 +36,7 @@ export class TelemetryOptOut implements IWorkbenchContribution {
 		@IConfigurationService private configurationService: IConfigurationService,
 		@IExtensionGalleryService private galleryService: IExtensionGalleryService
 	) {
-		if (!product.telemetryOptOutUrl || storageService.get(TelemetryOptOut.TELEMETRY_OPT_OUT_SHOWN)) {
+		if (!product.telemetryOptOutUrl || storageService.get(TelemetryOptOut.TELEMETRY_OPT_OUT_SHOWN, StorageScope.GLOBAL)) {
 			return;
 		}
 		const experimentId = 'telemetryOptOut';
@@ -48,7 +48,7 @@ export class TelemetryOptOut implements IWorkbenchContribution {
 			if (!focused && count > 1) {
 				return null;
 			}
-			storageService.store(TelemetryOptOut.TELEMETRY_OPT_OUT_SHOWN, true);
+			storageService.store(TelemetryOptOut.TELEMETRY_OPT_OUT_SHOWN, true, StorageScope.GLOBAL);
 
 			this.optOutUrl = product.telemetryOptOutUrl;
 			this.privacyUrl = product.privacyStatementUrl || product.telemetryOptOutUrl;

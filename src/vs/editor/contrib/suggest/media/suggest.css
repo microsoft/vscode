@@ -144,13 +144,23 @@
 
 /** Styles for each row in the list **/
 
+.monaco-editor .suggest-widget .monaco-list .monaco-list-row .monaco-icon-label::before {
+	height: 16px;
+	padding-right: 4px;
+}
+
 .monaco-editor .suggest-widget .monaco-list .monaco-list-row .icon {
 	display: block;
 	height: 16px;
 	width: 16px;
+	margin-right: 2px;
 	background-repeat: no-repeat;
 	background-size: 80%;
 	background-position: center;
+}
+
+.monaco-editor .suggest-widget .monaco-list .monaco-list-row .icon.hide {
+	display: none;
 }
 
 .monaco-editor .suggest-widget.no-icons .monaco-list .monaco-list-row .icon {
@@ -226,7 +236,7 @@
 	opacity: 0.7;
 	word-break: break-all;
 	margin: 0;
-	padding: 4px 0 4px 5px;
+	padding: 4px 0 12px 5px;
 }
 
 .monaco-editor .suggest-widget .details > .monaco-scrollable-element > .body > .docs {
@@ -236,7 +246,21 @@
 }
 
 .monaco-editor .suggest-widget .details > .monaco-scrollable-element > .body > .docs.markdown-docs {
+	padding: 0;
 	white-space: initial;
+}
+
+.monaco-editor .suggest-widget .details > .monaco-scrollable-element > .body > .docs.markdown-docs > div,
+.monaco-editor .suggest-widget .details > .monaco-scrollable-element > .body > .docs.markdown-docs > span:not(:empty) {
+	padding: 4px 5px;
+}
+
+.monaco-editor .suggest-widget .details > .monaco-scrollable-element > .body > .docs.markdown-docs > div > p:first-child {
+	margin-top: 0;
+}
+
+.monaco-editor .suggest-widget .details > .monaco-scrollable-element > .body > .docs.markdown-docs > div > p:last-child	 {
+	margin-bottom: 0;
 }
 
 .monaco-editor .suggest-widget .details > .monaco-scrollable-element > .body > .docs .code {

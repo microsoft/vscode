@@ -16,7 +16,7 @@ import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { Range, IRange } from 'vs/editor/common/core/range';
 import * as editorCommon from 'vs/editor/common/editorCommon';
-import { IEditorWorkerService } from 'vs/editor/common/services/editorWorkerService';
+import { IEditorWorkerService, IDiffComputationResult } from 'vs/editor/common/services/editorWorkerService';
 import { LineDecoration } from 'vs/editor/common/viewLayout/lineDecorations';
 import { renderViewLine, RenderLineInput } from 'vs/editor/common/viewLayout/viewLineRenderer';
 import * as editorBrowser from 'vs/editor/browser/editorBrowser';
@@ -171,7 +171,7 @@ export class DiffEditorWidget extends Disposable implements editorBrowser.IDiffE
 	private _currentlyChangingViewZones: boolean;
 	private _beginUpdateDecorationsTimeout: number;
 	private _diffComputationToken: number;
-	private _lineChanges: editorCommon.ILineChange[] | null;
+	private _diffComputationResult: IDiffComputationResult | null;
 
 	private _isVisible: boolean;
 	private _isHandlingScrollEvent: boolean;
@@ -281,7 +281,7 @@ export class DiffEditorWidget extends Disposable implements editorBrowser.IDiffE
 		this._height = 0;
 		this._reviewHeight = 0;
 
-		this._lineChanges = null;
+		this._diffComputationResult = null;
 
 		const leftContextKeyService = this._contextKeyService.createScoped();
 		leftContextKeyService.createKey('isInDiffLeftEditor', true);
@@ -524,7 +524,10 @@ export class DiffEditorWidget extends Disposable implements editorBrowser.IDiffE
 	}
 
 	public getLineChanges(): editorCommon.ILineChange[] | null {
-		return this._lineChanges;
+		if (!this._diffComputationResult) {
+			return null;
+		}
+		return this._diffComputationResult.changes;
 	}
 
 	public getOriginalEditor(): editorBrowser.ICodeEditor {
@@ -619,7 +622,7 @@ export class DiffEditorWidget extends Disposable implements editorBrowser.IDiffE
 		}
 
 		// Disable any diff computations that will come in
-		this._lineChanges = null;
+		this._diffComputationResult = null;
 		this._diffComputationToken++;
 
 		if (model) {
@@ -628,7 +631,7 @@ export class DiffEditorWidget extends Disposable implements editorBrowser.IDiffE
 			// Begin comparing
 			this._beginUpdateDecorations();
 		} else {
-			this._lineChanges = null;
+			this._diffComputationResult = null;
 		}
 
 		this._layoutOverviewViewport();
@@ -891,7 +894,7 @@ export class DiffEditorWidget extends Disposable implements editorBrowser.IDiffE
 				&& currentOriginalModel === this.originalEditor.getModel()
 				&& currentModifiedModel === this.modifiedEditor.getModel()
 			) {
-				this._lineChanges = result;
+				this._diffComputationResult = result;
 				this._updateDecorationsRunner.schedule();
 				this._onDidUpdateDiff.fire();
 			}
@@ -900,7 +903,7 @@ export class DiffEditorWidget extends Disposable implements editorBrowser.IDiffE
 				&& currentOriginalModel === this.originalEditor.getModel()
 				&& currentModifiedModel === this.modifiedEditor.getModel()
 			) {
-				this._lineChanges = null;
+				this._diffComputationResult = null;
 				this._updateDecorationsRunner.schedule();
 			}
 		});
@@ -915,7 +918,7 @@ export class DiffEditorWidget extends Disposable implements editorBrowser.IDiffE
 		if (!this.originalEditor.getModel() || !this.modifiedEditor.getModel()) {
 			return;
 		}
-		let lineChanges = this._lineChanges || [];
+		const lineChanges = (this._diffComputationResult ? this._diffComputationResult.changes : []);
 
 		let foreignOriginal = this._originalEditorState.getForeignViewZones(this.originalEditor.getWhitespaces());
 		let foreignModified = this._modifiedEditorState.getForeignViewZones(this.modifiedEditor.getWhitespaces());
@@ -1067,7 +1070,7 @@ export class DiffEditorWidget extends Disposable implements editorBrowser.IDiffE
 		this._strategy = newStrategy;
 		newStrategy.applyColors(this._themeService.getTheme());
 
-		if (this._lineChanges) {
+		if (this._diffComputationResult) {
 			this._updateDecorations();
 		}
 
@@ -1076,16 +1079,17 @@ export class DiffEditorWidget extends Disposable implements editorBrowser.IDiffE
 	}
 
 	private _getLineChangeAtOrBeforeLineNumber(lineNumber: number, startLineNumberExtractor: (lineChange: editorCommon.ILineChange) => number): editorCommon.ILineChange | null {
-		if (this._lineChanges.length === 0 || lineNumber < startLineNumberExtractor(this._lineChanges[0])) {
+		const lineChanges = (this._diffComputationResult ? this._diffComputationResult.changes : []);
+		if (lineChanges.length === 0 || lineNumber < startLineNumberExtractor(lineChanges[0])) {
 			// There are no changes or `lineNumber` is before the first change
 			return null;
 		}
 
-		let min = 0, max = this._lineChanges.length - 1;
+		let min = 0, max = lineChanges.length - 1;
 		while (min < max) {
 			let mid = Math.floor((min + max) / 2);
-			let midStart = startLineNumberExtractor(this._lineChanges[mid]);
-			let midEnd = (mid + 1 <= max ? startLineNumberExtractor(this._lineChanges[mid + 1]) : Number.MAX_VALUE);
+			let midStart = startLineNumberExtractor(lineChanges[mid]);
+			let midEnd = (mid + 1 <= max ? startLineNumberExtractor(lineChanges[mid + 1]) : Number.MAX_VALUE);
 
 			if (lineNumber < midStart) {
 				max = mid - 1;
@@ -1097,7 +1101,7 @@ export class DiffEditorWidget extends Disposable implements editorBrowser.IDiffE
 				max = mid;
 			}
 		}
-		return this._lineChanges[min];
+		return lineChanges[min];
 	}
 
 	private _getEquivalentLineForOriginalLineNumber(lineNumber: number): number {
@@ -1145,7 +1149,7 @@ export class DiffEditorWidget extends Disposable implements editorBrowser.IDiffE
 	}
 
 	public getDiffLineInformationForOriginal(lineNumber: number): editorBrowser.IDiffLineInformation | null {
-		if (!this._lineChanges) {
+		if (!this._diffComputationResult) {
 			// Cannot answer that which I don't know
 			return null;
 		}
@@ -1155,7 +1159,7 @@ export class DiffEditorWidget extends Disposable implements editorBrowser.IDiffE
 	}
 
 	public getDiffLineInformationForModified(lineNumber: number): editorBrowser.IDiffLineInformation | null {
-		if (!this._lineChanges) {
+		if (!this._diffComputationResult) {
 			// Cannot answer that which I don't know
 			return null;
 		}
@@ -1231,8 +1235,13 @@ abstract class DiffEditorWidgetStyle extends Disposable implements IDiffEditorWi
 	public abstract layout(): number;
 }
 
-interface IMyViewZone extends editorBrowser.IViewZone {
+interface IMyViewZone {
 	shouldNotShrink?: boolean;
+	afterLineNumber: number;
+	heightInLines: number;
+	minWidthInPx?: number;
+	domNode: HTMLElement | null;
+	marginDomNode?: HTMLElement | null;
 }
 
 class ForeignViewZonesIterator {
@@ -1270,7 +1279,7 @@ abstract class ViewZonesComputer {
 	}
 
 	public getViewZones(): IEditorsZones {
-		let result: IEditorsZones = {
+		let result: { original: IMyViewZone[]; modified: IMyViewZone[]; } = {
 			original: [],
 			modified: []
 		};
@@ -1286,7 +1295,7 @@ abstract class ViewZonesComputer {
 			return a.afterLineNumber - b.afterLineNumber;
 		};
 
-		let addAndCombineIfPossible = (destination: editorBrowser.IViewZone[], item: IMyViewZone) => {
+		let addAndCombineIfPossible = (destination: IMyViewZone[], item: IMyViewZone) => {
 			if (item.domNode === null && destination.length > 0) {
 				let lastItem = destination[destination.length - 1];
 				if (lastItem.afterLineNumber === item.afterLineNumber && lastItem.domNode === null) {

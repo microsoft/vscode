@@ -65,7 +65,7 @@ function withAllStandaloneServices<T extends editorCommon.IEditor>(domElement: H
  * The editor will read the size of `domElement`.
  */
 export function create(domElement: HTMLElement, options?: IEditorConstructionOptions, override?: IEditorOverrideServices): IStandaloneCodeEditor {
-	return withAllStandaloneServices(domElement, override, (services) => {
+	return withAllStandaloneServices(domElement, override || {}, (services) => {
 		return new StandaloneEditor(
 			domElement,
 			options,
@@ -188,7 +188,7 @@ export function getModelMarkers(filter: { owner?: string, resource?: URI, take?:
 /**
  * Get the model that has `uri` if it exists.
  */
-export function getModel(uri: URI): ITextModel {
+export function getModel(uri: URI): ITextModel | null {
 	return StaticServices.modelService.get().getModel(uri);
 }
 

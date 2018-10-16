@@ -18,6 +18,7 @@ import { registerThemingParticipant } from 'vs/platform/theme/common/themeServic
 import { editorActiveLinkForeground } from 'vs/platform/theme/common/colorRegistry';
 import { IModelDeltaDecoration, IModelDecorationsChangeAccessor, ITextModel } from 'vs/editor/common/model';
 import { INotificationService } from 'vs/platform/notification/common/notification';
+import { coalesce, isFalsyOrEmpty } from 'vs/base/common/arrays';
 
 class CodeLensViewZone implements editorBrowser.IViewZone {
 
@@ -122,7 +123,8 @@ class CodeLensContentWidget implements editorBrowser.IContentWidget {
 
 	withCommands(symbols: ICodeLensSymbol[]): void {
 		this._commands = Object.create(null);
-		if (!symbols || !symbols.length) {
+		symbols = coalesce(symbols);
+		if (isFalsyOrEmpty(symbols)) {
 			this._domNode.innerHTML = 'no commands';
 			return;
 		}

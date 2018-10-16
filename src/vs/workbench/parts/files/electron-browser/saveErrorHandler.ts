@@ -26,7 +26,7 @@ import { SAVE_FILE_COMMAND_ID, REVERT_FILE_COMMAND_ID, SAVE_FILE_AS_COMMAND_ID, 
 import { createTextBufferFactoryFromSnapshot } from 'vs/editor/common/model/textModel';
 import { INotificationService, INotificationHandle, INotificationActions, Severity } from 'vs/platform/notification/common/notification';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
-import { IStorageService } from 'vs/platform/storage/common/storage';
+import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { ExecuteCommandAction } from 'vs/platform/actions/common/actions';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { once } from 'vs/base/common/event';
@@ -111,7 +111,7 @@ export class SaveErrorHandler extends Disposable implements ISaveErrorHandler, I
 
 			// If the user tried to save from the opened conflict editor, show its message again
 			if (this.activeConflictResolutionResource && this.activeConflictResolutionResource.toString() === model.getResource().toString()) {
-				if (this.storageService.getBoolean(LEARN_MORE_DIRTY_WRITE_IGNORE_KEY)) {
+				if (this.storageService.getBoolean(LEARN_MORE_DIRTY_WRITE_IGNORE_KEY, StorageScope.GLOBAL)) {
 					return; // return if this message is ignored
 				}
 
@@ -211,7 +211,7 @@ class DoNotShowResolveConflictLearnMoreAction extends Action {
 	}
 
 	run(notification: IDisposable): Promise<any> {
-		this.storageService.store(LEARN_MORE_DIRTY_WRITE_IGNORE_KEY, true);
+		this.storageService.store(LEARN_MORE_DIRTY_WRITE_IGNORE_KEY, true, StorageScope.GLOBAL);
 
 		// Hide notification
 		notification.dispose();
@@ -247,7 +247,7 @@ class ResolveSaveConflictAction extends Action {
 					options: { pinned: true }
 				}
 			).then(() => {
-				if (this.storageService.getBoolean(LEARN_MORE_DIRTY_WRITE_IGNORE_KEY)) {
+				if (this.storageService.getBoolean(LEARN_MORE_DIRTY_WRITE_IGNORE_KEY, StorageScope.GLOBAL)) {
 					return; // return if this message is ignored
 				}
 

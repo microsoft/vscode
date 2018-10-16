@@ -44,6 +44,7 @@ import { INotificationService } from 'vs/platform/notification/common/notificati
 import { KeybindingsEditorInput } from 'vs/workbench/services/preferences/common/preferencesEditorInput';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { attachStylerCallback } from 'vs/platform/theme/common/styler';
+import { IStorageService } from 'vs/platform/storage/common/storage';
 
 let $ = DOM.$;
 
@@ -89,9 +90,10 @@ export class KeybindingsEditor extends BaseEditor implements IKeybindingsEditor 
 		@INotificationService private notificationService: INotificationService,
 		@IClipboardService private clipboardService: IClipboardService,
 		@IInstantiationService private instantiationService: IInstantiationService,
-		@IEditorService private editorService: IEditorService
+		@IEditorService private editorService: IEditorService,
+		@IStorageService storageService: IStorageService
 	) {
-		super(KeybindingsEditor.ID, telemetryService, themeService);
+		super(KeybindingsEditor.ID, telemetryService, themeService, storageService);
 		this.delayedFiltering = new Delayer<void>(300);
 		this._register(keybindingsService.onDidUpdateKeybindings(() => this.render(false, CancellationToken.None)));
 
@@ -287,7 +289,8 @@ export class KeybindingsEditor extends BaseEditor implements IKeybindingsEditor 
 			placeholder: fullTextSearchPlaceholder,
 			focusKey: this.searchFocusContextKey,
 			ariaLabelledBy: 'keybindings-editor-aria-label-element',
-			recordEnter: true
+			recordEnter: true,
+			quoteRecordedKeys: true
 		}));
 		this._register(this.searchWidget.onDidChange(searchValue => {
 			clearInputAction.enabled = !!searchValue;

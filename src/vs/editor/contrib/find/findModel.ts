@@ -20,7 +20,7 @@ import { SearchParams } from 'vs/editor/common/model/textModelSearch';
 import { IKeybindings } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { CursorChangeReason, ICursorPositionChangedEvent } from 'vs/editor/common/controller/cursorEvents';
 import { RawContextKey, ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
-import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
+import { IActiveCodeEditor } from 'vs/editor/browser/editorBrowser';
 import { ITextModel, FindMatch, EndOfLinePreference } from 'vs/editor/common/model';
 
 export const CONTEXT_FIND_WIDGET_VISIBLE = new RawContextKey<boolean>('findWidgetVisible', false);
@@ -69,7 +69,7 @@ const RESEARCH_DELAY = 240;
 
 export class FindModelBoundToEditorModel {
 
-	private _editor: ICodeEditor;
+	private _editor: IActiveCodeEditor;
 	private _state: FindReplaceState;
 	private _toDispose: IDisposable[];
 	private _decorations: FindDecorations;
@@ -79,7 +79,7 @@ export class FindModelBoundToEditorModel {
 	private _updateDecorationsScheduler: RunOnceScheduler;
 	private _isDisposed: boolean;
 
-	constructor(editor: ICodeEditor, state: FindReplaceState) {
+	constructor(editor: IActiveCodeEditor, state: FindReplaceState) {
 		this._editor = editor;
 		this._state = state;
 		this._toDispose = [];
@@ -158,18 +158,16 @@ export class FindModelBoundToEditorModel {
 		}
 	}
 
-	private static _getSearchRange(model: ITextModel, findScope: Range): Range {
-		let searchRange = model.getFullModelRange();
-
+	private static _getSearchRange(model: ITextModel, findScope: Range | null): Range {
 		// If we have set now or before a find scope, use it for computing the search range
 		if (findScope) {
-			searchRange = searchRange.intersectRanges(findScope);
+			return findScope;
 		}
 
-		return searchRange;
+		return model.getFullModelRange();
 	}
 
-	private research(moveCursor: boolean, newFindScope?: Range): void {
+	private research(moveCursor: boolean, newFindScope?: Range | null): void {
 		let findScope: Range | null = null;
 		if (typeof newFindScope !== 'undefined') {
 			findScope = newFindScope;
@@ -299,7 +297,7 @@ export class FindModelBoundToEditorModel {
 
 		if (!prevMatch) {
 			// there is precisely one match and selection is on top of it
-			return null;
+			return;
 		}
 
 		if (!isRecursed && !searchRange.containsRange(prevMatch.range)) {
@@ -358,7 +356,7 @@ export class FindModelBoundToEditorModel {
 		}
 	}
 
-	private _getNextMatch(after: Position, captureMatches: boolean, forceMove: boolean, isRecursed: boolean = false): FindMatch {
+	private _getNextMatch(after: Position, captureMatches: boolean, forceMove: boolean, isRecursed: boolean = false): FindMatch | null {
 		if (this._cannotFind()) {
 			return null;
 		}
@@ -438,7 +436,7 @@ export class FindModelBoundToEditorModel {
 		}
 	}
 
-	private _findMatches(findScope: Range, captureMatches: boolean, limitResultCount: number): FindMatch[] {
+	private _findMatches(findScope: Range | null, captureMatches: boolean, limitResultCount: number): FindMatch[] {
 		let searchRange = FindModelBoundToEditorModel._getSearchRange(this._editor.getModel(), findScope);
 		return this._editor.getModel().findMatches(this._state.searchString, searchRange, this._state.isRegex, this._state.matchCase, this._state.wholeWord ? this._editor.getConfiguration().wordSeparators : null, captureMatches, limitResultCount);
 	}
@@ -497,7 +495,7 @@ export class FindModelBoundToEditorModel {
 		this._executeEditorCommand('replaceAll', command);
 	}
 
-	private _regularReplaceAll(findScope: Range): void {
+	private _regularReplaceAll(findScope: Range | null): void {
 		const replacePattern = this._getReplacePattern();
 		// Get all the ranges (even more than the highlighted ones)
 		let matches = this._findMatches(findScope, replacePattern.hasReplacementPatterns, Constants.MAX_SAFE_SMALL_INTEGER);

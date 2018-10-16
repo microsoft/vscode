@@ -22,6 +22,7 @@ import { Emitter, Event } from 'vs/base/common/event';
 import { ITextFileService, StateChange } from 'vs/workbench/services/textfile/common/textfiles';
 import { WorkspaceStats } from 'vs/workbench/parts/stats/node/workspaceStats';
 import { CancellationToken } from 'vs/base/common/cancellation';
+import { distinct } from 'vs/base/common/arrays';
 
 interface IExperimentStorageState {
 	enabled: boolean;
@@ -207,7 +208,7 @@ export class ExperimentService extends Disposable implements IExperimentService 
 			if (Array.isArray(allExperimentIdsFromStorage)) {
 				allExperimentIdsFromStorage.forEach(experiment => {
 					if (enabledExperiments.indexOf(experiment) === -1) {
-						this.storageService.remove('experiments.' + experiment);
+						this.storageService.remove(`experiments.${experiment}`, StorageScope.GLOBAL);
 					}
 				});
 			}
@@ -255,7 +256,7 @@ export class ExperimentService extends Disposable implements IExperimentService 
 
 				return this.shouldRunExperiment(experiment, processedExperiment).then((state: ExperimentState) => {
 					experimentState.state = processedExperiment.state = state;
-					this.storageService.store(storageKey, JSON.stringify(experimentState));
+					this.storageService.store(storageKey, JSON.stringify(experimentState), StorageScope.GLOBAL);
 
 					if (state === ExperimentState.Run) {
 						this.fireRunExperiment(processedExperiment);
@@ -278,9 +279,14 @@ export class ExperimentService extends Disposable implements IExperimentService 
 	private fireRunExperiment(experiment: IExperiment) {
 		this._onExperimentEnabled.fire(experiment);
 		const runExperimentIdsFromStorage: string[] = safeParse(this.storageService.get('currentOrPreviouslyRunExperiments', StorageScope.GLOBAL), []);
-		if (runExperimentIdsFromStorage.indexOf(experiment.id)) {
+		if (runExperimentIdsFromStorage.indexOf(experiment.id) === -1) {
 			runExperimentIdsFromStorage.push(experiment.id);
-			this.storageService.store('currentOrPreviouslyRunExperiments', JSON.stringify(runExperimentIdsFromStorage));
+		}
+
+		// Ensure we dont store duplicates
+		const distinctExperiments = distinct(runExperimentIdsFromStorage);
+		if (runExperimentIdsFromStorage.length !== distinctExperiments.length) {
+			this.storageService.store('currentOrPreviouslyRunExperiments', JSON.stringify(distinctExperiments), StorageScope.GLOBAL);
 		}
 	}
 

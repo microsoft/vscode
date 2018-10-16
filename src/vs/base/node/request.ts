@@ -49,7 +49,7 @@ export interface IRequestFunction {
 }
 
 async function getNodeRequest(options: IRequestOptions): Promise<IRawRequestFunction> {
-	const endpoint = parseUrl(options.url);
+	const endpoint = parseUrl(options.url!);
 	const module = endpoint.protocol === 'https:' ? await import('https') : await import('http');
 	return module.request;
 }
@@ -64,7 +64,7 @@ export function request(options: IRequestOptions, token: CancellationToken): Pro
 	return rawRequestPromise.then(rawRequest => {
 
 		return new Promise<IRequestContext>((c, e) => {
-			const endpoint = parseUrl(options.url);
+			const endpoint = parseUrl(options.url!);
 
 			const opts: https.RequestOptions = {
 				hostname: endpoint.hostname,
@@ -82,8 +82,8 @@ export function request(options: IRequestOptions, token: CancellationToken): Pro
 			}
 
 			req = rawRequest(opts, (res: http.ClientResponse) => {
-				const followRedirects = isNumber(options.followRedirects) ? options.followRedirects : 3;
-				if (res.statusCode >= 300 && res.statusCode < 400 && followRedirects > 0 && res.headers['location']) {
+				const followRedirects: number = isNumber(options.followRedirects) ? options.followRedirects : 3;
+				if (res.statusCode && res.statusCode >= 300 && res.statusCode < 400 && followRedirects > 0 && res.headers['location']) {
 					request(assign({}, options, {
 						url: res.headers['location'],
 						followRedirects: followRedirects - 1
@@ -125,7 +125,7 @@ export function request(options: IRequestOptions, token: CancellationToken): Pro
 }
 
 function isSuccess(context: IRequestContext): boolean {
-	return (context.res.statusCode >= 200 && context.res.statusCode < 300) || context.res.statusCode === 1223;
+	return (context.res.statusCode && context.res.statusCode >= 200 && context.res.statusCode < 300) || context.res.statusCode === 1223;
 }
 
 function hasNoContent(context: IRequestContext): boolean {
@@ -136,13 +136,13 @@ export function download(filePath: string, context: IRequestContext): Promise<vo
 	return new Promise<void>((c, e) => {
 		const out = createWriteStream(filePath);
 
-		out.once('finish', () => c(null));
+		out.once('finish', () => c(void 0));
 		context.stream.once('error', e);
 		context.stream.pipe(out);
 	});
 }
 
-export function asText(context: IRequestContext): Promise<string> {
+export function asText(context: IRequestContext): Promise<string | null> {
 	return new Promise((c, e) => {
 		if (!isSuccess(context)) {
 			return e('Server returned ' + context.res.statusCode);
@@ -159,7 +159,7 @@ export function asText(context: IRequestContext): Promise<string> {
 	});
 }
 
-export function asJson<T>(context: IRequestContext): Promise<T> {
+export function asJson<T>(context: IRequestContext): Promise<T | null> {
 	return new Promise((c, e) => {
 		if (!isSuccess(context)) {
 			return e('Server returned ' + context.res.statusCode);

@@ -72,7 +72,7 @@ export class CommonFindController extends Disposable implements editorCommon.IEd
 	protected _state: FindReplaceState;
 	protected _updateHistoryDelayer: Delayer<void>;
 	private _model: FindModelBoundToEditorModel;
-	protected _storageService: IStorageService;
+	private _storageService: IStorageService;
 	private _clipboardService: IClipboardService;
 	protected readonly _contextKeyService: IContextKeyService;
 

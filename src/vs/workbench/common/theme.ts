@@ -525,7 +525,7 @@ export class Themable extends Disposable {
 		// Subclasses to override
 	}
 
-	protected getColor(id: string, modify?: (color: Color, theme: ITheme) => Color): string {
+	protected getColor(id: string, modify?: (color: Color, theme: ITheme) => Color): string | null {
 		let color = this.theme.getColor(id);
 
 		if (color && modify) {

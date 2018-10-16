@@ -38,6 +38,7 @@ import { IDebugService } from 'vs/workbench/parts/debug/common/debug';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { randomPort } from 'vs/base/node/ports';
 import { IContextKeyService, RawContextKey, IContextKey } from 'vs/platform/contextkey/common/contextkey';
+import { IStorageService } from 'vs/platform/storage/common/storage';
 
 export const IExtensionHostProfileService = createDecorator<IExtensionHostProfileService>('extensionHostProfileService');
 export const CONTEXT_PROFILE_SESSION_STATE = new RawContextKey<string>('profileSessionState', 'none');
@@ -110,8 +111,9 @@ export class RuntimeExtensionsEditor extends BaseEditor {
 		@IContextMenuService private readonly _contextMenuService: IContextMenuService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IExtensionHostProfileService private readonly _extensionHostProfileService: IExtensionHostProfileService,
+		@IStorageService storageService: IStorageService
 	) {
-		super(RuntimeExtensionsEditor.ID, telemetryService, themeService);
+		super(RuntimeExtensionsEditor.ID, telemetryService, themeService, storageService);
 
 		this._list = null;
 		this._profileInfo = this._extensionHostProfileService.lastProfile;

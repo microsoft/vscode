@@ -78,9 +78,9 @@ export class WalkThroughPart extends BaseEditor {
 		@INotificationService private notificationService: INotificationService,
 		@IEditorGroupsService editorGroupService: IEditorGroupsService
 	) {
-		super(WalkThroughPart.ID, telemetryService, themeService);
+		super(WalkThroughPart.ID, telemetryService, themeService, storageService);
 		this.editorFocus = WALK_THROUGH_FOCUS.bindTo(this.contextKeyService);
-		this.editorMemento = this.getEditorMemento<IWalkThroughEditorViewState>(storageService, editorGroupService, WALK_THROUGH_EDITOR_VIEW_STATE_PREFERENCE_KEY);
+		this.editorMemento = this.getEditorMemento<IWalkThroughEditorViewState>(editorGroupService, WALK_THROUGH_EDITOR_VIEW_STATE_PREFERENCE_KEY);
 	}
 
 	createEditor(container: HTMLElement): void {
@@ -477,7 +477,7 @@ export class WalkThroughPart extends BaseEditor {
 	private saveTextEditorViewState(input: WalkThroughInput): void {
 		const scrollPosition = this.scrollbar.getScrollPosition();
 
-		this.editorMemento.saveState(this.group, input, {
+		this.editorMemento.saveEditorState(this.group, input, {
 			viewState: {
 				scrollTop: scrollPosition.scrollTop,
 				scrollLeft: scrollPosition.scrollLeft
@@ -486,7 +486,7 @@ export class WalkThroughPart extends BaseEditor {
 	}
 
 	private loadTextEditorViewState(input: WalkThroughInput) {
-		const state = this.editorMemento.loadState(this.group, input);
+		const state = this.editorMemento.loadEditorState(this.group, input);
 		if (state) {
 			this.scrollbar.setScrollPosition(state.viewState);
 		}
@@ -499,11 +499,12 @@ export class WalkThroughPart extends BaseEditor {
 		super.clearInput();
 	}
 
-	public shutdown(): void {
+	protected saveState(): void {
 		if (this.input instanceof WalkThroughInput) {
 			this.saveTextEditorViewState(this.input);
 		}
-		super.shutdown();
+
+		super.saveState();
 	}
 
 	dispose(): void {

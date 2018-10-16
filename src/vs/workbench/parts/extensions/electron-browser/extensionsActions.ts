@@ -11,7 +11,7 @@ import * as DOM from 'vs/base/browser/dom';
 import * as paths from 'vs/base/common/paths';
 import { Event } from 'vs/base/common/event';
 import * as json from 'vs/base/common/json';
-import { ActionItem, IActionItem, Separator } from 'vs/base/browser/ui/actionbar/actionbar';
+import { ActionItem, IActionItem, Separator, IActionItemOptions } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IDisposable, dispose, Disposable } from 'vs/base/common/lifecycle';
 import { IExtension, ExtensionState, IExtensionsWorkbenchService, VIEWLET_ID, IExtensionsViewlet, AutoUpdateConfigurationKey } from 'vs/workbench/parts/extensions/common/extensions';
@@ -388,7 +388,43 @@ export class UpdateAction extends Action {
 	}
 }
 
-export class DropDownMenuActionItem extends ActionItem {
+interface IExtensionActionItemOptions extends IActionItemOptions {
+	tabOnlyOnFocus?: boolean;
+}
+
+export class ExtensionActionItem extends ActionItem {
+
+	protected options: IExtensionActionItemOptions;
+
+	constructor(context: any, action: IAction, options: IExtensionActionItemOptions = {}) {
+		super(context, action, options);
+	}
+
+	updateEnabled(): void {
+		super.updateEnabled();
+
+		if (this.options.tabOnlyOnFocus && this.getAction().enabled && !this._hasFocus) {
+			DOM.removeTabIndexAndUpdateFocus(this.label);
+		}
+	}
+
+	private _hasFocus: boolean;
+	setFocus(value: boolean): void {
+		if (!this.options.tabOnlyOnFocus || this._hasFocus === value) {
+			return;
+		}
+		this._hasFocus = value;
+		if (this.getAction().enabled) {
+			if (this._hasFocus) {
+				this.label.tabIndex = 0;
+			} else {
+				DOM.removeTabIndexAndUpdateFocus(this.label);
+			}
+		}
+	}
+}
+
+export class DropDownMenuActionItem extends ExtensionActionItem {
 
 	private disposables: IDisposable[] = [];
 
@@ -396,10 +432,12 @@ export class DropDownMenuActionItem extends ActionItem {
 	get menuActionGroups(): IAction[][] { return this._menuActionGroups; }
 	set menuActionGroups(menuActionGroups: IAction[][]) { this._menuActionGroups = menuActionGroups; }
 
-	constructor(action: IAction, menuActionGroups: IAction[][],
+	constructor(action: IAction,
+		menuActionGroups: IAction[][],
+		tabOnlyOnFocus: boolean,
 		@IContextMenuService private contextMenuService: IContextMenuService
 	) {
-		super(null, action, { icon: true, label: true });
+		super(null, action, { icon: true, label: true, tabOnlyOnFocus });
 		this.menuActionGroups = menuActionGroups;
 	}
 
@@ -451,7 +489,7 @@ export class ManageExtensionAction extends Action {
 		super(ManageExtensionAction.ID);
 
 		this.tooltip = localize('manage', "Manage");
-		this._actionItem = this.instantiationService.createInstance(DropDownMenuActionItem, this, this.createMenuActionGroups());
+		this._actionItem = this.instantiationService.createInstance(DropDownMenuActionItem, this, this.createMenuActionGroups(), true);
 		this.disposables.push(this._actionItem);
 
 		this.disposables.push(this.extensionsWorkbenchService.onChange(extension => {
@@ -613,7 +651,7 @@ export class EnableAction extends Action {
 			instantiationService.createInstance(EnableGloballyAction, EnableGloballyAction.LABEL),
 			instantiationService.createInstance(EnableForWorkspaceAction, EnableForWorkspaceAction.LABEL)
 		];
-		this._actionItem = this.instantiationService.createInstance(DropDownMenuActionItem, this, [this._enableActions]);
+		this._actionItem = this.instantiationService.createInstance(DropDownMenuActionItem, this, [this._enableActions], false);
 		this.disposables.push(this._actionItem);
 
 		this.disposables.push(this.extensionsWorkbenchService.onChange(extension => {
@@ -759,7 +797,7 @@ export class DisableAction extends Action {
 			instantiationService.createInstance(DisableGloballyAction, DisableGloballyAction.LABEL),
 			instantiationService.createInstance(DisableForWorkspaceAction, DisableForWorkspaceAction.LABEL)
 		];
-		this._actionItem = this.instantiationService.createInstance(DropDownMenuActionItem, this, [this._disableActions]);
+		this._actionItem = this.instantiationService.createInstance(DropDownMenuActionItem, this, [this._disableActions], false);
 		this.disposables.push(this._actionItem);
 
 		this.disposables.push(this.extensionsWorkbenchService.onChange(extension => {
@@ -966,7 +1004,6 @@ export class ReloadAction extends Action {
 	get extension(): IExtension { return this._extension; }
 	set extension(extension: IExtension) { this._extension = extension; this.update(); }
 
-	reloadMessage: string = '';
 	private throttler: Throttler;
 
 	constructor(
@@ -991,7 +1028,6 @@ export class ReloadAction extends Action {
 		this.throttler.queue(() => {
 			this.enabled = false;
 			this.tooltip = '';
-			this.reloadMessage = '';
 			if (!this.extension) {
 				return Promise.resolve<void>(null);
 			}
@@ -999,15 +1035,20 @@ export class ReloadAction extends Action {
 			if (state === ExtensionState.Installing || state === ExtensionState.Uninstalling) {
 				return Promise.resolve<void>(null);
 			}
+			const installed = this.extensionsWorkbenchService.local.filter(e => e.id === this.extension.id)[0];
+			const local = this.extension.local || (installed && installed.local);
+			if (local && local.manifest && local.manifest.contributes && local.manifest.contributes.localizations && local.manifest.contributes.localizations.length > 0) {
+				return Promise.resolve<void>(null);
+			}
 			return this.extensionService.getExtensions()
-				.then(runningExtensions => this.computeReloadState(runningExtensions));
+				.then(runningExtensions => this.computeReloadState(runningExtensions, installed));
 		}).then(() => {
 			this.class = this.enabled ? ReloadAction.EnabledClass : ReloadAction.DisabledClass;
+			this.label = this.useLongLabel ? this.tooltip : localize('reloadAction', "Reload");
 		});
 	}
 
-	private computeReloadState(runningExtensions: IExtensionDescription[]): void {
-		const installed = this.extensionsWorkbenchService.local.filter(e => e.id === this.extension.id)[0];
+	private computeReloadState(runningExtensions: IExtensionDescription[], installed: IExtension): void {
 		const isUninstalled = this.extension.state === ExtensionState.Uninstalled;
 		const isDisabled = this.extension.local ? !this.extensionEnablementService.isEnabled(this.extension.local) : false;
 		const runningExtension = runningExtensions.filter(e => areSameExtensions(e, this.extension))[0];
@@ -1018,15 +1059,13 @@ export class ReloadAction extends Action {
 				if (isDifferentVersionRunning && !isDisabled) {
 					// Requires reload to run the updated extension
 					this.enabled = true;
-					this.setTooltip(localize('postUpdateTooltip', "Reload to Update"));
-					this.reloadMessage = localize('postUpdateMessage', "Reload this window to activate the updated extension '{0}'?", this.extension.displayName);
+					this.tooltip = localize('postUpdateTooltip', "Reload to Update");
 					return;
 				}
 				if (isDisabled) {
 					// Requires reload to disable the extension
 					this.enabled = true;
-					this.setTooltip(localize('postDisableTooltip', "Reload to Deactivate"));
-					this.reloadMessage = localize('postDisableMessage', "Reload this window to deactivate the extension '{0}'?", this.extension.displayName);
+					this.tooltip = localize('postDisableTooltip', "Reload to Deactivate");
 					return;
 				}
 			} else {
@@ -1036,8 +1075,7 @@ export class ReloadAction extends Action {
 				if (extensionServer && extensionServer.authority === localServer.authority && !isDisabled) {
 					// Requires reload to enable the extension
 					this.enabled = true;
-					this.setTooltip(localize('postEnableTooltip', "Reload to Activate"));
-					this.reloadMessage = localize('postEnableMessage', "Reload this window to activate the extension '{0}'?", this.extension.displayName);
+					this.tooltip = localize('postEnableTooltip', "Reload to Activate");
 					return;
 				}
 			}
@@ -1047,19 +1085,11 @@ export class ReloadAction extends Action {
 		if (isUninstalled && runningExtension) {
 			// Requires reload to deactivate the extension
 			this.enabled = true;
-			this.setTooltip(localize('postUninstallTooltip', "Reload to Deactivate"));
-			this.reloadMessage = localize('postUninstallMessage', "Reload this window to deactivate the uninstalled extension '{0}'?", this.extension.displayName);
+			this.tooltip = localize('postUninstallTooltip', "Reload to Deactivate");
 			return;
 		}
 	}
 
-	private setTooltip(text: string) {
-		if (this.useLongLabel) {
-			this.label = text;
-		} else {
-			this.tooltip = text;
-		}
-	}
 	run(): Promise<any> {
 		return Promise.resolve(this.windowService.reloadWindow());
 	}

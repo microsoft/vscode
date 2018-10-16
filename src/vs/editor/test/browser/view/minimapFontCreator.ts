@@ -9,7 +9,7 @@ import { getOrCreateMinimapCharRenderer } from 'vs/editor/common/view/runtimeMin
 import { RGBA8 } from 'vs/editor/common/core/rgba';
 
 let canvas = <HTMLCanvasElement>document.getElementById('my-canvas');
-let ctx = canvas.getContext('2d');
+let ctx = canvas.getContext('2d')!;
 
 canvas.style.height = 100 + 'px';
 canvas.height = 100;

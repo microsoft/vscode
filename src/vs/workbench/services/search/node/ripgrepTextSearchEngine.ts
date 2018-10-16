@@ -7,15 +7,18 @@ import * as cp from 'child_process';
 import { EventEmitter } from 'events';
 import * as path from 'path';
 import { NodeStringDecoder, StringDecoder } from 'string_decoder';
+import { startsWith } from 'vs/base/common/strings';
+import { URI } from 'vs/base/common/uri';
 import * as vscode from 'vscode';
-import { rgPath } from './ripgrep';
-import { anchorGlob, createTextSearchResult, Maybe } from './utils';
+import { rgPath } from 'vscode-ripgrep';
+import { anchorGlob, createTextSearchResult, IOutputChannel, Maybe, Range } from './ripgrepSearchUtils';
 
 // If vscode-ripgrep is in an .asar file, then the binary is unpacked.
 const rgDiskPath = rgPath.replace(/\bnode_modules\.asar\b/, 'node_modules.asar.unpacked');
 
 export class RipgrepTextSearchEngine {
-	constructor(private outputChannel: vscode.OutputChannel) { }
+
+	constructor(private outputChannel: IOutputChannel) { }
 
 	provideTextSearchResults(query: vscode.TextSearchQuery, options: vscode.TextSearchOptions, progress: vscode.Progress<vscode.TextSearchResult>, token: vscode.CancellationToken): Thenable<vscode.TextSearchComplete> {
 		this.outputChannel.appendLine(`provideTextSearchResults ${query.pattern}, ${JSON.stringify({
@@ -40,7 +43,7 @@ export class RipgrepTextSearchEngine {
 			let rgProc: Maybe<cp.ChildProcess> = cp.spawn(rgDiskPath, rgArgs, { cwd });
 			rgProc.on('error', e => {
 				console.error(e);
-				this.outputChannel.append('Error: ' + (e && e.message));
+				this.outputChannel.appendLine('Error: ' + (e && e.message));
 				reject(e);
 			});
 
@@ -80,7 +83,7 @@ export class RipgrepTextSearchEngine {
 			let stderr = '';
 			rgProc.stderr.on('data', data => {
 				const message = data.toString();
-				this.outputChannel.append(message);
+				this.outputChannel.appendLine(message);
 				stderr += message;
 			});
 
@@ -114,12 +117,12 @@ export class RipgrepTextSearchEngine {
 export function rgErrorMsgForDisplay(msg: string): Maybe<string> {
 	const firstLine = msg.split('\n')[0].trim();
 
-	if (firstLine.startsWith('Error parsing regex')) {
+	if (startsWith(firstLine, 'Error parsing regex')) {
 		return firstLine;
 	}
 
-	if (firstLine.startsWith('error parsing glob') ||
-		firstLine.startsWith('unsupported encoding')) {
+	if (startsWith(firstLine, 'error parsing glob') ||
+		startsWith(firstLine, 'unsupported encoding')) {
 		// Uppercase first letter
 		return firstLine.charAt(0).toUpperCase() + firstLine.substr(1);
 	}
@@ -129,7 +132,7 @@ export function rgErrorMsgForDisplay(msg: string): Maybe<string> {
 		return `Literal '\\n' currently not supported`;
 	}
 
-	if (firstLine.startsWith('Literal ')) {
+	if (startsWith(firstLine, 'Literal ')) {
 		// Other unsupported chars
 		return firstLine;
 	}
@@ -193,7 +196,7 @@ export class RipgrepParser extends EventEmitter {
 
 		if (parsedLine.type === 'match') {
 			let hitLimit = false;
-			const uri = vscode.Uri.file(path.join(this.rootFolder, parsedLine.data.path.text));
+			const uri = URI.file(path.join(this.rootFolder, parsedLine.data.path.text));
 			parsedLine.data.submatches.map((match: any) => {
 				if (hitLimit) {
 					return null;
@@ -233,7 +236,7 @@ export class RipgrepParser extends EventEmitter {
 			}
 		}
 
-		const range = new vscode.Range(lineNumber, start, lineNumber, end);
+		const range = new Range(lineNumber, start, lineNumber, end);
 		return createTextSearchResult(uri, matchText, range, this.previewOptions);
 	}
 
@@ -298,6 +301,10 @@ function getRgArgs(query: vscode.TextSearchQuery, options: vscode.TextSearchOpti
 	}
 
 	args.push('--json');
+
+	if (query.isMultiline) {
+		args.push('--multiline');
+	}
 
 	// Folder to search
 	args.push('--');
@@ -367,7 +374,7 @@ function stripUTF8BOM(str: string): string {
 	return startsWithUTF8BOM(str) ? str.substr(1) : str;
 }
 
-function fixRegexEndingPattern(pattern: string): string {
+export function fixRegexEndingPattern(pattern: string): string {
 	// Replace an unescaped $ at the end of the pattern with \r?$
 	// Match $ preceeded by none or even number of literal \
 	return pattern.match(/([^\\]|^)(\\\\)*\$$/) ?

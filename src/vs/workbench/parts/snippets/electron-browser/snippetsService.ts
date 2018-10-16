@@ -4,32 +4,29 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { basename, extname, join } from 'path';
-import { MarkdownString } from 'vs/base/common/htmlContent';
+import { isFalsyOrEmpty } from 'vs/base/common/arrays';
 import { IJSONSchema } from 'vs/base/common/jsonSchema';
-import { dispose, IDisposable, combinedDisposable } from 'vs/base/common/lifecycle';
+import { combinedDisposable, dispose, IDisposable } from 'vs/base/common/lifecycle';
 import { values } from 'vs/base/common/map';
 import * as resources from 'vs/base/common/resources';
-import { compare, endsWith, isFalsyOrWhitespace } from 'vs/base/common/strings';
+import { endsWith, isFalsyOrWhitespace } from 'vs/base/common/strings';
 import { URI } from 'vs/base/common/uri';
 import { Position } from 'vs/editor/common/core/position';
-import { ITextModel } from 'vs/editor/common/model';
-import { CompletionItem, CompletionList, CompletionItemProvider, LanguageId, CompletionItemKind } from 'vs/editor/common/modes';
+import { LanguageId } from 'vs/editor/common/modes';
 import { IModeService } from 'vs/editor/common/services/modeService';
-import { SnippetParser } from 'vs/editor/contrib/snippet/snippetParser';
 import { setSnippetSuggestSupport } from 'vs/editor/contrib/suggest/suggest';
 import { localize } from 'vs/nls';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { IFileService, FileChangeType } from 'vs/platform/files/common/files';
+import { FileChangeType, IFileService } from 'vs/platform/files/common/files';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { ILifecycleService, LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
 import { ILogService } from 'vs/platform/log/common/log';
+import { IWorkspace, IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { ISnippetsService } from 'vs/workbench/parts/snippets/electron-browser/snippets.contribution';
 import { Snippet, SnippetFile, SnippetSource } from 'vs/workbench/parts/snippets/electron-browser/snippetsFile';
 import { ExtensionsRegistry, IExtensionPointUser } from 'vs/workbench/services/extensions/common/extensionsRegistry';
 import { languagesExtPoint } from 'vs/workbench/services/mode/common/workbenchModeService';
-import { IWorkspaceContextService, IWorkspace } from 'vs/platform/workspace/common/workspace';
-import { isFalsyOrEmpty } from 'vs/base/common/arrays';
-import { IRange, Range } from 'vs/editor/common/core/range';
+import { SnippetCompletionProvider } from './snippetCompletionProvider';
 
 namespace snippetExt {
 
@@ -152,7 +149,7 @@ class SnippetsService implements ISnippetsService {
 			this._initWorkspaceSnippets();
 		})));
 
-		setSnippetSuggestSupport(new SnippetSuggestProvider(this._modeService, this));
+		setSnippetSuggestSupport(new SnippetCompletionProvider(this._modeService, this));
 	}
 
 	dispose(): void {
@@ -318,121 +315,6 @@ registerSingleton(ISnippetsService, SnippetsService);
 
 export interface ISimpleModel {
 	getLineContent(lineNumber: number): string;
-}
-
-export class SnippetSuggestion implements CompletionItem {
-
-	label: string;
-	detail: string;
-	insertText: string;
-	documentation: MarkdownString;
-	range: IRange;
-	sortText: string;
-	noAutoAccept: boolean;
-	kind: CompletionItemKind;
-	insertTextIsSnippet: true;
-
-	constructor(
-		readonly snippet: Snippet,
-		range: IRange
-	) {
-		this.label = snippet.prefix;
-		this.detail = localize('detail.snippet', "{0} ({1})", snippet.description || snippet.name, snippet.source);
-		this.insertText = snippet.body;
-		this.range = range;
-		this.sortText = `${snippet.snippetSource === SnippetSource.Extension ? 'z' : 'a'}-${snippet.prefix}`;
-		this.noAutoAccept = true;
-		this.kind = CompletionItemKind.Snippet;
-		this.insertTextIsSnippet = true;
-	}
-
-	resolve(): this {
-		this.documentation = new MarkdownString().appendCodeblock('', new SnippetParser().text(this.snippet.codeSnippet));
-		this.insertText = this.snippet.codeSnippet;
-		return this;
-	}
-
-	static compareByLabel(a: SnippetSuggestion, b: SnippetSuggestion): number {
-		return compare(a.label, b.label);
-	}
-}
-
-
-export class SnippetSuggestProvider implements CompletionItemProvider {
-
-	constructor(
-		@IModeService private readonly _modeService: IModeService,
-		@ISnippetsService private readonly _snippets: ISnippetsService
-	) {
-		//
-	}
-
-	provideCompletionItems(model: ITextModel, pos: Position): Promise<CompletionList> {
-
-		const languageId = this._getLanguageIdAtPosition(model, pos);
-		return this._snippets.getSnippets(languageId).then(snippets => {
-
-			let suggestions: SnippetSuggestion[] = [];
-			let atWord = Boolean(model.getWordAtPosition(pos));
-			let lineLow = model.getLineContent(pos.lineNumber).substring(0, pos.column - 1).toLowerCase();
-
-			for (const snippet of snippets) {
-
-				let prefixLow = snippet.prefix;
-				let prefixPos = prefixLow.length - 1;
-				let linePos = lineLow.length - 1;
-				let linePosStart = linePos;
-				while (linePos >= 0 && prefixPos >= 0) {
-					if (lineLow[linePos] === prefixLow[prefixPos]) {
-						linePos -= 1;
-					}
-					prefixPos -= 1;
-				}
-
-				if (linePos !== linePosStart) {
-					// some overlap
-					suggestions.push(new SnippetSuggestion(snippet, Range.fromPositions(pos.delta(0, linePos - linePosStart), pos)));
-
-				} else if (!atWord) {
-					// no overlap but not at a word
-					suggestions.push(new SnippetSuggestion(snippet, Range.fromPositions(pos)));
-				}
-			}
-
-			// dismbiguate suggestions with same labels
-			suggestions.sort(SnippetSuggestion.compareByLabel);
-
-			for (let i = 0; i < suggestions.length; i++) {
-				let item = suggestions[i];
-				let to = i + 1;
-				for (; to < suggestions.length && item.label === suggestions[to].label; to++) {
-					suggestions[to].label = localize('snippetSuggest.longLabel', "{0}, {1}", suggestions[to].label, suggestions[to].snippet.name);
-				}
-				if (to > i + 1) {
-					suggestions[i].label = localize('snippetSuggest.longLabel', "{0}, {1}", suggestions[i].label, suggestions[i].snippet.name);
-					i = to;
-				}
-			}
-			return { suggestions };
-		});
-	}
-
-	resolveCompletionItem?(model: ITextModel, position: Position, item: CompletionItem): CompletionItem {
-		return (item instanceof SnippetSuggestion) ? item.resolve() : item;
-	}
-
-	private _getLanguageIdAtPosition(model: ITextModel, position: Position): LanguageId {
-		// validate the `languageId` to ensure this is a user
-		// facing language with a name and the chance to have
-		// snippets, else fall back to the outer language
-		model.tokenizeIfCheap(position.lineNumber);
-		let languageId = model.getLanguageIdAtPosition(position.lineNumber, position.column);
-		let { language } = this._modeService.getLanguageIdentifier(languageId);
-		if (!this._modeService.getLanguageName(language)) {
-			languageId = model.getLanguageIdentifier().id;
-		}
-		return languageId;
-	}
 }
 
 export function getNonWhitespacePrefix(model: ISimpleModel, position: Position): string {

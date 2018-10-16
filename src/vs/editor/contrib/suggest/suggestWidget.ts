@@ -11,7 +11,6 @@ import { Event, Emitter, chain } from 'vs/base/common/event';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { IDisposable, dispose, toDisposable } from 'vs/base/common/lifecycle';
 import { addClass, append, $, hide, removeClass, show, toggleClass, getDomNodePagePosition, hasClass } from 'vs/base/browser/dom';
-import { HighlightedLabel } from 'vs/base/browser/ui/highlightedlabel/highlightedLabel';
 import { IListVirtualDelegate, IListEvent, IListRenderer } from 'vs/base/browser/ui/list/list';
 import { List } from 'vs/base/browser/ui/list/listWidget';
 import { DomScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
@@ -33,6 +32,11 @@ import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { TimeoutTimer, CancelablePromise, createCancelablePromise } from 'vs/base/common/async';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { CompletionItemKind, completionKindToCssClass } from 'vs/editor/common/modes';
+import { IconLabel, IIconLabelValueOptions } from 'vs/base/browser/ui/iconLabel/iconLabel';
+import { getIconClasses } from 'vs/editor/common/services/getIconClasses';
+import { IModelService } from 'vs/editor/common/services/modelService';
+import { URI } from 'vs/base/common/uri';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 
 const expandSuggestionDocsByDefault = false;
 const maxSuggestionsToShow = 12;
@@ -41,7 +45,7 @@ interface ISuggestionTemplateData {
 	root: HTMLElement;
 	icon: HTMLElement;
 	colorspan: HTMLElement;
-	highlightedLabel: HighlightedLabel;
+	iconLabel: IconLabel;
 	typeLabel: HTMLElement;
 	readMore: HTMLElement;
 	disposables: IDisposable[];
@@ -78,7 +82,9 @@ class Renderer implements IListRenderer<ICompletionItem, ISuggestionTemplateData
 	constructor(
 		private widget: SuggestWidget,
 		private editor: ICodeEditor,
-		private triggerKeybindingLabel: string
+		private triggerKeybindingLabel: string,
+		@IModelService private readonly _modelService: IModelService,
+		@IModeService private readonly _modeService: IModeService,
 	) {
 
 	}
@@ -97,8 +103,10 @@ class Renderer implements IListRenderer<ICompletionItem, ISuggestionTemplateData
 
 		const text = append(container, $('.contents'));
 		const main = append(text, $('.main'));
-		data.highlightedLabel = new HighlightedLabel(main);
-		data.disposables.push(data.highlightedLabel);
+
+		data.iconLabel = new IconLabel(main, { supportHighlights: true });
+		data.disposables.push(data.iconLabel);
+
 		data.typeLabel = append(main, $('span.type-label'));
 
 		data.readMore = append(main, $('span.readMore'));
@@ -132,7 +140,7 @@ class Renderer implements IListRenderer<ICompletionItem, ISuggestionTemplateData
 		return data;
 	}
 
-	renderElement(element: ICompletionItem, index: number, templateData: ISuggestionTemplateData): void {
+	renderElement(element: ICompletionItem, _index: number, templateData: ISuggestionTemplateData): void {
 		const data = <ISuggestionTemplateData>templateData;
 		const suggestion = (<ICompletionItem>element).suggestion;
 
@@ -147,8 +155,25 @@ class Renderer implements IListRenderer<ICompletionItem, ISuggestionTemplateData
 			}
 		}
 
-		data.highlightedLabel.set(suggestion.label, createMatches(element.matches), '', true);
-		// data.highlightedLabel.set(`${suggestion.label} <${element.score}=score(${element.word}, ${suggestion.filterText || suggestion.label})>`, createMatches(element.matches));
+		const labelOptions: IIconLabelValueOptions = {
+			labelEscapeNewLines: true,
+			matches: createMatches(element.matches)
+		};
+
+		if (
+			(suggestion.kind === CompletionItemKind.File)
+			&& document.querySelector('.file-icons-enabled') // todo@ben move file icon knowledge to editor or platform
+		) {
+			addClass(data.root, 'show-file-icons');
+			data.icon.className = 'icon hide';
+			labelOptions.extraClasses = [].concat(
+				getIconClasses(this._modelService, this._modeService, URI.from({ scheme: 'fake', path: suggestion.label })),
+				getIconClasses(this._modelService, this._modeService, URI.from({ scheme: 'fake', path: suggestion.detail }))
+			);
+		}
+
+		data.iconLabel.setValue(suggestion.label, undefined, labelOptions);
+
 		data.typeLabel.textContent = (suggestion.detail || '').replace(/\n.*$/m, '');
 
 		if (canExpandCompletionItem(element)) {
@@ -401,9 +426,6 @@ export class SuggestWidget implements IContentWidget, IListVirtualDelegate<IComp
 	private detailsFocusBorderColor: string;
 	private detailsBorderColor: string;
 
-	private storageServiceAvailable: boolean = true;
-	private expandSuggestionDocs: boolean = false;
-
 	private firstFocusInCurrentList: boolean = false;
 
 	constructor(
@@ -414,7 +436,8 @@ export class SuggestWidget implements IContentWidget, IListVirtualDelegate<IComp
 		@IStorageService storageService: IStorageService,
 		@IKeybindingService keybindingService: IKeybindingService,
 		@IModeService modeService: IModeService,
-		@IOpenerService openerService: IOpenerService
+		@IOpenerService openerService: IOpenerService,
+		@IInstantiationService instantiationService: IInstantiationService,
 	) {
 		const kb = keybindingService.lookupKeybinding('editor.action.triggerSuggest');
 		const triggerKeybindingLabel = !kb ? '' : ` (${kb.getLabel()})`;
@@ -423,13 +446,6 @@ export class SuggestWidget implements IContentWidget, IListVirtualDelegate<IComp
 		this.isAuto = false;
 		this.focusedItem = null;
 		this.storageService = storageService;
-
-		if (this.expandDocsSettingFromStorage() === undefined) {
-			this.storageService.store('expandSuggestionDocs', expandSuggestionDocsByDefault, StorageScope.GLOBAL);
-			if (this.expandDocsSettingFromStorage() === undefined) {
-				this.storageServiceAvailable = false;
-			}
-		}
 
 		this.element = $('.editor-widget.suggest-widget');
 		if (!this.editor.getConfiguration().contribInfo.iconsInSuggestions) {
@@ -440,7 +456,7 @@ export class SuggestWidget implements IContentWidget, IListVirtualDelegate<IComp
 		this.listElement = append(this.element, $('.tree'));
 		this.details = new SuggestionDetails(this.element, this, this.editor, markdownRenderer, triggerKeybindingLabel);
 
-		let renderer = new Renderer(this, this.editor, triggerKeybindingLabel);
+		let renderer = instantiationService.createInstance(Renderer, this, this.editor, triggerKeybindingLabel);
 
 		this.list = new List(this.listElement, this, [renderer], {
 			useShadows: false,
@@ -688,6 +704,11 @@ export class SuggestWidget implements IContentWidget, IListVirtualDelegate<IComp
 			this.loadingTimeout = null;
 		}
 
+		if (this.currentSuggestionDetails) {
+			this.currentSuggestionDetails.cancel();
+			this.currentSuggestionDetails = null;
+		}
+
 		if (this.completionModel !== completionModel) {
 			this.completionModel = completionModel;
 		}
@@ -728,6 +749,7 @@ export class SuggestWidget implements IContentWidget, IListVirtualDelegate<IComp
 				this.telemetryService.publicLog('suggestWidget', { ...stats, ...this.editor.getTelemetryData() });
 			}
 
+			this.focusedItem = null;
 			this.list.splice(0, this.list.length, this.completionModel.items);
 
 			if (isFrozen) {
@@ -1053,22 +1075,12 @@ export class SuggestWidget implements IContentWidget, IListVirtualDelegate<IComp
 		return 'suggestion';
 	}
 
-	// Monaco Editor does not have a storage service
 	private expandDocsSettingFromStorage(): boolean {
-		if (this.storageServiceAvailable) {
-			return this.storageService.getBoolean('expandSuggestionDocs', StorageScope.GLOBAL);
-		} else {
-			return this.expandSuggestionDocs;
-		}
+		return this.storageService.getBoolean('expandSuggestionDocs', StorageScope.GLOBAL, expandSuggestionDocsByDefault);
 	}
 
-	// Monaco Editor does not have a storage service
 	private updateExpandDocsSetting(value: boolean) {
-		if (this.storageServiceAvailable) {
-			this.storageService.store('expandSuggestionDocs', value, StorageScope.GLOBAL);
-		} else {
-			this.expandSuggestionDocs = value;
-		}
+		this.storageService.store('expandSuggestionDocs', value, StorageScope.GLOBAL);
 	}
 
 	dispose(): void {

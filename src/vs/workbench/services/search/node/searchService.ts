@@ -461,6 +461,10 @@ export class DiskSearch implements ISearchResultProvider {
 		const folderQueries = query.folderQueries || [];
 		return TPromise.join(folderQueries.map(q => q.folder.scheme === Schemas.file && pfs.exists(q.folder.fsPath)))
 			.then(exists => {
+				if (token && token.isCancellationRequested) {
+					throw canceled();
+				}
+
 				const existingFolders = folderQueries.filter((q, index) => exists[index]);
 				const rawSearch = this.rawSearchQuery(query, existingFolders);
 

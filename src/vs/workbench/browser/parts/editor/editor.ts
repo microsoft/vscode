@@ -117,8 +117,6 @@ export interface IEditorGroupView extends IDisposable, ISerializableView, IEdito
 	setActive(isActive: boolean): void;
 	setLabel(label: string): void;
 	relayout(): void;
-
-	shutdown(): void;
 }
 
 export function getActiveTextEditorOptions(group: IEditorGroup, expectedActiveEditor?: IEditorInput, presetOptions?: EditorOptions): EditorOptions {

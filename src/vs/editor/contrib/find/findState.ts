@@ -110,7 +110,7 @@ export class FindReplaceState implements IDisposable {
 	public dispose(): void {
 	}
 
-	public changeMatchInfo(matchesPosition: number, matchesCount: number, currentMatch: Range): void {
+	public changeMatchInfo(matchesPosition: number, matchesCount: number, currentMatch: Range | undefined): void {
 		let changeEvent: FindReplaceStateChangedEvent = {
 			moveCursor: false,
 			updateHistory: false,

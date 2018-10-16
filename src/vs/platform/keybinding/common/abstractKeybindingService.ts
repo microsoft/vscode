@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as nls from 'vs/nls';
+import * as arrays from 'vs/base/common/arrays';
 import { ResolvedKeybinding, Keybinding, KeyCode } from 'vs/base/common/keyCodes';
 import { IDisposable, Disposable } from 'vs/base/common/lifecycle';
 import { ICommandService } from 'vs/platform/commands/common/commands';
@@ -19,19 +20,19 @@ import { IntervalTimer } from 'vs/base/common/async';
 
 interface CurrentChord {
 	keypress: string;
-	label: string;
+	label: string | null;
 }
 
 export abstract class AbstractKeybindingService extends Disposable implements IKeybindingService {
 	public _serviceBrand: any;
 
-	private _currentChord: CurrentChord;
+	private _currentChord: CurrentChord | null;
 	private _currentChordChecker: IntervalTimer;
-	private _currentChordStatusMessage: IDisposable;
+	private _currentChordStatusMessage: IDisposable | null;
 	protected _onDidUpdateKeybindings: Emitter<IKeybindingEvent>;
 
 	private _contextKeyService: IContextKeyService;
-	private _statusService: IStatusbarService;
+	private _statusService: IStatusbarService | undefined;
 	private _notificationService: INotificationService;
 	protected _commandService: ICommandService;
 	protected _telemetryService: ITelemetryService;
@@ -87,10 +88,12 @@ export abstract class AbstractKeybindingService extends Disposable implements IK
 	}
 
 	public lookupKeybindings(commandId: string): ResolvedKeybinding[] {
-		return this._getResolver().lookupKeybindings(commandId).map(item => item.resolvedKeybinding);
+		return arrays.coalesce(
+			this._getResolver().lookupKeybindings(commandId).map(item => item.resolvedKeybinding)
+		);
 	}
 
-	public lookupKeybinding(commandId: string): ResolvedKeybinding {
+	public lookupKeybinding(commandId: string): ResolvedKeybinding | null {
 		let result = this._getResolver().lookupPrimaryKeybinding(commandId);
 		if (!result) {
 			return null;
@@ -98,7 +101,7 @@ export abstract class AbstractKeybindingService extends Disposable implements IK
 		return result.resolvedKeybinding;
 	}
 
-	public softDispatch(e: IKeyboardEvent, target: IContextKeyServiceTarget): IResolveResult {
+	public softDispatch(e: IKeyboardEvent, target: IContextKeyServiceTarget): IResolveResult | null {
 		const keybinding = this.resolveKeyboardEvent(e);
 		if (keybinding.isChord()) {
 			console.warn('Unexpected keyboard event mapped to a chord');
@@ -115,7 +118,7 @@ export abstract class AbstractKeybindingService extends Disposable implements IK
 		return this._getResolver().resolve(contextValue, currentChord, firstPart);
 	}
 
-	private _enterChordMode(firstPart: string, keypressLabel: string): void {
+	private _enterChordMode(firstPart: string, keypressLabel: string | null): void {
 		this._currentChord = {
 			keypress: firstPart,
 			label: keypressLabel
@@ -155,7 +158,7 @@ export abstract class AbstractKeybindingService extends Disposable implements IK
 		const keybinding = this.resolveKeyboardEvent(e);
 		if (keybinding.isChord()) {
 			console.warn('Unexpected keyboard event mapped to a chord');
-			return null;
+			return false;
 		}
 		const [firstPart,] = keybinding.getDispatchParts();
 		if (firstPart === null) {

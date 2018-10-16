@@ -4,10 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { StorageService } from 'vs/platform/storage/common/storageService';
-import { parseStorage, migrateStorageToMultiRootWorkspace } from 'vs/platform/storage/common/migration';
+import { StorageLegacyScope, StorageLegacyService } from 'vs/platform/storage/common/storageLegacyService';
+import { parseStorage, migrateStorageToMultiRootWorkspace } from 'vs/platform/storage/common/storageLegacyMigration';
 import { URI } from 'vs/base/common/uri';
-import { StorageScope } from 'vs/platform/storage/common/storage';
 import { startsWith } from 'vs/base/common/strings';
 
 suite('Storage Migration', () => {
@@ -92,10 +91,10 @@ suite('Storage Migration', () => {
 			}
 
 			assert.equal(Object.keys(storageToTest).length, expectedKeyCount);
-			assert.equal(storageToTest['key1'], service.get('key1', StorageScope.WORKSPACE));
-			assert.equal(storageToTest['key2.something'], service.get('key2.something', StorageScope.WORKSPACE));
-			assert.equal(storageToTest['key3/special'], service.get('key3/special', StorageScope.WORKSPACE));
-			assert.equal(storageToTest['key4 space'], service.get('key4 space', StorageScope.WORKSPACE));
+			assert.equal(storageToTest['key1'], service.get('key1', StorageLegacyScope.WORKSPACE));
+			assert.equal(storageToTest['key2.something'], service.get('key2.something', StorageLegacyScope.WORKSPACE));
+			assert.equal(storageToTest['key3/special'], service.get('key3/special', StorageLegacyScope.WORKSPACE));
+			assert.equal(storageToTest['key4 space'], service.get('key4 space', StorageLegacyScope.WORKSPACE));
 		});
 	});
 
@@ -103,38 +102,38 @@ suite('Storage Migration', () => {
 		const ws1 = URI.file('/some/folder/folder1').toString();
 		const ws2 = URI.file('/some/folder/folder1/sub1').toString();
 
-		const s1 = new StorageService(storage, storage, ws1, Date.now());
-		const s2 = new StorageService(storage, storage, ws2, Date.now());
+		const s1 = new StorageLegacyService(storage, storage, ws1, Date.now());
+		const s2 = new StorageLegacyService(storage, storage, ws2, Date.now());
 
-		s1.store('s1key1', 'value1', StorageScope.WORKSPACE);
-		s1.store('s1key2.something', JSON.stringify({ foo: 'bar' }), StorageScope.WORKSPACE);
-		s1.store('s1key3/special', true, StorageScope.WORKSPACE);
-		s1.store('s1key4 space', 4, StorageScope.WORKSPACE);
+		s1.store('s1key1', 'value1', StorageLegacyScope.WORKSPACE);
+		s1.store('s1key2.something', JSON.stringify({ foo: 'bar' }), StorageLegacyScope.WORKSPACE);
+		s1.store('s1key3/special', true, StorageLegacyScope.WORKSPACE);
+		s1.store('s1key4 space', 4, StorageLegacyScope.WORKSPACE);
 
-		s2.store('s2key1', 'value1', StorageScope.WORKSPACE);
-		s2.store('s2key2.something', JSON.stringify({ foo: 'bar' }), StorageScope.WORKSPACE);
-		s2.store('s2key3/special', true, StorageScope.WORKSPACE);
-		s2.store('s2key4 space', 4, StorageScope.WORKSPACE);
+		s2.store('s2key1', 'value1', StorageLegacyScope.WORKSPACE);
+		s2.store('s2key2.something', JSON.stringify({ foo: 'bar' }), StorageLegacyScope.WORKSPACE);
+		s2.store('s2key3/special', true, StorageLegacyScope.WORKSPACE);
+		s2.store('s2key4 space', 4, StorageLegacyScope.WORKSPACE);
 
 		const parsed = parseStorage(storage);
 
 		const s1Storage = parsed.folder.get(ws1);
 		assert.equal(Object.keys(s1Storage).length, 5);
-		assert.equal(s1Storage['s1key1'], s1.get('s1key1', StorageScope.WORKSPACE));
-		assert.equal(s1Storage['s1key2.something'], s1.get('s1key2.something', StorageScope.WORKSPACE));
-		assert.equal(s1Storage['s1key3/special'], s1.get('s1key3/special', StorageScope.WORKSPACE));
-		assert.equal(s1Storage['s1key4 space'], s1.get('s1key4 space', StorageScope.WORKSPACE));
+		assert.equal(s1Storage['s1key1'], s1.get('s1key1', StorageLegacyScope.WORKSPACE));
+		assert.equal(s1Storage['s1key2.something'], s1.get('s1key2.something', StorageLegacyScope.WORKSPACE));
+		assert.equal(s1Storage['s1key3/special'], s1.get('s1key3/special', StorageLegacyScope.WORKSPACE));
+		assert.equal(s1Storage['s1key4 space'], s1.get('s1key4 space', StorageLegacyScope.WORKSPACE));
 
 		const s2Storage = parsed.folder.get(ws2);
 		assert.equal(Object.keys(s2Storage).length, 5);
-		assert.equal(s2Storage['s2key1'], s2.get('s2key1', StorageScope.WORKSPACE));
-		assert.equal(s2Storage['s2key2.something'], s2.get('s2key2.something', StorageScope.WORKSPACE));
-		assert.equal(s2Storage['s2key3/special'], s2.get('s2key3/special', StorageScope.WORKSPACE));
-		assert.equal(s2Storage['s2key4 space'], s2.get('s2key4 space', StorageScope.WORKSPACE));
+		assert.equal(s2Storage['s2key1'], s2.get('s2key1', StorageLegacyScope.WORKSPACE));
+		assert.equal(s2Storage['s2key2.something'], s2.get('s2key2.something', StorageLegacyScope.WORKSPACE));
+		assert.equal(s2Storage['s2key3/special'], s2.get('s2key3/special', StorageLegacyScope.WORKSPACE));
+		assert.equal(s2Storage['s2key4 space'], s2.get('s2key4 space', StorageLegacyScope.WORKSPACE));
 	});
 
-	function createService(workspaceId?: string): StorageService {
-		const service = new StorageService(storage, storage, workspaceId, workspaceId && startsWith(workspaceId, 'file:') ? Date.now() : void 0);
+	function createService(workspaceId?: string): StorageLegacyService {
+		const service = new StorageLegacyService(storage, storage, workspaceId, workspaceId && startsWith(workspaceId, 'file:') ? Date.now() : void 0);
 
 		// Unrelated
 		storage.setItem('foo', 'bar');
@@ -148,10 +147,10 @@ suite('Storage Migration', () => {
 		service.store('key4 space', 4);
 
 		// Workspace
-		service.store('key1', 'value1', StorageScope.WORKSPACE);
-		service.store('key2.something', JSON.stringify({ foo: 'bar' }), StorageScope.WORKSPACE);
-		service.store('key3/special', true, StorageScope.WORKSPACE);
-		service.store('key4 space', 4, StorageScope.WORKSPACE);
+		service.store('key1', 'value1', StorageLegacyScope.WORKSPACE);
+		service.store('key2.something', JSON.stringify({ foo: 'bar' }), StorageLegacyScope.WORKSPACE);
+		service.store('key3/special', true, StorageLegacyScope.WORKSPACE);
+		service.store('key4 space', 4, StorageLegacyScope.WORKSPACE);
 
 		return service;
 	}
@@ -164,7 +163,7 @@ suite('Storage Migration', () => {
 
 		migrateStorageToMultiRootWorkspace(workspaceToMigrateFrom, { id: '1500007676869', configPath: null }, storage);
 
-		const s2 = new StorageService(storage, storage, workspaceToMigrateTo);
+		const s2 = new StorageLegacyService(storage, storage, workspaceToMigrateTo);
 		const parsed = parseStorage(storage);
 
 		assert.equal(parsed.empty.size, 0);
@@ -173,10 +172,10 @@ suite('Storage Migration', () => {
 
 		const migratedStorage = parsed.multiRoot.get(workspaceToMigrateTo);
 		assert.equal(Object.keys(migratedStorage).length, 4);
-		assert.equal(migratedStorage['key1'], s2.get('key1', StorageScope.WORKSPACE));
-		assert.equal(migratedStorage['key2.something'], s2.get('key2.something', StorageScope.WORKSPACE));
-		assert.equal(migratedStorage['key3/special'], s2.get('key3/special', StorageScope.WORKSPACE));
-		assert.equal(migratedStorage['key4 space'], s2.get('key4 space', StorageScope.WORKSPACE));
+		assert.equal(migratedStorage['key1'], s2.get('key1', StorageLegacyScope.WORKSPACE));
+		assert.equal(migratedStorage['key2.something'], s2.get('key2.something', StorageLegacyScope.WORKSPACE));
+		assert.equal(migratedStorage['key3/special'], s2.get('key3/special', StorageLegacyScope.WORKSPACE));
+		assert.equal(migratedStorage['key4 space'], s2.get('key4 space', StorageLegacyScope.WORKSPACE));
 	});
 
 	test('Migrate Storage (folder (Windows) => multi root)', () => {
@@ -187,7 +186,7 @@ suite('Storage Migration', () => {
 
 		migrateStorageToMultiRootWorkspace(workspaceToMigrateFrom, { id: '1500007676869', configPath: null }, storage);
 
-		const s2 = new StorageService(storage, storage, workspaceToMigrateTo);
+		const s2 = new StorageLegacyService(storage, storage, workspaceToMigrateTo);
 		const parsed = parseStorage(storage);
 
 		assert.equal(parsed.empty.size, 0);
@@ -196,10 +195,10 @@ suite('Storage Migration', () => {
 
 		const migratedStorage = parsed.multiRoot.get(workspaceToMigrateTo);
 		assert.equal(Object.keys(migratedStorage).length, 4);
-		assert.equal(migratedStorage['key1'], s2.get('key1', StorageScope.WORKSPACE));
-		assert.equal(migratedStorage['key2.something'], s2.get('key2.something', StorageScope.WORKSPACE));
-		assert.equal(migratedStorage['key3/special'], s2.get('key3/special', StorageScope.WORKSPACE));
-		assert.equal(migratedStorage['key4 space'], s2.get('key4 space', StorageScope.WORKSPACE));
+		assert.equal(migratedStorage['key1'], s2.get('key1', StorageLegacyScope.WORKSPACE));
+		assert.equal(migratedStorage['key2.something'], s2.get('key2.something', StorageLegacyScope.WORKSPACE));
+		assert.equal(migratedStorage['key3/special'], s2.get('key3/special', StorageLegacyScope.WORKSPACE));
+		assert.equal(migratedStorage['key4 space'], s2.get('key4 space', StorageLegacyScope.WORKSPACE));
 	});
 
 	test('Migrate Storage (folder (Windows UNC) => multi root)', () => {
@@ -210,7 +209,7 @@ suite('Storage Migration', () => {
 
 		migrateStorageToMultiRootWorkspace(workspaceToMigrateFrom, { id: '1500007676869', configPath: null }, storage);
 
-		const s2 = new StorageService(storage, storage, workspaceToMigrateTo);
+		const s2 = new StorageLegacyService(storage, storage, workspaceToMigrateTo);
 		const parsed = parseStorage(storage);
 
 		assert.equal(parsed.empty.size, 0);
@@ -219,10 +218,10 @@ suite('Storage Migration', () => {
 
 		const migratedStorage = parsed.multiRoot.get(workspaceToMigrateTo);
 		assert.equal(Object.keys(migratedStorage).length, 4);
-		assert.equal(migratedStorage['key1'], s2.get('key1', StorageScope.WORKSPACE));
-		assert.equal(migratedStorage['key2.something'], s2.get('key2.something', StorageScope.WORKSPACE));
-		assert.equal(migratedStorage['key3/special'], s2.get('key3/special', StorageScope.WORKSPACE));
-		assert.equal(migratedStorage['key4 space'], s2.get('key4 space', StorageScope.WORKSPACE));
+		assert.equal(migratedStorage['key1'], s2.get('key1', StorageLegacyScope.WORKSPACE));
+		assert.equal(migratedStorage['key2.something'], s2.get('key2.something', StorageLegacyScope.WORKSPACE));
+		assert.equal(migratedStorage['key3/special'], s2.get('key3/special', StorageLegacyScope.WORKSPACE));
+		assert.equal(migratedStorage['key4 space'], s2.get('key4 space', StorageLegacyScope.WORKSPACE));
 	});
 
 	test('Migrate Storage (empty => multi root)', () => {
@@ -233,7 +232,7 @@ suite('Storage Migration', () => {
 
 		migrateStorageToMultiRootWorkspace(workspaceToMigrateFrom, { id: '2500007676869', configPath: null }, storage);
 
-		const s2 = new StorageService(storage, storage, workspaceToMigrateTo);
+		const s2 = new StorageLegacyService(storage, storage, workspaceToMigrateTo);
 		const parsed = parseStorage(storage);
 
 		assert.equal(parsed.empty.size, 1);
@@ -242,9 +241,9 @@ suite('Storage Migration', () => {
 
 		const migratedStorage = parsed.multiRoot.get(workspaceToMigrateTo);
 		assert.equal(Object.keys(migratedStorage).length, 4);
-		assert.equal(migratedStorage['key1'], s2.get('key1', StorageScope.WORKSPACE));
-		assert.equal(migratedStorage['key2.something'], s2.get('key2.something', StorageScope.WORKSPACE));
-		assert.equal(migratedStorage['key3/special'], s2.get('key3/special', StorageScope.WORKSPACE));
-		assert.equal(migratedStorage['key4 space'], s2.get('key4 space', StorageScope.WORKSPACE));
+		assert.equal(migratedStorage['key1'], s2.get('key1', StorageLegacyScope.WORKSPACE));
+		assert.equal(migratedStorage['key2.something'], s2.get('key2.something', StorageLegacyScope.WORKSPACE));
+		assert.equal(migratedStorage['key3/special'], s2.get('key3/special', StorageLegacyScope.WORKSPACE));
+		assert.equal(migratedStorage['key4 space'], s2.get('key4 space', StorageLegacyScope.WORKSPACE));
 	});
 });

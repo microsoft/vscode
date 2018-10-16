@@ -55,7 +55,7 @@ export interface IKeybindingService {
 	/**
 	 * Resolve and dispatch `keyboardEvent`, but do not invoke the command or change inner state.
 	 */
-	softDispatch(keyboardEvent: IKeyboardEvent, target: IContextKeyServiceTarget): IResolveResult;
+	softDispatch(keyboardEvent: IKeyboardEvent, target: IContextKeyServiceTarget): IResolveResult | null;
 
 	/**
 	 * Look up keybindings for a command.
@@ -67,7 +67,7 @@ export interface IKeybindingService {
 	 * Look up the preferred (last defined) keybinding for a command.
 	 * @returns The preferred keybinding or null if the command is not bound.
 	 */
-	lookupKeybinding(commandId: string): ResolvedKeybinding;
+	lookupKeybinding(commandId: string): ResolvedKeybinding | null;
 
 	getDefaultKeybindingsContent(): string;
 

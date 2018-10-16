@@ -45,6 +45,7 @@ import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
 import { fillInContextMenuActions } from 'vs/platform/actions/browser/menuItemActionItem';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { isErrorWithActions, IErrorWithActions } from 'vs/base/common/errorsWithActions';
+import { URI } from 'vs/base/common/uri';
 
 export class EditorGroupView extends Themable implements IEditorGroupView {
 
@@ -967,7 +968,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 
 	private doCloseActiveEditor(focusNext = this.accessor.activeGroup === this, fromError?: boolean): void {
 		const editorToClose = this.activeEditor;
-		const editorHasFocus = isAncestor(document.activeElement, this.element);
+		const restoreFocus = this.shouldRestoreFocus(this.element);
 
 		// Optimization: if we are about to close the last editor in this group and settings
 		// are configured to close the group since it will be empty, we first set the last
@@ -981,7 +982,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 			const mostRecentlyActiveGroups = this.accessor.getGroups(GroupsOrder.MOST_RECENTLY_ACTIVE);
 			const nextActiveGroup = mostRecentlyActiveGroups[1]; // [0] will be the current one, so take [1]
 			if (nextActiveGroup) {
-				if (editorHasFocus) {
+				if (restoreFocus) {
 					nextActiveGroup.focus();
 				} else {
 					this.accessor.activateGroup(nextActiveGroup);
@@ -1018,7 +1019,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 			this.editorControl.closeEditor(editorToClose);
 
 			// Restore focus to group container as needed unless group gets closed
-			if (editorHasFocus && !closeEmptyGroup) {
+			if (restoreFocus && !closeEmptyGroup) {
 				this.focus();
 			}
 
@@ -1030,6 +1031,17 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 				this.accessor.removeGroup(this);
 			}
 		}
+	}
+
+	private shouldRestoreFocus(target: Element): boolean {
+		const activeElement = document.activeElement;
+
+		if (activeElement === document.body) {
+			return true; // always restore focus if nothing is focused currently
+		}
+
+		// otherwise check for the active element being an ancestor of the target
+		return isAncestor(activeElement, target);
 	}
 
 	private doCloseInactiveEditor(editor: EditorInput) {
@@ -1366,10 +1378,6 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 
 	//#endregion
 
-	shutdown(): void {
-		this.editorControl.shutdown();
-	}
-
 	dispose(): void {
 		this._disposed = true;
 
@@ -1425,7 +1433,7 @@ registerThemingParticipant((theme, collector, environment) => {
 	const letterpress = `resources/letterpress${theme.type === 'dark' ? '-dark' : theme.type === 'hc' ? '-hc' : ''}.svg`;
 	collector.addRule(`
 		.monaco-workbench > .part.editor > .content .editor-group-container.empty .editor-group-letterpress {
-			background-image: url('${join(environment.appRoot, letterpress).replace(/#/g, '%23')}')
+			background-image: url('${URI.file(join(environment.appRoot, letterpress)).toString()}')
 		}
 	`);
 

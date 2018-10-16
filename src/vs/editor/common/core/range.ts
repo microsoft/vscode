@@ -354,28 +354,33 @@ export class Range {
 	 * A function that compares ranges, useful for sorting ranges
 	 * It will first compare ranges on the startPosition and then on the endPosition
 	 */
-	public static compareRangesUsingStarts(a: IRange, b: IRange): number {
-		let aStartLineNumber = a.startLineNumber | 0;
-		let bStartLineNumber = b.startLineNumber | 0;
+	public static compareRangesUsingStarts(a: IRange | null | undefined, b: IRange | null | undefined): number {
+		if (a && b) {
+			const aStartLineNumber = a.startLineNumber | 0;
+			const bStartLineNumber = b.startLineNumber | 0;
 
-		if (aStartLineNumber === bStartLineNumber) {
-			let aStartColumn = a.startColumn | 0;
-			let bStartColumn = b.startColumn | 0;
+			if (aStartLineNumber === bStartLineNumber) {
+				const aStartColumn = a.startColumn | 0;
+				const bStartColumn = b.startColumn | 0;
 
-			if (aStartColumn === bStartColumn) {
-				let aEndLineNumber = a.endLineNumber | 0;
-				let bEndLineNumber = b.endLineNumber | 0;
+				if (aStartColumn === bStartColumn) {
+					const aEndLineNumber = a.endLineNumber | 0;
+					const bEndLineNumber = b.endLineNumber | 0;
 
-				if (aEndLineNumber === bEndLineNumber) {
-					let aEndColumn = a.endColumn | 0;
-					let bEndColumn = b.endColumn | 0;
-					return aEndColumn - bEndColumn;
+					if (aEndLineNumber === bEndLineNumber) {
+						const aEndColumn = a.endColumn | 0;
+						const bEndColumn = b.endColumn | 0;
+						return aEndColumn - bEndColumn;
+					}
+					return aEndLineNumber - bEndLineNumber;
 				}
-				return aEndLineNumber - bEndLineNumber;
+				return aStartColumn - bStartColumn;
 			}
-			return aStartColumn - bStartColumn;
+			return aStartLineNumber - bStartLineNumber;
 		}
-		return aStartLineNumber - bStartLineNumber;
+		const aExists = (a ? 1 : 0);
+		const bExists = (b ? 1 : 0);
+		return aExists - bExists;
 	}
 
 	/**

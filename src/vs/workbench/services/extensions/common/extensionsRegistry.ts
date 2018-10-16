@@ -71,8 +71,8 @@ export interface IExtensionPoint<T> {
 export class ExtensionPoint<T> implements IExtensionPoint<T> {
 
 	public readonly name: string;
-	private _handler: IExtensionPointHandler<T>;
-	private _users: IExtensionPointUser<T>[];
+	private _handler: IExtensionPointHandler<T> | null;
+	private _users: IExtensionPointUser<T>[] | null;
 	private _done: boolean;
 
 	constructor(name: string) {

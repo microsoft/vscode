@@ -32,7 +32,7 @@ export class WorkbenchReferencesController extends ReferencesController {
 			notificationService,
 			instantiationService,
 			storageService,
-			configurationService,
+			configurationService
 		);
 	}
 }

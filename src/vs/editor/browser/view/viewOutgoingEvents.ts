@@ -9,7 +9,7 @@ import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { IViewModel } from 'vs/editor/common/viewModel/viewModel';
 import { IScrollEvent } from 'vs/editor/common/editorCommon';
-import { IEditorMouseEvent, IMouseTarget, MouseTargetType } from 'vs/editor/browser/editorBrowser';
+import { IEditorMouseEvent, IMouseTarget, MouseTargetType, IPartialEditorMouseEvent } from 'vs/editor/browser/editorBrowser';
 import { MouseTarget } from 'vs/editor/browser/controller/mouseTarget';
 import * as viewEvents from 'vs/editor/common/view/viewEvents';
 
@@ -26,11 +26,11 @@ export class ViewOutgoingEvents extends Disposable {
 	public onKeyUp: EventCallback<IKeyboardEvent> | null = null;
 	public onContextMenu: EventCallback<IEditorMouseEvent> | null = null;
 	public onMouseMove: EventCallback<IEditorMouseEvent> | null = null;
-	public onMouseLeave: EventCallback<IEditorMouseEvent> | null = null;
+	public onMouseLeave: EventCallback<IPartialEditorMouseEvent> | null = null;
 	public onMouseUp: EventCallback<IEditorMouseEvent> | null = null;
 	public onMouseDown: EventCallback<IEditorMouseEvent> | null = null;
 	public onMouseDrag: EventCallback<IEditorMouseEvent> | null = null;
-	public onMouseDrop: EventCallback<IEditorMouseEvent> | null = null;
+	public onMouseDrop: EventCallback<IPartialEditorMouseEvent> | null = null;
 
 	private _viewModel: IViewModel;
 
@@ -81,7 +81,7 @@ export class ViewOutgoingEvents extends Disposable {
 		}
 	}
 
-	public emitMouseLeave(e: IEditorMouseEvent): void {
+	public emitMouseLeave(e: IPartialEditorMouseEvent): void {
 		if (this.onMouseLeave) {
 			this.onMouseLeave(this._convertViewToModelMouseEvent(e));
 		}
@@ -105,13 +105,15 @@ export class ViewOutgoingEvents extends Disposable {
 		}
 	}
 
-	public emitMouseDrop(e: IEditorMouseEvent): void {
+	public emitMouseDrop(e: IPartialEditorMouseEvent): void {
 		if (this.onMouseDrop) {
 			this.onMouseDrop(this._convertViewToModelMouseEvent(e));
 		}
 	}
 
-	private _convertViewToModelMouseEvent(e: IEditorMouseEvent): IEditorMouseEvent {
+	private _convertViewToModelMouseEvent(e: IEditorMouseEvent): IEditorMouseEvent;
+	private _convertViewToModelMouseEvent(e: IPartialEditorMouseEvent): IPartialEditorMouseEvent;
+	private _convertViewToModelMouseEvent(e: IEditorMouseEvent | IPartialEditorMouseEvent): IEditorMouseEvent | IPartialEditorMouseEvent {
 		if (e.target) {
 			return {
 				event: e.event,

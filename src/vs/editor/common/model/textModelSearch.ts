@@ -17,9 +17,9 @@ export class SearchParams {
 	public readonly searchString: string;
 	public readonly isRegex: boolean;
 	public readonly matchCase: boolean;
-	public readonly wordSeparators: string;
+	public readonly wordSeparators: string | null;
 
-	constructor(searchString: string, isRegex: boolean, matchCase: boolean, wordSeparators: string) {
+	constructor(searchString: string, isRegex: boolean, matchCase: boolean, wordSeparators: string | null) {
 		this.searchString = searchString;
 		this.isRegex = isRegex;
 		this.matchCase = matchCase;

@@ -130,11 +130,8 @@ export function log(lexer: ILexerMin, msg: string) {
 
 // Throwing errors
 
-/**
- * Throws error. May actually just log the error and continue.
- */
-export function throwError(lexer: ILexerMin, msg: string) {
-	throw new Error(`${lexer.languageId}: ${msg}`);
+export function createError(lexer: ILexerMin, msg: string): Error {
+	return new Error(`${lexer.languageId}: ${msg}`);
 }
 
 // Helper functions for rule finding and substitution

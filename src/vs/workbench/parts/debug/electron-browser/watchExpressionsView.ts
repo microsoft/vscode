@@ -35,10 +35,8 @@ const MAX_VALUE_RENDER_LENGTH_IN_VIEWLET = 1024;
 
 export class WatchExpressionsView extends TreeViewsViewletPanel {
 
-	private static readonly MEMENTO = 'watchexpressionsview.memento';
 	private onWatchExpressionsUpdatedScheduler: RunOnceScheduler;
 	private treeContainer: HTMLElement;
-	private settings: any;
 	private needsRefresh: boolean;
 
 	constructor(
@@ -50,7 +48,6 @@ export class WatchExpressionsView extends TreeViewsViewletPanel {
 		@IConfigurationService configurationService: IConfigurationService
 	) {
 		super({ ...(options as IViewletPanelOptions), ariaHeaderLabel: nls.localize('watchExpressionsSection', "Watch Expressions Section") }, keybindingService, contextMenuService, configurationService);
-		this.settings = options.viewletSettings;
 
 		this.onWatchExpressionsUpdatedScheduler = new RunOnceScheduler(() => {
 			this.needsRefresh = false;
@@ -131,11 +128,6 @@ export class WatchExpressionsView extends TreeViewsViewletPanel {
 				this.onWatchExpressionsUpdatedScheduler.schedule();
 			}
 		});
-	}
-
-	public shutdown(): void {
-		this.settings[WatchExpressionsView.MEMENTO] = !this.isExpanded();
-		super.shutdown();
 	}
 }
 

@@ -24,11 +24,7 @@ export interface IUserHomeProvider {
 /**
  * @deprecated use LabelService instead
  */
-export function getPathLabel(resource: URI | string, userHomeProvider: IUserHomeProvider, rootProvider?: IWorkspaceFolderProvider): string | undefined {
-	if (!resource) {
-		return undefined;
-	}
-
+export function getPathLabel(resource: URI | string, userHomeProvider: IUserHomeProvider, rootProvider?: IWorkspaceFolderProvider): string {
 	if (typeof resource === 'string') {
 		resource = URI.file(resource);
 	}

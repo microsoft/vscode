@@ -183,7 +183,7 @@ export interface IOverlayWidgetPosition {
 	/**
 	 * The position preference for the overlay widget.
 	 */
-	preference: OverlayWidgetPositionPreference;
+	preference: OverlayWidgetPositionPreference | null;
 }
 /**
  * An overlay widgets renders on top of the text.
@@ -299,6 +299,10 @@ export interface IMouseTarget {
  * A mouse event originating from the editor.
  */
 export interface IEditorMouseEvent {
+	readonly event: IMouseEvent;
+	readonly target: IMouseTarget;
+}
+export interface IPartialEditorMouseEvent {
 	readonly event: IMouseEvent;
 	readonly target: IMouseTarget | null;
 }
@@ -441,7 +445,7 @@ export interface ICodeEditor extends editorCommon.IEditor {
 	 * @internal
 	 * @event
 	 */
-	onMouseDrop(listener: (e: IEditorMouseEvent) => void): IDisposable;
+	onMouseDrop(listener: (e: IPartialEditorMouseEvent) => void): IDisposable;
 	/**
 	 * An event emitted on a "contextmenu".
 	 * @event
@@ -456,7 +460,7 @@ export interface ICodeEditor extends editorCommon.IEditor {
 	 * An event emitted on a "mouseleave".
 	 * @event
 	 */
-	onMouseLeave(listener: (e: IEditorMouseEvent) => void): IDisposable;
+	onMouseLeave(listener: (e: IPartialEditorMouseEvent) => void): IDisposable;
 	/**
 	 * An event emitted on a "keyup".
 	 * @event
@@ -802,14 +806,6 @@ export interface IActiveCodeEditor extends ICodeEditor {
 	 * Returns the editor's dom node
 	 */
 	getDomNode(): HTMLElement;
-
-	/**
-	 * Get the hit test target at coordinates `clientX` and `clientY`.
-	 * The coordinates are relative to the top-left of the viewport.
-	 *
-	 * @returns Hit test target or null if the coordinates fall outside the editor or the editor has no model.
-	 */
-	getTargetAtClientPoint(clientX: number, clientY: number): IMouseTarget;
 
 	/**
 	 * Get the visible position for `position`.

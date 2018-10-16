@@ -42,7 +42,7 @@ export abstract class ContextKeyExpr {
 		return new ContextKeyAndExpr(expr);
 	}
 
-	public static deserialize(serialized: string): ContextKeyExpr | null {
+	public static deserialize(serialized: string | null | undefined): ContextKeyExpr | null {
 		if (!serialized) {
 			return null;
 		}
@@ -394,7 +394,8 @@ export class ContextKeyRegexExpr implements ContextKeyExpr {
 	}
 
 	public evaluate(context: IContext): boolean {
-		return this.regexp ? this.regexp.test(context.getValue(this.key)) : false;
+		let value = context.getValue<any>(this.key);
+		return this.regexp ? this.regexp.test(value) : false;
 	}
 
 	public normalize(): ContextKeyExpr {
@@ -525,7 +526,7 @@ export class RawContextKey<T> extends ContextKeyDefinedExpr {
 		return target.createKey(this.key, this._defaultValue);
 	}
 
-	public getValue(target: IContextKeyService): T {
+	public getValue(target: IContextKeyService): T | undefined {
 		return target.getContextKeyValue<T>(this.key);
 	}
 
@@ -543,13 +544,13 @@ export class RawContextKey<T> extends ContextKeyDefinedExpr {
 }
 
 export interface IContext {
-	getValue<T>(key: string): T;
+	getValue<T>(key: string): T | undefined;
 }
 
 export interface IContextKey<T> {
 	set(value: T): void;
 	reset(): void;
-	get(): T;
+	get(): T | undefined;
 }
 
 export interface IContextKeyServiceTarget {
@@ -577,7 +578,7 @@ export interface IContextKeyService {
 	onDidChangeContext: Event<IContextKeyChangeEvent>;
 	createKey<T>(key: string, defaultValue: T | undefined): IContextKey<T>;
 	contextMatchesRules(rules: ContextKeyExpr | null): boolean;
-	getContextKeyValue<T>(key: string): T;
+	getContextKeyValue<T>(key: string): T | undefined;
 
 	createScoped(target?: IContextKeyServiceTarget): IContextKeyService;
 	getContext(target: IContextKeyServiceTarget): IContext;

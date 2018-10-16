@@ -16,6 +16,8 @@ import { Range } from 'vs/workbench/api/node/extHostTypes';
 import { TestRPCProtocol } from 'vs/workbench/test/electron-browser/api/testRPCProtocol';
 import * as vscode from 'vscode';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
+import { TestLogService } from 'vs/workbench/test/workbenchTestServices';
+import { ExtHostConfiguration } from 'vs/workbench/api/node/extHostConfiguration';
 
 let rpcProtocol: TestRPCProtocol;
 let extHostSearch: ExtHostSearch;
@@ -54,6 +56,12 @@ class MockMainThreadSearch implements MainThreadSearchShape {
 	}
 
 	dispose() {
+	}
+}
+
+class MockExtHostConfiguration {
+	getConfiguration(section?: string, resource?: URI, extensionId?: string): vscode.WorkspaceConfiguration {
+		return <vscode.WorkspaceConfiguration>{};
 	}
 }
 
@@ -128,11 +136,13 @@ suite('ExtHostSearch', () => {
 		rpcProtocol = new TestRPCProtocol();
 
 		mockMainThreadSearch = new MockMainThreadSearch();
+		const logService = new TestLogService();
+		const ehConfiguration: ExtHostConfiguration = new MockExtHostConfiguration() as any;
 
 		rpcProtocol.set(MainContext.MainThreadSearch, mockMainThreadSearch);
 
 		mockExtfs = {};
-		extHostSearch = new ExtHostSearch(rpcProtocol, null, mockExtfs as typeof extfs);
+		extHostSearch = new ExtHostSearch(rpcProtocol, null, logService, ehConfiguration, mockExtfs as typeof extfs);
 	});
 
 	teardown(() => {

@@ -27,6 +27,7 @@ import { isThemeColor } from 'vs/editor/common/editorCommon';
 import { Color } from 'vs/base/common/color';
 import { addClass, EventHelper, createStyleSheet, addDisposableListener } from 'vs/base/browser/dom';
 import { INotificationService } from 'vs/platform/notification/common/notification';
+import { IStorageService } from 'vs/platform/storage/common/storage';
 
 export class StatusbarPart extends Part implements IStatusbarService {
 
@@ -44,9 +45,10 @@ export class StatusbarPart extends Part implements IStatusbarService {
 		id: string,
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@IThemeService themeService: IThemeService,
-		@IWorkspaceContextService private contextService: IWorkspaceContextService
+		@IWorkspaceContextService private contextService: IWorkspaceContextService,
+		@IStorageService storageService: IStorageService
 	) {
-		super(id, { hasTitle: false }, themeService);
+		super(id, { hasTitle: false }, themeService, storageService);
 
 		this.registerListeners();
 	}
