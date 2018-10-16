@@ -290,7 +290,7 @@ export class SQLiteStorageImpl {
 						return reject(error);
 					}
 
-					resolve();
+					return resolve();
 				});
 			});
 		});
@@ -351,21 +351,26 @@ export class SQLiteStorageImpl {
 					return reject(error);
 				}
 
-				resolve();
+				return resolve();
 			});
 		});
 	}
 
 	private each(db: Database, sql: string, callback: (row: any) => void): Promise<void> {
 		return new Promise((resolve, reject) => {
+			let hadError = false;
 			db.each(sql, (error, row) => {
 				if (error) {
 					this.logger.error(`[storage ${this.name}] each(): ${error}`);
 
+					hadError = true;
+
 					return reject(error);
 				}
 
-				callback(row);
+				if (!hadError) {
+					callback(row);
+				}
 			}, error => {
 				if (error) {
 					this.logger.error(`[storage ${this.name}] each(): ${error}`);
@@ -373,7 +378,7 @@ export class SQLiteStorageImpl {
 					return reject(error);
 				}
 
-				resolve();
+				return resolve();
 			});
 		});
 	}
@@ -392,7 +397,7 @@ export class SQLiteStorageImpl {
 						return reject(error);
 					}
 
-					resolve();
+					return resolve();
 				});
 			});
 		});
