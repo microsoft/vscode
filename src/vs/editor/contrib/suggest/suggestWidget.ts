@@ -33,6 +33,11 @@ import { TimeoutTimer, CancelablePromise, createCancelablePromise } from 'vs/bas
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { CompletionItemKind, completionKindToCssClass } from 'vs/editor/common/modes';
 import { IconLabel, IIconLabelValueOptions } from 'vs/base/browser/ui/iconLabel/iconLabel';
+import { getIconClasses } from 'vs/editor/common/services/getIconClasses';
+import { IModelService } from 'vs/editor/common/services/modelService';
+import { URI } from 'vs/base/common/uri';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { FileKind } from 'vs/platform/files/common/files';
 
 const expandSuggestionDocsByDefault = false;
 const maxSuggestionsToShow = 12;
@@ -78,7 +83,9 @@ class Renderer implements IListRenderer<ICompletionItem, ISuggestionTemplateData
 	constructor(
 		private widget: SuggestWidget,
 		private editor: ICodeEditor,
-		private triggerKeybindingLabel: string
+		private triggerKeybindingLabel: string,
+		@IModelService private readonly _modelService: IModelService,
+		@IModeService private readonly _modeService: IModeService,
 	) {
 
 	}
@@ -134,7 +141,7 @@ class Renderer implements IListRenderer<ICompletionItem, ISuggestionTemplateData
 		return data;
 	}
 
-	renderElement(element: ICompletionItem, index: number, templateData: ISuggestionTemplateData): void {
+	renderElement(element: ICompletionItem, _index: number, templateData: ISuggestionTemplateData): void {
 		const data = <ISuggestionTemplateData>templateData;
 		const suggestion = (<ICompletionItem>element).suggestion;
 
@@ -154,9 +161,18 @@ class Renderer implements IListRenderer<ICompletionItem, ISuggestionTemplateData
 			matches: createMatches(element.matches)
 		};
 
-		if (suggestion.kind === CompletionItemKind.File) {
+		if (suggestion.kind === CompletionItemKind.File || suggestion.kind === CompletionItemKind.Folder) {
 			addClass(data.root, 'show-file-icons');
-			labelOptions.extraClasses = [];
+			data.icon.className = 'icon hide';
+			labelOptions.extraClasses = getIconClasses(
+				this._modelService,
+				this._modeService,
+				URI.from({ scheme: 'fake', path: suggestion.label }),
+				suggestion.kind === CompletionItemKind.Folder ? FileKind.FOLDER : FileKind.FILE
+			);
+			labelOptions.extraClasses.push(suggestion.kind === CompletionItemKind.File
+				? 'default-file-icon'
+				: 'default-folder-icon');
 		}
 
 		data.iconLabel.setValue(suggestion.label, undefined, labelOptions);
@@ -423,7 +439,8 @@ export class SuggestWidget implements IContentWidget, IListVirtualDelegate<IComp
 		@IStorageService storageService: IStorageService,
 		@IKeybindingService keybindingService: IKeybindingService,
 		@IModeService modeService: IModeService,
-		@IOpenerService openerService: IOpenerService
+		@IOpenerService openerService: IOpenerService,
+		@IInstantiationService instantiationService: IInstantiationService,
 	) {
 		const kb = keybindingService.lookupKeybinding('editor.action.triggerSuggest');
 		const triggerKeybindingLabel = !kb ? '' : ` (${kb.getLabel()})`;
@@ -442,7 +459,7 @@ export class SuggestWidget implements IContentWidget, IListVirtualDelegate<IComp
 		this.listElement = append(this.element, $('.tree'));
 		this.details = new SuggestionDetails(this.element, this, this.editor, markdownRenderer, triggerKeybindingLabel);
 
-		let renderer = new Renderer(this, this.editor, triggerKeybindingLabel);
+		let renderer = instantiationService.createInstance(Renderer, this, this.editor, triggerKeybindingLabel);
 
 		this.list = new List(this.listElement, this, [renderer], {
 			useShadows: false,
