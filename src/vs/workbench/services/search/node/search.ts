@@ -95,6 +95,10 @@ export function isSerializedSearchSuccess(arg: ISerializedSearchComplete): arg i
 	return arg.type === 'success';
 }
 
+export function isSerializedFileMatch(arg: ISerializedSearchProgressItem): arg is ISerializedFileMatch {
+	return !!(<ISerializedFileMatch>arg).path;
+}
+
 export interface ISerializedFileMatch {
 	path: string;
 	matches?: ITextSearchResult[];

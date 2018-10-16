@@ -7,12 +7,12 @@ import * as vscode from 'vscode';
 import { RipgrepFileSearchEngine } from './ripgrepFileSearch';
 
 export function activate(): void {
-	if (vscode.workspace.getConfiguration('searchRipgrep').get('enable')) {
-		const outputChannel = vscode.window.createOutputChannel('search-rg');
+	// if (vscode.workspace.getConfiguration('searchRipgrep').get('enable')) {
+	// 	const outputChannel = vscode.window.createOutputChannel('search-rg');
 
-		const provider = new RipgrepSearchProvider(outputChannel);
-		vscode.workspace.registerFileIndexProvider('file', provider);
-	}
+	// 	const provider = new RipgrepSearchProvider(outputChannel);
+	// 	vscode.workspace.registerFileIndexProvider('file', provider);
+	// }
 }
 
 class RipgrepSearchProvider implements vscode.FileIndexProvider {

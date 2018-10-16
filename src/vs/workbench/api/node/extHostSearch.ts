@@ -12,12 +12,14 @@ import { ILogService } from 'vs/platform/log/common/log';
 import { IFolderQuery, IPatternInfo, IRawSearchQuery, ISearchCompleteStats, ISearchQuery } from 'vs/platform/search/common/search';
 import { ExtHostConfiguration } from 'vs/workbench/api/node/extHostConfiguration';
 import { FileIndexSearchManager } from 'vs/workbench/api/node/extHostSearch.fileIndex';
+import { FileSearchManager } from 'vs/workbench/services/search/node/fileSearchManager';
+import { SearchService } from 'vs/workbench/services/search/node/rawSearchService';
 import { RipgrepSearchProvider } from 'vs/workbench/services/search/node/ripgrepSearchProvider';
 import { OutputChannel } from 'vs/workbench/services/search/node/ripgrepSearchUtils';
+import { IFolderSearch, IRawSearch, isSerializedFileMatch, isSerializedSearchComplete, isSerializedSearchSuccess } from 'vs/workbench/services/search/node/search';
 import { TextSearchManager } from 'vs/workbench/services/search/node/textSearchManager';
 import * as vscode from 'vscode';
 import { ExtHostSearchShape, IMainContext, MainContext, MainThreadSearchShape } from './extHost.protocol';
-import { FileSearchManager } from 'vs/workbench/services/search/node/fileSearchManager';
 
 export interface ISchemeTransformer {
 	transformOutgoing(scheme: string): string;
@@ -28,19 +30,21 @@ export class ExtHostSearch implements ExtHostSearchShape {
 	private readonly _proxy: MainThreadSearchShape;
 	private readonly _textSearchProvider = new Map<number, vscode.TextSearchProvider>();
 	private readonly _fileSearchProvider = new Map<number, vscode.FileSearchProvider>();
-	private _internalFileSearchProvider;
 	private readonly _fileIndexProvider = new Map<number, vscode.FileIndexProvider>();
 	private _handlePool: number = 0;
+
+	private _internalFileSearchHandle: number;
+	private _internalFileSearchProvider: SearchService;
 
 	private _fileSearchManager: FileSearchManager;
 	private _fileIndexSearchManager: FileIndexSearchManager;
 
-	constructor(mainContext: IMainContext, private _schemeTransformer: ISchemeTransformer, logService: ILogService, configService: ExtHostConfiguration, private _extfs = extfs) {
+	constructor(mainContext: IMainContext, private _schemeTransformer: ISchemeTransformer, private _logService: ILogService, configService: ExtHostConfiguration, private _extfs = extfs) {
 		this._proxy = mainContext.getProxy(MainContext.MainThreadSearch);
 		this._fileSearchManager = new FileSearchManager();
 		this._fileIndexSearchManager = new FileIndexSearchManager();
 
-		registerEHProviders(this, logService, configService);
+		registerEHProviders(this, _logService, configService);
 	}
 
 	private _transformScheme(scheme: string): string {
@@ -70,9 +74,10 @@ export class ExtHostSearch implements ExtHostSearchShape {
 		});
 	}
 
-	registerInternalFileSearchProvider(scheme: string, provider): IDisposable {
+	registerInternalFileSearchProvider(scheme: string, provider: SearchService): IDisposable {
 		const handle = this._handlePool++;
 		this._internalFileSearchProvider = provider;
+		this._internalFileSearchHandle = handle;
 		this._proxy.$registerFileSearchProvider(handle, this._transformScheme(scheme));
 		return toDisposable(() => {
 			this._internalFileSearchProvider = null;
@@ -91,23 +96,83 @@ export class ExtHostSearch implements ExtHostSearchShape {
 	}
 
 	$provideFileSearchResults(handle: number, session: number, rawQuery: IRawSearchQuery, token: CancellationToken): Thenable<ISearchCompleteStats> {
-		const provider = this._fileSearchProvider.get(handle);
 		const query = reviveQuery(rawQuery);
-		if (provider) {
-			return this._fileSearchManager.fileSearch(query, provider, batch => {
-				this._proxy.$handleFileMatch(handle, session, batch.map(p => p.resource));
-			}, token);
+		if (handle === this._internalFileSearchHandle) {
+			return this.doInternalFileSearch(handle, session, query, token);
 		} else {
-			const indexProvider = this._fileIndexProvider.get(handle);
-			return this._fileIndexSearchManager.fileSearch(query, indexProvider, batch => {
-				this._proxy.$handleFileMatch(handle, session, batch.map(p => p.resource));
-			}, token);
+			const provider = this._fileSearchProvider.get(handle);
+			if (provider) {
+				return this._fileSearchManager.fileSearch(query, provider, batch => {
+					this._proxy.$handleFileMatch(handle, session, batch.map(p => p.resource));
+				}, token);
+			} else {
+				const indexProvider = this._fileIndexProvider.get(handle);
+				return this._fileIndexSearchManager.fileSearch(query, indexProvider, batch => {
+					this._proxy.$handleFileMatch(handle, session, batch.map(p => p.resource));
+				}, token);
+			}
 		}
+	}
+
+	private doInternalFileSearch(handle: number, session: number, rawQuery: ISearchQuery, token: CancellationToken): Thenable<ISearchCompleteStats> {
+		return new Promise((resolve, reject) => {
+			const query: IRawSearch = {
+				folderQueries: [],
+				ignoreSymlinks: rawQuery.ignoreSymlinks,
+				filePattern: rawQuery.filePattern,
+				excludePattern: rawQuery.excludePattern,
+				includePattern: rawQuery.includePattern,
+				contentPattern: rawQuery.contentPattern,
+				maxResults: rawQuery.maxResults,
+				exists: rawQuery.exists,
+				sortByScore: rawQuery.sortByScore,
+				cacheKey: rawQuery.cacheKey,
+				maxFilesize: rawQuery.maxFileSize,
+				useRipgrep: rawQuery.useRipgrep,
+				disregardIgnoreFiles: rawQuery.disregardIgnoreFiles,
+				previewOptions: rawQuery.previewOptions,
+				disregardGlobalIgnoreFiles: rawQuery.disregardGlobalIgnoreFiles
+			};
+			query.folderQueries = rawQuery.folderQueries.map(fq => (<IFolderSearch>{
+				disregardGlobalIgnoreFiles: fq.disregardGlobalIgnoreFiles,
+				disregardIgnoreFiles: fq.disregardIgnoreFiles,
+				excludePattern: fq.excludePattern,
+				fileEncoding: fq.fileEncoding,
+				folder: fq.folder.fsPath,
+				includePattern: fq.includePattern
+			}));
+
+			const event = this._internalFileSearchProvider.fileSearch(query);
+			event(ev => {
+				if (isSerializedSearchComplete(ev)) {
+					if (isSerializedSearchSuccess(ev)) {
+						resolve(ev);
+						return;
+					} else {
+						reject(ev);
+						return;
+					}
+				} else {
+					if (isSerializedFileMatch(ev)) {
+						ev = [ev];
+					}
+
+					if (Array.isArray(ev)) {
+						this._proxy.$handleFileMatch(handle, session, ev.map(m => URI.file(m.path)));
+						return;
+					}
+
+					if (ev.message) {
+						this._logService.debug('ExtHostSearch', ev.message);
+					}
+				}
+			});
+		});
 	}
 
 	$clearCache(cacheKey: string): Thenable<void> {
 		if (this._internalFileSearchProvider) {
-			this._internalFileSearchProvider.clearCache();
+			this._internalFileSearchProvider.clearCache(cacheKey);
 		}
 
 		// Actually called once per provider.
@@ -131,6 +196,8 @@ function registerEHProviders(extHostSearch: ExtHostSearch, logService: ILogServi
 	if (configService.getConfiguration('searchRipgrep').enable) {
 		const outputChannel = new OutputChannel(logService);
 		extHostSearch.registerTextSearchProvider('file', new RipgrepSearchProvider(outputChannel));
+
+		extHostSearch.registerInternalFileSearchProvider('file', new SearchService());
 	}
 }
 

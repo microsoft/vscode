@@ -61,8 +61,8 @@ export class TextSearchEngineAdapter {
 				onMessage({ message: msg });
 			}
 		};
-		const textSearchEngine = new TextSearchManager(this.config.contentPattern, query, new RipgrepTextSearchEngine(pretendOutputChannel), extfs);
-		textSearchEngine
+		const textSearchManager = new TextSearchManager(this.config.contentPattern, query, new RipgrepTextSearchEngine(pretendOutputChannel), extfs);
+		textSearchManager
 			.search(
 				matches => {
 					onResult(matches.map(fileMatchToSerialized));
