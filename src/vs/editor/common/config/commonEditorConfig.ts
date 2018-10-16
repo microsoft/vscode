@@ -336,7 +336,7 @@ const editorConfiguration: IConfigurationNode = {
 			'description': nls.localize('minimap.renderCharacters', "Render the actual characters on a line as opposed to color blocks.")
 		},
 		'editor.minimap.backgroundAlpha': {
-			'type': 'boolean',
+			'type': 'number',
 			'default': EDITOR_DEFAULTS.viewInfo.minimap.backgroundAlpha,
 			'description': nls.localize('minimap.backgroundAlpha', "Controls the opacity of the minimap background.")
 		},

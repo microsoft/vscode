@@ -2116,7 +2116,8 @@ export class InternalEditorOptionsFactory {
 					side: opts.viewInfo.minimap.side,
 					renderCharacters: opts.viewInfo.minimap.renderCharacters,
 					showSlider: opts.viewInfo.minimap.showSlider,
-					maxColumn: opts.viewInfo.minimap.maxColumn
+					maxColumn: opts.viewInfo.minimap.maxColumn,
+					backgroundAlpha: opts.viewInfo.minimap.backgroundAlpha,
 				},
 				fixedOverflowWidgets: opts.viewInfo.fixedOverflowWidgets
 			},
@@ -2203,6 +2204,7 @@ export class InternalEditorOptionsFactory {
 			minimapSide: opts.viewInfo.minimap.side,
 			minimapRenderCharacters: opts.viewInfo.minimap.renderCharacters,
 			minimapMaxColumn: opts.viewInfo.minimap.maxColumn,
+			minimapBackgroundAlpha: opts.viewInfo.minimap.backgroundAlpha,
 			pixelRatio: env.pixelRatio
 		});
 
@@ -2341,7 +2343,7 @@ export interface IEditorLayoutProviderOpts {
 	readonly minimapSide: string;
 	readonly minimapRenderCharacters: boolean;
 	readonly minimapMaxColumn: number;
-	readonly minimapBackgroundAlpha: 255;
+	readonly minimapBackgroundAlpha: number;
 	readonly pixelRatio: number;
 }
 
@@ -2367,6 +2369,7 @@ export class EditorLayoutProvider {
 		const minimap = _opts.minimap;
 		const minimapSide = _opts.minimapSide;
 		const minimapRenderCharacters = _opts.minimapRenderCharacters;
+		const minimapBackgroundAlpha = _opts.minimapBackgroundAlpha;
 		const minimapMaxColumn = _opts.minimapMaxColumn | 0;
 		const pixelRatio = _opts.pixelRatio;
 

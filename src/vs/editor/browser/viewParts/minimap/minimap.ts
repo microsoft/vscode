@@ -111,6 +111,10 @@ class MinimapOptions {
 	 * canvas height (in CSS px)
 	 */
 	public readonly canvasOuterHeight: number;
+	/**
+	 * background alpha (0 - 255)
+	 */
+	public readonly backgroundAlpha: number;
 
 	constructor(configuration: editorCommon.IConfiguration) {
 		const pixelRatio = configuration.editor.pixelRatio;
@@ -121,6 +125,7 @@ class MinimapOptions {
 		this.renderMinimap = layoutInfo.renderMinimap | 0;
 		this.scrollBeyondLastLine = viewInfo.scrollBeyondLastLine;
 		this.showSlider = viewInfo.minimap.showSlider;
+		this.backgroundAlpha = viewInfo.minimap.backgroundAlpha;
 		this.pixelRatio = pixelRatio;
 		this.typicalHalfwidthCharacterWidth = fontInfo.typicalHalfwidthCharacterWidth;
 		this.lineHeight = configuration.editor.lineHeight;
@@ -149,6 +154,7 @@ class MinimapOptions {
 			&& this.canvasInnerHeight === other.canvasInnerHeight
 			&& this.canvasOuterWidth === other.canvasOuterWidth
 			&& this.canvasOuterHeight === other.canvasOuterHeight
+			&& this.backgroundAlpha === other.backgroundAlpha
 		);
 	}
 }
@@ -581,9 +587,14 @@ export class Minimap extends ViewPart {
 
 	private _getBuffer(): ImageData {
 		if (!this._buffers) {
-			let backgroundColor = this._tokensColorTracker.getColor(ColorId.DefaultBackground);
-			console.log('making buffers');
-			this._buffers = new MinimapBuffers( // NAC
+			const defaultBackground = this._tokensColorTracker.getColor(ColorId.DefaultBackground);
+			const backgroundColor = new RGBA8(
+				defaultBackground.r,
+				defaultBackground.g,
+				defaultBackground.b,
+				this._options.backgroundAlpha
+			);
+			this._buffers = new MinimapBuffers(
 				this._canvas.domNode.getContext('2d')!,
 				this._options.canvasInnerWidth,
 				this._options.canvasInnerHeight,
