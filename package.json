@@ -23,7 +23,8 @@
     "smoketest": "cd test/smoke && node test/index.js",
     "monaco-compile-check": "tsc -p src/tsconfig.monaco.json --noEmit",
     "download-builtin-extensions": "node build/lib/builtInExtensions.js",
-    "strict-null-check": "tsc -p src/tsconfig.strictNullChecks.json"
+    "strict-null-check": "tsc -p src/tsconfig.strictNullChecks.json",
+    "strict-null-check-watch": "tsc -p src/tsconfig.strictNullChecks.json --watch"
   },
   "dependencies": {
     "applicationinsights": "1.0.5",
