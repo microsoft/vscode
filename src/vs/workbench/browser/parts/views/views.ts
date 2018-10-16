@@ -437,13 +437,21 @@ export class PersistentContributableViewsModel extends ContributableViewsModel {
 
 	private saveViewsStates(): void {
 		const storedViewsStates: { [id: string]: { collapsed: boolean, size: number, order: number } } = {};
+
+		let hasState = false;
 		for (const viewDescriptor of this.viewDescriptors) {
 			const viewState = this.viewStates.get(viewDescriptor.id);
 			if (viewState) {
 				storedViewsStates[viewDescriptor.id] = { collapsed: viewState.collapsed, size: viewState.size, order: viewState.order };
+				hasState = true;
 			}
 		}
-		this.storageService.store(this.viewletStateStorageId, JSON.stringify(storedViewsStates), StorageScope.WORKSPACE);
+
+		if (hasState) {
+			this.storageService.store(this.viewletStateStorageId, JSON.stringify(storedViewsStates), StorageScope.WORKSPACE);
+		} else {
+			this.storageService.remove(this.viewletStateStorageId, StorageScope.WORKSPACE);
+		}
 	}
 
 	private saveVisibilityStates(viewDescriptors: IViewDescriptor[]): void {
