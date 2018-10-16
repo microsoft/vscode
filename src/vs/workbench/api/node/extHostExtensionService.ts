@@ -40,6 +40,12 @@ class ExtensionMemento implements IExtensionMemento {
 			this._value = value;
 			return this;
 		});
+
+		this._storage.onDidChangeStorage(e => {
+			if (e.shared === this._shared && e.key === this._id) {
+				this._value = e.value;
+			}
+		});
 	}
 
 	get whenReady(): Thenable<ExtensionMemento> {
@@ -150,7 +156,7 @@ export class ExtHostExtensionService implements ExtHostExtensionServiceShape {
 		this._activator = null;
 
 		// initialize API first (i.e. do not release barrier until the API is initialized)
-		const apiFactory = createApiFactory(initData, extHostContext, extHostWorkspace, extHostConfiguration, this, this._extHostLogService);
+		const apiFactory = createApiFactory(initData, extHostContext, extHostWorkspace, extHostConfiguration, this, this._extHostLogService, this._storage);
 
 		initializeExtensionApi(this, apiFactory).then(() => {
 
