@@ -48,7 +48,7 @@ export class MinimapTokensColorTracker {
 				source.r,
 				source.g,
 				source.b,
-				this._tokenAlpha || Math.round(source.a * 255)
+				this._tokenAlpha,
 			);
 		}
 		let backgroundLuminosity = colorMap[ColorId.DefaultBackground].getRelativeLuminance();

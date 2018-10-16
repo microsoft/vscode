@@ -423,7 +423,7 @@ class MinimapBuffers {
 		return result;
 	}
 
-	private static _createBackgroundFillData(WIDTH: number, HEIGHT: number, background: RGBA8): Uint8ClampedArray {///////////////////
+	private static _createBackgroundFillData(WIDTH: number, HEIGHT: number, background: RGBA8): Uint8ClampedArray {
 		const backgroundR = background.r;
 		const backgroundG = background.g;
 		const backgroundB = background.b;
@@ -877,7 +877,7 @@ export class Minimap extends ViewPart {
 
 	private static _renderLine(
 		target: ImageData,
-		backgroundColor: RGBA8, // nac
+		backgroundColor: RGBA8,
 		useLighterFont: boolean,
 		renderMinimap: RenderMinimap,
 		colorTracker: MinimapTokensColorTracker,
