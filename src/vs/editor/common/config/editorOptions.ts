@@ -2369,7 +2369,6 @@ export class EditorLayoutProvider {
 		const minimap = _opts.minimap;
 		const minimapSide = _opts.minimapSide;
 		const minimapRenderCharacters = _opts.minimapRenderCharacters;
-		const minimapBackgroundAlpha = _opts.minimapBackgroundAlpha;
 		const minimapMaxColumn = _opts.minimapMaxColumn | 0;
 		const pixelRatio = _opts.pixelRatio;
 
