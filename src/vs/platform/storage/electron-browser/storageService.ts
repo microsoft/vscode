@@ -201,32 +201,36 @@ export class DelegatingStorageService extends Disposable implements IStorageServ
 		const localStorageValue = this.storageLegacyService.get(key, this.convertScope(scope), fallbackValue);
 		const dbValue = this.storageService.get(key, scope, localStorageValue);
 
-		this.assertStorageValue(key, scope, dbValue, localStorageValue);
-
-		return dbValue;
+		return this.assertAndGet(key, scope, dbValue, localStorageValue);
 	}
 
 	getBoolean(key: string, scope: StorageScope, fallbackValue?: boolean): boolean {
 		const localStorageValue = this.storageLegacyService.getBoolean(key, this.convertScope(scope), fallbackValue);
 		const dbValue = this.storageService.getBoolean(key, scope, localStorageValue);
 
-		this.assertStorageValue(key, scope, dbValue, localStorageValue);
-
-		return dbValue;
+		return this.assertAndGet(key, scope, dbValue, localStorageValue);
 	}
 
 	getInteger(key: string, scope: StorageScope, fallbackValue?: number): number {
 		const localStorageValue = this.storageLegacyService.getInteger(key, this.convertScope(scope), fallbackValue);
 		const dbValue = this.storageService.getInteger(key, scope, localStorageValue);
 
-		this.assertStorageValue(key, scope, dbValue, localStorageValue);
-
-		return dbValue;
+		return this.assertAndGet(key, scope, dbValue, localStorageValue);
 	}
 
-	private assertStorageValue(key: string, scope: StorageScope, dbValue: any, storageValue: any): void {
-		if (dbValue !== storageValue) {
-			this.logService.error(`Unexpected storage value (key: ${key}, scope: ${scope === StorageScope.GLOBAL ? 'global' : 'workspace'}), actual: ${dbValue}, expected: ${storageValue}`);
+	private assertAndGet(key: string, scope: StorageScope, dbValue: any, localStorageValue: any): any {
+		if (scope === StorageScope.WORKSPACE) {
+			this.assertStorageValue(key, scope, dbValue, localStorageValue);
+
+			return dbValue;
+		}
+
+		return localStorageValue;
+	}
+
+	private assertStorageValue(key: string, scope: StorageScope, dbValue: any, localStorageValue: any): void {
+		if (dbValue !== localStorageValue) {
+			this.logService.error(`Unexpected storage value (key: ${key}, scope: ${scope === StorageScope.GLOBAL ? 'global' : 'workspace'}), actual: ${dbValue}, expected: ${localStorageValue}`);
 		}
 	}
 
