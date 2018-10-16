@@ -101,7 +101,8 @@ export class ViewModel extends viewEvents.ViewEventEmitter implements IViewModel
 			}
 		}));
 
-		this._register(MinimapTokensColorTracker.getInstance().onDidChange(() => {
+		const minimapTokenAlpha = this.configuration.editor.viewInfo.minimap.textAlpha;
+		this._register(MinimapTokensColorTracker.getInstance(minimapTokenAlpha).onDidChange(() => {
 			try {
 				const eventsCollector = this._beginEmit();
 				eventsCollector.emit(new viewEvents.ViewTokensColorsChangedEvent());

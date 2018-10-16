@@ -340,6 +340,11 @@ const editorConfiguration: IConfigurationNode = {
 			'default': EDITOR_DEFAULTS.viewInfo.minimap.backgroundAlpha,
 			'description': nls.localize('minimap.backgroundAlpha', "Controls the opacity of the minimap background.")
 		},
+		'editor.minimap.textAlpha': {
+			'type': 'number',
+			'default': EDITOR_DEFAULTS.viewInfo.minimap.textAlpha,
+			'description': nls.localize('minimap.textAlpha', "Controls the opacity of the minimap text.")
+		},
 		'editor.minimap.maxColumn': {
 			'type': 'number',
 			'default': EDITOR_DEFAULTS.viewInfo.minimap.maxColumn,

@@ -103,6 +103,7 @@ const configurationValueWhitelist = [
 	'editor.minimap.renderCharacters',
 	'editor.minimap.maxColumn',
 	'editor.minimap.backgroundAlpha',
+	'editor.minimap.textAlpha',
 	'editor.find.seedSearchStringFromSelection',
 	'editor.find.autoFindInSelection',
 	'editor.wordWrap',

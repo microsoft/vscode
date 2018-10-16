@@ -138,6 +138,11 @@ export interface IEditorMinimapOptions {
 	 * Defaults to 255.
 	 */
 	backgroundAlpha?: number;
+	/**
+	 * Set the transparency of the minimap's text.
+	 * Defaults to 255.
+	 */
+	textAlpha?: number;
 }
 
 /**
@@ -881,6 +886,7 @@ export interface InternalEditorMinimapOptions {
 	readonly renderCharacters: boolean;
 	readonly maxColumn: number;
 	readonly backgroundAlpha: number;
+	readonly textAlpha: number;
 }
 
 export interface InternalEditorFindOptions {
@@ -1301,6 +1307,7 @@ export class InternalEditorOptions {
 			&& a.renderCharacters === b.renderCharacters
 			&& a.maxColumn === b.maxColumn
 			&& a.backgroundAlpha === b.backgroundAlpha
+			&& a.textAlpha === b.textAlpha
 		);
 	}
 
@@ -1827,7 +1834,8 @@ export class EditorOptionsValidator {
 			showSlider: _stringSet<'always' | 'mouseover'>(opts.showSlider, defaults.showSlider, ['always', 'mouseover']),
 			renderCharacters: _boolean(opts.renderCharacters, defaults.renderCharacters),
 			maxColumn: _clampedInt(opts.maxColumn, defaults.maxColumn, 1, 10000),
-			backgroundAlpha: _clampedInt(opts.backgroundAlpha, defaults.backgroundAlpha, 0, 255)
+			backgroundAlpha: _clampedInt(opts.backgroundAlpha, defaults.backgroundAlpha, 0, 255),
+			textAlpha: _clampedInt(opts.textAlpha, defaults.textAlpha, 0, 255),
 		};
 	}
 
@@ -2118,6 +2126,7 @@ export class InternalEditorOptionsFactory {
 					showSlider: opts.viewInfo.minimap.showSlider,
 					maxColumn: opts.viewInfo.minimap.maxColumn,
 					backgroundAlpha: opts.viewInfo.minimap.backgroundAlpha,
+					textAlpha: opts.viewInfo.minimap.textAlpha,
 				},
 				fixedOverflowWidgets: opts.viewInfo.fixedOverflowWidgets
 			},
@@ -2205,6 +2214,7 @@ export class InternalEditorOptionsFactory {
 			minimapRenderCharacters: opts.viewInfo.minimap.renderCharacters,
 			minimapMaxColumn: opts.viewInfo.minimap.maxColumn,
 			minimapBackgroundAlpha: opts.viewInfo.minimap.backgroundAlpha,
+			minimapTextAlpha: opts.viewInfo.minimap.textAlpha,
 			pixelRatio: env.pixelRatio
 		});
 
@@ -2344,6 +2354,7 @@ export interface IEditorLayoutProviderOpts {
 	readonly minimapRenderCharacters: boolean;
 	readonly minimapMaxColumn: number;
 	readonly minimapBackgroundAlpha: number;
+	readonly minimapTextAlpha: number;
 	readonly pixelRatio: number;
 }
 
@@ -2595,6 +2606,7 @@ export const EDITOR_DEFAULTS: IValidatedEditorOptions = {
 			renderCharacters: true,
 			maxColumn: 120,
 			backgroundAlpha: 255,
+			textAlpha: 255,
 		},
 		fixedOverflowWidgets: false,
 	},

@@ -115,6 +115,10 @@ class MinimapOptions {
 	 * background alpha (0 - 255)
 	 */
 	public readonly backgroundAlpha: number;
+	/**
+	 * text alpha (0 - 255)
+	 */
+	public readonly textAlpha: number;
 
 	constructor(configuration: editorCommon.IConfiguration) {
 		const pixelRatio = configuration.editor.pixelRatio;
@@ -126,6 +130,7 @@ class MinimapOptions {
 		this.scrollBeyondLastLine = viewInfo.scrollBeyondLastLine;
 		this.showSlider = viewInfo.minimap.showSlider;
 		this.backgroundAlpha = viewInfo.minimap.backgroundAlpha;
+		this.textAlpha = viewInfo.minimap.textAlpha;
 		this.pixelRatio = pixelRatio;
 		this.typicalHalfwidthCharacterWidth = fontInfo.typicalHalfwidthCharacterWidth;
 		this.lineHeight = configuration.editor.lineHeight;
@@ -155,6 +160,7 @@ class MinimapOptions {
 			&& this.canvasOuterWidth === other.canvasOuterWidth
 			&& this.canvasOuterHeight === other.canvasOuterHeight
 			&& this.backgroundAlpha === other.backgroundAlpha
+			&& this.textAlpha === other.textAlpha
 		);
 	}
 }
@@ -489,7 +495,7 @@ export class Minimap extends ViewPart {
 		this._sliderHorizontal.setClassName('minimap-slider-horizontal');
 		this._slider.appendChild(this._sliderHorizontal);
 
-		this._tokensColorTracker = MinimapTokensColorTracker.getInstance();
+		this._tokensColorTracker = MinimapTokensColorTracker.getInstance(this._options.textAlpha);
 
 		this._applyLayout();
 

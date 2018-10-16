@@ -2501,6 +2501,11 @@ declare namespace monaco.editor {
 		 * Defaults to 255.
 		 */
 		backgroundAlpha?: number;
+		/**
+		 * Set the transparency of the minimap's text.
+		 * Defaults to 255.
+		 */
+		textAlpha?: number;
 	}
 
 	/**
@@ -3177,6 +3182,7 @@ declare namespace monaco.editor {
 		readonly renderCharacters: boolean;
 		readonly maxColumn: number;
 		readonly backgroundAlpha: number;
+		readonly textAlpha: number;
 	}
 
 	export interface InternalEditorFindOptions {

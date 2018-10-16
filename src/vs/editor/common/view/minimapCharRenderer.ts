@@ -9,20 +9,22 @@ import { RGBA8 } from 'vs/editor/common/core/rgba';
 
 export class MinimapTokensColorTracker {
 	private static _INSTANCE: MinimapTokensColorTracker | null = null;
-	public static getInstance(): MinimapTokensColorTracker {
+	public static getInstance(tokenAlpha: number): MinimapTokensColorTracker {
 		if (!this._INSTANCE) {
-			this._INSTANCE = new MinimapTokensColorTracker();
+			this._INSTANCE = new MinimapTokensColorTracker(tokenAlpha);
 		}
 		return this._INSTANCE;
 	}
 
 	private _colors: RGBA8[];
 	private _backgroundIsLight: boolean;
+	private _tokenAlpha: number;
 
 	private _onDidChange = new Emitter<void>();
 	public readonly onDidChange: Event<void> = this._onDidChange.event;
 
-	private constructor() {
+	private constructor(tokenAlpha: number) {
+		this._tokenAlpha = tokenAlpha;
 		this._updateColorMap();
 		TokenizationRegistry.onDidChange((e) => {
 			if (e.changedColorMap) {
@@ -42,7 +44,12 @@ export class MinimapTokensColorTracker {
 		for (let colorId = 1; colorId < colorMap.length; colorId++) {
 			const source = colorMap[colorId].rgba;
 			// Use a VM friendly data-type
-			this._colors[colorId] = new RGBA8(source.r, source.g, source.b, Math.round(source.a * 255));
+			this._colors[colorId] = new RGBA8(
+				source.r,
+				source.g,
+				source.b,
+				this._tokenAlpha || Math.round(source.a * 255)
+			);
 		}
 		let backgroundLuminosity = colorMap[ColorId.DefaultBackground].getRelativeLuminance();
 		this._backgroundIsLight = (backgroundLuminosity >= 0.5);
@@ -216,7 +223,7 @@ export class MinimapCharRenderer {
 		const deltaR = color.r - backgroundR;
 		const deltaG = color.g - backgroundG;
 		const deltaB = color.b - backgroundB;
-		const alpha = 150;
+		const colorA = color.a;
 
 		const dest = target.data;
 		const sourceOffset = chIndex * Constants.x1_CHAR_HEIGHT * Constants.x1_CHAR_WIDTH;
@@ -226,7 +233,7 @@ export class MinimapCharRenderer {
 			dest[destOffset + 0] = backgroundR + deltaR * c;
 			dest[destOffset + 1] = backgroundG + deltaG * c;
 			dest[destOffset + 2] = backgroundB + deltaB * c;
-			dest[destOffset + 3] = alpha;
+			dest[destOffset + 3] = colorA;
 		}
 
 		destOffset += outWidth;
@@ -235,7 +242,7 @@ export class MinimapCharRenderer {
 			dest[destOffset + 0] = backgroundR + deltaR * c;
 			dest[destOffset + 1] = backgroundG + deltaG * c;
 			dest[destOffset + 2] = backgroundB + deltaB * c;
-			dest[destOffset + 3] = alpha;
+			dest[destOffset + 3] = colorA;
 		}
 	}
 
@@ -260,7 +267,7 @@ export class MinimapCharRenderer {
 		const colorR = backgroundR + deltaR * c;
 		const colorG = backgroundG + deltaG * c;
 		const colorB = backgroundB + deltaB * c;
-		const colorA = 150;
+		const colorA = color.a;
 
 		const dest = target.data;
 		let destOffset = dy * outWidth + dx * Constants.RGBA_CHANNELS_CNT;
@@ -341,7 +348,7 @@ export class MinimapCharRenderer {
 		const colorR = backgroundR + deltaR * c;
 		const colorG = backgroundG + deltaG * c;
 		const colorB = backgroundB + deltaB * c;
-		const colorA = 150;
+		const colorA = color.a;
 
 		const dest = target.data;
 
