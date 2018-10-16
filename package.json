@@ -145,6 +145,6 @@
   "optionalDependencies": {
     "windows-foreground-love": "0.1.0",
     "windows-mutex": "Microsoft/node-windows-mutex#electron-3.0.x",
-    "windows-process-tree": "Microsoft/vscode-windows-process-tree#electron-3.0.x"
+    "windows-process-tree": "0.2.3"
   }
 }

@@ -9490,9 +9490,10 @@ windows-mutex@Microsoft/node-windows-mutex#electron-3.0.x:
     bindings "^1.2.1"
     nan "^2.10.0"
 
-windows-process-tree@Microsoft/vscode-windows-process-tree#electron-3.0.x:
-  version "0.2.4"
-  resolved "https://codeload.github.com/Microsoft/vscode-windows-process-tree/tar.gz/11c2f63b412a152a7a40a1c7d2121c76503bbb42"
+windows-process-tree@0.2.3:
+  version "0.2.3"
+  resolved "https://registry.yarnpkg.com/windows-process-tree/-/windows-process-tree-0.2.3.tgz#6b781f0a320e8a0d6434c9399add4389c709cf6e"
+  integrity sha512-SzPJSubVVsToz1g5lr2P+4mQT70gvJ9u/nlnpfkOeQcAhOuhKz5DiO1TARgR0OnVsv21LPzxbA2m/4JQkGh1wA==
   dependencies:
     nan "^2.10.0"
 
