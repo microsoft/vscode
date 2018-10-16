@@ -375,7 +375,6 @@ export class TerminalTaskSystem implements ITaskSystem {
 					onData.dispose();
 					onExit.dispose();
 					let key = Task.getMapKey(task);
-					delete this.activeTasks[key];
 					this._onDidStateChange.fire(TaskEvent.create(TaskEventKind.Changed));
 					switch (task.command.presentation.panel) {
 						case PanelKind.Dedicated:
