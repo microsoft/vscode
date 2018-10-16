@@ -669,7 +669,7 @@ export class Repository implements Disposable {
 		end = match ? match.index : text.length;
 
 		const line = text.substring(start, end);
-		const subjectThreshold = Math.max(config.get<number>('subjectValidationLength') || 50, 0) || 50;
+		const subjectThreshold = Math.max(config.get<number>('inputValidationLength') || 50, config.get<number>('subjectValidationLength') || 50, 0) || 50;
 
 		if (line.length <= subjectThreshold) {
 			if (setting !== 'always') {

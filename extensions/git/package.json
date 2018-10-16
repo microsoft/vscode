@@ -1116,6 +1116,11 @@
           "default": "warn",
           "description": "%config.inputValidation%"
         },
+        "git.inputValidationLength": {
+          "type": "number",
+          "default": 50,
+          "description": "%config.inputValidationLength%"
+        },
         "git.subjectValidationLength": {
           "type": "number",
           "default": 50,
