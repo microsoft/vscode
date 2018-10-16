@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { dispose } from 'vs/base/common/lifecycle';
+import { dispose, IDisposable } from 'vs/base/common/lifecycle';
 import { join } from 'path';
 import { mkdirp, dirExists, realpath, writeFile } from 'vs/base/node/pfs';
 import Severity from 'vs/base/common/severity';
@@ -30,6 +30,7 @@ class ExtensionMemento implements IExtensionMemento {
 
 	private readonly _init: Thenable<ExtensionMemento>;
 	private _value: { [n: string]: any; };
+	private readonly _storageListener: IDisposable;
 
 	constructor(id: string, global: boolean, storage: ExtHostStorage) {
 		this._id = id;
@@ -41,7 +42,7 @@ class ExtensionMemento implements IExtensionMemento {
 			return this;
 		});
 
-		this._storage.onDidChangeStorage(e => {
+		this._storageListener = this._storage.onDidChangeStorage(e => {
 			if (e.shared === this._shared && e.key === this._id) {
 				this._value = e.value;
 			}
@@ -65,6 +66,10 @@ class ExtensionMemento implements IExtensionMemento {
 		return this._storage
 			.setValue(this._shared, this._id, this._value)
 			.then(() => true);
+	}
+
+	dispose(): void {
+		this._storageListener.dispose();
 	}
 }
 

@@ -26,11 +26,11 @@ export class MainThreadStorage implements MainThreadStorageShape {
 		this._storageListener = this._storageService.onDidChangeStorage(e => {
 			let shared = e.scope === StorageScope.GLOBAL;
 			if (shared && this._sharedStorageKeysToWatch.has(e.key)) {
-				let value = this._getValue(shared, e.key);
-				if (value instanceof Error) {
-					return; // ignore parsing errors that can happen
+				try {
+					this._proxy.$acceptValue(shared, e.key, this._getValue(shared, e.key));
+				} catch (error) {
+					// ignore parsing errors that can happen
 				}
-				this._proxy.$acceptValue(shared, e.key, value);
 			}
 		});
 	}
@@ -43,25 +43,19 @@ export class MainThreadStorage implements MainThreadStorageShape {
 		if (shared) {
 			this._sharedStorageKeysToWatch.set(key, true);
 		}
-		let value = this._getValue<T>(shared, key);
-		if (value instanceof Error) {
-			return Promise.reject(value);
+		try {
+			return Promise.resolve(this._getValue<T>(shared, key));
+		} catch (error) {
+			return Promise.reject(error);
 		}
-		return Promise.resolve(value);
 	}
 
-	private _getValue<T>(shared: boolean, key: string): T | Error {
+	private _getValue<T>(shared: boolean, key: string): T {
 		let jsonValue = this._storageService.get(key, shared ? StorageScope.GLOBAL : StorageScope.WORKSPACE);
 		if (!jsonValue) {
 			return undefined;
 		}
-		let value: T;
-		try {
-			value = JSON.parse(jsonValue);
-			return value;
-		} catch (err) {
-			return err;
-		}
+		return JSON.parse(jsonValue);
 	}
 
 	$setValue(shared: boolean, key: string, value: object): Thenable<void> {
