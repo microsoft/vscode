@@ -29,27 +29,35 @@ import { TERMINAL_COMMAND_ID } from 'vs/workbench/parts/terminal/common/terminal
 import { Command } from 'vs/editor/browser/editorExtensions';
 import { timeout } from 'vs/base/common/async';
 import { FindReplaceState } from 'vs/editor/contrib/find/findState';
-import { execSync } from 'child_process';
+import { exec } from 'child_process';
 import { isWindows } from 'vs/base/common/platform';
 
 export const TERMINAL_PICKER_PREFIX = 'term ';
 
-function getCwd(configHelper: ITerminalConfigHelper, activeInstance: ITerminalInstance): string {
+function getCwd(configHelper: ITerminalConfigHelper, activeInstance: ITerminalInstance): Promise<string> {
 	switch (configHelper.config.splitCwdSource) {
-		case 'ShellDefault': {
+		case 'workspaceRoot': {
 			// allow default behavior
-			return '';
+			return new Promise<string>(resolve => {
+				resolve('');
+			});
 		}
-		case 'SourceInitialCwd': {
-			return activeInstance.getInitialCwd();
+		case 'sourceInitialCwd': {
+			return new Promise<string>(resolve => {
+				resolve(activeInstance.getInitialCwd());
+			});
 		}
-		case 'Cwd': {
+		case 'sourceCwd': {
 			if (!isWindows) {
 				let pid = activeInstance.processId;
-				let output = execSync('lsof -p ' + pid + ' | grep cwd').toString();
-				return output.substring(output.indexOf('/'), output.length - 1);
+				return new Promise<string>(resolve => {
+					let output = exec('lsof -p ' + pid + ' | grep cwd').toString();
+					resolve(output.substring(output.indexOf('/'), output.length - 1));
+				});
 			} else {
-				return activeInstance.getInitialCwd();
+				return new Promise<string>(resolve => {
+					resolve(activeInstance.getInitialCwd());
+				});
 			}
 		}
 	}
@@ -285,8 +293,10 @@ export class CreateNewTerminalAction extends Action {
 		if (event instanceof MouseEvent && (event.altKey || event.ctrlKey)) {
 			const activeInstance = this.terminalService.getActiveInstance();
 			if (activeInstance) {
-				this.terminalService.splitInstance(activeInstance, { cwd: getCwd(this.terminalService.configHelper, activeInstance) });
-				return Promise.resolve(null);
+				return getCwd(this.terminalService.configHelper, activeInstance).then(cwd => {
+					this.terminalService.splitInstance(activeInstance, { cwd: cwd });
+					return Promise.resolve(null);
+				});
 			}
 		}
 
@@ -381,9 +391,11 @@ export class SplitTerminalAction extends Action {
 			if (!path) {
 				return Promise.resolve(void 0);
 			}
-			(path as IShellLaunchConfig).cwd = getCwd(this._terminalService.configHelper, instance);
-			this._terminalService.splitInstance(instance, path);
-			return this._terminalService.showPanel(true);
+			return getCwd(this._terminalService.configHelper, instance).then(cwd => {
+				(path as IShellLaunchConfig).cwd = cwd;
+				this._terminalService.splitInstance(instance, path);
+				return this._terminalService.showPanel(true);
+			});
 		});
 	}
 }
@@ -404,8 +416,10 @@ export class SplitInActiveWorkspaceTerminalAction extends Action {
 		if (!instance) {
 			return Promise.resolve(void 0);
 		}
-		this._terminalService.splitInstance(instance, { cwd: getCwd(this._terminalService.configHelper, instance) });
-		return this._terminalService.showPanel(true);
+		return getCwd(this._terminalService.configHelper, instance).then(cwd => {
+			this._terminalService.splitInstance(instance, { cwd: cwd });
+			return this._terminalService.showPanel(true);
+		});
 	}
 }
 

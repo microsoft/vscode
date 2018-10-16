@@ -383,13 +383,13 @@ configurationRegistry.registerConfiguration({
 		'terminal.integrated.splitCwdSource': {
 			description: nls.localize('terminal.integrated.splitCwdSource', "Controls the source of the starting cwd for terminals created by splitting."),
 			type: 'string',
-			enum: ['ShellDefault', 'SourceInitialCwd', 'Cwd'],
+			enum: ['workspaceRoot', 'sourceInitialCwd', 'cwd'],
 			enumDescriptions: [
-				nls.localize('splitCwdSource.ShellDefault', "A new split terminal will use the workspace root as the cwd."),
-				nls.localize('splitCwdSource.SourceInitialCwd', "A new split terminal will use the cwd that the parent terminal started with."),
-				nls.localize('splitCwdSource.Cwd', "on macOS and Linux, a new split terminal will use the cwd of the parent terminal. On Windows, this behaves the same as SourceInitialCwd."),
+				nls.localize('terminal.integrated.splitCwdSource.workspaceRoot', "A new split terminal will use the workspace root as the cwd."),
+				nls.localize('terminal.integrated.splitCwdSource.sourceInitialCwd', "A new split terminal will use the cwd that the parent terminal started with."),
+				nls.localize('terminal.integrated.splitCwdSource.sourceCwd', "On macOS and Linux, a new split terminal will use the cwd of the parent terminal. On Windows, this behaves the same as sourceInitialCwd."),
 			],
-			default: 'ShellDefault'
+			default: 'workspaceRoot'
 		},
 	}
 });
