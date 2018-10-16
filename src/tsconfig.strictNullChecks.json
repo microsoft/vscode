@@ -353,6 +353,7 @@
 		"./vs/nls.d.ts",
 		"./vs/nls.mock.ts",
 		"./vs/platform/actions/common/actions.ts",
+		"./vs/platform/label/common/label.ts",
 		"./vs/platform/backup/common/backup.ts",
 		"./vs/platform/broadcast/electron-browser/broadcastService.ts",
 		"./vs/platform/clipboard/common/clipboardService.ts",
