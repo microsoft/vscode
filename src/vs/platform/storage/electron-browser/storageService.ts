@@ -15,6 +15,7 @@ import { startsWith } from 'vs/base/common/strings';
 import { Action } from 'vs/base/common/actions';
 import { IWindowService } from 'vs/platform/windows/common/windows';
 import { localize } from 'vs/nls';
+import { mark } from 'vs/base/common/performance';
 
 export class StorageService extends Disposable implements IStorageService {
 	_serviceBrand: any;
@@ -26,6 +27,23 @@ export class StorageService extends Disposable implements IStorageService {
 
 	private _onWillSaveState: Emitter<void> = this._register(new Emitter<void>());
 	get onWillSaveState(): Event<void> { return this._onWillSaveState.event; }
+
+	private bufferedStorageErrors: (string | Error)[] = [];
+	private _onStorageError: Emitter<string | Error> = this._register(new Emitter<string | Error>());
+	get onStorageError(): Event<string | Error> {
+		if (Array.isArray(this.bufferedStorageErrors)) {
+			if (this.bufferedStorageErrors.length > 0) {
+				const bufferedStorageErrors = this.bufferedStorageErrors;
+				setTimeout(() => {
+					this._onStorageError.fire(`[startup errors] ${bufferedStorageErrors.join('\n')}`);
+				}, 0);
+			}
+
+			this.bufferedStorageErrors = void 0;
+		}
+
+		return this._onStorageError.event;
+	}
 
 	private globalStorage: Storage;
 	private workspaceStorage: Storage;
@@ -40,7 +58,15 @@ export class StorageService extends Disposable implements IStorageService {
 		const loggingOptions: IStorageLoggingOptions = {
 			info: environmentService.verbose || environmentService.logStorage,
 			infoLogger: msg => logService.info(msg),
-			errorLogger: error => logService.error(error)
+			errorLogger: error => {
+				logService.error(error);
+
+				if (Array.isArray(this.bufferedStorageErrors)) {
+					this.bufferedStorageErrors.push(error);
+				} else {
+					this._onStorageError.fire(error);
+				}
+			}
 		};
 
 		const useInMemoryStorage = !!environmentService.extensionTestsPath; // never keep any state when running extension tests
@@ -61,7 +87,13 @@ export class StorageService extends Disposable implements IStorageService {
 	}
 
 	init(): Promise<void> {
-		return Promise.all([this.globalStorage.init(), this.workspaceStorage.init()]).then(() => void 0);
+		mark('willInitGlobalStorage');
+		mark('willInitWorkspaceStorage');
+
+		return Promise.all([
+			this.globalStorage.init().then(() => mark('didInitGlobalStorage')),
+			this.workspaceStorage.init().then(() => mark('didInitWorkspaceStorage'))
+		]).then(() => void 0);
 	}
 
 	get(key: string, scope: StorageScope, fallbackValue?: any): string {
@@ -98,6 +130,10 @@ export class StorageService extends Disposable implements IStorageService {
 
 	private getStorage(scope: StorageScope): Storage {
 		return scope === StorageScope.GLOBAL ? this.globalStorage : this.workspaceStorage;
+	}
+
+	getSize(scope: StorageScope): number {
+		return scope === StorageScope.GLOBAL ? this.globalStorage.size : this.workspaceStorage.size;
 	}
 
 	logStorage(): Promise<void> {
@@ -154,7 +190,7 @@ export class LogStorageAction extends Action {
 	}
 
 	run(): Thenable<void> {
-		this.storageService.logStorage();
+		this.storageService.storage.logStorage();
 
 		return this.windowService.openDevTools();
 	}
@@ -174,8 +210,7 @@ export class DelegatingStorageService extends Disposable implements IStorageServ
 	constructor(
 		@IStorageService private storageService: StorageService,
 		@IStorageLegacyService private storageLegacyService: IStorageLegacyService,
-		@ILogService private logService: ILogService,
-		@IEnvironmentService environmentService: IEnvironmentService
+		@ILogService private logService: ILogService
 	) {
 		super();
 
@@ -194,6 +229,10 @@ export class DelegatingStorageService extends Disposable implements IStorageServ
 				this._onDidChangeStorage.fire({ key, scope: StorageScope.GLOBAL });
 			}
 		}));
+	}
+
+	get storage(): StorageService {
+		return this.storageService;
 	}
 
 	get(key: string, scope: StorageScope, fallbackValue?: any): string {
@@ -267,9 +306,5 @@ export class DelegatingStorageService extends Disposable implements IStorageServ
 
 	private convertScope(scope: StorageScope): StorageLegacyScope {
 		return scope === StorageScope.GLOBAL ? StorageLegacyScope.GLOBAL : StorageLegacyScope.WORKSPACE;
-	}
-
-	logStorage(): Promise<void> {
-		return this.storageService.logStorage();
 	}
 }

@@ -58,6 +58,10 @@ export class Storage extends Disposable {
 		this.pendingScheduler = new RunOnceScheduler(() => this.flushPending(), Storage.FLUSH_DELAY);
 	}
 
+	get size(): number {
+		return this.cache.size;
+	}
+
 	init(): Promise<void> {
 		if (this.state !== StorageState.None) {
 			return Promise.resolve(); // either closed or already initialized
