@@ -1,3 +1,6 @@
+# Other Languages
+To see this article in PT-BR, please access [PT-BR](README-PT-BR.md)
+
 # Visual Studio Code - Open Source
 
 [![Build Status](https://vscode.visualstudio.com/_apis/public/build/definitions/a4cdce18-a05c-4bb8-9476-5d07e63bfd76/1/badge?branchName=master)](https://aka.ms/vscode-builds)
