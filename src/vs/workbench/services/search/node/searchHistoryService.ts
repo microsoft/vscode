@@ -26,7 +26,7 @@ export class SearchHistoryService implements ISearchHistoryService {
 	}
 
 	public load(): ISearchHistoryValues {
-		let result: ISearchHistoryValues;
+		let result: ISearchHistoryValues | undefined;
 		const raw = this.storageService.get(SearchHistoryService.SEARCH_HISTORY_KEY, StorageScope.WORKSPACE);
 
 		if (raw) {

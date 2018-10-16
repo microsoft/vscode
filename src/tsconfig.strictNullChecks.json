@@ -479,6 +479,7 @@
 		"./vs/workbench/services/files/node/watcher/unix/watcher.ts",
 		"./vs/workbench/services/hash/common/hashService.ts",
 		"./vs/workbench/services/hash/node/hashService.ts",
+		"./vs/workbench/services/issue/common/issue.ts",
 		"./vs/workbench/services/jsonschemas/common/jsonValidationExtensionPoint.ts",
 		"./vs/workbench/services/keybinding/common/keybindingIO.ts",
 		"./vs/workbench/services/keybinding/common/keyboardMapper.ts",
@@ -500,7 +501,14 @@
 		"./vs/workbench/services/themes/common/workbenchThemeService.ts",
 		"./vs/workbench/services/title/common/titleService.ts",
 		"./vs/workbench/services/workspace/common/workspaceEditing.ts",
-		"./vs/workbench/test/electron-browser/api/mock.ts"
+		"./vs/workbench/test/electron-browser/api/mock.ts",
+		"./vs/workbench/services/search/node/searchHistoryService.ts",
+		"./vs/workbench/services/extensions/node/extensionDescriptionRegistry.ts",
+		"./vs/workbench/parts/emmet/browser/actions/showEmmetCommands.ts",
+		"./vs/workbench/parts/comments/common/commentModel.ts",
+		"./vs/workbench/common/views.ts",
+		"./vs/workbench/common/theme.ts",
+		"./vs/platform/telemetry/browser/errorTelemetry.ts"
 	],
 	"exclude": [
 		"./typings/require-monaco.d.ts"
