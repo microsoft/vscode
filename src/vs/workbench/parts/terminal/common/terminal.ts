@@ -591,6 +591,8 @@ export interface ITerminalInstance {
 	addDisposable(disposable: IDisposable): void;
 
 	toggleEscapeSequenceLogging(): void;
+
+	getCwd(configHelper: ITerminalConfigHelper): Promise<string>;
 }
 
 export interface ITerminalCommandTracker {
