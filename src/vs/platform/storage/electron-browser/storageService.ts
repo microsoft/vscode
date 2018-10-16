@@ -12,7 +12,6 @@ import { Storage, IStorageLoggingOptions } from 'vs/base/node/storage';
 import { IStorageLegacyService, StorageLegacyScope } from 'vs/platform/storage/common/storageLegacyService';
 import { addDisposableListener } from 'vs/base/browser/dom';
 import { startsWith } from 'vs/base/common/strings';
-import { ShutdownReason } from 'vs/platform/lifecycle/common/lifecycle';
 import { Action } from 'vs/base/common/actions';
 import { IWindowService } from 'vs/platform/windows/common/windows';
 import { localize } from 'vs/nls';
@@ -25,8 +24,8 @@ export class StorageService extends Disposable implements IStorageService {
 	private _onDidChangeStorage: Emitter<IWorkspaceStorageChangeEvent> = this._register(new Emitter<IWorkspaceStorageChangeEvent>());
 	get onDidChangeStorage(): Event<IWorkspaceStorageChangeEvent> { return this._onDidChangeStorage.event; }
 
-	private _onWillClose: Emitter<ShutdownReason> = this._register(new Emitter<ShutdownReason>());
-	get onWillSaveState(): Event<ShutdownReason> { return this._onWillClose.event; }
+	private _onWillSaveState: Emitter<void> = this._register(new Emitter<void>());
+	get onWillSaveState(): Event<void> { return this._onWillSaveState.event; }
 
 	private globalStorage: Storage;
 	private workspaceStorage: Storage;
@@ -85,10 +84,10 @@ export class StorageService extends Disposable implements IStorageService {
 		this.getStorage(scope).delete(key);
 	}
 
-	close(reason: ShutdownReason): Promise<void> {
+	close(): Promise<void> {
 
 		// Signal as event so that clients can still store data
-		this._onWillClose.fire(reason);
+		this._onWillSaveState.fire();
 
 		// Do it
 		return Promise.all([
@@ -167,8 +166,8 @@ export class DelegatingStorageService extends Disposable implements IStorageServ
 	private _onDidChangeStorage: Emitter<IWorkspaceStorageChangeEvent> = this._register(new Emitter<IWorkspaceStorageChangeEvent>());
 	get onDidChangeStorage(): Event<IWorkspaceStorageChangeEvent> { return this._onDidChangeStorage.event; }
 
-	private _onWillClose: Emitter<ShutdownReason> = this._register(new Emitter<ShutdownReason>());
-	get onWillSaveState(): Event<ShutdownReason> { return this._onWillClose.event; }
+	private _onWillSaveState: Emitter<void> = this._register(new Emitter<void>());
+	get onWillSaveState(): Event<void> { return this._onWillSaveState.event; }
 
 	private closed: boolean;
 
@@ -185,7 +184,7 @@ export class DelegatingStorageService extends Disposable implements IStorageServ
 
 	private registerListeners(): void {
 		this._register(this.storageService.onDidChangeStorage(e => this._onDidChangeStorage.fire(e)));
-		this._register(this.storageService.onWillSaveState(reason => this._onWillClose.fire(reason)));
+		this._register(this.storageService.onWillSaveState(() => this._onWillSaveState.fire()));
 
 		const globalKeyMarker = 'storage://global/';
 		this._register(addDisposableListener(window, 'storage', (e: StorageEvent) => {
@@ -258,8 +257,8 @@ export class DelegatingStorageService extends Disposable implements IStorageServ
 		this.storageService.remove(key, scope);
 	}
 
-	close(reason: ShutdownReason): Promise<void> {
-		const promise = this.storageService.close(reason);
+	close(): Promise<void> {
+		const promise = this.storageService.close();
 
 		this.closed = true;
 
