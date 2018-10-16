@@ -321,6 +321,7 @@
 		"./vs/editor/contrib/smartSelect/tokenTree.ts",
 		"./vs/editor/contrib/suggest/suggest.ts",
 		"./vs/editor/contrib/suggest/wordDistance.ts",
+		"./vs/editor/contrib/suggest/wordContextKey.ts",
 		"./vs/editor/contrib/toggleTabFocusMode/toggleTabFocusMode.ts",
 		"./vs/editor/contrib/wordHighlighter/wordHighlighter.ts",
 		"./vs/editor/contrib/wordOperations/wordOperations.ts",

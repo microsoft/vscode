@@ -15,7 +15,7 @@ export class WordContextKey {
 	private readonly _confListener: IDisposable;
 
 	private _enabled: boolean;
-	private _selectionListener: IDisposable;
+	private _selectionListener?: IDisposable;
 
 	constructor(
 		private readonly _editor: ICodeEditor,
@@ -41,11 +41,11 @@ export class WordContextKey {
 
 		if (this._enabled) {
 			const checkForWordEnd = () => {
-				const model = this._editor.getModel();
-				if (!model) {
+				if (!this._editor.hasModel()) {
 					this._ckAtEnd.set(false);
 					return;
 				}
+				const model = this._editor.getModel();
 				const selection = this._editor.getSelection();
 				const word = model.getWordAtPosition(selection.getStartPosition());
 				if (!word) {
