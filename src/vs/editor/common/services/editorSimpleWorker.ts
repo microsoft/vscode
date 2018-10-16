@@ -21,6 +21,7 @@ import { IWordAtPosition, EndOfLineSequence } from 'vs/editor/common/model';
 import { globals } from 'vs/base/common/platform';
 import { Iterator, IteratorResult, FIN } from 'vs/base/common/iterator';
 import { mergeSort } from 'vs/base/common/arrays';
+import { IDiffComputationResult } from 'vs/editor/common/services/editorWorkerService';
 
 export interface IMirrorModel {
 	readonly uri: URI;
@@ -334,22 +335,44 @@ export abstract class BaseEditorSimpleWorker {
 
 	// ---- BEGIN diff --------------------------------------------------------------------------
 
-	public computeDiff(originalUrl: string, modifiedUrl: string, ignoreTrimWhitespace: boolean): Promise<editorCommon.ILineChange[] | null> {
-		let original = this._getModel(originalUrl);
-		let modified = this._getModel(modifiedUrl);
+	public computeDiff(originalUrl: string, modifiedUrl: string, ignoreTrimWhitespace: boolean): Promise<IDiffComputationResult | null> {
+		const original = this._getModel(originalUrl);
+		const modified = this._getModel(modifiedUrl);
 		if (!original || !modified) {
 			return Promise.resolve(null);
 		}
 
-		let originalLines = original.getLinesContent();
-		let modifiedLines = modified.getLinesContent();
-		let diffComputer = new DiffComputer(originalLines, modifiedLines, {
+		const originalLines = original.getLinesContent();
+		const modifiedLines = modified.getLinesContent();
+		const diffComputer = new DiffComputer(originalLines, modifiedLines, {
 			shouldComputeCharChanges: true,
 			shouldPostProcessCharChanges: true,
 			shouldIgnoreTrimWhitespace: ignoreTrimWhitespace,
 			shouldMakePrettyDiff: true
 		});
-		return Promise.resolve(diffComputer.computeDiff());
+
+		const changes = diffComputer.computeDiff();
+		let identical = (changes.length > 0 ? false : this._modelsAreIdentical(original, modified));
+		return Promise.resolve({
+			identical: identical,
+			changes: changes
+		});
+	}
+
+	private _modelsAreIdentical(original: ICommonModel, modified: ICommonModel): boolean {
+		const originalLineCount = original.getLineCount();
+		const modifiedLineCount = modified.getLineCount();
+		if (originalLineCount !== modifiedLineCount) {
+			return false;
+		}
+		for (let line = 1; line <= originalLineCount; line++) {
+			const originalLine = original.getLineContent(line);
+			const modifiedLine = modified.getLineContent(line);
+			if (originalLine !== modifiedLine) {
+				return false;
+			}
+		}
+		return true;
 	}
 
 	public computeDirtyDiff(originalUrl: string, modifiedUrl: string, ignoreTrimWhitespace: boolean): Promise<editorCommon.IChange[] | null> {
