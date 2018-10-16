@@ -437,7 +437,7 @@ export class DropDownMenuActionItem extends ExtensionActionItem {
 		tabOnlyOnFocus: boolean,
 		@IContextMenuService private contextMenuService: IContextMenuService
 	) {
-		super(null, action, { icon: true, label: true, tabOnlyOnFocus: !!tabOnlyOnFocus });
+		super(null, action, { icon: true, label: true, tabOnlyOnFocus });
 		this.menuActionGroups = menuActionGroups;
 	}
 
