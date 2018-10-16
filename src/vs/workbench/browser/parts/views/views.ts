@@ -21,6 +21,7 @@ import { MenuId, MenuRegistry, ICommandAction } from 'vs/platform/actions/common
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { localize } from 'vs/nls';
 import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
+import { values } from 'vs/base/common/map';
 
 function filterViewEvent(container: ViewContainer, event: Event<IViewDescriptor[]>): Event<IViewDescriptor[]> {
 	return chain(event)
@@ -442,7 +443,7 @@ export class PersistentContributableViewsModel extends ContributableViewsModel {
 				storedViewsStates[viewDescriptor.id] = { collapsed: viewState.collapsed, size: viewState.size, order: viewState.order };
 			}
 		}
-		this.storageService.store(this.viewletStateStorageId, JSON.stringify(storedViewsStates), this.contextService.getWorkbenchState() !== WorkbenchState.EMPTY ? StorageScope.WORKSPACE : StorageScope.GLOBAL);
+		this.storageService.store(this.viewletStateStorageId, JSON.stringify(storedViewsStates), StorageScope.WORKSPACE);
 	}
 
 	private saveVisibilityStates(viewDescriptors: IViewDescriptor[]): void {
@@ -450,17 +451,17 @@ export class PersistentContributableViewsModel extends ContributableViewsModel {
 		for (const viewDescriptor of viewDescriptors) {
 			if (viewDescriptor.canToggleVisibility) {
 				const viewState = this.viewStates.get(viewDescriptor.id);
-				storedViewsVisibilityStates.push({ id: viewDescriptor.id, isHidden: viewState ? !viewState.visible : void 0 });
+				storedViewsVisibilityStates.set(viewDescriptor.id, { id: viewDescriptor.id, isHidden: viewState ? !viewState.visible : void 0 });
 			}
 		}
-		this.storageService.store(this.hiddenViewsStorageId, JSON.stringify(storedViewsVisibilityStates), StorageScope.GLOBAL);
+		this.storageService.store(this.hiddenViewsStorageId, JSON.stringify(values(storedViewsVisibilityStates)), StorageScope.GLOBAL);
 	}
 
 	private static loadViewsStates(viewletStateStorageId: string, hiddenViewsStorageId: string, storageService: IStorageService, contextService: IWorkspaceContextService): Map<string, IViewState> {
 		const viewStates = new Map<string, IViewState>();
 		const storedViewsStates = JSON.parse(storageService.get(viewletStateStorageId, contextService.getWorkbenchState() !== WorkbenchState.EMPTY ? StorageScope.WORKSPACE : StorageScope.GLOBAL, '{}'));
 		const viewsVisibilityStates = PersistentContributableViewsModel.loadViewsVisibilityState(hiddenViewsStorageId, storageService, contextService);
-		for (const { id, isHidden } of viewsVisibilityStates) {
+		for (const { id, isHidden } of values(viewsVisibilityStates)) {
 			const viewState = storedViewsStates[id];
 			if (viewState) {
 				viewStates.set(id, <IViewState>{ ...viewState, ...{ visible: !isHidden } });
@@ -477,9 +478,17 @@ export class PersistentContributableViewsModel extends ContributableViewsModel {
 		return viewStates;
 	}
 
-	private static loadViewsVisibilityState(hiddenViewsStorageId: string, storageService: IStorageService, contextService: IWorkspaceContextService): { id: string, isHidden: boolean }[] {
+	private static loadViewsVisibilityState(hiddenViewsStorageId: string, storageService: IStorageService, contextService: IWorkspaceContextService): Map<string, { id: string, isHidden: boolean }> {
 		const storedVisibilityStates = <Array<string | { id: string, isHidden: boolean }>>JSON.parse(storageService.get(hiddenViewsStorageId, StorageScope.GLOBAL, '[]'));
-		return <{ id: string, isHidden: boolean }[]>storedVisibilityStates.map(c => typeof c === 'string' /* migration */ ? { id: c, isHidden: true } : c);
+
+		return storedVisibilityStates.reduce((result, storedState) => {
+			if (typeof storedState === 'string' /* migration */) {
+				result.set(storedState, { id: storedState, isHidden: true });
+			} else {
+				result.set(storedState.id, storedState);
+			}
+			return result;
+		}, new Map<string, { id: string, isHidden: boolean }>());
 	}
 }
 
@@ -496,7 +505,6 @@ export class ViewsService extends Disposable implements IViewsService {
 		@ILifecycleService private lifecycleService: ILifecycleService,
 		@IViewletService private viewletService: IViewletService,
 		@IStorageService private storageService: IStorageService,
-		@IWorkspaceContextService private workspaceContextService: IWorkspaceContextService,
 		@IContextKeyService private contextKeyService: IContextKeyService
 	) {
 		super();
@@ -510,7 +518,7 @@ export class ViewsService extends Disposable implements IViewsService {
 		const viewContainersRegistry = Registry.as<IViewContainersRegistry>(ViewContainerExtensions.ViewContainersRegistry);
 		viewContainersRegistry.all.forEach(viewContainer => this.onDidRegisterViewContainer(viewContainer));
 		this._register(viewContainersRegistry.onDidRegister(viewContainer => this.onDidRegisterViewContainer(viewContainer)));
-		this._register(Registry.as<ViewletRegistry>(ViewletExtensions.Viewlets).onDidRegister(viewlet => this.viewletService.setViewletEnablement(viewlet.id, this.storageService.getBoolean(`viewservice.${viewlet.id}.enablement`, this.getStorageScope(), viewlet.id !== TEST_VIEW_CONTAINER_ID))));
+		this._register(Registry.as<ViewletRegistry>(ViewletExtensions.Viewlets).onDidRegister(viewlet => this.viewletService.setViewletEnablement(viewlet.id, this.storageService.getBoolean(`viewservice.${viewlet.id}.enablement`, StorageScope.WORKSPACE, viewlet.id !== TEST_VIEW_CONTAINER_ID))));
 	}
 
 	getViewDescriptors(container: ViewContainer): IViewDescriptorCollection {
@@ -604,10 +612,6 @@ export class ViewsService extends Disposable implements IViewsService {
 	private updateViewletEnablement(viewContainer: ViewContainer, viewDescriptorCollection: IViewDescriptorCollection): void {
 		const enabled = viewDescriptorCollection.activeViewDescriptors.length > 0;
 		this.viewletService.setViewletEnablement(viewContainer.id, enabled);
-		this.storageService.store(`viewservice.${viewContainer.id}.enablement`, enabled, this.getStorageScope());
-	}
-
-	private getStorageScope(): StorageScope {
-		return this.workspaceContextService.getWorkbenchState() === WorkbenchState.EMPTY ? StorageScope.GLOBAL : StorageScope.WORKSPACE;
+		this.storageService.store(`viewservice.${viewContainer.id}.enablement`, enabled, StorageScope.WORKSPACE);
 	}
 }
