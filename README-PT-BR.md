@@ -28,7 +28,7 @@ por favor, leia o documento sobre [Como Contribuir](https://github.com/Microsoft
 
 * [Como compilar e executar a partir do código fonte](https://github.com/Microsoft/vscode/wiki/How-to-Contribute#build-and-run)
 * [O fluxo de desenvolvimento, incluindo depuração e execução de testes](https://github.com/Microsoft/vscode/wiki/How-to-Contribute#debugging)
-* [Codificando Diretrizes](https://github.com/Microsoft/vscode/wiki/Coding-Guidelines)
+* [Diretrizes de Codificação](https://github.com/Microsoft/vscode/wiki/Coding-Guidelines)
 * [Enviando pull requests](https://github.com/Microsoft/vscode/wiki/How-to-Contribute#pull-requests)
 * [Contribuindo para traduções](https://aka.ms/vscodeloc)
 
