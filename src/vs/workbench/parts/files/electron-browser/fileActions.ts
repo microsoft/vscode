@@ -11,7 +11,6 @@ import { isWindows, isLinux } from 'vs/base/common/platform';
 import { sequence, ITask, always } from 'vs/base/common/async';
 import * as paths from 'vs/base/common/paths';
 import * as resources from 'vs/base/common/resources';
-import * as pfs from 'vs/base/node/pfs';
 import { URI } from 'vs/base/common/uri';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
 import * as strings from 'vs/base/common/strings';
@@ -1461,7 +1460,7 @@ export function validateFileName(parent: ExplorerItem, name: string): string {
 		// If it's a file in the sub-folder
 		const resource = parent.resource;
 		const fulPath = resources.joinPath(resource, name);
-		const childExists = pfs.existsSync(paths.normalize(fulPath.fsPath));
+		const childExists = parent.find(fulPath) ? true : false;
 		if (childExists) {
 			return nls.localize('fileNameExistsError', "A file or folder **{0}** already exists at this location. Please choose a different name.", name);
 		}
