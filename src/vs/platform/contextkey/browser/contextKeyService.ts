@@ -294,7 +294,11 @@ export class ContextKeyService extends AbstractContextKeyService implements ICon
 	}
 
 	public getContextValuesContainer(contextId: number): Context {
-		return this._contexts[String(contextId)];
+		let result = this._contexts[String(contextId)];
+		if (!result) {
+			throw new Error(`Child ContextService has been disposed`);
+		}
+		return result;
 	}
 
 	public createChildContext(parentContextId: number = this._myContextId): number {
