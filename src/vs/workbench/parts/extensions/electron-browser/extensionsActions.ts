@@ -11,7 +11,7 @@ import * as DOM from 'vs/base/browser/dom';
 import * as paths from 'vs/base/common/paths';
 import { Event } from 'vs/base/common/event';
 import * as json from 'vs/base/common/json';
-import { ActionItem, IActionItem, Separator } from 'vs/base/browser/ui/actionbar/actionbar';
+import { ActionItem, IActionItem, Separator, IActionItemOptions } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IDisposable, dispose, Disposable } from 'vs/base/common/lifecycle';
 import { IExtension, ExtensionState, IExtensionsWorkbenchService, VIEWLET_ID, IExtensionsViewlet, AutoUpdateConfigurationKey } from 'vs/workbench/parts/extensions/common/extensions';
@@ -388,18 +388,29 @@ export class UpdateAction extends Action {
 	}
 }
 
-export class TabOnlyOnFocusActionItem extends ActionItem {
+interface IExtensionActionItemOptions extends IActionItemOptions {
+	tabOnlyOnFocus?: boolean;
+}
+
+export class ExtensionActionItem extends ActionItem {
+
+	protected options: IExtensionActionItemOptions;
+
+	constructor(context: any, action: IAction, options: IExtensionActionItemOptions = {}) {
+		super(context, action, options);
+	}
+
 	updateEnabled(): void {
 		super.updateEnabled();
 
-		if (this.getAction().enabled && !this._hasFocus) {
+		if (this.options.tabOnlyOnFocus && this.getAction().enabled && !this._hasFocus) {
 			DOM.removeTabIndexAndUpdateFocus(this.label);
 		}
 	}
 
 	private _hasFocus: boolean;
 	setFocus(value: boolean): void {
-		if (this._hasFocus === value) {
+		if (!this.options.tabOnlyOnFocus || this._hasFocus === value) {
 			return;
 		}
 		this._hasFocus = value;
@@ -413,7 +424,7 @@ export class TabOnlyOnFocusActionItem extends ActionItem {
 	}
 }
 
-export class DropDownMenuActionItem extends ActionItem {
+export class DropDownMenuActionItem extends ExtensionActionItem {
 
 	private disposables: IDisposable[] = [];
 
@@ -423,10 +434,10 @@ export class DropDownMenuActionItem extends ActionItem {
 
 	constructor(action: IAction,
 		menuActionGroups: IAction[][],
-		private tabOnlyOnFocus: boolean,
+		tabOnlyOnFocus: boolean,
 		@IContextMenuService private contextMenuService: IContextMenuService
 	) {
-		super(null, action, { icon: true, label: true });
+		super(null, action, { icon: true, label: true, tabOnlyOnFocus: !!tabOnlyOnFocus });
 		this.menuActionGroups = menuActionGroups;
 	}
 
@@ -448,29 +459,6 @@ export class DropDownMenuActionItem extends ActionItem {
 			actions = [...actions, ...menuActions, new Separator()];
 		}
 		return actions.length ? actions.slice(0, actions.length - 1) : actions;
-	}
-
-	updateEnabled(): void {
-		super.updateEnabled();
-
-		if (this.tabOnlyOnFocus && this.getAction().enabled && !this._hasFocus) {
-			DOM.removeTabIndexAndUpdateFocus(this.label);
-		}
-	}
-
-	private _hasFocus: boolean;
-	setFocus(value: boolean): void {
-		if (!this.tabOnlyOnFocus || this._hasFocus === value) {
-			return;
-		}
-		this._hasFocus = value;
-		if (this.getAction().enabled) {
-			if (this._hasFocus) {
-				this.label.tabIndex = 0;
-			} else {
-				DOM.removeTabIndexAndUpdateFocus(this.label);
-			}
-		}
 	}
 
 	dispose(): void {

@@ -14,7 +14,7 @@ import { IPagedRenderer } from 'vs/base/browser/ui/list/listPaging';
 import { once, Emitter, Event } from 'vs/base/common/event';
 import { domEvent } from 'vs/base/browser/event';
 import { IExtension, IExtensionsWorkbenchService } from 'vs/workbench/parts/extensions/common/extensions';
-import { InstallAction, UpdateAction, ManageExtensionAction, ReloadAction, extensionButtonProminentBackground, extensionButtonProminentForeground, MaliciousStatusLabelAction, DisabledStatusLabelAction, TabOnlyOnFocusActionItem } from 'vs/workbench/parts/extensions/electron-browser/extensionsActions';
+import { InstallAction, UpdateAction, ManageExtensionAction, ReloadAction, extensionButtonProminentBackground, extensionButtonProminentForeground, MaliciousStatusLabelAction, DisabledStatusLabelAction, ExtensionActionItem } from 'vs/workbench/parts/extensions/electron-browser/extensionsActions';
 import { areSameExtensions } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { Label, RatingsWidget, InstallCountWidget } from 'vs/workbench/parts/extensions/browser/extensionsWidgets';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
@@ -47,7 +47,7 @@ export class Delegate implements IListVirtualDelegate<IExtension> {
 	getTemplateId() { return 'extension'; }
 }
 
-const actionOptions = { icon: true, label: true };
+const actionOptions = { icon: true, label: true, tabOnlyOnFocus: true };
 
 export class Renderer implements IPagedRenderer<IExtension, ITemplateData> {
 
@@ -93,7 +93,7 @@ export class Renderer implements IPagedRenderer<IExtension, ITemplateData> {
 				if (action.id === ManageExtensionAction.ID) {
 					return (<ManageExtensionAction>action).actionItem;
 				}
-				return new TabOnlyOnFocusActionItem(null, action, actionOptions);
+				return new ExtensionActionItem(null, action, actionOptions);
 			}
 		});
 		actionbar.onDidRun(({ error }) => error && this.notificationService.error(error));
@@ -191,7 +191,7 @@ export class Renderer implements IPagedRenderer<IExtension, ITemplateData> {
 		if (extension.onDidFocusChange) {
 			data.extensionDisposables.push(extension.onDidFocusChange(hasFocus => {
 				data.actionbar.items.forEach(item => {
-					(<TabOnlyOnFocusActionItem>item).setFocus(hasFocus);
+					(<ExtensionActionItem>item).setFocus(hasFocus);
 				});
 			}));
 		}
