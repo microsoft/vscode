@@ -6,10 +6,10 @@
 [![Gitter](https://img.shields.io/badge/chat-on%20gitter-yellow.svg)](https://gitter.im/Microsoft/vscode)
 
 [VS Code](https://code.visualstudio.com) é um novo tipo de ferramenta que combina a simplicidade de
-um editor de código com o que desenvolvedores precisam para o seu ciclo principal de edição-compilação-deburação. VS Code
+um editor de código com o que desenvolvedores precisam para o seu ciclo principal de edição-compilação-depuração. VS Code
 fornece suporte abrangente de edição e depuração, um modelo de extensibilidade e integração leve com ferramentas existentes.
 
-VS Code é atualizado mensalmente com novas funções e correções de bugs. Você pode baixá-lo para Windows, macOS e Linux no site oficial do[VS Code](https://code.visualstudio.com/Download). Para ter os últimos lançamentos todos os dias, você pode instalar a [Versão Insiders do VS Code](https://code.visualstudio.com/insiders). Essa compilação é feita a partir da branch master e é atualizada diariamente.
+VS Code é atualizado mensalmente com novas funções e correções de bugs. Você pode baixá-lo para Windows, macOS e Linux no site oficial do [VS Code](https://code.visualstudio.com/Download). Para ter os últimos lançamentos todos os dias, você pode instalar a [Versão Insiders do VS Code](https://code.visualstudio.com/insiders). Essa compilação é feita a partir da branch master e é atualizada diariamente.
 
 <p align="center">
   <img alt="VS Code in action" src="https://cloud.githubusercontent.com/assets/11839736/16642200/6624dde0-43bd-11e6-8595-c81885ba0dc2.png">
