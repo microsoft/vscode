@@ -59,7 +59,7 @@ function _transformIncomingURIs(obj: any, transformer: IURITransformer, depth: n
 
 	if (typeof obj === 'object') {
 
-		if ((<MarshalledObject>obj).$mid === 1) {
+		if ((<MarshalledObject>obj).$mid === 100) {
 			return transformer.transformIncoming(obj);
 		}
 

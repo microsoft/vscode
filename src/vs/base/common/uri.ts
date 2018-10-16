@@ -361,8 +361,10 @@ export class URI implements UriComponents {
 			return data;
 		} else {
 			let result = new _URI(data);
-			result._fsPath = (<UriState>data).fsPath;
-			result._formatted = (<UriState>data).external;
+			if ((<UriState>data).$mid === 100) {
+				result._fsPath = (<UriState>data).fsPath;
+				result._formatted = (<UriState>data).external;
+			}
 			return result;
 		}
 	}
@@ -377,7 +379,7 @@ export interface UriComponents {
 }
 
 interface UriState extends UriComponents {
-	$mid: number;
+	$mid: 100;
 	fsPath: string;
 	external: string;
 }
@@ -410,7 +412,7 @@ class _URI extends URI {
 
 	toJSON(): object {
 		const res = <UriState>{
-			$mid: 1
+			$mid: 100
 		};
 		// cached state
 		if (this._fsPath) {
