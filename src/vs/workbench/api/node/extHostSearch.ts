@@ -193,7 +193,7 @@ export class ExtHostSearch implements ExtHostSearchShape {
 }
 
 function registerEHProviders(extHostSearch: ExtHostSearch, logService: ILogService, configService: ExtHostConfiguration) {
-	if (configService.getConfiguration('searchRipgrep').enable) {
+	if (configService.getConfiguration('searchRipgrep').enable || configService.getConfiguration('search').runInExtensionHost) {
 		const outputChannel = new OutputChannel(logService);
 		extHostSearch.registerTextSearchProvider('file', new RipgrepSearchProvider(outputChannel));
 

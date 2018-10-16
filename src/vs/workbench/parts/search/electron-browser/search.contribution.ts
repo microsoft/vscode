@@ -653,6 +653,17 @@ configurationRegistry.registerConfiguration({
 			type: 'boolean',
 			default: false,
 			description: nls.localize('search.showLineNumbers', "Controls whether to show line numbers for search results."),
+		},
+		'searchRipgrep.enable': {
+			type: 'boolean',
+			default: false,
+			deprecationMessage: nls.localize('search.searchRipgrepEnableDeprecated', "Deprecated. Use \"search.runInExtensionHost\" instead"),
+			description: nls.localize('search.searchRipgrepEnable', "Whether to run search in the extension host")
+		},
+		'search.runInExtensionHost': {
+			type: 'boolean',
+			default: false,
+			description: nls.localize('search.searchRipgrepEnable', "Whether to run search in the extension host")
 		}
 	}
 });
