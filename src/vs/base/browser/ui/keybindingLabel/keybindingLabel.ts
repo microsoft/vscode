@@ -62,10 +62,10 @@ export class KeybindingLabel implements IDisposable {
 				this.renderPart(this.domNode, firstPart, this.matches ? this.matches.firstPart : null);
 			}
 			if (chordPart) {
-				dom.append(this.domNode, $('span.monaco-keybinding-key-chord-separator', null, ' '));
+				dom.append(this.domNode, $('span.monaco-keybinding-key-chord-separator', undefined, ' '));
 				this.renderPart(this.domNode, chordPart, this.matches ? this.matches.chordPart : null);
 			}
-			this.domNode.title = this.keybinding.getAriaLabel();
+			this.domNode.title = this.keybinding.getAriaLabel() || '';
 		}
 
 		this.didEverRender = true;
@@ -92,9 +92,9 @@ export class KeybindingLabel implements IDisposable {
 	}
 
 	private renderKey(parent: HTMLElement, label: string, highlight: boolean, separator: string): void {
-		dom.append(parent, $('span.monaco-keybinding-key' + (highlight ? '.highlight' : ''), null, label));
+		dom.append(parent, $('span.monaco-keybinding-key' + (highlight ? '.highlight' : ''), undefined, label));
 		if (separator) {
-			dom.append(parent, $('span.monaco-keybinding-key-separator', null, separator));
+			dom.append(parent, $('span.monaco-keybinding-key-separator', undefined, separator));
 		}
 	}
 
