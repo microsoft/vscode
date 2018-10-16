@@ -306,6 +306,7 @@ export class FindWidget extends Widget implements IOverlayWidget, IHorizontalSas
 			dom.toggleClass(this._domNode, 'no-results', showRedOutline);
 
 			this._updateMatchesCount();
+			this._updateButtons();
 		}
 		if (e.searchString || e.currentMatch) {
 			this._layoutViewZone();
@@ -381,8 +382,9 @@ export class FindWidget extends Widget implements IOverlayWidget, IHorizontalSas
 		this._closeBtn.setEnabled(this._isVisible);
 
 		let findInputIsNonEmpty = (this._state.searchString.length > 0);
-		this._prevBtn.setEnabled(this._isVisible && findInputIsNonEmpty);
-		this._nextBtn.setEnabled(this._isVisible && findInputIsNonEmpty);
+		let matchesCount = this._state.matchesCount ? true : false;
+		this._prevBtn.setEnabled(this._isVisible && findInputIsNonEmpty && matchesCount);
+		this._nextBtn.setEnabled(this._isVisible && findInputIsNonEmpty && matchesCount);
 		this._replaceBtn.setEnabled(this._isVisible && this._isReplaceVisible && findInputIsNonEmpty);
 		this._replaceAllBtn.setEnabled(this._isVisible && this._isReplaceVisible && findInputIsNonEmpty);
 
