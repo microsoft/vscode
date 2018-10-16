@@ -144,6 +144,10 @@
 
 /** Styles for each row in the list **/
 
+.monaco-editor .suggest-widget .monaco-list .monaco-list-row .monaco-icon-label::before {
+	height: 16px;
+}
+
 .monaco-editor .suggest-widget .monaco-list .monaco-list-row .icon {
 	display: block;
 	height: 16px;
@@ -195,16 +199,6 @@
 	width: 0.7em;
 	height: 0.7em;
 	display: inline-block;
-}
-
-.monaco-editor .suggest-widget .monaco-list .monaco-list-row .monaco-icon-label.default-file-icon::before {
-	background-image: url('Document_16x.svg');
-	content: ' ';
-}
-
-.monaco-editor .suggest-widget .monaco-list .monaco-list-row .monaco-icon-label.default-folder-icon::before {
-	background-image: url('Folder_16x.svg');
-	content: ' ';
 }
 
 /** Styles for the docs of the completion item in focus **/

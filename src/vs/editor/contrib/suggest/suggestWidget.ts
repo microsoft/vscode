@@ -37,7 +37,6 @@ import { getIconClasses } from 'vs/editor/common/services/getIconClasses';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { URI } from 'vs/base/common/uri';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { FileKind } from 'vs/platform/files/common/files';
 
 const expandSuggestionDocsByDefault = false;
 const maxSuggestionsToShow = 12;
@@ -161,18 +160,16 @@ class Renderer implements IListRenderer<ICompletionItem, ISuggestionTemplateData
 			matches: createMatches(element.matches)
 		};
 
-		if (suggestion.kind === CompletionItemKind.File || suggestion.kind === CompletionItemKind.Folder) {
+		if (
+			(suggestion.kind === CompletionItemKind.File)
+			&& document.querySelector('.file-icons-enabled') // todo@ben move file icon knowledge to editor or platform
+		) {
 			addClass(data.root, 'show-file-icons');
 			data.icon.className = 'icon hide';
-			labelOptions.extraClasses = getIconClasses(
-				this._modelService,
-				this._modeService,
-				URI.from({ scheme: 'fake', path: suggestion.label }),
-				suggestion.kind === CompletionItemKind.Folder ? FileKind.FOLDER : FileKind.FILE
+			labelOptions.extraClasses = [].concat(
+				getIconClasses(this._modelService, this._modeService, URI.from({ scheme: 'fake', path: suggestion.label })),
+				getIconClasses(this._modelService, this._modeService, URI.from({ scheme: 'fake', path: suggestion.detail }))
 			);
-			labelOptions.extraClasses.push(suggestion.kind === CompletionItemKind.File
-				? 'default-file-icon'
-				: 'default-folder-icon');
 		}
 
 		data.iconLabel.setValue(suggestion.label, undefined, labelOptions);
