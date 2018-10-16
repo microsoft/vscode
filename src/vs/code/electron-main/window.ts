@@ -376,6 +376,14 @@ export class CodeWindow implements ICodeWindow {
 			this._lastFocusTime = Date.now();
 		});
 
+		// Simple fullscreen doesn't resize automatically when the resolution changes
+		screen.on('display-metrics-changed', () => {
+			if (isMacintosh && this.isFullScreen() && this.useNativeFullScreen()) {
+				this.setFullScreen(false);
+				this.setFullScreen(true);
+			}
+		});
+
 		// Window (Un)Maximize
 		this._win.on('maximize', (e) => {
 			if (this.currentConfig) {
@@ -421,6 +429,11 @@ export class CodeWindow implements ICodeWindow {
 		if (this.openedWorkspace && this.openedWorkspace.id === workspace.id) {
 			this.currentConfig.workspace = void 0;
 		}
+	}
+
+	private useNativeFullScreen(): boolean {
+		const windowConfig = this.configurationService.getValue<IWindowSettings>('window');
+		return windowConfig && windowConfig.nativeFullscreen === false;
 	}
 
 	private onConfigurationUpdated(): void {
@@ -786,9 +799,7 @@ export class CodeWindow implements ICodeWindow {
 	}
 
 	private setFullScreen(willBeFullScreen?: boolean): void {
-		const windowConfig = this.configurationService.getValue<IWindowSettings>('window');
-
-		if (windowConfig && windowConfig.nativeFullscreen === false) {
+		if (this.useNativeFullScreen()) {
 			this.setSimpleFullScreen(willBeFullScreen);
 		} else {
 			this.setNativeFullScreen(willBeFullScreen);
