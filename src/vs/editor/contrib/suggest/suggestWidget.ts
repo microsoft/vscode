@@ -704,6 +704,11 @@ export class SuggestWidget implements IContentWidget, IListVirtualDelegate<IComp
 			this.loadingTimeout = null;
 		}
 
+		if (this.currentSuggestionDetails) {
+			this.currentSuggestionDetails.cancel();
+			this.currentSuggestionDetails = null;
+		}
+
 		if (this.completionModel !== completionModel) {
 			this.completionModel = completionModel;
 		}
@@ -744,6 +749,7 @@ export class SuggestWidget implements IContentWidget, IListVirtualDelegate<IComp
 				this.telemetryService.publicLog('suggestWidget', { ...stats, ...this.editor.getTelemetryData() });
 			}
 
+			this.focusedItem = null;
 			this.list.splice(0, this.list.length, this.completionModel.items);
 
 			if (isFrozen) {
