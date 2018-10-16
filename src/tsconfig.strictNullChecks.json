@@ -320,6 +320,7 @@
 		"./vs/editor/contrib/parameterHints/provideSignatureHelp.ts",
 		"./vs/editor/contrib/quickOpen/quickOpen.ts",
 		"./vs/editor/contrib/smartSelect/tokenTree.ts",
+		"./vs/editor/contrib/snippet/snippetParser.ts",
 		"./vs/editor/contrib/suggest/suggest.ts",
 		"./vs/editor/contrib/suggest/wordDistance.ts",
 		"./vs/editor/contrib/suggest/wordContextKey.ts",
