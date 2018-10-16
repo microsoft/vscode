@@ -86,7 +86,7 @@ class RequestQueue {
 	public push(item: RequestItem): void {
 		// insert before existing lowPriority requestItems in the queue.
 		if (!item.lowPriority && this.length) {
-			for (let i = this.length - 1; i < 0; i--) {
+			for (let i = this.length - 1; i > -1; i--) {
 				if (!this.queue[i].lowPriority) {
 					this.queue.splice(i + 1, 0, item);
 					return;
