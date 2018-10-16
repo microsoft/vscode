@@ -24,7 +24,7 @@ export function getHover(model: ITextModel, position: Position, token: Cancellat
 		});
 	});
 
-	return Promise.all(promises).then(values => coalesce(values));
+	return Promise.all(promises).then(coalesce);
 }
 
 registerDefaultLanguageCommand('_executeHoverProvider', (model, position) => getHover(model, position, CancellationToken.None));

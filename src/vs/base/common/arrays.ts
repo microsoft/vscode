@@ -297,29 +297,30 @@ function topStep<T>(array: T[], compare: (a: T, b: T) => number, result: T[], i:
 }
 
 /**
- * @returns a new array with all undefined or null values removed. The original array is not modified at all.
+ * @returns a new array with all falsy values removed. The original array IS NOT modified.
  */
-export function coalesce<T>(array: (T | undefined | null)[]): T[];
-export function coalesce<T>(array: (T | undefined | null)[], inplace: true): void;
-export function coalesce<T>(array: (T | undefined | null)[], inplace?: true): void | T[] {
+export function coalesce<T>(array: (T | undefined | null)[]): T[] {
 	if (!array) {
-		if (!inplace) {
-			return array;
-		}
+		return array;
 	}
-	if (!inplace) {
-		return <T[]>array.filter(e => !!e);
+	return <T[]>array.filter(e => !!e);
+}
 
-	} else {
-		let to = 0;
-		for (let i = 0; i < array.length; i++) {
-			if (!!array[i]) {
-				array[to] = array[i];
-				to += 1;
-			}
-		}
-		array.length = to;
+/**
+ * Remove all falsey values from `array`. The original array IS modified.
+ */
+export function coalesceInPlace<T>(array: (T | undefined | null)[]): void {
+	if (!array) {
+		return;
 	}
+	let to = 0;
+	for (let i = 0; i < array.length; i++) {
+		if (!!array[i]) {
+			array[to] = array[i];
+			to += 1;
+		}
+	}
+	array.length = to;
 }
 
 /**
