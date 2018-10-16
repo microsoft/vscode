@@ -437,7 +437,7 @@ export class KeybindingsEditor extends BaseEditor implements IKeybindingsEditor 
 
 	private renderKeybindingsEntries(reset: boolean, preserveFocus?: boolean): void {
 		if (this.keybindingsEditorModel) {
-			const filter = this.searchWidget.getValue();
+			const filter = this.recordKeysAction.checked ? `"${this.searchWidget.getValue()}"` : this.searchWidget.getValue();
 			const keybindingsEntries: IKeybindingItemEntry[] = this.keybindingsEditorModel.fetch(filter, this.sortByPrecedenceAction.checked);
 
 			this.ariaLabelElement.setAttribute('aria-label', this.getAriaLabel(keybindingsEntries));

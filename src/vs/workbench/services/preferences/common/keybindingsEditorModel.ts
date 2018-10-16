@@ -304,7 +304,7 @@ class KeybindingItemMatches {
 	private matchesKeybinding(keybinding: ResolvedKeybinding, searchValue: string, words: string[], completeMatch: boolean): KeybindingMatches {
 		const [firstPart, chordPart] = keybinding.getParts();
 
-		if (strings.compareIgnoreCase(searchValue, keybinding.getAriaLabel()) === 0 || strings.compareIgnoreCase(searchValue, keybinding.getLabel()) === 0) {
+		if (strings.compareIgnoreCase(searchValue, keybinding.getUserSettingsLabel()) === 0 || strings.compareIgnoreCase(searchValue, keybinding.getAriaLabel()) === 0 || strings.compareIgnoreCase(searchValue, keybinding.getLabel()) === 0) {
 			return {
 				firstPart: this.createCompleteMatch(firstPart),
 				chordPart: this.createCompleteMatch(chordPart)
