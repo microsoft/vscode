@@ -104,6 +104,7 @@
 		"./vs/base/node/request.ts",
 		"./vs/base/parts/contextmenu/common/contextmenu.ts",
 		"./vs/base/parts/contextmenu/electron-main/contextmenu.ts",
+		"./vs/base/parts/ipc/node/ipc.ts",
 		"./vs/base/parts/quickopen/common/quickOpen.ts",
 		"./vs/base/test/common/utils.ts",
 		"./vs/base/test/node/uri.test.perf.ts",
@@ -371,6 +372,7 @@
 		"./vs/platform/environment/common/environment.ts",
 		"./vs/platform/extensionManagement/common/extensionManagement.ts",
 		"./vs/platform/extensionManagement/common/extensionNls.ts",
+		"./vs/platform/extensionManagement/node/extensionManagementIpc.ts",
 		"./vs/platform/extensions/common/extensionHost.ts",
 		"./vs/platform/extensions/common/extensions.ts",
 		"./vs/platform/extensions/node/extensionValidator.ts",
@@ -508,6 +510,7 @@
 		"./vs/workbench/services/keybinding/common/macLinuxKeyboardMapper.ts",
 		"./vs/workbench/services/keybinding/common/windowsKeyboardMapper.ts",
 		"./vs/workbench/services/mode/common/workbenchModeService.ts",
+
 		"./vs/workbench/services/panel/common/panelService.ts",
 		"./vs/workbench/services/progress/common/progress.ts",
 		"./vs/workbench/services/scm/common/scm.ts",
