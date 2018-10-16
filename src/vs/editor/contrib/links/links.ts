@@ -289,7 +289,7 @@ class LinkDetector implements editorCommon.IEditorContribution {
 		const useMetaKey = (this.editor.getConfiguration().multiCursorModifier === 'altKey');
 		if (this.isEnabled(mouseEvent, withKey)) {
 			this.cleanUpActiveLinkDecoration(); // always remove previous link decoration as their can only be one
-			const occurrence = this.getLinkOccurrence(mouseEvent.target!.position);
+			const occurrence = this.getLinkOccurrence(mouseEvent.target.position);
 			if (occurrence) {
 				this.editor.changeDecorations((changeAccessor) => {
 					occurrence.activate(changeAccessor, useMetaKey);
@@ -319,7 +319,7 @@ class LinkDetector implements editorCommon.IEditorContribution {
 		if (!this.isEnabled(mouseEvent)) {
 			return;
 		}
-		const occurrence = this.getLinkOccurrence(mouseEvent.target!.position);
+		const occurrence = this.getLinkOccurrence(mouseEvent.target.position);
 		if (!occurrence) {
 			return;
 		}
@@ -374,7 +374,7 @@ class LinkDetector implements editorCommon.IEditorContribution {
 
 	private isEnabled(mouseEvent: ClickLinkMouseEvent, withKey?: ClickLinkKeyboardEvent | null): boolean {
 		return Boolean(
-			(mouseEvent.target && mouseEvent.target.type === MouseTargetType.CONTENT_TEXT)
+			(mouseEvent.target.type === MouseTargetType.CONTENT_TEXT)
 			&& (mouseEvent.hasTriggerModifier || (withKey && withKey.keyCodeIsTriggerKey))
 		);
 	}

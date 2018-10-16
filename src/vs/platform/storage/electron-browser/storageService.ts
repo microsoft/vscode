@@ -13,6 +13,9 @@ import { IStorageLegacyService, StorageLegacyScope } from 'vs/platform/storage/c
 import { addDisposableListener } from 'vs/base/browser/dom';
 import { startsWith } from 'vs/base/common/strings';
 import { ShutdownReason } from 'vs/platform/lifecycle/common/lifecycle';
+import { Action } from 'vs/base/common/actions';
+import { IWindowService } from 'vs/platform/windows/common/windows';
+import { localize } from 'vs/nls';
 
 export class StorageService extends Disposable implements IStorageService {
 	_serviceBrand: any;
@@ -74,12 +77,12 @@ export class StorageService extends Disposable implements IStorageService {
 		return this.getStorage(scope).getInteger(key, fallbackValue);
 	}
 
-	store(key: string, value: any, scope: StorageScope): Promise<void> {
-		return this.getStorage(scope).set(key, value);
+	store(key: string, value: any, scope: StorageScope): void {
+		this.getStorage(scope).set(key, value);
 	}
 
-	remove(key: string, scope: StorageScope): Promise<void> {
-		return this.getStorage(scope).delete(key);
+	remove(key: string, scope: StorageScope): void {
+		this.getStorage(scope).delete(key);
 	}
 
 	close(reason: ShutdownReason): Promise<void> {
@@ -96,6 +99,65 @@ export class StorageService extends Disposable implements IStorageService {
 
 	private getStorage(scope: StorageScope): Storage {
 		return scope === StorageScope.GLOBAL ? this.globalStorage : this.workspaceStorage;
+	}
+
+	logStorage(): Promise<void> {
+		return Promise.all([this.globalStorage.getItems(), this.workspaceStorage.getItems()]).then(items => {
+			const safeParse = (value: string) => {
+				try {
+					return JSON.parse(value);
+				} catch (error) {
+					return value;
+				}
+			};
+
+			const globalItems = Object.create(null);
+			const globalItemsParsed = Object.create(null);
+			items[0].forEach((value, key) => {
+				globalItems[key] = value;
+				globalItemsParsed[key] = safeParse(value);
+			});
+
+			const workspaceItems = Object.create(null);
+			const workspaceItemsParsed = Object.create(null);
+			items[1].forEach((value, key) => {
+				workspaceItems[key] = value;
+				workspaceItemsParsed[key] = safeParse(value);
+			});
+
+			console.group('Storage: Global');
+			console.table(globalItems);
+			console.groupEnd();
+
+			console.log(globalItemsParsed);
+
+			console.group('Storage: Workspace');
+			console.table(workspaceItems);
+			console.groupEnd();
+
+			console.log(workspaceItemsParsed);
+		});
+	}
+}
+
+export class LogStorageAction extends Action {
+
+	static readonly ID = 'workbench.action.logStorage';
+	static LABEL = localize('logStorage', "Log Storage");
+
+	constructor(
+		id: string,
+		label: string,
+		@IStorageService private storageService: DelegatingStorageService,
+		@IWindowService private windowService: IWindowService
+	) {
+		super(id, label);
+	}
+
+	run(): Thenable<void> {
+		this.storageService.logStorage();
+
+		return this.windowService.openDevTools();
 	}
 }
 
@@ -168,28 +230,28 @@ export class DelegatingStorageService extends Disposable implements IStorageServ
 		}
 	}
 
-	store(key: string, value: any, scope: StorageScope): Promise<void> {
+	store(key: string, value: any, scope: StorageScope): void {
 		if (this.closed) {
 			this.logService.warn(`Unsupported write (store) access after close (key: ${key})`);
 
-			return Promise.resolve(); // prevent writing after close to detect late write access
+			return; // prevent writing after close to detect late write access
 		}
 
 		this.storageLegacyService.store(key, value, this.convertScope(scope));
 
-		return this.storageService.store(key, value, scope);
+		this.storageService.store(key, value, scope);
 	}
 
-	remove(key: string, scope: StorageScope): Promise<void> {
+	remove(key: string, scope: StorageScope): void {
 		if (this.closed) {
 			this.logService.warn(`Unsupported write (remove) access after close (key: ${key})`);
 
-			return Promise.resolve(); // prevent writing after close to detect late write access
+			return; // prevent writing after close to detect late write access
 		}
 
 		this.storageLegacyService.remove(key, this.convertScope(scope));
 
-		return this.storageService.remove(key, scope);
+		this.storageService.remove(key, scope);
 	}
 
 	close(reason: ShutdownReason): Promise<void> {
@@ -202,5 +264,9 @@ export class DelegatingStorageService extends Disposable implements IStorageServ
 
 	private convertScope(scope: StorageScope): StorageLegacyScope {
 		return scope === StorageScope.GLOBAL ? StorageLegacyScope.GLOBAL : StorageLegacyScope.WORKSPACE;
+	}
+
+	logStorage(): Promise<void> {
+		return this.storageService.logStorage();
 	}
 }

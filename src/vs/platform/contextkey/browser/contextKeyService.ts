@@ -15,11 +15,11 @@ const KEYBINDING_CONTEXT_ATTR = 'data-keybinding-context';
 
 export class Context implements IContext {
 
-	protected _parent: Context;
+	protected _parent: Context | null;
 	protected _value: { [key: string]: any; };
 	protected _id: number;
 
-	constructor(id: number, parent: Context) {
+	constructor(id: number, parent: Context | null) {
 		this._id = id;
 		this._parent = parent;
 		this._value = Object.create(null);
@@ -311,7 +311,7 @@ export class ContextKeyService extends AbstractContextKeyService implements ICon
 class ScopedContextKeyService extends AbstractContextKeyService {
 
 	private _parent: AbstractContextKeyService;
-	private _domNode: IContextKeyServiceTarget;
+	private _domNode: IContextKeyServiceTarget | undefined;
 
 	constructor(parent: AbstractContextKeyService, emitter: Emitter<string | string[]>, domNode?: IContextKeyServiceTarget) {
 		super(parent.createChildContext());
@@ -349,10 +349,14 @@ class ScopedContextKeyService extends AbstractContextKeyService {
 	}
 }
 
-function findContextAttr(domNode: IContextKeyServiceTarget): number {
+function findContextAttr(domNode: IContextKeyServiceTarget | null): number {
 	while (domNode) {
 		if (domNode.hasAttribute(KEYBINDING_CONTEXT_ATTR)) {
-			return parseInt(domNode.getAttribute(KEYBINDING_CONTEXT_ATTR), 10);
+			const attr = domNode.getAttribute(KEYBINDING_CONTEXT_ATTR);
+			if (attr) {
+				return parseInt(attr, 10);
+			}
+			return NaN;
 		}
 		domNode = domNode.parentElement;
 	}

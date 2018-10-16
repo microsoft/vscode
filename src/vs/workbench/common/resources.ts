@@ -49,7 +49,7 @@ export class ResourceContextKey extends Disposable implements IContextKey<URI> {
 
 		this._register(_fileService.onDidChangeFileSystemProviderRegistrations(() => {
 			const resource = this._resourceKey.get();
-			this._isfileSystemResource.set(resource && _fileService.canHandleResource(resource));
+			this._isfileSystemResource.set(Boolean(resource && _fileService.canHandleResource(resource)));
 			this._isFileSystemResourceOrUntitled.set(this._isfileSystemResource.get() || this._schemeKey.get() === Schemas.untitled);
 		}));
 	}
@@ -74,41 +74,7 @@ export class ResourceContextKey extends Disposable implements IContextKey<URI> {
 		this._hasResource.reset();
 	}
 
-	get(): URI {
+	get(): URI | undefined {
 		return this._resourceKey.get();
-	}
-}
-
-/**
- * Data URI related helpers.
- */
-export namespace DataUri {
-
-	export const META_DATA_LABEL = 'label';
-	export const META_DATA_DESCRIPTION = 'description';
-	export const META_DATA_SIZE = 'size';
-	export const META_DATA_MIME = 'mime';
-
-	export function parseMetaData(dataUri: URI): Map<string, string> {
-		const metadata = new Map<string, string>();
-
-		// Given a URI of:  data:image/png;size:2313;label:SomeLabel;description:SomeDescription;base64,77+9UE5...
-		// the metadata is: size:2313;label:SomeLabel;description:SomeDescription
-		const meta = dataUri.path.substring(dataUri.path.indexOf(';') + 1, dataUri.path.lastIndexOf(';'));
-		meta.split(';').forEach(property => {
-			const [key, value] = property.split(':');
-			if (key && value) {
-				metadata.set(key, value);
-			}
-		});
-
-		// Given a URI of:  data:image/png;size:2313;label:SomeLabel;description:SomeDescription;base64,77+9UE5...
-		// the mime is: image/png
-		const mime = dataUri.path.substring(0, dataUri.path.indexOf(';'));
-		if (mime) {
-			metadata.set(META_DATA_MIME, mime);
-		}
-
-		return metadata;
 	}
 }

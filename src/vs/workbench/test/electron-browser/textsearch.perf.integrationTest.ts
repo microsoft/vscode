@@ -17,7 +17,7 @@ import * as minimist from 'minimist';
 import * as path from 'path';
 import { SearchService } from 'vs/workbench/services/search/node/searchService';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
-import { TestEnvironmentService, TestContextService, TestEditorService, TestEditorGroupsService } from 'vs/workbench/test/workbenchTestServices';
+import { TestEnvironmentService, TestContextService, TestEditorService, TestEditorGroupsService, TestTextResourcePropertiesService } from 'vs/workbench/test/workbenchTestServices';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { URI } from 'vs/base/common/uri';
@@ -33,6 +33,7 @@ import { QueryBuilder } from 'vs/workbench/parts/search/common/queryBuilder';
 import * as event from 'vs/base/common/event';
 import { testWorkspace } from 'vs/platform/workspace/test/common/testWorkspace';
 import { NullLogService, ILogService } from 'vs/platform/log/common/log';
+import { ITextResourcePropertiesService } from 'vs/editor/common/services/resourceConfiguration';
 
 declare var __dirname: string;
 
@@ -57,10 +58,12 @@ suite.skip('TextSearch performance (integration)', () => {
 
 		const telemetryService = new TestTelemetryService();
 		const configurationService = new TestConfigurationService();
+		const textResourcePropertiesService = new TestTextResourcePropertiesService(configurationService);
 		const instantiationService = new InstantiationService(new ServiceCollection(
 			[ITelemetryService, telemetryService],
 			[IConfigurationService, configurationService],
-			[IModelService, new ModelServiceImpl(null, configurationService)],
+			[ITextResourcePropertiesService, textResourcePropertiesService],
+			[IModelService, new ModelServiceImpl(null, configurationService, textResourcePropertiesService)],
 			[IWorkspaceContextService, new TestContextService(testWorkspace(URI.file(testWorkspacePath)))],
 			[IEditorService, new TestEditorService()],
 			[IEditorGroupsService, new TestEditorGroupsService()],

@@ -100,7 +100,9 @@ export class MessageController extends Disposable implements editorCommon.IEdito
 	}
 
 	private _onDidAttemptReadOnlyEdit(): void {
-		this.showMessage(nls.localize('editor.readonly', "Cannot edit in read-only editor"), this._editor.getPosition());
+		if (this._editor.hasModel()) {
+			this.showMessage(nls.localize('editor.readonly', "Cannot edit in read-only editor"), this._editor.getPosition());
+		}
 	}
 }
 

@@ -879,7 +879,7 @@ declare namespace monaco.editor {
 	/**
 	 * Get the model that has `uri` if it exists.
 	 */
-	export function getModel(uri: Uri): ITextModel;
+	export function getModel(uri: Uri): ITextModel | null;
 
 	/**
 	 * Get all the created models.
@@ -1092,13 +1092,13 @@ declare namespace monaco.editor {
 	}
 
 	export interface IStandaloneCodeEditor extends ICodeEditor {
-		addCommand(keybinding: number, handler: ICommandHandler, context: string): string;
+		addCommand(keybinding: number, handler: ICommandHandler, context: string): string | null;
 		createContextKey<T>(key: string, defaultValue: T): IContextKey<T>;
 		addAction(descriptor: IActionDescriptor): IDisposable;
 	}
 
 	export interface IStandaloneDiffEditor extends IDiffEditor {
-		addCommand(keybinding: number, handler: ICommandHandler, context: string): string;
+		addCommand(keybinding: number, handler: ICommandHandler, context: string): string | null;
 		createContextKey<T>(key: string, defaultValue: T): IContextKey<T>;
 		addAction(descriptor: IActionDescriptor): IDisposable;
 		getOriginalEditor(): IStandaloneCodeEditor;
@@ -1111,7 +1111,7 @@ declare namespace monaco.editor {
 	export interface IContextKey<T> {
 		set(value: T): void;
 		reset(): void;
-		get(): T;
+		get(): T | undefined;
 	}
 
 	export interface IEditorOverrideServices {
@@ -3623,7 +3623,7 @@ declare namespace monaco.editor {
 		/**
 		 * The position preference for the overlay widget.
 		 */
-		preference: OverlayWidgetPositionPreference;
+		preference: OverlayWidgetPositionPreference | null;
 	}
 
 	/**
@@ -3742,6 +3742,11 @@ declare namespace monaco.editor {
 	 */
 	export interface IEditorMouseEvent {
 		readonly event: IMouseEvent;
+		readonly target: IMouseTarget;
+	}
+
+	export interface IPartialEditorMouseEvent {
+		readonly event: IMouseEvent;
 		readonly target: IMouseTarget | null;
 	}
 
@@ -3846,7 +3851,7 @@ declare namespace monaco.editor {
 		 * An event emitted on a "mouseleave".
 		 * @event
 		 */
-		onMouseLeave(listener: (e: IEditorMouseEvent) => void): IDisposable;
+		onMouseLeave(listener: (e: IPartialEditorMouseEvent) => void): IDisposable;
 		/**
 		 * An event emitted on a "keyup".
 		 * @event

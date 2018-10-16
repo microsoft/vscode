@@ -202,6 +202,10 @@ export class Storage extends Disposable {
 			pendingPromises.forEach(promise => promise.reject(error));
 		});
 	}
+
+	getItems(): Promise<Map<string, string>> {
+		return this.storage.getItems();
+	}
 }
 
 export interface IUpdateRequest {

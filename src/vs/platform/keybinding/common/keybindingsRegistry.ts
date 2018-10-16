@@ -42,13 +42,13 @@ export interface IKeybindingRule extends IKeybindings {
 }
 
 export interface IKeybindingRule2 {
-	primary: Keybinding;
-	win?: { primary: Keybinding; };
-	linux?: { primary: Keybinding; };
-	mac?: { primary: Keybinding; };
+	primary: Keybinding | null;
+	win?: { primary: Keybinding | null; } | null;
+	linux?: { primary: Keybinding | null; } | null;
+	mac?: { primary: Keybinding | null; } | null;
 	id: string;
 	weight: number;
-	when: ContextKeyExpr;
+	when: ContextKeyExpr | null;
 }
 
 export const enum KeybindingRuleSource {
@@ -110,7 +110,7 @@ class KeybindingsRegistryImpl implements IKeybindingsRegistry {
 	/**
 	 * Take current platform into account and reduce to primary & secondary.
 	 */
-	private static bindToCurrentPlatform2(kb: IKeybindingRule2): { primary?: Keybinding; } {
+	private static bindToCurrentPlatform2(kb: IKeybindingRule2): { primary?: Keybinding | null; } {
 		if (OS === OperatingSystem.Windows) {
 			if (kb && kb.win) {
 				return kb.win;

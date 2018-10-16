@@ -100,7 +100,7 @@ function doCreateTest(description: string, inputStr: string, expectedStr: string
 			return PagedScreenReaderStrategy.fromEditorSelection(currentState, model, selection, true);
 		},
 		deduceModelPosition: (viewAnchorPosition: Position, deltaOffset: number, lineFeedCnt: number): Position => {
-			return null;
+			return null!;
 		}
 	};
 

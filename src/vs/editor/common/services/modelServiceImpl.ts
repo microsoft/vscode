@@ -27,6 +27,7 @@ import { ITextModel, IModelDeltaDecoration, IModelDecorationOptions, TrackedRang
 import { isFalsyOrEmpty } from 'vs/base/common/arrays';
 import { basename } from 'vs/base/common/paths';
 import { isThenable } from 'vs/base/common/async';
+import { ITextResourcePropertiesService } from 'vs/editor/common/services/resourceConfiguration';
 
 function MODEL_ID(resource: URI): string {
 	return resource.toString();
@@ -206,18 +207,18 @@ class ModelMarkerHandler {
 	}
 }
 
+interface IRawEditorConfig {
+	tabSize?: any;
+	insertSpaces?: any;
+	detectIndentation?: any;
+	trimAutoWhitespace?: any;
+	creationOptions?: any;
+	largeFileOptimizations?: any;
+}
+
 interface IRawConfig {
-	files?: {
-		eol?: any;
-	};
-	editor?: {
-		tabSize?: any;
-		insertSpaces?: any;
-		detectIndentation?: any;
-		trimAutoWhitespace?: any;
-		creationOptions?: any;
-		largeFileOptimizations?: any;
-	};
+	eol?: any;
+	editor?: IRawEditorConfig;
 }
 
 const DEFAULT_EOL = (platform.isLinux || platform.isMacintosh) ? DefaultEndOfLine.LF : DefaultEndOfLine.CRLF;
@@ -229,6 +230,7 @@ export class ModelServiceImpl extends Disposable implements IModelService {
 	private _markerServiceSubscription: IDisposable;
 	private _configurationService: IConfigurationService;
 	private _configurationServiceSubscription: IDisposable;
+	private _resourcePropertiesService: ITextResourcePropertiesService;
 
 	private readonly _onModelAdded: Emitter<ITextModel> = this._register(new Emitter<ITextModel>());
 	public readonly onModelAdded: Event<ITextModel> = this._onModelAdded.event;
@@ -251,10 +253,12 @@ export class ModelServiceImpl extends Disposable implements IModelService {
 	constructor(
 		@IMarkerService markerService: IMarkerService,
 		@IConfigurationService configurationService: IConfigurationService,
+		@ITextResourcePropertiesService resourcePropertiesService: ITextResourcePropertiesService,
 	) {
 		super();
 		this._markerService = markerService;
 		this._configurationService = configurationService;
+		this._resourcePropertiesService = resourcePropertiesService;
 		this._models = {};
 		this._modelCreationOptionsByLanguageAndResource = Object.create(null);
 
@@ -284,7 +288,7 @@ export class ModelServiceImpl extends Disposable implements IModelService {
 		}
 
 		let newDefaultEOL = DEFAULT_EOL;
-		const eol = config.files && config.files.eol;
+		const eol = config.eol;
 		if (eol === '\r\n') {
 			newDefaultEOL = DefaultEndOfLine.CRLF;
 		} else if (eol === '\n') {
@@ -320,7 +324,9 @@ export class ModelServiceImpl extends Disposable implements IModelService {
 	public getCreationOptions(language: string, resource: URI, isForSimpleWidget: boolean): ITextModelCreationOptions {
 		let creationOptions = this._modelCreationOptionsByLanguageAndResource[language + resource];
 		if (!creationOptions) {
-			creationOptions = ModelServiceImpl._readModelOptions(this._configurationService.getValue({ overrideIdentifier: language, resource }), isForSimpleWidget);
+			const editor = this._configurationService.getValue<IRawEditorConfig>('editor', { overrideIdentifier: language, resource });
+			const eol = this._resourcePropertiesService.getEOL(resource, language);
+			creationOptions = ModelServiceImpl._readModelOptions({ editor, eol }, isForSimpleWidget);
 			this._modelCreationOptionsByLanguageAndResource[language + resource] = creationOptions;
 		}
 		return creationOptions;

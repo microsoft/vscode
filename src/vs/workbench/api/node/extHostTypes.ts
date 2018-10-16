@@ -906,6 +906,12 @@ export enum SymbolKind {
 
 export class SymbolInformation {
 
+	static validate(candidate: SymbolInformation): void {
+		if (!candidate.name) {
+			throw new Error('name must not be falsy');
+		}
+	}
+
 	name: string;
 	location: Location;
 	kind: SymbolKind;
@@ -927,6 +933,8 @@ export class SymbolInformation {
 		} else if (rangeOrContainer instanceof Range) {
 			this.location = new Location(locationOrUri, rangeOrContainer);
 		}
+
+		SymbolInformation.validate(this);
 	}
 
 	toJSON(): any {
@@ -940,6 +948,19 @@ export class SymbolInformation {
 }
 
 export class DocumentSymbol {
+
+	static validate(candidate: DocumentSymbol): void {
+		if (!candidate.name) {
+			throw new Error('name must not be falsy');
+		}
+		if (!candidate.range.contains(candidate.selectionRange)) {
+			throw new Error('selectionRange must be contained in fullRange');
+		}
+		if (candidate.children) {
+			candidate.children.forEach(DocumentSymbol.validate);
+		}
+	}
+
 	name: string;
 	detail: string;
 	kind: SymbolKind;
@@ -955,9 +976,7 @@ export class DocumentSymbol {
 		this.selectionRange = selectionRange;
 		this.children = [];
 
-		if (!this.range.contains(this.selectionRange)) {
-			throw new Error('selectionRange must be contained in fullRange');
-		}
+		DocumentSymbol.validate(this);
 	}
 }
 

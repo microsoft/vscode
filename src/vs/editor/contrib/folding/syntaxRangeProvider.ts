@@ -28,7 +28,7 @@ export class SyntaxRangeProvider implements RangeProvider {
 	constructor(private editorModel: ITextModel, private providers: FoldingRangeProvider[], private limit = MAX_FOLDING_REGIONS) {
 	}
 
-	compute(cancellationToken: CancellationToken): Thenable<FoldingRegions> {
+	compute(cancellationToken: CancellationToken): Thenable<FoldingRegions | null> {
 		return collectSyntaxRanges(this.providers, this.editorModel, cancellationToken).then(ranges => {
 			if (ranges) {
 				let res = sanitizeRanges(ranges, this.limit);
@@ -73,7 +73,7 @@ export class RangesCollector {
 	private _endIndexes: number[];
 	private _nestingLevels: number[];
 	private _nestingLevelCounts: number[];
-	private _types: string[];
+	private _types: (string | undefined)[];
 	private _length: number;
 	private _foldingRangesLimit: number;
 
@@ -87,7 +87,7 @@ export class RangesCollector {
 		this._foldingRangesLimit = foldingRangesLimit;
 	}
 
-	public add(startLineNumber: number, endLineNumber: number, type: string, nestingLevel: number) {
+	public add(startLineNumber: number, endLineNumber: number, type: string | undefined, nestingLevel: number) {
 		if (startLineNumber > MAX_LINE_NUMBER || endLineNumber > MAX_LINE_NUMBER) {
 			return;
 		}
@@ -127,7 +127,7 @@ export class RangesCollector {
 
 			let startIndexes = new Uint32Array(this._foldingRangesLimit);
 			let endIndexes = new Uint32Array(this._foldingRangesLimit);
-			let types = [];
+			let types: (string | undefined)[] = [];
 			for (let i = 0, k = 0; i < this._length; i++) {
 				let level = this._nestingLevels[i];
 				if (level < maxLevel || (level === maxLevel && entries++ < this._foldingRangesLimit)) {
@@ -155,8 +155,8 @@ export function sanitizeRanges(rangeData: IFoldingRangeData[], limit: number): F
 	});
 	let collector = new RangesCollector(limit);
 
-	let top: IFoldingRangeData | null = null;
-	let previous = [];
+	let top: IFoldingRangeData | undefined = void 0;
+	let previous: IFoldingRangeData[] = [];
 	for (let entry of sorted) {
 		if (!top) {
 			top = entry;

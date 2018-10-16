@@ -17,12 +17,12 @@ function getDefinitions<T>(
 	model: ITextModel,
 	position: Position,
 	registry: LanguageFeatureRegistry<T>,
-	provide: (provider: T, model: ITextModel, position: Position) => DefinitionLink | DefinitionLink[] | Thenable<DefinitionLink | DefinitionLink[]>
+	provide: (provider: T, model: ITextModel, position: Position) => DefinitionLink | DefinitionLink[] | null | undefined | Thenable<DefinitionLink | DefinitionLink[] | null | undefined>
 ): Thenable<DefinitionLink[]> {
 	const provider = registry.ordered(model);
 
 	// get results
-	const promises = provider.map((provider): Thenable<DefinitionLink | DefinitionLink[]> => {
+	const promises = provider.map((provider): Thenable<DefinitionLink | DefinitionLink[] | null | undefined> => {
 		return Promise.resolve(provide(provider, model, position)).then(undefined, err => {
 			onUnexpectedExternalError(err);
 			return null;

@@ -146,7 +146,10 @@ export default class ErrorTelemetry {
 			e.count = 1;
 			this._buffer.splice(~idx, 0, e);
 		} else {
-			this._buffer[idx].count += 1;
+			if (!this._buffer[idx].count) {
+				this._buffer[idx].count = 0;
+			}
+			this._buffer[idx].count! += 1;
 		}
 
 		if (this._flushHandle === -1) {

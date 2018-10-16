@@ -22,7 +22,6 @@ import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IQuickOpenService } from 'vs/platform/quickOpen/common/quickOpen';
 import { registerEditorAction, EditorAction, IEditorCommandMenuOptions } from 'vs/editor/browser/editorExtensions';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
-import { once } from 'vs/base/common/event';
 import { LRUCache } from 'vs/base/common/map';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ResolvedKeybinding } from 'vs/base/common/keyCodes';
@@ -32,6 +31,7 @@ import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
+import { Disposable } from 'vs/base/common/lifecycle';
 
 export const ALL_COMMANDS_PREFIX = '>';
 
@@ -55,7 +55,7 @@ function resolveCommandHistory(configurationService: IConfigurationService): num
 	return commandHistory;
 }
 
-class CommandsHistory {
+class CommandsHistory extends Disposable {
 
 	static readonly DEFAULT_COMMANDS_HISTORY_LENGTH = 50;
 
@@ -68,10 +68,17 @@ class CommandsHistory {
 		@IStorageService private storageService: IStorageService,
 		@IConfigurationService private configurationService: IConfigurationService
 	) {
+		super();
+
 		this.updateConfiguration();
 		this.load();
 
 		this.registerListeners();
+	}
+
+	private registerListeners(): void {
+		this._register(this.configurationService.onDidChangeConfiguration(e => this.updateConfiguration()));
+		this._register(this.storageService.onWillSaveState(() => this.saveState()));
 	}
 
 	private updateConfiguration(): void {
@@ -107,9 +114,12 @@ class CommandsHistory {
 		commandCounter = this.storageService.getInteger(CommandsHistory.PREF_KEY_COUNTER, StorageScope.GLOBAL, commandCounter);
 	}
 
-	private registerListeners(): void {
-		this.configurationService.onDidChangeConfiguration(e => this.updateConfiguration());
-		once(this.storageService.onWillSaveState)(() => this.saveState());
+	push(commandId: string): void {
+		commandHistory.set(commandId, commandCounter++); // set counter to command
+	}
+
+	peek(commandId: string): number {
+		return commandHistory.peek(commandId);
 	}
 
 	private saveState(): void {
@@ -118,14 +128,6 @@ class CommandsHistory {
 
 		this.storageService.store(CommandsHistory.PREF_KEY_CACHE, JSON.stringify(serializedCache), StorageScope.GLOBAL);
 		this.storageService.store(CommandsHistory.PREF_KEY_COUNTER, commandCounter, StorageScope.GLOBAL);
-	}
-
-	push(commandId: string): void {
-		commandHistory.set(commandId, commandCounter++); // set counter to command
-	}
-
-	peek(commandId: string): number {
-		return commandHistory.peek(commandId);
 	}
 }
 

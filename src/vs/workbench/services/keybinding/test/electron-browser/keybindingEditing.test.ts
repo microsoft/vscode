@@ -14,7 +14,7 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import { KeyCode, SimpleKeybinding, ChordKeybinding } from 'vs/base/common/keyCodes';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import * as extfs from 'vs/base/node/extfs';
-import { TestTextFileService, TestLifecycleService, TestBackupFileService, TestContextService, TestTextResourceConfigurationService, TestHashService, TestEnvironmentService, TestEditorGroupsService, TestEditorService, TestLogService, TestStorageService } from 'vs/workbench/test/workbenchTestServices';
+import { TestTextFileService, TestLifecycleService, TestBackupFileService, TestContextService, TestTextResourceConfigurationService, TestHashService, TestEnvironmentService, TestEditorGroupsService, TestEditorService, TestLogService, TestStorageService, TestTextResourcePropertiesService } from 'vs/workbench/test/workbenchTestServices';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IEditorGroupsService } from 'vs/workbench/services/group/common/editorGroupsService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
@@ -46,6 +46,7 @@ import { TestConfigurationService } from 'vs/platform/configuration/test/common/
 import { IHashService } from 'vs/workbench/services/hash/common/hashService';
 import { mkdirp } from 'vs/base/node/pfs';
 import { MockContextKeyService } from 'vs/platform/keybinding/test/common/mockKeybindingService';
+import { ITextResourcePropertiesService } from 'vs/editor/common/services/resourceConfiguration';
 
 interface Modifiers {
 	metaKey?: boolean;
@@ -82,6 +83,7 @@ suite('KeybindingsEditing', () => {
 			instantiationService.stub(ITelemetryService, NullTelemetryService);
 			instantiationService.stub(IModeService, ModeServiceImpl);
 			instantiationService.stub(ILogService, new TestLogService());
+			instantiationService.stub(ITextResourcePropertiesService, new TestTextResourcePropertiesService(instantiationService.get(IConfigurationService)));
 			instantiationService.stub(IModelService, instantiationService.createInstance(ModelServiceImpl));
 			instantiationService.stub(IFileService, new FileService(
 				new TestContextService(new Workspace(testDir, toWorkspaceFolders([{ path: testDir }]))),

@@ -365,7 +365,7 @@ export class EditorPart extends Part implements EditorGroupsServiceImpl, IEditor
 	}
 
 	applyLayout(layout: EditorGroupLayout): void {
-		const gridHasFocus = isAncestor(document.activeElement, this.container);
+		const restoreFocus = this.shouldRestoreFocus(this.container);
 
 		// Determine how many groups we need overall
 		let layoutGroupsCount = 0;
@@ -429,9 +429,20 @@ export class EditorPart extends Part implements EditorGroupsServiceImpl, IEditor
 		this.updateGroupLabels();
 
 		// Restore focus as needed
-		if (gridHasFocus) {
+		if (restoreFocus) {
 			this._activeGroup.focus();
 		}
+	}
+
+	private shouldRestoreFocus(target: Element): boolean {
+		const activeElement = document.activeElement;
+
+		if (activeElement === document.body) {
+			return true; // always restore focus if nothing is focused currently
+		}
+
+		// otherwise check for the active element being an ancestor of the target
+		return isAncestor(activeElement, target);
 	}
 
 	private isTwoDimensionalGrid(): boolean {
@@ -617,7 +628,7 @@ export class EditorPart extends Part implements EditorGroupsServiceImpl, IEditor
 	}
 
 	private doRemoveEmptyGroup(groupView: IEditorGroupView): void {
-		const gridHasFocus = isAncestor(document.activeElement, this.container);
+		const restoreFocus = this.shouldRestoreFocus(this.container);
 
 		// Activate next group if the removed one was active
 		if (this._activeGroup === groupView) {
@@ -632,7 +643,7 @@ export class EditorPart extends Part implements EditorGroupsServiceImpl, IEditor
 
 		// Restore focus if we had it previously (we run this after gridWidget.removeView() is called
 		// because removing a view can mean to reparent it and thus focus would be removed otherwise)
-		if (gridHasFocus) {
+		if (restoreFocus) {
 			this._activeGroup.focus();
 		}
 
@@ -657,14 +668,14 @@ export class EditorPart extends Part implements EditorGroupsServiceImpl, IEditor
 			throw new Error('Cannot move group into its own');
 		}
 
-		const groupHasFocus = isAncestor(document.activeElement, sourceView.element);
+		const restoreFocus = this.shouldRestoreFocus(sourceView.element);
 
 		// Move through grid widget API
 		this.gridWidget.moveView(sourceView, Sizing.Distribute, targetView, this.toGridViewDirection(direction));
 
 		// Restore focus if we had it previously (we run this after gridWidget.removeView() is called
 		// because removing a view can mean to reparent it and thus focus would be removed otherwise)
-		if (groupHasFocus) {
+		if (restoreFocus) {
 			sourceView.focus();
 		}
 
@@ -678,13 +689,13 @@ export class EditorPart extends Part implements EditorGroupsServiceImpl, IEditor
 		const groupView = this.assertGroupView(group);
 		const locationView = this.assertGroupView(location);
 
-		const groupHasFocus = isAncestor(document.activeElement, groupView.element);
+		const restoreFocus = this.shouldRestoreFocus(groupView.element);
 
 		// Copy the group view
 		const copiedGroupView = this.doAddGroup(locationView, direction, groupView);
 
 		// Restore focus if we had it
-		if (groupHasFocus) {
+		if (restoreFocus) {
 			copiedGroupView.focus();
 		}
 

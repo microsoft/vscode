@@ -30,7 +30,7 @@ export class LargeFileOptimizationsWarner extends Disposable implements IEditorC
 	) {
 		super();
 
-		this._isDisabled = this._storageService.getBoolean('editor.neverPromptForLargeFiles', StorageScope.GLOBAL, false);
+		this._isDisabled = Boolean(this._storageService.getBoolean('editor.neverPromptForLargeFiles', StorageScope.GLOBAL, false));
 
 		this._register(this._editor.onDidChangeModel((e) => {
 			const model = this._editor.getModel();

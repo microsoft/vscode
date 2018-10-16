@@ -134,7 +134,7 @@ export function getCwd(shell: IShellLaunchConfig, root: Uri, configHelper: ITerm
 		return shell.cwd;
 	}
 
-	let cwd: string;
+	let cwd: string | undefined;
 
 	// TODO: Handle non-existent customCwd
 	if (!shell.ignoreConfigurationCwd) {
