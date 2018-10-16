@@ -38,7 +38,7 @@
 			},
 			"problemMatcher": {
 				"base": "$tsc-watch",
-				"owner": "script-typescript",
+				"owner": "typescript-strict-null",
 				"applyTo": "allDocuments"
 			}
 		},
