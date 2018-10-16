@@ -289,7 +289,8 @@ export class KeybindingsEditor extends BaseEditor implements IKeybindingsEditor 
 			placeholder: fullTextSearchPlaceholder,
 			focusKey: this.searchFocusContextKey,
 			ariaLabelledBy: 'keybindings-editor-aria-label-element',
-			recordEnter: true
+			recordEnter: true,
+			quoteRecordedKeys: true
 		}));
 		this._register(this.searchWidget.onDidChange(searchValue => {
 			clearInputAction.enabled = !!searchValue;
@@ -437,7 +438,7 @@ export class KeybindingsEditor extends BaseEditor implements IKeybindingsEditor 
 
 	private renderKeybindingsEntries(reset: boolean, preserveFocus?: boolean): void {
 		if (this.keybindingsEditorModel) {
-			const filter = this.recordKeysAction.checked ? `"${this.searchWidget.getValue()}"` : this.searchWidget.getValue();
+			const filter = this.searchWidget.getValue();
 			const keybindingsEntries: IKeybindingItemEntry[] = this.keybindingsEditorModel.fetch(filter, this.sortByPrecedenceAction.checked);
 
 			this.ariaLabelElement.setAttribute('aria-label', this.getAriaLabel(keybindingsEntries));
