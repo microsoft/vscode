@@ -2,7 +2,8 @@
 	"compilerOptions": {
 		"module": "commonjs",
 		"target": "es2017",
-		"jsx": "preserve"
+		"jsx": "preserve",
+		"checkJs": true
 	},
 	"include": [
 		"**/*.js"
