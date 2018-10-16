@@ -111,8 +111,8 @@ export class RPCProtocol extends Disposable implements IRPCProtocol {
 	public readonly onDidChangeResponsiveState: Event<ResponsiveState> = this._onDidChangeResponsiveState.event;
 
 	private readonly _protocol: IMessagePassingProtocol;
-	private readonly _logger: IRPCProtocolLogger;
-	private readonly _uriTransformer: IURITransformer;
+	private readonly _logger: IRPCProtocolLogger | null;
+	private readonly _uriTransformer: IURITransformer | null;
 	private _isDisposed: boolean;
 	private readonly _locals: any[];
 	private readonly _proxies: any[];
