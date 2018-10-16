@@ -33,7 +33,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { TreeResourceNavigator, WorkbenchTree } from 'vs/platform/list/browser/listService';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { IProgressService } from 'vs/platform/progress/common/progress';
-import { IPatternInfo, IQueryOptions, ISearchComplete, ISearchConfiguration, ISearchHistoryService, ISearchProgressItem, ISearchQuery, VIEW_ID } from 'vs/platform/search/common/search';
+import { IPatternInfo, IQueryOptions, ISearchComplete, ISearchConfiguration, ISearchHistoryService, ISearchProgressItem, ISearchQuery, VIEW_ID, ISearchHistoryValues } from 'vs/platform/search/common/search';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { diffInserted, diffInsertedOutline, diffRemoved, diffRemovedOutline, editorFindMatchHighlight, editorFindMatchHighlightBorder, listActiveSelectionForeground } from 'vs/platform/theme/common/colorRegistry';
@@ -1518,17 +1518,29 @@ export class SearchView extends Viewlet implements IViewlet, IPanel {
 		const isReplaceShown = this.searchAndReplaceWidget.isReplaceShown();
 		this.viewletState['view.showReplace'] = isReplaceShown;
 
-		const searchHistory = this.searchWidget.getSearchHistory();
-		const replaceHistory = this.searchWidget.getReplaceHistory();
-		const patternExcludesHistory = this.inputPatternExcludes.getHistory();
-		const patternIncludesHistory = this.inputPatternIncludes.getHistory();
+		const history: ISearchHistoryValues = Object.create(null);
 
-		this.searchHistoryService.save({
-			search: searchHistory,
-			replace: replaceHistory,
-			exclude: patternExcludesHistory,
-			include: patternIncludesHistory
-		});
+		const searchHistory = this.searchWidget.getSearchHistory();
+		if (searchHistory && searchHistory.length) {
+			history.search = searchHistory;
+		}
+
+		const replaceHistory = this.searchWidget.getReplaceHistory();
+		if (replaceHistory && replaceHistory.length) {
+			history.replace = replaceHistory;
+		}
+
+		const patternExcludesHistory = this.inputPatternExcludes.getHistory();
+		if (patternExcludesHistory && patternExcludesHistory.length) {
+			history.exclude = patternExcludesHistory;
+		}
+
+		const patternIncludesHistory = this.inputPatternIncludes.getHistory();
+		if (patternIncludesHistory && patternIncludesHistory.length) {
+			history.include = patternIncludesHistory;
+		}
+
+		this.searchHistoryService.save(history);
 
 		super.saveState();
 	}

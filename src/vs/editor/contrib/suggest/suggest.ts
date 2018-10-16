@@ -81,7 +81,7 @@ export function provideSuggestionItems(
 		// for each support in the group ask for suggestions
 		return Promise.all(supports.map(support => {
 
-			if (!isFalsyOrEmpty(onlyFrom) && onlyFrom.indexOf(support) < 0) {
+			if (!isFalsyOrEmpty(onlyFrom) && onlyFrom!.indexOf(support) < 0) {
 				return undefined;
 			}
 

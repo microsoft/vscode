@@ -351,11 +351,8 @@ class SessionTreeItem extends BaseTreeItem {
 
 export class LoadedScriptsView extends TreeViewsViewletPanel {
 
-	private static readonly MEMENTO = 'loadedscriptsview.memento';
-
 	private treeContainer: HTMLElement;
 	private loadedScriptsItemType: IContextKey<string>;
-	private viewState: object;
 
 	constructor(
 		options: IViewletViewOptions,
@@ -370,7 +367,6 @@ export class LoadedScriptsView extends TreeViewsViewletPanel {
 		@IDebugService private debugService: IDebugService
 	) {
 		super({ ...(options as IViewletPanelOptions), ariaHeaderLabel: nls.localize('loadedScriptsSection', "Loaded Scripts Section") }, keybindingService, contextMenuService, configurationService);
-		this.viewState = options.viewletState;
 		this.loadedScriptsItemType = CONTEXT_LOADED_SCRIPTS_ITEM_TYPE.bindTo(contextKeyService);
 	}
 
@@ -462,12 +458,6 @@ export class LoadedScriptsView extends TreeViewsViewletPanel {
 			this.treeContainer.style.height = size + 'px';
 		}
 		super.layoutBody(size);
-	}
-
-	public saveState(): void {
-		this.viewState[LoadedScriptsView.MEMENTO] = !this.isExpanded();
-
-		super.saveState();
 	}
 
 	dispose(): void {

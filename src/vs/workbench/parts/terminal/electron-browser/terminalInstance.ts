@@ -673,12 +673,15 @@ export class TerminalInstance implements ITerminalInstance {
 					execFile('bash.exe', ['-c', 'echo $(wslpath ' + this._escapeNonWindowsPath(path) + ')'], {}, (error, stdout, stderr) => {
 						c(this._escapeNonWindowsPath(stdout.trim()));
 					});
+					return;
 				} else if (hasSpace) {
 					c('"' + path + '"');
+				} else {
+					c(path);
 				}
-			} else if (!platform.isWindows) {
-				c(this._escapeNonWindowsPath(path));
+				return;
 			}
+			c(this._escapeNonWindowsPath(path));
 		});
 	}
 
