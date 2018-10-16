@@ -966,7 +966,6 @@ export class ReloadAction extends Action {
 	get extension(): IExtension { return this._extension; }
 	set extension(extension: IExtension) { this._extension = extension; this.update(); }
 
-	reloadMessage: string = '';
 	private throttler: Throttler;
 
 	constructor(
@@ -991,7 +990,6 @@ export class ReloadAction extends Action {
 		this.throttler.queue(() => {
 			this.enabled = false;
 			this.tooltip = '';
-			this.reloadMessage = '';
 			if (!this.extension) {
 				return Promise.resolve<void>(null);
 			}
@@ -999,15 +997,20 @@ export class ReloadAction extends Action {
 			if (state === ExtensionState.Installing || state === ExtensionState.Uninstalling) {
 				return Promise.resolve<void>(null);
 			}
+			const installed = this.extensionsWorkbenchService.local.filter(e => e.id === this.extension.id)[0];
+			const local = this.extension.local || (installed && installed.local);
+			if (local && local.manifest && local.manifest.contributes && local.manifest.contributes.localizations && local.manifest.contributes.localizations.length > 0) {
+				return Promise.resolve<void>(null);
+			}
 			return this.extensionService.getExtensions()
-				.then(runningExtensions => this.computeReloadState(runningExtensions));
+				.then(runningExtensions => this.computeReloadState(runningExtensions, installed));
 		}).then(() => {
 			this.class = this.enabled ? ReloadAction.EnabledClass : ReloadAction.DisabledClass;
+			this.label = this.useLongLabel ? this.tooltip : localize('reloadAction', "Reload");
 		});
 	}
 
-	private computeReloadState(runningExtensions: IExtensionDescription[]): void {
-		const installed = this.extensionsWorkbenchService.local.filter(e => e.id === this.extension.id)[0];
+	private computeReloadState(runningExtensions: IExtensionDescription[], installed: IExtension): void {
 		const isUninstalled = this.extension.state === ExtensionState.Uninstalled;
 		const isDisabled = this.extension.local ? !this.extensionEnablementService.isEnabled(this.extension.local) : false;
 		const runningExtension = runningExtensions.filter(e => areSameExtensions(e, this.extension))[0];
@@ -1018,15 +1021,13 @@ export class ReloadAction extends Action {
 				if (isDifferentVersionRunning && !isDisabled) {
 					// Requires reload to run the updated extension
 					this.enabled = true;
-					this.setTooltip(localize('postUpdateTooltip', "Reload to Update"));
-					this.reloadMessage = localize('postUpdateMessage', "Reload this window to activate the updated extension '{0}'?", this.extension.displayName);
+					this.tooltip = localize('postUpdateTooltip', "Reload to Update");
 					return;
 				}
 				if (isDisabled) {
 					// Requires reload to disable the extension
 					this.enabled = true;
-					this.setTooltip(localize('postDisableTooltip', "Reload to Deactivate"));
-					this.reloadMessage = localize('postDisableMessage', "Reload this window to deactivate the extension '{0}'?", this.extension.displayName);
+					this.tooltip = localize('postDisableTooltip', "Reload to Deactivate");
 					return;
 				}
 			} else {
@@ -1036,8 +1037,7 @@ export class ReloadAction extends Action {
 				if (extensionServer && extensionServer.authority === localServer.authority && !isDisabled) {
 					// Requires reload to enable the extension
 					this.enabled = true;
-					this.setTooltip(localize('postEnableTooltip', "Reload to Activate"));
-					this.reloadMessage = localize('postEnableMessage', "Reload this window to activate the extension '{0}'?", this.extension.displayName);
+					this.tooltip = localize('postEnableTooltip', "Reload to Activate");
 					return;
 				}
 			}
@@ -1047,19 +1047,11 @@ export class ReloadAction extends Action {
 		if (isUninstalled && runningExtension) {
 			// Requires reload to deactivate the extension
 			this.enabled = true;
-			this.setTooltip(localize('postUninstallTooltip', "Reload to Deactivate"));
-			this.reloadMessage = localize('postUninstallMessage', "Reload this window to deactivate the uninstalled extension '{0}'?", this.extension.displayName);
+			this.tooltip = localize('postUninstallTooltip', "Reload to Deactivate");
 			return;
 		}
 	}
 
-	private setTooltip(text: string) {
-		if (this.useLongLabel) {
-			this.label = text;
-		} else {
-			this.tooltip = text;
-		}
-	}
 	run(): Promise<any> {
 		return Promise.resolve(this.windowService.reloadWindow());
 	}
