@@ -44,19 +44,22 @@ function getCwd(configHelper: ITerminalConfigHelper, activeInstance: ITerminalIn
 		}
 		case 'sourceInitialCwd': {
 			return new Promise<string>(resolve => {
-				resolve(activeInstance.getInitialCwd());
+				resolve(activeInstance.initialCwd);
 			});
 		}
 		case 'sourceCwd': {
 			if (!isWindows) {
 				let pid = activeInstance.processId;
 				return new Promise<string>(resolve => {
-					let output = exec('lsof -p ' + pid + ' | grep cwd').toString();
-					resolve(output.substring(output.indexOf('/'), output.length - 1));
+					exec('lsof -p ' + pid + ' | grep cwd', (error, stdout, stderr) => {
+						if (stdout !== '') {
+							resolve(stdout.substring(stdout.indexOf('/'), stdout.length - 1));
+						}
+					});
 				});
 			} else {
 				return new Promise<string>(resolve => {
-					resolve(activeInstance.getInitialCwd());
+					resolve(activeInstance.initialCwd);
 				});
 			}
 		}

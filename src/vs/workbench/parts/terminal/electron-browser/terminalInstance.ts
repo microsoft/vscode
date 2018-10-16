@@ -1146,7 +1146,7 @@ export class TerminalInstance implements ITerminalInstance {
 		this._xterm.setOption('debug', this._xterm._core.debug);
 	}
 
-	public getInitialCwd(): string {
+	public get initialCwd(): string {
 		return this._processManager.initialCwd;
 	}
 }
