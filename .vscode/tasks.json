@@ -36,7 +36,11 @@
 			"presentation": {
 				"reveal": "never"
 			},
-			"problemMatcher": "$tsc-watch"
+			"problemMatcher": {
+				"base": "$tsc-watch",
+				"owner": "script-typescript",
+				"applyTo": "allDocuments"
+			}
 		},
 		{
 			"type": "gulp",
