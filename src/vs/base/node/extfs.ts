@@ -154,7 +154,7 @@ export function mkdirp(path: string, mode?: number, token?: CancellationToken): 
 
 	// stop at root
 	if (path === paths.dirname(path)) {
-		return TPromise.wrap(true);
+		return TPromise.as(true);
 	}
 
 	// recursively mkdir
