@@ -480,15 +480,23 @@ export class PersistentContributableViewsModel extends ContributableViewsModel {
 
 	private static loadViewsVisibilityState(hiddenViewsStorageId: string, storageService: IStorageService, contextService: IWorkspaceContextService): Map<string, { id: string, isHidden: boolean }> {
 		const storedVisibilityStates = <Array<string | { id: string, isHidden: boolean }>>JSON.parse(storageService.get(hiddenViewsStorageId, StorageScope.GLOBAL, '[]'));
-
-		return storedVisibilityStates.reduce((result, storedState) => {
+		let hasDuplicates = false;
+		const storedViewsVisibilityStates = storedVisibilityStates.reduce((result, storedState) => {
 			if (typeof storedState === 'string' /* migration */) {
+				hasDuplicates = hasDuplicates || result.has(storedState);
 				result.set(storedState, { id: storedState, isHidden: true });
 			} else {
+				hasDuplicates = hasDuplicates || result.has(storedState.id);
 				result.set(storedState.id, storedState);
 			}
 			return result;
 		}, new Map<string, { id: string, isHidden: boolean }>());
+
+		if (hasDuplicates) {
+			storageService.store(hiddenViewsStorageId, JSON.stringify(values(storedViewsVisibilityStates)), StorageScope.GLOBAL);
+		}
+
+		return storedViewsVisibilityStates;
 	}
 }
 
