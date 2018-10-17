@@ -380,14 +380,14 @@ configurationRegistry.registerConfiguration({
 			enum: ['JsArray', 'TypedArray'],
 			default: 'JsArray'
 		},
-		'terminal.integrated.splitCwdSource': {
-			description: nls.localize('terminal.integrated.splitCwdSource', "Controls the source of the starting cwd for terminals created by splitting."),
+		'terminal.integrated.splitCwd': {
+			description: nls.localize('terminal.integrated.splitCwd', "Controls the source of the starting cwd for terminals created by splitting."),
 			type: 'string',
 			enum: ['workspaceRoot', 'sourceInitialCwd', 'sourceCwd'],
 			enumDescriptions: [
-				nls.localize('terminal.integrated.splitCwdSource.workspaceRoot', "A new split terminal will use the workspace root as the cwd."),
-				nls.localize('terminal.integrated.splitCwdSource.sourceInitialCwd', "A new split terminal will use the cwd that the parent terminal started with."),
-				nls.localize('terminal.integrated.splitCwdSource.sourceCwd', "On macOS and Linux, a new split terminal will use the cwd of the parent terminal. On Windows, this behaves the same as sourceInitialCwd."),
+				nls.localize('terminal.integrated.splitCwd.workspaceRoot', "A new split terminal will use the workspace root as the cwd."),
+				nls.localize('terminal.integrated.splitCwd.sourceInitialCwd', "A new split terminal will use the cwd that the parent terminal started with."),
+				nls.localize('terminal.integrated.splitCwd.sourceCwd', "On macOS and Linux, a new split terminal will use the cwd of the parent terminal. On Windows, this behaves the same as sourceInitialCwd."),
 			],
 			default: 'workspaceRoot'
 		},

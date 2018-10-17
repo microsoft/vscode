@@ -100,7 +100,7 @@ export interface ITerminalConfiguration {
 	};
 	showExitAlert: boolean;
 	experimentalBufferImpl: 'JsArray' | 'TypedArray';
-	splitCwdSource: 'workspaceRoot' | 'sourceInitialCwd' | 'sourceCwd';
+	splitCwd: 'workspaceRoot' | 'sourceInitialCwd' | 'sourceCwd';
 }
 
 export interface ITerminalConfigHelper {
@@ -592,7 +592,7 @@ export interface ITerminalInstance {
 
 	toggleEscapeSequenceLogging(): void;
 
-	getCwd(configHelper: ITerminalConfigHelper): Promise<string>;
+	getCwd(): Promise<string>;
 }
 
 export interface ITerminalCommandTracker {

@@ -15,7 +15,7 @@ import { Terminal as XTermTerminal, ISearchOptions } from 'vscode-xterm';
 import { IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
-import { ITerminalInstance, KEYBINDING_CONTEXT_TERMINAL_TEXT_SELECTED, TERMINAL_PANEL_ID, IShellLaunchConfig, ITerminalProcessManager, ProcessState, NEVER_MEASURE_RENDER_TIME_STORAGE_KEY, ITerminalDimensions, ITerminalConfigHelper } from 'vs/workbench/parts/terminal/common/terminal';
+import { ITerminalInstance, KEYBINDING_CONTEXT_TERMINAL_TEXT_SELECTED, TERMINAL_PANEL_ID, IShellLaunchConfig, ITerminalProcessManager, ProcessState, NEVER_MEASURE_RENDER_TIME_STORAGE_KEY, ITerminalDimensions } from 'vs/workbench/parts/terminal/common/terminal';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { TabFocus } from 'vs/editor/common/config/commonEditorConfig';
@@ -1150,35 +1150,20 @@ export class TerminalInstance implements ITerminalInstance {
 		return this._processManager.initialCwd;
 	}
 
-	public getCwd(configHelper: ITerminalConfigHelper): Promise<string> {
-		switch (configHelper.config.splitCwdSource) {
-			case 'workspaceRoot': {
-				// allow default behavior
-				return new Promise<string>(resolve => {
-					resolve('');
+	public getCwd(): Promise<string> {
+		if (!platform.isWindows) {
+			let pid = this.processId;
+			return new Promise<string>(resolve => {
+				exec('lsof -p ' + pid + ' | grep cwd', (error, stdout, stderr) => {
+					if (stdout !== '') {
+						resolve(stdout.substring(stdout.indexOf('/'), stdout.length - 1));
+					}
 				});
-			}
-			case 'sourceInitialCwd': {
-				return new Promise<string>(resolve => {
-					resolve(this.initialCwd);
-				});
-			}
-			case 'sourceCwd': {
-				if (!platform.isWindows) {
-					let pid = this.processId;
-					return new Promise<string>(resolve => {
-						exec('lsof -p ' + pid + ' | grep cwd', (error, stdout, stderr) => {
-							if (stdout !== '') {
-								resolve(stdout.substring(stdout.indexOf('/'), stdout.length - 1));
-							}
-						});
-					});
-				} else {
-					return new Promise<string>(resolve => {
-						resolve(this.initialCwd);
-					});
-				}
-			}
+			});
+		} else {
+			return new Promise<string>(resolve => {
+				resolve(this.initialCwd);
+			});
 		}
 	}
 }
