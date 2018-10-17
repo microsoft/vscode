@@ -252,21 +252,22 @@ export function fromRangeOrRangeWithMessage(ranges: vscode.Range[] | vscode.Deco
 	}
 }
 
-export const TextEdit = {
+export namespace TextEdit {
 
-	from(edit: vscode.TextEdit): modes.TextEdit {
+	export function from(edit: vscode.TextEdit): modes.TextEdit {
 		return <modes.TextEdit>{
 			text: edit.newText,
 			eol: EndOfLine.from(edit.newEol),
 			range: Range.from(edit.range)
 		};
-	},
-	to(edit: modes.TextEdit): types.TextEdit {
+	}
+
+	export function to(edit: modes.TextEdit): types.TextEdit {
 		let result = new types.TextEdit(Range.to(edit.range), edit.text);
 		result.newEol = EndOfLine.to(edit.eol);
 		return result;
 	}
-};
+}
 
 export namespace WorkspaceEdit {
 	export function from(value: vscode.WorkspaceEdit, documents?: ExtHostDocumentsAndEditors): WorkspaceEditDto {
@@ -400,17 +401,18 @@ export namespace DocumentSymbol {
 	}
 }
 
-export const location = {
-	from(value: vscode.Location): modes.Location {
+export namespace location {
+	export function from(value: vscode.Location): modes.Location {
 		return {
 			range: value.range && Range.from(value.range),
 			uri: value.uri
 		};
-	},
-	to(value: modes.Location): types.Location {
+	}
+
+	export function to(value: modes.Location): types.Location {
 		return new types.Location(value.uri, Range.to(value.range));
 	}
-};
+}
 
 export namespace DefinitionLink {
 	export function from(value: vscode.Location | vscode.DefinitionLink): modes.DefinitionLink {
@@ -476,9 +478,9 @@ export namespace CompletionContext {
 	}
 }
 
-export const CompletionItemKind = {
+export namespace CompletionItemKind {
 
-	from(kind: types.CompletionItemKind): modes.CompletionItemKind {
+	export function from(kind: types.CompletionItemKind): modes.CompletionItemKind {
 		switch (kind) {
 			case types.CompletionItemKind.Method: return modes.CompletionItemKind.Method;
 			case types.CompletionItemKind.Function: return modes.CompletionItemKind.Function;
@@ -507,9 +509,9 @@ export const CompletionItemKind = {
 			case types.CompletionItemKind.TypeParameter: return modes.CompletionItemKind.TypeParameter;
 		}
 		return modes.CompletionItemKind.Property;
-	},
+	}
 
-	to(kind: modes.CompletionItemKind): types.CompletionItemKind {
+	export function to(kind: modes.CompletionItemKind): types.CompletionItemKind {
 		switch (kind) {
 			case modes.CompletionItemKind.Method: return types.CompletionItemKind.Method;
 			case modes.CompletionItemKind.Function: return types.CompletionItemKind.Function;
@@ -539,7 +541,7 @@ export const CompletionItemKind = {
 		}
 		return types.CompletionItemKind.Property;
 	}
-};
+}
 
 export namespace CompletionItemInsertTextRule {
 
