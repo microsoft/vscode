@@ -122,6 +122,9 @@ export class WorkbenchShell extends Disposable {
 	private readonly _onShutdown = this._register(new Emitter<ShutdownEvent>());
 	get onShutdown(): Event<ShutdownEvent> { return this._onShutdown.event; }
 
+	private readonly _onRunning = this._register(new Emitter<void>());
+	get onRunning(): Event<void> { return this._onRunning.event; }
+
 	private storageLegacyService: IStorageLegacyService;
 	private storageService: DelegatingStorageService;
 	private environmentService: IEnvironmentService;
@@ -212,8 +215,10 @@ export class WorkbenchShell extends Disposable {
 			// Startup Workbench
 			workbench.startup().then(startupInfos => {
 
-				// Set lifecycle phase to `Runnning` so that other contributions can now do something
+				// Set lifecycle phase to `Runnning` so that other contributions can
+				// now do something we also emit this as event to interested parties outside
 				this.lifecycleService.phase = LifecyclePhase.Running;
+				this._onRunning.fire();
 
 				// Startup Telemetry
 				this.logStartupTelemetry(startupInfos);

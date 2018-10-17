@@ -28,7 +28,7 @@ class ResourceModelCollection extends ReferenceCollection<TPromise<ITextEditorMo
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@ITextFileService private textFileService: ITextFileService,
 		@IFileService private fileService: IFileService,
-		@IExtensionService private readonly _extensionService: IExtensionService,
+		@IExtensionService private extensionService: IExtensionService,
 	) {
 		super();
 	}
@@ -50,7 +50,7 @@ class ResourceModelCollection extends ReferenceCollection<TPromise<ITextEditorMo
 
 		// Either unknown schema, or not yet registered
 		if (!skipActivateExtensions) {
-			return this._extensionService.activateByEvent('onFileSystem:' + resource.scheme).then(() => this.createReferencedObject(key, true));
+			return this.extensionService.activateByEvent('onFileSystem:' + resource.scheme).then(() => this.createReferencedObject(key, true));
 		}
 
 		return TPromise.wrapError<ITextEditorModel>(new Error('resource is not available'));

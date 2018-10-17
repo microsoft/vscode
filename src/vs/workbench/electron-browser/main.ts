@@ -16,7 +16,7 @@ import { IWorkspaceContextService, Workspace, WorkbenchState } from 'vs/platform
 import { WorkspaceService, ISingleFolderWorkspaceInitializationPayload, IMultiFolderWorkspaceInitializationPayload, IEmptyWorkspaceInitializationPayload, IWorkspaceInitializationPayload } from 'vs/workbench/services/configuration/node/configurationService';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
-import { stat, exists } from 'vs/base/node/pfs';
+import { stat, exists, writeFile } from 'vs/base/node/pfs';
 import { EnvironmentService } from 'vs/platform/environment/node/environmentService';
 import * as gracefulFs from 'graceful-fs';
 import { KeyboardMapperFactory } from 'vs/workbench/services/keybinding/electron-browser/keybindingService';
@@ -103,14 +103,14 @@ function openWorkbench(configuration: IWindowConfiguration): Promise<void> {
 	return createWorkspaceInitializationPayload(configuration, environmentService).then(payload => {
 
 		// Prepare the workspace storage folder
-		return prepareWorkspaceStorageFolder(payload, environmentService).then(storagePath => {
+		return prepareWorkspaceStorageFolder(payload, environmentService).then(workspaceStoragePath => {
 			return Promise.all([
 
 				// Create and load workspace/configuration service
 				createWorkspaceService(payload, environmentService),
 
 				// Create and load storage service
-				createStorageService(storagePath, environmentService, logService)
+				createStorageService(workspaceStoragePath, environmentService, logService)
 			]).then(services => {
 				const workspaceService = services[0];
 				const storageLegacyService = createStorageLegacyService(workspaceService, environmentService);
@@ -128,6 +128,11 @@ function openWorkbench(configuration: IWindowConfiguration): Promise<void> {
 						storageLegacyService,
 						storageService
 					}, mainServices, mainProcessClient, configuration);
+
+					// Store meta file in workspace storage after workbench is running
+					shell.onRunning(() => {
+						ensureWorkspaceStorageFolderMeta(workspaceStoragePath, workspaceService);
+					});
 
 					// Gracefully Shutdown Storage
 					shell.onShutdown(event => {
@@ -166,14 +171,16 @@ function createWorkspaceInitializationPayload(configuration: IWindowConfiguratio
 
 	return workspaceInitializationPayload.then(payload => {
 
-		// Fallback to empty workspace if we have no payload yet. We know the
-		// backupPath must be a unique path so we leverage its name as workspace ID
+		// Fallback to empty workspace if we have no payload yet.
 		if (!payload) {
-			if (!configuration.backupPath) {
-				return Promise.reject(new Error('Unexpected missing backupPath for empty window')); // should not happen in this case
+			let id: string;
+			if (configuration.backupPath) {
+				id = basename(configuration.backupPath); // we know the backupPath must be a unique path so we leverage its name as workspace ID
+			} else {
+				id = (Date.now() + Math.round(Math.random() * 1000)).toString(); // fallback to a random number otherwise (can happen in extension development window)
 			}
 
-			payload = { id: basename(configuration.backupPath) } as IEmptyWorkspaceInitializationPayload;
+			payload = { id } as IEmptyWorkspaceInitializationPayload;
 		}
 
 		return payload;
@@ -231,15 +238,37 @@ function resolveSingleFolderWorkspaceInitializationPayload(folderUri: ISingleFol
 function prepareWorkspaceStorageFolder(payload: IWorkspaceInitializationPayload, environmentService: IEnvironmentService): Thenable<string> {
 
 	// Workspace storage: scope by workspace identifier
-	const storagePath = join(environmentService.workspaceStorageHome, payload.id);
+	const workspaceStoragePath = join(environmentService.workspaceStorageHome, payload.id);
 
-	return exists(storagePath).then(exists => {
+	return exists(workspaceStoragePath).then(exists => {
 		if (exists) {
-			return storagePath;
+			return workspaceStoragePath;
 		}
 
-		return mkdirp(storagePath).then(() => storagePath);
+		return mkdirp(workspaceStoragePath).then(() => workspaceStoragePath);
 	});
+}
+
+function ensureWorkspaceStorageFolderMeta(workspaceStoragePath: string, workspaceService: IWorkspaceContextService): void {
+	const state = workspaceService.getWorkbenchState();
+	if (state === WorkbenchState.EMPTY) {
+		return; // no storage meta for empty workspaces
+	}
+
+	const workspaceStorageMetaPath = join(workspaceStoragePath, 'workspace.json');
+
+	exists(workspaceStorageMetaPath).then(exists => {
+		if (exists) {
+			return void 0; // already existing
+		}
+
+		const workspace = workspaceService.getWorkspace();
+
+		return writeFile(workspaceStorageMetaPath, JSON.stringify({
+			configuration: workspace.configuration ? uri.revive(workspace.configuration).toString() : void 0,
+			folder: state === WorkbenchState.FOLDER ? uri.revive(workspace.folders[0].uri).toString() : void 0
+		}, undefined, 2));
+	}).then(null, error => errors.onUnexpectedError(error));
 }
 
 function createWorkspaceService(payload: IWorkspaceInitializationPayload, environmentService: IEnvironmentService): Promise<WorkspaceService> {
