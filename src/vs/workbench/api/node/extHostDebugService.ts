@@ -10,6 +10,7 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import { Event, Emitter } from 'vs/base/common/event';
 import { asThenable } from 'vs/base/common/async';
 import * as nls from 'vs/nls';
+import { deepClone } from 'vs/base/common/objects';
 import {
 	MainContext, MainThreadDebugServiceShape, ExtHostDebugServiceShape, DebugSessionUUID,
 	IMainContext, IBreakpointsDeltaDto, ISourceMultiBreakpointDto, IFunctionBreakpointDto, IDebugSessionDto
@@ -391,17 +392,21 @@ export class ExtHostDebugService implements ExtHostDebugServiceShape {
 
 					da.onMessage(message => {
 
+						// since we modify Source.paths in the message in place, we need to make a copy of it (see #61129)
+						const msg = deepClone(message);
+
 						if (tracker) {
-							tracker.fromDebugAdapter(message);
+							tracker.fromDebugAdapter(msg);
 						}
 
 						// DA -> VS Code
-						convertToVSCPaths(message, source => {
+						convertToVSCPaths(msg, source => {
 							if (paths.isAbsolute(source.path)) {
 								(<any>source).path = URI.file(source.path);
 							}
 						});
-						mythis._debugServiceProxy.$acceptDAMessage(handle, message);
+
+						mythis._debugServiceProxy.$acceptDAMessage(handle, msg);
 					});
 					da.onError(err => {
 						if (tracker) {

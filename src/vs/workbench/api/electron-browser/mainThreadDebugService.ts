@@ -17,6 +17,7 @@ import { AbstractDebugAdapter } from 'vs/workbench/parts/debug/node/debugAdapter
 import * as paths from 'vs/base/common/paths';
 import { IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import { convertToVSCPaths, convertToDAPaths } from 'vs/workbench/parts/debug/common/debugUtils';
+import { deepClone } from 'vs/base/common/objects';
 
 
 @extHostNamedCustomer(MainContext.MainThreadDebugService)
@@ -298,7 +299,10 @@ class ExtensionHostDebugAdapter extends AbstractDebugAdapter {
 
 	public sendMessage(message: DebugProtocol.ProtocolMessage): void {
 
-		convertToDAPaths(message, source => {
+		// since we modify Source.paths in the message in place, we need to make a copy of it (see #61129)
+		const msg = deepClone(message);
+
+		convertToDAPaths(msg, source => {
 			if (paths.isAbsolute(source.path)) {
 				(<any>source).path = uri.file(source.path);
 			} else {
@@ -306,7 +310,7 @@ class ExtensionHostDebugAdapter extends AbstractDebugAdapter {
 			}
 		});
 
-		this._proxy.$sendDAMessage(this._handle, message);
+		this._proxy.$sendDAMessage(this._handle, msg);
 	}
 
 	public stopSession(): TPromise<void> {
