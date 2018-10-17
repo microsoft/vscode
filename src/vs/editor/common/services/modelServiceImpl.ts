@@ -164,16 +164,24 @@ class ModelMarkerHandler {
 		}
 
 		let hoverMessage: MarkdownString | null = null;
-		let { message, source, relatedInformation } = marker;
+		let { message, source, relatedInformation, code } = marker;
 
 		if (typeof message === 'string') {
 			message = message.trim();
 
 			if (source) {
 				if (/\n/g.test(message)) {
-					message = nls.localize('diagAndSourceMultiline', "[{0}]\n{1}", source, message);
+					if (code) {
+						message = nls.localize('diagAndSourceAndCodeMultiline', "[{0}]\n{1}\n[{2}]", source, message, code);
+					} else {
+						message = nls.localize('diagAndSourceMultiline', "[{0}]\n{1}", source, message);
+					}
 				} else {
-					message = nls.localize('diagAndSource', "[{0}] {1}", source, message);
+					if (code) {
+						message = nls.localize('diagAndSourceAndCode', "[{0}] {1} [{2}]", source, message, code);
+					} else {
+						message = nls.localize('diagAndSource', "[{0}] {1}", source, message);
+					}
 				}
 			}
 
