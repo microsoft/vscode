@@ -438,8 +438,6 @@ export interface CompletionItem {
 	command?: Command;
 	/**@internal*/
 	noWhitespaceAdjust?: boolean;
-	/**@internal*/
-	noAutoAccept?: boolean;
 
 	/**@internal*/
 	_labelLow?: string;

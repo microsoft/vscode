@@ -25,7 +25,6 @@ export class SnippetCompletion implements CompletionItem {
 	documentation: MarkdownString;
 	range: IRange;
 	sortText: string;
-	noAutoAccept: boolean;
 	kind: CompletionItemKind;
 	insertTextIsSnippet: true;
 
@@ -38,7 +37,6 @@ export class SnippetCompletion implements CompletionItem {
 		this.insertText = snippet.body;
 		this.range = range;
 		this.sortText = `${snippet.snippetSource === SnippetSource.Extension ? 'z' : 'a'}-${snippet.prefix}`;
-		this.noAutoAccept = true;
 		this.kind = CompletionItemKind.Snippet;
 		this.insertTextIsSnippet = true;
 	}
