@@ -1157,6 +1157,10 @@ export enum CompletionItemKind {
 	TypeParameter = 24
 }
 
+export enum CompletionItemInsertTextRule {
+	KeepWhitespace = 0b1
+}
+
 export class CompletionItem implements vscode.CompletionItem {
 
 	label: string;
@@ -1167,6 +1171,7 @@ export class CompletionItem implements vscode.CompletionItem {
 	filterText: string;
 	preselect: boolean;
 	insertText: string | SnippetString;
+	insertTextRules: CompletionItemInsertTextRule;
 	range: Range;
 	commitCharacters: string[];
 	textEdit: TextEdit;

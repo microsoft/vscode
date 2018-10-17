@@ -4702,14 +4702,13 @@ declare namespace monaco.languages {
 
 	export enum CompletionItemInsertTextRule {
 		/**
+		 * Keep whitespace as-is
+		 */
+		KeepWhitespace = 1,
+		/**
 		 * `insertText` is a snippet.
 		 */
-		InsertAsSnippet = 1,
-		/**
-		 * Adjust whitespace/indentation of multiline insert texts to
-		 * match the current line indentation.
-		 */
-		AdjustWhitespace = 2
+		InsertAsSnippet = 4
 	}
 
 	/**

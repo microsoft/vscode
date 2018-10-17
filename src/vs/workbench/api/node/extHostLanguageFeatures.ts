@@ -671,6 +671,7 @@ class SuggestAdapter {
 			//
 			range: undefined,
 			insertText: undefined,
+			insertTextRules: typeConvert.CompletionItemInsertTextRule.from(item.insertTextRules),
 			additionalTextEdits: item.additionalTextEdits && item.additionalTextEdits.map(typeConvert.TextEdit.from),
 			command: this._commands.toInternal(item.command),
 			commitCharacters: item.commitCharacters,
@@ -683,19 +684,16 @@ class SuggestAdapter {
 		// 'insertText'-logic
 		if (item.textEdit) {
 			result.insertText = item.textEdit.newText;
-			result.insertTextRules = modes.CompletionItemInsertTextRule.AdjustWhitespace;
 
 		} else if (typeof item.insertText === 'string') {
 			result.insertText = item.insertText;
-			result.insertTextRules = modes.CompletionItemInsertTextRule.AdjustWhitespace;
 
 		} else if (item.insertText instanceof SnippetString) {
 			result.insertText = item.insertText.value;
-			result.insertTextRules = modes.CompletionItemInsertTextRule.AdjustWhitespace | modes.CompletionItemInsertTextRule.InsertAsSnippet;
+			result.insertTextRules += modes.CompletionItemInsertTextRule.InsertAsSnippet;
 
 		} else {
 			result.insertText = item.label;
-			result.insertTextRules = modes.CompletionItemInsertTextRule.AdjustWhitespace;
 		}
 
 		// 'overwrite[Before|After]'-logic

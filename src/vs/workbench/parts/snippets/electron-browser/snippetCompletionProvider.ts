@@ -38,7 +38,7 @@ export class SnippetCompletion implements CompletionItem {
 		this.range = range;
 		this.sortText = `${snippet.snippetSource === SnippetSource.Extension ? 'z' : 'a'}-${snippet.prefix}`;
 		this.kind = CompletionItemKind.Snippet;
-		this.insertTextRules = CompletionItemInsertTextRule.InsertAsSnippet | CompletionItemInsertTextRule.AdjustWhitespace;
+		this.insertTextRules = CompletionItemInsertTextRule.InsertAsSnippet;
 	}
 
 	resolve(): this {

@@ -251,7 +251,7 @@ export class SuggestController implements IEditorContribution {
 			overwriteBefore + columnDelta,
 			overwriteAfter,
 			false, false,
-			Boolean(suggestion.insertTextRules & CompletionItemInsertTextRule.AdjustWhitespace)
+			!(suggestion.insertTextRules & CompletionItemInsertTextRule.KeepWhitespace)
 		);
 
 		if (undoStops) {

@@ -359,15 +359,15 @@ export let completionKindFromLegacyString = (function () {
 
 export enum CompletionItemInsertTextRule {
 	/**
-	 * `insertText` is a snippet.
-	 */
-	InsertAsSnippet = 0b01,
-
-	/**
 	 * Adjust whitespace/indentation of multiline insert texts to
 	 * match the current line indentation.
 	 */
-	AdjustWhitespace = 0b10
+	KeepWhitespace = 0b001,
+
+	/**
+	 * `insertText` is a snippet.
+	 */
+	InsertAsSnippet = 0b100,
 }
 
 /**
