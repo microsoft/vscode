@@ -170,6 +170,8 @@ class Root implements ITreeItem {
 	children = void 0;
 }
 
+const noDataProviderMessage = localize('no-dataprovider', "There is no data provider registered that can provide view data.");
+
 export class CustomTreeViewer extends Disposable implements ITreeViewer {
 
 	private isVisible: boolean = false;
@@ -242,8 +244,7 @@ export class CustomTreeViewer extends Disposable implements ITreeViewer {
 			this.refresh();
 		} else {
 			this._dataProvider = null;
-			DOM.addClass(this.domNode, 'message');
-			this.message.innerText = localize('no-dataprovider', "There is no data provider registered that can provide view data.");
+			this.showMessage(noDataProviderMessage);
 		}
 	}
 
@@ -313,8 +314,9 @@ export class CustomTreeViewer extends Disposable implements ITreeViewer {
 	}
 
 	private create() {
-		this.domNode = DOM.$('.tree-explorer-viewlet-tree-view');
+		this.domNode = DOM.$('.tree-explorer-viewlet-tree-view.message');
 		this.message = DOM.append(this.domNode, DOM.$('.customview-message'));
+		this.message.innerText = noDataProviderMessage;
 		this.treeContainer = DOM.append(this.domNode, DOM.$('.customview-tree'));
 	}
 
@@ -332,6 +334,11 @@ export class CustomTreeViewer extends Disposable implements ITreeViewer {
 		this._register(this.tree.onDidCollapseItem(e => this._onDidCollapseItem.fire(e.item.getElement())));
 		this._register(this.tree.onDidChangeSelection(e => this._onDidChangeSelection.fire(e.selection)));
 		this.tree.setInput(this.root);
+	}
+
+	private showMessage(message: string): void {
+		DOM.addClass(this.domNode, 'message');
+		this.message.innerText = message;
 	}
 
 	layout(size: number) {
