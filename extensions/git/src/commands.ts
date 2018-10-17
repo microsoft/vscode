@@ -1382,9 +1382,6 @@ export class CommandCenter {
 		const placeHolder = localize('select a ref to checkout', 'Select a ref to checkout');
 		const choice = await window.showQuickPick(picks, { placeHolder });
 
-		// TODO: Judge whether it's local branch
-		console.log(choice);
-
 		if (!choice) {
 			return false;
 		}
