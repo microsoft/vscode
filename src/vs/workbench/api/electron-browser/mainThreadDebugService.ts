@@ -14,9 +14,8 @@ import {
 import { extHostNamedCustomer } from 'vs/workbench/api/electron-browser/extHostCustomers';
 import severity from 'vs/base/common/severity';
 import { AbstractDebugAdapter } from 'vs/workbench/parts/debug/node/debugAdapter';
-import * as paths from 'vs/base/common/paths';
 import { IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
-import { convertToVSCPaths, convertToDAPaths } from 'vs/workbench/parts/debug/common/debugUtils';
+import { convertToVSCPaths, convertToDAPaths, stringToUri, uriToString } from 'vs/workbench/parts/debug/common/debugUtils';
 import { deepClone } from 'vs/base/common/objects';
 
 
@@ -215,11 +214,7 @@ export class MainThreadDebugService implements MainThreadDebugServiceShape, IDeb
 
 	public $acceptDAMessage(handle: number, message: DebugProtocol.ProtocolMessage) {
 
-		convertToVSCPaths(message, source => {
-			if (typeof source.path === 'object') {
-				source.path = uri.revive(source.path).toString();
-			}
-		});
+		convertToVSCPaths(message, source => uriToString(source));
 
 		this._debugAdapters.get(handle).acceptMessage(message);
 	}
@@ -302,13 +297,7 @@ class ExtensionHostDebugAdapter extends AbstractDebugAdapter {
 		// since we modify Source.paths in the message in place, we need to make a copy of it (see #61129)
 		const msg = deepClone(message);
 
-		convertToDAPaths(msg, source => {
-			if (paths.isAbsolute(source.path)) {
-				(<any>source).path = uri.file(source.path);
-			} else {
-				(<any>source).path = uri.parse(source.path);
-			}
-		});
+		convertToDAPaths(msg, source => stringToUri(source));
 
 		this._proxy.$sendDAMessage(this._handle, msg);
 	}

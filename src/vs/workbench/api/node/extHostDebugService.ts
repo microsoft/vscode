@@ -27,7 +27,7 @@ import { getTerminalLauncher, hasChildprocesses, prepareCommand } from 'vs/workb
 import { IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import { AbstractVariableResolverService } from 'vs/workbench/services/configurationResolver/node/variableResolver';
 import { ExtHostConfiguration } from './extHostConfiguration';
-import { convertToVSCPaths, convertToDAPaths } from 'vs/workbench/parts/debug/common/debugUtils';
+import { convertToVSCPaths, convertToDAPaths, stringToUri, uriToString } from 'vs/workbench/parts/debug/common/debugUtils';
 import { ExtHostTerminalService } from 'vs/workbench/api/node/extHostTerminalService';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { IConfigurationResolverService } from 'vs/workbench/services/configurationResolver/common/configurationResolver';
@@ -400,11 +400,7 @@ export class ExtHostDebugService implements ExtHostDebugServiceShape {
 						}
 
 						// DA -> VS Code
-						convertToVSCPaths(msg, source => {
-							if (paths.isAbsolute(source.path)) {
-								(<any>source).path = URI.file(source.path);
-							}
-						});
+						convertToVSCPaths(msg, source => stringToUri(source));
 
 						mythis._debugServiceProxy.$acceptDAMessage(handle, msg);
 					});
@@ -435,11 +431,7 @@ export class ExtHostDebugService implements ExtHostDebugServiceShape {
 
 	public $sendDAMessage(handle: number, message: DebugProtocol.ProtocolMessage): TPromise<void> {
 		// VS Code -> DA
-		convertToDAPaths(message, source => {
-			if (typeof source.path === 'object') {
-				source.path = URI.revive(source.path).fsPath;
-			}
-		});
+		convertToDAPaths(message, source => uriToString(source));
 
 		const tracker = this._debugAdaptersTrackers.get(handle);
 		if (tracker) {

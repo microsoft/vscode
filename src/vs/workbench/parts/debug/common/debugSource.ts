@@ -12,6 +12,7 @@ import { DEBUG_SCHEME } from 'vs/workbench/parts/debug/common/debug';
 import { IRange } from 'vs/editor/common/core/range';
 import { IEditorService, SIDE_GROUP, ACTIVE_GROUP } from 'vs/workbench/services/editor/common/editorService';
 import { Schemas } from 'vs/base/common/network';
+import { isUri } from 'vs/workbench/parts/debug/common/debugUtils';
 
 const UNKNOWN_SOURCE_LABEL = nls.localize('unknownSource', "Unknown Source");
 
@@ -36,23 +37,29 @@ export class Source {
 
 	constructor(public raw: DebugProtocol.Source, sessionId: string) {
 		let path: string;
-		if (!raw) {
+		if (raw) {
+			path = this.raw.path || this.raw.name;
+			this.available = true;
+		} else {
 			this.raw = { name: UNKNOWN_SOURCE_LABEL };
 			this.available = false;
 			path = `${DEBUG_SCHEME}:${UNKNOWN_SOURCE_LABEL}`;
-		} else {
-			path = this.raw.path || this.raw.name;
-			this.available = true;
 		}
 
 		if (this.raw.sourceReference > 0) {
 			this.uri = uri.parse(`${DEBUG_SCHEME}:${encodeURIComponent(path)}?session=${encodeURIComponent(sessionId)}&ref=${this.raw.sourceReference}`);
 		} else {
-			if (paths.isAbsolute(path)) {
-				this.uri = uri.file(path);
-			} else {
-				// assume that path is a URI
+			if (isUri(path)) {
 				this.uri = uri.parse(path);
+			} else {
+				// assume path
+				if (paths.isAbsolute_posix(path) || paths.isAbsolute_win32(path)) {
+					this.uri = uri.file(path);
+				} else {
+					// path is relative
+					// should not happen because relative paths always have a sourceReference > 0
+					console.error('cannot handle relative paths without sourceReference');
+				}
 			}
 		}
 	}
