@@ -5853,11 +5853,6 @@ nan@2.8.0, nan@^2.8.0:
   resolved "https://registry.yarnpkg.com/nan/-/nan-2.8.0.tgz#ed715f3fe9de02b57a5e6252d90a96675e1f085a"
   integrity sha1-7XFfP+neArV6XmJS2QqWZ14fCFo=
 
-nan@^2.1.0:
-  version "2.7.0"
-  resolved "https://registry.yarnpkg.com/nan/-/nan-2.7.0.tgz#d95bf721ec877e08db276ed3fc6eb78f9083ad46"
-  integrity sha1-2Vv3IeyHfgjbJ27T/G63j5CDrUY=
-
 nan@^2.10.0:
   version "2.11.0"
   resolved "https://registry.yarnpkg.com/nan/-/nan-2.11.0.tgz#574e360e4d954ab16966ec102c0c049fd961a099"
@@ -9483,13 +9478,13 @@ windows-foreground-love@0.1.0:
   resolved "https://registry.yarnpkg.com/windows-foreground-love/-/windows-foreground-love-0.1.0.tgz#948e4beac0733cd58624710cc09432b7e8bf3521"
   integrity sha1-lI5L6sBzPNWGJHEMwJQyt+i/NSE=
 
-windows-mutex@^0.2.0:
-  version "0.2.0"
-  resolved "https://registry.yarnpkg.com/windows-mutex/-/windows-mutex-0.2.0.tgz#3c1fb8aae592810698cf31576a150aa8161894f4"
-  integrity sha1-PB+4quWSgQaYzzFXahUKqBYYlPQ=
+windows-mutex@0.2.1:
+  version "0.2.1"
+  resolved "https://registry.yarnpkg.com/windows-mutex/-/windows-mutex-0.2.1.tgz#05a8da8018f22874d7fbbd775c0141876d1c28fc"
+  integrity sha512-TaLGQa+qBcPZ2EH94BD/3Hy8fycrZjzqxI/lOMdXPyvffNnIJOvKwEyvNRC25bVFQ2mliJBziKhCMEhk9Dhhhg==
   dependencies:
     bindings "^1.2.1"
-    nan "^2.1.0"
+    nan "^2.10.0"
 
 windows-process-tree@0.2.3:
   version "0.2.3"
