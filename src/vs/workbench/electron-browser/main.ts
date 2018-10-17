@@ -128,7 +128,7 @@ function openWorkbench(configuration: IWindowConfiguration): Promise<void> {
 
 			// Inform user about loading issues from the loader
 			(<any>self).require.config({
-				onError: (err: any) => {
+				onError: err => {
 					if (err.errorCode === 'load') {
 						shell.onUnexpectedError(new Error(nls.localize('loaderErrorNative', "Failed to load a required file. Please restart the application to try again. Details: {0}", JSON.stringify(err))));
 					}
@@ -166,15 +166,9 @@ function validateFolderUri(folderUri: ISingleFolderWorkspaceIdentifier, verbose:
 }
 
 function createStorageService(environmentService: IEnvironmentService, logService: ILogService): Promise<StorageService> {
-	perf.mark('willCreateStorageService');
-
 	const storageService = new StorageService(':memory:', logService, environmentService);
 
-	return storageService.init().then(() => {
-		perf.mark('didCreateStorageService');
-
-		return storageService;
-	});
+	return storageService.init().then(() => storageService);
 }
 
 function createStorageLegacyService(workspaceService: IWorkspaceContextService, environmentService: IEnvironmentService): IStorageLegacyService {
@@ -196,7 +190,7 @@ function createStorageLegacyService(workspaceService: IWorkspaceContextService, 
 			secondaryWorkspaceId = workspace.ctime;
 			break;
 
-		// finaly, if we do not have a workspace open, we need to find another identifier for the window to store
+		// finally, if we do not have a workspace open, we need to find another identifier for the window to store
 		// workspace UI state. if we have a backup path in the configuration we can use that because this
 		// will be a unique identifier per window that is stable between restarts as long as there are
 		// dirty files in the workspace.
