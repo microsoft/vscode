@@ -349,6 +349,9 @@ export class Repl extends Panel implements IPrivateReplService, IHistoryNavigati
 		this._register(this.replInput.onDidChangeModelContent(() => {
 			this.historyNavigationEnablement.set(this.replInput.getModel().getValue() === '');
 		}));
+		// We add the input decoration only when the focus is in the input #61126
+		this._register(this.replInput.onDidFocusEditorText(() => this.updateInputDecoration()));
+		this._register(this.replInput.onDidBlurEditorText(() => this.updateInputDecoration()));
 
 		this._register(dom.addStandardDisposableListener(this.replInputContainer, dom.EventType.FOCUS, () => dom.addClass(this.replInputContainer, 'synthetic-focus')));
 		this._register(dom.addStandardDisposableListener(this.replInputContainer, dom.EventType.BLUR, () => dom.removeClass(this.replInputContainer, 'synthetic-focus')));
@@ -382,7 +385,7 @@ export class Repl extends Panel implements IPrivateReplService, IHistoryNavigati
 		}
 
 		const decorations: IDecorationOptions[] = [];
-		if (this.isReadonly) {
+		if (this.isReadonly && this.replInput.hasTextFocus()) {
 			decorations.push({
 				range: {
 					startLineNumber: 0,
