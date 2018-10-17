@@ -306,7 +306,7 @@ export class WorkbenchShell extends Disposable {
 				loggedStorageErrors.add(errorStr);
 
 				/* __GDPR__
-					"sqliteStorageError" : {
+					"sqliteStorageError2" : {
 						"globalReadTime" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
 						"workspaceReadTime" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
 						"localStorageAccessTime" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
@@ -319,7 +319,7 @@ export class WorkbenchShell extends Disposable {
 						"storageError": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true }
 					}
 				*/
-				this.telemetryService.publicLog('sqliteStorageError', {
+				this.telemetryService.publicLog('sqliteStorageError2', {
 					'globalReadTime': globalStorageInitDuration,
 					'workspaceReadTime': workspaceStorageInitDuration,
 					'localStorageAccessTime': localStorageAccessDuration,
@@ -341,7 +341,7 @@ export class WorkbenchShell extends Disposable {
 			workspaceIntegrity = integrity;
 
 			/* __GDPR__
-				"sqliteStorageTimers" : {
+				"sqliteStorageTimers2" : {
 					"globalReadTime" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
 					"workspaceReadTime" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
 					"localStorageAccessTime" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
@@ -354,7 +354,7 @@ export class WorkbenchShell extends Disposable {
 					"startupKind": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true }
 				}
 			*/
-			this.telemetryService.publicLog('sqliteStorageTimers', {
+			this.telemetryService.publicLog('sqliteStorageTimers2', {
 				'globalReadTime': globalStorageInitDuration,
 				'workspaceReadTime': workspaceStorageInitDuration,
 				'localStorageAccessTime': localStorageAccessDuration,

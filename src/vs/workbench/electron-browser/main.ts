@@ -236,9 +236,7 @@ function resolveSingleFolderWorkspaceInitializationPayload(folderUri: ISingleFol
 }
 
 function prepareWorkspaceStorageFolder(payload: IWorkspaceInitializationPayload, environmentService: IEnvironmentService): Thenable<string> {
-
-	// Workspace storage: scope by workspace identifier
-	const workspaceStoragePath = join(environmentService.workspaceStorageHome, payload.id);
+	const workspaceStoragePath = join(environmentService.workspaceStorageHome, payload.id); // workspace home + workspace id
 
 	return exists(workspaceStoragePath).then(exists => {
 		if (exists) {
