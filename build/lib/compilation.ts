@@ -146,6 +146,7 @@ class MonacoGenerator {
 	private _recipeFileChanged: boolean;
 
 	private _dtsFilesContents: { [filePath: string]: string; };
+	private _dtsFilesContents2: { [filePath: string]: ts.SourceFile; };
 
 	constructor(isWatch: boolean) {
 		this._isWatch = isWatch;
@@ -185,6 +186,7 @@ class MonacoGenerator {
 		this._inputFiles.forEach(file => this._inputFileChanged[file] = true);
 		this._recipeFileChanged = true;
 		this._dtsFilesContents = {};
+		this._dtsFilesContents2 = {};
 	}
 
 	public dispose(): void {
@@ -199,6 +201,7 @@ class MonacoGenerator {
 				return;
 			}
 			this._dtsFilesContents[file] = contents;
+			this._dtsFilesContents2[file] = ts.createSourceFile(file, contents, ts.ScriptTarget.ES5);
 			somethingChanged = true;
 		};
 
@@ -240,7 +243,7 @@ class MonacoGenerator {
 			return null;
 		}
 
-		return monacodts.run('src', this._dtsFilesContents);
+		return monacodts.run2('src', this._dtsFilesContents2);
 	}
 
 	private _log(message: any, ...rest: any[]): void {

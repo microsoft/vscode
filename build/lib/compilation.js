@@ -145,6 +145,7 @@ class MonacoGenerator {
         this._inputFiles.forEach(file => this._inputFileChanged[file] = true);
         this._recipeFileChanged = true;
         this._dtsFilesContents = {};
+        this._dtsFilesContents2 = {};
     }
     dispose() {
         this._watchers.forEach(watcher => watcher.close());
@@ -156,6 +157,7 @@ class MonacoGenerator {
                 return;
             }
             this._dtsFilesContents[file] = contents;
+            this._dtsFilesContents2[file] = ts.createSourceFile(file, contents, ts.ScriptTarget.ES5);
             somethingChanged = true;
         };
         const fileMap = {};
@@ -188,7 +190,7 @@ class MonacoGenerator {
             // Nothing changed
             return null;
         }
-        return monacodts.run('src', this._dtsFilesContents);
+        return monacodts.run2('src', this._dtsFilesContents2);
     }
     _log(message, ...rest) {
         util2.log(util2.colors.cyan('[monaco.d.ts]'), message, ...rest);

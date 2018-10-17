@@ -32,24 +32,10 @@ function moduleIdToPath(out: string, moduleId: string): string {
 	return path.join(OUT_ROOT, out, moduleId) + '.d.ts';
 }
 
-let SOURCE_FILE_MAP: { [moduleId: string]: ts.SourceFile; } = {};
-function getSourceFile(out: string, inputFiles: { [file: string]: string; }, moduleId: string): ts.SourceFile | null {
-	if (!SOURCE_FILE_MAP[moduleId]) {
-		let filePath = path.normalize(moduleIdToPath(out, moduleId));
-
-		if (!inputFiles.hasOwnProperty(filePath)) {
-			logErr('CANNOT FIND FILE ' + filePath + '. YOU MIGHT NEED TO RESTART gulp');
-			return null;
-		}
-
-		let fileContents = inputFiles[filePath];
-		let sourceFile = ts.createSourceFile(filePath, fileContents, ts.ScriptTarget.ES5);
-
-		SOURCE_FILE_MAP[moduleId] = sourceFile;
-	}
-	return SOURCE_FILE_MAP[moduleId];
+export interface ISourceFileMap {
+	[moduleId: string]: ts.SourceFile;
 }
-
+export type SourceFileGetter = (moduleId: string) => ts.SourceFile | null;
 
 type TSTopLevelDeclaration = ts.InterfaceDeclaration | ts.EnumDeclaration | ts.ClassDeclaration | ts.TypeAliasDeclaration | ts.FunctionDeclaration | ts.ModuleDeclaration;
 type TSTopLevelDeclare = TSTopLevelDeclaration | ts.VariableStatement;
@@ -266,7 +252,7 @@ function createReplacer(data: string): (str: string) => string {
 	};
 }
 
-function generateDeclarationFile(out: string, inputFiles: { [file: string]: string; }, recipe: string): [string, string] {
+function generateDeclarationFile(recipe: string, sourceFileGetter: SourceFileGetter): [string, string] {
 	const endl = /\r\n/.test(recipe) ? '\r\n' : '\n';
 
 	let lines = recipe.split(endl);
@@ -291,7 +277,7 @@ function generateDeclarationFile(out: string, inputFiles: { [file: string]: stri
 		if (m1) {
 			CURRENT_PROCESSING_RULE = line;
 			let moduleId = m1[1];
-			const sourceFile = getSourceFile(out, inputFiles, moduleId);
+			const sourceFile = sourceFileGetter(moduleId);
 			if (!sourceFile) {
 				return;
 			}
@@ -320,7 +306,7 @@ function generateDeclarationFile(out: string, inputFiles: { [file: string]: stri
 		if (m2) {
 			CURRENT_PROCESSING_RULE = line;
 			let moduleId = m2[1];
-			const sourceFile = getSourceFile(out, inputFiles, moduleId);
+			const sourceFile = sourceFileGetter(moduleId);
 			if (!sourceFile) {
 				return;
 			}
@@ -411,19 +397,18 @@ export interface IMonacoDeclarationResult {
 	isTheSame: boolean;
 }
 
-export function run(out: string, inputFiles: { [file: string]: string; }): IMonacoDeclarationResult {
+function _run(sourceFileGetter: SourceFileGetter): IMonacoDeclarationResult {
 	log('Starting monaco.d.ts generation');
-	SOURCE_FILE_MAP = {};
 
 	let recipe = fs.readFileSync(RECIPE_PATH).toString();
-	let [result, usageContent] = generateDeclarationFile(out, inputFiles, recipe);
+	let [result, usageContent] = generateDeclarationFile(recipe, sourceFileGetter);
 
 	let currentContent = fs.readFileSync(DECLARATION_PATH).toString();
 	log('Finished monaco.d.ts generation');
 
 	const one = currentContent.replace(/\r\n/gm, '\n');
 	const other = result.replace(/\r\n/gm, '\n');
-	const isTheSame = one === other;
+	const isTheSame = (one === other);
 
 	return {
 		content: result,
@@ -431,6 +416,38 @@ export function run(out: string, inputFiles: { [file: string]: string; }): IMona
 		filePath: DECLARATION_PATH,
 		isTheSame
 	};
+}
+
+export function run(out: string, inputFiles: { [file: string]: string; }): IMonacoDeclarationResult {
+
+	let SOURCE_FILE_MAP: { [moduleId: string]: ts.SourceFile; } = {};
+	const sourceFileGetter = (moduleId: string): ts.SourceFile | null => {
+		if (!SOURCE_FILE_MAP[moduleId]) {
+			let filePath = path.normalize(moduleIdToPath(out, moduleId));
+
+			if (!inputFiles.hasOwnProperty(filePath)) {
+				logErr('CANNOT FIND FILE ' + filePath + '. YOU MIGHT NEED TO RESTART gulp');
+				return null;
+			}
+
+			let fileContents = inputFiles[filePath];
+			let sourceFile = ts.createSourceFile(filePath, fileContents, ts.ScriptTarget.ES5);
+
+			SOURCE_FILE_MAP[moduleId] = sourceFile;
+		}
+		return SOURCE_FILE_MAP[moduleId];
+	};
+
+	return _run(sourceFileGetter);
+}
+
+export function run2(out: string, sourceFileMap: ISourceFileMap): IMonacoDeclarationResult {
+	const sourceFileGetter = (moduleId: string): ts.SourceFile | null => {
+		let filePath = path.normalize(moduleIdToPath(out, moduleId));
+		return sourceFileMap[filePath];
+	};
+
+	return _run(sourceFileGetter);
 }
 
 export function complainErrors() {
