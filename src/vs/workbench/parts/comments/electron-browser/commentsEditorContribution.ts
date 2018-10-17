@@ -128,7 +128,7 @@ class CommentingRangeDecorator {
 			return;
 		}
 
-		let commentingRangeDecorations = [];
+		let commentingRangeDecorations: CommentingRangeDecoration[] = [];
 		for (let i = 0; i < commentInfos.length; i++) {
 			let info = commentInfos[i];
 			info.commentingRanges.forEach(range => {
@@ -470,7 +470,7 @@ export class ReviewController implements IEditorContribution {
 		if (this._commentInfos.some(info => Boolean(info.commentingRanges && info.commentingRanges.length))) {
 			if (!this._commentingRangeSpaceReserved) {
 				this._commentingRangeSpaceReserved = true;
-				let extraEditorClassName = [];
+				let extraEditorClassName: string[] = [];
 				if (this.editor.getRawConfiguration().extraEditorClassName) {
 					extraEditorClassName = this.editor.getRawConfiguration().extraEditorClassName.split(' ');
 				}

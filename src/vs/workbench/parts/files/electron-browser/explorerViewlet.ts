@@ -60,7 +60,7 @@ export class ExplorerViewletViewsContribution extends Disposable implements IWor
 	private registerViews(): void {
 		const viewDescriptors = ViewsRegistry.getViews(VIEW_CONTAINER);
 
-		let viewDescriptorsToRegister = [];
+		let viewDescriptorsToRegister: IViewDescriptor[] = [];
 		let viewDescriptorsToDeregister: string[] = [];
 
 		const openEditorsViewDescriptor = this.createOpenEditorsViewDescriptor();

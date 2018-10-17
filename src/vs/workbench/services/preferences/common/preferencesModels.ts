@@ -1099,7 +1099,7 @@ export function createValidator(prop: IConfigurationPropertySchema): ((value: an
 		if (prop.type === 'string' && stringValidations.length === 0) { return null; }
 		if (isNullable && value === '') { return ''; }
 
-		let errors = [];
+		let errors: string[] = [];
 
 		if (isNumeric) {
 			if (value === '' || isNaN(+value)) {

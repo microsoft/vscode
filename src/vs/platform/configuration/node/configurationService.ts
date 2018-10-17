@@ -89,7 +89,7 @@ export class ConfigurationService extends Disposable implements IConfigurationSe
 	}
 
 	private onDidChangeUserConfiguration(): void {
-		let changedKeys = [];
+		let changedKeys: string[] = [];
 		const { added, updated, removed } = compare(this._configuration.user, this.userConfiguration.configurationModel);
 		changedKeys = [...added, ...updated, ...removed];
 		if (changedKeys.length) {

@@ -18,6 +18,7 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
 import { TimeoutTimer, CancelablePromise, createCancelablePromise } from 'vs/base/common/async';
 import { onUnexpectedError } from 'vs/base/common/errors';
+import { IModelDeltaDecoration } from 'vs/editor/common/model';
 
 const MAX_DECORATORS = 500;
 
@@ -166,7 +167,7 @@ export class ColorDetector implements IEditorContribution {
 	}
 
 	private updateColorDecorators(colorData: IColorData[]): void {
-		let decorations = [];
+		let decorations: IModelDeltaDecoration[] = [];
 		let newDecorationsTypes: { [key: string]: boolean } = {};
 
 		for (let i = 0; i < colorData.length && decorations.length < MAX_DECORATORS; i++) {
