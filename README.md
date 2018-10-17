@@ -38,7 +38,7 @@ Please also see our [Code of Conduct](CODE_OF_CONDUCT.md).
 
 * Ask a question on [Stack Overflow](https://stackoverflow.com/questions/tagged/vscode).
 * Request a new feature on [GitHub](CONTRIBUTING.md).
-* Vote for [popular feature requests](https://github.com/Microsoft/vscode/issues?q=is%3Aopen+is%3Aissue+label%3Afeature-request+sort%3Areactions-%2B1-desc).
+* Vote for [Popular Feature Requests](https://github.com/Microsoft/vscode/issues?q=is%3Aopen+is%3Aissue+label%3Afeature-request+sort%3Areactions-%2B1-desc).
 * File a bug in [GitHub Issues](https://github.com/Microsoft/vscode/issues).
 * [Tweet](https://twitter.com/code) us with other feedback.
 
@@ -46,7 +46,7 @@ Please also see our [Code of Conduct](CODE_OF_CONDUCT.md).
 
 Many of the core components and extensions to Code live in their own repositories on GitHub. For example, the [node debug adapter](https://github.com/microsoft/vscode-node-debug) and the [mono debug adapter](https://github.com/microsoft/vscode-mono-debug).
 
-For a complete list, please see the [Related Projects](https://github.com/Microsoft/vscode/wiki/Related-Projects) page on our [wiki](https://github.com/Microsoft/vscode/wiki).
+For a complete list, please visit the [Related Projects](https://github.com/Microsoft/vscode/wiki/Related-Projects) page on our [wiki](https://github.com/Microsoft/vscode/wiki).
 
 ## License
 
