@@ -13,7 +13,7 @@ import * as comparer from 'vs/base/common/comparers';
 import * as platform from 'vs/base/common/platform';
 import { URI as uri } from 'vs/base/common/uri';
 import { IWorkspaceContextService, Workspace, WorkbenchState } from 'vs/platform/workspace/common/workspace';
-import { WorkspaceService, ISingleFolderWorkspaceInitializationPayload, IMultiFolderWorkspaceInitializationPayload, IEmptyWorkspaceInitializationPayload } from 'vs/workbench/services/configuration/node/configurationService';
+import { WorkspaceService, ISingleFolderWorkspaceInitializationPayload, IMultiFolderWorkspaceInitializationPayload, IEmptyWorkspaceInitializationPayload, IWorkspaceInitializationPayload } from 'vs/workbench/services/configuration/node/configurationService';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { stat } from 'vs/base/node/pfs';
@@ -45,6 +45,7 @@ import { IMenubarService } from 'vs/platform/menubar/common/menubar';
 import { Schemas } from 'vs/base/common/network';
 import { sanitizeFilePath } from 'vs/base/node/extfs';
 import { basename } from 'path';
+import { createHash } from 'crypto';
 
 gracefulFs.gracefulify(fs); // enable gracefulFs
 
@@ -140,7 +141,7 @@ function openWorkbench(configuration: IWindowConfiguration): Promise<void> {
 }
 
 function createAndInitializeWorkspaceService(configuration: IWindowConfiguration, environmentService: EnvironmentService): Promise<WorkspaceService> {
-	let workspaceInitializationPayload: Promise<IMultiFolderWorkspaceInitializationPayload | ISingleFolderWorkspaceInitializationPayload | IEmptyWorkspaceInitializationPayload> = Promise.resolve(void 0);
+	let workspaceInitializationPayload: Promise<IWorkspaceInitializationPayload> = Promise.resolve(void 0);
 
 	// Multi-root workspace
 	if (configuration.workspace) {
@@ -154,7 +155,7 @@ function createAndInitializeWorkspaceService(configuration: IWindowConfiguration
 
 	return workspaceInitializationPayload.then(payload => {
 
-		// Fallback to empty workspace
+		// Fallback to empty workspace if we have no payload yet
 		if (!payload) {
 			payload = { id: configuration.backupPath ? uri.from({ path: basename(configuration.backupPath), scheme: 'empty' }).toString() : '' } as IEmptyWorkspaceInitializationPayload;
 		}
@@ -167,17 +168,39 @@ function createAndInitializeWorkspaceService(configuration: IWindowConfiguration
 
 function resolveSingleFolderWorkspaceInitializationPayload(folderUri: ISingleFolderWorkspaceIdentifier, verbose: boolean): Promise<ISingleFolderWorkspaceInitializationPayload> {
 
+	function singleFolderId(folder: uri, stat?: fs.Stats): string {
+		if (folder.scheme === Schemas.file && stat) {
+			let ctime: number;
+			if (platform.isLinux) {
+				ctime = stat.ino; // Linux: birthtime is ctime, so we cannot use it! We use the ino instead!
+			} else if (platform.isMacintosh) {
+				ctime = stat.birthtime.getTime(); // macOS: birthtime is fine to use as is
+			} else if (platform.isWindows) {
+				if (typeof stat.birthtimeMs === 'number') {
+					ctime = Math.floor(stat.birthtimeMs); // Windows: fix precision issue in node.js 8.x to get 7.x results (see https://github.com/nodejs/node/issues/19897)
+				} else {
+					ctime = stat.birthtime.getTime();
+				}
+			}
+
+			return createHash('md5').update(folder.fsPath).update(ctime ? String(ctime) : '').digest('hex');
+		}
+
+		return createHash('md5').update(folder.toString()).digest('hex');
+	}
+
 	// Return early the folder is not local
 	if (folderUri.scheme !== Schemas.file) {
-		return Promise.resolve({ folder: folderUri });
+		return Promise.resolve({ id: singleFolderId(folderUri), folder: folderUri });
 	}
 
 	// For local: ensure path is absolute and exists
 	const sanitizedFolderPath = sanitizeFilePath(folderUri.fsPath, process.env['VSCODE_CWD'] || process.cwd());
 	return stat(sanitizedFolderPath).then(stat => {
+		const sanitizedFolderUri = uri.file(sanitizedFolderPath);
 		return {
-			folder: uri.file(sanitizedFolderPath),
-			stat
+			id: singleFolderId(sanitizedFolderUri, stat),
+			folder: sanitizedFolderUri
 		} as ISingleFolderWorkspaceInitializationPayload;
 	}, error => {
 		if (verbose) {

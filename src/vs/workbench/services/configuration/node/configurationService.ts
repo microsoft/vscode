@@ -5,7 +5,6 @@
 
 import { URI } from 'vs/base/common/uri';
 import { dirname } from 'path';
-import { Stats } from 'fs';
 import * as assert from 'vs/base/common/assert';
 import { Event, Emitter } from 'vs/base/common/event';
 import { ResourceMap } from 'vs/base/common/map';
@@ -15,7 +14,7 @@ import { Queue } from 'vs/base/common/async';
 import { writeFile } from 'vs/base/node/pfs';
 import { IJSONContributionRegistry, Extensions as JSONExtensions } from 'vs/platform/jsonschemas/common/jsonContributionRegistry';
 import { IWorkspaceContextService, Workspace, WorkbenchState, IWorkspaceFolder, toWorkspaceFolders, IWorkspaceFoldersChangeEvent, WorkspaceFolder } from 'vs/platform/workspace/common/workspace';
-import { isLinux, isWindows, isMacintosh } from 'vs/base/common/platform';
+import { isLinux } from 'vs/base/common/platform';
 import { IFileService } from 'vs/platform/files/common/files';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { ConfigurationChangeEvent, ConfigurationModel, DefaultConfigurationModel } from 'vs/platform/configuration/common/configurationModels';
@@ -24,7 +23,6 @@ import { Configuration, WorkspaceConfigurationChangeEvent, AllKeysConfigurationC
 import { IWorkspaceConfigurationService, FOLDER_CONFIG_FOLDER_NAME, defaultSettingsSchemaId, userSettingsSchemaId, workspaceSettingsSchemaId, folderSettingsSchemaId } from 'vs/workbench/services/configuration/common/configuration';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IConfigurationNode, IConfigurationRegistry, Extensions, IConfigurationPropertySchema, allSettings, windowSettings, resourceSettings, applicationSettings } from 'vs/platform/configuration/common/configurationRegistry';
-import { createHash } from 'crypto';
 import { IWorkspaceIdentifier, isWorkspaceIdentifier, IStoredWorkspaceFolder, isStoredWorkspaceFolder, IWorkspaceFolderCreationData, ISingleFolderWorkspaceIdentifier, isSingleFolderWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { ICommandService } from 'vs/platform/commands/common/commands';
@@ -41,8 +39,9 @@ import { localize } from 'vs/nls';
 import { isEqual } from 'vs/base/common/resources';
 
 export type IMultiFolderWorkspaceInitializationPayload = IWorkspaceIdentifier;
-export interface ISingleFolderWorkspaceInitializationPayload { folder: ISingleFolderWorkspaceIdentifier; stat?: Stats; }
+export interface ISingleFolderWorkspaceInitializationPayload { id: string; folder: URI; }
 export interface IEmptyWorkspaceInitializationPayload { id: string; }
+export type IWorkspaceInitializationPayload = IMultiFolderWorkspaceInitializationPayload | ISingleFolderWorkspaceInitializationPayload | IEmptyWorkspaceInitializationPayload;
 
 function isSingleFolderWorkspaceInitializationPayload(obj: any): obj is ISingleFolderWorkspaceInitializationPayload {
 	return isSingleFolderWorkspaceIdentifier((obj.folder as ISingleFolderWorkspaceIdentifier));
@@ -352,27 +351,15 @@ export class WorkspaceService extends Disposable implements IWorkspaceConfigurat
 
 	private createSingleFolderWorkspace(singleFolder: ISingleFolderWorkspaceInitializationPayload): Promise<Workspace> {
 		const folder = singleFolder.folder;
-		if (folder.scheme === Schemas.file && singleFolder.stat) {
-			const workspaceStat = singleFolder.stat;
-			let ctime: number;
-			if (isLinux) {
-				ctime = workspaceStat.ino; // Linux: birthtime is ctime, so we cannot use it! We use the ino instead!
-			} else if (isMacintosh) {
-				ctime = workspaceStat.birthtime.getTime(); // macOS: birthtime is fine to use as is
-			} else if (isWindows) {
-				if (typeof workspaceStat.birthtimeMs === 'number') {
-					ctime = Math.floor(workspaceStat.birthtimeMs); // Windows: fix precision issue in node.js 8.x to get 7.x results (see https://github.com/nodejs/node/issues/19897)
-				} else {
-					ctime = workspaceStat.birthtime.getTime();
-				}
-			}
 
-			const id = createHash('md5').update(folder.fsPath).update(ctime ? String(ctime) : '').digest('hex');
-			return Promise.resolve(new Workspace(id, toWorkspaceFolders([{ path: folder.fsPath }]), null, ctime));
+		let configuredFolders: IStoredWorkspaceFolder[];
+		if (folder.scheme === 'file') {
+			configuredFolders = [{ path: folder.fsPath }];
 		} else {
-			const id = createHash('md5').update(folder.toString()).digest('hex');
-			return Promise.resolve(new Workspace(id, toWorkspaceFolders([{ uri: folder.toString() }]), null));
+			configuredFolders = [{ uri: folder.toString() }];
 		}
+
+		return Promise.resolve(new Workspace(singleFolder.id, toWorkspaceFolders(configuredFolders), null));
 	}
 
 	private createEmptyWorkspace(emptyWorkspace: IEmptyWorkspaceInitializationPayload): Promise<Workspace> {
