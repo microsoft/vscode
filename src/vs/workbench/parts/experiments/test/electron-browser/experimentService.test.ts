@@ -76,11 +76,11 @@ suite('Experiment Service', () => {
 		testConfigurationService = new TestConfigurationService();
 		instantiationService.stub(IConfigurationService, testConfigurationService);
 		instantiationService.stub(ILifecycleService, new TestLifecycleService());
-		instantiationService.stub(IStorageService, { get: (a, b, c) => c, getBoolean: (a, b, c) => c, store: () => { } });
+		instantiationService.stub(IStorageService, { get: (a, b, c) => c, getBoolean: (a, b, c) => c, store: () => { }, remove: () => { } });
 
 		setup(() => {
 			instantiationService.stub(IEnvironmentService, {});
-			instantiationService.stub(IStorageService, { get: (a, b, c) => c, getBoolean: (a, b, c) => c, store: () => { } });
+			instantiationService.stub(IStorageService, { get: (a, b, c) => c, getBoolean: (a, b, c) => c, store: () => { }, remove: () => { } });
 		});
 
 		teardown(() => {
