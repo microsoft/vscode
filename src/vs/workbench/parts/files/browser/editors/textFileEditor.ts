@@ -130,19 +130,7 @@ export class TextFileEditor extends BaseTextEditor {
 					return this.openAsBinary(input, options);
 				}
 
-				// Check Model state
 				const textFileModel = <ITextFileEditorModel>resolvedModel;
-
-				const hasInput = !!this.input;
-				const modelDisposed = textFileModel.isDisposed();
-				const inputChanged = hasInput && this.input.getResource().toString() !== textFileModel.getResource().toString();
-				if (
-					!hasInput ||		// editor got hidden meanwhile
-					modelDisposed || 	// input got disposed meanwhile
-					inputChanged 		// a different input was set meanwhile
-				) {
-					return void 0;
-				}
 
 				// Editor
 				const textEditor = this.getControl();
