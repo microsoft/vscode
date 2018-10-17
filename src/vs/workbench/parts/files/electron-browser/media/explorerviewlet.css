@@ -97,6 +97,10 @@
 	padding: 0 20px 0 20px;
 }
 
+.explorer-message {
+	padding: 0 20px 0 20px;
+}
+
 .explorer-viewlet .explorer-item.nonexistent-root {
 	opacity: 0.5;
 }
