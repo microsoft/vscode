@@ -45,13 +45,17 @@ export class MainThreadComments extends Disposable implements MainThreadComments
 
 			const _visibleEditors = {};
 			visibleEditors.forEach(editor => {
+				if (!editor.hasModel()) {
+					return; // we need a model
+				}
 				const id = editor.getId();
+				const model = editor.getModel();
 				if (editors.filter(ed => ed.getId() === id).length > 0) {
 					// it's an active editor, we are going to update this editor's comments anyways
 				} else {
 					if (this._visibleModels[id]) {
 						// it's the same active editor, but we may want to check if the model is still the same
-						let modelId = editor.getModel().getModeId();
+						let modelId = model.getModeId();
 						if (modelId !== this._visibleModels[id]) {
 							editors.push(editor);
 						}
@@ -61,7 +65,7 @@ export class MainThreadComments extends Disposable implements MainThreadComments
 					}
 				}
 
-				_visibleEditors[id] = editor.getModel().getModeId();
+				_visibleEditors[id] = model.getModeId();
 			});
 
 			this._visibleModels = _visibleEditors;

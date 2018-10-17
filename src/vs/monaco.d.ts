@@ -55,8 +55,6 @@ declare namespace monaco {
 		public static join<T1, T2>(promises: [T1 | PromiseLike<T1>, T2 | PromiseLike<T2>]): Promise<[T1, T2]>;
 		public static join<T>(promises: (T | PromiseLike<T>)[]): Promise<T[]>;
 
-		public static any<T>(promises: (T | PromiseLike<T>)[]): Promise<{ key: string; value: Promise<T>; }>;
-
 		public static wrap<T>(value: T | PromiseLike<T>): Promise<T>;
 
 		public static wrapError<T = never>(error: Error): Promise<T>;
@@ -4702,6 +4700,18 @@ declare namespace monaco.languages {
 		Snippet = 25
 	}
 
+	export enum CompletionItemInsertTextRule {
+		/**
+		 * Adjust whitespace/indentation of multiline insert texts to
+		 * match the current line indentation.
+		 */
+		KeepWhitespace = 1,
+		/**
+		 * `insertText` is a snippet.
+		 */
+		InsertAsSnippet = 4
+	}
+
 	/**
 	 * A completion item represents a text snippet that is
 	 * proposed to complete text that is being typed.
@@ -4752,9 +4762,10 @@ declare namespace monaco.languages {
 		 */
 		insertText: string;
 		/**
-		 * The insert test is a snippet
+		 * Addition rules (as bitmask) that should be applied when inserting
+		 * this completion.
 		 */
-		insertTextIsSnippet?: boolean;
+		insertTextRules?: CompletionItemInsertTextRule;
 		/**
 		 * A range of text that should be replaced by this completion item.
 		 *

@@ -17,6 +17,7 @@ import { ITextModelService, ITextModelContentProvider, ITextEditorModel } from '
 import { IUntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
 import { TextFileEditorModel } from 'vs/workbench/services/textfile/common/textFileEditorModel';
 import { IFileService } from 'vs/platform/files/common/files';
+import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 
 class ResourceModelCollection extends ReferenceCollection<TPromise<ITextEditorModel>> {
 
@@ -26,20 +27,33 @@ class ResourceModelCollection extends ReferenceCollection<TPromise<ITextEditorMo
 	constructor(
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@ITextFileService private textFileService: ITextFileService,
-		@IFileService private fileService: IFileService
+		@IFileService private fileService: IFileService,
+		@IExtensionService private readonly _extensionService: IExtensionService,
 	) {
 		super();
 	}
 
-	createReferencedObject(key: string): TPromise<ITextEditorModel> {
+	createReferencedObject(key: string, skipActivateExtensions?: boolean): TPromise<ITextEditorModel> {
 		this.modelsToDispose.delete(key);
 
 		const resource = URI.parse(key);
+
+		// File or remote file provider already known
 		if (this.fileService.canHandleResource(resource)) {
 			return this.textFileService.models.loadOrCreate(resource, { reason: LoadReason.REFERENCE });
 		}
 
-		return this.resolveTextModelContent(key).then(() => this.instantiationService.createInstance(ResourceEditorModel, resource));
+		// Virtual documents
+		if (this.providers[resource.scheme]) {
+			return this.resolveTextModelContent(key).then(() => this.instantiationService.createInstance(ResourceEditorModel, resource));
+		}
+
+		// Either unknown schema, or not yet registered
+		if (!skipActivateExtensions) {
+			return this._extensionService.activateByEvent('onFileSystem:' + resource.scheme).then(() => this.createReferencedObject(key, true));
+		}
+
+		return TPromise.wrapError<ITextEditorModel>(new Error('resource is not available'));
 	}
 
 	destroyReferencedObject(key: string, modelPromise: TPromise<ITextEditorModel>): void {

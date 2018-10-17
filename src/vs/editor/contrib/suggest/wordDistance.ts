@@ -24,6 +24,10 @@ export abstract class WordDistance {
 			return Promise.resolve(WordDistance.None);
 		}
 
+		if (!editor.hasModel()) {
+			return Promise.resolve(WordDistance.None);
+		}
+
 		const model = editor.getModel();
 		const position = editor.getPosition();
 

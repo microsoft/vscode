@@ -12,10 +12,10 @@ import { Storage, IStorageLoggingOptions } from 'vs/base/node/storage';
 import { IStorageLegacyService, StorageLegacyScope } from 'vs/platform/storage/common/storageLegacyService';
 import { addDisposableListener } from 'vs/base/browser/dom';
 import { startsWith } from 'vs/base/common/strings';
-import { ShutdownReason } from 'vs/platform/lifecycle/common/lifecycle';
 import { Action } from 'vs/base/common/actions';
 import { IWindowService } from 'vs/platform/windows/common/windows';
 import { localize } from 'vs/nls';
+import { mark } from 'vs/base/common/performance';
 
 export class StorageService extends Disposable implements IStorageService {
 	_serviceBrand: any;
@@ -25,8 +25,25 @@ export class StorageService extends Disposable implements IStorageService {
 	private _onDidChangeStorage: Emitter<IWorkspaceStorageChangeEvent> = this._register(new Emitter<IWorkspaceStorageChangeEvent>());
 	get onDidChangeStorage(): Event<IWorkspaceStorageChangeEvent> { return this._onDidChangeStorage.event; }
 
-	private _onWillClose: Emitter<ShutdownReason> = this._register(new Emitter<ShutdownReason>());
-	get onWillSaveState(): Event<ShutdownReason> { return this._onWillClose.event; }
+	private _onWillSaveState: Emitter<void> = this._register(new Emitter<void>());
+	get onWillSaveState(): Event<void> { return this._onWillSaveState.event; }
+
+	private bufferedStorageErrors: (string | Error)[] = [];
+	private _onStorageError: Emitter<string | Error> = this._register(new Emitter<string | Error>());
+	get onStorageError(): Event<string | Error> {
+		if (Array.isArray(this.bufferedStorageErrors)) {
+			if (this.bufferedStorageErrors.length > 0) {
+				const bufferedStorageErrors = this.bufferedStorageErrors;
+				setTimeout(() => {
+					this._onStorageError.fire(`[startup errors] ${bufferedStorageErrors.join('\n')}`);
+				}, 0);
+			}
+
+			this.bufferedStorageErrors = void 0;
+		}
+
+		return this._onStorageError.event;
+	}
 
 	private globalStorage: Storage;
 	private workspaceStorage: Storage;
@@ -41,7 +58,15 @@ export class StorageService extends Disposable implements IStorageService {
 		const loggingOptions: IStorageLoggingOptions = {
 			info: environmentService.verbose || environmentService.logStorage,
 			infoLogger: msg => logService.info(msg),
-			errorLogger: error => logService.error(error)
+			errorLogger: error => {
+				logService.error(error);
+
+				if (Array.isArray(this.bufferedStorageErrors)) {
+					this.bufferedStorageErrors.push(error);
+				} else {
+					this._onStorageError.fire(error);
+				}
+			}
 		};
 
 		const useInMemoryStorage = !!environmentService.extensionTestsPath; // never keep any state when running extension tests
@@ -62,7 +87,13 @@ export class StorageService extends Disposable implements IStorageService {
 	}
 
 	init(): Promise<void> {
-		return Promise.all([this.globalStorage.init(), this.workspaceStorage.init()]).then(() => void 0);
+		mark('willInitGlobalStorage');
+		mark('willInitWorkspaceStorage');
+
+		return Promise.all([
+			this.globalStorage.init().then(() => mark('didInitGlobalStorage')),
+			this.workspaceStorage.init().then(() => mark('didInitWorkspaceStorage'))
+		]).then(() => void 0);
 	}
 
 	get(key: string, scope: StorageScope, fallbackValue?: any): string {
@@ -85,10 +116,10 @@ export class StorageService extends Disposable implements IStorageService {
 		this.getStorage(scope).delete(key);
 	}
 
-	close(reason: ShutdownReason): Promise<void> {
+	close(): Promise<void> {
 
 		// Signal as event so that clients can still store data
-		this._onWillClose.fire(reason);
+		this._onWillSaveState.fire();
 
 		// Do it
 		return Promise.all([
@@ -101,8 +132,21 @@ export class StorageService extends Disposable implements IStorageService {
 		return scope === StorageScope.GLOBAL ? this.globalStorage : this.workspaceStorage;
 	}
 
+	getSize(scope: StorageScope): number {
+		return scope === StorageScope.GLOBAL ? this.globalStorage.size : this.workspaceStorage.size;
+	}
+
+	checkIntegrity(scope: StorageScope, full: boolean): Promise<string> {
+		return scope === StorageScope.GLOBAL ? this.globalStorage.checkIntegrity(full) : this.workspaceStorage.checkIntegrity(full);
+	}
+
 	logStorage(): Promise<void> {
-		return Promise.all([this.globalStorage.getItems(), this.workspaceStorage.getItems()]).then(items => {
+		return Promise.all([
+			this.globalStorage.getItems(),
+			this.workspaceStorage.getItems(),
+			this.globalStorage.checkIntegrity(true /* full */),
+			this.workspaceStorage.checkIntegrity(true /* full */)
+		]).then(result => {
 			const safeParse = (value: string) => {
 				try {
 					return JSON.parse(value);
@@ -113,25 +157,25 @@ export class StorageService extends Disposable implements IStorageService {
 
 			const globalItems = Object.create(null);
 			const globalItemsParsed = Object.create(null);
-			items[0].forEach((value, key) => {
+			result[0].forEach((value, key) => {
 				globalItems[key] = value;
 				globalItemsParsed[key] = safeParse(value);
 			});
 
 			const workspaceItems = Object.create(null);
 			const workspaceItemsParsed = Object.create(null);
-			items[1].forEach((value, key) => {
+			result[1].forEach((value, key) => {
 				workspaceItems[key] = value;
 				workspaceItemsParsed[key] = safeParse(value);
 			});
 
-			console.group('Storage: Global');
+			console.group(`Storage: Global (check: ${result[2]})`);
 			console.table(globalItems);
 			console.groupEnd();
 
 			console.log(globalItemsParsed);
 
-			console.group('Storage: Workspace');
+			console.group(`Storage: Workspace (check: ${result[3]})`);
 			console.table(workspaceItems);
 			console.groupEnd();
 
@@ -155,7 +199,7 @@ export class LogStorageAction extends Action {
 	}
 
 	run(): Thenable<void> {
-		this.storageService.logStorage();
+		this.storageService.storage.logStorage();
 
 		return this.windowService.openDevTools();
 	}
@@ -167,16 +211,15 @@ export class DelegatingStorageService extends Disposable implements IStorageServ
 	private _onDidChangeStorage: Emitter<IWorkspaceStorageChangeEvent> = this._register(new Emitter<IWorkspaceStorageChangeEvent>());
 	get onDidChangeStorage(): Event<IWorkspaceStorageChangeEvent> { return this._onDidChangeStorage.event; }
 
-	private _onWillClose: Emitter<ShutdownReason> = this._register(new Emitter<ShutdownReason>());
-	get onWillSaveState(): Event<ShutdownReason> { return this._onWillClose.event; }
+	private _onWillSaveState: Emitter<void> = this._register(new Emitter<void>());
+	get onWillSaveState(): Event<void> { return this._onWillSaveState.event; }
 
 	private closed: boolean;
 
 	constructor(
 		@IStorageService private storageService: StorageService,
 		@IStorageLegacyService private storageLegacyService: IStorageLegacyService,
-		@ILogService private logService: ILogService,
-		@IEnvironmentService environmentService: IEnvironmentService
+		@ILogService private logService: ILogService
 	) {
 		super();
 
@@ -185,7 +228,7 @@ export class DelegatingStorageService extends Disposable implements IStorageServ
 
 	private registerListeners(): void {
 		this._register(this.storageService.onDidChangeStorage(e => this._onDidChangeStorage.fire(e)));
-		this._register(this.storageService.onWillSaveState(reason => this._onWillClose.fire(reason)));
+		this._register(this.storageService.onWillSaveState(() => this._onWillSaveState.fire()));
 
 		const globalKeyMarker = 'storage://global/';
 		this._register(addDisposableListener(window, 'storage', (e: StorageEvent) => {
@@ -197,36 +240,44 @@ export class DelegatingStorageService extends Disposable implements IStorageServ
 		}));
 	}
 
+	get storage(): StorageService {
+		return this.storageService;
+	}
+
 	get(key: string, scope: StorageScope, fallbackValue?: any): string {
 		const localStorageValue = this.storageLegacyService.get(key, this.convertScope(scope), fallbackValue);
 		const dbValue = this.storageService.get(key, scope, localStorageValue);
 
-		this.assertStorageValue(key, scope, dbValue, localStorageValue);
-
-		return dbValue;
+		return this.assertAndGet(key, scope, dbValue, localStorageValue);
 	}
 
 	getBoolean(key: string, scope: StorageScope, fallbackValue?: boolean): boolean {
 		const localStorageValue = this.storageLegacyService.getBoolean(key, this.convertScope(scope), fallbackValue);
 		const dbValue = this.storageService.getBoolean(key, scope, localStorageValue);
 
-		this.assertStorageValue(key, scope, dbValue, localStorageValue);
-
-		return dbValue;
+		return this.assertAndGet(key, scope, dbValue, localStorageValue);
 	}
 
 	getInteger(key: string, scope: StorageScope, fallbackValue?: number): number {
 		const localStorageValue = this.storageLegacyService.getInteger(key, this.convertScope(scope), fallbackValue);
 		const dbValue = this.storageService.getInteger(key, scope, localStorageValue);
 
-		this.assertStorageValue(key, scope, dbValue, localStorageValue);
-
-		return dbValue;
+		return this.assertAndGet(key, scope, dbValue, localStorageValue);
 	}
 
-	private assertStorageValue(key: string, scope: StorageScope, dbValue: any, storageValue: any): void {
-		if (dbValue !== storageValue) {
-			this.logService.error(`Unexpected storage value (key: ${key}, scope: ${scope === StorageScope.GLOBAL ? 'global' : 'workspace'}), actual: ${dbValue}, expected: ${storageValue}`);
+	private assertAndGet(key: string, scope: StorageScope, dbValue: any, localStorageValue: any): any {
+		if (scope === StorageScope.WORKSPACE) {
+			this.assertStorageValue(key, scope, dbValue, localStorageValue);
+
+			return dbValue;
+		}
+
+		return localStorageValue;
+	}
+
+	private assertStorageValue(key: string, scope: StorageScope, dbValue: any, localStorageValue: any): void {
+		if (dbValue !== localStorageValue) {
+			this.logService.error(`Unexpected storage value (key: ${key}, scope: ${scope === StorageScope.GLOBAL ? 'global' : 'workspace'}), actual: ${dbValue}, expected: ${localStorageValue}`);
 		}
 	}
 
@@ -254,8 +305,8 @@ export class DelegatingStorageService extends Disposable implements IStorageServ
 		this.storageService.remove(key, scope);
 	}
 
-	close(reason: ShutdownReason): Promise<void> {
-		const promise = this.storageService.close(reason);
+	close(): Promise<void> {
+		const promise = this.storageService.close();
 
 		this.closed = true;
 
@@ -264,9 +315,5 @@ export class DelegatingStorageService extends Disposable implements IStorageServ
 
 	private convertScope(scope: StorageScope): StorageLegacyScope {
 		return scope === StorageScope.GLOBAL ? StorageLegacyScope.GLOBAL : StorageLegacyScope.WORKSPACE;
-	}
-
-	logStorage(): Promise<void> {
-		return this.storageService.logStorage();
 	}
 }

@@ -18,7 +18,7 @@
   "dependencies": {
     "jsonc-parser": "^2.0.1",
     "semver": "5.5.1",
-    "vscode-extension-telemetry": "0.0.22",
+    "vscode-extension-telemetry": "0.1.0",
     "vscode-nls": "^4.0.0"
   },
   "devDependencies": {
@@ -140,13 +140,6 @@
           "default": "off",
           "description": "%typescript.tsserver.trace%",
           "scope": "window"
-        },
-        "typescript.useCodeSnippetsOnMethodSuggest": {
-          "type": "boolean",
-          "default": false,
-          "description": "%typescript.useCodeSnippetsOnMethodSuggest.dec%",
-          "scope": "resource",
-          "deprecationMessage": "%typescript.useCodeSnippetsOnMethodSuggest.deprecationMessage%"
         },
         "javascript.suggest.completeFunctionCalls": {
           "type": "boolean",
@@ -382,13 +375,6 @@
           "markdownDescription": "%javascript.implicitProjectConfig.experimentalDecorators%",
           "scope": "window"
         },
-        "javascript.nameSuggestions": {
-          "type": "boolean",
-          "default": true,
-          "description": "%javascript.nameSuggestions%",
-          "scope": "resource",
-          "deprecationMessage": "%javascript.nameSuggestions.deprecationMessage%"
-        },
         "javascript.suggest.names": {
           "type": "boolean",
           "default": true,
@@ -413,13 +399,6 @@
           "description": "%typescript.tsc.autoDetect%",
           "scope": "window"
         },
-        "typescript.quickSuggestionsForPaths": {
-          "type": "boolean",
-          "default": true,
-          "description": "%typescript.quickSuggestionsForPaths%",
-          "scope": "resource",
-          "deprecationMessage": "%typescript.quickSuggestionsForPaths.deprecationMessage%"
-        },
         "javascript.suggest.paths": {
           "type": "boolean",
           "default": true,
@@ -431,13 +410,6 @@
           "default": true,
           "description": "%configuration.suggest.paths%",
           "scope": "resource"
-        },
-        "typescript.autoImportSuggestions.enabled": {
-          "type": "boolean",
-          "default": true,
-          "description": "%typescript.autoImportSuggestions.enabled%",
-          "scope": "resource",
-          "deprecationMessage": "%typescript.autoImportSuggestions.enabled.deprecationMessage%"
         },
         "javascript.suggest.autoImports": {
           "type": "boolean",

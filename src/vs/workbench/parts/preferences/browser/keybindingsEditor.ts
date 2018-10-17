@@ -289,7 +289,8 @@ export class KeybindingsEditor extends BaseEditor implements IKeybindingsEditor 
 			placeholder: fullTextSearchPlaceholder,
 			focusKey: this.searchFocusContextKey,
 			ariaLabelledBy: 'keybindings-editor-aria-label-element',
-			recordEnter: true
+			recordEnter: true,
+			quoteRecordedKeys: true
 		}));
 		this._register(this.searchWidget.onDidChange(searchValue => {
 			clearInputAction.enabled = !!searchValue;

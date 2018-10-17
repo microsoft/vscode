@@ -133,10 +133,9 @@ export interface IViewsRegistry {
 
 	getViews(loc: ViewContainer): IViewDescriptor[];
 
-	getView(id: string): IViewDescriptor;
+	getView(id: string): IViewDescriptor | null;
 
 	getAllViews(): IViewDescriptor[];
-
 }
 
 export const ViewsRegistry: IViewsRegistry = new class implements IViewsRegistry {
@@ -194,7 +193,7 @@ export const ViewsRegistry: IViewsRegistry = new class implements IViewsRegistry
 		return this._views.get(loc) || [];
 	}
 
-	getView(id: string): IViewDescriptor {
+	getView(id: string): IViewDescriptor | null {
 		for (const viewContainer of this._viewContainer) {
 			const viewDescriptor = (this._views.get(viewContainer) || []).filter(v => v.id === id)[0];
 			if (viewDescriptor) {

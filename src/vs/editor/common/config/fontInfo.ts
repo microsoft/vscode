@@ -151,6 +151,22 @@ export class BareFontInfo {
 	public getId(): string {
 		return this.zoomLevel + '-' + this.fontFamily + '-' + this.fontWeight + '-' + this.fontSize + '-' + this.lineHeight + '-' + this.letterSpacing;
 	}
+
+	/**
+	 * @internal
+	 */
+	public getMassagedFontFamily(): string {
+		if (/[,"']/.test(this.fontFamily)) {
+			// Looks like the font family might be already escaped
+			return this.fontFamily;
+		}
+		if (/[+ ]/.test(this.fontFamily)) {
+			// Wrap a font family using + or <space> with quotes
+			return `"${this.fontFamily}"`;
+		}
+
+		return this.fontFamily;
+	}
 }
 
 export class FontInfo extends BareFontInfo {

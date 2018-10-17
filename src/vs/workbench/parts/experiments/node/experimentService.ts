@@ -212,7 +212,11 @@ export class ExperimentService extends Disposable implements IExperimentService 
 					}
 				});
 			}
-			this.storageService.store('allExperiments', JSON.stringify(enabledExperiments), StorageScope.GLOBAL);
+			if (enabledExperiments.length) {
+				this.storageService.store('allExperiments', JSON.stringify(enabledExperiments), StorageScope.GLOBAL);
+			} else {
+				this.storageService.remove('allExperiments', StorageScope.GLOBAL);
+			}
 
 			const promises = rawExperiments.map(experiment => {
 				const processedExperiment: IExperiment = {

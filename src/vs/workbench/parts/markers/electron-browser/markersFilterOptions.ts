@@ -16,8 +16,8 @@ export class FilterOptions {
 	readonly filterErrors: boolean = false;
 	readonly filterWarnings: boolean = false;
 	readonly filterInfos: boolean = false;
-	readonly excludePattern: ParsedExpression = null;
-	readonly includePattern: ParsedExpression = null;
+	readonly excludePattern: ParsedExpression | null = null;
+	readonly includePattern: ParsedExpression | null = null;
 	readonly textFilter: string = '';
 
 	constructor(readonly filter: string = '', excludePatterns: IExpression = {}) {
@@ -61,7 +61,7 @@ export class FilterOptions {
 	}
 
 	private matches(prefix: string, word: string): boolean {
-		let result = matchesPrefix(prefix, word);
-		return result && result.length > 0;
+		const result = matchesPrefix(prefix, word);
+		return !!(result && result.length > 0);
 	}
 }

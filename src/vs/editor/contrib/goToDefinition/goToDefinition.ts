@@ -30,7 +30,7 @@ function getDefinitions<T>(
 	});
 	return Promise.all(promises)
 		.then(flatten)
-		.then(references => coalesce(references));
+		.then(coalesce);
 }
 
 

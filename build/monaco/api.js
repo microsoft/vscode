@@ -14,7 +14,7 @@ function log(message, ...rest) {
 }
 const SRC = path.join(__dirname, '../../src');
 const OUT_ROOT = path.join(__dirname, '../../');
-const RECIPE_PATH = path.join(__dirname, './monaco.d.ts.recipe');
+exports.RECIPE_PATH = path.join(__dirname, './monaco.d.ts.recipe');
 const DECLARATION_PATH = path.join(__dirname, '../../src/vs/monaco.d.ts');
 var CURRENT_PROCESSING_RULE = '';
 function logErr(message, ...rest) {
@@ -26,20 +26,6 @@ function moduleIdToPath(out, moduleId) {
         return path.join(SRC, moduleId);
     }
     return path.join(OUT_ROOT, out, moduleId) + '.d.ts';
-}
-let SOURCE_FILE_MAP = {};
-function getSourceFile(out, inputFiles, moduleId) {
-    if (!SOURCE_FILE_MAP[moduleId]) {
-        let filePath = path.normalize(moduleIdToPath(out, moduleId));
-        if (!inputFiles.hasOwnProperty(filePath)) {
-            logErr('CANNOT FIND FILE ' + filePath + '. YOU MIGHT NEED TO RESTART gulp');
-            return null;
-        }
-        let fileContents = inputFiles[filePath];
-        let sourceFile = ts.createSourceFile(filePath, fileContents, ts.ScriptTarget.ES5);
-        SOURCE_FILE_MAP[moduleId] = sourceFile;
-    }
-    return SOURCE_FILE_MAP[moduleId];
 }
 function isDeclaration(a) {
     return (a.kind === ts.SyntaxKind.InterfaceDeclaration
@@ -222,7 +208,7 @@ function createReplacer(data) {
         return str;
     };
 }
-function generateDeclarationFile(out, inputFiles, recipe) {
+function generateDeclarationFile(recipe, sourceFileGetter) {
     const endl = /\r\n/.test(recipe) ? '\r\n' : '\n';
     let lines = recipe.split(endl);
     let result = [];
@@ -241,7 +227,7 @@ function generateDeclarationFile(out, inputFiles, recipe) {
         if (m1) {
             CURRENT_PROCESSING_RULE = line;
             let moduleId = m1[1];
-            const sourceFile = getSourceFile(out, inputFiles, moduleId);
+            const sourceFile = sourceFileGetter(moduleId);
             if (!sourceFile) {
                 return;
             }
@@ -266,7 +252,7 @@ function generateDeclarationFile(out, inputFiles, recipe) {
         if (m2) {
             CURRENT_PROCESSING_RULE = line;
             let moduleId = m2[1];
-            const sourceFile = getSourceFile(out, inputFiles, moduleId);
+            const sourceFile = sourceFileGetter(moduleId);
             if (!sourceFile) {
                 return;
             }
@@ -314,7 +300,7 @@ function generateDeclarationFile(out, inputFiles, recipe) {
     ];
 }
 function getIncludesInRecipe() {
-    let recipe = fs.readFileSync(RECIPE_PATH).toString();
+    let recipe = fs.readFileSync(exports.RECIPE_PATH).toString();
     let lines = recipe.split(/\r\n|\n|\r/);
     let result = [];
     lines.forEach(line => {
@@ -333,20 +319,20 @@ function getIncludesInRecipe() {
     });
     return result;
 }
+exports.getIncludesInRecipe = getIncludesInRecipe;
 function getFilesToWatch(out) {
     return getIncludesInRecipe().map((moduleId) => moduleIdToPath(out, moduleId));
 }
 exports.getFilesToWatch = getFilesToWatch;
-function run(out, inputFiles) {
+function _run(sourceFileGetter) {
     log('Starting monaco.d.ts generation');
-    SOURCE_FILE_MAP = {};
-    let recipe = fs.readFileSync(RECIPE_PATH).toString();
-    let [result, usageContent] = generateDeclarationFile(out, inputFiles, recipe);
+    let recipe = fs.readFileSync(exports.RECIPE_PATH).toString();
+    let [result, usageContent] = generateDeclarationFile(recipe, sourceFileGetter);
     let currentContent = fs.readFileSync(DECLARATION_PATH).toString();
     log('Finished monaco.d.ts generation');
     const one = currentContent.replace(/\r\n/gm, '\n');
     const other = result.replace(/\r\n/gm, '\n');
-    const isTheSame = one === other;
+    const isTheSame = (one === other);
     return {
         content: result,
         usageContent: usageContent,
@@ -354,7 +340,32 @@ function run(out, inputFiles) {
         isTheSame
     };
 }
+function run(out, inputFiles) {
+    let SOURCE_FILE_MAP = {};
+    const sourceFileGetter = (moduleId) => {
+        if (!SOURCE_FILE_MAP[moduleId]) {
+            let filePath = path.normalize(moduleIdToPath(out, moduleId));
+            if (!inputFiles.hasOwnProperty(filePath)) {
+                logErr('CANNOT FIND FILE ' + filePath + '. YOU MIGHT NEED TO RESTART gulp');
+                return null;
+            }
+            let fileContents = inputFiles[filePath];
+            let sourceFile = ts.createSourceFile(filePath, fileContents, ts.ScriptTarget.ES5);
+            SOURCE_FILE_MAP[moduleId] = sourceFile;
+        }
+        return SOURCE_FILE_MAP[moduleId];
+    };
+    return _run(sourceFileGetter);
+}
 exports.run = run;
+function run2(out, sourceFileMap) {
+    const sourceFileGetter = (moduleId) => {
+        let filePath = path.normalize(moduleIdToPath(out, moduleId));
+        return sourceFileMap[filePath];
+    };
+    return _run(sourceFileGetter);
+}
+exports.run2 = run2;
 function complainErrors() {
     logErr('Not running monaco.d.ts generation due to compile errors');
 }
@@ -404,6 +415,7 @@ class TypeScriptLanguageServiceHost {
         return fileName === this.getDefaultLibFileName(this._compilerOptions);
     }
 }
+exports.TypeScriptLanguageServiceHost = TypeScriptLanguageServiceHost;
 function execute() {
     const OUTPUT_FILES = {};
     const SRC_FILES = {};

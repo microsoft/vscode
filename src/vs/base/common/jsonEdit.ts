@@ -13,9 +13,9 @@ export function removeProperty(text: string, path: JSONPath, formattingOptions: 
 export function setProperty(text: string, path: JSONPath, value: any, formattingOptions: FormattingOptions, getInsertionIndex?: (properties: string[]) => number): Edit[] {
 	let errors: ParseError[] = [];
 	let root = parseTree(text, errors);
-	let parent: Node = void 0;
+	let parent: Node | undefined = void 0;
 
-	let lastSegment: Segment = void 0;
+	let lastSegment: Segment | undefined = void 0;
 	while (path.length > 0) {
 		lastSegment = path.pop();
 		parent = findNodeAtLocation(root, path);
@@ -40,16 +40,16 @@ export function setProperty(text: string, path: JSONPath, value: any, formatting
 		let existing = findNodeAtLocation(parent, [lastSegment]);
 		if (existing !== void 0) {
 			if (value === void 0) { // delete
-				let propertyIndex = parent.children.indexOf(existing.parent);
+				let propertyIndex = parent.children && existing.parent ? parent.children.indexOf(existing.parent) : -1;
 				let removeBegin: number;
-				let removeEnd = existing.parent.offset + existing.parent.length;
+				let removeEnd = existing.parent!.offset + existing.parent!.length;
 				if (propertyIndex > 0) {
 					// remove the comma of the previous node
-					let previous = parent.children[propertyIndex - 1];
+					let previous = parent.children![propertyIndex - 1];
 					removeBegin = previous.offset + previous.length;
 				} else {
 					removeBegin = parent.offset + 1;
-					if (parent.children.length > 1) {
+					if (parent.children && parent.children.length > 1) {
 						// remove the comma of the next node
 						let next = parent.children[1];
 						removeEnd = next.offset;
@@ -65,12 +65,12 @@ export function setProperty(text: string, path: JSONPath, value: any, formatting
 				return []; // property does not exist, nothing to do
 			}
 			let newProperty = `${JSON.stringify(lastSegment)}: ${JSON.stringify(value)}`;
-			let index = getInsertionIndex ? getInsertionIndex(parent.children.map(p => p.children[0].value)) : parent.children.length;
+			let index = getInsertionIndex ? getInsertionIndex(parent.children!.map(p => p.children![0].value)) : parent.children!.length;
 			let edit: Edit;
 			if (index > 0) {
-				let previous = parent.children[index - 1];
+				let previous = parent.children![index - 1];
 				edit = { offset: previous.offset + previous.length, length: 0, content: ',' + newProperty };
-			} else if (parent.children.length === 0) {
+			} else if (parent.children!.length === 0) {
 				edit = { offset: parent.offset + 1, length: 0, content: newProperty };
 			} else {
 				edit = { offset: parent.offset + 1, length: 0, content: newProperty + ',' };
@@ -83,7 +83,7 @@ export function setProperty(text: string, path: JSONPath, value: any, formatting
 			// Insert
 			let newProperty = `${JSON.stringify(value)}`;
 			let edit: Edit;
-			if (parent.children.length === 0) {
+			if (!parent.children || parent.children.length === 0) {
 				edit = { offset: parent.offset + 1, length: 0, content: newProperty };
 			} else {
 				let previous = parent.children[parent.children.length - 1];
@@ -91,7 +91,7 @@ export function setProperty(text: string, path: JSONPath, value: any, formatting
 			}
 			return withFormatting(text, edit, formattingOptions);
 		} else {
-			if (value === void 0 && parent.children.length >= 0) {
+			if (value === void 0 && parent.children && parent.children.length >= 0) {
 				//Removal
 				let removalIndex = lastSegment;
 				let toRemove = parent.children[removalIndex];

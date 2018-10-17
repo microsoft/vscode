@@ -100,6 +100,7 @@ export interface ITerminalConfiguration {
 	};
 	showExitAlert: boolean;
 	experimentalBufferImpl: 'JsArray' | 'TypedArray';
+	splitCwd: 'workspaceRoot' | 'sourceInitialCwd' | 'sourceCwd';
 }
 
 export interface ITerminalConfigHelper {
@@ -402,6 +403,11 @@ export interface ITerminalInstance {
 	readonly commandTracker: ITerminalCommandTracker;
 
 	/**
+	 * The cwd that the terminal instance was initialized with.
+	 */
+	readonly initialCwd: string;
+
+	/**
 	 * Dispose the terminal instance, removing it from the panel/service and freeing up resources.
 	 *
 	 * @param isShuttingDown Whether VS Code is shutting down, if so kill any terminal processes
@@ -585,6 +591,8 @@ export interface ITerminalInstance {
 	addDisposable(disposable: IDisposable): void;
 
 	toggleEscapeSequenceLogging(): void;
+
+	getCwd(): Promise<string>;
 }
 
 export interface ITerminalCommandTracker {

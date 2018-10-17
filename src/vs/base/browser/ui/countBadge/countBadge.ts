@@ -33,9 +33,9 @@ export class CountBadge {
 	private countFormat: string;
 	private titleFormat: string;
 
-	private badgeBackground: Color;
-	private badgeForeground: Color;
-	private badgeBorder: Color;
+	private badgeBackground: Color | undefined;
+	private badgeForeground: Color | undefined;
+	private badgeBorder: Color | undefined;
 
 	private options: ICountBadgeOptions;
 

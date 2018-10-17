@@ -1324,6 +1324,9 @@ export class ProblemMatcherParser extends Parser {
 					if (description.severity) {
 						result.severity = severity;
 					}
+					if (description.applyTo) {
+						result.applyTo = applyTo;
+					}
 				}
 			}
 		} else if (fileLocation) {

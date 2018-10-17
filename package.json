@@ -1,7 +1,7 @@
 {
   "name": "code-oss-dev",
   "version": "1.29.0",
-  "distro": "41eb7ae09bf97fe9448a168eb37838124a2a3695",
+  "distro": "eceef408e99ace55c0a17a2a90b88e46a8c9090a",
   "author": {
     "name": "Microsoft Corporation"
   },
@@ -23,10 +23,11 @@
     "smoketest": "cd test/smoke && node test/index.js",
     "monaco-compile-check": "tsc -p src/tsconfig.monaco.json --noEmit",
     "download-builtin-extensions": "node build/lib/builtInExtensions.js",
-    "strict-null-check": "tsc -p src/tsconfig.strictNullChecks.json"
+    "strict-null-check": "tsc -p src/tsconfig.strictNullChecks.json",
+    "strict-null-check-watch": "tsc -p src/tsconfig.strictNullChecks.json --watch"
   },
   "dependencies": {
-    "applicationinsights": "1.0.5",
+    "applicationinsights": "1.0.6",
     "fast-plist": "0.1.2",
     "gc-signals": "^0.0.1",
     "getmac": "1.4.1",
@@ -47,7 +48,7 @@
     "v8-inspect-profiler": "^0.0.8",
     "vscode-chokidar": "1.6.4",
     "vscode-debugprotocol": "1.32.0",
-    "vscode-nsfw": "1.0.17",
+    "vscode-nsfw": "1.1.1",
     "vscode-ripgrep": "^1.2.2",
     "vscode-sqlite3": "4.0.2",
     "vscode-textmate": "^4.0.1",
@@ -144,7 +145,7 @@
   },
   "optionalDependencies": {
     "windows-foreground-love": "0.1.0",
-    "windows-mutex": "^0.2.0",
-    "windows-process-tree": "0.2.2"
+    "windows-mutex": "0.2.1",
+    "windows-process-tree": "0.2.3"
   }
 }

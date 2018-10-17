@@ -53,8 +53,11 @@ export class ExtHostQuickOpen implements ExtHostQuickOpenShape {
 			canPickMany: options && options.canPickMany
 		}, token);
 
-		return TPromise.any(<TPromise<number | Item[]>[]>[quickPickWidget, itemsPromise]).then(values => {
-			if (values.key === '0') {
+		const widgetClosedMarker = {};
+		const widgetClosedPromise = quickPickWidget.then(() => widgetClosedMarker);
+
+		return Promise.race([widgetClosedPromise, itemsPromise]).then(result => {
+			if (result === widgetClosedMarker) {
 				return undefined;
 			}
 

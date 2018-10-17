@@ -11,7 +11,7 @@ import * as ExtensionsActions from 'vs/workbench/parts/extensions/electron-brows
 import { ExtensionsWorkbenchService } from 'vs/workbench/parts/extensions/node/extensionsWorkbenchService';
 import {
 	IExtensionManagementService, IExtensionGalleryService, IExtensionEnablementService, IExtensionTipsService, ILocalExtension, LocalExtensionType, IGalleryExtension,
-	DidInstallExtensionEvent, DidUninstallExtensionEvent, InstallExtensionEvent, IExtensionIdentifier, EnablementState, InstallOperation, IExtensionManagementServerService, IExtensionManagementServer
+	DidInstallExtensionEvent, DidUninstallExtensionEvent, InstallExtensionEvent, IExtensionIdentifier, EnablementState, InstallOperation, IExtensionManagementServerService, IExtensionManagementServer, IExtensionContributions
 } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { getGalleryExtensionId, getGalleryExtensionIdFromLocal } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { ExtensionManagementService, getLocalExtensionIdFromGallery, getLocalExtensionIdFromManifest } from 'vs/platform/extensionManagement/node/extensionManagementService';
@@ -1166,7 +1166,6 @@ suite('ExtensionsActions Test', () => {
 				.then(() => {
 					assert.ok(testObject.enabled);
 					assert.equal('Reload to Deactivate', testObject.tooltip);
-					assert.equal(`Reload this window to deactivate the extension 'a'?`, testObject.reloadMessage);
 				});
 		});
 	});
@@ -1201,7 +1200,6 @@ suite('ExtensionsActions Test', () => {
 							.then(() => {
 								assert.ok(testObject.enabled);
 								assert.equal('Reload to Activate', testObject.tooltip);
-								assert.equal(`Reload this window to activate the extension 'a'?`, testObject.reloadMessage);
 							});
 					});
 			});
@@ -1244,12 +1242,42 @@ suite('ExtensionsActions Test', () => {
 							.then(() => {
 								assert.ok(testObject.enabled);
 								assert.equal('Reload to Activate', testObject.tooltip);
-								assert.equal(`Reload this window to activate the extension 'a'?`, testObject.reloadMessage);
 							});
 
 					});
 			});
 	});
+
+	test('Test ReloadAction when a localization extension is newly installed', async () => {
+		instantiationService.stubPromise(IExtensionService, 'getExtensions', [{ id: 'pub.b', extensionLocation: URI.file('pub.b') }]);
+		const testObject: ExtensionsActions.ReloadAction = instantiationService.createInstance(ExtensionsActions.ReloadAction, false);
+		const gallery = aGalleryExtension('a');
+		instantiationService.stubPromise(IExtensionGalleryService, 'query', aPage(gallery));
+
+		const paged = await instantiationService.get(IExtensionsWorkbenchService).queryGallery();
+		testObject.extension = paged.firstPage[0];
+		assert.ok(!testObject.enabled);
+
+		installEvent.fire({ identifier: gallery.identifier, gallery });
+		didInstallEvent.fire({ identifier: gallery.identifier, gallery, operation: InstallOperation.Install, local: aLocalExtension('a', { ...gallery, ...{ contributes: <IExtensionContributions>{ localizations: [{ languageId: 'de', translations: [] }] } } }, gallery) });
+		assert.ok(!testObject.enabled);
+	});
+
+	test('Test ReloadAction when a localization extension is updated while running', async () => {
+		instantiationService.stubPromise(IExtensionService, 'getExtensions', [{ id: 'pub.a', version: '1.0.1', extensionLocation: URI.file('pub.a') }]);
+		const testObject: ExtensionsActions.ReloadAction = instantiationService.createInstance(ExtensionsActions.ReloadAction, false);
+		const local = aLocalExtension('a', { version: '1.0.1', contributes: <IExtensionContributions>{ localizations: [{ languageId: 'de', translations: [] }] } });
+		const workbenchService = instantiationService.get(IExtensionsWorkbenchService);
+		instantiationService.stubPromise(IExtensionManagementService, 'getInstalled', [local]);
+		const extensions = await workbenchService.queryLocal();
+		testObject.extension = extensions[0];
+
+		const gallery = aGalleryExtension('a', { uuid: local.identifier.id, version: '1.0.2' });
+		installEvent.fire({ identifier: gallery.identifier, gallery });
+		didInstallEvent.fire({ identifier: gallery.identifier, gallery, operation: InstallOperation.Install, local: aLocalExtension('a', { ...gallery, ...{ contributes: <IExtensionContributions>{ localizations: [{ languageId: 'de', translations: [] }] } } }, gallery) });
+		assert.ok(!testObject.enabled);
+	});
+
 
 	test(`RecommendToFolderAction`, () => {
 		// TODO: Implement test

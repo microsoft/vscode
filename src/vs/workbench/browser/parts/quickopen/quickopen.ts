@@ -23,7 +23,7 @@ export const QUICKOPEN_ACION_LABEL = nls.localize('quickOpen', "Go to File...");
 CommandsRegistry.registerCommand(QUICKOPEN_ACTION_ID, function (accessor: ServicesAccessor, prefix: string | null = null) {
 	const quickOpenService = accessor.get(IQuickOpenService);
 
-	return quickOpenService.show(typeof prefix === 'string' ? prefix : null).then(() => {
+	return quickOpenService.show(typeof prefix === 'string' ? prefix : undefined).then(() => {
 		return void 0;
 	});
 });
@@ -32,7 +32,7 @@ export const QUICKOPEN_FOCUS_SECONDARY_ACTION_ID = 'workbench.action.quickOpenPr
 CommandsRegistry.registerCommand(QUICKOPEN_FOCUS_SECONDARY_ACTION_ID, function (accessor: ServicesAccessor, prefix: string | null = null) {
 	const quickOpenService = accessor.get(IQuickOpenService);
 
-	return quickOpenService.show(null, { autoFocus: { autoFocusSecondEntry: true } }).then(() => {
+	return quickOpenService.show(undefined, { autoFocus: { autoFocusSecondEntry: true } }).then(() => {
 		return void 0;
 	});
 });
@@ -71,8 +71,8 @@ export function getQuickNavigateHandler(id: string, next?: boolean): ICommandHan
 		const keys = keybindingService.lookupKeybindings(id);
 		const quickNavigate = { keybindings: keys };
 
-		quickOpenService.navigate(next, quickNavigate);
-		quickInputService.navigate(next, quickNavigate);
+		quickOpenService.navigate(!!next, quickNavigate);
+		quickInputService.navigate(!!next, quickNavigate);
 	};
 }
 

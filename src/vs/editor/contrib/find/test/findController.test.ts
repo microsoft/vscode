@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 import * as assert from 'assert';
-import { TPromise } from 'vs/base/common/winjs.base';
 import { EditOperation } from 'vs/editor/common/core/editOperation';
 import { Position } from 'vs/editor/common/core/position';
 import { Selection } from 'vs/editor/common/core/selection';
@@ -24,7 +23,7 @@ export class TestFindController extends CommonFindController {
 
 	public hasFocus: boolean;
 	public delayUpdateHistory: boolean = false;
-	public delayedUpdateHistoryPromise: TPromise<void>;
+	public delayedUpdateHistoryPromise: Promise<void>;
 
 	private _findInputFocused: IContextKey<boolean>;
 

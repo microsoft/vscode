@@ -5,7 +5,6 @@
 
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { Event } from 'vs/base/common/event';
-import { ShutdownReason } from 'vs/platform/lifecycle/common/lifecycle';
 
 export const IStorageService = createDecorator<IStorageService>('storageService');
 
@@ -22,7 +21,7 @@ export interface IStorageService {
 	 * to persist data to ensure it is stored before the application shuts
 	 * down.
 	 */
-	readonly onWillSaveState: Event<ShutdownReason>;
+	readonly onWillSaveState: Event<void>;
 
 	/**
 	 * Retrieve an element stored with the given key from storage. Use

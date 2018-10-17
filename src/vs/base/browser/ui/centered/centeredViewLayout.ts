@@ -139,6 +139,10 @@ export class CenteredViewLayout {
 		}
 	}
 
+	isDefault(state: CenteredViewState): boolean {
+		return state.leftMarginRatio === GOLDEN_RATIO.leftMarginRatio && state.rightMarginRatio === GOLDEN_RATIO.rightMarginRatio;
+	}
+
 	dispose(): void {
 		this.splitViewDisposables = dispose(this.splitViewDisposables);
 

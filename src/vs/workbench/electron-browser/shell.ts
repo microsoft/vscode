@@ -75,7 +75,8 @@ import { IBroadcastService, BroadcastService } from 'vs/platform/broadcast/elect
 import { HashService } from 'vs/workbench/services/hash/node/hashService';
 import { IHashService } from 'vs/workbench/services/hash/common/hashService';
 import { ILogService } from 'vs/platform/log/common/log';
-import { IStorageService } from 'vs/platform/storage/common/storage';
+import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
+import { DelegatingStorageService } from 'vs/platform/storage/electron-browser/storageService';
 import { Event, Emitter } from 'vs/base/common/event';
 import { WORKBENCH_BACKGROUND } from 'vs/workbench/common/theme';
 import { ILocalizationsChannel, LocalizationsChannelClient } from 'vs/platform/localizations/node/localizationsIpc';
@@ -109,7 +110,7 @@ export interface ICoreServices {
 	environmentService: IEnvironmentService;
 	logService: ILogService;
 	storageLegacyService: IStorageLegacyService;
-	storageService: IStorageService;
+	storageService: DelegatingStorageService;
 }
 
 /**
@@ -122,7 +123,7 @@ export class WorkbenchShell extends Disposable {
 	get onShutdown(): Event<ShutdownEvent> { return this._onShutdown.event; }
 
 	private storageLegacyService: IStorageLegacyService;
-	private storageService: IStorageService;
+	private storageService: DelegatingStorageService;
 	private environmentService: IEnvironmentService;
 	private logService: ILogService;
 	private configurationService: IConfigurationService;
@@ -217,6 +218,11 @@ export class WorkbenchShell extends Disposable {
 				// Startup Telemetry
 				this.logStartupTelemetry(startupInfos);
 
+				// Storage Telemetry (TODO@Ben remove me later, including storage errors)
+				if (!this.environmentService.extensionTestsPath) {
+					this.logStorageTelemetry();
+				}
+
 				// Set lifecycle phase to `Runnning For A Bit` after a short delay
 				let eventuallPhaseTimeoutHandle = runWhenIdle(() => {
 					eventuallPhaseTimeoutHandle = void 0;
@@ -275,6 +281,87 @@ export class WorkbenchShell extends Disposable {
 
 		// Telemetry: startup metrics
 		perf.mark('didStartWorkbench');
+	}
+
+	private logStorageTelemetry(): void {
+		const globalStorageInitDuration = perf.getDuration('willInitGlobalStorage', 'didInitGlobalStorage');
+		const workspaceStorageInitDuration = perf.getDuration('willInitWorkspaceStorage', 'didInitWorkspaceStorage');
+		const workbenchLoadDuration = perf.getDuration('willLoadWorkbenchMain', 'didLoadWorkbenchMain');
+		const localStorageAccessDuration = perf.getDuration('willAccessLocalStorage', 'didAccessLocalStorage');
+		const localStorageReadDuration = perf.getDuration('willReadLocalStorage', 'didReadLocalStorage');
+
+		let workspaceIntegrity: string;
+
+		// Handle errors (avoid duplicates to reduce spam)
+		const loggedStorageErrors = new Set<string>();
+		this._register(this.storageService.storage.onStorageError(error => {
+			const errorStr = `${error}`;
+
+			if (!loggedStorageErrors.has(errorStr)) {
+				loggedStorageErrors.add(errorStr);
+
+				/* __GDPR__
+					"sqliteStorageError" : {
+						"globalReadTime" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
+						"workspaceReadTime" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
+						"localStorageAccessTime" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
+						"localStorageReadTime" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
+						"workbenchRequireTime" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
+						"globalKeys" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
+						"workspaceKeys" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
+						"startupKind": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
+						"workspaceIntegrity" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
+						"storageError": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true }
+					}
+				*/
+				this.telemetryService.publicLog('sqliteStorageError', {
+					'globalReadTime': globalStorageInitDuration,
+					'workspaceReadTime': workspaceStorageInitDuration,
+					'localStorageAccessTime': localStorageAccessDuration,
+					'localStorageReadTime': localStorageReadDuration,
+					'workbenchRequireTime': workbenchLoadDuration,
+					'globalKeys': this.storageService.storage.getSize(StorageScope.GLOBAL),
+					'workspaceKeys': this.storageService.storage.getSize(StorageScope.WORKSPACE),
+					'startupKind': this.lifecycleService.startupKind,
+					'workspaceIntegrity': workspaceIntegrity,
+					'storageError': errorStr
+				});
+			}
+		}));
+
+		perf.mark('willCheckWorkspaceStorageIntegrity');
+		this.storageService.storage.checkIntegrity(StorageScope.WORKSPACE, false).then(integrity => {
+			perf.mark('didCheckWorkspaceStorageIntegrity');
+
+			workspaceIntegrity = integrity;
+
+			/* __GDPR__
+				"sqliteStorageTimers" : {
+					"globalReadTime" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
+					"workspaceReadTime" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
+					"localStorageAccessTime" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
+					"localStorageReadTime" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
+					"workspaceIntegrity" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
+					"workspaceIntegrityCheckTime" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
+					"workbenchRequireTime" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
+					"globalKeys" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
+					"workspaceKeys" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
+					"startupKind": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true }
+				}
+			*/
+			this.telemetryService.publicLog('sqliteStorageTimers', {
+				'globalReadTime': globalStorageInitDuration,
+				'workspaceReadTime': workspaceStorageInitDuration,
+				'localStorageAccessTime': localStorageAccessDuration,
+				'localStorageReadTime': localStorageReadDuration,
+				'workspaceIntegrity': workspaceIntegrity,
+				'workspaceIntegrityCheckTime': perf.getDuration('willCheckWorkspaceStorageIntegrity', 'didCheckWorkspaceStorageIntegrity'),
+				'workbenchRequireTime': workbenchLoadDuration,
+				'globalKeys': this.storageService.storage.getSize(StorageScope.GLOBAL),
+				'workspaceKeys': this.storageService.storage.getSize(StorageScope.WORKSPACE),
+				'startupKind': this.lifecycleService.startupKind
+			});
+		}, error => errors.onUnexpectedError(error));
 	}
 
 	private initServiceCollection(container: HTMLElement): [IInstantiationService, ServiceCollection] {

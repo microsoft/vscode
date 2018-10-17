@@ -45,7 +45,7 @@ export function getIconClasses(modelService: IModelService, modeService: IModeSe
 				classes.push(`ext-file-icon`); // extra segment to increase file-ext score
 			}
 			// Configured Language
-			let configuredLangId = getConfiguredLangId(modelService, resource);
+			let configuredLangId: string | null = getConfiguredLangId(modelService, resource);
 			configuredLangId = configuredLangId || modeService.getModeIdByFilepathOrFirstLine(path);
 			if (configuredLangId) {
 				classes.push(`${cssEscape(configuredLangId)}-lang-file-icon`);
@@ -55,8 +55,8 @@ export function getIconClasses(modelService: IModelService, modeService: IModeSe
 	return classes;
 }
 
-export function getConfiguredLangId(modelService: IModelService, resource: uri): string {
-	let configuredLangId: string;
+export function getConfiguredLangId(modelService: IModelService, resource: uri): string | null {
+	let configuredLangId: string | null = null;
 	if (resource) {
 		const model = modelService.getModel(resource);
 		if (model) {
