@@ -4702,7 +4702,8 @@ declare namespace monaco.languages {
 
 	export enum CompletionItemInsertTextRule {
 		/**
-		 * Keep whitespace as-is
+		 * Adjust whitespace/indentation of multiline insert texts to
+		 * match the current line indentation.
 		 */
 		KeepWhitespace = 1,
 		/**
