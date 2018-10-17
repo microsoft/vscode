@@ -42,14 +42,14 @@ export interface SelectionLike extends RangeLike {
 export namespace Selection {
 
 	export function to(selection: ISelection): types.Selection {
-		let { selectionStartLineNumber, selectionStartColumn, positionLineNumber, positionColumn } = selection;
-		let start = new types.Position(selectionStartLineNumber - 1, selectionStartColumn - 1);
-		let end = new types.Position(positionLineNumber - 1, positionColumn - 1);
+		const { selectionStartLineNumber, selectionStartColumn, positionLineNumber, positionColumn } = selection;
+		const start = new types.Position(selectionStartLineNumber - 1, selectionStartColumn - 1);
+		const end = new types.Position(positionLineNumber - 1, positionColumn - 1);
 		return new types.Selection(start, end);
 	}
 
 	export function from(selection: SelectionLike): ISelection {
-		let { anchor, active } = selection;
+		const { anchor, active } = selection;
 		return {
 			selectionStartLineNumber: anchor.line + 1,
 			selectionStartColumn: anchor.character + 1,
@@ -64,7 +64,7 @@ export namespace Range {
 		if (!range) {
 			return undefined;
 		}
-		let { start, end } = range;
+		const { start, end } = range;
 		return {
 			startLineNumber: start.line + 1,
 			startColumn: start.character + 1,
@@ -77,7 +77,7 @@ export namespace Range {
 		if (!range) {
 			return undefined;
 		}
-		let { startLineNumber, startColumn, endLineNumber, endColumn } = range;
+		const { startLineNumber, startColumn, endLineNumber, endColumn } = range;
 		return new types.Range(startLineNumber - 1, startColumn - 1, endLineNumber - 1, endColumn - 1);
 	}
 }
@@ -263,7 +263,7 @@ export namespace TextEdit {
 	}
 
 	export function to(edit: modes.TextEdit): types.TextEdit {
-		let result = new types.TextEdit(Range.to(edit.range), edit.text);
+		const result = new types.TextEdit(Range.to(edit.range), edit.text);
 		result.newEol = EndOfLine.to(edit.eol);
 		return result;
 	}
@@ -278,7 +278,7 @@ export namespace WorkspaceEdit {
 			const [uri, uriOrEdits] = entry;
 			if (Array.isArray(uriOrEdits)) {
 				// text edits
-				let doc = documents ? documents.getDocument(uri.toString()) : undefined;
+				const doc = documents ? documents.getDocument(uri.toString()) : undefined;
 				result.edits.push(<ResourceTextEditDto>{ resource: uri, modelVersionId: doc && doc.version, edits: uriOrEdits.map(TextEdit.from) });
 			} else {
 				// resource edits
@@ -344,7 +344,7 @@ export namespace SymbolKind {
 	}
 
 	export function to(kind: modes.SymbolKind): vscode.SymbolKind {
-		for (let k in _fromMapping) {
+		for (const k in _fromMapping) {
 			if (_fromMapping[k] === kind) {
 				return Number(k);
 			}
@@ -374,7 +374,7 @@ export namespace WorkspaceSymbol {
 
 export namespace DocumentSymbol {
 	export function from(info: vscode.DocumentSymbol): modes.DocumentSymbol {
-		let result: modes.DocumentSymbol = {
+		const result: modes.DocumentSymbol = {
 			name: info.name,
 			detail: info.detail,
 			range: Range.from(info.range),
@@ -387,7 +387,7 @@ export namespace DocumentSymbol {
 		return result;
 	}
 	export function to(info: modes.DocumentSymbol): vscode.DocumentSymbol {
-		let result = new types.DocumentSymbol(
+		const result = new types.DocumentSymbol(
 			info.name,
 			info.detail,
 			SymbolKind.to(info.kind),
@@ -658,7 +658,7 @@ export namespace DocumentLink {
 
 export namespace ColorPresentation {
 	export function to(colorPresentation: modes.IColorPresentation): types.ColorPresentation {
-		let cp = new types.ColorPresentation(colorPresentation.label);
+		const cp = new types.ColorPresentation(colorPresentation.label);
 		if (colorPresentation.textEdit) {
 			cp.textEdit = TextEdit.to(colorPresentation.textEdit);
 		}
@@ -736,7 +736,7 @@ export namespace ProgressLocation {
 
 export namespace FoldingRange {
 	export function from(r: vscode.FoldingRange): modes.FoldingRange {
-		let range: modes.FoldingRange = { start: r.start + 1, end: r.end + 1 };
+		const range: modes.FoldingRange = { start: r.start + 1, end: r.end + 1 };
 		if (r.kind) {
 			range.kind = FoldingRangeKind.from(r.kind);
 		}
