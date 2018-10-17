@@ -172,7 +172,7 @@ class ModelMarkerHandler {
 			if (source) {
 				if (/\n/g.test(message)) {
 					if (code) {
-						message = nls.localize('diagAndSourceAndCodeMultiline', "[{0}]\n{1}\n[{2}]", source, message, code);
+						message = nls.localize('diagAndSourceAndCodeMultiline', "[{0}]\n{1} [{2}]", source, message, code);
 					} else {
 						message = nls.localize('diagAndSourceMultiline', "[{0}]\n{1}", source, message);
 					}
