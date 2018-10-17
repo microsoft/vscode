@@ -282,14 +282,14 @@ export class SuggestController implements IEditorContribution {
 
 	private static _onDidSelectTelemetry(service: ITelemetryService, item: CompletionItem): void {
 		/* __GDPR__
-			"acceptSuggestion" : {
+			"acceptsuggestion2" : {
 				"type" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-				"multiline" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true }
+				"multiline" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
 			}
 		*/
-		service.publicLog('acceptSuggestion', {
+		service.publicLog('acceptsuggestion2', {
 			type: item.kind,
-			multiline: item.insertText.match(/\r|\n/)
+			multiline: item.insertText.match(/\r|\n/) ? 'TRUE' : 'FALSE'
 		});
 	}
 
