@@ -93,7 +93,7 @@ export function collectWorkspaceStats(folder: string, filter: string[]): Promise
 	const MAX_FILES = 20000;
 
 	function walk(dir: string, filter: string[], token, done: (allFiles: string[]) => void): void {
-		let results = [];
+		let results: string[] = [];
 		readdir(dir, async (err, files) => {
 			// Ignore folders that can't be read
 			if (err) {

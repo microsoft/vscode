@@ -142,7 +142,7 @@ function toNodeEncoding(enc: string): string {
 	return enc;
 }
 
-export function detectEncodingByBOMFromBuffer(buffer: Buffer, bytesRead: number): string {
+export function detectEncodingByBOMFromBuffer(buffer: Buffer, bytesRead: number): string | null {
 	if (!buffer || bytesRead < 2) {
 		return null;
 	}
