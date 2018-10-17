@@ -162,13 +162,109 @@ function getMassagedTopLevelDeclarationText(sourceFile, declaration, importName,
     result = result.replace(/export declare/g, 'export');
     return result;
 }
-function format(text) {
+function format(text, endl) {
+    const REALLY_FORMAT = false;
+    text = preformat(text, endl);
+    if (!REALLY_FORMAT) {
+        return text;
+    }
     // Parse the source text
     let sourceFile = ts.createSourceFile('file.ts', text, ts.ScriptTarget.Latest, /*setParentPointers*/ true);
     // Get the formatting edits on the input sources
     let edits = ts.formatting.formatDocument(sourceFile, getRuleProvider(tsfmt), tsfmt);
     // Apply the edits on the input code
     return applyEdits(text, edits);
+    function countParensCurly(text) {
+        let cnt = 0;
+        for (let i = 0; i < text.length; i++) {
+            if (text.charAt(i) === '(' || text.charAt(i) === '{') {
+                cnt++;
+            }
+            if (text.charAt(i) === ')' || text.charAt(i) === '}') {
+                cnt--;
+            }
+        }
+        return cnt;
+    }
+    function repeatStr(s, cnt) {
+        let r = '';
+        for (let i = 0; i < cnt; i++) {
+            r += s;
+        }
+        return r;
+    }
+    function preformat(text, endl) {
+        let lines = text.split(endl);
+        let inComment = false;
+        let inCommentDeltaIndent = 0;
+        let indent = 0;
+        for (let i = 0; i < lines.length; i++) {
+            let line = lines[i].replace(/\s$/, '');
+            let repeat = false;
+            let lineIndent = 0;
+            do {
+                repeat = false;
+                if (line.substring(0, 4) === '    ') {
+                    line = line.substring(4);
+                    lineIndent++;
+                    repeat = true;
+                }
+                if (line.charAt(0) === '\t') {
+                    line = line.substring(1);
+                    lineIndent++;
+                    repeat = true;
+                }
+            } while (repeat);
+            if (line.length === 0) {
+                continue;
+            }
+            if (inComment) {
+                if (/\*\//.test(line)) {
+                    inComment = false;
+                }
+                lines[i] = repeatStr('\t', lineIndent + inCommentDeltaIndent) + line;
+                continue;
+            }
+            if (/\/\*/.test(line)) {
+                inComment = true;
+                inCommentDeltaIndent = indent - lineIndent;
+                lines[i] = repeatStr('\t', indent) + line;
+                continue;
+            }
+            const cnt = countParensCurly(line);
+            let shouldUnindentAfter = false;
+            let shouldUnindentBefore = false;
+            if (cnt < 0) {
+                if (/[({]/.test(line)) {
+                    shouldUnindentAfter = true;
+                }
+                else {
+                    shouldUnindentBefore = true;
+                }
+            }
+            else if (cnt === 0) {
+                shouldUnindentBefore = /^\}/.test(line);
+            }
+            let shouldIndentAfter = false;
+            if (cnt > 0) {
+                shouldIndentAfter = true;
+            }
+            else if (cnt === 0) {
+                shouldIndentAfter = /{$/.test(line);
+            }
+            if (shouldUnindentBefore) {
+                indent--;
+            }
+            lines[i] = repeatStr('\t', indent) + line;
+            if (shouldUnindentAfter) {
+                indent--;
+            }
+            if (shouldIndentAfter) {
+                indent++;
+            }
+        }
+        return lines.join(endl);
+    }
     function getRuleProvider(options) {
         // Share this between multiple formatters using the same options.
         // This represents the bulk of the space the formatter uses.
@@ -293,7 +389,7 @@ function generateDeclarationFile(recipe, sourceFileGetter) {
     let resultTxt = result.join(endl);
     resultTxt = resultTxt.replace(/\bURI\b/g, 'Uri');
     resultTxt = resultTxt.replace(/\bEvent</g, 'IEvent<');
-    resultTxt = format(resultTxt);
+    resultTxt = format(resultTxt, endl);
     return [
         resultTxt,
         `${usageImports.join('\n')}\n\n${usage.join('\n')}`
@@ -326,13 +422,13 @@ function getFilesToWatch(out) {
 exports.getFilesToWatch = getFilesToWatch;
 function _run(sourceFileGetter) {
     log('Starting monaco.d.ts generation');
-    let recipe = fs.readFileSync(exports.RECIPE_PATH).toString();
-    let [result, usageContent] = generateDeclarationFile(recipe, sourceFileGetter);
-    let currentContent = fs.readFileSync(DECLARATION_PATH).toString();
-    log('Finished monaco.d.ts generation');
+    const recipe = fs.readFileSync(exports.RECIPE_PATH).toString();
+    const [result, usageContent] = generateDeclarationFile(recipe, sourceFileGetter);
+    const currentContent = fs.readFileSync(DECLARATION_PATH).toString();
     const one = currentContent.replace(/\r\n/gm, '\n');
     const other = result.replace(/\r\n/gm, '\n');
     const isTheSame = (one === other);
+    log('Finished monaco.d.ts generation');
     return {
         content: result,
         usageContent: usageContent,

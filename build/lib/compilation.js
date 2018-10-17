@@ -89,7 +89,6 @@ function compileTask(src, out, build) {
             .pipe(generator.stream)
             .pipe(compile())
             .pipe(gulp.dest(out));
-        // .pipe(src !== 'src' ? es.through() : monacodtsTask(out, false));
     };
 }
 exports.compileTask = compileTask;

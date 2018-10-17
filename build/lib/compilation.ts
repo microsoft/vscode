@@ -106,7 +106,6 @@ export function compileTask(src: string, out: string, build: boolean): () => Nod
 			.pipe(generator.stream)
 			.pipe(compile())
 			.pipe(gulp.dest(out));
-			// .pipe(src !== 'src' ? es.through() : monacodtsTask(out, false));
 	};
 }
 
