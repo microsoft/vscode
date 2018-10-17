@@ -34,7 +34,7 @@ import { ILogService } from 'vs/platform/log/common/log';
 import { TerminalCommandTracker } from 'vs/workbench/parts/terminal/node/terminalCommandTracker';
 import { TerminalProcessManager } from './terminalProcessManager';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
-import { execFile } from 'child_process';
+import { execFile, exec } from 'child_process';
 
 // How long in milliseconds should an average frame take to render for a notification to appear
 // which suggests the fallback DOM-based renderer
@@ -1148,6 +1148,27 @@ export class TerminalInstance implements ITerminalInstance {
 	public toggleEscapeSequenceLogging(): void {
 		this._xterm._core.debug = !this._xterm._core.debug;
 		this._xterm.setOption('debug', this._xterm._core.debug);
+	}
+
+	public get initialCwd(): string {
+		return this._processManager.initialCwd;
+	}
+
+	public getCwd(): Promise<string> {
+		if (!platform.isWindows) {
+			let pid = this.processId;
+			return new Promise<string>(resolve => {
+				exec('lsof -p ' + pid + ' | grep cwd', (error, stdout, stderr) => {
+					if (stdout !== '') {
+						resolve(stdout.substring(stdout.indexOf('/'), stdout.length - 1));
+					}
+				});
+			});
+		} else {
+			return new Promise<string>(resolve => {
+				resolve(this.initialCwd);
+			});
+		}
 	}
 }
 
