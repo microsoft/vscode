@@ -14,7 +14,7 @@ function log(message, ...rest) {
 }
 const SRC = path.join(__dirname, '../../src');
 const OUT_ROOT = path.join(__dirname, '../../');
-const RECIPE_PATH = path.join(__dirname, './monaco.d.ts.recipe');
+exports.RECIPE_PATH = path.join(__dirname, './monaco.d.ts.recipe');
 const DECLARATION_PATH = path.join(__dirname, '../../src/vs/monaco.d.ts');
 var CURRENT_PROCESSING_RULE = '';
 function logErr(message, ...rest) {
@@ -314,7 +314,7 @@ function generateDeclarationFile(out, inputFiles, recipe) {
     ];
 }
 function getIncludesInRecipe() {
-    let recipe = fs.readFileSync(RECIPE_PATH).toString();
+    let recipe = fs.readFileSync(exports.RECIPE_PATH).toString();
     let lines = recipe.split(/\r\n|\n|\r/);
     let result = [];
     lines.forEach(line => {
@@ -333,6 +333,7 @@ function getIncludesInRecipe() {
     });
     return result;
 }
+exports.getIncludesInRecipe = getIncludesInRecipe;
 function getFilesToWatch(out) {
     return getIncludesInRecipe().map((moduleId) => moduleIdToPath(out, moduleId));
 }
@@ -340,7 +341,7 @@ exports.getFilesToWatch = getFilesToWatch;
 function run(out, inputFiles) {
     log('Starting monaco.d.ts generation');
     SOURCE_FILE_MAP = {};
-    let recipe = fs.readFileSync(RECIPE_PATH).toString();
+    let recipe = fs.readFileSync(exports.RECIPE_PATH).toString();
     let [result, usageContent] = generateDeclarationFile(out, inputFiles, recipe);
     let currentContent = fs.readFileSync(DECLARATION_PATH).toString();
     log('Finished monaco.d.ts generation');
@@ -404,6 +405,7 @@ class TypeScriptLanguageServiceHost {
         return fileName === this.getDefaultLibFileName(this._compilerOptions);
     }
 }
+exports.TypeScriptLanguageServiceHost = TypeScriptLanguageServiceHost;
 function execute() {
     const OUTPUT_FILES = {};
     const SRC_FILES = {};

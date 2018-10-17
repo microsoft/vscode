@@ -16,7 +16,7 @@ function log(message: any, ...rest: any[]): void {
 
 const SRC = path.join(__dirname, '../../src');
 const OUT_ROOT = path.join(__dirname, '../../');
-const RECIPE_PATH = path.join(__dirname, './monaco.d.ts.recipe');
+export const RECIPE_PATH = path.join(__dirname, './monaco.d.ts.recipe');
 const DECLARATION_PATH = path.join(__dirname, '../../src/vs/monaco.d.ts');
 
 var CURRENT_PROCESSING_RULE = '';
@@ -375,7 +375,7 @@ function generateDeclarationFile(out: string, inputFiles: { [file: string]: stri
 	];
 }
 
-function getIncludesInRecipe(): string[] {
+export function getIncludesInRecipe(): string[] {
 	let recipe = fs.readFileSync(RECIPE_PATH).toString();
 	let lines = recipe.split(/\r\n|\n|\r/);
 	let result: string[] = [];
@@ -442,7 +442,7 @@ export function complainErrors() {
 interface ILibMap { [libName: string]: string; }
 interface IFileMap { [fileName: string]: string; }
 
-class TypeScriptLanguageServiceHost implements ts.LanguageServiceHost {
+export class TypeScriptLanguageServiceHost implements ts.LanguageServiceHost {
 
 	private readonly _libs: ILibMap;
 	private readonly _files: IFileMap;
