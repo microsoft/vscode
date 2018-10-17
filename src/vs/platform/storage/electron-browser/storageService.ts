@@ -136,8 +136,17 @@ export class StorageService extends Disposable implements IStorageService {
 		return scope === StorageScope.GLOBAL ? this.globalStorage.size : this.workspaceStorage.size;
 	}
 
+	checkIntegrity(scope: StorageScope, full: boolean): Promise<string> {
+		return scope === StorageScope.GLOBAL ? this.globalStorage.checkIntegrity(full) : this.workspaceStorage.checkIntegrity(full);
+	}
+
 	logStorage(): Promise<void> {
-		return Promise.all([this.globalStorage.getItems(), this.workspaceStorage.getItems()]).then(items => {
+		return Promise.all([
+			this.globalStorage.getItems(),
+			this.workspaceStorage.getItems(),
+			this.globalStorage.checkIntegrity(true /* full */),
+			this.workspaceStorage.checkIntegrity(true /* full */)
+		]).then(result => {
 			const safeParse = (value: string) => {
 				try {
 					return JSON.parse(value);
@@ -148,25 +157,25 @@ export class StorageService extends Disposable implements IStorageService {
 
 			const globalItems = Object.create(null);
 			const globalItemsParsed = Object.create(null);
-			items[0].forEach((value, key) => {
+			result[0].forEach((value, key) => {
 				globalItems[key] = value;
 				globalItemsParsed[key] = safeParse(value);
 			});
 
 			const workspaceItems = Object.create(null);
 			const workspaceItemsParsed = Object.create(null);
-			items[1].forEach((value, key) => {
+			result[1].forEach((value, key) => {
 				workspaceItems[key] = value;
 				workspaceItemsParsed[key] = safeParse(value);
 			});
 
-			console.group('Storage: Global');
+			console.group(`Storage: Global (check: ${result[2]})`);
 			console.table(globalItems);
 			console.groupEnd();
 
 			console.log(globalItemsParsed);
 
-			console.group('Storage: Workspace');
+			console.group(`Storage: Workspace (check: ${result[3]})`);
 			console.table(workspaceItems);
 			console.groupEnd();
 

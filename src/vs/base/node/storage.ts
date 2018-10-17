@@ -210,6 +210,10 @@ export class Storage extends Disposable {
 	getItems(): Promise<Map<string, string>> {
 		return this.storage.getItems();
 	}
+
+	checkIntegrity(full: boolean): Promise<string> {
+		return this.storage.checkIntegrity(full);
+	}
 }
 
 export interface IUpdateRequest {
@@ -300,6 +304,16 @@ export class SQLiteStorageImpl {
 		});
 	}
 
+	checkIntegrity(full: boolean): Promise<string> {
+		this.logger.info(`[storage ${this.name}] checkIntegrity(full: ${full})`);
+
+		return this.db.then(db => {
+			return this.get(db, full ? 'PRAGMA integrity_check' : 'PRAGMA quick_check').then(row => {
+				return full ? row['integrity_check'] : row['quick_check'];
+			});
+		});
+	}
+
 	private open(): Promise<Database> {
 		this.logger.info(`[storage ${this.name}] open()`);
 
@@ -356,6 +370,20 @@ export class SQLiteStorageImpl {
 				}
 
 				return resolve();
+			});
+		});
+	}
+
+	private get(db: Database, sql: string): Promise<object> {
+		return new Promise((resolve, reject) => {
+			db.get(sql, (error, row) => {
+				if (error) {
+					this.logger.error(`[storage ${this.name}] get(): ${error}`);
+
+					return reject(error);
+				}
+
+				return resolve(row);
 			});
 		});
 	}

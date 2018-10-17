@@ -332,6 +332,9 @@ suite('SQLite Storage Library', () => {
 			await storage.updateItems({ insert: items3 })
 		]);
 
+		equal(await storage.checkIntegrity(true), 'ok');
+		equal(await storage.checkIntegrity(false), 'ok');
+
 		storedItems = await storage.getItems();
 		equal(storedItems.size, items1.size + items2.size + items3.size);
 

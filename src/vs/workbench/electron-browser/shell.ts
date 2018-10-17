@@ -287,24 +287,10 @@ export class WorkbenchShell extends Disposable {
 		const globalStorageInitDuration = perf.getDuration('willInitGlobalStorage', 'didInitGlobalStorage');
 		const workspaceStorageInitDuration = perf.getDuration('willInitWorkspaceStorage', 'didInitWorkspaceStorage');
 		const workbenchLoadDuration = perf.getDuration('willLoadWorkbenchMain', 'didLoadWorkbenchMain');
+		const localStorageAccessDuration = perf.getDuration('willAccessLocalStorage', 'didAccessLocalStorage');
+		const localStorageReadDuration = perf.getDuration('willReadLocalStorage', 'didReadLocalStorage');
 
-		/* __GDPR__
-			"sqliteStorageTimers" : {
-				"globalReadTime" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-				"workspaceReadTime" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-				"globalKeys" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-				"workspaceKeys" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-				"startupKind": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true }
-			}
-		*/
-		this.telemetryService.publicLog('sqliteStorageTimers', {
-			'globalReadTime': globalStorageInitDuration,
-			'workspaceReadTime': workspaceStorageInitDuration,
-			'workbenchRequireTime': workbenchLoadDuration,
-			'globalKeys': this.storageService.storage.getSize(StorageScope.GLOBAL),
-			'workspaceKeys': this.storageService.storage.getSize(StorageScope.WORKSPACE),
-			'startupKind': this.lifecycleService.startupKind
-		});
+		let workspaceIntegrity: string;
 
 		// Handle errors (avoid duplicates to reduce spam)
 		const loggedStorageErrors = new Set<string>();
@@ -318,23 +304,64 @@ export class WorkbenchShell extends Disposable {
 					"sqliteStorageError" : {
 						"globalReadTime" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
 						"workspaceReadTime" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
+						"localStorageAccessTime" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
+						"localStorageReadTime" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
+						"workbenchRequireTime" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
 						"globalKeys" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
 						"workspaceKeys" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
 						"startupKind": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
+						"workspaceIntegrity" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
 						"storageError": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true }
 					}
 				*/
 				this.telemetryService.publicLog('sqliteStorageError', {
 					'globalReadTime': globalStorageInitDuration,
 					'workspaceReadTime': workspaceStorageInitDuration,
+					'localStorageAccessTime': localStorageAccessDuration,
+					'localStorageReadTime': localStorageReadDuration,
 					'workbenchRequireTime': workbenchLoadDuration,
 					'globalKeys': this.storageService.storage.getSize(StorageScope.GLOBAL),
 					'workspaceKeys': this.storageService.storage.getSize(StorageScope.WORKSPACE),
 					'startupKind': this.lifecycleService.startupKind,
+					'workspaceIntegrity': workspaceIntegrity,
 					'storageError': errorStr
 				});
 			}
 		}));
+
+		perf.mark('willCheckWorkspaceStorageIntegrity');
+		this.storageService.storage.checkIntegrity(StorageScope.WORKSPACE, false).then(integrity => {
+			perf.mark('didCheckWorkspaceStorageIntegrity');
+
+			workspaceIntegrity = integrity;
+
+			/* __GDPR__
+				"sqliteStorageTimers" : {
+					"globalReadTime" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
+					"workspaceReadTime" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
+					"localStorageAccessTime" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
+					"localStorageReadTime" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
+					"workspaceIntegrity" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
+					"workspaceIntegrityCheckTime" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
+					"workbenchRequireTime" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
+					"globalKeys" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
+					"workspaceKeys" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
+					"startupKind": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true }
+				}
+			*/
+			this.telemetryService.publicLog('sqliteStorageTimers', {
+				'globalReadTime': globalStorageInitDuration,
+				'workspaceReadTime': workspaceStorageInitDuration,
+				'localStorageAccessTime': localStorageAccessDuration,
+				'localStorageReadTime': localStorageReadDuration,
+				'workspaceIntegrity': workspaceIntegrity,
+				'workspaceIntegrityCheckTime': perf.getDuration('willCheckWorkspaceStorageIntegrity', 'didCheckWorkspaceStorageIntegrity'),
+				'workbenchRequireTime': workbenchLoadDuration,
+				'globalKeys': this.storageService.storage.getSize(StorageScope.GLOBAL),
+				'workspaceKeys': this.storageService.storage.getSize(StorageScope.WORKSPACE),
+				'startupKind': this.lifecycleService.startupKind
+			});
+		}, error => errors.onUnexpectedError(error));
 	}
 
 	private initServiceCollection(container: HTMLElement): [IInstantiationService, ServiceCollection] {
