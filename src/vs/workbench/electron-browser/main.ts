@@ -13,7 +13,7 @@ import * as comparer from 'vs/base/common/comparers';
 import * as platform from 'vs/base/common/platform';
 import { URI as uri } from 'vs/base/common/uri';
 import { IWorkspaceContextService, Workspace, WorkbenchState } from 'vs/platform/workspace/common/workspace';
-import { WorkspaceService } from 'vs/workbench/services/configuration/node/configurationService';
+import { WorkspaceService, ISingleFolderWorkspaceInitializationPayload, IMultiFolderWorkspaceInitializationPayload, IEmptyWorkspaceInitializationPayload } from 'vs/workbench/services/configuration/node/configurationService';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { stat } from 'vs/base/node/pfs';
@@ -44,6 +44,7 @@ import { MenubarChannelClient } from 'vs/platform/menubar/node/menubarIpc';
 import { IMenubarService } from 'vs/platform/menubar/common/menubar';
 import { Schemas } from 'vs/base/common/network';
 import { sanitizeFilePath } from 'vs/base/node/extfs';
+import { basename } from 'path';
 
 gracefulFs.gracefulify(fs); // enable gracefulFs
 
@@ -139,23 +140,46 @@ function openWorkbench(configuration: IWindowConfiguration): Promise<void> {
 }
 
 function createAndInitializeWorkspaceService(configuration: IWindowConfiguration, environmentService: EnvironmentService): Promise<WorkspaceService> {
-	return validateFolderUri(configuration.folderUri, configuration.verbose).then(validatedFolderUri => {
+	let workspaceInitializationPayload: Promise<IMultiFolderWorkspaceInitializationPayload | ISingleFolderWorkspaceInitializationPayload | IEmptyWorkspaceInitializationPayload> = Promise.resolve(void 0);
+
+	// Multi-root workspace
+	if (configuration.workspace) {
+		workspaceInitializationPayload = Promise.resolve(configuration.workspace as IMultiFolderWorkspaceInitializationPayload);
+	}
+
+	// Single-folder workspace
+	else if (configuration.folderUri) {
+		workspaceInitializationPayload = resolveSingleFolderWorkspaceInitializationPayload(configuration.folderUri, configuration.verbose);
+	}
+
+	return workspaceInitializationPayload.then(payload => {
+
+		// Fallback to empty workspace
+		if (!payload) {
+			payload = { id: configuration.backupPath ? uri.from({ path: basename(configuration.backupPath), scheme: 'empty' }).toString() : '' } as IEmptyWorkspaceInitializationPayload;
+		}
+
 		const workspaceService = new WorkspaceService(environmentService);
 
-		return workspaceService.initialize(configuration.workspace || validatedFolderUri || configuration).then(() => workspaceService, error => workspaceService);
+		return workspaceService.initialize(payload).then(() => workspaceService, error => workspaceService);
 	});
 }
 
-function validateFolderUri(folderUri: ISingleFolderWorkspaceIdentifier, verbose: boolean): Promise<uri> {
+function resolveSingleFolderWorkspaceInitializationPayload(folderUri: ISingleFolderWorkspaceIdentifier, verbose: boolean): Promise<ISingleFolderWorkspaceInitializationPayload> {
 
-	// Return early if we do not have a single folder uri or if it is a non file uri
-	if (!folderUri || folderUri.scheme !== Schemas.file) {
-		return Promise.resolve(folderUri);
+	// Return early the folder is not local
+	if (folderUri.scheme !== Schemas.file) {
+		return Promise.resolve({ folder: folderUri });
 	}
 
-	// Ensure absolute existing folder path
+	// For local: ensure path is absolute and exists
 	const sanitizedFolderPath = sanitizeFilePath(folderUri.fsPath, process.env['VSCODE_CWD'] || process.cwd());
-	return stat(sanitizedFolderPath).then(stat => uri.file(sanitizedFolderPath), error => {
+	return stat(sanitizedFolderPath).then(stat => {
+		return {
+			folder: uri.file(sanitizedFolderPath),
+			stat
+		} as ISingleFolderWorkspaceInitializationPayload;
+	}, error => {
 		if (verbose) {
 			errors.onUnexpectedError(error);
 		}
