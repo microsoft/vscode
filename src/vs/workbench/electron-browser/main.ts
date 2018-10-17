@@ -99,57 +99,64 @@ function openWorkbench(configuration: IWindowConfiguration): Promise<void> {
 	const logService = createLogService(mainProcessClient, configuration, environmentService);
 	logService.trace('openWorkbench configuration', JSON.stringify(configuration));
 
-	return Promise.all([
-		createAndInitializeWorkspaceService(configuration, environmentService),
-		createStorageService(environmentService, logService)
-	]).then(services => {
-		const workspaceService = services[0];
-		const storageLegacyService = createStorageLegacyService(workspaceService, environmentService);
-		const storageService = new DelegatingStorageService(services[1], storageLegacyService, logService);
+	// Resolve a workspace payload that we can get the workspace ID from
+	return createWorkspaceInitializationPayload(configuration, environmentService).then(payload => {
+		return Promise.all([
 
-		return domContentLoaded().then(() => {
-			perf.mark('willStartWorkbench');
+			// Create and load workspace/configuration service
+			createWorkspaceService(payload, environmentService),
 
-			// Create Shell
-			const shell = new WorkbenchShell(document.body, {
-				contextService: workspaceService,
-				configurationService: workspaceService,
-				environmentService,
-				logService,
-				storageLegacyService,
-				storageService
-			}, mainServices, mainProcessClient, configuration);
+			// Create and load storage service
+			createStorageService(environmentService, logService)
+		]).then(services => {
+			const workspaceService = services[0];
+			const storageLegacyService = createStorageLegacyService(workspaceService, environmentService);
+			const storageService = new DelegatingStorageService(services[1], storageLegacyService, logService);
 
-			// Gracefully Shutdown Storage
-			shell.onShutdown(event => {
-				event.join(storageService.close());
-			});
+			return domContentLoaded().then(() => {
+				perf.mark('willStartWorkbench');
 
-			// Open Shell
-			shell.open();
+				// Create Shell
+				const shell = new WorkbenchShell(document.body, {
+					contextService: workspaceService,
+					configurationService: workspaceService,
+					environmentService,
+					logService,
+					storageLegacyService,
+					storageService
+				}, mainServices, mainProcessClient, configuration);
 
-			// Inform user about loading issues from the loader
-			(<any>self).require.config({
-				onError: err => {
-					if (err.errorCode === 'load') {
-						shell.onUnexpectedError(new Error(nls.localize('loaderErrorNative', "Failed to load a required file. Please restart the application to try again. Details: {0}", JSON.stringify(err))));
+				// Gracefully Shutdown Storage
+				shell.onShutdown(event => {
+					event.join(storageService.close());
+				});
+
+				// Open Shell
+				shell.open();
+
+				// Inform user about loading issues from the loader
+				(<any>self).require.config({
+					onError: err => {
+						if (err.errorCode === 'load') {
+							shell.onUnexpectedError(new Error(nls.localize('loaderErrorNative', "Failed to load a required file. Please restart the application to try again. Details: {0}", JSON.stringify(err))));
+						}
 					}
-				}
+				});
 			});
 		});
 	});
 }
 
-function createAndInitializeWorkspaceService(configuration: IWindowConfiguration, environmentService: EnvironmentService): Promise<WorkspaceService> {
-	let workspaceInitializationPayload: Promise<IWorkspaceInitializationPayload> = Promise.resolve(void 0);
+function createWorkspaceInitializationPayload(configuration: IWindowConfiguration, environmentService: EnvironmentService): Promise<IWorkspaceInitializationPayload> {
 
 	// Multi-root workspace
 	if (configuration.workspace) {
-		workspaceInitializationPayload = Promise.resolve(configuration.workspace as IMultiFolderWorkspaceInitializationPayload);
+		return Promise.resolve(configuration.workspace as IMultiFolderWorkspaceInitializationPayload);
 	}
 
 	// Single-folder workspace
-	else if (configuration.folderUri) {
+	let workspaceInitializationPayload: Promise<IWorkspaceInitializationPayload> = Promise.resolve(void 0);
+	if (configuration.folderUri) {
 		workspaceInitializationPayload = resolveSingleFolderWorkspaceInitializationPayload(configuration.folderUri, configuration.verbose);
 	}
 
@@ -160,9 +167,7 @@ function createAndInitializeWorkspaceService(configuration: IWindowConfiguration
 			payload = { id: configuration.backupPath ? uri.from({ path: basename(configuration.backupPath), scheme: 'empty' }).toString() : '' } as IEmptyWorkspaceInitializationPayload;
 		}
 
-		const workspaceService = new WorkspaceService(environmentService);
-
-		return workspaceService.initialize(payload).then(() => workspaceService, error => workspaceService);
+		return payload;
 	});
 }
 
@@ -210,6 +215,12 @@ function resolveSingleFolderWorkspaceInitializationPayload(folderUri: ISingleFol
 		// Treat any error case as empty workbench case (no folder path)
 		return null;
 	});
+}
+
+function createWorkspaceService(payload: IWorkspaceInitializationPayload, environmentService: IEnvironmentService): Promise<WorkspaceService> {
+	const workspaceService = new WorkspaceService(environmentService);
+
+	return workspaceService.initialize(payload).then(() => workspaceService, error => workspaceService);
 }
 
 function createStorageService(environmentService: IEnvironmentService, logService: ILogService): Promise<StorageService> {
