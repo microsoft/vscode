@@ -20,9 +20,9 @@ declare module 'vscode' {
 	export enum CompletionItemInsertTextRule {
 
 		/**
-		 * Keep whitespace as is. By default, the editor adjust leading
-		 * whitespace of new lines in completion items so that they match
-		 * the indentation of the line for the item is accepeted.
+		 * Keep whitespace as is. By default, the editor adjusts leading
+		 * whitespace of new lines so that they match the indentation of
+		 * the line for which the item is accepeted.
 		 */
 		KeepWhitespace = 0b01
 	}
