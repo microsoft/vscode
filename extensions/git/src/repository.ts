@@ -13,7 +13,7 @@ import * as path from 'path';
 import * as nls from 'vscode-nls';
 import * as fs from 'fs';
 import { StatusBarCommands } from './statusbar';
-import { Branch, Ref, Remote, RefType, GitErrorCodes } from './api/git';
+import { Branch, Ref, Remote, RefType, GitErrorCodes, Trackingship } from './api/git';
 
 const timeout = (millis: number) => new Promise(c => setTimeout(c, millis));
 
@@ -311,6 +311,7 @@ export const enum Operation {
 	GetObjectDetails = 'GetObjectDetails',
 	SubmoduleUpdate = 'SubmoduleUpdate',
 	RebaseContinue = 'RebaseContinue',
+	GetTracking = 'GetTracking'
 }
 
 function isReadOnly(operation: Operation): boolean {
@@ -878,6 +879,10 @@ export class Repository implements Disposable {
 
 	async checkoutTracking(treeish: string): Promise<void> {
 		await this.run(Operation.CheckoutTracking, () => this.repository.checkout(treeish, [], { track: true }));
+	}
+
+	async getTracking(treeish: string): Promise<Trackingship[]> {
+		return await this.run(Operation.GetTracking, () => this.repository.GetTracking(treeish));
 	}
 
 	async getCommit(ref: string): Promise<Commit> {

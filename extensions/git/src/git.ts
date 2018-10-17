@@ -14,7 +14,7 @@ import * as filetype from 'file-type';
 import { assign, groupBy, denodeify, IDisposable, toDisposable, dispose, mkdirp, readBytes, detectUnicodeEncoding, Encoding, onceEvent } from './util';
 import { CancellationToken } from 'vscode';
 import { detectEncoding } from './encoding';
-import { Ref, RefType, Branch, Remote, GitErrorCodes } from './api/git';
+import { Ref, RefType, Branch, Remote, GitErrorCodes, Trackingship } from './api/git';
 
 const readfile = denodeify<string, string | null, string>(fs.readFile);
 
@@ -1372,6 +1372,21 @@ export class Repository {
 
 			return { name: void 0, commit: result.stdout.trim(), type: RefType.Head };
 		}
+	}
+
+	async GetTracking(upstreamBranch: string): Promise<Trackingship[]> {
+		const result = await this.run(['for-each-ref', '--format', '%(if)%(upstream:short)%(then)%(refname:short)->%(upstream:short) %(else)*  %(end)', 'refs/heads']);
+		return result.stdout.trim().split('\n')
+			.map(line => line.trim())
+			.filter(line => line !== '*')
+			.map(line => {
+				const splited = line.split('->');
+				return {
+					local: splited[0],
+					upstarem: splited[1]
+				} as Trackingship;
+			})
+			.filter(trackingShip => trackingShip.upstarem === upstreamBranch);
 	}
 
 	async getRefs(): Promise<Ref[]> {

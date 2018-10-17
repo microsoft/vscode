@@ -52,11 +52,20 @@ class CheckoutRemoteHeadItem extends CheckoutItem {
 	}
 
 	async run(repository: Repository): Promise<void> {
-		if (!this.ref.name) {
+		const ref = this.ref.name;
+		if (!ref) {
 			return;
 		}
 
-		await repository.checkoutTracking(this.ref.name);
+		// Check whether there's a local branch which already has the target branch as an upstream
+		const trackings = await repository.getTracking(ref);
+		if (trackings.length > 0) {
+			//Just checkout the local branch
+			await repository.checkout(trackings[0].local);
+		} else {
+			// Default
+			await repository.checkoutTracking(ref);
+		}
 	}
 }
 
@@ -1372,6 +1381,9 @@ export class CommandCenter {
 		const picks = [createBranch, ...heads, ...tags, ...remoteHeads];
 		const placeHolder = localize('select a ref to checkout', 'Select a ref to checkout');
 		const choice = await window.showQuickPick(picks, { placeHolder });
+
+		// TODO: Judge whether it's local branch
+		console.log(choice);
 
 		if (!choice) {
 			return false;
