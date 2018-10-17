@@ -56,9 +56,8 @@ export class Source {
 				if (paths.isAbsolute_posix(path) || paths.isAbsolute_win32(path)) {
 					this.uri = uri.file(path);
 				} else {
-					// path is relative
-					// should not happen because relative paths always have a sourceReference > 0
-					console.error('cannot handle relative paths without sourceReference');
+					// path is relative: this is not supported but if it happens we create a bogus uri for backward compatibility
+					this.uri = uri.file(path);
 				}
 			}
 		}
