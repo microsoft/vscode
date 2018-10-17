@@ -24,6 +24,7 @@ import { ProfilingSession } from 'v8-inspect-profiler';
 function shouldSpawnCliProcess(argv: ParsedArgs): boolean {
 	return !!argv['install-source']
 		|| !!argv['list-extensions']
+		|| !!argv['search-extensions']
 		|| !!argv['install-extension']
 		|| !!argv['uninstall-extension'];
 }
