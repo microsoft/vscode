@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { binarySearch, coalesce, isFalsyOrEmpty } from 'vs/base/common/arrays';
+import { binarySearch, isFalsyOrEmpty, coalesceInPlace } from 'vs/base/common/arrays';
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 import { first, forEach, size } from 'vs/base/common/collections';
 import { onUnexpectedExternalError } from 'vs/base/common/errors';
@@ -214,7 +214,7 @@ export class OutlineGroup extends TreeElement {
 			};
 		}
 
-		coalesce(markers, true);
+		coalesceInPlace(markers);
 	}
 }
 

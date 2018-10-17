@@ -23,10 +23,11 @@
     "smoketest": "cd test/smoke && node test/index.js",
     "monaco-compile-check": "tsc -p src/tsconfig.monaco.json --noEmit",
     "download-builtin-extensions": "node build/lib/builtInExtensions.js",
-    "strict-null-check": "tsc -p src/tsconfig.strictNullChecks.json"
+    "strict-null-check": "tsc -p src/tsconfig.strictNullChecks.json",
+    "strict-null-check-watch": "tsc -p src/tsconfig.strictNullChecks.json --watch"
   },
   "dependencies": {
-    "applicationinsights": "1.0.5",
+    "applicationinsights": "1.0.6",
     "fast-plist": "0.1.2",
     "gc-signals": "^0.0.1",
     "getmac": "1.4.1",
@@ -144,7 +145,7 @@
   },
   "optionalDependencies": {
     "windows-foreground-love": "0.1.0",
-    "windows-mutex": "Microsoft/node-windows-mutex#electron-3.0.x",
+    "windows-mutex": "0.2.1",
     "windows-process-tree": "0.2.3"
   }
 }

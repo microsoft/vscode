@@ -231,7 +231,6 @@ export class OutlinePanel extends ViewletPanel {
 	private _outlineViewState = new OutlineViewState();
 	private _requestOracle: RequestOracle;
 	private _cachedHeight: number;
-	private _pendingLayout: IDisposable;
 	private _domNode: HTMLElement;
 	private _message: HTMLDivElement;
 	private _inputContainer: HTMLDivElement;
@@ -379,14 +378,8 @@ export class OutlinePanel extends ViewletPanel {
 	protected layoutBody(height: number): void {
 		if (height !== this._cachedHeight) {
 			this._cachedHeight = height;
-			if (this._pendingLayout) {
-				this._pendingLayout.dispose();
-			}
-			this._pendingLayout = dom.measure(() => {
-				// this._input.layout();
-				const inputHeight = dom.getTotalHeight(this._inputContainer);
-				this._tree.layout(height - (inputHeight + 5 /*progressbar height, defined in outlinePanel.css*/));
-			});
+			const treeHeight = height - (5 /*progressbar height*/ + 33 /*input height*/);
+			this._tree.layout(treeHeight);
 		}
 	}
 

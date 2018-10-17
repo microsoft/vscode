@@ -47,6 +47,7 @@ import { URLService } from 'vs/platform/url/common/urlService';
 import { IExperimentService } from 'vs/workbench/parts/experiments/node/experimentService';
 import { TestExperimentService } from 'vs/workbench/parts/experiments/test/electron-browser/experimentService.test';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
+import { TPromise } from 'vs/base/common/winjs.base';
 
 const mockExtensionGallery: IGalleryExtension[] = [
 	aGalleryExtension('MockExtension1', {
@@ -258,13 +259,13 @@ suite('ExtensionsTipsService Test', () => {
 		}
 	});
 
-	function setUpFolderWorkspace(folderName: string, recommendedExtensions: string[], ignoredRecommendations: string[] = []): Promise<void> {
+	function setUpFolderWorkspace(folderName: string, recommendedExtensions: string[], ignoredRecommendations: string[] = []): TPromise<void> {
 		const id = uuid.generateUuid();
 		parentResource = path.join(os.tmpdir(), 'vsctests', id);
 		return setUpFolder(folderName, parentResource, recommendedExtensions, ignoredRecommendations);
 	}
 
-	function setUpFolder(folderName: string, parentDir: string, recommendedExtensions: string[], ignoredRecommendations: string[] = []): Promise<void> {
+	function setUpFolder(folderName: string, parentDir: string, recommendedExtensions: string[], ignoredRecommendations: string[] = []): TPromise<void> {
 		const folderDir = path.join(parentDir, folderName);
 		const workspaceSettingsDir = path.join(folderDir, '.vscode');
 		return mkdirp(workspaceSettingsDir, 493).then(() => {

@@ -40,7 +40,7 @@ export function revive(obj: any, depth: number): any {
 	if (typeof obj === 'object') {
 
 		switch ((<MarshalledObject>obj).$mid) {
-			case 1: return URI.revive(obj);
+			case 100: return URI.revive(obj);
 			case 2: return new RegExp(obj.source, obj.flags);
 		}
 

@@ -34,7 +34,7 @@ function getSource(): string {
 }
 
 function isAvailable(): Promise<boolean> {
-	return pfs.exists(getSource());
+	return Promise.resolve(pfs.exists(getSource()));
 }
 
 class InstallAction extends Action {

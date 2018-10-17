@@ -36,6 +36,7 @@ import { INotificationService } from 'vs/platform/notification/common/notificati
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { CommandService } from 'vs/workbench/services/commands/common/commandService';
 import { URI } from 'vs/base/common/uri';
+import { TPromise } from 'vs/base/common/winjs.base';
 
 class SettingsTestEnvironmentService extends EnvironmentService {
 
@@ -82,7 +83,7 @@ suite('ConfigurationEditingService', () => {
 			.then(() => setUpServices());
 	});
 
-	function setUpWorkspace(): Promise<boolean> {
+	function setUpWorkspace(): TPromise<boolean> {
 		const id = uuid.generateUuid();
 		parentDir = path.join(os.tmpdir(), 'vsctests', id);
 		workspaceDir = path.join(parentDir, 'workspaceconfig', id);

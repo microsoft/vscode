@@ -921,7 +921,7 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService, 
 				}
 			}
 		}
-		this._onChange.fire(extension);
+		this._onChange.fire(error ? null : extension);
 	}
 
 	private onUninstallExtension({ id }: IExtensionIdentifier): void {

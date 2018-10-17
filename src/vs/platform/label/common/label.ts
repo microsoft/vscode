@@ -55,7 +55,7 @@ const sepRegexp = /\//g;
 const labelMatchingRegexp = /\$\{scheme\}|\$\{authority\}|\$\{path\}/g;
 
 function hasDriveLetter(path: string): boolean {
-	return isWindows && path && path[2] === ':';
+	return !!(isWindows && path && path[2] === ':');
 }
 
 export class LabelService implements ILabelService {
@@ -73,7 +73,7 @@ export class LabelService implements ILabelService {
 		return this._onDidRegisterFormatter.event;
 	}
 
-	findFormatter(resource: URI): LabelRules {
+	findFormatter(resource: URI): LabelRules | undefined {
 		const path = `${resource.scheme}://${resource.authority}`;
 		let bestPrefix = '';
 		for (let prefix in this.formatters) {
@@ -88,9 +88,6 @@ export class LabelService implements ILabelService {
 	}
 
 	getUriLabel(resource: URI, options: { relative?: boolean, noPrefix?: boolean } = {}): string {
-		if (!resource) {
-			return undefined;
-		}
 		const formatter = this.findFormatter(resource);
 		if (!formatter) {
 			return getPathLabel(resource.path, this.environmentService, options.relative ? this.contextService : undefined);
@@ -122,10 +119,12 @@ export class LabelService implements ILabelService {
 
 	getWorkspaceLabel(workspace: (IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier | IWorkspace), options?: { verbose: boolean }): string {
 		if (!isWorkspaceIdentifier(workspace) && !isSingleFolderWorkspaceIdentifier(workspace)) {
-			workspace = toWorkspaceIdentifier(workspace);
-			if (!workspace) {
+			const identifier = toWorkspaceIdentifier(workspace);
+			if (!identifier) {
 				return '';
 			}
+
+			workspace = identifier;
 		}
 
 		// Workspace: Single Folder
@@ -165,7 +164,7 @@ export class LabelService implements ILabelService {
 		};
 	}
 
-	private formatUri(resource: URI, formatter: LabelRules, forceNoTildify: boolean): string {
+	private formatUri(resource: URI, formatter: LabelRules, forceNoTildify?: boolean): string {
 		let label = formatter.uri.label.replace(labelMatchingRegexp, match => {
 			switch (match) {
 				case '${scheme}': return resource.scheme;

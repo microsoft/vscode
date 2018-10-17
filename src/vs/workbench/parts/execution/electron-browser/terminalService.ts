@@ -88,9 +88,13 @@ export class WinTerminalService implements ITerminalService {
 			return Promise.resolve(void 0);
 		}
 
-		// The '""' argument is the window title. Without this, exec doesn't work when the path
-		// contains spaces
-		const cmdArgs = ['/c', 'start', '/wait', '""', exec];
+		const cmdArgs = ['/c', 'start', '/wait'];
+		if (exec.indexOf(' ') >= 0) {
+			// The "" argument is the window title. Without this, exec doesn't work when the path
+			// contains spaces
+			cmdArgs.push('""');
+		}
+		cmdArgs.push(exec);
 
 		return new Promise<void>((c, e) => {
 			const env = cwd ? { cwd: cwd } : void 0;

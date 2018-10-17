@@ -477,8 +477,8 @@ export class Workbench extends Disposable implements IPartService {
 
 	private registerListeners(): void {
 
-		// Storage lifecycle
-		this._register(this.storageService.onWillSaveState(reason => this.saveState(reason)));
+		// Lifecycle
+		this._register(this.lifecycleService.onWillShutdown(e => this.saveState(e.reason)));
 
 		// Listen to visible editor changes
 		this._register(this.editorService.onDidVisibleEditorsChange(() => this.onDidVisibleEditorsChange()));

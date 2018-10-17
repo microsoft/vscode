@@ -116,7 +116,7 @@ export class Protocol implements IDisposable, IMessagePassingProtocol {
 		const acceptFirstDataChunk = () => {
 			if (firstDataChunk && firstDataChunk.length > 0) {
 				let tmp = firstDataChunk;
-				firstDataChunk = null;
+				firstDataChunk = undefined;
 				acceptChunk(tmp);
 			}
 		};

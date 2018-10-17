@@ -33,7 +33,7 @@ export class ExtensionsLifecycle extends Disposable {
 		}
 	}
 
-	private parseUninstallScript(extension: ILocalExtension): { uninstallHook: string, args: string[] } {
+	private parseUninstallScript(extension: ILocalExtension): { uninstallHook: string, args: string[] } | null {
 		if (extension.location.scheme === Schemas.file && extension.manifest && extension.manifest['scripts'] && typeof extension.manifest['scripts']['vscode:uninstall'] === 'string') {
 			const uninstallScript = (<string>extension.manifest['scripts']['vscode:uninstall']).split(' ');
 			if (uninstallScript.length < 2 || uninstallScript[0] !== 'node' || !uninstallScript[1]) {
@@ -57,7 +57,7 @@ export class ExtensionsLifecycle extends Disposable {
 				if (error) {
 					e(error);
 				} else {
-					c(null);
+					c(void 0);
 				}
 			};
 
@@ -87,7 +87,7 @@ export class ExtensionsLifecycle extends Disposable {
 	private start(uninstallHook: string, args: string[], extension: ILocalExtension): ChildProcess {
 		const opts = {
 			silent: true,
-			execArgv: <string[]>undefined
+			execArgv: undefined
 		};
 		const extensionUninstallProcess = fork(uninstallHook, ['--type=extensionUninstall', ...args], opts);
 

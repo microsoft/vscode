@@ -453,10 +453,10 @@ append-buffer@^1.0.2:
   dependencies:
     buffer-equal "^1.0.0"
 
-applicationinsights@1.0.5:
-  version "1.0.5"
-  resolved "https://registry.yarnpkg.com/applicationinsights/-/applicationinsights-1.0.5.tgz#a60d1ffdf7aa1ac77c637c0ef7fcf2a9671cc869"
-  integrity sha512-T6V4ZyhikGKnuqYGbNz1q5+ORROutUp58UqfLLwHH+X1RkcnEU+gW15kIKWJ8zqGWbilhn6bONJa+T5en642mg==
+applicationinsights@1.0.6:
+  version "1.0.6"
+  resolved "https://registry.yarnpkg.com/applicationinsights/-/applicationinsights-1.0.6.tgz#bc201810de91cea910dab34e8ad35ecde488edeb"
+  integrity sha512-VQT3kBpJVPw5fCO5n+WUeSx0VHjxFtD7znYbILBlVgOS9/cMDuGFmV2Br3ObzFyZUDGNbEfW36fD1y2/vAiCKw==
   dependencies:
     diagnostic-channel "0.2.0"
     diagnostic-channel-publishers "0.2.1"
@@ -9478,9 +9478,10 @@ windows-foreground-love@0.1.0:
   resolved "https://registry.yarnpkg.com/windows-foreground-love/-/windows-foreground-love-0.1.0.tgz#948e4beac0733cd58624710cc09432b7e8bf3521"
   integrity sha1-lI5L6sBzPNWGJHEMwJQyt+i/NSE=
 
-windows-mutex@Microsoft/node-windows-mutex#electron-3.0.x:
+windows-mutex@0.2.1:
   version "0.2.1"
-  resolved "https://codeload.github.com/Microsoft/node-windows-mutex/tar.gz/14c9465655de19aa76d6092d47d0d28b8aff027e"
+  resolved "https://registry.yarnpkg.com/windows-mutex/-/windows-mutex-0.2.1.tgz#05a8da8018f22874d7fbbd775c0141876d1c28fc"
+  integrity sha512-TaLGQa+qBcPZ2EH94BD/3Hy8fycrZjzqxI/lOMdXPyvffNnIJOvKwEyvNRC25bVFQ2mliJBziKhCMEhk9Dhhhg==
   dependencies:
     bindings "^1.2.1"
     nan "^2.10.0"

@@ -58,6 +58,10 @@ export class Storage extends Disposable {
 		this.pendingScheduler = new RunOnceScheduler(() => this.flushPending(), Storage.FLUSH_DELAY);
 	}
 
+	get size(): number {
+		return this.cache.size;
+	}
+
 	init(): Promise<void> {
 		if (this.state !== StorageState.None) {
 			return Promise.resolve(); // either closed or already initialized
@@ -290,7 +294,7 @@ export class SQLiteStorageImpl {
 						return reject(error);
 					}
 
-					resolve();
+					return resolve();
 				});
 			});
 		});
@@ -351,21 +355,26 @@ export class SQLiteStorageImpl {
 					return reject(error);
 				}
 
-				resolve();
+				return resolve();
 			});
 		});
 	}
 
 	private each(db: Database, sql: string, callback: (row: any) => void): Promise<void> {
 		return new Promise((resolve, reject) => {
+			let hadError = false;
 			db.each(sql, (error, row) => {
 				if (error) {
 					this.logger.error(`[storage ${this.name}] each(): ${error}`);
 
+					hadError = true;
+
 					return reject(error);
 				}
 
-				callback(row);
+				if (!hadError) {
+					callback(row);
+				}
 			}, error => {
 				if (error) {
 					this.logger.error(`[storage ${this.name}] each(): ${error}`);
@@ -373,7 +382,7 @@ export class SQLiteStorageImpl {
 					return reject(error);
 				}
 
-				resolve();
+				return resolve();
 			});
 		});
 	}
@@ -392,7 +401,7 @@ export class SQLiteStorageImpl {
 						return reject(error);
 					}
 
-					resolve();
+					return resolve();
 				});
 			});
 		});

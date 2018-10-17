@@ -68,7 +68,7 @@ class DomCharWidthReader {
 		container.style.width = '50000px';
 
 		let regularDomNode = document.createElement('div');
-		regularDomNode.style.fontFamily = this._bareFontInfo.fontFamily;
+		regularDomNode.style.fontFamily = this._bareFontInfo.getMassagedFontFamily();
 		regularDomNode.style.fontWeight = this._bareFontInfo.fontWeight;
 		regularDomNode.style.fontSize = this._bareFontInfo.fontSize + 'px';
 		regularDomNode.style.lineHeight = this._bareFontInfo.lineHeight + 'px';
@@ -76,7 +76,7 @@ class DomCharWidthReader {
 		container.appendChild(regularDomNode);
 
 		let boldDomNode = document.createElement('div');
-		boldDomNode.style.fontFamily = this._bareFontInfo.fontFamily;
+		boldDomNode.style.fontFamily = this._bareFontInfo.getMassagedFontFamily();
 		boldDomNode.style.fontWeight = 'bold';
 		boldDomNode.style.fontSize = this._bareFontInfo.fontSize + 'px';
 		boldDomNode.style.lineHeight = this._bareFontInfo.lineHeight + 'px';
@@ -84,7 +84,7 @@ class DomCharWidthReader {
 		container.appendChild(boldDomNode);
 
 		let italicDomNode = document.createElement('div');
-		italicDomNode.style.fontFamily = this._bareFontInfo.fontFamily;
+		italicDomNode.style.fontFamily = this._bareFontInfo.getMassagedFontFamily();
 		italicDomNode.style.fontWeight = this._bareFontInfo.fontWeight;
 		italicDomNode.style.fontSize = this._bareFontInfo.fontSize + 'px';
 		italicDomNode.style.lineHeight = this._bareFontInfo.lineHeight + 'px';

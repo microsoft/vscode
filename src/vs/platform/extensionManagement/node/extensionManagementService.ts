@@ -677,7 +677,7 @@ export class ExtensionManagementService extends Disposable implements IExtension
 	}
 
 	private preUninstallExtension(extension: ILocalExtension): Promise<void> {
-		return pfs.exists(extension.location.fsPath)
+		return Promise.resolve(pfs.exists(extension.location.fsPath))
 			.then(exists => exists ? null : Promise.reject(new Error(nls.localize('notExists', "Could not find extension"))))
 			.then(() => {
 				this.logService.info('Uninstalling extension:', extension.identifier.id);
