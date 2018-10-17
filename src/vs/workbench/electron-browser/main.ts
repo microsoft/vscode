@@ -16,7 +16,7 @@ import { IWorkspaceContextService, Workspace, WorkbenchState } from 'vs/platform
 import { WorkspaceService, ISingleFolderWorkspaceInitializationPayload, IMultiFolderWorkspaceInitializationPayload, IEmptyWorkspaceInitializationPayload, IWorkspaceInitializationPayload } from 'vs/workbench/services/configuration/node/configurationService';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
-import { stat } from 'vs/base/node/pfs';
+import { stat, exists } from 'vs/base/node/pfs';
 import { EnvironmentService } from 'vs/platform/environment/node/environmentService';
 import * as gracefulFs from 'graceful-fs';
 import { KeyboardMapperFactory } from 'vs/workbench/services/keybinding/electron-browser/keybindingService';
@@ -43,8 +43,8 @@ import { RelayURLService } from 'vs/platform/url/common/urlService';
 import { MenubarChannelClient } from 'vs/platform/menubar/node/menubarIpc';
 import { IMenubarService } from 'vs/platform/menubar/common/menubar';
 import { Schemas } from 'vs/base/common/network';
-import { sanitizeFilePath } from 'vs/base/node/extfs';
-import { basename } from 'path';
+import { sanitizeFilePath, mkdirp } from 'vs/base/node/extfs';
+import { basename, join } from 'path';
 import { createHash } from 'crypto';
 
 gracefulFs.gracefulify(fs); // enable gracefulFs
@@ -101,46 +101,50 @@ function openWorkbench(configuration: IWindowConfiguration): Promise<void> {
 
 	// Resolve a workspace payload that we can get the workspace ID from
 	return createWorkspaceInitializationPayload(configuration, environmentService).then(payload => {
-		return Promise.all([
 
-			// Create and load workspace/configuration service
-			createWorkspaceService(payload, environmentService),
+		// Prepare the workspace storage folder
+		return prepareWorkspaceStorageFolder(payload, environmentService).then(storagePath => {
+			return Promise.all([
 
-			// Create and load storage service
-			createStorageService(environmentService, logService)
-		]).then(services => {
-			const workspaceService = services[0];
-			const storageLegacyService = createStorageLegacyService(workspaceService, environmentService);
-			const storageService = new DelegatingStorageService(services[1], storageLegacyService, logService);
+				// Create and load workspace/configuration service
+				createWorkspaceService(payload, environmentService),
 
-			return domContentLoaded().then(() => {
-				perf.mark('willStartWorkbench');
+				// Create and load storage service
+				createStorageService(storagePath, environmentService, logService)
+			]).then(services => {
+				const workspaceService = services[0];
+				const storageLegacyService = createStorageLegacyService(workspaceService, environmentService);
+				const storageService = new DelegatingStorageService(services[1], storageLegacyService, logService);
 
-				// Create Shell
-				const shell = new WorkbenchShell(document.body, {
-					contextService: workspaceService,
-					configurationService: workspaceService,
-					environmentService,
-					logService,
-					storageLegacyService,
-					storageService
-				}, mainServices, mainProcessClient, configuration);
+				return domContentLoaded().then(() => {
+					perf.mark('willStartWorkbench');
 
-				// Gracefully Shutdown Storage
-				shell.onShutdown(event => {
-					event.join(storageService.close());
-				});
+					// Create Shell
+					const shell = new WorkbenchShell(document.body, {
+						contextService: workspaceService,
+						configurationService: workspaceService,
+						environmentService,
+						logService,
+						storageLegacyService,
+						storageService
+					}, mainServices, mainProcessClient, configuration);
 
-				// Open Shell
-				shell.open();
+					// Gracefully Shutdown Storage
+					shell.onShutdown(event => {
+						event.join(storageService.close());
+					});
 
-				// Inform user about loading issues from the loader
-				(<any>self).require.config({
-					onError: err => {
-						if (err.errorCode === 'load') {
-							shell.onUnexpectedError(new Error(nls.localize('loaderErrorNative', "Failed to load a required file. Please restart the application to try again. Details: {0}", JSON.stringify(err))));
+					// Open Shell
+					shell.open();
+
+					// Inform user about loading issues from the loader
+					(<any>self).require.config({
+						onError: err => {
+							if (err.errorCode === 'load') {
+								shell.onUnexpectedError(new Error(nls.localize('loaderErrorNative', "Failed to load a required file. Please restart the application to try again. Details: {0}", JSON.stringify(err))));
+							}
 						}
-					}
+					});
 				});
 			});
 		});
@@ -162,9 +166,14 @@ function createWorkspaceInitializationPayload(configuration: IWindowConfiguratio
 
 	return workspaceInitializationPayload.then(payload => {
 
-		// Fallback to empty workspace if we have no payload yet
+		// Fallback to empty workspace if we have no payload yet. We know the
+		// backupPath must be a unique path so we leverage its name as workspace ID
 		if (!payload) {
-			payload = { id: configuration.backupPath ? uri.from({ path: basename(configuration.backupPath), scheme: 'empty' }).toString() : '' } as IEmptyWorkspaceInitializationPayload;
+			if (!configuration.backupPath) {
+				return Promise.reject(new Error('Unexpected missing backupPath for empty window')); // should not happen in this case
+			}
+
+			payload = { id: basename(configuration.backupPath) } as IEmptyWorkspaceInitializationPayload;
 		}
 
 		return payload;
@@ -188,6 +197,8 @@ function resolveSingleFolderWorkspaceInitializationPayload(folderUri: ISingleFol
 				}
 			}
 
+			// we use the ctime as extra salt to the ID so that we catch the case of a folder getting
+			// deleted and recreated. in that case we do not want to carry over previous state
 			return createHash('md5').update(folder.fsPath).update(ctime ? String(ctime) : '').digest('hex');
 		}
 
@@ -217,14 +228,28 @@ function resolveSingleFolderWorkspaceInitializationPayload(folderUri: ISingleFol
 	});
 }
 
+function prepareWorkspaceStorageFolder(payload: IWorkspaceInitializationPayload, environmentService: IEnvironmentService): Thenable<string> {
+
+	// Workspace storage: scope by workspace identifier
+	const storagePath = join(environmentService.workspaceStorageHome, payload.id);
+
+	return exists(storagePath).then(exists => {
+		if (exists) {
+			return storagePath;
+		}
+
+		return mkdirp(storagePath).then(() => storagePath);
+	});
+}
+
 function createWorkspaceService(payload: IWorkspaceInitializationPayload, environmentService: IEnvironmentService): Promise<WorkspaceService> {
 	const workspaceService = new WorkspaceService(environmentService);
 
 	return workspaceService.initialize(payload).then(() => workspaceService, error => workspaceService);
 }
 
-function createStorageService(environmentService: IEnvironmentService, logService: ILogService): Promise<StorageService> {
-	const storageService = new StorageService(':memory:', logService, environmentService);
+function createStorageService(workspaceStorageFolder: string, environmentService: IEnvironmentService, logService: ILogService): Promise<StorageService> {
+	const storageService = new StorageService(join(workspaceStorageFolder, 'storage.db'), logService, environmentService);
 
 	return storageService.init().then(() => storageService);
 }

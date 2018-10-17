@@ -15,7 +15,7 @@ import { startsWith } from 'vs/base/common/strings';
 import { Action } from 'vs/base/common/actions';
 import { IWindowService } from 'vs/platform/windows/common/windows';
 import { localize } from 'vs/nls';
-import { mark } from 'vs/base/common/performance';
+import { mark, getDuration } from 'vs/base/common/performance';
 
 export class StorageService extends Disposable implements IStorageService {
 	_serviceBrand: any;
@@ -169,13 +169,13 @@ export class StorageService extends Disposable implements IStorageService {
 				workspaceItemsParsed[key] = safeParse(value);
 			});
 
-			console.group(`Storage: Global (check: ${result[2]})`);
+			console.group(`Storage: Global (check: ${result[2]}, load: ${getDuration('willInitGlobalStorage', 'didInitGlobalStorage')})`);
 			console.table(globalItems);
 			console.groupEnd();
 
 			console.log(globalItemsParsed);
 
-			console.group(`Storage: Workspace (check: ${result[3]})`);
+			console.group(`Storage: Workspace (check: ${result[3]}, load: ${getDuration('willInitWorkspaceStorage', 'didInitWorkspaceStorage')})`);
 			console.table(workspaceItems);
 			console.groupEnd();
 
@@ -245,40 +245,27 @@ export class DelegatingStorageService extends Disposable implements IStorageServ
 	}
 
 	get(key: string, scope: StorageScope, fallbackValue?: any): string {
-		const localStorageValue = this.storageLegacyService.get(key, this.convertScope(scope), fallbackValue);
-		const dbValue = this.storageService.get(key, scope, localStorageValue);
+		if (scope === StorageScope.WORKSPACE) {
+			return this.storageService.get(key, scope, fallbackValue);
+		}
 
-		return this.assertAndGet(key, scope, dbValue, localStorageValue);
+		return this.storageLegacyService.get(key, this.convertScope(scope), fallbackValue);
 	}
 
 	getBoolean(key: string, scope: StorageScope, fallbackValue?: boolean): boolean {
-		const localStorageValue = this.storageLegacyService.getBoolean(key, this.convertScope(scope), fallbackValue);
-		const dbValue = this.storageService.getBoolean(key, scope, localStorageValue);
+		if (scope === StorageScope.WORKSPACE) {
+			return this.storageService.getBoolean(key, scope, fallbackValue);
+		}
 
-		return this.assertAndGet(key, scope, dbValue, localStorageValue);
+		return this.storageLegacyService.getBoolean(key, this.convertScope(scope), fallbackValue);
 	}
 
 	getInteger(key: string, scope: StorageScope, fallbackValue?: number): number {
-		const localStorageValue = this.storageLegacyService.getInteger(key, this.convertScope(scope), fallbackValue);
-		const dbValue = this.storageService.getInteger(key, scope, localStorageValue);
-
-		return this.assertAndGet(key, scope, dbValue, localStorageValue);
-	}
-
-	private assertAndGet(key: string, scope: StorageScope, dbValue: any, localStorageValue: any): any {
 		if (scope === StorageScope.WORKSPACE) {
-			this.assertStorageValue(key, scope, dbValue, localStorageValue);
-
-			return dbValue;
+			return this.storageService.getInteger(key, scope, fallbackValue);
 		}
 
-		return localStorageValue;
-	}
-
-	private assertStorageValue(key: string, scope: StorageScope, dbValue: any, localStorageValue: any): void {
-		if (dbValue !== localStorageValue) {
-			this.logService.error(`Unexpected storage value (key: ${key}, scope: ${scope === StorageScope.GLOBAL ? 'global' : 'workspace'}), actual: ${dbValue}, expected: ${localStorageValue}`);
-		}
+		return this.storageLegacyService.getInteger(key, this.convertScope(scope), fallbackValue);
 	}
 
 	store(key: string, value: any, scope: StorageScope): void {
