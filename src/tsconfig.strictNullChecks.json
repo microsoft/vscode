@@ -402,6 +402,7 @@
 		"./vs/workbench/browser/parts/quickinput/quickInputUtils.ts",
 		"./vs/workbench/browser/parts/quickopen/quickopen.ts",
 		"./vs/workbench/browser/parts/statusbar/statusbar.ts",
+		"./vs/workbench/common/actions.ts",
 		"./vs/workbench/common/activity.ts",
 		"./vs/workbench/common/component.ts",
 		"./vs/workbench/common/composite.ts",
