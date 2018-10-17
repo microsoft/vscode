@@ -556,7 +556,7 @@ export namespace Suggest {
 		result.range = Range.to(suggestion.range);
 
 		// 'inserText'-logic
-		if (suggestion.insertTextIsSnippet) {
+		if (suggestion.insertTextRules & modes.CompletionItemInsertTextRule.InsertAsSnippet) {
 			result.insertText = new types.SnippetString(suggestion.insertText);
 		} else {
 			result.insertText = suggestion.insertText;

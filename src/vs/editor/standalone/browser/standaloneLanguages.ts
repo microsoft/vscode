@@ -534,6 +534,7 @@ export function createMonacoLanguagesAPI(): typeof monaco.languages {
 		// enums
 		DocumentHighlightKind: modes.DocumentHighlightKind,
 		CompletionItemKind: modes.CompletionItemKind,
+		CompletionItemInsertTextRule: modes.CompletionItemInsertTextRule,
 		SymbolKind: modes.SymbolKind,
 		IndentAction: IndentAction,
 		CompletionTriggerKind: modes.CompletionTriggerKind,

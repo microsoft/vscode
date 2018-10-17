@@ -683,19 +683,19 @@ class SuggestAdapter {
 		// 'insertText'-logic
 		if (item.textEdit) {
 			result.insertText = item.textEdit.newText;
-			result.insertTextIsSnippet = false;
+			result.insertTextRules = modes.CompletionItemInsertTextRule.AdjustWhitespace;
 
 		} else if (typeof item.insertText === 'string') {
 			result.insertText = item.insertText;
-			result.insertTextIsSnippet = false;
+			result.insertTextRules = modes.CompletionItemInsertTextRule.AdjustWhitespace;
 
 		} else if (item.insertText instanceof SnippetString) {
 			result.insertText = item.insertText.value;
-			result.insertTextIsSnippet = true;
+			result.insertTextRules = modes.CompletionItemInsertTextRule.AdjustWhitespace | modes.CompletionItemInsertTextRule.InsertAsSnippet;
 
 		} else {
 			result.insertText = item.label;
-			result.insertTextIsSnippet = false;
+			result.insertTextRules = modes.CompletionItemInsertTextRule.AdjustWhitespace;
 		}
 
 		// 'overwrite[Before|After]'-logic
