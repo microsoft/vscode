@@ -454,7 +454,7 @@ export namespace DocumentHighlight {
 }
 
 export namespace CompletionTriggerKind {
-	export function from(kind: modes.CompletionTriggerKind) {
+	export function to(kind: modes.CompletionTriggerKind) {
 		switch (kind) {
 			case modes.CompletionTriggerKind.TriggerCharacter:
 				return types.CompletionTriggerKind.TriggerCharacter;
@@ -468,9 +468,9 @@ export namespace CompletionTriggerKind {
 }
 
 export namespace CompletionContext {
-	export function from(context: modes.CompletionContext): types.CompletionContext {
+	export function to(context: modes.CompletionContext): types.CompletionContext {
 		return {
-			triggerKind: CompletionTriggerKind.from(context.triggerKind),
+			triggerKind: CompletionTriggerKind.to(context.triggerKind),
 			triggerCharacter: context.triggerCharacter
 		};
 	}

@@ -575,7 +575,7 @@ class SuggestAdapter {
 		const pos = typeConvert.Position.to(position);
 
 		return asThenable<vscode.CompletionItem[] | vscode.CompletionList>(
-			() => this._provider.provideCompletionItems(doc, pos, token, typeConvert.CompletionContext.from(context))
+			() => this._provider.provideCompletionItems(doc, pos, token, typeConvert.CompletionContext.to(context))
 		).then(value => {
 
 			const _id = this._idPool++;
