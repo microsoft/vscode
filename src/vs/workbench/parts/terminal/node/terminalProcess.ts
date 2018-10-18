@@ -52,7 +52,8 @@ export class TerminalProcess implements ITerminalChildProcess, IDisposable {
 			cwd,
 			env,
 			cols,
-			rows
+			rows,
+			experimentalUseConpty: useConpty
 		};
 
 		try {
