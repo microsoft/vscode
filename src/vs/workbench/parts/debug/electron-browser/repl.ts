@@ -282,8 +282,8 @@ export class Repl extends Panel implements IPrivateReplService, IHistoryNavigati
 
 	// --- Creation
 
-	async create(parent: HTMLElement): Promise<void> {
-		await super.create(parent);
+	create(parent: HTMLElement): void {
+		super.create(parent);
 		this.container = dom.append(parent, $('.repl'));
 		this.treeContainer = dom.append(this.container, $('.repl-tree'));
 		this.createReplInput(this.container);

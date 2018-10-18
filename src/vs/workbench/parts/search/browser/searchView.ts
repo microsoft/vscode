@@ -169,7 +169,7 @@ export class SearchView extends Viewlet implements IViewlet, IPanel {
 		}
 	}
 
-	public create(parent: HTMLElement): Promise<void> {
+	public create(parent: HTMLElement): void {
 		super.create(parent);
 
 		this.viewModel = this._register(this.searchWorkbenchService.searchModel);
@@ -273,8 +273,6 @@ export class SearchView extends Viewlet implements IViewlet, IPanel {
 
 		this._register(this.onDidFocus(() => this.viewletFocused.set(true)));
 		this._register(this.onDidBlur(() => this.viewletFocused.set(false)));
-
-		return Promise.resolve(null);
 	}
 
 	public get searchAndReplaceWidget(): SearchWidget {

@@ -212,8 +212,6 @@ export abstract class CompositePart<T extends Composite> extends Part {
 		// Remember
 		this.lastActiveCompositeId = this.activeComposite.getId();
 
-		let createCompositePromise: TPromise<void>;
-
 		// Composites created for the first time
 		let compositeContainer = this.mapCompositeToCompositeContainer[composite.getId()];
 		if (!compositeContainer) {
@@ -223,92 +221,83 @@ export abstract class CompositePart<T extends Composite> extends Part {
 			addClasses(compositeContainer, this.compositeCSSClass);
 			compositeContainer.id = composite.getId();
 
-			createCompositePromise = composite.create(compositeContainer).then(() => {
-				composite.updateStyles();
-			});
+			composite.create(compositeContainer);
+			composite.updateStyles();
 
 			// Remember composite container
 			this.mapCompositeToCompositeContainer[composite.getId()] = compositeContainer;
 		}
 
-		// Composite already exists but is hidden
-		else {
-			createCompositePromise = Promise.resolve(null);
-		}
-
 		// Report progress for slow loading composites (but only if we did not create the composites before already)
 		const progressService = this.mapProgressServiceToComposite[composite.getId()];
 		if (progressService && !compositeContainer) {
-			this.mapProgressServiceToComposite[composite.getId()].showWhile(createCompositePromise, this.partService.isCreated() ? 800 : 3200 /* less ugly initial startup */);
+			this.mapProgressServiceToComposite[composite.getId()].showWhile(Promise.resolve(), this.partService.isCreated() ? 800 : 3200 /* less ugly initial startup */);
 		}
 
 		// Fill Content and Actions
-		return createCompositePromise.then(() => {
+		// Make sure that the user meanwhile did not open another composite or closed the part containing the composite
+		if (!this.activeComposite || composite.getId() !== this.activeComposite.getId()) {
+			return void 0;
+		}
+
+		// Take Composite on-DOM and show
+		this.getContentArea().appendChild(compositeContainer);
+		show(compositeContainer);
+
+		// Setup action runner
+		this.toolBar.actionRunner = composite.getActionRunner();
+
+		// Update title with composite title if it differs from descriptor
+		const descriptor = this.registry.getComposite(composite.getId());
+		if (descriptor && descriptor.name !== composite.getTitle()) {
+			this.updateTitle(composite.getId(), composite.getTitle());
+		}
+
+		// Handle Composite Actions
+		let actionsBinding = this.mapActionsBindingToComposite[composite.getId()];
+		if (!actionsBinding) {
+			actionsBinding = this.collectCompositeActions(composite);
+			this.mapActionsBindingToComposite[composite.getId()] = actionsBinding;
+		}
+		actionsBinding();
+
+		if (this.telemetryActionsListener) {
+			this.telemetryActionsListener.dispose();
+			this.telemetryActionsListener = null;
+		}
+
+		// Action Run Handling
+		this.telemetryActionsListener = this.toolBar.actionRunner.onDidRun(e => {
+
+			// Check for Error
+			if (e.error && !errors.isPromiseCanceledError(e.error)) {
+				this.notificationService.error(e.error);
+			}
+
+			// Log in telemetry
+			if (this.telemetryService) {
+				/* __GDPR__
+					"workbenchActionExecuted" : {
+						"id" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+						"from": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+					}
+				*/
+				this.telemetryService.publicLog('workbenchActionExecuted', { id: e.action.id, from: this.nameForTelemetry });
+			}
+		});
+
+		// Indicate to composite that it is now visible
+		return composite.setVisible(true).then(() => {
 
 			// Make sure that the user meanwhile did not open another composite or closed the part containing the composite
 			if (!this.activeComposite || composite.getId() !== this.activeComposite.getId()) {
-				return void 0;
+				return;
 			}
 
-			// Take Composite on-DOM and show
-			this.getContentArea().appendChild(compositeContainer);
-			show(compositeContainer);
-
-			// Setup action runner
-			this.toolBar.actionRunner = composite.getActionRunner();
-
-			// Update title with composite title if it differs from descriptor
-			const descriptor = this.registry.getComposite(composite.getId());
-			if (descriptor && descriptor.name !== composite.getTitle()) {
-				this.updateTitle(composite.getId(), composite.getTitle());
+			// Make sure the composite is layed out
+			if (this.contentAreaSize) {
+				composite.layout(this.contentAreaSize);
 			}
-
-			// Handle Composite Actions
-			let actionsBinding = this.mapActionsBindingToComposite[composite.getId()];
-			if (!actionsBinding) {
-				actionsBinding = this.collectCompositeActions(composite);
-				this.mapActionsBindingToComposite[composite.getId()] = actionsBinding;
-			}
-			actionsBinding();
-
-			if (this.telemetryActionsListener) {
-				this.telemetryActionsListener.dispose();
-				this.telemetryActionsListener = null;
-			}
-
-			// Action Run Handling
-			this.telemetryActionsListener = this.toolBar.actionRunner.onDidRun(e => {
-
-				// Check for Error
-				if (e.error && !errors.isPromiseCanceledError(e.error)) {
-					this.notificationService.error(e.error);
-				}
-
-				// Log in telemetry
-				if (this.telemetryService) {
-					/* __GDPR__
-						"workbenchActionExecuted" : {
-							"id" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-							"from": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
-						}
-					*/
-					this.telemetryService.publicLog('workbenchActionExecuted', { id: e.action.id, from: this.nameForTelemetry });
-				}
-			});
-
-			// Indicate to composite that it is now visible
-			return composite.setVisible(true).then(() => {
-
-				// Make sure that the user meanwhile did not open another composite or closed the part containing the composite
-				if (!this.activeComposite || composite.getId() !== this.activeComposite.getId()) {
-					return;
-				}
-
-				// Make sure the composite is layed out
-				if (this.contentAreaSize) {
-					composite.layout(this.contentAreaSize);
-				}
-			});
 		}, error => this.onError(error));
 	}
 

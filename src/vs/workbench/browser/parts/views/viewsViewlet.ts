@@ -143,31 +143,30 @@ export abstract class ViewContainerViewlet extends PanelViewlet implements IView
 		this._register(toDisposable(() => this.viewDisposables = dispose(this.viewDisposables)));
 	}
 
-	create(parent: HTMLElement): Promise<void> {
-		return super.create(parent).then(() => {
-			this._register(this.onDidSashChange(() => this.saveViewSizes()));
-			this.viewsModel.onDidAdd(added => this.onDidAddViews(added));
-			this.viewsModel.onDidRemove(removed => this.onDidRemoveViews(removed));
-			const addedViews: IAddedViewDescriptorRef[] = this.viewsModel.visibleViewDescriptors.map((viewDescriptor, index) => {
-				const size = this.viewsModel.getSize(viewDescriptor.id);
-				const collapsed = this.viewsModel.isCollapsed(viewDescriptor.id);
-				return ({ viewDescriptor, index, size, collapsed });
-			});
-			if (addedViews.length) {
-				this.onDidAddViews(addedViews);
-			}
-
-			// Update headers after and title contributed views after available, since we read from cache in the beginning to know if the viewlet has single view or not. Ref #29609
-			this.extensionService.whenInstalledExtensionsRegistered().then(() => {
-				this.areExtensionsReady = true;
-				if (this.panels.length) {
-					this.updateTitleArea();
-					this.updateViewHeaders();
-				}
-			});
-
-			this.focus();
+	create(parent: HTMLElement): void {
+		super.create(parent);
+		this._register(this.onDidSashChange(() => this.saveViewSizes()));
+		this.viewsModel.onDidAdd(added => this.onDidAddViews(added));
+		this.viewsModel.onDidRemove(removed => this.onDidRemoveViews(removed));
+		const addedViews: IAddedViewDescriptorRef[] = this.viewsModel.visibleViewDescriptors.map((viewDescriptor, index) => {
+			const size = this.viewsModel.getSize(viewDescriptor.id);
+			const collapsed = this.viewsModel.isCollapsed(viewDescriptor.id);
+			return ({ viewDescriptor, index, size, collapsed });
 		});
+		if (addedViews.length) {
+			this.onDidAddViews(addedViews);
+		}
+
+		// Update headers after and title contributed views after available, since we read from cache in the beginning to know if the viewlet has single view or not. Ref #29609
+		this.extensionService.whenInstalledExtensionsRegistered().then(() => {
+			this.areExtensionsReady = true;
+			if (this.panels.length) {
+				this.updateTitleArea();
+				this.updateViewHeaders();
+			}
+		});
+
+		this.focus();
 	}
 
 	getContextMenuActions(): IAction[] {

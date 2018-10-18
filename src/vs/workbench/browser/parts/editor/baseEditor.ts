@@ -105,15 +105,11 @@ export abstract class BaseEditor extends Panel implements IEditor {
 		this._options = options;
 	}
 
-	create(parent: HTMLElement): void; // create is sync for editors
-	create(parent: HTMLElement): Promise<void>;
-	create(parent: HTMLElement): Promise<void> {
-		const res = super.create(parent);
+	create(parent: HTMLElement): void {
+		super.create(parent);
 
 		// Create Editor
 		this.createEditor(parent);
-
-		return res;
 	}
 
 	/**

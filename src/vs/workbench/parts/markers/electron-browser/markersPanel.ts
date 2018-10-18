@@ -108,7 +108,7 @@ export class MarkersPanel extends Panel implements IMarkerFilterController {
 		this.setCurrentActiveEditor();
 	}
 
-	public create(parent: HTMLElement): Promise<void> {
+	public create(parent: HTMLElement): void {
 		super.create(parent);
 
 		this.rangeHighlightDecorations = this._register(this.instantiationService.createInstance(RangeHighlightDecorations));
@@ -129,8 +129,6 @@ export class MarkersPanel extends Panel implements IMarkerFilterController {
 		this.onDidBlur(() => this.panelFoucusContextKey.set(false));
 
 		this.render();
-
-		return Promise.resolve(null);
 	}
 
 	public getTitle(): string {
