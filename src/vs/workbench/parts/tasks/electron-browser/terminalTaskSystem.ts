@@ -531,7 +531,7 @@ export class TerminalTaskSystem implements ITaskSystem {
 			} else if (task.command.presentation.showReuseMessage) {
 				waitOnExit = nls.localize('reuseTerminal', 'Terminal will be reused by tasks, press any key to close it.');
 			} else {
-				waitOnExit = '\u200B';
+				waitOnExit = true;
 			}
 		}
 		let shellLaunchConfig: IShellLaunchConfig | undefined = undefined;
