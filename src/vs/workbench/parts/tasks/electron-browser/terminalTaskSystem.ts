@@ -375,6 +375,7 @@ export class TerminalTaskSystem implements ITaskSystem {
 					onData.dispose();
 					onExit.dispose();
 					let key = Task.getMapKey(task);
+					delete this.activeTasks[key];
 					this._onDidStateChange.fire(TaskEvent.create(TaskEventKind.Changed));
 					switch (task.command.presentation.panel) {
 						case PanelKind.Dedicated:
@@ -693,6 +694,10 @@ export class TerminalTaskSystem implements ITaskSystem {
 				delete this.terminals[terminalKey];
 				delete this.sameTaskTerminals[terminalData.lastTask];
 				this.idleTaskTerminals.delete(terminalData.lastTask);
+				// Delete the task now as a work around for cases when the onExit isn't fired.
+				// This can happen if the terminal wasn't shutdown with an "immediate" flag and is expected.
+				// For correct terminal re-use, the task needs to be deleted immediately.
+				// Note that this shouldn't be a problem anymore since user initiated terminal kills are now immediate.
 				delete this.activeTasks[Task.getMapKey(task)];
 			}
 		});
