@@ -13,7 +13,7 @@ import * as comparer from 'vs/base/common/comparers';
 import * as platform from 'vs/base/common/platform';
 import { URI as uri } from 'vs/base/common/uri';
 import { IWorkspaceContextService, Workspace, WorkbenchState } from 'vs/platform/workspace/common/workspace';
-import { WorkspaceService, ISingleFolderWorkspaceInitializationPayload, IMultiFolderWorkspaceInitializationPayload, IEmptyWorkspaceInitializationPayload, IWorkspaceInitializationPayload } from 'vs/workbench/services/configuration/node/configurationService';
+import { WorkspaceService, ISingleFolderWorkspaceInitializationPayload, IMultiFolderWorkspaceInitializationPayload, IEmptyWorkspaceInitializationPayload, IWorkspaceInitializationPayload, isSingleFolderWorkspaceInitializationPayload } from 'vs/workbench/services/configuration/node/configurationService';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { stat, exists, writeFile } from 'vs/base/node/pfs';
@@ -31,7 +31,7 @@ import { IUpdateService } from 'vs/platform/update/common/update';
 import { URLHandlerChannel, URLServiceChannelClient } from 'vs/platform/url/node/urlIpc';
 import { IURLService } from 'vs/platform/url/common/url';
 import { WorkspacesChannelClient } from 'vs/platform/workspaces/node/workspacesIpc';
-import { IWorkspacesService, ISingleFolderWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
+import { IWorkspacesService, ISingleFolderWorkspaceIdentifier, isWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
 import { createSpdLogService } from 'vs/platform/log/node/spdlogService';
 import * as fs from 'fs';
 import { ConsoleLogService, MultiplexLogService, ILogService } from 'vs/platform/log/common/log';
@@ -46,6 +46,8 @@ import { Schemas } from 'vs/base/common/network';
 import { sanitizeFilePath, mkdirp } from 'vs/base/node/extfs';
 import { basename, join } from 'path';
 import { createHash } from 'crypto';
+import { parseStorage, StorageObject } from 'vs/platform/storage/common/storageLegacyMigration';
+import { StorageScope } from 'vs/platform/storage/common/storage';
 
 gracefulFs.gracefulify(fs); // enable gracefulFs
 
@@ -110,7 +112,7 @@ function openWorkbench(configuration: IWindowConfiguration): Promise<void> {
 				createWorkspaceService(payload, environmentService),
 
 				// Create and load storage service
-				createStorageService(workspaceStoragePath, environmentService, logService)
+				createStorageService(workspaceStoragePath, payload, environmentService, logService)
 			]).then(services => {
 				const workspaceService = services[0];
 				const storageLegacyService = createStorageLegacyService(workspaceService, environmentService);
@@ -275,10 +277,47 @@ function createWorkspaceService(payload: IWorkspaceInitializationPayload, enviro
 	return workspaceService.initialize(payload).then(() => workspaceService, error => workspaceService);
 }
 
-function createStorageService(workspaceStorageFolder: string, environmentService: IEnvironmentService, logService: ILogService): Promise<StorageService> {
-	const storageService = new StorageService(join(workspaceStorageFolder, 'storage.db'), logService, environmentService);
+function createStorageService(workspaceStorageFolder: string, payload: IWorkspaceInitializationPayload, environmentService: IEnvironmentService, logService: ILogService): Thenable<StorageService> {
+	const workspaceStorageDBPath = join(workspaceStorageFolder, 'storage.db');
 
-	return storageService.init().then(() => storageService);
+	// Return early if we are using in-memory storage
+	const useInMemoryStorage = !!environmentService.extensionTestsPath; // never keep any state when running extension tests
+	if (useInMemoryStorage) {
+		const storageService = new StorageService(StorageService.IN_MEMORY_PATH, logService, environmentService);
+
+		return storageService.init().then(() => storageService);
+	}
+
+	// Otherwise do a migration of previous workspace data if the DB does not exist yet
+	return exists(workspaceStorageDBPath).then(exists => {
+		const storageService = new StorageService(workspaceStorageDBPath, logService, environmentService);
+
+		return storageService.init().then(() => {
+			if (exists) {
+				return storageService; // return early if DB was already there
+			}
+
+			// Otherwise, we migrate data from window.localStorage over
+			const parsedStorage = parseStorage(window.localStorage);
+
+			let workspaceItems: StorageObject;
+			if (isWorkspaceIdentifier(payload)) {
+				workspaceItems = parsedStorage.multiRoot.get(`root:${payload.id}`);
+			} else if (isSingleFolderWorkspaceInitializationPayload(payload)) {
+				workspaceItems = parsedStorage.folder.get(payload.folder.toString());
+			} else {
+				workspaceItems = parsedStorage.empty.get(`empty:${payload.id}`);
+			}
+
+			if (workspaceItems) {
+				Object.keys(workspaceItems).forEach(key => {
+					storageService.store(key, workspaceItems[key], StorageScope.WORKSPACE);
+				});
+			}
+
+			return storageService;
+		});
+	});
 }
 
 function createStorageLegacyService(workspaceService: IWorkspaceContextService, environmentService: IEnvironmentService): IStorageLegacyService {
