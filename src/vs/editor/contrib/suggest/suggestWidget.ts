@@ -37,6 +37,7 @@ import { getIconClasses } from 'vs/editor/common/services/getIconClasses';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { URI } from 'vs/base/common/uri';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { FileKind } from 'vs/platform/files/common/files';
 
 const expandSuggestionDocsByDefault = false;
 const maxSuggestionsToShow = 12;
@@ -85,6 +86,7 @@ class Renderer implements IListRenderer<ICompletionItem, ISuggestionTemplateData
 		private triggerKeybindingLabel: string,
 		@IModelService private readonly _modelService: IModelService,
 		@IModeService private readonly _modeService: IModeService,
+		@IThemeService private readonly _themeService: IThemeService,
 	) {
 
 	}
@@ -147,6 +149,13 @@ class Renderer implements IListRenderer<ICompletionItem, ISuggestionTemplateData
 		data.icon.className = 'icon ' + completionKindToCssClass(suggestion.kind);
 		data.colorspan.style.backgroundColor = '';
 
+
+		const labelOptions: IIconLabelValueOptions = {
+			labelEscapeNewLines: true,
+			matches: createMatches(element.matches)
+		};
+
+		// special logic for 'color' completion items
 		if (suggestion.kind === CompletionItemKind.Color) {
 			let color = matchesColor(suggestion.label) || typeof suggestion.documentation === 'string' && matchesColor(suggestion.documentation);
 			if (color) {
@@ -155,25 +164,27 @@ class Renderer implements IListRenderer<ICompletionItem, ISuggestionTemplateData
 			}
 		}
 
-		const labelOptions: IIconLabelValueOptions = {
-			labelEscapeNewLines: true,
-			matches: createMatches(element.matches)
-		};
-
-		if (
-			(suggestion.kind === CompletionItemKind.File)
-			&& document.querySelector('.file-icons-enabled') // todo@aeschli move file icon knowledge to editor or platform
-		) {
+		// special logic for 'file' completion items
+		if (suggestion.kind === CompletionItemKind.File && this._themeService.getIconTheme().hasFileIcons) {
 			addClass(data.root, 'show-file-icons');
 			data.icon.className = 'icon hide';
 			labelOptions.extraClasses = [].concat(
-				getIconClasses(this._modelService, this._modeService, URI.from({ scheme: 'fake', path: suggestion.label })),
-				getIconClasses(this._modelService, this._modeService, URI.from({ scheme: 'fake', path: suggestion.detail }))
+				getIconClasses(this._modelService, this._modeService, URI.from({ scheme: 'fake', path: suggestion.label }), FileKind.FILE),
+				getIconClasses(this._modelService, this._modeService, URI.from({ scheme: 'fake', path: suggestion.detail }), FileKind.FILE)
+			);
+		}
+
+		// special logic for 'folder' completion items
+		if (suggestion.kind === CompletionItemKind.Folder && this._themeService.getIconTheme().hasFolderIcons) {
+			addClass(data.root, 'show-file-icons');
+			data.icon.className = 'icon hide';
+			labelOptions.extraClasses = [].concat(
+				getIconClasses(this._modelService, this._modeService, URI.from({ scheme: 'fake', path: suggestion.label }), FileKind.FOLDER),
+				getIconClasses(this._modelService, this._modeService, URI.from({ scheme: 'fake', path: suggestion.detail }), FileKind.FOLDER)
 			);
 		}
 
 		data.iconLabel.setValue(suggestion.label, undefined, labelOptions);
-
 		data.typeLabel.textContent = (suggestion.detail || '').replace(/\n.*$/m, '');
 
 		if (canExpandCompletionItem(element)) {
