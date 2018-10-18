@@ -167,6 +167,7 @@ export class WorkspaceEditingService implements IWorkspaceEditingService {
 				return TPromise.as(void 0);
 		}
 		this.notificationService.error(error.message);
+
 		return TPromise.as(void 0);
 	}
 
@@ -222,6 +223,7 @@ export class WorkspaceEditingService implements IWorkspaceEditingService {
 			if (!extensionHostStarted) {
 				startExtensionHost(); // start the extension host if not started
 			}
+
 			return TPromise.wrapError(error);
 		});
 	}
