@@ -86,7 +86,7 @@ export class QueryBuilder {
 
 		const query: ISearchQuery = {
 			type,
-			folderQueries,
+			folderQueries: folderQueries || [],
 			usingSearchPaths: !!(searchPaths && searchPaths.length),
 			extraFileResources: options.extraFileResources,
 			filePattern: options.filePattern
