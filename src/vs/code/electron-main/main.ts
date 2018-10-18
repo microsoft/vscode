@@ -96,7 +96,6 @@ async function cleanupOlderLogs(environmentService: EnvironmentService): Promise
 
 function createPaths(environmentService: IEnvironmentService): TPromise<any> {
 	const paths = [
-		environmentService.appSettingsHome,
 		environmentService.extensionsPath,
 		environmentService.nodeCachedDataDir,
 		environmentService.logsPath,

@@ -108,11 +108,17 @@ function openWorkbench(configuration: IWindowConfiguration): Promise<void> {
 		return prepareWorkspaceStorageFolder(payload, environmentService).then(workspaceStoragePath => {
 			return Promise.all([
 
-				// Create and load workspace/configuration service
+				// Create and initialize workspace/configuration service
 				createWorkspaceService(payload, environmentService),
 
-				// Create and load storage service
-				createStorageService(workspaceStoragePath, payload, environmentService, logService)
+				// Create and initialize storage service
+				createStorageService(workspaceStoragePath, payload, !!environmentService.extensionTestsPath /* never keep any state when running extension tests */, environmentService, logService).then(service => service, error => {
+					logService.error(error);
+					errors.onUnexpectedError(error);
+
+					// TODO@Ben this is overly cautious to absolutely prevent any error on startup
+					return createStorageService(workspaceStoragePath, payload, true /* force in-memory */, environmentService, logService);
+				})
 			]).then(services => {
 				const workspaceService = services[0];
 				const storageLegacyService = createStorageLegacyService(workspaceService, environmentService);
@@ -191,32 +197,28 @@ function createWorkspaceInitializationPayload(configuration: IWindowConfiguratio
 
 function resolveSingleFolderWorkspaceInitializationPayload(folderUri: ISingleFolderWorkspaceIdentifier, verbose: boolean): Promise<ISingleFolderWorkspaceInitializationPayload> {
 
-	function singleFolderId(folder: uri, stat?: fs.Stats): string {
-		if (folder.scheme === Schemas.file && stat) {
-			let ctime: number;
-			if (platform.isLinux) {
-				ctime = stat.ino; // Linux: birthtime is ctime, so we cannot use it! We use the ino instead!
-			} else if (platform.isMacintosh) {
-				ctime = stat.birthtime.getTime(); // macOS: birthtime is fine to use as is
-			} else if (platform.isWindows) {
-				if (typeof stat.birthtimeMs === 'number') {
-					ctime = Math.floor(stat.birthtimeMs); // Windows: fix precision issue in node.js 8.x to get 7.x results (see https://github.com/nodejs/node/issues/19897)
-				} else {
-					ctime = stat.birthtime.getTime();
-				}
-			}
-
-			// we use the ctime as extra salt to the ID so that we catch the case of a folder getting
-			// deleted and recreated. in that case we do not want to carry over previous state
-			return createHash('md5').update(folder.fsPath).update(ctime ? String(ctime) : '').digest('hex');
-		}
-
-		return createHash('md5').update(folder.toString()).digest('hex');
-	}
-
 	// Return early the folder is not local
 	if (folderUri.scheme !== Schemas.file) {
-		return Promise.resolve({ id: singleFolderId(folderUri), folder: folderUri });
+		return Promise.resolve({ id: createHash('md5').update(folderUri.toString()).digest('hex'), folder: folderUri });
+	}
+
+	function computeLocalDiskFolderId(folder: uri, stat: fs.Stats): string {
+		let ctime: number;
+		if (platform.isLinux) {
+			ctime = stat.ino; // Linux: birthtime is ctime, so we cannot use it! We use the ino instead!
+		} else if (platform.isMacintosh) {
+			ctime = stat.birthtime.getTime(); // macOS: birthtime is fine to use as is
+		} else if (platform.isWindows) {
+			if (typeof stat.birthtimeMs === 'number') {
+				ctime = Math.floor(stat.birthtimeMs); // Windows: fix precision issue in node.js 8.x to get 7.x results (see https://github.com/nodejs/node/issues/19897)
+			} else {
+				ctime = stat.birthtime.getTime();
+			}
+		}
+
+		// we use the ctime as extra salt to the ID so that we catch the case of a folder getting
+		// deleted and recreated. in that case we do not want to carry over previous state
+		return createHash('md5').update(folder.fsPath).update(ctime ? String(ctime) : '').digest('hex');
 	}
 
 	// For local: ensure path is absolute and exists
@@ -224,7 +226,7 @@ function resolveSingleFolderWorkspaceInitializationPayload(folderUri: ISingleFol
 	return stat(sanitizedFolderPath).then(stat => {
 		const sanitizedFolderUri = uri.file(sanitizedFolderPath);
 		return {
-			id: singleFolderId(sanitizedFolderUri, stat),
+			id: computeLocalDiskFolderId(sanitizedFolderUri, stat),
 			folder: sanitizedFolderUri
 		} as ISingleFolderWorkspaceInitializationPayload;
 	}, error => {
@@ -232,8 +234,8 @@ function resolveSingleFolderWorkspaceInitializationPayload(folderUri: ISingleFol
 			errors.onUnexpectedError(error);
 		}
 
-		// Treat any error case as empty workbench case (no folder path)
-		return null;
+		// Do not bubble up the error
+		return void 0;
 	});
 }
 
@@ -274,14 +276,16 @@ function ensureWorkspaceStorageFolderMeta(workspaceStoragePath: string, workspac
 function createWorkspaceService(payload: IWorkspaceInitializationPayload, environmentService: IEnvironmentService): Promise<WorkspaceService> {
 	const workspaceService = new WorkspaceService(environmentService);
 
-	return workspaceService.initialize(payload).then(() => workspaceService, error => workspaceService);
+	return workspaceService.initialize(payload).then(() => workspaceService, error => {
+		errors.onUnexpectedError(error);
+
+		return workspaceService;
+	});
 }
 
-function createStorageService(workspaceStorageFolder: string, payload: IWorkspaceInitializationPayload, environmentService: IEnvironmentService, logService: ILogService): Thenable<StorageService> {
-	const workspaceStorageDBPath = join(workspaceStorageFolder, 'storage.db');
+function createStorageService(workspaceStorageFolder: string, payload: IWorkspaceInitializationPayload, useInMemoryStorage: boolean, environmentService: IEnvironmentService, logService: ILogService): Thenable<StorageService> {
 
 	// Return early if we are using in-memory storage
-	const useInMemoryStorage = !!environmentService.extensionTestsPath; // never keep any state when running extension tests
 	if (useInMemoryStorage) {
 		const storageService = new StorageService(StorageService.IN_MEMORY_PATH, logService, environmentService);
 
@@ -289,6 +293,7 @@ function createStorageService(workspaceStorageFolder: string, payload: IWorkspac
 	}
 
 	// Otherwise do a migration of previous workspace data if the DB does not exist yet
+	const workspaceStorageDBPath = join(workspaceStorageFolder, 'storage.db');
 	return exists(workspaceStorageDBPath).then(exists => {
 		const storageService = new StorageService(workspaceStorageDBPath, logService, environmentService);
 
