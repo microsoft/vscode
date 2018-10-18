@@ -22,7 +22,7 @@ export interface IViewletService {
 	/**
 	 * Opens a viewlet with the given identifier and pass keyboard focus to it if specified.
 	 */
-	openViewlet(id: string, focus?: boolean): Promise<IViewlet>;
+	openViewlet(id: string, focus?: boolean): Thenable<IViewlet>;
 
 	/**
 	 * Returns the current active viewlet or null if none.
