@@ -54,11 +54,15 @@ const ModulesToLookFor = [
 	'react',
 	'react-native',
 	'@angular/core',
+	'@ionic',
 	'vue',
+	'tns-core-modules',
 	// Other interesting packages
 	'aws-sdk',
+	'aws-amplify',
 	'azure',
 	'azure-storage',
+	'firebase',
 	'@google-cloud/common',
 	'heroku-cli'
 ];
@@ -259,9 +263,11 @@ export class WorkspaceStats implements IWorkbenchContribution {
 			"workspace.npm.@angular/core" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
 			"workspace.npm.vue" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
 			"workspace.npm.aws-sdk" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
+			"workspace.npm.aws-amplify-sdk" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
 			"workspace.npm.azure" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
 			"workspace.npm.azure-storage" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
 			"workspace.npm.@google-cloud/common" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
+			"workspace.npm.firebase" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
 			"workspace.npm.heroku-cli" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
 			"workspace.bower" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
 			"workspace.yeoman.code.ext" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
@@ -271,6 +277,8 @@ export class WorkspaceStats implements IWorkbenchContribution {
 			"workspace.xamarin.ios" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
 			"workspace.android.cpp" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
 			"workspace.reactNative" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
+			"workspace.ionic" : { "classification" : "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": "true" },
+			"workspace.nativeScript" : { "classification" : "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": "true" },
 			"workspace.py.requirements" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
 			"workspace.py.requirements.star" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
 			"workspace.py.Pipfile" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
@@ -384,6 +392,14 @@ export class WorkspaceStats implements IWorkbenchContribution {
 					tags['workspace.cordova.low'] = true;
 				}
 			}
+			
+			if (tags['workspace.config.xml'] &&
+				!tags['workspace.language.cs'] && !tags['workspace.language.vb'] && !tags['workspace.language.aspx']) {
+			
+				if (nameSet.has('ionic.config.json')) {
+					tags['workspace.ionic'] = true;
+				}
+			}
 
 			if (mainActivity && properties && resources) {
 				tags['workspace.xamarin.android'] = true;
@@ -460,6 +476,10 @@ export class WorkspaceStats implements IWorkbenchContribution {
 							if ('react-native' === module) {
 								if (packageJsonContents['dependencies'][module]) {
 									tags['workspace.reactNative'] = true;
+								}
+							} else if ('tns-core-modules' === module) {
+								if (packageJsonContents['dependencies'][module]) {
+									tags['workspace.nativescript'] = true;
 								}
 							} else {
 								if (packageJsonContents['dependencies'][module]) {
