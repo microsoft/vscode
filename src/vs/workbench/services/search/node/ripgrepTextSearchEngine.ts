@@ -223,26 +223,35 @@ export class RipgrepParser extends EventEmitter {
 
 	private submatchToResult(parsedLine: any, match: any, uri: vscode.Uri): vscode.TextSearchResult {
 		const lineNumber = parsedLine.data.line_number - 1;
-		let matchText = parsedLine.data.lines.bytes ?
-			new Buffer(parsedLine.data.lines.bytes, 'base64').toString() :
-			parsedLine.data.lines.text;
-		let start = match.start;
-		let end = match.end;
+		let lineText = bytesOrTextToString(parsedLine.data.lines);
+		let matchText = bytesOrTextToString(match.match);
+		const newlineMatches = matchText.match(/\n/g);
+		const newlines = newlineMatches ? newlineMatches.length : 0;
+		let startCol = match.start;
+		const endLineNumber = lineNumber + newlines;
+		let endCol = match.end - (lineText.lastIndexOf('\n', lineText.length - 2) + 1);
+
 		if (lineNumber === 0) {
 			if (startsWithUTF8BOM(matchText)) {
 				matchText = stripUTF8BOM(matchText);
-				start -= 3;
-				end -= 3;
+				startCol -= 3;
+				endCol -= 3;
 			}
 		}
 
-		const range = new Range(lineNumber, start, lineNumber, end);
-		return createTextSearchResult(uri, matchText, range, this.previewOptions);
+		const range = new Range(lineNumber, startCol, endLineNumber, endCol);
+		return createTextSearchResult(uri, lineText, range, this.previewOptions);
 	}
 
 	private onResult(match: vscode.TextSearchResult): void {
 		this.emit('result', match);
 	}
+}
+
+function bytesOrTextToString(obj: any): string {
+	return obj.bytes ?
+		new Buffer(obj.bytes, 'base64').toString() :
+		obj.text;
 }
 
 function getRgArgs(query: vscode.TextSearchQuery, options: vscode.TextSearchOptions): string[] {
