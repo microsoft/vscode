@@ -2,15 +2,18 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
+'use strict';
 
-import { ParseError, Node, parseTree, findNodeAtLocation, JSONPath, Segment } from 'vs/base/common/json';
-import { Edit, FormattingOptions, format, applyEdit } from 'vs/base/common/jsonFormatter';
+import { ParseError, Node, JSONPath, Segment, parseTree, findNodeAtLocation } from './json';
+import { Edit, format, isEOL, FormattingOptions } from './jsonFormatter';
+
 
 export function removeProperty(text: string, path: JSONPath, formattingOptions: FormattingOptions): Edit[] {
 	return setProperty(text, path, void 0, formattingOptions);
 }
 
-export function setProperty(text: string, path: JSONPath, value: any, formattingOptions: FormattingOptions, getInsertionIndex?: (properties: string[]) => number): Edit[] {
+export function setProperty(text: string, originalPath: JSONPath, value: any, formattingOptions: FormattingOptions, getInsertionIndex?: (properties: string[]) => number): Edit[] {
+	let path = originalPath.slice();
 	let errors: ParseError[] = [];
 	let root = parseTree(text, errors);
 	let parent: Node | undefined = void 0;
@@ -36,20 +39,23 @@ export function setProperty(text: string, path: JSONPath, value: any, formatting
 			throw new Error('Can not delete in empty document');
 		}
 		return withFormatting(text, { offset: root ? root.offset : 0, length: root ? root.length : 0, content: JSON.stringify(value) }, formattingOptions);
-	} else if (parent.type === 'object' && typeof lastSegment === 'string') {
+	} else if (parent.type === 'object' && typeof lastSegment === 'string' && Array.isArray(parent.children)) {
 		let existing = findNodeAtLocation(parent, [lastSegment]);
 		if (existing !== void 0) {
 			if (value === void 0) { // delete
-				let propertyIndex = parent.children && existing.parent ? parent.children.indexOf(existing.parent) : -1;
+				if (!existing.parent) {
+					throw new Error('Malformed AST');
+				}
+				let propertyIndex = parent.children.indexOf(existing.parent);
 				let removeBegin: number;
-				let removeEnd = existing.parent!.offset + existing.parent!.length;
+				let removeEnd = existing.parent.offset + existing.parent.length;
 				if (propertyIndex > 0) {
 					// remove the comma of the previous node
-					let previous = parent.children![propertyIndex - 1];
+					let previous = parent.children[propertyIndex - 1];
 					removeBegin = previous.offset + previous.length;
 				} else {
 					removeBegin = parent.offset + 1;
-					if (parent.children && parent.children.length > 1) {
+					if (parent.children.length > 1) {
 						// remove the comma of the next node
 						let next = parent.children[1];
 						removeEnd = next.offset;
@@ -65,25 +71,25 @@ export function setProperty(text: string, path: JSONPath, value: any, formatting
 				return []; // property does not exist, nothing to do
 			}
 			let newProperty = `${JSON.stringify(lastSegment)}: ${JSON.stringify(value)}`;
-			let index = getInsertionIndex ? getInsertionIndex(parent.children!.map(p => p.children![0].value)) : parent.children!.length;
+			let index = getInsertionIndex ? getInsertionIndex(parent.children.map(p => p.children![0].value)) : parent.children.length;
 			let edit: Edit;
 			if (index > 0) {
-				let previous = parent.children![index - 1];
+				let previous = parent.children[index - 1];
 				edit = { offset: previous.offset + previous.length, length: 0, content: ',' + newProperty };
-			} else if (parent.children!.length === 0) {
+			} else if (parent.children.length === 0) {
 				edit = { offset: parent.offset + 1, length: 0, content: newProperty };
 			} else {
 				edit = { offset: parent.offset + 1, length: 0, content: newProperty + ',' };
 			}
 			return withFormatting(text, edit, formattingOptions);
 		}
-	} else if (parent.type === 'array' && typeof lastSegment === 'number') {
+	} else if (parent.type === 'array' && typeof lastSegment === 'number' && Array.isArray(parent.children)) {
 		let insertIndex = lastSegment;
 		if (insertIndex === -1) {
 			// Insert
 			let newProperty = `${JSON.stringify(value)}`;
 			let edit: Edit;
-			if (!parent.children || parent.children.length === 0) {
+			if (parent.children.length === 0) {
 				edit = { offset: parent.offset + 1, length: 0, content: newProperty };
 			} else {
 				let previous = parent.children[parent.children.length - 1];
@@ -91,7 +97,7 @@ export function setProperty(text: string, path: JSONPath, value: any, formatting
 			}
 			return withFormatting(text, edit, formattingOptions);
 		} else {
-			if (value === void 0 && parent.children && parent.children.length >= 0) {
+			if (value === void 0 && parent.children.length >= 0) {
 				//Removal
 				let removalIndex = lastSegment;
 				let toRemove = parent.children[removalIndex];
@@ -125,6 +131,15 @@ function withFormatting(text: string, edit: Edit, formattingOptions: FormattingO
 	// format the new text
 	let begin = edit.offset;
 	let end = edit.offset + edit.content.length;
+	if (edit.length === 0 || edit.content.length === 0) { // insert or remove
+		while (begin > 0 && !isEOL(newText, begin - 1)) {
+			begin--;
+		}
+		while (end < newText.length && !isEOL(newText, end)) {
+			end++;
+		}
+	}
+
 	let edits = format(newText, { offset: begin, length: end - begin }, formattingOptions);
 
 	// apply the formatting edits and track the begin and end offsets of the changes
@@ -138,4 +153,12 @@ function withFormatting(text: string, edit: Edit, formattingOptions: FormattingO
 	// create a single edit with all changes
 	let editLength = text.length - (newText.length - end) - begin;
 	return [{ offset: begin, length: editLength, content: newText.substring(begin, end) }];
+}
+
+export function applyEdit(text: string, edit: Edit): string {
+	return text.substring(0, edit.offset) + edit.content + text.substring(edit.offset + edit.length);
+}
+
+export function isWS(text: string, offset: number) {
+	return '\r\n \t'.indexOf(text.charAt(offset)) !== -1;
 }

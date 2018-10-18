@@ -19,7 +19,6 @@ import { coalesce } from 'vs/base/common/arrays';
 import { createHash } from 'crypto';
 import * as json from 'vs/base/common/json';
 import * as jsonEdit from 'vs/base/common/jsonEdit';
-import { applyEdit } from 'vs/base/common/jsonFormatter';
 import { massageFolderPathForWorkspace } from 'vs/platform/workspaces/node/workspaces';
 import { toWorkspaceFolders } from 'vs/platform/workspace/common/workspace';
 import { URI } from 'vs/base/common/uri';
@@ -231,7 +230,7 @@ export class WorkspacesMainService implements IWorkspacesMainService {
 			let newRawWorkspaceContents = rawWorkspaceContents;
 			const edits = jsonEdit.setProperty(rawWorkspaceContents, ['folders'], storedWorkspace.folders, { insertSpaces: false, tabSize: 4, eol: (isLinux || isMacintosh) ? '\n' : '\r\n' });
 			edits.forEach(edit => {
-				newRawWorkspaceContents = applyEdit(rawWorkspaceContents, edit);
+				newRawWorkspaceContents = jsonEdit.applyEdit(rawWorkspaceContents, edit);
 			});
 
 			return writeFile(targetConfigPath, newRawWorkspaceContents).then(() => {
