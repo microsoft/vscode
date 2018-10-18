@@ -557,6 +557,15 @@ export class WorkbenchLayout extends Disposable implements IVerticalSashLayoutPr
 		position(this.workbenchContainer, 0, 0, 0, 0, 'relative');
 		size(this.workbenchContainer, this.workbenchSize.width, this.workbenchSize.height);
 
+		// Bug on Chrome: Sometimes Chrome wants to scroll the workbench container on layout changes. The fix is to reset scrolling in this case.
+		const workbenchContainer = this.workbenchContainer;
+		if (workbenchContainer.scrollTop > 0) {
+			workbenchContainer.scrollTop = 0;
+		}
+		if (workbenchContainer.scrollLeft > 0) {
+			workbenchContainer.scrollLeft = 0;
+		}
+
 		// Title Part
 		const titleContainer = this.parts.titlebar.getContainer();
 		if (isTitlebarHidden) {
