@@ -147,7 +147,7 @@
 			},
 			"urlFilter": "*workbench.html*",
 			"runtimeArgs": [
-				"--inspect=5875"
+				"--inspect=5875", "--no-cached-data"
 			],
 			"smartStep": true,
 			"skipFiles": [
