@@ -49,15 +49,16 @@ export class Source {
 		if (this.raw.sourceReference > 0) {
 			this.uri = uri.parse(`${DEBUG_SCHEME}:${encodeURIComponent(path)}?session=${encodeURIComponent(sessionId)}&ref=${this.raw.sourceReference}`);
 		} else {
-			if (isUri(path)) {
+			if (isUri(path)) {	// path looks like a uri
 				this.uri = uri.parse(path);
 			} else {
-				// assume path
+				// assume a filesystem path
 				if (paths.isAbsolute_posix(path) || paths.isAbsolute_win32(path)) {
 					this.uri = uri.file(path);
 				} else {
-					// path is relative: this is not supported but if it happens we create a bogus uri for backward compatibility
-					this.uri = uri.file(path);
+					// path is relative: since VS Code cannot deal with this by itself
+					// create a debug url that will result in a DAP 'source' request when the url is resolved.
+					this.uri = uri.parse(`${DEBUG_SCHEME}:${encodeURIComponent(path)}?session=${encodeURIComponent(sessionId)}`);
 				}
 			}
 		}
