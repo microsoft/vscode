@@ -61,7 +61,7 @@ class SplitPaneContainer {
 		}
 
 		// Get sizes
-		const sizes = [];
+		const sizes: number[] = [];
 		for (let i = 0; i < this._splitView.length; i++) {
 			sizes.push(this._splitView.getViewSize(i));
 		}

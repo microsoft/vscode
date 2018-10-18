@@ -133,7 +133,7 @@ class TreeViewDataProvider implements ITreeViewDataProvider {
 	}
 
 	private postGetChildren(elements: ITreeItem[]): ITreeItem[] {
-		const result = [];
+		const result: ITreeItem[] = [];
 		if (elements) {
 			for (const element of elements) {
 				this.itemsMap.set(element.handle, element);

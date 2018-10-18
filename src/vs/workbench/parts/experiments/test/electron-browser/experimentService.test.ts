@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { ExperimentService, ExperimentActionType, ExperimentState } from 'vs/workbench/parts/experiments/node/experimentService';
+import { ExperimentService, ExperimentActionType, ExperimentState, IExperiment } from 'vs/workbench/parts/experiments/node/experimentService';
 import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { TestLifecycleService } from 'vs/workbench/test/workbenchTestServices';
@@ -122,7 +122,7 @@ suite('Experiment Service', () => {
 		};
 
 		testObject = instantiationService.createInstance(TestExperimentService);
-		const tests = [];
+		const tests: TPromise<IExperiment>[] = [];
 		tests.push(testObject.getExperimentById('experiment1'));
 		tests.push(testObject.getExperimentById('experiment2'));
 		tests.push(testObject.getExperimentById('experiment3'));
@@ -546,7 +546,7 @@ suite('Experiment Service', () => {
 
 		testObject = instantiationService.createInstance(TestExperimentService);
 
-		const tests = [];
+		const tests: TPromise<IExperiment>[] = [];
 		tests.push(testObject.getExperimentById('experiment1'));
 		tests.push(testObject.getExperimentById('experiment2'));
 		tests.push(testObject.getExperimentById('experiment3'));

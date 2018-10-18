@@ -111,7 +111,7 @@ class ViewsContainersExtensionHandler implements IWorkbenchContribution {
 						container = this.viewContainersRegistry.get(EXPLORER);
 					}
 					const registeredViews = ViewsRegistry.getViews(container);
-					const viewIds = [];
+					const viewIds: string[] = [];
 					const viewDescriptors = coalesce(entry.value.map((item, index) => {
 						// validate
 						if (viewIds.indexOf(item.id) !== -1) {

@@ -830,7 +830,7 @@ export class WindowsManager implements IWindowsMainService {
 	}
 
 	private doExtractPathsFromAPI(openConfig: IOpenConfiguration): IPathToOpen[] {
-		const pathsToOpen = [];
+		const pathsToOpen: IPathToOpen[] = [];
 		const cli = openConfig.cli;
 		let parseOptions: IPathParseOptions = { gotoLineMode: cli && cli.goto, forceOpenWorkspaceAsFile: openConfig.forceOpenWorkspaceAsFile };
 		for (const pathToOpen of openConfig.urisToOpen) {
@@ -868,7 +868,7 @@ export class WindowsManager implements IWindowsMainService {
 	}
 
 	private doExtractPathsFromCLI(cli: ParsedArgs): IPath[] {
-		const pathsToOpen = [];
+		const pathsToOpen: IPathToOpen[] = [];
 		const parseOptions: IPathParseOptions = { ignoreFileNotFound: true, gotoLineMode: cli.goto };
 
 		// folder uris

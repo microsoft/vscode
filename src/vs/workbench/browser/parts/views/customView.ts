@@ -351,7 +351,7 @@ export class CustomTreeViewer extends Disposable implements ITreeViewer {
 	getOptimalWidth(): number {
 		if (this.tree) {
 			const parentNode = this.tree.getHTMLElement();
-			const childNodes = [].slice.call(parentNode.querySelectorAll('.outline-item-label > a'));
+			const childNodes = ([] as Element[]).slice.call(parentNode.querySelectorAll('.outline-item-label > a'));
 			return DOM.getLargestChildWidth(parentNode, childNodes);
 		}
 		return 0;

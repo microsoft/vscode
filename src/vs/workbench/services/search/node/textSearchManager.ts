@@ -78,7 +78,7 @@ export class TextSearchManager {
 
 	private searchInFolder(folderQuery: IFolderQuery<URI>, onResult: (result: vscode.TextSearchResult) => void, token: CancellationToken): TPromise<vscode.TextSearchComplete> {
 		const queryTester = new QueryGlobTester(this.config, folderQuery);
-		const testingPs = [];
+		const testingPs: TPromise<void>[] = [];
 		const progress = {
 			report: (result: vscode.TextSearchResult) => {
 				const hasSibling = folderQuery.folder.scheme === 'file' && glob.hasSiblingPromiseFn(() => {

@@ -898,7 +898,7 @@ export class SettingsEditor2 extends BaseEditor {
 
 		// Warn for settings not included in layout
 		if (settingsResult.leftoverSettings.size && !this.hasWarnedMissingSettings) {
-			const settingKeyList = [];
+			const settingKeyList: string[] = [];
 			settingsResult.leftoverSettings.forEach(s => {
 				settingKeyList.push(s.key);
 			});

@@ -741,7 +741,7 @@ class AbsoluteAndRelativeParsedExpression {
 	}
 
 	public getPathTerms(): string[] {
-		const pathTerms = [];
+		const pathTerms: string[] = [];
 		if (this.absoluteParsedExpr) {
 			pathTerms.push(...glob.getPathTerms(this.absoluteParsedExpr));
 		}

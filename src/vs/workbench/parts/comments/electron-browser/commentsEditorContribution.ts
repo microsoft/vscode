@@ -512,7 +512,7 @@ export class ReviewController implements IEditorContribution {
 			});
 		});
 
-		const commentingRanges = [];
+		const commentingRanges: IRange[] = [];
 		this._commentInfos.forEach(info => {
 			commentingRanges.push(...info.commentingRanges);
 		});

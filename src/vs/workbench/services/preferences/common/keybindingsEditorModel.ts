@@ -157,7 +157,7 @@ export class KeybindingsEditorModel extends EditorModel {
 	}
 
 	private splitKeybindingWords(wordsSeparatedBySpaces: string[]): string[] {
-		const result = [];
+		const result: string[] = [];
 		for (const word of wordsSeparatedBySpaces) {
 			result.push(...word.split('+').filter(w => !!w));
 		}
@@ -314,7 +314,7 @@ class KeybindingItemMatches {
 		let firstPartMatch: KeybindingMatch = {};
 		let chordPartMatch: KeybindingMatch = {};
 
-		const matchedWords = [];
+		const matchedWords: number[] = [];
 		let firstPartMatchedWords: number[] = [];
 		let chordPartMatchedWords: number[] = [];
 		let matchFirstPart = true;

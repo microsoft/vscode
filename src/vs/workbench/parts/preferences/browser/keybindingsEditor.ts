@@ -787,7 +787,7 @@ class ActionsColumn extends Column {
 
 	render(keybindingItemEntry: IKeybindingItemEntry): void {
 		this.actionBar.clear();
-		const actions = [];
+		const actions: IAction[] = [];
 		if (keybindingItemEntry.keybindingItem.keybinding) {
 			actions.push(this.createEditAction(keybindingItemEntry));
 		} else {

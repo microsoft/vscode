@@ -5,7 +5,7 @@
 
 import { readdir, stat, exists, readFile } from 'fs';
 import { join } from 'path';
-import { parse } from 'vs/base/common/json';
+import { parse, ParseError } from 'vs/base/common/json';
 
 export interface WorkspaceStatItem {
 	name: string;
@@ -37,7 +37,7 @@ export function collectLaunchConfigs(folder: string): Promise<WorkspaceStatItem[
 						return resolve([]);
 					}
 
-					const errors = [];
+					const errors: ParseError[] = [];
 					const json = parse(contents.toString(), errors);
 					if (errors.length) {
 						console.log(`Unable to parse ${launchConfig}`);
