@@ -11,6 +11,33 @@ declare module 'vscode' {
 		export function sampleFunction(): Thenable<any>;
 	}
 
+	//#region Joh - https://github.com/Microsoft/vscode/issues/57093
+
+	/**
+	 * An insert text rule defines how the [`insertText`](#CompletionItem.insertText) of a
+	 * completion item should be modified.
+	 */
+	export enum CompletionItemInsertTextRule {
+
+		/**
+		 * Keep whitespace as is. By default, the editor adjusts leading
+		 * whitespace of new lines so that they match the indentation of
+		 * the line for which the item is accepeted.
+		 */
+		KeepWhitespace = 0b01
+	}
+
+	export interface CompletionItem {
+
+		/**
+		 * Rules about how/if the `insertText` should be modified by the
+		 * editor. Can be a bit mask of many rules.
+		 */
+		insertTextRules?: CompletionItemInsertTextRule;
+	}
+
+	//#endregion
+
 	//#region Joh - clipboard https://github.com/Microsoft/vscode/issues/217
 
 	export interface Clipboard {

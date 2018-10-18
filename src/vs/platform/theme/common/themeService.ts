@@ -61,6 +61,12 @@ export interface ITheme {
 	defines(color: ColorIdentifier): boolean;
 }
 
+export interface IIconTheme {
+	readonly hasFileIcons: boolean;
+	readonly hasFolderIcons: boolean;
+	readonly hidesExplorerArrows: boolean;
+}
+
 export interface ICssStyleCollector {
 	addRule(rule: string): void;
 }
@@ -74,10 +80,11 @@ export interface IThemeService {
 
 	getTheme(): ITheme;
 
-	/**
-	 * Register a theming participant that is invoked after every theme change.
-	 */
-	onThemeChange: Event<ITheme>;
+	readonly onThemeChange: Event<ITheme>;
+
+	getIconTheme(): IIconTheme;
+
+	readonly onIconThemeChange: Event<IIconTheme>;
 
 }
 

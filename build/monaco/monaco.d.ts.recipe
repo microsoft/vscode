@@ -58,7 +58,7 @@ declare namespace monaco.editor {
 #include(vs/editor/common/services/webWorker): MonacoWebWorker, IWebWorkerOptions
 #include(vs/editor/standalone/browser/standaloneCodeEditor): IActionDescriptor, IEditorConstructionOptions, IDiffEditorConstructionOptions, IStandaloneCodeEditor, IStandaloneDiffEditor
 export interface ICommandHandler {
-	(...args:any[]): void;
+	(...args: any[]): void;
 }
 #include(vs/platform/contextkey/common/contextkey): IContextKey
 #include(vs/editor/standalone/browser/standaloneServices): IEditorOverrideServices

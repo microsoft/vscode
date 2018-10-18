@@ -52,6 +52,7 @@ suite('QueryBuilder', () => {
 		assertEqualQueries(
 			queryBuilder.text(PATTERN_INFO),
 			<ISearchQuery>{
+				folderQueries: [],
 				contentPattern: PATTERN_INFO,
 				type: QueryType.Text
 			});
@@ -242,6 +243,7 @@ suite('QueryBuilder', () => {
 				{ filePattern: ` ${content} ` }
 			),
 			<ISearchQuery>{
+				folderQueries: [],
 				contentPattern: PATTERN_INFO,
 				filePattern: content,
 				type: QueryType.Text

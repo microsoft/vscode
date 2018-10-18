@@ -315,8 +315,8 @@ class KeybindingItemMatches {
 		let chordPartMatch: KeybindingMatch = {};
 
 		const matchedWords = [];
-		let firstPartMatchedWords = [];
-		let chordPartMatchedWords = [];
+		let firstPartMatchedWords: number[] = [];
+		let chordPartMatchedWords: number[] = [];
 		let matchFirstPart = true;
 		for (let index = 0; index < words.length; index++) {
 			const word = words[index];

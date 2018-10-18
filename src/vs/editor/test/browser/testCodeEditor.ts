@@ -34,13 +34,13 @@ export class TestCodeEditor extends CodeEditorWidget implements editorBrowser.IC
 	}
 	protected _createView(viewModel: ViewModel, cursor: Cursor): [View, boolean] {
 		// Never create a view
-		return [null, false];
+		return [null! as View, false];
 	}
 	//#endregion
 
 	//#region Testing utils
-	public getCursor(): Cursor {
-		return this._modelData.cursor;
+	public getCursor(): Cursor | undefined {
+		return this._modelData ? this._modelData.cursor : undefined;
 	}
 	public registerAndInstantiateContribution<T extends editorCommon.IEditorContribution>(ctor: any): T {
 		let r = <T>this._instantiationService.createInstance(ctor, this);
@@ -60,7 +60,7 @@ class TestEditorDomElement {
 	setAttribute(attr: string, value: string): void { }
 	removeAttribute(attr: string): void { }
 	hasAttribute(attr: string): boolean { return false; }
-	getAttribute(attr: string): string { return undefined; }
+	getAttribute(attr: string): string | undefined { return undefined; }
 	addEventListener(event: string): void { }
 	removeEventListener(event: string): void { }
 }
@@ -73,7 +73,7 @@ export interface TestCodeEditorCreationOptions extends editorOptions.IEditorOpti
 	serviceCollection?: ServiceCollection;
 }
 
-export function withTestCodeEditor(text: string | string[], options: TestCodeEditorCreationOptions, callback: (editor: TestCodeEditor, cursor: Cursor) => void): void {
+export function withTestCodeEditor(text: string | string[], options: TestCodeEditorCreationOptions, callback: (editor: TestCodeEditor, cursor: Cursor | undefined) => void): void {
 	// create a model if necessary and remember it in order to dispose it.
 	if (!options.model) {
 		if (typeof text === 'string') {

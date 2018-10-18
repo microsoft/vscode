@@ -153,41 +153,59 @@ export class ExtHostFileSystem implements ExtHostFileSystemShape {
 		return { type, ctime, mtime, size };
 	}
 
+	private _checkProviderExists(handle: number): void {
+		if (!this._fsProvider.has(handle)) {
+			const err = new Error();
+			err.name = 'ENOPRO';
+			err.message = `no provider`;
+			throw err;
+		}
+	}
+
 	$stat(handle: number, resource: UriComponents): Promise<files.IStat> {
+		this._checkProviderExists(handle);
 		return Promise.resolve(this._fsProvider.get(handle).stat(URI.revive(resource))).then(ExtHostFileSystem._asIStat);
 	}
 
 	$readdir(handle: number, resource: UriComponents): Promise<[string, files.FileType][]> {
+		this._checkProviderExists(handle);
 		return Promise.resolve(this._fsProvider.get(handle).readDirectory(URI.revive(resource)));
 	}
 
 	$readFile(handle: number, resource: UriComponents): Promise<Buffer> {
+		this._checkProviderExists(handle);
 		return Promise.resolve(this._fsProvider.get(handle).readFile(URI.revive(resource))).then(data => {
 			return Buffer.isBuffer(data) ? data : Buffer.from(data.buffer, data.byteOffset, data.byteLength);
 		});
 	}
 
 	$writeFile(handle: number, resource: UriComponents, content: Buffer, opts: files.FileWriteOptions): Promise<void> {
+		this._checkProviderExists(handle);
 		return Promise.resolve(this._fsProvider.get(handle).writeFile(URI.revive(resource), content, opts));
 	}
 
 	$delete(handle: number, resource: UriComponents, opts: files.FileDeleteOptions): Promise<void> {
+		this._checkProviderExists(handle);
 		return Promise.resolve(this._fsProvider.get(handle).delete(URI.revive(resource), opts));
 	}
 
 	$rename(handle: number, oldUri: UriComponents, newUri: UriComponents, opts: files.FileOverwriteOptions): Promise<void> {
+		this._checkProviderExists(handle);
 		return Promise.resolve(this._fsProvider.get(handle).rename(URI.revive(oldUri), URI.revive(newUri), opts));
 	}
 
 	$copy(handle: number, oldUri: UriComponents, newUri: UriComponents, opts: files.FileOverwriteOptions): Promise<void> {
+		this._checkProviderExists(handle);
 		return Promise.resolve(this._fsProvider.get(handle).copy(URI.revive(oldUri), URI.revive(newUri), opts));
 	}
 
 	$mkdir(handle: number, resource: UriComponents): Promise<void> {
+		this._checkProviderExists(handle);
 		return Promise.resolve(this._fsProvider.get(handle).createDirectory(URI.revive(resource)));
 	}
 
 	$watch(handle: number, session: number, resource: UriComponents, opts: files.IWatchOptions): void {
+		this._checkProviderExists(handle);
 		let subscription = this._fsProvider.get(handle).watch(URI.revive(resource), opts);
 		this._watches.set(session, subscription);
 	}
@@ -201,18 +219,22 @@ export class ExtHostFileSystem implements ExtHostFileSystemShape {
 	}
 
 	$open(handle: number, resource: UriComponents): Promise<number> {
+		this._checkProviderExists(handle);
 		return Promise.resolve(this._fsProvider.get(handle).open(URI.revive(resource)));
 	}
 
 	$close(handle: number, fd: number): Promise<void> {
+		this._checkProviderExists(handle);
 		return Promise.resolve(this._fsProvider.get(handle).close(fd));
 	}
 
 	$read(handle: number, fd: number, pos: number, data: Buffer, offset: number, length: number): Promise<number> {
+		this._checkProviderExists(handle);
 		return Promise.resolve(this._fsProvider.get(handle).read(fd, pos, data, offset, length));
 	}
 
 	$write(handle: number, fd: number, pos: number, data: Buffer, offset: number, length: number): Promise<number> {
+		this._checkProviderExists(handle);
 		return Promise.resolve(this._fsProvider.get(handle).write(fd, pos, data, offset, length));
 	}
 

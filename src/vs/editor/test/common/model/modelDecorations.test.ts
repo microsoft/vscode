@@ -49,7 +49,7 @@ function addDecoration(model: TextModel, startLineNumber: number, startColumn: n
 }
 
 function lineHasDecorations(model: TextModel, lineNumber: number, decorations: { start: number; end: number; className: string; }[]) {
-	let lineDecorations = [];
+	let lineDecorations: Array<{ start: number; end: number; className: string; }> = [];
 	let decs = model.getLineDecorations(lineNumber);
 	for (let i = 0, len = decs.length; i < len; i++) {
 		lineDecorations.push({

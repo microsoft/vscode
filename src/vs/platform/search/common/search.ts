@@ -238,26 +238,27 @@ export class TextSearchResult implements ITextSearchResult {
 
 	constructor(text: string, range: ISearchRange, previewOptions?: ITextSearchPreviewOptions) {
 		this.range = range;
-		if (previewOptions) {
+
+		if (previewOptions && previewOptions.matchLines === 1) {
+			// 1 line preview requested
 			text = getNLines(text, previewOptions.matchLines);
 			const leadingChars = Math.floor(previewOptions.charsPerLine / 5);
-			const endColumnByTrimmedLines = (range.startLineNumber + previewOptions.matchLines - 1) === range.endLineNumber ? // if single line...
-				range.endColumn :
-				previewOptions.charsPerLine;
-
-			// This doesn't handle all previewOptions correctly
 			const previewStart = Math.max(range.startColumn - leadingChars, 0);
-			const endByCharsPerLine = previewOptions.charsPerLine + previewStart;
-			const trimmedEndOfMatchRangeInPreview = Math.min(endByCharsPerLine, endColumnByTrimmedLines - previewStart);
+			const previewText = text.substring(previewStart, previewOptions.charsPerLine + previewStart);
+
+			const endColInPreview = (range.endLineNumber - range.startLineNumber + 1) <= previewOptions.matchLines ?
+				Math.min(previewText.length, range.endColumn - previewStart) :  // if number of match lines will not be trimmed by previewOptions
+				previewText.length; // if number of lines is trimmed
 
 			this.preview = {
-				text: text.substring(previewStart, endByCharsPerLine),
-				match: new OneLineRange(0, range.startColumn - previewStart, trimmedEndOfMatchRangeInPreview)
+				text: previewText,
+				match: new OneLineRange(0, range.startColumn - previewStart, endColInPreview)
 			};
 		} else {
+			// n line or no preview requested
 			this.preview = {
-				text: text,
-				match: new OneLineRange(0, range.startColumn, range.endColumn)
+				text,
+				match: new SearchRange(0, range.startColumn, range.endLineNumber - range.startLineNumber, range.endColumn)
 			};
 		}
 	}

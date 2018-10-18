@@ -414,7 +414,7 @@ class InlineImageView {
 
 				DOM.removeClass(image, 'scale-to-fit');
 				image.style.minWidth = `${(image.naturalWidth * scale)}px`;
-				image.style.widows = `${(image.naturalWidth * scale)}px`;
+				image.style.width = `${(image.naturalWidth * scale)}px`;
 
 				const newWidth = image.width;
 				const scaleFactor = (newWidth - oldWidth) / oldWidth;

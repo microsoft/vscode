@@ -274,7 +274,7 @@ suite('Arrays', () => {
 		assert.equal(a[1], 2);
 		assert.equal(a[2], 3);
 
-		let b = [];
+		let b: number[] = [];
 		b[10] = 1;
 		b[20] = 2;
 		b[30] = 3;
@@ -284,7 +284,7 @@ suite('Arrays', () => {
 		assert.equal(b[1], 2);
 		assert.equal(b[2], 3);
 
-		let sparse = [];
+		let sparse: number[] = [];
 		sparse[0] = 1;
 		sparse[1] = 1;
 		sparse[17] = 1;
@@ -312,7 +312,7 @@ suite('Arrays', () => {
 		assert.equal(a[1], 2);
 		assert.equal(a[2], 3);
 
-		let b = [];
+		let b: number[] = [];
 		b[10] = 1;
 		b[20] = 2;
 		b[30] = 3;
@@ -322,7 +322,7 @@ suite('Arrays', () => {
 		assert.equal(b[1], 2);
 		assert.equal(b[2], 3);
 
-		let sparse = [];
+		let sparse: number[] = [];
 		sparse[0] = 1;
 		sparse[1] = 1;
 		sparse[17] = 1;

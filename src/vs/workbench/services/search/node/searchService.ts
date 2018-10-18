@@ -9,7 +9,7 @@ import { CancellationToken } from 'vs/base/common/cancellation';
 import { canceled } from 'vs/base/common/errors';
 import { Event } from 'vs/base/common/event';
 import { Disposable, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { ResourceMap, values } from 'vs/base/common/map';
+import { ResourceMap, values, keys } from 'vs/base/common/map';
 import { Schemas } from 'vs/base/common/network';
 import * as objects from 'vs/base/common/objects';
 import { StopWatch } from 'vs/base/common/stopwatch';
@@ -215,24 +215,26 @@ export class SearchService extends Disposable implements ISearchService {
 		const diskSearchQueries: IFolderQuery[] = [];
 		const searchPs: TPromise<ISearchComplete>[] = [];
 
-		query.folderQueries.forEach(fq => {
+		const fqs = this.groupFolderQueriesByScheme(query);
+		keys(fqs).forEach(scheme => {
+			const schemeFQs = fqs.get(scheme);
 			let provider = query.type === QueryType.File ?
-				this.fileSearchProviders.get(fq.folder.scheme) || this.fileIndexProviders.get(fq.folder.scheme) :
-				this.textSearchProviders.get(fq.folder.scheme);
+				this.fileSearchProviders.get(scheme) || this.fileIndexProviders.get(scheme) :
+				this.textSearchProviders.get(scheme);
 
-			if (!provider && fq.folder.scheme === 'file') {
-				diskSearchQueries.push(fq);
+			if (!provider && scheme === 'file') {
+				diskSearchQueries.push(...schemeFQs);
 			} else if (!provider) {
-				throw new Error('No search provider registered for scheme: ' + fq.folder.scheme);
+				throw new Error('No search provider registered for scheme: ' + scheme);
 			} else {
-				const oneFolderQuery = {
+				const oneSchemeQuery = {
 					...query,
 					...{
-						folderQueries: [fq]
+						folderQueries: schemeFQs
 					}
 				};
 
-				searchPs.push(provider.search(oneFolderQuery, onProviderProgress, token));
+				searchPs.push(provider.search(oneSchemeQuery, onProviderProgress, token));
 			}
 		});
 
@@ -258,6 +260,19 @@ export class SearchService extends Disposable implements ISearchService {
 			});
 			return completes;
 		});
+	}
+
+	private groupFolderQueriesByScheme(query: ISearchQuery): Map<string, IFolderQuery[]> {
+		const queries = new Map<string, IFolderQuery[]>();
+
+		query.folderQueries.forEach(fq => {
+			const schemeFQs = queries.get(fq.folder.scheme) || [];
+			schemeFQs.push(fq);
+
+			queries.set(fq.folder.scheme, schemeFQs);
+		});
+
+		return queries;
 	}
 
 	private sendTelemetry(query: ISearchQuery, endToEndTime: number, complete: ISearchComplete): void {

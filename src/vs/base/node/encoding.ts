@@ -30,6 +30,9 @@ export function toDecodeStream(readable: Readable, options: IDecodeStreamOptions
 	}
 
 	return new Promise<{ detected: IDetectedEncodingResult, stream: NodeJS.ReadableStream }>((resolve, reject) => {
+
+		readable.on('error', reject);
+
 		readable.pipe(new class extends Writable {
 
 			private _decodeStream: NodeJS.ReadWriteStream;
@@ -142,7 +145,7 @@ function toNodeEncoding(enc: string): string {
 	return enc;
 }
 
-export function detectEncodingByBOMFromBuffer(buffer: Buffer, bytesRead: number): string {
+export function detectEncodingByBOMFromBuffer(buffer: Buffer, bytesRead: number): string | null {
 	if (!buffer || bytesRead < 2) {
 		return null;
 	}

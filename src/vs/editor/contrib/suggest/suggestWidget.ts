@@ -403,7 +403,6 @@ export class SuggestWidget implements IContentWidget, IListVirtualDelegate<IComp
 
 	private suggestWidgetVisible: IContextKey<boolean>;
 	private suggestWidgetMultipleSuggestions: IContextKey<boolean>;
-	private suggestionSupportsAutoAccept: IContextKey<boolean>;
 
 	private readonly editorBlurTimeout = new TimeoutTimer();
 	private readonly showTimeout = new TimeoutTimer();
@@ -479,7 +478,6 @@ export class SuggestWidget implements IContentWidget, IListVirtualDelegate<IComp
 
 		this.suggestWidgetVisible = SuggestContext.Visible.bindTo(contextKeyService);
 		this.suggestWidgetMultipleSuggestions = SuggestContext.MultipleSuggestions.bindTo(contextKeyService);
-		this.suggestionSupportsAutoAccept = SuggestContext.AcceptOnKey.bindTo(contextKeyService);
 
 		this.editor.addContentWidget(this);
 		this.setState(State.Hidden);
@@ -589,9 +587,6 @@ export class SuggestWidget implements IContentWidget, IListVirtualDelegate<IComp
 				this.currentSuggestionDetails.cancel();
 				this.currentSuggestionDetails = null;
 			}
-
-
-			this.suggestionSupportsAutoAccept.set(!item.suggestion.noAutoAccept);
 
 			this.focusedItem = item;
 
@@ -1085,7 +1080,6 @@ export class SuggestWidget implements IContentWidget, IListVirtualDelegate<IComp
 
 	dispose(): void {
 		this.state = null;
-		this.suggestionSupportsAutoAccept = null;
 		this.currentSuggestionDetails = null;
 		this.focusedItem = null;
 		this.element = null;

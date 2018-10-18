@@ -151,7 +151,7 @@ export class MainThreadComments extends Disposable implements MainThreadComments
 	}
 
 	getVisibleEditors(): ICodeEditor[] {
-		let ret = [];
+		let ret: ICodeEditor[] = [];
 
 		this._editorService.visibleControls.forEach(control => {
 			if (isCodeEditor(control.getControl())) {

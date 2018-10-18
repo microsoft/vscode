@@ -515,7 +515,6 @@ export abstract class BaseEditorSimpleWorker {
 				kind: CompletionItemKind.Text,
 				label: word,
 				insertText: word,
-				noAutoAccept: true,
 				range: { startLineNumber: position.lineNumber, startColumn: currentWord.startColumn, endLineNumber: position.lineNumber, endColumn: currentWord.endColumn }
 			});
 		}

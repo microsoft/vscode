@@ -428,7 +428,7 @@ export class WindowsManager implements IWindowsMainService {
 
 			emptyToRestore = this.backupMainService.getEmptyWindowBackupPaths();
 			emptyToRestore.push(...pathsToOpen.filter(w => !w.workspace && !w.folderUri && w.backupPath).map(w => ({ backupFolder: basename(w.backupPath) }))); // add empty windows with backupPath
-			emptyToRestore = arrays.distinct(emptyToRestore); // prevent duplicates
+			emptyToRestore = arrays.distinct(emptyToRestore, info => info.backupFolder); // prevent duplicates
 		}
 
 		//

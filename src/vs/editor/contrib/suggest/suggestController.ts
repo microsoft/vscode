@@ -14,7 +14,7 @@ import { EditOperation } from 'vs/editor/common/core/editOperation';
 import { Range } from 'vs/editor/common/core/range';
 import { IEditorContribution, ScrollType, Handler } from 'vs/editor/common/editorCommon';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
-import { CompletionItem, CompletionItemProvider } from 'vs/editor/common/modes';
+import { CompletionItem, CompletionItemProvider, CompletionItemInsertTextRule } from 'vs/editor/common/modes';
 import { SnippetController2 } from 'vs/editor/contrib/snippet/snippetController2';
 import { SnippetParser } from 'vs/editor/contrib/snippet/snippetParser';
 import { SuggestMemories } from 'vs/editor/contrib/suggest/suggestMemory';
@@ -180,7 +180,7 @@ export class SuggestController implements IEditorContribution {
 				&& this._model.state === State.Auto
 				&& !item.suggestion.command
 				&& !item.suggestion.additionalTextEdits
-				&& !item.suggestion.insertTextIsSnippet
+				&& !(item.suggestion.insertTextRules & CompletionItemInsertTextRule.InsertAsSnippet)
 				&& endColumn - startColumn === item.suggestion.insertText.length
 			) {
 				const oldText = this._editor.getModel().getValueInRange({
@@ -239,7 +239,7 @@ export class SuggestController implements IEditorContribution {
 		this._memory.getValue().memorize(this._editor.getModel(), this._editor.getPosition(), event.item);
 
 		let { insertText } = suggestion;
-		if (!suggestion.insertTextIsSnippet) {
+		if (!(suggestion.insertTextRules & CompletionItemInsertTextRule.InsertAsSnippet)) {
 			insertText = SnippetParser.escape(insertText);
 		}
 
@@ -251,7 +251,7 @@ export class SuggestController implements IEditorContribution {
 			overwriteBefore + columnDelta,
 			overwriteAfter,
 			false, false,
-			!suggestion.noWhitespaceAdjust
+			!(suggestion.insertTextRules & CompletionItemInsertTextRule.KeepWhitespace)
 		);
 
 		if (undoStops) {
@@ -315,7 +315,7 @@ export class SuggestController implements IEditorContribution {
 		};
 
 		const makesTextEdit = (item: ISuggestionItem): boolean => {
-			if (item.suggestion.insertTextIsSnippet || item.suggestion.additionalTextEdits) {
+			if (item.suggestion.insertTextRules & CompletionItemInsertTextRule.InsertAsSnippet || item.suggestion.additionalTextEdits) {
 				// snippet, other editor -> makes edit
 				return true;
 			}

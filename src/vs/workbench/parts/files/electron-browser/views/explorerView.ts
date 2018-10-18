@@ -172,7 +172,7 @@ export class ExplorerView extends TreeViewsViewletPanel implements IExplorerView
 		this.onConfigurationUpdated(configuration);
 
 		// Load and Fill Viewer
-		let targetsToExpand = [];
+		let targetsToExpand: URI[] = [];
 		if (this.viewState[ExplorerView.MEMENTO_EXPANDED_FOLDER_RESOURCES]) {
 			targetsToExpand = this.viewState[ExplorerView.MEMENTO_EXPANDED_FOLDER_RESOURCES].map((e: string) => URI.parse(e));
 		}

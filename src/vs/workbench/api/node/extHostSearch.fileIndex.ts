@@ -7,7 +7,6 @@ import * as path from 'path';
 import * as arrays from 'vs/base/common/arrays';
 import { CancelablePromise, createCancelablePromise } from 'vs/base/common/async';
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
-import { toErrorMessage } from 'vs/base/common/errorMessage';
 import { canceled } from 'vs/base/common/errors';
 import * as glob from 'vs/base/common/glob';
 import * as resources from 'vs/base/common/resources';
@@ -17,9 +16,9 @@ import { URI } from 'vs/base/common/uri';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { compareItemsByScore, IItemAccessor, prepareQuery, ScorerCache } from 'vs/base/parts/quickopen/common/quickOpenScorer';
 import { ICachedSearchStats, IFileIndexProviderStats, IFileMatch, IFileSearchStats, IFolderQuery, IRawSearchQuery, ISearchCompleteStats, ISearchQuery } from 'vs/platform/search/common/search';
+import { IDirectoryEntry, IDirectoryTree, IInternalFileMatch } from 'vs/workbench/services/search/node/fileSearchManager';
+import { QueryGlobTester, resolvePatternsForProvider } from 'vs/workbench/services/search/node/search';
 import * as vscode from 'vscode';
-import { resolvePatternsForProvider, QueryGlobTester } from 'vs/workbench/services/search/node/search';
-import { IInternalFileMatch, IDirectoryTree, IDirectoryEntry } from 'vs/workbench/services/search/node/fileSearchManager';
 
 interface IInternalSearchComplete<T = IFileSearchStats> {
 	limitHit: boolean;
@@ -67,10 +66,6 @@ export class FileIndexSearchEngine {
 	}
 
 	public search(_onResult: (match: IInternalFileMatch) => void): TPromise<{ isLimitHit: boolean, stats: IFileIndexProviderStats }> {
-		if (this.config.folderQueries.length !== 1) {
-			throw new Error('Searches just one folder');
-		}
-
 		// Searches a single folder
 		const folderQuery = this.config.folderQueries[0];
 
@@ -99,15 +94,25 @@ export class FileIndexSearchEngine {
 					});
 			}
 
-			return this.searchInFolder(folderQuery, _onResult)
-				.then(stats => {
-					resolve({
-						isLimitHit: this.isLimitHit,
-						stats
-					});
-				}, (err: Error) => {
-					reject(new Error(toErrorMessage(err)));
+			return Promise.all(this.config.folderQueries.map(fq => this.searchInFolder(folderQuery, onResult))).then(stats => {
+				resolve({
+					isLimitHit: this.isLimitHit,
+					stats: {
+						directoriesWalked: this.dirsWalked,
+						filesWalked: this.filesWalked,
+						fileWalkTime: stats.map(s => s.fileWalkTime).reduce((s, c) => s + c, 0),
+						providerTime: stats.map(s => s.providerTime).reduce((s, c) => s + c, 0),
+						providerResultCount: stats.map(s => s.providerResultCount).reduce((s, c) => s + c, 0)
+					}
 				});
+			}, (errs: Error[]) => {
+				if (!Array.isArray(errs)) {
+					errs = [errs];
+				}
+
+				errs = errs.filter(e => !!e);
+				return TPromise.wrapError(errs[0]);
+			});
 		});
 	}
 

@@ -14,7 +14,7 @@ function log(message, ...rest) {
 }
 const SRC = path.join(__dirname, '../../src');
 const OUT_ROOT = path.join(__dirname, '../../');
-const RECIPE_PATH = path.join(__dirname, './monaco.d.ts.recipe');
+exports.RECIPE_PATH = path.join(__dirname, './monaco.d.ts.recipe');
 const DECLARATION_PATH = path.join(__dirname, '../../src/vs/monaco.d.ts');
 var CURRENT_PROCESSING_RULE = '';
 function logErr(message, ...rest) {
@@ -26,20 +26,6 @@ function moduleIdToPath(out, moduleId) {
         return path.join(SRC, moduleId);
     }
     return path.join(OUT_ROOT, out, moduleId) + '.d.ts';
-}
-let SOURCE_FILE_MAP = {};
-function getSourceFile(out, inputFiles, moduleId) {
-    if (!SOURCE_FILE_MAP[moduleId]) {
-        let filePath = path.normalize(moduleIdToPath(out, moduleId));
-        if (!inputFiles.hasOwnProperty(filePath)) {
-            logErr('CANNOT FIND FILE ' + filePath + '. YOU MIGHT NEED TO RESTART gulp');
-            return null;
-        }
-        let fileContents = inputFiles[filePath];
-        let sourceFile = ts.createSourceFile(filePath, fileContents, ts.ScriptTarget.ES5);
-        SOURCE_FILE_MAP[moduleId] = sourceFile;
-    }
-    return SOURCE_FILE_MAP[moduleId];
 }
 function isDeclaration(a) {
     return (a.kind === ts.SyntaxKind.InterfaceDeclaration
@@ -176,13 +162,109 @@ function getMassagedTopLevelDeclarationText(sourceFile, declaration, importName,
     result = result.replace(/export declare/g, 'export');
     return result;
 }
-function format(text) {
+function format(text, endl) {
+    const REALLY_FORMAT = false;
+    text = preformat(text, endl);
+    if (!REALLY_FORMAT) {
+        return text;
+    }
     // Parse the source text
     let sourceFile = ts.createSourceFile('file.ts', text, ts.ScriptTarget.Latest, /*setParentPointers*/ true);
     // Get the formatting edits on the input sources
     let edits = ts.formatting.formatDocument(sourceFile, getRuleProvider(tsfmt), tsfmt);
     // Apply the edits on the input code
     return applyEdits(text, edits);
+    function countParensCurly(text) {
+        let cnt = 0;
+        for (let i = 0; i < text.length; i++) {
+            if (text.charAt(i) === '(' || text.charAt(i) === '{') {
+                cnt++;
+            }
+            if (text.charAt(i) === ')' || text.charAt(i) === '}') {
+                cnt--;
+            }
+        }
+        return cnt;
+    }
+    function repeatStr(s, cnt) {
+        let r = '';
+        for (let i = 0; i < cnt; i++) {
+            r += s;
+        }
+        return r;
+    }
+    function preformat(text, endl) {
+        let lines = text.split(endl);
+        let inComment = false;
+        let inCommentDeltaIndent = 0;
+        let indent = 0;
+        for (let i = 0; i < lines.length; i++) {
+            let line = lines[i].replace(/\s$/, '');
+            let repeat = false;
+            let lineIndent = 0;
+            do {
+                repeat = false;
+                if (line.substring(0, 4) === '    ') {
+                    line = line.substring(4);
+                    lineIndent++;
+                    repeat = true;
+                }
+                if (line.charAt(0) === '\t') {
+                    line = line.substring(1);
+                    lineIndent++;
+                    repeat = true;
+                }
+            } while (repeat);
+            if (line.length === 0) {
+                continue;
+            }
+            if (inComment) {
+                if (/\*\//.test(line)) {
+                    inComment = false;
+                }
+                lines[i] = repeatStr('\t', lineIndent + inCommentDeltaIndent) + line;
+                continue;
+            }
+            if (/\/\*/.test(line)) {
+                inComment = true;
+                inCommentDeltaIndent = indent - lineIndent;
+                lines[i] = repeatStr('\t', indent) + line;
+                continue;
+            }
+            const cnt = countParensCurly(line);
+            let shouldUnindentAfter = false;
+            let shouldUnindentBefore = false;
+            if (cnt < 0) {
+                if (/[({]/.test(line)) {
+                    shouldUnindentAfter = true;
+                }
+                else {
+                    shouldUnindentBefore = true;
+                }
+            }
+            else if (cnt === 0) {
+                shouldUnindentBefore = /^\}/.test(line);
+            }
+            let shouldIndentAfter = false;
+            if (cnt > 0) {
+                shouldIndentAfter = true;
+            }
+            else if (cnt === 0) {
+                shouldIndentAfter = /{$/.test(line);
+            }
+            if (shouldUnindentBefore) {
+                indent--;
+            }
+            lines[i] = repeatStr('\t', indent) + line;
+            if (shouldUnindentAfter) {
+                indent--;
+            }
+            if (shouldIndentAfter) {
+                indent++;
+            }
+        }
+        return lines.join(endl);
+    }
     function getRuleProvider(options) {
         // Share this between multiple formatters using the same options.
         // This represents the bulk of the space the formatter uses.
@@ -222,7 +304,7 @@ function createReplacer(data) {
         return str;
     };
 }
-function generateDeclarationFile(out, inputFiles, recipe) {
+function generateDeclarationFile(recipe, sourceFileGetter) {
     const endl = /\r\n/.test(recipe) ? '\r\n' : '\n';
     let lines = recipe.split(endl);
     let result = [];
@@ -241,7 +323,7 @@ function generateDeclarationFile(out, inputFiles, recipe) {
         if (m1) {
             CURRENT_PROCESSING_RULE = line;
             let moduleId = m1[1];
-            const sourceFile = getSourceFile(out, inputFiles, moduleId);
+            const sourceFile = sourceFileGetter(moduleId);
             if (!sourceFile) {
                 return;
             }
@@ -266,7 +348,7 @@ function generateDeclarationFile(out, inputFiles, recipe) {
         if (m2) {
             CURRENT_PROCESSING_RULE = line;
             let moduleId = m2[1];
-            const sourceFile = getSourceFile(out, inputFiles, moduleId);
+            const sourceFile = sourceFileGetter(moduleId);
             if (!sourceFile) {
                 return;
             }
@@ -307,14 +389,14 @@ function generateDeclarationFile(out, inputFiles, recipe) {
     let resultTxt = result.join(endl);
     resultTxt = resultTxt.replace(/\bURI\b/g, 'Uri');
     resultTxt = resultTxt.replace(/\bEvent</g, 'IEvent<');
-    resultTxt = format(resultTxt);
+    resultTxt = format(resultTxt, endl);
     return [
         resultTxt,
         `${usageImports.join('\n')}\n\n${usage.join('\n')}`
     ];
 }
 function getIncludesInRecipe() {
-    let recipe = fs.readFileSync(RECIPE_PATH).toString();
+    let recipe = fs.readFileSync(exports.RECIPE_PATH).toString();
     let lines = recipe.split(/\r\n|\n|\r/);
     let result = [];
     lines.forEach(line => {
@@ -333,20 +415,20 @@ function getIncludesInRecipe() {
     });
     return result;
 }
+exports.getIncludesInRecipe = getIncludesInRecipe;
 function getFilesToWatch(out) {
     return getIncludesInRecipe().map((moduleId) => moduleIdToPath(out, moduleId));
 }
 exports.getFilesToWatch = getFilesToWatch;
-function run(out, inputFiles) {
+function _run(sourceFileGetter) {
     log('Starting monaco.d.ts generation');
-    SOURCE_FILE_MAP = {};
-    let recipe = fs.readFileSync(RECIPE_PATH).toString();
-    let [result, usageContent] = generateDeclarationFile(out, inputFiles, recipe);
-    let currentContent = fs.readFileSync(DECLARATION_PATH).toString();
-    log('Finished monaco.d.ts generation');
+    const recipe = fs.readFileSync(exports.RECIPE_PATH).toString();
+    const [result, usageContent] = generateDeclarationFile(recipe, sourceFileGetter);
+    const currentContent = fs.readFileSync(DECLARATION_PATH).toString();
     const one = currentContent.replace(/\r\n/gm, '\n');
     const other = result.replace(/\r\n/gm, '\n');
-    const isTheSame = one === other;
+    const isTheSame = (one === other);
+    log('Finished monaco.d.ts generation');
     return {
         content: result,
         usageContent: usageContent,
@@ -354,7 +436,32 @@ function run(out, inputFiles) {
         isTheSame
     };
 }
+function run(out, inputFiles) {
+    let SOURCE_FILE_MAP = {};
+    const sourceFileGetter = (moduleId) => {
+        if (!SOURCE_FILE_MAP[moduleId]) {
+            let filePath = path.normalize(moduleIdToPath(out, moduleId));
+            if (!inputFiles.hasOwnProperty(filePath)) {
+                logErr('CANNOT FIND FILE ' + filePath + '. YOU MIGHT NEED TO RESTART gulp');
+                return null;
+            }
+            let fileContents = inputFiles[filePath];
+            let sourceFile = ts.createSourceFile(filePath, fileContents, ts.ScriptTarget.ES5);
+            SOURCE_FILE_MAP[moduleId] = sourceFile;
+        }
+        return SOURCE_FILE_MAP[moduleId];
+    };
+    return _run(sourceFileGetter);
+}
 exports.run = run;
+function run2(out, sourceFileMap) {
+    const sourceFileGetter = (moduleId) => {
+        let filePath = path.normalize(moduleIdToPath(out, moduleId));
+        return sourceFileMap[filePath];
+    };
+    return _run(sourceFileGetter);
+}
+exports.run2 = run2;
 function complainErrors() {
     logErr('Not running monaco.d.ts generation due to compile errors');
 }
@@ -404,6 +511,7 @@ class TypeScriptLanguageServiceHost {
         return fileName === this.getDefaultLibFileName(this._compilerOptions);
     }
 }
+exports.TypeScriptLanguageServiceHost = TypeScriptLanguageServiceHost;
 function execute() {
     const OUTPUT_FILES = {};
     const SRC_FILES = {};
