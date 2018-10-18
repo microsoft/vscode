@@ -30,6 +30,9 @@ export function toDecodeStream(readable: Readable, options: IDecodeStreamOptions
 	}
 
 	return new Promise<{ detected: IDetectedEncodingResult, stream: NodeJS.ReadableStream }>((resolve, reject) => {
+
+		readable.on('error', reject);
+
 		readable.pipe(new class extends Writable {
 
 			private _decodeStream: NodeJS.ReadWriteStream;
