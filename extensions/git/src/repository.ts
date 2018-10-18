@@ -13,7 +13,7 @@ import * as path from 'path';
 import * as nls from 'vscode-nls';
 import * as fs from 'fs';
 import { StatusBarCommands } from './statusbar';
-import { Branch, Ref, Remote, RefType, GitErrorCodes, Trackingship } from './api/git';
+import { Branch, Ref, Remote, RefType, GitErrorCodes, TrackingShip } from './api/git';
 
 const timeout = (millis: number) => new Promise(c => setTimeout(c, millis));
 
@@ -881,7 +881,7 @@ export class Repository implements Disposable {
 		await this.run(Operation.CheckoutTracking, () => this.repository.checkout(treeish, [], { track: true }));
 	}
 
-	async getTracking(treeish: string): Promise<Trackingship[]> {
+	async getTracking(treeish: string): Promise<TrackingShip[]> {
 		return await this.run(Operation.GetTracking, () => this.repository.GetTracking(treeish));
 	}
 

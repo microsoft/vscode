@@ -26,9 +26,9 @@ export interface Ref {
 	readonly remote?: string;
 }
 
-export interface Trackingship {
+export interface TrackingShip {
 	readonly local: string;
-	readonly upstarem: string;
+	readonly upstream: string;
 }
 
 export interface UpstreamRef {
