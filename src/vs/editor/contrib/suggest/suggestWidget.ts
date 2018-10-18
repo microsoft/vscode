@@ -99,6 +99,7 @@ class Renderer implements IListRenderer<ICompletionItem, ISuggestionTemplateData
 		const data = <ISuggestionTemplateData>Object.create(null);
 		data.disposables = [];
 		data.root = container;
+		addClass(data.root, 'show-file-icons');
 
 		data.icon = append(container, $('.icon'));
 		data.colorspan = append(data.icon, $('span.colorspan'));
@@ -155,33 +156,33 @@ class Renderer implements IListRenderer<ICompletionItem, ISuggestionTemplateData
 			matches: createMatches(element.matches)
 		};
 
-		// special logic for 'color' completion items
-		if (suggestion.kind === CompletionItemKind.Color) {
-			let color = matchesColor(suggestion.label) || typeof suggestion.documentation === 'string' && matchesColor(suggestion.documentation);
-			if (color) {
-				data.icon.className = 'icon customcolor';
-				data.colorspan.style.backgroundColor = color;
-			}
-		}
+		let color: string;
+		if (suggestion.kind === CompletionItemKind.Color && (color = matchesColor(suggestion.label) || typeof suggestion.documentation === 'string' && matchesColor(suggestion.documentation))) {
+			// special logic for 'color' completion items
+			data.icon.className = 'icon customcolor';
+			data.colorspan.style.backgroundColor = color;
 
-		// special logic for 'file' completion items
-		if (suggestion.kind === CompletionItemKind.File && this._themeService.getIconTheme().hasFileIcons) {
-			addClass(data.root, 'show-file-icons');
+		} else if (suggestion.kind === CompletionItemKind.File && this._themeService.getIconTheme().hasFileIcons) {
+			// special logic for 'file' completion items
 			data.icon.className = 'icon hide';
 			labelOptions.extraClasses = [].concat(
 				getIconClasses(this._modelService, this._modeService, URI.from({ scheme: 'fake', path: suggestion.label }), FileKind.FILE),
 				getIconClasses(this._modelService, this._modeService, URI.from({ scheme: 'fake', path: suggestion.detail }), FileKind.FILE)
 			);
-		}
 
-		// special logic for 'folder' completion items
-		if (suggestion.kind === CompletionItemKind.Folder && this._themeService.getIconTheme().hasFolderIcons) {
-			addClass(data.root, 'show-file-icons');
+		} else if (suggestion.kind === CompletionItemKind.Folder && this._themeService.getIconTheme().hasFolderIcons) {
+			// special logic for 'folder' completion items
 			data.icon.className = 'icon hide';
 			labelOptions.extraClasses = [].concat(
 				getIconClasses(this._modelService, this._modeService, URI.from({ scheme: 'fake', path: suggestion.label }), FileKind.FOLDER),
 				getIconClasses(this._modelService, this._modeService, URI.from({ scheme: 'fake', path: suggestion.detail }), FileKind.FOLDER)
 			);
+		} else {
+			// normal icon
+			data.icon.className = 'icon hide';
+			labelOptions.extraClasses = [
+				`suggest-icon ${completionKindToCssClass(suggestion.kind)}`
+			];
 		}
 
 		data.iconLabel.setValue(suggestion.label, undefined, labelOptions);
