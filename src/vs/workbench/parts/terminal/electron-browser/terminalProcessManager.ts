@@ -122,7 +122,7 @@ export class TerminalProcessManager implements ITerminalProcessManager {
 			terminalEnvironment.addTerminalEnvironmentKeys(env, locale);
 
 			this._logService.debug(`Terminal process launching`, shellLaunchConfig, this.initialCwd, cols, rows, env);
-			this._process = new TerminalProcess(shellLaunchConfig, this.initialCwd, cols, rows, env);
+			this._process = new TerminalProcess(shellLaunchConfig, this.initialCwd, cols, rows, env, this._configHelper.config.experimentalUseConpty);
 		}
 		this.processState = ProcessState.LAUNCHING;
 

@@ -35,7 +35,8 @@ export class TerminalProcess implements ITerminalChildProcess, IDisposable {
 		cwd: string,
 		cols: number,
 		rows: number,
-		env: platform.IProcessEnvironment
+		env: platform.IProcessEnvironment,
+		useConpty: boolean
 	) {
 		let shellName: string;
 		if (os.platform() === 'win32') {

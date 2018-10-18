@@ -397,6 +397,11 @@ configurationRegistry.registerConfiguration({
 			],
 			default: 'inherited'
 		},
+		'terminal.integrated.experimentalUseConpty': {
+			description: nls.localize('terminal.integrated.experimentalUseConpty', "Whether to enable conpty on Windows 10 (needs >= 17692). Winpty will be used if this is false."),
+			type: 'boolean',
+			default: false
+		}
 	}
 });
 
