@@ -882,6 +882,10 @@ export class TestFileService implements IFileService {
 		return { dispose() { } };
 	}
 
+	activateProvider(_scheme: string) {
+		return TPromise.as(null);
+	}
+
 	canHandleResource(resource: URI): boolean {
 		return resource.scheme === 'file';
 	}

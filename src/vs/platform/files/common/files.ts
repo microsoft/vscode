@@ -51,6 +51,11 @@ export interface IFileService {
 	registerProvider(scheme: string, provider: IFileSystemProvider): IDisposable;
 
 	/**
+	 * Tries to activate a provider with the given scheme.
+	 */
+	activateProvider(scheme: string): TPromise<void>;
+
+	/**
 	 * Checks if this file service can handle the given resource.
 	 */
 	canHandleResource(resource: URI): boolean;

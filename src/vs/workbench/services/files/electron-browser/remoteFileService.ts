@@ -206,6 +206,10 @@ export class RemoteFileService extends FileService {
 		};
 	}
 
+	activateProvider(scheme: string): TPromise<void> {
+		return this._extensionService.activateByEvent('onFileSystem:' + scheme);
+	}
+
 	canHandleResource(resource: URI): boolean {
 		return resource.scheme === Schemas.file || this._provider.has(resource.scheme);
 	}
@@ -253,7 +257,7 @@ export class RemoteFileService extends FileService {
 		}
 
 		return Promise.all([
-			this._extensionService.activateByEvent('onFileSystem:' + resource.scheme)
+			this.activateProvider(resource.scheme)
 		]).then(() => {
 			const provider = this._provider.get(resource.scheme);
 			if (!provider) {

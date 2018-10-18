@@ -208,6 +208,10 @@ export class FileService extends Disposable implements IFileService {
 		throw new Error('not implemented');
 	}
 
+	activateProvider(scheme: string): TPromise<void> {
+		return TPromise.wrapError(new Error('not implemented'));
+	}
+
 	canHandleResource(resource: uri): boolean {
 		return resource.scheme === Schemas.file;
 	}
