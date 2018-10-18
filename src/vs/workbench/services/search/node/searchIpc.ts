@@ -6,7 +6,8 @@
 import { Event } from 'vs/base/common/event';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IChannel } from 'vs/base/parts/ipc/node/ipc';
-import { IRawSearch, IRawSearchService, ISerializedSearchComplete, ISerializedSearchProgressItem } from './search';
+import { IRawSearch } from 'vs/workbench/services/search/node/legacy/search';
+import { IRawSearchService, ISerializedSearchComplete, ISerializedSearchProgressItem } from './search';
 
 export interface ISearchChannel extends IChannel {
 	listen(event: 'fileSearch', search: IRawSearch): Event<ISerializedSearchProgressItem | ISerializedSearchComplete>;

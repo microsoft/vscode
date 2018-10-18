@@ -16,10 +16,11 @@ import { FileSearchManager } from 'vs/workbench/services/search/node/fileSearchM
 import { SearchService } from 'vs/workbench/services/search/node/rawSearchService';
 import { RipgrepSearchProvider } from 'vs/workbench/services/search/node/ripgrepSearchProvider';
 import { OutputChannel } from 'vs/workbench/services/search/node/ripgrepSearchUtils';
-import { IFolderSearch, IRawSearch, isSerializedFileMatch, isSerializedSearchComplete, isSerializedSearchSuccess } from 'vs/workbench/services/search/node/search';
+import { isSerializedFileMatch, isSerializedSearchComplete, isSerializedSearchSuccess } from 'vs/workbench/services/search/node/search';
 import { TextSearchManager } from 'vs/workbench/services/search/node/textSearchManager';
 import * as vscode from 'vscode';
 import { ExtHostSearchShape, IMainContext, MainContext, MainThreadSearchShape } from './extHost.protocol';
+import { IRawSearch, IFolderSearch } from 'vs/workbench/services/search/node/legacy/search';
 
 export interface ISchemeTransformer {
 	transformOutgoing(scheme: string): string;

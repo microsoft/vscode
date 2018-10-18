@@ -18,12 +18,11 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import { compareItemsByScore, IItemAccessor, prepareQuery, ScorerCache } from 'vs/base/parts/quickopen/common/quickOpenScorer';
 import { MAX_FILE_SIZE } from 'vs/platform/files/node/files';
 import { ICachedSearchStats, IFileSearchStats, IProgress } from 'vs/platform/search/common/search';
-import { Engine as FileSearchEngine, FileWalker } from 'vs/workbench/services/search/node/fileSearch';
+import { Engine as FileSearchEngine } from 'vs/workbench/services/search/node/fileSearch';
+import { LegacyTextSearchService } from 'vs/workbench/services/search/node/legacy/rawLegacyTextSearchService';
+import { IRawSearch } from 'vs/workbench/services/search/node/legacy/search';
 import { TextSearchEngineAdapter } from 'vs/workbench/services/search/node/textSearchAdapter';
-import { Engine as TextSearchEngine } from 'vs/workbench/services/search/node/textSearch';
-import { TextSearchWorkerProvider } from 'vs/workbench/services/search/node/textSearchWorkerProvider';
-import { IFileSearchProgressItem, IRawFileMatch, IRawSearch, IRawSearchService, ISearchEngine, ISearchEngineSuccess, ISerializedFileMatch, ISerializedSearchComplete, ISerializedSearchProgressItem, ISerializedSearchSuccess } from './search';
-import { BatchedCollector } from 'vs/workbench/services/search/node/textSearchManager';
+import { IFileSearchProgressItem, IRawFileMatch, IRawSearchService, ISearchEngine, ISearchEngineSuccess, ISerializedFileMatch, ISerializedSearchComplete, ISerializedSearchProgressItem, ISerializedSearchSuccess } from './search';
 
 gracefulFs.gracefulify(fs);
 
@@ -34,9 +33,8 @@ export class SearchService implements IRawSearchService {
 
 	private static readonly BATCH_SIZE = 512;
 
+	private legacyTextSearchService = new LegacyTextSearchService();
 	private caches: { [cacheKey: string]: Cache; } = Object.create(null);
-
-	private textSearchWorkerProvider: TextSearchWorkerProvider;
 
 	public fileSearch(config: IRawSearch, batchSize = SearchService.BATCH_SIZE): Event<ISerializedSearchProgressItem | ISerializedSearchComplete> {
 		let promise: CancelablePromise<ISerializedSearchSuccess>;
@@ -65,7 +63,9 @@ export class SearchService implements IRawSearchService {
 		const emitter = new Emitter<ISerializedSearchProgressItem | ISerializedSearchComplete>({
 			onFirstListenerDidAdd: () => {
 				promise = createCancelablePromise(token => {
-					return (config.useRipgrep ? this.ripgrepTextSearch(config, p => emitter.fire(p), token) : this.legacyTextSearch(config, p => emitter.fire(p), token));
+					return (config.useRipgrep ?
+						this.ripgrepTextSearch(config, p => emitter.fire(p), token) :
+						this.legacyTextSearchService.textSearch(config, p => emitter.fire(p), token));
 				});
 
 				promise.then(
@@ -93,27 +93,6 @@ export class SearchService implements IRawSearchService {
 				}
 			});
 		});
-	}
-
-	private legacyTextSearch(config: IRawSearch, progressCallback: IProgressCallback, token: CancellationToken): Promise<ISerializedSearchComplete> {
-		if (!this.textSearchWorkerProvider) {
-			this.textSearchWorkerProvider = new TextSearchWorkerProvider();
-		}
-
-		let engine = new TextSearchEngine(
-			config,
-			new FileWalker({
-				folderQueries: config.folderQueries,
-				extraFiles: config.extraFiles,
-				includePattern: config.includePattern,
-				excludePattern: config.excludePattern,
-				filePattern: config.filePattern,
-				useRipgrep: false,
-				maxFilesize: MAX_FILE_SIZE
-			}),
-			this.textSearchWorkerProvider);
-
-		return this.doTextSearch(engine, progressCallback, SearchService.BATCH_SIZE, token);
 	}
 
 	doFileSearch(EngineClass: { new(config: IRawSearch): ISearchEngine<IRawFileMatch>; }, config: IRawSearch, progressCallback: IProgressCallback, token?: CancellationToken, batchSize?: number): TPromise<ISerializedSearchSuccess> {
@@ -363,32 +342,7 @@ export class SearchService implements IRawSearchService {
 		}));
 	}
 
-	private doTextSearch(engine: TextSearchEngine, progressCallback: IProgressCallback, batchSize: number, token: CancellationToken): Promise<ISerializedSearchSuccess> {
-		token.onCancellationRequested(() => engine.cancel());
 
-		return new Promise<ISerializedSearchSuccess>((c, e) => {
-			// Use BatchedCollector to get new results to the frontend every 2s at least, until 50 results have been returned
-			const collector = new BatchedCollector<ISerializedFileMatch>(batchSize, progressCallback);
-			engine.search((matches) => {
-				const totalMatches = matches.reduce((acc, m) => acc + m.numMatches, 0);
-				collector.addItems(matches, totalMatches);
-			}, (progress) => {
-				progressCallback(progress);
-			}, (error, stats) => {
-				collector.flush();
-
-				if (error) {
-					e(error);
-				} else {
-					c({
-						type: 'success',
-						limitHit: stats.limitHit,
-						stats: null
-					});
-				}
-			});
-		});
-	}
 
 	private doSearch(engine: ISearchEngine<IRawFileMatch>, progressCallback: IFileProgressCallback, batchSize: number, token?: CancellationToken): TPromise<ISearchEngineSuccess> {
 		return new TPromise<ISearchEngineSuccess>((c, e) => {

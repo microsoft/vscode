@@ -6,10 +6,11 @@
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { URI } from 'vs/base/common/uri';
 import * as extfs from 'vs/base/node/extfs';
-import { IFolderQuery, IProgress, ISearchQuery, ITextSearchStats, QueryType, IFileMatch } from 'vs/platform/search/common/search';
+import { IFileMatch, IFolderQuery, IProgress, ISearchQuery, ITextSearchStats, QueryType } from 'vs/platform/search/common/search';
+import { IRawSearch } from 'vs/workbench/services/search/node/legacy/search';
 import { RipgrepTextSearchEngine } from 'vs/workbench/services/search/node/ripgrepTextSearchEngine';
 import { TextSearchManager } from 'vs/workbench/services/search/node/textSearchManager';
-import { IRawSearch, ISerializedFileMatch, ISerializedSearchSuccess } from './search';
+import { ISerializedFileMatch, ISerializedSearchSuccess } from './search';
 
 export class TextSearchEngineAdapter {
 

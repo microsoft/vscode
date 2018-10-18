@@ -10,8 +10,9 @@ import { join, normalize } from 'vs/base/common/paths';
 import * as platform from 'vs/base/common/platform';
 
 import { FileWalker, Engine as FileSearchEngine } from 'vs/workbench/services/search/node/fileSearch';
-import { IRawFileMatch, IFolderSearch } from 'vs/workbench/services/search/node/search';
 import { getPathFromAmdModule } from 'vs/base/common/amd';
+import { IFolderSearch } from 'vs/workbench/services/search/node/legacy/search';
+import { IRawFileMatch } from 'vs/workbench/services/search/node/search';
 
 const TEST_FIXTURES = path.normalize(getPathFromAmdModule(require, './fixtures'));
 const EXAMPLES_FIXTURES = path.join(TEST_FIXTURES, 'examples');

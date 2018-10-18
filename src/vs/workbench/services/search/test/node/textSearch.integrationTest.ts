@@ -9,12 +9,13 @@ import * as assert from 'assert';
 import * as glob from 'vs/base/common/glob';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { FileWalker } from 'vs/workbench/services/search/node/fileSearch';
-import { ISerializedFileMatch, IRawSearch, IFolderSearch } from 'vs/workbench/services/search/node/search';
-import { Engine as TextSearchEngine } from 'vs/workbench/services/search/node/textSearch';
+import { ISerializedFileMatch } from 'vs/workbench/services/search/node/search';
+import { Engine as TextSearchEngine } from 'vs/workbench/services/search/node/legacy/textSearch';
 import { TextSearchEngineAdapter } from 'vs/workbench/services/search/node/textSearchAdapter';
-import { TextSearchWorkerProvider } from 'vs/workbench/services/search/node/textSearchWorkerProvider';
+import { TextSearchWorkerProvider } from 'vs/workbench/services/search/node/legacy/textSearchWorkerProvider';
 import { getPathFromAmdModule } from 'vs/base/common/amd';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
+import { IFolderSearch, IRawSearch } from 'vs/workbench/services/search/node/legacy/search';
 
 function countAll(matches: ISerializedFileMatch[]): number {
 	return matches.reduce((acc, m) => acc + m.numMatches, 0);

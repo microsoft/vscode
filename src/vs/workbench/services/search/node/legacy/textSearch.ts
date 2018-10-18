@@ -7,9 +7,10 @@ import * as path from 'path';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { IProgress } from 'vs/platform/search/common/search';
 import { FileWalker } from 'vs/workbench/services/search/node/fileSearch';
-import { IRawSearch, ISearchEngine, ISearchEngineSuccess, ISerializedFileMatch } from './search';
+import { ISearchEngine, ISearchEngineSuccess, ISerializedFileMatch } from '../search';
 import { ITextSearchWorkerProvider } from './textSearchWorkerProvider';
 import { ISearchWorker, ISearchWorkerSearchArgs } from './worker/searchWorkerIpc';
+import { IRawSearch } from 'vs/workbench/services/search/node/legacy/search';
 
 export class Engine implements ISearchEngine<ISerializedFileMatch[]> {
 
