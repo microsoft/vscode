@@ -6,7 +6,6 @@
 import { StorageLegacyService, IStorageLegacy } from 'vs/platform/storage/common/storageLegacyService';
 import { endsWith, startsWith, rtrim } from 'vs/base/common/strings';
 import { URI } from 'vs/base/common/uri';
-import { IWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
 
 /**
  * We currently store local storage with the following format:
@@ -166,33 +165,4 @@ export function parseStorage(storage: IStorageLegacy): IParsedStorage {
 		folder: folderWorkspacesStorage,
 		empty: emptyWorkspacesStorage
 	};
-}
-
-export function migrateStorageToMultiRootWorkspace(fromWorkspaceId: string, toWorkspace: IWorkspaceIdentifier, storage: IStorageLegacy): string {
-	const parsed = parseStorage(storage);
-
-	const newWorkspaceId = URI.from({ path: toWorkspace.id, scheme: 'root' }).toString();
-
-	// Find in which location the workspace storage is to be migrated from
-	let storageForWorkspace: StorageObject;
-	if (parsed.multiRoot.has(fromWorkspaceId)) {
-		storageForWorkspace = parsed.multiRoot.get(fromWorkspaceId);
-	} else if (parsed.empty.has(fromWorkspaceId)) {
-		storageForWorkspace = parsed.empty.get(fromWorkspaceId);
-	} else if (parsed.folder.has(fromWorkspaceId)) {
-		storageForWorkspace = parsed.folder.get(fromWorkspaceId);
-	}
-
-	// Migrate existing storage to new workspace id
-	if (storageForWorkspace) {
-		Object.keys(storageForWorkspace).forEach(key => {
-			if (key === StorageLegacyService.WORKSPACE_IDENTIFIER) {
-				return; // make sure to never migrate the workspace identifier
-			}
-
-			storage.setItem(`${StorageLegacyService.WORKSPACE_PREFIX}${newWorkspaceId}/${key}`, storageForWorkspace[key]);
-		});
-	}
-
-	return newWorkspaceId;
 }

@@ -9,7 +9,7 @@ import * as fs from 'fs';
 import { resolveWorkbenchCommonProperties } from 'vs/platform/telemetry/node/workbenchCommonProperties';
 import { getRandomTestPath, TestEnvironmentService } from 'vs/workbench/test/workbenchTestServices';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
-import { StorageService } from 'vs/platform/storage/electron-browser/storageService';
+import { StorageService } from 'vs/platform/storage/node/storageService';
 import { NullLogService } from 'vs/platform/log/common/log';
 import { del } from 'vs/base/node/extfs';
 import { mkdirp } from 'vs/base/node/pfs';

@@ -162,7 +162,7 @@ class Renderer implements IListRenderer<ICompletionItem, ISuggestionTemplateData
 
 		if (
 			(suggestion.kind === CompletionItemKind.File)
-			&& document.querySelector('.file-icons-enabled') // todo@ben move file icon knowledge to editor or platform
+			&& document.querySelector('.file-icons-enabled') // todo@aeschli move file icon knowledge to editor or platform
 		) {
 			addClass(data.root, 'show-file-icons');
 			data.icon.className = 'icon hide';

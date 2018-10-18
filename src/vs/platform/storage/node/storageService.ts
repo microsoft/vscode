@@ -3,19 +3,21 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable } from 'vs/base/common/lifecycle';
+import { Disposable, IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { Event, Emitter } from 'vs/base/common/event';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IWorkspaceStorageChangeEvent, IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { Storage, IStorageLoggingOptions } from 'vs/base/node/storage';
 import { IStorageLegacyService, StorageLegacyScope } from 'vs/platform/storage/common/storageLegacyService';
-import { addDisposableListener } from 'vs/base/browser/dom';
 import { startsWith } from 'vs/base/common/strings';
 import { Action } from 'vs/base/common/actions';
 import { IWindowService } from 'vs/platform/windows/common/windows';
 import { localize } from 'vs/nls';
 import { mark, getDuration } from 'vs/base/common/performance';
+import { IWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
+import { join, basename } from 'path';
+import { mkdirp, copy } from 'vs/base/node/pfs';
 
 export class StorageService extends Disposable implements IStorageService {
 	_serviceBrand: any;
@@ -46,16 +48,21 @@ export class StorageService extends Disposable implements IStorageService {
 	}
 
 	private globalStorage: Storage;
+
+	private workspaceStoragePath: string;
 	private workspaceStorage: Storage;
+	private workspaceStorageListener: IDisposable;
+
+	private loggingOptions: IStorageLoggingOptions;
 
 	constructor(
-		workspaceDBPath: string,
+		workspaceStoragePath: string,
 		@ILogService logService: ILogService,
-		@IEnvironmentService environmentService: IEnvironmentService
+		@IEnvironmentService private environmentService: IEnvironmentService
 	) {
 		super();
 
-		const loggingOptions: IStorageLoggingOptions = {
+		this.loggingOptions = {
 			info: environmentService.verbose || environmentService.logStorage,
 			infoLogger: msg => logService.info(msg),
 			errorLogger: error => {
@@ -69,15 +76,22 @@ export class StorageService extends Disposable implements IStorageService {
 			}
 		};
 
-		this.globalStorage = new Storage({ path: workspaceDBPath === StorageService.IN_MEMORY_PATH ? StorageService.IN_MEMORY_PATH : StorageService.IN_MEMORY_PATH, logging: loggingOptions });
-		this.workspaceStorage = new Storage({ path: workspaceDBPath, logging: loggingOptions });
+		this.globalStorage = new Storage({ path: workspaceStoragePath === StorageService.IN_MEMORY_PATH ? StorageService.IN_MEMORY_PATH : StorageService.IN_MEMORY_PATH, logging: this.loggingOptions });
+		this._register(this.globalStorage.onDidChangeStorage(key => this.handleDidChangeStorage(key, StorageScope.GLOBAL)));
 
-		this.registerListeners();
+		this.createWorkspaceStorage(workspaceStoragePath);
 	}
 
-	private registerListeners(): void {
-		this._register(this.globalStorage.onDidChangeStorage(key => this.handleDidChangeStorage(key, StorageScope.GLOBAL)));
-		this._register(this.workspaceStorage.onDidChangeStorage(key => this.handleDidChangeStorage(key, StorageScope.WORKSPACE)));
+	private createWorkspaceStorage(workspaceStoragePath: string): void {
+
+		// Dispose old (if any)
+		this.workspaceStorage = dispose(this.workspaceStorage);
+		this.workspaceStorageListener = dispose(this.workspaceStorageListener);
+
+		// Create new
+		this.workspaceStoragePath = workspaceStoragePath;
+		this.workspaceStorage = new Storage({ path: workspaceStoragePath, logging: this.loggingOptions });
+		this.workspaceStorageListener = this.workspaceStorage.onDidChangeStorage(key => this.handleDidChangeStorage(key, StorageScope.WORKSPACE));
 	}
 
 	private handleDidChangeStorage(key: string, scope: StorageScope): void {
@@ -180,6 +194,30 @@ export class StorageService extends Disposable implements IStorageService {
 			console.log(workspaceItemsParsed);
 		});
 	}
+
+	migrate(toWorkspace: IWorkspaceIdentifier): Promise<void> {
+		if (this.workspaceStoragePath === StorageService.IN_MEMORY_PATH) {
+			return Promise.resolve(); // no migration needed if running in memory
+		}
+
+		// Compute new workspace storage path based on workspace identifier
+		const newWorkspaceStorageHome = join(this.environmentService.workspaceStorageHome, toWorkspace.id);
+		const newWorkspaceStoragePath = join(newWorkspaceStorageHome, basename(this.workspaceStoragePath));
+		if (this.workspaceStoragePath === newWorkspaceStoragePath) {
+			return Promise.resolve(); // guard against migrating to same path
+		}
+
+		// Close workspace DB to be able to copy
+		return this.workspaceStorage.close().then(() => {
+			return mkdirp(newWorkspaceStorageHome).then(() => {
+				return copy(this.workspaceStoragePath, newWorkspaceStoragePath).then(() => {
+					this.createWorkspaceStorage(newWorkspaceStoragePath);
+
+					return this.workspaceStorage.init();
+				});
+			});
+		});
+	}
 }
 
 export class LogStorageAction extends Action {
@@ -215,9 +253,9 @@ export class DelegatingStorageService extends Disposable implements IStorageServ
 	private closed: boolean;
 
 	constructor(
-		@IStorageService private storageService: StorageService,
-		@IStorageLegacyService private storageLegacyService: IStorageLegacyService,
-		@ILogService private logService: ILogService
+		private storageService: IStorageService,
+		private storageLegacyService: IStorageLegacyService,
+		private logService: ILogService
 	) {
 		super();
 
@@ -229,17 +267,18 @@ export class DelegatingStorageService extends Disposable implements IStorageServ
 		this._register(this.storageService.onWillSaveState(() => this._onWillSaveState.fire()));
 
 		const globalKeyMarker = 'storage://global/';
-		this._register(addDisposableListener(window, 'storage', (e: StorageEvent) => {
+
+		window.addEventListener('storage', e => {
 			if (startsWith(e.key, globalKeyMarker)) {
 				const key = e.key.substr(globalKeyMarker.length);
 
 				this._onDidChangeStorage.fire({ key, scope: StorageScope.GLOBAL });
 			}
-		}));
+		});
 	}
 
 	get storage(): StorageService {
-		return this.storageService;
+		return this.storageService as StorageService;
 	}
 
 	get(key: string, scope: StorageScope, fallbackValue?: any): string {
@@ -291,7 +330,7 @@ export class DelegatingStorageService extends Disposable implements IStorageServ
 	}
 
 	close(): Promise<void> {
-		const promise = this.storageService.close();
+		const promise = this.storage.close();
 
 		this.closed = true;
 

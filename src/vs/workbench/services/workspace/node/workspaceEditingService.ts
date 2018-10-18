@@ -13,8 +13,8 @@ import { IJSONEditingService, JSONEditingError, JSONEditingErrorCode } from 'vs/
 import { IWorkspaceIdentifier, IWorkspaceFolderCreationData } from 'vs/platform/workspaces/common/workspaces';
 import { IWorkspaceConfigurationService } from 'vs/workbench/services/configuration/common/configuration';
 import { WorkspaceService } from 'vs/workbench/services/configuration/node/configurationService';
-import { migrateStorageToMultiRootWorkspace } from 'vs/platform/storage/common/storageLegacyMigration';
-import { IStorageLegacyService, StorageLegacyService } from 'vs/platform/storage/common/storageLegacyService';
+import { IStorageService } from 'vs/platform/storage/common/storage';
+import { DelegatingStorageService } from 'vs/platform/storage/node/storageService';
 import { ConfigurationScope, IConfigurationRegistry, Extensions as ConfigurationExtensions, IConfigurationPropertySchema } from 'vs/platform/configuration/common/configurationRegistry';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
@@ -35,7 +35,7 @@ export class WorkspaceEditingService implements IWorkspaceEditingService {
 		@IWorkspaceContextService private contextService: WorkspaceService,
 		@IWindowService private windowService: IWindowService,
 		@IWorkspaceConfigurationService private workspaceConfigurationService: IWorkspaceConfigurationService,
-		@IStorageLegacyService private storageLegacyService: IStorageLegacyService,
+		@IStorageService private storageService: IStorageService,
 		@IExtensionService private extensionService: IExtensionService,
 		@IBackupFileService private backupFileService: IBackupFileService,
 		@INotificationService private notificationService: INotificationService,
@@ -224,23 +224,22 @@ export class WorkspaceEditingService implements IWorkspaceEditingService {
 
 	private migrate(toWorkspace: IWorkspaceIdentifier): TPromise<void> {
 
-		// Storage (UI State) migration
-		this.migrateStorage(toWorkspace);
+		// Storage migration
+		return this.migrateStorage(toWorkspace).then(() => {
 
-		// Settings migration (only if we come from a folder workspace)
-		if (this.contextService.getWorkbenchState() === WorkbenchState.FOLDER) {
-			return this.migrateWorkspaceSettings(toWorkspace);
-		}
+			// Settings migration (only if we come from a folder workspace)
+			if (this.contextService.getWorkbenchState() === WorkbenchState.FOLDER) {
+				return this.migrateWorkspaceSettings(toWorkspace);
+			}
 
-		return TPromise.as(void 0);
+			return void 0;
+		});
 	}
 
-	private migrateStorage(toWorkspace: IWorkspaceIdentifier): void {
+	private migrateStorage(toWorkspace: IWorkspaceIdentifier): TPromise<void> {
+		const storageImpl = this.storageService as DelegatingStorageService;
 
-		// TODO@Ben revisit this when we move away from local storage to a file based approach
-		const storageImpl = this.storageLegacyService as StorageLegacyService;
-		const newWorkspaceId = migrateStorageToMultiRootWorkspace(storageImpl.workspaceId, toWorkspace, storageImpl.workspaceStorage);
-		storageImpl.setWorkspaceId(newWorkspaceId);
+		return storageImpl.storage.migrate(toWorkspace);
 	}
 
 	private migrateWorkspaceSettings(toWorkspace: IWorkspaceIdentifier): TPromise<void> {

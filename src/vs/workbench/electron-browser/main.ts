@@ -35,7 +35,7 @@ import { IWorkspacesService, ISingleFolderWorkspaceIdentifier, isWorkspaceIdenti
 import { createSpdLogService } from 'vs/platform/log/node/spdlogService';
 import * as fs from 'fs';
 import { ConsoleLogService, MultiplexLogService, ILogService } from 'vs/platform/log/common/log';
-import { StorageService, DelegatingStorageService } from 'vs/platform/storage/electron-browser/storageService';
+import { StorageService, DelegatingStorageService } from 'vs/platform/storage/node/storageService';
 import { IssueChannelClient } from 'vs/platform/issue/node/issueIpc';
 import { IIssueService } from 'vs/platform/issue/common/issue';
 import { LogLevelSetterChannelClient, FollowerLogService } from 'vs/platform/log/node/logIpc';
@@ -116,8 +116,7 @@ function openWorkbench(configuration: IWindowConfiguration): Promise<void> {
 				createStorageService(workspaceStoragePath, payload, environmentService, logService)
 			]).then(services => {
 				const workspaceService = services[0];
-				const storageLegacyService = createStorageLegacyService(workspaceService, environmentService);
-				const storageService = new DelegatingStorageService(services[1], storageLegacyService, logService);
+				const storageService = new DelegatingStorageService(services[1], createStorageLegacyService(workspaceService, environmentService), logService);
 
 				return domContentLoaded().then(() => {
 					perf.mark('willStartWorkbench');
@@ -128,7 +127,6 @@ function openWorkbench(configuration: IWindowConfiguration): Promise<void> {
 						configurationService: workspaceService,
 						environmentService,
 						logService,
-						storageLegacyService,
 						storageService
 					}, mainServices, mainProcessClient, configuration);
 
