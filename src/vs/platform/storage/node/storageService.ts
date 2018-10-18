@@ -15,9 +15,8 @@ import { Action } from 'vs/base/common/actions';
 import { IWindowService } from 'vs/platform/windows/common/windows';
 import { localize } from 'vs/nls';
 import { mark, getDuration } from 'vs/base/common/performance';
-import { IWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
 import { join, basename } from 'path';
-import { mkdirp, copy } from 'vs/base/node/pfs';
+import { copy } from 'vs/base/node/pfs';
 
 export class StorageService extends Disposable implements IStorageService {
 	_serviceBrand: any;
@@ -59,7 +58,7 @@ export class StorageService extends Disposable implements IStorageService {
 	constructor(
 		workspaceStoragePath: string,
 		@ILogService logService: ILogService,
-		@IEnvironmentService private environmentService: IEnvironmentService
+		@IEnvironmentService environmentService: IEnvironmentService
 	) {
 		super();
 
@@ -197,26 +196,23 @@ export class StorageService extends Disposable implements IStorageService {
 		});
 	}
 
-	migrate(toWorkspace: IWorkspaceIdentifier): Promise<void> {
+	migrate(toWorkspaceStorageFolder: string): Promise<void> {
 		if (this.workspaceStoragePath === StorageService.IN_MEMORY_PATH) {
 			return Promise.resolve(); // no migration needed if running in memory
 		}
 
 		// Compute new workspace storage path based on workspace identifier
-		const newWorkspaceStorageHome = join(this.environmentService.workspaceStorageHome, toWorkspace.id);
-		const newWorkspaceStoragePath = join(newWorkspaceStorageHome, basename(this.workspaceStoragePath));
+		const newWorkspaceStoragePath = join(toWorkspaceStorageFolder, basename(this.workspaceStoragePath));
 		if (this.workspaceStoragePath === newWorkspaceStoragePath) {
 			return Promise.resolve(); // guard against migrating to same path
 		}
 
 		// Close workspace DB to be able to copy
 		return this.workspaceStorage.close().then(() => {
-			return mkdirp(newWorkspaceStorageHome).then(() => {
-				return copy(this.workspaceStoragePath, newWorkspaceStoragePath).then(() => {
-					this.createWorkspaceStorage(newWorkspaceStoragePath);
+			return copy(this.workspaceStoragePath, newWorkspaceStoragePath).then(() => {
+				this.createWorkspaceStorage(newWorkspaceStoragePath);
 
-					return this.workspaceStorage.init();
-				});
+				return this.workspaceStorage.init();
 			});
 		});
 	}
