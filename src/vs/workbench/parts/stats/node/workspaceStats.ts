@@ -392,10 +392,10 @@ export class WorkspaceStats implements IWorkbenchContribution {
 					tags['workspace.cordova.low'] = true;
 				}
 			}
-			
+
 			if (tags['workspace.config.xml'] &&
 				!tags['workspace.language.cs'] && !tags['workspace.language.vb'] && !tags['workspace.language.aspx']) {
-			
+
 				if (nameSet.has('ionic.config.json')) {
 					tags['workspace.ionic'] = true;
 				}
