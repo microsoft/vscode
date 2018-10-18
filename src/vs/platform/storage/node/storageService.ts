@@ -48,6 +48,7 @@ export class StorageService extends Disposable implements IStorageService {
 	}
 
 	private globalStorage: Storage;
+	private globalStorageWorkspacePath: string;
 
 	private workspaceStoragePath: string;
 	private workspaceStorage: Storage;
@@ -76,7 +77,8 @@ export class StorageService extends Disposable implements IStorageService {
 			}
 		};
 
-		this.globalStorage = new Storage({ path: workspaceStoragePath === StorageService.IN_MEMORY_PATH ? StorageService.IN_MEMORY_PATH : StorageService.IN_MEMORY_PATH, logging: this.loggingOptions });
+		this.globalStorageWorkspacePath = workspaceStoragePath === StorageService.IN_MEMORY_PATH ? StorageService.IN_MEMORY_PATH : StorageService.IN_MEMORY_PATH;
+		this.globalStorage = new Storage({ path: this.globalStorageWorkspacePath, logging: this.loggingOptions });
 		this._register(this.globalStorage.onDidChangeStorage(key => this.handleDidChangeStorage(key, StorageScope.GLOBAL)));
 
 		this.createWorkspaceStorage(workspaceStoragePath);
@@ -181,13 +183,13 @@ export class StorageService extends Disposable implements IStorageService {
 				workspaceItemsParsed[key] = safeParse(value);
 			});
 
-			console.group(`Storage: Global (check: ${result[2]}, load: ${getDuration('willInitGlobalStorage', 'didInitGlobalStorage')})`);
+			console.group(`Storage: Global (check: ${result[2]}, load: ${getDuration('willInitGlobalStorage', 'didInitGlobalStorage')}, path: ${this.globalStorageWorkspacePath})`);
 			console.table(globalItems);
 			console.groupEnd();
 
 			console.log(globalItemsParsed);
 
-			console.group(`Storage: Workspace (check: ${result[3]}, load: ${getDuration('willInitWorkspaceStorage', 'didInitWorkspaceStorage')})`);
+			console.group(`Storage: Workspace (check: ${result[3]}, load: ${getDuration('willInitWorkspaceStorage', 'didInitWorkspaceStorage')}, path: ${this.workspaceStoragePath})`);
 			console.table(workspaceItems);
 			console.groupEnd();
 
