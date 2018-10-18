@@ -359,8 +359,13 @@ function createStorageService(workspaceStorageFolder: string, payload: IWorkspac
 
 					// Support extension storage as well (always the ID of the extension)
 					extensions.forEach(extension => {
-						// convert "author.extension-0.2.5" => "author.extension"
-						const extensionId = extension.substring(0, extension.lastIndexOf('-'));
+						let extensionId: string;
+						if (extension.indexOf('-') >= 0) {
+							extensionId = extension.substring(0, extension.lastIndexOf('-')); // convert "author.extension-0.2.5" => "author.extension"
+						} else {
+							extensionId = extension;
+						}
+
 						if (extensionId) {
 							supportedKeys.add(extensionId);
 						}
