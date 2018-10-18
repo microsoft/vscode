@@ -4,22 +4,20 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { CancellationToken } from 'vs/base/common/cancellation';
-import { URI } from 'vs/base/common/uri';
 import * as extfs from 'vs/base/node/extfs';
-import { IFileMatch, IFolderQuery, IProgress, ISearchQuery, ITextSearchStats, QueryType } from 'vs/platform/search/common/search';
-import { IRawSearch } from 'vs/workbench/services/search/node/legacy/search';
+import { IFileMatch, IProgress, ITextQuery, ITextSearchStats } from 'vs/platform/search/common/search';
 import { RipgrepTextSearchEngine } from 'vs/workbench/services/search/node/ripgrepTextSearchEngine';
 import { TextSearchManager } from 'vs/workbench/services/search/node/textSearchManager';
 import { ISerializedFileMatch, ISerializedSearchSuccess } from './search';
 
 export class TextSearchEngineAdapter {
 
-	constructor(private config: IRawSearch) {
+	constructor(private query: ITextQuery) {
 	}
 
 	// TODO@Rob - make promise-based once the old search is gone, and I don't need them to have matching interfaces anymore
 	search(token: CancellationToken, onResult: (matches: ISerializedFileMatch[]) => void, onMessage: (message: IProgress) => void, done: (error: Error, complete: ISerializedSearchSuccess) => void): void {
-		if (!this.config.folderQueries.length && !this.config.extraFiles.length) {
+		if (!this.query.folderQueries.length && !this.query.extraFileResources.length) {
 			done(null, {
 				type: 'success',
 				limitHit: false,
@@ -30,39 +28,12 @@ export class TextSearchEngineAdapter {
 			return;
 		}
 
-		const query: ISearchQuery = {
-			type: QueryType.Text,
-			cacheKey: this.config.cacheKey,
-			contentPattern: this.config.contentPattern,
-
-			excludePattern: this.config.excludePattern,
-			includePattern: this.config.includePattern,
-			extraFileResources: this.config.extraFiles && this.config.extraFiles.map(f => URI.file(f)),
-			fileEncoding: this.config.folderQueries[0].fileEncoding, // ?
-			maxResults: this.config.maxResults,
-			exists: this.config.exists,
-			sortByScore: this.config.sortByScore,
-			disregardIgnoreFiles: this.config.disregardIgnoreFiles,
-			disregardGlobalIgnoreFiles: this.config.disregardGlobalIgnoreFiles,
-			ignoreSymlinks: this.config.ignoreSymlinks,
-			maxFileSize: this.config.maxFilesize,
-			previewOptions: this.config.previewOptions
-		};
-		query.folderQueries = this.config.folderQueries.map(fq => <IFolderQuery>{
-			disregardGlobalIgnoreFiles: fq.disregardGlobalIgnoreFiles,
-			disregardIgnoreFiles: fq.disregardIgnoreFiles,
-			excludePattern: fq.excludePattern,
-			fileEncoding: fq.fileEncoding,
-			folder: URI.file(fq.folder),
-			includePattern: fq.includePattern
-		});
-
 		const pretendOutputChannel = {
 			appendLine(msg) {
 				onMessage({ message: msg });
 			}
 		};
-		const textSearchManager = new TextSearchManager(this.config.contentPattern, query, new RipgrepTextSearchEngine(pretendOutputChannel), extfs);
+		const textSearchManager = new TextSearchManager(this.query, new RipgrepTextSearchEngine(pretendOutputChannel), extfs);
 		textSearchManager
 			.search(
 				matches => {

@@ -17,12 +17,14 @@ import * as strings from 'vs/base/common/strings';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { compareItemsByScore, IItemAccessor, prepareQuery, ScorerCache } from 'vs/base/parts/quickopen/common/quickOpenScorer';
 import { MAX_FILE_SIZE } from 'vs/platform/files/node/files';
-import { ICachedSearchStats, IFileSearchStats, IProgress } from 'vs/platform/search/common/search';
+import { ICachedSearchStats, IFileSearchStats, IProgress, IRawTextQuery, ITextQuery, IRawQuery, IFileQuery, IFolderQuery } from 'vs/platform/search/common/search';
 import { Engine as FileSearchEngine } from 'vs/workbench/services/search/node/fileSearch';
 import { LegacyTextSearchService } from 'vs/workbench/services/search/node/legacy/rawLegacyTextSearchService';
 import { IRawSearch } from 'vs/workbench/services/search/node/legacy/search';
 import { TextSearchEngineAdapter } from 'vs/workbench/services/search/node/textSearchAdapter';
 import { IFileSearchProgressItem, IRawFileMatch, IRawSearchService, ISearchEngine, ISearchEngineSuccess, ISerializedFileMatch, ISerializedSearchComplete, ISerializedSearchProgressItem, ISerializedSearchSuccess } from './search';
+import { Schemas } from 'vs/base/common/network';
+import { URI, UriComponents } from 'vs/base/common/uri';
 
 gracefulFs.gracefulify(fs);
 
@@ -57,15 +59,16 @@ export class SearchService implements IRawSearchService {
 		return emitter.event;
 	}
 
-	public textSearch(config: IRawSearch): Event<ISerializedSearchProgressItem | ISerializedSearchComplete> {
+	public textSearch(rawQuery: IRawTextQuery): Event<ISerializedSearchProgressItem | ISerializedSearchComplete> {
 		let promise: CancelablePromise<ISerializedSearchComplete>;
 
+		const query = reviveQuery(rawQuery);
 		const emitter = new Emitter<ISerializedSearchProgressItem | ISerializedSearchComplete>({
 			onFirstListenerDidAdd: () => {
 				promise = createCancelablePromise(token => {
-					return (config.useRipgrep ?
-						this.ripgrepTextSearch(config, p => emitter.fire(p), token) :
-						this.legacyTextSearchService.textSearch(config, p => emitter.fire(p), token));
+					return (rawQuery.useRipgrep ?
+						this.ripgrepTextSearch(query, p => emitter.fire(p), token) :
+						this.legacyTextSearchService.textSearch(rawSearchQuery(query), p => emitter.fire(p), token));
 				});
 
 				promise.then(
@@ -80,8 +83,8 @@ export class SearchService implements IRawSearchService {
 		return emitter.event;
 	}
 
-	private ripgrepTextSearch(config: IRawSearch, progressCallback: IProgressCallback, token: CancellationToken): Promise<ISerializedSearchSuccess> {
-		config.maxFilesize = MAX_FILE_SIZE;
+	private ripgrepTextSearch(config: ITextQuery, progressCallback: IProgressCallback, token: CancellationToken): Promise<ISerializedSearchSuccess> {
+		config.maxFileSize = MAX_FILE_SIZE;
 		const engine = new TextSearchEngineAdapter(config);
 
 		return new Promise<ISerializedSearchSuccess>((c, e) => {
@@ -431,3 +434,61 @@ const FileMatchItemAccessor = new class implements IItemAccessor<IRawFileMatch> 
 		return match.relativePath; // e.g. some/path/to/file/myFile.txt
 	}
 };
+
+function reviveQuery<U extends IRawQuery>(rawQuery: U): U extends IRawTextQuery ? ITextQuery : IFileQuery {
+	return {
+		...<any>rawQuery, // TODO
+		...{
+			folderQueries: rawQuery.folderQueries && rawQuery.folderQueries.map(reviveFolderQuery),
+			extraFileResources: rawQuery.extraFileResources && rawQuery.extraFileResources.map(components => URI.revive(components))
+		}
+	};
+}
+
+function reviveFolderQuery(rawFolderQuery: IFolderQuery<UriComponents>): IFolderQuery<URI> {
+	return {
+		...rawFolderQuery,
+		folder: URI.revive(rawFolderQuery.folder)
+	};
+}
+
+/**
+ * Exported for tests
+ */
+export function rawSearchQuery(query: ITextQuery): IRawSearch {
+	let rawSearch: IRawSearch = {
+		folderQueries: [],
+		extraFiles: [],
+		excludePattern: query.excludePattern,
+		includePattern: query.includePattern,
+		maxResults: query.maxResults,
+		useRipgrep: query.useRipgrep,
+		disregardIgnoreFiles: query.folderQueries.some(fq => fq.disregardIgnoreFiles),
+		disregardGlobalIgnoreFiles: query.folderQueries.some(fq => fq.disregardGlobalIgnoreFiles),
+		ignoreSymlinks: query.folderQueries.some(fq => fq.ignoreSymlinks),
+		previewOptions: query.previewOptions
+	};
+
+	for (const q of query.folderQueries) {
+		rawSearch.folderQueries.push({
+			excludePattern: q.excludePattern,
+			includePattern: q.includePattern,
+			fileEncoding: q.fileEncoding,
+			disregardIgnoreFiles: q.disregardIgnoreFiles,
+			disregardGlobalIgnoreFiles: q.disregardGlobalIgnoreFiles,
+			folder: q.folder.fsPath
+		});
+	}
+
+	if (query.extraFileResources) {
+		for (const r of query.extraFileResources) {
+			if (r.scheme === Schemas.file) {
+				rawSearch.extraFiles.push(r.fsPath);
+			}
+		}
+	}
+
+	rawSearch.contentPattern = query.contentPattern;
+
+	return rawSearch;
+}

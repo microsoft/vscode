@@ -6,7 +6,7 @@
 import { Event } from 'vs/base/common/event';
 import * as glob from 'vs/base/common/glob';
 import { TPromise } from 'vs/base/common/winjs.base';
-import { IFileSearchStats, IFolderQuery, IProgress, ISearchEngineStats, ISearchQuery, ITextSearchResult, ITextSearchStats } from 'vs/platform/search/common/search';
+import { IFileSearchStats, IFolderQuery, IProgress, ISearchEngineStats, ISearchQuery, ITextSearchResult, ITextSearchStats, IRawTextQuery } from 'vs/platform/search/common/search';
 import { ITelemetryData } from 'vs/platform/telemetry/common/telemetry';
 import { IRawSearch } from 'vs/workbench/services/search/node/legacy/search';
 
@@ -17,7 +17,7 @@ export interface ITelemetryEvent {
 
 export interface IRawSearchService {
 	fileSearch(search: IRawSearch): Event<ISerializedSearchProgressItem | ISerializedSearchComplete>;
-	textSearch(search: IRawSearch): Event<ISerializedSearchProgressItem | ISerializedSearchComplete>;
+	textSearch(search: IRawTextQuery): Event<ISerializedSearchProgressItem | ISerializedSearchComplete>;
 	clearCache(cacheKey: string): TPromise<void>;
 }
 

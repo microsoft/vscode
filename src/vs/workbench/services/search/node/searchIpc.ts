@@ -8,10 +8,11 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import { IChannel } from 'vs/base/parts/ipc/node/ipc';
 import { IRawSearch } from 'vs/workbench/services/search/node/legacy/search';
 import { IRawSearchService, ISerializedSearchComplete, ISerializedSearchProgressItem } from './search';
+import { IRawTextQuery } from 'vs/platform/search/common/search';
 
 export interface ISearchChannel extends IChannel {
 	listen(event: 'fileSearch', search: IRawSearch): Event<ISerializedSearchProgressItem | ISerializedSearchComplete>;
-	listen(event: 'textSearch', search: IRawSearch): Event<ISerializedSearchProgressItem | ISerializedSearchComplete>;
+	listen(event: 'textSearch', search: IRawTextQuery): Event<ISerializedSearchProgressItem | ISerializedSearchComplete>;
 	call(command: 'clearCache', cacheKey: string): TPromise<void>;
 	call(command: string, arg: any): TPromise<any>;
 }
@@ -44,7 +45,7 @@ export class SearchChannelClient implements IRawSearchService {
 		return this.channel.listen('fileSearch', search);
 	}
 
-	textSearch(search: IRawSearch): Event<ISerializedSearchProgressItem | ISerializedSearchComplete> {
+	textSearch(search: IRawTextQuery): Event<ISerializedSearchProgressItem | ISerializedSearchComplete> {
 		return this.channel.listen('textSearch', search);
 	}
 

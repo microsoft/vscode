@@ -9,10 +9,11 @@ import { URI, UriComponents } from 'vs/base/common/uri';
 import { TPromise } from 'vs/base/common/winjs.base';
 import * as extfs from 'vs/base/node/extfs';
 import { ILogService } from 'vs/platform/log/common/log';
-import { IFolderQuery, IPatternInfo, IRawSearchQuery, ISearchCompleteStats, ISearchQuery } from 'vs/platform/search/common/search';
+import { IFileQuery, IFolderQuery, IRawFileQuery, IRawQuery, IRawTextQuery, ISearchCompleteStats, ITextQuery } from 'vs/platform/search/common/search';
 import { ExtHostConfiguration } from 'vs/workbench/api/node/extHostConfiguration';
 import { FileIndexSearchManager } from 'vs/workbench/api/node/extHostSearch.fileIndex';
 import { FileSearchManager } from 'vs/workbench/services/search/node/fileSearchManager';
+import { IFolderSearch, IRawSearch } from 'vs/workbench/services/search/node/legacy/search';
 import { SearchService } from 'vs/workbench/services/search/node/rawSearchService';
 import { RipgrepSearchProvider } from 'vs/workbench/services/search/node/ripgrepSearchProvider';
 import { OutputChannel } from 'vs/workbench/services/search/node/ripgrepSearchUtils';
@@ -20,7 +21,6 @@ import { isSerializedFileMatch, isSerializedSearchComplete, isSerializedSearchSu
 import { TextSearchManager } from 'vs/workbench/services/search/node/textSearchManager';
 import * as vscode from 'vscode';
 import { ExtHostSearchShape, IMainContext, MainContext, MainThreadSearchShape } from './extHost.protocol';
-import { IRawSearch, IFolderSearch } from 'vs/workbench/services/search/node/legacy/search';
 
 export interface ISchemeTransformer {
 	transformOutgoing(scheme: string): string;
@@ -96,7 +96,7 @@ export class ExtHostSearch implements ExtHostSearchShape {
 		});
 	}
 
-	$provideFileSearchResults(handle: number, session: number, rawQuery: IRawSearchQuery, token: CancellationToken): Thenable<ISearchCompleteStats> {
+	$provideFileSearchResults(handle: number, session: number, rawQuery: IRawFileQuery, token: CancellationToken): Thenable<ISearchCompleteStats> {
 		const query = reviveQuery(rawQuery);
 		if (handle === this._internalFileSearchHandle) {
 			return this.doInternalFileSearch(handle, session, query, token);
@@ -115,24 +115,21 @@ export class ExtHostSearch implements ExtHostSearchShape {
 		}
 	}
 
-	private doInternalFileSearch(handle: number, session: number, rawQuery: ISearchQuery, token: CancellationToken): Thenable<ISearchCompleteStats> {
+	private doInternalFileSearch(handle: number, session: number, rawQuery: IFileQuery, token: CancellationToken): Thenable<ISearchCompleteStats> {
 		return new Promise((resolve, reject) => {
 			const query: IRawSearch = {
 				folderQueries: [],
-				ignoreSymlinks: rawQuery.ignoreSymlinks,
+				ignoreSymlinks: rawQuery.folderQueries.some(fq => fq.ignoreSymlinks),
 				filePattern: rawQuery.filePattern,
 				excludePattern: rawQuery.excludePattern,
 				includePattern: rawQuery.includePattern,
-				contentPattern: rawQuery.contentPattern,
 				maxResults: rawQuery.maxResults,
 				exists: rawQuery.exists,
 				sortByScore: rawQuery.sortByScore,
 				cacheKey: rawQuery.cacheKey,
-				maxFilesize: rawQuery.maxFileSize,
 				useRipgrep: rawQuery.useRipgrep,
-				disregardIgnoreFiles: rawQuery.disregardIgnoreFiles,
-				previewOptions: rawQuery.previewOptions,
-				disregardGlobalIgnoreFiles: rawQuery.disregardGlobalIgnoreFiles
+				disregardIgnoreFiles: rawQuery.folderQueries.some(fq => fq.disregardIgnoreFiles),
+				disregardGlobalIgnoreFiles: rawQuery.folderQueries.some(fq => fq.disregardGlobalIgnoreFiles),
 			};
 			query.folderQueries = rawQuery.folderQueries.map(fq => (<IFolderSearch>{
 				disregardGlobalIgnoreFiles: fq.disregardGlobalIgnoreFiles,
@@ -181,14 +178,14 @@ export class ExtHostSearch implements ExtHostSearchShape {
 		return this._fileIndexSearchManager.clearCache(cacheKey);
 	}
 
-	$provideTextSearchResults(handle: number, session: number, pattern: IPatternInfo, rawQuery: IRawSearchQuery, token: CancellationToken): Thenable<ISearchCompleteStats> {
+	$provideTextSearchResults(handle: number, session: number, rawQuery: IRawTextQuery, token: CancellationToken): Thenable<ISearchCompleteStats> {
 		const provider = this._textSearchProvider.get(handle);
 		if (!provider.provideTextSearchResults) {
 			return TPromise.as(undefined);
 		}
 
 		const query = reviveQuery(rawQuery);
-		const engine = new TextSearchManager(pattern, query, provider, this._extfs);
+		const engine = new TextSearchManager(query, provider, this._extfs);
 		return engine.search(progress => this._proxy.$handleTextMatch(handle, session, progress), token);
 	}
 }
@@ -202,9 +199,9 @@ function registerEHProviders(extHostSearch: ExtHostSearch, logService: ILogServi
 	}
 }
 
-function reviveQuery(rawQuery: IRawSearchQuery): ISearchQuery {
+function reviveQuery<U extends IRawQuery>(rawQuery: U): U extends IRawTextQuery ? ITextQuery : IFileQuery {
 	return {
-		...rawQuery,
+		...<any>rawQuery, // TODO
 		...{
 			folderQueries: rawQuery.folderQueries && rawQuery.folderQueries.map(reviveFolderQuery),
 			extraFileResources: rawQuery.extraFileResources && rawQuery.extraFileResources.map(components => URI.revive(components))

@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as glob from 'vs/base/common/glob';
-import { ITextSearchPreviewOptions, IPatternInfo } from 'vs/platform/search/common/search';
+import { IPatternInfo, ITextSearchPreviewOptions } from 'vs/platform/search/common/search';
 
 export interface IFolderSearch {
 	folder: string;

@@ -3,21 +3,21 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 import * as assert from 'assert';
+import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { isPromiseCanceledError } from 'vs/base/common/errors';
 import { dispose } from 'vs/base/common/lifecycle';
 import { joinPath } from 'vs/base/common/resources';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { TPromise } from 'vs/base/common/winjs.base';
 import * as extfs from 'vs/base/node/extfs';
-import { IFileMatch, IPatternInfo, IRawFileMatch2, IRawSearchQuery, ISearchCompleteStats, ISearchQuery, QueryType } from 'vs/platform/search/common/search';
+import { IFileMatch, IFileQuery, IPatternInfo, IRawFileMatch2, ISearchCompleteStats, ISearchQuery, ITextQuery, QueryType } from 'vs/platform/search/common/search';
 import { MainContext, MainThreadSearchShape } from 'vs/workbench/api/node/extHost.protocol';
+import { ExtHostConfiguration } from 'vs/workbench/api/node/extHostConfiguration';
 import { ExtHostSearch } from 'vs/workbench/api/node/extHostSearch';
 import { Range } from 'vs/workbench/api/node/extHostTypes';
 import { TestRPCProtocol } from 'vs/workbench/test/electron-browser/api/testRPCProtocol';
-import * as vscode from 'vscode';
-import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { TestLogService } from 'vs/workbench/test/workbenchTestServices';
-import { ExtHostConfiguration } from 'vs/workbench/api/node/extHostConfiguration';
+import * as vscode from 'vscode';
 
 let rpcProtocol: TestRPCProtocol;
 let extHostSearch: ExtHostSearch;
@@ -78,7 +78,7 @@ suite('ExtHostSearch', () => {
 		await rpcProtocol.sync();
 	}
 
-	async function runFileSearch(query: IRawSearchQuery, cancel = false): Promise<{ results: URI[]; stats: ISearchCompleteStats }> {
+	async function runFileSearch(query: IFileQuery, cancel = false): Promise<{ results: URI[]; stats: ISearchCompleteStats }> {
 		let stats: ISearchCompleteStats;
 		try {
 			const cancellation = new CancellationTokenSource();
@@ -103,11 +103,11 @@ suite('ExtHostSearch', () => {
 		};
 	}
 
-	async function runTextSearch(pattern: IPatternInfo, query: IRawSearchQuery, cancel = false): Promise<{ results: IFileMatch[], stats: ISearchCompleteStats }> {
+	async function runTextSearch(query: ITextQuery, cancel = false): Promise<{ results: IFileMatch[], stats: ISearchCompleteStats }> {
 		let stats: ISearchCompleteStats;
 		try {
 			const cancellation = new CancellationTokenSource();
-			const p = extHostSearch.$provideTextSearchResults(mockMainThreadSearch.lastHandle, 0, pattern, query, cancellation.token);
+			const p = extHostSearch.$provideTextSearchResults(mockMainThreadSearch.lastHandle, 0, query, cancellation.token);
 			if (cancel) {
 				await new TPromise(resolve => process.nextTick(resolve));
 				cancellation.cancel();
@@ -157,7 +157,7 @@ suite('ExtHostSearch', () => {
 
 	suite('File:', () => {
 
-		function getSimpleQuery(filePattern = ''): ISearchQuery {
+		function getSimpleQuery(filePattern = ''): IFileQuery {
 			return {
 				type: QueryType.File,
 
@@ -639,9 +639,10 @@ suite('ExtHostSearch', () => {
 			};
 		}
 
-		function getSimpleQuery(): ISearchQuery {
+		function getSimpleQuery(queryText: string): ITextQuery {
 			return {
 				type: QueryType.Text,
+				contentPattern: getPattern(queryText),
 
 				folderQueries: [
 					{ folder: rootFolderA }
@@ -699,7 +700,7 @@ suite('ExtHostSearch', () => {
 				}
 			});
 
-			const { results, stats } = await runTextSearch(getPattern('foo'), getSimpleQuery());
+			const { results, stats } = await runTextSearch(getSimpleQuery('foo'));
 			assert(!stats.limitHit);
 			assert(!results.length);
 		});
@@ -717,7 +718,7 @@ suite('ExtHostSearch', () => {
 				}
 			});
 
-			const { results, stats } = await runTextSearch(getPattern('foo'), getSimpleQuery());
+			const { results, stats } = await runTextSearch(getSimpleQuery('foo'));
 			assert(!stats.limitHit);
 			assertResults(results, providedResults);
 		});
@@ -731,8 +732,9 @@ suite('ExtHostSearch', () => {
 				}
 			});
 
-			const query: IRawSearchQuery = {
+			const query: ITextQuery = {
 				type: QueryType.Text,
+				contentPattern: getPattern('foo'),
 
 				includePattern: {
 					'*.ts': true
@@ -748,7 +750,7 @@ suite('ExtHostSearch', () => {
 				]
 			};
 
-			await runTextSearch(getPattern('foo'), query);
+			await runTextSearch(query);
 		});
 
 		test('global/local include/excludes combined', async () => {
@@ -766,8 +768,9 @@ suite('ExtHostSearch', () => {
 				}
 			});
 
-			const query: IRawSearchQuery = {
+			const query: ITextQuery = {
 				type: QueryType.Text,
+				contentPattern: getPattern('foo'),
 
 				includePattern: {
 					'*.ts': true
@@ -789,7 +792,7 @@ suite('ExtHostSearch', () => {
 				]
 			};
 
-			await runTextSearch(getPattern('foo'), query);
+			await runTextSearch(query);
 		});
 
 		test('include/excludes resolved correctly', async () => {
@@ -804,6 +807,7 @@ suite('ExtHostSearch', () => {
 
 			const query: ISearchQuery = {
 				type: QueryType.Text,
+				contentPattern: getPattern('foo'),
 
 				includePattern: {
 					'*.ts': true,
@@ -826,7 +830,7 @@ suite('ExtHostSearch', () => {
 				]
 			};
 
-			await runTextSearch(getPattern('foo'), query);
+			await runTextSearch(query);
 		});
 
 		test('provider fail', async () => {
@@ -837,7 +841,7 @@ suite('ExtHostSearch', () => {
 			});
 
 			try {
-				await runTextSearch(getPattern('foo'), getSimpleQuery());
+				await runTextSearch(getSimpleQuery('foo'));
 				assert(false, 'Expected to fail');
 			} catch {
 				// expected to fail
@@ -870,6 +874,7 @@ suite('ExtHostSearch', () => {
 
 			const query: ISearchQuery = {
 				type: QueryType.Text,
+				contentPattern: getPattern('foo'),
 
 				excludePattern: {
 					'*.js': {
@@ -882,7 +887,7 @@ suite('ExtHostSearch', () => {
 				]
 			};
 
-			const { results } = await runTextSearch(getPattern('foo'), query);
+			const { results } = await runTextSearch(query);
 			assertResults(results, providedResults.slice(1));
 		});
 
@@ -929,6 +934,7 @@ suite('ExtHostSearch', () => {
 
 			const query: ISearchQuery = {
 				type: QueryType.Text,
+				contentPattern: getPattern('foo'),
 
 				excludePattern: {
 					'*.js': {
@@ -954,7 +960,7 @@ suite('ExtHostSearch', () => {
 				]
 			};
 
-			const { results } = await runTextSearch(getPattern('foo'), query);
+			const { results } = await runTextSearch(query);
 			assertResults(results, [
 				makeTextResult(rootFolderA, 'folder/fileA.scss'),
 				makeTextResult(rootFolderA, 'folder/file2.css'),
@@ -978,6 +984,7 @@ suite('ExtHostSearch', () => {
 
 			const query: ISearchQuery = {
 				type: QueryType.Text,
+				contentPattern: getPattern('foo'),
 
 				includePattern: {
 					'*.ts': true
@@ -988,7 +995,7 @@ suite('ExtHostSearch', () => {
 				]
 			};
 
-			const { results } = await runTextSearch(getPattern('foo'), query);
+			const { results } = await runTextSearch(query);
 			assertResults(results, providedResults.slice(1));
 		});
 
@@ -1009,6 +1016,7 @@ suite('ExtHostSearch', () => {
 
 			const query: ISearchQuery = {
 				type: QueryType.Text,
+				contentPattern: getPattern('foo'),
 
 				maxResults: 1,
 
@@ -1017,7 +1025,7 @@ suite('ExtHostSearch', () => {
 				]
 			};
 
-			const { results, stats } = await runTextSearch(getPattern('foo'), query);
+			const { results, stats } = await runTextSearch(query);
 			assert(stats.limitHit, 'Expected to return limitHit');
 			assertResults(results, providedResults.slice(0, 1));
 			assert(wasCanceled, 'Expected to be canceled');
@@ -1041,6 +1049,7 @@ suite('ExtHostSearch', () => {
 
 			const query: ISearchQuery = {
 				type: QueryType.Text,
+				contentPattern: getPattern('foo'),
 
 				maxResults: 2,
 
@@ -1049,7 +1058,7 @@ suite('ExtHostSearch', () => {
 				]
 			};
 
-			const { results, stats } = await runTextSearch(getPattern('foo'), query);
+			const { results, stats } = await runTextSearch(query);
 			assert(stats.limitHit, 'Expected to return limitHit');
 			assertResults(results, providedResults.slice(0, 2));
 			assert(wasCanceled, 'Expected to be canceled');
@@ -1072,6 +1081,7 @@ suite('ExtHostSearch', () => {
 
 			const query: ISearchQuery = {
 				type: QueryType.Text,
+				contentPattern: getPattern('foo'),
 
 				maxResults: 2,
 
@@ -1080,7 +1090,7 @@ suite('ExtHostSearch', () => {
 				]
 			};
 
-			const { results, stats } = await runTextSearch(getPattern('foo'), query);
+			const { results, stats } = await runTextSearch(query);
 			assert(!stats.limitHit, 'Expected not to return limitHit');
 			assertResults(results, providedResults);
 			assert(!wasCanceled, 'Expected not to be canceled');
@@ -1102,6 +1112,7 @@ suite('ExtHostSearch', () => {
 
 			const query: ISearchQuery = {
 				type: QueryType.Text,
+				contentPattern: getPattern('foo'),
 
 				maxResults: 1000,
 
@@ -1110,7 +1121,7 @@ suite('ExtHostSearch', () => {
 				]
 			};
 
-			const { results, stats } = await runTextSearch(getPattern('foo'), query);
+			const { results, stats } = await runTextSearch(query);
 			assert(stats.limitHit, 'Expected to return limitHit');
 			assertResults(results, providedResults);
 		});
@@ -1132,6 +1143,7 @@ suite('ExtHostSearch', () => {
 
 			const query: ISearchQuery = {
 				type: QueryType.Text,
+				contentPattern: getPattern('foo'),
 
 				maxResults: 2,
 
@@ -1141,7 +1153,7 @@ suite('ExtHostSearch', () => {
 				]
 			};
 
-			const { results } = await runTextSearch(getPattern('foo'), query);
+			const { results } = await runTextSearch(query);
 			assert.equal(results.length, 2);
 			assert.equal(cancels, 2);
 		});
@@ -1162,13 +1174,14 @@ suite('ExtHostSearch', () => {
 
 			const query: ISearchQuery = {
 				type: QueryType.Text,
+				contentPattern: getPattern('foo'),
 
 				folderQueries: [
 					{ folder: fancySchemeFolderA }
 				]
 			};
 
-			const { results } = await runTextSearch(getPattern('foo'), query);
+			const { results } = await runTextSearch(query);
 			assertResults(results, providedResults);
 		});
 	});
