@@ -173,8 +173,6 @@ suite('ProblemPatternParser', () => {
 			];
 			let parsed = parser.parse(problemPattern);
 			assert.equal(null, parsed);
-			assert.equal(ValidationState.Error, reporter.state);
-			assert(reporter.hasMessage('The problem pattern is missing a regular expression.'));
 		});
 		test('kind: Location requires a regexp on every entry', () => {
 			let problemPattern: matchers.Config.MultiLineProblemPattern = [
@@ -185,8 +183,6 @@ suite('ProblemPatternParser', () => {
 			];
 			let parsed = parser.parse(problemPattern);
 			assert.equal(null, parsed);
-			assert.equal(ValidationState.Error, reporter.state);
-			assert(reporter.hasMessage('The problem pattern is missing a regular expression.'));
 		});
 		test('kind: Location requires a message', () => {
 			let problemPattern: matchers.Config.MultiLineProblemPattern = [
