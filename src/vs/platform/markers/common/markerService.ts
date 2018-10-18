@@ -17,7 +17,7 @@ interface MapMap<V> {
 
 namespace MapMap {
 
-	export function get<V>(map: MapMap<V>, key1: string, key2: string): V {
+	export function get<V>(map: MapMap<V>, key1: string, key2: string): V | undefined {
 		if (map[key1]) {
 			return map[key1][key2];
 		}
@@ -144,7 +144,7 @@ export class MarkerService implements IMarkerService {
 	remove(owner: string, resources: URI[]): void {
 		if (!isFalsyOrEmpty(resources)) {
 			for (const resource of resources) {
-				this.changeOne(owner, resource, undefined);
+				this.changeOne(owner, resource, []);
 			}
 		}
 	}
@@ -177,7 +177,7 @@ export class MarkerService implements IMarkerService {
 		}
 	}
 
-	private static _toMarker(owner: string, resource: URI, data: IMarkerData): IMarker {
+	private static _toMarker(owner: string, resource: URI, data: IMarkerData): IMarker | undefined {
 		let {
 			code, severity,
 			message, source,
