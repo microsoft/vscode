@@ -53,7 +53,7 @@ export interface IFileService {
 	/**
 	 * Tries to activate a provider with the given scheme.
 	 */
-	activateProvider(scheme: string): TPromise<void>;
+	activateProvider(scheme: string): Thenable<void>;
 
 	/**
 	 * Checks if this file service can handle the given resource.

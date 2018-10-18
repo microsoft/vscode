@@ -206,7 +206,7 @@ export class RemoteFileService extends FileService {
 		};
 	}
 
-	activateProvider(scheme: string): TPromise<void> {
+	activateProvider(scheme: string): Thenable<void> {
 		return this._extensionService.activateByEvent('onFileSystem:' + scheme);
 	}
 

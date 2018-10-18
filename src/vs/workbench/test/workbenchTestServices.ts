@@ -883,7 +883,7 @@ export class TestFileService implements IFileService {
 	}
 
 	activateProvider(_scheme: string) {
-		return TPromise.as(null);
+		return Promise.resolve(null);
 	}
 
 	canHandleResource(resource: URI): boolean {
