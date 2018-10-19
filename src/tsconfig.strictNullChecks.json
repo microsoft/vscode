@@ -488,6 +488,7 @@
 		"./vs/workbench/parts/scm/electron-browser/scmUtil.ts",
 		"./vs/workbench/parts/search/common/constants.ts",
 		"./vs/workbench/parts/surveys/electron-browser/nps.contribution.ts",
+		"./vs/workbench/parts/tasks/common/problemMatcher.ts",
 		"./vs/workbench/parts/tasks/common/taskTemplates.ts",
 		"./vs/workbench/parts/terminal/browser/terminalWidgetManager.ts",
 		"./vs/workbench/parts/terminal/common/terminal.ts",
