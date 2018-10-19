@@ -35,6 +35,7 @@ import { WorkbenchTreeController } from 'vs/platform/list/browser/listService';
 import { ViewletPanel, IViewletPanelOptions } from 'vs/workbench/browser/parts/views/panelViewlet';
 import { IMouseEvent } from 'vs/base/browser/mouseEvent';
 import { localize } from 'vs/nls';
+import { timeout } from 'vs/base/common/async';
 
 export class CustomTreeViewPanel extends ViewletPanel {
 
@@ -207,7 +208,8 @@ export class CustomTreeViewer extends Disposable implements ITreeViewer {
 		@IWorkbenchThemeService private themeService: IWorkbenchThemeService,
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@ICommandService private commandService: ICommandService,
-		@IConfigurationService private configurationService: IConfigurationService
+		@IConfigurationService private configurationService: IConfigurationService,
+		@IProgressService2 private progressService: IProgressService2
 	) {
 		super();
 		this.root = new Root();
@@ -240,7 +242,7 @@ export class CustomTreeViewer extends Disposable implements ITreeViewer {
 					});
 				}
 			};
-			DOM.removeClass(this.domNode, 'message');
+			this.hideMessage();
 			this.refresh();
 		} else {
 			this._dataProvider = null;
@@ -341,6 +343,10 @@ export class CustomTreeViewer extends Disposable implements ITreeViewer {
 		this.message.innerText = message;
 	}
 
+	private hideMessage(): void {
+		DOM.removeClass(this.domNode, 'message');
+	}
+
 	layout(size: number) {
 		this.domNode.style.height = size + 'px';
 		if (this.tree) {
@@ -401,8 +407,15 @@ export class CustomTreeViewer extends Disposable implements ITreeViewer {
 	}
 
 	private activate() {
+		this.hideMessage();
 		if (!this.activated) {
-			this.extensionService.activateByEvent(`onView:${this.id}`);
+			this.progressService.withProgress({ location: this.container }, () => this.extensionService.activateByEvent(`onView:${this.id}`))
+				.then(() => timeout(2000))
+				.then(() => {
+					if (!this.dataProvider) {
+						this.showMessage(noDataProviderMessage);
+					}
+				});
 			this.activated = true;
 		}
 	}
