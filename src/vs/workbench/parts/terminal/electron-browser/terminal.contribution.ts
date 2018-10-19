@@ -283,6 +283,7 @@ configurationRegistry.registerConfiguration({
 				TERMINAL_COMMAND_ID.SCROLL_TO_TOP,
 				TERMINAL_COMMAND_ID.SCROLL_UP_LINE,
 				TERMINAL_COMMAND_ID.SCROLL_UP_PAGE,
+				TERMINAL_COMMAND_ID.SEND_SEQUENCE,
 				TERMINAL_COMMAND_ID.SELECT_ALL,
 				TERMINAL_COMMAND_ID.SELECT_TO_NEXT_COMMAND,
 				TERMINAL_COMMAND_ID.SELECT_TO_NEXT_LINE,
@@ -379,6 +380,17 @@ configurationRegistry.registerConfiguration({
 			enum: ['JsArray', 'TypedArray'],
 			default: 'JsArray'
 		},
+		'terminal.integrated.splitCwd': {
+			description: nls.localize('terminal.integrated.splitCwd', "Controls the source of the starting cwd for terminals created by splitting."),
+			type: 'string',
+			enum: ['workspaceRoot', 'sourceInitialCwd', 'sourceCwd'],
+			enumDescriptions: [
+				nls.localize('terminal.integrated.splitCwd.workspaceRoot', "A new split terminal will use the workspace root as the cwd."),
+				nls.localize('terminal.integrated.splitCwd.sourceInitialCwd', "A new split terminal will use the cwd that the parent terminal started with."),
+				nls.localize('terminal.integrated.splitCwd.sourceCwd', "On macOS and Linux, a new split terminal will use the cwd of the parent terminal. On Windows, this behaves the same as sourceInitialCwd."),
+			],
+			default: 'workspaceRoot'
+		},
 	}
 });
 
@@ -417,12 +429,12 @@ actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(TerminalPasteAct
 	primary: KeyMod.CtrlCmd | KeyCode.KEY_V,
 	linux: { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_V },
 	// Don't apply to Mac since cmd+v works
-	mac: { primary: null }
+	mac: { primary: 0 }
 }, KEYBINDING_CONTEXT_TERMINAL_FOCUS), 'Terminal: Paste into Active Terminal', category);
 actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(SelectAllTerminalAction, SelectAllTerminalAction.ID, SelectAllTerminalAction.LABEL, {
 	// Don't use ctrl+a by default as that would override the common go to start
 	// of prompt shell binding
-	primary: null,
+	primary: 0,
 	// Technically this doesn't need to be here as it will fall back to this
 	// behavior anyway when handed to xterm.js, having this handled by VS Code
 	// makes it easier for users to see how it works though.
@@ -459,7 +471,7 @@ actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(ScrollToTopTermi
 	linux: { primary: KeyMod.Shift | KeyCode.Home }
 }, KEYBINDING_CONTEXT_TERMINAL_FOCUS), 'Terminal: Scroll to Top', category);
 actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(ClearTerminalAction, ClearTerminalAction.ID, ClearTerminalAction.LABEL, {
-	primary: null,
+	primary: 0,
 	mac: { primary: KeyMod.CtrlCmd | KeyCode.KEY_K }
 }, KEYBINDING_CONTEXT_TERMINAL_FOCUS, KeybindingWeight.WorkbenchContrib + 1), 'Terminal: Clear', category);
 if (platform.isWindows) {
@@ -471,6 +483,9 @@ actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(RenameTerminalAc
 actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(FocusTerminalFindWidgetAction, FocusTerminalFindWidgetAction.ID, FocusTerminalFindWidgetAction.LABEL, {
 	primary: KeyMod.CtrlCmd | KeyCode.KEY_F
 }, KEYBINDING_CONTEXT_TERMINAL_FOCUS), 'Terminal: Focus Find Widget', category);
+actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(FocusTerminalFindWidgetAction, FocusTerminalFindWidgetAction.ID, FocusTerminalFindWidgetAction.LABEL, {
+	primary: KeyMod.CtrlCmd | KeyCode.KEY_F
+}, KEYBINDING_CONTEXT_TERMINAL_FIND_WIDGET_FOCUSED), 'Terminal: Focus Find Widget', category);
 actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(HideTerminalFindWidgetAction, HideTerminalFindWidgetAction.ID, HideTerminalFindWidgetAction.LABEL, {
 	primary: KeyCode.Escape,
 	secondary: [KeyMod.Shift | KeyCode.Escape]
@@ -484,11 +499,11 @@ actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(DeleteWordRightT
 	mac: { primary: KeyMod.Alt | KeyCode.Delete }
 }, KEYBINDING_CONTEXT_TERMINAL_FOCUS), 'Terminal: Delete Word Right', category);
 actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(MoveToLineStartTerminalAction, MoveToLineStartTerminalAction.ID, MoveToLineStartTerminalAction.LABEL, {
-	primary: null,
+	primary: 0,
 	mac: { primary: KeyMod.CtrlCmd | KeyCode.LeftArrow }
 }, KEYBINDING_CONTEXT_TERMINAL_FOCUS), 'Terminal: Move To Line Start', category);
 actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(MoveToLineEndTerminalAction, MoveToLineEndTerminalAction.ID, MoveToLineEndTerminalAction.LABEL, {
-	primary: null,
+	primary: 0,
 	mac: { primary: KeyMod.CtrlCmd | KeyCode.RightArrow }
 }, KEYBINDING_CONTEXT_TERMINAL_FOCUS), 'Terminal: Move To Line End', category);
 actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(SplitTerminalAction, SplitTerminalAction.ID, SplitTerminalAction.LABEL, {
@@ -517,39 +532,39 @@ actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(FocusNextPaneTer
 	}
 }, KEYBINDING_CONTEXT_TERMINAL_FOCUS), 'Terminal: Focus Next Pane', category);
 actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(ResizePaneLeftTerminalAction, ResizePaneLeftTerminalAction.ID, ResizePaneLeftTerminalAction.LABEL, {
-	primary: null,
+	primary: 0,
 	linux: { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.LeftArrow },
 	mac: { primary: KeyMod.CtrlCmd | KeyMod.WinCtrl | KeyCode.LeftArrow }
 }, KEYBINDING_CONTEXT_TERMINAL_FOCUS), 'Terminal: Resize Pane Left', category);
 actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(ResizePaneRightTerminalAction, ResizePaneRightTerminalAction.ID, ResizePaneRightTerminalAction.LABEL, {
-	primary: null,
+	primary: 0,
 	linux: { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.RightArrow },
 	mac: { primary: KeyMod.CtrlCmd | KeyMod.WinCtrl | KeyCode.RightArrow }
 }, KEYBINDING_CONTEXT_TERMINAL_FOCUS), 'Terminal: Resize Pane Right', category);
 actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(ResizePaneUpTerminalAction, ResizePaneUpTerminalAction.ID, ResizePaneUpTerminalAction.LABEL, {
-	primary: null,
+	primary: 0,
 	linux: { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.UpArrow },
 	mac: { primary: KeyMod.CtrlCmd | KeyMod.WinCtrl | KeyCode.UpArrow }
 }, KEYBINDING_CONTEXT_TERMINAL_FOCUS), 'Terminal: Resize Pane Up', category);
 actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(ResizePaneDownTerminalAction, ResizePaneDownTerminalAction.ID, ResizePaneDownTerminalAction.LABEL, {
-	primary: null,
+	primary: 0,
 	linux: { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.DownArrow },
 	mac: { primary: KeyMod.CtrlCmd | KeyMod.WinCtrl | KeyCode.DownArrow }
 }, KEYBINDING_CONTEXT_TERMINAL_FOCUS), 'Terminal: Resize Pane Down', category);
 actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(ScrollToPreviousCommandAction, ScrollToPreviousCommandAction.ID, ScrollToPreviousCommandAction.LABEL, {
-	primary: null,
+	primary: 0,
 	mac: { primary: KeyMod.CtrlCmd | KeyCode.UpArrow }
 }, KEYBINDING_CONTEXT_TERMINAL_FOCUS), 'Terminal: Scroll To Previous Command', category);
 actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(ScrollToNextCommandAction, ScrollToNextCommandAction.ID, ScrollToNextCommandAction.LABEL, {
-	primary: null,
+	primary: 0,
 	mac: { primary: KeyMod.CtrlCmd | KeyCode.DownArrow }
 }, KEYBINDING_CONTEXT_TERMINAL_FOCUS), 'Terminal: Scroll To Next Command', category);
 actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(SelectToPreviousCommandAction, SelectToPreviousCommandAction.ID, SelectToPreviousCommandAction.LABEL, {
-	primary: null,
+	primary: 0,
 	mac: { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.UpArrow }
 }, KEYBINDING_CONTEXT_TERMINAL_FOCUS), 'Terminal: Select To Previous Command', category);
 actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(SelectToNextCommandAction, SelectToNextCommandAction.ID, SelectToNextCommandAction.LABEL, {
-	primary: null,
+	primary: 0,
 	mac: { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.DownArrow }
 }, KEYBINDING_CONTEXT_TERMINAL_FOCUS), 'Terminal: Select To Next Command', category);
 actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(SelectToPreviousLineAction, SelectToPreviousLineAction.ID, SelectToPreviousLineAction.LABEL), 'Terminal: Select To Previous Line', category);

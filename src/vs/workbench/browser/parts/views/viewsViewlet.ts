@@ -5,7 +5,6 @@
 
 import { TPromise } from 'vs/base/common/winjs.base';
 import * as DOM from 'vs/base/browser/dom';
-import { Scope } from 'vs/workbench/common/memento';
 import { dispose, IDisposable, combinedDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { IAction } from 'vs/base/common/actions';
 import { Separator } from 'vs/base/browser/ui/actionbar/actionbar';
@@ -104,12 +103,12 @@ export abstract class TreeViewsViewletPanel extends ViewletPanel {
 }
 
 export interface IViewletViewOptions extends IViewletPanelOptions {
-	viewletSettings: object;
+	viewletState: object;
 }
 
 export abstract class ViewContainerViewlet extends PanelViewlet implements IViewsViewlet {
 
-	private readonly viewletSettings: Object;
+	private readonly viewletState: object;
 	private didLayout = false;
 	private dimension: DOM.Dimension;
 	private areExtensionsReady: boolean = false;
@@ -133,42 +132,41 @@ export abstract class ViewContainerViewlet extends PanelViewlet implements IView
 		@IExtensionService protected extensionService: IExtensionService,
 		@IWorkspaceContextService protected contextService: IWorkspaceContextService
 	) {
-		super(id, { showHeaderInTitleWhenSingleView, dnd: new DefaultPanelDndController() }, configurationService, partService, contextMenuService, telemetryService, themeService);
+		super(id, { showHeaderInTitleWhenSingleView, dnd: new DefaultPanelDndController() }, configurationService, partService, contextMenuService, telemetryService, themeService, storageService);
 
 		const container = Registry.as<IViewContainersRegistry>(ViewContainerExtensions.ViewContainersRegistry).get(id);
 		this.viewsModel = this._register(this.instantiationService.createInstance(PersistentContributableViewsModel, container, viewletStateStorageId));
-		this.viewletSettings = this.getMemento(storageService, Scope.WORKSPACE);
+		this.viewletState = this.getMemento(StorageScope.WORKSPACE);
 
 		this.visibleViewsStorageId = `${id}.numberOfVisibleViews`;
 		this.visibleViewsCountFromCache = this.storageService.getInteger(this.visibleViewsStorageId, this.contextService.getWorkbenchState() === WorkbenchState.EMPTY ? StorageScope.GLOBAL : StorageScope.WORKSPACE, 0);
 		this._register(toDisposable(() => this.viewDisposables = dispose(this.viewDisposables)));
 	}
 
-	create(parent: HTMLElement): Promise<void> {
-		return super.create(parent).then(() => {
-			this._register(this.onDidSashChange(() => this.saveViewSizes()));
-			this.viewsModel.onDidAdd(added => this.onDidAddViews(added));
-			this.viewsModel.onDidRemove(removed => this.onDidRemoveViews(removed));
-			const addedViews: IAddedViewDescriptorRef[] = this.viewsModel.visibleViewDescriptors.map((viewDescriptor, index) => {
-				const size = this.viewsModel.getSize(viewDescriptor.id);
-				const collapsed = this.viewsModel.isCollapsed(viewDescriptor.id);
-				return ({ viewDescriptor, index, size, collapsed });
-			});
-			if (addedViews.length) {
-				this.onDidAddViews(addedViews);
-			}
-
-			// Update headers after and title contributed views after available, since we read from cache in the beginning to know if the viewlet has single view or not. Ref #29609
-			this.extensionService.whenInstalledExtensionsRegistered().then(() => {
-				this.areExtensionsReady = true;
-				if (this.panels.length) {
-					this.updateTitleArea();
-					this.updateViewHeaders();
-				}
-			});
-
-			this.focus();
+	create(parent: HTMLElement): void {
+		super.create(parent);
+		this._register(this.onDidSashChange(() => this.saveViewSizes()));
+		this.viewsModel.onDidAdd(added => this.onDidAddViews(added));
+		this.viewsModel.onDidRemove(removed => this.onDidRemoveViews(removed));
+		const addedViews: IAddedViewDescriptorRef[] = this.viewsModel.visibleViewDescriptors.map((viewDescriptor, index) => {
+			const size = this.viewsModel.getSize(viewDescriptor.id);
+			const collapsed = this.viewsModel.isCollapsed(viewDescriptor.id);
+			return ({ viewDescriptor, index, size, collapsed });
 		});
+		if (addedViews.length) {
+			this.onDidAddViews(addedViews);
+		}
+
+		// Update headers after and title contributed views after available, since we read from cache in the beginning to know if the viewlet has single view or not. Ref #29609
+		this.extensionService.whenInstalledExtensionsRegistered().then(() => {
+			this.areExtensionsReady = true;
+			if (this.panels.length) {
+				this.updateTitleArea();
+				this.updateViewHeaders();
+			}
+		});
+
+		this.focus();
 	}
 
 	getContextMenuActions(): IAction[] {
@@ -241,13 +239,6 @@ export abstract class ViewContainerViewlet extends PanelViewlet implements IView
 		return optimalWidth + additionalMargin;
 	}
 
-	shutdown(): void {
-		this.panels.forEach((view) => view.shutdown());
-		this.storageService.store(this.visibleViewsStorageId, this.length, this.contextService.getWorkbenchState() !== WorkbenchState.EMPTY ? StorageScope.WORKSPACE : StorageScope.GLOBAL);
-		this.viewsModel.saveViewsStates();
-		super.shutdown();
-	}
-
 	protected isSingleView(): boolean {
 		if (!super.isSingleView()) {
 			return false;
@@ -276,7 +267,7 @@ export abstract class ViewContainerViewlet extends PanelViewlet implements IView
 					title: viewDescriptor.name,
 					actionRunner: this.getActionRunner(),
 					expanded: !collapsed,
-					viewletSettings: this.viewletSettings
+					viewletState: this.viewletState
 				});
 			panel.render();
 			panel.setVisible(true);
@@ -383,6 +374,13 @@ export abstract class ViewContainerViewlet extends PanelViewlet implements IView
 			}
 		}
 		return sizes;
+	}
+
+	protected saveState(): void {
+		this.panels.forEach((view) => view.saveState());
+		this.storageService.store(this.visibleViewsStorageId, this.length, this.contextService.getWorkbenchState() !== WorkbenchState.EMPTY ? StorageScope.WORKSPACE : StorageScope.GLOBAL);
+
+		super.saveState();
 	}
 }
 

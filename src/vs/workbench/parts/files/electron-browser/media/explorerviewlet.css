@@ -104,15 +104,18 @@
 .explorer-viewlet .explorer-item .monaco-inputbox {
 	width: 100%;
 	line-height: normal;
+	margin-left: -3px;
 }
 
 .monaco-workbench.linux .explorer-viewlet .explorer-item .monaco-inputbox,
 .monaco-workbench.mac .explorer-viewlet .explorer-item .monaco-inputbox {
 	height: 22px;
+	margin-left: -1px;
 }
 
 .explorer-viewlet .explorer-item .monaco-inputbox > .wrapper > .input {
 	padding: 1px 2px;
+	height: 19px;
 }
 
 .monaco-workbench.linux .explorer-viewlet .explorer-item .monaco-inputbox > .wrapper > .input,

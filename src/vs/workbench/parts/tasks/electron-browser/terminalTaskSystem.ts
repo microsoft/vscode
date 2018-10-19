@@ -320,10 +320,10 @@ export class TerminalTaskSystem implements ITaskSystem {
 	}
 
 	private executeInTerminal(task: CustomTask | ContributedTask, trigger: string, resolver: VariableResolver): TPromise<ITaskSummary> {
-		let terminal: ITerminalInstance = undefined;
-		let executedCommand: string = undefined;
-		let error: TaskError = undefined;
-		let promise: TPromise<ITaskSummary> = undefined;
+		let terminal: ITerminalInstance | undefined = undefined;
+		let executedCommand: string | undefined = undefined;
+		let error: TaskError | undefined = undefined;
+		let promise: TPromise<ITaskSummary> | undefined = undefined;
 		if (task.isBackground) {
 			promise = new TPromise<ITaskSummary>((resolve, reject) => {
 				const problemMatchers = this.resolveMatchers(resolver, task.problemMatchers);
@@ -518,6 +518,7 @@ export class TerminalTaskSystem implements ITaskSystem {
 	private createTerminal(task: CustomTask | ContributedTask, resolver: VariableResolver): [ITerminalInstance, string, TaskError | undefined] {
 		let platform = resolver.taskSystemInfo ? resolver.taskSystemInfo.platform : Platform.platform;
 		let options = this.resolveOptions(resolver, task.command.options);
+		let originalCommand = task.command.name;
 		let { command, args } = this.resolveCommandAndArgs(resolver, task.command);
 		let commandExecutable = CommandString.value(command);
 		let workspaceFolder = Task.getWorkspaceFolder(task);
@@ -533,7 +534,7 @@ export class TerminalTaskSystem implements ITaskSystem {
 				waitOnExit = '\u200B';
 			}
 		}
-		let shellLaunchConfig: IShellLaunchConfig = undefined;
+		let shellLaunchConfig: IShellLaunchConfig | undefined = undefined;
 		let isShellCommand = task.command.runtime === RuntimeType.Shell;
 		if (isShellCommand) {
 			shellLaunchConfig = { name: terminalName, executable: null, args: null, waitOnExit };
@@ -553,7 +554,7 @@ export class TerminalTaskSystem implements ITaskSystem {
 			}
 			let shellArgs = <string[]>shellLaunchConfig.args.slice(0);
 			let toAdd: string[] = [];
-			let commandLine = this.buildShellCommandLine(shellLaunchConfig.executable, shellOptions, command, args);
+			let commandLine = this.buildShellCommandLine(shellLaunchConfig.executable, shellOptions, command, originalCommand, args);
 			let windowsShellArgs: boolean = false;
 			if (platform === Platform.Platform.Windows) {
 				// Change Sysnative to System32 if the OS is Windows but NOT WoW64. It's
@@ -699,13 +700,7 @@ export class TerminalTaskSystem implements ITaskSystem {
 		return [result, commandExecutable, undefined];
 	}
 
-	private buildShellCommandLine(shellExecutable: string, shellOptions: ShellConfiguration, command: CommandString, args: CommandString[]): string {
-		// If we have no args and the command is a string then use the
-		// command to stay backwards compatible with the old command line
-		// model.
-		if ((!args || args.length === 0) && Types.isString(command)) {
-			return command;
-		}
+	private buildShellCommandLine(shellExecutable: string, shellOptions: ShellConfiguration, command: CommandString, originalCommand: CommandString, args: CommandString[]): string {
 		let basename = path.parse(shellExecutable).name.toLowerCase();
 		let shellQuoteOptions = this.getQuotingOptions(basename, shellOptions);
 
@@ -768,6 +763,13 @@ export class TerminalTaskSystem implements ITaskSystem {
 			} else {
 				return quote(value.value, value.quoting);
 			}
+		}
+
+		// If we have no args and the command is a string then use the command to stay backwards compatible with the old command line
+		// model. To allow variable resolving with spaces we do continue if the resolved value is different than the original one
+		// and the resolved one needs quoting.
+		if ((!args || args.length === 0) && Types.isString(command) && (command === originalCommand as string || needsQuotes(originalCommand as string))) {
+			return command;
 		}
 
 		let result: string[] = [];
@@ -896,7 +898,7 @@ export class TerminalTaskSystem implements ITaskSystem {
 			// to the current working directory.
 			return path.join(cwd, command);
 		}
-		let paths: string[] = undefined;
+		let paths: string[] | undefined = undefined;
 		// The options can override the PATH. So consider that PATH if present.
 		if (options && options.env) {
 			// Path can be named in many different ways and for the execution it doesn't matter

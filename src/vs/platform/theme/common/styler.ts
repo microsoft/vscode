@@ -9,10 +9,10 @@ import { IDisposable } from 'vs/base/common/lifecycle';
 import { Color } from 'vs/base/common/color';
 import { mixin } from 'vs/base/common/objects';
 
-export type styleFn = (colors: { [name: string]: Color }) => void;
+export type styleFn = (colors: { [name: string]: Color | null }) => void;
 
 export interface IStyleOverrides {
-	[color: string]: ColorIdentifier;
+	[color: string]: ColorIdentifier | undefined;
 }
 
 export interface IThemable {
@@ -24,7 +24,7 @@ export interface IColorMapping {
 }
 
 export interface IComputedStyles {
-	[color: string]: Color;
+	[color: string]: Color | null;
 }
 
 export function computeStyles(theme: ITheme, styleMap: IColorMapping): IComputedStyles {

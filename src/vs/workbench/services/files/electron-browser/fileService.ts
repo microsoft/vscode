@@ -44,7 +44,6 @@ import product from 'vs/platform/node/product';
 import { IEncodingOverride, ResourceEncodings } from 'vs/workbench/services/files/electron-browser/encoding';
 import { createReadableOfSnapshot } from 'vs/workbench/services/files/electron-browser/streams';
 
-
 export interface IFileServiceTestOptions {
 	disableWatcher?: boolean;
 	encodingOverride?: IEncodingOverride[];
@@ -144,7 +143,8 @@ export class FileService extends Disposable implements IFileService {
 					label: nls.localize('neverShowAgain', "Don't Show Again"),
 					isSecondary: true,
 					run: () => this.storageService.store(FileService.NET_VERSION_ERROR_IGNORE_KEY, true, StorageScope.WORKSPACE)
-				}]
+				}],
+				{ sticky: true }
 			);
 		}
 
@@ -161,7 +161,8 @@ export class FileService extends Disposable implements IFileService {
 					label: nls.localize('neverShowAgain', "Don't Show Again"),
 					isSecondary: true,
 					run: () => this.storageService.store(FileService.ENOSPC_ERROR_IGNORE_KEY, true, StorageScope.WORKSPACE)
-				}]
+				}],
+				{ sticky: true }
 			);
 		}
 	}
@@ -205,6 +206,10 @@ export class FileService extends Disposable implements IFileService {
 
 	registerProvider(scheme: string, provider: IFileSystemProvider): IDisposable {
 		throw new Error('not implemented');
+	}
+
+	activateProvider(scheme: string): Thenable<void> {
+		return Promise.reject(new Error('not implemented'));
 	}
 
 	canHandleResource(resource: uri): boolean {
@@ -1147,7 +1152,7 @@ export class StatResolver {
 		else {
 
 			// Convert the paths from options.resolveTo to absolute paths
-			let absoluteTargetPaths: string[] = null;
+			let absoluteTargetPaths: string[] | null = null;
 			if (options && options.resolveTo) {
 				absoluteTargetPaths = [];
 				options.resolveTo.forEach(resource => {

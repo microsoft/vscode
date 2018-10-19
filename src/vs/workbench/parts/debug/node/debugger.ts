@@ -23,6 +23,9 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { memoize } from 'vs/base/common/decorators';
 import { TaskDefinitionRegistry } from 'vs/workbench/parts/tasks/common/taskDefinitionRegistry';
 import { getPathFromAmdModule } from 'vs/base/common/amd';
+import { ITextResourcePropertiesService } from 'vs/editor/common/services/resourceConfiguration';
+import { URI } from 'vs/base/common/uri';
+import { Schemas } from 'vs/base/common/network';
 
 export class Debugger implements IDebugger {
 
@@ -30,6 +33,7 @@ export class Debugger implements IDebugger {
 
 	constructor(private configurationManager: IConfigurationManager, private debuggerContribution: IDebuggerContribution, public extensionDescription: IExtensionDescription,
 		@IConfigurationService private configurationService: IConfigurationService,
+		@ITextResourcePropertiesService private resourcePropertiesService: ITextResourcePropertiesService,
 		@ICommandService private commandService: ICommandService,
 		@IConfigurationResolverService private configurationResolverService: IConfigurationResolverService,
 		@ITelemetryService private telemetryService: ITelemetryService,
@@ -153,7 +157,7 @@ export class Debugger implements IDebugger {
 			initialConfigurations = initialConfigurations.concat(initialConfigs);
 		}
 
-		const eol = this.configurationService.getValue<string>('files.eol') === '\r\n' ? '\r\n' : '\n';
+		const eol = this.resourcePropertiesService.getEOL(URI.from({ scheme: Schemas.untitled, path: '1' })) === '\r\n' ? '\r\n' : '\n';
 		const configs = JSON.stringify(initialConfigurations, null, '\t').split('\n').map(line => '\t' + line).join(eol).trim();
 		const comment1 = nls.localize('launch.config.comment1', "Use IntelliSense to learn about possible attributes.");
 		const comment2 = nls.localize('launch.config.comment2', "Hover to view descriptions of existing attributes.");

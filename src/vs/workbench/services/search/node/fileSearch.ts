@@ -15,16 +15,16 @@ import * as normalization from 'vs/base/common/normalization';
 import * as objects from 'vs/base/common/objects';
 import { isEqualOrParent } from 'vs/base/common/paths';
 import * as platform from 'vs/base/common/platform';
+import { StopWatch } from 'vs/base/common/stopwatch';
 import * as strings from 'vs/base/common/strings';
 import * as types from 'vs/base/common/types';
 import { TPromise } from 'vs/base/common/winjs.base';
 import * as extfs from 'vs/base/node/extfs';
 import * as flow from 'vs/base/node/flow';
 import { IProgress, ISearchEngineStats } from 'vs/platform/search/common/search';
+import { IFolderSearch, IRawSearch } from 'vs/workbench/services/search/node/legacy/search';
+import { IRawFileMatch, ISearchEngine, ISearchEngineSuccess } from 'vs/workbench/services/search/node/search';
 import { spawnRipgrepCmd } from './ripgrepFileSearch';
-import { rgErrorMsgForDisplay } from './ripgrepTextSearch';
-import { IFolderSearch, IRawFileMatch, IRawSearch, ISearchEngine, ISearchEngineSuccess } from './search';
-import { StopWatch } from 'vs/base/common/stopwatch';
 
 enum Traversal {
 	Node = 1,
@@ -742,7 +742,7 @@ class AbsoluteAndRelativeParsedExpression {
 	}
 
 	public getPathTerms(): string[] {
-		const pathTerms = [];
+		const pathTerms: string[] = [];
 		if (this.absoluteParsedExpr) {
 			pathTerms.push(...glob.getPathTerms(this.absoluteParsedExpr));
 		}
@@ -753,4 +753,35 @@ class AbsoluteAndRelativeParsedExpression {
 
 		return pathTerms;
 	}
+}
+
+export function rgErrorMsgForDisplay(msg: string): string | undefined {
+	const lines = msg.trim().split('\n');
+	const firstLine = lines[0].trim();
+
+	if (strings.startsWith(firstLine, 'Error parsing regex')) {
+		return firstLine;
+	}
+
+	if (strings.startsWith(firstLine, 'regex parse error')) {
+		return strings.uppercaseFirstLetter(lines[lines.length - 1].trim());
+	}
+
+	if (strings.startsWith(firstLine, 'error parsing glob') ||
+		strings.startsWith(firstLine, 'unsupported encoding')) {
+		// Uppercase first letter
+		return firstLine.charAt(0).toUpperCase() + firstLine.substr(1);
+	}
+
+	if (firstLine === `Literal '\\n' not allowed.`) {
+		// I won't localize this because none of the Ripgrep error messages are localized
+		return `Literal '\\n' currently not supported`;
+	}
+
+	if (strings.startsWith(firstLine, 'Literal ')) {
+		// Other unsupported chars
+		return firstLine;
+	}
+
+	return undefined;
 }

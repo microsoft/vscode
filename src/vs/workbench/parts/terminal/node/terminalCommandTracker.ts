@@ -34,7 +34,6 @@ export class TerminalCommandTracker implements ITerminalCommandTracker, IDisposa
 	}
 
 	public dispose(): void {
-		this._xterm = null;
 	}
 
 	private _onKey(key: string): void {

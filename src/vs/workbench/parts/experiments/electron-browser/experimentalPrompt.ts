@@ -80,9 +80,11 @@ export class ExperimentalPrompts extends Disposable implements IWorkbenchContrib
 			};
 		});
 
-		this.notificationService.prompt(Severity.Info, actionProperties.promptText, choices, () => {
-			logTelemetry();
-			this.experimentService.markAsCompleted(experiment.id);
+		this.notificationService.prompt(Severity.Info, actionProperties.promptText, choices, {
+			onCancel: () => {
+				logTelemetry();
+				this.experimentService.markAsCompleted(experiment.id);
+			}
 		});
 	}
 

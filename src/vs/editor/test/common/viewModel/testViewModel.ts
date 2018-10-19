@@ -15,7 +15,7 @@ export function testViewModel(text: string[], options: IEditorOptions, callback:
 
 	let model = TextModel.createFromString(text.join('\n'));
 
-	let viewModel = new ViewModel(EDITOR_ID, configuration, model, null);
+	let viewModel = new ViewModel(EDITOR_ID, configuration, model, null!);
 
 	callback(viewModel, model);
 

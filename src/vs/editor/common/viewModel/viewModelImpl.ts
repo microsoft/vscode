@@ -33,7 +33,7 @@ export class ViewModel extends viewEvents.ViewEventEmitter implements IViewModel
 	private readonly model: ITextModel;
 	private hasFocus: boolean;
 	private viewportStartLine: number;
-	private viewportStartLineTrackedRange: string;
+	private viewportStartLineTrackedRange: string | null;
 	private viewportStartLineDelta: number;
 	private readonly lines: IViewModelLinesCollection;
 	public readonly coordinatesConverter: ICoordinatesConverter;
@@ -127,7 +127,7 @@ export class ViewModel extends viewEvents.ViewEventEmitter implements IViewModel
 	private _onConfigurationChanged(eventsCollector: viewEvents.ViewEventsCollector, e: IConfigurationChangedEvent): void {
 
 		// We might need to restore the current centered view range, so save it (if available)
-		let previousViewportStartModelPosition: Position = null;
+		let previousViewportStartModelPosition: Position | null = null;
 		if (this.viewportStartLine !== -1) {
 			let previousViewportStartViewPosition = new Position(this.viewportStartLine, this.getLineMinColumn(this.viewportStartLine));
 			previousViewportStartModelPosition = this.coordinatesConverter.convertViewPositionToModelPosition(previousViewportStartViewPosition);
@@ -428,7 +428,7 @@ export class ViewModel extends viewEvents.ViewEventEmitter implements IViewModel
 	private _reduceRestoreStateCompatibility(state: editorCommon.IViewState): { scrollLeft: number; scrollTop: number; } {
 		return {
 			scrollLeft: state.scrollLeft,
-			scrollTop: state.scrollTopWithoutViewZones
+			scrollTop: state.scrollTopWithoutViewZones!
 		};
 	}
 
@@ -617,7 +617,7 @@ export class ViewModel extends viewEvents.ViewEventEmitter implements IViewModel
 		return result.length === 1 ? result[0] : result;
 	}
 
-	public getHTMLToCopy(viewRanges: Range[], emptySelectionClipboard: boolean): string {
+	public getHTMLToCopy(viewRanges: Range[], emptySelectionClipboard: boolean): string | null {
 		if (this.model.getLanguageIdentifier().id === LanguageId.PlainText) {
 			return null;
 		}
@@ -683,9 +683,11 @@ export class ViewModel extends viewEvents.ViewEventEmitter implements IViewModel
 
 	private _getColorMap(): string[] {
 		let colorMap = TokenizationRegistry.getColorMap();
-		let result: string[] = [null];
-		for (let i = 1, len = colorMap.length; i < len; i++) {
-			result[i] = Color.Format.CSS.formatHex(colorMap[i]);
+		let result: string[] = ['#000000'];
+		if (colorMap) {
+			for (let i = 1, len = colorMap.length; i < len; i++) {
+				result[i] = Color.Format.CSS.formatHex(colorMap[i]);
+			}
 		}
 		return result;
 	}

@@ -76,7 +76,7 @@ export class TextEditorEdit {
 	}
 
 	replace(location: Position | Range | Selection, value: string): void {
-		let range: Range = null;
+		let range: Range | null = null;
 
 		if (location instanceof Position) {
 			range = new Range(location, location);
@@ -94,7 +94,7 @@ export class TextEditorEdit {
 	}
 
 	delete(location: Range | Selection): void {
-		let range: Range = null;
+		let range: Range | null = null;
 
 		if (location instanceof Range) {
 			range = location;

@@ -116,7 +116,7 @@ export class AbstractProblemCollector implements IDisposable {
 	}
 
 	protected tryFindMarker(line: string): ProblemMatch {
-		let result: ProblemMatch = null;
+		let result: ProblemMatch | null = null;
 		if (this.activeMatcher) {
 			result = this.activeMatcher.next(line);
 			if (result) {

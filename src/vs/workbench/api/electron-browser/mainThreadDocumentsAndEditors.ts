@@ -246,7 +246,7 @@ class MainThreadDocumentAndEditorStateComputer {
 
 		// editor: only take those that have a not too large model
 		const editors = new Map<string, TextEditorSnapshot>();
-		let activeEditor: string = null;
+		let activeEditor: string | null = null;
 
 		for (const editor of this._codeEditorService.listCodeEditors()) {
 			if (editor.isSimpleWidget) {

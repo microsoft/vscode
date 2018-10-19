@@ -32,11 +32,9 @@ const $ = dom.$;
 
 export class CallStackView extends TreeViewsViewletPanel {
 
-	private static readonly MEMENTO = 'callstackview.memento';
 	private pauseMessage: HTMLSpanElement;
 	private pauseMessageLabel: HTMLSpanElement;
 	private onCallStackChangeScheduler: RunOnceScheduler;
-	private settings: any;
 	private needsRefresh: boolean;
 	private ignoreSelectionChangedEvent: boolean;
 	private treeContainer: HTMLElement;
@@ -53,7 +51,6 @@ export class CallStackView extends TreeViewsViewletPanel {
 		@IContextKeyService contextKeyService: IContextKeyService
 	) {
 		super({ ...(options as IViewletPanelOptions), ariaHeaderLabel: nls.localize('callstackSection', "Call Stack Section") }, keybindingService, contextMenuService, configurationService);
-		this.settings = options.viewletSettings;
 		this.callStackItemType = CONTEXT_CALLSTACK_ITEM_TYPE.bindTo(contextKeyService);
 
 		// Create scheduler to prevent unnecessary flashing of tree when reacting to changes
@@ -226,11 +223,6 @@ export class CallStackView extends TreeViewsViewletPanel {
 				this.onCallStackChangeScheduler.schedule();
 			}
 		});
-	}
-
-	public shutdown(): void {
-		this.settings[CallStackView.MEMENTO] = !this.isExpanded();
-		super.shutdown();
 	}
 }
 
@@ -515,7 +507,7 @@ class CallStackRenderer implements IRenderer {
 		dom.toggleClass(data.stackFrame, 'label', stackFrame.presentationHint === 'label');
 		dom.toggleClass(data.stackFrame, 'subtle', stackFrame.presentationHint === 'subtle');
 
-		data.file.title = stackFrame.source.inMemory ? stackFrame.source.name : this.labelService.getUriLabel(stackFrame.source.uri);
+		data.file.title = stackFrame.source.inMemory ? stackFrame.source.uri.path : this.labelService.getUriLabel(stackFrame.source.uri);
 		if (stackFrame.source.raw.origin) {
 			data.file.title += `\n${stackFrame.source.raw.origin}`;
 		}

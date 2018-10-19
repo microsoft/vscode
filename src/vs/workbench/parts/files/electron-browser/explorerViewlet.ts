@@ -60,7 +60,7 @@ export class ExplorerViewletViewsContribution extends Disposable implements IWor
 	private registerViews(): void {
 		const viewDescriptors = ViewsRegistry.getViews(VIEW_CONTAINER);
 
-		let viewDescriptorsToRegister = [];
+		let viewDescriptorsToRegister: IViewDescriptor[] = [];
 		let viewDescriptorsToDeregister: string[] = [];
 
 		const openEditorsViewDescriptor = this.createOpenEditorsViewDescriptor();
@@ -150,7 +150,7 @@ export class ExplorerViewlet extends ViewContainerViewlet implements IExplorerVi
 
 	private static readonly EXPLORER_VIEWS_STATE = 'workbench.explorer.views.state';
 
-	private viewletState: FileViewletState;
+	private fileViewletState: FileViewletState;
 	private viewletVisibleContextKey: IContextKey<boolean>;
 
 	constructor(
@@ -169,16 +169,15 @@ export class ExplorerViewlet extends ViewContainerViewlet implements IExplorerVi
 	) {
 		super(VIEWLET_ID, ExplorerViewlet.EXPLORER_VIEWS_STATE, true, configurationService, partService, telemetryService, storageService, instantiationService, themeService, contextMenuService, extensionService, contextService);
 
-		this.viewletState = new FileViewletState();
+		this.fileViewletState = new FileViewletState();
 		this.viewletVisibleContextKey = ExplorerViewletVisibleContext.bindTo(contextKeyService);
 
 		this._register(this.contextService.onDidChangeWorkspaceName(e => this.updateTitleArea()));
 	}
 
-	create(parent: HTMLElement): Promise<void> {
-		return super.create(parent).then(() => {
-			DOM.addClass(parent, 'explorer-viewlet');
-		});
+	create(parent: HTMLElement): void {
+		super.create(parent);
+		DOM.addClass(parent, 'explorer-viewlet');
 	}
 
 	protected createView(viewDescriptor: IViewDescriptor, options: IViewletViewOptions): ViewletPanel {
@@ -218,7 +217,7 @@ export class ExplorerViewlet extends ViewContainerViewlet implements IExplorerVi
 			});
 
 			const explorerInstantiator = this.instantiationService.createChild(new ServiceCollection([IEditorService, delegatingEditorService]));
-			return explorerInstantiator.createInstance(ExplorerView, <IExplorerViewOptions>{ ...options, viewletState: this.viewletState });
+			return explorerInstantiator.createInstance(ExplorerView, <IExplorerViewOptions>{ ...options, viewletState: this.fileViewletState });
 		}
 		return super.createView(viewDescriptor, options);
 	}
@@ -242,13 +241,13 @@ export class ExplorerViewlet extends ViewContainerViewlet implements IExplorerVi
 
 	public getActionRunner(): IActionRunner {
 		if (!this.actionRunner) {
-			this.actionRunner = new ActionRunner(this.viewletState);
+			this.actionRunner = new ActionRunner(this.fileViewletState);
 		}
 		return this.actionRunner;
 	}
 
 	public getViewletState(): FileViewletState {
-		return this.viewletState;
+		return this.fileViewletState;
 	}
 
 	focus(): void {

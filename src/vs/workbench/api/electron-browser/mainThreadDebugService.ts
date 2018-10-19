@@ -5,7 +5,7 @@
 
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { URI as uri } from 'vs/base/common/uri';
-import { IDebugService, IConfig, IDebugConfigurationProvider, IBreakpoint, IFunctionBreakpoint, IBreakpointData, ITerminalSettings, IDebugAdapter, IDebugAdapterProvider, IDebugSession, DEBUG_SCHEME } from 'vs/workbench/parts/debug/common/debug';
+import { IDebugService, IConfig, IDebugConfigurationProvider, IBreakpoint, IFunctionBreakpoint, IBreakpointData, ITerminalSettings, IDebugAdapter, IDebugAdapterProvider, IDebugSession } from 'vs/workbench/parts/debug/common/debug';
 import { TPromise } from 'vs/base/common/winjs.base';
 import {
 	ExtHostContext, ExtHostDebugServiceShape, MainThreadDebugServiceShape, DebugSessionUUID, MainContext,
@@ -14,9 +14,9 @@ import {
 import { extHostNamedCustomer } from 'vs/workbench/api/electron-browser/extHostCustomers';
 import severity from 'vs/base/common/severity';
 import { AbstractDebugAdapter } from 'vs/workbench/parts/debug/node/debugAdapter';
-import * as paths from 'vs/base/common/paths';
 import { IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
-import { convertToVSCPaths, convertToDAPaths } from 'vs/workbench/parts/debug/common/debugUtils';
+import { convertToVSCPaths, convertToDAPaths, stringToUri, uriToString } from 'vs/workbench/parts/debug/common/debugUtils';
+import { deepClone } from 'vs/base/common/objects';
 
 
 @extHostNamedCustomer(MainContext.MainThreadDebugService)
@@ -190,7 +190,7 @@ export class MainThreadDebugService implements MainThreadDebugServiceShape, IDeb
 	}
 
 	public $customDebugAdapterRequest(sessionId: DebugSessionUUID, request: string, args: any): Thenable<any> {
-		const session = this.debugService.getSession(sessionId);
+		const session = this.debugService.getModel().getSessions(true).filter(s => s.getId() === sessionId).pop();
 		if (session) {
 			return session.customRequest(request, args).then(response => {
 				if (response && response.success) {
@@ -214,11 +214,7 @@ export class MainThreadDebugService implements MainThreadDebugServiceShape, IDeb
 
 	public $acceptDAMessage(handle: number, message: DebugProtocol.ProtocolMessage) {
 
-		convertToVSCPaths(message, source => {
-			if (typeof source.path === 'object') {
-				source.path = uri.revive(source.path).toString();
-			}
-		});
+		convertToVSCPaths(message, source => uriToString(source));
 
 		this._debugAdapters.get(handle).acceptMessage(message);
 	}
@@ -298,15 +294,12 @@ class ExtensionHostDebugAdapter extends AbstractDebugAdapter {
 
 	public sendMessage(message: DebugProtocol.ProtocolMessage): void {
 
-		convertToDAPaths(message, source => {
-			if (paths.isAbsolute(source.path)) {
-				(<any>source).path = uri.file(source.path);
-			} else {
-				(<any>source).path = uri.parse(`${DEBUG_SCHEME}:${source.path}`);
-			}
-		});
+		// since we modify Source.paths in the message in place, we need to make a copy of it (see #61129)
+		const msg = deepClone(message);
 
-		this._proxy.$sendDAMessage(this._handle, message);
+		convertToDAPaths(msg, source => stringToUri(source));
+
+		this._proxy.$sendDAMessage(this._handle, msg);
 	}
 
 	public stopSession(): TPromise<void> {

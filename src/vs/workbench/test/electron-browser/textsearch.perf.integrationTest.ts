@@ -9,7 +9,7 @@ import * as fs from 'fs';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { createSyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { IEditorGroupsService } from 'vs/workbench/services/group/common/editorGroupsService';
-import { ISearchService, IQueryOptions } from 'vs/platform/search/common/search';
+import { ISearchService } from 'vs/platform/search/common/search';
 import { ITelemetryService, ITelemetryInfo } from 'vs/platform/telemetry/common/telemetry';
 import { IUntitledEditorService, UntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
@@ -17,7 +17,7 @@ import * as minimist from 'minimist';
 import * as path from 'path';
 import { SearchService } from 'vs/workbench/services/search/node/searchService';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
-import { TestEnvironmentService, TestContextService, TestEditorService, TestEditorGroupsService } from 'vs/workbench/test/workbenchTestServices';
+import { TestEnvironmentService, TestContextService, TestEditorService, TestEditorGroupsService, TestTextResourcePropertiesService } from 'vs/workbench/test/workbenchTestServices';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { URI } from 'vs/base/common/uri';
@@ -28,11 +28,12 @@ import { ModelServiceImpl } from 'vs/editor/common/services/modelServiceImpl';
 import { IModelService } from 'vs/editor/common/services/modelService';
 
 import { SearchModel } from 'vs/workbench/parts/search/common/searchModel';
-import { QueryBuilder } from 'vs/workbench/parts/search/common/queryBuilder';
+import { QueryBuilder, ITextQueryBuilderOptions } from 'vs/workbench/parts/search/common/queryBuilder';
 
 import * as event from 'vs/base/common/event';
 import { testWorkspace } from 'vs/platform/workspace/test/common/testWorkspace';
 import { NullLogService, ILogService } from 'vs/platform/log/common/log';
+import { ITextResourcePropertiesService } from 'vs/editor/common/services/resourceConfiguration';
 
 declare var __dirname: string;
 
@@ -57,10 +58,12 @@ suite.skip('TextSearch performance (integration)', () => {
 
 		const telemetryService = new TestTelemetryService();
 		const configurationService = new TestConfigurationService();
+		const textResourcePropertiesService = new TestTextResourcePropertiesService(configurationService);
 		const instantiationService = new InstantiationService(new ServiceCollection(
 			[ITelemetryService, telemetryService],
 			[IConfigurationService, configurationService],
-			[IModelService, new ModelServiceImpl(null, configurationService)],
+			[ITextResourcePropertiesService, textResourcePropertiesService],
+			[IModelService, new ModelServiceImpl(null, configurationService, textResourcePropertiesService)],
 			[IWorkspaceContextService, new TestContextService(testWorkspace(URI.file(testWorkspacePath)))],
 			[IEditorService, new TestEditorService()],
 			[IEditorGroupsService, new TestEditorGroupsService()],
@@ -70,7 +73,7 @@ suite.skip('TextSearch performance (integration)', () => {
 			[ILogService, new NullLogService()]
 		));
 
-		const queryOptions: IQueryOptions = {
+		const queryOptions: ITextQueryBuilderOptions = {
 			maxResults: 2048
 		};
 

@@ -77,7 +77,7 @@ export function getReindentEditOperations(model: ITextModel, startLineNumber: nu
 	}
 
 	let { tabSize, insertSpaces } = model.getOptions();
-	let indentEdits = [];
+	let indentEdits: IIdentifiedSingleEditOperation[] = [];
 
 	// indentation being passed to lines below
 	let globalIndent: string;

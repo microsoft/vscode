@@ -259,6 +259,10 @@ export class SettingsGroupTitleWidget extends Widget implements IViewZone {
 		if (previousPosition.lineNumber === currentPosition.lineNumber) {
 			return false;
 		}
+		if (!this.settingsGroup.range) {
+			// #60460?
+			return false;
+		}
 		if (currentPosition.lineNumber === this.settingsGroup.range.startLineNumber - 1 || currentPosition.lineNumber === this.settingsGroup.range.startLineNumber - 2) {
 			return true;
 		}

@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as errors from 'vs/base/common/errors';
+import { onUnexpectedError } from 'vs/base/common/errors';
 import { URI } from 'vs/base/common/uri';
 import { IEditor } from 'vs/editor/common/editorCommon';
 import { ITextEditorOptions, IResourceInput, ITextEditorSelection } from 'vs/platform/editor/common/editor';
@@ -15,7 +15,6 @@ import { Selection } from 'vs/editor/common/core/selection';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IDisposable, dispose, Disposable } from 'vs/base/common/lifecycle';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
-import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { once, debounceEvent } from 'vs/base/common/event';
 import { IConfigurationService, IConfigurationChangeEvent } from 'vs/platform/configuration/common/configuration';
@@ -130,7 +129,6 @@ export class HistoryService extends Disposable implements IHistoryService {
 		@IWorkspaceContextService private contextService: IWorkspaceContextService,
 		@IStorageService private storageService: IStorageService,
 		@IConfigurationService private configurationService: IConfigurationService,
-		@ILifecycleService private lifecycleService: ILifecycleService,
 		@IFileService private fileService: IFileService,
 		@IWindowsService private windowService: IWindowsService,
 		@IInstantiationService private instantiationService: IInstantiationService,
@@ -177,7 +175,7 @@ export class HistoryService extends Disposable implements IHistoryService {
 		this._register(this.editorService.onDidActiveEditorChange(() => this.onActiveEditorChanged()));
 		this._register(this.editorService.onDidOpenEditorFail(event => this.remove(event.editor)));
 		this._register(this.editorService.onDidCloseEditor(event => this.onEditorClosed(event)));
-		this._register(this.lifecycleService.onShutdown(reason => this.saveHistory()));
+		this._register(this.storageService.onWillSaveState(reason => this.saveState()));
 		this._register(this.fileService.onFileChanges(event => this.onFileChanges(event)));
 		this._register(this.resourceFilter.onExpressionChange(() => this.handleExcludesChange()));
 	}
@@ -400,7 +398,7 @@ export class HistoryService extends Disposable implements IHistoryService {
 		}, error => {
 			this.navigatingInStack = false;
 
-			errors.onUnexpectedError(error);
+			onUnexpectedError(error);
 		});
 	}
 
@@ -746,7 +744,7 @@ export class HistoryService extends Disposable implements IHistoryService {
 		this.loaded = true;
 	}
 
-	private saveHistory(): void {
+	private saveState(): void {
 		if (!this.history) {
 			return; // nothing to save because history was not used
 		}
@@ -788,29 +786,39 @@ export class HistoryService extends Disposable implements IHistoryService {
 		const registry = Registry.as<IEditorInputFactoryRegistry>(EditorExtensions.EditorInputFactories);
 
 		this.history = entries.map(entry => {
-			const serializedEditorHistoryEntry = entry as ISerializedEditorHistoryEntry;
+			try {
+				return this.safeLoadHistoryEntry(registry, entry);
+			} catch (error) {
+				onUnexpectedError(error);
 
-			// File resource: via URI.revive()
-			if (serializedEditorHistoryEntry.resourceJSON) {
-				return { resource: URI.revive(serializedEditorHistoryEntry.resourceJSON) } as IResourceInput;
+				return void 0; // https://github.com/Microsoft/vscode/issues/60960
 			}
-
-			// Editor input: via factory
-			const { editorInputJSON } = serializedEditorHistoryEntry;
-			if (editorInputJSON && editorInputJSON.deserialized) {
-				const factory = registry.getEditorInputFactory(editorInputJSON.typeId);
-				if (factory) {
-					const input = factory.deserialize(this.instantiationService, editorInputJSON.deserialized);
-					if (input) {
-						once(input.onDispose)(() => this.removeFromHistory(input)); // remove from history once disposed
-					}
-
-					return input;
-				}
-			}
-
-			return void 0;
 		}).filter(input => !!input);
+	}
+
+	private safeLoadHistoryEntry(registry: IEditorInputFactoryRegistry, entry: ISerializedEditorHistoryEntry): IEditorInput | IResourceInput {
+		const serializedEditorHistoryEntry = entry as ISerializedEditorHistoryEntry;
+
+		// File resource: via URI.revive()
+		if (serializedEditorHistoryEntry.resourceJSON) {
+			return { resource: URI.revive(serializedEditorHistoryEntry.resourceJSON) } as IResourceInput;
+		}
+
+		// Editor input: via factory
+		const { editorInputJSON } = serializedEditorHistoryEntry;
+		if (editorInputJSON && editorInputJSON.deserialized) {
+			const factory = registry.getEditorInputFactory(editorInputJSON.typeId);
+			if (factory) {
+				const input = factory.deserialize(this.instantiationService, editorInputJSON.deserialized);
+				if (input) {
+					once(input.onDispose)(() => this.removeFromHistory(input)); // remove from history once disposed
+				}
+
+				return input;
+			}
+		}
+
+		return void 0;
 	}
 
 	getLastActiveWorkspaceRoot(schemeFilter?: string): URI {

@@ -77,7 +77,7 @@ class MessageWidget {
 		dispose(this._disposables);
 	}
 
-	update({ source, message, relatedInformation }: IMarker): void {
+	update({ source, message, relatedInformation, code }: IMarker): void {
 
 		if (source) {
 			this._lines = 0;
@@ -87,6 +87,9 @@ class MessageWidget {
 			for (let i = 0; i < lines.length; i++) {
 				let line = lines[i];
 				this._lines += 1;
+				if (code && i === lines.length - 1) {
+					line += ` [${code}]`;
+				}
 				this._longestLineLength = Math.max(line.length, this._longestLineLength);
 				if (i === 0) {
 					message = `[${source}] ${line}`;
@@ -96,6 +99,9 @@ class MessageWidget {
 			}
 		} else {
 			this._lines = 1;
+			if (code) {
+				message += ` [${code}]`;
+			}
 			this._longestLineLength = message.length;
 		}
 

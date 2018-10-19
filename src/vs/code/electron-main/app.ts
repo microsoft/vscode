@@ -556,7 +556,7 @@ export class CodeApplication {
 	private afterWindowOpen(accessor: ServicesAccessor): void {
 		const windowsMainService = accessor.get(IWindowsMainService);
 
-		let windowsMutex: Mutex = null;
+		let windowsMutex: Mutex | null = null;
 		if (platform.isWindows) {
 
 			// Setup Windows mutex

@@ -8,7 +8,7 @@ import { dispose, IDisposable } from 'vs/base/common/lifecycle';
 import { values } from 'vs/base/common/map';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { TPromise } from 'vs/base/common/winjs.base';
-import { IFileMatch, IRawFileMatch2, ISearchComplete, ISearchCompleteStats, ISearchProgressItem, ISearchQuery, ISearchResultProvider, ISearchService, QueryType, SearchProviderType } from 'vs/platform/search/common/search';
+import { IFileMatch, IRawFileMatch2, ISearchComplete, ISearchCompleteStats, ISearchProgressItem, ISearchResultProvider, ISearchService, QueryType, SearchProviderType, ITextQuery, IFileQuery } from 'vs/platform/search/common/search';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { extHostNamedCustomer } from 'vs/workbench/api/electron-browser/extHostCustomers';
 import { ExtHostContext, ExtHostSearchShape, IExtHostContext, MainContext, MainThreadSearchShape } from '../node/extHost.protocol';
@@ -68,7 +68,7 @@ class SearchOperation {
 	private static _idPool = 0;
 
 	constructor(
-		readonly progress: (match: IFileMatch) => any,
+		readonly progress?: (match: IFileMatch) => any,
 		readonly id: number = ++SearchOperation._idPool,
 		readonly matches = new Map<string, IFileMatch>()
 	) {
@@ -83,7 +83,9 @@ class SearchOperation {
 			this.matches.set(match.resource.toString(), match);
 		}
 
-		this.progress(this.matches.get(match.resource.toString()));
+		if (this.progress) {
+			this.progress(match);
+		}
 	}
 }
 
@@ -106,7 +108,15 @@ class RemoteSearchProvider implements ISearchResultProvider, IDisposable {
 		dispose(this._registrations);
 	}
 
-	search(query: ISearchQuery, onProgress?: (p: ISearchProgressItem) => void, token: CancellationToken = CancellationToken.None): TPromise<ISearchComplete> {
+	fileSearch(query: IFileQuery, token: CancellationToken = CancellationToken.None): TPromise<ISearchComplete> {
+		return this.doSearch(query, null, token);
+	}
+
+	textSearch(query: ITextQuery, onProgress?: (p: ISearchProgressItem) => void, token: CancellationToken = CancellationToken.None): TPromise<ISearchComplete> {
+		return this.doSearch(query, onProgress, token);
+	}
+
+	doSearch(query: ITextQuery | IFileQuery, onProgress?: (p: ISearchProgressItem) => void, token: CancellationToken = CancellationToken.None): TPromise<ISearchComplete> {
 		if (isFalsyOrEmpty(query.folderQueries)) {
 			return TPromise.as(undefined);
 		}
@@ -116,7 +126,7 @@ class RemoteSearchProvider implements ISearchResultProvider, IDisposable {
 
 		const searchP = query.type === QueryType.File
 			? this._proxy.$provideFileSearchResults(this._handle, search.id, query, token)
-			: this._proxy.$provideTextSearchResults(this._handle, search.id, query.contentPattern, query, token);
+			: this._proxy.$provideTextSearchResults(this._handle, search.id, query, token);
 
 		return TPromise.wrap(searchP).then((result: ISearchCompleteStats) => {
 			this._searches.delete(search.id);

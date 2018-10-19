@@ -5,7 +5,7 @@
 
 import * as nls from 'vs/nls';
 import { TPromise } from 'vs/base/common/winjs.base';
-import { IAction } from 'vs/base/common/actions';
+import { IAction, Action } from 'vs/base/common/actions';
 import * as lifecycle from 'vs/base/common/lifecycle';
 import { isFullWidthCharacter, removeAnsiEscapeCodes, endsWith } from 'vs/base/common/strings';
 import { IActionItem, Separator } from 'vs/base/browser/ui/actionbar/actionbar';
@@ -17,7 +17,7 @@ import { ICancelableEvent } from 'vs/base/parts/tree/browser/treeDefaults';
 import { IExpressionContainer, IExpression, IReplElementSource } from 'vs/workbench/parts/debug/common/debug';
 import { RawObjectReplElement, Expression, SimpleReplElement, Variable } from 'vs/workbench/parts/debug/common/debugModel';
 import { renderVariable, renderExpressionValue, IVariableTemplateData, BaseDebugController } from 'vs/workbench/parts/debug/browser/baseDebugView';
-import { ClearReplAction, ReplCollapseAllAction } from 'vs/workbench/parts/debug/browser/debugActions';
+import { ReplCollapseAllAction } from 'vs/workbench/parts/debug/browser/debugActions';
 import { CopyAction, CopyAllAction } from 'vs/workbench/parts/debug/electron-browser/electronDebugActions';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
@@ -317,7 +317,7 @@ export class ReplExpressionsAccessibilityProvider implements IAccessibilityProvi
 
 export class ReplExpressionsActionProvider implements IActionProvider {
 
-	constructor(private instantiationService: IInstantiationService, private toFocus: { focus(): void }) {
+	constructor(private clearReplAction: Action, private toFocus: { focus(): void }) {
 		// noop
 	}
 
@@ -339,7 +339,7 @@ export class ReplExpressionsActionProvider implements IActionProvider {
 		actions.push(new CopyAllAction(CopyAllAction.ID, CopyAllAction.LABEL, tree));
 		actions.push(new ReplCollapseAllAction(tree, this.toFocus));
 		actions.push(new Separator());
-		actions.push(this.instantiationService.createInstance(ClearReplAction, ClearReplAction.ID, ClearReplAction.LABEL));
+		actions.push(this.clearReplAction);
 
 		return Promise.resolve(actions);
 	}
@@ -351,7 +351,7 @@ export class ReplExpressionsActionProvider implements IActionProvider {
 
 export class ReplExpressionsController extends BaseDebugController {
 
-	private lastSelectedString: string = null;
+	private lastSelectedString: string | null = null;
 	public toFocusOnClick: { focus(): void };
 
 	protected onLeftClick(tree: ITree, element: any, eventish: ICancelableEvent, origin: string = 'mouse'): boolean {

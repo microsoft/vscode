@@ -44,7 +44,7 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 
 	_serviceBrand: any;
 
-	private lastOpenedSettingsInput: PreferencesEditorInput = null;
+	private lastOpenedSettingsInput: PreferencesEditorInput | null = null;
 
 	private readonly _onDispose: Emitter<void> = new Emitter<void>();
 
@@ -531,8 +531,8 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 		const languageKey = `[${language}]`;
 		let setting = settingsModel.getPreference(languageKey);
 		const model = codeEditor.getModel();
-		const configuration = this.configurationService.getValue<{ editor: { tabSize: number; insertSpaces: boolean }, files: { eol: string } }>();
-		const eol = configuration.files && configuration.files.eol;
+		const configuration = this.configurationService.getValue<{ editor: { tabSize: number; insertSpaces: boolean } }>();
+		const eol = model.getEOL();
 		if (setting) {
 			if (setting.overrides.length) {
 				const lastSetting = setting.overrides[setting.overrides.length - 1];

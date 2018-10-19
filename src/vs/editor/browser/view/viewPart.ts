@@ -20,7 +20,6 @@ export abstract class ViewPart extends ViewEventHandler {
 
 	public dispose(): void {
 		this._context.removeEventHandler(this);
-		this._context = null;
 		super.dispose();
 	}
 
@@ -58,7 +57,7 @@ export class PartFingerprints {
 		return parseInt(r, 10);
 	}
 
-	public static collect(child: Element, stopAt: Element): Uint8Array {
+	public static collect(child: Element | null, stopAt: Element): Uint8Array {
 		let result: PartFingerprint[] = [], resultLen = 0;
 
 		while (child && child !== document.body) {

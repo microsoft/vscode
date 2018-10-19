@@ -60,7 +60,9 @@ function showPartsSplash(configuration) {
 
 	let data;
 	try {
+		perf.mark('willReadLocalStorage');
 		let raw = storage.getItem('storage://global/parts-splash-data');
+		perf.mark('didReadLocalStorage');
 		data = JSON.parse(raw);
 	} catch (e) {
 		// ignore
@@ -134,6 +136,7 @@ function getLazyEnv() {
 		ipc.once('vscode:acceptShellEnv', function (event, shellEnv) {
 			clearTimeout(handle);
 			bootstrapWindow.assign(process.env, shellEnv);
+			// @ts-ignore
 			resolve(process.env);
 		});
 

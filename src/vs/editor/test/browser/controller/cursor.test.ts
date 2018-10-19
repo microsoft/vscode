@@ -1868,7 +1868,7 @@ suite('Editor Controller - Regression tests', () => {
 		this.timeout(10000);
 		const LINE_CNT = 2000;
 
-		let text = [];
+		let text: string[] = [];
 		for (let i = 0; i < LINE_CNT; i++) {
 			text[i] = 'asd';
 		}
@@ -2384,7 +2384,7 @@ suite('Editor Controller - Cursor Configuration', () => {
 
 			class TestCommand implements ICommand {
 
-				private _selectionId: string = null;
+				private _selectionId: string | null = null;
 
 				public getEditOperations(model: ITextModel, builder: IEditOperationBuilder): void {
 					builder.addEditOperation(new Range(1, 13, 1, 14), '');
@@ -3824,7 +3824,7 @@ suite('ElectricCharacter', () => {
 			languageIdentifier: mode.getLanguageIdentifier()
 		}, (model, cursor) => {
 			moveTo(cursor, 1, 5);
-			let changeText: string = null;
+			let changeText: string | null = null;
 			model.onDidChangeContent(e => {
 				changeText = e.changes[0].text;
 			});

@@ -66,8 +66,8 @@ export class StandardMouseEvent implements IMouseEvent {
 			this.posy = e.pageY;
 		} else {
 			// Probably hit by MSGestureEvent
-			this.posx = e.clientX + document.body.scrollLeft + document.documentElement.scrollLeft;
-			this.posy = e.clientY + document.body.scrollTop + document.documentElement.scrollTop;
+			this.posx = e.clientX + document.body.scrollLeft + document.documentElement!.scrollLeft;
+			this.posy = e.clientY + document.body.scrollTop + document.documentElement!.scrollTop;
 		}
 
 		// Find the position of the iframe this code is executing in relative to the iframe where the event was captured.
@@ -127,12 +127,12 @@ interface IGeckoMouseWheelEvent {
 
 export class StandardMouseWheelEvent {
 
-	public readonly browserEvent: MouseWheelEvent;
+	public readonly browserEvent: MouseWheelEvent | null;
 	public readonly deltaY: number;
 	public readonly deltaX: number;
 	public readonly target: Node;
 
-	constructor(e: MouseWheelEvent, deltaX: number = 0, deltaY: number = 0) {
+	constructor(e: MouseWheelEvent | null, deltaX: number = 0, deltaY: number = 0) {
 
 		this.browserEvent = e || null;
 		this.target = e ? (e.target || (<any>e).targetNode || e.srcElement) : null;

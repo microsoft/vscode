@@ -1657,7 +1657,7 @@ export class TreeView extends HeightMap {
 	// DOM changes
 
 	private insertItemInDOM(item: ViewItem): void {
-		var elementAfter: HTMLElement = null;
+		var elementAfter: HTMLElement | null = null;
 		var itemAfter = <ViewItem>this.itemAfter(item);
 
 		if (itemAfter && itemAfter.element) {

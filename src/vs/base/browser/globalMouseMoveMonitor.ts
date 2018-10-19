@@ -39,9 +39,9 @@ export function standardMouseMoveMerger(lastEvent: IStandardMouseMoveEventData, 
 export class GlobalMouseMoveMonitor<R> extends Disposable {
 
 	private hooks: IDisposable[];
-	private mouseMoveEventMerger: IEventMerger<R>;
-	private mouseMoveCallback: IMouseMoveCallback<R>;
-	private onStopCallback: IOnStopCallback;
+	private mouseMoveEventMerger: IEventMerger<R> | null;
+	private mouseMoveCallback: IMouseMoveCallback<R> | null;
+	private onStopCallback: IOnStopCallback | null;
 
 	constructor() {
 		super();
@@ -69,7 +69,7 @@ export class GlobalMouseMoveMonitor<R> extends Disposable {
 		let onStopCallback = this.onStopCallback;
 		this.onStopCallback = null;
 
-		if (invokeStopCallback) {
+		if (invokeStopCallback && onStopCallback) {
 			onStopCallback();
 		}
 	}
@@ -94,8 +94,8 @@ export class GlobalMouseMoveMonitor<R> extends Disposable {
 		let windowChain = IframeUtils.getSameOriginWindowChain();
 		for (let i = 0; i < windowChain.length; i++) {
 			this.hooks.push(dom.addDisposableThrottledListener(windowChain[i].window.document, 'mousemove',
-				(data: R) => this.mouseMoveCallback(data),
-				(lastEvent: R, currentEvent) => this.mouseMoveEventMerger(lastEvent, currentEvent as MouseEvent)
+				(data: R) => this.mouseMoveCallback!(data),
+				(lastEvent: R, currentEvent) => this.mouseMoveEventMerger!(lastEvent, currentEvent as MouseEvent)
 			));
 			this.hooks.push(dom.addDisposableListener(windowChain[i].window.document, 'mouseup', (e: MouseEvent) => this.stopMonitoring(true)));
 		}

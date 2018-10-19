@@ -357,6 +357,19 @@ export let completionKindFromLegacyString = (function () {
 	};
 })();
 
+export enum CompletionItemInsertTextRule {
+	/**
+	 * Adjust whitespace/indentation of multiline insert texts to
+	 * match the current line indentation.
+	 */
+	KeepWhitespace = 0b001,
+
+	/**
+	 * `insertText` is a snippet.
+	 */
+	InsertAsSnippet = 0b100,
+}
+
 /**
  * A completion item represents a text snippet that is
  * proposed to complete text that is being typed.
@@ -407,9 +420,10 @@ export interface CompletionItem {
 	 */
 	insertText: string;
 	/**
-	 * The insert test is a snippet
+	 * Addition rules (as bitmask) that should be applied when inserting
+	 * this completion.
 	 */
-	insertTextIsSnippet?: boolean;
+	insertTextRules?: CompletionItemInsertTextRule;
 	/**
 	 * A range of text that should be replaced by this completion item.
 	 *
@@ -436,10 +450,6 @@ export interface CompletionItem {
 	 * A command that should be run upon acceptance of this item.
 	 */
 	command?: Command;
-	/**@internal*/
-	noWhitespaceAdjust?: boolean;
-	/**@internal*/
-	noAutoAccept?: boolean;
 
 	/**@internal*/
 	_labelLow?: string;
@@ -853,11 +863,7 @@ export interface DocumentSymbolProvider {
 	provideDocumentSymbols(model: model.ITextModel, token: CancellationToken): ProviderResult<DocumentSymbol[]>;
 }
 
-export interface TextEdit {
-	range: IRange;
-	text: string;
-	eol?: model.EndOfLineSequence;
-}
+export type TextEdit = { range: IRange; text: string; eol?: model.EndOfLineSequence; } | { range: undefined; text: undefined; eol: model.EndOfLineSequence; };
 
 /**
  * Interface used to format a model
@@ -1366,16 +1372,16 @@ export interface ITokenizationRegistry {
 	 * Get the promise of a tokenization support for a language.
 	 * `null` is returned if no support is available and no promise for the support has been registered yet.
 	 */
-	getPromise(language: string): Thenable<ITokenizationSupport>;
+	getPromise(language: string): Thenable<ITokenizationSupport> | null;
 
 	/**
 	 * Set the new color map that all tokens will use in their ColorId binary encoded bits for foreground and background.
 	 */
 	setColorMap(colorMap: Color[]): void;
 
-	getColorMap(): Color[];
+	getColorMap(): Color[] | null;
 
-	getDefaultBackground(): Color;
+	getDefaultBackground(): Color | null;
 }
 
 /**

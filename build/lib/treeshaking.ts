@@ -37,9 +37,13 @@ export interface ITreeShakingOptions {
 	 */
 	libs: string[];
 	/**
+	 * Other .d.ts files
+	 */
+	typings: string[];
+	/**
 	 * TypeScript compiler options.
 	 */
-	compilerOptions: ts.CompilerOptions;
+	compilerOptions?: any;
 	/**
 	 * The shake level to perform.
 	 */
@@ -56,8 +60,43 @@ export interface ITreeShakingResult {
 	[file: string]: string;
 }
 
+function printDiagnostics(diagnostics: ReadonlyArray<ts.Diagnostic>): void {
+	for (let i = 0; i < diagnostics.length; i++) {
+		const diag = diagnostics[i];
+		let result = '';
+		if (diag.file) {
+			result += `${diag.file.fileName}: `;
+		}
+		if (diag.file && diag.start) {
+			let location = diag.file.getLineAndCharacterOfPosition(diag.start);
+			result += `- ${location.line + 1},${location.character} - `
+		}
+		result += JSON.stringify(diag.messageText);
+		console.log(result);
+	}
+}
+
 export function shake(options: ITreeShakingOptions): ITreeShakingResult {
 	const languageService = createTypeScriptLanguageService(options);
+	const program = languageService.getProgram()!;
+
+	const globalDiagnostics = program.getGlobalDiagnostics();
+	if (globalDiagnostics.length > 0) {
+		printDiagnostics(globalDiagnostics);
+		throw new Error(`Compilation Errors encountered.`);
+	}
+
+	const syntacticDiagnostics = program.getSyntacticDiagnostics();
+	if (syntacticDiagnostics.length > 0) {
+		printDiagnostics(syntacticDiagnostics);
+		throw new Error(`Compilation Errors encountered.`);
+	}
+
+	const semanticDiagnostics = program.getSemanticDiagnostics();
+	if (semanticDiagnostics.length > 0) {
+		printDiagnostics(semanticDiagnostics);
+		throw new Error(`Compilation Errors encountered.`);
+	}
 
 	markNodes(languageService, options);
 
@@ -74,6 +113,12 @@ function createTypeScriptLanguageService(options: ITreeShakingOptions): ts.Langu
 		FILES[`inlineEntryPoint:${index}.ts`] = inlineEntryPoint;
 	});
 
+	// Add additional typings
+	options.typings.forEach((typing) => {
+		const filePath = path.join(options.sourcesRoot, typing);
+		FILES[typing] = fs.readFileSync(filePath).toString();
+	});
+
 	// Resolve libs
 	const RESOLVED_LIBS: ILibMap = {};
 	options.libs.forEach((filename) => {
@@ -81,7 +126,7 @@ function createTypeScriptLanguageService(options: ITreeShakingOptions): ts.Langu
 		RESOLVED_LIBS[`defaultLib:${filename}`] = fs.readFileSync(filepath).toString();
 	});
 
-	const host = new TypeScriptLanguageServiceHost(RESOLVED_LIBS, FILES, options.compilerOptions);
+	const host = new TypeScriptLanguageServiceHost(RESOLVED_LIBS, FILES, ts.convertCompilerOptionsFromJson(options.compilerOptions, ``).options);
 	return ts.createLanguageService(host);
 }
 
@@ -109,7 +154,7 @@ function discoverAndReadFiles(options: ITreeShakingOptions): IFileMap {
 		const dts_filename = path.join(options.sourcesRoot, moduleId + '.d.ts');
 		if (fs.existsSync(dts_filename)) {
 			const dts_filecontents = fs.readFileSync(dts_filename).toString();
-			FILES[moduleId + '.d.ts'] = dts_filecontents;
+			FILES[`${moduleId}.d.ts`] = dts_filecontents;
 			continue;
 		}
 
@@ -136,7 +181,7 @@ function discoverAndReadFiles(options: ITreeShakingOptions): IFileMap {
 			enqueue(importedModuleId);
 		}
 
-		FILES[moduleId + '.ts'] = ts_filecontents;
+		FILES[`${moduleId}.ts`] = ts_filecontents;
 	}
 
 	return FILES;
@@ -636,73 +681,12 @@ function generateResult(languageService: ts.LanguageService, shakeLevel: ShakeLe
  * Returns the node's symbol and the `import` node (if the symbol resolved from a different module)
  */
 function getRealNodeSymbol(checker: ts.TypeChecker, node: ts.Node): [ts.Symbol | null, ts.Declaration | null] {
-	/**
-	 * Returns the containing object literal property declaration given a possible name node, e.g. "a" in x = { "a": 1 }
-	 */
-	/* @internal */
-	function getContainingObjectLiteralElement(node: ts.Node): ts.ObjectLiteralElement | undefined {
-		switch (node.kind) {
-			case ts.SyntaxKind.StringLiteral:
-			case ts.SyntaxKind.NumericLiteral:
-				if (node.parent.kind === ts.SyntaxKind.ComputedPropertyName) {
-					return ts.isObjectLiteralElement(node.parent.parent) ? node.parent.parent : undefined;
-				}
-			// falls through
-			case ts.SyntaxKind.Identifier:
-				return ts.isObjectLiteralElement(node.parent) &&
-					(node.parent.parent.kind === ts.SyntaxKind.ObjectLiteralExpression || node.parent.parent.kind === ts.SyntaxKind.JsxAttributes) &&
-					node.parent.name === node ? node.parent : undefined;
-		}
-		return undefined;
-	}
 
-	function getPropertySymbolsFromType(type: ts.Type, propName: ts.PropertyName) {
-		function getTextOfPropertyName(name: ts.PropertyName): string {
-
-			function isStringOrNumericLiteral(node: ts.Node): node is ts.StringLiteral | ts.NumericLiteral {
-				const kind = node.kind;
-				return kind === ts.SyntaxKind.StringLiteral
-					|| kind === ts.SyntaxKind.NumericLiteral;
-			}
-
-			switch (name.kind) {
-				case ts.SyntaxKind.Identifier:
-					return name.text;
-				case ts.SyntaxKind.StringLiteral:
-				case ts.SyntaxKind.NumericLiteral:
-					return name.text;
-				case ts.SyntaxKind.ComputedPropertyName:
-					return isStringOrNumericLiteral(name.expression) ? name.expression.text : undefined!;
-			}
-		}
-
-		const name = getTextOfPropertyName(propName);
-		if (name && type) {
-			const result: ts.Symbol[] = [];
-			const symbol = type.getProperty(name);
-			if (type.flags & ts.TypeFlags.Union) {
-				for (const t of (<ts.UnionType>type).types) {
-					const symbol = t.getProperty(name);
-					if (symbol) {
-						result.push(symbol);
-					}
-				}
-				return result;
-			}
-
-			if (symbol) {
-				result.push(symbol);
-				return result;
-			}
-		}
-		return undefined;
-	}
-
-	function getPropertySymbolsFromContextualType(typeChecker: ts.TypeChecker, node: ts.ObjectLiteralElement): ts.Symbol[] {
-		const objectLiteral = <ts.ObjectLiteralExpression | ts.JsxAttributes>node.parent;
-		const contextualType = typeChecker.getContextualType(objectLiteral)!;
-		return getPropertySymbolsFromType(contextualType, node.name!)!;
-	}
+	// Use some TypeScript internals to avoid code duplication
+	type ObjectLiteralElementWithName = ts.ObjectLiteralElement & { name: ts.PropertyName; parent: ts.ObjectLiteralExpression | ts.JsxAttributes };
+	const getPropertySymbolsFromContextualType: (node: ObjectLiteralElementWithName, checker: ts.TypeChecker, contextualType: ts.Type, unionSymbolOk: boolean) => ReadonlyArray<ts.Symbol> = (<any>ts).getPropertySymbolsFromContextualType;
+	const getContainingObjectLiteralElement: (node: ts.Node) => ObjectLiteralElementWithName | undefined = (<any>ts).getContainingObjectLiteralElement;
+	const getNameFromPropertyName: (name: ts.PropertyName) => string | undefined = (<any>ts).getNameFromPropertyName;
 
 	// Go to the original declaration for cases:
 	//
@@ -733,8 +717,14 @@ function getRealNodeSymbol(checker: ts.TypeChecker, node: ts.Node): [ts.Symbol |
 		}
 	}
 
+	const { parent } = node;
+
 	let symbol = checker.getSymbolAtLocation(node);
 	let importNode: ts.Declaration | null = null;
+	// If this is an alias, and the request came at the declaration location
+	// get the aliased symbol instead. This allows for goto def on an import e.g.
+	//   import {A, B} from "mod";
+	// to jump to the implementation directly.
 	if (symbol && symbol.flags & ts.SymbolFlags.Alias && shouldSkipAlias(node, symbol.declarations[0])) {
 		const aliased = checker.getAliasedSymbol(symbol);
 		if (aliased.declarations) {
@@ -765,13 +755,21 @@ function getRealNodeSymbol(checker: ts.TypeChecker, node: ts.Node): [ts.Symbol |
 		//          pr/*destination*/op1: number
 		//      }
 		//      bar<Test>(({pr/*goto*/op1})=>{});
-		if (ts.isPropertyName(node) && ts.isBindingElement(node.parent) && ts.isObjectBindingPattern(node.parent.parent) &&
-			(node === (node.parent.propertyName || node.parent.name))) {
-			const type = checker.getTypeAtLocation(node.parent.parent);
-			if (type) {
-				const propSymbols = getPropertySymbolsFromType(type, node);
-				if (propSymbols) {
-					symbol = propSymbols[0];
+		if (ts.isPropertyName(node) && ts.isBindingElement(parent) && ts.isObjectBindingPattern(parent.parent) &&
+			(node === (parent.propertyName || parent.name))) {
+			const name = getNameFromPropertyName(node);
+			const type = checker.getTypeAtLocation(parent.parent);
+			if (name && type) {
+				if (type.isUnion()) {
+					const prop = type.types[0].getProperty(name);
+					if (prop) {
+						symbol = prop;
+					}
+				} else {
+					const prop = type.getProperty(name);
+					if (prop) {
+						symbol = prop;
+					}
 				}
 			}
 		}
@@ -786,10 +784,13 @@ function getRealNodeSymbol(checker: ts.TypeChecker, node: ts.Node): [ts.Symbol |
 		//      function Foo(arg: Props) {}
 		//      Foo( { pr/*1*/op1: 10, prop2: false })
 		const element = getContainingObjectLiteralElement(node);
-		if (element && checker.getContextualType(element.parent as ts.Expression)) {
-			const propertySymbols = getPropertySymbolsFromContextualType(checker, element);
-			if (propertySymbols) {
-				symbol = propertySymbols[0];
+		if (element) {
+			const contextualType = element && checker.getContextualType(element.parent);
+			if (contextualType) {
+				const propertySymbols = getPropertySymbolsFromContextualType(element, checker, contextualType, /*unionSymbolOk*/ false);
+				if (propertySymbols) {
+					symbol = propertySymbols[0];
+				}
 			}
 		}
 	}

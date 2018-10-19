@@ -75,7 +75,7 @@ export class DiagnosticCollection implements vscode.DiagnosticCollection {
 			}
 
 			// update single row
-			this._data.set(first.toString(), diagnostics);
+			this._data.set(first.toString(), diagnostics.slice());
 			toSync = [first];
 
 		} else if (Array.isArray(first)) {

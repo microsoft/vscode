@@ -13,12 +13,12 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { areSameExtensions } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { ILabelService } from 'vs/platform/label/common/label';
-import { IFolderQuery, IPatternInfo, IQueryOptions, ISearchConfiguration, ISearchProgressItem, ISearchQuery, ISearchService, QueryType } from 'vs/platform/search/common/search';
+import { IFolderQuery, IPatternInfo, ISearchConfiguration, ISearchProgressItem, ISearchService, QueryType, IFileQuery } from 'vs/platform/search/common/search';
 import { IStatusbarService } from 'vs/platform/statusbar/common/statusbar';
 import { IWindowService } from 'vs/platform/windows/common/windows';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { extHostNamedCustomer } from 'vs/workbench/api/electron-browser/extHostCustomers';
-import { QueryBuilder } from 'vs/workbench/parts/search/common/queryBuilder';
+import { QueryBuilder, ITextQueryBuilderOptions } from 'vs/workbench/parts/search/common/queryBuilder';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { IWorkspaceEditingService } from 'vs/workbench/services/workspace/common/workspaceEditing';
@@ -141,13 +141,17 @@ export class MainThreadWorkspace implements MainThreadWorkspaceShape {
 			return !folderConfig.search.followSymlinks;
 		});
 
-		const query: ISearchQuery = {
+		// TODO replace wth QueryBuilder
+		folderQueries.forEach(fq => {
+			fq.ignoreSymlinks = ignoreSymlinks;
+		});
+
+		const query: IFileQuery = {
 			folderQueries,
 			type: QueryType.File,
 			maxResults,
 			disregardExcludeSettings: excludePatternOrDisregardExcludes === false,
-			useRipgrep,
-			ignoreSymlinks
+			useRipgrep
 		};
 		if (typeof includePattern === 'string') {
 			query.includePattern = { [includePattern]: true };
@@ -159,7 +163,7 @@ export class MainThreadWorkspace implements MainThreadWorkspaceShape {
 
 		this._searchService.extendQuery(query);
 
-		return this._searchService.search(query, token).then(result => {
+		return this._searchService.fileSearch(query, token).then(result => {
 			return result.results.map(m => m.resource);
 		}, err => {
 			if (!isPromiseCanceledError(err)) {
@@ -169,7 +173,7 @@ export class MainThreadWorkspace implements MainThreadWorkspaceShape {
 		});
 	}
 
-	$startTextSearch(pattern: IPatternInfo, options: IQueryOptions, requestId: number, token: CancellationToken): Thenable<TextSearchComplete> {
+	$startTextSearch(pattern: IPatternInfo, options: ITextQueryBuilderOptions, requestId: number, token: CancellationToken): Thenable<TextSearchComplete> {
 		const workspace = this._contextService.getWorkspace();
 		const folders = workspace.folders.map(folder => folder.uri);
 
@@ -182,7 +186,7 @@ export class MainThreadWorkspace implements MainThreadWorkspaceShape {
 			}
 		};
 
-		const search = this._searchService.search(query, token, onProgress).then(
+		const search = this._searchService.textSearch(query, token, onProgress).then(
 			result => {
 				return { limitHit: result.limitHit };
 			},
@@ -205,7 +209,7 @@ export class MainThreadWorkspace implements MainThreadWorkspaceShape {
 			exists: true
 		});
 
-		return this._searchService.search(query, token).then(
+		return this._searchService.fileSearch(query, token).then(
 			result => {
 				return result.limitHit;
 			},

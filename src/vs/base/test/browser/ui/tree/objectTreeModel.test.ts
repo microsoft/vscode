@@ -24,7 +24,7 @@ function toArray<T>(list: ITreeNode<T>[]): T[] {
 suite('ObjectTreeModel', function () {
 
 	test('ctor', () => {
-		const list = [] as ITreeNode<number>[];
+		const list: ITreeNode<number>[] = [];
 		const model = new ObjectTreeModel<number>(toSpliceable(list));
 		assert(model);
 		assert.equal(list.length, 0);
@@ -32,7 +32,7 @@ suite('ObjectTreeModel', function () {
 	});
 
 	test('flat', () => {
-		const list = [] as ITreeNode<number>[];
+		const list: ITreeNode<number>[] = [];
 		const model = new ObjectTreeModel<number>(toSpliceable(list));
 
 		model.setChildren(null, Iterator.fromArray([
@@ -59,7 +59,7 @@ suite('ObjectTreeModel', function () {
 	});
 
 	test('nested', () => {
-		const list = [] as ITreeNode<number>[];
+		const list: ITreeNode<number>[] = [];
 		const model = new ObjectTreeModel<number>(toSpliceable(list));
 
 		model.setChildren(null, Iterator.fromArray([
@@ -95,7 +95,7 @@ suite('ObjectTreeModel', function () {
 	});
 
 	test('setChildren on collapsed node', () => {
-		const list = [] as ITreeNode<number>[];
+		const list: ITreeNode<number>[] = [];
 		const model = new ObjectTreeModel<number>(toSpliceable(list));
 
 		model.setChildren(null, Iterator.fromArray([
@@ -116,7 +116,7 @@ suite('ObjectTreeModel', function () {
 	});
 
 	test('setChildren on expanded, unrevealed node', () => {
-		const list = [] as ITreeNode<number>[];
+		const list: ITreeNode<number>[] = [];
 		const model = new ObjectTreeModel<number>(toSpliceable(list));
 
 		model.setChildren(null, [

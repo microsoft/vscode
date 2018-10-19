@@ -18,6 +18,7 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
 import { TimeoutTimer, CancelablePromise, createCancelablePromise } from 'vs/base/common/async';
 import { onUnexpectedError } from 'vs/base/common/errors';
+import { IModelDeltaDecoration } from 'vs/editor/common/model';
 
 const MAX_DECORATORS = 500;
 
@@ -29,8 +30,8 @@ export class ColorDetector implements IEditorContribution {
 
 	private _globalToDispose: IDisposable[] = [];
 	private _localToDispose: IDisposable[] = [];
-	private _computePromise: CancelablePromise<IColorData[]>;
-	private _timeoutTimer: TimeoutTimer;
+	private _computePromise: CancelablePromise<IColorData[]> | null;
+	private _timeoutTimer: TimeoutTimer | null;
 
 	private _decorationsIds: string[] = [];
 	private _colorDatas = new Map<string, IColorData>();
@@ -107,11 +108,8 @@ export class ColorDetector implements IEditorContribution {
 			return;
 		}
 		const model = this._editor.getModel();
-		// if (!model) {
-		// 	return;
-		// }
 
-		if (!ColorProviderRegistry.has(model)) {
+		if (!model || !ColorProviderRegistry.has(model)) {
 			return;
 		}
 
@@ -128,7 +126,13 @@ export class ColorDetector implements IEditorContribution {
 	}
 
 	private beginCompute(): void {
-		this._computePromise = createCancelablePromise(token => getColors(this._editor.getModel(), token));
+		this._computePromise = createCancelablePromise(token => {
+			const model = this._editor.getModel();
+			if (!model) {
+				return Promise.resolve([]);
+			}
+			return getColors(model, token);
+		});
 		this._computePromise.then((colorInfos) => {
 			this.updateDecorations(colorInfos);
 			this.updateColorDecorators(colorInfos);
@@ -166,7 +170,7 @@ export class ColorDetector implements IEditorContribution {
 	}
 
 	private updateColorDecorators(colorData: IColorData[]): void {
-		let decorations = [];
+		let decorations: IModelDeltaDecoration[] = [];
 		let newDecorationsTypes: { [key: string]: boolean } = {};
 
 		for (let i = 0; i < colorData.length && decorations.length < MAX_DECORATORS; i++) {
@@ -225,7 +229,12 @@ export class ColorDetector implements IEditorContribution {
 	}
 
 	getColorData(position: Position): IColorData | null {
-		const decorations = this._editor.getModel()
+		const model = this._editor.getModel();
+		if (!model) {
+			return null;
+		}
+
+		const decorations = model
 			.getDecorationsInRange(Range.fromPositions(position, position))
 			.filter(d => this._colorDatas.has(d.id));
 

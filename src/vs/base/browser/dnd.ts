@@ -76,9 +76,11 @@ export function applyDragImage(event: DragEvent, label: string, clazz: string): 
 	dragImage.className = clazz;
 	dragImage.textContent = label;
 
-	document.body.appendChild(dragImage);
-	event.dataTransfer.setDragImage(dragImage, -10, -10);
+	if (event.dataTransfer) {
+		document.body.appendChild(dragImage);
+		event.dataTransfer.setDragImage(dragImage, -10, -10);
 
-	// Removes the element when the DND operation is done
-	setTimeout(() => document.body.removeChild(dragImage), 0);
+		// Removes the element when the DND operation is done
+		setTimeout(() => document.body.removeChild(dragImage), 0);
+	}
 }

@@ -6,7 +6,7 @@
 import 'vs/css!./media/extensionsViewlet';
 import { localize } from 'vs/nls';
 import { ThrottledDelayer, always, timeout } from 'vs/base/common/async';
-import { isPromiseCanceledError, create as createError } from 'vs/base/common/errors';
+import { isPromiseCanceledError } from 'vs/base/common/errors';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { Event as EventOf, Emitter } from 'vs/base/common/event';
@@ -54,6 +54,7 @@ import { SingleServerExtensionManagementServerService } from 'vs/workbench/servi
 import { Query } from 'vs/workbench/parts/extensions/common/extensionQuery';
 import { SuggestEnabledInput, attachSuggestEnabledInputBoxStyler } from 'vs/workbench/parts/codeEditor/electron-browser/suggestEnabledInput';
 import { alert } from 'vs/base/browser/ui/aria/aria';
+import { createErrorWithActions } from 'vs/base/common/errorsWithActions';
 
 interface SearchInputEvent extends Event {
 	target: HTMLInputElement;
@@ -89,7 +90,7 @@ export class ExtensionsViewletViewsContribution implements IWorkbenchContributio
 	}
 
 	private registerViews(): void {
-		let viewDescriptors = [];
+		let viewDescriptors: IViewDescriptor[] = [];
 		viewDescriptors.push(this.createMarketPlaceExtensionsListViewDescriptor());
 		viewDescriptors.push(this.createEnabledExtensionsListViewDescriptor());
 		viewDescriptors.push(this.createDisabledExtensionsListViewDescriptor());
@@ -324,7 +325,7 @@ export class ExtensionsViewlet extends ViewContainerViewlet implements IExtensio
 		}, this, this.disposables);
 	}
 
-	create(parent: HTMLElement): Promise<void> {
+	create(parent: HTMLElement): void {
 		addClass(parent, 'extensions-viewlet');
 		this.root = parent;
 
@@ -357,7 +358,7 @@ export class ExtensionsViewlet extends ViewContainerViewlet implements IExtensio
 		this.searchBox.onShouldFocusResults(() => this.focusListView(), this, this.disposables);
 
 		this.extensionsBox = append(this.root, $('.extensions'));
-		return super.create(this.extensionsBox);
+		super.create(this.extensionsBox);
 	}
 
 	setVisible(visible: boolean): Promise<void> {
@@ -546,7 +547,7 @@ export class ExtensionsViewlet extends ViewContainerViewlet implements IExtensio
 		const message = err && err.message || '';
 
 		if (/ECONNREFUSED/.test(message)) {
-			const error = createError(localize('suggestProxyError', "Marketplace returned 'ECONNREFUSED'. Please check the 'http.proxy' setting."), {
+			const error = createErrorWithActions(localize('suggestProxyError', "Marketplace returned 'ECONNREFUSED'. Please check the 'http.proxy' setting."), {
 				actions: [
 					this.instantiationService.createInstance(OpenGlobalSettingsAction, OpenGlobalSettingsAction.ID, OpenGlobalSettingsAction.LABEL)
 				]
@@ -634,7 +635,8 @@ export class MaliciousExtensionChecker implements IWorkbenchContribution {
 							[{
 								label: localize('reloadNow', "Reload Now"),
 								run: () => this.windowService.reloadWindow()
-							}]
+							}],
+							{ sticky: true }
 						);
 					})));
 				} else {

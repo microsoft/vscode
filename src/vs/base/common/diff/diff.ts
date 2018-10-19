@@ -216,7 +216,7 @@ export class LcsDiff {
 
 	private OriginalSequence: ISequence;
 	private ModifiedSequence: ISequence;
-	private ContinueProcessingPredicate: IContinueProcessingPredicate;
+	private ContinueProcessingPredicate: IContinueProcessingPredicate | null;
 
 	private m_forwardHistory: number[][];
 	private m_reverseHistory: number[][];
@@ -224,7 +224,7 @@ export class LcsDiff {
 	/**
 	 * Constructs the DiffFinder
 	 */
-	constructor(originalSequence: ISequence, newSequence: ISequence, continueProcessingPredicate: IContinueProcessingPredicate = null) {
+	constructor(originalSequence: ISequence, newSequence: ISequence, continueProcessingPredicate: IContinueProcessingPredicate | null = null) {
 		this.OriginalSequence = originalSequence;
 		this.ModifiedSequence = newSequence;
 		this.ContinueProcessingPredicate = continueProcessingPredicate;
@@ -362,7 +362,7 @@ export class LcsDiff {
 		originalIndex: number, originalEnd: number, midOriginalArr: number[],
 		modifiedIndex: number, modifiedEnd: number, midModifiedArr: number[],
 		deltaIsEven: boolean, quitEarlyArr: boolean[]): DiffChange[] {
-		let forwardChanges: DiffChange[] = null, reverseChanges: DiffChange[] = null;
+		let forwardChanges: DiffChange[] | null = null, reverseChanges: DiffChange[] | null = null;
 
 		// First, walk backward through the forward diagonals history
 		let changeHelper = new DiffChangeHelper();
@@ -498,7 +498,7 @@ export class LcsDiff {
 	 * @returns The diff changes, if available, otherwise null
 	 */
 	private ComputeRecursionPoint(originalStart: number, originalEnd: number, modifiedStart: number, modifiedEnd: number, midOriginalArr: number[], midModifiedArr: number[], quitEarlyArr: boolean[]) {
-		let originalIndex: number, modifiedIndex: number;
+		let originalIndex = 0, modifiedIndex = 0;
 		let diagonalForwardStart = 0, diagonalForwardEnd = 0;
 		let diagonalReverseStart = 0, diagonalReverseEnd = 0;
 		let numDifferences: number;
@@ -763,9 +763,9 @@ export class LcsDiff {
 				change.modifiedStart++;
 			}
 
-			let mergedChangeArr: DiffChange[] = [null];
+			let mergedChangeArr: (DiffChange | null)[] = [null];
 			if (i < changes.length - 1 && this.ChangesOverlap(changes[i], changes[i + 1], mergedChangeArr)) {
-				changes[i] = mergedChangeArr[0];
+				changes[i] = mergedChangeArr[0]!;
 				changes.splice(i + 1, 1);
 				i--;
 				continue;
@@ -882,7 +882,6 @@ export class LcsDiff {
 	 */
 	private ConcatenateChanges(left: DiffChange[], right: DiffChange[]): DiffChange[] {
 		let mergedChangeArr: DiffChange[] = [];
-		let result: DiffChange[] = null;
 
 		if (left.length === 0 || right.length === 0) {
 			return (right.length > 0) ? right : left;
@@ -891,14 +890,14 @@ export class LcsDiff {
 			// might recurse in the middle of a change thereby splitting it into
 			// two changes. Here in the combining stage, we detect and fuse those
 			// changes back together
-			result = new Array<DiffChange>(left.length + right.length - 1);
+			let result = new Array<DiffChange>(left.length + right.length - 1);
 			MyArray.Copy(left, 0, result, 0, left.length - 1);
 			result[left.length - 1] = mergedChangeArr[0];
 			MyArray.Copy(right, 1, result, left.length, right.length - 1);
 
 			return result;
 		} else {
-			result = new Array<DiffChange>(left.length + right.length);
+			let result = new Array<DiffChange>(left.length + right.length);
 			MyArray.Copy(left, 0, result, 0, left.length);
 			MyArray.Copy(right, 0, result, left.length, right.length);
 
@@ -914,7 +913,7 @@ export class LcsDiff {
 	 * @param mergedChange The merged change if the two overlap, null otherwise
 	 * @returns True if the two changes overlap
 	 */
-	private ChangesOverlap(left: DiffChange, right: DiffChange, mergedChangeArr: DiffChange[]): boolean {
+	private ChangesOverlap(left: DiffChange, right: DiffChange, mergedChangeArr: (DiffChange | null)[]): boolean {
 		Debug.Assert(left.originalStart <= right.originalStart, 'Left change is not less than or equal to right change');
 		Debug.Assert(left.modifiedStart <= right.modifiedStart, 'Left change is not less than or equal to right change');
 

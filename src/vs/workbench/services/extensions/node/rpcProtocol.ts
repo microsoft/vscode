@@ -59,7 +59,7 @@ function _transformIncomingURIs(obj: any, transformer: IURITransformer, depth: n
 
 	if (typeof obj === 'object') {
 
-		if ((<MarshalledObject>obj).$mid === 1) {
+		if ((<MarshalledObject>obj).$mid === 100) {
 			return transformer.transformIncoming(obj);
 		}
 
@@ -111,8 +111,8 @@ export class RPCProtocol extends Disposable implements IRPCProtocol {
 	public readonly onDidChangeResponsiveState: Event<ResponsiveState> = this._onDidChangeResponsiveState.event;
 
 	private readonly _protocol: IMessagePassingProtocol;
-	private readonly _logger: IRPCProtocolLogger;
-	private readonly _uriTransformer: IURITransformer;
+	private readonly _logger: IRPCProtocolLogger | null;
+	private readonly _uriTransformer: IURITransformer | null;
 	private _isDisposed: boolean;
 	private readonly _locals: any[];
 	private readonly _proxies: any[];
@@ -124,7 +124,7 @@ export class RPCProtocol extends Disposable implements IRPCProtocol {
 	private _unresponsiveTime: number;
 	private _asyncCheckUresponsive: RunOnceScheduler;
 
-	constructor(protocol: IMessagePassingProtocol, logger: IRPCProtocolLogger = null, transformer: IURITransformer = null) {
+	constructor(protocol: IMessagePassingProtocol, logger: IRPCProtocolLogger | null = null, transformer: IURITransformer | null = null) {
 		super();
 		this._protocol = protocol;
 		this._logger = logger;
@@ -409,7 +409,7 @@ export class RPCProtocol extends Disposable implements IRPCProtocol {
 		const pendingReply = this._pendingRPCReplies[callId];
 		delete this._pendingRPCReplies[callId];
 
-		let err: Error = null;
+		let err: Error | null = null;
 		if (value && value.$isError) {
 			err = new Error();
 			err.name = value.name;
@@ -443,7 +443,7 @@ export class RPCProtocol extends Disposable implements IRPCProtocol {
 		if (this._isDisposed) {
 			return TPromise.wrapError<any>(errors.canceled());
 		}
-		let cancellationToken: CancellationToken = null;
+		let cancellationToken: CancellationToken | null = null;
 		if (args.length > 0 && CancellationToken.isCancellationToken(args[args.length - 1])) {
 			cancellationToken = args.pop();
 		}
@@ -640,13 +640,13 @@ class MessageIO {
 					massagedArgs[i] = arg;
 					argsLengths[i] = arg.byteLength;
 				} else {
-					massagedArgs[i] = JSON.stringify(arg);
+					massagedArgs[i] = safeStringify(arg);
 					argsLengths[i] = Buffer.byteLength(massagedArgs[i], 'utf8');
 				}
 			}
 			return this._requestMixedArgs(req, rpcId, method, massagedArgs, argsLengths, usesCancellationToken);
 		}
-		return this._requestJSONArgs(req, rpcId, method, JSON.stringify(args), usesCancellationToken);
+		return this._requestJSONArgs(req, rpcId, method, safeStringify(args), usesCancellationToken);
 	}
 
 	private static _requestJSONArgs(req: number, rpcId: number, method: string, args: string, usesCancellationToken: boolean): Buffer {
@@ -726,7 +726,7 @@ class MessageIO {
 		if (Buffer.isBuffer(res)) {
 			return this._serializeReplyOKBuffer(req, res);
 		}
-		return this._serializeReplyOKJSON(req, JSON.stringify(res));
+		return this._serializeReplyOKJSON(req, safeStringify(res));
 	}
 
 	private static _serializeReplyOKEmpty(req: number): Buffer {
@@ -772,7 +772,7 @@ class MessageIO {
 	}
 
 	private static _serializeReplyErrEror(req: number, _err: Error): Buffer {
-		const err = JSON.stringify(errors.transformErrorForSerialization(_err));
+		const err = safeStringify(errors.transformErrorForSerialization(_err));
 		const errByteLength = Buffer.byteLength(err, 'utf8');
 
 		let len = 0;
@@ -790,6 +790,14 @@ class MessageIO {
 
 	private static _serializeReplyErrEmpty(req: number): Buffer {
 		return MessageBuffer.alloc(MessageType.ReplyErrEmpty, req, 0).buffer;
+	}
+}
+
+function safeStringify(obj: any): string {
+	try {
+		return JSON.stringify(obj);
+	} catch (err) {
+		return 'null';
 	}
 }
 

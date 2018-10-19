@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 import * as assert from 'assert';
-import { TPromise } from 'vs/base/common/winjs.base';
 import { EditOperation } from 'vs/editor/common/core/editOperation';
 import { Position } from 'vs/editor/common/core/position';
 import { Selection } from 'vs/editor/common/core/selection';
@@ -15,6 +14,7 @@ import { withTestCodeEditor } from 'vs/editor/test/browser/testCodeEditor';
 import { IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 import { IStorageService } from 'vs/platform/storage/common/storage';
+import { Event } from 'vs/base/common/event';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { Delayer } from 'vs/base/common/async';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
@@ -23,7 +23,7 @@ export class TestFindController extends CommonFindController {
 
 	public hasFocus: boolean;
 	public delayUpdateHistory: boolean = false;
-	public delayedUpdateHistoryPromise: TPromise<void>;
+	public delayedUpdateHistoryPromise: Promise<void>;
 
 	private _findInputFocused: IContextKey<boolean>;
 
@@ -59,9 +59,14 @@ suite('FindController', () => {
 	let clipboardState = '';
 	let serviceCollection = new ServiceCollection();
 	serviceCollection.set(IStorageService, {
+		_serviceBrand: undefined,
+		onDidChangeStorage: Event.None,
+		onWillSaveState: Event.None,
 		get: (key: string) => queryState[key],
 		getBoolean: (key: string) => !!queryState[key],
-		store: (key: string, value: any) => { queryState[key] = value; }
+		getInteger: (key: string) => undefined,
+		store: (key: string, value: any) => { queryState[key] = value; return Promise.resolve(); },
+		remove: (key) => void 0
 	} as IStorageService);
 
 	if (platform.isMacintosh) {
@@ -429,9 +434,14 @@ suite('FindController query options persistence', () => {
 	queryState['editor.wholeWord'] = false;
 	let serviceCollection = new ServiceCollection();
 	serviceCollection.set(IStorageService, {
+		_serviceBrand: undefined,
+		onDidChangeStorage: Event.None,
+		onWillSaveState: Event.None,
 		get: (key: string) => queryState[key],
 		getBoolean: (key: string) => !!queryState[key],
-		store: (key: string, value: any) => { queryState[key] = value; }
+		getInteger: (key: string) => undefined,
+		store: (key: string, value: any) => { queryState[key] = value; return Promise.resolve(); },
+		remove: (key) => void 0
 	} as IStorageService);
 
 	test('matchCase', () => {

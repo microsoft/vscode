@@ -643,6 +643,32 @@ configurationRegistry.registerConfiguration({
 			],
 			default: 'auto',
 			description: nls.localize('search.collapseAllResults', "Controls whether the search results will be collapsed or expanded."),
+		},
+		'search.useReplacePreview': {
+			type: 'boolean',
+			default: true,
+			description: nls.localize('search.useReplacePreview', "Controls whether to open Replace Preview when selecting or replacing a match."),
+		},
+		'search.showLineNumbers': {
+			type: 'boolean',
+			default: false,
+			description: nls.localize('search.showLineNumbers', "Controls whether to show line numbers for search results."),
+		},
+		'searchRipgrep.enable': {
+			type: 'boolean',
+			default: false,
+			deprecationMessage: nls.localize('search.searchRipgrepEnableDeprecated', "Deprecated. Use \"search.runInExtensionHost\" instead"),
+			description: nls.localize('search.searchRipgrepEnable', "Whether to run search in the extension host")
+		},
+		'search.runInExtensionHost': {
+			type: 'boolean',
+			default: false,
+			description: nls.localize('search.searchRipgrepEnable', "Whether to run search in the extension host")
+		},
+		'search.usePCRE2': {
+			type: 'boolean',
+			default: false,
+			description: nls.localize('search.usePCRE2', "Whether to use the PCRE2 regex engine in text search. This enables using some advaned regex features like lookbehind and backreferences.")
 		}
 	}
 });

@@ -23,6 +23,8 @@ import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { TestThemeService } from 'vs/platform/theme/test/common/testThemeService';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
+import { View } from 'vs/editor/browser/view/viewImpl';
+import { ViewModel } from 'vs/editor/common/viewModel/viewModelImpl';
 
 export class TestCodeEditor extends CodeEditorWidget implements editorBrowser.ICodeEditor {
 
@@ -30,14 +32,15 @@ export class TestCodeEditor extends CodeEditorWidget implements editorBrowser.IC
 	protected _createConfiguration(options: editorOptions.IEditorOptions): editorCommon.IConfiguration {
 		return new TestConfiguration(options);
 	}
-	protected _createView(): void {
+	protected _createView(viewModel: ViewModel, cursor: Cursor): [View, boolean] {
 		// Never create a view
+		return [null! as View, false];
 	}
 	//#endregion
 
 	//#region Testing utils
-	public getCursor(): Cursor {
-		return this.cursor;
+	public getCursor(): Cursor | undefined {
+		return this._modelData ? this._modelData.cursor : undefined;
 	}
 	public registerAndInstantiateContribution<T extends editorCommon.IEditorContribution>(ctor: any): T {
 		let r = <T>this._instantiationService.createInstance(ctor, this);
@@ -46,19 +49,18 @@ export class TestCodeEditor extends CodeEditorWidget implements editorBrowser.IC
 	}
 	public dispose() {
 		super.dispose();
-		if (this.model) {
-			this.model.dispose();
-			this.model = null;
+		if (this._modelData) {
+			this._modelData.model.dispose();
 		}
 	}
 }
 
 class TestEditorDomElement {
-	parentElement: IContextKeyServiceTarget = null;
+	parentElement: IContextKeyServiceTarget | null = null;
 	setAttribute(attr: string, value: string): void { }
 	removeAttribute(attr: string): void { }
 	hasAttribute(attr: string): boolean { return false; }
-	getAttribute(attr: string): string { return undefined; }
+	getAttribute(attr: string): string | undefined { return undefined; }
 	addEventListener(event: string): void { }
 	removeEventListener(event: string): void { }
 }
@@ -71,7 +73,7 @@ export interface TestCodeEditorCreationOptions extends editorOptions.IEditorOpti
 	serviceCollection?: ServiceCollection;
 }
 
-export function withTestCodeEditor(text: string | string[], options: TestCodeEditorCreationOptions, callback: (editor: TestCodeEditor, cursor: Cursor) => void): void {
+export function withTestCodeEditor(text: string | string[], options: TestCodeEditorCreationOptions, callback: (editor: TestCodeEditor, cursor: Cursor | undefined) => void): void {
 	// create a model if necessary and remember it in order to dispose it.
 	if (!options.model) {
 		if (typeof text === 'string') {

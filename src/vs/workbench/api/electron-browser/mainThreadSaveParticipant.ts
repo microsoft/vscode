@@ -86,7 +86,7 @@ class TrimWhitespaceParticipant implements ISaveParticipantParticipant {
 }
 
 function findEditor(model: ITextModel, codeEditorService: ICodeEditorService): ICodeEditor {
-	let candidate: ICodeEditor = null;
+	let candidate: ICodeEditor | null = null;
 
 	if (model.isAttachedToEditor()) {
 		for (const editor of codeEditorService.listCodeEditors()) {

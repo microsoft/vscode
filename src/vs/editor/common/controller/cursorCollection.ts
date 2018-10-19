@@ -6,7 +6,7 @@
 import { OneCursor } from 'vs/editor/common/controller/oneCursor';
 import { Selection, ISelection } from 'vs/editor/common/core/selection';
 import { Position } from 'vs/editor/common/core/position';
-import { CursorState, CursorContext } from 'vs/editor/common/controller/cursorCommon';
+import { CursorState, CursorContext, PartialCursorState } from 'vs/editor/common/controller/cursorCommon';
 
 export class CursorCollection {
 
@@ -108,7 +108,7 @@ export class CursorCollection {
 		return this.primaryCursor.asCursorState();
 	}
 
-	public setStates(states: CursorState[]): void {
+	public setStates(states: PartialCursorState[] | null): void {
 		if (states === null) {
 			return;
 		}
@@ -119,7 +119,7 @@ export class CursorCollection {
 	/**
 	 * Creates or disposes secondary cursors as necessary to match the number of `secondarySelections`.
 	 */
-	private _setSecondaryStates(secondaryStates: CursorState[]): void {
+	private _setSecondaryStates(secondaryStates: PartialCursorState[]): void {
 		const secondaryCursorsLength = this.secondaryCursors.length;
 		const secondaryStatesLength = secondaryStates.length;
 

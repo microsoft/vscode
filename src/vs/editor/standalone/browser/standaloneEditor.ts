@@ -11,7 +11,6 @@ import { ScrollbarVisibility } from 'vs/base/common/scrollable';
 import { IEditorOverrideServices, DynamicStandaloneServices, StaticServices } from 'vs/editor/standalone/browser/standaloneServices';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
-import { TPromise } from 'vs/base/common/winjs.base';
 import { OpenerService } from 'vs/editor/browser/services/openerService';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { Colorizer, IColorizerElementOptions, IColorizerOptions } from 'vs/editor/standalone/browser/colorizer';
@@ -41,7 +40,7 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 function withAllStandaloneServices<T extends editorCommon.IEditor>(domElement: HTMLElement, override: IEditorOverrideServices, callback: (services: DynamicStandaloneServices) => T): T {
 	let services = new DynamicStandaloneServices(domElement, override);
 
-	let simpleEditorModelResolverService: SimpleEditorModelResolverService = null;
+	let simpleEditorModelResolverService: SimpleEditorModelResolverService | null = null;
 	if (!services.has(ITextModelService)) {
 		simpleEditorModelResolverService = new SimpleEditorModelResolverService();
 		services.set(ITextModelService, simpleEditorModelResolverService);
@@ -66,7 +65,7 @@ function withAllStandaloneServices<T extends editorCommon.IEditor>(domElement: H
  * The editor will read the size of `domElement`.
  */
 export function create(domElement: HTMLElement, options?: IEditorConstructionOptions, override?: IEditorOverrideServices): IStandaloneCodeEditor {
-	return withAllStandaloneServices(domElement, override, (services) => {
+	return withAllStandaloneServices(domElement, override || {}, (services) => {
 		return new StandaloneEditor(
 			domElement,
 			options,
@@ -136,7 +135,7 @@ export function createDiffNavigator(diffEditor: IStandaloneDiffEditor, opts?: ID
 	return new DiffNavigator(diffEditor, opts);
 }
 
-function doCreateModel(value: string, mode: TPromise<modes.IMode>, uri?: URI): ITextModel {
+function doCreateModel(value: string, mode: Promise<modes.IMode>, uri?: URI): ITextModel {
 	return StaticServices.modelService.get().createModel(value, mode, uri);
 }
 
@@ -189,7 +188,7 @@ export function getModelMarkers(filter: { owner?: string, resource?: URI, take?:
 /**
  * Get the model that has `uri` if it exists.
  */
-export function getModel(uri: URI): ITextModel {
+export function getModel(uri: URI): ITextModel | null {
 	return StaticServices.modelService.get().getModel(uri);
 }
 
@@ -240,14 +239,14 @@ export function createWebWorker<T>(opts: IWebWorkerOptions): MonacoWebWorker<T> 
 /**
  * Colorize the contents of `domNode` using attribute `data-lang`.
  */
-export function colorizeElement(domNode: HTMLElement, options: IColorizerElementOptions): TPromise<void> {
+export function colorizeElement(domNode: HTMLElement, options: IColorizerElementOptions): Promise<void> {
 	return Colorizer.colorizeElement(StaticServices.standaloneThemeService.get(), StaticServices.modeService.get(), domNode, options);
 }
 
 /**
  * Colorize `text` using language `languageId`.
  */
-export function colorize(text: string, languageId: string, options: IColorizerOptions): TPromise<string> {
+export function colorize(text: string, languageId: string, options: IColorizerOptions): Promise<string> {
 	return Colorizer.colorize(StaticServices.modeService.get(), text, languageId, options);
 }
 

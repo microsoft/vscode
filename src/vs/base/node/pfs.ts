@@ -15,8 +15,8 @@ export function readdir(path: string): Promise<string[]> {
 	return nfcall(extfs.readdir, path);
 }
 
-export function exists(path: string): Promise<boolean> {
-	return new Promise(c => fs.exists(path, c));
+export function exists(path: string): TPromise<boolean> {
+	return new TPromise(c => fs.exists(path, c));
 }
 
 export function chmod(path: string, mode: number): Promise<boolean> {
@@ -24,12 +24,13 @@ export function chmod(path: string, mode: number): Promise<boolean> {
 }
 
 export import mkdirp = extfs.mkdirp;
+import { TPromise } from 'vs/base/common/winjs.base';
 
 export function rimraf(path: string): Promise<void> {
 	return lstat(path).then(stat => {
 		if (stat.isDirectory() && !stat.isSymbolicLink()) {
 			return readdir(path)
-				.then(children => Promise.all(children.map(child => rimraf(join(path, child)))))
+				.then(children => TPromise.join(children.map(child => rimraf(join(path, child)))))
 				.then(() => rmdir(path));
 		} else {
 			return unlink(path);
@@ -39,7 +40,7 @@ export function rimraf(path: string): Promise<void> {
 			return void 0;
 		}
 
-		return Promise.reject(err);
+		return TPromise.wrapError(err);
 	});
 }
 
@@ -98,10 +99,11 @@ export function writeFile(path: string, data: string, options?: extfs.IWriteFile
 export function writeFile(path: string, data: Buffer, options?: extfs.IWriteFileOptions): Promise<void>;
 export function writeFile(path: string, data: Uint8Array, options?: extfs.IWriteFileOptions): Promise<void>;
 export function writeFile(path: string, data: NodeJS.ReadableStream, options?: extfs.IWriteFileOptions): Promise<void>;
-export function writeFile(path: string, data: any, options?: extfs.IWriteFileOptions): Promise<void> {
+export function writeFile(path: string, data: any, options?: extfs.IWriteFileOptions): Promise<void>;
+export function writeFile(path: string, data: any, options?: extfs.IWriteFileOptions): any {
 	const queueKey = toQueueKey(path);
 
-	return Promise.resolve(ensureWriteFileQueue(queueKey).queue(() => nfcall(extfs.writeFileAndFlush, path, data, options)));
+	return ensureWriteFileQueue(queueKey).queue(() => nfcall(extfs.writeFileAndFlush, path, data, options));
 }
 
 function toQueueKey(path: string): string {
@@ -134,7 +136,7 @@ function ensureWriteFileQueue(queueKey: string): Queue<void> {
 */
 export function readDirsInDir(dirPath: string): Promise<string[]> {
 	return readdir(dirPath).then(children => {
-		return Promise.all(children.map(c => dirExists(join(dirPath, c)))).then(exists => {
+		return TPromise.join(children.map(c => dirExists(join(dirPath, c)))).then(exists => {
 			return children.filter((_, i) => exists[i]);
 		});
 	});
@@ -157,7 +159,7 @@ export function fileExists(path: string): Promise<boolean> {
 /**
  * Deletes a path from disk.
  */
-let _tmpDir: string = null;
+let _tmpDir: string | null = null;
 function getTmpDir(): string {
 	if (!_tmpDir) {
 		_tmpDir = os.tmpdir();
@@ -168,10 +170,10 @@ export function del(path: string, tmp = getTmpDir()): Promise<void> {
 	return nfcall(extfs.del, path, tmp);
 }
 
-export function whenDeleted(path: string): Promise<void> {
+export function whenDeleted(path: string): TPromise<void> {
 
 	// Complete when wait marker file is deleted
-	return new Promise<void>(c => {
+	return new TPromise<void>(c => {
 		let running = false;
 		const interval = setInterval(() => {
 			if (!running) {

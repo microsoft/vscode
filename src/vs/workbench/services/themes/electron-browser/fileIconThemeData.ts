@@ -17,9 +17,9 @@ export class FileIconThemeData implements IFileIconTheme {
 	label: string;
 	settingsId: string;
 	description?: string;
-	hasFileIcons?: boolean;
-	hasFolderIcons?: boolean;
-	hidesExplorerArrows?: boolean;
+	hasFileIcons: boolean;
+	hasFolderIcons: boolean;
+	hidesExplorerArrows: boolean;
 	isLoaded: boolean;
 	location?: URI;
 	extensionData: ExtensionData;
@@ -58,7 +58,7 @@ export class FileIconThemeData implements IFileIconTheme {
 		return themeData;
 	}
 
-	private static _noIconTheme: FileIconThemeData = null;
+	private static _noIconTheme: FileIconThemeData | null = null;
 
 	static noIconTheme(): FileIconThemeData {
 		let themeData = FileIconThemeData._noIconTheme;

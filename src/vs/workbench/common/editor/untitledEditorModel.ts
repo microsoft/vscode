@@ -58,7 +58,7 @@ export class UntitledEditorModel extends BaseTextEditorModel implements IEncodin
 		this.registerListeners();
 	}
 
-	protected getOrCreateMode(modeService: IModeService, modeId: string, firstLineText?: string): TPromise<IMode> {
+	protected getOrCreateMode(modeService: IModeService, modeId: string, firstLineText?: string): Promise<IMode> {
 		if (!modeId || modeId === PLAINTEXT_MODE_ID) {
 			return modeService.getOrCreateModeByFilepathOrFirstLine(this.resource.fsPath, firstLineText); // lookup mode via resource path if the provided modeId is unspecific
 		}

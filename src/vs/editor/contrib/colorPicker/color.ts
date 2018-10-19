@@ -32,7 +32,7 @@ export function getColors(model: ITextModel, token: CancellationToken): Promise<
 	return Promise.all(promises).then(() => colors);
 }
 
-export function getColorPresentations(model: ITextModel, colorInfo: IColorInformation, provider: DocumentColorProvider, token: CancellationToken): Promise<IColorPresentation[]> {
+export function getColorPresentations(model: ITextModel, colorInfo: IColorInformation, provider: DocumentColorProvider, token: CancellationToken): Promise<IColorPresentation[] | null | undefined> {
 	return Promise.resolve(provider.provideColorPresentations(model, colorInfo, token));
 }
 

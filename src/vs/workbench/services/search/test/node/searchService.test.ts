@@ -10,8 +10,9 @@ import { CancelablePromise, createCancelablePromise } from 'vs/base/common/async
 import { Emitter, Event } from 'vs/base/common/event';
 import { IProgress, ISearchEngineStats, IFileSearchStats } from 'vs/platform/search/common/search';
 import { SearchService as RawSearchService } from 'vs/workbench/services/search/node/rawSearchService';
-import { IFolderSearch, IRawFileMatch, IRawSearch, ISearchEngine, ISerializedFileMatch, ISerializedSearchComplete, ISerializedSearchProgressItem, ISerializedSearchSuccess, ISearchEngineSuccess } from 'vs/workbench/services/search/node/search';
 import { DiskSearch } from 'vs/workbench/services/search/node/searchService';
+import { IFolderSearch, IRawSearch } from 'vs/workbench/services/search/node/legacy/search';
+import { ISearchEngine, IRawFileMatch, ISearchEngineSuccess, ISerializedFileMatch, ISerializedSearchProgressItem, ISerializedSearchComplete, ISerializedSearchSuccess } from 'vs/workbench/services/search/node/search';
 
 const TEST_FOLDER_QUERIES = [
 	{ folder: path.normalize('/some/where') }

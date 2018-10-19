@@ -231,8 +231,8 @@ export enum KeyCode {
 
 export function createMonacoBaseAPI(): typeof monaco {
 	return {
-		editor: undefined,
-		languages: undefined,
+		editor: undefined!, // undefined override expected here
+		languages: undefined!, // undefined override expected here
 		CancellationTokenSource: CancellationTokenSource,
 		Emitter: Emitter,
 		KeyCode: KeyCode,

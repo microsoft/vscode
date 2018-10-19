@@ -238,14 +238,14 @@ class LineChange implements ILineChange {
 	public originalEndLineNumber: number;
 	public modifiedStartLineNumber: number;
 	public modifiedEndLineNumber: number;
-	public charChanges: CharChange[];
+	public charChanges: CharChange[] | undefined;
 
 	constructor(
 		originalStartLineNumber: number,
 		originalEndLineNumber: number,
 		modifiedStartLineNumber: number,
 		modifiedEndLineNumber: number,
-		charChanges: CharChange[]
+		charChanges: CharChange[] | undefined
 	) {
 		this.originalStartLineNumber = originalStartLineNumber;
 		this.originalEndLineNumber = originalEndLineNumber;
@@ -259,7 +259,7 @@ class LineChange implements ILineChange {
 		let originalEndLineNumber: number;
 		let modifiedStartLineNumber: number;
 		let modifiedEndLineNumber: number;
-		let charChanges: CharChange[];
+		let charChanges: CharChange[] | undefined = undefined;
 
 		if (diffChange.originalLength === 0) {
 			originalStartLineNumber = originalLineSequence.getStartLineNumber(diffChange.originalStart) - 1;
@@ -477,7 +477,7 @@ export class DiffComputer {
 			return;
 		}
 
-		let charChanges: CharChange[];
+		let charChanges: CharChange[] | undefined = undefined;
 		if (this.shouldComputeCharChanges) {
 			charChanges = [new CharChange(
 				originalLineNumber, originalStartColumn, originalLineNumber, originalEndColumn,
@@ -512,7 +512,7 @@ export class DiffComputer {
 			prevChange.originalEndLineNumber = originalLineNumber;
 			prevChange.modifiedEndLineNumber = modifiedLineNumber;
 			if (this.shouldComputeCharChanges) {
-				prevChange.charChanges.push(new CharChange(
+				prevChange.charChanges!.push(new CharChange(
 					originalLineNumber, originalStartColumn, originalLineNumber, originalEndColumn,
 					modifiedLineNumber, modifiedStartColumn, modifiedLineNumber, modifiedEndColumn
 				));

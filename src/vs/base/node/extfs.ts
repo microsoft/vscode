@@ -14,6 +14,7 @@ import { encode, encodeStream } from 'vs/base/node/encoding';
 import * as flow from 'vs/base/node/flow';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { IDisposable, toDisposable, Disposable } from 'vs/base/common/lifecycle';
+import { TPromise } from 'vs/base/common/winjs.base';
 
 const loop = flow.loop;
 
@@ -128,32 +129,32 @@ function doCopyFile(source: string, target: string, mode: number, callback: (err
 	reader.pipe(writer);
 }
 
-export function mkdirp(path: string, mode?: number, token?: CancellationToken): Promise<boolean> {
+export function mkdirp(path: string, mode?: number, token?: CancellationToken): TPromise<boolean> {
 	const mkdir = () => {
 		return nfcall(fs.mkdir, path, mode).then(null, (mkdirErr: NodeJS.ErrnoException) => {
 
 			// ENOENT: a parent folder does not exist yet
 			if (mkdirErr.code === 'ENOENT') {
-				return Promise.reject(mkdirErr);
+				return TPromise.wrapError(mkdirErr);
 			}
 
 			// Any other error: check if folder exists and
 			// return normally in that case if its a folder
 			return nfcall(fs.stat, path).then((stat: fs.Stats) => {
 				if (!stat.isDirectory()) {
-					return Promise.reject(new Error(`'${path}' exists and is not a directory.`));
+					return TPromise.wrapError(new Error(`'${path}' exists and is not a directory.`));
 				}
 
 				return null;
 			}, statErr => {
-				return Promise.reject(mkdirErr); // bubble up original mkdir error
+				return TPromise.wrapError(mkdirErr); // bubble up original mkdir error
 			});
 		});
 	};
 
 	// stop at root
 	if (path === paths.dirname(path)) {
-		return Promise.resolve(true);
+		return TPromise.as(true);
 	}
 
 	// recursively mkdir
@@ -161,7 +162,7 @@ export function mkdirp(path: string, mode?: number, token?: CancellationToken): 
 
 		// Respect cancellation
 		if (token && token.isCancellationRequested) {
-			return Promise.resolve(false);
+			return TPromise.as(false);
 		}
 
 		// ENOENT: a parent folder does not exist yet, continue
@@ -171,7 +172,7 @@ export function mkdirp(path: string, mode?: number, token?: CancellationToken): 
 		}
 
 		// Any other error
-		return Promise.reject(err);
+		return TPromise.wrapError(err);
 	});
 }
 
@@ -252,7 +253,7 @@ function rmRecursive(path: string, callback: (error: Error) => void): void {
 						} else if (children.length === 0) {
 							fs.rmdir(path, callback);
 						} else {
-							let firstError: Error = null;
+							let firstError: Error | null = null;
 							let childrenLeft = children.length;
 							children.forEach(child => {
 								rmRecursive(paths.join(path, child), (err: Error) => {
@@ -643,7 +644,7 @@ export function watch(path: string, onChange: (type: string, path?: string) => v
 		const watcher = fs.watch(path);
 
 		watcher.on('change', (type, raw) => {
-			let file: string = null;
+			let file: string | null = null;
 			if (raw) { // https://github.com/Microsoft/vscode/issues/38191
 				file = raw.toString();
 				if (platform.isMacintosh) {

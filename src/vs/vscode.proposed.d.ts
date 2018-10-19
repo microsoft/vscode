@@ -11,11 +11,38 @@ declare module 'vscode' {
 		export function sampleFunction(): Thenable<any>;
 	}
 
+	//#region Joh - https://github.com/Microsoft/vscode/issues/57093
+
+	/**
+	 * An insert text rule defines how the [`insertText`](#CompletionItem.insertText) of a
+	 * completion item should be modified.
+	 */
+	export enum CompletionItemInsertTextRule {
+
+		/**
+		 * Keep whitespace as is. By default, the editor adjusts leading
+		 * whitespace of new lines so that they match the indentation of
+		 * the line for which the item is accepeted.
+		 */
+		KeepWhitespace = 0b01
+	}
+
+	export interface CompletionItem {
+
+		/**
+		 * Rules about how/if the `insertText` should be modified by the
+		 * editor. Can be a bit mask of many rules.
+		 */
+		insertTextRules?: CompletionItemInsertTextRule;
+	}
+
+	//#endregion
+
 	//#region Joh - clipboard https://github.com/Microsoft/vscode/issues/217
 
 	export interface Clipboard {
-		readText(): Promise<string>;
-		writeText(value: string): Promise<void>;
+		readText(): Thenable<string>;
+		writeText(value: string): Thenable<void>;
 	}
 
 	export namespace env {
@@ -45,6 +72,11 @@ declare module 'vscode' {
 		 * The text pattern to search for.
 		 */
 		pattern: string;
+
+		/**
+		 * Whether or not `pattern` should match multiple lines of text.
+		 */
+		isMultiline?: boolean;
 
 		/**
 		 * Whether or not `pattern` should be interpreted as a regular expression.
@@ -995,19 +1027,6 @@ declare module 'vscode' {
 	}
 
 	export namespace window {
-		/**
-		 * The currently active terminal or `undefined`. The active terminal is the one that
-		 * currently has focus or most recently had focus.
-		 */
-		export const activeTerminal: Terminal | undefined;
-
-		/**
-		 * An [event](#Event) which fires when the [active terminal](#window.activeTerminal)
-		 * has changed. *Note* that the event also fires when the active terminal changes
-		 * to `undefined`.
-		 */
-		export const onDidChangeActiveTerminal: Event<Terminal | undefined>;
-
 		/**
 		 * Create a [TerminalRenderer](#TerminalRenderer).
 		 *

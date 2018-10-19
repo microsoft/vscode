@@ -90,8 +90,8 @@ export class HighlightedLabel implements IDisposable {
 	}
 
 	dispose() {
-		this.text = null;
-		this.highlights = null;
+		this.text = null!; // StrictNullOverride: nulling out ok in dispose
+		this.highlights = null!; // StrictNullOverride: nulling out ok in dispose
 	}
 
 	static escapeNewLines(text: string, highlights: IHighlight[]): string {

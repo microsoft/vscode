@@ -13,17 +13,17 @@ import { isLinux } from 'vs/base/common/platform';
 import { basenameOrAuthority, dirname, isEqual } from 'vs/base/common/resources';
 import { compare } from 'vs/base/common/strings';
 import { URI } from 'vs/base/common/uri';
-import { TPromise } from 'vs/base/common/winjs.base';
 import { localize } from 'vs/nls';
 import { ILogService } from 'vs/platform/log/common/log';
 import { Severity } from 'vs/platform/notification/common/notification';
-import { IQueryOptions, IRawFileMatch2 } from 'vs/platform/search/common/search';
+import { IRawFileMatch2 } from 'vs/platform/search/common/search';
 import { Workspace, WorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import { Range, RelativePattern } from 'vs/workbench/api/node/extHostTypes';
 import { IExtensionDescription } from 'vs/workbench/services/extensions/common/extensions';
 import * as vscode from 'vscode';
 import { ExtHostWorkspaceShape, IMainContext, IWorkspaceData, MainContext, MainThreadMessageServiceShape, MainThreadWorkspaceShape } from './extHost.protocol';
 import { CancellationToken } from 'vs/base/common/cancellation';
+import { ITextQueryBuilderOptions } from 'vs/workbench/parts/search/common/queryBuilder';
 
 function isFolderEqual(folderA: URI, folderB: URI): boolean {
 	return isEqual(folderA, folderB, !isLinux);
@@ -373,7 +373,7 @@ export class ExtHostWorkspace implements ExtHostWorkspaceShape {
 		}
 
 		if (token && token.isCancellationRequested) {
-			return TPromise.wrap([]);
+			return Promise.resolve([]);
 		}
 
 		return this._proxy.$startFileSearch(includePattern, includeFolder, excludePatternOrDisregardExcludes, maxResults, token)
@@ -400,7 +400,7 @@ export class ExtHostWorkspace implements ExtHostWorkspaceShape {
 			} :
 			options.previewOptions;
 
-		const queryOptions: IQueryOptions = {
+		const queryOptions: ITextQueryBuilderOptions = {
 			ignoreSymlinks: typeof options.followSymlinks === 'boolean' ? !options.followSymlinks : undefined,
 			disregardIgnoreFiles: typeof options.useIgnoreFiles === 'boolean' ? !options.useIgnoreFiles : undefined,
 			disregardGlobalIgnoreFiles: typeof options.useGlobalIgnoreFiles === 'boolean' ? !options.useGlobalIgnoreFiles : undefined,
@@ -433,18 +433,16 @@ export class ExtHostWorkspace implements ExtHostWorkspaceShape {
 		};
 
 		if (token.isCancellationRequested) {
-			return TPromise.wrap(undefined);
+			return Promise.resolve(undefined);
 		}
 
-		return this._proxy.$startTextSearch(query, queryOptions, requestId, token).then(
-			result => {
-				delete this._activeSearchCallbacks[requestId];
-				return result;
-			},
-			err => {
-				delete this._activeSearchCallbacks[requestId];
-				return TPromise.wrapError(err);
-			});
+		return this._proxy.$startTextSearch(query, queryOptions, requestId, token).then(result => {
+			delete this._activeSearchCallbacks[requestId];
+			return result;
+		}, err => {
+			delete this._activeSearchCallbacks[requestId];
+			return Promise.reject(err);
+		});
 	}
 
 	$handleTextSearchResult(result: IRawFileMatch2, requestId: number): void {

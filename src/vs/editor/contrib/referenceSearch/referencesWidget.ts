@@ -695,7 +695,10 @@ export class ReferenceWidget extends PeekViewWidget {
 
 	public setSelection(selection: OneReference): Promise<any> {
 		return this._revealReference(selection, true).then(() => {
-
+			if (!this._model) {
+				// disposed
+				return;
+			}
 			// show in tree
 			this._tree.setSelection([selection]);
 			this._tree.setFocus(selection);

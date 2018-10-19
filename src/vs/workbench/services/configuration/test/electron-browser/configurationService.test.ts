@@ -51,7 +51,7 @@ function setUpFolderWorkspace(folderName: string): Promise<{ parentDir: string, 
 function setUpFolder(folderName: string, parentDir: string): Promise<string> {
 	const folderDir = path.join(parentDir, folderName);
 	const workspaceSettingsDir = path.join(folderDir, '.vscode');
-	return pfs.mkdirp(workspaceSettingsDir, 493).then(() => folderDir);
+	return Promise.resolve(pfs.mkdirp(workspaceSettingsDir, 493).then(() => folderDir));
 }
 
 function setUpWorkspace(folders: string[]): Promise<{ parentDir: string, configPath: string }> {
@@ -59,7 +59,7 @@ function setUpWorkspace(folders: string[]): Promise<{ parentDir: string, configP
 	const id = uuid.generateUuid();
 	const parentDir = path.join(os.tmpdir(), 'vsctests', id);
 
-	return pfs.mkdirp(parentDir, 493)
+	return Promise.resolve(pfs.mkdirp(parentDir, 493)
 		.then(() => {
 			const configPath = path.join(parentDir, 'vsctests.code-workspace');
 			const workspace = { folders: folders.map(path => ({ path })) };
@@ -67,7 +67,7 @@ function setUpWorkspace(folders: string[]): Promise<{ parentDir: string, configP
 
 			return Promise.all(folders.map(folder => setUpFolder(folder, parentDir)))
 				.then(() => ({ parentDir, configPath }));
-		});
+		}));
 
 }
 

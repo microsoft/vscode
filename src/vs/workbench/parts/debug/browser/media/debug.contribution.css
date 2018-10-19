@@ -6,7 +6,6 @@
 /* Activity Bar */
 .monaco-workbench > .activitybar .monaco-action-bar .action-label.debug {
 	-webkit-mask: url('debug-dark.svg') no-repeat 50% 50%;
-	-webkit-mask-size: 28px;
 }
 
 .monaco-editor .debug-top-stack-frame-column::before {

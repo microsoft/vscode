@@ -80,13 +80,13 @@ export class KeybindingParser {
 		return [new SimpleKeybinding(mods.ctrl, mods.shift, mods.alt, mods.meta, keyCode), mods.remains];
 	}
 
-	public static parseKeybinding(input: string, OS: OperatingSystem): Keybinding {
+	public static parseKeybinding(input: string, OS: OperatingSystem): Keybinding | null {
 		if (!input) {
 			return null;
 		}
 
 		let [firstPart, remains] = this.parseSimpleKeybinding(input);
-		let chordPart: SimpleKeybinding = null;
+		let chordPart: SimpleKeybinding | null = null;
 		if (remains.length > 0) {
 			[chordPart] = this.parseSimpleKeybinding(remains);
 		}
@@ -109,13 +109,13 @@ export class KeybindingParser {
 		return [new SimpleKeybinding(mods.ctrl, mods.shift, mods.alt, mods.meta, keyCode), mods.remains];
 	}
 
-	static parseUserBinding(input: string): [SimpleKeybinding | ScanCodeBinding, SimpleKeybinding | ScanCodeBinding] {
+	static parseUserBinding(input: string): [SimpleKeybinding | ScanCodeBinding | null, SimpleKeybinding | ScanCodeBinding | null] {
 		if (!input) {
 			return [null, null];
 		}
 
 		let [firstPart, remains] = this.parseSimpleUserBinding(input);
-		let chordPart: SimpleKeybinding | ScanCodeBinding = null;
+		let chordPart: SimpleKeybinding | ScanCodeBinding | null = null;
 		if (remains.length > 0) {
 			[chordPart] = this.parseSimpleUserBinding(remains);
 		}

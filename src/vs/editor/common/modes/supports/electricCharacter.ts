@@ -24,10 +24,10 @@ export interface IElectricAction {
 
 export class BracketElectricCharacterSupport {
 
-	private readonly _richEditBrackets: RichEditBrackets;
+	private readonly _richEditBrackets: RichEditBrackets | null;
 	private readonly _complexAutoClosePairs: StandardAutoClosingPairConditional[];
 
-	constructor(richEditBrackets: RichEditBrackets, autoClosePairs: IAutoClosingPairConditional[], contribution: IBracketElectricCharacterContribution) {
+	constructor(richEditBrackets: RichEditBrackets | null, autoClosePairs: IAutoClosingPairConditional[], contribution: IBracketElectricCharacterContribution | undefined) {
 		contribution = contribution || {};
 		this._richEditBrackets = richEditBrackets;
 		this._complexAutoClosePairs = autoClosePairs.filter(pair => pair.open.length > 1 && !!pair.close).map(el => new StandardAutoClosingPairConditional(el));
@@ -61,12 +61,12 @@ export class BracketElectricCharacterSupport {
 		return result;
 	}
 
-	public onElectricCharacter(character: string, context: ScopedLineTokens, column: number): IElectricAction {
+	public onElectricCharacter(character: string, context: ScopedLineTokens, column: number): IElectricAction | null {
 		return (this._onElectricAutoClose(character, context, column) ||
 			this._onElectricAutoIndent(character, context, column));
 	}
 
-	private _onElectricAutoIndent(character: string, context: ScopedLineTokens, column: number): IElectricAction {
+	private _onElectricAutoIndent(character: string, context: ScopedLineTokens, column: number): IElectricAction | null {
 
 		if (!this._richEditBrackets || this._richEditBrackets.brackets.length === 0) {
 			return null;
@@ -104,7 +104,7 @@ export class BracketElectricCharacterSupport {
 		};
 	}
 
-	private _onElectricAutoClose(character: string, context: ScopedLineTokens, column: number): IElectricAction {
+	private _onElectricAutoClose(character: string, context: ScopedLineTokens, column: number): IElectricAction | null {
 		if (!this._complexAutoClosePairs.length) {
 			return null;
 		}

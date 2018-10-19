@@ -26,14 +26,14 @@ export class ModifierLabelProvider {
 	public readonly modifierLabels: ModifierLabels[];
 
 	constructor(mac: ModifierLabels, windows: ModifierLabels, linux: ModifierLabels = windows) {
-		this.modifierLabels = [null];
+		this.modifierLabels = [null!]; // index 0 will never me accessed.
 		this.modifierLabels[OperatingSystem.Macintosh] = mac;
 		this.modifierLabels[OperatingSystem.Windows] = windows;
 		this.modifierLabels[OperatingSystem.Linux] = linux;
 	}
 
-	public toLabel(firstPartMod: Modifiers, firstPartKey: string, chordPartMod: Modifiers, chordPartKey: string, OS: OperatingSystem): string {
-		if (firstPartKey === null && chordPartKey === null) {
+	public toLabel(firstPartMod: Modifiers | null, firstPartKey: string | null, chordPartMod: Modifiers | null, chordPartKey: string | null, OS: OperatingSystem): string | null {
+		if (firstPartMod === null || firstPartKey === null) {
 			return null;
 		}
 		return _asString(firstPartMod, firstPartKey, chordPartMod, chordPartKey, this.modifierLabels[OS]);
@@ -172,10 +172,10 @@ function _simpleAsString(modifiers: Modifiers, key: string, labels: ModifierLabe
 	return result.join(labels.separator);
 }
 
-function _asString(firstPartMod: Modifiers, firstPartKey: string, chordPartMod: Modifiers, chordPartKey: string, labels: ModifierLabels): string {
+function _asString(firstPartMod: Modifiers, firstPartKey: string, chordPartMod: Modifiers | null, chordPartKey: string | null, labels: ModifierLabels): string {
 	let result = _simpleAsString(firstPartMod, firstPartKey, labels);
 
-	if (chordPartKey !== null) {
+	if (chordPartMod !== null && chordPartKey !== null) {
 		result += ' ';
 		result += _simpleAsString(chordPartMod, chordPartKey, labels);
 	}

@@ -323,7 +323,7 @@ export class BreadcrumbsControl {
 						editorViewState = undefined;
 					}
 					this._contextViewService.hideContextView(this);
-					this._revealInEditor(event, data.target, this._getEditorGroup(data.payload && data.payload.originalEvent), (data.payload && data.payload.originalEvent.middleButton));
+					this._revealInEditor(event, data.target, this._getEditorGroup(data.payload && data.payload.originalEvent), (data.payload && data.payload.originalEvent && data.payload.originalEvent.middleButton));
 					/* __GDPR__
 						"breadcrumbs/open" : {
 							"type": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }

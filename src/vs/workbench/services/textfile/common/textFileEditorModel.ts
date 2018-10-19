@@ -492,7 +492,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		return this.backupFileService.resolveBackupContent(backup).then(backupContent => backupContent, error => null /* ignore errors */);
 	}
 
-	protected getOrCreateMode(modeService: IModeService, preferredModeIds: string, firstLineText?: string): TPromise<IMode> {
+	protected getOrCreateMode(modeService: IModeService, preferredModeIds: string, firstLineText?: string): Promise<IMode> {
 		return modeService.getOrCreateModeByFilepathOrFirstLine(this.resource.fsPath, firstLineText);
 	}
 

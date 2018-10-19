@@ -9,7 +9,7 @@ import * as objects from 'vs/base/common/objects';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { isWindows } from 'vs/base/common/platform';
 import { findFreePort } from 'vs/base/node/ports';
-import { ILifecycleService, ShutdownEvent } from 'vs/platform/lifecycle/common/lifecycle';
+import { ILifecycleService, WillShutdownEvent } from 'vs/platform/lifecycle/common/lifecycle';
 import { IWindowsService, IWindowService } from 'vs/platform/windows/common/windows';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
@@ -177,8 +177,7 @@ export class ExtensionHostProcessWorker implements IExtensionHostStarter {
 						VSCODE_IPC_HOOK_EXTHOST: pipeName,
 						VSCODE_HANDLES_UNCAUGHT_ERRORS: true,
 						VSCODE_LOG_STACK: !this._isExtensionDevTestFromCli && (this._isExtensionDevHost || !this._environmentService.isBuilt || product.quality !== 'stable' || this._environmentService.verbose),
-						VSCODE_LOG_LEVEL: this._environmentService.verbose ? 'trace' : this._environmentService.log,
-						VSCODE_NODE_CACHED_DATA_DIR: ''
+						VSCODE_LOG_LEVEL: this._environmentService.verbose ? 'trace' : this._environmentService.log
 					}),
 					// We only detach the extension host on windows. Linux and Mac orphan by default
 					// and detach under Linux and Mac create another process group.
@@ -274,7 +273,8 @@ export class ExtensionHostProcessWorker implements IExtensionHostStarter {
 							[{
 								label: nls.localize('reloadWindow', "Reload Window"),
 								run: () => this._windowService.reloadWindow()
-							}]
+							}],
+							{ sticky: true }
 						);
 					}, 10000);
 				}
@@ -537,7 +537,7 @@ export class ExtensionHostProcessWorker implements IExtensionHostStarter {
 		}
 	}
 
-	private _onWillShutdown(event: ShutdownEvent): void {
+	private _onWillShutdown(event: WillShutdownEvent): void {
 
 		// If the extension development host was started without debugger attached we need
 		// to communicate this back to the main side to terminate the debug session

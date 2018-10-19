@@ -23,7 +23,7 @@ import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { IEditorWorkerService } from 'vs/editor/common/services/editorWorkerService';
 import { EditorWorkerServiceImpl } from 'vs/editor/common/services/editorWorkerServiceImpl';
-import { ITextResourceConfigurationService } from 'vs/editor/common/services/resourceConfiguration';
+import { ITextResourceConfigurationService, ITextResourcePropertiesService } from 'vs/editor/common/services/resourceConfiguration';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { ModeServiceImpl } from 'vs/editor/common/services/modeServiceImpl';
 import { IModelService } from 'vs/editor/common/services/modelService';
@@ -32,7 +32,7 @@ import { StandaloneCodeEditorServiceImpl } from 'vs/editor/standalone/browser/st
 import {
 	SimpleConfigurationService, SimpleResourceConfigurationService, SimpleMenuService,
 	SimpleProgressService, StandaloneCommandService, StandaloneKeybindingService, SimpleNotificationService,
-	StandaloneTelemetryService, SimpleWorkspaceContextService, SimpleDialogService, SimpleBulkEditService, SimpleUriLabelService
+	StandaloneTelemetryService, SimpleWorkspaceContextService, SimpleDialogService, SimpleBulkEditService, SimpleUriLabelService, SimpleResourcePropertiesService
 } from 'vs/editor/standalone/browser/simpleServices';
 import { ContextKeyService } from 'vs/platform/contextkey/browser/contextKeyService';
 import { IMenuService } from 'vs/platform/actions/common/actions';
@@ -120,6 +120,8 @@ export module StaticServices {
 
 	export const resourceConfigurationService = define(ITextResourceConfigurationService, () => new SimpleResourceConfigurationService(configurationServiceImpl));
 
+	export const resourcePropertiesService = define(ITextResourcePropertiesService, () => new SimpleResourcePropertiesService(configurationServiceImpl));
+
 	export const contextService = define(IWorkspaceContextService, () => new SimpleWorkspaceContextService());
 
 	export const labelService = define(ILabelService, () => new SimpleUriLabelService());
@@ -134,7 +136,7 @@ export module StaticServices {
 
 	export const modeService = define(IModeService, (o) => new ModeServiceImpl());
 
-	export const modelService = define(IModelService, (o) => new ModelServiceImpl(markerService.get(o), configurationService.get(o)));
+	export const modelService = define(IModelService, (o) => new ModelServiceImpl(markerService.get(o), configurationService.get(o), resourcePropertiesService.get(o)));
 
 	export const editorWorkerService = define(IEditorWorkerService, (o) => new EditorWorkerServiceImpl(modelService.get(o), resourceConfigurationService.get(o)));
 
@@ -168,7 +170,7 @@ export class DynamicStandaloneServices extends Disposable {
 		const themeService = this.get(IThemeService);
 
 		let ensure = <T>(serviceId: ServiceIdentifier<T>, factory: () => T): T => {
-			let value: T = null;
+			let value: T | null = null;
 			if (overrides) {
 				value = overrides[serviceId.toString()];
 			}

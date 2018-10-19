@@ -383,7 +383,7 @@ class InlineImageView {
 
 		const initialState: ImageState = InlineImageView.imageStateCache.get(cacheKey) || { scale: 'fit', offsetX: 0, offsetY: 0 };
 		let scale = initialState.scale;
-		let image: HTMLImageElement = null;
+		let image: HTMLImageElement | null = null;
 
 		function updateScale(newScale: Scale) {
 			if (!image || !image.parentElement) {
@@ -414,7 +414,7 @@ class InlineImageView {
 
 				DOM.removeClass(image, 'scale-to-fit');
 				image.style.minWidth = `${(image.naturalWidth * scale)}px`;
-				image.style.widows = `${(image.naturalWidth * scale)}px`;
+				image.style.width = `${(image.naturalWidth * scale)}px`;
 
 				const newWidth = image.width;
 				const scaleFactor = (newWidth - oldWidth) / oldWidth;

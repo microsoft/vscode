@@ -1546,6 +1546,9 @@ declare module 'vscode' {
 		 * [document](#TextDocument). Resources allocated should be released when
 		 * the corresponding document has been [closed](#workspace.onDidCloseTextDocument).
 		 *
+		 * **Note**: The contents of the created [document](#TextDocument) might not be
+		 * identical to the provided text due to end-of-line-sequence normalization.
+		 *
 		 * @param uri An uri which scheme matches the scheme this provider was [registered](#workspace.registerTextDocumentContentProvider) for.
 		 * @param token A cancellation token.
 		 * @return A string or a thenable that resolves to such.
@@ -5919,6 +5922,19 @@ declare module 'vscode' {
 		 * The currently opened terminals or an empty array.
 		 */
 		export const terminals: ReadonlyArray<Terminal>;
+
+		/**
+		 * The currently active terminal or `undefined`. The active terminal is the one that
+		 * currently has focus or most recently had focus.
+		 */
+		export const activeTerminal: Terminal | undefined;
+
+		/**
+		 * An [event](#Event) which fires when the [active terminal](#window.activeTerminal)
+		 * has changed. *Note* that the event also fires when the active terminal changes
+		 * to `undefined`.
+		 */
+		export const onDidChangeActiveTerminal: Event<Terminal | undefined>;
 
 		/**
 		 * An [event](#Event) which fires when a terminal has been created, either through the

@@ -35,7 +35,7 @@ class AnAction extends Action {
 	}
 }
 
-suite('Keybindings Editor Model test', () => {
+suite('KeybindingsEditorModel test', () => {
 
 	let instantiationService: TestInstantiationService;
 	let testObject: KeybindingsEditorModel;
@@ -557,6 +557,18 @@ suite('Keybindings Editor Model test', () => {
 		assert.equal(1, actual.length);
 	});
 
+	test('filter exact matches with user settings label', async () => {
+		testObject = instantiationService.createInstance(KeybindingsEditorModel, OperatingSystem.Macintosh);
+		const command = 'a' + uuid.generateUuid();
+		const expected = aResolvedKeybindingItem({ command, firstPart: { keyCode: KeyCode.DownArrow } });
+		prepareKeybindingService(expected, aResolvedKeybindingItem({ command: 'down', firstPart: { keyCode: KeyCode.Escape } }));
+
+		await testObject.resolve({});
+		const actual = testObject.fetch('"down"').filter(element => element.keybindingItem.command === command);
+		assert.equal(1, actual.length);
+		assert.deepEqual(actual[0].keybindingMatches.firstPart, { keyCode: true });
+	});
+
 	function prepareKeybindingService(...keybindingItems: ResolvedKeybindingItem[]): ResolvedKeybindingItem[] {
 		instantiationService.stub(IKeybindingService, 'getKeybindings', () => keybindingItems);
 		instantiationService.stub(IKeybindingService, 'getDefaultKeybindings', () => keybindingItems);
@@ -566,7 +578,7 @@ suite('Keybindings Editor Model test', () => {
 
 	function registerCommandWithTitle(command: string, title: string): void {
 		const registry = Registry.as<IWorkbenchActionRegistry>(ActionExtensions.WorkbenchActions);
-		registry.registerWorkbenchAction(new SyncActionDescriptor(AnAction, command, title, { primary: null }), '');
+		registry.registerWorkbenchAction(new SyncActionDescriptor(AnAction, command, title, { primary: 0 }), '');
 	}
 
 	function assertKeybindingItems(actual: ResolvedKeybindingItem[], expected: ResolvedKeybindingItem[]) {

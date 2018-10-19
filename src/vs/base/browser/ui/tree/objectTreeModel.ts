@@ -19,12 +19,14 @@ export class ObjectTreeModel<T extends NonNullable<any>, TFilterData = void> imp
 	private nodes = new Map<T, ITreeNode<T, TFilterData>>();
 
 	readonly onDidChangeCollapseState: Event<ITreeNode<T, TFilterData>>;
+	readonly onDidChangeRenderNodeCount: Event<ITreeNode<T, TFilterData>>;
 
 	get size(): number { return this.nodes.size; }
 
 	constructor(list: ISpliceable<ITreeNode<T, TFilterData>>, options: IObjectTreeModelOptions<T, TFilterData> = {}) {
 		this.model = new IndexTreeModel(list, options);
 		this.onDidChangeCollapseState = this.model.onDidChangeCollapseState;
+		this.onDidChangeRenderNodeCount = this.model.onDidChangeRenderNodeCount;
 	}
 
 	setChildren(element: T | null, children?: ISequence<ITreeElement<T>>): Iterator<ITreeElement<T>> {
@@ -45,6 +47,21 @@ export class ObjectTreeModel<T extends NonNullable<any>, TFilterData = void> imp
 		return this.model.splice([...location, 0], Number.MAX_VALUE, children, onDidCreateNode, onDidDeleteNode);
 	}
 
+	getParentElement(ref: T | null = null): T | null {
+		const location = this.getElementLocation(ref);
+		return this.model.getParentElement(location);
+	}
+
+	getFirstChildElement(ref: T | null = null): T | null {
+		const location = this.getElementLocation(ref);
+		return this.model.getFirstChildElement(location);
+	}
+
+	getLastAncestorElement(ref: T | null = null): T | null {
+		const location = this.getElementLocation(ref);
+		return this.model.getLastAncestorElement(location);
+	}
+
 	getListIndex(element: T): number {
 		const location = this.getElementLocation(element);
 		return this.model.getListIndex(location);
@@ -60,6 +77,10 @@ export class ObjectTreeModel<T extends NonNullable<any>, TFilterData = void> imp
 		this.model.toggleCollapsed(location);
 	}
 
+	collapseAll(): void {
+		this.model.collapseAll();
+	}
+
 	isCollapsed(element: T): boolean {
 		const location = this.getElementLocation(element);
 		return this.model.isCollapsed(location);
@@ -67,6 +88,11 @@ export class ObjectTreeModel<T extends NonNullable<any>, TFilterData = void> imp
 
 	refilter(): void {
 		this.model.refilter();
+	}
+
+	getNode(element: T = null): ITreeNode<T, TFilterData> {
+		const location = this.getElementLocation(element);
+		return this.model.getNode(location);
 	}
 
 	getNodeLocation(node: ITreeNode<T, TFilterData>): T {

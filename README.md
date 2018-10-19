@@ -3,7 +3,7 @@
 [![Build Status](https://vscode.visualstudio.com/_apis/public/build/definitions/a4cdce18-a05c-4bb8-9476-5d07e63bfd76/1/badge?branchName=master)](https://aka.ms/vscode-builds)
 [![Feature Requests](https://img.shields.io/github/issues/Microsoft/vscode/feature-request.svg)](https://github.com/Microsoft/vscode/issues?q=is%3Aopen+is%3Aissue+label%3Afeature-request+sort%3Areactions-%2B1-desc)
 [![Bugs](https://img.shields.io/github/issues/Microsoft/vscode/bug.svg)](https://github.com/Microsoft/vscode/issues?utf8=✓&q=is%3Aissue+is%3Aopen+label%3Abug)
-[![Gitter](https://img.shields.io/badge/chat-on%20gitter-blue.svg)](https://gitter.im/Microsoft/vscode)
+[![Gitter](https://img.shields.io/badge/chat-on%20gitter-yellow.svg)](https://gitter.im/Microsoft/vscode)
 
 [VS Code](https://code.visualstudio.com) is a new type of tool that combines the simplicity of
 a code editor with what developers need for their core edit-build-debug cycle. Code
@@ -32,13 +32,13 @@ please see the document [How to Contribute](https://github.com/Microsoft/vscode/
 * [Submitting pull requests](https://github.com/Microsoft/vscode/wiki/How-to-Contribute#pull-requests)
 * [Contributing to translations](https://aka.ms/vscodeloc)
 
-Please see also our [Code of Conduct](CODE_OF_CONDUCT.md).
+Please also see our [Code of Conduct](CODE_OF_CONDUCT.md).
 
 ## Feedback
 
 * Ask a question on [Stack Overflow](https://stackoverflow.com/questions/tagged/vscode).
 * Request a new feature on [GitHub](CONTRIBUTING.md).
-* Vote for [popular feature requests](https://github.com/Microsoft/vscode/issues?q=is%3Aopen+is%3Aissue+label%3Afeature-request+sort%3Areactions-%2B1-desc).
+* Vote for [Popular Feature Requests](https://github.com/Microsoft/vscode/issues?q=is%3Aopen+is%3Aissue+label%3Afeature-request+sort%3Areactions-%2B1-desc).
 * File a bug in [GitHub Issues](https://github.com/Microsoft/vscode/issues).
 * [Tweet](https://twitter.com/code) us with other feedback.
 
@@ -46,7 +46,7 @@ Please see also our [Code of Conduct](CODE_OF_CONDUCT.md).
 
 Many of the core components and extensions to Code live in their own repositories on GitHub. For example, the [node debug adapter](https://github.com/microsoft/vscode-node-debug) and the [mono debug adapter](https://github.com/microsoft/vscode-mono-debug).
 
-For a complete list, please see the [Related Projects](https://github.com/Microsoft/vscode/wiki/Related-Projects) page on our [wiki](https://github.com/Microsoft/vscode/wiki).
+For a complete list, please visit the [Related Projects](https://github.com/Microsoft/vscode/wiki/Related-Projects) page on our [wiki](https://github.com/Microsoft/vscode/wiki).
 
 ## License
 

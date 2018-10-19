@@ -41,7 +41,6 @@ export const CONTEXT_DEBUG_TYPE = new RawContextKey<string>('debugType', undefin
 export const CONTEXT_DEBUG_CONFIGURATION_TYPE = new RawContextKey<string>('debugConfigurationType', undefined);
 export const CONTEXT_DEBUG_STATE = new RawContextKey<string>('debugState', 'inactive');
 export const CONTEXT_IN_DEBUG_MODE = new RawContextKey<boolean>('inDebugMode', false);
-export const CONTEXT_NOT_IN_DEBUG_MODE = CONTEXT_IN_DEBUG_MODE.toNegated();
 export const CONTEXT_IN_DEBUG_REPL = new RawContextKey<boolean>('inDebugRepl', false);
 export const CONTEXT_BREAKPOINT_WIDGET_VISIBLE = new RawContextKey<boolean>('breakpointWidgetVisible', false);
 export const CONTEXT_IN_BREAKPOINT_WIDGET = new RawContextKey<boolean>('inBreakpointWidget', false);
@@ -117,8 +116,6 @@ export interface IDebugger {
 	getCustomTelemetryService(): TPromise<TelemetryService>;
 }
 
-export type ActualBreakpoints = { [id: string]: DebugProtocol.Breakpoint };
-
 export enum State {
 	Inactive,
 	Initializing,
@@ -183,13 +180,13 @@ export interface IDebugSession extends ITreeElement {
 
 	initialize(dbgr: IDebugger): TPromise<void>;
 	launchOrAttach(config: IConfig): TPromise<void>;
-	restart(): TPromise<DebugProtocol.RestartResponse>;
+	restart(): TPromise<void>;
 	terminate(restart?: boolean /* false */): TPromise<void>;
 	disconnect(restart?: boolean /* false */): TPromise<void>;
 
-	sendBreakpoints(modelUri: uri, bpts: IBreakpoint[], sourceModified: boolean): TPromise<ActualBreakpoints | undefined>;
-	sendFunctionBreakpoints(fbps: IFunctionBreakpoint[]): TPromise<ActualBreakpoints | undefined>;
-	sendExceptionBreakpoints(exbpts: IExceptionBreakpoint[]): TPromise<any>;
+	sendBreakpoints(modelUri: uri, bpts: IBreakpoint[], sourceModified: boolean): TPromise<void>;
+	sendFunctionBreakpoints(fbps: IFunctionBreakpoint[]): TPromise<void>;
+	sendExceptionBreakpoints(exbpts: IExceptionBreakpoint[]): TPromise<void>;
 
 	stackTrace(threadId: number, startFrame: number, levels: number): TPromise<DebugProtocol.StackTraceResponse>;
 	exceptionInfo(threadId: number): TPromise<IExceptionInfo>;
@@ -198,15 +195,15 @@ export interface IDebugSession extends ITreeElement {
 	evaluate(expression: string, frameId?: number, context?: string): TPromise<DebugProtocol.EvaluateResponse>;
 	customRequest(request: string, args: any): TPromise<DebugProtocol.Response>;
 
-	restartFrame(frameId: number, threadId: number): TPromise<DebugProtocol.RestartFrameResponse>;
-	next(threadId: number): TPromise<DebugProtocol.NextResponse>;
-	stepIn(threadId: number): TPromise<DebugProtocol.StepInResponse>;
-	stepOut(threadId: number): TPromise<DebugProtocol.StepOutResponse>;
-	stepBack(threadId: number): TPromise<DebugProtocol.StepBackResponse>;
-	continue(threadId: number): TPromise<DebugProtocol.ContinueResponse>;
-	reverseContinue(threadId: number): TPromise<DebugProtocol.ReverseContinueResponse>;
-	pause(threadId: number): TPromise<DebugProtocol.PauseResponse>;
-	terminateThreads(threadIds: number[]): TPromise<DebugProtocol.TerminateThreadsResponse>;
+	restartFrame(frameId: number, threadId: number): TPromise<void>;
+	next(threadId: number): TPromise<void>;
+	stepIn(threadId: number): TPromise<void>;
+	stepOut(threadId: number): TPromise<void>;
+	stepBack(threadId: number): TPromise<void>;
+	continue(threadId: number): TPromise<void>;
+	reverseContinue(threadId: number): TPromise<void>;
+	pause(threadId: number): TPromise<void>;
+	terminateThreads(threadIds: number[]): TPromise<void>;
 
 	completions(frameId: number, text: string, position: Position, overwriteBefore: number): TPromise<CompletionItem[]>;
 	setVariable(variablesReference: number, name: string, value: string): TPromise<DebugProtocol.SetVariableResponse>;
@@ -376,7 +373,7 @@ export interface IViewModel extends ITreeElement {
 }
 
 export interface IDebugModel extends ITreeElement {
-	getSessions(): ReadonlyArray<IDebugSession>;
+	getSessions(includeInactive?: boolean): ReadonlyArray<IDebugSession>;
 	getBreakpoints(filter?: { uri?: uri, lineNumber?: number, column?: number, enabledOnly?: boolean }): ReadonlyArray<IBreakpoint>;
 	areBreakpointsActivated(): boolean;
 	getFunctionBreakpoints(): ReadonlyArray<IFunctionBreakpoint>;
@@ -771,11 +768,6 @@ export interface IDebugService {
 	 * Makes unavailable all sources with the passed uri. Source will appear as grayed out in callstack view.
 	 */
 	sourceIsNotAvailable(uri: uri): void;
-
-	/**
-	 * returns Session with the given ID (or undefined if ID is not found)
-	 */
-	getSession(sessionId: string): IDebugSession;
 
 	/**
 	 * Gets the current debug model.

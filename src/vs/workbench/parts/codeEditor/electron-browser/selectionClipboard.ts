@@ -36,7 +36,7 @@ export class SelectionClipboard extends Disposable implements IEditorContributio
 				if (!isEnabled) {
 					return;
 				}
-				if (!editor.getModel()) {
+				if (!editor.hasModel()) {
 					return;
 				}
 				if (e.event.middleButton) {
@@ -63,11 +63,10 @@ export class SelectionClipboard extends Disposable implements IEditorContributio
 			}));
 
 			let setSelectionToClipboard = this._register(new RunOnceScheduler(() => {
-				let model = editor.getModel();
-				if (!model) {
+				if (!editor.hasModel()) {
 					return;
 				}
-
+				let model = editor.getModel();
 				let selections = editor.getSelections();
 				selections = selections.slice(0);
 				selections.sort(Range.compareRangesUsingStarts);

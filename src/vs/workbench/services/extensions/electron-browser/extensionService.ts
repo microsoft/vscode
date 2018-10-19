@@ -24,7 +24,7 @@ import { ProxyIdentifier } from 'vs/workbench/services/extensions/node/proxyIden
 import { ExtHostContext, ExtHostExtensionServiceShape, IExtHostContext, MainContext } from 'vs/workbench/api/node/extHost.protocol';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { IStorageService } from 'vs/platform/storage/common/storage';
+import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ExtensionHostProcessWorker, IExtensionHostStarter } from 'vs/workbench/services/extensions/electron-browser/extensionHost';
 import { IMessagePassingProtocol } from 'vs/base/parts/ipc/node/ipc';
@@ -51,14 +51,14 @@ import { RuntimeExtensionsInput } from 'vs/workbench/services/extensions/electro
 const LOG_EXTENSION_HOST_COMMUNICATION = false;
 const LOG_USE_COLORS = true;
 
-let _SystemExtensionsRoot: string = null;
+let _SystemExtensionsRoot: string | null = null;
 function getSystemExtensionsRoot(): string {
 	if (!_SystemExtensionsRoot) {
 		_SystemExtensionsRoot = path.normalize(path.join(getPathFromAmdModule(require, ''), '..', 'extensions'));
 	}
 	return _SystemExtensionsRoot;
 }
-let _ExtraDevSystemExtensionsRoot: string = null;
+let _ExtraDevSystemExtensionsRoot: string | null = null;
 function getExtraDevSystemExtensionsRoot(): string {
 	if (!_ExtraDevSystemExtensionsRoot) {
 		_ExtraDevSystemExtensionsRoot = path.normalize(path.join(getPathFromAmdModule(require, ''), '..', '.build', 'builtInExtensions'));
@@ -185,7 +185,7 @@ export class ExtensionHostProcessManager extends Disposable {
 
 	private _createExtensionHostCustomers(protocol: IMessagePassingProtocol): ExtHostExtensionServiceShape {
 
-		let logger: IRPCProtocolLogger = null;
+		let logger: IRPCProtocolLogger | null = null;
 		if (LOG_EXTENSION_HOST_COMMUNICATION || this._environmentService.logExtensionHostCommunication) {
 			logger = new RPCLogger();
 		}
@@ -426,7 +426,10 @@ export class ExtensionService extends Disposable implements IExtensionService {
 	}
 
 	private _onResponsiveStateChanged(state: ResponsiveState): void {
-		if (this._isDev) {
+		// Do not show the notification anymore
+		// See https://github.com/Microsoft/vscode/issues/60318
+		const DISABLE_PROMPT = true;
+		if (this._isDev || DISABLE_PROMPT) {
 			return; // do not show any notification when developing an extension (https://github.com/Microsoft/vscode/issues/59251)
 		}
 
@@ -683,7 +686,7 @@ export class ExtensionService extends Disposable implements IExtensionService {
 							return TPromise.join(toDisable.map(e => this._extensionEnablementService.setEnablement(e, EnablementState.Disabled)));
 						})
 						.then(() => {
-							this._storageService.store(BetterMergeDisabledNowKey, true);
+							this._storageService.store(BetterMergeDisabledNowKey, true, StorageScope.GLOBAL);
 							return runtimeExtensions;
 						});
 				} else {

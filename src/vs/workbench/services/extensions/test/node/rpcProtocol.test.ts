@@ -174,4 +174,19 @@ suite('RPCProtocol', () => {
 			done(null);
 		});
 	});
+
+	test('issue #60450: Converting circular structure to JSON', function (done) {
+		delegate = (a1: number, a2: number) => {
+			let circular = <any>{};
+			circular.self = circular;
+			return circular;
+		};
+		bProxy.$m(4, 1).then((res) => {
+			assert.equal(res, null);
+			done(null);
+		}, (err) => {
+			assert.fail('unexpected');
+			done(null);
+		});
+	});
 });

@@ -13,7 +13,7 @@ import { Position } from 'vs/editor/common/core/position';
 import { IEditorContribution } from 'vs/editor/common/editorCommon';
 import { ITextModel } from 'vs/editor/common/model';
 import { registerEditorAction, registerEditorContribution, EditorAction, ServicesAccessor } from 'vs/editor/browser/editorExtensions';
-import { ICodeEditor, ContentWidgetPositionPreference, IContentWidget, IContentWidgetPosition } from 'vs/editor/browser/editorBrowser';
+import { ICodeEditor, ContentWidgetPositionPreference, IContentWidget, IContentWidgetPosition, IActiveCodeEditor } from 'vs/editor/browser/editorBrowser';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IGrammar, StackElement, IToken } from 'vscode-textmate';
 import { ITextMateService } from 'vs/workbench/services/textMate/electron-browser/textMateService';
@@ -40,7 +40,7 @@ class InspectTMScopesController extends Disposable implements IEditorContributio
 	private _themeService: IWorkbenchThemeService;
 	private _modeService: IModeService;
 	private _notificationService: INotificationService;
-	private _widget: InspectTMScopesWidget;
+	private _widget: InspectTMScopesWidget | null;
 
 	constructor(
 		editor: ICodeEditor,
@@ -75,7 +75,7 @@ class InspectTMScopesController extends Disposable implements IEditorContributio
 		if (this._widget) {
 			return;
 		}
-		if (!this._editor.getModel()) {
+		if (!this._editor.hasModel()) {
 			return;
 		}
 		this._widget = new InspectTMScopesWidget(this._editor, this._textMateService, this._modeService, this._themeService, this._notificationService);
@@ -174,7 +174,7 @@ class InspectTMScopesWidget extends Disposable implements IContentWidget {
 	public readonly allowEditorOverflow = true;
 
 	private _isDisposed: boolean;
-	private readonly _editor: ICodeEditor;
+	private readonly _editor: IActiveCodeEditor;
 	private readonly _modeService: IModeService;
 	private readonly _themeService: IWorkbenchThemeService;
 	private readonly _notificationService: INotificationService;
@@ -183,7 +183,7 @@ class InspectTMScopesWidget extends Disposable implements IContentWidget {
 	private readonly _grammar: TPromise<IGrammar>;
 
 	constructor(
-		editor: ICodeEditor,
+		editor: IActiveCodeEditor,
 		textMateService: ITextMateService,
 		modeService: IModeService,
 		themeService: IWorkbenchThemeService,
@@ -292,14 +292,14 @@ class InspectTMScopesWidget extends Disposable implements IContentWidget {
 	}
 
 	private _decodeMetadata(metadata: number): IDecodedMetadata {
-		let colorMap = TokenizationRegistry.getColorMap();
+		let colorMap = TokenizationRegistry.getColorMap()!;
 		let languageId = TokenMetadata.getLanguageId(metadata);
 		let tokenType = TokenMetadata.getTokenType(metadata);
 		let fontStyle = TokenMetadata.getFontStyle(metadata);
 		let foreground = TokenMetadata.getForeground(metadata);
 		let background = TokenMetadata.getBackground(metadata);
 		return {
-			languageIdentifier: this._modeService.getLanguageIdentifier(languageId),
+			languageIdentifier: this._modeService.getLanguageIdentifier(languageId)!,
 			tokenType: tokenType,
 			fontStyle: fontStyle,
 			foreground: colorMap[foreground],
@@ -349,7 +349,7 @@ class InspectTMScopesWidget extends Disposable implements IContentWidget {
 	}
 
 	private _getStateBeforeLine(grammar: IGrammar, lineNumber: number): StackElement {
-		let state: StackElement = null;
+		let state: StackElement | null = null;
 
 		for (let i = 1; i < lineNumber; i++) {
 			let tokenizationResult = grammar.tokenizeLine(this._model.getLineContent(i), state);

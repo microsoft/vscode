@@ -31,16 +31,24 @@ export class TextResourceConfigurationService extends Disposable implements ITex
 	getValue<T>(resource: URI, section?: string): T;
 	getValue<T>(resource: URI, at?: IPosition, section?: string): T;
 	getValue<T>(resource: URI, arg2?: any, arg3?: any): T {
-		const position: IPosition = Position.isIPosition(arg2) ? arg2 : null;
-		const section: string = position ? (typeof arg3 === 'string' ? arg3 : void 0) : (typeof arg2 === 'string' ? arg2 : void 0);
+		if (typeof arg3 === 'string') {
+			return this._getValue(resource, Position.isIPosition(arg2) ? arg2 : null, arg3);
+		}
+		return this._getValue(resource, null, typeof arg2 === 'string' ? arg2 : undefined);
+	}
+
+	private _getValue<T>(resource: URI, position: IPosition | null, section: string | undefined): T {
 		const language = resource ? this.getLanguage(resource, position) : void 0;
+		if (typeof section === 'undefined') {
+			return this.configurationService.getValue<T>({ resource, overrideIdentifier: language });
+		}
 		return this.configurationService.getValue<T>(section, { resource, overrideIdentifier: language });
 	}
 
-	private getLanguage(resource: URI, position: IPosition): string {
+	private getLanguage(resource: URI, position: IPosition | null): string | null {
 		const model = this.modelService.getModel(resource);
 		if (model) {
-			return position ? this.modeService.getLanguageIdentifier(model.getLanguageIdAtPosition(position.lineNumber, position.column)).language : model.getLanguageIdentifier().language;
+			return position ? this.modeService.getLanguageIdentifier(model.getLanguageIdAtPosition(position.lineNumber, position.column))!.language : model.getLanguageIdentifier().language;
 		}
 		return this.modeService.getModeIdByFilepathOrFirstLine(resource.path);
 

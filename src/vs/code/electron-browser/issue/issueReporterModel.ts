@@ -76,11 +76,11 @@ ${this.getInfos()}
 			|| this._data.issueType === IssueType.PerformanceIssue
 			|| this._data.issueType === IssueType.FeatureRequest;
 
-		return fileOnExtensionSupported && this._data.fileOnExtension;
+		return !!(fileOnExtensionSupported && this._data.fileOnExtension);
 	}
 
 	private getExtensionVersion(): string {
-		if (this.fileOnExtension()) {
+		if (this.fileOnExtension() && this._data.selectedExtension) {
 			return `\nExtension version: ${this._data.selectedExtension.manifest.version}`;
 		} else {
 			return '';

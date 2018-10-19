@@ -47,7 +47,7 @@ export class ViewCursor {
 	private _position: Position;
 
 	private _lastRenderedContent: string;
-	private _renderData: ViewCursorRenderData;
+	private _renderData: ViewCursorRenderData | null;
 
 	constructor(context: ViewContext) {
 		this._context = context;
@@ -117,7 +117,7 @@ export class ViewCursor {
 		return true;
 	}
 
-	private _prepareRender(ctx: RenderingContext): ViewCursorRenderData {
+	private _prepareRender(ctx: RenderingContext): ViewCursorRenderData | null {
 		let textContent = '';
 		let textContentClassName = '';
 
@@ -182,7 +182,7 @@ export class ViewCursor {
 		this._renderData = this._prepareRender(ctx);
 	}
 
-	public render(ctx: RestrictedRenderingContext): IViewCursorRenderData {
+	public render(ctx: RestrictedRenderingContext): IViewCursorRenderData | null {
 		if (!this._renderData) {
 			this._domNode.setDisplay('none');
 			return null;

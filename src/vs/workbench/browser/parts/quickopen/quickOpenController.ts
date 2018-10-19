@@ -21,7 +21,7 @@ import { ITextFileService, AutoSaveMode } from 'vs/workbench/services/textfile/c
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IResourceInput } from 'vs/platform/editor/common/editor';
 import { IModeService } from 'vs/editor/common/services/modeService';
-import { getIconClasses } from 'vs/workbench/browser/labels';
+import { getIconClasses } from 'vs/editor/common/services/getIconClasses';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { EditorInput, IWorkbenchEditorConfiguration, IEditorInput } from 'vs/workbench/common/editor';
 import { Component } from 'vs/workbench/common/component';
@@ -50,6 +50,7 @@ import { ILabelService } from 'vs/platform/label/common/label';
 import { timeout } from 'vs/base/common/async';
 import { IQuickInputService, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
 import { CancellationTokenSource, CancellationToken } from 'vs/base/common/cancellation';
+import { IStorageService } from 'vs/platform/storage/common/storage';
 
 const HELP_PREFIX = '?';
 
@@ -91,9 +92,10 @@ export class QuickOpenController extends Component implements IQuickOpenService 
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@IPartService private partService: IPartService,
 		@IEnvironmentService private environmentService: IEnvironmentService,
-		@IThemeService themeService: IThemeService
+		@IThemeService themeService: IThemeService,
+		@IStorageService storageService: IStorageService
 	) {
-		super(QuickOpenController.ID, themeService);
+		super(QuickOpenController.ID, themeService, storageService);
 
 		this.editorHistoryHandler = this.instantiationService.createInstance(EditorHistoryHandler);
 

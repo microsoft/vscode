@@ -16,7 +16,7 @@ import { IExtensionsWorkbenchService, IExtension } from 'vs/workbench/parts/exte
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IExtensionService, IExtensionDescription, IExtensionsStatus, IExtensionHostProfile } from 'vs/workbench/services/extensions/common/extensions';
-import { IVirtualDelegate, IRenderer } from 'vs/base/browser/ui/list/list';
+import { IListVirtualDelegate, IListRenderer } from 'vs/base/browser/ui/list/list';
 import { WorkbenchList } from 'vs/platform/list/browser/listService';
 import { append, $, addClass, toggleClass, Dimension } from 'vs/base/browser/dom';
 import { ActionBar, Separator } from 'vs/base/browser/ui/actionbar/actionbar';
@@ -38,6 +38,7 @@ import { IDebugService } from 'vs/workbench/parts/debug/common/debug';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { randomPort } from 'vs/base/node/ports';
 import { IContextKeyService, RawContextKey, IContextKey } from 'vs/platform/contextkey/common/contextkey';
+import { IStorageService } from 'vs/platform/storage/common/storage';
 
 export const IExtensionHostProfileService = createDecorator<IExtensionHostProfileService>('extensionHostProfileService');
 export const CONTEXT_PROFILE_SESSION_STATE = new RawContextKey<string>('profileSessionState', 'none');
@@ -110,8 +111,9 @@ export class RuntimeExtensionsEditor extends BaseEditor {
 		@IContextMenuService private readonly _contextMenuService: IContextMenuService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IExtensionHostProfileService private readonly _extensionHostProfileService: IExtensionHostProfileService,
+		@IStorageService storageService: IStorageService
 	) {
-		super(RuntimeExtensionsEditor.ID, telemetryService, themeService);
+		super(RuntimeExtensionsEditor.ID, telemetryService, themeService, storageService);
 
 		this._list = null;
 		this._profileInfo = this._extensionHostProfileService.lastProfile;
@@ -186,7 +188,7 @@ export class RuntimeExtensionsEditor extends BaseEditor {
 		for (let i = 0, len = this._extensionsDescriptions.length; i < len; i++) {
 			const extensionDescription = this._extensionsDescriptions[i];
 
-			let profileInfo: IExtensionProfileInformation = null;
+			let profileInfo: IExtensionProfileInformation | null = null;
 			if (this._profileInfo) {
 				let extensionSegments = segments[extensionDescription.id] || [];
 				let extensionTotalTime = 0;
@@ -230,7 +232,7 @@ export class RuntimeExtensionsEditor extends BaseEditor {
 
 		const TEMPLATE_ID = 'runtimeExtensionElementTemplate';
 
-		const delegate = new class implements IVirtualDelegate<IRuntimeExtension>{
+		const delegate = new class implements IListVirtualDelegate<IRuntimeExtension>{
 			getHeight(element: IRuntimeExtension): number {
 				return 62;
 			}
@@ -257,7 +259,7 @@ export class RuntimeExtensionsEditor extends BaseEditor {
 			elementDisposables: IDisposable[];
 		}
 
-		const renderer: IRenderer<IRuntimeExtension, IRuntimeExtensionTemplateData> = {
+		const renderer: IListRenderer<IRuntimeExtension, IRuntimeExtensionTemplateData> = {
 			templateId: TEMPLATE_ID,
 			renderTemplate: (root: HTMLElement): IRuntimeExtensionTemplateData => {
 				const element = append(root, $('.extension'));
@@ -408,7 +410,7 @@ export class RuntimeExtensionsEditor extends BaseEditor {
 		this._list.onContextMenu((e) => {
 			const actions: IAction[] = [];
 
-			if (e.element.marketplaceInfo.type === LocalExtensionType.User) {
+			if (e.element.marketplaceInfo && e.element.marketplaceInfo.type === LocalExtensionType.User) {
 				actions.push(this._instantiationService.createInstance(DisableForWorkspaceAction, DisableForWorkspaceAction.LABEL));
 				actions.push(this._instantiationService.createInstance(DisableGloballyAction, DisableGloballyAction.LABEL));
 				actions.forEach((a: DisableForWorkspaceAction | DisableGloballyAction) => a.extension = e.element.marketplaceInfo);

@@ -238,13 +238,15 @@ configurationRegistry.registerConfiguration({
 			'type': 'string',
 			'enum': [
 				'\n',
-				'\r\n'
+				'\r\n',
+				'auto'
 			],
 			'enumDescriptions': [
 				nls.localize('eol.LF', "LF"),
-				nls.localize('eol.CRLF', "CRLF")
+				nls.localize('eol.CRLF', "CRLF"),
+				nls.localize('eol.auto', "Uses operating system specific end of line character.")
 			],
-			'default': (platform.isLinux || platform.isMacintosh) ? '\n' : '\r\n',
+			'default': 'auto',
 			'description': nls.localize('eol', "The default end of line character."),
 			'scope': ConfigurationScope.RESOURCE
 		},

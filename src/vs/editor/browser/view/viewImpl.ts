@@ -13,7 +13,7 @@ import { IConfiguration } from 'vs/editor/common/editorCommon';
 import { TextAreaHandler, ITextAreaHandlerHelper } from 'vs/editor/browser/controller/textAreaHandler';
 import { PointerHandler } from 'vs/editor/browser/controller/pointerHandler';
 import * as editorBrowser from 'vs/editor/browser/editorBrowser';
-import { ViewController, ExecCoreEditorCommandFunc, ICommandDelegate } from 'vs/editor/browser/view/viewController';
+import { ViewController, ICommandDelegate } from 'vs/editor/browser/view/viewController';
 import { ViewEventDispatcher } from 'vs/editor/common/view/viewEventDispatcher';
 import { ContentViewOverlays, MarginViewOverlays } from 'vs/editor/browser/view/viewOverlays';
 import { ViewContentWidgets } from 'vs/editor/browser/viewParts/contentWidgets/contentWidgets';
@@ -51,13 +51,15 @@ import { IMouseEvent } from 'vs/base/browser/mouseEvent';
 
 export interface IContentWidgetData {
 	widget: editorBrowser.IContentWidget;
-	position: editorBrowser.IContentWidgetPosition;
+	position: editorBrowser.IContentWidgetPosition | null;
 }
 
 export interface IOverlayWidgetData {
 	widget: editorBrowser.IOverlayWidget;
-	position: editorBrowser.IOverlayWidgetPosition;
+	position: editorBrowser.IOverlayWidgetPosition | null;
 }
+
+const invalidFunc = () => { throw new Error(`Invalid change accessor`); };
 
 export class View extends ViewEventHandler {
 
@@ -88,7 +90,7 @@ export class View extends ViewEventHandler {
 	private overflowGuardContainer: FastDomNode<HTMLElement>;
 
 	// Actual mutable state
-	private _renderAnimationFrame: IDisposable;
+	private _renderAnimationFrame: IDisposable | null;
 
 	constructor(
 		commandDelegate: ICommandDelegate,
@@ -96,14 +98,14 @@ export class View extends ViewEventHandler {
 		themeService: IThemeService,
 		model: IViewModel,
 		cursor: Cursor,
-		execCoreEditorCommandFunc: ExecCoreEditorCommandFunc
+		outgoingEvents: ViewOutgoingEvents
 	) {
 		super();
 		this._cursor = cursor;
 		this._renderAnimationFrame = null;
-		this.outgoingEvents = new ViewOutgoingEvents(model);
+		this.outgoingEvents = outgoingEvents;
 
-		let viewController = new ViewController(configuration, model, execCoreEditorCommandFunc, this.outgoingEvents, commandDelegate);
+		let viewController = new ViewController(configuration, model, this.outgoingEvents, commandDelegate);
 
 		// The event dispatcher will always go through _renderOnce before dispatching any events
 		this.eventDispatcher = new ViewEventDispatcher((callback: () => void) => this._renderOnce(callback));
@@ -462,12 +464,8 @@ export class View extends ViewEventHandler {
 		return visibleRange.left;
 	}
 
-	public getTargetAtClientPoint(clientX: number, clientY: number): editorBrowser.IMouseTarget {
+	public getTargetAtClientPoint(clientX: number, clientY: number): editorBrowser.IMouseTarget | null {
 		return this.pointerHandler.getTargetAtClientPoint(clientX, clientY);
-	}
-
-	public getInternalEventBus(): ViewOutgoingEvents {
-		return this.outgoingEvents;
 	}
 
 	public createOverviewRuler(cssClassName: string): OverviewRuler {
@@ -500,8 +498,9 @@ export class View extends ViewEventHandler {
 			safeInvoke1Arg(callback, changeAccessor);
 
 			// Invalidate changeAccessor
-			changeAccessor.addZone = null;
-			changeAccessor.removeZone = null;
+			changeAccessor.addZone = invalidFunc;
+			changeAccessor.removeZone = invalidFunc;
+			changeAccessor.layoutZone = invalidFunc;
 
 			if (zonesHaveChanged) {
 				this._context.viewLayout.onHeightMaybeChanged();

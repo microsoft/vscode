@@ -560,7 +560,7 @@ export class GridView implements IDisposable {
 	get maximumWidth(): number { return this.root.maximumHeight; }
 	get maximumHeight(): number { return this.root.maximumHeight; }
 
-	private _onDidChange = new Relay<{ width: number; height: number; }>();
+	private _onDidChange = new Relay<{ width: number; height: number; } | undefined>();
 	readonly onDidChange = this._onDidChange.event;
 
 	constructor(options: IGridViewOptions = {}) {
