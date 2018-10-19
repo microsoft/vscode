@@ -352,14 +352,17 @@ export class TerminalTaskSystem implements ITaskSystem {
 				if (error || !terminal) {
 					return;
 				}
-				let processStartedSignaled: boolean = false;
-				terminal.processReady.then(() => {
-					processStartedSignaled = true;
-					this._onDidStateChange.fire(TaskEvent.create(TaskEventKind.ProcessStarted, task, terminal.processId));
-				}, (_error) => {
-					// The process never got ready. Need to think how to handle this.
+				const processStartedSignaled = new Promise<boolean>(c => {
+					terminal.processReady.then(() => {
+						this._onDidStateChange.fire(TaskEvent.create(TaskEventKind.ProcessStarted, task, terminal.processId));
+						this._onDidStateChange.fire(TaskEvent.create(TaskEventKind.Start, task));
+						c(true);
+					}, (_error) => {
+						// The process never got ready. Need to think how to handle this.
+						this._onDidStateChange.fire(TaskEvent.create(TaskEventKind.Start, task));
+						c(false);
+					});
 				});
-				this._onDidStateChange.fire(TaskEvent.create(TaskEventKind.Start, task));
 				const registeredLinkMatchers = this.registerLinkMatchers(terminal, problemMatchers);
 				const onData = terminal.onLineData((line) => {
 					watchingProblemMatcher.processLine(line);
@@ -393,17 +396,20 @@ export class TerminalTaskSystem implements ITaskSystem {
 					watchingProblemMatcher.done();
 					watchingProblemMatcher.dispose();
 					registeredLinkMatchers.forEach(handle => terminal.deregisterLinkMatcher(handle));
-					if (processStartedSignaled) {
-						this._onDidStateChange.fire(TaskEvent.create(TaskEventKind.ProcessEnded, task, exitCode));
-					}
-					toDispose = dispose(toDispose);
-					toDispose = null;
-					for (let i = 0; i < eventCounter; i++) {
-						let event = TaskEvent.create(TaskEventKind.Inactive, task);
-						this._onDidStateChange.fire(event);
-					}
-					eventCounter = 0;
-					this._onDidStateChange.fire(TaskEvent.create(TaskEventKind.End, task));
+
+					processStartedSignaled.then((success: boolean) => {
+						if (success) {
+							this._onDidStateChange.fire(TaskEvent.create(TaskEventKind.ProcessEnded, task, exitCode));
+						}
+						for (let i = 0; i < eventCounter; i++) {
+							let event = TaskEvent.create(TaskEventKind.Inactive, task);
+							this._onDidStateChange.fire(event);
+						}
+						eventCounter = 0;
+						this._onDidStateChange.fire(TaskEvent.create(TaskEventKind.End, task));
+						toDispose = dispose(toDispose);
+						toDispose = null;
+					});
 					resolve({ exitCode });
 				});
 			});
@@ -413,17 +419,19 @@ export class TerminalTaskSystem implements ITaskSystem {
 				if (error || !terminal) {
 					return;
 				}
-				let processStartedSignaled = new Promise<boolean>(c => {
+				const processStartedSignaled = new Promise<boolean>(c => {
 					terminal.processReady.then(() => {
 						this._onDidStateChange.fire(TaskEvent.create(TaskEventKind.ProcessStarted, task, terminal.processId));
+						this._onDidStateChange.fire(TaskEvent.create(TaskEventKind.Start, task));
+						this._onDidStateChange.fire(TaskEvent.create(TaskEventKind.Active, task));
 						c(true);
 					}, (_error) => {
 						// The process never got ready. Need to think how to handle this.
+						this._onDidStateChange.fire(TaskEvent.create(TaskEventKind.Start, task));
+						this._onDidStateChange.fire(TaskEvent.create(TaskEventKind.Active, task));
 						c(false);
 					});
 				});
-				this._onDidStateChange.fire(TaskEvent.create(TaskEventKind.Start, task));
-				this._onDidStateChange.fire(TaskEvent.create(TaskEventKind.Active, task));
 				let problemMatchers = this.resolveMatchers(resolver, task.problemMatchers);
 				let startStopProblemMatcher = new StartStopProblemCollector(problemMatchers, this.markerService, this.modelService);
 				const registeredLinkMatchers = this.registerLinkMatchers(terminal, problemMatchers);
