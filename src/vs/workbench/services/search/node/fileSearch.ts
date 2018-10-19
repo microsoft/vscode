@@ -729,7 +729,7 @@ class AbsoluteAndRelativeParsedExpression {
 	}
 
 	public getBasenameTerms(): string[] {
-		const basenameTerms = [];
+		const basenameTerms: string[] = [];
 		if (this.absoluteParsedExpr) {
 			basenameTerms.push(...glob.getBasenameTerms(this.absoluteParsedExpr));
 		}
