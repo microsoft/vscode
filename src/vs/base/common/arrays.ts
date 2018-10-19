@@ -6,7 +6,6 @@
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { canceled } from 'vs/base/common/errors';
 import { ISplice } from 'vs/base/common/sequence';
-import { TPromise } from 'vs/base/common/winjs.base';
 
 /**
  * Returns the last element of an array.
@@ -261,12 +260,12 @@ export function top<T>(array: T[], compare: (a: T, b: T) => number, n: number): 
  * @param batch The number of elements to examine before yielding to the event loop.
  * @return The first n elemnts from array when sorted with compare.
  */
-export function topAsync<T>(array: T[], compare: (a: T, b: T) => number, n: number, batch: number, token?: CancellationToken): TPromise<T[]> {
+export function topAsync<T>(array: T[], compare: (a: T, b: T) => number, n: number, batch: number, token?: CancellationToken): Promise<T[]> {
 	if (n === 0) {
-		return TPromise.as([]);
+		return Promise.resolve([]);
 	}
 
-	return new TPromise((resolve, reject) => {
+	return new Promise((resolve, reject) => {
 		(async () => {
 			const o = array.length;
 			const result = array.slice(0, n).sort(compare);
