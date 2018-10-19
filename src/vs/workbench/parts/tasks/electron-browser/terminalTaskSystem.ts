@@ -683,6 +683,9 @@ export class TerminalTaskSystem implements ITaskSystem {
 		}
 		if (terminalToReuse) {
 			terminalToReuse.terminal.reuseTerminal(shellLaunchConfig);
+			if (task.command.presentation.clearBeforeExecuting) {
+				terminalToReuse.terminal.clear();
+			}
 			return [terminalToReuse.terminal, commandExecutable, undefined];
 		}
 

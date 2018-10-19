@@ -82,7 +82,8 @@ const presentation: IJSONSchema = {
 		reveal: 'always',
 		focus: false,
 		panel: 'shared',
-		showReuseMessage: true
+		showReuseMessage: true,
+		clearBeforeExecuting: false,
 	},
 	description: nls.localize('JsonSchema.tasks.presentation', 'Configures the panel that is used to present the task\'s ouput and reads its input.'),
 	additionalProperties: false,
@@ -118,6 +119,11 @@ const presentation: IJSONSchema = {
 			type: 'boolean',
 			default: true,
 			description: nls.localize('JsonSchema.tasks.presentation.showReuseMessage', 'Controls whether to show the `Terminal will be reused by tasks, press any key to close it` message.')
+		},
+		clearBeforeExecuting: {
+			type: 'boolean',
+			default: false,
+			description: nls.localize('JsonSchema.tasks.presentation.clearBeforeExecuting', 'Controls whether the terminal is cleared before executing the task.')
 		}
 	}
 };
