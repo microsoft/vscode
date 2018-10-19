@@ -95,7 +95,7 @@ export class KillTerminalAction extends Action {
 	public run(event?: any): PromiseLike<any> {
 		const instance = this.terminalService.getActiveInstance();
 		if (instance) {
-			instance.dispose();
+			instance.dispose(true);
 			if (this.terminalService.terminalInstances.length > 0) {
 				this.terminalService.showPanel(true);
 			}
@@ -120,7 +120,7 @@ export class QuickKillTerminalAction extends Action {
 	public run(event?: any): Promise<any> {
 		const instance = this.terminalEntry.instance;
 		if (instance) {
-			instance.dispose();
+			instance.dispose(true);
 		}
 		return Promise.resolve(timeout(50)).then(result => this.quickOpenService.show(TERMINAL_PICKER_PREFIX, null));
 	}
