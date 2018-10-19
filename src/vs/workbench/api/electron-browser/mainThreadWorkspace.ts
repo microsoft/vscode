@@ -6,7 +6,6 @@
 import { isPromiseCanceledError } from 'vs/base/common/errors';
 import { dispose, IDisposable } from 'vs/base/common/lifecycle';
 import { URI, UriComponents } from 'vs/base/common/uri';
-import { TPromise } from 'vs/base/common/winjs.base';
 import { localize } from 'vs/nls';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -167,7 +166,7 @@ export class MainThreadWorkspace implements MainThreadWorkspaceShape {
 			return result.results.map(m => m.resource);
 		}, err => {
 			if (!isPromiseCanceledError(err)) {
-				return TPromise.wrapError(err);
+				return Promise.reject(err);
 			}
 			return undefined;
 		});
@@ -192,7 +191,7 @@ export class MainThreadWorkspace implements MainThreadWorkspaceShape {
 			},
 			err => {
 				if (!isPromiseCanceledError(err)) {
-					return TPromise.wrapError(err);
+					return Promise.reject(err);
 				}
 
 				return undefined;
@@ -215,7 +214,7 @@ export class MainThreadWorkspace implements MainThreadWorkspaceShape {
 			},
 			err => {
 				if (!isPromiseCanceledError(err)) {
-					return TPromise.wrapError(err);
+					return Promise.reject(err);
 				}
 
 				return undefined;
