@@ -86,7 +86,7 @@ export class QueryBuilder {
 		};
 	}
 
-	file(folderResources?: uri[], options?: IFileQueryBuilderOptions): IFileQuery {
+	file(folderResources: uri[] | undefined, options: IFileQueryBuilderOptions): IFileQuery {
 		const commonQuery = this.commonQuery(folderResources, options);
 		return <IFileQuery>{
 			...commonQuery,
@@ -101,8 +101,8 @@ export class QueryBuilder {
 	}
 
 	private commonQuery(folderResources?: uri[], options: ICommonQueryBuilderOptions = {}): ICommonQueryProps<uri> {
-		let { searchPaths, pattern: includePattern } = this.parseSearchPaths(options.includePattern);
-		let excludePattern = this.parseExcludePattern(options.excludePattern);
+		let { searchPaths, pattern: includePattern } = this.parseSearchPaths(options.includePattern || '');
+		let excludePattern = this.parseExcludePattern(options.excludePattern || '');
 
 		// Build folderQueries from searchPaths, if given, otherwise folderResources
 		let folderQueries = folderResources && folderResources.map(uri => this.getFolderQueryForRoot(uri, options));
@@ -153,7 +153,7 @@ export class QueryBuilder {
 			}
 		}
 
-		return contentPattern.isCaseSensitive;
+		return !!contentPattern.isCaseSensitive;
 	}
 
 	private isMultiline(contentPattern: IPatternInfo): boolean {
@@ -364,7 +364,7 @@ function splitGlobFromPath(searchPath: string): { pathPortion: string, globPorti
 
 			return {
 				pathPortion,
-				globPortion: searchPath.substr(lastSlashMatch.index + 1)
+				globPortion: searchPath.substr((lastSlashMatch.index || 0) + 1)
 			};
 		}
 	}
