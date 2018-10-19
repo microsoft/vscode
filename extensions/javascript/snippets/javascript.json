@@ -141,7 +141,7 @@
 		"description": "Set Timeout Function"
 	},
 	"Set Interval Function": {
-		"prefix": "setinverval",
+		"prefix": "setinterval",
 		"body": [
 			"setInterval(() => {",
 			"\t$0",
