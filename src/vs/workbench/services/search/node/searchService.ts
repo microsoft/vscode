@@ -320,7 +320,8 @@ export class SearchService extends Disposable implements ISearchService {
 						"filesWalked" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
 						"cmdTime" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
 						"cmdResultCount" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
-						"scheme" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" }
+						"scheme" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
+						"useRipgrep" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" }
 					}
 				 */
 				this.telemetryService.publicLog('searchComplete', {
@@ -336,7 +337,8 @@ export class SearchService extends Disposable implements ISearchService {
 					filesWalked: searchEngineStats.filesWalked,
 					cmdTime: searchEngineStats.cmdTime,
 					cmdResultCount: searchEngineStats.cmdResultCount,
-					scheme
+					scheme,
+					useRipgrep: query.useRipgrep
 				});
 			}
 		} else if (query.type === QueryType.Text) {
@@ -355,7 +357,9 @@ export class SearchService extends Disposable implements ISearchService {
 					"workspaceFolderCount" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
 					"endToEndTime" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
 					"scheme" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
-					"error" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" }
+					"error" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
+					"useRipgrep" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
+					"usePCRE2" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" }
 				}
 			 */
 			this.telemetryService.publicLog('textSearchComplete', {
@@ -363,7 +367,9 @@ export class SearchService extends Disposable implements ISearchService {
 				workspaceFolderCount: query.folderQueries.length,
 				endToEndTime: endToEndTime,
 				scheme,
-				error: errorType
+				error: errorType,
+				useRipgrep: query.useRipgrep,
+				usePCRE2: query.usePCRE2
 			});
 		}
 	}
