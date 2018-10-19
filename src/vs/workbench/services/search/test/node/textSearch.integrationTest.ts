@@ -332,6 +332,72 @@ suite('Search-integration', function () {
 
 		return doSearchTest(config, 286);
 	});
+
+	suite('error messages', () => {
+		test('invalid encoding', () => {
+			const config = <ITextQuery>{
+				type: QueryType.Text,
+				folderQueries: [
+					{
+						...TEST_ROOT_FOLDER,
+						fileEncoding: 'invalidEncoding'
+					}
+				],
+				contentPattern: { pattern: 'test' },
+			};
+
+			return doRipgrepSearchTest(config, 0).then(() => {
+				throw new Error('expected fail');
+			}, err => {
+				assert.equal(err.message, 'Unknown encoding: invalidEncoding');
+			});
+		});
+
+		test('invalid regex', () => {
+			const config = <ITextQuery>{
+				type: QueryType.Text,
+				folderQueries: ROOT_FOLDER_QUERY,
+				contentPattern: { pattern: ')', isRegExp: true },
+			};
+
+			return doRipgrepSearchTest(config, 0).then(() => {
+				throw new Error('expected fail');
+			}, err => {
+				assert.equal(err.message, 'Regex parse error');
+			});
+		});
+
+		test('invalid glob', () => {
+			const config = <ITextQuery>{
+				type: QueryType.Text,
+				folderQueries: ROOT_FOLDER_QUERY,
+				contentPattern: { pattern: 'foo' },
+				includePattern: {
+					'***': true
+				}
+			};
+
+			return doRipgrepSearchTest(config, 0).then(() => {
+				throw new Error('expected fail');
+			}, err => {
+				assert.equal(err.message, 'Error parsing glob \'***\': invalid use of **; must be one path component');
+			});
+		});
+
+		test('invalid literal', () => {
+			const config = <ITextQuery>{
+				type: QueryType.Text,
+				folderQueries: ROOT_FOLDER_QUERY,
+				contentPattern: { pattern: 'foo\nbar', isRegExp: true }
+			};
+
+			return doRipgrepSearchTest(config, 0).then(() => {
+				throw new Error('expected fail');
+			}, err => {
+				assert.equal(err.message, 'The literal \'"\\n"\' is not allowed in a regex');
+			});
+		});
+	});
 });
 
 function makeExpression(...patterns: string[]): glob.IExpression {

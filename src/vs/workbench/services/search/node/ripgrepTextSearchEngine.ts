@@ -122,8 +122,12 @@ export function rgErrorMsgForDisplay(msg: string): Maybe<string> {
 		return firstLine;
 	}
 
-	if (startsWith(firstLine, 'error parsing glob') ||
-		startsWith(firstLine, 'unsupported encoding')) {
+	let match = firstLine.match(/grep config error: unknown encoding: (.*)/);
+	if (match) {
+		return `Unknown encoding: ${match[1]}`;
+	}
+
+	if (startsWith(firstLine, 'error parsing glob')) {
 		// Uppercase first letter
 		return firstLine.charAt(0).toUpperCase() + firstLine.substr(1);
 	}
