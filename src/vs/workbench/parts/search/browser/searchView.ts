@@ -1053,6 +1053,7 @@ export class SearchView extends Viewlet implements IViewlet, IPanel {
 			250;
 
 		const options: ITextQueryBuilderOptions = {
+			_reason: 'searchView',
 			extraFileResources: getOutOfWorkspaceEditorResources(this.editorService, this.contextService),
 			maxResults: SearchView.MAX_TEXT_RESULTS,
 			disregardIgnoreFiles: !useExcludesAndIgnoreFiles,

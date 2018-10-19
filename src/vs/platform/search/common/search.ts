@@ -73,6 +73,9 @@ export interface IFolderQuery<U extends UriComponents=uri> {
 }
 
 export interface ICommonQueryProps<U extends UriComponents> {
+	/** For telemetry - indicates what is triggering the source */
+	_reason?: string;
+
 	folderQueries?: IFolderQuery<U>[];
 	includePattern?: glob.IExpression;
 	excludePattern?: glob.IExpression;

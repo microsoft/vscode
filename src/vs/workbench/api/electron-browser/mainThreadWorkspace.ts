@@ -150,7 +150,8 @@ export class MainThreadWorkspace implements MainThreadWorkspaceShape {
 			type: QueryType.File,
 			maxResults,
 			disregardExcludeSettings: excludePatternOrDisregardExcludes === false,
-			useRipgrep
+			useRipgrep,
+			_reason: 'startFileSearch'
 		};
 		if (typeof includePattern === 'string') {
 			query.includePattern = { [includePattern]: true };
@@ -178,6 +179,7 @@ export class MainThreadWorkspace implements MainThreadWorkspaceShape {
 
 		const queryBuilder = this._instantiationService.createInstance(QueryBuilder);
 		const query = queryBuilder.text(pattern, folders, options);
+		query._reason = 'startTextSearch';
 
 		const onProgress = (p: ISearchProgressItem) => {
 			if (p.matches) {
@@ -204,6 +206,7 @@ export class MainThreadWorkspace implements MainThreadWorkspaceShape {
 		const queryBuilder = this._instantiationService.createInstance(QueryBuilder);
 		const folders = this._contextService.getWorkspace().folders.map(folder => folder.uri);
 		const query = queryBuilder.file(folders, {
+			_reason: 'checkExists',
 			includePattern: includes.join(', '),
 			exists: true
 		});

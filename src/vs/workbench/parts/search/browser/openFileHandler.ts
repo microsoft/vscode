@@ -202,6 +202,7 @@ export class OpenFileHandler extends QuickOpenHandler {
 
 	private doResolveQueryOptions(query: IPreparedQuery, cacheKey?: string, maxSortedResults?: number): IFileQueryBuilderOptions {
 		const queryOptions: IFileQueryBuilderOptions = {
+			_reason: 'openFileHandler',
 			extraFileResources: getOutOfWorkspaceEditorResources(this.editorService, this.contextService),
 			filePattern: query.value,
 			cacheKey
@@ -226,6 +227,7 @@ export class OpenFileHandler extends QuickOpenHandler {
 
 	private cacheQuery(cacheKey: string): IFileQuery {
 		const options: IFileQueryBuilderOptions = {
+			_reason: 'openFileHandler',
 			extraFileResources: getOutOfWorkspaceEditorResources(this.editorService, this.contextService),
 			filePattern: '',
 			cacheKey: cacheKey,

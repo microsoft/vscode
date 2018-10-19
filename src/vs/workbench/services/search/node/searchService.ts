@@ -121,7 +121,7 @@ export class SearchService extends Disposable implements ISearchService {
 		return this.doSearch(query, token);
 	}
 
-	private doSearch(query: ITextQuery | IFileQuery, token?: CancellationToken, onProgress?: (item: ISearchProgressItem) => void): TPromise<ISearchComplete> {
+	private doSearch(query: ISearchQuery, token?: CancellationToken, onProgress?: (item: ISearchProgressItem) => void): TPromise<ISearchComplete> {
 		const schemesInQuery = this.getSchemesInQuery(query);
 
 		const providerActivations: TPromise<any>[] = [TPromise.wrap(null)];
@@ -266,6 +266,7 @@ export class SearchService extends Disposable implements ISearchService {
 
 				/* __GDPR__
 					"cachedSearchComplete" : {
+						"reason" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth"  },
 						"resultCount" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true  },
 						"workspaceFolderCount" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true  },
 						"type" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
@@ -279,6 +280,7 @@ export class SearchService extends Disposable implements ISearchService {
 					}
 				 */
 				this.telemetryService.publicLog('cachedSearchComplete', {
+					reason: query._reason,
 					resultCount: fileSearchStats.resultCount,
 					workspaceFolderCount: query.folderQueries.length,
 					type: fileSearchStats.type,
@@ -295,6 +297,7 @@ export class SearchService extends Disposable implements ISearchService {
 
 				/* __GDPR__
 					"searchComplete" : {
+						"reason" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
 						"resultCount" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
 						"workspaceFolderCount" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
 						"type" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
@@ -310,6 +313,7 @@ export class SearchService extends Disposable implements ISearchService {
 					}
 				 */
 				this.telemetryService.publicLog('searchComplete', {
+					reason: query._reason,
 					resultCount: fileSearchStats.resultCount,
 					workspaceFolderCount: query.folderQueries.length,
 					type: fileSearchStats.type,

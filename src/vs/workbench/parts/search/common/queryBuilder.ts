@@ -30,6 +30,7 @@ export interface ISearchPathsResult {
 }
 
 export interface ICommonQueryBuilderOptions {
+	_reason?: string;
 	excludePattern?: string;
 	includePattern?: string;
 	extraFileResources?: uri[];
@@ -115,6 +116,7 @@ export class QueryBuilder {
 		});
 
 		const queryProps: ICommonQueryProps<uri> = {
+			_reason: options._reason,
 			folderQueries: folderQueries || [],
 			usingSearchPaths: !!(searchPaths && searchPaths.length),
 			extraFileResources: options.extraFileResources,
