@@ -295,7 +295,7 @@ export abstract class AbstractContextKeyService implements IContextKeyService {
 		}
 	}
 
-	public getContext(target: IContextKeyServiceTarget): IContext {
+	public getContext(target: IContextKeyServiceTarget | null): IContext {
 		if (this._isDisposed) {
 			return NullContext.INSTANCE;
 		}

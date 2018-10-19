@@ -581,7 +581,7 @@ export interface IContextKeyService {
 	getContextKeyValue<T>(key: string): T | undefined;
 
 	createScoped(target?: IContextKeyServiceTarget): IContextKeyService;
-	getContext(target: IContextKeyServiceTarget): IContext;
+	getContext(target: IContextKeyServiceTarget | null): IContext;
 }
 
 export const SET_CONTEXT_COMMAND_ID = 'setContext';
