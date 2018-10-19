@@ -410,9 +410,10 @@ export interface ITerminalInstance {
 	/**
 	 * Dispose the terminal instance, removing it from the panel/service and freeing up resources.
 	 *
-	 * @param immediate Whether the kill should be immediate or not. Immedeate should only be used
+	 * @param immediate Whether the kill should be immediate or not. Immediate should only be used
 	 * when VS Code is shutting down or in cases where the terminal dispose was user initiated.
-	 * If immediate kill any terminal processes immediately.
+	 * The immediate===false exists to cover an edge case where the final output of the terminal can
+	 * get cut off. If immediate kill any terminal processes immediately.
 	 */
 	dispose(immediate?: boolean): void;
 
