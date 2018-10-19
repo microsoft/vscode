@@ -220,6 +220,20 @@ export class DeleteWordRightTerminalAction extends BaseSendTextTerminalAction {
 	}
 }
 
+export class DeleteToLineStartTerminalAction extends BaseSendTextTerminalAction {
+	public static readonly ID = TERMINAL_COMMAND_ID.DELETE_TO_LINE_START;
+	public static readonly LABEL = nls.localize('workbench.action.terminal.deleteToLineStart', "Delete to Line Start");
+
+	constructor(
+		id: string,
+		label: string,
+		@ITerminalService terminalService: ITerminalService
+	) {
+		// Send ctrl+u
+		super(id, label, '\u0015', terminalService);
+	}
+}
+
 export class MoveToLineStartTerminalAction extends BaseSendTextTerminalAction {
 	public static readonly ID = TERMINAL_COMMAND_ID.MOVE_TO_LINE_START;
 	public static readonly LABEL = nls.localize('workbench.action.terminal.moveToLineStart', "Move To Line Start");
