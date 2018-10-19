@@ -413,12 +413,14 @@ export class TerminalTaskSystem implements ITaskSystem {
 				if (error || !terminal) {
 					return;
 				}
-				let processStartedSignaled: boolean = false;
-				terminal.processReady.then(() => {
-					processStartedSignaled = true;
-					this._onDidStateChange.fire(TaskEvent.create(TaskEventKind.ProcessStarted, task, terminal.processId));
-				}, (_error) => {
-					// The process never got ready. Need to think how to handle this.
+				let processStartedSignaled = new Promise<boolean>(c => {
+					terminal.processReady.then(() => {
+						this._onDidStateChange.fire(TaskEvent.create(TaskEventKind.ProcessStarted, task, terminal.processId));
+						c(true);
+					}, (_error) => {
+						// The process never got ready. Need to think how to handle this.
+						c(false);
+					});
 				});
 				this._onDidStateChange.fire(TaskEvent.create(TaskEventKind.Start, task));
 				this._onDidStateChange.fire(TaskEvent.create(TaskEventKind.Active, task));
@@ -450,11 +452,13 @@ export class TerminalTaskSystem implements ITaskSystem {
 					startStopProblemMatcher.done();
 					startStopProblemMatcher.dispose();
 					registeredLinkMatchers.forEach(handle => terminal.deregisterLinkMatcher(handle));
-					if (processStartedSignaled) {
-						this._onDidStateChange.fire(TaskEvent.create(TaskEventKind.ProcessEnded, task, exitCode));
-					}
-					this._onDidStateChange.fire(TaskEvent.create(TaskEventKind.Inactive, task));
-					this._onDidStateChange.fire(TaskEvent.create(TaskEventKind.End, task));
+					processStartedSignaled.then((success: boolean) => {
+						if (success) {
+							this._onDidStateChange.fire(TaskEvent.create(TaskEventKind.ProcessEnded, task, exitCode));
+						}
+						this._onDidStateChange.fire(TaskEvent.create(TaskEventKind.Inactive, task));
+						this._onDidStateChange.fire(TaskEvent.create(TaskEventKind.End, task));
+					});
 					resolve({ exitCode });
 				});
 			});
