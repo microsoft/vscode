@@ -1044,7 +1044,12 @@ export class ReloadAction extends Action {
 				.then(runningExtensions => this.computeReloadState(runningExtensions, installed));
 		}).then(() => {
 			this.class = this.enabled ? ReloadAction.EnabledClass : ReloadAction.DisabledClass;
-			this.label = this.useLongLabel ? this.tooltip : localize('reloadAction', "Reload");
+			if (this.useLongLabel) {
+				this.label = this.tooltip;
+				this.tooltip = '';
+			} else {
+				this.label = localize('reloadAction', "Reload");
+			}
 		});
 	}
 
