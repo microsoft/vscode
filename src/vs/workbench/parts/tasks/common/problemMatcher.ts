@@ -184,11 +184,14 @@ export interface HandleResult {
 
 export function getResource(filename: string, matcher: ProblemMatcher): URI {
 	let kind = matcher.fileLocation;
-	let fullPath: string = '';
+	let fullPath: string | undefined;
 	if (kind === FileLocationKind.Absolute) {
 		fullPath = filename;
 	} else if ((kind === FileLocationKind.Relative) && matcher.filePrefix) {
 		fullPath = Paths.join(matcher.filePrefix, filename);
+	}
+	if (fullPath === void 0) {
+		throw new Error('FileLocationKind is not actionable. Does the matcher have a filePrefix? This should never happen.');
 	}
 	fullPath = fullPath.replace(/\\/g, '/');
 	if (fullPath[0] !== '/') {
@@ -435,7 +438,7 @@ class MultiLineMatcher extends AbstractLineMatcher {
 		Assert.ok(lines.length - start === this.patterns.length);
 		this.data = Object.create(null);
 		let data = this.data!;
-		data.kind! = this.patterns[0].kind!;
+		data.kind = this.patterns[0].kind;
 		for (let i = 0; i < this.patterns.length; i++) {
 			let pattern = this.patterns[i];
 			let matches = pattern.regexp.exec(lines[i + start]);
@@ -636,7 +639,7 @@ export namespace Config {
 		}
 	}
 
-	export interface NamedMultiLineProblemPattern {
+	export interface NamedMultiLineCheckedProblemPattern {
 		/**
 		 * The name of the problem pattern.
 		 */
@@ -653,14 +656,14 @@ export namespace Config {
 		patterns: MultiLineCheckedProblemPattern;
 	}
 
-	export namespace NamedMultiLineProblemPattern {
-		export function is(value: any): value is NamedMultiLineProblemPattern {
-			let candidate = value as NamedMultiLineProblemPattern;
-			return candidate && Types.isString(candidate.name) && Types.isArray(candidate.patterns);
+	export namespace NamedMultiLineCheckedProblemPattern {
+		export function is(value: any): value is NamedMultiLineCheckedProblemPattern {
+			let candidate = value as NamedMultiLineCheckedProblemPattern;
+			return candidate && Types.isString(candidate.name) && Types.isArray(candidate.patterns) && MultiLineCheckedProblemPattern.is(candidate.patterns);
 		}
 	}
 
-	export type NamedProblemPatterns = (Config.NamedProblemPattern | Config.NamedMultiLineProblemPattern)[];
+	export type NamedProblemPatterns = (Config.NamedProblemPattern | Config.NamedMultiLineCheckedProblemPattern)[];
 
 	/**
 	* A watching pattern
@@ -819,9 +822,14 @@ export class ProblemPatternParser extends Parser {
 	public parse(value: Config.ProblemPattern): ProblemPattern;
 	public parse(value: Config.MultiLineProblemPattern): MultiLineProblemPattern;
 	public parse(value: Config.NamedProblemPattern): NamedProblemPattern;
-	public parse(value: Config.NamedMultiLineProblemPattern): NamedMultiLineProblemPattern;
-	public parse(value: Config.ProblemPattern | Config.MultiLineProblemPattern | Config.NamedProblemPattern | Config.NamedMultiLineProblemPattern): any {
-		if (Config.NamedMultiLineProblemPattern.is(value)) {
+	public parse(value: Config.NamedMultiLineCheckedProblemPattern): NamedMultiLineProblemPattern;
+	public parse(value: Config.ProblemPattern | Config.MultiLineProblemPattern | Config.NamedProblemPattern | Config.NamedMultiLineCheckedProblemPattern): any {
+		if ((Config.MultiLineProblemPattern.is(value) && !Config.MultiLineCheckedProblemPattern.is(value)) ||
+			(!Config.MultiLineProblemPattern.is(value) && !Config.CheckedProblemPattern.is(value))) {
+			this.error(localize('ProblemPatternParser.problemPattern.missingRegExp', 'The problem pattern is missing a regular expression.'));
+		}
+
+		if (Config.NamedMultiLineCheckedProblemPattern.is(value)) {
 			return this.createNamedMultiLineProblemPattern(value);
 		} else if (Config.MultiLineCheckedProblemPattern.is(value)) {
 			return this.createMultiLineProblemPattern(value);
@@ -844,7 +852,7 @@ export class ProblemPatternParser extends Parser {
 		return this.validateProblemPattern([result]) ? result : null;
 	}
 
-	private createNamedMultiLineProblemPattern(value: Config.NamedMultiLineProblemPattern): NamedMultiLineProblemPattern | null {
+	private createNamedMultiLineProblemPattern(value: Config.NamedMultiLineCheckedProblemPattern): NamedMultiLineProblemPattern | null {
 		const validPatterns = this.createMultiLineProblemPattern(value.patterns);
 		if (!validPatterns) {
 			return null;
@@ -876,9 +884,11 @@ export class ProblemPatternParser extends Parser {
 	}
 
 	private doCreateSingleProblemPattern(value: Config.CheckedProblemPattern, setDefaults: boolean): ProblemPattern {
-		let result: ProblemPattern = {
-			regexp: this.createRegularExpression(value.regexp),
-		};
+		const regexp = this.createRegularExpression(value.regexp);
+		if (regexp === void 0) {
+			throw new Error('Invalid regular expression');
+		}
+		let result: ProblemPattern = { regexp };
 		if (value.kind) {
 			result.kind = ProblemLocationKind.fromString(value.kind);
 		}
@@ -945,14 +955,14 @@ export class ProblemPatternParser extends Parser {
 		return true;
 	}
 
-	private createRegularExpression(value: string): RegExp {
-		let result: RegExp;
+	private createRegularExpression(value: string): RegExp | undefined {
+		let result: RegExp | undefined;
 		try {
 			result = new RegExp(value);
 		} catch (err) {
 			this.error(localize('ProblemPatternParser.invalidRegexp', 'Error: The string {0} is not a valid regular expression.\n', value));
 		}
-		return result!;
+		return result;
 	}
 }
 
@@ -1049,13 +1059,11 @@ export namespace Schemas {
 	};
 
 	export const NamedProblemPattern: IJSONSchema = Objects.deepClone(ProblemPattern);
-	NamedProblemPattern.properties = Objects.deepClone(NamedProblemPattern.properties);
-	if (NamedProblemPattern.properties) {
-		NamedProblemPattern.properties['name'] = {
-			type: 'string',
-			description: localize('NamedProblemPatternSchema.name', 'The name of the problem pattern.')
-		};
-	}
+	NamedProblemPattern.properties = Objects.deepClone(NamedProblemPattern.properties) || {};
+	NamedProblemPattern.properties['name'] = {
+		type: 'string',
+		description: localize('NamedProblemPatternSchema.name', 'The name of the problem pattern.')
+	};
 
 	export const MultiLineProblemPattern: IJSONSchema = {
 		type: 'array',
@@ -1112,7 +1120,7 @@ class ProblemPatternRegistryImpl implements IProblemPatternRegistry {
 						let problemPatterns = extension.value as Config.NamedProblemPatterns;
 						let parser = new ProblemPatternParser(new ExtensionRegistryReporter(extension.collector));
 						for (let pattern of problemPatterns) {
-							if (Config.NamedMultiLineProblemPattern.is(pattern)) {
+							if (Config.NamedMultiLineCheckedProblemPattern.is(pattern)) {
 								let result = parser.parse(pattern);
 								if (parser.problemReporter.status.state < ValidationState.Error) {
 									this.add(result.name, result.patterns);
@@ -1633,32 +1641,28 @@ export namespace Schemas {
 	};
 
 	export const LegacyProblemMatcher: IJSONSchema = Objects.deepClone(ProblemMatcher);
-	LegacyProblemMatcher.properties = Objects.deepClone(LegacyProblemMatcher.properties);
-	if (LegacyProblemMatcher.properties) {
-		LegacyProblemMatcher.properties['watchedTaskBeginsRegExp'] = {
-			type: 'string',
-			deprecationMessage: localize('LegacyProblemMatcherSchema.watchedBegin.deprecated', 'This property is deprecated. Use the watching property instead.'),
-			description: localize('LegacyProblemMatcherSchema.watchedBegin', 'A regular expression signaling that a watched tasks begins executing triggered through file watching.')
-		};
-		LegacyProblemMatcher.properties['watchedTaskEndsRegExp'] = {
-			type: 'string',
-			deprecationMessage: localize('LegacyProblemMatcherSchema.watchedEnd.deprecated', 'This property is deprecated. Use the watching property instead.'),
-			description: localize('LegacyProblemMatcherSchema.watchedEnd', 'A regular expression signaling that a watched tasks ends executing.')
-		};
-	}
+	LegacyProblemMatcher.properties = Objects.deepClone(LegacyProblemMatcher.properties) || {};
+	LegacyProblemMatcher.properties['watchedTaskBeginsRegExp'] = {
+		type: 'string',
+		deprecationMessage: localize('LegacyProblemMatcherSchema.watchedBegin.deprecated', 'This property is deprecated. Use the watching property instead.'),
+		description: localize('LegacyProblemMatcherSchema.watchedBegin', 'A regular expression signaling that a watched tasks begins executing triggered through file watching.')
+	};
+	LegacyProblemMatcher.properties['watchedTaskEndsRegExp'] = {
+		type: 'string',
+		deprecationMessage: localize('LegacyProblemMatcherSchema.watchedEnd.deprecated', 'This property is deprecated. Use the watching property instead.'),
+		description: localize('LegacyProblemMatcherSchema.watchedEnd', 'A regular expression signaling that a watched tasks ends executing.')
+	};
 
 	export const NamedProblemMatcher: IJSONSchema = Objects.deepClone(ProblemMatcher);
-	NamedProblemMatcher.properties = Objects.deepClone(NamedProblemMatcher.properties);
-	if (NamedProblemMatcher.properties) {
-		NamedProblemMatcher.properties.name = {
-			type: 'string',
-			description: localize('NamedProblemMatcherSchema.name', 'The name of the problem matcher used to refer to it.')
-		};
-		NamedProblemMatcher.properties.label = {
-			type: 'string',
-			description: localize('NamedProblemMatcherSchema.label', 'A human readable label of the problem matcher.')
-		};
-	}
+	NamedProblemMatcher.properties = Objects.deepClone(NamedProblemMatcher.properties) || {};
+	NamedProblemMatcher.properties.name = {
+		type: 'string',
+		description: localize('NamedProblemMatcherSchema.name', 'The name of the problem matcher used to refer to it.')
+	};
+	NamedProblemMatcher.properties.label = {
+		type: 'string',
+		description: localize('NamedProblemMatcherSchema.label', 'A human readable label of the problem matcher.')
+	};
 }
 
 let problemMatchersExtPoint = ExtensionsRegistry.registerExtensionPoint<Config.NamedProblemMatcher[]>('problemMatchers', [problemPatternExtPoint], {
