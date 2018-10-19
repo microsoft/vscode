@@ -119,6 +119,17 @@ suite('Search-integration', function () {
 		return doSearchTest(config, 4);
 	});
 
+	test('Text: GameOfLife (PCRE2 RegExp)', () => {
+		const config = <ITextQuery>{
+			type: QueryType.Text,
+			folderQueries: ROOT_FOLDER_QUERY,
+			usePCRE2: true,
+			contentPattern: { pattern: 'Life(?!P)', isRegExp: true }
+		};
+
+		return doSearchTest(config, 8);
+	});
+
 	test('Text: GameOfLife (RegExp to EOL)', () => {
 		const config = <ITextQuery>{
 			type: QueryType.Text,
