@@ -236,6 +236,17 @@ export class SearchService extends Disposable implements ISearchService {
 				this.sendTelemetry(query, endToEndTime, complete);
 			});
 			return completes;
+		}, errs => {
+			const endToEndTime = e2eSW.elapsed();
+			this.logService.trace(`SearchService#search: ${endToEndTime}ms`);
+			errs = errs
+				.filter(e => !!e);
+
+			errs.forEach(e => {
+				this.sendTelemetry(query, endToEndTime, null, e);
+			});
+
+			throw errs[0];
 		});
 	}
 
@@ -252,14 +263,14 @@ export class SearchService extends Disposable implements ISearchService {
 		return queries;
 	}
 
-	private sendTelemetry(query: ISearchQuery, endToEndTime: number, complete: ISearchComplete): void {
+	private sendTelemetry(query: ISearchQuery, endToEndTime: number, complete?: ISearchComplete, err?: Error): void {
 		const fileSchemeOnly = query.folderQueries.every(fq => fq.folder.scheme === 'file');
 		const otherSchemeOnly = query.folderQueries.every(fq => fq.folder.scheme !== 'file');
 		const scheme = fileSchemeOnly ? 'file' :
 			otherSchemeOnly ? 'other' :
 				'mixed';
 
-		if (query.type === QueryType.File && complete.stats) {
+		if (query.type === QueryType.File && complete && complete.stats) {
 			const fileSearchStats = complete.stats as IFileSearchStats;
 			if (fileSearchStats.fromCache) {
 				const cacheStats: ICachedSearchStats = fileSearchStats.detailStats as ICachedSearchStats;
@@ -328,6 +339,32 @@ export class SearchService extends Disposable implements ISearchService {
 					scheme
 				});
 			}
+		} else if (query.type === QueryType.Text) {
+			let errorType: string;
+			if (err) {
+				errorType = err.message.indexOf('Regex parse error') >= 0 ? 'regex' :
+					err.message.indexOf('Unknown encoding') >= 0 ? 'encoding' :
+						err.message.indexOf('Error parsing glob') >= 0 ? 'glob' :
+							err.message.indexOf('The literal') >= 0 ? 'literal' :
+								'other';
+			}
+
+			/* __GDPR__
+				"textSearchComplete" : {
+					"reason" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
+					"workspaceFolderCount" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
+					"endToEndTime" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
+					"scheme" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
+					"error" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" }
+				}
+			 */
+			this.telemetryService.publicLog('textSearchComplete', {
+				reason: query._reason,
+				workspaceFolderCount: query.folderQueries.length,
+				endToEndTime: endToEndTime,
+				scheme,
+				error: errorType
+			});
 		}
 	}
 

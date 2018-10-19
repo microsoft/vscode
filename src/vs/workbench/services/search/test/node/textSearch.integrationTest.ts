@@ -65,29 +65,21 @@ function doLegacySearchTest(config: IRawSearch, expectedResultCount: number | Fu
 }
 
 function doRipgrepSearchTest(query: ITextQuery, expectedResultCount: number | Function): TPromise<void> {
-	return new TPromise<void>((resolve, reject) => {
-		let engine = new TextSearchEngineAdapter(query);
+	let engine = new TextSearchEngineAdapter(query);
 
-		let c = 0;
-		engine.search(new CancellationTokenSource().token, (results) => {
-			if (results) {
-				c += results.reduce((acc, cur) => acc + cur.numMatches, 0);
+	let c = 0;
+	return engine.search(new CancellationTokenSource().token, (results) => {
+		if (results) {
+			c += results.reduce((acc, cur) => acc + cur.numMatches, 0);
+		}
+	}, () => { }).then(
+		() => {
+			if (typeof expectedResultCount === 'function') {
+				assert(expectedResultCount(c));
+			} else {
+				assert.equal(c, expectedResultCount, `rg ${c} !== ${expectedResultCount}`);
 			}
-		}, () => { }, (error) => {
-			try {
-				assert.ok(!error);
-				if (typeof expectedResultCount === 'function') {
-					assert(expectedResultCount(c));
-				} else {
-					assert.equal(c, expectedResultCount, `rg ${c} !== ${expectedResultCount}`);
-				}
-			} catch (e) {
-				reject(e);
-			}
-
-			resolve(undefined);
 		});
-	});
 }
 
 function doSearchTest(query: ITextQuery, expectedResultCount: number) {

@@ -118,8 +118,8 @@ export class RipgrepTextSearchEngine {
 export function rgErrorMsgForDisplay(msg: string): Maybe<string> {
 	const firstLine = msg.split('\n')[0].trim();
 
-	if (startsWith(firstLine, 'Error parsing regex')) {
-		return firstLine;
+	if (startsWith(firstLine, 'regex parse error')) {
+		return 'Regex parse error';
 	}
 
 	let match = firstLine.match(/grep config error: unknown encoding: (.*)/);
@@ -127,19 +127,9 @@ export function rgErrorMsgForDisplay(msg: string): Maybe<string> {
 		return `Unknown encoding: ${match[1]}`;
 	}
 
-	if (startsWith(firstLine, 'error parsing glob')) {
+	if (startsWith(firstLine, 'error parsing glob') || startsWith(firstLine, 'the literal')) {
 		// Uppercase first letter
 		return firstLine.charAt(0).toUpperCase() + firstLine.substr(1);
-	}
-
-	if (firstLine === `Literal '\\n' not allowed.`) {
-		// I won't localize this because none of the Ripgrep error messages are localized
-		return `Literal '\\n' currently not supported`;
-	}
-
-	if (startsWith(firstLine, 'Literal ')) {
-		// Other unsupported chars
-		return firstLine;
 	}
 
 	return undefined;

@@ -76,7 +76,6 @@ export class QueryBuilder {
 			type: QueryType.Text,
 			contentPattern,
 			previewOptions: options && options.previewOptions,
-			fileEncoding: options && options.fileEncoding,
 			maxFileSize: options && options.maxFileSize,
 			usePCRE2: searchConfig.search.usePCRE2
 		};

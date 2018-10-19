@@ -15,17 +15,15 @@ export class TextSearchEngineAdapter {
 	constructor(private query: ITextQuery) {
 	}
 
-	// TODO@Rob - make promise-based once the old search is gone, and I don't need them to have matching interfaces anymore
-	search(token: CancellationToken, onResult: (matches: ISerializedFileMatch[]) => void, onMessage: (message: IProgress) => void, done: (error: Error, complete: ISerializedSearchSuccess) => void): void {
+	search(token: CancellationToken, onResult: (matches: ISerializedFileMatch[]) => void, onMessage: (message: IProgress) => void): Promise<ISerializedSearchSuccess> {
 		if (!this.query.folderQueries.length && !this.query.extraFileResources.length) {
-			done(null, {
+			return Promise.resolve(<ISerializedSearchSuccess>{
 				type: 'success',
 				limitHit: false,
 				stats: <ITextSearchStats>{
 					type: 'searchProcess'
 				}
 			});
-			return;
 		}
 
 		const pretendOutputChannel = {
@@ -34,13 +32,17 @@ export class TextSearchEngineAdapter {
 			}
 		};
 		const textSearchManager = new TextSearchManager(this.query, new RipgrepTextSearchEngine(pretendOutputChannel), extfs);
-		textSearchManager
-			.search(
-				matches => {
-					onResult(matches.map(fileMatchToSerialized));
-				},
-				token)
-			.then(() => done(null, { limitHit: false, stats: null, type: 'success' }));
+		return new Promise((resolve, reject) => {
+			return textSearchManager
+				.search(
+					matches => {
+						onResult(matches.map(fileMatchToSerialized));
+					},
+					token)
+				.then(
+					() => resolve({ limitHit: false, stats: null, type: 'success' }),
+					reject);
+		});
 	}
 }
 

@@ -107,7 +107,6 @@ export interface ITextQueryProps<U extends UriComponents> extends ICommonQueryPr
 	contentPattern?: IPatternInfo;
 
 	previewOptions?: ITextSearchPreviewOptions;
-	fileEncoding?: string;
 	maxFileSize?: number;
 	usePCRE2?: boolean;
 }

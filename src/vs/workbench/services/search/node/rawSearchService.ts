@@ -87,15 +87,7 @@ export class SearchService implements IRawSearchService {
 		config.maxFileSize = MAX_FILE_SIZE;
 		const engine = new TextSearchEngineAdapter(config);
 
-		return new Promise<ISerializedSearchSuccess>((c, e) => {
-			engine.search(token, progressCallback, progressCallback, (error, stats) => {
-				if (error) {
-					e(error);
-				} else {
-					c(stats);
-				}
-			});
-		});
+		return engine.search(token, progressCallback, progressCallback);
 	}
 
 	doFileSearch(EngineClass: { new(config: IRawSearch): ISearchEngine<IRawFileMatch>; }, config: IRawSearch, progressCallback: IProgressCallback, token?: CancellationToken, batchSize?: number): TPromise<ISerializedSearchSuccess> {
