@@ -55,7 +55,7 @@ export interface ITheme {
 	getColor(color: ColorIdentifier, useDefault?: boolean): Color | null;
 
 	/**
-	 * Returns wheter the theme defines a value for the color. If not, that means the
+	 * Returns whether the theme defines a value for the color. If not, that means the
 	 * default color will be used.
 	 */
 	defines(color: ColorIdentifier): boolean;
