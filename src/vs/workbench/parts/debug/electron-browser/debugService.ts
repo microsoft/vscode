@@ -1068,7 +1068,7 @@ export class DebugService implements IDebugService {
 
 	private telemetryDebugAddBreakpoint(breakpoint: IBreakpoint, context: string): TPromise<any> {
 		/* __GDPR__
-			"DebugAddBreakpoint" : {
+			"debugAddBreakpoint" : {
 				"type" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
 				"context": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
 			}
