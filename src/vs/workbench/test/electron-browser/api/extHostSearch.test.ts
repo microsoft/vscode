@@ -8,7 +8,6 @@ import { isPromiseCanceledError } from 'vs/base/common/errors';
 import { dispose } from 'vs/base/common/lifecycle';
 import { joinPath } from 'vs/base/common/resources';
 import { URI, UriComponents } from 'vs/base/common/uri';
-import { TPromise } from 'vs/base/common/winjs.base';
 import * as extfs from 'vs/base/node/extfs';
 import { IFileMatch, IFileQuery, IPatternInfo, IRawFileMatch2, ISearchCompleteStats, ISearchQuery, ITextQuery, QueryType } from 'vs/platform/search/common/search';
 import { MainContext, MainThreadSearchShape } from 'vs/workbench/api/node/extHost.protocol';
@@ -84,7 +83,7 @@ suite('ExtHostSearch', () => {
 			const cancellation = new CancellationTokenSource();
 			const p = extHostSearch.$provideFileSearchResults(mockMainThreadSearch.lastHandle, 0, query, cancellation.token);
 			if (cancel) {
-				await new TPromise(resolve => process.nextTick(resolve));
+				await new Promise(resolve => process.nextTick(resolve));
 				cancellation.cancel();
 			}
 
@@ -109,7 +108,7 @@ suite('ExtHostSearch', () => {
 			const cancellation = new CancellationTokenSource();
 			const p = extHostSearch.$provideTextSearchResults(mockMainThreadSearch.lastHandle, 0, query, cancellation.token);
 			if (cancel) {
-				await new TPromise(resolve => process.nextTick(resolve));
+				await new Promise(resolve => process.nextTick(resolve));
 				cancellation.cancel();
 			}
 
@@ -179,7 +178,7 @@ suite('ExtHostSearch', () => {
 		test('no results', async () => {
 			await registerTestFileSearchProvider({
 				provideFileSearchResults(query: vscode.FileSearchQuery, options: vscode.FileSearchOptions, token: vscode.CancellationToken): Thenable<URI[]> {
-					return TPromise.wrap(null);
+					return Promise.resolve(null);
 				}
 			});
 
@@ -197,7 +196,7 @@ suite('ExtHostSearch', () => {
 
 			await registerTestFileSearchProvider({
 				provideFileSearchResults(query: vscode.FileSearchQuery, options: vscode.FileSearchOptions, token: vscode.CancellationToken): Thenable<URI[]> {
-					return TPromise.wrap(reportedResults);
+					return Promise.resolve(reportedResults);
 				}
 			});
 
@@ -211,7 +210,7 @@ suite('ExtHostSearch', () => {
 			let cancelRequested = false;
 			await registerTestFileSearchProvider({
 				provideFileSearchResults(query: vscode.FileSearchQuery, options: vscode.FileSearchOptions, token: vscode.CancellationToken): Thenable<URI[]> {
-					return new TPromise((resolve, reject) => {
+					return new Promise((resolve, reject) => {
 						token.onCancellationRequested(() => {
 							cancelRequested = true;
 
@@ -245,7 +244,7 @@ suite('ExtHostSearch', () => {
 			await registerTestFileSearchProvider({
 				provideFileSearchResults(query: vscode.FileSearchQuery, options: vscode.FileSearchOptions, token: vscode.CancellationToken): Thenable<URI[]> {
 					assert(options.excludes.length === 2 && options.includes.length === 2, 'Missing global include/excludes');
-					return TPromise.wrap(null);
+					return Promise.resolve(null);
 				}
 			});
 
@@ -281,7 +280,7 @@ suite('ExtHostSearch', () => {
 						assert.deepEqual(options.excludes.sort(), ['*.js']);
 					}
 
-					return TPromise.wrap(null);
+					return Promise.resolve(null);
 				}
 			});
 
@@ -318,7 +317,7 @@ suite('ExtHostSearch', () => {
 					assert.deepEqual(options.includes.sort(), ['*.jsx', '*.ts']);
 					assert.deepEqual(options.excludes.sort(), []);
 
-					return TPromise.wrap(null);
+					return Promise.resolve(null);
 				}
 			});
 
@@ -358,7 +357,7 @@ suite('ExtHostSearch', () => {
 
 			await registerTestFileSearchProvider({
 				provideFileSearchResults(query: vscode.FileSearchQuery, options: vscode.FileSearchOptions, token: vscode.CancellationToken): Thenable<URI[]> {
-					return TPromise.wrap(reportedResults
+					return Promise.resolve(reportedResults
 						.map(relativePath => joinPath(options.folder, relativePath)));
 				}
 			});
@@ -404,7 +403,7 @@ suite('ExtHostSearch', () => {
 						].map(relativePath => joinPath(rootFolderB, relativePath));
 					}
 
-					return TPromise.wrap(reportedResults);
+					return Promise.resolve(reportedResults);
 				}
 			});
 
@@ -461,7 +460,7 @@ suite('ExtHostSearch', () => {
 				provideFileSearchResults(query: vscode.FileSearchQuery, options: vscode.FileSearchOptions, token: vscode.CancellationToken): Thenable<URI[]> {
 					token.onCancellationRequested(() => wasCanceled = true);
 
-					return TPromise.wrap(reportedResults);
+					return Promise.resolve(reportedResults);
 				}
 			});
 
@@ -497,7 +496,7 @@ suite('ExtHostSearch', () => {
 				provideFileSearchResults(query: vscode.FileSearchQuery, options: vscode.FileSearchOptions, token: vscode.CancellationToken): Thenable<URI[]> {
 					token.onCancellationRequested(() => wasCanceled = true);
 
-					return TPromise.wrap(reportedResults);
+					return Promise.resolve(reportedResults);
 				}
 			});
 
@@ -532,7 +531,7 @@ suite('ExtHostSearch', () => {
 				provideFileSearchResults(query: vscode.FileSearchQuery, options: vscode.FileSearchOptions, token: vscode.CancellationToken): Thenable<URI[]> {
 					token.onCancellationRequested(() => wasCanceled = true);
 
-					return TPromise.wrap(reportedResults);
+					return Promise.resolve(reportedResults);
 				}
 			});
 
@@ -563,7 +562,7 @@ suite('ExtHostSearch', () => {
 					token.onCancellationRequested(() => cancels++);
 
 					// Provice results async so it has a chance to invoke every provider
-					await new TPromise(r => process.nextTick(r));
+					await new Promise(r => process.nextTick(r));
 					return [
 						'file1.ts',
 						'file2.ts',
@@ -603,7 +602,7 @@ suite('ExtHostSearch', () => {
 
 			await registerTestFileSearchProvider({
 				provideFileSearchResults(query: vscode.FileSearchQuery, options: vscode.FileSearchOptions, token: vscode.CancellationToken): Thenable<URI[]> {
-					return TPromise.wrap(reportedResults);
+					return Promise.resolve(reportedResults);
 				}
 			}, fancyScheme);
 
@@ -696,7 +695,7 @@ suite('ExtHostSearch', () => {
 		test('no results', async () => {
 			await registerTestTextSearchProvider({
 				provideTextSearchResults(query: vscode.TextSearchQuery, options: vscode.TextSearchOptions, progress: vscode.Progress<vscode.TextSearchResult>, token: vscode.CancellationToken): Thenable<vscode.TextSearchComplete> {
-					return TPromise.wrap(null);
+					return Promise.resolve(null);
 				}
 			});
 
@@ -714,7 +713,7 @@ suite('ExtHostSearch', () => {
 			await registerTestTextSearchProvider({
 				provideTextSearchResults(query: vscode.TextSearchQuery, options: vscode.TextSearchOptions, progress: vscode.Progress<vscode.TextSearchResult>, token: vscode.CancellationToken): Thenable<vscode.TextSearchComplete> {
 					providedResults.forEach(r => progress.report(r));
-					return TPromise.wrap(null);
+					return Promise.resolve(null);
 				}
 			});
 
@@ -728,7 +727,7 @@ suite('ExtHostSearch', () => {
 				provideTextSearchResults(query: vscode.TextSearchQuery, options: vscode.TextSearchOptions, progress: vscode.Progress<vscode.TextSearchResult>, token: vscode.CancellationToken): Thenable<vscode.TextSearchComplete> {
 					assert.equal(options.includes.length, 1);
 					assert.equal(options.excludes.length, 1);
-					return TPromise.wrap(null);
+					return Promise.resolve(null);
 				}
 			});
 
@@ -764,7 +763,7 @@ suite('ExtHostSearch', () => {
 						assert.deepEqual(options.excludes.sort(), ['*.js']);
 					}
 
-					return TPromise.wrap(null);
+					return Promise.resolve(null);
 				}
 			});
 
@@ -801,7 +800,7 @@ suite('ExtHostSearch', () => {
 					assert.deepEqual(options.includes.sort(), ['*.jsx', '*.ts']);
 					assert.deepEqual(options.excludes.sort(), []);
 
-					return TPromise.wrap(null);
+					return Promise.resolve(null);
 				}
 			});
 
@@ -868,7 +867,7 @@ suite('ExtHostSearch', () => {
 			await registerTestTextSearchProvider({
 				provideTextSearchResults(query: vscode.TextSearchQuery, options: vscode.TextSearchOptions, progress: vscode.Progress<vscode.TextSearchResult>, token: vscode.CancellationToken): Thenable<vscode.TextSearchComplete> {
 					providedResults.forEach(r => progress.report(r));
-					return TPromise.wrap(null);
+					return Promise.resolve(null);
 				}
 			});
 
@@ -928,7 +927,7 @@ suite('ExtHostSearch', () => {
 					}
 
 					reportedResults.forEach(r => progress.report(r));
-					return TPromise.wrap(null);
+					return Promise.resolve(null);
 				}
 			});
 
@@ -978,7 +977,7 @@ suite('ExtHostSearch', () => {
 			await registerTestTextSearchProvider({
 				provideTextSearchResults(query: vscode.TextSearchQuery, options: vscode.TextSearchOptions, progress: vscode.Progress<vscode.TextSearchResult>, token: vscode.CancellationToken): Thenable<vscode.TextSearchComplete> {
 					providedResults.forEach(r => progress.report(r));
-					return TPromise.wrap(null);
+					return Promise.resolve(null);
 				}
 			});
 
@@ -1010,7 +1009,7 @@ suite('ExtHostSearch', () => {
 				provideTextSearchResults(query: vscode.TextSearchQuery, options: vscode.TextSearchOptions, progress: vscode.Progress<vscode.TextSearchResult>, token: vscode.CancellationToken): Thenable<vscode.TextSearchComplete> {
 					token.onCancellationRequested(() => wasCanceled = true);
 					providedResults.forEach(r => progress.report(r));
-					return TPromise.wrap(null);
+					return Promise.resolve(null);
 				}
 			});
 
@@ -1043,7 +1042,7 @@ suite('ExtHostSearch', () => {
 				provideTextSearchResults(query: vscode.TextSearchQuery, options: vscode.TextSearchOptions, progress: vscode.Progress<vscode.TextSearchResult>, token: vscode.CancellationToken): Thenable<vscode.TextSearchComplete> {
 					token.onCancellationRequested(() => wasCanceled = true);
 					providedResults.forEach(r => progress.report(r));
-					return TPromise.wrap(null);
+					return Promise.resolve(null);
 				}
 			});
 
@@ -1075,7 +1074,7 @@ suite('ExtHostSearch', () => {
 				provideTextSearchResults(query: vscode.TextSearchQuery, options: vscode.TextSearchOptions, progress: vscode.Progress<vscode.TextSearchResult>, token: vscode.CancellationToken): Thenable<vscode.TextSearchComplete> {
 					token.onCancellationRequested(() => wasCanceled = true);
 					providedResults.forEach(r => progress.report(r));
-					return TPromise.wrap(null);
+					return Promise.resolve(null);
 				}
 			});
 
@@ -1106,7 +1105,7 @@ suite('ExtHostSearch', () => {
 			await registerTestTextSearchProvider({
 				provideTextSearchResults(query: vscode.TextSearchQuery, options: vscode.TextSearchOptions, progress: vscode.Progress<vscode.TextSearchResult>, token: vscode.CancellationToken): Thenable<vscode.TextSearchComplete> {
 					providedResults.forEach(r => progress.report(r));
-					return TPromise.wrap({ limitHit: true });
+					return Promise.resolve({ limitHit: true });
 				}
 			});
 
@@ -1131,7 +1130,7 @@ suite('ExtHostSearch', () => {
 			await registerTestTextSearchProvider({
 				async provideTextSearchResults(query: vscode.TextSearchQuery, options: vscode.TextSearchOptions, progress: vscode.Progress<vscode.TextSearchResult>, token: vscode.CancellationToken): Promise<vscode.TextSearchComplete> {
 					token.onCancellationRequested(() => cancels++);
-					await new TPromise(r => process.nextTick(r));
+					await new Promise(r => process.nextTick(r));
 					[
 						'file1.ts',
 						'file2.ts',
@@ -1168,7 +1167,7 @@ suite('ExtHostSearch', () => {
 			await registerTestTextSearchProvider({
 				provideTextSearchResults(query: vscode.TextSearchQuery, options: vscode.TextSearchOptions, progress: vscode.Progress<vscode.TextSearchResult>, token: vscode.CancellationToken): Thenable<vscode.TextSearchComplete> {
 					providedResults.forEach(r => progress.report(r));
-					return TPromise.wrap(null);
+					return Promise.resolve(null);
 				}
 			}, fancyScheme);
 

@@ -6,7 +6,6 @@
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { URI, UriComponents } from 'vs/base/common/uri';
-import { TPromise } from 'vs/base/common/winjs.base';
 import * as extfs from 'vs/base/node/extfs';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IFileQuery, IFolderQuery, IRawFileQuery, IRawQuery, IRawTextQuery, ISearchCompleteStats, ITextQuery } from 'vs/platform/search/common/search';
@@ -181,7 +180,7 @@ export class ExtHostSearch implements ExtHostSearchShape {
 	$provideTextSearchResults(handle: number, session: number, rawQuery: IRawTextQuery, token: CancellationToken): Thenable<ISearchCompleteStats> {
 		const provider = this._textSearchProvider.get(handle);
 		if (!provider.provideTextSearchResults) {
-			return TPromise.as(undefined);
+			return Promise.resolve(undefined);
 		}
 
 		const query = reviveQuery(rawQuery);
