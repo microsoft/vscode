@@ -66,7 +66,8 @@ export class QueryBuilder {
 	text(contentPattern: IPatternInfo, folderResources?: uri[], options?: ITextQueryBuilderOptions): ITextQuery {
 		contentPattern.isCaseSensitive = this.isCaseSensitive(contentPattern);
 		contentPattern.isMultiline = this.isMultiline(contentPattern);
-		contentPattern.wordSeparators = this.configurationService.getValue<ISearchConfiguration>().editor.wordSeparators;
+		const searchConfig = this.configurationService.getValue<ISearchConfiguration>();
+		contentPattern.wordSeparators = searchConfig.editor.wordSeparators;
 
 		const commonQuery = this.commonQuery(folderResources, options);
 		return <ITextQuery>{
@@ -75,7 +76,8 @@ export class QueryBuilder {
 			contentPattern,
 			previewOptions: options && options.previewOptions,
 			fileEncoding: options && options.fileEncoding,
-			maxFileSize: options && options.maxFileSize
+			maxFileSize: options && options.maxFileSize,
+			usePCRE2: searchConfig.search.usePCRE2
 		};
 	}
 

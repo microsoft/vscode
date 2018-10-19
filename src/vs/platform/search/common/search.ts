@@ -106,6 +106,7 @@ export interface ITextQueryProps<U extends UriComponents> extends ICommonQueryPr
 	previewOptions?: ITextSearchPreviewOptions;
 	fileEncoding?: string;
 	maxFileSize?: number;
+	usePCRE2?: boolean;
 }
 
 export type IFileQuery = IFileQueryProps<uri>;
@@ -120,6 +121,7 @@ export const enum QueryType {
 	File = 1,
 	Text = 2
 }
+
 /* __GDPR__FRAGMENT__
 	"IPatternInfo" : {
 		"pattern" : { "classification": "CustomerContent", "purpose": "FeatureInsight" },
@@ -139,6 +141,10 @@ export interface IPatternInfo {
 	isMultiline?: boolean;
 	isCaseSensitive?: boolean;
 	isSmartCase?: boolean;
+}
+
+export interface IExtendedExtensionSearchOptions {
+	usePCRE2?: boolean;
 }
 
 export interface IFileMatch<U extends UriComponents = uri> {
@@ -305,6 +311,7 @@ export interface ISearchConfigurationProperties {
 	location: 'sidebar' | 'panel';
 	useReplacePreview: boolean;
 	showLineNumbers: boolean;
+	usePCRE2: boolean;
 }
 
 export interface ISearchConfiguration extends IFilesConfiguration {

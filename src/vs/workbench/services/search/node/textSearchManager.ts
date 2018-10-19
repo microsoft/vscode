@@ -11,7 +11,7 @@ import * as resources from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
 import { TPromise } from 'vs/base/common/winjs.base';
 import * as extfs from 'vs/base/node/extfs';
-import { IFileMatch, IFolderQuery, IPatternInfo, ISearchCompleteStats, ITextQuery, ITextSearchResult } from 'vs/platform/search/common/search';
+import { IFileMatch, IFolderQuery, IPatternInfo, ISearchCompleteStats, ITextQuery, ITextSearchResult, IExtendedExtensionSearchOptions } from 'vs/platform/search/common/search';
 import { QueryGlobTester, resolvePatternsForProvider } from 'vs/workbench/services/search/node/search';
 import * as vscode from 'vscode';
 
@@ -121,7 +121,7 @@ export class TextSearchManager {
 		const includes = resolvePatternsForProvider(this.query.includePattern, fq.includePattern);
 		const excludes = resolvePatternsForProvider(this.query.excludePattern, fq.excludePattern);
 
-		return {
+		const options = {
 			folder: URI.from(fq.folder),
 			excludes,
 			includes,
@@ -133,6 +133,8 @@ export class TextSearchManager {
 			maxResults: this.query.maxResults,
 			previewOptions: this.query.previewOptions
 		};
+		(<IExtendedExtensionSearchOptions>options).usePCRE2 = this.query.usePCRE2;
+		return options;
 	}
 }
 

@@ -664,6 +664,11 @@ configurationRegistry.registerConfiguration({
 			type: 'boolean',
 			default: false,
 			description: nls.localize('search.searchRipgrepEnable', "Whether to run search in the extension host")
+		},
+		'search.usePCRE2': {
+			type: 'boolean',
+			default: false,
+			description: nls.localize('search.usePCRE2', "Whether to use the PCRE2 regex engine in text search. This enables using some advaned regex features like lookbehind and backreferences.")
 		}
 	}
 });

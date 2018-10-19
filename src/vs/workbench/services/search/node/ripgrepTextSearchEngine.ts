@@ -12,6 +12,7 @@ import { URI } from 'vs/base/common/uri';
 import * as vscode from 'vscode';
 import { rgPath } from 'vscode-ripgrep';
 import { anchorGlob, createTextSearchResult, IOutputChannel, Maybe, Range } from './ripgrepSearchUtils';
+import { IExtendedExtensionSearchOptions } from 'vs/platform/search/common/search';
 
 // If vscode-ripgrep is in an .asar file, then the binary is unpacked.
 const rgDiskPath = rgPath.replace(/\bnode_modules\.asar\b/, 'node_modules.asar.unpacked');
@@ -313,6 +314,10 @@ function getRgArgs(query: vscode.TextSearchQuery, options: vscode.TextSearchOpti
 
 	if (query.isMultiline) {
 		args.push('--multiline');
+	}
+
+	if ((<IExtendedExtensionSearchOptions>options).usePCRE2) {
+		args.push('--pcre2');
 	}
 
 	// Folder to search
