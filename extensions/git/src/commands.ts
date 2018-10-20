@@ -1420,40 +1420,46 @@ export class CommandCenter {
 	}
 
 	@command('git.deleteBranch', { repository: true })
-	async deleteBranch(repository: Repository, name: string, force?: boolean): Promise<void> {
-		let run: (force?: boolean) => Promise<void>;
-		if (typeof name === 'string') {
-			run = force => repository.deleteBranch(name, force);
+	async deleteBranch(repository: Repository, names: string[], force?: boolean): Promise<void> {
+		let runs: ((force?: boolean) => Promise<void>)[];
+		if (typeof names === 'object') {
+			runs = names.map(name => {
+				return (force: boolean | undefined) => repository.deleteBranch(name, force);
+			});
 		} else {
 			const currentHead = repository.HEAD && repository.HEAD.name;
 			const heads = repository.refs.filter(ref => ref.type === RefType.Head && ref.name !== currentHead)
 				.map(ref => new BranchDeleteItem(ref));
 
 			const placeHolder = localize('select branch to delete', 'Select a branch to delete');
-			const choice = await window.showQuickPick<BranchDeleteItem>(heads, { placeHolder });
+			const choices = await window.showQuickPick<BranchDeleteItem>(heads, { placeHolder, canPickMany: true });
 
-			if (!choice || !choice.branchName) {
+			if (!choices || choices.some(choice => typeof choice.branchName !== 'string')) {
 				return;
 			}
-			name = choice.branchName;
-			run = force => choice.run(repository, force);
+			names = choices.map(choice => (choice.branchName as string));
+			runs = choices.map(choice => {
+				return (force: boolean | undefined) => choice.run(repository, force);
+			});
 		}
 
-		try {
-			await run(force);
-		} catch (err) {
-			if (err.gitErrorCode !== GitErrorCodes.BranchNotFullyMerged) {
-				throw err;
-			}
+		runs.forEach(async (run, indx) => {
+			try {
+				await run(force);
+			} catch (err) {
+				if (err.gitErrorCode !== GitErrorCodes.BranchNotFullyMerged) {
+					throw err;
+				}
 
-			const message = localize('confirm force delete branch', "The branch '{0}' is not fully merged. Delete anyway?", name);
-			const yes = localize('delete branch', "Delete Branch");
-			const pick = await window.showWarningMessage(message, { modal: true }, yes);
+				const message = localize('confirm force delete branch', "The branch '{0}' is not fully merged. Delete anyway?", names[indx]);
+				const yes = localize('delete branch', "Delete Branch");
+				const pick = await window.showWarningMessage(message, { modal: true }, yes);
 
-			if (pick === yes) {
-				await run(true);
+				if (pick === yes) {
+					await run(true);
+				}
 			}
-		}
+		});
 	}
 
 	@command('git.renameBranch', { repository: true })
