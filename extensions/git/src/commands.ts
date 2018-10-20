@@ -63,7 +63,7 @@ class CheckoutRemoteHeadItem extends CheckoutItem {
 			//Just checkout the local branch
 			await repository.checkout(trackings[0].local);
 		} else {
-			// Default
+			// Default: checkout a new local branch tracking the upstream
 			await repository.checkoutTracking(ref);
 		}
 	}
