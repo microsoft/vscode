@@ -197,7 +197,7 @@ export class Protocol implements IDisposable, IMessagePassingProtocol {
 				// anyways and nodejs is already doing that for us:
 				// > https://nodejs.org/api/stream.html#stream_writable_write_chunk_encoding_callback
 				// > However, the false return value is only advisory and the writable stream will unconditionally
-				// > accept and buffer chunk even if it has not not been allowed to drain.
+				// > accept and buffer chunk even if it has not been allowed to drain.
 				this._socket.write(this._writeBuffer.take());
 			});
 		}
