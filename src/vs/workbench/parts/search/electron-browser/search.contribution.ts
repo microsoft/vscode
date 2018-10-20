@@ -670,7 +670,7 @@ configurationRegistry.registerConfiguration({
 		'search.runInExtensionHost': {
 			type: 'boolean',
 			default: false,
-			description: nls.localize('search.searchRipgrepEnable', "Whether to run search in the extension host")
+			description: nls.localize('search.runInExtensionHost', "Whether to run search in the extension host. Requires a restart to take effect.")
 		},
 		'search.usePCRE2': {
 			type: 'boolean',
