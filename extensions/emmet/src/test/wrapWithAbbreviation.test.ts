@@ -349,7 +349,7 @@ suite('Tests for Wrap with Abbreviations', () => {
 		});
 	});
 
-	test('Wrap individual lines with abbreviation and format set to false)', () => {
+	test('Wrap individual lines with abbreviation and format set to false', () => {
 		return workspace.getConfiguration('emmet').update('syntaxProfiles',{ 'html' : { 'format': false } } , ConfigurationTarget.Global).then(() => {
 			return testWrapWithAbbreviation(multiCursors,'h1',wrapInlineElementExpectedFormatFalse).then(() => {
 				return workspace.getConfiguration('emmet').update('syntaxProfiles',oldValueForSyntaxProfiles ? oldValueForSyntaxProfiles.globalValue : undefined, ConfigurationTarget.Global);
