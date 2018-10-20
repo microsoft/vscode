@@ -45,6 +45,11 @@ interface IDirectoryTree {
 	pathToEntries: { [relativePath: string]: IDirectoryEntry[] };
 }
 
+const killCmds = new Set<() => void>();
+process.on('exit', () => {
+	killCmds.forEach(cmd => cmd());
+});
+
 export class FileWalker {
 	private config: IRawSearch;
 	private useRipgrep: boolean;
@@ -191,9 +196,10 @@ export class FileWalker {
 		const isMac = platform.isMacintosh;
 		let cmd: childProcess.ChildProcess;
 		const killCmd = () => cmd && cmd.kill();
+		killCmds.add(killCmd);
 
 		let done = (err?: Error) => {
-			process.removeListener('exit', killCmd);
+			killCmds.delete(killCmd);
 			done = () => { };
 			cb(err);
 		};
@@ -221,7 +227,6 @@ export class FileWalker {
 			cmd = this.spawnFindCmd(folderQuery);
 		}
 
-		process.on('exit', killCmd);
 		this.cmdResultCount = 0;
 		this.collectStdout(cmd, 'utf8', useRipgrep, onMessage, (err: Error, stdout?: string, last?: boolean) => {
 			if (err) {
