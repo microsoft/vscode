@@ -67,7 +67,7 @@ const configurationEntrySchema: IJSONSchema = {
 							},
 							deprecationMessage: {
 								type: 'string',
-								description: nls.localize('scope.deprecationMessage', 'If set, the property is marked as deprecated and the given message is shown as as explanation.')
+								description: nls.localize('scope.deprecationMessage', 'If set, the property is marked as deprecated and the given message is shown as an explanation.')
 							}
 						}
 					}
