@@ -283,7 +283,7 @@ export class TextFileEditorModelManager extends Disposable implements ITextFileE
 		this.mapResourceToModel.clear();
 		this.mapResourceToPendingModelLoaders.clear();
 
-		// dispose dispose listeners
+		// dispose listeners
 		this.mapResourceToDisposeListener.forEach(l => l.dispose());
 		this.mapResourceToDisposeListener.clear();
 
