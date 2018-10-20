@@ -18,6 +18,7 @@ import { TestContextService, TestEnvironmentService } from 'vs/workbench/test/wo
 const DEFAULT_EDITOR_CONFIG = {};
 const DEFAULT_USER_CONFIG = { useRipgrep: true, useIgnoreFiles: true, useGlobalIgnoreFiles: true };
 const DEFAULT_QUERY_PROPS = { useRipgrep: true };
+const DEFAULT_TEXT_QUERY_PROPS = { usePCRE2: false };
 
 suite('QueryBuilder', () => {
 	const PATTERN_INFO: IPatternInfo = { pattern: 'a' };
@@ -49,7 +50,7 @@ suite('QueryBuilder', () => {
 	});
 
 	test('simple text pattern', () => {
-		assertEqualQueries(
+		assertEqualTextQueries(
 			queryBuilder.text(PATTERN_INFO),
 			<ITextQuery>{
 				folderQueries: [],
@@ -59,7 +60,7 @@ suite('QueryBuilder', () => {
 	});
 
 	test('folderResources', () => {
-		assertEqualQueries(
+		assertEqualTextQueries(
 			queryBuilder.text(
 				PATTERN_INFO,
 				[ROOT_1_URI]
@@ -82,7 +83,7 @@ suite('QueryBuilder', () => {
 			}
 		});
 
-		assertEqualQueries(
+		assertEqualTextQueries(
 			queryBuilder.text(
 				PATTERN_INFO,
 				[ROOT_1_URI]
@@ -103,7 +104,7 @@ suite('QueryBuilder', () => {
 	});
 
 	test('simple include', () => {
-		assertEqualQueries(
+		assertEqualTextQueries(
 			queryBuilder.text(
 				PATTERN_INFO,
 				[ROOT_1_URI],
@@ -117,7 +118,7 @@ suite('QueryBuilder', () => {
 				type: QueryType.Text
 			});
 
-		assertEqualQueries(
+		assertEqualTextQueries(
 			queryBuilder.text(
 				PATTERN_INFO,
 				[ROOT_1_URI],
@@ -143,7 +144,7 @@ suite('QueryBuilder', () => {
 			}
 		});
 
-		assertEqualQueries(
+		assertEqualTextQueries(
 			queryBuilder.text(
 				PATTERN_INFO,
 				[ROOT_1_URI],
@@ -183,7 +184,7 @@ suite('QueryBuilder', () => {
 		}, ROOT_2_URI);
 
 		// There are 3 roots, the first two have search.exclude settings, test that the correct basic query is returned
-		assertEqualQueries(
+		assertEqualTextQueries(
 			queryBuilder.text(
 				PATTERN_INFO,
 				[ROOT_1_URI, ROOT_2_URI, ROOT_3_URI]
@@ -200,7 +201,7 @@ suite('QueryBuilder', () => {
 		);
 
 		// Now test that it merges the root excludes when an 'include' is used
-		assertEqualQueries(
+		assertEqualTextQueries(
 			queryBuilder.text(
 				PATTERN_INFO,
 				[ROOT_1_URI, ROOT_2_URI, ROOT_3_URI],
@@ -218,7 +219,7 @@ suite('QueryBuilder', () => {
 	});
 
 	test('simple exclude input pattern', () => {
-		assertEqualQueries(
+		assertEqualTextQueries(
 			queryBuilder.text(
 				PATTERN_INFO,
 				[ROOT_1_URI],
@@ -249,7 +250,7 @@ suite('QueryBuilder', () => {
 	});
 
 	test('exclude ./ syntax', () => {
-		assertEqualQueries(
+		assertEqualTextQueries(
 			queryBuilder.text(
 				PATTERN_INFO,
 				[ROOT_1_URI],
@@ -264,7 +265,7 @@ suite('QueryBuilder', () => {
 				type: QueryType.Text
 			});
 
-		assertEqualQueries(
+		assertEqualTextQueries(
 			queryBuilder.text(
 				PATTERN_INFO,
 				[ROOT_1_URI],
@@ -279,7 +280,7 @@ suite('QueryBuilder', () => {
 				type: QueryType.Text
 			});
 
-		assertEqualQueries(
+		assertEqualTextQueries(
 			queryBuilder.text(
 				PATTERN_INFO,
 				[ROOT_1_URI],
@@ -296,7 +297,7 @@ suite('QueryBuilder', () => {
 	});
 
 	test('extraFileResources', () => {
-		assertEqualQueries(
+		assertEqualTextQueries(
 			queryBuilder.text(
 				PATTERN_INFO,
 				[ROOT_1_URI],
@@ -311,7 +312,7 @@ suite('QueryBuilder', () => {
 				type: QueryType.Text
 			});
 
-		assertEqualQueries(
+		assertEqualTextQueries(
 			queryBuilder.text(
 				PATTERN_INFO,
 				[ROOT_1_URI],
@@ -329,7 +330,7 @@ suite('QueryBuilder', () => {
 				type: QueryType.Text
 			});
 
-		assertEqualQueries(
+		assertEqualTextQueries(
 			queryBuilder.text(
 				PATTERN_INFO,
 				[ROOT_1_URI],
@@ -763,6 +764,15 @@ suite('QueryBuilder', () => {
 		});
 	});
 });
+
+function assertEqualTextQueries(actual: ITextQuery, expected: ITextQuery): void {
+	expected = {
+		...DEFAULT_TEXT_QUERY_PROPS,
+		...expected
+	};
+
+	return assertEqualQueries(actual, expected);
+}
 
 function assertEqualQueries(actual: ITextQuery | IFileQuery, expected: ITextQuery | IFileQuery): void {
 	expected = {

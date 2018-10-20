@@ -70,7 +70,7 @@ export class QueryBuilder {
 		const searchConfig = this.configurationService.getValue<ISearchConfiguration>();
 		contentPattern.wordSeparators = searchConfig.editor.wordSeparators;
 
-		const fallbackToPCRE = !folderResources || folderResources.some(folder => {
+		const fallbackToPCRE = folderResources && folderResources.some(folder => {
 			const folderConfig = this.configurationService.getValue<ISearchConfiguration>({ resource: folder });
 			return !folderConfig.search.useRipgrep;
 		});
@@ -82,7 +82,7 @@ export class QueryBuilder {
 			contentPattern,
 			previewOptions: options && options.previewOptions,
 			maxFileSize: options && options.maxFileSize,
-			usePCRE2: searchConfig.search.usePCRE2 || fallbackToPCRE
+			usePCRE2: searchConfig.search.usePCRE2 || fallbackToPCRE || false
 		};
 	}
 
