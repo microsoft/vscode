@@ -70,6 +70,11 @@ export class QueryBuilder {
 		const searchConfig = this.configurationService.getValue<ISearchConfiguration>();
 		contentPattern.wordSeparators = searchConfig.editor.wordSeparators;
 
+		const fallbackToPCRE = !folderResources || folderResources.some(folder => {
+			const folderConfig = this.configurationService.getValue<ISearchConfiguration>({ resource: folder });
+			return !folderConfig.search.useRipgrep;
+		});
+
 		const commonQuery = this.commonQuery(folderResources, options);
 		return <ITextQuery>{
 			...commonQuery,
@@ -77,7 +82,7 @@ export class QueryBuilder {
 			contentPattern,
 			previewOptions: options && options.previewOptions,
 			maxFileSize: options && options.maxFileSize,
-			usePCRE2: searchConfig.search.usePCRE2
+			usePCRE2: searchConfig.search.usePCRE2 || fallbackToPCRE
 		};
 	}
 
@@ -111,7 +116,7 @@ export class QueryBuilder {
 
 		const useRipgrep = !folderResources || folderResources.every(folder => {
 			const folderConfig = this.configurationService.getValue<ISearchConfiguration>({ resource: folder });
-			return folderConfig.search.useRipgrep;
+			return !folderConfig.search.disableRipgrep;
 		});
 
 		const queryProps: ICommonQueryProps<uri> = {
