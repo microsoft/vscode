@@ -29,8 +29,11 @@ export class ExtHostSearch implements ExtHostSearchShape {
 
 	private readonly _proxy: MainThreadSearchShape;
 	private readonly _textSearchProvider = new Map<number, vscode.TextSearchProvider>();
+	private readonly _textSearchUsedSchemes = new Set<string>();
 	private readonly _fileSearchProvider = new Map<number, vscode.FileSearchProvider>();
+	private readonly _fileSearchUsedSchemes = new Set<string>();
 	private readonly _fileIndexProvider = new Map<number, vscode.FileIndexProvider>();
+	private readonly _fileIndexUsedSchemes = new Set<string>();
 	private _handlePool: number = 0;
 
 	private _internalFileSearchHandle: number;
@@ -55,20 +58,32 @@ export class ExtHostSearch implements ExtHostSearchShape {
 	}
 
 	registerTextSearchProvider(scheme: string, provider: vscode.TextSearchProvider): IDisposable {
+		if (this._textSearchUsedSchemes.has(scheme)) {
+			throw new Error(`a provider for the scheme '${scheme}' is already registered`);
+		}
+
+		this._textSearchUsedSchemes.add(scheme);
 		const handle = this._handlePool++;
 		this._textSearchProvider.set(handle, provider);
 		this._proxy.$registerTextSearchProvider(handle, this._transformScheme(scheme));
 		return toDisposable(() => {
+			this._textSearchUsedSchemes.delete(scheme);
 			this._textSearchProvider.delete(handle);
 			this._proxy.$unregisterProvider(handle);
 		});
 	}
 
 	registerFileSearchProvider(scheme: string, provider: vscode.FileSearchProvider): IDisposable {
+		if (this._fileSearchUsedSchemes.has(scheme)) {
+			throw new Error(`a provider for the scheme '${scheme}' is already registered`);
+		}
+
+		this._fileSearchUsedSchemes.add(scheme);
 		const handle = this._handlePool++;
 		this._fileSearchProvider.set(handle, provider);
 		this._proxy.$registerFileSearchProvider(handle, this._transformScheme(scheme));
 		return toDisposable(() => {
+			this._fileSearchUsedSchemes.delete(scheme);
 			this._fileSearchProvider.delete(handle);
 			this._proxy.$unregisterProvider(handle);
 		});
@@ -86,10 +101,16 @@ export class ExtHostSearch implements ExtHostSearchShape {
 	}
 
 	registerFileIndexProvider(scheme: string, provider: vscode.FileIndexProvider): IDisposable {
+		if (this._fileIndexUsedSchemes.has(scheme)) {
+			throw new Error(`a provider for the scheme '${scheme}' is already registered`);
+		}
+
+		this._fileIndexUsedSchemes.add(scheme);
 		const handle = this._handlePool++;
 		this._fileIndexProvider.set(handle, provider);
 		this._proxy.$registerFileIndexProvider(handle, this._transformScheme(scheme));
 		return toDisposable(() => {
+			this._fileIndexUsedSchemes.delete(scheme);
 			this._fileSearchProvider.delete(handle);
 			this._proxy.$unregisterProvider(handle); // TODO@roblou - unregisterFileIndexProvider
 		});
