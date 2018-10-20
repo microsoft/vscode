@@ -34,8 +34,8 @@ export class DocumentMergeConflict implements interfaces.IDocumentMergeConflict 
 
 	public applyEdit(type: interfaces.CommitType, editor: vscode.TextEditor, edit: vscode.TextEditorEdit): void {
 
-		// Each conflict is a set of ranges as follows, note placements or newlines
-		// which may not in in spans
+		// Each conflict is a set of ranges as follows, note placements of newlines
+		// which may not be in spans
 		// [ Conflict Range             -- (Entire content below)
 		//   [ Current Header ]\n       -- >>>>> Header
 		//   [ Current Content ]        -- (content)
