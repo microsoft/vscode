@@ -161,10 +161,10 @@ export class ExtensionsListView extends ViewletPanel {
 		};
 
 		if (ExtensionsListView.isInstalledExtensionsQuery(query) || /@builtin/.test(query)) {
-			return await this.queryLocal(parsedQuery, options).then(successCallback).catch(errorCallback);
+			return this.queryLocal(parsedQuery, options).then(successCallback).catch(errorCallback);
 		}
 
-		return await this.queryGallery(parsedQuery, options).then(successCallback).catch(errorCallback);
+		return this.queryGallery(parsedQuery, options).then(successCallback).catch(errorCallback);
 	}
 
 	count(): number {
