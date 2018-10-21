@@ -223,7 +223,7 @@ export class MarkerRenderer implements ITreeRenderer<Marker, MarkerFilterData, I
 		data.icon = dom.append(container, dom.$('.icon'));
 		data.source = new HighlightedLabel(dom.append(container, dom.$('')));
 		data.description = new HighlightedLabel(dom.append(container, dom.$('.marker-description')));
-		data.code = new HighlightedLabel(dom.append(container, dom.$('')));
+		data.code = new HighlightedLabel(dom.append(container, dom.$('a')));
 		data.lnCol = dom.append(container, dom.$('span.marker-line'));
 		return data;
 	}
@@ -248,6 +248,11 @@ export class MarkerRenderer implements ITreeRenderer<Marker, MarkerFilterData, I
 
 		dom.toggleClass(templateData.code.element, 'marker-code', !!marker.code);
 		templateData.code.set(marker.code || '', codeMatches);
+
+		if (marker.url) {
+			templateData.code.element.parentElement.setAttribute('href', marker.url);
+			templateData.code.element.parentElement.setAttribute('target', '_blank');
+		}
 
 		templateData.lnCol.textContent = Messages.MARKERS_PANEL_AT_LINE_COL_NUMBER(marker.startLineNumber, marker.startColumn);
 	}
