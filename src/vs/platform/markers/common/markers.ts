@@ -78,6 +78,7 @@ export namespace MarkerSeverity {
  */
 export interface IMarkerData {
 	code?: string;
+	url?: string;
 	severity: MarkerSeverity;
 	message: string;
 	source?: string;
@@ -99,6 +100,7 @@ export interface IMarker {
 	resource: URI;
 	severity: MarkerSeverity;
 	code?: string;
+	url?: string;
 	message: string;
 	source?: string;
 	startLineNumber: number;
@@ -127,6 +129,11 @@ export namespace IMarkerData {
 		}
 		if (markerData.code) {
 			result.push(markerData.code.replace('¦', '\¦'));
+		} else {
+			result.push(emptyString);
+		}
+		if (markerData.url) {
+			result.push(markerData.url.replace('¦', '\¦'));
 		} else {
 			result.push(emptyString);
 		}

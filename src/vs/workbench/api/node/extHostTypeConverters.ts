@@ -108,6 +108,7 @@ export namespace Diagnostic {
 			message: value.message,
 			source: value.source,
 			code: isString(value.code) || isNumber(value.code) ? String(value.code) : void 0,
+			url: isString(value.url) ? value.url : void 0,
 			severity: DiagnosticSeverity.from(value.severity),
 			relatedInformation: value.relatedInformation && value.relatedInformation.map(DiagnosticRelatedInformation.from),
 			tags: Array.isArray(value.tags) ? value.tags.map(DiagnosticTag.from) : undefined,

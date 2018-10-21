@@ -105,6 +105,7 @@ suite('MarkersModel Test', () => {
 	test('toString()', () => {
 		let marker = aMarker('a/res1');
 		marker.code = '1234';
+		marker.url = 'https://www.example.com/';
 		assert.equal(JSON.stringify({ ...marker, resource: marker.resource.path }, null, '\t'), new Marker(marker).toString());
 
 		marker = aMarker('a/res2', MarkerSeverity.Warning);

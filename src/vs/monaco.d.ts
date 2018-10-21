@@ -1121,6 +1121,7 @@ declare namespace monaco.editor {
 		resource: Uri;
 		severity: MarkerSeverity;
 		code?: string;
+		url?: string;
 		message: string;
 		source?: string;
 		startLineNumber: number;
@@ -1136,6 +1137,7 @@ declare namespace monaco.editor {
 	 */
 	export interface IMarkerData {
 		code?: string;
+		url?: string;
 		severity: MarkerSeverity;
 		message: string;
 		source?: string;

@@ -179,7 +179,7 @@ export class MarkerService implements IMarkerService {
 
 	private static _toMarker(owner: string, resource: URI, data: IMarkerData): IMarker | undefined {
 		let {
-			code, severity,
+			code, url, severity,
 			message, source,
 			startLineNumber, startColumn, endLineNumber, endColumn,
 			relatedInformation,
@@ -192,6 +192,7 @@ export class MarkerService implements IMarkerService {
 
 		// santize data
 		code = code || null;
+		url = url || null;
 		startLineNumber = startLineNumber > 0 ? startLineNumber : 1;
 		startColumn = startColumn > 0 ? startColumn : 1;
 		endLineNumber = endLineNumber >= startLineNumber ? endLineNumber : startLineNumber;
@@ -201,6 +202,7 @@ export class MarkerService implements IMarkerService {
 			resource,
 			owner,
 			code,
+			url,
 			severity,
 			message,
 			source,
