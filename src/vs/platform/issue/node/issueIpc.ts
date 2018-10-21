@@ -29,7 +29,7 @@ export class IssueChannel implements IIssueChannel {
 			case 'openProcessExplorer':
 				return this.service.openProcessExplorer(arg);
 		}
-		return undefined;
+		return TPromise.as(null);
 	}
 }
 
