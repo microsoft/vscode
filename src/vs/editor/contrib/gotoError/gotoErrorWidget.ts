@@ -77,7 +77,8 @@ class MessageWidget {
 		dispose(this._disposables);
 	}
 
-	update({ source, message, relatedInformation, code }: IMarker): void {
+	update({ source, message, relatedInformation, code, url }: IMarker): void {
+		let codeSuffix = code ? ` [${code}]` : '';
 
 		if (source) {
 			this._lines = 0;
@@ -87,10 +88,11 @@ class MessageWidget {
 			for (let i = 0; i < lines.length; i++) {
 				let line = lines[i];
 				this._lines += 1;
-				if (code && i === lines.length - 1) {
-					line += ` [${code}]`;
+				if (i === lines.length - 1) {
+					this._longestLineLength = Math.max(line.length + codeSuffix.length, this._longestLineLength);
+				} else {
+					this._longestLineLength = Math.max(line.length, this._longestLineLength);
 				}
-				this._longestLineLength = Math.max(line.length, this._longestLineLength);
 				if (i === 0) {
 					message = `[${source}] ${line}`;
 				} else {
@@ -99,10 +101,7 @@ class MessageWidget {
 			}
 		} else {
 			this._lines = 1;
-			if (code) {
-				message += ` [${code}]`;
-			}
-			this._longestLineLength = message.length;
+			this._longestLineLength = message.length + codeSuffix.length;
 		}
 
 		dom.clearNode(this._relatedBlock);
@@ -133,7 +132,21 @@ class MessageWidget {
 			}
 		}
 
-		this._messageBlock.innerText = message;
+		if (code && url) {
+			let link = document.createElement('a');
+			link.setAttribute('target', '_blank');
+			link.setAttribute('href', url);
+			link.innerText = code;
+
+			message += ' [';
+			this._messageBlock.innerText = message;
+			this._messageBlock.appendChild(link);
+			this._messageBlock.appendChild(document.createTextNode(']'));
+		} else {
+			message += codeSuffix;
+			this._messageBlock.innerText = message;
+		}
+
 		this._editor.applyFontInfo(this._messageBlock);
 		const fontInfo = this._editor.getConfiguration().fontInfo;
 		const scrollWidth = Math.ceil(fontInfo.typicalFullwidthCharacterWidth * this._longestLineLength * 0.75);
