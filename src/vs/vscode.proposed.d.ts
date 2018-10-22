@@ -1141,4 +1141,35 @@ declare module 'vscode' {
 		alwaysShow?: boolean;
 	}
 	//#endregion
+
+	//#region Tree Item Label Highlights
+	/**
+	 * Label describing the [Tree item](#TreeItem)
+	 */
+	export interface TreeItemLabel {
+
+		/**
+		 * A human-readable string describing the [Tree item](#TreeItem).
+		 */
+		label: string;
+
+		/**
+		 * Ranges in the label to highlight.
+		 */
+		highlights?: [number][number][];
+
+	}
+
+	export class TreeItem2 extends TreeItem {
+		/**
+		 * Label describing this item. When `falsy`, it is derived from [resourceUri](#TreeItem.resourceUri).
+		 */
+		label?: string | TreeItemLabel | /* for compilation */ any;
+
+		/**
+		 * @param label Label describing this item
+		 * @param collapsibleState [TreeItemCollapsibleState](#TreeItemCollapsibleState) of the tree item. Default is [TreeItemCollapsibleState.None](#TreeItemCollapsibleState.None)
+		 */
+		constructor(label: TreeItemLabel, collapsibleState?: TreeItemCollapsibleState);
+	}
 }

@@ -794,6 +794,7 @@ export function createApiFactory(
 			ThemeColor: extHostTypes.ThemeColor,
 			ThemeIcon: extHostTypes.ThemeIcon,
 			TreeItem: extHostTypes.TreeItem,
+			TreeItem2: extHostTypes.TreeItem,
 			TreeItemCollapsibleState: extHostTypes.TreeItemCollapsibleState,
 			Uri: URI,
 			ViewColumn: extHostTypes.ViewColumn,

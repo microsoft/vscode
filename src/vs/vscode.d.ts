@@ -6538,28 +6538,11 @@ declare module 'vscode' {
 		getParent?(element: T): ProviderResult<T>;
 	}
 
-	/**
-	 * Label describing the [Tree item](#TreeItem)
-	 */
-	export interface TreeItemLabel {
-
-		/**
-		 * A human-readable string describing the [Tree item](#TreeItem).
-		 */
-		label: string;
-
-		/**
-		 * Ranges in the label to highlight.
-		 */
-		highlights?: { start: number, end: number }[];
-
-	}
-
 	export class TreeItem {
 		/**
-		 * Label describing this item. When `falsy`, it is derived from [resourceUri](#TreeItem.resourceUri).
+		 * A human-readable string describing this item. When `falsy`, it is derived from [resourceUri](#TreeItem.resourceUri).
 		 */
-		label?: string | TreeItemLabel;
+		label?: string;
 
 		/**
 		 * Optional id for the tree item that has to be unique across tree. The id is used to preserve the selection and expansion state of the tree item.
@@ -6622,7 +6605,7 @@ declare module 'vscode' {
 		 * @param label A human-readable string describing this item
 		 * @param collapsibleState [TreeItemCollapsibleState](#TreeItemCollapsibleState) of the tree item. Default is [TreeItemCollapsibleState.None](#TreeItemCollapsibleState.None)
 		 */
-		constructor(label: string | TreeItemLabel, collapsibleState?: TreeItemCollapsibleState);
+		constructor(label: string, collapsibleState?: TreeItemCollapsibleState);
 
 		/**
 		 * @param resourceUri The [uri](#Uri) of the resource representing this item.

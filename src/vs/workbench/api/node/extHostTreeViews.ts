@@ -28,11 +28,12 @@ function toTreeItemLabel(label: any): ITreeItemLabel {
 	if (label
 		&& typeof label === 'object'
 		&& typeof label.label === 'string') {
-		if (Array.isArray(label.highlights) && label.highlights.every(highlight => typeof highlight === 'object' && typeof highlight.start === 'number' && typeof highlight.end === 'number')) {
-			return label;
-		} else {
-			return { label: label.label };
+		let highlights: [number, number][] = void 0;
+		if (Array.isArray(label.highlights)) {
+			highlights = (<[number, number][]>label.highlights).filter((highlight => highlight.length === 2 && typeof highlight[0] === 'number' && typeof highlight[1] === 'number'));
+			highlights = highlights.length ? highlights : void 0;
 		}
+		return { label: label.label, highlights };
 	}
 
 	return void 0;

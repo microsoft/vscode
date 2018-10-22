@@ -528,7 +528,7 @@ class TreeRenderer implements IRenderer {
 		const resource = node.resourceUri ? URI.revive(node.resourceUri) : null;
 		const treeItemLabel: ITreeItemLabel = node.label ? node.label : resource ? { label: basename(resource.path) } : void 0;
 		const label = treeItemLabel ? treeItemLabel.label : void 0;
-		const matches = treeItemLabel ? treeItemLabel.highlights : void 0;
+		const matches = treeItemLabel ? treeItemLabel.highlights.map(([start, end]) => ({ start, end })) : void 0;
 		const icon = this.themeService.getTheme().type === LIGHT ? node.icon : node.iconDark;
 		const iconUrl = icon ? URI.revive(icon) : null;
 		const title = node.tooltip ? node.tooltip : resource ? void 0 : label;

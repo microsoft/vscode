@@ -284,7 +284,7 @@ export interface ITreeItemLabel {
 
 	label: string;
 
-	highlights?: { start: number, end: number }[];
+	highlights?: [number, number][];
 
 }
 
