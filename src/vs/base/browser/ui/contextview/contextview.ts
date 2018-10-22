@@ -223,6 +223,8 @@ export class ContextView extends Disposable {
 		const anchorPosition = this.delegate.anchorPosition || AnchorPosition.BELOW;
 		const anchorAlignment = this.delegate.anchorAlignment || AnchorAlignment.LEFT;
 
+		console.log(anchorAlignment);
+
 		const verticalAnchor: ILayoutAnchor = { offset: around.top, size: around.height, position: anchorPosition === AnchorPosition.BELOW ? LayoutAnchorPosition.Before : LayoutAnchorPosition.After };
 
 		let horizontalAnchor: ILayoutAnchor;

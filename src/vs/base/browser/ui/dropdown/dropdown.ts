@@ -8,7 +8,7 @@ import { Gesture, EventType as GestureEventType } from 'vs/base/browser/touch';
 import { ActionRunner, IAction, IActionRunner } from 'vs/base/common/actions';
 import { BaseActionItem, IActionItemProvider } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IDisposable } from 'vs/base/common/lifecycle';
-import { IContextViewProvider, IAnchor } from 'vs/base/browser/ui/contextview/contextview';
+import { IContextViewProvider, IAnchor, AnchorAlignment } from 'vs/base/browser/ui/contextview/contextview';
 import { IMenuOptions } from 'vs/base/browser/ui/menu/menu';
 import { ResolvedKeybinding, KeyCode } from 'vs/base/common/keyCodes';
 import { EventHelper, EventType, removeClass, addClass, append, $, addDisposableListener, addClasses } from 'vs/base/browser/dom';
@@ -249,7 +249,8 @@ export class DropdownMenu extends BaseDropdown {
 			getKeyBinding: action => this.menuOptions && this.menuOptions.getKeyBinding ? this.menuOptions.getKeyBinding(action) : null,
 			getMenuClassName: () => this.menuClassName,
 			onHide: () => this.onHide(),
-			actionRunner: this.menuOptions ? this.menuOptions.actionRunner : null
+			actionRunner: this.menuOptions ? this.menuOptions.actionRunner : null,
+			anchorAlignment: this.menuOptions.anchorAlignment
 		});
 	}
 
@@ -270,10 +271,11 @@ export class DropdownMenuActionItem extends BaseActionItem {
 	private actionItemProvider: IActionItemProvider;
 	private keybindings: (action: IAction) => ResolvedKeybinding;
 	private clazz: string;
+	private anchorAlignment: AnchorAlignment;
 
-	constructor(action: IAction, menuActions: IAction[], contextMenuProvider: IContextMenuProvider, actionItemProvider: IActionItemProvider, actionRunner: IActionRunner, keybindings: (action: IAction) => ResolvedKeybinding, clazz: string);
-	constructor(action: IAction, actionProvider: IActionProvider, contextMenuProvider: IContextMenuProvider, actionItemProvider: IActionItemProvider, actionRunner: IActionRunner, keybindings: (action: IAction) => ResolvedKeybinding, clazz: string);
-	constructor(action: IAction, menuActionsOrProvider: any, contextMenuProvider: IContextMenuProvider, actionItemProvider: IActionItemProvider, actionRunner: IActionRunner, keybindings: (action: IAction) => ResolvedKeybinding, clazz: string) {
+	constructor(action: IAction, menuActions: IAction[], contextMenuProvider: IContextMenuProvider, actionItemProvider: IActionItemProvider, actionRunner: IActionRunner, keybindings: (action: IAction) => ResolvedKeybinding, clazz: string, anchorAlignment?: AnchorAlignment);
+	constructor(action: IAction, actionProvider: IActionProvider, contextMenuProvider: IContextMenuProvider, actionItemProvider: IActionItemProvider, actionRunner: IActionRunner, keybindings: (action: IAction) => ResolvedKeybinding, clazz: string, anchorAlignment?: AnchorAlignment);
+	constructor(action: IAction, menuActionsOrProvider: any, contextMenuProvider: IContextMenuProvider, actionItemProvider: IActionItemProvider, actionRunner: IActionRunner, keybindings: (action: IAction) => ResolvedKeybinding, clazz: string, anchorAlignment?: AnchorAlignment) {
 		super(null, action);
 
 		this.menuActionsOrProvider = menuActionsOrProvider;
@@ -282,6 +284,7 @@ export class DropdownMenuActionItem extends BaseActionItem {
 		this.actionRunner = actionRunner;
 		this.keybindings = keybindings;
 		this.clazz = clazz;
+		this.anchorAlignment = anchorAlignment;
 	}
 
 	render(container: HTMLElement): void {
@@ -315,7 +318,8 @@ export class DropdownMenuActionItem extends BaseActionItem {
 			actionItemProvider: this.actionItemProvider,
 			actionRunner: this.actionRunner,
 			getKeyBinding: this.keybindings,
-			context: this._context
+			context: this._context,
+			anchorAlignment: this.anchorAlignment
 		};
 	}
 

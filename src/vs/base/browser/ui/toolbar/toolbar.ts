@@ -10,6 +10,7 @@ import { ActionBar, ActionsOrientation, IActionItemProvider } from 'vs/base/brow
 import { IContextMenuProvider, DropdownMenuActionItem } from 'vs/base/browser/ui/dropdown/dropdown';
 import { ResolvedKeybinding } from 'vs/base/common/keyCodes';
 import { Disposable } from 'vs/base/common/lifecycle';
+import { AnchorAlignment } from 'vs/base/browser/ui/contextview/contextview';
 
 export const CONTEXT = 'context.toolbar';
 
@@ -20,6 +21,7 @@ export interface IToolBarOptions {
 	getKeyBinding?: (action: IAction) => ResolvedKeybinding;
 	actionRunner?: IActionRunner;
 	toggleMenuTitle?: string;
+	anchorAlignment?: AnchorAlignment;
 }
 
 /**
@@ -67,7 +69,8 @@ export class ToolBar extends Disposable {
 						this.options.actionItemProvider,
 						this.actionRunner,
 						this.options.getKeyBinding,
-						'toolbar-toggle-more'
+						'toolbar-toggle-more',
+						this.options.anchorAlignment
 					);
 					this.toggleMenuActionItem.setActionContext(this.actionBar.context);
 

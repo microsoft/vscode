@@ -60,6 +60,7 @@ export class ContextMenuHandler {
 			this.contextViewService.showContextView({
 				getAnchor: () => delegate.getAnchor(),
 				canRelayout: false,
+				anchorAlignment: delegate.anchorAlignment,
 
 				render: (container) => {
 					this.menuContainerElement = container;
