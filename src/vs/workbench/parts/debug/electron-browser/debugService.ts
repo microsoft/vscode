@@ -1069,23 +1069,18 @@ export class DebugService implements IDebugService {
 	private telemetryDebugAddBreakpoint(breakpoint: IBreakpoint, context: string): TPromise<any> {
 		/* __GDPR__
 			"debugAddBreakpoint" : {
-				"type" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-				"context": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+				"context": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+				"hasCondition": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+				"hasHitCondition": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+				"hasLogMessage": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
 			}
 		*/
 
-		var breakpointType = 'Breakpoint';
-		if (breakpoint.condition) {
-			breakpointType = 'BreakpointConditional';
-		} else if (breakpoint.hitCondition) {
-			breakpointType = 'BreakpointHitCount';
-		} else if (breakpoint.logMessage) {
-			breakpointType = 'Logpoint';
-		}
-
 		return this.telemetryService.publicLog('debugAddBreakpoint', {
-			type: breakpointType,
-			context: context
+			context: context,
+			hasCondition: !!breakpoint.condition,
+			hasHitCondition: !!breakpoint.hitCondition,
+			hasLogMessage: !!breakpoint.logMessage
 		});
 	}
 }
