@@ -52,7 +52,7 @@ export abstract class BreadcrumbsPicker {
 	protected readonly _treeContainer: HTMLDivElement;
 	protected readonly _tree: HighlightingWorkbenchTree;
 	protected readonly _focus: dom.IFocusTracker;
-	protected readonly _outlineSort: BreadcrumbsConfig<'position' | 'name' | 'type'>;
+	protected readonly _symbolSortOrder: BreadcrumbsConfig<'position' | 'name' | 'type'>;
 	private _layoutInfo: ILayoutInfo;
 
 	private readonly _onDidPickElement = new Emitter<{ target: any, payload: any }>();
@@ -89,7 +89,7 @@ export abstract class BreadcrumbsPicker {
 		this._treeContainer.style.boxShadow = `0px 5px 8px ${this._themeService.getTheme().getColor(widgetShadow)}`;
 		this._domNode.appendChild(this._treeContainer);
 
-		this._outlineSort = BreadcrumbsConfig.OutlineSort.bindTo(this._configurationService);
+		this._symbolSortOrder = BreadcrumbsConfig.SymbolSortOrder.bindTo(this._configurationService);
 
 		const filterConfig = BreadcrumbsConfig.FilterOnType.bindTo(this._configurationService);
 		this._disposables.push(filterConfig);
@@ -147,7 +147,7 @@ export abstract class BreadcrumbsPicker {
 		this._onDidPickElement.dispose();
 		this._tree.dispose();
 		this._focus.dispose();
-		this._outlineSort.dispose();
+		this._symbolSortOrder.dispose();
 	}
 
 	setInput(input: any, maxHeight: number, width: number, arrowSize: number, arrowOffset: number): void {
@@ -483,7 +483,7 @@ export class BreadcrumbsOutlinePicker extends BreadcrumbsPicker {
 	}
 
 	private _getOutlineItemComparator(): OutlineItemCompareType {
-		switch (this._outlineSort.getValue()) {
+		switch (this._symbolSortOrder.getValue()) {
 			case 'name':
 				return OutlineItemCompareType.ByName;
 			case 'type':

@@ -157,7 +157,7 @@ const configurationValueWhitelist = [
 	'breadcrumbs.enabled',
 	'breadcrumbs.filePath',
 	'breadcrumbs.symbolPath',
-	'breadcrumbs.outlineSort',
+	'breadcrumbs.symbolSortOrder',
 	'breadcrumbs.useQuickPick',
 	'explorer.openEditors.visible',
 	'extensions.autoUpdate',
