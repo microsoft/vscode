@@ -133,7 +133,7 @@ export class MainThreadDebugService implements MainThreadDebugServiceShape, IDeb
 						logMessage: l.logMessage
 					}
 				);
-				this.debugService.addBreakpoints(uri.revive(dto.uri), rawbps, 'mainThreadDebugService');
+				this.debugService.addBreakpoints(uri.revive(dto.uri), rawbps, 'extension');
 			} else if (dto.type === 'function') {
 				this.debugService.addFunctionBreakpoint(dto.functionName, dto.id);
 			}
