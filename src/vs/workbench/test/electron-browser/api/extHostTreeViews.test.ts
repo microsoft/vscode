@@ -140,11 +140,11 @@ suite('ExtHostTreeView', function () {
 			.then(elements => {
 				assert.deepEqual(removeUnsetKeys(elements), [{
 					handle: '1/a',
-					label: { label: 'a', highlights: [{ start: 0, end: 2 }, { start: 3, end: 5 }] },
+					label: { label: 'a', highlights: [[0, 2], [3, 5]] },
 					collapsibleState: TreeItemCollapsibleState.Collapsed
 				}, {
 					handle: '1/b',
-					label: { label: 'b', highlights: [{ start: 0, end: 2 }, { start: 3, end: 5 }] },
+					label: { label: 'b', highlights: [[0, 2], [3, 5]] },
 					collapsibleState: TreeItemCollapsibleState.Collapsed
 				}]);
 				return Promise.all([
@@ -153,12 +153,12 @@ suite('ExtHostTreeView', function () {
 							assert.deepEqual(removeUnsetKeys(children), [{
 								handle: '1/aa',
 								parentHandle: '1/a',
-								label: { label: 'aa', highlights: [{ start: 0, end: 2 }, { start: 3, end: 5 }] },
+								label: { label: 'aa', highlights: [[0, 2], [3, 5]] },
 								collapsibleState: TreeItemCollapsibleState.None
 							}, {
 								handle: '1/ab',
 								parentHandle: '1/a',
-								label: { label: 'ab', highlights: [{ start: 0, end: 2 }, { start: 3, end: 5 }] },
+								label: { label: 'ab', highlights: [[0, 2], [3, 5]] },
 								collapsibleState: TreeItemCollapsibleState.None
 							}]);
 						}),
@@ -167,12 +167,12 @@ suite('ExtHostTreeView', function () {
 							assert.deepEqual(removeUnsetKeys(children), [{
 								handle: '1/ba',
 								parentHandle: '1/b',
-								label: { label: 'ba', highlights: [{ start: 0, end: 2 }, { start: 3, end: 5 }] },
+								label: { label: 'ba', highlights: [[0, 2], [3, 5]] },
 								collapsibleState: TreeItemCollapsibleState.None
 							}, {
 								handle: '1/bb',
 								parentHandle: '1/b',
-								label: { label: 'bb', highlights: [{ start: 0, end: 2 }, { start: 3, end: 5 }] },
+								label: { label: 'bb', highlights: [[0, 2], [3, 5]] },
 								collapsibleState: TreeItemCollapsibleState.None
 							}]);
 						})
@@ -652,7 +652,7 @@ suite('ExtHostTreeView', function () {
 				return getChildren(element ? element.key : undefined).map(key => getNode(key));
 			},
 			getTreeItem: (element: { key: string }): TreeItem => {
-				const treeItem = getTreeItem(element.key, [{ start: 0, end: 2 }, { start: 3, end: 5 }]);
+				const treeItem = getTreeItem(element.key, [[0, 2], [3, 5]]);
 				treeItem.id = element.key;
 				return treeItem;
 			},
@@ -682,10 +682,10 @@ suite('ExtHostTreeView', function () {
 		return [];
 	}
 
-	function getTreeItem(key: string, highlights?: { start: number, end: number }[]): TreeItem {
+	function getTreeItem(key: string, highlights?: [number, number][]): TreeItem {
 		const treeElement = getTreeElement(key);
 		return {
-			label: { label: labels[key] || key, highlights },
+			label: <any>{ label: labels[key] || key, highlights },
 			collapsibleState: treeElement && Object.keys(treeElement).length ? TreeItemCollapsibleState.Collapsed : TreeItemCollapsibleState.None
 		};
 	}
