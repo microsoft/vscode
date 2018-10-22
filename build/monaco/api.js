@@ -120,7 +120,7 @@ function isDefaultExport(declaration) {
     return (hasModifier(declaration.modifiers, ts.SyntaxKind.DefaultKeyword)
         && hasModifier(declaration.modifiers, ts.SyntaxKind.ExportKeyword));
 }
-function getMassagedTopLevelDeclarationText(sourceFile, declaration, importName, usage) {
+function getMassagedTopLevelDeclarationText(sourceFile, declaration, importName, usage, enums) {
     let result = getNodeText(sourceFile, declaration);
     if (declaration.kind === ts.SyntaxKind.InterfaceDeclaration || declaration.kind === ts.SyntaxKind.ClassDeclaration) {
         let interfaceDeclaration = declaration;
@@ -160,6 +160,10 @@ function getMassagedTopLevelDeclarationText(sourceFile, declaration, importName,
     }
     result = result.replace(/export default/g, 'export');
     result = result.replace(/export declare/g, 'export');
+    if (declaration.kind === ts.SyntaxKind.EnumDeclaration) {
+        result = result.replace(/const enum/, 'enum');
+        enums.push(result);
+    }
     return result;
 }
 function format(text, endl) {
@@ -318,6 +322,7 @@ function generateDeclarationFile(recipe, sourceFileGetter) {
         usageImports.push(`import * as ${importName} from './${moduleId.replace(/\.d\.ts$/, '')}';`);
         return importName;
     };
+    let enums = [];
     lines.forEach(line => {
         let m1 = line.match(/^\s*#include\(([^;)]*)(;[^)]*)?\)\:(.*)$/);
         if (m1) {
@@ -340,7 +345,7 @@ function generateDeclarationFile(recipe, sourceFileGetter) {
                     logErr('Cannot find type ' + typeName);
                     return;
                 }
-                result.push(replacer(getMassagedTopLevelDeclarationText(sourceFile, declaration, importName, usage)));
+                result.push(replacer(getMassagedTopLevelDeclarationText(sourceFile, declaration, importName, usage, enums)));
             });
             return;
         }
@@ -380,7 +385,7 @@ function generateDeclarationFile(recipe, sourceFileGetter) {
                         }
                     }
                 }
-                result.push(replacer(getMassagedTopLevelDeclarationText(sourceFile, declaration, importName, usage)));
+                result.push(replacer(getMassagedTopLevelDeclarationText(sourceFile, declaration, importName, usage, enums)));
             });
             return;
         }
@@ -390,9 +395,20 @@ function generateDeclarationFile(recipe, sourceFileGetter) {
     resultTxt = resultTxt.replace(/\bURI\b/g, 'Uri');
     resultTxt = resultTxt.replace(/\bEvent</g, 'IEvent<');
     resultTxt = format(resultTxt, endl);
+    let resultEnums = [
+        '/*---------------------------------------------------------------------------------------------',
+        ' *  Copyright (c) Microsoft Corporation. All rights reserved.',
+        ' *  Licensed under the MIT License. See License.txt in the project root for license information.',
+        ' *--------------------------------------------------------------------------------------------*/',
+        '',
+        '// THIS IS A GENERATED FILE. DO NOT EDIT DIRECTLY.',
+        ''
+    ].concat(enums).join(endl);
+    resultEnums = format(resultEnums, endl);
     return [
         resultTxt,
-        `${usageImports.join('\n')}\n\n${usage.join('\n')}`
+        `${usageImports.join('\n')}\n\n${usage.join('\n')}`,
+        resultEnums
     ];
 }
 function getIncludesInRecipe() {
@@ -423,7 +439,7 @@ exports.getFilesToWatch = getFilesToWatch;
 function _run(sourceFileGetter) {
     log('Starting monaco.d.ts generation');
     const recipe = fs.readFileSync(exports.RECIPE_PATH).toString();
-    const [result, usageContent] = generateDeclarationFile(recipe, sourceFileGetter);
+    const [result, usageContent, enums] = generateDeclarationFile(recipe, sourceFileGetter);
     const currentContent = fs.readFileSync(DECLARATION_PATH).toString();
     const one = currentContent.replace(/\r\n/gm, '\n');
     const other = result.replace(/\r\n/gm, '\n');
@@ -432,6 +448,7 @@ function _run(sourceFileGetter) {
     return {
         content: result,
         usageContent: usageContent,
+        enums: enums,
         filePath: DECLARATION_PATH,
         isTheSame
     };

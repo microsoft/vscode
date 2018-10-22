@@ -9,7 +9,7 @@ import { IMonarchLanguage } from 'vs/editor/standalone/common/monarch/monarchTyp
 import { ILanguageExtensionPoint } from 'vs/editor/common/services/modeService';
 import { StaticServices } from 'vs/editor/standalone/browser/standaloneServices';
 import * as modes from 'vs/editor/common/modes';
-import { LanguageConfiguration, IndentAction } from 'vs/editor/common/modes/languageConfiguration';
+import { LanguageConfiguration } from 'vs/editor/common/modes/languageConfiguration';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { CancellationToken } from 'vs/base/common/cancellation';
@@ -20,6 +20,7 @@ import { IMarkerData } from 'vs/platform/markers/common/markers';
 import { Token, TokenizationResult, TokenizationResult2 } from 'vs/editor/common/core/token';
 import { IStandaloneThemeService } from 'vs/editor/standalone/common/standaloneThemeService';
 import * as model from 'vs/editor/common/model';
+import * as enums from 'vs/editor/common/standalone/standaloneEnums';
 
 /**
  * Register information about a new language.
@@ -503,42 +504,44 @@ export interface CodeActionProvider {
  */
 export function createMonacoLanguagesAPI(): typeof monaco.languages {
 	return {
-		register: register,
-		getLanguages: getLanguages,
-		onLanguage: onLanguage,
-		getEncodedLanguageId: getEncodedLanguageId,
+		register: <any>register,
+		getLanguages: <any>getLanguages,
+		onLanguage: <any>onLanguage,
+		getEncodedLanguageId: <any>getEncodedLanguageId,
 
 		// provider methods
-		setLanguageConfiguration: setLanguageConfiguration,
-		setTokensProvider: setTokensProvider,
-		setMonarchTokensProvider: setMonarchTokensProvider,
-		registerReferenceProvider: registerReferenceProvider,
-		registerRenameProvider: registerRenameProvider,
-		registerCompletionItemProvider: registerCompletionItemProvider,
-		registerSignatureHelpProvider: registerSignatureHelpProvider,
-		registerHoverProvider: registerHoverProvider,
-		registerDocumentSymbolProvider: registerDocumentSymbolProvider,
-		registerDocumentHighlightProvider: registerDocumentHighlightProvider,
-		registerDefinitionProvider: registerDefinitionProvider,
-		registerImplementationProvider: registerImplementationProvider,
-		registerTypeDefinitionProvider: registerTypeDefinitionProvider,
-		registerCodeLensProvider: registerCodeLensProvider,
-		registerCodeActionProvider: registerCodeActionProvider,
-		registerDocumentFormattingEditProvider: registerDocumentFormattingEditProvider,
-		registerDocumentRangeFormattingEditProvider: registerDocumentRangeFormattingEditProvider,
-		registerOnTypeFormattingEditProvider: registerOnTypeFormattingEditProvider,
-		registerLinkProvider: registerLinkProvider,
-		registerColorProvider: registerColorProvider,
-		registerFoldingRangeProvider: registerFoldingRangeProvider,
+		setLanguageConfiguration: <any>setLanguageConfiguration,
+		setTokensProvider: <any>setTokensProvider,
+		setMonarchTokensProvider: <any>setMonarchTokensProvider,
+		registerReferenceProvider: <any>registerReferenceProvider,
+		registerRenameProvider: <any>registerRenameProvider,
+		registerCompletionItemProvider: <any>registerCompletionItemProvider,
+		registerSignatureHelpProvider: <any>registerSignatureHelpProvider,
+		registerHoverProvider: <any>registerHoverProvider,
+		registerDocumentSymbolProvider: <any>registerDocumentSymbolProvider,
+		registerDocumentHighlightProvider: <any>registerDocumentHighlightProvider,
+		registerDefinitionProvider: <any>registerDefinitionProvider,
+		registerImplementationProvider: <any>registerImplementationProvider,
+		registerTypeDefinitionProvider: <any>registerTypeDefinitionProvider,
+		registerCodeLensProvider: <any>registerCodeLensProvider,
+		registerCodeActionProvider: <any>registerCodeActionProvider,
+		registerDocumentFormattingEditProvider: <any>registerDocumentFormattingEditProvider,
+		registerDocumentRangeFormattingEditProvider: <any>registerDocumentRangeFormattingEditProvider,
+		registerOnTypeFormattingEditProvider: <any>registerOnTypeFormattingEditProvider,
+		registerLinkProvider: <any>registerLinkProvider,
+		registerColorProvider: <any>registerColorProvider,
+		registerFoldingRangeProvider: <any>registerFoldingRangeProvider,
 
 		// enums
-		DocumentHighlightKind: modes.DocumentHighlightKind,
-		CompletionItemKind: modes.CompletionItemKind,
-		CompletionItemInsertTextRule: modes.CompletionItemInsertTextRule,
-		SymbolKind: modes.SymbolKind,
-		IndentAction: IndentAction,
-		CompletionTriggerKind: modes.CompletionTriggerKind,
+		DocumentHighlightKind: enums.DocumentHighlightKind,
+		CompletionItemKind: enums.CompletionItemKind,
+		CompletionItemInsertTextRule: enums.CompletionItemInsertTextRule,
+		SymbolKind: enums.SymbolKind,
+		IndentAction: enums.IndentAction,
+		CompletionTriggerKind: enums.CompletionTriggerKind,
+		SignatureHelpTriggerReason: enums.SignatureHelpTriggerReason,
+
+		// classes
 		FoldingRangeKind: modes.FoldingRangeKind,
-		SignatureHelpTriggerReason: modes.SignatureHelpTriggerReason,
 	};
 }
