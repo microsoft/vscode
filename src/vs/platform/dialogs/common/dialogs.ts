@@ -16,7 +16,7 @@ export interface IConfirmation {
 	type?: 'none' | 'info' | 'error' | 'question' | 'warning';
 	message: string;
 	detail?: string;
-	primaryButton?: string;
+	primaryButton: string;
 	secondaryButton?: string;
 	checkbox?: {
 		label: string;

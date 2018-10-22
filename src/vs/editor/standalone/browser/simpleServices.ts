@@ -417,8 +417,8 @@ export class SimpleConfigurationService implements IConfigurationService {
 	public inspect<C>(key: string, options: IConfigurationOverrides = {}): {
 		default: C,
 		user: C,
-		workspace: C,
-		workspaceFolder: C
+		workspace?: C,
+		workspaceFolder?: C
 		value: C,
 	} {
 		return this.configuration().inspect<C>(key, options, null);

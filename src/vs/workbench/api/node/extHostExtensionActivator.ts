@@ -31,8 +31,8 @@ export interface IExtensionContext {
  * Represents the source code (module) of an extension.
  */
 export interface IExtensionModule {
-	activate(ctx: IExtensionContext): Promise<IExtensionAPI>;
-	deactivate(): void;
+	activate?(ctx: IExtensionContext): Promise<IExtensionAPI>;
+	deactivate?(): void;
 }
 
 /**
@@ -123,18 +123,18 @@ export class ExtensionActivationTimesBuilder {
 export class ActivatedExtension {
 
 	public readonly activationFailed: boolean;
-	public readonly activationFailedError: Error;
+	public readonly activationFailedError: Error | null;
 	public readonly activationTimes: ExtensionActivationTimes;
 	public readonly module: IExtensionModule;
-	public readonly exports: IExtensionAPI;
+	public readonly exports: IExtensionAPI | undefined;
 	public readonly subscriptions: IDisposable[];
 
 	constructor(
 		activationFailed: boolean,
-		activationFailedError: Error,
+		activationFailedError: Error | null,
 		activationTimes: ExtensionActivationTimes,
 		module: IExtensionModule,
-		exports: IExtensionAPI,
+		exports: IExtensionAPI | undefined,
 		subscriptions: IDisposable[]
 	) {
 		this.activationFailed = activationFailed;
