@@ -9,7 +9,7 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import { Action, IAction, IActionChangeEvent } from 'vs/base/common/actions';
 import { HistoryInputBox } from 'vs/base/browser/ui/inputbox/inputBox';
 import { KeyCode } from 'vs/base/common/keyCodes';
-import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
+import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { IContextViewService, IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { TogglePanelAction } from 'vs/workbench/browser/panel';
 import Messages from 'vs/workbench/parts/markers/electron-browser/messages';
@@ -189,9 +189,9 @@ export class MarkersFilterActionItem extends BaseActionItem {
 				this.filterInputBox.value = this.action.filterText;
 			}
 		}));
-		this._register(DOM.addStandardDisposableListener(this.filterInputBox.inputElement, 'keydown', (keyboardEvent) => this.onInputKeyDown(keyboardEvent, this.filterInputBox)));
-		this._register(DOM.addStandardDisposableListener(container, 'keydown', this.handleKeyboardEvent));
-		this._register(DOM.addStandardDisposableListener(container, 'keyup', this.handleKeyboardEvent));
+		this._register(DOM.addStandardDisposableListener(this.filterInputBox.inputElement, DOM.EventType.KEY_DOWN, e => this.onInputKeyDown(e, this.filterInputBox)));
+		this._register(DOM.addStandardDisposableListener(container, DOM.EventType.KEY_DOWN, this.handleKeyboardEvent));
+		this._register(DOM.addStandardDisposableListener(container, DOM.EventType.KEY_UP, this.handleKeyboardEvent));
 
 		const focusTracker = this._register(DOM.trackFocus(this.filterInputBox.inputElement));
 		this._register(focusTracker.onDidFocus(() => this.focusContextKey.set(true)));
@@ -260,28 +260,25 @@ export class MarkersFilterActionItem extends BaseActionItem {
 	}
 
 	// Action toolbar is swallowing some keys for action items which should not be for an input box
-	private handleKeyboardEvent(e: IKeyboardEvent) {
-		switch (e.keyCode) {
-			case KeyCode.Space:
-			case KeyCode.LeftArrow:
-			case KeyCode.RightArrow:
-			case KeyCode.Escape:
-				e.stopPropagation();
-				break;
+	private handleKeyboardEvent(event: StandardKeyboardEvent) {
+		if (event.equals(KeyCode.Space)
+			|| event.equals(KeyCode.LeftArrow)
+			|| event.equals(KeyCode.RightArrow)
+			|| event.equals(KeyCode.Escape)
+		) {
+			event.stopPropagation();
 		}
 	}
 
-	private onInputKeyDown(keyboardEvent: IKeyboardEvent, filterInputBox: HistoryInputBox) {
+	private onInputKeyDown(event: StandardKeyboardEvent, filterInputBox: HistoryInputBox) {
 		let handled = false;
-		switch (keyboardEvent.keyCode) {
-			case KeyCode.Escape:
-				filterInputBox.value = '';
-				handled = true;
-				break;
+		if (event.equals(KeyCode.Escape)) {
+			filterInputBox.value = '';
+			handled = true;
 		}
 		if (handled) {
-			keyboardEvent.stopPropagation();
-			keyboardEvent.preventDefault();
+			event.stopPropagation();
+			event.preventDefault();
 		}
 	}
 
