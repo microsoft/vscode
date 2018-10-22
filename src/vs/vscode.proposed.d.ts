@@ -1156,7 +1156,7 @@ declare module 'vscode' {
 		/**
 		 * Ranges in the label to highlight.
 		 */
-		highlights?: [number][number][];
+		highlights?: [number, number][];
 
 	}
 
