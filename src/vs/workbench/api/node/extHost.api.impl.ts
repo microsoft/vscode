@@ -40,7 +40,6 @@ import { URI } from 'vs/base/common/uri';
 import Severity from 'vs/base/common/severity';
 import { IExtensionDescription } from 'vs/workbench/services/extensions/common/extensions';
 import { ExtHostExtensionService } from 'vs/workbench/api/node/extHostExtensionService';
-import { TPromise } from 'vs/base/common/winjs.base';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import * as vscode from 'vscode';
 import * as paths from 'vs/base/common/paths';
@@ -363,11 +362,11 @@ export function createApiFactory(
 				return extHostTerminalService.terminals;
 			},
 			showTextDocument(documentOrUri: vscode.TextDocument | vscode.Uri, columnOrOptions?: vscode.ViewColumn | vscode.TextDocumentShowOptions, preserveFocus?: boolean): Thenable<vscode.TextEditor> {
-				let documentPromise: TPromise<vscode.TextDocument>;
+				let documentPromise: Promise<vscode.TextDocument>;
 				if (URI.isUri(documentOrUri)) {
-					documentPromise = TPromise.wrap(workspace.openTextDocument(documentOrUri));
+					documentPromise = Promise.resolve(workspace.openTextDocument(documentOrUri));
 				} else {
-					documentPromise = TPromise.wrap(<vscode.TextDocument>documentOrUri);
+					documentPromise = Promise.resolve(<vscode.TextDocument>documentOrUri);
 				}
 				return documentPromise.then(document => {
 					return extHostEditors.showTextDocument(document, columnOrOptions, preserveFocus);
@@ -555,9 +554,9 @@ export function createApiFactory(
 
 				let options = uriOrFileNameOrOptions as { language?: string; content?: string; };
 				if (typeof uriOrFileNameOrOptions === 'string') {
-					uriPromise = TPromise.as(URI.file(uriOrFileNameOrOptions));
+					uriPromise = Promise.resolve(URI.file(uriOrFileNameOrOptions));
 				} else if (uriOrFileNameOrOptions instanceof URI) {
-					uriPromise = TPromise.as(uriOrFileNameOrOptions);
+					uriPromise = Promise.resolve(uriOrFileNameOrOptions);
 				} else if (!options || typeof options === 'object') {
 					uriPromise = extHostDocuments.createDocumentData(options);
 				} else {
@@ -731,6 +730,7 @@ export function createApiFactory(
 			CommentThreadCollapsibleState: extHostTypes.CommentThreadCollapsibleState,
 			CompletionItem: extHostTypes.CompletionItem,
 			CompletionItemKind: extHostTypes.CompletionItemKind,
+			CompletionItemInsertTextRule: extension.enableProposedApi ? extHostTypes.CompletionItemInsertTextRule : null,
 			CompletionList: extHostTypes.CompletionList,
 			CompletionTriggerKind: extHostTypes.CompletionTriggerKind,
 			ConfigurationTarget: extHostTypes.ConfigurationTarget,
@@ -843,7 +843,7 @@ class Extension<T> implements vscode.Extension<T> {
 	}
 }
 
-export function initializeExtensionApi(extensionService: ExtHostExtensionService, apiFactory: IExtensionApiFactory): TPromise<void> {
+export function initializeExtensionApi(extensionService: ExtHostExtensionService, apiFactory: IExtensionApiFactory): Promise<void> {
 	return extensionService.getExtensionPathIndex().then(trie => defineAPI(apiFactory, trie));
 }
 

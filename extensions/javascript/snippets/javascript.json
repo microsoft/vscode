@@ -140,6 +140,15 @@
 		],
 		"description": "Set Timeout Function"
 	},
+	"Set Interval Function": {
+		"prefix": "setinterval",
+		"body": [
+			"setInterval(() => {",
+			"\t$0",
+			"}, ${1:interval});"
+		],
+		"description": "Set Interval Function"
+	},
 	"Import external module.": {
 		"prefix": "import statement",
 		"body": [

@@ -5,7 +5,7 @@
 
 import * as assert from 'assert';
 
-import { IExperiment, ExperimentActionType, IExperimentService, ExperimentState } from 'vs/workbench/parts/experiments/node/experimentService';
+import { IExperiment, ExperimentActionType, IExperimentService, ExperimentState, IExperimentActionPromptProperties } from 'vs/workbench/parts/experiments/node/experimentService';
 
 import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
 import { Emitter } from 'vs/base/common/event';
@@ -156,5 +156,29 @@ suite('Experimental Prompts', () => {
 			assert.equal(storageData['state'], ExperimentState.Complete);
 		});
 
+	});
+
+	test('Test getPromptText', () => {
+		const simpleTextCase: IExperimentActionPromptProperties = {
+			promptText: 'My simple prompt',
+			commands: []
+		};
+		const englishTextCase: IExperimentActionPromptProperties = {
+			promptText: {
+				en: 'My simple prompt for en'
+			},
+			commands: []
+		};
+		const englishUSTextCase: IExperimentActionPromptProperties = {
+			promptText: {
+				'en-us': 'My simple prompt for en'
+			},
+			commands: []
+		};
+		assert.equal(ExperimentalPrompts.getPromptText(simpleTextCase, 'any-language'), simpleTextCase.promptText);
+		assert.equal(ExperimentalPrompts.getPromptText(englishTextCase, 'en'), englishTextCase.promptText['en']);
+		assert.equal(ExperimentalPrompts.getPromptText(englishUSTextCase, 'en-us'), englishUSTextCase.promptText['en-us']);
+		assert.equal(ExperimentalPrompts.getPromptText(englishTextCase, 'en-au'), englishTextCase.promptText['en']);
+		assert.equal(!!ExperimentalPrompts.getPromptText(englishTextCase, 'de'), false);
 	});
 });

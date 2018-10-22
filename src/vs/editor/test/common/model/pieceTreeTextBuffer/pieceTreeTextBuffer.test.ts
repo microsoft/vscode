@@ -1515,7 +1515,7 @@ suite('random is unsupervised', () => {
 
 	test('random chunks', function () {
 		this.timeout(500000);
-		let chunks = [];
+		let chunks: string[] = [];
 		for (let i = 0; i < 5; i++) {
 			chunks.push(randomStr(1000));
 		}
@@ -1550,7 +1550,7 @@ suite('random is unsupervised', () => {
 
 	test('random chunks 2', function () {
 		this.timeout(500000);
-		let chunks = [];
+		let chunks: string[] = [];
 		chunks.push(randomStr(1000));
 
 		let pieceTable = createTextBuffer(chunks, false);

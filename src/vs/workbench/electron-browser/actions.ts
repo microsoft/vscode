@@ -741,15 +741,15 @@ export abstract class BaseNavigationAction extends Action {
 		return Promise.resolve(false);
 	}
 
-	protected navigateOnEditorFocus(_isSidebarPositionLeft: boolean, _isPanelPositionDown: boolean): Promise<boolean | IViewlet | IPanel> {
+	protected navigateOnEditorFocus(_isSidebarPositionLeft: boolean, _isPanelPositionDown: boolean): Thenable<boolean | IViewlet | IPanel> {
 		return Promise.resolve(true);
 	}
 
-	protected navigateOnPanelFocus(_isSidebarPositionLeft: boolean, _isPanelPositionDown: boolean): Promise<boolean | IPanel> {
+	protected navigateOnPanelFocus(_isSidebarPositionLeft: boolean, _isPanelPositionDown: boolean): Thenable<boolean | IPanel> {
 		return Promise.resolve(true);
 	}
 
-	protected navigateOnSidebarFocus(_isSidebarPositionLeft: boolean, _isPanelPositionDown: boolean): Promise<boolean | IViewlet> {
+	protected navigateOnSidebarFocus(_isSidebarPositionLeft: boolean, _isPanelPositionDown: boolean): Thenable<boolean | IViewlet> {
 		return Promise.resolve(true);
 	}
 
@@ -763,7 +763,7 @@ export abstract class BaseNavigationAction extends Action {
 		return this.panelService.openPanel(activePanelId, true);
 	}
 
-	protected navigateToSidebar(): Promise<IViewlet | boolean> {
+	protected navigateToSidebar(): Thenable<IViewlet | boolean> {
 		if (!this.partService.isVisible(Parts.SIDEBAR_PART)) {
 			return Promise.resolve(false);
 		}
@@ -824,7 +824,7 @@ export class NavigateLeftAction extends BaseNavigationAction {
 			});
 	}
 
-	protected navigateOnPanelFocus(isSidebarPositionLeft: boolean, isPanelPositionDown: boolean): Promise<boolean | IViewlet> {
+	protected navigateOnPanelFocus(isSidebarPositionLeft: boolean, isPanelPositionDown: boolean): Thenable<boolean | IViewlet> {
 		if (isPanelPositionDown && isSidebarPositionLeft) {
 			return this.navigateToSidebar();
 		}
@@ -880,7 +880,7 @@ export class NavigateRightAction extends BaseNavigationAction {
 			});
 	}
 
-	protected navigateOnPanelFocus(isSidebarPositionLeft: boolean, _isPanelPositionDown: boolean): Promise<boolean | IViewlet> {
+	protected navigateOnPanelFocus(isSidebarPositionLeft: boolean, _isPanelPositionDown: boolean): Thenable<boolean | IViewlet> {
 		if (!isSidebarPositionLeft) {
 			return this.navigateToSidebar();
 		}

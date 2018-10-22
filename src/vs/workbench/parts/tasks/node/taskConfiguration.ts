@@ -112,6 +112,11 @@ export interface PresentationOptions {
 	 * Controls whether to show the "Terminal will be reused by tasks, press any key to close it" message.
 	 */
 	showReuseMessage?: boolean;
+
+	/**
+	 * Controls whether the terminal should be cleared before running the task.
+	 */
+	clearBeforeExecuting?: boolean;
 }
 
 export interface TaskIdentifier {
@@ -754,6 +759,7 @@ namespace CommandConfiguration {
 			let focus: boolean;
 			let panel: Tasks.PanelKind;
 			let showReuseMessage: boolean;
+			let clearBeforeExecuting: boolean;
 			if (Types.isBoolean(config.echoCommand)) {
 				echo = config.echoCommand;
 			}
@@ -777,11 +783,14 @@ namespace CommandConfiguration {
 				if (Types.isBoolean(presentation.showReuseMessage)) {
 					showReuseMessage = presentation.showReuseMessage;
 				}
+				if (Types.isBoolean(presentation.clearBeforeExecuting)) {
+					clearBeforeExecuting = presentation.clearBeforeExecuting;
+				}
 			}
 			if (echo === void 0 && reveal === void 0 && focus === void 0 && panel === void 0 && showReuseMessage === void 0) {
 				return undefined;
 			}
-			return { echo, reveal, focus, panel, showReuseMessage };
+			return { echo, reveal, focus, panel, showReuseMessage, clearBeforeExecuting };
 		}
 
 		export function assignProperties(target: Tasks.PresentationOptions, source: Tasks.PresentationOptions): Tasks.PresentationOptions {
@@ -794,7 +803,7 @@ namespace CommandConfiguration {
 
 		export function fillDefaults(value: Tasks.PresentationOptions, context: ParseContext): Tasks.PresentationOptions {
 			let defaultEcho = context.engine === Tasks.ExecutionEngine.Terminal ? true : false;
-			return _fillDefaults(value, { echo: defaultEcho, reveal: Tasks.RevealKind.Always, focus: false, panel: Tasks.PanelKind.Shared, showReuseMessage: true }, properties, context);
+			return _fillDefaults(value, { echo: defaultEcho, reveal: Tasks.RevealKind.Always, focus: false, panel: Tasks.PanelKind.Shared, showReuseMessage: true, clearBeforeExecuting: false }, properties, context);
 		}
 
 		export function freeze(value: Tasks.PresentationOptions): Readonly<Tasks.PresentationOptions> {

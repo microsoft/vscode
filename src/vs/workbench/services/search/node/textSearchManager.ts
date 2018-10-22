@@ -11,9 +11,9 @@ import * as resources from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
 import { TPromise } from 'vs/base/common/winjs.base';
 import * as extfs from 'vs/base/node/extfs';
-import { IFileMatch, IFolderQuery, IPatternInfo, ISearchCompleteStats, ISearchQuery, ITextSearchResult } from 'vs/platform/search/common/search';
-import * as vscode from 'vscode';
+import { IFileMatch, IFolderQuery, IPatternInfo, ISearchCompleteStats, ITextQuery, ITextSearchResult, IExtendedExtensionSearchOptions } from 'vs/platform/search/common/search';
 import { QueryGlobTester, resolvePatternsForProvider } from 'vs/workbench/services/search/node/search';
+import * as vscode from 'vscode';
 
 export class TextSearchManager {
 
@@ -22,11 +22,11 @@ export class TextSearchManager {
 	private isLimitHit: boolean;
 	private resultCount = 0;
 
-	constructor(private pattern: IPatternInfo, private config: ISearchQuery, private provider: vscode.TextSearchProvider, private _extfs: typeof extfs) {
+	constructor(private query: ITextQuery, private provider: vscode.TextSearchProvider, private _extfs: typeof extfs) {
 	}
 
 	public search(onProgress: (matches: IFileMatch[]) => void, token: CancellationToken): TPromise<ISearchCompleteStats> {
-		const folderQueries = this.config.folderQueries;
+		const folderQueries = this.query.folderQueries;
 		const tokenSource = new CancellationTokenSource();
 		token.onCancellationRequested(() => tokenSource.cancel());
 
@@ -39,7 +39,7 @@ export class TextSearchManager {
 					return;
 				}
 
-				if (this.resultCount >= this.config.maxResults) {
+				if (this.resultCount >= this.query.maxResults) {
 					this.isLimitHit = true;
 					isCanceled = true;
 					tokenSource.cancel();
@@ -77,8 +77,8 @@ export class TextSearchManager {
 	}
 
 	private searchInFolder(folderQuery: IFolderQuery<URI>, onResult: (result: vscode.TextSearchResult) => void, token: CancellationToken): TPromise<vscode.TextSearchComplete> {
-		const queryTester = new QueryGlobTester(this.config, folderQuery);
-		const testingPs = [];
+		const queryTester = new QueryGlobTester(this.query, folderQuery);
+		const testingPs: TPromise<void>[] = [];
 		const progress = {
 			report: (result: vscode.TextSearchResult) => {
 				const hasSibling = folderQuery.folder.scheme === 'file' && glob.hasSiblingPromiseFn(() => {
@@ -98,7 +98,7 @@ export class TextSearchManager {
 
 		const searchOptions = this.getSearchOptionsForFolder(folderQuery);
 		return new TPromise(resolve => process.nextTick(resolve))
-			.then(() => this.provider.provideTextSearchResults(patternInfoToQuery(this.pattern), searchOptions, progress, token))
+			.then(() => this.provider.provideTextSearchResults(patternInfoToQuery(this.query.contentPattern), searchOptions, progress, token))
 			.then(result => {
 				return TPromise.join(testingPs)
 					.then(() => result);
@@ -118,21 +118,23 @@ export class TextSearchManager {
 	}
 
 	private getSearchOptionsForFolder(fq: IFolderQuery<URI>): vscode.TextSearchOptions {
-		const includes = resolvePatternsForProvider(this.config.includePattern, fq.includePattern);
-		const excludes = resolvePatternsForProvider(this.config.excludePattern, fq.excludePattern);
+		const includes = resolvePatternsForProvider(this.query.includePattern, fq.includePattern);
+		const excludes = resolvePatternsForProvider(this.query.excludePattern, fq.excludePattern);
 
-		return {
+		const options = {
 			folder: URI.from(fq.folder),
 			excludes,
 			includes,
-			useIgnoreFiles: !this.config.disregardIgnoreFiles,
-			useGlobalIgnoreFiles: !this.config.disregardGlobalIgnoreFiles,
-			followSymlinks: !this.config.ignoreSymlinks,
-			encoding: this.config.fileEncoding,
-			maxFileSize: this.config.maxFileSize,
-			maxResults: this.config.maxResults,
-			previewOptions: this.config.previewOptions
+			useIgnoreFiles: !fq.disregardIgnoreFiles,
+			useGlobalIgnoreFiles: !fq.disregardGlobalIgnoreFiles,
+			followSymlinks: !fq.ignoreSymlinks,
+			encoding: fq.fileEncoding,
+			maxFileSize: this.query.maxFileSize,
+			maxResults: this.query.maxResults,
+			previewOptions: this.query.previewOptions
 		};
+		(<IExtendedExtensionSearchOptions>options).usePCRE2 = this.query.usePCRE2;
+		return options;
 	}
 }
 

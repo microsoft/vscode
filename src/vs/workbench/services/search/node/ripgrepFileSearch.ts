@@ -12,8 +12,8 @@ import * as paths from 'vs/base/common/paths';
 import { isMacintosh as isMac } from 'vs/base/common/platform';
 import * as strings from 'vs/base/common/strings';
 import { rgPath } from 'vscode-ripgrep';
-import { IFolderSearch, IRawSearch } from './search';
 import { anchorGlob } from 'vs/workbench/services/search/node/ripgrepSearchUtils';
+import { IRawSearch, IFolderSearch } from 'vs/workbench/services/search/node/legacy/search';
 
 // If vscode-ripgrep is in an .asar file, then the binary is unpacked.
 const rgDiskPath = rgPath.replace(/\bnode_modules\.asar\b/, 'node_modules.asar.unpacked');

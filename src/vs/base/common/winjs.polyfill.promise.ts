@@ -11,6 +11,10 @@ function isWinJSPromise(candidate: any): candidate is WinJSPromise {
 	return isThenable(candidate) && typeof (candidate as any).done === 'function';
 }
 
+declare class WinJSPromiseRemovals {
+	any<T=any>(promises: (T | PromiseLike<T>)[]): WinJSPromise<{ key: string; value: WinJSPromise<T>; }>;
+}
+
 /**
  * A polyfill for the native promises. The implementation is based on
  * WinJS promises but tries to gap differences between winjs promises
@@ -33,7 +37,7 @@ export class PolyfillPromise<T = any> implements Promise<T> {
 	static race(thenables: Thenable<any>[]): PolyfillPromise {
 		// WinJSPromise returns `{ key: <index/key>, value: <promise> }`
 		// from the `any` call and Promise.race just wants the value
-		return new PolyfillPromise(WinJSPromise.any(thenables).then(entry => entry.value, err => err.value));
+		return new PolyfillPromise((WinJSPromise as any as WinJSPromiseRemovals).any(thenables).then(entry => entry.value, err => err.value));
 	}
 
 	static resolve(value): PolyfillPromise {

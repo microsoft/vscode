@@ -203,6 +203,11 @@ export interface PresentationOptions {
 	 * Controls whether to show the "Terminal will be reused by tasks, press any key to close it" message.
 	 */
 	showReuseMessage: boolean;
+
+	/**
+	 * Controls whether to clear the terminal before executing the task.
+	 */
+	clearBeforeExecuting: boolean;
 }
 
 export enum RuntimeType {

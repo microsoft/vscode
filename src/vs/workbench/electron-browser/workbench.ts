@@ -114,7 +114,7 @@ import { WorkbenchThemeService } from 'vs/workbench/services/themes/electron-bro
 import { IWorkbenchThemeService } from 'vs/workbench/services/themes/common/workbenchThemeService';
 import { IFileDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { FileDialogService } from 'vs/workbench/services/dialogs/electron-browser/dialogService';
-import { LogStorageAction } from 'vs/platform/storage/electron-browser/storageService';
+import { LogStorageAction } from 'vs/platform/storage/node/storageService';
 
 interface WorkbenchParams {
 	configuration: IWindowConfiguration;

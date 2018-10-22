@@ -531,7 +531,7 @@ export class TerminalTaskSystem implements ITaskSystem {
 			} else if (task.command.presentation.showReuseMessage) {
 				waitOnExit = nls.localize('reuseTerminal', 'Terminal will be reused by tasks, press any key to close it.');
 			} else {
-				waitOnExit = '\u200B';
+				waitOnExit = true;
 			}
 		}
 		let shellLaunchConfig: IShellLaunchConfig | undefined = undefined;
@@ -683,6 +683,9 @@ export class TerminalTaskSystem implements ITaskSystem {
 		}
 		if (terminalToReuse) {
 			terminalToReuse.terminal.reuseTerminal(shellLaunchConfig);
+			if (task.command.presentation.clearBeforeExecuting) {
+				terminalToReuse.terminal.clear();
+			}
 			return [terminalToReuse.terminal, commandExecutable, undefined];
 		}
 
@@ -694,6 +697,11 @@ export class TerminalTaskSystem implements ITaskSystem {
 				delete this.terminals[terminalKey];
 				delete this.sameTaskTerminals[terminalData.lastTask];
 				this.idleTaskTerminals.delete(terminalData.lastTask);
+				// Delete the task now as a work around for cases when the onExit isn't fired.
+				// This can happen if the terminal wasn't shutdown with an "immediate" flag and is expected.
+				// For correct terminal re-use, the task needs to be deleted immediately.
+				// Note that this shouldn't be a problem anymore since user initiated terminal kills are now immediate.
+				delete this.activeTasks[Task.getMapKey(task)];
 			}
 		});
 		this.terminals[terminalKey] = { terminal: result, lastTask: taskKey };

@@ -705,7 +705,7 @@ export interface IDiffEditorOptions extends IEditorOptions {
 	originalEditable?: boolean;
 }
 
-export enum RenderMinimap {
+export const enum RenderMinimap {
 	None = 0,
 	Small = 1,
 	Large = 2,
@@ -716,7 +716,7 @@ export enum RenderMinimap {
 /**
  * Describes how to indent wrapped lines.
  */
-export enum WrappingIndent {
+export const enum WrappingIndent {
 	/**
 	 * No indentation => wrapped lines begin at column 1.
 	 */
@@ -738,7 +738,7 @@ export enum WrappingIndent {
 /**
  * The kind of animation in which the editor's cursor should be rendered.
  */
-export enum TextEditorCursorBlinkingStyle {
+export const enum TextEditorCursorBlinkingStyle {
 	/**
 	 * Hidden
 	 */

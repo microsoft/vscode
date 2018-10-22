@@ -751,7 +751,7 @@ function getContiguousRangeContaining(range: number[], value: number): number[] 
 		return [];
 	}
 
-	const result = [];
+	const result: number[] = [];
 	let i = index - 1;
 	while (i >= 0 && range[i] === value - (index - i)) {
 		result.push(range[i--]);
@@ -771,7 +771,7 @@ function getContiguousRangeContaining(range: number[], value: number): number[] 
  * betweem them (OR).
  */
 function disjunction(one: number[], other: number[]): number[] {
-	const result = [];
+	const result: number[] = [];
 	let i = 0, j = 0;
 
 	while (i < one.length || j < other.length) {
@@ -799,7 +799,7 @@ function disjunction(one: number[], other: number[]): number[] {
  * complement between them (XOR).
  */
 function relativeComplement(one: number[], other: number[]): number[] {
-	const result = [];
+	const result: number[] = [];
 	let i = 0, j = 0;
 
 	while (i < one.length || j < other.length) {

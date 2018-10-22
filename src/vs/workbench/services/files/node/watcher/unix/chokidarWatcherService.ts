@@ -68,7 +68,7 @@ export class ChokidarWatcherService implements IWatcherService {
 
 	public setRoots(requests: IWatcherRequest[]): TPromise<void> {
 		const watchers = Object.create(null);
-		const newRequests = [];
+		const newRequests: string[] = [];
 
 		const requestsByBasePath = normalizeRoots(requests);
 

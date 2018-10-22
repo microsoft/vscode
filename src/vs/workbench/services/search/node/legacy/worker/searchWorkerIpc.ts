@@ -5,10 +5,10 @@
 
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IChannel } from 'vs/base/parts/ipc/node/ipc';
-import { ISerializedFileMatch } from '../search';
 import { IPatternInfo, ITextSearchPreviewOptions } from 'vs/platform/search/common/search';
 import { SearchWorker } from './searchWorker';
 import { Event } from 'vs/base/common/event';
+import { ISerializedFileMatch } from 'vs/workbench/services/search/node/search';
 
 export interface ISearchWorkerSearchArgs {
 	pattern: IPatternInfo;

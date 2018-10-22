@@ -191,6 +191,10 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 		return this.onFileIconThemeChange.event;
 	}
 
+	public get onIconThemeChange(): Event<IFileIconTheme> {
+		return this.onFileIconThemeChange.event;
+	}
+
 	public get onThemeChange(): Event<ITheme> {
 		return this.onColorThemeChange.event;
 	}
@@ -391,6 +395,10 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 	}
 
 	public getFileIconTheme() {
+		return this.currentIconTheme;
+	}
+
+	public getIconTheme() {
 		return this.currentIconTheme;
 	}
 

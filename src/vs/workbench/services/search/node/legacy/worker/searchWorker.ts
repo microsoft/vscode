@@ -11,8 +11,8 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import { bomLength, decode, detectEncodingFromBuffer, encodingExists, UTF16be, UTF16le, UTF8, UTF8_with_bom } from 'vs/base/node/encoding';
 import { Range } from 'vs/editor/common/core/range';
 import { ITextSearchPreviewOptions, TextSearchResult } from 'vs/platform/search/common/search';
-import { FileMatch } from '../search';
 import { ISearchWorker, ISearchWorkerSearchArgs, ISearchWorkerSearchResult } from './searchWorkerIpc';
+import { FileMatch } from 'vs/workbench/services/search/node/search';
 
 gracefulFs.gracefulify(fs);
 

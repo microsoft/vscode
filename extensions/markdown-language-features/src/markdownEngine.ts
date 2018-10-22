@@ -46,6 +46,9 @@ export class MarkdownEngine {
 					if (lang && lang.toLocaleLowerCase() === 'json5') {
 						lang = 'json';
 					}
+					if (lang && lang.toLocaleLowerCase() === 'c#') {
+						lang = 'cs';
+					}
 					if (lang && hljs.getLanguage(lang)) {
 						try {
 							return `<div>${hljs.highlight(lang, str, true).value}</div>`;

@@ -6,36 +6,9 @@
 import { Event } from 'vs/base/common/event';
 import * as glob from 'vs/base/common/glob';
 import { TPromise } from 'vs/base/common/winjs.base';
-import { IFileSearchStats, IPatternInfo, IProgress, ISearchEngineStats, ITextSearchPreviewOptions, ITextSearchResult, ITextSearchStats, ISearchQuery, IFolderQuery } from 'vs/platform/search/common/search';
+import { IFileSearchStats, IFolderQuery, IProgress, ISearchEngineStats, ISearchQuery, ITextSearchResult, ITextSearchStats, IRawTextQuery } from 'vs/platform/search/common/search';
 import { ITelemetryData } from 'vs/platform/telemetry/common/telemetry';
-
-export interface IFolderSearch {
-	folder: string;
-	excludePattern?: glob.IExpression;
-	includePattern?: glob.IExpression;
-	fileEncoding?: string;
-	disregardIgnoreFiles?: boolean;
-	disregardGlobalIgnoreFiles?: boolean;
-}
-
-export interface IRawSearch {
-	folderQueries: IFolderSearch[];
-	ignoreSymlinks?: boolean;
-	extraFiles?: string[];
-	filePattern?: string;
-	excludePattern?: glob.IExpression;
-	includePattern?: glob.IExpression;
-	contentPattern?: IPatternInfo;
-	maxResults?: number;
-	exists?: boolean;
-	sortByScore?: boolean;
-	cacheKey?: string;
-	maxFilesize?: number;
-	useRipgrep?: boolean;
-	disregardIgnoreFiles?: boolean;
-	previewOptions?: ITextSearchPreviewOptions;
-	disregardGlobalIgnoreFiles?: boolean;
-}
+import { IRawSearch } from 'vs/workbench/services/search/node/legacy/search';
 
 export interface ITelemetryEvent {
 	eventName: string;
@@ -44,7 +17,7 @@ export interface ITelemetryEvent {
 
 export interface IRawSearchService {
 	fileSearch(search: IRawSearch): Event<ISerializedSearchProgressItem | ISerializedSearchComplete>;
-	textSearch(search: IRawSearch): Event<ISerializedSearchProgressItem | ISerializedSearchComplete>;
+	textSearch(search: IRawTextQuery): Event<ISerializedSearchProgressItem | ISerializedSearchComplete>;
 	clearCache(cacheKey: string): TPromise<void>;
 }
 

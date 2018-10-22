@@ -95,10 +95,8 @@ export abstract class Composite extends Component implements IComposite {
 	 * Note that DOM-dependent calculations should be performed from the setVisible()
 	 * call. Only then the composite will be part of the DOM.
 	 */
-	create(parent: HTMLElement): Promise<void> {
+	create(parent: HTMLElement): void {
 		this.parent = parent;
-
-		return Promise.resolve(null);
 	}
 
 	updateStyles(): void {

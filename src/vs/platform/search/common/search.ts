@@ -25,8 +25,9 @@ export const ISearchService = createDecorator<ISearchService>('searchService');
  */
 export interface ISearchService {
 	_serviceBrand: any;
-	search(query: ISearchQuery, token?: CancellationToken, onProgress?: (result: ISearchProgressItem) => void): TPromise<ISearchComplete>;
-	extendQuery(query: ISearchQuery): void;
+	textSearch(query: ITextQuery, token?: CancellationToken, onProgress?: (result: ISearchProgressItem) => void): TPromise<ISearchComplete>;
+	fileSearch(query: IFileQuery, token?: CancellationToken): TPromise<ISearchComplete>;
+	extendQuery(query: ITextQuery | IFileQuery): void;
 	clearCache(cacheKey: string): TPromise<void>;
 	registerSearchResultProvider(scheme: string, type: SearchProviderType, provider: ISearchResultProvider): IDisposable;
 }
@@ -56,7 +57,8 @@ export const enum SearchProviderType {
 }
 
 export interface ISearchResultProvider {
-	search(query: ISearchQuery, onProgress?: (p: ISearchProgressItem) => void, token?: CancellationToken): TPromise<ISearchComplete>;
+	textSearch(query: ITextQuery, onProgress?: (p: ISearchProgressItem) => void, token?: CancellationToken): TPromise<ISearchComplete>;
+	fileSearch(query: IFileQuery, token?: CancellationToken): TPromise<ISearchComplete>;
 	clearCache(cacheKey: string): TPromise<void>;
 }
 
@@ -67,52 +69,61 @@ export interface IFolderQuery<U extends UriComponents=uri> {
 	fileEncoding?: string;
 	disregardIgnoreFiles?: boolean;
 	disregardGlobalIgnoreFiles?: boolean;
+	ignoreSymlinks?: boolean;
 }
 
-export interface ICommonQueryOptions<U> {
+export interface ICommonQueryProps<U extends UriComponents> {
+	/** For telemetry - indicates what is triggering the source */
+	_reason?: string;
+
+	folderQueries?: IFolderQuery<U>[];
+	includePattern?: glob.IExpression;
+	excludePattern?: glob.IExpression;
 	extraFileResources?: U[];
-	filePattern?: string; // file search only
-	fileEncoding?: string;
+
+	useRipgrep?: boolean;
 	maxResults?: number;
+	usingSearchPaths?: boolean;
+}
+
+export interface IFileQueryProps<U extends UriComponents> extends ICommonQueryProps<U> {
+	type: QueryType.File;
+	filePattern?: string;
+
+	// TODO: Remove this!
+	disregardExcludeSettings?: boolean;
+
 	/**
 	 * If true no results will be returned. Instead `limitHit` will indicate if at least one result exists or not.
-	 *
 	 * Currently does not work with queries including a 'siblings clause'.
 	 */
 	exists?: boolean;
 	sortByScore?: boolean;
 	cacheKey?: string;
-	useRipgrep?: boolean;
-	disregardIgnoreFiles?: boolean;
-	disregardGlobalIgnoreFiles?: boolean;
-	disregardExcludeSettings?: boolean;
-	ignoreSymlinks?: boolean;
-	maxFileSize?: number;
-	previewOptions?: ITextSearchPreviewOptions;
 }
 
-export interface IQueryOptions extends ICommonQueryOptions<uri> {
-	excludePattern?: string;
-	includePattern?: string;
-}
-
-export interface ISearchQueryProps<U extends UriComponents> extends ICommonQueryOptions<U> {
-	type: QueryType;
-
-	excludePattern?: glob.IExpression;
-	includePattern?: glob.IExpression;
+export interface ITextQueryProps<U extends UriComponents> extends ICommonQueryProps<U> {
+	type: QueryType.Text;
 	contentPattern?: IPatternInfo;
-	folderQueries?: IFolderQuery<U>[];
-	usingSearchPaths?: boolean;
+
+	previewOptions?: ITextSearchPreviewOptions;
+	maxFileSize?: number;
+	usePCRE2?: boolean;
 }
 
-export type ISearchQuery = ISearchQueryProps<uri>;
-export type IRawSearchQuery = ISearchQueryProps<UriComponents>;
+export type IFileQuery = IFileQueryProps<uri>;
+export type IRawFileQuery = IFileQueryProps<UriComponents>;
+export type ITextQuery = ITextQueryProps<uri>;
+export type IRawTextQuery = ITextQueryProps<UriComponents>;
+
+export type IRawQuery = IRawTextQuery | IRawFileQuery;
+export type ISearchQuery = ITextQuery | IFileQuery;
 
 export const enum QueryType {
 	File = 1,
 	Text = 2
 }
+
 /* __GDPR__FRAGMENT__
 	"IPatternInfo" : {
 		"pattern" : { "classification": "CustomerContent", "purpose": "FeatureInsight" },
@@ -132,6 +143,10 @@ export interface IPatternInfo {
 	isMultiline?: boolean;
 	isCaseSensitive?: boolean;
 	isSmartCase?: boolean;
+}
+
+export interface IExtendedExtensionSearchOptions {
+	usePCRE2?: boolean;
 }
 
 export interface IFileMatch<U extends UriComponents = uri> {
@@ -238,26 +253,27 @@ export class TextSearchResult implements ITextSearchResult {
 
 	constructor(text: string, range: ISearchRange, previewOptions?: ITextSearchPreviewOptions) {
 		this.range = range;
-		if (previewOptions) {
+
+		if (previewOptions && previewOptions.matchLines === 1) {
+			// 1 line preview requested
 			text = getNLines(text, previewOptions.matchLines);
 			const leadingChars = Math.floor(previewOptions.charsPerLine / 5);
-			const endColumnByTrimmedLines = (range.startLineNumber + previewOptions.matchLines - 1) === range.endLineNumber ? // if single line...
-				range.endColumn :
-				previewOptions.charsPerLine;
-
-			// This doesn't handle all previewOptions correctly
 			const previewStart = Math.max(range.startColumn - leadingChars, 0);
-			const endByCharsPerLine = previewOptions.charsPerLine + previewStart;
-			const trimmedEndOfMatchRangeInPreview = Math.min(endByCharsPerLine, endColumnByTrimmedLines - previewStart);
+			const previewText = text.substring(previewStart, previewOptions.charsPerLine + previewStart);
+
+			const endColInPreview = (range.endLineNumber - range.startLineNumber + 1) <= previewOptions.matchLines ?
+				Math.min(previewText.length, range.endColumn - previewStart) :  // if number of match lines will not be trimmed by previewOptions
+				previewText.length; // if number of lines is trimmed
 
 			this.preview = {
-				text: text.substring(previewStart, endByCharsPerLine),
-				match: new OneLineRange(0, range.startColumn - previewStart, trimmedEndOfMatchRangeInPreview)
+				text: previewText,
+				match: new OneLineRange(0, range.startColumn - previewStart, endColInPreview)
 			};
 		} else {
+			// n line or no preview requested
 			this.preview = {
-				text: text,
-				match: new OneLineRange(0, range.startColumn, range.endColumn)
+				text,
+				match: new SearchRange(0, range.startColumn, range.endLineNumber - range.startLineNumber, range.endColumn)
 			};
 		}
 	}
@@ -286,6 +302,7 @@ export class OneLineRange extends SearchRange {
 export interface ISearchConfigurationProperties {
 	exclude: glob.IExpression;
 	useRipgrep: boolean;
+	disableRipgrep: boolean;
 	/**
 	 * Use ignore file for file search.
 	 */
@@ -297,6 +314,7 @@ export interface ISearchConfigurationProperties {
 	location: 'sidebar' | 'panel';
 	useReplacePreview: boolean;
 	showLineNumbers: boolean;
+	usePCRE2: boolean;
 }
 
 export interface ISearchConfiguration extends IFilesConfiguration {
@@ -326,18 +344,18 @@ export function getExcludes(configuration: ISearchConfiguration): glob.IExpressi
 	return allExcludes;
 }
 
-export function pathIncludedInQuery(query: ISearchQuery, fsPath: string): boolean {
-	if (query.excludePattern && glob.match(query.excludePattern, fsPath)) {
+export function pathIncludedInQuery(queryProps: ICommonQueryProps<uri>, fsPath: string): boolean {
+	if (queryProps.excludePattern && glob.match(queryProps.excludePattern, fsPath)) {
 		return false;
 	}
 
-	if (query.includePattern && !glob.match(query.includePattern, fsPath)) {
+	if (queryProps.includePattern && !glob.match(queryProps.includePattern, fsPath)) {
 		return false;
 	}
 
 	// If searchPaths are being used, the extra file must be in a subfolder and match the pattern, if present
-	if (query.usingSearchPaths) {
-		return !!query.folderQueries && query.folderQueries.every(fq => {
+	if (queryProps.usingSearchPaths) {
+		return !!queryProps.folderQueries && queryProps.folderQueries.every(fq => {
 			const searchPath = fq.folder.fsPath;
 			if (paths.isEqualOrParent(fsPath, searchPath)) {
 				return !fq.includePattern || !!glob.match(fq.includePattern, fsPath);

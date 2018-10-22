@@ -249,8 +249,8 @@ export class ConfigurationModelParser {
 				currentParent = previousParents.pop();
 			},
 			onLiteralValue: onValue,
-			onError: (error: json.ParseErrorCode) => {
-				parseErrors.push({ error: error });
+			onError: (error: json.ParseErrorCode, offset: number, length: number) => {
+				parseErrors.push({ error, offset, length });
 			}
 		};
 		if (content) {

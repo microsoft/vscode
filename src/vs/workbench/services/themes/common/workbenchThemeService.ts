@@ -6,7 +6,7 @@
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { Event } from 'vs/base/common/event';
 import { Color } from 'vs/base/common/color';
-import { ITheme, IThemeService } from 'vs/platform/theme/common/themeService';
+import { ITheme, IThemeService, IIconTheme } from 'vs/platform/theme/common/themeService';
 import { ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
 
 export const IWorkbenchThemeService = createDecorator<IWorkbenchThemeService>('themeService');
@@ -38,7 +38,7 @@ export interface IColorMap {
 	[id: string]: Color;
 }
 
-export interface IFileIconTheme {
+export interface IFileIconTheme extends IIconTheme {
 	readonly id: string;
 	readonly label: string;
 	readonly settingsId: string;
@@ -46,9 +46,9 @@ export interface IFileIconTheme {
 	readonly extensionData: ExtensionData;
 
 	readonly isLoaded: boolean;
-	readonly hasFileIcons?: boolean;
-	readonly hasFolderIcons?: boolean;
-	readonly hidesExplorerArrows?: boolean;
+	readonly hasFileIcons: boolean;
+	readonly hasFolderIcons: boolean;
+	readonly hidesExplorerArrows: boolean;
 }
 
 export interface IWorkbenchThemeService extends IThemeService {

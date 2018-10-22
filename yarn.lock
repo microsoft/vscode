@@ -9325,10 +9325,10 @@ vscode-nsfw@1.1.1:
     lodash.isundefined "^3.0.1"
     nan "^2.10.0"
 
-vscode-ripgrep@^1.2.2:
-  version "1.2.2"
-  resolved "https://registry.yarnpkg.com/vscode-ripgrep/-/vscode-ripgrep-1.2.2.tgz#c21b91bb558638a7124fe3d9719b2666b12dbfdc"
-  integrity sha512-rPbCj4LUnPzivezk3pC94G5sB17HbayjV9mSvNTDYFg5llHN/XozAmkoDOC0KG9UveuQ71MADX1//CeHtUTmZw==
+vscode-ripgrep@^1.2.4:
+  version "1.2.4"
+  resolved "https://registry.yarnpkg.com/vscode-ripgrep/-/vscode-ripgrep-1.2.4.tgz#b3cfbe08ed13f6cf6b134147ea4d982970ab4f70"
+  integrity sha512-TysaK20aCSfsFIQGd0DfMshjkHof0fG6zx7DoO0tdWNAZgsvoqLtOWdqHcocICRZ3RSpdiMiEJRaMK+iOzx16w==
 
 vscode-sqlite3@4.0.2:
   version "4.0.2"
@@ -9344,10 +9344,10 @@ vscode-textmate@^4.0.1:
   dependencies:
     oniguruma "^7.0.0"
 
-vscode-xterm@3.9.0-beta9:
-  version "3.9.0-beta9"
-  resolved "https://registry.yarnpkg.com/vscode-xterm/-/vscode-xterm-3.9.0-beta9.tgz#4b03dc89603bab4ed5e65b5dd3c26d73275f6113"
-  integrity sha512-l4Gvqm7unG4JoGgkOPydmDadl81zpqK7PRfmilSlO7EIYhPYvVjxoU2OhdsPfPRkyinLLbSfI9MGuR+6no7UEw==
+vscode-xterm@3.9.0-beta11:
+  version "3.9.0-beta11"
+  resolved "https://registry.yarnpkg.com/vscode-xterm/-/vscode-xterm-3.9.0-beta11.tgz#f90bb8bb03f9db2a7369b37832704f23a7720c73"
+  integrity sha512-2KjtCLADUNj9a0qDYExUOoJwgdL9TgP/hGFolzSO1j1LqZIz785qFhoM5ovnJ7jLjU+BsmfQpeNKYaUnp5fbEg==
 
 vso-node-api@6.1.2-preview:
   version "6.1.2-preview"

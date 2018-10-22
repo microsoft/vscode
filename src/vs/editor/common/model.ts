@@ -220,7 +220,7 @@ export interface IWordAtPosition {
 /**
  * End of line character preference.
  */
-export enum EndOfLinePreference {
+export const enum EndOfLinePreference {
 	/**
 	 * Use the end of line character identified in the text buffer.
 	 */
@@ -238,7 +238,7 @@ export enum EndOfLinePreference {
 /**
  * The default end of line to use when instantiating models.
  */
-export enum DefaultEndOfLine {
+export const enum DefaultEndOfLine {
 	/**
 	 * Use line feed (\n) as the end of line character.
 	 */
@@ -252,7 +252,7 @@ export enum DefaultEndOfLine {
 /**
  * End of line character preference.
  */
-export enum EndOfLineSequence {
+export const enum EndOfLineSequence {
 	/**
 	 * Use line feed (\n) as the end of line character.
 	 */
@@ -437,7 +437,7 @@ export interface IFoundBracket {
  * Describes the behavior of decorations when typing/editing near their edges.
  * Note: Please do not edit the values, as they very carefully match `DecorationRangeBehavior`
  */
-export enum TrackedRangeStickiness {
+export const enum TrackedRangeStickiness {
 	AlwaysGrowsWhenTypingAtEdges = 0,
 	NeverGrowsWhenTypingAtEdges = 1,
 	GrowsOnlyWhenTypingBefore = 2,

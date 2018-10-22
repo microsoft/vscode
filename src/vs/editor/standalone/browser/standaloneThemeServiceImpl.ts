@@ -10,7 +10,7 @@ import * as dom from 'vs/base/browser/dom';
 import { TokenizationRegistry } from 'vs/editor/common/modes';
 import { Color } from 'vs/base/common/color';
 import { Extensions, IColorRegistry, ColorIdentifier } from 'vs/platform/theme/common/colorRegistry';
-import { Extensions as ThemingExtensions, IThemingRegistry, ICssStyleCollector } from 'vs/platform/theme/common/themeService';
+import { Extensions as ThemingExtensions, IThemingRegistry, ICssStyleCollector, IIconTheme } from 'vs/platform/theme/common/themeService';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { Event, Emitter } from 'vs/base/common/event';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
@@ -163,10 +163,12 @@ export class StandaloneThemeServiceImpl implements IStandaloneThemeService {
 	private _styleElement: HTMLStyleElement;
 	private _theme: IStandaloneTheme;
 	private readonly _onThemeChange: Emitter<IStandaloneTheme>;
+	private readonly _onIconThemeChange: Emitter<IIconTheme>;
 	private environment: IEnvironmentService = Object.create(null);
 
 	constructor() {
 		this._onThemeChange = new Emitter<IStandaloneTheme>();
+		this._onIconThemeChange = new Emitter<IIconTheme>();
 
 		this._knownThemes = new Map<string, StandaloneTheme>();
 		this._knownThemes.set(VS_THEME_NAME, newBuiltInTheme(VS_THEME_NAME));
@@ -238,5 +240,17 @@ export class StandaloneThemeServiceImpl implements IStandaloneThemeService {
 		this._onThemeChange.fire(theme);
 
 		return theme.id;
+	}
+
+	public getIconTheme(): IIconTheme {
+		return {
+			hasFileIcons: false,
+			hasFolderIcons: false,
+			hidesExplorerArrows: false
+		};
+	}
+
+	public get onIconThemeChange(): Event<IIconTheme> {
+		return this._onIconThemeChange.event;
 	}
 }

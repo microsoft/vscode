@@ -12,9 +12,9 @@ import { createDecorator } from 'vs/platform/instantiation/common/instantiation'
 // Browser localStorage interface
 export interface IStorageLegacy {
 	length: number;
-	key(index: number): string;
+	key(index: number): string | null;
 	setItem(key: string, value: any): void;
-	getItem(key: string): string;
+	getItem(key: string): string | null;
 	removeItem(key: string): void;
 }
 
@@ -94,7 +94,7 @@ export class StorageLegacyService implements IStorageLegacyService {
 	private _globalStorage: IStorageLegacy;
 
 	private workspaceKey: string;
-	private _workspaceId: string;
+	private _workspaceId: string | undefined;
 
 	constructor(
 		globalStorage: IStorageLegacy,
@@ -108,11 +108,11 @@ export class StorageLegacyService implements IStorageLegacyService {
 		this.setWorkspaceId(workspaceId, legacyWorkspaceId);
 	}
 
-	get workspaceId(): string {
+	get workspaceId(): string | undefined {
 		return this._workspaceId;
 	}
 
-	setWorkspaceId(workspaceId: string, legacyWorkspaceId?: number): void {
+	setWorkspaceId(workspaceId: string | undefined, legacyWorkspaceId?: number): void {
 		this._workspaceId = workspaceId;
 
 		// Calculate workspace storage key
@@ -163,7 +163,7 @@ export class StorageLegacyService implements IStorageLegacyService {
 
 			for (let i = 0; i < length; i++) {
 				const key = this._workspaceStorage.key(i);
-				if (key.indexOf(StorageLegacyService.WORKSPACE_PREFIX) < 0) {
+				if (!key || key.indexOf(StorageLegacyService.WORKSPACE_PREFIX) < 0) {
 					continue; // ignore stored things that don't belong to storage service or are defined globally
 				}
 
@@ -214,7 +214,7 @@ export class StorageLegacyService implements IStorageLegacyService {
 		return value;
 	}
 
-	getInteger(key: string, scope = StorageLegacyScope.GLOBAL, defaultValue?: number): number {
+	getInteger(key: string, scope = StorageLegacyScope.GLOBAL, defaultValue: number = 0): number {
 		const value = this.get(key, scope, defaultValue);
 
 		if (types.isUndefinedOrNull(value)) {
@@ -224,7 +224,7 @@ export class StorageLegacyService implements IStorageLegacyService {
 		return parseInt(value, 10);
 	}
 
-	getBoolean(key: string, scope = StorageLegacyScope.GLOBAL, defaultValue?: boolean): boolean {
+	getBoolean(key: string, scope = StorageLegacyScope.GLOBAL, defaultValue: boolean = false): boolean {
 		const value = this.get(key, scope, defaultValue);
 
 		if (types.isUndefinedOrNull(value)) {
@@ -266,7 +266,7 @@ export class InMemoryLocalStorage implements IStorageLegacy {
 		return Object.keys(this.store).length;
 	}
 
-	key(index: number): string {
+	key(index: number): string | null {
 		const keys = Object.keys(this.store);
 		if (keys.length > index) {
 			return keys[index];
@@ -279,7 +279,7 @@ export class InMemoryLocalStorage implements IStorageLegacy {
 		this.store[key] = value.toString();
 	}
 
-	getItem(key: string): string {
+	getItem(key: string): string | null {
 		const item = this.store[key];
 		if (!types.isUndefinedOrNull(item)) {
 			return item;

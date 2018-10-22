@@ -264,7 +264,7 @@ class PanelDraggable extends Disposable {
 	}
 
 	private onDragStart(e: DragEvent): void {
-		if (!this.dnd.canDrag(this.panel)) {
+		if (!this.dnd.canDrag(this.panel) || !e.dataTransfer) {
 			e.preventDefault();
 			e.stopPropagation();
 			return;
@@ -272,7 +272,7 @@ class PanelDraggable extends Disposable {
 
 		e.dataTransfer.effectAllowed = 'move';
 
-		const dragImage = append(document.body, $('.monaco-panel-drag-image', {}, this.panel.draggableElement.textContent));
+		const dragImage = append(document.body, $('.monaco-panel-drag-image', {}, this.panel.draggableElement.textContent || ''));
 		e.dataTransfer.setDragImage(dragImage, -10, -10);
 		setTimeout(() => document.body.removeChild(dragImage), 0);
 
@@ -371,7 +371,7 @@ interface IPanelItem {
 
 export class PanelView extends Disposable {
 
-	private dnd: IPanelDndController | null;
+	private dnd: IPanelDndController | undefined;
 	private dndContext: IDndContext = { draggable: null };
 	private el: HTMLElement;
 	private panelItems: IPanelItem[] = [];

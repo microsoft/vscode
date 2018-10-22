@@ -587,7 +587,7 @@ export class DefaultSettings extends Disposable {
 	}
 
 	private removeEmptySettingsGroups(settingsGroups: ISettingsGroup[]): ISettingsGroup[] {
-		const result = [];
+		const result: ISettingsGroup[] = [];
 		for (const settingsGroup of settingsGroups) {
 			settingsGroup.sections = settingsGroup.sections.filter(section => section.settings.length > 0);
 			if (settingsGroup.sections.length) {
@@ -1099,7 +1099,7 @@ export function createValidator(prop: IConfigurationPropertySchema): ((value: an
 		if (prop.type === 'string' && stringValidations.length === 0) { return null; }
 		if (isNullable && value === '') { return ''; }
 
-		let errors = [];
+		let errors: string[] = [];
 
 		if (isNumeric) {
 			if (value === '' || isNaN(+value)) {

@@ -191,7 +191,7 @@ export class Menu extends ActionBar {
 			if (options.enableMnemonics) {
 				const mnemonic = menuActionItem.getMnemonic();
 				if (mnemonic && menuActionItem.isEnabled()) {
-					let actionItems = [];
+					let actionItems: MenuActionItem[] = [];
 					if (this.mnemonics.has(mnemonic)) {
 						actionItems = this.mnemonics.get(mnemonic);
 					}
@@ -217,7 +217,7 @@ export class Menu extends ActionBar {
 			if (options.enableMnemonics) {
 				const mnemonic = menuActionItem.getMnemonic();
 				if (mnemonic && menuActionItem.isEnabled()) {
-					let actionItems = [];
+					let actionItems: MenuActionItem[] = [];
 					if (this.mnemonics.has(mnemonic)) {
 						actionItems = this.mnemonics.get(mnemonic);
 					}

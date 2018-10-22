@@ -8,7 +8,6 @@ import * as vscode from 'vscode';
 import { basename } from 'vs/base/common/paths';
 import { URI } from 'vs/base/common/uri';
 import { debounceEvent, Emitter, Event } from 'vs/base/common/event';
-import { TPromise } from 'vs/base/common/winjs.base';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { ExtHostTreeViewsShape, MainThreadTreeViewsShape } from './extHost.protocol';
 import { ITreeItem, TreeViewItemHandleArg } from 'vs/workbench/common/views';
@@ -70,7 +69,7 @@ export class ExtHostTreeViews implements ExtHostTreeViewsShape {
 	$getChildren(treeViewId: string, treeItemHandle?: string): Thenable<ITreeItem[]> {
 		const treeView = this.treeViews.get(treeViewId);
 		if (!treeView) {
-			return TPromise.wrapError<ITreeItem[]>(new Error(localize('treeView.notRegistered', 'No tree view with id \'{0}\' registered.', treeViewId)));
+			return Promise.reject(new Error(localize('treeView.notRegistered', 'No tree view with id \'{0}\' registered.', treeViewId)));
 		}
 		return treeView.getChildren(treeItemHandle);
 	}
@@ -144,7 +143,7 @@ class ExtHostTreeView<T> extends Disposable {
 	private _onDidChangeVisibility: Emitter<vscode.TreeViewVisibilityChangeEvent> = this._register(new Emitter<vscode.TreeViewVisibilityChangeEvent>());
 	readonly onDidChangeVisibility: Event<vscode.TreeViewVisibilityChangeEvent> = this._onDidChangeVisibility.event;
 
-	private refreshPromise: TPromise<void> = TPromise.as(null);
+	private refreshPromise: Promise<void> = Promise.resolve(null);
 
 	constructor(private viewId: string, private dataProvider: vscode.TreeDataProvider<T>, private proxy: MainThreadTreeViewsShape, private commands: CommandsConverter, private logService: ILogService) {
 		super();
@@ -154,7 +153,7 @@ class ExtHostTreeView<T> extends Disposable {
 			this._register(debounceEvent<T, T[]>(this.dataProvider.onDidChangeTreeData, (last, current) => {
 				if (!refreshingPromise) {
 					// New refresh has started
-					refreshingPromise = new TPromise((c, e) => promiseCallback = c);
+					refreshingPromise = new Promise(c => promiseCallback = c);
 					this.refreshPromise = this.refreshPromise.then(() => refreshingPromise);
 				}
 				return last ? [...last, current] : [current];
@@ -170,11 +169,11 @@ class ExtHostTreeView<T> extends Disposable {
 		const parentElement = parentHandle ? this.getExtensionElement(parentHandle) : void 0;
 		if (parentHandle && !parentElement) {
 			console.error(`No tree item with id \'${parentHandle}\' found.`);
-			return TPromise.as([]);
+			return Promise.resolve([]);
 		}
 
 		const childrenNodes = this.getChildrenNodes(parentHandle); // Get it from cache
-		return (childrenNodes ? TPromise.as(childrenNodes) : this.fetchChildrenNodes(parentElement))
+		return (childrenNodes ? Promise.resolve(childrenNodes) : this.fetchChildrenNodes(parentElement))
 			.then(nodes => nodes.map(n => n.item));
 	}
 
@@ -182,13 +181,13 @@ class ExtHostTreeView<T> extends Disposable {
 		return this.elements.get(treeItemHandle);
 	}
 
-	reveal(element: T, options?: { select?: boolean, focus?: boolean }): TPromise<void> {
+	reveal(element: T, options?: { select?: boolean, focus?: boolean }): Promise<void> {
 		options = options ? options : { select: true, focus: false };
 		const select = isUndefinedOrNull(options.select) ? true : options.select;
 		const focus = isUndefinedOrNull(options.focus) ? false : options.focus;
 
 		if (typeof this.dataProvider.getParent !== 'function') {
-			return TPromise.wrapError(new Error(`Required registered TreeDataProvider to implement 'getParent' method to access 'reveal' method`));
+			return Promise.reject(new Error(`Required registered TreeDataProvider to implement 'getParent' method to access 'reveal' method`));
 		}
 		return this.refreshPromise
 			.then(() => this.resolveUnknownParentChain(element))
@@ -225,7 +224,7 @@ class ExtHostTreeView<T> extends Disposable {
 		return this.resolveParent(element)
 			.then((parent) => {
 				if (!parent) {
-					return TPromise.as([]);
+					return Promise.resolve([]);
 				}
 				return this.resolveUnknownParentChain(parent)
 					.then(result => this.resolveTreeNode(parent, result[result.length - 1])
@@ -239,7 +238,7 @@ class ExtHostTreeView<T> extends Disposable {
 	private resolveParent(element: T): Thenable<T> {
 		const node = this.nodes.get(element);
 		if (node) {
-			return TPromise.as(node.parent ? this.elements.get(node.parent.item.handle) : null);
+			return Promise.resolve(node.parent ? this.elements.get(node.parent.item.handle) : null);
 		}
 		return asThenable(() => this.dataProvider.getParent(element));
 	}
@@ -253,7 +252,7 @@ class ExtHostTreeView<T> extends Disposable {
 					if (cachedElement) {
 						const node = this.nodes.get(cachedElement);
 						if (node) {
-							return TPromise.as(node);
+							return Promise.resolve(node);
 						}
 					}
 					throw new Error(`Cannot resolve tree item for element ${handle}`);
@@ -280,7 +279,7 @@ class ExtHostTreeView<T> extends Disposable {
 
 		const parentNode = parentElement ? this.nodes.get(parentElement) : void 0;
 		return asThenable(() => this.dataProvider.getChildren(parentElement))
-			.then(elements => TPromise.join(
+			.then(elements => Promise.all(
 				(elements || [])
 					.filter(element => !!element)
 					.map(element => asThenable(() => this.dataProvider.getTreeItem(element))
@@ -299,7 +298,7 @@ class ExtHostTreeView<T> extends Disposable {
 				return this.refreshHandles(handlesToRefresh);
 			}
 		}
-		return TPromise.as(null);
+		return Promise.resolve(null);
 	}
 
 	private getHandlesToRefresh(elements: T[]): TreeItemHandle[] {
@@ -332,9 +331,9 @@ class ExtHostTreeView<T> extends Disposable {
 		return handlesToUpdate;
 	}
 
-	private refreshHandles(itemHandles: TreeItemHandle[]): TPromise<void> {
+	private refreshHandles(itemHandles: TreeItemHandle[]): Promise<void> {
 		const itemsToRefresh: { [treeItemHandle: string]: ITreeItem } = {};
-		return TPromise.join(itemHandles.map(treeItemHandle =>
+		return Promise.all(itemHandles.map(treeItemHandle =>
 			this.refreshNode(treeItemHandle)
 				.then(node => {
 					if (node) {

@@ -379,7 +379,7 @@ export class ActiveWindowManager implements IDisposable {
 			.then(id => (typeof this._activeWindowId === 'undefined') && this.setActiveWindow(id));
 	}
 
-	private setActiveWindow(windowId: number) {
+	private setActiveWindow(windowId: number | undefined) {
 		if (this.firstActiveWindowIdPromise) {
 			this.firstActiveWindowIdPromise = null;
 		}

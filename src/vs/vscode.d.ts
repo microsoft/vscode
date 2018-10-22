@@ -1546,6 +1546,9 @@ declare module 'vscode' {
 		 * [document](#TextDocument). Resources allocated should be released when
 		 * the corresponding document has been [closed](#workspace.onDidCloseTextDocument).
 		 *
+		 * **Note**: The contents of the created [document](#TextDocument) might not be
+		 * identical to the provided text due to end-of-line-sequence normalization.
+		 *
 		 * @param uri An uri which scheme matches the scheme this provider was [registered](#workspace.registerTextDocumentContentProvider) for.
 		 * @param token A cancellation token.
 		 * @return A string or a thenable that resolves to such.
@@ -4656,6 +4659,11 @@ declare module 'vscode' {
 		 * Controls whether to show the "Terminal will be reused by tasks, press any key to close it" message.
 		 */
 		showReuseMessage?: boolean;
+
+		/**
+		 * Controls whether the terminal is cleared before executing the task.
+		 */
+		clearBeforeExecuting?: boolean;
 	}
 
 	/**

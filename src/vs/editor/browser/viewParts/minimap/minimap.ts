@@ -25,14 +25,7 @@ import { GlobalMouseMoveMonitor, IStandardMouseMoveEventData, standardMouseMoveM
 import * as platform from 'vs/base/common/platform';
 import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { scrollbarSliderBackground, scrollbarSliderHoverBackground, scrollbarSliderActiveBackground, scrollbarShadow } from 'vs/platform/theme/common/colorRegistry';
-
-const enum RenderMinimap {
-	None = 0,
-	Small = 1,
-	Large = 2,
-	SmallBlocks = 3,
-	LargeBlocks = 4,
-}
+import { RenderMinimap } from 'vs/editor/common/config/editorOptions';
 
 function getMinimapLineHeight(renderMinimap: RenderMinimap): number {
 	if (renderMinimap === RenderMinimap.Large) {

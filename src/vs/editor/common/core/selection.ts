@@ -32,7 +32,7 @@ export interface ISelection {
 /**
  * The direction of a selection.
  */
-export enum SelectionDirection {
+export const enum SelectionDirection {
 	/**
 	 * The selection starts above where it ends.
 	 */

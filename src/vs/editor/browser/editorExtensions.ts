@@ -19,6 +19,8 @@ import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { ITextModel } from 'vs/editor/common/model';
 import { IPosition } from 'vs/base/browser/ui/contextview/contextview';
+import { ITextModelService } from 'vs/editor/common/services/resolverService';
+import { always } from 'vs/base/common/async';
 
 export type ServicesAccessor = ServicesAccessor;
 export type IEditorContributionCtor = IConstructorSignature1<ICodeEditor, editorCommon.IEditorContribution>;
@@ -258,13 +260,23 @@ export function registerDefaultLanguageCommand(id: string, handler: (model: ITex
 		}
 
 		const model = accessor.get(IModelService).getModel(resource);
-		if (!model) {
-			throw illegalArgument('Can not find open model for ' + resource);
+		if (model) {
+			const editorPosition = Position.lift(position);
+			return handler(model, editorPosition, args);
 		}
 
-		const editorPosition = Position.lift(position);
-
-		return handler(model, editorPosition, args);
+		return accessor.get(ITextModelService).createModelReference(resource).then(reference => {
+			return always(new Promise((resolve, reject) => {
+				try {
+					let result = handler(reference.object.textEditorModel, Position.lift(position), args);
+					resolve(result);
+				} catch (err) {
+					reject(err);
+				}
+			}), () => {
+				reference.dispose();
+			});
+		});
 	});
 }
 
