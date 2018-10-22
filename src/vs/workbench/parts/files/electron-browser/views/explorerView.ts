@@ -329,7 +329,7 @@ export class ExplorerView extends TreeViewsViewletPanel implements IExplorerView
 			if (visible) {
 
 				// If a refresh was requested and we are now visible, run it
-				let refreshPromise: Thenable<void> = Promise.resolve<void>(null);
+				let refreshPromise: Thenable<void> = TPromise.as(null);
 				if (this.shouldRefresh) {
 					refreshPromise = this.doRefresh();
 					this.shouldRefresh = false; // Reset flag
@@ -473,7 +473,7 @@ export class ExplorerView extends TreeViewsViewletPanel implements IExplorerView
 
 	public getOptimalWidth(): number {
 		const parentNode = this.explorerViewer.getHTMLElement();
-		const childNodes = [].slice.call(parentNode.querySelectorAll('.explorer-item .label-name')); // select all file labels
+		const childNodes = ([] as Element[]).slice.call(parentNode.querySelectorAll('.explorer-item .label-name')); // select all file labels
 
 		return DOM.getLargestChildWidth(parentNode, childNodes);
 	}

@@ -615,7 +615,7 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService, 
 	}
 
 	private syncWithGallery(): Promise<void> {
-		const ids = [], names = [];
+		const ids: string[] = [], names: string[] = [];
 		for (const installed of this.installed) {
 			if (installed.type === LocalExtensionType.User) {
 				if (installed.uuid) {
@@ -626,7 +626,7 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService, 
 			}
 		}
 
-		const promises = [];
+		const promises: Promise<IPager<IExtension>>[] = [];
 		if (ids.length) {
 			promises.push(this.queryGallery({ ids, pageSize: ids.length }));
 		}

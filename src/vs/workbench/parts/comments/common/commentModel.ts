@@ -127,7 +127,7 @@ export class CommentsModel {
 	}
 
 	private groupByResource(commentThreads: CommentThread[]): ResourceWithCommentThreads[] {
-		const resourceCommentThreads = [] as ResourceWithCommentThreads[];
+		const resourceCommentThreads: ResourceWithCommentThreads[] = [];
 		const commentThreadsByResource = new Map<string, ResourceWithCommentThreads>();
 		for (const group of groupBy(commentThreads, CommentsModel._compareURIs)) {
 			commentThreadsByResource.set(group[0].resource, new ResourceWithCommentThreads(URI.parse(group[0].resource), group));

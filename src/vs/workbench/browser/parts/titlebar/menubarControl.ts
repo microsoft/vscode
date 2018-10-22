@@ -694,7 +694,7 @@ export class MenubarControl extends Disposable {
 						this.insertActionsBefore(action, target);
 						if (action instanceof SubmenuItemAction) {
 							const submenu = this.menuService.createMenu(action.item.submenu, this.contextKeyService);
-							const submenuActions = [];
+							const submenuActions: SubmenuAction[] = [];
 							updateActions(submenu, submenuActions);
 							target.push(new SubmenuAction(action.label, submenuActions));
 						} else {

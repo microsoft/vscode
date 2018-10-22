@@ -35,7 +35,7 @@ export class TextSearchWorkerProvider implements ITextSearchWorkerProvider {
 				args: ['--type=searchWorker'],
 				timeout: 30 * 1000,
 				env: {
-					AMD_ENTRYPOINT: 'vs/workbench/services/search/node/worker/searchWorkerApp',
+					AMD_ENTRYPOINT: 'vs/workbench/services/search/node/legacy/worker/searchWorkerApp',
 					PIPE_LOGGING: 'true',
 					VERBOSE_LOGGING: process.env.VERBOSE_LOGGING
 				},

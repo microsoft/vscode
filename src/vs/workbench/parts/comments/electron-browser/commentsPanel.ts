@@ -49,7 +49,7 @@ export class CommentsPanel extends Panel {
 		super(COMMENTS_PANEL_ID, telemetryService, themeService, storageService);
 	}
 
-	public create(parent: HTMLElement): Promise<void> {
+	public create(parent: HTMLElement): void {
 		super.create(parent);
 
 		dom.addClass(parent, 'comments-panel');
@@ -70,7 +70,7 @@ export class CommentsPanel extends Panel {
 			this.applyStyles(styleElement);
 		});
 
-		return this.render();
+		this.render();
 	}
 
 	private applyStyles(styleElement: HTMLStyleElement) {

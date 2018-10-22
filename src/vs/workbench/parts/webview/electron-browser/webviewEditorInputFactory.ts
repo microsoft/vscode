@@ -72,7 +72,11 @@ export class WebviewEditorInputFactory implements IEditorInputFactory {
 		return this._webviewService.reviveWebview(data.viewType, data.id, data.title, iconPath, data.state, data.options, extensionLocation);
 	}
 }
-function reviveIconPath(data: SerializedIconPath) {
+function reviveIconPath(data: SerializedIconPath | undefined) {
+	if (!data) {
+		return undefined;
+	}
+
 	const light = reviveUri(data.light);
 	const dark = reviveUri(data.dark);
 	return light && dark ? { light, dark } : undefined;

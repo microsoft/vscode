@@ -33,7 +33,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { TreeResourceNavigator, WorkbenchTree } from 'vs/platform/list/browser/listService';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { IProgressService } from 'vs/platform/progress/common/progress';
-import { IPatternInfo, IQueryOptions, ISearchComplete, ISearchConfiguration, ISearchHistoryService, ISearchProgressItem, ISearchQuery, VIEW_ID, ISearchHistoryValues } from 'vs/platform/search/common/search';
+import { IPatternInfo, ISearchComplete, ISearchConfiguration, ISearchHistoryService, ISearchProgressItem, VIEW_ID, ISearchHistoryValues, ITextQuery } from 'vs/platform/search/common/search';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { diffInserted, diffInsertedOutline, diffRemoved, diffRemovedOutline, editorFindMatchHighlight, editorFindMatchHighlightBorder, listActiveSelectionForeground } from 'vs/platform/theme/common/colorRegistry';
@@ -49,7 +49,7 @@ import { CancelSearchAction, ClearSearchResultsAction, CollapseDeepestExpandedLe
 import { SearchAccessibilityProvider, SearchDataSource, SearchFilter, SearchRenderer, SearchSorter, SearchTreeController } from 'vs/workbench/parts/search/browser/searchResultsView';
 import { ISearchWidgetOptions, SearchWidget } from 'vs/workbench/parts/search/browser/searchWidget';
 import * as Constants from 'vs/workbench/parts/search/common/constants';
-import { QueryBuilder } from 'vs/workbench/parts/search/common/queryBuilder';
+import { QueryBuilder, ITextQueryBuilderOptions } from 'vs/workbench/parts/search/common/queryBuilder';
 import { IReplaceService } from 'vs/workbench/parts/search/common/replace';
 import { getOutOfWorkspaceEditorResources } from 'vs/workbench/parts/search/common/search';
 import { FileMatch, FileMatchOrMatch, FolderMatch, IChangeEvent, ISearchWorkbenchService, Match, SearchModel } from 'vs/workbench/parts/search/common/searchModel';
@@ -169,7 +169,7 @@ export class SearchView extends Viewlet implements IViewlet, IPanel {
 		}
 	}
 
-	public create(parent: HTMLElement): Promise<void> {
+	public create(parent: HTMLElement): void {
 		super.create(parent);
 
 		this.viewModel = this._register(this.searchWorkbenchService.searchModel);
@@ -273,8 +273,6 @@ export class SearchView extends Viewlet implements IViewlet, IPanel {
 
 		this._register(this.onDidFocus(() => this.viewletFocused.set(true)));
 		this._register(this.onDidBlur(() => this.viewletFocused.set(false)));
-
-		return Promise.resolve(null);
 	}
 
 	public get searchAndReplaceWidget(): SearchWidget {
@@ -1054,7 +1052,8 @@ export class SearchView extends Viewlet implements IViewlet, IPanel {
 		const charsPerLine = content.isRegExp ? 10000 :
 			250;
 
-		const options: IQueryOptions = {
+		const options: ITextQueryBuilderOptions = {
+			_reason: 'searchView',
 			extraFileResources: getOutOfWorkspaceEditorResources(this.editorService, this.contextService),
 			maxResults: SearchView.MAX_TEXT_RESULTS,
 			disregardIgnoreFiles: !useExcludesAndIgnoreFiles,
@@ -1073,7 +1072,7 @@ export class SearchView extends Viewlet implements IViewlet, IPanel {
 			this.viewModel.searchResult.clear();
 		};
 
-		let query: ISearchQuery;
+		let query: ITextQuery;
 		try {
 			query = this.queryBuilder.text(content, folderResources.map(folder => folder.uri), options);
 		} catch (err) {
@@ -1090,7 +1089,7 @@ export class SearchView extends Viewlet implements IViewlet, IPanel {
 		}, onQueryValidationError);
 	}
 
-	private validateQuery(query: ISearchQuery): TPromise<void> {
+	private validateQuery(query: ITextQuery): TPromise<void> {
 		// Validate folderQueries
 		const folderQueriesExistP =
 			query.folderQueries.map(fq => {
@@ -1112,7 +1111,7 @@ export class SearchView extends Viewlet implements IViewlet, IPanel {
 		});
 	}
 
-	private onQueryTriggered(query: ISearchQuery, excludePatternText: string, includePatternText: string): void {
+	private onQueryTriggered(query: ITextQuery, excludePatternText: string, includePatternText: string): void {
 		this.inputPatternExcludes.onSearchSubmit();
 		this.inputPatternIncludes.onSearchSubmit();
 
@@ -1217,25 +1216,14 @@ export class SearchView extends Viewlet implements IViewlet, IPanel {
 					}));
 				} else {
 					const openSettingsLink = dom.append(p, $('a.pointer.prominent', { tabindex: 0 }, nls.localize('openSettings.message', "Open Settings")));
-					this.messageDisposables.push(dom.addDisposableListener(openSettingsLink, dom.EventType.CLICK, (e: MouseEvent) => {
-						dom.EventHelper.stop(e, false);
-
-						const options: ISettingsEditorOptions = { query: '.exclude' };
-						this.contextService.getWorkbenchState() !== WorkbenchState.EMPTY ?
-							this.preferencesService.openWorkspaceSettings(undefined, options) :
-							this.preferencesService.openGlobalSettings(undefined, options);
-					}));
+					this.addClickEvents(openSettingsLink, this.onOpenSettings);
 				}
 
 				if (completed) {
 					dom.append(p, $('span', undefined, ' - '));
 
 					const learnMoreLink = dom.append(p, $('a.pointer.prominent', { tabindex: 0 }, nls.localize('openSettings.learnMore', "Learn More")));
-					this.messageDisposables.push(dom.addDisposableListener(learnMoreLink, dom.EventType.CLICK, (e: MouseEvent) => {
-						dom.EventHelper.stop(e, false);
-
-						window.open('https://go.microsoft.com/fwlink/?linkid=853977');
-					}));
+					this.addClickEvents(learnMoreLink, this.onLearnMore);
 				}
 
 				if (this.contextService.getWorkbenchState() === WorkbenchState.EMPTY) {
@@ -1321,6 +1309,40 @@ export class SearchView extends Viewlet implements IViewlet, IPanel {
 		this.searchWidget.setReplaceAllActionState(false);
 
 		this.viewModel.search(query, onProgress).then(onComplete, onError);
+	}
+
+	private addClickEvents = (element: HTMLElement, handler: (event: any) => void): void => {
+		this.messageDisposables.push(dom.addDisposableListener(element, dom.EventType.CLICK, handler));
+		this.messageDisposables.push(dom.addDisposableListener(element, dom.EventType.KEY_DOWN, (e: KeyboardEvent) => {
+			let event = new StandardKeyboardEvent(e as KeyboardEvent);
+			let eventHandled = true;
+
+			if (event.equals(KeyCode.Space) || event.equals(KeyCode.Enter)) {
+				handler(e);
+			} else {
+				eventHandled = false;
+			}
+
+			if (eventHandled) {
+				event.preventDefault();
+				event.stopPropagation();
+			}
+		}));
+	}
+
+	private onOpenSettings = (e: dom.EventLike): void => {
+		dom.EventHelper.stop(e, false);
+
+		const options: ISettingsEditorOptions = { query: '.exclude' };
+		this.contextService.getWorkbenchState() !== WorkbenchState.EMPTY ?
+			this.preferencesService.openWorkspaceSettings(undefined, options) :
+			this.preferencesService.openGlobalSettings(undefined, options);
+	}
+
+	private onLearnMore = (e: MouseEvent): void => {
+		dom.EventHelper.stop(e, false);
+
+		window.open('https://go.microsoft.com/fwlink/?linkid=853977');
 	}
 
 	private updateSearchResultCount(): void {

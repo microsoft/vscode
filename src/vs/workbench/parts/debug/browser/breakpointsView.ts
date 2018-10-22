@@ -619,7 +619,7 @@ export function getBreakpointMessageAndClassName(debugService: IDebugService, br
 	}
 
 	if (breakpoint.logMessage || breakpoint.condition || breakpoint.hitCondition) {
-		const messages = [];
+		const messages: string[] = [];
 		if (breakpoint.logMessage) {
 			if (session && !session.capabilities.supportsLogPoints) {
 				return {

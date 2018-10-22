@@ -12,6 +12,7 @@ import { URI } from 'vs/base/common/uri';
 import * as vscode from 'vscode';
 import { rgPath } from 'vscode-ripgrep';
 import { anchorGlob, createTextSearchResult, IOutputChannel, Maybe, Range } from './ripgrepSearchUtils';
+import { IExtendedExtensionSearchOptions } from 'vs/platform/search/common/search';
 
 // If vscode-ripgrep is in an .asar file, then the binary is unpacked.
 const rgDiskPath = rgPath.replace(/\bnode_modules\.asar\b/, 'node_modules.asar.unpacked');
@@ -117,24 +118,18 @@ export class RipgrepTextSearchEngine {
 export function rgErrorMsgForDisplay(msg: string): Maybe<string> {
 	const firstLine = msg.split('\n')[0].trim();
 
-	if (startsWith(firstLine, 'Error parsing regex')) {
-		return firstLine;
+	if (startsWith(firstLine, 'regex parse error')) {
+		return 'Regex parse error';
 	}
 
-	if (startsWith(firstLine, 'error parsing glob') ||
-		startsWith(firstLine, 'unsupported encoding')) {
+	let match = firstLine.match(/grep config error: unknown encoding: (.*)/);
+	if (match) {
+		return `Unknown encoding: ${match[1]}`;
+	}
+
+	if (startsWith(firstLine, 'error parsing glob') || startsWith(firstLine, 'the literal')) {
 		// Uppercase first letter
 		return firstLine.charAt(0).toUpperCase() + firstLine.substr(1);
-	}
-
-	if (firstLine === `Literal '\\n' not allowed.`) {
-		// I won't localize this because none of the Ripgrep error messages are localized
-		return `Literal '\\n' currently not supported`;
-	}
-
-	if (startsWith(firstLine, 'Literal ')) {
-		// Other unsupported chars
-		return firstLine;
 	}
 
 	return undefined;
@@ -298,7 +293,7 @@ function getRgArgs(query: vscode.TextSearchQuery, options: vscode.TextSearchOpti
 		const regexpStr = regexp.source.replace(/\\\//g, '/'); // RegExp.source arbitrarily returns escaped slashes. Search and destroy.
 		args.push('--regexp', regexpStr);
 	} else if (query.isRegExp) {
-		args.push('--regexp', fixRegexEndingPattern(query.pattern));
+		args.push('--regexp', query.pattern);
 	} else {
 		searchPatternAfterDoubleDashes = query.pattern;
 		args.push('--fixed-strings');
@@ -309,10 +304,17 @@ function getRgArgs(query: vscode.TextSearchQuery, options: vscode.TextSearchOpti
 		args.push('--no-ignore-global');
 	}
 
+	// Match \r\n with $
+	args.push('--crlf');
+
 	args.push('--json');
 
 	if (query.isMultiline) {
 		args.push('--multiline');
+	}
+
+	if ((<IExtendedExtensionSearchOptions>options).usePCRE2) {
+		args.push('--pcre2');
 	}
 
 	// Folder to search
@@ -381,12 +383,4 @@ function startsWithUTF8BOM(str: string): boolean {
 
 function stripUTF8BOM(str: string): string {
 	return startsWithUTF8BOM(str) ? str.substr(1) : str;
-}
-
-export function fixRegexEndingPattern(pattern: string): string {
-	// Replace an unescaped $ at the end of the pattern with \r?$
-	// Match $ preceeded by none or even number of literal \
-	return pattern.match(/([^\\]|^)(\\\\)*\$$/) ?
-		pattern.replace(/\$$/, '\\r?$') :
-		pattern;
 }

@@ -147,13 +147,26 @@
 			},
 			"urlFilter": "*workbench.html*",
 			"runtimeArgs": [
-				"--inspect=5875"
+				"--inspect=5875", "--no-cached-data"
 			],
 			"smartStep": true,
 			"skipFiles": [
 				"**/winjs*.js"
 			],
 			"webRoot": "${workspaceFolder}"
+		},
+		{
+		    "type": "node",
+		    "request": "launch",
+		    "name": "Launch VS Code (Main Process)",
+		    "runtimeExecutable": "${workspaceFolder}/scripts/code.sh",
+		    "runtimeArgs": [
+		        "--no-cached-data"
+		    ],
+		    "smartStep": true,
+		    "outFiles": [
+		        "${workspaceFolder}/out/**/*.js"
+		    ]
 		},
 		{
 			"type": "node",

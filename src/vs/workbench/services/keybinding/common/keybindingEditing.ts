@@ -169,7 +169,7 @@ export class KeybindingsEditingService extends Disposable implements IKeybinding
 	}
 
 	private findUnassignedDefaultKeybindingEntryIndex(keybindingItem: ResolvedKeybindingItem, userKeybindingEntries: IUserFriendlyKeybinding[]): number[] {
-		const indices = [];
+		const indices: number[] = [];
 		for (let index = 0; index < userKeybindingEntries.length; index++) {
 			if (userKeybindingEntries[index].command === `-${keybindingItem.command}`) {
 				indices.push(index);

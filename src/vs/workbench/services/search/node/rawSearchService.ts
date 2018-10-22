@@ -17,13 +17,14 @@ import * as strings from 'vs/base/common/strings';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { compareItemsByScore, IItemAccessor, prepareQuery, ScorerCache } from 'vs/base/parts/quickopen/common/quickOpenScorer';
 import { MAX_FILE_SIZE } from 'vs/platform/files/node/files';
-import { ICachedSearchStats, IFileSearchStats, IProgress } from 'vs/platform/search/common/search';
-import { Engine as FileSearchEngine, FileWalker } from 'vs/workbench/services/search/node/fileSearch';
+import { ICachedSearchStats, IFileSearchStats, IProgress, IRawTextQuery, ITextQuery, IRawQuery, IFileQuery, IFolderQuery } from 'vs/platform/search/common/search';
+import { Engine as FileSearchEngine } from 'vs/workbench/services/search/node/fileSearch';
+import { LegacyTextSearchService } from 'vs/workbench/services/search/node/legacy/rawLegacyTextSearchService';
+import { IRawSearch } from 'vs/workbench/services/search/node/legacy/search';
 import { TextSearchEngineAdapter } from 'vs/workbench/services/search/node/textSearchAdapter';
-import { Engine as TextSearchEngine } from 'vs/workbench/services/search/node/textSearch';
-import { TextSearchWorkerProvider } from 'vs/workbench/services/search/node/textSearchWorkerProvider';
-import { IFileSearchProgressItem, IRawFileMatch, IRawSearch, IRawSearchService, ISearchEngine, ISearchEngineSuccess, ISerializedFileMatch, ISerializedSearchComplete, ISerializedSearchProgressItem, ISerializedSearchSuccess } from './search';
-import { BatchedCollector } from 'vs/workbench/services/search/node/textSearchManager';
+import { IFileSearchProgressItem, IRawFileMatch, IRawSearchService, ISearchEngine, ISearchEngineSuccess, ISerializedFileMatch, ISerializedSearchComplete, ISerializedSearchProgressItem, ISerializedSearchSuccess } from './search';
+import { Schemas } from 'vs/base/common/network';
+import { URI, UriComponents } from 'vs/base/common/uri';
 
 gracefulFs.gracefulify(fs);
 
@@ -34,9 +35,8 @@ export class SearchService implements IRawSearchService {
 
 	private static readonly BATCH_SIZE = 512;
 
+	private legacyTextSearchService = new LegacyTextSearchService();
 	private caches: { [cacheKey: string]: Cache; } = Object.create(null);
-
-	private textSearchWorkerProvider: TextSearchWorkerProvider;
 
 	public fileSearch(config: IRawSearch, batchSize = SearchService.BATCH_SIZE): Event<ISerializedSearchProgressItem | ISerializedSearchComplete> {
 		let promise: CancelablePromise<ISerializedSearchSuccess>;
@@ -59,13 +59,16 @@ export class SearchService implements IRawSearchService {
 		return emitter.event;
 	}
 
-	public textSearch(config: IRawSearch): Event<ISerializedSearchProgressItem | ISerializedSearchComplete> {
+	public textSearch(rawQuery: IRawTextQuery): Event<ISerializedSearchProgressItem | ISerializedSearchComplete> {
 		let promise: CancelablePromise<ISerializedSearchComplete>;
 
+		const query = reviveQuery(rawQuery);
 		const emitter = new Emitter<ISerializedSearchProgressItem | ISerializedSearchComplete>({
 			onFirstListenerDidAdd: () => {
 				promise = createCancelablePromise(token => {
-					return (config.useRipgrep ? this.ripgrepTextSearch(config, p => emitter.fire(p), token) : this.legacyTextSearch(config, p => emitter.fire(p), token));
+					return (rawQuery.useRipgrep ?
+						this.ripgrepTextSearch(query, p => emitter.fire(p), token) :
+						this.legacyTextSearchService.textSearch(rawSearchQuery(query), p => emitter.fire(p), token));
 				});
 
 				promise.then(
@@ -80,40 +83,11 @@ export class SearchService implements IRawSearchService {
 		return emitter.event;
 	}
 
-	private ripgrepTextSearch(config: IRawSearch, progressCallback: IProgressCallback, token: CancellationToken): Promise<ISerializedSearchSuccess> {
-		config.maxFilesize = MAX_FILE_SIZE;
+	private ripgrepTextSearch(config: ITextQuery, progressCallback: IProgressCallback, token: CancellationToken): Promise<ISerializedSearchSuccess> {
+		config.maxFileSize = MAX_FILE_SIZE;
 		const engine = new TextSearchEngineAdapter(config);
 
-		return new Promise<ISerializedSearchSuccess>((c, e) => {
-			engine.search(token, progressCallback, progressCallback, (error, stats) => {
-				if (error) {
-					e(error);
-				} else {
-					c(stats);
-				}
-			});
-		});
-	}
-
-	private legacyTextSearch(config: IRawSearch, progressCallback: IProgressCallback, token: CancellationToken): Promise<ISerializedSearchComplete> {
-		if (!this.textSearchWorkerProvider) {
-			this.textSearchWorkerProvider = new TextSearchWorkerProvider();
-		}
-
-		let engine = new TextSearchEngine(
-			config,
-			new FileWalker({
-				folderQueries: config.folderQueries,
-				extraFiles: config.extraFiles,
-				includePattern: config.includePattern,
-				excludePattern: config.excludePattern,
-				filePattern: config.filePattern,
-				useRipgrep: false,
-				maxFilesize: MAX_FILE_SIZE
-			}),
-			this.textSearchWorkerProvider);
-
-		return this.doTextSearch(engine, progressCallback, SearchService.BATCH_SIZE, token);
+		return engine.search(token, progressCallback, progressCallback);
 	}
 
 	doFileSearch(EngineClass: { new(config: IRawSearch): ISearchEngine<IRawFileMatch>; }, config: IRawSearch, progressCallback: IProgressCallback, token?: CancellationToken, batchSize?: number): TPromise<ISerializedSearchSuccess> {
@@ -363,32 +337,7 @@ export class SearchService implements IRawSearchService {
 		}));
 	}
 
-	private doTextSearch(engine: TextSearchEngine, progressCallback: IProgressCallback, batchSize: number, token: CancellationToken): Promise<ISerializedSearchSuccess> {
-		token.onCancellationRequested(() => engine.cancel());
 
-		return new Promise<ISerializedSearchSuccess>((c, e) => {
-			// Use BatchedCollector to get new results to the frontend every 2s at least, until 50 results have been returned
-			const collector = new BatchedCollector<ISerializedFileMatch>(batchSize, progressCallback);
-			engine.search((matches) => {
-				const totalMatches = matches.reduce((acc, m) => acc + m.numMatches, 0);
-				collector.addItems(matches, totalMatches);
-			}, (progress) => {
-				progressCallback(progress);
-			}, (error, stats) => {
-				collector.flush();
-
-				if (error) {
-					e(error);
-				} else {
-					c({
-						type: 'success',
-						limitHit: stats.limitHit,
-						stats: null
-					});
-				}
-			});
-		});
-	}
 
 	private doSearch(engine: ISearchEngine<IRawFileMatch>, progressCallback: IFileProgressCallback, batchSize: number, token?: CancellationToken): TPromise<ISearchEngineSuccess> {
 		return new TPromise<ISearchEngineSuccess>((c, e) => {
@@ -477,3 +426,61 @@ const FileMatchItemAccessor = new class implements IItemAccessor<IRawFileMatch> 
 		return match.relativePath; // e.g. some/path/to/file/myFile.txt
 	}
 };
+
+function reviveQuery<U extends IRawQuery>(rawQuery: U): U extends IRawTextQuery ? ITextQuery : IFileQuery {
+	return {
+		...<any>rawQuery, // TODO
+		...{
+			folderQueries: rawQuery.folderQueries && rawQuery.folderQueries.map(reviveFolderQuery),
+			extraFileResources: rawQuery.extraFileResources && rawQuery.extraFileResources.map(components => URI.revive(components))
+		}
+	};
+}
+
+function reviveFolderQuery(rawFolderQuery: IFolderQuery<UriComponents>): IFolderQuery<URI> {
+	return {
+		...rawFolderQuery,
+		folder: URI.revive(rawFolderQuery.folder)
+	};
+}
+
+/**
+ * Exported for tests
+ */
+export function rawSearchQuery(query: ITextQuery): IRawSearch {
+	let rawSearch: IRawSearch = {
+		folderQueries: [],
+		extraFiles: [],
+		excludePattern: query.excludePattern,
+		includePattern: query.includePattern,
+		maxResults: query.maxResults,
+		useRipgrep: query.useRipgrep,
+		disregardIgnoreFiles: query.folderQueries.some(fq => fq.disregardIgnoreFiles),
+		disregardGlobalIgnoreFiles: query.folderQueries.some(fq => fq.disregardGlobalIgnoreFiles),
+		ignoreSymlinks: query.folderQueries.some(fq => fq.ignoreSymlinks),
+		previewOptions: query.previewOptions
+	};
+
+	for (const q of query.folderQueries) {
+		rawSearch.folderQueries.push({
+			excludePattern: q.excludePattern,
+			includePattern: q.includePattern,
+			fileEncoding: q.fileEncoding,
+			disregardIgnoreFiles: q.disregardIgnoreFiles,
+			disregardGlobalIgnoreFiles: q.disregardGlobalIgnoreFiles,
+			folder: q.folder.fsPath
+		});
+	}
+
+	if (query.extraFileResources) {
+		for (const r of query.extraFileResources) {
+			if (r.scheme === Schemas.file) {
+				rawSearch.extraFiles.push(r.fsPath);
+			}
+		}
+	}
+
+	rawSearch.contentPattern = query.contentPattern;
+
+	return rawSearch;
+}

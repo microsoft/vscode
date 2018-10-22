@@ -182,7 +182,7 @@ declare namespace monaco {
 			fragment?: string;
 		}): Uri;
 		/**
-		 * Creates a string presentation for this Uri. It's guardeed that calling
+		 * Creates a string presentation for this Uri. It's guaranteed that calling
 		 * `Uri.parse` with the result of this function creates an Uri which is equal
 		 * to this Uri.
 		 *

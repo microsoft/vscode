@@ -15,15 +15,16 @@ import * as normalization from 'vs/base/common/normalization';
 import * as objects from 'vs/base/common/objects';
 import { isEqualOrParent } from 'vs/base/common/paths';
 import * as platform from 'vs/base/common/platform';
+import { StopWatch } from 'vs/base/common/stopwatch';
 import * as strings from 'vs/base/common/strings';
 import * as types from 'vs/base/common/types';
 import { TPromise } from 'vs/base/common/winjs.base';
 import * as extfs from 'vs/base/node/extfs';
 import * as flow from 'vs/base/node/flow';
 import { IProgress, ISearchEngineStats } from 'vs/platform/search/common/search';
+import { IFolderSearch, IRawSearch } from 'vs/workbench/services/search/node/legacy/search';
+import { IRawFileMatch, ISearchEngine, ISearchEngineSuccess } from 'vs/workbench/services/search/node/search';
 import { spawnRipgrepCmd } from './ripgrepFileSearch';
-import { IFolderSearch, IRawFileMatch, IRawSearch, ISearchEngine, ISearchEngineSuccess } from './search';
-import { StopWatch } from 'vs/base/common/stopwatch';
 
 enum Traversal {
 	Node = 1,
@@ -43,6 +44,11 @@ interface IDirectoryTree {
 	rootEntries: IDirectoryEntry[];
 	pathToEntries: { [relativePath: string]: IDirectoryEntry[] };
 }
+
+const killCmds = new Set<() => void>();
+process.on('exit', () => {
+	killCmds.forEach(cmd => cmd());
+});
 
 export class FileWalker {
 	private config: IRawSearch;
@@ -190,9 +196,10 @@ export class FileWalker {
 		const isMac = platform.isMacintosh;
 		let cmd: childProcess.ChildProcess;
 		const killCmd = () => cmd && cmd.kill();
+		killCmds.add(killCmd);
 
 		let done = (err?: Error) => {
-			process.removeListener('exit', killCmd);
+			killCmds.delete(killCmd);
 			done = () => { };
 			cb(err);
 		};
@@ -220,7 +227,6 @@ export class FileWalker {
 			cmd = this.spawnFindCmd(folderQuery);
 		}
 
-		process.on('exit', killCmd);
 		this.cmdResultCount = 0;
 		this.collectStdout(cmd, 'utf8', useRipgrep, onMessage, (err: Error, stdout?: string, last?: boolean) => {
 			if (err) {
@@ -728,7 +734,7 @@ class AbsoluteAndRelativeParsedExpression {
 	}
 
 	public getBasenameTerms(): string[] {
-		const basenameTerms = [];
+		const basenameTerms: string[] = [];
 		if (this.absoluteParsedExpr) {
 			basenameTerms.push(...glob.getBasenameTerms(this.absoluteParsedExpr));
 		}
@@ -741,7 +747,7 @@ class AbsoluteAndRelativeParsedExpression {
 	}
 
 	public getPathTerms(): string[] {
-		const pathTerms = [];
+		const pathTerms: string[] = [];
 		if (this.absoluteParsedExpr) {
 			pathTerms.push(...glob.getPathTerms(this.absoluteParsedExpr));
 		}

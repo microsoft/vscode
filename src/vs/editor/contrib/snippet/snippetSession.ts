@@ -357,6 +357,10 @@ export class SnippetSession {
 		let firstBeforeText = model.getValueInRange(SnippetSession.adjustSelection(model, editor.getSelection(), overwriteBefore, 0));
 		let firstAfterText = model.getValueInRange(SnippetSession.adjustSelection(model, editor.getSelection(), 0, overwriteAfter));
 
+		// remember the first non-whitespace column to decide if
+		// `keepWhitespace` should be overruled for secondary selections
+		let firstLineFirstNonWhitespace = model.getLineFirstNonWhitespaceColumn(editor.getSelection().positionLineNumber);
+
 		// sort selections by their start position but remeber
 		// the original index. that allows you to create correct
 		// offset-based selection logic without changing the
@@ -387,8 +391,10 @@ export class SnippetSession {
 
 			// adjust the template string to match the indentation and
 			// whitespace rules of this insert location (can be different for each cursor)
+			// happens when being asked for (default) or when this is a secondary
+			// cursor and the leading whitespace is different
 			const start = snippetSelection.getStartPosition();
-			if (adjustWhitespace) {
+			if (adjustWhitespace || (idx > 0 && firstLineFirstNonWhitespace !== model.getLineFirstNonWhitespaceColumn(selection.positionLineNumber))) {
 				SnippetSession.adjustWhitespace(model, start, snippet);
 			}
 

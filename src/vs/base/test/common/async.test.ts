@@ -53,7 +53,7 @@ suite('Async', () => {
 	// Cancelling a sync cancelable promise will fire the cancelled token.
 	// Also, every `then` callback runs in another execution frame.
 	test('CancelablePromise execution order (sync)', function () {
-		const order = [];
+		const order: string[] = [];
 
 		const cancellablePromise = async.createCancelablePromise(token => {
 			order.push('in callback');
@@ -75,7 +75,7 @@ suite('Async', () => {
 
 	// Cancelling an async cancelable promise is just the same as a sync cancellable promise.
 	test('CancelablePromise execution order (async)', function () {
-		const order = [];
+		const order: string[] = [];
 
 		const cancellablePromise = async.createCancelablePromise(token => {
 			order.push('in callback');

@@ -576,7 +576,7 @@ export class TerminalInstance implements ITerminalInstance {
 		this._terminalFocusContextKey.set(terminalFocused);
 	}
 
-	public dispose(isShuttingDown?: boolean): void {
+	public dispose(immediate?: boolean): void {
 		this._logService.trace(`terminalInstance#dispose (id: ${this.id})`);
 
 		this._windowsShellHelper = lifecycle.dispose(this._windowsShellHelper);
@@ -602,7 +602,7 @@ export class TerminalInstance implements ITerminalInstance {
 			this._xterm = null;
 		}
 		if (this._processManager) {
-			this._processManager.dispose(isShuttingDown);
+			this._processManager.dispose(immediate);
 		}
 		if (!this._isDisposed) {
 			this._isDisposed = true;
@@ -834,12 +834,12 @@ export class TerminalInstance implements ITerminalInstance {
 			if (exitCode) {
 				this._xterm.writeln(exitCodeMessage);
 			}
-			let message = typeof this._shellLaunchConfig.waitOnExit === 'string'
-				? this._shellLaunchConfig.waitOnExit
-				: nls.localize('terminal.integrated.waitOnExit', 'Press any key to close the terminal');
-			// Bold the message and add an extra new line to make it stand out from the rest of the output
-			message = `\n\x1b[1m${message}\x1b[0m`;
-			this._xterm.writeln(message);
+			if (typeof this._shellLaunchConfig.waitOnExit === 'string') {
+				let message = this._shellLaunchConfig.waitOnExit;
+				// Bold the message and add an extra new line to make it stand out from the rest of the output
+				message = `\n\x1b[1m${message}\x1b[0m`;
+				this._xterm.writeln(message);
+			}
 			// Disable all input if the terminal is exiting and listen for next keypress
 			this._xterm.setOption('disableStdin', true);
 			if (this._xterm.textarea) {

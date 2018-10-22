@@ -560,7 +560,7 @@ export class Dimension {
 		this.height = height;
 	}
 
-	static equals(a: Dimension, b: Dimension): boolean {
+	static equals(a: Dimension | undefined, b: Dimension | undefined): boolean {
 		if (a === b) {
 			return true;
 		}

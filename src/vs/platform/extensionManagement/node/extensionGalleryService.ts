@@ -628,8 +628,8 @@ export class ExtensionGalleryService implements IExtensionGalleryService {
 			.withFilter(FilterType.ExtensionName, ...extensionNames);
 
 		return this.queryGallery(query, token).then(result => {
-			const dependencies = [];
-			const ids = [];
+			const dependencies: IGalleryExtension[] = [];
+			const ids: string[] = [];
 
 			for (let index = 0; index < result.galleryExtensions.length; index++) {
 				const rawExtension = result.galleryExtensions[index];
