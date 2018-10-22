@@ -28,6 +28,7 @@
   },
   "dependencies": {
     "applicationinsights": "1.0.6",
+    "electron-proxy-agent": "^1.0.2",
     "fast-plist": "0.1.2",
     "gc-signals": "^0.0.1",
     "getmac": "1.4.1",

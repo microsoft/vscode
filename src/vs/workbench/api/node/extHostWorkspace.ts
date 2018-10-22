@@ -454,4 +454,8 @@ export class ExtHostWorkspace implements ExtHostWorkspaceShape {
 	saveAll(includeUntitled?: boolean): Thenable<boolean> {
 		return this._proxy.$saveAll(includeUntitled);
 	}
+
+	resolveProxy(url: string): Thenable<string> {
+		return this._proxy.$resolveProxy(url);
+	}
 }

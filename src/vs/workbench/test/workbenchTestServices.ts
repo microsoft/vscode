@@ -1124,6 +1124,10 @@ export class TestWindowService implements IWindowService {
 	updateTouchBar(_items: ISerializableCommandAction[][]): TPromise<void> {
 		return TPromise.as(void 0);
 	}
+
+	resolveProxy(url: string): Promise<string | undefined> {
+		return Promise.resolve(void 0);
+	}
 }
 
 export class TestLifecycleService implements ILifecycleService {
@@ -1379,6 +1383,10 @@ export class TestWindowsService implements IWindowsService {
 
 	openAboutDialog(): TPromise<void> {
 		return TPromise.as(void 0);
+	}
+
+	resolveProxy(windowId: number, url: string): Promise<string | undefined> {
+		return Promise.resolve(void 0);
 	}
 }
 

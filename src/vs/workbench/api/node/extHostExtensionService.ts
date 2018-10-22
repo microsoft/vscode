@@ -147,12 +147,13 @@ export class ExtHostExtensionService implements ExtHostExtensionServiceShape {
 		extHostContext: IMainContext,
 		extHostWorkspace: ExtHostWorkspace,
 		extHostConfiguration: ExtHostConfiguration,
-		extHostLogService: ExtHostLogService
+		extHostLogService: ExtHostLogService,
+		mainThreadTelemetry: MainThreadTelemetryShape
 	) {
 		this._barrier = new Barrier();
 		this._registry = new ExtensionDescriptionRegistry(initData.extensions);
 		this._extHostLogService = extHostLogService;
-		this._mainThreadTelemetry = extHostContext.getProxy(MainContext.MainThreadTelemetry);
+		this._mainThreadTelemetry = mainThreadTelemetry;
 		this._storage = new ExtHostStorage(extHostContext);
 		this._storagePath = new ExtensionStoragePath(initData.workspace, initData.environment);
 		this._proxy = extHostContext.getProxy(MainContext.MainThreadExtensionService);

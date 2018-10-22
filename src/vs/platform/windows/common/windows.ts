@@ -167,6 +167,7 @@ export interface IWindowsService {
 	startCrashReporter(config: CrashReporterStartOptions): TPromise<void>;
 
 	openAboutDialog(): TPromise<void>;
+	resolveProxy(windowId: number, url: string): Promise<string | undefined>;
 }
 
 export const IWindowService = createDecorator<IWindowService>('windowService');
@@ -214,6 +215,7 @@ export interface IWindowService {
 	showMessageBox(options: MessageBoxOptions): TPromise<IMessageBoxResult>;
 	showSaveDialog(options: SaveDialogOptions): TPromise<string>;
 	showOpenDialog(options: OpenDialogOptions): TPromise<string[]>;
+	resolveProxy(url: string): Promise<string | undefined>;
 }
 
 export type MenuBarVisibility = 'default' | 'visible' | 'toggle' | 'hidden';

@@ -22,6 +22,7 @@ import { ExtHostLogService } from 'vs/workbench/api/node/extHostLogService';
 import { timeout } from 'vs/base/common/async';
 import { Counter } from 'vs/base/common/numbers';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
+import { connectProxyResolver } from 'vs/workbench/node/proxyResolver';
 
 // we don't (yet) throw when extensions parse
 // uris that have no scheme
@@ -89,7 +90,9 @@ export class ExtensionHostMain {
 		this._extHostLogService.trace('initData', initData);
 
 		this._extHostConfiguration = new ExtHostConfiguration(rpcProtocol.getProxy(MainContext.MainThreadConfiguration), extHostWorkspace, initData.configuration);
-		this._extensionService = new ExtHostExtensionService(initData, rpcProtocol, extHostWorkspace, this._extHostConfiguration, this._extHostLogService);
+		const mainThreadTelemetry = rpcProtocol.getProxy(MainContext.MainThreadTelemetry);
+		connectProxyResolver(extHostWorkspace, this._extHostConfiguration, this._extHostLogService, mainThreadTelemetry);
+		this._extensionService = new ExtHostExtensionService(initData, rpcProtocol, extHostWorkspace, this._extHostConfiguration, this._extHostLogService, mainThreadTelemetry);
 
 		// error forwarding and stack trace scanning
 		Error.stackTraceLimit = 100; // increase number of stack frames (from 10, https://github.com/v8/v8/wiki/Stack-Trace-API)
