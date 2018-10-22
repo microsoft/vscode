@@ -76,7 +76,7 @@ export enum ExperimentActionType {
 }
 
 export interface IExperimentActionPromptProperties {
-	promptText: string;
+	promptText: string | { [key: string]: string };
 	commands: IExperimentActionPromptCommand[];
 }
 
