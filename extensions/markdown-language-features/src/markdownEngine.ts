@@ -181,7 +181,8 @@ export class MarkdownEngine {
 			try {
 				const externalSchemeUri = getUriForLinkWithKnownExternalScheme(link);
 				if (externalSchemeUri) {
-					return normalizeLink(externalSchemeUri.toString());
+					// set true to skip encoding
+					return normalizeLink(externalSchemeUri.toString(true));
 				}
 
 
