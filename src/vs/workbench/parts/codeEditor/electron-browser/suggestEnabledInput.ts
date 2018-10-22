@@ -179,10 +179,10 @@ export class SuggestEnabledInput extends Widget implements IThemable {
 
 				return {
 					suggestions: suggestionProvider.provideResults(query).map(result => {
-						return {
+						return <modes.CompletionItem>{
 							label: result,
 							insertText: result,
-							overwriteBefore: alreadyTypedCount,
+							range: Range.fromPositions(position.delta(0, -alreadyTypedCount), position),
 							sortText: validatedSuggestProvider.sortKey(result),
 							kind: modes.CompletionItemKind.Keyword
 						};
