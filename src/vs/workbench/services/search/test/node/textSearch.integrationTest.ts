@@ -11,11 +11,7 @@ import * as glob from 'vs/base/common/glob';
 import { URI } from 'vs/base/common/uri';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IFolderQuery, ITextQuery, QueryType } from 'vs/platform/search/common/search';
-import { FileWalker } from 'vs/workbench/services/search/node/fileSearch';
-import { IRawSearch } from 'vs/workbench/services/search/node/legacy/search';
-import { Engine as TextSearchEngine } from 'vs/workbench/services/search/node/legacy/textSearch';
-import { TextSearchWorkerProvider } from 'vs/workbench/services/search/node/legacy/textSearchWorkerProvider';
-import { rawSearchQuery } from 'vs/workbench/services/search/node/rawSearchService';
+import { LegacyTextSearchService } from 'vs/workbench/services/search/node/legacy/rawLegacyTextSearchService';
 import { ISerializedFileMatch } from 'vs/workbench/services/search/node/search';
 import { TextSearchEngineAdapter } from 'vs/workbench/services/search/node/textSearchAdapter';
 
@@ -36,31 +32,20 @@ const MULTIROOT_QUERIES: IFolderQuery[] = [
 	{ folder: URI.file(MORE_FIXTURES) }
 ];
 
-const textSearchWorkerProvider = new TextSearchWorkerProvider();
+function doLegacySearchTest(config: ITextQuery, expectedResultCount: number | Function): TPromise<void> {
+	const engine = new LegacyTextSearchService();
 
-function doLegacySearchTest(config: IRawSearch, expectedResultCount: number | Function): TPromise<void> {
-	return new TPromise<void>((resolve, reject) => {
-		let engine = new TextSearchEngine(config, new FileWalker({ ...config, useRipgrep: false }), textSearchWorkerProvider);
-
-		let c = 0;
-		engine.search((result) => {
-			if (result) {
-				c += countAll(result);
-			}
-		}, () => { }, (error) => {
-			try {
-				assert.ok(!error);
-				if (typeof expectedResultCount === 'function') {
-					assert(expectedResultCount(c));
-				} else {
-					assert.equal(c, expectedResultCount, 'legacy');
-				}
-			} catch (e) {
-				reject(e);
-			}
-
-			resolve(undefined);
-		});
+	let c = 0;
+	return engine.textSearch(config, (result) => {
+		if (result && Array.isArray(result)) {
+			c += countAll(result);
+		}
+	}, null).then(() => {
+		if (typeof expectedResultCount === 'function') {
+			assert(expectedResultCount(c));
+		} else {
+			assert.equal(c, expectedResultCount, 'legacy');
+		}
 	});
 }
 
@@ -83,8 +68,7 @@ function doRipgrepSearchTest(query: ITextQuery, expectedResultCount: number | Fu
 }
 
 function doSearchTest(query: ITextQuery, expectedResultCount: number) {
-	const legacyQuery = rawSearchQuery(query);
-	return doLegacySearchTest(legacyQuery, expectedResultCount)
+	return doLegacySearchTest(query, expectedResultCount)
 		.then(() => doRipgrepSearchTest(query, expectedResultCount));
 }
 
@@ -256,7 +240,7 @@ suite('Search-integration', function () {
 
 		// (Legacy) search can go over the maxResults because it doesn't trim the results from its worker processes to the exact max size.
 		// But the worst-case scenario should be 2*max-1
-		return doLegacySearchTest(rawSearchQuery(config), count => count < maxResults * 2)
+		return doLegacySearchTest(config, count => count < maxResults * 2)
 			.then(() => doRipgrepSearchTest(config, maxResults));
 	});
 

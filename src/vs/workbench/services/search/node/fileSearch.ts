@@ -18,11 +18,11 @@ import * as platform from 'vs/base/common/platform';
 import { StopWatch } from 'vs/base/common/stopwatch';
 import * as strings from 'vs/base/common/strings';
 import * as types from 'vs/base/common/types';
+import { URI } from 'vs/base/common/uri';
 import { TPromise } from 'vs/base/common/winjs.base';
 import * as extfs from 'vs/base/node/extfs';
 import * as flow from 'vs/base/node/flow';
-import { IProgress, ISearchEngineStats } from 'vs/platform/search/common/search';
-import { IFolderSearch, IRawSearch } from 'vs/workbench/services/search/node/legacy/search';
+import { IFileQuery, IFolderQuery, IProgress, ISearchEngineStats } from 'vs/platform/search/common/search';
 import { IRawFileMatch, ISearchEngine, ISearchEngineSuccess } from 'vs/workbench/services/search/node/search';
 import { spawnRipgrepCmd } from './ripgrepFileSearch';
 
@@ -51,7 +51,7 @@ process.on('exit', () => {
 });
 
 export class FileWalker {
-	private config: IRawSearch;
+	private config: IFileQuery;
 	private useRipgrep: boolean;
 	private filePattern: string;
 	private normalizedFilePatternLowercase: string;
@@ -75,14 +75,14 @@ export class FileWalker {
 
 	private walkedPaths: { [path: string]: boolean; };
 
-	constructor(config: IRawSearch) {
+	constructor(config: IFileQuery, maxFileSize?: number) {
 		this.config = config;
 		this.useRipgrep = config.useRipgrep !== false;
 		this.filePattern = config.filePattern;
 		this.includePattern = config.includePattern && glob.parse(config.includePattern);
 		this.maxResults = config.maxResults || null;
 		this.exists = config.exists;
-		this.maxFilesize = config.maxFilesize || null;
+		this.maxFilesize = maxFileSize || null;
 		this.walkedPaths = Object.create(null);
 		this.resultCount = 0;
 		this.isLimitHit = false;
@@ -102,17 +102,18 @@ export class FileWalker {
 			const folderExcludeExpression: glob.IExpression = objects.assign({}, folderQuery.excludePattern || {}, this.config.excludePattern || {});
 
 			// Add excludes for other root folders
+			const fqPath = folderQuery.folder.fsPath;
 			config.folderQueries
-				.map(rootFolderQuery => rootFolderQuery.folder)
-				.filter(rootFolder => rootFolder !== folderQuery.folder)
+				.map(rootFolderQuery => rootFolderQuery.folder.fsPath)
+				.filter(rootFolder => rootFolder !== fqPath)
 				.forEach(otherRootFolder => {
 					// Exclude nested root folders
-					if (isEqualOrParent(otherRootFolder, folderQuery.folder)) {
-						folderExcludeExpression[path.relative(folderQuery.folder, otherRootFolder)] = true;
+					if (isEqualOrParent(otherRootFolder, fqPath)) {
+						folderExcludeExpression[path.relative(fqPath, otherRootFolder)] = true;
 					}
 				});
 
-			this.folderExcludePatterns.set(folderQuery.folder, new AbsoluteAndRelativeParsedExpression(folderExcludeExpression, folderQuery.folder));
+			this.folderExcludePatterns.set(fqPath, new AbsoluteAndRelativeParsedExpression(folderExcludeExpression, fqPath));
 		});
 	}
 
@@ -120,7 +121,7 @@ export class FileWalker {
 		this.isCanceled = true;
 	}
 
-	public walk(folderQueries: IFolderSearch[], extraFiles: string[], onResult: (result: IRawFileMatch) => void, onMessage: (message: IProgress) => void, done: (error: Error, isLimitHit: boolean) => void): void {
+	public walk(folderQueries: IFolderQuery[], extraFiles: URI[], onResult: (result: IRawFileMatch) => void, onMessage: (message: IProgress) => void, done: (error: Error, isLimitHit: boolean) => void): void {
 		this.fileWalkSW = StopWatch.create(false);
 
 		// Support that the file pattern is a full path to a file that exists
@@ -131,13 +132,13 @@ export class FileWalker {
 		// For each extra file
 		if (extraFiles) {
 			extraFiles.forEach(extraFilePath => {
-				const basename = path.basename(extraFilePath);
-				if (this.globalExcludePattern && this.globalExcludePattern(extraFilePath, basename)) {
+				const basename = path.basename(extraFilePath.fsPath);
+				if (this.globalExcludePattern && this.globalExcludePattern(extraFilePath.fsPath, basename)) {
 					return; // excluded
 				}
 
 				// File: Check for match on file pattern and include pattern
-				this.matchFile(onResult, { relativePath: extraFilePath /* no workspace relative path */, basename });
+				this.matchFile(onResult, { relativePath: extraFilePath.fsPath /* no workspace relative path */, basename });
 			});
 		}
 
@@ -165,7 +166,7 @@ export class FileWalker {
 		}
 
 		// For each root folder
-		flow.parallel<IFolderSearch, void>(folderQueries, (folderQuery: IFolderSearch, rootFolderDone: (err: Error, result: void) => void) => {
+		flow.parallel<IFolderQuery, void>(folderQueries, (folderQuery: IFolderQuery, rootFolderDone: (err: Error, result: void) => void) => {
 			this.call(traverse, this, folderQuery, onResult, onMessage, (err?: Error) => {
 				if (err) {
 					const errorMessage = toErrorMessage(err);
@@ -191,8 +192,8 @@ export class FileWalker {
 		}
 	}
 
-	private cmdTraversal(folderQuery: IFolderSearch, onResult: (result: IRawFileMatch) => void, onMessage: (message: IProgress) => void, cb: (err?: Error) => void): void {
-		const rootFolder = folderQuery.folder;
+	private cmdTraversal(folderQuery: IFolderQuery, onResult: (result: IRawFileMatch) => void, onMessage: (message: IProgress) => void, cb: (err?: Error) => void): void {
+		const rootFolder = folderQuery.folder.fsPath;
 		const isMac = platform.isMacintosh;
 		let cmd: childProcess.ChildProcess;
 		const killCmd = () => cmd && cmd.kill();
@@ -210,7 +211,7 @@ export class FileWalker {
 		const useRipgrep = this.useRipgrep;
 		let noSiblingsClauses: boolean;
 		if (useRipgrep) {
-			const ripgrep = spawnRipgrepCmd(this.config, folderQuery, this.config.includePattern, this.folderExcludePatterns.get(folderQuery.folder).expression);
+			const ripgrep = spawnRipgrepCmd(this.config, folderQuery, this.config.includePattern, this.folderExcludePatterns.get(folderQuery.folder.fsPath).expression);
 			cmd = ripgrep.cmd;
 			noSiblingsClauses = !Object.keys(ripgrep.siblingClauses).length;
 
@@ -319,8 +320,8 @@ export class FileWalker {
 	/**
 	 * Public for testing.
 	 */
-	public spawnFindCmd(folderQuery: IFolderSearch) {
-		const excludePattern = this.folderExcludePatterns.get(folderQuery.folder);
+	public spawnFindCmd(folderQuery: IFolderQuery) {
+		const excludePattern = this.folderExcludePatterns.get(folderQuery.folder.fsPath);
 		const basenames = excludePattern.getBasenameTerms();
 		const pathTerms = excludePattern.getPathTerms();
 		let args = ['-L', '.'];
@@ -338,7 +339,7 @@ export class FileWalker {
 			args.push(')', '-prune', ')');
 		}
 		args.push('-type', 'f');
-		return childProcess.spawn('find', args, { cwd: folderQuery.folder });
+		return childProcess.spawn('find', args, { cwd: folderQuery.folder.fsPath });
 	}
 
 	/**
@@ -499,9 +500,9 @@ export class FileWalker {
 		matchDirectory(rootEntries);
 	}
 
-	private nodeJSTraversal(folderQuery: IFolderSearch, onResult: (result: IRawFileMatch) => void, onMessage: (message: IProgress) => void, done: (err?: Error) => void): void {
+	private nodeJSTraversal(folderQuery: IFolderQuery, onResult: (result: IRawFileMatch) => void, onMessage: (message: IProgress) => void, done: (err?: Error) => void): void {
 		this.directoriesWalked++;
-		extfs.readdir(folderQuery.folder, (error: Error, files: string[]) => {
+		extfs.readdir(folderQuery.folder.fsPath, (error: Error, files: string[]) => {
 			if (error || this.isCanceled || this.isLimitHit) {
 				return done();
 			}
@@ -525,7 +526,7 @@ export class FileWalker {
 		};
 	}
 
-	private doWalk(folderQuery: IFolderSearch, relativeParentPath: string, files: string[], onResult: (result: IRawFileMatch) => void, done: (error: Error) => void): void {
+	private doWalk(folderQuery: IFolderQuery, relativeParentPath: string, files: string[], onResult: (result: IRawFileMatch) => void, done: (error: Error) => void): void {
 		const rootFolder = folderQuery.folder;
 
 		// Execute tasks on each file in parallel to optimize throughput
@@ -542,12 +543,12 @@ export class FileWalker {
 			// to ignore filtering by siblings because the user seems to know what she
 			// is searching for and we want to include the result in that case anyway
 			let currentRelativePath = relativeParentPath ? [relativeParentPath, file].join(path.sep) : file;
-			if (this.folderExcludePatterns.get(folderQuery.folder).test(currentRelativePath, file, this.config.filePattern !== file ? hasSibling : undefined)) {
+			if (this.folderExcludePatterns.get(folderQuery.folder.fsPath).test(currentRelativePath, file, this.config.filePattern !== file ? hasSibling : undefined)) {
 				return clb(null, undefined);
 			}
 
 			// Use lstat to detect links
-			let currentAbsolutePath = [rootFolder, currentRelativePath].join(path.sep);
+			let currentAbsolutePath = [rootFolder.fsPath, currentRelativePath].join(path.sep);
 			fs.lstat(currentAbsolutePath, (error, lstat) => {
 				if (error || this.isCanceled || this.isLimitHit) {
 					return clb(null, undefined);
@@ -599,7 +600,7 @@ export class FileWalker {
 							return clb(null, undefined); // ignore file if max file size is hit
 						}
 
-						this.matchFile(onResult, { base: rootFolder, relativePath: currentRelativePath, basename: file, size: stat.size });
+						this.matchFile(onResult, { base: rootFolder.fsPath, relativePath: currentRelativePath, basename: file, size: stat.size });
 					}
 
 					// Unwind
@@ -668,13 +669,13 @@ export class FileWalker {
 }
 
 export class Engine implements ISearchEngine<IRawFileMatch> {
-	private folderQueries: IFolderSearch[];
-	private extraFiles: string[];
+	private folderQueries: IFolderQuery[];
+	private extraFiles: URI[];
 	private walker: FileWalker;
 
-	constructor(config: IRawSearch) {
+	constructor(config: IFileQuery) {
 		this.folderQueries = config.folderQueries;
-		this.extraFiles = config.extraFiles;
+		this.extraFiles = config.extraFileResources;
 
 		this.walker = new FileWalker(config);
 	}
