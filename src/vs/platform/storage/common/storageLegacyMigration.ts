@@ -30,6 +30,7 @@ import { URI } from 'vs/base/common/uri';
 
 const EMPTY_WORKSPACE_PREFIX = `${StorageLegacyService.COMMON_PREFIX}workspace/empty:`;
 const MULTI_ROOT_WORKSPACE_PREFIX = `${StorageLegacyService.COMMON_PREFIX}workspace/root:`;
+const NO_WORKSPACE_PREFIX = 'storage://workspace/__$noWorkspace__';
 
 export type StorageObject = { [key: string]: string };
 
@@ -38,6 +39,7 @@ export interface IParsedStorage {
 	multiRoot: Map<string, StorageObject>;
 	folder: Map<string, StorageObject>;
 	empty: Map<string, StorageObject>;
+	noWorkspace: StorageObject;
 }
 
 /**
@@ -45,6 +47,7 @@ export interface IParsedStorage {
  */
 export function parseStorage(storage: IStorageLegacy): IParsedStorage {
 	const globalStorage = new Map<string, string>();
+	const noWorkspaceStorage: StorageObject = Object.create(null);
 	const folderWorkspacesStorage = new Map<string /* workspace file resource */, StorageObject>();
 	const emptyWorkspacesStorage = new Map<string /* empty workspace id */, StorageObject>();
 	const multiRootWorkspacesStorage = new Map<string /* multi root workspace id */, StorageObject>();
@@ -56,9 +59,18 @@ export function parseStorage(storage: IStorageLegacy): IParsedStorage {
 		// Workspace Storage (storage://workspace/)
 		if (startsWith(key, StorageLegacyService.WORKSPACE_PREFIX)) {
 
+			// No Workspace key is for extension development windows
+			if (key.indexOf('__$noWorkspace__') > 0) {
+
+				// storage://workspace/__$noWorkspace__someKey => someKey
+				const noWorkspaceStorageKey = key.substr(NO_WORKSPACE_PREFIX.length);
+
+				noWorkspaceStorage[noWorkspaceStorageKey] = storage.getItem(key);
+			}
+
 			// We are looking for key: storage://workspace/<folder>/workspaceIdentifier to be able to find all folder
 			// paths that are known to the storage. is the only way how to parse all folder paths known in storage.
-			if (endsWith(key, StorageLegacyService.WORKSPACE_IDENTIFIER)) {
+			else if (endsWith(key, StorageLegacyService.WORKSPACE_IDENTIFIER)) {
 
 				// storage://workspace/<folder>/workspaceIdentifier => <folder>/
 				let workspace = key.substring(StorageLegacyService.WORKSPACE_PREFIX.length, key.length - StorageLegacyService.WORKSPACE_IDENTIFIER.length);
@@ -163,6 +175,7 @@ export function parseStorage(storage: IStorageLegacy): IParsedStorage {
 		global: globalStorage,
 		multiRoot: multiRootWorkspacesStorage,
 		folder: folderWorkspacesStorage,
-		empty: emptyWorkspacesStorage
+		empty: emptyWorkspacesStorage,
+		noWorkspace: noWorkspaceStorage
 	};
 }

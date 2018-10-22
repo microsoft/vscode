@@ -311,7 +311,11 @@ function createStorageService(workspaceStorageFolder: string, payload: IWorkspac
 					} else if (isSingleFolderWorkspaceInitializationPayload(payload)) {
 						workspaceItems = parsedStorage.folder.get(payload.folder.toString());
 					} else {
-						workspaceItems = parsedStorage.empty.get(`empty:${payload.id}`);
+						if (payload.id === 'ext-dev') {
+							workspaceItems = parsedStorage.noWorkspace;
+						} else {
+							workspaceItems = parsedStorage.empty.get(`empty:${payload.id}`);
+						}
 					}
 
 					const supportedKeys = new Set<string>();
