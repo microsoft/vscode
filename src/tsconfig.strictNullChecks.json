@@ -298,6 +298,7 @@
 		"./vs/editor/contrib/parameterHints/provideSignatureHelp.ts",
 		"./vs/editor/contrib/quickOpen/quickOpen.ts",
 		"./vs/editor/contrib/referenceSearch/referencesModel.ts",
+		"./vs/editor/contrib/rename/rename.ts",
 		"./vs/editor/contrib/rename/renameInputField.ts",
 		"./vs/editor/contrib/smartSelect/tokenTree.ts",
 		"./vs/editor/contrib/snippet/snippetParser.ts",
