@@ -389,7 +389,6 @@ function createStorageService(workspaceStorageFolder: string, payload: IWorkspac
 
 function createStorageLegacyService(workspaceService: IWorkspaceContextService, environmentService: IEnvironmentService): IStorageLegacyService {
 	let workspaceId: string;
-	let secondaryWorkspaceId: number;
 
 	switch (workspaceService.getWorkbenchState()) {
 
@@ -403,7 +402,6 @@ function createStorageLegacyService(workspaceService: IWorkspaceContextService, 
 		case WorkbenchState.FOLDER:
 			const workspace: Workspace = <Workspace>workspaceService.getWorkspace();
 			workspaceId = workspace.folders[0].uri.toString();
-			secondaryWorkspaceId = workspace.ctime;
 			break;
 
 		// finally, if we do not have a workspace open, we need to find another identifier for the window to store
@@ -426,7 +424,7 @@ function createStorageLegacyService(workspaceService: IWorkspaceContextService, 
 		storage = window.localStorage;
 	}
 
-	return new StorageLegacyService(storage, storage, workspaceId, secondaryWorkspaceId);
+	return new StorageLegacyService(storage, storage, workspaceId);
 }
 
 function createLogService(mainProcessClient: ElectronIPCClient, configuration: IWindowConfiguration, environmentService: IEnvironmentService): ILogService {

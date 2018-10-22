@@ -39,7 +39,7 @@ import { localize } from 'vs/nls';
 import { isEqual } from 'vs/base/common/resources';
 
 export type IMultiFolderWorkspaceInitializationPayload = IWorkspaceIdentifier;
-export interface ISingleFolderWorkspaceInitializationPayload { id: string; folder: URI; }
+export interface ISingleFolderWorkspaceInitializationPayload { id: string; folder: ISingleFolderWorkspaceIdentifier; }
 export interface IEmptyWorkspaceInitializationPayload { id: string; }
 export type IWorkspaceInitializationPayload = IMultiFolderWorkspaceInitializationPayload | ISingleFolderWorkspaceInitializationPayload | IEmptyWorkspaceInitializationPayload;
 
@@ -359,7 +359,7 @@ export class WorkspaceService extends Disposable implements IWorkspaceConfigurat
 			configuredFolders = [{ uri: folder.toString() }];
 		}
 
-		return Promise.resolve(new Workspace(singleFolder.id, toWorkspaceFolders(configuredFolders), null));
+		return Promise.resolve(new Workspace(singleFolder.id, toWorkspaceFolders(configuredFolders)));
 	}
 
 	private createEmptyWorkspace(emptyWorkspace: IEmptyWorkspaceInitializationPayload): Promise<Workspace> {

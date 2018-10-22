@@ -97,7 +97,7 @@ export class ExtHostExtensionService implements ExtHostExtensionServiceShape {
 		this._extHostLogService = extHostLogService;
 		this._mainThreadTelemetry = extHostContext.getProxy(MainContext.MainThreadTelemetry);
 		this._storage = new ExtHostStorage(extHostContext);
-		this._workspaceStoragePath = initData.environment.workspaceStoragePath;
+		this._workspaceStoragePath = initData.workspace ? join(initData.environment.appSettingsHome.fsPath, 'workspaceStorage', initData.workspace.id) : undefined;
 		this._proxy = extHostContext.getProxy(MainContext.MainThreadExtensionService);
 		this._activator = null;
 

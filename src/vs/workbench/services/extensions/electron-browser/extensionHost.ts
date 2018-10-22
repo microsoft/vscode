@@ -40,7 +40,6 @@ import { ILabelService } from 'vs/platform/label/common/label';
 import { URI } from 'vs/base/common/uri';
 import { Schemas } from 'vs/base/common/network';
 import { onUnexpectedError } from 'vs/base/common/errors';
-import { join } from 'path';
 
 export interface IExtensionHostStarter {
 	readonly onCrashed: Event<[number, string]>;
@@ -412,8 +411,7 @@ export class ExtensionHostProcessWorker implements IExtensionHostStarter {
 						appRoot: this._environmentService.appRoot ? URI.file(this._environmentService.appRoot) : void 0,
 						appSettingsHome: this._environmentService.appSettingsHome ? URI.file(this._environmentService.appSettingsHome) : void 0,
 						extensionDevelopmentLocationURI: this._environmentService.extensionDevelopmentLocationURI,
-						extensionTestsPath: this._environmentService.extensionTestsPath,
-						workspaceStoragePath: this._contextService.getWorkbenchState() === WorkbenchState.EMPTY ? void 0 : join(this._environmentService.workspaceStorageHome, workspace.id)
+						extensionTestsPath: this._environmentService.extensionTestsPath
 					},
 					workspace: this._contextService.getWorkbenchState() === WorkbenchState.EMPTY ? null : {
 						configuration: workspace.configuration,
