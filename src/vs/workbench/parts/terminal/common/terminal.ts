@@ -215,13 +215,13 @@ export interface ITerminalService {
 	getInstanceFromId(terminalId: number): ITerminalInstance;
 	getInstanceFromIndex(terminalIndex: number): ITerminalInstance;
 	getTabLabels(): string[];
-	getActiveInstance(): ITerminalInstance;
+	getActiveInstance(): ITerminalInstance | null;
 	setActiveInstance(terminalInstance: ITerminalInstance): void;
 	setActiveInstanceByIndex(terminalIndex: number): void;
 	getActiveOrCreateInstance(wasNewTerminalAction?: boolean): ITerminalInstance;
 	splitInstance(instance: ITerminalInstance, shell?: IShellLaunchConfig): void;
 
-	getActiveTab(): ITerminalTab;
+	getActiveTab(): ITerminalTab | null;
 	setActiveTabToNext(): void;
 	setActiveTabToPrevious(): void;
 	setActiveTabByIndex(tabIndex: number): void;

@@ -474,7 +474,7 @@ export namespace CustomTask {
 		};
 		return result;
 	}
-	export function customizes(task: CustomTask): KeyedTaskIdentifier {
+	export function customizes(task: CustomTask): KeyedTaskIdentifier | undefined {
 		if (task._source && task._source.customizes) {
 			return task._source.customizes;
 		}
@@ -641,7 +641,7 @@ export namespace Task {
 		}
 	}
 
-	export function getTaskDefinition(task: Task, useSource: boolean = false): KeyedTaskIdentifier {
+	export function getTaskDefinition(task: Task, useSource: boolean = false): KeyedTaskIdentifier | undefined {
 		if (ContributedTask.is(task)) {
 			return task.defines;
 		} else if (CustomTask.is(task)) {
@@ -769,8 +769,8 @@ export namespace TaskEvent {
 				taskName: task.name,
 				runType: task.isBackground ? TaskRunType.Background : TaskRunType.SingleRun,
 				group: task.group,
-				processId: undefined,
-				exitCode: undefined,
+				processId: undefined as number | undefined,
+				exitCode: undefined as number | undefined,
 				__task: task,
 			};
 			if (kind === TaskEventKind.ProcessStarted) {

@@ -13,7 +13,7 @@ import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { localize } from 'vs/nls';
 import { IExtensionManagementService, IExtensionIdentifier, IExtensionEnablementService, EnablementState, IExtensionGalleryService } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { areSameExtensions } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
-import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
+import { INotificationService, Severity, INotificationHandle } from 'vs/platform/notification/common/notification';
 import { IWindowService } from 'vs/platform/windows/common/windows';
 import { Action } from 'vs/base/common/actions';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
@@ -184,7 +184,7 @@ export class ExtensionUrlHandler implements IExtensionUrlHandler, IURLHandler {
 					detail: `${extension.manifest.displayName || extension.manifest.name} (${extensionIdentifier.id}) wants to open a URL:\n\n${uri.toString()}`,
 					primaryButton: localize('enableAndReload', "&&Enable and Open"),
 					type: 'question'
-				}).then(result => {
+				}).then((result): TPromise<void> | null => {
 					if (result.confirmed) {
 						return this.extensionEnablementService.setEnablement(extension, EnablementState.Enabled)
 							.then(() => this.reloadAndHandle(uri));
@@ -206,7 +206,7 @@ export class ExtensionUrlHandler implements IExtensionUrlHandler, IURLHandler {
 					type: 'question'
 				}).then(async result => {
 					if (result.confirmed) {
-						let notificationHandle = this.notificationService.notify({ severity: Severity.Info, message: localize('Installing', "Installing Extension '{0}'...", galleryExtension.displayName || galleryExtension.name) });
+						let notificationHandle: INotificationHandle | null = this.notificationService.notify({ severity: Severity.Info, message: localize('Installing', "Installing Extension '{0}'...", galleryExtension.displayName || galleryExtension.name) });
 						notificationHandle.progress.infinite();
 						notificationHandle.onDidClose(() => notificationHandle = null);
 						try {
@@ -217,7 +217,7 @@ export class ExtensionUrlHandler implements IExtensionUrlHandler, IURLHandler {
 								notificationHandle.progress.done();
 								notificationHandle.updateMessage(reloadMessage);
 								notificationHandle.updateActions({
-									primary: [new Action('reloadWindow', reloadActionLabel, null, true, () => this.reloadAndHandle(uri))]
+									primary: [new Action('reloadWindow', reloadActionLabel, undefined, true, () => this.reloadAndHandle(uri))]
 								});
 							} else {
 								this.notificationService.prompt(Severity.Info, reloadMessage,

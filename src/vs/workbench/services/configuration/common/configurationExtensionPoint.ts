@@ -160,7 +160,7 @@ function validateProperties(configuration: IConfigurationNode, extension: IExten
 				extension.collector.warn(message);
 				continue;
 			}
-			const propertyConfiguration = configuration.properties[key];
+			const propertyConfiguration = properties[key];
 			if (!isObject(propertyConfiguration)) {
 				delete properties[key];
 				extension.collector.error(nls.localize('invalid.property', "'configuration.property' must be an object"));
