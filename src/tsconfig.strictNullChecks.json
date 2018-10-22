@@ -431,6 +431,7 @@
 		"./vs/platform/update/node/update.config.contribution.ts",
 		"./vs/platform/url/common/url.ts",
 		"./vs/platform/url/common/urlService.ts",
+		"./vs/platform/windows/common/windows.ts",
 		"./vs/platform/workbench/common/contextkeys.ts",
 		"./vs/platform/workspace/common/workspace.ts",
 		"./vs/platform/workspace/test/common/testWorkspace.ts",
