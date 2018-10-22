@@ -16,6 +16,7 @@ export interface TaskPresentationOptionsDTO {
 	focus?: boolean;
 	panel?: number;
 	showReuseMessage?: boolean;
+	clearBeforeExecuting?: boolean;
 }
 
 export interface ExecutionOptionsDTO {
