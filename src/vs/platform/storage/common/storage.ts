@@ -30,7 +30,7 @@ export interface IStorageService {
 	 * The scope argument allows to define the scope of the storage
 	 * operation to either the current workspace only or all workspaces.
 	 */
-	get<R extends string | undefined>(key: string, scope: StorageScope, fallbackValue?: R): R;
+	get(key: string, scope: StorageScope, fallbackValue?: string): string | undefined;
 
 	/**
 	 * Retrieve an element stored with the given key from storage. Use
@@ -40,7 +40,7 @@ export interface IStorageService {
 	 * The scope argument allows to define the scope of the storage
 	 * operation to either the current workspace only or all workspaces.
 	 */
-	getBoolean<R extends boolean | undefined>(key: string, scope: StorageScope, fallbackValue?: R): R;
+	getBoolean(key: string, scope: StorageScope, fallbackValue?: boolean): boolean | undefined;
 
 	/**
 	 * Retrieve an element stored with the given key from storage. Use
@@ -50,7 +50,7 @@ export interface IStorageService {
 	 * The scope argument allows to define the scope of the storage
 	 * operation to either the current workspace only or all workspaces.
 	 */
-	getInteger<R extends number | undefined>(key: string, scope: StorageScope, fallbackValue?: R): R;
+	getInteger(key: string, scope: StorageScope, fallbackValue?: number): number | undefined;
 
 	/**
 	 * Store a string value under the given key to storage. The value will
@@ -94,16 +94,16 @@ export const NullStorageService: IStorageService = {
 	onDidChangeStorage: Event.None,
 	onWillSaveState: Event.None,
 
-	get<R extends string | undefined>(key: string, scope: StorageScope, fallbackValue?: R): R {
-		return fallbackValue as R;
+	get(key: string, scope: StorageScope, fallbackValue?: string): string | undefined {
+		return fallbackValue;
 	},
 
-	getBoolean<R extends boolean | undefined>(key: string, scope: StorageScope, fallbackValue?: R): R {
-		return fallbackValue as R;
+	getBoolean(key: string, scope: StorageScope, fallbackValue?: boolean): boolean | undefined {
+		return fallbackValue;
 	},
 
-	getInteger<R extends number | undefined>(key: string, scope: StorageScope, fallbackValue?: R): R {
-		return fallbackValue as R;
+	getInteger(key: string, scope: StorageScope, fallbackValue?: number): number | undefined {
+		return fallbackValue;
 	},
 
 	store(key: string, value: any, scope: StorageScope): Promise<void> {
