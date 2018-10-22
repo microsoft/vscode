@@ -178,7 +178,7 @@ function createWorkspaceInitializationPayload(configuration: IWindowConfiguratio
 			if (configuration.backupPath) {
 				id = basename(configuration.backupPath); // we know the backupPath must be a unique path so we leverage its name as workspace ID
 			} else if (environmentService.isExtensionDevelopment) {
-				id = 'extension-development-workspace'; // extension development window never stores backups and is a singleton
+				id = 'ext-dev'; // extension development window never stores backups and is a singleton
 			} else {
 				return Promise.reject(new Error('Unexpected window configuration without backupPath'));
 			}
