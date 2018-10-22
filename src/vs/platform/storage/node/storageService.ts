@@ -110,15 +110,21 @@ export class StorageService extends Disposable implements IStorageService {
 		]).then(() => void 0);
 	}
 
-	get(key: string, scope: StorageScope, fallbackValue?: string): string {
+	get(key: string, scope: StorageScope, fallbackValue: string): string;
+	get(key: string, scope: StorageScope): string | undefined;
+	get(key: string, scope: StorageScope, fallbackValue?: string): string | undefined {
 		return this.getStorage(scope).get(key, fallbackValue);
 	}
 
-	getBoolean(key: string, scope: StorageScope, fallbackValue?: boolean): boolean {
+	getBoolean(key: string, scope: StorageScope, fallbackValue: boolean): boolean;
+	getBoolean(key: string, scope: StorageScope): boolean | undefined;
+	getBoolean(key: string, scope: StorageScope, fallbackValue?: boolean): boolean | undefined {
 		return this.getStorage(scope).getBoolean(key, fallbackValue);
 	}
 
-	getInteger(key: string, scope: StorageScope, fallbackValue?: number): number {
+	getInteger(key: string, scope: StorageScope, fallbackValue: number): number;
+	getInteger(key: string, scope: StorageScope): number | undefined;
+	getInteger(key: string, scope: StorageScope, fallbackValue?: number): number | undefined {
 		return this.getStorage(scope).getInteger(key, fallbackValue);
 	}
 

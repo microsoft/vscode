@@ -74,7 +74,7 @@ export class Storage extends Disposable {
 		});
 	}
 
-	get(key: string, fallbackValue?: string): string {
+	get(key: string, fallbackValue?: string): string | undefined {
 		const value = this.cache.get(key);
 
 		if (isUndefinedOrNull(value)) {
