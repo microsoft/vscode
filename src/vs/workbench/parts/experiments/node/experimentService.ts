@@ -23,6 +23,7 @@ import { ITextFileService, StateChange } from 'vs/workbench/services/textfile/co
 import { WorkspaceStats } from 'vs/workbench/parts/stats/node/workspaceStats';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { distinct } from 'vs/base/common/arrays';
+import { lastSessionDateStorageKey } from 'vs/platform/telemetry/node/workbenchCommonProperties';
 
 interface IExperimentStorageState {
 	enabled: boolean;
@@ -43,6 +44,7 @@ interface IRawExperiment {
 	enabled?: boolean;
 	condition?: {
 		insidersOnly?: boolean;
+		newUser?: boolean;
 		displayLanguage?: string;
 		installedExtensions?: {
 			excludes?: string[];
@@ -330,6 +332,12 @@ export class ExperimentService extends Disposable implements IExperimentService 
 		}
 
 		if (this.environmentService.appQuality === 'stable' && experiment.condition.insidersOnly === true) {
+			return TPromise.wrap(ExperimentState.NoRun);
+		}
+
+		const isNewUser = !this.storageService.get(lastSessionDateStorageKey, StorageScope.GLOBAL);
+		if ((experiment.condition.newUser === true && !isNewUser)
+			|| (experiment.condition.newUser === false && isNewUser)) {
 			return TPromise.wrap(ExperimentState.NoRun);
 		}
 

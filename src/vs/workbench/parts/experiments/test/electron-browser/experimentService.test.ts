@@ -26,6 +26,7 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import { assign } from 'vs/base/common/objects';
 import { URI } from 'vs/base/common/uri';
 import { IStorageService } from 'vs/platform/storage/common/storage';
+import { lastSessionDateStorageKey } from 'vs/platform/telemetry/node/workbenchCommonProperties';
 
 let experimentData = {
 	experiments: []
@@ -170,6 +171,94 @@ suite('Experiment Service', () => {
 		return testObject.getExperimentById('experiment1').then(result => {
 			assert.equal(result.enabled, true);
 			assert.equal(result.state, ExperimentState.NoRun);
+		});
+	});
+
+	test('NewUsers experiment shouldnt be enabled for old users', () => {
+		experimentData = {
+			experiments: [
+				{
+					id: 'experiment1',
+					enabled: true,
+					condition: {
+						newUser: true
+					}
+				}
+			]
+		};
+
+		instantiationService.stub(IStorageService, {
+			get: (a, b, c) => {
+				return a === lastSessionDateStorageKey ? 'some-date' : undefined;
+			},
+			getBoolean: (a, b, c) => c, store: () => { }, remove: () => { }
+		});
+		testObject = instantiationService.createInstance(TestExperimentService);
+		return testObject.getExperimentById('experiment1').then(result => {
+			assert.equal(result.enabled, true);
+			assert.equal(result.state, ExperimentState.NoRun);
+		});
+	});
+
+	test('OldUsers experiment shouldnt be enabled for new users', () => {
+		experimentData = {
+			experiments: [
+				{
+					id: 'experiment1',
+					enabled: true,
+					condition: {
+						newUser: false
+					}
+				}
+			]
+		};
+
+		testObject = instantiationService.createInstance(TestExperimentService);
+		return testObject.getExperimentById('experiment1').then(result => {
+			assert.equal(result.enabled, true);
+			assert.equal(result.state, ExperimentState.NoRun);
+		});
+	});
+
+	test('Experiment without NewUser condition should be enabled for old users', () => {
+		experimentData = {
+			experiments: [
+				{
+					id: 'experiment1',
+					enabled: true,
+					condition: {}
+				}
+			]
+		};
+
+		instantiationService.stub(IStorageService, {
+			get: (a, b, c) => {
+				return a === lastSessionDateStorageKey ? 'some-date' : undefined;
+			},
+			getBoolean: (a, b, c) => c, store: () => { }, remove: () => { }
+		});
+		testObject = instantiationService.createInstance(TestExperimentService);
+		return testObject.getExperimentById('experiment1').then(result => {
+			assert.equal(result.enabled, true);
+			assert.equal(result.state, ExperimentState.Run);
+		});
+	});
+
+	test('Experiment without NewUser condition should be enabled for new users', () => {
+		experimentData = {
+			experiments: [
+				{
+					id: 'experiment1',
+					enabled: true,
+					condition: {}
+				}
+			]
+		};
+
+		testObject = instantiationService.createInstance(TestExperimentService);
+		return testObject.getExperimentById('experiment1').then(result => {
+			assert.equal(result.enabled, true);
+			assert.equal(result.state, ExperimentState.Run);
 		});
 	});
 
