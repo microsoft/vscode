@@ -869,7 +869,7 @@ declare module 'vscode' {
 		replyToCommentThread(document: TextDocument, range: Range, commentThread: CommentThread, text: string, token: CancellationToken): Promise<CommentThread>;
 
 		/**
-		 * Called when a user edits the comment body to the be new text text.
+		 * Called when a user edits the comment body to the be new text.
 		 */
 		editComment?(document: TextDocument, comment: Comment, text: string, token: CancellationToken): Promise<void>;
 
