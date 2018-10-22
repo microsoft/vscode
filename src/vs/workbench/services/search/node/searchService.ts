@@ -28,7 +28,6 @@ import { FileMatch, ICachedSearchStats, IFileMatch, IFileQuery, IFileSearchStats
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
-import { IRawSearch } from 'vs/workbench/services/search/node/legacy/search';
 import { IUntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
 import { IRawSearchService, ISerializedFileMatch, ISerializedSearchComplete, ISerializedSearchProgressItem, isSerializedSearchComplete, isSerializedSearchSuccess } from './search';
 import { ISearchChannel, SearchChannelClient } from './searchIpc';
@@ -213,7 +212,7 @@ export class SearchService extends Disposable implements ISearchService {
 			}
 		});
 
-		const diskSearchExtraFileResources = query.extraFileResources && query.extraFileResources.filter(res => res.scheme === 'file');
+		const diskSearchExtraFileResources = query.extraFileResources && query.extraFileResources.filter(res => res.scheme === Schemas.file);
 
 		if (diskSearchQueries.length || diskSearchExtraFileResources) {
 			const diskSearchQuery: ISearchQuery = {
@@ -507,50 +506,12 @@ export class DiskSearch implements ISearchResultProvider {
 					throw canceled();
 				}
 
-				const existingFolders = folderQueries.filter((q, index) => exists[index]);
-				const rawSearch = this.rawSearchQuery(query, existingFolders);
-
+				query.folderQueries = folderQueries.filter((q, index) => exists[index]);
 				let event: Event<ISerializedSearchProgressItem | ISerializedSearchComplete>;
-				event = this.raw.fileSearch(rawSearch);
+				event = this.raw.fileSearch(query);
 
 				return DiskSearch.collectResultsFromEvent(event, null, token);
 			});
-	}
-
-	private rawSearchQuery(query: IFileQuery, existingFolders: IFolderQuery[]) {
-		let rawSearch: IRawSearch = {
-			folderQueries: [],
-			extraFiles: [],
-			filePattern: query.filePattern,
-			excludePattern: query.excludePattern,
-			includePattern: query.includePattern,
-			maxResults: query.maxResults,
-			exists: query.exists,
-			sortByScore: query.sortByScore,
-			cacheKey: query.cacheKey,
-			useRipgrep: query.useRipgrep
-		};
-
-		for (const q of existingFolders) {
-			rawSearch.folderQueries.push({
-				excludePattern: q.excludePattern,
-				includePattern: q.includePattern,
-				fileEncoding: q.fileEncoding,
-				disregardIgnoreFiles: q.disregardIgnoreFiles,
-				disregardGlobalIgnoreFiles: q.disregardGlobalIgnoreFiles,
-				folder: q.folder.fsPath
-			});
-		}
-
-		if (query.extraFileResources) {
-			for (const r of query.extraFileResources) {
-				if (r.scheme === Schemas.file) {
-					rawSearch.extraFiles.push(r.fsPath);
-				}
-			}
-		}
-
-		return rawSearch;
 	}
 
 	public static collectResultsFromEvent(event: Event<ISerializedSearchProgressItem | ISerializedSearchComplete>, onProgress?: (p: ISearchProgressItem) => void, token?: CancellationToken): TPromise<ISearchComplete> {

@@ -36,6 +36,7 @@ export interface ICommonQueryBuilderOptions {
 	extraFileResources?: uri[];
 
 	maxResults?: number;
+	maxFileSize?: number;
 	useRipgrep?: boolean;
 	disregardIgnoreFiles?: boolean;
 	disregardGlobalIgnoreFiles?: boolean;
@@ -53,7 +54,6 @@ export interface IFileQueryBuilderOptions extends ICommonQueryBuilderOptions {
 export interface ITextQueryBuilderOptions extends ICommonQueryBuilderOptions {
 	previewOptions?: ITextSearchPreviewOptions;
 	fileEncoding?: string;
-	maxFileSize?: number;
 }
 
 export class QueryBuilder {
