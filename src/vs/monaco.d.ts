@@ -25,17 +25,17 @@ declare namespace monaco {
 		dispose(): void;
 	}
 
+
 	export enum MarkerTag {
-		Unnecessary = 1,
+		Unnecessary = 1
 	}
 
 	export enum MarkerSeverity {
 		Hint = 1,
 		Info = 2,
 		Warning = 4,
-		Error = 8,
+		Error = 8
 	}
-
 
 
 	export class Promise<T = any> {
@@ -385,7 +385,6 @@ declare namespace monaco {
 		 */
 		MAX_VALUE = 112
 	}
-
 	export class KeyMod {
 		static readonly CtrlCmd: number;
 		static readonly Shift: number;
@@ -1999,7 +1998,7 @@ declare namespace monaco.editor {
 	 */
 	export type IEditorViewState = ICodeEditorViewState | IDiffEditorViewState;
 
-	export const enum ScrollType {
+	export enum ScrollType {
 		Smooth = 0,
 		Immediate = 1
 	}
@@ -3206,7 +3205,7 @@ declare namespace monaco.editor {
 		readonly wordWrapBreakObtrusiveCharacters: string;
 	}
 
-	export const enum RenderLineNumbersType {
+	export enum RenderLineNumbersType {
 		Off = 0,
 		On = 1,
 		Relative = 2,
@@ -5354,7 +5353,7 @@ declare namespace monaco.languages {
 	}
 
 	export interface WorkspaceEdit {
-		edits: Array<ResourceTextEdit | ResourceFileEdit>;
+		edits?: Array<ResourceTextEdit | ResourceFileEdit>;
 	}
 
 	export interface Rejection {

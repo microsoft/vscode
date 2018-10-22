@@ -6,7 +6,7 @@
 import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import { Event, Emitter } from 'vs/base/common/event';
 
-export enum ScrollbarVisibility {
+export const enum ScrollbarVisibility {
 	Auto = 1,
 	Hidden = 2,
 	Visible = 3

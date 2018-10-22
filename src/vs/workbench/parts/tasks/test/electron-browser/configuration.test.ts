@@ -83,7 +83,7 @@ class PresentationBuilder {
 	public result: Tasks.PresentationOptions;
 
 	constructor(public parent: CommandConfigurationBuilder) {
-		this.result = { echo: false, reveal: Tasks.RevealKind.Always, focus: false, panel: Tasks.PanelKind.Shared, showReuseMessage: true };
+		this.result = { echo: false, reveal: Tasks.RevealKind.Always, focus: false, panel: Tasks.PanelKind.Shared, showReuseMessage: true, clearBeforeExecuting: false };
 	}
 
 	public echo(value: boolean): PresentationBuilder {

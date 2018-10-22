@@ -5,9 +5,8 @@
 
 import 'vs/css!./standalone-tokens';
 import * as editorCommon from 'vs/editor/common/editorCommon';
-import { ICodeEditor, ContentWidgetPositionPreference, OverlayWidgetPositionPreference, MouseTargetType } from 'vs/editor/browser/editorBrowser';
+import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { StandaloneEditor, IStandaloneCodeEditor, StandaloneDiffEditor, IStandaloneDiffEditor, IEditorConstructionOptions, IDiffEditorConstructionOptions } from 'vs/editor/standalone/browser/standaloneCodeEditor';
-import { ScrollbarVisibility } from 'vs/base/common/scrollable';
 import { IEditorOverrideServices, DynamicStandaloneServices, StaticServices } from 'vs/editor/standalone/browser/standaloneServices';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
@@ -32,10 +31,10 @@ import { IStandaloneThemeData, IStandaloneThemeService } from 'vs/editor/standal
 import { Token } from 'vs/editor/common/core/token';
 import { FontInfo, BareFontInfo } from 'vs/editor/common/config/fontInfo';
 import * as editorOptions from 'vs/editor/common/config/editorOptions';
-import { CursorChangeReason } from 'vs/editor/common/controller/cursorEvents';
-import { ITextModel, OverviewRulerLane, EndOfLinePreference, DefaultEndOfLine, EndOfLineSequence, TrackedRangeStickiness, TextModelResolvedOptions, FindMatch } from 'vs/editor/common/model';
+import { ITextModel, TextModelResolvedOptions, FindMatch } from 'vs/editor/common/model';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import * as enums from 'vs/editor/common/standalone/standaloneEnums';
 
 function withAllStandaloneServices<T extends editorCommon.IEditor>(domElement: HTMLElement, override: IEditorOverrideServices, callback: (services: DynamicStandaloneServices) => T): T {
 	let services = new DynamicStandaloneServices(domElement, override);
@@ -310,33 +309,6 @@ export function setTheme(themeName: string): void {
 
 /**
  * @internal
- * --------------------------------------------
- * This is repeated here so it can be exported
- * because TS inlines const enums
- * --------------------------------------------
- */
-enum ScrollType {
-	Smooth = 0,
-	Immediate = 1,
-}
-
-/**
- * @internal
- * --------------------------------------------
- * This is repeated here so it can be exported
- * because TS inlines const enums
- * --------------------------------------------
- */
-enum RenderLineNumbersType {
-	Off = 0,
-	On = 1,
-	Relative = 2,
-	Interval = 3,
-	Custom = 4
-}
-
-/**
- * @internal
  */
 export function createMonacoEditorAPI(): typeof monaco.editor {
 	return {
@@ -346,42 +318,42 @@ export function createMonacoEditorAPI(): typeof monaco.editor {
 		createDiffEditor: <any>createDiffEditor,
 		createDiffNavigator: <any>createDiffNavigator,
 
-		createModel: createModel,
-		setModelLanguage: setModelLanguage,
-		setModelMarkers: setModelMarkers,
-		getModelMarkers: getModelMarkers,
-		getModels: getModels,
-		getModel: getModel,
-		onDidCreateModel: onDidCreateModel,
-		onWillDisposeModel: onWillDisposeModel,
-		onDidChangeModelLanguage: onDidChangeModelLanguage,
+		createModel: <any>createModel,
+		setModelLanguage: <any>setModelLanguage,
+		setModelMarkers: <any>setModelMarkers,
+		getModelMarkers: <any>getModelMarkers,
+		getModels: <any>getModels,
+		getModel: <any>getModel,
+		onDidCreateModel: <any>onDidCreateModel,
+		onWillDisposeModel: <any>onWillDisposeModel,
+		onDidChangeModelLanguage: <any>onDidChangeModelLanguage,
 
 
-		createWebWorker: createWebWorker,
-		colorizeElement: colorizeElement,
-		colorize: colorize,
-		colorizeModelLine: colorizeModelLine,
-		tokenize: tokenize,
-		defineTheme: defineTheme,
-		setTheme: setTheme,
+		createWebWorker: <any>createWebWorker,
+		colorizeElement: <any>colorizeElement,
+		colorize: <any>colorize,
+		colorizeModelLine: <any>colorizeModelLine,
+		tokenize: <any>tokenize,
+		defineTheme: <any>defineTheme,
+		setTheme: <any>setTheme,
 
 		// enums
-		ScrollbarVisibility: ScrollbarVisibility,
-		WrappingIndent: editorOptions.WrappingIndent,
-		OverviewRulerLane: OverviewRulerLane,
-		EndOfLinePreference: EndOfLinePreference,
-		DefaultEndOfLine: DefaultEndOfLine,
-		EndOfLineSequence: EndOfLineSequence,
-		TrackedRangeStickiness: TrackedRangeStickiness,
-		CursorChangeReason: CursorChangeReason,
-		MouseTargetType: MouseTargetType,
-		TextEditorCursorStyle: editorOptions.TextEditorCursorStyle,
-		TextEditorCursorBlinkingStyle: editorOptions.TextEditorCursorBlinkingStyle,
-		ContentWidgetPositionPreference: ContentWidgetPositionPreference,
-		OverlayWidgetPositionPreference: OverlayWidgetPositionPreference,
-		RenderMinimap: editorOptions.RenderMinimap,
-		ScrollType: <any>ScrollType,
-		RenderLineNumbersType: <any>RenderLineNumbersType,
+		ScrollbarVisibility: enums.ScrollbarVisibility,
+		WrappingIndent: enums.WrappingIndent,
+		OverviewRulerLane: enums.OverviewRulerLane,
+		EndOfLinePreference: enums.EndOfLinePreference,
+		DefaultEndOfLine: enums.DefaultEndOfLine,
+		EndOfLineSequence: enums.EndOfLineSequence,
+		TrackedRangeStickiness: enums.TrackedRangeStickiness,
+		CursorChangeReason: enums.CursorChangeReason,
+		MouseTargetType: enums.MouseTargetType,
+		TextEditorCursorStyle: enums.TextEditorCursorStyle,
+		TextEditorCursorBlinkingStyle: enums.TextEditorCursorBlinkingStyle,
+		ContentWidgetPositionPreference: enums.ContentWidgetPositionPreference,
+		OverlayWidgetPositionPreference: enums.OverlayWidgetPositionPreference,
+		RenderMinimap: enums.RenderMinimap,
+		ScrollType: enums.ScrollType,
+		RenderLineNumbersType: enums.RenderLineNumbersType,
 
 		// classes
 		InternalEditorOptions: <any>editorOptions.InternalEditorOptions,

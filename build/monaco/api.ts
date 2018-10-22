@@ -152,7 +152,7 @@ function isDefaultExport(declaration: ts.InterfaceDeclaration | ts.ClassDeclarat
 	);
 }
 
-function getMassagedTopLevelDeclarationText(sourceFile: ts.SourceFile, declaration: TSTopLevelDeclare, importName: string, usage: string[]): string {
+function getMassagedTopLevelDeclarationText(sourceFile: ts.SourceFile, declaration: TSTopLevelDeclare, importName: string, usage: string[], enums: string[]): string {
 	let result = getNodeText(sourceFile, declaration);
 	if (declaration.kind === ts.SyntaxKind.InterfaceDeclaration || declaration.kind === ts.SyntaxKind.ClassDeclaration) {
 		let interfaceDeclaration = <ts.InterfaceDeclaration | ts.ClassDeclaration>declaration;
@@ -194,6 +194,12 @@ function getMassagedTopLevelDeclarationText(sourceFile: ts.SourceFile, declarati
 	}
 	result = result.replace(/export default/g, 'export');
 	result = result.replace(/export declare/g, 'export');
+
+	if (declaration.kind === ts.SyntaxKind.EnumDeclaration) {
+		result = result.replace(/const enum/, 'enum');
+		enums.push(result);
+	}
+
 	return result;
 }
 
@@ -356,7 +362,7 @@ function createReplacer(data: string): (str: string) => string {
 	};
 }
 
-function generateDeclarationFile(recipe: string, sourceFileGetter: SourceFileGetter): [string, string] {
+function generateDeclarationFile(recipe: string, sourceFileGetter: SourceFileGetter): [string, string, string] {
 	const endl = /\r\n/.test(recipe) ? '\r\n' : '\n';
 
 	let lines = recipe.split(endl);
@@ -374,6 +380,8 @@ function generateDeclarationFile(recipe: string, sourceFileGetter: SourceFileGet
 		usageImports.push(`import * as ${importName} from './${moduleId.replace(/\.d\.ts$/, '')}';`);
 		return importName;
 	};
+
+	let enums: string[] = [];
 
 	lines.forEach(line => {
 
@@ -401,7 +409,7 @@ function generateDeclarationFile(recipe: string, sourceFileGetter: SourceFileGet
 					logErr('Cannot find type ' + typeName);
 					return;
 				}
-				result.push(replacer(getMassagedTopLevelDeclarationText(sourceFile, declaration, importName, usage)));
+				result.push(replacer(getMassagedTopLevelDeclarationText(sourceFile, declaration, importName, usage, enums)));
 			});
 			return;
 		}
@@ -445,7 +453,7 @@ function generateDeclarationFile(recipe: string, sourceFileGetter: SourceFileGet
 						}
 					}
 				}
-				result.push(replacer(getMassagedTopLevelDeclarationText(sourceFile, declaration, importName, usage)));
+				result.push(replacer(getMassagedTopLevelDeclarationText(sourceFile, declaration, importName, usage, enums)));
 			});
 			return;
 		}
@@ -456,12 +464,23 @@ function generateDeclarationFile(recipe: string, sourceFileGetter: SourceFileGet
 	let resultTxt = result.join(endl);
 	resultTxt = resultTxt.replace(/\bURI\b/g, 'Uri');
 	resultTxt = resultTxt.replace(/\bEvent</g, 'IEvent<');
-
 	resultTxt = format(resultTxt, endl);
+
+	let resultEnums = [
+		'/*---------------------------------------------------------------------------------------------',
+		' *  Copyright (c) Microsoft Corporation. All rights reserved.',
+		' *  Licensed under the MIT License. See License.txt in the project root for license information.',
+		' *--------------------------------------------------------------------------------------------*/',
+		'',
+		'// THIS IS A GENERATED FILE. DO NOT EDIT DIRECTLY.',
+		''
+	].concat(enums).join(endl);
+	resultEnums = format(resultEnums, endl);
 
 	return [
 		resultTxt,
-		`${usageImports.join('\n')}\n\n${usage.join('\n')}`
+		`${usageImports.join('\n')}\n\n${usage.join('\n')}`,
+		resultEnums
 	];
 }
 
@@ -497,6 +516,7 @@ export function getFilesToWatch(out: string): string[] {
 export interface IMonacoDeclarationResult {
 	content: string;
 	usageContent: string;
+	enums: string;
 	filePath: string;
 	isTheSame: boolean;
 }
@@ -505,7 +525,7 @@ function _run(sourceFileGetter: SourceFileGetter): IMonacoDeclarationResult {
 	log('Starting monaco.d.ts generation');
 
 	const recipe = fs.readFileSync(RECIPE_PATH).toString();
-	const [result, usageContent] = generateDeclarationFile(recipe, sourceFileGetter);
+	const [result, usageContent, enums] = generateDeclarationFile(recipe, sourceFileGetter);
 
 	const currentContent = fs.readFileSync(DECLARATION_PATH).toString();
 	const one = currentContent.replace(/\r\n/gm, '\n');
@@ -517,6 +537,7 @@ function _run(sourceFileGetter: SourceFileGetter): IMonacoDeclarationResult {
 	return {
 		content: result,
 		usageContent: usageContent,
+		enums: enums,
 		filePath: DECLARATION_PATH,
 		isTheSame
 	};
