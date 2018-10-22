@@ -14,7 +14,7 @@ import { EditOperation } from 'vs/editor/common/core/editOperation';
 import { Range } from 'vs/editor/common/core/range';
 import { IEditorContribution, ScrollType, Handler } from 'vs/editor/common/editorCommon';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
-import { CompletionItem, CompletionItemProvider, CompletionItemInsertTextRule } from 'vs/editor/common/modes';
+import { CompletionItemProvider, CompletionItemInsertTextRule } from 'vs/editor/common/modes';
 import { SnippetController2 } from 'vs/editor/contrib/snippet/snippetController2';
 import { SnippetParser } from 'vs/editor/contrib/snippet/snippetParser';
 import { SuggestMemories } from 'vs/editor/contrib/suggest/suggestMemory';
@@ -23,7 +23,6 @@ import { ICommandService } from 'vs/platform/commands/common/commands';
 import { ContextKeyExpr, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { ICompletionItem } from './completionModel';
 import { Context as SuggestContext, ISuggestionItem } from './suggest';
 import { SuggestAlternatives } from './suggestAlternatives';
@@ -101,7 +100,6 @@ export class SuggestController implements IEditorContribution {
 		@IEditorWorkerService editorWorker: IEditorWorkerService,
 		@ICommandService private readonly _commandService: ICommandService,
 		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
-		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 	) {
 		this._model = new SuggestModel(this._editor, editorWorker);
@@ -277,20 +275,6 @@ export class SuggestController implements IEditorContribution {
 		}
 
 		this._alertCompletionItem(event.item);
-		SuggestController._onDidSelectTelemetry(this._telemetryService, suggestion);
-	}
-
-	private static _onDidSelectTelemetry(service: ITelemetryService, item: CompletionItem): void {
-		/* __GDPR__
-			"acceptsuggestion2" : {
-				"type" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-				"multiline" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
-			}
-		*/
-		service.publicLog('acceptsuggestion2', {
-			type: item.kind,
-			multiline: item.insertText.match(/\r|\n/) ? 'TRUE' : 'FALSE'
-		});
 	}
 
 	private _alertCompletionItem({ suggestion }: ICompletionItem): void {
