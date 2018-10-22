@@ -438,7 +438,7 @@ class InlineImageView {
 			updateScale(scale);
 		}
 
-		disposables.push(DOM.addDisposableListener(container, DOM.EventType.KEY_DOWN, (e: KeyboardEvent) => {
+		disposables.push(DOM.addDisposableListener(window, DOM.EventType.KEY_DOWN, (e: KeyboardEvent) => {
 			if (!image) {
 				return;
 			}
@@ -451,7 +451,7 @@ class InlineImageView {
 			}
 		}));
 
-		disposables.push(DOM.addDisposableListener(container, DOM.EventType.KEY_UP, (e: KeyboardEvent) => {
+		disposables.push(DOM.addDisposableListener(window, DOM.EventType.KEY_UP, (e: KeyboardEvent) => {
 			if (!image) {
 				return;
 			}
