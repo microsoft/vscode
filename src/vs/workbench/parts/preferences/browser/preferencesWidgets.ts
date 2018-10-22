@@ -172,6 +172,11 @@ export class SettingsGroupTitleWidget extends Widget implements IViewZone {
 	}
 
 	public render() {
+		if (!this.settingsGroup.range) {
+			// #61352
+			return;
+		}
+
 		this._afterLineNumber = this.settingsGroup.range.startLineNumber - 2;
 		this.editor.changeViewZones(accessor => {
 			this.id = accessor.addZone(this);
