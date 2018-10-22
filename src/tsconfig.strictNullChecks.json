@@ -63,7 +63,6 @@
 		"./vs/base/node/ports.ts",
 		"./vs/base/node/processes.ts",
 		"./vs/base/node/proxy.ts",
-		"./vs/base/node/ps.ts",
 		"./vs/base/node/request.ts",
 		"./vs/base/node/stats.ts",
 		"./vs/base/node/storage.ts",
@@ -597,6 +596,7 @@
 		"./vs/workbench/test/electron-browser/api/mock.ts"
 	],
 	"exclude": [
-		"./typings/require-monaco.d.ts"
+		"./typings/require-monaco.d.ts",
+		"../node_modules/windows-process-tree/typings/windows-process-tree.d.ts"
 	]
 }
