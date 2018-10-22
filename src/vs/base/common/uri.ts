@@ -346,8 +346,8 @@ export class URI implements UriComponents {
 	 *
 	 * @param skipEncoding Do not encode the result, default is `false`
 	 */
-	public toString(skipEncoding: boolean = false, _encodeDriveLetterColon: boolean = false): string {
-		return _asFormatted(this, skipEncoding, _encodeDriveLetterColon);
+	public toString(skipEncoding: boolean = false): string {
+		return _asFormatted(this, skipEncoding);
 	}
 
 	public toJSON(): object {
@@ -398,15 +398,15 @@ class _URI extends URI {
 		return this._fsPath;
 	}
 
-	toString(skipEncoding: boolean = false, _encodeDriveLetterColon: boolean = false): string {
-		if (!skipEncoding && !_encodeDriveLetterColon) {
+	public toString(skipEncoding: boolean = false): string {
+		if (!skipEncoding) {
 			if (!this._formatted) {
-				this._formatted = _asFormatted(this, false, _encodeDriveLetterColon);
+				this._formatted = _asFormatted(this, false);
 			}
 			return this._formatted;
 		} else {
 			// we don't cache that
-			return _asFormatted(this, true, _encodeDriveLetterColon);
+			return _asFormatted(this, true);
 		}
 	}
 
@@ -575,7 +575,7 @@ function _makeFsPath(uri: URI): string {
 /**
  * Create the external version of a uri
  */
-function _asFormatted(uri: URI, skipEncoding: boolean, encodeDriveLetterColon: boolean): string {
+function _asFormatted(uri: URI, skipEncoding: boolean): string {
 
 	const encoder = !skipEncoding
 		? encodeURIComponentFast
@@ -639,7 +639,7 @@ function _asFormatted(uri: URI, skipEncoding: boolean, encodeDriveLetterColon: b
 				encodeOffset = 2;
 			}
 		}
-		if (scheme !== 'file' || encodeDriveLetterColon || path.length > encodeOffset && path.charCodeAt(encodeOffset) !== CharCode.Slash) {
+		if (scheme !== 'file' || path.length > encodeOffset && path.charCodeAt(encodeOffset) !== CharCode.Slash) {
 			encodeOffset = 0;
 		}
 
