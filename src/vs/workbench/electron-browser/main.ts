@@ -8,7 +8,7 @@ import * as perf from 'vs/base/common/performance';
 import { WorkbenchShell } from 'vs/workbench/electron-browser/shell';
 import * as browser from 'vs/base/browser/browser';
 import { domContentLoaded } from 'vs/base/browser/dom';
-import * as errors from 'vs/base/common/errors';
+import { onUnexpectedError } from 'vs/base/common/errors';
 import * as comparer from 'vs/base/common/comparers';
 import * as platform from 'vs/base/common/platform';
 import { URI as uri } from 'vs/base/common/uri';
@@ -110,7 +110,7 @@ function openWorkbench(configuration: IWindowConfiguration): Promise<void> {
 			return Promise.all([
 
 				// Create and initialize workspace/configuration service
-				createWorkspaceService(payload, environmentService),
+				createWorkspaceService(payload, environmentService, logService),
 
 				// Create and initialize storage service
 				createStorageService(workspaceStoragePath, payload, environmentService, logService)
@@ -167,7 +167,7 @@ function createWorkspaceInitializationPayload(configuration: IWindowConfiguratio
 	// Single-folder workspace
 	let workspaceInitializationPayload: Promise<IWorkspaceInitializationPayload> = Promise.resolve(void 0);
 	if (configuration.folderUri) {
-		workspaceInitializationPayload = resolveSingleFolderWorkspaceInitializationPayload(configuration.folderUri, configuration.verbose);
+		workspaceInitializationPayload = resolveSingleFolderWorkspaceInitializationPayload(configuration.folderUri);
 	}
 
 	return workspaceInitializationPayload.then(payload => {
@@ -190,7 +190,7 @@ function createWorkspaceInitializationPayload(configuration: IWindowConfiguratio
 	});
 }
 
-function resolveSingleFolderWorkspaceInitializationPayload(folderUri: ISingleFolderWorkspaceIdentifier, verbose: boolean): Promise<ISingleFolderWorkspaceInitializationPayload> {
+function resolveSingleFolderWorkspaceInitializationPayload(folderUri: ISingleFolderWorkspaceIdentifier): Promise<ISingleFolderWorkspaceInitializationPayload> {
 
 	// Return early the folder is not local
 	if (folderUri.scheme !== Schemas.file) {
@@ -224,14 +224,7 @@ function resolveSingleFolderWorkspaceInitializationPayload(folderUri: ISingleFol
 			id: computeLocalDiskFolderId(sanitizedFolderUri, stat),
 			folder: sanitizedFolderUri
 		} as ISingleFolderWorkspaceInitializationPayload;
-	}, error => {
-		if (verbose) {
-			errors.onUnexpectedError(error);
-		}
-
-		// Do not bubble up the error
-		return void 0;
-	});
+	}, error => onUnexpectedError(error));
 }
 
 function prepareWorkspaceStorageFolder(payload: IWorkspaceInitializationPayload, environmentService: IEnvironmentService): Thenable<string> {
@@ -265,14 +258,15 @@ function ensureWorkspaceStorageFolderMeta(workspaceStoragePath: string, workspac
 			configuration: workspace.configuration ? uri.revive(workspace.configuration).toString() : void 0,
 			folder: state === WorkbenchState.FOLDER ? uri.revive(workspace.folders[0].uri).toString() : void 0
 		}, undefined, 2));
-	}).then(null, error => errors.onUnexpectedError(error));
+	}).then(null, error => onUnexpectedError(error));
 }
 
-function createWorkspaceService(payload: IWorkspaceInitializationPayload, environmentService: IEnvironmentService): Promise<WorkspaceService> {
+function createWorkspaceService(payload: IWorkspaceInitializationPayload, environmentService: IEnvironmentService, logService: ILogService): Promise<WorkspaceService> {
 	const workspaceService = new WorkspaceService(environmentService);
 
 	return workspaceService.initialize(payload).then(() => workspaceService, error => {
-		errors.onUnexpectedError(error);
+		onUnexpectedError(error);
+		logService.error(error);
 
 		return workspaceService;
 	});
@@ -383,7 +377,7 @@ function createStorageService(workspaceStorageFolder: string, payload: IWorkspac
 						});
 					}
 				} catch (error) {
-					errors.onUnexpectedError(error);
+					onUnexpectedError(error);
 					logService.error(error);
 				}
 
