@@ -55,7 +55,7 @@ export class Storage extends Disposable {
 
 		this.storage = new SQLiteStorageImpl(options);
 
-		this.pendingScheduler = new RunOnceScheduler(() => this.flushPending(), Storage.FLUSH_DELAY);
+		this.pendingScheduler = this._register(new RunOnceScheduler(() => this.flushPending(), Storage.FLUSH_DELAY));
 	}
 
 	get size(): number {
@@ -74,7 +74,7 @@ export class Storage extends Disposable {
 		});
 	}
 
-	get(key: string, fallbackValue?: any): string {
+	get(key: string, fallbackValue?: string): string {
 		const value = this.cache.get(key);
 
 		if (isUndefinedOrNull(value)) {

@@ -46,10 +46,10 @@ suite('StorageService', () => {
 
 		strictEqual(storage.get('Monaco.IDE.Core.Storage.Test.get', scope, 'foobar'), 'foobar');
 		strictEqual(storage.get('Monaco.IDE.Core.Storage.Test.get', scope, ''), '');
-		strictEqual(storage.get('Monaco.IDE.Core.Storage.Test.getInteger', scope, 5), 5);
-		strictEqual(storage.get('Monaco.IDE.Core.Storage.Test.getInteger', scope, 0), 0);
-		strictEqual(storage.get('Monaco.IDE.Core.Storage.Test.getBoolean', scope, true), true);
-		strictEqual(storage.get('Monaco.IDE.Core.Storage.Test.getBoolean', scope, false), false);
+		strictEqual(storage.getInteger('Monaco.IDE.Core.Storage.Test.getInteger', scope, 5), 5);
+		strictEqual(storage.getInteger('Monaco.IDE.Core.Storage.Test.getInteger', scope, 0), 0);
+		strictEqual(storage.getBoolean('Monaco.IDE.Core.Storage.Test.getBoolean', scope, true), true);
+		strictEqual(storage.getBoolean('Monaco.IDE.Core.Storage.Test.getBoolean', scope, false), false);
 
 		storage.store('Monaco.IDE.Core.Storage.Test.get', 'foobar', scope);
 		strictEqual(storage.get('Monaco.IDE.Core.Storage.Test.get', scope), 'foobar');

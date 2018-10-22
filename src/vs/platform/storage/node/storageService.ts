@@ -33,6 +33,7 @@ export class StorageService extends Disposable implements IStorageService {
 	private _onStorageError: Emitter<string | Error> = this._register(new Emitter<string | Error>());
 	get onStorageError(): Event<string | Error> {
 		if (Array.isArray(this.bufferedStorageErrors)) {
+			// todo@ben cleanup after a while
 			if (this.bufferedStorageErrors.length > 0) {
 				const bufferedStorageErrors = this.bufferedStorageErrors;
 				setTimeout(() => {
@@ -109,7 +110,7 @@ export class StorageService extends Disposable implements IStorageService {
 		]).then(() => void 0);
 	}
 
-	get(key: string, scope: StorageScope, fallbackValue?: any): string {
+	get(key: string, scope: StorageScope, fallbackValue?: string): string {
 		return this.getStorage(scope).get(key, fallbackValue);
 	}
 
@@ -279,7 +280,7 @@ export class DelegatingStorageService extends Disposable implements IStorageServ
 		return this.storageService as StorageService;
 	}
 
-	get(key: string, scope: StorageScope, fallbackValue?: any): string {
+	get(key: string, scope: StorageScope, fallbackValue?: string): string {
 		if (scope === StorageScope.WORKSPACE) {
 			return this.storageService.get(key, scope, fallbackValue);
 		}
