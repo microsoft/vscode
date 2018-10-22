@@ -23,7 +23,7 @@ function assertScanError(text: string, expectedKind: SyntaxKind, scanError: Scan
 	assert.equal(scanner.getTokenError(), scanError);
 }
 
-function assertValidParse(input: string, expected: any, options: ParseOptions = { allowTrailingComma: true }): void {
+function assertValidParse(input: string, expected: any, options?: ParseOptions): void {
 	var errors: ParseError[] = [];
 	var actual = parse(input, errors, options);
 
@@ -33,7 +33,7 @@ function assertValidParse(input: string, expected: any, options: ParseOptions = 
 	assert.deepEqual(actual, expected);
 }
 
-function assertInvalidParse(input: string, expected: any, options: ParseOptions = { allowTrailingComma: true }): void {
+function assertInvalidParse(input: string, expected: any, options?: ParseOptions): void {
 	var errors: ParseError[] = [];
 	var actual = parse(input, errors, options);
 
@@ -41,7 +41,7 @@ function assertInvalidParse(input: string, expected: any, options: ParseOptions 
 	assert.deepEqual(actual, expected);
 }
 
-function assertTree(input: string, expected: any, expectedErrors: number[] = [], options: ParseOptions = { allowTrailingComma: true }): void {
+function assertTree(input: string, expected: any, expectedErrors: number[] = [], options?: ParseOptions): void {
 	var errors: ParseError[] = [];
 	var actual = parseTree(input, errors, options);
 

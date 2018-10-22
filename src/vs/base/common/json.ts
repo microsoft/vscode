@@ -144,6 +144,12 @@ export interface ParseOptions {
 	allowTrailingComma?: boolean;
 }
 
+export namespace ParseOptions {
+	export const DEFAULT = {
+		allowTrailingComma: true
+	};
+}
+
 export interface JSONVisitor {
 	/**
 	 * Invoked when an open brace is encountered and an object is started. The offset and length represent the location of the open brace.
@@ -839,7 +845,7 @@ export function getLocation(text: string, position: number): Location {
  * Parses the given text and returns the object the JSON content represents. On invalid input, the parser tries to be as fault tolerant as possible, but still return a result.
  * Therefore always check the errors list to find out if the input was valid.
  */
-export function parse(text: string, errors: ParseError[] = [], options?: ParseOptions): any {
+export function parse(text: string, errors: ParseError[] = [], options: ParseOptions = ParseOptions.DEFAULT): any {
 	let currentProperty: string | null = null;
 	let currentParent: any = [];
 	let previousParents: any[] = [];
@@ -889,7 +895,7 @@ export function parse(text: string, errors: ParseError[] = [], options?: ParseOp
 /**
  * Parses the given text and returns a tree representation the JSON content. On invalid input, the parser tries to be as fault tolerant as possible, but still return a result.
  */
-export function parseTree(text: string, errors: ParseError[] = [], options?: ParseOptions): Node {
+export function parseTree(text: string, errors: ParseError[] = [], options: ParseOptions = ParseOptions.DEFAULT): Node {
 	let currentParent: NodeImpl = { type: 'array', offset: -1, length: -1, children: [], parent: void 0 }; // artificial root
 
 	function ensurePropertyComplete(endOffset: number) {
@@ -1061,7 +1067,7 @@ export function findNodeAtOffset(node: Node, offset: number, includeRightBound =
 /**
  * Parses the given text and invokes the visitor functions for each object, array and literal reached.
  */
-export function visit(text: string, visitor: JSONVisitor, options?: ParseOptions): any {
+export function visit(text: string, visitor: JSONVisitor, options: ParseOptions = ParseOptions.DEFAULT): any {
 
 	let _scanner = createScanner(text, false);
 
