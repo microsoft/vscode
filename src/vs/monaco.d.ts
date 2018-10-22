@@ -192,7 +192,7 @@ declare namespace monaco {
 		 *
 		 * @param skipEncoding Do not encode the result, default is `false`
 		 */
-		toString(skipEncoding?: boolean): string;
+		toString(skipEncoding?: boolean, _encodeDriveLetterColon?: boolean): string;
 		toJSON(): object;
 		static revive(data: UriComponents | any): Uri;
 	}

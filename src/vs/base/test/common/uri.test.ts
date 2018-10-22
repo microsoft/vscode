@@ -490,4 +490,13 @@ suite('URI', () => {
 
 
 	});
+
+	test('Storage: workspace identifier changed (URI.toString()) #61504', function () {
+		if (isWindows) {
+			const uri = URI.file('c:\\Users\\bpasero\\Desktop\\Golda\'s Kitchen\\CHANGELOG.md');
+			assert.ok(uri.toString().indexOf('%3A') < 0);
+			assert.ok(uri.toString(false, false).indexOf('%3A') < 0);
+			assert.ok(uri.toString(false, true).indexOf('%3A') > 0);
+		}
+	});
 });
