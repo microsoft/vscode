@@ -228,7 +228,7 @@ export class WorkspaceEditingService implements IWorkspaceEditingService {
 		});
 	}
 
-	private migrate(toWorkspace: IWorkspaceIdentifier): TPromise<void> {
+	private migrate(toWorkspace: IWorkspaceIdentifier): Thenable<void> {
 
 		// Storage migration
 		return this.migrateStorage(toWorkspace).then(() => {
@@ -242,7 +242,7 @@ export class WorkspaceEditingService implements IWorkspaceEditingService {
 		});
 	}
 
-	private migrateStorage(toWorkspace: IWorkspaceIdentifier): TPromise<void> {
+	private migrateStorage(toWorkspace: IWorkspaceIdentifier): Thenable<void> {
 		const newWorkspaceStorageHome = join(this.environmentService.workspaceStorageHome, toWorkspace.id);
 
 		return mkdirp(newWorkspaceStorageHome).then(() => {
