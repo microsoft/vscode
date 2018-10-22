@@ -29,7 +29,6 @@ import { spawnRipgrepCmd } from './ripgrepFileSearch';
 enum Traversal {
 	Node = 1,
 	MacFind,
-	WindowsDir,
 	LinuxFind,
 	Ripgrep
 }
@@ -150,11 +149,7 @@ export class FileWalker {
 			} else if (platform.isMacintosh) {
 				this.traversal = Traversal.MacFind;
 				traverse = this.cmdTraversal;
-				// Disable 'dir' for now (#11181, #11179, #11183, #11182).
-			} /* else if (platform.isWindows) {
-				this.traversal = Traversal.WindowsDir;
-				traverse = this.windowsDirTraversal;
-			} */ else if (platform.isLinux) {
+			} else if (platform.isLinux) {
 				this.traversal = Traversal.LinuxFind;
 				traverse = this.cmdTraversal;
 			}
@@ -289,33 +284,6 @@ export class FileWalker {
 			}
 		});
 	}
-
-	// protected windowsDirTraversal(rootFolder: string, onResult: (result: IRawFileMatch) => void, done: (err?: Error) => void): void {
-	// 	const cmd = childProcess.spawn('cmd', ['/U', '/c', 'dir', '/s', '/b', '/a-d', rootFolder]);
-	// 	this.readStdout(cmd, 'ucs2', (err: Error, stdout?: string) => {
-	// 		if (err) {
-	// 			done(err);
-	// 			return;
-	// 		}
-
-	// 		const relativeFiles = stdout.split(`\r\n${rootFolder}\\`);
-	// 		relativeFiles[0] = relativeFiles[0].trim().substr(rootFolder.length + 1);
-	// 		const n = relativeFiles.length;
-	// 		relativeFiles[n - 1] = relativeFiles[n - 1].trim();
-	// 		if (!relativeFiles[n - 1]) {
-	// 			relativeFiles.pop();
-	// 		}
-
-	// 		if (relativeFiles.length && relativeFiles[0].indexOf('\n') !== -1) {
-	// 			done(new Error('Splitting up files failed'));
-	// 			return;
-	// 		}
-
-	// 		this.matchFiles(rootFolder, relativeFiles, onResult);
-
-	// 		done();
-	// 	});
-	// }
 
 	/**
 	 * Public for testing.
