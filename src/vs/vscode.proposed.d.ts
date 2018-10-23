@@ -1172,4 +1172,18 @@ declare module 'vscode' {
 		 */
 		constructor(label: TreeItemLabel, collapsibleState?: TreeItemCollapsibleState);
 	}
+	//#endregion
+
+	//#region Task
+	/**
+	 * Controls how the task is presented in the UI.
+	 */
+	export interface TaskPresentationOptions {
+		/**
+		 * Controls whether the terminal is cleared before executing the task.
+		 */
+		clearBeforeExecuting?: boolean;
+	}
+	//#endregion
+
 }

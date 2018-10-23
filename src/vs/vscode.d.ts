@@ -4659,11 +4659,6 @@ declare module 'vscode' {
 		 * Controls whether to show the "Terminal will be reused by tasks, press any key to close it" message.
 		 */
 		showReuseMessage?: boolean;
-
-		/**
-		 * Controls whether the terminal is cleared before executing the task.
-		 */
-		clearBeforeExecuting?: boolean;
 	}
 
 	/**
