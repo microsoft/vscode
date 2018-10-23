@@ -302,14 +302,14 @@ export class LanguageConfigurationRegistryImpl {
 		if (isElectricChar === true) {
 			let electricCharacterSupport = this._getElectricCharacterSupport(scopedLineTokens.languageId);
 			if (!electricCharacterSupport) {
-				return null;
+				return -1;
 			}
 			return electricCharacterSupport.shouldChangeCursorPositionAfterAutocomplete(character);
 		}
 
 		let characterPairSupport = this._getCharacterPairSupport(scopedLineTokens.languageId);
 		if (!characterPairSupport) {
-			return null;
+			return -1;
 		}
 		return characterPairSupport.shouldChangeCursorPositionAfterAutocomplete(character);
 	}

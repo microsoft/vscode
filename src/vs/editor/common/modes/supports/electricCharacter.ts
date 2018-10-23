@@ -153,6 +153,6 @@ export class BracketElectricCharacterSupport {
 				return pair.getCursorPositionOption();
 			}
 		}
-		return null;
+		return -1;
 	}
 }

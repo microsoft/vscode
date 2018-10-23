@@ -259,7 +259,7 @@ export class StandardAutoClosingPairConditional {
 		// initially allowed in all tokens
 		this._standardTokenMask = 0;
 
-		// Check if interger
+		// Check if integer
 		if (source.cursorPosition && !isNaN(source.cursorPosition) && (source.cursorPosition % 1 === 0)) {
 			// Make sure the given integer (cursor position) is within the bounds of the close string
 			if (source.cursorPosition >= 0 && source.cursorPosition <= this.close.length) {
@@ -377,6 +377,6 @@ export class StandardAutoClosingPairConditional {
 		if (this._cursorPositionOption) {
 			return this._cursorPositionOption;
 		}
-		return null;
+		return -1;
 	}
 }

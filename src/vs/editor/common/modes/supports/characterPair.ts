@@ -66,7 +66,7 @@ export class CharacterPairSupport {
 				return autoClosingPair.getCursorPositionOption();
 			}
 		}
-		return null;
+		return -1;
 	}
 
 	public getSurroundingPairs(): IAutoClosingPair[] {
