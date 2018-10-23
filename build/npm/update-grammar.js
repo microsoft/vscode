@@ -119,7 +119,7 @@ exports.update = function (repoId, repoPath, dest, modifyGrammar, version = 'mas
 			}
 
 			try {
-				fs.writeFileSync(dest, JSON.stringify(result, null, '\t'));
+				fs.writeFileSync(dest, JSON.stringify(result, null, '\t').replace(/\n/g, '\r\n'));
 				if (info) {
 					console.log('Updated ' + path.basename(dest) + ' to ' + repoId + '@' + info.commitSha.substr(0, 7) + ' (' + info.commitDate.substr(0, 10) + ')');
 				} else {
