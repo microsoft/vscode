@@ -382,7 +382,7 @@ suite('window namespace tests', () => {
 	});
 
 
-	test.skip('showQuickPick, accept first', async function () {
+	test('showQuickPick, accept first', async function () {
 		const pick = window.showQuickPick(['eins', 'zwei', 'drei']);
 		await commands.executeCommand('workbench.action.acceptSelectedQuickOpenItem');
 		assert.equal(await pick, 'eins');
@@ -434,7 +434,7 @@ suite('window namespace tests', () => {
 		return unexpected;
 	});
 
-	test.skip('showQuickPick, keep selection (Microsoft/vscode-azure-account#67)', async function () {
+	test('showQuickPick, keep selection (Microsoft/vscode-azure-account#67)', async function () {
 		const picks = window.showQuickPick([
 			{ label: 'eins' },
 			{ label: 'zwei', picked: true },
