@@ -3,19 +3,19 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { TPromise } from 'vs/base/common/winjs.base';
+import { RunOnceScheduler } from 'vs/base/common/async';
+import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
+import { CharCode } from 'vs/base/common/charCode';
 import * as errors from 'vs/base/common/errors';
+import { Emitter, Event } from 'vs/base/common/event';
+import { Disposable } from 'vs/base/common/lifecycle';
+import { MarshalledObject } from 'vs/base/common/marshalling';
+import { URI } from 'vs/base/common/uri';
+import { IURITransformer } from 'vs/base/common/uriIpc';
+import { TPromise } from 'vs/base/common/winjs.base';
 import { IMessagePassingProtocol } from 'vs/base/parts/ipc/node/ipc';
 import { LazyPromise } from 'vs/workbench/services/extensions/node/lazyPromise';
-import { ProxyIdentifier, IRPCProtocol, getStringIdentifierForProxy } from 'vs/workbench/services/extensions/node/proxyIdentifier';
-import { CharCode } from 'vs/base/common/charCode';
-import { URI } from 'vs/base/common/uri';
-import { MarshalledObject } from 'vs/base/common/marshalling';
-import { IURITransformer } from 'vs/base/common/uriIpc';
-import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
-import { RunOnceScheduler } from 'vs/base/common/async';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { Event, Emitter } from 'vs/base/common/event';
+import { IRPCProtocol, ProxyIdentifier, getStringIdentifierForProxy } from 'vs/workbench/services/extensions/node/proxyIdentifier';
 
 function _transformOutgoingURIs(obj: any, transformer: IURITransformer, depth: number): any {
 

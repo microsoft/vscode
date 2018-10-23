@@ -3,8 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { HorizontalRange } from 'vs/editor/common/view/renderingContext';
 import { Constants } from 'vs/editor/common/core/uint';
+import { HorizontalRange } from 'vs/editor/common/view/renderingContext';
 
 class FloatHorizontalRange {
 	_floatHorizontalRangeBrand: void;

@@ -3,16 +3,16 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { Emitter } from 'vs/base/common/event';
-import { KeyMod as ConstKeyMod, KeyChord } from 'vs/base/common/keyCodes';
+import { KeyChord, KeyMod as ConstKeyMod } from 'vs/base/common/keyCodes';
+import { URI } from 'vs/base/common/uri';
+import { TPromise } from 'vs/base/common/winjs.base';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
-import { TPromise } from 'vs/base/common/winjs.base';
-import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { Token } from 'vs/editor/common/core/token';
-import { URI } from 'vs/base/common/uri';
-import * as enums from 'vs/editor/common/standalone/standaloneEnums';
+import * as standaloneEnums from 'vs/editor/common/standalone/standaloneEnums';
 
 export class KeyMod {
 	public static readonly CtrlCmd: number = ConstKeyMod.CtrlCmd;
@@ -31,14 +31,14 @@ export function createMonacoBaseAPI(): typeof monaco {
 		languages: undefined!, // undefined override expected here
 		CancellationTokenSource: CancellationTokenSource,
 		Emitter: Emitter,
-		KeyCode: enums.KeyCode,
+		KeyCode: standaloneEnums.KeyCode,
 		KeyMod: KeyMod,
 		Position: Position,
 		Range: Range,
 		Selection: <any>Selection,
-		SelectionDirection: enums.SelectionDirection,
-		MarkerSeverity: enums.MarkerSeverity,
-		MarkerTag: enums.MarkerTag,
+		SelectionDirection: standaloneEnums.SelectionDirection,
+		MarkerSeverity: standaloneEnums.MarkerSeverity,
+		MarkerTag: standaloneEnums.MarkerTag,
 		Promise: TPromise,
 		Uri: <any>URI,
 		Token: Token

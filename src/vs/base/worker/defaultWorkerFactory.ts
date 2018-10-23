@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { globals } from 'vs/base/common/platform';
-import { logOnceWebWorkerWarning, IWorker, IWorkerCallback, IWorkerFactory } from 'vs/base/common/worker/simpleWorker';
+import { IWorker, IWorkerCallback, IWorkerFactory, logOnceWebWorkerWarning } from 'vs/base/common/worker/simpleWorker';
 
 function getWorker(workerId: string, label: string): Worker {
 	// Option for hosts to overwrite the worker script (used in the standalone editor)

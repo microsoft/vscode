@@ -4,25 +4,25 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as nls from 'vs/nls';
-import * as pfs from 'vs/base/node/pfs';
-import { TPromise } from 'vs/base/common/winjs.base';
 import { join } from 'path';
-import { ExtHostExtensionService } from 'vs/workbench/api/node/extHostExtensionService';
-import { ExtHostConfiguration } from 'vs/workbench/api/node/extHostConfiguration';
-import { ExtHostWorkspace } from 'vs/workbench/api/node/extHostWorkspace';
-import { IExtensionDescription } from 'vs/workbench/services/extensions/common/extensions';
-import { IInitData, IEnvironment, IWorkspaceData, MainContext, MainThreadWorkspaceShape } from 'vs/workbench/api/node/extHost.protocol';
-import * as errors from 'vs/base/common/errors';
-import { ExtensionActivatedByEvent } from 'vs/workbench/api/node/extHostExtensionActivator';
-import { IDisposable, dispose } from 'vs/base/common/lifecycle';
-import { IMessagePassingProtocol } from 'vs/base/parts/ipc/node/ipc';
-import { RPCProtocol } from 'vs/workbench/services/extensions/node/rpcProtocol';
-import { URI, setUriThrowOnMissingScheme } from 'vs/base/common/uri';
-import { ExtHostLogService } from 'vs/workbench/api/node/extHostLogService';
 import { timeout } from 'vs/base/common/async';
-import { Counter } from 'vs/base/common/numbers';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
+import * as errors from 'vs/base/common/errors';
+import { IDisposable, dispose } from 'vs/base/common/lifecycle';
+import { Counter } from 'vs/base/common/numbers';
+import { URI, setUriThrowOnMissingScheme } from 'vs/base/common/uri';
+import { TPromise } from 'vs/base/common/winjs.base';
+import * as pfs from 'vs/base/node/pfs';
+import { IMessagePassingProtocol } from 'vs/base/parts/ipc/node/ipc';
+import { IEnvironment, IInitData, IWorkspaceData, MainContext, MainThreadWorkspaceShape } from 'vs/workbench/api/node/extHost.protocol';
+import { ExtHostConfiguration } from 'vs/workbench/api/node/extHostConfiguration';
+import { ExtensionActivatedByEvent } from 'vs/workbench/api/node/extHostExtensionActivator';
+import { ExtHostExtensionService } from 'vs/workbench/api/node/extHostExtensionService';
+import { ExtHostLogService } from 'vs/workbench/api/node/extHostLogService';
+import { ExtHostWorkspace } from 'vs/workbench/api/node/extHostWorkspace';
 import { connectProxyResolver } from 'vs/workbench/node/proxyResolver';
+import { IExtensionDescription } from 'vs/workbench/services/extensions/common/extensions';
+import { RPCProtocol } from 'vs/workbench/services/extensions/node/rpcProtocol';
 
 // we don't (yet) throw when extensions parse
 // uris that have no scheme

@@ -4,29 +4,29 @@
  *--------------------------------------------------------------------------------------------*/
 
 import 'vs/css!./textAreaHandler';
-import * as platform from 'vs/base/common/platform';
 import * as browser from 'vs/base/browser/browser';
+import { FastDomNode, createFastDomNode } from 'vs/base/browser/fastDomNode';
+import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
+import * as platform from 'vs/base/common/platform';
 import * as strings from 'vs/base/common/strings';
-import { TextAreaInput, ITextAreaInputHost, IPasteData, ICompositionData, CopyOptions } from 'vs/editor/browser/controller/textAreaInput';
-import { ISimpleModel, ITypeData, TextAreaState, PagedScreenReaderStrategy } from 'vs/editor/browser/controller/textAreaState';
+import { Configuration } from 'vs/editor/browser/config/configuration';
+import { CopyOptions, ICompositionData, IPasteData, ITextAreaInputHost, TextAreaInput } from 'vs/editor/browser/controller/textAreaInput';
+import { ISimpleModel, ITypeData, PagedScreenReaderStrategy, TextAreaState } from 'vs/editor/browser/controller/textAreaState';
+import { ViewController } from 'vs/editor/browser/view/viewController';
+import { PartFingerprint, PartFingerprints, ViewPart } from 'vs/editor/browser/view/viewPart';
+import { LineNumbersOverlay } from 'vs/editor/browser/viewParts/lineNumbers/lineNumbers';
+import { Margin } from 'vs/editor/browser/viewParts/margin/margin';
+import { RenderLineNumbersType } from 'vs/editor/common/config/editorOptions';
+import { BareFontInfo } from 'vs/editor/common/config/fontInfo';
+import { WordCharacterClass, getMapForWordSeparators } from 'vs/editor/common/controller/wordCharacterClassifier';
+import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
-import { Position } from 'vs/editor/common/core/position';
-import { Configuration } from 'vs/editor/browser/config/configuration';
-import { ViewContext } from 'vs/editor/common/view/viewContext';
-import { HorizontalRange, RenderingContext, RestrictedRenderingContext } from 'vs/editor/common/view/renderingContext';
-import * as viewEvents from 'vs/editor/common/view/viewEvents';
-import { FastDomNode, createFastDomNode } from 'vs/base/browser/fastDomNode';
-import { ViewController } from 'vs/editor/browser/view/viewController';
 import { ScrollType } from 'vs/editor/common/editorCommon';
-import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
-import { PartFingerprints, PartFingerprint, ViewPart } from 'vs/editor/browser/view/viewPart';
-import { Margin } from 'vs/editor/browser/viewParts/margin/margin';
-import { LineNumbersOverlay } from 'vs/editor/browser/viewParts/lineNumbers/lineNumbers';
-import { BareFontInfo } from 'vs/editor/common/config/fontInfo';
-import { RenderLineNumbersType } from 'vs/editor/common/config/editorOptions';
 import { EndOfLinePreference } from 'vs/editor/common/model';
-import { getMapForWordSeparators, WordCharacterClass } from 'vs/editor/common/controller/wordCharacterClassifier';
+import { HorizontalRange, RenderingContext, RestrictedRenderingContext } from 'vs/editor/common/view/renderingContext';
+import { ViewContext } from 'vs/editor/common/view/viewContext';
+import * as viewEvents from 'vs/editor/common/view/viewEvents';
 
 export interface ITextAreaHandlerHelper {
 	visibleRangeForPositionRelativeToEditor(lineNumber: number, column: number): HorizontalRange | null;

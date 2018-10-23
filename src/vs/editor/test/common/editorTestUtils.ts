@@ -3,10 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { TextModel } from 'vs/editor/common/model/textModel';
-import { DefaultEndOfLine, ITextModelCreationOptions } from 'vs/editor/common/model';
-import { LanguageIdentifier } from 'vs/editor/common/modes';
 import { URI } from 'vs/base/common/uri';
+import { DefaultEndOfLine, ITextModelCreationOptions } from 'vs/editor/common/model';
+import { TextModel } from 'vs/editor/common/model/textModel';
+import { LanguageIdentifier } from 'vs/editor/common/modes';
 
 export function withEditorModel(text: string[], callback: (model: TextModel) => void): void {
 	let model = TextModel.createFromString(text.join('\n'));

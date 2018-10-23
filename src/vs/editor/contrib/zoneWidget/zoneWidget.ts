@@ -4,19 +4,19 @@
  *--------------------------------------------------------------------------------------------*/
 
 import 'vs/css!./zoneWidget';
+import * as dom from 'vs/base/browser/dom';
+import { IHorizontalSashLayoutProvider, ISashEvent, Orientation, Sash, SashState } from 'vs/base/browser/ui/sash/sash';
+import { Color, RGBA } from 'vs/base/common/color';
+import { IdGenerator } from 'vs/base/common/idGenerator';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import * as objects from 'vs/base/common/objects';
-import * as dom from 'vs/base/browser/dom';
-import { Sash, Orientation, IHorizontalSashLayoutProvider, ISashEvent, SashState } from 'vs/base/browser/ui/sash/sash';
-import { Range, IRange } from 'vs/editor/common/core/range';
 import { ICodeEditor, IOverlayWidget, IOverlayWidgetPosition, IViewZone, IViewZoneChangeAccessor } from 'vs/editor/browser/editorBrowser';
-import { Color, RGBA } from 'vs/base/common/color';
 import { EditorLayoutInfo } from 'vs/editor/common/config/editorOptions';
-import { Position, IPosition } from 'vs/editor/common/core/position';
-import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
-import { IdGenerator } from 'vs/base/common/idGenerator';
+import { IPosition, Position } from 'vs/editor/common/core/position';
+import { IRange, Range } from 'vs/editor/common/core/range';
 import { ScrollType } from 'vs/editor/common/editorCommon';
 import { TrackedRangeStickiness } from 'vs/editor/common/model';
+import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
 
 export interface IOptions {
 	showFrame?: boolean;

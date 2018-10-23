@@ -4,30 +4,30 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as nls from 'vs/nls';
-import * as network from 'vs/base/common/network';
-import { Event, Emitter } from 'vs/base/common/event';
-import { MarkdownString } from 'vs/base/common/htmlContent';
-import { IDisposable, dispose, Disposable } from 'vs/base/common/lifecycle';
-import { URI } from 'vs/base/common/uri';
-import { IMarker, IMarkerService, MarkerSeverity, MarkerTag } from 'vs/platform/markers/common/markers';
-import { Range } from 'vs/editor/common/core/range';
-import { TextModel, createTextBuffer } from 'vs/editor/common/model/textModel';
-import { IMode, LanguageIdentifier } from 'vs/editor/common/modes';
-import { IModelService } from 'vs/editor/common/services/modelService';
-import * as platform from 'vs/base/common/platform';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { EDITOR_MODEL_DEFAULTS } from 'vs/editor/common/config/editorOptions';
-import { PLAINTEXT_LANGUAGE_IDENTIFIER } from 'vs/editor/common/modes/modesRegistry';
-import { IModelLanguageChangedEvent } from 'vs/editor/common/model/textModelEvents';
-import { ClassName } from 'vs/editor/common/model/intervalTree';
-import { EditOperation } from 'vs/editor/common/core/editOperation';
-import { themeColorFromId, ThemeColor } from 'vs/platform/theme/common/themeService';
-import { overviewRulerWarning, overviewRulerError, overviewRulerInfo } from 'vs/editor/common/view/editorColorRegistry';
-import { ITextModel, IModelDeltaDecoration, IModelDecorationOptions, TrackedRangeStickiness, OverviewRulerLane, DefaultEndOfLine, ITextModelCreationOptions, EndOfLineSequence, IIdentifiedSingleEditOperation, ITextBufferFactory, ITextBuffer, EndOfLinePreference } from 'vs/editor/common/model';
 import { isFalsyOrEmpty } from 'vs/base/common/arrays';
-import { basename } from 'vs/base/common/paths';
 import { isThenable } from 'vs/base/common/async';
+import { Emitter, Event } from 'vs/base/common/event';
+import { MarkdownString } from 'vs/base/common/htmlContent';
+import { Disposable, IDisposable, dispose } from 'vs/base/common/lifecycle';
+import * as network from 'vs/base/common/network';
+import { basename } from 'vs/base/common/paths';
+import * as platform from 'vs/base/common/platform';
+import { URI } from 'vs/base/common/uri';
+import { EDITOR_MODEL_DEFAULTS } from 'vs/editor/common/config/editorOptions';
+import { EditOperation } from 'vs/editor/common/core/editOperation';
+import { Range } from 'vs/editor/common/core/range';
+import { DefaultEndOfLine, EndOfLinePreference, EndOfLineSequence, IIdentifiedSingleEditOperation, IModelDecorationOptions, IModelDeltaDecoration, ITextBuffer, ITextBufferFactory, ITextModel, ITextModelCreationOptions, OverviewRulerLane, TrackedRangeStickiness } from 'vs/editor/common/model';
+import { ClassName } from 'vs/editor/common/model/intervalTree';
+import { TextModel, createTextBuffer } from 'vs/editor/common/model/textModel';
+import { IModelLanguageChangedEvent } from 'vs/editor/common/model/textModelEvents';
+import { IMode, LanguageIdentifier } from 'vs/editor/common/modes';
+import { PLAINTEXT_LANGUAGE_IDENTIFIER } from 'vs/editor/common/modes/modesRegistry';
+import { IModelService } from 'vs/editor/common/services/modelService';
 import { ITextResourcePropertiesService } from 'vs/editor/common/services/resourceConfiguration';
+import { overviewRulerError, overviewRulerInfo, overviewRulerWarning } from 'vs/editor/common/view/editorColorRegistry';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { IMarker, IMarkerService, MarkerSeverity, MarkerTag } from 'vs/platform/markers/common/markers';
+import { ThemeColor, themeColorFromId } from 'vs/platform/theme/common/themeService';
 
 function MODEL_ID(resource: URI): string {
 	return resource.toString();

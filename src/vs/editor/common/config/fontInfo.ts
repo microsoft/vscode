@@ -4,8 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as platform from 'vs/base/common/platform';
-import { EditorZoom } from 'vs/editor/common/config/editorZoom';
 import { EDITOR_FONT_DEFAULTS } from 'vs/editor/common/config/editorOptions';
+import { EditorZoom } from 'vs/editor/common/config/editorZoom';
 
 /**
  * Determined from empirical observations.

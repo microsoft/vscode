@@ -3,16 +3,16 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IState, FontStyle, StandardTokenType, MetadataConsts, ColorId, LanguageId, ITokenizationSupport, LanguageIdentifier } from 'vs/editor/common/modes';
-import { LineTokens } from 'vs/editor/common/core/lineTokens';
 import * as arrays from 'vs/base/common/arrays';
+import { onUnexpectedError } from 'vs/base/common/errors';
+import { LineTokens } from 'vs/editor/common/core/lineTokens';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
-import { IModelTokensChangedEvent } from 'vs/editor/common/model/textModelEvents';
-import { onUnexpectedError } from 'vs/base/common/errors';
 import { TokenizationResult2 } from 'vs/editor/common/core/token';
-import { nullTokenize2 } from 'vs/editor/common/modes/nullMode';
 import { ITextBuffer } from 'vs/editor/common/model';
+import { IModelTokensChangedEvent } from 'vs/editor/common/model/textModelEvents';
+import { ColorId, FontStyle, IState, ITokenizationSupport, LanguageId, LanguageIdentifier, MetadataConsts, StandardTokenType } from 'vs/editor/common/modes';
+import { nullTokenize2 } from 'vs/editor/common/modes/nullMode';
 
 function getDefaultMetadata(topLevelLanguageId: LanguageId): number {
 	return (

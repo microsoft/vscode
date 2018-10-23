@@ -4,8 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { onUnexpectedError } from 'vs/base/common/errors';
-import { ICursorStateComputer, IIdentifiedSingleEditOperation, EndOfLineSequence } from 'vs/editor/common/model';
 import { Selection } from 'vs/editor/common/core/selection';
+import { EndOfLineSequence, ICursorStateComputer, IIdentifiedSingleEditOperation } from 'vs/editor/common/model';
 import { TextModel } from 'vs/editor/common/model/textModel';
 
 interface IEditOperation {

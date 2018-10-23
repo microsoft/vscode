@@ -3,20 +3,20 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IURLService, IURLHandler } from 'vs/platform/url/common/url';
+import { localize } from 'vs/nls';
+import { Action } from 'vs/base/common/actions';
+import { IDisposable, combinedDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import { TPromise } from 'vs/base/common/winjs.base';
-import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { IDisposable, toDisposable, combinedDisposable } from 'vs/base/common/lifecycle';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
-import { localize } from 'vs/nls';
-import { IExtensionManagementService, IExtensionIdentifier, IExtensionEnablementService, EnablementState, IExtensionGalleryService } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { EnablementState, IExtensionEnablementService, IExtensionGalleryService, IExtensionIdentifier, IExtensionManagementService } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { areSameExtensions } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
-import { INotificationService, Severity, INotificationHandle } from 'vs/platform/notification/common/notification';
-import { IWindowService } from 'vs/platform/windows/common/windows';
-import { Action } from 'vs/base/common/actions';
+import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
+import { INotificationHandle, INotificationService, Severity } from 'vs/platform/notification/common/notification';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
+import { IURLHandler, IURLService } from 'vs/platform/url/common/url';
+import { IWindowService } from 'vs/platform/windows/common/windows';
+import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 
 const FIVE_MINUTES = 5 * 60 * 1000;
 const THIRTY_SECONDS = 30 * 1000;

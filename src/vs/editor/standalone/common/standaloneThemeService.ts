@@ -3,8 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { ITokenThemeRule, TokenTheme } from 'vs/editor/common/modes/supports/tokenization';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { TokenTheme, ITokenThemeRule } from 'vs/editor/common/modes/supports/tokenization';
 import { ITheme, IThemeService } from 'vs/platform/theme/common/themeService';
 
 export const IStandaloneThemeService = createDecorator<IStandaloneThemeService>('themeService');

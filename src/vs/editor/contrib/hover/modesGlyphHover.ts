@@ -3,13 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { HoverOperation, IHoverComputer, HoverStartMode } from './hoverOperation';
-import { GlyphHoverWidget } from './hoverWidgets';
 import { $ } from 'vs/base/browser/dom';
-import { MarkdownRenderer } from 'vs/editor/contrib/markdown/markdownRenderer';
 import { IMarkdownString, isEmptyMarkdownString } from 'vs/base/common/htmlContent';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
+import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
+import { HoverOperation, HoverStartMode, IHoverComputer } from 'vs/editor/contrib/hover/hoverOperation';
+import { GlyphHoverWidget } from 'vs/editor/contrib/hover/hoverWidgets';
+import { MarkdownRenderer } from 'vs/editor/contrib/markdown/markdownRenderer';
 
 export interface IHoverMessage {
 	value: IMarkdownString;

@@ -2,21 +2,19 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
+
 import * as assert from 'assert';
+import { Disposable, dispose } from 'vs/base/common/lifecycle';
 import { EditOperation } from 'vs/editor/common/core/editOperation';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
-import {
-	ModelRawContentChangedEvent, ModelRawFlush, ModelRawLineChanged,
-	ModelRawLinesDeleted, ModelRawLinesInserted
-} from 'vs/editor/common/model/textModelEvents';
-import { TextModel } from 'vs/editor/common/model/textModel';
-import { LanguageIdentifier, TokenizationRegistry, IState, MetadataConsts } from 'vs/editor/common/modes';
-import { MockMode } from 'vs/editor/test/common/mocks/mockMode';
-import { LanguageConfigurationRegistry } from 'vs/editor/common/modes/languageConfigurationRegistry';
 import { TokenizationResult2 } from 'vs/editor/common/core/token';
+import { TextModel } from 'vs/editor/common/model/textModel';
+import { ModelRawContentChangedEvent, ModelRawFlush, ModelRawLineChanged, ModelRawLinesDeleted, ModelRawLinesInserted } from 'vs/editor/common/model/textModelEvents';
+import { IState, LanguageIdentifier, MetadataConsts, TokenizationRegistry } from 'vs/editor/common/modes';
+import { LanguageConfigurationRegistry } from 'vs/editor/common/modes/languageConfigurationRegistry';
 import { NULL_STATE } from 'vs/editor/common/modes/nullMode';
-import { dispose, Disposable } from 'vs/base/common/lifecycle';
+import { MockMode } from 'vs/editor/test/common/mocks/mockMode';
 
 // --------- utils
 

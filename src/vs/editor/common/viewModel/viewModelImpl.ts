@@ -3,26 +3,26 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as strings from 'vs/base/common/strings';
-import { Position, IPosition } from 'vs/editor/common/core/position';
-import { Range, IRange } from 'vs/editor/common/core/range';
-import * as editorCommon from 'vs/editor/common/editorCommon';
-import { TokenizationRegistry, ColorId, LanguageId } from 'vs/editor/common/modes';
-import { tokenizeLineToHTML } from 'vs/editor/common/modes/textToHtmlTokenizer';
-import { ViewModelDecorations } from 'vs/editor/common/viewModel/viewModelDecorations';
-import { MinimapLinesRenderingData, ViewLineRenderingData, ViewModelDecoration, IViewModel, ICoordinatesConverter, IOverviewRulerDecorations, ViewLineData } from 'vs/editor/common/viewModel/viewModel';
-import { SplitLinesCollection, IViewModelLinesCollection, IdentityLinesCollection } from 'vs/editor/common/viewModel/splitLinesCollection';
-import * as viewEvents from 'vs/editor/common/view/viewEvents';
-import { MinimapTokensColorTracker } from 'vs/editor/common/view/minimapCharRenderer';
-import * as textModelEvents from 'vs/editor/common/model/textModelEvents';
-import { IConfigurationChangedEvent } from 'vs/editor/common/config/editorOptions';
-import { CharacterHardWrappingLineMapperFactory } from 'vs/editor/common/viewModel/characterHardWrappingLineMapper';
-import { ViewLayout } from 'vs/editor/common/viewLayout/viewLayout';
 import { Color } from 'vs/base/common/color';
 import { IDisposable } from 'vs/base/common/lifecycle';
-import { ITheme } from 'vs/platform/theme/common/themeService';
+import * as strings from 'vs/base/common/strings';
+import { IConfigurationChangedEvent } from 'vs/editor/common/config/editorOptions';
+import { IPosition, Position } from 'vs/editor/common/core/position';
+import { IRange, Range } from 'vs/editor/common/core/range';
+import * as editorCommon from 'vs/editor/common/editorCommon';
+import { EndOfLinePreference, IActiveIndentGuideInfo, ITextModel, TrackedRangeStickiness } from 'vs/editor/common/model';
 import { ModelDecorationOverviewRulerOptions } from 'vs/editor/common/model/textModel';
-import { ITextModel, EndOfLinePreference, TrackedRangeStickiness, IActiveIndentGuideInfo } from 'vs/editor/common/model';
+import * as textModelEvents from 'vs/editor/common/model/textModelEvents';
+import { ColorId, LanguageId, TokenizationRegistry } from 'vs/editor/common/modes';
+import { tokenizeLineToHTML } from 'vs/editor/common/modes/textToHtmlTokenizer';
+import { MinimapTokensColorTracker } from 'vs/editor/common/view/minimapCharRenderer';
+import * as viewEvents from 'vs/editor/common/view/viewEvents';
+import { ViewLayout } from 'vs/editor/common/viewLayout/viewLayout';
+import { CharacterHardWrappingLineMapperFactory } from 'vs/editor/common/viewModel/characterHardWrappingLineMapper';
+import { IViewModelLinesCollection, IdentityLinesCollection, SplitLinesCollection } from 'vs/editor/common/viewModel/splitLinesCollection';
+import { ICoordinatesConverter, IOverviewRulerDecorations, IViewModel, MinimapLinesRenderingData, ViewLineData, ViewLineRenderingData, ViewModelDecoration } from 'vs/editor/common/viewModel/viewModel';
+import { ViewModelDecorations } from 'vs/editor/common/viewModel/viewModelDecorations';
+import { ITheme } from 'vs/platform/theme/common/themeService';
 
 const USE_IDENTITY_LINES_COLLECTION = true;
 

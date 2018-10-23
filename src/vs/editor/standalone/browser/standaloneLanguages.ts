@@ -3,24 +3,24 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { CancellationToken } from 'vs/base/common/cancellation';
 import { IDisposable } from 'vs/base/common/lifecycle';
-import { ModesRegistry } from 'vs/editor/common/modes/modesRegistry';
-import { IMonarchLanguage } from 'vs/editor/standalone/common/monarch/monarchTypes';
-import { ILanguageExtensionPoint } from 'vs/editor/common/services/modeService';
-import { StaticServices } from 'vs/editor/standalone/browser/standaloneServices';
-import * as modes from 'vs/editor/common/modes';
-import { LanguageConfiguration } from 'vs/editor/common/modes/languageConfiguration';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
-import { CancellationToken } from 'vs/base/common/cancellation';
+import { Token, TokenizationResult, TokenizationResult2 } from 'vs/editor/common/core/token';
+import * as model from 'vs/editor/common/model';
+import * as modes from 'vs/editor/common/modes';
+import { LanguageConfiguration } from 'vs/editor/common/modes/languageConfiguration';
+import { LanguageConfigurationRegistry } from 'vs/editor/common/modes/languageConfigurationRegistry';
+import { ModesRegistry } from 'vs/editor/common/modes/modesRegistry';
+import { ILanguageExtensionPoint } from 'vs/editor/common/services/modeService';
+import * as standaloneEnums from 'vs/editor/common/standalone/standaloneEnums';
+import { StaticServices } from 'vs/editor/standalone/browser/standaloneServices';
 import { compile } from 'vs/editor/standalone/common/monarch/monarchCompile';
 import { createTokenizationSupport } from 'vs/editor/standalone/common/monarch/monarchLexer';
-import { LanguageConfigurationRegistry } from 'vs/editor/common/modes/languageConfigurationRegistry';
-import { IMarkerData } from 'vs/platform/markers/common/markers';
-import { Token, TokenizationResult, TokenizationResult2 } from 'vs/editor/common/core/token';
+import { IMonarchLanguage } from 'vs/editor/standalone/common/monarch/monarchTypes';
 import { IStandaloneThemeService } from 'vs/editor/standalone/common/standaloneThemeService';
-import * as model from 'vs/editor/common/model';
-import * as enums from 'vs/editor/common/standalone/standaloneEnums';
+import { IMarkerData } from 'vs/platform/markers/common/markers';
 
 /**
  * Register information about a new language.
@@ -533,13 +533,13 @@ export function createMonacoLanguagesAPI(): typeof monaco.languages {
 		registerFoldingRangeProvider: <any>registerFoldingRangeProvider,
 
 		// enums
-		DocumentHighlightKind: enums.DocumentHighlightKind,
-		CompletionItemKind: enums.CompletionItemKind,
-		CompletionItemInsertTextRule: enums.CompletionItemInsertTextRule,
-		SymbolKind: enums.SymbolKind,
-		IndentAction: enums.IndentAction,
-		CompletionTriggerKind: enums.CompletionTriggerKind,
-		SignatureHelpTriggerReason: enums.SignatureHelpTriggerReason,
+		DocumentHighlightKind: standaloneEnums.DocumentHighlightKind,
+		CompletionItemKind: standaloneEnums.CompletionItemKind,
+		CompletionItemInsertTextRule: standaloneEnums.CompletionItemInsertTextRule,
+		SymbolKind: standaloneEnums.SymbolKind,
+		IndentAction: standaloneEnums.IndentAction,
+		CompletionTriggerKind: standaloneEnums.CompletionTriggerKind,
+		SignatureHelpTriggerReason: standaloneEnums.SignatureHelpTriggerReason,
 
 		// classes
 		FoldingRangeKind: modes.FoldingRangeKind,

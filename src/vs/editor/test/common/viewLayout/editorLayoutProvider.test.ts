@@ -2,8 +2,9 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
+
 import * as assert from 'assert';
-import { RenderMinimap, EditorLayoutInfo, EditorLayoutProvider, IEditorLayoutProviderOpts } from 'vs/editor/common/config/editorOptions';
+import { EditorLayoutInfo, EditorLayoutProvider, IEditorLayoutProviderOpts, RenderMinimap } from 'vs/editor/common/config/editorOptions';
 
 suite('Editor ViewLayout - EditorLayoutProvider', () => {
 

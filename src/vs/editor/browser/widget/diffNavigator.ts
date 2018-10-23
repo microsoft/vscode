@@ -4,13 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'vs/base/common/assert';
+import { Emitter, Event } from 'vs/base/common/event';
+import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import * as objects from 'vs/base/common/objects';
+import { IDiffEditor } from 'vs/editor/browser/editorBrowser';
+import { ICursorPositionChangedEvent } from 'vs/editor/common/controller/cursorEvents';
 import { Range } from 'vs/editor/common/core/range';
 import { ILineChange, ScrollType } from 'vs/editor/common/editorCommon';
-import { IDisposable, dispose } from 'vs/base/common/lifecycle';
-import { ICursorPositionChangedEvent } from 'vs/editor/common/controller/cursorEvents';
-import { IDiffEditor } from 'vs/editor/browser/editorBrowser';
-import { Event, Emitter } from 'vs/base/common/event';
 
 
 interface IDiffRange {
