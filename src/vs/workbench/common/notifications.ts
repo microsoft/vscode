@@ -357,18 +357,18 @@ export class NotificationViewItem extends Disposable implements INotificationVie
 			return null; // we need a message to show
 		}
 
-		let actions: INotificationActions;
+		let actions!: INotificationActions;
 		if (notification.actions) {
 			actions = notification.actions;
 		} else if (isErrorWithActions(notification.message)) {
 			actions = { primary: notification.message.actions };
 		}
 
-		return new NotificationViewItem(severity, notification.sticky, message, notification.source, actions);
+		return new NotificationViewItem(severity, notification.sticky!, message, notification.source!, actions);
 	}
 
-	private static parseNotificationMessage(input: NotificationMessage): INotificationMessage {
-		let message: string;
+	private static parseNotificationMessage(input: NotificationMessage): INotificationMessage | null {
+		let message!: string;
 
 		if (input instanceof Error) {
 			message = toErrorMessage(input, false);
@@ -407,7 +407,7 @@ export class NotificationViewItem extends Disposable implements INotificationVie
 		this.setActions(actions);
 	}
 
-	private setActions(actions: INotificationActions): void {
+	private setActions(actions?: INotificationActions): void {
 		if (!actions) {
 			actions = { primary: [], secondary: [] };
 		}
@@ -425,7 +425,7 @@ export class NotificationViewItem extends Disposable implements INotificationVie
 	}
 
 	get canCollapse(): boolean {
-		return this._actions.primary.length === 0;
+		return this._actions.primary!.length === 0;
 	}
 
 	get expanded(): boolean {
@@ -545,7 +545,7 @@ export class NotificationViewItem extends Disposable implements INotificationVie
 
 		const primaryActions = this._actions.primary;
 		const otherPrimaryActions = other.actions.primary;
-		if (primaryActions.length !== otherPrimaryActions.length) {
+		if (primaryActions!.length !== otherPrimaryActions!.length) {
 			return false;
 		}
 
@@ -553,8 +553,8 @@ export class NotificationViewItem extends Disposable implements INotificationVie
 			return false;
 		}
 
-		for (let i = 0; i < primaryActions.length; i++) {
-			if ((primaryActions[i].id + primaryActions[i].label) !== (otherPrimaryActions[i].id + otherPrimaryActions[i].label)) {
+		for (let i = 0; i < primaryActions!.length; i++) {
+			if ((primaryActions![i].id + primaryActions![i].label) !== (otherPrimaryActions![i].id + otherPrimaryActions![i].label)) {
 				return false;
 			}
 		}
@@ -571,7 +571,7 @@ export class ChoiceAction extends Action {
 	private _keepOpen: boolean;
 
 	constructor(id: string, choice: IPromptChoice) {
-		super(id, choice.label, null, true, () => {
+		super(id, choice.label, '', true, () => {
 
 			// Pass to runner
 			choice.run();
@@ -582,7 +582,7 @@ export class ChoiceAction extends Action {
 			return Promise.resolve(void 0);
 		});
 
-		this._keepOpen = choice.keepOpen;
+		this._keepOpen = choice.keepOpen ? choice.keepOpen : false;
 	}
 
 	get keepOpen(): boolean {
