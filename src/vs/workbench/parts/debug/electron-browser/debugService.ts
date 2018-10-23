@@ -48,6 +48,7 @@ import { IDebugService, State, IDebugSession, CONTEXT_DEBUG_TYPE, CONTEXT_DEBUG_
 import { isExtensionHostDebugging } from 'vs/workbench/parts/debug/common/debugUtils';
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { isErrorWithActions, createErrorWithActions } from 'vs/base/common/errorsWithActions';
+import { IProgressService2, ProgressLocation } from 'vs/workbench/services/progress/common/progress';
 
 const DEBUG_BREAKPOINTS_KEY = 'debug.breakpoint';
 const DEBUG_BREAKPOINTS_ACTIVATED_KEY = 'debug.breakpointactivated';
@@ -110,6 +111,8 @@ export class DebugService implements IDebugService {
 		@ITaskService private taskService: ITaskService,
 		@IFileService private fileService: IFileService,
 		@IConfigurationService private configurationService: IConfigurationService,
+		@IProgressService2 private progressService: IProgressService2,
+
 	) {
 		this.toDispose = [];
 
@@ -431,7 +434,16 @@ export class DebugService implements IDebugService {
 		// this event doesn't go to extensions
 		this._onWillNewSession.fire(session);
 
-		return this.launchOrAttachToSession(session).then(() => {
+		const promise = this.launchOrAttachToSession(session);
+		if (session.configuration.request === 'attach') {
+			this.progressService.withProgress({
+				cancellable: true,
+				location: ProgressLocation.Notification,
+				title: nls.localize('debugAttaching', 'Attaching to {0}...', session.root.name)
+			}, () => promise, () => session.shutdown());
+		}
+
+		return promise.then(() => {
 
 			// since the initialized response has arrived announce the new Session (including extensions)
 			this._onDidNewSession.fire(session);
