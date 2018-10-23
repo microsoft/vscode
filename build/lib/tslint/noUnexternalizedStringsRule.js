@@ -52,6 +52,12 @@ class NoUnexternalizedStringsRuleWalker extends Lint.RuleWalker {
     visitSourceFile(node) {
         super.visitSourceFile(node);
         Object.keys(this.usedKeys).forEach(key => {
+            // Keys are quoted.
+            let identifier = key.substr(1, key.length - 2);
+            if (!NoUnexternalizedStringsRuleWalker.IDENTIFIER.test(identifier)) {
+                let occurrence = this.usedKeys[key][0];
+                this.addFailure(this.createFailure(occurrence.key.getStart(), occurrence.key.getWidth(), `The key ${occurrence.key.getText()} doesn't conform to a valid localize identifier`));
+            }
             const occurrences = this.usedKeys[key];
             if (occurrences.length > 1) {
                 occurrences.forEach(occurrence => {
@@ -172,3 +178,4 @@ class NoUnexternalizedStringsRuleWalker extends Lint.RuleWalker {
 }
 NoUnexternalizedStringsRuleWalker.ImportFailureMessage = 'Do not use double quotes for imports.';
 NoUnexternalizedStringsRuleWalker.DOUBLE_QUOTE = '"';
+NoUnexternalizedStringsRuleWalker.IDENTIFIER = /^[_a-zA-Z0-9][ .\-_a-zA-Z0-9]*$/;
