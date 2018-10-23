@@ -649,8 +649,15 @@ function expandAbbr(input: ExpandAbbreviationInput, isPreviewing: boolean = fals
 					if (wrappingNode.name === 'a' && !isPreviewing) {
 						let hrefAtt = wrappingNode.attributes.filter((a: any) => a.name === 'href')[0];
 						if (hrefAtt && hrefAtt.value) {
-							// Replace a *valid* with $TM_SELECTED_TEXT so that multi-cursor mode works correctly.
-							hrefAtt.value = selectedTextPlaceholder;
+							// $TM_SELECTED_TEXT doesn't maintain the prefix correctly, so we need to strip it out here and add it in manually.
+							var prefix = '';
+							var index = hrefAtt.value.indexOf(input.textToWrap);
+							if (index > 0) {
+								prefix = hrefAtt.value.substring(0, index);
+							}
+
+							// Replace a *valid* href with $TM_SELECTED_TEXT so that multi-cursor mode works correctly.
+							hrefAtt.value = prefix + selectedTextPlaceholder;
 						}
 					}
 				}
