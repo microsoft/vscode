@@ -51,8 +51,8 @@ suite('Search - Viewlet', () => {
 		let lineMatch = fileMatch.matches()[0];
 
 		assert.equal(ds.getId(null, result), 'root');
-		assert.equal(ds.getId(null, fileMatch), 'file:///c:/foo');
-		assert.equal(ds.getId(null, lineMatch), 'file:///c:/foo>[2,1 -> 2,2]b');
+		assert.equal(ds.getId(null, fileMatch), 'file:///c%3A/foo');
+		assert.equal(ds.getId(null, lineMatch), 'file:///c%3A/foo>[2,1 -> 2,2]b');
 
 		assert(!ds.hasChildren(null, 'foo'));
 		assert(ds.hasChildren(null, result));
