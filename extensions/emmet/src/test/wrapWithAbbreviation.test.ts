@@ -321,7 +321,7 @@ suite('Tests for Wrap with Abbreviations', () => {
 			www.google.com
 		`;
 		const expectedContents = `
-			<a href="www.google.com">www.google.com</a>
+			<a href="http://www.google.com">www.google.com</a>
 		`;
 
 		return withRandomFileEditor(contents, 'html', (editor, _) => {
