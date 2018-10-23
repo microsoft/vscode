@@ -503,6 +503,7 @@ export class ReviewController implements IEditorContribution {
 				let pendingComment: string = null;
 				if (providerCacheStore) {
 					pendingComment = providerCacheStore[thread.threadId];
+					thread.collapsibleState = modes.CommentThreadCollapsibleState.Expanded;
 				}
 				let zoneWidget = new ReviewZoneWidget(this.instantiationService, this.modeService, this.modelService, this.themeService, this.commentService, this.openerService, this.dialogService, this.notificationService, this.editor, info.owner, thread, pendingComment, {});
 				zoneWidget.display(thread.range.startLineNumber, this._commentingRangeDecorator.commentsOptions);

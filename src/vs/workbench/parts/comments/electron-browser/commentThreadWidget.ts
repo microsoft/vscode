@@ -352,7 +352,7 @@ export class ReviewZoneWidget extends ZoneWidget {
 		}
 
 		// If there are no existing comments, place focus on the text area. This must be done after show, which also moves focus.
-		if (this._commentThread.reply && !this._commentThread.comments.length) {
+		if ((this._commentThread.reply && !this._commentThread.comments.length) || this._commentEditor.getModel().getValueLength() > 0) {
 			this._commentEditor.focus();
 		}
 	}
