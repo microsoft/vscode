@@ -1142,7 +1142,7 @@ export class ToggleWindowTabsBar extends Action {
 export class OpenTwitterUrlAction extends Action {
 
 	static readonly ID = 'workbench.action.openTwitterUrl';
-	static LABEL = nls.localize('openTwitterUrl', "Join us on Twitter", product.applicationName);
+	static LABEL = nls.localize('openTwitterUrl', "Join Us on Twitter", product.applicationName);
 
 	constructor(
 		id: string,
