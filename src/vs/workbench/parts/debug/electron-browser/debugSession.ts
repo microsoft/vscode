@@ -705,7 +705,7 @@ export class DebugSession implements IDebugSession {
 					lineNumber: event.body.breakpoint.line,
 				}], false);
 				if (bps.length === 1) {
-					this.model.updateBreakpoints({ [bps[0].getId()]: event.body.breakpoint });
+					this.model.setBreakpointSessionData(this.getId(), { [bps[0].getId()]: event.body.breakpoint });
 				}
 			}
 
