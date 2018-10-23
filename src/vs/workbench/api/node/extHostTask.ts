@@ -231,7 +231,7 @@ namespace TaskPanelKind {
 namespace PresentationOptions {
 	export function from(value: vscode.TaskPresentationOptions): tasks.PresentationOptions {
 		if (value === void 0 || value === null) {
-			return { reveal: tasks.RevealKind.Always, echo: true, focus: false, panel: tasks.PanelKind.Shared, showReuseMessage: true, clearBeforeExecuting: false };
+			return { reveal: tasks.RevealKind.Always, echo: true, focus: false, panel: tasks.PanelKind.Shared, showReuseMessage: true, clear: false };
 		}
 		return {
 			reveal: TaskRevealKind.from(value.reveal),
@@ -239,7 +239,7 @@ namespace PresentationOptions {
 			focus: !!value.focus,
 			panel: TaskPanelKind.from(value.panel),
 			showReuseMessage: value.showReuseMessage === void 0 ? true : !!value.showReuseMessage,
-			clearBeforeExecuting: value.clearBeforeExecuting === void 0 ? false : !!value.clearBeforeExecuting,
+			clear: value.clear === void 0 ? false : !!value.clear,
 		};
 	}
 }

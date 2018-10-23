@@ -1182,7 +1182,7 @@ declare module 'vscode' {
 		/**
 		 * Controls whether the terminal is cleared before executing the task.
 		 */
-		clearBeforeExecuting?: boolean;
+		clear?: boolean;
 	}
 	//#endregion
 
