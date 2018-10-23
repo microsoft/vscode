@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 import * as assert from 'assert';
 import { IDisposable } from 'vs/base/common/lifecycle';
-import { TPromise } from 'vs/base/common/winjs.base';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { CommandService } from 'vs/workbench/services/commands/common/commandService';
 import { IExtensionService, ExtensionPointContribution, IExtensionDescription, ProfileSession } from 'vs/workbench/services/extensions/common/extensions';
@@ -21,25 +20,25 @@ class SimpleExtensionService implements IExtensionService {
 		return this._onDidRegisterExtensions.event;
 	}
 	onDidChangeExtensionsStatus = null;
-	activateByEvent(activationEvent: string): TPromise<void> {
+	activateByEvent(activationEvent: string): Promise<void> {
 		return this.whenInstalledExtensionsRegistered().then(() => { });
 	}
-	whenInstalledExtensionsRegistered(): TPromise<boolean> {
-		return TPromise.as(true);
+	whenInstalledExtensionsRegistered(): Promise<boolean> {
+		return Promise.resolve(true);
 	}
-	readExtensionPointContributions<T>(extPoint: IExtensionPoint<T>): TPromise<ExtensionPointContribution<T>[]> {
-		return TPromise.as([]);
+	readExtensionPointContributions<T>(extPoint: IExtensionPoint<T>): Promise<ExtensionPointContribution<T>[]> {
+		return Promise.resolve([]);
 	}
 	getExtensionsStatus() {
 		return undefined;
 	}
-	getExtensions(): TPromise<IExtensionDescription[]> {
-		return TPromise.wrap([]);
+	getExtensions(): Promise<IExtensionDescription[]> {
+		return Promise.resolve([]);
 	}
 	canProfileExtensionHost() {
 		return false;
 	}
-	startExtensionHostProfile(): TPromise<ProfileSession> {
+	startExtensionHostProfile(): Promise<ProfileSession> {
 		throw new Error('Not implemented');
 	}
 	getInspectPort(): number {
@@ -81,7 +80,7 @@ suite('CommandService', function () {
 		let lastEvent: string;
 
 		let service = new CommandService(new InstantiationService(), new class extends SimpleExtensionService {
-			activateByEvent(activationEvent: string): TPromise<void> {
+			activateByEvent(activationEvent: string): Promise<void> {
 				lastEvent = activationEvent;
 				return super.activateByEvent(activationEvent);
 			}
@@ -97,13 +96,17 @@ suite('CommandService', function () {
 		});
 	});
 
-	test('fwd activation error', function () {
+	test('fwd activation error', async function () {
 
-		let service = new CommandService(new InstantiationService(), new class extends SimpleExtensionService {
-			activateByEvent(activationEvent: string): TPromise<void> {
-				return TPromise.wrapError<void>(new Error('bad_activate'));
+		const extensionService = new class extends SimpleExtensionService {
+			activateByEvent(activationEvent: string): Promise<void> {
+				return Promise.reject(new Error('bad_activate'));
 			}
-		}, new NullLogService(), progressService);
+		};
+
+		let service = new CommandService(new InstantiationService(), extensionService, new NullLogService(), progressService);
+
+		await extensionService.whenInstalledExtensionsRegistered();
 
 		return service.executeCommand('foo').then(() => assert.ok(false), err => {
 			assert.equal(err.message, 'bad_activate');
@@ -117,7 +120,7 @@ suite('CommandService', function () {
 
 		let service = new CommandService(new InstantiationService(), new class extends SimpleExtensionService {
 			whenInstalledExtensionsRegistered() {
-				return new TPromise<boolean>(_resolve => { /*ignore*/ });
+				return new Promise<boolean>(_resolve => { /*ignore*/ });
 			}
 		}, new NullLogService(), progressService);
 
@@ -130,7 +133,7 @@ suite('CommandService', function () {
 
 		let callCounter = 0;
 		let resolveFunc: Function;
-		const whenInstalledExtensionsRegistered = new TPromise<boolean>(_resolve => { resolveFunc = _resolve; });
+		const whenInstalledExtensionsRegistered = new Promise<boolean>(_resolve => { resolveFunc = _resolve; });
 
 		let service = new CommandService(new InstantiationService(), new class extends SimpleExtensionService {
 			whenInstalledExtensionsRegistered() {
