@@ -462,7 +462,6 @@ export class ReviewController implements IEditorContribution {
 	}
 
 	setComments(commentInfos: modes.CommentInfo[]): void {
-		// todo setComments should read from pendingCommentCache
 		this._commentInfos = commentInfos;
 		let lineDecorationsWidth: number = this.editor.getConfiguration().layoutInfo.decorationsWidth;
 

@@ -352,7 +352,12 @@ export class ReviewZoneWidget extends ZoneWidget {
 		}
 
 		// If there are no existing comments, place focus on the text area. This must be done after show, which also moves focus.
-		if ((this._commentThread.reply && !this._commentThread.comments.length) || this._commentEditor.getModel().getValueLength() > 0) {
+		if (this._commentThread.reply && !this._commentThread.comments.length) {
+			this._commentEditor.focus();
+		} else if (this._commentEditor.getModel().getValueLength() > 0) {
+			if (!dom.hasClass(this._commentForm, 'expand')) {
+				dom.addClass(this._commentForm, 'expand');
+			}
 			this._commentEditor.focus();
 		}
 	}
@@ -423,6 +428,7 @@ export class ReviewZoneWidget extends ZoneWidget {
 
 			if (newCommentThread) {
 				this._commentEditor.setValue('');
+				this._pendingComment = '';
 				if (dom.hasClass(this._commentForm, 'expand')) {
 					dom.removeClass(this._commentForm, 'expand');
 				}
