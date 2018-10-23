@@ -90,6 +90,9 @@ export interface ISCMInput {
 
 	validateInput: IInputValidator;
 	readonly onDidChangeValidateInput: Event<void>;
+
+	visible: boolean;
+	readonly onDidChangeVisibility: Event<boolean>;
 }
 
 export interface ISCMRepository extends IDisposable {
