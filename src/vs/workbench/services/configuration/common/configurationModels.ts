@@ -123,7 +123,7 @@ export class FolderSettingsModelParser extends ConfigurationModelParser {
 
 	private getScope(key: string, configurationProperties: { [qualifiedKey: string]: IConfigurationPropertySchema }): ConfigurationScope {
 		const propertySchema = configurationProperties[key];
-		return propertySchema ? propertySchema.scope : ConfigurationScope.WINDOW;
+		return propertySchema && typeof propertySchema.scope !== 'undefined' ? propertySchema.scope : ConfigurationScope.WINDOW;
 	}
 }
 

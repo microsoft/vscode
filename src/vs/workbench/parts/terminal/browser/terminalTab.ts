@@ -109,7 +109,7 @@ class SplitPaneContainer {
 	}
 
 	public remove(instance: ITerminalInstance): void {
-		let index = null;
+		let index: number | null = null;
 		for (let i = 0; i < this._children.length; i++) {
 			if (this._children[i].instance === instance) {
 				index = i;
@@ -209,7 +209,7 @@ class SplitPane implements IView {
 export class TerminalTab extends Disposable implements ITerminalTab {
 	private _terminalInstances: ITerminalInstance[] = [];
 	private _splitPaneContainer: SplitPaneContainer | undefined;
-	private _tabElement: HTMLElement;
+	private _tabElement: HTMLElement | null;
 	private _panelPosition: Position = Position.BOTTOM;
 
 	private _activeInstanceIndex: number;
@@ -258,7 +258,7 @@ export class TerminalTab extends Disposable implements ITerminalTab {
 		this._onInstancesChanged.fire();
 	}
 
-	public get activeInstance(): ITerminalInstance {
+	public get activeInstance(): ITerminalInstance | null {
 		if (this._terminalInstances.length === 0) {
 			return null;
 		}
@@ -286,7 +286,9 @@ export class TerminalTab extends Disposable implements ITerminalTab {
 			const newIndex = index < this._terminalInstances.length ? index : this._terminalInstances.length - 1;
 			this.setActiveInstanceByIndex(newIndex);
 			// TODO: Only focus the new instance if the tab had focus?
-			this.activeInstance.focus(true);
+			if (this.activeInstance) {
+				this.activeInstance.focus(true);
+			}
 		}
 
 		// Remove the instance from the split pane if it has been created
@@ -341,8 +343,9 @@ export class TerminalTab extends Disposable implements ITerminalTab {
 		if (!this._splitPaneContainer) {
 			this._panelPosition = this._partService.getPanelPosition();
 			const orientation = this._panelPosition === Position.BOTTOM ? Orientation.HORIZONTAL : Orientation.VERTICAL;
-			this._splitPaneContainer = new SplitPaneContainer(this._tabElement, orientation);
-			this.terminalInstances.forEach(instance => this._splitPaneContainer.split(instance));
+			const newLocal = new SplitPaneContainer(this._tabElement, orientation);
+			this._splitPaneContainer = newLocal;
+			this.terminalInstances.forEach(instance => this._splitPaneContainer!.split(instance));
 		}
 	}
 
@@ -365,7 +368,7 @@ export class TerminalTab extends Disposable implements ITerminalTab {
 		terminalFocusContextKey: IContextKey<boolean>,
 		configHelper: ITerminalConfigHelper,
 		shellLaunchConfig: IShellLaunchConfig
-	): ITerminalInstance {
+	): ITerminalInstance | undefined {
 		const newTerminalSize = ((this._panelPosition === Position.BOTTOM ? this._container.clientWidth : this._container.clientHeight) / (this._terminalInstances.length + 1));
 		if (newTerminalSize < TERMINAL_MIN_USEFUL_SIZE) {
 			return undefined;
