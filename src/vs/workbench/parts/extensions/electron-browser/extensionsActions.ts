@@ -1083,7 +1083,7 @@ export class ReloadAction extends Action {
 					this.enabled = true;
 					if (!isEnabled) {
 						this.tooltip = localize('postInstallTooltip', "Reload to complete installing this extension.");
-					} else if (!isDisabled) {
+					} else {
 						this.tooltip = localize('postEnableTooltip', "Reload to complete enabling this extension.");
 					}
 					return;
