@@ -3,11 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import * as nls from 'vs/nls';
 import { Action } from 'vs/base/common/actions';
-import { TPromise } from 'vs/base/common/winjs.base';
 import * as dom from 'vs/base/browser/dom';
 import { BaseActionItem, IBaseActionItemOptions, Separator } from 'vs/base/browser/ui/actionbar/actionbar';
 import { ICommandService } from 'vs/platform/commands/common/commands';
@@ -22,6 +19,7 @@ import { IActivity } from 'vs/workbench/common/activity';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { Event, Emitter } from 'vs/base/common/event';
 import { DragAndDropObserver, LocalSelectionTransfer } from 'vs/workbench/browser/dnd';
+import { Color } from 'vs/base/common/color';
 
 export interface ICompositeActivity {
 	badge: IBadge;
@@ -112,15 +110,19 @@ export class ActivityAction extends Action {
 }
 
 export interface ICompositeBarColors {
-	backgroundColor: string;
-	badgeBackground: string;
-	badgeForeground: string;
-	dragAndDropBackground: string;
+	activeBackgroundColor: Color;
+	inactiveBackgroundColor: Color;
+	activeBorderBottomColor: Color;
+	activeForegroundColor: Color;
+	inactiveForegroundColor: Color;
+	badgeBackground: Color;
+	badgeForeground: Color;
+	dragAndDropBackground: Color;
 }
 
 export interface IActivityActionItemOptions extends IBaseActionItemOptions {
 	icon?: boolean;
-	colors: ICompositeBarColors;
+	colors: (theme: ITheme) => ICompositeBarColors;
 }
 
 export class ActivityActionItem extends BaseActionItem {
@@ -131,7 +133,7 @@ export class ActivityActionItem extends BaseActionItem {
 
 	private badgeContent: HTMLElement;
 	private badgeDisposable: IDisposable = Disposable.None;
-	private mouseUpTimeout: number;
+	private mouseUpTimeout: any;
 
 	constructor(
 		action: ActivityAction,
@@ -151,18 +153,24 @@ export class ActivityActionItem extends BaseActionItem {
 
 	protected updateStyles(): void {
 		const theme = this.themeService.getTheme();
+		const colors = this.options.colors(theme);
 
-		// Label
-		if (this.label && this.options.icon) {
-			const background = theme.getColor(this.options.colors.backgroundColor);
-
-			this.label.style.backgroundColor = background ? background.toString() : null;
+		if (this.label) {
+			if (this.options.icon) {
+				const foreground = this._action.checked ? colors.activeBackgroundColor || colors.activeForegroundColor : colors.inactiveBackgroundColor || colors.inactiveForegroundColor;
+				this.label.style.backgroundColor = foreground ? foreground.toString() : null;
+			} else {
+				const foreground = this._action.checked ? colors.activeForegroundColor : colors.inactiveForegroundColor;
+				const borderBottomColor = this._action.checked ? colors.activeBorderBottomColor : null;
+				this.label.style.color = foreground ? foreground.toString() : null;
+				this.label.style.borderBottomColor = borderBottomColor ? borderBottomColor.toString() : null;
+			}
 		}
 
 		// Badge
 		if (this.badgeContent) {
-			const badgeForeground = theme.getColor(this.options.colors.badgeForeground);
-			const badgeBackground = theme.getColor(this.options.colors.badgeBackground);
+			const badgeForeground = colors.badgeForeground;
+			const badgeBackground = colors.badgeBackground;
 			const contrastBorderColor = theme.getColor(contrastBorder);
 
 			this.badgeContent.style.color = badgeForeground ? badgeForeground.toString() : null;
@@ -329,10 +337,10 @@ export class CompositeOverflowActivityAction extends ActivityAction {
 		});
 	}
 
-	run(event: any): TPromise<any> {
+	run(event: any): Promise<any> {
 		this.showMenu();
 
-		return TPromise.as(true);
+		return Promise.resolve(true);
 	}
 }
 
@@ -345,7 +353,7 @@ export class CompositeOverflowActivityActionItem extends ActivityActionItem {
 		private getActiveCompositeId: () => string,
 		private getBadge: (compositeId: string) => IBadge,
 		private getCompositeOpenAction: (compositeId: string) => Action,
-		colors: ICompositeBarColors,
+		colors: (theme: ITheme) => ICompositeBarColors,
 		@IContextMenuService private contextMenuService: IContextMenuService,
 		@IThemeService themeService: IThemeService
 	) {
@@ -361,7 +369,7 @@ export class CompositeOverflowActivityActionItem extends ActivityActionItem {
 
 		this.contextMenuService.showContextMenu({
 			getAnchor: () => this.element,
-			getActions: () => TPromise.as(this.actions),
+			getActions: () => Promise.resolve(this.actions),
 			onHide: () => dispose(this.actions)
 		});
 	}
@@ -404,7 +412,7 @@ class ManageExtensionAction extends Action {
 		super('activitybar.manage.extension', nls.localize('manageExtension', "Manage Extension"));
 	}
 
-	run(id: string): TPromise<any> {
+	run(id: string): Promise<any> {
 		return this.commandService.executeCommand('_extensions.manage', id);
 	}
 }
@@ -429,7 +437,7 @@ export class CompositeActionItem extends ActivityActionItem {
 		private compositeActivityAction: ActivityAction,
 		private toggleCompositePinnedAction: Action,
 		private contextMenuActionsProvider: () => Action[],
-		colors: ICompositeBarColors,
+		colors: (theme: ITheme) => ICompositeBarColors,
 		icon: boolean,
 		private compositeBar: ICompositeBar,
 		@IContextMenuService private contextMenuService: IContextMenuService,
@@ -551,7 +559,7 @@ export class CompositeActionItem extends ActivityActionItem {
 
 	private updateFromDragging(element: HTMLElement, isDragging: boolean): void {
 		const theme = this.themeService.getTheme();
-		const dragBackground = theme.getColor(this.options.colors.dragAndDropBackground);
+		const dragBackground = this.options.colors(theme).dragAndDropBackground;
 
 		element.style.backgroundColor = isDragging && dragBackground ? dragBackground.toString() : null;
 	}
@@ -577,10 +585,16 @@ export class CompositeActionItem extends ActivityActionItem {
 			actions.push(...otherActions);
 		}
 
+		const elementPosition = dom.getDomNodePagePosition(container);
+		const anchor = {
+			x: Math.floor(elementPosition.left + (elementPosition.width / 2)),
+			y: elementPosition.top + elementPosition.height
+		};
+
 		this.contextMenuService.showContextMenu({
-			getAnchor: () => container,
+			getAnchor: () => anchor,
 			getActionsContext: () => this.activity.id,
-			getActions: () => TPromise.as(actions)
+			getActions: () => Promise.resolve(actions)
 		});
 	}
 
@@ -607,6 +621,7 @@ export class CompositeActionItem extends ActivityActionItem {
 			dom.removeClass(this.container, 'checked');
 			this.container.setAttribute('aria-label', this.container.title);
 		}
+		this.updateStyles();
 	}
 
 	protected updateEnabled(): void {
@@ -637,7 +652,7 @@ export class ToggleCompositePinnedAction extends Action {
 		this.checked = this.activity && this.compositeBar.isPinned(this.activity.id);
 	}
 
-	run(context: string): TPromise<any> {
+	run(context: string): Promise<any> {
 		const id = this.activity ? this.activity.id : context;
 
 		if (this.compositeBar.isPinned(id)) {
@@ -646,6 +661,6 @@ export class ToggleCompositePinnedAction extends Action {
 			this.compositeBar.pin(id);
 		}
 
-		return TPromise.as(true);
+		return Promise.resolve(true);
 	}
 }

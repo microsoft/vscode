@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import { Disposable } from 'vs/base/common/lifecycle';
 import { addDisposableListener } from 'vs/base/browser/dom';
 
@@ -13,7 +11,7 @@ import { addDisposableListener } from 'vs/base/browser/dom';
  *  dragover event for 800ms. If the drag is aborted before, the callback will not be triggered.
  */
 export class DelayedDragHandler extends Disposable {
-	private timeout: number;
+	private timeout: any;
 
 	constructor(container: HTMLElement, callback: () => void) {
 		super();
@@ -78,9 +76,11 @@ export function applyDragImage(event: DragEvent, label: string, clazz: string): 
 	dragImage.className = clazz;
 	dragImage.textContent = label;
 
-	document.body.appendChild(dragImage);
-	event.dataTransfer.setDragImage(dragImage, -10, -10);
+	if (event.dataTransfer) {
+		document.body.appendChild(dragImage);
+		event.dataTransfer.setDragImage(dragImage, -10, -10);
 
-	// Removes the element when the DND operation is done
-	setTimeout(() => document.body.removeChild(dragImage), 0);
+		// Removes the element when the DND operation is done
+		setTimeout(() => document.body.removeChild(dragImage), 0);
+	}
 }

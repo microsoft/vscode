@@ -13,7 +13,7 @@ import { findFirstInSorted } from 'vs/base/common/arrays';
 export class HiddenRangeModel {
 	private _foldingModel: FoldingModel;
 	private _hiddenRanges: IRange[];
-	private _foldingModelListener: IDisposable;
+	private _foldingModelListener: IDisposable | null;
 	private _updateEventEmitter = new Emitter<IRange[]>();
 
 	public get onDidChange(): Event<IRange[]> { return this._updateEventEmitter.event; }
@@ -70,7 +70,7 @@ export class HiddenRangeModel {
 		if (!Array.isArray(state) || state.length === 0) {
 			return false;
 		}
-		let hiddenRanges = [];
+		let hiddenRanges: IRange[] = [];
 		for (let r of state) {
 			if (!r.startLineNumber || !r.endLineNumber) {
 				return false;
@@ -104,7 +104,7 @@ export class HiddenRangeModel {
 	public adjustSelections(selections: Selection[]): boolean {
 		let hasChanges = false;
 		let editorModel = this._foldingModel.textModel;
-		let lastRange = null;
+		let lastRange: IRange | null = null;
 
 		let adjustLine = (line: number) => {
 			if (!lastRange || !isInside(line, lastRange)) {
@@ -148,7 +148,7 @@ export class HiddenRangeModel {
 function isInside(line: number, range: IRange) {
 	return line >= range.startLineNumber && line <= range.endLineNumber;
 }
-function findRange(ranges: IRange[], line: number): IRange {
+function findRange(ranges: IRange[], line: number): IRange | null {
 	let i = findFirstInSorted(ranges, r => line < r.startLineNumber) - 1;
 	if (i >= 0 && ranges[i].endLineNumber >= line) {
 		return ranges[i];

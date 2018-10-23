@@ -36,6 +36,7 @@ export class Protocol implements IMessagePassingProtocol {
 	}
 
 	dispose(): void {
+		this.sender.send('ipc:disconnect', null);
 		this.listener = dispose(this.listener);
 	}
 }

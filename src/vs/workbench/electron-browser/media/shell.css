@@ -70,6 +70,10 @@
 	cursor: pointer;
 }
 
+.monaco-shell .context-view {
+	-webkit-app-region: no-drag;
+}
+
 .monaco-shell .monaco-menu .monaco-action-bar.vertical {
 	padding: .5em 0;
 }
@@ -98,6 +102,12 @@
 .monaco-shell .monaco-menu .monaco-action-bar.vertical .submenu-indicator {
 	font-size: 60%;
 	padding: 0 1.8em;
+}
+
+.monaco-shell .linux .monaco-menu .monaco-action-bar.vertical .submenu-indicator {
+	height: 100%;
+	-webkit-mask-size: 10px 10px;
+	mask-size: 10px 10px;
 }
 
 .monaco-shell .monaco-menu .action-item {
@@ -129,7 +139,7 @@
 }
 
 .monaco-shell .mac select:focus {
-	border: none; /* outline is a square, but border has a radius, so we avoid this glitch when focused (https://github.com/Microsoft/vscode/issues/26045) */
+	border-color: transparent; /* outline is a square, but border has a radius, so we avoid this glitch when focused (https://github.com/Microsoft/vscode/issues/26045) */
 }
 
 .monaco-shell .monaco-tree.focused .monaco-tree-row.focused [tabindex="0"]:focus {

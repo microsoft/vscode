@@ -47,7 +47,7 @@ export const LANGUAGE_MODES: any = {
 	'typescriptreact': ['!', '.', '}', '*', '$', ']', '0', '1', '2', '3', '4', '5', '6', '7', '8', '9']
 };
 
-const allowedMimeTypesInScriptTag = ['text/html', 'text/plain', 'text/x-template', 'text/template', 'text/ng-template'];
+export const allowedMimeTypesInScriptTag = ['text/html', 'text/plain', 'text/x-template', 'text/template', 'text/ng-template'];
 
 const emmetModes = ['html', 'pug', 'slim', 'haml', 'xml', 'xsl', 'jsx', 'css', 'scss', 'sass', 'less', 'stylus'];
 
@@ -114,6 +114,7 @@ export function getEmmetMode(language: string, excludedLanguages: string[]): str
 	if (emmetModes.indexOf(language) > -1) {
 		return language;
 	}
+	return;
 }
 
 /**
@@ -259,7 +260,7 @@ export function parsePartialStylesheet(document: vscode.TextDocument, position: 
 	try {
 		return parseStylesheet(new DocumentStreamReader(document, startPosition, new vscode.Range(startPosition, endPosition)));
 	} catch (e) {
-
+		return;
 	}
 }
 
@@ -351,7 +352,7 @@ export function getDeepestNode(node: Node | undefined): Node | undefined {
 	return undefined;
 }
 
-export function findNextWord(propertyValue: string, pos: number): [number, number] {
+export function findNextWord(propertyValue: string, pos: number): [number | undefined, number | undefined] {
 
 	let foundSpace = pos === -1;
 	let foundStart = false;
@@ -389,7 +390,7 @@ export function findNextWord(propertyValue: string, pos: number): [number, numbe
 	return [newSelectionStart, newSelectionEnd];
 }
 
-export function findPrevWord(propertyValue: string, pos: number): [number, number] {
+export function findPrevWord(propertyValue: string, pos: number): [number | undefined, number | undefined] {
 
 	let foundSpace = pos === propertyValue.length;
 	let foundStart = false;
@@ -511,12 +512,13 @@ export function getEmmetConfiguration(syntax: string) {
  * Itereates by each child, as well as nested child's children, in their order
  * and invokes `fn` for each. If `fn` function returns `false`, iteration stops
  */
-export function iterateCSSToken(token: CssToken, fn: (x: any) => any) {
+export function iterateCSSToken(token: CssToken, fn: (x: any) => any): boolean {
 	for (let i = 0, il = token.size; i < il; i++) {
 		if (fn(token.item(i)) === false || iterateCSSToken(token.item(i), fn) === false) {
 			return false;
 		}
 	}
+	return true;
 }
 
 /**
@@ -530,7 +532,7 @@ export function getCssPropertyFromRule(rule: Rule, name: string): Property | und
  * Returns css property under caret in given editor or `null` if such node cannot
  * be found
  */
-export function getCssPropertyFromDocument(editor: vscode.TextEditor, position: vscode.Position): Property | null | undefined {
+export function getCssPropertyFromDocument(editor: vscode.TextEditor, position: vscode.Position): Property | null {
 	const rootNode = parseDocument(editor.document);
 	const node = getNode(rootNode, position, true);
 
@@ -548,6 +550,8 @@ export function getCssPropertyFromDocument(editor: vscode.TextEditor, position: 
 		const node = getNode(rootNode, position, true);
 		return (node && node.type === 'property') ? <Property>node : null;
 	}
+
+	return null;
 }
 
 
@@ -569,6 +573,7 @@ export function getEmbeddedCssNodeIfAny(document: vscode.TextDocument, currentNo
 			}
 		}
 	}
+	return;
 }
 
 export function isStyleAttribute(currentNode: Node | null, position: vscode.Position): boolean {

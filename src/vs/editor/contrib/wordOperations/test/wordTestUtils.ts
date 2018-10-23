@@ -2,10 +2,9 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
 import { Position } from 'vs/editor/common/core/position';
-import { withTestCodeEditor, TestCodeEditor } from 'vs/editor/test/browser/testCodeEditor';
+import { TestCodeEditor, withTestCodeEditor } from 'vs/editor/test/browser/testCodeEditor';
 
 export function deserializePipePositions(text: string): [string, Position[]] {
 	let resultText = '';
@@ -71,7 +70,7 @@ export function testRepeatedActionAndExtractPositions(text: string, initialPosit
 			}
 
 			if (actualStops.length > 1000) {
-				throw new Error(`Endless loop detected!`);
+				throw new Error(`Endless loop detected involving position ${editor.getPosition()}!`);
 			}
 		}
 	});

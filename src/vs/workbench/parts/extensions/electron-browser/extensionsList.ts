@@ -3,27 +3,29 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import { localize } from 'vs/nls';
 import { append, $, addClass, removeClass, toggleClass } from 'vs/base/browser/dom';
-import { IDisposable, dispose, toDisposable } from 'vs/base/common/lifecycle';
+import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { Action } from 'vs/base/common/actions';
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IVirtualDelegate } from 'vs/base/browser/ui/list/list';
+import { IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
 import { IPagedRenderer } from 'vs/base/browser/ui/list/listPaging';
-import { once } from 'vs/base/common/event';
+import { once, Emitter, Event } from 'vs/base/common/event';
 import { domEvent } from 'vs/base/browser/event';
 import { IExtension, IExtensionsWorkbenchService } from 'vs/workbench/parts/extensions/common/extensions';
-import { InstallAction, UpdateAction, ManageExtensionAction, ReloadAction, extensionButtonProminentBackground, extensionButtonProminentForeground, MaliciousStatusLabelAction, DisabledStatusLabelAction } from 'vs/workbench/parts/extensions/electron-browser/extensionsActions';
+import { InstallAction, UpdateAction, ManageExtensionAction, ReloadAction, extensionButtonProminentBackground, extensionButtonProminentForeground, MaliciousStatusLabelAction, DisabledStatusLabelAction, ExtensionActionItem } from 'vs/workbench/parts/extensions/electron-browser/extensionsActions';
 import { areSameExtensions } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { Label, RatingsWidget, InstallCountWidget } from 'vs/workbench/parts/extensions/browser/extensionsWidgets';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { IExtensionTipsService, IExtensionManagementServerService } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { INotificationService } from 'vs/platform/notification/common/notification';
-import { createCancelablePromise } from 'vs/base/common/async';
+
+export interface IExtensionWithFocus extends IExtension {
+	onDidFocusChange?: Event<boolean>;
+	onFocusChangeEventEmitter?: Emitter<boolean>;
+}
 
 export interface ITemplateData {
 	root: HTMLElement;
@@ -37,14 +39,15 @@ export interface ITemplateData {
 	extension: IExtension;
 	disposables: IDisposable[];
 	extensionDisposables: IDisposable[];
+	actionbar: ActionBar;
 }
 
-export class Delegate implements IVirtualDelegate<IExtension> {
+export class Delegate implements IListVirtualDelegate<IExtension> {
 	getHeight() { return 62; }
 	getTemplateId() { return 'extension'; }
 }
 
-const actionOptions = { icon: true, label: true };
+const actionOptions = { icon: true, label: true, tabOnlyOnFocus: true };
 
 export class Renderer implements IPagedRenderer<IExtension, ITemplateData> {
 
@@ -90,7 +93,7 @@ export class Renderer implements IPagedRenderer<IExtension, ITemplateData> {
 				if (action.id === ManageExtensionAction.ID) {
 					return (<ManageExtensionAction>action).actionItem;
 				}
-				return null;
+				return new ExtensionActionItem(null, action, actionOptions);
 			}
 		});
 		actionbar.onDidRun(({ error }) => error && this.notificationService.error(error));
@@ -103,14 +106,14 @@ export class Renderer implements IPagedRenderer<IExtension, ITemplateData> {
 		const disabledStatusAction = this.instantiationService.createInstance(DisabledStatusLabelAction);
 		const installAction = this.instantiationService.createInstance(InstallAction);
 		const updateAction = this.instantiationService.createInstance(UpdateAction);
-		const reloadAction = this.instantiationService.createInstance(ReloadAction);
+		const reloadAction = this.instantiationService.createInstance(ReloadAction, false);
 		const manageAction = this.instantiationService.createInstance(ManageExtensionAction);
 
 		actionbar.push([updateAction, reloadAction, installAction, disabledStatusAction, maliciousStatusAction, manageAction], actionOptions);
 		const disposables = [versionWidget, installCountWidget, ratingsWidget, maliciousStatusAction, disabledStatusAction, updateAction, installAction, reloadAction, manageAction, actionbar, bookmarkStyler];
 
 		return {
-			root, element, icon, name, installCount, ratings, author, description, disposables,
+			root, element, icon, name, installCount, ratings, author, description, disposables, actionbar,
 			extensionDisposables: [],
 			set extension(extension: IExtension) {
 				versionWidget.extension = extension;
@@ -140,7 +143,7 @@ export class Renderer implements IPagedRenderer<IExtension, ITemplateData> {
 		data.extension = null;
 	}
 
-	renderElement(extension: IExtension, index: number, data: ITemplateData): void {
+	renderElement(extension: IExtensionWithFocus, index: number, data: ITemplateData): void {
 		removeClass(data.element, 'loading');
 
 		data.extensionDisposables = dispose(data.extensionDisposables);
@@ -181,13 +184,17 @@ export class Renderer implements IPagedRenderer<IExtension, ITemplateData> {
 		data.ratings.style.display = '';
 		data.extension = extension;
 
-		const manifestPromise = createCancelablePromise(token => extension.getManifest(token).then(manifest => {
-			if (manifest) {
-				const name = manifest && manifest.contributes && manifest.contributes.localizations && manifest.contributes.localizations.length > 0 && manifest.contributes.localizations[0].localizedLanguageName;
-				if (name) { data.description.textContent = name[0].toLocaleUpperCase() + name.slice(1); }
-			}
-		}));
-		data.disposables.push(toDisposable(() => manifestPromise.cancel()));
+		if (extension.gallery && extension.gallery.properties && extension.gallery.properties.localizedLanguages && extension.gallery.properties.localizedLanguages.length) {
+			data.description.textContent = extension.gallery.properties.localizedLanguages.map(name => name[0].toLocaleUpperCase() + name.slice(1)).join(', ');
+		}
+
+		if (extension.onDidFocusChange) {
+			data.extensionDisposables.push(extension.onDidFocusChange(hasFocus => {
+				data.actionbar.items.forEach(item => {
+					(<ExtensionActionItem>item).setFocus(hasFocus);
+				});
+			}));
+		}
 	}
 
 	disposeElement(): void {

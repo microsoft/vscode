@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import 'vs/css!./renameInputField';
 import { localize } from 'vs/nls';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
@@ -101,14 +99,14 @@ export default class RenameInputField implements IContentWidget, IDisposable {
 		this._inputField.style.fontSize = `${fontInfo.fontSize}px`;
 	}
 
-	public getPosition(): IContentWidgetPosition {
+	public getPosition(): IContentWidgetPosition | null {
 		return this._visible
 			? { position: this._position, preference: [ContentWidgetPositionPreference.BELOW, ContentWidgetPositionPreference.ABOVE] }
 			: null;
 	}
 
-	private _currentAcceptInput: () => void = null;
-	private _currentCancelInput: (focusEditor) => void = null;
+	private _currentAcceptInput: (() => void) | null = null;
+	private _currentCancelInput: ((focusEditor) => void) | null = null;
 
 	public acceptInput(): void {
 		if (this._currentAcceptInput) {
@@ -160,7 +158,8 @@ export default class RenameInputField implements IContentWidget, IDisposable {
 			};
 
 			let onCursorChanged = () => {
-				if (!Range.containsPosition(where, this._editor.getPosition())) {
+				const editorPosition = this._editor.getPosition();
+				if (!editorPosition || !Range.containsPosition(where, editorPosition)) {
 					this.cancelInput(true);
 				}
 			};
@@ -187,8 +186,8 @@ export default class RenameInputField implements IContentWidget, IDisposable {
 		setTimeout(() => {
 			this._inputField.focus();
 			this._inputField.setSelectionRange(
-				parseInt(this._inputField.getAttribute('selectionStart')),
-				parseInt(this._inputField.getAttribute('selectionEnd')));
+				parseInt(this._inputField.getAttribute('selectionStart')!),
+				parseInt(this._inputField.getAttribute('selectionEnd')!));
 		}, 100);
 	}
 

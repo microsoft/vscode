@@ -2,7 +2,6 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
 import { localize } from 'vs/nls';
 import { IJSONSchema } from 'vs/base/common/jsonSchema';
@@ -11,7 +10,7 @@ import * as resources from 'vs/base/common/resources';
 import { createCSSRule } from 'vs/base/browser/dom';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { SyncActionDescriptor } from 'vs/platform/actions/common/actions';
-import { ViewletDescriptor, ViewletRegistry, Extensions as ViewletExtensions, ToggleViewletAction } from 'vs/workbench/browser/viewlet';
+import { ViewletDescriptor, ViewletRegistry, Extensions as ViewletExtensions, ShowViewletAction } from 'vs/workbench/browser/viewlet';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IPartService } from 'vs/workbench/services/part/common/partService';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
@@ -30,6 +29,7 @@ import { LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IEditorGroupsService } from 'vs/workbench/services/group/common/editorGroupsService';
 import { URI } from 'vs/base/common/uri';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
 export interface IUserFriendlyViewsContainerDescriptor {
 	id: string;
@@ -161,6 +161,7 @@ class ViewsContainersExtensionHandler implements IWorkbenchContribution {
 			// Register as viewlet
 			class CustomViewlet extends ViewContainerViewlet {
 				constructor(
+					@IConfigurationService configurationService: IConfigurationService,
 					@IPartService partService: IPartService,
 					@ITelemetryService telemetryService: ITelemetryService,
 					@IWorkspaceContextService contextService: IWorkspaceContextService,
@@ -171,7 +172,7 @@ class ViewsContainersExtensionHandler implements IWorkbenchContribution {
 					@IContextMenuService contextMenuService: IContextMenuService,
 					@IExtensionService extensionService: IExtensionService
 				) {
-					super(id, `${id}.state`, true, partService, telemetryService, storageService, instantiationService, themeService, contextMenuService, extensionService, contextService);
+					super(id, `${id}.state`, true, configurationService, partService, telemetryService, storageService, instantiationService, themeService, contextMenuService, extensionService, contextService);
 				}
 			}
 			const viewletDescriptor = new ViewletDescriptor(
@@ -186,13 +187,14 @@ class ViewsContainersExtensionHandler implements IWorkbenchContribution {
 			viewletRegistry.registerViewlet(viewletDescriptor);
 
 			// Register Action to Open Viewlet
-			class OpenCustomViewletAction extends ToggleViewletAction {
+			class OpenCustomViewletAction extends ShowViewletAction {
 				constructor(
 					id: string, label: string,
 					@IViewletService viewletService: IViewletService,
-					@IEditorGroupsService editorGroupService: IEditorGroupsService
+					@IEditorGroupsService editorGroupService: IEditorGroupsService,
+					@IPartService partService: IPartService
 				) {
-					super(id, label, id, viewletService, editorGroupService);
+					super(id, label, id, viewletService, editorGroupService, partService);
 				}
 			}
 			const registry = Registry.as<IWorkbenchActionRegistry>(ActionExtensions.WorkbenchActions);

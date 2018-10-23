@@ -20,13 +20,12 @@ import { editorHoverBackground, editorHoverBorder, editorForeground } from 'vs/p
 import { KillTerminalAction, SwitchTerminalAction, SwitchTerminalActionItem, CopyTerminalSelectionAction, TerminalPasteAction, ClearTerminalAction, SelectAllTerminalAction, CreateNewTerminalAction, SplitTerminalAction } from 'vs/workbench/parts/terminal/electron-browser/terminalActions';
 import { Panel } from 'vs/workbench/browser/panel';
 import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
-import { TPromise } from 'vs/base/common/winjs.base';
 import { URI } from 'vs/base/common/uri';
-import { PANEL_BACKGROUND, PANEL_BORDER } from 'vs/workbench/common/theme';
 import { TERMINAL_BACKGROUND_COLOR, TERMINAL_BORDER_COLOR } from 'vs/workbench/parts/terminal/common/terminalColorRegistry';
 import { DataTransfers } from 'vs/base/browser/dnd';
 import { INotificationService, IPromptChoice, Severity } from 'vs/platform/notification/common/notification';
 import { TerminalConfigHelper } from 'vs/workbench/parts/terminal/electron-browser/terminalConfigHelper';
+import { IStorageService } from 'vs/platform/storage/common/storage';
 
 const FIND_FOCUS_CLASS = 'find-focused';
 
@@ -46,14 +45,15 @@ export class TerminalPanel extends Panel {
 		@IContextMenuService private readonly _contextMenuService: IContextMenuService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@ITerminalService private readonly _terminalService: ITerminalService,
-		@IThemeService protected themeService: IThemeService,
+		@IThemeService protected readonly _themeService: IThemeService,
 		@ITelemetryService telemetryService: ITelemetryService,
-		@INotificationService private readonly _notificationService: INotificationService
+		@INotificationService private readonly _notificationService: INotificationService,
+		@IStorageService storageService: IStorageService
 	) {
-		super(TERMINAL_PANEL_ID, telemetryService, themeService);
+		super(TERMINAL_PANEL_ID, telemetryService, _themeService, storageService);
 	}
 
-	public create(parent: HTMLElement): TPromise<any> {
+	public create(parent: HTMLElement): void {
 		super.create(parent);
 		this._parentDomElement = parent;
 		dom.addClass(this._parentDomElement, 'integrated-terminal');
@@ -62,7 +62,7 @@ export class TerminalPanel extends Panel {
 		this._terminalContainer = document.createElement('div');
 		dom.addClass(this._terminalContainer, 'terminal-outer-container');
 
-		this._findWidget = this._instantiationService.createInstance(TerminalFindWidget);
+		this._findWidget = this._instantiationService.createInstance(TerminalFindWidget, this._terminalService.getFindState());
 		this._findWidget.focusTracker.onDidFocus(() => this._terminalContainer.classList.add(FIND_FOCUS_CLASS));
 		this._findWidget.focusTracker.onDidBlur(() => this._terminalContainer.classList.remove(FIND_FOCUS_CLASS));
 
@@ -98,7 +98,6 @@ export class TerminalPanel extends Panel {
 
 		// Force another layout (first is setContainers) since config has changed
 		this.layout(new dom.Dimension(this._terminalContainer.offsetWidth, this._terminalContainer.offsetHeight));
-		return TPromise.as(void 0);
 	}
 
 	public layout(dimension?: dom.Dimension): void {
@@ -108,7 +107,7 @@ export class TerminalPanel extends Panel {
 		this._terminalService.terminalTabs.forEach(t => t.layout(dimension.width, dimension.height));
 	}
 
-	public setVisible(visible: boolean): TPromise<void> {
+	public setVisible(visible: boolean): Promise<void> {
 		if (visible) {
 			if (this._terminalService.terminalInstances.length > 0) {
 				this._updateFont();
@@ -123,7 +122,7 @@ export class TerminalPanel extends Panel {
 						this._updateFont();
 						this._updateTheme();
 					}
-					return TPromise.as(void 0);
+					return Promise.resolve(void 0);
 				});
 			}
 		}
@@ -184,7 +183,7 @@ export class TerminalPanel extends Panel {
 
 	public focusFindWidget() {
 		const activeInstance = this._terminalService.getActiveInstance();
-		if (activeInstance && activeInstance.hasSelection() && activeInstance.selection.indexOf('\n') === -1) {
+		if (activeInstance && activeInstance.hasSelection() && (activeInstance.selection.indexOf('\n') === -1)) {
 			this._findWidget.reveal(activeInstance.selection);
 		} else {
 			this._findWidget.reveal();
@@ -193,6 +192,19 @@ export class TerminalPanel extends Panel {
 
 	public hideFindWidget() {
 		this._findWidget.hide();
+	}
+
+	public showFindWidget() {
+		const activeInstance = this._terminalService.getActiveInstance();
+		if (activeInstance && activeInstance.hasSelection() && (activeInstance.selection.indexOf('\n') === -1)) {
+			this._findWidget.show(activeInstance.selection);
+		} else {
+			this._findWidget.show();
+		}
+	}
+
+	public getFindWidget(): TerminalFindWidget {
+		return this._findWidget;
 	}
 
 	private _attachEventListeners(): void {
@@ -247,7 +259,7 @@ export class TerminalPanel extends Panel {
 				const anchor: { x: number, y: number } = { x: standardEvent.posx, y: standardEvent.posy };
 				this._contextMenuService.showContextMenu({
 					getAnchor: () => anchor,
-					getActions: () => TPromise.as(this._getContextMenuActions()),
+					getActions: () => Promise.resolve(this._getContextMenuActions()),
 					getActionsContext: () => this._parentDomElement
 				});
 			}
@@ -275,7 +287,7 @@ export class TerminalPanel extends Panel {
 				let path: string;
 				const resources = e.dataTransfer.getData(DataTransfers.RESOURCES);
 				if (resources) {
-					path = URI.parse(JSON.parse(resources)[0]).path;
+					path = URI.parse(JSON.parse(resources)[0]).fsPath;
 				} else if (e.dataTransfer.files.length > 0) {
 					// Check if the file was dragged from the filesystem
 					path = URI.file(e.dataTransfer.files[0].path).fsPath;
@@ -310,10 +322,10 @@ export class TerminalPanel extends Panel {
 }
 
 registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
-	const backgroundColor = theme.getColor(TERMINAL_BACKGROUND_COLOR) || theme.getColor(PANEL_BACKGROUND);
+	const backgroundColor = theme.getColor(TERMINAL_BACKGROUND_COLOR);
 	collector.addRule(`.monaco-workbench .panel.integrated-terminal .terminal-outer-container { background-color: ${backgroundColor ? backgroundColor.toString() : ''}; }`);
 
-	const borderColor = theme.getColor(TERMINAL_BORDER_COLOR) || theme.getColor(PANEL_BORDER);
+	const borderColor = theme.getColor(TERMINAL_BORDER_COLOR);
 	if (borderColor) {
 		collector.addRule(`.monaco-workbench .panel.integrated-terminal .split-view-view:not(:first-child) { border-color: ${borderColor.toString()}; }`);
 	}

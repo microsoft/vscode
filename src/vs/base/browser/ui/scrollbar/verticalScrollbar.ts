@@ -2,14 +2,13 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
-import { AbstractScrollbar, ScrollbarHost, ISimplifiedMouseEvent } from 'vs/base/browser/ui/scrollbar/abstractScrollbar';
 import { StandardMouseWheelEvent } from 'vs/base/browser/mouseEvent';
+import { AbstractScrollbar, ISimplifiedMouseEvent, ScrollbarHost } from 'vs/base/browser/ui/scrollbar/abstractScrollbar';
 import { ScrollableElementResolvedOptions } from 'vs/base/browser/ui/scrollbar/scrollableElementOptions';
-import { Scrollable, ScrollEvent, ScrollbarVisibility, INewScrollPosition } from 'vs/base/common/scrollable';
-import { ScrollbarState } from 'vs/base/browser/ui/scrollbar/scrollbarState';
 import { ARROW_IMG_SIZE } from 'vs/base/browser/ui/scrollbar/scrollbarArrow';
+import { ScrollbarState } from 'vs/base/browser/ui/scrollbar/scrollbarState';
+import { INewScrollPosition, ScrollEvent, Scrollable, ScrollbarVisibility } from 'vs/base/common/scrollable';
 
 export class VerticalScrollbar extends AbstractScrollbar {
 
@@ -55,7 +54,7 @@ export class VerticalScrollbar extends AbstractScrollbar {
 			});
 		}
 
-		this._createSlider(0, Math.floor((options.verticalScrollbarSize - options.verticalSliderSize) / 2), options.verticalSliderSize, null);
+		this._createSlider(0, Math.floor((options.verticalScrollbarSize - options.verticalSliderSize) / 2), options.verticalSliderSize, undefined);
 	}
 
 	protected _updateSlider(sliderSize: number, sliderPosition: number): void {

@@ -2,21 +2,18 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
-
 
 import { ok } from 'vs/base/common/assert';
-import { readonly, illegalArgument } from 'vs/base/common/errors';
+import { illegalArgument, readonly } from 'vs/base/common/errors';
 import { IdGenerator } from 'vs/base/common/idGenerator';
-import { TPromise } from 'vs/base/common/winjs.base';
-import { ExtHostDocumentData } from 'vs/workbench/api/node/extHostDocumentData';
-import { Selection, Range, Position, EndOfLine, TextEditorRevealType, TextEditorLineNumbersStyle, SnippetString } from './extHostTypes';
-import { ISingleEditOperation } from 'vs/editor/common/model';
-import * as TypeConverters from './extHostTypeConverters';
-import { MainThreadTextEditorsShape, IResolvedTextEditorConfiguration, ITextEditorConfigurationUpdate } from './extHost.protocol';
-import * as vscode from 'vscode';
 import { TextEditorCursorStyle } from 'vs/editor/common/config/editorOptions';
 import { IRange } from 'vs/editor/common/core/range';
+import { ISingleEditOperation } from 'vs/editor/common/model';
+import { IResolvedTextEditorConfiguration, ITextEditorConfigurationUpdate, MainThreadTextEditorsShape } from 'vs/workbench/api/node/extHost.protocol';
+import { ExtHostDocumentData } from 'vs/workbench/api/node/extHostDocumentData';
+import * as TypeConverters from 'vs/workbench/api/node/extHostTypeConverters';
+import { EndOfLine, Position, Range, Selection, SnippetString, TextEditorLineNumbersStyle, TextEditorRevealType } from 'vs/workbench/api/node/extHostTypes';
+import * as vscode from 'vscode';
 
 export class TextEditorDecorationType implements vscode.TextEditorDecorationType {
 
@@ -79,7 +76,7 @@ export class TextEditorEdit {
 	}
 
 	replace(location: Position | Range | Selection, value: string): void {
-		let range: Range = null;
+		let range: Range | null = null;
 
 		if (location instanceof Position) {
 			range = new Range(location, location);
@@ -97,7 +94,7 @@ export class TextEditorEdit {
 	}
 
 	delete(location: Range | Selection): void {
-		let range: Range = null;
+		let range: Range | null = null;
 
 		if (location instanceof Range) {
 			range = location;
@@ -499,7 +496,7 @@ export class ExtHostTextEditor implements vscode.TextEditor {
 
 	edit(callback: (edit: TextEditorEdit) => void, options: { undoStopBefore: boolean; undoStopAfter: boolean; } = { undoStopBefore: true, undoStopAfter: true }): Thenable<boolean> {
 		if (this._disposed) {
-			return TPromise.wrapError<boolean>(new Error('TextEditor#edit not possible on closed editors'));
+			return Promise.reject(new Error('TextEditor#edit not possible on closed editors'));
 		}
 		let edit = new TextEditorEdit(this._documentData.document, options);
 		callback(edit);
@@ -511,7 +508,7 @@ export class ExtHostTextEditor implements vscode.TextEditor {
 
 		// return when there is nothing to do
 		if (editData.edits.length === 0 && !editData.setEndOfLine) {
-			return TPromise.wrap(true);
+			return Promise.resolve(true);
 		}
 
 		// check that the edits are not overlapping (i.e. illegal)
@@ -538,7 +535,7 @@ export class ExtHostTextEditor implements vscode.TextEditor {
 
 			if (nextRangeStart.isBefore(rangeEnd)) {
 				// overlapping ranges
-				return TPromise.wrapError<boolean>(
+				return Promise.reject(
 					new Error('Overlapping ranges are not allowed!')
 				);
 			}
@@ -562,7 +559,7 @@ export class ExtHostTextEditor implements vscode.TextEditor {
 
 	insertSnippet(snippet: SnippetString, where?: Position | Position[] | Range | Range[], options: { undoStopBefore: boolean; undoStopAfter: boolean; } = { undoStopBefore: true, undoStopAfter: true }): Thenable<boolean> {
 		if (this._disposed) {
-			return TPromise.wrapError<boolean>(new Error('TextEditor#insertSnippet not possible on closed editors'));
+			return Promise.reject(new Error('TextEditor#insertSnippet not possible on closed editors'));
 		}
 		let ranges: IRange[];
 
@@ -595,7 +592,7 @@ export class ExtHostTextEditor implements vscode.TextEditor {
 	private _runOnProxy(callback: () => Thenable<any>): Thenable<ExtHostTextEditor> {
 		if (this._disposed) {
 			console.warn('TextEditor is closed/disposed');
-			return TPromise.as(undefined);
+			return Promise.resolve(undefined);
 		}
 		return callback().then(() => this, err => {
 			if (!(err instanceof Error && err.name === 'DISPOSED')) {

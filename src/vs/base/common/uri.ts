@@ -2,7 +2,6 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
 import { isWindows } from 'vs/base/common/platform';
 import { CharCode } from 'vs/base/common/charCode';
@@ -11,12 +10,26 @@ const _schemePattern = /^\w[\w\d+.-]*$/;
 const _singleSlashStart = /^\//;
 const _doubleSlashStart = /^\/\//;
 
+let _throwOnMissingSchema: boolean = true;
+
+/**
+ * @internal
+ */
+export function setUriThrowOnMissingScheme(value: boolean): boolean {
+	const old = _throwOnMissingSchema;
+	_throwOnMissingSchema = value;
+	return old;
+}
+
 function _validateUri(ret: URI): void {
 
 	// scheme, must be set
 	if (!ret.scheme) {
-		// throw new Error(`[UriError]: Scheme is missing: {scheme: "", authority: "${ret.authority}", path: "${ret.path}", query: "${ret.query}", fragment: "${ret.fragment}"}`);
-		console.warn(`[UriError]: Scheme is missing: {scheme: "", authority: "${ret.authority}", path: "${ret.path}", query: "${ret.query}", fragment: "${ret.fragment}"}`);
+		if (_throwOnMissingSchema) {
+			throw new Error(`[UriError]: Scheme is missing: {scheme: "", authority: "${ret.authority}", path: "${ret.path}", query: "${ret.query}", fragment: "${ret.fragment}"}`);
+		} else {
+			console.warn(`[UriError]: Scheme is missing: {scheme: "", authority: "${ret.authority}", path: "${ret.path}", query: "${ret.query}", fragment: "${ret.fragment}"}`);
+		}
 	}
 
 	// scheme, https://tools.ietf.org/html/rfc3986#section-3.1
@@ -128,7 +141,7 @@ export class URI implements UriComponents {
 	/**
 	 * @internal
 	 */
-	protected constructor(scheme: string, authority: string, path: string, query: string, fragment: string);
+	protected constructor(scheme: string, authority?: string, path?: string, query?: string, fragment?: string);
 
 	/**
 	 * @internal
@@ -323,7 +336,7 @@ export class URI implements UriComponents {
 	// ---- printing/externalize ---------------------------
 
 	/**
-	 * Creates a string presentation for this URI. It's guardeed that calling
+	 * Creates a string presentation for this URI. It's guaranteed that calling
 	 * `URI.parse` with the result of this function creates an URI which is equal
 	 * to this URI.
 	 *
@@ -348,8 +361,10 @@ export class URI implements UriComponents {
 			return data;
 		} else {
 			let result = new _URI(data);
-			result._fsPath = (<UriState>data).fsPath;
-			result._formatted = (<UriState>data).external;
+			if ((<UriState>data).$mid === 100) {
+				result._fsPath = (<UriState>data).fsPath;
+				result._formatted = (<UriState>data).external;
+			}
 			return result;
 		}
 	}
@@ -364,7 +379,7 @@ export interface UriComponents {
 }
 
 interface UriState extends UriComponents {
-	$mid: number;
+	$mid: 100;
 	fsPath: string;
 	external: string;
 }
@@ -373,8 +388,8 @@ interface UriState extends UriComponents {
 // tslint:disable-next-line:class-name
 class _URI extends URI {
 
-	_formatted: string = null;
-	_fsPath: string = null;
+	_formatted: string | null = null;
+	_fsPath: string | null = null;
 
 	get fsPath(): string {
 		if (!this._fsPath) {
@@ -397,7 +412,7 @@ class _URI extends URI {
 
 	toJSON(): object {
 		const res = <UriState>{
-			$mid: 1
+			$mid: 100
 		};
 		// cached state
 		if (this._fsPath) {
@@ -451,11 +466,11 @@ const encodeTable: { [ch: number]: string } = {
 	[CharCode.Space]: '%20',
 };
 
-function encodeURIComponentFast(uriComponent: string, allowSlash: boolean): string {
-	let res: string = undefined;
+function encodeURIComponentFast(uriComponent: string, allowSlash: boolean, firstPos: number = 0): string {
+	let res: string | undefined = undefined;
 	let nativeEncodePos = -1;
 
-	for (let pos = 0; pos < uriComponent.length; pos++) {
+	for (let pos = firstPos; pos < uriComponent.length; pos++) {
 		let code = uriComponent.charCodeAt(pos);
 
 		// unreserved characters: https://tools.ietf.org/html/rfc3986#section-2.3
@@ -513,7 +528,7 @@ function encodeURIComponentFast(uriComponent: string, allowSlash: boolean): stri
 }
 
 function encodeURIComponentMinimal(path: string): string {
-	let res: string = undefined;
+	let res: string | undefined = undefined;
 	for (let pos = 0; pos < path.length; pos++) {
 		let code = path.charCodeAt(pos);
 		if (code === CharCode.Hash || code === CharCode.QuestionMark) {
@@ -605,19 +620,31 @@ function _asFormatted(uri: URI, skipEncoding: boolean): string {
 	}
 	if (path) {
 		// lower-case windows drive letters in /C:/fff or C:/fff
+		let encodeOffset = 0;
 		if (path.length >= 3 && path.charCodeAt(0) === CharCode.Slash && path.charCodeAt(2) === CharCode.Colon) {
 			let code = path.charCodeAt(1);
 			if (code >= CharCode.A && code <= CharCode.Z) {
 				path = `/${String.fromCharCode(code + 32)}:${path.substr(3)}`; // "/c:".length === 3
+				encodeOffset = 3;
+			} else if (code >= CharCode.a && code <= CharCode.z) {
+				encodeOffset = 3;
 			}
+
 		} else if (path.length >= 2 && path.charCodeAt(1) === CharCode.Colon) {
 			let code = path.charCodeAt(0);
 			if (code >= CharCode.A && code <= CharCode.Z) {
 				path = `${String.fromCharCode(code + 32)}:${path.substr(2)}`; // "/c:".length === 3
+				encodeOffset = 2;
+			} else if (code >= CharCode.a && code <= CharCode.z) {
+				encodeOffset = 2;
 			}
 		}
+		if (scheme !== 'file' || path.length > encodeOffset && path.charCodeAt(encodeOffset) !== CharCode.Slash) {
+			encodeOffset = 0;
+		}
+
 		// encode the rest of the path
-		res += encoder(path, true);
+		res += encoder(path, true, encodeOffset);
 	}
 	if (query) {
 		res += '?';

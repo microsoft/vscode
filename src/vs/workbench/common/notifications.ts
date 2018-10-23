@@ -3,13 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
-import { INotification, INotificationHandle, INotificationActions, INotificationProgress, NoOpNotification, Severity, NotificationMessage } from 'vs/platform/notification/common/notification';
+import { INotification, INotificationHandle, INotificationActions, INotificationProgress, NoOpNotification, Severity, NotificationMessage, IPromptChoice } from 'vs/platform/notification/common/notification';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
 import { Event, Emitter, once } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
-import { isPromiseCanceledError, isErrorWithActions } from 'vs/base/common/errors';
+import { isPromiseCanceledError } from 'vs/base/common/errors';
+import { Action } from 'vs/base/common/actions';
+import { isErrorWithActions } from 'vs/base/common/errorsWithActions';
 
 export interface INotificationsModel {
 
@@ -125,7 +125,7 @@ export class NotificationsModel extends Disposable implements INotificationsMode
 		}
 	}
 
-	private findNotification(item: INotificationViewItem): INotificationViewItem {
+	private findNotification(item: INotificationViewItem): INotificationViewItem | undefined {
 		for (let i = 0; i < this._notifications.length; i++) {
 			const notification = this._notifications[i];
 			if (notification.equals(item)) {
@@ -136,7 +136,7 @@ export class NotificationsModel extends Disposable implements INotificationsMode
 		return void 0;
 	}
 
-	private createViewItem(notification: INotification): INotificationViewItem {
+	private createViewItem(notification: INotification): INotificationViewItem | null {
 		const item = NotificationViewItem.create(notification);
 		if (!item) {
 			return null;
@@ -177,6 +177,7 @@ export class NotificationsModel extends Disposable implements INotificationsMode
 
 export interface INotificationViewItem {
 	readonly severity: Severity;
+	readonly sticky: boolean;
 	readonly message: INotificationMessage;
 	readonly source: string;
 	readonly actions: INotificationActions;
@@ -339,7 +340,7 @@ export class NotificationViewItem extends Disposable implements INotificationVie
 	private readonly _onDidLabelChange: Emitter<INotificationViewItemLabelChangeEvent> = this._register(new Emitter<INotificationViewItemLabelChangeEvent>());
 	get onDidLabelChange(): Event<INotificationViewItemLabelChangeEvent> { return this._onDidLabelChange.event; }
 
-	static create(notification: INotification): INotificationViewItem {
+	static create(notification: INotification): INotificationViewItem | null {
 		if (!notification || !notification.message || isPromiseCanceledError(notification.message)) {
 			return null; // we need a message to show
 		}
@@ -363,7 +364,7 @@ export class NotificationViewItem extends Disposable implements INotificationVie
 			actions = { primary: notification.message.actions };
 		}
 
-		return new NotificationViewItem(severity, message, notification.source, actions);
+		return new NotificationViewItem(severity, notification.sticky, message, notification.source, actions);
 	}
 
 	private static parseNotificationMessage(input: NotificationMessage): INotificationMessage {
@@ -397,11 +398,10 @@ export class NotificationViewItem extends Disposable implements INotificationVie
 			return matchString;
 		});
 
-
 		return { raw, value: message, links, original: input };
 	}
 
-	private constructor(private _severity: Severity, private _message: INotificationMessage, private _source: string, actions?: INotificationActions) {
+	private constructor(private _severity: Severity, private _sticky: boolean, private _message: INotificationMessage, private _source: string, actions?: INotificationActions) {
 		super();
 
 		this.setActions(actions);
@@ -434,6 +434,23 @@ export class NotificationViewItem extends Disposable implements INotificationVie
 
 	get severity(): Severity {
 		return this._severity;
+	}
+
+	get sticky(): boolean {
+		if (this._sticky) {
+			return true; // explicitly sticky
+		}
+
+		const hasPrimaryActions = Array.isArray(this._actions.primary) && this._actions.primary.length > 0;
+		if (
+			(hasPrimaryActions && this._severity === Severity.Error) || // notification errors with actions are sticky
+			(!hasPrimaryActions && this._expanded) ||					// notifications that got expanded are sticky
+			(this._progress && !this._progress.state.done)				// notifications with running progress are sticky
+		) {
+			return true;
+		}
+
+		return false; // not sticky
 	}
 
 	hasProgress(): boolean {
@@ -543,5 +560,38 @@ export class NotificationViewItem extends Disposable implements INotificationVie
 		}
 
 		return true;
+	}
+}
+
+export class ChoiceAction extends Action {
+
+	private _onDidRun = new Emitter<void>();
+	get onDidRun(): Event<void> { return this._onDidRun.event; }
+
+	private _keepOpen: boolean;
+
+	constructor(id: string, choice: IPromptChoice) {
+		super(id, choice.label, null, true, () => {
+
+			// Pass to runner
+			choice.run();
+
+			// Emit Event
+			this._onDidRun.fire();
+
+			return Promise.resolve(void 0);
+		});
+
+		this._keepOpen = choice.keepOpen;
+	}
+
+	get keepOpen(): boolean {
+		return this._keepOpen;
+	}
+
+	dispose(): void {
+		super.dispose();
+
+		this._onDidRun.dispose();
 	}
 }

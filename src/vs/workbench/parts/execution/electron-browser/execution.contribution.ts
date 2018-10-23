@@ -2,7 +2,6 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
 import * as nls from 'vs/nls';
 import * as env from 'vs/base/common/platform';
@@ -133,7 +132,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
 	command: {
 		id: OPEN_NATIVE_CONSOLE_COMMAND_ID,
-		title: nls.localize('globalConsoleAction', "Open New Terminal")
+		title: { value: nls.localize('globalConsoleAction', "Open New Terminal"), original: 'Open New Terminal' }
 	}
 });
 

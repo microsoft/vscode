@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import * as assert from 'assert';
 import { IPager, PagedModel } from 'vs/base/common/paging';
 import { TPromise } from 'vs/base/common/winjs.base';
@@ -51,39 +49,17 @@ suite('PagedModel', () => {
 		assert(!model.isResolved(99));
 	});
 
-	test('resolve single', () => {
+	test('resolve single', async () => {
 		const pager = new TestPager();
 		const model = new PagedModel(pager);
 
 		assert(!model.isResolved(5));
 
-		return model.resolve(5, CancellationToken.None).then(() => {
-			assert(model.isResolved(5));
-		});
+		await model.resolve(5, CancellationToken.None);
+		assert(model.isResolved(5));
 	});
 
-	test('resolve page', () => {
-		const pager = new TestPager();
-		const model = new PagedModel(pager);
-
-		assert(!model.isResolved(5));
-		assert(!model.isResolved(6));
-		assert(!model.isResolved(7));
-		assert(!model.isResolved(8));
-		assert(!model.isResolved(9));
-		assert(!model.isResolved(10));
-
-		return model.resolve(5, CancellationToken.None).then(() => {
-			assert(model.isResolved(5));
-			assert(model.isResolved(6));
-			assert(model.isResolved(7));
-			assert(model.isResolved(8));
-			assert(model.isResolved(9));
-			assert(!model.isResolved(10));
-		});
-	});
-
-	test('resolve page 2', () => {
+	test('resolve page', async () => {
 		const pager = new TestPager();
 		const model = new PagedModel(pager);
 
@@ -94,17 +70,36 @@ suite('PagedModel', () => {
 		assert(!model.isResolved(9));
 		assert(!model.isResolved(10));
 
-		return model.resolve(10, CancellationToken.None).then(() => {
-			assert(!model.isResolved(5));
-			assert(!model.isResolved(6));
-			assert(!model.isResolved(7));
-			assert(!model.isResolved(8));
-			assert(!model.isResolved(9));
-			assert(model.isResolved(10));
-		});
+		await model.resolve(5, CancellationToken.None);
+		assert(model.isResolved(5));
+		assert(model.isResolved(6));
+		assert(model.isResolved(7));
+		assert(model.isResolved(8));
+		assert(model.isResolved(9));
+		assert(!model.isResolved(10));
 	});
 
-	test('preemptive cancellation works', function () {
+	test('resolve page 2', async () => {
+		const pager = new TestPager();
+		const model = new PagedModel(pager);
+
+		assert(!model.isResolved(5));
+		assert(!model.isResolved(6));
+		assert(!model.isResolved(7));
+		assert(!model.isResolved(8));
+		assert(!model.isResolved(9));
+		assert(!model.isResolved(10));
+
+		await model.resolve(10, CancellationToken.None);
+		assert(!model.isResolved(5));
+		assert(!model.isResolved(6));
+		assert(!model.isResolved(7));
+		assert(!model.isResolved(8));
+		assert(!model.isResolved(9));
+		assert(model.isResolved(10));
+	});
+
+	test('preemptive cancellation works', async function () {
 		const pager = new TestPager(() => {
 			assert(false);
 			return TPromise.wrap([]);
@@ -112,10 +107,13 @@ suite('PagedModel', () => {
 
 		const model = new PagedModel(pager);
 
-		return model.resolve(5, CancellationToken.Cancelled).then(
-			() => assert(false),
-			err => assert(isPromiseCanceledError(err))
-		);
+		try {
+			await model.resolve(5, CancellationToken.Cancelled);
+			return assert(false);
+		}
+		catch (err) {
+			return assert(isPromiseCanceledError(err));
+		}
 	});
 
 	test('cancellation works', function () {

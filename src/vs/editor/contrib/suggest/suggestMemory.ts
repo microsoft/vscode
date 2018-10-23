@@ -2,14 +2,15 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
 import { ICompletionItem } from 'vs/editor/contrib/suggest/completionModel';
 import { LRUCache, TernarySearchTree } from 'vs/base/common/map';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { ITextModel } from 'vs/editor/common/model';
 import { IPosition } from 'vs/editor/common/core/position';
-import { RunOnceScheduler } from 'vs/base/common/async';
+import { CompletionItemKind, completionKindFromLegacyString } from 'vs/editor/common/modes';
+import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
+import { Disposable } from 'vs/base/common/lifecycle';
 
 export abstract class Memory {
 
@@ -55,7 +56,7 @@ export class NoMemory extends Memory {
 }
 
 export interface MemItem {
-	type: string;
+	type: string | CompletionItemKind;
 	insertText: string;
 	touch: number;
 }
@@ -70,7 +71,7 @@ export class LRUMemory extends Memory {
 		const key = `${model.getLanguageIdentifier().language}/${label}`;
 		this._cache.set(key, {
 			touch: this._seq++,
-			type: item.suggestion.type,
+			type: item.suggestion.kind,
 			insertText: item.suggestion.insertText
 		});
 	}
@@ -94,7 +95,7 @@ export class LRUMemory extends Memory {
 			const { suggestion } = items[i];
 			const key = `${model.getLanguageIdentifier().language}/${suggestion.label}`;
 			const item = this._cache.get(key);
-			if (item && item.touch > seq && item.type === suggestion.type && item.insertText === suggestion.insertText) {
+			if (item && item.touch > seq && item.type === suggestion.kind && item.insertText === suggestion.insertText) {
 				seq = item.touch;
 				res = i;
 			}
@@ -119,6 +120,7 @@ export class LRUMemory extends Memory {
 		let seq = 0;
 		for (const [key, value] of data) {
 			value.touch = seq;
+			value.type = typeof value.type === 'number' ? value.type : completionKindFromLegacyString(value.type);
 			this._cache.set(key, value);
 		}
 		this._seq = this._cache.size;
@@ -135,7 +137,7 @@ export class PrefixMemory extends Memory {
 		const { word } = model.getWordUntilPosition(pos);
 		const key = `${model.getLanguageIdentifier().language}/${word}`;
 		this._trie.set(key, {
-			type: item.suggestion.type,
+			type: item.suggestion.kind,
 			insertText: item.suggestion.insertText,
 			touch: this._seq++
 		});
@@ -153,8 +155,8 @@ export class PrefixMemory extends Memory {
 		}
 		if (item) {
 			for (let i = 0; i < items.length; i++) {
-				let { type, insertText } = items[i].suggestion;
-				if (type === item.type && insertText === item.insertText) {
+				let { kind, insertText } = items[i].suggestion;
+				if (kind === item.type && insertText === item.insertText) {
 					return i;
 				}
 			}
@@ -182,6 +184,7 @@ export class PrefixMemory extends Memory {
 		if (data.length > 0) {
 			this._seq = data[0][1].touch + 1;
 			for (const [key, value] of data) {
+				value.type = typeof value.type === 'number' ? value.type : completionKindFromLegacyString(value.type);
 				this._trie.set(key, value);
 			}
 		}
@@ -190,23 +193,25 @@ export class PrefixMemory extends Memory {
 
 export type MemMode = 'first' | 'recentlyUsed' | 'recentlyUsedByPrefix';
 
-export class SuggestMemories {
+export class SuggestMemories extends Disposable {
 
 	private readonly _storagePrefix = 'suggest/memories';
 
 	private _mode: MemMode;
 	private _strategy: Memory;
-	private _persistSoon: RunOnceScheduler;
 
 	constructor(
-		mode: MemMode,
-		@IStorageService private readonly _storageService: IStorageService
+		editor: ICodeEditor,
+		@IStorageService private readonly _storageService: IStorageService,
 	) {
-		this._persistSoon = new RunOnceScheduler(() => this._flush(), 3000);
-		this.setMode(mode);
+		super();
+
+		this._setMode(editor.getConfiguration().contribInfo.suggestSelection);
+		this._register(editor.onDidChangeConfiguration(e => e.contribInfo && this._setMode(editor.getConfiguration().contribInfo.suggestSelection)));
+		this._register(_storageService.onWillSaveState(() => this._saveState()));
 	}
 
-	setMode(mode: MemMode): void {
+	private _setMode(mode: MemMode): void {
 		if (this._mode === mode) {
 			return;
 		}
@@ -225,14 +230,13 @@ export class SuggestMemories {
 
 	memorize(model: ITextModel, pos: IPosition, item: ICompletionItem): void {
 		this._strategy.memorize(model, pos, item);
-		this._persistSoon.schedule();
 	}
 
 	select(model: ITextModel, pos: IPosition, items: ICompletionItem[]): number {
 		return this._strategy.select(model, pos, items);
 	}
 
-	private _flush() {
+	private _saveState() {
 		const raw = JSON.stringify(this._strategy);
 		this._storageService.store(`${this._storagePrefix}/${this._mode}`, raw, StorageScope.WORKSPACE);
 	}

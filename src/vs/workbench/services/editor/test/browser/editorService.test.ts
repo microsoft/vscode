@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import * as assert from 'assert';
 import { TPromise } from 'vs/base/common/winjs.base';
 import * as paths from 'vs/base/common/paths';
@@ -12,7 +10,7 @@ import { IEditorModel } from 'vs/platform/editor/common/editor';
 import { URI } from 'vs/base/common/uri';
 import { BaseEditor } from 'vs/workbench/browser/parts/editor/baseEditor';
 import { EditorInput, EditorOptions, IFileEditorInput, IEditorInput } from 'vs/workbench/common/editor';
-import { workbenchInstantiationService } from 'vs/workbench/test/workbenchTestServices';
+import { workbenchInstantiationService, TestStorageService } from 'vs/workbench/test/workbenchTestServices';
 import { ResourceEditorInput } from 'vs/workbench/common/editor/resourceEditorInput';
 import { TestThemeService } from 'vs/platform/theme/test/common/testThemeService';
 import { EditorService, DelegatingEditorService } from 'vs/workbench/services/editor/browser/editorService';
@@ -32,7 +30,7 @@ import { EditorServiceImpl } from 'vs/workbench/browser/parts/editor/editor';
 
 export class TestEditorControl extends BaseEditor {
 
-	constructor(@ITelemetryService telemetryService: ITelemetryService) { super('MyTestEditorForEditorService', NullTelemetryService, new TestThemeService()); }
+	constructor(@ITelemetryService telemetryService: ITelemetryService) { super('MyTestEditorForEditorService', NullTelemetryService, new TestThemeService(), new TestStorageService()); }
 
 	getId(): string { return 'MyTestEditorForEditorService'; }
 	layout(): void { }
@@ -104,6 +102,7 @@ suite('Editor service', () => {
 			assert.ok(!service.activeTextEditorWidget);
 			assert.equal(service.visibleTextEditorWidgets.length, 0);
 			assert.equal(service.isOpen(input), true);
+			assert.equal(service.getOpened({ resource: input.getResource() }), input);
 			assert.equal(service.isOpen(input, part.activeGroup), true);
 			assert.equal(activeEditorChangeEventCounter, 1);
 			assert.equal(visibleEditorChangeEventCounter, 1);
@@ -244,7 +243,7 @@ suite('Editor service', () => {
 		class MyEditor extends BaseEditor {
 
 			constructor(id: string) {
-				super(id, null, new TestThemeService());
+				super(id, null, new TestThemeService(), new TestStorageService());
 			}
 
 			getId(): string {

@@ -2,12 +2,10 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
 import * as vscode from 'vscode';
 import { URI } from 'vs/base/common/uri';
 import { MainContext, IMainContext, ExtHostDecorationsShape, MainThreadDecorationsShape, DecorationData, DecorationRequest, DecorationReply } from 'vs/workbench/api/node/extHost.protocol';
-import { TPromise } from 'vs/base/common/winjs.base';
 import { Disposable } from 'vs/workbench/api/node/extHostTypes';
 import { CancellationToken } from 'vs/base/common/cancellation';
 
@@ -45,7 +43,7 @@ export class ExtHostDecorations implements ExtHostDecorationsShape {
 
 	$provideDecorations(requests: DecorationRequest[], token: CancellationToken): Thenable<DecorationReply> {
 		const result: DecorationReply = Object.create(null);
-		return TPromise.join(requests.map(request => {
+		return Promise.all(requests.map(request => {
 			const { handle, uri, id } = request;
 			if (!this._provider.has(handle)) {
 				// might have been unregistered in the meantime

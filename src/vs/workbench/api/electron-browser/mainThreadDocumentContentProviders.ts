@@ -2,7 +2,6 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { IDisposable } from 'vs/base/common/lifecycle';
@@ -47,7 +46,7 @@ export class MainThreadDocumentContentProviders implements MainThreadDocumentCon
 				return this._proxy.$provideTextDocumentContent(handle, uri).then(value => {
 					if (typeof value === 'string') {
 						const firstLineText = value.substr(0, 1 + value.search(/\r?\n/));
-						const mode = this._modeService.getOrCreateModeByFilenameOrFirstLine(uri.fsPath, firstLineText);
+						const mode = this._modeService.getOrCreateModeByFilepathOrFirstLine(uri.fsPath, firstLineText);
 						return this._modelService.createModel(value, mode, uri);
 					}
 					return undefined;

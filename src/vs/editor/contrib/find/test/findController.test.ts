@@ -2,29 +2,31 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
 import * as assert from 'assert';
-import { TPromise } from 'vs/base/common/winjs.base';
+import { Delayer } from 'vs/base/common/async';
+import { Event } from 'vs/base/common/event';
+import * as platform from 'vs/base/common/platform';
+import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { EditOperation } from 'vs/editor/common/core/editOperation';
 import { Position } from 'vs/editor/common/core/position';
-import { Selection } from 'vs/editor/common/core/selection';
 import { Range } from 'vs/editor/common/core/range';
-import * as platform from 'vs/base/common/platform';
-import { CommonFindController, FindStartFocusAction, IFindStartOptions, NextMatchFindAction, StartFindAction, NextSelectionMatchFindAction } from 'vs/editor/contrib/find/findController';
+import { Selection } from 'vs/editor/common/core/selection';
+import { CommonFindController, FindStartFocusAction, IFindStartOptions, NextMatchFindAction, NextSelectionMatchFindAction, StartFindAction, StartFindReplaceAction } from 'vs/editor/contrib/find/findController';
+import { CONTEXT_FIND_INPUT_FOCUSED } from 'vs/editor/contrib/find/findModel';
 import { withTestCodeEditor } from 'vs/editor/test/browser/testCodeEditor';
-import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
-import { IStorageService } from 'vs/platform/storage/common/storage';
+import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
-import { Delayer } from 'vs/base/common/async';
-import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
+import { IStorageService } from 'vs/platform/storage/common/storage';
 
 export class TestFindController extends CommonFindController {
 
 	public hasFocus: boolean;
 	public delayUpdateHistory: boolean = false;
-	public delayedUpdateHistoryPromise: TPromise<void>;
+	public delayedUpdateHistoryPromise: Promise<void>;
+
+	private _findInputFocused: IContextKey<boolean>;
 
 	constructor(
 		editor: ICodeEditor,
@@ -33,6 +35,7 @@ export class TestFindController extends CommonFindController {
 		@IClipboardService clipboardService: IClipboardService
 	) {
 		super(editor, contextKeyService, storageService, clipboardService);
+		this._findInputFocused = CONTEXT_FIND_INPUT_FOCUSED.bindTo(contextKeyService);
 		this._updateHistoryDelayer = new Delayer<void>(50);
 	}
 
@@ -42,6 +45,9 @@ export class TestFindController extends CommonFindController {
 		if (opts.shouldFocus !== FindStartFocusAction.NoFocusChange) {
 			this.hasFocus = true;
 		}
+
+		let inputFocused = opts.shouldFocus === FindStartFocusAction.FocusFindInput;
+		this._findInputFocused.set(inputFocused);
 	}
 }
 
@@ -54,9 +60,14 @@ suite('FindController', () => {
 	let clipboardState = '';
 	let serviceCollection = new ServiceCollection();
 	serviceCollection.set(IStorageService, {
+		_serviceBrand: undefined,
+		onDidChangeStorage: Event.None,
+		onWillSaveState: Event.None,
 		get: (key: string) => queryState[key],
 		getBoolean: (key: string) => !!queryState[key],
-		store: (key: string, value: any) => { queryState[key] = value; }
+		getInteger: (key: string) => undefined,
+		store: (key: string, value: any) => { queryState[key] = value; return Promise.resolve(); },
+		remove: (key) => void 0
 	} as IStorageService);
 
 	if (platform.isMacintosh) {
@@ -248,6 +259,34 @@ suite('FindController', () => {
 		});
 	});
 
+	test('issue #41027: Don\'t replace find input value on replace action if find input is active', () => {
+		withTestCodeEditor([
+			'test',
+		], { serviceCollection: serviceCollection }, (editor, cursor) => {
+			let testRegexString = 'tes.';
+			let findController = editor.registerAndInstantiateContribution<TestFindController>(TestFindController);
+			let nextMatchFindAction = new NextMatchFindAction();
+			let startFindReplaceAction = new StartFindReplaceAction();
+
+			findController.toggleRegex();
+			findController.setSearchString(testRegexString);
+			findController.start({
+				forceRevealReplace: false,
+				seedSearchStringFromSelection: false,
+				seedSearchStringFromGlobalClipboard: false,
+				shouldFocus: FindStartFocusAction.FocusFindInput,
+				shouldAnimate: false,
+				updateSearchScope: false
+			});
+			nextMatchFindAction.run(null, editor);
+			startFindReplaceAction.run(null, editor);
+
+			assert.equal(findController.getState().searchString, testRegexString);
+
+			findController.dispose();
+		});
+	});
+
 	test('issue #9043: Clear search scope when find widget is hidden', () => {
 		withTestCodeEditor([
 			'var x = (3 * 5)',
@@ -261,7 +300,8 @@ suite('FindController', () => {
 				seedSearchStringFromSelection: false,
 				seedSearchStringFromGlobalClipboard: false,
 				shouldFocus: FindStartFocusAction.NoFocusChange,
-				shouldAnimate: false
+				shouldAnimate: false,
+				updateSearchScope: false
 			});
 
 			assert.equal(findController.getState().searchScope, null);
@@ -395,9 +435,14 @@ suite('FindController query options persistence', () => {
 	queryState['editor.wholeWord'] = false;
 	let serviceCollection = new ServiceCollection();
 	serviceCollection.set(IStorageService, {
+		_serviceBrand: undefined,
+		onDidChangeStorage: Event.None,
+		onWillSaveState: Event.None,
 		get: (key: string) => queryState[key],
 		getBoolean: (key: string) => !!queryState[key],
-		store: (key: string, value: any) => { queryState[key] = value; }
+		getInteger: (key: string) => undefined,
+		store: (key: string, value: any) => { queryState[key] = value; return Promise.resolve(); },
+		remove: (key) => void 0
 	} as IStorageService);
 
 	test('matchCase', () => {
@@ -466,6 +511,75 @@ suite('FindController query options persistence', () => {
 			assert.equal(queryState['editor.isRegex'], true);
 
 			findController.dispose();
+		});
+	});
+
+	test('issue #27083: Update search scope once find widget becomes visible', () => {
+		withTestCodeEditor([
+			'var x = (3 * 5)',
+			'var y = (3 * 5)',
+			'var z = (3 * 5)',
+		], { serviceCollection: serviceCollection, find: { autoFindInSelection: true, globalFindClipboard: false } }, (editor, cursor) => {
+			// clipboardState = '';
+			editor.setSelection(new Range(1, 1, 2, 1));
+			let findController = editor.registerAndInstantiateContribution<TestFindController>(TestFindController);
+
+			findController.start({
+				forceRevealReplace: false,
+				seedSearchStringFromSelection: false,
+				seedSearchStringFromGlobalClipboard: false,
+				shouldFocus: FindStartFocusAction.NoFocusChange,
+				shouldAnimate: false,
+				updateSearchScope: true
+			});
+
+			assert.deepEqual(findController.getState().searchScope, new Selection(1, 1, 2, 1));
+		});
+	});
+
+	test('issue #58604: Do not update searchScope if it is empty', () => {
+		withTestCodeEditor([
+			'var x = (3 * 5)',
+			'var y = (3 * 5)',
+			'var z = (3 * 5)',
+		], { serviceCollection: serviceCollection, find: { autoFindInSelection: true, globalFindClipboard: false } }, (editor, cursor) => {
+			// clipboardState = '';
+			editor.setSelection(new Range(1, 2, 1, 2));
+			let findController = editor.registerAndInstantiateContribution<TestFindController>(TestFindController);
+
+			findController.start({
+				forceRevealReplace: false,
+				seedSearchStringFromSelection: false,
+				seedSearchStringFromGlobalClipboard: false,
+				shouldFocus: FindStartFocusAction.NoFocusChange,
+				shouldAnimate: false,
+				updateSearchScope: true
+			});
+
+			assert.deepEqual(findController.getState().searchScope, null);
+		});
+	});
+
+	test('issue #58604: Update searchScope if it is not empty', () => {
+		withTestCodeEditor([
+			'var x = (3 * 5)',
+			'var y = (3 * 5)',
+			'var z = (3 * 5)',
+		], { serviceCollection: serviceCollection, find: { autoFindInSelection: true, globalFindClipboard: false } }, (editor, cursor) => {
+			// clipboardState = '';
+			editor.setSelection(new Range(1, 2, 1, 3));
+			let findController = editor.registerAndInstantiateContribution<TestFindController>(TestFindController);
+
+			findController.start({
+				forceRevealReplace: false,
+				seedSearchStringFromSelection: false,
+				seedSearchStringFromGlobalClipboard: false,
+				shouldFocus: FindStartFocusAction.NoFocusChange,
+				shouldAnimate: false,
+				updateSearchScope: true
+			});
+
+			assert.deepEqual(findController.getState().searchScope, new Selection(1, 2, 1, 3));
 		});
 	});
 });

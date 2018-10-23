@@ -9,7 +9,7 @@ import * as dom from 'vs/base/browser/dom';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { TreeViewsViewletPanel, IViewletViewOptions } from 'vs/workbench/browser/parts/views/viewsViewlet';
 import { IDebugService, State, IStackFrame, IDebugSession, IThread, CONTEXT_CALLSTACK_ITEM_TYPE } from 'vs/workbench/parts/debug/common/debug';
-import { Thread, StackFrame, ThreadAndSessionIds, Model } from 'vs/workbench/parts/debug/common/debugModel';
+import { Thread, StackFrame, ThreadAndSessionIds, DebugModel } from 'vs/workbench/parts/debug/common/debugModel';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { MenuId } from 'vs/platform/actions/common/actions';
@@ -19,7 +19,6 @@ import { ITree, IActionProvider, IDataSource, IRenderer, IAccessibilityProvider 
 import { IAction, IActionItem } from 'vs/base/common/actions';
 import { RestartAction, StopAction, ContinueAction, StepOverAction, StepIntoAction, StepOutAction, PauseAction, RestartFrameAction, TerminateThreadAction } from 'vs/workbench/parts/debug/browser/debugActions';
 import { CopyStackTraceAction } from 'vs/workbench/parts/debug/electron-browser/electronDebugActions';
-import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { TreeResourceNavigator, WorkbenchTree } from 'vs/platform/list/browser/listService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -33,11 +32,9 @@ const $ = dom.$;
 
 export class CallStackView extends TreeViewsViewletPanel {
 
-	private static readonly MEMENTO = 'callstackview.memento';
 	private pauseMessage: HTMLSpanElement;
 	private pauseMessageLabel: HTMLSpanElement;
 	private onCallStackChangeScheduler: RunOnceScheduler;
-	private settings: any;
 	private needsRefresh: boolean;
 	private ignoreSelectionChangedEvent: boolean;
 	private treeContainer: HTMLElement;
@@ -54,7 +51,6 @@ export class CallStackView extends TreeViewsViewletPanel {
 		@IContextKeyService contextKeyService: IContextKeyService
 	) {
 		super({ ...(options as IViewletPanelOptions), ariaHeaderLabel: nls.localize('callstackSection', "Call Stack Section") }, keybindingService, contextMenuService, configurationService);
-		this.settings = options.viewletSettings;
 		this.callStackItemType = CONTEXT_CALLSTACK_ITEM_TYPE.bindTo(contextKeyService);
 
 		// Create scheduler to prevent unnecessary flashing of tree when reacting to changes
@@ -186,7 +182,7 @@ export class CallStackView extends TreeViewsViewletPanel {
 	private updateTreeSelection(): TPromise<void> {
 		if (!this.tree.getInput()) {
 			// Tree not initialized yet
-			return TPromise.as(null);
+			return Promise.resolve(null);
 		}
 
 		const stackFrame = this.debugService.getViewModel().focusedStackFrame;
@@ -204,7 +200,7 @@ export class CallStackView extends TreeViewsViewletPanel {
 		if (!thread) {
 			if (!session) {
 				this.tree.clearSelection();
-				return TPromise.as(null);
+				return Promise.resolve(null);
 			}
 
 			updateSelection(session);
@@ -213,7 +209,7 @@ export class CallStackView extends TreeViewsViewletPanel {
 
 		return this.tree.expandAll([thread.session, thread]).then(() => {
 			if (!stackFrame) {
-				return TPromise.as(null);
+				return Promise.resolve(null);
 			}
 
 			updateSelection(stackFrame);
@@ -227,11 +223,6 @@ export class CallStackView extends TreeViewsViewletPanel {
 				this.onCallStackChangeScheduler.schedule();
 			}
 		});
-	}
-
-	public shutdown(): void {
-		this.settings[CallStackView.MEMENTO] = !this.isExpanded();
-		super.shutdown();
 	}
 }
 
@@ -262,7 +253,7 @@ class CallStackActionProvider implements IActionProvider {
 	}
 
 	public getActions(tree: ITree, element: any): TPromise<IAction[]> {
-		return TPromise.as([]);
+		return Promise.resolve([]);
 	}
 
 	public hasSecondaryActions(tree: ITree, element: any): boolean {
@@ -294,7 +285,7 @@ class CallStackActionProvider implements IActionProvider {
 			actions.push(new CopyStackTraceAction(CopyStackTraceAction.ID, CopyStackTraceAction.LABEL));
 		}
 
-		return TPromise.as(actions);
+		return Promise.resolve(actions);
 	}
 
 	public getActionItem(tree: ITree, element: any, action: IAction): IActionItem {
@@ -313,24 +304,24 @@ class CallStackDataSource implements IDataSource {
 	}
 
 	public hasChildren(tree: ITree, element: any): boolean {
-		return element instanceof Model || element instanceof DebugSession || (element instanceof Thread && (<Thread>element).stopped);
+		return element instanceof DebugModel || element instanceof DebugSession || (element instanceof Thread && (<Thread>element).stopped);
 	}
 
 	public getChildren(tree: ITree, element: any): TPromise<any> {
 		if (element instanceof Thread) {
 			return this.getThreadChildren(element);
 		}
-		if (element instanceof Model) {
-			return TPromise.as(element.getSessions());
+		if (element instanceof DebugModel) {
+			return Promise.resolve(element.getSessions());
 		}
 
 		const session = <IDebugSession>element;
-		return TPromise.as(session.getAllThreads());
+		return Promise.resolve(session.getAllThreads());
 	}
 
 	private getThreadChildren(thread: Thread): TPromise<any> {
 		let callStack: any[] = thread.getCallStack();
-		let callStackPromise: TPromise<any> = TPromise.as(null);
+		let callStackPromise: TPromise<any> = Promise.resolve(null);
 		if (!callStack || !callStack.length) {
 			callStackPromise = thread.fetchCallStack().then(() => callStack = thread.getCallStack());
 		}
@@ -354,7 +345,7 @@ class CallStackDataSource implements IDataSource {
 	}
 
 	public getParent(tree: ITree, element: any): TPromise<any> {
-		return TPromise.as(null);
+		return Promise.resolve(null);
 	}
 }
 
@@ -397,7 +388,6 @@ class CallStackRenderer implements IRenderer {
 	private static readonly SESSION_TEMPLATE_ID = 'session';
 
 	constructor(
-		@IWorkspaceContextService private contextService: IWorkspaceContextService,
 		@ILabelService private labelService: ILabelService
 	) {
 		// noop
@@ -484,7 +474,7 @@ class CallStackRenderer implements IRenderer {
 
 	private renderSession(session: IDebugSession, data: ISessionTemplateData): void {
 		data.session.title = nls.localize({ key: 'session', comment: ['Session is a noun'] }, "Session");
-		data.name.textContent = session.getName(this.contextService.getWorkbenchState() === WorkbenchState.WORKSPACE);
+		data.name.textContent = session.getLabel();
 		const stoppedThread = session.getAllThreads().filter(t => t.stopped).pop();
 
 		data.stateLabel.textContent = stoppedThread ? nls.localize('paused', "Paused")
@@ -517,7 +507,7 @@ class CallStackRenderer implements IRenderer {
 		dom.toggleClass(data.stackFrame, 'label', stackFrame.presentationHint === 'label');
 		dom.toggleClass(data.stackFrame, 'subtle', stackFrame.presentationHint === 'subtle');
 
-		data.file.title = stackFrame.source.inMemory ? stackFrame.source.name : this.labelService.getUriLabel(stackFrame.source.uri);
+		data.file.title = stackFrame.source.inMemory ? stackFrame.source.uri.path : this.labelService.getUriLabel(stackFrame.source.uri);
 		if (stackFrame.source.raw.origin) {
 			data.file.title += `\n${stackFrame.source.raw.origin}`;
 		}

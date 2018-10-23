@@ -8,9 +8,10 @@ import * as nls from 'vs/nls';
 import * as platform from 'vs/base/common/platform';
 import * as dom from 'vs/base/browser/dom';
 import * as paths from 'vs/base/common/paths';
+import * as os from 'os';
 import { Event, Emitter } from 'vs/base/common/event';
 import { WindowsShellHelper } from 'vs/workbench/parts/terminal/node/windowsShellHelper';
-import { Terminal as XTermTerminal } from 'vscode-xterm';
+import { Terminal as XTermTerminal, ISearchOptions } from 'vscode-xterm';
 import { IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
@@ -23,7 +24,6 @@ import { TerminalLinkHandler } from 'vs/workbench/parts/terminal/electron-browse
 import { TerminalWidgetManager } from 'vs/workbench/parts/terminal/browser/terminalWidgetManager';
 import { registerThemingParticipant, ITheme, ICssStyleCollector, IThemeService } from 'vs/platform/theme/common/themeService';
 import { scrollbarSliderBackground, scrollbarSliderHoverBackground, scrollbarSliderActiveBackground, activeContrastBorder } from 'vs/platform/theme/common/colorRegistry';
-import { TPromise } from 'vs/base/common/winjs.base';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 import { ansiColorIdentifiers, TERMINAL_BACKGROUND_COLOR, TERMINAL_FOREGROUND_COLOR, TERMINAL_CURSOR_FOREGROUND_COLOR, TERMINAL_CURSOR_BACKGROUND_COLOR, TERMINAL_SELECTION_BACKGROUND_COLOR } from 'vs/workbench/parts/terminal/common/terminalColorRegistry';
 import { PANEL_BACKGROUND } from 'vs/workbench/common/theme';
@@ -34,6 +34,7 @@ import { ILogService } from 'vs/platform/log/common/log';
 import { TerminalCommandTracker } from 'vs/workbench/parts/terminal/node/terminalCommandTracker';
 import { TerminalProcessManager } from './terminalProcessManager';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
+import { execFile, exec } from 'child_process';
 
 // How long in milliseconds should an average frame take to render for a notification to appear
 // which suggests the fallback DOM-based renderer
@@ -66,6 +67,8 @@ export class TerminalInstance implements ITerminalInstance {
 	private _dimensionsOverride: ITerminalDimensions;
 	private _windowsShellHelper: WindowsShellHelper;
 	private _xtermReadyPromise: Promise<void>;
+	private _titleReadyPromise: Promise<string>;
+	private _titleReadyComplete: (title: string) => any;
 
 	private _disposables: lifecycle.IDisposable[];
 	private _messageTitleDisposable: lifecycle.IDisposable;
@@ -82,7 +85,7 @@ export class TerminalInstance implements ITerminalInstance {
 	public get processId(): number | undefined { return this._processManager ? this._processManager.shellProcessId : undefined; }
 	// TODO: How does this work with detached processes?
 	// TODO: Should this be an event as it can fire twice?
-	public get processReady(): TPromise<void> { return this._processManager ? this._processManager.ptyProcessReady : TPromise.as(void 0); }
+	public get processReady(): Promise<void> { return this._processManager ? this._processManager.ptyProcessReady : Promise.resolve(void 0); }
 	public get title(): string { return this._title; }
 	public get hadFocusOnExit(): boolean { return this._hadFocusOnExit; }
 	public get isTitleSetByProcess(): boolean { return !!this._messageTitleDisposable; }
@@ -97,8 +100,8 @@ export class TerminalInstance implements ITerminalInstance {
 	public get onFocused(): Event<ITerminalInstance> { return this._onFocused.event; }
 	private readonly _onProcessIdReady: Emitter<ITerminalInstance> = new Emitter<ITerminalInstance>();
 	public get onProcessIdReady(): Event<ITerminalInstance> { return this._onProcessIdReady.event; }
-	private readonly _onTitleChanged: Emitter<string> = new Emitter<string>();
-	public get onTitleChanged(): Event<string> { return this._onTitleChanged.event; }
+	private readonly _onTitleChanged: Emitter<ITerminalInstance> = new Emitter<ITerminalInstance>();
+	public get onTitleChanged(): Event<ITerminalInstance> { return this._onTitleChanged.event; }
 	private readonly _onData: Emitter<string> = new Emitter<string>();
 	public get onData(): Event<string> { return this._onData.event; }
 	private readonly _onLineData: Emitter<string> = new Emitter<string>();
@@ -135,6 +138,11 @@ export class TerminalInstance implements ITerminalInstance {
 		this._isVisible = false;
 		this._isDisposed = false;
 		this._id = TerminalInstance._idCounter++;
+
+		this._titleReadyPromise = new Promise<string>(c => {
+			this._titleReadyComplete = c;
+		});
+
 		this._terminalHasTextContextKey = KEYBINDING_CONTEXT_TERMINAL_TEXT_SELECTED.bindTo(this._contextKeyService);
 		this.disableLayout = false;
 
@@ -294,7 +302,8 @@ export class TerminalInstance implements ITerminalInstance {
 			// TODO: Guess whether to use canvas or dom better
 			rendererType: config.rendererType === 'auto' ? 'canvas' : config.rendererType,
 			// TODO: Remove this once the setting is removed upstream
-			experimentalCharAtlas: 'dynamic'
+			experimentalCharAtlas: 'dynamic',
+			experimentalBufferLineImpl: config.experimentalBufferImpl
 		});
 		if (this._shellLaunchConfig.initialText) {
 			this._xterm.writeln(this._shellLaunchConfig.initialText);
@@ -305,7 +314,10 @@ export class TerminalInstance implements ITerminalInstance {
 			this._processManager.onProcessData(data => this._onProcessData(data));
 			this._xterm.on('data', data => this._processManager.write(data));
 			// TODO: How does the cwd work on detached processes?
-			this._linkHandler = this._instantiationService.createInstance(TerminalLinkHandler, this._xterm, platform.platform, this._processManager.initialCwd);
+			this._linkHandler = this._instantiationService.createInstance(TerminalLinkHandler, this._xterm, platform.platform);
+			this.processReady.then(() => {
+				this._linkHandler.initialCwd = this._processManager.initialCwd;
+			});
 		}
 		this._xterm.on('focus', () => this._onFocus.fire(this));
 
@@ -493,7 +505,7 @@ export class TerminalInstance implements ITerminalInstance {
 					{
 						label: nls.localize('dontShowAgain', "Don't Show Again"),
 						isSecondary: true,
-						run: () => this._storageService.store(NEVER_MEASURE_RENDER_TIME_STORAGE_KEY, true)
+						run: () => this._storageService.store(NEVER_MEASURE_RENDER_TIME_STORAGE_KEY, true, StorageScope.GLOBAL)
 					} as IPromptChoice
 				];
 				this._notificationService.prompt(
@@ -501,6 +513,7 @@ export class TerminalInstance implements ITerminalInstance {
 					nls.localize('terminal.slowRendering', 'The standard renderer for the integrated terminal appears to be slow on your computer. Would you like to switch to the alternative DOM-based renderer which may improve performance? [Read more about terminal settings](https://code.visualstudio.com/docs/editor/integrated-terminal#_changing-how-the-terminal-is-rendered).'),
 					promptChoices
 				);
+				console.warn('The standard renderer for the integrated terminal appears to be slow, frame times follow:', frameTimes);
 			}
 		};
 
@@ -550,12 +563,12 @@ export class TerminalInstance implements ITerminalInstance {
 		this._xterm.selectAll();
 	}
 
-	public findNext(term: string): boolean {
-		return this._xterm.findNext(term);
+	public findNext(term: string, searchOptions: ISearchOptions): boolean {
+		return this._xterm.findNext(term, searchOptions);
 	}
 
-	public findPrevious(term: string): boolean {
-		return this._xterm.findPrevious(term);
+	public findPrevious(term: string, searchOptions: ISearchOptions): boolean {
+		return this._xterm.findPrevious(term, searchOptions);
 	}
 
 	public notifyFindWidgetFocusChanged(isFocused: boolean): void {
@@ -563,7 +576,7 @@ export class TerminalInstance implements ITerminalInstance {
 		this._terminalFocusContextKey.set(terminalFocused);
 	}
 
-	public dispose(isShuttingDown?: boolean): void {
+	public dispose(immediate?: boolean): void {
 		this._logService.trace(`terminalInstance#dispose (id: ${this.id})`);
 
 		this._windowsShellHelper = lifecycle.dispose(this._windowsShellHelper);
@@ -589,7 +602,7 @@ export class TerminalInstance implements ITerminalInstance {
 			this._xterm = null;
 		}
 		if (this._processManager) {
-			this._processManager.dispose(isShuttingDown);
+			this._processManager.dispose(immediate);
 		}
 		if (!this._isDisposed) {
 			this._isDisposed = true;
@@ -648,6 +661,51 @@ export class TerminalInstance implements ITerminalInstance {
 				});
 			}
 		}
+	}
+
+	public preparePathForTerminalAsync(path: string): Promise<string> {
+		return new Promise<string>(c => {
+			const hasSpace = path.indexOf(' ') !== -1;
+			if (platform.isWindows) {
+				const exe = this.shellLaunchConfig.executable;
+				// 17063 is the build number where wsl path was introduced.
+				// Update Windows uriPath to be executed in WSL.
+				if (((exe.indexOf('wsl') !== -1) || ((exe.indexOf('bash.exe') !== -1) && (exe.indexOf('git') === -1))) && (TerminalInstance.getWindowsBuildNumber() >= 17063)) {
+					execFile('bash.exe', ['-c', 'echo $(wslpath ' + this._escapeNonWindowsPath(path) + ')'], {}, (error, stdout, stderr) => {
+						c(this._escapeNonWindowsPath(stdout.trim()));
+					});
+					return;
+				} else if (hasSpace) {
+					c('"' + path + '"');
+				} else {
+					c(path);
+				}
+				return;
+			}
+			c(this._escapeNonWindowsPath(path));
+		});
+	}
+
+	private _escapeNonWindowsPath(path: string): string {
+		let newPath = path;
+		if (newPath.indexOf('\\') !== 0) {
+			newPath = newPath.replace(/\\/g, '\\\\');
+		}
+		if (!newPath && (newPath.indexOf('"') !== -1)) {
+			newPath = '\'' + newPath + '\'';
+		} else if (newPath.indexOf(' ') !== -1) {
+			newPath = newPath.replace(/ /g, '\\ ');
+		}
+		return newPath;
+	}
+
+	public static getWindowsBuildNumber(): number {
+		const osVersion = (/(\d+)\.(\d+)\.(\d+)/g).exec(os.release());
+		let buildNumber: number = 0;
+		if (osVersion && osVersion.length === 4) {
+			buildNumber = parseInt(osVersion[3]);
+		}
+		return buildNumber;
 	}
 
 	public setVisible(visible: boolean): void {
@@ -776,12 +834,12 @@ export class TerminalInstance implements ITerminalInstance {
 			if (exitCode) {
 				this._xterm.writeln(exitCodeMessage);
 			}
-			let message = typeof this._shellLaunchConfig.waitOnExit === 'string'
-				? this._shellLaunchConfig.waitOnExit
-				: nls.localize('terminal.integrated.waitOnExit', 'Press any key to close the terminal');
-			// Bold the message and add an extra new line to make it stand out from the rest of the output
-			message = `\n\x1b[1m${message}\x1b[0m`;
-			this._xterm.writeln(message);
+			if (typeof this._shellLaunchConfig.waitOnExit === 'string') {
+				let message = this._shellLaunchConfig.waitOnExit;
+				// Bold the message and add an extra new line to make it stand out from the rest of the output
+				message = `\n\x1b[1m${message}\x1b[0m`;
+				this._xterm.writeln(message);
+			}
 			// Disable all input if the terminal is exiting and listen for next keypress
 			this._xterm.setOption('disableStdin', true);
 			if (this._xterm.textarea) {
@@ -1028,10 +1086,18 @@ export class TerminalInstance implements ITerminalInstance {
 			}
 		}
 		const didTitleChange = title !== this._title;
+		const oldTitle = this._title;
 		this._title = title;
 		if (didTitleChange) {
-			this._onTitleChanged.fire(title);
+			if (!oldTitle) {
+				this._titleReadyComplete(title);
+			}
+			this._onTitleChanged.fire(this);
 		}
+	}
+
+	public waitForTitle(): Promise<string> {
+		return this._titleReadyPromise;
 	}
 
 	public setDimensions(dimensions: ITerminalDimensions): void {
@@ -1082,6 +1148,27 @@ export class TerminalInstance implements ITerminalInstance {
 	public toggleEscapeSequenceLogging(): void {
 		this._xterm._core.debug = !this._xterm._core.debug;
 		this._xterm.setOption('debug', this._xterm._core.debug);
+	}
+
+	public get initialCwd(): string {
+		return this._processManager.initialCwd;
+	}
+
+	public getCwd(): Promise<string> {
+		if (!platform.isWindows) {
+			let pid = this.processId;
+			return new Promise<string>(resolve => {
+				exec('lsof -p ' + pid + ' | grep cwd', (error, stdout, stderr) => {
+					if (stdout !== '') {
+						resolve(stdout.substring(stdout.indexOf('/'), stdout.length - 1));
+					}
+				});
+			});
+		} else {
+			return new Promise<string>(resolve => {
+				resolve(this.initialCwd);
+			});
+		}
 	}
 }
 

@@ -2,8 +2,6 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
-
 import * as assert from 'assert';
 import { URI } from 'vs/base/common/uri';
 import { normalize } from 'vs/base/common/paths';
@@ -12,20 +10,19 @@ import { isWindows } from 'vs/base/common/platform';
 
 suite('URI', () => {
 	test('file#toString', () => {
-		assert.equal(URI.file('c:/win/path').toString(), 'file:///c%3A/win/path');
-		assert.equal(URI.file('C:/win/path').toString(), 'file:///c%3A/win/path');
-		assert.equal(URI.file('c:/win/path/').toString(), 'file:///c%3A/win/path/');
-		assert.equal(URI.file('/c:/win/path').toString(), 'file:///c%3A/win/path');
+		assert.equal(URI.file('c:/win/path').toString(), 'file:///c:/win/path');
+		assert.equal(URI.file('C:/win/path').toString(), 'file:///c:/win/path');
+		assert.equal(URI.file('c:/win/path/').toString(), 'file:///c:/win/path/');
+		assert.equal(URI.file('/c:/win/path').toString(), 'file:///c:/win/path');
 	});
 
 	test('URI.file (win-special)', () => {
 		if (isWindows) {
-			assert.equal(URI.file('c:\\win\\path').toString(), 'file:///c%3A/win/path');
-			assert.equal(URI.file('c:\\win/path').toString(), 'file:///c%3A/win/path');
+			assert.equal(URI.file('c:\\win\\path').toString(), 'file:///c:/win/path');
+			assert.equal(URI.file('c:\\win/path').toString(), 'file:///c:/win/path');
 		} else {
 			assert.equal(URI.file('c:\\win\\path').toString(), 'file:///c%3A%5Cwin%5Cpath');
 			assert.equal(URI.file('c:\\win/path').toString(), 'file:///c%3A%5Cwin/path');
-
 		}
 	});
 
@@ -242,7 +239,7 @@ suite('URI', () => {
 		if (isWindows) {
 			var value = URI.file('c:\\test\\drive');
 			assert.equal(value.path, '/c:/test/drive');
-			assert.equal(value.toString(), 'file:///c%3A/test/drive');
+			assert.equal(value.toString(), 'file:///c:/test/drive');
 
 			value = URI.file('\\\\shäres\\path\\c#\\plugin.json');
 			assert.equal(value.scheme, 'file');
@@ -262,15 +259,15 @@ suite('URI', () => {
 
 			value = URI.file('c:\\test with %\\path');
 			assert.equal(value.path, '/c:/test with %/path');
-			assert.equal(value.toString(), 'file:///c%3A/test%20with%20%25/path');
+			assert.equal(value.toString(), 'file:///c:/test%20with%20%25/path');
 
 			value = URI.file('c:\\test with %25\\path');
 			assert.equal(value.path, '/c:/test with %25/path');
-			assert.equal(value.toString(), 'file:///c%3A/test%20with%20%2525/path');
+			assert.equal(value.toString(), 'file:///c:/test%20with%20%2525/path');
 
 			value = URI.file('c:\\test with %25\\c#code');
 			assert.equal(value.path, '/c:/test with %25/c#code');
-			assert.equal(value.toString(), 'file:///c%3A/test%20with%20%2525/c%23code');
+			assert.equal(value.toString(), 'file:///c:/test%20with%20%2525/c%23code');
 
 			value = URI.file('\\\\shares');
 			assert.equal(value.scheme, 'file');
@@ -459,5 +456,38 @@ suite('URI', () => {
 		}
 		// }
 		// console.profileEnd();
+	});
+
+	test('Opening files from quick open not showing file contents #60163', function () {
+
+		const data = {
+			'$mid': 1,
+			'fsPath': 'c:\\Users\\bpasero\\Desktop\\Golda\'s Kitchen\\CHANGELOG.md',
+			'external': 'file:///c%3A/Users/bpasero/Desktop/Golda%27s%20Kitchen/CHANGELOG.md',
+			'path': '/c:/Users/bpasero/Desktop/Golda\'s Kitchen/CHANGELOG.md',
+			'scheme': 'file'
+		};
+		const uri = URI.revive(data);
+		assert.equal(uri.scheme, data.scheme);
+		assert.equal(uri.path, data.path);
+		assert.equal((uri as any)._formatted, null);
+		assert.equal((uri as any)._fsPath, null);
+
+		// when the $mid is the current one then we trust
+		// the data(no matter what)
+		const data2 = {
+			'$mid': 100,
+			'fsPath': 'c:\\Users\\bpasero\\Desktop\\Golda\'s Kitchen\\CHANGELOG.md',
+			'external': 'file:///c%3A/Users/bpasero/Desktop/Golda%27s%20Kitchen/CHANGELOG.md',
+			'path': '/c:/Users/bpasero/Desktop/Golda\'s Kitchen/CHANGELOG.md',
+			'scheme': 'file'
+		};
+		const uri2 = URI.revive(data2);
+		assert.equal(uri2.scheme, data2.scheme);
+		assert.equal(uri2.path, data2.path);
+		assert.ok((uri2 as any)._formatted);
+		assert.ok((uri2 as any)._fsPath);
+
+
 	});
 });

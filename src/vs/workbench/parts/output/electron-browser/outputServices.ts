@@ -41,6 +41,7 @@ import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { OutputAppender } from 'vs/platform/output/node/outputAppender';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { isNumber } from 'vs/base/common/types';
 
 const OUTPUT_ACTIVE_CHANNEL_KEY = 'output.activechannel';
 
@@ -49,7 +50,7 @@ let callbacks: ((eventType: string, fileName: string) => void)[] = [];
 function watchOutputDirectory(outputDir: string, logService: ILogService, onChange: (eventType: string, fileName: string) => void): IDisposable {
 	callbacks.push(onChange);
 	if (!watchingOutputDir) {
-		const watcher = extfs.watch(outputDir, (eventType, fileName) => {
+		const watcherDisposable = extfs.watch(outputDir, (eventType, fileName) => {
 			for (const callback of callbacks) {
 				callback(eventType, fileName);
 			}
@@ -59,10 +60,7 @@ function watchOutputDirectory(outputDir: string, logService: ILogService, onChan
 		watchingOutputDir = true;
 		return toDisposable(() => {
 			callbacks = [];
-			if (watcher) {
-				watcher.removeAllListeners();
-				watcher.close();
-			}
+			watcherDisposable.dispose();
 		});
 	}
 	return toDisposable(() => { });
@@ -75,7 +73,7 @@ interface OutputChannel extends IOutputChannel {
 	loadModel(): TPromise<ITextModel>;
 }
 
-abstract class AbstractFileOutputChannel extends Disposable {
+abstract class AbstractFileOutputChannel extends Disposable implements OutputChannel {
 
 	scrollLock: boolean = false;
 
@@ -115,7 +113,7 @@ abstract class AbstractFileOutputChannel extends Disposable {
 		return this.outputChannelDescriptor.label;
 	}
 
-	clear(): void {
+	clear(till?: number): void {
 		if (this.modelUpdater.isScheduled()) {
 			this.modelUpdater.cancel();
 			this.onUpdateModelCancelled();
@@ -123,8 +121,11 @@ abstract class AbstractFileOutputChannel extends Disposable {
 		if (this.model) {
 			this.model.setValue('');
 		}
+		this.endOffset = isNumber(till) ? till : this.endOffset;
 		this.startOffset = this.endOffset;
 	}
+
+	update(): void { }
 
 	protected createModel(content: string): ITextModel {
 		if (this.model) {
@@ -150,6 +151,9 @@ abstract class AbstractFileOutputChannel extends Disposable {
 			this._onDidAppendedContent.fire();
 		}
 	}
+
+	abstract loadModel(): TPromise<ITextModel>;
+	abstract append(message: string);
 
 	protected onModelCreated(model: ITextModel) { }
 	protected onModelWillDispose(model: ITextModel) { }
@@ -208,8 +212,8 @@ class OutputChannelBackedByFile extends AbstractFileOutputChannel implements Out
 		}
 	}
 
-	clear(): void {
-		super.clear();
+	clear(till?: number): void {
+		super.clear(till);
 		this.appendedMessage = '';
 	}
 
@@ -338,6 +342,7 @@ class FileOutputChannel extends AbstractFileOutputChannel implements OutputChann
 
 	private updateInProgress: boolean = false;
 	private etag: string = '';
+	private loadModelPromise: TPromise<ITextModel> = TPromise.as(null);
 
 	constructor(
 		outputChannelDescriptor: IOutputChannelDescriptor,
@@ -349,17 +354,25 @@ class FileOutputChannel extends AbstractFileOutputChannel implements OutputChann
 		super(outputChannelDescriptor, modelUri, fileService, modelService, modeService);
 
 		this.fileHandler = this._register(new OutputFileListener(this.file, this.fileService));
-		this._register(this.fileHandler.onDidContentChange(size => this.onDidContentChange(size)));
+		this._register(this.fileHandler.onDidContentChange(size => this.update(size)));
 		this._register(toDisposable(() => this.fileHandler.unwatch()));
 	}
 
 	loadModel(): TPromise<ITextModel> {
-		return this.fileService.resolveContent(this.file, { position: this.startOffset, encoding: 'utf8' })
+		this.loadModelPromise = this.fileService.resolveContent(this.file, { position: this.startOffset, encoding: 'utf8' })
 			.then(content => {
 				this.endOffset = this.startOffset + Buffer.from(content.value).byteLength;
 				this.etag = content.etag;
 				return this.createModel(content.value);
 			});
+		return this.loadModelPromise;
+	}
+
+	clear(till?: number): void {
+		this.loadModelPromise.then(() => {
+			super.clear(till);
+			this.update();
+		});
 	}
 
 	append(message: string): void {
@@ -394,10 +407,10 @@ class FileOutputChannel extends AbstractFileOutputChannel implements OutputChann
 		this.updateInProgress = false;
 	}
 
-	private onDidContentChange(size: number): void {
+	update(size?: number): void {
 		if (!this.updateInProgress) {
 			this.updateInProgress = true;
-			if (this.endOffset > size) { // Reset - Content is removed
+			if (isNumber(size) && this.endOffset > size) { // Reset - Content is removed
 				this.startOffset = this.endOffset = 0;
 				this.model.setValue('');
 			}
@@ -448,8 +461,8 @@ export class OutputService extends Disposable implements IOutputService, ITextMo
 		}
 		this._register(registry.onDidRegisterChannel(this.onDidRegisterChannel, this));
 
-		panelService.onDidPanelOpen(this.onDidPanelOpen, this);
-		panelService.onDidPanelClose(this.onDidPanelClose, this);
+		this._register(panelService.onDidPanelOpen(this.onDidPanelOpen, this));
+		this._register(panelService.onDidPanelClose(this.onDidPanelClose, this));
 
 		// Set active channel to first channel if not set
 		if (!this.activeChannel) {
@@ -457,7 +470,8 @@ export class OutputService extends Disposable implements IOutputService, ITextMo
 			this.activeChannel = channels && channels.length > 0 ? this.getChannel(channels[0].id) : null;
 		}
 
-		this.lifecycleService.onShutdown(() => this.onShutdown());
+		this._register(this.lifecycleService.onShutdown(() => this.dispose()));
+		this._register(this.storageService.onWillSaveState(() => this.saveState()));
 	}
 
 	provideTextContent(resource: URI): TPromise<ITextModel> {
@@ -471,15 +485,19 @@ export class OutputService extends Disposable implements IOutputService, ITextMo
 	showChannel(id: string, preserveFocus?: boolean): TPromise<void> {
 		const channel = this.getChannel(id);
 		if (!channel || this.isChannelShown(channel)) {
+			if (this._outputPanel && !preserveFocus) {
+				this._outputPanel.focus();
+			}
 			return TPromise.as(null);
 		}
 
 		this.activeChannel = channel;
-		let promise = TPromise.as(null);
+		let promise: TPromise<void> = TPromise.as(null);
 		if (this.isPanelShown()) {
 			this.doShowChannel(channel, preserveFocus);
 		} else {
-			promise = this.panelService.openPanel(OUTPUT_PANEL_ID) as TPromise;
+			promise = this.panelService.openPanel(OUTPUT_PANEL_ID)
+				.then(() => this.doShowChannel(this.activeChannel, preserveFocus));
 		}
 		return promise.then(() => this._onActiveOutputChannel.fire(id));
 	}
@@ -546,16 +564,17 @@ export class OutputService extends Disposable implements IOutputService, ITextMo
 			}
 		}, channelDisposables);
 		channel.onDispose(() => {
-			Registry.as<IOutputChannelRegistry>(Extensions.OutputChannels).removeChannel(id);
 			if (this.activeChannel === channel) {
 				const channels = this.getChannelDescriptors();
-				if (this.isPanelShown() && channels.length) {
-					this.doShowChannel(this.getChannel(channels[0].id), true);
-					this._onActiveOutputChannel.fire(channels[0].id);
+				const channel = channels.length ? this.getChannel(channels[0].id) : null;
+				if (channel && this.isPanelShown()) {
+					this.showChannel(channel.id, true);
 				} else {
-					this._onActiveOutputChannel.fire(void 0);
+					this.activeChannel = channel;
+					this._onActiveOutputChannel.fire(channel ? channel.id : void 0);
 				}
 			}
+			Registry.as<IOutputChannelRegistry>(Extensions.OutputChannels).removeChannel(id);
 			dispose(channelDisposables);
 		}, channelDisposables);
 
@@ -589,7 +608,7 @@ export class OutputService extends Disposable implements IOutputService, ITextMo
 	private doShowChannel(channel: IOutputChannel, preserveFocus: boolean): Thenable<void> {
 		if (this._outputPanel) {
 			CONTEXT_ACTIVE_LOG_OUTPUT.bindTo(this.contextKeyService).set(channel instanceof FileOutputChannel && channel.outputChannelDescriptor.log);
-			return this._outputPanel.setInput(this.createInput(channel), EditorOptions.create({ preserveFocus: preserveFocus }), CancellationToken.None)
+			return this._outputPanel.setInput(this.createInput(channel), EditorOptions.create({ preserveFocus }), CancellationToken.None)
 				.then(() => {
 					if (!preserveFocus) {
 						this._outputPanel.focus();
@@ -615,11 +634,10 @@ export class OutputService extends Disposable implements IOutputService, ITextMo
 		return this.instantiationService.createInstance(ResourceEditorInput, nls.localize('output', "{0} - Output", channel.label), nls.localize('channel', "Output channel for '{0}'", channel.label), resource);
 	}
 
-	onShutdown(): void {
+	private saveState(): void {
 		if (this.activeChannel) {
 			this.storageService.store(OUTPUT_ACTIVE_CHANNEL_KEY, this.activeChannel.id, StorageScope.WORKSPACE);
 		}
-		this.dispose();
 	}
 }
 
@@ -663,7 +681,7 @@ class BufferredOutputChannel extends Disposable implements OutputChannel {
 
 	readonly id: string;
 	readonly label: string;
-	readonly file: URI = null;
+	readonly file: URI | null = null;
 	scrollLock: boolean = false;
 
 	protected _onDidAppendedContent: Emitter<void> = new Emitter<void>();
@@ -700,6 +718,8 @@ class BufferredOutputChannel extends Disposable implements OutputChannel {
 			this.modelUpdater.schedule();
 		}
 	}
+
+	update(): void { }
 
 	clear(): void {
 		if (this.modelUpdater.isScheduled()) {

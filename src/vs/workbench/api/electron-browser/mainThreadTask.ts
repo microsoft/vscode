@@ -2,7 +2,6 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
 import * as nls from 'vs/nls';
 
@@ -92,7 +91,7 @@ namespace TaskPresentationOptionsDTO {
 	}
 	export function to(value: TaskPresentationOptionsDTO): PresentationOptions {
 		if (value === void 0 || value === null) {
-			return undefined;
+			return { reveal: RevealKind.Always, echo: true, focus: false, panel: PanelKind.Shared, showReuseMessage: true, clearBeforeExecuting: false };
 		}
 		return Objects.assign(Object.create(null), value);
 	}

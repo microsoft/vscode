@@ -5,7 +5,7 @@
 
 import * as nls from 'vs/nls';
 import { TPromise } from 'vs/base/common/winjs.base';
-import { IAction } from 'vs/base/common/actions';
+import { IAction, Action } from 'vs/base/common/actions';
 import * as lifecycle from 'vs/base/common/lifecycle';
 import { isFullWidthCharacter, removeAnsiEscapeCodes, endsWith } from 'vs/base/common/strings';
 import { IActionItem, Separator } from 'vs/base/browser/ui/actionbar/actionbar';
@@ -15,15 +15,16 @@ import { IMouseEvent } from 'vs/base/browser/mouseEvent';
 import { ITree, IAccessibilityProvider, ContextMenuEvent, IDataSource, IRenderer, IActionProvider } from 'vs/base/parts/tree/browser/tree';
 import { ICancelableEvent } from 'vs/base/parts/tree/browser/treeDefaults';
 import { IExpressionContainer, IExpression, IReplElementSource } from 'vs/workbench/parts/debug/common/debug';
-import { Model, RawObjectReplElement, Expression, SimpleReplElement, Variable } from 'vs/workbench/parts/debug/common/debugModel';
+import { RawObjectReplElement, Expression, SimpleReplElement, Variable } from 'vs/workbench/parts/debug/common/debugModel';
 import { renderVariable, renderExpressionValue, IVariableTemplateData, BaseDebugController } from 'vs/workbench/parts/debug/browser/baseDebugView';
-import { ClearReplAction, ReplCollapseAllAction } from 'vs/workbench/parts/debug/browser/debugActions';
+import { ReplCollapseAllAction } from 'vs/workbench/parts/debug/browser/debugActions';
 import { CopyAction, CopyAllAction } from 'vs/workbench/parts/debug/electron-browser/electronDebugActions';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { LinkDetector } from 'vs/workbench/parts/debug/browser/linkDetector';
 import { handleANSIOutput } from 'vs/workbench/parts/debug/browser/debugANSIHandling';
 import { ILabelService } from 'vs/platform/label/common/label';
+import { DebugSession } from 'vs/workbench/parts/debug/electron-browser/debugSession';
 
 const $ = dom.$;
 
@@ -34,25 +35,25 @@ export class ReplExpressionsDataSource implements IDataSource {
 	}
 
 	public hasChildren(tree: ITree, element: any): boolean {
-		return element instanceof Model || (<IExpressionContainer>element).hasChildren;
+		return element instanceof DebugSession || (<IExpressionContainer>element).hasChildren;
 	}
 
 	public getChildren(tree: ITree, element: any): TPromise<any> {
-		if (element instanceof Model) {
-			return TPromise.as(element.getReplElements());
+		if (element instanceof DebugSession) {
+			return Promise.resolve(element.getReplElements());
 		}
 		if (element instanceof RawObjectReplElement) {
 			return element.getChildren();
 		}
 		if (element instanceof SimpleReplElement) {
-			return TPromise.as(null);
+			return Promise.resolve(null);
 		}
 
 		return (<IExpression>element).getChildren();
 	}
 
 	public getParent(tree: ITree, element: any): TPromise<any> {
-		return TPromise.as(null);
+		return Promise.resolve(null);
 	}
 }
 
@@ -316,7 +317,7 @@ export class ReplExpressionsAccessibilityProvider implements IAccessibilityProvi
 
 export class ReplExpressionsActionProvider implements IActionProvider {
 
-	constructor(private instantiationService: IInstantiationService, private toFocus: { focus(): void }) {
+	constructor(private clearReplAction: Action, private toFocus: { focus(): void }) {
 		// noop
 	}
 
@@ -325,7 +326,7 @@ export class ReplExpressionsActionProvider implements IActionProvider {
 	}
 
 	public getActions(tree: ITree, element: any): TPromise<IAction[]> {
-		return TPromise.as([]);
+		return Promise.resolve([]);
 	}
 
 	public hasSecondaryActions(tree: ITree, element: any): boolean {
@@ -338,9 +339,9 @@ export class ReplExpressionsActionProvider implements IActionProvider {
 		actions.push(new CopyAllAction(CopyAllAction.ID, CopyAllAction.LABEL, tree));
 		actions.push(new ReplCollapseAllAction(tree, this.toFocus));
 		actions.push(new Separator());
-		actions.push(this.instantiationService.createInstance(ClearReplAction, ClearReplAction.ID, ClearReplAction.LABEL));
+		actions.push(this.clearReplAction);
 
-		return TPromise.as(actions);
+		return Promise.resolve(actions);
 	}
 
 	public getActionItem(tree: ITree, element: any, action: IAction): IActionItem {
@@ -350,7 +351,7 @@ export class ReplExpressionsActionProvider implements IActionProvider {
 
 export class ReplExpressionsController extends BaseDebugController {
 
-	private lastSelectedString: string = null;
+	private lastSelectedString: string | null = null;
 	public toFocusOnClick: { focus(): void };
 
 	protected onLeftClick(tree: ITree, element: any, eventish: ICancelableEvent, origin: string = 'mouse'): boolean {

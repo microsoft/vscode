@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import * as jschardet from 'jschardet';
 
 jschardet.Constants.MINIMUM_THRESHOLD = 0.2;

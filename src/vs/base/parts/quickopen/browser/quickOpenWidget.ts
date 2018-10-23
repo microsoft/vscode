@@ -2,7 +2,6 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
 import 'vs/css!./quickopen';
 import * as nls from 'vs/nls';
@@ -23,7 +22,7 @@ import { Disposable } from 'vs/base/common/lifecycle';
 import { ScrollbarVisibility } from 'vs/base/common/scrollable';
 import { Color } from 'vs/base/common/color';
 import { mixin } from 'vs/base/common/objects';
-import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
+import { StandardMouseEvent, IMouseEvent } from 'vs/base/browser/mouseEvent';
 
 export interface IQuickOpenCallbacks {
 	onOk: () => void;
@@ -58,6 +57,7 @@ export interface IShowOptions {
 	quickNavigateConfiguration?: IQuickNavigateConfiguration;
 	autoFocus?: IAutoFocus;
 	inputSelection?: IRange;
+	value?: string;
 }
 
 export class QuickOpenController extends DefaultController {
@@ -68,6 +68,10 @@ export class QuickOpenController extends DefaultController {
 		}
 
 		return super.onContextMenu(tree, element, event);
+	}
+
+	onMouseMiddleClick(tree: ITree, element: any, event: IMouseEvent): boolean {
+		return this.onLeftClick(tree, element, event);
 	}
 }
 
@@ -112,7 +116,7 @@ export class QuickOpenWidget extends Disposable implements IModelProvider {
 	private inputElement: HTMLElement;
 	private layoutDimensions: DOM.Dimension;
 	private model: IModel<any>;
-	private inputChangingTimeoutHandle: number;
+	private inputChangingTimeoutHandle: any;
 	private styles: IQuickOpenStyles;
 	private renderer: Renderer;
 
@@ -599,6 +603,9 @@ export class QuickOpenWidget extends Disposable implements IModelProvider {
 		if (types.isString(param)) {
 			this.doShowWithPrefix(param);
 		} else {
+			if (options.value) {
+				this.restoreLastInput(options.value);
+			}
 			this.doShowWithInput(param, options && options.autoFocus ? options.autoFocus : {});
 		}
 
@@ -610,6 +617,12 @@ export class QuickOpenWidget extends Disposable implements IModelProvider {
 		if (this.callbacks.onShow) {
 			this.callbacks.onShow();
 		}
+	}
+
+	private restoreLastInput(lastInput: string) {
+		this.inputBox.value = lastInput;
+		this.inputBox.select();
+		this.callbacks.onType(lastInput);
 	}
 
 	private doShowWithPrefix(prefix: string): void {

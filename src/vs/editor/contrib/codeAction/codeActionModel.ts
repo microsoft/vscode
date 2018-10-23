@@ -7,7 +7,6 @@ import { CancelablePromise, createCancelablePromise, TimeoutTimer } from 'vs/bas
 import { Emitter, Event } from 'vs/base/common/event';
 import { dispose, IDisposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
-import { TPromise } from 'vs/base/common/winjs.base';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
@@ -50,8 +49,12 @@ export class CodeActionOracle {
 	}
 
 	private _onMarkerChanges(resources: URI[]): void {
-		const { uri } = this._editor.getModel();
-		if (resources.some(resource => resource.toString() === uri.toString())) {
+		const model = this._editor.getModel();
+		if (!model) {
+			return;
+		}
+
+		if (resources.some(resource => resource.toString() === model.uri.toString())) {
 			this._autoTriggerTimer.cancelAndSet(() => {
 				this.trigger({ type: 'auto' });
 			}, this._delay);
@@ -64,8 +67,11 @@ export class CodeActionOracle {
 		}, this._delay);
 	}
 
-	private _getRangeOfMarker(selection: Selection): Range {
+	private _getRangeOfMarker(selection: Selection): Range | undefined {
 		const model = this._editor.getModel();
+		if (!model) {
+			return undefined;
+		}
 		for (const marker of this._markerService.read({ resource: model.uri })) {
 			if (Range.intersectRanges(marker, selection)) {
 				return Range.lift(marker);
@@ -77,7 +83,7 @@ export class CodeActionOracle {
 	private _getRangeOfSelectionUnlessWhitespaceEnclosed(trigger: CodeActionTrigger): Selection | undefined {
 		const model = this._editor.getModel();
 		const selection = this._editor.getSelection();
-		if (selection.isEmpty() && !(trigger.filter && trigger.filter.includeSourceActions)) {
+		if (model && selection && selection.isEmpty() && !(trigger.filter && trigger.filter.includeSourceActions)) {
 			const { lineNumber, column } = selection.getPosition();
 			const line = model.getLineContent(lineNumber);
 			if (line.length === 0) {
@@ -100,7 +106,7 @@ export class CodeActionOracle {
 				}
 			}
 		}
-		return selection;
+		return selection ? selection : undefined;
 	}
 
 	private _createEventAndSignalChange(trigger: CodeActionTrigger, selection: Selection | undefined): Thenable<CodeAction[] | undefined> {
@@ -112,15 +118,26 @@ export class CodeActionOracle {
 				position: undefined,
 				actions: undefined,
 			});
-			return TPromise.as(undefined);
+			return Promise.resolve(undefined);
 		} else {
 			const model = this._editor.getModel();
+			if (!model) {
+				// cancel
+				this._signalChange({
+					trigger,
+					rangeOrSelection: undefined,
+					position: undefined,
+					actions: undefined,
+				});
+				return Promise.resolve(undefined);
+			}
+
 			const markerRange = this._getRangeOfMarker(selection);
 			const position = markerRange ? markerRange.getStartPosition() : selection.getStartPosition();
 			const actions = createCancelablePromise(token => getCodeActions(model, selection, trigger, token));
 
 			if (this._progressService && trigger.type === 'manual') {
-				this._progressService.showWhile(TPromise.wrap(actions), 250);
+				this._progressService.showWhile(actions, 250);
 			}
 
 			this._signalChange({
@@ -136,16 +153,16 @@ export class CodeActionOracle {
 
 export interface CodeActionsComputeEvent {
 	trigger: CodeActionTrigger;
-	rangeOrSelection: Range | Selection;
-	position: Position;
-	actions: CancelablePromise<CodeAction[]>;
+	rangeOrSelection: Range | Selection | undefined;
+	position: Position | undefined;
+	actions: CancelablePromise<CodeAction[]> | undefined;
 }
 
 export class CodeActionModel {
 
 	private _editor: ICodeEditor;
 	private _markerService: IMarkerService;
-	private _codeActionOracle: CodeActionOracle;
+	private _codeActionOracle?: CodeActionOracle;
 	private _onDidChangeFixes = new Emitter<CodeActionsComputeEvent>();
 	private _disposables: IDisposable[] = [];
 	private readonly _supportedCodeActions: IContextKey<string>;
@@ -180,12 +197,13 @@ export class CodeActionModel {
 			this._onDidChangeFixes.fire(undefined);
 		}
 
-		if (this._editor.getModel()
-			&& CodeActionProviderRegistry.has(this._editor.getModel())
+		const model = this._editor.getModel();
+		if (model
+			&& CodeActionProviderRegistry.has(model)
 			&& !this._editor.getConfiguration().readOnly) {
 
 			const supportedActions: string[] = [];
-			for (const provider of CodeActionProviderRegistry.all(this._editor.getModel())) {
+			for (const provider of CodeActionProviderRegistry.all(model)) {
 				if (Array.isArray(provider.providedCodeActionKinds)) {
 					supportedActions.push(...provider.providedCodeActionKinds);
 				}
@@ -204,6 +222,6 @@ export class CodeActionModel {
 		if (this._codeActionOracle) {
 			return this._codeActionOracle.trigger(trigger);
 		}
-		return TPromise.as(undefined);
+		return Promise.resolve(undefined);
 	}
 }

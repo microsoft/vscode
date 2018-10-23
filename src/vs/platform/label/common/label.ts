@@ -12,7 +12,7 @@ import { createDecorator } from 'vs/platform/instantiation/common/instantiation'
 import { isEqual, basenameOrAuthority } from 'vs/base/common/resources';
 import { isLinux, isWindows } from 'vs/base/common/platform';
 import { tildify, getPathLabel } from 'vs/base/common/labels';
-import { ltrim } from 'vs/base/common/strings';
+import { ltrim, startsWith } from 'vs/base/common/strings';
 import { IWorkspaceIdentifier, ISingleFolderWorkspaceIdentifier, isSingleFolderWorkspaceIdentifier, WORKSPACE_EXTENSION, toWorkspaceIdentifier, isWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
 import { localize } from 'vs/nls';
 import { isParent } from 'vs/platform/files/common/files';
@@ -20,15 +20,20 @@ import { basename, dirname, join } from 'vs/base/common/paths';
 import { Schemas } from 'vs/base/common/network';
 
 export interface RegisterFormatterEvent {
-	scheme: string;
+	selector: string;
 	formatter: LabelRules;
 }
 
 export interface ILabelService {
 	_serviceBrand: any;
-	getUriLabel(resource: URI, relative?: boolean, forceNoTildify?: boolean): string;
+	/**
+	 * Gets the human readable label for a uri.
+	 * If relative is passed returns a label relative to the workspace root that the uri belongs to.
+	 * If noPrefix is passed does not tildify the label and also does not prepand the root name for relative labels in a multi root scenario.
+	 */
+	getUriLabel(resource: URI, options?: { relative?: boolean, noPrefix?: boolean }): string;
 	getWorkspaceLabel(workspace: (IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier | IWorkspace), options?: { verbose: boolean }): string;
-	registerFormatter(schema: string, formatter: LabelRules): IDisposable;
+	registerFormatter(selector: string, formatter: LabelRules): IDisposable;
 	onDidRegisterFormatter: Event<RegisterFormatterEvent>;
 }
 
@@ -38,6 +43,7 @@ export interface LabelRules {
 		separator: '/' | '\\' | '';
 		tildify?: boolean;
 		normalizeDriveLetter?: boolean;
+		authorityPrefix?: string;
 	};
 	workspace?: {
 		suffix: string;
@@ -49,13 +55,13 @@ const sepRegexp = /\//g;
 const labelMatchingRegexp = /\$\{scheme\}|\$\{authority\}|\$\{path\}/g;
 
 function hasDriveLetter(path: string): boolean {
-	return isWindows && path && path[2] === ':';
+	return !!(isWindows && path && path[2] === ':');
 }
 
 export class LabelService implements ILabelService {
 	_serviceBrand: any;
 
-	private readonly formatters = new Map<string, LabelRules>();
+	private readonly formatters: { [prefix: string]: LabelRules } = Object.create(null);
 	private readonly _onDidRegisterFormatter = new Emitter<RegisterFormatterEvent>();
 
 	constructor(
@@ -67,28 +73,39 @@ export class LabelService implements ILabelService {
 		return this._onDidRegisterFormatter.event;
 	}
 
-	getUriLabel(resource: URI, relative?: boolean, forceNoTildify?: boolean): string {
-		if (!resource) {
-			return undefined;
+	findFormatter(resource: URI): LabelRules | undefined {
+		const path = `${resource.scheme}://${resource.authority}`;
+		let bestPrefix = '';
+		for (let prefix in this.formatters) {
+			if (startsWith(path, prefix) && prefix.length > bestPrefix.length) {
+				bestPrefix = prefix;
+			}
 		}
-		const formatter = this.formatters.get(resource.scheme);
+		if (bestPrefix.length) {
+			return this.formatters[bestPrefix];
+		}
+		return void 0;
+	}
+
+	getUriLabel(resource: URI, options: { relative?: boolean, noPrefix?: boolean } = {}): string {
+		const formatter = this.findFormatter(resource);
 		if (!formatter) {
-			return getPathLabel(resource.path, this.environmentService, relative ? this.contextService : undefined);
+			return getPathLabel(resource.path, this.environmentService, options.relative ? this.contextService : undefined);
 		}
 
-		if (relative) {
+		if (options.relative) {
 			const baseResource = this.contextService && this.contextService.getWorkspaceFolder(resource);
 			if (baseResource) {
 				let relativeLabel: string;
 				if (isEqual(baseResource.uri, resource, !isLinux)) {
 					relativeLabel = ''; // no label if resources are identical
 				} else {
-					const baseResourceLabel = this.formatUri(baseResource.uri, formatter, forceNoTildify);
-					relativeLabel = ltrim(this.formatUri(resource, formatter, forceNoTildify).substring(baseResourceLabel.length), formatter.uri.separator);
+					const baseResourceLabel = this.formatUri(baseResource.uri, formatter, options.noPrefix);
+					relativeLabel = ltrim(this.formatUri(resource, formatter, options.noPrefix).substring(baseResourceLabel.length), formatter.uri.separator);
 				}
 
 				const hasMultipleRoots = this.contextService.getWorkspace().folders.length > 1;
-				if (hasMultipleRoots) {
+				if (hasMultipleRoots && !options.noPrefix) {
 					const rootName = (baseResource && baseResource.name) ? baseResource.name : basenameOrAuthority(baseResource.uri);
 					relativeLabel = relativeLabel ? (rootName + ' • ' + relativeLabel) : rootName; // always show root basename if there are multiple
 				}
@@ -97,21 +114,23 @@ export class LabelService implements ILabelService {
 			}
 		}
 
-		return this.formatUri(resource, formatter, forceNoTildify);
+		return this.formatUri(resource, formatter, options.noPrefix);
 	}
 
 	getWorkspaceLabel(workspace: (IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier | IWorkspace), options?: { verbose: boolean }): string {
 		if (!isWorkspaceIdentifier(workspace) && !isSingleFolderWorkspaceIdentifier(workspace)) {
-			workspace = toWorkspaceIdentifier(workspace);
-			if (!workspace) {
+			const identifier = toWorkspaceIdentifier(workspace);
+			if (!identifier) {
 				return '';
 			}
+
+			workspace = identifier;
 		}
 
 		// Workspace: Single Folder
 		if (isSingleFolderWorkspaceIdentifier(workspace)) {
 			// Folder on disk
-			const formatter = this.formatters.get(workspace.scheme);
+			const formatter = this.findFormatter(workspace);
 			const label = options && options.verbose ? this.getUriLabel(workspace) : basenameOrAuthority(workspace);
 			if (workspace.scheme === Schemas.file) {
 				return label;
@@ -136,16 +155,16 @@ export class LabelService implements ILabelService {
 		return localize('workspaceName', "{0} (Workspace)", workspaceName);
 	}
 
-	registerFormatter(scheme: string, formatter: LabelRules): IDisposable {
-		this.formatters.set(scheme, formatter);
-		this._onDidRegisterFormatter.fire({ scheme, formatter });
+	registerFormatter(selector: string, formatter: LabelRules): IDisposable {
+		this.formatters[selector] = formatter;
+		this._onDidRegisterFormatter.fire({ selector, formatter });
 
 		return {
-			dispose: () => this.formatters.delete(scheme)
+			dispose: () => delete this.formatters[selector]
 		};
 	}
 
-	private formatUri(resource: URI, formatter: LabelRules, forceNoTildify: boolean): string {
+	private formatUri(resource: URI, formatter: LabelRules, forceNoTildify?: boolean): string {
 		let label = formatter.uri.label.replace(labelMatchingRegexp, match => {
 			switch (match) {
 				case '${scheme}': return resource.scheme;
@@ -162,6 +181,9 @@ export class LabelService implements ILabelService {
 
 		if (formatter.uri.tildify && !forceNoTildify) {
 			label = tildify(label, this.environmentService.userHome);
+		}
+		if (formatter.uri.authorityPrefix && resource.authority) {
+			label = formatter.uri.authorityPrefix + label;
 		}
 
 		return label.replace(sepRegexp, formatter.uri.separator);

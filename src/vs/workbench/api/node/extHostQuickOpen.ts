@@ -2,13 +2,11 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
 import { asThenable } from 'vs/base/common/async';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { Emitter } from 'vs/base/common/event';
 import { dispose, IDisposable } from 'vs/base/common/lifecycle';
-import { TPromise } from 'vs/base/common/winjs.base';
 import { ExtHostCommands } from 'vs/workbench/api/node/extHostCommands';
 import { ExtHostWorkspace } from 'vs/workbench/api/node/extHostWorkspace';
 import { InputBox, InputBoxOptions, QuickInput, QuickInputButton, QuickPick, QuickPickItem, QuickPickOptions, WorkspaceFolder, WorkspaceFolderPickOptions } from 'vscode';
@@ -36,15 +34,15 @@ export class ExtHostQuickOpen implements ExtHostQuickOpenShape {
 		this._commands = commands;
 	}
 
-	showQuickPick(itemsOrItemsPromise: QuickPickItem[] | Thenable<QuickPickItem[]>, options: QuickPickOptions & { canPickMany: true; }, token?: CancellationToken): Thenable<QuickPickItem[] | undefined>;
-	showQuickPick(itemsOrItemsPromise: string[] | Thenable<string[]>, options?: QuickPickOptions, token?: CancellationToken): Thenable<string | undefined>;
-	showQuickPick(itemsOrItemsPromise: QuickPickItem[] | Thenable<QuickPickItem[]>, options?: QuickPickOptions, token?: CancellationToken): Thenable<QuickPickItem | undefined>;
-	showQuickPick(itemsOrItemsPromise: Item[] | Thenable<Item[]>, options?: QuickPickOptions, token: CancellationToken = CancellationToken.None): Thenable<Item | Item[] | undefined> {
+	showQuickPick(itemsOrItemsPromise: QuickPickItem[] | Thenable<QuickPickItem[]>, enableProposedApi: boolean, options: QuickPickOptions & { canPickMany: true; }, token?: CancellationToken): Thenable<QuickPickItem[] | undefined>;
+	showQuickPick(itemsOrItemsPromise: string[] | Thenable<string[]>, enableProposedApi: boolean, options?: QuickPickOptions, token?: CancellationToken): Thenable<string | undefined>;
+	showQuickPick(itemsOrItemsPromise: QuickPickItem[] | Thenable<QuickPickItem[]>, enableProposedApi: boolean, options?: QuickPickOptions, token?: CancellationToken): Thenable<QuickPickItem | undefined>;
+	showQuickPick(itemsOrItemsPromise: Item[] | Thenable<Item[]>, enableProposedApi: boolean, options?: QuickPickOptions, token: CancellationToken = CancellationToken.None): Thenable<Item | Item[] | undefined> {
 
 		// clear state from last invocation
 		this._onDidSelectItem = undefined;
 
-		const itemsPromise = <TPromise<Item[]>>TPromise.wrap(itemsOrItemsPromise);
+		const itemsPromise = <Promise<Item[]>>Promise.resolve(itemsOrItemsPromise);
 
 		const quickPickWidget = this._proxy.$show({
 			placeHolder: options && options.placeHolder,
@@ -54,8 +52,11 @@ export class ExtHostQuickOpen implements ExtHostQuickOpenShape {
 			canPickMany: options && options.canPickMany
 		}, token);
 
-		return TPromise.any(<TPromise<number | Item[]>[]>[quickPickWidget, itemsPromise]).then(values => {
-			if (values.key === '0') {
+		const widgetClosedMarker = {};
+		const widgetClosedPromise = quickPickWidget.then(() => widgetClosedMarker);
+
+		return Promise.race([widgetClosedPromise, itemsPromise]).then(result => {
+			if (result === widgetClosedMarker) {
 				return undefined;
 			}
 
@@ -69,6 +70,7 @@ export class ExtHostQuickOpen implements ExtHostQuickOpenShape {
 					let description: string;
 					let detail: string;
 					let picked: boolean;
+					let alwaysShow: boolean;
 
 					if (typeof item === 'string') {
 						label = item;
@@ -77,13 +79,17 @@ export class ExtHostQuickOpen implements ExtHostQuickOpenShape {
 						description = item.description;
 						detail = item.detail;
 						picked = item.picked;
+						if (enableProposedApi) {
+							alwaysShow = item.alwaysShow;
+						}
 					}
 					pickItems.push({
 						label,
 						description,
 						handle,
 						detail,
-						picked
+						picked,
+						alwaysShow
 					});
 				}
 
@@ -113,7 +119,7 @@ export class ExtHostQuickOpen implements ExtHostQuickOpenShape {
 
 			this._proxy.$setError(err);
 
-			return TPromise.wrapError(err);
+			return Promise.reject(err);
 		});
 	}
 
@@ -138,7 +144,7 @@ export class ExtHostQuickOpen implements ExtHostQuickOpenShape {
 
 				this._proxy.$setError(err);
 
-				return TPromise.wrapError(err);
+				return Promise.reject(err);
 			});
 	}
 
@@ -163,8 +169,8 @@ export class ExtHostQuickOpen implements ExtHostQuickOpenShape {
 
 	// ---- QuickInput
 
-	createQuickPick<T extends QuickPickItem>(extensionId: string): QuickPick<T> {
-		const session = new ExtHostQuickPick(this._proxy, extensionId, () => this._sessions.delete(session._id));
+	createQuickPick<T extends QuickPickItem>(extensionId: string, enableProposedApi: boolean): QuickPick<T> {
+		const session = new ExtHostQuickPick(this._proxy, extensionId, enableProposedApi, () => this._sessions.delete(session._id));
 		this._sessions.set(session._id, session);
 		return session;
 	}
@@ -227,6 +233,7 @@ class ExtHostQuickInput implements QuickInput {
 	private _steps: number;
 	private _totalSteps: number;
 	private _visible = false;
+	private _expectingHide = false;
 	private _enabled = true;
 	private _busy = false;
 	private _ignoreFocusOut = true;
@@ -238,7 +245,7 @@ class ExtHostQuickInput implements QuickInput {
 	private _onDidChangeValueEmitter = new Emitter<string>();
 	private _onDidTriggerButtonEmitter = new Emitter<QuickInputButton>();
 	private _onDidHideEmitter = new Emitter<void>();
-	private _updateTimeout: number;
+	private _updateTimeout: any;
 	private _pendingUpdate: TransferQuickInput = { id: this._id };
 
 	private _disposed = false;
@@ -352,6 +359,7 @@ class ExtHostQuickInput implements QuickInput {
 
 	show(): void {
 		this._visible = true;
+		this._expectingHide = true;
 		this.update({ visible: true });
 	}
 
@@ -377,7 +385,10 @@ class ExtHostQuickInput implements QuickInput {
 	}
 
 	_fireDidHide() {
-		this._onDidHideEmitter.fire();
+		if (this._expectingHide) {
+			this._expectingHide = false;
+			this._onDidHideEmitter.fire();
+		}
 	}
 
 	public dispose(): void {
@@ -468,7 +479,7 @@ class ExtHostQuickPick<T extends QuickPickItem> extends ExtHostQuickInput implem
 	private _selectedItems: T[] = [];
 	private _onDidChangeSelectionEmitter = new Emitter<T[]>();
 
-	constructor(proxy: MainThreadQuickOpenShape, extensionId: string, onDispose: () => void) {
+	constructor(proxy: MainThreadQuickOpenShape, extensionId: string, private _enableProposedApi: boolean, onDispose: () => void) {
 		super(proxy, extensionId, onDispose);
 		this._disposables.push(
 			this._onDidChangeActiveEmitter,
@@ -495,7 +506,8 @@ class ExtHostQuickPick<T extends QuickPickItem> extends ExtHostQuickInput implem
 				description: item.description,
 				handle: i,
 				detail: item.detail,
-				picked: item.picked
+				picked: item.picked,
+				alwaysShow: this._enableProposedApi ? item.alwaysShow : undefined
 			}))
 		});
 	}

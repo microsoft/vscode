@@ -2,23 +2,22 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
+import { CharCode } from 'vs/base/common/charCode';
 import { onUnexpectedError } from 'vs/base/common/errors';
-import { ReplaceCommand, ReplaceCommandWithoutChangingPosition, ReplaceCommandWithOffsetCursorState } from 'vs/editor/common/commands/replaceCommand';
-import { CursorColumns, CursorConfiguration, ICursorSimpleModel, EditOperationResult, EditOperationType, isQuote } from 'vs/editor/common/controller/cursorCommon';
+import * as strings from 'vs/base/common/strings';
+import { ReplaceCommand, ReplaceCommandWithOffsetCursorState, ReplaceCommandWithoutChangingPosition } from 'vs/editor/common/commands/replaceCommand';
+import { ShiftCommand } from 'vs/editor/common/commands/shiftCommand';
+import { SurroundSelectionCommand } from 'vs/editor/common/commands/surroundSelectionCommand';
+import { CursorColumns, CursorConfiguration, EditOperationResult, EditOperationType, ICursorSimpleModel, isQuote } from 'vs/editor/common/controller/cursorCommon';
+import { WordCharacterClass, getMapForWordSeparators } from 'vs/editor/common/controller/wordCharacterClassifier';
 import { Range } from 'vs/editor/common/core/range';
+import { Selection } from 'vs/editor/common/core/selection';
 import { ICommand } from 'vs/editor/common/editorCommon';
 import { ITextModel } from 'vs/editor/common/model';
-import * as strings from 'vs/base/common/strings';
-import { ShiftCommand } from 'vs/editor/common/commands/shiftCommand';
-import { Selection } from 'vs/editor/common/core/selection';
+import { EnterAction, IndentAction } from 'vs/editor/common/modes/languageConfiguration';
 import { LanguageConfigurationRegistry } from 'vs/editor/common/modes/languageConfigurationRegistry';
-import { IndentAction, EnterAction } from 'vs/editor/common/modes/languageConfiguration';
-import { SurroundSelectionCommand } from 'vs/editor/common/commands/surroundSelectionCommand';
 import { IElectricAction } from 'vs/editor/common/modes/supports/electricCharacter';
-import { getMapForWordSeparators, WordCharacterClass } from 'vs/editor/common/controller/wordCharacterClassifier';
-import { CharCode } from 'vs/base/common/charCode';
 
 export class TypeOperations {
 
@@ -111,7 +110,7 @@ export class TypeOperations {
 		});
 	}
 
-	private static _distributePasteToCursors(selections: Selection[], text: string, pasteOnNewLine: boolean, multicursorText: string[]): string[] {
+	private static _distributePasteToCursors(selections: Selection[], text: string, pasteOnNewLine: boolean, multicursorText: string[]): string[] | null {
 		if (pasteOnNewLine) {
 			return null;
 		}
@@ -147,9 +146,9 @@ export class TypeOperations {
 		}
 	}
 
-	private static _goodIndentForLine(config: CursorConfiguration, model: ITextModel, lineNumber: number): string {
-		let action: IndentAction | EnterAction;
-		let indentation: string;
+	private static _goodIndentForLine(config: CursorConfiguration, model: ITextModel, lineNumber: number): string | null {
+		let action: IndentAction | EnterAction | null = null;
+		let indentation: string = '';
 
 		let expectedIndentAction = config.autoIndent ? LanguageConfigurationRegistry.getInheritIndentForLine(model, lineNumber, false) : null;
 		if (expectedIndentAction) {
@@ -260,7 +259,7 @@ export class TypeOperations {
 	}
 
 	public static replacePreviousChar(prevEditOperationType: EditOperationType, config: CursorConfiguration, model: ITextModel, selections: Selection[], txt: string, replaceCharCnt: number): EditOperationResult {
-		let commands: ICommand[] = [];
+		let commands: (ICommand | null)[] = [];
 		for (let i = 0, len = selections.length; i < len; i++) {
 			const selection = selections[i];
 			if (!selection.isEmpty()) {
@@ -400,7 +399,7 @@ export class TypeOperations {
 		return true;
 	}
 
-	private static _runAutoIndentType(config: CursorConfiguration, model: ITextModel, range: Range, ch: string): ICommand {
+	private static _runAutoIndentType(config: CursorConfiguration, model: ITextModel, range: Range, ch: string): ICommand | null {
 		let currentIndentation = LanguageConfigurationRegistry.getIndentationAtPosition(model, range.startLineNumber, range.startColumn);
 		let actualIndentation = LanguageConfigurationRegistry.getIndentActionForType(model, range, ch, {
 			shiftIndent: (indentation) => {
@@ -661,7 +660,7 @@ export class TypeOperations {
 		return false;
 	}
 
-	private static _typeInterceptorElectricChar(prevEditOperationType: EditOperationType, config: CursorConfiguration, model: ITextModel, selection: Selection, ch: string): EditOperationResult {
+	private static _typeInterceptorElectricChar(prevEditOperationType: EditOperationType, config: CursorConfiguration, model: ITextModel, selection: Selection, ch: string): EditOperationResult | null {
 		if (!config.electricChars.hasOwnProperty(ch) || !selection.isEmpty()) {
 			return null;
 		}
@@ -670,11 +669,12 @@ export class TypeOperations {
 		model.forceTokenization(position.lineNumber);
 		let lineTokens = model.getLineTokens(position.lineNumber);
 
-		let electricAction: IElectricAction;
+		let electricAction: IElectricAction | null;
 		try {
 			electricAction = LanguageConfigurationRegistry.onElectricCharacter(ch, lineTokens, position.column);
 		} catch (e) {
 			onUnexpectedError(e);
+			return null;
 		}
 
 		if (!electricAction) {
@@ -724,7 +724,7 @@ export class TypeOperations {
 		return null;
 	}
 
-	public static compositionEndWithInterceptors(prevEditOperationType: EditOperationType, config: CursorConfiguration, model: ITextModel, selections: Selection[]): EditOperationResult {
+	public static compositionEndWithInterceptors(prevEditOperationType: EditOperationType, config: CursorConfiguration, model: ITextModel, selections: Selection[]): EditOperationResult | null {
 		if (config.autoClosingQuotes === 'never') {
 			return null;
 		}
@@ -767,7 +767,13 @@ export class TypeOperations {
 				if (characterAfter) {
 					let isBeforeCloseBrace = TypeOperations._isBeforeClosingBrace(config, ch, characterAfter);
 					let shouldAutoCloseBefore = isQuote(ch) ? config.shouldAutoCloseBefore.quote : config.shouldAutoCloseBefore.bracket;
-					if (!isBeforeCloseBrace && !shouldAutoCloseBefore(characterAfter)) {
+					if (isBeforeCloseBrace) {
+						// In normal auto closing logic, we will auto close if the cursor is even before a closing brace intentionally.
+						// However for composition mode, we do nothing here as users might clear all the characters for composition and we don't want to do a unnecessary auto close.
+						// Related: microsoft/vscode#57250.
+						continue;
+					}
+					if (!shouldAutoCloseBefore(characterAfter)) {
 						continue;
 					}
 				}
@@ -815,7 +821,7 @@ export class TypeOperations {
 		}
 
 		if (this._isAutoIndentType(config, model, selections)) {
-			let commands: ICommand[] = [];
+			let commands: (ICommand | null)[] = [];
 			let autoIndentFails = false;
 			for (let i = 0, len = selections.length; i < len; i++) {
 				commands[i] = this._runAutoIndentType(config, model, selections[i], ch);

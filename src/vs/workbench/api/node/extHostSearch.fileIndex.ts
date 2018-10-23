@@ -2,12 +2,12 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
 import * as path from 'path';
 import * as arrays from 'vs/base/common/arrays';
-import { CancellationTokenSource } from 'vs/base/common/cancellation';
-import { toErrorMessage } from 'vs/base/common/errorMessage';
+import { CancelablePromise, createCancelablePromise } from 'vs/base/common/async';
+import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
+import { canceled } from 'vs/base/common/errors';
 import * as glob from 'vs/base/common/glob';
 import * as resources from 'vs/base/common/resources';
 import { StopWatch } from 'vs/base/common/stopwatch';
@@ -15,127 +15,10 @@ import * as strings from 'vs/base/common/strings';
 import { URI } from 'vs/base/common/uri';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { compareItemsByScore, IItemAccessor, prepareQuery, ScorerCache } from 'vs/base/parts/quickopen/common/quickOpenScorer';
-import { ICachedSearchStats, IFileMatch, IFolderQuery, IRawSearchQuery, ISearchCompleteStats, ISearchQuery, IFileSearchStats, IFileIndexProviderStats } from 'vs/platform/search/common/search';
+import { ICachedSearchStats, IFileIndexProviderStats, IFileMatch, IFileQuery, IFileSearchStats, IFolderQuery, ISearchCompleteStats } from 'vs/platform/search/common/search';
+import { IDirectoryEntry, IDirectoryTree, IInternalFileMatch } from 'vs/workbench/services/search/node/fileSearchManager';
+import { QueryGlobTester, resolvePatternsForProvider } from 'vs/workbench/services/search/node/search';
 import * as vscode from 'vscode';
-import { canceled } from 'vs/base/common/errors';
-
-export interface IInternalFileMatch {
-	base: URI;
-	original?: URI;
-	relativePath?: string; // Not present for extraFiles or absolute path matches
-	basename: string;
-	size?: number;
-}
-
-/**
- *  Computes the patterns that the provider handles. Discards sibling clauses and 'false' patterns
- */
-export function resolvePatternsForProvider(globalPattern: glob.IExpression, folderPattern: glob.IExpression): string[] {
-	const merged = {
-		...(globalPattern || {}),
-		...(folderPattern || {})
-	};
-
-	return Object.keys(merged)
-		.filter(key => {
-			const value = merged[key];
-			return typeof value === 'boolean' && value;
-		});
-}
-
-export class QueryGlobTester {
-
-	private _excludeExpression: glob.IExpression;
-	private _parsedExcludeExpression: glob.ParsedExpression;
-
-	private _parsedIncludeExpression: glob.ParsedExpression;
-
-	constructor(config: ISearchQuery, folderQuery: IFolderQuery) {
-		this._excludeExpression = {
-			...(config.excludePattern || {}),
-			...(folderQuery.excludePattern || {})
-		};
-		this._parsedExcludeExpression = glob.parse(this._excludeExpression);
-
-		// Empty includeExpression means include nothing, so no {} shortcuts
-		let includeExpression: glob.IExpression = config.includePattern;
-		if (folderQuery.includePattern) {
-			if (includeExpression) {
-				includeExpression = {
-					...includeExpression,
-					...folderQuery.includePattern
-				};
-			} else {
-				includeExpression = folderQuery.includePattern;
-			}
-		}
-
-		if (includeExpression) {
-			this._parsedIncludeExpression = glob.parse(includeExpression);
-		}
-	}
-
-	/**
-	 * Guaranteed sync - siblingsFn should not return a promise.
-	 */
-	public includedInQuerySync(testPath: string, basename?: string, hasSibling?: (name: string) => boolean): boolean {
-		if (this._parsedExcludeExpression && this._parsedExcludeExpression(testPath, basename, hasSibling)) {
-			return false;
-		}
-
-		if (this._parsedIncludeExpression && !this._parsedIncludeExpression(testPath, basename, hasSibling)) {
-			return false;
-		}
-
-		return true;
-	}
-
-	/**
-	 * Guaranteed async.
-	 */
-	public includedInQuery(testPath: string, basename?: string, hasSibling?: (name: string) => boolean | TPromise<boolean>): TPromise<boolean> {
-		const excludeP = this._parsedExcludeExpression ?
-			TPromise.as(this._parsedExcludeExpression(testPath, basename, hasSibling)).then(result => !!result) :
-			TPromise.wrap(false);
-
-		return excludeP.then(excluded => {
-			if (excluded) {
-				return false;
-			}
-
-			return this._parsedIncludeExpression ?
-				TPromise.as(this._parsedIncludeExpression(testPath, basename, hasSibling)).then(result => !!result) :
-				TPromise.wrap(true);
-		}).then(included => {
-			return included;
-		});
-	}
-
-	public hasSiblingExcludeClauses(): boolean {
-		return hasSiblingClauses(this._excludeExpression);
-	}
-}
-
-function hasSiblingClauses(pattern: glob.IExpression): boolean {
-	for (let key in pattern) {
-		if (typeof pattern[key] !== 'boolean') {
-			return true;
-		}
-	}
-
-	return false;
-}
-
-export interface IDirectoryEntry {
-	base: URI;
-	relativePath: string;
-	basename: string;
-}
-
-export interface IDirectoryTree {
-	rootEntries: IDirectoryEntry[];
-	pathToEntries: { [relativePath: string]: IDirectoryEntry[] };
-}
 
 interface IInternalSearchComplete<T = IFileSearchStats> {
 	limitHit: boolean;
@@ -160,7 +43,7 @@ export class FileIndexSearchEngine {
 
 	private globalExcludePattern: glob.ParsedExpression;
 
-	constructor(private config: ISearchQuery, private provider: vscode.FileIndexProvider) {
+	constructor(private config: IFileQuery, private provider: vscode.FileIndexProvider) {
 		this.filePattern = config.filePattern;
 		this.includePattern = config.includePattern && glob.parse(config.includePattern);
 		this.maxResults = config.maxResults || null;
@@ -183,10 +66,6 @@ export class FileIndexSearchEngine {
 	}
 
 	public search(_onResult: (match: IInternalFileMatch) => void): TPromise<{ isLimitHit: boolean, stats: IFileIndexProviderStats }> {
-		if (this.config.folderQueries.length !== 1) {
-			throw new Error('Searches just one folder');
-		}
-
 		// Searches a single folder
 		const folderQuery = this.config.folderQueries[0];
 
@@ -215,19 +94,25 @@ export class FileIndexSearchEngine {
 					});
 			}
 
-			return this.searchInFolder(folderQuery, _onResult)
-				.then(stats => {
-					resolve({
-						isLimitHit: this.isLimitHit,
-						stats
-					});
-				}, (errs: Error[]) => {
-					const errMsg = errs
-						.map(err => toErrorMessage(err))
-						.filter(msg => !!msg)[0];
-
-					reject(new Error(errMsg));
+			return Promise.all(this.config.folderQueries.map(fq => this.searchInFolder(folderQuery, onResult))).then(stats => {
+				resolve({
+					isLimitHit: this.isLimitHit,
+					stats: {
+						directoriesWalked: this.dirsWalked,
+						filesWalked: this.filesWalked,
+						fileWalkTime: stats.map(s => s.fileWalkTime).reduce((s, c) => s + c, 0),
+						providerTime: stats.map(s => s.providerTime).reduce((s, c) => s + c, 0),
+						providerResultCount: stats.map(s => s.providerResultCount).reduce((s, c) => s + c, 0)
+					}
 				});
+			}, (errs: Error[]) => {
+				if (!Array.isArray(errs)) {
+					errs = [errs];
+				}
+
+				errs = errs.filter(e => !!e);
+				return Promise.reject(errs[0]);
+			});
 		});
 	}
 
@@ -305,8 +190,9 @@ export class FileIndexSearchEngine {
 			folder: fq.folder,
 			excludes,
 			includes,
-			useIgnoreFiles: !this.config.disregardIgnoreFiles,
-			followSymlinks: !this.config.ignoreSymlinks
+			useIgnoreFiles: !fq.disregardIgnoreFiles,
+			useGlobalIgnoreFiles: !fq.disregardGlobalIgnoreFiles,
+			followSymlinks: !fq.ignoreSymlinks
 		};
 	}
 
@@ -418,9 +304,9 @@ export class FileIndexSearchManager {
 
 	private readonly folderCacheKeys = new Map<string, Set<string>>();
 
-	public fileSearch(config: ISearchQuery, provider: vscode.FileIndexProvider, onBatch: (matches: IFileMatch[]) => void): TPromise<ISearchCompleteStats> {
+	public fileSearch(config: IFileQuery, provider: vscode.FileIndexProvider, onBatch: (matches: IFileMatch[]) => void, token: CancellationToken): TPromise<ISearchCompleteStats> {
 		if (config.sortByScore) {
-			let sortedSearch = this.trySortedSearchFromCache(config);
+			let sortedSearch = this.trySortedSearchFromCache(config, token);
 			if (!sortedSearch) {
 				const engineConfig = config.maxResults ?
 					{
@@ -430,21 +316,17 @@ export class FileIndexSearchManager {
 					config;
 
 				const engine = new FileIndexSearchEngine(engineConfig, provider);
-				sortedSearch = this.doSortedSearch(engine, config);
+				sortedSearch = this.doSortedSearch(engine, config, token);
 			}
 
-			return new TPromise<ISearchCompleteStats>((c, e) => {
-				sortedSearch.then(complete => {
-					this.sendAsBatches(complete.results, onBatch, FileIndexSearchManager.BATCH_SIZE);
-					c(complete);
-				}, e);
-			}, () => {
-				sortedSearch.cancel();
+			return sortedSearch.then(complete => {
+				this.sendAsBatches(complete.results, onBatch, FileIndexSearchManager.BATCH_SIZE);
+				return complete;
 			});
 		}
 
 		const engine = new FileIndexSearchEngine(config, provider);
-		return this.doSearch(engine)
+		return this.doSearch(engine, token)
 			.then(complete => {
 				this.sendAsBatches(complete.results, onBatch, FileIndexSearchManager.BATCH_SIZE);
 				return <ISearchCompleteStats>{
@@ -459,7 +341,7 @@ export class FileIndexSearchManager {
 			});
 	}
 
-	private getFolderCacheKey(config: ISearchQuery): string {
+	private getFolderCacheKey(config: IFileQuery): string {
 		const uri = config.folderQueries[0].folder.toString();
 		const folderCacheKey = config.cacheKey && `${uri}_${config.cacheKey}`;
 		if (!this.folderCacheKeys.get(config.cacheKey)) {
@@ -477,12 +359,9 @@ export class FileIndexSearchManager {
 		};
 	}
 
-	private doSortedSearch(engine: FileIndexSearchEngine, config: ISearchQuery): TPromise<IInternalSearchComplete> {
-		let searchPromise: TPromise<void>;
-		let allResultsPromise = new TPromise<IInternalSearchComplete<IFileIndexProviderStats>>((c, e) => {
-			searchPromise = this.doSearch(engine).then(c, e);
-		}, () => {
-			searchPromise.cancel();
+	private doSortedSearch(engine: FileIndexSearchEngine, config: IFileQuery, token: CancellationToken): TPromise<IInternalSearchComplete> {
+		let allResultsPromise = createCancelablePromise<IInternalSearchComplete<IFileIndexProviderStats>>(token => {
+			return this.doSearch(engine, token);
 		});
 
 		const folderCacheKey = this.getFolderCacheKey(config);
@@ -502,17 +381,16 @@ export class FileIndexSearchManager {
 			allResultsPromise = this.preventCancellation(allResultsPromise);
 		}
 
-		let chained: TPromise<void>;
-		return new TPromise<IInternalSearchComplete>((c, e) => {
-			chained = allResultsPromise.then(complete => {
+		return Promise.resolve<IInternalSearchComplete>(
+			allResultsPromise.then(complete => {
 				const scorerCache: ScorerCache = cache ? cache.scorerCache : Object.create(null);
 				const sortSW = (typeof config.maxResults !== 'number' || config.maxResults > 0) && StopWatch.create();
-				return this.sortResults(config, complete.results, scorerCache)
+				return this.sortResults(config, complete.results, scorerCache, token)
 					.then(sortedResults => {
 						// sortingTime: -1 indicates a "sorted" search that was not sorted, i.e. populating the cache when quickopen is opened.
 						// Contrasting with findFiles which is not sorted and will have sortingTime: undefined
 						const sortingTime = sortSW ? sortSW.elapsed() : -1;
-						c(<IInternalSearchComplete>{
+						return <IInternalSearchComplete>{
 							limitHit: complete.limitHit || typeof config.maxResults === 'number' && complete.results.length > config.maxResults, // ??
 							results: sortedResults,
 							stats: {
@@ -522,12 +400,9 @@ export class FileIndexSearchManager {
 								sortingTime,
 								type: 'fileIndexProvider'
 							}
-						});
+						};
 					});
-			}, e);
-		}, () => {
-			chained.cancel();
-		});
+			}));
 	}
 
 	private getOrCreateCache(cacheKey: string): Cache {
@@ -538,42 +413,41 @@ export class FileIndexSearchManager {
 		return this.caches[cacheKey] = new Cache();
 	}
 
-	private trySortedSearchFromCache(config: ISearchQuery): TPromise<IInternalSearchComplete> {
+	private trySortedSearchFromCache(config: IFileQuery, token: CancellationToken): TPromise<IInternalSearchComplete> {
 		const folderCacheKey = this.getFolderCacheKey(config);
 		const cache = folderCacheKey && this.caches[folderCacheKey];
 		if (!cache) {
 			return undefined;
 		}
 
-		const cached = this.getResultsFromCache(cache, config.filePattern);
+		const cached = this.getResultsFromCache(cache, config.filePattern, token);
 		if (cached) {
-			let chained: TPromise<void>;
-			return new TPromise<IInternalSearchComplete>((c, e) => {
-				chained = cached.then(complete => {
-					const sortSW = StopWatch.create();
-					return this.sortResults(config, complete.results, cache.scorerCache)
-						.then(sortedResults => {
-							c(<IInternalSearchComplete<IFileSearchStats>>{
-								limitHit: complete.limitHit || typeof config.maxResults === 'number' && complete.results.length > config.maxResults,
-								results: sortedResults,
-								stats: {
-									fromCache: true,
-									detailStats: complete.stats,
-									type: 'fileIndexProvider',
-									resultCount: sortedResults.length,
-									sortingTime: sortSW.elapsed()
-								}
-							});
-						});
-				}, e);
-			}, () => {
-				chained.cancel();
+			return cached.then(complete => {
+				const sortSW = StopWatch.create();
+				return this.sortResults(config, complete.results, cache.scorerCache, token)
+					.then(sortedResults => {
+						if (token && token.isCancellationRequested) {
+							throw canceled();
+						}
+
+						return <IInternalSearchComplete<IFileSearchStats>>{
+							limitHit: complete.limitHit || typeof config.maxResults === 'number' && complete.results.length > config.maxResults,
+							results: sortedResults,
+							stats: {
+								fromCache: true,
+								detailStats: complete.stats,
+								type: 'fileIndexProvider',
+								resultCount: sortedResults.length,
+								sortingTime: sortSW.elapsed()
+							}
+						};
+					});
 			});
 		}
 		return undefined;
 	}
 
-	private sortResults(config: IRawSearchQuery, results: IInternalFileMatch[], scorerCache: ScorerCache): TPromise<IInternalFileMatch[]> {
+	private sortResults(config: IFileQuery, results: IInternalFileMatch[], scorerCache: ScorerCache, token: CancellationToken): TPromise<IInternalFileMatch[]> {
 		// we use the same compare function that is used later when showing the results using fuzzy scoring
 		// this is very important because we are also limiting the number of results by config.maxResults
 		// and as such we want the top items to be included in this result set if the number of items
@@ -581,7 +455,7 @@ export class FileIndexSearchManager {
 		const query = prepareQuery(config.filePattern);
 		const compare = (matchA: IInternalFileMatch, matchB: IInternalFileMatch) => compareItemsByScore(matchA, matchB, query, true, FileMatchItemAccessor, scorerCache);
 
-		return arrays.topAsync(results, compare, config.maxResults, 10000);
+		return arrays.topAsync(results, compare, config.maxResults, 10000, token);
 	}
 
 	private sendAsBatches(rawMatches: IInternalFileMatch[], onBatch: (batch: IFileMatch[]) => void, batchSize: number) {
@@ -595,7 +469,7 @@ export class FileIndexSearchManager {
 		}
 	}
 
-	private getResultsFromCache(cache: Cache, searchValue: string): TPromise<IInternalSearchComplete<ICachedSearchStats>> {
+	private getResultsFromCache(cache: Cache, searchValue: string, token: CancellationToken): TPromise<IInternalSearchComplete<ICachedSearchStats>> {
 		const cacheLookupSW = StopWatch.create();
 
 		if (path.isAbsolute(searchValue)) {
@@ -630,7 +504,13 @@ export class FileIndexSearchManager {
 		const cacheFilterSW = StopWatch.create();
 
 		return new TPromise<IInternalSearchComplete<ICachedSearchStats>>((c, e) => {
+			token.onCancellationRequested(() => e(canceled()));
+
 			cacheRow.promise.then(complete => {
+				if (token && token.isCancellationRequested) {
+					e(canceled());
+				}
+
 				// Pattern match on results
 				let results: IInternalFileMatch[] = [];
 				const normalizedSearchValueLowercase = strings.stripWildcards(searchValue).toLowerCase();
@@ -656,30 +536,26 @@ export class FileIndexSearchManager {
 					}
 				});
 			}, e);
-		}, () => {
-			cacheRow.promise.cancel();
 		});
 	}
 
-	private doSearch(engine: FileIndexSearchEngine): TPromise<IInternalSearchComplete<IFileIndexProviderStats>> {
+	private doSearch(engine: FileIndexSearchEngine, token: CancellationToken): TPromise<IInternalSearchComplete<IFileIndexProviderStats>> {
+		token.onCancellationRequested(() => engine.cancel());
 		const results: IInternalFileMatch[] = [];
 		const onResult = match => results.push(match);
-		return new TPromise<IInternalSearchComplete<IFileIndexProviderStats>>((c, e) => {
-			engine.search(onResult).then(result => {
-				c(<IInternalSearchComplete<IFileIndexProviderStats>>{
-					limitHit: result.isLimitHit,
-					results,
-					stats: result.stats
-				});
-			}, e);
-		}, () => {
-			engine.cancel();
+
+		return engine.search(onResult).then(result => {
+			return <IInternalSearchComplete<IFileIndexProviderStats>>{
+				limitHit: result.isLimitHit,
+				results,
+				stats: result.stats
+			};
 		});
 	}
 
 	public clearCache(cacheKey: string): TPromise<void> {
 		if (!this.folderCacheKeys.has(cacheKey)) {
-			return TPromise.wrap(undefined);
+			return Promise.resolve(undefined);
 		}
 
 		const expandedKeys = this.folderCacheKeys.get(cacheKey);
@@ -687,23 +563,26 @@ export class FileIndexSearchManager {
 
 		this.folderCacheKeys.delete(cacheKey);
 
-		return TPromise.as(undefined);
+		return Promise.resolve(undefined);
 	}
 
-	private preventCancellation<C>(promise: TPromise<C>): TPromise<C> {
-		return new TPromise<C>((c, e) => {
-			// Allow for piled up cancellations to come through first.
-			process.nextTick(() => {
-				promise.then(c, e);
-			});
-		}, () => {
-			// Do not propagate.
-		});
+	private preventCancellation<C>(promise: CancelablePromise<C>): CancelablePromise<C> {
+		return new class implements CancelablePromise<C> {
+			cancel() {
+				// Do nothing
+			}
+			then(resolve, reject) {
+				return promise.then(resolve, reject);
+			}
+			catch(reject?) {
+				return this.then(undefined, reject);
+			}
+		};
 	}
 }
 
 interface ICacheRow {
-	promise: TPromise<IInternalSearchComplete<IFileIndexProviderStats>>;
+	promise: CancelablePromise<IInternalSearchComplete<IFileIndexProviderStats>>;
 	resolved: boolean;
 }
 

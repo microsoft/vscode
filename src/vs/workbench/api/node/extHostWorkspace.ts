@@ -2,7 +2,6 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
 import { join, relative } from 'path';
 import { delta as arrayDelta } from 'vs/base/common/arrays';
@@ -14,17 +13,17 @@ import { isLinux } from 'vs/base/common/platform';
 import { basenameOrAuthority, dirname, isEqual } from 'vs/base/common/resources';
 import { compare } from 'vs/base/common/strings';
 import { URI } from 'vs/base/common/uri';
-import { TPromise } from 'vs/base/common/winjs.base';
 import { localize } from 'vs/nls';
 import { ILogService } from 'vs/platform/log/common/log';
 import { Severity } from 'vs/platform/notification/common/notification';
-import { IQueryOptions, IRawFileMatch2 } from 'vs/platform/search/common/search';
+import { IRawFileMatch2 } from 'vs/platform/search/common/search';
 import { Workspace, WorkspaceFolder } from 'vs/platform/workspace/common/workspace';
-import { Range } from 'vs/workbench/api/node/extHostTypes';
+import { Range, RelativePattern } from 'vs/workbench/api/node/extHostTypes';
 import { IExtensionDescription } from 'vs/workbench/services/extensions/common/extensions';
 import * as vscode from 'vscode';
 import { ExtHostWorkspaceShape, IMainContext, IWorkspaceData, MainContext, MainThreadMessageServiceShape, MainThreadWorkspaceShape } from './extHost.protocol';
 import { CancellationToken } from 'vs/base/common/cancellation';
+import { ITextQueryBuilderOptions } from 'vs/workbench/parts/search/common/queryBuilder';
 
 function isFolderEqual(folderA: URI, folderB: URI): boolean {
 	return isEqual(folderA, folderB, !isLinux);
@@ -346,17 +345,19 @@ export class ExtHostWorkspace implements ExtHostWorkspaceShape {
 
 	// --- search ---
 
-	findFiles(include: vscode.GlobPattern, exclude: vscode.GlobPattern, maxResults: number, extensionId: string, token: vscode.CancellationToken = CancellationToken.None): Thenable<vscode.Uri[]> {
+	findFiles(include: string | RelativePattern, exclude: vscode.GlobPattern, maxResults: number, extensionId: string, token: vscode.CancellationToken = CancellationToken.None): Thenable<vscode.Uri[]> {
 		this._logService.trace(`extHostWorkspace#findFiles: fileSearch, extension: ${extensionId}, entryPoint: findFiles`);
 
 		let includePattern: string;
-		let includeFolder: string;
+		let includeFolder: URI;
 		if (include) {
 			if (typeof include === 'string') {
 				includePattern = include;
 			} else {
 				includePattern = include.pattern;
-				includeFolder = include.base;
+
+				// include.base must be an absolute path
+				includeFolder = include.baseFolder || URI.file(include.base);
 			}
 		}
 
@@ -372,19 +373,15 @@ export class ExtHostWorkspace implements ExtHostWorkspaceShape {
 		}
 
 		if (token && token.isCancellationRequested) {
-			return TPromise.wrap([]);
+			return Promise.resolve([]);
 		}
 
 		return this._proxy.$startFileSearch(includePattern, includeFolder, excludePatternOrDisregardExcludes, maxResults, token)
 			.then(data => Array.isArray(data) ? data.map(URI.revive) : []);
 	}
 
-	findTextInFiles(query: vscode.TextSearchQuery, options: vscode.FindTextInFilesOptions, callback: (result: vscode.TextSearchResult) => void, extensionId: string, token: vscode.CancellationToken = CancellationToken.None) {
+	findTextInFiles(query: vscode.TextSearchQuery, options: vscode.FindTextInFilesOptions, callback: (result: vscode.TextSearchResult) => void, extensionId: string, token: vscode.CancellationToken = CancellationToken.None): Thenable<vscode.TextSearchComplete> {
 		this._logService.trace(`extHostWorkspace#findTextInFiles: textSearch, extension: ${extensionId}, entryPoint: findTextInFiles`);
-
-		if (options.previewOptions && options.previewOptions.totalChars <= options.previewOptions.leadingChars) {
-			throw new Error('findTextInFiles: previewOptions.totalChars must be > previewOptions.leadingChars');
-		}
 
 		const requestId = this._requestIdProvider.getNext();
 
@@ -396,13 +393,21 @@ export class ExtHostWorkspace implements ExtHostWorkspaceShape {
 			return join(pattern.base, pattern.pattern);
 		};
 
-		const queryOptions: IQueryOptions = {
+		const previewOptions: vscode.TextSearchPreviewOptions = typeof options.previewOptions === 'undefined' ?
+			{
+				matchLines: 100,
+				charsPerLine: 10000
+			} :
+			options.previewOptions;
+
+		const queryOptions: ITextQueryBuilderOptions = {
 			ignoreSymlinks: typeof options.followSymlinks === 'boolean' ? !options.followSymlinks : undefined,
 			disregardIgnoreFiles: typeof options.useIgnoreFiles === 'boolean' ? !options.useIgnoreFiles : undefined,
+			disregardGlobalIgnoreFiles: typeof options.useGlobalIgnoreFiles === 'boolean' ? !options.useGlobalIgnoreFiles : undefined,
 			disregardExcludeSettings: options.exclude === null,
 			fileEncoding: options.encoding,
 			maxResults: options.maxResults,
-			previewOptions: options.previewOptions,
+			previewOptions,
 
 			includePattern: options.include && globPatternToString(options.include),
 			excludePattern: options.exclude && globPatternToString(options.exclude)
@@ -428,17 +433,16 @@ export class ExtHostWorkspace implements ExtHostWorkspaceShape {
 		};
 
 		if (token.isCancellationRequested) {
-			return TPromise.wrap(undefined);
+			return Promise.resolve(undefined);
 		}
 
-		return this._proxy.$startTextSearch(query, queryOptions, requestId, token).then(
-			() => {
-				delete this._activeSearchCallbacks[requestId];
-			},
-			err => {
-				delete this._activeSearchCallbacks[requestId];
-				return TPromise.wrapError(err);
-			});
+		return this._proxy.$startTextSearch(query, queryOptions, requestId, token).then(result => {
+			delete this._activeSearchCallbacks[requestId];
+			return result;
+		}, err => {
+			delete this._activeSearchCallbacks[requestId];
+			return Promise.reject(err);
+		});
 	}
 
 	$handleTextSearchResult(result: IRawFileMatch2, requestId: number): void {
@@ -449,5 +453,9 @@ export class ExtHostWorkspace implements ExtHostWorkspaceShape {
 
 	saveAll(includeUntitled?: boolean): Thenable<boolean> {
 		return this._proxy.$saveAll(includeUntitled);
+	}
+
+	resolveProxy(url: string): Thenable<string> {
+		return this._proxy.$resolveProxy(url);
 	}
 }

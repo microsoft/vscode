@@ -2,7 +2,6 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
 import { URI } from 'vs/base/common/uri';
 import { localize } from 'vs/nls';
@@ -17,6 +16,7 @@ import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { IEditorGroupsService, IEditorGroup } from 'vs/workbench/services/group/common/editorGroupsService';
 import { IExtensionsWorkbenchService } from 'vs/workbench/parts/extensions/common/extensions';
 import { IEditorRegistry, EditorDescriptor, Extensions as EditorExtensions } from 'vs/workbench/browser/editor';
+import { registerWebViewCommands } from 'vs/workbench/parts/webview/electron-browser/webview.contribution';
 
 function getActivePreviewsForResource(accessor: ServicesAccessor, resource: URI | string) {
 	const uri = resource instanceof URI ? resource : URI.parse(resource);
@@ -98,3 +98,5 @@ CommandsRegistry.registerCommand('_workbench.htmlPreview.postMessage', function 
 	}
 	return activePreviews.length > 0;
 });
+
+registerWebViewCommands(HtmlPreviewPart.ID);

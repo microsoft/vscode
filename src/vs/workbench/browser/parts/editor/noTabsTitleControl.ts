@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import 'vs/css!./media/notabstitlecontrol';
 import { toResource, Verbosity, IEditorInput } from 'vs/workbench/common/editor';
 import { TitleControl, IToolbarActions } from 'vs/workbench/browser/parts/editor/titleControl';
@@ -17,10 +15,15 @@ import { IAction } from 'vs/base/common/actions';
 import { CLOSE_EDITOR_COMMAND_ID } from 'vs/workbench/browser/parts/editor/editorCommands';
 import { Color } from 'vs/base/common/color';
 
+interface IRenderedEditorLabel {
+	editor: IEditorInput;
+	pinned: boolean;
+}
+
 export class NoTabsTitleControl extends TitleControl {
 	private titleContainer: HTMLElement;
 	private editorLabel: ResourceLabel;
-	private lastRenderedActiveEditor: IEditorInput;
+	private activeLabel: IRenderedEditorLabel = Object.create(null);
 
 	protected create(parent: HTMLElement): void {
 		this.titleContainer = parent;
@@ -101,7 +104,10 @@ export class NoTabsTitleControl extends TitleControl {
 	}
 
 	openEditor(editor: IEditorInput): void {
-		this.ifActiveEditorChanged(() => this.redraw());
+		const activeEditorChanged = this.ifActiveEditorChanged(() => this.redraw());
+		if (!activeEditorChanged) {
+			this.ifActiveEditorPropertiesChanged(() => this.redraw());
+		}
 	}
 
 	closeEditor(editor: IEditorInput): void {
@@ -157,15 +163,30 @@ export class NoTabsTitleControl extends TitleControl {
 		this.redraw();
 	}
 
-	private ifActiveEditorChanged(fn: () => void): void {
+	private ifActiveEditorChanged(fn: () => void): boolean {
 		if (
-			!this.lastRenderedActiveEditor && this.group.activeEditor || 	// active editor changed from null => editor
-			this.lastRenderedActiveEditor && !this.group.activeEditor || 	// active editor changed from editor => null
-			!this.group.isActive(this.lastRenderedActiveEditor)				// active editor changed from editorA => editorB
+			!this.activeLabel.editor && this.group.activeEditor || 	// active editor changed from null => editor
+			this.activeLabel.editor && !this.group.activeEditor || 	// active editor changed from editor => null
+			!this.group.isActive(this.activeLabel.editor)			// active editor changed from editorA => editorB
 		) {
 			fn();
+
+			return true;
+		}
+
+		return false;
+	}
+
+	private ifActiveEditorPropertiesChanged(fn: () => void): void {
+		if (!this.activeLabel.editor || !this.group.activeEditor) {
+			return; // need an active editor to check for properties changed
+		}
+
+		if (this.activeLabel.pinned !== this.group.isPinned(this.group.activeEditor)) {
+			fn(); // only run if pinned state has changed
 		}
 	}
+
 
 	private ifEditorIsActive(editor: IEditorInput, fn: () => void): void {
 		if (this.group.isActive(editor)) {
@@ -175,10 +196,11 @@ export class NoTabsTitleControl extends TitleControl {
 
 	private redraw(): void {
 		const editor = this.group.activeEditor;
-		this.lastRenderedActiveEditor = editor;
 
 		const isEditorPinned = this.group.isPinned(this.group.activeEditor);
 		const isGroupActive = this.accessor.activeGroup === this.group;
+
+		this.activeLabel = { editor, pinned: isEditorPinned };
 
 		// Update Breadcrumbs
 		if (this.breadcrumbsControl) {
@@ -199,6 +221,7 @@ export class NoTabsTitleControl extends TitleControl {
 
 		// Otherwise render it
 		else {
+
 			// Dirty state
 			this.updateEditorDirty(editor);
 

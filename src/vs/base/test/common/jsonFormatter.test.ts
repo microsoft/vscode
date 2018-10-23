@@ -2,15 +2,13 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
-
 import * as Formatter from 'vs/base/common/jsonFormatter';
 import * as assert from 'assert';
 
 suite('JSON - formatter', () => {
 
 	function format(content: string, expected: string, insertSpaces = true) {
-		let range = void 0;
+		let range: Formatter.Range | undefined = void 0;
 		var rangeStart = content.indexOf('|');
 		var rangeEnd = content.lastIndexOf('|');
 		if (rangeStart !== -1 && rangeEnd !== -1) {
@@ -346,12 +344,12 @@ suite('JSON - formatter', () => {
 			'{ "a": {},',
 			'   |"b": [null],',
 			'"c": {}',
-			'} |'
+			'}|'
 		].join('\n');
 
 		var expected = [
 			'{ "a": {},',
-			'  "b": [',
+			'   "b": [',
 			'    null',
 			'  ],',
 			'  "c": {}',

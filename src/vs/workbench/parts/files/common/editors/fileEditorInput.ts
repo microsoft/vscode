@@ -2,7 +2,6 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
 import { localize } from 'vs/nls';
 import { TPromise } from 'vs/base/common/winjs.base';
@@ -78,14 +77,6 @@ export class FileEditorInput extends EditorInput implements IFileEditorInput {
 		return this.resource;
 	}
 
-	setPreferredEncoding(encoding: string): void {
-		this.preferredEncoding = encoding;
-
-		if (encoding) {
-			this.forceOpenAsText = true; // encoding is a good hint to open the file as text
-		}
-	}
-
 	getEncoding(): string {
 		const textModel = this.textFileService.models.get(this.resource);
 		if (textModel) {
@@ -105,6 +96,14 @@ export class FileEditorInput extends EditorInput implements IFileEditorInput {
 		const textModel = this.textFileService.models.get(this.resource);
 		if (textModel) {
 			textModel.setEncoding(encoding, mode);
+		}
+	}
+
+	setPreferredEncoding(encoding: string): void {
+		this.preferredEncoding = encoding;
+
+		if (encoding) {
+			this.forceOpenAsText = true; // encoding is a good hint to open the file as text
 		}
 	}
 
@@ -137,12 +136,12 @@ export class FileEditorInput extends EditorInput implements IFileEditorInput {
 
 	@memoize
 	private get mediumDescription(): string {
-		return this.labelService.getUriLabel(resources.dirname(this.resource), true);
+		return this.labelService.getUriLabel(resources.dirname(this.resource), { relative: true });
 	}
 
 	@memoize
 	private get longDescription(): string {
-		return this.labelService.getUriLabel(resources.dirname(this.resource), true);
+		return this.labelService.getUriLabel(resources.dirname(this.resource), { relative: true });
 	}
 
 	getDescription(verbosity: Verbosity = Verbosity.MEDIUM): string {
@@ -170,7 +169,7 @@ export class FileEditorInput extends EditorInput implements IFileEditorInput {
 
 	@memoize
 	private get mediumTitle(): string {
-		return this.labelService.getUriLabel(this.resource, true);
+		return this.labelService.getUriLabel(this.resource, { relative: true });
 	}
 
 	@memoize
@@ -278,7 +277,7 @@ export class FileEditorInput extends EditorInput implements IFileEditorInput {
 			}
 
 			// Bubble any other error up
-			return TPromise.wrapError(error);
+			return Promise.reject(error);
 		});
 	}
 

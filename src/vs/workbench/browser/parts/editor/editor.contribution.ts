@@ -2,7 +2,6 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
 import { Registry } from 'vs/platform/registry/common/platform';
 import * as nls from 'vs/nls';
@@ -12,7 +11,7 @@ import { IEditorQuickOpenEntry, IQuickOpenRegistry, Extensions as QuickOpenExten
 import { StatusbarItemDescriptor, IStatusbarRegistry, Extensions as StatusExtensions } from 'vs/workbench/browser/parts/statusbar/statusbar';
 import { StatusbarAlignment } from 'vs/platform/statusbar/common/statusbar';
 import { IEditorRegistry, EditorDescriptor, Extensions as EditorExtensions } from 'vs/workbench/browser/editor';
-import { EditorInput, IEditorInputFactory, SideBySideEditorInput, IEditorInputFactoryRegistry, Extensions as EditorInputExtensions } from 'vs/workbench/common/editor';
+import { EditorInput, IEditorInputFactory, SideBySideEditorInput, IEditorInputFactoryRegistry, Extensions as EditorInputExtensions, TextCompareEditorActiveContext } from 'vs/workbench/common/editor';
 import { TextResourceEditor } from 'vs/workbench/browser/parts/editor/textResourceEditor';
 import { SideBySideEditor } from 'vs/workbench/browser/parts/editor/sideBySideEditor';
 import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
@@ -25,7 +24,7 @@ import { BinaryResourceDiffEditor } from 'vs/workbench/browser/parts/editor/bina
 import { ChangeEncodingAction, ChangeEOLAction, ChangeModeAction, EditorStatus } from 'vs/workbench/browser/parts/editor/editorStatus';
 import { IWorkbenchActionRegistry, Extensions as ActionExtensions } from 'vs/workbench/common/actions';
 import { Scope, IActionBarRegistry, Extensions as ActionBarExtensions, ActionBarContributor } from 'vs/workbench/browser/actions';
-import { SyncActionDescriptor, MenuRegistry, MenuId } from 'vs/platform/actions/common/actions';
+import { SyncActionDescriptor, MenuRegistry, MenuId, IMenuItem } from 'vs/platform/actions/common/actions';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { KeyMod, KeyChord, KeyCode } from 'vs/base/common/keyCodes';
 import {
@@ -39,7 +38,7 @@ import {
 	SplitEditorUpAction, SplitEditorDownAction, MoveEditorToLeftGroupAction, MoveEditorToRightGroupAction, MoveEditorToAboveGroupAction, MoveEditorToBelowGroupAction, CloseAllEditorGroupsAction,
 	JoinAllGroupsAction, FocusLeftGroup, FocusAboveGroup, FocusRightGroup, FocusBelowGroup, EditorLayoutSingleAction, EditorLayoutTwoColumnsAction, EditorLayoutThreeColumnsAction, EditorLayoutTwoByTwoGridAction,
 	EditorLayoutTwoRowsAction, EditorLayoutThreeRowsAction, EditorLayoutTwoColumnsBottomAction, EditorLayoutTwoRowsRightAction, NewEditorGroupLeftAction, NewEditorGroupRightAction,
-	NewEditorGroupAboveAction, NewEditorGroupBelowAction, SplitEditorOrthogonalAction
+	NewEditorGroupAboveAction, NewEditorGroupBelowAction, SplitEditorOrthogonalAction, CloseEditorInAllGroupsAction, NavigateToLastEditLocationAction
 } from 'vs/workbench/browser/parts/editor/editorActions';
 import * as editorCommands from 'vs/workbench/browser/parts/editor/editorCommands';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
@@ -49,6 +48,8 @@ import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { isMacintosh } from 'vs/base/common/platform';
 import { AllEditorsPicker, ActiveEditorGroupPicker } from 'vs/workbench/browser/parts/editor/editorPicker';
 import { Schemas } from 'vs/base/common/network';
+import { registerEditorContribution } from 'vs/editor/browser/editorExtensions';
+import { OpenWorkspaceButtonContribution } from 'vs/workbench/browser/parts/editor/editorWidgets';
 
 // Register String Editor
 Registry.as<IEditorRegistry>(EditorExtensions.Editors).registerEditor(
@@ -213,6 +214,9 @@ class SideBySideEditorInputFactory implements IEditorInputFactory {
 
 Registry.as<IEditorInputFactoryRegistry>(EditorInputExtensions.EditorInputFactories).registerEditorInputFactory(SideBySideEditorInput.ID, SideBySideEditorInputFactory);
 
+// Register Editor Contributions
+registerEditorContribution(OpenWorkspaceButtonContribution);
+
 // Register Editor Status
 const statusBar = Registry.as<IStatusbarRegistry>(StatusExtensions.Statusbar);
 statusBar.registerStatusbarItem(new StatusbarItemDescriptor(EditorStatus, StatusbarAlignment.RIGHT, 100 /* towards the left of the right hand side */));
@@ -318,6 +322,7 @@ registry.registerWorkbenchAction(new SyncActionDescriptor(CloseAllEditorsAction,
 registry.registerWorkbenchAction(new SyncActionDescriptor(CloseAllEditorGroupsAction, CloseAllEditorGroupsAction.ID, CloseAllEditorGroupsAction.LABEL, { primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_W) }), 'View: Close All Editor Groups', category);
 registry.registerWorkbenchAction(new SyncActionDescriptor(CloseLeftEditorsInGroupAction, CloseLeftEditorsInGroupAction.ID, CloseLeftEditorsInGroupAction.LABEL), 'View: Close Editors in Group to the Left', category);
 registry.registerWorkbenchAction(new SyncActionDescriptor(CloseEditorsInOtherGroupsAction, CloseEditorsInOtherGroupsAction.ID, CloseEditorsInOtherGroupsAction.LABEL), 'View: Close Editors in Other Groups', category);
+registry.registerWorkbenchAction(new SyncActionDescriptor(CloseEditorInAllGroupsAction, CloseEditorInAllGroupsAction.ID, CloseEditorInAllGroupsAction.LABEL), 'View: Close Editor in All Groups', category);
 registry.registerWorkbenchAction(new SyncActionDescriptor(SplitEditorAction, SplitEditorAction.ID, SplitEditorAction.LABEL, { primary: KeyMod.CtrlCmd | KeyCode.US_BACKSLASH }), 'View: Split Editor', category);
 registry.registerWorkbenchAction(new SyncActionDescriptor(SplitEditorOrthogonalAction, SplitEditorOrthogonalAction.ID, SplitEditorOrthogonalAction.LABEL, { primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.US_BACKSLASH) }), 'View: Split Editor Orthogonal', category);
 registry.registerWorkbenchAction(new SyncActionDescriptor(SplitEditorLeftAction, SplitEditorLeftAction.ID, SplitEditorLeftAction.LABEL), 'View: Split Editor Left', category);
@@ -357,8 +362,9 @@ registry.registerWorkbenchAction(new SyncActionDescriptor(NewEditorGroupLeftActi
 registry.registerWorkbenchAction(new SyncActionDescriptor(NewEditorGroupRightAction, NewEditorGroupRightAction.ID, NewEditorGroupRightAction.LABEL), 'View: New Editor Group to the Right', category);
 registry.registerWorkbenchAction(new SyncActionDescriptor(NewEditorGroupAboveAction, NewEditorGroupAboveAction.ID, NewEditorGroupAboveAction.LABEL), 'View: New Editor Group Above', category);
 registry.registerWorkbenchAction(new SyncActionDescriptor(NewEditorGroupBelowAction, NewEditorGroupBelowAction.ID, NewEditorGroupBelowAction.LABEL), 'View: New Editor Group Below', category);
-registry.registerWorkbenchAction(new SyncActionDescriptor(NavigateForwardAction, NavigateForwardAction.ID, NavigateForwardAction.LABEL, { primary: null, win: { primary: KeyMod.Alt | KeyCode.RightArrow }, mac: { primary: KeyMod.WinCtrl | KeyMod.Shift | KeyCode.US_MINUS }, linux: { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.US_MINUS } }), 'Go Forward');
-registry.registerWorkbenchAction(new SyncActionDescriptor(NavigateBackwardsAction, NavigateBackwardsAction.ID, NavigateBackwardsAction.LABEL, { primary: null, win: { primary: KeyMod.Alt | KeyCode.LeftArrow }, mac: { primary: KeyMod.WinCtrl | KeyCode.US_MINUS }, linux: { primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.US_MINUS } }), 'Go Back');
+registry.registerWorkbenchAction(new SyncActionDescriptor(NavigateForwardAction, NavigateForwardAction.ID, NavigateForwardAction.LABEL, { primary: 0, win: { primary: KeyMod.Alt | KeyCode.RightArrow }, mac: { primary: KeyMod.WinCtrl | KeyMod.Shift | KeyCode.US_MINUS }, linux: { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.US_MINUS } }), 'Go Forward');
+registry.registerWorkbenchAction(new SyncActionDescriptor(NavigateBackwardsAction, NavigateBackwardsAction.ID, NavigateBackwardsAction.LABEL, { primary: 0, win: { primary: KeyMod.Alt | KeyCode.LeftArrow }, mac: { primary: KeyMod.WinCtrl | KeyCode.US_MINUS }, linux: { primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.US_MINUS } }), 'Go Back');
+registry.registerWorkbenchAction(new SyncActionDescriptor(NavigateToLastEditLocationAction, NavigateToLastEditLocationAction.ID, NavigateToLastEditLocationAction.LABEL, { primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.KEY_Q) }), 'Go to Last Edit Location');
 registry.registerWorkbenchAction(new SyncActionDescriptor(NavigateLastAction, NavigateLastAction.ID, NavigateLastAction.LABEL), 'Go Last');
 registry.registerWorkbenchAction(new SyncActionDescriptor(OpenPreviousEditorFromHistoryAction, OpenPreviousEditorFromHistoryAction.ID, OpenPreviousEditorFromHistoryAction.LABEL), 'Open Previous Editor from History');
 registry.registerWorkbenchAction(new SyncActionDescriptor(ClearEditorHistoryAction, ClearEditorHistoryAction.ID, ClearEditorHistoryAction.LABEL), 'Clear Editor History');
@@ -434,15 +440,15 @@ MenuRegistry.appendMenuItem(MenuId.EditorTitleContext, { command: { id: editorCo
 MenuRegistry.appendMenuItem(MenuId.EditorTitleContext, { command: { id: editorCommands.SPLIT_EDITOR_RIGHT, title: nls.localize('splitRight', "Split Right") }, group: '5_split', order: 40 });
 
 // Editor Title Menu
-MenuRegistry.appendMenuItem(MenuId.EditorTitle, { command: { id: editorCommands.TOGGLE_DIFF_INLINE_MODE, title: nls.localize('toggleInlineView', "Toggle Inline View") }, group: '1_diff', order: 10, when: ContextKeyExpr.has('isInDiffEditor') });
+MenuRegistry.appendMenuItem(MenuId.EditorTitle, { command: { id: editorCommands.TOGGLE_DIFF_SIDE_BY_SIDE, title: nls.localize('toggleSideBySideView', "Toggle Side By Side View") }, group: '1_diff', order: 10, when: ContextKeyExpr.has('isInDiffEditor') });
 MenuRegistry.appendMenuItem(MenuId.EditorTitle, { command: { id: editorCommands.SHOW_EDITORS_IN_GROUP, title: nls.localize('showOpenedEditors', "Show Opened Editors") }, group: '3_open', order: 10, when: ContextKeyExpr.has('config.workbench.editor.showTabs') });
 MenuRegistry.appendMenuItem(MenuId.EditorTitle, { command: { id: editorCommands.CLOSE_EDITORS_IN_GROUP_COMMAND_ID, title: nls.localize('closeAll', "Close All") }, group: '5_close', order: 10, when: ContextKeyExpr.has('config.workbench.editor.showTabs') });
 MenuRegistry.appendMenuItem(MenuId.EditorTitle, { command: { id: editorCommands.CLOSE_SAVED_EDITORS_COMMAND_ID, title: nls.localize('closeAllSaved', "Close Saved") }, group: '5_close', order: 20, when: ContextKeyExpr.has('config.workbench.editor.showTabs') });
 
 interface IEditorToolItem { id: string; title: string; iconDark: string; iconLight: string; }
 
-function appendEditorToolItem(primary: IEditorToolItem, alternative: IEditorToolItem, when: ContextKeyExpr, order: number): void {
-	MenuRegistry.appendMenuItem(MenuId.EditorTitle, {
+function appendEditorToolItem(primary: IEditorToolItem, when: ContextKeyExpr, order: number, alternative?: IEditorToolItem): void {
+	const item: IMenuItem = {
 		command: {
 			id: primary.id,
 			title: primary.title,
@@ -451,18 +457,23 @@ function appendEditorToolItem(primary: IEditorToolItem, alternative: IEditorTool
 				light: URI.parse(require.toUrl(`vs/workbench/browser/parts/editor/media/${primary.iconLight}`))
 			}
 		},
-		alt: {
+		group: 'navigation',
+		when,
+		order
+	};
+
+	if (alternative) {
+		item.alt = {
 			id: alternative.id,
 			title: alternative.title,
 			iconLocation: {
 				dark: URI.parse(require.toUrl(`vs/workbench/browser/parts/editor/media/${alternative.iconDark}`)),
 				light: URI.parse(require.toUrl(`vs/workbench/browser/parts/editor/media/${alternative.iconLight}`))
 			}
-		},
-		group: 'navigation',
-		when,
-		order
-	});
+		};
+	}
+
+	MenuRegistry.appendMenuItem(MenuId.EditorTitle, item);
 }
 
 // Editor Title Menu: Split Editor
@@ -472,14 +483,15 @@ appendEditorToolItem(
 		title: nls.localize('splitEditorRight', "Split Editor Right"),
 		iconDark: 'split-editor-horizontal-inverse.svg',
 		iconLight: 'split-editor-horizontal.svg'
-	}, {
+	},
+	ContextKeyExpr.not('splitEditorsVertically'),
+	100000, // towards the end
+	{
 		id: editorCommands.SPLIT_EDITOR_DOWN,
 		title: nls.localize('splitEditorDown', "Split Editor Down"),
 		iconDark: 'split-editor-vertical-inverse.svg',
 		iconLight: 'split-editor-vertical.svg'
-	},
-	ContextKeyExpr.not('splitEditorsVertically'),
-	100000 /* towards the end */
+	}
 );
 
 appendEditorToolItem(
@@ -488,14 +500,15 @@ appendEditorToolItem(
 		title: nls.localize('splitEditorDown', "Split Editor Down"),
 		iconDark: 'split-editor-vertical-inverse.svg',
 		iconLight: 'split-editor-vertical.svg'
-	}, {
+	},
+	ContextKeyExpr.has('splitEditorsVertically'),
+	100000, // towards the end
+	{
 		id: editorCommands.SPLIT_EDITOR_RIGHT,
 		title: nls.localize('splitEditorRight', "Split Editor Right"),
 		iconDark: 'split-editor-horizontal-inverse.svg',
 		iconLight: 'split-editor-horizontal.svg'
-	},
-	ContextKeyExpr.has('splitEditorsVertically'),
-	100000 // towards the end
+	}
 );
 
 // Editor Title Menu: Close Group (tabs disabled)
@@ -505,14 +518,15 @@ appendEditorToolItem(
 		title: nls.localize('close', "Close"),
 		iconDark: 'close-big-inverse-alt.svg',
 		iconLight: 'close-big-alt.svg'
-	}, {
+	},
+	ContextKeyExpr.and(ContextKeyExpr.not('config.workbench.editor.showTabs'), ContextKeyExpr.not('groupActiveEditorDirty')),
+	1000000, // towards the far end
+	{
 		id: editorCommands.CLOSE_EDITORS_IN_GROUP_COMMAND_ID,
 		title: nls.localize('closeAll', "Close All"),
 		iconDark: 'closeall-editors-inverse.svg',
 		iconLight: 'closeall-editors.svg'
-	},
-	ContextKeyExpr.and(ContextKeyExpr.not('config.workbench.editor.showTabs'), ContextKeyExpr.not('groupActiveEditorDirty')),
-	1000000 // towards the end
+	}
 );
 
 appendEditorToolItem(
@@ -521,22 +535,71 @@ appendEditorToolItem(
 		title: nls.localize('close', "Close"),
 		iconDark: 'close-dirty-inverse-alt.svg',
 		iconLight: 'close-dirty-alt.svg'
-	}, {
+	},
+	ContextKeyExpr.and(ContextKeyExpr.not('config.workbench.editor.showTabs'), ContextKeyExpr.has('groupActiveEditorDirty')),
+	1000000, // towards the far end
+	{
 		id: editorCommands.CLOSE_EDITORS_IN_GROUP_COMMAND_ID,
 		title: nls.localize('closeAll', "Close All"),
 		iconDark: 'closeall-editors-inverse.svg',
 		iconLight: 'closeall-editors.svg'
+	}
+);
+
+// Diff Editor Title Menu: Previous Change
+appendEditorToolItem(
+	{
+		id: editorCommands.GOTO_PREVIOUS_CHANGE,
+		title: nls.localize('navigate.prev.label', "Previous Change"),
+		iconDark: 'previous-diff-inverse.svg',
+		iconLight: 'previous-diff.svg'
 	},
-	ContextKeyExpr.and(ContextKeyExpr.not('config.workbench.editor.showTabs'), ContextKeyExpr.has('groupActiveEditorDirty')),
-	1000000 // towards the end
+	TextCompareEditorActiveContext,
+	10
+);
+
+// Diff Editor Title Menu: Next Change
+appendEditorToolItem(
+	{
+		id: editorCommands.GOTO_NEXT_CHANGE,
+		title: nls.localize('navigate.next.label', "Next Change"),
+		iconDark: 'next-diff-inverse.svg',
+		iconLight: 'next-diff.svg'
+	},
+	TextCompareEditorActiveContext,
+	11
+);
+
+// Diff Editor Title Menu: Toggle Ignore Trim Whitespace (Enabled)
+appendEditorToolItem(
+	{
+		id: editorCommands.TOGGLE_DIFF_IGNORE_TRIM_WHITESPACE,
+		title: nls.localize('ignoreTrimWhitespace.label', "Ignore Trim Whitespace"),
+		iconDark: 'paragraph-inverse.svg',
+		iconLight: 'paragraph.svg'
+	},
+	ContextKeyExpr.and(TextCompareEditorActiveContext, ContextKeyExpr.notEquals('config.diffEditor.ignoreTrimWhitespace', true)),
+	20
+);
+
+// Diff Editor Title Menu: Toggle Ignore Trim Whitespace (Disabled)
+appendEditorToolItem(
+	{
+		id: editorCommands.TOGGLE_DIFF_IGNORE_TRIM_WHITESPACE,
+		title: nls.localize('showTrimWhitespace.label', "Show Trim Whitespace"),
+		iconDark: 'paragraph-disabled-inverse.svg',
+		iconLight: 'paragraph-disabled.svg'
+	},
+	ContextKeyExpr.and(TextCompareEditorActiveContext, ContextKeyExpr.notEquals('config.diffEditor.ignoreTrimWhitespace', false)),
+	20
 );
 
 // Editor Commands for Command Palette
-MenuRegistry.appendMenuItem(MenuId.CommandPalette, { command: { id: editorCommands.KEEP_EDITOR_COMMAND_ID, title: nls.localize('keepEditor', "Keep Editor"), category }, when: ContextKeyExpr.has('config.workbench.editor.enablePreview') });
-MenuRegistry.appendMenuItem(MenuId.CommandPalette, { command: { id: editorCommands.CLOSE_EDITORS_IN_GROUP_COMMAND_ID, title: nls.localize('closeEditorsInGroup', "Close All Editors in Group"), category } });
-MenuRegistry.appendMenuItem(MenuId.CommandPalette, { command: { id: editorCommands.CLOSE_SAVED_EDITORS_COMMAND_ID, title: nls.localize('closeSavedEditors', "Close Saved Editors in Group"), category } });
-MenuRegistry.appendMenuItem(MenuId.CommandPalette, { command: { id: editorCommands.CLOSE_OTHER_EDITORS_IN_GROUP_COMMAND_ID, title: nls.localize('closeOtherEditors', "Close Other Editors in Group"), category } });
-MenuRegistry.appendMenuItem(MenuId.CommandPalette, { command: { id: editorCommands.CLOSE_EDITORS_TO_THE_RIGHT_COMMAND_ID, title: nls.localize('closeRightEditors', "Close Editors to the Right in Group"), category } });
+MenuRegistry.appendMenuItem(MenuId.CommandPalette, { command: { id: editorCommands.KEEP_EDITOR_COMMAND_ID, title: { value: nls.localize('keepEditor', "Keep Editor"), original: 'View: Keep Editor' }, category }, when: ContextKeyExpr.has('config.workbench.editor.enablePreview') });
+MenuRegistry.appendMenuItem(MenuId.CommandPalette, { command: { id: editorCommands.CLOSE_EDITORS_IN_GROUP_COMMAND_ID, title: { value: nls.localize('closeEditorsInGroup', "Close All Editors in Group"), original: 'View: Close All Editors in Group' }, category } });
+MenuRegistry.appendMenuItem(MenuId.CommandPalette, { command: { id: editorCommands.CLOSE_SAVED_EDITORS_COMMAND_ID, title: { value: nls.localize('closeSavedEditors', "Close Saved Editors in Group"), original: 'View: Close Saved Editors in Group' }, category } });
+MenuRegistry.appendMenuItem(MenuId.CommandPalette, { command: { id: editorCommands.CLOSE_OTHER_EDITORS_IN_GROUP_COMMAND_ID, title: { value: nls.localize('closeOtherEditors', "Close Other Editors in Group"), original: 'View: Close Other Editors in Group' }, category } });
+MenuRegistry.appendMenuItem(MenuId.CommandPalette, { command: { id: editorCommands.CLOSE_EDITORS_TO_THE_RIGHT_COMMAND_ID, title: { value: nls.localize('closeRightEditors', "Close Editors to the Right in Group"), original: 'View: Close Editors to the Right in Group' }, category } });
 
 // File menu
 MenuRegistry.appendMenuItem(MenuId.MenubarRecentMenu, {

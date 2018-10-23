@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import 'vs/code/code.main';
 import { app, dialog } from 'electron';
 import { assign } from 'vs/base/common/objects';
@@ -19,7 +17,7 @@ import { Server, serve, connect } from 'vs/base/parts/ipc/node/ipc.net';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { ILaunchChannel, LaunchChannelClient } from 'vs/platform/launch/electron-main/launchService';
 import { ServicesAccessor, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { InstantiationService } from 'vs/platform/instantiation/common/instantiationService';
+import { InstantiationService } from 'vs/platform/instantiation/node/instantiationService';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { ILogService, ConsoleLogMainService, MultiplexLogService, getLogLevel } from 'vs/platform/log/common/log';
@@ -98,10 +96,10 @@ async function cleanupOlderLogs(environmentService: EnvironmentService): Promise
 
 function createPaths(environmentService: IEnvironmentService): TPromise<any> {
 	const paths = [
-		environmentService.appSettingsHome,
 		environmentService.extensionsPath,
 		environmentService.nodeCachedDataDir,
-		environmentService.logsPath
+		environmentService.logsPath,
+		environmentService.workspaceStorageHome
 	];
 
 	return TPromise.join(paths.map(p => p && mkdirp(p))) as TPromise<any>;
@@ -111,7 +109,7 @@ class ExpectedError extends Error {
 	public readonly isExpected = true;
 }
 
-function setupIPC(accessor: ServicesAccessor): TPromise<Server> {
+function setupIPC(accessor: ServicesAccessor): Thenable<Server> {
 	const logService = accessor.get(ILogService);
 	const environmentService = accessor.get(IEnvironmentService);
 	const requestService = accessor.get(IRequestService);
@@ -136,7 +134,7 @@ function setupIPC(accessor: ServicesAccessor): TPromise<Server> {
 		return promise;
 	}
 
-	function setup(retry: boolean): TPromise<Server> {
+	function setup(retry: boolean): Thenable<Server> {
 		return serve(environmentService.mainIPCHandle).then(server => {
 
 			// Print --status usage info
@@ -163,7 +161,7 @@ function setupIPC(accessor: ServicesAccessor): TPromise<Server> {
 			return server;
 		}, err => {
 			if (err.code !== 'EADDRINUSE') {
-				return TPromise.wrapError<Server>(err);
+				return Promise.reject<Server>(err);
 			}
 
 			// Since we are the second instance, we do not want to show the dock
@@ -181,13 +179,13 @@ function setupIPC(accessor: ServicesAccessor): TPromise<Server> {
 						logService.error(msg);
 						client.dispose();
 
-						return TPromise.wrapError<Server>(new Error(msg));
+						return Promise.reject(new Error(msg));
 					}
 
 					// Show a warning dialog after some timeout if it takes long to talk to the other instance
 					// Skip this if we are running with --wait where it is expected that we wait for a while.
 					// Also skip when gathering diagnostics (--status) which can take a longer time.
-					let startupWarningDialogHandle: number;
+					let startupWarningDialogHandle: any;
 					if (!environmentService.wait && !environmentService.status && !environmentService.args['upload-logs']) {
 						startupWarningDialogHandle = setTimeout(() => {
 							showStartupWarningDialog(
@@ -203,14 +201,14 @@ function setupIPC(accessor: ServicesAccessor): TPromise<Server> {
 					// Process Info
 					if (environmentService.args.status) {
 						return service.getMainProcessInfo().then(info => {
-							return diagnosticsService.printDiagnostics(info).then(() => TPromise.wrapError(new ExpectedError()));
+							return diagnosticsService.printDiagnostics(info).then(() => Promise.reject(new ExpectedError()));
 						});
 					}
 
 					// Log uploader
 					if (typeof environmentService.args['upload-logs'] !== 'undefined') {
 						return uploadLogs(channel, requestService, environmentService)
-							.then(() => TPromise.wrapError(new ExpectedError()));
+							.then(() => Promise.reject(new ExpectedError()));
 					}
 
 					logService.trace('Sending env to running instance...');
@@ -225,7 +223,7 @@ function setupIPC(accessor: ServicesAccessor): TPromise<Server> {
 								clearTimeout(startupWarningDialogHandle);
 							}
 
-							return TPromise.wrapError(new ExpectedError('Sent env to running instance. Terminating...'));
+							return Promise.reject(new ExpectedError('Sent env to running instance. Terminating...'));
 						});
 				},
 				err => {
@@ -237,7 +235,7 @@ function setupIPC(accessor: ServicesAccessor): TPromise<Server> {
 							);
 						}
 
-						return TPromise.wrapError<Server>(err);
+						return Promise.reject<Server>(err);
 					}
 
 					// it happens on Linux and OS X that the pipe is left behind
@@ -247,7 +245,7 @@ function setupIPC(accessor: ServicesAccessor): TPromise<Server> {
 						fs.unlinkSync(environmentService.mainIPCHandle);
 					} catch (e) {
 						logService.warn('Could not delete obsolete instance handle', e);
-						return TPromise.wrapError<Server>(e);
+						return Promise.reject<Server>(e);
 					}
 
 					return setup(false);

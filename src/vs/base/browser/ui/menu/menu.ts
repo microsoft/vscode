@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import 'vs/css!./menu';
 import * as nls from 'vs/nls';
 import * as strings from 'vs/base/common/strings';
@@ -15,6 +13,7 @@ import { addClass, EventType, EventHelper, EventLike, removeTabIndexAndUpdateFoc
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
+import { Color } from 'vs/base/common/color';
 
 export const MENU_MNEMONIC_REGEX: RegExp = /\(&{1,2}(.)\)|&{1,2}(.)/;
 export const MENU_ESCAPED_MNEMONIC_REGEX: RegExp = /(?:&amp;){1,2}(.)/;
@@ -28,6 +27,16 @@ export interface IMenuOptions {
 	enableMnemonics?: boolean;
 }
 
+export interface IMenuStyles {
+	shadowColor?: Color;
+	borderColor?: Color;
+	foregroundColor?: Color;
+	backgroundColor?: Color;
+	selectionForegroundColor?: Color;
+	selectionBackgroundColor?: Color;
+	selectionBorderColor?: Color;
+	separatorColor?: Color;
+}
 
 export class SubmenuAction extends Action {
 	constructor(label: string, public entries: (SubmenuAction | IAction)[], cssClass?: string) {
@@ -58,7 +67,8 @@ export class Menu extends ActionBar {
 			actionItemProvider: action => this.doGetActionItem(action, options, parentData),
 			context: options.context,
 			actionRunner: options.actionRunner,
-			ariaLabel: options.ariaLabel
+			ariaLabel: options.ariaLabel,
+			triggerKeys: { keys: [KeyCode.Enter], keyDown: true }
 		});
 
 		this.actionsList.setAttribute('role', 'menu');
@@ -102,7 +112,7 @@ export class Menu extends ActionBar {
 			}
 		}));
 
-		this._register(addDisposableListener(this.actionsList, EventType.MOUSE_OUT, e => {
+		this._register(addDisposableListener(this.actionsList, EventType.MOUSE_OVER, e => {
 			let target = e.target as HTMLElement;
 			if (!target || !isAncestor(target, this.actionsList) || target === this.actionsList) {
 				return;
@@ -131,6 +141,28 @@ export class Menu extends ActionBar {
 		this.push(actions, { icon: true, label: true, isMenu: true });
 	}
 
+	style(style: IMenuStyles): void {
+		const container = this.getContainer();
+
+		const fgColor = style.foregroundColor ? `${style.foregroundColor}` : null;
+		const bgColor = style.backgroundColor ? `${style.backgroundColor}` : null;
+		const border = style.borderColor ? `2px solid ${style.borderColor}` : null;
+		const shadow = style.shadowColor ? `0 2px 4px ${style.shadowColor}` : null;
+
+		container.style.border = border;
+		this.domNode.style.color = fgColor;
+		this.domNode.style.backgroundColor = bgColor;
+		container.style.boxShadow = shadow;
+
+		if (this.items) {
+			this.items.forEach(item => {
+				if (item instanceof MenuActionItem || item instanceof MenuSeparatorActionItem) {
+					item.style(style);
+				}
+			});
+		}
+	}
+
 	private focusItemByElement(element: HTMLElement) {
 		const lastFocusedItem = this.focusedItem;
 		this.setFocusedItem(element);
@@ -152,14 +184,14 @@ export class Menu extends ActionBar {
 
 	private doGetActionItem(action: IAction, options: IMenuOptions, parentData: ISubMenuData): BaseActionItem {
 		if (action instanceof Separator) {
-			return new ActionItem(options.context, action, { icon: true });
+			return new MenuSeparatorActionItem(options.context, action, { icon: true });
 		} else if (action instanceof SubmenuAction) {
 			const menuActionItem = new SubmenuActionItem(action, action.entries, parentData, options);
 
 			if (options.enableMnemonics) {
 				const mnemonic = menuActionItem.getMnemonic();
 				if (mnemonic && menuActionItem.isEnabled()) {
-					let actionItems = [];
+					let actionItems: MenuActionItem[] = [];
 					if (this.mnemonics.has(mnemonic)) {
 						actionItems = this.mnemonics.get(mnemonic);
 					}
@@ -185,7 +217,7 @@ export class Menu extends ActionBar {
 			if (options.enableMnemonics) {
 				const mnemonic = menuActionItem.getMnemonic();
 				if (mnemonic && menuActionItem.isEnabled()) {
-					let actionItems = [];
+					let actionItems: MenuActionItem[] = [];
 					if (this.mnemonics.has(mnemonic)) {
 						actionItems = this.mnemonics.get(mnemonic);
 					}
@@ -220,6 +252,7 @@ class MenuActionItem extends BaseActionItem {
 	private check: HTMLElement;
 	private mnemonic: KeyCode;
 	private cssClass: string;
+	protected menuStyle: IMenuStyles;
 
 	constructor(ctx: any, action: IAction, options: IMenuItemOptions = {}) {
 		options.isMenu = true;
@@ -279,9 +312,15 @@ class MenuActionItem extends BaseActionItem {
 		this.updateChecked();
 	}
 
+	blur(): void {
+		super.blur();
+		this.applyStyle();
+	}
+
 	focus(): void {
 		super.focus();
 		this.item.focus();
+		this.applyStyle();
 	}
 
 	updateLabel(): void {
@@ -308,7 +347,7 @@ class MenuActionItem extends BaseActionItem {
 	}
 
 	updateTooltip(): void {
-		let title: string = null;
+		let title: string | null = null;
 
 		if (this.getAction().tooltip) {
 			title = this.getAction().tooltip;
@@ -369,11 +408,29 @@ class MenuActionItem extends BaseActionItem {
 	getMnemonic(): KeyCode {
 		return this.mnemonic;
 	}
+
+	protected applyStyle(): void {
+		const isSelected = hasClass(this.element, 'focused');
+		const fgColor = isSelected && this.menuStyle.selectionForegroundColor ? this.menuStyle.selectionForegroundColor : this.menuStyle.foregroundColor;
+		const bgColor = isSelected && this.menuStyle.selectionBackgroundColor ? this.menuStyle.selectionBackgroundColor : this.menuStyle.backgroundColor;
+		const border = isSelected && this.menuStyle.selectionBorderColor ? `1px solid ${this.menuStyle.selectionBorderColor}` : null;
+
+		this.item.style.color = fgColor ? `${fgColor}` : null;
+		this.check.style.backgroundColor = fgColor ? `${fgColor}` : null;
+		this.item.style.backgroundColor = bgColor ? `${bgColor}` : null;
+		this.container.style.border = border;
+	}
+
+	style(style: IMenuStyles): void {
+		this.menuStyle = style;
+		this.applyStyle();
+	}
 }
 
 class SubmenuActionItem extends MenuActionItem {
 	private mysubmenu: Menu;
 	private submenuContainer: HTMLElement;
+	private submenuIndicator: HTMLElement;
 	private submenuDisposables: IDisposable[] = [];
 	private mouseOver: boolean;
 	private showScheduler: RunOnceScheduler;
@@ -408,9 +465,8 @@ class SubmenuActionItem extends MenuActionItem {
 		addClass(this.item, 'monaco-submenu-item');
 		this.item.setAttribute('aria-haspopup', 'true');
 
-		const submenuIndicator = append(this.item, $('span.submenu-indicator'));
-		submenuIndicator.setAttribute('aria-hidden', 'true');
-		submenuIndicator.textContent = '\u25B6';
+		this.submenuIndicator = append(this.item, $('span.submenu-indicator'));
+		this.submenuIndicator.setAttribute('aria-hidden', 'true');
 
 		this._register(addDisposableListener(this.element, EventType.KEY_UP, e => {
 			let event = new StandardKeyboardEvent(e as KeyboardEvent);
@@ -495,6 +551,9 @@ class SubmenuActionItem extends MenuActionItem {
 			}));
 
 			this.parentData.submenu = new Menu(this.submenuContainer, this.submenuActions, this.submenuOptions);
+			if (this.menuStyle) {
+				this.parentData.submenu.style(this.menuStyle);
+			}
 
 			this.submenuDisposables.push(this.parentData.submenu.onDidCancel(() => {
 				this.parentData.parent.focus();
@@ -513,6 +572,18 @@ class SubmenuActionItem extends MenuActionItem {
 		}
 	}
 
+	protected applyStyle(): void {
+		super.applyStyle();
+		const isSelected = hasClass(this.element, 'focused');
+		const fgColor = isSelected && this.menuStyle.selectionForegroundColor ? this.menuStyle.selectionForegroundColor : this.menuStyle.foregroundColor;
+
+		this.submenuIndicator.style.backgroundColor = fgColor ? `${fgColor}` : null;
+
+		if (this.parentData.submenu) {
+			this.parentData.submenu.style(this.menuStyle);
+		}
+	}
+
 	dispose(): void {
 		super.dispose();
 
@@ -527,6 +598,12 @@ class SubmenuActionItem extends MenuActionItem {
 			this.submenuDisposables = dispose(this.submenuDisposables);
 			this.submenuContainer = null;
 		}
+	}
+}
+
+class MenuSeparatorActionItem extends ActionItem {
+	style(style: IMenuStyles): void {
+		this.label.style.borderBottomColor = style.separatorColor ? `${style.separatorColor}` : null;
 	}
 }
 

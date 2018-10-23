@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import * as arrays from 'vs/base/common/arrays';
 import { TPromise } from 'vs/base/common/winjs.base';
 import * as nls from 'vs/nls';
@@ -22,7 +20,7 @@ import { IRange } from 'vs/editor/common/core/range';
 import { compareItemsByScore, scoreItem, ScorerCache, prepareQuery } from 'vs/base/parts/quickopen/common/quickOpenScorer';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { isPromiseCanceledError } from 'vs/base/common/errors';
-import { CancellationTokenSource } from 'vs/base/common/cancellation';
+import { CancellationToken } from 'vs/base/common/cancellation';
 
 export import OpenSymbolHandler = openSymbolHandler.OpenSymbolHandler; // OpenSymbolHandler is used from an extension and must be in the main bundle file so it can load
 
@@ -37,15 +35,13 @@ export class OpenAnythingHandler extends QuickOpenHandler {
 
 	private static readonly LINE_COLON_PATTERN = /[#|:|\(](\d*)([#|:|,](\d*))?\)?$/;
 
-	private static readonly FILE_SEARCH_DELAY = 200;
-	private static readonly SYMBOL_SEARCH_DELAY = 500; // go easier on those symbols!
+	private static readonly TYPING_SEARCH_DELAY = 200; // This delay accommodates for the user typing a word and then stops typing to start searching
 
 	private static readonly MAX_DISPLAYED_RESULTS = 512;
 
 	private openSymbolHandler: OpenSymbolHandler;
 	private openFileHandler: OpenFileHandler;
 	private searchDelayer: ThrottledDelayer<QuickOpenModel>;
-	private pendingSearch: CancellationTokenSource;
 	private isClosed: boolean;
 	private scorerCache: ScorerCache;
 	private includeSymbols: boolean;
@@ -58,7 +54,7 @@ export class OpenAnythingHandler extends QuickOpenHandler {
 		super();
 
 		this.scorerCache = Object.create(null);
-		this.searchDelayer = new ThrottledDelayer<QuickOpenModel>(OpenAnythingHandler.FILE_SEARCH_DELAY);
+		this.searchDelayer = new ThrottledDelayer<QuickOpenModel>(OpenAnythingHandler.TYPING_SEARCH_DELAY);
 
 		this.openSymbolHandler = instantiationService.createInstance(OpenSymbolHandler);
 		this.openFileHandler = instantiationService.createInstance(OpenFileHandler);
@@ -88,8 +84,7 @@ export class OpenAnythingHandler extends QuickOpenHandler {
 		});
 	}
 
-	getResults(searchValue: string): TPromise<QuickOpenModel> {
-		this.cancelPendingSearch();
+	getResults(searchValue: string, token: CancellationToken): TPromise<QuickOpenModel> {
 		this.isClosed = false; // Treat this call as the handler being in use
 
 		// Find a suitable range from the pattern looking for ":" and "#"
@@ -105,31 +100,28 @@ export class OpenAnythingHandler extends QuickOpenHandler {
 		}
 
 		// The throttler needs a factory for its promises
-		const promiseFactory = () => {
-			this.pendingSearch = new CancellationTokenSource();
-
+		const resultsPromise = () => {
 			const resultPromises: TPromise<QuickOpenModel | FileQuickOpenModel>[] = [];
 
 			// File Results
-			const filePromise = this.openFileHandler.getResults(query.original, OpenAnythingHandler.MAX_DISPLAYED_RESULTS, this.pendingSearch.token);
+			const filePromise = this.openFileHandler.getResults(query.original, token, OpenAnythingHandler.MAX_DISPLAYED_RESULTS);
 			resultPromises.push(filePromise);
 
 			// Symbol Results (unless disabled or a range or absolute path is specified)
 			if (this.includeSymbols && !searchWithRange) {
-				resultPromises.push(this.openSymbolHandler.getResults(query.original, this.pendingSearch.token));
+				resultPromises.push(this.openSymbolHandler.getResults(query.original, token));
 			}
 
 			// Join and sort unified
 			return TPromise.join(resultPromises).then(results => {
-				this.pendingSearch.dispose();
 
 				// If the quick open widget has been closed meanwhile, ignore the result
-				if (this.isClosed) {
+				if (this.isClosed || token.isCancellationRequested) {
 					return TPromise.as<QuickOpenModel>(new QuickOpenModel());
 				}
 
 				// Combine results.
-				const mergedResults = [].concat(...results.map(r => r.entries));
+				const mergedResults: QuickOpenEntry[] = [].concat(...results.map(r => r.entries));
 
 				// Sort
 				const compare = (elementA: QuickOpenEntry, elementB: QuickOpenEntry) => compareItemsByScore(elementA, elementB, query, true, QuickOpenItemAccessor, this.scorerCache);
@@ -147,8 +139,6 @@ export class OpenAnythingHandler extends QuickOpenHandler {
 
 				return TPromise.as<QuickOpenModel>(new QuickOpenModel(viewResults));
 			}, error => {
-				this.pendingSearch.dispose();
-
 				if (!isPromiseCanceledError(error)) {
 					if (error && error[0] && error[0].message) {
 						this.notificationService.error(error[0].message.replace(/[\*_\[\]]/g, '\\$&'));
@@ -162,7 +152,7 @@ export class OpenAnythingHandler extends QuickOpenHandler {
 		};
 
 		// Trigger through delayer to prevent accumulation while the user is typing (except when expecting results to come from cache)
-		return this.hasShortResponseTime() ? promiseFactory() : this.searchDelayer.trigger(promiseFactory, this.includeSymbols ? OpenAnythingHandler.SYMBOL_SEARCH_DELAY : OpenAnythingHandler.FILE_SEARCH_DELAY);
+		return this.hasShortResponseTime() ? resultsPromise() : this.searchDelayer.trigger(resultsPromise, OpenAnythingHandler.TYPING_SEARCH_DELAY);
 	}
 
 	hasShortResponseTime(): boolean {
@@ -178,7 +168,7 @@ export class OpenAnythingHandler extends QuickOpenHandler {
 			return null;
 		}
 
-		let range: IRange = null;
+		let range: IRange | null = null;
 
 		// Find Line/Column number from search value using RegExp
 		const patternMatch = OpenAnythingHandler.LINE_COLON_PATTERN.exec(value);
@@ -247,22 +237,11 @@ export class OpenAnythingHandler extends QuickOpenHandler {
 	onClose(canceled: boolean): void {
 		this.isClosed = true;
 
-		// Cancel any pending search
-		this.cancelPendingSearch();
-
 		// Clear Cache
 		this.scorerCache = Object.create(null);
 
 		// Propagate
 		this.openSymbolHandler.onClose(canceled);
 		this.openFileHandler.onClose(canceled);
-	}
-
-	private cancelPendingSearch(): void {
-		if (this.pendingSearch) {
-			this.pendingSearch.cancel();
-			this.pendingSearch.dispose();
-			this.pendingSearch = null;
-		}
 	}
 }

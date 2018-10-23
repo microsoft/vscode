@@ -372,6 +372,7 @@
 		"tab.border": "#2b2b4a",
 		// "tab.activeBackground": "",
 		"tab.inactiveBackground": "#10192c",
+		"tab.modifiedBorder": "#0072bf",
 		// "tab.activeForeground": "",
 		// "tab.inactiveForeground": "",
 

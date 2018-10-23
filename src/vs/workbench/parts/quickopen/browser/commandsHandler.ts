@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import { TPromise } from 'vs/base/common/winjs.base';
 import * as nls from 'vs/nls';
 import * as arrays from 'vs/base/common/arrays';
@@ -23,9 +21,7 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IQuickOpenService } from 'vs/platform/quickOpen/common/quickOpen';
 import { registerEditorAction, EditorAction, IEditorCommandMenuOptions } from 'vs/editor/browser/editorExtensions';
-import { IStorageService } from 'vs/platform/storage/common/storage';
-import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
-import { once } from 'vs/base/common/event';
+import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { LRUCache } from 'vs/base/common/map';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ResolvedKeybinding } from 'vs/base/common/keyCodes';
@@ -33,6 +29,9 @@ import { IEditorService } from 'vs/workbench/services/editor/common/editorServic
 import { isPromiseCanceledError } from 'vs/base/common/errors';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { INotificationService } from 'vs/platform/notification/common/notification';
+import { CancellationToken } from 'vs/base/common/cancellation';
+import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
+import { Disposable } from 'vs/base/common/lifecycle';
 
 export const ALL_COMMANDS_PREFIX = '>';
 
@@ -56,7 +55,7 @@ function resolveCommandHistory(configurationService: IConfigurationService): num
 	return commandHistory;
 }
 
-class CommandsHistory {
+class CommandsHistory extends Disposable {
 
 	static readonly DEFAULT_COMMANDS_HISTORY_LENGTH = 50;
 
@@ -67,13 +66,19 @@ class CommandsHistory {
 
 	constructor(
 		@IStorageService private storageService: IStorageService,
-		@ILifecycleService private lifecycleService: ILifecycleService,
 		@IConfigurationService private configurationService: IConfigurationService
 	) {
+		super();
+
 		this.updateConfiguration();
 		this.load();
 
 		this.registerListeners();
+	}
+
+	private registerListeners(): void {
+		this._register(this.configurationService.onDidChangeConfiguration(e => this.updateConfiguration()));
+		this._register(this.storageService.onWillSaveState(() => this.saveState()));
 	}
 
 	private updateConfiguration(): void {
@@ -85,7 +90,7 @@ class CommandsHistory {
 	}
 
 	private load(): void {
-		const raw = this.storageService.get(CommandsHistory.PREF_KEY_CACHE);
+		const raw = this.storageService.get(CommandsHistory.PREF_KEY_CACHE, StorageScope.GLOBAL);
 		let serializedCache: ISerializedCommandHistory;
 		if (raw) {
 			try {
@@ -105,28 +110,24 @@ class CommandsHistory {
 			}
 			entries.forEach(entry => commandHistory.set(entry.key, entry.value));
 		}
-		commandCounter = this.storageService.getInteger(CommandsHistory.PREF_KEY_COUNTER, void 0, commandCounter);
-	}
 
-	private registerListeners(): void {
-		this.configurationService.onDidChangeConfiguration(e => this.updateConfiguration());
-		once(this.lifecycleService.onShutdown)(reason => this.save());
-	}
-
-	private save(): void {
-		let serializedCache: ISerializedCommandHistory = { usesLRU: true, entries: [] };
-		commandHistory.forEach((value, key) => serializedCache.entries.push({ key, value }));
-		this.storageService.store(CommandsHistory.PREF_KEY_CACHE, JSON.stringify(serializedCache));
-		this.storageService.store(CommandsHistory.PREF_KEY_COUNTER, commandCounter);
+		commandCounter = this.storageService.getInteger(CommandsHistory.PREF_KEY_COUNTER, StorageScope.GLOBAL, commandCounter);
 	}
 
 	push(commandId: string): void {
-		// set counter to command
-		commandHistory.set(commandId, commandCounter++);
+		commandHistory.set(commandId, commandCounter++); // set counter to command
 	}
 
 	peek(commandId: string): number {
 		return commandHistory.peek(commandId);
+	}
+
+	private saveState(): void {
+		const serializedCache: ISerializedCommandHistory = { usesLRU: true, entries: [] };
+		commandHistory.forEach((value, key) => serializedCache.entries.push({ key, value }));
+
+		this.storageService.store(CommandsHistory.PREF_KEY_CACHE, JSON.stringify(serializedCache), StorageScope.GLOBAL);
+		this.storageService.store(CommandsHistory.PREF_KEY_COUNTER, commandCounter, StorageScope.GLOBAL);
 	}
 }
 
@@ -303,7 +304,7 @@ abstract class BaseCommandEntry extends QuickOpenEntryGroup {
 						}
 					*/
 					this.telemetryService.publicLog('workbenchActionExecuted', { id: action.id, from: 'quick open' });
-					(action.run() || TPromise.as(null)).then(() => {
+					(action.run() || Promise.resolve()).then(() => {
 						if (action instanceof Action) {
 							action.dispose();
 						}
@@ -374,7 +375,6 @@ export class CommandsHandler extends QuickOpenHandler {
 
 	static readonly ID = 'workbench.picker.commands';
 
-	private lastSearchValue: string;
 	private commandHistoryEnabled: boolean;
 	private commandsHistory: CommandsHistory;
 
@@ -383,7 +383,8 @@ export class CommandsHandler extends QuickOpenHandler {
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@IKeybindingService private keybindingService: IKeybindingService,
 		@IMenuService private menuService: IMenuService,
-		@IConfigurationService private configurationService: IConfigurationService
+		@IConfigurationService private configurationService: IConfigurationService,
+		@IExtensionService private extensionService: IExtensionService
 	) {
 		super();
 
@@ -397,78 +398,89 @@ export class CommandsHandler extends QuickOpenHandler {
 		this.commandHistoryEnabled = resolveCommandHistory(this.configurationService) > 0;
 	}
 
-	getResults(searchValue: string): TPromise<QuickOpenModel> {
-		searchValue = searchValue.trim();
-		this.lastSearchValue = searchValue;
+	getResults(searchValue: string, token: CancellationToken): TPromise<QuickOpenModel> {
 
-		// Editor Actions
-		const activeTextEditorWidget = this.editorService.activeTextEditorWidget;
-		let editorActions: IEditorAction[] = [];
-		if (activeTextEditorWidget && types.isFunction(activeTextEditorWidget.getSupportedActions)) {
-			editorActions = activeTextEditorWidget.getSupportedActions();
-		}
-
-		const editorEntries = this.editorActionsToEntries(editorActions, searchValue);
-
-		// Other Actions
-		const menu = this.editorService.invokeWithinEditorContext(accessor => this.menuService.createMenu(MenuId.CommandPalette, accessor.get(IContextKeyService)));
-		const menuActions = menu.getActions().reduce((r, [, actions]) => [...r, ...actions], <MenuItemAction[]>[]).filter(action => action instanceof MenuItemAction) as MenuItemAction[];
-		const commandEntries = this.menuItemActionsToEntries(menuActions, searchValue);
-
-		// Concat
-		let entries = [...editorEntries, ...commandEntries];
-
-		// Remove duplicates
-		entries = arrays.distinct(entries, entry => `${entry.getLabel()}${entry.getGroupLabel()}${entry.getCommandId()}`);
-
-		// Handle label clashes
-		const commandLabels = new Set<string>();
-		entries.forEach(entry => {
-			const commandLabel = `${entry.getLabel()}${entry.getGroupLabel()}`;
-			if (commandLabels.has(commandLabel)) {
-				entry.setDescription(entry.getCommandId());
-			} else {
-				commandLabels.add(commandLabel);
-			}
-		});
-
-		// Sort by MRU order and fallback to name otherwie
-		entries = entries.sort((elementA, elementB) => {
-			const counterA = this.commandsHistory.peek(elementA.getCommandId());
-			const counterB = this.commandsHistory.peek(elementB.getCommandId());
-
-			if (counterA && counterB) {
-				return counterA > counterB ? -1 : 1; // use more recently used command before older
+		// wait for extensions being registered to cover all commands
+		// also from extensions
+		return this.extensionService.whenInstalledExtensionsRegistered().then(() => {
+			if (token.isCancellationRequested) {
+				return new QuickOpenModel([]);
 			}
 
-			if (counterA) {
-				return -1; // first command was used, so it wins over the non used one
+			searchValue = searchValue.trim();
+
+			// Remember as last command palette input
+			lastCommandPaletteInput = searchValue;
+
+			// Editor Actions
+			const activeTextEditorWidget = this.editorService.activeTextEditorWidget;
+			let editorActions: IEditorAction[] = [];
+			if (activeTextEditorWidget && types.isFunction(activeTextEditorWidget.getSupportedActions)) {
+				editorActions = activeTextEditorWidget.getSupportedActions();
 			}
 
-			if (counterB) {
-				return 1; // other command was used so it wins over the command
-			}
+			const editorEntries = this.editorActionsToEntries(editorActions, searchValue);
 
-			// both commands were never used, so we sort by name
-			return elementA.getSortLabel().localeCompare(elementB.getSortLabel());
-		});
+			// Other Actions
+			const menu = this.editorService.invokeWithinEditorContext(accessor => this.menuService.createMenu(MenuId.CommandPalette, accessor.get(IContextKeyService)));
+			const menuActions = menu.getActions().reduce((r, [, actions]) => [...r, ...actions], <MenuItemAction[]>[]).filter(action => action instanceof MenuItemAction) as MenuItemAction[];
+			const commandEntries = this.menuItemActionsToEntries(menuActions, searchValue);
 
-		// Introduce group marker border between recently used and others
-		// only if we have recently used commands in the result set
-		const firstEntry = entries[0];
-		if (firstEntry && this.commandsHistory.peek(firstEntry.getCommandId())) {
-			firstEntry.setGroupLabel(nls.localize('recentlyUsed', "recently used"));
-			for (let i = 1; i < entries.length; i++) {
-				const entry = entries[i];
-				if (!this.commandsHistory.peek(entry.getCommandId())) {
-					entry.setShowBorder(true);
-					entry.setGroupLabel(nls.localize('morecCommands', "other commands"));
-					break;
+			// Concat
+			let entries = [...editorEntries, ...commandEntries];
+
+			// Remove duplicates
+			entries = arrays.distinct(entries, entry => `${entry.getLabel()}${entry.getGroupLabel()}${entry.getCommandId()}`);
+
+			// Handle label clashes
+			const commandLabels = new Set<string>();
+			entries.forEach(entry => {
+				const commandLabel = `${entry.getLabel()}${entry.getGroupLabel()}`;
+				if (commandLabels.has(commandLabel)) {
+					entry.setDescription(entry.getCommandId());
+				} else {
+					commandLabels.add(commandLabel);
+				}
+			});
+
+			// Sort by MRU order and fallback to name otherwie
+			entries = entries.sort((elementA, elementB) => {
+				const counterA = this.commandsHistory.peek(elementA.getCommandId());
+				const counterB = this.commandsHistory.peek(elementB.getCommandId());
+
+				if (counterA && counterB) {
+					return counterA > counterB ? -1 : 1; // use more recently used command before older
+				}
+
+				if (counterA) {
+					return -1; // first command was used, so it wins over the non used one
+				}
+
+				if (counterB) {
+					return 1; // other command was used so it wins over the command
+				}
+
+				// both commands were never used, so we sort by name
+				return elementA.getSortLabel().localeCompare(elementB.getSortLabel());
+			});
+
+			// Introduce group marker border between recently used and others
+			// only if we have recently used commands in the result set
+			const firstEntry = entries[0];
+			if (firstEntry && this.commandsHistory.peek(firstEntry.getCommandId())) {
+				firstEntry.setGroupLabel(nls.localize('recentlyUsed', "recently used"));
+				for (let i = 1; i < entries.length; i++) {
+					const entry = entries[i];
+					if (!this.commandsHistory.peek(entry.getCommandId())) {
+						entry.setShowBorder(true);
+						entry.setGroupLabel(nls.localize('morecCommands', "other commands"));
+						break;
+					}
 				}
 			}
-		}
 
-		return TPromise.as(new QuickOpenModel(entries));
+			return new QuickOpenModel(entries);
+		});
 	}
 
 	private editorActionsToEntries(actions: IEditorAction[], searchValue: string): EditorActionCommandEntry[] {
@@ -498,9 +510,6 @@ export class CommandsHandler extends QuickOpenHandler {
 	}
 
 	private onBeforeRunCommand(commandId: string): void {
-
-		// Remember as last command palette input
-		lastCommandPaletteInput = this.lastSearchValue;
 
 		// Remember in commands history
 		this.commandsHistory.push(commandId);
@@ -558,12 +567,6 @@ export class CommandsHandler extends QuickOpenHandler {
 
 	getEmptyLabel(searchString: string): string {
 		return nls.localize('noCommandsMatching', "No commands matching");
-	}
-
-	onClose(canceled: boolean): void {
-		if (canceled) {
-			lastCommandPaletteInput = void 0; // clear last input when user canceled quick open
-		}
 	}
 }
 

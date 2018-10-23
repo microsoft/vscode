@@ -7,7 +7,6 @@ import 'vs/css!./media/panel';
 import * as dom from 'vs/base/browser/dom';
 import { IAction } from 'vs/base/common/actions';
 import { debounceEvent } from 'vs/base/common/event';
-import { TPromise } from 'vs/base/common/winjs.base';
 import { CollapseAllAction, DefaultAccessibilityProvider, DefaultController, DefaultDragAndDrop } from 'vs/base/parts/tree/browser/treeDefaults';
 import { isCodeEditor, isDiffEditor } from 'vs/editor/browser/editorBrowser';
 import { CommentThreadChangedEvent } from 'vs/editor/common/modes';
@@ -24,6 +23,7 @@ import { IEditorService, ACTIVE_GROUP, SIDE_GROUP } from 'vs/workbench/services/
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { textLinkForeground, textLinkActiveForeground, focusBorder } from 'vs/platform/theme/common/colorRegistry';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
+import { IStorageService } from 'vs/platform/storage/common/storage';
 
 export const COMMENTS_PANEL_ID = 'workbench.panel.comments';
 export const COMMENTS_PANEL_TITLE = 'Comments';
@@ -43,12 +43,13 @@ export class CommentsPanel extends Panel {
 		@ICommandService private commandService: ICommandService,
 		@IOpenerService private openerService: IOpenerService,
 		@ITelemetryService telemetryService: ITelemetryService,
-		@IThemeService themeService: IThemeService
+		@IThemeService themeService: IThemeService,
+		@IStorageService storageService: IStorageService
 	) {
-		super(COMMENTS_PANEL_ID, telemetryService, themeService);
+		super(COMMENTS_PANEL_ID, telemetryService, themeService, storageService);
 	}
 
-	public create(parent: HTMLElement): TPromise<void> {
+	public create(parent: HTMLElement): void {
 		super.create(parent);
 
 		dom.addClass(parent, 'comments-panel');
@@ -69,7 +70,7 @@ export class CommentsPanel extends Panel {
 			this.applyStyles(styleElement);
 		});
 
-		return this.render();
+		this.render();
 	}
 
 	private applyStyles(styleElement: HTMLStyleElement) {
@@ -94,11 +95,10 @@ export class CommentsPanel extends Panel {
 		styleElement.innerHTML = content.join('\n');
 	}
 
-	private render(): TPromise<void> {
+	private async render(): Promise<void> {
 		dom.toggleClass(this.treeContainer, 'hidden', !this.commentsModel.hasCommentThreads());
-		return this.tree.setInput(this.commentsModel).then(() => {
-			this.renderMessage();
-		});
+		await this.tree.setInput(this.commentsModel);
+		this.renderMessage();
 	}
 
 	public getActions(): IAction[] {
@@ -242,7 +242,7 @@ export class CommentsPanel extends Panel {
 		return true;
 	}
 
-	public setVisible(visible: boolean): TPromise<void> {
+	public setVisible(visible: boolean): Promise<void> {
 		const wasVisible = this.isVisible();
 		return super.setVisible(visible)
 			.then(() => {

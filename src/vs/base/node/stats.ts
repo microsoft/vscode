@@ -3,11 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import { readdir, stat, exists, readFile } from 'fs';
 import { join } from 'path';
-import { parse } from 'vs/base/common/json';
+import { parse, ParseError } from 'vs/base/common/json';
 
 export interface WorkspaceStatItem {
 	name: string;
@@ -39,7 +37,7 @@ export function collectLaunchConfigs(folder: string): Promise<WorkspaceStatItem[
 						return resolve([]);
 					}
 
-					const errors = [];
+					const errors: ParseError[] = [];
 					const json = parse(contents.toString(), errors);
 					if (errors.length) {
 						console.log(`Unable to parse ${launchConfig}`);
@@ -95,7 +93,7 @@ export function collectWorkspaceStats(folder: string, filter: string[]): Promise
 	const MAX_FILES = 20000;
 
 	function walk(dir: string, filter: string[], token, done: (allFiles: string[]) => void): void {
-		let results = [];
+		let results: string[] = [];
 		readdir(dir, async (err, files) => {
 			// Ignore folders that can't be read
 			if (err) {

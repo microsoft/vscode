@@ -3,10 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import { URI } from 'vs/base/common/uri';
-import { ViewletRegistry, Extensions as ViewletExtensions, ViewletDescriptor, ToggleViewletAction } from 'vs/workbench/browser/viewlet';
+import { ViewletRegistry, Extensions as ViewletExtensions, ViewletDescriptor, ShowViewletAction } from 'vs/workbench/browser/viewlet';
 import * as nls from 'vs/nls';
 import { SyncActionDescriptor, MenuId, MenuRegistry } from 'vs/platform/actions/common/actions';
 import { Registry } from 'vs/platform/registry/common/platform';
@@ -35,11 +33,11 @@ import { LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IEditorGroupsService } from 'vs/workbench/services/group/common/editorGroupsService';
 import { ILabelService } from 'vs/platform/label/common/label';
-import { Schemas } from 'vs/base/common/network';
 import { nativeSep } from 'vs/base/common/paths';
+import { IPartService } from 'vs/workbench/services/part/common/partService';
 
 // Viewlet Action
-export class OpenExplorerViewletAction extends ToggleViewletAction {
+export class OpenExplorerViewletAction extends ShowViewletAction {
 	public static readonly ID = VIEWLET_ID;
 	public static readonly LABEL = nls.localize('showExplorerViewlet', "Show Explorer");
 
@@ -47,21 +45,23 @@ export class OpenExplorerViewletAction extends ToggleViewletAction {
 		id: string,
 		label: string,
 		@IViewletService viewletService: IViewletService,
-		@IEditorGroupsService editorGroupService: IEditorGroupsService
+		@IEditorGroupsService editorGroupService: IEditorGroupsService,
+		@IPartService partService: IPartService
 	) {
-		super(id, label, VIEWLET_ID, viewletService, editorGroupService);
+		super(id, label, VIEWLET_ID, viewletService, editorGroupService, partService);
 	}
 }
 
 class FileUriLabelContribution implements IWorkbenchContribution {
 
 	constructor(@ILabelService labelService: ILabelService) {
-		labelService.registerFormatter(Schemas.file, {
+		labelService.registerFormatter('file://', {
 			uri: {
-				label: '${path}',
+				label: '${authority}${path}',
 				separator: nativeSep,
 				tildify: !platform.isWindows,
-				normalizeDriveLetter: platform.isWindows
+				normalizeDriveLetter: platform.isWindows,
+				authorityPrefix: nativeSep + nativeSep
 			},
 			workspace: {
 				suffix: ''
@@ -238,15 +238,22 @@ configurationRegistry.registerConfiguration({
 			'type': 'string',
 			'enum': [
 				'\n',
-				'\r\n'
+				'\r\n',
+				'auto'
 			],
 			'enumDescriptions': [
 				nls.localize('eol.LF', "LF"),
-				nls.localize('eol.CRLF', "CRLF")
+				nls.localize('eol.CRLF', "CRLF"),
+				nls.localize('eol.auto', "Uses operating system specific end of line character.")
 			],
-			'default': (platform.isLinux || platform.isMacintosh) ? '\n' : '\r\n',
+			'default': 'auto',
 			'description': nls.localize('eol', "The default end of line character."),
 			'scope': ConfigurationScope.RESOURCE
+		},
+		'files.enableTrash': {
+			'type': 'boolean',
+			'default': true,
+			'description': nls.localize('useTrash', "Moves files/folders to the OS trash (recycle bin on Windows) when deleting. Disabling this will delete files/folders permanently.")
 		},
 		'files.trimTrailingWhitespace': {
 			'type': 'boolean',

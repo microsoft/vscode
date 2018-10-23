@@ -2,7 +2,8 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-
+import * as aria from 'vs/base/browser/ui/aria/aria';
+import * as nls from 'vs/nls';
 import { ITerminalInstance, IShellLaunchConfig, ITerminalTab, Direction, ITerminalService, ITerminalConfigHelper } from 'vs/workbench/parts/terminal/common/terminal';
 import { IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { Event, Emitter, anyEvent } from 'vs/base/common/event';
@@ -11,6 +12,7 @@ import { SplitView, Orientation, IView, Sizing } from 'vs/base/browser/ui/splitv
 import { IPartService, Position } from 'vs/workbench/services/part/common/partService';
 
 const SPLIT_PANE_MIN_SIZE = 120;
+const TERMINAL_MIN_USEFUL_SIZE = 250;
 
 class SplitPaneContainer {
 	private _height: number;
@@ -59,7 +61,7 @@ class SplitPaneContainer {
 		}
 
 		// Get sizes
-		const sizes = [];
+		const sizes: number[] = [];
 		for (let i = 0; i < this._splitView.length; i++) {
 			sizes.push(this._splitView.getViewSize(i));
 		}
@@ -265,7 +267,10 @@ export class TerminalTab extends Disposable implements ITerminalTab {
 
 	private _initInstanceListeners(instance: ITerminalInstance): void {
 		instance.addDisposable(instance.onDisposed(instance => this._onInstanceDisposed(instance)));
-		instance.addDisposable(instance.onFocused(instance => this._setActiveInstance(instance)));
+		instance.addDisposable(instance.onFocused(instance => {
+			aria.alert(nls.localize('terminalFocus', "Terminal {0}", this._terminalService.activeTabIndex + 1));
+			this._setActiveInstance(instance);
+		}));
 	}
 
 	private _onInstanceDisposed(instance: ITerminalInstance): void {
@@ -361,6 +366,10 @@ export class TerminalTab extends Disposable implements ITerminalTab {
 		configHelper: ITerminalConfigHelper,
 		shellLaunchConfig: IShellLaunchConfig
 	): ITerminalInstance {
+		const newTerminalSize = ((this._panelPosition === Position.BOTTOM ? this._container.clientWidth : this._container.clientHeight) / (this._terminalInstances.length + 1));
+		if (newTerminalSize < TERMINAL_MIN_USEFUL_SIZE) {
+			return undefined;
+		}
 		const instance = this._terminalService.createInstance(
 			terminalFocusContextKey,
 			configHelper,

@@ -2,13 +2,12 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
-import { IViewLineTokens } from 'vs/editor/common/core/lineTokens';
 import { CharCode } from 'vs/base/common/charCode';
-import { LineDecoration, LineDecorationsNormalizer } from 'vs/editor/common/viewLayout/lineDecorations';
 import * as strings from 'vs/base/common/strings';
+import { IViewLineTokens } from 'vs/editor/common/core/lineTokens';
 import { IStringBuilder, createStringBuilder } from 'vs/editor/common/core/stringBuilder';
+import { LineDecoration, LineDecorationsNormalizer } from 'vs/editor/common/viewLayout/lineDecorations';
 import { InlineDecorationType } from 'vs/editor/common/viewModel/viewModel';
 
 export const enum RenderWhitespace {
@@ -357,8 +356,9 @@ function resolveRenderLineInput(input: RenderLineInput): ResolvedRenderLineInput
 		}
 		tokens = _applyInlineDecorations(lineContent, len, tokens, input.lineDecorations);
 	}
-	if (input.isBasicASCII && !input.fontLigatures) {
-		tokens = splitLargeTokens(lineContent, tokens);
+	if (!input.containsRTL) {
+		// We can never split RTL text, as it ruins the rendering
+		tokens = splitLargeTokens(lineContent, tokens, !input.isBasicASCII || input.fontLigatures);
 	}
 
 	return new ResolvedRenderLineInput(
@@ -418,25 +418,59 @@ const enum Constants {
  * It appears that having very large spans causes very slow reading of character positions.
  * So here we try to avoid that.
  */
-function splitLargeTokens(lineContent: string, tokens: LinePart[]): LinePart[] {
+function splitLargeTokens(lineContent: string, tokens: LinePart[], onlyAtSpaces: boolean): LinePart[] {
 	let lastTokenEndIndex = 0;
 	let result: LinePart[] = [], resultLen = 0;
-	for (let i = 0, len = tokens.length; i < len; i++) {
-		const token = tokens[i];
-		const tokenEndIndex = token.endIndex;
-		let diff = (tokenEndIndex - lastTokenEndIndex);
-		if (diff > Constants.LongToken) {
-			const tokenType = token.type;
-			const piecesCount = Math.ceil(diff / Constants.LongToken);
-			for (let j = 1; j < piecesCount; j++) {
-				let pieceEndIndex = lastTokenEndIndex + (j * Constants.LongToken);
-				result[resultLen++] = new LinePart(pieceEndIndex, tokenType);
+
+	if (onlyAtSpaces) {
+		// Split only at spaces => we need to walk each character
+		for (let i = 0, len = tokens.length; i < len; i++) {
+			const token = tokens[i];
+			const tokenEndIndex = token.endIndex;
+			if (lastTokenEndIndex + Constants.LongToken < tokenEndIndex) {
+				const tokenType = token.type;
+
+				let lastSpaceOffset = -1;
+				let currTokenStart = lastTokenEndIndex;
+				for (let j = lastTokenEndIndex; j < tokenEndIndex; j++) {
+					if (lineContent.charCodeAt(j) === CharCode.Space) {
+						lastSpaceOffset = j;
+					}
+					if (lastSpaceOffset !== -1 && j - currTokenStart >= Constants.LongToken) {
+						// Split at `lastSpaceOffset` + 1
+						result[resultLen++] = new LinePart(lastSpaceOffset + 1, tokenType);
+						currTokenStart = lastSpaceOffset + 1;
+						lastSpaceOffset = -1;
+					}
+				}
+				if (currTokenStart !== tokenEndIndex) {
+					result[resultLen++] = new LinePart(tokenEndIndex, tokenType);
+				}
+			} else {
+				result[resultLen++] = token;
 			}
-			result[resultLen++] = new LinePart(tokenEndIndex, tokenType);
-		} else {
-			result[resultLen++] = token;
+
+			lastTokenEndIndex = tokenEndIndex;
 		}
-		lastTokenEndIndex = tokenEndIndex;
+	} else {
+		// Split anywhere => we don't need to walk each character
+		for (let i = 0, len = tokens.length; i < len; i++) {
+			const token = tokens[i];
+			const tokenEndIndex = token.endIndex;
+			let diff = (tokenEndIndex - lastTokenEndIndex);
+			if (diff > Constants.LongToken) {
+				const tokenType = token.type;
+				const piecesCount = Math.ceil(diff / Constants.LongToken);
+				for (let j = 1; j < piecesCount; j++) {
+					let pieceEndIndex = lastTokenEndIndex + (j * Constants.LongToken);
+					result[resultLen++] = new LinePart(pieceEndIndex, tokenType);
+				}
+				result[resultLen++] = new LinePart(tokenEndIndex, tokenType);
+			} else {
+				result[resultLen++] = token;
+			}
+			lastTokenEndIndex = tokenEndIndex;
+		}
 	}
 
 	return result;

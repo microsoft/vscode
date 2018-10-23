@@ -2,11 +2,9 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
-
 import * as assert from 'assert';
 import { dirname, basename, distinctParents, joinPath, isEqual, isEqualOrParent, hasToIgnoreCase, normalizePath, isAbsolutePath, isMalformedFileUri } from 'vs/base/common/resources';
-import { URI } from 'vs/base/common/uri';
+import { URI, setUriThrowOnMissingScheme } from 'vs/base/common/uri';
 import { isWindows } from 'vs/base/common/platform';
 
 suite('Resources', () => {
@@ -44,11 +42,11 @@ suite('Resources', () => {
 
 	test('dirname', () => {
 		if (isWindows) {
-			assert.equal(dirname(URI.file('c:\\some\\file\\test.txt')).toString(), 'file:///c%3A/some/file');
-			assert.equal(dirname(URI.file('c:\\some\\file')).toString(), 'file:///c%3A/some');
-			assert.equal(dirname(URI.file('c:\\some\\file\\')).toString(), 'file:///c%3A/some');
-			assert.equal(dirname(URI.file('c:\\some')).toString(), 'file:///c%3A/');
-			assert.equal(dirname(URI.file('C:\\some')).toString(), 'file:///c%3A/');
+			assert.equal(dirname(URI.file('c:\\some\\file\\test.txt')).toString(), 'file:///c:/some/file');
+			assert.equal(dirname(URI.file('c:\\some\\file')).toString(), 'file:///c:/some');
+			assert.equal(dirname(URI.file('c:\\some\\file\\')).toString(), 'file:///c:/some');
+			assert.equal(dirname(URI.file('c:\\some')).toString(), 'file:///c:/');
+			assert.equal(dirname(URI.file('C:\\some')).toString(), 'file:///c:/');
 		} else {
 			assert.equal(dirname(URI.file('/some/file/test.txt')).toString(), 'file:///some/file');
 			assert.equal(dirname(URI.file('/some/file/')).toString(), 'file:///some');
@@ -85,15 +83,15 @@ suite('Resources', () => {
 
 	test('joinPath', () => {
 		if (isWindows) {
-			assert.equal(joinPath(URI.file('c:\\foo\\bar'), '/file.js').toString(), 'file:///c%3A/foo/bar/file.js');
-			assert.equal(joinPath(URI.file('c:\\foo\\bar\\'), 'file.js').toString(), 'file:///c%3A/foo/bar/file.js');
-			assert.equal(joinPath(URI.file('c:\\foo\\bar\\'), '/file.js').toString(), 'file:///c%3A/foo/bar/file.js');
-			assert.equal(joinPath(URI.file('c:\\'), '/file.js').toString(), 'file:///c%3A/file.js');
-			assert.equal(joinPath(URI.file('c:\\'), 'bar/file.js').toString(), 'file:///c%3A/bar/file.js');
-			assert.equal(joinPath(URI.file('c:\\foo'), './file.js').toString(), 'file:///c%3A/foo/file.js');
-			assert.equal(joinPath(URI.file('c:\\foo'), '/./file.js').toString(), 'file:///c%3A/foo/file.js');
-			assert.equal(joinPath(URI.file('C:\\foo'), '../file.js').toString(), 'file:///c%3A/file.js');
-			assert.equal(joinPath(URI.file('C:\\foo\\.'), '../file.js').toString(), 'file:///c%3A/file.js');
+			assert.equal(joinPath(URI.file('c:\\foo\\bar'), '/file.js').toString(), 'file:///c:/foo/bar/file.js');
+			assert.equal(joinPath(URI.file('c:\\foo\\bar\\'), 'file.js').toString(), 'file:///c:/foo/bar/file.js');
+			assert.equal(joinPath(URI.file('c:\\foo\\bar\\'), '/file.js').toString(), 'file:///c:/foo/bar/file.js');
+			assert.equal(joinPath(URI.file('c:\\'), '/file.js').toString(), 'file:///c:/file.js');
+			assert.equal(joinPath(URI.file('c:\\'), 'bar/file.js').toString(), 'file:///c:/bar/file.js');
+			assert.equal(joinPath(URI.file('c:\\foo'), './file.js').toString(), 'file:///c:/foo/file.js');
+			assert.equal(joinPath(URI.file('c:\\foo'), '/./file.js').toString(), 'file:///c:/foo/file.js');
+			assert.equal(joinPath(URI.file('C:\\foo'), '../file.js').toString(), 'file:///c:/file.js');
+			assert.equal(joinPath(URI.file('C:\\foo\\.'), '../file.js').toString(), 'file:///c:/file.js');
 		} else {
 			assert.equal(joinPath(URI.file('/foo/bar'), '/file.js').toString(), 'file:///foo/bar/file.js');
 			assert.equal(joinPath(URI.file('/foo/bar'), 'file.js').toString(), 'file:///foo/bar/file.js');
@@ -118,15 +116,15 @@ suite('Resources', () => {
 
 	test('normalizePath', () => {
 		if (isWindows) {
-			assert.equal(normalizePath(URI.file('c:\\foo\\.\\bar')).toString(), 'file:///c%3A/foo/bar');
-			assert.equal(normalizePath(URI.file('c:\\foo\\.')).toString(), 'file:///c%3A/foo');
-			assert.equal(normalizePath(URI.file('c:\\foo\\.\\')).toString(), 'file:///c%3A/foo/');
-			assert.equal(normalizePath(URI.file('c:\\foo\\..')).toString(), 'file:///c%3A/');
-			assert.equal(normalizePath(URI.file('c:\\foo\\..\\bar')).toString(), 'file:///c%3A/bar');
-			assert.equal(normalizePath(URI.file('c:\\foo\\..\\..\\bar')).toString(), 'file:///c%3A/bar');
-			assert.equal(normalizePath(URI.file('c:\\foo\\foo\\..\\..\\bar')).toString(), 'file:///c%3A/bar');
-			assert.equal(normalizePath(URI.file('C:\\foo\\foo\\.\\..\\..\\bar')).toString(), 'file:///c%3A/bar');
-			assert.equal(normalizePath(URI.file('C:\\foo\\foo\\.\\..\\some\\..\\bar')).toString(), 'file:///c%3A/foo/bar');
+			assert.equal(normalizePath(URI.file('c:\\foo\\.\\bar')).toString(), 'file:///c:/foo/bar');
+			assert.equal(normalizePath(URI.file('c:\\foo\\.')).toString(), 'file:///c:/foo');
+			assert.equal(normalizePath(URI.file('c:\\foo\\.\\')).toString(), 'file:///c:/foo/');
+			assert.equal(normalizePath(URI.file('c:\\foo\\..')).toString(), 'file:///c:/');
+			assert.equal(normalizePath(URI.file('c:\\foo\\..\\bar')).toString(), 'file:///c:/bar');
+			assert.equal(normalizePath(URI.file('c:\\foo\\..\\..\\bar')).toString(), 'file:///c:/bar');
+			assert.equal(normalizePath(URI.file('c:\\foo\\foo\\..\\..\\bar')).toString(), 'file:///c:/bar');
+			assert.equal(normalizePath(URI.file('C:\\foo\\foo\\.\\..\\..\\bar')).toString(), 'file:///c:/bar');
+			assert.equal(normalizePath(URI.file('C:\\foo\\foo\\.\\..\\some\\..\\bar')).toString(), 'file:///c:/foo/bar');
 		} else {
 			assert.equal(normalizePath(URI.file('/foo/./bar')).toString(), 'file:///foo/bar');
 			assert.equal(normalizePath(URI.file('/foo/.')).toString(), 'file:///foo');
@@ -208,21 +206,23 @@ suite('Resources', () => {
 	});
 
 	function assertMalformedFileUri(path: string, expected: string) {
+		const old = setUriThrowOnMissingScheme(false);
 		const newURI = isMalformedFileUri(URI.parse(path));
 		assert.equal(newURI && newURI.toString(), expected);
+		setUriThrowOnMissingScheme(old);
 	}
 
 	test('isMalformedFileUri', () => {
 		if (isWindows) {
-			assertMalformedFileUri('c:/foo/bar', 'file:///c%3A/foo/bar');
-			assertMalformedFileUri('c:\\foo\\bar', 'file:///c%3A/foo/bar');
-			assertMalformedFileUri('C:\\foo\\bar', 'file:///c%3A/foo/bar');
+			assertMalformedFileUri('c:/foo/bar', 'file:///c:/foo/bar');
+			assertMalformedFileUri('c:\\foo\\bar', 'file:///c:/foo/bar');
+			assertMalformedFileUri('C:\\foo\\bar', 'file:///c:/foo/bar');
 			assertMalformedFileUri('\\\\localhost\\c$\\devel\\test', 'file://localhost/c%24/devel/test');
 		}
 		assertMalformedFileUri('/foo/bar', 'file:///foo/bar');
 
 		assertMalformedFileUri('file:///foo/bar', void 0);
-		assertMalformedFileUri('file:///c%3A/foo/bar', void 0);
+		assertMalformedFileUri('file:///c:/foo/bar', void 0);
 		assertMalformedFileUri('file://localhost/c$/devel/test', void 0);
 		assertMalformedFileUri('foo://dadie/foo/bar', void 0);
 		assertMalformedFileUri('foo:///dadie/foo/bar', void 0);

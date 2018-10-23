@@ -11,14 +11,15 @@ import { Event, mapEvent, filterEvent } from 'vs/base/common/event';
 import { domEvent } from 'vs/base/browser/event';
 import { ScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
 import { ScrollEvent, ScrollbarVisibility } from 'vs/base/common/scrollable';
-import { RangeMap, IRange, relativeComplement, intersect, shift } from './rangeMap';
-import { IVirtualDelegate, IRenderer, IListMouseEvent, IListTouchEvent, IListGestureEvent } from './list';
+import { RangeMap, shift } from './rangeMap';
+import { IListVirtualDelegate, IListRenderer, IListMouseEvent, IListTouchEvent, IListGestureEvent } from './list';
 import { RowCache, IRow } from './rowCache';
 import { isWindows } from 'vs/base/common/platform';
 import * as browser from 'vs/base/browser/browser';
 import { ISpliceable } from 'vs/base/common/sequence';
 import { memoize } from 'vs/base/common/decorators';
 import { DragMouseEvent } from 'vs/base/browser/mouseEvent';
+import { Range, IRange } from 'vs/base/common/range';
 
 function canUseTranslate3d(): boolean {
 	if (browser.isFirefox) {
@@ -44,11 +45,13 @@ interface IItem<T> {
 export interface IListViewOptions {
 	useShadows?: boolean;
 	verticalScrollMode?: ScrollbarVisibility;
+	setRowLineHeight?: boolean;
 }
 
 const DefaultOptions: IListViewOptions = {
 	useShadows: true,
-	verticalScrollMode: ScrollbarVisibility.Auto
+	verticalScrollMode: ScrollbarVisibility.Auto,
+	setRowLineHeight: true
 };
 
 export class ListView<T> implements ISpliceable<T>, IDisposable {
@@ -57,23 +60,26 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 	private itemId: number;
 	private rangeMap: RangeMap;
 	private cache: RowCache<T>;
-	private renderers = new Map<string, IRenderer<T, any>>();
+	private renderers = new Map<string, IListRenderer<T, any>>();
 	private lastRenderTop: number;
 	private lastRenderHeight: number;
 	private _domNode: HTMLElement;
 	private gesture: Gesture;
 	private rowsContainer: HTMLElement;
 	private scrollableElement: ScrollableElement;
+	private scrollHeight: number;
+	private didRequestScrollableElementUpdate: boolean = false;
 	private splicing = false;
 	private dragAndDropScrollInterval: number;
 	private dragAndDropScrollTimeout: number;
 	private dragAndDropMouseY: number;
+	private setRowLineHeight: boolean;
 	private disposables: IDisposable[];
 
 	constructor(
 		container: HTMLElement,
-		private virtualDelegate: IVirtualDelegate<T>,
-		renderers: IRenderer<T, any>[],
+		private virtualDelegate: IListVirtualDelegate<T>,
+		renderers: IListRenderer<T, any>[],
 		options: IListViewOptions = DefaultOptions
 	) {
 		this.items = [];
@@ -119,6 +125,8 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 		const onDragOver = mapEvent(domEvent(this.rowsContainer, 'dragover'), e => new DragMouseEvent(e));
 		onDragOver(this.onDragOver, this, this.disposables);
 
+		this.setRowLineHeight = getOrDefault(options, o => o.setRowLineHeight, DefaultOptions.setRowLineHeight);
+
 		this.layout();
 	}
 
@@ -143,15 +151,15 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 	private _splice(start: number, deleteCount: number, elements: T[] = []): T[] {
 		const previousRenderRange = this.getRenderRange(this.lastRenderTop, this.lastRenderHeight);
 		const deleteRange = { start, end: start + deleteCount };
-		const removeRange = intersect(previousRenderRange, deleteRange);
+		const removeRange = Range.intersect(previousRenderRange, deleteRange);
 
 		for (let i = removeRange.start; i < removeRange.end; i++) {
 			this.removeItemFromDOM(i);
 		}
 
 		const previousRestRange: IRange = { start: start + deleteCount, end: this.items.length };
-		const previousRenderedRestRange = intersect(previousRestRange, previousRenderRange);
-		const previousUnrenderedRestRanges = relativeComplement(previousRestRange, previousRenderRange);
+		const previousRenderedRestRange = Range.intersect(previousRestRange, previousRenderRange);
+		const previousUnrenderedRestRanges = Range.relativeComplement(previousRestRange, previousRenderRange);
 
 		const inserted = elements.map<IItem<T>>(element => ({
 			id: String(this.itemId++),
@@ -167,13 +175,13 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 		const delta = elements.length - deleteCount;
 		const renderRange = this.getRenderRange(this.lastRenderTop, this.lastRenderHeight);
 		const renderedRestRange = shift(previousRenderedRestRange, delta);
-		const updateRange = intersect(renderRange, renderedRestRange);
+		const updateRange = Range.intersect(renderRange, renderedRestRange);
 
 		for (let i = updateRange.start; i < updateRange.end; i++) {
 			this.updateItemInDOM(this.items[i], i);
 		}
 
-		const removeRanges = relativeComplement(renderedRestRange, renderRange);
+		const removeRanges = Range.relativeComplement(renderedRestRange, renderRange);
 
 		for (let r = 0; r < removeRanges.length; r++) {
 			const removeRange = removeRanges[r];
@@ -185,7 +193,7 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 
 		const unrenderedRestRanges = previousUnrenderedRestRanges.map(r => shift(r, delta));
 		const elementsRange = { start, end: start + elements.length };
-		const insertRanges = [elementsRange, ...unrenderedRestRanges].map(r => intersect(renderRange, r));
+		const insertRanges = [elementsRange, ...unrenderedRestRanges].map(r => Range.intersect(renderRange, r));
 		const beforeElement = this.getNextToLastElement(insertRanges);
 
 		for (let r = 0; r < insertRanges.length; r++) {
@@ -196,9 +204,17 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 			}
 		}
 
-		const scrollHeight = this.getContentHeight();
-		this.rowsContainer.style.height = `${scrollHeight}px`;
-		this.scrollableElement.setScrollDimensions({ scrollHeight });
+		this.scrollHeight = this.getContentHeight();
+		this.rowsContainer.style.height = `${this.scrollHeight}px`;
+
+		if (!this.didRequestScrollableElementUpdate) {
+			DOM.scheduleAtNextAnimationFrame(() => {
+				this.scrollableElement.setScrollDimensions({ scrollHeight: this.scrollHeight });
+				this.didRequestScrollableElementUpdate = false;
+			});
+
+			this.didRequestScrollableElementUpdate = true;
+		}
 
 		return deleted.map(i => i.element);
 	}
@@ -249,8 +265,8 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 		const previousRenderRange = this.getRenderRange(this.lastRenderTop, this.lastRenderHeight);
 		const renderRange = this.getRenderRange(renderTop, renderHeight);
 
-		const rangesToInsert = relativeComplement(renderRange, previousRenderRange);
-		const rangesToRemove = relativeComplement(previousRenderRange, renderRange);
+		const rangesToInsert = Range.relativeComplement(renderRange, previousRenderRange);
+		const rangesToRemove = Range.relativeComplement(previousRenderRange, renderRange);
 		const beforeElement = this.getNextToLastElement(rangesToInsert);
 
 		for (const range of rangesToInsert) {
@@ -295,6 +311,11 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 		}
 
 		item.row.domNode.style.height = `${item.size}px`;
+
+		if (this.setRowLineHeight) {
+			item.row.domNode.style.lineHeight = `${item.size}px`;
+		}
+
 		this.updateItemInDOM(item, index);
 
 		const renderer = this.renderers.get(item.templateId);
@@ -346,6 +367,7 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 
 	@memoize get onMouseClick(): Event<IListMouseEvent<T>> { return filterEvent(mapEvent(domEvent(this.domNode, 'click'), e => this.toMouseEvent(e)), e => e.index >= 0); }
 	@memoize get onMouseDblClick(): Event<IListMouseEvent<T>> { return filterEvent(mapEvent(domEvent(this.domNode, 'dblclick'), e => this.toMouseEvent(e)), e => e.index >= 0); }
+	@memoize get onMouseMiddleClick(): Event<IListMouseEvent<T>> { return filterEvent(mapEvent(domEvent(this.domNode, 'auxclick'), e => this.toMouseEvent(e as MouseEvent)), e => e.index >= 0 && e.browserEvent.button === 1); }
 	@memoize get onMouseUp(): Event<IListMouseEvent<T>> { return filterEvent(mapEvent(domEvent(this.domNode, 'mouseup'), e => this.toMouseEvent(e)), e => e.index >= 0); }
 	@memoize get onMouseDown(): Event<IListMouseEvent<T>> { return filterEvent(mapEvent(domEvent(this.domNode, 'mousedown'), e => this.toMouseEvent(e)), e => e.index >= 0); }
 	@memoize get onMouseOver(): Event<IListMouseEvent<T>> { return filterEvent(mapEvent(domEvent(this.domNode, 'mouseover'), e => this.toMouseEvent(e)), e => e.index >= 0); }

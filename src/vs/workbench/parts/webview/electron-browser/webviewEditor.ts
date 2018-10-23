@@ -18,9 +18,10 @@ import { WebviewEditorInput } from 'vs/workbench/parts/webview/electron-browser/
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IEditorGroup } from 'vs/workbench/services/group/common/editorGroupsService';
 import { IPartService, Parts } from 'vs/workbench/services/part/common/partService';
-import { BaseWebviewEditor, KEYBINDING_CONTEXT_WEBVIEWEDITOR_FIND_WIDGET_INPUT_FOCUSED, KEYBINDING_CONTEXT_WEBVIEWEDITOR_FOCUS, KEYBINDING_CONTEXT_WEBVIEW_FIND_WIDGET_VISIBLE } from './baseWebviewEditor';
+import { BaseWebviewEditor, KEYBINDING_CONTEXT_WEBVIEW_FIND_WIDGET_VISIBLE } from './baseWebviewEditor';
 import { WebviewElement } from './webviewElement';
 import { IWindowService } from 'vs/platform/windows/common/windows';
+import { IStorageService } from 'vs/platform/storage/common/storage';
 
 export class WebviewEditor extends BaseWebviewEditor {
 
@@ -44,9 +45,10 @@ export class WebviewEditor extends BaseWebviewEditor {
 		@IWorkspaceContextService private readonly _contextService: IWorkspaceContextService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IEditorService private readonly _editorService: IEditorService,
-		@IWindowService private readonly _windowService: IWindowService
+		@IWindowService private readonly _windowService: IWindowService,
+		@IStorageService storageService: IStorageService
 	) {
-		super(WebviewEditor.ID, telemetryService, themeService, _contextKeyService);
+		super(WebviewEditor.ID, telemetryService, themeService, _contextKeyService, storageService);
 	}
 
 	protected createEditor(parent: HTMLElement): void {
@@ -190,7 +192,7 @@ export class WebviewEditor extends BaseWebviewEditor {
 			enableWrappedPostMessage: true,
 			useSameOriginForRoot: false,
 			localResourceRoots: input.options.localResourceRoots || this.getDefaultLocalResourceRoots()
-		});
+		}, input.options.retainContextWhenHidden);
 
 		if (this._webviewContent) {
 			this._webviewContent.style.visibility = 'visible';
@@ -224,15 +226,11 @@ export class WebviewEditor extends BaseWebviewEditor {
 
 		if (input.options.enableFindWidget) {
 			this._contextKeyService = this._register(this._contextKeyService.createScoped(this._webviewContent));
-			this.contextKey = KEYBINDING_CONTEXT_WEBVIEWEDITOR_FOCUS.bindTo(this._contextKeyService);
-			this.findInputFocusContextKey = KEYBINDING_CONTEXT_WEBVIEWEDITOR_FIND_WIDGET_INPUT_FOCUSED.bindTo(this._contextKeyService);
 			this.findWidgetVisible = KEYBINDING_CONTEXT_WEBVIEW_FIND_WIDGET_VISIBLE.bindTo(this._contextKeyService);
 		}
 
 		this._webview = this._instantiationService.createInstance(WebviewElement,
 			this._partService.getContainer(Parts.EDITOR_PART),
-			this.contextKey,
-			this.findInputFocusContextKey,
 			{
 				enableWrappedPostMessage: true,
 				useSameOriginForRoot: false

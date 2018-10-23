@@ -5,8 +5,7 @@
 
 import { ChildProcess, fork, ForkOptions } from 'child_process';
 import { IDisposable, toDisposable, dispose } from 'vs/base/common/lifecycle';
-import { TPromise } from 'vs/base/common/winjs.base';
-import { Delayer, always } from 'vs/base/common/async';
+import { Delayer, always, createCancelablePromise } from 'vs/base/common/async';
 import { deepClone, assign } from 'vs/base/common/objects';
 import { Emitter, fromNodeEventEmitter, Event } from 'vs/base/common/event';
 import { createQueuedSender } from 'vs/base/node/processes';
@@ -23,7 +22,13 @@ import * as errors from 'vs/base/common/errors';
 export class Server extends IPCServer {
 	constructor() {
 		super({
-			send: r => { try { process.send(r.toString('base64')); } catch (e) { /* not much to do */ } },
+			send: r => {
+				try {
+					if (process.send) {
+						process.send(r.toString('base64'));
+					}
+				} catch (e) { /* not much to do */ }
+			},
 			onMessage: fromNodeEventEmitter(process, 'message', msg => Buffer.from(msg, 'base64'))
 		});
 
@@ -82,8 +87,8 @@ export class Client implements IChannelClient, IDisposable {
 
 	private disposeDelayer: Delayer<void>;
 	private activeRequests = new Set<IDisposable>();
-	private child: ChildProcess;
-	private _client: IPCClient;
+	private child: ChildProcess | null;
+	private _client: IPCClient | null;
 	private channels = new Map<string, IChannel>();
 
 	private _onDidProcessExit = new Emitter<{ code: number, signal: string }>();
@@ -100,8 +105,8 @@ export class Client implements IChannelClient, IDisposable {
 		const that = this;
 
 		return {
-			call(command: string, arg?: any, cancellationToken?: CancellationToken) {
-				return that.requestPromise(channelName, command, arg, cancellationToken);
+			call<T>(command: string, arg?: any, cancellationToken?: CancellationToken): Thenable<T> {
+				return that.requestPromise<T>(channelName, command, arg, cancellationToken);
 			},
 			listen(event: string, arg?: any) {
 				return that.requestEvent(channelName, event, arg);
@@ -109,19 +114,19 @@ export class Client implements IChannelClient, IDisposable {
 		} as T;
 	}
 
-	protected requestPromise(channelName: string, name: string, arg?: any, cancellationToken = CancellationToken.None): TPromise<void> {
+	protected requestPromise<T>(channelName: string, name: string, arg?: any, cancellationToken = CancellationToken.None): Thenable<T> {
 		if (!this.disposeDelayer) {
-			return TPromise.wrapError(new Error('disposed'));
+			return Promise.reject(new Error('disposed'));
 		}
 
 		if (cancellationToken.isCancellationRequested) {
-			return TPromise.wrapError(errors.canceled());
+			return Promise.reject(errors.canceled());
 		}
 
 		this.disposeDelayer.cancel();
 
 		const channel = this.getCachedChannel(channelName);
-		const result: TPromise<void> = channel.call(name, arg, cancellationToken);
+		const result = createCancelablePromise(token => channel.call<T>(name, arg, token));
 		const cancellationTokenListener = cancellationToken.onCancellationRequested(() => result.cancel());
 
 		const disposable = toDisposable(() => result.cancel());
@@ -201,7 +206,7 @@ export class Client implements IChannelClient, IDisposable {
 				// Handle remote console logs specially
 				if (isRemoteConsoleLog(msg)) {
 					log(msg, `IPC Library: ${this.options.serverName}`);
-					return null;
+					return;
 				}
 
 				// Anything else goes to the outside
@@ -228,10 +233,12 @@ export class Client implements IChannelClient, IDisposable {
 
 				if (code !== 0 && signal !== 'SIGTERM') {
 					console.warn('IPC "' + this.options.serverName + '" crashed with exit code ' + code + ' and signal ' + signal);
-					this.disposeDelayer.cancel();
-					this.disposeClient();
 				}
 
+				if (this.disposeDelayer) {
+					this.disposeDelayer.cancel();
+				}
+				this.disposeClient();
 				this._onDidProcessExit.fire({ code, signal });
 			});
 		}
@@ -252,8 +259,10 @@ export class Client implements IChannelClient, IDisposable {
 
 	private disposeClient() {
 		if (this._client) {
-			this.child.kill();
-			this.child = null;
+			if (this.child) {
+				this.child.kill();
+				this.child = null;
+			}
 			this._client = null;
 			this.channels.clear();
 		}
@@ -262,7 +271,7 @@ export class Client implements IChannelClient, IDisposable {
 	dispose() {
 		this._onDidProcessExit.dispose();
 		this.disposeDelayer.cancel();
-		this.disposeDelayer = null;
+		this.disposeDelayer = null!; // StrictNullOverride: nulling out ok in dispose
 		this.disposeClient();
 		this.activeRequests.clear();
 	}

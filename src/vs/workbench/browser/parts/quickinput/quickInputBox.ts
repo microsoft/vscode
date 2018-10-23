@@ -3,12 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import 'vs/css!./quickInput';
 import * as dom from 'vs/base/browser/dom';
 import { InputBox, IRange, MessageType } from 'vs/base/browser/ui/inputbox/inputBox';
-import { localize } from 'vs/nls';
 import { inputBackground, inputForeground, inputBorder, inputValidationInfoBackground, inputValidationInfoForeground, inputValidationInfoBorder, inputValidationWarningBackground, inputValidationWarningForeground, inputValidationWarningBorder, inputValidationErrorBackground, inputValidationErrorForeground, inputValidationErrorBorder } from 'vs/platform/theme/common/colorRegistry';
 import { ITheme } from 'vs/platform/theme/common/themeService';
 import { dispose, IDisposable } from 'vs/base/common/lifecycle';
@@ -16,8 +13,6 @@ import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import Severity from 'vs/base/common/severity';
 
 const $ = dom.$;
-
-const DEFAULT_INPUT_ARIA_LABEL = localize('quickInputBox.ariaLabel', "Type to narrow down results.");
 
 export class QuickInputBox {
 
@@ -29,9 +24,7 @@ export class QuickInputBox {
 		private parent: HTMLElement
 	) {
 		this.container = dom.append(this.parent, $('.quick-input-box'));
-		this.inputBox = new InputBox(this.container, null, {
-			ariaLabel: DEFAULT_INPUT_ARIA_LABEL
-		});
+		this.inputBox = new InputBox(this.container, null);
 		this.disposables.push(this.inputBox);
 	}
 
@@ -53,7 +46,7 @@ export class QuickInputBox {
 		this.inputBox.value = value;
 	}
 
-	select(range: IRange = null): void {
+	select(range: IRange | null = null): void {
 		this.inputBox.select(range);
 	}
 

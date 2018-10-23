@@ -2,7 +2,6 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
 import * as vscode from 'vscode';
 import * as os from 'os';
@@ -14,6 +13,7 @@ import { ExtHostConfiguration } from 'vs/workbench/api/node/extHostConfiguration
 import { ILogService } from 'vs/platform/log/common/log';
 import { EXT_HOST_CREATION_DELAY } from 'vs/workbench/parts/terminal/common/terminal';
 import { TerminalProcess } from 'vs/workbench/parts/terminal/node/terminalProcess';
+import { timeout } from 'vs/base/common/async';
 
 const RENDERER_NO_PROCESS_ID = -1;
 
@@ -77,7 +77,9 @@ export class ExtHostTerminal extends BaseExtHostTerminal implements vscode.Termi
 	private readonly _onData: Emitter<string> = new Emitter<string>();
 	public get onDidWriteData(): Event<string> {
 		// Tell the main side to start sending data if it's not already
-		this._proxy.$registerOnDataListener(this._id);
+		this._idPromise.then(c => {
+			this._proxy.$registerOnDataListener(this._id);
+		});
 		return this._onData && this._onData.event;
 	}
 
@@ -111,6 +113,10 @@ export class ExtHostTerminal extends BaseExtHostTerminal implements vscode.Termi
 
 	public get name(): string {
 		return this._name;
+	}
+
+	public set name(name: string) {
+		this._name = name;
 	}
 
 	public get processId(): Thenable<number> {
@@ -226,6 +232,7 @@ export class ExtHostTerminalService implements ExtHostTerminalServiceShape {
 	private _terminals: ExtHostTerminal[] = [];
 	private _terminalProcesses: { [id: number]: TerminalProcess } = {};
 	private _terminalRenderers: ExtHostTerminalRenderer[] = [];
+	private _getTerminalPromises: { [id: number]: Promise<ExtHostTerminal> } = {};
 
 	public get activeTerminal(): ExtHostTerminal { return this._activeTerminal; }
 	public get terminals(): ExtHostTerminal[] { return this._terminals; }
@@ -289,11 +296,11 @@ export class ExtHostTerminalService implements ExtHostTerminalServiceShape {
 	}
 
 	public $acceptTerminalProcessData(id: number, data: string): void {
-		// TODO: Queue requests, currently the first 100ms of data may get missed
-		const terminal = this._getTerminalById(id);
-		if (terminal) {
-			terminal._fireOnData(data);
-		}
+		this._getTerminalByIdEventually(id).then(terminal => {
+			if (terminal) {
+				terminal._fireOnData(data);
+			}
+		});
 	}
 
 	public $acceptTerminalRendererDimensions(id: number, cols: number, rows: number): void {
@@ -307,6 +314,13 @@ export class ExtHostTerminalService implements ExtHostTerminalServiceShape {
 		const renderer = this._getTerminalRendererById(id);
 		if (renderer) {
 			renderer._fireOnInput(data);
+		}
+	}
+
+	public $acceptTerminalTitleChange(id: number, name: string): void {
+		const extHostTerminal = this._getTerminalObjectById(this.terminals, id);
+		if (extHostTerminal) {
+			extHostTerminal.name = name;
 		}
 	}
 
@@ -431,6 +445,17 @@ export class ExtHostTerminalService implements ExtHostTerminalServiceShape {
 	}
 
 	private _getTerminalByIdEventually(id: number, retries: number = 5): Promise<ExtHostTerminal> {
+		if (!this._getTerminalPromises[id]) {
+			this._getTerminalPromises[id] = this._createGetTerminalPromise(id, retries);
+		} else {
+			this._getTerminalPromises[id].then(c => {
+				return this._createGetTerminalPromise(id, retries);
+			});
+		}
+		return this._getTerminalPromises[id];
+	}
+
+	private _createGetTerminalPromise(id: number, retries: number = 5): Promise<ExtHostTerminal> {
 		return new Promise(c => {
 			if (retries === 0) {
 				c(undefined);
@@ -443,9 +468,7 @@ export class ExtHostTerminalService implements ExtHostTerminalServiceShape {
 			} else {
 				// This should only be needed immediately after createTerminalRenderer is called as
 				// the ExtHostTerminal has not yet been iniitalized
-				setTimeout(() => {
-					c(this._getTerminalByIdEventually(id, retries - 1));
-				}, 200);
+				timeout(200).then(() => c(this._getTerminalByIdEventually(id, retries - 1)));
 			}
 		});
 	}
@@ -464,7 +487,7 @@ export class ExtHostTerminalService implements ExtHostTerminalServiceShape {
 	}
 
 	private _getTerminalObjectIndexById<T extends ExtHostTerminal | ExtHostTerminalRenderer>(array: T[], id: number): number {
-		let index: number = null;
+		let index: number | null = null;
 		array.some((item, i) => {
 			const thisId = item._id;
 			if (thisId === id) {

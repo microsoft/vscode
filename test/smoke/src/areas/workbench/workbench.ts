@@ -11,7 +11,7 @@ import { Extensions } from '../extensions/extensions';
 import { Search } from '../search/search';
 import { Editor } from '../editor/editor';
 import { SCM } from '../git/scm';
-import { Debug } from '../debug/debug';
+import { Debug } from '../debug/debugSmoke';
 import { StatusBar } from '../statusbar/statusbar';
 import { Problems } from '../problems/problems';
 import { SettingsEditor } from '../preferences/settings';
@@ -60,4 +60,3 @@ export class Workbench {
 		this.terminal = new Terminal(code, this.quickopen);
 	}
 }
-

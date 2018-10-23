@@ -3,9 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
-import { TPromise } from 'vs/base/common/winjs.base';
 import { URI } from 'vs/base/common/uri';
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { IModelService } from 'vs/editor/common/services/modelService';
@@ -77,7 +74,7 @@ export class OutputLinkProvider {
 		return this.worker;
 	}
 
-	private provideLinks(modelUri: URI): TPromise<ILink[]> {
+	private provideLinks(modelUri: URI): Promise<ILink[]> {
 		return this.getOrCreateWorker().withSyncedResources([modelUri]).then(linkComputer => {
 			return linkComputer.computeLinks(modelUri.toString());
 		});

@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import * as nls from 'vs/nls';
 import severity from 'vs/base/common/severity';
 import { TPromise } from 'vs/base/common/winjs.base';
@@ -24,7 +22,7 @@ import { IStorageService, StorageScope } from 'vs/platform/storage/common/storag
 import { IUpdateService, State as UpdateState, StateType, IUpdate } from 'vs/platform/update/common/update';
 import * as semver from 'semver';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { INotificationService, INotificationHandle } from 'vs/platform/notification/common/notification';
+import { INotificationService, INotificationHandle, Severity } from 'vs/platform/notification/common/notification';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { IWindowService } from 'vs/platform/windows/common/windows';
 import { ReleaseNotesManager } from './releaseNotesEditor';
@@ -50,8 +48,11 @@ export class OpenLatestReleaseNotesInBrowserAction extends Action {
 	}
 
 	run(): TPromise<any> {
-		const uri = URI.parse(product.releaseNotesUrl);
-		return this.openerService.open(uri);
+		if (product.releaseNotesUrl) {
+			const uri = URI.parse(product.releaseNotesUrl);
+			return this.openerService.open(uri);
+		}
+		return TPromise.as(void 0);
 	}
 }
 
@@ -133,7 +134,8 @@ export class ProductContribution implements IWorkbenchContribution {
 								const uri = URI.parse(product.releaseNotesUrl);
 								openerService.open(uri);
 							}
-						}]
+						}],
+						{ sticky: true }
 					);
 				});
 		}
@@ -176,7 +178,6 @@ export class Win3264BitContribution implements IWorkbenchContribution {
 
 	constructor(
 		@IStorageService storageService: IStorageService,
-		@IInstantiationService instantiationService: IInstantiationService,
 		@INotificationService notificationService: INotificationService,
 		@IEnvironmentService environmentService: IEnvironmentService
 	) {
@@ -204,7 +205,8 @@ export class Win3264BitContribution implements IWorkbenchContribution {
 					neverShowAgain.action.run(handle);
 					neverShowAgain.action.dispose();
 				}
-			}]
+			}],
+			{ sticky: true }
 		);
 	}
 }
@@ -231,7 +233,7 @@ export class UpdateContribution implements IGlobalActivity {
 	private static readonly showExtensionsId = 'workbench.view.extensions';
 
 	get id() { return 'vs.update'; }
-	get name() { return ''; }
+	get name() { return nls.localize('manage', "Manage"); }
 	get cssClass() { return 'update-activity'; }
 
 	private state: UpdateState;
@@ -274,7 +276,9 @@ export class UpdateContribution implements IGlobalActivity {
 	private onUpdateStateChange(state: UpdateState): void {
 		switch (state.type) {
 			case StateType.Idle:
-				if (this.state.type === StateType.CheckingForUpdates && this.state.context && this.state.context.windowId === this.windowService.getCurrentWindowId()) {
+				if (state.error) {
+					this.onError(state.error);
+				} else if (this.state.type === StateType.CheckingForUpdates && this.state.context && this.state.context.windowId === this.windowService.getCurrentWindowId()) {
 					this.onUpdateNotAvailable();
 				}
 				break;
@@ -315,6 +319,16 @@ export class UpdateContribution implements IGlobalActivity {
 		this.state = state;
 	}
 
+	private onError(error: string): void {
+		error = error.replace(/See https:\/\/github\.com\/Squirrel\/Squirrel\.Mac\/issues\/182 for more information/, 'See [this link](https://github.com/Microsoft/vscode/issues/7426#issuecomment-425093469) for more information');
+
+		this.notificationService.notify({
+			severity: Severity.Error,
+			message: error,
+			source: nls.localize('update service', "Update Service"),
+		});
+	}
+
 	private onUpdateNotAvailable(): void {
 		this.dialogService.show(
 			severity.Info,
@@ -345,7 +359,8 @@ export class UpdateContribution implements IGlobalActivity {
 					action.run();
 					action.dispose();
 				}
-			}]
+			}],
+			{ sticky: true }
 		);
 	}
 
@@ -371,7 +386,8 @@ export class UpdateContribution implements IGlobalActivity {
 					action.run();
 					action.dispose();
 				}
-			}]
+			}],
+			{ sticky: true }
 		);
 	}
 
@@ -425,7 +441,8 @@ export class UpdateContribution implements IGlobalActivity {
 					action.run();
 					action.dispose();
 				}
-			}]
+			}],
+			{ sticky: true }
 		);
 	}
 

@@ -2,7 +2,6 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
 import 'vs/css!./media/review';
 import * as nls from 'vs/nls';
@@ -34,6 +33,7 @@ import { IModelDecorationOptions } from 'vs/editor/common/model';
 import { Color, RGBA } from 'vs/base/common/color';
 import { IMarginData } from 'vs/editor/browser/controller/mouseTarget';
 import { INotificationService } from 'vs/platform/notification/common/notification';
+import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 
 export const ctxReviewPanelVisible = new RawContextKey<boolean>('reviewPanelVisible', false);
 
@@ -128,7 +128,7 @@ class CommentingRangeDecorator {
 			return;
 		}
 
-		let commentingRangeDecorations = [];
+		let commentingRangeDecorations: CommentingRangeDecoration[] = [];
 		for (let i = 0; i < commentInfos.length; i++) {
 			let info = commentInfos[i];
 			info.commentingRanges.forEach(range => {
@@ -184,7 +184,8 @@ export class ReviewController implements IEditorContribution {
 		@IModeService private modeService: IModeService,
 		@IModelService private modelService: IModelService,
 		@ICodeEditorService private codeEditorService: ICodeEditorService,
-		@IOpenerService private openerService: IOpenerService
+		@IOpenerService private openerService: IOpenerService,
+		@IDialogService private dialogService: IDialogService
 	) {
 		this.editor = editor;
 		this.globalToDispose = [];
@@ -356,7 +357,7 @@ export class ReviewController implements IEditorContribution {
 				}
 			});
 			added.forEach(thread => {
-				let zoneWidget = new ReviewZoneWidget(this.instantiationService, this.modeService, this.modelService, this.themeService, this.commentService, this.openerService, this.editor, e.owner, thread, {});
+				let zoneWidget = new ReviewZoneWidget(this.instantiationService, this.modeService, this.modelService, this.themeService, this.commentService, this.openerService, this.dialogService, this.notificationService, this.editor, e.owner, thread, {});
 				zoneWidget.display(thread.range.startLineNumber, this._commentingRangeDecorator.commentsOptions);
 				this._commentWidgets.push(zoneWidget);
 				this._commentInfos.filter(info => info.owner === e.owner)[0].threads.push(thread);
@@ -378,7 +379,7 @@ export class ReviewController implements IEditorContribution {
 		// add new comment
 		this._reviewPanelVisible.set(true);
 		const { replyCommand, ownerId } = newCommentInfo;
-		this._newCommentWidget = new ReviewZoneWidget(this.instantiationService, this.modeService, this.modelService, this.themeService, this.commentService, this.openerService, this.editor, ownerId, {
+		this._newCommentWidget = new ReviewZoneWidget(this.instantiationService, this.modeService, this.modelService, this.themeService, this.commentService, this.openerService, this.dialogService, this.notificationService, this.editor, ownerId, {
 			threadId: null,
 			resource: null,
 			comments: [],
@@ -469,7 +470,7 @@ export class ReviewController implements IEditorContribution {
 		if (this._commentInfos.some(info => Boolean(info.commentingRanges && info.commentingRanges.length))) {
 			if (!this._commentingRangeSpaceReserved) {
 				this._commentingRangeSpaceReserved = true;
-				let extraEditorClassName = [];
+				let extraEditorClassName: string[] = [];
 				if (this.editor.getRawConfiguration().extraEditorClassName) {
 					extraEditorClassName = this.editor.getRawConfiguration().extraEditorClassName.split(' ');
 				}
@@ -505,13 +506,13 @@ export class ReviewController implements IEditorContribution {
 
 		this._commentInfos.forEach(info => {
 			info.threads.forEach(thread => {
-				let zoneWidget = new ReviewZoneWidget(this.instantiationService, this.modeService, this.modelService, this.themeService, this.commentService, this.openerService, this.editor, info.owner, thread, {});
+				let zoneWidget = new ReviewZoneWidget(this.instantiationService, this.modeService, this.modelService, this.themeService, this.commentService, this.openerService, this.dialogService, this.notificationService, this.editor, info.owner, thread, {});
 				zoneWidget.display(thread.range.startLineNumber, this._commentingRangeDecorator.commentsOptions);
 				this._commentWidgets.push(zoneWidget);
 			});
 		});
 
-		const commentingRanges = [];
+		const commentingRanges: IRange[] = [];
 		this._commentInfos.forEach(info => {
 			commentingRanges.push(...info.commentingRanges);
 		});
@@ -591,7 +592,7 @@ function closeReviewPanel(accessor: ServicesAccessor, args: any) {
 
 
 registerThemingParticipant((theme, collector) => {
-	let peekViewBackground = theme.getColor(peekViewResultsBackground);
+	const peekViewBackground = theme.getColor(peekViewResultsBackground);
 	if (peekViewBackground) {
 		collector.addRule(
 			`.monaco-editor .review-widget,` +
@@ -600,7 +601,7 @@ registerThemingParticipant((theme, collector) => {
 			`}`);
 	}
 
-	let monacoEditorBackground = theme.getColor(peekViewTitleBackground);
+	const monacoEditorBackground = theme.getColor(peekViewTitleBackground);
 	if (monacoEditorBackground) {
 		collector.addRule(
 			`.monaco-editor .review-widget .body .comment-form .review-thread-reply-button {` +
@@ -609,7 +610,7 @@ registerThemingParticipant((theme, collector) => {
 		);
 	}
 
-	let monacoEditorForeground = theme.getColor(editorForeground);
+	const monacoEditorForeground = theme.getColor(editorForeground);
 	if (monacoEditorForeground) {
 		collector.addRule(
 			`.monaco-editor .review-widget .body .monaco-editor {` +
@@ -621,7 +622,7 @@ registerThemingParticipant((theme, collector) => {
 		);
 	}
 
-	let selectionBackground = theme.getColor(peekViewResultsSelectionBackground);
+	const selectionBackground = theme.getColor(peekViewResultsSelectionBackground);
 
 	if (selectionBackground) {
 		collector.addRule(

@@ -2,7 +2,6 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { ITerminalService, ITerminalInstance, IShellLaunchConfig, ITerminalProcessExtHostProxy, ITerminalProcessExtHostRequest, ITerminalDimensions, EXT_HOST_CREATION_DELAY } from 'vs/workbench/parts/terminal/common/terminal';
@@ -35,6 +34,7 @@ export class MainThreadTerminalService implements MainThreadTerminalServiceShape
 		this._toDispose.push(terminalService.onInstanceDimensionsChanged(instance => this._onInstanceDimensionsChanged(instance)));
 		this._toDispose.push(terminalService.onInstanceRequestExtHostProcess(request => this._onTerminalRequestExtHostProcess(request)));
 		this._toDispose.push(terminalService.onActiveInstanceChanged(instance => this._onActiveTerminalChanged(instance ? instance.id : undefined)));
+		this._toDispose.push(terminalService.onInstanceTitleChanged(instance => this._onTitleChanged(instance.id, instance.title)));
 
 		// Set initial ext host state
 		this.terminalService.terminalInstances.forEach(t => {
@@ -163,6 +163,10 @@ export class MainThreadTerminalService implements MainThreadTerminalServiceShape
 		this._proxy.$acceptTerminalProcessData(terminalId, data);
 	}
 
+	private _onTitleChanged(terminalId: number, name: string): void {
+		this._proxy.$acceptTerminalTitleChange(terminalId, name);
+	}
+
 	private _onTerminalRendererInput(terminalId: number, data: string): void {
 		this._proxy.$acceptTerminalRendererInput(terminalId, data);
 	}
@@ -172,7 +176,13 @@ export class MainThreadTerminalService implements MainThreadTerminalServiceShape
 	}
 
 	private _onTerminalOpened(terminalInstance: ITerminalInstance): void {
-		this._proxy.$acceptTerminalOpened(terminalInstance.id, terminalInstance.title);
+		if (terminalInstance.title) {
+			this._proxy.$acceptTerminalOpened(terminalInstance.id, terminalInstance.title);
+		} else {
+			terminalInstance.waitForTitle().then(title => {
+				this._proxy.$acceptTerminalOpened(terminalInstance.id, title);
+			});
+		}
 	}
 
 	private _onTerminalProcessIdReady(terminalInstance: ITerminalInstance): void {

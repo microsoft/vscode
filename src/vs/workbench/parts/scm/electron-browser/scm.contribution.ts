@@ -3,13 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import { localize } from 'vs/nls';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
 import { DirtyDiffWorkbenchController } from './dirtydiffDecorator';
-import { ViewletRegistry, Extensions as ViewletExtensions, ViewletDescriptor, ToggleViewletAction } from 'vs/workbench/browser/viewlet';
+import { ViewletRegistry, Extensions as ViewletExtensions, ViewletDescriptor, ShowViewletAction } from 'vs/workbench/browser/viewlet';
 import { VIEWLET_ID } from 'vs/workbench/parts/scm/common/scm';
 import { IWorkbenchActionRegistry, Extensions as WorkbenchActionExtensions } from 'vs/workbench/common/actions';
 import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
@@ -20,14 +18,20 @@ import { SCMViewlet } from 'vs/workbench/parts/scm/electron-browser/scmViewlet';
 import { LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions } from 'vs/platform/configuration/common/configurationRegistry';
 import { IEditorGroupsService } from 'vs/workbench/services/group/common/editorGroupsService';
+import { ContextKeyDefinedExpr, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { ISCMRepository } from 'vs/workbench/services/scm/common/scm';
+import { TPromise } from 'vs/base/common/winjs.base';
+import { ICommandService } from 'vs/platform/commands/common/commands';
+import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
+import { IPartService } from 'vs/workbench/services/part/common/partService';
 
-class OpenSCMViewletAction extends ToggleViewletAction {
+class OpenSCMViewletAction extends ShowViewletAction {
 
 	static readonly ID = VIEWLET_ID;
 	static LABEL = localize('toggleGitViewlet', "Show Git");
 
-	constructor(id: string, label: string, @IViewletService viewletService: IViewletService, @IEditorGroupsService editorGroupService: IEditorGroupsService) {
-		super(id, label, VIEWLET_ID, viewletService, editorGroupService);
+	constructor(id: string, label: string, @IViewletService viewletService: IViewletService, @IEditorGroupsService editorGroupService: IEditorGroupsService, @IPartService partService: IPartService) {
+		super(id, label, VIEWLET_ID, viewletService, editorGroupService, partService);
 	}
 }
 
@@ -54,7 +58,7 @@ Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench)
 // Register Action to Open Viewlet
 Registry.as<IWorkbenchActionRegistry>(WorkbenchActionExtensions.WorkbenchActions).registerWorkbenchAction(
 	new SyncActionDescriptor(OpenSCMViewletAction, VIEWLET_ID, localize('toggleSCMViewlet', "Show SCM"), {
-		primary: null,
+		primary: 0,
 		win: { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_G },
 		linux: { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_G },
 		mac: { primary: KeyMod.WinCtrl | KeyMod.Shift | KeyCode.KEY_G }
@@ -85,6 +89,11 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 			enum: [1, 2, 3, 4, 5],
 			default: 3,
 			description: localize('diffGutterWidth', "Controls the width(px) of diff decorations in gutter (added & modified).")
+		},
+		'scm.alwaysShowActions': {
+			type: 'boolean',
+			description: localize('alwaysShowActions', "Controls whether inline actions are always visible in the Source Control view."),
+			default: false
 		}
 	}
 });
@@ -98,4 +107,27 @@ MenuRegistry.appendMenuItem(MenuId.MenubarViewMenu, {
 		title: localize({ key: 'miViewSCM', comment: ['&& denotes a mnemonic'] }, "S&&CM")
 	},
 	order: 3
+});
+
+KeybindingsRegistry.registerCommandAndKeybindingRule({
+	id: 'scm.acceptInput',
+	description: { description: localize('scm accept', "SCM: Accept Input"), args: [] },
+	weight: KeybindingWeight.WorkbenchContrib,
+	when: new ContextKeyDefinedExpr('scmRepository'),
+	primary: KeyMod.CtrlCmd | KeyCode.Enter,
+	handler: accessor => {
+		const contextKeyService = accessor.get(IContextKeyService);
+		const context = contextKeyService.getContext(document.activeElement);
+		const repository = context.getValue<ISCMRepository>('scmRepository');
+
+		if (!repository || !repository.provider.acceptInputCommand) {
+			return TPromise.as(null);
+		}
+
+		const id = repository.provider.acceptInputCommand.id;
+		const args = repository.provider.acceptInputCommand.arguments;
+
+		const commandService = accessor.get(ICommandService);
+		return commandService.executeCommand(id, ...args);
+	}
 });

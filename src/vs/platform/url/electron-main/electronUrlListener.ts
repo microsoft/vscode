@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import { mapEvent, fromNodeEventEmitter, filterEvent, once } from 'vs/base/common/event';
 import { IURLService } from 'vs/platform/url/common/url';
 import product from 'vs/platform/node/product';
@@ -38,7 +36,11 @@ export class ElectronURLListener {
 		];
 
 		const buffer = rawBuffer.map(uriFromRawUrl).filter(uri => !!uri);
-		const flush = () => buffer.forEach(uri => urlService.open(uri));
+		const flush = () => buffer.forEach(uri => {
+			if (uri) {
+				urlService.open(uri);
+			}
+		});
 
 		app.setAsDefaultProtocolClient(product.urlProtocol, process.execPath, ['--open-url', '--']);
 

@@ -5,7 +5,6 @@
 
 .monaco-workbench > .activitybar > .content .monaco-action-bar .action-label.scm {
 	-webkit-mask: url('icon-dark.svg') no-repeat 50% 50%;
-	-webkit-mask-size: 19px;
 }
 
 .monaco-workbench .viewlet.scm-viewlet .collapsible.header .actions {
@@ -121,6 +120,11 @@
 .scm-viewlet .monaco-list .monaco-list-row.selected > .resource > .name > .monaco-icon-label > .actions,
 .scm-viewlet .monaco-list .monaco-list-row.focused > .resource > .name > .monaco-icon-label > .actions,
 .scm-viewlet .monaco-list:not(.selection-multiple) .monaco-list-row > .resource:hover > .actions {
+	display: block;
+}
+
+.scm-viewlet .scm-status.show-actions > .monaco-list .monaco-list-row > .resource-group > .actions,
+.scm-viewlet .scm-status.show-actions > .monaco-list .monaco-list-row > .resource > .name > .monaco-icon-label > .actions {
 	display: block;
 }
 

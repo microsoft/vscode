@@ -30,6 +30,7 @@ import { IWindowService } from 'vs/platform/windows/common/windows';
 export class OutputPanel extends AbstractTextResourceEditor {
 	private actions: IAction[];
 	private scopedInstantiationService: IInstantiationService;
+	private _focus: boolean;
 
 	constructor(
 		@ITelemetryService telemetryService: ITelemetryService,
@@ -113,6 +114,7 @@ export class OutputPanel extends AbstractTextResourceEditor {
 	}
 
 	public setInput(input: EditorInput, options: EditorOptions, token: CancellationToken): Thenable<void> {
+		this._focus = !options.preserveFocus;
 		if (input.matches(this.input)) {
 			return TPromise.as(null);
 		}
@@ -121,7 +123,12 @@ export class OutputPanel extends AbstractTextResourceEditor {
 			// Dispose previous input (Output panel is not a workbench editor)
 			this.input.dispose();
 		}
-		return super.setInput(input, options, token).then(() => this.revealLastLine(false));
+		return super.setInput(input, options, token).then(() => {
+			if (this._focus) {
+				this.focus();
+			}
+			this.revealLastLine(false);
+		});
 	}
 
 	public clearInput(): void {

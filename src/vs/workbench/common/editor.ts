@@ -2,7 +2,6 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
 import { TPromise } from 'vs/base/common/winjs.base';
 import { Event, Emitter, once } from 'vs/base/common/event';
@@ -21,6 +20,7 @@ import { IEditorGroup } from 'vs/workbench/services/group/common/editorGroupsSer
 import { ICompositeControl } from 'vs/workbench/common/composite';
 import { ActionRunner, IAction } from 'vs/base/common/actions';
 
+export const ActiveEditorContext = new RawContextKey<string>('activeEditor', null);
 export const EditorsVisibleContext = new RawContextKey<boolean>('editorIsOpen', false);
 export const EditorGroupActiveEditorDirtyContext = new RawContextKey<boolean>('groupActiveEditorDirty', false);
 export const NoEditorsVisibleContext: ContextKeyExpr = EditorsVisibleContext.toNegated();
@@ -937,6 +937,7 @@ export interface IWorkbenchEditorConfiguration {
 
 export interface IWorkbenchEditorPartConfiguration {
 	showTabs?: boolean;
+	highlightModifiedTabs?: boolean;
 	tabCloseButton?: 'left' | 'right' | 'off';
 	tabSizing?: 'fit' | 'shrink';
 	showIcons?: boolean;
@@ -949,6 +950,7 @@ export interface IWorkbenchEditorPartConfiguration {
 	revealIfOpen?: boolean;
 	swipeToNavigate?: boolean;
 	labelFormat?: 'default' | 'short' | 'medium' | 'long';
+	restoreViewState?: boolean;
 }
 
 export interface IResourceOptions {
@@ -1003,14 +1005,14 @@ export const enum CloseDirection {
 
 export interface IEditorMemento<T> {
 
-	saveState(group: IEditorGroup, resource: URI, state: T): void;
-	saveState(group: IEditorGroup, editor: EditorInput, state: T): void;
+	saveEditorState(group: IEditorGroup, resource: URI, state: T): void;
+	saveEditorState(group: IEditorGroup, editor: EditorInput, state: T): void;
 
-	loadState(group: IEditorGroup, resource: URI): T;
-	loadState(group: IEditorGroup, editor: EditorInput): T;
+	loadEditorState(group: IEditorGroup, resource: URI): T;
+	loadEditorState(group: IEditorGroup, editor: EditorInput): T;
 
-	clearState(resource: URI): void;
-	clearState(editor: EditorInput): void;
+	clearEditorState(resource: URI, group?: IEditorGroup): void;
+	clearEditorState(editor: EditorInput, group?: IEditorGroup): void;
 }
 
 class EditorInputFactoryRegistry implements IEditorInputFactoryRegistry {

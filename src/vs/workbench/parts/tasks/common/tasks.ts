@@ -2,7 +2,6 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
 import * as Types from 'vs/base/common/types';
 import { IJSONSchemaMap } from 'vs/base/common/jsonSchema';
@@ -204,6 +203,11 @@ export interface PresentationOptions {
 	 * Controls whether to show the "Terminal will be reused by tasks, press any key to close it" message.
 	 */
 	showReuseMessage: boolean;
+
+	/**
+	 * Controls whether to clear the terminal before executing the task.
+	 */
+	clearBeforeExecuting: boolean;
 }
 
 export enum RuntimeType {
@@ -470,7 +474,7 @@ export namespace CustomTask {
 		};
 		return result;
 	}
-	export function customizes(task: CustomTask): KeyedTaskIdentifier {
+	export function customizes(task: CustomTask): KeyedTaskIdentifier | undefined {
 		if (task._source && task._source.customizes) {
 			return task._source.customizes;
 		}
@@ -637,7 +641,7 @@ export namespace Task {
 		}
 	}
 
-	export function getTaskDefinition(task: Task, useSource: boolean = false): KeyedTaskIdentifier {
+	export function getTaskDefinition(task: Task, useSource: boolean = false): KeyedTaskIdentifier | undefined {
 		if (ContributedTask.is(task)) {
 			return task.defines;
 		} else if (CustomTask.is(task)) {
@@ -765,8 +769,8 @@ export namespace TaskEvent {
 				taskName: task.name,
 				runType: task.isBackground ? TaskRunType.Background : TaskRunType.SingleRun,
 				group: task.group,
-				processId: undefined,
-				exitCode: undefined,
+				processId: undefined as number | undefined,
+				exitCode: undefined as number | undefined,
 				__task: task,
 			};
 			if (kind === TaskEventKind.ProcessStarted) {

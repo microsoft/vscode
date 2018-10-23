@@ -1,10 +1,10 @@
 steps:
 - task: NodeTool@0
   inputs:
-    versionSpec: "8.9.1"
+    versionSpec: "8.12.0"
 - task: geeklearningio.gl-vsts-tasks-yarn.yarn-installer-task.YarnInstaller@2
   inputs:
-    versionSpec: "1.9.4"
+    versionSpec: "1.10.1"
 - script: |
     yarn
   displayName: Install Dependencies
@@ -18,6 +18,9 @@ steps:
     yarn monaco-compile-check
   displayName: Run Monaco Editor Checks
 - script: |
+    yarn strict-null-check
+  displayName: Run Strict Null Checks
+- script: |
     yarn compile
   displayName: Compile Sources
 - script: |
@@ -29,17 +32,6 @@ steps:
 - script: |
     ./scripts/test-integration.sh --tfs "Integration Tests"
   displayName: Run Integration Tests
-- script: |
-    yarn smoketest --screenshots "$(Build.ArtifactStagingDirectory)/artifacts" --log "$(Build.ArtifactStagingDirectory)/artifacts/smoketest.log"
-  displayName: Run Smoke Tests
-  continueOnError: true
-- task: PublishBuildArtifacts@1
-  displayName: Publish Smoketest Artifacts
-  inputs:
-    PathtoPublish: '$(Build.ArtifactStagingDirectory)/artifacts'
-    ArtifactName: build-artifacts-darwin
-    publishLocation: Container
-  condition: eq(variables['System.PullRequest.IsFork'], 'False')
 - task: PublishTestResults@2
   displayName: Publish Tests Results
   inputs:

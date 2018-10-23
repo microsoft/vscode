@@ -2,7 +2,6 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
 import * as dom from 'vs/base/browser/dom';
 import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
@@ -19,7 +18,6 @@ import { dispose, IDisposable, IReference } from 'vs/base/common/lifecycle';
 import { Schemas } from 'vs/base/common/network';
 import { basenameOrAuthority, dirname } from 'vs/base/common/resources';
 import * as strings from 'vs/base/common/strings';
-import { TPromise } from 'vs/base/common/winjs.base';
 import * as tree from 'vs/base/parts/tree/browser/tree';
 import { ClickBehavior } from 'vs/base/parts/tree/browser/treeDefaults';
 import 'vs/css!./media/referencesWidget';
@@ -184,9 +182,9 @@ class DataSource implements tree.IDataSource {
 		return false;
 	}
 
-	public getChildren(tree: tree.ITree, element: ReferencesModel | FileReferences): TPromise<any[]> {
+	public getChildren(tree: tree.ITree, element: ReferencesModel | FileReferences): Promise<any[]> {
 		if (element instanceof ReferencesModel) {
-			return TPromise.as(element.groups);
+			return Promise.resolve(element.groups);
 		} else if (element instanceof FileReferences) {
 			return element.resolve(this._textModelResolverService).then(val => {
 				if (element.failure) {
@@ -197,18 +195,18 @@ class DataSource implements tree.IDataSource {
 				return val.children;
 			});
 		} else {
-			return TPromise.as([]);
+			return Promise.resolve([]);
 		}
 	}
 
-	public getParent(tree: tree.ITree, element: any): TPromise<any> {
+	public getParent(tree: tree.ITree, element: any): Promise<any> {
 		let result: any = null;
 		if (element instanceof FileReferences) {
 			result = (<FileReferences>element).parent;
 		} else if (element instanceof OneReference) {
 			result = (<OneReference>element).parent;
 		}
-		return TPromise.as(result);
+		return Promise.resolve(result);
 	}
 }
 
@@ -318,7 +316,7 @@ class FileReferencesTemplate {
 
 	set(element: FileReferences) {
 		let parent = dirname(element.uri);
-		this.file.setValue(getBaseLabel(element.uri), parent ? this._uriLabel.getUriLabel(parent, true) : undefined, { title: this._uriLabel.getUriLabel(element.uri) });
+		this.file.setValue(getBaseLabel(element.uri), parent ? this._uriLabel.getUriLabel(parent, { relative: true }) : undefined, { title: this._uriLabel.getUriLabel(element.uri) });
 		const len = element.children.length;
 		this.badge.setCount(len);
 		if (element.failure) {
@@ -541,7 +539,7 @@ export class ReferenceWidget extends PeekViewWidget {
 	}
 
 	private _applyTheme(theme: ITheme) {
-		let borderColor = theme.getColor(peekViewBorder) || Color.transparent;
+		const borderColor = theme.getColor(peekViewBorder) || Color.transparent;
 		this.style({
 			arrowColor: borderColor,
 			frameColor: borderColor,
@@ -697,14 +695,17 @@ export class ReferenceWidget extends PeekViewWidget {
 
 	public setSelection(selection: OneReference): Promise<any> {
 		return this._revealReference(selection, true).then(() => {
-
+			if (!this._model) {
+				// disposed
+				return;
+			}
 			// show in tree
 			this._tree.setSelection([selection]);
 			this._tree.setFocus(selection);
 		});
 	}
 
-	public setModel(newModel: ReferencesModel): TPromise<any> {
+	public setModel(newModel: ReferencesModel): Thenable<any> {
 		// clean up
 		this._disposeOnNewModel = dispose(this._disposeOnNewModel);
 		this._model = newModel;
@@ -714,13 +715,13 @@ export class ReferenceWidget extends PeekViewWidget {
 		return undefined;
 	}
 
-	private _onNewModel(): TPromise<any> {
+	private _onNewModel(): Thenable<any> {
 
 		if (this._model.empty) {
 			this.setTitle('');
 			this._messageContainer.innerHTML = nls.localize('noResults', "No results");
 			dom.show(this._messageContainer);
-			return TPromise.as(void 0);
+			return Promise.resolve(void 0);
 		}
 
 		dom.hide(this._messageContainer);
@@ -771,7 +772,7 @@ export class ReferenceWidget extends PeekViewWidget {
 
 		// Update widget header
 		if (reference.uri.scheme !== Schemas.inMemory) {
-			this.setTitle(basenameOrAuthority(reference.uri), this._uriLabel.getUriLabel(dirname(reference.uri), false));
+			this.setTitle(basenameOrAuthority(reference.uri), this._uriLabel.getUriLabel(dirname(reference.uri)));
 		} else {
 			this.setTitle(nls.localize('peekView.alternateTitle', "References"));
 		}
@@ -782,7 +783,7 @@ export class ReferenceWidget extends PeekViewWidget {
 			await this._tree.reveal(reference.parent);
 		}
 
-		return TPromise.join([promise, this._tree.reveal(reference)]).then(values => {
+		return Promise.all([promise, this._tree.reveal(reference)]).then(values => {
 			const ref = values[0];
 
 			if (!this._model) {
@@ -831,43 +832,43 @@ export const peekViewEditorMatchHighlightBorder = registerColor('peekViewEditor.
 
 
 registerThemingParticipant((theme, collector) => {
-	let findMatchHighlightColor = theme.getColor(peekViewResultsMatchHighlight);
+	const findMatchHighlightColor = theme.getColor(peekViewResultsMatchHighlight);
 	if (findMatchHighlightColor) {
 		collector.addRule(`.monaco-editor .reference-zone-widget .ref-tree .referenceMatch { background-color: ${findMatchHighlightColor}; }`);
 	}
-	let referenceHighlightColor = theme.getColor(peekViewEditorMatchHighlight);
+	const referenceHighlightColor = theme.getColor(peekViewEditorMatchHighlight);
 	if (referenceHighlightColor) {
 		collector.addRule(`.monaco-editor .reference-zone-widget .preview .reference-decoration { background-color: ${referenceHighlightColor}; }`);
 	}
-	let referenceHighlightBorder = theme.getColor(peekViewEditorMatchHighlightBorder);
+	const referenceHighlightBorder = theme.getColor(peekViewEditorMatchHighlightBorder);
 	if (referenceHighlightBorder) {
 		collector.addRule(`.monaco-editor .reference-zone-widget .preview .reference-decoration { border: 2px solid ${referenceHighlightBorder}; box-sizing: border-box; }`);
 	}
-	let hcOutline = theme.getColor(activeContrastBorder);
+	const hcOutline = theme.getColor(activeContrastBorder);
 	if (hcOutline) {
 		collector.addRule(`.monaco-editor .reference-zone-widget .ref-tree .referenceMatch { border: 1px dotted ${hcOutline}; box-sizing: border-box; }`);
 	}
-	let resultsBackground = theme.getColor(peekViewResultsBackground);
+	const resultsBackground = theme.getColor(peekViewResultsBackground);
 	if (resultsBackground) {
 		collector.addRule(`.monaco-editor .reference-zone-widget .ref-tree { background-color: ${resultsBackground}; }`);
 	}
-	let resultsMatchForeground = theme.getColor(peekViewResultsMatchForeground);
+	const resultsMatchForeground = theme.getColor(peekViewResultsMatchForeground);
 	if (resultsMatchForeground) {
 		collector.addRule(`.monaco-editor .reference-zone-widget .ref-tree { color: ${resultsMatchForeground}; }`);
 	}
-	let resultsFileForeground = theme.getColor(peekViewResultsFileForeground);
+	const resultsFileForeground = theme.getColor(peekViewResultsFileForeground);
 	if (resultsFileForeground) {
 		collector.addRule(`.monaco-editor .reference-zone-widget .ref-tree .reference-file { color: ${resultsFileForeground}; }`);
 	}
-	let resultsSelectedBackground = theme.getColor(peekViewResultsSelectionBackground);
+	const resultsSelectedBackground = theme.getColor(peekViewResultsSelectionBackground);
 	if (resultsSelectedBackground) {
 		collector.addRule(`.monaco-editor .reference-zone-widget .ref-tree .monaco-tree.focused .monaco-tree-rows > .monaco-tree-row.selected:not(.highlighted) { background-color: ${resultsSelectedBackground}; }`);
 	}
-	let resultsSelectedForeground = theme.getColor(peekViewResultsSelectionForeground);
+	const resultsSelectedForeground = theme.getColor(peekViewResultsSelectionForeground);
 	if (resultsSelectedForeground) {
 		collector.addRule(`.monaco-editor .reference-zone-widget .ref-tree .monaco-tree.focused .monaco-tree-rows > .monaco-tree-row.selected:not(.highlighted) { color: ${resultsSelectedForeground} !important; }`);
 	}
-	let editorBackground = theme.getColor(peekViewEditorBackground);
+	const editorBackground = theme.getColor(peekViewEditorBackground);
 	if (editorBackground) {
 		collector.addRule(
 			`.monaco-editor .reference-zone-widget .preview .monaco-editor .monaco-editor-background,` +
@@ -875,7 +876,7 @@ registerThemingParticipant((theme, collector) => {
 			`	background-color: ${editorBackground};` +
 			`}`);
 	}
-	let editorGutterBackground = theme.getColor(peekViewEditorGutterBackground);
+	const editorGutterBackground = theme.getColor(peekViewEditorGutterBackground);
 	if (editorGutterBackground) {
 		collector.addRule(
 			`.monaco-editor .reference-zone-widget .preview .monaco-editor .margin {` +

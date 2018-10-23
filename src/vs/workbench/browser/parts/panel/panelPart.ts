@@ -89,17 +89,24 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 			getActivityAction: (compositeId: string) => this.getCompositeActions(compositeId).activityAction,
 			getCompositePinnedAction: (compositeId: string) => this.getCompositeActions(compositeId).pinnedAction,
 			getOnCompositeClickAction: (compositeId: string) => this.instantiationService.createInstance(PanelActivityAction, this.getPanel(compositeId)),
-			getContextMenuActions: () => [this.instantiationService.createInstance(TogglePanelAction, TogglePanelAction.ID, localize('hidePanel', "Hide Panel"))],
+			getContextMenuActions: () => [
+				this.instantiationService.createInstance(TogglePanelPositionAction, TogglePanelPositionAction.ID, TogglePanelPositionAction.LABEL),
+				this.instantiationService.createInstance(TogglePanelAction, TogglePanelAction.ID, localize('hidePanel', "Hide Panel"))
+			],
 			getDefaultCompositeId: () => Registry.as<PanelRegistry>(PanelExtensions.Panels).getDefaultPanelId(),
 			hidePart: () => this.partService.setPanelHidden(true),
 			compositeSize: 0,
 			overflowActionSize: 44,
-			colors: {
-				backgroundColor: PANEL_BACKGROUND,
-				badgeBackground,
-				badgeForeground,
-				dragAndDropBackground: PANEL_DRAG_AND_DROP_BACKGROUND
-			}
+			colors: theme => ({
+				activeBackgroundColor: theme.getColor(PANEL_BACKGROUND), // Background color for overflow action
+				inactiveBackgroundColor: theme.getColor(PANEL_BACKGROUND), // Background color for overflow action
+				activeBorderBottomColor: theme.getColor(PANEL_ACTIVE_TITLE_BORDER),
+				activeForegroundColor: theme.getColor(PANEL_ACTIVE_TITLE_FOREGROUND),
+				inactiveForegroundColor: theme.getColor(PANEL_INACTIVE_TITLE_FOREGROUND),
+				badgeBackground: theme.getColor(badgeBackground),
+				badgeForeground: theme.getColor(badgeForeground),
+				dragAndDropBackground: theme.getColor(PANEL_DRAG_AND_DROP_BACKGROUND)
+			})
 		}));
 
 		for (const panel of this.getPanels()) {
@@ -160,7 +167,7 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 
 	openPanel(id: string, focus?: boolean): TPromise<Panel> {
 		if (this.blockOpeningPanel) {
-			return TPromise.as(null); // Workaround against a potential race condition
+			return Promise.resolve(null); // Workaround against a potential race condition
 		}
 
 		// First check if panel is hidden and show if so
@@ -191,6 +198,13 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 			.sort((v1, v2) => v1.order - v2.order);
 	}
 
+	getPinnedPanels(): PanelDescriptor[] {
+		const pinnedCompositeIds = this.compositeBar.getPinnedComposites().map(c => c.id);
+		return this.getPanels()
+			.filter(p => pinnedCompositeIds.indexOf(p.id) !== -1)
+			.sort((p1, p2) => pinnedCompositeIds.indexOf(p1.id) - pinnedCompositeIds.indexOf(p2.id));
+	}
+
 	setPanelEnablement(id: string, enabled: boolean): void {
 		const descriptor = Registry.as<PanelRegistry>(PanelExtensions.Panels).getPanels().filter(p => p.id === id).pop();
 		if (descriptor && descriptor.enabled !== enabled) {
@@ -206,7 +220,6 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 	protected getActions(): IAction[] {
 		return [
 			this.instantiationService.createInstance(ToggleMaximizedPanelAction, ToggleMaximizedPanelAction.ID, ToggleMaximizedPanelAction.LABEL),
-			this.instantiationService.createInstance(TogglePanelPositionAction, TogglePanelPositionAction.ID, TogglePanelPositionAction.LABEL),
 			this.instantiationService.createInstance(ClosePanelAction, ClosePanelAction.ID, ClosePanelAction.LABEL)
 		];
 	}
@@ -320,20 +333,9 @@ registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
 	const titleActiveBorder = theme.getColor(PANEL_ACTIVE_TITLE_BORDER);
 	if (titleActive || titleActiveBorder) {
 		collector.addRule(`
-			.monaco-workbench > .part.panel > .title > .panel-switcher-container > .monaco-action-bar .action-item:hover .action-label,
-			.monaco-workbench > .part.panel > .title > .panel-switcher-container > .monaco-action-bar .action-item.checked .action-label {
-				color: ${titleActive};
-				border-bottom-color: ${titleActiveBorder};
-			}
-		`);
-	}
-
-	// Title Inactive
-	const titleInactive = theme.getColor(PANEL_INACTIVE_TITLE_FOREGROUND);
-	if (titleInactive) {
-		collector.addRule(`
-			.monaco-workbench > .part.panel > .title > .panel-switcher-container > .monaco-action-bar .action-item .action-label {
-				color: ${titleInactive};
+			.monaco-workbench > .part.panel > .title > .panel-switcher-container > .monaco-action-bar .action-item:hover .action-label {
+				color: ${titleActive} !important;
+				border-bottom-color: ${titleActiveBorder} !important;
 			}
 		`);
 	}
@@ -343,7 +345,7 @@ registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
 	if (focusBorderColor) {
 		collector.addRule(`
 			.monaco-workbench > .part.panel > .title > .panel-switcher-container > .monaco-action-bar .action-item:focus .action-label {
-				color: ${titleActive};
+				color: ${titleActive} !important;
 				border-bottom-color: ${focusBorderColor} !important;
 				border-bottom: 1px solid;
 			}

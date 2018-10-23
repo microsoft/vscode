@@ -77,7 +77,7 @@ class Main {
 		} else if (argv['install-extension']) {
 			const arg = argv['install-extension'];
 			const args: string[] = typeof arg === 'string' ? [arg] : arg;
-			returnPromise = this.installExtension(args);
+			returnPromise = this.installExtension(args, argv['force']);
 		} else if (argv['uninstall-extension']) {
 			const arg = argv['uninstall-extension'];
 			const ids: string[] = typeof arg === 'string' ? [arg] : arg;
@@ -96,7 +96,7 @@ class Main {
 		});
 	}
 
-	private installExtension(extensions: string[]): TPromise<any> {
+	private installExtension(extensions: string[], force: boolean): TPromise<any> {
 		const vsixTasks: Task[] = extensions
 			.filter(e => /\.vsix$/i.test(e))
 			.map(id => () => {
@@ -141,16 +141,20 @@ class Main {
 							if (installedExtension) {
 								const outdated = semver.gt(extension.version, installedExtension.manifest.version);
 								if (outdated) {
-									const updateMessage = localize('updateMessage', "Extension '{0}' v{1} is already installed, but a newer version {2} is available in the marketplace. Would you like to update?", id, installedExtension.manifest.version, extension.version);
-									return this.dialogService.show(Severity.Info, updateMessage, [localize('yes', "Yes"), localize('no', "No")])
-										.then(option => {
-											if (option === 0) {
-												return this.installFromGallery(id, extension);
-											}
-											console.log(localize('cancelInstall', "Cancelled installing Extension '{0}'.", id));
-											return TPromise.as(null);
-										});
-
+									if (force) {
+										console.log(localize('updateMessage', "Updating the Extension '{0}' to a newer version {1}", id, extension.version));
+										return this.installFromGallery(id, extension);
+									} else {
+										const updateMessage = localize('updateConfirmationMessage', "Extension '{0}' v{1} is already installed, but a newer version {2} is available in the marketplace. Would you like to update?", id, installedExtension.manifest.version, extension.version);
+										return this.dialogService.show(Severity.Info, updateMessage, [localize('yes', "Yes"), localize('no', "No")])
+											.then(option => {
+												if (option === 0) {
+													return this.installFromGallery(id, extension);
+												}
+												console.log(localize('cancelInstall', "Cancelled installing Extension '{0}'.", id));
+												return TPromise.as(null);
+											});
+									}
 								} else {
 									console.log(localize('alreadyInstalled', "Extension '{0}' is already installed.", id));
 									return TPromise.as(null);

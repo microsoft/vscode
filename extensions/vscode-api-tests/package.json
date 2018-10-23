@@ -8,7 +8,7 @@
 	"main": "horse",
 	"activationEvents": [],
 	"engines": {
-		"vscode": "1.25.0"
+		"vscode": "^1.25.0"
 	},
 	"contributes": {
 		"configuration": {

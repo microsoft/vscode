@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import { Registry } from 'vs/platform/registry/common/platform';
 import * as nls from 'vs/nls';
 import product from 'vs/platform/node/product';
@@ -23,7 +21,7 @@ import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/co
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ADD_ROOT_FOLDER_COMMAND_ID } from 'vs/workbench/browser/actions/workspaceCommands';
-import { FileDialogContext, IsMacContext } from 'vs/platform/workbench/common/contextkeys';
+import { IsMacContext } from 'vs/platform/workbench/common/contextkeys';
 
 // Contribute Commands
 registerCommands();
@@ -35,16 +33,15 @@ const fileCategory = nls.localize('file', "File");
 const workbenchActionsRegistry = Registry.as<IWorkbenchActionRegistry>(Extensions.WorkbenchActions);
 workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(NewWindowAction, NewWindowAction.ID, NewWindowAction.LABEL, { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_N }), 'New Window');
 workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(CloseCurrentWindowAction, CloseCurrentWindowAction.ID, CloseCurrentWindowAction.LABEL, { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_W }), 'Close Window');
-workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(SwitchWindow, SwitchWindow.ID, SwitchWindow.LABEL, { primary: null, mac: { primary: KeyMod.WinCtrl | KeyCode.KEY_W } }), 'Switch Window...');
+workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(SwitchWindow, SwitchWindow.ID, SwitchWindow.LABEL, { primary: 0, mac: { primary: KeyMod.WinCtrl | KeyCode.KEY_W } }), 'Switch Window...');
 workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(QuickSwitchWindow, QuickSwitchWindow.ID, QuickSwitchWindow.LABEL), 'Quick Switch Window...');
 workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(QuickOpenRecentAction, QuickOpenRecentAction.ID, QuickOpenRecentAction.LABEL), 'File: Quick Open Recent...', fileCategory);
 
-const isLocal = FileDialogContext.isEqualTo('local');
 if (isMacintosh) {
-	workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(OpenFileFolderAction, OpenFileFolderAction.ID, OpenFileFolderAction.LABEL, { primary: KeyMod.CtrlCmd | KeyCode.KEY_O }, isLocal), 'File: Open...', fileCategory, isLocal);
+	workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(OpenFileFolderAction, OpenFileFolderAction.ID, OpenFileFolderAction.LABEL, { primary: KeyMod.CtrlCmd | KeyCode.KEY_O }), 'File: Open...', fileCategory);
 } else {
-	workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(OpenFileAction, OpenFileAction.ID, OpenFileAction.LABEL, { primary: KeyMod.CtrlCmd | KeyCode.KEY_O }, isLocal), 'File: Open File...', fileCategory, isLocal);
-	workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(OpenFolderAction, OpenFolderAction.ID, OpenFolderAction.LABEL, { primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.KEY_O) }, isLocal), 'File: Open Folder...', fileCategory, isLocal);
+	workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(OpenFileAction, OpenFileAction.ID, OpenFileAction.LABEL, { primary: KeyMod.CtrlCmd | KeyCode.KEY_O }), 'File: Open File...', fileCategory);
+	workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(OpenFolderAction, OpenFolderAction.ID, OpenFolderAction.LABEL, { primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.KEY_O) }), 'File: Open Folder...', fileCategory);
 }
 
 workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(CloseWorkspaceAction, CloseWorkspaceAction.ID, CloseWorkspaceAction.LABEL, { primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyCode.KEY_F) }), 'File: Close Workspace', fileCategory);
@@ -108,10 +105,10 @@ workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(Increa
 workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(DecreaseViewSizeAction, DecreaseViewSizeAction.ID, DecreaseViewSizeAction.LABEL, null), 'View: Decrease Current View Size', viewCategory);
 
 const workspacesCategory = nls.localize('workspaces', "Workspaces");
-workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(AddRootFolderAction, AddRootFolderAction.ID, AddRootFolderAction.LABEL), 'Workspaces: Add Folder to Workspace...', workspacesCategory, isLocal);
+workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(AddRootFolderAction, AddRootFolderAction.ID, AddRootFolderAction.LABEL), 'Workspaces: Add Folder to Workspace...', workspacesCategory);
 workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(GlobalRemoveRootFolderAction, GlobalRemoveRootFolderAction.ID, GlobalRemoveRootFolderAction.LABEL), 'Workspaces: Remove Folder from Workspace...', workspacesCategory);
-workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(OpenWorkspaceAction, OpenWorkspaceAction.ID, OpenWorkspaceAction.LABEL), 'Workspaces: Open Workspace...', workspacesCategory, isLocal);
-workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(SaveWorkspaceAsAction, SaveWorkspaceAsAction.ID, SaveWorkspaceAsAction.LABEL), 'Workspaces: Save Workspace As...', workspacesCategory, isLocal);
+workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(OpenWorkspaceAction, OpenWorkspaceAction.ID, OpenWorkspaceAction.LABEL), 'Workspaces: Open Workspace...', workspacesCategory);
+workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(SaveWorkspaceAsAction, SaveWorkspaceAsAction.ID, SaveWorkspaceAsAction.LABEL), 'Workspaces: Save Workspace As...', workspacesCategory);
 workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(DuplicateWorkspaceInNewWindowAction, DuplicateWorkspaceInNewWindowAction.ID, DuplicateWorkspaceInNewWindowAction.LABEL), 'Workspaces: Duplicate Workspace in New Window', workspacesCategory);
 
 CommandsRegistry.registerCommand(OpenWorkspaceConfigFileAction.ID, serviceAccessor => {
@@ -120,7 +117,7 @@ CommandsRegistry.registerCommand(OpenWorkspaceConfigFileAction.ID, serviceAccess
 MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
 	command: {
 		id: OpenWorkspaceConfigFileAction.ID,
-		title: `${workspacesCategory}: ${OpenWorkspaceConfigFileAction.LABEL}`,
+		title: { value: `${workspacesCategory}: ${OpenWorkspaceConfigFileAction.LABEL}`, original: 'Workspaces: Open Workspace Configuration File' },
 	},
 	when: new RawContextKey<string>('workbenchState', '').isEqualTo('workspace')
 });
@@ -171,7 +168,7 @@ MenuRegistry.appendMenuItem(MenuId.MenubarFileMenu, {
 		title: nls.localize({ key: 'miOpenFile', comment: ['&& denotes a mnemonic'] }, "&&Open File...")
 	},
 	order: 1,
-	when: ContextKeyExpr.and(IsMacContext.toNegated(), isLocal)
+	when: IsMacContext.toNegated()
 });
 
 MenuRegistry.appendMenuItem(MenuId.MenubarFileMenu, {
@@ -181,7 +178,7 @@ MenuRegistry.appendMenuItem(MenuId.MenubarFileMenu, {
 		title: nls.localize({ key: 'miOpenFolder', comment: ['&& denotes a mnemonic'] }, "Open &&Folder...")
 	},
 	order: 2,
-	when: ContextKeyExpr.and(IsMacContext.toNegated(), isLocal)
+	when: IsMacContext.toNegated()
 });
 
 MenuRegistry.appendMenuItem(MenuId.MenubarFileMenu, {
@@ -191,7 +188,7 @@ MenuRegistry.appendMenuItem(MenuId.MenubarFileMenu, {
 		title: nls.localize({ key: 'miOpen', comment: ['&& denotes a mnemonic'] }, "&&Open...")
 	},
 	order: 1,
-	when: ContextKeyExpr.and(IsMacContext, isLocal)
+	when: IsMacContext
 });
 
 MenuRegistry.appendMenuItem(MenuId.MenubarFileMenu, {
@@ -200,8 +197,7 @@ MenuRegistry.appendMenuItem(MenuId.MenubarFileMenu, {
 		id: OpenWorkspaceAction.ID,
 		title: nls.localize({ key: 'miOpenWorkspace', comment: ['&& denotes a mnemonic'] }, "Open Wor&&kspace...")
 	},
-	order: 3,
-	when: isLocal
+	order: 3
 });
 
 MenuRegistry.appendMenuItem(MenuId.MenubarFileMenu, {
@@ -228,8 +224,7 @@ MenuRegistry.appendMenuItem(MenuId.MenubarFileMenu, {
 		id: ADD_ROOT_FOLDER_COMMAND_ID,
 		title: nls.localize({ key: 'miAddFolderToWorkspace', comment: ['&& denotes a mnemonic'] }, "A&&dd Folder to Workspace...")
 	},
-	order: 1,
-	when: isLocal
+	order: 1
 });
 
 MenuRegistry.appendMenuItem(MenuId.MenubarFileMenu, {
@@ -238,8 +233,7 @@ MenuRegistry.appendMenuItem(MenuId.MenubarFileMenu, {
 		id: SaveWorkspaceAsAction.ID,
 		title: nls.localize('miSaveWorkspaceAs', "Save Workspace As...")
 	},
-	order: 2,
-	when: isLocal
+	order: 2
 });
 
 MenuRegistry.appendMenuItem(MenuId.MenubarFileMenu, {
@@ -484,14 +478,19 @@ configurationRegistry.registerConfiguration({
 			'description': nls.localize('showEditorTabs', "Controls whether opened editors should show in tabs or not."),
 			'default': true
 		},
+		'workbench.editor.highlightModifiedTabs': {
+			'type': 'boolean',
+			'description': nls.localize('highlightModifiedTabs', "Controls whether a top border is drawn on modified (dirty) editor tabs or not."),
+			'default': false
+		},
 		'workbench.editor.labelFormat': {
 			'type': 'string',
 			'enum': ['default', 'short', 'medium', 'long'],
 			'enumDescriptions': [
-				nls.localize('workbench.editor.labelFormat.default', "Show the name of the file. When tabs are enabled and two files have the same name in one group the distinguinshing sections of each file's path are added. When tabs are disabled, the path relative to the workspace folder is shown if the editor is active."),
-				nls.localize('workbench.editor.labelFormat.short', "Show the name of the file followed by it's directory name."),
-				nls.localize('workbench.editor.labelFormat.medium', "Show the name of the file followed by it's path relative to the workspace folder."),
-				nls.localize('workbench.editor.labelFormat.long', "Show the name of the file followed by it's absolute path.")
+				nls.localize('workbench.editor.labelFormat.default', "Show the name of the file. When tabs are enabled and two files have the same name in one group the distinguishing sections of each file's path are added. When tabs are disabled, the path relative to the workspace folder is shown if the editor is active."),
+				nls.localize('workbench.editor.labelFormat.short', "Show the name of the file followed by its directory name."),
+				nls.localize('workbench.editor.labelFormat.medium', "Show the name of the file followed by its path relative to the workspace folder."),
+				nls.localize('workbench.editor.labelFormat.long', "Show the name of the file followed by its absolute path.")
 			],
 			'default': 'default',
 			'description': nls.localize({
@@ -563,6 +562,16 @@ configurationRegistry.registerConfiguration({
 			'default': false,
 			'included': isMacintosh
 		},
+		'workbench.editor.restoreViewState': {
+			'type': 'boolean',
+			'description': nls.localize('restoreViewState', "Restores the last view state (e.g. scroll position) when re-opening files after they have been closed."),
+			'default': true,
+		},
+		'workbench.editor.centeredLayoutAutoResize': {
+			'type': 'boolean',
+			'default': true,
+			'description': nls.localize('centeredLayoutAutoResize', "Controls if the centered layout should automatically resize to maximum width when more than one group is open. Once only one group is open it will resize back to the original centered width.")
+		},
 		'workbench.commandPalette.history': {
 			'type': 'number',
 			'description': nls.localize('commandHistory', "Controls the number of recently used commands to keep in history for the command palette. Set to 0 to disable command history."),
@@ -578,6 +587,11 @@ configurationRegistry.registerConfiguration({
 			'description': nls.localize('closeOnFocusLost', "Controls whether Quick Open should close automatically once it loses focus."),
 			'default': true
 		},
+		'workbench.quickOpen.preserveInput': {
+			'type': 'boolean',
+			'description': nls.localize('workbench.quickOpen.preserveInput', "Controls whether the last typed input to Quick Open should be restored when opening it the next time."),
+			'default': false
+		},
 		'workbench.settings.openDefaultSettings': {
 			'type': 'boolean',
 			'description': nls.localize('openDefaultSettings', "Controls whether opening settings also opens an editor showing all default settings."),
@@ -586,7 +600,7 @@ configurationRegistry.registerConfiguration({
 		'workbench.settings.openDefaultKeybindings': {
 			'type': 'boolean',
 			'description': nls.localize('openDefaultKeybindings', "Controls whether opening keybinding settings also opens an editor showing all default keybindings."),
-			'default': true
+			'default': false
 		},
 		'workbench.sideBar.location': {
 			'type': 'string',
@@ -631,7 +645,7 @@ configurationRegistry.registerConfiguration({
 		},
 		'workbench.settings.enableNaturalLanguageSearch': {
 			'type': 'boolean',
-			'description': nls.localize('enableNaturalLanguageSettingsSearch', "Controls whether to enable the natural language search mode for settings. The natural language search is provided by an online service."),
+			'description': nls.localize('enableNaturalLanguageSettingsSearch', "Controls whether to enable the natural language search mode for settings. The natural language search is provided by a Microsoft online service."),
 			'default': true,
 			'scope': ConfigurationScope.WINDOW,
 			'tags': ['usesOnlineServices']
@@ -803,13 +817,6 @@ configurationRegistry.registerConfiguration({
 			'scope': ConfigurationScope.APPLICATION,
 			'description': nls.localize('window.nativeTabs', "Enables macOS Sierra window tabs. Note that changes require a full restart to apply and that native tabs will disable a custom title bar style if configured."),
 			'included': isMacintosh && parseFloat(os.release()) >= 16 // Minimum: macOS Sierra (10.12.x = darwin 16.x)
-		},
-		'window.smoothScrollingWorkaround': {
-			'type': 'boolean',
-			'default': false,
-			'scope': ConfigurationScope.APPLICATION,
-			'markdownDescription': nls.localize('window.smoothScrollingWorkaround', "Enable this workaround if scrolling is no longer smooth after restoring a minimized VS Code window. This is a workaround for an issue (https://github.com/Microsoft/vscode/issues/13612) where scrolling starts to lag on devices with precision trackpads like the Surface devices from Microsoft. Enabling this workaround can result in a little bit of layout flickering after restoring the window from minimized state but is otherwise harmless. Note: in order for this workaround to function, make sure to also set `#window.titleBarStyle#` to `native`."),
-			'included': isWindows
 		},
 		'window.clickThroughInactive': {
 			'type': 'boolean',

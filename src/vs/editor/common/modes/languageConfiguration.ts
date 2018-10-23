@@ -2,7 +2,6 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
 import { StandardTokenType } from 'vs/editor/common/modes';
 
@@ -13,11 +12,11 @@ export interface CommentRule {
 	/**
 	 * The line comment token, like `// this is a comment`
 	 */
-	lineComment?: string;
+	lineComment?: string | null;
 	/**
 	 * The block comment character pair, like `/* block comment *&#47;`
 	 */
-	blockComment?: CharacterPair;
+	blockComment?: CharacterPair | null;
 }
 
 /**
@@ -146,6 +145,10 @@ export interface OnEnterRule {
 	 * This rule will only execute if the text after the cursor matches this regular expression.
 	 */
 	afterText?: RegExp;
+	/**
+	 * This rule will only execute if the text above the this line matches this regular expression.
+	 */
+	oneLineAboveText?: RegExp;
 	/**
 	 * The action to execute.
 	 */

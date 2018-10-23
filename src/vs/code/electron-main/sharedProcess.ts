@@ -98,7 +98,7 @@ export class SharedProcess implements ISharedProcess {
 					logLevel: this.logService.getLevel()
 				});
 
-				ipcMain.once('handshake:im ready', () => c(null));
+				ipcMain.once('handshake:im ready', () => c(void 0));
 			});
 		});
 	}

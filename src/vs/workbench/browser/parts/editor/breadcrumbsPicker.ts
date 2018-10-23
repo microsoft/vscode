@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import { onDidChangeZoomLevel } from 'vs/base/browser/browser';
 import * as dom from 'vs/base/browser/dom';
 import { compareFileNames } from 'vs/base/common/comparers';
@@ -20,7 +18,7 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import { IDataSource, IFilter, IRenderer, ISorter, ITree } from 'vs/base/parts/tree/browser/tree';
 import 'vs/css!./media/breadcrumbscontrol';
 import { OutlineElement, OutlineModel, TreeElement } from 'vs/editor/contrib/documentSymbols/outlineModel';
-import { OutlineDataSource, OutlineItemComparator, OutlineRenderer } from 'vs/editor/contrib/documentSymbols/outlineTree';
+import { OutlineDataSource, OutlineItemComparator, OutlineRenderer, OutlineItemCompareType } from 'vs/editor/contrib/documentSymbols/outlineTree';
 import { localize } from 'vs/nls';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { FileKind, IFileService, IFileStat } from 'vs/platform/files/common/files';
@@ -38,6 +36,14 @@ export function createBreadcrumbsPicker(instantiationService: IInstantiationServ
 	return instantiationService.createInstance(ctor, parent);
 }
 
+interface ILayoutInfo {
+	maxHeight: number;
+	width: number;
+	arrowSize: number;
+	arrowOffset: number;
+	inputHeight: number;
+}
+
 export abstract class BreadcrumbsPicker {
 
 	protected readonly _disposables = new Array<IDisposable>();
@@ -46,6 +52,8 @@ export abstract class BreadcrumbsPicker {
 	protected readonly _treeContainer: HTMLDivElement;
 	protected readonly _tree: HighlightingWorkbenchTree;
 	protected readonly _focus: dom.IFocusTracker;
+	protected readonly _symbolSortOrder: BreadcrumbsConfig<'position' | 'name' | 'type'>;
+	private _layoutInfo: ILayoutInfo;
 
 	private readonly _onDidPickElement = new Emitter<{ target: any, payload: any }>();
 	readonly onDidPickElement: Event<{ target: any, payload: any }> = this._onDidPickElement.event;
@@ -71,9 +79,7 @@ export abstract class BreadcrumbsPicker {
 		const color = theme.getColor(breadcrumbsPickerBackground);
 
 		this._arrow = document.createElement('div');
-		this._arrow.style.width = '0';
-		this._arrow.style.borderStyle = 'solid';
-		this._arrow.style.borderWidth = '8px';
+		this._arrow.className = 'arrow';
 		this._arrow.style.borderColor = `transparent transparent ${color.toString()}`;
 		this._domNode.appendChild(this._arrow);
 
@@ -83,14 +89,16 @@ export abstract class BreadcrumbsPicker {
 		this._treeContainer.style.boxShadow = `0px 5px 8px ${this._themeService.getTheme().getColor(widgetShadow)}`;
 		this._domNode.appendChild(this._treeContainer);
 
+		this._symbolSortOrder = BreadcrumbsConfig.SymbolSortOrder.bindTo(this._configurationService);
+
 		const filterConfig = BreadcrumbsConfig.FilterOnType.bindTo(this._configurationService);
 		this._disposables.push(filterConfig);
 
-		const treeConifg = this._completeTreeConfiguration({ dataSource: undefined, renderer: undefined, highlighter: undefined });
+		const treeConfig = this._completeTreeConfiguration({ dataSource: undefined, renderer: undefined, highlighter: undefined });
 		this._tree = this._instantiationService.createInstance(
 			HighlightingWorkbenchTree,
 			this._treeContainer,
-			treeConifg,
+			treeConfig,
 			<IHighlightingTreeOptions>{ useShadows: false, filterOnType: filterConfig.getValue(), showTwistie: false, twistiePixels: 12 },
 			{ placeholder: localize('placeholder', "Find") }
 		);
@@ -111,12 +119,14 @@ export abstract class BreadcrumbsPicker {
 			}
 		}));
 		this._disposables.push(this._tree.onDidStartFiltering(() => {
-			let totalHeight = Number(this._domNode.style.height.slice(0, -2));
-			let treeHeight = Number(this._treeContainer.style.height.slice(0, -2));
-
-			this._domNode.style.height = `${totalHeight + 36}px`;
-			this._treeContainer.style.height = `${treeHeight + 36}px`;
-			this._tree.layout();
+			this._layoutInfo.inputHeight = 36;
+			this._layout();
+		}));
+		this._disposables.push(this._tree.onDidExpandItem(() => {
+			this._layout();
+		}));
+		this._disposables.push(this._tree.onDidCollapseItem(() => {
+			this._layout();
 		}));
 
 		// tree icon theme specials
@@ -137,19 +147,15 @@ export abstract class BreadcrumbsPicker {
 		this._onDidPickElement.dispose();
 		this._tree.dispose();
 		this._focus.dispose();
+		this._symbolSortOrder.dispose();
 	}
 
-	setInput(input: any, height: number, width: number, arrowSize: number, arrowOffset: number): void {
+	setInput(input: any, maxHeight: number, width: number, arrowSize: number, arrowOffset: number): void {
 		let actualInput = this._getInput(input);
 		this._tree.setInput(actualInput).then(() => {
 
-			// adjust height based on the number of elements, also ensure that there is an
-			// odd number of element for the case in which the tree scrolls - that ensures
-			// elements are revealed without a cuttoff
-			let count = 0;
-			let nav = this._tree.getNavigator(undefined, false);
-			while (nav.next() && count < 15) { count += 1; }
-			this._layout(2 * arrowSize + (count * 22), width, arrowSize, arrowOffset);
+			this._layoutInfo = { maxHeight, width, arrowSize, arrowOffset, inputHeight: 0 };
+			this._layout();
 
 			// use proper selection, reveal
 			let selection = this._getInitialSelection(this._tree, input);
@@ -168,18 +174,26 @@ export abstract class BreadcrumbsPicker {
 		}, onUnexpectedError);
 	}
 
-	private _layout(height: number, width: number, arrowSize: number, arrowOffset: number) {
+	private _layout(info: ILayoutInfo = this._layoutInfo): void {
 
-		let treeHeight = height - 2 * arrowSize;
-		let totalHeight = treeHeight + 2 + arrowSize;
+		let count = 0;
+		let nav = this._tree.getNavigator(undefined, false);
+		while (nav.next() && count < 13) { count += 1; }
+
+		let headerHeight = 2 * info.arrowSize;
+		let treeHeight = Math.min(info.maxHeight - headerHeight, count * 22);
+		let totalHeight = treeHeight + headerHeight;
 
 		this._domNode.style.height = `${totalHeight}px`;
-		this._domNode.style.width = `${width}px`;
-		this._arrow.style.borderWidth = `${arrowSize}px`;
-		this._arrow.style.marginLeft = `${arrowOffset}px`;
+		this._domNode.style.width = `${info.width}px`;
+		this._arrow.style.top = `-${2 * info.arrowSize}px`;
+		this._arrow.style.borderWidth = `${info.arrowSize}px`;
+		this._arrow.style.marginLeft = `${info.arrowOffset}px`;
 		this._treeContainer.style.height = `${treeHeight}px`;
-		this._treeContainer.style.width = `${width}px`;
+		this._treeContainer.style.width = `${info.width}px`;
 		this._tree.layout();
+		this._layoutInfo = info;
+
 	}
 
 	protected abstract _getInput(input: BreadcrumbElement): any;
@@ -216,7 +230,7 @@ export class FileDataSource implements IDataSource {
 
 	getChildren(tree: ITree, element: IWorkspace | IWorkspaceFolder | IFileStat | URI): TPromise<IWorkspaceFolder[] | IFileStat[]> {
 		if (IWorkspace.isIWorkspace(element)) {
-			return TPromise.as(element.folders).then(folders => {
+			return Promise.resolve(element.folders).then(folders => {
 				for (let child of folders) {
 					this._parents.set(element, child);
 				}
@@ -240,7 +254,7 @@ export class FileDataSource implements IDataSource {
 	}
 
 	getParent(tree: ITree, element: IWorkspace | URI | IWorkspaceFolder | IFileStat): TPromise<IWorkspaceFolder | IFileStat> {
-		return TPromise.as(this._parents.get(element));
+		return Promise.resolve(this._parents.get(element));
 	}
 }
 
@@ -309,7 +323,7 @@ export class FileHighlighter implements IHighlighter {
 		return IWorkspaceFolder.isIWorkspaceFolder(element) ? element.uri.toString() : element.resource.toString();
 	}
 	getHighlights(tree: ITree, element: IFileStat | IWorkspaceFolder, pattern: string): FuzzyScore {
-		return fuzzyScore(pattern, element.name, undefined, true);
+		return fuzzyScore(pattern, pattern.toLowerCase(), 0, element.name, element.name.toLowerCase(), 0, true);
 	}
 }
 
@@ -454,7 +468,7 @@ export class BreadcrumbsOutlinePicker extends BreadcrumbsPicker {
 	protected _completeTreeConfiguration(config: IHighlightingTreeConfiguration): IHighlightingTreeConfiguration {
 		config.dataSource = this._instantiationService.createInstance(OutlineDataSource);
 		config.renderer = this._instantiationService.createInstance(OutlineRenderer);
-		config.sorter = new OutlineItemComparator();
+		config.sorter = new OutlineItemComparator(this._getOutlineItemComparator());
 		config.highlighter = new OutlineHighlighter();
 		return config;
 	}
@@ -465,6 +479,18 @@ export class BreadcrumbsOutlinePicker extends BreadcrumbsPicker {
 		}
 		if (element instanceof OutlineElement) {
 			return element;
+		}
+	}
+
+	private _getOutlineItemComparator(): OutlineItemCompareType {
+		switch (this._symbolSortOrder.getValue()) {
+			case 'name':
+				return OutlineItemCompareType.ByName;
+			case 'type':
+				return OutlineItemCompareType.ByKind;
+			case 'position':
+			default:
+				return OutlineItemCompareType.ByPosition;
 		}
 	}
 }

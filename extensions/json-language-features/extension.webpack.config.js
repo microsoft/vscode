@@ -8,7 +8,6 @@
 'use strict';
 
 const withDefaults = require('../shared.webpack.config');
-const CopyWebpackPlugin = require('copy-webpack-plugin');
 const path = require('path');
 
 module.exports = withDefaults({
@@ -16,22 +15,8 @@ module.exports = withDefaults({
 	entry: {
 		extension: './src/jsonMain.ts',
 	},
-	resolve: {
-		mainFields: ['module', 'main'],
-		extensions: ['.ts', '.js'] // support ts-files and js-files
-	},
 	output: {
 		filename: 'jsonMain.js',
-		path: path.join(__dirname, 'client', 'dist'),
-		libraryTarget: "commonjs",
-	},
-	externals: {
-		'./files': 'commonjs', // ignored because it doesn't exist
-	},
-	plugins: [
-		new CopyWebpackPlugin([
-			{ from: './out/*.sh', to: '[name].sh' },
-			{ from: './out/nls.*.json', to: '[name].json' }
-		])
-	]
+		path: path.join(__dirname, 'client', 'dist')
+	}
 });

@@ -2,7 +2,6 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
 import { TPromise } from 'vs/base/common/winjs.base';
 import * as nls from 'vs/nls';
@@ -165,15 +164,14 @@ export class AbstractTextResourceEditor extends BaseTextEditor {
 		super.clearInput();
 	}
 
-	shutdown(): void {
+	protected saveState(): void {
 
 		// Save View State (only for untitled)
 		if (this.input instanceof UntitledEditorInput) {
 			this.saveTextResourceEditorViewState(this.input);
 		}
 
-		// Call Super
-		super.shutdown();
+		super.saveState();
 	}
 
 	private saveTextResourceEditorViewState(input: EditorInput): void {

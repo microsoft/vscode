@@ -2,7 +2,6 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
 import { URI } from 'vs/base/common/uri';
 import { isMalformedFileUri } from 'vs/base/common/resources';
@@ -77,7 +76,7 @@ CommandsRegistry.registerCommand(DiffAPICommand.ID, adjustHandler(DiffAPICommand
 
 export class OpenAPICommand {
 	public static ID = 'vscode.open';
-	public static execute(executor: ICommandsExecutor, resource: URI, columnOrOptions?: vscode.ViewColumn | vscode.TextDocumentShowOptions): Thenable<any> {
+	public static execute(executor: ICommandsExecutor, resource: URI, columnOrOptions?: vscode.ViewColumn | vscode.TextDocumentShowOptions, label?: string): Thenable<any> {
 		let options: ITextEditorOptions;
 		let position: EditorViewColumn;
 
@@ -93,7 +92,8 @@ export class OpenAPICommand {
 		return executor.executeCommand('_workbench.open', [
 			resource,
 			options,
-			position
+			position,
+			label
 		]);
 	}
 }

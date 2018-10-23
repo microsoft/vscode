@@ -2,8 +2,6 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
-
 import * as assert from 'assert';
 import * as async from 'vs/base/common/async';
 import { isPromiseCanceledError } from 'vs/base/common/errors';
@@ -41,10 +39,21 @@ suite('Async', () => {
 		return result;
 	});
 
+	// test('Cancel callback behaviour', async function () {
+	// 	let withCancelCallback = new WinJsPromise(() => { }, () => { });
+	// 	let withoutCancelCallback = new TPromise(() => { });
+
+	// 	withCancelCallback.cancel();
+	// 	(withoutCancelCallback as WinJsPromise).cancel();
+
+	// 	await withCancelCallback.then(undefined, err => { assert.ok(isPromiseCanceledError(err)); });
+	// 	await withoutCancelCallback.then(undefined, err => { assert.ok(isPromiseCanceledError(err)); });
+	// });
+
 	// Cancelling a sync cancelable promise will fire the cancelled token.
 	// Also, every `then` callback runs in another execution frame.
 	test('CancelablePromise execution order (sync)', function () {
-		const order = [];
+		const order: string[] = [];
 
 		const cancellablePromise = async.createCancelablePromise(token => {
 			order.push('in callback');
@@ -66,12 +75,12 @@ suite('Async', () => {
 
 	// Cancelling an async cancelable promise is just the same as a sync cancellable promise.
 	test('CancelablePromise execution order (async)', function () {
-		const order = [];
+		const order: string[] = [];
 
 		const cancellablePromise = async.createCancelablePromise(token => {
 			order.push('in callback');
 			token.onCancellationRequested(_ => order.push('cancelled'));
-			return new Promise(c => setTimeout(c(1234), 0));
+			return new Promise(c => setTimeout(c.bind(1234), 0));
 		});
 
 		order.push('afterCreate');
@@ -86,49 +95,49 @@ suite('Async', () => {
 		return promise.then(() => assert.deepEqual(order, ['in callback', 'afterCreate', 'cancelled', 'afterCancel', 'finally']));
 	});
 
-	// Cancelling a sync tpromise will NOT cancel the promise, since it has resolved already.
-	// Every `then` callback runs sync in the same execution frame, thus `finally` executes
-	// before `afterCancel`.
-	test('TPromise execution order (sync)', function () {
-		const order = [];
-		let promise = new TPromise(resolve => {
-			order.push('in executor');
-			resolve(1234);
-		}, () => order.push('cancelled'));
+	// // Cancelling a sync tpromise will NOT cancel the promise, since it has resolved already.
+	// // Every `then` callback runs sync in the same execution frame, thus `finally` executes
+	// // before `afterCancel`.
+	// test('TPromise execution order (sync)', function () {
+	// 	const order = [];
+	// 	let promise = new WinJsPromise(resolve => {
+	// 		order.push('in executor');
+	// 		resolve(1234);
+	// 	}, () => order.push('cancelled'));
 
-		order.push('afterCreate');
+	// 	order.push('afterCreate');
 
-		promise = promise
-			.then(null, err => null)
-			.then(() => order.push('finally'));
+	// 	promise = promise
+	// 		.then(null, err => null)
+	// 		.then(() => order.push('finally'));
 
-		promise.cancel();
-		order.push('afterCancel');
+	// 	promise.cancel();
+	// 	order.push('afterCancel');
 
-		return promise.then(() => assert.deepEqual(order, ['in executor', 'afterCreate', 'finally', 'afterCancel']));
-	});
+	// 	return promise.then(() => assert.deepEqual(order, ['in executor', 'afterCreate', 'finally', 'afterCancel']));
+	// });
 
-	// Cancelling an async tpromise will cancel the promise.
-	// Every `then` callback runs sync on the same execution frame as the `cancel` call,
-	// so finally still executes before `afterCancel`.
-	test('TPromise execution order (async)', function () {
-		const order = [];
-		let promise = new TPromise(resolve => {
-			order.push('in executor');
-			setTimeout(() => resolve(1234));
-		}, () => order.push('cancelled'));
+	// // Cancelling an async tpromise will cancel the promise.
+	// // Every `then` callback runs sync on the same execution frame as the `cancel` call,
+	// // so finally still executes before `afterCancel`.
+	// test('TPromise execution order (async)', function () {
+	// 	const order = [];
+	// 	let promise = new WinJsPromise(resolve => {
+	// 		order.push('in executor');
+	// 		setTimeout(() => resolve(1234));
+	// 	}, () => order.push('cancelled'));
 
-		order.push('afterCreate');
+	// 	order.push('afterCreate');
 
-		promise = promise
-			.then(null, err => null)
-			.then(() => order.push('finally'));
+	// 	promise = promise
+	// 		.then(null, err => null)
+	// 		.then(() => order.push('finally'));
 
-		promise.cancel();
-		order.push('afterCancel');
+	// 	promise.cancel();
+	// 	order.push('afterCancel');
 
-		return promise.then(() => assert.deepEqual(order, ['in executor', 'afterCreate', 'cancelled', 'finally', 'afterCancel']));
-	});
+	// 	return promise.then(() => assert.deepEqual(order, ['in executor', 'afterCreate', 'cancelled', 'finally', 'afterCancel']));
+	// });
 
 	test('cancelablePromise - get inner result', async function () {
 		let promise = async.createCancelablePromise(token => {
@@ -156,7 +165,7 @@ suite('Async', () => {
 		]);
 	});
 
-	test('Throttler', function () {
+	test('Throttler', () => {
 		let count = 0;
 		let factory = () => TPromise.wrap(async.timeout(0)).then(() => ++count);
 
@@ -179,63 +188,6 @@ suite('Async', () => {
 		});
 	});
 
-	test('Throttler - cancel should not cancel other promises', function () {
-		let count = 0;
-		let factory = () => TPromise.wrap(async.timeout(0)).then(() => ++count);
-
-		let throttler = new async.Throttler();
-		let p1: TPromise;
-
-		const p = TPromise.join([
-			p1 = throttler.queue(factory).then((result) => { assert(false, 'should not be here, 1'); }, () => { assert(true, 'yes, it was cancelled'); }),
-			throttler.queue(factory).then((result) => { assert.equal(result, 1); }, () => { assert(false, 'should not be here, 2'); }),
-			throttler.queue(factory).then((result) => { assert.equal(result, 1); }, () => { assert(false, 'should not be here, 3'); }),
-			throttler.queue(factory).then((result) => { assert.equal(result, 1); }, () => { assert(false, 'should not be here, 4'); })
-		]);
-
-		p1.cancel();
-
-		return p;
-	});
-
-	test('Throttler - cancel the first queued promise should not cancel other promises', function () {
-		let count = 0;
-		let factory = () => TPromise.wrap(async.timeout(0)).then(() => ++count);
-
-		let throttler = new async.Throttler();
-		let p2: TPromise;
-
-		const p = TPromise.join([
-			throttler.queue(factory).then((result) => { assert.equal(result, 1); }, () => { assert(false, 'should not be here, 1'); }),
-			p2 = throttler.queue(factory).then((result) => { assert(false, 'should not be here, 2'); }, () => { assert(true, 'yes, it was cancelled'); }),
-			throttler.queue(factory).then((result) => { assert.equal(result, 2); }, () => { assert(false, 'should not be here, 3'); }),
-			throttler.queue(factory).then((result) => { assert.equal(result, 2); }, () => { assert(false, 'should not be here, 4'); })
-		]);
-
-		p2.cancel();
-
-		return p;
-	});
-
-	test('Throttler - cancel in the middle should not cancel other promises', function () {
-		let count = 0;
-		let factory = () => TPromise.wrap(async.timeout(0)).then(() => ++count);
-
-		let throttler = new async.Throttler();
-		let p3: TPromise;
-
-		const p = TPromise.join([
-			throttler.queue(factory).then((result) => { assert.equal(result, 1); }, () => { assert(false, 'should not be here, 1'); }),
-			throttler.queue(factory).then((result) => { assert.equal(result, 2); }, () => { assert(false, 'should not be here, 2'); }),
-			p3 = throttler.queue(factory).then((result) => { assert(false, 'should not be here, 3'); }, () => { assert(true, 'yes, it was cancelled'); }),
-			throttler.queue(factory).then((result) => { assert.equal(result, 2); }, () => { assert(false, 'should not be here, 4'); })
-		]);
-
-		p3.cancel();
-
-		return p;
-	});
-
 	test('Throttler - last factory should be the one getting called', function () {
 		let factoryFactory = (n: number) => () => {
 			return TPromise.wrap(async.timeout(0)).then(() => n);
@@ -252,7 +204,7 @@ suite('Async', () => {
 		return TPromise.join(promises);
 	});
 
-	test('Delayer', function () {
+	test('Delayer', () => {
 		let count = 0;
 		let factory = () => {
 			return TPromise.as(++count);
@@ -403,7 +355,7 @@ suite('Async', () => {
 		return p;
 	});
 
-	test('Sequence', function () {
+	test('Sequence', () => {
 		let factoryFactory = (n: number) => () => {
 			return TPromise.as(n);
 		};

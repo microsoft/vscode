@@ -225,7 +225,7 @@ class FileSeemsBinaryFileView {
 		}
 
 		if (metadataClb) {
-			metadataClb(BinarySize.formatSize(descriptor.size));
+			metadataClb(typeof descriptor.size === 'number' ? BinarySize.formatSize(descriptor.size) : '');
 		}
 
 		scrollbar.scanDomNode();
@@ -240,7 +240,7 @@ class ZoomStatusbarItem extends Themable implements IStatusbarItem {
 
 	static instance: ZoomStatusbarItem;
 
-	showTimeout: number;
+	showTimeout: any;
 
 	private statusBarItem: HTMLElement;
 	private onSelectScale?: (scale: Scale) => void;
@@ -284,7 +284,7 @@ class ZoomStatusbarItem extends Themable implements IStatusbarItem {
 			DOM.addDisposableListener(this.statusBarItem, DOM.EventType.CLICK, () => {
 				this.contextMenuService.showContextMenu({
 					getAnchor: () => container,
-					getActions: () => TPromise.as(this.zoomActions)
+					getActions: () => Promise.resolve(this.zoomActions)
 				});
 			});
 		}
@@ -383,7 +383,7 @@ class InlineImageView {
 
 		const initialState: ImageState = InlineImageView.imageStateCache.get(cacheKey) || { scale: 'fit', offsetX: 0, offsetY: 0 };
 		let scale = initialState.scale;
-		let image: HTMLImageElement = null;
+		let image: HTMLImageElement | null = null;
 
 		function updateScale(newScale: Scale) {
 			if (!image || !image.parentElement) {
@@ -414,7 +414,7 @@ class InlineImageView {
 
 				DOM.removeClass(image, 'scale-to-fit');
 				image.style.minWidth = `${(image.naturalWidth * scale)}px`;
-				image.style.widows = `${(image.naturalWidth * scale)}px`;
+				image.style.width = `${(image.naturalWidth * scale)}px`;
 
 				const newWidth = image.width;
 				const scaleFactor = (newWidth - oldWidth) / oldWidth;
@@ -438,7 +438,7 @@ class InlineImageView {
 			updateScale(scale);
 		}
 
-		disposables.push(DOM.addDisposableListener(container, DOM.EventType.KEY_DOWN, (e: KeyboardEvent) => {
+		disposables.push(DOM.addDisposableListener(window, DOM.EventType.KEY_DOWN, (e: KeyboardEvent) => {
 			if (!image) {
 				return;
 			}
@@ -451,7 +451,7 @@ class InlineImageView {
 			}
 		}));
 
-		disposables.push(DOM.addDisposableListener(container, DOM.EventType.KEY_UP, (e: KeyboardEvent) => {
+		disposables.push(DOM.addDisposableListener(window, DOM.EventType.KEY_UP, (e: KeyboardEvent) => {
 			if (!image) {
 				return;
 			}
@@ -543,7 +543,14 @@ class InlineImageView {
 		image.style.visibility = 'hidden';
 
 		disposables.push(DOM.addDisposableListener(image, DOM.EventType.LOAD, e => {
-			metadataClb(nls.localize('imgMeta', '{0}x{1} {2}', image.naturalWidth, image.naturalHeight, BinarySize.formatSize(descriptor.size)));
+			let metadata: string;
+			if (typeof descriptor.size === 'number') {
+				metadataClb(nls.localize('imgMeta', '{0}x{1} {2}', image.naturalWidth, image.naturalHeight, BinarySize.formatSize(descriptor.size)));
+			} else {
+				metadataClb(nls.localize('imgMetaNoSize', '{0}x{1}', image.naturalWidth, image.naturalHeight));
+			}
+			metadataClb(metadata);
+
 			scrollbar.scanDomNode();
 			image.style.visibility = 'visible';
 			updateScale(scale);
@@ -567,7 +574,7 @@ class InlineImageView {
 
 	private static imageSrc(descriptor: IResourceDescriptor, fileService: IFileService): TPromise<string> {
 		if (descriptor.resource.scheme === Schemas.data) {
-			return TPromise.as(descriptor.resource.toString(true /* skip encoding */));
+			return Promise.resolve(descriptor.resource.toString(true /* skip encoding */));
 		}
 
 		return fileService.resolveContent(descriptor.resource, { encoding: 'base64' }).then(data => {
@@ -581,7 +588,7 @@ class InlineImageView {
 function getMime(descriptor: IResourceDescriptor) {
 	let mime = descriptor.mime;
 	if (!mime && descriptor.resource.scheme !== Schemas.data) {
-		mime = mimes.getMediaMime(descriptor.resource.toString());
+		mime = mimes.getMediaMime(descriptor.resource.path);
 	}
 	return mime || mimes.MIME_BINARY;
 }

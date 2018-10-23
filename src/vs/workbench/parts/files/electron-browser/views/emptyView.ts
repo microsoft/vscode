@@ -2,7 +2,6 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
 import * as nls from 'vs/nls';
 import * as errors from 'vs/base/common/errors';
@@ -126,7 +125,7 @@ export class EmptyView extends ViewletPanel {
 	}
 
 	public setVisible(visible: boolean): TPromise<void> {
-		return TPromise.as(null);
+		return Promise.resolve(null);
 	}
 
 	public focusBody(): void {
@@ -136,7 +135,7 @@ export class EmptyView extends ViewletPanel {
 	}
 
 	protected reveal(element: any, relativeTop?: number): TPromise<void> {
-		return TPromise.as(null);
+		return Promise.resolve(null);
 	}
 
 	public getActions(): IAction[] {
@@ -149,9 +148,5 @@ export class EmptyView extends ViewletPanel {
 
 	public getActionItem(action: IAction): IActionItem {
 		return null;
-	}
-
-	public shutdown(): void {
-		// Subclass to implement
 	}
 }

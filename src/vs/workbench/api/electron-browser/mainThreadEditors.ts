@@ -2,31 +2,28 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
-import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { IEditorOptions, ITextEditorOptions } from 'vs/platform/editor/common/editor';
 import { localize } from 'vs/nls';
 import { disposed } from 'vs/base/common/errors';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { equals as objectEquals } from 'vs/base/common/objects';
 import { URI, UriComponents } from 'vs/base/common/uri';
-import { TPromise } from 'vs/base/common/winjs.base';
 import { IBulkEditService } from 'vs/editor/browser/services/bulkEditService';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { IRange } from 'vs/editor/common/core/range';
 import { ISelection } from 'vs/editor/common/core/selection';
 import { IDecorationOptions, IDecorationRenderOptions, ILineChange } from 'vs/editor/common/editorCommon';
 import { ISingleEditOperation } from 'vs/editor/common/model';
-import { EditorViewColumn, viewColumnToEditorGroup, editorGroupToViewColumn } from 'vs/workbench/api/shared/editor';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
-import { IApplyEditsOptions, ITextEditorConfigurationUpdate, IUndoStopOptions, TextEditorRevealType, WorkspaceEditDto, reviveWorkspaceEditDto } from 'vs/workbench/api/node/extHost.protocol';
+import { IEditorOptions, ITextEditorOptions } from 'vs/platform/editor/common/editor';
+import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
+import { IOpenerService } from 'vs/platform/opener/common/opener';
+import { MainThreadDocumentsAndEditors } from 'vs/workbench/api/electron-browser/mainThreadDocumentsAndEditors';
+import { MainThreadTextEditor } from 'vs/workbench/api/electron-browser/mainThreadEditor';
+import { ExtHostContext, ExtHostEditorsShape, IApplyEditsOptions, IExtHostContext, ITextDocumentShowOptions, ITextEditorConfigurationUpdate, ITextEditorPositionData, IUndoStopOptions, MainThreadTextEditorsShape, TextEditorRevealType, WorkspaceEditDto, reviveWorkspaceEditDto } from 'vs/workbench/api/node/extHost.protocol';
+import { EditorViewColumn, editorGroupToViewColumn, viewColumnToEditorGroup } from 'vs/workbench/api/shared/editor';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IEditorGroupsService } from 'vs/workbench/services/group/common/editorGroupsService';
-import { ExtHostContext, ExtHostEditorsShape, IExtHostContext, ITextDocumentShowOptions, ITextEditorPositionData, MainThreadTextEditorsShape } from '../node/extHost.protocol';
-import { MainThreadDocumentsAndEditors } from './mainThreadDocumentsAndEditors';
-import { MainThreadTextEditor } from './mainThreadEditor';
-import { IOpenerService } from 'vs/platform/opener/common/opener';
 
 export class MainThreadTextEditors implements MainThreadTextEditorsShape {
 
@@ -164,33 +161,33 @@ export class MainThreadTextEditors implements MainThreadTextEditorsShape {
 
 	$trySetSelections(id: string, selections: ISelection[]): Thenable<void> {
 		if (!this._documentsAndEditors.getEditor(id)) {
-			return TPromise.wrapError(disposed(`TextEditor(${id})`));
+			return Promise.reject(disposed(`TextEditor(${id})`));
 		}
 		this._documentsAndEditors.getEditor(id).setSelections(selections);
-		return TPromise.as(null);
+		return Promise.resolve(null);
 	}
 
 	$trySetDecorations(id: string, key: string, ranges: IDecorationOptions[]): Thenable<void> {
 		key = `${this._instanceId}-${key}`;
 		if (!this._documentsAndEditors.getEditor(id)) {
-			return TPromise.wrapError(disposed(`TextEditor(${id})`));
+			return Promise.reject(disposed(`TextEditor(${id})`));
 		}
 		this._documentsAndEditors.getEditor(id).setDecorations(key, ranges);
-		return TPromise.as(null);
+		return Promise.resolve(null);
 	}
 
 	$trySetDecorationsFast(id: string, key: string, ranges: number[]): Thenable<void> {
 		key = `${this._instanceId}-${key}`;
 		if (!this._documentsAndEditors.getEditor(id)) {
-			return TPromise.wrapError(disposed(`TextEditor(${id})`));
+			return Promise.reject(disposed(`TextEditor(${id})`));
 		}
 		this._documentsAndEditors.getEditor(id).setDecorationsFast(key, ranges);
-		return TPromise.as(null);
+		return Promise.resolve(null);
 	}
 
 	$tryRevealRange(id: string, range: IRange, revealType: TextEditorRevealType): Thenable<void> {
 		if (!this._documentsAndEditors.getEditor(id)) {
-			return TPromise.wrapError(disposed(`TextEditor(${id})`));
+			return Promise.reject(disposed(`TextEditor(${id})`));
 		}
 		this._documentsAndEditors.getEditor(id).revealRange(range, revealType);
 		return undefined;
@@ -198,17 +195,17 @@ export class MainThreadTextEditors implements MainThreadTextEditorsShape {
 
 	$trySetOptions(id: string, options: ITextEditorConfigurationUpdate): Thenable<void> {
 		if (!this._documentsAndEditors.getEditor(id)) {
-			return TPromise.wrapError(disposed(`TextEditor(${id})`));
+			return Promise.reject(disposed(`TextEditor(${id})`));
 		}
 		this._documentsAndEditors.getEditor(id).setConfiguration(options);
-		return TPromise.as(null);
+		return Promise.resolve(null);
 	}
 
 	$tryApplyEdits(id: string, modelVersionId: number, edits: ISingleEditOperation[], opts: IApplyEditsOptions): Thenable<boolean> {
 		if (!this._documentsAndEditors.getEditor(id)) {
-			return TPromise.wrapError<boolean>(disposed(`TextEditor(${id})`));
+			return Promise.reject(disposed(`TextEditor(${id})`));
 		}
-		return TPromise.as(this._documentsAndEditors.getEditor(id).applyEdits(modelVersionId, edits, opts));
+		return Promise.resolve(this._documentsAndEditors.getEditor(id).applyEdits(modelVersionId, edits, opts));
 	}
 
 	$tryApplyWorkspaceEdit(dto: WorkspaceEditDto): Thenable<boolean> {
@@ -218,9 +215,9 @@ export class MainThreadTextEditors implements MainThreadTextEditorsShape {
 
 	$tryInsertSnippet(id: string, template: string, ranges: IRange[], opts: IUndoStopOptions): Thenable<boolean> {
 		if (!this._documentsAndEditors.getEditor(id)) {
-			return TPromise.wrapError<boolean>(disposed(`TextEditor(${id})`));
+			return Promise.reject(disposed(`TextEditor(${id})`));
 		}
-		return TPromise.as(this._documentsAndEditors.getEditor(id).insertSnippet(template, ranges, opts));
+		return Promise.resolve(this._documentsAndEditors.getEditor(id).insertSnippet(template, ranges, opts));
 	}
 
 	$registerTextEditorDecorationType(key: string, options: IDecorationRenderOptions): void {
@@ -239,7 +236,7 @@ export class MainThreadTextEditors implements MainThreadTextEditorsShape {
 		const editor = this._documentsAndEditors.getEditor(id);
 
 		if (!editor) {
-			return TPromise.wrapError<ILineChange[]>(new Error('No such TextEditor'));
+			return Promise.reject(new Error('No such TextEditor'));
 		}
 
 		const codeEditor = editor.getCodeEditor();
@@ -247,31 +244,37 @@ export class MainThreadTextEditors implements MainThreadTextEditorsShape {
 		const diffEditors = this._codeEditorService.listDiffEditors();
 		const [diffEditor] = diffEditors.filter(d => d.getOriginalEditor().getId() === codeEditorId || d.getModifiedEditor().getId() === codeEditorId);
 
-		if (!diffEditor) {
-			return TPromise.as([]);
+		if (diffEditor) {
+			return Promise.resolve(diffEditor.getLineChanges());
 		}
 
-		return TPromise.as(diffEditor.getLineChanges());
+		const dirtyDiffContribution = codeEditor.getContribution('editor.contrib.dirtydiff');
+
+		if (dirtyDiffContribution) {
+			return Promise.resolve((dirtyDiffContribution as any).getChanges());
+		}
+
+		return Promise.resolve([]);
 	}
 }
 
 // --- commands
 
-CommandsRegistry.registerCommand('_workbench.open', function (accessor: ServicesAccessor, args: [URI, IEditorOptions, EditorViewColumn]) {
+CommandsRegistry.registerCommand('_workbench.open', function (accessor: ServicesAccessor, args: [URI, IEditorOptions, EditorViewColumn, string?]) {
 	const editorService = accessor.get(IEditorService);
 	const editorGroupService = accessor.get(IEditorGroupsService);
 	const openerService = accessor.get(IOpenerService);
 
-	const [resource, options, position] = args;
+	const [resource, options, position, label] = args;
 
 	if (options || typeof position === 'number') {
 		// use editor options or editor view column as a hint to use the editor service for opening
-		return editorService.openEditor({ resource, options }, viewColumnToEditorGroup(editorGroupService, position)).then(_ => void 0);
+		return editorService.openEditor({ resource, options, label }, viewColumnToEditorGroup(editorGroupService, position)).then(_ => void 0);
 	}
 
 	if (resource && resource.scheme === 'command') {
 		// do not allow to execute commands from here
-		return TPromise.as(void 0);
+		return Promise.resolve(void 0);
 	}
 
 	// finally, delegate to opener service

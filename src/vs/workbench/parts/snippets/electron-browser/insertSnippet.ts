@@ -2,10 +2,8 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
 import * as nls from 'vs/nls';
-import { TPromise } from 'vs/base/common/winjs.base';
 import { registerEditorAction, ServicesAccessor, EditorAction } from 'vs/editor/browser/editorExtensions';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { LanguageId } from 'vs/editor/common/modes';
@@ -14,7 +12,7 @@ import { ISnippetsService } from 'vs/workbench/parts/snippets/electron-browser/s
 import { SnippetController2 } from 'vs/editor/contrib/snippet/snippetController2';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { Snippet } from 'vs/workbench/parts/snippets/electron-browser/snippetsFile';
+import { Snippet, SnippetSource } from 'vs/workbench/parts/snippets/electron-browser/snippetsFile';
 import { IQuickPickItem, IQuickInputService, QuickPickInput } from 'vs/platform/quickinput/common/quickInput';
 
 interface ISnippetPick extends IQuickPickItem {
@@ -63,7 +61,7 @@ class InsertSnippetAction extends EditorAction {
 		});
 	}
 
-	public run(accessor: ServicesAccessor, editor: ICodeEditor, arg: any): TPromise<void> {
+	public run(accessor: ServicesAccessor, editor: ICodeEditor, arg: any): Promise<void> {
 		const modeService = accessor.get(IModeService);
 		const snippetService = accessor.get(ISnippetsService);
 
@@ -75,7 +73,7 @@ class InsertSnippetAction extends EditorAction {
 		const { lineNumber, column } = editor.getPosition();
 		let { snippet, name, langId } = Args.fromUser(arg);
 
-		return new TPromise<Snippet>(async (resolve, reject) => {
+		return new Promise<Snippet>(async (resolve, reject) => {
 
 			if (snippet) {
 				return resolve(new Snippet(
@@ -84,7 +82,8 @@ class InsertSnippetAction extends EditorAction {
 					undefined,
 					undefined,
 					snippet,
-					undefined
+					undefined,
+					SnippetSource.User,
 				));
 			}
 
@@ -124,10 +123,21 @@ class InsertSnippetAction extends EditorAction {
 						detail: snippet.description,
 						snippet
 					};
-					if (!snippet.isFromExtension && !prevSnippet) {
-						picks.push({ type: 'separator', label: nls.localize('sep.userSnippet', "User Snippets") });
-					} else if (snippet.isFromExtension && (!prevSnippet || !prevSnippet.isFromExtension)) {
-						picks.push({ type: 'separator', label: nls.localize('sep.extSnippet', "Extension Snippets") });
+					if (!prevSnippet || prevSnippet.snippetSource !== snippet.snippetSource) {
+						let label = '';
+						switch (snippet.snippetSource) {
+							case SnippetSource.User:
+								label = nls.localize('sep.userSnippet', "User Snippets");
+								break;
+							case SnippetSource.Extension:
+								label = nls.localize('sep.extSnippet', "Extension Snippets");
+								break;
+							case SnippetSource.Workspace:
+								label = nls.localize('sep.workspaceSnippet', "Workspace Snippets");
+								break;
+						}
+						picks.push({ type: 'separator', label });
+
 					}
 					picks.push(pick);
 					prevSnippet = snippet;

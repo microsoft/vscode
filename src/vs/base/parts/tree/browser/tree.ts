@@ -2,7 +2,6 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
 import * as WinJS from 'vs/base/common/winjs.base';
 import * as Touch from 'vs/base/browser/touch';
@@ -554,6 +553,11 @@ export interface IController {
 	 * Called when a key is released while selecting elements.
 	 */
 	onKeyUp(tree: ITree, event: Keyboard.IKeyboardEvent): boolean;
+
+	/**
+	 * Called when a mouse middle button is pressed down on an element.
+	 */
+	onMouseMiddleClick?(tree: ITree, element: any, event: Mouse.IMouseEvent): boolean;
 
 	/**
 	 * Called when a mouse button is pressed down on an element.

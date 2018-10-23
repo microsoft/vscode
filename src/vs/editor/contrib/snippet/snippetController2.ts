@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { dispose, IDisposable } from 'vs/base/common/lifecycle';
 import { repeat } from 'vs/base/common/strings';
@@ -14,7 +12,7 @@ import { Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
 import { IEditorContribution } from 'vs/editor/common/editorCommon';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
-import { ISuggestion } from 'vs/editor/common/modes';
+import { CompletionItem, CompletionItemKind } from 'vs/editor/common/modes';
 import { Choice } from 'vs/editor/contrib/snippet/snippetParser';
 import { showSimpleSuggestions } from 'vs/editor/contrib/suggest/suggest';
 import { ContextKeyExpr, IContextKey, IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
@@ -168,14 +166,14 @@ export class SnippetController2 implements IEditorContribution {
 				// let before = choice.options.slice(0, i);
 				// let after = choice.options.slice(i);
 
-				return <ISuggestion>{
-					type: 'value',
+				return <CompletionItem>{
+					kind: CompletionItemKind.Value,
 					label: option.value,
 					insertText: option.value,
 					// insertText: `\${1|${after.concat(before).join(',')}|}$0`,
 					// snippetType: 'textmate',
 					sortText: repeat('a', i),
-					overwriteAfter: first.value.length
+					range: Range.fromPositions(this._editor.getPosition(), this._editor.getPosition().delta(0, first.value.length))
 				};
 			}));
 		}

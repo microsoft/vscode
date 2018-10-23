@@ -2,31 +2,30 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
 import 'vs/css!./inspectTMScopes';
 import * as nls from 'vs/nls';
 import * as dom from 'vs/base/browser/dom';
+import { CharCode } from 'vs/base/common/charCode';
+import { Color } from 'vs/base/common/color';
+import { KeyCode } from 'vs/base/common/keyCodes';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { escape } from 'vs/base/common/strings';
-import { KeyCode } from 'vs/base/common/keyCodes';
+import { TPromise } from 'vs/base/common/winjs.base';
+import { ContentWidgetPositionPreference, IActiveCodeEditor, ICodeEditor, IContentWidget, IContentWidgetPosition } from 'vs/editor/browser/editorBrowser';
+import { EditorAction, ServicesAccessor, registerEditorAction, registerEditorContribution } from 'vs/editor/browser/editorExtensions';
 import { Position } from 'vs/editor/common/core/position';
 import { IEditorContribution } from 'vs/editor/common/editorCommon';
 import { ITextModel } from 'vs/editor/common/model';
-import { registerEditorAction, registerEditorContribution, EditorAction, ServicesAccessor } from 'vs/editor/browser/editorExtensions';
-import { ICodeEditor, ContentWidgetPositionPreference, IContentWidget, IContentWidgetPosition } from 'vs/editor/browser/editorBrowser';
-import { TPromise } from 'vs/base/common/winjs.base';
-import { IGrammar, StackElement, IToken } from 'vscode-textmate';
-import { ITextMateService } from 'vs/workbench/services/textMate/electron-browser/textMateService';
+import { FontStyle, LanguageIdentifier, StandardTokenType, TokenMetadata, TokenizationRegistry } from 'vs/editor/common/modes';
 import { IModeService } from 'vs/editor/common/services/modeService';
-import { TokenizationRegistry, LanguageIdentifier, FontStyle, StandardTokenType, TokenMetadata } from 'vs/editor/common/modes';
-import { CharCode } from 'vs/base/common/charCode';
-import { findMatchingThemeRule } from 'vs/workbench/services/textMate/electron-browser/TMHelper';
-import { IWorkbenchThemeService } from 'vs/workbench/services/themes/common/workbenchThemeService';
-import { Color } from 'vs/base/common/color';
-import { registerThemingParticipant, HIGH_CONTRAST } from 'vs/platform/theme/common/themeService';
-import { editorHoverBackground, editorHoverBorder } from 'vs/platform/theme/common/colorRegistry';
 import { INotificationService } from 'vs/platform/notification/common/notification';
+import { editorHoverBackground, editorHoverBorder } from 'vs/platform/theme/common/colorRegistry';
+import { HIGH_CONTRAST, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
+import { findMatchingThemeRule } from 'vs/workbench/services/textMate/electron-browser/TMHelper';
+import { ITextMateService } from 'vs/workbench/services/textMate/electron-browser/textMateService';
+import { IWorkbenchThemeService } from 'vs/workbench/services/themes/common/workbenchThemeService';
+import { IGrammar, IToken, StackElement } from 'vscode-textmate';
 
 class InspectTMScopesController extends Disposable implements IEditorContribution {
 
@@ -41,7 +40,7 @@ class InspectTMScopesController extends Disposable implements IEditorContributio
 	private _themeService: IWorkbenchThemeService;
 	private _modeService: IModeService;
 	private _notificationService: INotificationService;
-	private _widget: InspectTMScopesWidget;
+	private _widget: InspectTMScopesWidget | null;
 
 	constructor(
 		editor: ICodeEditor,
@@ -76,7 +75,7 @@ class InspectTMScopesController extends Disposable implements IEditorContributio
 		if (this._widget) {
 			return;
 		}
-		if (!this._editor.getModel()) {
+		if (!this._editor.hasModel()) {
 			return;
 		}
 		this._widget = new InspectTMScopesWidget(this._editor, this._textMateService, this._modeService, this._themeService, this._notificationService);
@@ -175,7 +174,7 @@ class InspectTMScopesWidget extends Disposable implements IContentWidget {
 	public readonly allowEditorOverflow = true;
 
 	private _isDisposed: boolean;
-	private readonly _editor: ICodeEditor;
+	private readonly _editor: IActiveCodeEditor;
 	private readonly _modeService: IModeService;
 	private readonly _themeService: IWorkbenchThemeService;
 	private readonly _notificationService: INotificationService;
@@ -184,7 +183,7 @@ class InspectTMScopesWidget extends Disposable implements IContentWidget {
 	private readonly _grammar: TPromise<IGrammar>;
 
 	constructor(
-		editor: ICodeEditor,
+		editor: IActiveCodeEditor,
 		textMateService: ITextMateService,
 		modeService: IModeService,
 		themeService: IWorkbenchThemeService,
@@ -293,14 +292,14 @@ class InspectTMScopesWidget extends Disposable implements IContentWidget {
 	}
 
 	private _decodeMetadata(metadata: number): IDecodedMetadata {
-		let colorMap = TokenizationRegistry.getColorMap();
+		let colorMap = TokenizationRegistry.getColorMap()!;
 		let languageId = TokenMetadata.getLanguageId(metadata);
 		let tokenType = TokenMetadata.getTokenType(metadata);
 		let fontStyle = TokenMetadata.getFontStyle(metadata);
 		let foreground = TokenMetadata.getForeground(metadata);
 		let background = TokenMetadata.getBackground(metadata);
 		return {
-			languageIdentifier: this._modeService.getLanguageIdentifier(languageId),
+			languageIdentifier: this._modeService.getLanguageIdentifier(languageId)!,
 			tokenType: tokenType,
 			fontStyle: fontStyle,
 			foreground: colorMap[foreground],
@@ -350,7 +349,7 @@ class InspectTMScopesWidget extends Disposable implements IContentWidget {
 	}
 
 	private _getStateBeforeLine(grammar: IGrammar, lineNumber: number): StackElement {
-		let state: StackElement = null;
+		let state: StackElement | null = null;
 
 		for (let i = 1; i < lineNumber; i++) {
 			let tokenizationResult = grammar.tokenizeLine(this._model.getLineContent(i), state);
@@ -376,13 +375,13 @@ registerEditorContribution(InspectTMScopesController);
 registerEditorAction(InspectTMScopes);
 
 registerThemingParticipant((theme, collector) => {
-	let border = theme.getColor(editorHoverBorder);
+	const border = theme.getColor(editorHoverBorder);
 	if (border) {
 		let borderWidth = theme.type === HIGH_CONTRAST ? 2 : 1;
 		collector.addRule(`.monaco-editor .tm-inspect-widget { border: ${borderWidth}px solid ${border}; }`);
 		collector.addRule(`.monaco-editor .tm-inspect-widget .tm-metadata-separator { background-color: ${border}; }`);
 	}
-	let background = theme.getColor(editorHoverBackground);
+	const background = theme.getColor(editorHoverBackground);
 	if (background) {
 		collector.addRule(`.monaco-editor .tm-inspect-widget { background-color: ${background}; }`);
 	}

@@ -2,7 +2,6 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
 import * as Platform from 'vs/base/common/platform';
 import * as Browser from 'vs/base/browser/browser';
@@ -128,7 +127,7 @@ export class ViewItem implements IViewItem {
 	public needsRender: boolean;
 	public uri: string;
 	public unbindDragStart: Lifecycle.IDisposable;
-	public loadingTimer: number;
+	public loadingTimer: any;
 
 	public _styles: any;
 	private _draggable: boolean;
@@ -551,6 +550,11 @@ export class TreeView extends HeightMap {
 		this.viewListeners.push(DOM.addDisposableListener(this.domNode, 'keyup', (e) => this.onKeyUp(e)));
 		this.viewListeners.push(DOM.addDisposableListener(this.domNode, 'mousedown', (e) => this.onMouseDown(e)));
 		this.viewListeners.push(DOM.addDisposableListener(this.domNode, 'mouseup', (e) => this.onMouseUp(e)));
+		this.viewListeners.push(DOM.addDisposableListener(this.wrapper, 'auxclick', (e: MouseEvent) => {
+			if (e && e.button === 1) {
+				this.onMouseMiddleClick(e);
+			}
+		}));
 		this.viewListeners.push(DOM.addDisposableListener(this.wrapper, 'click', (e) => this.onClick(e)));
 		this.viewListeners.push(DOM.addDisposableListener(this.domNode, 'contextmenu', (e) => this.onContextMenu(e)));
 		this.viewListeners.push(DOM.addDisposableListener(this.wrapper, Touch.EventType.Tap, (e) => this.onTap(e)));
@@ -1212,6 +1216,20 @@ export class TreeView extends HeightMap {
 		this.context.controller.onClick(this.context.tree, item.model.getElement(), event);
 	}
 
+	private onMouseMiddleClick(e: MouseEvent): void {
+		if (!this.context.controller.onMouseMiddleClick) {
+			return;
+		}
+
+		var event = new Mouse.StandardMouseEvent(e);
+		var item = this.getItemAround(event.target);
+
+		if (!item) {
+			return;
+		}
+		this.context.controller.onMouseMiddleClick(this.context.tree, item.model.getElement(), event);
+	}
+
 	private onMouseDown(e: MouseEvent): void {
 		this.didJustPressContextMenuKey = false;
 
@@ -1639,7 +1657,7 @@ export class TreeView extends HeightMap {
 	// DOM changes
 
 	private insertItemInDOM(item: ViewItem): void {
-		var elementAfter: HTMLElement = null;
+		var elementAfter: HTMLElement | null = null;
 		var itemAfter = <ViewItem>this.itemAfter(item);
 
 		if (itemAfter && itemAfter.element) {
@@ -1674,7 +1692,7 @@ export class TreeView extends HeightMap {
 				return candidate;
 			}
 
-			if (element === document.body) {
+			if (element === this.scrollableElement.getDomNode() || element === document.body) {
 				return null;
 			}
 		} while (element = element.parentElement);

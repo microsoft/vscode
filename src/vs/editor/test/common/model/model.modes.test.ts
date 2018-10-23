@@ -2,17 +2,16 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
 import * as assert from 'assert';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { EditOperation } from 'vs/editor/common/core/editOperation';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
+import { TokenizationResult2 } from 'vs/editor/common/core/token';
 import { TextModel } from 'vs/editor/common/model/textModel';
 import * as modes from 'vs/editor/common/modes';
 import { NULL_STATE } from 'vs/editor/common/modes/nullMode';
-import { TokenizationResult2 } from 'vs/editor/common/core/token';
 
 // --------- utils
 
@@ -34,8 +33,8 @@ suite('Editor Model - Model Modes 1', () => {
 		}
 	};
 
-	let thisModel: TextModel = null;
-	let languageRegistration: IDisposable = null;
+	let thisModel: TextModel | null = null;
+	let languageRegistration: IDisposable | null = null;
 
 	setup(() => {
 		const TEXT =
@@ -204,8 +203,8 @@ suite('Editor Model - Model Modes 2', () => {
 		stateEqual((<any>model)._tokens._lastState, states[len]);
 	}
 
-	let thisModel: TextModel = null;
-	let languageRegistration: IDisposable = null;
+	let thisModel: TextModel | null = null;
+	let languageRegistration: IDisposable | null = null;
 
 	setup(() => {
 		const TEXT =

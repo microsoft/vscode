@@ -2,7 +2,6 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
 import { createDecorator, ServiceIdentifier } from 'vs/platform/instantiation/common/instantiation';
 import { IResourceInput } from 'vs/platform/editor/common/editor';
@@ -19,6 +18,11 @@ export interface IHistoryService {
 	 * Re-opens the last closed editor if any.
 	 */
 	reopenLastClosedEditor(): void;
+
+	/**
+	 * Navigates to the last location where an edit happened.
+	 */
+	openLastEditLocation(): void;
 
 	/**
 	 * Navigate forwards in history.
@@ -52,6 +56,11 @@ export interface IHistoryService {
 	clear(): void;
 
 	/**
+	 * Clear list of recently opened editors.
+	 */
+	clearRecentlyOpened(): void;
+
+	/**
 	 * Get the entire history of opened editors.
 	 */
 	getHistory(): (IEditorInput | IResourceInput)[];
@@ -62,7 +71,7 @@ export interface IHistoryService {
 	 *
 	 * @param schemeFilter filter to restrict roots by scheme.
 	 */
-	getLastActiveWorkspaceRoot(schemeFilter: string): URI;
+	getLastActiveWorkspaceRoot(schemeFilter?: string): URI;
 
 	/**
 	 * Looking at the editor history, returns the resource of the last file that was opened.

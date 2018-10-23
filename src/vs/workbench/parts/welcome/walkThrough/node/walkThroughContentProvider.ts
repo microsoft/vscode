@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import { TPromise } from 'vs/base/common/winjs.base';
 import { URI } from 'vs/base/common/uri';
 import { ITextModelService, ITextModelContentProvider } from 'vs/editor/common/services/resolverService';
@@ -13,7 +11,7 @@ import { ITextFileService } from 'vs/workbench/services/textfile/common/textfile
 import { ITextModel, DefaultEndOfLine, EndOfLinePreference, ITextBufferFactory } from 'vs/editor/common/model';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
-import { marked } from 'vs/base/common/marked/marked';
+import * as marked from 'vs/base/common/marked/marked';
 import { Schemas } from 'vs/base/common/network';
 import { Range } from 'vs/editor/common/core/range';
 
@@ -42,7 +40,7 @@ export class WalkThroughContentProvider implements ITextModelContentProvider, IW
 		return content.then(content => {
 			let codeEditorModel = this.modelService.getModel(resource);
 			if (!codeEditorModel) {
-				codeEditorModel = this.modelService.createModel(content, this.modeService.getOrCreateModeByFilenameOrFirstLine(resource.fsPath), resource);
+				codeEditorModel = this.modelService.createModel(content, this.modeService.getOrCreateModeByFilepathOrFirstLine(resource.fsPath), resource);
 			} else {
 				this.modelService.updateModel(codeEditorModel, content);
 			}

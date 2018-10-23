@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import 'vs/css!./media/statusbarpart';
 import * as nls from 'vs/nls';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
@@ -29,6 +27,7 @@ import { isThemeColor } from 'vs/editor/common/editorCommon';
 import { Color } from 'vs/base/common/color';
 import { addClass, EventHelper, createStyleSheet, addDisposableListener } from 'vs/base/browser/dom';
 import { INotificationService } from 'vs/platform/notification/common/notification';
+import { IStorageService } from 'vs/platform/storage/common/storage';
 
 export class StatusbarPart extends Part implements IStatusbarService {
 
@@ -46,9 +45,10 @@ export class StatusbarPart extends Part implements IStatusbarService {
 		id: string,
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@IThemeService themeService: IThemeService,
-		@IWorkspaceContextService private contextService: IWorkspaceContextService
+		@IWorkspaceContextService private contextService: IWorkspaceContextService,
+		@IStorageService storageService: IStorageService
 	) {
-		super(id, { hasTitle: false }, themeService);
+		super(id, { hasTitle: false }, themeService, storageService);
 
 		this.registerListeners();
 	}
@@ -115,17 +115,29 @@ export class StatusbarPart extends Part implements IStatusbarService {
 		// Fill in initial items that were contributed from the registry
 		const registry = Registry.as<IStatusbarRegistry>(Extensions.Statusbar);
 
-		const leftDescriptors = registry.items.filter(d => d.alignment === StatusbarAlignment.LEFT).sort((a, b) => b.priority - a.priority);
-		const rightDescriptors = registry.items.filter(d => d.alignment === StatusbarAlignment.RIGHT).sort((a, b) => a.priority - b.priority);
+		const descriptors = registry.items.slice().sort((a, b) => {
+			if (a.alignment === b.alignment) {
+				if (a.alignment === StatusbarAlignment.LEFT) {
+					return b.priority - a.priority;
+				} else {
+					return a.priority - b.priority;
+				}
+			} else if (a.alignment === StatusbarAlignment.LEFT) {
+				return 1;
+			} else if (a.alignment === StatusbarAlignment.RIGHT) {
+				return -1;
+			} else {
+				return 0;
+			}
+		});
 
-		const descriptors = rightDescriptors.concat(leftDescriptors); // right first because they float
-		descriptors.forEach(descriptor => {
+		for (const descriptor of descriptors) {
 			const item = this.instantiationService.createInstance(descriptor.syncDescriptor);
 			const el = this.doCreateStatusItem(descriptor.alignment, descriptor.priority);
 
 			this._register(item.render(el));
 			this.statusItemsContainer.appendChild(el);
-		});
+		}
 
 		return this.statusItemsContainer;
 	}
@@ -184,7 +196,7 @@ export class StatusbarPart extends Part implements IStatusbarService {
 			statusDispose = this.addEntry({ text: message }, StatusbarAlignment.LEFT, -Number.MAX_VALUE /* far right on left hand side */);
 			showHandle = null;
 		}, delayBy);
-		let hideHandle: number;
+		let hideHandle: any;
 
 		// Dispose function takes care of timeouts and actual entry
 		const dispose = {
@@ -276,7 +288,7 @@ class StatusBarEntryItem implements IStatusbarItem {
 				this.contextMenuService.showContextMenu({
 					getAnchor: () => el,
 					getActionsContext: () => this.entry.extensionId,
-					getActions: () => TPromise.as([manageExtensionAction])
+					getActions: () => Promise.resolve([manageExtensionAction])
 				});
 			}));
 		}

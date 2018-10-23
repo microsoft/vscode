@@ -9,8 +9,8 @@ import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 import { IPartService } from 'vs/workbench/services/part/common/partService';
 import { ITerminalService, ITerminalInstance, IShellLaunchConfig, ITerminalConfigHelper, KEYBINDING_CONTEXT_TERMINAL_FOCUS, KEYBINDING_CONTEXT_TERMINAL_FIND_WIDGET_VISIBLE, TERMINAL_PANEL_ID, ITerminalTab, ITerminalProcessExtHostProxy, ITerminalProcessExtHostRequest, KEYBINDING_CONTEXT_TERMINAL_IS_OPEN } from 'vs/workbench/parts/terminal/common/terminal';
-import { TPromise } from 'vs/base/common/winjs.base';
 import { IStorageService } from 'vs/platform/storage/common/storage';
+import { FindReplaceState } from 'vs/editor/contrib/find/findState';
 
 export abstract class TerminalService implements ITerminalService {
 	public _serviceBrand: any;
@@ -21,6 +21,7 @@ export abstract class TerminalService implements ITerminalService {
 	protected _terminalContainer: HTMLElement;
 	protected _terminalTabs: ITerminalTab[];
 	protected abstract _terminalInstances: ITerminalInstance[];
+	private _findState: FindReplaceState;
 
 	private _activeTabIndex: number;
 
@@ -42,8 +43,8 @@ export abstract class TerminalService implements ITerminalService {
 	public get onInstanceDimensionsChanged(): Event<ITerminalInstance> { return this._onInstanceDimensionsChanged.event; }
 	protected readonly _onInstancesChanged: Emitter<void> = new Emitter<void>();
 	public get onInstancesChanged(): Event<void> { return this._onInstancesChanged.event; }
-	protected readonly _onInstanceTitleChanged: Emitter<string> = new Emitter<string>();
-	public get onInstanceTitleChanged(): Event<string> { return this._onInstanceTitleChanged.event; }
+	protected readonly _onInstanceTitleChanged: Emitter<ITerminalInstance> = new Emitter<ITerminalInstance>();
+	public get onInstanceTitleChanged(): Event<ITerminalInstance> { return this._onInstanceTitleChanged.event; }
 	protected readonly _onActiveInstanceChanged: Emitter<ITerminalInstance> = new Emitter<ITerminalInstance>();
 	public get onActiveInstanceChanged(): Event<ITerminalInstance> { return this._onActiveInstanceChanged.event; }
 	protected readonly _onTabDisposed: Emitter<ITerminalTab> = new Emitter<ITerminalTab>();
@@ -60,7 +61,7 @@ export abstract class TerminalService implements ITerminalService {
 	) {
 		this._activeTabIndex = 0;
 		this._isShuttingDown = false;
-
+		this._findState = new FindReplaceState();
 		lifecycleService.onWillShutdown(event => event.veto(this._onWillShutdown()));
 		lifecycleService.onShutdown(() => this._onShutdown());
 		this._terminalFocusContextKey = KEYBINDING_CONTEXT_TERMINAL_FOCUS.bindTo(this._contextKeyService);
@@ -80,16 +81,17 @@ export abstract class TerminalService implements ITerminalService {
 		this.onInstancesChanged(() => updateTerminalContextKeys());
 	}
 
-	protected abstract _showTerminalCloseConfirmation(): TPromise<boolean>;
+	protected abstract _showTerminalCloseConfirmation(): PromiseLike<boolean>;
+	protected abstract _showNotEnoughSpaceToast(): void;
 	public abstract createTerminal(shell?: IShellLaunchConfig, wasNewTerminalAction?: boolean): ITerminalInstance;
 	public abstract createTerminalRenderer(name: string): ITerminalInstance;
 	public abstract createInstance(terminalFocusContextKey: IContextKey<boolean>, configHelper: ITerminalConfigHelper, container: HTMLElement, shellLaunchConfig: IShellLaunchConfig, doCreateProcess: boolean): ITerminalInstance;
 	public abstract getActiveOrCreateInstance(wasNewTerminalAction?: boolean): ITerminalInstance;
-	public abstract selectDefaultWindowsShell(): TPromise<string>;
+	public abstract selectDefaultWindowsShell(): Promise<string>;
 	public abstract setContainers(panelContainer: HTMLElement, terminalContainer: HTMLElement): void;
 	public abstract requestExtHostProcess(proxy: ITerminalProcessExtHostProxy, shellLaunchConfig: IShellLaunchConfig, cols: number, rows: number): void;
 
-	private _onWillShutdown(): boolean | TPromise<boolean> {
+	private _onWillShutdown(): boolean | PromiseLike<boolean> {
 		if (this.terminalInstances.length === 0) {
 			// No terminal instances, don't veto
 			return false;
@@ -119,6 +121,10 @@ export abstract class TerminalService implements ITerminalService {
 		return this._terminalTabs.filter(tab => tab.terminalInstances.length > 0).map((tab, index) => `${index + 1}: ${tab.title ? tab.title : ''}`);
 	}
 
+	public getFindState(): FindReplaceState {
+		return this._findState;
+	}
+
 	private _removeTab(tab: ITerminalTab): void {
 		// Get the index of the tab and remove it from the list
 		const index = this._terminalTabs.indexOf(tab);
@@ -133,7 +139,10 @@ export abstract class TerminalService implements ITerminalService {
 			// const hasFocusOnExit = tab.activeInstance.hadFocusOnExit;
 			const newIndex = index < this._terminalTabs.length ? index : this._terminalTabs.length - 1;
 			this.setActiveTabByIndex(newIndex);
-			this.getActiveInstance().focus(true);
+			const activeInstance = this.getActiveInstance();
+			if (activeInstance) {
+				activeInstance.focus(true);
+			}
 		}
 
 		// Hide the panel if there are no more instances, provided that VS Code is not shutting
@@ -151,14 +160,14 @@ export abstract class TerminalService implements ITerminalService {
 		}
 	}
 
-	public getActiveTab(): ITerminalTab {
+	public getActiveTab(): ITerminalTab | null {
 		if (this._activeTabIndex < 0 || this._activeTabIndex >= this._terminalTabs.length) {
 			return null;
 		}
 		return this._terminalTabs[this._activeTabIndex];
 	}
 
-	public getActiveInstance(): ITerminalInstance {
+	public getActiveInstance(): ITerminalInstance | null {
 		const tab = this.getActiveTab();
 		if (!tab) {
 			return null;
@@ -192,7 +201,7 @@ export abstract class TerminalService implements ITerminalService {
 		}
 	}
 
-	private _getInstanceFromGlobalInstanceIndex(index: number): { tab: ITerminalTab, tabIndex: number, instance: ITerminalInstance, localInstanceIndex: number } {
+	private _getInstanceFromGlobalInstanceIndex(index: number): { tab: ITerminalTab, tabIndex: number, instance: ITerminalInstance, localInstanceIndex: number } | null {
 		let currentTabIndex = 0;
 		while (index >= 0 && currentTabIndex < this._terminalTabs.length) {
 			const tab = this._terminalTabs[currentTabIndex];
@@ -257,10 +266,14 @@ export abstract class TerminalService implements ITerminalService {
 		}
 
 		const instance = tab.split(this._terminalFocusContextKey, this.configHelper, shellLaunchConfig);
-		this._initInstanceListeners(instance);
-		this._onInstancesChanged.fire();
+		if (instance) {
+			this._initInstanceListeners(instance);
+			this._onInstancesChanged.fire();
 
-		this._terminalTabs.forEach((t, i) => t.setVisible(i === this._activeTabIndex));
+			this._terminalTabs.forEach((t, i) => t.setVisible(i === this._activeTabIndex));
+		} else {
+			this._showNotEnoughSpaceToast();
+		}
 	}
 
 	protected _initInstanceListeners(instance: ITerminalInstance): void {
@@ -271,7 +284,7 @@ export abstract class TerminalService implements ITerminalService {
 		instance.addDisposable(instance.onFocus(this._onActiveInstanceChanged.fire, this._onActiveInstanceChanged));
 	}
 
-	private _getTabForInstance(instance: ITerminalInstance): ITerminalTab {
+	private _getTabForInstance(instance: ITerminalInstance): ITerminalTab | null {
 		for (let i = 0; i < this._terminalTabs.length; i++) {
 			const tab = this._terminalTabs[i];
 			if (tab.terminalInstances.indexOf(instance) !== -1) {
@@ -281,8 +294,8 @@ export abstract class TerminalService implements ITerminalService {
 		return null;
 	}
 
-	public showPanel(focus?: boolean): TPromise<void> {
-		return new TPromise<void>((complete) => {
+	public showPanel(focus?: boolean): Promise<void> {
+		return new Promise<void>((complete) => {
 			const panel = this._panelService.getActivePanel();
 			if (!panel || panel.getId() !== TERMINAL_PANEL_ID) {
 				return this._panelService.openPanel(TERMINAL_PANEL_ID, focus).then(() => {
@@ -328,8 +341,11 @@ export abstract class TerminalService implements ITerminalService {
 		}
 	}
 
-	public abstract focusFindWidget(): TPromise<void>;
+	public abstract focusFindWidget(): Promise<void>;
 	public abstract hideFindWidget(): void;
+
+	public abstract findNext(): void;
+	public abstract findPrevious(): void;
 
 	private _getIndexFromId(terminalId: number): number {
 		let terminalIndex = -1;

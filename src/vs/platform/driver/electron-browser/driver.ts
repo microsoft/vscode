@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IDisposable, toDisposable, combinedDisposable } from 'vs/base/common/lifecycle';
 import { IWindowDriver, IElement, WindowDriverChannel, WindowDriverRegistryChannelClient } from 'vs/platform/driver/node/driver';
@@ -24,7 +22,7 @@ function serializeElement(element: Element, recursive: boolean): IElement {
 		attributes[attr.name] = attr.value;
 	}
 
-	const children = [];
+	const children: IElement[] = [];
 
 	if (recursive) {
 		for (let i = 0; i < element.children.length; i++) {
@@ -121,7 +119,7 @@ class WindowDriver implements IWindowDriver {
 		const element = document.querySelector(selector);
 
 		if (element !== document.activeElement) {
-			const chain = [];
+			const chain: string[] = [];
 			let el = document.activeElement;
 
 			while (el) {
@@ -230,11 +228,12 @@ export async function registerWindowDriver(
 	const windowDriverRegistryChannel = client.getChannel('windowDriverRegistry');
 	const windowDriverRegistry = new WindowDriverRegistryChannelClient(windowDriverRegistryChannel);
 
-	const options = await windowDriverRegistry.registerWindowDriver(windowId);
+	await windowDriverRegistry.registerWindowDriver(windowId);
+	// const options = await windowDriverRegistry.registerWindowDriver(windowId);
 
-	if (options.verbose) {
-		windowDriver.openDevTools();
-	}
+	// if (options.verbose) {
+	// 	windowDriver.openDevTools();
+	// }
 
 	const disposable = toDisposable(() => windowDriverRegistry.reloadWindowDriver(windowId));
 	return combinedDisposable([disposable, client]);

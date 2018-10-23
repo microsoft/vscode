@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import * as path from 'path';
 import * as objects from 'vs/base/common/objects';
 import * as nls from 'vs/nls';
@@ -58,6 +56,8 @@ export class CodeWindow implements ICodeWindow {
 
 	private static readonly MIN_WIDTH = 200;
 	private static readonly MIN_HEIGHT = 120;
+
+	private static readonly MAX_URL_LENGTH = 2 * 1024 * 1024; // https://cs.chromium.org/chromium/src/url/url_constants.cc?l=32
 
 	private hiddenTitleBarStyle: boolean;
 	private showTimeoutHandle: any;
@@ -189,7 +189,7 @@ export class CodeWindow implements ICodeWindow {
 		this._win = new BrowserWindow(options);
 		this._id = this._win.id;
 
-		if (useCustomTitleStyle) {
+		if (isMacintosh && useCustomTitleStyle) {
 			this._win.setSheetOffset(22); // offset dialogs by the height of the custom title bar if we have any
 		}
 
@@ -408,34 +408,6 @@ export class CodeWindow implements ICodeWindow {
 
 		// Handle Workspace events
 		this.toDispose.push(this.workspacesMainService.onUntitledWorkspaceDeleted(e => this.onUntitledWorkspaceDeleted(e)));
-
-		// TODO@Ben workaround for https://github.com/Microsoft/vscode/issues/13612
-		// It looks like smooth scrolling disappears as soon as the window is minimized
-		// and maximized again. Touching some window properties "fixes" it, like toggling
-		// the visibility of the menu.
-		if (isWindows) {
-			const windowConfig = this.configurationService.getValue<IWindowSettings>('window');
-			if (windowConfig && windowConfig.smoothScrollingWorkaround === true) {
-				let minimized = false;
-
-				const restoreSmoothScrolling = () => {
-					if (minimized) {
-						const visibility = this.getMenuBarVisibility();
-						const temporaryVisibility: MenuBarVisibility = (visibility === 'hidden' || visibility === 'toggle') ? 'default' : 'hidden';
-						setTimeout(() => {
-							this.doSetMenuBarVisibility(temporaryVisibility);
-							this.doSetMenuBarVisibility(visibility);
-						}, 0);
-					}
-
-					minimized = false;
-				};
-
-				this._win.on('minimize', () => minimized = true);
-				this._win.on('restore', () => restoreSmoothScrolling());
-				this._win.on('maximize', () => restoreSmoothScrolling());
-			}
-		}
 	}
 
 	private onUntitledWorkspaceDeleted(workspace: IWorkspaceIdentifier): void {
@@ -607,12 +579,31 @@ export class CodeWindow implements ICodeWindow {
 		const environment = parseArgs(process.argv);
 		const config = objects.assign(environment, windowConfiguration);
 		for (let key in config) {
-			if (config[key] === void 0 || config[key] === null || config[key] === '') {
+			if (config[key] === void 0 || config[key] === null || config[key] === '' || config[key] === false) {
 				delete config[key]; // only send over properties that have a true value
 			}
 		}
 
-		return `${require.toUrl('vs/workbench/electron-browser/bootstrap/index.html')}?config=${encodeURIComponent(JSON.stringify(config))}`;
+		// In the unlikely event of the URL becoming larger than 2MB, remove parts of
+		// it that are not under our control. Mainly, the user environment can be very
+		// large depending on user configuration, so we can only remove it in that case.
+		let configUrl = this.doGetUrl(config);
+		if (configUrl.length > CodeWindow.MAX_URL_LENGTH) {
+			delete config.userEnv;
+			this.logService.warn('Application URL exceeds maximum of 2MB and was shortened.');
+
+			configUrl = this.doGetUrl(config);
+
+			if (configUrl.length > CodeWindow.MAX_URL_LENGTH) {
+				this.logService.error('Application URL exceeds maximum of 2MB and cannot be loaded.');
+			}
+		}
+
+		return configUrl;
+	}
+
+	private doGetUrl(config: object): string {
+		return `${require.toUrl('vs/code/electron-browser/workbench/workbench.html')}?config=${encodeURIComponent(JSON.stringify(config))}`;
 	}
 
 	serializeWindowState(): IWindowState {
@@ -624,16 +615,24 @@ export class CodeWindow implements ICodeWindow {
 		if (this._win.isFullScreen()) {
 			const display = screen.getDisplayMatching(this.getBounds());
 
-			return {
+			const defaultState = defaultWindowState();
+
+			const res = {
 				mode: WindowMode.Fullscreen,
 				display: display ? display.id : void 0,
 
-				// still carry over window dimensions from previous sessions!
-				width: this.windowState.width,
-				height: this.windowState.height,
-				x: this.windowState.x,
-				y: this.windowState.y
+				// Still carry over window dimensions from previous sessions
+				// if we can compute it in fullscreen state.
+				// does not seem possible in all cases on Linux for example
+				// (https://github.com/Microsoft/vscode/issues/58218) so we
+				// fallback to the defaults in that case.
+				width: this.windowState.width || defaultState.width,
+				height: this.windowState.height || defaultState.height,
+				x: this.windowState.x || 0,
+				y: this.windowState.y || 0
 			};
+
+			return res;
 		}
 
 		const state: IWindowState = Object.create(null);
@@ -866,7 +865,11 @@ export class CodeWindow implements ICodeWindow {
 					break;
 				case 'Maximize':
 				default:
-					this.win.maximize();
+					if (this.win.isMaximized()) {
+						this.win.unmaximize();
+					} else {
+						this.win.maximize();
+					}
 			}
 		}
 

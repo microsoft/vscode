@@ -3,13 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import { Menu, MenuItem, BrowserWindow, Event, ipcMain } from 'electron';
 import { ISerializableContextMenuItem, CONTEXT_MENU_CLOSE_CHANNEL, CONTEXT_MENU_CHANNEL, IPopupOptions } from 'vs/base/parts/contextmenu/common/contextmenu';
 
 export function registerContextMenuListener(): void {
-	ipcMain.on(CONTEXT_MENU_CHANNEL, (event: Event, items: ISerializableContextMenuItem[], onClickChannel: string, options?: IPopupOptions) => {
+	ipcMain.on(CONTEXT_MENU_CHANNEL, (event: Event, contextMenuId: number, items: ISerializableContextMenuItem[], onClickChannel: string, options?: IPopupOptions) => {
 		const menu = createMenu(event, onClickChannel, items);
 
 		menu.popup({
@@ -18,7 +16,7 @@ export function registerContextMenuListener(): void {
 			y: options ? options.y : void 0,
 			positioningItem: options ? options.positioningItem : void 0,
 			callback: () => {
-				event.sender.send(CONTEXT_MENU_CLOSE_CHANNEL);
+				event.sender.send(CONTEXT_MENU_CLOSE_CHANNEL, contextMenuId);
 			}
 		});
 	});

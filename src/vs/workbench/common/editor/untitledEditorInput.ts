@@ -2,7 +2,6 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
 import { TPromise } from 'vs/base/common/winjs.base';
 import { URI } from 'vs/base/common/uri';
@@ -84,7 +83,7 @@ export class UntitledEditorInput extends EditorInput implements IEncodingSupport
 
 	@memoize
 	private get mediumDescription(): string {
-		return this.labelService.getUriLabel(resources.dirname(this.resource), true);
+		return this.labelService.getUriLabel(resources.dirname(this.resource), { relative: true });
 	}
 
 	@memoize
@@ -121,7 +120,7 @@ export class UntitledEditorInput extends EditorInput implements IEncodingSupport
 
 	@memoize
 	private get mediumTitle(): string {
-		return this.labelService.getUriLabel(this.resource, true);
+		return this.labelService.getUriLabel(this.resource, { relative: true });
 	}
 
 	@memoize

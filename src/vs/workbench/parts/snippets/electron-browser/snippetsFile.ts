@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import { parse as jsonParse } from 'vs/base/common/json';
 import { forEach } from 'vs/base/common/collections';
 import { IExtensionDescription } from 'vs/workbench/services/extensions/common/extensions';
@@ -30,7 +28,7 @@ export class Snippet {
 		readonly description: string,
 		readonly body: string,
 		readonly source: string,
-		readonly isFromExtension?: boolean,
+		readonly snippetSource: SnippetSource,
 	) {
 		//
 		this.prefixLow = prefix ? prefix.toLowerCase() : prefix;
@@ -60,12 +58,10 @@ export class Snippet {
 	}
 
 	static compare(a: Snippet, b: Snippet): number {
-		if (a.isFromExtension !== b.isFromExtension) {
-			if (a.isFromExtension) {
-				return 1;
-			} else {
-				return -1;
-			}
+		if (a.snippetSource < b.snippetSource) {
+			return -1;
+		} else if (a.snippetSource > b.snippetSource) {
+			return 1;
 		} else if (a.name > b.name) {
 			return 1;
 		} else if (a.name < b.name) {
@@ -135,6 +131,12 @@ interface JsonSerializedSnippets {
 	[name: string]: JsonSerializedSnippet | { [name: string]: JsonSerializedSnippet };
 }
 
+export const enum SnippetSource {
+	User = 1,
+	Workspace = 2,
+	Extension = 3,
+}
+
 export class SnippetFile {
 
 	readonly data: Snippet[] = [];
@@ -144,6 +146,7 @@ export class SnippetFile {
 	private _loadPromise: Promise<this>;
 
 	constructor(
+		readonly source: SnippetSource,
 		readonly location: URI,
 		readonly defaultScopes: string[],
 		private readonly _extension: IExtensionDescription,
@@ -229,7 +232,7 @@ export class SnippetFile {
 			body = body.join('\n');
 		}
 
-		if (typeof prefix !== 'string' || typeof body !== 'string') {
+		if ((typeof prefix !== 'string' && !Array.isArray(prefix)) || typeof body !== 'string') {
 			return;
 		}
 
@@ -244,21 +247,32 @@ export class SnippetFile {
 
 		let source: string;
 		if (this._extension) {
+			// extension snippet -> show the name of the extension
 			source = this._extension.displayName || this._extension.name;
-		} else if (this.isGlobalSnippets) {
-			source = localize('source.snippetGlobal', "Global User Snippet");
+
+		} else if (this.source === SnippetSource.Workspace) {
+			// workspace -> only *.code-snippets files
+			source = localize('source.workspaceSnippetGlobal', "Workspace Snippet");
 		} else {
-			source = localize('source.snippet', "User Snippet");
+			// user -> global (*.code-snippets) and language snippets
+			if (this.isGlobalSnippets) {
+				source = localize('source.userSnippetGlobal', "Global User Snippet");
+			} else {
+				source = localize('source.userSnippet', "User Snippet");
+			}
 		}
 
-		bucket.push(new Snippet(
-			scopes,
-			name,
-			prefix,
-			description,
-			body,
-			source,
-			this._extension !== void 0
-		));
+		let prefixes = Array.isArray(prefix) ? prefix : [prefix];
+		prefixes.forEach(p => {
+			bucket.push(new Snippet(
+				scopes,
+				name,
+				p,
+				description,
+				body,
+				source,
+				this.source
+			));
+		});
 	}
 }

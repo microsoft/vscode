@@ -5,7 +5,6 @@
 
 import { Emitter, Event } from 'vs/base/common/event';
 import { URI } from 'vs/base/common/uri';
-import { TPromise } from 'vs/base/common/winjs.base';
 import * as typeConverters from 'vs/workbench/api/node/extHostTypeConverters';
 import { EditorViewColumn } from 'vs/workbench/api/shared/editor';
 import * as vscode from 'vscode';
@@ -292,14 +291,16 @@ export class ExtHostWebviews implements ExtHostWebviewsShape {
 		newState: WebviewPanelViewState
 	): void {
 		const panel = this.getWebviewPanel(handle);
-		if (panel) {
-			const viewColumn = typeConverters.ViewColumn.to(newState.position);
-			if (panel.active !== newState.active || panel.visible !== newState.visible || panel.viewColumn !== viewColumn) {
-				panel._setActive(newState.active);
-				panel._setVisible(newState.visible);
-				panel._setViewColumn(viewColumn);
-				panel._onDidChangeViewStateEmitter.fire({ webviewPanel: panel });
-			}
+		if (!panel) {
+			return;
+		}
+
+		const viewColumn = typeConverters.ViewColumn.to(newState.position);
+		if (panel.active !== newState.active || panel.visible !== newState.visible || panel.viewColumn !== viewColumn) {
+			panel._setActive(newState.active);
+			panel._setVisible(newState.visible);
+			panel._setViewColumn(viewColumn);
+			panel._onDidChangeViewStateEmitter.fire({ webviewPanel: panel });
 		}
 	}
 
@@ -309,7 +310,7 @@ export class ExtHostWebviews implements ExtHostWebviewsShape {
 			panel.dispose();
 			this._webviewPanels.delete(handle);
 		}
-		return TPromise.as(void 0);
+		return Promise.resolve(void 0);
 	}
 
 	$deserializeWebviewPanel(
@@ -322,7 +323,7 @@ export class ExtHostWebviews implements ExtHostWebviewsShape {
 	): Thenable<void> {
 		const serializer = this._serializers.get(viewType);
 		if (!serializer) {
-			return TPromise.wrapError(new Error(`No serializer found for '${viewType}'`));
+			return Promise.reject(new Error(`No serializer found for '${viewType}'`));
 		}
 
 		const webview = new ExtHostWebview(webviewHandle, this._proxy, options);

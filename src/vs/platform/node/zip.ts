@@ -9,7 +9,6 @@ import { createWriteStream, WriteStream } from 'fs';
 import { Readable } from 'stream';
 import { nfcall, ninvoke, SimpleThrottler, createCancelablePromise } from 'vs/base/common/async';
 import { mkdirp, rimraf } from 'vs/base/node/pfs';
-import { TPromise } from 'vs/base/common/winjs.base';
 import { open as _openZip, Entry, ZipFile } from 'yauzl';
 import * as yazl from 'yazl';
 import { ILogService } from 'vs/platform/log/common/log';
@@ -72,11 +71,11 @@ function toExtractError(err: Error): ExtractError {
 	return new ExtractError(type, err);
 }
 
-function extractEntry(stream: Readable, fileName: string, mode: number, targetPath: string, options: IOptions, token: CancellationToken): TPromise<void> {
+function extractEntry(stream: Readable, fileName: string, mode: number, targetPath: string, options: IOptions, token: CancellationToken): Promise<void> {
 	const dirName = path.dirname(fileName);
 	const targetDirName = path.join(targetPath, dirName);
 	if (targetDirName.indexOf(targetPath) !== 0) {
-		return TPromise.wrapError(new Error(nls.localize('invalid file', "Error extracting {0}. Invalid file.", fileName)));
+		return Promise.reject(new Error(nls.localize('invalid file', "Error extracting {0}. Invalid file.", fileName)));
 	}
 	const targetFileName = path.join(targetPath, fileName);
 
@@ -88,16 +87,20 @@ function extractEntry(stream: Readable, fileName: string, mode: number, targetPa
 		}
 	});
 
-	return mkdirp(targetDirName, void 0, token).then(() => new TPromise((c, e) => {
+	return Promise.resolve(mkdirp(targetDirName, void 0, token)).then(() => new Promise((c, e) => {
 		if (token.isCancellationRequested) {
 			return;
 		}
 
-		istream = createWriteStream(targetFileName, { mode });
-		istream.once('close', () => c(null));
-		istream.once('error', e);
-		stream.once('error', e);
-		stream.pipe(istream);
+		try {
+			istream = createWriteStream(targetFileName, { mode });
+			istream.once('close', () => c(null));
+			istream.once('error', e);
+			stream.once('error', e);
+			stream.pipe(istream);
+		} catch (error) {
+			e(error);
+		}
 	}));
 }
 
@@ -148,21 +151,21 @@ function extractZip(zipfile: ZipFile, targetPath: string, options: IOptions, log
 			// directory file names end with '/'
 			if (/\/$/.test(fileName)) {
 				const targetFileName = path.join(targetPath, fileName);
-				last = createCancelablePromise(token => mkdirp(targetFileName, void 0, token).then(() => readNextEntry(token)));
+				last = createCancelablePromise(token => mkdirp(targetFileName, void 0, token).then(() => readNextEntry(token)).then(null, e));
 				return;
 			}
 
 			const stream = ninvoke(zipfile, zipfile.openReadStream, entry);
 			const mode = modeFromEntry(entry);
 
-			last = createCancelablePromise(token => throttler.queue(() => stream.then(stream => extractEntry(stream, fileName, mode, targetPath, options, token).then(() => readNextEntry(token)))));
+			last = createCancelablePromise(token => throttler.queue(() => stream.then(stream => extractEntry(stream, fileName, mode, targetPath, options, token).then(() => readNextEntry(token)))).then(null, e));
 		});
 	});
 }
 
-function openZip(zipFile: string, lazy: boolean = false): TPromise<ZipFile> {
+function openZip(zipFile: string, lazy: boolean = false): Promise<ZipFile> {
 	return nfcall<ZipFile>(_openZip, zipFile, lazy ? { lazyEntries: true } : void 0)
-		.then(null, err => TPromise.wrapError(toExtractError(err)));
+		.then(null, err => Promise.reject(toExtractError(err)));
 }
 
 export interface IFile {
@@ -171,8 +174,8 @@ export interface IFile {
 	localPath?: string;
 }
 
-export function zip(zipPath: string, files: IFile[]): TPromise<string> {
-	return new TPromise<string>((c, e) => {
+export function zip(zipPath: string, files: IFile[]): Promise<string> {
+	return new Promise<string>((c, e) => {
 		const zip = new yazl.ZipFile();
 		files.forEach(f => f.contents ? zip.addBuffer(typeof f.contents === 'string' ? Buffer.from(f.contents, 'utf8') : f.contents, f.path) : zip.addFile(f.localPath, f.path));
 		zip.end();
@@ -186,7 +189,7 @@ export function zip(zipPath: string, files: IFile[]): TPromise<string> {
 	});
 }
 
-export function extract(zipPath: string, targetPath: string, options: IExtractOptions = {}, logService: ILogService, token: CancellationToken): TPromise<void> {
+export function extract(zipPath: string, targetPath: string, options: IExtractOptions = {}, logService: ILogService, token: CancellationToken): Promise<void> {
 	const sourcePathRegex = new RegExp(options.sourcePath ? `^${options.sourcePath}` : '');
 
 	let promise = openZip(zipPath, true);
@@ -198,9 +201,9 @@ export function extract(zipPath: string, targetPath: string, options: IExtractOp
 	return promise.then(zipfile => extractZip(zipfile, targetPath, { sourcePathRegex }, logService, token));
 }
 
-function read(zipPath: string, filePath: string): TPromise<Readable> {
+function read(zipPath: string, filePath: string): Promise<Readable> {
 	return openZip(zipPath).then(zipfile => {
-		return new TPromise<Readable>((c, e) => {
+		return new Promise<Readable>((c, e) => {
 			zipfile.on('entry', (entry: Entry) => {
 				if (entry.fileName === filePath) {
 					ninvoke<Readable>(zipfile, zipfile.openReadStream, entry).then(stream => c(stream), err => e(err));
@@ -212,9 +215,9 @@ function read(zipPath: string, filePath: string): TPromise<Readable> {
 	});
 }
 
-export function buffer(zipPath: string, filePath: string): TPromise<Buffer> {
+export function buffer(zipPath: string, filePath: string): Promise<Buffer> {
 	return read(zipPath, filePath).then(stream => {
-		return new TPromise<Buffer>((c, e) => {
+		return new Promise<Buffer>((c, e) => {
 			const buffers: Buffer[] = [];
 			stream.once('error', e);
 			stream.on('data', b => buffers.push(b as Buffer));

@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { TPromise } from 'vs/base/common/winjs.base';
 import { IAction, IActionRunner, ActionRunner } from 'vs/base/common/actions';
 import { IActionItem } from 'vs/base/browser/ui/actionbar/actionbar';
 import { Component } from 'vs/workbench/common/component';
@@ -13,12 +12,16 @@ import { Event, Emitter } from 'vs/base/common/event';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IConstructorSignature0, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { trackFocus, Dimension } from 'vs/base/browser/dom';
+import { IStorageService } from 'vs/platform/storage/common/storage';
+import { Disposable } from 'vs/base/common/lifecycle';
 
 /**
  * Composites are layed out in the sidebar and panel part of the workbench. At a time only one composite
  * can be open in the sidebar, and only one composite can be open in the panel.
+ *
  * Each composite has a minimized representation that is good enough to provide some
  * information about the state of the composite data.
+ *
  * The workbench will keep a composite alive after it has been created and show/hide it based on
  * user interaction. The lifecycle of a composite goes in the order create(), setVisible(true|false),
  * layout(), focus(), dispose(). During use of the workbench, a composite will often receive a setVisible,
@@ -32,13 +35,28 @@ export abstract class Composite extends Component implements IComposite {
 	private _onDidFocus: Emitter<void>;
 	get onDidFocus(): Event<void> {
 		if (!this._onDidFocus) {
-			this._onDidFocus = this._register(new Emitter<void>());
-
-			const focusTracker = this._register(trackFocus(this.getContainer()));
-			this._register(focusTracker.onDidFocus(() => this._onDidFocus.fire()));
+			this._registerFocusTrackEvents();
 		}
 
 		return this._onDidFocus.event;
+	}
+
+	private _onDidBlur: Emitter<void>;
+	get onDidBlur(): Event<void> {
+		if (!this._onDidBlur) {
+			this._registerFocusTrackEvents();
+		}
+
+		return this._onDidBlur.event;
+	}
+
+	private _registerFocusTrackEvents(): void {
+		this._onDidFocus = this._register(new Emitter<void>());
+		this._onDidBlur = this._register(new Emitter<void>());
+
+		const focusTracker = this._register(trackFocus(this.getContainer()));
+		this._register(focusTracker.onDidFocus(() => this._onDidFocus.fire()));
+		this._register(focusTracker.onDidBlur(() => this._onDidBlur.fire()));
 	}
 
 	protected actionRunner: IActionRunner;
@@ -52,9 +70,10 @@ export abstract class Composite extends Component implements IComposite {
 	constructor(
 		id: string,
 		private _telemetryService: ITelemetryService,
-		themeService: IThemeService
+		themeService: IThemeService,
+		storageService: IStorageService
 	) {
-		super(id, themeService);
+		super(id, themeService, storageService);
 
 		this.visible = false;
 	}
@@ -76,10 +95,8 @@ export abstract class Composite extends Component implements IComposite {
 	 * Note that DOM-dependent calculations should be performed from the setVisible()
 	 * call. Only then the composite will be part of the DOM.
 	 */
-	create(parent: HTMLElement): TPromise<void> {
+	create(parent: HTMLElement): void {
 		this.parent = parent;
-
-		return TPromise.as(null);
 	}
 
 	updateStyles(): void {
@@ -105,10 +122,10 @@ export abstract class Composite extends Component implements IComposite {
 	 * to do a long running operation from this call. Typically this operation should be
 	 * fast though because setVisible might be called many times during a session.
 	 */
-	setVisible(visible: boolean): TPromise<void> {
+	setVisible(visible: boolean): Promise<void> {
 		this.visible = visible;
 
-		return TPromise.as(null);
+		return Promise.resolve(null);
 	}
 
 	/**
@@ -220,9 +237,9 @@ export abstract class CompositeDescriptor<T extends Composite> {
 	}
 }
 
-export abstract class CompositeRegistry<T extends Composite> {
+export abstract class CompositeRegistry<T extends Composite> extends Disposable {
 
-	private readonly _onDidRegister: Emitter<CompositeDescriptor<T>> = new Emitter<CompositeDescriptor<T>>();
+	private readonly _onDidRegister: Emitter<CompositeDescriptor<T>> = this._register(new Emitter<CompositeDescriptor<T>>());
 	get onDidRegister(): Event<CompositeDescriptor<T>> { return this._onDidRegister.event; }
 
 	private composites: CompositeDescriptor<T>[] = [];

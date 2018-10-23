@@ -3,11 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import 'vs/css!./panelview';
 import { IDisposable, dispose, combinedDisposable, Disposable } from 'vs/base/common/lifecycle';
-import { Event, Emitter, chain } from 'vs/base/common/event';
+import { Event, Emitter, chain, filterEvent } from 'vs/base/common/event';
 import { domEvent } from 'vs/base/browser/event';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { KeyCode } from 'vs/base/common/keyCodes';
@@ -27,7 +25,7 @@ export interface IPanelStyles {
 	dropBackground?: Color;
 	headerForeground?: Color;
 	headerBackground?: Color;
-	headerHighContrastBorder?: Color;
+	headerBorder?: Color;
 }
 
 /**
@@ -48,7 +46,6 @@ export abstract class Panel implements IView {
 	protected _expanded: boolean;
 	protected disposables: IDisposable[] = [];
 
-	private expandedSize: number | undefined = undefined;
 	private _headerVisible = true;
 	private _minimumBodySize: number;
 	private _maximumBodySize: number;
@@ -56,6 +53,9 @@ export abstract class Panel implements IView {
 	private styles: IPanelStyles = {};
 
 	private header: HTMLElement;
+
+	private cachedExpandedSize: number | undefined = undefined;
+	private cachedBodySize: number | undefined = undefined;
 
 	private _onDidChange = new Emitter<number | undefined>();
 	readonly onDidChange: Event<number | undefined> = this._onDidChange.event;
@@ -131,7 +131,7 @@ export abstract class Panel implements IView {
 
 		this._expanded = !!expanded;
 		this.updateHeader();
-		this._onDidChange.fire(expanded ? this.expandedSize : undefined);
+		this._onDidChange.fire(expanded ? this.cachedExpandedSize : undefined);
 	}
 
 	get headerVisible(): boolean {
@@ -190,10 +190,16 @@ export abstract class Panel implements IView {
 
 	layout(size: number): void {
 		const headerSize = this.headerVisible ? Panel.HEADER_SIZE : 0;
-		this.layoutBody(size - headerSize);
 
 		if (this.isExpanded()) {
-			this.expandedSize = size;
+			const bodySize = size - headerSize;
+
+			if (bodySize !== this.cachedBodySize) {
+				this.layoutBody(bodySize);
+				this.cachedBodySize = bodySize;
+			}
+
+			this.cachedExpandedSize = size;
 		}
 	}
 
@@ -218,7 +224,7 @@ export abstract class Panel implements IView {
 
 		this.header.style.color = this.styles.headerForeground ? this.styles.headerForeground.toString() : null;
 		this.header.style.backgroundColor = this.styles.headerBackground ? this.styles.headerBackground.toString() : null;
-		this.header.style.borderTop = this.styles.headerHighContrastBorder ? `1px solid ${this.styles.headerHighContrastBorder}` : null;
+		this.header.style.borderTop = this.styles.headerBorder ? `1px solid ${this.styles.headerBorder}` : null;
 		this._dropBackground = this.styles.dropBackground;
 	}
 
@@ -258,7 +264,7 @@ class PanelDraggable extends Disposable {
 	}
 
 	private onDragStart(e: DragEvent): void {
-		if (!this.dnd.canDrag(this.panel)) {
+		if (!this.dnd.canDrag(this.panel) || !e.dataTransfer) {
 			e.preventDefault();
 			e.stopPropagation();
 			return;
@@ -266,7 +272,7 @@ class PanelDraggable extends Disposable {
 
 		e.dataTransfer.effectAllowed = 'move';
 
-		const dragImage = append(document.body, $('.monaco-panel-drag-image', {}, this.panel.draggableElement.textContent));
+		const dragImage = append(document.body, $('.monaco-panel-drag-image', {}, this.panel.draggableElement.textContent || ''));
 		e.dataTransfer.setDragImage(dragImage, -10, -10);
 		setTimeout(() => document.body.removeChild(dragImage), 0);
 
@@ -328,7 +334,7 @@ class PanelDraggable extends Disposable {
 	}
 
 	private render(): void {
-		let backgroundColor: string = null;
+		let backgroundColor: string | null = null;
 
 		if (this.dragOverCounter > 0) {
 			backgroundColor = (this.panel.dropBackground || PanelDraggable.DefaultDragOverBackgroundColor).toString();
@@ -365,7 +371,7 @@ interface IPanelItem {
 
 export class PanelView extends Disposable {
 
-	private dnd: IPanelDndController | null;
+	private dnd: IPanelDndController | undefined;
 	private dndContext: IDndContext = { draggable: null };
 	private el: HTMLElement;
 	private panelItems: IPanelItem[] = [];
@@ -388,14 +394,13 @@ export class PanelView extends Disposable {
 
 	addPanel(panel: Panel, size: number, index = this.splitview.length): void {
 		const disposables: IDisposable[] = [];
-		disposables.push(
-			// fix https://github.com/Microsoft/vscode/issues/37129 by delaying the listener
-			// for changes to animate them. lots of views cause a onDidChange during their
-			// initial creation and this causes the view to animate even though it shows
-			// for the first time. animation should only be used to indicate new elements
-			// are added or existing ones removed in a view that is already showing
-			scheduleAtNextAnimationFrame(() => panel.onDidChange(this.setupAnimation, this, disposables))
-		);
+
+		// https://github.com/Microsoft/vscode/issues/59950
+		let shouldAnimate = false;
+		disposables.push(scheduleAtNextAnimationFrame(() => shouldAnimate = true));
+
+		filterEvent(panel.onDidChange, () => shouldAnimate)
+			(this.setupAnimation, this, disposables);
 
 		const panelItem = { panel, disposable: combinedDisposable(disposables) };
 		this.panelItems.splice(index, 0, panelItem);

@@ -94,9 +94,10 @@ export class PreferencesEditor extends BaseEditor {
 		@IContextKeyService private contextKeyService: IContextKeyService,
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@IThemeService themeService: IThemeService,
-		@IProgressService private progressService: IProgressService
+		@IProgressService private progressService: IProgressService,
+		@IStorageService storageService: IStorageService
 	) {
-		super(PreferencesEditor.ID, telemetryService, themeService);
+		super(PreferencesEditor.ID, telemetryService, themeService, storageService);
 		this.defaultSettingsEditorContextKey = CONTEXT_SETTINGS_EDITOR.bindTo(this.contextKeyService);
 		this.searchFocusContextKey = CONTEXT_SETTINGS_SEARCH_FOCUS.bindTo(this.contextKeyService);
 		this.delayedFilterLogging = new Delayer<void>(1000);
@@ -778,6 +779,9 @@ class SideBySidePreferencesWidget extends Widget {
 	private lastFocusedEditor: BaseEditor;
 	private splitview: SplitView;
 
+	private isVisible: boolean;
+	private group: IEditorGroup;
+
 	get minimumWidth(): number { return this.splitview.minimumSize; }
 	get maximumWidth(): number { return this.splitview.maximumSize; }
 
@@ -899,11 +903,14 @@ class SideBySidePreferencesWidget extends Widget {
 	}
 
 	public setEditorVisible(visible: boolean, group: IEditorGroup): void {
+		this.isVisible = visible;
+		this.group = group;
+
 		if (this.defaultPreferencesEditor) {
-			this.defaultPreferencesEditor.setVisible(visible, group);
+			this.defaultPreferencesEditor.setVisible(this.isVisible, this.group);
 		}
 		if (this.editablePreferencesEditor) {
-			this.editablePreferencesEditor.setVisible(visible, group);
+			this.editablePreferencesEditor.setVisible(this.isVisible, this.group);
 		}
 	}
 
@@ -915,6 +922,7 @@ class SideBySidePreferencesWidget extends Widget {
 		const editor = descriptor.instantiate(this.instantiationService);
 		this.editablePreferencesEditor = editor;
 		this.editablePreferencesEditor.create(this.editablePreferencesEditorContainer);
+		this.editablePreferencesEditor.setVisible(this.isVisible, this.group);
 		(<CodeEditorWidget>this.editablePreferencesEditor.getControl()).onDidFocusEditorWidget(() => this.lastFocusedEditor = this.editablePreferencesEditor);
 		this.lastFocusedEditor = this.editablePreferencesEditor;
 		this.layout();

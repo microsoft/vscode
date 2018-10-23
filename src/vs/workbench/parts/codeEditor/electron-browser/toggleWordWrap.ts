@@ -2,23 +2,22 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
 import * as nls from 'vs/nls';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
-import { IEditorContribution } from 'vs/editor/common/editorCommon';
-import { ITextModel } from 'vs/editor/common/model';
-import { registerEditorAction, ServicesAccessor, EditorAction, registerEditorContribution } from 'vs/editor/browser/editorExtensions';
-import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
-import { MenuRegistry, MenuId } from 'vs/platform/actions/common/actions';
-import { ContextKeyExpr, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
-import { InternalEditorOptions, EDITOR_DEFAULTS } from 'vs/editor/common/config/editorOptions';
-import { ITextResourceConfigurationService } from 'vs/editor/common/services/resourceConfiguration';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { INotificationService } from 'vs/platform/notification/common/notification';
+import { EditorAction, ServicesAccessor, registerEditorAction, registerEditorContribution } from 'vs/editor/browser/editorExtensions';
+import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
+import { EDITOR_DEFAULTS, InternalEditorOptions } from 'vs/editor/common/config/editorOptions';
+import { IEditorContribution } from 'vs/editor/common/editorCommon';
+import { ITextModel } from 'vs/editor/common/model';
+import { ITextResourceConfigurationService } from 'vs/editor/common/services/resourceConfiguration';
+import { MenuId, MenuRegistry } from 'vs/platform/actions/common/actions';
+import { ContextKeyExpr, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
+import { INotificationService } from 'vs/platform/notification/common/notification';
 
 const transientWordWrapState = 'transientWordWrapState';
 const isWordWrapMinifiedKey = 'isWordWrapMinified';
@@ -34,15 +33,15 @@ interface IWordWrapTransientState {
 }
 
 interface IWordWrapState {
-	readonly configuredWordWrap: 'on' | 'off' | 'wordWrapColumn' | 'bounded';
+	readonly configuredWordWrap: 'on' | 'off' | 'wordWrapColumn' | 'bounded' | undefined;
 	readonly configuredWordWrapMinified: boolean;
-	readonly transientState: IWordWrapTransientState;
+	readonly transientState: IWordWrapTransientState | null;
 }
 
 /**
  * Store (in memory) the word wrap state for a particular model.
  */
-function writeTransientState(model: ITextModel, state: IWordWrapTransientState, codeEditorService: ICodeEditorService): void {
+function writeTransientState(model: ITextModel, state: IWordWrapTransientState | null, codeEditorService: ICodeEditorService): void {
 	codeEditorService.setTransientModelProperty(model, transientWordWrapState, state);
 }
 
@@ -114,23 +113,6 @@ function toggleWordWrap(editor: ICodeEditor, state: IWordWrapState): IWordWrapSt
 	};
 }
 
-function applyWordWrapState(editor: ICodeEditor, state: IWordWrapState): void {
-	if (state.transientState) {
-		// toggle is on
-		editor.updateOptions({
-			wordWrap: state.transientState.forceWordWrap,
-			wordWrapMinified: state.transientState.forceWordWrapMinified
-		});
-		return;
-	}
-
-	// toggle is off
-	editor.updateOptions({
-		wordWrap: state.configuredWordWrap,
-		wordWrapMinified: state.configuredWordWrapMinified
-	});
-}
-
 const TOGGLE_WORD_WRAP_ID = 'editor.action.toggleWordWrap';
 class ToggleWordWrapAction extends EditorAction {
 
@@ -149,6 +131,9 @@ class ToggleWordWrapAction extends EditorAction {
 	}
 
 	public run(accessor: ServicesAccessor, editor: ICodeEditor): void {
+		if (!editor.hasModel()) {
+			return;
+		}
 		const editorConfiguration = editor.getConfiguration();
 		if (editorConfiguration.wrappingInfo.inDiffEditor) {
 			// Cannot change wrapping settings inside the diff editor
@@ -170,9 +155,8 @@ class ToggleWordWrapAction extends EditorAction {
 		// Compute the new state
 		const newState = toggleWordWrap(editor, currentState);
 		// Write the new state
+		// (this will cause an event and the controller will apply the state)
 		writeTransientState(model, newState.transientState, codeEditorService);
-		// Apply the new state
-		applyWordWrapState(editor, newState);
 	}
 }
 
@@ -192,6 +176,7 @@ class ToggleWordWrapController extends Disposable implements IEditorContribution
 		const isWordWrapMinified = this.contextKeyService.createKey(isWordWrapMinifiedKey, this._isWordWrapMinified(configuration));
 		const isDominatedByLongLines = this.contextKeyService.createKey(isDominatedByLongLinesKey, this._isDominatedByLongLines(configuration));
 		const inDiffEditor = this.contextKeyService.createKey(inDiffEditorKey, this._inDiffEditor(configuration));
+		let currentlyApplyingEditorConfig = false;
 
 		this._register(editor.onDidChangeConfiguration((e) => {
 			if (!e.wrappingInfo) {
@@ -201,9 +186,21 @@ class ToggleWordWrapController extends Disposable implements IEditorContribution
 			isWordWrapMinified.set(this._isWordWrapMinified(configuration));
 			isDominatedByLongLines.set(this._isDominatedByLongLines(configuration));
 			inDiffEditor.set(this._inDiffEditor(configuration));
+			if (!currentlyApplyingEditorConfig) {
+				// I am not the cause of the word wrap getting changed
+				ensureWordWrapSettings();
+			}
 		}));
 
 		this._register(editor.onDidChangeModel((e) => {
+			ensureWordWrapSettings();
+		}));
+
+		this._register(codeEditorService.onDidChangeTransientModelProperty(() => {
+			ensureWordWrapSettings();
+		}));
+
+		const ensureWordWrapSettings = () => {
 			// Ensure correct word wrap settings
 			const newModel = this.editor.getModel();
 			if (!newModel) {
@@ -223,8 +220,30 @@ class ToggleWordWrapController extends Disposable implements IEditorContribution
 			const desiredState = readWordWrapState(newModel, this.configurationService, this.codeEditorService);
 
 			// Apply the state
-			applyWordWrapState(editor, desiredState);
-		}));
+			try {
+				currentlyApplyingEditorConfig = true;
+				this._applyWordWrapState(desiredState);
+			} finally {
+				currentlyApplyingEditorConfig = false;
+			}
+		};
+	}
+
+	private _applyWordWrapState(state: IWordWrapState): void {
+		if (state.transientState) {
+			// toggle is on
+			this.editor.updateOptions({
+				wordWrap: state.transientState.forceWordWrap,
+				wordWrapMinified: state.transientState.forceWordWrapMinified
+			});
+			return;
+		}
+
+		// toggle is off
+		this.editor.updateOptions({
+			wordWrap: state.configuredWordWrap,
+			wordWrapMinified: state.configuredWordWrapMinified
+		});
 	}
 
 	private _isWordWrapMinified(config: InternalEditorOptions): boolean {

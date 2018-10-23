@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import { TPromise, Promise } from 'vs/base/common/winjs.base';
 import { localize } from 'vs/nls';
 import * as objects from 'vs/base/common/objects';
@@ -16,6 +14,7 @@ import { PerformanceInfo, SystemInfo, IDiagnosticsService } from 'vs/platform/di
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { isMacintosh, IProcessEnvironment } from 'vs/base/common/platform';
 import { ILogService } from 'vs/platform/log/common/log';
+import { IWindowsService } from 'vs/platform/windows/common/windows';
 
 const DEFAULT_BACKGROUND_COLOR = '#1E1E1E';
 
@@ -31,10 +30,13 @@ export class IssueService implements IIssueService {
 		@IEnvironmentService private environmentService: IEnvironmentService,
 		@ILaunchService private launchService: ILaunchService,
 		@ILogService private logService: ILogService,
-		@IDiagnosticsService private diagnosticsService: IDiagnosticsService
-	) { }
+		@IDiagnosticsService private diagnosticsService: IDiagnosticsService,
+		@IWindowsService private windowsService: IWindowsService
+	) {
+		this.registerListeners();
+	}
 
-	openReporter(data: IssueReporterData): TPromise<void> {
+	private registerListeners(): void {
 		ipcMain.on('vscode:issueSystemInfoRequest', (event: Event) => {
 			this.getSystemInformation().then(msg => {
 				event.sender.send('vscode:issueSystemInfoResponse', msg);
@@ -48,7 +50,13 @@ export class IssueService implements IIssueService {
 		});
 
 		ipcMain.on('vscode:workbenchCommand', (event, arg) => {
-			this._issueParentWindow.webContents.send('vscode:runAction', { id: arg, from: 'issueReporter' });
+			if (this._issueParentWindow) {
+				this._issueParentWindow.webContents.send('vscode:runAction', { id: arg, from: 'issueReporter' });
+			}
+		});
+
+		ipcMain.on('vscode:openExternal', (_, arg) => {
+			this.windowsService.openExternal(arg);
 		});
 
 		ipcMain.on('vscode:closeIssueReporter', (event: Event) => {
@@ -57,6 +65,15 @@ export class IssueService implements IIssueService {
 			}
 		});
 
+		ipcMain.on('windowsInfoRequest', (event: Event) => {
+			this.launchService.getMainProcessInfo().then(info => {
+				event.sender.send('vscode:windowsInfoResponse', info.windows);
+			});
+		});
+
+	}
+
+	openReporter(data: IssueReporterData): TPromise<void> {
 		this._issueParentWindow = BrowserWindow.getFocusedWindow();
 		const position = this.getWindowPosition(this._issueParentWindow, 700, 800);
 		if (!this._issueWindow) {
@@ -95,12 +112,6 @@ export class IssueService implements IIssueService {
 	}
 
 	openProcessExplorer(data: ProcessExplorerData): TPromise<void> {
-		ipcMain.on('windowsInfoRequest', (event: Event) => {
-			this.launchService.getMainProcessInfo().then(info => {
-				event.sender.send('vscode:windowsInfoResponse', info.windows);
-			});
-		});
-
 		// Create as singleton
 		if (!this._processExplorerWindow) {
 			const parentWindow = BrowserWindow.getFocusedWindow();

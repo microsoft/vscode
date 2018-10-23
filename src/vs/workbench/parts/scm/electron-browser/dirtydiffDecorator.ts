@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import * as nls from 'vs/nls';
 
 import 'vs/css!./media/dirtydiffDecorator';
@@ -277,8 +275,17 @@ class DirtyDiffWidget extends PeekViewWidget {
 	}
 
 	protected _getActionBarOptions(): IActionBarOptions {
+		const actionRunner = new DiffActionRunner();
+
+		// close widget on successful action
+		actionRunner.onDidRun(e => {
+			if (!(e.action instanceof UIEditorAction) && !e.error) {
+				this.dispose();
+			}
+		});
+
 		return {
-			actionRunner: new DiffActionRunner(),
+			actionRunner,
 			actionItemProvider: action => this.getActionItem(action),
 			orientation: ActionsOrientation.HORIZONTAL_REVERSE
 		};
@@ -306,7 +313,8 @@ class DirtyDiffWidget extends PeekViewWidget {
 			fixedOverflowWidgets: true,
 			minimap: { enabled: false },
 			renderSideBySide: false,
-			readOnly: true
+			readOnly: true,
+			ignoreTrimWhitespace: false
 		};
 
 		this.diffEditor = this.instantiationService.createInstance(EmbeddedDiffEditorWidget, container, options, this.editor);
@@ -349,7 +357,7 @@ class DirtyDiffWidget extends PeekViewWidget {
 	}
 
 	private _applyTheme(theme: ITheme) {
-		let borderColor = theme.getColor(peekViewBorder) || Color.transparent;
+		const borderColor = theme.getColor(peekViewBorder) || Color.transparent;
 		this.style({
 			arrowColor: borderColor,
 			frameColor: borderColor,
@@ -469,7 +477,7 @@ export class MoveToPreviousChangeAction extends EditorAction {
 
 		const position = new Position(change.modifiedStartLineNumber, 1);
 		outerEditor.setPosition(position);
-		outerEditor.revealPosition(position);
+		outerEditor.revealPositionInCenter(position);
 	}
 }
 registerEditorAction(MoveToPreviousChangeAction);
@@ -511,7 +519,7 @@ export class MoveToNextChangeAction extends EditorAction {
 
 		const position = new Position(change.modifiedStartLineNumber, 1);
 		outerEditor.setPosition(position);
-		outerEditor.revealPosition(position);
+		outerEditor.revealPositionInCenter(position);
 	}
 }
 registerEditorAction(MoveToNextChangeAction);
@@ -766,6 +774,20 @@ export class DirtyDiffController implements IEditorContribution {
 		}
 	}
 
+	getChanges(): IChange[] {
+		if (!this.modelRegistry) {
+			return [];
+		}
+
+		const model = this.modelRegistry.getModel(this.editor.getModel());
+
+		if (!model) {
+			return [];
+		}
+
+		return model.changes;
+	}
+
 	dispose(): void {
 		this.disposables = dispose(this.disposables);
 	}
@@ -796,9 +818,9 @@ export const overviewRulerDeletedForeground = registerColor('editorOverviewRuler
 
 class DirtyDiffDecorator {
 
-	static createDecoration(className: string, foregroundColor: string, options: { gutter: boolean, overview: boolean }): ModelDecorationOptions {
+	static createDecoration(className: string, foregroundColor: string, options: { gutter: boolean, overview: boolean, isWholeLine: boolean }): ModelDecorationOptions {
 		const decorationOptions: IModelDecorationOptions = {
-			isWholeLine: true,
+			isWholeLine: options.isWholeLine,
 		};
 
 		if (options.gutter) {
@@ -808,7 +830,6 @@ class DirtyDiffDecorator {
 		if (options.overview) {
 			decorationOptions.overviewRuler = {
 				color: themeColorFromId(foregroundColor),
-				darkColor: themeColorFromId(foregroundColor),
 				position: OverviewRulerLane.Left
 			};
 		}
@@ -830,11 +851,11 @@ class DirtyDiffDecorator {
 		const decorations = configurationService.getValue<string>('scm.diffDecorations');
 		const gutter = decorations === 'all' || decorations === 'gutter';
 		const overview = decorations === 'all' || decorations === 'overview';
-		const options = { gutter, overview };
+		const options = { gutter, overview, isWholeLine: true };
 
 		this.modifiedOptions = DirtyDiffDecorator.createDecoration('dirty-diff-modified', overviewRulerModifiedForeground, options);
 		this.addedOptions = DirtyDiffDecorator.createDecoration('dirty-diff-added', overviewRulerAddedForeground, options);
-		this.deletedOptions = DirtyDiffDecorator.createDecoration('dirty-diff-deleted', overviewRulerDeletedForeground, options);
+		this.deletedOptions = DirtyDiffDecorator.createDecoration('dirty-diff-deleted', overviewRulerDeletedForeground, { ...options, isWholeLine: false });
 
 		model.onDidChange(this.onDidChange, this, this.disposables);
 	}
@@ -857,8 +878,8 @@ class DirtyDiffDecorator {
 				case ChangeType.Delete:
 					return {
 						range: {
-							startLineNumber: startLineNumber, startColumn: 1,
-							endLineNumber: startLineNumber, endColumn: 1
+							startLineNumber: startLineNumber, startColumn: Number.MAX_VALUE,
+							endLineNumber: startLineNumber, endColumn: Number.MAX_VALUE
 						},
 						options: this.deletedOptions
 					};
@@ -933,8 +954,7 @@ export class DirtyDiffModel {
 		private _editorModel: ITextModel,
 		@ISCMService private scmService: ISCMService,
 		@IEditorWorkerService private editorWorkerService: IEditorWorkerService,
-		@ITextModelService private textModelResolverService: ITextModelService,
-		@IConfigurationService private configurationService: IConfigurationService
+		@ITextModelService private textModelResolverService: ITextModelService
 	) {
 		this.diffDelayer = new ThrottledDelayer<IChange[]>(200);
 
@@ -995,9 +1015,7 @@ export class DirtyDiffModel {
 				return TPromise.as([]); // Files too large
 			}
 
-			const ignoreTrimWhitespace = this.configurationService.getValue<boolean>('diffEditor.ignoreTrimWhitespace');
-
-			return this.editorWorkerService.computeDirtyDiff(originalURI, this._editorModel.uri, ignoreTrimWhitespace);
+			return this.editorWorkerService.computeDirtyDiff(originalURI, this._editorModel.uri, false);
 		});
 	}
 

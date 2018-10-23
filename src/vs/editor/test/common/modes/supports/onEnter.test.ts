@@ -2,11 +2,10 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
-
 import * as assert from 'assert';
 import { CharacterPair, IndentAction } from 'vs/editor/common/modes/languageConfiguration';
 import { OnEnterSupport } from 'vs/editor/common/modes/supports/onEnter';
+import { javascriptOnEnterRules } from 'vs/editor/test/common/modes/supports/javascriptOnEnterRules';
 
 suite('OnEnter', () => {
 
@@ -49,32 +48,10 @@ suite('OnEnter', () => {
 
 	test('uses regExpRules', () => {
 		let support = new OnEnterSupport({
-			regExpRules: [
-				{
-					beforeText: /^\s*\/\*\*(?!\/)([^\*]|\*(?!\/))*$/,
-					afterText: /^\s*\*\/$/,
-					action: { indentAction: IndentAction.IndentOutdent, appendText: ' * ' }
-				},
-				{
-					beforeText: /^\s*\/\*\*(?!\/)([^\*]|\*(?!\/))*$/,
-					action: { indentAction: IndentAction.None, appendText: ' * ' }
-				},
-				{
-					beforeText: /^(\t|(\ \ ))*\ \*(\ ([^\*]|\*(?!\/))*)?$/,
-					action: { indentAction: IndentAction.None, appendText: '* ' }
-				},
-				{
-					beforeText: /^(\t|(\ \ ))*\ \*\/\s*$/,
-					action: { indentAction: IndentAction.None, removeText: 1 }
-				},
-				{
-					beforeText: /^(\t|(\ \ ))*\ \*[^/]*\*\/\s*$/,
-					action: { indentAction: IndentAction.None, removeText: 1 }
-				}
-			]
+			regExpRules: javascriptOnEnterRules
 		});
-		let testIndentAction = (beforeText: string, afterText: string, expectedIndentAction: IndentAction, expectedAppendText: string, removeText: number = 0) => {
-			let actual = support.onEnter('', beforeText, afterText);
+		let testIndentAction = (oneLineAboveText: string, beforeText: string, afterText: string, expectedIndentAction: IndentAction, expectedAppendText: string, removeText: number = 0) => {
+			let actual = support.onEnter(oneLineAboveText, beforeText, afterText);
 			if (expectedIndentAction === null) {
 				assert.equal(actual, null, 'isNull:' + beforeText);
 			} else {
@@ -89,40 +66,70 @@ suite('OnEnter', () => {
 			}
 		};
 
-		testIndentAction('\t/**', ' */', IndentAction.IndentOutdent, ' * ');
-		testIndentAction('\t/**', '', IndentAction.None, ' * ');
-		testIndentAction('\t/** * / * / * /', '', IndentAction.None, ' * ');
-		testIndentAction('\t/** /*', '', IndentAction.None, ' * ');
-		testIndentAction('/**', '', IndentAction.None, ' * ');
-		testIndentAction('\t/**/', '', null, null);
-		testIndentAction('\t/***/', '', null, null);
-		testIndentAction('\t/*******/', '', null, null);
-		testIndentAction('\t/** * * * * */', '', null, null);
-		testIndentAction('\t/** */', '', null, null);
-		testIndentAction('\t/** asdfg */', '', null, null);
-		testIndentAction('\t/* asdfg */', '', null, null);
-		testIndentAction('\t/* asdfg */', '', null, null);
-		testIndentAction('\t/** asdfg */', '', null, null);
-		testIndentAction('*/', '', null, null);
-		testIndentAction('\t/*', '', null, null);
-		testIndentAction('\t*', '', null, null);
-		testIndentAction('\t *', '', IndentAction.None, '* ');
-		testIndentAction('\t */', '', IndentAction.None, null, 1);
-		testIndentAction('\t * */', '', IndentAction.None, null, 1);
-		testIndentAction('\t * * / * / * / */', '', null, null);
-		testIndentAction('\t * ', '', IndentAction.None, '* ');
-		testIndentAction(' * ', '', IndentAction.None, '* ');
-		testIndentAction(' * asdfsfagadfg', '', IndentAction.None, '* ');
-		testIndentAction(' * asdfsfagadfg * * * ', '', IndentAction.None, '* ');
-		testIndentAction(' * /*', '', IndentAction.None, '* ');
-		testIndentAction(' * asdfsfagadfg * / * / * /', '', IndentAction.None, '* ');
-		testIndentAction(' * asdfsfagadfg * / * / * /*', '', IndentAction.None, '* ');
-		testIndentAction(' */', '', IndentAction.None, null, 1);
-		testIndentAction('\t */', '', IndentAction.None, null, 1);
-		testIndentAction('\t\t */', '', IndentAction.None, null, 1);
-		testIndentAction('   */', '', IndentAction.None, null, 1);
-		testIndentAction('     */', '', IndentAction.None, null, 1);
-		testIndentAction('\t     */', '', IndentAction.None, null, 1);
-		testIndentAction(' *--------------------------------------------------------------------------------------------*/', '', IndentAction.None, null, 1);
+		testIndentAction('', '\t/**', ' */', IndentAction.IndentOutdent, ' * ');
+		testIndentAction('', '\t/**', '', IndentAction.None, ' * ');
+		testIndentAction('', '\t/** * / * / * /', '', IndentAction.None, ' * ');
+		testIndentAction('', '\t/** /*', '', IndentAction.None, ' * ');
+		testIndentAction('', '/**', '', IndentAction.None, ' * ');
+		testIndentAction('', '\t/**/', '', null, null);
+		testIndentAction('', '\t/***/', '', null, null);
+		testIndentAction('', '\t/*******/', '', null, null);
+		testIndentAction('', '\t/** * * * * */', '', null, null);
+		testIndentAction('', '\t/** */', '', null, null);
+		testIndentAction('', '\t/** asdfg */', '', null, null);
+		testIndentAction('', '\t/* asdfg */', '', null, null);
+		testIndentAction('', '\t/* asdfg */', '', null, null);
+		testIndentAction('', '\t/** asdfg */', '', null, null);
+		testIndentAction('', '*/', '', null, null);
+		testIndentAction('', '\t/*', '', null, null);
+		testIndentAction('', '\t*', '', null, null);
+
+		testIndentAction('\t/**', '\t *', '', IndentAction.None, '* ');
+		testIndentAction('\t * something', '\t *', '', IndentAction.None, '* ');
+		testIndentAction('\t *', '\t *', '', IndentAction.None, '* ');
+
+		testIndentAction('', '\t */', '', IndentAction.None, null, 1);
+		testIndentAction('', '\t * */', '', IndentAction.None, null, 1);
+		testIndentAction('', '\t * * / * / * / */', '', null, null);
+
+		testIndentAction('\t/**', '\t * ', '', IndentAction.None, '* ');
+		testIndentAction('\t * something', '\t * ', '', IndentAction.None, '* ');
+		testIndentAction('\t *', '\t * ', '', IndentAction.None, '* ');
+
+		testIndentAction('/**', ' * ', '', IndentAction.None, '* ');
+		testIndentAction(' * something', ' * ', '', IndentAction.None, '* ');
+		testIndentAction(' *', ' * asdfsfagadfg', '', IndentAction.None, '* ');
+
+		testIndentAction('/**', ' * asdfsfagadfg * * * ', '', IndentAction.None, '* ');
+		testIndentAction(' * something', ' * asdfsfagadfg * * * ', '', IndentAction.None, '* ');
+		testIndentAction(' *', ' * asdfsfagadfg * * * ', '', IndentAction.None, '* ');
+
+		testIndentAction('/**', ' * /*', '', IndentAction.None, '* ');
+		testIndentAction(' * something', ' * /*', '', IndentAction.None, '* ');
+		testIndentAction(' *', ' * /*', '', IndentAction.None, '* ');
+
+		testIndentAction('/**', ' * asdfsfagadfg * / * / * /', '', IndentAction.None, '* ');
+		testIndentAction(' * something', ' * asdfsfagadfg * / * / * /', '', IndentAction.None, '* ');
+		testIndentAction(' *', ' * asdfsfagadfg * / * / * /', '', IndentAction.None, '* ');
+
+		testIndentAction('/**', ' * asdfsfagadfg * / * / * /*', '', IndentAction.None, '* ');
+		testIndentAction(' * something', ' * asdfsfagadfg * / * / * /*', '', IndentAction.None, '* ');
+		testIndentAction(' *', ' * asdfsfagadfg * / * / * /*', '', IndentAction.None, '* ');
+
+		testIndentAction('', ' */', '', IndentAction.None, null, 1);
+		testIndentAction('', '\t */', '', IndentAction.None, null, 1);
+		testIndentAction('', '\t\t */', '', IndentAction.None, null, 1);
+		testIndentAction('', '   */', '', IndentAction.None, null, 1);
+		testIndentAction('', '     */', '', IndentAction.None, null, 1);
+		testIndentAction('', '\t     */', '', IndentAction.None, null, 1);
+		testIndentAction('', ' *--------------------------------------------------------------------------------------------*/', '', IndentAction.None, null, 1);
+
+		// issue #43469
+		testIndentAction('class A {', '    * test() {', '', IndentAction.Indent, null, 0);
+		testIndentAction('', '    * test() {', '', IndentAction.Indent, null, 0);
+		testIndentAction('    ', '    * test() {', '', IndentAction.Indent, null, 0);
+		testIndentAction('class A {', '  * test() {', '', IndentAction.Indent, null, 0);
+		testIndentAction('', '  * test() {', '', IndentAction.Indent, null, 0);
+		testIndentAction('  ', '  * test() {', '', IndentAction.Indent, null, 0);
 	});
 });

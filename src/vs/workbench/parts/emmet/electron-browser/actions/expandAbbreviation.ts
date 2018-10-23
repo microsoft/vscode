@@ -2,8 +2,6 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-
-'use strict';
 import * as nls from 'vs/nls';
 import { EmmetEditorAction } from 'vs/workbench/parts/emmet/electron-browser/emmetActions';
 import { registerEditorAction } from 'vs/editor/browser/editorExtensions';

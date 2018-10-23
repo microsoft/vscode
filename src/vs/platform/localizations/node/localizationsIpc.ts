@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IChannel } from 'vs/base/parts/ipc/node/ipc';
 import { Event, buffer } from 'vs/base/common/event';
@@ -14,8 +12,8 @@ export interface ILocalizationsChannel extends IChannel {
 	listen(event: 'onDidLanguagesChange'): Event<void>;
 	listen<T>(event: string, arg?: any): Event<T>;
 
-	call(command: 'getLanguageIds'): TPromise<string[]>;
-	call(command: string, arg?: any): TPromise<any>;
+	call(command: 'getLanguageIds'): Thenable<string[]>;
+	call(command: string, arg?: any): Thenable<any>;
 }
 
 export class LocalizationsChannel implements ILocalizationsChannel {
@@ -34,7 +32,7 @@ export class LocalizationsChannel implements ILocalizationsChannel {
 		throw new Error('No event found');
 	}
 
-	call(command: string, arg?: any): TPromise<any> {
+	call(command: string, arg?: any): Thenable<any> {
 		switch (command) {
 			case 'getLanguageIds': return this.service.getLanguageIds(arg);
 		}
@@ -51,6 +49,6 @@ export class LocalizationsChannelClient implements ILocalizationsService {
 	get onDidLanguagesChange(): Event<void> { return this.channel.listen('onDidLanguagesChange'); }
 
 	getLanguageIds(type?: LanguageType): TPromise<string[]> {
-		return this.channel.call('getLanguageIds', type);
+		return TPromise.wrap(this.channel.call('getLanguageIds', type));
 	}
 }

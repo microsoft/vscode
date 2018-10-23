@@ -5,7 +5,6 @@
 
 import * as nls from 'vs/nls';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
-import { TPromise } from 'vs/base/common/winjs.base';
 import { List } from 'vs/base/browser/ui/list/listWidget';
 import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { IListService } from 'vs/platform/list/browser/listService';
@@ -181,7 +180,7 @@ export function registerCommands(): void {
 			const manager = accessor.get(IDebugService).getConfigurationManager();
 			if (accessor.get(IWorkspaceContextService).getWorkbenchState() === WorkbenchState.EMPTY) {
 				accessor.get(INotificationService).info(nls.localize('noFolderDebugConfig', "Please first open a folder in order to do advanced debug configuration."));
-				return TPromise.as(null);
+				return Promise.resolve(null);
 			}
 			const launch = manager.getLaunches().filter(l => l.uri.toString() === launchUri).pop() || manager.selectedConfiguration.launch;
 
@@ -209,14 +208,14 @@ export function registerCommands(): void {
 				.filter(bp => (bp.column === position.column || !bp.column && position.column <= 1)).pop();
 
 			if (bp) {
-				return TPromise.as(null);
+				return Promise.resolve(null);
 			}
 			if (debugService.getConfigurationManager().canSetBreakpointsIn(widget.getModel())) {
 				return debugService.addBreakpoints(modelUri, [{ lineNumber: position.lineNumber, column: position.column > 1 ? position.column : undefined }]);
 			}
 		}
 
-		return TPromise.as(null);
+		return Promise.resolve(null);
 	};
 	KeybindingsRegistry.registerCommandAndKeybindingRule({
 		weight: KeybindingWeight.WorkbenchContrib,
@@ -229,7 +228,7 @@ export function registerCommands(): void {
 	MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
 		command: {
 			id: TOGGLE_INLINE_BREAKPOINT_ID,
-			title: nls.localize('inlineBreakpoint', "Inline Breakpoint"),
+			title: { value: nls.localize('inlineBreakpoint', "Inline Breakpoint"), original: 'Debug: Inline Breakpoint' },
 			category: nls.localize('debug', "Debug")
 		}
 	});
@@ -259,7 +258,7 @@ export function registerCommands(): void {
 				}
 			}
 
-			return TPromise.as(undefined);
+			return Promise.resolve(undefined);
 		}
 	});
 }

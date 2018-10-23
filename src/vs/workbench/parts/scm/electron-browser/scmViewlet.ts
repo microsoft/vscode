@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import 'vs/css!./media/scmViewlet';
 import { localize } from 'vs/nls';
 import { TPromise } from 'vs/base/common/winjs.base';
@@ -16,7 +14,7 @@ import { PanelViewlet, ViewletPanel, IViewletPanelOptions } from 'vs/workbench/b
 import { append, $, addClass, toggleClass, trackFocus, Dimension, addDisposableListener } from 'vs/base/browser/dom';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { List } from 'vs/base/browser/ui/list/listWidget';
-import { IVirtualDelegate, IRenderer, IListContextMenuEvent, IListEvent } from 'vs/base/browser/ui/list/list';
+import { IListVirtualDelegate, IListRenderer, IListContextMenuEvent, IListEvent } from 'vs/base/browser/ui/list/list';
 import { VIEWLET_ID, VIEW_CONTAINER } from 'vs/workbench/parts/scm/common/scm';
 import { FileLabel } from 'vs/workbench/browser/labels';
 import { CountBadge } from 'vs/base/browser/ui/countBadge/countBadge';
@@ -35,16 +33,11 @@ import { ActionBar, IActionItemProvider, Separator, ActionItem } from 'vs/base/b
 import { IThemeService, LIGHT } from 'vs/platform/theme/common/themeService';
 import { isSCMResource, getSCMResourceContextKey } from './scmUtil';
 import { attachBadgeStyler, attachInputBoxStyler } from 'vs/platform/theme/common/styler';
-import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
-import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { InputBox, MessageType } from 'vs/base/browser/ui/inputbox/inputBox';
-import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
-import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
 import { Command } from 'vs/editor/common/modes';
 import { renderOcticons } from 'vs/base/browser/ui/octiconLabel/octiconLabel';
 import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
-import * as platform from 'vs/base/common/platform';
 import { format } from 'vs/base/common/strings';
 import { ISpliceable, ISequence, ISplice } from 'vs/base/common/sequence';
 import { firstIndex } from 'vs/base/common/arrays';
@@ -56,6 +49,7 @@ import { IPartService } from 'vs/workbench/services/part/common/partService';
 import { IViewDescriptorRef, PersistentContributableViewsModel, IAddedViewDescriptorRef } from 'vs/workbench/browser/parts/views/views';
 import { IViewDescriptor, IViewsViewlet, IView } from 'vs/workbench/common/views';
 import { IPanelDndController, Panel } from 'vs/base/browser/ui/splitview/panelview';
+import * as platform from 'vs/base/common/platform';
 
 export interface ISpliceEvent<T> {
 	index: number;
@@ -74,7 +68,7 @@ export interface IViewModel {
 	hide(repository: ISCMRepository): void;
 }
 
-class ProvidersListDelegate implements IVirtualDelegate<ISCMRepository> {
+class ProvidersListDelegate implements IListVirtualDelegate<ISCMRepository> {
 
 	getHeight(element: ISCMRepository): number {
 		return 22;
@@ -123,7 +117,7 @@ interface RepositoryTemplateData {
 	templateDisposable: IDisposable;
 }
 
-class ProviderRenderer implements IRenderer<ISCMRepository, RepositoryTemplateData> {
+class ProviderRenderer implements IListRenderer<ISCMRepository, RepositoryTemplateData> {
 
 	readonly templateId = 'provider';
 
@@ -372,7 +366,7 @@ interface ResourceGroupTemplate {
 	dispose: () => void;
 }
 
-class ResourceGroupRenderer implements IRenderer<ISCMResourceGroup, ResourceGroupTemplate> {
+class ResourceGroupRenderer implements IListRenderer<ISCMResourceGroup, ResourceGroupTemplate> {
 
 	static TEMPLATE_ID = 'resource group';
 	get templateId(): string { return ResourceGroupRenderer.TEMPLATE_ID; }
@@ -481,7 +475,7 @@ class MultipleSelectionActionRunner extends ActionRunner {
 	}
 }
 
-class ResourceRenderer implements IRenderer<ISCMResource, ResourceTemplate> {
+class ResourceRenderer implements IListRenderer<ISCMResource, ResourceTemplate> {
 
 	static TEMPLATE_ID = 'resource';
 	get templateId(): string { return ResourceRenderer.TEMPLATE_ID; }
@@ -574,7 +568,7 @@ class ResourceRenderer implements IRenderer<ISCMResource, ResourceTemplate> {
 	}
 }
 
-class ProviderListDelegate implements IVirtualDelegate<ISCMResourceGroup | ISCMResource> {
+class ProviderListDelegate implements IListVirtualDelegate<ISCMResourceGroup | ISCMResource> {
 
 	getHeight() { return 22; }
 
@@ -748,6 +742,7 @@ export class RepositoryPanel extends ViewletPanel {
 	private list: List<ISCMResourceGroup | ISCMResource>;
 	private menus: SCMMenus;
 	private visibilityDisposables: IDisposable[] = [];
+	protected contextKeyService: IContextKeyService;
 
 	constructor(
 		id: string,
@@ -762,12 +757,15 @@ export class RepositoryPanel extends ViewletPanel {
 		@IEditorService protected editorService: IEditorService,
 		@IInstantiationService protected instantiationService: IInstantiationService,
 		@IConfigurationService protected configurationService: IConfigurationService,
-		@IContextKeyService protected contextKeyService: IContextKeyService,
+		@IContextKeyService contextKeyService: IContextKeyService,
 		@IMenuService protected menuService: IMenuService
 	) {
 		super({ id, title: repository.provider.label }, keybindingService, contextMenuService, configurationService);
 		this.menus = instantiationService.createInstance(SCMMenus, repository.provider);
 		this.menus.onDidChangeTitle(this._onDidChangeTitleArea.fire, this._onDidChangeTitleArea, this.disposables);
+
+		this.contextKeyService = contextKeyService.createScoped(this.element);
+		this.contextKeyService.createKey('scmRepository', repository);
 	}
 
 	render(): void {
@@ -819,7 +817,10 @@ export class RepositoryPanel extends ViewletPanel {
 		this.inputBoxContainer = append(container, $('.scm-editor'));
 
 		const updatePlaceholder = () => {
-			const placeholder = format(this.repository.input.placeholder, platform.isMacintosh ? 'Cmd+Enter' : 'Ctrl+Enter');
+			const binding = this.keybindingService.lookupKeybinding('scm.acceptInput');
+			const label = binding ? binding.getLabel() : (platform.isMacintosh ? 'Cmd+Enter' : 'Ctrl+Enter');
+			const placeholder = format(this.repository.input.placeholder, label);
+
 			this.inputBox.setPlaceHolder(placeholder);
 		};
 
@@ -854,13 +855,9 @@ export class RepositoryPanel extends ViewletPanel {
 
 		updatePlaceholder();
 		this.repository.input.onDidChangePlaceholder(updatePlaceholder, null, this.disposables);
+		this.keybindingService.onDidUpdateKeybindings(updatePlaceholder, null, this.disposables);
 
 		this.disposables.push(this.inputBox.onDidHeightChange(() => this.layoutBody()));
-
-		chain(domEvent(this.inputBox.inputElement, 'keydown'))
-			.map(e => new StandardKeyboardEvent(e))
-			.filter(e => e.equals(KeyMod.CtrlCmd | KeyCode.Enter) || e.equals(KeyMod.CtrlCmd | KeyCode.KEY_S))
-			.on(this.onDidAcceptInput, this, this.disposables);
 
 		if (this.repository.provider.onDidChangeCommitTemplate) {
 			this.repository.provider.onDidChangeCommitTemplate(this.updateInputBox, this, this.disposables);
@@ -871,6 +868,11 @@ export class RepositoryPanel extends ViewletPanel {
 		// List
 
 		this.listContainer = append(container, $('.scm-status.show-file-icons'));
+
+		const updateActionsVisibility = () => toggleClass(this.listContainer, 'show-actions', this.configurationService.getValue<boolean>('scm.alwaysShowActions'));
+		filterEvent(this.configurationService.onDidChangeConfiguration, e => e.affectsConfiguration('scm.alwaysShowActions'))(updateActionsVisibility);
+		updateActionsVisibility();
+
 		const delegate = new ProviderListDelegate();
 
 		const actionItemProvider = (action: IAction) => this.getActionItem(action);
@@ -996,17 +998,6 @@ export class RepositoryPanel extends ViewletPanel {
 		this.inputBox.value = this.repository.provider.commitTemplate;
 	}
 
-	private onDidAcceptInput(): void {
-		if (!this.repository.provider.acceptInputCommand) {
-			return;
-		}
-
-		const id = this.repository.provider.acceptInputCommand.id;
-		const args = this.repository.provider.acceptInputCommand.arguments;
-
-		this.commandService.executeCommand(id, ...args);
-	}
-
 	dispose(): void {
 		this.visibilityDisposables = dispose(this.visibilityDisposables);
 		super.dispose();
@@ -1064,51 +1055,48 @@ export class SCMViewlet extends PanelViewlet implements IViewModel, IViewsViewle
 		@IContextMenuService protected contextMenuService: IContextMenuService,
 		@IThemeService protected themeService: IThemeService,
 		@ICommandService protected commandService: ICommandService,
-		@IWorkspaceContextService contextService: IWorkspaceContextService,
 		@IStorageService storageService: IStorageService,
-		@IExtensionService extensionService: IExtensionService,
-		@IConfigurationService private configurationService: IConfigurationService,
+		@IConfigurationService configurationService: IConfigurationService
 	) {
-		super(VIEWLET_ID, { showHeaderInTitleWhenSingleView: true, dnd: new SCMPanelDndController() }, partService, contextMenuService, telemetryService, themeService);
+		super(VIEWLET_ID, { showHeaderInTitleWhenSingleView: true, dnd: new SCMPanelDndController() }, configurationService, partService, contextMenuService, telemetryService, themeService, storageService);
 
 		this.menus = instantiationService.createInstance(SCMMenus, undefined);
 		this.menus.onDidChangeTitle(this.updateTitleArea, this, this.disposables);
 
-		this.contributedViews = new PersistentContributableViewsModel(VIEW_CONTAINER, 'scm.views', contextKeyService, storageService, contextService);
+		this.contributedViews = instantiationService.createInstance(PersistentContributableViewsModel, VIEW_CONTAINER, 'scm.views');
 		this.disposables.push(this.contributedViews);
 	}
 
-	create(parent: HTMLElement): TPromise<void> {
-		return super.create(parent).then(() => {
-			this.el = parent;
-			addClass(this.el, 'scm-viewlet');
-			addClass(this.el, 'empty');
-			append(parent, $('div.empty-message', null, localize('no open repo', "There are no active source control providers.")));
+	create(parent: HTMLElement): void {
+		super.create(parent);
+		this.el = parent;
+		addClass(this.el, 'scm-viewlet');
+		addClass(this.el, 'empty');
+		append(parent, $('div.empty-message', null, localize('no open repo', "No source control providers registered.")));
 
-			this.scmService.onDidAddRepository(this.onDidAddRepository, this, this.disposables);
-			this.scmService.onDidRemoveRepository(this.onDidRemoveRepository, this, this.disposables);
-			this.scmService.repositories.forEach(r => this.onDidAddRepository(r));
+		this.scmService.onDidAddRepository(this.onDidAddRepository, this, this.disposables);
+		this.scmService.onDidRemoveRepository(this.onDidRemoveRepository, this, this.disposables);
+		this.scmService.repositories.forEach(r => this.onDidAddRepository(r));
 
-			const onDidUpdateConfiguration = filterEvent(this.configurationService.onDidChangeConfiguration, e => e.affectsConfiguration('scm.alwaysShowProviders'));
-			onDidUpdateConfiguration(this.onDidChangeRepositories, this, this.disposables);
+		const onDidUpdateConfiguration = filterEvent(this.configurationService.onDidChangeConfiguration, e => e.affectsConfiguration('scm.alwaysShowProviders'));
+		onDidUpdateConfiguration(this.onDidChangeRepositories, this, this.disposables);
 
-			this.onDidChangeRepositories();
+		this.onDidChangeRepositories();
 
-			this.contributedViews.onDidAdd(this.onDidAddContributedViews, this, this.disposables);
-			this.contributedViews.onDidRemove(this.onDidRemoveContributedViews, this, this.disposables);
+		this.contributedViews.onDidAdd(this.onDidAddContributedViews, this, this.disposables);
+		this.contributedViews.onDidRemove(this.onDidRemoveContributedViews, this, this.disposables);
 
-			let index = this.getContributedViewsStartIndex();
-			const contributedViews: IAddedViewDescriptorRef[] = this.contributedViews.visibleViewDescriptors.map(viewDescriptor => {
-				const size = this.contributedViews.getSize(viewDescriptor.id);
-				const collapsed = this.contributedViews.isCollapsed(viewDescriptor.id);
-				return { viewDescriptor, index: index++, size, collapsed };
-			});
-			if (contributedViews.length) {
-				this.onDidAddContributedViews(contributedViews);
-			}
-
-			this.onDidSashChange(this.saveContributedViewSizes, this, this.disposables);
+		let index = this.getContributedViewsStartIndex();
+		const contributedViews: IAddedViewDescriptorRef[] = this.contributedViews.visibleViewDescriptors.map(viewDescriptor => {
+			const size = this.contributedViews.getSize(viewDescriptor.id);
+			const collapsed = this.contributedViews.isCollapsed(viewDescriptor.id);
+			return { viewDescriptor, index: index++, size, collapsed };
 		});
+		if (contributedViews.length) {
+			this.onDidAddContributedViews(contributedViews);
+		}
+
+		this.onDidSashChange(this.saveContributedViewSizes, this, this.disposables);
 	}
 
 	private onDidAddRepository(repository: ISCMRepository): void {
@@ -1172,7 +1160,7 @@ export class SCMViewlet extends PanelViewlet implements IViewModel, IViewsViewle
 		return (this.mainPanel ? 1 : 0) + this.repositoryPanels.length;
 	}
 
-	setVisible(visible: boolean): TPromise<void> {
+	setVisible(visible: boolean): Promise<void> {
 		const promises: TPromise<any>[] = [];
 		promises.push(super.setVisible(visible));
 
@@ -1189,7 +1177,7 @@ export class SCMViewlet extends PanelViewlet implements IViewModel, IViewsViewle
 			promises.push(panel.setVisible(visible));
 		}
 
-		return TPromise.join(promises) as TPromise<any>;
+		return Promise.all(promises).then(() => null);
 	}
 
 	getOptimalWidth(): number {
@@ -1474,11 +1462,6 @@ export class SCMViewlet extends PanelViewlet implements IViewModel, IViewsViewle
 		}
 
 		this.mainPanel.hide(repository);
-	}
-
-	shutdown(): void {
-		this.contributedViews.saveViewsStates();
-		super.shutdown();
 	}
 
 	dispose(): void {

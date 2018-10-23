@@ -3,13 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import 'vs/css!./actionbar';
 import * as platform from 'vs/base/common/platform';
 import * as nls from 'vs/nls';
 import { Disposable, dispose } from 'vs/base/common/lifecycle';
-import { TPromise } from 'vs/base/common/winjs.base';
 import { SelectBox, ISelectBoxOptions } from 'vs/base/browser/ui/selectBox/selectBox';
 import { IAction, IActionRunner, Action, IActionChangeEvent, ActionRunner, IRunEvent } from 'vs/base/common/actions';
 import * as DOM from 'vs/base/browser/dom';
@@ -289,7 +286,7 @@ export class ActionItem extends BaseActionItem {
 	}
 
 	updateTooltip(): void {
-		let title: string = null;
+		let title: string | null = null;
 
 		if (this.getAction().tooltip) {
 			title = this.getAction().tooltip;
@@ -355,6 +352,11 @@ export const enum ActionsOrientation {
 	VERTICAL_REVERSE,
 }
 
+export interface ActionTrigger {
+	keys: KeyCode[];
+	keyDown: boolean;
+}
+
 export interface IActionItemProvider {
 	(action: IAction): IActionItem;
 }
@@ -366,11 +368,16 @@ export interface IActionBarOptions {
 	actionRunner?: IActionRunner;
 	ariaLabel?: string;
 	animated?: boolean;
+	triggerKeys?: ActionTrigger;
 }
 
 let defaultOptions: IActionBarOptions = {
 	orientation: ActionsOrientation.HORIZONTAL,
-	context: null
+	context: null,
+	triggerKeys: {
+		keys: [KeyCode.Enter, KeyCode.Space],
+		keyDown: false
+	}
 };
 
 export interface IActionOptions extends IActionItemOptions {
@@ -411,6 +418,10 @@ export class ActionBar extends Disposable implements IActionRunner {
 		this.options = options;
 		this._context = options.context;
 		this._actionRunner = this.options.actionRunner;
+
+		if (!this.options.triggerKeys) {
+			this.options.triggerKeys = defaultOptions.triggerKeys;
+		}
 
 		if (!this._actionRunner) {
 			this._actionRunner = new ActionRunner();
@@ -465,8 +476,11 @@ export class ActionBar extends Disposable implements IActionRunner {
 				this.focusNext();
 			} else if (event.equals(KeyCode.Escape)) {
 				this.cancel();
-			} else if (event.equals(KeyCode.Enter) || event.equals(KeyCode.Space)) {
-				// Nothing, just staying out of the else branch
+			} else if (this.isTriggerKeyEvent(event)) {
+				// Staying out of the else branch even if not triggered
+				if (this.options.triggerKeys && this.options.triggerKeys.keyDown) {
+					this.doTrigger(event);
+				}
 			} else {
 				eventHandled = false;
 			}
@@ -481,8 +495,11 @@ export class ActionBar extends Disposable implements IActionRunner {
 			let event = new StandardKeyboardEvent(e as KeyboardEvent);
 
 			// Run action on Enter/Space
-			if (event.equals(KeyCode.Enter) || event.equals(KeyCode.Space)) {
-				this.doTrigger(event);
+			if (this.isTriggerKeyEvent(event)) {
+				if (!this.options.triggerKeys.keyDown) {
+					this.doTrigger(event);
+				}
+
 				event.preventDefault();
 				event.stopPropagation();
 			}
@@ -522,6 +539,17 @@ export class ActionBar extends Disposable implements IActionRunner {
 		} else {
 			this.actionsList.removeAttribute('aria-label');
 		}
+	}
+
+	private isTriggerKeyEvent(event: StandardKeyboardEvent): boolean {
+		let ret = false;
+		if (this.options.triggerKeys) {
+			this.options.triggerKeys.keys.forEach(keyCode => {
+				ret = ret || event.equals(keyCode);
+			});
+		}
+
+		return ret;
 	}
 
 	private updateFocusedItem(): void {
@@ -574,7 +602,7 @@ export class ActionBar extends Disposable implements IActionRunner {
 				e.stopPropagation();
 			}));
 
-			let item: IActionItem = null;
+			let item: IActionItem | null = null;
 
 			if (this.options.actionItemProvider) {
 				item = this.options.actionItemProvider(action);
@@ -737,7 +765,7 @@ export class ActionBar extends Disposable implements IActionRunner {
 		this._onDidCancel.fire();
 	}
 
-	run(action: IAction, context?: any): TPromise<void> {
+	run(action: IAction, context?: any): Thenable<void> {
 		return this._actionRunner.run(action, context);
 	}
 

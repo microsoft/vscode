@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import product from 'vs/platform/node/product';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ILifecycleService } from 'vs/platform/lifecycle/electron-main/lifecycleMain';
@@ -70,7 +68,7 @@ export class LinuxUpdateService extends AbstractUpdateService {
 					}
 					*/
 				this.telemetryService.publicLog('update:notAvailable', { explicit: !!context });
-				this.setState(State.Idle(UpdateType.Archive));
+				this.setState(State.Idle(UpdateType.Archive, err.message || err));
 			});
 	}
 

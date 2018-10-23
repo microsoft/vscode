@@ -2,11 +2,10 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
 import * as assert from 'assert';
-import { BracketsUtils } from 'vs/editor/common/modes/supports/richEditBrackets';
 import { Range } from 'vs/editor/common/core/range';
+import { BracketsUtils } from 'vs/editor/common/modes/supports/richEditBrackets';
 
 suite('richEditBrackets', () => {
 

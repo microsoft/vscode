@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import * as dom from 'vs/base/browser/dom';
 import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
 import { BreadcrumbsItem, BreadcrumbsWidget, IBreadcrumbsItemEvent } from 'vs/base/browser/ui/breadcrumbs/breadcrumbsWidget';
@@ -45,6 +43,8 @@ import { EditorGroupView } from 'vs/workbench/browser/parts/editor/editorGroupVi
 import { SideBySideEditorInput } from 'vs/workbench/common/editor';
 import { ACTIVE_GROUP, ACTIVE_GROUP_TYPE, IEditorService, SIDE_GROUP, SIDE_GROUP_TYPE } from 'vs/workbench/services/editor/common/editorService';
 import { IEditorGroupsService } from 'vs/workbench/services/group/common/editorGroupsService';
+import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 
 class Item extends BreadcrumbsItem {
 
@@ -156,12 +156,14 @@ export class BreadcrumbsControl {
 		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
 		@IContextViewService private readonly _contextViewService: IContextViewService,
 		@IEditorService private readonly _editorService: IEditorService,
+		@ICodeEditorService private readonly _codeEditorService: ICodeEditorService,
 		@IWorkspaceContextService private readonly _workspaceService: IWorkspaceContextService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IThemeService private readonly _themeService: IThemeService,
 		@IQuickOpenService private readonly _quickOpenService: IQuickOpenService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IFileService private readonly _fileService: IFileService,
+		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 		@IBreadcrumbsService breadcrumbsService: IBreadcrumbsService,
 	) {
 		this.domNode = document.createElement('div');
@@ -280,8 +282,15 @@ export class BreadcrumbsControl {
 			return;
 		}
 
-		this._editorGroup.focus();
 		const { element } = event.item as Item;
+		this._editorGroup.focus();
+
+		/* __GDPR__
+			"breadcrumbs/select" : {
+				"type": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+			}
+		*/
+		this._telemetryService.publicLog('breadcrumbs/select', { type: element instanceof TreeElement ? 'symbol' : 'file' });
 
 		const group = this._getEditorGroup(event.payload);
 		if (group !== undefined) {
@@ -314,7 +323,13 @@ export class BreadcrumbsControl {
 						editorViewState = undefined;
 					}
 					this._contextViewService.hideContextView(this);
-					this._revealInEditor(event, data.target, this._getEditorGroup(data.payload && data.payload.originalEvent));
+					this._revealInEditor(event, data.target, this._getEditorGroup(data.payload && data.payload.originalEvent), (data.payload && data.payload.originalEvent && data.payload.originalEvent.middleButton));
+					/* __GDPR__
+						"breadcrumbs/open" : {
+							"type": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+						}
+					*/
+					this._telemetryService.publicLog('breadcrumbs/open', { type: !data ? 'nothing' : data.target instanceof TreeElement ? 'symbol' : 'file' });
 				});
 				let focusListener = picker.onDidFocusElement(data => {
 					if (!editor || !(data.target instanceof OutlineElement)) {
@@ -340,14 +355,18 @@ export class BreadcrumbsControl {
 				return combinedDisposable([selectListener, focusListener, picker]);
 			},
 			getAnchor: () => {
-				let maxInnerWidth = window.innerWidth - 8 /*a little less the the full widget*/;
-				let pickerHeight = Math.min(330, window.innerHeight * 0.4);
+				let maxInnerWidth = window.innerWidth - 8 /*a little less the full widget*/;
+				let maxHeight = Math.min(window.innerHeight * .7, 300);
+
 				let pickerWidth = Math.min(maxInnerWidth, Math.max(240, maxInnerWidth / 4.17));
 				let pickerArrowSize = 8;
 				let pickerArrowOffset: number;
 
 				let data = dom.getDomNodePagePosition(event.node.firstChild as HTMLElement);
-				let y = data.top + data.height - pickerArrowSize;
+				let y = data.top + data.height + pickerArrowSize;
+				if (y + maxHeight >= window.innerHeight) {
+					maxHeight = window.innerHeight - y - 30 /* room for shadow and status bar*/;
+				}
 				let x = data.left;
 				if (x + pickerWidth >= maxInnerWidth) {
 					x = maxInnerWidth - pickerWidth;
@@ -362,7 +381,7 @@ export class BreadcrumbsControl {
 				} else {
 					pickerArrowOffset = (data.left + (data.width * .3)) - x;
 				}
-				picker.setInput(element, pickerHeight, pickerWidth, pickerArrowSize, Math.max(0, pickerArrowOffset));
+				picker.setInput(element, maxHeight, pickerWidth, pickerArrowSize, Math.max(0, pickerArrowOffset));
 				return { x, y };
 			},
 			onHide: (data) => {
@@ -387,11 +406,11 @@ export class BreadcrumbsControl {
 		this._ckBreadcrumbsActive.set(value);
 	}
 
-	private _revealInEditor(event: IBreadcrumbsItemEvent, element: any, group: SIDE_GROUP_TYPE | ACTIVE_GROUP_TYPE): void {
+	private _revealInEditor(event: IBreadcrumbsItemEvent, element: any, group: SIDE_GROUP_TYPE | ACTIVE_GROUP_TYPE, pinned: boolean = false): void {
 		if (element instanceof FileElement) {
 			if (element.kind === FileKind.FILE) {
-				// open file in editor
-				this._editorService.openEditor({ resource: element.uri }, group);
+				// open file in any editor
+				this._editorService.openEditor({ resource: element.uri, options: { pinned: pinned } }, group);
 			} else {
 				// show next picker
 				let items = this._widget.getItems();
@@ -401,15 +420,15 @@ export class BreadcrumbsControl {
 			}
 
 		} else if (element instanceof OutlineElement) {
-			// open symbol in editor
+			// open symbol in code editor
 			let model = OutlineModel.get(element);
-			this._editorService.openEditor({
+			this._codeEditorService.openCodeEditor({
 				resource: model.textModel.uri,
 				options: {
 					selection: Range.collapseToStart(element.symbol.selectionRange),
 					revealInCenterIfOutsideViewport: true
 				}
-			}, group);
+			}, this._getActiveCodeEditor(), group === SIDE_GROUP);
 		}
 	}
 
@@ -430,7 +449,7 @@ export class BreadcrumbsControl {
 MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
 	command: {
 		id: 'breadcrumbs.toggle',
-		title: localize('cmd.toggle', "Toggle Breadcrumbs"),
+		title: { value: localize('cmd.toggle', "Toggle Breadcrumbs"), original: 'Toggle Breadcrumbs' },
 		category: localize('cmd.category', "View")
 	}
 });
@@ -439,7 +458,8 @@ MenuRegistry.appendMenuItem(MenuId.MenubarViewMenu, {
 	order: 99,
 	command: {
 		id: 'breadcrumbs.toggle',
-		title: localize('cmd.toggle', "Toggle Breadcrumbs")
+		title: localize('miToggleBreadcrumbs', "Toggle &&Breadcrumbs"),
+		toggled: ContextKeyExpr.equals('config.breadcrumbs.enabled', true)
 	}
 });
 CommandsRegistry.registerCommand('breadcrumbs.toggle', accessor => {
@@ -465,7 +485,7 @@ function focusAndSelectHandler(accessor: ServicesAccessor, select: boolean): voi
 MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
 	command: {
 		id: 'breadcrumbs.focusAndSelect',
-		title: localize('cmd.focus', "Focus Breadcrumbs"),
+		title: { value: localize('cmd.focus', "Focus Breadcrumbs"), original: 'Focus Breadcrumbs' },
 		precondition: BreadcrumbsControl.CK_BreadcrumbsVisible
 	}
 });

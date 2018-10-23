@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import { WORKSPACE_EXTENSION, IWorkspacesService } from 'vs/platform/workspaces/common/workspaces';
 import { extname, basename, normalize } from 'vs/base/common/paths';
 import { IFileService } from 'vs/platform/files/common/files';
@@ -12,7 +10,6 @@ import { IWindowsService, IWindowService } from 'vs/platform/windows/common/wind
 import { URI } from 'vs/base/common/uri';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { IBackupFileService } from 'vs/workbench/services/backup/common/backup';
-import { TPromise } from 'vs/base/common/winjs.base';
 import { Schemas } from 'vs/base/common/network';
 import { IUntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
 import { DefaultEndOfLine } from 'vs/editor/common/model';
@@ -209,12 +206,12 @@ export class ResourcesDropHandler {
 		});
 	}
 
-	private doHandleDrop(untitledOrFileResources: (IDraggedResource | IDraggedEditor)[]): TPromise<boolean> {
+	private doHandleDrop(untitledOrFileResources: (IDraggedResource | IDraggedEditor)[]): Thenable<boolean> {
 
 		// Check for dirty editors being dropped
 		const resourcesWithBackups: IDraggedEditor[] = untitledOrFileResources.filter(resource => !resource.isExternal && !!(resource as IDraggedEditor).backupResource);
 		if (resourcesWithBackups.length > 0) {
-			return TPromise.join(resourcesWithBackups.map(resourceWithBackup => this.handleDirtyEditorDrop(resourceWithBackup))).then(() => false);
+			return Promise.all(resourcesWithBackups.map(resourceWithBackup => this.handleDirtyEditorDrop(resourceWithBackup))).then(() => false);
 		}
 
 		// Check for workspace file being dropped if we are allowed to do so
@@ -225,10 +222,10 @@ export class ResourcesDropHandler {
 			}
 		}
 
-		return TPromise.as(false);
+		return Promise.resolve(false);
 	}
 
-	private handleDirtyEditorDrop(droppedDirtyEditor: IDraggedEditor): TPromise<boolean> {
+	private handleDirtyEditorDrop(droppedDirtyEditor: IDraggedEditor): Thenable<boolean> {
 
 		// Untitled: always ensure that we open a new untitled for each file we drop
 		if (droppedDirtyEditor.resource.scheme === Schemas.untitled) {
@@ -237,7 +234,7 @@ export class ResourcesDropHandler {
 
 		// Return early if the resource is already dirty in target or opened already
 		if (this.textFileService.isDirty(droppedDirtyEditor.resource) || this.editorService.isOpen({ resource: droppedDirtyEditor.resource })) {
-			return TPromise.as(false);
+			return Promise.resolve(false);
 		}
 
 		// Resolve the contents of the dropped dirty resource from source
@@ -257,13 +254,13 @@ export class ResourcesDropHandler {
 		return DefaultEndOfLine.LF;
 	}
 
-	private handleWorkspaceFileDrop(fileOnDiskResources: URI[]): TPromise<boolean> {
+	private handleWorkspaceFileDrop(fileOnDiskResources: URI[]): Thenable<boolean> {
 		const workspaceResources: { workspaces: URI[], folders: URI[] } = {
 			workspaces: [],
 			folders: []
 		};
 
-		return TPromise.join(fileOnDiskResources.map(fileOnDiskResource => {
+		return Promise.all(fileOnDiskResources.map(fileOnDiskResource => {
 
 			// Check for Workspace
 			if (extname(fileOnDiskResource.fsPath) === `.${WORKSPACE_EXTENSION}`) {
@@ -289,11 +286,11 @@ export class ResourcesDropHandler {
 			// Pass focus to window
 			this.windowService.focusWindow();
 
-			let workspacesToOpen: TPromise<URI[]>;
+			let workspacesToOpen: Thenable<URI[]>;
 
 			// Open in separate windows if we drop workspaces or just one folder
 			if (workspaces.length > 0 || folders.length === 1) {
-				workspacesToOpen = TPromise.as([...workspaces, ...folders].map(resources => resources));
+				workspacesToOpen = Promise.resolve([...workspaces, ...folders].map(resources => resources));
 			}
 
 			// Multiple folders: Create new workspace with folders and open

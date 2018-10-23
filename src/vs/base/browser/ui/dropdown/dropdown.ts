@@ -3,10 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import 'vs/css!./dropdown';
-import { TPromise } from 'vs/base/common/winjs.base';
 import { Gesture, EventType as GestureEventType } from 'vs/base/browser/touch';
 import { ActionRunner, IAction, IActionRunner } from 'vs/base/common/actions';
 import { BaseActionItem, IActionItemProvider } from 'vs/base/browser/ui/actionbar/actionbar';
@@ -71,6 +68,8 @@ export class BaseDropdown extends ActionRunner {
 		this._register(addDisposableListener(this._label, EventType.KEY_UP, e => {
 			const event = new StandardKeyboardEvent(e as KeyboardEvent);
 			if (event.equals(KeyCode.Enter) || event.equals(KeyCode.Space)) {
+				EventHelper.stop(e, true); // https://github.com/Microsoft/vscode/issues/57997
+
 				if (this.visible) {
 					this.hide();
 				} else {
@@ -244,10 +243,10 @@ export class DropdownMenu extends BaseDropdown {
 
 		this._contextMenuProvider.showContextMenu({
 			getAnchor: () => this.element,
-			getActions: () => TPromise.as(this.actions),
+			getActions: () => Promise.resolve(this.actions),
 			getActionsContext: () => this.menuOptions ? this.menuOptions.context : null,
-			getActionItem: (action) => this.menuOptions && this.menuOptions.actionItemProvider ? this.menuOptions.actionItemProvider(action) : null,
-			getKeyBinding: (action: IAction) => this.menuOptions && this.menuOptions.getKeyBinding ? this.menuOptions.getKeyBinding(action) : null,
+			getActionItem: action => this.menuOptions && this.menuOptions.actionItemProvider ? this.menuOptions.actionItemProvider(action) : null,
+			getKeyBinding: action => this.menuOptions && this.menuOptions.getKeyBinding ? this.menuOptions.getKeyBinding(action) : null,
 			getMenuClassName: () => this.menuClassName,
 			onHide: () => this.onHide(),
 			actionRunner: this.menuOptions ? this.menuOptions.actionRunner : null
@@ -287,7 +286,7 @@ export class DropdownMenuActionItem extends BaseActionItem {
 
 	render(container: HTMLElement): void {
 		const labelRenderer: ILabelRenderer = (el: HTMLElement): IDisposable => {
-			this.element = append(el, $('a.action-label'));
+			this.element = append(el, $('a.action-label.icon'));
 			addClasses(this.element, this.clazz);
 
 			this.element.tabIndex = 0;
@@ -310,7 +309,7 @@ export class DropdownMenuActionItem extends BaseActionItem {
 			options.actionProvider = this.menuActionsOrProvider;
 		}
 
-		this.dropdownMenu = new DropdownMenu(container, options);
+		this.dropdownMenu = this._register(new DropdownMenu(container, options));
 
 		this.dropdownMenu.menuOptions = {
 			actionItemProvider: this.actionItemProvider,
@@ -332,11 +331,5 @@ export class DropdownMenuActionItem extends BaseActionItem {
 		if (this.dropdownMenu) {
 			this.dropdownMenu.show();
 		}
-	}
-
-	dispose(): void {
-		this.dropdownMenu.dispose();
-
-		super.dispose();
 	}
 }

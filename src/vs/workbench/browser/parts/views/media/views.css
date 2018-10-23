@@ -50,19 +50,37 @@
 	display: none;
 }
 
-.tree-explorer-viewlet-tree-view.file-icon-themable-tree .monaco-tree-row .content.align-icon-with-twisty::before {
+.monaco-workbench .tree-explorer-viewlet-tree-view .customview-message {
+	display: none;
+	padding: 10px 22px 0 22px;
+	opacity: 0.5;
+}
+
+.monaco-workbench .tree-explorer-viewlet-tree-view.message .customview-message {
+	display: inherit;
+}
+
+.monaco-workbench .tree-explorer-viewlet-tree-view.message .customview-tree {
 	display: none;
 }
 
-.tree-explorer-viewlet-tree-view.file-icon-themable-tree .monaco-tree-row .content:not(.align-icon-with-twisty)::before {
+.monaco-workbench .tree-explorer-viewlet-tree-view .customview-tree {
+	height: 100%;
+}
+
+.customview-tree.file-icon-themable-tree .monaco-tree-row .content.align-icon-with-twisty::before {
+	display: none;
+}
+
+.customview-tree.file-icon-themable-tree .monaco-tree-row .content:not(.align-icon-with-twisty)::before {
 	display: inline-block;
 }
 
-.tree-explorer-viewlet-tree-view .monaco-tree .monaco-tree-row {
+.customview-tree .monaco-tree .monaco-tree-row {
 	padding-right: 12px;
 }
 
-.tree-explorer-viewlet-tree-view .monaco-tree .monaco-tree-row .custom-view-tree-node-item {
+.customview-tree .monaco-tree .monaco-tree-row .custom-view-tree-node-item {
 	display: flex;
 	height: 22px;
 	line-height: 22px;
@@ -72,13 +90,13 @@
 	flex-wrap: nowrap
 }
 
-.tree-explorer-viewlet-tree-view .monaco-tree .monaco-tree-row .custom-view-tree-node-item .custom-view-tree-node-item-resourceLabel {
+.customview-tree .monaco-tree .monaco-tree-row .custom-view-tree-node-item .custom-view-tree-node-item-resourceLabel {
 	flex: 1;
 	text-overflow: ellipsis;
 	overflow: hidden;
 }
 
-.tree-explorer-viewlet-tree-view .monaco-tree .monaco-tree-row .custom-view-tree-node-item > .custom-view-tree-node-item-icon {
+.customview-tree .monaco-tree .monaco-tree-row .custom-view-tree-node-item > .custom-view-tree-node-item-icon {
 	background-size: 16px;
 	background-position: left center;
 	background-repeat: no-repeat;
@@ -88,25 +106,25 @@
 	-webkit-font-smoothing: antialiased;
 }
 
-.tree-explorer-viewlet-tree-view .monaco-tree .monaco-tree-row .custom-view-tree-node-item > .custom-view-tree-node-item-resourceLabel .monaco-icon-label-description-container {
+.customview-tree .monaco-tree .monaco-tree-row .custom-view-tree-node-item > .custom-view-tree-node-item-resourceLabel .monaco-icon-label-description-container {
 	flex: 1;
 }
 
-.tree-explorer-viewlet-tree-view .monaco-tree .monaco-tree-row .custom-view-tree-node-item > .custom-view-tree-node-item-resourceLabel::after {
+.customview-tree .monaco-tree .monaco-tree-row .custom-view-tree-node-item > .custom-view-tree-node-item-resourceLabel::after {
 	padding-right: 0px;
 }
 
-.tree-explorer-viewlet-tree-view .monaco-tree .monaco-tree-row .custom-view-tree-node-item > .custom-view-tree-node-item-resourceLabel > .actions {
+.customview-tree .monaco-tree .monaco-tree-row .custom-view-tree-node-item > .custom-view-tree-node-item-resourceLabel > .actions {
 	display: none;
 }
 
-.tree-explorer-viewlet-tree-view .monaco-tree .monaco-tree-row:hover .custom-view-tree-node-item > .custom-view-tree-node-item-resourceLabel > .actions,
-.tree-explorer-viewlet-tree-view .monaco-tree .monaco-tree-row.selected .custom-view-tree-node-item > .custom-view-tree-node-item-resourceLabel > .actions,
-.tree-explorer-viewlet-tree-view .monaco-tree .monaco-tree-row.focused .custom-view-tree-node-item > .custom-view-tree-node-item-resourceLabel > .actions {
+.customview-tree .monaco-tree .monaco-tree-row:hover .custom-view-tree-node-item > .custom-view-tree-node-item-resourceLabel > .actions,
+.customview-tree .monaco-tree .monaco-tree-row.selected .custom-view-tree-node-item > .custom-view-tree-node-item-resourceLabel > .actions,
+.customview-tree .monaco-tree .monaco-tree-row.focused .custom-view-tree-node-item > .custom-view-tree-node-item-resourceLabel > .actions {
 	display: block;
 }
 
-.tree-explorer-viewlet-tree-view .monaco-tree .custom-view-tree-node-item > .custom-view-tree-node-item-resourceLabel > .actions .action-label {
+.customview-tree .monaco-tree .custom-view-tree-node-item > .custom-view-tree-node-item-resourceLabel > .actions .action-label {
 	width: 16px;
 	height: 100%;
 	background-position: 50% 50%;

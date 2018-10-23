@@ -90,6 +90,16 @@ declare module 'vscode-xterm' {
 		experimentalCharAtlas?: 'none' | 'static' | 'dynamic';
 
 		/**
+		 * (EXPERIMENTAL) Defines which implementation to use for buffer lines.
+		 *
+		 * - 'JsArray': The default/stable implementation.
+		 * - 'TypedArray': The new experimental implementation based on TypedArrays that is expected to
+		 *   significantly boost performance and memory consumption. Use at your own risk.
+		 *
+		 * This option will be removed in the future.
+		 */
+		experimentalBufferLineImpl?: 'JsArray' | 'TypedArray';
+		/**
 		 * The font size used to render text.
 		 */
 		fontSize?: number;
@@ -371,37 +381,37 @@ declare module 'vscode-xterm' {
 		 * @param type The type of the event.
 		 * @param listener The listener.
 		 */
-		on(type: 'key', listener: (key?: string, event?: KeyboardEvent) => void): void;
+		on(type: 'key', listener: (key: string, event: KeyboardEvent) => void): void;
 		/**
 		 * Registers an event listener.
 		 * @param type The type of the event.
 		 * @param listener The listener.
 		 */
-		on(type: 'keypress' | 'keydown', listener: (event?: KeyboardEvent) => void): void;
+		on(type: 'keypress' | 'keydown', listener: (event: KeyboardEvent) => void): void;
 		/**
 		 * Registers an event listener.
 		 * @param type The type of the event.
 		 * @param listener The listener.
 		 */
-		on(type: 'refresh', listener: (data?: { start: number, end: number }) => void): void;
+		on(type: 'refresh', listener: (data: {start: number, end: number}) => void): void;
 		/**
 		 * Registers an event listener.
 		 * @param type The type of the event.
 		 * @param listener The listener.
 		 */
-		on(type: 'resize', listener: (data?: { cols: number, rows: number }) => void): void;
+		on(type: 'resize', listener: (data: {cols: number, rows: number}) => void): void;
 		/**
 		 * Registers an event listener.
 		 * @param type The type of the event.
 		 * @param listener The listener.
 		 */
-		on(type: 'scroll', listener: (ydisp?: number) => void): void;
+		on(type: 'scroll', listener: (ydisp: number) => void): void;
 		/**
 		 * Registers an event listener.
 		 * @param type The type of the event.
 		 * @param listener The listener.
 		 */
-		on(type: 'title', listener: (title?: string) => void): void;
+		on(type: 'title', listener: (title: string) => void): void;
 		/**
 		 * Registers an event listener.
 		 * @param type The type of the event.
@@ -707,6 +717,21 @@ declare module 'vscode-xterm' {
 		};
 	}
 
+	interface ISearchOptions  {
+		/**
+		 * Whether the find should be done as a regex.
+		 */
+		regex?: boolean;
+		/**
+		 * Whether only whole words should match.
+		 */
+		wholeWord?: boolean;
+		/**
+		 * Whether find should pay attention to case.
+		 */
+		caseSensitive?: boolean;
+	}
+
 	interface Terminal {
 		_core: TerminalCore;
 
@@ -716,17 +741,19 @@ declare module 'vscode-xterm' {
 		/**
 		 * Find the next instance of the term, then scroll to and select it. If it
 		 * doesn't exist, do nothing.
-		 * @param term Tne search term.
+		 * @param term The search term.
+		 * @param findOptions Regex, whole word, and case sensitive options.
 		 * @return Whether a result was found.
 		 */
-		findNext(term: string): boolean;
+		findNext(term: string, findOptions: ISearchOptions): boolean;
 
 		/**
 		 * Find the previous instance of the term, then scroll to and select it. If it
 		 * doesn't exist, do nothing.
-		 * @param term Tne search term.
+		 * @param term The search term.
+		 * @param findOptions Regex, whole word, and case sensitive options.
 		 * @return Whether a result was found.
 		 */
-		findPrevious(term: string): boolean;
+		findPrevious(term: string, findOptions: ISearchOptions): boolean;
 	}
 }

@@ -3,30 +3,28 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import 'vs/css!./hover';
 import * as nls from 'vs/nls';
-import { KeyCode, KeyMod, KeyChord } from 'vs/base/common/keyCodes';
-import * as platform from 'vs/base/common/platform';
 import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
-import { IOpenerService } from 'vs/platform/opener/common/opener';
-import { IModeService } from 'vs/editor/common/services/modeService';
+import { KeyChord, KeyCode, KeyMod } from 'vs/base/common/keyCodes';
+import { IDisposable, dispose } from 'vs/base/common/lifecycle';
+import * as platform from 'vs/base/common/platform';
+import { IEmptyContentData } from 'vs/editor/browser/controller/mouseTarget';
+import { ICodeEditor, IEditorMouseEvent, MouseTargetType } from 'vs/editor/browser/editorBrowser';
+import { EditorAction, ServicesAccessor, registerEditorAction, registerEditorContribution } from 'vs/editor/browser/editorExtensions';
+import { IConfigurationChangedEvent } from 'vs/editor/common/config/editorOptions';
 import { Range } from 'vs/editor/common/core/range';
 import { IEditorContribution, IScrollEvent } from 'vs/editor/common/editorCommon';
-import { IConfigurationChangedEvent } from 'vs/editor/common/config/editorOptions';
-import { registerEditorAction, registerEditorContribution, ServicesAccessor, EditorAction } from 'vs/editor/browser/editorExtensions';
-import { ICodeEditor, IEditorMouseEvent, MouseTargetType } from 'vs/editor/browser/editorBrowser';
-import { ModesContentHoverWidget } from './modesContentHover';
-import { ModesGlyphHoverWidget } from './modesGlyphHover';
-import { IDisposable, dispose } from 'vs/base/common/lifecycle';
-import { registerThemingParticipant, IThemeService } from 'vs/platform/theme/common/themeService';
-import { editorHoverHighlight, editorHoverBackground, editorHoverBorder, textLinkForeground, textCodeBlockBackground } from 'vs/platform/theme/common/colorRegistry';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
-import { MarkdownRenderer } from 'vs/editor/contrib/markdown/markdownRenderer';
-import { IEmptyContentData } from 'vs/editor/browser/controller/mouseTarget';
+import { IModeService } from 'vs/editor/common/services/modeService';
 import { HoverStartMode } from 'vs/editor/contrib/hover/hoverOperation';
+import { ModesContentHoverWidget } from 'vs/editor/contrib/hover/modesContentHover';
+import { ModesGlyphHoverWidget } from 'vs/editor/contrib/hover/modesGlyphHover';
+import { MarkdownRenderer } from 'vs/editor/contrib/markdown/markdownRenderer';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
+import { IOpenerService } from 'vs/platform/opener/common/opener';
+import { editorHoverBackground, editorHoverBorder, editorHoverHighlight, textCodeBlockBackground, textLinkForeground } from 'vs/platform/theme/common/colorRegistry';
+import { IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 
 export class ModesHoverController implements IEditorContribution {
 
@@ -273,24 +271,24 @@ registerEditorAction(ShowHoverAction);
 
 // theming
 registerThemingParticipant((theme, collector) => {
-	let editorHoverHighlightColor = theme.getColor(editorHoverHighlight);
+	const editorHoverHighlightColor = theme.getColor(editorHoverHighlight);
 	if (editorHoverHighlightColor) {
 		collector.addRule(`.monaco-editor .hoverHighlight { background-color: ${editorHoverHighlightColor}; }`);
 	}
-	let hoverBackground = theme.getColor(editorHoverBackground);
+	const hoverBackground = theme.getColor(editorHoverBackground);
 	if (hoverBackground) {
 		collector.addRule(`.monaco-editor .monaco-editor-hover { background-color: ${hoverBackground}; }`);
 	}
-	let hoverBorder = theme.getColor(editorHoverBorder);
+	const hoverBorder = theme.getColor(editorHoverBorder);
 	if (hoverBorder) {
 		collector.addRule(`.monaco-editor .monaco-editor-hover { border: 1px solid ${hoverBorder}; }`);
 		collector.addRule(`.monaco-editor .monaco-editor-hover .hover-row:not(:first-child):not(:empty) { border-top: 1px solid ${hoverBorder.transparent(0.5)}; }`);
 	}
-	let link = theme.getColor(textLinkForeground);
+	const link = theme.getColor(textLinkForeground);
 	if (link) {
 		collector.addRule(`.monaco-editor .monaco-editor-hover a { color: ${link}; }`);
 	}
-	let codeBackground = theme.getColor(textCodeBlockBackground);
+	const codeBackground = theme.getColor(textCodeBlockBackground);
 	if (codeBackground) {
 		collector.addRule(`.monaco-editor .monaco-editor-hover code { background-color: ${codeBackground}; }`);
 	}

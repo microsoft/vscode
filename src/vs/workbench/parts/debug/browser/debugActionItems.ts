@@ -12,7 +12,7 @@ import { SelectBox } from 'vs/base/browser/ui/selectBox/selectBox';
 import { SelectActionItem, IActionItem } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ICommandService } from 'vs/platform/commands/common/commands';
-import { IDebugService } from 'vs/workbench/parts/debug/common/debug';
+import { IDebugService, IDebugSession } from 'vs/workbench/parts/debug/common/debug';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { attachSelectBoxStyler, attachStylerCallback } from 'vs/platform/theme/common/styler';
 import { SIDE_BAR_BACKGROUND } from 'vs/workbench/common/theme';
@@ -190,31 +190,36 @@ export class StartDebugActionItem implements IActionItem {
 export class FocusSessionActionItem extends SelectActionItem {
 	constructor(
 		action: IAction,
-		@IDebugService private debugService: IDebugService,
+		@IDebugService protected debugService: IDebugService,
 		@IThemeService themeService: IThemeService,
-		@IContextViewService contextViewService: IContextViewService
+		@IContextViewService contextViewService: IContextViewService,
 	) {
 		super(null, action, [], -1, contextViewService, { ariaLabel: nls.localize('debugSession', 'Debug Session') });
 
 		this.toDispose.push(attachSelectBoxStyler(this.selectBox, themeService));
 
-		this.debugService.getViewModel().onDidFocusStackFrame(() => {
+		this.toDispose.push(this.debugService.getViewModel().onDidFocusSession(() => {
 			const session = this.debugService.getViewModel().focusedSession;
 			if (session) {
-				const index = this.debugService.getModel().getSessions().indexOf(session);
+				const index = this.getSessions().indexOf(session);
 				this.select(index);
 			}
-		});
+		}));
 
-		this.debugService.getModel().onDidChangeCallStack(() => this.update());
+		this.toDispose.push(this.debugService.onDidNewSession(() => this.update()));
+		this.toDispose.push(this.debugService.onDidEndSession(() => this.update()));
+
 		this.update();
 	}
 
 	private update() {
 		const session = this.debugService.getViewModel().focusedSession;
-		const sessions = this.debugService.getModel().getSessions();
-		const showRootName = this.debugService.getConfigurationManager().getLaunches().length > 1;
-		const names = sessions.map(s => s.getName(showRootName));
+		const sessions = this.getSessions();
+		const names = sessions.map(s => s.getLabel());
 		this.setOptions(names, session ? sessions.indexOf(session) : undefined);
+	}
+
+	protected getSessions(): ReadonlyArray<IDebugSession> {
+		return this.debugService.getModel().getSessions();
 	}
 }

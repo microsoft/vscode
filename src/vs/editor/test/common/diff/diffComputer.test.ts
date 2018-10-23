@@ -2,8 +2,6 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
-
 import * as assert from 'assert';
 import { DiffComputer } from 'vs/editor/common/diff/diffComputer';
 import { IChange, ICharChange, ILineChange } from 'vs/editor/common/editorCommon';
@@ -55,7 +53,7 @@ function assertDiff(originalLines: string[], modifiedLines: string[], expectedCh
 	});
 	let changes = diffComputer.computeDiff();
 
-	let extracted = [];
+	let extracted: IChange[] = [];
 	for (let i = 0; i < changes.length; i++) {
 		extracted.push(extractLineChangeRepresentation(changes[i], <ILineChange>(i < expectedChanges.length ? expectedChanges[i] : null)));
 	}
@@ -725,6 +723,124 @@ suite('Editor Diff - DiffComputer', () => {
 		let expected = [
 			createLineChange(
 				2, 3, 2, 3
+			)
+		];
+		assertDiff(original, modified, expected, false, false, false);
+	});
+
+	test('issue #44422: Less than ideal diff results', () => {
+		let original = [
+			'export class C {',
+			'',
+			'	public m1(): void {',
+			'		{',
+			'		//2',
+			'		//3',
+			'		//4',
+			'		//5',
+			'		//6',
+			'		//7',
+			'		//8',
+			'		//9',
+			'		//10',
+			'		//11',
+			'		//12',
+			'		//13',
+			'		//14',
+			'		//15',
+			'		//16',
+			'		//17',
+			'		//18',
+			'		}',
+			'	}',
+			'',
+			'	public m2(): void {',
+			'		if (a) {',
+			'			if (b) {',
+			'				//A1',
+			'				//A2',
+			'				//A3',
+			'				//A4',
+			'				//A5',
+			'				//A6',
+			'				//A7',
+			'				//A8',
+			'			}',
+			'		}',
+			'',
+			'		//A9',
+			'		//A10',
+			'		//A11',
+			'		//A12',
+			'		//A13',
+			'		//A14',
+			'		//A15',
+			'	}',
+			'',
+			'	public m3(): void {',
+			'		if (a) {',
+			'			//B1',
+			'		}',
+			'		//B2',
+			'		//B3',
+			'	}',
+			'',
+			'	public m4(): boolean {',
+			'		//1',
+			'		//2',
+			'		//3',
+			'		//4',
+			'	}',
+			'',
+			'}',
+		];
+		let modified = [
+			'export class C {',
+			'',
+			'	constructor() {',
+			'',
+			'',
+			'',
+			'',
+			'	}',
+			'',
+			'	public m1(): void {',
+			'		{',
+			'		//2',
+			'		//3',
+			'		//4',
+			'		//5',
+			'		//6',
+			'		//7',
+			'		//8',
+			'		//9',
+			'		//10',
+			'		//11',
+			'		//12',
+			'		//13',
+			'		//14',
+			'		//15',
+			'		//16',
+			'		//17',
+			'		//18',
+			'		}',
+			'	}',
+			'',
+			'	public m4(): boolean {',
+			'		//1',
+			'		//2',
+			'		//3',
+			'		//4',
+			'	}',
+			'',
+			'}',
+		];
+		let expected = [
+			createLineChange(
+				2, 0, 3, 9
+			),
+			createLineChange(
+				25, 55, 31, 0
 			)
 		];
 		assertDiff(original, modified, expected, false, false, false);

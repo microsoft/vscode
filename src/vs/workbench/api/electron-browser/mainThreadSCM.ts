@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import { TPromise } from 'vs/base/common/winjs.base';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { Event, Emitter, debounceEvent } from 'vs/base/common/event';

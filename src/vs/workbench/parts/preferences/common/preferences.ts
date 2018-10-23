@@ -52,6 +52,8 @@ export interface IKeybindingsEditor extends IEditor {
 	focusSearch(): void;
 	clearSearchResults(): void;
 	focusKeybindings(): void;
+	recordSearchKeys(): void;
+	toggleSortByPrecedence(): void;
 	defineKeybinding(keybindingEntry: IKeybindingItemEntry): TPromise<any>;
 	removeKeybinding(keybindingEntry: IKeybindingItemEntry): TPromise<any>;
 	resetKeybinding(keybindingEntry: IKeybindingItemEntry): TPromise<any>;
@@ -79,6 +81,8 @@ export const SETTINGS_EDITOR_COMMAND_SHOW_CONTEXT_MENU = 'settings.action.showCo
 
 export const KEYBINDINGS_EDITOR_COMMAND_SEARCH = 'keybindings.editor.searchKeybindings';
 export const KEYBINDINGS_EDITOR_COMMAND_CLEAR_SEARCH_RESULTS = 'keybindings.editor.clearSearchResults';
+export const KEYBINDINGS_EDITOR_COMMAND_RECORD_SEARCH_KEYS = 'keybindings.editor.recordSearchKeys';
+export const KEYBINDINGS_EDITOR_COMMAND_SORTBY_PRECEDENCE = 'keybindings.editor.toggleSortByPrecedence';
 export const KEYBINDINGS_EDITOR_COMMAND_DEFINE = 'keybindings.editor.defineKeybinding';
 export const KEYBINDINGS_EDITOR_COMMAND_REMOVE = 'keybindings.editor.removeKeybinding';
 export const KEYBINDINGS_EDITOR_COMMAND_RESET = 'keybindings.editor.resetKeybinding';
@@ -86,6 +90,7 @@ export const KEYBINDINGS_EDITOR_COMMAND_COPY = 'keybindings.editor.copyKeybindin
 export const KEYBINDINGS_EDITOR_COMMAND_COPY_COMMAND = 'keybindings.editor.copyCommandKeybindingEntry';
 export const KEYBINDINGS_EDITOR_COMMAND_SHOW_SIMILAR = 'keybindings.editor.showConflicts';
 export const KEYBINDINGS_EDITOR_COMMAND_FOCUS_KEYBINDINGS = 'keybindings.editor.focusKeybindings';
+export const KEYBINDINGS_EDITOR_CLEAR_INPUT = 'keybindings.editor.showDefaultKeybindings';
 export const KEYBINDINGS_EDITOR_SHOW_DEFAULT_KEYBINDINGS = 'keybindings.editor.showDefaultKeybindings';
 export const KEYBINDINGS_EDITOR_SHOW_USER_KEYBINDINGS = 'keybindings.editor.showUserKeybindings';
 

@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import * as nls from 'vs/nls';
 import * as arrays from 'vs/base/common/arrays';
 import { IStateService } from 'vs/platform/state/common/state';
@@ -120,7 +118,7 @@ export class HistoryMainService implements IHistoryMainService {
 		const mru = this.getRecentlyOpened();
 		let update = false;
 
-		pathsToRemove.forEach((pathToRemove => {
+		pathsToRemove.forEach(pathToRemove => {
 
 			// Remove workspace
 			let index = arrays.firstIndex(mru.workspaces, workspace => {
@@ -132,7 +130,7 @@ export class HistoryMainService implements IHistoryMainService {
 				}
 				if (typeof pathToRemove === 'string') {
 					if (isSingleFolderWorkspaceIdentifier(workspace)) {
-						return workspace.scheme === Schemas.file && areResourcesEqual(URI.file(pathToRemove), workspace);
+						return workspace.scheme === Schemas.file && isEqual(pathToRemove, workspace.fsPath, !isLinux /* ignorecase */);
 					}
 					if (isWorkspaceIdentifier(workspace)) {
 						return isEqual(pathToRemove, workspace.configPath, !isLinux /* ignorecase */);
@@ -146,15 +144,20 @@ export class HistoryMainService implements IHistoryMainService {
 			}
 
 			// Remove file
-			const pathToRemoveURI = pathToRemove instanceof URI ? pathToRemove : typeof pathToRemove === 'string' ? URI.file(pathToRemove) : null;
-			if (pathToRemoveURI) {
-				index = arrays.firstIndex(mru.files, file => areResourcesEqual(file, pathToRemoveURI));
-			}
+			index = arrays.firstIndex(mru.files, file => {
+				if (pathToRemove instanceof URI) {
+					return areResourcesEqual(file, pathToRemove);
+				} else if (typeof pathToRemove === 'string') {
+					return isEqual(file.fsPath, pathToRemove, !isLinux /* ignorecase */);
+				}
+				return false;
+			});
+
 			if (index >= 0) {
 				mru.files.splice(index, 1);
 				update = true;
 			}
-		}));
+		});
 
 		if (update) {
 			this.saveRecentlyOpened(mru);

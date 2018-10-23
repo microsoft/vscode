@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import { Event, filterEvent, mapEvent, anyEvent } from 'vs/base/common/event';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IWindowService, IWindowsService, INativeOpenDialogOptions, IEnterWorkspaceResult, IMessageBoxResult, IWindowConfiguration, IDevToolsOptions } from 'vs/platform/windows/common/windows';
@@ -164,5 +162,9 @@ export class WindowService implements IWindowService {
 
 	updateTouchBar(items: ISerializableCommandAction[][]): TPromise<void> {
 		return this.windowsService.updateTouchBar(this.windowId, items);
+	}
+
+	resolveProxy(url: string): Promise<string | undefined> {
+		return this.windowsService.resolveProxy(this.windowId, url);
 	}
 }

@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import 'vs/css!./progressbar';
 import * as assert from 'vs/base/common/assert';
 import { Disposable } from 'vs/base/common/lifecycle';
@@ -39,8 +37,8 @@ export class ProgressBar extends Disposable {
 	private workedVal: number;
 	private element: HTMLElement;
 	private bit: HTMLElement;
-	private totalWork: number;
-	private progressBarBackground: Color;
+	private totalWork: number | undefined;
+	private progressBarBackground: Color | undefined;
 	private showDelayedScheduler: RunOnceScheduler;
 
 	constructor(container: HTMLElement, options?: IProgressBarOptions) {
@@ -101,7 +99,7 @@ export class ProgressBar extends Disposable {
 			this.bit.style.width = 'inherit';
 
 			if (delayed) {
-				setTimeout(200, () => this.off());
+				setTimeout(() => this.off(), 200);
 			} else {
 				this.off();
 			}
@@ -111,7 +109,7 @@ export class ProgressBar extends Disposable {
 		else {
 			this.bit.style.opacity = '0';
 			if (delayed) {
-				setTimeout(200, () => this.off());
+				setTimeout(() => this.off(), 200);
 			} else {
 				this.off();
 			}
@@ -148,7 +146,7 @@ export class ProgressBar extends Disposable {
 	 * Finds out if this progress bar is configured with total work
 	 */
 	hasTotal(): boolean {
-		return !isNaN(this.totalWork);
+		return !isNaN(this.totalWork as number);
 	}
 
 	/**
@@ -174,10 +172,10 @@ export class ProgressBar extends Disposable {
 	}
 
 	private doSetWorked(value: number): ProgressBar {
-		assert.ok(!isNaN(this.totalWork), 'Total work not set');
+		assert.ok(!isNaN(this.totalWork as number), 'Total work not set');
 
 		this.workedVal = value;
-		this.workedVal = Math.min(this.totalWork, this.workedVal);
+		this.workedVal = Math.min(this.totalWork as number, this.workedVal);
 
 		if (hasClass(this.element, css_infinite)) {
 			removeClass(this.element, css_infinite);
@@ -195,7 +193,7 @@ export class ProgressBar extends Disposable {
 			addClass(this.element, css_discrete);
 		}
 
-		this.bit.style.width = 100 * (this.workedVal / this.totalWork) + '%';
+		this.bit.style.width = 100 * (this.workedVal / (this.totalWork as number)) + '%';
 
 		return this;
 	}

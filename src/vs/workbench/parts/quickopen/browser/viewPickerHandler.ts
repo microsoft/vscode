@@ -2,7 +2,6 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
 import { TPromise } from 'vs/base/common/winjs.base';
 import * as nls from 'vs/nls';
@@ -22,6 +21,7 @@ import { ViewsRegistry, ViewContainer, IViewsService, IViewContainersRegistry, E
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { ViewletDescriptor } from 'vs/workbench/browser/viewlet';
 import { Registry } from 'vs/platform/registry/common/platform';
+import { CancellationToken } from 'vs/base/common/cancellation';
 
 export const VIEW_PICKER_PREFIX = 'view ';
 
@@ -79,7 +79,7 @@ export class ViewPickerHandler extends QuickOpenHandler {
 		super();
 	}
 
-	getResults(searchValue: string): TPromise<QuickOpenModel> {
+	getResults(searchValue: string, token: CancellationToken): TPromise<QuickOpenModel> {
 		searchValue = searchValue.trim();
 		const normalizedSearchValueLowercase = stripWildcards(searchValue).toLowerCase();
 
@@ -170,7 +170,7 @@ export class ViewPickerHandler extends QuickOpenHandler {
 		const channels = this.outputService.getChannelDescriptors();
 		channels.forEach((channel, index) => {
 			const outputCategory = nls.localize('channels', "Output");
-			const entry = new ViewEntry(channel.label, outputCategory, () => this.outputService.showChannel(channel.id));
+			const entry = new ViewEntry(channel.log ? nls.localize('logChannel', "Log ({0})", channel.label) : channel.label, outputCategory, () => this.outputService.showChannel(channel.id));
 
 			viewEntries.push(entry);
 		});

@@ -2,7 +2,6 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
 import { URI } from 'vs/base/common/uri';
 import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
@@ -190,11 +189,11 @@ export class FileOnDiskContentProvider implements ITextModelContentProvider {
 			} else if (createAsNeeded) {
 				const fileOnDiskModel = this.modelService.getModel(fileOnDiskResource);
 
-				let mode: TPromise<IMode>;
+				let mode: Promise<IMode>;
 				if (fileOnDiskModel) {
 					mode = this.modeService.getOrCreateMode(fileOnDiskModel.getModeId());
 				} else {
-					mode = this.modeService.getOrCreateModeByFilenameOrFirstLine(fileOnDiskResource.fsPath);
+					mode = this.modeService.getOrCreateModeByFilepathOrFirstLine(fileOnDiskResource.fsPath);
 				}
 
 				codeEditorModel = this.modelService.createModel(content.value, mode, resource);

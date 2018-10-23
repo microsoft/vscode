@@ -25,9 +25,11 @@ process.on('SIGPIPE', () => {
  * @param {string=} nodeModulesPath
  */
 exports.enableASARSupport = function (nodeModulesPath) {
+
 	// @ts-ignore
 	const Module = require('module');
 	const path = require('path');
+
 	let NODE_MODULES_PATH = nodeModulesPath;
 	if (!NODE_MODULES_PATH) {
 		NODE_MODULES_PATH = path.join(__dirname, '../node_modules');
@@ -35,7 +37,9 @@ exports.enableASARSupport = function (nodeModulesPath) {
 
 	const NODE_MODULES_ASAR_PATH = NODE_MODULES_PATH + '.asar';
 
+	// @ts-ignore
 	const originalResolveLookupPaths = Module._resolveLookupPaths;
+	// @ts-ignore
 	Module._resolveLookupPaths = function (request, parent, newReturn) {
 		const result = originalResolveLookupPaths(request, parent, newReturn);
 
@@ -72,7 +76,7 @@ exports.uriFromPath = function (_path) {
 //#region FS helpers
 /**
  * @param {string} file
- * @returns {Promise}
+ * @returns {Promise<string>}
  */
 exports.readFile = function (file) {
 	const fs = require('fs');
@@ -91,7 +95,7 @@ exports.readFile = function (file) {
 /**
  * @param {string} file
  * @param {string} content
- * @returns {Promise}
+ * @returns {Promise<void>}
  */
 exports.writeFile = function (file, content) {
 	const fs = require('fs');
@@ -109,6 +113,9 @@ exports.writeFile = function (file, content) {
 //#endregion
 
 //#region NLS helpers
+/**
+ * @returns {{locale?: string, availableLanguages: {[lang: string]: string;}, pseudo?: boolean }}
+ */
 exports.setupNLS = function () {
 	const path = require('path');
 
@@ -193,7 +200,7 @@ exports.configurePortable = function () {
 	}
 
 	const portableDataPath = getPortableDataPath();
-	const isPortable = fs.existsSync(portableDataPath);
+	const isPortable = !('target' in product) && fs.existsSync(portableDataPath);
 	const portableTempPath = path.join(portableDataPath, 'tmp');
 	const isTempPortable = isPortable && fs.existsSync(portableTempPath);
 
@@ -211,5 +218,17 @@ exports.configurePortable = function () {
 		portableDataPath,
 		isPortable
 	};
+};
+//#endregion
+
+//#region ApplicationInsights
+/**
+ * Prevents appinsights from monkey patching modules.
+ * This should be called before importing the applicationinsights module
+ */
+exports.avoidMonkeyPatchFromAppInsights = function () {
+	// @ts-ignore
+	process.env['APPLICATION_INSIGHTS_NO_DIAGNOSTIC_CHANNEL'] = true; // Skip monkey patching of 3rd party modules by appinsights
+	global['diagnosticsSource'] = {}; // Prevents diagnostic channel (which patches "require") from initializing entirely
 };
 //#endregion

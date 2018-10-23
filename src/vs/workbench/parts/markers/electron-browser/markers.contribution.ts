@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-
 import { clipboard } from 'electron';
 import { CommandsRegistry, ICommandHandler } from 'vs/platform/commands/common/commands';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
@@ -123,6 +122,30 @@ registerAction({
 		group: 'navigation'
 	}
 });
+registerAction({
+	id: Constants.FOCUS_PROBLEMS_FROM_FILTER,
+	handler(accessor) {
+		focusProblemsView(accessor.get(IPanelService));
+	},
+	keybinding: {
+		when: Constants.MarkerPanelFilterFocusContextKey,
+		keys: {
+			primary: KeyMod.CtrlCmd | KeyCode.DownArrow
+		},
+	}
+});
+registerAction({
+	id: Constants.MARKERS_PANEL_FOCUS_FILTER,
+	handler(accessor) {
+		focusProblemsFilter(accessor.get(IPanelService));
+	},
+	keybinding: {
+		when: Constants.MarkerPanelFocusContextKey,
+		keys: {
+			primary: KeyMod.CtrlCmd | KeyCode.KEY_F
+		},
+	}
+});
 
 
 function copyMarker(panelService: IPanelService) {
@@ -140,7 +163,7 @@ function copyMessage(panelService: IPanelService) {
 	if (activePanel instanceof MarkersPanel) {
 		const element = (<MarkersPanel>activePanel).getFocusElement();
 		if (element instanceof Marker) {
-			clipboard.writeText(element.raw.message);
+			clipboard.writeText(element.marker.message);
 		}
 	}
 }
@@ -155,12 +178,26 @@ function copyRelatedInformationMessage(panelService: IPanelService) {
 	}
 }
 
+function focusProblemsView(panelService: IPanelService) {
+	const activePanel = panelService.getActivePanel();
+	if (activePanel instanceof MarkersPanel) {
+		activePanel.focus();
+	}
+}
+
+function focusProblemsFilter(panelService: IPanelService) {
+	const activePanel = panelService.getActivePanel();
+	if (activePanel instanceof MarkersPanel) {
+		activePanel.focusFilter();
+	}
+}
+
 interface IActionDescriptor {
 	id: string;
 	handler: ICommandHandler;
 
 	// ICommandUI
-	title: string;
+	title?: string;
 	category?: string;
 	f1?: boolean;
 

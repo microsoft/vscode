@@ -67,16 +67,10 @@ export function sanitizeEnvironment(env: platform.IProcessEnvironment): void {
 		'VSCODE_NLS_CONFIG',
 		'VSCODE_PORTABLE',
 		'VSCODE_PID',
+		'VSCODE_NODE_CACHED_DATA_DIR'
 	];
 	keysToRemove.forEach((key) => {
 		if (env[key]) {
-			delete env[key];
-		}
-	});
-
-	// Remove keys based on regexp
-	Object.keys(env).forEach(key => {
-		if (key.search(/^VSCODE_NODE_CACHED_DATA_DIR_\d+$/) === 0) {
 			delete env[key];
 		}
 	});
@@ -135,7 +129,7 @@ export function getCwd(shell: IShellLaunchConfig, root: Uri, configHelper: ITerm
 		return shell.cwd;
 	}
 
-	let cwd: string;
+	let cwd: string | undefined;
 
 	// TODO: Handle non-existent customCwd
 	if (!shell.ignoreConfigurationCwd) {

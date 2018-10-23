@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IChannel } from 'vs/base/parts/ipc/node/ipc';
 import { ILogService } from 'vs/platform/log/common/log';
@@ -38,6 +36,7 @@ export interface IWindowInfo {
 
 export interface IMainProcessInfo {
 	mainPID: number;
+	// All arguments after argv[0], the exec path
 	mainArguments: string[];
 	windows: IWindowInfo[];
 }
@@ -233,7 +232,7 @@ export class LaunchService implements ILaunchService {
 		// is being used and only then resolve the startup promise which will kill this second instance.
 		// In addition, we poll for the wait marker file to be deleted to return.
 		if (args.wait && usedWindows.length === 1 && usedWindows[0]) {
-			return TPromise.any([
+			return Promise.race([
 				this.windowsMainService.waitForWindowCloseOrLoad(usedWindows[0].id),
 				whenDeleted(args.waitMarkerFilePath)
 			]).then(() => void 0, () => void 0);
@@ -263,7 +262,7 @@ export class LaunchService implements ILaunchService {
 
 		return TPromise.wrap({
 			mainPID: process.pid,
-			mainArguments: process.argv,
+			mainArguments: process.argv.slice(1),
 			windows
 		} as IMainProcessInfo);
 	}

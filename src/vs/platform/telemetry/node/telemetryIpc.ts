@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IChannel } from 'vs/base/parts/ipc/node/ipc';
 import { ITelemetryAppender } from 'vs/platform/telemetry/common/telemetryUtils';
@@ -16,8 +14,8 @@ export interface ITelemetryLog {
 }
 
 export interface ITelemetryAppenderChannel extends IChannel {
-	call(command: 'log', data: ITelemetryLog): TPromise<void>;
-	call(command: string, arg: any): TPromise<any>;
+	call(command: 'log', data: ITelemetryLog): Thenable<void>;
+	call(command: string, arg: any): Thenable<any>;
 }
 
 export class TelemetryAppenderChannel implements ITelemetryAppenderChannel {
@@ -28,7 +26,7 @@ export class TelemetryAppenderChannel implements ITelemetryAppenderChannel {
 		throw new Error('No events');
 	}
 
-	call(command: string, { eventName, data }: ITelemetryLog): TPromise<any> {
+	call(command: string, { eventName, data }: ITelemetryLog): Thenable<any> {
 		this.appender.log(eventName, data);
 		return TPromise.as(null);
 	}

@@ -2,9 +2,7 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
-import { TPromise } from 'vs/base/common/winjs.base';
 import { IViewlet } from 'vs/workbench/common/viewlet';
 import { createDecorator, ServiceIdentifier } from 'vs/platform/instantiation/common/instantiation';
 import { Event } from 'vs/base/common/event';
@@ -24,7 +22,7 @@ export interface IViewletService {
 	/**
 	 * Opens a viewlet with the given identifier and pass keyboard focus to it if specified.
 	 */
-	openViewlet(id: string, focus?: boolean): TPromise<IViewlet>;
+	openViewlet(id: string, focus?: boolean): Thenable<IViewlet>;
 
 	/**
 	 * Returns the current active viewlet or null if none.
@@ -42,7 +40,7 @@ export interface IViewletService {
 	getViewlet(id: string): ViewletDescriptor;
 
 	/**
-	 * Returns all viewlets
+	 * Returns all enabled viewlets following the default order (Explorer - Search - SCM - Debug - Extensions)
 	 */
 	getAllViewlets(): ViewletDescriptor[];
 

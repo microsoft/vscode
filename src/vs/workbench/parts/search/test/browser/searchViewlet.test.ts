@@ -2,8 +2,6 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
-
 import * as assert from 'assert';
 import { URI as uri } from 'vs/base/common/uri';
 import { Match, FileMatch, SearchResult } from 'vs/workbench/parts/search/common/searchModel';
@@ -53,8 +51,8 @@ suite('Search - Viewlet', () => {
 		let lineMatch = fileMatch.matches()[0];
 
 		assert.equal(ds.getId(null, result), 'root');
-		assert.equal(ds.getId(null, fileMatch), 'file:///c%3A/foo');
-		assert.equal(ds.getId(null, lineMatch), 'file:///c%3A/foo>[2,1 -> 2,2]b');
+		assert.equal(ds.getId(null, fileMatch), 'file:///c:/foo');
+		assert.equal(ds.getId(null, lineMatch), 'file:///c:/foo>[2,1 -> 2,2]b');
 
 		assert(!ds.hasChildren(null, 'foo'));
 		assert(ds.hasChildren(null, result));
@@ -62,7 +60,7 @@ suite('Search - Viewlet', () => {
 		assert(!ds.hasChildren(null, lineMatch));
 	});
 
-	test('Sorter', function () {
+	test('Sorter', () => {
 		let fileMatch1 = aFileMatch('C:\\foo');
 		let fileMatch2 = aFileMatch('C:\\with\\path');
 		let fileMatch3 = aFileMatch('C:\\with\\path\\foo');

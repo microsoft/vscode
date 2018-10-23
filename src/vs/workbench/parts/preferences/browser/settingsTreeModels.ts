@@ -11,7 +11,7 @@ import { ConfigurationTarget, IConfigurationService } from 'vs/platform/configur
 import { ConfigurationScope } from 'vs/platform/configuration/common/configurationRegistry';
 import { SettingsTarget } from 'vs/workbench/parts/preferences/browser/preferencesWidgets';
 import { ITOCEntry, knownAcronyms } from 'vs/workbench/parts/preferences/browser/settingsLayout';
-import { IExtensionSetting, ISearchResult, ISetting } from 'vs/workbench/services/preferences/common/preferences';
+import { IExtensionSetting, ISearchResult, ISetting, SettingValueType } from 'vs/workbench/services/preferences/common/preferences';
 
 export const MODIFIED_SETTING_TAG = 'modified';
 export const ONLINE_SERVICES_SETTING_TAG = 'usesOnlineServices';
@@ -99,7 +99,7 @@ export class SettingsTreeSettingElement extends SettingsTreeElement {
 	tags?: Set<string>;
 	overriddenScopeList: string[];
 	description: string;
-	valueType: 'enum' | 'string' | 'integer' | 'number' | 'boolean' | 'exclude' | 'complex' | 'nullable-integer' | 'nullable-number';
+	valueType: SettingValueType;
 
 	constructor(setting: ISetting, parent: SettingsTreeGroupElement, index: number, inspectResult: IInspectResult) {
 		super();
@@ -137,7 +137,7 @@ export class SettingsTreeSettingElement extends SettingsTreeElement {
 		const { isConfigured, inspected, targetSelector } = inspectResult;
 
 		const displayValue = isConfigured ? inspected[targetSelector] : inspected.default;
-		const overriddenScopeList = [];
+		const overriddenScopeList: string[] = [];
 		if (targetSelector === 'user' && typeof inspected.workspace !== 'undefined') {
 			overriddenScopeList.push(localize('workspace', "Workspace"));
 		}
@@ -167,27 +167,27 @@ export class SettingsTreeSettingElement extends SettingsTreeElement {
 		this.description = this.setting.description.join('\n');
 
 		if (this.setting.enum && (!this.setting.type || settingTypeEnumRenderable(this.setting.type))) {
-			this.valueType = 'enum';
+			this.valueType = SettingValueType.Enum;
 		} else if (this.setting.type === 'string') {
-			this.valueType = 'string';
+			this.valueType = SettingValueType.String;
 		} else if (isExcludeSetting(this.setting)) {
-			this.valueType = 'exclude';
+			this.valueType = SettingValueType.Exclude;
 		} else if (this.setting.type === 'integer') {
-			this.valueType = 'integer';
+			this.valueType = SettingValueType.Integer;
 		} else if (this.setting.type === 'number') {
-			this.valueType = 'number';
+			this.valueType = SettingValueType.Number;
 		} else if (this.setting.type === 'boolean') {
-			this.valueType = 'boolean';
-		} else if (isArray(this.setting.type) && this.setting.type.indexOf('null') > -1 && this.setting.type.length === 2) {
-			if (this.setting.type.indexOf('integer') > -1) {
-				this.valueType = 'nullable-integer';
-			} else if (this.setting.type.indexOf('number') > -1) {
-				this.valueType = 'nullable-number';
+			this.valueType = SettingValueType.Boolean;
+		} else if (isArray(this.setting.type) && this.setting.type.indexOf(SettingValueType.Null) > -1 && this.setting.type.length === 2) {
+			if (this.setting.type.indexOf(SettingValueType.Integer) > -1) {
+				this.valueType = SettingValueType.NullableInteger;
+			} else if (this.setting.type.indexOf(SettingValueType.Number) > -1) {
+				this.valueType = SettingValueType.NullableNumber;
 			} else {
-				this.valueType = 'complex';
+				this.valueType = SettingValueType.Complex;
 			}
 		} else {
-			this.valueType = 'complex';
+			this.valueType = SettingValueType.Complex;
 		}
 	}
 
@@ -281,7 +281,7 @@ export class SettingsTreeModel {
 		element.parent = parent;
 		element.level = this.getDepth(element);
 
-		const children = [];
+		const children: SettingsTreeGroupChild[] = [];
 		if (tocEntry.settings) {
 			const settingChildren = tocEntry.settings.map(s => this.createSettingsTreeSettingElement(<ISetting>s, element))
 				.filter(el => el.setting.deprecationMessage ? el.isConfigured : true);

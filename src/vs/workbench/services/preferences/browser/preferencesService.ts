@@ -44,7 +44,7 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 
 	_serviceBrand: any;
 
-	private lastOpenedSettingsInput: PreferencesEditorInput = null;
+	private lastOpenedSettingsInput: PreferencesEditorInput | null = null;
 
 	private readonly _onDispose: Emitter<void> = new Emitter<void>();
 
@@ -280,11 +280,11 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 	}
 
 	openDefaultKeybindingsFile(): TPromise<IEditor> {
-		return this.editorService.openEditor({ resource: this.defaultKeybindingsResource });
+		return this.editorService.openEditor({ resource: this.defaultKeybindingsResource, label: nls.localize('defaultKeybindings', "Default Keybindings") });
 	}
 
 	configureSettingsForLanguage(language: string): void {
-		this.openGlobalSettings()
+		this.openGlobalSettings(true)
 			.then(editor => this.createPreferencesEditorModel(this.userSettingsResource)
 				.then((settingsModel: IPreferencesEditorModel<ISetting>) => {
 					const codeEditor = getCodeEditor(editor.getControl());
@@ -293,6 +293,7 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 							.then(position => {
 								if (codeEditor) {
 									codeEditor.setPosition(position);
+									codeEditor.revealLine(position.lineNumber);
 									codeEditor.focus();
 								}
 							});
@@ -502,7 +503,7 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 		return this.fileService.resolveContent(resource, { acceptTextOnly: true }).then(null, error => {
 			if ((<FileOperationError>error).fileOperationResult === FileOperationResult.FILE_NOT_FOUND) {
 				return this.fileService.updateContent(resource, contents).then(null, error => {
-					return TPromise.wrapError(new Error(nls.localize('fail.createSettings', "Unable to create '{0}' ({1}).", this.labelService.getUriLabel(resource, true), error)));
+					return TPromise.wrapError(new Error(nls.localize('fail.createSettings', "Unable to create '{0}' ({1}).", this.labelService.getUriLabel(resource, { relative: true }), error)));
 				});
 			}
 
@@ -530,8 +531,8 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 		const languageKey = `[${language}]`;
 		let setting = settingsModel.getPreference(languageKey);
 		const model = codeEditor.getModel();
-		const configuration = this.configurationService.getValue<{ editor: { tabSize: number; insertSpaces: boolean }, files: { eol: string } }>();
-		const eol = configuration.files && configuration.files.eol;
+		const configuration = this.configurationService.getValue<{ editor: { tabSize: number; insertSpaces: boolean } }>();
+		const eol = model.getEOL();
 		if (setting) {
 			if (setting.overrides.length) {
 				const lastSetting = setting.overrides[setting.overrides.length - 1];

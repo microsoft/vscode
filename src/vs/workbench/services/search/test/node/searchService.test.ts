@@ -3,26 +3,25 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import * as assert from 'assert';
 import * as path from 'path';
 import { getPathFromAmdModule } from 'vs/base/common/amd';
 import { CancelablePromise, createCancelablePromise } from 'vs/base/common/async';
 import { Emitter, Event } from 'vs/base/common/event';
-import { IProgress, ISearchEngineStats, IFileSearchStats } from 'vs/platform/search/common/search';
+import { URI } from 'vs/base/common/uri';
+import { IFileQuery, IFileSearchStats, IFolderQuery, IProgress, ISearchEngineStats, QueryType } from 'vs/platform/search/common/search';
 import { SearchService as RawSearchService } from 'vs/workbench/services/search/node/rawSearchService';
-import { IFolderSearch, IRawFileMatch, IRawSearch, ISearchEngine, ISerializedFileMatch, ISerializedSearchComplete, ISerializedSearchProgressItem, ISerializedSearchSuccess, ISearchEngineSuccess } from 'vs/workbench/services/search/node/search';
+import { IRawFileMatch, ISearchEngine, ISearchEngineSuccess, ISerializedFileMatch, ISerializedSearchComplete, ISerializedSearchProgressItem, ISerializedSearchSuccess } from 'vs/workbench/services/search/node/search';
 import { DiskSearch } from 'vs/workbench/services/search/node/searchService';
 
 const TEST_FOLDER_QUERIES = [
-	{ folder: path.normalize('/some/where') }
+	{ folder: URI.file(path.normalize('/some/where')) }
 ];
 
 const TEST_FIXTURES = path.normalize(getPathFromAmdModule(require, './fixtures'));
-const MULTIROOT_QUERIES: IFolderSearch[] = [
-	{ folder: path.join(TEST_FIXTURES, 'examples') },
-	{ folder: path.join(TEST_FIXTURES, 'more') }
+const MULTIROOT_QUERIES: IFolderQuery[] = [
+	{ folder: URI.file(path.join(TEST_FIXTURES, 'examples')) },
+	{ folder: URI.file(path.join(TEST_FIXTURES, 'more')) }
 ];
 
 const stats: ISearchEngineStats = {
@@ -39,7 +38,7 @@ class TestSearchEngine implements ISearchEngine<IRawFileMatch> {
 
 	private isCanceled = false;
 
-	constructor(private result: () => IRawFileMatch, public config?: IRawSearch) {
+	constructor(private result: () => IRawFileMatch, public config?: IFileQuery) {
 		TestSearchEngine.last = this;
 	}
 
@@ -77,7 +76,8 @@ const testTimeout = 5000;
 
 suite('SearchService', () => {
 
-	const rawSearch: IRawSearch = {
+	const rawSearch: IFileQuery = {
+		type: QueryType.File,
 		folderQueries: TEST_FOLDER_QUERIES,
 		filePattern: 'a'
 	};
@@ -93,7 +93,7 @@ suite('SearchService', () => {
 		path: path.normalize('/some/where')
 	};
 
-	test('Individual results', function () {
+	test('Individual results', async function () {
 		this.timeout(testTimeout);
 		let i = 5;
 		const Engine = TestSearchEngine.bind(null, () => i-- && rawMatch);
@@ -109,11 +109,11 @@ suite('SearchService', () => {
 			}
 		};
 
-		return service.doFileSearch(Engine, rawSearch, cb)
-			.then(() => assert.strictEqual(results, 5));
+		await service.doFileSearchWithEngine(Engine, rawSearch, cb, null, 0);
+		return assert.strictEqual(results, 5);
 	});
 
-	test('Batch results', function () {
+	test('Batch results', async function () {
 		this.timeout(testTimeout);
 		let i = 25;
 		const Engine = TestSearchEngine.bind(null, () => i-- && rawMatch);
@@ -131,24 +131,23 @@ suite('SearchService', () => {
 			}
 		};
 
-		return service.doFileSearch(Engine, rawSearch, cb, undefined, 10).then(() => {
-			assert.deepStrictEqual(results, [10, 10, 5]);
-		});
+		await service.doFileSearchWithEngine(Engine, rawSearch, cb, undefined, 10);
+		assert.deepStrictEqual(results, [10, 10, 5]);
 	});
 
-	test('Collect batched results', function () {
+	test('Collect batched results', async function () {
 		this.timeout(testTimeout);
 		const uriPath = '/some/where';
 		let i = 25;
 		const Engine = TestSearchEngine.bind(null, () => i-- && rawMatch);
 		const service = new RawSearchService();
 
-		function fileSearch(config: IRawSearch, batchSize: number): Event<ISerializedSearchProgressItem | ISerializedSearchComplete> {
+		function fileSearch(config: IFileQuery, batchSize: number): Event<ISerializedSearchProgressItem | ISerializedSearchComplete> {
 			let promise: CancelablePromise<ISerializedSearchSuccess>;
 
 			const emitter = new Emitter<ISerializedSearchProgressItem | ISerializedSearchComplete>({
 				onFirstListenerAdd: () => {
-					promise = createCancelablePromise(token => service.doFileSearch(Engine, config, p => emitter.fire(p), token, batchSize)
+					promise = createCancelablePromise(token => service.doFileSearchWithEngine(Engine, config, p => emitter.fire(p), token, batchSize)
 						.then(c => emitter.fire(c), err => emitter.fire({ type: 'error', error: err })));
 				},
 				onLastListenerRemove: () => {
@@ -165,18 +164,17 @@ suite('SearchService', () => {
 			progressResults.push(match);
 		};
 
-		return DiskSearch.collectResultsFromEvent(fileSearch(rawSearch, 10), onProgress)
-			.then(result => {
-				assert.strictEqual(result.results.length, 25, 'Result');
-				assert.strictEqual(progressResults.length, 25, 'Progress');
-			});
+		const result_2 = await DiskSearch.collectResultsFromEvent(fileSearch(rawSearch, 10), onProgress);
+		assert.strictEqual(result_2.results.length, 25, 'Result');
+		assert.strictEqual(progressResults.length, 25, 'Progress');
 	});
 
-	test('Multi-root with include pattern and maxResults', function () {
+	test('Multi-root with include pattern and maxResults', async function () {
 		this.timeout(testTimeout);
 		const service = new RawSearchService();
 
-		const query: IRawSearch = {
+		const query: IFileQuery = {
+			type: QueryType.File,
 			folderQueries: MULTIROOT_QUERIES,
 			maxResults: 1,
 			includePattern: {
@@ -185,17 +183,16 @@ suite('SearchService', () => {
 			},
 		};
 
-		return DiskSearch.collectResultsFromEvent(service.fileSearch(query))
-			.then(result => {
-				assert.strictEqual(result.results.length, 1, 'Result');
-			});
+		const result = await DiskSearch.collectResultsFromEvent(service.fileSearch(query));
+		assert.strictEqual(result.results.length, 1, 'Result');
 	});
 
-	test('Multi-root with include pattern and exists', function () {
+	test('Multi-root with include pattern and exists', async function () {
 		this.timeout(testTimeout);
 		const service = new RawSearchService();
 
-		const query: IRawSearch = {
+		const query: IFileQuery = {
+			type: QueryType.File,
 			folderQueries: MULTIROOT_QUERIES,
 			exists: true,
 			includePattern: {
@@ -204,14 +201,12 @@ suite('SearchService', () => {
 			},
 		};
 
-		return DiskSearch.collectResultsFromEvent(service.fileSearch(query))
-			.then(result => {
-				assert.strictEqual(result.results.length, 0, 'Result');
-				assert.ok(result.limitHit);
-			});
+		const result = await DiskSearch.collectResultsFromEvent(service.fileSearch(query));
+		assert.strictEqual(result.results.length, 0, 'Result');
+		assert.ok(result.limitHit);
 	});
 
-	test('Sorted results', function () {
+	test('Sorted results', async function () {
 		this.timeout(testTimeout);
 		const paths = ['bab', 'bbc', 'abb'];
 		const matches: IRawFileMatch[] = paths.map(relativePath => ({
@@ -232,18 +227,18 @@ suite('SearchService', () => {
 			}
 		};
 
-		return service.doFileSearch(Engine, {
+		await service.doFileSearchWithEngine(Engine, {
+			type: QueryType.File,
 			folderQueries: TEST_FOLDER_QUERIES,
 			filePattern: 'bb',
 			sortByScore: true,
 			maxResults: 2
-		}, cb, undefined, 1).then(() => {
-			assert.notStrictEqual(typeof TestSearchEngine.last.config.maxResults, 'number');
-			assert.deepStrictEqual(results, [path.normalize('/some/where/bbc'), path.normalize('/some/where/bab')]);
-		});
+		}, cb, undefined, 1);
+		assert.notStrictEqual(typeof TestSearchEngine.last.config.maxResults, 'number');
+		assert.deepStrictEqual(results, [path.normalize('/some/where/bbc'), path.normalize('/some/where/bab')]);
 	});
 
-	test('Sorted result batches', function () {
+	test('Sorted result batches', async function () {
 		this.timeout(testTimeout);
 		let i = 25;
 		const Engine = TestSearchEngine.bind(null, () => i-- && rawMatch);
@@ -260,15 +255,14 @@ suite('SearchService', () => {
 				assert.fail(JSON.stringify(value));
 			}
 		};
-		return service.doFileSearch(Engine, {
+		await service.doFileSearchWithEngine(Engine, {
+			type: QueryType.File,
 			folderQueries: TEST_FOLDER_QUERIES,
 			filePattern: 'a',
 			sortByScore: true,
 			maxResults: 23
-		}, cb, undefined, 10)
-			.then(() => {
-				assert.deepStrictEqual(results, [10, 10, 3]);
-			});
+		}, cb, undefined, 10);
+		assert.deepStrictEqual(results, [10, 10, 3]);
 	});
 
 	test('Cached results', function () {
@@ -291,7 +285,8 @@ suite('SearchService', () => {
 				assert.fail(JSON.stringify(value));
 			}
 		};
-		return service.doFileSearch(Engine, {
+		return service.doFileSearchWithEngine(Engine, {
+			type: QueryType.File,
 			folderQueries: TEST_FOLDER_QUERIES,
 			filePattern: 'b',
 			sortByScore: true,
@@ -299,7 +294,7 @@ suite('SearchService', () => {
 		}, cb, undefined, -1).then(complete => {
 			assert.strictEqual((<IFileSearchStats>complete.stats).fromCache, false);
 			assert.deepStrictEqual(results, [path.normalize('/some/where/bcb'), path.normalize('/some/where/bbc'), path.normalize('/some/where/aab')]);
-		}).then(() => {
+		}).then(async () => {
 			const results = [];
 			const cb = value => {
 				if (Array.isArray(value)) {
@@ -308,18 +303,21 @@ suite('SearchService', () => {
 					assert.fail(JSON.stringify(value));
 				}
 			};
-			return service.doFileSearch(Engine, {
-				folderQueries: TEST_FOLDER_QUERIES,
-				filePattern: 'bc',
-				sortByScore: true,
-				cacheKey: 'x'
-			}, cb, undefined, -1).then(complete => {
+			try {
+				const complete = await service.doFileSearchWithEngine(Engine, {
+					type: QueryType.File,
+					folderQueries: TEST_FOLDER_QUERIES,
+					filePattern: 'bc',
+					sortByScore: true,
+					cacheKey: 'x'
+				}, cb, undefined, -1);
 				assert.ok((<IFileSearchStats>complete.stats).fromCache);
 				assert.deepStrictEqual(results, [path.normalize('/some/where/bcb'), path.normalize('/some/where/bbc')]);
-			}, null);
+			}
+			catch (e) { }
 		}).then(() => {
 			return service.clearCache('x');
-		}).then(() => {
+		}).then(async () => {
 			matches.push({
 				base: path.normalize('/some/where'),
 				relativePath: 'bc',
@@ -334,15 +332,15 @@ suite('SearchService', () => {
 					assert.fail(JSON.stringify(value));
 				}
 			};
-			return service.doFileSearch(Engine, {
+			const complete = await service.doFileSearchWithEngine(Engine, {
+				type: QueryType.File,
 				folderQueries: TEST_FOLDER_QUERIES,
 				filePattern: 'bc',
 				sortByScore: true,
 				cacheKey: 'x'
-			}, cb, undefined, -1).then(complete => {
-				assert.strictEqual((<IFileSearchStats>complete.stats).fromCache, false);
-				assert.deepStrictEqual(results, [path.normalize('/some/where/bc')]);
-			});
+			}, cb, undefined, -1);
+			assert.strictEqual((<IFileSearchStats>complete.stats).fromCache, false);
+			assert.deepStrictEqual(results, [path.normalize('/some/where/bc')]);
 		});
 	});
 });

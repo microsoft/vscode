@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import * as fs from 'fs';
 import * as paths from 'path';
 import { nfcall } from 'vs/base/common/async';
@@ -12,10 +10,11 @@ import { normalizeNFC } from 'vs/base/common/normalization';
 import * as platform from 'vs/base/common/platform';
 import * as strings from 'vs/base/common/strings';
 import * as uuid from 'vs/base/common/uuid';
-import { TPromise } from 'vs/base/common/winjs.base';
 import { encode, encodeStream } from 'vs/base/node/encoding';
 import * as flow from 'vs/base/node/flow';
 import { CancellationToken } from 'vs/base/common/cancellation';
+import { IDisposable, toDisposable, Disposable } from 'vs/base/common/lifecycle';
+import { TPromise } from 'vs/base/common/winjs.base';
 
 const loop = flow.loop;
 
@@ -173,7 +172,7 @@ export function mkdirp(path: string, mode?: number, token?: CancellationToken): 
 		}
 
 		// Any other error
-		return TPromise.wrapError<boolean>(err);
+		return TPromise.wrapError(err);
 	});
 }
 
@@ -254,7 +253,7 @@ function rmRecursive(path: string, callback: (error: Error) => void): void {
 						} else if (children.length === 0) {
 							fs.rmdir(path, callback);
 						} else {
-							let firstError: Error = null;
+							let firstError: Error | null = null;
 							let childrenLeft = children.length;
 							children.forEach(child => {
 								rmRecursive(paths.join(path, child), (err: Error) => {
@@ -640,12 +639,12 @@ function normalizePath(path: string): string {
 	return strings.rtrim(paths.normalize(path), paths.sep);
 }
 
-export function watch(path: string, onChange: (type: string, path?: string) => void, onError: (error: string) => void): fs.FSWatcher {
+export function watch(path: string, onChange: (type: string, path?: string) => void, onError: (error: string) => void): IDisposable {
 	try {
 		const watcher = fs.watch(path);
 
 		watcher.on('change', (type, raw) => {
-			let file: string = null;
+			let file: string | null = null;
 			if (raw) { // https://github.com/Microsoft/vscode/issues/38191
 				file = raw.toString();
 				if (platform.isMacintosh) {
@@ -660,7 +659,10 @@ export function watch(path: string, onChange: (type: string, path?: string) => v
 
 		watcher.on('error', (code: number, signal: string) => onError(`Failed to watch ${path} for changes (${code}, ${signal})`));
 
-		return watcher;
+		return toDisposable(() => {
+			watcher.removeAllListeners();
+			watcher.close();
+		});
 	} catch (error) {
 		fs.exists(path, exists => {
 			if (exists) {
@@ -669,7 +671,7 @@ export function watch(path: string, onChange: (type: string, path?: string) => v
 		});
 	}
 
-	return void 0;
+	return Disposable.None;
 }
 
 export function sanitizeFilePath(candidate: string, cwd: string): string {

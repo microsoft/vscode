@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import { applyDragImage } from 'vs/base/browser/dnd';
 import { addDisposableListener, Dimension, EventType } from 'vs/base/browser/dom';
 import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
@@ -14,7 +12,6 @@ import { Action, IAction, IRunEvent } from 'vs/base/common/actions';
 import * as arrays from 'vs/base/common/arrays';
 import { ResolvedKeybinding } from 'vs/base/common/keyCodes';
 import { dispose, IDisposable } from 'vs/base/common/lifecycle';
-import { TPromise } from 'vs/base/common/winjs.base';
 import 'vs/css!./media/titlecontrol';
 import { getCodeEditor } from 'vs/editor/browser/editorBrowser';
 import { localize } from 'vs/nls';
@@ -56,8 +53,6 @@ export abstract class TitleControl extends Themable {
 	private currentPrimaryEditorActionIds: string[] = [];
 	private currentSecondaryEditorActionIds: string[] = [];
 	protected editorActionsToolbar: ToolBar;
-
-	private mapEditorToActions: Map<string, IToolbarActions> = new Map();
 
 	private resourceContext: ResourceContextKey;
 	private editorToolBarMenuDisposables: IDisposable[] = [];
@@ -217,17 +212,6 @@ export abstract class TitleControl extends Themable {
 		// Editor actions require the editor control to be there, so we retrieve it via service
 		const activeControl = this.group.activeControl;
 		if (activeControl instanceof BaseEditor) {
-
-			// Editor Control Actions
-			let editorActions = this.mapEditorToActions.get(activeControl.getId());
-			if (!editorActions) {
-				editorActions = { primary: activeControl.getActions(), secondary: activeControl.getSecondaryActions() };
-				this.mapEditorToActions.set(activeControl.getId(), editorActions);
-			}
-			primary.push(...editorActions.primary);
-			secondary.push(...editorActions.secondary);
-
-			// Contributed Actions
 			const codeEditor = getCodeEditor(activeControl.getControl());
 			const scopedContextKeyService = codeEditor && codeEditor.invokeWithinContext(accessor => accessor.get(IContextKeyService)) || this.contextKeyService;
 			const titleBarMenu = this.menuService.createMenu(MenuId.EditorTitle, scopedContextKeyService);
@@ -304,7 +288,7 @@ export abstract class TitleControl extends Themable {
 		// Show it
 		this.contextMenuService.showContextMenu({
 			getAnchor: () => anchor,
-			getActions: () => TPromise.as(actions),
+			getActions: () => Promise.resolve(actions),
 			getActionsContext: () => ({ groupId: this.group.id, editorIndex: this.group.getIndexOfEditor(editor) } as IEditorCommandsContext),
 			getKeyBinding: (action) => this.getKeybinding(action),
 			onHide: () => {
@@ -318,7 +302,7 @@ export abstract class TitleControl extends Themable {
 		});
 	}
 
-	protected getKeybinding(action: IAction): ResolvedKeybinding {
+	private getKeybinding(action: IAction): ResolvedKeybinding {
 		return this.keybindingService.lookupKeybinding(action.id);
 	}
 

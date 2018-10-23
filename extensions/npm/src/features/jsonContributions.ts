@@ -2,7 +2,6 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
 import { Location, getLocation, createScanner, SyntaxKind, ScanError } from 'jsonc-parser';
 import { basename } from 'path';
@@ -124,7 +123,7 @@ export class JSONCompletionItemProvider implements CompletionItemProvider {
 		let collectPromise: Thenable<any> | null = null;
 
 		if (location.isAtPropertyKey) {
-			const addValue = !location.previousNode || !location.previousNode.columnOffset;
+			const addValue = !location.previousNode || !location.previousNode.colonOffset;
 			const isLast = this.isLast(document, position);
 			collectPromise = this.jsonContribution.collectPropertySuggestions(fileName, location, currentWord, addValue, isLast, collector);
 		} else {

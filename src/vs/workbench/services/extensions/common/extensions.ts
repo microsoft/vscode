@@ -2,14 +2,13 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
+import { Event } from 'vs/base/common/event';
 import Severity from 'vs/base/common/severity';
+import { URI } from 'vs/base/common/uri';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IExtensionPoint } from 'vs/workbench/services/extensions/common/extensionsRegistry';
-import { Event } from 'vs/base/common/event';
-import { URI } from 'vs/base/common/uri';
 
 export interface IExtensionDescription {
 	readonly id: string;
@@ -172,6 +171,11 @@ export interface IExtensionService {
 	 * Begin an extension host process profile session.
 	 */
 	startExtensionHostProfile(): TPromise<ProfileSession>;
+
+	/**
+	 * Return the inspect port or 0.
+	 */
+	getInspectPort(): number;
 
 	/**
 	 * Restarts the extension host.

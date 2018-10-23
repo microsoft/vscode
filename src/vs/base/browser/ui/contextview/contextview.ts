@@ -3,11 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import 'vs/css!./contextview';
 import * as DOM from 'vs/base/browser/dom';
 import { IDisposable, dispose, toDisposable, combinedDisposable, Disposable } from 'vs/base/common/lifecycle';
+import { Range } from 'vs/base/common/range';
 
 export interface IAnchor {
 	x: number;
@@ -100,10 +99,10 @@ export class ContextView extends Disposable {
 	private static readonly BUBBLE_UP_EVENTS = ['click', 'keydown', 'focus', 'blur'];
 	private static readonly BUBBLE_DOWN_EVENTS = ['click'];
 
-	private container: HTMLElement;
+	private container: HTMLElement | null;
 	private view: HTMLElement;
-	private delegate: IDelegate;
-	private toDisposeOnClean: IDisposable;
+	private delegate: IDelegate | null;
+	private toDisposeOnClean: IDisposable | null;
 	private toDisposeOnSetContainer: IDisposable;
 
 	constructor(container: HTMLElement) {
@@ -118,7 +117,7 @@ export class ContextView extends Disposable {
 		this._register(toDisposable(() => this.setContainer(null)));
 	}
 
-	public setContainer(container: HTMLElement): void {
+	public setContainer(container: HTMLElement | null): void {
 		if (this.container) {
 			this.toDisposeOnSetContainer = dispose(this.toDisposeOnSetContainer);
 			this.container.removeChild(this.view);
@@ -131,13 +130,13 @@ export class ContextView extends Disposable {
 			const toDisposeOnSetContainer: IDisposable[] = [];
 
 			ContextView.BUBBLE_UP_EVENTS.forEach(event => {
-				toDisposeOnSetContainer.push(DOM.addStandardDisposableListener(this.container, event, (e: Event) => {
+				toDisposeOnSetContainer.push(DOM.addStandardDisposableListener(this.container!, event, (e: Event) => {
 					this.onDOMEvent(e, <HTMLElement>document.activeElement, false);
 				}));
 			});
 
 			ContextView.BUBBLE_DOWN_EVENTS.forEach(event => {
-				toDisposeOnSetContainer.push(DOM.addStandardDisposableListener(this.container, event, (e: Event) => {
+				toDisposeOnSetContainer.push(DOM.addStandardDisposableListener(this.container!, event, (e: Event) => {
 					this.onDOMEvent(e, <HTMLElement>document.activeElement, true);
 				}, true));
 			});
@@ -173,13 +172,13 @@ export class ContextView extends Disposable {
 			return;
 		}
 
-		if (this.delegate.canRelayout === false) {
+		if (this.delegate!.canRelayout === false) {
 			this.hide();
 			return;
 		}
 
-		if (this.delegate.layout) {
-			this.delegate.layout();
+		if (this.delegate!.layout) {
+			this.delegate!.layout!();
 		}
 
 		this.doLayout();
@@ -192,7 +191,7 @@ export class ContextView extends Disposable {
 		}
 
 		// Get anchor
-		let anchor = this.delegate.getAnchor();
+		let anchor = this.delegate!.getAnchor();
 
 		// Compute around
 		let around: IView;
@@ -221,8 +220,8 @@ export class ContextView extends Disposable {
 		const viewSizeWidth = DOM.getTotalWidth(this.view);
 		const viewSizeHeight = DOM.getTotalHeight(this.view);
 
-		const anchorPosition = this.delegate.anchorPosition || AnchorPosition.BELOW;
-		const anchorAlignment = this.delegate.anchorAlignment || AnchorAlignment.LEFT;
+		const anchorPosition = this.delegate!.anchorPosition || AnchorPosition.BELOW;
+		const anchorAlignment = this.delegate!.anchorAlignment || AnchorAlignment.LEFT;
 
 		const verticalAnchor: ILayoutAnchor = { offset: around.top, size: around.height, position: anchorPosition === AnchorPosition.BELOW ? LayoutAnchorPosition.Before : LayoutAnchorPosition.After };
 
@@ -234,16 +233,22 @@ export class ContextView extends Disposable {
 			horizontalAnchor = { offset: around.left + around.width, size: 0, position: LayoutAnchorPosition.After };
 		}
 
-		const containerPosition = DOM.getDomNodePagePosition(this.container);
-		const top = layout(window.innerHeight, viewSizeHeight, verticalAnchor) - containerPosition.top;
-		const left = layout(window.innerWidth, viewSizeWidth, horizontalAnchor) - containerPosition.left;
+		const top = layout(window.innerHeight, viewSizeHeight, verticalAnchor);
+
+		// if view intersects vertically with anchor, shift it horizontally
+		if (Range.intersects({ start: top, end: top + viewSizeHeight }, { start: verticalAnchor.offset, end: verticalAnchor.offset + verticalAnchor.size })) {
+			horizontalAnchor.size = around.width;
+		}
+
+		const left = layout(window.innerWidth, viewSizeWidth, horizontalAnchor);
 
 		DOM.removeClasses(this.view, 'top', 'bottom', 'left', 'right');
 		DOM.addClass(this.view, anchorPosition === AnchorPosition.BELOW ? 'bottom' : 'top');
 		DOM.addClass(this.view, anchorAlignment === AnchorAlignment.LEFT ? 'left' : 'right');
 
-		this.view.style.top = `${top}px`;
-		this.view.style.left = `${left}px`;
+		const containerPosition = DOM.getDomNodePagePosition(this.container!);
+		this.view.style.top = `${top - containerPosition.top}px`;
+		this.view.style.left = `${left - containerPosition.left}px`;
 		this.view.style.width = 'initial';
 	}
 

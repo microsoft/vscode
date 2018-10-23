@@ -2,7 +2,6 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
 import { localize } from 'vs/nls';
 import { Event, Emitter } from 'vs/base/common/event';
@@ -11,7 +10,6 @@ import { IDisposable, dispose, IReference } from 'vs/base/common/lifecycle';
 import * as strings from 'vs/base/common/strings';
 import { URI } from 'vs/base/common/uri';
 import { defaultGenerator } from 'vs/base/common/idGenerator';
-import { TPromise } from 'vs/base/common/winjs.base';
 import { Range, IRange } from 'vs/editor/common/core/range';
 import { Location } from 'vs/editor/common/modes';
 import { ITextModelService, ITextEditorModel } from 'vs/editor/common/services/resolverService';
@@ -62,7 +60,7 @@ export class FilePreview implements IDisposable {
 		dispose(this._modelReference);
 	}
 
-	preview(range: IRange, n: number = 8): { before: string; inside: string; after: string } {
+	preview(range: IRange, n: number = 8): { before: string; inside: string; after: string } | undefined {
 		const model = this._modelReference.object.textEditorModel;
 
 		if (!model) {
@@ -87,7 +85,7 @@ export class FilePreview implements IDisposable {
 export class FileReferences implements IDisposable {
 
 	private _children: OneReference[];
-	private _preview: FilePreview;
+	private _preview?: FilePreview;
 	private _resolved: boolean;
 	private _loadFailure: any;
 
@@ -111,7 +109,7 @@ export class FileReferences implements IDisposable {
 		return this._uri;
 	}
 
-	get preview(): FilePreview {
+	get preview(): FilePreview | undefined {
 		return this._preview;
 	}
 
@@ -128,13 +126,13 @@ export class FileReferences implements IDisposable {
 		}
 	}
 
-	resolve(textModelResolverService: ITextModelService): TPromise<FileReferences> {
+	resolve(textModelResolverService: ITextModelService): Promise<FileReferences> {
 
 		if (this._resolved) {
-			return TPromise.as(this);
+			return Promise.resolve(this);
 		}
 
-		return textModelResolverService.createModelReference(this._uri).then(modelReference => {
+		return Promise.resolve(textModelResolverService.createModelReference(this._uri).then(modelReference => {
 			const model = modelReference.object;
 
 			if (!model) {
@@ -152,13 +150,13 @@ export class FileReferences implements IDisposable {
 			this._resolved = true;
 			this._loadFailure = err;
 			return this;
-		});
+		}));
 	}
 
 	dispose(): void {
 		if (this._preview) {
 			this._preview.dispose();
-			this._preview = null;
+			this._preview = undefined;
 		}
 	}
 }
@@ -177,7 +175,7 @@ export class ReferencesModel implements IDisposable {
 		// grouping and sorting
 		references.sort(ReferencesModel._compareReferences);
 
-		let current: FileReferences;
+		let current: FileReferences | undefined;
 		for (let ref of references) {
 			if (!current || current.uri.toString() !== ref.uri.toString()) {
 				// new group
@@ -241,7 +239,7 @@ export class ReferencesModel implements IDisposable {
 		}
 	}
 
-	nearestReference(resource: URI, position: Position): OneReference {
+	nearestReference(resource: URI, position: Position): OneReference | undefined {
 
 		const nearest = this.references.map((ref, idx) => {
 			return {

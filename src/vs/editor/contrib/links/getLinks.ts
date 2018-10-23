@@ -3,17 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
+import { CancellationToken } from 'vs/base/common/cancellation';
 import { onUnexpectedExternalError } from 'vs/base/common/errors';
 import { URI } from 'vs/base/common/uri';
-import { TPromise } from 'vs/base/common/winjs.base';
-import { Range, IRange } from 'vs/editor/common/core/range';
+import { IRange, Range } from 'vs/editor/common/core/range';
 import { ITextModel } from 'vs/editor/common/model';
 import { ILink, LinkProvider, LinkProviderRegistry } from 'vs/editor/common/modes';
-import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { IModelService } from 'vs/editor/common/services/modelService';
-import { CancellationToken } from 'vs/base/common/cancellation';
+import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 
 export class Link implements ILink {
 
@@ -36,16 +33,16 @@ export class Link implements ILink {
 		return this._link.range;
 	}
 
-	get url(): string {
+	get url(): string | undefined {
 		return this._link.url;
 	}
 
 	resolve(token: CancellationToken): Thenable<URI> {
 		if (this._link.url) {
 			try {
-				return TPromise.as(URI.parse(this._link.url));
+				return Promise.resolve(URI.parse(this._link.url));
 			} catch (e) {
-				return TPromise.wrapError<URI>(new Error('invalid'));
+				return Promise.reject(new Error('invalid'));
 			}
 		}
 
@@ -57,11 +54,11 @@ export class Link implements ILink {
 					return this.resolve(token);
 				}
 
-				return TPromise.wrapError<URI>(new Error('missing'));
+				return Promise.reject(new Error('missing'));
 			});
 		}
 
-		return TPromise.wrapError<URI>(new Error('missing'));
+		return Promise.reject(new Error('missing'));
 	}
 }
 

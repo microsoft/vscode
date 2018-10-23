@@ -2,8 +2,6 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
-
 import * as assert from 'assert';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 
@@ -13,7 +11,7 @@ suite('Command Tests', function () {
 		assert.throws(() => CommandsRegistry.registerCommand('foo', null));
 	});
 
-	test('register/dispose', function () {
+	test('register/dispose', () => {
 		const command = function () { };
 		const reg = CommandsRegistry.registerCommand('foo', command);
 		assert.ok(CommandsRegistry.getCommand('foo').handler === command);
@@ -21,7 +19,7 @@ suite('Command Tests', function () {
 		assert.ok(CommandsRegistry.getCommand('foo') === undefined);
 	});
 
-	test('register/register/dispose', function () {
+	test('register/register/dispose', () => {
 		const command1 = function () { };
 		const command2 = function () { };
 

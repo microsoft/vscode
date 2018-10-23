@@ -3,21 +3,29 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import { ipcRenderer, Event } from 'electron';
 import { IContextMenuItem, ISerializableContextMenuItem, CONTEXT_MENU_CLOSE_CHANNEL, CONTEXT_MENU_CHANNEL, IPopupOptions, IContextMenuEvent } from 'vs/base/parts/contextmenu/common/contextmenu';
 
-let onClickChannelIds = 0;
+let contextMenuIdPool = 0;
 
 export function popup(items: IContextMenuItem[], options?: IPopupOptions): void {
 	const processedItems: IContextMenuItem[] = [];
 
-	const onClickChannel = `vscode:onContextMenu${onClickChannelIds++}`;
-	const onClickChannelHandler = (event: Event, itemId: number, context: IContextMenuEvent) => processedItems[itemId].click(context);
+	const contextMenuId = contextMenuIdPool++;
+	const onClickChannel = `vscode:onContextMenu${contextMenuId}`;
+	const onClickChannelHandler = (_event: Event, itemId: number, context: IContextMenuEvent) => {
+		const item = processedItems[itemId];
+		if (item.click) {
+			item.click(context);
+		}
+	};
 
 	ipcRenderer.once(onClickChannel, onClickChannelHandler);
-	ipcRenderer.once(CONTEXT_MENU_CLOSE_CHANNEL, () => {
+	ipcRenderer.once(CONTEXT_MENU_CLOSE_CHANNEL, (_event: Event, closedContextMenuId: number) => {
+		if (closedContextMenuId !== contextMenuId) {
+			return;
+		}
+
 		ipcRenderer.removeListener(onClickChannel, onClickChannelHandler);
 
 		if (options && options.onHide) {
@@ -25,7 +33,7 @@ export function popup(items: IContextMenuItem[], options?: IPopupOptions): void 
 		}
 	});
 
-	ipcRenderer.send(CONTEXT_MENU_CHANNEL, items.map(item => createItem(item, processedItems)), onClickChannel, options);
+	ipcRenderer.send(CONTEXT_MENU_CHANNEL, contextMenuId, items.map(item => createItem(item, processedItems)), onClickChannel, options);
 }
 
 function createItem(item: IContextMenuItem, processedItems: IContextMenuItem[]): ISerializableContextMenuItem {

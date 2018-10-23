@@ -3,15 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import 'vs/css!./goToDefinitionMouse';
 import * as nls from 'vs/nls';
 import { createCancelablePromise, CancelablePromise } from 'vs/base/common/async';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { MarkdownString } from 'vs/base/common/htmlContent';
-import { TPromise } from 'vs/base/common/winjs.base';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { Range } from 'vs/editor/common/core/range';
 import * as editorCommon from 'vs/editor/common/editorCommon';
@@ -26,7 +23,7 @@ import { editorActiveLinkForeground } from 'vs/platform/theme/common/colorRegist
 import { EditorState, CodeEditorStateFlag } from 'vs/editor/browser/core/editorState';
 import { DefinitionAction, DefinitionActionConfig } from './goToDefinitionCommands';
 import { ClickLinkGesture, ClickLinkMouseEvent, ClickLinkKeyboardEvent } from 'vs/editor/contrib/goToDefinition/clickLinkGesture';
-import { IWordAtPosition, IModelDeltaDecoration, ITextModel } from 'vs/editor/common/model';
+import { IWordAtPosition, IModelDeltaDecoration, ITextModel, IFoundBracket } from 'vs/editor/common/model';
 import { Position } from 'vs/editor/common/core/position';
 
 class GotoDefinitionWithMouseEditorContribution implements editorCommon.IEditorContribution {
@@ -157,7 +154,7 @@ class GotoDefinitionWithMouseEditorContribution implements editorCommon.IEditorC
 
 					this.addDecoration(
 						wordRange,
-						new MarkdownString().appendCodeblock(this.modeService.getModeIdByFilenameOrFirstLine(textEditorModel.uri.fsPath), previewValue)
+						new MarkdownString().appendCodeblock(this.modeService.getModeIdByFilepathOrFirstLine(textEditorModel.uri.fsPath), previewValue)
 					);
 					ref.dispose();
 				});
@@ -208,7 +205,7 @@ class GotoDefinitionWithMouseEditorContribution implements editorCommon.IEditorC
 	private getPreviewRangeBasedOnBrackets(textEditorModel: ITextModel, startLineNumber: number) {
 		const maxLineNumber = Math.min(textEditorModel.getLineCount(), startLineNumber + GotoDefinitionWithMouseEditorContribution.MAX_SOURCE_PREVIEW_LINES);
 
-		const brackets = [];
+		const brackets: IFoundBracket[] = [];
 
 		let ignoreFirstEmpty = true;
 		let currentBracket = textEditorModel.findNextBracket(new Position(startLineNumber, 1));
@@ -281,13 +278,13 @@ class GotoDefinitionWithMouseEditorContribution implements editorCommon.IEditorC
 	private findDefinition(target: IMouseTarget, token: CancellationToken): Thenable<DefinitionLink[]> {
 		const model = this.editor.getModel();
 		if (!model) {
-			return TPromise.as(null);
+			return Promise.resolve(null);
 		}
 
 		return getDefinitionsAtPosition(model, target.position, token);
 	}
 
-	private gotoDefinition(target: IMouseTarget, sideBySide: boolean): TPromise<any> {
+	private gotoDefinition(target: IMouseTarget, sideBySide: boolean): Thenable<any> {
 		this.editor.setPosition(target.position);
 		const action = new DefinitionAction(new DefinitionActionConfig(sideBySide, false, true, false), { alias: undefined, label: undefined, id: undefined, precondition: undefined });
 		return this.editor.invokeWithinContext(accessor => action.run(accessor, this.editor));
@@ -305,7 +302,7 @@ class GotoDefinitionWithMouseEditorContribution implements editorCommon.IEditorC
 registerEditorContribution(GotoDefinitionWithMouseEditorContribution);
 
 registerThemingParticipant((theme, collector) => {
-	let activeLinkForeground = theme.getColor(editorActiveLinkForeground);
+	const activeLinkForeground = theme.getColor(editorActiveLinkForeground);
 	if (activeLinkForeground) {
 		collector.addRule(`.monaco-editor .goto-definition-link { color: ${activeLinkForeground} !important; }`);
 	}

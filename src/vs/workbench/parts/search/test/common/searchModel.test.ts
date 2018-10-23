@@ -2,8 +2,6 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
-
 import * as assert from 'assert';
 import * as sinon from 'sinon';
 import { timeout } from 'vs/base/common/async';
@@ -73,7 +71,7 @@ suite('SearchModel', () => {
 		instantiationService.stub(ITelemetryService, NullTelemetryService);
 		instantiationService.stub(IModelService, stubModelService(instantiationService));
 		instantiationService.stub(ISearchService, {});
-		instantiationService.stub(ISearchService, 'search', TPromise.as({ results: [] }));
+		instantiationService.stub(ISearchService, 'textSearch', TPromise.as({ results: [] }));
 	});
 
 	teardown(() => {
@@ -82,9 +80,9 @@ suite('SearchModel', () => {
 		});
 	});
 
-	function searchServiceWithResults(results: IFileMatch[], complete: ISearchComplete = null): ISearchService {
+	function searchServiceWithResults(results: IFileMatch[], complete: ISearchComplete | null = null): ISearchService {
 		return <ISearchService>{
-			search(query: ISearchQuery, token?: CancellationToken, onProgress?: (result: ISearchProgressItem) => void): TPromise<ISearchComplete> {
+			textSearch(query: ISearchQuery, token?: CancellationToken, onProgress?: (result: ISearchProgressItem) => void): TPromise<ISearchComplete> {
 				return new TPromise(resolve => {
 					process.nextTick(() => {
 						results.forEach(onProgress);
@@ -97,7 +95,7 @@ suite('SearchModel', () => {
 
 	function searchServiceWithError(error: Error): ISearchService {
 		return <ISearchService>{
-			search(query: ISearchQuery, token?: CancellationToken, onProgress?: (result: ISearchProgressItem) => void): TPromise<ISearchComplete> {
+			textSearch(query: ISearchQuery, token?: CancellationToken, onProgress?: (result: ISearchProgressItem) => void): TPromise<ISearchComplete> {
 				return new TPromise((resolve, reject) => {
 					reject(error);
 				});
@@ -107,7 +105,7 @@ suite('SearchModel', () => {
 
 	function canceleableSearchService(tokenSource: CancellationTokenSource): ISearchService {
 		return <ISearchService>{
-			search(query: ISearchQuery, token?: CancellationToken, onProgress?: (result: ISearchProgressItem) => void): TPromise<ISearchComplete> {
+			textSearch(query: ISearchQuery, token?: CancellationToken, onProgress?: (result: ISearchProgressItem) => void): TPromise<ISearchComplete> {
 				if (token) {
 					token.onCancellationRequested(() => tokenSource.cancel());
 				}
@@ -239,7 +237,7 @@ suite('SearchModel', () => {
 		instantiationService.stub(ITelemetryService, 'publicLog', target1);
 
 		let promise = new DeferredTPromise<ISearchComplete>();
-		instantiationService.stub(ISearchService, 'search', promise);
+		instantiationService.stub(ISearchService, 'textSearch', promise);
 
 		let testObject = instantiationService.createInstance(SearchModel);
 		let result = testObject.search({ contentPattern: { pattern: 'somestring' }, type: 1, folderQueries });

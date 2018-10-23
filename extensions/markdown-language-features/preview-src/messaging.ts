@@ -10,12 +10,6 @@ export interface MessagePoster {
 	 * Post a message to the markdown extension
 	 */
 	postMessage(type: string, body: object): void;
-
-
-	/**
-	 * Post a command to be executed to the markdown extension
-	 */
-	postCommand(command: string, args: any[]): void;
 }
 
 export const createPosterForVsCode = (vscode: any) => {
@@ -26,9 +20,6 @@ export const createPosterForVsCode = (vscode: any) => {
 				source: getSettings().source,
 				body
 			});
-		}
-		postCommand(command: string, args: any[]) {
-			this.postMessage('command', { command, args });
 		}
 	};
 };

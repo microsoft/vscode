@@ -2,7 +2,6 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
 import * as platform from 'vs/platform/registry/common/platform';
 import { IJSONSchema } from 'vs/base/common/jsonSchema';
@@ -18,20 +17,20 @@ export type ColorIdentifier = string;
 export interface ColorContribution {
 	readonly id: ColorIdentifier;
 	readonly description: string;
-	readonly defaults: ColorDefaults;
+	readonly defaults: ColorDefaults | null;
 	readonly needsTransparency: boolean;
-	readonly deprecationMessage: string;
+	readonly deprecationMessage: string | undefined;
 }
 
 
 export interface ColorFunction {
-	(theme: ITheme): Color;
+	(theme: ITheme): Color | null;
 }
 
 export interface ColorDefaults {
-	light: ColorValue;
-	dark: ColorValue;
-	hc: ColorValue;
+	light: ColorValue | null;
+	dark: ColorValue | null;
+	hc: ColorValue | null;
 }
 
 /**
@@ -62,7 +61,7 @@ export interface IColorRegistry {
 	/**
 	 * Gets the default color of the given id
 	 */
-	resolveDefaultColor(id: ColorIdentifier, theme: ITheme): Color;
+	resolveDefaultColor(id: ColorIdentifier, theme: ITheme): Color | null;
 
 	/**
 	 * JSON schema for an object to assign color values to one of the color contrbutions.
@@ -87,16 +86,16 @@ class ColorRegistry implements IColorRegistry {
 		this.colorsById = {};
 	}
 
-	public registerColor(id: string, defaults: ColorDefaults, description: string, needsTransparency = false, deprecationMessage?: string): ColorIdentifier {
+	public registerColor(id: string, defaults: ColorDefaults | null, description: string, needsTransparency = false, deprecationMessage?: string): ColorIdentifier {
 		let colorContribution: ColorContribution = { id, description, defaults, needsTransparency, deprecationMessage };
 		this.colorsById[id] = colorContribution;
 		let propertySchema: IJSONSchema = { type: 'string', description, format: 'color-hex', default: '#ff0000' };
 		if (deprecationMessage) {
 			propertySchema.deprecationMessage = deprecationMessage;
 		}
-		this.colorSchema.properties[id] = propertySchema;
-		this.colorReferenceSchema.enum.push(id);
-		this.colorReferenceSchema.enumDescriptions.push(description);
+		this.colorSchema.properties![id] = propertySchema;
+		this.colorReferenceSchema.enum!.push(id);
+		this.colorReferenceSchema.enumDescriptions!.push(description);
 		return id;
 	}
 
@@ -104,7 +103,7 @@ class ColorRegistry implements IColorRegistry {
 		return Object.keys(this.colorsById).map(id => this.colorsById[id]);
 	}
 
-	public resolveDefaultColor(id: ColorIdentifier, theme: ITheme): Color {
+	public resolveDefaultColor(id: ColorIdentifier, theme: ITheme): Color | null {
 		let colorDesc = this.colorsById[id];
 		if (colorDesc && colorDesc.defaults) {
 			let colorValue = colorDesc.defaults[theme.type];
@@ -139,7 +138,7 @@ class ColorRegistry implements IColorRegistry {
 const colorRegistry = new ColorRegistry();
 platform.Registry.add(Extensions.ColorContribution, colorRegistry);
 
-export function registerColor(id: string, defaults: ColorDefaults, description: string, needsTransparency?: boolean, deprecationMessage?: string): ColorIdentifier {
+export function registerColor(id: string, defaults: ColorDefaults | null, description: string, needsTransparency?: boolean, deprecationMessage?: string): ColorIdentifier {
 	return colorRegistry.registerColor(id, defaults, description, needsTransparency, deprecationMessage);
 }
 
@@ -194,22 +193,22 @@ export const selectListBackground = registerColor('dropdown.listBackground', { d
 export const selectForeground = registerColor('dropdown.foreground', { dark: '#F0F0F0', light: null, hc: Color.white }, nls.localize('dropdownForeground', "Dropdown foreground."));
 export const selectBorder = registerColor('dropdown.border', { dark: selectBackground, light: '#CECECE', hc: contrastBorder }, nls.localize('dropdownBorder', "Dropdown border."));
 
-export const listFocusBackground = registerColor('list.focusBackground', { dark: '#062F4A', light: '#DFF0FF', hc: null }, nls.localize('listFocusBackground', "List/Tree background color for the focused item when the list/tree is active. An active list/tree has keyboard focus, an inactive does not."));
+export const listFocusBackground = registerColor('list.focusBackground', { dark: '#062F4A', light: '#D6EBFF', hc: null }, nls.localize('listFocusBackground', "List/Tree background color for the focused item when the list/tree is active. An active list/tree has keyboard focus, an inactive does not."));
 export const listFocusForeground = registerColor('list.focusForeground', { dark: null, light: null, hc: null }, nls.localize('listFocusForeground', "List/Tree foreground color for the focused item when the list/tree is active. An active list/tree has keyboard focus, an inactive does not."));
 export const listActiveSelectionBackground = registerColor('list.activeSelectionBackground', { dark: '#094771', light: '#2477CE', hc: null }, nls.localize('listActiveSelectionBackground', "List/Tree background color for the selected item when the list/tree is active. An active list/tree has keyboard focus, an inactive does not."));
 export const listActiveSelectionForeground = registerColor('list.activeSelectionForeground', { dark: Color.white, light: Color.white, hc: null }, nls.localize('listActiveSelectionForeground', "List/Tree foreground color for the selected item when the list/tree is active. An active list/tree has keyboard focus, an inactive does not."));
-export const listInactiveSelectionBackground = registerColor('list.inactiveSelectionBackground', { dark: '#37373D', light: '#dddfea', hc: null }, nls.localize('listInactiveSelectionBackground', "List/Tree background color for the selected item when the list/tree is inactive. An active list/tree has keyboard focus, an inactive does not."));
+export const listInactiveSelectionBackground = registerColor('list.inactiveSelectionBackground', { dark: '#37373D', light: '#E4E6F1', hc: null }, nls.localize('listInactiveSelectionBackground', "List/Tree background color for the selected item when the list/tree is inactive. An active list/tree has keyboard focus, an inactive does not."));
 export const listInactiveSelectionForeground = registerColor('list.inactiveSelectionForeground', { dark: null, light: null, hc: null }, nls.localize('listInactiveSelectionForeground', "List/Tree foreground color for the selected item when the list/tree is inactive. An active list/tree has keyboard focus, an inactive does not."));
 export const listInactiveFocusBackground = registerColor('list.inactiveFocusBackground', { dark: '#313135', light: '#d8dae6', hc: null }, nls.localize('listInactiveFocusBackground', "List/Tree background color for the focused item when the list/tree is inactive. An active list/tree has keyboard focus, an inactive does not."));
 export const listHoverBackground = registerColor('list.hoverBackground', { dark: '#2A2D2E', light: '#F0F0F0', hc: null }, nls.localize('listHoverBackground', "List/Tree background when hovering over items using the mouse."));
 export const listHoverForeground = registerColor('list.hoverForeground', { dark: null, light: null, hc: null }, nls.localize('listHoverForeground', "List/Tree foreground when hovering over items using the mouse."));
 export const listDropBackground = registerColor('list.dropBackground', { dark: listFocusBackground, light: listFocusBackground, hc: null }, nls.localize('listDropBackground', "List/Tree drag and drop background when moving items around using the mouse."));
-export const listHighlightForeground = registerColor('list.highlightForeground', { dark: '#0097fb', light: '#007acc', hc: focusBorder }, nls.localize('highlight', 'List/Tree foreground color of the match highlights when searching inside the list/tree.'));
+export const listHighlightForeground = registerColor('list.highlightForeground', { dark: '#0097fb', light: '#0066BF', hc: focusBorder }, nls.localize('highlight', 'List/Tree foreground color of the match highlights when searching inside the list/tree.'));
 export const listInvalidItemForeground = registerColor('list.invalidItemForeground', { dark: '#B89500', light: '#B89500', hc: '#B89500' }, nls.localize('invalidItemForeground', 'List/Tree foreground color for invalid items, for example an unresolved root in explorer.'));
 export const listErrorForeground = registerColor('list.errorForeground', { dark: '#F88070', light: '#B01011', hc: null }, nls.localize('listErrorForeground', 'Foreground color of list items containing errors.'));
 export const listWarningForeground = registerColor('list.warningForeground', { dark: '#4d9e4d', light: '#117711', hc: null }, nls.localize('listWarningForeground', 'Foreground color of list items containing warnings.'));
 
-export const pickerGroupForeground = registerColor('pickerGroup.foreground', { dark: '#3794FF', light: '#006AB1', hc: Color.white }, nls.localize('pickerGroupForeground', "Quick picker color for grouping labels."));
+export const pickerGroupForeground = registerColor('pickerGroup.foreground', { dark: '#3794FF', light: '#0066BF', hc: Color.white }, nls.localize('pickerGroupForeground', "Quick picker color for grouping labels."));
 export const pickerGroupBorder = registerColor('pickerGroup.border', { dark: '#3F3F46', light: '#CCCEDB', hc: Color.white }, nls.localize('pickerGroupBorder', "Quick picker color for grouping borders."));
 
 export const buttonForeground = registerColor('button.foreground', { dark: Color.white, light: Color.white, hc: Color.white }, nls.localize('buttonForeground', "Button foreground color."));
@@ -228,6 +227,14 @@ export const scrollbarSliderActiveBackground = registerColor('scrollbarSlider.ac
 
 export const progressBarBackground = registerColor('progressBar.background', { dark: Color.fromHex('#0E70C0'), light: Color.fromHex('#0E70C0'), hc: contrastBorder }, nls.localize('progressBarBackground', "Background color of the progress bar that can show for long running operations."));
 
+export const menuBorder = registerColor('menu.border', { dark: null, light: null, hc: contrastBorder }, nls.localize('menuBorder', "Border color of menus."));
+export const menuForeground = registerColor('menu.foreground', { dark: selectForeground, light: selectForeground, hc: selectForeground }, nls.localize('menuForeground', "Foreground color of menu items."));
+export const menuBackground = registerColor('menu.background', { dark: selectBackground, light: selectBackground, hc: selectBackground }, nls.localize('menuBackground', "Background color of menu items."));
+export const menuSelectionForeground = registerColor('menu.selectionForeground', { dark: listActiveSelectionForeground, light: listActiveSelectionForeground, hc: listActiveSelectionForeground }, nls.localize('menuSelectionForeground', "Foreground color of the selected menu item in menus."));
+export const menuSelectionBackground = registerColor('menu.selectionBackground', { dark: listActiveSelectionBackground, light: listActiveSelectionBackground, hc: listActiveSelectionBackground }, nls.localize('menuSelectionBackground', "Background color of the selected menu item in menus."));
+export const menuSelectionBorder = registerColor('menu.selectionBorder', { dark: null, light: null, hc: activeContrastBorder }, nls.localize('menuSelectionBorder', "Border color of the selected menu item in menus."));
+export const menuSeparatorBackground = registerColor('menu.separatorBackground', { dark: '#BBBBBB', light: '#888888', hc: contrastBorder }, nls.localize('menuSeparatorBackground', "Color of a separator menu item in menus."));
+
 /**
  * Editor background color.
  * Because of bug https://monacotools.visualstudio.com/DefaultCollection/Monaco/_workitems/edit/13254
@@ -243,7 +250,7 @@ export const editorForeground = registerColor('editor.foreground', { light: '#33
 /**
  * Editor widgets
  */
-export const editorWidgetBackground = registerColor('editorWidget.background', { dark: '#2D2D30', light: '#EFEFF2', hc: '#0C141F' }, nls.localize('editorWidgetBackground', 'Background color of editor widgets, such as find/replace.'));
+export const editorWidgetBackground = registerColor('editorWidget.background', { dark: '#252526', light: '#F3F3F3', hc: '#0C141F' }, nls.localize('editorWidgetBackground', 'Background color of editor widgets, such as find/replace.'));
 export const editorWidgetBorder = registerColor('editorWidget.border', { dark: '#454545', light: '#C8C8C8', hc: contrastBorder }, nls.localize('editorWidgetBorder', 'Border color of editor widgets. The color is only used if the widget chooses to have a border and if the color is not overridden by a widget.'));
 
 export const editorWidgetResizeBorder = registerColor('editorWidget.resizeBorder', { light: null, dark: null, hc: null }, nls.localize('editorWidgetResizeBorder', "Border color of the resize bar of editor widgets. The color is only used if the widget chooses to have a resize border and if the color is not overridden by a widget."));
@@ -293,6 +300,14 @@ export const diffInsertedOutline = registerColor('diffEditor.insertedTextBorder'
 export const diffRemovedOutline = registerColor('diffEditor.removedTextBorder', { dark: null, light: null, hc: '#FF008F' }, nls.localize('diffEditorRemovedOutline', 'Outline color for text that got removed.'));
 
 export const diffBorder = registerColor('diffEditor.border', { dark: null, light: null, hc: contrastBorder }, nls.localize('diffEditorBorder', 'Border color between the two text editors.'));
+
+/**
+ * Snippet placeholder colors
+ */
+export const snippetTabstopHighlightBackground = registerColor('editor.snippetTabstopHighlightBackground', { dark: new Color(new RGBA(124, 124, 124, 0.3)), light: new Color(new RGBA(10, 50, 100, 0.2)), hc: new Color(new RGBA(124, 124, 124, 0.3)) }, nls.localize('snippetTabstopHighlightBackground', "Highlight background color of a snippet tabstop."));
+export const snippetTabstopHighlightBorder = registerColor('editor.snippetTabstopHighlightBorder', { dark: null, light: null, hc: null }, nls.localize('snippetTabstopHighlightBorder', "Highlight border color of a snippet tabstop."));
+export const snippetFinalTabstopHighlightBackground = registerColor('editor.snippetFinalTabstopHighlightBackground', { dark: null, light: null, hc: null }, nls.localize('snippetFinalTabstopHighlightBackground', "Highlight background color of the final tabstop of a snippet."));
+export const snippetFinalTabstopHighlightBorder = registerColor('editor.snippetFinalTabstopHighlightBorder', { dark: '#525252', light: new Color(new RGBA(10, 50, 100, 0.5)), hc: '#525252' }, nls.localize('snippetFinalTabstopHighlightBorder', "Highlight border color of the final stabstop of a snippet."));
 
 /**
  * Breadcrumb colors
@@ -399,7 +414,7 @@ function lessProminent(colorValue: ColorValue, backgroundColorValue: ColorValue,
 /**
  * @param colorValue Resolve a color value in the context of a theme
  */
-function resolveColorValue(colorValue: ColorValue, theme: ITheme): Color {
+function resolveColorValue(colorValue: ColorValue | null, theme: ITheme): Color | null {
 	if (colorValue === null) {
 		return null;
 	} else if (typeof colorValue === 'string') {

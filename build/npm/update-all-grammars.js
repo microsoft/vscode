@@ -7,6 +7,9 @@ const cp = require('child_process');
 const fs = require('fs');
 const path = require('path');
 
+/**
+ * @param {string} location
+ */
 function updateGrammar(location) {
 	const npm = process.platform === 'win32' ? 'npm.cmd' : 'npm';
 	const result = cp.spawnSync(npm, ['run', 'update-grammar'], {

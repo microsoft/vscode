@@ -13,6 +13,7 @@
 	"command.previous": "Previous Conflict",
 	"command.compare": "Compare Current Conflict",
 	"config.title": "Merge Conflict",
+	"config.autoNavigateNextConflictEnabled": "Whether to automatically navigate to the next merge conflict after resolving a merge conflict.",
 	"config.codeLensEnabled": "Create a Code Lens for merge conflict blocks within editor.",
 	"config.decoratorsEnabled": "Create decorators for merge conflict blocks within editor."
 }

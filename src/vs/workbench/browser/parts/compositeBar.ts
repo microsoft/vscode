@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import * as nls from 'vs/nls';
 import { Action, IAction } from 'vs/base/common/actions';
 import { illegalArgument } from 'vs/base/common/errors';
@@ -22,12 +20,13 @@ import { IContextMenuService } from 'vs/platform/contextview/browser/contextView
 import { Widget } from 'vs/base/browser/ui/widget';
 import { isUndefinedOrNull } from 'vs/base/common/types';
 import { LocalSelectionTransfer } from 'vs/workbench/browser/dnd';
+import { ITheme } from 'vs/platform/theme/common/themeService';
 
 export interface ICompositeBarOptions {
 	icon: boolean;
 	storageId: string;
 	orientation: ActionsOrientation;
-	colors: ICompositeBarColors;
+	colors: (theme: ITheme) => ICompositeBarColors;
 	compositeSize: number;
 	overflowActionSize: number;
 	getActivityAction: (compositeId: string) => ActivityAction;
@@ -69,6 +68,10 @@ export class CompositeBar extends Widget implements ICompositeBar {
 
 	getComposites(): ICompositeBarItem[] {
 		return this.model.items;
+	}
+
+	getPinnedComposites(): ICompositeBarItem[] {
+		return this.model.pinnedItems;
 	}
 
 	create(parent: HTMLElement): HTMLElement {
@@ -398,7 +401,7 @@ export class CompositeBar extends Widget implements ICompositeBar {
 		const event = new StandardMouseEvent(e);
 		this.contextMenuService.showContextMenu({
 			getAnchor: () => { return { x: event.posx, y: event.posy }; },
-			getActions: () => TPromise.as(this.getContextMenuActions())
+			getActions: () => Promise.resolve(this.getContextMenuActions())
 		});
 	}
 
@@ -457,6 +460,10 @@ class CompositeBarModel {
 
 	get visibleItems(): ICompositeBarItem[] {
 		return this.items.filter(item => item.visible);
+	}
+
+	get pinnedItems(): ICompositeBarItem[] {
+		return this.items.filter(item => item.visible && item.pinned);
 	}
 
 	private createCompositeBarItem(id: string, name: string, order: number, pinned: boolean, visible: boolean): ICompositeBarItem {

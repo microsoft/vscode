@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import { IDisposable, dispose, Disposable } from 'vs/base/common/lifecycle';
 import { IWorkbenchContributionsRegistry, IWorkbenchContribution, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
 import { Registry } from 'vs/platform/registry/common/platform';
@@ -17,7 +15,7 @@ import { IExtensionService } from 'vs/workbench/services/extensions/common/exten
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { URI } from 'vs/base/common/uri';
 import { isEqual } from 'vs/base/common/resources';
-import { isLinux, isMacintosh, isWindows } from 'vs/base/common/platform';
+import { isLinux, isMacintosh } from 'vs/base/common/platform';
 import { LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { equals } from 'vs/base/common/objects';
@@ -39,7 +37,6 @@ export class SettingsChangeRelauncher extends Disposable implements IWorkbenchCo
 	private enableCrashReporter: boolean;
 	private touchbarEnabled: boolean;
 	private treeHorizontalScrolling: boolean;
-	private windowsSmoothScrollingWorkaround: boolean;
 	private experimentalFileWatcher: boolean;
 	private fileWatcherExclude: object;
 
@@ -130,12 +127,6 @@ export class SettingsChangeRelauncher extends Disposable implements IWorkbenchCo
 		// Tree horizontal scrolling support
 		if (config.workbench && config.workbench.tree && typeof config.workbench.tree.horizontalScrolling === 'boolean' && config.workbench.tree.horizontalScrolling !== this.treeHorizontalScrolling) {
 			this.treeHorizontalScrolling = config.workbench.tree.horizontalScrolling;
-			changed = true;
-		}
-
-		// Windows: smooth scrolling workaround
-		if (isWindows && config.window && typeof config.window.smoothScrollingWorkaround === 'boolean' && config.window.smoothScrollingWorkaround !== this.windowsSmoothScrollingWorkaround) {
-			this.windowsSmoothScrollingWorkaround = config.window.smoothScrollingWorkaround;
 			changed = true;
 		}
 

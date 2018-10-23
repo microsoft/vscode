@@ -3,10 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import 'vs/css!./media/titlebarpart';
-import { TPromise } from 'vs/base/common/winjs.base';
 import * as paths from 'vs/base/common/paths';
 import { Part } from 'vs/workbench/browser/part';
 import { ITitleService, ITitleProperties } from 'vs/workbench/services/title/common/titleService';
@@ -29,12 +26,13 @@ import { isMacintosh, isWindows, isLinux } from 'vs/base/common/platform';
 import { URI } from 'vs/base/common/uri';
 import { Color } from 'vs/base/common/color';
 import { trim } from 'vs/base/common/strings';
-import { EventType, EventHelper, Dimension, isAncestor, hide, show, removeClass, addClass, append, $, addDisposableListener } from 'vs/base/browser/dom';
+import { EventType, EventHelper, Dimension, isAncestor, hide, show, removeClass, addClass, append, $, addDisposableListener, getComputedStyle } from 'vs/base/browser/dom';
 import { MenubarControl } from 'vs/workbench/browser/parts/titlebar/menubarControl';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { template, getBaseLabel } from 'vs/base/common/labels';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { Event } from 'vs/base/common/event';
+import { IStorageService } from 'vs/platform/storage/common/storage';
 
 export class TitlebarPart extends Part implements ITitleService {
 
@@ -83,9 +81,10 @@ export class TitlebarPart extends Part implements ITitleService {
 		@IWorkspaceContextService private contextService: IWorkspaceContextService,
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@IThemeService themeService: IThemeService,
-		@ILabelService private labelService: ILabelService
+		@ILabelService private labelService: ILabelService,
+		@IStorageService storageService: IStorageService
 	) {
-		super(id, { hasTitle: false }, themeService);
+		super(id, { hasTitle: false }, themeService, storageService);
 
 		this.properties = { isPure: true, isAdmin: false };
 		this.activeEditorListeners = [];
@@ -97,10 +96,10 @@ export class TitlebarPart extends Part implements ITitleService {
 		this._register(this.windowService.onDidChangeFocus(focused => focused ? this.onFocus() : this.onBlur()));
 		this._register(this.configurationService.onDidChangeConfiguration(e => this.onConfigurationChanged(e)));
 		this._register(this.editorService.onDidActiveEditorChange(() => this.onActiveEditorChange()));
-		this._register(this.contextService.onDidChangeWorkspaceFolders(() => this.setTitle(this.getWindowTitle())));
-		this._register(this.contextService.onDidChangeWorkbenchState(() => this.setTitle(this.getWindowTitle())));
-		this._register(this.contextService.onDidChangeWorkspaceName(() => this.setTitle(this.getWindowTitle())));
-		this._register(this.labelService.onDidRegisterFormatter(() => this.setTitle(this.getWindowTitle())));
+		this._register(this.contextService.onDidChangeWorkspaceFolders(() => this.doUpdateTitle()));
+		this._register(this.contextService.onDidChangeWorkbenchState(() => this.doUpdateTitle()));
+		this._register(this.contextService.onDidChangeWorkspaceName(() => this.doUpdateTitle()));
+		this._register(this.labelService.onDidRegisterFormatter(() => this.doUpdateTitle()));
 	}
 
 	private onBlur(): void {
@@ -115,7 +114,7 @@ export class TitlebarPart extends Part implements ITitleService {
 
 	private onConfigurationChanged(event: IConfigurationChangeEvent): void {
 		if (event.affectsConfiguration('window.title')) {
-			this.setTitle(this.getWindowTitle());
+			this.doUpdateTitle();
 		}
 	}
 
@@ -123,13 +122,21 @@ export class TitlebarPart extends Part implements ITitleService {
 		if (isWindows || isLinux) {
 			// Hide title when toggling menu bar
 			if (this.configurationService.getValue<MenuBarVisibility>('window.menuBarVisibility') === 'toggle' && visible) {
-				this.title.style.visibility = 'hidden';
-
 				// Hack to fix issue #52522 with layered webkit-app-region elements appearing under cursor
 				hide(this.dragRegion);
 				setTimeout(() => show(this.dragRegion), 50);
+			}
+
+			this.adjustTitleMarginToCenter();
+		}
+	}
+
+	private onMenubarFocusChanged(focused: boolean) {
+		if (isWindows || isLinux) {
+			if (focused) {
+				hide(this.dragRegion);
 			} else {
-				this.title.style.visibility = null;
+				show(this.dragRegion);
 			}
 		}
 	}
@@ -145,18 +152,13 @@ export class TitlebarPart extends Part implements ITitleService {
 		this.activeEditorListeners = [];
 
 		// Calculate New Window Title
-		this.setTitle(this.getWindowTitle());
+		this.doUpdateTitle();
 
 		// Apply listener for dirty and label changes
 		const activeEditor = this.editorService.activeEditor;
 		if (activeEditor instanceof EditorInput) {
-			this.activeEditorListeners.push(activeEditor.onDidChangeDirty(() => {
-				this.setTitle(this.getWindowTitle());
-			}));
-
-			this.activeEditorListeners.push(activeEditor.onDidChangeLabel(() => {
-				this.setTitle(this.getWindowTitle());
-			}));
+			this.activeEditorListeners.push(activeEditor.onDidChangeDirty(() => this.doUpdateTitle()));
+			this.activeEditorListeners.push(activeEditor.onDidChangeLabel(() => this.doUpdateTitle()));
 		}
 
 		// Represented File Name
@@ -174,23 +176,41 @@ export class TitlebarPart extends Part implements ITitleService {
 		this.representedFileName = path;
 	}
 
-	private getWindowTitle(): string {
-		let title = this.doGetWindowTitle();
-		if (!trim(title)) {
-			title = this.environmentService.appNameLong;
+	private doUpdateTitle(): void {
+		const title = this.getWindowTitle();
+
+		// Always set the native window title to identify us properly to the OS
+		let nativeTitle = title;
+		if (!trim(nativeTitle)) {
+			nativeTitle = this.environmentService.appNameLong;
+		}
+		window.document.title = nativeTitle;
+
+		// Apply custom title if we can
+		if (this.title) {
+			this.title.innerText = title;
+		} else {
+			this.pendingTitle = title;
 		}
 
+		if (isWindows || isLinux) {
+			this.adjustTitleMarginToCenter();
+		}
+	}
+
+	private getWindowTitle(): string {
+		let title = this.doGetWindowTitle();
+
 		if (this.properties.isAdmin) {
-			title = `${title} ${TitlebarPart.NLS_USER_IS_ADMIN}`;
+			title = `${title || this.environmentService.appNameLong} ${TitlebarPart.NLS_USER_IS_ADMIN}`;
 		}
 
 		if (!this.properties.isPure) {
-			title = `${title} ${TitlebarPart.NLS_UNSUPPORTED}`;
+			title = `${title || this.environmentService.appNameLong} ${TitlebarPart.NLS_UNSUPPORTED}`;
 		}
 
-		// Extension Development Host gets a special title to identify itself
 		if (this.environmentService.isExtensionDevelopment) {
-			title = `${TitlebarPart.NLS_EXTENSION_HOST} - ${title}`;
+			title = `${TitlebarPart.NLS_EXTENSION_HOST} - ${title || this.environmentService.appNameLong}`;
 		}
 
 		return title;
@@ -204,7 +224,7 @@ export class TitlebarPart extends Part implements ITitleService {
 			this.properties.isAdmin = isAdmin;
 			this.properties.isPure = isPure;
 
-			this.setTitle(this.getWindowTitle());
+			this.doUpdateTitle();
 		}
 	}
 
@@ -285,6 +305,7 @@ export class TitlebarPart extends Part implements ITitleService {
 
 		if (!isMacintosh) {
 			this._register(this.menubarPart.onVisibilityChange(e => this.onMenubarVisibilityChanged(e)));
+			this._register(this.menubarPart.onFocusStateChange(e => this.onMenubarFocusChanged(e)));
 		}
 
 		// Title
@@ -292,7 +313,7 @@ export class TitlebarPart extends Part implements ITitleService {
 		if (this.pendingTitle) {
 			this.title.innerText = this.pendingTitle;
 		} else {
-			this.setTitle(this.getWindowTitle());
+			this.doUpdateTitle();
 		}
 
 		// Maximize/Restore on doubleclick
@@ -395,6 +416,8 @@ export class TitlebarPart extends Part implements ITitleService {
 				show(this.resizer);
 			}
 		}
+
+		this.adjustTitleMarginToCenter();
 	}
 
 	protected updateStyles(): void {
@@ -439,7 +462,7 @@ export class TitlebarPart extends Part implements ITitleService {
 		if (actions.length) {
 			this.contextMenuService.showContextMenu({
 				getAnchor: () => anchor,
-				getActions: () => TPromise.as(actions),
+				getActions: () => Promise.resolve(actions),
 				onHide: () => actions.forEach(a => a.dispose())
 			});
 		}
@@ -474,17 +497,26 @@ export class TitlebarPart extends Part implements ITitleService {
 		return actions;
 	}
 
-	setTitle(title: string): void {
+	private adjustTitleMarginToCenter(): void {
+		setTimeout(() => {
+			// Center the title in the window
+			const currentAppIconWidth = this.appIcon ? parseInt(getComputedStyle(this.appIcon).width, 10) : 0;
+			let currentMenubarWidth = parseInt(getComputedStyle(this.menubar).width, 10);
+			currentMenubarWidth = isNaN(currentMenubarWidth) ? 0 : currentMenubarWidth;
+			const currentTotalWidth = parseInt(getComputedStyle(document.body).width, 10);
+			const currentTitleWidth = parseInt(getComputedStyle(this.title).width, 10);
+			const currentWindowControlsWidth = this.windowControls ? parseInt(getComputedStyle(this.windowControls).width, 10) : 0;
 
-		// Always set the native window title to identify us properly to the OS
-		window.document.title = title;
+			let leftMargin = (currentTotalWidth / 2) - (currentTitleWidth / 2) - (currentMenubarWidth + currentAppIconWidth);
+			let rightMargin = currentTotalWidth - (currentAppIconWidth + currentMenubarWidth + leftMargin + currentTitleWidth + currentWindowControlsWidth);
 
-		// Apply if we can
-		if (this.title) {
-			this.title.innerText = title;
-		} else {
-			this.pendingTitle = title;
-		}
+			// Center if we can, leaving some space on both sides
+			if (leftMargin >= 20 && rightMargin >= 20) {
+				this.title.style.marginLeft = `${leftMargin}px`;
+			} else {
+				this.title.style.marginLeft = null;
+			}
+		}, 0); // delay so that we can get accurate information about the widths
 	}
 
 	private updateLayout(dimension: Dimension) {
@@ -565,7 +597,7 @@ class ShowItemInFolderAction extends Action {
 		super('showItemInFolder.action.id', label);
 	}
 
-	run(): TPromise<void> {
+	run(): Thenable<void> {
 		return this.windowsService.showItemInFolder(this.path);
 	}
 }

@@ -29,7 +29,7 @@ declare module 'vscode' {
 		command: string;
 
 		/**
-		 * A tooltip for for command, when represented in the UI.
+		 * A tooltip for the command, when represented in the UI.
 		 */
 		tooltip?: string;
 
@@ -1546,6 +1546,9 @@ declare module 'vscode' {
 		 * [document](#TextDocument). Resources allocated should be released when
 		 * the corresponding document has been [closed](#workspace.onDidCloseTextDocument).
 		 *
+		 * **Note**: The contents of the created [document](#TextDocument) might not be
+		 * identical to the provided text due to end-of-line-sequence normalization.
+		 *
 		 * @param uri An uri which scheme matches the scheme this provider was [registered](#workspace.registerTextDocumentContentProvider) for.
 		 * @param token A cancellation token.
 		 * @return A string or a thenable that resolves to such.
@@ -3023,10 +3026,13 @@ declare module 'vscode' {
 	export class ParameterInformation {
 
 		/**
-		 * The label of this signature. Will be shown in
-		 * the UI.
+		 * The label of this signature.
+		 *
+		 * Either a string or inclusive start and exclusive end offsets within its containing
+		 * [signature label](#SignatureInformation.label). *Note*: A label of type string must be
+		 * a substring of its containing signature information's [label](#SignatureInformation.label).
 		 */
-		label: string;
+		label: string | [number, number];
 
 		/**
 		 * The human-readable doc-comment of this signature. Will be shown
@@ -3154,7 +3160,7 @@ declare module 'vscode' {
 	 * It is sufficient to create a completion item from just a [label](#CompletionItem.label). In that
 	 * case the completion item will replace the [word](#TextDocument.getWordRangeAtPosition)
 	 * until the cursor with the given label or [insertText](#CompletionItem.insertText). Otherwise the
-	 * the given [edit](#CompletionItem.textEdit) is used.
+	 * given [edit](#CompletionItem.textEdit) is used.
 	 *
 	 * When selecting a completion item in the editor its defined or synthesized text edit will be applied
 	 * to *all* cursors/selections whereas [additionalTextEdits](CompletionItem.additionalTextEdits) will be
@@ -3790,7 +3796,7 @@ declare module 'vscode' {
 			/**
 			 * This property is deprecated and not fully supported anymore by
 			 * the editor (scope and lineStart are ignored).
-			 * Use the the autoClosingPairs property in the language configuration file instead.
+			 * Use the autoClosingPairs property in the language configuration file instead.
 			 * @deprecated
 			 */
 			docComment?: {
@@ -3804,7 +3810,7 @@ declare module 'vscode' {
 		/**
 		 * **Deprecated** Do not use.
 		 *
-		 * @deprecated * Use the the autoClosingPairs property in the language configuration file instead.
+		 * @deprecated * Use the autoClosingPairs property in the language configuration file instead.
 		 */
 		__characterPairSupport?: {
 			autoClosingPairs: {
@@ -4085,9 +4091,8 @@ declare module 'vscode' {
 		source?: string;
 
 		/**
-		 * A code or identifier for this diagnostics. Will not be surfaced
-		 * to the user, but should be used for later processing, e.g. when
-		 * providing [code actions](#CodeActionContext).
+		 * A code or identifier for this diagnostic.
+		 * Should be used for later processing, e.g. when providing [code actions](#CodeActionContext).
 		 */
 		code?: string | number;
 
@@ -4654,6 +4659,11 @@ declare module 'vscode' {
 		 * Controls whether to show the "Terminal will be reused by tasks, press any key to close it" message.
 		 */
 		showReuseMessage?: boolean;
+
+		/**
+		 * Controls whether the terminal is cleared before executing the task.
+		 */
+		clearBeforeExecuting?: boolean;
 	}
 
 	/**
@@ -4814,7 +4824,10 @@ declare module 'vscode' {
 		executable?: string;
 
 		/**
-		 * The arguments to be passed to the shell executable used to run the task.
+		 * The arguments to be passed to the shell executable used to run the task. Most shells
+		 * require special arguments to execute a command. For  example `bash` requires the `-c`
+		 * argument to execute a command, `PowerShell` requires `-Command` and `cmd` requires both
+		 * `/d` and `/c`.
 		 */
 		shellArgs?: string[];
 
@@ -5545,7 +5558,7 @@ declare module 'vscode' {
 		 * is no longer visible.
 		 *
 		 * Normally the webview panel's html context is created when the panel becomes visible
-		 * and destroyed when it is is hidden. Extensions that have complex state
+		 * and destroyed when it is hidden. Extensions that have complex state
 		 * or UI can set the `retainContextWhenHidden` to make VS Code keep the webview
 		 * context around, even when the webview moves to a background tab. When a webview using
 		 * `retainContextWhenHidden` becomes hidden, its scripts and other dynamic content are suspended.
@@ -5916,6 +5929,19 @@ declare module 'vscode' {
 		export const terminals: ReadonlyArray<Terminal>;
 
 		/**
+		 * The currently active terminal or `undefined`. The active terminal is the one that
+		 * currently has focus or most recently had focus.
+		 */
+		export const activeTerminal: Terminal | undefined;
+
+		/**
+		 * An [event](#Event) which fires when the [active terminal](#window.activeTerminal)
+		 * has changed. *Note* that the event also fires when the active terminal changes
+		 * to `undefined`.
+		 */
+		export const onDidChangeActiveTerminal: Event<Terminal | undefined>;
+
+		/**
 		 * An [event](#Event) which fires when a terminal has been created, either through the
 		 * [createTerminal](#window.createTerminal) API or commands.
 		 */
@@ -6221,7 +6247,7 @@ declare module 'vscode' {
 		export function createInputBox(): InputBox;
 
 		/**
-		 * Create a new [output channel](#OutputChannel) with the given name.
+		 * Creates a new [output channel](#OutputChannel) with the given name.
 		 *
 		 * @param name Human-readable string which will be used to represent the channel in the UI.
 		 */
@@ -7325,7 +7351,8 @@ declare module 'vscode' {
 		export function registerTextDocumentContentProvider(scheme: string, provider: TextDocumentContentProvider): Disposable;
 
 		/**
-		 * An event that is emitted when a [text document](#TextDocument) is opened.
+		 * An event that is emitted when a [text document](#TextDocument) is opened or when the language id
+		 * of a text document [has been changed](#languages.setTextDocumentLanguage).
 		 *
 		 * To add an event listener when a visible text document is opened, use the [TextEditor](#TextEditor) events in the
 		 * [window](#window) namespace. Note that:
@@ -7338,7 +7365,8 @@ declare module 'vscode' {
 		export const onDidOpenTextDocument: Event<TextDocument>;
 
 		/**
-		 * An event that is emitted when a [text document](#TextDocument) is disposed.
+		 * An event that is emitted when a [text document](#TextDocument) is disposed or when the language id
+		 * of a text document [has been changed](#languages.setTextDocumentLanguage).
 		 *
 		 * To add an event listener when a visible text document is closed, use the [TextEditor](#TextEditor) events in the
 		 * [window](#window) namespace. Note that this event is not emitted when a [TextEditor](#TextEditor) is closed
@@ -7468,6 +7496,19 @@ declare module 'vscode' {
 		 * @return Promise resolving to an array of identifier strings.
 		 */
 		export function getLanguages(): Thenable<string[]>;
+
+		/**
+		 * Set (and change) the [language](#TextDocument.languageId) that is associated
+		 * with the given document.
+		 *
+		 * *Note* that calling this function will trigger the [`onDidCloseTextDocument`](#workspace.onDidCloseTextDocument) event
+		 * followed by the [`onDidOpenTextDocument`](#workspace.onDidOpenTextDocument) event.
+		 *
+		 * @param document The document which language is to be changed
+		 * @param languageId The new language identifier.
+		 * @returns A thenable that resolves with the updated document.
+		 */
+		export function setTextDocumentLanguage(document: TextDocument, languageId: string): Thenable<TextDocument>;
 
 		/**
 		 * Compute the match between a document [selector](#DocumentSelector) and a document. Values
@@ -8131,11 +8172,12 @@ declare module 'vscode' {
 		 * If more than one debug configuration provider is registered for the same type, the resolveDebugConfiguration calls are chained
 		 * in arbitrary order and the initial debug configuration is piped through the chain.
 		 * Returning the value 'undefined' prevents the debug session from starting.
+		 * Returning the value 'null' prevents the debug session from starting and opens the underlying debug configuration instead.
 		 *
 		 * @param folder The workspace folder from which the configuration originates from or undefined for a folderless setup.
 		 * @param debugConfiguration The [debug configuration](#DebugConfiguration) to resolve.
 		 * @param token A cancellation token.
-		 * @return The resolved debug configuration or undefined.
+		 * @return The resolved debug configuration or undefined or null.
 		 */
 		resolveDebugConfiguration?(folder: WorkspaceFolder | undefined, debugConfiguration: DebugConfiguration, token?: CancellationToken): ProviderResult<DebugConfiguration>;
 	}

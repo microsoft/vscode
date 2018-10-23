@@ -2,16 +2,15 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
-import { TPromise, ValueCallback, ErrorCallback } from 'vs/base/common/winjs.base';
 import { onUnexpectedError } from 'vs/base/common/errors';
+import { ErrorCallback, TPromise, ValueCallback } from 'vs/base/common/winjs.base';
 
 export class LazyPromise implements Thenable<any> {
 
-	private _actual: TPromise<any>;
-	private _actualOk: ValueCallback;
-	private _actualErr: ErrorCallback;
+	private _actual: TPromise<any> | null;
+	private _actualOk: ValueCallback | null;
+	private _actualErr: ErrorCallback | null;
 
 	private _hasValue: boolean;
 	private _value: any;
@@ -34,15 +33,15 @@ export class LazyPromise implements Thenable<any> {
 			this._actual = new TPromise<any>((c, e) => {
 				this._actualOk = c;
 				this._actualErr = e;
+
+				if (this._hasValue) {
+					this._actualOk(this._value);
+				}
+
+				if (this._hasErr) {
+					this._actualErr(this._err);
+				}
 			});
-
-			if (this._hasValue) {
-				this._actualOk(this._value);
-			}
-
-			if (this._hasErr) {
-				this._actualErr(this._err);
-			}
 		}
 		return this._actual;
 	}
@@ -56,7 +55,7 @@ export class LazyPromise implements Thenable<any> {
 		this._value = value;
 
 		if (this._actual) {
-			this._actualOk(value);
+			this._actualOk!(value);
 		}
 	}
 
@@ -69,7 +68,7 @@ export class LazyPromise implements Thenable<any> {
 		this._err = err;
 
 		if (this._actual) {
-			this._actualErr(err);
+			this._actualErr!(err);
 		} else {
 			// If nobody's listening at this point, it is safe to assume they never will,
 			// since resolving this promise is always "async"

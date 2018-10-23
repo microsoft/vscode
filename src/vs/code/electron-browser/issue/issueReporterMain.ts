@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import 'vs/css!./media/issueReporter';
 import { shell, ipcRenderer, webFrame, clipboard } from 'electron';
 import { localize } from 'vs/nls';
@@ -784,7 +782,7 @@ export class IssueReporter extends Disposable {
 			url = baseUrl + `&body=${encodeURIComponent(localize('pasteData', "We have written the needed data into your clipboard because it was too large to send. Please paste."))}`;
 		}
 
-		shell.openExternal(url);
+		ipcRenderer.send('vscode:openExternal', url);
 		return true;
 	}
 

@@ -42,13 +42,13 @@ class ToggleBreakpointAction extends EditorAction {
 		const bps = debugService.getModel().getBreakpoints({ lineNumber: position.lineNumber, uri: modelUri });
 
 		if (bps.length) {
-			return TPromise.join(bps.map(bp => debugService.removeBreakpoints(bp.getId())));
+			return Promise.all(bps.map(bp => debugService.removeBreakpoints(bp.getId())));
 		}
 		if (debugService.getConfigurationManager().canSetBreakpointsIn(editor.getModel())) {
 			return debugService.addBreakpoints(modelUri, [{ lineNumber: position.lineNumber }]);
 		}
 
-		return TPromise.as(null);
+		return Promise.resolve(null);
 	}
 }
 
@@ -114,12 +114,12 @@ class RunToCursorAction extends EditorAction {
 	public run(accessor: ServicesAccessor, editor: ICodeEditor): TPromise<void> {
 		const debugService = accessor.get(IDebugService);
 		if (debugService.state !== State.Stopped) {
-			return TPromise.as(null);
+			return Promise.resolve(null);
 		}
 
 		let breakpointToRemove: IBreakpoint;
-		const oneTimeListener = debugService.getViewModel().focusedSession.onDidCustomEvent(event => {
-			if (event.event === 'stopped' || event.event === 'exit') {
+		const oneTimeListener = debugService.onDidChangeState(state => {
+			if (state === State.Stopped || state === State.Inactive) {
 				if (breakpointToRemove) {
 					debugService.removeBreakpoints(breakpointToRemove.getId());
 				}
@@ -130,7 +130,7 @@ class RunToCursorAction extends EditorAction {
 		const position = editor.getPosition();
 		const uri = editor.getModel().uri;
 		const bpExists = !!(debugService.getModel().getBreakpoints({ column: position.column, lineNumber: position.lineNumber, uri }).length);
-		return (bpExists ? TPromise.as(null) : debugService.addBreakpoints(uri, [{ lineNumber: position.lineNumber, column: position.column }])).then((breakpoints) => {
+		return (bpExists ? Promise.resolve(null) : <Promise<any>>debugService.addBreakpoints(uri, [{ lineNumber: position.lineNumber, column: position.column }])).then((breakpoints) => {
 			if (breakpoints && breakpoints.length) {
 				breakpointToRemove = breakpoints[0];
 			}
@@ -159,7 +159,9 @@ class SelectionToReplAction extends EditorAction {
 		const panelService = accessor.get(IPanelService);
 
 		const text = editor.getModel().getValueInRange(editor.getSelection());
-		return debugService.addReplExpression(text)
+		const viewModel = debugService.getViewModel();
+		const session = viewModel.focusedSession;
+		return session.addReplExpression(viewModel.focusedStackFrame, text)
 			.then(() => panelService.openPanel(REPL_ID, true))
 			.then(_ => void 0);
 	}
@@ -209,7 +211,7 @@ class ShowDebugHoverAction extends EditorAction {
 		const position = editor.getPosition();
 		const word = editor.getModel().getWordAtPosition(position);
 		if (!word) {
-			return TPromise.as(null);
+			return Promise.resolve(null);
 		}
 
 		const range = new Range(position.lineNumber, position.column, position.lineNumber, word.endColumn);
@@ -253,7 +255,7 @@ class GoToBreakpointAction extends EditorAction {
 			return openBreakpointSource(moveBreakpoint, false, true, debugService, editorService);
 		}
 
-		return TPromise.as(null);
+		return Promise.resolve(null);
 	}
 }
 

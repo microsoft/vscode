@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import { BreadcrumbsWidget } from 'vs/base/browser/ui/breadcrumbs/breadcrumbsWidget';
 import { Emitter, Event } from 'vs/base/common/event';
 import * as glob from 'vs/base/common/glob';
@@ -72,6 +70,7 @@ export abstract class BreadcrumbsConfig<T> {
 	static UseQuickPick = BreadcrumbsConfig._stub<boolean>('breadcrumbs.useQuickPick');
 	static FilePath = BreadcrumbsConfig._stub<'on' | 'off' | 'last'>('breadcrumbs.filePath');
 	static SymbolPath = BreadcrumbsConfig._stub<'on' | 'off' | 'last'>('breadcrumbs.symbolPath');
+	static SymbolSortOrder = BreadcrumbsConfig._stub<'position' | 'name' | 'type'>('breadcrumbs.symbolSortOrder');
 	static FilterOnType = BreadcrumbsConfig._stub<boolean>('breadcrumbs.filterOnType');
 
 	static FileExcludes = BreadcrumbsConfig._stub<glob.IExpression>('files.exclude');
@@ -142,6 +141,17 @@ Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerConfigurat
 				localize('symbolpath.on', "Show all symbols in the breadcrumbs view."),
 				localize('symbolpath.off', "Do not show symbols in the breadcrumbs view."),
 				localize('symbolpath.last', "Only show the current symbol in the breadcrumbs view."),
+			]
+		},
+		'breadcrumbs.symbolSortOrder': {
+			description: localize('symbolSortOrder', "Controls how symbols are sorted in the breadcrumbs outline view."),
+			type: 'string',
+			default: 'position',
+			enum: ['position', 'name', 'type'],
+			enumDescriptions: [
+				localize('symbolSortOrder.position', "Show symbol outline in file position order."),
+				localize('symbolSortOrder.name', "Show symbol outline in alphabetical order."),
+				localize('symbolSortOrder.type', "Show symbol outline in symbol type order."),
 			]
 		},
 		// 'breadcrumbs.filterOnType': {

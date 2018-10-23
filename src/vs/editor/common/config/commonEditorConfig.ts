@@ -2,19 +2,18 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
 import * as nls from 'vs/nls';
-import { Event, Emitter } from 'vs/base/common/event';
+import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
 import * as objects from 'vs/base/common/objects';
 import * as platform from 'vs/base/common/platform';
-import { Extensions, IConfigurationRegistry, IConfigurationNode, ConfigurationScope } from 'vs/platform/configuration/common/configurationRegistry';
-import { Registry } from 'vs/platform/registry/common/platform';
-import * as editorCommon from 'vs/editor/common/editorCommon';
-import { FontInfo, BareFontInfo } from 'vs/editor/common/config/fontInfo';
-import { EditorZoom } from 'vs/editor/common/config/editorZoom';
 import * as editorOptions from 'vs/editor/common/config/editorOptions';
+import { EditorZoom } from 'vs/editor/common/config/editorZoom';
+import { BareFontInfo, FontInfo } from 'vs/editor/common/config/fontInfo';
+import * as editorCommon from 'vs/editor/common/editorCommon';
+import { ConfigurationScope, Extensions, IConfigurationNode, IConfigurationRegistry } from 'vs/platform/configuration/common/configurationRegistry';
+import { Registry } from 'vs/platform/registry/common/platform';
 import EDITOR_DEFAULTS = editorOptions.EDITOR_DEFAULTS;
 import EDITOR_FONT_DEFAULTS = editorOptions.EDITOR_FONT_DEFAULTS;
 import EDITOR_MODEL_DEFAULTS = editorOptions.EDITOR_MODEL_DEFAULTS;
@@ -86,7 +85,6 @@ export abstract class CommonEditorConfiguration extends Disposable implements ed
 		this._rawOptions.parameterHints = objects.mixin({}, this._rawOptions.parameterHints || {});
 
 		this._validatedOptions = editorOptions.EditorOptionsValidator.validate(this._rawOptions, EDITOR_DEFAULTS);
-		this.editor = null;
 		this._isDominatedByLongLines = false;
 		this._lineNumbersDigitCount = 1;
 
@@ -350,7 +348,7 @@ const editorConfiguration: IConfigurationNode = {
 		'editor.hover.delay': {
 			'type': 'number',
 			'default': EDITOR_DEFAULTS.contribInfo.hover.delay,
-			'description': nls.localize('hover.delay', "Time delay in milliseconds after which to the hover is shown.")
+			'description': nls.localize('hover.delay', "Controls the delay in milliseconds after which the hover is shown.")
 		},
 		'editor.hover.sticky': {
 			'type': 'boolean',
@@ -365,7 +363,7 @@ const editorConfiguration: IConfigurationNode = {
 		'editor.find.autoFindInSelection': {
 			'type': 'boolean',
 			'default': EDITOR_DEFAULTS.contribInfo.find.autoFindInSelection,
-			'description': nls.localize('find.autoFindInSelection', "Controls whether the find operation is carried on selected text or the entire file in the editor.")
+			'description': nls.localize('find.autoFindInSelection', "Controls whether the find operation is carried out on selected text or the entire file in the editor.")
 		},
 		'editor.find.globalFindClipboard': {
 			'type': 'boolean',
@@ -620,10 +618,26 @@ const editorConfiguration: IConfigurationNode = {
 			'minimum': 0,
 			'markdownDescription': nls.localize('suggestLineHeight', "Line height for the suggest widget. When set to `0`, the value of `#editor.lineHeight#` is used.")
 		},
+		'editor.tabCompletion': {
+			type: 'string',
+			default: 'off',
+			enum: ['on', 'off', 'onlySnippets'],
+			enumDescriptions: [
+				nls.localize('tabCompletion.on', "Tab complete will insert the best matching suggestion when pressing tab."),
+				nls.localize('tabCompletion.off', "Disable tab completions."),
+				nls.localize('tabCompletion.onlySnippets', "Tab complete snippets when their prefix match. Works best when 'quickSuggestions' aren't enabled."),
+			],
+			description: nls.localize('tabCompletion', "Enables tab completions.")
+		},
 		'editor.suggest.filterGraceful': {
 			type: 'boolean',
 			default: true,
 			description: nls.localize('suggest.filterGraceful', "Controls whether filtering and sorting suggestions accounts for small typos.")
+		},
+		'editor.suggest.localityBonus': {
+			type: 'boolean',
+			default: false,
+			description: nls.localize('suggest.localityBonus', "Controls whether sorting favours words that appear close to the cursor.")
 		},
 		'editor.suggest.snippetsPreventQuickSuggestions': {
 			type: 'boolean',
@@ -851,12 +865,12 @@ const editorConfiguration: IConfigurationNode = {
 	}
 };
 
-let cachedEditorConfigurationKeys: { [key: string]: boolean; } = null;
+let cachedEditorConfigurationKeys: { [key: string]: boolean; } | null = null;
 function getEditorConfigurationKeys(): { [key: string]: boolean; } {
 	if (cachedEditorConfigurationKeys === null) {
-		cachedEditorConfigurationKeys = Object.create(null);
-		Object.keys(editorConfiguration.properties).forEach((prop) => {
-			cachedEditorConfigurationKeys[prop] = true;
+		cachedEditorConfigurationKeys = <{ [key: string]: boolean; }>Object.create(null);
+		Object.keys(editorConfiguration.properties!).forEach((prop) => {
+			cachedEditorConfigurationKeys![prop] = true;
 		});
 	}
 	return cachedEditorConfigurationKeys;

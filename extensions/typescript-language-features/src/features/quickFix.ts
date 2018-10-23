@@ -85,18 +85,14 @@ class ApplyFixAllCodeAction implements Command {
 			fixId: tsAction.fixId
 		};
 
-		try {
-			const { body } = await this.client.execute('getCombinedCodeFix', args, nulToken);
-			if (!body) {
-				return;
-			}
-
-			const edit = typeConverters.WorkspaceEdit.fromFileCodeEdits(this.client, body.changes);
-			await vscode.workspace.applyEdit(edit);
-			await applyCodeActionCommands(this.client, body.commands, nulToken);
-		} catch {
-			// noop
+		const response = await this.client.execute('getCombinedCodeFix', args, nulToken);
+		if (response.type !== 'response' || !response.body) {
+			return undefined;
 		}
+
+		const edit = typeConverters.WorkspaceEdit.fromFileCodeEdits(this.client, response.body.changes);
+		await vscode.workspace.applyEdit(edit);
+		await applyCodeActionCommands(this.client, response.body.commands, nulToken);
 	}
 }
 
@@ -131,22 +127,25 @@ class DiagnosticsSet {
 }
 
 class CodeActionSet {
-	private _actions: vscode.CodeAction[] = [];
-	private _fixAllActions = new Set<{}>();
+	private _actions = new Set<vscode.CodeAction>();
+	private _fixAllActions = new Map<{}, vscode.CodeAction>();
 
-	public get values() {
+	public get values(): Iterable<vscode.CodeAction> {
 		return this._actions;
 	}
 
 	public addAction(action: vscode.CodeAction) {
-		this._actions.push(action);
+		this._actions.add(action);
 	}
 
 	public addFixAllAction(fixId: {}, action: vscode.CodeAction) {
-		if (!this.hasFixAllAction(fixId)) {
-			this.addAction(action);
-			this._fixAllActions.add(fixId);
+		const existing = this._fixAllActions.get(fixId);
+		if (existing) {
+			// reinsert action at back
+			this._actions.delete(existing);
 		}
+		this.addAction(action);
+		this._fixAllActions.set(fixId, action);
 	}
 
 	public hasFixAllAction(fixId: {}) {
@@ -169,7 +168,7 @@ class SupportedCodeActionProvider {
 	private get supportedCodeActions(): Thenable<Set<number>> {
 		if (!this._supportedCodeActions) {
 			this._supportedCodeActions = this.client.execute('getSupportedCodeFixes', null, nulToken)
-				.then(response => response.body || [])
+				.then(response => response.type === 'response' ? response.body || [] : [])
 				.then(codes => codes.map(code => +code).filter(code => !isNaN(code)))
 				.then(codes => new Set(codes));
 		}
@@ -237,13 +236,13 @@ class TypeScriptQuickFixProvider implements vscode.CodeActionProvider {
 			...typeConverters.Range.toFileRangeRequestArgs(file, diagnostic.range),
 			errorCodes: [+(diagnostic.code!)]
 		};
-		const { body } = await this.client.execute('getCodeFixes', args, token);
-		if (!body) {
+		const response = await this.client.execute('getCodeFixes', args, token);
+		if (response.type !== 'response' || !response.body) {
 			return [];
 		}
 
 		const results = new CodeActionSet();
-		for (const tsCodeFix of body) {
+		for (const tsCodeFix of response.body) {
 			this.addAllFixesForTsCodeAction(results, document, file, diagnostic, tsCodeFix);
 		}
 		return results.values;
@@ -283,7 +282,7 @@ class TypeScriptQuickFixProvider implements vscode.CodeActionProvider {
 		diagnostic: vscode.Diagnostic,
 		tsAction: Proto.CodeFixAction,
 	): CodeActionSet {
-		if (!tsAction.fixId || !this.client.apiVersion.gte(API.v270) || results.hasFixAllAction(results)) {
+		if (!tsAction.fixId || this.client.apiVersion.lt(API.v270) || results.hasFixAllAction(results)) {
 			return results;
 		}
 

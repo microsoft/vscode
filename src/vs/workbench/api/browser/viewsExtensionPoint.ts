@@ -2,7 +2,6 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
 import { localize } from 'vs/nls';
 import { forEach } from 'vs/base/common/collections';
@@ -112,7 +111,7 @@ class ViewsContainersExtensionHandler implements IWorkbenchContribution {
 						container = this.viewContainersRegistry.get(EXPLORER);
 					}
 					const registeredViews = ViewsRegistry.getViews(container);
-					const viewIds = [];
+					const viewIds: string[] = [];
 					const viewDescriptors = coalesce(entry.value.map((item, index) => {
 						// validate
 						if (viewIds.indexOf(item.id) !== -1) {

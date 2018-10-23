@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import { createDecorator, ServiceIdentifier, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { IResourceInput, IEditorOptions, ITextEditorOptions } from 'vs/platform/editor/common/editor';
 import { IEditorInput, IEditor, GroupIdentifier, IEditorInputWithOptions, IUntitledResourceInput, IResourceDiffInput, IResourceSideBySideInput, ITextEditor, ITextDiffEditor, ITextSideBySideEditor } from 'vs/workbench/common/editor';
@@ -150,6 +148,15 @@ export interface IEditorService {
 	 * @param group optional to specify a group to check for the editor being opened
 	 */
 	isOpen(editor: IEditorInput | IResourceInput | IUntitledResourceInput, group?: IEditorGroup | GroupIdentifier): boolean;
+
+	/**
+	 * Get the actual opened editor input in any or a specific editor group based on the resource.
+	 *
+	 * Note: An editor can be opened but not actively visible.
+	 *
+	 * @param group optional to specify a group to check for the editor
+	 */
+	getOpened(editor: IResourceInput | IUntitledResourceInput, group?: IEditorGroup | GroupIdentifier): IEditorInput;
 
 	/**
 	 * Allows to override the opening of editors by installing a handler that will
