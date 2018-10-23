@@ -327,18 +327,26 @@ class MenuActionItem extends BaseActionItem {
 		if (this.options.label) {
 			let label = this.getAction().label;
 			if (label) {
-				const cleanLabel = cleanMnemonic(label);
-				if (!this.options.enableMnemonics) {
-					label = cleanLabel;
+				if (this.getAction().id === 'openRecentFile' || this.getAction().id === 'openRecentWorkspace') {
+					this.label.setAttribute('aria-label', label);
+
+					this.label.innerText = label.trim();
+					return;
 				}
+				else {
+					const cleanLabel = cleanMnemonic(label);
+					if (!this.options.enableMnemonics) {
+						label = cleanLabel;
+					}
 
-				this.label.setAttribute('aria-label', cleanLabel);
+					this.label.setAttribute('aria-label', cleanLabel);
 
-				const matches = MENU_MNEMONIC_REGEX.exec(label);
+					const matches = MENU_MNEMONIC_REGEX.exec(label);
 
-				if (matches) {
-					label = strings.escape(label).replace(MENU_ESCAPED_MNEMONIC_REGEX, '<u aria-hidden="true">$1</u>');
-					this.item.setAttribute('aria-keyshortcuts', (!!matches[1] ? matches[1] : matches[2]).toLocaleLowerCase());
+					if (matches) {
+						label = strings.escape(label).replace(MENU_ESCAPED_MNEMONIC_REGEX, '<u aria-hidden="true">$1</u>');
+						this.item.setAttribute('aria-keyshortcuts', (!!matches[1] ? matches[1] : matches[2]).toLocaleLowerCase());
+					}
 				}
 			}
 
