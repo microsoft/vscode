@@ -18,7 +18,7 @@ import { IViewsService, ITreeViewer, ITreeItem, TreeItemCollapsibleState, ITreeV
 import { IViewletViewOptions, FileIconThemableWorkbenchTree } from 'vs/workbench/browser/parts/views/viewsViewlet';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { INotificationService } from 'vs/platform/notification/common/notification';
-import { IProgressService2 } from 'vs/workbench/services/progress/common/progress';
+import { IProgressService2 } from 'vs/platform/progress/common/progress';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { IWorkbenchThemeService } from 'vs/workbench/services/themes/common/workbenchThemeService';
 import { ICommandService } from 'vs/platform/commands/common/commands';
@@ -409,7 +409,7 @@ export class CustomTreeViewer extends Disposable implements ITreeViewer {
 	private activate() {
 		this.hideMessage();
 		if (!this.activated) {
-			this.progressService.withProgress({ location: this.container }, () => this.extensionService.activateByEvent(`onView:${this.id}`))
+			this.progressService.withProgress({ location: this.container.id }, () => this.extensionService.activateByEvent(`onView:${this.id}`))
 				.then(() => timeout(2000))
 				.then(() => {
 					if (!this.dataProvider) {
@@ -465,7 +465,7 @@ class TreeDataSource implements IDataSource {
 
 	getChildren(tree: ITree, node: ITreeItem): TPromise<any[]> {
 		if (this.treeView.dataProvider) {
-			return this.progressService.withProgress({ location: this.container }, () => this.treeView.dataProvider.getChildren(node));
+			return this.progressService.withProgress({ location: this.container.id }, () => this.treeView.dataProvider.getChildren(node));
 		}
 		return Promise.resolve([]);
 	}

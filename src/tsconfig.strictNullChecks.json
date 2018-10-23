@@ -583,7 +583,6 @@
 		"./vs/workbench/services/mode/common/workbenchModeService.ts",
 		"./vs/workbench/services/panel/common/panelService.ts",
 		"./vs/workbench/services/part/common/partService.ts",
-		"./vs/workbench/services/progress/common/progress.ts",
 		"./vs/workbench/services/scm/common/scm.ts",
 		"./vs/workbench/services/scm/common/scmService.ts",
 		"./vs/workbench/services/search/node/legacy/search.ts",
