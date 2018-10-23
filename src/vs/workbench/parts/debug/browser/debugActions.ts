@@ -690,7 +690,7 @@ export class ToggleReplAction extends TogglePanelAction {
 	}
 
 	private registerListeners(): void {
-		this.toDispose.push(this.panelService.onDidPanelOpen(panel => {
+		this.toDispose.push(this.panelService.onDidPanelOpen(({ panel }) => {
 			if (panel.getId() === REPL_ID) {
 				this.class = 'debug-action toggle-repl';
 				this.tooltip = ToggleReplAction.LABEL;

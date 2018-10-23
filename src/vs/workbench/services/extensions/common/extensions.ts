@@ -117,6 +117,11 @@ export class ExtensionPointContribution<T> {
 
 export const ExtensionHostLogFileName = 'exthost';
 
+export interface IWillActivateEvent {
+	readonly event: string;
+	readonly activation: Thenable<void>;
+}
+
 export interface IExtensionService {
 	_serviceBrand: any;
 
@@ -135,6 +140,11 @@ export interface IExtensionService {
 	 * The event contains the ids of the extensions that have changed.
 	 */
 	onDidChangeExtensionsStatus: Event<string[]>;
+
+	/**
+	 * An event that is fired when activation happens.
+	 */
+	onWillActivateByEvent: Event<IWillActivateEvent>;
 
 	/**
 	 * Send an activation event and activate interested extensions.

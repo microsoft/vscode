@@ -11,7 +11,6 @@ import { InstantiationService } from 'vs/platform/instantiation/common/instantia
 import { IExtensionPoint } from 'vs/workbench/services/extensions/common/extensionsRegistry';
 import { Event, Emitter } from 'vs/base/common/event';
 import { NullLogService } from 'vs/platform/log/common/log';
-import { IProgressService2 } from 'vs/platform/progress/common/progress';
 
 class SimpleExtensionService implements IExtensionService {
 	_serviceBrand: any;
@@ -20,6 +19,7 @@ class SimpleExtensionService implements IExtensionService {
 		return this._onDidRegisterExtensions.event;
 	}
 	onDidChangeExtensionsStatus = null;
+	onWillActivateByEvent = null;
 	activateByEvent(activationEvent: string): Promise<void> {
 		return this.whenInstalledExtensionsRegistered().then(() => { });
 	}
@@ -54,17 +54,6 @@ class SimpleExtensionService implements IExtensionService {
 
 suite('CommandService', function () {
 
-	interface Ctor<T> {
-		new(): T;
-	}
-	function mock<T>(): Ctor<T> {
-		return function () { } as any;
-	}
-
-	let progressService = new class extends mock<IProgressService2>() {
-		withProgress() { return null; }
-	};
-
 	let commandRegistration: IDisposable;
 
 	setup(function () {
@@ -84,7 +73,7 @@ suite('CommandService', function () {
 				lastEvent = activationEvent;
 				return super.activateByEvent(activationEvent);
 			}
-		}, new NullLogService(), progressService);
+		}, new NullLogService());
 
 		return service.executeCommand('foo').then(() => {
 			assert.ok(lastEvent, 'onCommand:foo');
@@ -104,7 +93,7 @@ suite('CommandService', function () {
 			}
 		};
 
-		let service = new CommandService(new InstantiationService(), extensionService, new NullLogService(), progressService);
+		let service = new CommandService(new InstantiationService(), extensionService, new NullLogService());
 
 		await extensionService.whenInstalledExtensionsRegistered();
 
@@ -122,7 +111,7 @@ suite('CommandService', function () {
 			whenInstalledExtensionsRegistered() {
 				return new Promise<boolean>(_resolve => { /*ignore*/ });
 			}
-		}, new NullLogService(), progressService);
+		}, new NullLogService());
 
 		service.executeCommand('bar');
 		assert.equal(callCounter, 1);
@@ -139,7 +128,7 @@ suite('CommandService', function () {
 			whenInstalledExtensionsRegistered() {
 				return whenInstalledExtensionsRegistered;
 			}
-		}, new NullLogService(), progressService);
+		}, new NullLogService());
 
 		let r = service.executeCommand('bar');
 		assert.equal(callCounter, 0);

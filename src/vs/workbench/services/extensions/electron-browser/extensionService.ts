@@ -37,7 +37,7 @@ import { IWindowService, IWindowsService } from 'vs/platform/windows/common/wind
 import { ExtHostCustomersRegistry } from 'vs/workbench/api/electron-browser/extHostCustomers';
 import { ExtHostContext, ExtHostExtensionServiceShape, IExtHostContext, MainContext } from 'vs/workbench/api/node/extHost.protocol';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { ActivationTimes, ExtensionPointContribution, IExtensionDescription, IExtensionService, IExtensionsStatus, IMessage, ProfileSession } from 'vs/workbench/services/extensions/common/extensions';
+import { ActivationTimes, ExtensionPointContribution, IExtensionDescription, IExtensionService, IExtensionsStatus, IMessage, ProfileSession, IWillActivateEvent } from 'vs/workbench/services/extensions/common/extensions';
 import { ExtensionMessageCollector, ExtensionPoint, ExtensionsRegistry, IExtensionPoint, IExtensionPointUser, schema } from 'vs/workbench/services/extensions/common/extensionsRegistry';
 import { ExtensionHostProcessWorker, IExtensionHostStarter } from 'vs/workbench/services/extensions/electron-browser/extensionHost';
 import { ExtensionHostProfiler } from 'vs/workbench/services/extensions/electron-browser/extensionHostProfiler';
@@ -277,6 +277,9 @@ export class ExtensionService extends Disposable implements IExtensionService {
 	private readonly _onDidChangeExtensionsStatus: Emitter<string[]> = this._register(new Emitter<string[]>());
 	public readonly onDidChangeExtensionsStatus: Event<string[]> = this._onDidChangeExtensionsStatus.event;
 
+	private _onWillActivateByEvent = new Emitter<IWillActivateEvent>();
+	readonly onWillActivateByEvent: Event<IWillActivateEvent> = this._onWillActivateByEvent.event;
+
 	private _unresponsiveNotificationHandle: INotificationHandle;
 
 	// --- Members used per extension host process
@@ -497,9 +500,14 @@ export class ExtensionService extends Disposable implements IExtensionService {
 	}
 
 	private _activateByEvent(activationEvent: string): TPromise<void> {
-		return TPromise.join(
+		const result = TPromise.join(
 			this._extensionHostProcessManagers.map(extHostManager => extHostManager.activateByEvent(activationEvent))
 		).then(() => { });
+		this._onWillActivateByEvent.fire({
+			event: activationEvent,
+			activation: result
+		});
+		return result;
 	}
 
 	public whenInstalledExtensionsRegistered(): TPromise<boolean> {
