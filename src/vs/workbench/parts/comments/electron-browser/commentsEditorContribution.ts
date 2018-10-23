@@ -172,6 +172,7 @@ export class ReviewController implements IEditorContribution {
 	private mouseDownInfo: { lineNumber: number } | null = null;
 	private _commentingRangeSpaceReserved = false;
 
+	private _pendingCommentCache: { [key: number]: { [key: string]: string } };
 
 	constructor(
 		editor: ICodeEditor,
@@ -191,6 +192,7 @@ export class ReviewController implements IEditorContribution {
 		this.localToDispose = [];
 		this._commentInfos = [];
 		this._commentWidgets = [];
+		this._pendingCommentCache = {};
 		this._newCommentWidget = null;
 
 		this._reviewPanelVisible = ctxReviewPanelVisible.bindTo(contextKeyService);
@@ -315,10 +317,8 @@ export class ReviewController implements IEditorContribution {
 			this._newCommentWidget = null;
 		}
 
-		this._commentWidgets.forEach(zone => {
-			zone.dispose();
-		});
-		this._commentWidgets = [];
+
+		this.removeCommentWidgetsAndStoreCache();
 
 		this.localToDispose.push(this.editor.onMouseDown(e => this.onEditorMouseDown(e)));
 		this.localToDispose.push(this.editor.onMouseUp(e => this.onEditorMouseUp(e)));
@@ -355,7 +355,7 @@ export class ReviewController implements IEditorContribution {
 				}
 			});
 			added.forEach(thread => {
-				let zoneWidget = new ReviewZoneWidget(this.instantiationService, this.modeService, this.modelService, this.themeService, this.commentService, this.openerService, this.dialogService, this.notificationService, this.editor, e.owner, thread, {});
+				let zoneWidget = new ReviewZoneWidget(this.instantiationService, this.modeService, this.modelService, this.themeService, this.commentService, this.openerService, this.dialogService, this.notificationService, this.editor, e.owner, thread, null, {});
 				zoneWidget.display(thread.range.startLineNumber, this._commentingRangeDecorator.commentsOptions);
 				this._commentWidgets.push(zoneWidget);
 				this._commentInfos.filter(info => info.owner === e.owner)[0].threads.push(thread);
@@ -389,7 +389,7 @@ export class ReviewController implements IEditorContribution {
 			},
 			reply: replyCommand,
 			collapsibleState: CommentThreadCollapsibleState.Expanded,
-		}, {});
+		}, null, {});
 
 		this.localToDispose.push(this._newCommentWidget.onDidClose(e => {
 			this._newCommentWidget = null;
@@ -462,6 +462,7 @@ export class ReviewController implements IEditorContribution {
 	}
 
 	setComments(commentInfos: modes.CommentInfo[]): void {
+		// todo setComments should read from pendingCommentCache
 		this._commentInfos = commentInfos;
 		let lineDecorationsWidth: number = this.editor.getConfiguration().layoutInfo.decorationsWidth;
 
@@ -494,15 +495,16 @@ export class ReviewController implements IEditorContribution {
 		}
 
 		// create viewzones
-		this._commentWidgets.forEach(zone => {
-			zone.dispose();
-		});
-
-		this._commentWidgets = [];
+		this.removeCommentWidgetsAndStoreCache();
 
 		this._commentInfos.forEach(info => {
+			let providerCacheStore = this._pendingCommentCache[info.owner];
 			info.threads.forEach(thread => {
-				let zoneWidget = new ReviewZoneWidget(this.instantiationService, this.modeService, this.modelService, this.themeService, this.commentService, this.openerService, this.dialogService, this.notificationService, this.editor, info.owner, thread, {});
+				let pendingComment: string = null;
+				if (providerCacheStore) {
+					pendingComment = providerCacheStore[thread.threadId];
+				}
+				let zoneWidget = new ReviewZoneWidget(this.instantiationService, this.modeService, this.modelService, this.themeService, this.commentService, this.openerService, this.dialogService, this.notificationService, this.editor, info.owner, thread, pendingComment, {});
 				zoneWidget.display(thread.range.startLineNumber, this._commentingRangeDecorator.commentsOptions);
 				this._commentWidgets.push(zoneWidget);
 			});
@@ -529,6 +531,29 @@ export class ReviewController implements IEditorContribution {
 
 		this.editor.focus();
 		this.editor.revealRangeInCenter(this.editor.getSelection());
+	}
+
+	removeCommentWidgetsAndStoreCache() {
+		if (this._commentWidgets) {
+			this._commentWidgets.forEach(zone => {
+				let pendingComment = zone.getPendingComment();
+				if (pendingComment) {
+					// cache pendingComment for later recovery
+					let providerCacheStore = this._pendingCommentCache[zone.owner];
+
+					if (!providerCacheStore) {
+						this._pendingCommentCache[zone.owner] = {};
+						providerCacheStore = this._pendingCommentCache[zone.owner];
+					}
+
+					providerCacheStore[zone.commentThread.threadId] = pendingComment;
+				}
+
+				zone.dispose();
+			});
+		}
+
+		this._commentWidgets = [];
 	}
 }
 

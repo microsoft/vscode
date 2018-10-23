@@ -64,6 +64,7 @@ export class ReviewZoneWidget extends ZoneWidget {
 	private _commentThread: modes.CommentThread;
 	private _commentGlyph: CommentGlyphWidget;
 	private _owner: number;
+	private _pendingComment: string;
 	private _localToDispose: IDisposable[];
 	private _globalToDispose: IDisposable[];
 	private _markdownRenderer: MarkdownRenderer;
@@ -89,12 +90,14 @@ export class ReviewZoneWidget extends ZoneWidget {
 		editor: ICodeEditor,
 		owner: number,
 		commentThread: modes.CommentThread,
+		pendingComment: string,
 		options: IOptions = {}
 	) {
 		super(editor, options);
 		this._resizeObserver = null;
 		this._owner = owner;
 		this._commentThread = commentThread;
+		this._pendingComment = pendingComment;
 		this._isCollapsed = commentThread.collapsibleState !== modes.CommentThreadCollapsibleState.Expanded;
 		this._globalToDispose = [];
 		this._localToDispose = [];
@@ -142,6 +145,18 @@ export class ReviewZoneWidget extends ZoneWidget {
 		}
 
 		this.editor.revealRangeInCenter(this._commentThread.range);
+	}
+
+	public getPendingComment(): string {
+		if (this._commentEditor) {
+			let model = this._commentEditor.getModel();
+
+			if (model.getValueLength() > 0) { // checking length is cheap
+				return model.getValue();
+			}
+		}
+
+		return null;
 	}
 
 	protected _fillContainer(container: HTMLElement): void {
@@ -264,7 +279,7 @@ export class ReviewZoneWidget extends ZoneWidget {
 		this._commentEditor = this.instantiationService.createInstance(SimpleCommentEditor, this._commentForm, SimpleCommentEditor.getEditorOptions());
 		const modeId = hasExistingComments ? this._commentThread.threadId : ++INMEM_MODEL_ID;
 		const resource = URI.parse(`${COMMENT_SCHEME}:commentinput-${modeId}.md`);
-		const model = this.modelService.createModel('', this.modeService.getOrCreateModeByFilepathOrFirstLine(resource.path), resource, true);
+		const model = this.modelService.createModel(this._pendingComment || '', this.modeService.getOrCreateModeByFilepathOrFirstLine(resource.path), resource, true);
 		this._localToDispose.push(model);
 		this._commentEditor.setModel(model);
 		this._localToDispose.push(this._commentEditor);
