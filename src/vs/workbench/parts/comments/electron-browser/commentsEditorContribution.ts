@@ -198,13 +198,14 @@ export class ReviewController implements IEditorContribution {
 		this._reviewPanelVisible = ctxReviewPanelVisible.bindTo(contextKeyService);
 		this._commentingRangeDecorator = new CommentingRangeDecorator();
 
-		this.globalToDispose.push(this.commentService.onDidDeleteDataProvider(e => {
+		this.globalToDispose.push(this.commentService.onDidDeleteDataProvider(ownerId => {
 			// Remove new comment widget and glyph, refresh comments
 			if (this._newCommentWidget) {
 				this._newCommentWidget.dispose();
 				this._newCommentWidget = null;
 			}
 
+			delete this._pendingCommentCache[ownerId];
 			this.getComments();
 		}));
 
