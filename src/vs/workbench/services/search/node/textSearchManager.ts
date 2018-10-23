@@ -10,8 +10,9 @@ import * as glob from 'vs/base/common/glob';
 import * as resources from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
 import { TPromise } from 'vs/base/common/winjs.base';
+import { toCanonicalName } from 'vs/base/node/encoding';
 import * as extfs from 'vs/base/node/extfs';
-import { IFileMatch, IFolderQuery, IPatternInfo, ISearchCompleteStats, ITextQuery, ITextSearchResult, IExtendedExtensionSearchOptions } from 'vs/platform/search/common/search';
+import { IExtendedExtensionSearchOptions, IFileMatch, IFolderQuery, IPatternInfo, ISearchCompleteStats, ITextQuery, ITextSearchResult } from 'vs/platform/search/common/search';
 import { QueryGlobTester, resolvePatternsForProvider } from 'vs/workbench/services/search/node/search';
 import * as vscode from 'vscode';
 
@@ -22,7 +23,7 @@ export class TextSearchManager {
 	private isLimitHit: boolean;
 	private resultCount = 0;
 
-	constructor(private query: ITextQuery, private provider: vscode.TextSearchProvider, private _extfs: typeof extfs) {
+	constructor(private query: ITextQuery, private provider: vscode.TextSearchProvider, private _extfs: typeof extfs = extfs) {
 	}
 
 	public search(onProgress: (matches: IFileMatch[]) => void, token: CancellationToken): TPromise<ISearchCompleteStats> {
@@ -128,7 +129,7 @@ export class TextSearchManager {
 			useIgnoreFiles: !fq.disregardIgnoreFiles,
 			useGlobalIgnoreFiles: !fq.disregardGlobalIgnoreFiles,
 			followSymlinks: !fq.ignoreSymlinks,
-			encoding: fq.fileEncoding,
+			encoding: toCanonicalName(fq.fileEncoding),
 			maxFileSize: this.query.maxFileSize,
 			maxResults: this.query.maxResults,
 			previewOptions: this.query.previewOptions

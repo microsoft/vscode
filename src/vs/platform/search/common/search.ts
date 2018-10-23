@@ -104,7 +104,7 @@ export interface IFileQueryProps<U extends UriComponents> extends ICommonQueryPr
 
 export interface ITextQueryProps<U extends UriComponents> extends ICommonQueryProps<U> {
 	type: QueryType.Text;
-	contentPattern?: IPatternInfo;
+	contentPattern: IPatternInfo;
 
 	previewOptions?: ITextSearchPreviewOptions;
 	maxFileSize?: number;
