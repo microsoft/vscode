@@ -12,6 +12,7 @@ import { InstantiationService } from 'vs/platform/instantiation/common/instantia
 import { IExtensionPoint } from 'vs/workbench/services/extensions/common/extensionsRegistry';
 import { Event, Emitter } from 'vs/base/common/event';
 import { NullLogService } from 'vs/platform/log/common/log';
+import { IProgressService2 } from 'vs/platform/progress/common/progress';
 
 class SimpleExtensionService implements IExtensionService {
 	_serviceBrand: any;
@@ -54,6 +55,17 @@ class SimpleExtensionService implements IExtensionService {
 
 suite('CommandService', function () {
 
+	interface Ctor<T> {
+		new(): T;
+	}
+	function mock<T>(): Ctor<T> {
+		return function () { } as any;
+	}
+
+	let progressService = new class extends mock<IProgressService2>() {
+		withProgress() { return null; }
+	};
+
 	let commandRegistration: IDisposable;
 
 	setup(function () {
@@ -73,7 +85,7 @@ suite('CommandService', function () {
 				lastEvent = activationEvent;
 				return super.activateByEvent(activationEvent);
 			}
-		}, new NullLogService());
+		}, new NullLogService(), progressService);
 
 		return service.executeCommand('foo').then(() => {
 			assert.ok(lastEvent, 'onCommand:foo');
@@ -91,7 +103,7 @@ suite('CommandService', function () {
 			activateByEvent(activationEvent: string): TPromise<void> {
 				return TPromise.wrapError<void>(new Error('bad_activate'));
 			}
-		}, new NullLogService());
+		}, new NullLogService(), progressService);
 
 		return service.executeCommand('foo').then(() => assert.ok(false), err => {
 			assert.equal(err.message, 'bad_activate');
@@ -107,7 +119,7 @@ suite('CommandService', function () {
 			whenInstalledExtensionsRegistered() {
 				return new TPromise<boolean>(_resolve => { /*ignore*/ });
 			}
-		}, new NullLogService());
+		}, new NullLogService(), progressService);
 
 		service.executeCommand('bar');
 		assert.equal(callCounter, 1);
@@ -124,7 +136,7 @@ suite('CommandService', function () {
 			whenInstalledExtensionsRegistered() {
 				return whenInstalledExtensionsRegistered;
 			}
-		}, new NullLogService());
+		}, new NullLogService(), progressService);
 
 		let r = service.executeCommand('bar');
 		assert.equal(callCounter, 0);
