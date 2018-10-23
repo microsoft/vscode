@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import * as assert from 'assert';
 import { incrementFileName } from 'vs/workbench/parts/files/electron-browser/fileActions';
 
@@ -106,22 +104,10 @@ suite('Files - Increment file name', () => {
 		assert.strictEqual(result, '2.test.js');
 	});
 
-	test('Increment file name with prefix version - check if starting from digit', function () {
-		const name = 'F1.test.js';
-		const result = incrementFileName(name, false);
-		assert.strictEqual(result, 'F1.test.1.js');
-	});
-
 	test('Increment file name with just version in name', function () {
 		const name = '1.js';
 		const result = incrementFileName(name, false);
 		assert.strictEqual(result, '2.js');
-	});
-
-	test('Increment file name with just version in name - check if starting from digit', function () {
-		const name = 'F1.js';
-		const result = incrementFileName(name, false);
-		assert.strictEqual(result, 'F1.1.js');
 	});
 
 	test('Increment file name with just version in name, too big number', function () {

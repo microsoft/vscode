@@ -6,17 +6,17 @@
 import 'vs/css!./media/resourceviewer';
 import * as nls from 'vs/nls';
 import * as mimes from 'vs/base/common/mime';
-import URI from 'vs/base/common/uri';
-import { Builder, $ } from 'vs/base/browser/builder';
+import { URI } from 'vs/base/common/uri';
 import * as DOM from 'vs/base/browser/dom';
 import { DomScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
 import { LRUCache } from 'vs/base/common/map';
 import { Schemas } from 'vs/base/common/network';
 import { clamp } from 'vs/base/common/numbers';
 import { Themable } from 'vs/workbench/common/theme';
-import { IStatusbarItem, StatusbarItemDescriptor, IStatusbarRegistry, Extensions, StatusbarAlignment } from 'vs/workbench/browser/parts/statusbar/statusbar';
+import { IStatusbarItem, StatusbarItemDescriptor, IStatusbarRegistry, Extensions } from 'vs/workbench/browser/parts/statusbar/statusbar';
+import { StatusbarAlignment } from 'vs/platform/statusbar/common/statusbar';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
-import { IDisposable } from 'vs/base/common/lifecycle';
+import { IDisposable, Disposable, combinedDisposable } from 'vs/base/common/lifecycle';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { TPromise } from 'vs/base/common/winjs.base';
@@ -61,8 +61,8 @@ class BinarySize {
 	}
 }
 
-export interface ResourceViewerContext {
-	layout(dimension: DOM.Dimension): void;
+export interface ResourceViewerContext extends IDisposable {
+	layout?(dimension: DOM.Dimension): void;
 }
 
 /**
@@ -81,10 +81,10 @@ export class ResourceViewer {
 		openInternalClb: (uri: URI) => void,
 		openExternalClb: (uri: URI) => void,
 		metadataClb: (meta: string) => void
-	): ResourceViewerContext | null {
+	): ResourceViewerContext {
 
 		// Ensure CSS class
-		$(container).setClass('monaco-resource-viewer');
+		container.className = 'monaco-resource-viewer';
 
 		// Images
 		if (ResourceViewer.isImageResource(descriptor)) {
@@ -93,21 +93,20 @@ export class ResourceViewer {
 
 		// Large Files
 		if (descriptor.size > ResourceViewer.MAX_OPEN_INTERNAL_SIZE) {
-			FileTooLargeFileView.create(container, descriptor, scrollbar, metadataClb);
+			return FileTooLargeFileView.create(container, descriptor, scrollbar, metadataClb);
 		}
 
 		// Seemingly Binary Files
 		else {
-			FileSeemsBinaryFileView.create(container, descriptor, scrollbar, openInternalClb, metadataClb);
+			return FileSeemsBinaryFileView.create(container, descriptor, scrollbar, openInternalClb, metadataClb);
 		}
-
-		return null;
 	}
 
 	private static isImageResource(descriptor: IResourceDescriptor) {
 		const mime = getMime(descriptor);
 
-		return mime.indexOf('image/') >= 0;
+		// Chrome does not support tiffs
+		return mime.indexOf('image/') >= 0 && mime !== 'image/tiff';
 	}
 }
 
@@ -122,14 +121,12 @@ class ImageView {
 		scrollbar: DomScrollableElement,
 		openExternalClb: (uri: URI) => void,
 		metadataClb: (meta: string) => void
-	): ResourceViewerContext | null {
+	): ResourceViewerContext {
 		if (ImageView.shouldShowImageInline(descriptor)) {
 			return InlineImageView.create(container, descriptor, fileService, scrollbar, metadataClb);
 		}
 
-		LargeImageView.create(container, descriptor, openExternalClb);
-
-		return null;
+		return LargeImageView.create(container, descriptor, openExternalClb);
 	}
 
 	private static shouldShowImageInline(descriptor: IResourceDescriptor): boolean {
@@ -158,23 +155,23 @@ class LargeImageView {
 		descriptor: IResourceDescriptor,
 		openExternalClb: (uri: URI) => void
 	) {
-		const size = BinarySize.formatSize(descriptor.size);
+		DOM.clearNode(container);
 
-		const imageContainer = $(container)
-			.empty()
-			.p({
-				text: nls.localize('largeImageError', "The image is not displayed in the editor because it is too large ({0}).", size)
-			});
+		const disposables: IDisposable[] = [];
+
+		const label = document.createElement('p');
+		label.textContent = nls.localize('largeImageError', "The image is not displayed in the editor because it is too large ({0}).", BinarySize.formatSize(descriptor.size));
+		container.appendChild(label);
 
 		if (descriptor.resource.scheme !== Schemas.data) {
-			imageContainer.append($('a', {
-				role: 'button',
-				class: 'embedded-link',
-				text: nls.localize('resourceOpenExternalButton', "Open image using external program?")
-			}).on(DOM.EventType.CLICK, (e) => {
-				openExternalClb(descriptor.resource);
-			}));
+			const link = DOM.append(label, DOM.$('a.embedded-link'));
+			link.setAttribute('role', 'button');
+			link.textContent = nls.localize('resourceOpenExternalButton', "Open image using external program?");
+
+			disposables.push(DOM.addDisposableListener(link, DOM.EventType.CLICK, () => openExternalClb(descriptor.resource)));
 		}
+
+		return combinedDisposable(disposables);
 	}
 }
 
@@ -185,19 +182,21 @@ class FileTooLargeFileView {
 		scrollbar: DomScrollableElement,
 		metadataClb: (meta: string) => void
 	) {
+		DOM.clearNode(container);
+
 		const size = BinarySize.formatSize(descriptor.size);
 
-		$(container)
-			.empty()
-			.span({
-				text: nls.localize('nativeFileTooLargeError', "The file is not displayed in the editor because it is too large ({0}).", size)
-			});
+		const label = document.createElement('span');
+		label.textContent = nls.localize('nativeFileTooLargeError', "The file is not displayed in the editor because it is too large ({0}).", size);
+		container.appendChild(label);
 
 		if (metadataClb) {
 			metadataClb(size);
 		}
 
 		scrollbar.scanDomNode();
+
+		return Disposable.None;
 	}
 }
 
@@ -209,27 +208,29 @@ class FileSeemsBinaryFileView {
 		openInternalClb: (uri: URI) => void,
 		metadataClb: (meta: string) => void
 	) {
-		const binaryContainer = $(container)
-			.empty()
-			.p({
-				text: nls.localize('nativeBinaryError', "The file is not displayed in the editor because it is either binary or uses an unsupported text encoding.")
-			});
+		DOM.clearNode(container);
+
+		const disposables: IDisposable[] = [];
+
+		const label = document.createElement('p');
+		label.textContent = nls.localize('nativeBinaryError', "The file is not displayed in the editor because it is either binary or uses an unsupported text encoding.");
+		container.appendChild(label);
 
 		if (descriptor.resource.scheme !== Schemas.data) {
-			binaryContainer.append($('a', {
-				role: 'button',
-				class: 'embedded-link',
-				text: nls.localize('openAsText', "Do you want to open it anyway?")
-			}).on(DOM.EventType.CLICK, (e) => {
-				openInternalClb(descriptor.resource);
-			}));
+			const link = DOM.append(label, DOM.$('a.embedded-link'));
+			link.setAttribute('role', 'button');
+			link.textContent = nls.localize('openAsText', "Do you want to open it anyway?");
+
+			disposables.push(DOM.addDisposableListener(link, DOM.EventType.CLICK, () => openInternalClb(descriptor.resource)));
 		}
 
 		if (metadataClb) {
-			metadataClb(BinarySize.formatSize(descriptor.size));
+			metadataClb(typeof descriptor.size === 'number' ? BinarySize.formatSize(descriptor.size) : '');
 		}
 
 		scrollbar.scanDomNode();
+
+		return combinedDisposable(disposables);
 	}
 }
 
@@ -239,7 +240,7 @@ class ZoomStatusbarItem extends Themable implements IStatusbarItem {
 
 	static instance: ZoomStatusbarItem;
 
-	showTimeout: number;
+	showTimeout: any;
 
 	private statusBarItem: HTMLElement;
 	private onSelectScale?: (scale: Scale) => void;
@@ -276,16 +277,16 @@ class ZoomStatusbarItem extends Themable implements IStatusbarItem {
 
 	render(container: HTMLElement): IDisposable {
 		if (!this.statusBarItem && container) {
-			this.statusBarItem = $(container).a()
-				.addClass('.zoom-statusbar-item')
-				.on('click', () => {
-					this.contextMenuService.showContextMenu({
-						getAnchor: () => container,
-						getActions: () => TPromise.as(this.zoomActions)
-					});
-				})
-				.getHTMLElement();
+			this.statusBarItem = DOM.append(container, DOM.$('a.zoom-statusbar-item'));
+			this.statusBarItem.setAttribute('role', 'button');
 			this.statusBarItem.style.display = 'none';
+
+			DOM.addDisposableListener(this.statusBarItem, DOM.EventType.CLICK, () => {
+				this.contextMenuService.showContextMenu({
+					getAnchor: () => container,
+					getActions: () => Promise.resolve(this.zoomActions)
+				});
+			});
 		}
 
 		return this;
@@ -304,7 +305,7 @@ class ZoomStatusbarItem extends Themable implements IStatusbarItem {
 					this.onSelectScale(scale);
 				}
 
-				return null;
+				return void 0;
 			}));
 	}
 
@@ -368,8 +369,11 @@ class InlineImageView {
 		scrollbar: DomScrollableElement,
 		metadataClb: (meta: string) => void
 	) {
-		const context = {
-			layout(dimension: DOM.Dimension) { }
+		const disposables: IDisposable[] = [];
+
+		const context: ResourceViewerContext = {
+			layout(dimension: DOM.Dimension) { },
+			dispose: () => combinedDisposable(disposables).dispose()
 		};
 
 		const cacheKey = descriptor.resource.toString();
@@ -379,41 +383,40 @@ class InlineImageView {
 
 		const initialState: ImageState = InlineImageView.imageStateCache.get(cacheKey) || { scale: 'fit', offsetX: 0, offsetY: 0 };
 		let scale = initialState.scale;
-		let img: Builder | null = null;
-		let imgElement: HTMLImageElement | null = null;
+		let image: HTMLImageElement | null = null;
 
 		function updateScale(newScale: Scale) {
-			if (!img || !imgElement.parentElement) {
+			if (!image || !image.parentElement) {
 				return;
 			}
 
 			if (newScale === 'fit') {
 				scale = 'fit';
-				img.addClass('scale-to-fit');
-				img.removeClass('pixelated');
-				img.style('min-width', 'auto');
-				img.style('width', 'auto');
+				DOM.addClass(image, 'scale-to-fit');
+				DOM.removeClass(image, 'pixelated');
+				image.style.minWidth = 'auto';
+				image.style.width = 'auto';
 				InlineImageView.imageStateCache.set(cacheKey, null);
 			} else {
-				const oldWidth = imgElement.width;
-				const oldHeight = imgElement.height;
+				const oldWidth = image.width;
+				const oldHeight = image.height;
 
 				scale = clamp(newScale, InlineImageView.MIN_SCALE, InlineImageView.MAX_SCALE);
 				if (scale >= InlineImageView.PIXELATION_THRESHOLD) {
-					img.addClass('pixelated');
+					DOM.addClass(image, 'pixelated');
 				} else {
-					img.removeClass('pixelated');
+					DOM.removeClass(image, 'pixelated');
 				}
 
-				const { scrollTop, scrollLeft } = imgElement.parentElement;
-				const dx = (scrollLeft + imgElement.parentElement.clientWidth / 2) / imgElement.parentElement.scrollWidth;
-				const dy = (scrollTop + imgElement.parentElement.clientHeight / 2) / imgElement.parentElement.scrollHeight;
+				const { scrollTop, scrollLeft } = image.parentElement;
+				const dx = (scrollLeft + image.parentElement.clientWidth / 2) / image.parentElement.scrollWidth;
+				const dy = (scrollTop + image.parentElement.clientHeight / 2) / image.parentElement.scrollHeight;
 
-				img.removeClass('scale-to-fit');
-				img.style('min-width', `${(imgElement.naturalWidth * scale)}px`);
-				img.style('width', `${(imgElement.naturalWidth * scale)}px`);
+				DOM.removeClass(image, 'scale-to-fit');
+				image.style.minWidth = `${(image.naturalWidth * scale)}px`;
+				image.style.width = `${(image.naturalWidth * scale)}px`;
 
-				const newWidth = imgElement.width;
+				const newWidth = image.width;
 				const scaleFactor = (newWidth - oldWidth) / oldWidth;
 
 				const newScrollLeft = ((oldWidth * scaleFactor * dx) + scrollLeft);
@@ -431,123 +434,133 @@ class InlineImageView {
 		}
 
 		function firstZoom() {
-			scale = imgElement.clientWidth / imgElement.naturalWidth;
+			scale = image.clientWidth / image.naturalWidth;
 			updateScale(scale);
 		}
 
-		$(container)
-			.on(DOM.EventType.KEY_DOWN, (e: KeyboardEvent, c) => {
-				if (!img) {
-					return;
-				}
-				ctrlPressed = e.ctrlKey;
-				altPressed = e.altKey;
+		disposables.push(DOM.addDisposableListener(window, DOM.EventType.KEY_DOWN, (e: KeyboardEvent) => {
+			if (!image) {
+				return;
+			}
+			ctrlPressed = e.ctrlKey;
+			altPressed = e.altKey;
 
-				if (platform.isMacintosh ? altPressed : ctrlPressed) {
-					c.removeClass('zoom-in').addClass('zoom-out');
-				}
-			})
-			.on(DOM.EventType.KEY_UP, (e: KeyboardEvent, c) => {
-				if (!img) {
-					return;
-				}
+			if (platform.isMacintosh ? altPressed : ctrlPressed) {
+				DOM.removeClass(container, 'zoom-in');
+				DOM.addClass(container, 'zoom-out');
+			}
+		}));
 
-				ctrlPressed = e.ctrlKey;
-				altPressed = e.altKey;
+		disposables.push(DOM.addDisposableListener(window, DOM.EventType.KEY_UP, (e: KeyboardEvent) => {
+			if (!image) {
+				return;
+			}
 
-				if (!(platform.isMacintosh ? altPressed : ctrlPressed)) {
-					c.removeClass('zoom-out').addClass('zoom-in');
-				}
-			})
-			.on(DOM.EventType.CLICK, (e: MouseEvent) => {
-				if (!img) {
-					return;
-				}
+			ctrlPressed = e.ctrlKey;
+			altPressed = e.altKey;
 
-				if (e.button !== 0) {
-					return;
-				}
+			if (!(platform.isMacintosh ? altPressed : ctrlPressed)) {
+				DOM.removeClass(container, 'zoom-out');
+				DOM.addClass(container, 'zoom-in');
+			}
+		}));
 
-				// left click
-				if (scale === 'fit') {
-					firstZoom();
-				}
+		disposables.push(DOM.addDisposableListener(container, DOM.EventType.CLICK, (e: MouseEvent) => {
+			if (!image) {
+				return;
+			}
 
-				if (!(platform.isMacintosh ? altPressed : ctrlPressed)) { // zoom in
-					let i = 0;
-					for (; i < InlineImageView.zoomLevels.length; ++i) {
-						if (InlineImageView.zoomLevels[i] > scale) {
-							break;
-						}
+			if (e.button !== 0) {
+				return;
+			}
+
+			// left click
+			if (scale === 'fit') {
+				firstZoom();
+			}
+
+			if (!(platform.isMacintosh ? altPressed : ctrlPressed)) { // zoom in
+				let i = 0;
+				for (; i < InlineImageView.zoomLevels.length; ++i) {
+					if (InlineImageView.zoomLevels[i] > scale) {
+						break;
 					}
-					updateScale(InlineImageView.zoomLevels[i] || InlineImageView.MAX_SCALE);
-				} else {
-					let i = InlineImageView.zoomLevels.length - 1;
-					for (; i >= 0; --i) {
-						if (InlineImageView.zoomLevels[i] < scale) {
-							break;
-						}
+				}
+				updateScale(InlineImageView.zoomLevels[i] || InlineImageView.MAX_SCALE);
+			} else {
+				let i = InlineImageView.zoomLevels.length - 1;
+				for (; i >= 0; --i) {
+					if (InlineImageView.zoomLevels[i] < scale) {
+						break;
 					}
-					updateScale(InlineImageView.zoomLevels[i] || InlineImageView.MIN_SCALE);
 				}
-			})
-			.on(DOM.EventType.WHEEL, (e: WheelEvent) => {
-				if (!img) {
-					return;
-				}
+				updateScale(InlineImageView.zoomLevels[i] || InlineImageView.MIN_SCALE);
+			}
+		}));
 
-				const isScrollWhellKeyPressed = platform.isMacintosh ? altPressed : ctrlPressed;
-				if (!isScrollWhellKeyPressed && !e.ctrlKey) { // pinching is reported as scroll wheel + ctrl
-					return;
-				}
+		disposables.push(DOM.addDisposableListener(container, DOM.EventType.WHEEL, (e: WheelEvent) => {
+			if (!image) {
+				return;
+			}
 
-				e.preventDefault();
-				e.stopPropagation();
+			const isScrollWhellKeyPressed = platform.isMacintosh ? altPressed : ctrlPressed;
+			if (!isScrollWhellKeyPressed && !e.ctrlKey) { // pinching is reported as scroll wheel + ctrl
+				return;
+			}
 
-				if (scale === 'fit') {
-					firstZoom();
-				}
+			e.preventDefault();
+			e.stopPropagation();
 
-				let delta = e.deltaY < 0 ? 1 : -1;
+			if (scale === 'fit') {
+				firstZoom();
+			}
 
-				// Pinching should increase the scale
-				if (e.ctrlKey && !isScrollWhellKeyPressed) {
-					delta *= -1;
-				}
-				updateScale(scale as number * (1 - delta * InlineImageView.SCALE_PINCH_FACTOR));
-			})
-			.on(DOM.EventType.SCROLL, () => {
-				if (!imgElement || !imgElement.parentElement || scale === 'fit') {
-					return;
-				}
+			let delta = e.deltaY < 0 ? 1 : -1;
 
-				const entry = InlineImageView.imageStateCache.get(cacheKey);
-				if (entry) {
-					const { scrollTop, scrollLeft } = imgElement.parentElement;
-					InlineImageView.imageStateCache.set(cacheKey, { scale: entry.scale, offsetX: scrollLeft, offsetY: scrollTop });
-				}
-			});
+			// Pinching should increase the scale
+			if (e.ctrlKey && !isScrollWhellKeyPressed) {
+				delta *= -1;
+			}
+			updateScale(scale as number * (1 - delta * InlineImageView.SCALE_PINCH_FACTOR));
+		}));
 
-		$(container)
-			.empty()
-			.addClass('image', 'zoom-in')
-			.img({})
-			.style('visibility', 'hidden')
-			.addClass('scale-to-fit')
-			.on(DOM.EventType.LOAD, (e, i) => {
-				img = i;
-				imgElement = img.getHTMLElement() as HTMLImageElement;
-				metadataClb(nls.localize('imgMeta', '{0}x{1} {2}', imgElement.naturalWidth, imgElement.naturalHeight, BinarySize.formatSize(descriptor.size)));
-				scrollbar.scanDomNode();
-				img.style('visibility', 'visible');
-				updateScale(scale);
-				if (initialState.scale !== 'fit') {
-					scrollbar.setScrollPosition({
-						scrollLeft: initialState.offsetX,
-						scrollTop: initialState.offsetY,
-					});
-				}
-			});
+		disposables.push(DOM.addDisposableListener(container, DOM.EventType.SCROLL, () => {
+			if (!image || !image.parentElement || scale === 'fit') {
+				return;
+			}
+
+			const entry = InlineImageView.imageStateCache.get(cacheKey);
+			if (entry) {
+				const { scrollTop, scrollLeft } = image.parentElement;
+				InlineImageView.imageStateCache.set(cacheKey, { scale: entry.scale, offsetX: scrollLeft, offsetY: scrollTop });
+			}
+		}));
+
+		DOM.clearNode(container);
+		DOM.addClasses(container, 'image', 'zoom-in');
+
+		image = DOM.append(container, DOM.$('img.scale-to-fit'));
+		image.style.visibility = 'hidden';
+
+		disposables.push(DOM.addDisposableListener(image, DOM.EventType.LOAD, e => {
+			let metadata: string;
+			if (typeof descriptor.size === 'number') {
+				metadataClb(nls.localize('imgMeta', '{0}x{1} {2}', image.naturalWidth, image.naturalHeight, BinarySize.formatSize(descriptor.size)));
+			} else {
+				metadataClb(nls.localize('imgMetaNoSize', '{0}x{1}', image.naturalWidth, image.naturalHeight));
+			}
+			metadataClb(metadata);
+
+			scrollbar.scanDomNode();
+			image.style.visibility = 'visible';
+			updateScale(scale);
+			if (initialState.scale !== 'fit') {
+				scrollbar.setScrollPosition({
+					scrollLeft: initialState.offsetX,
+					scrollTop: initialState.offsetY,
+				});
+			}
+		}));
 
 		InlineImageView.imageSrc(descriptor, fileService).then(dataUri => {
 			const imgs = container.getElementsByTagName('img');
@@ -561,7 +574,7 @@ class InlineImageView {
 
 	private static imageSrc(descriptor: IResourceDescriptor, fileService: IFileService): TPromise<string> {
 		if (descriptor.resource.scheme === Schemas.data) {
-			return TPromise.as(descriptor.resource.toString(true /* skip encoding */));
+			return Promise.resolve(descriptor.resource.toString(true /* skip encoding */));
 		}
 
 		return fileService.resolveContent(descriptor.resource, { encoding: 'base64' }).then(data => {
@@ -575,7 +588,7 @@ class InlineImageView {
 function getMime(descriptor: IResourceDescriptor) {
 	let mime = descriptor.mime;
 	if (!mime && descriptor.resource.scheme !== Schemas.data) {
-		mime = mimes.getMediaMime(descriptor.resource.toString());
+		mime = mimes.getMediaMime(descriptor.resource.path);
 	}
 	return mime || mimes.MIME_BINARY;
 }

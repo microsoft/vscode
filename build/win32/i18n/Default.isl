@@ -9,7 +9,7 @@
 ; two periods being displayed).
 
 [LangOptions]
-; The following three entries are very important. Be sure to read and 
+; The following three entries are very important. Be sure to read and
 ; understand the '[LangOptions] section' topic in the help file.
 LanguageName=English
 LanguageID=$0409
@@ -216,7 +216,7 @@ InstallingLabel=Please wait while Setup installs [name] on your computer.
 ; *** "Setup Completed" wizard page
 FinishedHeadingLabel=Completing the [name] Setup Wizard
 FinishedLabelNoIcons=Setup has finished installing [name] on your computer.
-FinishedLabel=Setup has finished installing [name] on your computer. The application may be launched by selecting the installed shortcuts.
+FinishedLabel=Setup has finished installing [name] on your computer. The application may be launched by selecting the installed icons.
 ClickFinish=Click Finish to exit Setup.
 FinishedRestartLabel=To complete the installation of [name], Setup must restart your computer. Would you like to restart now?
 FinishedRestartMessage=To complete the installation of [name], Setup must restart your computer.%n%nWould you like to restart now?
@@ -296,7 +296,7 @@ UninstallNotFound=File "%1" does not exist. Cannot uninstall.
 UninstallOpenError=File "%1" could not be opened. Cannot uninstall
 UninstallUnsupportedVer=The uninstall log file "%1" is in a format not recognized by this version of the uninstaller. Cannot uninstall
 UninstallUnknownEntry=An unknown entry (%1) was encountered in the uninstall log
-ConfirmUninstall=Are you sure you want to completely remove %1 and all of its components?
+ConfirmUninstall=Are you sure you want to completely remove %1? Extensions and settings will not be removed.
 UninstallOnlyOnWin64=This installation can only be uninstalled on 64-bit Windows.
 OnlyAdminCanUninstall=This installation can only be uninstalled by a user with administrative privileges.
 UninstallStatusLabel=Please wait while %1 is removed from your computer.
@@ -323,9 +323,9 @@ ShutdownBlockReasonUninstallingApp=Uninstalling %1.
 [CustomMessages]
 
 NameAndVersion=%1 version %2
-AdditionalIcons=Additional shortcuts:
-CreateDesktopIcon=Create a &desktop shortcut
-CreateQuickLaunchIcon=Create a &Quick Launch shortcut
+AdditionalIcons=Additional icons:
+CreateDesktopIcon=Create a &desktop icon
+CreateQuickLaunchIcon=Create a &Quick Launch icon
 ProgramOnTheWeb=%1 on the Web
 UninstallProgram=Uninstall %1
 LaunchProgram=Launch %1
@@ -334,4 +334,3 @@ AssocingFileExtension=Associating %1 with the %2 file extension...
 AutoStartProgramGroupDescription=Startup:
 AutoStartProgram=Automatically start %1
 AddonHostProgramNotFound=%1 could not be located in the folder you selected.%n%nDo you want to continue anyway?
-

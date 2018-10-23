@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as nls from 'vs/nls';
-import * as errors from 'vs/base/common/errors';
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { IAction, ActionRunner } from 'vs/base/common/actions';
 import * as dom from 'vs/base/browser/dom';
@@ -26,7 +25,7 @@ import { attachStylerCallback } from 'vs/platform/theme/common/styler';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { badgeBackground, badgeForeground, contrastBorder } from 'vs/platform/theme/common/colorRegistry';
 import { WorkbenchList } from 'vs/platform/list/browser/listService';
-import { IVirtualDelegate, IRenderer, IListContextMenuEvent } from 'vs/base/browser/ui/list/list';
+import { IListVirtualDelegate, IListRenderer, IListContextMenuEvent } from 'vs/base/browser/ui/list/list';
 import { EditorLabel } from 'vs/workbench/browser/labels';
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
 import { TPromise } from 'vs/base/common/winjs.base';
@@ -234,6 +233,7 @@ export class OpenEditorsView extends ViewletPanel {
 		ExplorerFocusedContext.bindTo(this.list.contextKeyService);
 
 		this.resourceContext = this.instantiationService.createInstance(ResourceContextKey);
+		this.disposables.push(this.resourceContext);
 		this.groupFocusedContext = OpenEditorsGroupContext.bindTo(this.contextKeyService);
 		this.dirtyEditorFocusedContext = DirtyEditorContext.bindTo(this.contextKeyService);
 
@@ -252,28 +252,27 @@ export class OpenEditorsView extends ViewletPanel {
 		});
 
 		// Open when selecting via keyboard
+		this.disposables.push(this.list.onMouseMiddleClick(e => {
+			if (e && e.element instanceof OpenEditor) {
+				e.element.group.closeEditor(e.element.editor);
+			}
+		}));
 		this.disposables.push(this.list.onOpen(e => {
 			const browserEvent = e.browserEvent;
 
 			let openToSide = false;
 			let isSingleClick = false;
 			let isDoubleClick = false;
-			let isMiddleClick = false;
 			if (browserEvent instanceof MouseEvent) {
 				isSingleClick = browserEvent.detail === 1;
 				isDoubleClick = browserEvent.detail === 2;
-				isMiddleClick = browserEvent.button === 1 /* middle button */;
 				openToSide = this.list.useAltAsMultipleSelectionModifier ? (browserEvent.ctrlKey || browserEvent.metaKey) : browserEvent.altKey;
 			}
 
 			const focused = this.list.getFocusedElements();
 			const element = focused.length ? focused[0] : undefined;
 			if (element instanceof OpenEditor) {
-				if (isMiddleClick) {
-					element.group.closeEditor(element.editor).done(null, errors.onUnexpectedError);
-				} else {
-					this.openEditor(element, { preserveFocus: isSingleClick, pinned: isDoubleClick, sideBySide: openToSide });
-				}
+				this.openEditor(element, { preserveFocus: isSingleClick, pinned: isDoubleClick, sideBySide: openToSide });
 			} else {
 				this.editorGroupService.activateGroup(element);
 			}
@@ -292,6 +291,7 @@ export class OpenEditorsView extends ViewletPanel {
 
 	public setExpanded(expanded: boolean): void {
 		super.setExpanded(expanded);
+		this.updateListVisibility(expanded);
 		if (expanded && this.needsRefresh) {
 			this.listRefreshScheduler.schedule(0);
 		}
@@ -299,6 +299,7 @@ export class OpenEditorsView extends ViewletPanel {
 
 	public setVisible(visible: boolean): TPromise<void> {
 		return super.setVisible(visible).then(() => {
+			this.updateListVisibility(visible && this.isExpanded());
 			if (visible && this.needsRefresh) {
 				this.listRefreshScheduler.schedule(0);
 			}
@@ -317,6 +318,16 @@ export class OpenEditorsView extends ViewletPanel {
 	protected layoutBody(size: number): void {
 		if (this.list) {
 			this.list.layout(size);
+		}
+	}
+
+	private updateListVisibility(isVisible: boolean): void {
+		if (this.list) {
+			if (isVisible) {
+				dom.show(this.list.getHTMLElement());
+			} else {
+				dom.hide(this.list.getHTMLElement()); // make sure the list goes out of the tabindex world by hiding it
+			}
 		}
 	}
 
@@ -367,11 +378,11 @@ export class OpenEditorsView extends ViewletPanel {
 			if (!preserveActivateGroup) {
 				this.editorGroupService.activateGroup(element.groupId); // needed for https://github.com/Microsoft/vscode/issues/6672
 			}
-			this.editorService.openEditor(element.editor, options, options.sideBySide ? SIDE_GROUP : ACTIVE_GROUP).done(editor => {
+			this.editorService.openEditor(element.editor, options, options.sideBySide ? SIDE_GROUP : ACTIVE_GROUP).then(editor => {
 				if (!preserveActivateGroup) {
 					this.editorGroupService.activateGroup(editor.group);
 				}
-			}, errors.onUnexpectedError);
+			});
 		}
 	}
 
@@ -382,14 +393,14 @@ export class OpenEditorsView extends ViewletPanel {
 			getActions: () => {
 				const actions: IAction[] = [];
 				fillInContextMenuActions(this.contributedContextMenu, { shouldForwardArgs: true, arg: element instanceof OpenEditor ? element.editor.getResource() : {} }, actions, this.contextMenuService);
-				return TPromise.as(actions);
+				return Promise.resolve(actions);
 			},
 			getActionsContext: () => element instanceof OpenEditor ? { groupId: element.groupId, editorIndex: element.editorIndex } : { groupId: element.id }
 		});
 	}
 
 	private focusActiveEditor(): void {
-		if (this.editorGroupService.activeGroup && this.editorGroupService.activeGroup.activeEditor /* could be empty */) {
+		if (this.list.length && this.editorGroupService.activeGroup) {
 			const index = this.getIndex(this.editorGroupService.activeGroup, this.editorGroupService.activeGroup.activeEditor);
 			this.list.setFocus([index]);
 			this.list.setSelection([index]);
@@ -457,7 +468,7 @@ export class OpenEditorsView extends ViewletPanel {
 
 	public getOptimalWidth(): number {
 		let parentNode = this.list.getHTMLElement();
-		let childNodes = [].slice.call(parentNode.querySelectorAll('.open-editor > a'));
+		let childNodes: HTMLElement[] = [].slice.call(parentNode.querySelectorAll('.open-editor > a'));
 
 		return dom.getLargestChildWidth(parentNode, childNodes);
 	}
@@ -488,7 +499,7 @@ class OpenEditorActionRunner extends ActionRunner {
 	}
 }
 
-class OpenEditorsDelegate implements IVirtualDelegate<OpenEditor | IEditorGroup> {
+class OpenEditorsDelegate implements IListVirtualDelegate<OpenEditor | IEditorGroup> {
 
 	public static readonly ITEM_HEIGHT = 22;
 
@@ -531,7 +542,7 @@ function dropOnEditorSupported(e: DragEvent): boolean {
 	}
 }
 
-class EditorGroupRenderer implements IRenderer<IEditorGroup, IEditorGroupTemplateData> {
+class EditorGroupRenderer implements IListRenderer<IEditorGroup, IEditorGroupTemplateData> {
 	static readonly ID = 'editorgroup';
 
 	private transfer = LocalSelectionTransfer.getInstance<OpenEditor>();
@@ -604,7 +615,7 @@ class EditorGroupRenderer implements IRenderer<IEditorGroup, IEditorGroupTemplat
 	}
 }
 
-class OpenEditorRenderer implements IRenderer<OpenEditor, IOpenEditorTemplateData> {
+class OpenEditorRenderer implements IListRenderer<OpenEditor, IOpenEditorTemplateData> {
 	static readonly ID = 'openeditor';
 
 	private transfer = LocalSelectionTransfer.getInstance<OpenEditor>();

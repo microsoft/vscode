@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import * as vscode from 'vscode';
 import * as fs from 'fs';
 import * as os from 'os';
@@ -51,4 +49,13 @@ export function deleteFile(file: vscode.Uri): Thenable<boolean> {
 export function closeAllEditors(): Thenable<any> {
 	return vscode.commands.executeCommand('workbench.action.closeAllEditors');
 
+}
+
+export function disposeAll(disposables: vscode.Disposable[]) {
+	while (disposables.length) {
+		let item = disposables.pop();
+		if (item) {
+			item.dispose();
+		}
+	}
 }

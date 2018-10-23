@@ -3,20 +3,18 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import * as os from 'os';
 import * as cp from 'child_process';
 import * as fs from 'fs';
 import * as path from 'path';
 
 import { localize } from 'vs/nls';
-import { ILaunchChannel } from 'vs/code/electron-main/launch';
-import { TPromise } from 'vs/base/common/winjs.base';
+import { ILaunchChannel } from 'vs/platform/launch/electron-main/launchService';
 import product from 'vs/platform/node/product';
 import { IRequestService } from 'vs/platform/request/node/request';
 import { IRequestContext } from 'vs/base/node/request';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
+import { CancellationToken } from 'vs/base/common/cancellation';
 
 interface PostResult {
 	readonly blob_id: string;
@@ -86,14 +84,14 @@ async function postLogs(
 			headers: {
 				'Content-Type': 'application/zip'
 			}
-		});
+		}, CancellationToken.None);
 	} catch (e) {
 		clearInterval(dotter);
 		console.log(localize('postError', 'Error posting logs: {0}', e));
 		throw e;
 	}
 
-	return new TPromise<PostResult>((res, reject) => {
+	return new Promise<PostResult>((resolve, reject) => {
 		const parts: Buffer[] = [];
 		result.stream.on('data', data => {
 			parts.push(data);
@@ -104,7 +102,7 @@ async function postLogs(
 			try {
 				const response = Buffer.concat(parts).toString('utf-8');
 				if (result.res.statusCode === 200) {
-					res(JSON.parse(response));
+					resolve(JSON.parse(response));
 				} else {
 					const errorMessage = localize('responseError', 'Error posting logs. Got {0} — {1}', result.res.statusCode, response);
 					console.log(errorMessage);
@@ -120,13 +118,13 @@ async function postLogs(
 
 function zipLogs(
 	logsPath: string
-): TPromise<string> {
+): Promise<string> {
 	const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'vscode-log-upload'));
 	const outZip = path.join(tempDir, 'logs.zip');
-	return new TPromise<string>((resolve, reject) => {
+	return new Promise<string>((resolve, reject) => {
 		doZip(logsPath, outZip, tempDir, (err, stdout, stderr) => {
 			if (err) {
-				console.error(localize('zipError', 'Error zipping logs: {0}', err));
+				console.error(localize('zipError', 'Error zipping logs: {0}', err.message));
 				reject(err);
 			} else {
 				resolve(outZip);

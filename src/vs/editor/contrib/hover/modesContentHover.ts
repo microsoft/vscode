@@ -2,28 +2,27 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
 import * as nls from 'vs/nls';
 import * as dom from 'vs/base/browser/dom';
-import { IRange, Range } from 'vs/editor/common/core/range';
-import { Position } from 'vs/editor/common/core/position';
-import { HoverProviderRegistry, Hover, IColor, DocumentColorProvider } from 'vs/editor/common/modes';
-import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { getHover } from 'vs/editor/contrib/hover/getHover';
-import { HoverOperation, IHoverComputer, HoverStartMode } from './hoverOperation';
-import { ContentHoverWidget } from './hoverWidgets';
+import { CancellationToken } from 'vs/base/common/cancellation';
+import { Color, RGBA } from 'vs/base/common/color';
 import { IMarkdownString, MarkdownString, isEmptyMarkdownString, markedStringsEquals } from 'vs/base/common/htmlContent';
-import { MarkdownRenderer } from 'vs/editor/contrib/markdown/markdownRenderer';
+import { Disposable, IDisposable, combinedDisposable } from 'vs/base/common/lifecycle';
+import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
+import { Position } from 'vs/editor/common/core/position';
+import { IRange, Range } from 'vs/editor/common/core/range';
 import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
+import { DocumentColorProvider, Hover, HoverProviderRegistry, IColor } from 'vs/editor/common/modes';
+import { getColorPresentations } from 'vs/editor/contrib/colorPicker/color';
+import { ColorDetector } from 'vs/editor/contrib/colorPicker/colorDetector';
 import { ColorPickerModel } from 'vs/editor/contrib/colorPicker/colorPickerModel';
 import { ColorPickerWidget } from 'vs/editor/contrib/colorPicker/colorPickerWidget';
-import { ColorDetector } from 'vs/editor/contrib/colorPicker/colorDetector';
-import { Color, RGBA } from 'vs/base/common/color';
-import { IDisposable, Disposable, combinedDisposable } from 'vs/base/common/lifecycle';
-import { getColorPresentations } from 'vs/editor/contrib/colorPicker/color';
+import { getHover } from 'vs/editor/contrib/hover/getHover';
+import { HoverOperation, HoverStartMode, IHoverComputer } from 'vs/editor/contrib/hover/hoverOperation';
+import { ContentHoverWidget } from 'vs/editor/contrib/hover/hoverWidgets';
+import { MarkdownRenderer } from 'vs/editor/contrib/markdown/markdownRenderer';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { CancellationToken } from 'vs/base/common/cancellation';
 const $ = dom.$;
 
 class ColorHover {
@@ -301,7 +300,7 @@ export class ModesContentHoverWidget extends ContentHoverWidget {
 
 		// update column from which to show
 		let renderColumn = Number.MAX_VALUE;
-		let highlightRange = messages[0].range;
+		let highlightRange = Range.lift(messages[0].range);
 		let fragment = document.createDocumentFragment();
 		let isEmptyHoverContent = true;
 
@@ -361,6 +360,7 @@ export class ModesContentHoverWidget extends ContentHoverWidget {
 							newRange = range.setEndPosition(range.endLineNumber, range.startColumn + model.presentation.label.length);
 						}
 
+						this._editor.pushUndoStop();
 						this._editor.executeEdits('colorpicker', textEdits);
 
 						if (model.presentation.additionalTextEdits) {
@@ -392,7 +392,7 @@ export class ModesContentHoverWidget extends ContentHoverWidget {
 					const colorChangeListener = model.onDidChangeColor(updateColorPresentations);
 
 					this._colorPicker = widget;
-					this.showAt(new Position(renderRange.startLineNumber, renderColumn), this._shouldFocus);
+					this.showAt(range.getStartPosition(), range, this._shouldFocus);
 					this.updateContents(fragment);
 					this._colorPicker.layout();
 
@@ -404,7 +404,7 @@ export class ModesContentHoverWidget extends ContentHoverWidget {
 		// show
 
 		if (!containColorPicker && !isEmptyHoverContent) {
-			this.showAt(new Position(renderRange.startLineNumber, renderColumn), this._shouldFocus);
+			this.showAt(new Position(renderRange.startLineNumber, renderColumn), highlightRange, this._shouldFocus);
 			this.updateContents(fragment);
 		}
 

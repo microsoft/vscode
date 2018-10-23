@@ -2,19 +2,18 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
-
 import * as assert from 'assert';
-import { KeyCode, KeyMod, KeyChord, createKeybinding, SimpleKeybinding } from 'vs/base/common/keyCodes';
-import { KeybindingIO } from 'vs/workbench/services/keybinding/common/keybindingIO';
+import { KeyChord, KeyCode, KeyMod, SimpleKeybinding, createKeybinding } from 'vs/base/common/keyCodes';
+import { KeybindingParser } from 'vs/base/common/keybindingParser';
 import { OS, OperatingSystem } from 'vs/base/common/platform';
+import { ScanCode, ScanCodeBinding } from 'vs/base/common/scanCode';
 import { IUserFriendlyKeybinding } from 'vs/platform/keybinding/common/keybinding';
 import { USLayoutResolvedKeybinding } from 'vs/platform/keybinding/common/usLayoutResolvedKeybinding';
-import { ScanCodeBinding, ScanCode } from 'vs/workbench/services/keybinding/common/scanCode';
+import { KeybindingIO } from 'vs/workbench/services/keybinding/common/keybindingIO';
 
 suite('keybindingIO', () => {
 
-	test('serialize/deserialize', function () {
+	test('serialize/deserialize', () => {
 
 		function testOneSerialization(keybinding: number, expected: string, msg: string, OS: OperatingSystem): void {
 			let usLayoutResolvedKeybinding = new USLayoutResolvedKeybinding(createKeybinding(keybinding, OS), OS);
@@ -28,7 +27,7 @@ suite('keybindingIO', () => {
 		}
 
 		function testOneDeserialization(keybinding: string, _expected: number, msg: string, OS: OperatingSystem): void {
-			let actualDeserialized = KeybindingIO.readKeybinding(keybinding, OS);
+			let actualDeserialized = KeybindingParser.parseKeybinding(keybinding, OS);
 			let expected = createKeybinding(_expected, OS);
 			assert.deepEqual(actualDeserialized, expected, keybinding + ' - ' + msg);
 		}
@@ -119,7 +118,7 @@ suite('keybindingIO', () => {
 
 	test('deserialize scan codes', () => {
 		assert.deepEqual(
-			KeybindingIO._readUserBinding('ctrl+shift+[comma] ctrl+/'),
+			KeybindingParser.parseUserBinding('ctrl+shift+[comma] ctrl+/'),
 			[new ScanCodeBinding(true, true, false, false, ScanCode.Comma), new SimpleKeybinding(true, false, false, false, KeyCode.US_SLASH)]
 		);
 	});

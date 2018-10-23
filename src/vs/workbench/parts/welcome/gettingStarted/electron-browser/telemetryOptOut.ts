@@ -2,15 +2,14 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
-import { IStorageService } from 'vs/platform/storage/common/storage';
+import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import product from 'vs/platform/node/product';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
-import URI from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 import { localize } from 'vs/nls';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { IWindowService, IWindowsService } from 'vs/platform/windows/common/windows';
@@ -37,7 +36,7 @@ export class TelemetryOptOut implements IWorkbenchContribution {
 		@IConfigurationService private configurationService: IConfigurationService,
 		@IExtensionGalleryService private galleryService: IExtensionGalleryService
 	) {
-		if (!product.telemetryOptOutUrl || storageService.get(TelemetryOptOut.TELEMETRY_OPT_OUT_SHOWN)) {
+		if (!product.telemetryOptOutUrl || storageService.get(TelemetryOptOut.TELEMETRY_OPT_OUT_SHOWN, StorageScope.GLOBAL)) {
 			return;
 		}
 		const experimentId = 'telemetryOptOut';
@@ -49,7 +48,7 @@ export class TelemetryOptOut implements IWorkbenchContribution {
 			if (!focused && count > 1) {
 				return null;
 			}
-			storageService.store(TelemetryOptOut.TELEMETRY_OPT_OUT_SHOWN, true);
+			storageService.store(TelemetryOptOut.TELEMETRY_OPT_OUT_SHOWN, true, StorageScope.GLOBAL);
 
 			this.optOutUrl = product.telemetryOptOutUrl;
 			this.privacyUrl = product.privacyStatementUrl || product.telemetryOptOutUrl;
@@ -68,7 +67,8 @@ export class TelemetryOptOut implements IWorkbenchContribution {
 				[{
 					label: localize('telemetryOptOut.readMore', "Read More"),
 					run: () => openerService.open(URI.parse(this.optOutUrl))
-				}]
+				}],
+				{ sticky: true }
 			);
 		})
 			.then(null, onUnexpectedError);
@@ -137,7 +137,10 @@ export class TelemetryOptOut implements IWorkbenchContribution {
 						}
 					}
 				],
-				logTelemetry
+				{
+					sticky: true,
+					onCancel: logTelemetry
+				}
 			);
 			this.experimentService.markAsCompleted(experimentId);
 		});

@@ -3,14 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import * as fs from 'fs';
 import * as path from 'path';
 import * as assert from 'assert';
 
 import { StatResolver } from 'vs/workbench/services/files/electron-browser/fileService';
-import uri from 'vs/base/common/uri';
+import { URI as uri } from 'vs/base/common/uri';
 import { isLinux } from 'vs/base/common/platform';
 import * as utils from 'vs/workbench/services/files/test/electron-browser/utils';
 import { getPathFromAmdModule } from 'vs/base/common/amd';

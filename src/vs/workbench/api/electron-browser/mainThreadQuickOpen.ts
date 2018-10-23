@@ -2,15 +2,14 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
 import { TPromise } from 'vs/base/common/winjs.base';
-import { asWinJsPromise } from 'vs/base/common/async';
 import { IPickOptions, IInputOptions, IQuickInputService, IQuickInput } from 'vs/platform/quickinput/common/quickInput';
 import { InputBoxOptions } from 'vscode';
 import { ExtHostContext, MainThreadQuickOpenShape, ExtHostQuickOpenShape, TransferQuickPickItems, MainContext, IExtHostContext, TransferQuickInput, TransferQuickInputButton } from 'vs/workbench/api/node/extHost.protocol';
 import { extHostNamedCustomer } from 'vs/workbench/api/electron-browser/extHostCustomers';
-import URI from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
+import { CancellationToken } from 'vs/base/common/cancellation';
 
 interface QuickInputSession {
 	input: IQuickInput;
@@ -38,7 +37,7 @@ export class MainThreadQuickOpen implements MainThreadQuickOpenShape {
 	public dispose(): void {
 	}
 
-	$show(options: IPickOptions<TransferQuickPickItems>): TPromise<number | number[]> {
+	$show(options: IPickOptions<TransferQuickPickItems>, token: CancellationToken): Thenable<number | number[]> {
 		const myToken = ++this._token;
 
 		this._contents = new TPromise<TransferQuickPickItems[]>((c, e) => {
@@ -65,14 +64,14 @@ export class MainThreadQuickOpen implements MainThreadQuickOpenShape {
 		};
 
 		if (options.canPickMany) {
-			return asWinJsPromise(token => this._quickInputService.pick(this._contents, options as { canPickMany: true }, token)).then(items => {
+			return this._quickInputService.pick(this._contents, options as { canPickMany: true }, token).then(items => {
 				if (items) {
 					return items.map(item => item.handle);
 				}
 				return undefined;
 			});
 		} else {
-			return asWinJsPromise(token => this._quickInputService.pick(this._contents, options, token)).then(item => {
+			return this._quickInputService.pick(this._contents, options, token).then(item => {
 				if (item) {
 					return item.handle;
 				}
@@ -81,14 +80,14 @@ export class MainThreadQuickOpen implements MainThreadQuickOpenShape {
 		}
 	}
 
-	$setItems(items: TransferQuickPickItems[]): TPromise<any> {
+	$setItems(items: TransferQuickPickItems[]): Thenable<void> {
 		if (this._doSetItems) {
 			this._doSetItems(items);
 		}
 		return undefined;
 	}
 
-	$setError(error: Error): TPromise<any> {
+	$setError(error: Error): Thenable<void> {
 		if (this._doSetError) {
 			this._doSetError(error);
 		}
@@ -97,7 +96,7 @@ export class MainThreadQuickOpen implements MainThreadQuickOpenShape {
 
 	// ---- input
 
-	$input(options: InputBoxOptions, validateInput: boolean): TPromise<string> {
+	$input(options: InputBoxOptions, validateInput: boolean, token: CancellationToken): Thenable<string> {
 		const inputOptions: IInputOptions = Object.create(null);
 
 		if (options) {
@@ -115,14 +114,14 @@ export class MainThreadQuickOpen implements MainThreadQuickOpenShape {
 			};
 		}
 
-		return asWinJsPromise(token => this._quickInputService.input(inputOptions, token));
+		return this._quickInputService.input(inputOptions, token);
 	}
 
 	// ---- QuickInput
 
 	private sessions = new Map<number, QuickInputSession>();
 
-	$createOrUpdate(params: TransferQuickInput): TPromise<void> {
+	$createOrUpdate(params: TransferQuickInput): Thenable<void> {
 		const sessionId = params.id;
 		let session = this.sessions.get(sessionId);
 		if (!session) {
@@ -214,7 +213,7 @@ export class MainThreadQuickOpen implements MainThreadQuickOpenShape {
 		return TPromise.as(undefined);
 	}
 
-	$dispose(sessionId: number): TPromise<void> {
+	$dispose(sessionId: number): Thenable<void> {
 		const session = this.sessions.get(sessionId);
 		if (session) {
 			session.input.dispose();

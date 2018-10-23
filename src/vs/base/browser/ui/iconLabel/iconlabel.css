@@ -68,3 +68,10 @@
 {
 	color: inherit !important;
 }
+
+.monaco-tree-row.focused.selected .label-description,
+.monaco-tree-row.selected .label-description,
+.monaco-list-row.focused.selected .label-description,
+.monaco-list-row.selected .label-description {
+	opacity: .8;
+}

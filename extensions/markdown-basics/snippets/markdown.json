@@ -60,12 +60,12 @@
 	},
 	"Insert link": {
 		"prefix": "link",
-		"body": "[${1:text}](http://${2:link})$0",
+		"body": "[${1:text}](https://${2:link})$0",
 		"description": "Insert link"
 	},
 	"Insert image": {
 		"prefix": "image",
-		"body": "![${1:alt}](http://${2:link})$0",
+		"body": "![${1:alt}](https://${2:link})$0",
 		"description": "Insert image"
 	}
 }

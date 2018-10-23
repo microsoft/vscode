@@ -7,7 +7,7 @@ import * as os from 'os';
 import * as paths from 'vs/base/common/paths';
 import * as platform from 'vs/base/common/platform';
 import pkg from 'vs/platform/node/package';
-import Uri from 'vs/base/common/uri';
+import { URI as Uri } from 'vs/base/common/uri';
 import { IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import { IShellLaunchConfig, ITerminalConfigHelper } from 'vs/workbench/parts/terminal/common/terminal';
 import { IConfigurationResolverService } from 'vs/workbench/services/configurationResolver/common/configurationResolver';
@@ -67,16 +67,10 @@ export function sanitizeEnvironment(env: platform.IProcessEnvironment): void {
 		'VSCODE_NLS_CONFIG',
 		'VSCODE_PORTABLE',
 		'VSCODE_PID',
+		'VSCODE_NODE_CACHED_DATA_DIR'
 	];
 	keysToRemove.forEach((key) => {
 		if (env[key]) {
-			delete env[key];
-		}
-	});
-
-	// Remove keys based on regexp
-	Object.keys(env).forEach(key => {
-		if (key.search(/^VSCODE_NODE_CACHED_DATA_DIR_\d+$/) === 0) {
 			delete env[key];
 		}
 	});
@@ -135,7 +129,7 @@ export function getCwd(shell: IShellLaunchConfig, root: Uri, configHelper: ITerm
 		return shell.cwd;
 	}
 
-	let cwd: string;
+	let cwd: string | undefined;
 
 	// TODO: Handle non-existent customCwd
 	if (!shell.ignoreConfigurationCwd) {

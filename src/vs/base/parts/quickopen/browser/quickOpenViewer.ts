@@ -58,12 +58,35 @@ export class AccessibilityProvider implements IAccessibilityProvider {
 
 	getPosInSet(tree: ITree, element: any): string {
 		const model = this.modelProvider.getModel();
-		return String(model.entries.indexOf(element) + 1);
+		let i = 0;
+		if (model.filter) {
+			for (const entry of model.entries) {
+				if (model.filter.isVisible(entry)) {
+					i++;
+				}
+				if (entry === element) {
+					break;
+				}
+			}
+		} else {
+			i = model.entries.indexOf(element) + 1;
+		}
+		return String(i);
 	}
 
 	getSetSize(): string {
 		const model = this.modelProvider.getModel();
-		return String(model.entries.length);
+		let n = 0;
+		if (model.filter) {
+			for (const entry of model.entries) {
+				if (model.filter.isVisible(entry)) {
+					n++;
+				}
+			}
+		} else {
+			n = model.entries.length;
+		}
+		return String(n);
 	}
 }
 

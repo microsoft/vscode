@@ -3,18 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import * as assert from 'assert';
-import Cache from 'vs/base/common/cache';
-import { TPromise } from 'vs/base/common/winjs.base';
-import { createCancelablePromise, wireCancellationToken } from 'vs/base/common/async';
+import { Cache } from 'vs/base/common/cache';
+import { timeout } from 'vs/base/common/async';
 
 suite('Cache', () => {
 
 	test('simple value', () => {
 		let counter = 0;
-		const cache = new Cache(() => createCancelablePromise(_ => TPromise.as(counter++)));
+		const cache = new Cache(_ => Promise.resolve(counter++));
 
 		return cache.get().promise
 			.then(c => assert.equal(c, 0), () => assert.fail('Unexpected assertion error'))
@@ -24,7 +21,7 @@ suite('Cache', () => {
 
 	test('simple error', () => {
 		let counter = 0;
-		const cache = new Cache(() => createCancelablePromise(_ => TPromise.wrapError(new Error(String(counter++)))));
+		const cache = new Cache(_ => Promise.reject(new Error(String(counter++))));
 
 		return cache.get().promise
 			.then(() => assert.fail('Unexpected assertion error'), err => assert.equal(err.message, 0))
@@ -35,9 +32,9 @@ suite('Cache', () => {
 	test('should retry cancellations', () => {
 		let counter1 = 0, counter2 = 0;
 
-		const cache = new Cache(() => {
+		const cache = new Cache(token => {
 			counter1++;
-			return createCancelablePromise(token => wireCancellationToken(token, TPromise.timeout(1).then(() => counter2++)));
+			return Promise.resolve(timeout(2, token).then(() => counter2++));
 		});
 
 		assert.equal(counter1, 0);

@@ -3,9 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
-import { Event, Emitter } from 'vs/base/common/event';
+import { Emitter, Event } from 'vs/base/common/event';
 import { IDisposable } from 'vs/base/common/lifecycle';
 
 export interface CancellationToken {
@@ -24,6 +22,21 @@ const shortcutEvent = Object.freeze(function (callback, context?): IDisposable {
 
 export namespace CancellationToken {
 
+	export function isCancellationToken(thing: any): thing is CancellationToken {
+		if (thing === CancellationToken.None || thing === CancellationToken.Cancelled) {
+			return true;
+		}
+		if (thing instanceof MutableToken) {
+			return true;
+		}
+		if (!thing || typeof thing !== 'object') {
+			return false;
+		}
+		return typeof (thing as CancellationToken).isCancellationRequested === 'boolean'
+			&& typeof (thing as CancellationToken).onCancellationRequested === 'function';
+	}
+
+
 	export const None: CancellationToken = Object.freeze({
 		isCancellationRequested: false,
 		onCancellationRequested: Event.None
@@ -38,7 +51,7 @@ export namespace CancellationToken {
 class MutableToken implements CancellationToken {
 
 	private _isCancelled: boolean = false;
-	private _emitter: Emitter<any>;
+	private _emitter: Emitter<any> | null = null;
 
 	public cancel() {
 		if (!this._isCancelled) {
@@ -67,7 +80,7 @@ class MutableToken implements CancellationToken {
 	public dispose(): void {
 		if (this._emitter) {
 			this._emitter.dispose();
-			this._emitter = undefined;
+			this._emitter = null;
 		}
 	}
 }

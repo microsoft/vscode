@@ -2,20 +2,15 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
 import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
+import { CoreEditorCommand, CoreNavigationCommands } from 'vs/editor/browser/controller/coreCommands';
+import { IEditorMouseEvent, IPartialEditorMouseEvent } from 'vs/editor/browser/editorBrowser';
+import { ViewOutgoingEvents } from 'vs/editor/browser/view/viewOutgoingEvents';
 import { Position } from 'vs/editor/common/core/position';
 import { Selection } from 'vs/editor/common/core/selection';
-import { IEditorMouseEvent } from 'vs/editor/browser/editorBrowser';
-import { IViewModel } from 'vs/editor/common/viewModel/viewModel';
-import { ViewOutgoingEvents } from 'vs/editor/browser/view/viewOutgoingEvents';
-import { CoreNavigationCommands, CoreEditorCommand } from 'vs/editor/browser/controller/coreCommands';
 import { IConfiguration } from 'vs/editor/common/editorCommon';
-
-export interface ExecCoreEditorCommandFunc {
-	(editorCommand: CoreEditorCommand, args: any): void;
-}
+import { IViewModel } from 'vs/editor/common/viewModel/viewModel';
 
 export interface IMouseDispatchData {
 	position: Position;
@@ -37,7 +32,9 @@ export interface IMouseDispatchData {
 }
 
 export interface ICommandDelegate {
-	paste(source: string, text: string, pasteOnNewLine: boolean, multicursorText: string[]): void;
+	executeEditorCommand(editorCommand: CoreEditorCommand, args: any): void;
+
+	paste(source: string, text: string, pasteOnNewLine: boolean, multicursorText: string[] | null): void;
 	type(source: string, text: string): void;
 	replacePreviousChar(source: string, text: string, replaceCharCnt: number): void;
 	compositionStart(source: string): void;
@@ -49,30 +46,27 @@ export class ViewController {
 
 	private readonly configuration: IConfiguration;
 	private readonly viewModel: IViewModel;
-	private readonly _execCoreEditorCommandFunc: ExecCoreEditorCommandFunc;
 	private readonly outgoingEvents: ViewOutgoingEvents;
 	private readonly commandDelegate: ICommandDelegate;
 
 	constructor(
 		configuration: IConfiguration,
 		viewModel: IViewModel,
-		execCommandFunc: ExecCoreEditorCommandFunc,
 		outgoingEvents: ViewOutgoingEvents,
 		commandDelegate: ICommandDelegate
 	) {
 		this.configuration = configuration;
 		this.viewModel = viewModel;
-		this._execCoreEditorCommandFunc = execCommandFunc;
 		this.outgoingEvents = outgoingEvents;
 		this.commandDelegate = commandDelegate;
 	}
 
 	private _execMouseCommand(editorCommand: CoreEditorCommand, args: any): void {
 		args.source = 'mouse';
-		this._execCoreEditorCommandFunc(editorCommand, args);
+		this.commandDelegate.executeEditorCommand(editorCommand, args);
 	}
 
-	public paste(source: string, text: string, pasteOnNewLine: boolean, multicursorText: string[]): void {
+	public paste(source: string, text: string, pasteOnNewLine: boolean, multicursorText: string[] | null): void {
 		this.commandDelegate.paste(source, text, pasteOnNewLine, multicursorText);
 	}
 
@@ -97,7 +91,7 @@ export class ViewController {
 	}
 
 	public setSelection(source: string, modelSelection: Selection): void {
-		this._execCoreEditorCommandFunc(CoreNavigationCommands.SetSelection, {
+		this.commandDelegate.executeEditorCommand(CoreNavigationCommands.SetSelection, {
 			source: source,
 			selection: modelSelection
 		});
@@ -299,7 +293,7 @@ export class ViewController {
 		this.outgoingEvents.emitMouseMove(e);
 	}
 
-	public emitMouseLeave(e: IEditorMouseEvent): void {
+	public emitMouseLeave(e: IPartialEditorMouseEvent): void {
 		this.outgoingEvents.emitMouseLeave(e);
 	}
 
@@ -315,7 +309,7 @@ export class ViewController {
 		this.outgoingEvents.emitMouseDrag(e);
 	}
 
-	public emitMouseDrop(e: IEditorMouseEvent): void {
+	public emitMouseDrop(e: IPartialEditorMouseEvent): void {
 		this.outgoingEvents.emitMouseDrop(e);
 	}
 }

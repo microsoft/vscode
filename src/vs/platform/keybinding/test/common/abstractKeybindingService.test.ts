@@ -2,24 +2,21 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
-
 import * as assert from 'assert';
-import { ResolvedKeybinding, KeyCode, KeyMod, KeyChord, Keybinding, createKeybinding, createSimpleKeybinding, SimpleKeybinding } from 'vs/base/common/keyCodes';
-import { AbstractKeybindingService } from 'vs/platform/keybinding/common/abstractKeybindingService';
-import { USLayoutResolvedKeybinding } from 'vs/platform/keybinding/common/usLayoutResolvedKeybinding';
+import { KeyChord, KeyCode, KeyMod, Keybinding, ResolvedKeybinding, SimpleKeybinding, createKeybinding, createSimpleKeybinding } from 'vs/base/common/keyCodes';
 import { IDisposable } from 'vs/base/common/lifecycle';
+import { OS } from 'vs/base/common/platform';
 import Severity from 'vs/base/common/severity';
 import { ICommandService } from 'vs/platform/commands/common/commands';
-import { KeybindingResolver } from 'vs/platform/keybinding/common/keybindingResolver';
-import { IContext, ContextKeyExpr, IContextKeyService, IContextKeyServiceTarget } from 'vs/platform/contextkey/common/contextkey';
-import { IStatusbarService } from 'vs/platform/statusbar/common/statusbar';
-import { TPromise } from 'vs/base/common/winjs.base';
-import { ResolvedKeybindingItem } from 'vs/platform/keybinding/common/resolvedKeybindingItem';
-import { OS } from 'vs/base/common/platform';
+import { ContextKeyExpr, IContext, IContextKeyService, IContextKeyServiceTarget } from 'vs/platform/contextkey/common/contextkey';
+import { AbstractKeybindingService } from 'vs/platform/keybinding/common/abstractKeybindingService';
 import { IKeyboardEvent } from 'vs/platform/keybinding/common/keybinding';
+import { KeybindingResolver } from 'vs/platform/keybinding/common/keybindingResolver';
+import { ResolvedKeybindingItem } from 'vs/platform/keybinding/common/resolvedKeybindingItem';
+import { USLayoutResolvedKeybinding } from 'vs/platform/keybinding/common/usLayoutResolvedKeybinding';
+import { INotification, INotificationService, IPromptChoice, IPromptOptions, NoOpNotification } from 'vs/platform/notification/common/notification';
+import { IStatusbarService } from 'vs/platform/statusbar/common/statusbar';
 import { NullTelemetryService } from 'vs/platform/telemetry/common/telemetryUtils';
-import { INotificationService, NoOpNotification, INotification, IPromptChoice } from 'vs/platform/notification/common/notification';
 
 function createContext(ctx: any) {
 	return {
@@ -86,11 +83,11 @@ suite('AbstractKeybindingService', () => {
 	}
 
 	let createTestKeybindingService: (items: ResolvedKeybindingItem[], contextValue?: any) => TestKeybindingService = null;
-	let currentContextValue: IContext = null;
+	let currentContextValue: IContext | null = null;
 	let executeCommandCalls: { commandId: string; args: any[]; }[] = null;
 	let showMessageCalls: { sev: Severity, message: any; }[] = null;
-	let statusMessageCalls: string[] = null;
-	let statusMessageCallsDisposed: string[] = null;
+	let statusMessageCalls: string[] | null = null;
+	let statusMessageCallsDisposed: string[] | null = null;
 
 	setup(() => {
 		executeCommandCalls = [];
@@ -116,12 +113,12 @@ suite('AbstractKeybindingService', () => {
 			let commandService: ICommandService = {
 				_serviceBrand: undefined,
 				onWillExecuteCommand: () => ({ dispose: () => { } }),
-				executeCommand: (commandId: string, ...args: any[]): TPromise<any> => {
+				executeCommand: (commandId: string, ...args: any[]): Promise<any> => {
 					executeCommandCalls.push({
 						commandId: commandId,
 						args: args
 					});
-					return TPromise.as(void 0);
+					return Promise.resolve(void 0);
 				}
 			};
 
@@ -143,7 +140,7 @@ suite('AbstractKeybindingService', () => {
 					showMessageCalls.push({ sev: Severity.Error, message });
 					return new NoOpNotification();
 				},
-				prompt(severity: Severity, message: string, choices: IPromptChoice[], onCancel?: () => void) {
+				prompt(severity: Severity, message: string, choices: IPromptChoice[], options?: IPromptOptions) {
 					throw new Error('not implemented');
 				}
 			};
@@ -176,7 +173,7 @@ suite('AbstractKeybindingService', () => {
 		statusMessageCallsDisposed = null;
 	});
 
-	function kbItem(keybinding: number, command: string, when: ContextKeyExpr = null): ResolvedKeybindingItem {
+	function kbItem(keybinding: number, command: string, when: ContextKeyExpr | null = null): ResolvedKeybindingItem {
 		const resolvedKeybinding = (keybinding !== 0 ? new USLayoutResolvedKeybinding(createKeybinding(keybinding, OS), OS) : null);
 		return new ResolvedKeybindingItem(
 			resolvedKeybinding,

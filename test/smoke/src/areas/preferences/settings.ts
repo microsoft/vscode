@@ -10,7 +10,7 @@ import { Editors } from '../editor/editors';
 import { Code } from '../../vscode/code';
 import { QuickOpen } from '../quickopen/quickopen';
 
-export enum ActivityBarPosition {
+export const enum ActivityBarPosition {
 	LEFT = 0,
 	RIGHT = 1
 }

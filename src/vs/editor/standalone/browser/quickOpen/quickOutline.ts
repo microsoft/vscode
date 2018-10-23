@@ -3,25 +3,22 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-
-'use strict';
-
 import 'vs/css!./quickOutline';
 import * as nls from 'vs/nls';
+import { CancellationToken } from 'vs/base/common/cancellation';
 import { matchesFuzzy } from 'vs/base/common/filters';
+import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import * as strings from 'vs/base/common/strings';
-import { TPromise } from 'vs/base/common/winjs.base';
 import { IContext, IHighlight, QuickOpenEntryGroup, QuickOpenModel } from 'vs/base/parts/quickopen/browser/quickOpenModel';
 import { IAutoFocus, Mode } from 'vs/base/parts/quickopen/common/quickOpen';
+import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
+import { ServicesAccessor, registerEditorAction } from 'vs/editor/browser/editorExtensions';
+import { IRange, Range } from 'vs/editor/common/core/range';
 import { ScrollType } from 'vs/editor/common/editorCommon';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { DocumentSymbol, DocumentSymbolProviderRegistry, symbolKindToCssClass } from 'vs/editor/common/modes';
-import { BaseEditorQuickOpenAction, IDecorator } from './editorQuickOpen';
 import { getDocumentSymbols } from 'vs/editor/contrib/quickOpen/quickOpen';
-import { registerEditorAction, ServicesAccessor } from 'vs/editor/browser/editorExtensions';
-import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
-import { Range, IRange } from 'vs/editor/common/core/range';
-import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
+import { BaseEditorQuickOpenAction, IDecorator } from 'vs/editor/standalone/browser/quickOpen/editorQuickOpen';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 
 let SCOPE_PREFIX = ':';
@@ -131,7 +128,7 @@ export class QuickOutlineAction extends BaseEditorQuickOpenAction {
 		});
 	}
 
-	public run(accessor: ServicesAccessor, editor: ICodeEditor): TPromise<void> {
+	public run(accessor: ServicesAccessor, editor: ICodeEditor): Thenable<void> {
 
 		let model = editor.getModel();
 
@@ -140,7 +137,7 @@ export class QuickOutlineAction extends BaseEditorQuickOpenAction {
 		}
 
 		// Resolve outline
-		return getDocumentSymbols(model).then((result: DocumentSymbol[]) => {
+		return getDocumentSymbols(model, true, CancellationToken.None).then((result: DocumentSymbol[]) => {
 			if (result.length === 0) {
 				return;
 			}
@@ -193,7 +190,7 @@ export class QuickOutlineAction extends BaseEditorQuickOpenAction {
 			if (highlights) {
 
 				// Show parent scope as description
-				let description: string = null;
+				let description: string | null = null;
 				if (element.containerName) {
 					description = element.containerName;
 				}
@@ -214,8 +211,8 @@ export class QuickOutlineAction extends BaseEditorQuickOpenAction {
 
 		// Mark all type groups
 		if (results.length > 0 && searchValue.indexOf(SCOPE_PREFIX) === 0) {
-			let currentType: string = null;
-			let currentResult: SymbolEntry = null;
+			let currentType: string | null = null;
+			let currentResult: SymbolEntry | null = null;
 			let typeCounter = 0;
 
 			for (let i = 0; i < results.length; i++) {

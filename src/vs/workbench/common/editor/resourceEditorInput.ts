@@ -2,11 +2,10 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
 import { TPromise } from 'vs/base/common/winjs.base';
 import { EditorInput, ITextEditorModel } from 'vs/workbench/common/editor';
-import URI from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 import { IReference } from 'vs/base/common/lifecycle';
 import { telemetryURIDescriptor } from 'vs/platform/telemetry/common/telemetryUtils';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
@@ -118,7 +117,7 @@ export class ResourceEditorInput extends EditorInput {
 
 	dispose(): void {
 		if (this.modelReference) {
-			this.modelReference.done(ref => ref.dispose());
+			this.modelReference.then(ref => ref.dispose());
 			this.modelReference = null;
 		}
 

@@ -5,7 +5,7 @@
 
 import * as assert from 'assert';
 import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
-import URI from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 import { workbenchInstantiationService, TestEditorService } from 'vs/workbench/test/workbenchTestServices';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { IModeService } from 'vs/editor/common/services/modeService';

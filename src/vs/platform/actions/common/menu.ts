@@ -3,11 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import { Event, Emitter } from 'vs/base/common/event';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
-import { TPromise } from 'vs/base/common/winjs.base';
 import { ContextKeyExpr, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { MenuId, MenuRegistry, MenuItemAction, IMenu, IMenuItem, IMenuActionOptions, ISubmenuItem, SubmenuItemAction, isIMenuItem } from 'vs/platform/actions/common/actions';
 import { ICommandService } from 'vs/platform/commands/common/commands';
@@ -22,7 +19,7 @@ export class Menu implements IMenu {
 
 	constructor(
 		id: MenuId,
-		startupSignal: TPromise<boolean>,
+		startupSignal: Thenable<boolean>,
 		@ICommandService private readonly _commandService: ICommandService,
 		@IContextKeyService private readonly _contextKeyService: IContextKeyService
 	) {
@@ -30,20 +27,30 @@ export class Menu implements IMenu {
 			const menuItems = MenuRegistry.getMenuItems(id);
 			const keysFilter = new Set<string>();
 
-			let group: MenuItemGroup;
+			let group: MenuItemGroup | undefined;
 			menuItems.sort(Menu._compareMenuItems);
 
 			for (let item of menuItems) {
 				// group by groupId
 				const groupName = item.group;
 				if (!group || group[0] !== groupName) {
-					group = [groupName, []];
+					group = [groupName || '', []];
 					this._menuGroups.push(group);
 				}
-				group[1].push(item);
+				group![1].push(item);
 
 				// keep keys for eventing
 				Menu._fillInKbExprKeys(item.when, keysFilter);
+
+				// keep precondition keys for event if applicable
+				if (isIMenuItem(item) && item.command.precondition) {
+					Menu._fillInKbExprKeys(item.command.precondition, keysFilter);
+				}
+
+				// keep toggled keys for event if applicable
+				if (isIMenuItem(item) && item.command.toggled) {
+					Menu._fillInKbExprKeys(item.command.toggled, keysFilter);
+				}
 			}
 
 			// subscribe to context changes
@@ -72,9 +79,8 @@ export class Menu implements IMenu {
 			const [id, items] = group;
 			const activeActions: (MenuItemAction | SubmenuItemAction)[] = [];
 			for (const item of items) {
-				if (this._contextKeyService.contextMatchesRules(item.when)) {
+				if (this._contextKeyService.contextMatchesRules(item.when || null)) {
 					const action = isIMenuItem(item) ? new MenuItemAction(item.command, item.alt, options, this._contextKeyService, this._commandService) : new SubmenuItemAction(item);
-					action.order = item.order; //TODO@Ben order is menu item property, not an action property
 					activeActions.push(action);
 				}
 			}
@@ -85,7 +91,7 @@ export class Menu implements IMenu {
 		return result;
 	}
 
-	private static _fillInKbExprKeys(exp: ContextKeyExpr, set: Set<string>): void {
+	private static _fillInKbExprKeys(exp: ContextKeyExpr | undefined, set: Set<string>): void {
 		if (exp) {
 			for (let key of exp.keys()) {
 				set.add(key);

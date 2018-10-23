@@ -3,10 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
-import Uri from 'vs/base/common/uri';
-import * as errors from 'vs/base/common/errors';
+import { URI as Uri } from 'vs/base/common/uri';
 import { IBackupFileService } from 'vs/workbench/services/backup/common/backup';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { ITextFileService, TextFileModelChangeEvent, StateChange } from 'vs/workbench/services/textfile/common/textfiles';
@@ -68,20 +65,20 @@ export class BackupModelTracker extends Disposable implements IWorkbenchContribu
 			// Do not backup when auto save after delay is configured
 			if (!this.configuredAutoSaveAfterDelay) {
 				const model = this.textFileService.models.get(event.resource);
-				this.backupFileService.backupResource(model.getResource(), model.createSnapshot(), model.getVersionId()).done(null, errors.onUnexpectedError);
+				this.backupFileService.backupResource(model.getResource(), model.createSnapshot(), model.getVersionId());
 			}
 		}
 	}
 
 	private onUntitledModelChanged(resource: Uri): void {
 		if (this.untitledEditorService.isDirty(resource)) {
-			this.untitledEditorService.loadOrCreate({ resource }).then(model => this.backupFileService.backupResource(resource, model.createSnapshot(), model.getVersionId())).done(null, errors.onUnexpectedError);
+			this.untitledEditorService.loadOrCreate({ resource }).then(model => this.backupFileService.backupResource(resource, model.createSnapshot(), model.getVersionId()));
 		} else {
 			this.discardBackup(resource);
 		}
 	}
 
 	private discardBackup(resource: Uri): void {
-		this.backupFileService.discardResourceBackup(resource).done(null, errors.onUnexpectedError);
+		this.backupFileService.discardResourceBackup(resource);
 	}
 }

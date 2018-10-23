@@ -2,15 +2,13 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
-
 import * as assert from 'assert';
 import * as path from 'path';
 import { findBestWindowOrFolderForFile, ISimpleWindow, IBestWindowOrFolderOptions } from 'vs/code/node/windowsFinder';
 import { OpenContext } from 'vs/platform/windows/common/windows';
 import { IWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
 import { toWorkspaceFolders } from 'vs/platform/workspace/common/workspace';
-import URI from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 import { getPathFromAmdModule } from 'vs/base/common/amd';
 
 const fixturesFolder = getPathFromAmdModule(require, './fixtures');

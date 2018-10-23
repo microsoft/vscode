@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 import { dispose, IDisposable } from 'vs/base/common/lifecycle';
 import * as map from 'vs/base/common/map';
-import URI, { UriComponents } from 'vs/base/common/uri';
+import { URI, UriComponents } from 'vs/base/common/uri';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { localize } from 'vs/nls';
 import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
@@ -122,7 +122,7 @@ export class MainThreadWebviews implements MainThreadWebviewsShape, WebviewReviv
 		this._webviewService.revealWebview(webview, targetGroup || this._editorGroupService.activeGroup, showOptions.preserveFocus);
 	}
 
-	public $postMessage(handle: WebviewPanelHandle, message: any): TPromise<boolean> {
+	public $postMessage(handle: WebviewPanelHandle, message: any): Thenable<boolean> {
 		const webview = this.getWebview(handle);
 		const editors = this._editorService.visibleControls
 			.filter(e => e instanceof WebviewEditor)

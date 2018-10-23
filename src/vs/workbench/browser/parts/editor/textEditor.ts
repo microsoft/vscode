@@ -3,13 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import * as nls from 'vs/nls';
-import URI from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 import * as objects from 'vs/base/common/objects';
 import * as types from 'vs/base/common/types';
-import * as errors from 'vs/base/common/errors';
 import * as DOM from 'vs/base/browser/dom';
 import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditorWidget';
 import { EditorInput, EditorOptions, IEditorMemento, ITextEditor } from 'vs/workbench/common/editor';
@@ -26,6 +23,7 @@ import { isDiffEditor, isCodeEditor, ICodeEditor, getCodeEditor } from 'vs/edito
 import { IEditorGroupsService, IEditorGroup } from 'vs/workbench/services/group/common/editorGroupsService';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { IWindowService } from 'vs/platform/windows/common/windows';
 
 const TEXT_EDITOR_VIEW_STATE_PREFERENCE_KEY = 'textEditorViewState';
 
@@ -55,10 +53,11 @@ export abstract class BaseTextEditor extends BaseEditor implements ITextEditor {
 		@ITextFileService private readonly _textFileService: ITextFileService,
 		@IEditorService protected editorService: IEditorService,
 		@IEditorGroupsService protected editorGroupService: IEditorGroupsService,
+		@IWindowService private windowService: IWindowService
 	) {
-		super(id, telemetryService, themeService);
+		super(id, telemetryService, themeService, storageService);
 
-		this.editorMemento = this.getEditorMemento<IEditorViewState>(storageService, editorGroupService, TEXT_EDITOR_VIEW_STATE_PREFERENCE_KEY, 100);
+		this.editorMemento = this.getEditorMemento<IEditorViewState>(editorGroupService, TEXT_EDITOR_VIEW_STATE_PREFERENCE_KEY, 100);
 
 		this._register(this.configurationService.onDidChangeConfiguration(e => this.handleConfigurationChangeEvent(this.configurationService.getValue<IEditorConfiguration>(this.getResource()))));
 	}
@@ -75,7 +74,7 @@ export abstract class BaseTextEditor extends BaseEditor implements ITextEditor {
 		return this._textFileService;
 	}
 
-	private handleConfigurationChangeEvent(configuration?: IEditorConfiguration): void {
+	protected handleConfigurationChangeEvent(configuration?: IEditorConfiguration): void {
 		if (this.isVisible()) {
 			this.updateEditorConfiguration(configuration);
 		} else {
@@ -148,15 +147,17 @@ export abstract class BaseTextEditor extends BaseEditor implements ITextEditor {
 		}
 
 		this._register(this.editorService.onDidActiveEditorChange(() => this.onEditorFocusLost()));
-		this._register(DOM.addDisposableListener(window, DOM.EventType.BLUR, () => this.onWindowFocusLost()));
+		this._register(this.windowService.onDidChangeFocus(focused => this.onWindowFocusChange(focused)));
 	}
 
 	private onEditorFocusLost(): void {
 		this.maybeTriggerSaveAll(SaveReason.FOCUS_CHANGE);
 	}
 
-	private onWindowFocusLost(): void {
-		this.maybeTriggerSaveAll(SaveReason.WINDOW_CHANGE);
+	private onWindowFocusChange(focused: boolean): void {
+		if (!focused) {
+			this.maybeTriggerSaveAll(SaveReason.WINDOW_CHANGE);
+		}
 	}
 
 	private maybeTriggerSaveAll(reason: SaveReason): void {
@@ -169,7 +170,7 @@ export abstract class BaseTextEditor extends BaseEditor implements ITextEditor {
 			(reason === SaveReason.FOCUS_CHANGE && mode === AutoSaveMode.ON_FOCUS_CHANGE)
 		) {
 			if (this.textFileService.isDirty()) {
-				this.textFileService.saveAll(void 0, { reason }).done(null, errors.onUnexpectedError);
+				this.textFileService.saveAll(void 0, { reason });
 			}
 		}
 	}
@@ -232,7 +233,7 @@ export abstract class BaseTextEditor extends BaseEditor implements ITextEditor {
 			return;
 		}
 
-		this.editorMemento.saveState(this.group, resource, editorViewState);
+		this.editorMemento.saveEditorState(this.group, resource, editorViewState);
 	}
 
 	protected retrieveTextEditorViewState(resource: URI): IEditorViewState {
@@ -257,9 +258,9 @@ export abstract class BaseTextEditor extends BaseEditor implements ITextEditor {
 	/**
 	 * Clears the text editor view state for the given resources.
 	 */
-	protected clearTextEditorViewState(resources: URI[]): void {
+	protected clearTextEditorViewState(resources: URI[], group?: IEditorGroup): void {
 		resources.forEach(resource => {
-			this.editorMemento.clearState(resource);
+			this.editorMemento.clearEditorState(resource, group);
 		});
 	}
 
@@ -267,7 +268,7 @@ export abstract class BaseTextEditor extends BaseEditor implements ITextEditor {
 	 * Loads the text editor view state for the given resource and returns it.
 	 */
 	protected loadTextEditorViewState(resource: URI): IEditorViewState {
-		return this.editorMemento.loadState(this.group, resource);
+		return this.editorMemento.loadEditorState(this.group, resource);
 	}
 
 	private updateEditorConfiguration(configuration = this.configurationService.getValue<IEditorConfiguration>(this.getResource())): void {

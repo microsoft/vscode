@@ -13,6 +13,8 @@ import { ISharedProcess } from 'vs/platform/windows/electron-main/windows';
 import { Barrier } from 'vs/base/common/async';
 import { ILogService } from 'vs/platform/log/common/log';
 import { ILifecycleService } from 'vs/platform/lifecycle/electron-main/lifecycleMain';
+import { IStateService } from 'vs/platform/state/common/state';
+import { getBackgroundColor } from 'vs/code/electron-main/theme';
 
 export class SharedProcess implements ISharedProcess {
 
@@ -21,11 +23,12 @@ export class SharedProcess implements ISharedProcess {
 	private window: Electron.BrowserWindow;
 
 	constructor(
-		private readonly environmentService: IEnvironmentService,
-		private readonly lifecycleService: ILifecycleService,
-		private readonly logService: ILogService,
 		private readonly machineId: string,
 		private readonly userEnv: IProcessEnvironment,
+		@IEnvironmentService private readonly environmentService: IEnvironmentService,
+		@ILifecycleService private readonly lifecycleService: ILifecycleService,
+		@IStateService private readonly stateService: IStateService,
+		@ILogService private readonly logService: ILogService
 	) {
 	}
 
@@ -33,10 +36,12 @@ export class SharedProcess implements ISharedProcess {
 	private get _whenReady(): TPromise<void> {
 		this.window = new BrowserWindow({
 			show: false,
+			backgroundColor: getBackgroundColor(this.stateService),
 			webPreferences: {
 				images: false,
 				webaudio: false,
-				webgl: false
+				webgl: false,
+				disableBlinkFeatures: 'Auxclick' // do NOT change, allows us to identify this window as shared-process in the process explorer
 			}
 		});
 		const config = assign({
@@ -93,7 +98,7 @@ export class SharedProcess implements ISharedProcess {
 					logLevel: this.logService.getLevel()
 				});
 
-				ipcMain.once('handshake:im ready', () => c(null));
+				ipcMain.once('handshake:im ready', () => c(void 0));
 			});
 		});
 	}

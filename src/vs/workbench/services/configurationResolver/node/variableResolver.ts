@@ -11,7 +11,7 @@ import { relative } from 'path';
 import { IProcessEnvironment, isWindows, isMacintosh, isLinux } from 'vs/base/common/platform';
 import { normalizeDriveLetter } from 'vs/base/common/labels';
 import { localize } from 'vs/nls';
-import uri from 'vs/base/common/uri';
+import { URI as uri } from 'vs/base/common/uri';
 import { IConfigurationResolverService } from 'vs/workbench/services/configurationResolver/common/configurationResolver';
 import { IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import { TPromise } from 'vs/base/common/winjs.base';

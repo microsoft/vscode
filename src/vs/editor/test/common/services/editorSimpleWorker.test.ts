@@ -2,11 +2,10 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
 import * as assert from 'assert';
-import { EditorSimpleWorkerImpl, ICommonModel } from 'vs/editor/common/services/editorSimpleWorker';
 import { Range } from 'vs/editor/common/core/range';
+import { EditorSimpleWorkerImpl, ICommonModel } from 'vs/editor/common/services/editorSimpleWorker';
 
 suite('EditorSimpleWorker', () => {
 
@@ -52,7 +51,7 @@ suite('EditorSimpleWorker', () => {
 		assert.equal(actual, offset);
 	}
 
-	test('ICommonModel#offsetAt', function () {
+	test('ICommonModel#offsetAt', () => {
 		assertOffsetAt(1, 1, 0);
 		assertOffsetAt(1, 2, 1);
 		assertOffsetAt(1, 17, 16);
@@ -67,7 +66,7 @@ suite('EditorSimpleWorker', () => {
 		assertOffsetAt(Number.MAX_VALUE, Number.MAX_VALUE, 95);
 	});
 
-	test('ICommonModel#positionAt', function () {
+	test('ICommonModel#positionAt', () => {
 		assertPositionAt(0, 1, 1);
 		assertPositionAt(Number.MIN_VALUE, 1, 1);
 		assertPositionAt(1, 1, 2);
@@ -86,7 +85,7 @@ suite('EditorSimpleWorker', () => {
 		assert.equal(model.offsetAt({ lineNumber: 1, column: 2 }), 1);
 	});
 
-	test('MoreMinimal', function () {
+	test('MoreMinimal', () => {
 
 		return worker.computeMoreMinimalEdits(model.uri.toString(), [{ text: 'This is line One', range: new Range(1, 1, 1, 17) }]).then(edits => {
 			assert.equal(edits.length, 1);

@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import * as fs from 'fs';
 import * as paths from 'path';
 import { nfcall } from 'vs/base/common/async';
@@ -12,9 +10,11 @@ import { normalizeNFC } from 'vs/base/common/normalization';
 import * as platform from 'vs/base/common/platform';
 import * as strings from 'vs/base/common/strings';
 import * as uuid from 'vs/base/common/uuid';
-import { TPromise } from 'vs/base/common/winjs.base';
 import { encode, encodeStream } from 'vs/base/node/encoding';
 import * as flow from 'vs/base/node/flow';
+import { CancellationToken } from 'vs/base/common/cancellation';
+import { IDisposable, toDisposable, Disposable } from 'vs/base/common/lifecycle';
+import { TPromise } from 'vs/base/common/winjs.base';
 
 const loop = flow.loop;
 
@@ -93,7 +93,7 @@ export function copy(source: string, target: string, callback: (error: Error) =>
 			});
 		};
 
-		mkdirp(target, stat.mode & 511).done(proceed, proceed);
+		mkdirp(target, stat.mode & 511).then(proceed, proceed);
 	});
 }
 
@@ -129,7 +129,7 @@ function doCopyFile(source: string, target: string, mode: number, callback: (err
 	reader.pipe(writer);
 }
 
-export function mkdirp(path: string, mode?: number): TPromise<boolean> {
+export function mkdirp(path: string, mode?: number, token?: CancellationToken): TPromise<boolean> {
 	const mkdir = () => {
 		return nfcall(fs.mkdir, path, mode).then(null, (mkdirErr: NodeJS.ErrnoException) => {
 
@@ -160,6 +160,11 @@ export function mkdirp(path: string, mode?: number): TPromise<boolean> {
 	// recursively mkdir
 	return mkdir().then(null, (err: NodeJS.ErrnoException) => {
 
+		// Respect cancellation
+		if (token && token.isCancellationRequested) {
+			return TPromise.as(false);
+		}
+
 		// ENOENT: a parent folder does not exist yet, continue
 		// to create the parent folder and then try again.
 		if (err.code === 'ENOENT') {
@@ -167,7 +172,7 @@ export function mkdirp(path: string, mode?: number): TPromise<boolean> {
 		}
 
 		// Any other error
-		return TPromise.wrapError<boolean>(err);
+		return TPromise.wrapError(err);
 	});
 }
 
@@ -248,7 +253,7 @@ function rmRecursive(path: string, callback: (error: Error) => void): void {
 						} else if (children.length === 0) {
 							fs.rmdir(path, callback);
 						} else {
-							let firstError: Error = null;
+							let firstError: Error | null = null;
 							let childrenLeft = children.length;
 							children.forEach(child => {
 								rmRecursive(paths.join(path, child), (err: Error) => {
@@ -365,7 +370,7 @@ export interface IWriteFileOptions {
 }
 
 let canFlush = true;
-export function writeFileAndFlush(path: string, data: string | NodeBuffer | NodeJS.ReadableStream, options: IWriteFileOptions, callback: (error?: Error) => void): void {
+export function writeFileAndFlush(path: string, data: string | Buffer | NodeJS.ReadableStream, options: IWriteFileOptions, callback: (error?: Error) => void): void {
 	options = ensureOptions(options);
 
 	if (typeof data === 'string' || Buffer.isBuffer(data)) {
@@ -466,7 +471,7 @@ function doWriteFileStreamAndFlush(path: string, reader: NodeJS.ReadableStream, 
 // not in some cache.
 //
 // See https://github.com/nodejs/node/blob/v5.10.0/lib/fs.js#L1194
-function doWriteFileAndFlush(path: string, data: string | NodeBuffer, options: IWriteFileOptions, callback: (error?: Error) => void): void {
+function doWriteFileAndFlush(path: string, data: string | Buffer, options: IWriteFileOptions, callback: (error?: Error) => void): void {
 	if (options.encoding) {
 		data = encode(data, options.encoding.charset, { addBOM: options.encoding.addBOM });
 	}
@@ -503,7 +508,7 @@ function doWriteFileAndFlush(path: string, data: string | NodeBuffer, options: I
 	});
 }
 
-export function writeFileAndFlushSync(path: string, data: string | NodeBuffer, options?: IWriteFileOptions): void {
+export function writeFileAndFlushSync(path: string, data: string | Buffer, options?: IWriteFileOptions): void {
 	options = ensureOptions(options);
 
 	if (options.encoding) {
@@ -634,12 +639,12 @@ function normalizePath(path: string): string {
 	return strings.rtrim(paths.normalize(path), paths.sep);
 }
 
-export function watch(path: string, onChange: (type: string, path?: string) => void, onError: (error: string) => void): fs.FSWatcher {
+export function watch(path: string, onChange: (type: string, path?: string) => void, onError: (error: string) => void): IDisposable {
 	try {
 		const watcher = fs.watch(path);
 
 		watcher.on('change', (type, raw) => {
-			let file: string = null;
+			let file: string | null = null;
 			if (raw) { // https://github.com/Microsoft/vscode/issues/38191
 				file = raw.toString();
 				if (platform.isMacintosh) {
@@ -654,7 +659,10 @@ export function watch(path: string, onChange: (type: string, path?: string) => v
 
 		watcher.on('error', (code: number, signal: string) => onError(`Failed to watch ${path} for changes (${code}, ${signal})`));
 
-		return watcher;
+		return toDisposable(() => {
+			watcher.removeAllListeners();
+			watcher.close();
+		});
 	} catch (error) {
 		fs.exists(path, exists => {
 			if (exists) {
@@ -663,5 +671,41 @@ export function watch(path: string, onChange: (type: string, path?: string) => v
 		});
 	}
 
-	return void 0;
+	return Disposable.None;
+}
+
+export function sanitizeFilePath(candidate: string, cwd: string): string {
+
+	// Special case: allow to open a drive letter without trailing backslash
+	if (platform.isWindows && strings.endsWith(candidate, ':')) {
+		candidate += paths.sep;
+	}
+
+	// Ensure absolute
+	if (!paths.isAbsolute(candidate)) {
+		candidate = paths.join(cwd, candidate);
+	}
+
+	// Ensure normalized
+	candidate = paths.normalize(candidate);
+
+	// Ensure no trailing slash/backslash
+	if (platform.isWindows) {
+		candidate = strings.rtrim(candidate, paths.sep);
+
+		// Special case: allow to open drive root ('C:\')
+		if (strings.endsWith(candidate, ':')) {
+			candidate += paths.sep;
+		}
+
+	} else {
+		candidate = strings.rtrim(candidate, paths.sep);
+
+		// Special case: allow to open root ('/')
+		if (!candidate) {
+			candidate = paths.sep;
+		}
+	}
+
+	return candidate;
 }

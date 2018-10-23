@@ -2,7 +2,6 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
 import { TPromise } from 'vs/base/common/winjs.base';
 import * as nls from 'vs/nls';
@@ -23,6 +22,7 @@ import { IEditorService, SIDE_GROUP } from 'vs/workbench/services/editor/common/
 import { isCodeEditor, isDiffEditor } from 'vs/editor/browser/editorBrowser';
 import { IEditorGroup } from 'vs/workbench/services/group/common/editorGroupsService';
 import { once } from 'vs/base/common/event';
+import { CancellationToken } from 'vs/base/common/cancellation';
 
 export const GOTO_LINE_PREFIX = ':';
 
@@ -44,7 +44,7 @@ export class GotoLineAction extends QuickOpenAction {
 		if (isDiffEditor(activeTextEditorWidget)) {
 			activeTextEditorWidget = activeTextEditorWidget.getModifiedEditor();
 		}
-		let restoreOptions: IEditorOptions = null;
+		let restoreOptions: IEditorOptions | null = null;
 
 		if (isCodeEditor(activeTextEditorWidget)) {
 			const config = activeTextEditorWidget.getConfiguration();
@@ -217,7 +217,7 @@ export class GotoLineHandler extends QuickOpenHandler {
 		return nls.localize('gotoLineHandlerAriaLabel', "Type a line number to navigate to.");
 	}
 
-	getResults(searchValue: string): TPromise<QuickOpenModel> {
+	getResults(searchValue: string, token: CancellationToken): TPromise<QuickOpenModel> {
 		searchValue = searchValue.trim();
 
 		// Remember view state to be able to restore on cancel
@@ -261,7 +261,6 @@ export class GotoLineHandler extends QuickOpenHandler {
 					options: {
 						overviewRuler: {
 							color: themeColorFromId(overviewRulerRangeHighlight),
-							darkColor: themeColorFromId(overviewRulerRangeHighlight),
 							position: OverviewRulerLane.Full
 						}
 					}

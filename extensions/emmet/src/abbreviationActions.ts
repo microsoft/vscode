@@ -5,7 +5,7 @@
 
 import * as vscode from 'vscode';
 import { Node, HtmlNode, Rule, Property, Stylesheet } from 'EmmetNode';
-import { getEmmetHelper, getNode, getInnerRange, getMappingForIncludedLanguages, parseDocument, validate, getEmmetConfiguration, isStyleSheet, getEmmetMode, parsePartialStylesheet, isStyleAttribute, getEmbeddedCssNodeIfAny, isTemplateScript } from './util';
+import { getEmmetHelper, getNode, getInnerRange, getMappingForIncludedLanguages, parseDocument, validate, getEmmetConfiguration, isStyleSheet, getEmmetMode, parsePartialStylesheet, isStyleAttribute, getEmbeddedCssNodeIfAny, allowedMimeTypesInScriptTag } from './util';
 
 const trimRegex = /[\u00a0]*[\d|#|\-|\*|\u2022]+\.?/;
 const hexColorRegex = /^#[\d,a-f,A-F]{0,6}$/;
@@ -44,7 +44,6 @@ function doWrapping(individualLines: boolean, args: any) {
 	}
 
 	const editor = vscode.window.activeTextEditor;
-	const rootNode = parseDocument(editor.document, false);
 	if (individualLines) {
 		if (editor.selections.length === 1 && editor.selection.isEmpty) {
 			vscode.window.showInformationMessage('Select more than 1 line and try again.');
@@ -55,10 +54,8 @@ function doWrapping(individualLines: boolean, args: any) {
 			return;
 		}
 	}
-	const syntax = getSyntaxFromArgs({ language: editor.document.languageId });
-	if (!syntax) {
-		return;
-	}
+	const syntax = 'html';
+	const rootNode = parseDocument(editor.document, false);
 
 	let inPreview = false;
 	let currentValue = '';
@@ -219,7 +216,7 @@ function doWrapping(individualLines: boolean, args: any) {
 		}
 		return '';
 	}
-	const abbreviationPromise = (args && args['abbreviation']) ? Promise.resolve(args['abbreviation']) : vscode.window.showInputBox({ prompt: 'Enter Abbreviation', validateInput: inputChanged });
+	const abbreviationPromise: Thenable<string | undefined> = (args && args['abbreviation']) ? Promise.resolve(args['abbreviation']) : vscode.window.showInputBox({ prompt: 'Enter Abbreviation', validateInput: inputChanged });
 	return abbreviationPromise.then(inputAbbreviation => {
 		return makeChanges(inputAbbreviation, true);
 	});
@@ -343,9 +340,7 @@ export function expandEmmetAbbreviation(args: any): Thenable<boolean | undefined
 	});
 
 	return expandAbbreviationInRange(editor, abbreviationList, allAbbreviationsSame).then(success => {
-		if (!success) {
-			return fallbackTab();
-		}
+		return success ? Promise.resolve(undefined) : fallbackTab();
 	});
 }
 
@@ -445,7 +440,18 @@ export function isValidLocationForEmmetAbbreviation(document: vscode.TextDocumen
 
 	if (currentHtmlNode) {
 		if (currentHtmlNode.name === 'script') {
-			return isTemplateScript(currentHtmlNode);
+			const typeAttribute = (currentHtmlNode.attributes || []).filter(x => x.name.toString() === 'type')[0];
+			const typeValue = typeAttribute ? typeAttribute.value.toString() : '';
+
+			if (allowedMimeTypesInScriptTag.indexOf(typeValue) > -1) {
+				return true;
+			}
+
+			const isScriptJavascriptType = !typeValue || typeValue === 'application/javascript' || typeValue === 'text/javascript';
+			if (isScriptJavascriptType) {
+				return !!getSyntaxFromArgs({ language: 'javascript' });
+			}
+			return false;
 		}
 
 		const innerRange = getInnerRange(currentHtmlNode);
@@ -573,7 +579,7 @@ function expandAbbreviationInRange(editor: vscode.TextEditor, expandAbbrList: Ex
 /**
  * Expands abbreviation as detailed in given input.
  */
-function expandAbbr(input: ExpandAbbreviationInput): string | undefined {
+function expandAbbr(input: ExpandAbbreviationInput): string {
 	const helper = getEmmetHelper();
 	const expandOptions = helper.getExpandOptions(input.syntax, getEmmetConfiguration(input.syntax), input.filter);
 
@@ -593,9 +599,9 @@ function expandAbbr(input: ExpandAbbreviationInput): string | undefined {
 		}
 	}
 
+	let expandedText;
 	try {
 		// Expand the abbreviation
-		let expandedText;
 
 		if (input.textToWrap) {
 			let parsedAbbr = helper.parseAbbreviation(input.abbreviation, expandOptions);
@@ -608,7 +614,7 @@ function expandAbbr(input: ExpandAbbreviationInput): string | undefined {
 				}
 
 				// If wrapping with a block element, insert newline in the text to wrap.
-				if (wrappingNode && inlineElements.indexOf(wrappingNode.name) === -1) {
+				if (wrappingNode && inlineElements.indexOf(wrappingNode.name) === -1 && (expandOptions['profile'].hasOwnProperty('format') ? expandOptions['profile'].format : true)) {
 					wrappingNode.value = '\n\t' + wrappingNode.value + '\n';
 				}
 			}
@@ -620,16 +626,14 @@ function expandAbbr(input: ExpandAbbreviationInput): string | undefined {
 			expandedText = helper.expandAbbreviation(input.abbreviation, expandOptions);
 		}
 
-		return expandedText;
-
 	} catch (e) {
 		vscode.window.showErrorMessage('Failed to expand abbreviation');
 	}
 
-
+	return expandedText;
 }
 
-function getSyntaxFromArgs(args: Object): string | undefined {
+function getSyntaxFromArgs(args: { [x: string]: string }): string | undefined {
 	const mappedModes = getMappingForIncludedLanguages();
 	const language: string = args['language'];
 	const parentMode: string = args['parentMode'];

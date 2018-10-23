@@ -2,7 +2,6 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
 import * as Assert from 'vs/base/common/assert';
 import { onUnexpectedError } from 'vs/base/common/errors';
@@ -84,13 +83,11 @@ export class Lock {
 		var lock = this.getLock(item);
 
 		if (lock) {
-			var unbindListener: IDisposable;
-
 			return new WinJS.TPromise((c, e) => {
-				unbindListener = once(lock.onDispose)(() => {
+				once(lock.onDispose)(() => {
 					return this.run(item, fn).then(c, e);
 				});
-			}, () => { unbindListener.dispose(); });
+			});
 		}
 
 		var result: WinJS.Promise;
@@ -111,7 +108,7 @@ export class Lock {
 			}).then(c, e);
 
 			return result;
-		}, () => result.cancel());
+		});
 	}
 
 	private getLock(item: Item): LockData {
@@ -349,7 +346,7 @@ export class Item {
 		this.expanded = value;
 	}
 
-	public reveal(relativeTop: number = null): void {
+	public reveal(relativeTop: number | null = null): void {
 		var eventData: IItemRevealEvent = { item: this, relativeTop: relativeTop };
 		this._onDidReveal.fire(eventData);
 	}
@@ -360,6 +357,10 @@ export class Item {
 		}
 
 		var result = this.lock.run(this, () => {
+			if (this.isExpanded() || !this.doesHaveChildren) {
+				return WinJS.TPromise.as(false);
+			}
+
 			var eventData: IItemExpandEvent = { item: this };
 			var result: WinJS.Promise;
 			this._onExpand.fire(eventData);
@@ -449,7 +450,13 @@ export class Item {
 
 	private refreshChildren(recursive: boolean, safe: boolean = false, force: boolean = false): WinJS.Promise {
 		if (!force && !this.isExpanded()) {
-			this.needsChildrenRefresh = true;
+			const setNeedsChildrenRefresh = (item: Item) => {
+				item.needsChildrenRefresh = true;
+				item.forEachChild(setNeedsChildrenRefresh);
+			};
+
+			setNeedsChildrenRefresh(this);
+
 			return WinJS.TPromise.as(this);
 		}
 
@@ -507,8 +514,14 @@ export class Item {
 						return child.doRefresh(recursive, true);
 					}));
 				} else {
-					this.mapEachChild(child => child.updateVisibility());
-					return WinJS.TPromise.as(null);
+					return WinJS.Promise.join(this.mapEachChild((child) => {
+						if (child.isExpanded() && child.needsChildrenRefresh) {
+							return child.doRefresh(recursive, true);
+						} else {
+							child.updateVisibility();
+							return WinJS.TPromise.as(null);
+						}
+					}));
 				}
 			});
 
@@ -825,8 +838,8 @@ function getRange(one: Item, other: Item): Item[] {
 	var item = oneHierarchy[length - 1];
 	var nav = item.getNavigator();
 
-	var oneIndex: number = null;
-	var otherIndex: number = null;
+	var oneIndex: number | null = null;
+	var otherIndex: number | null = null;
 
 	var index = 0;
 	var result: Item[] = [];
@@ -1017,7 +1030,7 @@ export class TreeModel {
 		return item.collapse(recursive);
 	}
 
-	public collapseAll(elements: any[] = null, recursive: boolean = false): WinJS.Promise {
+	public collapseAll(elements: any[] | null = null, recursive: boolean = false): WinJS.Promise {
 		if (!elements) {
 			elements = [this.input];
 			recursive = true;
@@ -1065,7 +1078,7 @@ export class TreeModel {
 		return result;
 	}
 
-	public reveal(element: any, relativeTop: number = null): WinJS.Promise {
+	public reveal(element: any, relativeTop: number | null = null): WinJS.Promise {
 		return this.resolveUnknownParentChain(element).then((chain: any[]) => {
 			var result = WinJS.TPromise.as(null);
 
@@ -1208,8 +1221,8 @@ export class TreeModel {
 
 	public selectPrevious(count: number = 1, clearSelection: boolean = true, eventPayload?: any): void {
 		var selection = this.getSelection(),
-			item: Item = null,
-			previousItem: Item = null;
+			item: Item | null = null,
+			previousItem: Item | null = null;
 
 		if (selection.length === 0) {
 			let nav = this.getNavigator(this.input);

@@ -79,10 +79,6 @@
 			"project": "vscode-workbench"
 		},
 		{
-			"name": "vs/workbench/parts/navigation",
-			"project": "vscode-workbench"
-		},
-		{
 			"name": "vs/workbench/parts/output",
 			"project": "vscode-workbench"
 		},
@@ -112,6 +108,10 @@
 		},
 		{
 			"name": "vs/workbench/parts/snippets",
+			"project": "vscode-workbench"
+		},
+		{
+			"name": "vs/workbench/parts/stats",
 			"project": "vscode-workbench"
 		},
 		{
@@ -164,6 +164,10 @@
 		},
 		{
 			"name": "vs/workbench/services/bulkEdit",
+			"project": "vscode-workbench"
+		},
+		{
+			"name": "vs/workbench/services/commands",
 			"project": "vscode-workbench"
 		},
 		{

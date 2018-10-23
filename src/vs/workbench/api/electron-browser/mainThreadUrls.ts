@@ -7,9 +7,9 @@ import { ExtHostContext, IExtHostContext, MainContext, MainThreadUrlsShape, ExtH
 import { extHostNamedCustomer } from './extHostCustomers';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IURLService, IURLHandler } from 'vs/platform/url/common/url';
-import URI from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 import { IDisposable } from 'vs/base/common/lifecycle';
-import { IExtensionUrlHandler } from 'vs/platform/url/electron-browser/inactiveExtensionUrlHandler';
+import { IExtensionUrlHandler } from 'vs/workbench/services/extensions/electron-browser/inactiveExtensionUrlHandler';
 
 class ExtensionUrlHandler implements IURLHandler {
 
@@ -24,7 +24,7 @@ class ExtensionUrlHandler implements IURLHandler {
 			return TPromise.as(false);
 		}
 
-		return this.proxy.$handleExternalUri(this.handle, uri).then(() => true);
+		return TPromise.wrap(this.proxy.$handleExternalUri(this.handle, uri)).then(() => true);
 	}
 }
 
@@ -42,7 +42,7 @@ export class MainThreadUrls implements MainThreadUrlsShape {
 		this.proxy = context.getProxy(ExtHostContext.ExtHostUrls);
 	}
 
-	$registerUriHandler(handle: number, extensionId: string): TPromise<void> {
+	$registerUriHandler(handle: number, extensionId: string): Thenable<void> {
 		const handler = new ExtensionUrlHandler(this.proxy, handle, extensionId);
 		const disposable = this.urlService.registerHandler(handler);
 
@@ -52,7 +52,7 @@ export class MainThreadUrls implements MainThreadUrlsShape {
 		return TPromise.as(null);
 	}
 
-	$unregisterUriHandler(handle: number): TPromise<void> {
+	$unregisterUriHandler(handle: number): Thenable<void> {
 		const tuple = this.handlers.get(handle);
 
 		if (!tuple) {

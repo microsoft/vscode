@@ -2,17 +2,16 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
 import * as nls from 'vs/nls';
 import { TPromise } from 'vs/base/common/winjs.base';
-import URI from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 import * as paths from 'vs/base/common/paths';
 import * as errors from 'vs/base/common/errors';
 import * as objects from 'vs/base/common/objects';
 import { Event, Emitter } from 'vs/base/common/event';
 import * as platform from 'vs/base/common/platform';
-import { IWindowsService } from 'vs/platform/windows/common/windows';
+import { IWindowsService, IWindowService } from 'vs/platform/windows/common/windows';
 import { IBackupFileService } from 'vs/workbench/services/backup/common/backup';
 import { IResult, ITextFileOperationResult, ITextFileService, IRawTextContent, IAutoSaveConfiguration, AutoSaveMode, SaveReason, ITextFileEditorModelManager, ITextFileEditorModel, ModelState, ISaveOptions, AutoSaveContext, IWillMoveEvent } from 'vs/workbench/services/textfile/common/textfiles';
 import { ConfirmResult, IRevertOptions } from 'vs/workbench/common/editor';
@@ -33,7 +32,7 @@ import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/c
 import { createTextBufferFactoryFromSnapshot } from 'vs/editor/common/model/textModel';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { INotificationService } from 'vs/platform/notification/common/notification';
-import { isEqualOrParent, isEqual } from 'vs/base/common/resources';
+import { isEqualOrParent, isEqual, joinPath, dirname } from 'vs/base/common/resources';
 
 export interface IBackupResult {
 	didBackup: boolean;
@@ -48,10 +47,10 @@ export abstract class TextFileService extends Disposable implements ITextFileSer
 
 	_serviceBrand: any;
 
-	private readonly _onFilesAssociationChange: Emitter<void> = this._register(new Emitter<void>());
+	private readonly _onAutoSaveConfigurationChange: Emitter<IAutoSaveConfiguration> = this._register(new Emitter<IAutoSaveConfiguration>());
 	get onAutoSaveConfigurationChange(): Event<IAutoSaveConfiguration> { return this._onAutoSaveConfigurationChange.event; }
 
-	private readonly _onAutoSaveConfigurationChange: Emitter<IAutoSaveConfiguration> = this._register(new Emitter<IAutoSaveConfiguration>());
+	private readonly _onFilesAssociationChange: Emitter<void> = this._register(new Emitter<void>());
 	get onFilesAssociationChange(): Event<void> { return this._onFilesAssociationChange.event; }
 
 	private readonly _onWillMove = this._register(new Emitter<IWillMoveEvent>());
@@ -76,6 +75,7 @@ export abstract class TextFileService extends Disposable implements ITextFileSer
 		protected environmentService: IEnvironmentService,
 		private backupFileService: IBackupFileService,
 		private windowsService: IWindowsService,
+		protected windowService: IWindowService,
 		private historyService: IHistoryService,
 		contextKeyService: IContextKeyService,
 		private modelService: IModelService
@@ -99,7 +99,7 @@ export abstract class TextFileService extends Disposable implements ITextFileSer
 
 	abstract resolveTextContent(resource: URI, options?: IResolveContentOptions): TPromise<IRawTextContent>;
 
-	abstract promptForPath(defaultPath: string): TPromise<string>;
+	abstract promptForPath(resource: URI, defaultPath: URI): TPromise<URI>;
 
 	abstract confirmSave(resources?: URI[]): TPromise<ConfirmResult>;
 
@@ -334,7 +334,7 @@ export abstract class TextFileService extends Disposable implements ITextFileSer
 
 		// save all dirty when enabling auto save
 		if (!wasAutoSaveEnabled && this.getAutoSaveMode() !== AutoSaveMode.OFF) {
-			this.saveAll().done(null, errors.onUnexpectedError);
+			this.saveAll();
 		}
 
 		// Check for change in files associations
@@ -381,7 +381,13 @@ export abstract class TextFileService extends Disposable implements ITextFileSer
 		if (options && options.force && this.fileService.canHandleResource(resource) && !this.isDirty(resource)) {
 			const model = this._models.get(resource);
 			if (model) {
-				model.save({ force: true, reason: SaveReason.EXPLICIT }).then(() => !model.isDirty());
+				if (!options) {
+					options = Object.create(null);
+				}
+
+				options.reason = SaveReason.EXPLICIT;
+
+				return model.save(options).then(() => !model.isDirty());
 			}
 		}
 
@@ -433,7 +439,7 @@ export abstract class TextFileService extends Disposable implements ITextFileSer
 
 					// Otherwise ask user
 					else {
-						const targetPath = await this.promptForPath(this.suggestFileName(untitled));
+						const targetPath = await this.promptForPath(untitled, this.suggestFileName(untitled));
 						if (!targetPath) {
 							return TPromise.as({
 								results: [...fileResources, ...untitledResources].map(r => {
@@ -444,7 +450,7 @@ export abstract class TextFileService extends Disposable implements ITextFileSer
 							});
 						}
 
-						targetUri = URI.file(targetPath);
+						targetUri = targetPath;
 					}
 
 					targetsForUntitled.push(targetUri);
@@ -529,18 +535,12 @@ export abstract class TextFileService extends Disposable implements ITextFileSer
 		if (target) {
 			targetPromise = TPromise.wrap(target);
 		} else {
-			let dialogPath = resource.fsPath;
+			let dialogPath = resource;
 			if (resource.scheme === Schemas.untitled) {
 				dialogPath = this.suggestFileName(resource);
 			}
 
-			targetPromise = this.promptForPath(dialogPath).then(pathRaw => {
-				if (pathRaw) {
-					return URI.file(pathRaw);
-				}
-
-				return void 0;
-			});
+			targetPromise = this.promptForPath(resource, dialogPath);
 		}
 
 		return targetPromise.then(target => {
@@ -623,20 +623,23 @@ export abstract class TextFileService extends Disposable implements ITextFileSer
 		});
 	}
 
-	private suggestFileName(untitledResource: URI): string {
+	private suggestFileName(untitledResource: URI): URI {
 		const untitledFileName = this.untitledEditorService.suggestFileName(untitledResource);
 
-		const lastActiveFile = this.historyService.getLastActiveFile();
+		const schemeFilter = Schemas.file;
+
+		const lastActiveFile = this.historyService.getLastActiveFile(schemeFilter);
 		if (lastActiveFile) {
-			return URI.file(paths.join(paths.dirname(lastActiveFile.fsPath), untitledFileName)).fsPath;
+			const lastDir = dirname(lastActiveFile);
+			return joinPath(lastDir, untitledFileName);
 		}
 
-		const lastActiveFolder = this.historyService.getLastActiveWorkspaceRoot('file');
+		const lastActiveFolder = this.historyService.getLastActiveWorkspaceRoot(schemeFilter);
 		if (lastActiveFolder) {
-			return URI.file(paths.join(lastActiveFolder.fsPath, untitledFileName)).fsPath;
+			return joinPath(lastActiveFolder, untitledFileName);
 		}
 
-		return untitledFileName;
+		return URI.file(untitledFileName);
 	}
 
 	revert(resource: URI, options?: IRevertOptions): TPromise<boolean> {
@@ -721,7 +724,7 @@ export abstract class TextFileService extends Disposable implements ITextFileSer
 		this._onWillMove.fire({
 			oldResource: source,
 			newResource: target,
-			waitUntil(p: TPromise<any>) {
+			waitUntil(p: Thenable<any>) {
 				waitForPromises.push(TPromise.wrap(p).then(undefined, errors.onUnexpectedError));
 			}
 		});
@@ -733,7 +736,7 @@ export abstract class TextFileService extends Disposable implements ITextFileSer
 
 			// Handle target models if existing (if target URI is a folder, this can be multiple)
 			let handleTargetModelPromise: TPromise<any> = TPromise.as(void 0);
-			const dirtyTargetModels = this.getDirtyFileModels().filter(model => isEqualOrParent(model.getResource(), target, !platform.isLinux /* ignorecase */));
+			const dirtyTargetModels = this.getDirtyFileModels().filter(model => isEqualOrParent(model.getResource(), target, false /* do not ignorecase, see https://github.com/Microsoft/vscode/issues/56384 */));
 			if (dirtyTargetModels.length) {
 				handleTargetModelPromise = this.revertAll(dirtyTargetModels.map(targetModel => targetModel.getResource()), { soft: true });
 			}

@@ -17,7 +17,7 @@ enum Boundary {
 	Bottom
 }
 
-export enum ScrollPosition {
+export const enum ScrollPosition {
 	Top,
 	Middle
 }
@@ -34,7 +34,6 @@ export class TerminalCommandTracker implements ITerminalCommandTracker, IDisposa
 	}
 
 	public dispose(): void {
-		this._xterm = null;
 	}
 
 	private _onKey(key: string): void {

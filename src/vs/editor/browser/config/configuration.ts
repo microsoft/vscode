@@ -2,20 +2,19 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
-import { Event, Emitter } from 'vs/base/common/event';
+import * as browser from 'vs/base/browser/browser';
+import { FastDomNode } from 'vs/base/browser/fastDomNode';
+import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
 import * as platform from 'vs/base/common/platform';
-import * as browser from 'vs/base/browser/browser';
-import { CommonEditorConfiguration, IEnvConfiguration } from 'vs/editor/common/config/commonEditorConfig';
-import { IDimension } from 'vs/editor/common/editorCommon';
-import { FontInfo, BareFontInfo } from 'vs/editor/common/config/fontInfo';
-import { ElementSizeObserver } from 'vs/editor/browser/config/elementSizeObserver';
-import { FastDomNode } from 'vs/base/browser/fastDomNode';
 import { CharWidthRequest, CharWidthRequestType, readCharWidths } from 'vs/editor/browser/config/charWidthReader';
-import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
+import { ElementSizeObserver } from 'vs/editor/browser/config/elementSizeObserver';
+import { CommonEditorConfiguration, IEnvConfiguration } from 'vs/editor/common/config/commonEditorConfig';
 import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
+import { BareFontInfo, FontInfo } from 'vs/editor/common/config/fontInfo';
+import { IDimension } from 'vs/editor/common/editorCommon';
+import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 
 class CSSBasedConfigurationCache {
 
@@ -63,7 +62,7 @@ export function restoreFontInfo(storageService: IStorageService): void {
 	if (typeof strStoredFontInfo !== 'string') {
 		return;
 	}
-	let storedFontInfo: ISerializedFontInfo[] = null;
+	let storedFontInfo: ISerializedFontInfo[] | null = null;
 	try {
 		storedFontInfo = JSON.parse(strStoredFontInfo);
 	} catch (err) {
@@ -90,6 +89,7 @@ export interface ISerializedFontInfo {
 	readonly isMonospace: boolean;
 	readonly typicalHalfwidthCharacterWidth: number;
 	readonly typicalFullwidthCharacterWidth: number;
+	readonly canUseHalfwidthRightwardsArrow: boolean;
 	readonly spaceWidth: number;
 	readonly maxDigitWidth: number;
 }
@@ -99,7 +99,7 @@ class CSSBasedConfiguration extends Disposable {
 	public static readonly INSTANCE = new CSSBasedConfiguration();
 
 	private _cache: CSSBasedConfigurationCache;
-	private _evictUntrustedReadingsTimeout: number;
+	private _evictUntrustedReadingsTimeout: any;
 
 	private _onDidChange = this._register(new Emitter<void>());
 	public readonly onDidChange: Event<void> = this._onDidChange.event;
@@ -176,6 +176,7 @@ class CSSBasedConfiguration extends Disposable {
 					isMonospace: readConfig.isMonospace,
 					typicalHalfwidthCharacterWidth: Math.max(readConfig.typicalHalfwidthCharacterWidth, 5),
 					typicalFullwidthCharacterWidth: Math.max(readConfig.typicalFullwidthCharacterWidth, 5),
+					canUseHalfwidthRightwardsArrow: readConfig.canUseHalfwidthRightwardsArrow,
 					spaceWidth: Math.max(readConfig.spaceWidth, 5),
 					maxDigitWidth: Math.max(readConfig.maxDigitWidth, 5),
 				}, false);
@@ -186,7 +187,7 @@ class CSSBasedConfiguration extends Disposable {
 		return this._cache.get(bareFontInfo);
 	}
 
-	private static createRequest(chr: string, type: CharWidthRequestType, all: CharWidthRequest[], monospace: CharWidthRequest[]): CharWidthRequest {
+	private static createRequest(chr: string, type: CharWidthRequestType, all: CharWidthRequest[], monospace: CharWidthRequest[] | null): CharWidthRequest {
 		let result = new CharWidthRequest(chr, type);
 		all.push(result);
 		if (monospace) {
@@ -214,7 +215,9 @@ class CSSBasedConfiguration extends Disposable {
 		const digit9 = this.createRequest('9', CharWidthRequestType.Regular, all, monospace);
 
 		// monospace test: used for whitespace rendering
-		this.createRequest('→', CharWidthRequestType.Regular, all, monospace);
+		const rightwardsArrow = this.createRequest('→', CharWidthRequestType.Regular, all, monospace);
+		const halfwidthRightwardsArrow = this.createRequest('￫', CharWidthRequestType.Regular, all, null);
+
 		this.createRequest('·', CharWidthRequestType.Regular, all, monospace);
 
 		// monospace test: some characters
@@ -256,6 +259,16 @@ class CSSBasedConfiguration extends Disposable {
 			}
 		}
 
+		let canUseHalfwidthRightwardsArrow = true;
+		if (isMonospace && halfwidthRightwardsArrow.width !== referenceWidth) {
+			// using a halfwidth rightwards arrow would break monospace...
+			canUseHalfwidthRightwardsArrow = false;
+		}
+		if (halfwidthRightwardsArrow.width > rightwardsArrow.width) {
+			// using a halfwidth rightwards arrow would paint a larger arrow than a regular rightwards arrow
+			canUseHalfwidthRightwardsArrow = false;
+		}
+
 		// let's trust the zoom level only 2s after it was changed.
 		const canTrustBrowserZoomLevel = (browser.getTimeSinceLastZoomLevelChanged() > 2000);
 		return new FontInfo({
@@ -268,6 +281,7 @@ class CSSBasedConfiguration extends Disposable {
 			isMonospace: isMonospace,
 			typicalHalfwidthCharacterWidth: typicalHalfwidthCharacter.width,
 			typicalFullwidthCharacterWidth: typicalFullwidthCharacter.width,
+			canUseHalfwidthRightwardsArrow: canUseHalfwidthRightwardsArrow,
 			spaceWidth: space.width,
 			maxDigitWidth: maxDigitWidth
 		}, canTrustBrowserZoomLevel);
@@ -276,21 +290,8 @@ class CSSBasedConfiguration extends Disposable {
 
 export class Configuration extends CommonEditorConfiguration {
 
-	private static _massageFontFamily(fontFamily: string): string {
-		if (/[,"']/.test(fontFamily)) {
-			// Looks like the font family might be already escaped
-			return fontFamily;
-		}
-		if (/[+ ]/.test(fontFamily)) {
-			// Wrap a font family using + or <space> with quotes
-			return `"${fontFamily}"`;
-		}
-
-		return fontFamily;
-	}
-
 	public static applyFontInfoSlow(domNode: HTMLElement, fontInfo: BareFontInfo): void {
-		domNode.style.fontFamily = Configuration._massageFontFamily(fontInfo.fontFamily);
+		domNode.style.fontFamily = fontInfo.getMassagedFontFamily();
 		domNode.style.fontWeight = fontInfo.fontWeight;
 		domNode.style.fontSize = fontInfo.fontSize + 'px';
 		domNode.style.lineHeight = fontInfo.lineHeight + 'px';
@@ -298,7 +299,7 @@ export class Configuration extends CommonEditorConfiguration {
 	}
 
 	public static applyFontInfo(domNode: FastDomNode<HTMLElement>, fontInfo: BareFontInfo): void {
-		domNode.setFontFamily(Configuration._massageFontFamily(fontInfo.fontFamily));
+		domNode.setFontFamily(fontInfo.getMassagedFontFamily());
 		domNode.setFontWeight(fontInfo.fontWeight);
 		domNode.setFontSize(fontInfo.fontSize);
 		domNode.setLineHeight(fontInfo.lineHeight);
@@ -307,7 +308,7 @@ export class Configuration extends CommonEditorConfiguration {
 
 	private readonly _elementSizeObserver: ElementSizeObserver;
 
-	constructor(options: IEditorOptions, referenceDomElement: HTMLElement = null) {
+	constructor(options: IEditorOptions, referenceDomElement: HTMLElement | null = null) {
 		super(options);
 
 		this._elementSizeObserver = this._register(new ElementSizeObserver(referenceDomElement, () => this._onReferenceDomElementSizeChanged()));

@@ -2,13 +2,12 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
 import { isFalsyOrEmpty } from 'vs/base/common/arrays';
 import { Schemas } from 'vs/base/common/network';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { isEmptyObject } from 'vs/base/common/types';
-import URI from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 import { Event, Emitter, debounceEvent } from 'vs/base/common/event';
 import { IMarkerService, IMarkerData, IResourceMarker, IMarker, MarkerStatistics, MarkerSeverity } from './markers';
 
@@ -18,7 +17,7 @@ interface MapMap<V> {
 
 namespace MapMap {
 
-	export function get<V>(map: MapMap<V>, key1: string, key2: string): V {
+	export function get<V>(map: MapMap<V>, key1: string, key2: string): V | undefined {
 		if (map[key1]) {
 			return map[key1][key2];
 		}
@@ -51,7 +50,7 @@ class MarkerStats implements MarkerStatistics {
 	warnings: number = 0;
 	unknowns: number = 0;
 
-	private _data: { [resource: string]: MarkerStatistics } = Object.create(null);
+	private _data?: { [resource: string]: MarkerStatistics } = Object.create(null);
 	private _service: IMarkerService;
 	private _subscription: IDisposable;
 
@@ -66,6 +65,10 @@ class MarkerStats implements MarkerStatistics {
 	}
 
 	private _update(resources: URI[]): void {
+		if (!this._data) {
+			return;
+		}
+
 		for (const resource of resources) {
 			const key = resource.toString();
 			const oldStats = this._data[key];
@@ -145,7 +148,7 @@ export class MarkerService implements IMarkerService {
 	remove(owner: string, resources: URI[]): void {
 		if (!isFalsyOrEmpty(resources)) {
 			for (const resource of resources) {
-				this.changeOne(owner, resource, undefined);
+				this.changeOne(owner, resource, []);
 			}
 		}
 	}
@@ -178,7 +181,7 @@ export class MarkerService implements IMarkerService {
 		}
 	}
 
-	private static _toMarker(owner: string, resource: URI, data: IMarkerData): IMarker {
+	private static _toMarker(owner: string, resource: URI, data: IMarkerData): IMarker | undefined {
 		let {
 			code, severity,
 			message, source,
@@ -192,7 +195,6 @@ export class MarkerService implements IMarkerService {
 		}
 
 		// santize data
-		code = code || null;
 		startLineNumber = startLineNumber > 0 ? startLineNumber : 1;
 		startColumn = startColumn > 0 ? startColumn : 1;
 		endLineNumber = endLineNumber >= startLineNumber ? endLineNumber : startLineNumber;
@@ -201,7 +203,7 @@ export class MarkerService implements IMarkerService {
 		return {
 			resource,
 			owner,
-			code,
+			code: code || undefined,
 			severity,
 			message,
 			source,
@@ -222,13 +224,16 @@ export class MarkerService implements IMarkerService {
 		if (map) {
 			delete this._byOwner[owner];
 			for (const resource in map) {
-				// remeber what we remove
-				const [first] = MapMap.get(this._byResource, resource, owner);
-				if (first) {
-					changes.push(first.resource);
+				const entry = MapMap.get(this._byResource, resource, owner);
+				if (entry) {
+					// remeber what we remove
+					const [first] = entry;
+					if (first) {
+						changes.push(first.resource);
+					}
+					// actual remove
+					MapMap.remove(this._byResource, resource, owner);
 				}
-				// actual remove
-				MapMap.remove(this._byResource, resource, owner);
 			}
 		}
 
@@ -309,9 +314,9 @@ export class MarkerService implements IMarkerService {
 
 		} else {
 			// of one resource OR owner
-			const map: { [key: string]: IMarker[] } = owner
+			const map: { [key: string]: IMarker[] } | undefined = owner
 				? this._byOwner[owner]
-				: this._byResource[resource.toString()];
+				: resource ? this._byResource[resource.toString()] : undefined;
 
 			if (!map) {
 				return [];

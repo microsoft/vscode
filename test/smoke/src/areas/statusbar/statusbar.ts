@@ -5,7 +5,7 @@
 
 import { Code } from '../../vscode/code';
 
-export enum StatusBarElement {
+export const enum StatusBarElement {
 	BRANCH_STATUS = 0,
 	SYNC_STATUS = 1,
 	PROBLEMS_STATUS = 2,

@@ -2,8 +2,6 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
-
 import * as assert from 'assert';
 import { Scanner, TokenType, SnippetParser, Text, Placeholder, Variable, Marker, TextmateSnippet, Choice, FormatString, Transform } from 'vs/editor/contrib/snippet/snippetParser';
 
@@ -353,6 +351,12 @@ suite('SnippetParser', () => {
 		assertText('${1||}', '${1||}');
 	});
 
+	test('Backslash character escape in choice tabstop doesn\'t work #58494', function () {
+
+		const { placeholders } = new SnippetParser().parse('${1|\\,,},$,\\|,\\\\|}');
+		assert.equal(placeholders.length, 1);
+		assert.ok(placeholders[0].choice instanceof Choice);
+	});
 
 	test('Parser, only textmate', () => {
 		const p = new SnippetParser();
@@ -523,7 +527,7 @@ suite('SnippetParser', () => {
 		assert.ok(first.parent === snippet.children[0]);
 	});
 
-	test('TextmateSnippet#enclosingPlaceholders', function () {
+	test('TextmateSnippet#enclosingPlaceholders', () => {
 		let snippet = new SnippetParser().parse('This ${1:is ${2:nested}}$0', true);
 		let [first, second] = snippet.placeholders;
 
@@ -649,6 +653,7 @@ suite('SnippetParser', () => {
 		assert.equal(new FormatString(1, 'downcase').resolve('FOO'), 'foo');
 		assert.equal(new FormatString(1, 'capitalize').resolve('bar'), 'Bar');
 		assert.equal(new FormatString(1, 'capitalize').resolve('bar no repeat'), 'Bar no repeat');
+		assert.equal(new FormatString(1, 'pascalcase').resolve('bar-foo'), 'BarFoo');
 		assert.equal(new FormatString(1, 'notKnown').resolve('input'), 'input');
 
 		// if
@@ -665,6 +670,11 @@ suite('SnippetParser', () => {
 		assert.equal(new FormatString(1, undefined, 'bar', 'foo').resolve(undefined), 'foo');
 		assert.equal(new FormatString(1, undefined, 'bar', 'foo').resolve(''), 'foo');
 		assert.equal(new FormatString(1, undefined, 'bar', 'foo').resolve('baz'), 'bar');
+	});
+
+	test('Snippet variable transformation doesn\'t work if regex is complicated and snippet body contains \'$$\' #55627', function () {
+		const snippet = new SnippetParser().parse('const fileName = "${TM_FILENAME/(.*)\\..+$/$1/}"');
+		assert.equal(snippet.toTextmateString(), 'const fileName = "${TM_FILENAME/(.*)\\..+$/${1}/}"');
 	});
 
 	test('[BUG] HTML attribute suggestions: Snippet session does not have end-position set, #33147', function () {
@@ -711,5 +721,31 @@ suite('SnippetParser', () => {
 
 	test('snippets variable not resolved in JSON proposal #52931', function () {
 		assertTextAndMarker('FOO${1:/bin/bash}', 'FOO/bin/bash', Text, Placeholder);
+	});
+
+	test('Mirroring sequence of nested placeholders not selected properly on backjumping #58736', function () {
+		let snippet = new SnippetParser().parse('${3:nest1 ${1:nest2 ${2:nest3}}} $3');
+		assert.equal(snippet.children.length, 3);
+		assert.ok(snippet.children[0] instanceof Placeholder);
+		assert.ok(snippet.children[1] instanceof Text);
+		assert.ok(snippet.children[2] instanceof Placeholder);
+
+		function assertParent(marker: Marker) {
+			marker.children.forEach(assertParent);
+			if (!(marker instanceof Placeholder)) {
+				return;
+			}
+			let found = false;
+			let m: Marker = marker;
+			while (m && !found) {
+				if (m.parent === snippet) {
+					found = true;
+				}
+				m = m.parent;
+			}
+			assert.ok(found);
+		}
+		let [, , clone] = snippet.children;
+		assertParent(clone);
 	});
 });

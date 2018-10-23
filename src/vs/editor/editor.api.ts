@@ -3,13 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
+import { PolyfillPromise } from 'vs/base/common/winjs.polyfill.promise';
+import { EDITOR_DEFAULTS, WrappingIndent } from 'vs/editor/common/config/editorOptions';
 import { createMonacoBaseAPI } from 'vs/editor/common/standalone/standaloneBase';
 import { createMonacoEditorAPI } from 'vs/editor/standalone/browser/standaloneEditor';
 import { createMonacoLanguagesAPI } from 'vs/editor/standalone/browser/standaloneLanguages';
-import { EDITOR_DEFAULTS, WrappingIndent } from 'vs/editor/common/config/editorOptions';
-import { PolyfillPromise } from 'vs/base/common/winjs.polyfill.promise';
 
 var global: any = self;
 
@@ -55,7 +53,8 @@ if (typeof global.require !== 'undefined' && typeof global.require.config === 'f
 			'jsonc-parser',
 			'jsonc-parser/main',
 			'vscode-uri',
-			'vscode-uri/index'
+			'vscode-uri/index',
+			'vs/basic-languages/typescript/typescript'
 		]
 	});
 }

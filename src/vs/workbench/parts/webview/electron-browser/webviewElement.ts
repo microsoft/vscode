@@ -6,8 +6,7 @@
 import { addClass, addDisposableListener } from 'vs/base/browser/dom';
 import { Emitter } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
-import URI from 'vs/base/common/uri';
-import { IContextKey } from 'vs/platform/contextkey/common/contextkey';
+import { URI } from 'vs/base/common/uri';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IFileService } from 'vs/platform/files/common/files';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -37,8 +36,6 @@ export class WebviewElement extends Disposable {
 
 	constructor(
 		private readonly _styleElement: Element,
-		private readonly _contextKey: IContextKey<boolean>,
-		private readonly _findInputContextKey: IContextKey<boolean>,
 		private _options: WebviewOptions,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IThemeService private readonly _themeService: IThemeService,
@@ -48,9 +45,6 @@ export class WebviewElement extends Disposable {
 		super();
 		this._webview = document.createElement('webview');
 		this._webview.setAttribute('partition', this._options.allowSvgs ? 'webview' : `webview${Date.now()}`);
-
-		// disable auxclick events (see https://developers.google.com/web/updates/2016/10/auxclick)
-		this._webview.setAttribute('disableblinkfeatures', 'Auxclick');
 
 		this._webview.setAttribute('disableguestresize', '');
 		this._webview.setAttribute('webpreferences', 'contextIsolation=yes');
@@ -171,16 +165,6 @@ export class WebviewElement extends Disposable {
 					return;
 			}
 		}));
-		this._register(addDisposableListener(this._webview, 'focus', () => {
-			if (this._contextKey) {
-				this._contextKey.set(true);
-			}
-		}));
-		this._register(addDisposableListener(this._webview, 'blur', () => {
-			if (this._contextKey) {
-				this._contextKey.reset();
-			}
-		}));
 		this._register(addDisposableListener(this._webview, 'devtools-opened', () => {
 			this._send('devtools-opened');
 		}));
@@ -196,19 +180,7 @@ export class WebviewElement extends Disposable {
 		parent.appendChild(this._webview);
 	}
 
-	public notifyFindWidgetFocusChanged(isFocused: boolean) {
-		this._contextKey.set(isFocused || document.activeElement === this._webview);
-	}
-
-	public notifyFindWidgetInputFocusChanged(isFocused: boolean) {
-		this._findInputContextKey.set(isFocused);
-	}
-
 	dispose(): void {
-		if (this._contextKey) {
-			this._contextKey.reset();
-		}
-
 		if (this._webview) {
 			this._webview.guestinstance = 'none';
 
@@ -265,6 +237,19 @@ export class WebviewElement extends Disposable {
 		this._contents = value;
 		this._send('content', {
 			contents: value,
+			options: this._options,
+			state: this._state
+		});
+	}
+
+	public update(value: string, options: WebviewOptions, retainContextWhenHidden: boolean) {
+		if (retainContextWhenHidden && value === this._contents && this._options && areWebviewInputOptionsEqual(options, this._options)) {
+			return;
+		}
+		this._contents = value;
+		this._options = options;
+		this._send('content', {
+			contents: this._contents,
 			options: this._options,
 			state: this._state
 		});

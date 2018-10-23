@@ -2,10 +2,10 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
 import * as paths from 'vs/base/common/paths';
 import * as strings from 'vs/base/common/strings';
+import * as arrays from 'vs/base/common/arrays';
 import { match } from 'vs/base/common/glob';
 
 export const MIME_TEXT = 'text/plain';
@@ -137,10 +137,10 @@ export function guessMimeTypes(path: string, firstLine?: string): string[] {
 	return [MIME_UNKNOWN];
 }
 
-function guessMimeTypeByPath(path: string, filename: string, associations: ITextMimeAssociationItem[]): string {
-	let filenameMatch: ITextMimeAssociationItem;
-	let patternMatch: ITextMimeAssociationItem;
-	let extensionMatch: ITextMimeAssociationItem;
+function guessMimeTypeByPath(path: string, filename: string, associations: ITextMimeAssociationItem[]): string | null {
+	let filenameMatch: ITextMimeAssociationItem | null = null;
+	let patternMatch: ITextMimeAssociationItem | null = null;
+	let extensionMatch: ITextMimeAssociationItem | null = null;
 
 	// We want to prioritize associations based on the order they are registered so that the last registered
 	// association wins over all other. This is for https://github.com/Microsoft/vscode/issues/20074
@@ -155,9 +155,9 @@ function guessMimeTypeByPath(path: string, filename: string, associations: IText
 
 		// Longest pattern match
 		if (association.filepattern) {
-			if (!patternMatch || association.filepattern.length > patternMatch.filepattern.length) {
+			if (!patternMatch || association.filepattern.length > patternMatch.filepattern!.length) {
 				const target = association.filepatternOnPath ? path : filename; // match on full path if pattern contains path separator
-				if (match(association.filepatternLowercase, target)) {
+				if (match(association.filepatternLowercase!, target)) {
 					patternMatch = association;
 				}
 			}
@@ -165,8 +165,8 @@ function guessMimeTypeByPath(path: string, filename: string, associations: IText
 
 		// Longest extension match
 		if (association.extension) {
-			if (!extensionMatch || association.extension.length > extensionMatch.extension.length) {
-				if (strings.endsWith(filename, association.extensionLowercase)) {
+			if (!extensionMatch || association.extension.length > extensionMatch.extension!.length) {
+				if (strings.endsWith(filename, association.extensionLowercase!)) {
 					extensionMatch = association;
 				}
 			}
@@ -191,7 +191,7 @@ function guessMimeTypeByPath(path: string, filename: string, associations: IText
 	return null;
 }
 
-function guessMimeTypeByFirstline(firstLine: string): string {
+function guessMimeTypeByFirstline(firstLine: string): string | null {
 	if (strings.startsWithUTF8BOM(firstLine)) {
 		firstLine = firstLine.substr(1);
 	}
@@ -225,19 +225,24 @@ export function isUnspecific(mime: string[] | string): boolean {
 	return mime.length === 1 && isUnspecific(mime[0]);
 }
 
+/**
+ * Returns a suggestion for the filename by the following logic:
+ * 1. If a relevant extension exists and is an actual filename extension (starting with a dot), suggest the prefix appended by the first one.
+ * 2. Otherwise, if there are other extensions, suggest the first one.
+ * 3. Otherwise, suggest the prefix.
+ */
 export function suggestFilename(langId: string, prefix: string): string {
-	for (let i = 0; i < registeredAssociations.length; i++) {
-		const association = registeredAssociations[i];
-		if (association.userConfigured) {
-			continue; // only support registered ones
-		}
+	const extensions = registeredAssociations
+		.filter(assoc => !assoc.userConfigured && assoc.extension && assoc.id === langId)
+		.map(assoc => assoc.extension);
+	const extensionsWithDotFirst = arrays.coalesce(extensions)
+		.filter(assoc => strings.startsWith(assoc, '.'));
 
-		if (association.id === langId && association.extension) {
-			return prefix + association.extension;
-		}
+	if (extensionsWithDotFirst.length > 0) {
+		return prefix + extensionsWithDotFirst[0];
 	}
 
-	return prefix; // without any known extension, just return the prefix
+	return extensions[0] || prefix;
 }
 
 interface MapExtToMediaMimes {

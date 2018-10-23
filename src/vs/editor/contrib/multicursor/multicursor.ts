@@ -2,31 +2,30 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
 import * as nls from 'vs/nls';
-import { Disposable, IDisposable, dispose } from 'vs/base/common/lifecycle';
-import { KeyCode, KeyMod, KeyChord } from 'vs/base/common/keyCodes';
 import { RunOnceScheduler } from 'vs/base/common/async';
-import { ScrollType, IEditorContribution } from 'vs/editor/common/editorCommon';
-import { FindMatch, TrackedRangeStickiness, OverviewRulerLane, ITextModel } from 'vs/editor/common/model';
-import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
-import { registerEditorAction, registerEditorContribution, ServicesAccessor, EditorAction } from 'vs/editor/browser/editorExtensions';
-import { Range } from 'vs/editor/common/core/range';
-import { Selection } from 'vs/editor/common/core/selection';
+import { KeyChord, KeyCode, KeyMod } from 'vs/base/common/keyCodes';
+import { Disposable, IDisposable, dispose } from 'vs/base/common/lifecycle';
+import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
+import { EditorAction, ServicesAccessor, registerEditorAction, registerEditorContribution } from 'vs/editor/browser/editorExtensions';
+import { RevealTarget } from 'vs/editor/common/controller/cursorCommon';
 import { CursorChangeReason, ICursorSelectionChangedEvent } from 'vs/editor/common/controller/cursorEvents';
 import { CursorMoveCommands } from 'vs/editor/common/controller/cursorMoveCommands';
-import { RevealTarget } from 'vs/editor/common/controller/cursorCommon';
+import { Range } from 'vs/editor/common/core/range';
+import { Selection } from 'vs/editor/common/core/selection';
 import { Constants } from 'vs/editor/common/core/uint';
+import { IEditorContribution, ScrollType } from 'vs/editor/common/editorCommon';
+import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
+import { FindMatch, ITextModel, OverviewRulerLane, TrackedRangeStickiness } from 'vs/editor/common/model';
+import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
 import { DocumentHighlightProviderRegistry } from 'vs/editor/common/modes';
 import { CommonFindController } from 'vs/editor/contrib/find/findController';
-import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
+import { FindOptionOverride, INewFindReplaceState } from 'vs/editor/contrib/find/findState';
+import { MenuId } from 'vs/platform/actions/common/actions';
+import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { overviewRulerSelectionHighlightForeground } from 'vs/platform/theme/common/colorRegistry';
 import { themeColorFromId } from 'vs/platform/theme/common/themeService';
-import { INewFindReplaceState, FindOptionOverride } from 'vs/editor/contrib/find/findState';
-import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { MenuId } from 'vs/platform/actions/common/actions';
 
 export class InsertCursorAbove extends EditorAction {
 
@@ -207,7 +206,7 @@ export class MultiCursorSession {
 		const s = editor.getSelection();
 
 		let searchText: string;
-		let currentMatch: Selection = null;
+		let currentMatch: Selection | null = null;
 
 		if (s.isEmpty()) {
 			// selection is empty => expand to current word
@@ -477,7 +476,7 @@ export class MultiCursorSelectionController extends Disposable implements IEdito
 	}
 
 	public selectAll(findController: CommonFindController): void {
-		let matches: FindMatch[] = null;
+		let matches: FindMatch[] | null = null;
 
 		const findState = findController.getState();
 
@@ -663,13 +662,11 @@ export class CompatChangeAll extends MultiCursorSelectionControllerAction {
 }
 
 class SelectionHighlighterState {
-	public readonly lastWordUnderCursor: Selection;
 	public readonly searchText: string;
 	public readonly matchCase: boolean;
 	public readonly wordSeparators: string;
 
-	constructor(lastWordUnderCursor: Selection, searchText: string, matchCase: boolean, wordSeparators: string) {
-		this.lastWordUnderCursor = lastWordUnderCursor;
+	constructor(searchText: string, matchCase: boolean, wordSeparators: string) {
 		this.searchText = searchText;
 		this.matchCase = matchCase;
 		this.wordSeparators = wordSeparators;
@@ -723,7 +720,7 @@ export class SelectionHighlighter extends Disposable implements IEditorContribut
 
 			if (e.selection.isEmpty()) {
 				if (e.reason === CursorChangeReason.Explicit) {
-					if (this.state && (!this.state.lastWordUnderCursor || !this.state.lastWordUnderCursor.containsPosition(e.selection.getStartPosition()))) {
+					if (this.state) {
 						// no longer valid
 						this._setState(null);
 					}
@@ -791,21 +788,10 @@ export class SelectionHighlighter extends Disposable implements IEditorContribut
 			return null;
 		}
 
-		let lastWordUnderCursor: Selection = null;
-		const hasFindOccurrences = DocumentHighlightProviderRegistry.has(model);
 		if (r.currentMatch) {
 			// This is an empty selection
-			if (hasFindOccurrences) {
-				// Do not interfere with semantic word highlighting in the no selection case
-				return null;
-			}
-
-			const config = editor.getConfiguration();
-			if (!config.contribInfo.occurrencesHighlight) {
-				return null;
-			}
-
-			lastWordUnderCursor = r.currentMatch;
+			// Do not interfere with semantic word highlighting in the no selection case
+			return null;
 		}
 		if (/^[ \t]+$/.test(r.searchText)) {
 			// whitespace only selection
@@ -837,7 +823,7 @@ export class SelectionHighlighter extends Disposable implements IEditorContribut
 			}
 		}
 
-		return new SelectionHighlighterState(lastWordUnderCursor, r.searchText, r.matchCase, r.wholeWord ? editor.getConfiguration().wordSeparators : null);
+		return new SelectionHighlighterState(r.searchText, r.matchCase, r.wholeWord ? editor.getConfiguration().wordSeparators : null);
 	}
 
 	private _setState(state: SelectionHighlighterState): void {
@@ -910,7 +896,6 @@ export class SelectionHighlighter extends Disposable implements IEditorContribut
 		className: 'selectionHighlight',
 		overviewRuler: {
 			color: themeColorFromId(overviewRulerSelectionHighlightForeground),
-			darkColor: themeColorFromId(overviewRulerSelectionHighlightForeground),
 			position: OverviewRulerLane.Center
 		}
 	});

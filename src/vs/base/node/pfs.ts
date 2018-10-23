@@ -3,9 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
-import { TPromise } from 'vs/base/common/winjs.base';
 import * as extfs from 'vs/base/node/extfs';
 import { join } from 'path';
 import { nfcall, Queue } from 'vs/base/common/async';
@@ -14,21 +11,22 @@ import * as os from 'os';
 import * as platform from 'vs/base/common/platform';
 import { once } from 'vs/base/common/event';
 
-export function readdir(path: string): TPromise<string[]> {
+export function readdir(path: string): Promise<string[]> {
 	return nfcall(extfs.readdir, path);
 }
 
 export function exists(path: string): TPromise<boolean> {
-	return new TPromise(c => fs.exists(path, c), () => { });
+	return new TPromise(c => fs.exists(path, c));
 }
 
-export function chmod(path: string, mode: number): TPromise<boolean> {
+export function chmod(path: string, mode: number): Promise<boolean> {
 	return nfcall(fs.chmod, path, mode);
 }
 
 export import mkdirp = extfs.mkdirp;
+import { TPromise } from 'vs/base/common/winjs.base';
 
-export function rimraf(path: string): TPromise<void> {
+export function rimraf(path: string): Promise<void> {
 	return lstat(path).then(stat => {
 		if (stat.isDirectory() && !stat.isSymbolicLink()) {
 			return readdir(path)
@@ -42,53 +40,53 @@ export function rimraf(path: string): TPromise<void> {
 			return void 0;
 		}
 
-		return TPromise.wrapError<void>(err);
+		return TPromise.wrapError(err);
 	});
 }
 
-export function realpath(path: string): TPromise<string> {
+export function realpath(path: string): Promise<string> {
 	return nfcall(extfs.realpath, path);
 }
 
-export function stat(path: string): TPromise<fs.Stats> {
+export function stat(path: string): Promise<fs.Stats> {
 	return nfcall(fs.stat, path);
 }
 
-export function statLink(path: string): TPromise<{ stat: fs.Stats, isSymbolicLink: boolean }> {
+export function statLink(path: string): Promise<{ stat: fs.Stats, isSymbolicLink: boolean }> {
 	return nfcall(extfs.statLink, path);
 }
 
-export function lstat(path: string): TPromise<fs.Stats> {
+export function lstat(path: string): Promise<fs.Stats> {
 	return nfcall(fs.lstat, path);
 }
 
-export function rename(oldPath: string, newPath: string): TPromise<void> {
+export function rename(oldPath: string, newPath: string): Promise<void> {
 	return nfcall(fs.rename, oldPath, newPath);
 }
 
-export function rmdir(path: string): TPromise<void> {
+export function rmdir(path: string): Promise<void> {
 	return nfcall(fs.rmdir, path);
 }
 
-export function unlink(path: string): TPromise<void> {
+export function unlink(path: string): Promise<void> {
 	return nfcall(fs.unlink, path);
 }
 
-export function symlink(target: string, path: string, type?: string): TPromise<void> {
+export function symlink(target: string, path: string, type?: string): Promise<void> {
 	return nfcall<void>(fs.symlink, target, path, type);
 }
 
-export function readlink(path: string): TPromise<string> {
+export function readlink(path: string): Promise<string> {
 	return nfcall<string>(fs.readlink, path);
 }
 
-export function truncate(path: string, len: number): TPromise<void> {
+export function truncate(path: string, len: number): Promise<void> {
 	return nfcall(fs.truncate, path, len);
 }
 
-export function readFile(path: string): TPromise<Buffer>;
-export function readFile(path: string, encoding: string): TPromise<string>;
-export function readFile(path: string, encoding?: string): TPromise<Buffer | string> {
+export function readFile(path: string): Promise<Buffer>;
+export function readFile(path: string, encoding: string): Promise<string>;
+export function readFile(path: string, encoding?: string): Promise<Buffer | string> {
 	return nfcall(fs.readFile, path, encoding);
 }
 
@@ -97,11 +95,12 @@ export function readFile(path: string, encoding?: string): TPromise<Buffer | str
 // Therefor we use a Queue on the path that is given to us to sequentialize calls to the same path properly.
 const writeFilePathQueue: { [path: string]: Queue<void> } = Object.create(null);
 
-export function writeFile(path: string, data: string, options?: extfs.IWriteFileOptions): TPromise<void>;
-export function writeFile(path: string, data: NodeBuffer, options?: extfs.IWriteFileOptions): TPromise<void>;
-export function writeFile(path: string, data: Uint8Array, options?: extfs.IWriteFileOptions): TPromise<void>;
-export function writeFile(path: string, data: NodeJS.ReadableStream, options?: extfs.IWriteFileOptions): TPromise<void>;
-export function writeFile(path: string, data: any, options?: extfs.IWriteFileOptions): TPromise<void> {
+export function writeFile(path: string, data: string, options?: extfs.IWriteFileOptions): Promise<void>;
+export function writeFile(path: string, data: Buffer, options?: extfs.IWriteFileOptions): Promise<void>;
+export function writeFile(path: string, data: Uint8Array, options?: extfs.IWriteFileOptions): Promise<void>;
+export function writeFile(path: string, data: NodeJS.ReadableStream, options?: extfs.IWriteFileOptions): Promise<void>;
+export function writeFile(path: string, data: any, options?: extfs.IWriteFileOptions): Promise<void>;
+export function writeFile(path: string, data: any, options?: extfs.IWriteFileOptions): any {
 	const queueKey = toQueueKey(path);
 
 	return ensureWriteFileQueue(queueKey).queue(() => nfcall(extfs.writeFileAndFlush, path, data, options));
@@ -135,7 +134,7 @@ function ensureWriteFileQueue(queueKey: string): Queue<void> {
 /**
 * Read a dir and return only subfolders
 */
-export function readDirsInDir(dirPath: string): TPromise<string[]> {
+export function readDirsInDir(dirPath: string): Promise<string[]> {
 	return readdir(dirPath).then(children => {
 		return TPromise.join(children.map(c => dirExists(join(dirPath, c)))).then(exists => {
 			return children.filter((_, i) => exists[i]);
@@ -146,28 +145,28 @@ export function readDirsInDir(dirPath: string): TPromise<string[]> {
 /**
 * `path` exists and is a directory
 */
-export function dirExists(path: string): TPromise<boolean> {
+export function dirExists(path: string): Promise<boolean> {
 	return stat(path).then(stat => stat.isDirectory(), () => false);
 }
 
 /**
 * `path` exists and is a file.
 */
-export function fileExists(path: string): TPromise<boolean> {
+export function fileExists(path: string): Promise<boolean> {
 	return stat(path).then(stat => stat.isFile(), () => false);
 }
 
 /**
  * Deletes a path from disk.
  */
-let _tmpDir: string = null;
+let _tmpDir: string | null = null;
 function getTmpDir(): string {
 	if (!_tmpDir) {
 		_tmpDir = os.tmpdir();
 	}
 	return _tmpDir;
 }
-export function del(path: string, tmp = getTmpDir()): TPromise<void> {
+export function del(path: string, tmp = getTmpDir()): Promise<void> {
 	return nfcall(extfs.del, path, tmp);
 }
 
@@ -192,6 +191,6 @@ export function whenDeleted(path: string): TPromise<void> {
 	});
 }
 
-export function copy(source: string, target: string): TPromise<void> {
+export function copy(source: string, target: string): Promise<void> {
 	return nfcall(extfs.copy, source, target);
 }

@@ -2,16 +2,13 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
-import { Event, Emitter } from 'vs/base/common/event';
-import { toThenable } from 'vs/base/common/async';
-import { TPromise } from 'vs/base/common/winjs.base';
-import { TextEditorSelectionChangeKind } from './extHostTypes';
-import * as TypeConverters from './extHostTypeConverters';
-import { TextEditorDecorationType, ExtHostTextEditor } from './extHostTextEditor';
-import { ExtHostDocumentsAndEditors } from './extHostDocumentsAndEditors';
-import { MainContext, MainThreadTextEditorsShape, ExtHostEditorsShape, ITextDocumentShowOptions, ITextEditorPositionData, IMainContext, IEditorPropertiesChangeData } from './extHost.protocol';
+import { Emitter, Event } from 'vs/base/common/event';
+import { ExtHostEditorsShape, IEditorPropertiesChangeData, IMainContext, ITextDocumentShowOptions, ITextEditorPositionData, MainContext, MainThreadTextEditorsShape } from 'vs/workbench/api/node/extHost.protocol';
+import { ExtHostDocumentsAndEditors } from 'vs/workbench/api/node/extHostDocumentsAndEditors';
+import { ExtHostTextEditor, TextEditorDecorationType } from 'vs/workbench/api/node/extHostTextEditor';
+import * as TypeConverters from 'vs/workbench/api/node/extHostTypeConverters';
+import { TextEditorSelectionChangeKind } from 'vs/workbench/api/node/extHostTypes';
 import * as vscode from 'vscode';
 
 export class ExtHostEditors implements ExtHostEditorsShape {
@@ -53,10 +50,10 @@ export class ExtHostEditors implements ExtHostEditorsShape {
 		return this._extHostDocumentsAndEditors.allEditors();
 	}
 
-	showTextDocument(document: vscode.TextDocument, column: vscode.ViewColumn, preserveFocus: boolean): TPromise<vscode.TextEditor>;
-	showTextDocument(document: vscode.TextDocument, options: { column: vscode.ViewColumn, preserveFocus: boolean, pinned: boolean }): TPromise<vscode.TextEditor>;
-	showTextDocument(document: vscode.TextDocument, columnOrOptions: vscode.ViewColumn | vscode.TextDocumentShowOptions, preserveFocus?: boolean): TPromise<vscode.TextEditor>;
-	showTextDocument(document: vscode.TextDocument, columnOrOptions: vscode.ViewColumn | vscode.TextDocumentShowOptions, preserveFocus?: boolean): TPromise<vscode.TextEditor> {
+	showTextDocument(document: vscode.TextDocument, column: vscode.ViewColumn, preserveFocus: boolean): Thenable<vscode.TextEditor>;
+	showTextDocument(document: vscode.TextDocument, options: { column: vscode.ViewColumn, preserveFocus: boolean, pinned: boolean }): Thenable<vscode.TextEditor>;
+	showTextDocument(document: vscode.TextDocument, columnOrOptions: vscode.ViewColumn | vscode.TextDocumentShowOptions, preserveFocus?: boolean): Thenable<vscode.TextEditor>;
+	showTextDocument(document: vscode.TextDocument, columnOrOptions: vscode.ViewColumn | vscode.TextDocumentShowOptions, preserveFocus?: boolean): Thenable<vscode.TextEditor> {
 		let options: ITextDocumentShowOptions;
 		if (typeof columnOrOptions === 'number') {
 			options = {
@@ -90,7 +87,7 @@ export class ExtHostEditors implements ExtHostEditorsShape {
 		return new TextEditorDecorationType(this._proxy, options);
 	}
 
-	applyWorkspaceEdit(edit: vscode.WorkspaceEdit): TPromise<boolean> {
+	applyWorkspaceEdit(edit: vscode.WorkspaceEdit): Thenable<boolean> {
 		const dto = TypeConverters.WorkspaceEdit.from(edit, this._extHostDocumentsAndEditors);
 		return this._proxy.$tryApplyWorkspaceEdit(dto);
 	}
@@ -150,6 +147,6 @@ export class ExtHostEditors implements ExtHostEditorsShape {
 	}
 
 	getDiffInformation(id: string): Thenable<vscode.LineChange[]> {
-		return toThenable(this._proxy.$getDiffInformation(id));
+		return Promise.resolve(this._proxy.$getDiffInformation(id));
 	}
 }

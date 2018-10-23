@@ -3,11 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 import { clipboard } from 'electron';
-import URI from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 import { isMacintosh } from 'vs/base/common/platform';
 
 export class ClipboardService implements IClipboardService {

@@ -2,7 +2,6 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IQuickOpenService } from 'vs/platform/quickOpen/common/quickOpen';
@@ -31,7 +30,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: 'workbench.action.acceptSelectedQuickOpenItem',
 	weight: KeybindingWeight.WorkbenchContrib,
 	when: inQuickOpenContext,
-	primary: null,
+	primary: 0,
 	handler: accessor => {
 		const quickOpenService = accessor.get(IQuickOpenService);
 		quickOpenService.accept();
@@ -44,7 +43,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: 'workbench.action.focusQuickOpen',
 	weight: KeybindingWeight.WorkbenchContrib,
 	when: inQuickOpenContext,
-	primary: null,
+	primary: 0,
 	handler: accessor => {
 		const quickOpenService = accessor.get(IQuickOpenService);
 		quickOpenService.focus();
@@ -67,11 +66,11 @@ KeybindingsRegistry.registerKeybindingRule({
 });
 
 MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
-	command: { id: QUICKOPEN_ACTION_ID, title: QUICKOPEN_ACION_LABEL }
+	command: { id: QUICKOPEN_ACTION_ID, title: { value: QUICKOPEN_ACION_LABEL, original: 'Go to File...' } }
 });
 
-registry.registerWorkbenchAction(new SyncActionDescriptor(QuickOpenSelectNextAction, QuickOpenSelectNextAction.ID, QuickOpenSelectNextAction.LABEL, { primary: null, mac: { primary: KeyMod.WinCtrl | KeyCode.KEY_N } }, inQuickOpenContext, KeybindingWeight.WorkbenchContrib + 50), 'Select Next in Quick Open');
-registry.registerWorkbenchAction(new SyncActionDescriptor(QuickOpenSelectPreviousAction, QuickOpenSelectPreviousAction.ID, QuickOpenSelectPreviousAction.LABEL, { primary: null, mac: { primary: KeyMod.WinCtrl | KeyCode.KEY_P } }, inQuickOpenContext, KeybindingWeight.WorkbenchContrib + 50), 'Select Previous in Quick Open');
+registry.registerWorkbenchAction(new SyncActionDescriptor(QuickOpenSelectNextAction, QuickOpenSelectNextAction.ID, QuickOpenSelectNextAction.LABEL, { primary: 0, mac: { primary: KeyMod.WinCtrl | KeyCode.KEY_N } }, inQuickOpenContext, KeybindingWeight.WorkbenchContrib + 50), 'Select Next in Quick Open');
+registry.registerWorkbenchAction(new SyncActionDescriptor(QuickOpenSelectPreviousAction, QuickOpenSelectPreviousAction.ID, QuickOpenSelectPreviousAction.LABEL, { primary: 0, mac: { primary: KeyMod.WinCtrl | KeyCode.KEY_P } }, inQuickOpenContext, KeybindingWeight.WorkbenchContrib + 50), 'Select Previous in Quick Open');
 registry.registerWorkbenchAction(new SyncActionDescriptor(QuickOpenNavigateNextAction, QuickOpenNavigateNextAction.ID, QuickOpenNavigateNextAction.LABEL), 'Navigate Next in Quick Open');
 registry.registerWorkbenchAction(new SyncActionDescriptor(QuickOpenNavigatePreviousAction, QuickOpenNavigatePreviousAction.ID, QuickOpenNavigatePreviousAction.LABEL), 'Navigate Previous in Quick Open');
 registry.registerWorkbenchAction(new SyncActionDescriptor(RemoveFromEditorHistoryAction, RemoveFromEditorHistoryAction.ID, RemoveFromEditorHistoryAction.LABEL), 'Remove From History');

@@ -3,7 +3,7 @@
 // Definitions by: The Electron Team <https://github.com/electron/electron>
 // Definitions: https://github.com/electron/electron-typescript-definitions
 
-/// <reference path="./node.d.ts" />
+/// <reference types="node" />
 
 type GlobalEvent = Event;
 
@@ -104,7 +104,7 @@ declare namespace Electron {
 	const powerMonitor: PowerMonitor;
 	const powerSaveBlocker: PowerSaveBlocker;
 	const protocol: Protocol;
-	const remote: Remote;
+	// const remote: Remote; ### VSCODE CHANGE (we do not want to use remote)
 	const screen: Screen;
 	type session = Session;
 	const session: typeof Session;
@@ -2962,7 +2962,7 @@ declare namespace Electron {
 		 * event.returnValue. Note: Sending a synchronous message will block the whole
 		 * renderer process, unless you know what you are doing you should never use it.
 		 */
-		sendSync(channel: string, ...args: any[]): any;
+		// sendSync(channel: string, ...args: any[]): any; ### VSCODE CHANGE (we do not want to use sendSync)
 		/**
 		 * Sends a message to a window with windowid via channel.
 		 */
@@ -6374,7 +6374,7 @@ declare namespace Electron {
 		 * When this attribute is present the guest page will be allowed to open new
 		 * windows. Popups are disabled by default.
 		 */
-		allowpopups?: string;
+		// allowpopups?: string; ### VSCODE CHANGE (https://github.com/electron/electron/blob/master/docs/tutorial/security.md) ###
 		/**
 		 * When this attribute is present the webview container will automatically resize
 		 * within the bounds specified by the attributes minwidth, minheight, maxwidth, and
@@ -6407,7 +6407,7 @@ declare namespace Electron {
 		 * When this attribute is present the guest page will have web security disabled.
 		 * Web security is enabled by default.
 		 */
-		disablewebsecurity?: string;
+		// disablewebsecurity?: string; ### VSCODE CHANGE(https://github.com/electron/electron/blob/master/docs/tutorial/security.md) ###
 		/**
 		 * A value that links the webview to a specific webContents. When a webview first
 		 * loads a new webContents is created and this attribute is set to its instance
@@ -8633,12 +8633,12 @@ declare namespace Electron {
 		 * websites by people), and set allowRunningInsecureContent to true if this options
 		 * has not been set by user. Default is true.
 		 */
-		webSecurity?: boolean;
+		// webSecurity?: boolean; ### VSCODE CHANGE (https://github.com/electron/electron/blob/master/docs/tutorial/security.md) ###
 		/**
 		 * Allow an https page to run JavaScript, CSS or plugins from http URLs. Default is
 		 * false.
 		 */
-		allowRunningInsecureContent?: boolean;
+		// allowRunningInsecureContent?: boolean; ### VSCODE CHANGE (https://github.com/electron/electron/blob/master/docs/tutorial/security.md) ###
 		/**
 		 * Enables image support. Default is true.
 		 */
@@ -8662,7 +8662,7 @@ declare namespace Electron {
 		/**
 		 * Enables Chromium's experimental features. Default is false.
 		 */
-		experimentalFeatures?: boolean;
+		// experimentalFeatures?: boolean; ### VSCODE CHANGE (https://github.com/electron/electron/blob/master/docs/tutorial/security.md) ###
 		/**
 		 * Enables Chromium's experimental canvas features. Default is false.
 		 */
@@ -8774,24 +8774,6 @@ declare namespace Electron {
 		 */
 		fantasy?: string;
 	}
-
-	// ### BEGIN VSCODE ADDITION ###
-	type MenuItemRole = 'undo' | 'redo' | 'cut' | 'copy' | 'paste' | 'pasteandmatchstyle' | 'selectall' | 'delete' | 'minimize' | 'close' | 'quit' | 'togglefullscreen' | 'resetzoom' | 'zoomin' | 'zoomout' | 'about' | 'hide' | 'hideothers' | 'unhide' | 'startspeaking' | 'stopspeaking' | 'front' | 'zoom' | 'window' | 'help' | 'services';
-
-	interface LoginRequest {
-		method: string;
-		url: string;
-		referrer: string;
-	}
-
-	interface LoginAuthInfo {
-		isProxy: boolean;
-		scheme: string;
-		host: string;
-		port: number;
-		realm: string;
-	}
-	// ### END VSCODE ADDITION ###
 }
 
 declare module 'electron' {

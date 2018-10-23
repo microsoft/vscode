@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import { TPromise } from 'vs/base/common/winjs.base';
 import { ProxyIdentifier } from 'vs/workbench/services/extensions/node/proxyIdentifier';
 import { CharCode } from 'vs/base/common/charCode';
@@ -22,8 +20,6 @@ export function SingleProxyRPCProtocol(thing: any): IExtHostContext {
 		assertRegistered: undefined
 	};
 }
-
-declare var Proxy: any; // TODO@TypeScript
 
 export class TestRPCProtocol implements IExtHostContext {
 
@@ -70,10 +66,10 @@ export class TestRPCProtocol implements IExtHostContext {
 	}
 
 	public getProxy<T>(identifier: ProxyIdentifier<T>): T {
-		if (!this._proxies[identifier.id]) {
-			this._proxies[identifier.id] = this._createProxy(identifier.id);
+		if (!this._proxies[identifier.sid]) {
+			this._proxies[identifier.sid] = this._createProxy(identifier.sid);
 		}
-		return this._proxies[identifier.id];
+		return this._proxies[identifier.sid];
 	}
 
 	private _createProxy<T>(proxyId: string): T {
@@ -91,7 +87,7 @@ export class TestRPCProtocol implements IExtHostContext {
 	}
 
 	public set<T, R extends T>(identifier: ProxyIdentifier<T>, value: R): R {
-		this._locals[identifier.id] = value;
+		this._locals[identifier.sid] = value;
 		return value;
 	}
 

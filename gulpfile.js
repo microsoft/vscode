@@ -36,42 +36,12 @@ gulp.task('clean-build', ['clean-client-build', 'clean-extensions-build']);
 gulp.task('compile-build', ['compile-client-build', 'compile-extensions-build']);
 gulp.task('watch-build', ['watch-client-build', 'watch-extensions-build']);
 
-var ALL_EDITOR_TASKS = [
-	// Always defined tasks
-	'clean-client',
-	'compile-client',
-	'watch-client',
-	'clean-client-build',
-	'compile-client-build',
-	'watch-client-build',
-
-	// Editor tasks (defined in gulpfile.editor)
-	'clean-optimized-editor',
-	'optimize-editor',
-	'clean-minified-editor',
-	'minify-editor',
-	'clean-editor-distro',
-	'editor-distro',
-	'analyze-editor-distro',
-
-	// hygiene tasks
-	'tslint',
-	'hygiene',
-];
-
-var runningEditorTasks = process.argv.length > 2 && process.argv.slice(2).every(function (arg) { return (ALL_EDITOR_TASKS.indexOf(arg) !== -1); });
-
 process.on('unhandledRejection', (reason, p) => {
 	console.log('Unhandled Rejection at: Promise', p, 'reason:', reason);
 	process.exit(1);
 });
 
-if (runningEditorTasks) {
-	require(`./build/gulpfile.editor`);
-	require(`./build/gulpfile.hygiene`);
-} else {
-	// Load all the gulpfiles only if running tasks other than the editor tasks
-	const build = path.join(__dirname, 'build');
-	require('glob').sync('gulpfile.*.js', { cwd: build })
-		.forEach(f => require(`./build/${f}`));
-}
+// Load all the gulpfiles only if running tasks other than the editor tasks
+const build = path.join(__dirname, 'build');
+require('glob').sync('gulpfile.*.js', { cwd: build })
+	.forEach(f => require(`./build/${f}`));

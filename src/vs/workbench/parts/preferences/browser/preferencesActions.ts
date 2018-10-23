@@ -2,22 +2,20 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
-import { TPromise } from 'vs/base/common/winjs.base';
-import * as nls from 'vs/nls';
-import URI from 'vs/base/common/uri';
 import { Action } from 'vs/base/common/actions';
-import { IDisposable, dispose } from 'vs/base/common/lifecycle';
-import { IModeService } from 'vs/editor/common/services/modeService';
-import { IPreferencesService } from 'vs/workbench/services/preferences/common/preferences';
-import { IWorkspaceContextService, WorkbenchState, IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
-import { ICommandService } from 'vs/platform/commands/common/commands';
-import { PICK_WORKSPACE_FOLDER_COMMAND_ID } from 'vs/workbench/browser/actions/workspaceCommands';
-import { IQuickInputService, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
-import { getIconClasses } from 'vs/workbench/browser/labels';
+import { dispose, IDisposable } from 'vs/base/common/lifecycle';
+import { URI } from 'vs/base/common/uri';
+import { TPromise } from 'vs/base/common/winjs.base';
 import { IModelService } from 'vs/editor/common/services/modelService';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { IModeService } from 'vs/editor/common/services/modeService';
+import * as nls from 'vs/nls';
+import { ICommandService } from 'vs/platform/commands/common/commands';
+import { IQuickInputService, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
+import { IWorkspaceContextService, IWorkspaceFolder, WorkbenchState } from 'vs/platform/workspace/common/workspace';
+import { PICK_WORKSPACE_FOLDER_COMMAND_ID } from 'vs/workbench/browser/actions/workspaceCommands';
+import { getIconClasses } from 'vs/editor/common/services/getIconClasses';
+import { IPreferencesService } from 'vs/workbench/services/preferences/common/preferences';
 
 export class OpenRawDefaultSettingsAction extends Action {
 
@@ -55,7 +53,6 @@ export class OpenSettings2Action extends Action {
 	}
 }
 
-
 export class OpenSettingsAction extends Action {
 
 	public static readonly ID = 'workbench.action.openSettings';
@@ -64,15 +61,13 @@ export class OpenSettingsAction extends Action {
 	constructor(
 		id: string,
 		label: string,
-		@IPreferencesService private preferencesService: IPreferencesService,
-		@IConfigurationService private configurationService: IConfigurationService,
+		@IPreferencesService private preferencesService: IPreferencesService
 	) {
 		super(id, label);
 	}
 
 	public run(event?: any): TPromise<any> {
-		const jsonEditorPreferred = this.configurationService.getValue('workbench.settings.editor') === 'json';
-		return this.preferencesService.openSettings(jsonEditorPreferred);
+		return this.preferencesService.openSettings();
 	}
 }
 
@@ -90,7 +85,7 @@ export class OpenSettingsJsonAction extends Action {
 	}
 
 	public run(event?: any): TPromise<any> {
-		return this.preferencesService.openSettings();
+		return this.preferencesService.openSettings(true);
 	}
 }
 
@@ -103,14 +98,12 @@ export class OpenGlobalSettingsAction extends Action {
 		id: string,
 		label: string,
 		@IPreferencesService private preferencesService: IPreferencesService,
-		@IConfigurationService private configurationService: IConfigurationService
 	) {
 		super(id, label);
 	}
 
 	public run(event?: any): TPromise<any> {
-		const jsonEditorPreferred = this.configurationService.getValue('workbench.settings.editor') === 'json';
-		return this.preferencesService.openGlobalSettings(jsonEditorPreferred);
+		return this.preferencesService.openGlobalSettings();
 	}
 }
 
@@ -179,8 +172,7 @@ export class OpenWorkspaceSettingsAction extends Action {
 		id: string,
 		label: string,
 		@IPreferencesService private preferencesService: IPreferencesService,
-		@IConfigurationService private configurationService: IConfigurationService,
-		@IWorkspaceContextService private workspaceContextService: IWorkspaceContextService
+		@IWorkspaceContextService private workspaceContextService: IWorkspaceContextService,
 	) {
 		super(id, label);
 		this.update();
@@ -192,8 +184,7 @@ export class OpenWorkspaceSettingsAction extends Action {
 	}
 
 	public run(event?: any): TPromise<any> {
-		const jsonEditorPreferred = this.configurationService.getValue('workbench.settings.editor') === 'json';
-		return this.preferencesService.openWorkspaceSettings(jsonEditorPreferred);
+		return this.preferencesService.openWorkspaceSettings();
 	}
 
 	public dispose(): void {
@@ -216,9 +207,8 @@ export class OpenFolderSettingsAction extends Action {
 		id: string,
 		label: string,
 		@IWorkspaceContextService private workspaceContextService: IWorkspaceContextService,
-		@IConfigurationService private configurationService: IConfigurationService,
 		@IPreferencesService private preferencesService: IPreferencesService,
-		@ICommandService private commandService: ICommandService
+		@ICommandService private commandService: ICommandService,
 	) {
 		super(id, label);
 		this.update();
@@ -234,8 +224,7 @@ export class OpenFolderSettingsAction extends Action {
 		return this.commandService.executeCommand<IWorkspaceFolder>(PICK_WORKSPACE_FOLDER_COMMAND_ID)
 			.then(workspaceFolder => {
 				if (workspaceFolder) {
-					const jsonEditorPreferred = this.configurationService.getValue('workbench.settings.editor') === 'json';
-					return this.preferencesService.openFolderSettings(workspaceFolder.uri, jsonEditorPreferred);
+					return this.preferencesService.openFolderSettings(workspaceFolder.uri);
 				}
 
 				return null;

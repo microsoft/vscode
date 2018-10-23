@@ -26,7 +26,7 @@
 	white-space: pre;
 }
 
-.settings-editor > .settings-body > .settings-tree-container .setting-item.setting-item-exclude .monaco-action-bar {
+.settings-editor > .settings-body > .settings-tree-container .setting-item.setting-item-exclude .setting-exclude-row .monaco-action-bar {
 	display: none;
 	position: absolute;
 	right: 0px;
@@ -86,11 +86,15 @@
 	margin-right: 10px;
 }
 
+.settings-editor > .settings-body > .settings-tree-container .setting-item.setting-item-exclude .setting-exclude-edit-row {
+	display: flex
+}
+
 .settings-editor > .settings-body > .settings-tree-container .setting-item.setting-item-exclude .setting-exclude-patternInput,
 .settings-editor > .settings-body > .settings-tree-container .setting-item.setting-item-exclude .setting-exclude-siblingInput {
 	height: 22px;
-	max-width: 300px;
-	display: inline-block;
+	max-width: 320px;
+	flex: 1;
 	margin-right: 10px;
 }
 

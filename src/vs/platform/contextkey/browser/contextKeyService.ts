@@ -2,24 +2,24 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
+import { Emitter, Event, debounceEvent } from 'vs/base/common/event';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
+import { keys } from 'vs/base/common/map';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
+import { ConfigurationTarget, IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { ContextKeyExpr, IContext, IContextKey, IContextKeyChangeEvent, IContextKeyService, IContextKeyServiceTarget, IReadableSet, SET_CONTEXT_COMMAND_ID } from 'vs/platform/contextkey/common/contextkey';
 import { KeybindingResolver } from 'vs/platform/keybinding/common/keybindingResolver';
-import { IContextKey, IContext, IContextKeyServiceTarget, IContextKeyService, SET_CONTEXT_COMMAND_ID, ContextKeyExpr, IContextKeyChangeEvent, IReadableSet } from 'vs/platform/contextkey/common/contextkey';
-import { IConfigurationService, IConfigurationChangeEvent, ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
-import { Event, Emitter, debounceEvent } from 'vs/base/common/event';
 
 const KEYBINDING_CONTEXT_ATTR = 'data-keybinding-context';
 
 export class Context implements IContext {
 
-	protected _parent: Context;
+	protected _parent: Context | null;
 	protected _value: { [key: string]: any; };
 	protected _id: number;
 
-	constructor(id: number, parent: Context) {
+	constructor(id: number, parent: Context | null) {
 		this._id = id;
 		this._parent = parent;
 		this._value = Object.create(null);
@@ -44,7 +44,7 @@ export class Context implements IContext {
 		return false;
 	}
 
-	public getValue<T>(key: string): T {
+	public getValue<T>(key: string): T | undefined {
 		const ret = this._value[key];
 		if (typeof ret === 'undefined' && this._parent) {
 			return this._parent.getValue<T>(key);
@@ -60,84 +60,106 @@ export class Context implements IContext {
 	}
 }
 
+class NullContext extends Context {
+
+	static readonly INSTANCE = new NullContext();
+
+	constructor() {
+		super(-1, null);
+	}
+
+	public setValue(key: string, value: any): boolean {
+		return false;
+	}
+
+	public removeValue(key: string): boolean {
+		return false;
+	}
+
+	public getValue<T>(key: string): T | undefined {
+		return undefined;
+	}
+
+	collectAllValues(): { [key: string]: any; } {
+		return Object.create(null);
+	}
+}
+
 class ConfigAwareContextValuesContainer extends Context {
 
-	private readonly _emitter: Emitter<string | string[]>;
-	private readonly _subscription: IDisposable;
-	private readonly _configurationService: IConfigurationService;
+	private static _keyPrefix = 'config.';
 
-	constructor(id: number, configurationService: IConfigurationService, emitter: Emitter<string | string[]>) {
+	private readonly _values = new Map<string, any>();
+	private readonly _listener: IDisposable;
+
+	constructor(
+		id: number,
+		private readonly _configurationService: IConfigurationService,
+		emitter: Emitter<string | string[]>
+	) {
 		super(id, null);
 
-		this._emitter = emitter;
-		this._configurationService = configurationService;
-		this._subscription = configurationService.onDidChangeConfiguration(this._onConfigurationUpdated, this);
-		this._initFromConfiguration();
-	}
-
-	public dispose() {
-		this._subscription.dispose();
-	}
-
-	private _onConfigurationUpdated(event: IConfigurationChangeEvent): void {
-		if (event.source === ConfigurationTarget.DEFAULT) {
-			// new setting, rebuild everything
-			this._initFromConfiguration();
-		} else {
-			// update those that we know
-			for (const configKey of event.affectedKeys) {
-				const contextKey = `config.${configKey}`;
-				if (contextKey in this._value) {
-					this._value[contextKey] = this._configurationService.getValue(configKey);
-					this._emitter.fire(contextKey);
-				}
-			}
-		}
-	}
-
-	private _initFromConfiguration() {
-
-		const prefix = 'config.';
-		const config = this._configurationService.getValue();
-		const configKeys: { [key: string]: boolean } = Object.create(null);
-		const configKeysChanged: string[] = [];
-
-		// add new value from config
-		const walk = (obj: any, keys: string[]) => {
-			for (let key in obj) {
-				if (Object.prototype.hasOwnProperty.call(obj, key)) {
-					keys.push(key);
-					let value = obj[key];
-					if (typeof value === 'boolean') {
-						const configKey = keys.join('.');
-						const oldValue = this._value[configKey];
-						this._value[configKey] = value;
-						if (oldValue !== value) {
-							configKeysChanged.push(configKey);
-							configKeys[configKey] = true;
-						} else {
-							configKeys[configKey] = false;
-						}
-					} else if (typeof value === 'object') {
-						walk(value, keys);
+		this._listener = this._configurationService.onDidChangeConfiguration(event => {
+			if (event.source === ConfigurationTarget.DEFAULT) {
+				// new setting, reset everything
+				const allKeys = keys(this._values);
+				this._values.clear();
+				emitter.fire(allKeys);
+			} else {
+				const changedKeys: string[] = [];
+				for (const configKey of event.affectedKeys) {
+					const contextKey = `config.${configKey}`;
+					if (this._values.has(contextKey)) {
+						this._values.delete(contextKey);
+						changedKeys.push(contextKey);
 					}
-					keys.pop();
 				}
+				emitter.fire(changedKeys);
 			}
-		};
-		walk(config, ['config']);
+		});
+	}
 
-		// remove unused keys
-		for (let key in this._value) {
-			if (key.indexOf(prefix) === 0 && configKeys[key] === undefined) {
-				delete this._value[key];
-				configKeys[key] = true;
-				configKeysChanged.push(key);
-			}
+	dispose(): void {
+		this._listener.dispose();
+	}
+
+	getValue(key: string): any {
+
+		if (key.indexOf(ConfigAwareContextValuesContainer._keyPrefix) !== 0) {
+			return super.getValue(key);
 		}
 
-		// send events
-		this._emitter.fire(configKeysChanged);
+		if (this._values.has(key)) {
+			return this._values.get(key);
+		}
+
+		const configKey = key.substr(ConfigAwareContextValuesContainer._keyPrefix.length);
+		const configValue = this._configurationService.getValue(configKey);
+		let value: any = undefined;
+		switch (typeof configValue) {
+			case 'number':
+			case 'boolean':
+			case 'string':
+				value = configValue;
+				break;
+		}
+
+		this._values.set(key, value);
+		return value;
+	}
+
+	setValue(key: string, value: any): boolean {
+		return super.setValue(key, value);
+	}
+
+	removeValue(key: string): boolean {
+		return super.removeValue(key);
+	}
+
+	collectAllValues(): { [key: string]: any; } {
+		const result: { [key: string]: any } = Object.create(null);
+		this._values.forEach((value, index) => result[index] = value);
+		return { ...result, ...super.collectAllValues() };
 	}
 }
 
@@ -145,9 +167,9 @@ class ContextKey<T> implements IContextKey<T> {
 
 	private _parent: AbstractContextKeyService;
 	private _key: string;
-	private _defaultValue: T;
+	private _defaultValue: T | undefined;
 
-	constructor(parent: AbstractContextKeyService, key: string, defaultValue: T) {
+	constructor(parent: AbstractContextKeyService, key: string, defaultValue: T | undefined) {
 		this._parent = parent;
 		this._key = key;
 		this._defaultValue = defaultValue;
@@ -166,7 +188,7 @@ class ContextKey<T> implements IContextKey<T> {
 		}
 	}
 
-	public get(): T {
+	public get(): T | undefined {
 		return this._parent.getContextKeyValue<T>(this._key);
 	}
 }
@@ -192,18 +214,23 @@ export class ContextKeyChangeEvent implements IContextKeyChangeEvent {
 export abstract class AbstractContextKeyService implements IContextKeyService {
 	public _serviceBrand: any;
 
+	protected _isDisposed: boolean;
 	protected _onDidChangeContext: Event<IContextKeyChangeEvent>;
 	protected _onDidChangeContextKey: Emitter<string | string[]>;
 	protected _myContextId: number;
 
 	constructor(myContextId: number) {
+		this._isDisposed = false;
 		this._myContextId = myContextId;
 		this._onDidChangeContextKey = new Emitter<string>();
 	}
 
 	abstract dispose(): void;
 
-	public createKey<T>(key: string, defaultValue: T): IContextKey<T> {
+	public createKey<T>(key: string, defaultValue: T | undefined): IContextKey<T> {
+		if (this._isDisposed) {
+			throw new Error(`AbstractContextKeyService has been disposed`);
+		}
 		return new ContextKey(this, key, defaultValue);
 	}
 
@@ -221,10 +248,16 @@ export abstract class AbstractContextKeyService implements IContextKeyService {
 	}
 
 	public createScoped(domNode: IContextKeyServiceTarget): IContextKeyService {
+		if (this._isDisposed) {
+			throw new Error(`AbstractContextKeyService has been disposed`);
+		}
 		return new ScopedContextKeyService(this, this._onDidChangeContextKey, domNode);
 	}
 
-	public contextMatchesRules(rules: ContextKeyExpr): boolean {
+	public contextMatchesRules(rules: ContextKeyExpr | null): boolean {
+		if (this._isDisposed) {
+			throw new Error(`AbstractContextKeyService has been disposed`);
+		}
 		const context = this.getContextValuesContainer(this._myContextId);
 		const result = KeybindingResolver.contextMatchesRules(context, rules);
 		// console.group(rules.serialize() + ' -> ' + result);
@@ -233,11 +266,17 @@ export abstract class AbstractContextKeyService implements IContextKeyService {
 		return result;
 	}
 
-	public getContextKeyValue<T>(key: string): T {
+	public getContextKeyValue<T>(key: string): T | undefined {
+		if (this._isDisposed) {
+			return undefined;
+		}
 		return this.getContextValuesContainer(this._myContextId).getValue<T>(key);
 	}
 
 	public setContext(key: string, value: any): void {
+		if (this._isDisposed) {
+			return;
+		}
 		const myContext = this.getContextValuesContainer(this._myContextId);
 		if (!myContext) {
 			return;
@@ -248,12 +287,18 @@ export abstract class AbstractContextKeyService implements IContextKeyService {
 	}
 
 	public removeContext(key: string): void {
+		if (this._isDisposed) {
+			return;
+		}
 		if (this.getContextValuesContainer(this._myContextId).removeValue(key)) {
 			this._onDidChangeContextKey.fire(key);
 		}
 	}
 
-	public getContext(target: IContextKeyServiceTarget): IContext {
+	public getContext(target: IContextKeyServiceTarget | null): IContext {
+		if (this._isDisposed) {
+			return NullContext.INSTANCE;
+		}
 		return this.getContextValuesContainer(findContextAttr(target));
 	}
 
@@ -281,7 +326,7 @@ export class ContextKeyService extends AbstractContextKeyService implements ICon
 		this._toDispose.push(myContext);
 
 		// Uncomment this to see the contexts continuously logged
-		// let lastLoggedValue: string = null;
+		// let lastLoggedValue: string | null = null;
 		// setInterval(() => {
 		// 	let values = Object.keys(this._contexts).map((key) => this._contexts[key]);
 		// 	let logValue = values.map(v => JSON.stringify(v._value, null, '\t')).join('\n');
@@ -293,20 +338,30 @@ export class ContextKeyService extends AbstractContextKeyService implements ICon
 	}
 
 	public dispose(): void {
+		this._isDisposed = true;
 		this._toDispose = dispose(this._toDispose);
 	}
 
 	public getContextValuesContainer(contextId: number): Context {
+		if (this._isDisposed) {
+			return NullContext.INSTANCE;
+		}
 		return this._contexts[String(contextId)];
 	}
 
 	public createChildContext(parentContextId: number = this._myContextId): number {
+		if (this._isDisposed) {
+			throw new Error(`ContextKeyService has been disposed`);
+		}
 		let id = (++this._lastContextId);
 		this._contexts[String(id)] = new Context(id, this.getContextValuesContainer(parentContextId));
 		return id;
 	}
 
 	public disposeContext(contextId: number): void {
+		if (this._isDisposed) {
+			return;
+		}
 		delete this._contexts[String(contextId)];
 	}
 }
@@ -314,7 +369,7 @@ export class ContextKeyService extends AbstractContextKeyService implements ICon
 class ScopedContextKeyService extends AbstractContextKeyService {
 
 	private _parent: AbstractContextKeyService;
-	private _domNode: IContextKeyServiceTarget;
+	private _domNode: IContextKeyServiceTarget | undefined;
 
 	constructor(parent: AbstractContextKeyService, emitter: Emitter<string | string[]>, domNode?: IContextKeyServiceTarget) {
 		super(parent.createChildContext());
@@ -328,6 +383,7 @@ class ScopedContextKeyService extends AbstractContextKeyService {
 	}
 
 	public dispose(): void {
+		this._isDisposed = true;
 		this._parent.disposeContext(this._myContextId);
 		if (this._domNode) {
 			this._domNode.removeAttribute(KEYBINDING_CONTEXT_ATTR);
@@ -340,22 +396,35 @@ class ScopedContextKeyService extends AbstractContextKeyService {
 	}
 
 	public getContextValuesContainer(contextId: number): Context {
+		if (this._isDisposed) {
+			return NullContext.INSTANCE;
+		}
 		return this._parent.getContextValuesContainer(contextId);
 	}
 
 	public createChildContext(parentContextId: number = this._myContextId): number {
+		if (this._isDisposed) {
+			throw new Error(`ScopedContextKeyService has been disposed`);
+		}
 		return this._parent.createChildContext(parentContextId);
 	}
 
 	public disposeContext(contextId: number): void {
+		if (this._isDisposed) {
+			return;
+		}
 		this._parent.disposeContext(contextId);
 	}
 }
 
-function findContextAttr(domNode: IContextKeyServiceTarget): number {
+function findContextAttr(domNode: IContextKeyServiceTarget | null): number {
 	while (domNode) {
 		if (domNode.hasAttribute(KEYBINDING_CONTEXT_ATTR)) {
-			return parseInt(domNode.getAttribute(KEYBINDING_CONTEXT_ATTR), 10);
+			const attr = domNode.getAttribute(KEYBINDING_CONTEXT_ATTR);
+			if (attr) {
+				return parseInt(attr, 10);
+			}
+			return NaN;
 		}
 		domNode = domNode.parentElement;
 	}

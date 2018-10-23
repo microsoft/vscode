@@ -2,7 +2,6 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
 import * as nls from 'vs/nls';
 import * as Objects from 'vs/base/common/objects';
@@ -39,7 +38,7 @@ interface TaskInfos {
 
 interface TaskDetectorMatcher {
 	init(): void;
-	match(tasks: string[], line: string);
+	match(tasks: string[], line: string): void;
 }
 
 interface DetectorConfig {
@@ -57,7 +56,7 @@ class RegexpTaskMatcher implements TaskDetectorMatcher {
 	init() {
 	}
 
-	match(tasks: string[], line: string) {
+	match(tasks: string[], line: string): void {
 		let matches = this.regexp.exec(line);
 		if (matches && matches.length > 0) {
 			tasks.push(matches[1]);
@@ -76,7 +75,7 @@ class GruntTaskMatcher implements TaskDetectorMatcher {
 		this.descriptionOffset = null;
 	}
 
-	match(tasks: string[], line: string) {
+	match(tasks: string[], line: string): void {
 		// grunt lists tasks as follows (description is wrapped into a new line if too long):
 		// ...
 		// Available tasks
@@ -170,8 +169,8 @@ export class ProcessRunnerDetector {
 	}
 
 	public detect(list: boolean = false, detectSpecific?: string): TPromise<DetectorResult> {
-		let commandExecutable = TaskConfig.CommandString.value(this.taskConfiguration.command);
-		if (this.taskConfiguration && this.taskConfiguration.command && ProcessRunnerDetector.supports(commandExecutable)) {
+		let commandExecutable: string;
+		if (this.taskConfiguration && this.taskConfiguration.command && (commandExecutable = TaskConfig.CommandString.value(this.taskConfiguration.command)) && ProcessRunnerDetector.supports(commandExecutable)) {
 			let config = ProcessRunnerDetector.detectorConfig(commandExecutable);
 			let args = (this.taskConfiguration.args || []).concat(config.arg);
 			let options: CommandOptions = this.taskConfiguration.options ? this.resolveCommandOptions(this._workspaceRoot, this.taskConfiguration.options) : { cwd: this._cwd };
@@ -276,10 +275,7 @@ export class ProcessRunnerDetector {
 				return;
 			}
 			let line = Strings.removeAnsiEscapeCodes(progress.line);
-			let matches = matcher.match(tasks, line);
-			if (matches && matches.length > 0) {
-				tasks.push(matches[1]);
-			}
+			matcher.match(tasks, line);
 		};
 
 		return process.start(onProgress).then((success) => {

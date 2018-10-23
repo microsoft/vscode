@@ -7,6 +7,7 @@ import { ITerminalChildProcess } from 'vs/workbench/parts/terminal/node/terminal
 import { Event, Emitter } from 'vs/base/common/event';
 import { ITerminalService, ITerminalProcessExtHostProxy, IShellLaunchConfig } from 'vs/workbench/parts/terminal/common/terminal';
 import { IDisposable } from 'vs/base/common/lifecycle';
+import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 
 export class TerminalProcessExtHostProxy implements ITerminalChildProcess, ITerminalProcessExtHostProxy {
 	private _disposables: IDisposable[] = [];
@@ -24,18 +25,23 @@ export class TerminalProcessExtHostProxy implements ITerminalChildProcess, ITerm
 	public get onInput(): Event<string> { return this._onInput.event; }
 	private readonly _onResize: Emitter<{ cols: number, rows: number }> = new Emitter<{ cols: number, rows: number }>();
 	public get onResize(): Event<{ cols: number, rows: number }> { return this._onResize.event; }
-	private readonly _onShutdown: Emitter<void> = new Emitter<void>();
-	public get onShutdown(): Event<void> { return this._onShutdown.event; }
+	private readonly _onShutdown: Emitter<boolean> = new Emitter<boolean>();
+	public get onShutdown(): Event<boolean> { return this._onShutdown.event; }
 
 	constructor(
 		public terminalId: number,
 		shellLaunchConfig: IShellLaunchConfig,
 		cols: number,
 		rows: number,
-		@ITerminalService private _terminalService: ITerminalService
+		@ITerminalService private _terminalService: ITerminalService,
+		@IExtensionService private readonly _extensionService: IExtensionService
 	) {
-		// TODO: Return TPromise<boolean> indicating success? Teardown if failure?
-		this._terminalService.requestExtHostProcess(this, shellLaunchConfig, cols, rows);
+		this._extensionService.whenInstalledExtensionsRegistered().then(() => {
+			// TODO: MainThreadTerminalService is not ready at this point, fix this
+			setTimeout(() => {
+				this._terminalService.requestExtHostProcess(this, shellLaunchConfig, cols, rows);
+			}, 0);
+		});
 	}
 
 	public dispose(): void {
@@ -59,8 +65,9 @@ export class TerminalProcessExtHostProxy implements ITerminalChildProcess, ITerm
 		this._onProcessExit.fire(exitCode);
 		this.dispose();
 	}
-	public shutdown(): void {
-		this._onShutdown.fire();
+
+	public shutdown(immediate: boolean): void {
+		this._onShutdown.fire(immediate);
 	}
 
 	public input(data: string): void {

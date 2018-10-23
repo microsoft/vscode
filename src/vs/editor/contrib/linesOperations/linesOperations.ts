@@ -2,29 +2,28 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
 import * as nls from 'vs/nls';
-import { KeyCode, KeyMod, KeyChord } from 'vs/base/common/keyCodes';
-import { SortLinesCommand } from 'vs/editor/contrib/linesOperations/sortLinesCommand';
-import { EditOperation } from 'vs/editor/common/core/editOperation';
-import { TrimTrailingWhitespaceCommand } from 'vs/editor/common/commands/trimTrailingWhitespaceCommand';
-import { ICommand } from 'vs/editor/common/editorCommon';
-import { IIdentifiedSingleEditOperation } from 'vs/editor/common/model';
-import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
-import { ReplaceCommand, ReplaceCommandThatPreservesSelection } from 'vs/editor/common/commands/replaceCommand';
-import { Range } from 'vs/editor/common/core/range';
-import { Selection } from 'vs/editor/common/core/selection';
-import { Position } from 'vs/editor/common/core/position';
-import { registerEditorAction, ServicesAccessor, IActionOptions, EditorAction } from 'vs/editor/browser/editorExtensions';
-import { CopyLinesCommand } from './copyLinesCommand';
-import { DeleteLinesCommand } from './deleteLinesCommand';
-import { MoveLinesCommand } from './moveLinesCommand';
-import { TypeOperations } from 'vs/editor/common/controller/cursorTypeOperations';
+import { KeyChord, KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { CoreEditingCommands } from 'vs/editor/browser/controller/coreCommands';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
+import { EditorAction, IActionOptions, ServicesAccessor, registerEditorAction } from 'vs/editor/browser/editorExtensions';
+import { ReplaceCommand, ReplaceCommandThatPreservesSelection } from 'vs/editor/common/commands/replaceCommand';
+import { TrimTrailingWhitespaceCommand } from 'vs/editor/common/commands/trimTrailingWhitespaceCommand';
+import { TypeOperations } from 'vs/editor/common/controller/cursorTypeOperations';
+import { EditOperation } from 'vs/editor/common/core/editOperation';
+import { Position } from 'vs/editor/common/core/position';
+import { Range } from 'vs/editor/common/core/range';
+import { Selection } from 'vs/editor/common/core/selection';
+import { ICommand } from 'vs/editor/common/editorCommon';
+import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
+import { IIdentifiedSingleEditOperation } from 'vs/editor/common/model';
+import { CopyLinesCommand } from 'vs/editor/contrib/linesOperations/copyLinesCommand';
+import { DeleteLinesCommand } from 'vs/editor/contrib/linesOperations/deleteLinesCommand';
+import { MoveLinesCommand } from 'vs/editor/contrib/linesOperations/moveLinesCommand';
+import { SortLinesCommand } from 'vs/editor/contrib/linesOperations/sortLinesCommand';
 import { MenuId } from 'vs/platform/actions/common/actions';
+import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 
 // copy lines
 
@@ -353,8 +352,12 @@ export class IndentLinesAction extends EditorAction {
 	}
 
 	public run(_accessor: ServicesAccessor, editor: ICodeEditor): void {
+		const cursors = editor._getCursors();
+		if (!cursors) {
+			return;
+		}
 		editor.pushUndoStop();
-		editor.executeCommands(this.id, TypeOperations.indent(editor._getCursorConfiguration(), editor.getModel(), editor.getSelections()));
+		editor.executeCommands(this.id, TypeOperations.indent(cursors.context.config, editor.getModel(), editor.getSelections()));
 		editor.pushUndoStop();
 	}
 }
@@ -395,8 +398,12 @@ export class InsertLineBeforeAction extends EditorAction {
 	}
 
 	public run(_accessor: ServicesAccessor, editor: ICodeEditor): void {
+		const cursors = editor._getCursors();
+		if (!cursors) {
+			return;
+		}
 		editor.pushUndoStop();
-		editor.executeCommands(this.id, TypeOperations.lineInsertBefore(editor._getCursorConfiguration(), editor.getModel(), editor.getSelections()));
+		editor.executeCommands(this.id, TypeOperations.lineInsertBefore(cursors.context.config, editor.getModel(), editor.getSelections()));
 	}
 }
 
@@ -416,8 +423,12 @@ export class InsertLineAfterAction extends EditorAction {
 	}
 
 	public run(_accessor: ServicesAccessor, editor: ICodeEditor): void {
+		const cursors = editor._getCursors();
+		if (!cursors) {
+			return;
+		}
 		editor.pushUndoStop();
-		editor.executeCommands(this.id, TypeOperations.lineInsertAfter(editor._getCursorConfiguration(), editor.getModel(), editor.getSelections()));
+		editor.executeCommands(this.id, TypeOperations.lineInsertAfter(cursors.context.config, editor.getModel(), editor.getSelections()));
 	}
 }
 
@@ -469,7 +480,7 @@ export class DeleteAllLeftAction extends AbstractDeleteAllToBoundaryAction {
 			precondition: EditorContextKeys.writable,
 			kbOpts: {
 				kbExpr: EditorContextKeys.textInputFocus,
-				primary: null,
+				primary: 0,
 				mac: { primary: KeyMod.CtrlCmd | KeyCode.Backspace },
 				weight: KeybindingWeight.EditorContrib
 			}
@@ -538,7 +549,7 @@ export class DeleteAllRightAction extends AbstractDeleteAllToBoundaryAction {
 			precondition: EditorContextKeys.writable,
 			kbOpts: {
 				kbExpr: EditorContextKeys.textInputFocus,
-				primary: null,
+				primary: 0,
 				mac: { primary: KeyMod.WinCtrl | KeyCode.KEY_K, secondary: [KeyMod.CtrlCmd | KeyCode.Delete] },
 				weight: KeybindingWeight.EditorContrib
 			}
@@ -638,8 +649,8 @@ export class JoinLinesAction extends EditorAction {
 		reducedSelections.push(lastSelection);
 
 		let model = editor.getModel();
-		let edits = [];
-		let endCursorState = [];
+		let edits: IIdentifiedSingleEditOperation[] = [];
+		let endCursorState: Selection[] = [];
 		let endPrimaryCursor = primaryCursor;
 		let lineOffset = 0;
 

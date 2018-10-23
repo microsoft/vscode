@@ -3,10 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import URI from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 
 export const IClipboardService = createDecorator<IClipboardService>('clipboardService');
 

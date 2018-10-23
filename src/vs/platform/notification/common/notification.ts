@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import BaseSeverity from 'vs/base/common/severity';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IAction } from 'vs/base/common/actions';
@@ -47,6 +45,12 @@ export interface INotification {
 	 * this usecase and much easier to use!
 	 */
 	actions?: INotificationActions;
+
+	/**
+	 * Sticky notifications are not automatically removed after a certain timeout. By
+	 * default, notifications with primary actions and severity error are always sticky.
+	 */
+	sticky?: boolean;
 }
 
 export interface INotificationActions {
@@ -149,6 +153,22 @@ export interface IPromptChoice {
 	run: () => void;
 }
 
+export interface IPromptOptions {
+
+	/**
+	 * Sticky prompts are not automatically removed after a certain timeout.
+	 *
+	 * Note: Prompts of severity ERROR are always sticky.
+	 */
+	sticky?: boolean;
+
+	/**
+	 * Will be called if the user closed the notification without picking
+	 * any of the provided choices.
+	 */
+	onCancel?: () => void;
+}
+
 /**
  * A service to bring up notifications and non-modal prompts.
  *
@@ -197,7 +217,7 @@ export interface INotificationService {
 	 *
 	 * @returns a handle on the notification to e.g. hide it or update message, buttons, etc.
 	 */
-	prompt(severity: Severity, message: string, choices: IPromptChoice[], onCancel?: () => void): INotificationHandle;
+	prompt(severity: Severity, message: string, choices: IPromptChoice[], options?: IPromptOptions): INotificationHandle;
 }
 
 export class NoOpNotification implements INotificationHandle {

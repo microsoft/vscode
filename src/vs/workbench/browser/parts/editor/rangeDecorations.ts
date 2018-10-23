@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IDisposable, Disposable } from 'vs/base/common/lifecycle';
-import URI from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 import { Event, Emitter } from 'vs/base/common/event';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IRange } from 'vs/editor/common/core/range';
@@ -21,8 +21,8 @@ export interface IRangeHighlightDecoration {
 
 export class RangeHighlightDecorations extends Disposable {
 
-	private rangeHighlightDecorationId: string = null;
-	private editor: ICodeEditor = null;
+	private rangeHighlightDecorationId: string | null = null;
+	private editor: ICodeEditor | null = null;
 	private editorDisposables: IDisposable[] = [];
 
 	private readonly _onHighlightRemoved: Emitter<void> = this._register(new Emitter<void>());

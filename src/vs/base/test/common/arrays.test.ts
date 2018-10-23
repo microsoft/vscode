@@ -2,14 +2,11 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
-
 import * as assert from 'assert';
-import { TPromise } from 'vs/base/common/winjs.base';
 import * as arrays from 'vs/base/common/arrays';
 
 suite('Arrays', () => {
-	test('findFirst', function () {
+	test('findFirst', () => {
 		const array = [1, 4, 5, 7, 55, 59, 60, 61, 64, 69];
 
 		let idx = arrays.findFirstInSorted(array, e => e >= 0);
@@ -34,7 +31,7 @@ suite('Arrays', () => {
 		assert.equal(array[idx], 1);
 	});
 
-	test('stableSort', function () {
+	test('stableSort', () => {
 		let counter = 0;
 		let data = arrays.fill(10000, () => ({ n: 1, m: counter++ }));
 
@@ -47,7 +44,7 @@ suite('Arrays', () => {
 		}
 	});
 
-	test('mergeSort', function () {
+	test('mergeSort', () => {
 		let data = arrays.mergeSort([6, 5, 3, 1, 8, 7, 2, 4], (a, b) => a - b);
 		assert.deepEqual(data, [1, 2, 3, 4, 5, 6, 7, 8]);
 	});
@@ -100,7 +97,7 @@ suite('Arrays', () => {
 		}
 	});
 
-	test('sortedDiff', function () {
+	test('sortedDiff', () => {
 		function compare(a: number, b: number): number {
 			return a - b;
 		}
@@ -178,7 +175,7 @@ suite('Arrays', () => {
 		assert.deepEqual(d.added, [5, 9, 11]);
 	});
 
-	test('binarySearch', function () {
+	test('binarySearch', () => {
 		function compare(a: number, b: number): number {
 			return a - b;
 		}
@@ -194,7 +191,7 @@ suite('Arrays', () => {
 
 	});
 
-	test('distinct', function () {
+	test('distinct', () => {
 		function compare(a: string): string {
 			return a;
 		}
@@ -206,7 +203,7 @@ suite('Arrays', () => {
 		assert.deepEqual(arrays.distinct(['32', '4', '5', '32', '4', '5', '32', '4', '5', '5'], compare), ['32', '4', '5']);
 	});
 
-	test('top', function () {
+	test('top', () => {
 		const cmp = (a: number, b: number) => {
 			assert.strictEqual(typeof a, 'number', 'typeof a');
 			assert.strictEqual(typeof b, 'number', 'typeof b');
@@ -222,59 +219,49 @@ suite('Arrays', () => {
 		assert.deepEqual(arrays.top([4, 6, 2, 7, 8, 3, 5, 1], cmp, 3), [1, 2, 3]);
 	});
 
-	test('topAsync', function () {
+	test('topAsync', async () => {
 		const cmp = (a: number, b: number) => {
 			assert.strictEqual(typeof a, 'number', 'typeof a');
 			assert.strictEqual(typeof b, 'number', 'typeof b');
 			return a - b;
 		};
 
-		return testTopAsync(cmp, 1)
-			.then(() => {
-				return testTopAsync(cmp, 2);
-			});
+		await testTopAsync(cmp, 1);
+		return testTopAsync(cmp, 2);
 	});
 
-	function testTopAsync(cmp: any, m: number) {
-		return TPromise.as(null).then(() => {
-			return arrays.topAsync([], cmp, 1, m)
-				.then(result => {
-					assert.deepEqual(result, []);
-				});
-		}).then(() => {
-			return arrays.topAsync([1], cmp, 0, m)
-				.then(result => {
-					assert.deepEqual(result, []);
-				});
-		}).then(() => {
-			return arrays.topAsync([1, 2], cmp, 1, m)
-				.then(result => {
-					assert.deepEqual(result, [1]);
-				});
-		}).then(() => {
-			return arrays.topAsync([2, 1], cmp, 1, m)
-				.then(result => {
-					assert.deepEqual(result, [1]);
-				});
-		}).then(() => {
-			return arrays.topAsync([1, 3, 2], cmp, 2, m)
-				.then(result => {
-					assert.deepEqual(result, [1, 2]);
-				});
-		}).then(() => {
-			return arrays.topAsync([3, 2, 1], cmp, 3, m)
-				.then(result => {
-					assert.deepEqual(result, [1, 2, 3]);
-				});
-		}).then(() => {
-			return arrays.topAsync([4, 6, 2, 7, 8, 3, 5, 1], cmp, 3, m)
-				.then(result => {
-					assert.deepEqual(result, [1, 2, 3]);
-				});
-		});
+	async function testTopAsync(cmp: any, m: number) {
+		{
+			const result = await arrays.topAsync([], cmp, 1, m);
+			assert.deepEqual(result, []);
+		}
+		{
+			const result = await arrays.topAsync([1], cmp, 0, m);
+			assert.deepEqual(result, []);
+		}
+		{
+			const result = await arrays.topAsync([1, 2], cmp, 1, m);
+			assert.deepEqual(result, [1]);
+		}
+		{
+			const result = await arrays.topAsync([2, 1], cmp, 1, m);
+			assert.deepEqual(result, [1]);
+		}
+		{
+			const result = await arrays.topAsync([1, 3, 2], cmp, 2, m);
+			assert.deepEqual(result, [1, 2]);
+		}
+		{
+			const result = await arrays.topAsync([3, 2, 1], cmp, 3, m);
+			assert.deepEqual(result, [1, 2, 3]);
+		}
+		{
+			const result = await arrays.topAsync([4, 6, 2, 7, 8, 3, 5, 1], cmp, 3, m);
+			assert.deepEqual(result, [1, 2, 3]);
+		}
 	}
 
-	test('coalesce', function () {
+	test('coalesce', () => {
 		let a = arrays.coalesce([null, 1, null, 2, 3]);
 		assert.equal(a.length, 3);
 		assert.equal(a[0], 1);
@@ -287,7 +274,7 @@ suite('Arrays', () => {
 		assert.equal(a[1], 2);
 		assert.equal(a[2], 3);
 
-		let b = [];
+		let b: number[] = [];
 		b[10] = 1;
 		b[20] = 2;
 		b[30] = 3;
@@ -297,7 +284,7 @@ suite('Arrays', () => {
 		assert.equal(b[1], 2);
 		assert.equal(b[2], 3);
 
-		let sparse = [];
+		let sparse: number[] = [];
 		sparse[0] = 1;
 		sparse[1] = 1;
 		sparse[17] = 1;
@@ -312,30 +299,30 @@ suite('Arrays', () => {
 
 	test('coalesce - inplace', function () {
 		let a = [null, 1, null, 2, 3];
-		arrays.coalesce(a, true);
+		arrays.coalesceInPlace(a);
 		assert.equal(a.length, 3);
 		assert.equal(a[0], 1);
 		assert.equal(a[1], 2);
 		assert.equal(a[2], 3);
 
 		a = [null, 1, null, void 0, undefined, 2, 3];
-		arrays.coalesce(a, true);
+		arrays.coalesceInPlace(a);
 		assert.equal(a.length, 3);
 		assert.equal(a[0], 1);
 		assert.equal(a[1], 2);
 		assert.equal(a[2], 3);
 
-		let b = [];
+		let b: number[] = [];
 		b[10] = 1;
 		b[20] = 2;
 		b[30] = 3;
-		arrays.coalesce(b, true);
+		arrays.coalesceInPlace(b);
 		assert.equal(b.length, 3);
 		assert.equal(b[0], 1);
 		assert.equal(b[1], 2);
 		assert.equal(b[2], 3);
 
-		let sparse = [];
+		let sparse: number[] = [];
 		sparse[0] = 1;
 		sparse[1] = 1;
 		sparse[17] = 1;
@@ -344,7 +331,7 @@ suite('Arrays', () => {
 
 		assert.equal(sparse.length, 1002);
 
-		arrays.coalesce(sparse, true);
+		arrays.coalesceInPlace(sparse);
 		assert.equal(sparse.length, 5);
 	});
 });

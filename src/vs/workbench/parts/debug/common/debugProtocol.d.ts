@@ -418,6 +418,8 @@ declare module DebugProtocol {
 
 	/** Arguments for 'disconnect' request. */
 	export interface DisconnectArguments {
+		/** A value of true indicates that this 'disconnect' request is part of a restart sequence. */
+		restart?: boolean;
 		/** Indicates whether the debuggee should be terminated when the debugger is disconnected.
 			If unspecified, the debug adapter is free to do whatever it thinks is best.
 			A client can only rely on this attribute being properly honored if a debug adapter returns true for the 'supportTerminateDebuggee' capability.
@@ -430,7 +432,7 @@ declare module DebugProtocol {
 	}
 
 	/** Terminate request; value of command field is 'terminate'.
-		The 'terminate' request is sent from the client to the debug adapter in order to give the debuggee a chance to terminate itself.
+		The 'terminate' request is sent from the client to the debug adapter in order to give the debuggee a chance for terminating itself.
 	*/
 	export interface TerminateRequest extends Request {
 		// command: 'terminate';
@@ -439,6 +441,8 @@ declare module DebugProtocol {
 
 	/** Arguments for 'terminate' request. */
 	export interface TerminateArguments {
+		/** A value of true indicates that this 'terminate' request is part of a restart sequence. */
+		restart?: boolean;
 	}
 
 	/** Response to 'terminate' request. This is just an acknowledgement, so no body field is required. */

@@ -3,14 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import 'vs/css!./media/compositepart';
 import * as nls from 'vs/nls';
 import { defaultGenerator } from 'vs/base/common/idGenerator';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
-import { Builder, $ } from 'vs/base/browser/builder';
 import * as strings from 'vs/base/common/strings';
 import { Emitter } from 'vs/base/common/event';
 import * as types from 'vs/base/common/types';
@@ -35,7 +32,7 @@ import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { attachProgressBarStyler } from 'vs/platform/theme/common/styler';
 import { INotificationService } from 'vs/platform/notification/common/notification';
-import { Dimension } from 'vs/base/browser/dom';
+import { Dimension, append, $, addClass, hide, show, addClasses } from 'vs/base/browser/dom';
 
 export interface ICompositeTitleLabel {
 
@@ -58,7 +55,7 @@ export abstract class CompositePart<T extends Composite> extends Part {
 	protected toolBar: ToolBar;
 
 	private instantiatedCompositeListeners: IDisposable[];
-	private mapCompositeToCompositeContainer: { [compositeId: string]: Builder; };
+	private mapCompositeToCompositeContainer: { [compositeId: string]: HTMLElement; };
 	private mapActionsBindingToComposite: { [compositeId: string]: () => void; };
 	private mapProgressServiceToComposite: { [compositeId: string]: IProgressService; };
 	private activeComposite: Composite;
@@ -88,7 +85,7 @@ export abstract class CompositePart<T extends Composite> extends Part {
 		id: string,
 		options: IPartOptions
 	) {
-		super(id, options, themeService);
+		super(id, options, themeService, storageService);
 
 		this.instantiatedCompositeListeners = [];
 		this.mapCompositeToCompositeContainer = {};
@@ -107,7 +104,7 @@ export abstract class CompositePart<T extends Composite> extends Part {
 			}
 
 			// Fullfill promise with composite that is being opened
-			return TPromise.as(this.activeComposite);
+			return Promise.resolve(this.activeComposite);
 		}
 
 		// Open
@@ -125,7 +122,7 @@ export abstract class CompositePart<T extends Composite> extends Part {
 		if (this.activeComposite) {
 			hidePromise = this.hideActiveComposite();
 		} else {
-			hidePromise = TPromise.as(null);
+			hidePromise = Promise.resolve(null);
 		}
 
 		return hidePromise.then(() => {
@@ -138,7 +135,7 @@ export abstract class CompositePart<T extends Composite> extends Part {
 
 			// Check if another composite opened meanwhile and return in that case
 			if ((this.currentCompositeOpenToken !== currentCompositeOpenToken) || (this.activeComposite && this.activeComposite.getId() !== composite.getId())) {
-				return TPromise.as(null);
+				return Promise.resolve(null);
 			}
 
 			// Check if composite already visible and just focus in that case
@@ -148,7 +145,7 @@ export abstract class CompositePart<T extends Composite> extends Part {
 				}
 
 				// Fullfill promise with composite that is being opened
-				return TPromise.as(composite);
+				return Promise.resolve(composite);
 			}
 
 			// Show Composite and Focus
@@ -215,104 +212,92 @@ export abstract class CompositePart<T extends Composite> extends Part {
 		// Remember
 		this.lastActiveCompositeId = this.activeComposite.getId();
 
-		let createCompositePromise: TPromise<void>;
-
 		// Composites created for the first time
 		let compositeContainer = this.mapCompositeToCompositeContainer[composite.getId()];
 		if (!compositeContainer) {
 
 			// Build Container off-DOM
-			compositeContainer = $().div({
-				'class': ['composite', this.compositeCSSClass],
-				id: composite.getId()
-			}, div => {
-				createCompositePromise = composite.create(div.getHTMLElement()).then(() => {
-					composite.updateStyles();
-				});
-			});
+			compositeContainer = $('.composite');
+			addClasses(compositeContainer, this.compositeCSSClass);
+			compositeContainer.id = composite.getId();
+
+			composite.create(compositeContainer);
+			composite.updateStyles();
 
 			// Remember composite container
 			this.mapCompositeToCompositeContainer[composite.getId()] = compositeContainer;
 		}
 
-		// Composite already exists but is hidden
-		else {
-			createCompositePromise = TPromise.as(null);
-		}
-
 		// Report progress for slow loading composites (but only if we did not create the composites before already)
 		const progressService = this.mapProgressServiceToComposite[composite.getId()];
 		if (progressService && !compositeContainer) {
-			this.mapProgressServiceToComposite[composite.getId()].showWhile(createCompositePromise, this.partService.isCreated() ? 800 : 3200 /* less ugly initial startup */);
+			this.mapProgressServiceToComposite[composite.getId()].showWhile(Promise.resolve(), this.partService.isCreated() ? 800 : 3200 /* less ugly initial startup */);
 		}
 
 		// Fill Content and Actions
-		return createCompositePromise.then(() => {
+		// Make sure that the user meanwhile did not open another composite or closed the part containing the composite
+		if (!this.activeComposite || composite.getId() !== this.activeComposite.getId()) {
+			return void 0;
+		}
+
+		// Take Composite on-DOM and show
+		this.getContentArea().appendChild(compositeContainer);
+		show(compositeContainer);
+
+		// Setup action runner
+		this.toolBar.actionRunner = composite.getActionRunner();
+
+		// Update title with composite title if it differs from descriptor
+		const descriptor = this.registry.getComposite(composite.getId());
+		if (descriptor && descriptor.name !== composite.getTitle()) {
+			this.updateTitle(composite.getId(), composite.getTitle());
+		}
+
+		// Handle Composite Actions
+		let actionsBinding = this.mapActionsBindingToComposite[composite.getId()];
+		if (!actionsBinding) {
+			actionsBinding = this.collectCompositeActions(composite);
+			this.mapActionsBindingToComposite[composite.getId()] = actionsBinding;
+		}
+		actionsBinding();
+
+		if (this.telemetryActionsListener) {
+			this.telemetryActionsListener.dispose();
+			this.telemetryActionsListener = null;
+		}
+
+		// Action Run Handling
+		this.telemetryActionsListener = this.toolBar.actionRunner.onDidRun(e => {
+
+			// Check for Error
+			if (e.error && !errors.isPromiseCanceledError(e.error)) {
+				this.notificationService.error(e.error);
+			}
+
+			// Log in telemetry
+			if (this.telemetryService) {
+				/* __GDPR__
+					"workbenchActionExecuted" : {
+						"id" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+						"from": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+					}
+				*/
+				this.telemetryService.publicLog('workbenchActionExecuted', { id: e.action.id, from: this.nameForTelemetry });
+			}
+		});
+
+		// Indicate to composite that it is now visible
+		return composite.setVisible(true).then(() => {
 
 			// Make sure that the user meanwhile did not open another composite or closed the part containing the composite
 			if (!this.activeComposite || composite.getId() !== this.activeComposite.getId()) {
-				return void 0;
+				return;
 			}
 
-			// Take Composite on-DOM and show
-			compositeContainer.build(this.getContentArea());
-			compositeContainer.show();
-
-			// Setup action runner
-			this.toolBar.actionRunner = composite.getActionRunner();
-
-			// Update title with composite title if it differs from descriptor
-			const descriptor = this.registry.getComposite(composite.getId());
-			if (descriptor && descriptor.name !== composite.getTitle()) {
-				this.updateTitle(composite.getId(), composite.getTitle());
+			// Make sure the composite is layed out
+			if (this.contentAreaSize) {
+				composite.layout(this.contentAreaSize);
 			}
-
-			// Handle Composite Actions
-			let actionsBinding = this.mapActionsBindingToComposite[composite.getId()];
-			if (!actionsBinding) {
-				actionsBinding = this.collectCompositeActions(composite);
-				this.mapActionsBindingToComposite[composite.getId()] = actionsBinding;
-			}
-			actionsBinding();
-
-			if (this.telemetryActionsListener) {
-				this.telemetryActionsListener.dispose();
-				this.telemetryActionsListener = null;
-			}
-
-			// Action Run Handling
-			this.telemetryActionsListener = this.toolBar.actionRunner.onDidRun(e => {
-
-				// Check for Error
-				if (e.error && !errors.isPromiseCanceledError(e.error)) {
-					this.notificationService.error(e.error);
-				}
-
-				// Log in telemetry
-				if (this.telemetryService) {
-					/* __GDPR__
-						"workbenchActionExecuted" : {
-							"id" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-							"from": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
-						}
-					*/
-					this.telemetryService.publicLog('workbenchActionExecuted', { id: e.action.id, from: this.nameForTelemetry });
-				}
-			});
-
-			// Indicate to composite that it is now visible
-			return composite.setVisible(true).then(() => {
-
-				// Make sure that the user meanwhile did not open another composite or closed the part containing the composite
-				if (!this.activeComposite || composite.getId() !== this.activeComposite.getId()) {
-					return;
-				}
-
-				// Make sure the composite is layed out
-				if (this.contentAreaSize) {
-					composite.layout(this.contentAreaSize);
-				}
-			});
 		}, error => this.onError(error));
 	}
 
@@ -377,7 +362,7 @@ export abstract class CompositePart<T extends Composite> extends Part {
 
 	protected hideActiveComposite(): TPromise<Composite> {
 		if (!this.activeComposite) {
-			return TPromise.as(null); // Nothing to do
+			return Promise.resolve(null); // Nothing to do
 		}
 
 		const composite = this.activeComposite;
@@ -389,8 +374,8 @@ export abstract class CompositePart<T extends Composite> extends Part {
 		return composite.setVisible(false).then(() => {
 
 			// Take Container Off-DOM and hide
-			compositeContainer.offDOM();
-			compositeContainer.hide();
+			compositeContainer.remove();
+			hide(compositeContainer);
 
 			// Clear any running Progress
 			this.progressBar.stop().hide();
@@ -406,45 +391,38 @@ export abstract class CompositePart<T extends Composite> extends Part {
 	createTitleArea(parent: HTMLElement): HTMLElement {
 
 		// Title Area Container
-		const titleArea = $(parent).div({
-			'class': ['composite', 'title']
-		});
+		const titleArea = append(parent, $('.composite'));
+		addClass(titleArea, 'title');
 
 		// Left Title Label
-		this.titleLabel = this.createTitleLabel(titleArea.getHTMLElement());
+		this.titleLabel = this.createTitleLabel(titleArea);
 
 		// Right Actions Container
-		$(titleArea).div({
-			'class': 'title-actions'
-		}, div => {
+		const titleActionsContainer = append(titleArea, $('.title-actions'));
 
-			// Toolbar
-			this.toolBar = this._register(new ToolBar(div.getHTMLElement(), this.contextMenuService, {
-				actionItemProvider: action => this.actionItemProvider(action as Action),
-				orientation: ActionsOrientation.HORIZONTAL,
-				getKeyBinding: action => this.keybindingService.lookupKeybinding(action.id)
-			}));
-		});
+		// Toolbar
+		this.toolBar = this._register(new ToolBar(titleActionsContainer, this.contextMenuService, {
+			actionItemProvider: action => this.actionItemProvider(action as Action),
+			orientation: ActionsOrientation.HORIZONTAL,
+			getKeyBinding: action => this.keybindingService.lookupKeybinding(action.id)
+		}));
 
-		return titleArea.getHTMLElement();
+		return titleArea;
 	}
 
 	protected createTitleLabel(parent: HTMLElement): ICompositeTitleLabel {
-		let titleLabel: Builder;
-		$(parent).div({
-			'class': 'title-label'
-		}, div => {
-			titleLabel = div.element('h2');
-		});
+		const titleContainer = append(parent, $('.title-label'));
+		const titleLabel = append(titleContainer, $('h2'));
 
 		const $this = this;
 		return {
 			updateTitle: (id, title, keybinding) => {
-				titleLabel.safeInnerHtml(title);
-				titleLabel.title(keybinding ? nls.localize('titleTooltip', "{0} ({1})", title, keybinding) : title);
+				titleLabel.innerHTML = strings.escape(title);
+				titleLabel.title = keybinding ? nls.localize('titleTooltip', "{0} ({1})", title, keybinding) : title;
 			},
+
 			updateStyles: () => {
-				titleLabel.style('color', $this.getColor($this.titleForegroundColor));
+				titleLabel.style.color = $this.getColor($this.titleForegroundColor);
 			}
 		};
 	}
@@ -467,13 +445,13 @@ export abstract class CompositePart<T extends Composite> extends Part {
 	}
 
 	createContentArea(parent: HTMLElement): HTMLElement {
-		return $(parent).div({
-			'class': 'content'
-		}, div => {
-			this.progressBar = this._register(new ProgressBar(div.getHTMLElement()));
-			this._register(attachProgressBarStyler(this.progressBar, this.themeService));
-			this.progressBar.hide();
-		}).getHTMLElement();
+		const contentContainer = append(parent, $('.content'));
+
+		this.progressBar = this._register(new ProgressBar(contentContainer));
+		this._register(attachProgressBarStyler(this.progressBar, this.themeService));
+		this.progressBar.hide();
+
+		return contentContainer;
 	}
 
 	private onError(error: any): void {
@@ -504,12 +482,6 @@ export abstract class CompositePart<T extends Composite> extends Part {
 		}
 
 		return sizes;
-	}
-
-	shutdown(): void {
-		this.instantiatedComposites.forEach(i => i.shutdown());
-
-		super.shutdown();
 	}
 
 	dispose(): void {

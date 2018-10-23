@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import * as assert from 'assert';
 import * as os from 'os';
 import * as path from 'path';
@@ -199,7 +197,7 @@ suite.skip('Chockidar watching', () => {
 	});
 
 	test('simple file operations, ignore', async () => {
-		let request: IWatcherRequest = { basePath: testDir, ignored: ['**/b', '**/*.js', '.git'] };
+		let request: IWatcherRequest = { basePath: testDir, ignored: ['**/b/**', '**/*.js', '.git/**'] };
 		service.setRoots([request]);
 		await wait(300);
 
@@ -288,8 +286,8 @@ suite.skip('Chockidar watching', () => {
 	});
 
 	test('simple file operations, nested roots', async () => {
-		let request1: IWatcherRequest = { basePath: testDir, ignored: ['**/b2'] };
-		let request2: IWatcherRequest = { basePath: bFolder, ignored: ['**/b3'] };
+		let request1: IWatcherRequest = { basePath: testDir, ignored: ['**/b2/**'] };
+		let request2: IWatcherRequest = { basePath: bFolder, ignored: ['**/b3/**'] };
 		service.setRoots([request1, request2]);
 		await wait(300);
 

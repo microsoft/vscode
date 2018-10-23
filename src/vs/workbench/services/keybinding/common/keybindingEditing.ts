@@ -4,27 +4,27 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { localize } from 'vs/nls';
-import URI from 'vs/base/common/uri';
-import { TPromise } from 'vs/base/common/winjs.base';
-import { isArray } from 'vs/base/common/types';
 import { Queue } from 'vs/base/common/async';
-import { IReference, Disposable } from 'vs/base/common/lifecycle';
 import * as json from 'vs/base/common/json';
-import { Edit } from 'vs/base/common/jsonFormatter';
 import { setProperty } from 'vs/base/common/jsonEdit';
-import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { Edit } from 'vs/base/common/jsonFormatter';
+import { Disposable, IReference } from 'vs/base/common/lifecycle';
+import { isArray } from 'vs/base/common/types';
+import { URI } from 'vs/base/common/uri';
+import { TPromise } from 'vs/base/common/winjs.base';
 import { EditOperation } from 'vs/editor/common/core/editOperation';
 import { Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
-import { IUserFriendlyKeybinding } from 'vs/platform/keybinding/common/keybinding';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { ITextModelService, ITextEditorModel } from 'vs/editor/common/services/resolverService';
-import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
-import { IFileService } from 'vs/platform/files/common/files';
-import { createDecorator, ServiceIdentifier } from 'vs/platform/instantiation/common/instantiation';
-import { ResolvedKeybindingItem } from 'vs/platform/keybinding/common/resolvedKeybindingItem';
 import { ITextModel } from 'vs/editor/common/model';
+import { ITextEditorModel, ITextModelService } from 'vs/editor/common/services/resolverService';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
+import { IEnvironmentService } from 'vs/platform/environment/common/environment';
+import { IFileService } from 'vs/platform/files/common/files';
+import { ServiceIdentifier, createDecorator } from 'vs/platform/instantiation/common/instantiation';
+import { IUserFriendlyKeybinding } from 'vs/platform/keybinding/common/keybinding';
+import { ResolvedKeybindingItem } from 'vs/platform/keybinding/common/resolvedKeybindingItem';
+import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 
 
 export const IKeybindingEditingService = createDecorator<IKeybindingEditingService>('keybindingEditingService');
@@ -169,7 +169,7 @@ export class KeybindingsEditingService extends Disposable implements IKeybinding
 	}
 
 	private findUnassignedDefaultKeybindingEntryIndex(keybindingItem: ResolvedKeybindingItem, userKeybindingEntries: IUserFriendlyKeybinding[]): number[] {
-		const indices = [];
+		const indices: number[] = [];
 		for (let index = 0; index < userKeybindingEntries.length; index++) {
 			if (userKeybindingEntries[index].command === `-${keybindingItem.command}`) {
 				indices.push(index);

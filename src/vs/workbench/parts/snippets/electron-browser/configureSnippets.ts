@@ -2,11 +2,9 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
 import * as nls from 'vs/nls';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
-import { writeFile, exists } from 'vs/base/node/pfs';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { IWindowService } from 'vs/platform/windows/common/windows';
@@ -14,10 +12,14 @@ import { join, basename, dirname, extname } from 'path';
 import { MenuRegistry, MenuId } from 'vs/platform/actions/common/actions';
 import { timeout } from 'vs/base/common/async';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
-import URI from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 import { ISnippetsService } from 'vs/workbench/parts/snippets/electron-browser/snippets.contribution';
 import { values } from 'vs/base/common/map';
 import { IQuickPickItem, IQuickInputService, QuickPickInput } from 'vs/platform/quickinput/common/quickInput';
+import { SnippetSource } from 'vs/workbench/parts/snippets/electron-browser/snippetsFile';
+import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
+import { IFileService } from 'vs/platform/files/common/files';
+import { INotificationService } from 'vs/platform/notification/common/notification';
 
 const id = 'workbench.action.openSnippets';
 
@@ -41,7 +43,7 @@ async function computePicks(snippetService: ISnippetsService, envService: IEnvir
 
 	for (const file of await snippetService.getSnippetFiles()) {
 
-		if (!file.isUserSnippets) {
+		if (file.source === SnippetSource.Extension) {
 			// skip extension snippets
 			continue;
 		}
@@ -116,19 +118,25 @@ async function computePicks(snippetService: ISnippetsService, envService: IEnvir
 	return { existing, future };
 }
 
-async function createGlobalSnippetFile(envService: IEnvironmentService, windowService: IWindowService, opener: IOpenerService) {
+async function createGlobalSnippetFile(defaultPath: URI, windowService: IWindowService, notificationService: INotificationService, fileService: IFileService, opener: IOpenerService) {
 
+	await fileService.createFolder(defaultPath);
 	await timeout(100); // ensure quick pick closes...
 
-	const defaultPath = join(envService.appSettingsHome, 'snippets');
 	const path = await windowService.showSaveDialog({
-		defaultPath,
+		defaultPath: defaultPath.fsPath,
 		filters: [{ name: 'Code Snippets', extensions: ['code-snippets'] }]
 	});
-	if (!path || dirname(path) !== defaultPath) {
+	if (!path) {
 		return undefined;
 	}
-	await writeFile(path, [
+	const resource = URI.file(path);
+	if (dirname(resource.fsPath) !== defaultPath.fsPath) {
+		notificationService.error(nls.localize('badPath', "Snippets must be inside this folder: '{0}'. ", defaultPath.fsPath));
+		return undefined;
+	}
+
+	await fileService.updateContent(resource, [
 		'{',
 		'\t// Place your global snippets here. Each snippet is defined under a snippet name and has a scope, prefix, body and ',
 		'\t// description. Add comma separated ids of the languages where the snippet is applicable in the scope field. If scope ',
@@ -149,11 +157,11 @@ async function createGlobalSnippetFile(envService: IEnvironmentService, windowSe
 		'}'
 	].join('\n'));
 
-	await opener.open(URI.file(path));
+	await opener.open(resource);
 }
 
-async function createLanguageSnippetFile(pick: ISnippetPick) {
-	if (await exists(pick.filepath)) {
+async function createLanguageSnippetFile(pick: ISnippetPick, fileService: IFileService) {
+	if (await fileService.existsFile(URI.file(pick.filepath))) {
 		return;
 	}
 	const contents = [
@@ -173,7 +181,7 @@ async function createLanguageSnippetFile(pick: ISnippetPick) {
 		'\t// }',
 		'}'
 	].join('\n');
-	await writeFile(pick.filepath, contents);
+	await fileService.updateContent(URI.file(pick.filepath), contents);
 }
 
 CommandsRegistry.registerCommand(id, async accessor => {
@@ -184,10 +192,25 @@ CommandsRegistry.registerCommand(id, async accessor => {
 	const windowService = accessor.get(IWindowService);
 	const modeService = accessor.get(IModeService);
 	const envService = accessor.get(IEnvironmentService);
+	const notificationService = accessor.get(INotificationService);
+	const workspaceService = accessor.get(IWorkspaceContextService);
+	const fileService = accessor.get(IFileService);
 
 	const picks = await computePicks(snippetService, envService, modeService);
 	const existing: QuickPickInput[] = picks.existing;
-	const newGlobalPick = <IQuickPickItem>{ label: nls.localize('new.global', "New Global Snippets file...") };
+
+	type GlobalSnippetPick = IQuickPickItem & { uri: URI };
+	const globalSnippetPicks: GlobalSnippetPick[] = [{
+		label: nls.localize('new.global', "New Global Snippets file..."),
+		uri: URI.file(join(envService.appSettingsHome, 'snippets'))
+	}];
+	for (const folder of workspaceService.getWorkspace().folders) {
+		globalSnippetPicks.push({
+			label: nls.localize('new.folder', "New Snippets file for '{0}'...", folder.name),
+			uri: folder.toResource('.vscode')
+		});
+	}
+
 	if (existing.length > 0) {
 		existing.unshift({ type: 'separator', label: nls.localize('group.global', "Existing Snippets") });
 		existing.push({ type: 'separator', label: nls.localize('new.global.sep', "New Snippets") });
@@ -195,17 +218,16 @@ CommandsRegistry.registerCommand(id, async accessor => {
 		existing.push({ type: 'separator', label: nls.localize('new.global.sep', "New Snippets") });
 	}
 
-	const pick = await quickInputService.pick(<(IQuickPickItem | ISnippetPick)[]>[].concat(existing, newGlobalPick, picks.future), {
+	const pick = await quickInputService.pick(<(IQuickPickItem | ISnippetPick | GlobalSnippetPick)[]>[].concat(existing, globalSnippetPicks, picks.future), {
 		placeHolder: nls.localize('openSnippet.pickLanguage', "Select Snippets File or Create Snippets"),
 		matchOnDescription: true
 	});
 
-	if (pick === newGlobalPick) {
-		return createGlobalSnippetFile(envService, windowService, opener);
-
+	if (globalSnippetPicks.indexOf(pick as GlobalSnippetPick) >= 0) {
+		return createGlobalSnippetFile((pick as GlobalSnippetPick).uri, windowService, notificationService, fileService, opener);
 	} else if (ISnippetPick.is(pick)) {
 		if (pick.hint) {
-			await createLanguageSnippetFile(pick);
+			await createLanguageSnippetFile(pick, fileService);
 		}
 		return opener.open(URI.file(pick.filepath));
 	}

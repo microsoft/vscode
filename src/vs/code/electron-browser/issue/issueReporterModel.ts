@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import { assign } from 'vs/base/common/objects';
 import { ILocalExtension } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { IssueType, ISettingSearchResult } from 'vs/platform/issue/common/issue';
@@ -78,11 +76,11 @@ ${this.getInfos()}
 			|| this._data.issueType === IssueType.PerformanceIssue
 			|| this._data.issueType === IssueType.FeatureRequest;
 
-		return fileOnExtensionSupported && this._data.fileOnExtension;
+		return !!(fileOnExtensionSupported && this._data.fileOnExtension);
 	}
 
 	private getExtensionVersion(): string {
-		if (this.fileOnExtension()) {
+		if (this.fileOnExtension() && this._data.selectedExtension) {
 			return `\nExtension version: ${this._data.selectedExtension.manifest.version}`;
 		} else {
 			return '';

@@ -49,7 +49,7 @@ function syncMarketplaceExtension(extension) {
 
 	rimraf.sync(getExtensionPath(extension));
 
-	return ext.fromMarketplace(extension.name, extension.version)
+	return ext.fromMarketplace(extension.name, extension.version, extension.metadata)
 		.pipe(rename(p => p.dirname = `${extension.name}/${p.dirname}`))
 		.pipe(vfs.dest('.build/builtInExtensions'))
 		.on('end', () => util.log(util.colors.blue('[marketplace]'), extension.name, util.colors.green('✔︎')));

@@ -3,25 +3,21 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import { TPromise } from 'vs/base/common/winjs.base';
-import { IDriver, DriverChannel, IElement, IWindowDriverChannel, WindowDriverChannelClient, IWindowDriverRegistry, WindowDriverRegistryChannel, IWindowDriver, IDriverOptions } from 'vs/platform/driver/common/driver';
+import { IDriver, DriverChannel, IElement, IWindowDriverChannel, WindowDriverChannelClient, IWindowDriverRegistry, WindowDriverRegistryChannel, IWindowDriver, IDriverOptions } from 'vs/platform/driver/node/driver';
 import { IWindowsMainService } from 'vs/platform/windows/electron-main/windows';
 import { serve as serveNet } from 'vs/base/parts/ipc/node/ipc.net';
 import { combinedDisposable, IDisposable } from 'vs/base/common/lifecycle';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IPCServer, IClientRouter } from 'vs/base/parts/ipc/common/ipc';
+import { IPCServer, IClientRouter } from 'vs/base/parts/ipc/node/ipc';
 import { SimpleKeybinding, KeyCode } from 'vs/base/common/keyCodes';
 import { USLayoutResolvedKeybinding } from 'vs/platform/keybinding/common/usLayoutResolvedKeybinding';
 import { OS } from 'vs/base/common/platform';
 import { Emitter, toPromise } from 'vs/base/common/event';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-
-// TODO@joao: bad layering!
-import { KeybindingIO } from 'vs/workbench/services/keybinding/common/keybindingIO';
-import { ScanCodeBinding } from 'vs/workbench/services/keybinding/common/scanCode';
-import { toWinJsPromise } from 'vs/base/common/async';
+import { ScanCodeBinding } from 'vs/base/common/scanCode';
+import { KeybindingParser } from 'vs/base/common/keybindingParser';
+import { timeout } from 'vs/base/common/async';
 
 class WindowRouter implements IClientRouter {
 
@@ -90,7 +86,7 @@ export class Driver implements IDriver, IWindowDriverRegistry {
 
 	dispatchKeybinding(windowId: number, keybinding: string): TPromise<void> {
 		return this.whenUnfrozen(windowId).then(() => {
-			const [first, second] = KeybindingIO._readUserBinding(keybinding);
+			const [first, second] = KeybindingParser.parseUserBinding(keybinding);
 
 			return this._dispatchKeybinding(windowId, first).then(() => {
 				if (second) {
@@ -113,7 +109,7 @@ export class Driver implements IDriver, IWindowDriverRegistry {
 		const resolvedKeybinding = new USLayoutResolvedKeybinding(noModifiedKeybinding, OS);
 		const keyCode = resolvedKeybinding.getElectronAccelerator();
 
-		const modifiers = [];
+		const modifiers: string[] = [];
 
 		if (keybinding.ctrlKey) {
 			modifiers.push('ctrl');
@@ -139,7 +135,7 @@ export class Driver implements IDriver, IWindowDriverRegistry {
 
 		webContents.sendInputEvent({ type: 'keyUp', keyCode, modifiers } as any);
 
-		return TPromise.timeout(100);
+		return TPromise.wrap(timeout(100));
 	}
 
 	click(windowId: number, selector: string, xoffset?: number, yoffset?: number): TPromise<void> {
@@ -205,7 +201,7 @@ export class Driver implements IDriver, IWindowDriverRegistry {
 	}
 
 	private whenUnfrozen(windowId: number): TPromise<void> {
-		return toWinJsPromise(this._whenUnfrozen(windowId));
+		return TPromise.wrap(this._whenUnfrozen(windowId));
 	}
 
 	private async _whenUnfrozen(windowId: number): Promise<void> {

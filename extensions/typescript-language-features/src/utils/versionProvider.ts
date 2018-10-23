@@ -140,9 +140,9 @@ export class TypeScriptVersionProvider {
 
 	public get bundledVersion(): TypeScriptVersion {
 		try {
-			const bundledVersion = new TypeScriptVersion(
-				path.dirname(require.resolve('typescript/lib/tsserver.js')),
-				'');
+			const { extensionPath } = vscode.extensions.getExtension('vscode.typescript-language-features')!;
+			const typescriptPath = path.join(extensionPath, '../node_modules/typescript/lib');
+			const bundledVersion = new TypeScriptVersion(typescriptPath, '');
 			if (bundledVersion.isValid) {
 				return bundledVersion;
 			}

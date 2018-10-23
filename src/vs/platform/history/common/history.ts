@@ -3,13 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import { IPath } from 'vs/platform/windows/common/windows';
 import { Event as CommonEvent } from 'vs/base/common/event';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IWorkspaceIdentifier, ISingleFolderWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
-import URI from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 
 export const IHistoryMainService = createDecorator<IHistoryMainService>('historyMainService');
 

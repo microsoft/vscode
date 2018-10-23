@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 
 export const IStateService = createDecorator<IStateService>('stateService');

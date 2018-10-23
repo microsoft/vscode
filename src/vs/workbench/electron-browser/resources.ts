@@ -3,9 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
-import URI from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 import * as objects from 'vs/base/common/objects';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { Disposable } from 'vs/base/common/lifecycle';
@@ -17,7 +15,7 @@ import { normalize } from 'vs/base/common/paths';
 
 export class ResourceGlobMatcher extends Disposable {
 
-	private static readonly NO_ROOT: string = null;
+	private static readonly NO_ROOT: string | null = null;
 
 	private readonly _onExpressionChange: Emitter<void> = this._register(new Emitter<void>());
 	get onExpressionChange(): Event<void> { return this._onExpressionChange.event; }

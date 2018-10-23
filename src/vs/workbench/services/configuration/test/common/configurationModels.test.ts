@@ -2,14 +2,12 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
-
 import * as assert from 'assert';
 import { join } from 'vs/base/common/paths';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { FolderSettingsModelParser, WorkspaceConfigurationChangeEvent, StandaloneConfigurationModelParser, AllKeysConfigurationChangeEvent, Configuration } from 'vs/workbench/services/configuration/common/configurationModels';
 import { Workspace, WorkspaceFolder } from 'vs/platform/workspace/common/workspace';
-import URI from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 import { ConfigurationChangeEvent, ConfigurationModel } from 'vs/platform/configuration/common/configurationModels';
 import { ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions, ConfigurationScope } from 'vs/platform/configuration/common/configurationRegistry';
@@ -115,7 +113,7 @@ suite('WorkspaceConfigurationChangeEvent', () => {
 		configurationChangeEvent.change(['window.restoreWindows'], URI.file('folder2'));
 		configurationChangeEvent.telemetryData(ConfigurationTarget.WORKSPACE, {});
 
-		let testObject = new WorkspaceConfigurationChangeEvent(configurationChangeEvent, new Workspace('id', 'name',
+		let testObject = new WorkspaceConfigurationChangeEvent(configurationChangeEvent, new Workspace('id',
 			[new WorkspaceFolder({ index: 0, name: '1', uri: URI.file('folder1') }),
 			new WorkspaceFolder({ index: 1, name: '2', uri: URI.file('folder2') }),
 			new WorkspaceFolder({ index: 2, name: '3', uri: URI.file('folder3') })]));

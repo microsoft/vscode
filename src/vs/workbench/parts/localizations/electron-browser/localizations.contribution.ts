@@ -20,7 +20,7 @@ import { INotificationService } from 'vs/platform/notification/common/notificati
 import Severity from 'vs/base/common/severity';
 import { IJSONEditingService } from 'vs/workbench/services/configuration/common/jsonEditing';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import URI from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 import { join } from 'vs/base/common/paths';
 import { IWindowsService } from 'vs/platform/windows/common/windows';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
@@ -29,6 +29,7 @@ import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { VIEWLET_ID as EXTENSIONS_VIEWLET_ID, IExtensionsViewlet } from 'vs/workbench/parts/extensions/common/extensions';
 import { minimumTranslatedStrings } from 'vs/platform/node/minimalTranslations';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { CancellationToken } from 'vs/base/common/cancellation';
 
 // Register action to configure locale and related settings
 const registry = Registry.as<IWorkbenchActionRegistry>(Extensions.WorkbenchActions);
@@ -70,7 +71,7 @@ export class LocalizationWorkbenchContribution extends Disposable implements IWo
 
 	private onDidInstallExtension(e: DidInstallExtensionEvent): void {
 		const donotAskUpdateKey = 'langugage.update.donotask';
-		if (!this.storageService.getBoolean(donotAskUpdateKey) && e.local && e.operation === InstallOperation.Install && e.local.manifest.contributes && e.local.manifest.contributes.localizations && e.local.manifest.contributes.localizations.length) {
+		if (!this.storageService.getBoolean(donotAskUpdateKey, StorageScope.GLOBAL) && e.local && e.operation === InstallOperation.Install && e.local.manifest.contributes && e.local.manifest.contributes.localizations && e.local.manifest.contributes.localizations.length) {
 			const locale = e.local.manifest.contributes.localizations[0].languageId;
 			if (platform.language !== locale) {
 				const updateAndRestart = platform.locale !== locale;
@@ -82,7 +83,7 @@ export class LocalizationWorkbenchContribution extends Disposable implements IWo
 						label: localize('yes', "Yes"),
 						run: () => {
 							const file = URI.file(join(this.environmentService.appSettingsHome, 'locale.json'));
-							const updatePromise = updateAndRestart ? this.jsonEditingService.write(file, { key: 'locale', value: locale }, true) : TPromise.as(null);
+							const updatePromise = updateAndRestart ? this.jsonEditingService.write(file, { key: 'locale', value: locale }, true) : Promise.resolve(null);
 							updatePromise.then(() => this.windowsService.relaunch({}), e => this.notificationService.error(e));
 						}
 					}, {
@@ -91,8 +92,9 @@ export class LocalizationWorkbenchContribution extends Disposable implements IWo
 					}, {
 						label: localize('neverAgain', "Don't Show Again"),
 						isSecondary: true,
-						run: () => this.storageService.store(donotAskUpdateKey, true)
-					}]
+						run: () => this.storageService.store(donotAskUpdateKey, true, StorageScope.GLOBAL)
+					}],
+					{ sticky: true }
 				);
 			}
 		}
@@ -131,7 +133,7 @@ export class LocalizationWorkbenchContribution extends Disposable implements IWo
 						return;
 					}
 
-					TPromise.join([this.galleryService.getManifest(extensionToFetchTranslationsFrom), this.galleryService.getCoreTranslation(extensionToFetchTranslationsFrom, locale)])
+					TPromise.join([this.galleryService.getManifest(extensionToFetchTranslationsFrom, CancellationToken.None), this.galleryService.getCoreTranslation(extensionToFetchTranslationsFrom, locale)])
 						.then(([manifest, translation]) => {
 							const loc = manifest && manifest.contributes && manifest.contributes.localizations && manifest.contributes.localizations.filter(x => x.languageId.toLowerCase() === locale)[0];
 							const languageName = loc ? (loc.languageName || locale) : locale;
@@ -199,8 +201,10 @@ export class LocalizationWorkbenchContribution extends Disposable implements IWo
 										logUserReaction('neverShowAgain');
 									}
 								}],
-								() => {
-									logUserReaction('cancelled');
+								{
+									onCancel: () => {
+										logUserReaction('cancelled');
+									}
 								}
 							);
 

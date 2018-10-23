@@ -2,13 +2,12 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
 import * as assert from 'assert';
 import { EditOperation } from 'vs/editor/common/core/editOperation';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
-import { IModelDeltaDecoration, TrackedRangeStickiness, EndOfLineSequence } from 'vs/editor/common/model';
+import { EndOfLineSequence, IModelDeltaDecoration, TrackedRangeStickiness } from 'vs/editor/common/model';
 import { TextModel } from 'vs/editor/common/model/textModel';
 
 // --------- utils
@@ -51,7 +50,7 @@ function addDecoration(model: TextModel, startLineNumber: number, startColumn: n
 }
 
 function lineHasDecorations(model: TextModel, lineNumber: number, decorations: { start: number; end: number; className: string; }[]) {
-	let lineDecorations = [];
+	let lineDecorations: Array<{ start: number; end: number; className: string; }> = [];
 	let decs = model.getLineDecorations(lineNumber);
 	for (let i = 0, len = decs.length; i < len; i++) {
 		lineDecorations.push({
@@ -1367,6 +1366,24 @@ suite('deltaDecorations', () => {
 		let inRangeClassNames = inRange.map(d => d.options.className);
 		inRangeClassNames.sort();
 		assert.deepEqual(inRangeClassNames, ['x1', 'x2', 'x3', 'x4']);
+
+		model.dispose();
+	});
+
+	test('issue #41492: URL highlighting persists after pasting over url', () => {
+
+		let model = TextModel.createFromString([
+			'My First Line'
+		].join('\n'));
+
+		const id = model.deltaDecorations([], [{ range: new Range(1, 2, 1, 14), options: { stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges, collapseOnReplaceEdit: true } }])[0];
+		model.applyEdits([{
+			range: new Range(1, 1, 1, 14),
+			text: 'Some new text that is longer than the previous one',
+			forceMoveMarkers: false
+		}]);
+		const actual = model.getDecorationRange(id);
+		assert.deepEqual(actual, new Range(1, 1, 1, 1));
 
 		model.dispose();
 	});

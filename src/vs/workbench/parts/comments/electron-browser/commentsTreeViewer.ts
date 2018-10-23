@@ -4,10 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as dom from 'vs/base/browser/dom';
+import * as nls from 'vs/nls';
 import { renderMarkdown } from 'vs/base/browser/htmlContentRenderer';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { Disposable } from 'vs/base/common/lifecycle';
-import URI from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 import { Promise, TPromise } from 'vs/base/common/winjs.base';
 import { IDataSource, IFilter, IRenderer as ITreeRenderer, ITree } from 'vs/base/parts/tree/browser/tree';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -150,11 +151,27 @@ export class CommentsModelRenderer implements ITreeRenderer {
 			inline: true,
 			actionHandler: {
 				callback: (content) => {
-					this.openerService.open(URI.parse(content)).then(void 0, onUnexpectedError);
+					let uri: URI;
+					try {
+						uri = URI.parse(content);
+					} catch (err) {
+						// ignore
+					}
+					if (uri) {
+						this.openerService.open(uri).catch(onUnexpectedError);
+					}
 				},
 				disposeables: templateData.disposables
 			}
 		});
+
+		const images = renderedComment.getElementsByTagName('img');
+		for (let i = 0; i < images.length; i++) {
+			const image = images[i];
+			const textDescription = dom.$('');
+			textDescription.textContent = image.alt ? nls.localize('imageWithLabel', "Image: {0}", image.alt) : nls.localize('image', "Image");
+			image.parentNode.replaceChild(textDescription, image);
+		}
 
 		templateData.commentText.appendChild(renderedComment);
 	}

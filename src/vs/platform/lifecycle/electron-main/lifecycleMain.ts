@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import { ipcMain as ipc, app } from 'electron';
 import { TPromise, TValueCallback } from 'vs/base/common/winjs.base';
 import { ILogService } from 'vs/platform/log/common/log';
@@ -15,10 +13,11 @@ import { ICodeWindow } from 'vs/platform/windows/electron-main/windows';
 import { ReadyState } from 'vs/platform/windows/common/windows';
 import { handleVetos } from 'vs/platform/lifecycle/common/lifecycle';
 import { isMacintosh, isWindows } from 'vs/base/common/platform';
+import { Disposable } from 'vs/base/common/lifecycle';
 
 export const ILifecycleService = createDecorator<ILifecycleService>('lifecycleService');
 
-export enum UnloadReason {
+export const enum UnloadReason {
 	CLOSE = 1,
 	QUIT = 2,
 	RELOAD = 3,
@@ -42,7 +41,7 @@ export interface ILifecycleService {
 	/**
 	 * Will be true if the program was requested to quit.
 	 */
-	isQuitRequested: boolean;
+	quitRequested: boolean;
 
 	/**
 	 * Due to the way we handle lifecycle with eventing, the general app.on('before-quit')
@@ -70,53 +69,65 @@ export interface ILifecycleService {
 	 */
 	onBeforeWindowUnload: Event<IWindowUnloadEvent>;
 
-	ready(): void;
-	registerWindow(window: ICodeWindow): void;
-
+	/**
+	 * Close a window for the provided reason. Shutdown handlers are triggered.
+	 */
 	unload(window: ICodeWindow, reason: UnloadReason): TPromise<boolean /* veto */>;
 
+	/**
+	 * Restart the application with optional arguments (CLI). Shutdown handlers are triggered.
+	 */
 	relaunch(options?: { addArgs?: string[], removeArgs?: string[] }): void;
 
+	/**
+	 * Shutdown the application normally. Shutdown handlers are triggered.
+	 */
 	quit(fromUpdate?: boolean): TPromise<boolean /* veto */>;
 
+	/**
+	 * Forcefully shutdown the application. No shutdown handlers are triggered.
+	 */
 	kill(code?: number): void;
+
+	ready(): void;
+	registerWindow(window: ICodeWindow): void;
 }
 
-export class LifecycleService implements ILifecycleService {
+export class LifecycleService extends Disposable implements ILifecycleService {
 
 	_serviceBrand: any;
 
 	private static readonly QUIT_FROM_RESTART_MARKER = 'quit.from.restart'; // use a marker to find out if the session was restarted
 
-	private windowToCloseRequest: { [windowId: string]: boolean };
-	private quitRequested: boolean;
-	private pendingQuitPromise: TPromise<boolean>;
-	private pendingQuitPromiseComplete: TValueCallback<boolean>;
-	private oneTimeListenerTokenGenerator: number;
-	private _wasRestarted: boolean;
-	private windowCounter: number;
+	private windowToCloseRequest: { [windowId: string]: boolean } = Object.create(null);
+	private pendingQuitPromise: TPromise<boolean> | null;
+	private pendingQuitPromiseComplete: TValueCallback<boolean> | null;
+	private oneTimeListenerTokenGenerator = 0;
+	private windowCounter = 0;
 
-	private _onBeforeShutdown = new Emitter<void>();
-	onBeforeShutdown: Event<void> = this._onBeforeShutdown.event;
+	private _quitRequested = false;
+	get quitRequested(): boolean { return this._quitRequested; }
 
-	private _onShutdown = new Emitter<void>();
-	onShutdown: Event<void> = this._onShutdown.event;
+	private _wasRestarted: boolean = false;
+	get wasRestarted(): boolean { return this._wasRestarted; }
 
-	private _onBeforeWindowClose = new Emitter<ICodeWindow>();
-	onBeforeWindowClose: Event<ICodeWindow> = this._onBeforeWindowClose.event;
+	private readonly _onBeforeShutdown = this._register(new Emitter<void>());
+	readonly onBeforeShutdown: Event<void> = this._onBeforeShutdown.event;
 
-	private _onBeforeWindowUnload = new Emitter<IWindowUnloadEvent>();
-	onBeforeWindowUnload: Event<IWindowUnloadEvent> = this._onBeforeWindowUnload.event;
+	private readonly _onShutdown = this._register(new Emitter<void>());
+	readonly onShutdown: Event<void> = this._onShutdown.event;
+
+	private readonly _onBeforeWindowClose = this._register(new Emitter<ICodeWindow>());
+	readonly onBeforeWindowClose: Event<ICodeWindow> = this._onBeforeWindowClose.event;
+
+	private readonly _onBeforeWindowUnload = this._register(new Emitter<IWindowUnloadEvent>());
+	readonly onBeforeWindowUnload: Event<IWindowUnloadEvent> = this._onBeforeWindowUnload.event;
 
 	constructor(
 		@ILogService private logService: ILogService,
 		@IStateService private stateService: IStateService
 	) {
-		this.windowToCloseRequest = Object.create(null);
-		this.quitRequested = false;
-		this.oneTimeListenerTokenGenerator = 0;
-		this._wasRestarted = false;
-		this.windowCounter = 0;
+		super();
 
 		this.handleRestarted();
 	}
@@ -129,14 +140,6 @@ export class LifecycleService implements ILifecycleService {
 		}
 	}
 
-	get wasRestarted(): boolean {
-		return this._wasRestarted;
-	}
-
-	get isQuitRequested(): boolean {
-		return !!this.quitRequested;
-	}
-
 	ready(): void {
 		this.registerListeners();
 	}
@@ -147,12 +150,12 @@ export class LifecycleService implements ILifecycleService {
 		app.on('before-quit', e => {
 			this.logService.trace('Lifecycle#before-quit');
 
-			if (this.quitRequested) {
+			if (this._quitRequested) {
 				this.logService.trace('Lifecycle#before-quit - returning because quit was already requested');
 				return;
 			}
 
-			this.quitRequested = true;
+			this._quitRequested = true;
 
 			// Emit event to indicate that we are about to shutdown
 			this.logService.trace('Lifecycle#onBeforeShutdown.fire()');
@@ -172,7 +175,7 @@ export class LifecycleService implements ILifecycleService {
 
 			// Windows/Linux: we quit when all windows have closed
 			// Mac: we only quit when quit was requested
-			if (this.quitRequested || process.platform !== 'darwin') {
+			if (this._quitRequested || process.platform !== 'darwin') {
 				app.quit();
 			}
 		});
@@ -199,7 +202,7 @@ export class LifecycleService implements ILifecycleService {
 
 			// Otherwise prevent unload and handle it from window
 			e.preventDefault();
-			this.unload(window, UnloadReason.CLOSE).done(veto => {
+			this.unload(window, UnloadReason.CLOSE).then(veto => {
 				if (!veto) {
 					this.windowToCloseRequest[windowId] = true;
 
@@ -208,7 +211,7 @@ export class LifecycleService implements ILifecycleService {
 
 					window.close();
 				} else {
-					this.quitRequested = false;
+					this._quitRequested = false;
 					delete this.windowToCloseRequest[windowId];
 				}
 			});
@@ -225,7 +228,7 @@ export class LifecycleService implements ILifecycleService {
 			// if there are no more code windows opened, fire the onShutdown event, unless
 			// we are on macOS where it is perfectly fine to close the last window and
 			// the application continues running (unless quit was actually requested)
-			if (this.windowCounter === 0 && (!isMacintosh || this.isQuitRequested)) {
+			if (this.windowCounter === 0 && (!isMacintosh || this._quitRequested)) {
 				this.logService.trace('Lifecycle#onShutdown.fire()');
 				this._onShutdown.fire();
 			}
@@ -241,7 +244,7 @@ export class LifecycleService implements ILifecycleService {
 
 		this.logService.trace('Lifecycle#unload()', window.id);
 
-		const windowUnloadReason = this.quitRequested ? UnloadReason.QUIT : reason;
+		const windowUnloadReason = this._quitRequested ? UnloadReason.QUIT : reason;
 
 		// first ask the window itself if it vetos the unload
 		return this.onBeforeUnloadWindowInRenderer(window, windowUnloadReason).then(veto => {
@@ -396,7 +399,10 @@ export class LifecycleService implements ILifecycleService {
 				// Code starts it will set it back to the installation directory again.
 				try {
 					if (isWindows) {
-						process.chdir(process.env['VSCODE_CWD']);
+						const vscodeCwd = process.env['VSCODE_CWD'];
+						if (vscodeCwd) {
+							process.chdir(vscodeCwd);
+						}
 					}
 				} catch (err) {
 					this.logService.error(err);

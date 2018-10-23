@@ -3,20 +3,18 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import 'vs/css!./walkThroughPart';
 import { DomScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
 import { ScrollbarVisibility } from 'vs/base/common/scrollable';
 import * as strings from 'vs/base/common/strings';
-import URI from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 import { IDisposable, dispose, toDisposable } from 'vs/base/common/lifecycle';
 import { EditorOptions, IEditorMemento } from 'vs/workbench/common/editor';
 import { BaseEditor } from 'vs/workbench/browser/parts/editor/baseEditor';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { WalkThroughInput } from 'vs/workbench/parts/welcome/walkThrough/node/walkThroughInput';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
-import { marked } from 'vs/base/common/marked/marked';
+import * as marked from 'vs/base/common/marked/marked';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditorWidget';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -63,6 +61,7 @@ export class WalkThroughPart extends BaseEditor {
 	private content: HTMLDivElement;
 	private scrollbar: DomScrollableElement;
 	private editorFocus: IContextKey<boolean>;
+	private lastFocus: HTMLElement;
 	private size: Dimension;
 	private editorMemento: IEditorMemento<IWalkThroughEditorViewState>;
 
@@ -79,9 +78,9 @@ export class WalkThroughPart extends BaseEditor {
 		@INotificationService private notificationService: INotificationService,
 		@IEditorGroupsService editorGroupService: IEditorGroupsService
 	) {
-		super(WalkThroughPart.ID, telemetryService, themeService);
+		super(WalkThroughPart.ID, telemetryService, themeService, storageService);
 		this.editorFocus = WALK_THROUGH_FOCUS.bindTo(this.contextKeyService);
-		this.editorMemento = this.getEditorMemento<IWalkThroughEditorViewState>(storageService, editorGroupService, WALK_THROUGH_EDITOR_VIEW_STATE_PREFERENCE_KEY);
+		this.editorMemento = this.getEditorMemento<IWalkThroughEditorViewState>(editorGroupService, WALK_THROUGH_EDITOR_VIEW_STATE_PREFERENCE_KEY);
 	}
 
 	createEditor(container: HTMLElement): void {
@@ -136,6 +135,9 @@ export class WalkThroughPart extends BaseEditor {
 				const scrollPosition = this.scrollbar.getScrollPosition();
 				this.content.scrollTop = scrollPosition.scrollTop;
 				this.content.scrollLeft = scrollPosition.scrollLeft;
+			}
+			if (e.target instanceof HTMLElement) {
+				this.lastFocus = e.target;
 			}
 		}));
 	}
@@ -214,7 +216,7 @@ export class WalkThroughPart extends BaseEditor {
 			active = active.parentElement;
 		}
 		if (!active) {
-			this.content.focus();
+			(this.lastFocus || this.content).focus();
 		}
 		this.editorFocus.set(true);
 	}
@@ -475,7 +477,7 @@ export class WalkThroughPart extends BaseEditor {
 	private saveTextEditorViewState(input: WalkThroughInput): void {
 		const scrollPosition = this.scrollbar.getScrollPosition();
 
-		this.editorMemento.saveState(this.group, input, {
+		this.editorMemento.saveEditorState(this.group, input, {
 			viewState: {
 				scrollTop: scrollPosition.scrollTop,
 				scrollLeft: scrollPosition.scrollLeft
@@ -484,7 +486,7 @@ export class WalkThroughPart extends BaseEditor {
 	}
 
 	private loadTextEditorViewState(input: WalkThroughInput) {
-		const state = this.editorMemento.loadState(this.group, input);
+		const state = this.editorMemento.loadEditorState(this.group, input);
 		if (state) {
 			this.scrollbar.setScrollPosition(state.viewState);
 		}
@@ -497,11 +499,12 @@ export class WalkThroughPart extends BaseEditor {
 		super.clearInput();
 	}
 
-	public shutdown(): void {
+	protected saveState(): void {
 		if (this.input instanceof WalkThroughInput) {
 			this.saveTextEditorViewState(this.input);
 		}
-		super.shutdown();
+
+		super.saveState();
 	}
 
 	dispose(): void {

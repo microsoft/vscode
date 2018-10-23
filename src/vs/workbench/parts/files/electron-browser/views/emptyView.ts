@@ -2,7 +2,6 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
 import * as nls from 'vs/nls';
 import * as errors from 'vs/base/common/errors';
@@ -11,7 +10,6 @@ import * as DOM from 'vs/base/browser/dom';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IAction } from 'vs/base/common/actions';
 import { Button } from 'vs/base/browser/ui/button/button';
-import { $, Builder } from 'vs/base/browser/builder';
 import { IActionItem } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IViewletViewOptions } from 'vs/workbench/browser/parts/views/viewsViewlet';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -33,8 +31,8 @@ export class EmptyView extends ViewletPanel {
 	public static readonly NAME = nls.localize('noWorkspace', "No Folder Opened");
 
 	private button: Button;
-	private messageDiv: Builder;
-	private titleDiv: Builder;
+	private messageElement: HTMLElement;
+	private titleElement: HTMLElement;
 
 	constructor(
 		options: IViewletViewOptions,
@@ -50,23 +48,32 @@ export class EmptyView extends ViewletPanel {
 	}
 
 	public renderHeader(container: HTMLElement): void {
-		this.titleDiv = $('span').text(name).appendTo($('div.title').appendTo(container));
+		const titleContainer = document.createElement('div');
+		DOM.addClass(titleContainer, 'title');
+		container.appendChild(titleContainer);
+
+		this.titleElement = document.createElement('span');
+		this.titleElement.textContent = name;
+		titleContainer.appendChild(this.titleElement);
 	}
 
 	protected renderBody(container: HTMLElement): void {
 		DOM.addClass(container, 'explorer-empty-view');
 
-		this.messageDiv = $('p').appendTo($('div.section').appendTo(container));
+		const messageContainer = document.createElement('div');
+		DOM.addClass(messageContainer, 'section');
+		container.appendChild(messageContainer);
 
-		const section = $('div.section').appendTo(container);
+		this.messageElement = document.createElement('p');
+		messageContainer.appendChild(this.messageElement);
 
-		this.button = new Button(section.getHTMLElement());
+		this.button = new Button(messageContainer);
 		attachButtonStyler(this.button, this.themeService);
 
 		this.disposables.push(this.button.onDidClick(() => {
 			const actionClass = this.contextService.getWorkbenchState() === WorkbenchState.WORKSPACE ? AddRootFolderAction : env.isMacintosh ? OpenFileFolderAction : OpenFolderAction;
 			const action = this.instantiationService.createInstance<string, string, IAction>(actionClass, actionClass.ID, actionClass.LABEL);
-			this.actionRunner.run(action).done(() => {
+			this.actionRunner.run(action).then(() => {
 				action.dispose();
 			}, err => {
 				action.dispose();
@@ -99,17 +106,17 @@ export class EmptyView extends ViewletPanel {
 
 	private setLabels(): void {
 		if (this.contextService.getWorkbenchState() === WorkbenchState.WORKSPACE) {
-			this.messageDiv.text(nls.localize('noWorkspaceHelp', "You have not yet added a folder to the workspace."));
+			this.messageElement.textContent = nls.localize('noWorkspaceHelp', "You have not yet added a folder to the workspace.");
 			if (this.button) {
 				this.button.label = nls.localize('addFolder', "Add Folder");
 			}
-			this.titleDiv.text(this.contextService.getWorkspace().name);
+			this.titleElement.textContent = EmptyView.NAME;
 		} else {
-			this.messageDiv.text(nls.localize('noFolderHelp', "You have not yet opened a folder."));
+			this.messageElement.textContent = nls.localize('noFolderHelp', "You have not yet opened a folder.");
 			if (this.button) {
 				this.button.label = nls.localize('openFolder', "Open Folder");
 			}
-			this.titleDiv.text(this.title);
+			this.titleElement.textContent = this.title;
 		}
 	}
 
@@ -118,7 +125,7 @@ export class EmptyView extends ViewletPanel {
 	}
 
 	public setVisible(visible: boolean): TPromise<void> {
-		return TPromise.as(null);
+		return Promise.resolve(null);
 	}
 
 	public focusBody(): void {
@@ -128,7 +135,7 @@ export class EmptyView extends ViewletPanel {
 	}
 
 	protected reveal(element: any, relativeTop?: number): TPromise<void> {
-		return TPromise.as(null);
+		return Promise.resolve(null);
 	}
 
 	public getActions(): IAction[] {
@@ -141,9 +148,5 @@ export class EmptyView extends ViewletPanel {
 
 	public getActionItem(action: IAction): IActionItem {
 		return null;
-	}
-
-	public shutdown(): void {
-		// Subclass to implement
 	}
 }

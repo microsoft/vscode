@@ -2,8 +2,6 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
-
 import 'mocha';
 import * as assert from 'assert';
 import * as path from 'path';
@@ -21,7 +19,7 @@ export interface ItemDescription {
 suite('Completions', () => {
 	const cssLanguageService = getCSSLanguageService();
 
-	let assertCompletion = function (completions: CompletionList, expected: ItemDescription, document: TextDocument, offset: number) {
+	let assertCompletion = function (completions: CompletionList, expected: ItemDescription, document: TextDocument, _offset: number) {
 		let matches = completions.items.filter(completion => {
 			return completion.label === expected.label;
 		});
@@ -95,7 +93,6 @@ suite('Completions', () => {
 
 		assertCompletions(`html { background-image: url('|')`, {
 			items: [
-				{ label: 'about.css', resultText: `html { background-image: url('about.css')` },
 				{ label: 'about.html', resultText: `html { background-image: url('about.html')` },
 			]
 		}, testUri, folders);
@@ -156,7 +153,6 @@ suite('Completions', () => {
 
 		assertCompletions(`@import './|'`, {
 			items: [
-				{ label: 'about.css', resultText: `@import './about.css'` },
 				{ label: 'about.html', resultText: `@import './about.html'` },
 			]
 		}, testUri, folders);
@@ -194,5 +190,15 @@ suite('Completions', () => {
 				{ label: '_foo.scss', resultText: `@import './foo'` }
 			]
 		}, testSCSSUri, folders, 'scss');
+	});
+
+	test('Completion should ignore files/folders starting with dot', function () {
+		let testUri = Uri.file(path.resolve(__dirname, '../../test/pathCompletionFixtures/about/about.css')).toString();
+		let folders = [{ name: 'x', uri: Uri.file(path.resolve(__dirname, '../../test')).toString() }];
+
+		assertCompletions('html { background-image: url("../|")', {
+			count: 4
+		}, testUri, folders);
+
 	});
 });

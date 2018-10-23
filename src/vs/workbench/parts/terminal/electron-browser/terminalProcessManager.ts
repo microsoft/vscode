@@ -7,7 +7,6 @@ import * as platform from 'vs/base/common/platform';
 import * as terminalEnvironment from 'vs/workbench/parts/terminal/node/terminalEnvironment';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { ProcessState, ITerminalProcessManager, IShellLaunchConfig, ITerminalConfigHelper } from 'vs/workbench/parts/terminal/common/terminal';
-import { TPromise } from 'vs/base/common/winjs.base';
 import { ILogService } from 'vs/platform/log/common/log';
 import { Emitter, Event } from 'vs/base/common/event';
 import { IHistoryService } from 'vs/workbench/services/history/common/history';
@@ -17,6 +16,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { TerminalProcess } from 'vs/workbench/parts/terminal/node/terminalProcess';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IConfigurationResolverService } from 'vs/workbench/services/configurationResolver/common/configurationResolver';
+import { Schemas } from 'vs/base/common/network';
 
 /** The amount of time to consider terminal errors to be related to the launch */
 const LAUNCHING_DURATION = 500;
@@ -31,7 +31,7 @@ const LAUNCHING_DURATION = 500;
  */
 export class TerminalProcessManager implements ITerminalProcessManager {
 	public processState: ProcessState = ProcessState.UNINITIALIZED;
-	public ptyProcessReady: TPromise<void>;
+	public ptyProcessReady: Promise<void>;
 	public shellProcessId: number;
 	public initialCwd: string;
 
@@ -57,7 +57,7 @@ export class TerminalProcessManager implements ITerminalProcessManager {
 		@IWorkspaceContextService private readonly _workspaceContextService: IWorkspaceContextService,
 		@IConfigurationResolverService private readonly _configurationResolverService: IConfigurationResolverService
 	) {
-		this.ptyProcessReady = new TPromise<void>(c => {
+		this.ptyProcessReady = new Promise<void>(c => {
 			this.onProcessReady(() => {
 				this._logService.debug(`Terminal process ready (shellProcessId: ${this.shellProcessId})`);
 				c(void 0);
@@ -65,13 +65,13 @@ export class TerminalProcessManager implements ITerminalProcessManager {
 		});
 	}
 
-	public dispose(): void {
+	public dispose(immediate?: boolean): void {
 		if (this._process) {
 			// If the process was still connected this dispose came from
 			// within VS Code, not the process, so mark the process as
 			// killed by the user.
 			this.processState = ProcessState.KILLED_BY_USER;
-			this._process.shutdown();
+			this._process.shutdown(immediate);
 			this._process = null;
 		}
 		this._disposables.forEach(d => d.dispose());
@@ -95,7 +95,7 @@ export class TerminalProcessManager implements ITerminalProcessManager {
 				this._configHelper.mergeDefaultShellPathAndArgs(shellLaunchConfig);
 			}
 
-			const lastActiveWorkspaceRootUri = this._historyService.getLastActiveWorkspaceRoot('file');
+			const lastActiveWorkspaceRootUri = this._historyService.getLastActiveWorkspaceRoot(Schemas.file);
 			this.initialCwd = terminalEnvironment.getCwd(shellLaunchConfig, lastActiveWorkspaceRootUri, this._configHelper);
 
 			// Resolve env vars from config and shell

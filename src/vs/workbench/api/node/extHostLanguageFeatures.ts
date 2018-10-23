@@ -2,10 +2,8 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
-import URI, { UriComponents } from 'vs/base/common/uri';
-import { TPromise } from 'vs/base/common/winjs.base';
+import { URI, UriComponents } from 'vs/base/common/uri';
 import { mixin } from 'vs/base/common/objects';
 import * as vscode from 'vscode';
 import * as typeConvert from 'vs/workbench/api/node/extHostTypeConverters';
@@ -16,8 +14,8 @@ import { ExtHostHeapService } from 'vs/workbench/api/node/extHostHeapService';
 import { ExtHostDocuments } from 'vs/workbench/api/node/extHostDocuments';
 import { ExtHostCommands, CommandsConverter } from 'vs/workbench/api/node/extHostCommands';
 import { ExtHostDiagnostics } from 'vs/workbench/api/node/extHostDiagnostics';
-import { asWinJsPromise } from 'vs/base/common/async';
-import { MainContext, MainThreadLanguageFeaturesShape, ExtHostLanguageFeaturesShape, ObjectIdentifier, IRawColorInfo, IMainContext, IdObject, ISerializedRegExp, ISerializedIndentationRule, ISerializedOnEnterRule, ISerializedLanguageConfiguration, WorkspaceSymbolDto, SuggestResultDto, WorkspaceSymbolsDto, SuggestionDto, CodeActionDto, ISerializedDocumentFilter, WorkspaceEditDto } from './extHost.protocol';
+import { asThenable } from 'vs/base/common/async';
+import { MainContext, MainThreadLanguageFeaturesShape, ExtHostLanguageFeaturesShape, ObjectIdentifier, IRawColorInfo, IMainContext, IdObject, ISerializedRegExp, ISerializedIndentationRule, ISerializedOnEnterRule, ISerializedLanguageConfiguration, WorkspaceSymbolDto, SuggestResultDto, WorkspaceSymbolsDto, SuggestionDto, CodeActionDto, ISerializedDocumentFilter, WorkspaceEditDto, ISerializedSignatureHelpProviderMetadata } from './extHost.protocol';
 import { regExpLeadsToEndlessLoop } from 'vs/base/common/strings';
 import { IPosition } from 'vs/editor/common/core/position';
 import { IRange, Range as EditorRange } from 'vs/editor/common/core/range';
@@ -26,6 +24,7 @@ import { isObject } from 'vs/base/common/types';
 import { ISelection, Selection } from 'vs/editor/common/core/selection';
 import { IExtensionDescription } from 'vs/workbench/services/extensions/common/extensions';
 import { ILogService } from 'vs/platform/log/common/log';
+import { CancellationToken } from 'vs/base/common/cancellation';
 
 // --- adapter
 
@@ -39,9 +38,9 @@ class OutlineAdapter {
 		this._provider = provider;
 	}
 
-	provideDocumentSymbols(resource: URI): TPromise<modes.DocumentSymbol[]> {
+	provideDocumentSymbols(resource: URI, token: CancellationToken): Thenable<modes.DocumentSymbol[]> {
 		let doc = this._documents.getDocumentData(resource).document;
-		return asWinJsPromise(token => this._provider.provideDocumentSymbols(doc, token)).then(value => {
+		return asThenable(() => this._provider.provideDocumentSymbols(doc, token)).then(value => {
 			if (isFalsyOrEmpty(value)) {
 				return undefined;
 			}
@@ -105,10 +104,10 @@ class CodeLensAdapter {
 		private readonly _provider: vscode.CodeLensProvider
 	) { }
 
-	provideCodeLenses(resource: URI): TPromise<modes.ICodeLensSymbol[]> {
+	provideCodeLenses(resource: URI, token: CancellationToken): Thenable<modes.ICodeLensSymbol[]> {
 		const doc = this._documents.getDocumentData(resource).document;
 
-		return asWinJsPromise(token => this._provider.provideCodeLenses(doc, token)).then(lenses => {
+		return asThenable(() => this._provider.provideCodeLenses(doc, token)).then(lenses => {
 			if (Array.isArray(lenses)) {
 				return lenses.map(lens => {
 					const id = this._heapService.keep(lens);
@@ -122,18 +121,18 @@ class CodeLensAdapter {
 		});
 	}
 
-	resolveCodeLens(resource: URI, symbol: modes.ICodeLensSymbol): TPromise<modes.ICodeLensSymbol> {
+	resolveCodeLens(resource: URI, symbol: modes.ICodeLensSymbol, token: CancellationToken): Thenable<modes.ICodeLensSymbol> {
 
 		const lens = this._heapService.get<vscode.CodeLens>(ObjectIdentifier.of(symbol));
 		if (!lens) {
 			return undefined;
 		}
 
-		let resolve: TPromise<vscode.CodeLens>;
+		let resolve: Thenable<vscode.CodeLens>;
 		if (typeof this._provider.resolveCodeLens !== 'function' || lens.isResolved) {
-			resolve = TPromise.as(lens);
+			resolve = Promise.resolve(lens);
 		} else {
-			resolve = asWinJsPromise(token => this._provider.resolveCodeLens(lens, token));
+			resolve = asThenable(() => this._provider.resolveCodeLens(lens, token));
 		}
 
 		return resolve.then(newLens => {
@@ -160,10 +159,10 @@ class DefinitionAdapter {
 		private readonly _provider: vscode.DefinitionProvider
 	) { }
 
-	provideDefinition(resource: URI, position: IPosition): TPromise<modes.DefinitionLink[]> {
+	provideDefinition(resource: URI, position: IPosition, token: CancellationToken): Thenable<modes.DefinitionLink[]> {
 		let doc = this._documents.getDocumentData(resource).document;
 		let pos = typeConvert.Position.to(position);
-		return asWinJsPromise(token => this._provider.provideDefinition(doc, pos, token)).then(convertToDefinitionLinks);
+		return asThenable(() => this._provider.provideDefinition(doc, pos, token)).then(convertToDefinitionLinks);
 	}
 }
 
@@ -174,10 +173,10 @@ class ImplementationAdapter {
 		private readonly _provider: vscode.ImplementationProvider
 	) { }
 
-	provideImplementation(resource: URI, position: IPosition): TPromise<modes.DefinitionLink[]> {
+	provideImplementation(resource: URI, position: IPosition, token: CancellationToken): Thenable<modes.DefinitionLink[]> {
 		let doc = this._documents.getDocumentData(resource).document;
 		let pos = typeConvert.Position.to(position);
-		return asWinJsPromise(token => this._provider.provideImplementation(doc, pos, token)).then(convertToDefinitionLinks);
+		return asThenable(() => this._provider.provideImplementation(doc, pos, token)).then(convertToDefinitionLinks);
 	}
 }
 
@@ -188,10 +187,10 @@ class TypeDefinitionAdapter {
 		private readonly _provider: vscode.TypeDefinitionProvider
 	) { }
 
-	provideTypeDefinition(resource: URI, position: IPosition): TPromise<modes.DefinitionLink[]> {
+	provideTypeDefinition(resource: URI, position: IPosition, token: CancellationToken): Thenable<modes.DefinitionLink[]> {
 		const doc = this._documents.getDocumentData(resource).document;
 		const pos = typeConvert.Position.to(position);
-		return asWinJsPromise(token => this._provider.provideTypeDefinition(doc, pos, token)).then(convertToDefinitionLinks);
+		return asThenable(() => this._provider.provideTypeDefinition(doc, pos, token)).then(convertToDefinitionLinks);
 	}
 }
 
@@ -202,12 +201,12 @@ class HoverAdapter {
 		private readonly _provider: vscode.HoverProvider,
 	) { }
 
-	public provideHover(resource: URI, position: IPosition): TPromise<modes.Hover> {
+	public provideHover(resource: URI, position: IPosition, token: CancellationToken): Thenable<modes.Hover> {
 
 		let doc = this._documents.getDocumentData(resource).document;
 		let pos = typeConvert.Position.to(position);
 
-		return asWinJsPromise(token => this._provider.provideHover(doc, pos, token)).then(value => {
+		return asThenable(() => this._provider.provideHover(doc, pos, token)).then(value => {
 			if (!value || isFalsyOrEmpty(value.contents)) {
 				return undefined;
 			}
@@ -230,12 +229,12 @@ class DocumentHighlightAdapter {
 		private readonly _provider: vscode.DocumentHighlightProvider
 	) { }
 
-	provideDocumentHighlights(resource: URI, position: IPosition): TPromise<modes.DocumentHighlight[]> {
+	provideDocumentHighlights(resource: URI, position: IPosition, token: CancellationToken): Thenable<modes.DocumentHighlight[]> {
 
 		let doc = this._documents.getDocumentData(resource).document;
 		let pos = typeConvert.Position.to(position);
 
-		return asWinJsPromise(token => this._provider.provideDocumentHighlights(doc, pos, token)).then(value => {
+		return asThenable(() => this._provider.provideDocumentHighlights(doc, pos, token)).then(value => {
 			if (Array.isArray(value)) {
 				return value.map(typeConvert.DocumentHighlight.from);
 			}
@@ -251,11 +250,11 @@ class ReferenceAdapter {
 		private readonly _provider: vscode.ReferenceProvider
 	) { }
 
-	provideReferences(resource: URI, position: IPosition, context: modes.ReferenceContext): TPromise<modes.Location[]> {
+	provideReferences(resource: URI, position: IPosition, context: modes.ReferenceContext, token: CancellationToken): Thenable<modes.Location[]> {
 		let doc = this._documents.getDocumentData(resource).document;
 		let pos = typeConvert.Position.to(position);
 
-		return asWinJsPromise(token => this._provider.provideReferences(doc, pos, context, token)).then(value => {
+		return asThenable(() => this._provider.provideReferences(doc, pos, context, token)).then(value => {
 			if (Array.isArray(value)) {
 				return value.map(typeConvert.location.from);
 			}
@@ -279,7 +278,7 @@ class CodeActionAdapter {
 		private readonly _extensionId: string
 	) { }
 
-	provideCodeActions(resource: URI, rangeOrSelection: IRange | ISelection, context: modes.CodeActionContext): TPromise<CodeActionDto[]> {
+	provideCodeActions(resource: URI, rangeOrSelection: IRange | ISelection, context: modes.CodeActionContext, token: CancellationToken): Thenable<CodeActionDto[]> {
 
 		const doc = this._documents.getDocumentData(resource).document;
 		const ran = Selection.isISelection(rangeOrSelection)
@@ -298,9 +297,7 @@ class CodeActionAdapter {
 			only: context.only ? new CodeActionKind(context.only) : undefined
 		};
 
-		return asWinJsPromise(token =>
-			this._provider.provideCodeActions(doc, ran, codeActionContext, token)
-		).then(commandsOrActions => {
+		return asThenable(() => this._provider.provideCodeActions(doc, ran, codeActionContext, token)).then(commandsOrActions => {
 			if (isFalsyOrEmpty(commandsOrActions)) {
 				return undefined;
 			}
@@ -352,11 +349,11 @@ class DocumentFormattingAdapter {
 		private readonly _provider: vscode.DocumentFormattingEditProvider
 	) { }
 
-	provideDocumentFormattingEdits(resource: URI, options: modes.FormattingOptions): TPromise<ISingleEditOperation[]> {
+	provideDocumentFormattingEdits(resource: URI, options: modes.FormattingOptions, token: CancellationToken): Thenable<ISingleEditOperation[]> {
 
 		const { document } = this._documents.getDocumentData(resource);
 
-		return asWinJsPromise(token => this._provider.provideDocumentFormattingEdits(document, <any>options, token)).then(value => {
+		return asThenable(() => this._provider.provideDocumentFormattingEdits(document, <any>options, token)).then(value => {
 			if (Array.isArray(value)) {
 				return value.map(typeConvert.TextEdit.from);
 			}
@@ -372,12 +369,12 @@ class RangeFormattingAdapter {
 		private readonly _provider: vscode.DocumentRangeFormattingEditProvider
 	) { }
 
-	provideDocumentRangeFormattingEdits(resource: URI, range: IRange, options: modes.FormattingOptions): TPromise<ISingleEditOperation[]> {
+	provideDocumentRangeFormattingEdits(resource: URI, range: IRange, options: modes.FormattingOptions, token: CancellationToken): Thenable<ISingleEditOperation[]> {
 
 		const { document } = this._documents.getDocumentData(resource);
 		const ran = typeConvert.Range.to(range);
 
-		return asWinJsPromise(token => this._provider.provideDocumentRangeFormattingEdits(document, ran, <any>options, token)).then(value => {
+		return asThenable(() => this._provider.provideDocumentRangeFormattingEdits(document, ran, <any>options, token)).then(value => {
 			if (Array.isArray(value)) {
 				return value.map(typeConvert.TextEdit.from);
 			}
@@ -395,12 +392,12 @@ class OnTypeFormattingAdapter {
 
 	autoFormatTriggerCharacters: string[] = []; // not here
 
-	provideOnTypeFormattingEdits(resource: URI, position: IPosition, ch: string, options: modes.FormattingOptions): TPromise<ISingleEditOperation[]> {
+	provideOnTypeFormattingEdits(resource: URI, position: IPosition, ch: string, options: modes.FormattingOptions, token: CancellationToken): Thenable<ISingleEditOperation[]> {
 
 		const { document } = this._documents.getDocumentData(resource);
 		const pos = typeConvert.Position.to(position);
 
-		return asWinJsPromise(token => this._provider.provideOnTypeFormattingEdits(document, pos, ch, <any>options, token)).then(value => {
+		return asThenable(() => this._provider.provideOnTypeFormattingEdits(document, pos, ch, <any>options, token)).then(value => {
 			if (Array.isArray(value)) {
 				return value.map(typeConvert.TextEdit.from);
 			}
@@ -419,9 +416,9 @@ class NavigateTypeAdapter {
 		this._provider = provider;
 	}
 
-	provideWorkspaceSymbols(search: string): TPromise<WorkspaceSymbolsDto> {
+	provideWorkspaceSymbols(search: string, token: CancellationToken): Thenable<WorkspaceSymbolsDto> {
 		const result: WorkspaceSymbolsDto = IdObject.mixin({ symbols: [] });
-		return asWinJsPromise(token => this._provider.provideWorkspaceSymbols(search, token)).then(value => {
+		return asThenable(() => this._provider.provideWorkspaceSymbols(search, token)).then(value => {
 			if (!isFalsyOrEmpty(value)) {
 				for (const item of value) {
 					if (!item) {
@@ -445,15 +442,15 @@ class NavigateTypeAdapter {
 		});
 	}
 
-	resolveWorkspaceSymbol(symbol: WorkspaceSymbolDto): TPromise<WorkspaceSymbolDto> {
+	resolveWorkspaceSymbol(symbol: WorkspaceSymbolDto, token: CancellationToken): Thenable<WorkspaceSymbolDto> {
 
 		if (typeof this._provider.resolveWorkspaceSymbol !== 'function') {
-			return TPromise.as(symbol);
+			return Promise.resolve(symbol);
 		}
 
 		const item = this._symbolCache[symbol._id];
 		if (item) {
-			return asWinJsPromise(token => this._provider.resolveWorkspaceSymbol(item, token)).then(value => {
+			return asThenable(() => this._provider.resolveWorkspaceSymbol(item, token)).then(value => {
 				return value && mixin(symbol, typeConvert.WorkspaceSymbol.from(value), true);
 			});
 		}
@@ -482,43 +479,36 @@ class RenameAdapter {
 		private readonly _provider: vscode.RenameProvider
 	) { }
 
-	provideRenameEdits(resource: URI, position: IPosition, newName: string): TPromise<WorkspaceEditDto> {
+	provideRenameEdits(resource: URI, position: IPosition, newName: string, token: CancellationToken): Thenable<WorkspaceEditDto> {
 
 		let doc = this._documents.getDocumentData(resource).document;
 		let pos = typeConvert.Position.to(position);
 
-		return asWinJsPromise(token => this._provider.provideRenameEdits(doc, pos, newName, token)).then(value => {
+		return asThenable(() => this._provider.provideRenameEdits(doc, pos, newName, token)).then(value => {
 			if (!value) {
 				return undefined;
 			}
 			return typeConvert.WorkspaceEdit.from(value);
 		}, err => {
-			if (typeof err === 'string') {
-				return <WorkspaceEditDto>{
-					edits: undefined,
-					rejectReason: err
-				};
-			} else if (err instanceof Error && typeof err.message === 'string') {
-				return <WorkspaceEditDto>{
-					edits: undefined,
-					rejectReason: err.message
-				};
+			let rejectReason = RenameAdapter._asMessage(err);
+			if (rejectReason) {
+				return <WorkspaceEditDto>{ rejectReason, edits: undefined };
 			} else {
 				// generic error
-				return TPromise.wrapError<WorkspaceEditDto>(err);
+				return Promise.reject<WorkspaceEditDto>(err);
 			}
 		});
 	}
 
-	resolveRenameLocation(resource: URI, position: IPosition): TPromise<modes.RenameLocation> {
+	resolveRenameLocation(resource: URI, position: IPosition, token: CancellationToken): Thenable<modes.RenameLocation & modes.Rejection> {
 		if (typeof this._provider.prepareRename !== 'function') {
-			return TPromise.as(undefined);
+			return Promise.resolve(undefined);
 		}
 
 		let doc = this._documents.getDocumentData(resource).document;
 		let pos = typeConvert.Position.to(position);
 
-		return asWinJsPromise(token => this._provider.prepareRename(doc, pos, token)).then(rangeOrLocation => {
+		return asThenable(() => this._provider.prepareRename(doc, pos, token)).then(rangeOrLocation => {
 
 			let range: vscode.Range;
 			let text: string;
@@ -534,13 +524,29 @@ class RenameAdapter {
 			if (!range) {
 				return undefined;
 			}
-
-			if (!range.contains(pos)) {
-				console.warn('INVALID rename location: range must contain position');
+			if (range.start.line > pos.line || range.end.line < pos.line) {
+				console.warn('INVALID rename location: position line must be within range start/end lines');
 				return undefined;
 			}
 			return { range: typeConvert.Range.from(range), text };
+		}, err => {
+			let rejectReason = RenameAdapter._asMessage(err);
+			if (rejectReason) {
+				return <modes.RenameLocation & modes.Rejection>{ rejectReason, range: undefined, text: undefined };
+			} else {
+				return Promise.reject(err);
+			}
 		});
+	}
+
+	private static _asMessage(err: any): string {
+		if (typeof err === 'string') {
+			return err;
+		} else if (err instanceof Error && typeof err.message === 'string') {
+			return err.message;
+		} else {
+			return undefined;
+		}
 	}
 }
 
@@ -563,14 +569,14 @@ class SuggestAdapter {
 		this._provider = provider;
 	}
 
-	provideCompletionItems(resource: URI, position: IPosition, context: modes.SuggestContext): TPromise<SuggestResultDto> {
+	provideCompletionItems(resource: URI, position: IPosition, context: modes.CompletionContext, token: CancellationToken): Thenable<SuggestResultDto> {
 
 		const doc = this._documents.getDocumentData(resource).document;
 		const pos = typeConvert.Position.to(position);
 
-		return asWinJsPromise<vscode.CompletionItem[] | vscode.CompletionList>(token => {
-			return this._provider.provideCompletionItems(doc, pos, token, typeConvert.CompletionContext.from(context));
-		}).then(value => {
+		return asThenable<vscode.CompletionItem[] | vscode.CompletionList>(
+			() => this._provider.provideCompletionItems(doc, pos, token, typeConvert.CompletionContext.to(context))
+		).then(value => {
 
 			const _id = this._idPool++;
 
@@ -610,19 +616,19 @@ class SuggestAdapter {
 		});
 	}
 
-	resolveCompletionItem(resource: URI, position: IPosition, suggestion: modes.ISuggestion): TPromise<modes.ISuggestion> {
+	resolveCompletionItem(resource: URI, position: IPosition, suggestion: modes.CompletionItem, token: CancellationToken): Thenable<modes.CompletionItem> {
 
 		if (typeof this._provider.resolveCompletionItem !== 'function') {
-			return TPromise.as(suggestion);
+			return Promise.resolve(suggestion);
 		}
 
 		const { _parentId, _id } = (<SuggestionDto>suggestion);
 		const item = this._cache.has(_parentId) && this._cache.get(_parentId)[_id];
 		if (!item) {
-			return TPromise.as(suggestion);
+			return Promise.resolve(suggestion);
 		}
 
-		return asWinJsPromise(token => this._provider.resolveCompletionItem(item, token)).then(resolvedItem => {
+		return asThenable(() => this._provider.resolveCompletionItem(item, token)).then(resolvedItem => {
 
 			if (!resolvedItem) {
 				return suggestion;
@@ -656,35 +662,38 @@ class SuggestAdapter {
 			_parentId,
 			//
 			label: item.label,
-			type: typeConvert.CompletionItemKind.from(item.kind),
+			kind: typeConvert.CompletionItemKind.from(item.kind),
 			detail: item.detail,
 			documentation: item.documentation,
 			filterText: item.filterText,
 			sortText: item.sortText,
 			preselect: item.preselect,
 			//
+			range: undefined,
 			insertText: undefined,
+			insertTextRules: typeConvert.CompletionItemInsertTextRule.from(item.insertTextRules),
 			additionalTextEdits: item.additionalTextEdits && item.additionalTextEdits.map(typeConvert.TextEdit.from),
 			command: this._commands.toInternal(item.command),
-			commitCharacters: item.commitCharacters
+			commitCharacters: item.commitCharacters,
+			// help with perf
+			_labelLow: item.label.toLowerCase(),
+			_filterTextLow: item.filterText && item.filterText.toLowerCase(),
+			_sortTextLow: item.sortText && item.sortText.toLowerCase()
 		};
 
 		// 'insertText'-logic
 		if (item.textEdit) {
 			result.insertText = item.textEdit.newText;
-			result.snippetType = 'internal';
 
 		} else if (typeof item.insertText === 'string') {
 			result.insertText = item.insertText;
-			result.snippetType = 'internal';
 
 		} else if (item.insertText instanceof SnippetString) {
 			result.insertText = item.insertText.value;
-			result.snippetType = 'textmate';
+			result.insertTextRules += modes.CompletionItemInsertTextRule.InsertAsSnippet;
 
 		} else {
 			result.insertText = item.label;
-			result.snippetType = 'internal';
 		}
 
 		// 'overwrite[Before|After]'-logic
@@ -696,8 +705,7 @@ class SuggestAdapter {
 		} else {
 			range = defaultRange;
 		}
-		result.overwriteBefore = position.character - range.start.character;
-		result.overwriteAfter = range.end.character - position.character;
+		result.range = typeConvert.Range.from(range);
 
 		if (!range.isSingleLine || range.start.line !== position.line) {
 			console.warn('INVALID text edit -> must be single line and on the same line');
@@ -715,12 +723,12 @@ class SignatureHelpAdapter {
 		private readonly _provider: vscode.SignatureHelpProvider
 	) { }
 
-	provideSignatureHelp(resource: URI, position: IPosition): TPromise<modes.SignatureHelp> {
+	provideSignatureHelp(resource: URI, position: IPosition, context: modes.SignatureHelpContext, token: CancellationToken): Thenable<modes.SignatureHelp> {
 
 		const doc = this._documents.getDocumentData(resource).document;
 		const pos = typeConvert.Position.to(position);
 
-		return asWinJsPromise(token => this._provider.provideSignatureHelp(doc, pos, token)).then(value => {
+		return asThenable(() => this._provider.provideSignatureHelp(doc, pos, token, context)).then(value => {
 			if (value) {
 				return typeConvert.SignatureHelp.from(value);
 			}
@@ -737,10 +745,10 @@ class LinkProviderAdapter {
 		private readonly _provider: vscode.DocumentLinkProvider
 	) { }
 
-	provideLinks(resource: URI): TPromise<modes.ILink[]> {
+	provideLinks(resource: URI, token: CancellationToken): Thenable<modes.ILink[]> {
 		const doc = this._documents.getDocumentData(resource).document;
 
-		return asWinJsPromise(token => this._provider.provideDocumentLinks(doc, token)).then(links => {
+		return asThenable(() => this._provider.provideDocumentLinks(doc, token)).then(links => {
 			if (!Array.isArray(links)) {
 				return undefined;
 			}
@@ -755,7 +763,7 @@ class LinkProviderAdapter {
 		});
 	}
 
-	resolveLink(link: modes.ILink): TPromise<modes.ILink> {
+	resolveLink(link: modes.ILink, token: CancellationToken): Thenable<modes.ILink> {
 		if (typeof this._provider.resolveDocumentLink !== 'function') {
 			return undefined;
 		}
@@ -766,7 +774,7 @@ class LinkProviderAdapter {
 			return undefined;
 		}
 
-		return asWinJsPromise(token => this._provider.resolveDocumentLink(item, token)).then(value => {
+		return asThenable(() => this._provider.resolveDocumentLink(item, token)).then(value => {
 			if (value) {
 				return typeConvert.DocumentLink.from(value);
 			}
@@ -782,9 +790,9 @@ class ColorProviderAdapter {
 		private _provider: vscode.DocumentColorProvider
 	) { }
 
-	provideColors(resource: URI): TPromise<IRawColorInfo[]> {
+	provideColors(resource: URI, token: CancellationToken): Thenable<IRawColorInfo[]> {
 		const doc = this._documents.getDocumentData(resource).document;
-		return asWinJsPromise(token => this._provider.provideDocumentColors(doc, token)).then(colors => {
+		return asThenable(() => this._provider.provideDocumentColors(doc, token)).then(colors => {
 			if (!Array.isArray(colors)) {
 				return [];
 			}
@@ -800,11 +808,11 @@ class ColorProviderAdapter {
 		});
 	}
 
-	provideColorPresentations(resource: URI, raw: IRawColorInfo): TPromise<modes.IColorPresentation[]> {
+	provideColorPresentations(resource: URI, raw: IRawColorInfo, token: CancellationToken): Thenable<modes.IColorPresentation[]> {
 		const document = this._documents.getDocumentData(resource).document;
 		const range = typeConvert.Range.to(raw.range);
 		const color = typeConvert.Color.to(raw.color);
-		return asWinJsPromise(token => this._provider.provideColorPresentations(color, { document, range }, token)).then(value => {
+		return asThenable(() => this._provider.provideColorPresentations(color, { document, range }, token)).then(value => {
 			return value.map(typeConvert.ColorPresentation.from);
 		});
 	}
@@ -817,9 +825,9 @@ class FoldingProviderAdapter {
 		private _provider: vscode.FoldingRangeProvider
 	) { }
 
-	provideFoldingRanges(resource: URI, context: modes.FoldingContext): TPromise<modes.FoldingRange[]> {
+	provideFoldingRanges(resource: URI, context: modes.FoldingContext, token: CancellationToken): Thenable<modes.FoldingRange[]> {
 		const doc = this._documents.getDocumentData(resource).document;
-		return asWinJsPromise(token => this._provider.provideFoldingRanges(doc, context, token)).then(ranges => {
+		return asThenable(() => this._provider.provideFoldingRanges(doc, context, token)).then(ranges => {
 			if (!Array.isArray(ranges)) {
 				return void 0;
 			}
@@ -916,10 +924,10 @@ export class ExtHostLanguageFeatures implements ExtHostLanguageFeaturesShape {
 		return ExtHostLanguageFeatures._handlePool++;
 	}
 
-	private _withAdapter<A, R>(handle: number, ctor: { new(...args: any[]): A }, callback: (adapter: A) => TPromise<R>): TPromise<R> {
+	private _withAdapter<A, R>(handle: number, ctor: { new(...args: any[]): A }, callback: (adapter: A) => Thenable<R>): Thenable<R> {
 		let adapter = this._adapter.get(handle);
 		if (!(adapter instanceof ctor)) {
-			return TPromise.wrapError<R>(new Error('no adapter found'));
+			return Promise.reject(new Error('no adapter found'));
 		}
 		return callback(<any>adapter);
 	}
@@ -938,8 +946,8 @@ export class ExtHostLanguageFeatures implements ExtHostLanguageFeaturesShape {
 		return this._createDisposable(handle);
 	}
 
-	$provideDocumentSymbols(handle: number, resource: UriComponents): TPromise<modes.DocumentSymbol[]> {
-		return this._withAdapter(handle, OutlineAdapter, adapter => adapter.provideDocumentSymbols(URI.revive(resource)));
+	$provideDocumentSymbols(handle: number, resource: UriComponents, token: CancellationToken): Thenable<modes.DocumentSymbol[]> {
+		return this._withAdapter(handle, OutlineAdapter, adapter => adapter.provideDocumentSymbols(URI.revive(resource), token));
 	}
 
 	// --- code lens
@@ -960,12 +968,12 @@ export class ExtHostLanguageFeatures implements ExtHostLanguageFeaturesShape {
 		return result;
 	}
 
-	$provideCodeLenses(handle: number, resource: UriComponents): TPromise<modes.ICodeLensSymbol[]> {
-		return this._withAdapter(handle, CodeLensAdapter, adapter => adapter.provideCodeLenses(URI.revive(resource)));
+	$provideCodeLenses(handle: number, resource: UriComponents, token: CancellationToken): Thenable<modes.ICodeLensSymbol[]> {
+		return this._withAdapter(handle, CodeLensAdapter, adapter => adapter.provideCodeLenses(URI.revive(resource), token));
 	}
 
-	$resolveCodeLens(handle: number, resource: UriComponents, symbol: modes.ICodeLensSymbol): TPromise<modes.ICodeLensSymbol> {
-		return this._withAdapter(handle, CodeLensAdapter, adapter => adapter.resolveCodeLens(URI.revive(resource), symbol));
+	$resolveCodeLens(handle: number, resource: UriComponents, symbol: modes.ICodeLensSymbol, token: CancellationToken): Thenable<modes.ICodeLensSymbol> {
+		return this._withAdapter(handle, CodeLensAdapter, adapter => adapter.resolveCodeLens(URI.revive(resource), symbol, token));
 	}
 
 	// --- declaration
@@ -976,8 +984,8 @@ export class ExtHostLanguageFeatures implements ExtHostLanguageFeaturesShape {
 		return this._createDisposable(handle);
 	}
 
-	$provideDefinition(handle: number, resource: UriComponents, position: IPosition): TPromise<modes.DefinitionLink[]> {
-		return this._withAdapter(handle, DefinitionAdapter, adapter => adapter.provideDefinition(URI.revive(resource), position));
+	$provideDefinition(handle: number, resource: UriComponents, position: IPosition, token: CancellationToken): Thenable<modes.DefinitionLink[]> {
+		return this._withAdapter(handle, DefinitionAdapter, adapter => adapter.provideDefinition(URI.revive(resource), position, token));
 	}
 
 	registerImplementationProvider(selector: vscode.DocumentSelector, provider: vscode.ImplementationProvider): vscode.Disposable {
@@ -986,8 +994,8 @@ export class ExtHostLanguageFeatures implements ExtHostLanguageFeaturesShape {
 		return this._createDisposable(handle);
 	}
 
-	$provideImplementation(handle: number, resource: UriComponents, position: IPosition): TPromise<modes.DefinitionLink[]> {
-		return this._withAdapter(handle, ImplementationAdapter, adapter => adapter.provideImplementation(URI.revive(resource), position));
+	$provideImplementation(handle: number, resource: UriComponents, position: IPosition, token: CancellationToken): Thenable<modes.DefinitionLink[]> {
+		return this._withAdapter(handle, ImplementationAdapter, adapter => adapter.provideImplementation(URI.revive(resource), position, token));
 	}
 
 	registerTypeDefinitionProvider(selector: vscode.DocumentSelector, provider: vscode.TypeDefinitionProvider): vscode.Disposable {
@@ -996,8 +1004,8 @@ export class ExtHostLanguageFeatures implements ExtHostLanguageFeaturesShape {
 		return this._createDisposable(handle);
 	}
 
-	$provideTypeDefinition(handle: number, resource: UriComponents, position: IPosition): TPromise<modes.DefinitionLink[]> {
-		return this._withAdapter(handle, TypeDefinitionAdapter, adapter => adapter.provideTypeDefinition(URI.revive(resource), position));
+	$provideTypeDefinition(handle: number, resource: UriComponents, position: IPosition, token: CancellationToken): Thenable<modes.DefinitionLink[]> {
+		return this._withAdapter(handle, TypeDefinitionAdapter, adapter => adapter.provideTypeDefinition(URI.revive(resource), position, token));
 	}
 
 	// --- extra info
@@ -1008,8 +1016,8 @@ export class ExtHostLanguageFeatures implements ExtHostLanguageFeaturesShape {
 		return this._createDisposable(handle);
 	}
 
-	$provideHover(handle: number, resource: UriComponents, position: IPosition): TPromise<modes.Hover> {
-		return this._withAdapter(handle, HoverAdapter, adpater => adpater.provideHover(URI.revive(resource), position));
+	$provideHover(handle: number, resource: UriComponents, position: IPosition, token: CancellationToken): Thenable<modes.Hover> {
+		return this._withAdapter(handle, HoverAdapter, adapter => adapter.provideHover(URI.revive(resource), position, token));
 	}
 
 	// --- occurrences
@@ -1020,8 +1028,8 @@ export class ExtHostLanguageFeatures implements ExtHostLanguageFeaturesShape {
 		return this._createDisposable(handle);
 	}
 
-	$provideDocumentHighlights(handle: number, resource: UriComponents, position: IPosition): TPromise<modes.DocumentHighlight[]> {
-		return this._withAdapter(handle, DocumentHighlightAdapter, adapter => adapter.provideDocumentHighlights(URI.revive(resource), position));
+	$provideDocumentHighlights(handle: number, resource: UriComponents, position: IPosition, token: CancellationToken): Thenable<modes.DocumentHighlight[]> {
+		return this._withAdapter(handle, DocumentHighlightAdapter, adapter => adapter.provideDocumentHighlights(URI.revive(resource), position, token));
 	}
 
 	// --- references
@@ -1032,8 +1040,8 @@ export class ExtHostLanguageFeatures implements ExtHostLanguageFeaturesShape {
 		return this._createDisposable(handle);
 	}
 
-	$provideReferences(handle: number, resource: UriComponents, position: IPosition, context: modes.ReferenceContext): TPromise<modes.Location[]> {
-		return this._withAdapter(handle, ReferenceAdapter, adapter => adapter.provideReferences(URI.revive(resource), position, context));
+	$provideReferences(handle: number, resource: UriComponents, position: IPosition, context: modes.ReferenceContext, token: CancellationToken): Thenable<modes.Location[]> {
+		return this._withAdapter(handle, ReferenceAdapter, adapter => adapter.provideReferences(URI.revive(resource), position, context, token));
 	}
 
 	// --- quick fix
@@ -1045,8 +1053,8 @@ export class ExtHostLanguageFeatures implements ExtHostLanguageFeaturesShape {
 	}
 
 
-	$provideCodeActions(handle: number, resource: UriComponents, rangeOrSelection: IRange | ISelection, context: modes.CodeActionContext): TPromise<CodeActionDto[]> {
-		return this._withAdapter(handle, CodeActionAdapter, adapter => adapter.provideCodeActions(URI.revive(resource), rangeOrSelection, context));
+	$provideCodeActions(handle: number, resource: UriComponents, rangeOrSelection: IRange | ISelection, context: modes.CodeActionContext, token: CancellationToken): Thenable<CodeActionDto[]> {
+		return this._withAdapter(handle, CodeActionAdapter, adapter => adapter.provideCodeActions(URI.revive(resource), rangeOrSelection, context, token));
 	}
 
 	// --- formatting
@@ -1057,8 +1065,8 @@ export class ExtHostLanguageFeatures implements ExtHostLanguageFeaturesShape {
 		return this._createDisposable(handle);
 	}
 
-	$provideDocumentFormattingEdits(handle: number, resource: UriComponents, options: modes.FormattingOptions): TPromise<ISingleEditOperation[]> {
-		return this._withAdapter(handle, DocumentFormattingAdapter, adapter => adapter.provideDocumentFormattingEdits(URI.revive(resource), options));
+	$provideDocumentFormattingEdits(handle: number, resource: UriComponents, options: modes.FormattingOptions, token: CancellationToken): Thenable<ISingleEditOperation[]> {
+		return this._withAdapter(handle, DocumentFormattingAdapter, adapter => adapter.provideDocumentFormattingEdits(URI.revive(resource), options, token));
 	}
 
 	registerDocumentRangeFormattingEditProvider(selector: vscode.DocumentSelector, provider: vscode.DocumentRangeFormattingEditProvider): vscode.Disposable {
@@ -1067,8 +1075,8 @@ export class ExtHostLanguageFeatures implements ExtHostLanguageFeaturesShape {
 		return this._createDisposable(handle);
 	}
 
-	$provideDocumentRangeFormattingEdits(handle: number, resource: UriComponents, range: IRange, options: modes.FormattingOptions): TPromise<ISingleEditOperation[]> {
-		return this._withAdapter(handle, RangeFormattingAdapter, adapter => adapter.provideDocumentRangeFormattingEdits(URI.revive(resource), range, options));
+	$provideDocumentRangeFormattingEdits(handle: number, resource: UriComponents, range: IRange, options: modes.FormattingOptions, token: CancellationToken): Thenable<ISingleEditOperation[]> {
+		return this._withAdapter(handle, RangeFormattingAdapter, adapter => adapter.provideDocumentRangeFormattingEdits(URI.revive(resource), range, options, token));
 	}
 
 	registerOnTypeFormattingEditProvider(selector: vscode.DocumentSelector, provider: vscode.OnTypeFormattingEditProvider, triggerCharacters: string[]): vscode.Disposable {
@@ -1077,8 +1085,8 @@ export class ExtHostLanguageFeatures implements ExtHostLanguageFeaturesShape {
 		return this._createDisposable(handle);
 	}
 
-	$provideOnTypeFormattingEdits(handle: number, resource: UriComponents, position: IPosition, ch: string, options: modes.FormattingOptions): TPromise<ISingleEditOperation[]> {
-		return this._withAdapter(handle, OnTypeFormattingAdapter, adapter => adapter.provideOnTypeFormattingEdits(URI.revive(resource), position, ch, options));
+	$provideOnTypeFormattingEdits(handle: number, resource: UriComponents, position: IPosition, ch: string, options: modes.FormattingOptions, token: CancellationToken): Thenable<ISingleEditOperation[]> {
+		return this._withAdapter(handle, OnTypeFormattingAdapter, adapter => adapter.provideOnTypeFormattingEdits(URI.revive(resource), position, ch, options, token));
 	}
 
 	// --- navigate types
@@ -1089,15 +1097,15 @@ export class ExtHostLanguageFeatures implements ExtHostLanguageFeaturesShape {
 		return this._createDisposable(handle);
 	}
 
-	$provideWorkspaceSymbols(handle: number, search: string): TPromise<WorkspaceSymbolsDto> {
-		return this._withAdapter(handle, NavigateTypeAdapter, adapter => adapter.provideWorkspaceSymbols(search));
+	$provideWorkspaceSymbols(handle: number, search: string, token: CancellationToken): Thenable<WorkspaceSymbolsDto> {
+		return this._withAdapter(handle, NavigateTypeAdapter, adapter => adapter.provideWorkspaceSymbols(search, token));
 	}
 
-	$resolveWorkspaceSymbol(handle: number, symbol: WorkspaceSymbolDto): TPromise<WorkspaceSymbolDto> {
-		return this._withAdapter(handle, NavigateTypeAdapter, adapter => adapter.resolveWorkspaceSymbol(symbol));
+	$resolveWorkspaceSymbol(handle: number, symbol: WorkspaceSymbolDto, token: CancellationToken): Thenable<WorkspaceSymbolDto> {
+		return this._withAdapter(handle, NavigateTypeAdapter, adapter => adapter.resolveWorkspaceSymbol(symbol, token));
 	}
 
-	$releaseWorkspaceSymbols(handle: number, id: number) {
+	$releaseWorkspaceSymbols(handle: number, id: number): void {
 		this._withAdapter(handle, NavigateTypeAdapter, adapter => adapter.releaseWorkspaceSymbols(id));
 	}
 
@@ -1109,12 +1117,12 @@ export class ExtHostLanguageFeatures implements ExtHostLanguageFeaturesShape {
 		return this._createDisposable(handle);
 	}
 
-	$provideRenameEdits(handle: number, resource: UriComponents, position: IPosition, newName: string): TPromise<WorkspaceEditDto> {
-		return this._withAdapter(handle, RenameAdapter, adapter => adapter.provideRenameEdits(URI.revive(resource), position, newName));
+	$provideRenameEdits(handle: number, resource: UriComponents, position: IPosition, newName: string, token: CancellationToken): Thenable<WorkspaceEditDto> {
+		return this._withAdapter(handle, RenameAdapter, adapter => adapter.provideRenameEdits(URI.revive(resource), position, newName, token));
 	}
 
-	$resolveRenameLocation(handle: number, resource: URI, position: IPosition): TPromise<modes.RenameLocation> {
-		return this._withAdapter(handle, RenameAdapter, adapter => adapter.resolveRenameLocation(URI.revive(resource), position));
+	$resolveRenameLocation(handle: number, resource: URI, position: IPosition, token: CancellationToken): Thenable<modes.RenameLocation> {
+		return this._withAdapter(handle, RenameAdapter, adapter => adapter.resolveRenameLocation(URI.revive(resource), position, token));
 	}
 
 	// --- suggestion
@@ -1125,12 +1133,12 @@ export class ExtHostLanguageFeatures implements ExtHostLanguageFeaturesShape {
 		return this._createDisposable(handle);
 	}
 
-	$provideCompletionItems(handle: number, resource: UriComponents, position: IPosition, context: modes.SuggestContext): TPromise<SuggestResultDto> {
-		return this._withAdapter(handle, SuggestAdapter, adapter => adapter.provideCompletionItems(URI.revive(resource), position, context));
+	$provideCompletionItems(handle: number, resource: UriComponents, position: IPosition, context: modes.CompletionContext, token: CancellationToken): Thenable<SuggestResultDto> {
+		return this._withAdapter(handle, SuggestAdapter, adapter => adapter.provideCompletionItems(URI.revive(resource), position, context, token));
 	}
 
-	$resolveCompletionItem(handle: number, resource: UriComponents, position: IPosition, suggestion: modes.ISuggestion): TPromise<modes.ISuggestion> {
-		return this._withAdapter(handle, SuggestAdapter, adapter => adapter.resolveCompletionItem(URI.revive(resource), position, suggestion));
+	$resolveCompletionItem(handle: number, resource: UriComponents, position: IPosition, suggestion: modes.CompletionItem, token: CancellationToken): Thenable<modes.CompletionItem> {
+		return this._withAdapter(handle, SuggestAdapter, adapter => adapter.resolveCompletionItem(URI.revive(resource), position, suggestion, token));
 	}
 
 	$releaseCompletionItems(handle: number, id: number): void {
@@ -1139,14 +1147,18 @@ export class ExtHostLanguageFeatures implements ExtHostLanguageFeaturesShape {
 
 	// --- parameter hints
 
-	registerSignatureHelpProvider(selector: vscode.DocumentSelector, provider: vscode.SignatureHelpProvider, triggerCharacters: string[]): vscode.Disposable {
+	registerSignatureHelpProvider(selector: vscode.DocumentSelector, provider: vscode.SignatureHelpProvider, metadataOrTriggerChars?: string[] | vscode.SignatureHelpProviderMetadata): vscode.Disposable {
+		const metadata: ISerializedSignatureHelpProviderMetadata = Array.isArray(metadataOrTriggerChars)
+			? { triggerCharacters: metadataOrTriggerChars, retriggerCharacters: [] }
+			: metadataOrTriggerChars;
+
 		const handle = this._addNewAdapter(new SignatureHelpAdapter(this._documents, provider));
-		this._proxy.$registerSignatureHelpProvider(handle, this._transformDocumentSelector(selector), triggerCharacters);
+		this._proxy.$registerSignatureHelpProvider(handle, this._transformDocumentSelector(selector), metadata);
 		return this._createDisposable(handle);
 	}
 
-	$provideSignatureHelp(handle: number, resource: UriComponents, position: IPosition): TPromise<modes.SignatureHelp> {
-		return this._withAdapter(handle, SignatureHelpAdapter, adapter => adapter.provideSignatureHelp(URI.revive(resource), position));
+	$provideSignatureHelp(handle: number, resource: UriComponents, position: IPosition, context: modes.SignatureHelpContext, token: CancellationToken): Thenable<modes.SignatureHelp> {
+		return this._withAdapter(handle, SignatureHelpAdapter, adapter => adapter.provideSignatureHelp(URI.revive(resource), position, context, token));
 	}
 
 	// --- links
@@ -1157,12 +1169,12 @@ export class ExtHostLanguageFeatures implements ExtHostLanguageFeaturesShape {
 		return this._createDisposable(handle);
 	}
 
-	$provideDocumentLinks(handle: number, resource: UriComponents): TPromise<modes.ILink[]> {
-		return this._withAdapter(handle, LinkProviderAdapter, adapter => adapter.provideLinks(URI.revive(resource)));
+	$provideDocumentLinks(handle: number, resource: UriComponents, token: CancellationToken): Thenable<modes.ILink[]> {
+		return this._withAdapter(handle, LinkProviderAdapter, adapter => adapter.provideLinks(URI.revive(resource), token));
 	}
 
-	$resolveDocumentLink(handle: number, link: modes.ILink): TPromise<modes.ILink> {
-		return this._withAdapter(handle, LinkProviderAdapter, adapter => adapter.resolveLink(link));
+	$resolveDocumentLink(handle: number, link: modes.ILink, token: CancellationToken): Thenable<modes.ILink> {
+		return this._withAdapter(handle, LinkProviderAdapter, adapter => adapter.resolveLink(link, token));
 	}
 
 	registerColorProvider(selector: vscode.DocumentSelector, provider: vscode.DocumentColorProvider): vscode.Disposable {
@@ -1171,12 +1183,12 @@ export class ExtHostLanguageFeatures implements ExtHostLanguageFeaturesShape {
 		return this._createDisposable(handle);
 	}
 
-	$provideDocumentColors(handle: number, resource: UriComponents): TPromise<IRawColorInfo[]> {
-		return this._withAdapter(handle, ColorProviderAdapter, adapter => adapter.provideColors(URI.revive(resource)));
+	$provideDocumentColors(handle: number, resource: UriComponents, token: CancellationToken): Thenable<IRawColorInfo[]> {
+		return this._withAdapter(handle, ColorProviderAdapter, adapter => adapter.provideColors(URI.revive(resource), token));
 	}
 
-	$provideColorPresentations(handle: number, resource: UriComponents, colorInfo: IRawColorInfo): TPromise<modes.IColorPresentation[]> {
-		return this._withAdapter(handle, ColorProviderAdapter, adapter => adapter.provideColorPresentations(URI.revive(resource), colorInfo));
+	$provideColorPresentations(handle: number, resource: UriComponents, colorInfo: IRawColorInfo, token: CancellationToken): Thenable<modes.IColorPresentation[]> {
+		return this._withAdapter(handle, ColorProviderAdapter, adapter => adapter.provideColorPresentations(URI.revive(resource), colorInfo, token));
 	}
 
 	registerFoldingRangeProvider(selector: vscode.DocumentSelector, provider: vscode.FoldingRangeProvider): vscode.Disposable {
@@ -1185,8 +1197,8 @@ export class ExtHostLanguageFeatures implements ExtHostLanguageFeaturesShape {
 		return this._createDisposable(handle);
 	}
 
-	$provideFoldingRanges(handle: number, resource: UriComponents, context: vscode.FoldingContext): TPromise<modes.FoldingRange[]> {
-		return this._withAdapter(handle, FoldingProviderAdapter, adapter => adapter.provideFoldingRanges(URI.revive(resource), context));
+	$provideFoldingRanges(handle: number, resource: UriComponents, context: vscode.FoldingContext, token: CancellationToken): Thenable<modes.FoldingRange[]> {
+		return this._withAdapter(handle, FoldingProviderAdapter, adapter => adapter.provideFoldingRanges(URI.revive(resource), context, token));
 	}
 
 	// --- configuration
@@ -1223,6 +1235,7 @@ export class ExtHostLanguageFeatures implements ExtHostLanguageFeaturesShape {
 		return {
 			beforeText: ExtHostLanguageFeatures._serializeRegExp(onEnterRule.beforeText),
 			afterText: ExtHostLanguageFeatures._serializeRegExp(onEnterRule.afterText),
+			oneLineAboveText: ExtHostLanguageFeatures._serializeRegExp(onEnterRule.oneLineAboveText),
 			action: onEnterRule.action
 		};
 	}

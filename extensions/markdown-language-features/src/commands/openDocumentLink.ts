@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
-import * as path from 'path';
+import { extname } from 'path';
 
 import { Command } from '../commandManager';
 import { MarkdownEngine } from '../markdownEngine';
@@ -35,7 +35,7 @@ export class OpenDocumentLinkCommand implements Command {
 	public execute(args: OpenDocumentLinkArgs) {
 		const p = decodeURIComponent(args.path);
 		return this.tryOpen(p, args).catch(() => {
-			if (path.extname(p) === '') {
+			if (p && extname(p) === '') {
 				return this.tryOpen(p + '.md', args);
 			}
 			const resource = vscode.Uri.file(p);
@@ -47,13 +47,14 @@ export class OpenDocumentLinkCommand implements Command {
 
 	private async tryOpen(path: string, args: OpenDocumentLinkArgs) {
 		const resource = vscode.Uri.file(path);
-		if (vscode.window.activeTextEditor && isMarkdownFile(vscode.window.activeTextEditor.document) && vscode.window.activeTextEditor.document.uri.fsPath === resource.fsPath) {
-			return this.tryRevealLine(vscode.window.activeTextEditor, args.fragment);
-		} else {
-			return vscode.workspace.openTextDocument(resource)
-				.then(vscode.window.showTextDocument)
-				.then(editor => this.tryRevealLine(editor, args.fragment));
+		if (vscode.window.activeTextEditor && isMarkdownFile(vscode.window.activeTextEditor.document)) {
+			if (!path || vscode.window.activeTextEditor.document.uri.fsPath === resource.fsPath) {
+				return this.tryRevealLine(vscode.window.activeTextEditor, args.fragment);
+			}
 		}
+		return vscode.workspace.openTextDocument(resource)
+			.then(vscode.window.showTextDocument)
+			.then(editor => this.tryRevealLine(editor, args.fragment));
 	}
 
 	private async tryRevealLine(editor: vscode.TextEditor, fragment?: string) {
@@ -72,4 +73,38 @@ export class OpenDocumentLinkCommand implements Command {
 			}
 		}
 	}
+}
+
+
+export async function resolveLinkToMarkdownFile(path: string): Promise<vscode.Uri | undefined> {
+	try {
+		const standardLink = await tryResolveLinkToMarkdownFile(path);
+		if (standardLink) {
+			return standardLink;
+		}
+	} catch {
+		// Noop
+	}
+
+	// If no extension, try with `.md` extension
+	if (extname(path) === '') {
+		return tryResolveLinkToMarkdownFile(path + '.md');
+	}
+
+	return undefined;
+}
+
+async function tryResolveLinkToMarkdownFile(path: string): Promise<vscode.Uri | undefined> {
+	const resource = vscode.Uri.file(path);
+
+	let document: vscode.TextDocument;
+	try {
+		document = await vscode.workspace.openTextDocument(resource);
+	} catch {
+		return undefined;
+	}
+	if (isMarkdownFile(document)) {
+		return document.uri;
+	}
+	return undefined;
 }

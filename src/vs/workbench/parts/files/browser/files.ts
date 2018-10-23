@@ -3,9 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
-import URI from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 import { IListService } from 'vs/platform/list/browser/listService';
 import { ExplorerItem, OpenEditor } from 'vs/workbench/parts/files/common/explorerModel';
 import { toResource } from 'vs/workbench/common/editor';
@@ -21,7 +19,7 @@ export function getResourceForCommand(resource: URI | object, listService: IList
 	}
 
 	let list = listService.lastFocusedList;
-	if (list && list.isDOMFocused()) {
+	if (list && list.getHTMLElement() === document.activeElement) {
 		let focus: any;
 		if (list instanceof List) {
 			const focused = list.getFocusedElements();
@@ -44,7 +42,7 @@ export function getResourceForCommand(resource: URI | object, listService: IList
 
 export function getMultiSelectedResources(resource: URI | object, listService: IListService, editorService: IEditorService): URI[] {
 	const list = listService.lastFocusedList;
-	if (list && list.isDOMFocused()) {
+	if (list && list.getHTMLElement() === document.activeElement) {
 		// Explorer
 		if (list instanceof Tree) {
 			const selection = list.getSelection().map((fs: ExplorerItem) => fs.resource);

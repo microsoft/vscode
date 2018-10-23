@@ -34,9 +34,14 @@ export interface IPanelService {
 	getActivePanel(): IPanel;
 
 	/**
-	 * Returns all enabled panels
+	 * * Returns all built-in panels following the default order (Problems - Output - Debug Console - Terminal)
 	 */
 	getPanels(): IPanelIdentifier[];
+
+	/**
+	 * Returns pinned panels following the visual order
+	 */
+	getPinnedPanels(): IPanelIdentifier[];
 
 	/**
 	 * Enables or disables a panel. Disabled panels are completly hidden from UI.

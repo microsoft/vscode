@@ -2,7 +2,6 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
 import { TPromise } from 'vs/base/common/winjs.base';
 import * as nls from 'vs/nls';
@@ -12,6 +11,7 @@ import { Mode, IEntryRunContext, IAutoFocus } from 'vs/base/parts/quickopen/comm
 import { QuickOpenModel, QuickOpenEntryGroup } from 'vs/base/parts/quickopen/browser/quickOpenModel';
 import { IQuickOpenRegistry, Extensions, QuickOpenHandler, QuickOpenHandlerDescriptor, QuickOpenHandlerHelpEntry } from 'vs/workbench/browser/quickopen';
 import { IQuickOpenService } from 'vs/platform/quickOpen/common/quickOpen';
+import { CancellationToken } from 'vs/base/common/cancellation';
 
 export const HELP_PREFIX = '?';
 
@@ -66,7 +66,7 @@ export class HelpHandler extends QuickOpenHandler {
 		super();
 	}
 
-	getResults(searchValue: string): TPromise<QuickOpenModel> {
+	getResults(searchValue: string, token: CancellationToken): TPromise<QuickOpenModel> {
 		searchValue = searchValue.trim();
 
 		const registry = (Registry.as<IQuickOpenRegistry>(Extensions.Quickopen));

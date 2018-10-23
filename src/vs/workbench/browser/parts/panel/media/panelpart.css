@@ -147,24 +147,6 @@
 	background-image: url('right-inverse.svg');
 }
 
-.monaco-workbench .move-panel-to-right {
-	background: url('panel-right.svg') center center no-repeat;
-}
-
-.vs-dark .monaco-workbench .move-panel-to-right,
-.hc-black .monaco-workbench .move-panel-to-right {
-	background: url('panel-right-inverse.svg') center center no-repeat;
-}
-
-.monaco-workbench .move-panel-to-bottom {
-	background: url('panel-bottom.svg') center center no-repeat;
-}
-
-.vs-dark .monaco-workbench .move-panel-to-bottom,
-.hc-black .monaco-workbench .move-panel-to-bottom {
-	background: url('panel-bottom-inverse.svg') center center no-repeat;
-}
-
 .vs-dark .monaco-workbench .hide-panel-action,
 .hc-black .monaco-workbench .hide-panel-action {
 	background: url('close-inverse.svg') center center no-repeat;

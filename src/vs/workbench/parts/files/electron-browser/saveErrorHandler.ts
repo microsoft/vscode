@@ -2,15 +2,12 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
-import { TPromise } from 'vs/base/common/winjs.base';
 import * as nls from 'vs/nls';
-import * as errors from 'vs/base/common/errors';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
 import * as paths from 'vs/base/common/paths';
 import { Action } from 'vs/base/common/actions';
-import URI from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 import { FileOperationError, FileOperationResult } from 'vs/platform/files/common/files';
 import { ITextFileService, ISaveErrorHandler, ITextFileEditorModel } from 'vs/workbench/services/textfile/common/textfiles';
 import { ServicesAccessor, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -29,7 +26,7 @@ import { SAVE_FILE_COMMAND_ID, REVERT_FILE_COMMAND_ID, SAVE_FILE_AS_COMMAND_ID, 
 import { createTextBufferFactoryFromSnapshot } from 'vs/editor/common/model/textModel';
 import { INotificationService, INotificationHandle, INotificationActions, Severity } from 'vs/platform/notification/common/notification';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
-import { IStorageService } from 'vs/platform/storage/common/storage';
+import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { ExecuteCommandAction } from 'vs/platform/actions/common/actions';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { once } from 'vs/base/common/event';
@@ -114,7 +111,7 @@ export class SaveErrorHandler extends Disposable implements ISaveErrorHandler, I
 
 			// If the user tried to save from the opened conflict editor, show its message again
 			if (this.activeConflictResolutionResource && this.activeConflictResolutionResource.toString() === model.getResource().toString()) {
-				if (this.storageService.getBoolean(LEARN_MORE_DIRTY_WRITE_IGNORE_KEY)) {
+				if (this.storageService.getBoolean(LEARN_MORE_DIRTY_WRITE_IGNORE_KEY, StorageScope.GLOBAL)) {
 					return; // return if this message is ignored
 				}
 
@@ -200,7 +197,7 @@ class ResolveConflictLearnMoreAction extends Action {
 		super('workbench.files.action.resolveConflictLearnMore', nls.localize('learnMore', "Learn More"));
 	}
 
-	run(): TPromise<any> {
+	run(): Promise<any> {
 		return this.openerService.open(URI.parse('https://go.microsoft.com/fwlink/?linkid=868264'));
 	}
 }
@@ -213,13 +210,13 @@ class DoNotShowResolveConflictLearnMoreAction extends Action {
 		super('workbench.files.action.resolveConflictLearnMoreDoNotShowAgain', nls.localize('dontShowAgain', "Don't Show Again"));
 	}
 
-	run(notification: IDisposable): TPromise<any> {
-		this.storageService.store(LEARN_MORE_DIRTY_WRITE_IGNORE_KEY, true);
+	run(notification: IDisposable): Promise<any> {
+		this.storageService.store(LEARN_MORE_DIRTY_WRITE_IGNORE_KEY, true, StorageScope.GLOBAL);
 
 		// Hide notification
 		notification.dispose();
 
-		return TPromise.as(void 0);
+		return Promise.resolve(void 0);
 	}
 }
 
@@ -236,7 +233,7 @@ class ResolveSaveConflictAction extends Action {
 		super('workbench.files.action.resolveConflict', nls.localize('compareChanges', "Compare"));
 	}
 
-	run(): TPromise<any> {
+	run(): Thenable<any> {
 		if (!this.model.isDisposed()) {
 			const resource = this.model.getResource();
 			const name = paths.basename(resource.fsPath);
@@ -250,7 +247,7 @@ class ResolveSaveConflictAction extends Action {
 					options: { pinned: true }
 				}
 			).then(() => {
-				if (this.storageService.getBoolean(LEARN_MORE_DIRTY_WRITE_IGNORE_KEY)) {
+				if (this.storageService.getBoolean(LEARN_MORE_DIRTY_WRITE_IGNORE_KEY, StorageScope.GLOBAL)) {
 					return; // return if this message is ignored
 				}
 
@@ -265,7 +262,7 @@ class ResolveSaveConflictAction extends Action {
 			});
 		}
 
-		return TPromise.as(true);
+		return Promise.resolve(true);
 	}
 }
 
@@ -278,15 +275,15 @@ class SaveElevatedAction extends Action {
 		super('workbench.files.action.saveElevated', triedToMakeWriteable ? nls.localize('overwriteElevated', "Overwrite as Admin...") : nls.localize('saveElevated', "Retry as Admin..."));
 	}
 
-	run(): TPromise<any> {
+	run(): Promise<any> {
 		if (!this.model.isDisposed()) {
 			this.model.save({
 				writeElevated: true,
 				overwriteReadonly: this.triedToMakeWriteable
-			}).done(null, errors.onUnexpectedError);
+			});
 		}
 
-		return TPromise.as(true);
+		return Promise.resolve(true);
 	}
 }
 
@@ -298,12 +295,12 @@ class OverwriteReadonlyAction extends Action {
 		super('workbench.files.action.overwrite', nls.localize('overwrite', "Overwrite"));
 	}
 
-	run(): TPromise<any> {
+	run(): Promise<any> {
 		if (!this.model.isDisposed()) {
-			this.model.save({ overwriteReadonly: true }).done(null, errors.onUnexpectedError);
+			this.model.save({ overwriteReadonly: true });
 		}
 
-		return TPromise.as(true);
+		return Promise.resolve(true);
 	}
 }
 

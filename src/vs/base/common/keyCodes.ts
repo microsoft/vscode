@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import { OperatingSystem } from 'vs/base/common/platform';
 
 /**
@@ -412,7 +410,7 @@ export function KeyChord(firstPart: number, secondPart: number): number {
 	return (firstPart | chordPart) >>> 0;
 }
 
-export function createKeybinding(keybinding: number, OS: OperatingSystem): Keybinding {
+export function createKeybinding(keybinding: number, OS: OperatingSystem): Keybinding | null {
 	if (keybinding === 0) {
 		return null;
 	}
@@ -531,10 +529,10 @@ export class ResolvedKeybindingPart {
 	readonly altKey: boolean;
 	readonly metaKey: boolean;
 
-	readonly keyLabel: string;
-	readonly keyAriaLabel: string;
+	readonly keyLabel: string | null;
+	readonly keyAriaLabel: string | null;
 
-	constructor(ctrlKey: boolean, shiftKey: boolean, altKey: boolean, metaKey: boolean, kbLabel: string, kbAriaLabel: string) {
+	constructor(ctrlKey: boolean, shiftKey: boolean, altKey: boolean, metaKey: boolean, kbLabel: string | null, kbAriaLabel: string | null) {
 		this.ctrlKey = ctrlKey;
 		this.shiftKey = shiftKey;
 		this.altKey = altKey;
@@ -551,20 +549,20 @@ export abstract class ResolvedKeybinding {
 	/**
 	 * This prints the binding in a format suitable for displaying in the UI.
 	 */
-	public abstract getLabel(): string;
+	public abstract getLabel(): string | null;
 	/**
 	 * This prints the binding in a format suitable for ARIA.
 	 */
-	public abstract getAriaLabel(): string;
+	public abstract getAriaLabel(): string | null;
 	/**
 	 * This prints the binding in a format suitable for electron's accelerators.
 	 * See https://github.com/electron/electron/blob/master/docs/api/accelerator.md
 	 */
-	public abstract getElectronAccelerator(): string;
+	public abstract getElectronAccelerator(): string | null;
 	/**
 	 * This prints the binding in a format suitable for user settings.
 	 */
-	public abstract getUserSettingsLabel(): string;
+	public abstract getUserSettingsLabel(): string | null;
 	/**
 	 * Is the user settings label reflecting the label?
 	 */
@@ -578,10 +576,10 @@ export abstract class ResolvedKeybinding {
 	/**
 	 * Returns the firstPart, chordPart that should be used for dispatching.
 	 */
-	public abstract getDispatchParts(): [string, string];
+	public abstract getDispatchParts(): [string | null, string | null];
 	/**
 	 * Returns the firstPart, chordPart of the keybinding.
 	 * For simple keybindings, the second element will be null.
 	 */
-	public abstract getParts(): [ResolvedKeybindingPart, ResolvedKeybindingPart];
+	public abstract getParts(): [ResolvedKeybindingPart, ResolvedKeybindingPart | null];
 }

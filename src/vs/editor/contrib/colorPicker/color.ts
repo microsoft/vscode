@@ -3,17 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import URI from 'vs/base/common/uri';
-
-import { TPromise } from 'vs/base/common/winjs.base';
-import { ColorProviderRegistry, DocumentColorProvider, IColorInformation, IColorPresentation } from 'vs/editor/common/modes';
-import { asWinJsPromise } from 'vs/base/common/async';
-import { ITextModel } from 'vs/editor/common/model';
-import { registerLanguageCommand } from 'vs/editor/browser/editorExtensions';
-import { Range, IRange } from 'vs/editor/common/core/range';
-import { illegalArgument } from 'vs/base/common/errors';
-import { IModelService } from 'vs/editor/common/services/modelService';
 import { CancellationToken } from 'vs/base/common/cancellation';
+import { illegalArgument } from 'vs/base/common/errors';
+import { URI } from 'vs/base/common/uri';
+import { registerLanguageCommand } from 'vs/editor/browser/editorExtensions';
+import { IRange, Range } from 'vs/editor/common/core/range';
+import { ITextModel } from 'vs/editor/common/model';
+import { ColorProviderRegistry, DocumentColorProvider, IColorInformation, IColorPresentation } from 'vs/editor/common/modes';
+import { IModelService } from 'vs/editor/common/services/modelService';
 
 
 export interface IColorData {
@@ -35,7 +32,7 @@ export function getColors(model: ITextModel, token: CancellationToken): Promise<
 	return Promise.all(promises).then(() => colors);
 }
 
-export function getColorPresentations(model: ITextModel, colorInfo: IColorInformation, provider: DocumentColorProvider, token: CancellationToken): Promise<IColorPresentation[]> {
+export function getColorPresentations(model: ITextModel, colorInfo: IColorInformation, provider: DocumentColorProvider, token: CancellationToken): Promise<IColorPresentation[] | null | undefined> {
 	return Promise.resolve(provider.provideColorPresentations(model, colorInfo, token));
 }
 
@@ -53,7 +50,7 @@ registerLanguageCommand('_executeDocumentColorProvider', function (accessor, arg
 
 	const rawCIs: { range: IRange, color: [number, number, number, number] }[] = [];
 	const providers = ColorProviderRegistry.ordered(model).reverse();
-	const promises = providers.map(provider => asWinJsPromise(token => provider.provideDocumentColors(model, token)).then(result => {
+	const promises = providers.map(provider => Promise.resolve(provider.provideDocumentColors(model, CancellationToken.None)).then(result => {
 		if (Array.isArray(result)) {
 			for (let ci of result) {
 				rawCIs.push({ range: ci.range, color: [ci.color.red, ci.color.green, ci.color.blue, ci.color.alpha] });
@@ -61,7 +58,7 @@ registerLanguageCommand('_executeDocumentColorProvider', function (accessor, arg
 		}
 	}));
 
-	return TPromise.join(promises).then(() => rawCIs);
+	return Promise.all(promises).then(() => rawCIs);
 });
 
 
@@ -85,10 +82,10 @@ registerLanguageCommand('_executeColorPresentationProvider', function (accessor,
 
 	const presentations: IColorPresentation[] = [];
 	const providers = ColorProviderRegistry.ordered(model).reverse();
-	const promises = providers.map(provider => asWinJsPromise(token => provider.provideColorPresentations(model, colorInfo, token)).then(result => {
+	const promises = providers.map(provider => Promise.resolve(provider.provideColorPresentations(model, colorInfo, CancellationToken.None)).then(result => {
 		if (Array.isArray(result)) {
 			presentations.push(...result);
 		}
 	}));
-	return TPromise.join(promises).then(() => presentations);
+	return Promise.all(promises).then(() => presentations);
 });

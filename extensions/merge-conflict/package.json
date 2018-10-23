@@ -79,10 +79,24 @@
       {
         "category": "%command.category%",
         "title": "%command.compare%",
-        "original":"Compare Current Conflict",
+        "original": "Compare Current Conflict",
         "command": "merge-conflict.compare"
       }
     ],
+    "menus": {
+      "scm/resourceState/context": [
+        {
+          "command": "merge-conflict.accept.all-current",
+          "when": "scmProvider == git && scmResourceGroup == merge",
+          "group": "1_modification"
+        },
+        {
+          "command": "merge-conflict.accept.all-incoming",
+          "when": "scmProvider == git && scmResourceGroup == merge",
+          "group": "1_modification"
+        }
+      ]
+    },
     "configuration": {
       "title": "%config.title%",
       "properties": {
@@ -95,12 +109,17 @@
           "type": "boolean",
           "description": "%config.decoratorsEnabled%",
           "default": true
+        },
+        "merge-conflict.autoNavigateNextConflict.enabled": {
+          "type": "boolean",
+          "description": "%config.autoNavigateNextConflictEnabled%",
+          "default": false
         }
       }
     }
   },
   "dependencies": {
-    "vscode-nls": "^3.2.4"
+    "vscode-nls": "^4.0.0"
   },
   "devDependencies": {
     "@types/node": "8.0.33"

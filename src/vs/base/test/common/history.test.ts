@@ -2,8 +2,6 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
-
 import * as assert from 'assert';
 import { HistoryNavigator } from 'vs/base/common/history';
 
@@ -27,7 +25,7 @@ suite('History Navigator', () => {
 		const testObject = new HistoryNavigator(['1', '2', '3', '4'], 100);
 
 		assert.equal(testObject.first(), '1');
-		assert.equal(testObject.last(), '4', );
+		assert.equal(testObject.last(), '4');
 	});
 
 	test('first returns first element', () => {
@@ -116,7 +114,7 @@ suite('History Navigator', () => {
 	});
 
 	function toArray(historyNavigator: HistoryNavigator<string>): string[] {
-		let result = [];
+		let result: string[] = [];
 		historyNavigator.first();
 		if (historyNavigator.current()) {
 			do {
