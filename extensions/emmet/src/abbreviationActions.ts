@@ -639,9 +639,9 @@ function expandAbbr(input: ExpandAbbreviationInput, isPreviewing: boolean = fals
 				}
 
 				// If wrapping with a block element, insert newline in the text to wrap.
-				if (wrappingNode && (expandOptions['profile'].hasOwnProperty('format') ? expandOptions['profile'].format : true)) {
+				if (wrappingNode) {
 					wrappingNode.value = isPreviewing ? wrappingNode.value : selectedTextPlaceholder;
-					if (inlineElements.indexOf(wrappingNode.name) === -1) {
+					if (inlineElements.indexOf(wrappingNode.name) === -1 && (expandOptions['profile'].hasOwnProperty('format') ? expandOptions['profile'].format : true)) {
 						wrappingNode.value = '\n\t' + wrappingNode.value + '\n';
 					}
 
