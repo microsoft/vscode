@@ -9,8 +9,6 @@ import { IExtensionService } from 'vs/workbench/services/extensions/common/exten
 import { Event, Emitter } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { ILogService } from 'vs/platform/log/common/log';
-import { IProgressService2, ProgressLocation } from 'vs/platform/progress/common/progress';
-import { localize } from 'vs/nls';
 
 export class CommandService extends Disposable implements ICommandService {
 
@@ -24,8 +22,7 @@ export class CommandService extends Disposable implements ICommandService {
 	constructor(
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IExtensionService private readonly _extensionService: IExtensionService,
-		@ILogService private readonly _logService: ILogService,
-		@IProgressService2 private readonly _progressService: IProgressService2,
+		@ILogService private readonly _logService: ILogService
 	) {
 		super();
 		this._extensionService.whenInstalledExtensionsRegistered().then(value => this._extensionHostIsReady = value);
@@ -48,12 +45,6 @@ export class CommandService extends Disposable implements ICommandService {
 			if (!commandIsRegistered) {
 				waitFor = Promise.all([activation, this._extensionService.activateByEvent(`*`)]);
 			}
-
-			this._progressService.withProgress({
-				location: ProgressLocation.Window,
-				title: localize('activating', "Activating extensions for command '{0}'...", id)
-			}, () => waitFor);
-
 			return (waitFor as Promise<any>).then(_ => this._tryExecuteCommand(id, args));
 		}
 	}
