@@ -32,10 +32,8 @@ import { localize } from 'vs/nls';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { RawContextKey, IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 
-const ActivePanleContextId = 'activePanel';
-const PanelFocusContextId = 'panelFocus';
-export const ActivePanelContext = new RawContextKey<string>(ActivePanleContextId, '');
-export const PanelFocusContext = new RawContextKey<boolean>(PanelFocusContextId, false);
+export const ActivePanelContext = new RawContextKey<string>('activePanel', '');
+export const PanelFocusContext = new RawContextKey<boolean>('panelFocus', false);
 
 export class PanelPart extends CompositePart<Panel> implements IPanelService {
 
@@ -198,11 +196,7 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 			}
 		}
 
-		return promise.then(async () => {
-			const composite = await this.openComposite(id, focus);
-			this.panelFocusContextKey.set(true);
-			return composite;
-		});
+		return promise.then(() => this.openComposite(id, focus));
 	}
 
 	showActivity(panelId: string, badge: IBadge, clazz?: string): IDisposable {
