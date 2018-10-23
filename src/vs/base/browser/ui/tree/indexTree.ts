@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/css!./tree';
+import 'vs/css!./media/tree';
 import { Iterator, ISequence } from 'vs/base/common/iterator';
 import { AbstractTree, ITreeOptions } from 'vs/base/browser/ui/tree/abstractTree';
 import { ISpliceable } from 'vs/base/common/sequence';
