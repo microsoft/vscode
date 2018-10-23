@@ -6,7 +6,7 @@
 import 'vs/css!./media/panelpart';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IAction } from 'vs/base/common/actions';
-import { Event } from 'vs/base/common/event';
+import { Event, mapEvent } from 'vs/base/common/event';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { ActionsOrientation } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IPanel } from 'vs/workbench/common/panel';
@@ -119,13 +119,13 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 	}
 
 	private registerListeners(): void {
-		this._register(this.onDidPanelOpen(this._onDidPanelOpen, this));
+		this._register(this.onDidPanelOpen(({ panel }) => this._onDidPanelOpen(panel)));
 		this._register(this.onDidPanelClose(this._onDidPanelClose, this));
 
 		this._register(this.registry.onDidRegister(panelDescriptor => this.compositeBar.addComposite(panelDescriptor)));
 
 		// Activate panel action on opening of a panel
-		this._register(this.onDidPanelOpen(panel => {
+		this._register(this.onDidPanelOpen(({ panel }) => {
 			this.compositeBar.activateComposite(panel.getId());
 			this.layoutCompositeBar(); // Need to relayout composite bar since different panels have different action bar width
 		}));
@@ -146,8 +146,8 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 		}
 	}
 
-	get onDidPanelOpen(): Event<IPanel> {
-		return this._onDidCompositeOpen.event;
+	get onDidPanelOpen(): Event<{ panel: IPanel, focus: boolean }> {
+		return mapEvent(this._onDidCompositeOpen.event, compositeOpen => ({ panel: compositeOpen.composite, focus: compositeOpen.focus }));
 	}
 
 	get onDidPanelClose(): Event<IPanel> {
