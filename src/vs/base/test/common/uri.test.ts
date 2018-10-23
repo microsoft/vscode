@@ -458,37 +458,4 @@ suite('URI', () => {
 		// }
 		// console.profileEnd();
 	});
-
-	test('Opening files from quick open not showing file contents #60163', function () {
-
-		const data = {
-			'$mid': 1,
-			'fsPath': 'c:\\Users\\bpasero\\Desktop\\Golda\'s Kitchen\\CHANGELOG.md',
-			'external': 'file:///c%3A/Users/bpasero/Desktop/Golda%27s%20Kitchen/CHANGELOG.md',
-			'path': '/c:/Users/bpasero/Desktop/Golda\'s Kitchen/CHANGELOG.md',
-			'scheme': 'file'
-		};
-		const uri = URI.revive(data);
-		assert.equal(uri.scheme, data.scheme);
-		assert.equal(uri.path, data.path);
-		assert.equal((uri as any)._formatted, null);
-		assert.equal((uri as any)._fsPath, null);
-
-		// when the $mid is the current one then we trust
-		// the data(no matter what)
-		const data2 = {
-			'$mid': 100,
-			'fsPath': 'c:\\Users\\bpasero\\Desktop\\Golda\'s Kitchen\\CHANGELOG.md',
-			'external': 'file:///c%3A/Users/bpasero/Desktop/Golda%27s%20Kitchen/CHANGELOG.md',
-			'path': '/c:/Users/bpasero/Desktop/Golda\'s Kitchen/CHANGELOG.md',
-			'scheme': 'file'
-		};
-		const uri2 = URI.revive(data2);
-		assert.equal(uri2.scheme, data2.scheme);
-		assert.equal(uri2.path, data2.path);
-		assert.ok((uri2 as any)._formatted);
-		assert.ok((uri2 as any)._fsPath);
-
-
-	});
 });
