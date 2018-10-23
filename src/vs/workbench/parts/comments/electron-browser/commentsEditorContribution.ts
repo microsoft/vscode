@@ -128,7 +128,7 @@ class CommentingRangeDecorator {
 			return;
 		}
 
-		let commentingRangeDecorations = [];
+		let commentingRangeDecorations: CommentingRangeDecoration[] = [];
 		for (let i = 0; i < commentInfos.length; i++) {
 			let info = commentInfos[i];
 			info.commentingRanges.forEach(range => {
@@ -470,7 +470,7 @@ export class ReviewController implements IEditorContribution {
 		if (this._commentInfos.some(info => Boolean(info.commentingRanges && info.commentingRanges.length))) {
 			if (!this._commentingRangeSpaceReserved) {
 				this._commentingRangeSpaceReserved = true;
-				let extraEditorClassName = [];
+				let extraEditorClassName: string[] = [];
 				if (this.editor.getRawConfiguration().extraEditorClassName) {
 					extraEditorClassName = this.editor.getRawConfiguration().extraEditorClassName.split(' ');
 				}
@@ -512,7 +512,7 @@ export class ReviewController implements IEditorContribution {
 			});
 		});
 
-		const commentingRanges = [];
+		const commentingRanges: IRange[] = [];
 		this._commentInfos.forEach(info => {
 			commentingRanges.push(...info.commentingRanges);
 		});
@@ -592,7 +592,7 @@ function closeReviewPanel(accessor: ServicesAccessor, args: any) {
 
 
 registerThemingParticipant((theme, collector) => {
-	let peekViewBackground = theme.getColor(peekViewResultsBackground);
+	const peekViewBackground = theme.getColor(peekViewResultsBackground);
 	if (peekViewBackground) {
 		collector.addRule(
 			`.monaco-editor .review-widget,` +
@@ -601,7 +601,7 @@ registerThemingParticipant((theme, collector) => {
 			`}`);
 	}
 
-	let monacoEditorBackground = theme.getColor(peekViewTitleBackground);
+	const monacoEditorBackground = theme.getColor(peekViewTitleBackground);
 	if (monacoEditorBackground) {
 		collector.addRule(
 			`.monaco-editor .review-widget .body .comment-form .review-thread-reply-button {` +
@@ -610,7 +610,7 @@ registerThemingParticipant((theme, collector) => {
 		);
 	}
 
-	let monacoEditorForeground = theme.getColor(editorForeground);
+	const monacoEditorForeground = theme.getColor(editorForeground);
 	if (monacoEditorForeground) {
 		collector.addRule(
 			`.monaco-editor .review-widget .body .monaco-editor {` +
@@ -622,7 +622,7 @@ registerThemingParticipant((theme, collector) => {
 		);
 	}
 
-	let selectionBackground = theme.getColor(peekViewResultsSelectionBackground);
+	const selectionBackground = theme.getColor(peekViewResultsSelectionBackground);
 
 	if (selectionBackground) {
 		collector.addRule(

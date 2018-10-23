@@ -3,12 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ColorId, TokenizationRegistry } from 'vs/editor/common/modes';
-import { Event, Emitter } from 'vs/base/common/event';
+import { Emitter, Event } from 'vs/base/common/event';
 import { RGBA8 } from 'vs/editor/common/core/rgba';
+import { ColorId, TokenizationRegistry } from 'vs/editor/common/modes';
 
 export class MinimapTokensColorTracker {
-	private static _INSTANCE: MinimapTokensColorTracker = null;
+	private static _INSTANCE: MinimapTokensColorTracker | null = null;
 	public static getInstance(): MinimapTokensColorTracker {
 		if (!this._INSTANCE) {
 			this._INSTANCE = new MinimapTokensColorTracker();
@@ -34,11 +34,11 @@ export class MinimapTokensColorTracker {
 	private _updateColorMap(): void {
 		const colorMap = TokenizationRegistry.getColorMap();
 		if (!colorMap) {
-			this._colors = [null];
+			this._colors = [RGBA8.Empty];
 			this._backgroundIsLight = true;
 			return;
 		}
-		this._colors = [null];
+		this._colors = [RGBA8.Empty];
 		for (let colorId = 1; colorId < colorMap.length; colorId++) {
 			const source = colorMap[colorId].rgba;
 			// Use a VM friendly data-type

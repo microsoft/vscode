@@ -5,7 +5,6 @@
 
 import { Emitter, Event } from 'vs/base/common/event';
 import { URI } from 'vs/base/common/uri';
-import { TPromise } from 'vs/base/common/winjs.base';
 import * as typeConverters from 'vs/workbench/api/node/extHostTypeConverters';
 import { EditorViewColumn } from 'vs/workbench/api/shared/editor';
 import * as vscode from 'vscode';
@@ -311,7 +310,7 @@ export class ExtHostWebviews implements ExtHostWebviewsShape {
 			panel.dispose();
 			this._webviewPanels.delete(handle);
 		}
-		return TPromise.as(void 0);
+		return Promise.resolve(void 0);
 	}
 
 	$deserializeWebviewPanel(
@@ -324,7 +323,7 @@ export class ExtHostWebviews implements ExtHostWebviewsShape {
 	): Thenable<void> {
 		const serializer = this._serializers.get(viewType);
 		if (!serializer) {
-			return TPromise.wrapError(new Error(`No serializer found for '${viewType}'`));
+			return Promise.reject(new Error(`No serializer found for '${viewType}'`));
 		}
 
 		const webview = new ExtHostWebview(webviewHandle, this._proxy, options);

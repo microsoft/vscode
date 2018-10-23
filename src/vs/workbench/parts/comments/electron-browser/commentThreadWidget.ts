@@ -206,7 +206,7 @@ export class ReviewZoneWidget extends ZoneWidget {
 			this._commentsElement.removeChild(commentElementsToDel[i].domNode);
 		}
 
-		let lastCommentElement: HTMLElement = null;
+		let lastCommentElement: HTMLElement | null = null;
 		let newCommentNodeList: CommentNode[] = [];
 		for (let i = newCommentsLen - 1; i >= 0; i--) {
 			let currentComment = commentThread.comments[i];
@@ -573,7 +573,7 @@ export class ReviewZoneWidget extends ZoneWidget {
 	}
 
 	private _applyTheme(theme: ITheme) {
-		let borderColor = theme.getColor(peekViewBorder) || Color.transparent;
+		const borderColor = theme.getColor(peekViewBorder) || Color.transparent;
 		this.style({
 			arrowColor: borderColor,
 			frameColor: borderColor

@@ -3,8 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ColorId, FontStyle, MetadataConsts, LanguageId, StandardTokenType } from 'vs/editor/common/modes';
 import { Color } from 'vs/base/common/color';
+import { ColorId, FontStyle, LanguageId, MetadataConsts, StandardTokenType } from 'vs/editor/common/modes';
 
 export interface ITokenThemeRule {
 	token: string;
@@ -23,15 +23,15 @@ export class ParsedTokenThemeRule {
 	 * -1 if not set. An or mask of `FontStyle` otherwise.
 	 */
 	readonly fontStyle: FontStyle;
-	readonly foreground: string;
-	readonly background: string;
+	readonly foreground: string | null;
+	readonly background: string | null;
 
 	constructor(
 		token: string,
 		index: number,
 		fontStyle: number,
-		foreground: string,
-		background: string,
+		foreground: string | null,
+		background: string | null,
 	) {
 		this.token = token;
 		this.index = index;
@@ -73,12 +73,12 @@ export function parseTokenTheme(source: ITokenThemeRule[]): ParsedTokenThemeRule
 			}
 		}
 
-		let foreground: string = null;
+		let foreground: string | null = null;
 		if (typeof entry.foreground === 'string') {
 			foreground = entry.foreground;
 		}
 
-		let background: string = null;
+		let background: string | null = null;
 		if (typeof entry.background === 'string') {
 			background = entry.background;
 		}
@@ -114,7 +114,7 @@ function resolveParsedTokenThemeRules(parsedThemeRules: ParsedTokenThemeRule[], 
 	let defaultForeground = '000000';
 	let defaultBackground = 'ffffff';
 	while (parsedThemeRules.length >= 1 && parsedThemeRules[0].token === '') {
-		let incomingDefaults = parsedThemeRules.shift();
+		let incomingDefaults = parsedThemeRules.shift()!;
 		if (incomingDefaults.fontStyle !== FontStyle.NotSet) {
 			defaultFontStyle = incomingDefaults.fontStyle;
 		}
@@ -160,7 +160,7 @@ export class ColorMap {
 		this._color2id = new Map<string, ColorId>();
 	}
 
-	public getId(color: string): ColorId {
+	public getId(color: string | null): ColorId {
 		if (color === null) {
 			return 0;
 		}

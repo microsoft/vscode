@@ -3,10 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { TextModel } from 'vs/editor/common/model/textModel';
-import { DefaultEndOfLine, ITextModelCreationOptions } from 'vs/editor/common/model';
-import { LanguageIdentifier } from 'vs/editor/common/modes';
 import { URI } from 'vs/base/common/uri';
+import { DefaultEndOfLine, ITextModelCreationOptions } from 'vs/editor/common/model';
+import { TextModel } from 'vs/editor/common/model/textModel';
+import { LanguageIdentifier } from 'vs/editor/common/modes';
 
 export function withEditorModel(text: string[], callback: (model: TextModel) => void): void {
 	let model = TextModel.createFromString(text.join('\n'));
@@ -24,7 +24,7 @@ export interface IRelaxedTextModelCreationOptions {
 	largeFileOptimizations?: boolean;
 }
 
-export function createTextModel(text: string, _options: IRelaxedTextModelCreationOptions = TextModel.DEFAULT_CREATION_OPTIONS, languageIdentifier: LanguageIdentifier = null, uri: URI = null): TextModel {
+export function createTextModel(text: string, _options: IRelaxedTextModelCreationOptions = TextModel.DEFAULT_CREATION_OPTIONS, languageIdentifier: LanguageIdentifier | null = null, uri: URI | null = null): TextModel {
 	const options: ITextModelCreationOptions = {
 		tabSize: (typeof _options.tabSize === 'undefined' ? TextModel.DEFAULT_CREATION_OPTIONS.tabSize : _options.tabSize),
 		insertSpaces: (typeof _options.insertSpaces === 'undefined' ? TextModel.DEFAULT_CREATION_OPTIONS.insertSpaces : _options.insertSpaces),

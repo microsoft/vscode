@@ -35,12 +35,11 @@ declare var define: {
 	(dependencies: string[], definition: any): any;
 };
 
-declare var require: {
+interface NodeRequire {
 	toUrl(path: string): string;
-	(moduleName: string): any;
 	(dependencies: string[], callback: (...args: any[]) => any, errorback?: (err: any) => void): any;
 	config(data: any): any;
 	onError: Function;
 	__$__nodeRequire<T>(moduleName: string): T;
 	getStats(): ReadonlyArray<LoaderEvent>
-};
+}

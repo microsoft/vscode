@@ -7,9 +7,10 @@ import * as path from 'path';
 import * as os from 'os';
 import * as fs from 'fs';
 import { resolveWorkbenchCommonProperties } from 'vs/platform/telemetry/node/workbenchCommonProperties';
-import { StorageService, InMemoryLocalStorage } from 'vs/platform/storage/common/storageService';
-import { TestWorkspace } from 'vs/platform/workspace/test/common/testWorkspace';
-import { getRandomTestPath } from 'vs/workbench/test/workbenchTestServices';
+import { getRandomTestPath, TestEnvironmentService } from 'vs/workbench/test/workbenchTestServices';
+import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
+import { StorageService } from 'vs/platform/storage/node/storageService';
+import { NullLogService } from 'vs/platform/log/common/log';
 import { del } from 'vs/base/node/extfs';
 import { mkdirp } from 'vs/base/node/pfs';
 import { timeout } from 'vs/base/common/async';
@@ -20,10 +21,10 @@ suite('Telemetry - common properties', function () {
 
 	const commit: string = void 0;
 	const version: string = void 0;
-	let storageService: StorageService;
+	let nestStorage2Service: IStorageService;
 
 	setup(() => {
-		storageService = new StorageService(new InMemoryLocalStorage(), null, TestWorkspace.id);
+		nestStorage2Service = new StorageService(':memory:', new NullLogService(), TestEnvironmentService);
 	});
 
 	teardown(done => {
@@ -33,7 +34,7 @@ suite('Telemetry - common properties', function () {
 	test('default', async function () {
 		await mkdirp(parentDir);
 		fs.writeFileSync(installSource, 'my.install.source');
-		const props = await resolveWorkbenchCommonProperties(storageService, commit, version, 'someMachineId', installSource);
+		const props = await resolveWorkbenchCommonProperties(nestStorage2Service, commit, version, 'someMachineId', installSource);
 		assert.ok('commitHash' in props);
 		assert.ok('sessionID' in props);
 		assert.ok('timestamp' in props);
@@ -54,22 +55,22 @@ suite('Telemetry - common properties', function () {
 		assert.ok('common.instanceId' in props, 'instanceId');
 		assert.ok('common.machineId' in props, 'machineId');
 		fs.unlinkSync(installSource);
-		const props_1 = await resolveWorkbenchCommonProperties(storageService, commit, version, 'someMachineId', installSource);
+		const props_1 = await resolveWorkbenchCommonProperties(nestStorage2Service, commit, version, 'someMachineId', installSource);
 		assert.ok(!('common.source' in props_1));
 	});
 
 	test('lastSessionDate when aviablale', async function () {
 
-		storageService.store('telemetry.lastSessionDate', new Date().toUTCString());
+		nestStorage2Service.store('telemetry.lastSessionDate', new Date().toUTCString(), StorageScope.GLOBAL);
 
-		const props = await resolveWorkbenchCommonProperties(storageService, commit, version, 'someMachineId', installSource);
+		const props = await resolveWorkbenchCommonProperties(nestStorage2Service, commit, version, 'someMachineId', installSource);
 		assert.ok('common.lastSessionDate' in props); // conditional, see below
 		assert.ok('common.isNewSession' in props);
 		assert.equal(props['common.isNewSession'], 0);
 	});
 
 	test('values chance on ask', async function () {
-		const props = await resolveWorkbenchCommonProperties(storageService, commit, version, 'someMachineId', installSource);
+		const props = await resolveWorkbenchCommonProperties(nestStorage2Service, commit, version, 'someMachineId', installSource);
 		let value1 = props['common.sequence'];
 		let value2 = props['common.sequence'];
 		assert.ok(value1 !== value2, 'seq');

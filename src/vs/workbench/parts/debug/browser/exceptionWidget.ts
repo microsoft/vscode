@@ -46,7 +46,7 @@ export class ExceptionWidget extends ZoneWidget {
 
 	private _applyTheme(theme: ITheme): void {
 		this._backgroundColor = theme.getColor(debugExceptionWidgetBackground);
-		let frameColor = theme.getColor(debugExceptionWidgetBorder);
+		const frameColor = theme.getColor(debugExceptionWidgetBorder);
 		this.style({
 			arrowColor: frameColor,
 			frameColor: frameColor

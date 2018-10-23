@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import 'vs/css!./quickInput';
-import { IVirtualDelegate, IRenderer } from 'vs/base/browser/ui/list/list';
+import { IListVirtualDelegate, IListRenderer } from 'vs/base/browser/ui/list/list';
 import * as dom from 'vs/base/browser/dom';
 import { dispose, IDisposable } from 'vs/base/common/lifecycle';
 import { WorkbenchList } from 'vs/platform/list/browser/listService';
@@ -83,7 +83,7 @@ interface IListElementTemplateData {
 	toDisposeTemplate: IDisposable[];
 }
 
-class ListElementRenderer implements IRenderer<ListElement, IListElementTemplateData> {
+class ListElementRenderer implements IListRenderer<ListElement, IListElementTemplateData> {
 
 	static readonly ID = 'listelement';
 
@@ -198,7 +198,7 @@ class ListElementRenderer implements IRenderer<ListElement, IListElementTemplate
 	}
 }
 
-class ListElementDelegate implements IVirtualDelegate<ListElement> {
+class ListElementDelegate implements IListVirtualDelegate<ListElement> {
 
 	getHeight(element: ListElement): number {
 		return element.saneDetail ? 44 : 22;
@@ -280,11 +280,6 @@ export class QuickInputList {
 		this.disposables.push(dom.addDisposableListener(this.container, dom.EventType.CLICK, e => {
 			if (e.x || e.y) { // Avoid 'click' triggered by 'space' on checkbox.
 				this._onLeave.fire();
-			}
-		}));
-		this.disposables.push(this.list.onSelectionChange(e => {
-			if (e.elements.length) {
-				this.list.setSelection([]);
 			}
 		}));
 	}
@@ -379,8 +374,8 @@ export class QuickInputList {
 			map.set(element.item, index);
 			return map;
 		}, new Map<IQuickPickItem, number>());
+		this.list.splice(0, this.list.length); // Clear focus and selection first, sending the events when the list is empty.
 		this.list.splice(0, this.list.length, this.elements);
-		this.list.setFocus([]);
 		this._onChangedVisibleCount.fire(this.elements.length);
 	}
 

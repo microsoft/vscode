@@ -16,7 +16,6 @@ import { TestInstantiationService } from 'vs/platform/instantiation/test/common/
 import { MainThreadCommands } from 'vs/workbench/api/electron-browser/mainThreadCommands';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { mock } from 'vs/workbench/test/electron-browser/api/mock';
-import { TPromise } from 'vs/base/common/winjs.base';
 import { TreeItemCollapsibleState, ITreeItem } from 'vs/workbench/common/views';
 import { NullLogService } from 'vs/platform/log/common/log';
 
@@ -29,11 +28,11 @@ suite('ExtHostTreeView', function () {
 		$registerTreeViewDataProvider(treeViewId: string): void {
 		}
 
-		$refresh(viewId: string, itemsToRefresh?: { [treeItemHandle: string]: ITreeItem }): TPromise<void> {
-			return TPromise.as(null).then(() => this.onRefresh.fire(itemsToRefresh));
+		$refresh(viewId: string, itemsToRefresh?: { [treeItemHandle: string]: ITreeItem }): Promise<void> {
+			return Promise.resolve(null).then(() => this.onRefresh.fire(itemsToRefresh));
 		}
 
-		$reveal(): TPromise<void> {
+		$reveal(): Promise<void> {
 			return null;
 		}
 
@@ -84,12 +83,12 @@ suite('ExtHostTreeView', function () {
 			.then(elements => {
 				const actuals = elements.map(e => e.handle);
 				assert.deepEqual(actuals, ['0/0:a', '0/0:b']);
-				return TPromise.join([
+				return Promise.all([
 					testObject.$getChildren('testNodeTreeProvider', '0/0:a')
 						.then(children => {
 							const actuals = children.map(e => e.handle);
 							assert.deepEqual(actuals, ['0/0:a/0:aa', '0/0:a/0:ab']);
-							return TPromise.join([
+							return Promise.all([
 								testObject.$getChildren('testNodeTreeProvider', '0/0:a/0:aa').then(children => assert.equal(children.length, 0)),
 								testObject.$getChildren('testNodeTreeProvider', '0/0:a/0:ab').then(children => assert.equal(children.length, 0))
 							]);
@@ -98,7 +97,7 @@ suite('ExtHostTreeView', function () {
 						.then(children => {
 							const actuals = children.map(e => e.handle);
 							assert.deepEqual(actuals, ['0/0:b/0:ba', '0/0:b/0:bb']);
-							return TPromise.join([
+							return Promise.all([
 								testObject.$getChildren('testNodeTreeProvider', '0/0:b/0:ba').then(children => assert.equal(children.length, 0)),
 								testObject.$getChildren('testNodeTreeProvider', '0/0:b/0:bb').then(children => assert.equal(children.length, 0))
 							]);
@@ -112,12 +111,12 @@ suite('ExtHostTreeView', function () {
 			.then(elements => {
 				const actuals = elements.map(e => e.handle);
 				assert.deepEqual(actuals, ['1/a', '1/b']);
-				return TPromise.join([
+				return Promise.all([
 					testObject.$getChildren('testNodeWithIdTreeProvider', '1/a')
 						.then(children => {
 							const actuals = children.map(e => e.handle);
 							assert.deepEqual(actuals, ['1/aa', '1/ab']);
-							return TPromise.join([
+							return Promise.all([
 								testObject.$getChildren('testNodeWithIdTreeProvider', '1/aa').then(children => assert.equal(children.length, 0)),
 								testObject.$getChildren('testNodeWithIdTreeProvider', '1/ab').then(children => assert.equal(children.length, 0))
 							]);
@@ -126,7 +125,7 @@ suite('ExtHostTreeView', function () {
 						.then(children => {
 							const actuals = children.map(e => e.handle);
 							assert.deepEqual(actuals, ['1/ba', '1/bb']);
-							return TPromise.join([
+							return Promise.all([
 								testObject.$getChildren('testNodeWithIdTreeProvider', '1/ba').then(children => assert.equal(children.length, 0)),
 								testObject.$getChildren('testNodeWithIdTreeProvider', '1/bb').then(children => assert.equal(children.length, 0))
 							]);
@@ -165,7 +164,7 @@ suite('ExtHostTreeView', function () {
 	});
 
 	test('refresh a parent node', () => {
-		return new TPromise((c, e) => {
+		return new Promise((c, e) => {
 			target.onRefresh.event(actuals => {
 				assert.deepEqual(['0/0:b'], Object.keys(actuals));
 				assert.deepEqual(removeUnsetKeys(actuals['0/0:b']), {

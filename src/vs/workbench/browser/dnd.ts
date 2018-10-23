@@ -10,7 +10,6 @@ import { IWindowsService, IWindowService } from 'vs/platform/windows/common/wind
 import { URI } from 'vs/base/common/uri';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { IBackupFileService } from 'vs/workbench/services/backup/common/backup';
-import { TPromise } from 'vs/base/common/winjs.base';
 import { Schemas } from 'vs/base/common/network';
 import { IUntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
 import { DefaultEndOfLine } from 'vs/editor/common/model';
@@ -207,7 +206,7 @@ export class ResourcesDropHandler {
 		});
 	}
 
-	private doHandleDrop(untitledOrFileResources: (IDraggedResource | IDraggedEditor)[]): TPromise<boolean> {
+	private doHandleDrop(untitledOrFileResources: (IDraggedResource | IDraggedEditor)[]): Thenable<boolean> {
 
 		// Check for dirty editors being dropped
 		const resourcesWithBackups: IDraggedEditor[] = untitledOrFileResources.filter(resource => !resource.isExternal && !!(resource as IDraggedEditor).backupResource);
@@ -226,7 +225,7 @@ export class ResourcesDropHandler {
 		return Promise.resolve(false);
 	}
 
-	private handleDirtyEditorDrop(droppedDirtyEditor: IDraggedEditor): TPromise<boolean> {
+	private handleDirtyEditorDrop(droppedDirtyEditor: IDraggedEditor): Thenable<boolean> {
 
 		// Untitled: always ensure that we open a new untitled for each file we drop
 		if (droppedDirtyEditor.resource.scheme === Schemas.untitled) {
@@ -255,7 +254,7 @@ export class ResourcesDropHandler {
 		return DefaultEndOfLine.LF;
 	}
 
-	private handleWorkspaceFileDrop(fileOnDiskResources: URI[]): TPromise<boolean> {
+	private handleWorkspaceFileDrop(fileOnDiskResources: URI[]): Thenable<boolean> {
 		const workspaceResources: { workspaces: URI[], folders: URI[] } = {
 			workspaces: [],
 			folders: []
@@ -287,7 +286,7 @@ export class ResourcesDropHandler {
 			// Pass focus to window
 			this.windowService.focusWindow();
 
-			let workspacesToOpen: TPromise<URI[]>;
+			let workspacesToOpen: Thenable<URI[]>;
 
 			// Open in separate windows if we drop workspaces or just one folder
 			if (workspaces.length > 0 || folders.length === 1) {

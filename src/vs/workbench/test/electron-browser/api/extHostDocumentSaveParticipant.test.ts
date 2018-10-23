@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 import * as assert from 'assert';
 import { URI } from 'vs/base/common/uri';
-import { TPromise } from 'vs/base/common/winjs.base';
 import { ExtHostDocuments } from 'vs/workbench/api/node/extHostDocuments';
 import { ExtHostDocumentsAndEditors } from 'vs/workbench/api/node/extHostDocumentsAndEditors';
 import { TextDocumentSaveReason, TextEdit, Position, EndOfLine } from 'vs/workbench/api/node/extHostTypes';
@@ -209,7 +208,7 @@ suite('ExtHostDocumentSaveParticipant', () => {
 
 		let sub = participant.getOnWillSaveTextDocumentEvent(nullExtensionDescription)(function (event) {
 
-			event.waitUntil(new TPromise((resolve, reject) => {
+			event.waitUntil(new Promise((resolve, reject) => {
 				setTimeout(() => {
 					try {
 						assert.throws(() => event.waitUntil(timeout(10)));

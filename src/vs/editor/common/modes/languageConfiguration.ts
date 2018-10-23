@@ -12,11 +12,11 @@ export interface CommentRule {
 	/**
 	 * The line comment token, like `// this is a comment`
 	 */
-	lineComment?: string;
+	lineComment?: string | null;
 	/**
 	 * The block comment character pair, like `/* block comment *&#47;`
 	 */
-	blockComment?: CharacterPair;
+	blockComment?: CharacterPair | null;
 }
 
 /**
@@ -62,10 +62,10 @@ export interface LanguageConfiguration {
 	surroundingPairs?: IAutoClosingPair[];
 
 	/**
-		 * Defines what characters must be after the cursor for bracket or quote autoclosing to occur when using the \'languageDefined\' autoclosing setting.
-		 *
-		 * This is typically the set of characters which can not start an expression, such as whitespace, closing brackets, non-unary operators, etc.
-		 */
+	 * Defines what characters must be after the cursor for bracket or quote autoclosing to occur when using the \'languageDefined\' autoclosing setting.
+	 *
+	 * This is typically the set of characters which can not start an expression, such as whitespace, closing brackets, non-unary operators, etc.
+	 */
 	autoCloseBefore?: string;
 
 	/**
@@ -320,7 +320,7 @@ export class StandardAutoClosingPairConditional {
 
 			/**
 			* Loop through each digit and add them all together to determine the case,
-			* i.e. '24' = ['string', 'regex']. Sum = 6, which is case 6. 
+			* i.e. '24' = ['string', 'regex']. Sum = 6, which is case 6.
 			* We want to do this so that the order of the "onlyIn" input doesn't matter
 			*/
 			while (this._value > 0) {
@@ -361,7 +361,7 @@ export class StandardAutoClosingPairConditional {
 		}
 	}
 
-	//*** Set a variable to determine if we have a notIn array or an onlyIn array (or neither). 
+	//*** Set a variable to determine if we have a notIn array or an onlyIn array (or neither).
 	//*** If there's both a notIn array and onlyIn array set, the onlyIn array will be skipped (needs to be one or the other)
 	//*** If the onlyIn array var is set, check if the StandardTokenType of isOK is "other". If so, return false
 	//*** (i.e. don't autoclose)

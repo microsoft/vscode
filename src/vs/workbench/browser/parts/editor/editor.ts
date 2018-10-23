@@ -28,6 +28,7 @@ export interface IEditorPartOptions extends IWorkbenchEditorPartConfiguration {
 
 export const DEFAULT_EDITOR_PART_OPTIONS: IEditorPartOptions = {
 	showTabs: true,
+	highlightModifiedTabs: false,
 	tabCloseButton: 'right',
 	tabSizing: 'fit',
 	showIcons: true,
@@ -116,8 +117,6 @@ export interface IEditorGroupView extends IDisposable, ISerializableView, IEdito
 	setActive(isActive: boolean): void;
 	setLabel(label: string): void;
 	relayout(): void;
-
-	shutdown(): void;
 }
 
 export function getActiveTextEditorOptions(group: IEditorGroup, expectedActiveEditor?: IEditorInput, presetOptions?: EditorOptions): EditorOptions {

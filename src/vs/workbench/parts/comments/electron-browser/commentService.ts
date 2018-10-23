@@ -135,7 +135,7 @@ export class CommentService extends Disposable implements ICommentService {
 	}
 
 	getComments(resource: URI): Promise<CommentInfo[]> {
-		const result = [];
+		const result: Promise<CommentInfo>[] = [];
 		for (const handle of keys(this._commentProviders)) {
 			const provider = this._commentProviders.get(handle);
 			if ((<DocumentCommentProvider>provider).provideDocumentComments) {

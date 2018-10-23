@@ -98,7 +98,7 @@ function noIntlCompareFileExtensions(one: string, other: string): number {
 }
 
 function extractNameAndExtension(str?: string): [string, string] {
-	const match = str ? FileNameMatch.exec(str) : [] as RegExpExecArray;
+	const match = str ? FileNameMatch.exec(str) as Array<string> : ([] as Array<string>);
 
 	return [(match && match[1]) || '', (match && match[3]) || ''];
 }

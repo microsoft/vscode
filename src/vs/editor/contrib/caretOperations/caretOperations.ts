@@ -4,11 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as nls from 'vs/nls';
+import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
+import { EditorAction, IActionOptions, ServicesAccessor, registerEditorAction } from 'vs/editor/browser/editorExtensions';
 import { ICommand } from 'vs/editor/common/editorCommon';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
-import { IActionOptions, registerEditorAction, EditorAction, ServicesAccessor } from 'vs/editor/browser/editorExtensions';
-import { MoveCaretCommand } from './moveCaretCommand';
-import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
+import { MoveCaretCommand } from 'vs/editor/contrib/caretOperations/moveCaretCommand';
 
 class MoveCaretAction extends EditorAction {
 
@@ -21,6 +21,9 @@ class MoveCaretAction extends EditorAction {
 	}
 
 	public run(accessor: ServicesAccessor, editor: ICodeEditor): void {
+		if (!editor.hasModel()) {
+			return;
+		}
 
 		let commands: ICommand[] = [];
 		let selections = editor.getSelections();

@@ -24,7 +24,7 @@ function toArray<T>(list: ITreeNode<T>[]): T[] {
 suite('ObjectTreeModel', function () {
 
 	test('ctor', () => {
-		const list = [] as ITreeNode<number>[];
+		const list: ITreeNode<number>[] = [];
 		const model = new ObjectTreeModel<number>(toSpliceable(list));
 		assert(model);
 		assert.equal(list.length, 0);
@@ -32,7 +32,7 @@ suite('ObjectTreeModel', function () {
 	});
 
 	test('flat', () => {
-		const list = [] as ITreeNode<number>[];
+		const list: ITreeNode<number>[] = [];
 		const model = new ObjectTreeModel<number>(toSpliceable(list));
 
 		model.setChildren(null, Iterator.fromArray([
@@ -59,7 +59,7 @@ suite('ObjectTreeModel', function () {
 	});
 
 	test('nested', () => {
-		const list = [] as ITreeNode<number>[];
+		const list: ITreeNode<number>[] = [];
 		const model = new ObjectTreeModel<number>(toSpliceable(list));
 
 		model.setChildren(null, Iterator.fromArray([
@@ -92,5 +92,52 @@ suite('ObjectTreeModel', function () {
 		model.setChildren(null);
 		assert.deepEqual(toArray(list), []);
 		assert.equal(model.size, 0);
+	});
+
+	test('setChildren on collapsed node', () => {
+		const list: ITreeNode<number>[] = [];
+		const model = new ObjectTreeModel<number>(toSpliceable(list));
+
+		model.setChildren(null, Iterator.fromArray([
+			{ element: 0, collapsed: true }
+		]));
+
+		assert.deepEqual(toArray(list), [0]);
+
+		model.setChildren(0, Iterator.fromArray([
+			{ element: 1 },
+			{ element: 2 }
+		]));
+
+		assert.deepEqual(toArray(list), [0]);
+
+		model.setCollapsed(0, false);
+		assert.deepEqual(toArray(list), [0, 1, 2]);
+	});
+
+	test('setChildren on expanded, unrevealed node', () => {
+		const list: ITreeNode<number>[] = [];
+		const model = new ObjectTreeModel<number>(toSpliceable(list));
+
+		model.setChildren(null, [
+			{
+				element: 1, collapsed: true, children: [
+					{ element: 11, collapsed: false }
+				]
+			},
+			{ element: 2 }
+		]);
+
+		assert.deepEqual(toArray(list), [1, 2]);
+
+		model.setChildren(11, [
+			{ element: 111 },
+			{ element: 112 }
+		]);
+
+		assert.deepEqual(toArray(list), [1, 2]);
+
+		model.setCollapsed(1, false);
+		assert.deepEqual(toArray(list), [1, 11, 111, 112, 2]);
 	});
 });

@@ -5,8 +5,8 @@
 
 import * as strings from 'vs/base/common/strings';
 import { Range } from 'vs/editor/common/core/range';
-import { CharacterPair } from 'vs/editor/common/modes/languageConfiguration';
 import { LanguageIdentifier } from 'vs/editor/common/modes';
+import { CharacterPair } from 'vs/editor/common/modes/languageConfiguration';
 
 interface ISimpleInternalBracket {
 	open: string;
@@ -141,34 +141,34 @@ let toReversedString = (function () {
 		return reversedStr;
 	}
 
-	let lastInput: string = null;
-	let lastOutput: string = null;
+	let lastInput: string | null = null;
+	let lastOutput: string | null = null;
 	return function toReversedString(str: string): string {
 		if (lastInput !== str) {
 			lastInput = str;
 			lastOutput = reverse(lastInput);
 		}
-		return lastOutput;
+		return lastOutput!;
 	};
 })();
 
 export class BracketsUtils {
 
-	private static _findPrevBracketInText(reversedBracketRegex: RegExp, lineNumber: number, reversedText: string, offset: number): Range {
+	private static _findPrevBracketInText(reversedBracketRegex: RegExp, lineNumber: number, reversedText: string, offset: number): Range | null {
 		let m = reversedText.match(reversedBracketRegex);
 
 		if (!m) {
 			return null;
 		}
 
-		let matchOffset = reversedText.length - m.index;
+		let matchOffset = reversedText.length - (m.index || 0);
 		let matchLength = m[0].length;
 		let absoluteMatchOffset = offset + matchOffset;
 
 		return new Range(lineNumber, absoluteMatchOffset - matchLength + 1, lineNumber, absoluteMatchOffset + 1);
 	}
 
-	public static findPrevBracketInToken(reversedBracketRegex: RegExp, lineNumber: number, lineText: string, currentTokenStart: number, currentTokenEnd: number): Range {
+	public static findPrevBracketInToken(reversedBracketRegex: RegExp, lineNumber: number, lineText: string, currentTokenStart: number, currentTokenEnd: number): Range | null {
 		// Because JS does not support backwards regex search, we search forwards in a reversed string with a reversed regex ;)
 		let reversedLineText = toReversedString(lineText);
 		let reversedTokenText = reversedLineText.substring(lineText.length - currentTokenEnd, lineText.length - currentTokenStart);
@@ -176,14 +176,14 @@ export class BracketsUtils {
 		return this._findPrevBracketInText(reversedBracketRegex, lineNumber, reversedTokenText, currentTokenStart);
 	}
 
-	public static findNextBracketInText(bracketRegex: RegExp, lineNumber: number, text: string, offset: number): Range {
+	public static findNextBracketInText(bracketRegex: RegExp, lineNumber: number, text: string, offset: number): Range | null {
 		let m = text.match(bracketRegex);
 
 		if (!m) {
 			return null;
 		}
 
-		let matchOffset = m.index;
+		let matchOffset = m.index || 0;
 		let matchLength = m[0].length;
 		if (matchLength === 0) {
 			return null;
@@ -193,7 +193,7 @@ export class BracketsUtils {
 		return new Range(lineNumber, absoluteMatchOffset + 1, lineNumber, absoluteMatchOffset + 1 + matchLength);
 	}
 
-	public static findNextBracketInToken(bracketRegex: RegExp, lineNumber: number, lineText: string, currentTokenStart: number, currentTokenEnd: number): Range {
+	public static findNextBracketInToken(bracketRegex: RegExp, lineNumber: number, lineText: string, currentTokenStart: number, currentTokenEnd: number): Range | null {
 		let currentTokenText = lineText.substring(currentTokenStart, currentTokenEnd);
 
 		return this.findNextBracketInText(bracketRegex, lineNumber, currentTokenText, currentTokenStart);

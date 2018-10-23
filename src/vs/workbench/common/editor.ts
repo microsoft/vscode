@@ -937,6 +937,7 @@ export interface IWorkbenchEditorConfiguration {
 
 export interface IWorkbenchEditorPartConfiguration {
 	showTabs?: boolean;
+	highlightModifiedTabs?: boolean;
 	tabCloseButton?: 'left' | 'right' | 'off';
 	tabSizing?: 'fit' | 'shrink';
 	showIcons?: boolean;
@@ -1004,14 +1005,14 @@ export const enum CloseDirection {
 
 export interface IEditorMemento<T> {
 
-	saveState(group: IEditorGroup, resource: URI, state: T): void;
-	saveState(group: IEditorGroup, editor: EditorInput, state: T): void;
+	saveEditorState(group: IEditorGroup, resource: URI, state: T): void;
+	saveEditorState(group: IEditorGroup, editor: EditorInput, state: T): void;
 
-	loadState(group: IEditorGroup, resource: URI): T;
-	loadState(group: IEditorGroup, editor: EditorInput): T;
+	loadEditorState(group: IEditorGroup, resource: URI): T;
+	loadEditorState(group: IEditorGroup, editor: EditorInput): T;
 
-	clearState(resource: URI, group?: IEditorGroup): void;
-	clearState(editor: EditorInput, group?: IEditorGroup): void;
+	clearEditorState(resource: URI, group?: IEditorGroup): void;
+	clearEditorState(editor: EditorInput, group?: IEditorGroup): void;
 }
 
 class EditorInputFactoryRegistry implements IEditorInputFactoryRegistry {

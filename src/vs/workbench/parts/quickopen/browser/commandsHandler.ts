@@ -21,9 +21,7 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IQuickOpenService } from 'vs/platform/quickOpen/common/quickOpen';
 import { registerEditorAction, EditorAction, IEditorCommandMenuOptions } from 'vs/editor/browser/editorExtensions';
-import { IStorageService } from 'vs/platform/storage/common/storage';
-import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
-import { once } from 'vs/base/common/event';
+import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { LRUCache } from 'vs/base/common/map';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ResolvedKeybinding } from 'vs/base/common/keyCodes';
@@ -33,6 +31,7 @@ import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
+import { Disposable } from 'vs/base/common/lifecycle';
 
 export const ALL_COMMANDS_PREFIX = '>';
 
@@ -56,7 +55,7 @@ function resolveCommandHistory(configurationService: IConfigurationService): num
 	return commandHistory;
 }
 
-class CommandsHistory {
+class CommandsHistory extends Disposable {
 
 	static readonly DEFAULT_COMMANDS_HISTORY_LENGTH = 50;
 
@@ -67,13 +66,19 @@ class CommandsHistory {
 
 	constructor(
 		@IStorageService private storageService: IStorageService,
-		@ILifecycleService private lifecycleService: ILifecycleService,
 		@IConfigurationService private configurationService: IConfigurationService
 	) {
+		super();
+
 		this.updateConfiguration();
 		this.load();
 
 		this.registerListeners();
+	}
+
+	private registerListeners(): void {
+		this._register(this.configurationService.onDidChangeConfiguration(e => this.updateConfiguration()));
+		this._register(this.storageService.onWillSaveState(() => this.saveState()));
 	}
 
 	private updateConfiguration(): void {
@@ -85,7 +90,7 @@ class CommandsHistory {
 	}
 
 	private load(): void {
-		const raw = this.storageService.get(CommandsHistory.PREF_KEY_CACHE);
+		const raw = this.storageService.get(CommandsHistory.PREF_KEY_CACHE, StorageScope.GLOBAL);
 		let serializedCache: ISerializedCommandHistory;
 		if (raw) {
 			try {
@@ -106,20 +111,7 @@ class CommandsHistory {
 			entries.forEach(entry => commandHistory.set(entry.key, entry.value));
 		}
 
-		commandCounter = this.storageService.getInteger(CommandsHistory.PREF_KEY_COUNTER, void 0, commandCounter);
-	}
-
-	private registerListeners(): void {
-		this.configurationService.onDidChangeConfiguration(e => this.updateConfiguration());
-		once(this.lifecycleService.onShutdown)(reason => this.save());
-	}
-
-	private save(): void {
-		const serializedCache: ISerializedCommandHistory = { usesLRU: true, entries: [] };
-		commandHistory.forEach((value, key) => serializedCache.entries.push({ key, value }));
-
-		this.storageService.store(CommandsHistory.PREF_KEY_CACHE, JSON.stringify(serializedCache));
-		this.storageService.store(CommandsHistory.PREF_KEY_COUNTER, commandCounter);
+		commandCounter = this.storageService.getInteger(CommandsHistory.PREF_KEY_COUNTER, StorageScope.GLOBAL, commandCounter);
 	}
 
 	push(commandId: string): void {
@@ -128,6 +120,14 @@ class CommandsHistory {
 
 	peek(commandId: string): number {
 		return commandHistory.peek(commandId);
+	}
+
+	private saveState(): void {
+		const serializedCache: ISerializedCommandHistory = { usesLRU: true, entries: [] };
+		commandHistory.forEach((value, key) => serializedCache.entries.push({ key, value }));
+
+		this.storageService.store(CommandsHistory.PREF_KEY_CACHE, JSON.stringify(serializedCache), StorageScope.GLOBAL);
+		this.storageService.store(CommandsHistory.PREF_KEY_COUNTER, commandCounter, StorageScope.GLOBAL);
 	}
 }
 
@@ -304,7 +304,7 @@ abstract class BaseCommandEntry extends QuickOpenEntryGroup {
 						}
 					*/
 					this.telemetryService.publicLog('workbenchActionExecuted', { id: action.id, from: 'quick open' });
-					(action.run() || TPromise.as(null)).then(() => {
+					(action.run() || Promise.resolve()).then(() => {
 						if (action instanceof Action) {
 							action.dispose();
 						}

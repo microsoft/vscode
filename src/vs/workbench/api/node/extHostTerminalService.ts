@@ -403,7 +403,7 @@ export class ExtHostTerminalService implements ExtHostTerminalServiceShape {
 		// Continue env initialization, merging in the env from the launch
 		// config and adding keys that are needed to create the process
 		const locale = terminalConfig.get('setLocaleVariables') ? platform.locale : undefined;
-		terminalEnvironment.addTerminalEnvironmentKeys(env, platform.isWindows, locale);
+		terminalEnvironment.addTerminalEnvironmentKeys(env, locale);
 
 		// Fork the process and listen for messages
 		this._logService.debug(`Terminal process launching on ext host`, shellLaunchConfig, initialCwd, cols, rows, env);
@@ -487,7 +487,7 @@ export class ExtHostTerminalService implements ExtHostTerminalServiceShape {
 	}
 
 	private _getTerminalObjectIndexById<T extends ExtHostTerminal | ExtHostTerminalRenderer>(array: T[], id: number): number {
-		let index: number = null;
+		let index: number | null = null;
 		array.some((item, i) => {
 			const thisId = item._id;
 			if (thisId === id) {

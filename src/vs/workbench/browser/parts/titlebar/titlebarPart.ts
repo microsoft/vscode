@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import 'vs/css!./media/titlebarpart';
-import { TPromise } from 'vs/base/common/winjs.base';
 import * as paths from 'vs/base/common/paths';
 import { Part } from 'vs/workbench/browser/part';
 import { ITitleService, ITitleProperties } from 'vs/workbench/services/title/common/titleService';
@@ -33,6 +32,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { template, getBaseLabel } from 'vs/base/common/labels';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { Event } from 'vs/base/common/event';
+import { IStorageService } from 'vs/platform/storage/common/storage';
 
 export class TitlebarPart extends Part implements ITitleService {
 
@@ -81,9 +81,10 @@ export class TitlebarPart extends Part implements ITitleService {
 		@IWorkspaceContextService private contextService: IWorkspaceContextService,
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@IThemeService themeService: IThemeService,
-		@ILabelService private labelService: ILabelService
+		@ILabelService private labelService: ILabelService,
+		@IStorageService storageService: IStorageService
 	) {
-		super(id, { hasTitle: false }, themeService);
+		super(id, { hasTitle: false }, themeService, storageService);
 
 		this.properties = { isPure: true, isAdmin: false };
 		this.activeEditorListeners = [];
@@ -596,7 +597,7 @@ class ShowItemInFolderAction extends Action {
 		super('showItemInFolder.action.id', label);
 	}
 
-	run(): TPromise<void> {
+	run(): Thenable<void> {
 		return this.windowsService.showItemInFolder(this.path);
 	}
 }

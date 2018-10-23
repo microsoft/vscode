@@ -21,7 +21,7 @@ export interface IExtensionManagementChannel extends IChannel {
 	call(command: 'installFromGallery', args: [IGalleryExtension]): Thenable<void>;
 	call(command: 'uninstall', args: [ILocalExtension, boolean]): Thenable<void>;
 	call(command: 'reinstallFromGallery', args: [ILocalExtension]): Thenable<void>;
-	call(command: 'getInstalled', args: [LocalExtensionType]): Thenable<ILocalExtension[]>;
+	call(command: 'getInstalled', args: [LocalExtensionType | null]): Thenable<ILocalExtension[]>;
 	call(command: 'getExtensionsReport'): Thenable<IReportedExtension[]>;
 	call(command: 'updateMetadata', args: [ILocalExtension, IGalleryMetadata]): Thenable<ILocalExtension>;
 }
@@ -100,14 +100,14 @@ export class ExtensionManagementChannelClient implements IExtensionManagementSer
 	}
 
 	uninstall(extension: ILocalExtension, force = false): Promise<void> {
-		return Promise.resolve(this.channel.call('uninstall', [this._transformOutgoing(extension), force]));
+		return Promise.resolve(this.channel.call('uninstall', [this._transformOutgoing(extension)!, force]));
 	}
 
 	reinstallFromGallery(extension: ILocalExtension): Promise<void> {
 		return Promise.resolve(this.channel.call('reinstallFromGallery', [this._transformOutgoing(extension)]));
 	}
 
-	getInstalled(type: LocalExtensionType = null): Promise<ILocalExtension[]> {
+	getInstalled(type: LocalExtensionType | null = null): Promise<ILocalExtension[]> {
 		return Promise.resolve(this.channel.call('getInstalled', [type]))
 			.then(extensions => extensions.map(extension => this._transformIncoming(extension)));
 	}
@@ -121,11 +121,15 @@ export class ExtensionManagementChannelClient implements IExtensionManagementSer
 		return Promise.resolve(this.channel.call('getExtensionsReport'));
 	}
 
-	private _transformIncoming(extension: ILocalExtension): ILocalExtension {
+	private _transformIncoming(extension: ILocalExtension): ILocalExtension;
+	private _transformIncoming(extension: ILocalExtension | undefined): ILocalExtension | undefined;
+	private _transformIncoming(extension: ILocalExtension | undefined): ILocalExtension | undefined {
 		return extension ? { ...extension, ...{ location: URI.revive(this.uriTransformer.transformIncoming(extension.location)) } } : extension;
 	}
 
-	private _transformOutgoing(extension: ILocalExtension): ILocalExtension {
+	private _transformOutgoing(extension: ILocalExtension): ILocalExtension;
+	private _transformOutgoing(extension: ILocalExtension | undefined): ILocalExtension | undefined;
+	private _transformOutgoing(extension: ILocalExtension | undefined): ILocalExtension | undefined {
 		return extension ? { ...extension, ...{ location: this.uriTransformer.transformOutgoing(extension.location) } } : extension;
 	}
 

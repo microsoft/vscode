@@ -17,17 +17,17 @@ export const TERMINAL_SERVICE_ID = 'terminalService';
 /** A context key that is set when there is at least one opened integrated terminal. */
 export const KEYBINDING_CONTEXT_TERMINAL_IS_OPEN = new RawContextKey<boolean>('terminalIsOpen', false);
 /** A context key that is set when the integrated terminal has focus. */
-export const KEYBINDING_CONTEXT_TERMINAL_FOCUS = new RawContextKey<boolean>('terminalFocus', undefined);
+export const KEYBINDING_CONTEXT_TERMINAL_FOCUS = new RawContextKey<boolean>('terminalFocus', false);
 /** A context key that is set when the integrated terminal does not have focus. */
 export const KEYBINDING_CONTEXT_TERMINAL_NOT_FOCUSED: ContextKeyExpr = KEYBINDING_CONTEXT_TERMINAL_FOCUS.toNegated();
 
 /** A keybinding context key that is set when the integrated terminal has text selected. */
-export const KEYBINDING_CONTEXT_TERMINAL_TEXT_SELECTED = new RawContextKey<boolean>('terminalTextSelected', undefined);
+export const KEYBINDING_CONTEXT_TERMINAL_TEXT_SELECTED = new RawContextKey<boolean>('terminalTextSelected', false);
 /** A keybinding context key that is set when the integrated terminal does not have text selected. */
 export const KEYBINDING_CONTEXT_TERMINAL_TEXT_NOT_SELECTED: ContextKeyExpr = KEYBINDING_CONTEXT_TERMINAL_TEXT_SELECTED.toNegated();
 
 /**  A context key that is set when the find widget in integrated terminal is visible. */
-export const KEYBINDING_CONTEXT_TERMINAL_FIND_WIDGET_VISIBLE = new RawContextKey<boolean>('terminalFindWidgetVisible', undefined);
+export const KEYBINDING_CONTEXT_TERMINAL_FIND_WIDGET_VISIBLE = new RawContextKey<boolean>('terminalFindWidgetVisible', false);
 /**  A context key that is set when the find widget in integrated terminal is not visible. */
 export const KEYBINDING_CONTEXT_TERMINAL_FIND_WIDGET_NOT_VISIBLE: ContextKeyExpr = KEYBINDING_CONTEXT_TERMINAL_FIND_WIDGET_VISIBLE.toNegated();
 /**  A context key that is set when the find widget find input in integrated terminal is focused. */
@@ -99,6 +99,8 @@ export interface ITerminalConfiguration {
 		windows: { [key: string]: string };
 	};
 	showExitAlert: boolean;
+	experimentalBufferImpl: 'JsArray' | 'TypedArray';
+	splitCwd: 'workspaceRoot' | 'sourceInitialCwd' | 'sourceCwd';
 }
 
 export interface ITerminalConfigHelper {
@@ -213,13 +215,13 @@ export interface ITerminalService {
 	getInstanceFromId(terminalId: number): ITerminalInstance;
 	getInstanceFromIndex(terminalIndex: number): ITerminalInstance;
 	getTabLabels(): string[];
-	getActiveInstance(): ITerminalInstance;
+	getActiveInstance(): ITerminalInstance | null;
 	setActiveInstance(terminalInstance: ITerminalInstance): void;
 	setActiveInstanceByIndex(terminalIndex: number): void;
 	getActiveOrCreateInstance(wasNewTerminalAction?: boolean): ITerminalInstance;
 	splitInstance(instance: ITerminalInstance, shell?: IShellLaunchConfig): void;
 
-	getActiveTab(): ITerminalTab;
+	getActiveTab(): ITerminalTab | null;
 	setActiveTabToNext(): void;
 	setActiveTabToPrevious(): void;
 	setActiveTabByIndex(tabIndex: number): void;
@@ -401,12 +403,19 @@ export interface ITerminalInstance {
 	readonly commandTracker: ITerminalCommandTracker;
 
 	/**
+	 * The cwd that the terminal instance was initialized with.
+	 */
+	readonly initialCwd: string;
+
+	/**
 	 * Dispose the terminal instance, removing it from the panel/service and freeing up resources.
 	 *
-	 * @param isShuttingDown Whether VS Code is shutting down, if so kill any terminal processes
-	 * immediately.
+	 * @param immediate Whether the kill should be immediate or not. Immediate should only be used
+	 * when VS Code is shutting down or in cases where the terminal dispose was user initiated.
+	 * The immediate===false exists to cover an edge case where the final output of the terminal can
+	 * get cut off. If immediate kill any terminal processes immediately.
 	 */
-	dispose(isShuttingDown?: boolean): void;
+	dispose(immediate?: boolean): void;
 
 	/**
 	 * Registers a link matcher, allowing custom link patterns to be matched and handled.
@@ -584,6 +593,8 @@ export interface ITerminalInstance {
 	addDisposable(disposable: IDisposable): void;
 
 	toggleEscapeSequenceLogging(): void;
+
+	getCwd(): Promise<string>;
 }
 
 export interface ITerminalCommandTracker {

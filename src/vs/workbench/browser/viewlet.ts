@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as nls from 'vs/nls';
-import { TPromise } from 'vs/base/common/winjs.base';
 import * as DOM from 'vs/base/browser/dom';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { Action, IAction } from 'vs/base/common/actions';
@@ -21,6 +20,7 @@ import { IEditorGroupsService } from 'vs/workbench/services/group/common/editorG
 import { URI } from 'vs/base/common/uri';
 import { ToggleSidebarPositionAction } from 'vs/workbench/browser/actions/toggleSidebarPosition';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { IStorageService } from 'vs/platform/storage/common/storage';
 
 export abstract class Viewlet extends Composite implements IViewlet {
 
@@ -28,9 +28,10 @@ export abstract class Viewlet extends Composite implements IViewlet {
 		protected configurationService: IConfigurationService,
 		private partService: IPartService,
 		telemetryService: ITelemetryService,
-		themeService: IThemeService
+		themeService: IThemeService,
+		storageService: IStorageService
 	) {
-		super(id, telemetryService, themeService);
+		super(id, telemetryService, themeService, storageService);
 	}
 
 	getOptimalWidth(): number {
@@ -135,7 +136,7 @@ export class ShowViewletAction extends Action {
 		this.enabled = !!this.viewletService && !!this.editorGroupService;
 	}
 
-	run(): TPromise<any> {
+	run(): Thenable<any> {
 
 		// Pass focus to viewlet if not open or focused
 		if (this.otherViewletShowing() || !this.sidebarHasFocus()) {

@@ -12,7 +12,7 @@ import { TextEdit } from 'vs/editor/common/modes';
 export class FormattingEdit {
 
 	private static _handleEolEdits(editor: ICodeEditor, edits: TextEdit[]): ISingleEditOperation[] {
-		let newEol: EndOfLineSequence = undefined;
+		let newEol: EndOfLineSequence | undefined = undefined;
 		let singleEdits: ISingleEditOperation[] = [];
 
 		for (let edit of edits) {

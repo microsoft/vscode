@@ -4,15 +4,15 @@
  *--------------------------------------------------------------------------------------------*/
 
 import 'vs/css!./lineNumbers';
-import { editorLineNumbers, editorActiveLineNumber } from 'vs/editor/common/view/editorColorRegistry';
-import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import * as platform from 'vs/base/common/platform';
 import { DynamicViewOverlay } from 'vs/editor/browser/view/dynamicViewOverlay';
-import { ViewContext } from 'vs/editor/common/view/viewContext';
-import { RenderingContext } from 'vs/editor/common/view/renderingContext';
-import * as viewEvents from 'vs/editor/common/view/viewEvents';
-import { Position } from 'vs/editor/common/core/position';
 import { RenderLineNumbersType } from 'vs/editor/common/config/editorOptions';
+import { Position } from 'vs/editor/common/core/position';
+import { editorActiveLineNumber, editorLineNumbers } from 'vs/editor/common/view/editorColorRegistry';
+import { RenderingContext } from 'vs/editor/common/view/renderingContext';
+import { ViewContext } from 'vs/editor/common/view/viewContext';
+import * as viewEvents from 'vs/editor/common/view/viewEvents';
+import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 
 export class LineNumbersOverlay extends DynamicViewOverlay {
 
@@ -22,11 +22,11 @@ export class LineNumbersOverlay extends DynamicViewOverlay {
 
 	private _lineHeight: number;
 	private _renderLineNumbers: RenderLineNumbersType;
-	private _renderCustomLineNumbers: (lineNumber: number) => string;
+	private _renderCustomLineNumbers: ((lineNumber: number) => string) | null;
 	private _lineNumbersLeft: number;
 	private _lineNumbersWidth: number;
 	private _lastCursorModelPosition: Position;
-	private _renderResult: string[];
+	private _renderResult: string[] | null;
 
 	constructor(context: ViewContext) {
 		super();
@@ -50,7 +50,6 @@ export class LineNumbersOverlay extends DynamicViewOverlay {
 
 	public dispose(): void {
 		this._context.removeEventHandler(this);
-		this._context = null;
 		this._renderResult = null;
 		super.dispose();
 	}
@@ -169,7 +168,7 @@ export class LineNumbersOverlay extends DynamicViewOverlay {
 // theming
 
 registerThemingParticipant((theme, collector) => {
-	let lineNumbers = theme.getColor(editorLineNumbers);
+	const lineNumbers = theme.getColor(editorLineNumbers);
 	if (lineNumbers) {
 		collector.addRule(`.monaco-editor .line-numbers { color: ${lineNumbers}; }`);
 	}

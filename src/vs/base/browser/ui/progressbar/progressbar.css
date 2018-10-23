@@ -24,10 +24,6 @@
 .monaco-progress-container.discrete .progress-bit {
 	left: 0;
 	transition: width 100ms linear;
-	-webkit-transition: width 100ms linear;
-	-o-transition: width 100ms linear;
-	-moz-transition: width 100ms linear;
-	-ms-transition: width 100ms linear;
 }
 
 .monaco-progress-container.discrete.done .progress-bit {

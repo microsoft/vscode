@@ -5,12 +5,12 @@
 
 import 'vs/css!./indentGuides';
 import { DynamicViewOverlay } from 'vs/editor/browser/view/dynamicViewOverlay';
-import { ViewContext } from 'vs/editor/common/view/viewContext';
+import { Position } from 'vs/editor/common/core/position';
+import { editorActiveIndentGuides, editorIndentGuides } from 'vs/editor/common/view/editorColorRegistry';
 import { RenderingContext } from 'vs/editor/common/view/renderingContext';
+import { ViewContext } from 'vs/editor/common/view/viewContext';
 import * as viewEvents from 'vs/editor/common/view/viewEvents';
 import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
-import { editorIndentGuides, editorActiveIndentGuides } from 'vs/editor/common/view/editorColorRegistry';
-import { Position } from 'vs/editor/common/core/position';
 
 export class IndentGuidesOverlay extends DynamicViewOverlay {
 
@@ -18,7 +18,7 @@ export class IndentGuidesOverlay extends DynamicViewOverlay {
 	private _primaryLineNumber: number;
 	private _lineHeight: number;
 	private _spaceWidth: number;
-	private _renderResult: string[];
+	private _renderResult: string[] | null;
 	private _enabled: boolean;
 	private _activeIndentEnabled: boolean;
 
@@ -37,7 +37,6 @@ export class IndentGuidesOverlay extends DynamicViewOverlay {
 
 	public dispose(): void {
 		this._context.removeEventHandler(this);
-		this._context = null;
 		this._renderResult = null;
 		super.dispose();
 	}
@@ -158,11 +157,11 @@ export class IndentGuidesOverlay extends DynamicViewOverlay {
 }
 
 registerThemingParticipant((theme, collector) => {
-	let editorIndentGuidesColor = theme.getColor(editorIndentGuides);
+	const editorIndentGuidesColor = theme.getColor(editorIndentGuides);
 	if (editorIndentGuidesColor) {
 		collector.addRule(`.monaco-editor .lines-content .cigr { box-shadow: 1px 0 0 0 ${editorIndentGuidesColor} inset; }`);
 	}
-	let editorActiveIndentGuidesColor = theme.getColor(editorActiveIndentGuides) || editorIndentGuidesColor;
+	const editorActiveIndentGuidesColor = theme.getColor(editorActiveIndentGuides) || editorIndentGuidesColor;
 	if (editorActiveIndentGuidesColor) {
 		collector.addRule(`.monaco-editor .lines-content .cigra { box-shadow: 1px 0 0 0 ${editorActiveIndentGuidesColor} inset; }`);
 	}

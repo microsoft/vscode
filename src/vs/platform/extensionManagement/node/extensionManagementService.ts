@@ -655,7 +655,7 @@ export class ExtensionManagementService extends Disposable implements IExtension
 			return [];
 		}
 		const packedExtensions = installed.filter(i => extension.manifest.extensionPack.some(id => areSameExtensions({ id }, i.galleryIdentifier)));
-		const packOfPackedExtensions = [];
+		const packOfPackedExtensions: ILocalExtension[] = [];
 		for (const packedExtension of packedExtensions) {
 			packOfPackedExtensions.push(...this.getAllPackExtensionsToUninstall(packedExtension, installed, checked));
 		}
@@ -677,7 +677,7 @@ export class ExtensionManagementService extends Disposable implements IExtension
 	}
 
 	private preUninstallExtension(extension: ILocalExtension): Promise<void> {
-		return pfs.exists(extension.location.fsPath)
+		return Promise.resolve(pfs.exists(extension.location.fsPath))
 			.then(exists => exists ? null : Promise.reject(new Error(nls.localize('notExists', "Could not find extension"))))
 			.then(() => {
 				this.logService.info('Uninstalling extension:', extension.identifier.id);
@@ -713,7 +713,7 @@ export class ExtensionManagementService extends Disposable implements IExtension
 		this._onDidUninstallExtension.fire({ identifier: extension.identifier, error: errorcode });
 	}
 
-	getInstalled(type: LocalExtensionType = null): Promise<ILocalExtension[]> {
+	getInstalled(type: LocalExtensionType | null = null): Promise<ILocalExtension[]> {
 		const promises = [];
 
 		if (type === null || type === LocalExtensionType.System) {
@@ -827,7 +827,7 @@ export class ExtensionManagementService extends Disposable implements IExtension
 
 	private filterUninstalled(...ids: string[]): Promise<string[]> {
 		return this.withUninstalledExtensions(allUninstalled => {
-			const uninstalled = [];
+			const uninstalled: string[] = [];
 			for (const id of ids) {
 				if (!!allUninstalled[id]) {
 					uninstalled.push(id);
@@ -852,7 +852,7 @@ export class ExtensionManagementService extends Disposable implements IExtension
 
 	private async withUninstalledExtensions<T>(fn: (uninstalled: { [id: string]: boolean; }) => T): Promise<T> {
 		return await this.uninstalledFileLimiter.queue(() => {
-			let result: T = null;
+			let result: T | null = null;
 			return pfs.readFile(this.uninstalledPath, 'utf8')
 				.then(null, err => err.code === 'ENOENT' ? Promise.resolve('{}') : Promise.reject(err))
 				.then<{ [id: string]: boolean }>(raw => { try { return JSON.parse(raw); } catch (e) { return {}; } })

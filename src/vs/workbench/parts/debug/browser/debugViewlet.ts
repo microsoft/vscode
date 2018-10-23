@@ -64,10 +64,9 @@ export class DebugViewlet extends ViewContainerViewlet {
 		}));
 	}
 
-	create(parent: HTMLElement): Promise<void> {
-		return super.create(parent).then(() => {
-			DOM.addClass(parent, 'debug-viewlet');
-		});
+	create(parent: HTMLElement): void {
+		super.create(parent);
+		DOM.addClass(parent, 'debug-viewlet');
 	}
 
 	public focus(): void {

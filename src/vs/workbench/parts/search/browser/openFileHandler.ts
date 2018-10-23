@@ -13,18 +13,18 @@ import { URI } from 'vs/base/common/uri';
 import * as resources from 'vs/base/common/resources';
 import { IIconLabelValueOptions } from 'vs/base/browser/ui/iconLabel/iconLabel';
 import { IModeService } from 'vs/editor/common/services/modeService';
-import { getIconClasses } from 'vs/workbench/browser/labels';
+import { getIconClasses } from 'vs/editor/common/services/getIconClasses';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { IWorkbenchThemeService } from 'vs/workbench/services/themes/common/workbenchThemeService';
 import { IAutoFocus } from 'vs/base/parts/quickopen/common/quickOpen';
 import { QuickOpenEntry, QuickOpenModel } from 'vs/base/parts/quickopen/browser/quickOpenModel';
 import { QuickOpenHandler, EditorQuickOpenEntry } from 'vs/workbench/browser/quickopen';
-import { QueryBuilder } from 'vs/workbench/parts/search/common/queryBuilder';
+import { QueryBuilder, IFileQueryBuilderOptions } from 'vs/workbench/parts/search/common/queryBuilder';
 import { EditorInput, IWorkbenchEditorConfiguration } from 'vs/workbench/common/editor';
 import { IResourceInput } from 'vs/platform/editor/common/editor';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IQueryOptions, ISearchService, IFileSearchStats, ISearchQuery, ISearchComplete } from 'vs/platform/search/common/search';
+import { ISearchService, IFileSearchStats, IFileQuery, ISearchComplete } from 'vs/platform/search/common/search';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IRange } from 'vs/editor/common/core/range';
@@ -171,7 +171,7 @@ export class OpenFileHandler extends QuickOpenHandler {
 				return TPromise.wrap(<ISearchComplete>{ results: [{ resource: result }] });
 			}
 
-			return this.searchService.search(this.queryBuilder.file(this.contextService.getWorkspace().folders.map(folder => folder.uri), queryOptions), token);
+			return this.searchService.fileSearch(this.queryBuilder.file(this.contextService.getWorkspace().folders.map(folder => folder.uri), queryOptions), token);
 		}).then(complete => {
 			const results: QuickOpenEntry[] = [];
 
@@ -200,8 +200,9 @@ export class OpenFileHandler extends QuickOpenHandler {
 		return TPromise.as(null);
 	}
 
-	private doResolveQueryOptions(query: IPreparedQuery, cacheKey?: string, maxSortedResults?: number): IQueryOptions {
-		const queryOptions: IQueryOptions = {
+	private doResolveQueryOptions(query: IPreparedQuery, cacheKey?: string, maxSortedResults?: number): IFileQueryBuilderOptions {
+		const queryOptions: IFileQueryBuilderOptions = {
+			_reason: 'openFileHandler',
 			extraFileResources: getOutOfWorkspaceEditorResources(this.editorService, this.contextService),
 			filePattern: query.value,
 			cacheKey
@@ -220,12 +221,13 @@ export class OpenFileHandler extends QuickOpenHandler {
 	}
 
 	onOpen(): void {
-		this.cacheState = new CacheState(cacheKey => this.cacheQuery(cacheKey), query => this.searchService.search(query), cacheKey => this.searchService.clearCache(cacheKey), this.cacheState);
+		this.cacheState = new CacheState(cacheKey => this.cacheQuery(cacheKey), query => this.searchService.fileSearch(query), cacheKey => this.searchService.clearCache(cacheKey), this.cacheState);
 		this.cacheState.load();
 	}
 
-	private cacheQuery(cacheKey: string): ISearchQuery {
-		const options: IQueryOptions = {
+	private cacheQuery(cacheKey: string): IFileQuery {
+		const options: IFileQueryBuilderOptions = {
+			_reason: 'openFileHandler',
 			extraFileResources: getOutOfWorkspaceEditorResources(this.editorService, this.contextService),
 			filePattern: '',
 			cacheKey: cacheKey,
@@ -268,12 +270,12 @@ enum LoadingPhase {
 export class CacheState {
 
 	private _cacheKey = defaultGenerator.nextId();
-	private query: ISearchQuery;
+	private query: IFileQuery;
 
 	private loadingPhase = LoadingPhase.Created;
 	private promise: TPromise<void>;
 
-	constructor(cacheQuery: (cacheKey: string) => ISearchQuery, private doLoad: (query: ISearchQuery) => TPromise<any>, private doDispose: (cacheKey: string) => TPromise<void>, private previous: CacheState) {
+	constructor(cacheQuery: (cacheKey: string) => IFileQuery, private doLoad: (query: IFileQuery) => TPromise<any>, private doDispose: (cacheKey: string) => TPromise<void>, private previous: CacheState) {
 		this.query = cacheQuery(this._cacheKey);
 		if (this.previous) {
 			const current = objects.assign({}, this.query, { cacheKey: null });

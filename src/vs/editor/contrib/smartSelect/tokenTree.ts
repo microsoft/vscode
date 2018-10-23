@@ -60,7 +60,7 @@ export class NodeList extends Node {
 		return !this.hasChildren && !this.parent;
 	}
 
-	public append(node: Node): boolean {
+	public append(node: Node | null): boolean {
 		if (!node) {
 			return false;
 		}
@@ -105,9 +105,9 @@ class Token {
 
 	readonly range: Range;
 	readonly bracket: TokenTreeBracket;
-	readonly bracketType: string;
+	readonly bracketType: string | null;
 
-	constructor(range: Range, bracket: TokenTreeBracket, bracketType: string) {
+	constructor(range: Range, bracket: TokenTreeBracket, bracketType: string | null) {
 		this.range = range;
 		this.bracket = bracket;
 		this.bracketType = bracketType;
@@ -148,7 +148,7 @@ class ModelRawTokenScanner {
 	private _versionId: number;
 	private _lineNumber: number;
 	private _tokenIndex: number;
-	private _lineTokens: LineTokens;
+	private _lineTokens: LineTokens | null;
 
 	constructor(model: ITextModel) {
 		this._model = model;
@@ -180,7 +180,7 @@ class ModelRawTokenScanner {
 		}
 	}
 
-	public next(): RawToken {
+	public next(): RawToken | null {
 		if (!this._lineTokens) {
 			return null;
 		}
@@ -199,7 +199,7 @@ class TokenScanner {
 	private _rawTokenScanner: ModelRawTokenScanner;
 	private _nextBuff: Token[];
 
-	private _cachedLanguageBrackets: RichEditBrackets;
+	private _cachedLanguageBrackets: RichEditBrackets | null;
 	private _cachedLanguageId: LanguageId;
 
 	constructor(model: ITextModel) {
@@ -209,9 +209,9 @@ class TokenScanner {
 		this._cachedLanguageId = -1;
 	}
 
-	next(): Token {
+	next(): Token | null {
 		if (this._nextBuff.length > 0) {
-			return this._nextBuff.shift();
+			return this._nextBuff.shift()!;
 		}
 
 		const token = this._rawTokenScanner.next();
@@ -238,7 +238,7 @@ class TokenScanner {
 			);
 		}
 
-		let foundBracket: Range;
+		let foundBracket: Range | null;
 		do {
 			foundBracket = BracketsUtils.findNextBracketInToken(modeBrackets.forwardRegex, lineNumber, lineText, startOffset, endOffset);
 			if (foundBracket) {
@@ -279,7 +279,7 @@ class TokenScanner {
 			));
 		}
 
-		return this._nextBuff.shift();
+		return this._nextBuff.shift() || null;
 	}
 }
 
@@ -309,7 +309,7 @@ class TokenTreeBuilder {
 		let accepted = condt(token);
 		if (!accepted) {
 			this._stack.push(token);
-			this._currentToken = null;
+			// this._currentToken = null;
 		} else {
 			this._currentToken = token;
 			//			console.log('accepted: ' + token.__debugContent);
@@ -326,7 +326,7 @@ class TokenTreeBuilder {
 		return ret;
 	}
 
-	private _line(): Node {
+	private _line(): Node | null {
 		let node = new NodeList();
 		let lineNumber: number;
 
@@ -351,16 +351,16 @@ class TokenTreeBuilder {
 		}
 	}
 
-	private _token(): Node {
+	private _token(): Node | null {
 		if (!this._accept(token => token.bracket === TokenTreeBracket.None)) {
 			return null;
 		}
 		return newNode(this._currentToken);
 	}
 
-	private _block(): Node {
+	private _block(): Node | null {
 
-		let bracketType: string;
+		let bracketType: string | null;
 		let accepted: boolean;
 
 		accepted = this._accept(token => {
@@ -389,7 +389,7 @@ class TokenTreeBuilder {
 		return bracket;
 	}
 
-	private _any(): Node {
+	private _any(): Node | null {
 		if (!this._accept(_ => true)) {
 			return null;
 		}
@@ -408,7 +408,7 @@ export function build(model: ITextModel): Node {
 	return node;
 }
 
-export function find(node: Node, position: Position): Node {
+export function find(node: Node, position: Position): Node | null {
 	if (node instanceof NodeList && node.isEmpty) {
 		return null;
 	}
@@ -417,7 +417,7 @@ export function find(node: Node, position: Position): Node {
 		return null;
 	}
 
-	let result: Node;
+	let result: Node | null = null;
 
 	if (node instanceof NodeList) {
 		if (node.hasChildren) {

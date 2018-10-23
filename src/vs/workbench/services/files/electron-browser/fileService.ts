@@ -44,7 +44,6 @@ import product from 'vs/platform/node/product';
 import { IEncodingOverride, ResourceEncodings } from 'vs/workbench/services/files/electron-browser/encoding';
 import { createReadableOfSnapshot } from 'vs/workbench/services/files/electron-browser/streams';
 
-
 export interface IFileServiceTestOptions {
 	disableWatcher?: boolean;
 	encodingOverride?: IEncodingOverride[];
@@ -144,7 +143,8 @@ export class FileService extends Disposable implements IFileService {
 					label: nls.localize('neverShowAgain', "Don't Show Again"),
 					isSecondary: true,
 					run: () => this.storageService.store(FileService.NET_VERSION_ERROR_IGNORE_KEY, true, StorageScope.WORKSPACE)
-				}]
+				}],
+				{ sticky: true }
 			);
 		}
 
@@ -161,7 +161,8 @@ export class FileService extends Disposable implements IFileService {
 					label: nls.localize('neverShowAgain', "Don't Show Again"),
 					isSecondary: true,
 					run: () => this.storageService.store(FileService.ENOSPC_ERROR_IGNORE_KEY, true, StorageScope.WORKSPACE)
-				}]
+				}],
+				{ sticky: true }
 			);
 		}
 	}
@@ -205,6 +206,10 @@ export class FileService extends Disposable implements IFileService {
 
 	registerProvider(scheme: string, provider: IFileSystemProvider): IDisposable {
 		throw new Error('not implemented');
+	}
+
+	activateProvider(scheme: string): Thenable<void> {
+		return Promise.reject(new Error('not implemented'));
 	}
 
 	canHandleResource(resource: uri): boolean {
@@ -588,10 +593,24 @@ export class FileService extends Disposable implements IFileService {
 					else {
 
 						// 4.) truncate
+						let retryFromFailingTruncate = true;
 						return pfs.truncate(absolutePath, 0).then(() => {
+							retryFromFailingTruncate = false;
 
 							// 5.) set contents (with r+ mode) and resolve
 							return this.doSetContentsAndResolve(resource, absolutePath, value, addBom, encodingToWrite, { flag: 'r+' });
+						}, error => {
+							if (retryFromFailingTruncate) {
+								if (this.environmentService.verbose) {
+									console.error(`Truncate failed (${error}), falling back to normal save`);
+								}
+
+								// we heard from users that fs.truncate() fails (https://github.com/Microsoft/vscode/issues/59561)
+								// in that case we simply save the file without truncating first (same as macOS and Linux)
+								return this.doSetContentsAndResolve(resource, absolutePath, value, addBom, encodingToWrite);
+							}
+
+							return TPromise.wrapError(error);
 						});
 					}
 				});
@@ -889,7 +908,7 @@ export class FileService extends Disposable implements IFileService {
 	private doMoveItemToTrash(resource: uri): TPromise<void> {
 		const absolutePath = resource.fsPath;
 
-		const shell = (require('electron') as Electron.RendererInterface).shell; // workaround for being able to run tests out of VSCode debugger
+		const shell = (require('electron') as any as Electron.RendererInterface).shell; // workaround for being able to run tests out of VSCode debugger
 		const result = shell.moveItemToTrash(absolutePath);
 		if (!result) {
 			return TPromise.wrapError(new Error(isWindows ? nls.localize('binFailed', "Failed to move '{0}' to the recycle bin", paths.basename(absolutePath)) : nls.localize('trashFailed', "Failed to move '{0}' to the trash", paths.basename(absolutePath))));
@@ -1133,7 +1152,7 @@ export class StatResolver {
 		else {
 
 			// Convert the paths from options.resolveTo to absolute paths
-			let absoluteTargetPaths: string[] = null;
+			let absoluteTargetPaths: string[] | null = null;
 			if (options && options.resolveTo) {
 				absoluteTargetPaths = [];
 				options.resolveTo.forEach(resource => {

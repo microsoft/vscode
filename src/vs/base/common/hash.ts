@@ -22,9 +22,9 @@ export function hash(obj: any, hashVal = 0): number {
 		case 'number':
 			return numberHash(obj, hashVal);
 		case 'undefined':
-			return numberHash(obj, 937);
+			return numberHash(0, 937);
 		default:
-			return numberHash(obj, 617);
+			return numberHash(0, 617);
 	}
 }
 

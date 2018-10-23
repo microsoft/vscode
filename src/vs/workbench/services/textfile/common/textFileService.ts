@@ -32,7 +32,7 @@ import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/c
 import { createTextBufferFactoryFromSnapshot } from 'vs/editor/common/model/textModel';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { INotificationService } from 'vs/platform/notification/common/notification';
-import { isEqualOrParent, isEqual, joinPath } from 'vs/base/common/resources';
+import { isEqualOrParent, isEqual, joinPath, dirname } from 'vs/base/common/resources';
 
 export interface IBackupResult {
 	didBackup: boolean;
@@ -630,7 +630,8 @@ export abstract class TextFileService extends Disposable implements ITextFileSer
 
 		const lastActiveFile = this.historyService.getLastActiveFile(schemeFilter);
 		if (lastActiveFile) {
-			return joinPath(lastActiveFile, untitledFileName);
+			const lastDir = dirname(lastActiveFile);
+			return joinPath(lastDir, untitledFileName);
 		}
 
 		const lastActiveFolder = this.historyService.getLastActiveWorkspaceRoot(schemeFilter);

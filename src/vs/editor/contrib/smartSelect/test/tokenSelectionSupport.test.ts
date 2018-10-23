@@ -13,6 +13,9 @@ import { LanguageConfigurationRegistry } from 'vs/editor/common/modes/languageCo
 import { ModelServiceImpl } from 'vs/editor/common/services/modelServiceImpl';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
 import { javascriptOnEnterRules } from 'vs/editor/test/common/modes/supports/javascriptOnEnterRules';
+import { ITextResourcePropertiesService } from 'vs/editor/common/services/resourceConfiguration';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { isLinux, isMacintosh } from 'vs/base/common/platform';
 
 class MockJSMode extends MockMode {
 
@@ -35,12 +38,13 @@ class MockJSMode extends MockMode {
 
 suite('TokenSelectionSupport', () => {
 
-	let modelService: ModelServiceImpl = null;
+	let modelService: ModelServiceImpl | null = null;
 	let tokenSelectionSupport: TokenSelectionSupport;
-	let mode: MockJSMode = null;
+	let mode: MockJSMode | null = null;
 
 	setup(() => {
-		modelService = new ModelServiceImpl(null, new TestConfigurationService());
+		const configurationService = new TestConfigurationService();
+		modelService = new ModelServiceImpl(null, configurationService, new TestTextResourcePropertiesService(configurationService));
 		tokenSelectionSupport = new TokenSelectionSupport(modelService);
 		mode = new MockJSMode();
 	});
@@ -161,3 +165,24 @@ suite('TokenSelectionSupport', () => {
 			]);
 	});
 });
+
+class TestTextResourcePropertiesService implements ITextResourcePropertiesService {
+
+	_serviceBrand: any;
+
+	constructor(
+		@IConfigurationService private configurationService: IConfigurationService,
+	) {
+	}
+
+	getEOL(resource: URI): string {
+		const filesConfiguration = this.configurationService.getValue<{ eol: string }>('files');
+		if (filesConfiguration && filesConfiguration.eol) {
+			if (filesConfiguration.eol !== 'auto') {
+				return filesConfiguration.eol;
+			}
+		}
+		return (isLinux || isMacintosh) ? '\n' : '\r\n';
+	}
+}
+

@@ -4,8 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as platform from 'vs/base/common/platform';
-import { EditorZoom } from 'vs/editor/common/config/editorZoom';
 import { EDITOR_FONT_DEFAULTS } from 'vs/editor/common/config/editorOptions';
+import { EditorZoom } from 'vs/editor/common/config/editorZoom';
 
 /**
  * Determined from empirical observations.
@@ -23,9 +23,12 @@ const MAXIMUM_LINE_HEIGHT = 150;
 const MINIMUM_LETTER_SPACING = -5;
 const MAXIMUM_LETTER_SPACING = 20;
 
-function safeParseFloat(n: number | string, defaultValue: number): number {
+function safeParseFloat(n: number | string | undefined, defaultValue: number): number {
 	if (typeof n === 'number') {
 		return n;
+	}
+	if (typeof n === 'undefined') {
+		return defaultValue;
 	}
 	let r = parseFloat(n);
 	if (isNaN(r)) {
@@ -34,9 +37,12 @@ function safeParseFloat(n: number | string, defaultValue: number): number {
 	return r;
 }
 
-function safeParseInt(n: number | string, defaultValue: number): number {
+function safeParseInt(n: number | string | undefined, defaultValue: number): number {
 	if (typeof n === 'number') {
 		return Math.round(n);
+	}
+	if (typeof n === 'undefined') {
+		return defaultValue;
 	}
 	let r = parseInt(n);
 	if (isNaN(r)) {
@@ -144,6 +150,22 @@ export class BareFontInfo {
 	 */
 	public getId(): string {
 		return this.zoomLevel + '-' + this.fontFamily + '-' + this.fontWeight + '-' + this.fontSize + '-' + this.lineHeight + '-' + this.letterSpacing;
+	}
+
+	/**
+	 * @internal
+	 */
+	public getMassagedFontFamily(): string {
+		if (/[,"']/.test(this.fontFamily)) {
+			// Looks like the font family might be already escaped
+			return this.fontFamily;
+		}
+		if (/[+ ]/.test(this.fontFamily)) {
+			// Wrap a font family using + or <space> with quotes
+			return `"${this.fontFamily}"`;
+		}
+
+		return this.fontFamily;
 	}
 }
 

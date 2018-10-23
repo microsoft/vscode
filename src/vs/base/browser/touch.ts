@@ -28,7 +28,7 @@ interface TouchData {
 }
 
 export interface GestureEvent extends MouseEvent {
-	initialTarget: EventTarget;
+	initialTarget: EventTarget | undefined;
 	translationX: number;
 	translationY: number;
 	pageX: number;
@@ -71,7 +71,7 @@ export class Gesture extends Disposable {
 
 	private dispatched: boolean;
 	private targets: HTMLElement[];
-	private handle: IDisposable;
+	private handle: IDisposable | null;
 
 	private activeTouches: { [id: number]: TouchData; };
 

@@ -63,7 +63,7 @@ suite('SuggestModel - Context', function () {
 				tokenize: undefined,
 				tokenize2: (line: string, state: IState): TokenizationResult2 => {
 					const tokensArr: number[] = [];
-					let prevLanguageId: LanguageIdentifier = undefined;
+					let prevLanguageId: LanguageIdentifier | undefined = undefined;
 					for (let i = 0; i < line.length; i++) {
 						const languageId = (line.charAt(i) === 'x' ? INNER_LANGUAGE_ID : OUTER_LANGUAGE_ID);
 						if (prevLanguageId !== languageId) {

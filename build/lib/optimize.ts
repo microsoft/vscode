@@ -32,7 +32,7 @@ function log(prefix: string, message: string): void {
 }
 
 export function loaderConfig(emptyPaths?: string[]) {
-	const result = {
+	const result: any = {
 		paths: {
 			'vs': 'out-build/vs',
 			'vscode': 'empty:'
@@ -188,7 +188,7 @@ export function optimizeTask(opts: IOptimizeTaskOpts): () => NodeJS.ReadWriteStr
 		const bundleInfoStream = es.through(); // this stream will contain bundleInfo.json
 
 		bundle.bundle(entryPoints, loaderConfig, function (err, result) {
-			if (err) { return bundlesStream.emit('error', JSON.stringify(err)); }
+			if (err || !result) { return bundlesStream.emit('error', JSON.stringify(err)); }
 
 			toBundleStream(src, bundledFileHeader, result.files).pipe(bundlesStream);
 
@@ -237,7 +237,7 @@ export function optimizeTask(opts: IOptimizeTaskOpts): () => NodeJS.ReadWriteStr
 
 		return result
 			.pipe(sourcemaps.write('./', {
-				sourceRoot: null,
+				sourceRoot: undefined,
 				addComment: true,
 				includeContent: true
 			}))
@@ -258,7 +258,7 @@ declare class FileWithCopyright extends VinylFile {
  */
 function uglifyWithCopyrights(): NodeJS.ReadWriteStream {
 	const preserveComments = (f: FileWithCopyright) => {
-		return (node, comment: { value: string; type: string; }) => {
+		return (_node: any, comment: { value: string; type: string; }) => {
 			const text = comment.value;
 			const type = comment.type;
 
@@ -286,7 +286,7 @@ function uglifyWithCopyrights(): NodeJS.ReadWriteStream {
 		};
 	};
 
-	const minify = composer(uglifyes);
+	const minify = (composer as any)(uglifyes);
 	const input = es.through();
 	const output = input
 		.pipe(flatmap((stream, f) => {
@@ -302,7 +302,7 @@ function uglifyWithCopyrights(): NodeJS.ReadWriteStream {
 }
 
 export function minifyTask(src: string, sourceMapBaseUrl?: string): (cb: any) => void {
-	const sourceMappingURL = sourceMapBaseUrl && (f => `${sourceMapBaseUrl}/${f.relative}.map`);
+	const sourceMappingURL = sourceMapBaseUrl ? ((f: any) => `${sourceMapBaseUrl}/${f.relative}.map`) : undefined;
 
 	return cb => {
 		const jsFilter = filter('**/*.js', { restore: true });
@@ -319,13 +319,13 @@ export function minifyTask(src: string, sourceMapBaseUrl?: string): (cb: any) =>
 			cssFilter.restore,
 			sourcemaps.write('./', {
 				sourceMappingURL,
-				sourceRoot: null,
+				sourceRoot: undefined,
 				includeContent: true,
 				addComment: true
-			}),
+			} as any),
 			gulp.dest(src + '-min')
 			, (err: any) => {
-				if (err instanceof uglify.GulpUglifyError) {
+				if (err instanceof (uglify as any).GulpUglifyError) {
 					console.error(`Uglify error in '${err.cause && err.cause.filename}'`);
 				}
 

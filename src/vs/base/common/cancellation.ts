@@ -51,7 +51,7 @@ export namespace CancellationToken {
 class MutableToken implements CancellationToken {
 
 	private _isCancelled: boolean = false;
-	private _emitter: Emitter<any>;
+	private _emitter: Emitter<any> | null = null;
 
 	public cancel() {
 		if (!this._isCancelled) {
@@ -80,7 +80,7 @@ class MutableToken implements CancellationToken {
 	public dispose(): void {
 		if (this._emitter) {
 			this._emitter.dispose();
-			this._emitter = undefined;
+			this._emitter = null;
 		}
 	}
 }

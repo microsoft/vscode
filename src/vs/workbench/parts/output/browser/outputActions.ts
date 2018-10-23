@@ -122,7 +122,7 @@ export class SwitchOutputActionItem extends SelectActionItem {
 		@IThemeService themeService: IThemeService,
 		@IContextViewService contextViewService: IContextViewService
 	) {
-		super(null, action, [], 0, contextViewService, { ariaLabel: nls.localize('outputs', 'Outputs') });
+		super(null, action, [], 0, contextViewService, { ariaLabel: nls.localize('outputChannels', 'Output Channels.') });
 
 		let outputChannelRegistry = Registry.as<IOutputChannelRegistry>(OutputExt.OutputChannels);
 		this.toDispose.push(outputChannelRegistry.onDidRegisterChannel(() => this.updateOtions(this.outputService.getActiveChannel().id)));
@@ -157,7 +157,8 @@ export class SwitchOutputActionItem extends SelectActionItem {
 		if (selectedChannel) {
 			selected = this.outputChannels.map(c => c.id).indexOf(selectedChannel);
 			if (selected === -1) {
-				selected = separatorIndex + 1 + this.logChannels.map(c => c.id).indexOf(selectedChannel);
+				const logChannelIndex = this.logChannels.map(c => c.id).indexOf(selectedChannel);
+				selected = logChannelIndex !== -1 ? separatorIndex + 1 + logChannelIndex : 0;
 			}
 		}
 		this.setOptions(options, Math.max(0, selected), separatorIndex !== -1 ? separatorIndex : void 0);

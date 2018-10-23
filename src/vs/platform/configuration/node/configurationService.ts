@@ -67,8 +67,8 @@ export class ConfigurationService extends Disposable implements IConfigurationSe
 	inspect<T>(key: string): {
 		default: T,
 		user: T,
-		workspace: T,
-		workspaceFolder: T
+		workspace?: T,
+		workspaceFolder?: T
 		value: T
 	} {
 		return this.configuration.inspect<T>(key, {}, null);
@@ -89,7 +89,7 @@ export class ConfigurationService extends Disposable implements IConfigurationSe
 	}
 
 	private onDidChangeUserConfiguration(): void {
-		let changedKeys = [];
+		let changedKeys: string[] = [];
 		const { added, updated, removed } = compare(this._configuration.user, this.userConfiguration.configurationModel);
 		changedKeys = [...added, ...updated, ...removed];
 		if (changedKeys.length) {

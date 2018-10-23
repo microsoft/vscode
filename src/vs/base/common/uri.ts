@@ -141,7 +141,7 @@ export class URI implements UriComponents {
 	/**
 	 * @internal
 	 */
-	protected constructor(scheme: string, authority: string, path: string, query: string, fragment: string);
+	protected constructor(scheme: string, authority?: string, path?: string, query?: string, fragment?: string);
 
 	/**
 	 * @internal
@@ -336,7 +336,7 @@ export class URI implements UriComponents {
 	// ---- printing/externalize ---------------------------
 
 	/**
-	 * Creates a string presentation for this URI. It's guardeed that calling
+	 * Creates a string presentation for this URI. It's guaranteed that calling
 	 * `URI.parse` with the result of this function creates an URI which is equal
 	 * to this URI.
 	 *
@@ -361,8 +361,10 @@ export class URI implements UriComponents {
 			return data;
 		} else {
 			let result = new _URI(data);
-			result._fsPath = (<UriState>data).fsPath;
-			result._formatted = (<UriState>data).external;
+			if ((<UriState>data).$mid === 100) {
+				result._fsPath = (<UriState>data).fsPath;
+				result._formatted = (<UriState>data).external;
+			}
 			return result;
 		}
 	}
@@ -377,7 +379,7 @@ export interface UriComponents {
 }
 
 interface UriState extends UriComponents {
-	$mid: number;
+	$mid: 100;
 	fsPath: string;
 	external: string;
 }
@@ -386,8 +388,8 @@ interface UriState extends UriComponents {
 // tslint:disable-next-line:class-name
 class _URI extends URI {
 
-	_formatted: string = null;
-	_fsPath: string = null;
+	_formatted: string | null = null;
+	_fsPath: string | null = null;
 
 	get fsPath(): string {
 		if (!this._fsPath) {
@@ -410,7 +412,7 @@ class _URI extends URI {
 
 	toJSON(): object {
 		const res = <UriState>{
-			$mid: 1
+			$mid: 100
 		};
 		// cached state
 		if (this._fsPath) {
@@ -465,7 +467,7 @@ const encodeTable: { [ch: number]: string } = {
 };
 
 function encodeURIComponentFast(uriComponent: string, allowSlash: boolean, firstPos: number = 0): string {
-	let res: string = undefined;
+	let res: string | undefined = undefined;
 	let nativeEncodePos = -1;
 
 	for (let pos = firstPos; pos < uriComponent.length; pos++) {
@@ -526,7 +528,7 @@ function encodeURIComponentFast(uriComponent: string, allowSlash: boolean, first
 }
 
 function encodeURIComponentMinimal(path: string): string {
-	let res: string = undefined;
+	let res: string | undefined = undefined;
 	for (let pos = 0; pos < path.length; pos++) {
 		let code = path.charCodeAt(pos);
 		if (code === CharCode.Hash || code === CharCode.QuestionMark) {

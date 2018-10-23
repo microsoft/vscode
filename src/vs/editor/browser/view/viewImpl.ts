@@ -3,30 +3,32 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { onUnexpectedError } from 'vs/base/common/errors';
-import { IDisposable } from 'vs/base/common/lifecycle';
 import * as dom from 'vs/base/browser/dom';
 import { FastDomNode, createFastDomNode } from 'vs/base/browser/fastDomNode';
-import { Position } from 'vs/editor/common/core/position';
-import { ViewEventHandler } from 'vs/editor/common/viewModel/viewEventHandler';
-import { IConfiguration } from 'vs/editor/common/editorCommon';
-import { TextAreaHandler, ITextAreaHandlerHelper } from 'vs/editor/browser/controller/textAreaHandler';
+import { IMouseEvent } from 'vs/base/browser/mouseEvent';
+import { onUnexpectedError } from 'vs/base/common/errors';
+import { IDisposable } from 'vs/base/common/lifecycle';
+import { IPointerHandlerHelper } from 'vs/editor/browser/controller/mouseHandler';
 import { PointerHandler } from 'vs/editor/browser/controller/pointerHandler';
+import { ITextAreaHandlerHelper, TextAreaHandler } from 'vs/editor/browser/controller/textAreaHandler';
 import * as editorBrowser from 'vs/editor/browser/editorBrowser';
-import { ViewController, ExecCoreEditorCommandFunc, ICommandDelegate } from 'vs/editor/browser/view/viewController';
-import { ViewEventDispatcher } from 'vs/editor/common/view/viewEventDispatcher';
+import { ICommandDelegate, ViewController } from 'vs/editor/browser/view/viewController';
+import { ViewOutgoingEvents } from 'vs/editor/browser/view/viewOutgoingEvents';
 import { ContentViewOverlays, MarginViewOverlays } from 'vs/editor/browser/view/viewOverlays';
+import { PartFingerprint, PartFingerprints, ViewPart } from 'vs/editor/browser/view/viewPart';
 import { ViewContentWidgets } from 'vs/editor/browser/viewParts/contentWidgets/contentWidgets';
 import { CurrentLineHighlightOverlay } from 'vs/editor/browser/viewParts/currentLineHighlight/currentLineHighlight';
 import { CurrentLineMarginHighlightOverlay } from 'vs/editor/browser/viewParts/currentLineMarginHighlight/currentLineMarginHighlight';
 import { DecorationsOverlay } from 'vs/editor/browser/viewParts/decorations/decorations';
+import { EditorScrollbar } from 'vs/editor/browser/viewParts/editorScrollbar/editorScrollbar';
 import { GlyphMarginOverlay } from 'vs/editor/browser/viewParts/glyphMargin/glyphMargin';
-import { LineNumbersOverlay } from 'vs/editor/browser/viewParts/lineNumbers/lineNumbers';
 import { IndentGuidesOverlay } from 'vs/editor/browser/viewParts/indentGuides/indentGuides';
+import { LineNumbersOverlay } from 'vs/editor/browser/viewParts/lineNumbers/lineNumbers';
 import { ViewLines } from 'vs/editor/browser/viewParts/lines/viewLines';
-import { Margin } from 'vs/editor/browser/viewParts/margin/margin';
 import { LinesDecorationsOverlay } from 'vs/editor/browser/viewParts/linesDecorations/linesDecorations';
+import { Margin } from 'vs/editor/browser/viewParts/margin/margin';
 import { MarginViewLineDecorationsOverlay } from 'vs/editor/browser/viewParts/marginDecorations/marginDecorations';
+import { Minimap } from 'vs/editor/browser/viewParts/minimap/minimap';
 import { ViewOverlayWidgets } from 'vs/editor/browser/viewParts/overlayWidgets/overlayWidgets';
 import { DecorationsOverviewRuler } from 'vs/editor/browser/viewParts/overviewRuler/decorationsOverviewRuler';
 import { OverviewRuler } from 'vs/editor/browser/viewParts/overviewRuler/overviewRuler';
@@ -35,29 +37,29 @@ import { ScrollDecorationViewPart } from 'vs/editor/browser/viewParts/scrollDeco
 import { SelectionsOverlay } from 'vs/editor/browser/viewParts/selections/selections';
 import { ViewCursors } from 'vs/editor/browser/viewParts/viewCursors/viewCursors';
 import { ViewZones } from 'vs/editor/browser/viewParts/viewZones/viewZones';
-import { ViewPart, PartFingerprint, PartFingerprints } from 'vs/editor/browser/view/viewPart';
-import { ViewContext } from 'vs/editor/common/view/viewContext';
-import { IViewModel } from 'vs/editor/common/viewModel/viewModel';
-import { RenderingContext } from 'vs/editor/common/view/renderingContext';
-import { IPointerHandlerHelper } from 'vs/editor/browser/controller/mouseHandler';
-import { ViewOutgoingEvents } from 'vs/editor/browser/view/viewOutgoingEvents';
-import { ViewportData } from 'vs/editor/common/viewLayout/viewLinesViewportData';
-import { EditorScrollbar } from 'vs/editor/browser/viewParts/editorScrollbar/editorScrollbar';
-import { Minimap } from 'vs/editor/browser/viewParts/minimap/minimap';
-import * as viewEvents from 'vs/editor/common/view/viewEvents';
-import { IThemeService, getThemeTypeSelector } from 'vs/platform/theme/common/themeService';
 import { Cursor } from 'vs/editor/common/controller/cursor';
-import { IMouseEvent } from 'vs/base/browser/mouseEvent';
+import { Position } from 'vs/editor/common/core/position';
+import { IConfiguration } from 'vs/editor/common/editorCommon';
+import { RenderingContext } from 'vs/editor/common/view/renderingContext';
+import { ViewContext } from 'vs/editor/common/view/viewContext';
+import { ViewEventDispatcher } from 'vs/editor/common/view/viewEventDispatcher';
+import * as viewEvents from 'vs/editor/common/view/viewEvents';
+import { ViewportData } from 'vs/editor/common/viewLayout/viewLinesViewportData';
+import { ViewEventHandler } from 'vs/editor/common/viewModel/viewEventHandler';
+import { IViewModel } from 'vs/editor/common/viewModel/viewModel';
+import { IThemeService, getThemeTypeSelector } from 'vs/platform/theme/common/themeService';
 
 export interface IContentWidgetData {
 	widget: editorBrowser.IContentWidget;
-	position: editorBrowser.IContentWidgetPosition;
+	position: editorBrowser.IContentWidgetPosition | null;
 }
 
 export interface IOverlayWidgetData {
 	widget: editorBrowser.IOverlayWidget;
-	position: editorBrowser.IOverlayWidgetPosition;
+	position: editorBrowser.IOverlayWidgetPosition | null;
 }
+
+const invalidFunc = () => { throw new Error(`Invalid change accessor`); };
 
 export class View extends ViewEventHandler {
 
@@ -88,7 +90,7 @@ export class View extends ViewEventHandler {
 	private overflowGuardContainer: FastDomNode<HTMLElement>;
 
 	// Actual mutable state
-	private _renderAnimationFrame: IDisposable;
+	private _renderAnimationFrame: IDisposable | null;
 
 	constructor(
 		commandDelegate: ICommandDelegate,
@@ -96,14 +98,14 @@ export class View extends ViewEventHandler {
 		themeService: IThemeService,
 		model: IViewModel,
 		cursor: Cursor,
-		execCoreEditorCommandFunc: ExecCoreEditorCommandFunc
+		outgoingEvents: ViewOutgoingEvents
 	) {
 		super();
 		this._cursor = cursor;
 		this._renderAnimationFrame = null;
-		this.outgoingEvents = new ViewOutgoingEvents(model);
+		this.outgoingEvents = outgoingEvents;
 
-		let viewController = new ViewController(configuration, model, execCoreEditorCommandFunc, this.outgoingEvents, commandDelegate);
+		let viewController = new ViewController(configuration, model, this.outgoingEvents, commandDelegate);
 
 		// The event dispatcher will always go through _renderOnce before dispatching any events
 		this.eventDispatcher = new ViewEventDispatcher((callback: () => void) => this._renderOnce(callback));
@@ -462,12 +464,8 @@ export class View extends ViewEventHandler {
 		return visibleRange.left;
 	}
 
-	public getTargetAtClientPoint(clientX: number, clientY: number): editorBrowser.IMouseTarget {
+	public getTargetAtClientPoint(clientX: number, clientY: number): editorBrowser.IMouseTarget | null {
 		return this.pointerHandler.getTargetAtClientPoint(clientX, clientY);
-	}
-
-	public getInternalEventBus(): ViewOutgoingEvents {
-		return this.outgoingEvents;
 	}
 
 	public createOverviewRuler(cssClassName: string): OverviewRuler {
@@ -500,8 +498,9 @@ export class View extends ViewEventHandler {
 			safeInvoke1Arg(callback, changeAccessor);
 
 			// Invalidate changeAccessor
-			changeAccessor.addZone = null;
-			changeAccessor.removeZone = null;
+			changeAccessor.addZone = invalidFunc;
+			changeAccessor.removeZone = invalidFunc;
+			changeAccessor.layoutZone = invalidFunc;
 
 			if (zonesHaveChanged) {
 				this._context.viewLayout.onHeightMaybeChanged();

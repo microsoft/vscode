@@ -15,7 +15,7 @@ import { ExtHostDocuments } from 'vs/workbench/api/node/extHostDocuments';
 import { ExtHostCommands, CommandsConverter } from 'vs/workbench/api/node/extHostCommands';
 import { ExtHostDiagnostics } from 'vs/workbench/api/node/extHostDiagnostics';
 import { asThenable } from 'vs/base/common/async';
-import { MainContext, MainThreadLanguageFeaturesShape, ExtHostLanguageFeaturesShape, ObjectIdentifier, IRawColorInfo, IMainContext, IdObject, ISerializedRegExp, ISerializedIndentationRule, ISerializedOnEnterRule, ISerializedLanguageConfiguration, WorkspaceSymbolDto, SuggestResultDto, WorkspaceSymbolsDto, SuggestionDto, CodeActionDto, ISerializedDocumentFilter, WorkspaceEditDto } from './extHost.protocol';
+import { MainContext, MainThreadLanguageFeaturesShape, ExtHostLanguageFeaturesShape, ObjectIdentifier, IRawColorInfo, IMainContext, IdObject, ISerializedRegExp, ISerializedIndentationRule, ISerializedOnEnterRule, ISerializedLanguageConfiguration, WorkspaceSymbolDto, SuggestResultDto, WorkspaceSymbolsDto, SuggestionDto, CodeActionDto, ISerializedDocumentFilter, WorkspaceEditDto, ISerializedSignatureHelpProviderMetadata } from './extHost.protocol';
 import { regExpLeadsToEndlessLoop } from 'vs/base/common/strings';
 import { IPosition } from 'vs/editor/common/core/position';
 import { IRange, Range as EditorRange } from 'vs/editor/common/core/range';
@@ -524,9 +524,8 @@ class RenameAdapter {
 			if (!range) {
 				return undefined;
 			}
-
-			if (!range.contains(pos)) {
-				console.warn('INVALID rename location: range must contain position');
+			if (range.start.line > pos.line || range.end.line < pos.line) {
+				console.warn('INVALID rename location: position line must be within range start/end lines');
 				return undefined;
 			}
 			return { range: typeConvert.Range.from(range), text };
@@ -576,7 +575,7 @@ class SuggestAdapter {
 		const pos = typeConvert.Position.to(position);
 
 		return asThenable<vscode.CompletionItem[] | vscode.CompletionList>(
-			() => this._provider.provideCompletionItems(doc, pos, token, typeConvert.CompletionContext.from(context))
+			() => this._provider.provideCompletionItems(doc, pos, token, typeConvert.CompletionContext.to(context))
 		).then(value => {
 
 			const _id = this._idPool++;
@@ -672,6 +671,7 @@ class SuggestAdapter {
 			//
 			range: undefined,
 			insertText: undefined,
+			insertTextRules: typeConvert.CompletionItemInsertTextRule.from(item.insertTextRules),
 			additionalTextEdits: item.additionalTextEdits && item.additionalTextEdits.map(typeConvert.TextEdit.from),
 			command: this._commands.toInternal(item.command),
 			commitCharacters: item.commitCharacters,
@@ -684,19 +684,16 @@ class SuggestAdapter {
 		// 'insertText'-logic
 		if (item.textEdit) {
 			result.insertText = item.textEdit.newText;
-			result.insertTextIsSnippet = false;
 
 		} else if (typeof item.insertText === 'string') {
 			result.insertText = item.insertText;
-			result.insertTextIsSnippet = false;
 
 		} else if (item.insertText instanceof SnippetString) {
 			result.insertText = item.insertText.value;
-			result.insertTextIsSnippet = true;
+			result.insertTextRules += modes.CompletionItemInsertTextRule.InsertAsSnippet;
 
 		} else {
 			result.insertText = item.label;
-			result.insertTextIsSnippet = false;
 		}
 
 		// 'overwrite[Before|After]'-logic
@@ -1150,9 +1147,13 @@ export class ExtHostLanguageFeatures implements ExtHostLanguageFeaturesShape {
 
 	// --- parameter hints
 
-	registerSignatureHelpProvider(selector: vscode.DocumentSelector, provider: vscode.SignatureHelpProvider, triggerCharacters: string[]): vscode.Disposable {
+	registerSignatureHelpProvider(selector: vscode.DocumentSelector, provider: vscode.SignatureHelpProvider, metadataOrTriggerChars?: string[] | vscode.SignatureHelpProviderMetadata): vscode.Disposable {
+		const metadata: ISerializedSignatureHelpProviderMetadata = Array.isArray(metadataOrTriggerChars)
+			? { triggerCharacters: metadataOrTriggerChars, retriggerCharacters: [] }
+			: metadataOrTriggerChars;
+
 		const handle = this._addNewAdapter(new SignatureHelpAdapter(this._documents, provider));
-		this._proxy.$registerSignatureHelpProvider(handle, this._transformDocumentSelector(selector), triggerCharacters);
+		this._proxy.$registerSignatureHelpProvider(handle, this._transformDocumentSelector(selector), metadata);
 		return this._createDisposable(handle);
 	}
 

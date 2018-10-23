@@ -7,10 +7,10 @@ import * as assert from 'assert';
 import { Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
 import * as editorCommon from 'vs/editor/common/editorCommon';
+import { IIdentifiedSingleEditOperation, ITextModel } from 'vs/editor/common/model';
 import { TextModel } from 'vs/editor/common/model/textModel';
 import { LanguageIdentifier } from 'vs/editor/common/modes';
 import { withTestCodeEditor } from 'vs/editor/test/browser/testCodeEditor';
-import { ITextModel, IIdentifiedSingleEditOperation } from 'vs/editor/common/model';
 
 export function testCommand(
 	lines: string[],

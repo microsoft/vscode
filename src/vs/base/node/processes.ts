@@ -76,9 +76,9 @@ export abstract class AbstractProcess<TProgressData> {
 	private options: CommandOptions | ForkOptions;
 	protected shell: boolean;
 
-	private childProcess: cp.ChildProcess;
-	protected childProcessPromise: TPromise<cp.ChildProcess>;
-	private pidResolve: TValueCallback<number>;
+	private childProcess: cp.ChildProcess | null;
+	protected childProcessPromise: TPromise<cp.ChildProcess> | null;
+	private pidResolve?: TValueCallback<number>;
 	protected terminateRequested: boolean;
 
 	private static WellKnowCommands: IStringDictionary<boolean> = {
@@ -103,7 +103,7 @@ export abstract class AbstractProcess<TProgressData> {
 	};
 
 	public constructor(executable: Executable);
-	public constructor(cmd: string, args: string[], shell: boolean, options: CommandOptions);
+	public constructor(cmd: string, args: string[] | undefined, shell: boolean, options: CommandOptions | undefined);
 	public constructor(arg1: string | Executable, arg2?: string[], arg3?: boolean, arg4?: CommandOptions) {
 		if (arg2 !== void 0 && arg3 !== void 0 && arg4 !== void 0) {
 			this.cmd = <string>arg1;
@@ -124,10 +124,10 @@ export abstract class AbstractProcess<TProgressData> {
 		if (this.options.env) {
 			let newEnv: IStringDictionary<string> = Object.create(null);
 			Object.keys(process.env).forEach((key) => {
-				newEnv[key] = process.env[key];
+				newEnv[key] = process.env[key]!;
 			});
 			Object.keys(this.options.env).forEach((key) => {
-				newEnv[key] = this.options.env[key];
+				newEnv[key] = this.options.env![key]!;
 			});
 			this.options.env = newEnv;
 		}
@@ -146,7 +146,7 @@ export abstract class AbstractProcess<TProgressData> {
 	}
 
 	public start(pp: TProgressCallback<TProgressData>): TPromise<SuccessData> {
-		if (Platform.isWindows && ((this.options && this.options.cwd && TPath.isUNC(this.options.cwd)) || !this.options && !this.options.cwd && TPath.isUNC(process.cwd()))) {
+		if (Platform.isWindows && ((this.options && this.options.cwd && TPath.isUNC(this.options.cwd)) || !this.options && TPath.isUNC(process.cwd()))) {
 			return TPromise.wrapError(new Error(nls.localize('TaskRunner.UNC', 'Can\'t execute a shell command on a UNC drive.')));
 		}
 		return this.useExec().then((useExec) => {
@@ -175,7 +175,7 @@ export abstract class AbstractProcess<TProgressData> {
 					}
 				});
 			} else {
-				let childProcess: cp.ChildProcess = null;
+				let childProcess: cp.ChildProcess | null = null;
 				let closeHandler = (data: any) => {
 					this.childProcess = null;
 					this.childProcessPromise = null;
@@ -239,7 +239,7 @@ export abstract class AbstractProcess<TProgressData> {
 					});
 					if (childProcess.pid) {
 						this.childProcess.on('close', closeHandler);
-						this.handleSpawn(childProcess, cc, pp, ee, true);
+						this.handleSpawn(childProcess, cc!, pp, ee!, true);
 					}
 				}
 			}
@@ -247,7 +247,7 @@ export abstract class AbstractProcess<TProgressData> {
 		});
 	}
 
-	protected abstract handleExec(cc: TValueCallback<SuccessData>, pp: TProgressCallback<TProgressData>, error: Error, stdout: Buffer, stderr: Buffer): void;
+	protected abstract handleExec(cc: TValueCallback<SuccessData>, pp: TProgressCallback<TProgressData>, error: Error | null, stdout: Buffer, stderr: Buffer): void;
 	protected abstract handleSpawn(childProcess: cp.ChildProcess, cc: TValueCallback<SuccessData>, pp: TProgressCallback<TProgressData>, ee: ErrorCallback, sync: boolean): void;
 
 	protected handleClose(data: any, cc: TValueCallback<SuccessData>, pp: TProgressCallback<TProgressData>, ee: ErrorCallback): void {

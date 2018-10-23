@@ -4,14 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Keybinding, ResolvedKeybinding, SimpleKeybinding } from 'vs/base/common/keyCodes';
-import { IKeyboardEvent } from 'vs/platform/keybinding/common/keybinding';
 import { ScanCodeBinding } from 'vs/base/common/scanCode';
+import { IKeyboardEvent } from 'vs/platform/keybinding/common/keybinding';
 
 export interface IKeyboardMapper {
 	dumpDebugInfo(): string;
 	resolveKeybinding(keybinding: Keybinding): ResolvedKeybinding[];
 	resolveKeyboardEvent(keyboardEvent: IKeyboardEvent): ResolvedKeybinding;
-	resolveUserBinding(firstPart: SimpleKeybinding | ScanCodeBinding, chordPart: SimpleKeybinding | ScanCodeBinding): ResolvedKeybinding[];
+	resolveUserBinding(firstPart: SimpleKeybinding | ScanCodeBinding | null, chordPart: SimpleKeybinding | ScanCodeBinding | null): ResolvedKeybinding[];
 }
 
 export class CachedKeyboardMapper implements IKeyboardMapper {

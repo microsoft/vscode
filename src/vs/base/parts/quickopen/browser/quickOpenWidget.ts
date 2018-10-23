@@ -116,7 +116,7 @@ export class QuickOpenWidget extends Disposable implements IModelProvider {
 	private inputElement: HTMLElement;
 	private layoutDimensions: DOM.Dimension;
 	private model: IModel<any>;
-	private inputChangingTimeoutHandle: number;
+	private inputChangingTimeoutHandle: any;
 	private styles: IQuickOpenStyles;
 	private renderer: Renderer;
 

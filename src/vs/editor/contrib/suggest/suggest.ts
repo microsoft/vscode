@@ -21,7 +21,6 @@ export const Context = {
 	Visible: new RawContextKey<boolean>('suggestWidgetVisible', false),
 	MultipleSuggestions: new RawContextKey<boolean>('suggestWidgetMultipleSuggestions', false),
 	MakesTextEdit: new RawContextKey('suggestionMakesTextEdit', true),
-	AcceptOnKey: new RawContextKey<boolean>('suggestionSupportsAcceptOnKey', true),
 	AcceptSuggestionsOnEnter: new RawContextKey<boolean>('acceptSuggestionOnEnter', true)
 };
 
@@ -81,7 +80,7 @@ export function provideSuggestionItems(
 		// for each support in the group ask for suggestions
 		return Promise.all(supports.map(support => {
 
-			if (!isFalsyOrEmpty(onlyFrom) && onlyFrom.indexOf(support) < 0) {
+			if (!isFalsyOrEmpty(onlyFrom) && onlyFrom!.indexOf(support) < 0) {
 				return undefined;
 			}
 

@@ -127,7 +127,7 @@ export class ViewItem implements IViewItem {
 	public needsRender: boolean;
 	public uri: string;
 	public unbindDragStart: Lifecycle.IDisposable;
-	public loadingTimer: number;
+	public loadingTimer: any;
 
 	public _styles: any;
 	private _draggable: boolean;
@@ -1657,7 +1657,7 @@ export class TreeView extends HeightMap {
 	// DOM changes
 
 	private insertItemInDOM(item: ViewItem): void {
-		var elementAfter: HTMLElement = null;
+		var elementAfter: HTMLElement | null = null;
 		var itemAfter = <ViewItem>this.itemAfter(item);
 
 		if (itemAfter && itemAfter.element) {

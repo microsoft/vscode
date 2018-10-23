@@ -77,7 +77,7 @@ export class LongRunningOperation {
 	private currentOperationId = 0;
 	private currentOperationDisposables: IDisposable[] = [];
 	private currentProgressRunner: IProgressRunner;
-	private currentProgressTimeout: number;
+	private currentProgressTimeout: any;
 
 	constructor(
 		private progressService: IProgressService

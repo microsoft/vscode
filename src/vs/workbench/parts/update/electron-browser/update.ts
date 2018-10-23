@@ -134,7 +134,8 @@ export class ProductContribution implements IWorkbenchContribution {
 								const uri = URI.parse(product.releaseNotesUrl);
 								openerService.open(uri);
 							}
-						}]
+						}],
+						{ sticky: true }
 					);
 				});
 		}
@@ -204,7 +205,8 @@ export class Win3264BitContribution implements IWorkbenchContribution {
 					neverShowAgain.action.run(handle);
 					neverShowAgain.action.dispose();
 				}
-			}]
+			}],
+			{ sticky: true }
 		);
 	}
 }
@@ -357,7 +359,8 @@ export class UpdateContribution implements IGlobalActivity {
 					action.run();
 					action.dispose();
 				}
-			}]
+			}],
+			{ sticky: true }
 		);
 	}
 
@@ -383,7 +386,8 @@ export class UpdateContribution implements IGlobalActivity {
 					action.run();
 					action.dispose();
 				}
-			}]
+			}],
+			{ sticky: true }
 		);
 	}
 
@@ -437,7 +441,8 @@ export class UpdateContribution implements IGlobalActivity {
 					action.run();
 					action.dispose();
 				}
-			}]
+			}],
+			{ sticky: true }
 		);
 	}
 
