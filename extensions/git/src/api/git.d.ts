@@ -78,10 +78,16 @@ export const enum Status {
 }
 
 export interface Change {
-	readonly resourceUri: Uri;
+
+	/**
+	 * Returns either `originalUri` or `renameUri`, depending
+	 * on whether this change is a rename change. When
+	 * in doubt always use `uri` over the other two alternatives.
+	 */
+	readonly uri: Uri;
+	readonly originalUri: Uri;
+	readonly renameUri: Uri | undefined;
 	readonly status: Status;
-	readonly original: Uri;
-	readonly renameResourceUri: Uri | undefined;
 }
 
 export interface RepositoryState {
@@ -114,11 +120,13 @@ export interface Repository {
 	getConfig(key: string): Promise<string>;
 	setConfig(key: string, value: string): Promise<string>;
 
-	show(ref: string, path: string): Promise<string>;
-	getCommit(ref: string): Promise<Commit>;
 	getObjectDetails(treeish: string, path: string): Promise<{ mode: string, object: string, size: number }>;
 	detectObjectType(object: string): Promise<{ mimetype: string, encoding?: string }>;
-	buffer(ref: string, filePath: string): Promise<Buffer>;
+	buffer(ref: string, path: string): Promise<Buffer>;
+	show(ref: string, path: string): Promise<string>;
+	getCommit(ref: string): Promise<Commit>;
+
+	clean(paths: string[]): Promise<void>;
 
 	diffWithHEAD(path: string): Promise<string>;
 	diffWith(ref: string, path: string): Promise<string>;
@@ -144,8 +152,6 @@ export interface Repository {
 
 	fetch(remote?: string, ref?: string): Promise<void>;
 	pull(): Promise<void>;
-
-	clean(filePaths: string[]): Promise<void>;	
 }
 
 export interface API {

@@ -17,23 +17,12 @@ class ApiInputBox implements InputBox {
 
 export class ApiChange implements Change {
 
+	get uri(): Uri { return this.resource.resourceUri; }
+	get originalUri(): Uri { return this.resource.original; }
+	get renameUri(): Uri | undefined { return this.resource.renameResourceUri; }
+	get status(): Status { return this.resource.type; }
+
 	constructor(private readonly resource: Resource) { }
-
-	public get resourceUri(): Uri {
-		return this.resource.resourceUri;
-	}
-
-	public get status(): Status {
-		return this.resource.type;
-	}
-
-	public get original(): Uri {
-		return this.resource.original;
-	}
-
-	public get renameResourceUri(): Uri | undefined {
-		return this.resource.renameResourceUri;
-	}
 }
 
 export class ApiRepositoryState implements RepositoryState {
@@ -83,14 +72,6 @@ export class ApiRepository implements Repository {
 		return this._repository.setConfig(key, value);
 	}
 
-	show(ref: string, path: string): Promise<string> {
-		return this._repository.show(ref, path);
-	}
-
-	getCommit(ref: string): Promise<Commit> {
-		return this._repository.getCommit(ref);
-	}
-
 	getObjectDetails(treeish: string, path: string): Promise<{ mode: string; object: string; size: number; }> {
 		return this._repository.getObjectDetails(treeish, path);
 	}
@@ -101,6 +82,18 @@ export class ApiRepository implements Repository {
 
 	buffer(ref: string, filePath: string): Promise<Buffer> {
 		return this._repository.buffer(ref, filePath);
+	}
+
+	show(ref: string, path: string): Promise<string> {
+		return this._repository.show(ref, path);
+	}
+
+	getCommit(ref: string): Promise<Commit> {
+		return this._repository.getCommit(ref);
+	}
+
+	clean(paths: string[]) {
+		return this._repository.clean(paths.map(p => Uri.file(p)));
 	}
 
 	diffWithHEAD(path: string): Promise<string> {
@@ -173,10 +166,6 @@ export class ApiRepository implements Repository {
 
 	pull(): Promise<void> {
 		return this._repository.pull();
-	}
-
-	clean(filePaths: string[]) {
-		return this._repository.clean(filePaths.map(p => Uri.file(p)));
 	}
 }
 
