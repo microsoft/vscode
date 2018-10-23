@@ -121,9 +121,10 @@ export class Menu implements IMenu {
 			}
 
 			// lexical sort for groups
-			let value = aGroup.localeCompare(bGroup);
-			if (value !== 0) {
-				return value;
+			if (aGroup < bGroup) {
+				return -1;
+			} else if (aGroup > bGroup) {
+				return 1;
 			}
 		}
 
