@@ -822,9 +822,10 @@ export class DebugService implements IDebugService {
 		return this.sendAllBreakpoints();
 	}
 
-	addBreakpoints(uri: uri, rawBreakpoints: IBreakpointData[]): TPromise<IBreakpoint[]> {
+	addBreakpoints(uri: uri, rawBreakpoints: IBreakpointData[], context: string): TPromise<IBreakpoint[]> {
 		const breakpoints = this.model.addBreakpoints(uri, rawBreakpoints);
 		breakpoints.forEach(bp => aria.status(nls.localize('breakpointAdded', "Added breakpoint, line {0}, file {1}", bp.lineNumber, uri.fsPath)));
+		breakpoints.forEach(bp => this.telemetryDebugAddBreakpoint(bp, context));
 
 		return this.sendBreakpoints(uri).then(() => breakpoints);
 	}
@@ -1062,6 +1063,24 @@ export class DebugService implements IDebugService {
 		return this.telemetryService.publicLog('debugMisconfiguration', {
 			type: debugType,
 			error: message
+		});
+	}
+
+	private telemetryDebugAddBreakpoint(breakpoint: IBreakpoint, context: string): TPromise<any> {
+		/* __GDPR__
+			"debugAddBreakpoint" : {
+				"context": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+				"hasCondition": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+				"hasHitCondition": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+				"hasLogMessage": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+			}
+		*/
+
+		return this.telemetryService.publicLog('debugAddBreakpoint', {
+			context: context,
+			hasCondition: !!breakpoint.condition,
+			hasHitCondition: !!breakpoint.hitCondition,
+			hasLogMessage: !!breakpoint.logMessage
 		});
 	}
 }

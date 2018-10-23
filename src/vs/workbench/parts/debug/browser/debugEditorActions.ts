@@ -45,7 +45,7 @@ class ToggleBreakpointAction extends EditorAction {
 			return Promise.all(bps.map(bp => debugService.removeBreakpoints(bp.getId())));
 		}
 		if (debugService.getConfigurationManager().canSetBreakpointsIn(editor.getModel())) {
-			return debugService.addBreakpoints(modelUri, [{ lineNumber: position.lineNumber }]);
+			return debugService.addBreakpoints(modelUri, [{ lineNumber: position.lineNumber }], 'debugEditorActions.toggleBreakpointAction');
 		}
 
 		return Promise.resolve(null);
@@ -130,7 +130,7 @@ class RunToCursorAction extends EditorAction {
 		const position = editor.getPosition();
 		const uri = editor.getModel().uri;
 		const bpExists = !!(debugService.getModel().getBreakpoints({ column: position.column, lineNumber: position.lineNumber, uri }).length);
-		return (bpExists ? Promise.resolve(null) : <Promise<any>>debugService.addBreakpoints(uri, [{ lineNumber: position.lineNumber, column: position.column }])).then((breakpoints) => {
+		return (bpExists ? Promise.resolve(null) : <Promise<any>>debugService.addBreakpoints(uri, [{ lineNumber: position.lineNumber, column: position.column }], 'debugEditorActions.runToCursorAction')).then((breakpoints) => {
 			if (breakpoints && breakpoints.length) {
 				breakpointToRemove = breakpoints[0];
 			}
