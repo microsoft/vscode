@@ -300,6 +300,7 @@ configurationRegistry.registerConfiguration({
 				'workbench.action.tasks.build',
 				'workbench.action.tasks.restartTask',
 				'workbench.action.tasks.runTask',
+				'workbench.action.tasks.reRunTask',
 				'workbench.action.tasks.showLog',
 				'workbench.action.tasks.showTasks',
 				'workbench.action.tasks.terminate',

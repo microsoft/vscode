@@ -114,6 +114,8 @@ export class TerminalTaskSystem implements ITaskSystem {
 	private idleTaskTerminals: LinkedMap<string, string>;
 	private sameTaskTerminals: IStringDictionary<string>;
 	private taskSystemInfoResolver: TaskSystemInfoResovler;
+	private lastTask: { task: Task, resolver: ITaskResolver };
+	private isRerun: boolean;
 
 	private readonly _onDidStateChange: Emitter<TaskEvent>;
 
@@ -147,7 +149,9 @@ export class TerminalTaskSystem implements ITaskSystem {
 		this.outputService.showChannel(this.outputChannel.id, true);
 	}
 
-	public run(task: Task, resolver: ITaskResolver, trigger: string = Triggers.command): ITaskExecuteResult {
+	public run(task: Task, resolver: ITaskResolver, trigger: string = Triggers.command, isRerun: boolean = false): ITaskExecuteResult {
+		this.isRerun = isRerun;
+		this.lastTask = { task, resolver };
 		let terminalData = this.activeTasks[Task.getMapKey(task)];
 		if (terminalData && terminalData.promise) {
 			let reveal = RevealKind.Always;
@@ -178,6 +182,13 @@ export class TerminalTaskSystem implements ITaskSystem {
 		}
 	}
 
+	public getLastTask(): Task | undefined {
+		return this.lastTask ? this.lastTask.task : undefined;
+	}
+
+	public getLastResolver(): ITaskResolver | undefined {
+		return this.lastTask ? this.lastTask.resolver : undefined;
+	}
 
 	public revealTask(task: Task): boolean {
 		let terminalData = this.activeTasks[Task.getMapKey(task)];
@@ -297,26 +308,43 @@ export class TerminalTaskSystem implements ITaskSystem {
 	}
 
 	private executeCommand(task: CustomTask | ContributedTask, trigger: string): TPromise<ITaskSummary> {
-		let variables = new Set<string>();
-		this.collectTaskVariables(variables, task);
 		let workspaceFolder = Task.getWorkspaceFolder(task);
 		let taskSystemInfo: TaskSystemInfo;
 		if (workspaceFolder) {
 			taskSystemInfo = this.taskSystemInfoResolver(workspaceFolder);
 		}
-		let resolvedVariables: TPromise<Map<string, string>>;
-		if (taskSystemInfo) {
-			resolvedVariables = taskSystemInfo.resolveVariables(workspaceFolder, variables);
-		} else {
-			let result = new Map<string, string>();
-			variables.forEach(variable => {
-				result.set(variable, this.configurationResolverService.resolve(workspaceFolder, variable));
+
+		let variables = new Set<string>();
+		this.collectTaskVariables(variables, task);
+
+		// Check that the task hasn't changed to include new variables
+		let hasAllVariables = true;
+		if (this.isRerun && task.resolvedVariables) {
+			variables.forEach(value => {
+				if (value in task.resolvedVariables) {
+					hasAllVariables = false;
+				}
 			});
-			resolvedVariables = TPromise.as(result);
 		}
-		return resolvedVariables.then((variables) => {
-			return this.executeInTerminal(task, trigger, new VariableResolver(workspaceFolder, taskSystemInfo, variables, this.configurationResolverService));
-		});
+
+		if (!task.resolvedVariables || !this.isRerun || (this.isRerun && !hasAllVariables)) {
+			let resolvedVariables: TPromise<Map<string, string>>;
+			if (taskSystemInfo) {
+				resolvedVariables = taskSystemInfo.resolveVariables(workspaceFolder, variables);
+			} else {
+				let result = new Map<string, string>();
+				variables.forEach(variable => {
+					result.set(variable, this.configurationResolverService.resolve(workspaceFolder, variable));
+				});
+				resolvedVariables = TPromise.as(result);
+			}
+			return resolvedVariables.then((variables) => {
+				task.resolvedVariables = variables;
+				return this.executeInTerminal(task, trigger, new VariableResolver(workspaceFolder, taskSystemInfo, variables, this.configurationResolverService));
+			});
+		} else {
+			return this.executeInTerminal(task, trigger, new VariableResolver(workspaceFolder, taskSystemInfo, task.resolvedVariables, this.configurationResolverService));
+		}
 	}
 
 	private executeInTerminal(task: CustomTask | ContributedTask, trigger: string, resolver: VariableResolver): TPromise<ITaskSummary> {

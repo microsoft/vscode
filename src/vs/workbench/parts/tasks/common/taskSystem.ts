@@ -115,7 +115,9 @@ export interface TaskSystemInfoResovler {
 
 export interface ITaskSystem {
 	onDidStateChange: Event<TaskEvent>;
-	run(task: Task, resolver: ITaskResolver): ITaskExecuteResult;
+	run(task: Task, resolver: ITaskResolver, trigger?: string, isRerun?: boolean): ITaskExecuteResult;
+	getLastTask(): Task | undefined;
+	getLastResolver(): ITaskResolver | undefined;
 	isActive(): TPromise<boolean>;
 	isActiveSync(): boolean;
 	getActiveTasks(): Task[];

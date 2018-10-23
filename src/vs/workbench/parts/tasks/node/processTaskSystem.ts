@@ -27,7 +27,8 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { StartStopProblemCollector, WatchingProblemCollector, ProblemCollectorEventKind } from 'vs/workbench/parts/tasks/common/problemCollectors';
 import {
 	ITaskSystem, ITaskSummary, ITaskExecuteResult, TaskExecuteKind, TaskError, TaskErrors, TelemetryEvent, Triggers,
-	TaskTerminateResponse
+	TaskTerminateResponse,
+	ITaskResolver
 } from 'vs/workbench/parts/tasks/common/taskSystem';
 import {
 	Task, CustomTask, CommandOptions, RevealKind, CommandConfiguration, RuntimeType,
@@ -193,6 +194,14 @@ export class ProcessTaskSystem implements ITaskSystem {
 				throw new TaskError(Severity.Error, nls.localize('TaskRunnerSystem.unknownError', 'A unknown error has occurred while executing a task. See task output log for details.'), TaskErrors.UnknownError);
 			}
 		}
+	}
+
+	public getLastTask(): Task | undefined {
+		return undefined;
+	}
+
+	public getLastResolver(): ITaskResolver | undefined {
+		return undefined;
 	}
 
 	private doExecuteTask(task: CustomTask, telemetryEvent: TelemetryEvent): ITaskExecuteResult {

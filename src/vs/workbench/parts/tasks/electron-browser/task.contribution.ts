@@ -553,6 +553,17 @@ class TaskService extends Disposable implements ITaskService {
 			this.runTaskCommand(arg);
 		});
 
+		CommandsRegistry.registerCommand('workbench.action.tasks.reRunTask', (accessor, arg) => {
+			this.reRunTaskCommand(arg);
+		});
+
+		KeybindingsRegistry.registerKeybindingRule({
+			id: 'workbench.action.tasks.reRunTask',
+			weight: KeybindingWeight.WorkbenchContrib,
+			when: undefined,
+			primary: KeyMod.Shift | KeyMod.Alt | KeyCode.KEY_R
+		});
+
 		CommandsRegistry.registerCommand('workbench.action.tasks.restartTask', (accessor, arg) => {
 			this.runRestartTaskCommand(arg);
 		});
@@ -1213,10 +1224,10 @@ class TaskService extends Disposable implements ITaskService {
 		};
 	}
 
-	private executeTask(task: Task, resolver: ITaskResolver): TPromise<ITaskSummary> {
+	private executeTask(task: Task, resolver: ITaskResolver, isRerun: boolean = false): TPromise<ITaskSummary> {
 		return ProblemMatcherRegistry.onReady().then(() => {
 			return this.textFileService.saveAll().then((value) => { // make sure all dirty files are saved
-				let executeResult = this.getTaskSystem().run(task, resolver);
+				let executeResult = this.getTaskSystem().run(task, resolver, undefined, isRerun);
 				let key = Task.getRecentlyUsedKey(task);
 				if (key) {
 					this.getRecentlyUsedTasks().set(key, key, Touch.AsOld);
@@ -1971,6 +1982,19 @@ class TaskService extends Disposable implements ITaskService {
 		});
 	}
 
+	private reRunTaskCommand(arg?: any): void {
+		if (!this.canRunCommand()) {
+			return;
+		}
+		let resolver: ITaskResolver;
+		let task: Task;
+		if (this._taskSystem && (task = this._taskSystem.getLastTask()) && (resolver = this._taskSystem.getLastResolver())) {
+			this.executeTask(task, resolver, true);
+		} else {
+			this.doRunTaskCommand();
+		}
+	}
+
 	private splitPerGroupType(tasks: Task[]): { none: Task[], defaults: Task[], users: Task[] } {
 		let none: Task[] = [];
 		let defaults: Task[] = [];
@@ -2502,6 +2526,7 @@ MenuRegistry.appendMenuItem(MenuId.MenubarTerminalMenu, {
 MenuRegistry.addCommand({ id: ConfigureTaskAction.ID, title: { value: ConfigureTaskAction.TEXT, original: 'Configure Task' }, category: { value: tasksCategory, original: 'Tasks' } });
 MenuRegistry.addCommand({ id: 'workbench.action.tasks.showLog', title: { value: nls.localize('ShowLogAction.label', "Show Task Log"), original: 'Show Task Log' }, category: { value: tasksCategory, original: 'Tasks' } });
 MenuRegistry.addCommand({ id: 'workbench.action.tasks.runTask', title: { value: nls.localize('RunTaskAction.label', "Run Task"), original: 'Run Task' }, category: { value: tasksCategory, original: 'Tasks' } });
+MenuRegistry.addCommand({ id: 'workbench.action.tasks.reRunTask', title: { value: nls.localize('ReRunTaskAction.label', "Rerun Last Task"), original: 'Rerun Last Task' }, category: { value: tasksCategory, original: 'Tasks' } });
 MenuRegistry.addCommand({ id: 'workbench.action.tasks.restartTask', title: { value: nls.localize('RestartTaskAction.label', "Restart Running Task"), original: 'Restart Running Task' }, category: { value: tasksCategory, original: 'Tasks' } });
 MenuRegistry.addCommand({ id: 'workbench.action.tasks.showTasks', title: { value: nls.localize('ShowTasksAction.label', "Show Running Tasks"), original: 'Show Running Tasks' }, category: { value: tasksCategory, original: 'Tasks' } });
 MenuRegistry.addCommand({ id: 'workbench.action.tasks.terminate', title: { value: nls.localize('TerminateAction.label', "Terminate Task"), original: 'Terminate Task' }, category: { value: tasksCategory, original: 'Tasks' } });
