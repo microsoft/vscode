@@ -179,7 +179,7 @@ export interface INotificationViewItem {
 	readonly severity: Severity;
 	readonly sticky: boolean;
 	readonly message: INotificationMessage;
-	readonly source: string;
+	readonly source: string | undefined;
 	readonly actions: INotificationActions;
 	readonly progress: INotificationViewItemProgress;
 
@@ -357,7 +357,7 @@ export class NotificationViewItem extends Disposable implements INotificationVie
 			return null; // we need a message to show
 		}
 
-		let actions: INotificationActions;
+		let actions: INotificationActions | undefined;
 		if (notification.actions) {
 			actions = notification.actions;
 		} else if (isErrorWithActions(notification.message)) {
@@ -367,9 +367,8 @@ export class NotificationViewItem extends Disposable implements INotificationVie
 		return new NotificationViewItem(severity, notification.sticky, message, notification.source, actions);
 	}
 
-	private static parseNotificationMessage(input: NotificationMessage): INotificationMessage {
-		let message: string;
-
+	private static parseNotificationMessage(input: NotificationMessage): INotificationMessage | undefined {
+		let message: string | undefined;
 		if (input instanceof Error) {
 			message = toErrorMessage(input, false);
 		} else if (typeof input === 'string') {
@@ -377,7 +376,7 @@ export class NotificationViewItem extends Disposable implements INotificationVie
 		}
 
 		if (!message) {
-			return null; // we need a message to show
+			return void 0; // we need a message to show
 		}
 
 		const raw = message;
@@ -401,17 +400,13 @@ export class NotificationViewItem extends Disposable implements INotificationVie
 		return { raw, value: message, links, original: input };
 	}
 
-	private constructor(private _severity: Severity, private _sticky: boolean, private _message: INotificationMessage, private _source: string, actions?: INotificationActions) {
+	private constructor(private _severity: Severity, private _sticky: boolean | undefined, private _message: INotificationMessage, private _source: string | undefined, actions?: INotificationActions) {
 		super();
 
 		this.setActions(actions);
 	}
 
-	private setActions(actions: INotificationActions): void {
-		if (!actions) {
-			actions = { primary: [], secondary: [] };
-		}
-
+	private setActions(actions: INotificationActions = { primary: [], secondary: [] }): void {
 		if (!Array.isArray(actions.primary)) {
 			actions.primary = [];
 		}
@@ -425,6 +420,10 @@ export class NotificationViewItem extends Disposable implements INotificationVie
 	}
 
 	get canCollapse(): boolean {
+		if (!this._actions.primary) {
+			return true;
+		}
+
 		return this._actions.primary.length === 0;
 	}
 
@@ -470,7 +469,7 @@ export class NotificationViewItem extends Disposable implements INotificationVie
 		return this._message;
 	}
 
-	get source(): string {
+	get source(): string | undefined {
 		return this._source;
 	}
 
@@ -543,13 +542,13 @@ export class NotificationViewItem extends Disposable implements INotificationVie
 			return false;
 		}
 
-		const primaryActions = this._actions.primary;
-		const otherPrimaryActions = other.actions.primary;
-		if (primaryActions.length !== otherPrimaryActions.length) {
+		if (this._message.value !== other.message.value) {
 			return false;
 		}
 
-		if (this._message.value !== other.message.value) {
+		const primaryActions = this._actions.primary || [];
+		const otherPrimaryActions = other.actions.primary || [];
+		if (primaryActions.length !== otherPrimaryActions.length) {
 			return false;
 		}
 
@@ -571,7 +570,7 @@ export class ChoiceAction extends Action {
 	private _keepOpen: boolean;
 
 	constructor(id: string, choice: IPromptChoice) {
-		super(id, choice.label, null, true, () => {
+		super(id, choice.label, void 0, true, () => {
 
 			// Pass to runner
 			choice.run();
@@ -582,7 +581,7 @@ export class ChoiceAction extends Action {
 			return Promise.resolve(void 0);
 		});
 
-		this._keepOpen = choice.keepOpen;
+		this._keepOpen = !!choice.keepOpen;
 	}
 
 	get keepOpen(): boolean {

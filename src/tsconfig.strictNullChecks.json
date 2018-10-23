@@ -481,6 +481,7 @@
 		"./vs/workbench/common/contributions.ts",
 		"./vs/workbench/common/extensionHostProtocol.ts",
 		"./vs/workbench/common/memento.ts",
+		"./vs/workbench/common/notifications.ts",
 		"./vs/workbench/common/panel.ts",
 		"./vs/workbench/common/resources.ts",
 		"./vs/workbench/common/theme.ts",
