@@ -250,6 +250,10 @@ export interface ITreeViewer extends IDisposable {
 
 	refresh(treeItems?: ITreeItem[]): TPromise<void>;
 
+	collapse(treeItems: undefined | ITreeItem[], recursive?: boolean): Promise<void>;
+
+	expand(treeItems: ITreeItem[], recursive?: boolean): Promise<void>;
+
 	setVisibility(visible: boolean): void;
 
 	focus(): void;
