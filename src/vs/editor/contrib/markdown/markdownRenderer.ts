@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { TPromise } from 'vs/base/common/winjs.base';
 import { IMarkdownString } from 'vs/base/common/htmlContent';
 import { renderMarkdown, RenderOptions } from 'vs/base/browser/htmlContentRenderer';
 import { IOpenerService, NullOpenerService } from 'vs/platform/opener/common/opener';
@@ -29,26 +28,32 @@ export class MarkdownRenderer {
 	constructor(
 		private readonly _editor: ICodeEditor,
 		@IModeService private readonly _modeService: IModeService,
-		@optional(IOpenerService) private readonly _openerService: IOpenerService = NullOpenerService,
+		@optional(IOpenerService) private readonly _openerService: IOpenerService | null = NullOpenerService,
 	) {
 	}
 
 	private getOptions(disposeables: IDisposable[]): RenderOptions {
 		return {
-			codeBlockRenderer: (languageAlias, value): TPromise<string> => {
+			codeBlockRenderer: (languageAlias, value) => {
 				// In markdown,
 				// it is possible that we stumble upon language aliases (e.g.js instead of javascript)
 				// it is possible no alias is given in which case we fall back to the current editor lang
-				const modeId = languageAlias
-					? this._modeService.getModeIdForLanguageName(languageAlias)
-					: this._editor.getModel().getLanguageIdentifier().language;
+				let modeId: string | null = null;
+				if (languageAlias) {
+					modeId = this._modeService.getModeIdForLanguageName(languageAlias);
+				} else {
+					const model = this._editor.getModel();
+					if (model) {
+						modeId = model.getLanguageIdentifier().language;
+					}
+				}
 
-				return this._modeService.getOrCreateMode(modeId).then(_ => {
-					const promise = TokenizationRegistry.getPromise(modeId);
+				return this._modeService.getOrCreateMode(modeId || '').then(_ => {
+					const promise = TokenizationRegistry.getPromise(modeId || '');
 					if (promise) {
 						return promise.then(support => tokenizeToString(value, support));
 					}
-					return tokenizeToString(value, null);
+					return tokenizeToString(value, undefined);
 				}).then(code => {
 					return `<span style="font-family: ${this._editor.getConfiguration().fontInfo.fontFamily}">${code}</span>`;
 				});
@@ -56,13 +61,13 @@ export class MarkdownRenderer {
 			codeBlockRenderCallback: () => this._onDidRenderCodeBlock.fire(),
 			actionHandler: {
 				callback: (content) => {
-					let uri: URI;
+					let uri: URI | undefined;
 					try {
 						uri = URI.parse(content);
-					} catch (err) {
+					} catch {
 						// ignore
 					}
-					if (uri) {
+					if (uri && this._openerService) {
 						this._openerService.open(uri).catch(onUnexpectedError);
 					}
 				},

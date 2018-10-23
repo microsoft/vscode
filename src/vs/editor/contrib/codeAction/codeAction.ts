@@ -70,7 +70,7 @@ function codeActionsComparator(a: CodeAction, b: CodeAction): number {
 	const bHasDiags = !isFalsyOrEmpty(b.diagnostics);
 	if (aHasDiags) {
 		if (bHasDiags) {
-			return a.diagnostics[0].message.localeCompare(b.diagnostics[0].message);
+			return a.diagnostics![0].message.localeCompare(b.diagnostics![0].message);
 		} else {
 			return -1;
 		}

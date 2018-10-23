@@ -25,8 +25,8 @@ export class LightBulbWidget implements IDisposable, IContentWidget {
 
 	readonly onClick: Event<{ x: number, y: number }> = this._onClick.event;
 
-	private _position: IContentWidgetPosition;
-	private _model: CodeActionsComputeEvent;
+	private _position: IContentWidgetPosition | null;
+	private _model: CodeActionsComputeEvent | null;
 	private _futureFixes = new CancellationTokenSource();
 
 	constructor(editor: ICodeEditor) {
@@ -40,7 +40,7 @@ export class LightBulbWidget implements IDisposable, IContentWidget {
 		this._disposables.push(this._editor.onDidChangeModelLanguage(_ => this._futureFixes.cancel()));
 		this._disposables.push(this._editor.onDidChangeModelContent(_ => {
 			// cancel when the line in question has been removed
-			if (this._model && this.model.position.lineNumber >= this._editor.getModel().getLineCount()) {
+			if (this._model && (!this.model.position || this.model.position.lineNumber >= this._editor.getModel().getLineCount())) {
 				this._futureFixes.cancel();
 			}
 		}));
@@ -96,7 +96,7 @@ export class LightBulbWidget implements IDisposable, IContentWidget {
 		return this._domNode;
 	}
 
-	getPosition(): IContentWidgetPosition {
+	getPosition(): IContentWidgetPosition | null {
 		return this._position;
 	}
 
@@ -126,7 +126,7 @@ export class LightBulbWidget implements IDisposable, IContentWidget {
 			} else {
 				this.hide();
 			}
-		}).catch(err => {
+		}).catch(() => {
 			this.hide();
 		});
 	}
@@ -146,6 +146,9 @@ export class LightBulbWidget implements IDisposable, IContentWidget {
 	private _show(): void {
 		const config = this._editor.getConfiguration();
 		if (!config.contribInfo.lightbulbEnabled) {
+			return;
+		}
+		if (!this._model.position) {
 			return;
 		}
 		const { lineNumber, column } = this._model.position;

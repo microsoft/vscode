@@ -3,12 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Selection } from 'vs/editor/common/core/selection';
-import * as editorCommon from 'vs/editor/common/editorCommon';
 import { Range } from 'vs/editor/common/core/range';
+import { Selection } from 'vs/editor/common/core/selection';
+import { ICommand, ICursorStateComputerData, IEditOperationBuilder } from 'vs/editor/common/editorCommon';
 import { ITextModel } from 'vs/editor/common/model';
 
-export class ReplaceCommand implements editorCommon.ICommand {
+export class ReplaceCommand implements ICommand {
 
 	private readonly _range: Range;
 	private readonly _text: string;
@@ -20,11 +20,11 @@ export class ReplaceCommand implements editorCommon.ICommand {
 		this.insertsAutoWhitespace = insertsAutoWhitespace;
 	}
 
-	public getEditOperations(model: ITextModel, builder: editorCommon.IEditOperationBuilder): void {
+	public getEditOperations(model: ITextModel, builder: IEditOperationBuilder): void {
 		builder.addTrackedEditOperation(this._range, this._text);
 	}
 
-	public computeCursorState(model: ITextModel, helper: editorCommon.ICursorStateComputerData): Selection {
+	public computeCursorState(model: ITextModel, helper: ICursorStateComputerData): Selection {
 		let inverseEditOperations = helper.getInverseEditOperations();
 		let srcRange = inverseEditOperations[0].range;
 		return new Selection(
@@ -36,7 +36,7 @@ export class ReplaceCommand implements editorCommon.ICommand {
 	}
 }
 
-export class ReplaceCommandWithoutChangingPosition implements editorCommon.ICommand {
+export class ReplaceCommandWithoutChangingPosition implements ICommand {
 
 	private readonly _range: Range;
 	private readonly _text: string;
@@ -48,11 +48,11 @@ export class ReplaceCommandWithoutChangingPosition implements editorCommon.IComm
 		this.insertsAutoWhitespace = insertsAutoWhitespace;
 	}
 
-	public getEditOperations(model: ITextModel, builder: editorCommon.IEditOperationBuilder): void {
+	public getEditOperations(model: ITextModel, builder: IEditOperationBuilder): void {
 		builder.addTrackedEditOperation(this._range, this._text);
 	}
 
-	public computeCursorState(model: ITextModel, helper: editorCommon.ICursorStateComputerData): Selection {
+	public computeCursorState(model: ITextModel, helper: ICursorStateComputerData): Selection {
 		let inverseEditOperations = helper.getInverseEditOperations();
 		let srcRange = inverseEditOperations[0].range;
 		return new Selection(
@@ -64,7 +64,7 @@ export class ReplaceCommandWithoutChangingPosition implements editorCommon.IComm
 	}
 }
 
-export class ReplaceCommandWithOffsetCursorState implements editorCommon.ICommand {
+export class ReplaceCommandWithOffsetCursorState implements ICommand {
 
 	private readonly _range: Range;
 	private readonly _text: string;
@@ -80,11 +80,11 @@ export class ReplaceCommandWithOffsetCursorState implements editorCommon.IComman
 		this.insertsAutoWhitespace = insertsAutoWhitespace;
 	}
 
-	public getEditOperations(model: ITextModel, builder: editorCommon.IEditOperationBuilder): void {
+	public getEditOperations(model: ITextModel, builder: IEditOperationBuilder): void {
 		builder.addTrackedEditOperation(this._range, this._text);
 	}
 
-	public computeCursorState(model: ITextModel, helper: editorCommon.ICursorStateComputerData): Selection {
+	public computeCursorState(model: ITextModel, helper: ICursorStateComputerData): Selection {
 		let inverseEditOperations = helper.getInverseEditOperations();
 		let srcRange = inverseEditOperations[0].range;
 		return new Selection(
@@ -96,7 +96,7 @@ export class ReplaceCommandWithOffsetCursorState implements editorCommon.IComman
 	}
 }
 
-export class ReplaceCommandThatPreservesSelection implements editorCommon.ICommand {
+export class ReplaceCommandThatPreservesSelection implements ICommand {
 
 	private _range: Range;
 	private _text: string;
@@ -109,12 +109,12 @@ export class ReplaceCommandThatPreservesSelection implements editorCommon.IComma
 		this._initialSelection = initialSelection;
 	}
 
-	public getEditOperations(model: ITextModel, builder: editorCommon.IEditOperationBuilder): void {
+	public getEditOperations(model: ITextModel, builder: IEditOperationBuilder): void {
 		builder.addEditOperation(this._range, this._text);
 		this._selectionId = builder.trackSelection(this._initialSelection);
 	}
 
-	public computeCursorState(model: ITextModel, helper: editorCommon.ICursorStateComputerData): Selection {
+	public computeCursorState(model: ITextModel, helper: ICursorStateComputerData): Selection {
 		return helper.getTrackedSelection(this._selectionId);
 	}
 }

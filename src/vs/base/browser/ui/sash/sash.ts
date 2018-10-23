@@ -391,6 +391,6 @@ export class Sash extends Disposable {
 			this.el.parentElement.removeChild(this.el);
 		}
 
-		this.el = null;
+		this.el = null!; // StrictNullOverride: nulling out ok in dispose
 	}
 }

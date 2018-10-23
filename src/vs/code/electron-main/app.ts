@@ -61,7 +61,6 @@ import { IMenubarService } from 'vs/platform/menubar/common/menubar';
 import { MenubarService } from 'vs/platform/menubar/electron-main/menubarService';
 import { MenubarChannel } from 'vs/platform/menubar/node/menubarIpc';
 import { ILabelService, RegisterFormatterEvent } from 'vs/platform/label/common/label';
-import { CodeMenu } from 'vs/code/electron-main/menus';
 import { hasArgs } from 'vs/platform/environment/node/argv';
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { registerContextMenuListener } from 'vs/base/parts/contextmenu/electron-main/contextmenu';
@@ -166,7 +165,7 @@ export class CodeApplication {
 		});
 
 		let macOpenFileURIs: URI[] = [];
-		let runningTimeout: number = null;
+		let runningTimeout: any = null;
 		app.on('open-file', (event: Event, path: string) => {
 			this.logService.trace('App#open-file: ', path);
 			event.preventDefault();
@@ -557,7 +556,7 @@ export class CodeApplication {
 	private afterWindowOpen(accessor: ServicesAccessor): void {
 		const windowsMainService = accessor.get(IWindowsMainService);
 
-		let windowsMutex: Mutex = null;
+		let windowsMutex: Mutex | null = null;
 		if (platform.isWindows) {
 
 			// Setup Windows mutex
@@ -592,22 +591,6 @@ export class CodeApplication {
 					});
 				}
 			}
-		}
-
-		// TODO@sbatten: Remove when switching back to dynamic menu
-		// Install Menu
-		const instantiationService = accessor.get(IInstantiationService);
-		const configurationService = accessor.get(IConfigurationService);
-
-		let createNativeMenu = true;
-		if (platform.isLinux) {
-			createNativeMenu = configurationService.getValue<string>('window.titleBarStyle') !== 'custom';
-		} else if (platform.isWindows) {
-			createNativeMenu = configurationService.getValue<string>('window.titleBarStyle') === 'native';
-		}
-
-		if (createNativeMenu) {
-			instantiationService.createInstance(CodeMenu);
 		}
 
 		// Jump List

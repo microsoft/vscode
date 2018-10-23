@@ -27,6 +27,10 @@ export class SuggestAlternatives {
 		this._ckOtherSuggestions = SuggestAlternatives.OtherSuggestions.bindTo(contextKeyService);
 	}
 
+	dispose(): void {
+		this.reset();
+	}
+
 	reset(): void {
 		this._ckOtherSuggestions.reset();
 		dispose(this._listener);

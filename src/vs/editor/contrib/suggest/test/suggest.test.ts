@@ -46,38 +46,34 @@ suite('Suggest', function () {
 		model.dispose();
 	});
 
-	test('sort - snippet inline', function () {
-		return provideSuggestionItems(model, new Position(1, 1), 'inline').then(items => {
-			assert.equal(items.length, 3);
-			assert.equal(items[0].suggestion.label, 'aaa');
-			assert.equal(items[1].suggestion.label, 'fff');
-			assert.equal(items[2].suggestion.label, 'zzz');
-		});
+	test('sort - snippet inline', async function () {
+		const items = await provideSuggestionItems(model, new Position(1, 1), 'inline');
+		assert.equal(items.length, 3);
+		assert.equal(items[0].suggestion.label, 'aaa');
+		assert.equal(items[1].suggestion.label, 'fff');
+		assert.equal(items[2].suggestion.label, 'zzz');
 	});
 
-	test('sort - snippet top', function () {
-		return provideSuggestionItems(model, new Position(1, 1), 'top').then(items => {
-			assert.equal(items.length, 3);
-			assert.equal(items[0].suggestion.label, 'aaa');
-			assert.equal(items[1].suggestion.label, 'zzz');
-			assert.equal(items[2].suggestion.label, 'fff');
-		});
+	test('sort - snippet top', async function () {
+		const items = await provideSuggestionItems(model, new Position(1, 1), 'top');
+		assert.equal(items.length, 3);
+		assert.equal(items[0].suggestion.label, 'aaa');
+		assert.equal(items[1].suggestion.label, 'zzz');
+		assert.equal(items[2].suggestion.label, 'fff');
 	});
 
-	test('sort - snippet bottom', function () {
-		return provideSuggestionItems(model, new Position(1, 1), 'bottom').then(items => {
-			assert.equal(items.length, 3);
-			assert.equal(items[0].suggestion.label, 'fff');
-			assert.equal(items[1].suggestion.label, 'aaa');
-			assert.equal(items[2].suggestion.label, 'zzz');
-		});
+	test('sort - snippet bottom', async function () {
+		const items = await provideSuggestionItems(model, new Position(1, 1), 'bottom');
+		assert.equal(items.length, 3);
+		assert.equal(items[0].suggestion.label, 'fff');
+		assert.equal(items[1].suggestion.label, 'aaa');
+		assert.equal(items[2].suggestion.label, 'zzz');
 	});
 
-	test('sort - snippet none', function () {
-		return provideSuggestionItems(model, new Position(1, 1), 'none').then(items => {
-			assert.equal(items.length, 1);
-			assert.equal(items[0].suggestion.label, 'fff');
-		});
+	test('sort - snippet none', async function () {
+		const items = await provideSuggestionItems(model, new Position(1, 1), 'none');
+		assert.equal(items.length, 1);
+		assert.equal(items[0].suggestion.label, 'fff');
 	});
 
 	test('only from', function () {

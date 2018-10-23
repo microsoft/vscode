@@ -9,7 +9,6 @@ import * as lifecycle from 'vs/base/common/lifecycle';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { ICommandService } from 'vs/platform/commands/common/commands';
-import * as aria from 'vs/base/browser/ui/aria/aria';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { IFileService } from 'vs/platform/files/common/files';
 import { IDebugService, State, IDebugSession, IThread, IEnablement, IBreakpoint, IStackFrame, REPL_ID }
@@ -197,7 +196,6 @@ export class SelectAndStartAction extends AbstractDebugAction {
 		@IQuickOpenService private quickOpenService: IQuickOpenService
 	) {
 		super(id, label, undefined, debugService, keybindingService);
-		this.quickOpenService = quickOpenService;
 	}
 
 	public run(): TPromise<any> {
@@ -239,9 +237,7 @@ export class RestartAction extends AbstractDebugAction {
 			return this.startAction.run();
 		}
 
-		if (this.debugService.getModel().getSessions().length <= 1) {
-			this.debugService.removeReplExpressions();
-		}
+		session.removeReplExpressions();
 		return this.debugService.restartSession(session);
 	}
 
@@ -679,34 +675,12 @@ export class RemoveAllWatchExpressionsAction extends AbstractDebugAction {
 	}
 }
 
-export class ClearReplAction extends AbstractDebugAction {
-	static readonly ID = 'workbench.debug.panel.action.clearReplAction';
-	static LABEL = nls.localize('clearRepl', "Clear Console");
-
-	constructor(id: string, label: string,
-		@IDebugService debugService: IDebugService,
-		@IKeybindingService keybindingService: IKeybindingService,
-		@IPanelService private panelService: IPanelService
-	) {
-		super(id, label, 'debug-action clear-repl', debugService, keybindingService);
-	}
-
-	public run(): TPromise<any> {
-		this.debugService.removeReplExpressions();
-		aria.status(nls.localize('debugConsoleCleared', "Debug console was cleared"));
-
-		// focus back to repl
-		return this.panelService.openPanel(REPL_ID, true);
-	}
-}
-
 export class ToggleReplAction extends TogglePanelAction {
 	static readonly ID = 'workbench.debug.action.toggleRepl';
 	static LABEL = nls.localize({ comment: ['Debug is a noun in this context, not a verb.'], key: 'debugConsoleAction' }, 'Debug Console');
 	private toDispose: lifecycle.IDisposable[];
 
 	constructor(id: string, label: string,
-		@IDebugService private debugService: IDebugService,
 		@IPartService partService: IPartService,
 		@IPanelService panelService: IPanelService
 	) {
@@ -716,23 +690,12 @@ export class ToggleReplAction extends TogglePanelAction {
 	}
 
 	private registerListeners(): void {
-		this.toDispose.push(this.debugService.getModel().onDidChangeReplElements(() => {
-			if (!this.isReplVisible()) {
-				this.class = 'debug-action toggle-repl notification';
-				this.tooltip = nls.localize('unreadOutput', "New Output in Debug Console");
-			}
-		}));
 		this.toDispose.push(this.panelService.onDidPanelOpen(panel => {
 			if (panel.getId() === REPL_ID) {
 				this.class = 'debug-action toggle-repl';
 				this.tooltip = ToggleReplAction.LABEL;
 			}
 		}));
-	}
-
-	private isReplVisible(): boolean {
-		const panel = this.panelService.getActivePanel();
-		return panel && panel.getId() === REPL_ID;
 	}
 
 	public dispose(): void {
@@ -771,8 +734,7 @@ export class FocusSessionAction extends AbstractDebugAction {
 	}
 
 	public run(sessionName: string): TPromise<any> {
-		const isMultiRoot = this.debugService.getConfigurationManager().getLaunches().length > 1;
-		const session = this.debugService.getModel().getSessions().filter(p => p.getName(isMultiRoot) === sessionName).pop();
+		const session = this.debugService.getModel().getSessions().filter(p => p.getLabel() === sessionName).pop();
 		this.debugService.focusStackFrame(undefined, undefined, session, true);
 		const stackFrame = this.debugService.getViewModel().focusedStackFrame;
 		if (stackFrame) {

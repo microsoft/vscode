@@ -44,10 +44,10 @@ suite('Hidden Range Model', () => {
 
 		assert.equal(hiddenRangeModel.hasRanges(), false);
 
-		let ranges = computeRanges(textModel, false, null);
+		let ranges = computeRanges(textModel, false, void 0);
 		foldingModel.update(ranges);
 
-		foldingModel.toggleCollapseState([foldingModel.getRegionAtLine(1), foldingModel.getRegionAtLine(6)]);
+		foldingModel.toggleCollapseState([foldingModel.getRegionAtLine(1)!, foldingModel.getRegionAtLine(6)!]);
 		assertRanges(hiddenRangeModel.hiddenRanges, [r(2, 3), r(7, 7)]);
 
 		assert.equal(hiddenRangeModel.hasRanges(), true);
@@ -62,7 +62,7 @@ suite('Hidden Range Model', () => {
 		assert.equal(hiddenRangeModel.isHidden(9), false);
 		assert.equal(hiddenRangeModel.isHidden(10), false);
 
-		foldingModel.toggleCollapseState([foldingModel.getRegionAtLine(4)]);
+		foldingModel.toggleCollapseState([foldingModel.getRegionAtLine(4)!]);
 		assertRanges(hiddenRangeModel.hiddenRanges, [r(2, 3), r(5, 9)]);
 
 		assert.equal(hiddenRangeModel.hasRanges(), true);
@@ -77,7 +77,7 @@ suite('Hidden Range Model', () => {
 		assert.equal(hiddenRangeModel.isHidden(9), true);
 		assert.equal(hiddenRangeModel.isHidden(10), false);
 
-		foldingModel.toggleCollapseState([foldingModel.getRegionAtLine(1), foldingModel.getRegionAtLine(6), foldingModel.getRegionAtLine(4)]);
+		foldingModel.toggleCollapseState([foldingModel.getRegionAtLine(1)!, foldingModel.getRegionAtLine(6)!, foldingModel.getRegionAtLine(4)!]);
 		assertRanges(hiddenRangeModel.hiddenRanges, []);
 		assert.equal(hiddenRangeModel.hasRanges(), false);
 		assert.equal(hiddenRangeModel.isHidden(1), false);

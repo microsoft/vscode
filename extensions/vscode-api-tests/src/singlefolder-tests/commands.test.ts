@@ -39,20 +39,18 @@ suite('commands namespace tests', () => {
 		}, done);
 	});
 
-	test('command with args', function () {
+	test('command with args', async function () {
 
 		let args: IArguments;
 		let registration = commands.registerCommand('t1', function () {
 			args = arguments;
 		});
 
-		return commands.executeCommand('t1', 'start').then(() => {
-			registration.dispose();
-
-			assert.ok(args);
-			assert.equal(args.length, 1);
-			assert.equal(args[0], 'start');
-		});
+		await commands.executeCommand('t1', 'start');
+		registration.dispose();
+		assert.ok(args!);
+		assert.equal(args!.length, 1);
+		assert.equal(args![0], 'start');
 	});
 
 	test('editorCommand with extra args', function () {
@@ -76,7 +74,7 @@ suite('commands namespace tests', () => {
 
 	});
 
-	test('api-command: vscode.previewHtml', function () {
+	test('api-command: vscode.previewHtml', async function () {
 
 		let registration = workspace.registerTextDocumentContentProvider('speciale', {
 			provideTextDocumentContent(uri) {
@@ -87,10 +85,9 @@ suite('commands namespace tests', () => {
 		let virtualDocumentUri = Uri.parse('speciale://authority/path');
 		let title = 'A title';
 
-		return commands.executeCommand('vscode.previewHtml', virtualDocumentUri, ViewColumn.Three, title).then(success => {
-			assert.ok(success);
-			registration.dispose();
-		});
+		const success = await commands.executeCommand('vscode.previewHtml', virtualDocumentUri, ViewColumn.Three, title);
+		assert.ok(success);
+		registration.dispose();
 
 	});
 

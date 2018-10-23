@@ -5,30 +5,30 @@
 
 import 'vs/css!./accessibility';
 import * as nls from 'vs/nls';
+import * as dom from 'vs/base/browser/dom';
+import { FastDomNode, createFastDomNode } from 'vs/base/browser/fastDomNode';
+import { renderFormattedText } from 'vs/base/browser/htmlContentRenderer';
+import { alert } from 'vs/base/browser/ui/aria/aria';
+import { Widget } from 'vs/base/browser/ui/widget';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { Disposable } from 'vs/base/common/lifecycle';
+import * as platform from 'vs/base/common/platform';
 import * as strings from 'vs/base/common/strings';
-import * as dom from 'vs/base/browser/dom';
-import { renderFormattedText } from 'vs/base/browser/htmlContentRenderer';
-import { FastDomNode, createFastDomNode } from 'vs/base/browser/fastDomNode';
-import { Widget } from 'vs/base/browser/ui/widget';
-import { ServicesAccessor, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { RawContextKey, IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { URI } from 'vs/base/common/uri';
+import { ICodeEditor, IOverlayWidget, IOverlayWidgetPosition } from 'vs/editor/browser/editorBrowser';
+import { EditorAction, EditorCommand, registerEditorAction, registerEditorCommand, registerEditorContribution } from 'vs/editor/browser/editorExtensions';
+import * as editorOptions from 'vs/editor/common/config/editorOptions';
 import { IEditorContribution } from 'vs/editor/common/editorCommon';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
-import { registerEditorAction, registerEditorContribution, EditorAction, EditorCommand, registerEditorCommand } from 'vs/editor/browser/editorExtensions';
-import { ICodeEditor, IOverlayWidget, IOverlayWidgetPosition } from 'vs/editor/browser/editorBrowser';
 import { ToggleTabFocusModeAction } from 'vs/editor/contrib/toggleTabFocusMode/toggleTabFocusMode';
-import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
-import { editorWidgetBackground, widgetShadow, contrastBorder } from 'vs/platform/theme/common/colorRegistry';
-import { IConfigurationService, ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
-import * as editorOptions from 'vs/editor/common/config/editorOptions';
-import * as platform from 'vs/base/common/platform';
-import { alert } from 'vs/base/browser/ui/aria/aria';
-import { IOpenerService } from 'vs/platform/opener/common/opener';
-import { URI } from 'vs/base/common/uri';
+import { ConfigurationTarget, IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { IContextKey, IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
+import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
+import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
+import { IOpenerService } from 'vs/platform/opener/common/opener';
+import { contrastBorder, editorWidgetBackground, widgetShadow } from 'vs/platform/theme/common/colorRegistry';
+import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 
 const CONTEXT_ACCESSIBILITY_WIDGET_VISIBLE = new RawContextKey<boolean>('accessibilityHelpWidgetVisible', false);
 
@@ -315,17 +315,17 @@ registerEditorCommand(new AccessibilityHelpCommand({
 }));
 
 registerThemingParticipant((theme, collector) => {
-	let widgetBackground = theme.getColor(editorWidgetBackground);
+	const widgetBackground = theme.getColor(editorWidgetBackground);
 	if (widgetBackground) {
 		collector.addRule(`.monaco-editor .accessibilityHelpWidget { background-color: ${widgetBackground}; }`);
 	}
 
-	let widgetShadowColor = theme.getColor(widgetShadow);
+	const widgetShadowColor = theme.getColor(widgetShadow);
 	if (widgetShadowColor) {
 		collector.addRule(`.monaco-editor .accessibilityHelpWidget { box-shadow: 0 2px 8px ${widgetShadowColor}; }`);
 	}
 
-	let hcBorder = theme.getColor(contrastBorder);
+	const hcBorder = theme.getColor(contrastBorder);
 	if (hcBorder) {
 		collector.addRule(`.monaco-editor .accessibilityHelpWidget { border: 2px solid ${hcBorder}; }`);
 	}

@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { LineTokens, IViewLineTokens } from 'vs/editor/common/core/lineTokens';
+import { IViewLineTokens, LineTokens } from 'vs/editor/common/core/lineTokens';
 import { MetadataConsts } from 'vs/editor/common/modes';
 
 suite('LineTokens', () => {

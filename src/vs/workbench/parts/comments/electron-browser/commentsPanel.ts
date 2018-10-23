@@ -23,6 +23,7 @@ import { IEditorService, ACTIVE_GROUP, SIDE_GROUP } from 'vs/workbench/services/
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { textLinkForeground, textLinkActiveForeground, focusBorder } from 'vs/platform/theme/common/colorRegistry';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
+import { IStorageService } from 'vs/platform/storage/common/storage';
 
 export const COMMENTS_PANEL_ID = 'workbench.panel.comments';
 export const COMMENTS_PANEL_TITLE = 'Comments';
@@ -42,12 +43,13 @@ export class CommentsPanel extends Panel {
 		@ICommandService private commandService: ICommandService,
 		@IOpenerService private openerService: IOpenerService,
 		@ITelemetryService telemetryService: ITelemetryService,
-		@IThemeService themeService: IThemeService
+		@IThemeService themeService: IThemeService,
+		@IStorageService storageService: IStorageService
 	) {
-		super(COMMENTS_PANEL_ID, telemetryService, themeService);
+		super(COMMENTS_PANEL_ID, telemetryService, themeService, storageService);
 	}
 
-	public create(parent: HTMLElement): Promise<void> {
+	public create(parent: HTMLElement): void {
 		super.create(parent);
 
 		dom.addClass(parent, 'comments-panel');
@@ -68,7 +70,7 @@ export class CommentsPanel extends Panel {
 			this.applyStyles(styleElement);
 		});
 
-		return this.render();
+		this.render();
 	}
 
 	private applyStyles(styleElement: HTMLStyleElement) {

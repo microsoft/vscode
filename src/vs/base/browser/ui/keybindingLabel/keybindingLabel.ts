@@ -62,44 +62,43 @@ export class KeybindingLabel implements IDisposable {
 				this.renderPart(this.domNode, firstPart, this.matches ? this.matches.firstPart : null);
 			}
 			if (chordPart) {
-				dom.append(this.domNode, $('span.monaco-keybinding-key-chord-separator', null, ' '));
+				dom.append(this.domNode, $('span.monaco-keybinding-key-chord-separator', undefined, ' '));
 				this.renderPart(this.domNode, chordPart, this.matches ? this.matches.chordPart : null);
 			}
-			this.domNode.title = this.keybinding.getAriaLabel();
+			this.domNode.title = this.keybinding.getAriaLabel() || '';
 		}
 
 		this.didEverRender = true;
 	}
 
-	private renderPart(parent: HTMLElement, part: ResolvedKeybindingPart, match: PartMatches) {
+	private renderPart(parent: HTMLElement, part: ResolvedKeybindingPart, match: PartMatches | null) {
 		const modifierLabels = UILabelProvider.modifierLabels[this.os];
 		if (part.ctrlKey) {
-			this.renderKey(parent, modifierLabels.ctrlKey, match && match.ctrlKey, modifierLabels.separator);
+			this.renderKey(parent, modifierLabels.ctrlKey, Boolean(match && match.ctrlKey), modifierLabels.separator);
 		}
 		if (part.shiftKey) {
-			this.renderKey(parent, modifierLabels.shiftKey, match && match.shiftKey, modifierLabels.separator);
+			this.renderKey(parent, modifierLabels.shiftKey, Boolean(match && match.shiftKey), modifierLabels.separator);
 		}
 		if (part.altKey) {
-			this.renderKey(parent, modifierLabels.altKey, match && match.altKey, modifierLabels.separator);
+			this.renderKey(parent, modifierLabels.altKey, Boolean(match && match.altKey), modifierLabels.separator);
 		}
 		if (part.metaKey) {
-			this.renderKey(parent, modifierLabels.metaKey, match && match.metaKey, modifierLabels.separator);
+			this.renderKey(parent, modifierLabels.metaKey, Boolean(match && match.metaKey), modifierLabels.separator);
 		}
 		const keyLabel = part.keyLabel;
 		if (keyLabel) {
-			this.renderKey(parent, keyLabel, match && match.keyCode, '');
+			this.renderKey(parent, keyLabel, Boolean(match && match.keyCode), '');
 		}
 	}
 
 	private renderKey(parent: HTMLElement, label: string, highlight: boolean, separator: string): void {
-		dom.append(parent, $('span.monaco-keybinding-key' + (highlight ? '.highlight' : ''), null, label));
+		dom.append(parent, $('span.monaco-keybinding-key' + (highlight ? '.highlight' : ''), undefined, label));
 		if (separator) {
-			dom.append(parent, $('span.monaco-keybinding-key-separator', null, separator));
+			dom.append(parent, $('span.monaco-keybinding-key-separator', undefined, separator));
 		}
 	}
 
 	dispose() {
-		this.keybinding = null;
 	}
 
 	private static areSame(a: Matches, b: Matches): boolean {

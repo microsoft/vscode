@@ -3,14 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IInplaceReplaceSupportResult } from 'vs/editor/common/modes';
 import { IRange } from 'vs/editor/common/core/range';
+import { IInplaceReplaceSupportResult } from 'vs/editor/common/modes';
 
 export class BasicInplaceReplace {
 
 	public static readonly INSTANCE = new BasicInplaceReplace();
 
-	public navigateValueSet(range1: IRange, text1: string, range2: IRange, text2: string, up: boolean): IInplaceReplaceSupportResult {
+	public navigateValueSet(range1: IRange, text1: string, range2: IRange, text2: string | null, up: boolean): IInplaceReplaceSupportResult | null {
 
 		if (range1 && text1) {
 			let result = this.doNavigateValueSet(text1, up);
@@ -35,7 +35,7 @@ export class BasicInplaceReplace {
 		return null;
 	}
 
-	private doNavigateValueSet(text: string, up: boolean): string {
+	private doNavigateValueSet(text: string, up: boolean): string | null {
 		let numberResult = this.numberReplace(text, up);
 		if (numberResult !== null) {
 			return numberResult;
@@ -43,7 +43,7 @@ export class BasicInplaceReplace {
 		return this.textReplace(text, up);
 	}
 
-	private numberReplace(value: string, up: boolean): string {
+	private numberReplace(value: string, up: boolean): string | null {
 		let precision = Math.pow(10, value.length - (value.lastIndexOf('.') + 1));
 		let n1 = Number(value);
 		let n2 = parseFloat(value);
@@ -71,19 +71,19 @@ export class BasicInplaceReplace {
 		['public', 'protected', 'private'],
 	];
 
-	private textReplace(value: string, up: boolean): string {
+	private textReplace(value: string, up: boolean): string | null {
 		return this.valueSetsReplace(this._defaultValueSet, value, up);
 	}
 
-	private valueSetsReplace(valueSets: string[][], value: string, up: boolean): string {
-		let result: string = null;
+	private valueSetsReplace(valueSets: string[][], value: string, up: boolean): string | null {
+		let result: string | null = null;
 		for (let i = 0, len = valueSets.length; result === null && i < len; i++) {
 			result = this.valueSetReplace(valueSets[i], value, up);
 		}
 		return result;
 	}
 
-	private valueSetReplace(valueSet: string[], value: string, up: boolean): string {
+	private valueSetReplace(valueSet: string[], value: string, up: boolean): string | null {
 		let idx = valueSet.indexOf(value);
 		if (idx >= 0) {
 			idx += up ? +1 : -1;

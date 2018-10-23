@@ -95,7 +95,8 @@ export interface ITypeScriptServiceClient {
 	execute<K extends keyof TypeScriptRequestTypes>(
 		command: K,
 		args: TypeScriptRequestTypes[K][0],
-		token: vscode.CancellationToken
+		token: vscode.CancellationToken,
+		lowPriority?: boolean
 	): Promise<ServerResponse<TypeScriptRequestTypes[K][1]>>;
 
 	executeWithoutWaitingForResponse(command: 'open', args: Proto.OpenRequestArgs): void;

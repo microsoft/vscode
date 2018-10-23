@@ -18,6 +18,9 @@ steps:
     yarn monaco-compile-check
   displayName: Run Monaco Editor Checks
 - script: |
+    yarn strict-null-check
+  displayName: Run Strict Null Checks
+- script: |
     yarn compile
   displayName: Compile Sources
 - script: |
@@ -29,17 +32,6 @@ steps:
 - script: |
     ./scripts/test-integration.sh --tfs "Integration Tests"
   displayName: Run Integration Tests
-- script: |
-    yarn smoketest --screenshots "$(Build.ArtifactStagingDirectory)/artifacts" --log "$(Build.ArtifactStagingDirectory)/artifacts/smoketest.log"
-  displayName: Run Smoke Tests
-  continueOnError: true
-- task: PublishBuildArtifacts@1
-  displayName: Publish Smoketest Artifacts
-  inputs:
-    PathtoPublish: '$(Build.ArtifactStagingDirectory)/artifacts'
-    ArtifactName: build-artifacts-darwin
-    publishLocation: Container
-  condition: eq(variables['System.PullRequest.IsFork'], 'False')
 - task: PublishTestResults@2
   displayName: Publish Tests Results
   inputs:

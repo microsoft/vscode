@@ -67,8 +67,8 @@ export function renderMarkdown(markdown: IMarkdownString, options: RenderOptions
 			if (parameters) {
 				const heightFromParams = /height=(\d+)/.exec(parameters);
 				const widthFromParams = /width=(\d+)/.exec(parameters);
-				const height = (heightFromParams && heightFromParams[1]);
-				const width = (widthFromParams && widthFromParams[1]);
+				const height = heightFromParams ? heightFromParams[1] : '';
+				const width = widthFromParams ? widthFromParams[1] : '';
 				const widthIsFinite = isFinite(parseInt(width));
 				const heightIsFinite = isFinite(parseInt(height));
 				if (widthIsFinite) {
@@ -120,7 +120,7 @@ export function renderMarkdown(markdown: IMarkdownString, options: RenderOptions
 
 	if (options.codeBlockRenderer) {
 		renderer.code = (code, lang) => {
-			const value = options.codeBlockRenderer(lang, code);
+			const value = options.codeBlockRenderer!(lang, code);
 			// when code-block rendering is async we return sync
 			// but update the node with the real result later.
 			const id = defaultGenerator.nextId();
@@ -144,7 +144,7 @@ export function renderMarkdown(markdown: IMarkdownString, options: RenderOptions
 
 	if (options.actionHandler) {
 		options.actionHandler.disposeables.push(DOM.addStandardDisposableListener(element, 'click', event => {
-			let target = event.target;
+			let target: HTMLElement | null = event.target;
 			if (target.tagName !== 'A') {
 				target = target.parentElement;
 				if (!target || target.tagName !== 'A') {
@@ -154,7 +154,7 @@ export function renderMarkdown(markdown: IMarkdownString, options: RenderOptions
 			try {
 				const href = target.dataset['href'];
 				if (href) {
-					options.actionHandler.callback(href, event);
+					options.actionHandler!.callback(href, event);
 				}
 			} catch (err) {
 				onUnexpectedError(err);
@@ -170,7 +170,7 @@ export function renderMarkdown(markdown: IMarkdownString, options: RenderOptions
 	};
 
 	element.innerHTML = marked(markdown.value, markedOptions);
-	signalInnerHTML();
+	signalInnerHTML!();
 
 	return element;
 }
@@ -224,10 +224,10 @@ interface IFormatParseTree {
 }
 
 function _renderFormattedText(element: Node, treeNode: IFormatParseTree, actionHandler?: IContentActionHandler) {
-	let child: Node;
+	let child: Node | undefined;
 
 	if (treeNode.type === FormatType.Text) {
-		child = document.createTextNode(treeNode.content);
+		child = document.createTextNode(treeNode.content || '');
 	}
 	else if (treeNode.type === FormatType.Bold) {
 		child = document.createElement('b');
@@ -251,13 +251,13 @@ function _renderFormattedText(element: Node, treeNode: IFormatParseTree, actionH
 		child = element;
 	}
 
-	if (element !== child) {
+	if (child && element !== child) {
 		element.appendChild(child);
 	}
 
-	if (Array.isArray(treeNode.children)) {
+	if (child && Array.isArray(treeNode.children)) {
 		treeNode.children.forEach((nodeChild) => {
-			_renderFormattedText(child, nodeChild, actionHandler);
+			_renderFormattedText(child!, nodeChild, actionHandler);
 		});
 	}
 }
@@ -286,12 +286,12 @@ function parseFormattedText(content: string): IFormatParseTree {
 			stream.advance();
 
 			if (current.type === FormatType.Text) {
-				current = stack.pop();
+				current = stack.pop()!;
 			}
 
 			const type = formatTagType(next);
 			if (current.type === type || (current.type === FormatType.Action && type === FormatType.ActionClose)) {
-				current = stack.pop();
+				current = stack.pop()!;
 			} else {
 				const newCurrent: IFormatParseTree = {
 					type: type,
@@ -303,16 +303,16 @@ function parseFormattedText(content: string): IFormatParseTree {
 					actionItemIndex++;
 				}
 
-				current.children.push(newCurrent);
+				current.children!.push(newCurrent);
 				stack.push(current);
 				current = newCurrent;
 			}
 		} else if (next === '\n') {
 			if (current.type === FormatType.Text) {
-				current = stack.pop();
+				current = stack.pop()!;
 			}
 
-			current.children.push({
+			current.children!.push({
 				type: FormatType.NewLine
 			});
 
@@ -322,7 +322,7 @@ function parseFormattedText(content: string): IFormatParseTree {
 					type: FormatType.Text,
 					content: next
 				};
-				current.children.push(textCurrent);
+				current.children!.push(textCurrent);
 				stack.push(current);
 				current = textCurrent;
 
@@ -333,7 +333,7 @@ function parseFormattedText(content: string): IFormatParseTree {
 	}
 
 	if (current.type === FormatType.Text) {
-		current = stack.pop();
+		current = stack.pop()!;
 	}
 
 	if (stack.length) {

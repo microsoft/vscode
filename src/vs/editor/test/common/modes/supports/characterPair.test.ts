@@ -2,10 +2,11 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
+
 import * as assert from 'assert';
+import { StandardTokenType } from 'vs/editor/common/modes';
 import { CharacterPairSupport } from 'vs/editor/common/modes/supports/characterPair';
 import { TokenText, createFakeScopedLineTokens } from 'vs/editor/test/common/modesTestUtils';
-import { StandardTokenType } from 'vs/editor/common/modes';
 
 suite('CharacterPairSupport', () => {
 

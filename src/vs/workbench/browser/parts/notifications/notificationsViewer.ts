@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IVirtualDelegate, IRenderer } from 'vs/base/browser/ui/list/list';
+import { IListVirtualDelegate, IListRenderer } from 'vs/base/browser/ui/list/list';
 import { clearNode, addClass, removeClass, toggleClass, addDisposableListener, EventType, EventHelper } from 'vs/base/browser/dom';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { URI } from 'vs/base/common/uri';
@@ -24,7 +24,7 @@ import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { ProgressBar } from 'vs/base/browser/ui/progressbar/progressbar';
 import { Severity } from 'vs/platform/notification/common/notification';
 
-export class NotificationsListDelegate implements IVirtualDelegate<INotificationViewItem> {
+export class NotificationsListDelegate implements IListVirtualDelegate<INotificationViewItem> {
 
 	private static readonly ROW_HEIGHT = 42;
 	private static readonly LINE_HEIGHT = 22;
@@ -177,7 +177,7 @@ class NotificationMessageRenderer {
 	}
 }
 
-export class NotificationRenderer implements IRenderer<INotificationViewItem, INotificationTemplateData> {
+export class NotificationRenderer implements IListRenderer<INotificationViewItem, INotificationTemplateData> {
 
 	static readonly TEMPLATE_ID = 'notification';
 

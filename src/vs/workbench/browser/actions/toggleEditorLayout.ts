@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import 'vs/css!./media/actions';
-import { TPromise } from 'vs/base/common/winjs.base';
 import * as nls from 'vs/nls';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { Action } from 'vs/base/common/actions';
@@ -47,7 +46,7 @@ export class ToggleEditorLayoutAction extends Action {
 		this.enabled = this.editorGroupService.count > 1;
 	}
 
-	run(): TPromise<any> {
+	run(): Promise<any> {
 		const newOrientation = (this.editorGroupService.orientation === GroupOrientation.VERTICAL) ? GroupOrientation.HORIZONTAL : GroupOrientation.VERTICAL;
 		this.editorGroupService.setGroupOrientation(newOrientation);
 

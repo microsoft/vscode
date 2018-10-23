@@ -51,11 +51,23 @@ export class TableOfContentsProvider {
 		const toc: TocEntry[] = [];
 		const tokens = await this.engine.parse(document.uri, document.getText());
 
+		const slugCount = new Map<string, number>();
+
 		for (const heading of tokens.filter(token => token.type === 'heading_open')) {
 			const lineNumber = heading.map[0];
 			const line = document.lineAt(lineNumber);
+
+			let slug = githubSlugifier.fromHeading(line.text);
+			if (slugCount.has(slug.value)) {
+				const count = slugCount.get(slug.value)!;
+				slugCount.set(slug.value, count + 1);
+				slug = githubSlugifier.fromHeading(slug.value + '-' + (count + 1));
+			} else {
+				slugCount.set(slug.value, 0);
+			}
+
 			toc.push({
-				slug: githubSlugifier.fromHeading(line.text),
+				slug,
 				text: TableOfContentsProvider.getHeaderText(line.text),
 				level: TableOfContentsProvider.getHeaderLevel(heading.markup),
 				line: lineNumber,

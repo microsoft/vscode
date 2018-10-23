@@ -60,20 +60,18 @@ suite('IPC, Child Process', () => {
 		let count = 0;
 		const disposable = service.onMarco(() => count++);
 
-		const result = service.marco().then(answer => {
+		const result = service.marco().then(async answer => {
 			assert.equal(answer, 'polo');
 			assert.equal(count, 1);
 
-			return service.marco().then(answer => {
-				assert.equal(answer, 'polo');
-				assert.equal(count, 2);
-				disposable.dispose();
+			const answer_1 = await service.marco();
+			assert.equal(answer_1, 'polo');
+			assert.equal(count, 2);
+			disposable.dispose();
 
-				return service.marco().then(answer => {
-					assert.equal(answer, 'polo');
-					assert.equal(count, 2);
-				});
-			});
+			const answer_2 = await service.marco();
+			assert.equal(answer_2, 'polo');
+			assert.equal(count, 2);
 		});
 
 		return always(result, () => client.dispose());

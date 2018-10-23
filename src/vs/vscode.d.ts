@@ -29,7 +29,7 @@ declare module 'vscode' {
 		command: string;
 
 		/**
-		 * A tooltip for for command, when represented in the UI.
+		 * A tooltip for the command, when represented in the UI.
 		 */
 		tooltip?: string;
 
@@ -1343,6 +1343,12 @@ declare module 'vscode' {
 		 * * The resulting string can be safely used with [Uri.parse](#Uri.parse).
 		 * * The resulting string shall *not* be used for display purposes.
 		 *
+		 * *Note* that the implementation will encode _aggressive_ which often leads to unexpected,
+		 * but not incorrect, results. For instance, colons are encoded to `%3A` which might be unexpected
+		 * in file-uri. Also `&` and `=` will be encoded which might be unexpected for http-uris. For stability
+		 * reasons this cannot be changed anymore. If you suffer from too aggressive encoding you should use
+		 * the `skipEncoding`-argument: `uri.toString(true)`.
+		 *
 		 * @param skipEncoding Do not percentage-encode the result, defaults to `false`. Note that
 		 *	the `#` and `?` characters occurring in the path will always be encoded.
 		 * @returns A string representation of this Uri.
@@ -1545,6 +1551,9 @@ declare module 'vscode' {
 		 * The editor will use the returned string-content to create a readonly
 		 * [document](#TextDocument). Resources allocated should be released when
 		 * the corresponding document has been [closed](#workspace.onDidCloseTextDocument).
+		 *
+		 * **Note**: The contents of the created [document](#TextDocument) might not be
+		 * identical to the provided text due to end-of-line-sequence normalization.
 		 *
 		 * @param uri An uri which scheme matches the scheme this provider was [registered](#workspace.registerTextDocumentContentProvider) for.
 		 * @param token A cancellation token.
@@ -3023,10 +3032,13 @@ declare module 'vscode' {
 	export class ParameterInformation {
 
 		/**
-		 * The label of this signature. *Note*: Must be a substring of its
-		 * containing signature information's [label](#SignatureInformation.label).
+		 * The label of this signature.
+		 *
+		 * Either a string or inclusive start and exclusive end offsets within its containing
+		 * [signature label](#SignatureInformation.label). *Note*: A label of type string must be
+		 * a substring of its containing signature information's [label](#SignatureInformation.label).
 		 */
-		label: string;
+		label: string | [number, number];
 
 		/**
 		 * The human-readable doc-comment of this signature. Will be shown
@@ -5547,7 +5559,7 @@ declare module 'vscode' {
 		 * is no longer visible.
 		 *
 		 * Normally the webview panel's html context is created when the panel becomes visible
-		 * and destroyed when it is is hidden. Extensions that have complex state
+		 * and destroyed when it is hidden. Extensions that have complex state
 		 * or UI can set the `retainContextWhenHidden` to make VS Code keep the webview
 		 * context around, even when the webview moves to a background tab. When a webview using
 		 * `retainContextWhenHidden` becomes hidden, its scripts and other dynamic content are suspended.
@@ -5916,6 +5928,19 @@ declare module 'vscode' {
 		 * The currently opened terminals or an empty array.
 		 */
 		export const terminals: ReadonlyArray<Terminal>;
+
+		/**
+		 * The currently active terminal or `undefined`. The active terminal is the one that
+		 * currently has focus or most recently had focus.
+		 */
+		export const activeTerminal: Terminal | undefined;
+
+		/**
+		 * An [event](#Event) which fires when the [active terminal](#window.activeTerminal)
+		 * has changed. *Note* that the event also fires when the active terminal changes
+		 * to `undefined`.
+		 */
+		export const onDidChangeActiveTerminal: Event<Terminal | undefined>;
 
 		/**
 		 * An [event](#Event) which fires when a terminal has been created, either through the

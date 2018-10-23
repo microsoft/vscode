@@ -121,7 +121,7 @@ export class OpenAnythingHandler extends QuickOpenHandler {
 				}
 
 				// Combine results.
-				const mergedResults = [].concat(...results.map(r => r.entries));
+				const mergedResults: QuickOpenEntry[] = [].concat(...results.map(r => r.entries));
 
 				// Sort
 				const compare = (elementA: QuickOpenEntry, elementB: QuickOpenEntry) => compareItemsByScore(elementA, elementB, query, true, QuickOpenItemAccessor, this.scorerCache);
@@ -168,7 +168,7 @@ export class OpenAnythingHandler extends QuickOpenHandler {
 			return null;
 		}
 
-		let range: IRange = null;
+		let range: IRange | null = null;
 
 		// Find Line/Column number from search value using RegExp
 		const patternMatch = OpenAnythingHandler.LINE_COLON_PATTERN.exec(value);

@@ -88,10 +88,7 @@ function onReady() {
 			const startup = nlsConfig => {
 				nlsConfig._languagePackSupport = true;
 				process.env['VSCODE_NLS_CONFIG'] = JSON.stringify(nlsConfig);
-
-				if (cachedDataDir) {
-					process.env['VSCODE_NODE_CACHED_DATA_DIR'] = cachedDataDir;
-				}
+				process.env['VSCODE_NODE_CACHED_DATA_DIR'] = cachedDataDir || '';
 
 				// Load main in AMD
 				require('./bootstrap-amd').load('vs/code/electron-main/main');

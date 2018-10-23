@@ -18,7 +18,7 @@ import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService
 import { ICommandHandler } from 'vs/platform/commands/common/commands';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { ISearchHistoryService, VIEW_ID } from 'vs/platform/search/common/search';
+import { ISearchHistoryService, VIEW_ID, ISearchConfiguration } from 'vs/platform/search/common/search';
 import { SearchView } from 'vs/workbench/parts/search/browser/searchView';
 import * as Constants from 'vs/workbench/parts/search/common/constants';
 import { IReplaceService } from 'vs/workbench/parts/search/common/replace';
@@ -28,6 +28,7 @@ import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { normalize } from 'vs/base/common/paths';
 import { IEditorGroupsService } from 'vs/workbench/services/group/common/editorGroupsService';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
 export function isSearchViewFocused(viewletService: IViewletService, panelService: IPanelService): boolean {
 	let searchView = getSearchView(viewletService, panelService);
@@ -561,7 +562,8 @@ export class ReplaceAction extends AbstractSearchAndReplaceAction {
 	constructor(private viewer: ITree, private element: Match, private viewlet: SearchView,
 		@IReplaceService private replaceService: IReplaceService,
 		@IKeybindingService keyBindingService: IKeybindingService,
-		@IEditorService private editorService: IEditorService) {
+		@IEditorService private editorService: IEditorService,
+		@IConfigurationService private configurationService: IConfigurationService) {
 		super(Constants.ReplaceActionId, appendKeyBindingLabel(ReplaceAction.LABEL, keyBindingService.lookupKeybinding(Constants.ReplaceActionId), keyBindingService), 'action-replace');
 	}
 
@@ -575,7 +577,9 @@ export class ReplaceAction extends AbstractSearchAndReplaceAction {
 			}
 			let elementToShowReplacePreview = this.getElementToShowReplacePreview(elementToFocus);
 			this.viewer.domFocus();
-			if (!elementToShowReplacePreview || this.hasToOpenFile()) {
+
+			const useReplacePreview = this.configurationService.getValue<ISearchConfiguration>().search.useReplacePreview;
+			if (!useReplacePreview || !elementToShowReplacePreview || this.hasToOpenFile()) {
 				this.viewlet.open(this.element, true);
 			} else {
 				this.replaceService.openReplacePreview(elementToShowReplacePreview, true);

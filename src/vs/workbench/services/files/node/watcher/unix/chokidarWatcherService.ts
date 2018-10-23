@@ -68,7 +68,7 @@ export class ChokidarWatcherService implements IWatcherService {
 
 	public setRoots(requests: IWatcherRequest[]): TPromise<void> {
 		const watchers = Object.create(null);
-		const newRequests = [];
+		const newRequests: string[] = [];
 
 		const requestsByBasePath = normalizeRoots(requests);
 
@@ -311,7 +311,7 @@ function isIgnored(path: string, requests: ExtendedWatcherRequest[]): boolean {
  */
 export function normalizeRoots(requests: IWatcherRequest[]): { [basePath: string]: IWatcherRequest[] } {
 	requests = requests.sort((r1, r2) => r1.basePath.localeCompare(r2.basePath));
-	let prevRequest: IWatcherRequest = null;
+	let prevRequest: IWatcherRequest | null = null;
 	let result: { [basePath: string]: IWatcherRequest[] } = Object.create(null);
 	for (let request of requests) {
 		let basePath = request.basePath;

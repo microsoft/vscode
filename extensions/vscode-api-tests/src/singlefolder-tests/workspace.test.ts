@@ -5,7 +5,7 @@
 
 import * as assert from 'assert';
 import * as vscode from 'vscode';
-import { createRandomFile, deleteFile, closeAllEditors, pathEquals, rndName } from '../utils';
+import { createRandomFile, deleteFile, closeAllEditors, pathEquals, rndName, disposeAll } from '../utils';
 import { join, posix, basename } from 'path';
 import * as fs from 'fs';
 import * as os from 'os';
@@ -275,12 +275,7 @@ suite('workspace-namespace', () => {
 							assert.ok(onDidChangeTextDocument);
 							assert.ok(onDidSaveTextDocument);
 
-							while (disposables.length) {
-								const item = disposables.pop();
-								if (item) {
-									item.dispose();
-								}
-							}
+							disposeAll(disposables);
 
 							return deleteFile(file);
 						});

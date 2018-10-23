@@ -10,7 +10,6 @@ import * as resources from 'vs/base/common/resources';
 import { ExtensionsRegistry, ExtensionMessageCollector } from 'vs/workbench/services/extensions/common/extensionsRegistry';
 import { ExtensionData, IThemeExtensionPoint } from 'vs/workbench/services/themes/common/workbenchThemeService';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
-import { TPromise } from 'vs/base/common/winjs.base';
 import { Event, Emitter } from 'vs/base/common/event';
 import { FileIconThemeData } from 'vs/workbench/services/themes/electron-browser/fileIconThemeData';
 import { URI } from 'vs/base/common/uri';
@@ -106,7 +105,7 @@ export class FileIconThemeStore {
 
 	}
 
-	public findThemeData(iconTheme: string): TPromise<FileIconThemeData> {
+	public findThemeData(iconTheme: string): Thenable<FileIconThemeData> {
 		return this.getFileIconThemes().then(allIconSets => {
 			for (let iconSet of allIconSets) {
 				if (iconSet.id === iconTheme) {
@@ -117,7 +116,7 @@ export class FileIconThemeStore {
 		});
 	}
 
-	public findThemeBySettingsId(settingsId: string): TPromise<FileIconThemeData> {
+	public findThemeBySettingsId(settingsId: string): Thenable<FileIconThemeData> {
 		return this.getFileIconThemes().then(allIconSets => {
 			for (let iconSet of allIconSets) {
 				if (iconSet.settingsId === settingsId) {
@@ -128,7 +127,7 @@ export class FileIconThemeStore {
 		});
 	}
 
-	public getFileIconThemes(): TPromise<FileIconThemeData[]> {
+	public getFileIconThemes(): Thenable<FileIconThemeData[]> {
 		return this.extensionService.whenInstalledExtensionsRegistered().then(isReady => {
 			return this.knownIconThemes;
 		});

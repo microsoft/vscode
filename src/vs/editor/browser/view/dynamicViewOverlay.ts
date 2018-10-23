@@ -3,8 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ViewEventHandler } from 'vs/editor/common/viewModel/viewEventHandler';
 import { RenderingContext } from 'vs/editor/common/view/renderingContext';
+import { ViewEventHandler } from 'vs/editor/common/viewModel/viewEventHandler';
 
 export abstract class DynamicViewOverlay extends ViewEventHandler {
 

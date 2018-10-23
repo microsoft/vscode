@@ -5,47 +5,57 @@
 
 import { CharCode } from 'vs/base/common/charCode';
 
+const enum ReplacePatternKind {
+	StaticValue = 0,
+	DynamicPieces = 1
+}
+
+/**
+ * Assigned when the replace pattern is entirely static.
+ */
+class StaticValueReplacePattern {
+	public readonly kind = ReplacePatternKind.StaticValue;
+	constructor(public readonly staticValue: string) { }
+}
+
+/**
+ * Assigned when the replace pattern has replacemend patterns.
+ */
+class DynamicPiecesReplacePattern {
+	public readonly kind = ReplacePatternKind.DynamicPieces;
+	constructor(public readonly pieces: ReplacePiece[]) { }
+}
+
 export class ReplacePattern {
 
 	public static fromStaticValue(value: string): ReplacePattern {
 		return new ReplacePattern([ReplacePiece.staticValue(value)]);
 	}
 
-	/**
-	 * Assigned when the replace pattern is entirely static.
-	 */
-	private readonly _staticValue: string;
+	private readonly _state: StaticValueReplacePattern | DynamicPiecesReplacePattern;
 
 	public get hasReplacementPatterns(): boolean {
-		return this._staticValue === null;
+		return (this._state.kind === ReplacePatternKind.DynamicPieces);
 	}
 
-	/**
-	 * Assigned when the replace pattern has replacemend patterns.
-	 */
-	private readonly _pieces: ReplacePiece[];
-
-	constructor(pieces: ReplacePiece[]) {
+	constructor(pieces: ReplacePiece[] | null) {
 		if (!pieces || pieces.length === 0) {
-			this._staticValue = '';
-			this._pieces = null;
+			this._state = new StaticValueReplacePattern('');
 		} else if (pieces.length === 1 && pieces[0].staticValue !== null) {
-			this._staticValue = pieces[0].staticValue;
-			this._pieces = null;
+			this._state = new StaticValueReplacePattern(pieces[0].staticValue);
 		} else {
-			this._staticValue = null;
-			this._pieces = pieces;
+			this._state = new DynamicPiecesReplacePattern(pieces);
 		}
 	}
 
-	public buildReplaceString(matches: string[]): string {
-		if (this._staticValue !== null) {
-			return this._staticValue;
+	public buildReplaceString(matches: string[] | null): string {
+		if (this._state.kind === ReplacePatternKind.StaticValue) {
+			return this._state.staticValue;
 		}
 
 		let result = '';
-		for (let i = 0, len = this._pieces.length; i < len; i++) {
-			let piece = this._pieces[i];
+		for (let i = 0, len = this._state.pieces.length; i < len; i++) {
+			let piece = this._state.pieces[i];
 			if (piece.staticValue !== null) {
 				// static value ReplacePiece
 				result += piece.staticValue;
@@ -59,7 +69,10 @@ export class ReplacePattern {
 		return result;
 	}
 
-	private static _substitute(matchIndex: number, matches: string[]): string {
+	private static _substitute(matchIndex: number, matches: string[] | null): string {
+		if (matches === null) {
+			return '';
+		}
 		if (matchIndex === 0) {
 			return matches[0];
 		}
@@ -91,10 +104,10 @@ export class ReplacePiece {
 		return new ReplacePiece(null, index);
 	}
 
-	public readonly staticValue: string;
+	public readonly staticValue: string | null;
 	public readonly matchIndex: number;
 
-	private constructor(staticValue: string, matchIndex: number) {
+	private constructor(staticValue: string | null, matchIndex: number) {
 		this.staticValue = staticValue;
 		this.matchIndex = matchIndex;
 	}
@@ -185,7 +198,7 @@ export function parseReplaceString(replaceString: string): ReplacePattern {
 			}
 
 			let nextChCode = replaceString.charCodeAt(i);
-			// let replaceWithCharacter: string = null;
+			// let replaceWithCharacter: string | null = null;
 
 			switch (nextChCode) {
 				case CharCode.Backslash:

@@ -4,13 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as nls from 'vs/nls';
-import { Selection } from 'vs/editor/common/core/selection';
-import { ServicesAccessor, registerEditorContribution, EditorAction, registerEditorAction } from 'vs/editor/browser/editorExtensions';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { Disposable } from 'vs/base/common/lifecycle';
+import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
+import { EditorAction, ServicesAccessor, registerEditorAction, registerEditorContribution } from 'vs/editor/browser/editorExtensions';
+import { Selection } from 'vs/editor/common/core/selection';
 import { IEditorContribution, ScrollType } from 'vs/editor/common/editorCommon';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
-import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 
 class CursorState {
@@ -47,7 +47,7 @@ export class CursorUndoController extends Disposable implements IEditorContribut
 	private _isCursorUndo: boolean;
 
 	private _undoStack: CursorState[];
-	private _prevState: CursorState;
+	private _prevState: CursorState | null;
 
 	constructor(editor: ICodeEditor) {
 		super();
@@ -79,8 +79,8 @@ export class CursorUndoController extends Disposable implements IEditorContribut
 		}));
 	}
 
-	private _readState(): CursorState {
-		if (!this._editor.getModel()) {
+	private _readState(): CursorState | null {
+		if (!this._editor.hasModel()) {
 			// no model => no state
 			return null;
 		}
@@ -93,10 +93,14 @@ export class CursorUndoController extends Disposable implements IEditorContribut
 	}
 
 	public cursorUndo(): void {
+		if (!this._editor.hasModel()) {
+			return;
+		}
+
 		const currState = new CursorState(this._editor.getSelections());
 
 		while (this._undoStack.length > 0) {
-			const prevState = this._undoStack.pop();
+			const prevState = this._undoStack.pop()!;
 
 			if (!prevState.equals(currState)) {
 				this._isCursorUndo = true;

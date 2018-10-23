@@ -14,20 +14,12 @@
 
 .monaco-menu .monaco-action-bar.vertical .action-item {
 	padding: 0;
-	-ms-transform: none;
-	-webkit-transform: none;
-	-moz-transform: none;
-	-o-transform: none;
 	transform: none;
 	display: -ms-flexbox;
 	display: flex;
 }
 
 .monaco-menu .monaco-action-bar.vertical .action-item.active {
-	-ms-transform: none;
-	-webkit-transform: none;
-	-moz-transform: none;
-	-o-transform: none;
 	transform: none;
 }
 

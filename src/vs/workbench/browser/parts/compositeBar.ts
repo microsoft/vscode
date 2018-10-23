@@ -70,6 +70,10 @@ export class CompositeBar extends Widget implements ICompositeBar {
 		return this.model.items;
 	}
 
+	getPinnedComposites(): ICompositeBarItem[] {
+		return this.model.pinnedItems;
+	}
+
 	create(parent: HTMLElement): HTMLElement {
 		const actionBarDiv = parent.appendChild($('.composite-bar'));
 		this.compositeSwitcherBar = this._register(new ActionBar(actionBarDiv, {
@@ -456,6 +460,10 @@ class CompositeBarModel {
 
 	get visibleItems(): ICompositeBarItem[] {
 		return this.items.filter(item => item.visible);
+	}
+
+	get pinnedItems(): ICompositeBarItem[] {
+		return this.items.filter(item => item.visible && item.pinned);
 	}
 
 	private createCompositeBarItem(id: string, name: string, order: number, pinned: boolean, visible: boolean): ICompositeBarItem {

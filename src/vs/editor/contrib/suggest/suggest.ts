@@ -21,7 +21,6 @@ export const Context = {
 	Visible: new RawContextKey<boolean>('suggestWidgetVisible', false),
 	MultipleSuggestions: new RawContextKey<boolean>('suggestWidgetMultipleSuggestions', false),
 	MakesTextEdit: new RawContextKey('suggestionMakesTextEdit', true),
-	AcceptOnKey: new RawContextKey<boolean>('suggestionSupportsAcceptOnKey', true),
 	AcceptSuggestionsOnEnter: new RawContextKey<boolean>('acceptSuggestionOnEnter', true)
 };
 
@@ -81,7 +80,7 @@ export function provideSuggestionItems(
 		// for each support in the group ask for suggestions
 		return Promise.all(supports.map(support => {
 
-			if (!isFalsyOrEmpty(onlyFrom) && onlyFrom.indexOf(support) < 0) {
+			if (!isFalsyOrEmpty(onlyFrom) && onlyFrom!.indexOf(support) < 0) {
 				return undefined;
 			}
 
@@ -153,12 +152,16 @@ export function ensureLowerCaseVariants(suggestion: CompletionItem) {
 }
 
 function createSuggestionResolver(provider: CompletionItemProvider, suggestion: CompletionItem, model: ITextModel, position: Position): (token: CancellationToken) => Promise<void> {
+	let cached: Promise<void>;
 	return (token) => {
-		if (typeof provider.resolveCompletionItem === 'function') {
-			return Promise.resolve(provider.resolveCompletionItem(model, position, suggestion, token)).then(value => { assign(suggestion, value); });
-		} else {
-			return Promise.resolve(void 0);
+		if (!cached) {
+			if (typeof provider.resolveCompletionItem === 'function') {
+				cached = Promise.resolve(provider.resolveCompletionItem(model, position, suggestion, token)).then(value => { assign(suggestion, value); });
+			} else {
+				cached = Promise.resolve(void 0);
+			}
 		}
+		return cached;
 	};
 }
 

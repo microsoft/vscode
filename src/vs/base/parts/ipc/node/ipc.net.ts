@@ -116,7 +116,7 @@ export class Protocol implements IDisposable, IMessagePassingProtocol {
 		const acceptFirstDataChunk = () => {
 			if (firstDataChunk && firstDataChunk.length > 0) {
 				let tmp = firstDataChunk;
-				firstDataChunk = null;
+				firstDataChunk = undefined;
 				acceptChunk(tmp);
 			}
 		};
@@ -215,14 +215,19 @@ export class Server extends IPCServer {
 		}));
 	}
 
-	constructor(private server: NetServer) {
+	private server: NetServer | null;
+
+	constructor(server: NetServer) {
 		super(Server.toClientConnectionEvent(server));
+		this.server = server;
 	}
 
 	dispose(): void {
 		super.dispose();
-		this.server.close();
-		this.server = null;
+		if (this.server) {
+			this.server.close();
+			this.server = null;
+		}
 	}
 }
 

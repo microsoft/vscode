@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { TPromise } from 'vs/base/common/winjs.base';
 import * as nls from 'vs/nls';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { Action } from 'vs/base/common/actions';
@@ -27,7 +26,7 @@ export class ToggleTabsVisibilityAction extends Action {
 		super(id, label);
 	}
 
-	run(): TPromise<any> {
+	run(): Promise<any> {
 		const visibility = this.configurationService.getValue<string>(ToggleTabsVisibilityAction.tabsVisibleKey);
 		const newVisibilityValue = !visibility;
 

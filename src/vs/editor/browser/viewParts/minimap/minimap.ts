@@ -4,35 +4,28 @@
  *--------------------------------------------------------------------------------------------*/
 
 import 'vs/css!./minimap';
-import { ViewPart, PartFingerprint, PartFingerprints } from 'vs/editor/browser/view/viewPart';
-import * as strings from 'vs/base/common/strings';
-import { ViewContext } from 'vs/editor/common/view/viewContext';
-import { RenderingContext, RestrictedRenderingContext } from 'vs/editor/common/view/renderingContext';
-import { getOrCreateMinimapCharRenderer } from 'vs/editor/common/view/runtimeMinimapCharRenderer';
 import * as dom from 'vs/base/browser/dom';
-import { MinimapCharRenderer, MinimapTokensColorTracker, Constants } from 'vs/editor/common/view/minimapCharRenderer';
-import * as editorCommon from 'vs/editor/common/editorCommon';
-import { CharCode } from 'vs/base/common/charCode';
-import { ViewLineData } from 'vs/editor/common/viewModel/viewModel';
-import { ColorId } from 'vs/editor/common/modes';
 import { FastDomNode, createFastDomNode } from 'vs/base/browser/fastDomNode';
+import { GlobalMouseMoveMonitor, IStandardMouseMoveEventData, standardMouseMoveMerger } from 'vs/base/browser/globalMouseMoveMonitor';
+import { CharCode } from 'vs/base/common/charCode';
 import { IDisposable } from 'vs/base/common/lifecycle';
-import { RenderedLinesCollection, ILine } from 'vs/editor/browser/view/viewLayer';
+import * as platform from 'vs/base/common/platform';
+import * as strings from 'vs/base/common/strings';
+import { ILine, RenderedLinesCollection } from 'vs/editor/browser/view/viewLayer';
+import { PartFingerprint, PartFingerprints, ViewPart } from 'vs/editor/browser/view/viewPart';
+import { RenderMinimap } from 'vs/editor/common/config/editorOptions';
 import { Range } from 'vs/editor/common/core/range';
 import { RGBA8 } from 'vs/editor/common/core/rgba';
+import { IConfiguration, ScrollType } from 'vs/editor/common/editorCommon';
+import { ColorId } from 'vs/editor/common/modes';
+import { Constants, MinimapCharRenderer, MinimapTokensColorTracker } from 'vs/editor/common/view/minimapCharRenderer';
+import { RenderingContext, RestrictedRenderingContext } from 'vs/editor/common/view/renderingContext';
+import { getOrCreateMinimapCharRenderer } from 'vs/editor/common/view/runtimeMinimapCharRenderer';
+import { ViewContext } from 'vs/editor/common/view/viewContext';
 import * as viewEvents from 'vs/editor/common/view/viewEvents';
-import { GlobalMouseMoveMonitor, IStandardMouseMoveEventData, standardMouseMoveMerger } from 'vs/base/browser/globalMouseMoveMonitor';
-import * as platform from 'vs/base/common/platform';
+import { ViewLineData } from 'vs/editor/common/viewModel/viewModel';
+import { scrollbarShadow, scrollbarSliderActiveBackground, scrollbarSliderBackground, scrollbarSliderHoverBackground } from 'vs/platform/theme/common/colorRegistry';
 import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
-import { scrollbarSliderBackground, scrollbarSliderHoverBackground, scrollbarSliderActiveBackground, scrollbarShadow } from 'vs/platform/theme/common/colorRegistry';
-
-const enum RenderMinimap {
-	None = 0,
-	Small = 1,
-	Large = 2,
-	SmallBlocks = 3,
-	LargeBlocks = 4,
-}
 
 function getMinimapLineHeight(renderMinimap: RenderMinimap): number {
 	if (renderMinimap === RenderMinimap.Large) {
@@ -112,7 +105,7 @@ class MinimapOptions {
 	 */
 	public readonly canvasOuterHeight: number;
 
-	constructor(configuration: editorCommon.IConfiguration) {
+	constructor(configuration: IConfiguration) {
 		const pixelRatio = configuration.editor.pixelRatio;
 		const layoutInfo = configuration.editor.layoutInfo;
 		const viewInfo = configuration.editor.viewInfo;
@@ -220,7 +213,7 @@ class MinimapLayout {
 		lineCount: number,
 		scrollTop: number,
 		scrollHeight: number,
-		previousLayout: MinimapLayout
+		previousLayout: MinimapLayout | null
 	): MinimapLayout {
 		const pixelRatio = options.pixelRatio;
 		const minimapLineHeight = getMinimapLineHeight(options.renderMinimap);
@@ -445,8 +438,8 @@ export class Minimap extends ViewPart {
 	private readonly _sliderMouseDownListener: IDisposable;
 
 	private _options: MinimapOptions;
-	private _lastRenderData: RenderData;
-	private _buffers: MinimapBuffers;
+	private _lastRenderData: RenderData | null;
+	private _buffers: MinimapBuffers | null;
 
 	constructor(context: ViewContext) {
 		super(context);
@@ -507,7 +500,7 @@ export class Minimap extends ViewPart {
 				new Range(lineNumber, 1, lineNumber, 1),
 				viewEvents.VerticalRevealType.Center,
 				false,
-				editorCommon.ScrollType.Smooth
+				ScrollType.Smooth
 			));
 		});
 
@@ -581,13 +574,13 @@ export class Minimap extends ViewPart {
 	private _getBuffer(): ImageData {
 		if (!this._buffers) {
 			this._buffers = new MinimapBuffers(
-				this._canvas.domNode.getContext('2d'),
+				this._canvas.domNode.getContext('2d')!,
 				this._options.canvasInnerWidth,
 				this._options.canvasInnerHeight,
 				this._tokensColorTracker.getColor(ColorId.DefaultBackground)
 			);
 		}
-		return this._buffers.getBuffer();
+		return this._buffers!.getBuffer();
 	}
 
 	private _onOptionsMaybeChanged(): boolean {
@@ -740,7 +733,7 @@ export class Minimap extends ViewPart {
 					getOrCreateMinimapCharRenderer(),
 					dy,
 					tabSize,
-					lineInfo.data[lineIndex]
+					lineInfo.data[lineIndex]!
 				);
 			}
 			renderedLines[lineIndex] = new MinimapLine(dy);
@@ -752,7 +745,7 @@ export class Minimap extends ViewPart {
 		const dirtyHeight = dirtyY2 - dirtyY1;
 
 		// Finally, paint to the canvas
-		const ctx = this._canvas.domNode.getContext('2d');
+		const ctx = this._canvas.domNode.getContext('2d')!;
 		ctx.putImageData(imageData, 0, 0, 0, dirtyY1, imageData.width, dirtyHeight);
 
 		// Save rendered data for reuse on next frame if possible
@@ -768,7 +761,7 @@ export class Minimap extends ViewPart {
 		startLineNumber: number,
 		endLineNumber: number,
 		minimapLineHeight: number,
-		lastRenderData: RenderData,
+		lastRenderData: RenderData | null,
 	): [number, number, boolean[]] {
 
 		let needed: boolean[] = [];

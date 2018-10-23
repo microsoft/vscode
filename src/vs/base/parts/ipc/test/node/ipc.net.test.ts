@@ -38,29 +38,28 @@ suite('IPC, Socket Protocol', () => {
 		stream = <any>new MockDuplex();
 	});
 
-	test('read/write', () => {
+	test('read/write', async () => {
 
 		const a = new Protocol(stream);
 		const b = new Protocol(stream);
 
-		return new Promise(resolve => {
+		await new Promise(resolve => {
 			const sub = b.onMessage(data => {
 				sub.dispose();
 				assert.equal(data.toString(), 'foobarfarboo');
 				resolve(null);
 			});
 			a.send(Buffer.from('foobarfarboo'));
-		}).then(() => {
-			return new Promise(resolve => {
-				const sub = b.onMessage(data => {
-					sub.dispose();
-					assert.equal(data.readInt8(0), 123);
-					resolve(null);
-				});
-				const buffer = Buffer.allocUnsafe(1);
-				buffer.writeInt8(123, 0);
-				a.send(buffer);
+		});
+		return new Promise(resolve => {
+			const sub_1 = b.onMessage(data => {
+				sub_1.dispose();
+				assert.equal(data.readInt8(0), 123);
+				resolve(null);
 			});
+			const buffer = Buffer.allocUnsafe(1);
+			buffer.writeInt8(123, 0);
+			a.send(buffer);
 		});
 	});
 

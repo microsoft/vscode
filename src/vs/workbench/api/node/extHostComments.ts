@@ -5,7 +5,6 @@
 
 import { asThenable } from 'vs/base/common/async';
 import { URI, UriComponents } from 'vs/base/common/uri';
-import { TPromise } from 'vs/base/common/winjs.base';
 import * as modes from 'vs/editor/common/modes';
 import { ExtHostDocuments } from 'vs/workbench/api/node/extHostDocuments';
 import * as extHostTypeConverter from 'vs/workbench/api/node/extHostTypeConverters';
@@ -68,7 +67,7 @@ export class ExtHostComments implements ExtHostCommentsShape {
 		const ran = <vscode.Range>extHostTypeConverter.Range.to(range);
 
 		if (!data || !data.document) {
-			return TPromise.as(null);
+			return Promise.resolve(null);
 		}
 
 		const provider = this._documentProviders.get(handle);
@@ -82,7 +81,7 @@ export class ExtHostComments implements ExtHostCommentsShape {
 		const ran = <vscode.Range>extHostTypeConverter.Range.to(range);
 
 		if (!data || !data.document) {
-			return TPromise.as(null);
+			return Promise.resolve(null);
 		}
 
 		const provider = this._documentProviders.get(handle);
@@ -120,7 +119,7 @@ export class ExtHostComments implements ExtHostCommentsShape {
 	$provideDocumentComments(handle: number, uri: UriComponents): Thenable<modes.CommentInfo> {
 		const data = this._documents.getDocumentData(URI.revive(uri));
 		if (!data || !data.document) {
-			return TPromise.as(null);
+			return Promise.resolve(null);
 		}
 
 		const provider = this._documentProviders.get(handle);
@@ -132,7 +131,7 @@ export class ExtHostComments implements ExtHostCommentsShape {
 	$provideWorkspaceComments(handle: number): Thenable<modes.CommentThread[]> {
 		const provider = this._workspaceProviders.get(handle);
 		if (!provider) {
-			return TPromise.as(null);
+			return Promise.resolve(null);
 		}
 
 		return asThenable(() => {

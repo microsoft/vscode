@@ -35,7 +35,7 @@ export class HeapService implements IHeapService {
 
 	private _activeSignals = new WeakMap<any, object>();
 	private _activeIds = new Set<number>();
-	private _consumeHandle: number;
+	private _consumeHandle: any;
 
 	constructor() {
 		//

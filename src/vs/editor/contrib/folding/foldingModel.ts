@@ -10,7 +10,7 @@ import { FoldingRegions, ILineRange, FoldingRegion } from './foldingRanges';
 export interface IDecorationProvider {
 	getDecorationOption(isCollapsed: boolean): IModelDecorationOptions;
 	deltaDecorations(oldDecorations: string[], newDecorations: IModelDeltaDecoration[]): string[];
-	changeDecorations<T>(callback: (changeAccessor: IModelDecorationsChangeAccessor) => T): T;
+	changeDecorations<T>(callback: (changeAccessor: IModelDecorationsChangeAccessor) => T): T | null;
 }
 
 export interface FoldingModelChangeEvent {
@@ -64,7 +64,7 @@ export class FoldingModel {
 	}
 
 	public update(newRegions: FoldingRegions, blockedLineNumers: number[] = []): void {
-		let newEditorDecorations = [];
+		let newEditorDecorations: IModelDeltaDecoration[] = [];
 
 		let isBlocked = (startLineNumber, endLineNumber) => {
 			for (let blockedLineNumber of blockedLineNumers) {
@@ -138,7 +138,7 @@ export class FoldingModel {
 	/**
 	 * Collapse state memento, for persistence only
 	 */
-	public getMemento(): CollapseMemento {
+	public getMemento(): CollapseMemento | undefined {
 		let collapsedRanges: ILineRange[] = [];
 		for (let i = 0; i < this._regions.length; i++) {
 			if (this._regions.isCollapsed(i)) {
@@ -153,7 +153,7 @@ export class FoldingModel {
 		if (collapsedRanges.length > 0) {
 			return collapsedRanges;
 		}
-		return null;
+		return void 0;
 	}
 
 	/**
@@ -194,7 +194,7 @@ export class FoldingModel {
 		return result;
 	}
 
-	getRegionAtLine(lineNumber: number): FoldingRegion {
+	getRegionAtLine(lineNumber: number): FoldingRegion | null {
 		if (this._regions) {
 			let index = this._regions.findRange(lineNumber);
 			if (index >= 0) {
@@ -204,16 +204,16 @@ export class FoldingModel {
 		return null;
 	}
 
-	getRegionsInside(region: FoldingRegion, filter?: (r: FoldingRegion, level?: number) => boolean): FoldingRegion[] {
-		let result = [];
-		let trackLevel = filter && filter.length === 2;
-		let levelStack: FoldingRegion[] = trackLevel ? [] : null;
+	getRegionsInside(region: FoldingRegion | null, filter?: (r: FoldingRegion, level?: number) => boolean): FoldingRegion[] {
+		let result: FoldingRegion[] = [];
 		let index = region ? region.regionIndex + 1 : 0;
 		let endLineNumber = region ? region.endLineNumber : Number.MAX_VALUE;
-		for (let i = index, len = this._regions.length; i < len; i++) {
-			let current = this._regions.toRegion(i);
-			if (this._regions.getStartLineNumber(i) < endLineNumber) {
-				if (trackLevel) {
+
+		if (filter && filter.length === 2) {
+			const levelStack: FoldingRegion[] = [];
+			for (let i = index, len = this._regions.length; i < len; i++) {
+				let current = this._regions.toRegion(i);
+				if (this._regions.getStartLineNumber(i) < endLineNumber) {
 					while (levelStack.length > 0 && !current.containedBy(levelStack[levelStack.length - 1])) {
 						levelStack.pop();
 					}
@@ -221,11 +221,20 @@ export class FoldingModel {
 					if (filter(current, levelStack.length)) {
 						result.push(current);
 					}
-				} else if (!filter || filter(current)) {
-					result.push(current);
+				} else {
+					break;
 				}
-			} else {
-				break;
+			}
+		} else {
+			for (let i = index, len = this._regions.length; i < len; i++) {
+				let current = this._regions.toRegion(i);
+				if (this._regions.getStartLineNumber(i) < endLineNumber) {
+					if (!filter || filter(current)) {
+						result.push(current);
+					}
+				} else {
+					break;
+				}
 			}
 		}
 		return result;
@@ -242,7 +251,7 @@ export class FoldingModel {
  * @param lineNumbers the location of the regions to collapse or expand, or if not set, all regions in the model.
  */
 export function setCollapseStateLevelsDown(foldingModel: FoldingModel, doCollapse: boolean, levels = Number.MAX_VALUE, lineNumbers?: number[]) {
-	let toToggle = [];
+	let toToggle: FoldingRegion[] = [];
 	if (lineNumbers && lineNumbers.length > 0) {
 		for (let lineNumber of lineNumbers) {
 			let region = foldingModel.getRegionAtLine(lineNumber);
@@ -251,13 +260,13 @@ export function setCollapseStateLevelsDown(foldingModel: FoldingModel, doCollaps
 					toToggle.push(region);
 				}
 				if (levels > 1) {
-					let regionsInside = foldingModel.getRegionsInside(region, (r, level) => r.isCollapsed !== doCollapse && level < levels);
+					let regionsInside = foldingModel.getRegionsInside(region, (r, level: number) => r.isCollapsed !== doCollapse && level < levels);
 					toToggle.push(...regionsInside);
 				}
 			}
 		}
 	} else {
-		let regionsInside = foldingModel.getRegionsInside(null, (r, level) => r.isCollapsed !== doCollapse && level < levels);
+		let regionsInside = foldingModel.getRegionsInside(null, (r, level: number) => r.isCollapsed !== doCollapse && level < levels);
 		toToggle.push(...regionsInside);
 	}
 	foldingModel.toggleCollapseState(toToggle);
@@ -270,7 +279,7 @@ export function setCollapseStateLevelsDown(foldingModel: FoldingModel, doCollaps
  * @param lineNumbers the location of the regions to collapse or expand, or if not set, all regions in the model.
  */
 export function setCollapseStateLevelsUp(foldingModel: FoldingModel, doCollapse: boolean, levels: number, lineNumbers: number[]) {
-	let toToggle = [];
+	let toToggle: FoldingRegion[] = [];
 	for (let lineNumber of lineNumbers) {
 		let regions = foldingModel.getAllRegionsAtLine(lineNumber, (region, level) => region.isCollapsed !== doCollapse && level <= levels);
 		toToggle.push(...regions);
@@ -297,7 +306,7 @@ export function setCollapseStateAtLevel(foldingModel: FoldingModel, foldLevel: n
 export function setCollapseStateForMatchingLines(foldingModel: FoldingModel, regExp: RegExp, doCollapse: boolean): void {
 	let editorModel = foldingModel.textModel;
 	let regions = foldingModel.regions;
-	let toToggle = [];
+	let toToggle: FoldingRegion[] = [];
 	for (let i = regions.length - 1; i >= 0; i--) {
 		if (doCollapse !== regions.isCollapsed(i)) {
 			let startLineNumber = regions.getStartLineNumber(i);
@@ -315,7 +324,7 @@ export function setCollapseStateForMatchingLines(foldingModel: FoldingModel, reg
  */
 export function setCollapseStateForType(foldingModel: FoldingModel, type: string, doCollapse: boolean): void {
 	let regions = foldingModel.regions;
-	let toToggle = [];
+	let toToggle: FoldingRegion[] = [];
 	for (let i = regions.length - 1; i >= 0; i--) {
 		if (doCollapse !== regions.isCollapsed(i) && type === regions.getType(i)) {
 			toToggle.push(regions.toRegion(i));

@@ -26,6 +26,7 @@ export class MainThreadComments extends Disposable implements MainThreadComments
 	private _workspaceProviders = new Map<number, IDisposable>();
 	private _firstSessionStart: boolean;
 
+	private _visibleModels: { [key /** editor widget id */: string]: string /** model id */ };
 	constructor(
 		extHostContext: IExtHostContext,
 		@IEditorService private _editorService: IEditorService,
@@ -36,9 +37,39 @@ export class MainThreadComments extends Disposable implements MainThreadComments
 		super();
 		this._disposables = [];
 		this._firstSessionStart = true;
+		this._visibleModels = {};
 		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostComments);
-		this._disposables.push(this._editorService.onDidActiveEditorChange(e => {
+		this._disposables.push(this._editorService.onDidVisibleEditorsChange(e => {
 			const editors = this.getFocusedEditors();
+			const visibleEditors = this.getVisibleEditors();
+
+			const _visibleEditors = {};
+			visibleEditors.forEach(editor => {
+				if (!editor.hasModel()) {
+					return; // we need a model
+				}
+				const id = editor.getId();
+				const model = editor.getModel();
+				if (editors.filter(ed => ed.getId() === id).length > 0) {
+					// it's an active editor, we are going to update this editor's comments anyways
+				} else {
+					if (this._visibleModels[id]) {
+						// it's the same active editor, but we may want to check if the model is still the same
+						let modelId = model.getModeId();
+						if (modelId !== this._visibleModels[id]) {
+							editors.push(editor);
+						}
+					} else {
+						// update
+						editors.push(editor);
+					}
+				}
+
+				_visibleEditors[id] = model.getModeId();
+			});
+
+			this._visibleModels = _visibleEditors;
+
 			if (!editors || !editors.length) {
 				return;
 			}
@@ -119,12 +150,21 @@ export class MainThreadComments extends Disposable implements MainThreadComments
 		this._commentService.updateComments(event);
 	}
 
-	dispose(): void {
-		this._disposables = dispose(this._disposables);
-		this._workspaceProviders.forEach(value => dispose(value));
-		this._workspaceProviders.clear();
-		this._documentProviders.forEach(value => dispose(value));
-		this._documentProviders.clear();
+	getVisibleEditors(): ICodeEditor[] {
+		let ret: ICodeEditor[] = [];
+
+		this._editorService.visibleControls.forEach(control => {
+			if (isCodeEditor(control.getControl())) {
+				ret.push(control.getControl() as ICodeEditor);
+			}
+
+			if (isDiffEditor(control.getControl())) {
+				let diffEditor = control.getControl() as IDiffEditor;
+				ret.push(diffEditor.getOriginalEditor(), diffEditor.getModifiedEditor());
+			}
+		});
+
+		return ret;
 	}
 
 	getFocusedEditors(): ICodeEditor[] {
@@ -162,5 +202,14 @@ export class MainThreadComments extends Disposable implements MainThreadComments
 			result.push(await this._proxy.$provideDocumentComments(handle, resource));
 		}
 		return result;
+	}
+
+	dispose(): void {
+		this._disposables = dispose(this._disposables);
+		this._workspaceProviders.forEach(value => dispose(value));
+		this._workspaceProviders.clear();
+		this._documentProviders.forEach(value => dispose(value));
+		this._documentProviders.clear();
+		this._visibleModels = {};
 	}
 }

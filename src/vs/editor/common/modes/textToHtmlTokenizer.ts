@@ -3,19 +3,24 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as strings from 'vs/base/common/strings';
-import { ITokenizationSupport, IState, LanguageId } from 'vs/editor/common/modes';
-import { LineTokens, IViewLineTokens } from 'vs/editor/common/core/lineTokens';
 import { CharCode } from 'vs/base/common/charCode';
+import * as strings from 'vs/base/common/strings';
+import { IViewLineTokens, LineTokens } from 'vs/editor/common/core/lineTokens';
+import { TokenizationResult2 } from 'vs/editor/common/core/token';
+import { IState, LanguageId } from 'vs/editor/common/modes';
 import { NULL_STATE, nullTokenize2 } from 'vs/editor/common/modes/nullMode';
 
-const fallback = {
+export interface IReducedTokenizationSupport {
+	getInitialState(): IState;
+	tokenize2(line: string, state: IState, offsetDelta: number): TokenizationResult2;
+}
+
+const fallback: IReducedTokenizationSupport = {
 	getInitialState: () => NULL_STATE,
-	tokenize: undefined,
 	tokenize2: (buffer: string, state: IState, deltaOffset: number) => nullTokenize2(LanguageId.Null, buffer, state, deltaOffset)
 };
 
-export function tokenizeToString(text: string, tokenizationSupport: ITokenizationSupport = fallback): string {
+export function tokenizeToString(text: string, tokenizationSupport: IReducedTokenizationSupport = fallback): string {
 	return _tokenizeToString(text, tokenizationSupport || fallback);
 }
 
@@ -88,7 +93,7 @@ export function tokenizeLineToHTML(text: string, viewLineTokens: IViewLineTokens
 	return result;
 }
 
-function _tokenizeToString(text: string, tokenizationSupport: ITokenizationSupport): string {
+function _tokenizeToString(text: string, tokenizationSupport: IReducedTokenizationSupport): string {
 	let result = `<div class="monaco-tokenized-source">`;
 	let lines = text.split(/\r\n|\r|\n/);
 	let currentState = tokenizationSupport.getInitialState();

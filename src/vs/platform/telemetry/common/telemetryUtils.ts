@@ -16,7 +16,7 @@ import { ILogService } from 'vs/platform/log/common/log';
 export const NullTelemetryService = new class implements ITelemetryService {
 	_serviceBrand: undefined;
 	publicLog(eventName: string, data?: ITelemetryData) {
-		return TPromise.wrap<void>(null);
+		return TPromise.wrap<void>(void 0);
 	}
 	isOptedIn: true;
 	getTelemetryInfo(): TPromise<ITelemetryInfo> {
@@ -157,6 +157,7 @@ const configurationValueWhitelist = [
 	'breadcrumbs.enabled',
 	'breadcrumbs.filePath',
 	'breadcrumbs.symbolPath',
+	'breadcrumbs.symbolSortOrder',
 	'breadcrumbs.useQuickPick',
 	'explorer.openEditors.visible',
 	'extensions.autoUpdate',
@@ -182,6 +183,7 @@ const configurationValueWhitelist = [
 	'workbench.editor.enablePreview',
 	'workbench.editor.enablePreviewFromQuickOpen',
 	'workbench.editor.showTabs',
+	'workbench.editor.highlightModifiedTabs',
 	'workbench.editor.swipeToNavigate',
 	'workbench.sideBar.location',
 	'workbench.startupEditor',
@@ -266,5 +268,5 @@ function flattenValues(value: Object, keys: string[]): { [key: string]: any }[] 
 			array.push({ [key]: v });
 		}
 		return array;
-	}, []);
+	}, <{ [key: string]: any }[]>[]);
 }

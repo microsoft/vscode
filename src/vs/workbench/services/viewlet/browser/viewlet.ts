@@ -22,7 +22,7 @@ export interface IViewletService {
 	/**
 	 * Opens a viewlet with the given identifier and pass keyboard focus to it if specified.
 	 */
-	openViewlet(id: string, focus?: boolean): Promise<IViewlet>;
+	openViewlet(id: string, focus?: boolean): Thenable<IViewlet>;
 
 	/**
 	 * Returns the current active viewlet or null if none.
@@ -40,7 +40,7 @@ export interface IViewletService {
 	getViewlet(id: string): ViewletDescriptor;
 
 	/**
-	 * Returns all viewlets
+	 * Returns all enabled viewlets following the default order (Explorer - Search - SCM - Debug - Extensions)
 	 */
 	getAllViewlets(): ViewletDescriptor[];
 

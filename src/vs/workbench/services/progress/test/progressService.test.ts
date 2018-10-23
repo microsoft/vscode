@@ -77,6 +77,10 @@ class TestPanelService implements IPanelService {
 		return [];
 	}
 
+	public getPinnedPanels(): any[] {
+		return [];
+	}
+
 	public getActivePanel(): IViewlet {
 		return activeViewlet;
 	}
@@ -242,7 +246,7 @@ suite('Progress Service', () => {
 
 	});
 
-	test('WorkbenchProgressService', () => {
+	test('WorkbenchProgressService', async () => {
 		let testProgressBar = new TestProgressBar();
 		let viewletService = new TestViewletService();
 		let panelService = new TestPanelService();
@@ -285,17 +289,13 @@ suite('Progress Service', () => {
 
 		// Acive: Show While
 		let p = TPromise.as(null);
-		return service.showWhile(p).then(() => {
-			assert.strictEqual(true, testProgressBar.fDone);
-
-			viewletService.onDidViewletCloseEmitter.fire(testViewlet);
-			p = TPromise.as(null);
-			return service.showWhile(p).then(() => {
-				assert.strictEqual(true, testProgressBar.fDone);
-
-				viewletService.onDidViewletOpenEmitter.fire(testViewlet);
-				assert.strictEqual(true, testProgressBar.fDone);
-			});
-		});
+		await service.showWhile(p);
+		assert.strictEqual(true, testProgressBar.fDone);
+		viewletService.onDidViewletCloseEmitter.fire(testViewlet);
+		p = TPromise.as(null);
+		await service.showWhile(p);
+		assert.strictEqual(true, testProgressBar.fDone);
+		viewletService.onDidViewletOpenEmitter.fire(testViewlet);
+		assert.strictEqual(true, testProgressBar.fDone);
 	});
 });

@@ -169,8 +169,8 @@ export class ProcessRunnerDetector {
 	}
 
 	public detect(list: boolean = false, detectSpecific?: string): TPromise<DetectorResult> {
-		let commandExecutable = TaskConfig.CommandString.value(this.taskConfiguration.command);
-		if (this.taskConfiguration && this.taskConfiguration.command && ProcessRunnerDetector.supports(commandExecutable)) {
+		let commandExecutable: string;
+		if (this.taskConfiguration && this.taskConfiguration.command && (commandExecutable = TaskConfig.CommandString.value(this.taskConfiguration.command)) && ProcessRunnerDetector.supports(commandExecutable)) {
 			let config = ProcessRunnerDetector.detectorConfig(commandExecutable);
 			let args = (this.taskConfiguration.args || []).concat(config.arg);
 			let options: CommandOptions = this.taskConfiguration.options ? this.resolveCommandOptions(this._workspaceRoot, this.taskConfiguration.options) : { cwd: this._cwd };

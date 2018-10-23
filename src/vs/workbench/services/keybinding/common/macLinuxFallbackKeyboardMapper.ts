@@ -3,12 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { ChordKeybinding, KeyCode, Keybinding, ResolvedKeybinding, SimpleKeybinding } from 'vs/base/common/keyCodes';
 import { OperatingSystem } from 'vs/base/common/platform';
-import { ResolvedKeybinding, SimpleKeybinding, Keybinding, KeyCode, ChordKeybinding } from 'vs/base/common/keyCodes';
-import { IKeyboardMapper } from 'vs/workbench/services/keybinding/common/keyboardMapper';
+import { IMMUTABLE_CODE_TO_KEY_CODE, ScanCode, ScanCodeBinding } from 'vs/base/common/scanCode';
 import { IKeyboardEvent } from 'vs/platform/keybinding/common/keybinding';
 import { USLayoutResolvedKeybinding } from 'vs/platform/keybinding/common/usLayoutResolvedKeybinding';
-import { ScanCodeBinding, ScanCode, IMMUTABLE_CODE_TO_KEY_CODE } from 'vs/base/common/scanCode';
+import { IKeyboardMapper } from 'vs/workbench/services/keybinding/common/keyboardMapper';
 
 /**
  * A keyboard mapper to be used when reading the keymap from the OS fails.
@@ -103,7 +103,7 @@ export class MacLinuxFallbackKeyboardMapper implements IKeyboardMapper {
 		return KeyCode.Unknown;
 	}
 
-	private _resolveSimpleUserBinding(binding: SimpleKeybinding | ScanCodeBinding): SimpleKeybinding {
+	private _resolveSimpleUserBinding(binding: SimpleKeybinding | ScanCodeBinding | null): SimpleKeybinding | null {
 		if (!binding) {
 			return null;
 		}
@@ -117,7 +117,7 @@ export class MacLinuxFallbackKeyboardMapper implements IKeyboardMapper {
 		return new SimpleKeybinding(binding.ctrlKey, binding.shiftKey, binding.altKey, binding.metaKey, keyCode);
 	}
 
-	public resolveUserBinding(firstPart: SimpleKeybinding | ScanCodeBinding, chordPart: SimpleKeybinding | ScanCodeBinding): ResolvedKeybinding[] {
+	public resolveUserBinding(firstPart: SimpleKeybinding | ScanCodeBinding | null, chordPart: SimpleKeybinding | ScanCodeBinding | null): ResolvedKeybinding[] {
 		const _firstPart = this._resolveSimpleUserBinding(firstPart);
 		const _chordPart = this._resolveSimpleUserBinding(chordPart);
 		if (_firstPart && _chordPart) {

@@ -3,10 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ITextBufferBuilder, EndOfLinePreference } from 'vs/editor/common/model';
+import { Range } from 'vs/editor/common/core/range';
+import { EndOfLinePreference, ITextBufferBuilder } from 'vs/editor/common/model';
 import { BenchmarkSuite } from 'vs/editor/test/common/model/benchmark/benchmarkUtils';
 import { generateRandomChunkWithLF, generateRandomEdits, generateSequentialInserts, getRandomInt } from 'vs/editor/test/common/model/linesTextBuffer/textBufferAutoTestUtils';
-import { Range } from 'vs/editor/common/core/range';
 
 let fileSizes = [1, 1000, 64 * 1000, 32 * 1000 * 1000];
 let editTypes = [

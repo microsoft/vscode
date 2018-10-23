@@ -3,10 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-const cp = require('child_process');
+import * as  cp from 'child_process';
 
-function yarnInstall(package: string): void {
-	cp.execSync(`yarn add --no-lockfile ${package}`);
+function yarnInstall(packageName: string): void {
+	cp.execSync(`yarn add --no-lockfile ${packageName}`);
 }
 
 const product = require('../../../product.json');

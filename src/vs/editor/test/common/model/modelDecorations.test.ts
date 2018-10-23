@@ -2,11 +2,12 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
+
 import * as assert from 'assert';
 import { EditOperation } from 'vs/editor/common/core/editOperation';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
-import { IModelDeltaDecoration, TrackedRangeStickiness, EndOfLineSequence } from 'vs/editor/common/model';
+import { EndOfLineSequence, IModelDeltaDecoration, TrackedRangeStickiness } from 'vs/editor/common/model';
 import { TextModel } from 'vs/editor/common/model/textModel';
 
 // --------- utils
@@ -49,7 +50,7 @@ function addDecoration(model: TextModel, startLineNumber: number, startColumn: n
 }
 
 function lineHasDecorations(model: TextModel, lineNumber: number, decorations: { start: number; end: number; className: string; }[]) {
-	let lineDecorations = [];
+	let lineDecorations: Array<{ start: number; end: number; className: string; }> = [];
 	let decs = model.getLineDecorations(lineNumber);
 	for (let i = 0, len = decs.length; i < len; i++) {
 		lineDecorations.push({

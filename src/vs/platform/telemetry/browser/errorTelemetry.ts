@@ -53,7 +53,7 @@ export default class ErrorTelemetry {
 
 	private _telemetryService: ITelemetryService;
 	private _flushDelay: number;
-	private _flushHandle = -1;
+	private _flushHandle: any = -1;
 	private _buffer: ErrorEvent[] = [];
 	private _disposables: IDisposable[] = [];
 
@@ -146,7 +146,10 @@ export default class ErrorTelemetry {
 			e.count = 1;
 			this._buffer.splice(~idx, 0, e);
 		} else {
-			this._buffer[idx].count += 1;
+			if (!this._buffer[idx].count) {
+				this._buffer[idx].count = 0;
+			}
+			this._buffer[idx].count! += 1;
 		}
 
 		if (this._flushHandle === -1) {

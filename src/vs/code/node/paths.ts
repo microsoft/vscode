@@ -99,8 +99,8 @@ export function parseLineAndColumnAware(rawPath: string): IPathWithLineAndColumn
 	const segments = rawPath.split(':'); // C:\file.txt:<line>:<column>
 
 	let path: string;
-	let line: number = null;
-	let column: number = null;
+	let line: number | null = null;
+	let column: number | null = null;
 
 	segments.forEach(segment => {
 		const segmentAsNumber = Number(segment);

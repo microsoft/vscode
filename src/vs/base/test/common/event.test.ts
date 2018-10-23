@@ -182,7 +182,7 @@ suite('Event', function () {
 		doc.setText('3');
 	});
 
-	test('Debounce Event - leading', function () {
+	test('Debounce Event - leading', async function () {
 		const emitter = new Emitter<void>();
 		let debounced = debounceEvent(emitter.event, (l, e) => e, 0, /*leading=*/true);
 
@@ -194,12 +194,11 @@ suite('Event', function () {
 		// If the source event is fired once, the debounced (on the leading edge) event should be fired only once
 		emitter.fire();
 
-		return timeout(1).then(() => {
-			assert.equal(calls, 1);
-		});
+		await timeout(1);
+		assert.equal(calls, 1);
 	});
 
-	test('Debounce Event - leading', function () {
+	test('Debounce Event - leading', async function () {
 		const emitter = new Emitter<void>();
 		let debounced = debounceEvent(emitter.event, (l, e) => e, 0, /*leading=*/true);
 
@@ -212,9 +211,8 @@ suite('Event', function () {
 		emitter.fire();
 		emitter.fire();
 		emitter.fire();
-		return timeout(1).then(() => {
-			assert.equal(calls, 2);
-		});
+		await timeout(1);
+		assert.equal(calls, 2);
 	});
 
 	test('Emitter - In Order Delivery', function () {
@@ -412,7 +410,7 @@ suite('Event utils', () => {
 
 	suite('fromPromise', () => {
 
-		test('should emit when done', () => {
+		test('should emit when done', async () => {
 			let count = 0;
 
 			const event = fromPromise(Promise.resolve(null));
@@ -420,9 +418,8 @@ suite('Event utils', () => {
 
 			assert.equal(count, 0);
 
-			return timeout(10).then(() => {
-				assert.equal(count, 1);
-			});
+			await timeout(10);
+			assert.equal(count, 1);
 		});
 
 		test('should emit when done - setTimeout', async () => {
@@ -484,7 +481,7 @@ suite('Event utils', () => {
 			assert.deepEqual(result, [1, 2, 3, 4]);
 		});
 
-		test('should buffer events on next tick', () => {
+		test('should buffer events on next tick', async () => {
 			const result: number[] = [];
 			const emitter = new Emitter<number>();
 			const event = emitter.event;
@@ -498,14 +495,12 @@ suite('Event utils', () => {
 			const listener = bufferedEvent(num => result.push(num));
 			assert.deepEqual(result, []);
 
-			return timeout(10).then(() => {
-				emitter.fire(4);
-				assert.deepEqual(result, [1, 2, 3, 4]);
-
-				listener.dispose();
-				emitter.fire(5);
-				assert.deepEqual(result, [1, 2, 3, 4]);
-			});
+			await timeout(10);
+			emitter.fire(4);
+			assert.deepEqual(result, [1, 2, 3, 4]);
+			listener.dispose();
+			emitter.fire(5);
+			assert.deepEqual(result, [1, 2, 3, 4]);
 		});
 
 		test('should fire initial buffer events', () => {

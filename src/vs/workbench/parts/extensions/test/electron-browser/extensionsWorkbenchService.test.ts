@@ -17,7 +17,7 @@ import {
 import { getGalleryExtensionId, getGalleryExtensionIdFromLocal } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { ExtensionManagementService, getLocalExtensionIdFromGallery, getLocalExtensionIdFromManifest } from 'vs/platform/extensionManagement/node/extensionManagementService';
 import { ExtensionTipsService } from 'vs/workbench/parts/extensions/electron-browser/extensionTipsService';
-import { TestExtensionEnablementService } from 'vs/platform/extensionManagement/test/common/extensionEnablementService.test';
+import { TestExtensionEnablementService } from 'vs/platform/extensionManagement/test/electron-browser/extensionEnablementService.test';
 import { ExtensionGalleryService } from 'vs/platform/extensionManagement/node/extensionGalleryService';
 import { IURLService } from 'vs/platform/url/common/url';
 import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
@@ -30,7 +30,7 @@ import { TestContextService, TestWindowService } from 'vs/workbench/test/workben
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ILogService, NullLogService } from 'vs/platform/log/common/log';
 import { IWindowService } from 'vs/platform/windows/common/windows';
-import { IProgressService2 } from 'vs/workbench/services/progress/common/progress';
+import { IProgressService2 } from 'vs/platform/progress/common/progress';
 import { ProgressService2 } from 'vs/workbench/services/progress/browser/progressService2';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { URLService } from 'vs/platform/url/common/urlService';

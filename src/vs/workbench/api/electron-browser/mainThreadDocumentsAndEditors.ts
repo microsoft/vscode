@@ -3,48 +3,32 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IModelService, shouldSynchronizeModel } from 'vs/editor/common/services/modelService';
-import { ITextModel } from 'vs/editor/common/model';
-import { IDisposable, dispose, combinedDisposable } from 'vs/base/common/lifecycle';
+import { Emitter, Event } from 'vs/base/common/event';
+import { IDisposable, combinedDisposable, dispose } from 'vs/base/common/lifecycle';
+import { values } from 'vs/base/common/map';
+import { URI } from 'vs/base/common/uri';
+import { ICodeEditor, isCodeEditor, isDiffEditor } from 'vs/editor/browser/editorBrowser';
+import { IBulkEditService } from 'vs/editor/browser/services/bulkEditService';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
-import { Event, Emitter } from 'vs/base/common/event';
-import { ExtHostContext, ExtHostDocumentsAndEditorsShape, IModelAddedData, ITextEditorAddData, IDocumentsAndEditorsDelta, IExtHostContext, MainContext } from '../node/extHost.protocol';
-import { MainThreadTextEditor } from './mainThreadEditor';
-import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
-import { IEditorGroupsService } from 'vs/workbench/services/group/common/editorGroupsService';
-import { EditorViewColumn, editorGroupToViewColumn } from 'vs/workbench/api/shared/editor';
-import { IEditor as IWorkbenchEditor } from 'vs/workbench/common/editor';
+import { IEditor } from 'vs/editor/common/editorCommon';
+import { ITextModel } from 'vs/editor/common/model';
+import { IModeService } from 'vs/editor/common/services/modeService';
+import { IModelService, shouldSynchronizeModel } from 'vs/editor/common/services/modelService';
+import { ITextModelService } from 'vs/editor/common/services/resolverService';
+import { IFileService } from 'vs/platform/files/common/files';
 import { extHostCustomer } from 'vs/workbench/api/electron-browser/extHostCustomers';
 import { MainThreadDocuments } from 'vs/workbench/api/electron-browser/mainThreadDocuments';
+import { MainThreadTextEditor } from 'vs/workbench/api/electron-browser/mainThreadEditor';
 import { MainThreadTextEditors } from 'vs/workbench/api/electron-browser/mainThreadEditors';
-import { IModeService } from 'vs/editor/common/services/modeService';
-import { IFileService } from 'vs/platform/files/common/files';
-import { ITextModelService } from 'vs/editor/common/services/resolverService';
-import { IUntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { isDiffEditor, ICodeEditor, isCodeEditor } from 'vs/editor/browser/editorBrowser';
-import { URI } from 'vs/base/common/uri';
-import { IBulkEditService } from 'vs/editor/browser/services/bulkEditService';
-import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
+import { ExtHostContext, ExtHostDocumentsAndEditorsShape, IDocumentsAndEditorsDelta, IExtHostContext, IModelAddedData, ITextEditorAddData, MainContext } from 'vs/workbench/api/node/extHost.protocol';
+import { EditorViewColumn, editorGroupToViewColumn } from 'vs/workbench/api/shared/editor';
 import { BaseTextEditor } from 'vs/workbench/browser/parts/editor/textEditor';
-import { IEditor } from 'vs/editor/common/editorCommon';
-
-namespace mapset {
-
-	export function setValues<T>(set: Set<T>): T[] {
-		// return Array.from(set);
-		let ret: T[] = [];
-		set.forEach(v => ret.push(v));
-		return ret;
-	}
-
-	export function mapValues<T>(map: Map<any, T>): T[] {
-		// return Array.from(map.values());
-		let ret: T[] = [];
-		map.forEach(v => ret.push(v));
-		return ret;
-	}
-}
+import { IEditor as IWorkbenchEditor } from 'vs/workbench/common/editor';
+import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { IEditorGroupsService } from 'vs/workbench/services/group/common/editorGroupsService';
+import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
+import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
+import { IUntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
 
 namespace delta {
 
@@ -127,8 +111,8 @@ class DocumentAndEditorState {
 	static compute(before: DocumentAndEditorState, after: DocumentAndEditorState): DocumentAndEditorStateDelta {
 		if (!before) {
 			return new DocumentAndEditorStateDelta(
-				[], mapset.setValues(after.documents),
-				[], mapset.mapValues(after.textEditors),
+				[], values(after.documents),
+				[], values(after.textEditors),
 				undefined, after.activeEditor
 			);
 		}
@@ -246,7 +230,7 @@ class MainThreadDocumentAndEditorStateComputer {
 
 		// editor: only take those that have a not too large model
 		const editors = new Map<string, TextEditorSnapshot>();
-		let activeEditor: string = null;
+		let activeEditor: string | null = null;
 
 		for (const editor of this._codeEditorService.listCodeEditors()) {
 			if (editor.isSimpleWidget) {

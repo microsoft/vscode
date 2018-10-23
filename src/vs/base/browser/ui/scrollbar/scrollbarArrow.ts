@@ -3,10 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IMouseEvent } from 'vs/base/browser/mouseEvent';
 import { GlobalMouseMoveMonitor, IStandardMouseMoveEventData, standardMouseMoveMerger } from 'vs/base/browser/globalMouseMoveMonitor';
+import { IMouseEvent } from 'vs/base/browser/mouseEvent';
 import { Widget } from 'vs/base/browser/ui/widget';
-import { TimeoutTimer, IntervalTimer } from 'vs/base/common/async';
+import { IntervalTimer, TimeoutTimer } from 'vs/base/common/async';
 
 /**
  * The arrow image size.
