@@ -1343,6 +1343,12 @@ declare module 'vscode' {
 		 * * The resulting string can be safely used with [Uri.parse](#Uri.parse).
 		 * * The resulting string shall *not* be used for display purposes.
 		 *
+		 * *Note* that the implementation will encode _aggressive_ which often leads to unexpected,
+		 * but not incorrect, results. For instance, colons are encoded to `%3A` which might be unexpected
+		 * in file-uri. Also `&` and `=` will be encoded which might be unexpected for http-uris. For stability
+		 * reasons this cannot be changed anymore. If you suffer from too aggressive encoding you should use
+		 * the `skipEncoding`-argument: `uri.toString(true)`.
+		 *
 		 * @param skipEncoding Do not percentage-encode the result, defaults to `false`. Note that
 		 *	the `#` and `?` characters occurring in the path will always be encoded.
 		 * @returns A string representation of this Uri.
