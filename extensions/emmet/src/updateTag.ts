@@ -5,7 +5,7 @@
 
 import * as vscode from 'vscode';
 import { HtmlNode } from 'EmmetNode';
-import { getNode, parseDocument, validate } from './util';
+import { getHtmlNode, parseDocument, validate } from './util';
 
 export function updateTag(tagName: string): Thenable<boolean> | undefined {
 	if (!validate(false) || !vscode.window.activeTextEditor) {
@@ -30,7 +30,7 @@ export function updateTag(tagName: string): Thenable<boolean> | undefined {
 }
 
 function getRangesToUpdate(editor: vscode.TextEditor, selection: vscode.Selection, rootNode: HtmlNode): vscode.Range[] {
-	let nodeToUpdate = <HtmlNode>getNode(rootNode, selection.start);
+	let nodeToUpdate = getHtmlNode(editor.document, rootNode, selection.start, true);
 	if (!nodeToUpdate) {
 		return [];
 	}

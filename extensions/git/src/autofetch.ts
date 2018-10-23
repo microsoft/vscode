@@ -3,13 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
-import { workspace, Disposable, EventEmitter, Memento, window, MessageItem, ConfigurationTarget, commands, Uri } from 'vscode';
-import { GitErrorCodes } from './git';
+import { workspace, Disposable, EventEmitter, Memento, window, MessageItem, ConfigurationTarget } from 'vscode';
 import { Repository, Operation } from './repository';
 import { eventToPromise, filterEvent, onceEvent } from './util';
 import * as nls from 'vscode-nls';
+import { GitErrorCodes } from './api/git';
 
 const localize = nls.loadMessageBundle();
 
@@ -54,18 +52,12 @@ export class AutoFetcher {
 		}
 
 		const yes: MessageItem = { title: localize('yes', "Yes") };
-		const readMore: MessageItem = { title: localize('read more', "Read More") };
 		const no: MessageItem = { isCloseAffordance: true, title: localize('no', "No") };
 		const askLater: MessageItem = { title: localize('not now', "Ask Me Later") };
-		const result = await window.showInformationMessage(localize('suggest auto fetch', "Would you like Code to periodically run `git fetch`?"), yes, readMore, no, askLater);
+		const result = await window.showInformationMessage(localize('suggest auto fetch', "Would you like Code to [periodically run 'git fetch']({0})?", 'https://go.microsoft.com/fwlink/?linkid=865294'), yes, no, askLater);
 
 		if (result === askLater) {
 			return;
-		}
-
-		if (result === readMore) {
-			commands.executeCommand('vscode.open', Uri.parse('https://go.microsoft.com/fwlink/?linkid=865294'));
-			return this.onFirstGoodRemoteOperation();
 		}
 
 		if (result === yes) {
@@ -108,7 +100,7 @@ export class AutoFetcher {
 			}
 
 			try {
-				await this.repository.fetch();
+				await this.repository.fetchDefault();
 			} catch (err) {
 				if (err.gitErrorCode === GitErrorCodes.AuthenticationFailed) {
 					this.disable();

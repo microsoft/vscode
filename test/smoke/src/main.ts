@@ -4,16 +4,16 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as fs from 'fs';
-import * as https from 'https';
 import * as cp from 'child_process';
 import * as path from 'path';
 import * as minimist from 'minimist';
 import * as tmp from 'tmp';
 import * as rimraf from 'rimraf';
 import * as mkdirp from 'mkdirp';
-import { SpectronApplication, Quality } from './spectron/application';
-import { setup as setupDataMigrationTests } from './areas/workbench/data-migration.test';
+import { ncp } from 'ncp';
+import { Application, Quality, ApplicationOptions } from './application';
 
+// import { setup as setupDataMigrationTests } from './areas/workbench/data-migration.test';
 import { setup as setupDataLossTests } from './areas/workbench/data-loss.test';
 import { setup as setupDataExplorerTests } from './areas/explorer/explorer.test';
 import { setup as setupDataPreferencesTests } from './areas/preferences/preferences.test';
@@ -24,9 +24,11 @@ import { setup as setupDataDebugTests } from './areas/debug/debug.test';
 import { setup as setupDataGitTests } from './areas/git/git.test';
 import { setup as setupDataStatusbarTests } from './areas/statusbar/statusbar.test';
 import { setup as setupDataExtensionTests } from './areas/extensions/extensions.test';
+import { setup as setupTerminalTests } from './areas/terminal/terminal.test';
 import { setup as setupDataMultirootTests } from './areas/multiroot/multiroot.test';
 import { setup as setupDataLocalizationTests } from './areas/workbench/localization.test';
-// import './areas/terminal/terminal.test';
+import { setup as setupLaunchTests } from './areas/workbench/launch.test';
+import { MultiLogger, Logger, ConsoleLogger, FileLogger } from './logger';
 
 const tmpDir = tmp.dirSync({ prefix: 't' }) as { name: string; removeCallback: Function; };
 const testDataPath = tmpDir.name;
@@ -37,19 +39,29 @@ const opts = minimist(args, {
 	string: [
 		'build',
 		'stable-build',
-		'log',
-		'wait-time'
-	]
+		'wait-time',
+		'test-repo',
+		'screenshots',
+		'log'
+	],
+	boolean: [
+		'verbose'
+	],
+	default: {
+		verbose: false
+	}
 });
 
-const artifactsPath = opts.log || '';
-
-const workspaceFilePath = path.join(testDataPath, 'smoketest.code-workspace');
 const testRepoUrl = 'https://github.com/Microsoft/vscode-smoketest-express';
 const workspacePath = path.join(testDataPath, 'vscode-smoketest-express');
-const keybindingsPath = path.join(testDataPath, 'keybindings.json');
 const extensionsPath = path.join(testDataPath, 'extensions-dir');
 mkdirp.sync(extensionsPath);
+
+const screenshotsPath = opts.screenshots ? path.resolve(opts.screenshots) : null;
+
+if (screenshotsPath) {
+	mkdirp.sync(screenshotsPath);
+}
 
 function fail(errorMessage): void {
 	console.error(errorMessage);
@@ -96,16 +108,16 @@ function getBuildElectronPath(root: string): string {
 }
 
 let testCodePath = opts.build;
-let stableCodePath = opts['stable-build'];
+// let stableCodePath = opts['stable-build'];
 let electronPath: string;
-let stablePath: string;
+// let stablePath: string;
 
 if (testCodePath) {
 	electronPath = getBuildElectronPath(testCodePath);
 
-	if (stableCodePath) {
-		stablePath = getBuildElectronPath(stableCodePath);
-	}
+	// if (stableCodePath) {
+	// 	stablePath = getBuildElectronPath(stableCodePath);
+	// }
 } else {
 	testCodePath = getDevElectronPath();
 	electronPath = testCodePath;
@@ -119,8 +131,6 @@ if (!fs.existsSync(electronPath || '')) {
 }
 
 const userDataDir = path.join(testDataPath, 'd');
-// process.env.VSCODE_WORKSPACE_PATH = workspaceFilePath;
-process.env.VSCODE_KEYBINDINGS_PATH = keybindingsPath;
 
 let quality: Quality;
 if (process.env.VSCODE_DEV === '1') {
@@ -131,129 +141,90 @@ if (process.env.VSCODE_DEV === '1') {
 	quality = Quality.Stable;
 }
 
-function getKeybindingPlatform(): string {
-	switch (process.platform) {
-		case 'darwin': return 'osx';
-		case 'win32': return 'win';
-		default: return process.platform;
-	}
-}
+async function setupRepository(): Promise<void> {
+	if (opts['test-repo']) {
+		console.log('*** Copying test project repository:', opts['test-repo']);
+		rimraf.sync(workspacePath);
+		// not platform friendly
+		cp.execSync(`cp -R "${opts['test-repo']}" "${workspacePath}"`);
+	} else {
+		if (!fs.existsSync(workspacePath)) {
+			console.log('*** Cloning test project repository...');
+			cp.spawnSync('git', ['clone', testRepoUrl, workspacePath]);
+		} else {
+			console.log('*** Cleaning test project repository...');
+			cp.spawnSync('git', ['fetch'], { cwd: workspacePath });
+			cp.spawnSync('git', ['reset', '--hard', 'FETCH_HEAD'], { cwd: workspacePath });
+			cp.spawnSync('git', ['clean', '-xdf'], { cwd: workspacePath });
+		}
 
-function toUri(path: string): string {
-	if (process.platform === 'win32') {
-		return `${path.replace(/\\/g, '/')}`;
+		console.log('*** Running yarn...');
+		cp.execSync('yarn', { cwd: workspacePath, stdio: 'inherit' });
 	}
-
-	return `${path}`;
 }
 
 async function setup(): Promise<void> {
 	console.log('*** Test data:', testDataPath);
 	console.log('*** Preparing smoketest setup...');
 
-	const keybindingsUrl = `https://raw.githubusercontent.com/Microsoft/vscode-docs/master/build/keybindings/doc.keybindings.${getKeybindingPlatform()}.json`;
-	console.log('*** Fetching keybindings...');
-
-	await new Promise((c, e) => {
-		https.get(keybindingsUrl, res => {
-			const output = fs.createWriteStream(keybindingsPath);
-			res.on('error', e);
-			output.on('error', e);
-			output.on('close', c);
-			res.pipe(output);
-		}).on('error', e);
-	});
-
-	if (!fs.existsSync(workspaceFilePath)) {
-		console.log('*** Creating workspace file...');
-		const workspace = {
-			folders: [
-				{
-					path: toUri(path.join(workspacePath, 'public'))
-				},
-				{
-					path: toUri(path.join(workspacePath, 'routes'))
-				},
-				{
-					path: toUri(path.join(workspacePath, 'views'))
-				}
-			]
-		};
-
-		fs.writeFileSync(workspaceFilePath, JSON.stringify(workspace, null, '\t'));
-	}
-
-	if (!fs.existsSync(workspacePath)) {
-		console.log('*** Cloning test project repository...');
-		cp.spawnSync('git', ['clone', testRepoUrl, workspacePath]);
-	} else {
-		console.log('*** Cleaning test project repository...');
-		cp.spawnSync('git', ['fetch'], { cwd: workspacePath });
-		cp.spawnSync('git', ['reset', '--hard', 'FETCH_HEAD'], { cwd: workspacePath });
-		cp.spawnSync('git', ['clean', '-xdf'], { cwd: workspacePath });
-	}
-
-	console.log('*** Running npm install...');
-	cp.execSync('npm install', { cwd: workspacePath, stdio: 'inherit' });
+	await setupRepository();
 
 	console.log('*** Smoketest setup done!\n');
 }
 
-/**
- * WebDriverIO 4.8.0 outputs all kinds of "deprecation" warnings
- * for common commands like `keys` and `moveToObject`.
- * According to https://github.com/Codeception/CodeceptJS/issues/531,
- * these deprecation warnings are for Firefox, and have no alternative replacements.
- * Since we can't downgrade WDIO as suggested (it's Spectron's dep, not ours),
- * we must suppress the warning with a classic monkey-patch.
- *
- * @see webdriverio/lib/helpers/depcrecationWarning.js
- * @see https://github.com/webdriverio/webdriverio/issues/2076
- */
-// Filter out the following messages:
-const wdioDeprecationWarning = /^WARNING: the "\w+" command will be deprecated soon../; // [sic]
-// Monkey patch:
-const warn = console.warn;
-console.warn = function suppressWebdriverWarnings(message) {
-	if (wdioDeprecationWarning.test(message)) { return; }
-	warn.apply(console, arguments);
-};
+function createOptions(): ApplicationOptions {
+	const loggers: Logger[] = [];
 
-function createApp(quality: Quality): SpectronApplication | null {
-	const path = quality === Quality.Stable ? stablePath : electronPath;
-
-	if (!path) {
-		return null;
+	if (opts.verbose) {
+		loggers.push(new ConsoleLogger());
 	}
 
-	return new SpectronApplication({
+	let log: string | undefined = undefined;
+
+	if (opts.log) {
+		loggers.push(new FileLogger(opts.log));
+		log = 'trace';
+	}
+	return {
 		quality,
-		electronPath: path,
+		codePath: opts.build,
 		workspacePath,
 		userDataDir,
 		extensionsPath,
-		artifactsPath,
-		workspaceFilePath,
-		waitTime: parseInt(opts['wait-time'] || '0') || 20
-	});
+		waitTime: parseInt(opts['wait-time'] || '0') || 20,
+		logger: new MultiLogger(loggers),
+		verbose: opts.verbose,
+		log,
+		screenshotsPath
+	};
 }
+
 before(async function () {
 	// allow two minutes for setup
 	this.timeout(2 * 60 * 1000);
 	await setup();
+	this.defaultOptions = createOptions();
 });
 
 after(async function () {
+	await new Promise(c => setTimeout(c, 500)); // wait for shutdown
+
+	if (opts.log) {
+		const logsDir = path.join(userDataDir, 'logs');
+		const destLogsDir = path.join(path.dirname(opts.log), 'logs');
+		await new Promise((c, e) => ncp(logsDir, destLogsDir, err => err ? e(err) : c()));
+	}
+
 	await new Promise((c, e) => rimraf(testDataPath, { maxBusyTries: 10 }, err => err ? e(err) : c()));
 });
 
-describe('Data Migration', () => {
-	setupDataMigrationTests(userDataDir, createApp);
-});
+// describe('Data Migration', () => {
+// 	setupDataMigrationTests(userDataDir, createApp);
+// });
 
-describe('Everything Else', () => {
+describe('Running Code', () => {
 	before(async function () {
-		const app = createApp(quality);
+		const app = new Application(this.defaultOptions);
 		await app!.start();
 		this.app = app;
 	});
@@ -261,6 +232,27 @@ describe('Everything Else', () => {
 	after(async function () {
 		await this.app.stop();
 	});
+
+	if (screenshotsPath) {
+		afterEach(async function () {
+			if (this.currentTest.state !== 'failed') {
+				return;
+			}
+			const app = this.app as Application;
+			const name = this.currentTest.fullTitle().replace(/[^a-z0-9\-]/ig, '_');
+
+			await app.captureScreenshot(name);
+		});
+	}
+
+	if (opts.log) {
+		beforeEach(async function () {
+			const app = this.app as Application;
+			const title = this.currentTest.fullTitle();
+
+			app.logger.log('*** Test start:', title);
+		});
+	}
 
 	setupDataLossTests();
 	setupDataExplorerTests();
@@ -272,6 +264,9 @@ describe('Everything Else', () => {
 	setupDataGitTests();
 	setupDataStatusbarTests();
 	setupDataExtensionTests();
+	setupTerminalTests();
 	setupDataMultirootTests();
 	setupDataLocalizationTests();
 });
+
+setupLaunchTests();

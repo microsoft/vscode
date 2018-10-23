@@ -5,9 +5,11 @@
 
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 
-export class TerminalWidgetManager {
-	private _container: HTMLElement;
-	private _xtermViewport: HTMLElement;
+const WIDGET_HEIGHT = 29;
+
+export class TerminalWidgetManager implements IDisposable {
+	private _container: HTMLElement | null;
+	private _xtermViewport: HTMLElement | null;
 
 	private _messageWidget: MessageWidget;
 	private _messageListeners: IDisposable[] = [];
@@ -22,14 +24,28 @@ export class TerminalWidgetManager {
 		this._initTerminalHeightWatcher(terminalWrapper);
 	}
 
+	public dispose(): void {
+		if (this._container && this._container.parentElement) {
+			this._container.parentElement.removeChild(this._container);
+			this._container = null;
+		}
+		this._xtermViewport = null;
+	}
+
 	private _initTerminalHeightWatcher(terminalWrapper: HTMLElement) {
 		// Watch the xterm.js viewport for style changes and do a layout if it changes
 		this._xtermViewport = <HTMLElement>terminalWrapper.querySelector('.xterm-viewport');
+		if (!this._xtermViewport) {
+			return;
+		}
 		const mutationObserver = new MutationObserver(() => this._refreshHeight());
 		mutationObserver.observe(this._xtermViewport, { attributes: true, attributeFilter: ['style'] });
 	}
 
 	public showMessage(left: number, top: number, text: string): void {
+		if (!this._container) {
+			return;
+		}
 		dispose(this._messageWidget);
 		this._messageListeners = dispose(this._messageListeners);
 		this._messageWidget = new MessageWidget(this._container, left, top, text);
@@ -43,6 +59,9 @@ export class TerminalWidgetManager {
 	}
 
 	private _refreshHeight(): void {
+		if (!this._container || !this._xtermViewport) {
+			return;
+		}
 		this._container.style.height = this._xtermViewport.style.height;
 	}
 }
@@ -56,7 +75,7 @@ class MessageWidget {
 	public get domNode(): HTMLElement { return this._domNode; }
 
 	public static fadeOut(messageWidget: MessageWidget): IDisposable {
-		let handle: number;
+		let handle: any;
 		const dispose = () => {
 			messageWidget.dispose();
 			clearTimeout(handle);
@@ -77,7 +96,7 @@ class MessageWidget {
 		this._domNode = document.createElement('div');
 		this._domNode.style.position = 'absolute';
 		this._domNode.style.left = `${_left}px`;
-		this._domNode.style.bottom = `${_container.offsetHeight - _top}px`;
+		this._domNode.style.bottom = `${_container.offsetHeight - Math.max(_top, WIDGET_HEIGHT)}px`;
 		this._domNode.classList.add('terminal-message-widget', 'fadeIn');
 		this._domNode.textContent = _text;
 		this._container.appendChild(this._domNode);

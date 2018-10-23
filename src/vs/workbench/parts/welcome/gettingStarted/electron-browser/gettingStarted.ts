@@ -2,10 +2,9 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
-import { IStorageService } from 'vs/platform/storage/common/storage';
+import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { ITelemetryService, ITelemetryInfo } from 'vs/platform/telemetry/common/telemetry';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import * as platform from 'vs/base/common/platform';
@@ -25,11 +24,20 @@ export class GettingStarted implements IWorkbenchContribution {
 	) {
 		this.appName = product.nameLong;
 
-		/* do not open a browser when we run an extension or --skip-getting-started is provided */
-		if (product.welcomePage && !environmentService.isExtensionDevelopment && !environmentService.skipGettingStarted) {
-			this.welcomePageURL = product.welcomePage;
-			this.handleWelcome();
+		if (!product.welcomePage) {
+			return;
 		}
+
+		if (environmentService.skipGettingStarted) {
+			return;
+		}
+
+		if (environmentService.isExtensionDevelopment) {
+			return;
+		}
+
+		this.welcomePageURL = product.welcomePage;
+		this.handleWelcome();
 	}
 
 	private getUrl(telemetryInfo: ITelemetryInfo): string {
@@ -51,13 +59,13 @@ export class GettingStarted implements IWorkbenchContribution {
 			return;
 		}
 
-		let firstStartup = !this.storageService.get(GettingStarted.hideWelcomeSettingskey);
+		let firstStartup = !this.storageService.get(GettingStarted.hideWelcomeSettingskey, StorageScope.GLOBAL);
 
 		if (firstStartup && this.welcomePageURL) {
 			this.telemetryService.getTelemetryInfo().then(info => {
 				let url = this.getUrl(info);
 				this.openExternal(url);
-				this.storageService.store(GettingStarted.hideWelcomeSettingskey, true);
+				this.storageService.store(GettingStarted.hideWelcomeSettingskey, true, StorageScope.GLOBAL);
 			});
 		}
 	}

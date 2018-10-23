@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import * as assert from 'assert';
 import { ExtHostCommands } from 'vs/workbench/api/node/extHostCommands';
 import { MainThreadCommandsShape } from 'vs/workbench/api/node/extHost.protocol';
@@ -29,7 +27,7 @@ suite('ExtHostCommands', function () {
 		};
 
 		const commands = new ExtHostCommands(SingleProxyRPCProtocol(shape), undefined, new NullLogService());
-		commands.registerCommand('foo', (): any => { }).dispose();
+		commands.registerCommand(true, 'foo', (): any => { }).dispose();
 		assert.equal(lastUnregister, 'foo');
 		assert.equal(CommandsRegistry.getCommand('foo'), undefined);
 
@@ -49,7 +47,7 @@ suite('ExtHostCommands', function () {
 		};
 
 		const commands = new ExtHostCommands(SingleProxyRPCProtocol(shape), undefined, new NullLogService());
-		const reg = commands.registerCommand('foo', (): any => { });
+		const reg = commands.registerCommand(true, 'foo', (): any => { });
 		reg.dispose();
 		reg.dispose();
 		reg.dispose();

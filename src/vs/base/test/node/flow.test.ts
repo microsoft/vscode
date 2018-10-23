@@ -3,10 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import * as assert from 'assert';
-import flow = require('vs/base/node/flow');
+import * as flow from 'vs/base/node/flow';
 
 const loop = flow.loop;
 const sequence = flow.sequence;

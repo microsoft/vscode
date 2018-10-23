@@ -2,26 +2,89 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
-import { UriComponents } from 'vs/base/common/uri';
 import * as Types from 'vs/base/common/types';
 import { IJSONSchemaMap } from 'vs/base/common/jsonSchema';
 import * as Objects from 'vs/base/common/objects';
+import { UriComponents } from 'vs/base/common/uri';
 
-import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
-import { ProblemMatcher } from 'vs/platform/markers/common/problemMatcher';
+import { IExtensionDescription } from 'vs/workbench/services/extensions/common/extensions';
+import { ProblemMatcher } from 'vs/workbench/parts/tasks/common/problemMatcher';
 import { IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
+import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
+
+export const TASK_RUNNING_STATE = new RawContextKey<boolean>('taskRunning', false);
+
+export enum ShellQuoting {
+	/**
+	 * Use character escaping.
+	 */
+	Escape = 1,
+
+	/**
+	 * Use strong quoting
+	 */
+	Strong = 2,
+
+	/**
+	 * Use weak quoting.
+	 */
+	Weak = 3,
+}
+
+export namespace ShellQuoting {
+	export function from(this: void, value: string): ShellQuoting {
+		if (!value) {
+			return ShellQuoting.Strong;
+		}
+		switch (value.toLowerCase()) {
+			case 'escape':
+				return ShellQuoting.Escape;
+			case 'strong':
+				return ShellQuoting.Strong;
+			case 'weak':
+				return ShellQuoting.Weak;
+			default:
+				return ShellQuoting.Strong;
+		}
+	}
+}
+
+export interface ShellQuotingOptions {
+	/**
+	 * The character used to do character escaping.
+	 */
+	escape?: string | {
+		escapeChar: string;
+		charsToEscape: string;
+	};
+
+	/**
+	 * The character used for string quoting.
+	 */
+	strong?: string;
+
+	/**
+	 * The character used for weak quoting.
+	 */
+	weak?: string;
+}
 
 export interface ShellConfiguration {
 	/**
 	 * The shell executable.
 	 */
-	executable: string;
+	executable?: string;
+
 	/**
 	 * The arguments to be passed to the shell executable.
 	 */
 	args?: string[];
+
+	/**
+	 * Which kind of quotes the shell supports.
+	 */
+	quoting?: ShellQuotingOptions;
 }
 
 export interface CommandOptions {
@@ -63,7 +126,7 @@ export enum RevealKind {
 }
 
 export namespace RevealKind {
-	export function fromString(value: string): RevealKind {
+	export function fromString(this: void, value: string): RevealKind {
 		switch (value.toLowerCase()) {
 			case 'always':
 				return RevealKind.Always;
@@ -135,6 +198,16 @@ export interface PresentationOptions {
 	 * every task execution (new). Defaults to `TaskInstanceKind.Shared`
 	 */
 	panel: PanelKind;
+
+	/**
+	 * Controls whether to show the "Terminal will be reused by tasks, press any key to close it" message.
+	 */
+	showReuseMessage: boolean;
+
+	/**
+	 * Controls whether to clear the terminal before executing the task.
+	 */
+	clearBeforeExecuting: boolean;
 }
 
 export enum RuntimeType {
@@ -155,6 +228,23 @@ export namespace RuntimeType {
 	}
 }
 
+export interface QuotedString {
+	value: string;
+	quoting: ShellQuoting;
+}
+
+export type CommandString = string | QuotedString;
+
+export namespace CommandString {
+	export function value(value: CommandString): string {
+		if (Types.isString(value)) {
+			return value;
+		} else {
+			return value.value;
+		}
+	}
+}
+
 export interface CommandConfiguration {
 
 	/**
@@ -165,7 +255,7 @@ export interface CommandConfiguration {
 	/**
 	 * The command to execute
 	 */
-	name: string;
+	name: CommandString;
 
 	/**
 	 * Additional command options.
@@ -175,7 +265,7 @@ export interface CommandConfiguration {
 	/**
 	 * Command arguments.
 	 */
-	args?: string[];
+	args?: CommandString[];
 
 	/**
 	 * The task selector if needed.
@@ -211,7 +301,7 @@ export namespace TaskGroup {
 export type TaskGroup = 'clean' | 'build' | 'rebuild' | 'test';
 
 
-export enum TaskScope {
+export const enum TaskScope {
 	Global = 1,
 	Workspace = 2,
 	Folder = 3
@@ -234,7 +324,7 @@ export interface WorkspaceTaskSource {
 	readonly kind: 'workspace';
 	readonly label: string;
 	readonly config: TaskSourceConfigElement;
-	readonly customizes?: TaskIdentifier;
+	readonly customizes?: KeyedTaskIdentifier;
 }
 
 export interface ExtensionTaskSource {
@@ -247,6 +337,7 @@ export interface ExtensionTaskSource {
 
 export interface ExtensionTaskSourceTransfer {
 	__workspaceFolder: UriComponents;
+	__definition: { type: string;[name: string]: any };
 }
 
 export interface InMemoryTaskSource {
@@ -257,16 +348,20 @@ export interface InMemoryTaskSource {
 export type TaskSource = WorkspaceTaskSource | ExtensionTaskSource | InMemoryTaskSource;
 
 export interface TaskIdentifier {
-	_key: string;
 	type: string;
+	[name: string]: any;
+}
+
+export interface KeyedTaskIdentifier extends TaskIdentifier {
+	_key: string;
 }
 
 export interface TaskDependency {
 	workspaceFolder: IWorkspaceFolder;
-	task: string;
+	task: string | KeyedTaskIdentifier;
 }
 
-export enum GroupType {
+export const enum GroupType {
 	default = 'default',
 	user = 'user'
 }
@@ -297,6 +392,11 @@ export interface ConfigurationProperties {
 	 * The presentation options
 	 */
 	presentation?: PresentationOptions;
+
+	/**
+	 * The command options;
+	 */
+	options?: CommandOptions;
 
 	/**
 	 * Whether the task is a background task or not.
@@ -347,6 +447,8 @@ export interface CustomTask extends CommonTask, ConfigurationProperties {
 
 	identifier: string;
 
+	hasDefinedMatchers: boolean;
+
 	/**
 	 * The command configuration
 	 */
@@ -358,6 +460,26 @@ export namespace CustomTask {
 		let candidate: CustomTask = value;
 		return candidate && candidate.type === 'custom';
 	}
+	export function getDefinition(task: CustomTask): KeyedTaskIdentifier {
+		let type: string;
+		if (task.command !== void 0) {
+			type = task.command.runtime === RuntimeType.Shell ? 'shell' : 'process';
+		} else {
+			type = '$composite';
+		}
+		let result: KeyedTaskIdentifier = {
+			type,
+			_key: task._id,
+			id: task._id
+		};
+		return result;
+	}
+	export function customizes(task: CustomTask): KeyedTaskIdentifier | undefined {
+		if (task._source && task._source.customizes) {
+			return task._source.customizes;
+		}
+		return undefined;
+	}
 }
 
 export interface ConfiguringTask extends CommonTask, ConfigurationProperties {
@@ -367,7 +489,7 @@ export interface ConfiguringTask extends CommonTask, ConfigurationProperties {
 	 */
 	_source: WorkspaceTaskSource;
 
-	configures: TaskIdentifier;
+	configures: KeyedTaskIdentifier;
 }
 
 export namespace ConfiguringTask {
@@ -384,7 +506,7 @@ export interface ContributedTask extends CommonTask, ConfigurationProperties {
 	 */
 	_source: ExtensionTaskSource;
 
-	defines: TaskIdentifier;
+	defines: KeyedTaskIdentifier;
 
 	hasDefinedMatchers: boolean;
 
@@ -499,8 +621,15 @@ export namespace Task {
 		}
 	}
 
-	export function matches(task: Task, alias: string): boolean {
-		return alias === task._label || alias === task.identifier;
+	export function matches(task: Task, key: string | KeyedTaskIdentifier, compareId: boolean = false): boolean {
+		if (key === void 0) {
+			return false;
+		}
+		if (Types.isString(key)) {
+			return key === task._label || key === task.identifier || (compareId && key === task._id);
+		}
+		let identifier = Task.getTaskDefinition(task, true);
+		return identifier !== void 0 && identifier._key === key._key;
 	}
 
 	export function getQualifiedLabel(task: Task): string {
@@ -511,8 +640,34 @@ export namespace Task {
 			return task._label;
 		}
 	}
+
+	export function getTaskDefinition(task: Task, useSource: boolean = false): KeyedTaskIdentifier | undefined {
+		if (ContributedTask.is(task)) {
+			return task.defines;
+		} else if (CustomTask.is(task)) {
+			if (useSource && task._source.customizes !== void 0) {
+				return task._source.customizes;
+			} else {
+				return CustomTask.getDefinition(task);
+			}
+		} else {
+			return undefined;
+		}
+	}
+
+	export function getTaskExecution(task: Task): TaskExecution {
+		let result: TaskExecution = {
+			id: task._id,
+			task: task
+		};
+		return result;
+	}
 }
 
+export interface TaskExecution {
+	id: string;
+	task: Task;
+}
 
 export enum ExecutionEngine {
 	Process = 1,
@@ -523,7 +678,7 @@ export namespace ExecutionEngine {
 	export const _default: ExecutionEngine = ExecutionEngine.Terminal;
 }
 
-export enum JsonSchemaVersion {
+export const enum JsonSchemaVersion {
 	V0_1_0 = 1,
 	V2_0_0 = 2
 }
@@ -573,15 +728,19 @@ export class TaskSorter {
 	}
 }
 
-export enum TaskEventKind {
+export const enum TaskEventKind {
+	Start = 'start',
+	ProcessStarted = 'processStarted',
 	Active = 'active',
 	Inactive = 'inactive',
-	Terminated = 'terminated',
 	Changed = 'changed',
+	Terminated = 'terminated',
+	ProcessEnded = 'processEnded',
+	End = 'end'
 }
 
 
-export enum TaskRunType {
+export const enum TaskRunType {
 	SingleRun = 'singleRun',
 	Background = 'background'
 }
@@ -592,22 +751,34 @@ export interface TaskEvent {
 	taskName?: string;
 	runType?: TaskRunType;
 	group?: string;
+	processId?: number;
+	exitCode?: number;
 	__task?: Task;
 }
 
 export namespace TaskEvent {
-	export function create(kind: TaskEventKind.Active | TaskEventKind.Inactive | TaskEventKind.Terminated, task: Task);
-	export function create(kind: TaskEventKind.Changed);
-	export function create(kind: TaskEventKind, task?: Task): TaskEvent {
+	export function create(kind: TaskEventKind.ProcessStarted, task: Task, processId: number): TaskEvent;
+	export function create(kind: TaskEventKind.ProcessEnded, task: Task, exitCode: number): TaskEvent;
+	export function create(kind: TaskEventKind.Start | TaskEventKind.Active | TaskEventKind.Inactive | TaskEventKind.Terminated | TaskEventKind.End, task: Task): TaskEvent;
+	export function create(kind: TaskEventKind.Changed): TaskEvent;
+	export function create(kind: TaskEventKind, task?: Task, processIdOrExitCode?: number): TaskEvent {
 		if (task) {
-			return Object.freeze({
+			let result = {
 				kind: kind,
 				taskId: task._id,
 				taskName: task.name,
 				runType: task.isBackground ? TaskRunType.Background : TaskRunType.SingleRun,
 				group: task.group,
+				processId: undefined as number | undefined,
+				exitCode: undefined as number | undefined,
 				__task: task,
-			});
+			};
+			if (kind === TaskEventKind.ProcessStarted) {
+				result.processId = processIdOrExitCode;
+			} else if (kind === TaskEventKind.ProcessEnded) {
+				result.exitCode = processIdOrExitCode;
+			}
+			return Object.freeze(result);
 		} else {
 			return Object.freeze({ kind: TaskEventKind.Changed });
 		}

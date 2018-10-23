@@ -2,24 +2,25 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
 import * as assert from 'assert';
+import { CoreNavigationCommands } from 'vs/editor/browser/controller/coreCommands';
+import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { Cursor } from 'vs/editor/common/controller/cursor';
 import { Position } from 'vs/editor/common/core/position';
-import { Selection } from 'vs/editor/common/core/selection';
 import { Range } from 'vs/editor/common/core/range';
+import { Selection } from 'vs/editor/common/core/selection';
+import { PieceTreeTextBufferBuilder } from 'vs/editor/common/model/pieceTreeTextBuffer/pieceTreeTextBufferBuilder';
+import { TextModel } from 'vs/editor/common/model/textModel';
 import { FindModelBoundToEditorModel } from 'vs/editor/contrib/find/findModel';
 import { FindReplaceState } from 'vs/editor/contrib/find/findState';
 import { withTestCodeEditor } from 'vs/editor/test/browser/testCodeEditor';
-import { CoreNavigationCommands } from 'vs/editor/browser/controller/coreCommands';
-import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 
 suite('FindModel', () => {
 
 	function findTest(testName: string, callback: (editor: ICodeEditor, cursor: Cursor) => void): void {
 		test(testName, () => {
-			withTestCodeEditor([
+			const textArr = [
 				'// my cool header',
 				'#include "cool.h"',
 				'#include <iostream>',
@@ -32,7 +33,19 @@ suite('FindModel', () => {
 				'}',
 				'// blablablaciao',
 				''
-			], {}, callback);
+			];
+			withTestCodeEditor(textArr, {}, callback);
+
+			const text = textArr.join('\n');
+			const ptBuilder = new PieceTreeTextBufferBuilder();
+			ptBuilder.acceptChunk(text.substr(0, 94));
+			ptBuilder.acceptChunk(text.substr(94, 101));
+			ptBuilder.acceptChunk(text.substr(195, 59));
+			const factory = ptBuilder.finish();
+			withTestCodeEditor([],
+				{
+					model: new TextModel(factory, TextModel.DEFAULT_CREATION_OPTIONS, null, null)
+				}, callback);
 		});
 	}
 
@@ -2013,6 +2026,24 @@ suite('FindModel', () => {
 		assert.equal(editor.getModel().getLineContent(6), '    cout << "hi world, Hello!" << endl;');
 		assert.equal(editor.getModel().getLineContent(7), '    cout << "hi world again" << endl;');
 		assert.equal(editor.getModel().getLineContent(9), '    cout << "hiworld again" << endl;');
+
+		findModel.dispose();
+		findState.dispose();
+	});
+
+	findTest('issue #27083. search scope works even if it is a single line', (editor, cursor) => {
+		let findState = new FindReplaceState();
+		findState.change({ searchString: 'hello', wholeWord: true, searchScope: new Range(7, 1, 8, 1) }, false);
+		let findModel = new FindModelBoundToEditorModel(editor, findState);
+
+		assertFindState(
+			editor,
+			[1, 1, 1, 1],
+			null,
+			[
+				[7, 14, 7, 19]
+			]
+		);
 
 		findModel.dispose();
 		findState.dispose();

@@ -2,98 +2,66 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
-import { localize } from 'vs/nls';
-import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { Action } from 'vs/base/common/actions';
-import { TPromise } from 'vs/base/common/winjs.base';
-import { WalkThroughPart } from 'vs/workbench/parts/welcome/walkThrough/electron-browser/walkThroughPart';
+import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { WalkThroughPart, WALK_THROUGH_FOCUS } from 'vs/workbench/parts/welcome/walkThrough/electron-browser/walkThroughPart';
+import { ICommandAndKeybindingRule, KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
+import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
+import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
+import { KeyCode } from 'vs/base/common/keyCodes';
 
-export class WalkThroughArrowUpAction extends Action {
-
-	public static readonly ID = 'workbench.action.interactivePlayground.arrowUp';
-	public static readonly LABEL = localize('editorWalkThrough.arrowUp', "Scroll Up (Line)");
-
-	constructor(
-		id: string,
-		label: string,
-		@IWorkbenchEditorService private editorService: IWorkbenchEditorService
-	) {
-		super(id, label);
-	}
-
-	public run(): TPromise<void> {
-		const editor = this.editorService.getActiveEditor();
-		if (editor instanceof WalkThroughPart) {
-			editor.arrowUp();
+export const WalkThroughArrowUp: ICommandAndKeybindingRule = {
+	id: 'workbench.action.interactivePlayground.arrowUp',
+	weight: KeybindingWeight.WorkbenchContrib,
+	when: ContextKeyExpr.and(WALK_THROUGH_FOCUS, EditorContextKeys.editorTextFocus.toNegated()),
+	primary: KeyCode.UpArrow,
+	handler: accessor => {
+		const editorService = accessor.get(IEditorService);
+		const activeControl = editorService.activeControl;
+		if (activeControl instanceof WalkThroughPart) {
+			activeControl.arrowUp();
 		}
-		return null;
 	}
-}
+};
 
-export class WalkThroughArrowDownAction extends Action {
-
-	public static readonly ID = 'workbench.action.interactivePlayground.arrowDown';
-	public static readonly LABEL = localize('editorWalkThrough.arrowDown', "Scroll Down (Line)");
-
-	constructor(
-		id: string,
-		label: string,
-		@IWorkbenchEditorService private editorService: IWorkbenchEditorService
-	) {
-		super(id, label);
-	}
-
-	public run(): TPromise<void> {
-		const editor = this.editorService.getActiveEditor();
-		if (editor instanceof WalkThroughPart) {
-			editor.arrowDown();
+export const WalkThroughArrowDown: ICommandAndKeybindingRule = {
+	id: 'workbench.action.interactivePlayground.arrowDown',
+	weight: KeybindingWeight.WorkbenchContrib,
+	when: ContextKeyExpr.and(WALK_THROUGH_FOCUS, EditorContextKeys.editorTextFocus.toNegated()),
+	primary: KeyCode.DownArrow,
+	handler: accessor => {
+		const editorService = accessor.get(IEditorService);
+		const activeControl = editorService.activeControl;
+		if (activeControl instanceof WalkThroughPart) {
+			activeControl.arrowDown();
 		}
-		return null;
 	}
-}
+};
 
-export class WalkThroughPageUpAction extends Action {
-
-	public static readonly ID = 'workbench.action.interactivePlayground.pageUp';
-	public static readonly LABEL = localize('editorWalkThrough.pageUp', "Scroll Up (Page)");
-
-	constructor(
-		id: string,
-		label: string,
-		@IWorkbenchEditorService private editorService: IWorkbenchEditorService
-	) {
-		super(id, label);
-	}
-
-	public run(): TPromise<void> {
-		const editor = this.editorService.getActiveEditor();
-		if (editor instanceof WalkThroughPart) {
-			editor.pageUp();
+export const WalkThroughPageUp: ICommandAndKeybindingRule = {
+	id: 'workbench.action.interactivePlayground.pageUp',
+	weight: KeybindingWeight.WorkbenchContrib,
+	when: ContextKeyExpr.and(WALK_THROUGH_FOCUS, EditorContextKeys.editorTextFocus.toNegated()),
+	primary: KeyCode.PageUp,
+	handler: accessor => {
+		const editorService = accessor.get(IEditorService);
+		const activeControl = editorService.activeControl;
+		if (activeControl instanceof WalkThroughPart) {
+			activeControl.pageUp();
 		}
-		return null;
 	}
-}
+};
 
-export class WalkThroughPageDownAction extends Action {
-
-	public static readonly ID = 'workbench.action.interactivePlayground.pageDown';
-	public static readonly LABEL = localize('editorWalkThrough.pageDown', "Scroll Down (Page)");
-
-	constructor(
-		id: string,
-		label: string,
-		@IWorkbenchEditorService private editorService: IWorkbenchEditorService
-	) {
-		super(id, label);
-	}
-
-	public run(): TPromise<void> {
-		const editor = this.editorService.getActiveEditor();
-		if (editor instanceof WalkThroughPart) {
-			editor.pageDown();
+export const WalkThroughPageDown: ICommandAndKeybindingRule = {
+	id: 'workbench.action.interactivePlayground.pageDown',
+	weight: KeybindingWeight.WorkbenchContrib,
+	when: ContextKeyExpr.and(WALK_THROUGH_FOCUS, EditorContextKeys.editorTextFocus.toNegated()),
+	primary: KeyCode.PageDown,
+	handler: accessor => {
+		const editorService = accessor.get(IEditorService);
+		const activeControl = editorService.activeControl;
+		if (activeControl instanceof WalkThroughPart) {
+			activeControl.pageDown();
 		}
-		return null;
 	}
-}
+};

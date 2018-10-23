@@ -1,6 +1,5 @@
 {
 	"editor.insertSpaces": false,
-	"files.eol": "\n",
 	"files.trimTrailingWhitespace": true,
 	"files.exclude": {
 		".git": true,
@@ -22,7 +21,8 @@
 		"out-vscode/**": true,
 		"i18n/**": true,
 		"extensions/**/out/**": true,
-		"test/smoke/out/**": true
+		"test/smoke/out/**": true,
+		"src/vs/base/test/node/uri.test.data.txt": true
 	},
 	"tslint.enable": true,
 	"lcov.path": [
@@ -38,5 +38,9 @@
 			}
 		}
 	],
-	"typescript.tsdk": "node_modules/typescript/lib"
+	"typescript.tsdk": "node_modules/typescript/lib",
+	"npm.exclude": "**/extensions/**",
+	"emmet.excludeLanguages": [],
+	"typescript.preferences.importModuleSpecifier": "non-relative",
+	"typescript.preferences.quoteStyle": "single"
 }

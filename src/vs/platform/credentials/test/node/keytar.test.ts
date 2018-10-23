@@ -2,17 +2,15 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
-
 import * as assert from 'assert';
 import * as platform from 'vs/base/common/platform';
 
 suite('Keytar', () => {
 
-	test('loads and is functional', done => {
+	test('loads and is functional', function (done) {
 		if (platform.isLinux) {
 			// Skip test due to set up issue with Travis.
-			done();
+			this.skip();
 			return;
 		}
 		(async () => {

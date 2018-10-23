@@ -3,11 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import { IGrammarContributions, ILanguageIdentifierResolver, EmmetEditorAction } from 'vs/workbench/parts/emmet/electron-browser/emmetActions';
 import { withTestCodeEditor } from 'vs/editor/test/browser/testCodeEditor';
-import assert = require('assert');
+import * as assert from 'assert';
 import { LanguageId, LanguageIdentifier } from 'vs/editor/common/modes';
 
 //
@@ -55,11 +53,21 @@ suite('Emmet', () => {
 						throw new Error('Unexpected');
 					}
 				};
-				editor.getModel().setMode(languageIdentifier);
+				const model = editor.getModel();
+				if (!model) {
+					assert.fail('Editor model not found');
+					return;
+				}
+
+				model.setMode(languageIdentifier);
 				let langOutput = EmmetEditorAction.getLanguage(languageIdentifierResolver, editor, new MockGrammarContributions(scopeName));
+				if (!langOutput) {
+					assert.fail('langOutput not found');
+					return;
+				}
+
 				assert.equal(langOutput.language, expectedLanguage);
 				assert.equal(langOutput.parentMode, expectedParentLanguage);
-
 			}
 
 			// syntaxes mapped using the scope name of the grammar

@@ -16,10 +16,9 @@ import { once } from 'vs/base/common/functional';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IMenuService, MenuId, IMenu } from 'vs/platform/actions/common/actions';
 import { IControllerOptions } from 'vs/base/parts/tree/browser/treeDefaults';
-import { fillInActions } from 'vs/platform/actions/browser/menuItemActionItem';
+import { fillInContextMenuActions } from 'vs/platform/actions/browser/menuItemActionItem';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
-import { onUnexpectedError } from 'vs/base/common/errors';
 import { WorkbenchTreeController } from 'vs/platform/list/browser/listService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
@@ -50,7 +49,7 @@ export function renderViewTree(container: HTMLElement): HTMLElement {
 	return treeContainer;
 }
 
-function replaceWhitespace(value: string): string {
+export function replaceWhitespace(value: string): string {
 	const map: { [x: string]: string } = { '\n': '\\n', '\r': '\\r', '\t': '\\t' };
 	return value.replace(/[\n\r\t]/g, char => map[char]);
 }
@@ -66,6 +65,9 @@ export function renderExpressionValue(expressionOrValue: IExpression | string, c
 		if (value !== Expression.DEFAULT_VALUE) {
 			dom.addClass(container, 'error');
 		}
+	} else if (options.showChanged && (<any>expressionOrValue).valueChanged && value !== Expression.DEFAULT_VALUE) {
+		// value changed color has priority over other colors.
+		container.className = 'value changed';
 	}
 
 	if (options.colorize && typeof expressionOrValue !== 'string') {
@@ -80,43 +82,35 @@ export function renderExpressionValue(expressionOrValue: IExpression | string, c
 		}
 	}
 
-	if (options.showChanged && (<any>expressionOrValue).valueChanged && value !== Expression.DEFAULT_VALUE) {
-		// value changed color has priority over other colors.
-		container.className = 'value changed';
-	}
-
-	if (options.maxValueLength && value.length > options.maxValueLength) {
+	if (options.maxValueLength && value && value.length > options.maxValueLength) {
 		value = value.substr(0, options.maxValueLength) + '...';
 	}
 	if (value && !options.preserveWhitespace) {
 		container.textContent = replaceWhitespace(value);
 	} else {
-		container.textContent = value;
+		container.textContent = value || '';
 	}
 	if (options.showHover) {
-		container.title = value;
+		container.title = value || '';
 	}
 }
 
-export function renderVariable(tree: ITree, variable: Variable, data: IVariableTemplateData, showChanged: boolean): void {
+export function renderVariable(variable: Variable, data: IVariableTemplateData, showChanged: boolean): void {
 	if (variable.available) {
 		data.name.textContent = replaceWhitespace(variable.name);
 		data.name.title = variable.type ? variable.type : variable.name;
 		dom.toggleClass(data.name, 'virtual', !!variable.presentationHint && variable.presentationHint.kind === 'virtual');
 	}
 
-	if (variable.value) {
-		data.name.textContent += variable.name ? ':' : '';
-		renderExpressionValue(variable, data.value, {
-			showChanged,
-			maxValueLength: MAX_VALUE_RENDER_LENGTH_IN_VIEWLET,
-			preserveWhitespace: false,
-			showHover: true,
-			colorize: true
-		});
-	} else {
-		data.value.textContent = '';
-		data.value.title = '';
+	renderExpressionValue(variable, data.value, {
+		showChanged,
+		maxValueLength: MAX_VALUE_RENDER_LENGTH_IN_VIEWLET,
+		preserveWhitespace: false,
+		showHover: true,
+		colorize: true
+	});
+	if (variable.value && typeof variable.name === 'string') {
+		data.name.textContent += ':';
 	}
 }
 
@@ -139,6 +133,8 @@ export function renderRenameBox(debugService: IDebugService, contextViewService:
 	inputBox.value = options.initialValue ? options.initialValue : '';
 	inputBox.focus();
 	inputBox.select();
+	tree.clearFocus();
+	tree.clearSelection();
 
 	let disposed = false;
 	const toDispose: IDisposable[] = [inputBox, styler];
@@ -146,26 +142,25 @@ export function renderRenameBox(debugService: IDebugService, contextViewService:
 	const wrapUp = once((renamed: boolean) => {
 		if (!disposed) {
 			disposed = true;
+			debugService.getViewModel().setSelectedExpression(undefined);
 			if (element instanceof Expression && renamed && inputBox.value) {
 				debugService.renameWatchExpression(element.getId(), inputBox.value);
-				debugService.getViewModel().setSelectedExpression(undefined);
 			} else if (element instanceof Expression && !element.name) {
 				debugService.removeWatchExpressions(element.getId());
-				debugService.getViewModel().setSelectedExpression(undefined);
 			} else if (element instanceof Variable) {
 				element.errorMessage = null;
 				if (renamed && element.value !== inputBox.value) {
 					element.setVariable(inputBox.value)
 						// if everything went fine we need to refresh ui elements since the variable update can change watch and variables view
-						.done(() => {
+						.then(() => {
 							tree.refresh(element, false);
 							// Need to force watch expressions to update since a variable change can have an effect on watches
 							debugService.focusStackFrame(debugService.getViewModel().focusedStackFrame);
-						}, onUnexpectedError);
+						});
 				}
 			}
 
-			tree.DOMFocus();
+			tree.domFocus();
 			tree.setFocus(element);
 
 			// need to remove the input box since this template will be reused.
@@ -224,12 +219,12 @@ export class BaseDebugController extends WorkbenchTreeController {
 			this.contextMenuService.showContextMenu({
 				getAnchor: () => anchor,
 				getActions: () => this.actionProvider.getSecondaryActions(tree, element).then(actions => {
-					fillInActions(this.contributedContextMenu, { arg: this.getContext(element) }, actions, this.contextMenuService);
+					fillInContextMenuActions(this.contributedContextMenu, { arg: this.getContext(element) }, actions, this.contextMenuService);
 					return actions;
 				}),
 				onHide: (wasCancelled?: boolean) => {
 					if (wasCancelled) {
-						tree.DOMFocus();
+						tree.domFocus();
 					}
 				},
 				getActionsContext: () => element

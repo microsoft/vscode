@@ -30,7 +30,7 @@ class TranslationRemindRuleWalker extends Lint.RuleWalker {
 		this.visitImportLikeDeclaration(node);
 	}
 
-    protected visitImportEqualsDeclaration(node: ts.ImportEqualsDeclaration): void {
+	protected visitImportEqualsDeclaration(node: ts.ImportEqualsDeclaration): void {
 		const reference = node.moduleReference.getText();
 		if (reference !== `require('${TranslationRemindRuleWalker.NLS_MODULE}')`) {
 			return;
@@ -47,7 +47,7 @@ class TranslationRemindRuleWalker extends Lint.RuleWalker {
 			return;
 		}
 
-		const resource = matchService ? matchService[0] : matchPart[0];
+		const resource = matchService ? matchService[0] : matchPart![0];
 		let resourceDefined = false;
 
 		let json;
@@ -59,7 +59,7 @@ class TranslationRemindRuleWalker extends Lint.RuleWalker {
 		}
 		const workbenchResources = JSON.parse(json).workbench;
 
-		workbenchResources.forEach(existingResource => {
+		workbenchResources.forEach((existingResource: any) => {
 			if (existingResource.name === resource) {
 				resourceDefined = true;
 				return;
@@ -67,7 +67,7 @@ class TranslationRemindRuleWalker extends Lint.RuleWalker {
 		});
 
 		if (!resourceDefined) {
-			this.addFailureAtNode(node, `Please add '${resource}' to ./builds/lib/i18n.resources.json file to use translations here.`);
+			this.addFailureAtNode(node, `Please add '${resource}' to ./build/lib/i18n.resources.json file to use translations here.`);
 		}
 	}
 }

@@ -4,7 +4,7 @@
 		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
 		"Once accepted there, we are happy to receive an update request."
 	],
-	"version": "https://github.com/atom/language-xml/commit/27352842917b911383122bdcf98ed0d69d55c179",
+	"version": "https://github.com/atom/language-xml/commit/7bc75dfe779ad5b35d9bf4013d9181864358cb49",
 	"name": "XML",
 	"scopeName": "text.xml",
 	"patterns": [
@@ -350,14 +350,38 @@
 			]
 		},
 		"comments": {
-			"begin": "<[!%]--",
-			"captures": {
-				"0": {
-					"name": "punctuation.definition.comment.xml"
+			"patterns": [
+				{
+					"begin": "<%--",
+					"captures": {
+						"0": {
+							"name": "punctuation.definition.comment.xml"
+						},
+						"end": "--%>",
+						"name": "comment.block.xml"
+					}
+				},
+				{
+					"begin": "<!--",
+					"captures": {
+						"0": {
+							"name": "punctuation.definition.comment.xml"
+						}
+					},
+					"end": "-->",
+					"name": "comment.block.xml",
+					"patterns": [
+						{
+							"begin": "--(?!>)",
+							"captures": {
+								"0": {
+									"name": "invalid.illegal.bad-comments-or-CDATA.xml"
+								}
+							}
+						}
+					]
 				}
-			},
-			"end": "--%?>",
-			"name": "comment.block.xml"
+			]
 		}
 	}
 }

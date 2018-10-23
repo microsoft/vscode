@@ -2,10 +2,8 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
-
 import * as assert from 'assert';
-import { marked } from 'vs/base/common/marked/marked';
+import * as marked from 'vs/base/common/marked/marked';
 import { renderMarkdown, renderText, renderFormattedText } from 'vs/base/browser/htmlContentRenderer';
 
 suite('HtmlContent', () => {
@@ -52,9 +50,12 @@ suite('HtmlContent', () => {
 	test('action', () => {
 		var callbackCalled = false;
 		var result: HTMLElement = renderFormattedText('[[action]]', {
-			actionCallback(content) {
-				assert.strictEqual(content, '0');
-				callbackCalled = true;
+			actionHandler: {
+				callback(content) {
+					assert.strictEqual(content, '0');
+					callbackCalled = true;
+				},
+				disposeables: []
 			}
 		});
 		assert.strictEqual(result.innerHTML, '<a href="#">action</a>');
@@ -68,9 +69,12 @@ suite('HtmlContent', () => {
 	test('fancy action', () => {
 		var callbackCalled = false;
 		var result: HTMLElement = renderFormattedText('__**[[action]]**__', {
-			actionCallback(content) {
-				assert.strictEqual(content, '0');
-				callbackCalled = true;
+			actionHandler: {
+				callback(content) {
+					assert.strictEqual(content, '0');
+					callbackCalled = true;
+				},
+				disposeables: []
 			}
 		});
 		assert.strictEqual(result.innerHTML, '<i><b><a href="#">action</a></b></i>');

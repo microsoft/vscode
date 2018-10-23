@@ -3,10 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import * as assert from 'assert';
-import collections = require('vs/base/common/collections');
+import * as collections from 'vs/base/common/collections';
 
 
 suite('Collections', () => {

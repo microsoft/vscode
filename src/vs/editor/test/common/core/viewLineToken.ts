@@ -2,10 +2,9 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
-import { ColorId, TokenMetadata } from 'vs/editor/common/modes';
 import { IViewLineTokens } from 'vs/editor/common/core/lineTokens';
+import { ColorId, TokenMetadata } from 'vs/editor/common/modes';
 
 /**
  * A token on a line.
@@ -91,6 +90,10 @@ export class ViewLineTokens implements IViewLineTokens {
 
 	public getInlineStyle(tokenIndex: number, colorMap: string[]): string {
 		return this._actual[tokenIndex].getInlineStyle(colorMap);
+	}
+
+	public findTokenIndexAtOffset(offset: number): number {
+		throw new Error('Not implemented');
 	}
 }
 

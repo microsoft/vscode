@@ -14,28 +14,11 @@
 	justify-content: center;
 	flex-direction: column;
 	padding: 0 10px;
+	flex-shrink: 0;
 }
 
-.monaco-editor .zone-widget .zone-widget-container.breakpoint-widget .inputBoxContainer {
+.monaco-editor .zone-widget .zone-widget-container.breakpoint-widget .inputContainer {
 	flex: 1;
-}
-
-.monaco-editor .zone-widget .zone-widget-container.breakpoint-widget .monaco-inputbox {
-	border: none;
-}
-
-.monaco-editor .breakpoint-widget .input {
-	font-family: Monaco, Menlo, Consolas, "Droid Sans Mono", "Inconsolata", "Courier New", monospace, "Droid Sans Fallback";
-	line-height: 22px;
-	background-color: transparent;
-	padding: 8px;
-}
-
-.monaco-workbench.mac .monaco-editor .breakpoint-widget .input {
-	font-size: 11px;
-}
-
-.monaco-workbench.windows .monaco-editor .breakpoint-widget .input,
-.monaco-workbench.linux .monaco-editor .breakpoint-widget .input {
-	font-size: 13px;
+	margin-top: 6px;
+	margin-bottom: 6px;
 }

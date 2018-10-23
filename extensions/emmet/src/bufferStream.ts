@@ -5,8 +5,6 @@
 
 /* Based on @sergeche's work in his emmet plugin */
 
-'use strict';
-
 import { TextDocument, Position, Range, EndOfLine } from 'vscode';
 
 /**
@@ -17,6 +15,7 @@ export class DocumentStreamReader {
 	private document: TextDocument;
 	private start: Position;
 	private _eof: Position;
+	private _sof: Position;
 	public pos: Position;
 	private _eol: string;
 
@@ -24,8 +23,16 @@ export class DocumentStreamReader {
 
 		this.document = document;
 		this.start = this.pos = pos ? pos : new Position(0, 0);
+		this._sof = limit ? limit.start : new Position(0, 0);
 		this._eof = limit ? limit.end : new Position(this.document.lineCount - 1, this._lineLength(this.document.lineCount - 1));
 		this._eol = this.document.eol === EndOfLine.LF ? '\n' : '\r\n';
+	}
+
+	/**
+	 * Returns true only if the stream is at the start of the file.
+	 */
+	sof(): boolean {
+		return this.pos.isBeforeOrEqual(this._sof);
 	}
 
 	/**

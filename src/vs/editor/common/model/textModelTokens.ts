@@ -2,18 +2,17 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
-import { IState, FontStyle, StandardTokenType, MetadataConsts, ColorId, LanguageId, ITokenizationSupport, LanguageIdentifier } from 'vs/editor/common/modes';
-import { LineTokens } from 'vs/editor/common/core/lineTokens';
 import * as arrays from 'vs/base/common/arrays';
+import { onUnexpectedError } from 'vs/base/common/errors';
+import { LineTokens } from 'vs/editor/common/core/lineTokens';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
-import { IModelTokensChangedEvent } from 'vs/editor/common/model/textModelEvents';
-import { onUnexpectedError } from 'vs/base/common/errors';
 import { TokenizationResult2 } from 'vs/editor/common/core/token';
-import { nullTokenize2 } from 'vs/editor/common/modes/nullMode';
 import { ITextBuffer } from 'vs/editor/common/model';
+import { IModelTokensChangedEvent } from 'vs/editor/common/model/textModelEvents';
+import { ColorId, FontStyle, IState, ITokenizationSupport, LanguageId, LanguageIdentifier, MetadataConsts, StandardTokenType } from 'vs/editor/common/modes';
+import { nullTokenize2 } from 'vs/editor/common/modes/nullMode';
 
 function getDefaultMetadata(topLevelLanguageId: LanguageId): number {
 	return (
@@ -25,14 +24,14 @@ function getDefaultMetadata(topLevelLanguageId: LanguageId): number {
 	) >>> 0;
 }
 
-const EMPTY_LINE_TOKENS = new Uint32Array(0);
+const EMPTY_LINE_TOKENS = (new Uint32Array(0)).buffer;
 
 class ModelLineTokens {
-	_state: IState;
-	_lineTokens: ArrayBuffer;
+	_state: IState | null;
+	_lineTokens: ArrayBuffer | null;
 	_invalid: boolean;
 
-	constructor(state: IState) {
+	constructor(state: IState | null) {
 		this._state = state;
 		this._lineTokens = null;
 		this._invalid = true;
@@ -113,7 +112,7 @@ class ModelLineTokens {
 		this._lineTokens = tmp.buffer;
 	}
 
-	public append(_otherTokens: ArrayBuffer): void {
+	public append(_otherTokens: ArrayBuffer | null): void {
 		if (_otherTokens === EMPTY_LINE_TOKENS) {
 			return;
 		}
@@ -169,17 +168,17 @@ class ModelLineTokens {
 export class ModelLinesTokens {
 
 	public readonly languageIdentifier: LanguageIdentifier;
-	public readonly tokenizationSupport: ITokenizationSupport;
+	public readonly tokenizationSupport: ITokenizationSupport | null;
 	private _tokens: ModelLineTokens[];
 	private _invalidLineStartIndex: number;
-	private _lastState: IState;
+	private _lastState: IState | null;
 
-	constructor(languageIdentifier: LanguageIdentifier, tokenizationSupport: ITokenizationSupport) {
+	constructor(languageIdentifier: LanguageIdentifier, tokenizationSupport: ITokenizationSupport | null) {
 		this.languageIdentifier = languageIdentifier;
 		this.tokenizationSupport = tokenizationSupport;
 		this._tokens = [];
 		if (this.tokenizationSupport) {
-			let initialState: IState = null;
+			let initialState: IState | null = null;
 			try {
 				initialState = this.tokenizationSupport.getInitialState();
 			} catch (e) {
@@ -196,9 +195,13 @@ export class ModelLinesTokens {
 		this._lastState = null;
 	}
 
+	public get inValidLineStartIndex() {
+		return this._invalidLineStartIndex;
+	}
+
 	public getTokens(topLevelLanguageId: LanguageId, lineIndex: number, lineText: string): LineTokens {
-		let rawLineTokens: ArrayBuffer = null;
-		if (lineIndex < this._tokens.length) {
+		let rawLineTokens: ArrayBuffer | null = null;
+		if (lineIndex < this._tokens.length && this._tokens[lineIndex]) {
 			rawLineTokens = this._tokens[lineIndex]._lineTokens;
 		}
 
@@ -229,21 +232,21 @@ export class ModelLinesTokens {
 		}
 	}
 
-	private _setIsInvalid(lineIndex: number, invalid: boolean): void {
-		if (lineIndex < this._tokens.length) {
+	_setIsInvalid(lineIndex: number, invalid: boolean): void {
+		if (lineIndex < this._tokens.length && this._tokens[lineIndex]) {
 			this._tokens[lineIndex]._invalid = invalid;
 		}
 	}
 
 	_isInvalid(lineIndex: number): boolean {
-		if (lineIndex < this._tokens.length) {
+		if (lineIndex < this._tokens.length && this._tokens[lineIndex]) {
 			return this._tokens[lineIndex]._invalid;
 		}
 		return true;
 	}
 
-	_getState(lineIndex: number): IState {
-		if (lineIndex < this._tokens.length) {
+	_getState(lineIndex: number): IState | null {
+		if (lineIndex < this._tokens.length && this._tokens[lineIndex]) {
 			return this._tokens[lineIndex]._state;
 		}
 		return null;
@@ -251,7 +254,7 @@ export class ModelLinesTokens {
 
 	_setTokens(topLevelLanguageId: LanguageId, lineIndex: number, lineTextLength: number, tokens: Uint32Array): void {
 		let target: ModelLineTokens;
-		if (lineIndex < this._tokens.length) {
+		if (lineIndex < this._tokens.length && this._tokens[lineIndex]) {
 			target = this._tokens[lineIndex];
 		} else {
 			target = new ModelLineTokens(null);
@@ -274,8 +277,8 @@ export class ModelLinesTokens {
 		target._lineTokens = tokens.buffer;
 	}
 
-	private _setState(lineIndex: number, state: IState): void {
-		if (lineIndex < this._tokens.length) {
+	_setState(lineIndex: number, state: IState): void {
+		if (lineIndex < this._tokens.length && this._tokens[lineIndex]) {
 			this._tokens[lineIndex]._state = state;
 		} else {
 			const tmp = new ModelLineTokens(state);
@@ -320,7 +323,7 @@ export class ModelLinesTokens {
 		firstLine.deleteEnding(range.startColumn - 1);
 
 		const lastLineIndex = range.endLineNumber - 1;
-		let lastLineTokens: ArrayBuffer = null;
+		let lastLineTokens: ArrayBuffer | null = null;
 		if (lastLineIndex < this._tokens.length) {
 			const lastLine = this._tokens[lastLineIndex];
 			lastLine.deleteBeginning(range.endColumn - 1);
@@ -376,6 +379,23 @@ export class ModelLinesTokens {
 		return lineNumber;
 	}
 
+	public _tokenizeText(buffer: ITextBuffer, text: string, state: IState): TokenizationResult2 {
+		let r: TokenizationResult2 | null = null;
+
+		if (this.tokenizationSupport) {
+			try {
+				r = this.tokenizationSupport.tokenize2(text, state, 0);
+			} catch (e) {
+				onUnexpectedError(e);
+			}
+		}
+
+		if (!r) {
+			r = nullTokenize2(this.languageIdentifier.id, text, state, 0);
+		}
+		return r;
+	}
+
 	public _updateTokensUntilLine(buffer: ITextBuffer, eventBuilder: ModelTokensChangedEventBuilder, lineNumber: number): void {
 		if (!this.tokenizationSupport) {
 			this._invalidLineStartIndex = buffer.getLineCount();
@@ -388,26 +408,29 @@ export class ModelLinesTokens {
 		// Validate all states up to and including endLineIndex
 		for (let lineIndex = this._invalidLineStartIndex; lineIndex <= endLineIndex; lineIndex++) {
 			const endStateIndex = lineIndex + 1;
-			let r: TokenizationResult2 = null;
 			const text = buffer.getLineContent(lineIndex + 1);
+			const lineStartState = this._getState(lineIndex);
+
+			let r: TokenizationResult2 | null = null;
 
 			try {
 				// Tokenize only the first X characters
-				let freshState = this._getState(lineIndex).clone();
+				let freshState = lineStartState!.clone();
 				r = this.tokenizationSupport.tokenize2(text, freshState, 0);
 			} catch (e) {
 				onUnexpectedError(e);
 			}
 
 			if (!r) {
-				r = nullTokenize2(this.languageIdentifier.id, text, this._getState(lineIndex), 0);
+				r = nullTokenize2(this.languageIdentifier.id, text, lineStartState, 0);
 			}
 			this._setTokens(this.languageIdentifier.id, lineIndex, text.length, r.tokens);
 			eventBuilder.registerChangedTokens(lineIndex + 1);
 			this._setIsInvalid(lineIndex, false);
 
 			if (endStateIndex < linesLength) {
-				if (this._getState(endStateIndex) !== null && r.endState.equals(this._getState(endStateIndex))) {
+				const previousEndState = this._getState(endStateIndex);
+				if (previousEndState !== null && r.endState.equals(previousEndState)) {
 					// The end state of this line remains the same
 					let nextInvalidLineIndex = lineIndex + 1;
 					while (nextInvalidLineIndex < linesLength) {
@@ -465,7 +488,7 @@ export class ModelTokensChangedEventBuilder {
 		}
 	}
 
-	public build(): IModelTokensChangedEvent {
+	public build(): IModelTokensChangedEvent | null {
 		if (this._ranges.length === 0) {
 			return null;
 		}

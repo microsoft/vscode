@@ -2,12 +2,11 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
 import * as strings from 'vs/base/common/strings';
+import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
-import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 
 export const enum CodeEditorStateFlag {
 	Value = 1,
@@ -20,9 +19,9 @@ export class EditorState {
 
 	private readonly flags: number;
 
-	private readonly position: Position;
-	private readonly selection: Range;
-	private readonly modelVersionId: string;
+	private readonly position: Position | null;
+	private readonly selection: Range | null;
+	private readonly modelVersionId: string | null;
 	private readonly scrollLeft: number;
 	private readonly scrollTop: number;
 
@@ -69,5 +68,35 @@ export class EditorState {
 
 	public validate(editor: ICodeEditor): boolean {
 		return this._equals(new EditorState(editor, this.flags));
+	}
+}
+
+export class StableEditorScrollState {
+
+	public static capture(editor: ICodeEditor): StableEditorScrollState {
+		let visiblePosition: Position | null = null;
+		let visiblePositionScrollDelta = 0;
+		if (editor.getScrollTop() !== 0) {
+			const visibleRanges = editor.getVisibleRanges();
+			if (visibleRanges.length > 0) {
+				visiblePosition = visibleRanges[0].getStartPosition();
+				const visiblePositionScrollTop = editor.getTopForPosition(visiblePosition.lineNumber, visiblePosition.column);
+				visiblePositionScrollDelta = editor.getScrollTop() - visiblePositionScrollTop;
+			}
+		}
+		return new StableEditorScrollState(visiblePosition, visiblePositionScrollDelta);
+	}
+
+	constructor(
+		private readonly _visiblePosition: Position | null,
+		private readonly _visiblePositionScrollDelta: number
+	) {
+	}
+
+	public restore(editor: ICodeEditor): void {
+		if (this._visiblePosition) {
+			const visiblePositionScrollTop = editor.getTopForPosition(this._visiblePosition.lineNumber, this._visiblePosition.column);
+			editor.setScrollTop(visiblePositionScrollTop + this._visiblePositionScrollDelta);
+		}
 	}
 }

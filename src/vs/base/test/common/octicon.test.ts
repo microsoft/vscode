@@ -2,8 +2,6 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
-
 import * as assert from 'assert';
 import { IMatch } from 'vs/base/common/filters';
 import { matchesFuzzyOcticonAware, parseOcticons } from 'vs/base/common/octicon';
@@ -22,7 +20,7 @@ function filterOk(filter: IOcticonFilter, word: string, target: { text: string, 
 }
 
 suite('Octicon', () => {
-	test('matchesFuzzzyOcticonAware', function () {
+	test('matchesFuzzzyOcticonAware', () => {
 
 		// Camel Case
 
@@ -58,6 +56,11 @@ suite('Octicon', () => {
 
 		filterOk(matchesFuzzyOcticonAware, 'indent', parseOcticons('This $octicon Indent Using Spaces'), [
 			{ start: 14, end: 20 },
+		]);
+
+		// Testing #59343
+		filterOk(matchesFuzzyOcticonAware, 'unt', parseOcticons('$(primitive-dot) $(file-text) Untitled-1'), [
+			{ start: 30, end: 33 },
 		]);
 	});
 });

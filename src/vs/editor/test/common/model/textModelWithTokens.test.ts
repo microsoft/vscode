@@ -2,20 +2,19 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
 import * as assert from 'assert';
-import { TextModel } from 'vs/editor/common/model/textModel';
 import { IDisposable } from 'vs/base/common/lifecycle';
-import { ViewLineToken } from 'vs/editor/test/common/core/viewLineToken';
-import { ITokenizationSupport, TokenizationRegistry, LanguageId, LanguageIdentifier, MetadataConsts } from 'vs/editor/common/modes';
-import { CharacterPair } from 'vs/editor/common/modes/languageConfiguration';
-import { Range } from 'vs/editor/common/core/range';
 import { Position } from 'vs/editor/common/core/position';
+import { Range } from 'vs/editor/common/core/range';
+import { TokenizationResult2 } from 'vs/editor/common/core/token';
 import { IFoundBracket } from 'vs/editor/common/model';
+import { TextModel } from 'vs/editor/common/model/textModel';
+import { ITokenizationSupport, LanguageId, LanguageIdentifier, MetadataConsts, TokenizationRegistry } from 'vs/editor/common/modes';
+import { CharacterPair } from 'vs/editor/common/modes/languageConfiguration';
 import { LanguageConfigurationRegistry } from 'vs/editor/common/modes/languageConfigurationRegistry';
 import { NULL_STATE } from 'vs/editor/common/modes/nullMode';
-import { TokenizationResult2 } from 'vs/editor/common/core/token';
+import { ViewLineToken } from 'vs/editor/test/common/core/viewLineToken';
 
 suite('TextModelWithTokens', () => {
 
@@ -159,7 +158,7 @@ suite('TextModelWithTokens - bracket matching', () => {
 	}
 
 	const languageIdentifier = new LanguageIdentifier('bracketMode1', LanguageId.PlainText);
-	let registration: IDisposable = null;
+	let registration: IDisposable | null = null;
 
 	setup(() => {
 		registration = LanguageConfigurationRegistry.register(languageIdentifier, {
@@ -366,6 +365,31 @@ suite('TextModelWithTokens regression tests', () => {
 		model.dispose();
 		registration.dispose();
 	});
+
+	test('issue #11856: Bracket matching does not work as expected if the opening brace symbol is contained in the closing brace symbol', () => {
+
+		const languageIdentifier = new LanguageIdentifier('testMode', LanguageId.PlainText);
+
+		let registration = LanguageConfigurationRegistry.register(languageIdentifier, {
+			brackets: [
+				['sequence', 'endsequence'],
+				['feature', 'endfeature']
+			]
+		});
+
+		let model = TextModel.createFromString([
+			'sequence "outer"',
+			'     sequence "inner"',
+			'     endsequence',
+			'endsequence',
+		].join('\n'), undefined, languageIdentifier);
+
+		let actual = model.matchBracket(new Position(3, 9));
+		assert.deepEqual(actual, [new Range(3, 6, 3, 17), new Range(2, 6, 2, 14)]);
+
+		model.dispose();
+		registration.dispose();
+	});
 });
 
 suite('TextModel.getLineIndentGuide', () => {
@@ -380,9 +404,38 @@ suite('TextModel.getLineIndentGuide', () => {
 			actual[line - 1] = [actualIndents[line - 1], model.getLineContent(line)];
 		}
 
-		// let expected = lines.map(l => l[0]);
-
 		assert.deepEqual(actual, lines);
+
+		// Also test getActiveIndentGuide
+		for (let lineNumber = 1; lineNumber <= model.getLineCount(); lineNumber++) {
+			let startLineNumber = lineNumber;
+			let endLineNumber = lineNumber;
+			let indent = actualIndents[lineNumber - 1];
+
+			if (indent !== 0) {
+				for (let i = lineNumber - 1; i >= 1; i--) {
+					const currIndent = actualIndents[i - 1];
+					if (currIndent >= indent) {
+						startLineNumber = i;
+					} else {
+						break;
+					}
+				}
+				for (let i = lineNumber + 1; i <= model.getLineCount(); i++) {
+					const currIndent = actualIndents[i - 1];
+					if (currIndent >= indent) {
+						endLineNumber = i;
+					} else {
+						break;
+					}
+				}
+			}
+
+			const expected = { startLineNumber, endLineNumber, indent };
+			const actual = model.getActiveIndentGuide(lineNumber, 1, model.getLineCount());
+
+			assert.deepEqual(actual, expected, `line number ${lineNumber}`);
+		}
 
 		model.dispose();
 	}
@@ -541,5 +594,26 @@ suite('TextModel.getLineIndentGuide', () => {
 			[3, '\t\t\tlabel(for)'],
 			[0, 'include script'],
 		]);
+	});
+
+	test('issue #49173', () => {
+		let model = TextModel.createFromString([
+			'class A {',
+			'	public m1(): void {',
+			'	}',
+			'	public m2(): void {',
+			'	}',
+			'	public m3(): void {',
+			'	}',
+			'	public m4(): void {',
+			'	}',
+			'	public m5(): void {',
+			'	}',
+			'}',
+		].join('\n'));
+
+		const actual = model.getActiveIndentGuide(2, 4, 9);
+		assert.deepEqual(actual, { startLineNumber: 2, endLineNumber: 9, indent: 1 });
+		model.dispose();
 	});
 });

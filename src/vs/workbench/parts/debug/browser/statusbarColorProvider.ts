@@ -11,7 +11,7 @@ import { IPartService, Parts } from 'vs/workbench/services/part/common/partServi
 import { IDebugService, State } from 'vs/workbench/parts/debug/common/debug';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { STATUS_BAR_NO_FOLDER_BACKGROUND, STATUS_BAR_NO_FOLDER_FOREGROUND, STATUS_BAR_BACKGROUND, Themable, STATUS_BAR_FOREGROUND, STATUS_BAR_NO_FOLDER_BORDER, STATUS_BAR_BORDER } from 'vs/workbench/common/theme';
-import { addClass, removeClass } from 'vs/base/browser/dom';
+import { addClass, removeClass, createStyleSheet } from 'vs/base/browser/dom';
 
 // colors for theming
 
@@ -34,6 +34,7 @@ export const STATUS_BAR_DEBUGGING_BORDER = registerColor('statusBar.debuggingBor
 }, localize('statusBarDebuggingBorder', "Status bar border color separating to the sidebar and editor when a program is being debugged. The status bar is shown in the bottom of the window"));
 
 export class StatusBarColorProvider extends Themable implements IWorkbenchContribution {
+	private styleElement: HTMLStyleElement;
 
 	constructor(
 		@IThemeService themeService: IThemeService,
@@ -44,36 +45,47 @@ export class StatusBarColorProvider extends Themable implements IWorkbenchContri
 		super(themeService);
 
 		this.registerListeners();
+		this.updateStyles();
 	}
 
 	private registerListeners(): void {
-		this.toUnbind.push(this.debugService.onDidChangeState(state => this.updateStyles()));
-		this.toUnbind.push(this.contextService.onDidChangeWorkbenchState(state => this.updateStyles()));
+		this._register(this.debugService.onDidChangeState(state => this.updateStyles()));
+		this._register(this.contextService.onDidChangeWorkbenchState(state => this.updateStyles()));
 	}
 
 	protected updateStyles(): void {
 		super.updateStyles();
 
 		const container = this.partService.getContainer(Parts.STATUSBAR_PART);
-		if (this.isDebugging()) {
+		if (isStatusbarInDebugMode(this.debugService)) {
 			addClass(container, 'debugging');
 		} else {
 			removeClass(container, 'debugging');
 		}
 
-		container.style.backgroundColor = this.getColor(this.getColorKey(STATUS_BAR_NO_FOLDER_BACKGROUND, STATUS_BAR_DEBUGGING_BACKGROUND, STATUS_BAR_BACKGROUND));
+		// Container Colors
+		const backgroundColor = this.getColor(this.getColorKey(STATUS_BAR_NO_FOLDER_BACKGROUND, STATUS_BAR_DEBUGGING_BACKGROUND, STATUS_BAR_BACKGROUND));
+		container.style.backgroundColor = backgroundColor;
 		container.style.color = this.getColor(this.getColorKey(STATUS_BAR_NO_FOLDER_FOREGROUND, STATUS_BAR_DEBUGGING_FOREGROUND, STATUS_BAR_FOREGROUND));
 
+		// Border Color
 		const borderColor = this.getColor(this.getColorKey(STATUS_BAR_NO_FOLDER_BORDER, STATUS_BAR_DEBUGGING_BORDER, STATUS_BAR_BORDER)) || this.getColor(contrastBorder);
 		container.style.borderTopWidth = borderColor ? '1px' : null;
 		container.style.borderTopStyle = borderColor ? 'solid' : null;
 		container.style.borderTopColor = borderColor;
+
+		// Notification Beak
+		if (!this.styleElement) {
+			this.styleElement = createStyleSheet(container);
+		}
+
+		this.styleElement.innerHTML = `.monaco-workbench > .part.statusbar > .statusbar-item.has-beak:before { border-bottom-color: ${backgroundColor} !important; }`;
 	}
 
 	private getColorKey(noFolderColor: string, debuggingColor: string, normalColor: string): string {
 
 		// Not debugging
-		if (!this.isDebugging()) {
+		if (!isStatusbarInDebugMode(this.debugService)) {
 			if (this.contextService.getWorkbenchState() !== WorkbenchState.EMPTY) {
 				return normalColor;
 			}
@@ -84,24 +96,20 @@ export class StatusBarColorProvider extends Themable implements IWorkbenchContri
 		// Debugging
 		return debuggingColor;
 	}
+}
 
-	private isDebugging(): boolean {
-		if (this.debugService.state === State.Inactive || this.debugService.state === State.Initializing) {
-			return false;
-		}
-
-		if (this.isRunningWithoutDebug()) {
-			return false;
-		}
-
-		return true;
+export function isStatusbarInDebugMode(debugService: IDebugService): boolean {
+	if (debugService.state === State.Inactive || debugService.state === State.Initializing) {
+		return false;
 	}
 
-	private isRunningWithoutDebug(): boolean {
-		const process = this.debugService.getViewModel().focusedProcess;
-
-		return process && process.configuration && process.configuration.noDebug;
+	const session = debugService.getViewModel().focusedSession;
+	const isRunningWithoutDebug = session && session.configuration && session.configuration.noDebug;
+	if (isRunningWithoutDebug) {
+		return false;
 	}
+
+	return true;
 }
 
 registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {

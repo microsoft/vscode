@@ -3,12 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import { ExtHostContext, ObjectIdentifier, IExtHostContext } from '../node/extHost.protocol';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import Event, { Emitter } from 'vs/base/common/event';
+import { Event, Emitter } from 'vs/base/common/event';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { extHostCustomer } from 'vs/workbench/api/electron-browser/extHostCustomers';
 import { isThenable } from 'vs/base/common/async';
@@ -32,12 +30,12 @@ export class HeapService implements IHeapService {
 
 	_serviceBrand: any;
 
-	private _onGarbageCollection: Emitter<number[]> = new Emitter<number[]>();
+	private readonly _onGarbageCollection: Emitter<number[]> = new Emitter<number[]>();
 	public readonly onGarbageCollection: Event<number[]> = this._onGarbageCollection.event;
 
 	private _activeSignals = new WeakMap<any, object>();
 	private _activeIds = new Set<number>();
-	private _consumeHandle: number;
+	private _consumeHandle: any;
 
 	constructor() {
 		//

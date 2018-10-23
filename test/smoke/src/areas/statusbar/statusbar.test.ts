@@ -3,19 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-
-import { SpectronApplication, Quality } from '../../spectron/application';
+import { Application, Quality } from '../../application';
 import { StatusBarElement } from './statusbar';
 
 export function setup() {
 	describe('Statusbar', () => {
-		before(function () {
-			this.app.suiteName = 'Statusbar';
-		});
-
 		it('verifies presence of all default status bar elements', async function () {
-			const app = this.app as SpectronApplication;
+			const app = this.app as Application;
 
 			await app.workbench.statusbar.waitForStatusbarElement(StatusBarElement.BRANCH_STATUS);
 			if (app.quality !== Quality.Dev) {
@@ -33,47 +27,47 @@ export function setup() {
 		});
 
 		it(`verifies that 'quick open' opens when clicking on status bar elements`, async function () {
-			const app = this.app as SpectronApplication;
+			const app = this.app as Application;
 
 			await app.workbench.statusbar.clickOn(StatusBarElement.BRANCH_STATUS);
-			await app.workbench.quickopen.waitForQuickOpenOpened();
-			await app.workbench.quickopen.closeQuickOpen();
+			await app.workbench.quickinput.waitForQuickInputOpened();
+			await app.workbench.quickinput.closeQuickInput();
 
 			await app.workbench.quickopen.openFile('app.js');
 			await app.workbench.statusbar.clickOn(StatusBarElement.INDENTATION_STATUS);
-			await app.workbench.quickopen.waitForQuickOpenOpened();
-			await app.workbench.quickopen.closeQuickOpen();
+			await app.workbench.quickinput.waitForQuickInputOpened();
+			await app.workbench.quickinput.closeQuickInput();
 			await app.workbench.statusbar.clickOn(StatusBarElement.ENCODING_STATUS);
-			await app.workbench.quickopen.waitForQuickOpenOpened();
-			await app.workbench.quickopen.closeQuickOpen();
+			await app.workbench.quickinput.waitForQuickInputOpened();
+			await app.workbench.quickinput.closeQuickInput();
 			await app.workbench.statusbar.clickOn(StatusBarElement.EOL_STATUS);
-			await app.workbench.quickopen.waitForQuickOpenOpened();
-			await app.workbench.quickopen.closeQuickOpen();
+			await app.workbench.quickinput.waitForQuickInputOpened();
+			await app.workbench.quickinput.closeQuickInput();
 			await app.workbench.statusbar.clickOn(StatusBarElement.LANGUAGE_STATUS);
-			await app.workbench.quickopen.waitForQuickOpenOpened();
-			await app.workbench.quickopen.closeQuickOpen();
+			await app.workbench.quickinput.waitForQuickInputOpened();
+			await app.workbench.quickinput.closeQuickInput();
 		});
 
 		it(`verifies that 'Problems View' appears when clicking on 'Problems' status element`, async function () {
-			const app = this.app as SpectronApplication;
+			const app = this.app as Application;
 
 			await app.workbench.statusbar.clickOn(StatusBarElement.PROBLEMS_STATUS);
 			await app.workbench.problems.waitForProblemsView();
 		});
 
 		it(`verifies that 'Tweet us feedback' pop-up appears when clicking on 'Feedback' icon`, async function () {
-			const app = this.app as SpectronApplication;
+			const app = this.app as Application;
 
 			if (app.quality === Quality.Dev) {
 				return this.skip();
 			}
 
 			await app.workbench.statusbar.clickOn(StatusBarElement.FEEDBACK_ICON);
-			assert.ok(!!await app.client.waitForElement('.feedback-form'));
+			await app.code.waitForElement('.feedback-form');
 		});
 
 		it(`checks if 'Go to Line' works if called from the status bar`, async function () {
-			const app = this.app as SpectronApplication;
+			const app = this.app as Application;
 
 			await app.workbench.quickopen.openFile('app.js');
 			await app.workbench.statusbar.clickOn(StatusBarElement.SELECTION_STATUS);
@@ -81,17 +75,17 @@ export function setup() {
 			await app.workbench.quickopen.waitForQuickOpenOpened();
 
 			await app.workbench.quickopen.submit(':15');
-			await app.workbench.editor.waitForHighlightingLine(15);
+			await app.workbench.editor.waitForHighlightingLine('app.js', 15);
 		});
 
 		it(`verifies if changing EOL is reflected in the status bar`, async function () {
-			const app = this.app as SpectronApplication;
+			const app = this.app as Application;
 
 			await app.workbench.quickopen.openFile('app.js');
 			await app.workbench.statusbar.clickOn(StatusBarElement.EOL_STATUS);
 
-			await app.workbench.quickopen.waitForQuickOpenOpened();
-			await app.workbench.quickopen.selectQuickOpenElement(1);
+			await app.workbench.quickinput.waitForQuickInputOpened();
+			await app.workbench.quickinput.selectQuickInputElement(1);
 
 			await app.workbench.statusbar.waitForEOL('CRLF');
 		});

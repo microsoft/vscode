@@ -4,7 +4,7 @@
 		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
 		"Once accepted there, we are happy to receive an update request."
 	],
-	"version": "https://github.com/atom/language-sass/commit/a07688bd078f420f56df6221e9263d80e738869b",
+	"version": "https://github.com/atom/language-sass/commit/804a935ea1d50504e14a7f602e2bb133fee8450c",
 	"name": "SCSS",
 	"scopeName": "source.css.scss",
 	"patterns": [
@@ -506,6 +506,9 @@
 					"name": "meta.at-rule.media.scss",
 					"patterns": [
 						{
+							"include": "#comment_docblock"
+						},
+						{
 							"include": "#comment_block"
 						},
 						{
@@ -842,6 +845,21 @@
 				}
 			]
 		},
+		"comment_docblock": {
+			"name": "comment.block.documentation.scss",
+			"begin": "///",
+			"beginCaptures": {
+				"0": {
+					"name": "punctuation.definition.comment.scss"
+				}
+			},
+			"end": "(?=$)",
+			"patterns": [
+				{
+					"include": "source.sassdoc"
+				}
+			]
+		},
 		"comment_block": {
 			"begin": "/\\*",
 			"beginCaptures": {
@@ -1006,6 +1024,9 @@
 					"include": "#variable"
 				},
 				{
+					"include": "#comment_docblock"
+				},
+				{
 					"include": "#comment_block"
 				},
 				{
@@ -1069,6 +1090,9 @@
 			},
 			"name": "meta.definition.variable.map.scss",
 			"patterns": [
+				{
+					"include": "#comment_docblock"
+				},
 				{
 					"include": "#comment_block"
 				},
@@ -1672,6 +1696,9 @@
 					},
 					"end": "(?=;)",
 					"patterns": [
+						{
+							"include": "#comment_docblock"
+						},
 						{
 							"include": "#comment_block"
 						},

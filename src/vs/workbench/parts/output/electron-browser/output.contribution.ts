@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import nls = require('vs/nls');
+import * as nls from 'vs/nls';
 import { KeyMod, KeyChord, KeyCode } from 'vs/base/common/keyCodes';
 import { ModesRegistry } from 'vs/editor/common/modes/modesRegistry';
 import { Registry } from 'vs/platform/registry/common/platform';
@@ -12,8 +12,8 @@ import { KeybindingsRegistry, IKeybindings } from 'vs/platform/keybinding/common
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IWorkbenchActionRegistry, Extensions as ActionExtensions } from 'vs/workbench/common/actions';
 import { OutputService, LogContentProvider } from 'vs/workbench/parts/output/electron-browser/outputServices';
-import { ToggleOutputAction, ClearOutputAction } from 'vs/workbench/parts/output/browser/outputActions';
-import { OUTPUT_MODE_ID, OUTPUT_MIME, OUTPUT_PANEL_ID, IOutputService, CONTEXT_IN_OUTPUT, LOG_SCHEME, COMMAND_OPEN_LOG_VIEWER } from 'vs/workbench/parts/output/common/output';
+import { ToggleOutputAction, ClearOutputAction, OpenLogOutputFile, ShowLogsOutputChannelAction, OpenOutputLogFileAction } from 'vs/workbench/parts/output/browser/outputActions';
+import { OUTPUT_MODE_ID, OUTPUT_MIME, OUTPUT_PANEL_ID, IOutputService, CONTEXT_IN_OUTPUT, LOG_SCHEME, LOG_MODE_ID, LOG_MIME, CONTEXT_ACTIVE_LOG_OUTPUT } from 'vs/workbench/parts/output/common/output';
 import { PanelRegistry, Extensions, PanelDescriptor } from 'vs/workbench/browser/panel';
 import { CommandsRegistry, ICommandHandler } from 'vs/platform/commands/common/commands';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
@@ -23,10 +23,8 @@ import { LogViewer, LogViewerInput } from 'vs/workbench/parts/output/browser/log
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions, IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
-import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
-import URI from 'vs/base/common/uri';
-import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 
 // Register Service
 registerSingleton(IOutputService, OutputService);
@@ -37,6 +35,14 @@ ModesRegistry.registerLanguage({
 	extensions: [],
 	aliases: [null],
 	mimetypes: [OUTPUT_MIME]
+});
+
+// Register Log Output Mode
+ModesRegistry.registerLanguage({
+	id: LOG_MODE_ID,
+	extensions: [],
+	aliases: [null],
+	mimetypes: [LOG_MIME]
 });
 
 // Register Output Panel
@@ -83,6 +89,9 @@ actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(ToggleOutputActi
 actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(ClearOutputAction, ClearOutputAction.ID, ClearOutputAction.LABEL),
 	'View: Clear Output', nls.localize('viewCategory', "View"));
 
+const devCategory = nls.localize('developer', "Developer");
+actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(ShowLogsOutputChannelAction, ShowLogsOutputChannelAction.ID, ShowLogsOutputChannelAction.LABEL), 'Developer: Show Logs...', devCategory);
+actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(OpenOutputLogFileAction, OpenOutputLogFileAction.ID, OpenOutputLogFileAction.LABEL), 'Developer: Open Log File...', devCategory);
 
 interface IActionDescriptor {
 	id: string;
@@ -160,10 +169,23 @@ registerAction({
 	}
 });
 
-CommandsRegistry.registerCommand(COMMAND_OPEN_LOG_VIEWER, function (accessor: ServicesAccessor, file: URI) {
-	if (file) {
-		const editorService = accessor.get(IWorkbenchEditorService);
-		return editorService.openEditor(accessor.get(IInstantiationService).createInstance(LogViewerInput, file));
+registerAction({
+	id: 'workbench.action.openActiveLogOutputFile',
+	title: nls.localize('openActiveLogOutputFile', "View: Open Active Log Output File"),
+	menu: {
+		menuId: MenuId.CommandPalette,
+		when: CONTEXT_ACTIVE_LOG_OUTPUT
+	},
+	handler(accessor) {
+		accessor.get(IInstantiationService).createInstance(OpenLogOutputFile).run();
 	}
-	return null;
+});
+
+MenuRegistry.appendMenuItem(MenuId.MenubarViewMenu, {
+	group: '4_panels',
+	command: {
+		id: ToggleOutputAction.ID,
+		title: nls.localize({ key: 'miToggleOutput', comment: ['&& denotes a mnemonic'] }, "&&Output")
+	},
+	order: 1
 });

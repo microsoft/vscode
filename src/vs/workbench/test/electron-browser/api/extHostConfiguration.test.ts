@@ -3,27 +3,27 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import * as assert from 'assert';
-import URI from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 import { ExtHostWorkspace } from 'vs/workbench/api/node/extHostWorkspace';
 import { ExtHostConfiguration } from 'vs/workbench/api/node/extHostConfiguration';
 import { MainThreadConfigurationShape, IConfigurationInitData } from 'vs/workbench/api/node/extHost.protocol';
-import { TPromise } from 'vs/base/common/winjs.base';
 import { ConfigurationModel } from 'vs/platform/configuration/common/configurationModels';
 import { TestRPCProtocol } from './testRPCProtocol';
 import { mock } from 'vs/workbench/test/electron-browser/api/mock';
 import { IWorkspaceFolder, WorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import { ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
+import { NullLogService } from 'vs/platform/log/common/log';
+import { assign } from 'vs/base/common/objects';
+import { Counter } from 'vs/base/common/numbers';
 
 suite('ExtHostConfiguration', function () {
 
 	class RecordingShape extends mock<MainThreadConfigurationShape>() {
 		lastArgs: [ConfigurationTarget, string, any];
-		$updateConfigurationOption(target: ConfigurationTarget, key: string, value: any): TPromise<void> {
+		$updateConfigurationOption(target: ConfigurationTarget, key: string, value: any): Promise<void> {
 			this.lastArgs = [target, key, value];
-			return TPromise.as(void 0);
+			return Promise.resolve(void 0);
 		}
 	}
 
@@ -31,7 +31,7 @@ suite('ExtHostConfiguration', function () {
 		if (!shape) {
 			shape = new class extends mock<MainThreadConfigurationShape>() { };
 		}
-		return new ExtHostConfiguration(shape, new ExtHostWorkspace(new TestRPCProtocol(), null), createConfigurationData(contents));
+		return new ExtHostConfiguration(shape, new ExtHostWorkspace(new TestRPCProtocol(), null, new NullLogService(), new Counter()), createConfigurationData(contents));
 	}
 
 	function createConfigurationData(contents: any): IConfigurationInitData {
@@ -40,7 +40,8 @@ suite('ExtHostConfiguration', function () {
 			user: new ConfigurationModel(contents),
 			workspace: new ConfigurationModel(),
 			folders: Object.create(null),
-			configurationScopes: {}
+			configurationScopes: {},
+			isComplete: true
 		};
 	}
 
@@ -61,7 +62,7 @@ suite('ExtHostConfiguration', function () {
 		assert.equal(extHostConfig.getConfiguration('search').has('exclude.**/node_modules'), true);
 	});
 
-	test('has/get', function () {
+	test('has/get', () => {
 
 		const all = createExtHostConfiguration({
 			'farboo': {
@@ -101,41 +102,170 @@ suite('ExtHostConfiguration', function () {
 					'config2': 'Das Pferd frisst kein Reis.'
 				},
 				'config4': ''
+			},
+			'workbench': {
+				'colorCustomizations': {
+					'statusBar.foreground': 'somevalue'
+				}
 			}
 		});
 
 		let testObject = all.getConfiguration();
 		let actual = testObject.get('farboo');
+		actual['nested']['config1'] = 41;
+		assert.equal(41, actual['nested']['config1']);
 		actual['farboo1'] = 'newValue';
 		assert.equal('newValue', actual['farboo1']);
 
 		testObject = all.getConfiguration();
-		testObject['farboo']['farboo1'] = 'newValue';
-		assert.equal('newValue', testObject['farboo']['farboo1']);
+		actual = testObject.get('farboo');
+		assert.equal(actual['nested']['config1'], 42);
+		assert.equal(actual['farboo1'], undefined);
 
 		testObject = all.getConfiguration();
-		testObject['farboo']['farboo1'] = 'newValue';
-		assert.equal('newValue', testObject.get('farboo')['farboo1']);
+		actual = testObject.get('farboo');
+		assert.equal(actual['config0'], true);
+		actual['config0'] = false;
+		assert.equal(actual['config0'], false);
+
+		testObject = all.getConfiguration();
+		actual = testObject.get('farboo');
+		assert.equal(actual['config0'], true);
 
 		testObject = all.getConfiguration();
 		actual = testObject.inspect('farboo');
 		actual['value'] = 'effectiveValue';
 		assert.equal('effectiveValue', actual['value']);
 
-		testObject = all.getConfiguration();
-		actual = testObject.get('farboo');
-		assert.equal(undefined, actual['farboo1']);
+		testObject = all.getConfiguration('workbench');
+		actual = testObject.get('colorCustomizations');
+		delete actual['statusBar.foreground'];
+		assert.equal(actual['statusBar.foreground'], undefined);
+		testObject = all.getConfiguration('workbench');
+		actual = testObject.get('colorCustomizations');
+		assert.equal(actual['statusBar.foreground'], 'somevalue');
+	});
 
-		testObject = all.getConfiguration();
-		testObject['farboo']['farboo1'] = 'newValue';
-		testObject = all.getConfiguration();
-		assert.equal(undefined, testObject['farboo']['farboo1']);
+	test('Stringify returned configuration', function () {
+
+		const all = createExtHostConfiguration({
+			'farboo': {
+				'config0': true,
+				'nested': {
+					'config1': 42,
+					'config2': 'Das Pferd frisst kein Reis.'
+				},
+				'config4': ''
+			},
+			'workbench': {
+				'colorCustomizations': {
+					'statusBar.foreground': 'somevalue'
+				},
+				'emptyobjectkey': {
+				}
+			}
+		});
+
+		let testObject = all.getConfiguration();
+		let actual = testObject.get('farboo');
+		assert.deepEqual(JSON.stringify({
+			'config0': true,
+			'nested': {
+				'config1': 42,
+				'config2': 'Das Pferd frisst kein Reis.'
+			},
+			'config4': ''
+		}), JSON.stringify(actual));
+
+		assert.deepEqual(undefined, JSON.stringify(testObject.get('unknownkey')));
+
+		actual = testObject.get('farboo');
+		actual['config0'] = false;
+		assert.deepEqual(JSON.stringify({
+			'config0': false,
+			'nested': {
+				'config1': 42,
+				'config2': 'Das Pferd frisst kein Reis.'
+			},
+			'config4': ''
+		}), JSON.stringify(actual));
+
+		actual = testObject.get('workbench')['colorCustomizations'];
+		actual['statusBar.background'] = 'anothervalue';
+		assert.deepEqual(JSON.stringify({
+			'statusBar.foreground': 'somevalue',
+			'statusBar.background': 'anothervalue'
+		}), JSON.stringify(actual));
+
+		actual = testObject.get('workbench');
+		actual['unknownkey'] = 'somevalue';
+		assert.deepEqual(JSON.stringify({
+			'colorCustomizations': {
+				'statusBar.foreground': 'somevalue'
+			},
+			'emptyobjectkey': {},
+			'unknownkey': 'somevalue'
+		}), JSON.stringify(actual));
+
+		actual = all.getConfiguration('workbench').get('emptyobjectkey');
+		actual = assign(actual || {}, {
+			'statusBar.background': `#0ff`,
+			'statusBar.foreground': `#ff0`,
+		});
+		assert.deepEqual(JSON.stringify({
+			'statusBar.background': `#0ff`,
+			'statusBar.foreground': `#ff0`,
+		}), JSON.stringify(actual));
+
+		actual = all.getConfiguration('workbench').get('unknownkey');
+		actual = assign(actual || {}, {
+			'statusBar.background': `#0ff`,
+			'statusBar.foreground': `#ff0`,
+		});
+		assert.deepEqual(JSON.stringify({
+			'statusBar.background': `#0ff`,
+			'statusBar.foreground': `#ff0`,
+		}), JSON.stringify(actual));
+	});
+
+	test('cannot modify returned configuration', function () {
+
+		const all = createExtHostConfiguration({
+			'farboo': {
+				'config0': true,
+				'nested': {
+					'config1': 42,
+					'config2': 'Das Pferd frisst kein Reis.'
+				},
+				'config4': ''
+			}
+		});
+
+		let testObject = all.getConfiguration();
+
+		try {
+			testObject['get'] = null;
+			assert.fail('This should be readonly');
+		} catch (e) {
+		}
+
+		try {
+			testObject['farboo']['config0'] = false;
+			assert.fail('This should be readonly');
+		} catch (e) {
+		}
+
+		try {
+			testObject['farboo']['farboo1'] = 'hello';
+			assert.fail('This should be readonly');
+		} catch (e) {
+		}
 	});
 
 	test('inspect in no workspace context', function () {
 		const testObject = new ExtHostConfiguration(
 			new class extends mock<MainThreadConfigurationShape>() { },
-			new ExtHostWorkspace(new TestRPCProtocol(), null),
+			new ExtHostWorkspace(new TestRPCProtocol(), null, new NullLogService(), new Counter()),
 			{
 				defaults: new ConfigurationModel({
 					'editor': {
@@ -149,7 +279,8 @@ suite('ExtHostConfiguration', function () {
 				}, ['editor.wordWrap']),
 				workspace: new ConfigurationModel({}, []),
 				folders: Object.create(null),
-				configurationScopes: {}
+				configurationScopes: {},
+				isComplete: true
 			}
 		);
 
@@ -181,7 +312,7 @@ suite('ExtHostConfiguration', function () {
 				'id': 'foo',
 				'folders': [aWorkspaceFolder(URI.file('foo'), 0)],
 				'name': 'foo'
-			}),
+			}, new NullLogService(), new Counter()),
 			{
 				defaults: new ConfigurationModel({
 					'editor': {
@@ -195,7 +326,8 @@ suite('ExtHostConfiguration', function () {
 				}, ['editor.wordWrap']),
 				workspace,
 				folders,
-				configurationScopes: {}
+				configurationScopes: {},
+				isComplete: true
 			}
 		);
 
@@ -254,7 +386,7 @@ suite('ExtHostConfiguration', function () {
 				'id': 'foo',
 				'folders': [aWorkspaceFolder(firstRoot, 0), aWorkspaceFolder(secondRoot, 1)],
 				'name': 'foo'
-			}),
+			}, new NullLogService(), new Counter()),
 			{
 				defaults: new ConfigurationModel({
 					'editor': {
@@ -269,7 +401,8 @@ suite('ExtHostConfiguration', function () {
 				}, ['editor.wordWrap']),
 				workspace,
 				folders,
-				configurationScopes: {}
+				configurationScopes: {},
+				isComplete: true
 			}
 		);
 
@@ -442,8 +575,8 @@ suite('ExtHostConfiguration', function () {
 	test('update/error-state not OK', function () {
 
 		const shape = new class extends mock<MainThreadConfigurationShape>() {
-			$updateConfigurationOption(target: ConfigurationTarget, key: string, value: any): TPromise<any> {
-				return TPromise.wrapError(new Error('Unknown Key')); // something !== OK
+			$updateConfigurationOption(target: ConfigurationTarget, key: string, value: any): Promise<any> {
+				return Promise.reject(new Error('Unknown Key')); // something !== OK
 			}
 		};
 
@@ -462,7 +595,7 @@ suite('ExtHostConfiguration', function () {
 				'id': 'foo',
 				'folders': [workspaceFolder],
 				'name': 'foo'
-			}),
+			}, new NullLogService(), new Counter()),
 			createConfigurationData({
 				'farboo': {
 					'config': false,

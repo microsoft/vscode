@@ -2,12 +2,9 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
 import { transformErrorForSerialization } from 'vs/base/common/errors';
 import { Disposable } from 'vs/base/common/lifecycle';
-import { ErrorCallback, TPromise, ValueCallback } from 'vs/base/common/winjs.base';
-import { ShallowCancelThenPromise } from 'vs/base/common/async';
 import { isWeb } from 'vs/base/common/platform';
 
 const INITIALIZE = '$initialize';
@@ -58,13 +55,13 @@ interface IReplyMessage extends IMessage {
 }
 
 interface IMessageReply {
-	c: ValueCallback;
-	e: ErrorCallback;
+	resolve: (value?: any) => void;
+	reject: (error?: any) => void;
 }
 
 interface IMessageHandler {
 	sendMessage(msg: string): void;
-	handleMessage(method: string, args: any[]): TPromise<any>;
+	handleMessage(method: string, args: any[]): Promise<any>;
 }
 
 class SimpleWorkerProtocol {
@@ -85,28 +82,20 @@ class SimpleWorkerProtocol {
 		this._workerId = workerId;
 	}
 
-	public sendMessage(method: string, args: any[]): TPromise<any> {
+	public sendMessage(method: string, args: any[]): Promise<any> {
 		let req = String(++this._lastSentReq);
-		let reply: IMessageReply = {
-			c: null,
-			e: null
-		};
-		let result = new TPromise<any>((c, e, p) => {
-			reply.c = c;
-			reply.e = e;
-		}, () => {
-			// Cancel not supported
+		return new Promise<any>((resolve, reject) => {
+			this._pendingReplies[req] = {
+				resolve: resolve,
+				reject: reject
+			};
+			this._send({
+				vsWorker: this._workerId,
+				req: req,
+				method: method,
+				args: args
+			});
 		});
-		this._pendingReplies[req] = reply;
-
-		this._send({
-			vsWorker: this._workerId,
-			req: req,
-			method: method,
-			args: args
-		});
-
-		return result;
 	}
 
 	public handleMessage(serializedMessage: string): void {
@@ -115,8 +104,9 @@ class SimpleWorkerProtocol {
 			message = JSON.parse(serializedMessage);
 		} catch (e) {
 			// nothing
+			return;
 		}
-		if (!message.vsWorker) {
+		if (!message || !message.vsWorker) {
 			return;
 		}
 		if (this._workerId !== -1 && message.vsWorker !== this._workerId) {
@@ -144,11 +134,11 @@ class SimpleWorkerProtocol {
 					err.message = replyMessage.err.message;
 					err.stack = replyMessage.err.stack;
 				}
-				reply.e(err);
+				reply.reject(err);
 				return;
 			}
 
-			reply.c(replyMessage.res);
+			reply.resolve(replyMessage.res);
 			return;
 		}
 
@@ -163,6 +153,10 @@ class SimpleWorkerProtocol {
 				err: undefined
 			});
 		}, (e) => {
+			if (e.detail instanceof Error) {
+				// Loading errors have a detail property that points to the actual error
+				e.detail = transformErrorForSerialization(e.detail);
+			}
 			this._send({
 				vsWorker: this._workerId,
 				seq: req,
@@ -185,15 +179,14 @@ class SimpleWorkerProtocol {
 export class SimpleWorkerClient<T> extends Disposable {
 
 	private _worker: IWorker;
-	private _onModuleLoaded: TPromise<string[]>;
+	private _onModuleLoaded: Promise<string[]>;
 	private _protocol: SimpleWorkerProtocol;
-	private _lazyProxy: TPromise<T>;
+	private _lazyProxy: Promise<T>;
 
 	constructor(workerFactory: IWorkerFactory, moduleId: string) {
 		super();
 
-		let lazyProxyFulfill: (v: T) => void = null;
-		let lazyProxyReject: (err: any) => void = null;
+		let lazyProxyReject: ((err: any) => void) | null = null;
 
 		this._worker = this._register(workerFactory.create(
 			'vs/base/common/worker/simpleWorker',
@@ -203,7 +196,9 @@ export class SimpleWorkerClient<T> extends Disposable {
 			(err: any) => {
 				// in Firefox, web workers fail lazily :(
 				// we will reject the proxy
-				lazyProxyReject(err);
+				if (lazyProxyReject) {
+					lazyProxyReject(err);
+				}
 			}
 		));
 
@@ -211,28 +206,22 @@ export class SimpleWorkerClient<T> extends Disposable {
 			sendMessage: (msg: string): void => {
 				this._worker.postMessage(msg);
 			},
-			handleMessage: (method: string, args: any[]): TPromise<any> => {
+			handleMessage: (method: string, args: any[]): Promise<any> => {
 				// Intentionally not supporting worker -> main requests
-				return TPromise.as(null);
+				return Promise.resolve(null);
 			}
 		});
 		this._protocol.setWorkerId(this._worker.getId());
 
 		// Gather loader configuration
 		let loaderConfiguration: any = null;
-		let globalRequire = (<any>self).require;
-		if (typeof globalRequire.getConfig === 'function') {
+		if (typeof (<any>self).require !== 'undefined' && typeof (<any>self).require.getConfig === 'function') {
 			// Get the configuration from the Monaco AMD Loader
-			loaderConfiguration = globalRequire.getConfig();
+			loaderConfiguration = (<any>self).require.getConfig();
 		} else if (typeof (<any>self).requirejs !== 'undefined') {
 			// Get the configuration from requirejs
 			loaderConfiguration = (<any>self).requirejs.s.contexts._.config;
 		}
-
-		this._lazyProxy = new TPromise<T>((c, e, p) => {
-			lazyProxyFulfill = c;
-			lazyProxyReject = e;
-		}, () => { /* no cancel */ });
 
 		// Send initialize message
 		this._onModuleLoaded = this._protocol.sendMessage(INITIALIZE, [
@@ -240,23 +229,27 @@ export class SimpleWorkerClient<T> extends Disposable {
 			moduleId,
 			loaderConfiguration
 		]);
-		this._onModuleLoaded.then((availableMethods: string[]) => {
-			let proxy = <T>{};
-			for (let i = 0; i < availableMethods.length; i++) {
-				(proxy as any)[availableMethods[i]] = createProxyMethod(availableMethods[i], proxyMethodRequest);
-			}
-			lazyProxyFulfill(proxy);
-		}, (e) => {
-			lazyProxyReject(e);
-			this._onError('Worker failed to load ' + moduleId, e);
+
+		this._lazyProxy = new Promise<T>((resolve, reject) => {
+			lazyProxyReject = reject;
+			this._onModuleLoaded.then((availableMethods: string[]) => {
+				let proxy = <T>{};
+				for (let i = 0; i < availableMethods.length; i++) {
+					(proxy as any)[availableMethods[i]] = createProxyMethod(availableMethods[i], proxyMethodRequest);
+				}
+				resolve(proxy);
+			}, (e) => {
+				reject(e);
+				this._onError('Worker failed to load ' + moduleId, e);
+			});
 		});
 
 		// Create proxy to loaded code
-		let proxyMethodRequest = (method: string, args: any[]): TPromise<any> => {
+		let proxyMethodRequest = (method: string, args: any[]): Promise<any> => {
 			return this._request(method, args);
 		};
 
-		let createProxyMethod = (method: string, proxyMethodRequest: (method: string, args: any[]) => TPromise<any>): Function => {
+		let createProxyMethod = (method: string, proxyMethodRequest: (method: string, args: any[]) => Promise<any>): Function => {
 			return function () {
 				let args = Array.prototype.slice.call(arguments, 0);
 				return proxyMethodRequest(method, args);
@@ -264,18 +257,15 @@ export class SimpleWorkerClient<T> extends Disposable {
 		};
 	}
 
-	public getProxyObject(): TPromise<T> {
-		// Do not allow chaining promises to cancel the proxy creation
-		return new ShallowCancelThenPromise(this._lazyProxy);
+	public getProxyObject(): Promise<T> {
+		return this._lazyProxy;
 	}
 
-	private _request(method: string, args: any[]): TPromise<any> {
-		return new TPromise<any>((c, e, p) => {
+	private _request(method: string, args: any[]): Promise<any> {
+		return new Promise<any>((resolve, reject) => {
 			this._onModuleLoaded.then(() => {
-				this._protocol.sendMessage(method, args).then(c, e);
-			}, e);
-		}, () => {
-			// Cancel intentionally not supported
+				this._protocol.sendMessage(method, args).then(resolve, reject);
+			}, reject);
 		});
 	}
 
@@ -287,6 +277,7 @@ export class SimpleWorkerClient<T> extends Disposable {
 
 export interface IRequestHandler {
 	_requestHandlerBrand: any;
+	[prop: string]: any;
 }
 
 /**
@@ -294,15 +285,16 @@ export interface IRequestHandler {
  */
 export class SimpleWorkerServer {
 
+	private _requestHandler: IRequestHandler | null;
 	private _protocol: SimpleWorkerProtocol;
-	private _requestHandler: IRequestHandler;
 
-	constructor(postSerializedMessage: (msg: string) => void) {
+	constructor(postSerializedMessage: (msg: string) => void, requestHandler: IRequestHandler | null) {
+		this._requestHandler = requestHandler;
 		this._protocol = new SimpleWorkerProtocol({
 			sendMessage: (msg: string): void => {
 				postSerializedMessage(msg);
 			},
-			handleMessage: (method: string, args: any[]): TPromise<any> => this._handleMessage(method, args)
+			handleMessage: (method: string, args: any[]): Promise<any> => this._handleMessage(method, args)
 		});
 	}
 
@@ -310,24 +302,35 @@ export class SimpleWorkerServer {
 		this._protocol.handleMessage(msg);
 	}
 
-	private _handleMessage(method: string, args: any[]): TPromise<any> {
+	private _handleMessage(method: string, args: any[]): Promise<any> {
 		if (method === INITIALIZE) {
 			return this.initialize(<number>args[0], <string>args[1], <any>args[2]);
 		}
 
 		if (!this._requestHandler || typeof this._requestHandler[method] !== 'function') {
-			return TPromise.wrapError(new Error('Missing requestHandler or method: ' + method));
+			return Promise.reject(new Error('Missing requestHandler or method: ' + method));
 		}
 
 		try {
-			return TPromise.as(this._requestHandler[method].apply(this._requestHandler, args));
+			return Promise.resolve(this._requestHandler[method].apply(this._requestHandler, args));
 		} catch (e) {
-			return TPromise.wrapError(e);
+			return Promise.reject(e);
 		}
 	}
 
-	private initialize(workerId: number, moduleId: string, loaderConfig: any): TPromise<any> {
+	private initialize(workerId: number, moduleId: string, loaderConfig: any): Promise<string[]> {
 		this._protocol.setWorkerId(workerId);
+
+		if (this._requestHandler) {
+			// static request handler
+			let methods: string[] = [];
+			for (let prop in this._requestHandler) {
+				if (typeof this._requestHandler[prop] === 'function') {
+					methods.push(prop);
+				}
+			}
+			return Promise.resolve(methods);
+		}
 
 		if (loaderConfig) {
 			// Remove 'baseUrl', handling it is beyond scope for now
@@ -345,29 +348,27 @@ export class SimpleWorkerServer {
 			(<any>self).require.config(loaderConfig);
 		}
 
-		let cc: ValueCallback;
-		let ee: ErrorCallback;
-		let r = new TPromise<any>((c, e, p) => {
-			cc = c;
-			ee = e;
-		});
+		return new Promise<string[]>((resolve, reject) => {
+			// Use the global require to be sure to get the global config
+			(<any>self).require([moduleId], (...result: any[]) => {
+				let handlerModule = result[0];
+				this._requestHandler = handlerModule.create();
 
-		// Use the global require to be sure to get the global config
-		(<any>self).require([moduleId], (...result: any[]) => {
-			let handlerModule = result[0];
-			this._requestHandler = handlerModule.create();
-
-			let methods: string[] = [];
-			for (let prop in this._requestHandler) {
-				if (typeof this._requestHandler[prop] === 'function') {
-					methods.push(prop);
+				if (!this._requestHandler) {
+					reject(new Error(`No RequestHandler!`));
+					return;
 				}
-			}
 
-			cc(methods);
-		}, ee);
+				let methods: string[] = [];
+				for (let prop in this._requestHandler) {
+					if (typeof this._requestHandler[prop] === 'function') {
+						methods.push(prop);
+					}
+				}
 
-		return r;
+				resolve(methods);
+			}, reject);
+		});
 	}
 }
 
@@ -375,5 +376,5 @@ export class SimpleWorkerServer {
  * Called on the worker side
  */
 export function create(postMessage: (msg: string) => void): SimpleWorkerServer {
-	return new SimpleWorkerServer(postMessage);
+	return new SimpleWorkerServer(postMessage, null);
 }

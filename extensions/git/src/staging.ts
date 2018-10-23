@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import { TextDocument, Range, LineChange, Selection } from 'vscode';
 
 export function applyLineChanges(original: TextDocument, modified: TextDocument, diffs: LineChange[]): string {
@@ -21,9 +19,12 @@ export function applyLineChanges(original: TextDocument, modified: TextDocument,
 			let fromLine = diff.modifiedStartLineNumber - 1;
 			let fromCharacter = 0;
 
+			// if this is an insertion at the very end of the document,
+			// then we must start the next range after the last character of the
+			// previous line, in order to take the correct eol
 			if (isInsertion && diff.originalStartLineNumber === original.lineCount) {
-				fromLine = original.lineCount - 1;
-				fromCharacter = original.lineAt(fromLine).range.end.character;
+				fromLine -= 1;
+				fromCharacter = modified.lineAt(fromLine).range.end.character;
 			}
 
 			result.push(modified.getText(new Range(fromLine, fromCharacter, diff.modifiedEndLineNumber, 0)));
@@ -76,6 +77,8 @@ export function getModifiedRange(textDocument: TextDocument, diff: LineChange): 
 	if (diff.modifiedEndLineNumber === 0) {
 		if (diff.modifiedStartLineNumber === 0) {
 			return new Range(textDocument.lineAt(diff.modifiedStartLineNumber).range.end, textDocument.lineAt(diff.modifiedStartLineNumber).range.start);
+		} else if (textDocument.lineCount === diff.modifiedStartLineNumber) {
+			return new Range(textDocument.lineAt(diff.modifiedStartLineNumber - 1).range.end, textDocument.lineAt(diff.modifiedStartLineNumber - 1).range.end);
 		} else {
 			return new Range(textDocument.lineAt(diff.modifiedStartLineNumber - 1).range.end, textDocument.lineAt(diff.modifiedStartLineNumber).range.start);
 		}

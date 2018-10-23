@@ -2,19 +2,20 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
 import * as assert from 'assert';
-import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
-import { ModelServiceImpl } from 'vs/editor/common/services/modelServiceImpl';
-import URI from 'vs/base/common/uri';
+import { CharCode } from 'vs/base/common/charCode';
 import * as platform from 'vs/base/common/platform';
-import { DefaultEndOfLine } from 'vs/editor/common/model';
-import { TextModel, createTextBuffer } from 'vs/editor/common/model/textModel';
+import { URI } from 'vs/base/common/uri';
 import { EditOperation } from 'vs/editor/common/core/editOperation';
 import { Range } from 'vs/editor/common/core/range';
-import { CharCode } from 'vs/base/common/charCode';
 import { createStringBuilder } from 'vs/editor/common/core/stringBuilder';
+import { DefaultEndOfLine } from 'vs/editor/common/model';
+import { TextModel, createTextBuffer } from 'vs/editor/common/model/textModel';
+import { ModelServiceImpl } from 'vs/editor/common/services/modelServiceImpl';
+import { ITextResourcePropertiesService } from 'vs/editor/common/services/resourceConfiguration';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
 
 const GENERATE_TESTS = false;
 
@@ -26,7 +27,7 @@ suite('ModelService', () => {
 		configService.setUserConfiguration('files', { 'eol': '\n' });
 		configService.setUserConfiguration('files', { 'eol': '\r\n' }, URI.file(platform.isWindows ? 'c:\\myroot' : '/myroot'));
 
-		modelService = new ModelServiceImpl(null, configService);
+		modelService = new ModelServiceImpl(null, configService, new TestTextResourcePropertiesService(configService));
 	});
 
 	teardown(() => {
@@ -41,6 +42,32 @@ suite('ModelService', () => {
 		assert.equal(model1.getOptions().defaultEOL, DefaultEndOfLine.LF);
 		assert.equal(model2.getOptions().defaultEOL, DefaultEndOfLine.CRLF);
 		assert.equal(model3.getOptions().defaultEOL, DefaultEndOfLine.LF);
+	});
+
+	test('_computeEdits no change', function () {
+
+		const model = TextModel.createFromString(
+			[
+				'This is line one', //16
+				'and this is line number two', //27
+				'it is followed by #3', //20
+				'and finished with the fourth.', //29
+			].join('\n')
+		);
+
+		const textBuffer = createTextBuffer(
+			[
+				'This is line one', //16
+				'and this is line number two', //27
+				'it is followed by #3', //20
+				'and finished with the fourth.', //29
+			].join('\n'),
+			DefaultEndOfLine.LF
+		);
+
+		const actual = ModelServiceImpl._computeEdits(model, textBuffer);
+
+		assert.deepEqual(actual, []);
 	});
 
 	test('_computeEdits first line changed', function () {
@@ -67,7 +94,7 @@ suite('ModelService', () => {
 		const actual = ModelServiceImpl._computeEdits(model, textBuffer);
 
 		assert.deepEqual(actual, [
-			EditOperation.replace(new Range(1, 1, 1, 17), 'This is line One')
+			EditOperation.replaceMove(new Range(1, 1, 2, 1), 'This is line One\n')
 		]);
 	});
 
@@ -121,8 +148,15 @@ suite('ModelService', () => {
 		const actual = ModelServiceImpl._computeEdits(model, textBuffer);
 
 		assert.deepEqual(actual, [
-			EditOperation.replace(new Range(1, 1, 1, 17), 'This is line One'),
-			EditOperation.replace(new Range(3, 1, 3, 21), 'It is followed by #3')
+			EditOperation.replaceMove(
+				new Range(1, 1, 4, 1),
+				[
+					'This is line One',
+					'and this is line number two',
+					'It is followed by #3',
+					''
+				].join('\r\n')
+			)
 		]);
 	});
 
@@ -149,7 +183,7 @@ suite('ModelService', () => {
 		const actual = ModelServiceImpl._computeEdits(model, textBuffer);
 
 		assert.deepEqual(actual, [
-			EditOperation.replace(new Range(3, 2, 3, 2), '\n')
+			EditOperation.replaceMove(new Range(3, 2, 3, 2), '\r\n')
 		]);
 	});
 
@@ -328,5 +362,25 @@ assertComputeEdits(file1, file2);
 `);
 			break;
 		}
+	}
+}
+
+class TestTextResourcePropertiesService implements ITextResourcePropertiesService {
+
+	_serviceBrand: any;
+
+	constructor(
+		@IConfigurationService private configurationService: IConfigurationService,
+	) {
+	}
+
+	getEOL(resource: URI, language?: string): string {
+		const filesConfiguration = this.configurationService.getValue<{ eol: string }>('files', { overrideIdentifier: language, resource });
+		if (filesConfiguration && filesConfiguration.eol) {
+			if (filesConfiguration.eol !== 'auto') {
+				return filesConfiguration.eol;
+			}
+		}
+		return (platform.isLinux || platform.isMacintosh) ? '\n' : '\r\n';
 	}
 }

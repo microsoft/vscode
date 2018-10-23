@@ -2,16 +2,13 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
 import { DiffChange } from 'vs/base/common/diff/diffChange';
 
-
 function createStringSequence(a: string): ISequence {
-
 	return {
 		getLength() { return a.length; },
-		getElementHash(pos: number) { return a[pos]; }
+		getElementAtIndex(pos: number) { return a.charCodeAt(pos); }
 	};
 }
 
@@ -22,7 +19,7 @@ export function stringDiff(original: string, modified: string, pretty: boolean):
 
 export interface ISequence {
 	getLength(): number;
-	getElementHash(index: number): string;
+	getElementAtIndex(index: number): number | string;
 }
 
 export interface IDiffChange {
@@ -211,8 +208,6 @@ class DiffChangeHelper {
 
 }
 
-const hasOwnProperty = Object.prototype.hasOwnProperty;
-
 /**
  * An implementation of the difference algorithm described in
  * "An O(ND) Difference Algorithm and its variations" by Eugene W. Myers
@@ -221,77 +216,33 @@ export class LcsDiff {
 
 	private OriginalSequence: ISequence;
 	private ModifiedSequence: ISequence;
-	private ContinueProcessingPredicate: IContinueProcessingPredicate;
+	private ContinueProcessingPredicate: IContinueProcessingPredicate | null;
 
-	private m_originalIds: number[];
-	private m_modifiedIds: number[];
 	private m_forwardHistory: number[][];
 	private m_reverseHistory: number[][];
 
 	/**
 	 * Constructs the DiffFinder
 	 */
-	constructor(originalSequence: ISequence, newSequence: ISequence, continueProcessingPredicate: IContinueProcessingPredicate = null) {
+	constructor(originalSequence: ISequence, newSequence: ISequence, continueProcessingPredicate: IContinueProcessingPredicate | null = null) {
 		this.OriginalSequence = originalSequence;
 		this.ModifiedSequence = newSequence;
 		this.ContinueProcessingPredicate = continueProcessingPredicate;
-		this.m_originalIds = [];
-		this.m_modifiedIds = [];
 
 		this.m_forwardHistory = [];
 		this.m_reverseHistory = [];
-
-		this.ComputeUniqueIdentifiers();
-	}
-
-	private ComputeUniqueIdentifiers(): void {
-		let originalSequenceLength = this.OriginalSequence.getLength();
-		let modifiedSequenceLength = this.ModifiedSequence.getLength();
-		this.m_originalIds = new Array<number>(originalSequenceLength);
-		this.m_modifiedIds = new Array<number>(modifiedSequenceLength);
-
-		// Create a new hash table for unique elements from the original
-		// sequence.
-		let hashTable: { [key: string]: number; } = {};
-		let currentUniqueId = 1;
-		let i: number;
-
-		// Fill up the hash table for unique elements
-		for (i = 0; i < originalSequenceLength; i++) {
-			let originalElementHash = this.OriginalSequence.getElementHash(i);
-			if (!hasOwnProperty.call(hashTable, originalElementHash)) {
-				// No entry in the hashtable so this is a new unique element.
-				// Assign the element a new unique identifier and add it to the
-				// hash table
-				this.m_originalIds[i] = currentUniqueId++;
-				hashTable[originalElementHash] = this.m_originalIds[i];
-			} else {
-				this.m_originalIds[i] = hashTable[originalElementHash];
-			}
-		}
-
-		// Now match up modified elements
-		for (i = 0; i < modifiedSequenceLength; i++) {
-			let modifiedElementHash = this.ModifiedSequence.getElementHash(i);
-			if (!hasOwnProperty.call(hashTable, modifiedElementHash)) {
-				this.m_modifiedIds[i] = currentUniqueId++;
-				hashTable[modifiedElementHash] = this.m_modifiedIds[i];
-			} else {
-				this.m_modifiedIds[i] = hashTable[modifiedElementHash];
-			}
-		}
 	}
 
 	private ElementsAreEqual(originalIndex: number, newIndex: number): boolean {
-		return this.m_originalIds[originalIndex] === this.m_modifiedIds[newIndex];
+		return (this.OriginalSequence.getElementAtIndex(originalIndex) === this.ModifiedSequence.getElementAtIndex(newIndex));
 	}
 
 	private OriginalElementsAreEqual(index1: number, index2: number): boolean {
-		return this.m_originalIds[index1] === this.m_originalIds[index2];
+		return (this.OriginalSequence.getElementAtIndex(index1) === this.OriginalSequence.getElementAtIndex(index2));
 	}
 
 	private ModifiedElementsAreEqual(index1: number, index2: number): boolean {
-		return this.m_modifiedIds[index1] === this.m_modifiedIds[index2];
+		return (this.ModifiedSequence.getElementAtIndex(index1) === this.ModifiedSequence.getElementAtIndex(index2));
 	}
 
 	public ComputeDiff(pretty: boolean): IDiffChange[] {
@@ -311,7 +262,7 @@ export class LcsDiff {
 			// We have to clean up the computed diff to be more intuitive
 			// but it turns out this cannot be done correctly until the entire set
 			// of diffs have been computed
-			return this.ShiftChanges(changes);
+			return this.PrettifyChanges(changes);
 		}
 
 		return changes;
@@ -411,7 +362,7 @@ export class LcsDiff {
 		originalIndex: number, originalEnd: number, midOriginalArr: number[],
 		modifiedIndex: number, modifiedEnd: number, midModifiedArr: number[],
 		deltaIsEven: boolean, quitEarlyArr: boolean[]): DiffChange[] {
-		let forwardChanges: DiffChange[] = null, reverseChanges: DiffChange[] = null;
+		let forwardChanges: DiffChange[] | null = null, reverseChanges: DiffChange[] | null = null;
 
 		// First, walk backward through the forward diagonals history
 		let changeHelper = new DiffChangeHelper();
@@ -547,7 +498,7 @@ export class LcsDiff {
 	 * @returns The diff changes, if available, otherwise null
 	 */
 	private ComputeRecursionPoint(originalStart: number, originalEnd: number, modifiedStart: number, modifiedEnd: number, midOriginalArr: number[], midModifiedArr: number[], quitEarlyArr: boolean[]) {
-		let originalIndex: number, modifiedIndex: number;
+		let originalIndex = 0, modifiedIndex = 0;
 		let diagonalForwardStart = 0, diagonalForwardEnd = 0;
 		let diagonalReverseStart = 0, diagonalReverseEnd = 0;
 		let numDifferences: number;
@@ -794,45 +745,32 @@ export class LcsDiff {
 	 * @param changes The list of changes to shift
 	 * @returns The shifted changes
 	 */
-	private ShiftChanges(changes: DiffChange[]): DiffChange[] {
-		let mergedDiffs: boolean;
-		do {
-			mergedDiffs = false;
+	private PrettifyChanges(changes: DiffChange[]): DiffChange[] {
 
-			// Shift all the changes down first
-			for (let i = 0; i < changes.length; i++) {
-				const change = changes[i];
-				const originalStop = (i < changes.length - 1) ? changes[i + 1].originalStart : this.OriginalSequence.getLength();
-				const modifiedStop = (i < changes.length - 1) ? changes[i + 1].modifiedStart : this.ModifiedSequence.getLength();
-				const checkOriginal = change.originalLength > 0;
-				const checkModified = change.modifiedLength > 0;
+		// Shift all the changes down first
+		for (let i = 0; i < changes.length; i++) {
+			const change = changes[i];
+			const originalStop = (i < changes.length - 1) ? changes[i + 1].originalStart : this.OriginalSequence.getLength();
+			const modifiedStop = (i < changes.length - 1) ? changes[i + 1].modifiedStart : this.ModifiedSequence.getLength();
+			const checkOriginal = change.originalLength > 0;
+			const checkModified = change.modifiedLength > 0;
 
-				while (change.originalStart + change.originalLength < originalStop &&
-					change.modifiedStart + change.modifiedLength < modifiedStop &&
-					(!checkOriginal || this.OriginalElementsAreEqual(change.originalStart, change.originalStart + change.originalLength)) &&
-					(!checkModified || this.ModifiedElementsAreEqual(change.modifiedStart, change.modifiedStart + change.modifiedLength))) {
-					change.originalStart++;
-					change.modifiedStart++;
-				}
+			while (change.originalStart + change.originalLength < originalStop &&
+				change.modifiedStart + change.modifiedLength < modifiedStop &&
+				(!checkOriginal || this.OriginalElementsAreEqual(change.originalStart, change.originalStart + change.originalLength)) &&
+				(!checkModified || this.ModifiedElementsAreEqual(change.modifiedStart, change.modifiedStart + change.modifiedLength))) {
+				change.originalStart++;
+				change.modifiedStart++;
 			}
 
-			// Build up the new list (we have to build a new list because we
-			// might have changes we can merge together now)
-			let result = new Array<DiffChange>();
-			let mergedChangeArr: DiffChange[] = [null];
-			for (let i = 0; i < changes.length; i++) {
-				if (i < changes.length - 1 && this.ChangesOverlap(changes[i], changes[i + 1], mergedChangeArr)) {
-					mergedDiffs = true;
-					result.push(mergedChangeArr[0]);
-					i++;
-				}
-				else {
-					result.push(changes[i]);
-				}
+			let mergedChangeArr: (DiffChange | null)[] = [null];
+			if (i < changes.length - 1 && this.ChangesOverlap(changes[i], changes[i + 1], mergedChangeArr)) {
+				changes[i] = mergedChangeArr[0]!;
+				changes.splice(i + 1, 1);
+				i--;
+				continue;
 			}
-
-			changes = result;
-		} while (mergedDiffs);
+		}
 
 		// Shift changes back up until we hit empty or whitespace-only lines
 		for (let i = changes.length - 1; i >= 0; i--) {
@@ -891,7 +829,8 @@ export class LcsDiff {
 		if (index <= 0 || index >= this.OriginalSequence.getLength() - 1) {
 			return true;
 		}
-		return /^\s*$/.test(this.OriginalSequence.getElementHash(index));
+		const element = this.OriginalSequence.getElementAtIndex(index);
+		return (typeof element === 'string' && /^\s*$/.test(element));
 	}
 
 	private _OriginalRegionIsBoundary(originalStart: number, originalLength: number): boolean {
@@ -911,7 +850,8 @@ export class LcsDiff {
 		if (index <= 0 || index >= this.ModifiedSequence.getLength() - 1) {
 			return true;
 		}
-		return /^\s*$/.test(this.ModifiedSequence.getElementHash(index));
+		const element = this.ModifiedSequence.getElementAtIndex(index);
+		return (typeof element === 'string' && /^\s*$/.test(element));
 	}
 
 	private _ModifiedRegionIsBoundary(modifiedStart: number, modifiedLength: number): boolean {
@@ -942,7 +882,6 @@ export class LcsDiff {
 	 */
 	private ConcatenateChanges(left: DiffChange[], right: DiffChange[]): DiffChange[] {
 		let mergedChangeArr: DiffChange[] = [];
-		let result: DiffChange[] = null;
 
 		if (left.length === 0 || right.length === 0) {
 			return (right.length > 0) ? right : left;
@@ -951,14 +890,14 @@ export class LcsDiff {
 			// might recurse in the middle of a change thereby splitting it into
 			// two changes. Here in the combining stage, we detect and fuse those
 			// changes back together
-			result = new Array<DiffChange>(left.length + right.length - 1);
+			let result = new Array<DiffChange>(left.length + right.length - 1);
 			MyArray.Copy(left, 0, result, 0, left.length - 1);
 			result[left.length - 1] = mergedChangeArr[0];
 			MyArray.Copy(right, 1, result, left.length, right.length - 1);
 
 			return result;
 		} else {
-			result = new Array<DiffChange>(left.length + right.length);
+			let result = new Array<DiffChange>(left.length + right.length);
 			MyArray.Copy(left, 0, result, 0, left.length);
 			MyArray.Copy(right, 0, result, left.length, right.length);
 
@@ -974,7 +913,7 @@ export class LcsDiff {
 	 * @param mergedChange The merged change if the two overlap, null otherwise
 	 * @returns True if the two changes overlap
 	 */
-	private ChangesOverlap(left: DiffChange, right: DiffChange, mergedChangeArr: DiffChange[]): boolean {
+	private ChangesOverlap(left: DiffChange, right: DiffChange, mergedChangeArr: (DiffChange | null)[]): boolean {
 		Debug.Assert(left.originalStart <= right.originalStart, 'Left change is not less than or equal to right change');
 		Debug.Assert(left.modifiedStart <= right.modifiedStart, 'Left change is not less than or equal to right change');
 

@@ -5,11 +5,6 @@
 
 .tm-inspect-widget {
 	z-index: 50;
-	-webkit-user-select: text;
-	-ms-user-select: text;
-	-khtml-user-select: text;
-	-moz-user-select: text;
-	-o-user-select: text;
 	user-select: text;
 	padding: 10px;
 }

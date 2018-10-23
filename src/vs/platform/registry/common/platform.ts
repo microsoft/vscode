@@ -2,10 +2,9 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
-import Types = require('vs/base/common/types');
-import Assert = require('vs/base/common/assert');
+import * as Types from 'vs/base/common/types';
+import * as Assert from 'vs/base/common/assert';
 
 export interface IRegistry {
 
@@ -27,7 +26,6 @@ export interface IRegistry {
 	 * Returns the extension functions and properties defined by the specified key or null.
 	 * @param id an extension identifier
 	 */
-	as(id: string): any;
 	as<T>(id: string): T;
 }
 

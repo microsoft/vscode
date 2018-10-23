@@ -2,14 +2,13 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
-import { Range } from 'vs/editor/common/core/range';
-import { Selection } from 'vs/editor/common/core/selection';
+import * as errors from 'vs/base/common/errors';
+import { Disposable, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { ScrollEvent } from 'vs/base/common/scrollable';
 import { IConfigurationChangedEvent } from 'vs/editor/common/config/editorOptions';
-import * as errors from 'vs/base/common/errors';
-import { IDisposable, Disposable } from 'vs/base/common/lifecycle';
+import { Range } from 'vs/editor/common/core/range';
+import { Selection } from 'vs/editor/common/core/selection';
 import { ScrollType } from 'vs/editor/common/editorCommon';
 
 export const enum ViewEventType {
@@ -42,6 +41,7 @@ export class ViewConfigurationChangedEvent {
 	public readonly readOnly: boolean;
 	public readonly accessibilitySupport: boolean;
 	public readonly emptySelectionClipboard: boolean;
+	public readonly copyWithSyntaxHighlighting: boolean;
 	public readonly layoutInfo: boolean;
 	public readonly fontInfo: boolean;
 	public readonly viewInfo: boolean;
@@ -55,6 +55,7 @@ export class ViewConfigurationChangedEvent {
 		this.readOnly = source.readOnly;
 		this.accessibilitySupport = source.accessibilitySupport;
 		this.emptySelectionClipboard = source.emptySelectionClipboard;
+		this.copyWithSyntaxHighlighting = source.copyWithSyntaxHighlighting;
 		this.layoutInfo = source.layoutInfo;
 		this.fontInfo = source.fontInfo;
 		this.viewInfo = source.viewInfo;
@@ -311,10 +312,14 @@ export interface IViewEventListener {
 
 export class ViewEventEmitter extends Disposable {
 	private _listeners: IViewEventListener[];
+	private _collector: ViewEventsCollector | null;
+	private _collectorCnt: number;
 
 	constructor() {
 		super();
 		this._listeners = [];
+		this._collector = null;
+		this._collectorCnt = 0;
 	}
 
 	public dispose(): void {
@@ -322,7 +327,26 @@ export class ViewEventEmitter extends Disposable {
 		super.dispose();
 	}
 
-	protected _emit(events: ViewEvent[]): void {
+	protected _beginEmit(): ViewEventsCollector {
+		this._collectorCnt++;
+		if (this._collectorCnt === 1) {
+			this._collector = new ViewEventsCollector();
+		}
+		return this._collector!;
+	}
+
+	protected _endEmit(): void {
+		this._collectorCnt--;
+		if (this._collectorCnt === 0) {
+			const events = this._collector!.finalize();
+			this._collector = null;
+			if (events.length > 0) {
+				this._emit(events);
+			}
+		}
+	}
+
+	private _emit(events: ViewEvent[]): void {
 		const listeners = this._listeners.slice(0);
 		for (let i = 0, len = listeners.length; i < len; i++) {
 			safeInvokeListener(listeners[i], events);
@@ -331,18 +355,38 @@ export class ViewEventEmitter extends Disposable {
 
 	public addEventListener(listener: (events: ViewEvent[]) => void): IDisposable {
 		this._listeners.push(listener);
-		return {
-			dispose: () => {
-				let listeners = this._listeners;
-				for (let i = 0, len = listeners.length; i < len; i++) {
-					if (listeners[i] === listener) {
-						listeners.splice(i, 1);
-						break;
-					}
+		return toDisposable(() => {
+			let listeners = this._listeners;
+			for (let i = 0, len = listeners.length; i < len; i++) {
+				if (listeners[i] === listener) {
+					listeners.splice(i, 1);
+					break;
 				}
 			}
-		};
+		});
 	}
+}
+
+export class ViewEventsCollector {
+
+	private _events: ViewEvent[];
+	private _eventsLen = 0;
+
+	constructor() {
+		this._events = [];
+		this._eventsLen = 0;
+	}
+
+	public emit(event: ViewEvent) {
+		this._events[this._eventsLen++] = event;
+	}
+
+	public finalize(): ViewEvent[] {
+		let result = this._events;
+		this._events = [];
+		return result;
+	}
+
 }
 
 function safeInvokeListener(listener: IViewEventListener, events: ViewEvent[]): void {

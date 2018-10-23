@@ -14,14 +14,6 @@
 	height: 25px;
 }
 
-.fl:after {
-	clear: both;
-	content: '';
-	display: block;
-	visibility: hidden;
-	height: 0;
-}
-
 .monaco-findInput > .controls {
 	position: absolute;
 	top: 3px;

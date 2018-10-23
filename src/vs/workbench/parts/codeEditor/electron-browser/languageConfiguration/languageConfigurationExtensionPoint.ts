@@ -2,19 +2,19 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
 import * as nls from 'vs/nls';
+import { ParseError, parse } from 'vs/base/common/json';
+import { IJSONSchema } from 'vs/base/common/jsonSchema';
 import * as types from 'vs/base/common/types';
-import { parse, ParseError } from 'vs/base/common/json';
-import { readFile } from 'vs/base/node/pfs';
-import { CharacterPair, LanguageConfiguration, IAutoClosingPair, IAutoClosingPairConditional, IndentationRule, CommentRule, FoldingRules } from 'vs/editor/common/modes/languageConfiguration';
-import { IModeService } from 'vs/editor/common/services/modeService';
+import { URI } from 'vs/base/common/uri';
+import { LanguageIdentifier } from 'vs/editor/common/modes';
+import { CharacterPair, CommentRule, FoldingRules, IAutoClosingPair, IAutoClosingPairConditional, IndentationRule, LanguageConfiguration } from 'vs/editor/common/modes/languageConfiguration';
 import { LanguageConfigurationRegistry } from 'vs/editor/common/modes/languageConfigurationRegistry';
+import { IModeService } from 'vs/editor/common/services/modeService';
+import { IFileService } from 'vs/platform/files/common/files';
 import { Extensions, IJSONContributionRegistry } from 'vs/platform/jsonschemas/common/jsonContributionRegistry';
 import { Registry } from 'vs/platform/registry/common/platform';
-import { IJSONSchema } from 'vs/base/common/jsonSchema';
-import { LanguageIdentifier } from 'vs/editor/common/modes';
 import { ITextMateService } from 'vs/workbench/services/textMate/electron-browser/textMateService';
 
 interface IRegExp {
@@ -37,6 +37,7 @@ interface ILanguageConfiguration {
 	wordPattern?: string | IRegExp;
 	indentationRules?: IIndentationRules;
 	folding?: FoldingRules;
+	autoCloseBefore?: string;
 }
 
 function isStringArr(something: string[]): boolean {
@@ -61,14 +62,13 @@ function isCharacterPair(something: CharacterPair): boolean {
 
 export class LanguageConfigurationFileHandler {
 
-	private _modeService: IModeService;
 	private _done: boolean[];
 
 	constructor(
 		@ITextMateService textMateService: ITextMateService,
-		@IModeService modeService: IModeService
+		@IModeService private readonly _modeService: IModeService,
+		@IFileService private readonly _fileService: IFileService
 	) {
-		this._modeService = modeService;
 		this._done = [];
 
 		// Listen for hints that a language configuration is needed/usefull and then load it once
@@ -85,15 +85,15 @@ export class LanguageConfigurationFileHandler {
 		this._done[languageIdentifier.id] = true;
 
 		let configurationFiles = this._modeService.getConfigurationFiles(languageIdentifier.language);
-		configurationFiles.forEach((configFilePath) => this._handleConfigFile(languageIdentifier, configFilePath));
+		configurationFiles.forEach((configFileLocation) => this._handleConfigFile(languageIdentifier, configFileLocation));
 	}
 
-	private _handleConfigFile(languageIdentifier: LanguageIdentifier, configFilePath: string): void {
-		readFile(configFilePath).then((fileContents) => {
+	private _handleConfigFile(languageIdentifier: LanguageIdentifier, configFileLocation: URI): void {
+		this._fileService.resolveContent(configFileLocation, { encoding: 'utf8' }).then((contents) => {
 			const errors: ParseError[] = [];
-			const configuration = <ILanguageConfiguration>parse(fileContents.toString(), errors);
+			const configuration = <ILanguageConfiguration>parse(contents.value.toString(), errors);
 			if (errors.length) {
-				console.error(nls.localize('parseErrors', "Errors parsing {0}: {1}", configFilePath, errors.join('\n')));
+				console.error(nls.localize('parseErrors', "Errors parsing {0}: {1}", configFileLocation.toString(), errors.join('\n')));
 			}
 			this._handleConfig(languageIdentifier, configuration);
 		}, (err) => {
@@ -111,7 +111,7 @@ export class LanguageConfigurationFileHandler {
 			return null;
 		}
 
-		let result: CommentRule = null;
+		let result: CommentRule | null = null;
 		if (typeof source.lineComment !== 'undefined') {
 			if (typeof source.lineComment !== 'string') {
 				console.warn(`[${languageIdentifier.language}]: language configuration: expected \`comments.lineComment\` to be a string.`);
@@ -141,7 +141,7 @@ export class LanguageConfigurationFileHandler {
 			return null;
 		}
 
-		let result: CharacterPair[] = null;
+		let result: CharacterPair[] | null = null;
 		for (let i = 0, len = source.length; i < len; i++) {
 			const pair = source[i];
 			if (!isCharacterPair(pair)) {
@@ -165,7 +165,7 @@ export class LanguageConfigurationFileHandler {
 			return null;
 		}
 
-		let result: IAutoClosingPairConditional[] = null;
+		let result: IAutoClosingPairConditional[] | null = null;
 		for (let i = 0, len = source.length; i < len; i++) {
 			const pair = source[i];
 			if (Array.isArray(pair)) {
@@ -211,7 +211,7 @@ export class LanguageConfigurationFileHandler {
 			return null;
 		}
 
-		let result: IAutoClosingPair[] = null;
+		let result: IAutoClosingPair[] | null = null;
 		for (let i = 0, len = source.length; i < len; i++) {
 			const pair = source[i];
 			if (Array.isArray(pair)) {
@@ -272,6 +272,11 @@ export class LanguageConfigurationFileHandler {
 		const surroundingPairs = this._extractValidSurroundingPairs(languageIdentifier, configuration);
 		if (surroundingPairs) {
 			richEditConfig.surroundingPairs = surroundingPairs;
+		}
+
+		const autoCloseBefore = configuration.autoCloseBefore;
+		if (typeof autoCloseBefore === 'string') {
+			richEditConfig.autoCloseBefore = autoCloseBefore;
 		}
 
 		if (configuration.wordPattern) {
@@ -433,6 +438,11 @@ const schema: IJSONSchema = {
 				}]
 			}
 		},
+		autoCloseBefore: {
+			default: ';:.,=}])> \n\t',
+			description: nls.localize('schema.autoCloseBefore', 'Defines what characters must be after the cursor in order for bracket or quote autoclosing to occur when using the \'languageDefined\' autoclosing setting. This is typically the set of characters which can not start an expression.'),
+			type: 'string',
+		},
 		surroundingPairs: {
 			default: [['(', ')'], ['[', ']'], ['{', '}']],
 			description: nls.localize('schema.surroundingPairs', 'Defines the bracket pairs that can be used to surround a selected string.'),
@@ -581,5 +591,5 @@ const schema: IJSONSchema = {
 
 	}
 };
-let schemaRegistry = <IJSONContributionRegistry>Registry.as(Extensions.JSONContribution);
+let schemaRegistry = Registry.as<IJSONContributionRegistry>(Extensions.JSONContribution);
 schemaRegistry.registerSchema(schemaId, schema);

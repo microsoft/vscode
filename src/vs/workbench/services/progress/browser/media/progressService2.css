@@ -4,11 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 .monaco-workbench > .part.statusbar > .statusbar-item.progress {
-	background-image: url(progress.svg);
-	background-repeat: no-repeat;
-	background-position: left;
-	padding-left: 14px;
-	display: inline;
+	padding-left: 5px;
+}
+
+.monaco-workbench > .part.statusbar > .statusbar-item.progress .spinner-container {
+	padding-right: 5px;
 }
 
 .monaco-workbench .progress-badge > .badge-content {

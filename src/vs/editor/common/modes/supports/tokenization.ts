@@ -2,10 +2,9 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
-import { ColorId, FontStyle, MetadataConsts, LanguageId, StandardTokenType } from 'vs/editor/common/modes';
 import { Color } from 'vs/base/common/color';
+import { ColorId, FontStyle, LanguageId, MetadataConsts, StandardTokenType } from 'vs/editor/common/modes';
 
 export interface ITokenThemeRule {
 	token: string;
@@ -24,15 +23,15 @@ export class ParsedTokenThemeRule {
 	 * -1 if not set. An or mask of `FontStyle` otherwise.
 	 */
 	readonly fontStyle: FontStyle;
-	readonly foreground: string;
-	readonly background: string;
+	readonly foreground: string | null;
+	readonly background: string | null;
 
 	constructor(
 		token: string,
 		index: number,
 		fontStyle: number,
-		foreground: string,
-		background: string,
+		foreground: string | null,
+		background: string | null,
 	) {
 		this.token = token;
 		this.index = index;
@@ -74,12 +73,12 @@ export function parseTokenTheme(source: ITokenThemeRule[]): ParsedTokenThemeRule
 			}
 		}
 
-		let foreground: string = null;
+		let foreground: string | null = null;
 		if (typeof entry.foreground === 'string') {
 			foreground = entry.foreground;
 		}
 
-		let background: string = null;
+		let background: string | null = null;
 		if (typeof entry.background === 'string') {
 			background = entry.background;
 		}
@@ -99,7 +98,7 @@ export function parseTokenTheme(source: ITokenThemeRule[]): ParsedTokenThemeRule
 /**
  * Resolve rules (i.e. inheritance).
  */
-function resolveParsedTokenThemeRules(parsedThemeRules: ParsedTokenThemeRule[]): TokenTheme {
+function resolveParsedTokenThemeRules(parsedThemeRules: ParsedTokenThemeRule[], customTokenColors: string[]): TokenTheme {
 
 	// Sort rules lexicographically, and then by index if necessary
 	parsedThemeRules.sort((a, b) => {
@@ -115,7 +114,7 @@ function resolveParsedTokenThemeRules(parsedThemeRules: ParsedTokenThemeRule[]):
 	let defaultForeground = '000000';
 	let defaultBackground = 'ffffff';
 	while (parsedThemeRules.length >= 1 && parsedThemeRules[0].token === '') {
-		let incomingDefaults = parsedThemeRules.shift();
+		let incomingDefaults = parsedThemeRules.shift()!;
 		if (incomingDefaults.fontStyle !== FontStyle.NotSet) {
 			defaultFontStyle = incomingDefaults.fontStyle;
 		}
@@ -127,9 +126,17 @@ function resolveParsedTokenThemeRules(parsedThemeRules: ParsedTokenThemeRule[]):
 		}
 	}
 	let colorMap = new ColorMap();
-	// ensure default foreground gets id 1 and default background gets id 2
-	let defaults = new ThemeTrieElementRule(defaultFontStyle, colorMap.getId(defaultForeground), colorMap.getId(defaultBackground));
 
+	// start with token colors from custom token themes
+	for (let color of customTokenColors) {
+		colorMap.getId(color);
+	}
+
+
+	let foregroundColorId = colorMap.getId(defaultForeground);
+	let backgroundColorId = colorMap.getId(defaultBackground);
+
+	let defaults = new ThemeTrieElementRule(defaultFontStyle, foregroundColorId, backgroundColorId);
 	let root = new ThemeTrieElement(defaults);
 	for (let i = 0, len = parsedThemeRules.length; i < len; i++) {
 		let rule = parsedThemeRules[i];
@@ -138,6 +145,8 @@ function resolveParsedTokenThemeRules(parsedThemeRules: ParsedTokenThemeRule[]):
 
 	return new TokenTheme(colorMap, root);
 }
+
+const colorRegExp = /^#?([0-9A-Fa-f]{6})([0-9A-Fa-f]{2})?$/;
 
 export class ColorMap {
 
@@ -151,14 +160,15 @@ export class ColorMap {
 		this._color2id = new Map<string, ColorId>();
 	}
 
-	public getId(color: string): ColorId {
+	public getId(color: string | null): ColorId {
 		if (color === null) {
 			return 0;
 		}
-		color = color.toUpperCase();
-		if (!/^[0-9A-F]{6}$/.test(color)) {
-			throw new Error('Illegal color name: ' + color);
+		const match = color.match(colorRegExp);
+		if (!match) {
+			throw new Error('Illegal value for token color: ' + color);
 		}
+		color = match[1].toUpperCase();
 		let value = this._color2id.get(color);
 		if (value) {
 			return value;
@@ -177,12 +187,12 @@ export class ColorMap {
 
 export class TokenTheme {
 
-	public static createFromRawTokenTheme(source: ITokenThemeRule[]): TokenTheme {
-		return this.createFromParsedTokenTheme(parseTokenTheme(source));
+	public static createFromRawTokenTheme(source: ITokenThemeRule[], customTokenColors: string[]): TokenTheme {
+		return this.createFromParsedTokenTheme(parseTokenTheme(source), customTokenColors);
 	}
 
-	public static createFromParsedTokenTheme(source: ParsedTokenThemeRule[]): TokenTheme {
-		return resolveParsedTokenThemeRules(source);
+	public static createFromParsedTokenTheme(source: ParsedTokenThemeRule[], customTokenColors: string[]): TokenTheme {
+		return resolveParsedTokenThemeRules(source, customTokenColors);
 	}
 
 	private readonly _colorMap: ColorMap;
@@ -391,6 +401,6 @@ export function generateTokensCSSForColorMap(colorMap: Color[]): string {
 	}
 	rules.push('.mtki { font-style: italic; }');
 	rules.push('.mtkb { font-weight: bold; }');
-	rules.push('.mtku { text-decoration: underline; }');
+	rules.push('.mtku { text-decoration: underline; text-underline-position: under; }');
 	return rules.join('\n');
 }

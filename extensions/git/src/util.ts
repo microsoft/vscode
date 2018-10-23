@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import { Event } from 'vscode';
 import { dirname, sep } from 'path';
 import { Readable } from 'stream';
@@ -239,7 +237,7 @@ export async function grep(filename: string, pattern: RegExp): Promise<boolean> 
 export function readBytes(stream: Readable, bytes: number): Promise<Buffer> {
 	return new Promise<Buffer>((complete, error) => {
 		let done = false;
-		let buffer = new Buffer(bytes);
+		let buffer = Buffer.allocUnsafe(bytes);
 		let bytesRead = 0;
 
 		stream.on('data', (data: Buffer) => {
@@ -268,7 +266,7 @@ export function readBytes(stream: Readable, bytes: number): Promise<Buffer> {
 	});
 }
 
-export enum Encoding {
+export const enum Encoding {
 	UTF8 = 'utf8',
 	UTF16be = 'utf16be',
 	UTF16le = 'utf16le'
@@ -303,6 +301,10 @@ export function detectUnicodeEncoding(buffer: Buffer): Encoding | null {
 	return null;
 }
 
+function isWindowsPath(path: string): boolean {
+	return /^[a-zA-Z]:\\/.test(path);
+}
+
 export function isDescendant(parent: string, descendant: string): boolean {
 	if (parent === descendant) {
 		return true;
@@ -312,5 +314,21 @@ export function isDescendant(parent: string, descendant: string): boolean {
 		parent += sep;
 	}
 
+	// Windows is case insensitive
+	if (isWindowsPath(parent)) {
+		parent = parent.toLowerCase();
+		descendant = descendant.toLowerCase();
+	}
+
 	return descendant.startsWith(parent);
+}
+
+export function pathEquals(a: string, b: string): boolean {
+	// Windows is case insensitive
+	if (isWindowsPath(a)) {
+		a = a.toLowerCase();
+		b = b.toLowerCase();
+	}
+
+	return a === b;
 }

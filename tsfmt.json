@@ -1,7 +1,6 @@
 {
 	"tabSize": 4,
 	"indentSize": 4,
-	"newLineCharacter": "\n",
 	"convertTabsToSpaces": false,
 	"insertSpaceAfterCommaDelimiter": true,
 	"insertSpaceAfterSemicolonInForStatements": true,

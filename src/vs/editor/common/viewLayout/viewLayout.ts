@@ -2,23 +2,20 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
+import { Event } from 'vs/base/common/event';
 import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
-import { Scrollable, ScrollEvent, ScrollbarVisibility, IScrollDimensions, IScrollPosition } from 'vs/base/common/scrollable';
+import { IScrollDimensions, IScrollPosition, ScrollEvent, Scrollable, ScrollbarVisibility } from 'vs/base/common/scrollable';
+import { IConfigurationChangedEvent } from 'vs/editor/common/config/editorOptions';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import { LinesLayout } from 'vs/editor/common/viewLayout/linesLayout';
-import { IViewLayout, IViewWhitespaceViewportData, Viewport } from 'vs/editor/common/viewModel/viewModel';
 import { IPartialViewLinesViewportData } from 'vs/editor/common/viewLayout/viewLinesViewportData';
 import { IEditorWhitespace } from 'vs/editor/common/viewLayout/whitespaceComputer';
-import Event from 'vs/base/common/event';
-import { IConfigurationChangedEvent } from 'vs/editor/common/config/editorOptions';
+import { IViewLayout, IViewWhitespaceViewportData, Viewport } from 'vs/editor/common/viewModel/viewModel';
 
 const SMOOTH_SCROLLING_TIME = 125;
 
 export class ViewLayout extends Disposable implements IViewLayout {
-
-	static LINES_HORIZONTAL_EXTRA_PX = 30;
 
 	private readonly _configuration: editorCommon.IConfiguration;
 	private readonly _linesLayout: LinesLayout;
@@ -75,15 +72,12 @@ export class ViewLayout extends Disposable implements IViewLayout {
 	}
 	public onFlushed(lineCount: number): void {
 		this._linesLayout.onFlushed(lineCount);
-		this._updateHeight();
 	}
 	public onLinesDeleted(fromLineNumber: number, toLineNumber: number): void {
 		this._linesLayout.onLinesDeleted(fromLineNumber, toLineNumber);
-		this._updateHeight();
 	}
 	public onLinesInserted(fromLineNumber: number, toLineNumber: number): void {
 		this._linesLayout.onLinesInserted(fromLineNumber, toLineNumber);
-		this._updateHeight();
 	}
 
 	// ---- end view event handlers
@@ -146,7 +140,9 @@ export class ViewLayout extends Disposable implements IViewLayout {
 	private _computeScrollWidth(maxLineWidth: number, viewportWidth: number): number {
 		let isViewportWrapping = this._configuration.editor.wrappingInfo.isViewportWrapping;
 		if (!isViewportWrapping) {
-			return Math.max(maxLineWidth + ViewLayout.LINES_HORIZONTAL_EXTRA_PX, viewportWidth);
+			const extraHorizontalSpace = this._configuration.editor.viewInfo.scrollBeyondLastColumn * this._configuration.editor.fontInfo.typicalHalfwidthCharacterWidth;
+			const whitespaceMinWidth = this._linesLayout.getWhitespaceMinWidth();
+			return Math.max(maxLineWidth + extraHorizontalSpace, viewportWidth, whitespaceMinWidth);
 		}
 		return Math.max(maxLineWidth, viewportWidth);
 	}
@@ -163,7 +159,7 @@ export class ViewLayout extends Disposable implements IViewLayout {
 
 	// ---- view state
 
-	public saveState(): editorCommon.IViewState {
+	public saveState(): { scrollTop: number; scrollTopWithoutViewZones: number; scrollLeft: number; } {
 		const currentScrollPosition = this.scrollable.getFutureScrollPosition();
 		let scrollTop = currentScrollPosition.scrollTop;
 		let firstLineNumberInViewport = this._linesLayout.getLineNumberAtOrAfterVerticalOffset(scrollTop);
@@ -175,21 +171,10 @@ export class ViewLayout extends Disposable implements IViewLayout {
 		};
 	}
 
-	public reduceRestoreState(state: editorCommon.IViewState): { scrollLeft: number; scrollTop: number; } {
-		let restoreScrollTop = state.scrollTop;
-		if (typeof state.scrollTopWithoutViewZones === 'number' && !this._linesLayout.hasWhitespace()) {
-			restoreScrollTop = state.scrollTopWithoutViewZones;
-		}
-		return {
-			scrollLeft: state.scrollLeft,
-			scrollTop: restoreScrollTop
-		};
-	}
-
 	// ---- IVerticalLayoutProvider
 
-	public addWhitespace(afterLineNumber: number, ordinal: number, height: number): number {
-		return this._linesLayout.insertWhitespace(afterLineNumber, ordinal, height);
+	public addWhitespace(afterLineNumber: number, ordinal: number, height: number, minWidth: number): number {
+		return this._linesLayout.insertWhitespace(afterLineNumber, ordinal, height, minWidth);
 	}
 	public changeWhitespace(id: number, newAfterLineNumber: number, newHeight: number): boolean {
 		return this._linesLayout.changeWhitespace(id, newAfterLineNumber, newHeight);
@@ -207,7 +192,7 @@ export class ViewLayout extends Disposable implements IViewLayout {
 		return this._linesLayout.getLineNumberAtOrAfterVerticalOffset(verticalOffset);
 	}
 
-	public getWhitespaceAtVerticalOffset(verticalOffset: number): IViewWhitespaceViewportData {
+	public getWhitespaceAtVerticalOffset(verticalOffset: number): IViewWhitespaceViewportData | null {
 		return this._linesLayout.getWhitespaceAtVerticalOffset(verticalOffset);
 	}
 	public getLinesViewportData(): IPartialViewLinesViewportData {

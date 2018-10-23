@@ -59,7 +59,7 @@
 }
 
 .explorer-viewlet .explorer-open-editors .monaco-list .monaco-list-row:hover > .monaco-action-bar,
-.explorer-viewlet .explorer-open-editors .monaco-list.focused .monaco-list-row.focused > .monaco-action-bar,
+.explorer-viewlet .explorer-open-editors .monaco-list .monaco-list-row.focused > .monaco-action-bar,
 .explorer-viewlet .explorer-open-editors .monaco-list .monaco-list-row.dirty > .monaco-action-bar {
 	visibility: visible;
 }
@@ -104,6 +104,7 @@
 .explorer-viewlet .explorer-item .monaco-inputbox {
 	width: 100%;
 	line-height: normal;
+	margin-left: -3px;
 }
 
 .monaco-workbench.linux .explorer-viewlet .explorer-item .monaco-inputbox,
@@ -114,6 +115,7 @@
 
 .explorer-viewlet .explorer-item .monaco-inputbox > .wrapper > .input {
 	padding: 1px 2px;
+	height: 19px;
 }
 
 .monaco-workbench.linux .explorer-viewlet .explorer-item .monaco-inputbox > .wrapper > .input,

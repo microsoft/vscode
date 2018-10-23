@@ -2,24 +2,21 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
-
 
 import * as assert from 'assert';
-import { LcsDiff, IDiffChange } from 'vs/base/common/diff/diff';
+import { LcsDiff, IDiffChange, ISequence } from 'vs/base/common/diff/diff';
 
-class StringDiffSequence {
+class StringDiffSequence implements ISequence {
 
 	constructor(private source: string) {
-
 	}
 
 	getLength() {
 		return this.source.length;
 	}
 
-	getElementHash(i: number) {
-		return this.source.charAt(i);
+	getElementAtIndex(i: number) {
+		return this.source.charCodeAt(i);
 	}
 }
 

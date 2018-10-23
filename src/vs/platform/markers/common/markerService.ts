@@ -2,16 +2,14 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
 import { isFalsyOrEmpty } from 'vs/base/common/arrays';
 import { Schemas } from 'vs/base/common/network';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { isEmptyObject } from 'vs/base/common/types';
-import URI from 'vs/base/common/uri';
-import Event, { Emitter, debounceEvent } from 'vs/base/common/event';
-import Severity from 'vs/base/common/severity';
-import { IMarkerService, IMarkerData, IResourceMarker, IMarker, MarkerStatistics } from './markers';
+import { URI } from 'vs/base/common/uri';
+import { Event, Emitter, debounceEvent } from 'vs/base/common/event';
+import { IMarkerService, IMarkerData, IResourceMarker, IMarker, MarkerStatistics, MarkerSeverity } from './markers';
 
 interface MapMap<V> {
 	[key: string]: { [key: string]: V };
@@ -19,7 +17,7 @@ interface MapMap<V> {
 
 namespace MapMap {
 
-	export function get<V>(map: MapMap<V>, key1: string, key2: string): V {
+	export function get<V>(map: MapMap<V>, key1: string, key2: string): V | undefined {
 		if (map[key1]) {
 			return map[key1][key2];
 		}
@@ -52,7 +50,7 @@ class MarkerStats implements MarkerStatistics {
 	warnings: number = 0;
 	unknowns: number = 0;
 
-	private _data: { [resource: string]: MarkerStatistics } = Object.create(null);
+	private _data?: { [resource: string]: MarkerStatistics } = Object.create(null);
 	private _service: IMarkerService;
 	private _subscription: IDisposable;
 
@@ -67,6 +65,10 @@ class MarkerStats implements MarkerStatistics {
 	}
 
 	private _update(resources: URI[]): void {
+		if (!this._data) {
+			return;
+		}
+
 		for (const resource of resources) {
 			const key = resource.toString();
 			const oldStats = this._data[key];
@@ -88,11 +90,11 @@ class MarkerStats implements MarkerStatistics {
 		}
 
 		for (const { severity } of this._service.read({ resource })) {
-			if (severity === Severity.Error) {
+			if (severity === MarkerSeverity.Error) {
 				result.errors += 1;
-			} else if (severity === Severity.Warning) {
+			} else if (severity === MarkerSeverity.Warning) {
 				result.warnings += 1;
-			} else if (severity === Severity.Info) {
+			} else if (severity === MarkerSeverity.Info) {
 				result.infos += 1;
 			} else {
 				result.unknowns += 1;
@@ -146,7 +148,7 @@ export class MarkerService implements IMarkerService {
 	remove(owner: string, resources: URI[]): void {
 		if (!isFalsyOrEmpty(resources)) {
 			for (const resource of resources) {
-				this.changeOne(owner, resource, undefined);
+				this.changeOne(owner, resource, []);
 			}
 		}
 	}
@@ -179,15 +181,20 @@ export class MarkerService implements IMarkerService {
 		}
 	}
 
-	private static _toMarker(owner: string, resource: URI, data: IMarkerData): IMarker {
-		let { code, severity, message, source, startLineNumber, startColumn, endLineNumber, endColumn } = data;
+	private static _toMarker(owner: string, resource: URI, data: IMarkerData): IMarker | undefined {
+		let {
+			code, severity,
+			message, source,
+			startLineNumber, startColumn, endLineNumber, endColumn,
+			relatedInformation,
+			tags,
+		} = data;
 
 		if (!message) {
 			return undefined;
 		}
 
 		// santize data
-		code = code || null;
 		startLineNumber = startLineNumber > 0 ? startLineNumber : 1;
 		startColumn = startColumn > 0 ? startColumn : 1;
 		endLineNumber = endLineNumber >= startLineNumber ? endLineNumber : startLineNumber;
@@ -196,14 +203,16 @@ export class MarkerService implements IMarkerService {
 		return {
 			resource,
 			owner,
-			code,
+			code: code || undefined,
 			severity,
 			message,
 			source,
 			startLineNumber,
 			startColumn,
 			endLineNumber,
-			endColumn
+			endColumn,
+			relatedInformation,
+			tags,
 		};
 	}
 
@@ -215,13 +224,16 @@ export class MarkerService implements IMarkerService {
 		if (map) {
 			delete this._byOwner[owner];
 			for (const resource in map) {
-				// remeber what we remove
-				const [first] = MapMap.get(this._byResource, resource, owner);
-				if (first) {
-					changes.push(first.resource);
+				const entry = MapMap.get(this._byResource, resource, owner);
+				if (entry) {
+					// remeber what we remove
+					const [first] = entry;
+					if (first) {
+						changes.push(first.resource);
+					}
+					// actual remove
+					MapMap.remove(this._byResource, resource, owner);
 				}
-				// actual remove
-				MapMap.remove(this._byResource, resource, owner);
 			}
 		}
 
@@ -257,9 +269,9 @@ export class MarkerService implements IMarkerService {
 		}
 	}
 
-	read(filter: { owner?: string; resource?: URI; take?: number; } = Object.create(null)): IMarker[] {
+	read(filter: { owner?: string; resource?: URI; severities?: number, take?: number; } = Object.create(null)): IMarker[] {
 
-		let { owner, resource, take } = filter;
+		let { owner, resource, severities, take } = filter;
 
 		if (!take || take < 0) {
 			take = -1;
@@ -267,11 +279,20 @@ export class MarkerService implements IMarkerService {
 
 		if (owner && resource) {
 			// exactly one owner AND resource
-			const result = MapMap.get(this._byResource, resource.toString(), owner);
-			if (!result) {
+			const data = MapMap.get(this._byResource, resource.toString(), owner);
+			if (!data) {
 				return [];
 			} else {
-				return result.slice(0, take > 0 ? take : undefined);
+				const result: IMarker[] = [];
+				for (const marker of data) {
+					if (MarkerService._accept(marker, severities)) {
+						const newLen = result.push(marker);
+						if (take > 0 && newLen === take) {
+							break;
+						}
+					}
+				}
+				return result;
 			}
 
 		} else if (!owner && !resource) {
@@ -280,10 +301,11 @@ export class MarkerService implements IMarkerService {
 			for (const key1 in this._byResource) {
 				for (const key2 in this._byResource[key1]) {
 					for (const data of this._byResource[key1][key2]) {
-						const newLen = result.push(data);
-
-						if (take > 0 && newLen === take) {
-							return result;
+						if (MarkerService._accept(data, severities)) {
+							const newLen = result.push(data);
+							if (take > 0 && newLen === take) {
+								return result;
+							}
 						}
 					}
 				}
@@ -292,9 +314,9 @@ export class MarkerService implements IMarkerService {
 
 		} else {
 			// of one resource OR owner
-			const map: { [key: string]: IMarker[] } = owner
+			const map: { [key: string]: IMarker[] } | undefined = owner
 				? this._byOwner[owner]
-				: this._byResource[resource.toString()];
+				: resource ? this._byResource[resource.toString()] : undefined;
 
 			if (!map) {
 				return [];
@@ -303,15 +325,20 @@ export class MarkerService implements IMarkerService {
 			const result: IMarker[] = [];
 			for (const key in map) {
 				for (const data of map[key]) {
-					const newLen = result.push(data);
-
-					if (take > 0 && newLen === take) {
-						return result;
+					if (MarkerService._accept(data, severities)) {
+						const newLen = result.push(data);
+						if (take > 0 && newLen === take) {
+							return result;
+						}
 					}
 				}
 			}
 			return result;
 		}
+	}
+
+	private static _accept(marker: IMarker, severities?: number): boolean {
+		return severities === void 0 || (severities & marker.severity) === marker.severity;
 	}
 
 	// --- event debounce logic

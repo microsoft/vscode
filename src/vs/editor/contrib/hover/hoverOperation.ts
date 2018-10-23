@@ -2,23 +2,17 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
-import { RunOnceScheduler } from 'vs/base/common/async';
+import { CancelablePromise, RunOnceScheduler, createCancelablePromise } from 'vs/base/common/async';
+import { CancellationToken } from 'vs/base/common/cancellation';
 import { onUnexpectedError } from 'vs/base/common/errors';
-import { TPromise } from 'vs/base/common/winjs.base';
 
 export interface IHoverComputer<Result> {
 
 	/**
-	 * Overwrite the default hover time
-	 */
-	getHoverTimeMillis?: () => number;
-
-	/**
 	 * This is called after half the hover time
 	 */
-	computeAsync?: () => TPromise<Result>;
+	computeAsync?: (token: CancellationToken) => Promise<Result>;
 
 	/**
 	 * This is called after all the hover time
@@ -46,30 +40,37 @@ const enum ComputeHoverOperationState {
 	WAITING_FOR_ASYNC_COMPUTATION = 3
 }
 
+export const enum HoverStartMode {
+	Delayed = 0,
+	Immediate = 1
+}
+
 export class HoverOperation<Result> {
 
 	static HOVER_TIME = 300;
 
 	private _computer: IHoverComputer<Result>;
 	private _state: ComputeHoverOperationState;
+	private _hoverTime: number;
 
 	private _firstWaitScheduler: RunOnceScheduler;
 	private _secondWaitScheduler: RunOnceScheduler;
 	private _loadingMessageScheduler: RunOnceScheduler;
-	private _asyncComputationPromise: TPromise<void>;
+	private _asyncComputationPromise: CancelablePromise<Result> | null;
 	private _asyncComputationPromiseDone: boolean;
 
 	private _completeCallback: (r: Result) => void;
-	private _errorCallback: (err: any) => void;
+	private _errorCallback?: (err: any) => void;
 	private _progressCallback: (progress: any) => void;
 
-	constructor(computer: IHoverComputer<Result>, success: (r: Result) => void, error: (err: any) => void, progress: (progress: any) => void) {
+	constructor(computer: IHoverComputer<Result>, success: (r: Result) => void, error: undefined | ((err: any) => void), progress: (progress: any) => void) {
 		this._computer = computer;
 		this._state = ComputeHoverOperationState.IDLE;
+		this._hoverTime = HoverOperation.HOVER_TIME;
 
-		this._firstWaitScheduler = new RunOnceScheduler(() => this._triggerAsyncComputation(), this._getHoverTimeMillis() / 2);
-		this._secondWaitScheduler = new RunOnceScheduler(() => this._triggerSyncComputation(), this._getHoverTimeMillis() / 2);
-		this._loadingMessageScheduler = new RunOnceScheduler(() => this._showLoadingMessage(), 3 * this._getHoverTimeMillis());
+		this._firstWaitScheduler = new RunOnceScheduler(() => this._triggerAsyncComputation(), 0);
+		this._secondWaitScheduler = new RunOnceScheduler(() => this._triggerSyncComputation(), 0);
+		this._loadingMessageScheduler = new RunOnceScheduler(() => this._showLoadingMessage(), 0);
 
 		this._asyncComputationPromise = null;
 		this._asyncComputationPromiseDone = false;
@@ -79,23 +80,34 @@ export class HoverOperation<Result> {
 		this._progressCallback = progress;
 	}
 
-	private _getHoverTimeMillis(): number {
-		if (this._computer.getHoverTimeMillis) {
-			return this._computer.getHoverTimeMillis();
-		}
-		return HoverOperation.HOVER_TIME;
+	public setHoverTime(hoverTime: number): void {
+		this._hoverTime = hoverTime;
+	}
+
+	private _firstWaitTime(): number {
+		return this._hoverTime / 2;
+	}
+
+	private _secondWaitTime(): number {
+		return this._hoverTime / 2;
+	}
+
+	private _loadingMessageTime(): number {
+		return 3 * this._hoverTime;
 	}
 
 	private _triggerAsyncComputation(): void {
 		this._state = ComputeHoverOperationState.SECOND_WAIT;
-		this._secondWaitScheduler.schedule();
+		this._secondWaitScheduler.schedule(this._secondWaitTime());
 
 		if (this._computer.computeAsync) {
 			this._asyncComputationPromiseDone = false;
-			this._asyncComputationPromise = this._computer.computeAsync().then((asyncResult: Result) => {
+			this._asyncComputationPromise = createCancelablePromise(token => this._computer.computeAsync!(token));
+			this._asyncComputationPromise.then((asyncResult: Result) => {
 				this._asyncComputationPromiseDone = true;
 				this._withAsyncResult(asyncResult);
 			}, (e) => this._onError(e));
+
 		} else {
 			this._asyncComputationPromiseDone = true;
 		}
@@ -152,11 +164,25 @@ export class HoverOperation<Result> {
 		}
 	}
 
-	public start(): void {
-		if (this._state === ComputeHoverOperationState.IDLE) {
-			this._state = ComputeHoverOperationState.FIRST_WAIT;
-			this._firstWaitScheduler.schedule();
-			this._loadingMessageScheduler.schedule();
+	public start(mode: HoverStartMode): void {
+		if (mode === HoverStartMode.Delayed) {
+			if (this._state === ComputeHoverOperationState.IDLE) {
+				this._state = ComputeHoverOperationState.FIRST_WAIT;
+				this._firstWaitScheduler.schedule(this._firstWaitTime());
+				this._loadingMessageScheduler.schedule(this._loadingMessageTime());
+			}
+		} else {
+			switch (this._state) {
+				case ComputeHoverOperationState.IDLE:
+					this._triggerAsyncComputation();
+					this._secondWaitScheduler.cancel();
+					this._triggerSyncComputation();
+					break;
+				case ComputeHoverOperationState.SECOND_WAIT:
+					this._secondWaitScheduler.cancel();
+					this._triggerSyncComputation();
+					break;
+			}
 		}
 	}
 

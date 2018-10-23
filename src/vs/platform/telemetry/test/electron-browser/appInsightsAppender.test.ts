@@ -2,47 +2,81 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
-
 import * as assert from 'assert';
 import { AppInsightsAppender } from 'vs/platform/telemetry/node/appInsightsAppender';
+import { ILogService, AbstractLogService, LogLevel, DEFAULT_LOG_LEVEL } from 'vs/platform/log/common/log';
+import { ITelemetryClient, EventTelemetry } from 'applicationinsights';
 
-interface IAppInsightsEvent {
-	eventName: string;
-	properties?: { [x: string]: string; };
-	measurements?: { [x: string]: number; };
-}
-
-class AppInsightsMock {
-
-	public events: IAppInsightsEvent[] = [];
+class AppInsightsMock implements ITelemetryClient {
+	public config: any;
+	public channel: any;
+	public events: EventTelemetry[] = [];
 	public IsTrackingPageView: boolean = false;
 	public exceptions: any[] = [];
 
-	public trackEvent(eventName: string, properties?: { string?: string; }, measurements?: { string?: number; }): void {
-		this.events.push({
-			eventName,
-			properties,
-			measurements
-		});
-	}
-	public trackPageView(): void {
-		this.IsTrackingPageView = true;
+	public trackEvent(event: any) {
+		this.events.push(event);
 	}
 
-	public trackException(exception: any): void {
-		this.exceptions.push(exception);
-	}
-
-	public sendPendingData(_callback: any): void {
+	public flush(options: any): void {
 		// called on dispose
 	}
+}
+
+class TestableLogService extends AbstractLogService implements ILogService {
+	_serviceBrand: any;
+
+	public logs: string[] = [];
+
+	constructor(logLevel: LogLevel = DEFAULT_LOG_LEVEL) {
+		super();
+		this.setLevel(logLevel);
+	}
+
+	trace(message: string, ...args: any[]): void {
+		if (this.getLevel() <= LogLevel.Trace) {
+			this.logs.push(message + JSON.stringify(args));
+		}
+	}
+
+	debug(message: string, ...args: any[]): void {
+		if (this.getLevel() <= LogLevel.Debug) {
+			this.logs.push(message);
+		}
+	}
+
+	info(message: string, ...args: any[]): void {
+		if (this.getLevel() <= LogLevel.Info) {
+			this.logs.push(message);
+		}
+	}
+
+	warn(message: string | Error, ...args: any[]): void {
+		if (this.getLevel() <= LogLevel.Warning) {
+			this.logs.push(message.toString());
+		}
+	}
+
+	error(message: string, ...args: any[]): void {
+		if (this.getLevel() <= LogLevel.Error) {
+			this.logs.push(message);
+		}
+	}
+
+	critical(message: string, ...args: any[]): void {
+		if (this.getLevel() <= LogLevel.Critical) {
+			this.logs.push(message);
+		}
+	}
+
+	dispose(): void { }
 }
 
 suite('AIAdapter', () => {
 	var appInsightsMock: AppInsightsMock;
 	var adapter: AppInsightsAppender;
 	var prefix = 'prefix';
+
 
 	setup(() => {
 		appInsightsMock = new AppInsightsMock();
@@ -57,7 +91,7 @@ suite('AIAdapter', () => {
 		adapter.log('testEvent');
 
 		assert.equal(appInsightsMock.events.length, 1);
-		assert.equal(appInsightsMock.events[0].eventName, `${prefix}/testEvent`);
+		assert.equal(appInsightsMock.events[0].name, `${prefix}/testEvent`);
 	});
 
 	test('addional data', () => {
@@ -66,7 +100,7 @@ suite('AIAdapter', () => {
 
 		assert.equal(appInsightsMock.events.length, 1);
 		let [first] = appInsightsMock.events;
-		assert.equal(first.eventName, `${prefix}/testEvent`);
+		assert.equal(first.name, `${prefix}/testEvent`);
 		assert.equal(first.properties['first'], '1st');
 		assert.equal(first.measurements['second'], '2');
 		assert.equal(first.measurements['third'], 1);
@@ -103,7 +137,7 @@ suite('AIAdapter', () => {
 		adapter.log('testEvent', { favoriteDate: date, likeRed: false, likeBlue: true, favoriteNumber: 1, favoriteColor: 'blue', favoriteCars: ['bmw', 'audi', 'ford'] });
 
 		assert.equal(appInsightsMock.events.length, 1);
-		assert.equal(appInsightsMock.events[0].eventName, `${prefix}/testEvent`);
+		assert.equal(appInsightsMock.events[0].name, `${prefix}/testEvent`);
 		assert.equal(appInsightsMock.events[0].properties['favoriteColor'], 'blue');
 		assert.equal(appInsightsMock.events[0].measurements['likeRed'], 0);
 		assert.equal(appInsightsMock.events[0].measurements['likeBlue'], 1);
@@ -132,7 +166,7 @@ suite('AIAdapter', () => {
 		});
 
 		assert.equal(appInsightsMock.events.length, 1);
-		assert.equal(appInsightsMock.events[0].eventName, `${prefix}/testEvent`);
+		assert.equal(appInsightsMock.events[0].name, `${prefix}/testEvent`);
 
 		assert.equal(appInsightsMock.events[0].properties['window.title'], 'some title');
 		assert.equal(appInsightsMock.events[0].measurements['window.measurements.width'], 100);
@@ -140,5 +174,28 @@ suite('AIAdapter', () => {
 
 		assert.equal(appInsightsMock.events[0].properties['nestedObj.nestedObj2.nestedObj3'], JSON.stringify({ 'testProperty': 'test' }));
 		assert.equal(appInsightsMock.events[0].measurements['nestedObj.testMeasurement'], 1);
+	});
+
+	test('Do not Log Telemetry if log level is not trace', () => {
+		const logService = new TestableLogService(LogLevel.Info);
+		adapter = new AppInsightsAppender(prefix, { 'common.platform': 'Windows' }, () => appInsightsMock, logService);
+		adapter.log('testEvent', { hello: 'world', isTrue: true, numberBetween1And3: 2 });
+		assert.equal(logService.logs.length, 0);
+	});
+
+	test('Log Telemetry if log level is trace', () => {
+		const logService = new TestableLogService(LogLevel.Trace);
+		adapter = new AppInsightsAppender(prefix, { 'common.platform': 'Windows' }, () => appInsightsMock, logService);
+		adapter.log('testEvent', { hello: 'world', isTrue: true, numberBetween1And3: 2 });
+		assert.equal(logService.logs.length, 1);
+		assert.equal(logService.logs[0], 'telemetry/testEvent' + JSON.stringify([{
+			properties: {
+				hello: 'world',
+				'common.platform': 'Windows'
+			},
+			measurements: {
+				isTrue: 1, numberBetween1And3: 2
+			}
+		}]));
 	});
 });

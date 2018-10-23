@@ -4,7 +4,7 @@
 		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
 		"Once accepted there, we are happy to receive an update request."
 	],
-	"version": "https://github.com/textmate/perl.tmbundle/commit/c0b7a4bd65882380522d82a60b536479a62b07c3",
+	"version": "https://github.com/textmate/perl.tmbundle/commit/80826abe75250286c2a1a07958e50e8551d3f50c",
 	"name": "Perl",
 	"scopeName": "source.perl",
 	"comment": "\n\tTODO:\tInclude RegExp syntax\n",
@@ -332,7 +332,7 @@
 					]
 				},
 				{
-					"begin": "(?<!\\{|\\+|\\-)(m)(?!_)\\s*([^\\sa-zA-Z0-9'\\{\\[\\(\\<])",
+					"begin": "\\G(?<!\\{|\\+|\\-)(m)(?!_)\\s*([^\\sa-zA-Z0-9'\\{\\[\\(\\<])",
 					"captures": {
 						"0": {
 							"name": "punctuation.definition.string.perl"

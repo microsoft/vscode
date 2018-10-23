@@ -2,12 +2,11 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
 import { IDisposable } from 'vs/base/common/lifecycle';
 import * as dom from 'vs/base/browser/dom';
 import * as objects from 'vs/base/common/objects';
-import { render as renderOcticons } from 'vs/base/browser/ui/octiconLabel/octiconLabel';
+import { renderOcticons } from 'vs/base/browser/ui/octiconLabel/octiconLabel';
 
 export interface IHighlight {
 	start: number;
@@ -18,6 +17,7 @@ export class HighlightedLabel implements IDisposable {
 
 	private domNode: HTMLElement;
 	private text: string;
+	private title: string;
 	private highlights: IHighlight[];
 	private didEverRender: boolean;
 
@@ -32,11 +32,15 @@ export class HighlightedLabel implements IDisposable {
 		return this.domNode;
 	}
 
-	set(text: string, highlights: IHighlight[] = []) {
+	set(text: string, highlights: IHighlight[] = [], title: string = '', escapeNewLines?: boolean) {
 		if (!text) {
 			text = '';
 		}
-		if (this.didEverRender && this.text === text && objects.equals(this.highlights, highlights)) {
+		if (escapeNewLines) {
+			// adjusts highlights inplace
+			text = HighlightedLabel.escapeNewLines(text, highlights);
+		}
+		if (this.didEverRender && this.text === text && this.title === title && objects.equals(this.highlights, highlights)) {
 			return;
 		}
 
@@ -45,6 +49,7 @@ export class HighlightedLabel implements IDisposable {
 		}
 
 		this.text = text;
+		this.title = title;
 		this.highlights = highlights;
 		this.render();
 	}
@@ -80,11 +85,38 @@ export class HighlightedLabel implements IDisposable {
 		}
 
 		this.domNode.innerHTML = htmlContent.join('');
+		this.domNode.title = this.title;
 		this.didEverRender = true;
 	}
 
 	dispose() {
-		this.text = null;
-		this.highlights = null;
+		this.text = null!; // StrictNullOverride: nulling out ok in dispose
+		this.highlights = null!; // StrictNullOverride: nulling out ok in dispose
+	}
+
+	static escapeNewLines(text: string, highlights: IHighlight[]): string {
+
+		let total = 0;
+		let extra = 0;
+
+		return text.replace(/\r\n|\r|\n/, (match, offset) => {
+			extra = match === '\r\n' ? -1 : 0;
+			offset += total;
+
+			for (const highlight of highlights) {
+				if (highlight.end <= offset) {
+					continue;
+				}
+				if (highlight.start >= offset) {
+					highlight.start += extra;
+				}
+				if (highlight.end >= offset) {
+					highlight.end += extra;
+				}
+			}
+
+			total += extra;
+			return '\u23CE';
+		});
 	}
 }

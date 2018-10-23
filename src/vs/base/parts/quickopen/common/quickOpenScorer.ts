@@ -3,13 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import { compareAnything } from 'vs/base/common/comparers';
 import { matchesPrefix, IMatch, createMatches, matchesCamelCase, isUpper } from 'vs/base/common/filters';
-import { isEqual, nativeSep } from 'vs/base/common/paths';
-import { isWindows } from 'vs/base/common/platform';
-import { stripWildcards } from 'vs/base/common/strings';
+import { nativeSep } from 'vs/base/common/paths';
+import { isWindows, isLinux } from 'vs/base/common/platform';
+import { stripWildcards, equalsIgnoreCase } from 'vs/base/common/strings';
 import { CharCode } from 'vs/base/common/charCode';
 
 export type Score = [number /* score */, number[] /* match positions */];
@@ -63,8 +61,8 @@ export function score(target: string, query: string, queryLower: string, fuzzy: 
 }
 
 function doScore(query: string, queryLower: string, queryLength: number, target: string, targetLower: string, targetLength: number): [number, number[]] {
-	const scores = [];
-	const matches = [];
+	const scores: number[] = [];
+	const matches: number[] = [];
 
 	//
 	// Build Scorer Matrix:
@@ -123,7 +121,7 @@ function doScore(query: string, queryLower: string, queryLength: number, target:
 	}
 
 	// Restore Positions (starting from bottom right of matrix)
-	const positions = [];
+	const positions: number[] = [];
 	let queryIndex = queryLength - 1;
 	let targetIndex = targetLength - 1;
 	while (queryIndex >= 0 && targetIndex >= 0) {
@@ -296,6 +294,7 @@ const LABEL_CAMELCASE_SCORE = 1 << 16;
 const LABEL_SCORE_THRESHOLD = 1 << 15;
 
 export interface IPreparedQuery {
+	original: string;
 	value: string;
 	lowercase: string;
 	containsPathSeparator: boolean;
@@ -304,21 +303,22 @@ export interface IPreparedQuery {
 /**
  * Helper function to prepare a search value for scoring in quick open by removing unwanted characters.
  */
-export function prepareQuery(value: string): IPreparedQuery {
+export function prepareQuery(original: string): IPreparedQuery {
 	let lowercase: string;
 	let containsPathSeparator: boolean;
+	let value: string;
 
-	if (value) {
-		value = stripWildcards(value).replace(/\s/g, ''); // get rid of all wildcards and whitespace
+	if (original) {
+		value = stripWildcards(original).replace(/\s/g, ''); // get rid of all wildcards and whitespace
 		if (isWindows) {
-			value = value.replace(/\//g, '\\'); // Help Windows users to search for paths when using slash
+			value = value.replace(/\//g, nativeSep); // Help Windows users to search for paths when using slash
 		}
 
 		lowercase = value.toLowerCase();
 		containsPathSeparator = value.indexOf(nativeSep) >= 0;
 	}
 
-	return { value, lowercase, containsPathSeparator };
+	return { original, value, lowercase, containsPathSeparator };
 }
 
 export function scoreItem<T>(item: T, query: IPreparedQuery, fuzzy: boolean, accessor: IItemAccessor<T>, cache: ScorerCache): IItemScore {
@@ -354,7 +354,7 @@ export function scoreItem<T>(item: T, query: IPreparedQuery, fuzzy: boolean, acc
 function doScoreItem(label: string, description: string, path: string, query: IPreparedQuery, fuzzy: boolean): IItemScore {
 
 	// 1.) treat identity matches on full path highest
-	if (path && isEqual(query.value, path, true)) {
+	if (path && isLinux ? query.original === path : equalsIgnoreCase(query.original, path)) {
 		return { score: PATH_IDENTITY_SCORE, labelMatch: [{ start: 0, end: label.length }], descriptionMatch: description ? [{ start: 0, end: description.length }] : void 0 };
 	}
 

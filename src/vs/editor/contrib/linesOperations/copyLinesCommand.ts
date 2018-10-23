@@ -2,7 +2,6 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
 import { Range } from 'vs/editor/common/core/range';
 import { Selection, SelectionDirection } from 'vs/editor/common/core/selection';
@@ -25,7 +24,7 @@ export class CopyLinesCommand implements editorCommon.ICommand {
 	}
 
 	public getEditOperations(model: ITextModel, builder: editorCommon.IEditOperationBuilder): void {
-		var s = this._selection;
+		let s = this._selection;
 
 		this._startLineNumberDelta = 0;
 		this._endLineNumberDelta = 0;
@@ -34,11 +33,11 @@ export class CopyLinesCommand implements editorCommon.ICommand {
 			s = s.setEndPosition(s.endLineNumber - 1, model.getLineMaxColumn(s.endLineNumber - 1));
 		}
 
-		var sourceLines: string[] = [];
-		for (var i = s.startLineNumber; i <= s.endLineNumber; i++) {
+		let sourceLines: string[] = [];
+		for (let i = s.startLineNumber; i <= s.endLineNumber; i++) {
 			sourceLines.push(model.getLineContent(i));
 		}
-		var sourceText = sourceLines.join('\n');
+		const sourceText = sourceLines.join('\n');
 
 		if (sourceText === '') {
 			// Duplicating empty line
@@ -59,13 +58,13 @@ export class CopyLinesCommand implements editorCommon.ICommand {
 	}
 
 	public computeCursorState(model: ITextModel, helper: editorCommon.ICursorStateComputerData): Selection {
-		var result = helper.getTrackedSelection(this._selectionId);
+		let result = helper.getTrackedSelection(this._selectionId);
 
 		if (this._startLineNumberDelta !== 0 || this._endLineNumberDelta !== 0) {
-			var startLineNumber = result.startLineNumber,
-				startColumn = result.startColumn,
-				endLineNumber = result.endLineNumber,
-				endColumn = result.endColumn;
+			let startLineNumber = result.startLineNumber;
+			let startColumn = result.startColumn;
+			let endLineNumber = result.endLineNumber;
+			let endColumn = result.endColumn;
 
 			if (this._startLineNumberDelta !== 0) {
 				startLineNumber = startLineNumber + this._startLineNumberDelta;

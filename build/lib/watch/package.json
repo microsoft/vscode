@@ -5,7 +5,6 @@
   "author": "Microsoft ",
   "private": true,
   "devDependencies": {
-    "gulp-watch": "^4.3.9",
-    "nsfw": "^1.0.15"
+    "gulp-watch": "^4.3.9"
   }
 }

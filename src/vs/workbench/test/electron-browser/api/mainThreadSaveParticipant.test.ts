@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import * as assert from 'assert';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { FinalNewLineParticipant, TrimFinalNewLinesParticipant } from 'vs/workbench/api/electron-browser/mainThreadSaveParticipant';
@@ -20,7 +18,7 @@ import { TextFileEditorModelManager } from 'vs/workbench/services/textfile/commo
 import { snapshotToString } from 'vs/platform/files/common/files';
 
 class ServiceAccessor {
-	constructor( @ITextFileService public textFileService: TestTextFileService, @IModelService public modelService: IModelService) {
+	constructor(@ITextFileService public textFileService: TestTextFileService, @IModelService public modelService: IModelService) {
 	}
 }
 
@@ -39,109 +37,125 @@ suite('MainThreadSaveParticipant', function () {
 		TextFileEditorModel.setSaveParticipant(null); // reset any set participant
 	});
 
-	test('insert final new line', function (done) {
+	test('insert final new line', async function () {
 		const model: TextFileEditorModel = instantiationService.createInstance(TextFileEditorModel, toResource.call(this, '/path/final_new_line.txt'), 'utf8');
 
-		model.load().then(() => {
-			const configService = new TestConfigurationService();
-			configService.setUserConfiguration('files', { 'insertFinalNewline': true });
+		await model.load();
+		const configService = new TestConfigurationService();
+		configService.setUserConfiguration('files', { 'insertFinalNewline': true });
+		const participant = new FinalNewLineParticipant(configService, undefined);
 
-			const participant = new FinalNewLineParticipant(configService, undefined);
+		// No new line for empty lines
+		let lineContent = '';
+		model.textEditorModel.setValue(lineContent);
+		participant.participate(model, { reason: SaveReason.EXPLICIT });
+		assert.equal(snapshotToString(model.createSnapshot()), lineContent);
 
-			// No new line for empty lines
-			let lineContent = '';
-			model.textEditorModel.setValue(lineContent);
-			participant.participate(model, { reason: SaveReason.EXPLICIT });
-			assert.equal(snapshotToString(model.createSnapshot()), lineContent);
+		// No new line if last line already empty
+		lineContent = `Hello New Line${model.textEditorModel.getEOL()}`;
+		model.textEditorModel.setValue(lineContent);
+		participant.participate(model, { reason: SaveReason.EXPLICIT });
+		assert.equal(snapshotToString(model.createSnapshot()), lineContent);
 
-			// No new line if last line already empty
-			lineContent = `Hello New Line${model.textEditorModel.getEOL()}`;
-			model.textEditorModel.setValue(lineContent);
-			participant.participate(model, { reason: SaveReason.EXPLICIT });
-			assert.equal(snapshotToString(model.createSnapshot()), lineContent);
+		// New empty line added (single line)
+		lineContent = 'Hello New Line';
+		model.textEditorModel.setValue(lineContent);
+		participant.participate(model, { reason: SaveReason.EXPLICIT });
+		assert.equal(snapshotToString(model.createSnapshot()), `${lineContent}${model.textEditorModel.getEOL()}`);
 
-			// New empty line added (single line)
-			lineContent = 'Hello New Line';
-			model.textEditorModel.setValue(lineContent);
-			participant.participate(model, { reason: SaveReason.EXPLICIT });
-			assert.equal(snapshotToString(model.createSnapshot()), `${lineContent}${model.textEditorModel.getEOL()}`);
-
-			// New empty line added (multi line)
-			lineContent = `Hello New Line${model.textEditorModel.getEOL()}Hello New Line${model.textEditorModel.getEOL()}Hello New Line`;
-			model.textEditorModel.setValue(lineContent);
-			participant.participate(model, { reason: SaveReason.EXPLICIT });
-			assert.equal(snapshotToString(model.createSnapshot()), `${lineContent}${model.textEditorModel.getEOL()}`);
-
-			done();
-		});
+		// New empty line added (multi line)
+		lineContent = `Hello New Line${model.textEditorModel.getEOL()}Hello New Line${model.textEditorModel.getEOL()}Hello New Line`;
+		model.textEditorModel.setValue(lineContent);
+		participant.participate(model, { reason: SaveReason.EXPLICIT });
+		assert.equal(snapshotToString(model.createSnapshot()), `${lineContent}${model.textEditorModel.getEOL()}`);
 	});
 
-	test('trim final new lines', function (done) {
+	test('trim final new lines', async function () {
 		const model: TextFileEditorModel = instantiationService.createInstance(TextFileEditorModel, toResource.call(this, '/path/trim_final_new_line.txt'), 'utf8');
 
-		model.load().then(() => {
-			const configService = new TestConfigurationService();
-			configService.setUserConfiguration('files', { 'trimFinalNewlines': true });
+		await model.load();
+		const configService = new TestConfigurationService();
+		configService.setUserConfiguration('files', { 'trimFinalNewlines': true });
+		const participant = new TrimFinalNewLinesParticipant(configService, undefined);
+		const textContent = 'Trim New Line';
+		const eol = `${model.textEditorModel.getEOL()}`;
 
-			const participant = new TrimFinalNewLinesParticipant(configService, undefined);
+		// No new line removal if last line is not new line
+		let lineContent = `${textContent}`;
+		model.textEditorModel.setValue(lineContent);
+		participant.participate(model, { reason: SaveReason.EXPLICIT });
+		assert.equal(snapshotToString(model.createSnapshot()), lineContent);
 
-			const textContent = 'Trim New Line';
-			const eol = `${model.textEditorModel.getEOL()}`;
+		// No new line removal if last line is single new line
+		lineContent = `${textContent}${eol}`;
+		model.textEditorModel.setValue(lineContent);
+		participant.participate(model, { reason: SaveReason.EXPLICIT });
+		assert.equal(snapshotToString(model.createSnapshot()), lineContent);
 
-			// No new line removal if last line is not new line
-			let lineContent = `${textContent}`;
-			model.textEditorModel.setValue(lineContent);
-			participant.participate(model, { reason: SaveReason.EXPLICIT });
-			assert.equal(snapshotToString(model.createSnapshot()), lineContent);
+		// Remove new line (single line with two new lines)
+		lineContent = `${textContent}${eol}${eol}`;
+		model.textEditorModel.setValue(lineContent);
+		participant.participate(model, { reason: SaveReason.EXPLICIT });
+		assert.equal(snapshotToString(model.createSnapshot()), `${textContent}${eol}`);
 
-			// No new line removal if last line is single new line
-			lineContent = `${textContent}${eol}`;
-			model.textEditorModel.setValue(lineContent);
-			participant.participate(model, { reason: SaveReason.EXPLICIT });
-			assert.equal(snapshotToString(model.createSnapshot()), lineContent);
-
-			// Remove new line (single line with two new lines)
-			lineContent = `${textContent}${eol}${eol}`;
-			model.textEditorModel.setValue(lineContent);
-			participant.participate(model, { reason: SaveReason.EXPLICIT });
-			assert.equal(snapshotToString(model.createSnapshot()), `${textContent}${eol}`);
-
-			// Remove new lines (multiple lines with multiple new lines)
-			lineContent = `${textContent}${eol}${textContent}${eol}${eol}${eol}`;
-			model.textEditorModel.setValue(lineContent);
-			participant.participate(model, { reason: SaveReason.EXPLICIT });
-			assert.equal(snapshotToString(model.createSnapshot()), `${textContent}${eol}${textContent}${eol}`);
-
-			done();
-		});
+		// Remove new lines (multiple lines with multiple new lines)
+		lineContent = `${textContent}${eol}${textContent}${eol}${eol}${eol}`;
+		model.textEditorModel.setValue(lineContent);
+		participant.participate(model, { reason: SaveReason.EXPLICIT });
+		assert.equal(snapshotToString(model.createSnapshot()), `${textContent}${eol}${textContent}${eol}`);
 	});
 
-	test('trim final new lines bug#39750', function (done) {
+	test('trim final new lines bug#39750', async function () {
 		const model: TextFileEditorModel = instantiationService.createInstance(TextFileEditorModel, toResource.call(this, '/path/trim_final_new_line.txt'), 'utf8');
 
-		model.load().then(() => {
-			const configService = new TestConfigurationService();
-			configService.setUserConfiguration('files', { 'trimFinalNewlines': true });
+		await model.load();
+		const configService = new TestConfigurationService();
+		configService.setUserConfiguration('files', { 'trimFinalNewlines': true });
+		const participant = new TrimFinalNewLinesParticipant(configService, undefined);
+		const textContent = 'Trim New Line';
 
-			const participant = new TrimFinalNewLinesParticipant(configService, undefined);
+		// single line
+		let lineContent = `${textContent}`;
+		model.textEditorModel.setValue(lineContent);
 
-			const textContent = 'Trim New Line';
+		// apply edits and push to undo stack.
+		let textEdits = [{ range: new Range(1, 14, 1, 14), text: '.', forceMoveMarkers: false }];
+		model.textEditorModel.pushEditOperations([new Selection(1, 14, 1, 14)], textEdits, () => { return [new Selection(1, 15, 1, 15)]; });
 
-			// single line
-			let lineContent = `${textContent}`;
-			model.textEditorModel.setValue(lineContent);
-			// apply edits and push to undo stack.
-			let textEdits = [{ identifier: null, range: new Range(1, 14, 1, 14), text: '.', forceMoveMarkers: false }];
-			model.textEditorModel.pushEditOperations([new Selection(1, 14, 1, 14)], textEdits, () => { return [new Selection(1, 15, 1, 15)]; });
-			// undo
-			model.textEditorModel.undo();
-			assert.equal(snapshotToString(model.createSnapshot()), `${textContent}`);
-			// trim final new lines should not mess the undo stack
-			participant.participate(model, { reason: SaveReason.EXPLICIT });
-			model.textEditorModel.redo();
-			assert.equal(snapshotToString(model.createSnapshot()), `${textContent}.`);
-			done();
-		});
+		// undo
+		model.textEditorModel.undo();
+		assert.equal(snapshotToString(model.createSnapshot()), `${textContent}`);
+
+		// trim final new lines should not mess the undo stack
+		participant.participate(model, { reason: SaveReason.EXPLICIT });
+		model.textEditorModel.redo();
+		assert.equal(snapshotToString(model.createSnapshot()), `${textContent}.`);
 	});
 
+	test('trim final new lines bug#46075', async function () {
+		const model: TextFileEditorModel = instantiationService.createInstance(TextFileEditorModel, toResource.call(this, '/path/trim_final_new_line.txt'), 'utf8');
+
+		await model.load();
+		const configService = new TestConfigurationService();
+		configService.setUserConfiguration('files', { 'trimFinalNewlines': true });
+		const participant = new TrimFinalNewLinesParticipant(configService, undefined);
+		const textContent = 'Test';
+		const eol = `${model.textEditorModel.getEOL()}`;
+		let content = `${textContent}${eol}${eol}`;
+		model.textEditorModel.setValue(content);
+
+		// save many times
+		for (let i = 0; i < 10; i++) {
+			participant.participate(model, { reason: SaveReason.EXPLICIT });
+		}
+
+		// confirm trimming
+		assert.equal(snapshotToString(model.createSnapshot()), `${textContent}${eol}`);
+
+		// undo should go back to previous content immediately
+		model.textEditorModel.undo();
+		assert.equal(snapshotToString(model.createSnapshot()), `${textContent}${eol}${eol}`);
+		model.textEditorModel.redo();
+		assert.equal(snapshotToString(model.createSnapshot()), `${textContent}${eol}`);
+	});
 });

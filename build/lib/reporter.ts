@@ -11,8 +11,8 @@ import * as util from 'gulp-util';
 import * as fs from 'fs';
 import * as path from 'path';
 
-const allErrors: Error[][] = [];
-let startTime: number = null;
+const allErrors: string[][] = [];
+let startTime: number | null = null;
 let count = 0;
 
 function onStart(): void {
@@ -42,12 +42,20 @@ try {
 
 function log(): void {
 	const errors = _.flatten(allErrors);
-	errors.map(err => util.log(`${util.colors.red('Error')}: ${err}`));
+	const seen = new Set<string>();
+
+	errors.map(err => {
+		if (!seen.has(err)) {
+			seen.add(err);
+			util.log(`${util.colors.red('Error')}: ${err}`);
+		}
+	});
 
 	const regex = /^([^(]+)\((\d+),(\d+)\): (.*)$/;
 	const messages = errors
 		.map(err => regex.exec(err))
 		.filter(match => !!match)
+		.map(x => x as string[])
 		.map(([, path, line, column, message]) => ({ path, line: parseInt(line), column: parseInt(column), message }));
 
 	try {
@@ -57,44 +65,45 @@ function log(): void {
 		//noop
 	}
 
-	util.log(`Finished ${util.colors.green('compilation')} with ${errors.length} errors after ${util.colors.magenta((new Date().getTime() - startTime) + ' ms')}`);
+	util.log(`Finished ${util.colors.green('compilation')} with ${errors.length} errors after ${util.colors.magenta((new Date().getTime() - startTime!) + ' ms')}`);
 }
 
 export interface IReporter {
-	(err: Error): void;
+	(err: string): void;
 	hasErrors(): boolean;
 	end(emitError: boolean): NodeJS.ReadWriteStream;
 }
 
 export function createReporter(): IReporter {
-	const errors: Error[] = [];
+	const errors: string[] = [];
 	allErrors.push(errors);
 
-	class ReportFunc {
-		constructor(err: Error) {
-			errors.push(err);
-		}
+	const result = (err: string) => errors.push(err);
 
-		static hasErrors(): boolean {
-			return errors.length > 0;
-		}
+	result.hasErrors = () => errors.length > 0;
 
-		static end(emitError: boolean): NodeJS.ReadWriteStream {
-			errors.length = 0;
-			onStart();
+	result.end = (emitError: boolean): NodeJS.ReadWriteStream => {
+		errors.length = 0;
+		onStart();
 
-			return es.through(null, function () {
-				onEnd();
+		return es.through(undefined, function () {
+			onEnd();
 
-				if (emitError && errors.length > 0) {
+			if (emitError && errors.length > 0) {
+				if (!(errors as any).__logged__) {
 					log();
-					this.emit('error');
-				} else {
-					this.emit('end');
 				}
-			});
-		}
-	}
 
-	return <IReporter><any>ReportFunc;
-};
+				(errors as any).__logged__ = true;
+
+				const err = new Error(`Found ${errors.length} errors`);
+				(err as any).__reporter__ = true;
+				this.emit('error', err);
+			} else {
+				this.emit('end');
+			}
+		});
+	};
+
+	return result;
+}

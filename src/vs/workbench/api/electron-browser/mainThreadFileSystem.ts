@@ -2,121 +2,82 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
-import URI, { UriComponents } from 'vs/base/common/uri';
-import { TPromise, PPromise } from 'vs/base/common/winjs.base';
-import { ExtHostContext, MainContext, IExtHostContext, MainThreadFileSystemShape, ExtHostFileSystemShape, IFileChangeDto } from '../node/extHost.protocol';
-import { IFileService, IFileSystemProvider, IStat, IFileChange } from 'vs/platform/files/common/files';
-import { IDisposable, dispose } from 'vs/base/common/lifecycle';
-import Event, { Emitter } from 'vs/base/common/event';
+import { Emitter, Event } from 'vs/base/common/event';
+import { IDisposable, dispose, toDisposable } from 'vs/base/common/lifecycle';
+import { URI } from 'vs/base/common/uri';
+import { FileWriteOptions, FileSystemProviderCapabilities, IFileChange, IFileService, IFileSystemProvider, IStat, IWatchOptions, FileType, FileOverwriteOptions, FileDeleteOptions } from 'vs/platform/files/common/files';
 import { extHostNamedCustomer } from 'vs/workbench/api/electron-browser/extHostCustomers';
-import { IProgress } from 'vs/platform/progress/common/progress';
-import { ISearchResultProvider, ISearchQuery, ISearchComplete, ISearchProgressItem, QueryType, IFileMatch, ISearchService, ILineMatch } from 'vs/platform/search/common/search';
-import { IWorkspaceEditingService } from 'vs/workbench/services/workspace/common/workspaceEditing';
-import { onUnexpectedError } from 'vs/base/common/errors';
-import { values } from 'vs/base/common/map';
-import { isFalsyOrEmpty } from 'vs/base/common/arrays';
+import { ExtHostContext, ExtHostFileSystemShape, IExtHostContext, IFileChangeDto, MainContext, MainThreadFileSystemShape } from '../node/extHost.protocol';
+import { LabelRules, ILabelService } from 'vs/platform/label/common/label';
 
 @extHostNamedCustomer(MainContext.MainThreadFileSystem)
 export class MainThreadFileSystem implements MainThreadFileSystemShape {
 
 	private readonly _proxy: ExtHostFileSystemShape;
-	private readonly _provider = new Map<number, RemoteFileSystemProvider>();
+	private readonly _fileProvider = new Map<number, RemoteFileSystemProvider>();
 
 	constructor(
 		extHostContext: IExtHostContext,
 		@IFileService private readonly _fileService: IFileService,
-		@ISearchService private readonly _searchService: ISearchService,
-		@IWorkspaceEditingService private readonly _workspaceEditingService: IWorkspaceEditingService
+		@ILabelService private readonly _labelService: ILabelService
 	) {
 		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostFileSystem);
 	}
 
 	dispose(): void {
-		this._provider.forEach(value => dispose());
-		this._provider.clear();
+		this._fileProvider.forEach(value => value.dispose());
+		this._fileProvider.clear();
 	}
 
-	$registerFileSystemProvider(handle: number, scheme: string): void {
-		this._provider.set(handle, new RemoteFileSystemProvider(this._fileService, this._searchService, scheme, handle, this._proxy));
+	$registerFileSystemProvider(handle: number, scheme: string, capabilities: FileSystemProviderCapabilities): void {
+		this._fileProvider.set(handle, new RemoteFileSystemProvider(this._fileService, scheme, capabilities, handle, this._proxy));
 	}
 
-	$unregisterFileSystemProvider(handle: number): void {
-		dispose(this._provider.get(handle));
-		this._provider.delete(handle);
+	$unregisterProvider(handle: number): void {
+		dispose(this._fileProvider.get(handle));
+		this._fileProvider.delete(handle);
 	}
 
-	$onDidAddFileSystemRoot(data: UriComponents): void {
-		this._workspaceEditingService.addFolders([{ uri: URI.revive(data) }], true).done(null, onUnexpectedError);
+	$setUriFormatter(selector: string, formatter: LabelRules): void {
+		this._labelService.registerFormatter(selector, formatter);
 	}
 
 	$onFileSystemChange(handle: number, changes: IFileChangeDto[]): void {
-		this._provider.get(handle).$onFileSystemChange(changes);
-	}
-
-	$reportFileChunk(handle: number, session: number, chunk: number[]): void {
-		this._provider.get(handle).reportFileChunk(session, chunk);
-	}
-
-	// --- search
-
-	$handleFindMatch(handle: number, session, data: UriComponents | [UriComponents, ILineMatch]): void {
-		this._provider.get(handle).handleFindMatch(session, data);
+		this._fileProvider.get(handle).$onFileSystemChange(changes);
 	}
 }
 
-class FileReadOperation {
-
-	private static _idPool = 0;
-
-	constructor(
-		readonly progress: IProgress<Uint8Array>,
-		readonly id: number = ++FileReadOperation._idPool
-	) {
-		//
-	}
-}
-
-class SearchOperation {
-
-	private static _idPool = 0;
-
-	constructor(
-		readonly progress: (match: IFileMatch) => any,
-		readonly id: number = ++SearchOperation._idPool,
-		readonly matches = new Map<string, IFileMatch>()
-	) {
-		//
-	}
-}
-
-class RemoteFileSystemProvider implements IFileSystemProvider, ISearchResultProvider {
+class RemoteFileSystemProvider implements IFileSystemProvider {
 
 	private readonly _onDidChange = new Emitter<IFileChange[]>();
 	private readonly _registrations: IDisposable[];
-	private readonly _reads = new Map<number, FileReadOperation>();
-	private readonly _searches = new Map<number, SearchOperation>();
 
-	readonly onDidChange: Event<IFileChange[]> = this._onDidChange.event;
-
+	readonly onDidChangeFile: Event<IFileChange[]> = this._onDidChange.event;
+	readonly capabilities: FileSystemProviderCapabilities;
 
 	constructor(
 		fileService: IFileService,
-		searchService: ISearchService,
-		private readonly _scheme: string,
+		scheme: string,
+		capabilities: FileSystemProviderCapabilities,
 		private readonly _handle: number,
 		private readonly _proxy: ExtHostFileSystemShape
 	) {
-		this._registrations = [
-			fileService.registerProvider(_scheme, this),
-			searchService.registerSearchResultProvider(this),
-		];
+		this.capabilities = capabilities;
+		this._registrations = [fileService.registerProvider(scheme, this)];
 	}
 
 	dispose(): void {
 		dispose(this._registrations);
 		this._onDidChange.dispose();
+	}
+
+	watch(resource: URI, opts: IWatchOptions) {
+		const session = Math.random();
+		this._proxy.$watch(this._handle, session, resource, opts);
+		return toDisposable(() => {
+			this._proxy.$unwatch(this._handle, session);
+		});
 	}
 
 	$onFileSystemChange(changes: IFileChangeDto[]): void {
@@ -129,98 +90,57 @@ class RemoteFileSystemProvider implements IFileSystemProvider, ISearchResultProv
 
 	// --- forwarding calls
 
-	utimes(resource: URI, mtime: number, atime: number): TPromise<IStat, any> {
-		return this._proxy.$utimes(this._handle, resource, mtime, atime);
+	private static _asBuffer(data: Uint8Array): Buffer {
+		return Buffer.isBuffer(data) ? data : Buffer.from(data.buffer, data.byteOffset, data.byteLength);
 	}
-	stat(resource: URI): TPromise<IStat, any> {
-		return this._proxy.$stat(this._handle, resource);
-	}
-	read(resource: URI, offset: number, count: number, progress: IProgress<Uint8Array>): TPromise<number, any> {
-		const read = new FileReadOperation(progress);
-		this._reads.set(read.id, read);
-		return this._proxy.$read(this._handle, read.id, offset, count, resource).then(value => {
-			this._reads.delete(read.id);
-			return value;
+
+	stat(resource: URI): Thenable<IStat> {
+		return this._proxy.$stat(this._handle, resource).then(undefined, err => {
+			throw err;
 		});
 	}
-	reportFileChunk(session: number, chunk: number[]): void {
-		this._reads.get(session).progress.report(Buffer.from(chunk));
+
+	readFile(resource: URI): Thenable<Uint8Array> {
+		return this._proxy.$readFile(this._handle, resource);
 	}
-	write(resource: URI, content: Uint8Array): TPromise<void, any> {
-		return this._proxy.$write(this._handle, resource, [].slice.call(content));
+
+	writeFile(resource: URI, content: Uint8Array, opts: FileWriteOptions): Thenable<void> {
+		return this._proxy.$writeFile(this._handle, resource, RemoteFileSystemProvider._asBuffer(content), opts);
 	}
-	unlink(resource: URI): TPromise<void, any> {
-		return this._proxy.$unlink(this._handle, resource);
+
+	delete(resource: URI, opts: FileDeleteOptions): Thenable<void> {
+		return this._proxy.$delete(this._handle, resource, opts);
 	}
-	move(resource: URI, target: URI): TPromise<IStat, any> {
-		return this._proxy.$move(this._handle, resource, target);
-	}
-	mkdir(resource: URI): TPromise<IStat, any> {
+
+	mkdir(resource: URI): Thenable<void> {
 		return this._proxy.$mkdir(this._handle, resource);
 	}
-	readdir(resource: URI): TPromise<[URI, IStat][], any> {
-		return this._proxy.$readdir(this._handle, resource).then(data => {
-			return data.map(tuple => <[URI, IStat]>[URI.revive(tuple[0]), tuple[1]]);
-		});
-	}
-	rmdir(resource: URI): TPromise<void, any> {
-		return this._proxy.$rmdir(this._handle, resource);
+
+	readdir(resource: URI): Thenable<[string, FileType][]> {
+		return this._proxy.$readdir(this._handle, resource);
 	}
 
-	// --- search
-
-	search(query: ISearchQuery): PPromise<ISearchComplete, ISearchProgressItem> {
-
-		if (isFalsyOrEmpty(query.folderQueries)) {
-			return PPromise.as(undefined);
-		}
-
-		let includes = { ...query.includePattern };
-		let excludes = { ...query.excludePattern };
-
-		for (const folderQuery of query.folderQueries) {
-			if (folderQuery.folder.scheme === this._scheme) {
-				includes = { ...includes, ...folderQuery.includePattern };
-				excludes = { ...excludes, ...folderQuery.excludePattern };
-			}
-		}
-
-		return new PPromise((resolve, reject, report) => {
-
-			const search = new SearchOperation(report);
-			this._searches.set(search.id, search);
-
-			const promise = query.type === QueryType.File
-				? this._proxy.$findFiles(this._handle, search.id, query.filePattern)
-				: this._proxy.$provideTextSearchResults(this._handle, search.id, query.contentPattern, { excludes: Object.keys(excludes), includes: Object.keys(includes) });
-
-			promise.then(() => {
-				this._searches.delete(search.id);
-				resolve(({ results: values(search.matches), stats: undefined }));
-			}, err => {
-				this._searches.delete(search.id);
-				reject(err);
-			});
-		});
+	rename(resource: URI, target: URI, opts: FileOverwriteOptions): Thenable<void> {
+		return this._proxy.$rename(this._handle, resource, target, opts);
 	}
 
-	handleFindMatch(session: number, dataOrUri: UriComponents | [UriComponents, ILineMatch]): void {
-		let resource: URI;
-		let match: ILineMatch;
+	copy(resource: URI, target: URI, opts: FileOverwriteOptions): Thenable<void> {
+		return this._proxy.$copy(this._handle, resource, target, opts);
+	}
 
-		if (Array.isArray(dataOrUri)) {
-			resource = URI.revive(dataOrUri[0]);
-			match = dataOrUri[1];
-		} else {
-			resource = URI.revive(dataOrUri);
-		}
+	open(resource: URI): Thenable<number> {
+		return this._proxy.$open(this._handle, resource);
+	}
 
-		const { matches } = this._searches.get(session);
-		if (!matches.has(resource.toString())) {
-			matches.set(resource.toString(), { resource, lineMatches: [] });
-		}
-		if (match) {
-			matches.get(resource.toString()).lineMatches.push(match);
-		}
+	close(fd: number): Thenable<void> {
+		return this._proxy.$close(this._handle, fd);
+	}
+
+	read(fd: number, pos: number, data: Uint8Array, offset: number, length: number): Thenable<number> {
+		return this._proxy.$read(this._handle, fd, pos, RemoteFileSystemProvider._asBuffer(data), offset, length);
+	}
+
+	write(fd: number, pos: number, data: Uint8Array, offset: number, length: number): Thenable<number> {
+		return this._proxy.$write(this._handle, fd, pos, RemoteFileSystemProvider._asBuffer(data), offset, length);
 	}
 }

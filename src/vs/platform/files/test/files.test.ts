@@ -3,12 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import * as assert from 'assert';
-import URI from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 import { join, isEqual, isEqualOrParent } from 'vs/base/common/paths';
-import { FileChangeType, FileChangesEvent, isParent, indexOf } from 'vs/platform/files/common/files';
+import { FileChangeType, FileChangesEvent, isParent } from 'vs/platform/files/common/files';
 import { isLinux, isMacintosh, isWindows } from 'vs/base/common/platform';
 
 suite('Files', () => {
@@ -17,7 +15,7 @@ suite('Files', () => {
 		return URI.file(join('C:\\', path));
 	}
 
-	test('FileChangesEvent', function () {
+	test('FileChangesEvent', () => {
 		let changes = [
 			{ resource: URI.file(join('C:\\', '/foo/updated.txt')), type: FileChangeType.UPDATED },
 			{ resource: URI.file(join('C:\\', '/foo/otherupdated.txt')), type: FileChangeType.UPDATED },
@@ -186,17 +184,5 @@ suite('Files', () => {
 			assert(!isEqualOrParent('foo/bar/test.ts', 'foo/bar/test.', true));
 			assert(!isEqualOrParent('foo/bar/test.ts', 'foo/BAR/test.', true));
 		}
-	});
-
-	test('indexOf (ignorecase)', function () {
-		assert.equal(indexOf('/some/path', '/some/path', true), 0);
-		assert.equal(indexOf('/some/path/more', '/some/path', true), 0);
-
-		assert.equal(indexOf('c:\\some\\path', 'c:\\some\\path', true), 0);
-		assert.equal(indexOf('c:\\some\\path\\more', 'c:\\some\\path', true), 0);
-
-		assert.equal(indexOf('/some/path', '/some/other/path', true), -1);
-
-		assert.equal(indexOf('/some/path', '/some/PATH', true), 0);
 	});
 });

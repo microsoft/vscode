@@ -3,14 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
-import nls = require('vs/nls');
+import * as nls from 'vs/nls';
 import { TPromise } from 'vs/base/common/winjs.base';
-import paths = require('vs/base/common/paths');
-import strings = require('vs/base/common/strings');
-import { isWindows, isLinux } from 'vs/base/common/platform';
-import URI from 'vs/base/common/uri';
+import * as paths from 'vs/base/common/paths';
+import * as strings from 'vs/base/common/strings';
+import { isWindows } from 'vs/base/common/platform';
+import { URI } from 'vs/base/common/uri';
 import { ConfirmResult } from 'vs/workbench/common/editor';
 import { TextFileService as AbstractTextFileService } from 'vs/workbench/services/textfile/common/textFileService';
 import { IRawTextContent } from 'vs/workbench/services/textfile/common/textfiles';
@@ -21,16 +19,16 @@ import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { createTextBufferFactoryFromStream } from 'vs/editor/common/model/textModel';
-import product from 'vs/platform/node/product';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IMessageService, getConfirmMessage } from 'vs/platform/message/common/message';
 import { IBackupFileService } from 'vs/workbench/services/backup/common/backup';
 import { IWindowsService, IWindowService } from 'vs/platform/windows/common/windows';
 import { IHistoryService } from 'vs/workbench/services/history/common/history';
-import { mnemonicButtonLabel } from 'vs/base/common/labels';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IModelService } from 'vs/editor/common/services/modelService';
+import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
+import { getConfirmMessage, IDialogService, ISaveDialogOptions, IFileDialogService } from 'vs/platform/dialogs/common/dialogs';
+import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 
 export class TextFileService extends AbstractTextFileService {
 
@@ -43,18 +41,21 @@ export class TextFileService extends AbstractTextFileService {
 		@IConfigurationService configurationService: IConfigurationService,
 		@IModeService private modeService: IModeService,
 		@IModelService modelService: IModelService,
-		@IWindowService private windowService: IWindowService,
+		@IWindowService windowService: IWindowService,
 		@IEnvironmentService environmentService: IEnvironmentService,
-		@IMessageService messageService: IMessageService,
+		@INotificationService notificationService: INotificationService,
 		@IBackupFileService backupFileService: IBackupFileService,
 		@IWindowsService windowsService: IWindowsService,
 		@IHistoryService historyService: IHistoryService,
-		@IContextKeyService contextKeyService: IContextKeyService
+		@IContextKeyService contextKeyService: IContextKeyService,
+		@IDialogService private dialogService: IDialogService,
+		@IFileDialogService private fileDialogService: IFileDialogService,
+		@IEditorService private editorService: IEditorService
 	) {
-		super(lifecycleService, contextService, configurationService, fileService, untitledEditorService, instantiationService, messageService, environmentService, backupFileService, windowsService, historyService, contextKeyService, modelService);
+		super(lifecycleService, contextService, configurationService, fileService, untitledEditorService, instantiationService, notificationService, environmentService, backupFileService, windowsService, windowService, historyService, contextKeyService, modelService);
 	}
 
-	public resolveTextContent(resource: URI, options?: IResolveContentOptions): TPromise<IRawTextContent> {
+	resolveTextContent(resource: URI, options?: IResolveContentOptions): TPromise<IRawTextContent> {
 		return this.fileService.resolveStreamContent(resource, options).then(streamContent => {
 			return createTextBufferFactoryFromStream(streamContent.value).then(res => {
 				const r: IRawTextContent = {
@@ -63,6 +64,7 @@ export class TextFileService extends AbstractTextFileService {
 					mtime: streamContent.mtime,
 					etag: streamContent.etag,
 					encoding: streamContent.encoding,
+					isReadonly: streamContent.isReadonly,
 					value: res
 				};
 				return r;
@@ -70,7 +72,7 @@ export class TextFileService extends AbstractTextFileService {
 		});
 	}
 
-	public confirmSave(resources?: URI[]): TPromise<ConfirmResult> {
+	confirmSave(resources?: URI[]): TPromise<ConfirmResult> {
 		if (this.environmentService.isExtensionDevelopment) {
 			return TPromise.wrap(ConfirmResult.DONT_SAVE); // no veto when we are in extension dev mode because we cannot assum we run interactive (e.g. tests)
 		}
@@ -83,47 +85,37 @@ export class TextFileService extends AbstractTextFileService {
 		const message = resourcesToConfirm.length === 1 ? nls.localize('saveChangesMessage', "Do you want to save the changes you made to {0}?", paths.basename(resourcesToConfirm[0].fsPath))
 			: getConfirmMessage(nls.localize('saveChangesMessages', "Do you want to save the changes to the following {0} files?", resourcesToConfirm.length), resourcesToConfirm);
 
-		// Button order
-		// Windows: Save | Don't Save | Cancel
-		// Mac: Save | Cancel | Don't Save
-		// Linux: Don't Save | Cancel | Save
+		const buttons: string[] = [
+			resourcesToConfirm.length > 1 ? nls.localize({ key: 'saveAll', comment: ['&& denotes a mnemonic'] }, "&&Save All") : nls.localize({ key: 'save', comment: ['&& denotes a mnemonic'] }, "&&Save"),
+			nls.localize({ key: 'dontSave', comment: ['&& denotes a mnemonic'] }, "Do&&n't Save"),
+			nls.localize('cancel', "Cancel")
+		];
 
-		const save = { label: resourcesToConfirm.length > 1 ? mnemonicButtonLabel(nls.localize({ key: 'saveAll', comment: ['&& denotes a mnemonic'] }, "&&Save All")) : mnemonicButtonLabel(nls.localize({ key: 'save', comment: ['&& denotes a mnemonic'] }, "&&Save")), result: ConfirmResult.SAVE };
-		const dontSave = { label: mnemonicButtonLabel(nls.localize({ key: 'dontSave', comment: ['&& denotes a mnemonic'] }, "Do&&n't Save")), result: ConfirmResult.DONT_SAVE };
-		const cancel = { label: nls.localize('cancel', "Cancel"), result: ConfirmResult.CANCEL };
+		return this.dialogService.show(Severity.Warning, message, buttons, {
+			cancelId: 2,
+			detail: nls.localize('saveChangesDetail', "Your changes will be lost if you don't save them.")
+		}).then(index => {
+			switch (index) {
+				case 0: return ConfirmResult.SAVE;
+				case 1: return ConfirmResult.DONT_SAVE;
+				default: return ConfirmResult.CANCEL;
+			}
+		});
+	}
 
-		const buttons: { label: string; result: ConfirmResult; }[] = [];
-		if (isWindows) {
-			buttons.push(save, dontSave, cancel);
-		} else if (isLinux) {
-			buttons.push(dontSave, cancel, save);
-		} else {
-			buttons.push(save, cancel, dontSave);
-		}
+	promptForPath(resource: URI, defaultUri: URI): TPromise<URI> {
 
-		const opts: Electron.MessageBoxOptions = {
-			title: product.nameLong,
-			message,
-			type: 'warning',
-			detail: nls.localize('saveChangesDetail', "Your changes will be lost if you don't save them."),
-			buttons: buttons.map(b => b.label),
-			noLink: true,
-			cancelId: buttons.indexOf(cancel)
+		// Help user to find a name for the file by opening it first
+		return this.editorService.openEditor({ resource, options: { revealIfOpened: true, preserveFocus: true, } }).then(() => {
+			return this.fileDialogService.showSaveDialog(this.getSaveDialogOptions(defaultUri));
+		});
+	}
+
+	private getSaveDialogOptions(defaultUri: URI): ISaveDialogOptions {
+		const options: ISaveDialogOptions = {
+			defaultUri,
+			title: nls.localize('saveAsTitle', "Save As")
 		};
-
-		if (isLinux) {
-			opts.defaultId = 2;
-		}
-
-		return this.windowService.showMessageBox(opts).then(result => buttons[result.button].result);
-	}
-
-	public promptForPath(defaultPath: string): TPromise<string> {
-		return this.windowService.showSaveDialog(this.getSaveDialogOptions(defaultPath));
-	}
-
-	private getSaveDialogOptions(defaultPath: string): Electron.SaveDialogOptions {
-		const options: Electron.SaveDialogOptions = { defaultPath };
 
 		// Filters are only enabled on Windows where they work properly
 		if (!isWindows) {
@@ -133,7 +125,7 @@ export class TextFileService extends AbstractTextFileService {
 		interface IFilter { name: string; extensions: string[]; }
 
 		// Build the file filter by using our known languages
-		const ext: string = defaultPath ? paths.extname(defaultPath) : void 0;
+		const ext: string = defaultUri ? paths.extname(defaultUri.path) : void 0;
 		let matchingFilter: IFilter;
 		const filters: IFilter[] = this.modeService.getRegisteredLanguageNames().map(languageName => {
 			const extensions = this.modeService.getExtensions(languageName);

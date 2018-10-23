@@ -2,18 +2,16 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
-import { TPromise } from 'vs/base/common/winjs.base';
 import { Registry } from 'vs/platform/registry/common/platform';
-import { KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
+import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { ICommandHandler, CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { SyncActionDescriptor, MenuRegistry, MenuId } from 'vs/platform/actions/common/actions';
-import { IMessageService } from 'vs/platform/message/common/message';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import Severity from 'vs/base/common/severity';
 import { IDisposable, combinedDisposable } from 'vs/base/common/lifecycle';
 import { ILifecycleService, LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
+import { INotificationService } from 'vs/platform/notification/common/notification';
+import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 
 export const Extensions = {
 	WorkbenchActions: 'workbench.contributions.actions'
@@ -25,30 +23,29 @@ export interface IWorkbenchActionRegistry {
 	 * Registers a workbench action to the platform. Workbench actions are not
 	 * visible by default and can only be invoked through a keybinding if provided.
 	 */
-	registerWorkbenchAction(descriptor: SyncActionDescriptor, alias: string, category?: string): IDisposable;
+	registerWorkbenchAction(descriptor: SyncActionDescriptor, alias: string, category?: string, when?: ContextKeyExpr): IDisposable;
 }
 
 Registry.add(Extensions.WorkbenchActions, new class implements IWorkbenchActionRegistry {
 
-	registerWorkbenchAction(descriptor: SyncActionDescriptor, alias: string, category?: string): IDisposable {
-		return this._registerWorkbenchCommandFromAction(descriptor, alias, category);
+	registerWorkbenchAction(descriptor: SyncActionDescriptor, alias: string, category?: string, when?: ContextKeyExpr): IDisposable {
+		return this.registerWorkbenchCommandFromAction(descriptor, alias, category, when);
 	}
 
-	private _registerWorkbenchCommandFromAction(descriptor: SyncActionDescriptor, alias: string, category?: string): IDisposable {
+	private registerWorkbenchCommandFromAction(descriptor: SyncActionDescriptor, alias: string, category?: string, when?: ContextKeyExpr): IDisposable {
 		let registrations: IDisposable[] = [];
 
 		// command
-		registrations.push(CommandsRegistry.registerCommand(descriptor.id, this._createCommandHandler(descriptor)));
+		registrations.push(CommandsRegistry.registerCommand(descriptor.id, this.createCommandHandler(descriptor)));
 
 		// keybinding
-		const when = descriptor.keybindingContext;
-		const weight = (typeof descriptor.keybindingWeight === 'undefined' ? KeybindingsRegistry.WEIGHT.workbenchContrib() : descriptor.keybindingWeight);
+		const weight = (typeof descriptor.keybindingWeight === 'undefined' ? KeybindingWeight.WorkbenchContrib : descriptor.keybindingWeight);
 		const keybindings = descriptor.keybindings;
 		KeybindingsRegistry.registerKeybindingRule({
 			id: descriptor.id,
 			weight: weight,
-			when: when,
-			primary: keybindings && keybindings.primary,
+			when: descriptor.keybindingContext,
+			primary: keybindings ? keybindings.primary : 0,
 			secondary: keybindings && keybindings.secondary,
 			win: keybindings && keybindings.win,
 			mac: keybindings && keybindings.mac,
@@ -75,7 +72,7 @@ Registry.add(Extensions.WorkbenchActions, new class implements IWorkbenchActionR
 
 			MenuRegistry.addCommand(command);
 
-			registrations.push(MenuRegistry.appendMenuItem(MenuId.CommandPalette, { command }));
+			registrations.push(MenuRegistry.appendMenuItem(MenuId.CommandPalette, { command, when }));
 		}
 
 		// TODO@alex,joh
@@ -84,45 +81,47 @@ Registry.add(Extensions.WorkbenchActions, new class implements IWorkbenchActionR
 		return combinedDisposable(registrations);
 	}
 
-	private _createCommandHandler(descriptor: SyncActionDescriptor): ICommandHandler {
+	private createCommandHandler(descriptor: SyncActionDescriptor): ICommandHandler {
 		return (accessor, args) => {
-			const messageService = accessor.get(IMessageService);
+			const notificationService = accessor.get(INotificationService);
 			const instantiationService = accessor.get(IInstantiationService);
 			const lifecycleService = accessor.get(ILifecycleService);
 
-			TPromise.as(this._triggerAndDisposeAction(instantiationService, lifecycleService, descriptor, args)).then(null, (err) => {
-				messageService.show(Severity.Error, err);
+			Promise.resolve(this.triggerAndDisposeAction(instantiationService, lifecycleService, descriptor, args)).then(null, err => {
+				notificationService.error(err);
 			});
 		};
 	}
 
-	private _triggerAndDisposeAction(instantitationService: IInstantiationService, lifecycleService: ILifecycleService, descriptor: SyncActionDescriptor, args: any): Thenable<void> {
-		const actionInstance = instantitationService.createInstance(descriptor.syncDescriptor);
-		actionInstance.label = descriptor.label || actionInstance.label;
-
-		// don't run the action when not enabled
-		if (!actionInstance.enabled) {
-			actionInstance.dispose();
-
-			return void 0;
-		}
-
-		const from = args && args.from || 'keybinding';
+	private triggerAndDisposeAction(instantiationService: IInstantiationService, lifecycleService: ILifecycleService, descriptor: SyncActionDescriptor, args: any): Thenable<void> {
 
 		// run action when workbench is created
 		return lifecycleService.when(LifecyclePhase.Running).then(() => {
+			const actionInstance = instantiationService.createInstance(descriptor.syncDescriptor);
 			try {
-				return TPromise.as(actionInstance.run(undefined, { from })).then(() => {
+				actionInstance.label = descriptor.label || actionInstance.label;
+
+				// don't run the action when not enabled
+				if (!actionInstance.enabled) {
 					actionInstance.dispose();
-				}, (err) => {
+
+					return void 0;
+				}
+
+				const from = args && args.from || 'keybinding';
+
+				return Promise.resolve(actionInstance.run(undefined, { from })).then(() => {
 					actionInstance.dispose();
-					return TPromise.wrapError(err);
+				}, err => {
+					actionInstance.dispose();
+
+					return Promise.reject(err);
 				});
 			} catch (err) {
 				actionInstance.dispose();
-				return TPromise.wrapError(err);
+
+				return Promise.reject(err);
 			}
 		});
 	}
 });
-

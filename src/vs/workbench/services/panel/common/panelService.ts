@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import Event from 'vs/base/common/event';
+import { Event } from 'vs/base/common/event';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IPanel } from 'vs/workbench/common/panel';
 import { createDecorator, ServiceIdentifier } from 'vs/platform/instantiation/common/instantiation';
@@ -34,7 +34,18 @@ export interface IPanelService {
 	getActivePanel(): IPanel;
 
 	/**
-	 * Returns all registered panels
+	 * * Returns all built-in panels following the default order (Problems - Output - Debug Console - Terminal)
 	 */
 	getPanels(): IPanelIdentifier[];
+
+	/**
+	 * Returns pinned panels following the visual order
+	 */
+	getPinnedPanels(): IPanelIdentifier[];
+
+	/**
+	 * Enables or disables a panel. Disabled panels are completly hidden from UI.
+	 * By default all panels are enabled.
+	 */
+	setPanelEnablement(id: string, enabled: boolean): void;
 }

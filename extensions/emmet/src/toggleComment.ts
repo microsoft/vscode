@@ -4,8 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
-import { getNodesInBetween, getNode, parseDocument, sameNodes, isStyleSheet, validate } from './util';
-import { Node, Stylesheet, Rule, HtmlNode } from 'EmmetNode';
+import { getNodesInBetween, getNode, getHtmlNode, parseDocument, sameNodes, isStyleSheet, validate } from './util';
+import { Node, Stylesheet, Rule } from 'EmmetNode';
 import parseStylesheet from '@emmetio/css-parser';
 import { DocumentStreamReader } from './bufferStream';
 
@@ -19,14 +19,6 @@ export function toggleComment(): Thenable<boolean> | undefined {
 		return;
 	}
 	const editor = vscode.window.activeTextEditor;
-	let toggleCommentInternal: (document: vscode.TextDocument, selection: vscode.Selection, rootNode: Node) => vscode.TextEdit[];
-
-	if (isStyleSheet(editor.document.languageId)) {
-		toggleCommentInternal = toggleCommentStylesheet;
-	} else {
-		toggleCommentInternal = toggleCommentHTML;
-	}
-
 	let rootNode = parseDocument(editor.document);
 	if (!rootNode) {
 		return;
@@ -35,7 +27,7 @@ export function toggleComment(): Thenable<boolean> | undefined {
 	return editor.edit(editBuilder => {
 		let allEdits: vscode.TextEdit[][] = [];
 		editor.selections.reverse().forEach(selection => {
-			let edits = toggleCommentInternal(editor.document, selection, rootNode!);
+			let edits = isStyleSheet(editor.document.languageId) ? toggleCommentStylesheet(selection, <Stylesheet>rootNode) : toggleCommentHTML(editor.document, selection, rootNode!);
 			if (edits.length > 0) {
 				allEdits.push(edits);
 			}
@@ -63,8 +55,8 @@ function toggleCommentHTML(document: vscode.TextDocument, selection: vscode.Sele
 	const selectionStart = selection.isReversed ? selection.active : selection.anchor;
 	const selectionEnd = selection.isReversed ? selection.anchor : selection.active;
 
-	let startNode = <HtmlNode>getNode(rootNode, selectionStart, true);
-	let endNode = <HtmlNode>getNode(rootNode, selectionEnd, true);
+	let startNode = getHtmlNode(document, rootNode, selectionStart, true);
+	let endNode = getHtmlNode(document, rootNode, selectionEnd, true);
 
 	if (!startNode || !endNode) {
 		return [];
@@ -76,7 +68,7 @@ function toggleCommentHTML(document: vscode.TextDocument, selection: vscode.Sele
 		let buffer = new DocumentStreamReader(document, startNode.open.end, new vscode.Range(startNode.open.end, startNode.close.start));
 		let cssRootNode = parseStylesheet(buffer);
 
-		return toggleCommentStylesheet(document, selection, cssRootNode);
+		return toggleCommentStylesheet(selection, cssRootNode);
 	}
 
 	let allNodes: Node[] = getNodesInBetween(startNode, endNode);
@@ -117,7 +109,7 @@ function getRangesToUnCommentHTML(node: Node, document: vscode.TextDocument): vs
 	return unCommentTextEdits;
 }
 
-function toggleCommentStylesheet(document: vscode.TextDocument, selection: vscode.Selection, rootNode: Stylesheet): vscode.TextEdit[] {
+function toggleCommentStylesheet(selection: vscode.Selection, rootNode: Stylesheet): vscode.TextEdit[] {
 	let selectionStart = selection.isReversed ? selection.active : selection.anchor;
 	let selectionEnd = selection.isReversed ? selection.anchor : selection.active;
 

@@ -355,8 +355,10 @@
 		"editorCursor.foreground": "#D30102",
 		"editorWhitespace.foreground": "#93A1A180",
 		"editor.lineHighlightBackground": "#073642",
-		"editor.selectionBackground": "#073642",
-		// "editorIndentGuide.background": "",
+		"editorLineNumber.activeForeground": "#949494",
+		"editor.selectionBackground": "#274642",
+		"editorIndentGuide.background": "#93A1A180",
+		"editorIndentGuide.activeBackground": "#C3E1E180",
 		"editorHoverWidget.background": "#004052",
 		// "editorHoverWidget.border": "",
 		// "editorLineNumber.foreground": "",
@@ -411,7 +413,6 @@
 		// Workbench: Editors
 		// "editorGroupHeader.noTabsBackground": "",
 		"editorGroup.border": "#00212B",
-		"editorGroup.background": "#011b23",
 		"editorGroup.dropBackground": "#2AA19844",
 		"editorGroupHeader.tabsBackground": "#004052",
 
@@ -421,6 +422,7 @@
 		"tab.inactiveForeground": "#93A1A1",
 		"tab.inactiveBackground": "#004052",
 		"tab.border": "#003847",
+		"tab.modifiedBorder": "#268bd2",
 
 		// Workbench: Activity Bar
 		"activityBar.background": "#003847",
@@ -455,10 +457,6 @@
 		"debugToolBar.background": "#00212B",
 		"debugExceptionWidget.background": "#00212B",
 		"debugExceptionWidget.border": "#AB395B",
-
-		// Workbench: Notifications
-		"notification.background": "#003847",
-		// "notification.foreground": "",
 
 		// Workbench: Quick Open
 		"pickerGroup.foreground": "#2AA19899",

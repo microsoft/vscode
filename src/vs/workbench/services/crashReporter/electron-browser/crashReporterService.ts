@@ -2,10 +2,8 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
-import nls = require('vs/nls');
-import { onUnexpectedError } from 'vs/base/common/errors';
+import * as nls from 'vs/nls';
 import { assign, deepClone } from 'vs/base/common/objects';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IWindowsService } from 'vs/platform/windows/common/windows';
@@ -27,7 +25,7 @@ export interface ICrashReporterConfig {
 	enableCrashReporter: boolean;
 }
 
-const configurationRegistry = <IConfigurationRegistry>Registry.as(Extensions.Configuration);
+const configurationRegistry = Registry.as<IConfigurationRegistry>(Extensions.Configuration);
 configurationRegistry.registerConfiguration({
 	'id': TELEMETRY_SECTION_ID,
 	'order': 110,
@@ -36,8 +34,9 @@ configurationRegistry.registerConfiguration({
 	'properties': {
 		'telemetry.enableCrashReporter': {
 			'type': 'boolean',
-			'description': nls.localize('telemetry.enableCrashReporting', "Enable crash reports to be sent to Microsoft.\nThis option requires restart to take effect."),
-			'default': true
+			'description': nls.localize('telemetry.enableCrashReporting', "Enable crash reports to be sent to a Microsoft online service. \nThis option requires restart to take effect."),
+			'default': true,
+			'tags': ['usesOnlineServices']
 		}
 	}
 });
@@ -54,7 +53,7 @@ export const NullCrashReporterService: ICrashReporterService = {
 
 export class CrashReporterService implements ICrashReporterService {
 
-	public _serviceBrand: any;
+	_serviceBrand: any;
 
 	private options: Electron.CrashReporterStartOptions;
 	private isEnabled: boolean;
@@ -89,8 +88,7 @@ export class CrashReporterService implements ICrashReporterService {
 		this.telemetryService.getTelemetryInfo()
 			.then(info => {
 				assign(this.options.extra, {
-					vscode_sessionId: info.sessionId,
-					vscode_machineId: info.machineId
+					vscode_sessionId: info.sessionId
 				});
 
 				// start crash reporter right here
@@ -98,8 +96,7 @@ export class CrashReporterService implements ICrashReporterService {
 
 				// start crash reporter in the main process
 				return this.windowsService.startCrashReporter(this.options);
-			})
-			.done(null, onUnexpectedError);
+			});
 	}
 
 	private getSubmitURL(): string {
@@ -115,12 +112,12 @@ export class CrashReporterService implements ICrashReporterService {
 		return submitURL;
 	}
 
-	public getChildProcessStartOptions(name: string): Electron.CrashReporterStartOptions {
+	getChildProcessStartOptions(name: string): Electron.CrashReporterStartOptions {
 
 		// Experimental crash reporting support for child processes on Mac only for now
 		if (this.isEnabled && isMacintosh) {
 			const childProcessOptions = deepClone(this.options);
-			childProcessOptions.extra.processName = name;
+			(<any>childProcessOptions.extra).processName = name;
 			childProcessOptions.crashesDirectory = os.tmpdir();
 
 			return childProcessOptions;

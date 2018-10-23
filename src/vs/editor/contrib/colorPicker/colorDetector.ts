@@ -3,18 +3,21 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { CancelablePromise, TimeoutTimer, createCancelablePromise } from 'vs/base/common/async';
 import { RGBA } from 'vs/base/common/color';
+import { onUnexpectedError } from 'vs/base/common/errors';
 import { hash } from 'vs/base/common/hash';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
-import { TPromise } from 'vs/base/common/winjs.base';
-import { IEditorContribution } from 'vs/editor/common/editorCommon';
-import { registerEditorContribution } from 'vs/editor/browser/editorExtensions';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { Range } from 'vs/editor/common/core/range';
-import { Position } from 'vs/editor/common/core/position';
-import { ColorProviderRegistry } from 'vs/editor/common/modes';
+import { registerEditorContribution } from 'vs/editor/browser/editorExtensions';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
-import { getColors, IColorData } from 'vs/editor/contrib/colorPicker/color';
+import { Position } from 'vs/editor/common/core/position';
+import { Range } from 'vs/editor/common/core/range';
+import { IEditorContribution } from 'vs/editor/common/editorCommon';
+import { IModelDeltaDecoration } from 'vs/editor/common/model';
+import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
+import { ColorProviderRegistry } from 'vs/editor/common/modes';
+import { IColorData, getColors } from 'vs/editor/contrib/colorPicker/color';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
 const MAX_DECORATORS = 500;
@@ -27,8 +30,8 @@ export class ColorDetector implements IEditorContribution {
 
 	private _globalToDispose: IDisposable[] = [];
 	private _localToDispose: IDisposable[] = [];
-	private _computePromise: TPromise<void>;
-	private _timeoutPromise: TPromise<void>;
+	private _computePromise: CancelablePromise<IColorData[]> | null;
+	private _timeoutTimer: TimeoutTimer | null;
 
 	private _decorationsIds: string[] = [];
 	private _colorDatas = new Map<string, IColorData>();
@@ -60,7 +63,7 @@ export class ColorDetector implements IEditorContribution {
 			}
 		}));
 
-		this._timeoutPromise = null;
+		this._timeoutTimer = null;
 		this._computePromise = null;
 		this._isEnabled = this.isEnabled();
 		this.onModelChanged();
@@ -105,38 +108,42 @@ export class ColorDetector implements IEditorContribution {
 			return;
 		}
 		const model = this._editor.getModel();
-		// if (!model) {
-		// 	return;
-		// }
 
-		if (!ColorProviderRegistry.has(model)) {
+		if (!model || !ColorProviderRegistry.has(model)) {
 			return;
 		}
 
 		this._localToDispose.push(this._editor.onDidChangeModelContent((e) => {
-			if (!this._timeoutPromise) {
-				this._timeoutPromise = TPromise.timeout(ColorDetector.RECOMPUTE_TIME);
-				this._timeoutPromise.then(() => {
-					this._timeoutPromise = null;
+			if (!this._timeoutTimer) {
+				this._timeoutTimer = new TimeoutTimer();
+				this._timeoutTimer.cancelAndSet(() => {
+					this._timeoutTimer = null;
 					this.beginCompute();
-				});
+				}, ColorDetector.RECOMPUTE_TIME);
 			}
 		}));
 		this.beginCompute();
 	}
 
 	private beginCompute(): void {
-		this._computePromise = getColors(this._editor.getModel()).then(colorInfos => {
+		this._computePromise = createCancelablePromise(token => {
+			const model = this._editor.getModel();
+			if (!model) {
+				return Promise.resolve([]);
+			}
+			return getColors(model, token);
+		});
+		this._computePromise.then((colorInfos) => {
 			this.updateDecorations(colorInfos);
 			this.updateColorDecorators(colorInfos);
 			this._computePromise = null;
-		});
+		}, onUnexpectedError);
 	}
 
 	private stop(): void {
-		if (this._timeoutPromise) {
-			this._timeoutPromise.cancel();
-			this._timeoutPromise = null;
+		if (this._timeoutTimer) {
+			this._timeoutTimer.cancel();
+			this._timeoutTimer = null;
 		}
 		if (this._computePromise) {
 			this._computePromise.cancel();
@@ -153,7 +160,7 @@ export class ColorDetector implements IEditorContribution {
 				endLineNumber: c.colorInfo.range.endLineNumber,
 				endColumn: c.colorInfo.range.endColumn
 			},
-			options: {}
+			options: ModelDecorationOptions.EMPTY
 		}));
 
 		this._decorationsIds = this._editor.deltaDecorations(this._decorationsIds, decorations);
@@ -163,7 +170,7 @@ export class ColorDetector implements IEditorContribution {
 	}
 
 	private updateColorDecorators(colorData: IColorData[]): void {
-		let decorations = [];
+		let decorations: IModelDeltaDecoration[] = [];
 		let newDecorationsTypes: { [key: string]: boolean } = {};
 
 		for (let i = 0; i < colorData.length && decorations.length < MAX_DECORATORS; i++) {
@@ -222,7 +229,12 @@ export class ColorDetector implements IEditorContribution {
 	}
 
 	getColorData(position: Position): IColorData | null {
-		const decorations = this._editor.getModel()
+		const model = this._editor.getModel();
+		if (!model) {
+			return null;
+		}
+
+		const decorations = model
 			.getDecorationsInRange(Range.fromPositions(position, position))
 			.filter(d => this._colorDatas.has(d.id));
 

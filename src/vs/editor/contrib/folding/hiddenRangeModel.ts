@@ -3,17 +3,17 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import Event, { Emitter } from 'vs/base/common/event';
+import { Event, Emitter } from 'vs/base/common/event';
 import { Range, IRange } from 'vs/editor/common/core/range';
 import { FoldingModel, CollapseMemento } from 'vs/editor/contrib/folding/foldingModel';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { Selection } from 'vs/editor/common/core/selection';
-import { findFirst } from 'vs/base/common/arrays';
+import { findFirstInSorted } from 'vs/base/common/arrays';
 
 export class HiddenRangeModel {
 	private _foldingModel: FoldingModel;
 	private _hiddenRanges: IRange[];
-	private _foldingModelListener: IDisposable;
+	private _foldingModelListener: IDisposable | null;
 	private _updateEventEmitter = new Emitter<IRange[]>();
 
 	public get onDidChange(): Event<IRange[]> { return this._updateEventEmitter.event; }
@@ -23,7 +23,7 @@ export class HiddenRangeModel {
 		this._foldingModel = model;
 		this._foldingModelListener = model.onDidChange(_ => this.updateHiddenRanges());
 		this._hiddenRanges = [];
-		if (model.ranges.length) {
+		if (model.regions.length) {
 			this.updateHiddenRanges();
 		}
 	}
@@ -37,7 +37,7 @@ export class HiddenRangeModel {
 		let lastCollapsedStart = Number.MAX_VALUE;
 		let lastCollapsedEnd = -1;
 
-		let ranges = this._foldingModel.ranges;
+		let ranges = this._foldingModel.regions;
 		for (; i < ranges.length; i++) {
 			if (!ranges.isCollapsed(i)) {
 				continue;
@@ -70,7 +70,7 @@ export class HiddenRangeModel {
 		if (!Array.isArray(state) || state.length === 0) {
 			return false;
 		}
-		let hiddenRanges = [];
+		let hiddenRanges: IRange[] = [];
 		for (let r of state) {
 			if (!r.startLineNumber || !r.endLineNumber) {
 				return false;
@@ -104,7 +104,7 @@ export class HiddenRangeModel {
 	public adjustSelections(selections: Selection[]): boolean {
 		let hasChanges = false;
 		let editorModel = this._foldingModel.textModel;
-		let lastRange = null;
+		let lastRange: IRange | null = null;
 
 		let adjustLine = (line: number) => {
 			if (!lastRange || !isInside(line, lastRange)) {
@@ -148,8 +148,8 @@ export class HiddenRangeModel {
 function isInside(line: number, range: IRange) {
 	return line >= range.startLineNumber && line <= range.endLineNumber;
 }
-function findRange(ranges: IRange[], line: number): IRange {
-	let i = findFirst(ranges, r => line < r.startLineNumber) - 1;
+function findRange(ranges: IRange[], line: number): IRange | null {
+	let i = findFirstInSorted(ranges, r => line < r.startLineNumber) - 1;
 	if (i >= 0 && ranges[i].endLineNumber >= line) {
 		return ranges[i];
 	}

@@ -3,9 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
-import assert = require('assert');
+import * as assert from 'assert';
 import { ArrayIterator } from 'vs/base/common/iterator';
 import { HeightMap, IViewItem } from 'vs/base/parts/tree/browser/treeViewModel';
 
@@ -45,7 +43,8 @@ class TestHeightMap extends HeightMap {
 		return {
 			model: item,
 			top: 0,
-			height: item.getHeight()
+			height: item.getHeight(),
+			width: 0
 		};
 	}
 }

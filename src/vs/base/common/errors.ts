@@ -2,11 +2,7 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
-import types = require('vs/base/common/types');
-import { IAction } from 'vs/base/common/actions';
-import Severity from 'vs/base/common/severity';
 import { TPromise, IPromiseError, IPromiseErrorDetail } from 'vs/base/common/winjs.base';
 
 // ------ BEGIN Hook up error listeners to winjs promises
@@ -233,25 +229,6 @@ export function readonly(name?: string): Error {
 export function disposed(what: string): Error {
 	const result = new Error(`${what} has been disposed`);
 	result.name = 'DISPOSED';
-	return result;
-}
-
-export interface IErrorOptions {
-	severity?: Severity;
-	actions?: IAction[];
-}
-
-export function create(message: string, options: IErrorOptions = {}): Error {
-	let result = new Error(message);
-
-	if (types.isNumber(options.severity)) {
-		(<any>result).severity = options.severity;
-	}
-
-	if (options.actions) {
-		(<any>result).actions = options.actions;
-	}
-
 	return result;
 }
 

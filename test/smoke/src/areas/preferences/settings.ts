@@ -5,41 +5,43 @@
 
 import * as fs from 'fs';
 import * as path from 'path';
-import { SpectronApplication } from '../../spectron/application';
+import { Editor } from '../editor/editor';
+import { Editors } from '../editor/editors';
+import { Code } from '../../vscode/code';
+import { QuickOpen } from '../quickopen/quickopen';
 
-export enum ActivityBarPosition {
+export const enum ActivityBarPosition {
 	LEFT = 0,
 	RIGHT = 1
 }
 
 const SEARCH_INPUT = '.settings-search-input input';
-const EDITOR = '.editable-preferences-editor-container .monaco-editor textarea';
 
 export class SettingsEditor {
 
-	constructor(private spectron: SpectronApplication) { }
+	constructor(private code: Code, private userDataPath: string, private editors: Editors, private editor: Editor, private quickopen: QuickOpen) { }
 
 	async addUserSetting(setting: string, value: string): Promise<void> {
-		await this.spectron.runCommand('workbench.action.openGlobalSettings');
-		await this.spectron.client.waitAndClick(SEARCH_INPUT);
-		await this.spectron.client.waitForActiveElement(SEARCH_INPUT);
+		await this.openSettings();
+		await this.code.waitAndClick(SEARCH_INPUT);
+		await this.code.waitForActiveElement(SEARCH_INPUT);
 
-		await this.spectron.client.keys(['ArrowDown', 'NULL']);
-		await this.spectron.client.waitForActiveElement(EDITOR);
+		await this.editor.waitForEditorFocus('settings.json', 1, '.editable-preferences-editor-container');
 
-		await this.spectron.client.keys(['ArrowRight', 'NULL']);
-		await this.spectron.screenCapturer.capture('user settings is open and focused');
-
-		await this.spectron.workbench.editor.waitForTypeInEditor('settings.json', `"${setting}": ${value}`, '.editable-preferences-editor-container');
-		await this.spectron.workbench.saveOpenedFile();
-
-		await this.spectron.screenCapturer.capture('user settings has changed');
+		await this.code.dispatchKeybinding('right');
+		await this.editor.waitForTypeInEditor('settings.json', `"${setting}": ${value}`, '.editable-preferences-editor-container');
+		await this.editors.saveOpenedFile();
 	}
 
 	async clearUserSettings(): Promise<void> {
-		const settingsPath = path.join(this.spectron.userDataPath, 'User', 'settings.json');
+		const settingsPath = path.join(this.userDataPath, 'User', 'settings.json');
 		await new Promise((c, e) => fs.writeFile(settingsPath, '{}', 'utf8', err => err ? e(err) : c()));
 
-		await this.spectron.workbench.editor.waitForEditorContents('settings.json', c => c.length === 0, '.editable-preferences-editor-container');
+		await this.openSettings();
+		await this.editor.waitForEditorContents('settings.json', c => c === '{}', '.editable-preferences-editor-container');
+	}
+
+	private async openSettings(): Promise<void> {
+		await this.quickopen.runCommand('Preferences: Open Settings (JSON)');
 	}
 }

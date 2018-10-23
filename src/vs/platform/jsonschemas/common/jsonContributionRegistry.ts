@@ -2,11 +2,10 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
 import { IJSONSchema } from 'vs/base/common/jsonSchema';
 import * as platform from 'vs/platform/registry/common/platform';
-import Event, { Emitter } from 'vs/base/common/event';
+import { Event, Emitter } from 'vs/base/common/event';
 
 export const Extensions = {
 	JSONContribution: 'base.contributions.json'
@@ -38,9 +37,7 @@ export interface IJSONContributionRegistry {
 	getSchemaContributions(): ISchemaContributions;
 }
 
-export interface IJSONContributionRegistryEvent {
 
-}
 
 function normalizeId(id: string) {
 	if (id.length > 0 && id.charAt(id.length - 1) === '#') {
@@ -55,7 +52,7 @@ class JSONContributionRegistry implements IJSONContributionRegistry {
 
 	private schemasById: { [id: string]: IJSONSchema };
 
-	private _onDidChangeSchema: Emitter<string> = new Emitter<string>();
+	private readonly _onDidChangeSchema: Emitter<string> = new Emitter<string>();
 	readonly onDidChangeSchema: Event<string> = this._onDidChangeSchema.event;
 
 	constructor() {

@@ -2,7 +2,6 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
 import * as assert from 'assert';
 import * as errors from 'vs/base/common/errors';
@@ -10,7 +9,7 @@ import * as objects from 'vs/base/common/objects';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { CacheState } from 'vs/workbench/parts/search/browser/openFileHandler';
 import { DeferredTPromise } from 'vs/base/test/common/utils';
-import { QueryType, ISearchQuery } from 'vs/platform/search/common/search';
+import { QueryType, IFileQuery } from 'vs/platform/search/common/search';
 
 suite('CacheState', () => {
 
@@ -179,16 +178,16 @@ suite('CacheState', () => {
 		public loading: { [cacheKey: string]: DeferredTPromise<any> } = {};
 		public disposing: { [cacheKey: string]: DeferredTPromise<void> } = {};
 
-		public baseQuery: ISearchQuery = {
+		public baseQuery: IFileQuery = {
 			type: QueryType.File
 		};
 
-		public query(cacheKey: string): ISearchQuery {
+		public query(cacheKey: string): IFileQuery {
 			this.cacheKeys.push(cacheKey);
 			return objects.assign({ cacheKey: cacheKey }, this.baseQuery);
 		}
 
-		public load(query: ISearchQuery): TPromise<any> {
+		public load(query: IFileQuery): TPromise<any> {
 			const promise = new DeferredTPromise<any>();
 			this.loading[query.cacheKey] = promise;
 			return promise;

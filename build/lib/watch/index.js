@@ -9,7 +9,7 @@ const es = require('event-stream');
 function handleDeletions() {
 	return es.mapSync(f => {
 		if (/\.ts$/.test(f.relative) && !f.contents) {
-			f.contents = new Buffer('');
+			f.contents = Buffer.from('');
 			f.stat = { mtime: new Date() };
 		}
 
@@ -18,16 +18,6 @@ function handleDeletions() {
 }
 
 let watch = void 0;
-
-// Disabled due to https://github.com/Microsoft/vscode/issues/36214
-// if (!process.env['VSCODE_USE_LEGACY_WATCH']) {
-// 	try {
-// 		watch = require('./watch-nsfw');
-// 	} catch (err) {
-// 		console.warn('Could not load our cross platform file watcher: ' + err.toString());
-// 		console.warn('Falling back to our platform specific watcher...');
-// 	}
-// }
 
 if (!watch) {
 	watch = process.platform === 'win32' ? require('./watch-win32') : require('gulp-watch');

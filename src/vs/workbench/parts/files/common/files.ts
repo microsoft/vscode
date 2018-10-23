@@ -2,18 +2,16 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
-import URI from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { IWorkbenchEditorConfiguration } from 'vs/workbench/common/editor';
 import { IFilesConfiguration, FileChangeType, IFileService } from 'vs/platform/files/common/files';
-import { FileStat, OpenEditor } from 'vs/workbench/parts/files/common/explorerModel';
+import { ExplorerItem, OpenEditor } from 'vs/workbench/parts/files/common/explorerModel';
 import { ContextKeyExpr, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { ITextModelContentProvider } from 'vs/editor/common/services/resolverService';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { TPromise } from 'vs/base/common/winjs.base';
-import { onUnexpectedError } from 'vs/base/common/errors';
 import { ITextModel } from 'vs/editor/common/model';
 import { IMode } from 'vs/editor/common/modes';
 import { IModelService } from 'vs/editor/common/services/modelService';
@@ -21,11 +19,17 @@ import { IModeService } from 'vs/editor/common/services/modeService';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { IViewlet } from 'vs/workbench/common/viewlet';
 import { InputFocusedContextKey } from 'vs/platform/workbench/common/contextkeys';
+import { Registry } from 'vs/platform/registry/common/platform';
+import { IViewContainersRegistry, Extensions as ViewContainerExtensions, ViewContainer } from 'vs/workbench/common/views';
 
 /**
  * Explorer viewlet id.
  */
 export const VIEWLET_ID = 'workbench.view.explorer';
+/**
+ * Explorer viewlet container.
+ */
+export const VIEW_CONTAINER: ViewContainer = Registry.as<IViewContainersRegistry>(ViewContainerExtensions.ViewContainersRegistry).registerViewContainer(VIEWLET_ID);
 
 export interface IExplorerViewlet extends IViewlet {
 	getExplorerView(): IExplorerView;
@@ -44,10 +48,13 @@ const openEditorsVisibleId = 'openEditorsVisible';
 const openEditorsFocusId = 'openEditorsFocus';
 const explorerViewletFocusId = 'explorerViewletFocus';
 const explorerResourceIsFolderId = 'explorerResourceIsFolder';
+const explorerResourceReadonly = 'explorerResourceReadonly';
 const explorerResourceIsRootId = 'explorerResourceIsRoot';
 
 export const ExplorerViewletVisibleContext = new RawContextKey<boolean>(explorerViewletVisibleId, true);
 export const ExplorerFolderContext = new RawContextKey<boolean>(explorerResourceIsFolderId, false);
+export const ExplorerResourceReadonlyContext = new RawContextKey<boolean>(explorerResourceReadonly, false);
+export const ExplorerResourceNotReadonlyContext = ExplorerResourceReadonlyContext.toNegated();
 export const ExplorerRootContext = new RawContextKey<boolean>(explorerResourceIsRootId, false);
 export const FilesExplorerFocusedContext = new RawContextKey<boolean>(filesExplorerFocusId, true);
 export const OpenEditorsVisibleContext = new RawContextKey<boolean>(openEditorsVisibleId, false);
@@ -59,9 +66,9 @@ export const FilesExplorerFocusCondition = ContextKeyExpr.and(ContextKeyExpr.has
 export const ExplorerFocusCondition = ContextKeyExpr.and(ContextKeyExpr.has(explorerViewletVisibleId), ContextKeyExpr.has(explorerViewletFocusId), ContextKeyExpr.not(InputFocusedContextKey));
 
 /**
- * File editor input id.
+ * Preferences editor id.
  */
-export const FILE_EDITOR_INPUT_ID = 'workbench.editors.files.fileEditorInput';
+export const PREFERENCES_EDITOR_ID = 'workbench.editor.preferencesEditor';
 
 /**
  * Text file editor id.
@@ -69,9 +76,15 @@ export const FILE_EDITOR_INPUT_ID = 'workbench.editors.files.fileEditorInput';
 export const TEXT_FILE_EDITOR_ID = 'workbench.editors.files.textFileEditor';
 
 /**
+ * File editor input id.
+ */
+export const FILE_EDITOR_INPUT_ID = 'workbench.editors.files.fileEditorInput';
+
+/**
  * Binary file editor id.
  */
 export const BINARY_FILE_EDITOR_ID = 'workbench.editors.files.binaryFileEditor';
+
 
 export interface IFilesConfiguration extends IFilesConfiguration, IWorkbenchEditorConfiguration {
 	explorer: {
@@ -98,9 +111,9 @@ export interface IFileResource {
 /**
  * Helper to get an explorer item from an object.
  */
-export function explorerItemToFileResource(obj: FileStat | OpenEditor): IFileResource {
-	if (obj instanceof FileStat) {
-		const stat = obj as FileStat;
+export function explorerItemToFileResource(obj: ExplorerItem | OpenEditor): IFileResource {
+	if (obj instanceof ExplorerItem) {
+		const stat = obj as ExplorerItem;
 
 		return {
 			resource: stat.resource,
@@ -142,7 +155,7 @@ export class FileOnDiskContentProvider implements ITextModelContentProvider {
 	) {
 	}
 
-	public provideTextContent(resource: URI): TPromise<ITextModel> {
+	provideTextContent(resource: URI): TPromise<ITextModel> {
 		const fileOnDiskResource = URI.file(resource.fsPath);
 
 		// Make sure our file from disk is resolved up to date
@@ -151,8 +164,8 @@ export class FileOnDiskContentProvider implements ITextModelContentProvider {
 			// Make sure to keep contents on disk up to date when it changes
 			if (!this.fileWatcher) {
 				this.fileWatcher = this.fileService.onFileChanges(changes => {
-					if (changes.contains(fileOnDiskResource, FileChangeType.UPDATED)) { //
-						this.resolveEditorModel(resource, false /* do not create if missing */).done(null, onUnexpectedError); // update model when resource changes
+					if (changes.contains(fileOnDiskResource, FileChangeType.UPDATED)) {
+						this.resolveEditorModel(resource, false /* do not create if missing */); // update model when resource changes
 					}
 				});
 
@@ -176,11 +189,11 @@ export class FileOnDiskContentProvider implements ITextModelContentProvider {
 			} else if (createAsNeeded) {
 				const fileOnDiskModel = this.modelService.getModel(fileOnDiskResource);
 
-				let mode: TPromise<IMode>;
+				let mode: Promise<IMode>;
 				if (fileOnDiskModel) {
 					mode = this.modeService.getOrCreateMode(fileOnDiskModel.getModeId());
 				} else {
-					mode = this.modeService.getOrCreateModeByFilenameOrFirstLine(fileOnDiskResource.fsPath);
+					mode = this.modeService.getOrCreateModeByFilepathOrFirstLine(fileOnDiskResource.fsPath);
 				}
 
 				codeEditorModel = this.modelService.createModel(content.value, mode, resource);
@@ -190,7 +203,7 @@ export class FileOnDiskContentProvider implements ITextModelContentProvider {
 		});
 	}
 
-	public dispose(): void {
+	dispose(): void {
 		this.fileWatcher = dispose(this.fileWatcher);
 	}
 }

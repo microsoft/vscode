@@ -2,11 +2,10 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
 import { TPromise } from 'vs/base/common/winjs.base';
 import { EditorInput, ITextEditorModel } from 'vs/workbench/common/editor';
-import URI from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 import { IReference } from 'vs/base/common/lifecycle';
 import { telemetryURIDescriptor } from 'vs/platform/telemetry/common/telemetryUtils';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
@@ -40,37 +39,37 @@ export class ResourceEditorInput extends EditorInput {
 		this.resource = resource;
 	}
 
-	public getResource(): URI {
+	getResource(): URI {
 		return this.resource;
 	}
 
-	public getTypeId(): string {
+	getTypeId(): string {
 		return ResourceEditorInput.ID;
 	}
 
-	public getName(): string {
+	getName(): string {
 		return this.name;
 	}
 
-	public setName(name: string): void {
+	setName(name: string): void {
 		if (this.name !== name) {
 			this.name = name;
 			this._onDidChangeLabel.fire();
 		}
 	}
 
-	public getDescription(): string {
+	getDescription(): string {
 		return this.description;
 	}
 
-	public setDescription(description: string): void {
+	setDescription(description: string): void {
 		if (this.description !== description) {
 			this.description = description;
 			this._onDidChangeLabel.fire();
 		}
 	}
 
-	public getTelemetryDescriptor(): object {
+	getTelemetryDescriptor(): object {
 		const descriptor = super.getTelemetryDescriptor();
 		descriptor['resource'] = telemetryURIDescriptor(this.resource, path => this.hashService.createSHA1(path));
 
@@ -82,7 +81,7 @@ export class ResourceEditorInput extends EditorInput {
 		return descriptor;
 	}
 
-	public resolve(refresh?: boolean): TPromise<ITextEditorModel> {
+	resolve(): TPromise<ITextEditorModel> {
 		if (!this.modelReference) {
 			this.modelReference = this.textModelResolverService.createModelReference(this.resource);
 		}
@@ -101,7 +100,7 @@ export class ResourceEditorInput extends EditorInput {
 		});
 	}
 
-	public matches(otherInput: any): boolean {
+	matches(otherInput: any): boolean {
 		if (super.matches(otherInput) === true) {
 			return true;
 		}
@@ -116,9 +115,9 @@ export class ResourceEditorInput extends EditorInput {
 		return false;
 	}
 
-	public dispose(): void {
+	dispose(): void {
 		if (this.modelReference) {
-			this.modelReference.done(ref => ref.dispose());
+			this.modelReference.then(ref => ref.dispose());
 			this.modelReference = null;
 		}
 

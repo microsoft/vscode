@@ -2,20 +2,23 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
-import Event, { Emitter } from 'vs/base/common/event';
-import { dispose } from 'vs/base/common/lifecycle';
-import { MainContext, ExtHostDocumentsAndEditorsShape, IDocumentsAndEditorsDelta, IMainContext } from './extHost.protocol';
-import { ExtHostDocumentData } from './extHostDocumentData';
-import { ExtHostTextEditor } from './extHostTextEditor';
 import * as assert from 'assert';
-import * as typeConverters from './extHostTypeConverters';
-import URI from 'vs/base/common/uri';
+import { Emitter, Event } from 'vs/base/common/event';
+import { dispose } from 'vs/base/common/lifecycle';
+import { URI } from 'vs/base/common/uri';
+import { ExtHostDocumentsAndEditorsShape, IDocumentsAndEditorsDelta, IMainContext, MainContext } from 'vs/workbench/api/node/extHost.protocol';
+import { ExtHostDocumentData } from 'vs/workbench/api/node/extHostDocumentData';
+import { ExtHostTextEditor } from 'vs/workbench/api/node/extHostTextEditor';
+import * as typeConverters from 'vs/workbench/api/node/extHostTypeConverters';
+import { Disposable } from 'vs/workbench/api/node/extHostTypes';
 
 export class ExtHostDocumentsAndEditors implements ExtHostDocumentsAndEditorsShape {
 
+	private _disposables: Disposable[] = [];
+
 	private _activeEditorId: string;
+
 	private readonly _editors = new Map<string, ExtHostTextEditor>();
 	private readonly _documents = new Map<string, ExtHostDocumentData>();
 
@@ -30,8 +33,11 @@ export class ExtHostDocumentsAndEditors implements ExtHostDocumentsAndEditorsSha
 	readonly onDidChangeActiveTextEditor: Event<ExtHostTextEditor> = this._onDidChangeActiveTextEditor.event;
 
 	constructor(
-		private readonly _mainContext: IMainContext
-	) {
+		private readonly _mainContext: IMainContext,
+	) { }
+
+	dispose() {
+		this._disposables = dispose(this._disposables);
 	}
 
 	$acceptDocumentsAndEditorsDelta(delta: IDocumentsAndEditorsDelta): void {
@@ -88,9 +94,10 @@ export class ExtHostDocumentsAndEditors implements ExtHostDocumentsAndEditorsSha
 					this._mainContext.getProxy(MainContext.MainThreadTextEditors),
 					data.id,
 					documentData,
-					data.selections.map(typeConverters.toSelection),
+					data.selections.map(typeConverters.Selection.to),
 					data.options,
-					typeConverters.toViewColumn(data.editorPosition)
+					data.visibleRanges.map(typeConverters.Range.to),
+					typeConverters.ViewColumn.to(data.editorPosition)
 				);
 				this._editors.set(data.id, editor);
 			}

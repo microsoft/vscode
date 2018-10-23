@@ -10,24 +10,22 @@
 table {
 	width: 100%;
 	max-width: 100%;
-	margin-bottom: 1rem;
 	background-color: transparent;
 	border-collapse: collapse;
 }
 th {
 	vertical-align: bottom;
-	border-bottom: 2px solid #e9ecef;
-	padding: .75rem;
-	border-top: 1px solid #e9ecef;
+	border-bottom: 1px solid;
+	padding: 5px;
 	text-align: inherit;
 }
-tr:nth-of-type(even) {
-	background-color: rgba(0,0,0,.05);
-}
 td {
-	padding: .75rem;
+	padding: 5px;
 	vertical-align: top;
-	border-top: 1px solid #e9ecef;
+}
+
+label {
+	user-select: none;
 }
 
 .block-settingsSearchResults-details {
@@ -39,12 +37,7 @@ td {
 }
 
 .section {
-	margin-bottom: 1.5em;
-}
-
-#similar-issues {
-	margin-left: 10%;
-	display: block;
+	margin-bottom: .5em;
 }
 
 /**
@@ -58,12 +51,7 @@ input[type="text"], textarea {
 	line-height: 1.5;
 	color: #495057;
 	background-color: #fff;
-	border-radius: .25rem;
 	border: 1px solid #ced4da;
-}
-
-.inline-form-control {
-	display: inline-block !important;
 }
 
 textarea {
@@ -74,19 +62,13 @@ textarea {
 /**
  * Button
  */
-button {
-	display: inline-block;
-	font-weight: 400;
-	line-height: 1.25;
-	text-align: center;
-	white-space: nowrap;
-	vertical-align: middle;
-	user-select: none;
-	padding: .5rem 1rem;
-	font-size: 1rem;
-	border-radius: .25rem;
-	background: none;
-	border: 1px solid transparent;
+
+.monaco-text-button {
+	display: block;
+	width: auto;
+	padding: 4px 10px;
+	align-self: flex-end;
+	margin-bottom: 10px;
 }
 
 select {
@@ -97,7 +79,6 @@ select {
 	line-height: 1.5;
 	color: #495057;
 	background-color: #fff;
-	border-radius: 0.25rem;
 	border: none;
 }
 
@@ -112,52 +93,68 @@ textarea {
 html {
 	font-family: -apple-system, BlinkMacSystemFont, "Segoe WPC", "Segoe UI", "HelveticaNeue-Light", "Ubuntu", "Droid Sans", sans-serif;
 	color: #CCCCCC;
+	height: 100%;
 }
 
 body {
 	margin: 0;
-	overflow: scroll;
+	overflow-y: scroll;
+	height: 100%;
 }
 
 .hidden {
 	display: none;
 }
 
-#block-container {
-	margin-top: 1em;
+.block {
+	font-size: 12px;
 }
 
 .block .block-info {
 	width: 100%;
-	font-family: 'Menlo', 'Courier New', 'Courier', monospace;
+	font-family: Monaco, Menlo, Consolas, "Droid Sans Mono", "Inconsolata", "Courier New", monospace, "Droid Sans Fallback";
 	font-size: 12px;
 	overflow: auto;
 	overflow-wrap: break-word;
+	margin: 5px;
+	padding: 10px;
 }
-pre {
-	margin: 0;
-}
+
 pre code {
-	font-family: 'Menlo', 'Courier New', 'Courier', monospace;
-}
-
-button:hover:enabled {
-	cursor: pointer;
-}
-
-button:disabled {
-	cursor: auto;
+	font-family: Monaco, Menlo, Consolas, "Droid Sans Mono", "Inconsolata", "Courier New", monospace, "Droid Sans Fallback";
 }
 
 #issue-reporter {
 	max-width: 85vw;
 	margin-left: auto;
 	margin-right: auto;
-	margin-top: 2em;
+	padding-top: 2em;
+	padding-bottom: 2em;
+	display: flex;
+	flex-direction: column;
+	height: 100%;
+}
+
+.description-section {
+	flex-grow: 1;
+	display: flex;
+	flex-direction: column;
+	flex-shrink: 0;
+}
+
+textarea {
+	flex-grow: 1;
+	min-height: 150px;
+}
+
+.block-info-text {
+	display: flex;
+	flex-grow: 1;
 }
 
 #github-submit-btn {
-	float: right;
+	flex-shrink: 0;
+	margin-left: auto;
 	margin-top: 10px;
 	margin-bottom: 10px;
 }
@@ -175,35 +172,8 @@ button:disabled {
 	margin-bottom: 1em;
 }
 
-.extensions-form {
-	display: flex;
-}
-
-.extensions-form > .form-buttons {
-	display: flex;
-	margin-left: 20px;
-}
-
-.extensions-form > .form-buttons > .choice {
-	margin-right: 35px;
-	position: relative;
-}
-
-.extensions-form > .form-buttons > .choice > label, .extensions-form  > .form-buttons > .choice > input {
-	cursor: pointer;
-	height: 100%;
-	margin-top: 1px;
-}
-
-.extensions-form > .form-buttons > .choice > label {
-	position: absolute;
-	top: 50%;
-	margin-top: -50%;
-	left: 20px;
-}
-
-.system-info {
-	margin-bottom: 1.25em;
+#extension-selection {
+	margin-top: 1em;
 }
 
 select, input, textarea {
@@ -211,30 +181,12 @@ select, input, textarea {
 	margin-top: 10px;
 }
 
-summary {
-	border: 1px solid transparent;
-	padding: 0 10px;
-	margin-bottom: 5px;
-}
 
 .validation-error {
 	font-size: 12px;
 	margin-top: 1em;
 }
 
-.include-data {
-	display: inline-block;
-}
-
-.include-data > .caption {
-	display: inline-block;
-	font-size: 12px;
-	cursor: pointer;
-}
-
-.sendData {
-	margin-left: 1em;
-}
 
 input[type="checkbox"] {
 	width: auto;
@@ -255,13 +207,14 @@ input:disabled {
 
 .instructions {
 	font-size: 12px;
-	margin-left: 1em;
 	margin-top: .5em;
 }
 
-.workbenchCommand {
+a, .workbenchCommand {
 	cursor: pointer;
+	border: 1px solid transparent;
 }
+
 .workbenchCommand:disabled {
 	color: #868e96;
 	cursor: default
@@ -291,59 +244,63 @@ a {
 	color: #be1100;
 }
 
-button {
-	background-color: #007ACC;
-	color: #fff;
+.section .input-group .validation-error {
+	margin-left: 15%;
 }
 
-#issue-type-label {
-	width: 95px;
-}
-
-#issue-type {
-	width: calc(100% - 100px);
-	cursor: pointer;
-}
-
-#issue-title-label {
-	width: 80px;
+.section .inline-form-control, .section .inline-label {
 	display: inline-block;
 }
 
-#issue-title {
-	width: calc(100% - 85px);
+.section .inline-label {
+	width: 95px;
 }
 
+.section .inline-form-control {
+	width: calc(100% - 100px);
+}
+
+#issue-type {
+	cursor: pointer;
+}
+
+#similar-issues {
+	margin-left: 15%;
+	display: block;
+}
+
+#problem-source-help-text {
+	margin-left: calc(15% + 1em);
+}
 
 @media (max-width: 950px) {
-	#issue-type-label {
-		width: 12%;
+	.section .inline-label {
+		width: 15%;
 	}
 
-	#issue-type {
-		width: calc(88% - 5px);
+	#problem-source-help-text {
+		margin-left: calc(15% + 1em);
 	}
 
-	#issue-title-label {
-		width: 10%;
-		display: inline-block
-	}
-
-	#issue-title {
-		width: calc(90% - 5px);
+	.section .inline-form-control  {
+		width: calc(85% - 5px);
 	}
 }
 
 @media (max-width: 620px) {
-	#issue-title-label, #issue-type-label {
+	.section .inline-label {
 		display: none !important;
 	}
 
-	#issue-type, #issue-title {
+	#problem-source-help-text {
+		margin-left: 1em;
+	}
+
+	.section .inline-form-control {
 		width: 100%;
 	}
 
-	#similar-issues {
+	#similar-issues, .section .input-group .validation-error {
 		margin-left: 0;
 	}
 }
@@ -361,44 +318,41 @@ button {
 }
 
 .issues-container {
-	margin-top: .5em;
-	height: 108px;
-	overflow-y: auto;
-}
-
-div.issues-container {
 	margin-left: 1.5em;
-}
-
-.issues-container > li.issue {
-	padding: 1px 0;
+	margin-top: .5em;
+	max-height: 92px;
+	overflow-y: auto;
 }
 
 .issues-container > .issue {
 	padding: 4px 0;
+	display: flex;
 }
 
 .issues-container > .issue > .issue-link {
-	display: inline-block;
 	width: calc(100% - 82px);
-	height: 22px;
-	line-height: 22px;
 	overflow: hidden;
+	padding-top: 3px;
+	white-space: nowrap;
+	text-overflow: ellipsis;
+}
+
+.issues-container > .issue > .issue-state .octicon {
+	width: 16px;
 }
 
 .issues-container > .issue > .issue-state {
 	width: 77px;
-	height: 22px;
 	padding: 3px 6px;
 	margin-right: 5px;
 	color: #CCCCCC;
 	background-color: #3c3c3c;
-	text-align: center;
 	border-radius: .25rem;
-	display: inline-block;
-	vertical-align: top;
 }
 
-.issues-container > .issue > .issue-state .octicon {
-	padding-right: 5px;
+.issues-container > .issue .label {
+	margin-left: 5px;
+	width: 44px;
+	text-overflow: ellipsis;
+	overflow: hidden;
 }

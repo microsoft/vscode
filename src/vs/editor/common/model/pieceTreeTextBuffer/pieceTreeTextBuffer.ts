@@ -2,15 +2,29 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
-import { Range } from 'vs/editor/common/core/range';
-import { Position } from 'vs/editor/common/core/position';
 import * as strings from 'vs/base/common/strings';
-import { IValidatedEditOperation } from 'vs/editor/common/model/linesTextBuffer/linesTextBuffer';
+import { Position } from 'vs/editor/common/core/position';
+import { Range } from 'vs/editor/common/core/range';
+import { ApplyEditsResult, EndOfLinePreference, FindMatch, IIdentifiedSingleEditOperation, IInternalModelContentChange, ISingleEditOperationIdentifier, ITextBuffer } from 'vs/editor/common/model';
 import { PieceTreeBase, StringBuffer } from 'vs/editor/common/model/pieceTreeTextBuffer/pieceTreeBase';
-import { IIdentifiedSingleEditOperation, EndOfLinePreference, ITextBuffer, ApplyEditsResult, IInternalModelContentChange } from 'vs/editor/common/model';
+import { SearchData } from 'vs/editor/common/model/textModelSearch';
 import { ITextSnapshot } from 'vs/platform/files/common/files';
+
+export interface IValidatedEditOperation {
+	sortIndex: number;
+	identifier: ISingleEditOperationIdentifier | null;
+	range: Range;
+	rangeOffset: number;
+	rangeLength: number;
+	lines: string[] | null;
+	forceMoveMarkers: boolean;
+	isAutoWhitespaceEdit: boolean;
+}
+
+export interface IReverseSingleEditOperation extends IIdentifiedSingleEditOperation {
+	sortIndex: number;
+}
 
 export class PieceTreeTextBuffer implements ITextBuffer {
 	private _pieceTree: PieceTreeBase;
@@ -76,8 +90,7 @@ export class PieceTreeTextBuffer implements ITextBuffer {
 		}
 
 		const lineEnding = this._getEndOfLine(eol);
-		const text = this._pieceTree.getValueInRange(range);
-		return text.replace(/\r\n|\r|\n/g, lineEnding);
+		return this._pieceTree.getValueInRange(range, lineEnding);
 	}
 
 	public getValueLengthInRange(range: Range, eol: EndOfLinePreference = EndOfLinePreference.TextDefined): number {
@@ -179,12 +192,12 @@ export class PieceTreeTextBuffer implements ITextBuffer {
 			}
 			operations[i] = {
 				sortIndex: i,
-				identifier: op.identifier,
+				identifier: op.identifier || null,
 				range: validatedRange,
 				rangeOffset: this.getOffsetAt(validatedRange.startLineNumber, validatedRange.startColumn),
 				rangeLength: this.getValueLengthInRange(validatedRange),
 				lines: op.text ? op.text.split(/\r\n|\r|\n/) : null,
-				forceMoveMarkers: op.forceMoveMarkers,
+				forceMoveMarkers: Boolean(op.forceMoveMarkers),
 				isAutoWhitespaceEdit: op.isAutoWhitespaceEdit || false
 			};
 		}
@@ -192,13 +205,17 @@ export class PieceTreeTextBuffer implements ITextBuffer {
 		// Sort operations ascending
 		operations.sort(PieceTreeTextBuffer._sortOpsAscending);
 
+		let hasTouchingRanges = false;
 		for (let i = 0, count = operations.length - 1; i < count; i++) {
 			let rangeEnd = operations[i].range.getEndPosition();
 			let nextRangeStart = operations[i + 1].range.getStartPosition();
 
-			if (nextRangeStart.isBefore(rangeEnd)) {
-				// overlapping ranges
-				throw new Error('Overlapping ranges are not allowed!');
+			if (nextRangeStart.isBeforeOrEqual(rangeEnd)) {
+				if (nextRangeStart.isBefore(rangeEnd)) {
+					// overlapping ranges
+					throw new Error('Overlapping ranges are not allowed!');
+				}
+				hasTouchingRanges = true;
 			}
 		}
 
@@ -229,12 +246,13 @@ export class PieceTreeTextBuffer implements ITextBuffer {
 			}
 		}
 
-		let reverseOperations: IIdentifiedSingleEditOperation[] = [];
+		let reverseOperations: IReverseSingleEditOperation[] = [];
 		for (let i = 0; i < operations.length; i++) {
 			let op = operations[i];
 			let reverseRange = reverseRanges[i];
 
 			reverseOperations[i] = {
+				sortIndex: op.sortIndex,
 				identifier: op.identifier,
 				range: reverseRange,
 				text: this.getValueInRange(op.range),
@@ -242,12 +260,17 @@ export class PieceTreeTextBuffer implements ITextBuffer {
 			};
 		}
 
+		// Can only sort reverse operations when the order is not significant
+		if (!hasTouchingRanges) {
+			reverseOperations.sort((a, b) => a.sortIndex - b.sortIndex);
+		}
+
 		this._mightContainRTL = mightContainRTL;
 		this._mightContainNonBasicASCII = mightContainNonBasicASCII;
 
 		const contentChanges = this._doApplyEdits(operations);
 
-		let trimAutoWhitespaceLineNumbers: number[] = null;
+		let trimAutoWhitespaceLineNumbers: number[] | null = null;
 		if (recordTrimAutoWhitespace && newTrimAutoWhitespaceCandidates.length > 0) {
 			// sort line numbers auto whitespace removal candidates for next edit descending
 			newTrimAutoWhitespaceCandidates.sort((a, b) => b.lineNumber - a.lineNumber);
@@ -279,9 +302,9 @@ export class PieceTreeTextBuffer implements ITextBuffer {
 	}
 
 	/**
- * Transform operations such that they represent the same logic edit,
- * but that they also do not cause OOM crashes.
- */
+	 * Transform operations such that they represent the same logic edit,
+	 * but that they also do not cause OOM crashes.
+	 */
 	private _reduceOperations(operations: IValidatedEditOperation[]): IValidatedEditOperation[] {
 		if (operations.length < 1000) {
 			// We know from empirical testing that a thousand edits work fine regardless of their shape.
@@ -392,7 +415,7 @@ export class PieceTreeTextBuffer implements ITextBuffer {
 			if (editingLinesCnt < insertingLinesCnt) {
 				let newLinesContent: string[] = [];
 				for (let j = editingLinesCnt + 1; j <= insertingLinesCnt; j++) {
-					newLinesContent.push(op.lines[j]);
+					newLinesContent.push(op.lines![j]);
 				}
 
 				newLinesContent[newLinesContent.length - 1] = this.getLineContent(startLineNumber + insertingLinesCnt - 1);
@@ -410,6 +433,10 @@ export class PieceTreeTextBuffer implements ITextBuffer {
 		return contentChanges;
 	}
 
+	findMatchesLineByLine(searchRange: Range, searchData: SearchData, captureMatches: boolean, limitResultCount: number): FindMatch[] {
+		return this._pieceTree.findMatchesLineByLine(searchRange, searchData, captureMatches, limitResultCount);
+	}
+
 	// #endregion
 
 	// #region helper
@@ -423,9 +450,9 @@ export class PieceTreeTextBuffer implements ITextBuffer {
 	public static _getInverseEditRanges(operations: IValidatedEditOperation[]): Range[] {
 		let result: Range[] = [];
 
-		let prevOpEndLineNumber: number;
-		let prevOpEndColumn: number;
-		let prevOp: IValidatedEditOperation = null;
+		let prevOpEndLineNumber: number = 0;
+		let prevOpEndColumn: number = 0;
+		let prevOp: IValidatedEditOperation | null = null;
 		for (let i = 0, len = operations.length; i < len; i++) {
 			let op = operations[i];
 

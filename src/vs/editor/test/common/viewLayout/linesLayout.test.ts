@@ -2,8 +2,6 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
-
 import * as assert from 'assert';
 import { LinesLayout } from 'vs/editor/common/viewLayout/linesLayout';
 
@@ -12,7 +10,7 @@ suite('Editor ViewLayout - LinesLayout', () => {
 	test('LinesLayout 1', () => {
 
 		// Start off with 10 lines
-		var linesLayout = new LinesLayout(10, 10);
+		let linesLayout = new LinesLayout(10, 10);
 
 		// lines: [0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1]
 		// whitespace: -
@@ -41,7 +39,7 @@ suite('Editor ViewLayout - LinesLayout', () => {
 		assert.equal(linesLayout.getLineNumberAtOrAfterVerticalOffset(29), 3);
 
 		// Add whitespace of height 5px after 2nd line
-		linesLayout.insertWhitespace(2, 0, 5);
+		linesLayout.insertWhitespace(2, 0, 5, 0);
 		// lines: [0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1]
 		// whitespace: a(2,5)
 		assert.equal(linesLayout.getLinesTotalHeight(), 105);
@@ -65,8 +63,8 @@ suite('Editor ViewLayout - LinesLayout', () => {
 		assert.equal(linesLayout.getLineNumberAtOrAfterVerticalOffset(105), 10);
 
 		// Add two more whitespaces of height 5px
-		linesLayout.insertWhitespace(3, 0, 5);
-		linesLayout.insertWhitespace(4, 0, 5);
+		linesLayout.insertWhitespace(3, 0, 5, 0);
+		linesLayout.insertWhitespace(4, 0, 5, 0);
 		// lines: [0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1]
 		// whitespace: a(2,5), b(3, 5), c(4, 5)
 		assert.equal(linesLayout.getLinesTotalHeight(), 115);
@@ -121,8 +119,8 @@ suite('Editor ViewLayout - LinesLayout', () => {
 	test('LinesLayout 2', () => {
 
 		// Start off with 10 lines and one whitespace after line 2, of height 5
-		var linesLayout = new LinesLayout(10, 1);
-		var a = linesLayout.insertWhitespace(2, 0, 5);
+		let linesLayout = new LinesLayout(10, 1);
+		let a = linesLayout.insertWhitespace(2, 0, 5, 0);
 
 		// 10 lines
 		// whitespace: - a(2,5)
@@ -217,8 +215,8 @@ suite('Editor ViewLayout - LinesLayout', () => {
 	});
 
 	test('LinesLayout getLineNumberAtOrAfterVerticalOffset', () => {
-		var linesLayout = new LinesLayout(10, 1);
-		linesLayout.insertWhitespace(6, 0, 10);
+		let linesLayout = new LinesLayout(10, 1);
+		linesLayout.insertWhitespace(6, 0, 10, 0);
 
 		// 10 lines
 		// whitespace: - a(6,10)
@@ -266,8 +264,8 @@ suite('Editor ViewLayout - LinesLayout', () => {
 	});
 
 	test('LinesLayout getCenteredLineInViewport', () => {
-		var linesLayout = new LinesLayout(10, 1);
-		linesLayout.insertWhitespace(6, 0, 10);
+		let linesLayout = new LinesLayout(10, 1);
+		linesLayout.insertWhitespace(6, 0, 10, 0);
 
 		// 10 lines
 		// whitespace: - a(6,10)
@@ -349,8 +347,8 @@ suite('Editor ViewLayout - LinesLayout', () => {
 	});
 
 	test('LinesLayout getLinesViewportData 1', () => {
-		var linesLayout = new LinesLayout(10, 10);
-		linesLayout.insertWhitespace(6, 0, 100);
+		let linesLayout = new LinesLayout(10, 10);
+		linesLayout.insertWhitespace(6, 0, 100, 0);
 
 		// 10 lines
 		// whitespace: - a(6,100)
@@ -367,7 +365,7 @@ suite('Editor ViewLayout - LinesLayout', () => {
 		assert.equal(linesLayout.getVerticalOffsetForLineNumber(10), 190);
 
 		// viewport 0->50
-		var viewportData = linesLayout.getLinesViewportData(0, 50);
+		let viewportData = linesLayout.getLinesViewportData(0, 50);
 		assert.equal(viewportData.startLineNumber, 1);
 		assert.equal(viewportData.endLineNumber, 5);
 		assert.equal(viewportData.completelyVisibleStartLineNumber, 1);
@@ -483,9 +481,9 @@ suite('Editor ViewLayout - LinesLayout', () => {
 
 
 	test('LinesLayout getLinesViewportData 2 & getWhitespaceViewportData', () => {
-		var linesLayout = new LinesLayout(10, 10);
-		var a = linesLayout.insertWhitespace(6, 0, 100);
-		var b = linesLayout.insertWhitespace(7, 0, 50);
+		let linesLayout = new LinesLayout(10, 10);
+		let a = linesLayout.insertWhitespace(6, 0, 100, 0);
+		let b = linesLayout.insertWhitespace(7, 0, 50, 0);
 
 		// 10 lines
 		// whitespace: - a(6,100), b(7, 50)
@@ -502,13 +500,13 @@ suite('Editor ViewLayout - LinesLayout', () => {
 		assert.equal(linesLayout.getVerticalOffsetForLineNumber(10), 240);
 
 		// viewport 50->160
-		var viewportData = linesLayout.getLinesViewportData(50, 160);
+		let viewportData = linesLayout.getLinesViewportData(50, 160);
 		assert.equal(viewportData.startLineNumber, 6);
 		assert.equal(viewportData.endLineNumber, 6);
 		assert.equal(viewportData.completelyVisibleStartLineNumber, 6);
 		assert.equal(viewportData.completelyVisibleEndLineNumber, 6);
 		assert.deepEqual(viewportData.relativeVerticalOffset, [50]);
-		var whitespaceData = linesLayout.getWhitespaceViewportData(50, 160);
+		let whitespaceData = linesLayout.getWhitespaceViewportData(50, 160);
 		assert.deepEqual(whitespaceData, [{
 			id: a,
 			afterLineNumber: 6,
@@ -554,11 +552,11 @@ suite('Editor ViewLayout - LinesLayout', () => {
 	});
 
 	test('LinesLayout getWhitespaceAtVerticalOffset', () => {
-		var linesLayout = new LinesLayout(10, 10);
-		var a = linesLayout.insertWhitespace(6, 0, 100);
-		var b = linesLayout.insertWhitespace(7, 0, 50);
+		let linesLayout = new LinesLayout(10, 10);
+		let a = linesLayout.insertWhitespace(6, 0, 100, 0);
+		let b = linesLayout.insertWhitespace(7, 0, 50, 0);
 
-		var whitespace = linesLayout.getWhitespaceAtVerticalOffset(0);
+		let whitespace = linesLayout.getWhitespaceAtVerticalOffset(0);
 		assert.equal(whitespace, null);
 
 		whitespace = linesLayout.getWhitespaceAtVerticalOffset(59);

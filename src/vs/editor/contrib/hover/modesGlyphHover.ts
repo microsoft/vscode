@@ -2,14 +2,14 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
-import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { HoverOperation, IHoverComputer } from './hoverOperation';
-import { GlyphHoverWidget } from './hoverWidgets';
 import { $ } from 'vs/base/browser/dom';
-import { MarkdownRenderer } from 'vs/editor/contrib/markdown/markdownRenderer';
 import { IMarkdownString, isEmptyMarkdownString } from 'vs/base/common/htmlContent';
+import { IDisposable, dispose } from 'vs/base/common/lifecycle';
+import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
+import { HoverOperation, HoverStartMode, IHoverComputer } from 'vs/editor/contrib/hover/hoverOperation';
+import { GlyphHoverWidget } from 'vs/editor/contrib/hover/hoverWidgets';
+import { MarkdownRenderer } from 'vs/editor/contrib/markdown/markdownRenderer';
 
 export interface IHoverMessage {
 	value: IMarkdownString;
@@ -46,6 +46,10 @@ class MarginComputer implements IHoverComputer<IHoverMessage[]> {
 		let lineDecorations = this._editor.getLineDecorations(this._lineNumber);
 
 		let result: IHoverMessage[] = [];
+		if (!lineDecorations) {
+			return result;
+		}
+
 		for (let i = 0, len = lineDecorations.length; i < len; i++) {
 			let d = lineDecorations[i];
 
@@ -53,9 +57,9 @@ class MarginComputer implements IHoverComputer<IHoverMessage[]> {
 				continue;
 			}
 
-			let hoverMessage = d.options.glyphMarginHoverMessage;
+			const hoverMessage = d.options.glyphMarginHoverMessage;
 
-			if (isEmptyMarkdownString(hoverMessage)) {
+			if (!hoverMessage || isEmptyMarkdownString(hoverMessage)) {
 				continue;
 			}
 
@@ -91,6 +95,7 @@ export class ModesGlyphHoverWidget extends GlyphHoverWidget {
 	private _markdownRenderer: MarkdownRenderer;
 	private _computer: MarginComputer;
 	private _hoverOperation: HoverOperation<IHoverMessage[]>;
+	private _renderDisposeables: IDisposable[];
 
 	constructor(editor: ICodeEditor, markdownRenderer: MarkdownRenderer) {
 		super(ModesGlyphHoverWidget.ID, editor);
@@ -103,13 +108,14 @@ export class ModesGlyphHoverWidget extends GlyphHoverWidget {
 		this._hoverOperation = new HoverOperation(
 			this._computer,
 			(result: IHoverMessage[]) => this._withResult(result),
-			null,
+			undefined,
 			(result: any) => this._withResult(result)
 		);
 
 	}
 
 	public dispose(): void {
+		this._renderDisposeables = dispose(this._renderDisposeables);
 		this._hoverOperation.cancel();
 		super.dispose();
 	}
@@ -120,7 +126,7 @@ export class ModesGlyphHoverWidget extends GlyphHoverWidget {
 			// we need to recompute the displayed text
 			this._hoverOperation.cancel();
 			this._computer.clearResult();
-			this._hoverOperation.start();
+			this._hoverOperation.start(HoverStartMode.Delayed);
 		}
 	}
 
@@ -136,7 +142,7 @@ export class ModesGlyphHoverWidget extends GlyphHoverWidget {
 
 		this._lastLineNumber = lineNumber;
 		this._computer.setLineNumber(lineNumber);
-		this._hoverOperation.start();
+		this._hoverOperation.start(HoverStartMode.Delayed);
 	}
 
 	public hide(): void {
@@ -156,12 +162,15 @@ export class ModesGlyphHoverWidget extends GlyphHoverWidget {
 	}
 
 	private _renderMessages(lineNumber: number, messages: IHoverMessage[]): void {
+		dispose(this._renderDisposeables);
+		this._renderDisposeables = [];
 
 		const fragment = document.createDocumentFragment();
 
 		messages.forEach((msg) => {
 			const renderedContents = this._markdownRenderer.render(msg.value);
-			fragment.appendChild($('div.hover-row', null, renderedContents));
+			this._renderDisposeables.push(renderedContents);
+			fragment.appendChild($('div.hover-row', undefined, renderedContents.element));
 		});
 
 		this.updateContents(fragment);

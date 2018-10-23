@@ -10,6 +10,7 @@ export interface IViewItem {
 	model: Item;
 	top: number;
 	height: number;
+	width: number;
 }
 
 export class HeightMap {
@@ -22,12 +23,12 @@ export class HeightMap {
 		this.indexes = {};
 	}
 
-	public getTotalHeight(): number {
+	public getContentHeight(): number {
 		var last = this.heightMap[this.heightMap.length - 1];
 		return !last ? 0 : last.top + last.height;
 	}
 
-	public onInsertItems(iterator: INextIterator<Item>, afterItemId: string = null): number {
+	public onInsertItems(iterator: INextIterator<Item>, afterItemId: string | null = null): number {
 		var item: Item;
 		var viewItem: IViewItem;
 		var i: number, j: number;
@@ -89,7 +90,7 @@ export class HeightMap {
 	public onRemoveItems(iterator: INextIterator<string>): void {
 		var itemId: string;
 		var viewItem: IViewItem;
-		var startIndex: number = null;
+		var startIndex: number | null = null;
 		var i: number;
 		var sizeDiff = 0;
 
@@ -139,7 +140,7 @@ export class HeightMap {
 		var item: Item;
 		var viewItem: IViewItem;
 		var newHeight: number;
-		var i: number, j: number = null;
+		var i: number, j: number | null = null;
 		var cummDiff = 0;
 
 		while (item = iterator.next()) {

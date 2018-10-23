@@ -2,10 +2,8 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
-
 import * as assert from 'assert';
-import types = require('vs/base/common/types');
+import * as types from 'vs/base/common/types';
 
 suite('Types', () => {
 	test('isFunction', () => {

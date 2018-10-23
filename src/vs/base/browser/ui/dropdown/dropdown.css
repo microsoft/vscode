@@ -3,34 +3,29 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-.dropdown {
+.monaco-dropdown {
 	height: 100%;
-}
-
-.dropdown, .dropdown-group {
 	display: inline-block;
 	padding: 0;
 }
 
-.dropdown > .dropdown-label, .dropdown > .dropdown-action {
+.monaco-dropdown > .dropdown-label,
+.monaco-dropdown > .dropdown-action {
 	display: inline-block;
 	cursor: pointer;
 	height: 100%;
 }
 
-.dropdown > .dropdown-action {
+.monaco-dropdown > .dropdown-action {
 	vertical-align: top;
 }
 
-.dropdown > .dropdown-action > .action-label:hover {
+.monaco-dropdown > .dropdown-action > .action-label:hover {
 	color: inherit;
 	text-decoration: none;
 }
 
-.dropdown > .dropdown-action, .dropdown > .dropdown-action > .action-label {
+.monaco-dropdown > .dropdown-action,
+.monaco-dropdown > .dropdown-action > .action-label {
 	display: inline-block;
-}
-
-.dropdown > .dropdown-label:not(:empty) {
-	padding: 0 .5em;
 }

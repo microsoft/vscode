@@ -2,10 +2,10 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
 import * as assert from 'assert';
 import { Range } from 'vs/editor/common/core/range';
+import { EndOfLineSequence } from 'vs/editor/common/model';
 import { testViewModel } from 'vs/editor/test/common/viewModel/testViewModel';
 
 suite('ViewModel', () => {
@@ -40,9 +40,76 @@ suite('ViewModel', () => {
 		});
 	});
 
+	test('issue #44805: SplitLinesCollection: attempt to access a \'newer\' model', () => {
+		const text = [''];
+		testViewModel(text, {}, (viewModel, model) => {
+			assert.equal(viewModel.getLineCount(), 1);
+
+			model.pushEditOperations([], [{
+				range: new Range(1, 1, 1, 1),
+				text: '\ninsert1'
+			}], () => ([]));
+
+			model.pushEditOperations([], [{
+				range: new Range(1, 1, 1, 1),
+				text: '\ninsert2'
+			}], () => ([]));
+
+			model.pushEditOperations([], [{
+				range: new Range(1, 1, 1, 1),
+				text: '\ninsert3'
+			}], () => ([]));
+
+			let viewLineCount: number[] = [];
+
+			viewLineCount.push(viewModel.getLineCount());
+			viewModel.addEventListener((events) => {
+				// Access the view model
+				viewLineCount.push(viewModel.getLineCount());
+			});
+			model.undo();
+			viewLineCount.push(viewModel.getLineCount());
+
+			assert.deepEqual(viewLineCount, [4, 1, 1, 1]);
+		});
+	});
+
+	test('issue #44805: No visible lines via API call', () => {
+		const text = [
+			'line1',
+			'line2',
+			'line3'
+		];
+		testViewModel(text, {}, (viewModel, model) => {
+			assert.equal(viewModel.getLineCount(), 3);
+			viewModel.setHiddenAreas([new Range(1, 1, 3, 1)]);
+			assert.ok(viewModel.getVisibleRanges() !== null);
+		});
+	});
+
+	test('issue #44805: No visible lines via undoing', () => {
+		const text = [
+			''
+		];
+		testViewModel(text, {}, (viewModel, model) => {
+			assert.equal(viewModel.getLineCount(), 1);
+
+			model.pushEditOperations([], [{
+				range: new Range(1, 1, 1, 1),
+				text: 'line1\nline2\nline3'
+			}], () => ([]));
+
+			viewModel.setHiddenAreas([new Range(1, 1, 1, 1)]);
+			assert.equal(viewModel.getLineCount(), 2);
+
+			model.undo();
+			assert.ok(viewModel.getVisibleRanges() !== null);
+		});
+	});
+
 	function assertGetPlainTextToCopy(text: string[], ranges: Range[], emptySelectionClipboard: boolean, expected: string | string[]): void {
 		testViewModel(text, {}, (viewModel, model) => {
-			let actual = viewModel.getPlainTextToCopy(ranges, emptySelectionClipboard);
+			let actual = viewModel.getPlainTextToCopy(ranges, emptySelectionClipboard, false);
 			assert.deepEqual(actual, expected);
 		});
 	}
@@ -182,5 +249,13 @@ suite('ViewModel', () => {
 			true,
 			'line2\nline3\n'
 		);
+	});
+
+	test('issue #22688 - always use CRLF for clipboard on Windows', () => {
+		testViewModel(USUAL_TEXT, {}, (viewModel, model) => {
+			model.setEOL(EndOfLineSequence.LF);
+			let actual = viewModel.getPlainTextToCopy([new Range(2, 1, 5, 1)], true, true);
+			assert.deepEqual(actual, 'line2\r\nline3\r\nline4\r\n');
+		});
 	});
 });
