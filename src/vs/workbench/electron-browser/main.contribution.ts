@@ -521,12 +521,12 @@ configurationRegistry.registerConfiguration({
 		},
 		'workbench.editor.enablePreview': {
 			'type': 'boolean',
-			'description': nls.localize('enablePreview', "Controls whether opened editors show as preview. Preview editors are reused until they are kept (e.g. via double click or editing) and show up with an italic font style."),
+			'description': nls.localize('enablePreview', "Controls whether opened editors show as preview. Preview editors are reused until they are pinned (e.g. via double click or editing) and show up with an italic font style."),
 			'default': true
 		},
 		'workbench.editor.enablePreviewFromQuickOpen': {
 			'type': 'boolean',
-			'description': nls.localize('enablePreviewFromQuickOpen', "Controls whether opened editors from Quick Open show as preview. Preview editors are reused until they are kept (e.g. via double click or editing)."),
+			'description': nls.localize('enablePreviewFromQuickOpen', "Controls whether opened editors from Quick Open show as preview. Preview editors are reused until they are pinned (e.g. via double click or editing)."),
 			'default': true
 		},
 		'workbench.editor.closeOnFileDelete': {
