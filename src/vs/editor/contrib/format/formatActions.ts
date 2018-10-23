@@ -341,7 +341,7 @@ export class FormatSelectionAction extends AbstractFormatAction {
 			id: 'editor.action.formatSelection',
 			label: nls.localize('formatSelection.label', "Format Selection"),
 			alias: 'Format Code',
-			precondition: ContextKeyExpr.and(EditorContextKeys.writable, EditorContextKeys.hasNonEmptySelection),
+			precondition: ContextKeyExpr.and(EditorContextKeys.writable),
 			kbOpts: {
 				kbExpr: EditorContextKeys.editorTextFocus,
 				primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.KEY_F),
@@ -357,8 +357,14 @@ export class FormatSelectionAction extends AbstractFormatAction {
 
 	protected _getFormattingEdits(editor: ICodeEditor, token: CancellationToken): Promise<ISingleEditOperation[]> {
 		const model = editor.getModel();
+		let selection = editor.getSelection();
+		if (selection.isEmpty()) {
+			const maxColumn = model.getLineMaxColumn(selection.startLineNumber);
+			selection = selection.setStartPosition(selection.startLineNumber, 1);
+			selection = selection.setEndPosition(selection.endLineNumber, maxColumn);
+		}
 		const { tabSize, insertSpaces } = model.getOptions();
-		return getDocumentRangeFormattingEdits(model, editor.getSelection(), { tabSize, insertSpaces }, token);
+		return getDocumentRangeFormattingEdits(model, selection, { tabSize, insertSpaces }, token);
 	}
 
 	protected _notifyNoProviderError(notificationService: INotificationService, language: string): void {
