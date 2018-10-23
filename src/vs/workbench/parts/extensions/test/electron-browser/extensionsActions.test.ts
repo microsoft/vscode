@@ -1046,7 +1046,7 @@ suite('ExtensionsActions Test', () => {
 
 		return new Promise(c => {
 			testObject.onDidChange(() => {
-				if (testObject.enabled && testObject.tooltip === 'Reload to Activate') {
+				if (testObject.enabled && testObject.tooltip === 'Reload to complete installing this extension.') {
 					c();
 				}
 			});
@@ -1083,7 +1083,7 @@ suite('ExtensionsActions Test', () => {
 
 		return new Promise(c => {
 			testObject.onDidChange(() => {
-				if (testObject.enabled && testObject.tooltip === 'Reload to Deactivate') {
+				if (testObject.enabled && testObject.tooltip === 'Reload to complete uninstalling this extension.') {
 					c();
 				}
 			});
@@ -1123,7 +1123,7 @@ suite('ExtensionsActions Test', () => {
 
 		return new Promise(c => {
 			testObject.onDidChange(() => {
-				if (testObject.enabled && testObject.tooltip === 'Reload to Update') {
+				if (testObject.enabled && testObject.tooltip === 'Reload to complete updating this extension.') {
 					c();
 				}
 			});
@@ -1165,7 +1165,7 @@ suite('ExtensionsActions Test', () => {
 			return workbenchService.setEnablement(extensions[0], EnablementState.Disabled)
 				.then(() => {
 					assert.ok(testObject.enabled);
-					assert.equal('Reload to Deactivate', testObject.tooltip);
+					assert.equal('Reload to complete disabling this extension.', testObject.tooltip);
 				});
 		});
 	});
@@ -1199,7 +1199,7 @@ suite('ExtensionsActions Test', () => {
 						return workbenchService.setEnablement(extensions[0], EnablementState.Enabled)
 							.then(() => {
 								assert.ok(testObject.enabled);
-								assert.equal('Reload to Activate', testObject.tooltip);
+								assert.equal('Reload to complete enabling this extension.', testObject.tooltip);
 							});
 					});
 			});
@@ -1241,7 +1241,7 @@ suite('ExtensionsActions Test', () => {
 						return workbenchService.setEnablement(extensions[0], EnablementState.Enabled)
 							.then(() => {
 								assert.ok(testObject.enabled);
-								assert.equal('Reload to Activate', testObject.tooltip);
+								assert.equal('Reload to complete enabling this extension.', testObject.tooltip);
 							});
 
 					});

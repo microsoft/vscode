@@ -1056,6 +1056,7 @@ export class ReloadAction extends Action {
 	private computeReloadState(runningExtensions: IExtensionDescription[], installed: IExtension): void {
 		const isUninstalled = this.extension.state === ExtensionState.Uninstalled;
 		const isDisabled = this.extension.local ? !this.extensionEnablementService.isEnabled(this.extension.local) : false;
+		const isEnabled = this.extension.local ? this.extensionEnablementService.isEnabled(this.extension.local) : false;
 		const runningExtension = runningExtensions.filter(e => areSameExtensions(e, this.extension))[0];
 
 		if (installed && installed.local) {
@@ -1064,13 +1065,13 @@ export class ReloadAction extends Action {
 				if (isDifferentVersionRunning && !isDisabled) {
 					// Requires reload to run the updated extension
 					this.enabled = true;
-					this.tooltip = localize('postUpdateTooltip', "Reload to Update");
+					this.tooltip = localize('postUpdateTooltip', "Reload to complete updating this extension.");
 					return;
 				}
 				if (isDisabled) {
 					// Requires reload to disable the extension
 					this.enabled = true;
-					this.tooltip = localize('postDisableTooltip', "Reload to Deactivate");
+					this.tooltip = localize('postDisableTooltip', "Reload to complete disabling this extension.");
 					return;
 				}
 			} else {
@@ -1080,7 +1081,11 @@ export class ReloadAction extends Action {
 				if (extensionServer && extensionServer.authority === localServer.authority && !isDisabled) {
 					// Requires reload to enable the extension
 					this.enabled = true;
-					this.tooltip = localize('postEnableTooltip', "Reload to Activate");
+					if (!isEnabled) {
+						this.tooltip = localize('postInstallTooltip', "Reload to complete installing this extension.");
+					} else if (!isDisabled) {
+						this.tooltip = localize('postEnableTooltip', "Reload to complete enabling this extension.");
+					}
 					return;
 				}
 			}
@@ -1090,7 +1095,7 @@ export class ReloadAction extends Action {
 		if (isUninstalled && runningExtension) {
 			// Requires reload to deactivate the extension
 			this.enabled = true;
-			this.tooltip = localize('postUninstallTooltip', "Reload to Deactivate");
+			this.tooltip = localize('postUninstallTooltip', "Reload to complete uninstalling this extension.");
 			return;
 		}
 	}
