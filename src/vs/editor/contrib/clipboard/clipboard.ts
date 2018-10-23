@@ -5,17 +5,17 @@
 
 import 'vs/css!./clipboard';
 import * as nls from 'vs/nls';
-import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import * as browser from 'vs/base/browser/browser';
+import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import * as platform from 'vs/base/common/platform';
-import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
-import { registerEditorAction, IActionOptions, EditorAction, ICommandKeybindingsOptions } from 'vs/editor/browser/editorExtensions';
 import { CopyOptions } from 'vs/editor/browser/controller/textAreaInput';
-import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
+import { EditorAction, IActionOptions, ICommandKeybindingsOptions, registerEditorAction } from 'vs/editor/browser/editorExtensions';
+import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
+import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { MenuId } from 'vs/platform/actions/common/actions';
+import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
+import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 
 const CLIPBOARD_CONTEXT_MENU_GROUP = '9_cutcopypaste';
 

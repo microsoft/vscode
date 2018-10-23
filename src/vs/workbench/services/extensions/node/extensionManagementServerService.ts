@@ -3,10 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IExtensionManagementService, IExtensionManagementServerService, IExtensionManagementServer } from 'vs/platform/extensionManagement/common/extensionManagement';
-import { URI } from 'vs/base/common/uri';
-import { Schemas } from 'vs/base/common/network';
 import { localize } from 'vs/nls';
+import { Schemas } from 'vs/base/common/network';
+import { URI } from 'vs/base/common/uri';
+import { IExtensionManagementServer, IExtensionManagementServerService, IExtensionManagementService } from 'vs/platform/extensionManagement/common/extensionManagement';
 
 const localExtensionManagementServerAuthority: string = 'vscode-local';
 

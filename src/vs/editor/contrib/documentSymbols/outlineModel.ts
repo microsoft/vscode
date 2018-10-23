@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { binarySearch, coalesce, isFalsyOrEmpty } from 'vs/base/common/arrays';
+import { binarySearch, isFalsyOrEmpty, coalesceInPlace } from 'vs/base/common/arrays';
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 import { first, forEach, size } from 'vs/base/common/collections';
 import { onUnexpectedExternalError } from 'vs/base/common/errors';
@@ -133,7 +133,11 @@ export class OutlineGroup extends TreeElement {
 	}
 
 	private _updateMatches(pattern: string, item: OutlineElement, topMatch: OutlineElement): OutlineElement {
-		item.score = fuzzyScore(pattern, pattern.toLowerCase(), 0, item.symbol.name, item.symbol.name.toLowerCase(), 0, true);
+
+		item.score = pattern
+			? fuzzyScore(pattern, pattern.toLowerCase(), 0, item.symbol.name, item.symbol.name.toLowerCase(), 0, true)
+			: [-100, []];
+
 		if (item.score && (!topMatch || item.score[0] > topMatch.score[0])) {
 			topMatch = item;
 		}
@@ -142,7 +146,7 @@ export class OutlineGroup extends TreeElement {
 			topMatch = this._updateMatches(pattern, child, topMatch);
 			if (!item.score && child.score) {
 				// don't filter parents with unfiltered children
-				item.score = [0, []];
+				item.score = [-100, []];
 			}
 		}
 		return topMatch;
@@ -214,7 +218,7 @@ export class OutlineGroup extends TreeElement {
 			};
 		}
 
-		coalesce(markers, true);
+		coalesceInPlace(markers);
 	}
 }
 

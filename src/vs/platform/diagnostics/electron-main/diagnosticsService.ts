@@ -85,10 +85,10 @@ export class DiagnosticsService implements IDiagnosticsService {
 
 	getPerformanceInfo(info: IMainProcessInfo): Promise<PerformanceInfo> {
 		return listProcesses(info.mainPID).then(rootProcess => {
-			const workspaceInfoMessages = [];
+			const workspaceInfoMessages: string[] = [];
 
 			// Workspace Stats
-			const workspaceStatPromises = [];
+			const workspaceStatPromises: Promise<void>[] = [];
 			if (info.windows.some(window => window.folderURIs && window.folderURIs.length > 0)) {
 				info.windows.forEach(window => {
 					if (window.folderURIs.length === 0) {
@@ -173,7 +173,7 @@ export class DiagnosticsService implements IDiagnosticsService {
 			console.log(this.formatProcessList(info, rootProcess));
 
 			// Workspace Stats
-			const workspaceStatPromises = [];
+			const workspaceStatPromises: Promise<void>[] = [];
 			if (info.windows.some(window => window.folderURIs && window.folderURIs.length > 0)) {
 				console.log('');
 				console.log('Workspace Stats: ');

@@ -16,7 +16,7 @@ function log(message: any, ...rest: any[]): void {
 
 const SRC = path.join(__dirname, '../../src');
 const OUT_ROOT = path.join(__dirname, '../../');
-const RECIPE_PATH = path.join(__dirname, './monaco.d.ts.recipe');
+export const RECIPE_PATH = path.join(__dirname, './monaco.d.ts.recipe');
 const DECLARATION_PATH = path.join(__dirname, '../../src/vs/monaco.d.ts');
 
 var CURRENT_PROCESSING_RULE = '';
@@ -32,24 +32,10 @@ function moduleIdToPath(out: string, moduleId: string): string {
 	return path.join(OUT_ROOT, out, moduleId) + '.d.ts';
 }
 
-let SOURCE_FILE_MAP: { [moduleId: string]: ts.SourceFile; } = {};
-function getSourceFile(out: string, inputFiles: { [file: string]: string; }, moduleId: string): ts.SourceFile | null {
-	if (!SOURCE_FILE_MAP[moduleId]) {
-		let filePath = path.normalize(moduleIdToPath(out, moduleId));
-
-		if (!inputFiles.hasOwnProperty(filePath)) {
-			logErr('CANNOT FIND FILE ' + filePath + '. YOU MIGHT NEED TO RESTART gulp');
-			return null;
-		}
-
-		let fileContents = inputFiles[filePath];
-		let sourceFile = ts.createSourceFile(filePath, fileContents, ts.ScriptTarget.ES5);
-
-		SOURCE_FILE_MAP[moduleId] = sourceFile;
-	}
-	return SOURCE_FILE_MAP[moduleId];
+export interface ISourceFileMap {
+	[moduleId: string]: ts.SourceFile;
 }
-
+export type SourceFileGetter = (moduleId: string) => ts.SourceFile | null;
 
 type TSTopLevelDeclaration = ts.InterfaceDeclaration | ts.EnumDeclaration | ts.ClassDeclaration | ts.TypeAliasDeclaration | ts.FunctionDeclaration | ts.ModuleDeclaration;
 type TSTopLevelDeclare = TSTopLevelDeclaration | ts.VariableStatement;
@@ -166,7 +152,7 @@ function isDefaultExport(declaration: ts.InterfaceDeclaration | ts.ClassDeclarat
 	);
 }
 
-function getMassagedTopLevelDeclarationText(sourceFile: ts.SourceFile, declaration: TSTopLevelDeclare, importName: string, usage: string[]): string {
+function getMassagedTopLevelDeclarationText(sourceFile: ts.SourceFile, declaration: TSTopLevelDeclare, importName: string, usage: string[], enums: string[]): string {
 	let result = getNodeText(sourceFile, declaration);
 	if (declaration.kind === ts.SyntaxKind.InterfaceDeclaration || declaration.kind === ts.SyntaxKind.ClassDeclaration) {
 		let interfaceDeclaration = <ts.InterfaceDeclaration | ts.ClassDeclaration>declaration;
@@ -208,10 +194,22 @@ function getMassagedTopLevelDeclarationText(sourceFile: ts.SourceFile, declarati
 	}
 	result = result.replace(/export default/g, 'export');
 	result = result.replace(/export declare/g, 'export');
+
+	if (declaration.kind === ts.SyntaxKind.EnumDeclaration) {
+		result = result.replace(/const enum/, 'enum');
+		enums.push(result);
+	}
+
 	return result;
 }
 
-function format(text: string): string {
+function format(text: string, endl: string): string {
+	const REALLY_FORMAT = false;
+
+	text = preformat(text, endl);
+	if (!REALLY_FORMAT) {
+		return text;
+	}
 
 	// Parse the source text
 	let sourceFile = ts.createSourceFile('file.ts', text, ts.ScriptTarget.Latest, /*setParentPointers*/ true);
@@ -221,6 +219,104 @@ function format(text: string): string {
 
 	// Apply the edits on the input code
 	return applyEdits(text, edits);
+
+	function countParensCurly(text: string): number {
+		let cnt = 0;
+		for (let i = 0; i < text.length; i++) {
+			if (text.charAt(i) === '(' || text.charAt(i) === '{') {
+				cnt++;
+			}
+			if (text.charAt(i) === ')' || text.charAt(i) === '}') {
+				cnt--;
+			}
+		}
+		return cnt;
+	}
+
+	function repeatStr(s: string, cnt: number): string {
+		let r = '';
+		for (let i = 0; i < cnt; i++) {
+			r += s;
+		}
+		return r;
+	}
+
+	function preformat(text: string, endl: string): string {
+		let lines = text.split(endl);
+		let inComment = false;
+		let inCommentDeltaIndent = 0;
+		let indent = 0;
+		for (let i = 0; i < lines.length; i++) {
+			let line = lines[i].replace(/\s$/, '');
+			let repeat = false;
+			let lineIndent = 0;
+			do {
+				repeat = false;
+				if (line.substring(0, 4) === '    ') {
+					line = line.substring(4);
+					lineIndent++;
+					repeat = true;
+				}
+				if (line.charAt(0) === '\t') {
+					line = line.substring(1);
+					lineIndent++;
+					repeat = true;
+				}
+			} while (repeat);
+
+			if (line.length === 0) {
+				continue;
+			}
+
+			if (inComment) {
+				if (/\*\//.test(line)) {
+					inComment = false;
+				}
+				lines[i] = repeatStr('\t', lineIndent + inCommentDeltaIndent) + line;
+				continue;
+			}
+
+			if (/\/\*/.test(line)) {
+				inComment = true;
+				inCommentDeltaIndent = indent - lineIndent;
+				lines[i] = repeatStr('\t', indent) + line;
+				continue;
+			}
+
+			const cnt = countParensCurly(line);
+			let shouldUnindentAfter = false;
+			let shouldUnindentBefore = false;
+			if (cnt < 0) {
+				if (/[({]/.test(line)) {
+					shouldUnindentAfter = true;
+				} else {
+					shouldUnindentBefore = true;
+				}
+			} else if (cnt === 0) {
+				shouldUnindentBefore = /^\}/.test(line);
+			}
+			let shouldIndentAfter = false;
+			if (cnt > 0) {
+				shouldIndentAfter = true;
+			} else if (cnt === 0) {
+				shouldIndentAfter = /{$/.test(line);
+			}
+
+			if (shouldUnindentBefore) {
+				indent--;
+			}
+
+			lines[i] = repeatStr('\t', indent) + line;
+
+			if (shouldUnindentAfter) {
+				indent--;
+			}
+			if (shouldIndentAfter) {
+				indent++;
+			}
+		}
+		return lines.join(endl);
+	}
 
 	function getRuleProvider(options: ts.FormatCodeSettings) {
 		// Share this between multiple formatters using the same options.
@@ -266,7 +362,7 @@ function createReplacer(data: string): (str: string) => string {
 	};
 }
 
-function generateDeclarationFile(out: string, inputFiles: { [file: string]: string; }, recipe: string): [string, string] {
+function generateDeclarationFile(recipe: string, sourceFileGetter: SourceFileGetter): [string, string, string] {
 	const endl = /\r\n/.test(recipe) ? '\r\n' : '\n';
 
 	let lines = recipe.split(endl);
@@ -285,13 +381,15 @@ function generateDeclarationFile(out: string, inputFiles: { [file: string]: stri
 		return importName;
 	};
 
+	let enums: string[] = [];
+
 	lines.forEach(line => {
 
 		let m1 = line.match(/^\s*#include\(([^;)]*)(;[^)]*)?\)\:(.*)$/);
 		if (m1) {
 			CURRENT_PROCESSING_RULE = line;
 			let moduleId = m1[1];
-			const sourceFile = getSourceFile(out, inputFiles, moduleId);
+			const sourceFile = sourceFileGetter(moduleId);
 			if (!sourceFile) {
 				return;
 			}
@@ -311,7 +409,7 @@ function generateDeclarationFile(out: string, inputFiles: { [file: string]: stri
 					logErr('Cannot find type ' + typeName);
 					return;
 				}
-				result.push(replacer(getMassagedTopLevelDeclarationText(sourceFile, declaration, importName, usage)));
+				result.push(replacer(getMassagedTopLevelDeclarationText(sourceFile, declaration, importName, usage, enums)));
 			});
 			return;
 		}
@@ -320,7 +418,7 @@ function generateDeclarationFile(out: string, inputFiles: { [file: string]: stri
 		if (m2) {
 			CURRENT_PROCESSING_RULE = line;
 			let moduleId = m2[1];
-			const sourceFile = getSourceFile(out, inputFiles, moduleId);
+			const sourceFile = sourceFileGetter(moduleId);
 			if (!sourceFile) {
 				return;
 			}
@@ -355,7 +453,7 @@ function generateDeclarationFile(out: string, inputFiles: { [file: string]: stri
 						}
 					}
 				}
-				result.push(replacer(getMassagedTopLevelDeclarationText(sourceFile, declaration, importName, usage)));
+				result.push(replacer(getMassagedTopLevelDeclarationText(sourceFile, declaration, importName, usage, enums)));
 			});
 			return;
 		}
@@ -366,16 +464,27 @@ function generateDeclarationFile(out: string, inputFiles: { [file: string]: stri
 	let resultTxt = result.join(endl);
 	resultTxt = resultTxt.replace(/\bURI\b/g, 'Uri');
 	resultTxt = resultTxt.replace(/\bEvent</g, 'IEvent<');
+	resultTxt = format(resultTxt, endl);
 
-	resultTxt = format(resultTxt);
+	let resultEnums = [
+		'/*---------------------------------------------------------------------------------------------',
+		' *  Copyright (c) Microsoft Corporation. All rights reserved.',
+		' *  Licensed under the MIT License. See License.txt in the project root for license information.',
+		' *--------------------------------------------------------------------------------------------*/',
+		'',
+		'// THIS IS A GENERATED FILE. DO NOT EDIT DIRECTLY.',
+		''
+	].concat(enums).join(endl);
+	resultEnums = format(resultEnums, endl);
 
 	return [
 		resultTxt,
-		`${usageImports.join('\n')}\n\n${usage.join('\n')}`
+		`${usageImports.join('\n')}\n\n${usage.join('\n')}`,
+		resultEnums
 	];
 }
 
-function getIncludesInRecipe(): string[] {
+export function getIncludesInRecipe(): string[] {
 	let recipe = fs.readFileSync(RECIPE_PATH).toString();
 	let lines = recipe.split(/\r\n|\n|\r/);
 	let result: string[] = [];
@@ -407,30 +516,63 @@ export function getFilesToWatch(out: string): string[] {
 export interface IMonacoDeclarationResult {
 	content: string;
 	usageContent: string;
+	enums: string;
 	filePath: string;
 	isTheSame: boolean;
 }
 
-export function run(out: string, inputFiles: { [file: string]: string; }): IMonacoDeclarationResult {
+function _run(sourceFileGetter: SourceFileGetter): IMonacoDeclarationResult {
 	log('Starting monaco.d.ts generation');
-	SOURCE_FILE_MAP = {};
 
-	let recipe = fs.readFileSync(RECIPE_PATH).toString();
-	let [result, usageContent] = generateDeclarationFile(out, inputFiles, recipe);
+	const recipe = fs.readFileSync(RECIPE_PATH).toString();
+	const [result, usageContent, enums] = generateDeclarationFile(recipe, sourceFileGetter);
 
-	let currentContent = fs.readFileSync(DECLARATION_PATH).toString();
-	log('Finished monaco.d.ts generation');
-
+	const currentContent = fs.readFileSync(DECLARATION_PATH).toString();
 	const one = currentContent.replace(/\r\n/gm, '\n');
 	const other = result.replace(/\r\n/gm, '\n');
-	const isTheSame = one === other;
+	const isTheSame = (one === other);
+
+	log('Finished monaco.d.ts generation');
 
 	return {
 		content: result,
 		usageContent: usageContent,
+		enums: enums,
 		filePath: DECLARATION_PATH,
 		isTheSame
 	};
+}
+
+export function run(out: string, inputFiles: { [file: string]: string; }): IMonacoDeclarationResult {
+
+	let SOURCE_FILE_MAP: { [moduleId: string]: ts.SourceFile; } = {};
+	const sourceFileGetter = (moduleId: string): ts.SourceFile | null => {
+		if (!SOURCE_FILE_MAP[moduleId]) {
+			let filePath = path.normalize(moduleIdToPath(out, moduleId));
+
+			if (!inputFiles.hasOwnProperty(filePath)) {
+				logErr('CANNOT FIND FILE ' + filePath + '. YOU MIGHT NEED TO RESTART gulp');
+				return null;
+			}
+
+			let fileContents = inputFiles[filePath];
+			let sourceFile = ts.createSourceFile(filePath, fileContents, ts.ScriptTarget.ES5);
+
+			SOURCE_FILE_MAP[moduleId] = sourceFile;
+		}
+		return SOURCE_FILE_MAP[moduleId];
+	};
+
+	return _run(sourceFileGetter);
+}
+
+export function run2(out: string, sourceFileMap: ISourceFileMap): IMonacoDeclarationResult {
+	const sourceFileGetter = (moduleId: string): ts.SourceFile | null => {
+		let filePath = path.normalize(moduleIdToPath(out, moduleId));
+		return sourceFileMap[filePath];
+	};
+
+	return _run(sourceFileGetter);
 }
 
 export function complainErrors() {
@@ -442,7 +584,7 @@ export function complainErrors() {
 interface ILibMap { [libName: string]: string; }
 interface IFileMap { [fileName: string]: string; }
 
-class TypeScriptLanguageServiceHost implements ts.LanguageServiceHost {
+export class TypeScriptLanguageServiceHost implements ts.LanguageServiceHost {
 
 	private readonly _libs: ILibMap;
 	private readonly _files: IFileMap;

@@ -4,16 +4,16 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as nls from 'vs/nls';
-import { Event, Emitter } from 'vs/base/common/event';
+import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
 import * as objects from 'vs/base/common/objects';
 import * as platform from 'vs/base/common/platform';
-import { Extensions, IConfigurationRegistry, IConfigurationNode, ConfigurationScope } from 'vs/platform/configuration/common/configurationRegistry';
-import { Registry } from 'vs/platform/registry/common/platform';
-import * as editorCommon from 'vs/editor/common/editorCommon';
-import { FontInfo, BareFontInfo } from 'vs/editor/common/config/fontInfo';
-import { EditorZoom } from 'vs/editor/common/config/editorZoom';
 import * as editorOptions from 'vs/editor/common/config/editorOptions';
+import { EditorZoom } from 'vs/editor/common/config/editorZoom';
+import { BareFontInfo, FontInfo } from 'vs/editor/common/config/fontInfo';
+import * as editorCommon from 'vs/editor/common/editorCommon';
+import { ConfigurationScope, Extensions, IConfigurationNode, IConfigurationRegistry } from 'vs/platform/configuration/common/configurationRegistry';
+import { Registry } from 'vs/platform/registry/common/platform';
 import EDITOR_DEFAULTS = editorOptions.EDITOR_DEFAULTS;
 import EDITOR_FONT_DEFAULTS = editorOptions.EDITOR_FONT_DEFAULTS;
 import EDITOR_MODEL_DEFAULTS = editorOptions.EDITOR_MODEL_DEFAULTS;

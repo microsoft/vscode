@@ -6,13 +6,13 @@
 import { onUnexpectedError } from 'vs/base/common/errors';
 import * as mime from 'vs/base/common/mime';
 import * as strings from 'vs/base/common/strings';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { ModesRegistry } from 'vs/editor/common/modes/modesRegistry';
-import { ILanguageExtensionPoint } from 'vs/editor/common/services/modeService';
-import { LanguageId, LanguageIdentifier } from 'vs/editor/common/modes';
-import { NULL_MODE_ID, NULL_LANGUAGE_IDENTIFIER } from 'vs/editor/common/modes/nullMode';
-import { IConfigurationRegistry, Extensions } from 'vs/platform/configuration/common/configurationRegistry';
 import { URI } from 'vs/base/common/uri';
+import { LanguageId, LanguageIdentifier } from 'vs/editor/common/modes';
+import { ModesRegistry } from 'vs/editor/common/modes/modesRegistry';
+import { NULL_LANGUAGE_IDENTIFIER, NULL_MODE_ID } from 'vs/editor/common/modes/nullMode';
+import { ILanguageExtensionPoint } from 'vs/editor/common/services/modeService';
+import { Extensions, IConfigurationRegistry } from 'vs/platform/configuration/common/configurationRegistry';
+import { Registry } from 'vs/platform/registry/common/platform';
 
 const hasOwnProperty = Object.prototype.hasOwnProperty;
 

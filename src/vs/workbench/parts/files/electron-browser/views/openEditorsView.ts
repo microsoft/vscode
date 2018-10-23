@@ -468,7 +468,7 @@ export class OpenEditorsView extends ViewletPanel {
 
 	public getOptimalWidth(): number {
 		let parentNode = this.list.getHTMLElement();
-		let childNodes = [].slice.call(parentNode.querySelectorAll('.open-editor > a'));
+		let childNodes: HTMLElement[] = [].slice.call(parentNode.querySelectorAll('.open-editor > a'));
 
 		return dom.getLargestChildWidth(parentNode, childNodes);
 	}

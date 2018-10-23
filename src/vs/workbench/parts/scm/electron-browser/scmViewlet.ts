@@ -1067,37 +1067,36 @@ export class SCMViewlet extends PanelViewlet implements IViewModel, IViewsViewle
 		this.disposables.push(this.contributedViews);
 	}
 
-	create(parent: HTMLElement): Promise<void> {
-		return super.create(parent).then(() => {
-			this.el = parent;
-			addClass(this.el, 'scm-viewlet');
-			addClass(this.el, 'empty');
-			append(parent, $('div.empty-message', null, localize('no open repo', "No source control providers registered.")));
+	create(parent: HTMLElement): void {
+		super.create(parent);
+		this.el = parent;
+		addClass(this.el, 'scm-viewlet');
+		addClass(this.el, 'empty');
+		append(parent, $('div.empty-message', null, localize('no open repo', "No source control providers registered.")));
 
-			this.scmService.onDidAddRepository(this.onDidAddRepository, this, this.disposables);
-			this.scmService.onDidRemoveRepository(this.onDidRemoveRepository, this, this.disposables);
-			this.scmService.repositories.forEach(r => this.onDidAddRepository(r));
+		this.scmService.onDidAddRepository(this.onDidAddRepository, this, this.disposables);
+		this.scmService.onDidRemoveRepository(this.onDidRemoveRepository, this, this.disposables);
+		this.scmService.repositories.forEach(r => this.onDidAddRepository(r));
 
-			const onDidUpdateConfiguration = filterEvent(this.configurationService.onDidChangeConfiguration, e => e.affectsConfiguration('scm.alwaysShowProviders'));
-			onDidUpdateConfiguration(this.onDidChangeRepositories, this, this.disposables);
+		const onDidUpdateConfiguration = filterEvent(this.configurationService.onDidChangeConfiguration, e => e.affectsConfiguration('scm.alwaysShowProviders'));
+		onDidUpdateConfiguration(this.onDidChangeRepositories, this, this.disposables);
 
-			this.onDidChangeRepositories();
+		this.onDidChangeRepositories();
 
-			this.contributedViews.onDidAdd(this.onDidAddContributedViews, this, this.disposables);
-			this.contributedViews.onDidRemove(this.onDidRemoveContributedViews, this, this.disposables);
+		this.contributedViews.onDidAdd(this.onDidAddContributedViews, this, this.disposables);
+		this.contributedViews.onDidRemove(this.onDidRemoveContributedViews, this, this.disposables);
 
-			let index = this.getContributedViewsStartIndex();
-			const contributedViews: IAddedViewDescriptorRef[] = this.contributedViews.visibleViewDescriptors.map(viewDescriptor => {
-				const size = this.contributedViews.getSize(viewDescriptor.id);
-				const collapsed = this.contributedViews.isCollapsed(viewDescriptor.id);
-				return { viewDescriptor, index: index++, size, collapsed };
-			});
-			if (contributedViews.length) {
-				this.onDidAddContributedViews(contributedViews);
-			}
-
-			this.onDidSashChange(this.saveContributedViewSizes, this, this.disposables);
+		let index = this.getContributedViewsStartIndex();
+		const contributedViews: IAddedViewDescriptorRef[] = this.contributedViews.visibleViewDescriptors.map(viewDescriptor => {
+			const size = this.contributedViews.getSize(viewDescriptor.id);
+			const collapsed = this.contributedViews.isCollapsed(viewDescriptor.id);
+			return { viewDescriptor, index: index++, size, collapsed };
 		});
+		if (contributedViews.length) {
+			this.onDidAddContributedViews(contributedViews);
+		}
+
+		this.onDidSashChange(this.saveContributedViewSizes, this, this.disposables);
 	}
 
 	private onDidAddRepository(repository: ISCMRepository): void {

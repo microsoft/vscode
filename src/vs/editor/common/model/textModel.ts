@@ -3,36 +3,36 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { URI } from 'vs/base/common/uri';
-import { Event, Emitter } from 'vs/base/common/event';
-import * as model from 'vs/editor/common/model';
-import { LanguageIdentifier, TokenizationRegistry, LanguageId, IState } from 'vs/editor/common/modes';
-import { EditStack } from 'vs/editor/common/model/editStack';
-import { Range, IRange } from 'vs/editor/common/core/range';
-import { Selection } from 'vs/editor/common/core/selection';
-import { ModelRawContentChangedEvent, IModelDecorationsChangedEvent, IModelLanguageChangedEvent, IModelLanguageConfigurationChangedEvent, IModelTokensChangedEvent, IModelOptionsChangedEvent, IModelContentChangedEvent, InternalModelContentChangeEvent, ModelRawFlush, ModelRawEOLChanged, ModelRawChange, ModelRawLineChanged, ModelRawLinesDeleted, ModelRawLinesInserted } from 'vs/editor/common/model/textModelEvents';
-import { onUnexpectedError } from 'vs/base/common/errors';
-import { IMarkdownString } from 'vs/base/common/htmlContent';
-import * as strings from 'vs/base/common/strings';
 import { CharCode } from 'vs/base/common/charCode';
-import { ThemeColor, ITheme } from 'vs/platform/theme/common/themeService';
-import { IntervalNode, IntervalTree, recomputeMaxEnd, getNodeIsInOverviewRuler } from 'vs/editor/common/model/intervalTree';
+import { onUnexpectedError } from 'vs/base/common/errors';
+import { Emitter, Event } from 'vs/base/common/event';
+import { IMarkdownString } from 'vs/base/common/htmlContent';
 import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import { StopWatch } from 'vs/base/common/stopwatch';
+import * as strings from 'vs/base/common/strings';
+import { URI } from 'vs/base/common/uri';
+import { TPromise } from 'vs/base/common/winjs.base';
+import { EDITOR_MODEL_DEFAULTS } from 'vs/editor/common/config/editorOptions';
+import { LineTokens } from 'vs/editor/common/core/lineTokens';
+import { IPosition, Position } from 'vs/editor/common/core/position';
+import { IRange, Range } from 'vs/editor/common/core/range';
+import { Selection } from 'vs/editor/common/core/selection';
+import * as model from 'vs/editor/common/model';
+import { EditStack } from 'vs/editor/common/model/editStack';
+import { guessIndentation } from 'vs/editor/common/model/indentationGuesser';
+import { IntervalNode, IntervalTree, getNodeIsInOverviewRuler, recomputeMaxEnd } from 'vs/editor/common/model/intervalTree';
+import { PieceTreeTextBufferBuilder } from 'vs/editor/common/model/pieceTreeTextBuffer/pieceTreeTextBufferBuilder';
+import { IModelContentChangedEvent, IModelDecorationsChangedEvent, IModelLanguageChangedEvent, IModelLanguageConfigurationChangedEvent, IModelOptionsChangedEvent, IModelTokensChangedEvent, InternalModelContentChangeEvent, ModelRawChange, ModelRawContentChangedEvent, ModelRawEOLChanged, ModelRawFlush, ModelRawLineChanged, ModelRawLinesDeleted, ModelRawLinesInserted } from 'vs/editor/common/model/textModelEvents';
+import { SearchData, SearchParams, TextModelSearch } from 'vs/editor/common/model/textModelSearch';
+import { ModelLinesTokens, ModelTokensChangedEventBuilder } from 'vs/editor/common/model/textModelTokens';
+import { getWordAtText } from 'vs/editor/common/model/wordHelper';
+import { IState, LanguageId, LanguageIdentifier, TokenizationRegistry } from 'vs/editor/common/modes';
+import { LanguageConfigurationRegistry } from 'vs/editor/common/modes/languageConfigurationRegistry';
 import { NULL_LANGUAGE_IDENTIFIER } from 'vs/editor/common/modes/nullMode';
 import { ignoreBracketsInToken } from 'vs/editor/common/modes/supports';
-import { BracketsUtils, RichEditBrackets, RichEditBracket } from 'vs/editor/common/modes/supports/richEditBrackets';
-import { Position, IPosition } from 'vs/editor/common/core/position';
-import { LanguageConfigurationRegistry } from 'vs/editor/common/modes/languageConfigurationRegistry';
-import { LineTokens } from 'vs/editor/common/core/lineTokens';
-import { getWordAtText } from 'vs/editor/common/model/wordHelper';
-import { ModelLinesTokens, ModelTokensChangedEventBuilder } from 'vs/editor/common/model/textModelTokens';
-import { guessIndentation } from 'vs/editor/common/model/indentationGuesser';
-import { EDITOR_MODEL_DEFAULTS } from 'vs/editor/common/config/editorOptions';
-import { TextModelSearch, SearchParams, SearchData } from 'vs/editor/common/model/textModelSearch';
-import { TPromise } from 'vs/base/common/winjs.base';
+import { BracketsUtils, RichEditBracket, RichEditBrackets } from 'vs/editor/common/modes/supports/richEditBrackets';
 import { IStringStream, ITextSnapshot } from 'vs/platform/files/common/files';
-import { PieceTreeTextBufferBuilder } from 'vs/editor/common/model/pieceTreeTextBuffer/pieceTreeTextBufferBuilder';
+import { ITheme, ThemeColor } from 'vs/platform/theme/common/themeService';
 
 const CHEAP_TOKENIZATION_LENGTH_LIMIT = 2048;
 

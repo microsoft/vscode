@@ -6,26 +6,26 @@
 import 'vs/css!./inspectTMScopes';
 import * as nls from 'vs/nls';
 import * as dom from 'vs/base/browser/dom';
+import { CharCode } from 'vs/base/common/charCode';
+import { Color } from 'vs/base/common/color';
+import { KeyCode } from 'vs/base/common/keyCodes';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { escape } from 'vs/base/common/strings';
-import { KeyCode } from 'vs/base/common/keyCodes';
+import { TPromise } from 'vs/base/common/winjs.base';
+import { ContentWidgetPositionPreference, IActiveCodeEditor, ICodeEditor, IContentWidget, IContentWidgetPosition } from 'vs/editor/browser/editorBrowser';
+import { EditorAction, ServicesAccessor, registerEditorAction, registerEditorContribution } from 'vs/editor/browser/editorExtensions';
 import { Position } from 'vs/editor/common/core/position';
 import { IEditorContribution } from 'vs/editor/common/editorCommon';
 import { ITextModel } from 'vs/editor/common/model';
-import { registerEditorAction, registerEditorContribution, EditorAction, ServicesAccessor } from 'vs/editor/browser/editorExtensions';
-import { ICodeEditor, ContentWidgetPositionPreference, IContentWidget, IContentWidgetPosition, IActiveCodeEditor } from 'vs/editor/browser/editorBrowser';
-import { TPromise } from 'vs/base/common/winjs.base';
-import { IGrammar, StackElement, IToken } from 'vscode-textmate';
-import { ITextMateService } from 'vs/workbench/services/textMate/electron-browser/textMateService';
+import { FontStyle, LanguageIdentifier, StandardTokenType, TokenMetadata, TokenizationRegistry } from 'vs/editor/common/modes';
 import { IModeService } from 'vs/editor/common/services/modeService';
-import { TokenizationRegistry, LanguageIdentifier, FontStyle, StandardTokenType, TokenMetadata } from 'vs/editor/common/modes';
-import { CharCode } from 'vs/base/common/charCode';
-import { findMatchingThemeRule } from 'vs/workbench/services/textMate/electron-browser/TMHelper';
-import { IWorkbenchThemeService } from 'vs/workbench/services/themes/common/workbenchThemeService';
-import { Color } from 'vs/base/common/color';
-import { registerThemingParticipant, HIGH_CONTRAST } from 'vs/platform/theme/common/themeService';
-import { editorHoverBackground, editorHoverBorder } from 'vs/platform/theme/common/colorRegistry';
 import { INotificationService } from 'vs/platform/notification/common/notification';
+import { editorHoverBackground, editorHoverBorder } from 'vs/platform/theme/common/colorRegistry';
+import { HIGH_CONTRAST, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
+import { findMatchingThemeRule } from 'vs/workbench/services/textMate/electron-browser/TMHelper';
+import { ITextMateService } from 'vs/workbench/services/textMate/electron-browser/textMateService';
+import { IWorkbenchThemeService } from 'vs/workbench/services/themes/common/workbenchThemeService';
+import { IGrammar, IToken, StackElement } from 'vscode-textmate';
 
 class InspectTMScopesController extends Disposable implements IEditorContribution {
 

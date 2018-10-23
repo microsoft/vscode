@@ -42,14 +42,14 @@ export interface SelectionLike extends RangeLike {
 export namespace Selection {
 
 	export function to(selection: ISelection): types.Selection {
-		let { selectionStartLineNumber, selectionStartColumn, positionLineNumber, positionColumn } = selection;
-		let start = new types.Position(selectionStartLineNumber - 1, selectionStartColumn - 1);
-		let end = new types.Position(positionLineNumber - 1, positionColumn - 1);
+		const { selectionStartLineNumber, selectionStartColumn, positionLineNumber, positionColumn } = selection;
+		const start = new types.Position(selectionStartLineNumber - 1, selectionStartColumn - 1);
+		const end = new types.Position(positionLineNumber - 1, positionColumn - 1);
 		return new types.Selection(start, end);
 	}
 
 	export function from(selection: SelectionLike): ISelection {
-		let { anchor, active } = selection;
+		const { anchor, active } = selection;
 		return {
 			selectionStartLineNumber: anchor.line + 1,
 			selectionStartColumn: anchor.character + 1,
@@ -64,7 +64,7 @@ export namespace Range {
 		if (!range) {
 			return undefined;
 		}
-		let { start, end } = range;
+		const { start, end } = range;
 		return {
 			startLineNumber: start.line + 1,
 			startColumn: start.character + 1,
@@ -77,7 +77,7 @@ export namespace Range {
 		if (!range) {
 			return undefined;
 		}
-		let { startLineNumber, startColumn, endLineNumber, endColumn } = range;
+		const { startLineNumber, startColumn, endLineNumber, endColumn } = range;
 		return new types.Range(startLineNumber - 1, startColumn - 1, endLineNumber - 1, endColumn - 1);
 	}
 }
@@ -252,21 +252,22 @@ export function fromRangeOrRangeWithMessage(ranges: vscode.Range[] | vscode.Deco
 	}
 }
 
-export const TextEdit = {
+export namespace TextEdit {
 
-	from(edit: vscode.TextEdit): modes.TextEdit {
+	export function from(edit: vscode.TextEdit): modes.TextEdit {
 		return <modes.TextEdit>{
 			text: edit.newText,
 			eol: EndOfLine.from(edit.newEol),
 			range: Range.from(edit.range)
 		};
-	},
-	to(edit: modes.TextEdit): types.TextEdit {
-		let result = new types.TextEdit(Range.to(edit.range), edit.text);
+	}
+
+	export function to(edit: modes.TextEdit): types.TextEdit {
+		const result = new types.TextEdit(Range.to(edit.range), edit.text);
 		result.newEol = EndOfLine.to(edit.eol);
 		return result;
 	}
-};
+}
 
 export namespace WorkspaceEdit {
 	export function from(value: vscode.WorkspaceEdit, documents?: ExtHostDocumentsAndEditors): WorkspaceEditDto {
@@ -277,7 +278,7 @@ export namespace WorkspaceEdit {
 			const [uri, uriOrEdits] = entry;
 			if (Array.isArray(uriOrEdits)) {
 				// text edits
-				let doc = documents ? documents.getDocument(uri.toString()) : undefined;
+				const doc = documents ? documents.getDocument(uri.toString()) : undefined;
 				result.edits.push(<ResourceTextEditDto>{ resource: uri, modelVersionId: doc && doc.version, edits: uriOrEdits.map(TextEdit.from) });
 			} else {
 				// resource edits
@@ -343,7 +344,7 @@ export namespace SymbolKind {
 	}
 
 	export function to(kind: modes.SymbolKind): vscode.SymbolKind {
-		for (let k in _fromMapping) {
+		for (const k in _fromMapping) {
 			if (_fromMapping[k] === kind) {
 				return Number(k);
 			}
@@ -373,7 +374,7 @@ export namespace WorkspaceSymbol {
 
 export namespace DocumentSymbol {
 	export function from(info: vscode.DocumentSymbol): modes.DocumentSymbol {
-		let result: modes.DocumentSymbol = {
+		const result: modes.DocumentSymbol = {
 			name: info.name,
 			detail: info.detail,
 			range: Range.from(info.range),
@@ -386,7 +387,7 @@ export namespace DocumentSymbol {
 		return result;
 	}
 	export function to(info: modes.DocumentSymbol): vscode.DocumentSymbol {
-		let result = new types.DocumentSymbol(
+		const result = new types.DocumentSymbol(
 			info.name,
 			info.detail,
 			SymbolKind.to(info.kind),
@@ -400,17 +401,18 @@ export namespace DocumentSymbol {
 	}
 }
 
-export const location = {
-	from(value: vscode.Location): modes.Location {
+export namespace location {
+	export function from(value: vscode.Location): modes.Location {
 		return {
 			range: value.range && Range.from(value.range),
 			uri: value.uri
 		};
-	},
-	to(value: modes.Location): types.Location {
+	}
+
+	export function to(value: modes.Location): types.Location {
 		return new types.Location(value.uri, Range.to(value.range));
 	}
-};
+}
 
 export namespace DefinitionLink {
 	export function from(value: vscode.Location | vscode.DefinitionLink): modes.DefinitionLink {
@@ -454,7 +456,7 @@ export namespace DocumentHighlight {
 }
 
 export namespace CompletionTriggerKind {
-	export function from(kind: modes.CompletionTriggerKind) {
+	export function to(kind: modes.CompletionTriggerKind) {
 		switch (kind) {
 			case modes.CompletionTriggerKind.TriggerCharacter:
 				return types.CompletionTriggerKind.TriggerCharacter;
@@ -468,17 +470,17 @@ export namespace CompletionTriggerKind {
 }
 
 export namespace CompletionContext {
-	export function from(context: modes.CompletionContext): types.CompletionContext {
+	export function to(context: modes.CompletionContext): types.CompletionContext {
 		return {
-			triggerKind: CompletionTriggerKind.from(context.triggerKind),
+			triggerKind: CompletionTriggerKind.to(context.triggerKind),
 			triggerCharacter: context.triggerCharacter
 		};
 	}
 }
 
-export const CompletionItemKind = {
+export namespace CompletionItemKind {
 
-	from(kind: types.CompletionItemKind): modes.CompletionItemKind {
+	export function from(kind: types.CompletionItemKind): modes.CompletionItemKind {
 		switch (kind) {
 			case types.CompletionItemKind.Method: return modes.CompletionItemKind.Method;
 			case types.CompletionItemKind.Function: return modes.CompletionItemKind.Function;
@@ -507,9 +509,9 @@ export const CompletionItemKind = {
 			case types.CompletionItemKind.TypeParameter: return modes.CompletionItemKind.TypeParameter;
 		}
 		return modes.CompletionItemKind.Property;
-	},
+	}
 
-	to(kind: modes.CompletionItemKind): types.CompletionItemKind {
+	export function to(kind: modes.CompletionItemKind): types.CompletionItemKind {
 		switch (kind) {
 			case modes.CompletionItemKind.Method: return types.CompletionItemKind.Method;
 			case modes.CompletionItemKind.Function: return types.CompletionItemKind.Function;
@@ -539,9 +541,28 @@ export const CompletionItemKind = {
 		}
 		return types.CompletionItemKind.Property;
 	}
-};
+}
 
-export namespace Suggest {
+export namespace CompletionItemInsertTextRule {
+
+	export function from(rule: types.CompletionItemInsertTextRule): modes.CompletionItemInsertTextRule {
+		let result = 0;
+		if ((rule & types.CompletionItemInsertTextRule.KeepWhitespace)) {
+			result += modes.CompletionItemInsertTextRule.KeepWhitespace;
+		}
+		return result;
+	}
+
+	export function to(rule: modes.CompletionItemInsertTextRule): types.CompletionItemInsertTextRule {
+		let result = 0;
+		if ((rule & modes.CompletionItemInsertTextRule.KeepWhitespace)) {
+			result += types.CompletionItemInsertTextRule.KeepWhitespace;
+		}
+		return result;
+	}
+}
+
+export namespace CompletionItem {
 
 	export function to(suggestion: modes.CompletionItem): types.CompletionItem {
 		const result = new types.CompletionItem(suggestion.label);
@@ -554,15 +575,14 @@ export namespace Suggest {
 		result.preselect = suggestion.preselect;
 		result.commitCharacters = suggestion.commitCharacters;
 		result.range = Range.to(suggestion.range);
-
+		result.insertTextRules = CompletionItemInsertTextRule.to(suggestion.insertTextRules);
 		// 'inserText'-logic
-		if (suggestion.insertTextIsSnippet) {
+		if (suggestion.insertTextRules & modes.CompletionItemInsertTextRule.InsertAsSnippet) {
 			result.insertText = new types.SnippetString(suggestion.insertText);
 		} else {
 			result.insertText = suggestion.insertText;
 			result.textEdit = new types.TextEdit(result.range, result.insertText);
 		}
-
 		// TODO additionalEdits, command
 
 		return result;
@@ -638,7 +658,7 @@ export namespace DocumentLink {
 
 export namespace ColorPresentation {
 	export function to(colorPresentation: modes.IColorPresentation): types.ColorPresentation {
-		let cp = new types.ColorPresentation(colorPresentation.label);
+		const cp = new types.ColorPresentation(colorPresentation.label);
 		if (colorPresentation.textEdit) {
 			cp.textEdit = TextEdit.to(colorPresentation.textEdit);
 		}
@@ -716,7 +736,7 @@ export namespace ProgressLocation {
 
 export namespace FoldingRange {
 	export function from(r: vscode.FoldingRange): modes.FoldingRange {
-		let range: modes.FoldingRange = { start: r.start + 1, end: r.end + 1 };
+		const range: modes.FoldingRange = { start: r.start + 1, end: r.end + 1 };
 		if (r.kind) {
 			range.kind = FoldingRangeKind.from(r.kind);
 		}

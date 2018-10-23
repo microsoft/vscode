@@ -1044,7 +1044,12 @@ export class ReloadAction extends Action {
 				.then(runningExtensions => this.computeReloadState(runningExtensions, installed));
 		}).then(() => {
 			this.class = this.enabled ? ReloadAction.EnabledClass : ReloadAction.DisabledClass;
-			this.label = this.useLongLabel ? this.tooltip : localize('reloadAction', "Reload");
+			if (this.useLongLabel) {
+				this.label = this.tooltip;
+				this.tooltip = '';
+			} else {
+				this.label = localize('reloadAction', "Reload");
+			}
 		});
 	}
 
@@ -1129,7 +1134,7 @@ export class ShowEnabledExtensionsAction extends Action {
 		super(id, label, null, true);
 	}
 
-	run(): Promise<void> {
+	run(): Thenable<void> {
 		return this.viewletService.openViewlet(VIEWLET_ID, true)
 			.then(viewlet => viewlet as IExtensionsViewlet)
 			.then(viewlet => {
@@ -1152,7 +1157,7 @@ export class ShowInstalledExtensionsAction extends Action {
 		super(id, label, null, true);
 	}
 
-	run(): Promise<void> {
+	run(): Thenable<void> {
 		return this.viewletService.openViewlet(VIEWLET_ID, true)
 			.then(viewlet => viewlet as IExtensionsViewlet)
 			.then(viewlet => {
@@ -1175,7 +1180,7 @@ export class ShowDisabledExtensionsAction extends Action {
 		super(id, label, 'null', true);
 	}
 
-	run(): Promise<void> {
+	run(): Thenable<void> {
 		return this.viewletService.openViewlet(VIEWLET_ID, true)
 			.then(viewlet => viewlet as IExtensionsViewlet)
 			.then(viewlet => {
@@ -1207,7 +1212,7 @@ export class ClearExtensionsInputAction extends Action {
 		this.enabled = !!value;
 	}
 
-	run(): Promise<void> {
+	run(): Thenable<void> {
 		return this.viewletService.openViewlet(VIEWLET_ID, true)
 			.then(viewlet => viewlet as IExtensionsViewlet)
 			.then(viewlet => {
@@ -1234,7 +1239,7 @@ export class ShowBuiltInExtensionsAction extends Action {
 		super(id, label, null, true);
 	}
 
-	run(): Promise<void> {
+	run(): Thenable<void> {
 		return this.viewletService.openViewlet(VIEWLET_ID, true)
 			.then(viewlet => viewlet as IExtensionsViewlet)
 			.then(viewlet => {
@@ -1257,7 +1262,7 @@ export class ShowOutdatedExtensionsAction extends Action {
 		super(id, label, null, true);
 	}
 
-	run(): Promise<void> {
+	run(): Thenable<void> {
 		return this.viewletService.openViewlet(VIEWLET_ID, true)
 			.then(viewlet => viewlet as IExtensionsViewlet)
 			.then(viewlet => {
@@ -1280,7 +1285,7 @@ export class ShowPopularExtensionsAction extends Action {
 		super(id, label, null, true);
 	}
 
-	run(): Promise<void> {
+	run(): Thenable<void> {
 		return this.viewletService.openViewlet(VIEWLET_ID, true)
 			.then(viewlet => viewlet as IExtensionsViewlet)
 			.then(viewlet => {
@@ -1303,7 +1308,7 @@ export class ShowRecommendedExtensionsAction extends Action {
 		super(id, label, null, true);
 	}
 
-	run(): Promise<void> {
+	run(): Thenable<void> {
 		return this.viewletService.openViewlet(VIEWLET_ID, true)
 			.then(viewlet => viewlet as IExtensionsViewlet)
 			.then(viewlet => {
@@ -1336,7 +1341,7 @@ export class InstallWorkspaceRecommendedExtensionsAction extends Action {
 		this.recommendations = recommendations;
 	}
 
-	run(): Promise<any> {
+	run(): Thenable<any> {
 		return this.viewletService.openViewlet(VIEWLET_ID, true)
 			.then(viewlet => viewlet as IExtensionsViewlet)
 			.then(viewlet => {
@@ -1344,7 +1349,7 @@ export class InstallWorkspaceRecommendedExtensionsAction extends Action {
 				viewlet.focus();
 				const names = this.recommendations.map(({ extensionId }) => extensionId);
 				return this.extensionWorkbenchService.queryGallery({ names, source: 'install-all-workspace-recommendations' }).then(pager => {
-					let installPromises = [];
+					let installPromises: Thenable<void>[] = [];
 					let model = new PagedModel(pager);
 					for (let i = 0; i < pager.total; i++) {
 						installPromises.push(model.resolve(i, CancellationToken.None).then(e => {
@@ -1379,7 +1384,7 @@ export class InstallRecommendedExtensionAction extends Action {
 		this.extensionId = extensionId;
 	}
 
-	run(): Promise<any> {
+	run(): Thenable<any> {
 		return this.viewletService.openViewlet(VIEWLET_ID, true)
 			.then(viewlet => viewlet as IExtensionsViewlet)
 			.then(viewlet => {
@@ -1475,7 +1480,7 @@ export class ShowRecommendedKeymapExtensionsAction extends Action {
 		super(id, label, null, true);
 	}
 
-	run(): Promise<void> {
+	run(): Thenable<void> {
 		return this.viewletService.openViewlet(VIEWLET_ID, true)
 			.then(viewlet => viewlet as IExtensionsViewlet)
 			.then(viewlet => {
@@ -1498,7 +1503,7 @@ export class ShowLanguageExtensionsAction extends Action {
 		super(id, label, null, true);
 	}
 
-	run(): Promise<void> {
+	run(): Thenable<void> {
 		return this.viewletService.openViewlet(VIEWLET_ID, true)
 			.then(viewlet => viewlet as IExtensionsViewlet)
 			.then(viewlet => {
@@ -1521,7 +1526,7 @@ export class ShowAzureExtensionsAction extends Action {
 		super(id, label, null, true);
 	}
 
-	run(): Promise<void> {
+	run(): Thenable<void> {
 		return this.viewletService.openViewlet(VIEWLET_ID, true)
 			.then(viewlet => viewlet as IExtensionsViewlet)
 			.then(viewlet => {
@@ -1560,7 +1565,7 @@ export class ChangeSortAction extends Action {
 		this.enabled = value && this.query.isValid() && !this.query.equals(query);
 	}
 
-	run(): Promise<void> {
+	run(): Thenable<void> {
 		return this.viewletService.openViewlet(VIEWLET_ID, true)
 			.then(viewlet => viewlet as IExtensionsViewlet)
 			.then(viewlet => {
@@ -1598,7 +1603,7 @@ export class ChangeGroupAction extends Action {
 		this.query = new Query(query.value, query.sortBy, this.groupBy || query.groupBy);
 	}
 
-	run(): Promise<void> {
+	run(): Thenable<void> {
 		return this.viewletService.openViewlet(VIEWLET_ID, true)
 			.then(viewlet => viewlet as IExtensionsViewlet)
 			.then(viewlet => {

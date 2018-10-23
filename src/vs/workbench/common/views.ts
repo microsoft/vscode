@@ -280,6 +280,14 @@ export enum TreeItemCollapsibleState {
 	Expanded = 2
 }
 
+export interface ITreeItemLabel {
+
+	label: string;
+
+	highlights?: [number, number][];
+
+}
+
 export interface ITreeItem {
 
 	handle: string;
@@ -288,7 +296,7 @@ export interface ITreeItem {
 
 	collapsibleState: TreeItemCollapsibleState;
 
-	label?: string;
+	label?: ITreeItemLabel;
 
 	icon?: UriComponents;
 

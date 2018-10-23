@@ -19,7 +19,7 @@ export class InstantiationService implements IInstantiationService {
 
 	protected readonly _services: ServiceCollection;
 	protected readonly _strict: boolean;
-	protected readonly _parent: InstantiationService;
+	protected readonly _parent?: InstantiationService;
 
 	constructor(services: ServiceCollection = new ServiceCollection(), strict: boolean = false, parent?: InstantiationService) {
 		this._services = services;
@@ -146,7 +146,7 @@ export class InstantiationService implements IInstantiationService {
 		let count = 0;
 		const stack = [{ id, desc, _trace }];
 		while (stack.length) {
-			const item = stack.pop();
+			const item = stack.pop()!;
 			graph.lookupOrInsertNode(item);
 
 			// TODO@joh use the graph to find a cycle
@@ -198,8 +198,10 @@ export class InstantiationService implements IInstantiationService {
 	private _createServiceInstanceWithOwner<T>(id: ServiceIdentifier<T>, ctor: any, args: any[] = [], _trace: Trace): T {
 		if (this._services.get(id) instanceof SyncDescriptor) {
 			return this._createServiceInstance(ctor, args, _trace);
-		} else {
+		} else if (this._parent) {
 			return this._parent._createServiceInstanceWithOwner(id, ctor, args, _trace);
+		} else {
+			throw new Error('illegalState - creating UNKNOWN service instance');
 		}
 	}
 
@@ -236,7 +238,7 @@ class Trace {
 
 	private constructor(
 		readonly type: TraceType,
-		readonly name: string
+		readonly name: string | null
 	) { }
 
 	branch(id: ServiceIdentifier<any>, first: boolean): Trace {
@@ -255,7 +257,7 @@ class Trace {
 			let res: string[] = [];
 			let prefix = new Array(n + 1).join('\t');
 			for (const [id, first, child] of trace._dep) {
-				if (first) {
+				if (first && child) {
 					causedCreation = true;
 					res.push(`${prefix}CREATES -> ${id}`);
 					let nested = printChild(n + 1, child);

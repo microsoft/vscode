@@ -355,9 +355,13 @@
 	opacity: 0.9;
 }
 
-.settings-editor > .settings-body > .settings-tree-container .setting-item .setting-item-deprecation-message,
-.settings-editor > .settings-body > .settings-tree-container .setting-item .setting-item-description {
+.settings-editor > .settings-body > .settings-tree-container .setting-item .setting-item-deprecation-message {
 	margin-top: 3px;
+	user-select: text;
+}
+
+.settings-editor > .settings-body > .settings-tree-container .setting-item .setting-item-description {
+	margin-top: -1px;
 	user-select: text;
 }
 
@@ -446,7 +450,6 @@
 	border-radius: 3px;
 	margin-right: 9px;
 	margin-left: 0px;
-	margin-top: 4px;
 	padding: 0px;
 	background-size: 16px !important;
 }

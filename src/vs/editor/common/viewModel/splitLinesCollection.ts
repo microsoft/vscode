@@ -3,16 +3,16 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Position } from 'vs/editor/common/core/position';
-import { Range, IRange } from 'vs/editor/common/core/range';
-import { LineTokens } from 'vs/editor/common/core/lineTokens';
-import { PrefixSumComputerWithCache } from 'vs/editor/common/viewModel/prefixSumComputer';
-import { ViewLineData, ICoordinatesConverter, IOverviewRulerDecorations } from 'vs/editor/common/viewModel/viewModel';
-import * as viewEvents from 'vs/editor/common/view/viewEvents';
 import { WrappingIndent } from 'vs/editor/common/config/editorOptions';
+import { LineTokens } from 'vs/editor/common/core/lineTokens';
+import { Position } from 'vs/editor/common/core/position';
+import { IRange, Range } from 'vs/editor/common/core/range';
+import { EndOfLinePreference, IActiveIndentGuideInfo, IModelDecoration, IModelDeltaDecoration, ITextModel } from 'vs/editor/common/model';
 import { ModelDecorationOptions, ModelDecorationOverviewRulerOptions } from 'vs/editor/common/model/textModel';
+import * as viewEvents from 'vs/editor/common/view/viewEvents';
+import { PrefixSumComputerWithCache } from 'vs/editor/common/viewModel/prefixSumComputer';
+import { ICoordinatesConverter, IOverviewRulerDecorations, ViewLineData } from 'vs/editor/common/viewModel/viewModel';
 import { ITheme } from 'vs/platform/theme/common/themeService';
-import { IModelDecoration, ITextModel, IModelDeltaDecoration, EndOfLinePreference, IActiveIndentGuideInfo } from 'vs/editor/common/model';
 
 export class OutputPosition {
 	_outputPositionBrand: void;

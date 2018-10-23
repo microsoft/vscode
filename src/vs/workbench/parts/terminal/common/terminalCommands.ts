@@ -18,6 +18,7 @@ export const enum TERMINAL_COMMAND_ID {
 	SELECT_ALL = 'workbench.action.terminal.selectAll',
 	DELETE_WORD_LEFT = 'workbench.action.terminal.deleteWordLeft',
 	DELETE_WORD_RIGHT = 'workbench.action.terminal.deleteWordRight',
+	DELETE_TO_LINE_START = 'workbench.action.terminal.deleteToLineStart',
 	MOVE_TO_LINE_START = 'workbench.action.terminal.moveToLineStart',
 	MOVE_TO_LINE_END = 'workbench.action.terminal.moveToLineEnd',
 	NEW = 'workbench.action.terminal.new',

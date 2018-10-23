@@ -655,7 +655,7 @@ export class ExtensionManagementService extends Disposable implements IExtension
 			return [];
 		}
 		const packedExtensions = installed.filter(i => extension.manifest.extensionPack.some(id => areSameExtensions({ id }, i.galleryIdentifier)));
-		const packOfPackedExtensions = [];
+		const packOfPackedExtensions: ILocalExtension[] = [];
 		for (const packedExtension of packedExtensions) {
 			packOfPackedExtensions.push(...this.getAllPackExtensionsToUninstall(packedExtension, installed, checked));
 		}
@@ -827,7 +827,7 @@ export class ExtensionManagementService extends Disposable implements IExtension
 
 	private filterUninstalled(...ids: string[]): Promise<string[]> {
 		return this.withUninstalledExtensions(allUninstalled => {
-			const uninstalled = [];
+			const uninstalled: string[] = [];
 			for (const id of ids) {
 				if (!!allUninstalled[id]) {
 					uninstalled.push(id);

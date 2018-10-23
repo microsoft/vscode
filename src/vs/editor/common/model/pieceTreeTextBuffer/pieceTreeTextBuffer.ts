@@ -3,13 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Range } from 'vs/editor/common/core/range';
-import { Position } from 'vs/editor/common/core/position';
 import * as strings from 'vs/base/common/strings';
+import { Position } from 'vs/editor/common/core/position';
+import { Range } from 'vs/editor/common/core/range';
+import { ApplyEditsResult, EndOfLinePreference, FindMatch, IIdentifiedSingleEditOperation, IInternalModelContentChange, ISingleEditOperationIdentifier, ITextBuffer } from 'vs/editor/common/model';
 import { PieceTreeBase, StringBuffer } from 'vs/editor/common/model/pieceTreeTextBuffer/pieceTreeBase';
-import { IIdentifiedSingleEditOperation, EndOfLinePreference, ITextBuffer, ApplyEditsResult, IInternalModelContentChange, FindMatch, ISingleEditOperationIdentifier } from 'vs/editor/common/model';
-import { ITextSnapshot } from 'vs/platform/files/common/files';
 import { SearchData } from 'vs/editor/common/model/textModelSearch';
+import { ITextSnapshot } from 'vs/platform/files/common/files';
 
 export interface IValidatedEditOperation {
 	sortIndex: number;

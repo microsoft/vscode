@@ -8,7 +8,7 @@ import * as os from 'os';
 import { Action, IAction } from 'vs/base/common/actions';
 import { EndOfLinePreference } from 'vs/editor/common/model';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
-import { ITerminalService, TERMINAL_PANEL_ID, ITerminalInstance, Direction } from 'vs/workbench/parts/terminal/common/terminal';
+import { ITerminalService, TERMINAL_PANEL_ID, ITerminalInstance, Direction, IShellLaunchConfig, ITerminalConfigHelper } from 'vs/workbench/parts/terminal/common/terminal';
 import { SelectActionItem } from 'vs/base/browser/ui/actionbar/actionbar';
 import { TogglePanelAction } from 'vs/workbench/browser/panel';
 import { IPartService } from 'vs/workbench/services/part/common/partService';
@@ -31,6 +31,25 @@ import { timeout } from 'vs/base/common/async';
 import { FindReplaceState } from 'vs/editor/contrib/find/findState';
 
 export const TERMINAL_PICKER_PREFIX = 'term ';
+
+function getCwdForSplit(configHelper: ITerminalConfigHelper, instance: ITerminalInstance): Promise<string> {
+	switch (configHelper.config.splitCwd) {
+		case 'workspaceRoot': {
+			// allow default behavior
+			return new Promise<string>(resolve => {
+				resolve('');
+			});
+		}
+		case 'sourceInitialCwd': {
+			return new Promise<string>(resolve => {
+				resolve(instance.initialCwd);
+			});
+		}
+		case 'sourceCwd': {
+			return instance.getCwd();
+		}
+	}
+}
 
 export class ToggleTerminalAction extends TogglePanelAction {
 
@@ -76,7 +95,7 @@ export class KillTerminalAction extends Action {
 	public run(event?: any): PromiseLike<any> {
 		const instance = this.terminalService.getActiveInstance();
 		if (instance) {
-			instance.dispose();
+			instance.dispose(true);
 			if (this.terminalService.terminalInstances.length > 0) {
 				this.terminalService.showPanel(true);
 			}
@@ -101,7 +120,7 @@ export class QuickKillTerminalAction extends Action {
 	public run(event?: any): Promise<any> {
 		const instance = this.terminalEntry.instance;
 		if (instance) {
-			instance.dispose();
+			instance.dispose(true);
 		}
 		return Promise.resolve(timeout(50)).then(result => this.quickOpenService.show(TERMINAL_PICKER_PREFIX, null));
 	}
@@ -201,6 +220,20 @@ export class DeleteWordRightTerminalAction extends BaseSendTextTerminalAction {
 	}
 }
 
+export class DeleteToLineStartTerminalAction extends BaseSendTextTerminalAction {
+	public static readonly ID = TERMINAL_COMMAND_ID.DELETE_TO_LINE_START;
+	public static readonly LABEL = nls.localize('workbench.action.terminal.deleteToLineStart', "Delete to Line Start");
+
+	constructor(
+		id: string,
+		label: string,
+		@ITerminalService terminalService: ITerminalService
+	) {
+		// Send ctrl+u
+		super(id, label, '\u0015', terminalService);
+	}
+}
+
 export class MoveToLineStartTerminalAction extends BaseSendTextTerminalAction {
 	public static readonly ID = TERMINAL_COMMAND_ID.MOVE_TO_LINE_START;
 	public static readonly LABEL = nls.localize('workbench.action.terminal.moveToLineStart', "Move To Line Start");
@@ -262,8 +295,10 @@ export class CreateNewTerminalAction extends Action {
 		if (event instanceof MouseEvent && (event.altKey || event.ctrlKey)) {
 			const activeInstance = this.terminalService.getActiveInstance();
 			if (activeInstance) {
-				this.terminalService.splitInstance(activeInstance);
-				return Promise.resolve(null);
+				return getCwdForSplit(this.terminalService.configHelper, activeInstance).then(cwd => {
+					this.terminalService.splitInstance(activeInstance, { cwd });
+					return Promise.resolve(null);
+				});
 			}
 		}
 
@@ -339,7 +374,7 @@ export class SplitTerminalAction extends Action {
 
 		const folders = this.workspaceContextService.getWorkspace().folders;
 
-		let pathPromise: PromiseLike<any> = Promise.resolve({});
+		let pathPromise: Promise<IShellLaunchConfig> = Promise.resolve({});
 		if (folders.length > 1) {
 			// Only choose a path when there's more than 1 folder
 			const options: IPickOptions<IQuickPickItem> = {
@@ -358,8 +393,11 @@ export class SplitTerminalAction extends Action {
 			if (!path) {
 				return Promise.resolve(void 0);
 			}
-			this._terminalService.splitInstance(instance, path);
-			return this._terminalService.showPanel(true);
+			return getCwdForSplit(this._terminalService.configHelper, instance).then(cwd => {
+				path.cwd = cwd;
+				this._terminalService.splitInstance(instance, path);
+				return this._terminalService.showPanel(true);
+			});
 		});
 	}
 }
@@ -380,8 +418,10 @@ export class SplitInActiveWorkspaceTerminalAction extends Action {
 		if (!instance) {
 			return Promise.resolve(void 0);
 		}
-		this._terminalService.splitInstance(instance);
-		return this._terminalService.showPanel(true);
+		return getCwdForSplit(this._terminalService.configHelper, instance).then(cwd => {
+			this._terminalService.splitInstance(instance, { cwd });
+			return this._terminalService.showPanel(true);
+		});
 	}
 }
 

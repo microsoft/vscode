@@ -125,7 +125,7 @@ export class NotificationsModel extends Disposable implements INotificationsMode
 		}
 	}
 
-	private findNotification(item: INotificationViewItem): INotificationViewItem {
+	private findNotification(item: INotificationViewItem): INotificationViewItem | undefined {
 		for (let i = 0; i < this._notifications.length; i++) {
 			const notification = this._notifications[i];
 			if (notification.equals(item)) {
@@ -136,7 +136,7 @@ export class NotificationsModel extends Disposable implements INotificationsMode
 		return void 0;
 	}
 
-	private createViewItem(notification: INotification): INotificationViewItem {
+	private createViewItem(notification: INotification): INotificationViewItem | null {
 		const item = NotificationViewItem.create(notification);
 		if (!item) {
 			return null;
@@ -340,7 +340,7 @@ export class NotificationViewItem extends Disposable implements INotificationVie
 	private readonly _onDidLabelChange: Emitter<INotificationViewItemLabelChangeEvent> = this._register(new Emitter<INotificationViewItemLabelChangeEvent>());
 	get onDidLabelChange(): Event<INotificationViewItemLabelChangeEvent> { return this._onDidLabelChange.event; }
 
-	static create(notification: INotification): INotificationViewItem {
+	static create(notification: INotification): INotificationViewItem | null {
 		if (!notification || !notification.message || isPromiseCanceledError(notification.message)) {
 			return null; // we need a message to show
 		}

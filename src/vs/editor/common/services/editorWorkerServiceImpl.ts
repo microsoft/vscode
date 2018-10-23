@@ -8,17 +8,17 @@ import { Disposable, IDisposable, dispose, toDisposable } from 'vs/base/common/l
 import { URI } from 'vs/base/common/uri';
 import { SimpleWorkerClient, logOnceWebWorkerWarning } from 'vs/base/common/worker/simpleWorker';
 import { DefaultWorkerFactory } from 'vs/base/worker/defaultWorkerFactory';
-import * as editorCommon from 'vs/editor/common/editorCommon';
-import * as modes from 'vs/editor/common/modes';
-import { Position, IPosition } from 'vs/editor/common/core/position';
-import { IEditorWorkerService, IDiffComputationResult } from 'vs/editor/common/services/editorWorkerService';
-import { IModelService } from 'vs/editor/common/services/modelService';
-import { EditorSimpleWorkerImpl } from 'vs/editor/common/services/editorSimpleWorker';
-import { LanguageConfigurationRegistry } from 'vs/editor/common/modes/languageConfigurationRegistry';
-import { ITextResourceConfigurationService } from 'vs/editor/common/services/resourceConfiguration';
 import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
+import { IPosition, Position } from 'vs/editor/common/core/position';
 import { IRange } from 'vs/editor/common/core/range';
+import * as editorCommon from 'vs/editor/common/editorCommon';
 import { ITextModel } from 'vs/editor/common/model';
+import * as modes from 'vs/editor/common/modes';
+import { LanguageConfigurationRegistry } from 'vs/editor/common/modes/languageConfigurationRegistry';
+import { EditorSimpleWorkerImpl } from 'vs/editor/common/services/editorSimpleWorker';
+import { IDiffComputationResult, IEditorWorkerService } from 'vs/editor/common/services/editorWorkerService';
+import { IModelService } from 'vs/editor/common/services/modelService';
+import { ITextResourceConfigurationService } from 'vs/editor/common/services/resourceConfiguration';
 
 /**
  * Stop syncing a model to the worker if it was not needed for 1 min.

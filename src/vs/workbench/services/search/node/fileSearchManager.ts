@@ -11,7 +11,7 @@ import * as resources from 'vs/base/common/resources';
 import { StopWatch } from 'vs/base/common/stopwatch';
 import { URI } from 'vs/base/common/uri';
 import { TPromise } from 'vs/base/common/winjs.base';
-import { IFileMatch, IFileSearchProviderStats, IFolderQuery, ISearchCompleteStats, ISearchQuery } from 'vs/platform/search/common/search';
+import { IFileMatch, IFileSearchProviderStats, IFolderQuery, ISearchCompleteStats, IFileQuery } from 'vs/platform/search/common/search';
 import { QueryGlobTester, resolvePatternsForProvider } from 'vs/workbench/services/search/node/search';
 import * as vscode from 'vscode';
 
@@ -48,7 +48,7 @@ class FileSearchEngine {
 
 	private globalExcludePattern: glob.ParsedExpression;
 
-	constructor(private config: ISearchQuery, private provider: vscode.FileSearchProvider) {
+	constructor(private config: IFileQuery, private provider: vscode.FileSearchProvider) {
 		this.filePattern = config.filePattern;
 		this.includePattern = config.includePattern && glob.parse(config.includePattern);
 		this.maxResults = config.maxResults || null;
@@ -189,9 +189,9 @@ class FileSearchEngine {
 			folder: fq.folder,
 			excludes,
 			includes,
-			useIgnoreFiles: !this.config.disregardIgnoreFiles,
-			useGlobalIgnoreFiles: !this.config.disregardGlobalIgnoreFiles,
-			followSymlinks: !this.config.ignoreSymlinks,
+			useIgnoreFiles: !fq.disregardIgnoreFiles,
+			useGlobalIgnoreFiles: !fq.disregardGlobalIgnoreFiles,
+			followSymlinks: !fq.ignoreSymlinks,
 			maxResults: this.config.maxResults
 		};
 	}
@@ -289,7 +289,7 @@ export class FileSearchManager {
 
 	private static readonly BATCH_SIZE = 512;
 
-	fileSearch(config: ISearchQuery, provider: vscode.FileSearchProvider, onBatch: (matches: IFileMatch[]) => void, token: CancellationToken): TPromise<ISearchCompleteStats> {
+	fileSearch(config: IFileQuery, provider: vscode.FileSearchProvider, onBatch: (matches: IFileMatch[]) => void, token: CancellationToken): TPromise<ISearchCompleteStats> {
 		const engine = new FileSearchEngine(config, provider);
 
 		let resultCount = 0;

@@ -14,7 +14,7 @@ import { EditOperation } from 'vs/editor/common/core/editOperation';
 import { Range } from 'vs/editor/common/core/range';
 import { IEditorContribution, ScrollType, Handler } from 'vs/editor/common/editorCommon';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
-import { CompletionItem, CompletionItemProvider } from 'vs/editor/common/modes';
+import { CompletionItemProvider, CompletionItemInsertTextRule } from 'vs/editor/common/modes';
 import { SnippetController2 } from 'vs/editor/contrib/snippet/snippetController2';
 import { SnippetParser } from 'vs/editor/contrib/snippet/snippetParser';
 import { SuggestMemories } from 'vs/editor/contrib/suggest/suggestMemory';
@@ -23,7 +23,6 @@ import { ICommandService } from 'vs/platform/commands/common/commands';
 import { ContextKeyExpr, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { ICompletionItem } from './completionModel';
 import { Context as SuggestContext, ISuggestionItem } from './suggest';
 import { SuggestAlternatives } from './suggestAlternatives';
@@ -101,7 +100,6 @@ export class SuggestController implements IEditorContribution {
 		@IEditorWorkerService editorWorker: IEditorWorkerService,
 		@ICommandService private readonly _commandService: ICommandService,
 		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
-		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 	) {
 		this._model = new SuggestModel(this._editor, editorWorker);
@@ -180,7 +178,7 @@ export class SuggestController implements IEditorContribution {
 				&& this._model.state === State.Auto
 				&& !item.suggestion.command
 				&& !item.suggestion.additionalTextEdits
-				&& !item.suggestion.insertTextIsSnippet
+				&& !(item.suggestion.insertTextRules & CompletionItemInsertTextRule.InsertAsSnippet)
 				&& endColumn - startColumn === item.suggestion.insertText.length
 			) {
 				const oldText = this._editor.getModel().getValueInRange({
@@ -239,7 +237,7 @@ export class SuggestController implements IEditorContribution {
 		this._memory.getValue().memorize(this._editor.getModel(), this._editor.getPosition(), event.item);
 
 		let { insertText } = suggestion;
-		if (!suggestion.insertTextIsSnippet) {
+		if (!(suggestion.insertTextRules & CompletionItemInsertTextRule.InsertAsSnippet)) {
 			insertText = SnippetParser.escape(insertText);
 		}
 
@@ -251,7 +249,7 @@ export class SuggestController implements IEditorContribution {
 			overwriteBefore + columnDelta,
 			overwriteAfter,
 			false, false,
-			!suggestion.noWhitespaceAdjust
+			!(suggestion.insertTextRules & CompletionItemInsertTextRule.KeepWhitespace)
 		);
 
 		if (undoStops) {
@@ -277,20 +275,6 @@ export class SuggestController implements IEditorContribution {
 		}
 
 		this._alertCompletionItem(event.item);
-		SuggestController._onDidSelectTelemetry(this._telemetryService, suggestion);
-	}
-
-	private static _onDidSelectTelemetry(service: ITelemetryService, item: CompletionItem): void {
-		/* __GDPR__
-			"acceptSuggestion" : {
-				"type" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-				"multiline" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true }
-			}
-		*/
-		service.publicLog('acceptSuggestion', {
-			type: item.kind,
-			multiline: item.insertText.match(/\r|\n/)
-		});
 	}
 
 	private _alertCompletionItem({ suggestion }: ICompletionItem): void {
@@ -315,7 +299,7 @@ export class SuggestController implements IEditorContribution {
 		};
 
 		const makesTextEdit = (item: ISuggestionItem): boolean => {
-			if (item.suggestion.insertTextIsSnippet || item.suggestion.additionalTextEdits) {
+			if (item.suggestion.insertTextRules & CompletionItemInsertTextRule.InsertAsSnippet || item.suggestion.additionalTextEdits) {
 				// snippet, other editor -> makes edit
 				return true;
 			}

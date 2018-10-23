@@ -10,7 +10,7 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import { once } from 'vs/base/common/functional';
 
 export function checksum(path: string, sha1hash: string): TPromise<void> {
-	const promise = new TPromise<string>((c, e) => {
+	const promise = new TPromise<string | undefined>((c, e) => {
 		const input = fs.createReadStream(path);
 		const hash = crypto.createHash('sha1');
 		const hashStream = hash as any as stream.PassThrough;
@@ -30,7 +30,7 @@ export function checksum(path: string, sha1hash: string): TPromise<void> {
 		input.once('error', done);
 		input.once('end', done);
 		hashStream.once('error', done);
-		hashStream.once('data', (data: Buffer) => done(null, data.toString('hex')));
+		hashStream.once('data', (data: Buffer) => done(undefined, data.toString('hex')));
 	});
 
 	return promise.then(hash => {
@@ -38,6 +38,6 @@ export function checksum(path: string, sha1hash: string): TPromise<void> {
 			return TPromise.wrapError<void>(new Error('Hash mismatch'));
 		}
 
-		return TPromise.as(null);
+		return TPromise.as(void 0);
 	});
 }

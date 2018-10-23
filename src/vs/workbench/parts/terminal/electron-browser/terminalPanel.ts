@@ -53,7 +53,7 @@ export class TerminalPanel extends Panel {
 		super(TERMINAL_PANEL_ID, telemetryService, _themeService, storageService);
 	}
 
-	public create(parent: HTMLElement): Promise<any> {
+	public create(parent: HTMLElement): void {
 		super.create(parent);
 		this._parentDomElement = parent;
 		dom.addClass(this._parentDomElement, 'integrated-terminal');
@@ -98,7 +98,6 @@ export class TerminalPanel extends Panel {
 
 		// Force another layout (first is setContainers) since config has changed
 		this.layout(new dom.Dimension(this._terminalContainer.offsetWidth, this._terminalContainer.offsetHeight));
-		return Promise.resolve(void 0);
 	}
 
 	public layout(dimension?: dom.Dimension): void {

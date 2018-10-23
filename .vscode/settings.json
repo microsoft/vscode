@@ -21,7 +21,8 @@
 		"out-vscode/**": true,
 		"i18n/**": true,
 		"extensions/**/out/**": true,
-		"test/smoke/out/**": true
+		"test/smoke/out/**": true,
+		"src/vs/base/test/node/uri.test.data.txt": true
 	},
 	"tslint.enable": true,
 	"lcov.path": [
@@ -42,5 +43,4 @@
 	"emmet.excludeLanguages": [],
 	"typescript.preferences.importModuleSpecifier": "non-relative",
 	"typescript.preferences.quoteStyle": "single"
-
 }

@@ -7,7 +7,6 @@ import { asThenable } from 'vs/base/common/async';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { Emitter } from 'vs/base/common/event';
 import { dispose, IDisposable } from 'vs/base/common/lifecycle';
-import { TPromise } from 'vs/base/common/winjs.base';
 import { ExtHostCommands } from 'vs/workbench/api/node/extHostCommands';
 import { ExtHostWorkspace } from 'vs/workbench/api/node/extHostWorkspace';
 import { InputBox, InputBoxOptions, QuickInput, QuickInputButton, QuickPick, QuickPickItem, QuickPickOptions, WorkspaceFolder, WorkspaceFolderPickOptions } from 'vscode';
@@ -43,7 +42,7 @@ export class ExtHostQuickOpen implements ExtHostQuickOpenShape {
 		// clear state from last invocation
 		this._onDidSelectItem = undefined;
 
-		const itemsPromise = <TPromise<Item[]>>TPromise.wrap(itemsOrItemsPromise);
+		const itemsPromise = <Promise<Item[]>>Promise.resolve(itemsOrItemsPromise);
 
 		const quickPickWidget = this._proxy.$show({
 			placeHolder: options && options.placeHolder,
@@ -53,8 +52,11 @@ export class ExtHostQuickOpen implements ExtHostQuickOpenShape {
 			canPickMany: options && options.canPickMany
 		}, token);
 
-		return TPromise.any(<TPromise<number | Item[]>[]>[quickPickWidget, itemsPromise]).then(values => {
-			if (values.key === '0') {
+		const widgetClosedMarker = {};
+		const widgetClosedPromise = quickPickWidget.then(() => widgetClosedMarker);
+
+		return Promise.race([widgetClosedPromise, itemsPromise]).then(result => {
+			if (result === widgetClosedMarker) {
 				return undefined;
 			}
 
@@ -117,7 +119,7 @@ export class ExtHostQuickOpen implements ExtHostQuickOpenShape {
 
 			this._proxy.$setError(err);
 
-			return TPromise.wrapError(err);
+			return Promise.reject(err);
 		});
 	}
 
@@ -142,7 +144,7 @@ export class ExtHostQuickOpen implements ExtHostQuickOpenShape {
 
 				this._proxy.$setError(err);
 
-				return TPromise.wrapError(err);
+				return Promise.reject(err);
 			});
 	}
 

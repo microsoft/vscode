@@ -4,18 +4,18 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as nls from 'vs/nls';
+import { ParseError, parse } from 'vs/base/common/json';
+import { IJSONSchema } from 'vs/base/common/jsonSchema';
 import * as types from 'vs/base/common/types';
-import { parse, ParseError } from 'vs/base/common/json';
-import { CharacterPair, LanguageConfiguration, IAutoClosingPair, IAutoClosingPairConditional, IndentationRule, CommentRule, FoldingRules } from 'vs/editor/common/modes/languageConfiguration';
-import { IModeService } from 'vs/editor/common/services/modeService';
+import { URI } from 'vs/base/common/uri';
+import { LanguageIdentifier } from 'vs/editor/common/modes';
+import { CharacterPair, CommentRule, FoldingRules, IAutoClosingPair, IAutoClosingPairConditional, IndentationRule, LanguageConfiguration } from 'vs/editor/common/modes/languageConfiguration';
 import { LanguageConfigurationRegistry } from 'vs/editor/common/modes/languageConfigurationRegistry';
+import { IModeService } from 'vs/editor/common/services/modeService';
+import { IFileService } from 'vs/platform/files/common/files';
 import { Extensions, IJSONContributionRegistry } from 'vs/platform/jsonschemas/common/jsonContributionRegistry';
 import { Registry } from 'vs/platform/registry/common/platform';
-import { IJSONSchema } from 'vs/base/common/jsonSchema';
-import { LanguageIdentifier } from 'vs/editor/common/modes';
 import { ITextMateService } from 'vs/workbench/services/textMate/electron-browser/textMateService';
-import { URI } from 'vs/base/common/uri';
-import { IFileService } from 'vs/platform/files/common/files';
 
 interface IRegExp {
 	pattern: string;

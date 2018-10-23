@@ -29,7 +29,7 @@ declare module 'vscode' {
 		command: string;
 
 		/**
-		 * A tooltip for for command, when represented in the UI.
+		 * A tooltip for the command, when represented in the UI.
 		 */
 		tooltip?: string;
 
@@ -1545,6 +1545,9 @@ declare module 'vscode' {
 		 * The editor will use the returned string-content to create a readonly
 		 * [document](#TextDocument). Resources allocated should be released when
 		 * the corresponding document has been [closed](#workspace.onDidCloseTextDocument).
+		 *
+		 * **Note**: The contents of the created [document](#TextDocument) might not be
+		 * identical to the provided text due to end-of-line-sequence normalization.
 		 *
 		 * @param uri An uri which scheme matches the scheme this provider was [registered](#workspace.registerTextDocumentContentProvider) for.
 		 * @param token A cancellation token.
@@ -4656,6 +4659,11 @@ declare module 'vscode' {
 		 * Controls whether to show the "Terminal will be reused by tasks, press any key to close it" message.
 		 */
 		showReuseMessage?: boolean;
+
+		/**
+		 * Controls whether the terminal is cleared before executing the task.
+		 */
+		clearBeforeExecuting?: boolean;
 	}
 
 	/**
@@ -5550,7 +5558,7 @@ declare module 'vscode' {
 		 * is no longer visible.
 		 *
 		 * Normally the webview panel's html context is created when the panel becomes visible
-		 * and destroyed when it is is hidden. Extensions that have complex state
+		 * and destroyed when it is hidden. Extensions that have complex state
 		 * or UI can set the `retainContextWhenHidden` to make VS Code keep the webview
 		 * context around, even when the webview moves to a background tab. When a webview using
 		 * `retainContextWhenHidden` becomes hidden, its scripts and other dynamic content are suspended.

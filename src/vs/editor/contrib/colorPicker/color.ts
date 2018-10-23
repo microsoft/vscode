@@ -3,14 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { URI } from 'vs/base/common/uri';
-import { ColorProviderRegistry, DocumentColorProvider, IColorInformation, IColorPresentation } from 'vs/editor/common/modes';
-import { ITextModel } from 'vs/editor/common/model';
-import { registerLanguageCommand } from 'vs/editor/browser/editorExtensions';
-import { Range, IRange } from 'vs/editor/common/core/range';
-import { illegalArgument } from 'vs/base/common/errors';
-import { IModelService } from 'vs/editor/common/services/modelService';
 import { CancellationToken } from 'vs/base/common/cancellation';
+import { illegalArgument } from 'vs/base/common/errors';
+import { URI } from 'vs/base/common/uri';
+import { registerLanguageCommand } from 'vs/editor/browser/editorExtensions';
+import { IRange, Range } from 'vs/editor/common/core/range';
+import { ITextModel } from 'vs/editor/common/model';
+import { ColorProviderRegistry, DocumentColorProvider, IColorInformation, IColorPresentation } from 'vs/editor/common/modes';
+import { IModelService } from 'vs/editor/common/services/modelService';
 
 
 export interface IColorData {

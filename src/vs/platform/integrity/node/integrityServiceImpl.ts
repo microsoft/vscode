@@ -4,15 +4,15 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as nls from 'vs/nls';
-import * as fs from 'fs';
 import * as crypto from 'crypto';
-import { IIntegrityService, IntegrityTestResult, ChecksumPair } from 'vs/platform/integrity/common/integrity';
-import product from 'vs/platform/node/product';
-import { URI } from 'vs/base/common/uri';
+import * as fs from 'fs';
 import Severity from 'vs/base/common/severity';
-import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
+import { URI } from 'vs/base/common/uri';
+import { ChecksumPair, IIntegrityService, IntegrityTestResult } from 'vs/platform/integrity/common/integrity';
 import { ILifecycleService, LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
+import product from 'vs/platform/node/product';
 import { INotificationService } from 'vs/platform/notification/common/notification';
+import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 
 interface IStorageData {
 	dontShowPrompt: boolean;

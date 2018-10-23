@@ -3,15 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { Dimension } from 'vs/base/browser/dom';
+import { IDisposable } from 'vs/base/common/lifecycle';
 import { QuickOpenModel } from 'vs/base/parts/quickopen/browser/quickOpenModel';
 import { QuickOpenWidget } from 'vs/base/parts/quickopen/browser/quickOpenWidget';
 import { IAutoFocus } from 'vs/base/parts/quickopen/common/quickOpen';
 import { ICodeEditor, IOverlayWidget, IOverlayWidgetPosition, OverlayWidgetPositionPreference } from 'vs/editor/browser/editorBrowser';
-import { attachQuickOpenStyler } from 'vs/platform/theme/common/styler';
-import { IDisposable } from 'vs/base/common/lifecycle';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { foreground } from 'vs/platform/theme/common/colorRegistry';
-import { Dimension } from 'vs/base/browser/dom';
+import { attachQuickOpenStyler } from 'vs/platform/theme/common/styler';
+import { IThemeService } from 'vs/platform/theme/common/themeService';
 
 export interface IQuickOpenEditorWidgetOptions {
 	inputAriaLabel: string;

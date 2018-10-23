@@ -15,7 +15,7 @@ import { IRange, Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
 import { TokenizationResult, TokenizationResult2 } from 'vs/editor/common/core/token';
 import * as model from 'vs/editor/common/model';
-import LanguageFeatureRegistry from 'vs/editor/common/modes/languageFeatureRegistry';
+import { LanguageFeatureRegistry } from 'vs/editor/common/modes/languageFeatureRegistry';
 import { TokenizationRegistryImpl } from 'vs/editor/common/modes/tokenizationRegistry';
 import { IMarkerData } from 'vs/platform/markers/common/markers';
 
@@ -254,7 +254,7 @@ export interface HoverProvider {
 	provideHover(model: model.ITextModel, position: Position, token: CancellationToken): ProviderResult<Hover>;
 }
 
-export enum CompletionItemKind {
+export const enum CompletionItemKind {
 	Method,
 	Function,
 	Constructor,
@@ -357,6 +357,19 @@ export let completionKindFromLegacyString = (function () {
 	};
 })();
 
+export const enum CompletionItemInsertTextRule {
+	/**
+	 * Adjust whitespace/indentation of multiline insert texts to
+	 * match the current line indentation.
+	 */
+	KeepWhitespace = 0b001,
+
+	/**
+	 * `insertText` is a snippet.
+	 */
+	InsertAsSnippet = 0b100,
+}
+
 /**
  * A completion item represents a text snippet that is
  * proposed to complete text that is being typed.
@@ -407,9 +420,10 @@ export interface CompletionItem {
 	 */
 	insertText: string;
 	/**
-	 * The insert test is a snippet
+	 * Addition rules (as bitmask) that should be applied when inserting
+	 * this completion.
 	 */
-	insertTextIsSnippet?: boolean;
+	insertTextRules?: CompletionItemInsertTextRule;
 	/**
 	 * A range of text that should be replaced by this completion item.
 	 *
@@ -436,10 +450,6 @@ export interface CompletionItem {
 	 * A command that should be run upon acceptance of this item.
 	 */
 	command?: Command;
-	/**@internal*/
-	noWhitespaceAdjust?: boolean;
-	/**@internal*/
-	noAutoAccept?: boolean;
 
 	/**@internal*/
 	_labelLow?: string;
@@ -458,7 +468,7 @@ export interface CompletionList {
 /**
  * How a suggest provider was triggered.
  */
-export enum CompletionTriggerKind {
+export const enum CompletionTriggerKind {
 	Invoke = 0,
 	TriggerCharacter = 1,
 	TriggerForIncompleteCompletions = 2
@@ -761,7 +771,7 @@ export interface TypeDefinitionProvider {
 /**
  * A symbol kind.
  */
-export enum SymbolKind {
+export const enum SymbolKind {
 	File = 0,
 	Module = 1,
 	Namespace = 2,
@@ -1091,7 +1101,7 @@ export interface ResourceTextEdit {
 }
 
 export interface WorkspaceEdit {
-	edits: Array<ResourceTextEdit | ResourceFileEdit>;
+	edits?: Array<ResourceTextEdit | ResourceFileEdit>;
 }
 
 export interface Rejection {

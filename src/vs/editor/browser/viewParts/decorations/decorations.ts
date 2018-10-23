@@ -6,10 +6,10 @@
 import 'vs/css!./decorations';
 import { DynamicViewOverlay } from 'vs/editor/browser/view/dynamicViewOverlay';
 import { Range } from 'vs/editor/common/core/range';
+import { HorizontalRange, RenderingContext } from 'vs/editor/common/view/renderingContext';
 import { ViewContext } from 'vs/editor/common/view/viewContext';
-import { RenderingContext, HorizontalRange } from 'vs/editor/common/view/renderingContext';
-import { ViewModelDecoration } from 'vs/editor/common/viewModel/viewModel';
 import * as viewEvents from 'vs/editor/common/view/viewEvents';
+import { ViewModelDecoration } from 'vs/editor/common/viewModel/viewModel';
 
 export class DecorationsOverlay extends DynamicViewOverlay {
 

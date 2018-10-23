@@ -100,8 +100,8 @@ export class LifecycleService extends Disposable implements ILifecycleService {
 	private static readonly QUIT_FROM_RESTART_MARKER = 'quit.from.restart'; // use a marker to find out if the session was restarted
 
 	private windowToCloseRequest: { [windowId: string]: boolean } = Object.create(null);
-	private pendingQuitPromise: TPromise<boolean>;
-	private pendingQuitPromiseComplete: TValueCallback<boolean>;
+	private pendingQuitPromise: TPromise<boolean> | null;
+	private pendingQuitPromiseComplete: TValueCallback<boolean> | null;
 	private oneTimeListenerTokenGenerator = 0;
 	private windowCounter = 0;
 
@@ -399,7 +399,10 @@ export class LifecycleService extends Disposable implements ILifecycleService {
 				// Code starts it will set it back to the installation directory again.
 				try {
 					if (isWindows) {
-						process.chdir(process.env['VSCODE_CWD']);
+						const vscodeCwd = process.env['VSCODE_CWD'];
+						if (vscodeCwd) {
+							process.chdir(vscodeCwd);
+						}
 					}
 				} catch (err) {
 					this.logService.error(err);

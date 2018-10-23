@@ -4,8 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Keybinding, ResolvedKeybinding, SimpleKeybinding } from 'vs/base/common/keyCodes';
-import { IKeyboardEvent } from 'vs/platform/keybinding/common/keybinding';
 import { ScanCodeBinding } from 'vs/base/common/scanCode';
+import { IKeyboardEvent } from 'vs/platform/keybinding/common/keybinding';
 
 export interface IKeyboardMapper {
 	dumpDebugInfo(): string;

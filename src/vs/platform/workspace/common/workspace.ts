@@ -145,8 +145,7 @@ export class Workspace implements IWorkspace {
 	constructor(
 		private _id: string,
 		folders: WorkspaceFolder[] = [],
-		private _configuration: URI | null = null,
-		private _ctime?: number
+		private _configuration: URI | null = null
 	) {
 		this.folders = folders;
 	}
@@ -154,7 +153,6 @@ export class Workspace implements IWorkspace {
 	update(workspace: Workspace) {
 		this._id = workspace.id;
 		this._configuration = workspace.configuration;
-		this._ctime = workspace.ctime;
 		this.folders = workspace.folders;
 	}
 
@@ -169,10 +167,6 @@ export class Workspace implements IWorkspace {
 
 	get id(): string {
 		return this._id;
-	}
-
-	get ctime(): number | undefined {
-		return this._ctime;
 	}
 
 	get configuration(): URI | null {

@@ -180,6 +180,7 @@ class MyCompletionItem extends vscode.CompletionItem {
 			case PConst.Kind.function:
 			case PConst.Kind.memberFunction:
 			case PConst.Kind.keyword:
+			case PConst.Kind.parameter:
 				commitCharacters.push('.', ',', ';');
 				if (this.commitCharactersSettings.enableCallCompletions) {
 					commitCharacters.push('(');

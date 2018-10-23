@@ -7,16 +7,21 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { IEditorInputFactory } from 'vs/workbench/common/editor';
 import { WebviewEditorInput } from './webviewEditorInput';
 import { IWebviewEditorService, WebviewInputOptions } from './webviewEditorService';
-import { URI } from 'vs/base/common/uri';
+import { URI, UriComponents } from 'vs/base/common/uri';
+
+interface SerializedIconPath {
+	light: string | UriComponents;
+	dark: string | UriComponents;
+}
 
 interface SerializedWebview {
 	readonly viewType: string;
 	readonly id: number;
 	readonly title: string;
 	readonly options: WebviewInputOptions;
-	readonly extensionLocation: string;
+	readonly extensionLocation: string | UriComponents;
 	readonly state: any;
-	readonly iconPath: { light: string, dark: string } | undefined;
+	readonly iconPath: SerializedIconPath | undefined;
 }
 
 export class WebviewEditorInputFactory implements IEditorInputFactory {
@@ -45,11 +50,16 @@ export class WebviewEditorInputFactory implements IEditorInputFactory {
 			id: input.getId(),
 			title: input.getName(),
 			options: input.options,
-			extensionLocation: input.extensionLocation.toString(),
+			extensionLocation: input.extensionLocation,
 			state: input.state,
-			iconPath: input.iconPath ? { light: input.iconPath.light.toString(), dark: input.iconPath.dark.toString(), } : undefined,
+			iconPath: input.iconPath ? { light: input.iconPath.light, dark: input.iconPath.dark, } : undefined,
 		};
-		return JSON.stringify(data);
+
+		try {
+			return JSON.stringify(data);
+		} catch {
+			return null;
+		}
 	}
 
 	public deserialize(
@@ -57,8 +67,32 @@ export class WebviewEditorInputFactory implements IEditorInputFactory {
 		serializedEditorInput: string
 	): WebviewEditorInput {
 		const data: SerializedWebview = JSON.parse(serializedEditorInput);
-		const extensionLocation = URI.parse(data.extensionLocation);
-		const iconPath = data.iconPath ? { light: URI.parse(data.iconPath.light), dark: URI.parse(data.iconPath.dark) } : undefined;
+		const extensionLocation = reviveUri(data.extensionLocation);
+		const iconPath = reviveIconPath(data.iconPath);
 		return this._webviewService.reviveWebview(data.viewType, data.id, data.title, iconPath, data.state, data.options, extensionLocation);
+	}
+}
+function reviveIconPath(data: SerializedIconPath | undefined) {
+	if (!data) {
+		return undefined;
+	}
+
+	const light = reviveUri(data.light);
+	const dark = reviveUri(data.dark);
+	return light && dark ? { light, dark } : undefined;
+}
+
+function reviveUri(data: string | UriComponents | undefined): URI | undefined {
+	if (!data) {
+		return undefined;
+	}
+
+	try {
+		if (typeof data === 'string') {
+			return URI.parse(data);
+		}
+		return URI.from(data);
+	} catch {
+		return undefined;
 	}
 }

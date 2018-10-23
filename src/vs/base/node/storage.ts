@@ -55,7 +55,7 @@ export class Storage extends Disposable {
 
 		this.storage = new SQLiteStorageImpl(options);
 
-		this.pendingScheduler = new RunOnceScheduler(() => this.flushPending(), Storage.FLUSH_DELAY);
+		this.pendingScheduler = this._register(new RunOnceScheduler(() => this.flushPending(), Storage.FLUSH_DELAY));
 	}
 
 	get size(): number {
@@ -74,7 +74,7 @@ export class Storage extends Disposable {
 		});
 	}
 
-	get(key: string, fallbackValue?: any): string {
+	get(key: string, fallbackValue?: string): string | undefined {
 		const value = this.cache.get(key);
 
 		if (isUndefinedOrNull(value)) {
@@ -84,7 +84,7 @@ export class Storage extends Disposable {
 		return value;
 	}
 
-	getBoolean(key: string, fallbackValue?: boolean): boolean {
+	getBoolean(key: string, fallbackValue: boolean = false): boolean {
 		const value = this.get(key);
 
 		if (isUndefinedOrNull(value)) {
@@ -94,7 +94,7 @@ export class Storage extends Disposable {
 		return value === 'true';
 	}
 
-	getInteger(key: string, fallbackValue?: number): number {
+	getInteger(key: string, fallbackValue: number = 0): number {
 		const value = this.get(key);
 
 		if (isUndefinedOrNull(value)) {
@@ -210,6 +210,10 @@ export class Storage extends Disposable {
 	getItems(): Promise<Map<string, string>> {
 		return this.storage.getItems();
 	}
+
+	checkIntegrity(full: boolean): Promise<string> {
+		return this.storage.checkIntegrity(full);
+	}
 }
 
 export interface IUpdateRequest {
@@ -265,7 +269,7 @@ export class SQLiteStorageImpl {
 			return this.transaction(db, () => {
 				if (request.insert && request.insert.size > 0) {
 					this.prepare(db, 'INSERT INTO ItemTable VALUES (?,?)', stmt => {
-						request.insert.forEach((value, key) => {
+						request.insert!.forEach((value, key) => {
 							stmt.run([key, value]);
 						});
 					});
@@ -273,7 +277,7 @@ export class SQLiteStorageImpl {
 
 				if (request.delete && request.delete.size) {
 					this.prepare(db, 'DELETE FROM ItemTable WHERE key=?', stmt => {
-						request.delete.forEach(key => {
+						request.delete!.forEach(key => {
 							stmt.run(key);
 						});
 					});
@@ -296,6 +300,16 @@ export class SQLiteStorageImpl {
 
 					return resolve();
 				});
+			});
+		});
+	}
+
+	checkIntegrity(full: boolean): Promise<string> {
+		this.logger.info(`[storage ${this.name}] checkIntegrity(full: ${full})`);
+
+		return this.db.then(db => {
+			return this.get(db, full ? 'PRAGMA integrity_check' : 'PRAGMA quick_check').then(row => {
+				return full ? row['integrity_check'] : row['quick_check'];
 			});
 		});
 	}
@@ -356,6 +370,20 @@ export class SQLiteStorageImpl {
 				}
 
 				return resolve();
+			});
+		});
+	}
+
+	private get(db: Database, sql: string): Promise<object> {
+		return new Promise((resolve, reject) => {
+			db.get(sql, (error, row) => {
+				if (error) {
+					this.logger.error(`[storage ${this.name}] get(): ${error}`);
+
+					return reject(error);
+				}
+
+				return resolve(row);
 			});
 		});
 	}
@@ -429,35 +457,35 @@ export class SQLiteStorageImpl {
 }
 
 class SQLiteStorageLogger {
-	private logInfo: boolean;
-	private logError: boolean;
+	private readonly logInfo: boolean;
+	private readonly logError: boolean;
 
-	constructor(private options?: IStorageLoggingOptions) {
-		this.logInfo = this.verbose && options && !!options.infoLogger;
-		this.logError = options && !!options.errorLogger;
+	constructor(private readonly options?: IStorageLoggingOptions) {
+		this.logInfo = !!(this.verbose && options && options.infoLogger);
+		this.logError = !!(options && options.errorLogger);
 	}
 
 	get verbose(): boolean {
-		return this.options && (this.options.info || this.options.trace || this.options.profile);
+		return !!(this.options && (this.options.info || this.options.trace || this.options.profile));
 	}
 
 	get trace(): boolean {
-		return this.options && this.options.trace;
+		return !!(this.options && this.options.trace);
 	}
 
 	get profile(): boolean {
-		return this.options && this.options.profile;
+		return !!(this.options && this.options.profile);
 	}
 
 	info(msg: string): void {
 		if (this.logInfo) {
-			this.options.infoLogger(msg);
+			this.options!.infoLogger!(msg);
 		}
 	}
 
 	error(error: string | Error): void {
 		if (this.logError) {
-			this.options.errorLogger(error);
+			this.options!.errorLogger!(error);
 		}
 	}
 }

@@ -474,7 +474,9 @@ export class ParameterHintsWidget implements IContentWidget, IDisposable {
 
 	private getParameterLabelOffsets(signature: modes.SignatureInformation, paramIdx: number): [number, number] {
 		const param = signature.parameters[paramIdx];
-		if (Array.isArray(param.label)) {
+		if (!param) {
+			return [0, 0];
+		} else if (Array.isArray(param.label)) {
 			return param.label;
 		} else {
 			const idx = signature.label.lastIndexOf(param.label);

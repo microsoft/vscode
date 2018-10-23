@@ -6,7 +6,6 @@
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { canceled } from 'vs/base/common/errors';
 import { ISplice } from 'vs/base/common/sequence';
-import { TPromise } from 'vs/base/common/winjs.base';
 
 /**
  * Returns the last element of an array.
@@ -261,12 +260,12 @@ export function top<T>(array: T[], compare: (a: T, b: T) => number, n: number): 
  * @param batch The number of elements to examine before yielding to the event loop.
  * @return The first n elemnts from array when sorted with compare.
  */
-export function topAsync<T>(array: T[], compare: (a: T, b: T) => number, n: number, batch: number, token?: CancellationToken): TPromise<T[]> {
+export function topAsync<T>(array: T[], compare: (a: T, b: T) => number, n: number, batch: number, token?: CancellationToken): Promise<T[]> {
 	if (n === 0) {
-		return TPromise.as([]);
+		return Promise.resolve([]);
 	}
 
-	return new TPromise((resolve, reject) => {
+	return new Promise((resolve, reject) => {
 		(async () => {
 			const o = array.length;
 			const result = array.slice(0, n).sort(compare);
@@ -297,29 +296,30 @@ function topStep<T>(array: T[], compare: (a: T, b: T) => number, result: T[], i:
 }
 
 /**
- * @returns a new array with all undefined or null values removed. The original array is not modified at all.
+ * @returns a new array with all falsy values removed. The original array IS NOT modified.
  */
-export function coalesce<T>(array: (T | undefined | null)[]): T[];
-export function coalesce<T>(array: (T | undefined | null)[], inplace: true): void;
-export function coalesce<T>(array: (T | undefined | null)[], inplace?: true): void | T[] {
+export function coalesce<T>(array: (T | undefined | null)[]): T[] {
 	if (!array) {
-		if (!inplace) {
-			return array;
-		}
+		return array;
 	}
-	if (!inplace) {
-		return <T[]>array.filter(e => !!e);
+	return <T[]>array.filter(e => !!e);
+}
 
-	} else {
-		let to = 0;
-		for (let i = 0; i < array.length; i++) {
-			if (!!array[i]) {
-				array[to] = array[i];
-				to += 1;
-			}
-		}
-		array.length = to;
+/**
+ * Remove all falsey values from `array`. The original array IS modified.
+ */
+export function coalesceInPlace<T>(array: (T | undefined | null)[]): void {
+	if (!array) {
+		return;
 	}
+	let to = 0;
+	for (let i = 0; i < array.length; i++) {
+		if (!!array[i]) {
+			array[to] = array[i];
+			to += 1;
+		}
+	}
+	array.length = to;
 }
 
 /**

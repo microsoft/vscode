@@ -279,7 +279,7 @@ suite('Base IPC', function () {
 		});
 
 		test('listen to events', async function () {
-			const messages = [];
+			const messages: string[] = [];
 
 			ipcService.pong(msg => messages.push(msg));
 			await timeout(0);

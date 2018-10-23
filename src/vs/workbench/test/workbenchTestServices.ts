@@ -77,7 +77,7 @@ import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { ViewletDescriptor } from 'vs/workbench/browser/viewlet';
 import { IViewlet } from 'vs/workbench/common/viewlet';
 import { IProgressService } from 'vs/platform/progress/common/progress';
-import { StorageService } from 'vs/platform/storage/electron-browser/storageService';
+import { StorageService } from 'vs/platform/storage/node/storageService';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { isLinux, isMacintosh } from 'vs/base/common/platform';
 
@@ -882,6 +882,10 @@ export class TestFileService implements IFileService {
 		return { dispose() { } };
 	}
 
+	activateProvider(_scheme: string) {
+		return Promise.resolve(null);
+	}
+
 	canHandleResource(resource: URI): boolean {
 		return resource.scheme === 'file';
 	}
@@ -1119,6 +1123,10 @@ export class TestWindowService implements IWindowService {
 
 	updateTouchBar(_items: ISerializableCommandAction[][]): TPromise<void> {
 		return TPromise.as(void 0);
+	}
+
+	resolveProxy(url: string): Promise<string | undefined> {
+		return Promise.resolve(void 0);
 	}
 }
 
@@ -1375,6 +1383,10 @@ export class TestWindowsService implements IWindowsService {
 
 	openAboutDialog(): TPromise<void> {
 		return TPromise.as(void 0);
+	}
+
+	resolveProxy(windowId: number, url: string): Promise<string | undefined> {
+		return Promise.resolve(void 0);
 	}
 }
 

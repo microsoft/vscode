@@ -89,8 +89,8 @@ export interface IConfigurationService {
 	inspect<T>(key: string, overrides?: IConfigurationOverrides): {
 		default: T,
 		user: T,
-		workspace: T,
-		workspaceFolder: T,
+		workspace?: T,
+		workspaceFolder?: T,
 		memory?: T,
 		value: T,
 	};

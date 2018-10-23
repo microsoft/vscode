@@ -53,9 +53,16 @@ bootstrapWindow.load([
 function showPartsSplash(configuration) {
 	perf.mark('willShowPartsSplash');
 
+	// TODO@Ben remove me after a while
+	perf.mark('willAccessLocalStorage');
+	let storage = window.localStorage;
+	perf.mark('didAccessLocalStorage');
+
 	let data;
 	try {
-		let raw = window.localStorage.getItem('storage://global/parts-splash-data');
+		perf.mark('willReadLocalStorage');
+		let raw = storage.getItem('storage://global/parts-splash-data');
+		perf.mark('didReadLocalStorage');
 		data = JSON.parse(raw);
 	} catch (e) {
 		// ignore

@@ -3,9 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { CharCode } from 'vs/base/common/charCode';
 import { ResolvedKeybinding } from 'vs/base/common/keyCodes';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
-import { CharCode } from 'vs/base/common/charCode';
 
 export class ResolvedKeybindingItem {
 	_resolvedKeybindingItemBrand: void;

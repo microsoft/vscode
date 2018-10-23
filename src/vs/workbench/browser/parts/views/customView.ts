@@ -14,7 +14,7 @@ import { IContextMenuService } from 'vs/platform/contextview/browser/contextView
 import { IMenuService, MenuId, MenuItemAction } from 'vs/platform/actions/common/actions';
 import { ContextAwareMenuItemActionItem, fillInActionBarActions, fillInContextMenuActions } from 'vs/platform/actions/browser/menuItemActionItem';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { IViewsService, ITreeViewer, ITreeItem, TreeItemCollapsibleState, ITreeViewDataProvider, TreeViewItemHandleArg, ICustomViewDescriptor, ViewsRegistry, ViewContainer } from 'vs/workbench/common/views';
+import { IViewsService, ITreeViewer, ITreeItem, TreeItemCollapsibleState, ITreeViewDataProvider, TreeViewItemHandleArg, ICustomViewDescriptor, ViewsRegistry, ViewContainer, ITreeItemLabel } from 'vs/workbench/common/views';
 import { IViewletViewOptions, FileIconThemableWorkbenchTree } from 'vs/workbench/browser/parts/views/viewsViewlet';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { INotificationService } from 'vs/platform/notification/common/notification';
@@ -35,6 +35,7 @@ import { WorkbenchTreeController } from 'vs/platform/list/browser/listService';
 import { ViewletPanel, IViewletPanelOptions } from 'vs/workbench/browser/parts/views/panelViewlet';
 import { IMouseEvent } from 'vs/base/browser/mouseEvent';
 import { localize } from 'vs/nls';
+import { timeout } from 'vs/base/common/async';
 
 export class CustomTreeViewPanel extends ViewletPanel {
 
@@ -163,12 +164,14 @@ class TitleMenus implements IDisposable {
 }
 
 class Root implements ITreeItem {
-	label = 'root';
+	label = { label: 'root' };
 	handle = '0';
 	parentHandle = null;
 	collapsibleState = TreeItemCollapsibleState.Expanded;
 	children = void 0;
 }
+
+const noDataProviderMessage = localize('no-dataprovider', "There is no data provider registered that can provide view data.");
 
 export class CustomTreeViewer extends Disposable implements ITreeViewer {
 
@@ -205,7 +208,8 @@ export class CustomTreeViewer extends Disposable implements ITreeViewer {
 		@IWorkbenchThemeService private themeService: IWorkbenchThemeService,
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@ICommandService private commandService: ICommandService,
-		@IConfigurationService private configurationService: IConfigurationService
+		@IConfigurationService private configurationService: IConfigurationService,
+		@IProgressService2 private progressService: IProgressService2
 	) {
 		super();
 		this.root = new Root();
@@ -238,12 +242,11 @@ export class CustomTreeViewer extends Disposable implements ITreeViewer {
 					});
 				}
 			};
-			DOM.removeClass(this.domNode, 'message');
+			this.hideMessage();
 			this.refresh();
 		} else {
 			this._dataProvider = null;
-			DOM.addClass(this.domNode, 'message');
-			this.message.innerText = localize('no-dataprovider', "There is no data provider registered that can provide view data.");
+			this.showMessage(noDataProviderMessage);
 		}
 	}
 
@@ -313,8 +316,9 @@ export class CustomTreeViewer extends Disposable implements ITreeViewer {
 	}
 
 	private create() {
-		this.domNode = DOM.$('.tree-explorer-viewlet-tree-view');
+		this.domNode = DOM.$('.tree-explorer-viewlet-tree-view.message');
 		this.message = DOM.append(this.domNode, DOM.$('.customview-message'));
+		this.message.innerText = noDataProviderMessage;
 		this.treeContainer = DOM.append(this.domNode, DOM.$('.customview-tree'));
 	}
 
@@ -334,6 +338,15 @@ export class CustomTreeViewer extends Disposable implements ITreeViewer {
 		this.tree.setInput(this.root);
 	}
 
+	private showMessage(message: string): void {
+		DOM.addClass(this.domNode, 'message');
+		this.message.innerText = message;
+	}
+
+	private hideMessage(): void {
+		DOM.removeClass(this.domNode, 'message');
+	}
+
 	layout(size: number) {
 		this.domNode.style.height = size + 'px';
 		if (this.tree) {
@@ -344,7 +357,7 @@ export class CustomTreeViewer extends Disposable implements ITreeViewer {
 	getOptimalWidth(): number {
 		if (this.tree) {
 			const parentNode = this.tree.getHTMLElement();
-			const childNodes = [].slice.call(parentNode.querySelectorAll('.outline-item-label > a'));
+			const childNodes = ([] as Element[]).slice.call(parentNode.querySelectorAll('.outline-item-label > a'));
 			return DOM.getLargestChildWidth(parentNode, childNodes);
 		}
 		return 0;
@@ -394,8 +407,15 @@ export class CustomTreeViewer extends Disposable implements ITreeViewer {
 	}
 
 	private activate() {
+		this.hideMessage();
 		if (!this.activated) {
-			this.extensionService.activateByEvent(`onView:${this.id}`);
+			this.progressService.withProgress({ location: this.container }, () => this.extensionService.activateByEvent(`onView:${this.id}`))
+				.then(() => timeout(2000))
+				.then(() => {
+					if (!this.dataProvider) {
+						this.showMessage(noDataProviderMessage);
+					}
+				});
 			this.activated = true;
 		}
 	}
@@ -493,7 +513,7 @@ class TreeRenderer implements IRenderer {
 		DOM.addClass(container, 'custom-view-tree-node-item');
 
 		const icon = DOM.append(container, DOM.$('.custom-view-tree-node-item-icon'));
-		const resourceLabel = this.instantiationService.createInstance(ResourceLabel, container, {});
+		const resourceLabel = this.instantiationService.createInstance(ResourceLabel, container, { supportHighlights: true });
 		DOM.addClass(resourceLabel.element, 'custom-view-tree-node-item-resourceLabel');
 		const actionsContainer = DOM.append(resourceLabel.element, DOM.$('.actions'));
 		const actionBar = new ActionBar(actionsContainer, {
@@ -506,7 +526,9 @@ class TreeRenderer implements IRenderer {
 
 	renderElement(tree: ITree, node: ITreeItem, templateId: string, templateData: ITreeExplorerTemplateData): void {
 		const resource = node.resourceUri ? URI.revive(node.resourceUri) : null;
-		const label = node.label ? node.label : resource ? basename(resource.path) : '';
+		const treeItemLabel: ITreeItemLabel = node.label ? node.label : resource ? { label: basename(resource.path) } : void 0;
+		const label = treeItemLabel ? treeItemLabel.label : void 0;
+		const matches = treeItemLabel ? treeItemLabel.highlights.map(([start, end]) => ({ start, end })) : void 0;
 		const icon = this.themeService.getTheme().type === LIGHT ? node.icon : node.iconDark;
 		const iconUrl = icon ? URI.revive(icon) : null;
 		const title = node.tooltip ? node.tooltip : resource ? void 0 : label;
@@ -517,9 +539,9 @@ class TreeRenderer implements IRenderer {
 
 		if (resource || node.themeIcon) {
 			const fileDecorations = this.configurationService.getValue<{ colors: boolean, badges: boolean }>('explorer.decorations');
-			templateData.resourceLabel.setLabel({ name: label, resource: resource ? resource : URI.parse('missing:_icon_resource') }, { fileKind: this.getFileKind(node), title, hideIcon: !!iconUrl, fileDecorations, extraClasses: ['custom-view-tree-node-item-resourceLabel'] });
+			templateData.resourceLabel.setLabel({ name: label, resource: resource ? resource : URI.parse('missing:_icon_resource') }, { fileKind: this.getFileKind(node), title, hideIcon: !!iconUrl, fileDecorations, extraClasses: ['custom-view-tree-node-item-resourceLabel'], matches });
 		} else {
-			templateData.resourceLabel.setLabel({ name: label }, { title, hideIcon: true, extraClasses: ['custom-view-tree-node-item-resourceLabel'] });
+			templateData.resourceLabel.setLabel({ name: label }, { title, hideIcon: true, extraClasses: ['custom-view-tree-node-item-resourceLabel'], matches });
 		}
 
 		templateData.icon.style.backgroundImage = iconUrl ? `url('${iconUrl.toString(true)}')` : '';
