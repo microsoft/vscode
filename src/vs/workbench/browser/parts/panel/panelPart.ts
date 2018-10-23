@@ -27,13 +27,13 @@ import { CompositeBar } from 'vs/workbench/browser/parts/compositeBar';
 import { ToggleCompositePinnedAction } from 'vs/workbench/browser/parts/compositeBarActions';
 import { IBadge } from 'vs/workbench/services/activity/common/activity';
 import { INotificationService } from 'vs/platform/notification/common/notification';
-import { Dimension } from 'vs/base/browser/dom';
+import { Dimension, trackFocus } from 'vs/base/browser/dom';
 import { localize } from 'vs/nls';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { RawContextKey, IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 
-const ActivePanleContextId = 'activePanel';
-export const ActivePanelContext = new RawContextKey<string>(ActivePanleContextId, '');
+export const ActivePanelContext = new RawContextKey<string>('activePanel', '');
+export const PanelFocusContext = new RawContextKey<boolean>('panelFocus', false);
 
 export class PanelPart extends CompositePart<Panel> implements IPanelService {
 
@@ -45,6 +45,7 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 	_serviceBrand: any;
 
 	private activePanelContextKey: IContextKey<string>;
+	private panelFocusContextKey: IContextKey<boolean>;
 	private blockOpeningPanel: boolean;
 	private compositeBar: CompositeBar;
 	private compositeActions: { [compositeId: string]: { activityAction: PanelActivityAction, pinnedAction: ToggleCompositePinnedAction } } = Object.create(null);
@@ -114,8 +115,22 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 		}
 
 		this.activePanelContextKey = ActivePanelContext.bindTo(contextKeyService);
+		this.panelFocusContextKey = PanelFocusContext.bindTo(contextKeyService);
 
 		this.registerListeners();
+	}
+
+	create(parent: HTMLElement): void {
+		super.create(parent);
+
+		const focusTracker = trackFocus(parent);
+
+		focusTracker.onDidFocus(() => {
+			this.panelFocusContextKey.set(true);
+		});
+		focusTracker.onDidBlur(() => {
+			this.panelFocusContextKey.set(false);
+		});
 	}
 
 	private registerListeners(): void {
