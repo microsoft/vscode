@@ -23,10 +23,7 @@ export function connectProxyResolver(extHostWorkspace: ExtHostWorkspace, extHost
 			"resolveProxy" : {
 				"count": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
 				"duration": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
-				"errorCount": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
-				"${include}": [
-					"${TypeScriptCommonProperties}"
-				]
+				"errorCount": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true }
 			}
 		*/
 		mainThreadTelemetry.$publicLog('resolveProxy', { count, duration, errorCount });
