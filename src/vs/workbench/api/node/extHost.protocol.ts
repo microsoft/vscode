@@ -535,6 +535,7 @@ export interface SCMProviderFeatures {
 	commitTemplate?: string;
 	acceptInputCommand?: modes.Command;
 	statusBarCommands?: modes.Command[];
+	hideInputBox?: boolean;
 }
 
 export interface SCMGroupFeatures {

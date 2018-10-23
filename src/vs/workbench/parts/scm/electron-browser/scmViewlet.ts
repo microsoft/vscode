@@ -814,56 +814,58 @@ export class RepositoryPanel extends ViewletPanel {
 		this.disposables.push(focusTracker);
 
 		// Input
-		this.inputBoxContainer = append(container, $('.scm-editor'));
+		if (!this.repository.provider.hideInputBox) {
+			this.inputBoxContainer = append(container, $('.scm-editor'));
 
-		const updatePlaceholder = () => {
-			const binding = this.keybindingService.lookupKeybinding('scm.acceptInput');
-			const label = binding ? binding.getLabel() : (platform.isMacintosh ? 'Cmd+Enter' : 'Ctrl+Enter');
-			const placeholder = format(this.repository.input.placeholder, label);
+			const updatePlaceholder = () => {
+				const binding = this.keybindingService.lookupKeybinding('scm.acceptInput');
+				const label = binding ? binding.getLabel() : (platform.isMacintosh ? 'Cmd+Enter' : 'Ctrl+Enter');
+				const placeholder = format(this.repository.input.placeholder, label);
 
-			this.inputBox.setPlaceHolder(placeholder);
-		};
+				this.inputBox.setPlaceHolder(placeholder);
+			};
 
-		const validationDelayer = new ThrottledDelayer<any>(200);
-		const validate = () => {
-			return this.repository.input.validateInput(this.inputBox.value, this.inputBox.inputElement.selectionStart).then(result => {
-				if (!result) {
-					this.inputBox.inputElement.removeAttribute('aria-invalid');
-					this.inputBox.hideMessage();
-				} else {
-					this.inputBox.inputElement.setAttribute('aria-invalid', 'true');
-					this.inputBox.showMessage({ content: result.message, type: convertValidationType(result.type) });
-				}
-			});
-		};
+			const validationDelayer = new ThrottledDelayer<any>(200);
+			const validate = () => {
+				return this.repository.input.validateInput(this.inputBox.value, this.inputBox.inputElement.selectionStart).then(result => {
+					if (!result) {
+						this.inputBox.inputElement.removeAttribute('aria-invalid');
+						this.inputBox.hideMessage();
+					} else {
+						this.inputBox.inputElement.setAttribute('aria-invalid', 'true');
+						this.inputBox.showMessage({ content: result.message, type: convertValidationType(result.type) });
+					}
+				});
+			};
 
-		const triggerValidation = () => validationDelayer.trigger(validate);
+			const triggerValidation = () => validationDelayer.trigger(validate);
 
-		this.inputBox = new InputBox(this.inputBoxContainer, this.contextViewService, { flexibleHeight: true });
-		this.disposables.push(attachInputBoxStyler(this.inputBox, this.themeService));
-		this.disposables.push(this.inputBox);
+			this.inputBox = new InputBox(this.inputBoxContainer, this.contextViewService, { flexibleHeight: true });
+			this.disposables.push(attachInputBoxStyler(this.inputBox, this.themeService));
+			this.disposables.push(this.inputBox);
 
-		this.inputBox.onDidChange(triggerValidation, null, this.disposables);
+			this.inputBox.onDidChange(triggerValidation, null, this.disposables);
 
-		const onKeyUp = domEvent(this.inputBox.inputElement, 'keyup');
-		const onMouseUp = domEvent(this.inputBox.inputElement, 'mouseup');
-		anyEvent<any>(onKeyUp, onMouseUp)(triggerValidation, null, this.disposables);
+			const onKeyUp = domEvent(this.inputBox.inputElement, 'keyup');
+			const onMouseUp = domEvent(this.inputBox.inputElement, 'mouseup');
+			anyEvent<any>(onKeyUp, onMouseUp)(triggerValidation, null, this.disposables);
 
-		this.inputBox.value = this.repository.input.value;
-		this.inputBox.onDidChange(value => this.repository.input.value = value, null, this.disposables);
-		this.repository.input.onDidChange(value => this.inputBox.value = value, null, this.disposables);
+			this.inputBox.value = this.repository.input.value;
+			this.inputBox.onDidChange(value => this.repository.input.value = value, null, this.disposables);
+			this.repository.input.onDidChange(value => this.inputBox.value = value, null, this.disposables);
 
-		updatePlaceholder();
-		this.repository.input.onDidChangePlaceholder(updatePlaceholder, null, this.disposables);
-		this.keybindingService.onDidUpdateKeybindings(updatePlaceholder, null, this.disposables);
+			updatePlaceholder();
+			this.repository.input.onDidChangePlaceholder(updatePlaceholder, null, this.disposables);
+			this.keybindingService.onDidUpdateKeybindings(updatePlaceholder, null, this.disposables);
 
-		this.disposables.push(this.inputBox.onDidHeightChange(() => this.layoutBody()));
+			this.disposables.push(this.inputBox.onDidHeightChange(() => this.layoutBody()));
 
-		if (this.repository.provider.onDidChangeCommitTemplate) {
-			this.repository.provider.onDidChangeCommitTemplate(this.updateInputBox, this, this.disposables);
+			if (this.repository.provider.onDidChangeCommitTemplate) {
+				this.repository.provider.onDidChangeCommitTemplate(this.updateInputBox, this, this.disposables);
+			}
+
+			this.updateInputBox();
 		}
-
-		this.updateInputBox();
 
 		// List
 
@@ -918,20 +920,24 @@ export class RepositoryPanel extends ViewletPanel {
 		}
 
 		this.cachedHeight = height;
-		this.inputBox.layout();
+		if (this.inputBox) {
+			this.inputBox.layout();
+		}
 
-		const editorHeight = this.inputBox.height;
-		const listHeight = height - (editorHeight + 12 /* margin */);
+		const editorHeight = this.inputBox ? this.inputBox.height : 0;
+		const listHeight = height - (editorHeight + (editorHeight ? 12 : 0) /* margin */);
 		this.listContainer.style.height = `${listHeight}px`;
 		this.list.layout(listHeight);
 
-		toggleClass(this.inputBoxContainer, 'scroll', editorHeight >= 134);
+		if (this.inputBoxContainer) {
+			toggleClass(this.inputBoxContainer, 'scroll', editorHeight >= 134);
+		}
 	}
 
 	focus(): void {
 		super.focus();
 
-		if (this.isExpanded()) {
+		if (this.isExpanded() && this.inputBox) {
 			this.inputBox.focus();
 		}
 	}
@@ -991,7 +997,7 @@ export class RepositoryPanel extends ViewletPanel {
 	}
 
 	private updateInputBox(): void {
-		if (typeof this.repository.provider.commitTemplate === 'undefined' || this.inputBox.value) {
+		if (typeof this.repository.provider.commitTemplate === 'undefined' || !this.inputBox || this.inputBox.value) {
 			return;
 		}
 

@@ -63,6 +63,8 @@ export interface ISCMProvider extends IDisposable {
 	readonly statusBarCommands?: Command[];
 	readonly onDidChange: Event<void>;
 
+	readonly hideInputBox?: boolean | undefined;
+
 	getOriginalResource(uri: URI): TPromise<URI>;
 }
 
