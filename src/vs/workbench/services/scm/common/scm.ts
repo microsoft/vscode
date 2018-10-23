@@ -63,8 +63,6 @@ export interface ISCMProvider extends IDisposable {
 	readonly statusBarCommands?: Command[];
 	readonly onDidChange: Event<void>;
 
-	readonly hideInputBox?: boolean | undefined;
-
 	getOriginalResource(uri: URI): TPromise<URI>;
 }
 
@@ -92,6 +90,9 @@ export interface ISCMInput {
 
 	validateInput: IInputValidator;
 	readonly onDidChangeValidateInput: Event<void>;
+
+	visible: boolean;
+	readonly onDidChangeVisibility: Event<boolean>;
 }
 
 export interface ISCMRepository extends IDisposable {

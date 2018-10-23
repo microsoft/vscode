@@ -535,7 +535,6 @@ export interface SCMProviderFeatures {
 	commitTemplate?: string;
 	acceptInputCommand?: modes.Command;
 	statusBarCommands?: modes.Command[];
-	hideInputBox?: boolean;
 }
 
 export interface SCMGroupFeatures {
@@ -580,6 +579,7 @@ export interface MainThreadSCMShape extends IDisposable {
 
 	$setInputBoxValue(sourceControlHandle: number, value: string): void;
 	$setInputBoxPlaceholder(sourceControlHandle: number, placeholder: string): void;
+	$setInputBoxVisibility(sourceControlHandle: number, visible: boolean): void;
 	$setValidationProviderIsEnabled(sourceControlHandle: number, enabled: boolean): void;
 }
 

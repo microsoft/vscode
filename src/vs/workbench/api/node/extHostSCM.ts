@@ -198,6 +198,18 @@ export class ExtHostSCMInputBox implements vscode.SourceControlInputBox {
 		this._proxy.$setValidationProviderIsEnabled(this._sourceControlHandle, !!fn);
 	}
 
+	private _visible: boolean = true;
+
+	get visible(): boolean {
+		return this._visible;
+	}
+
+	set visible(visible: boolean | undefined) {
+		visible = !!visible;
+		this._visible = visible;
+		this._proxy.$setInputBoxVisibility(this._sourceControlHandle, visible);
+	}
+
 	constructor(private _extension: IExtensionDescription, private _proxy: MainThreadSCMShape, private _sourceControlHandle: number) {
 		// noop
 	}
@@ -437,17 +449,6 @@ class ExtHostSourceControl implements vscode.SourceControl {
 
 	get selected(): boolean {
 		return this._selected;
-	}
-
-	private _hideInputBox: boolean = false;
-
-	get hideInputBox(): boolean {
-		return this._hideInputBox;
-	}
-
-	set hideInputBox(hideInputBox: boolean | undefined) {
-		this._hideInputBox = hideInputBox;
-		this._proxy.$updateSourceControl(this.handle, { hideInputBox: !!hideInputBox });
 	}
 
 	private _onDidChangeSelection = new Emitter<boolean>();

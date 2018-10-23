@@ -119,7 +119,6 @@ class MainThreadSCMProvider implements ISCMProvider {
 	get acceptInputCommand(): Command | undefined { return this.features.acceptInputCommand; }
 	get statusBarCommands(): Command[] | undefined { return this.features.statusBarCommands; }
 	get count(): number | undefined { return this.features.count; }
-	get hideInputBox(): boolean | undefined { return this.features.hideInputBox; }
 
 	private _onDidChangeCommitTemplate = new Emitter<string>();
 	get onDidChangeCommitTemplate(): Event<string> { return this._onDidChangeCommitTemplate.event; }
@@ -394,6 +393,16 @@ export class MainThreadSCM implements MainThreadSCMShape {
 		}
 
 		repository.input.placeholder = placeholder;
+	}
+
+	$setInputBoxVisibility(sourceControlHandle: number, visible: boolean): void {
+		const repository = this._repositories[sourceControlHandle];
+
+		if (!repository) {
+			return;
+		}
+
+		repository.input.visible = visible;
 	}
 
 	$setValidationProviderIsEnabled(sourceControlHandle: number, enabled: boolean): void {

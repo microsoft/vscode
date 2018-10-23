@@ -720,11 +720,21 @@ declare module 'vscode' {
 		 * An event signaling when the selection state changes.
 		 */
 		readonly onDidChangeSelection: Event<boolean>;
+	}
+
+	//#endregion
+
+	//#region Joao: SCM Input Box
+
+	/**
+	 * Represents the input box in the Source Control viewlet.
+	 */
+	export interface SourceControlInputBox {
 
 		/**
-		* Whether the input box is hidden.
+		* Whether the input box is visible.
 		*/
-		hideInputBox: boolean;
+		visible: boolean;
 	}
 
 	//#endregion
