@@ -64,7 +64,7 @@ export class ExtHostTreeViews implements ExtHostTreeViewsShape {
 		return { dispose: () => treeView.dispose() };
 	}
 
-	createTreeView<T>(viewId: string, options: { treeDataProvider: vscode.TreeDataProvider<T> }): vscode.TreeView<T> {
+	createTreeView<T>(viewId: string, options: { treeDataProvider: vscode.TreeDataProvider<T> }): vscode.TreeView2<T> {
 		if (!options || !options.treeDataProvider) {
 			throw new Error('Options with treeDataProvider is mandatory');
 		}
@@ -76,6 +76,15 @@ export class ExtHostTreeViews implements ExtHostTreeViewsShape {
 			get onDidChangeSelection() { return treeView.onDidChangeSelection; },
 			get visible() { return treeView.visible; },
 			get onDidChangeVisibility() { return treeView.onDidChangeVisibility; },
+			collapse(elementOrElements: T | T[], recursive?: boolean): Thenable<void> {
+				return treeView.collapse(elementOrElements, recursive);
+			},
+			collapseAll(): Thenable<void> {
+				return treeView.collapse();
+			},
+			expand(elementOrElements: T | T[], recursive?: boolean): Thenable<void> {
+				return treeView.expand(elementOrElements, recursive);
+			},
 			reveal: (element: T, options?: { select?: boolean, focus?: boolean }): Thenable<void> => {
 				return treeView.reveal(element, options);
 			},
@@ -213,6 +222,42 @@ class ExtHostTreeView<T> extends Disposable {
 			.then(() => this.resolveUnknownParentChain(element))
 			.then(parentChain => this.resolveTreeNode(element, parentChain[parentChain.length - 1])
 				.then(treeNode => this.proxy.$reveal(this.viewId, treeNode.item, parentChain.map(p => p.item), { select, focus })), error => this.logService.error(error));
+	}
+
+	collapse(elementOrElements?: T | T[], recursive?: boolean): Thenable<void> {
+		const handles: TreeItemHandle[] = elementOrElements ? [] : void 0;
+		if (elementOrElements) {
+			const elements = Array.isArray(elementOrElements) ? elementOrElements : [elementOrElements];
+			for (const element of elements) {
+				const node = this.nodes.get(element);
+				if (node) {
+					handles.push(node.item.handle);
+				} else {
+					console.error('Not found: ', element);
+				}
+			}
+			if (elements.length === 0) {
+				return Promise.resolve();
+			}
+		}
+		return this.proxy.$collapse(this.viewId, handles, recursive);
+	}
+
+	expand(elementOrElements: T | T[], recursive?: boolean): Thenable<void> {
+		const handles: TreeItemHandle[] = [];
+		const elements = Array.isArray(elementOrElements) ? elementOrElements : [elementOrElements];
+		for (const element of elements) {
+			const node = this.nodes.get(element);
+			if (node) {
+				handles.push(node.item.handle);
+			} else {
+				console.error('Not found: ', element);
+			}
+		}
+		if (elements.length) {
+			return this.proxy.$expand(this.viewId, handles, recursive);
+		}
+		return Promise.resolve();
 	}
 
 	setExpanded(treeItemHandle: TreeItemHandle, expanded: boolean): void {
