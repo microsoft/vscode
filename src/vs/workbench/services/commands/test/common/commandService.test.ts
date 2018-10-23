@@ -19,6 +19,7 @@ class SimpleExtensionService implements IExtensionService {
 		return this._onDidRegisterExtensions.event;
 	}
 	onDidChangeExtensionsStatus = null;
+	onWillActivateByEvent = null;
 	activateByEvent(activationEvent: string): Promise<void> {
 		return this.whenInstalledExtensionsRegistered().then(() => { });
 	}

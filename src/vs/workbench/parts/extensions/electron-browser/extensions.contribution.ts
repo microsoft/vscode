@@ -44,6 +44,7 @@ import { ExtensionHostProfileService } from 'vs/workbench/parts/extensions/elect
 import { RuntimeExtensionsInput } from 'vs/workbench/services/extensions/electron-browser/runtimeExtensionsInput';
 import { URI } from 'vs/base/common/uri';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
+import { ExtensionActivationProgress } from 'vs/workbench/parts/extensions/electron-browser/extensionsActivationProgress';
 
 // Singletons
 registerSingleton(IExtensionsWorkbenchService, ExtensionsWorkbenchService);
@@ -56,6 +57,7 @@ workbenchRegistry.registerWorkbenchContribution(MaliciousExtensionChecker, Lifec
 workbenchRegistry.registerWorkbenchContribution(ConfigureRecommendedExtensionsCommandsContributor, LifecyclePhase.Eventually);
 workbenchRegistry.registerWorkbenchContribution(KeymapExtensions, LifecyclePhase.Running);
 workbenchRegistry.registerWorkbenchContribution(ExtensionsViewletViewsContribution, LifecyclePhase.Starting);
+workbenchRegistry.registerWorkbenchContribution(ExtensionActivationProgress, LifecyclePhase.Eventually);
 
 Registry.as<IOutputChannelRegistry>(OutputExtensions.OutputChannels)
 	.registerChannel({ id: ExtensionsChannelId, label: ExtensionsLabel, log: false });

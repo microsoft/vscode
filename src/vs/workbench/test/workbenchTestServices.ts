@@ -58,7 +58,7 @@ import { Range } from 'vs/editor/common/core/range';
 import { IConfirmation, IConfirmationResult, IDialogService, IDialogOptions, IPickAndOpenOptions, ISaveDialogOptions, IOpenDialogOptions, IFileDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { TestNotificationService } from 'vs/platform/notification/test/common/testNotificationService';
-import { IExtensionService, ProfileSession, IExtensionsStatus, ExtensionPointContribution, IExtensionDescription } from '../services/extensions/common/extensions';
+import { IExtensionService, ProfileSession, IExtensionsStatus, ExtensionPointContribution, IExtensionDescription, IWillActivateEvent } from '../services/extensions/common/extensions';
 import { IExtensionPoint } from 'vs/workbench/services/extensions/common/extensionsRegistry';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IDecorationsService, IResourceDecorationChangeEvent, IDecoration, IDecorationData, IDecorationsProvider } from 'vs/workbench/services/decorations/browser/decorations';
@@ -310,6 +310,7 @@ export class TestExtensionService implements IExtensionService {
 	_serviceBrand: any;
 	onDidRegisterExtensions: Event<void> = Event.None;
 	onDidChangeExtensionsStatus: Event<string[]> = Event.None;
+	onWillActivateByEvent: Event<IWillActivateEvent> = Event.None;
 	activateByEvent(_activationEvent: string): TPromise<void> { return TPromise.as(void 0); }
 	whenInstalledExtensionsRegistered(): TPromise<boolean> { return TPromise.as(true); }
 	getExtensions(): TPromise<IExtensionDescription[]> { return TPromise.as([]); }
