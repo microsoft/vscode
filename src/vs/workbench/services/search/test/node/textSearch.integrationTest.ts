@@ -49,22 +49,25 @@ function doLegacySearchTest(config: ITextQuery, expectedResultCount: number | Fu
 	});
 }
 
-function doRipgrepSearchTest(query: ITextQuery, expectedResultCount: number | Function): TPromise<void> {
+function doRipgrepSearchTest(query: ITextQuery, expectedResultCount: number | Function): TPromise<ISerializedFileMatch[]> {
 	let engine = new TextSearchEngineAdapter(query);
 
 	let c = 0;
-	return engine.search(new CancellationTokenSource().token, (results) => {
-		if (results) {
-			c += results.reduce((acc, cur) => acc + cur.numMatches, 0);
+	const results: ISerializedFileMatch[] = [];
+	return engine.search(new CancellationTokenSource().token, _results => {
+		if (_results) {
+			c += _results.reduce((acc, cur) => acc + cur.numMatches, 0);
+			results.push(..._results);
 		}
-	}, () => { }).then(
-		() => {
-			if (typeof expectedResultCount === 'function') {
-				assert(expectedResultCount(c));
-			} else {
-				assert.equal(c, expectedResultCount, `rg ${c} !== ${expectedResultCount}`);
-			}
-		});
+	}, () => { }).then(() => {
+		if (typeof expectedResultCount === 'function') {
+			assert(expectedResultCount(c));
+		} else {
+			assert.equal(c, expectedResultCount, `rg ${c} !== ${expectedResultCount}`);
+		}
+
+		return results;
+	});
 }
 
 function doSearchTest(query: ITextQuery, expectedResultCount: number) {
@@ -371,6 +374,24 @@ suite('Search-integration', function () {
 				throw new Error('expected fail');
 			}, err => {
 				assert.equal(err.message, 'The literal \'"\\n"\' is not allowed in a regex');
+			});
+		});
+
+		test('Text: 语', () => {
+			const config = <ITextQuery>{
+				type: QueryType.Text,
+				folderQueries: ROOT_FOLDER_QUERY,
+				contentPattern: { pattern: '语' }
+			};
+
+			return doRipgrepSearchTest(config, 1).then(results => {
+				const matchRange = results[0].matches[0].range;
+				assert.deepEqual(matchRange, {
+					startLineNumber: 0,
+					startColumn: 1,
+					endLineNumber: 0,
+					endColumn: 2
+				});
 			});
 		});
 	});
