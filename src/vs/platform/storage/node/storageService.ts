@@ -175,28 +175,36 @@ export class StorageService extends Disposable implements IStorageService {
 				}
 			};
 
-			const globalItems = Object.create(null);
-			const globalItemsParsed = Object.create(null);
+			const globalItems = new Map<string, string>();
+			const globalItemsParsed = new Map<string, string>();
 			result[0].forEach((value, key) => {
-				globalItems[key] = value;
-				globalItemsParsed[key] = safeParse(value);
+				globalItems.set(key, value);
+				globalItemsParsed.set(key, safeParse(value));
 			});
 
-			const workspaceItems = Object.create(null);
-			const workspaceItemsParsed = Object.create(null);
+			const workspaceItems = new Map<string, string>();
+			const workspaceItemsParsed = new Map<string, string>();
 			result[1].forEach((value, key) => {
-				workspaceItems[key] = value;
-				workspaceItemsParsed[key] = safeParse(value);
+				workspaceItems.set(key, value);
+				workspaceItemsParsed.set(key, safeParse(value));
 			});
 
 			console.group(`Storage: Global (check: ${result[2]}, load: ${getDuration('willInitGlobalStorage', 'didInitGlobalStorage')}, path: ${this.globalStorageWorkspacePath})`);
-			console.table(globalItems);
+			let globalValues = [];
+			globalItems.forEach((value, key) => {
+				globalValues.push({ key, value });
+			});
+			console.table(globalValues);
 			console.groupEnd();
 
 			console.log(globalItemsParsed);
 
 			console.group(`Storage: Workspace (check: ${result[3]}, load: ${getDuration('willInitWorkspaceStorage', 'didInitWorkspaceStorage')}, path: ${this.workspaceStoragePath})`);
-			console.table(workspaceItems);
+			let workspaceValues = [];
+			workspaceItems.forEach((value, key) => {
+				workspaceValues.push({ key, value });
+			});
+			console.table(workspaceValues);
 			console.groupEnd();
 
 			console.log(workspaceItemsParsed);
