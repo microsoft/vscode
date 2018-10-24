@@ -34,6 +34,7 @@ import { Color, RGBA } from 'vs/base/common/color';
 import { IMarginData } from 'vs/editor/browser/controller/mouseTarget';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
+import { CancelablePromise, createCancelablePromise } from 'vs/base/common/async';
 
 export const ctxReviewPanelVisible = new RawContextKey<boolean>('reviewPanelVisible', false);
 
@@ -171,6 +172,7 @@ export class ReviewController implements IEditorContribution {
 	private _commentingRangeDecorator: CommentingRangeDecorator;
 	private mouseDownInfo: { lineNumber: number } | null = null;
 	private _commentingRangeSpaceReserved = false;
+	private _computePromise: CancelablePromise<modes.CommentInfo[]> | null;
 
 	private _pendingCommentCache: { [key: number]: { [key: string]: string } };
 	private _pendingNewCommentCache: { [key: string]: { lineNumber: number, replyCommand: modes.Command, ownerId: number, pendingComment: string } };
@@ -196,6 +198,7 @@ export class ReviewController implements IEditorContribution {
 		this._pendingCommentCache = {};
 		this._pendingNewCommentCache = {};
 		this._newCommentWidget = null;
+		this._computePromise = null;
 
 		this._reviewPanelVisible = ctxReviewPanelVisible.bindTo(contextKeyService);
 		this._commentingRangeDecorator = new CommentingRangeDecorator();
@@ -209,9 +212,9 @@ export class ReviewController implements IEditorContribution {
 
 			delete this._pendingNewCommentCache[ownerId];
 			delete this._pendingCommentCache[ownerId];
-			this.recomputeComments();
+			this.beginCompute();
 		}));
-		this.globalToDispose.push(this.commentService.onDidSetDataProvider(_ => this.recomputeComments()));
+		this.globalToDispose.push(this.commentService.onDidSetDataProvider(_ => this.beginCompute()));
 
 		this.globalToDispose.push(this.commentService.onDidSetResourceCommentInfos(e => {
 			const editorURI = this.editor && this.editor.getModel() && this.editor.getModel().uri;
@@ -222,26 +225,38 @@ export class ReviewController implements IEditorContribution {
 
 		this.globalToDispose.push(this.editor.onDidChangeModel(e => this.onModelChanged(e)));
 		this.codeEditorService.registerDecorationType(COMMENTEDITOR_DECORATION_KEY, {});
+		this.beginCompute();
 	}
 
-	private recomputeComments(): void {
-		const editorURI = this.editor && this.editor.getModel() && this.editor.getModel().uri;
+	private beginCompute(): Promise<void> {
+		this._computePromise = createCancelablePromise(token => {
+			const editorURI = this.editor && this.editor.getModel() && this.editor.getModel().uri;
 
-		if (editorURI) {
-			this.commentService.getComments(editorURI).then(commentInfos => {
-				this.setComments(commentInfos.filter(commentInfo => commentInfo !== null));
-			}, error => console.log(error));
-		}
+			if (editorURI) {
+				return this.commentService.getComments(editorURI);
+			}
+
+			return Promise.resolve([]);
+		});
+
+		return this._computePromise.then(commentInfos => {
+			this.setComments(commentInfos.filter(commentInfo => commentInfo !== null));
+			this._computePromise = null;
+		}, error => console.log(error));
 	}
 
 	public static get(editor: ICodeEditor): ReviewController {
 		return editor.getContribution<ReviewController>(ID);
 	}
 
-	public revealCommentThread(threadId: string, commentId?: string): void {
+	public revealCommentThread(threadId: string, commentId: string, fetchOnceIfNotExist: boolean): void {
 		const commentThreadWidget = this._commentWidgets.filter(widget => widget.commentThread.threadId === threadId);
 		if (commentThreadWidget.length === 1) {
 			commentThreadWidget[0].reveal(commentId);
+		} else if (fetchOnceIfNotExist) {
+			this.beginCompute().then(_ => {
+				this.revealCommentThread(threadId, commentId, false);
+			});
 		}
 	}
 
@@ -379,6 +394,8 @@ export class ReviewController implements IEditorContribution {
 				this._commentInfos.filter(info => info.owner === e.owner)[0].threads.push(thread);
 			});
 		}));
+
+		this.beginCompute();
 	}
 
 	private addComment(lineNumber: number, replyCommand: modes.Command, ownerId: number, pendingComment: string) {
