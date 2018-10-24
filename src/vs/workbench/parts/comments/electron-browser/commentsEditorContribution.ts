@@ -202,15 +202,16 @@ export class ReviewController implements IEditorContribution {
 
 		this.globalToDispose.push(this.commentService.onDidDeleteDataProvider(ownerId => {
 			// Remove new comment widget and glyph, refresh comments
-			if (this._newCommentWidget) {
+			if (this._newCommentWidget && this._newCommentWidget.owner === ownerId) {
 				this._newCommentWidget.dispose();
 				this._newCommentWidget = null;
 			}
 
 			delete this._pendingNewCommentCache[ownerId];
 			delete this._pendingCommentCache[ownerId];
-			this.getComments();
+			this.recomputeComments();
 		}));
+		this.globalToDispose.push(this.commentService.onDidSetDataProvider(_ => this.recomputeComments()));
 
 		this.globalToDispose.push(this.commentService.onDidSetResourceCommentInfos(e => {
 			const editorURI = this.editor && this.editor.getModel() && this.editor.getModel().uri;
@@ -219,13 +220,11 @@ export class ReviewController implements IEditorContribution {
 			}
 		}));
 
-		this.globalToDispose.push(this.commentService.onDidSetDataProvider(_ => this.getComments()));
-
 		this.globalToDispose.push(this.editor.onDidChangeModel(e => this.onModelChanged(e)));
 		this.codeEditorService.registerDecorationType(COMMENTEDITOR_DECORATION_KEY, {});
 	}
 
-	private getComments(): void {
+	private recomputeComments(): void {
 		const editorURI = this.editor && this.editor.getModel() && this.editor.getModel().uri;
 
 		if (editorURI) {
