@@ -54,14 +54,6 @@
 	line-height: 1;
 }
 
-.monaco-menu .monaco-action-bar.vertical .keybinding {
-	opacity: 0.63;
-}
-
-.monaco-menu .focused>.action-menu-item>.keybinding {
-	opacity: 1;
-}
-
 .monaco-menu .monaco-action-bar.vertical .submenu-indicator {
 	height: 100%;
 	-webkit-mask: url('submenu.svg') no-repeat 90% 50%/14px 14px;
@@ -147,8 +139,4 @@
 
 .hc-black .monaco-menu .monaco-action-bar.vertical .action-menu-item {
 	margin: 0;
-}
-
-.hc-black .monaco-menu .monaco-action-bar.vertical .keybinding {
-	opacity: 1;
 }
