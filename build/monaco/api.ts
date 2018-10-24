@@ -12,10 +12,6 @@ const dtsv = '2';
 
 const tsfmt = require('../../tsfmt.json');
 
-function log(message: any, ...rest: any[]): void {
-	util.log(util.colors.cyan('[monaco.d.ts]'), message, ...rest);
-}
-
 const SRC = path.join(__dirname, '../../src');
 export const RECIPE_PATH = path.join(__dirname, './monaco.d.ts.recipe');
 const DECLARATION_PATH = path.join(__dirname, '../../src/vs/monaco.d.ts');
@@ -520,8 +516,6 @@ export interface IMonacoDeclarationResult {
 }
 
 function _run(sourceFileGetter: SourceFileGetter): IMonacoDeclarationResult | null {
-	log('Starting monaco.d.ts generation');
-
 	const recipe = fs.readFileSync(RECIPE_PATH).toString();
 	const t = generateDeclarationFile(recipe, sourceFileGetter);
 	if (!t) {
@@ -536,8 +530,6 @@ function _run(sourceFileGetter: SourceFileGetter): IMonacoDeclarationResult | nu
 	const one = currentContent.replace(/\r\n/gm, '\n');
 	const other = result.replace(/\r\n/gm, '\n');
 	const isTheSame = (one === other);
-
-	log('Finished monaco.d.ts generation');
 
 	return {
 		content: result,

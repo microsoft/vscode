@@ -10,9 +10,6 @@ const path = require("path");
 const util = require("gulp-util");
 const dtsv = '2';
 const tsfmt = require('../../tsfmt.json');
-function log(message, ...rest) {
-    util.log(util.colors.cyan('[monaco.d.ts]'), message, ...rest);
-}
 const SRC = path.join(__dirname, '../../src');
 exports.RECIPE_PATH = path.join(__dirname, './monaco.d.ts.recipe');
 const DECLARATION_PATH = path.join(__dirname, '../../src/vs/monaco.d.ts');
@@ -432,7 +429,6 @@ function generateDeclarationFile(recipe, sourceFileGetter) {
     };
 }
 function _run(sourceFileGetter) {
-    log('Starting monaco.d.ts generation');
     const recipe = fs.readFileSync(exports.RECIPE_PATH).toString();
     const t = generateDeclarationFile(recipe, sourceFileGetter);
     if (!t) {
@@ -445,7 +441,6 @@ function _run(sourceFileGetter) {
     const one = currentContent.replace(/\r\n/gm, '\n');
     const other = result.replace(/\r\n/gm, '\n');
     const isTheSame = (one === other);
-    log('Finished monaco.d.ts generation');
     return {
         content: result,
         usageContent: usageContent,

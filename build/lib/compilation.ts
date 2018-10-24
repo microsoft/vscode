@@ -212,11 +212,9 @@ class MonacoGenerator {
 		const result = this._run();
 		if (!result) {
 			// nothing really changed
-			this._log(`monaco.d.ts is unchanged - total time took ${Date.now() - startTime} ms`);
 			return;
 		}
 		if (result.isTheSame) {
-			this._log(`monaco.d.ts is unchanged - total time took ${Date.now() - startTime} ms`);
 			return;
 		}
 
