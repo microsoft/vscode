@@ -32,11 +32,21 @@ export interface ISplitViewOptions {
 	proportionalLayout?: boolean; // default true
 }
 
+/**
+ * Only used when `proportionalLayout` is false.
+ */
+export const enum LayoutPriority {
+	Normal,
+	Low,
+	High
+}
+
 export interface IView {
 	readonly element: HTMLElement;
 	readonly minimumSize: number;
 	readonly maximumSize: number;
 	readonly onDidChange: Event<number | undefined>;
+	readonly priority?: LayoutPriority;
 	layout(size: number, orientation: Orientation): void;
 }
 
@@ -320,7 +330,7 @@ export class SplitView extends Disposable {
 	private relayout(lowPriorityIndex?: number, highPriorityIndex?: number): void {
 		const contentSize = this.viewItems.reduce((r, i) => r + i.size, 0);
 
-		this.resize(this.viewItems.length - 1, this.size - contentSize, undefined, lowPriorityIndex, highPriorityIndex);
+		this.resize(this.viewItems.length - 1, this.size - contentSize, undefined, [lowPriorityIndex], [highPriorityIndex]);
 		this.distributeEmptySpace();
 		this.layoutViews();
 		this.saveProportions();
@@ -331,7 +341,11 @@ export class SplitView extends Disposable {
 		this.size = size;
 
 		if (!this.proportions) {
-			this.resize(this.viewItems.length - 1, size - previousSize);
+			const indexes = range(this.viewItems.length);
+			const lowPriorityIndexes = indexes.filter(i => this.viewItems[i].view.priority === LayoutPriority.Low);
+			const highPriorityIndexes = indexes.filter(i => this.viewItems[i].view.priority === LayoutPriority.High);
+
+			this.resize(this.viewItems.length - 1, size - previousSize, undefined, lowPriorityIndexes, highPriorityIndexes);
 		} else {
 			for (let i = 0; i < this.viewItems.length; i++) {
 				const item = this.viewItems[i];
@@ -502,8 +516,8 @@ export class SplitView extends Disposable {
 		index: number,
 		delta: number,
 		sizes = this.viewItems.map(i => i.size),
-		lowPriorityIndex?: number,
-		highPriorityIndex?: number,
+		lowPriorityIndexes?: number[],
+		highPriorityIndexes?: number[],
 		overloadMinDelta: number = Number.NEGATIVE_INFINITY,
 		overloadMaxDelta: number = Number.POSITIVE_INFINITY
 	): number {
@@ -514,14 +528,18 @@ export class SplitView extends Disposable {
 		const upIndexes = range(index, -1);
 		const downIndexes = range(index + 1, this.viewItems.length);
 
-		if (typeof highPriorityIndex === 'number') {
-			pushToStart(upIndexes, highPriorityIndex);
-			pushToStart(downIndexes, highPriorityIndex);
+		if (highPriorityIndexes) {
+			for (const index of highPriorityIndexes) {
+				pushToStart(upIndexes, index);
+				pushToStart(downIndexes, index);
+			}
 		}
 
-		if (typeof lowPriorityIndex === 'number') {
-			pushToEnd(upIndexes, lowPriorityIndex);
-			pushToEnd(downIndexes, lowPriorityIndex);
+		if (lowPriorityIndexes) {
+			for (const index of lowPriorityIndexes) {
+				pushToEnd(upIndexes, index);
+				pushToEnd(downIndexes, index);
+			}
 		}
 
 		const upItems = upIndexes.map(i => this.viewItems[i]);
