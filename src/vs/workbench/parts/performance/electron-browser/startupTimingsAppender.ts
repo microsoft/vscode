@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ILifecycleService, LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
+import { LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
 import { IWindowsService } from 'vs/platform/windows/common/windows';
 import { IWorkbenchContributionsRegistry, IWorkbenchContribution, Extensions } from 'vs/workbench/common/contributions';
 import { Registry } from 'vs/platform/registry/common/platform';
@@ -18,7 +18,6 @@ class StartupTimingsAppender implements IWorkbenchContribution {
 	constructor(
 		@ITimerService timerService: ITimerService,
 		@IWindowsService windowsService: IWindowsService,
-		@ILifecycleService lifecycleService: ILifecycleService,
 		@IEnvironmentService environmentService: IEnvironmentService,
 	) {
 
