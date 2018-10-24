@@ -592,17 +592,16 @@ export class TypeOperations {
 			//*** Added code to check if position of cursor needs to be changed (as specified by user) after autocompletion is done
 			//*** Initialze lineTokens to avoid initializing to null
 			const position = selection.getPosition();
-			let lineTokens = model.getLineTokens(position.lineNumber);
 
 			if (model.isCheapToTokenize(position.lineNumber)) {
 				model.forceTokenization(position.lineNumber);
-				lineTokens = model.getLineTokens(position.lineNumber);
 			}
 
+			let lineTokens = model.getLineTokens(position.lineNumber);
 			const newCursorPosition = LanguageConfigurationRegistry.shouldChangeCursorPositionAfterAutocomplete(ch, lineTokens, position.column, false);
 
 			const closeCharacter = config.autoClosingPairsOpen[ch];
-			if (newCursorPosition >= 0) {
+			if (newCursorPosition) {
 				commands[i] = new ReplaceCommandWithOffsetCursorState(selection, ch + closeCharacter, 0, (-closeCharacter.length + newCursorPosition));
 			} else {
 				commands[i] = new ReplaceCommandWithOffsetCursorState(selection, ch + closeCharacter, 0, -closeCharacter.length);
@@ -714,7 +713,7 @@ export class TypeOperations {
 			let command;
 
 			//*** Added support for (user input) cursorPosition for complexAutoClosePairs
-			if (newCursorPosition >= 0) {
+			if (newCursorPosition) {
 				command = new ReplaceCommandWithOffsetCursorState(selection, ch + electricAction.appendText, 0, (-electricAction.appendText.length + newCursorPosition));
 			} else {
 				command = new ReplaceCommandWithOffsetCursorState(selection, ch + electricAction.appendText, 0, -electricAction.appendText.length);

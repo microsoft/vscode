@@ -58,7 +58,7 @@ export class CharacterPairSupport {
 	}
 
 	//*** Added code to check if user specified a valid cursor position to move cursor to after autocomplete is done
-	public shouldChangeCursorPositionAfterAutocomplete(character: string): number {
+	public shouldChangeCursorPositionAfterAutocomplete(character: string): number | null {
 		for (let i = 0; i < this._autoClosingPairs.length; ++i) {
 			let autoClosingPair = this._autoClosingPairs[i];
 
@@ -66,7 +66,7 @@ export class CharacterPairSupport {
 				return autoClosingPair.getCursorPositionOption();
 			}
 		}
-		return -1;
+		return null;
 	}
 
 	public getSurroundingPairs(): IAutoClosingPair[] {

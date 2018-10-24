@@ -296,20 +296,20 @@ export class LanguageConfigurationRegistryImpl {
 
 	//*** Added code to check if user specified a valid cursor position to move cursor to after autocomplete is done. 
 	//*** Also added support for electric chars
-	public shouldChangeCursorPositionAfterAutocomplete(character: string, context: LineTokens, column: number, isElectricChar: boolean): number {
+	public shouldChangeCursorPositionAfterAutocomplete(character: string, context: LineTokens, column: number, isElectricChar: boolean): number | null {
 		let scopedLineTokens = createScopedLineTokens(context, column - 1);
 
 		if (isElectricChar === true) {
 			let electricCharacterSupport = this._getElectricCharacterSupport(scopedLineTokens.languageId);
 			if (!electricCharacterSupport) {
-				return -1;
+				return null;
 			}
 			return electricCharacterSupport.shouldChangeCursorPositionAfterAutocomplete(character);
 		}
 
 		let characterPairSupport = this._getCharacterPairSupport(scopedLineTokens.languageId);
 		if (!characterPairSupport) {
-			return -1;
+			return null;
 		}
 		return characterPairSupport.shouldChangeCursorPositionAfterAutocomplete(character);
 	}

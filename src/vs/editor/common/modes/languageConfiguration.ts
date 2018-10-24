@@ -260,7 +260,7 @@ export class StandardAutoClosingPairConditional {
 		this._standardTokenMask = 0;
 
 		// Check if integer
-		if (source.cursorPosition && !isNaN(source.cursorPosition) && (source.cursorPosition % 1 === 0)) {
+		if (source.cursorPosition && typeof source.cursorPosition === 'number' && (source.cursorPosition % 1 === 0)) {
 			// Make sure the given integer (cursor position) is within the bounds of the close string
 			if (source.cursorPosition >= 0 && source.cursorPosition <= this.close.length) {
 				this._cursorPositionOption = source.cursorPosition;
@@ -320,7 +320,7 @@ export class StandardAutoClosingPairConditional {
 
 			/**
 			* Loop through each digit and add them all together to determine the case,
-			* i.e. '24' = ['string', 'regex']. Sum = 6, which is case 6.
+			* i.e. '24' = ['string', 'regex']. Sum = 6, which is case 6. 
 			* We want to do this so that the order of the "onlyIn" input doesn't matter
 			*/
 			while (this._value > 0) {
@@ -361,7 +361,7 @@ export class StandardAutoClosingPairConditional {
 		}
 	}
 
-	//*** Set a variable to determine if we have a notIn array or an onlyIn array (or neither).
+	//*** Set a variable to determine if we have a notIn array or an onlyIn array (or neither). 
 	//*** If there's both a notIn array and onlyIn array set, the onlyIn array will be skipped (needs to be one or the other)
 	//*** If the onlyIn array var is set, check if the StandardTokenType of isOK is "other". If so, return false
 	//*** (i.e. don't autoclose)
@@ -373,10 +373,10 @@ export class StandardAutoClosingPairConditional {
 	}
 
 	//*** Get the user input for the autoclose cursor position (if it's valid)
-	public getCursorPositionOption(): number {
+	public getCursorPositionOption(): number | null {
 		if (this._cursorPositionOption) {
 			return this._cursorPositionOption;
 		}
-		return -1;
+		return null;
 	}
 }

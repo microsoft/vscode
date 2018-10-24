@@ -200,9 +200,13 @@ export class LanguageConfigurationFileHandler {
 						continue;
 					}
 				}
-				if (typeof pair.cursorPosition !== 'number') {
-					console.warn(`[${languageIdentifier.language}]: language configuration: expected \`autoClosingPairs[${i}].cursorPosition\` to be a number.`);
-					continue;
+				if (typeof pair.cursorPosition !== 'undefined') {
+					if (typeof pair.cursorPosition !== 'number') {
+						console.warn(`[${languageIdentifier.language}]: language configuration: expected \`autoClosingPairs[${i}].cursorPosition\` to be a number.`);
+						// Skip continue statement. Don't want to skip autocompletion simply because the cursorPosition value
+						// is not formatted correctly
+						// continue;
+					}
 				}
 				result = result || [];
 				result.push({ open: pair.open, close: pair.close, notIn: pair.notIn, onlyIn: pair.onlyIn, cursorPosition: pair.cursorPosition });
