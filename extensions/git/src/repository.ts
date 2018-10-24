@@ -570,6 +570,7 @@ export class Repository implements Disposable {
 		const root = Uri.file(repository.root);
 		this._sourceControl = scm.createSourceControl('git', 'Git', root);
 		this._sourceControl.inputBox.placeholder = localize('commitMessage', "Message (press {0} to commit)");
+		this._sourceControl.inputBox.visible = false;
 		this._sourceControl.acceptInputCommand = { command: 'git.commitWithInput', title: localize('commit', "Commit"), arguments: [this._sourceControl] };
 		this._sourceControl.quickDiffProvider = this;
 		this._sourceControl.inputBox.validateInput = this.validateInput.bind(this);
