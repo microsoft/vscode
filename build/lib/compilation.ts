@@ -166,8 +166,7 @@ class MonacoGenerator {
 				const watcher = fs.watch(filePath);
 				watcher.addListener('change', () => {
 					this._inputFileChanged[filePath] = true;
-					// Avoid hitting empty files... :/
-					setTimeout(() => this.execute(), 10);
+					this._executeSoon();
 				});
 				this._watchers.push(watcher);
 			});
@@ -175,8 +174,7 @@ class MonacoGenerator {
 			const recipeWatcher = fs.watch(monacodts.RECIPE_PATH);
 			recipeWatcher.addListener('change', () => {
 				this._recipeFileChanged = true;
-				// Avoid hitting empty files... :/
-				setTimeout(() => this.execute(), 10);
+				this._executeSoon();
 			});
 			this._watchers.push(recipeWatcher);
 		}
@@ -186,6 +184,18 @@ class MonacoGenerator {
 		this._recipeFileChanged = true;
 		this._dtsFilesContents = {};
 		this._dtsFilesContents2 = {};
+	}
+
+	private _executeSoonTimer: NodeJS.Timer | null = null;
+	private _executeSoon(): void {
+		if (this._executeSoonTimer !== null) {
+			// Already scheduled
+			return;
+		}
+		this._executeSoonTimer = setTimeout(() => {
+			this._executeSoonTimer = null;
+			this.execute();
+		}, 20);
 	}
 
 	public dispose(): void {
