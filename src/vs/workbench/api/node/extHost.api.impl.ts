@@ -463,7 +463,7 @@ export function createApiFactory(
 			registerTreeDataProvider(viewId: string, treeDataProvider: vscode.TreeDataProvider<any>): vscode.Disposable {
 				return extHostTreeViews.registerTreeDataProvider(viewId, treeDataProvider);
 			},
-			createTreeView(viewId: string, options: { treeDataProvider: vscode.TreeDataProvider<any> }): vscode.TreeView2<any> {
+			createTreeView(viewId: string, options: { treeDataProvider: vscode.TreeDataProvider<any> }): vscode.TreeView<any> {
 				return extHostTreeViews.createTreeView(viewId, options);
 			},
 			registerWebviewPanelSerializer: (viewType: string, serializer: vscode.WebviewPanelSerializer) => {

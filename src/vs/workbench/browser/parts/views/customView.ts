@@ -378,33 +378,6 @@ export class CustomTreeViewer extends Disposable implements ITreeViewer {
 		return Promise.resolve(null);
 	}
 
-	async collapse(treeItems: undefined | ITreeItem[], recursive?: boolean): Promise<void> {
-		if (this.dataProvider && this.tree) {
-			await this.tree.collapseAll(treeItems, recursive);
-		}
-	}
-
-	async expand(treeItems: ITreeItem[], recursive?: boolean): Promise<void> {
-		if (this.dataProvider && this.tree) {
-			const itemsToExpand: ITreeItem[] = [];
-			const seen: Set<string> = new Set<string>();
-			for (const treeItem of treeItems) {
-				if (!seen.has(treeItem.handle)) {
-					if (treeItem.collapsibleState !== TreeItemCollapsibleState.None) {
-						itemsToExpand.push(treeItem);
-					}
-					seen.add(treeItem.handle);
-				}
-			}
-			if (itemsToExpand.length) {
-				await this.tree.expandAll(itemsToExpand);
-				if (recursive) {
-					await this.expand(itemsToExpand.reduce((result, item) => { result.push(...(item.children ? item.children : [])); return result; }, []), recursive);
-				}
-			}
-		}
-	}
-
 	reveal(item: ITreeItem, parentChain: ITreeItem[], options?: { select?: boolean, focus?: boolean }): TPromise<void> {
 		if (this.dataProvider && this.tree && this.isVisible) {
 			options = options ? options : { select: false, focus: false };

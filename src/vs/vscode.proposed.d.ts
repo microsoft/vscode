@@ -1132,37 +1132,7 @@ declare module 'vscode' {
 	}
 	//#endregion
 
-	//#region Tree View
-
-	export namespace window {
-		export function createTreeView<T>(viewId: string, options: { treeDataProvider: TreeDataProvider<T> }): TreeView2<T>;
-	}
-
-	export interface TreeView2<T> extends TreeView<T> {
-
-		/**
-		 * Collapses an element or several elements.
-		 *
-		 * @param elementOrElements element(s) to collpase.
-		 * @param recursive Controls if elements have to be collapsed recursively or not.
-		 */
-		collapse(elementOrElements: T | T[], recursive?: boolean): Thenable<void>;
-
-		/**
-		 * Collapse all elements.
-		 */
-		collapseAll(): Thenable<void>;
-
-		/**
-		 * Expands an element or several elements.
-		 *
-		 * @param elementOrElements element(s) to expand.
-		 * @param recursive Controls if elements have to be expanded recursively or not.
-		 */
-		expand(elementOrElements: T | T[], recursive?: boolean): Thenable<void>;
-
-	}
-
+	//#region Tree Item Label Highlights
 	/**
 	 * Label describing the [Tree item](#TreeItem)
 	 */
@@ -1192,7 +1162,6 @@ declare module 'vscode' {
 		 */
 		constructor(label: TreeItemLabel, collapsibleState?: TreeItemCollapsibleState);
 	}
-
 	//#endregion
 
 	//#region Task

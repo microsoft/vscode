@@ -57,40 +57,6 @@ export class MainThreadTreeViews extends Disposable implements MainThreadTreeVie
 		return TPromise.as(null);
 	}
 
-	$collapse(treeViewId: string, handles: undefined | string[], recursive?: boolean): Thenable<void> {
-		const viewer = this.getTreeViewer(treeViewId);
-		const dataProvider = this._dataProviders.get(treeViewId);
-		if (viewer && dataProvider) {
-			const items = handles ? [] : void 0;
-			if (handles) {
-				for (const handle of handles) {
-					const item = dataProvider.getItem(handle);
-					if (item) {
-						items.push(item);
-					}
-				}
-			}
-			viewer.collapse(items, recursive);
-		}
-		return Promise.resolve();
-	}
-
-	$expand(treeViewId: string, handles: string[], recursive?: boolean): Thenable<void> {
-		const viewer = this.getTreeViewer(treeViewId);
-		const dataProvider = this._dataProviders.get(treeViewId);
-		if (viewer && dataProvider) {
-			const items = [];
-			for (const handle of handles) {
-				const item = dataProvider.getItem(handle);
-				if (item) {
-					items.push(item);
-				}
-			}
-			viewer.expand(items, recursive);
-		}
-		return Promise.resolve();
-	}
-
 	private registerListeners(treeViewId: string, treeViewer: ITreeViewer): void {
 		this._register(treeViewer.onDidExpandItem(item => this._proxy.$setExpanded(treeViewId, item.handle, true)));
 		this._register(treeViewer.onDidCollapseItem(item => this._proxy.$setExpanded(treeViewId, item.handle, false)));
@@ -144,7 +110,7 @@ class TreeViewDataProvider implements ITreeViewDataProvider {
 		const itemsToRefresh: ITreeItem[] = [];
 		if (itemsToRefreshByHandle) {
 			for (const treeItemHandle of Object.keys(itemsToRefreshByHandle)) {
-				const currentTreeItem = this.getItem(treeItemHandle);
+				const currentTreeItem = this.itemsMap.get(treeItemHandle);
 				if (currentTreeItem) { // Refresh only if the item exists
 					const treeItem = itemsToRefreshByHandle[treeItemHandle];
 					// Update the current item with refreshed item
@@ -164,10 +130,6 @@ class TreeViewDataProvider implements ITreeViewDataProvider {
 			}
 		}
 		return itemsToRefresh;
-	}
-
-	getItem(handle: string): ITreeItem {
-		return this.itemsMap.get(handle);
 	}
 
 	private postGetChildren(elements: ITreeItem[]): ITreeItem[] {
