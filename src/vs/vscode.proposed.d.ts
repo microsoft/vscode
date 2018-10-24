@@ -1147,16 +1147,6 @@ declare module 'vscode' {
 	}
 	//#endregion
 
-	//#region #59232
-
-	export interface QuickPickItem {
-		/**
-		 * Show this item always
-		 */
-		alwaysShow?: boolean;
-	}
-	//#endregion
-
 	//#region Tree Item Label Highlights
 	/**
 	 * Label describing the [Tree item](#TreeItem)
