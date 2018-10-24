@@ -8,6 +8,8 @@ import * as ts from 'typescript';
 import * as path from 'path';
 import * as util from 'gulp-util';
 
+const dtsv = '1';
+
 const tsfmt = require('../../tsfmt.json');
 
 function log(message: any, ...rest: any[]): void {
@@ -23,6 +25,9 @@ var CURRENT_PROCESSING_RULE = '';
 function logErr(message: any, ...rest: any[]): void {
 	util.log(util.colors.red('[monaco.d.ts]'), 'WHILE HANDLING RULE: ', CURRENT_PROCESSING_RULE);
 	util.log(util.colors.red('[monaco.d.ts]'), message, ...rest);
+}
+function _logErr(message: any, ...rest: any[]): void {
+	util.log(util.colors.red(`[monaco.d.ts]`), message, ...rest);
 }
 
 function moduleIdToPath(out: string, moduleId: string): string {
@@ -362,7 +367,13 @@ function createReplacer(data: string): (str: string) => string {
 	};
 }
 
-function generateDeclarationFile(recipe: string, sourceFileGetter: SourceFileGetter): [string, string, string] {
+interface ITempResult {
+	result: string;
+	usageContent: string;
+	enums: string;
+}
+
+function generateDeclarationFile(recipe: string, sourceFileGetter: SourceFileGetter): ITempResult | null {
 	const endl = /\r\n/.test(recipe) ? '\r\n' : '\n';
 
 	let lines = recipe.split(endl);
@@ -371,6 +382,8 @@ function generateDeclarationFile(recipe: string, sourceFileGetter: SourceFileGet
 	let usageCounter = 0;
 	let usageImports: string[] = [];
 	let usage: string[] = [];
+
+	let failed = false;
 
 	usage.push(`var a;`);
 	usage.push(`var b;`);
@@ -382,8 +395,18 @@ function generateDeclarationFile(recipe: string, sourceFileGetter: SourceFileGet
 	};
 
 	let enums: string[] = [];
+	let version: string | null = null;
 
 	lines.forEach(line => {
+
+		if (failed) {
+			return;
+		}
+
+		let m0 = line.match(/^\/\/dtsv=(\d+)$/);
+		if (m0) {
+			version = m0[1];
+		}
 
 		let m1 = line.match(/^\s*#include\(([^;)]*)(;[^)]*)?\)\:(.*)$/);
 		if (m1) {
@@ -391,6 +414,8 @@ function generateDeclarationFile(recipe: string, sourceFileGetter: SourceFileGet
 			let moduleId = m1[1];
 			const sourceFile = sourceFileGetter(moduleId);
 			if (!sourceFile) {
+				_logErr(`gulp watch restart required. ${moduleId} was added to 'monaco.d.ts.recipe'.`);
+				failed = true;
 				return;
 			}
 
@@ -420,6 +445,8 @@ function generateDeclarationFile(recipe: string, sourceFileGetter: SourceFileGet
 			let moduleId = m2[1];
 			const sourceFile = sourceFileGetter(moduleId);
 			if (!sourceFile) {
+				_logErr(`gulp watch restart required. ${moduleId} was added to 'monaco.d.ts.recipe'.`);
+				failed = true;
 				return;
 			}
 
@@ -461,6 +488,19 @@ function generateDeclarationFile(recipe: string, sourceFileGetter: SourceFileGet
 		result.push(line);
 	});
 
+	if (failed) {
+		return null;
+	}
+
+	if (version !== dtsv) {
+		if (!version) {
+			_logErr(`gulp watch restart required. 'monaco.d.ts.recipe' is written before versioning was introduced.`);
+		} else {
+			_logErr(`gulp watch restart required. 'monaco.d.ts.recipe' v${version} does not match runtime v${dtsv}.`);
+		}
+		return null;
+	}
+
 	let resultTxt = result.join(endl);
 	resultTxt = resultTxt.replace(/\bURI\b/g, 'Uri');
 	resultTxt = resultTxt.replace(/\bEvent</g, 'IEvent<');
@@ -477,11 +517,11 @@ function generateDeclarationFile(recipe: string, sourceFileGetter: SourceFileGet
 	].concat(enums).join(endl);
 	resultEnums = format(resultEnums, endl);
 
-	return [
-		resultTxt,
-		`${usageImports.join('\n')}\n\n${usage.join('\n')}`,
-		resultEnums
-	];
+	return {
+		result: resultTxt,
+		usageContent: `${usageImports.join('\n')}\n\n${usage.join('\n')}`,
+		enums: resultEnums
+	};
 }
 
 export function getIncludesInRecipe(): string[] {
@@ -521,11 +561,18 @@ export interface IMonacoDeclarationResult {
 	isTheSame: boolean;
 }
 
-function _run(sourceFileGetter: SourceFileGetter): IMonacoDeclarationResult {
+function _run(sourceFileGetter: SourceFileGetter): IMonacoDeclarationResult | null {
 	log('Starting monaco.d.ts generation');
 
 	const recipe = fs.readFileSync(RECIPE_PATH).toString();
-	const [result, usageContent, enums] = generateDeclarationFile(recipe, sourceFileGetter);
+	const t = generateDeclarationFile(recipe, sourceFileGetter);
+	if (!t) {
+		return null;
+	}
+
+	const result = t.result;
+	const usageContent = t.usageContent;
+	const enums = t.enums;
 
 	const currentContent = fs.readFileSync(DECLARATION_PATH).toString();
 	const one = currentContent.replace(/\r\n/gm, '\n');
@@ -543,7 +590,7 @@ function _run(sourceFileGetter: SourceFileGetter): IMonacoDeclarationResult {
 	};
 }
 
-export function run(out: string, inputFiles: { [file: string]: string; }): IMonacoDeclarationResult {
+function run(out: string, inputFiles: { [file: string]: string; }): IMonacoDeclarationResult | null {
 
 	let SOURCE_FILE_MAP: { [moduleId: string]: ts.SourceFile; } = {};
 	const sourceFileGetter = (moduleId: string): ts.SourceFile | null => {
@@ -566,7 +613,7 @@ export function run(out: string, inputFiles: { [file: string]: string; }): IMona
 	return _run(sourceFileGetter);
 }
 
-export function run2(out: string, sourceFileMap: ISourceFileMap): IMonacoDeclarationResult {
+export function run2(out: string, sourceFileMap: ISourceFileMap): IMonacoDeclarationResult | null {
 	const sourceFileGetter = (moduleId: string): ts.SourceFile | null => {
 		let filePath = path.normalize(moduleIdToPath(out, moduleId));
 		return sourceFileMap[filePath];
@@ -663,5 +710,9 @@ export function execute(): IMonacoDeclarationResult {
 	});
 	console.log(`Generating .d.ts took ${Date.now() - t1} ms`);
 
-	return run('src', OUTPUT_FILES);
+	let r = run('src', OUTPUT_FILES);
+	if (!r) {
+		throw new Error(`monaco.d.ts genration error - Cannot continue`);
+	}
+	return r;
 }

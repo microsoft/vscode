@@ -85,3 +85,5 @@ declare namespace monaco.worker {
 #includeAll(vs/editor/common/services/editorSimpleWorker;):
 
 }
+
+//dtsv=1

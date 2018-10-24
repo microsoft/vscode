@@ -242,7 +242,12 @@ class MonacoGenerator {
 			return null;
 		}
 
-		return monacodts.run2('src', this._dtsFilesContents2);
+		let r = monacodts.run2('src', this._dtsFilesContents2);
+		if (!r && !this._isWatch) {
+			// The build must always be able to generate the monaco.d.ts
+			throw new Error(`monaco.d.ts genration error - Cannot continue`);
+		}
+		return r;
 	}
 
 	private _log(message: any, ...rest: any[]): void {
