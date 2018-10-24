@@ -329,8 +329,10 @@ export class SplitView extends Disposable {
 
 	private relayout(lowPriorityIndex?: number, highPriorityIndex?: number): void {
 		const contentSize = this.viewItems.reduce((r, i) => r + i.size, 0);
+		const lowPriorityIndexes = typeof lowPriorityIndex === 'number' ? [lowPriorityIndex] : undefined;
+		const highPriorityIndexes = typeof highPriorityIndex === 'number' ? [highPriorityIndex] : undefined;
 
-		this.resize(this.viewItems.length - 1, this.size - contentSize, undefined, [lowPriorityIndex], [highPriorityIndex]);
+		this.resize(this.viewItems.length - 1, this.size - contentSize, undefined, lowPriorityIndexes, highPriorityIndexes);
 		this.distributeEmptySpace();
 		this.layoutViews();
 		this.saveProportions();
