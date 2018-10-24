@@ -77,7 +77,7 @@ export class StorageService extends Disposable implements IStorageService {
 			}
 		};
 
-		this.globalStorageWorkspacePath = workspaceStoragePath === StorageService.IN_MEMORY_PATH ? StorageService.IN_MEMORY_PATH : StorageService.IN_MEMORY_PATH;
+		this.globalStorageWorkspacePath = StorageService.IN_MEMORY_PATH;
 		this.globalStorage = new Storage({ path: this.globalStorageWorkspacePath, logging: this.loggingOptions });
 		this._register(this.globalStorage.onDidChangeStorage(key => this.handleDidChangeStorage(key, StorageScope.GLOBAL)));
 
