@@ -63,7 +63,7 @@ export const overviewRulerCommentingRangeForeground = registerColor('editorGutte
 class CommentingRangeDecoration {
 	private _decorationId: string;
 
-	get id(): string {
+	public get id(): string {
 		return this._decorationId;
 	}
 
@@ -84,18 +84,18 @@ class CommentingRangeDecoration {
 		}
 	}
 
-	getCommentAction(): { replyCommand: modes.Command, ownerId: number } {
+	public getCommentAction(): { replyCommand: modes.Command, ownerId: number } {
 		return {
 			replyCommand: this._reply,
 			ownerId: this._ownerId
 		};
 	}
 
-	getOriginalRange() {
+	public getOriginalRange() {
 		return this._range;
 	}
 
-	getActiveRange() {
+	public getActiveRange() {
 		return this._editor.getModel().getDecorationRange(this._decorationId);
 	}
 }
@@ -122,7 +122,7 @@ class CommentingRangeDecorator {
 		this.commentsOptions = CommentingRangeDecorator.createDecoration('comment-thread', overviewRulerCommentingRangeForeground, options);
 	}
 
-	update(editor: ICodeEditor, commentInfos: modes.CommentInfo[]) {
+	public update(editor: ICodeEditor, commentInfos: modes.CommentInfo[]) {
 		let model = editor.getModel();
 		if (!model) {
 			return;
@@ -142,7 +142,7 @@ class CommentingRangeDecorator {
 		this.commentingRangeDecorations = commentingRangeDecorations;
 	}
 
-	getMatchedCommentAction(line: number) {
+	public getMatchedCommentAction(line: number) {
 		for (let i = 0; i < this.commentingRangeDecorations.length; i++) {
 			let range = this.commentingRangeDecorations[i].getActiveRange();
 
@@ -154,7 +154,7 @@ class CommentingRangeDecorator {
 		return null;
 	}
 
-	dispose(): void {
+	public dispose(): void {
 		this.disposables = dispose(this.disposables);
 		this.commentingRangeDecorations = [];
 	}
@@ -295,11 +295,11 @@ export class ReviewController implements IEditorContribution {
 		}
 	}
 
-	getId(): string {
+	public getId(): string {
 		return ID;
 	}
 
-	dispose(): void {
+	public dispose(): void {
 		this.globalToDispose = dispose(this.globalToDispose);
 		this.localToDispose = dispose(this.localToDispose);
 
@@ -478,7 +478,7 @@ export class ReviewController implements IEditorContribution {
 		}
 	}
 
-	setComments(commentInfos: modes.CommentInfo[]): void {
+	private setComments(commentInfos: modes.CommentInfo[]): void {
 		this._commentInfos = commentInfos;
 		let lineDecorationsWidth: number = this.editor.getConfiguration().layoutInfo.decorationsWidth;
 
@@ -554,7 +554,7 @@ export class ReviewController implements IEditorContribution {
 		this.editor.revealRangeInCenter(this.editor.getSelection());
 	}
 
-	removeCommentWidgetsAndStoreCache() {
+	private removeCommentWidgetsAndStoreCache() {
 		if (this._commentWidgets) {
 			this._commentWidgets.forEach(zone => {
 				let pendingComment = zone.getPendingComment();
