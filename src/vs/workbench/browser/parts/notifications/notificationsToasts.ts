@@ -209,15 +209,29 @@ export class NotificationsToasts extends Themable {
 		disposables.push(addDisposableListener(notificationToastContainer, EventType.MOUSE_OVER, () => isMouseOverToast = true));
 		disposables.push(addDisposableListener(notificationToastContainer, EventType.MOUSE_OUT, () => isMouseOverToast = false));
 
-		// Install Timers
+		// Install Timers to Purge Notification
 		let purgeTimeoutHandle: any;
 		const hideAfterTimeout = () => {
 			purgeTimeoutHandle = setTimeout(() => {
+
+				// If the notification is sticky or prompting and the window does not have
+				// focus, we wait for the window to gain focus again before triggering
+				// the timeout again. This prevents an issue where focussing the window
+				// could immediately hide the notification because the timeout was triggered
+				// again.
+				if ((item.sticky || item.hasPrompt()) && !this.windowHasFocus) {
+					disposables.push(this.windowService.onDidChangeFocus(focus => {
+						if (focus) {
+							hideAfterTimeout();
+						}
+					}));
+				}
+
+				// Otherwise...
 				if (
 					item.sticky ||								// never hide sticky notifications
 					notificationList.hasFocus() ||				// never hide notifications with focus
-					isMouseOverToast ||							// never hide notifications under mouse
-					(item.hasPrompt() && !this.windowHasFocus)	// never hide prompts when window has no focus
+					isMouseOverToast							// never hide notifications under mouse
 				) {
 					hideAfterTimeout();
 				} else {
