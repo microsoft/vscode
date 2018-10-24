@@ -140,7 +140,9 @@ export class SearchService extends Disposable implements ISearchService {
 						return;
 					}
 
-					onProgress(item);
+					if (onProgress) {
+						onProgress(item);
+					}
 				};
 
 				return this.searchWithProviders(query, progressCallback, token);
