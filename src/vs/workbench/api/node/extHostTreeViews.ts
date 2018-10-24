@@ -264,6 +264,10 @@ class ExtHostTreeView<T> extends Disposable {
 	}
 
 	private resolveTreeNode(element: T, parent?: TreeNode): Thenable<TreeNode> {
+		const node = this.nodes.get(element);
+		if (node) {
+			return Promise.resolve(node);
+		}
 		return asThenable(() => this.dataProvider.getTreeItem(element))
 			.then(extTreeItem => this.createHandle(element, extTreeItem, parent, true))
 			.then(handle => this.getChildren(parent ? parent.item.handle : null)

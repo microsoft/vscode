@@ -14,7 +14,6 @@
     "onLanguage:handlebars",
     "onLanguage:razor"
   ],
-  "enableProposedApi": true,
   "main": "./client/out/htmlMain",
   "scripts": {
     "compile": "gulp compile-extension:html-language-features-client compile-extension:html-language-features-server",

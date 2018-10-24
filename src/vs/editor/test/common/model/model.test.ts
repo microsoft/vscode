@@ -462,4 +462,30 @@ suite('Editor Model - Words', () => {
 		assert.deepEqual(model.getWordAtPosition(new Position(1, 6)), { word: 'xx', startColumn: 4, endColumn: 6 });
 		assert.deepEqual(model.getWordAtPosition(new Position(1, 7)), { word: 'ab', startColumn: 7, endColumn: 9 });
 	});
+
+	test('issue #61296: VS code freezes when editing CSS file with emoji', () => {
+		const MODE_ID = new LanguageIdentifier('testMode', 4);
+
+		const mode = new class extends MockMode {
+			constructor() {
+				super(MODE_ID);
+				this._register(LanguageConfigurationRegistry.register(this.getLanguageIdentifier(), {
+					wordPattern: /(#?-?\d*\.\d\w*%?)|(::?[\w-]*(?=[^,{;]*[,{]))|(([@#.!])?[\w-?]+%?|[@#!.])/g
+				}));
+			}
+		};
+		disposables.push(mode);
+
+		const thisModel = TextModel.createFromString('.🐷-a-b', undefined, MODE_ID);
+		disposables.push(thisModel);
+
+		assert.deepEqual(thisModel.getWordAtPosition(new Position(1, 1)), { word: '.', startColumn: 1, endColumn: 2 });
+		assert.deepEqual(thisModel.getWordAtPosition(new Position(1, 2)), { word: '.', startColumn: 1, endColumn: 2 });
+		assert.deepEqual(thisModel.getWordAtPosition(new Position(1, 3)), null);
+		assert.deepEqual(thisModel.getWordAtPosition(new Position(1, 4)), { word: '-a-b', startColumn: 4, endColumn: 8 });
+		assert.deepEqual(thisModel.getWordAtPosition(new Position(1, 5)), { word: '-a-b', startColumn: 4, endColumn: 8 });
+		assert.deepEqual(thisModel.getWordAtPosition(new Position(1, 6)), { word: '-a-b', startColumn: 4, endColumn: 8 });
+		assert.deepEqual(thisModel.getWordAtPosition(new Position(1, 7)), { word: '-a-b', startColumn: 4, endColumn: 8 });
+		assert.deepEqual(thisModel.getWordAtPosition(new Position(1, 8)), { word: '-a-b', startColumn: 4, endColumn: 8 });
+	});
 });

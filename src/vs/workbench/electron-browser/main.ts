@@ -319,7 +319,7 @@ function createStorageService(workspaceStorageFolder: string, payload: IWorkspac
 						}
 					}
 
-					const supportedKeys = new Set<string>();
+					const supportedKeys = new Map<string, string>();
 					[
 						'workbench.search.history',
 						'history.entries',
@@ -359,8 +359,22 @@ function createStorageService(workspaceStorageFolder: string, payload: IWorkspac
 						'scm.views',
 						'suggest/memories/first',
 						'suggest/memories/recentlyUsed',
-						'suggest/memories/recentlyUsedByPrefix'
-					].forEach(key => supportedKeys.add(key));
+						'suggest/memories/recentlyUsedByPrefix',
+						'workbench.view.explorer.numberOfVisibleViews',
+						'workbench.view.extensions.numberOfVisibleViews',
+						'workbench.view.debug.numberOfVisibleViews',
+						'workbench.explorer.views.state',
+						'workbench.view.extensions.state',
+						'workbench.view.debug.state',
+						'memento/workbench.editor.walkThroughPart',
+						'memento/workbench.editor.settings2',
+						'memento/workbench.editor.htmlPreviewPart',
+						'memento/workbench.editor.defaultPreferences',
+						'memento/workbench.editors.files.textFileEditor',
+						'memento/workbench.editors.logViewer',
+						'memento/workbench.editors.textResourceEditor',
+						'memento/workbench.panel.output'
+					].forEach(key => supportedKeys.set(key.toLowerCase(), key));
 
 					// Support extension storage as well (always the ID of the extension)
 					extensions.forEach(extension => {
@@ -372,14 +386,29 @@ function createStorageService(workspaceStorageFolder: string, payload: IWorkspac
 						}
 
 						if (extensionId) {
-							supportedKeys.add(extensionId);
+							supportedKeys.set(extensionId.toLowerCase(), extensionId);
 						}
 					});
 
 					if (workspaceItems) {
 						Object.keys(workspaceItems).forEach(key => {
-							if (supportedKeys.has(key) || key.indexOf('memento/') === 0 || key.indexOf('viewservice.') === 0 || endsWith(key, '.state') || endsWith(key, '.numberOfVisibleViews')) {
-								storageService.store(key, workspaceItems[key], StorageScope.WORKSPACE);
+							const value = workspaceItems[key];
+
+							// first check for a well known supported key and store with realcase value
+							const supportedKey = supportedKeys.get(key);
+							if (supportedKey) {
+								storageService.store(supportedKey, value, StorageScope.WORKSPACE);
+							}
+
+							// fix lowercased ".numberOfVisibleViews"
+							else if (endsWith(key, '.numberOfVisibleViews'.toLowerCase())) {
+								const normalizedKey = key.substring(0, key.length - '.numberOfVisibleViews'.length) + '.numberOfVisibleViews';
+								storageService.store(normalizedKey, value, StorageScope.WORKSPACE);
+							}
+
+							// support dynamic keys
+							else if (key.indexOf('memento/') === 0 || key.indexOf('viewservice.') === 0 || endsWith(key, '.state')) {
+								storageService.store(key, value, StorageScope.WORKSPACE);
 							}
 						});
 					}

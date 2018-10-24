@@ -758,7 +758,7 @@ export class ExtensionManagementService extends Disposable implements IExtension
 	}
 
 	private scanExtension(folderName: string, root: string, type: LocalExtensionType): Promise<ILocalExtension> {
-		if (type === LocalExtensionType.User && folderName.indexOf('.') === 0) { // Do not consider user exension folder starting with `.`
+		if (type === LocalExtensionType.User && folderName.indexOf('.') === 0) { // Do not consider user extension folder starting with `.`
 			return Promise.resolve(null);
 		}
 		const extensionPath = path.join(root, folderName);

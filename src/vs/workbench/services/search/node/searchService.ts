@@ -135,7 +135,17 @@ export class SearchService extends Disposable implements ISearchService {
 					return TPromise.wrapError(canceled());
 				}
 
-				return this.searchWithProviders(query, onProgress, token);
+				const progressCallback = (item: ISearchProgressItem) => {
+					if (token && token.isCancellationRequested) {
+						return;
+					}
+
+					if (onProgress) {
+						onProgress(item);
+					}
+				};
+
+				return this.searchWithProviders(query, progressCallback, token);
 			})
 			.then(completes => {
 				completes = completes.filter(c => !!c);

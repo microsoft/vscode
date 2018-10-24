@@ -137,12 +137,12 @@
 }
 
 .scm-viewlet .scm-editor {
+	box-sizing: border-box;
 	padding: 5px 9px 5px 16px;
 }
 
-.scm-viewlet .scm-editor {
-	box-sizing: border-box;
-	padding: 5px 9px 5px 16px;
+.scm-viewlet .scm-editor.hidden {
+	display: none;
 }
 
 .scm-viewlet .scm-editor > .monaco-inputbox {
