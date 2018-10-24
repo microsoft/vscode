@@ -430,4 +430,40 @@ suite('Splitview', () => {
 		view2.dispose();
 		view1.dispose();
 	});
+
+	test('proportional layout', () => {
+		const view1 = new TestView(20, Number.POSITIVE_INFINITY);
+		const view2 = new TestView(20, Number.POSITIVE_INFINITY);
+		const splitview = new SplitView(container);
+		splitview.layout(200);
+
+		splitview.addView(view1, Sizing.Distribute);
+		splitview.addView(view2, Sizing.Distribute);
+		assert.deepEqual([view1.size, view2.size], [100, 100]);
+
+		splitview.layout(100);
+		assert.deepEqual([view1.size, view2.size], [50, 50]);
+
+		splitview.dispose();
+		view2.dispose();
+		view1.dispose();
+	});
+
+	test('disable proportional layout', () => {
+		const view1 = new TestView(20, Number.POSITIVE_INFINITY);
+		const view2 = new TestView(20, Number.POSITIVE_INFINITY);
+		const splitview = new SplitView(container, { proportionalLayout: false });
+		splitview.layout(200);
+
+		splitview.addView(view1, Sizing.Distribute);
+		splitview.addView(view2, Sizing.Distribute);
+		assert.deepEqual([view1.size, view2.size], [100, 100]);
+
+		splitview.layout(100);
+		assert.deepEqual([view1.size, view2.size], [80, 20]);
+
+		splitview.dispose();
+		view2.dispose();
+		view1.dispose();
+	});
 });

@@ -29,6 +29,7 @@ export interface ISplitViewOptions {
 	orthogonalStartSash?: Sash;
 	orthogonalEndSash?: Sash;
 	inverseAltBehavior?: boolean;
+	proportionalLayout?: boolean; // default true
 }
 
 export interface IView {
@@ -87,7 +88,6 @@ export namespace Sizing {
 export class SplitView extends Disposable {
 
 	readonly orientation: Orientation;
-	// TODO@Joao have the same pattern as grid here
 	readonly el: HTMLElement;
 	private sashContainer: HTMLElement;
 	private viewContainer: HTMLElement;
@@ -99,6 +99,7 @@ export class SplitView extends Disposable {
 	private sashDragState: ISashDragState;
 	private state: State = State.Idle;
 	private inverseAltBehavior: boolean;
+	private proportionalLayout: boolean;
 
 	private _onDidSashChange = this._register(new Emitter<number>());
 	readonly onDidSashChange = this._onDidSashChange.event;
@@ -147,6 +148,7 @@ export class SplitView extends Disposable {
 
 		this.orientation = types.isUndefined(options.orientation) ? Orientation.VERTICAL : options.orientation;
 		this.inverseAltBehavior = !!options.inverseAltBehavior;
+		this.proportionalLayout = types.isUndefined(options.proportionalLayout) ? true : !!options.proportionalLayout;
 
 		this.el = document.createElement('div');
 		dom.addClass(this.el, 'monaco-split-view2');
@@ -342,7 +344,7 @@ export class SplitView extends Disposable {
 	}
 
 	private saveProportions(): void {
-		if (this.contentSize > 0) {
+		if (this.proportionalLayout && this.contentSize > 0) {
 			this.proportions = this.viewItems.map(i => i.size / this.contentSize);
 		}
 	}
