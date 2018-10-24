@@ -418,7 +418,7 @@ export class IndexTreeModel<T, TFilterData = void> implements ITreeModel<T, TFil
 
 	getParentNodeLocation(location: number[]): number[] | null {
 		if (location.length <= 1) {
-			return null;
+			return [];
 		}
 
 		return tail2(location)[0];

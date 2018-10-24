@@ -289,7 +289,7 @@ export function registerCommands(): void {
 						const parent = tree.getParentElement(focus);
 
 						if (parent) {
-							tree.setFocus(parent);
+							tree.setFocus([parent]);
 							tree.reveal(parent);
 						}
 					}
@@ -335,7 +335,7 @@ export function registerCommands(): void {
 						const child = tree.getFirstElementChild(focus);
 
 						if (child) {
-							tree.setFocus(child);
+							tree.setFocus([child]);
 							tree.reveal(child);
 						}
 					}
