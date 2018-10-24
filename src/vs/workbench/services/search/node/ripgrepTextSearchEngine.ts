@@ -284,22 +284,32 @@ function getRgArgs(query: vscode.TextSearchQuery, options: vscode.TextSearchOpti
 		args.push('--encoding', options.encoding);
 	}
 
+	let pattern = query.pattern;
+
 	// Ripgrep handles -- as a -- arg separator. Only --.
-	// - is ok, --- is ok, --some-flag is handled as query text. Need to special case.
-	if (query.pattern === '--') {
+	// - is ok, --- is ok, --some-flag is also ok. Need to special case.
+	if (pattern === '--') {
 		query.isRegExp = true;
-		query.pattern = '\\-\\-';
+		pattern = '\\-\\-';
+	}
+
+	if ((<IExtendedExtensionSearchOptions>options).usePCRE2) {
+		args.push('--pcre2');
+
+		if (query.isRegExp) {
+			pattern = unicodeEscapesToPCRE2(pattern);
+		}
 	}
 
 	let searchPatternAfterDoubleDashes: Maybe<string>;
 	if (query.isWordMatch) {
-		const regexp = createRegExp(query.pattern, !!query.isRegExp, { wholeWord: query.isWordMatch });
+		const regexp = createRegExp(pattern, !!query.isRegExp, { wholeWord: query.isWordMatch });
 		const regexpStr = regexp.source.replace(/\\\//g, '/'); // RegExp.source arbitrarily returns escaped slashes. Search and destroy.
 		args.push('--regexp', regexpStr);
 	} else if (query.isRegExp) {
-		args.push('--regexp', query.pattern);
+		args.push('--regexp', pattern);
 	} else {
-		searchPatternAfterDoubleDashes = query.pattern;
+		searchPatternAfterDoubleDashes = pattern;
 		args.push('--fixed-strings');
 	}
 
@@ -317,10 +327,6 @@ function getRgArgs(query: vscode.TextSearchQuery, options: vscode.TextSearchOpti
 		args.push('--multiline');
 	}
 
-	if ((<IExtendedExtensionSearchOptions>options).usePCRE2) {
-		args.push('--pcre2');
-	}
-
 	// Folder to search
 	args.push('--');
 
@@ -332,4 +338,15 @@ function getRgArgs(query: vscode.TextSearchQuery, options: vscode.TextSearchOpti
 	args.push('.');
 
 	return args;
+}
+
+export function unicodeEscapesToPCRE2(pattern: string): string {
+	const reg = /((?:[^\\]|^)(?:\\\\)*)\\u([a-z0-9]{4})(?!\d)/g;
+	// Replace an unescaped $ at the end of the pattern with \r?$
+	// Match $ preceeded by none or even number of literal \
+	while (pattern.match(reg)) {
+		pattern = pattern.replace(reg, `$1\\x{$2}`);
+	}
+
+	return pattern;
 }
