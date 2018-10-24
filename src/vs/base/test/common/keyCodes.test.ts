@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { KeyCode, KeyMod, KeyChord, Keybinding, createKeybinding, SimpleKeybinding, ChordKeybinding } from 'vs/base/common/keyCodes';
+import { ChordKeybinding, KeyChord, KeyCode, KeyMod, Keybinding, SimpleKeybinding, createKeybinding } from 'vs/base/common/keyCodes';
 import { OperatingSystem } from 'vs/base/common/platform';
 
 suite('keyCodes', () => {

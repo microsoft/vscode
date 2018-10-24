@@ -98,10 +98,11 @@ export class ExperimentalPrompts extends Disposable implements IWorkbenchContrib
 		if (typeof actionProperties.promptText === 'string') {
 			return actionProperties.promptText;
 		}
+		const msgInEnglish = actionProperties.promptText['en'] || actionProperties.promptText['en-us'];
 		displayLanguage = displayLanguage.toLowerCase();
 		if (!actionProperties.promptText[displayLanguage] && displayLanguage.indexOf('-') === 2) {
 			displayLanguage = displayLanguage.substr(0, 2);
 		}
-		return actionProperties.promptText[displayLanguage];
+		return actionProperties.promptText[displayLanguage] || msgInEnglish;
 	}
 }

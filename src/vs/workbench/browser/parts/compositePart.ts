@@ -49,7 +49,7 @@ export interface ICompositeTitleLabel {
 
 export abstract class CompositePart<T extends Composite> extends Part {
 
-	protected _onDidCompositeOpen = this._register(new Emitter<IComposite>());
+	protected _onDidCompositeOpen = this._register(new Emitter<{ composite: IComposite, focus: boolean }>());
 	protected _onDidCompositeClose = this._register(new Emitter<IComposite>());
 
 	protected toolBar: ToolBar;
@@ -159,7 +159,7 @@ export abstract class CompositePart<T extends Composite> extends Part {
 			});
 		}).then(composite => {
 			if (composite) {
-				this._onDidCompositeOpen.fire(composite);
+				this._onDidCompositeOpen.fire({ composite, focus });
 			}
 
 			return composite;

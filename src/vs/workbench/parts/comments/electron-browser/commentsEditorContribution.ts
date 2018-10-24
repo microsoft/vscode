@@ -168,7 +168,6 @@ export class ReviewController implements IEditorContribution {
 	private _commentWidgets: ReviewZoneWidget[];
 	private _reviewPanelVisible: IContextKey<boolean>;
 	private _commentInfos: modes.CommentInfo[];
-	// private _hasSetComments: boolean;
 	private _commentingRangeDecorator: CommentingRangeDecorator;
 	private mouseDownInfo: { lineNumber: number } | null = null;
 	private _commentingRangeSpaceReserved = false;
@@ -193,7 +192,6 @@ export class ReviewController implements IEditorContribution {
 		this._commentInfos = [];
 		this._commentWidgets = [];
 		this._newCommentWidget = null;
-		// this._hasSetComments = false;
 
 		this._reviewPanelVisible = ctxReviewPanelVisible.bindTo(contextKeyService);
 		this._commentingRangeDecorator = new CommentingRangeDecorator();
@@ -494,8 +492,6 @@ export class ReviewController implements IEditorContribution {
 				});
 			}
 		}
-
-		// this._hasSetComments = true;
 
 		// create viewzones
 		this._commentWidgets.forEach(zone => {

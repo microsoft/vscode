@@ -7,8 +7,7 @@ import 'vs/css!./media/progressService2';
 
 import { localize } from 'vs/nls';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
-import { IProgressService2, IProgressOptions, IProgressStep, ProgressLocation } from 'vs/workbench/services/progress/common/progress';
-import { IProgress, emptyProgress, Progress } from 'vs/platform/progress/common/progress';
+import { IProgressService2, IProgressOptions, IProgressStep, ProgressLocation, IProgress, emptyProgress, Progress } from 'vs/platform/progress/common/progress';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { StatusbarAlignment, IStatusbarService } from 'vs/platform/statusbar/common/statusbar';
 import { TPromise } from 'vs/base/common/winjs.base';
@@ -17,7 +16,6 @@ import { ProgressBadge, IActivityService } from 'vs/workbench/services/activity/
 import { INotificationService, Severity, INotificationHandle, INotificationActions } from 'vs/platform/notification/common/notification';
 import { Action } from 'vs/base/common/actions';
 import { once } from 'vs/base/common/event';
-import { ViewContainer } from 'vs/workbench/common/views';
 
 export class ProgressService2 implements IProgressService2 {
 
@@ -38,12 +36,12 @@ export class ProgressService2 implements IProgressService2 {
 	withProgress<P extends Thenable<R>, R=any>(options: IProgressOptions, task: (progress: IProgress<IProgressStep>) => P, onDidCancel?: () => void): P {
 
 		const { location } = options;
-		if (location instanceof ViewContainer) {
-			const viewlet = this._viewletService.getViewlet(location.id);
+		if (typeof location === 'string') {
+			const viewlet = this._viewletService.getViewlet(location);
 			if (viewlet) {
-				return this._withViewletProgress(location.id, task);
+				return this._withViewletProgress(location, task);
 			}
-			console.warn(`Bad progress location: ${location.id}`);
+			console.warn(`Bad progress location: ${location}`);
 			return undefined;
 		}
 

@@ -222,9 +222,13 @@ export class RipgrepParser extends EventEmitter {
 		let matchText = bytesOrTextToString(match.match);
 		const newlineMatches = matchText.match(/\n/g);
 		const newlines = newlineMatches ? newlineMatches.length : 0;
-		let startCol = match.start;
+
+		const textBytes = new Buffer(lineText);
+		let startCol = textBytes.slice(0, match.start).toString().length;
+		const endChars = startCol + textBytes.slice(match.start, match.end).toString().length;
+
 		const endLineNumber = lineNumber + newlines;
-		let endCol = match.end - (lineText.lastIndexOf('\n', lineText.length - 2) + 1);
+		let endCol = endChars - (lineText.lastIndexOf('\n', lineText.length - 2) + 1);
 
 		if (lineNumber === 0) {
 			if (startsWithUTF8BOM(matchText)) {

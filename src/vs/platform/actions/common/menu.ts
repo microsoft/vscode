@@ -27,17 +27,17 @@ export class Menu implements IMenu {
 			const menuItems = MenuRegistry.getMenuItems(id);
 			const keysFilter = new Set<string>();
 
-			let group: MenuItemGroup;
+			let group: MenuItemGroup | undefined;
 			menuItems.sort(Menu._compareMenuItems);
 
 			for (let item of menuItems) {
 				// group by groupId
 				const groupName = item.group;
 				if (!group || group[0] !== groupName) {
-					group = [groupName, []];
+					group = [groupName || '', []];
 					this._menuGroups.push(group);
 				}
-				group[1].push(item);
+				group![1].push(item);
 
 				// keep keys for eventing
 				Menu._fillInKbExprKeys(item.when, keysFilter);
@@ -79,7 +79,7 @@ export class Menu implements IMenu {
 			const [id, items] = group;
 			const activeActions: (MenuItemAction | SubmenuItemAction)[] = [];
 			for (const item of items) {
-				if (this._contextKeyService.contextMatchesRules(item.when)) {
+				if (this._contextKeyService.contextMatchesRules(item.when || null)) {
 					const action = isIMenuItem(item) ? new MenuItemAction(item.command, item.alt, options, this._contextKeyService, this._commandService) : new SubmenuItemAction(item);
 					activeActions.push(action);
 				}
@@ -91,7 +91,7 @@ export class Menu implements IMenu {
 		return result;
 	}
 
-	private static _fillInKbExprKeys(exp: ContextKeyExpr, set: Set<string>): void {
+	private static _fillInKbExprKeys(exp: ContextKeyExpr | undefined, set: Set<string>): void {
 		if (exp) {
 			for (let key of exp.keys()) {
 				set.add(key);

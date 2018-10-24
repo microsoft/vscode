@@ -19,7 +19,7 @@ export interface IPanelIdentifier {
 export interface IPanelService {
 	_serviceBrand: ServiceIdentifier<any>;
 
-	onDidPanelOpen: Event<IPanel>;
+	onDidPanelOpen: Event<{ panel: IPanel, focus: boolean }>;
 
 	onDidPanelClose: Event<IPanel>;
 

@@ -4,9 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Event } from 'vs/base/common/event';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { IMode, LanguageId, LanguageIdentifier } from 'vs/editor/common/modes';
 import { URI } from 'vs/base/common/uri';
+import { IMode, LanguageId, LanguageIdentifier } from 'vs/editor/common/modes';
+import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 
 export const IModeService = createDecorator<IModeService>('modeService');
 

@@ -21,18 +21,23 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { Event } from 'vs/base/common/event';
+import { Event, mapEvent } from 'vs/base/common/event';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { contrastBorder } from 'vs/platform/theme/common/colorRegistry';
 import { SIDE_BAR_TITLE_FOREGROUND, SIDE_BAR_BACKGROUND, SIDE_BAR_FOREGROUND, SIDE_BAR_BORDER } from 'vs/workbench/common/theme';
 import { INotificationService } from 'vs/platform/notification/common/notification';
-import { Dimension, EventType, addDisposableListener } from 'vs/base/browser/dom';
+import { Dimension, EventType, addDisposableListener, trackFocus } from 'vs/base/browser/dom';
 import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
+import { RawContextKey, IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+
+const SidebarFocusContextId = 'sidebarFocus';
+export const SidebarFocusContext = new RawContextKey<boolean>(SidebarFocusContextId, false);
 
 export class SidebarPart extends CompositePart<Viewlet> {
 
 	static readonly activeViewletSettingsKey = 'workbench.sidebar.activeviewletid';
 
+	private sidebarFocusContextKey: IContextKey<boolean>;
 	private blockOpeningViewlet: boolean;
 
 	constructor(
@@ -44,7 +49,8 @@ export class SidebarPart extends CompositePart<Viewlet> {
 		@IPartService partService: IPartService,
 		@IKeybindingService keybindingService: IKeybindingService,
 		@IInstantiationService instantiationService: IInstantiationService,
-		@IThemeService themeService: IThemeService
+		@IThemeService themeService: IThemeService,
+		@IContextKeyService contextKeyService: IContextKeyService,
 	) {
 		super(
 			notificationService,
@@ -64,14 +70,29 @@ export class SidebarPart extends CompositePart<Viewlet> {
 			id,
 			{ hasTitle: true, borderWidth: () => (this.getColor(SIDE_BAR_BORDER) || this.getColor(contrastBorder)) ? 1 : 0 }
 		);
+
+		this.sidebarFocusContextKey = SidebarFocusContext.bindTo(contextKeyService);
 	}
 
 	get onDidViewletOpen(): Event<IViewlet> {
-		return this._onDidCompositeOpen.event as Event<IViewlet>;
+		return mapEvent(this._onDidCompositeOpen.event, compositeEvent => <IViewlet>compositeEvent.composite);
 	}
 
 	get onDidViewletClose(): Event<IViewlet> {
 		return this._onDidCompositeClose.event as Event<IViewlet>;
+	}
+
+	create(parent: HTMLElement): void {
+		super.create(parent);
+
+		const focusTracker = trackFocus(parent);
+
+		focusTracker.onDidFocus(() => {
+			this.sidebarFocusContextKey.set(true);
+		});
+		focusTracker.onDidBlur(() => {
+			this.sidebarFocusContextKey.set(false);
+		});
 	}
 
 	createTitleArea(parent: HTMLElement): HTMLElement {

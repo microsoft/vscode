@@ -162,7 +162,8 @@
 	display: none;
 }
 
-.monaco-editor .suggest-widget.no-icons .monaco-list .monaco-list-row .icon {
+.monaco-editor .suggest-widget.no-icons .monaco-list .monaco-list-row .icon,
+.monaco-editor .suggest-widget.no-icons .monaco-list .monaco-list-row .monaco-icon-label.suggest-icon::before {
 	display: none;
 }
 

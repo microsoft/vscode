@@ -390,7 +390,7 @@ configurationRegistry.registerConfiguration({
 				nls.localize('terminal.integrated.splitCwd.sourceInitialCwd', "A new split terminal will use the cwd that the parent terminal started with."),
 				nls.localize('terminal.integrated.splitCwd.sourceCwd', "On macOS and Linux, a new split terminal will use the cwd of the parent terminal. On Windows, this behaves the same as sourceInitialCwd."),
 			],
-			default: 'workspaceRoot'
+			default: 'sourceCwd'
 		},
 	}
 });

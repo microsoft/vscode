@@ -724,6 +724,21 @@ declare module 'vscode' {
 
 	//#endregion
 
+	//#region Joao: SCM Input Box
+
+	/**
+	 * Represents the input box in the Source Control viewlet.
+	 */
+	export interface SourceControlInputBox {
+
+		/**
+		* Whether the input box is visible.
+		*/
+		visible: boolean;
+	}
+
+	//#endregion
+
 	//#region Comments
 	/**
 	 * Comments provider related APIs are still in early stages, they may be changed significantly during our API experiments.
@@ -869,7 +884,7 @@ declare module 'vscode' {
 		replyToCommentThread(document: TextDocument, range: Range, commentThread: CommentThread, text: string, token: CancellationToken): Promise<CommentThread>;
 
 		/**
-		 * Called when a user edits the comment body to the be new text text.
+		 * Called when a user edits the comment body to the be new text.
 		 */
 		editComment?(document: TextDocument, comment: Comment, text: string, token: CancellationToken): Promise<void>;
 
@@ -1132,13 +1147,48 @@ declare module 'vscode' {
 	}
 	//#endregion
 
-	//#region #59232
+	//#region Tree Item Label Highlights
+	/**
+	 * Label describing the [Tree item](#TreeItem)
+	 */
+	export interface TreeItemLabel {
 
-	export interface QuickPickItem {
 		/**
-		 * Show this item always
+		 * A human-readable string describing the [Tree item](#TreeItem).
 		 */
-		alwaysShow?: boolean;
+		label: string;
+
+		/**
+		 * Ranges in the label to highlight.
+		 */
+		highlights?: [number, number][];
+
+	}
+
+	export class TreeItem2 extends TreeItem {
+		/**
+		 * Label describing this item. When `falsy`, it is derived from [resourceUri](#TreeItem.resourceUri).
+		 */
+		label?: string | TreeItemLabel | /* for compilation */ any;
+
+		/**
+		 * @param label Label describing this item
+		 * @param collapsibleState [TreeItemCollapsibleState](#TreeItemCollapsibleState) of the tree item. Default is [TreeItemCollapsibleState.None](#TreeItemCollapsibleState.None)
+		 */
+		constructor(label: TreeItemLabel, collapsibleState?: TreeItemCollapsibleState);
 	}
 	//#endregion
+
+	//#region Task
+	/**
+	 * Controls how the task is presented in the UI.
+	 */
+	export interface TaskPresentationOptions {
+		/**
+		 * Controls whether the terminal is cleared before executing the task.
+		 */
+		clear?: boolean;
+	}
+	//#endregion
+
 }

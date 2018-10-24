@@ -3,10 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { AccessibilitySupport } from 'vs/base/common/platform';
 import { CommonEditorConfiguration, IEnvConfiguration } from 'vs/editor/common/config/commonEditorConfig';
 import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
-import { FontInfo, BareFontInfo } from 'vs/editor/common/config/fontInfo';
-import { AccessibilitySupport } from 'vs/base/common/platform';
+import { BareFontInfo, FontInfo } from 'vs/editor/common/config/fontInfo';
 
 export class TestConfiguration extends CommonEditorConfiguration {
 

@@ -49,6 +49,7 @@ import { createHash } from 'crypto';
 import { parseStorage, StorageObject } from 'vs/platform/storage/common/storageLegacyMigration';
 import { StorageScope } from 'vs/platform/storage/common/storage';
 import { endsWith } from 'vs/base/common/strings';
+import { IdleValue } from 'vs/base/common/async';
 
 gracefulFs.gracefulify(fs); // enable gracefulFs
 
@@ -70,7 +71,13 @@ export function startup(configuration: IWindowConfiguration): Promise<void> {
 	KeyboardMapperFactory.INSTANCE._onKeyboardLayoutChanged();
 
 	// Setup Intl for comparers
-	comparer.setFileNameComparer(new Intl.Collator(undefined, { numeric: true, sensitivity: 'base' }));
+	comparer.setFileNameComparer(new IdleValue(() => {
+		const collator = new Intl.Collator(undefined, { numeric: true, sensitivity: 'base' });
+		return {
+			collator: collator,
+			collatorIsNumeric: collator.resolvedOptions().numeric
+		};
+	}));
 
 	// Open workbench
 	return openWorkbench(configuration);

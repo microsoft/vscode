@@ -67,7 +67,7 @@ const configurationEntrySchema: IJSONSchema = {
 							},
 							deprecationMessage: {
 								type: 'string',
-								description: nls.localize('scope.deprecationMessage', 'If set, the property is marked as deprecated and the given message is shown as as explanation.')
+								description: nls.localize('scope.deprecationMessage', 'If set, the property is marked as deprecated and the given message is shown as an explanation.')
 							}
 						}
 					}
@@ -160,7 +160,7 @@ function validateProperties(configuration: IConfigurationNode, extension: IExten
 				extension.collector.warn(message);
 				continue;
 			}
-			const propertyConfiguration = configuration.properties[key];
+			const propertyConfiguration = properties[key];
 			if (!isObject(propertyConfiguration)) {
 				delete properties[key];
 				extension.collector.error(nls.localize('invalid.property', "'configuration.property' must be an object"));

@@ -4,18 +4,18 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as nls from 'vs/nls';
+import * as browser from 'vs/base/browser/browser';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { matchesFuzzy } from 'vs/base/common/filters';
+import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { IContext, IHighlight, QuickOpenEntryGroup, QuickOpenModel } from 'vs/base/parts/quickopen/browser/quickOpenModel';
 import { IAutoFocus, Mode } from 'vs/base/parts/quickopen/common/quickOpen';
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { IEditorAction, IEditor } from 'vs/editor/common/editorCommon';
-import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
-import { BaseEditorQuickOpenAction } from './editorQuickOpen';
-import { registerEditorAction, ServicesAccessor } from 'vs/editor/browser/editorExtensions';
-import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
-import * as browser from 'vs/base/browser/browser';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
+import { ServicesAccessor, registerEditorAction } from 'vs/editor/browser/editorExtensions';
+import { IEditor, IEditorAction } from 'vs/editor/common/editorCommon';
+import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
+import { BaseEditorQuickOpenAction } from 'vs/editor/standalone/browser/quickOpen/editorQuickOpen';
+import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 
 export class EditorActionCommandEntry extends QuickOpenEntryGroup {

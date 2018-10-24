@@ -3,16 +3,16 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { KeyCode } from 'vs/base/common/keyCodes';
-import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { toggleClass } from 'vs/base/browser/dom';
+import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
+import { DomScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
+import { Widget } from 'vs/base/browser/ui/widget';
+import { KeyCode } from 'vs/base/common/keyCodes';
+import { IDisposable, dispose } from 'vs/base/common/lifecycle';
+import * as editorBrowser from 'vs/editor/browser/editorBrowser';
+import { IConfigurationChangedEvent } from 'vs/editor/common/config/editorOptions';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
-import * as editorBrowser from 'vs/editor/browser/editorBrowser';
-import { Widget } from 'vs/base/browser/ui/widget';
-import { DomScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
-import { IDisposable, dispose } from 'vs/base/common/lifecycle';
-import { IConfigurationChangedEvent } from 'vs/editor/common/config/editorOptions';
 
 export class ContentHoverWidget extends Widget implements editorBrowser.IContentWidget {
 

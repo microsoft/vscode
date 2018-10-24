@@ -31,7 +31,7 @@ export abstract class ScopedService extends Disposable {
 
 	registerListeners(): void {
 		this._register(this.viewletService.onDidViewletOpen(viewlet => this.onScopeOpened(viewlet.getId())));
-		this._register(this.panelService.onDidPanelOpen(panel => this.onScopeOpened(panel.getId())));
+		this._register(this.panelService.onDidPanelOpen(({ panel }) => this.onScopeOpened(panel.getId())));
 
 		this._register(this.viewletService.onDidViewletClose(viewlet => this.onScopeClosed(viewlet.getId())));
 		this._register(this.panelService.onDidPanelClose(panel => this.onScopeClosed(panel.getId())));

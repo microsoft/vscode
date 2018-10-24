@@ -5,8 +5,8 @@
 
 import * as strings from 'vs/base/common/strings';
 import { Range } from 'vs/editor/common/core/range';
-import { CharacterPair } from 'vs/editor/common/modes/languageConfiguration';
 import { LanguageIdentifier } from 'vs/editor/common/modes';
+import { CharacterPair } from 'vs/editor/common/modes/languageConfiguration';
 
 interface ISimpleInternalBracket {
 	open: string;

@@ -10,15 +10,35 @@ import { URI } from 'vs/base/common/uri';
 import { debounceEvent, Emitter, Event } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { ExtHostTreeViewsShape, MainThreadTreeViewsShape } from './extHost.protocol';
-import { ITreeItem, TreeViewItemHandleArg } from 'vs/workbench/common/views';
+import { ITreeItem, TreeViewItemHandleArg, ITreeItemLabel } from 'vs/workbench/common/views';
 import { ExtHostCommands, CommandsConverter } from 'vs/workbench/api/node/extHostCommands';
 import { asThenable } from 'vs/base/common/async';
 import { TreeItemCollapsibleState, ThemeIcon } from 'vs/workbench/api/node/extHostTypes';
-import { isUndefinedOrNull } from 'vs/base/common/types';
+import { isUndefinedOrNull, isString } from 'vs/base/common/types';
 import { equals } from 'vs/base/common/arrays';
 import { ILogService } from 'vs/platform/log/common/log';
 
 type TreeItemHandle = string;
+
+function toTreeItemLabel(label: any): ITreeItemLabel {
+	if (isString(label)) {
+		return { label };
+	}
+
+	if (label
+		&& typeof label === 'object'
+		&& typeof label.label === 'string') {
+		let highlights: [number, number][] = void 0;
+		if (Array.isArray(label.highlights)) {
+			highlights = (<[number, number][]>label.highlights).filter((highlight => highlight.length === 2 && typeof highlight[0] === 'number' && typeof highlight[1] === 'number'));
+			highlights = highlights.length ? highlights : void 0;
+		}
+		return { label: label.label, highlights };
+	}
+
+	return void 0;
+}
+
 
 export class ExtHostTreeViews implements ExtHostTreeViewsShape {
 
@@ -383,7 +403,7 @@ class ExtHostTreeView<T> extends Disposable {
 		const item = {
 			handle,
 			parentHandle: parent ? parent.item.handle : void 0,
-			label: extensionTreeItem.label,
+			label: toTreeItemLabel(extensionTreeItem.label),
 			resourceUri: extensionTreeItem.resourceUri,
 			tooltip: typeof extensionTreeItem.tooltip === 'string' ? extensionTreeItem.tooltip : void 0,
 			command: extensionTreeItem.command ? this.commands.toInternal(extensionTreeItem.command) : void 0,
@@ -402,8 +422,9 @@ class ExtHostTreeView<T> extends Disposable {
 			return `${ExtHostTreeView.ID_HANDLE_PREFIX}/${id}`;
 		}
 
+		const treeItemLabel = toTreeItemLabel(label);
 		const prefix: string = parent ? parent.item.handle : ExtHostTreeView.LABEL_HANDLE_PREFIX;
-		let elementId = label ? label : resourceUri ? basename(resourceUri.path) : '';
+		let elementId = treeItemLabel ? treeItemLabel.label : resourceUri ? basename(resourceUri.path) : '';
 		elementId = elementId.indexOf('/') !== -1 ? elementId.replace('/', '//') : elementId;
 		const existingHandle = this.nodes.has(element) ? this.nodes.get(element).item.handle : void 0;
 		const childrenNodes = (this.getChildrenNodes(parent) || []);

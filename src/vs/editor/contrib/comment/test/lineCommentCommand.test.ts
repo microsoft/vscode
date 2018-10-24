@@ -4,15 +4,15 @@
  *--------------------------------------------------------------------------------------------*/
 import * as assert from 'assert';
 import { Selection } from 'vs/editor/common/core/selection';
+import { TokenizationResult2 } from 'vs/editor/common/core/token';
+import * as modes from 'vs/editor/common/modes';
+import { CommentRule } from 'vs/editor/common/modes/languageConfiguration';
+import { LanguageConfigurationRegistry } from 'vs/editor/common/modes/languageConfigurationRegistry';
+import { NULL_STATE } from 'vs/editor/common/modes/nullMode';
 import { ILinePreflightData, IPreflightData, ISimpleModel, LineCommentCommand, Type } from 'vs/editor/contrib/comment/lineCommentCommand';
 import { testCommand } from 'vs/editor/test/browser/testCommand';
 import { CommentMode } from 'vs/editor/test/common/commentMode';
-import * as modes from 'vs/editor/common/modes';
-import { NULL_STATE } from 'vs/editor/common/modes/nullMode';
-import { TokenizationResult2 } from 'vs/editor/common/core/token';
 import { MockMode } from 'vs/editor/test/common/mocks/mockMode';
-import { CommentRule } from 'vs/editor/common/modes/languageConfiguration';
-import { LanguageConfigurationRegistry } from 'vs/editor/common/modes/languageConfigurationRegistry';
 
 suite('Editor Contrib - Line Comment Command', () => {
 

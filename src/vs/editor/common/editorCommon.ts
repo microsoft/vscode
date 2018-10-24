@@ -4,14 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IMarkdownString } from 'vs/base/common/htmlContent';
-import { URI, UriComponents } from 'vs/base/common/uri';
 import { IDisposable } from 'vs/base/common/lifecycle';
-import { Position, IPosition } from 'vs/editor/common/core/position';
-import { Range, IRange } from 'vs/editor/common/core/range';
-import { Selection, ISelection } from 'vs/editor/common/core/selection';
+import { URI, UriComponents } from 'vs/base/common/uri';
 import * as editorOptions from 'vs/editor/common/config/editorOptions';
+import { IPosition, Position } from 'vs/editor/common/core/position';
+import { IRange, Range } from 'vs/editor/common/core/range';
+import { ISelection, Selection } from 'vs/editor/common/core/selection';
+import { IIdentifiedSingleEditOperation, IModelDecorationsChangeAccessor, ITextModel, OverviewRulerLane, TrackedRangeStickiness } from 'vs/editor/common/model';
 import { ThemeColor } from 'vs/platform/theme/common/themeService';
-import { ITextModel, IModelDecorationsChangeAccessor, TrackedRangeStickiness, OverviewRulerLane, IIdentifiedSingleEditOperation } from 'vs/editor/common/model';
 
 /**
  * A builder and helper for edit operations for a command.

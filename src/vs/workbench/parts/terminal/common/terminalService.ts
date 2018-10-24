@@ -139,7 +139,10 @@ export abstract class TerminalService implements ITerminalService {
 			// const hasFocusOnExit = tab.activeInstance.hadFocusOnExit;
 			const newIndex = index < this._terminalTabs.length ? index : this._terminalTabs.length - 1;
 			this.setActiveTabByIndex(newIndex);
-			this.getActiveInstance().focus(true);
+			const activeInstance = this.getActiveInstance();
+			if (activeInstance) {
+				activeInstance.focus(true);
+			}
 		}
 
 		// Hide the panel if there are no more instances, provided that VS Code is not shutting
@@ -157,14 +160,14 @@ export abstract class TerminalService implements ITerminalService {
 		}
 	}
 
-	public getActiveTab(): ITerminalTab {
+	public getActiveTab(): ITerminalTab | null {
 		if (this._activeTabIndex < 0 || this._activeTabIndex >= this._terminalTabs.length) {
 			return null;
 		}
 		return this._terminalTabs[this._activeTabIndex];
 	}
 
-	public getActiveInstance(): ITerminalInstance {
+	public getActiveInstance(): ITerminalInstance | null {
 		const tab = this.getActiveTab();
 		if (!tab) {
 			return null;
@@ -198,7 +201,7 @@ export abstract class TerminalService implements ITerminalService {
 		}
 	}
 
-	private _getInstanceFromGlobalInstanceIndex(index: number): { tab: ITerminalTab, tabIndex: number, instance: ITerminalInstance, localInstanceIndex: number } {
+	private _getInstanceFromGlobalInstanceIndex(index: number): { tab: ITerminalTab, tabIndex: number, instance: ITerminalInstance, localInstanceIndex: number } | null {
 		let currentTabIndex = 0;
 		while (index >= 0 && currentTabIndex < this._terminalTabs.length) {
 			const tab = this._terminalTabs[currentTabIndex];
@@ -281,7 +284,7 @@ export abstract class TerminalService implements ITerminalService {
 		instance.addDisposable(instance.onFocus(this._onActiveInstanceChanged.fire, this._onActiveInstanceChanged));
 	}
 
-	private _getTabForInstance(instance: ITerminalInstance): ITerminalTab {
+	private _getTabForInstance(instance: ITerminalInstance): ITerminalTab | null {
 		for (let i = 0; i < this._terminalTabs.length; i++) {
 			const tab = this._terminalTabs[i];
 			if (tab.terminalInstances.indexOf(instance) !== -1) {

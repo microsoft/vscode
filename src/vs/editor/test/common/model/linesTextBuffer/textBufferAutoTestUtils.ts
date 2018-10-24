@@ -4,8 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { CharCode } from 'vs/base/common/charCode';
-import { IIdentifiedSingleEditOperation, DefaultEndOfLine, ITextBufferBuilder, ITextBuffer } from 'vs/editor/common/model';
 import { Range } from 'vs/editor/common/core/range';
+import { DefaultEndOfLine, IIdentifiedSingleEditOperation, ITextBuffer, ITextBufferBuilder } from 'vs/editor/common/model';
 
 export function getRandomInt(min: number, max: number): number {
 	return Math.floor(Math.random() * (max - min + 1)) + min;

@@ -36,7 +36,11 @@ export class ElectronURLListener {
 		];
 
 		const buffer = rawBuffer.map(uriFromRawUrl).filter(uri => !!uri);
-		const flush = () => buffer.forEach(uri => urlService.open(uri));
+		const flush = () => buffer.forEach(uri => {
+			if (uri) {
+				urlService.open(uri);
+			}
+		});
 
 		app.setAsDefaultProtocolClient(product.urlProtocol, process.execPath, ['--open-url', '--']);
 

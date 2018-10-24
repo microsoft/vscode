@@ -31,7 +31,7 @@ import { Selection } from 'vs/editor/common/core/selection';
 import { ITextModel } from 'vs/editor/common/model';
 import { IModelContentChangedEvent } from 'vs/editor/common/model/textModelEvents';
 import { DocumentSymbolProviderRegistry } from 'vs/editor/common/modes';
-import LanguageFeatureRegistry from 'vs/editor/common/modes/languageFeatureRegistry';
+import { LanguageFeatureRegistry } from 'vs/editor/common/modes/languageFeatureRegistry';
 import { OutlineElement, OutlineModel, TreeElement } from 'vs/editor/contrib/documentSymbols/outlineModel';
 import { localize } from 'vs/nls';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -700,7 +700,13 @@ export class OutlinePanel extends ViewletPanel {
 			lineNumber: selection.selectionStartLineNumber,
 			column: selection.selectionStartColumn
 		}, first instanceof OutlineElement ? first : undefined);
-		if (item) {
+		if (!item) {
+			// nothing to reveal
+			return;
+		}
+		let top = this._tree.getRelativeTop(item);
+		if (top < 0 || top > 1) {
+			// only when outside view port
 			await this._tree.reveal(item, .5);
 			this._tree.setFocus(item, this);
 			this._tree.setSelection([item], this);

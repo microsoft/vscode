@@ -3,18 +3,18 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as editorCommon from 'vs/editor/common/editorCommon';
-import { ViewPart } from 'vs/editor/browser/view/viewPart';
-import { ViewContext } from 'vs/editor/common/view/viewContext';
-import { RenderingContext, RestrictedRenderingContext } from 'vs/editor/common/view/renderingContext';
-import { Position } from 'vs/editor/common/core/position';
-import { TokenizationRegistry } from 'vs/editor/common/modes';
-import { IDisposable } from 'vs/base/common/lifecycle';
-import * as viewEvents from 'vs/editor/common/view/viewEvents';
-import { editorOverviewRulerBorder, editorCursorForeground } from 'vs/editor/common/view/editorColorRegistry';
-import { Color } from 'vs/base/common/color';
-import { ITheme } from 'vs/platform/theme/common/themeService';
 import { FastDomNode, createFastDomNode } from 'vs/base/browser/fastDomNode';
+import { Color } from 'vs/base/common/color';
+import { IDisposable } from 'vs/base/common/lifecycle';
+import { ViewPart } from 'vs/editor/browser/view/viewPart';
+import { Position } from 'vs/editor/common/core/position';
+import { IConfiguration } from 'vs/editor/common/editorCommon';
+import { TokenizationRegistry } from 'vs/editor/common/modes';
+import { editorCursorForeground, editorOverviewRulerBorder } from 'vs/editor/common/view/editorColorRegistry';
+import { RenderingContext, RestrictedRenderingContext } from 'vs/editor/common/view/renderingContext';
+import { ViewContext } from 'vs/editor/common/view/viewContext';
+import * as viewEvents from 'vs/editor/common/view/viewEvents';
+import { ITheme } from 'vs/platform/theme/common/themeService';
 
 class Settings {
 
@@ -41,7 +41,7 @@ class Settings {
 	public readonly x: number[];
 	public readonly w: number[];
 
-	constructor(config: editorCommon.IConfiguration, theme: ITheme) {
+	constructor(config: IConfiguration, theme: ITheme) {
 		this.lineHeight = config.editor.lineHeight;
 		this.pixelRatio = config.editor.pixelRatio;
 		this.overviewRulerLanes = config.editor.viewInfo.overviewRulerLanes;

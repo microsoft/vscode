@@ -50,6 +50,10 @@ export class MainThreadComments extends Disposable implements MainThreadComments
 				}
 				const id = editor.getId();
 				const model = editor.getModel();
+				if (model === null) {
+					return;
+				}
+
 				if (editors.filter(ed => ed.getId() === id).length > 0) {
 					// it's an active editor, we are going to update this editor's comments anyways
 				} else {

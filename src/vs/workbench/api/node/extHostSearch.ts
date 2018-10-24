@@ -12,11 +12,10 @@ import { IFileQuery, IFolderQuery, IRawFileQuery, IRawQuery, IRawTextQuery, ISea
 import { ExtHostConfiguration } from 'vs/workbench/api/node/extHostConfiguration';
 import { FileIndexSearchManager } from 'vs/workbench/api/node/extHostSearch.fileIndex';
 import { FileSearchManager } from 'vs/workbench/services/search/node/fileSearchManager';
-import { IFolderSearch, IRawSearch } from 'vs/workbench/services/search/node/legacy/search';
 import { SearchService } from 'vs/workbench/services/search/node/rawSearchService';
 import { RipgrepSearchProvider } from 'vs/workbench/services/search/node/ripgrepSearchProvider';
 import { OutputChannel } from 'vs/workbench/services/search/node/ripgrepSearchUtils';
-import { isSerializedFileMatch, isSerializedSearchComplete, isSerializedSearchSuccess } from 'vs/workbench/services/search/node/search';
+import { isSerializedFileMatch } from 'vs/workbench/services/search/node/search';
 import { TextSearchManager } from 'vs/workbench/services/search/node/textSearchManager';
 import * as vscode from 'vscode';
 import { ExtHostSearchShape, IMainContext, MainContext, MainThreadSearchShape } from './extHost.protocol';
@@ -136,56 +135,22 @@ export class ExtHostSearch implements ExtHostSearchShape {
 	}
 
 	private doInternalFileSearch(handle: number, session: number, rawQuery: IFileQuery, token: CancellationToken): Thenable<ISearchCompleteStats> {
-		return new Promise((resolve, reject) => {
-			const query: IRawSearch = {
-				folderQueries: [],
-				ignoreSymlinks: rawQuery.folderQueries.some(fq => fq.ignoreSymlinks),
-				filePattern: rawQuery.filePattern,
-				excludePattern: rawQuery.excludePattern,
-				includePattern: rawQuery.includePattern,
-				maxResults: rawQuery.maxResults,
-				exists: rawQuery.exists,
-				sortByScore: rawQuery.sortByScore,
-				cacheKey: rawQuery.cacheKey,
-				useRipgrep: rawQuery.useRipgrep,
-				disregardIgnoreFiles: rawQuery.folderQueries.some(fq => fq.disregardIgnoreFiles),
-				disregardGlobalIgnoreFiles: rawQuery.folderQueries.some(fq => fq.disregardGlobalIgnoreFiles),
-			};
-			query.folderQueries = rawQuery.folderQueries.map(fq => (<IFolderSearch>{
-				disregardGlobalIgnoreFiles: fq.disregardGlobalIgnoreFiles,
-				disregardIgnoreFiles: fq.disregardIgnoreFiles,
-				excludePattern: fq.excludePattern,
-				fileEncoding: fq.fileEncoding,
-				folder: fq.folder.fsPath,
-				includePattern: fq.includePattern
-			}));
+		const onResult = (ev) => {
+			if (isSerializedFileMatch(ev)) {
+				ev = [ev];
+			}
 
-			const event = this._internalFileSearchProvider.fileSearch(query);
-			event(ev => {
-				if (isSerializedSearchComplete(ev)) {
-					if (isSerializedSearchSuccess(ev)) {
-						resolve(ev);
-						return;
-					} else {
-						reject(ev);
-						return;
-					}
-				} else {
-					if (isSerializedFileMatch(ev)) {
-						ev = [ev];
-					}
+			if (Array.isArray(ev)) {
+				this._proxy.$handleFileMatch(handle, session, ev.map(m => URI.file(m.path)));
+				return;
+			}
 
-					if (Array.isArray(ev)) {
-						this._proxy.$handleFileMatch(handle, session, ev.map(m => URI.file(m.path)));
-						return;
-					}
+			if (ev.message) {
+				this._logService.debug('ExtHostSearch', ev.message);
+			}
+		};
 
-					if (ev.message) {
-						this._logService.debug('ExtHostSearch', ev.message);
-					}
-				}
-			});
-		});
+		return this._internalFileSearchProvider.doFileSearch(rawQuery, onResult, token);
 	}
 
 	$clearCache(cacheKey: string): Thenable<void> {

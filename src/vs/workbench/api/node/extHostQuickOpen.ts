@@ -79,9 +79,7 @@ export class ExtHostQuickOpen implements ExtHostQuickOpenShape {
 						description = item.description;
 						detail = item.detail;
 						picked = item.picked;
-						if (enableProposedApi) {
-							alwaysShow = item.alwaysShow;
-						}
+						alwaysShow = item.alwaysShow;
 					}
 					pickItems.push({
 						label,
@@ -479,7 +477,7 @@ class ExtHostQuickPick<T extends QuickPickItem> extends ExtHostQuickInput implem
 	private _selectedItems: T[] = [];
 	private _onDidChangeSelectionEmitter = new Emitter<T[]>();
 
-	constructor(proxy: MainThreadQuickOpenShape, extensionId: string, private _enableProposedApi: boolean, onDispose: () => void) {
+	constructor(proxy: MainThreadQuickOpenShape, extensionId: string, enableProposedApi: boolean, onDispose: () => void) {
 		super(proxy, extensionId, onDispose);
 		this._disposables.push(
 			this._onDidChangeActiveEmitter,
@@ -507,7 +505,7 @@ class ExtHostQuickPick<T extends QuickPickItem> extends ExtHostQuickInput implem
 				handle: i,
 				detail: item.detail,
 				picked: item.picked,
-				alwaysShow: this._enableProposedApi ? item.alwaysShow : undefined
+				alwaysShow: item.alwaysShow
 			}))
 		});
 	}
