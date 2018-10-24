@@ -11,7 +11,6 @@ const bom = require("gulp-bom");
 const sourcemaps = require("gulp-sourcemaps");
 const tsb = require("gulp-tsb");
 const path = require("path");
-const ts = require("typescript");
 const _ = require("underscore");
 const monacodts = require("../monaco/api");
 const nls = require("./nls");
@@ -112,43 +111,42 @@ class MonacoGenerator {
         this._executeSoonTimer = null;
         this._isWatch = isWatch;
         this.stream = es.through();
-        this._inputFiles = monacodts.getIncludesInRecipe().map((moduleId) => {
-            if (/\.d\.ts$/.test(moduleId)) {
-                // This source file is already in .d.ts form
-                return path.join(REPO_SRC_FOLDER, moduleId);
-            }
-            else {
-                return path.join(REPO_SRC_FOLDER, `${moduleId}.ts`);
-            }
-        });
-        // Install watchers
         this._watchers = [];
-        if (this._isWatch) {
-            this._inputFiles.forEach((filePath) => {
-                const watcher = fs.watch(filePath);
-                watcher.addListener('change', () => {
-                    this._inputFileChanged[filePath] = true;
-                    this._executeSoon();
-                });
-                this._watchers.push(watcher);
+        this._watchedFiles = {};
+        let onWillReadFile = (moduleId, filePath) => {
+            if (!this._isWatch) {
+                return;
+            }
+            if (this._watchedFiles[filePath]) {
+                return;
+            }
+            this._watchedFiles[filePath] = true;
+            const watcher = fs.watch(filePath);
+            watcher.addListener('change', () => {
+                this._declarationResolver.invalidateCache(moduleId);
+                this._executeSoon();
             });
+            this._watchers.push(watcher);
+        };
+        this._fsProvider = new class extends monacodts.FSProvider {
+            readFileSync(moduleId, filePath) {
+                onWillReadFile(moduleId, filePath);
+                return super.readFileSync(moduleId, filePath);
+            }
+        };
+        this._declarationResolver = new monacodts.DeclarationResolver(this._fsProvider);
+        if (this._isWatch) {
             const recipeWatcher = fs.watch(monacodts.RECIPE_PATH);
             recipeWatcher.addListener('change', () => {
-                this._recipeFileChanged = true;
                 this._executeSoon();
             });
             this._watchers.push(recipeWatcher);
         }
-        this._inputFileChanged = {};
-        this._inputFiles.forEach(file => this._inputFileChanged[file] = true);
-        this._recipeFileChanged = true;
-        this._dtsFilesContents = {};
-        this._dtsFilesContents2 = {};
     }
     _executeSoon() {
         if (this._executeSoonTimer !== null) {
-            // Already scheduled
-            return;
+            clearTimeout(this._executeSoonTimer);
+            this._executeSoonTimer = null;
         }
         this._executeSoonTimer = setTimeout(() => {
             this._executeSoonTimer = null;
@@ -159,49 +157,10 @@ class MonacoGenerator {
         this._watchers.forEach(watcher => watcher.close());
     }
     _run() {
-        let somethingChanged = false;
-        const setDTSFileContent = (file, contents) => {
-            if (this._dtsFilesContents[file] === contents) {
-                return;
-            }
-            this._dtsFilesContents[file] = contents;
-            this._dtsFilesContents2[file] = ts.createSourceFile(file, contents, ts.ScriptTarget.ES5);
-            somethingChanged = true;
-        };
-        const fileMap = {};
-        this._inputFiles.forEach((inputFile) => {
-            if (!this._inputFileChanged[inputFile]) {
-                return;
-            }
-            this._inputFileChanged[inputFile] = false;
-            const inputFileContents = fs.readFileSync(inputFile).toString();
-            if (/\.d\.ts$/.test(inputFile)) {
-                // This is a .d.ts file
-                setDTSFileContent(inputFile, inputFileContents);
-                return;
-            }
-            fileMap[inputFile] = inputFileContents;
-        });
-        if (Object.keys(fileMap).length > 0) {
-            const service = ts.createLanguageService(new monacodts.TypeScriptLanguageServiceHost({}, fileMap, {}));
-            Object.keys(fileMap).forEach((fileName) => {
-                const output = service.getEmitOutput(fileName, true).outputFiles[0].text;
-                const destFileName = fileName.replace(/\.ts$/, '.d.ts');
-                setDTSFileContent(destFileName, output);
-            });
-        }
-        if (this._recipeFileChanged) {
-            this._recipeFileChanged = false;
-            somethingChanged = true;
-        }
-        if (!somethingChanged) {
-            // Nothing changed
-            return null;
-        }
-        let r = monacodts.run2('src', this._dtsFilesContents2);
+        let r = monacodts.run3(this._declarationResolver);
         if (!r && !this._isWatch) {
             // The build must always be able to generate the monaco.d.ts
-            throw new Error(`monaco.d.ts genration error - Cannot continue`);
+            throw new Error(`monaco.d.ts generation error - Cannot continue`);
         }
         return r;
     }

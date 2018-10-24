@@ -8,28 +8,16 @@ const fs = require("fs");
 const ts = require("typescript");
 const path = require("path");
 const util = require("gulp-util");
-const dtsv = '1';
+const dtsv = '2';
 const tsfmt = require('../../tsfmt.json');
 function log(message, ...rest) {
     util.log(util.colors.cyan('[monaco.d.ts]'), message, ...rest);
 }
 const SRC = path.join(__dirname, '../../src');
-const OUT_ROOT = path.join(__dirname, '../../');
 exports.RECIPE_PATH = path.join(__dirname, './monaco.d.ts.recipe');
 const DECLARATION_PATH = path.join(__dirname, '../../src/vs/monaco.d.ts');
-var CURRENT_PROCESSING_RULE = '';
 function logErr(message, ...rest) {
-    util.log(util.colors.red('[monaco.d.ts]'), 'WHILE HANDLING RULE: ', CURRENT_PROCESSING_RULE);
-    util.log(util.colors.red('[monaco.d.ts]'), message, ...rest);
-}
-function _logErr(message, ...rest) {
     util.log(util.colors.red(`[monaco.d.ts]`), message, ...rest);
-}
-function moduleIdToPath(out, moduleId) {
-    if (/\.d\.ts/.test(moduleId)) {
-        return path.join(SRC, moduleId);
-    }
-    return path.join(OUT_ROOT, out, moduleId) + '.d.ts';
 }
 function isDeclaration(a) {
     return (a.kind === ts.SyntaxKind.InterfaceDeclaration
@@ -339,11 +327,11 @@ function generateDeclarationFile(recipe, sourceFileGetter) {
         }
         let m1 = line.match(/^\s*#include\(([^;)]*)(;[^)]*)?\)\:(.*)$/);
         if (m1) {
-            CURRENT_PROCESSING_RULE = line;
             let moduleId = m1[1];
             const sourceFile = sourceFileGetter(moduleId);
             if (!sourceFile) {
-                _logErr(`gulp watch restart required. ${moduleId} was added to 'monaco.d.ts.recipe'.`);
+                logErr(`While handling ${line}`);
+                logErr(`Cannot find ${moduleId}`);
                 failed = true;
                 return;
             }
@@ -357,7 +345,9 @@ function generateDeclarationFile(recipe, sourceFileGetter) {
                 }
                 let declaration = getTopLevelDeclaration(sourceFile, typeName);
                 if (!declaration) {
-                    logErr('Cannot find type ' + typeName);
+                    logErr(`While handling ${line}`);
+                    logErr(`Cannot find ${typeName}`);
+                    failed = true;
                     return;
                 }
                 result.push(replacer(getMassagedTopLevelDeclarationText(sourceFile, declaration, importName, usage, enums)));
@@ -366,11 +356,11 @@ function generateDeclarationFile(recipe, sourceFileGetter) {
         }
         let m2 = line.match(/^\s*#includeAll\(([^;)]*)(;[^)]*)?\)\:(.*)$/);
         if (m2) {
-            CURRENT_PROCESSING_RULE = line;
             let moduleId = m2[1];
             const sourceFile = sourceFileGetter(moduleId);
             if (!sourceFile) {
-                _logErr(`gulp watch restart required. ${moduleId} was added to 'monaco.d.ts.recipe'.`);
+                logErr(`While handling ${line}`);
+                logErr(`Cannot find ${moduleId}`);
                 failed = true;
                 return;
             }
@@ -413,10 +403,10 @@ function generateDeclarationFile(recipe, sourceFileGetter) {
     }
     if (version !== dtsv) {
         if (!version) {
-            _logErr(`gulp watch restart required. 'monaco.d.ts.recipe' is written before versioning was introduced.`);
+            logErr(`gulp watch restart required. 'monaco.d.ts.recipe' is written before versioning was introduced.`);
         }
         else {
-            _logErr(`gulp watch restart required. 'monaco.d.ts.recipe' v${version} does not match runtime v${dtsv}.`);
+            logErr(`gulp watch restart required. 'monaco.d.ts.recipe' v${version} does not match runtime v${dtsv}.`);
         }
         return null;
     }
@@ -441,31 +431,6 @@ function generateDeclarationFile(recipe, sourceFileGetter) {
         enums: resultEnums
     };
 }
-function getIncludesInRecipe() {
-    let recipe = fs.readFileSync(exports.RECIPE_PATH).toString();
-    let lines = recipe.split(/\r\n|\n|\r/);
-    let result = [];
-    lines.forEach(line => {
-        let m1 = line.match(/^\s*#include\(([^;)]*)(;[^)]*)?\)\:(.*)$/);
-        if (m1) {
-            let moduleId = m1[1];
-            result.push(moduleId);
-            return;
-        }
-        let m2 = line.match(/^\s*#includeAll\(([^;)]*)(;[^)]*)?\)\:(.*)$/);
-        if (m2) {
-            let moduleId = m2[1];
-            result.push(moduleId);
-            return;
-        }
-    });
-    return result;
-}
-exports.getIncludesInRecipe = getIncludesInRecipe;
-function getFilesToWatch(out) {
-    return getIncludesInRecipe().map((moduleId) => moduleIdToPath(out, moduleId));
-}
-exports.getFilesToWatch = getFilesToWatch;
 function _run(sourceFileGetter) {
     log('Starting monaco.d.ts generation');
     const recipe = fs.readFileSync(exports.RECIPE_PATH).toString();
@@ -489,35 +454,57 @@ function _run(sourceFileGetter) {
         isTheSame
     };
 }
-function run(out, inputFiles) {
-    let SOURCE_FILE_MAP = {};
-    const sourceFileGetter = (moduleId) => {
-        if (!SOURCE_FILE_MAP[moduleId]) {
-            let filePath = path.normalize(moduleIdToPath(out, moduleId));
-            if (!inputFiles.hasOwnProperty(filePath)) {
-                logErr('CANNOT FIND FILE ' + filePath + '. YOU MIGHT NEED TO RESTART gulp');
+class FSProvider {
+    existsSync(filePath) {
+        return fs.existsSync(filePath);
+    }
+    readFileSync(_moduleId, filePath) {
+        return fs.readFileSync(filePath);
+    }
+}
+exports.FSProvider = FSProvider;
+class DeclarationResolver {
+    constructor(_fsProvider) {
+        this._fsProvider = _fsProvider;
+        this._sourceFileCache = Object.create(null);
+    }
+    invalidateCache(moduleId) {
+        this._sourceFileCache[moduleId] = null;
+    }
+    getDeclarationSourceFile(moduleId) {
+        if (!this._sourceFileCache[moduleId]) {
+            this._sourceFileCache[moduleId] = this._getDeclarationSourceFile(moduleId);
+        }
+        return this._sourceFileCache[moduleId];
+    }
+    _getDeclarationSourceFile(moduleId) {
+        if (/\.d\.ts$/.test(moduleId)) {
+            const fileName = path.join(SRC, moduleId);
+            if (!this._fsProvider.existsSync(fileName)) {
                 return null;
             }
-            let fileContents = inputFiles[filePath];
-            let sourceFile = ts.createSourceFile(filePath, fileContents, ts.ScriptTarget.ES5);
-            SOURCE_FILE_MAP[moduleId] = sourceFile;
+            const fileContents = this._fsProvider.readFileSync(moduleId, fileName).toString();
+            return ts.createSourceFile(fileName, fileContents, ts.ScriptTarget.ES5);
         }
-        return SOURCE_FILE_MAP[moduleId];
-    };
+        const fileName = path.join(SRC, `${moduleId}.ts`);
+        if (!this._fsProvider.existsSync(fileName)) {
+            return null;
+        }
+        const fileContents = this._fsProvider.readFileSync(moduleId, fileName).toString();
+        const fileMap = {
+            'file.ts': fileContents
+        };
+        const service = ts.createLanguageService(new TypeScriptLanguageServiceHost({}, fileMap, {}));
+        const text = service.getEmitOutput('file.ts', true).outputFiles[0].text;
+        return ts.createSourceFile(fileName, text, ts.ScriptTarget.ES5);
+    }
+}
+exports.DeclarationResolver = DeclarationResolver;
+function run3(resolver) {
+    const sourceFileGetter = (moduleId) => resolver.getDeclarationSourceFile(moduleId);
     return _run(sourceFileGetter);
 }
-function run2(out, sourceFileMap) {
-    const sourceFileGetter = (moduleId) => {
-        let filePath = path.normalize(moduleIdToPath(out, moduleId));
-        return sourceFileMap[filePath];
-    };
-    return _run(sourceFileGetter);
-}
-exports.run2 = run2;
-function complainErrors() {
-    logErr('Not running monaco.d.ts generation due to compile errors');
-}
-exports.complainErrors = complainErrors;
+exports.run3 = run3;
 class TypeScriptLanguageServiceHost {
     constructor(libs, files, compilerOptions) {
         this._libs = libs;
@@ -563,31 +550,10 @@ class TypeScriptLanguageServiceHost {
         return fileName === this.getDefaultLibFileName(this._compilerOptions);
     }
 }
-exports.TypeScriptLanguageServiceHost = TypeScriptLanguageServiceHost;
 function execute() {
-    const OUTPUT_FILES = {};
-    const SRC_FILES = {};
-    const SRC_FILE_TO_EXPECTED_NAME = {};
-    getIncludesInRecipe().forEach((moduleId) => {
-        if (/\.d\.ts$/.test(moduleId)) {
-            let fileName = path.join(SRC, moduleId);
-            OUTPUT_FILES[moduleIdToPath('src', moduleId)] = fs.readFileSync(fileName).toString();
-            return;
-        }
-        let fileName = path.join(SRC, moduleId) + '.ts';
-        SRC_FILES[fileName] = fs.readFileSync(fileName).toString();
-        SRC_FILE_TO_EXPECTED_NAME[fileName] = moduleIdToPath('src', moduleId);
-    });
-    const languageService = ts.createLanguageService(new TypeScriptLanguageServiceHost({}, SRC_FILES, {}));
-    var t1 = Date.now();
-    Object.keys(SRC_FILES).forEach((fileName) => {
-        const emitOutput = languageService.getEmitOutput(fileName, true);
-        OUTPUT_FILES[SRC_FILE_TO_EXPECTED_NAME[fileName]] = emitOutput.outputFiles[0].text;
-    });
-    console.log(`Generating .d.ts took ${Date.now() - t1} ms`);
-    let r = run('src', OUTPUT_FILES);
+    let r = run3(new DeclarationResolver(new FSProvider()));
     if (!r) {
-        throw new Error(`monaco.d.ts genration error - Cannot continue`);
+        throw new Error(`monaco.d.ts generation error - Cannot continue`);
     }
     return r;
 }

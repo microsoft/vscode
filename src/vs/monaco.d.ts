@@ -5543,4 +5543,4 @@ declare namespace monaco.worker {
 
 }
 
-//dtsv=1
+//dtsv=2
