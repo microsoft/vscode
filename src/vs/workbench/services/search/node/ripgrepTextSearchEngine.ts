@@ -7,7 +7,7 @@ import * as cp from 'child_process';
 import { EventEmitter } from 'events';
 import * as path from 'path';
 import { NodeStringDecoder, StringDecoder } from 'string_decoder';
-import { startsWith } from 'vs/base/common/strings';
+import { startsWith, startsWithUTF8BOM, stripUTF8BOM, createRegExp } from 'vs/base/common/strings';
 import { URI } from 'vs/base/common/uri';
 import * as vscode from 'vscode';
 import { rgPath } from 'vscode-ripgrep';
@@ -332,59 +332,4 @@ function getRgArgs(query: vscode.TextSearchQuery, options: vscode.TextSearchOpti
 	args.push('.');
 
 	return args;
-}
-
-interface RegExpOptions {
-	matchCase?: boolean;
-	wholeWord?: boolean;
-	multiline?: boolean;
-	global?: boolean;
-}
-
-function createRegExp(searchString: string, isRegex: boolean, options: RegExpOptions = {}): RegExp {
-	if (!searchString) {
-		throw new Error('Cannot create regex from empty string');
-	}
-	if (!isRegex) {
-		searchString = escapeRegExpCharacters(searchString);
-	}
-	if (options.wholeWord) {
-		if (!/\B/.test(searchString.charAt(0))) {
-			searchString = '\\b' + searchString;
-		}
-		if (!/\B/.test(searchString.charAt(searchString.length - 1))) {
-			searchString = searchString + '\\b';
-		}
-	}
-	let modifiers = '';
-	if (options.global) {
-		modifiers += 'g';
-	}
-	if (!options.matchCase) {
-		modifiers += 'i';
-	}
-	if (options.multiline) {
-		modifiers += 'm';
-	}
-
-	return new RegExp(searchString, modifiers);
-}
-
-/**
- * Escapes regular expression characters in a given string
- */
-function escapeRegExpCharacters(value: string): string {
-	return value.replace(/[\-\\\{\}\*\+\?\|\^\$\.\[\]\(\)\#]/g, '\\$&');
-}
-
-// -- UTF-8 BOM
-
-const UTF8_BOM = 65279;
-
-function startsWithUTF8BOM(str: string): boolean {
-	return !!(str && str.length > 0 && str.charCodeAt(0) === UTF8_BOM);
-}
-
-function stripUTF8BOM(str: string): string {
-	return startsWithUTF8BOM(str) ? str.substr(1) : str;
 }
