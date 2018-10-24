@@ -486,7 +486,9 @@ function generateDeclarationFile(recipe: string, sourceFileGetter: SourceFileGet
 	let resultTxt = result.join(endl);
 	resultTxt = resultTxt.replace(/\bURI\b/g, 'Uri');
 	resultTxt = resultTxt.replace(/\bEvent</g, 'IEvent<');
+	resultTxt = resultTxt.split(/\r\n|\n|\r/).join(endl);
 	resultTxt = format(resultTxt, endl);
+	resultTxt = resultTxt.split(/\r\n|\n|\r/).join(endl);
 
 	let resultEnums = [
 		'/*---------------------------------------------------------------------------------------------',
@@ -499,6 +501,7 @@ function generateDeclarationFile(recipe: string, sourceFileGetter: SourceFileGet
 	].concat(enums).join(endl);
 	resultEnums = resultEnums.split(/\r\n|\n|\r/).join(endl);
 	resultEnums = format(resultEnums, endl);
+	resultEnums = resultEnums.split(/\r\n|\n|\r/).join(endl);
 
 	return {
 		result: resultTxt,
