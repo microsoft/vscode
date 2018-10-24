@@ -17,7 +17,7 @@ export const RECIPE_PATH = path.join(__dirname, './monaco.d.ts.recipe');
 const DECLARATION_PATH = path.join(__dirname, '../../src/vs/monaco.d.ts');
 
 function logErr(message: any, ...rest: any[]): void {
-	util.log(util.colors.red(`[monaco.d.ts]`), message, ...rest);
+	util.log(util.colors.yellow(`[monaco.d.ts]`), message, ...rest);
 }
 
 type SourceFileGetter = (moduleId: string) => ts.SourceFile | null;

@@ -14,7 +14,7 @@ const SRC = path.join(__dirname, '../../src');
 exports.RECIPE_PATH = path.join(__dirname, './monaco.d.ts.recipe');
 const DECLARATION_PATH = path.join(__dirname, '../../src/vs/monaco.d.ts');
 function logErr(message, ...rest) {
-    util.log(util.colors.red(`[monaco.d.ts]`), message, ...rest);
+    util.log(util.colors.yellow(`[monaco.d.ts]`), message, ...rest);
 }
 function isDeclaration(a) {
     return (a.kind === ts.SyntaxKind.InterfaceDeclaration
