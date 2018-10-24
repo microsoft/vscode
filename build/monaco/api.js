@@ -433,6 +433,7 @@ function generateDeclarationFile(recipe, sourceFileGetter) {
         '// THIS IS A GENERATED FILE. DO NOT EDIT DIRECTLY.',
         ''
     ].concat(enums).join(endl);
+    resultEnums = resultEnums.split(/\r\n|\n|\r/).join(endl);
     resultEnums = format(resultEnums, endl);
     return {
         result: resultTxt,
