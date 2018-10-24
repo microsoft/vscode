@@ -236,7 +236,9 @@ export class StorageService extends Disposable implements IStorageService {
 export class LogStorageAction extends Action {
 
 	static readonly ID = 'workbench.action.logStorage';
-	static LABEL = localize('logStorage', "Log Storage");
+	static LABEL = localize({ key: 'logStorage', comment: ['A developer only action to log the contents of the storage for the current window.'] }, "Log Storage Database Contents");
+
+
 
 	constructor(
 		id: string,
