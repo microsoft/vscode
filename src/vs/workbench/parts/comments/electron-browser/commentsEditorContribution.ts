@@ -13,7 +13,7 @@ import { ICodeEditor, IEditorMouseEvent, IViewZone, MouseTargetType } from 'vs/e
 import { registerEditorContribution, EditorAction, registerEditorAction } from 'vs/editor/browser/editorExtensions';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { EmbeddedCodeEditorWidget } from 'vs/editor/browser/widget/embeddedCodeEditorWidget';
-import { IEditorContribution } from 'vs/editor/common/editorCommon';
+import { IEditorContribution, IModelChangedEvent } from 'vs/editor/common/editorCommon';
 import { IRange } from 'vs/editor/common/core/range';
 import * as modes from 'vs/editor/common/modes';
 import { peekViewResultsBackground, peekViewResultsSelectionBackground, peekViewTitleBackground } from 'vs/editor/contrib/referenceSearch/referencesWidget';
@@ -173,6 +173,7 @@ export class ReviewController implements IEditorContribution {
 	private _commentingRangeSpaceReserved = false;
 
 	private _pendingCommentCache: { [key: number]: { [key: string]: string } };
+	private _pendingNewCommentCache: { [key: string]: { lineNumber: number, replyCommand: modes.Command, ownerId: number, pendingComment: string } };
 
 	constructor(
 		editor: ICodeEditor,
@@ -193,6 +194,7 @@ export class ReviewController implements IEditorContribution {
 		this._commentInfos = [];
 		this._commentWidgets = [];
 		this._pendingCommentCache = {};
+		this._pendingNewCommentCache = {};
 		this._newCommentWidget = null;
 
 		this._reviewPanelVisible = ctxReviewPanelVisible.bindTo(contextKeyService);
@@ -205,6 +207,7 @@ export class ReviewController implements IEditorContribution {
 				this._newCommentWidget = null;
 			}
 
+			delete this._pendingNewCommentCache[ownerId];
 			delete this._pendingCommentCache[ownerId];
 			this.getComments();
 		}));
@@ -218,7 +221,7 @@ export class ReviewController implements IEditorContribution {
 
 		this.globalToDispose.push(this.commentService.onDidSetDataProvider(_ => this.getComments()));
 
-		this.globalToDispose.push(this.editor.onDidChangeModel(() => this.onModelChanged()));
+		this.globalToDispose.push(this.editor.onDidChangeModel(e => this.onModelChanged(e)));
 		this.codeEditorService.registerDecorationType(COMMENTEDITOR_DECORATION_KEY, {});
 	}
 
@@ -310,16 +313,31 @@ export class ReviewController implements IEditorContribution {
 		this.editor = null;
 	}
 
-	public onModelChanged(): void {
+	public onModelChanged(e: IModelChangedEvent): void {
 		this.localToDispose = dispose(this.localToDispose);
 		if (this._newCommentWidget) {
-			// todo@peng store view state.
+			let pendingNewComment = this._newCommentWidget.getPendingComment();
+
+			if (pendingNewComment && e.oldModelUrl) {
+				// we can't fetch zone widget's position as the model is already gone
+				this._pendingNewCommentCache[e.oldModelUrl.toString()] = {
+					lineNumber: this._newCommentWidget.position.lineNumber,
+					ownerId: this._newCommentWidget.owner,
+					replyCommand: this._newCommentWidget.commentThread.reply,
+					pendingComment: pendingNewComment
+				};
+			}
+
 			this._newCommentWidget.dispose();
 			this._newCommentWidget = null;
 		}
 
-
 		this.removeCommentWidgetsAndStoreCache();
+
+		if (e.newModelUrl && this._pendingNewCommentCache[e.newModelUrl.toString()]) {
+			let newCommentCache = this._pendingNewCommentCache[e.newModelUrl.toString()];
+			this.addComment(newCommentCache.lineNumber, newCommentCache.replyCommand, newCommentCache.ownerId, newCommentCache.pendingComment);
+		}
 
 		this.localToDispose.push(this.editor.onMouseDown(e => this.onEditorMouseDown(e)));
 		this.localToDispose.push(this.editor.onMouseUp(e => this.onEditorMouseUp(e)));
@@ -364,20 +382,14 @@ export class ReviewController implements IEditorContribution {
 		}));
 	}
 
-	private addComment(lineNumber: number) {
+	private addComment(lineNumber: number, replyCommand: modes.Command, ownerId: number, pendingComment: string) {
 		if (this._newCommentWidget !== null) {
 			this.notificationService.warn(`Please submit the comment at line ${this._newCommentWidget.position.lineNumber} before creating a new one.`);
 			return;
 		}
 
-		let newCommentInfo = this._commentingRangeDecorator.getMatchedCommentAction(lineNumber);
-		if (!newCommentInfo) {
-			return;
-		}
-
 		// add new comment
 		this._reviewPanelVisible.set(true);
-		const { replyCommand, ownerId } = newCommentInfo;
 		this._newCommentWidget = new ReviewZoneWidget(this.instantiationService, this.modeService, this.modelService, this.themeService, this.commentService, this.openerService, this.dialogService, this.notificationService, this.editor, ownerId, {
 			threadId: null,
 			resource: null,
@@ -390,7 +402,7 @@ export class ReviewController implements IEditorContribution {
 			},
 			reply: replyCommand,
 			collapsibleState: CommentThreadCollapsibleState.Expanded,
-		}, null, {});
+		}, pendingComment, {});
 
 		this.localToDispose.push(this._newCommentWidget.onDidClose(e => {
 			this._newCommentWidget = null;
@@ -458,7 +470,12 @@ export class ReviewController implements IEditorContribution {
 
 		if (e.target.element.className.indexOf('comment-diff-added') >= 0) {
 			const lineNumber = e.target.position.lineNumber;
-			this.addComment(lineNumber);
+			let newCommentInfo = this._commentingRangeDecorator.getMatchedCommentAction(lineNumber);
+			if (!newCommentInfo) {
+				return;
+			}
+			const { replyCommand, ownerId } = newCommentInfo;
+			this.addComment(lineNumber, replyCommand, ownerId, null);
 		}
 	}
 
@@ -503,8 +520,12 @@ export class ReviewController implements IEditorContribution {
 				let pendingComment: string = null;
 				if (providerCacheStore) {
 					pendingComment = providerCacheStore[thread.threadId];
+				}
+
+				if (pendingComment) {
 					thread.collapsibleState = modes.CommentThreadCollapsibleState.Expanded;
 				}
+
 				let zoneWidget = new ReviewZoneWidget(this.instantiationService, this.modeService, this.modelService, this.themeService, this.commentService, this.openerService, this.dialogService, this.notificationService, this.editor, info.owner, thread, pendingComment, {});
 				zoneWidget.display(thread.range.startLineNumber, this._commentingRangeDecorator.commentsOptions);
 				this._commentWidgets.push(zoneWidget);
@@ -538,16 +559,18 @@ export class ReviewController implements IEditorContribution {
 		if (this._commentWidgets) {
 			this._commentWidgets.forEach(zone => {
 				let pendingComment = zone.getPendingComment();
-				if (pendingComment) {
-					// cache pendingComment for later recovery
-					let providerCacheStore = this._pendingCommentCache[zone.owner];
+				let providerCacheStore = this._pendingCommentCache[zone.owner];
 
+				if (pendingComment) {
 					if (!providerCacheStore) {
 						this._pendingCommentCache[zone.owner] = {};
-						providerCacheStore = this._pendingCommentCache[zone.owner];
 					}
 
-					providerCacheStore[zone.commentThread.threadId] = pendingComment;
+					this._pendingCommentCache[zone.owner][zone.commentThread.threadId] = pendingComment;
+				} else {
+					if (providerCacheStore) {
+						delete providerCacheStore[zone.commentThread.threadId];
+					}
 				}
 
 				zone.dispose();
