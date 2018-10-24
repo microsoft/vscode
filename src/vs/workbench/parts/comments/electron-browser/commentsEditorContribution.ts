@@ -499,7 +499,12 @@ export class ReviewController implements IEditorContribution {
 		}
 	}
 
+
 	private setComments(commentInfos: modes.CommentInfo[]): void {
+		if (!this.editor) {
+			return;
+		}
+
 		this._commentInfos = commentInfos;
 		let lineDecorationsWidth: number = this.editor.getConfiguration().layoutInfo.decorationsWidth;
 
