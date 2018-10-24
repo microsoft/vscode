@@ -40,7 +40,7 @@ Please also see our [Code of Conduct](CODE_OF_CONDUCT.md).
 * Request a new feature on [GitHub](CONTRIBUTING.md).
 * Vote for [Popular Feature Requests](https://github.com/Microsoft/vscode/issues?q=is%3Aopen+is%3Aissue+label%3Afeature-request+sort%3Areactions-%2B1-desc).
 * File a bug in [GitHub Issues](https://github.com/Microsoft/vscode/issues).
-* [Tweet](https://twitter.com/code) us with other feedback.
+* For giving other feedback [Tweet](https://twitter.com/code).
 
 ## Related Projects
 
