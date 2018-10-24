@@ -675,9 +675,9 @@ export class DebugService implements IDebugService {
 
 			const taskLabel = typeof taskId === 'string' ? taskId : taskId.name;
 			const message = errorCount > 1
-				? nls.localize('preLaunchTaskErrors', "Build errors have been detected during preLaunchTask '{0}'.", taskLabel)
+				? nls.localize('preLaunchTaskErrors', "Errors exist after running preLaunchTask '{0}'.", taskLabel)
 				: errorCount === 1
-					? nls.localize('preLaunchTaskError', "Build error has been detected during preLaunchTask '{0}'.", taskLabel)
+					? nls.localize('preLaunchTaskError', "Error exists after running preLaunchTask '{0}'.", taskLabel)
 					: nls.localize('preLaunchTaskExitCode', "The preLaunchTask '{0}' terminated with exit code {1}.", taskLabel, taskSummary.exitCode);
 
 			const showErrorsAction = new Action('debug.showErrors', nls.localize('showErrors', "Show Errors"), undefined, true, () => {

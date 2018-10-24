@@ -724,21 +724,6 @@ declare module 'vscode' {
 
 	//#endregion
 
-	//#region Joao: SCM Input Box
-
-	/**
-	 * Represents the input box in the Source Control viewlet.
-	 */
-	export interface SourceControlInputBox {
-
-		/**
-		* Whether the input box is visible.
-		*/
-		visible: boolean;
-	}
-
-	//#endregion
-
 	//#region Comments
 	/**
 	 * Comments provider related APIs are still in early stages, they may be changed significantly during our API experiments.

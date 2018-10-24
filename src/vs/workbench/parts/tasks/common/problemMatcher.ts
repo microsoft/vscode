@@ -1352,9 +1352,6 @@ export class ProblemMatcherParser extends Parser {
 		}
 
 		let pattern = description.pattern ? this.createProblemPattern(description.pattern) : undefined;
-		if (!pattern) {
-			return null;
-		}
 
 		let severity = description.severity ? Severity.fromValue(description.severity) : undefined;
 		if (severity === Severity.Ignore) {
@@ -1380,7 +1377,7 @@ export class ProblemMatcherParser extends Parser {
 					if (filePrefix) {
 						result.filePrefix = filePrefix;
 					}
-					if (description.pattern) {
+					if (pattern) {
 						result.pattern = pattern;
 					}
 					if (description.severity) {
@@ -1391,7 +1388,7 @@ export class ProblemMatcherParser extends Parser {
 					}
 				}
 			}
-		} else if (fileLocation) {
+		} else if (fileLocation && pattern) {
 			result = {
 				owner: owner,
 				applyTo: applyTo,
