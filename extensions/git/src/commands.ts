@@ -98,8 +98,8 @@ class CreateBranchItem implements QuickPickItem {
 
 	get alwaysShow(): boolean { return true; }
 
-	async run(repository: Repository): Promise<void> {
-		await this.cc.branch(repository);
+	async run(repository: Repository, newBranch: string): Promise<void> {
+		await this.cc.branch(repository, newBranch);
 	}
 }
 
@@ -1371,18 +1371,21 @@ export class CommandCenter {
 
 		const picks = [createBranch, ...heads, ...tags, ...remoteHeads];
 		const placeHolder = localize('select a ref to checkout', 'Select a ref to checkout');
-		const choice = await window.showQuickPick(picks, { placeHolder });
-
-		if (!choice) {
-			return false;
-		}
-
-		await choice.run(repository);
+		const quickPick = window.createQuickPick<QuickPickItem>();
+		quickPick.items = picks;
+		quickPick.placeholder = placeHolder;
+		quickPick.onDidChangeSelection((e: QuickPickItem[]) => {
+			if (e[0] instanceof CreateBranchItem) {
+				const selectedItem = e[0] as CreateBranchItem;
+				selectedItem.run(repository, quickPick.value);
+			}
+		});
+		quickPick.show();
 		return true;
 	}
 
 	@command('git.branch', { repository: true })
-	async branch(repository: Repository): Promise<void> {
+	async branch(repository: Repository, newBranch?: string): Promise<void> {
 		const config = workspace.getConfiguration('git');
 		const branchValidationRegex = config.get<string>('branchValidationRegex')!;
 		const branchWhitespaceChar = config.get<string>('branchWhitespaceChar')!;
@@ -1396,19 +1399,24 @@ export class CommandCenter {
 
 			return name.replace(/^\.|\/\.|\.\.|~|\^|:|\/$|\.lock$|\.lock\/|\\|\*|\s|^\s*$|\.$|\[|\]$/g, branchWhitespaceChar);
 		};
+		let result: string | undefined;
+		if (newBranch && typeof (newBranch) === 'string') {
+			result = newBranch;
+		}
+		else {
+			result = await window.showInputBox({
+				placeHolder: localize('branch name', "Branch name"),
+				prompt: localize('provide branch name', "Please provide a branch name"),
+				ignoreFocusOut: true,
+				validateInput: (name: string) => {
+					if (validateName.test(sanitize(name))) {
+						return null;
+					}
 
-		const result = await window.showInputBox({
-			placeHolder: localize('branch name', "Branch name"),
-			prompt: localize('provide branch name', "Please provide a branch name"),
-			ignoreFocusOut: true,
-			validateInput: (name: string) => {
-				if (validateName.test(sanitize(name))) {
-					return null;
+					return localize('branch name format invalid', "Branch name needs to match regex: {0}", branchValidationRegex);
 				}
-
-				return localize('branch name format invalid', "Branch name needs to match regex: {0}", branchValidationRegex);
-			}
-		});
+			});
+		}
 
 		const name = sanitize(result || '');
 
