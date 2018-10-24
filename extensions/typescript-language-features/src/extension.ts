@@ -108,6 +108,7 @@ function registerCommands(
 	commandManager.register(new commands.RestartTsServerCommand(lazyClientHost));
 	commandManager.register(new commands.TypeScriptGoToProjectConfigCommand(lazyClientHost));
 	commandManager.register(new commands.JavaScriptGoToProjectConfigCommand(lazyClientHost));
+	commandManager.register(new commands.ConfigurePluginCommand(lazyClientHost));
 }
 
 function isSupportedDocument(
