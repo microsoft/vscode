@@ -210,7 +210,6 @@ export class ReviewController implements IEditorContribution {
 				this._newCommentWidget = null;
 			}
 
-			delete this._pendingNewCommentCache[ownerId];
 			delete this._pendingCommentCache[ownerId];
 			this.beginCompute();
 		}));
@@ -344,6 +343,11 @@ export class ReviewController implements IEditorContribution {
 
 			this._newCommentWidget.dispose();
 			this._newCommentWidget = null;
+		} else {
+			if (e.oldModelUrl) {
+				// remove pending new comment cache as there is no newCommentWidget anymore
+				delete this._pendingNewCommentCache[e.oldModelUrl.toString()];
+			}
 		}
 
 		this.removeCommentWidgetsAndStoreCache();
