@@ -454,7 +454,7 @@ class LeafNode implements ISplitView, IDisposable {
 		return this.orientation === Orientation.HORIZONTAL ? this.maximumHeight : this.maximumWidth;
 	}
 
-	get priority(): LayoutPriority {
+	get priority(): LayoutPriority | undefined {
 		return this.view.priority;
 	}
 
