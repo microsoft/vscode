@@ -223,7 +223,7 @@ export class RipgrepParser extends EventEmitter {
 		const newlineMatches = matchText.match(/\n/g);
 		const newlines = newlineMatches ? newlineMatches.length : 0;
 
-		const textBytes = new Buffer(lineText);
+		const textBytes = Buffer.from(lineText);
 		let startCol = textBytes.slice(0, match.start).toString().length;
 		const endChars = startCol + textBytes.slice(match.start, match.end).toString().length;
 
@@ -249,7 +249,7 @@ export class RipgrepParser extends EventEmitter {
 
 function bytesOrTextToString(obj: any): string {
 	return obj.bytes ?
-		new Buffer(obj.bytes, 'base64').toString() :
+		Buffer.from(obj.bytes, 'base64').toString() :
 		obj.text;
 }
 
