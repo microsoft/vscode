@@ -293,7 +293,9 @@ function quit(accessor: ServicesAccessor, reason?: ExpectedError | Error): void 
 	lifecycleService.kill(exitCode);
 }
 
-function main() {
+// immediately invoked main function 😁 
+
+(function () {
 
 	// Set the error handler early enough so that we are not getting the
 	// default electron error dialog popping up
@@ -341,6 +343,4 @@ function main() {
 				return instantiationService.createInstance(CodeApplication, mainIpcServer, instanceEnv).startup();
 			});
 	}).then(null, err => instantiationService.invokeFunction(quit, err));
-}
-
-main();
+})()
