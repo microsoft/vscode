@@ -111,7 +111,7 @@ class MessageWidget {
 			this._relatedBlock.style.paddingTop = `${Math.floor(this._editor.getConfiguration().lineHeight * .66)}px`;
 			this._lines += 1;
 
-			for (const related of relatedInformation) {
+			for (const related of relatedInformation || []) {
 
 				let container = document.createElement('div');
 
@@ -159,7 +159,7 @@ export class MarkerNavigationWidget extends ZoneWidget {
 	private _message: MessageWidget;
 	private _callOnDispose: IDisposable[] = [];
 	private _severity: MarkerSeverity;
-	private _backgroundColor: Color;
+	private _backgroundColor: Color | null;
 	private _onDidSelectRelatedInformation = new Emitter<IRelatedInformation>();
 
 	readonly onDidSelectRelatedInformation: Event<IRelatedInformation> = this._onDidSelectRelatedInformation.event;
@@ -195,7 +195,7 @@ export class MarkerNavigationWidget extends ZoneWidget {
 
 	protected _applyStyles(): void {
 		if (this._parentContainer) {
-			this._parentContainer.style.backgroundColor = this._backgroundColor.toString();
+			this._parentContainer.style.backgroundColor = this._backgroundColor ? this._backgroundColor.toString() : '';
 		}
 		super._applyStyles();
 	}
@@ -244,7 +244,8 @@ export class MarkerNavigationWidget extends ZoneWidget {
 
 		// show
 		let range = Range.lift(marker);
-		let position = range.containsPosition(this.editor.getPosition()) ? this.editor.getPosition() : range.getStartPosition();
+		const editorPosition = this.editor.getPosition();
+		let position = editorPosition && range.containsPosition(editorPosition) ? editorPosition : range.getStartPosition();
 		super.show(position, this.computeRequiredHeight());
 
 		this.editor.revealPositionInCenter(position, ScrollType.Smooth);

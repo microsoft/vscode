@@ -73,8 +73,8 @@ registerLanguageCommand('_executeCodeLensProvider', function (accessor, args) {
 		for (const item of value) {
 			if (typeof itemResolveCount === 'undefined' || Boolean(item.symbol.command)) {
 				result.push(item.symbol);
-			} else if (itemResolveCount-- > 0) {
-				resolve.push(Promise.resolve(item.provider.resolveCodeLens(model, item.symbol, CancellationToken.None)).then(symbol => result.push(symbol)));
+			} else if (itemResolveCount-- > 0 && item.provider.resolveCodeLens) {
+				resolve.push(Promise.resolve(item.provider.resolveCodeLens(model, item.symbol, CancellationToken.None)).then(symbol => result.push(symbol || item.symbol)));
 			}
 		}
 

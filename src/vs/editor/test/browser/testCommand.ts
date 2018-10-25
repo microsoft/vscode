@@ -61,7 +61,7 @@ export function getEditOperation(model: ITextModel, command: editorCommon.IComma
 
 
 		trackSelection: (selection: Selection) => {
-			return null;
+			return '';
 		}
 	};
 	command.getEditOperations(model, editOperationBuilder);

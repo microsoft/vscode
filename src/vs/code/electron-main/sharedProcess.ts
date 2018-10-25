@@ -21,7 +21,7 @@ export class SharedProcess implements ISharedProcess {
 
 	private barrier = new Barrier();
 
-	private window: Electron.BrowserWindow;
+	private window: Electron.BrowserWindow | null;
 
 	constructor(
 		private readonly machineId: string,
@@ -63,7 +63,7 @@ export class SharedProcess implements ISharedProcess {
 			e.preventDefault();
 
 			// Still hide the window though if visible
-			if (this.window.isVisible()) {
+			if (this.window && this.window.isVisible()) {
 				this.window.hide();
 			}
 		};
@@ -81,12 +81,16 @@ export class SharedProcess implements ISharedProcess {
 			// Otherwise the application would never quit because the shared process
 			// window is refusing to close!
 			//
-			this.window.removeListener('close', onClose);
+			if (this.window) {
+				this.window.removeListener('close', onClose);
+			}
 
 			// Electron seems to crash on Windows without this setTimeout :|
 			setTimeout(() => {
 				try {
-					this.window.close();
+					if (this.window) {
+						this.window.close();
+					}
 				} catch (err) {
 					// ignore, as electron is already shutting down
 				}
@@ -118,7 +122,7 @@ export class SharedProcess implements ISharedProcess {
 	}
 
 	toggle(): void {
-		if (this.window.isVisible()) {
+		if (!this.window || this.window.isVisible()) {
 			this.hide();
 		} else {
 			this.show();
@@ -126,12 +130,16 @@ export class SharedProcess implements ISharedProcess {
 	}
 
 	show(): void {
-		this.window.show();
-		this.window.webContents.openDevTools();
+		if (this.window) {
+			this.window.show();
+			this.window.webContents.openDevTools();
+		}
 	}
 
 	hide(): void {
-		this.window.webContents.closeDevTools();
-		this.window.hide();
+		if (this.window) {
+			this.window.webContents.closeDevTools();
+			this.window.hide();
+		}
 	}
 }
