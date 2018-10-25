@@ -6,13 +6,13 @@
 import 'vs/css!./gridview';
 import { Event, anyEvent, Emitter, mapEvent, Relay } from 'vs/base/common/event';
 import { Orientation, Sash } from 'vs/base/browser/ui/sash/sash';
-import { SplitView, IView as ISplitView, Sizing, ISplitViewStyles } from 'vs/base/browser/ui/splitview/splitview';
+import { SplitView, IView as ISplitView, Sizing, LayoutPriority, ISplitViewStyles } from 'vs/base/browser/ui/splitview/splitview';
 import { Disposable, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { $ } from 'vs/base/browser/dom';
 import { tail2 as tail } from 'vs/base/common/arrays';
 import { Color } from 'vs/base/common/color';
 
-export { Sizing } from 'vs/base/browser/ui/splitview/splitview';
+export { Sizing, LayoutPriority } from 'vs/base/browser/ui/splitview/splitview';
 export { Orientation } from 'vs/base/browser/ui/sash/sash';
 
 export interface IView {
@@ -22,6 +22,8 @@ export interface IView {
 	readonly minimumHeight: number;
 	readonly maximumHeight: number;
 	readonly onDidChange: Event<{ width: number; height: number; }>;
+	readonly priority?: LayoutPriority;
+	readonly snapSize?: number;
 	layout(width: number, height: number): void;
 }
 
@@ -60,6 +62,7 @@ const defaultStyles: IGridViewStyles = {
 
 export interface IGridViewOptions {
 	styles?: IGridViewStyles;
+	proportionalLayout?: boolean; // default true
 }
 
 class BranchNode implements ISplitView, IDisposable {
@@ -135,6 +138,7 @@ class BranchNode implements ISplitView, IDisposable {
 	constructor(
 		readonly orientation: Orientation,
 		styles: IGridViewStyles,
+		readonly proportionalLayout: boolean,
 		size: number = 0,
 		orthogonalSize: number = 0
 	) {
@@ -450,6 +454,14 @@ class LeafNode implements ISplitView, IDisposable {
 		return this.orientation === Orientation.HORIZONTAL ? this.maximumHeight : this.maximumWidth;
 	}
 
+	get priority(): LayoutPriority {
+		return this.view.priority;
+	}
+
+	get snapSize(): number | undefined {
+		return this.view.snapSize;
+	}
+
 	get minimumOrthogonalSize(): number {
 		return this.orientation === Orientation.HORIZONTAL ? this.minimumWidth : this.minimumHeight;
 	}
@@ -483,7 +495,7 @@ type Node = BranchNode | LeafNode;
 
 function flipNode<T extends Node>(node: T, size: number, orthogonalSize: number): T {
 	if (node instanceof BranchNode) {
-		const result = new BranchNode(orthogonal(node.orientation), node.styles, size, orthogonalSize);
+		const result = new BranchNode(orthogonal(node.orientation), node.styles, node.proportionalLayout, size, orthogonalSize);
 
 		let totalSize = 0;
 
@@ -512,6 +524,7 @@ export class GridView implements IDisposable {
 
 	readonly element: HTMLElement;
 	private styles: IGridViewStyles;
+	private proportionalLayout: boolean;
 
 	private _root: BranchNode;
 	private onDidSashResetRelay = new Relay<number[]>();
@@ -566,7 +579,8 @@ export class GridView implements IDisposable {
 	constructor(options: IGridViewOptions = {}) {
 		this.element = $('.monaco-grid-view');
 		this.styles = options.styles || defaultStyles;
-		this.root = new BranchNode(Orientation.VERTICAL, this.styles);
+		this.proportionalLayout = typeof options.proportionalLayout !== 'undefined' ? !!options.proportionalLayout : true;
+		this.root = new BranchNode(Orientation.VERTICAL, this.styles, this.proportionalLayout);
 	}
 
 	style(styles: IGridViewStyles): void {
@@ -596,7 +610,7 @@ export class GridView implements IDisposable {
 			const [, parentIndex] = tail(rest);
 			grandParent.removeChild(parentIndex);
 
-			const newParent = new BranchNode(parent.orientation, this.styles, parent.size, parent.orthogonalSize);
+			const newParent = new BranchNode(parent.orientation, this.styles, this.proportionalLayout, parent.size, parent.orthogonalSize);
 			grandParent.addChild(newParent, parent.size, parentIndex);
 			newParent.orthogonalLayout(parent.orthogonalSize);
 
