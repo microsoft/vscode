@@ -10,7 +10,7 @@ import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import * as glob from 'vs/base/common/glob';
 import { URI } from 'vs/base/common/uri';
 import { TPromise } from 'vs/base/common/winjs.base';
-import { IFolderQuery, ITextQuery, QueryType } from 'vs/platform/search/common/search';
+import { IFolderQuery, ITextQuery, QueryType, ISearchRange } from 'vs/platform/search/common/search';
 import { LegacyTextSearchService } from 'vs/workbench/services/search/node/legacy/rawLegacyTextSearchService';
 import { ISerializedFileMatch } from 'vs/workbench/services/search/node/search';
 import { TextSearchEngineAdapter } from 'vs/workbench/services/search/node/textSearchAdapter';
@@ -312,6 +312,38 @@ suite('Search-integration', function () {
 		return doSearchTest(config, 286);
 	});
 
+	test('Text: 语', () => {
+		const config = <ITextQuery>{
+			type: QueryType.Text,
+			folderQueries: ROOT_FOLDER_QUERY,
+			contentPattern: { pattern: '语' }
+		};
+
+		return doRipgrepSearchTest(config, 1).then(results => {
+			const matchRange = results[0].matches[0].ranges;
+			assert.deepEqual(matchRange, [{
+				startLineNumber: 0,
+				startColumn: 1,
+				endLineNumber: 0,
+				endColumn: 2
+			}]);
+		});
+	});
+
+	test('Multiple matches on line: h\\d,', () => {
+		const config = <ITextQuery>{
+			type: QueryType.Text,
+			folderQueries: ROOT_FOLDER_QUERY,
+			contentPattern: { pattern: 'h\\d,', isRegExp: true }
+		};
+
+		return doRipgrepSearchTest(config, 15).then(results => {
+			assert.equal(results.length, 3);
+			assert.equal(results[0].matches.length, 1);
+			assert.equal((<ISearchRange[]>results[0].matches[0].ranges).length, 5);
+		});
+	});
+
 	suite('error messages', () => {
 		test('invalid encoding', () => {
 			const config = <ITextQuery>{
@@ -374,24 +406,6 @@ suite('Search-integration', function () {
 				throw new Error('expected fail');
 			}, err => {
 				assert.equal(err.message, 'The literal \'"\\n"\' is not allowed in a regex');
-			});
-		});
-
-		test('Text: 语', () => {
-			const config = <ITextQuery>{
-				type: QueryType.Text,
-				folderQueries: ROOT_FOLDER_QUERY,
-				contentPattern: { pattern: '语' }
-			};
-
-			return doRipgrepSearchTest(config, 1).then(results => {
-				const matchRange = results[0].matches[0].ranges;
-				assert.deepEqual(matchRange, [{
-					startLineNumber: 0,
-					startColumn: 1,
-					endLineNumber: 0,
-					endColumn: 2
-				}]);
 			});
 		});
 	});
