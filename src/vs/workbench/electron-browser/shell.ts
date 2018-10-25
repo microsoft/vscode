@@ -87,7 +87,7 @@ import { NotificationService } from 'vs/workbench/services/notification/common/n
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { DialogService } from 'vs/workbench/services/dialogs/electron-browser/dialogService';
 import { DialogChannel } from 'vs/platform/dialogs/node/dialogIpc';
-import { EventType, addDisposableListener, addClass } from 'vs/base/browser/dom';
+import { EventType, addDisposableListener, addClass, scheduleAtNextAnimationFrame } from 'vs/base/browser/dom';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { OpenerService } from 'vs/editor/browser/services/openerService';
 import { SearchHistoryService } from 'vs/workbench/services/search/node/searchHistoryService';
@@ -517,13 +517,25 @@ export class WorkbenchShell extends Disposable {
 	}
 
 	private registerListeners(): void {
+		this._register(addDisposableListener(window, EventType.RESIZE, e => this.onWindowResize(e, true)));
+	}
 
-		// Resize
-		this._register(addDisposableListener(window, EventType.RESIZE, e => {
-			if (e.target === window) {
-				this.layout();
+	private onWindowResize(e: any, retry: boolean): void {
+		if (e.target === window) {
+			if (window.document && window.document.body && window.document.body.clientWidth === 0) {
+				// TODO@Ben this is an electron issue on macOS when simple fullscreen is enabled
+				// where for some reason the window clientWidth is reported as 0 when switching
+				// between simple fullscreen and normal screen. In that case we schedule the layout
+				// call at the next animation frame once, in the hope that the dimensions are
+				// proper then.
+				if (retry) {
+					scheduleAtNextAnimationFrame(() => this.onWindowResize(e, false));
+				}
+				return;
 			}
-		}));
+
+			this.layout();
+		}
 	}
 
 	onUnexpectedError(error: any): void {

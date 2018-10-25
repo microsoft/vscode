@@ -143,6 +143,10 @@ export class CodeWindow implements ICodeWindow {
 
 		const windowConfig = this.configurationService.getValue<IWindowSettings>('window');
 
+		if (isMacintosh && !this.useNativeFullScreen()) {
+			options.fullscreenable = false; // enables simple fullscreen mode
+		}
+
 		if (isMacintosh) {
 			options.acceptFirstMouse = true; // enabled by default
 
@@ -203,10 +207,6 @@ export class CodeWindow implements ICodeWindow {
 			if (!this._win.isVisible()) {
 				this._win.show(); // to reduce flicker from the default window size to maximize, we only show after maximize
 			}
-		}
-
-		if (isMacintosh && windowConfig && windowConfig.nativeFullscreen === false) {
-			this._win.setFullScreenable(false);
 		}
 
 		this._lastFocusTime = Date.now(); // since we show directly, we need to set the last focus time too
@@ -378,7 +378,7 @@ export class CodeWindow implements ICodeWindow {
 
 		// Simple fullscreen doesn't resize automatically when the resolution changes
 		screen.on('display-metrics-changed', () => {
-			if (isMacintosh && this.isFullScreen() && this.useNativeFullScreen()) {
+			if (isMacintosh && this.isFullScreen() && !this.useNativeFullScreen()) {
 				this.setFullScreen(false);
 				this.setFullScreen(true);
 			}
@@ -429,11 +429,6 @@ export class CodeWindow implements ICodeWindow {
 		if (this.openedWorkspace && this.openedWorkspace.id === workspace.id) {
 			this.currentConfig.workspace = void 0;
 		}
-	}
-
-	private useNativeFullScreen(): boolean {
-		const windowConfig = this.configurationService.getValue<IWindowSettings>('window');
-		return windowConfig && windowConfig.nativeFullscreen === false;
 	}
 
 	private onConfigurationUpdated(): void {
@@ -575,7 +570,7 @@ export class CodeWindow implements ICodeWindow {
 		}
 
 		// Set fullscreen state
-		windowConfiguration.fullscreen = this._win.isFullScreen();
+		windowConfiguration.fullscreen = this.isFullScreen();
 
 		// Set Accessibility Config
 		let autoDetectHighContrast = true;
@@ -798,36 +793,47 @@ export class CodeWindow implements ICodeWindow {
 		this.setFullScreen(!this.isFullScreen());
 	}
 
-	private setFullScreen(willBeFullScreen?: boolean): void {
+	private setFullScreen(fullscreen: boolean): void {
+
+		// Set fullscreen state
 		if (this.useNativeFullScreen()) {
-			this.setSimpleFullScreen(willBeFullScreen);
+			this.setNativeFullScreen(fullscreen);
 		} else {
-			this.setNativeFullScreen(willBeFullScreen);
+			this.setSimpleFullScreen(fullscreen);
 		}
+
+		// Events
+		this.sendWhenReady(fullscreen ? 'vscode:enterFullScreen' : 'vscode:leaveFullScreen');
+
+		// Respect configured menu bar visibility or default to toggle if not set
+		this.setMenuBarVisibility(this.currentMenuBarVisibility, false);
 	}
 
-	private isFullScreen(): boolean {
+	isFullScreen(): boolean {
 		return this._win.isFullScreen() || this._win.isSimpleFullScreen();
 	}
 
-	private setNativeFullScreen(willBeFullScreen: boolean): void {
+	private setNativeFullScreen(fullscreen: boolean): void {
 		if (this._win.isSimpleFullScreen()) {
 			this._win.setSimpleFullScreen(false);
 		}
 
-		this._win.setFullScreen(willBeFullScreen);
-
-		// respect configured menu bar visibility or default to toggle if not set
-		this.setMenuBarVisibility(this.currentMenuBarVisibility, false);
+		this._win.setFullScreen(fullscreen);
 	}
 
-	private setSimpleFullScreen(willBeFullScreen: boolean): void {
+	private setSimpleFullScreen(fullscreen: boolean): void {
 		if (this._win.isFullScreen()) {
 			this._win.setFullScreen(false);
 		}
 
-		this._win.setSimpleFullScreen(willBeFullScreen);
+		this._win.setSimpleFullScreen(fullscreen);
 		this._win.webContents.focus(); // workaround issue where focus is not going into window
+	}
+
+	private useNativeFullScreen(): boolean {
+		const windowConfig = this.configurationService.getValue<IWindowSettings>('window');
+
+		return windowConfig && windowConfig.nativeFullscreen !== false;
 	}
 
 	private getMenuBarVisibility(): MenuBarVisibility {
@@ -870,7 +876,7 @@ export class CodeWindow implements ICodeWindow {
 	}
 
 	private doSetMenuBarVisibility(visibility: MenuBarVisibility): void {
-		const isFullscreen = this._win.isFullScreen();
+		const isFullscreen = this.isFullScreen();
 
 		switch (visibility) {
 			case ('default'):
