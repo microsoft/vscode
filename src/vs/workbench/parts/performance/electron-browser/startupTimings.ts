@@ -17,6 +17,10 @@ import { IEditorService } from 'vs/workbench/services/editor/common/editorServic
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 import { ITimerService, didUseCachedData } from 'vs/workbench/services/timer/electron-browser/timerService';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
+import { IEnvironmentService } from 'vs/platform/environment/common/environment';
+import product from 'vs/platform/node/product';
+import { timeout, nfcall } from 'vs/base/common/async';
+import { appendFile } from 'fs';
 
 class StartupTimings implements IWorkbenchContribution {
 
@@ -30,13 +34,21 @@ class StartupTimings implements IWorkbenchContribution {
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 		@ILifecycleService private readonly _lifecycleService: ILifecycleService,
 		@IUpdateService private readonly _updateService: IUpdateService,
+		@IEnvironmentService private readonly _envService: IEnvironmentService,
 	) {
-
-		this._reportVariedStartupTimes().then(undefined, onUnexpectedError);
-		this._reportStandardStartupTimes().then(undefined, onUnexpectedError);
+		//
+		this._report().catch(onUnexpectedError);
 	}
 
-	private async _reportVariedStartupTimes(): Promise<void> {
+	private async _report() {
+		const isStandardStartup = await this._isStandardStartup();
+		this._reportStartupTimes(isStandardStartup).catch(onUnexpectedError);
+		this._appendStartupTimes(isStandardStartup).catch(onUnexpectedError);
+	}
+
+	private async _reportStartupTimes(isStandardStartup: boolean): Promise<void> {
+		const metrics = await this._timerService.startupMetrics;
+
 		/* __GDPR__
 			"startupTimeVaried" : {
 				"${include}": [
@@ -44,45 +56,7 @@ class StartupTimings implements IWorkbenchContribution {
 				]
 			}
 		*/
-		this._telemetryService.publicLog('startupTimeVaried', await this._timerService.startupMetrics);
-	}
-
-	private async _reportStandardStartupTimes(): Promise<void> {
-		// check for standard startup:
-		// * new window (no reload)
-		// * just one window
-		// * explorer viewlet visible
-		// * one text editor (not multiple, not webview, welcome etc...)
-		// * cached data present (not rejected, not created)
-		if (this._lifecycleService.startupKind !== StartupKind.NewWindow) {
-			this._logService.info('no standard startup: not a new window');
-			return;
-		}
-		if (await this._windowsService.getWindowCount() !== 1) {
-			this._logService.info('no standard startup: not just one window');
-			return;
-		}
-		if (!this._viewletService.getActiveViewlet() || this._viewletService.getActiveViewlet().getId() !== files.VIEWLET_ID) {
-			this._logService.info('no standard startup: not the explorer viewlet');
-			return;
-		}
-		const visibleControls = this._editorService.visibleControls;
-		if (visibleControls.length !== 1 || !isCodeEditor(visibleControls[0].getControl())) {
-			this._logService.info('no standard startup: not just one text editor');
-			return;
-		}
-		if (this._panelService.getActivePanel()) {
-			this._logService.info('no standard startup: panel is active');
-			return;
-		}
-		if (!didUseCachedData()) {
-			this._logService.info('no standard startup: not using cached data');
-			return;
-		}
-		if (!await this._updateService.isLatestVersion()) {
-			this._logService.info('no standard startup: not running latest version');
-			return;
-		}
+		this._telemetryService.publicLog('startupTimeVaried', metrics);
 
 		/* __GDPR__
 		"startupTime" : {
@@ -91,11 +65,76 @@ class StartupTimings implements IWorkbenchContribution {
 			]
 		}
 		*/
-		const metrics = await this._timerService.startupMetrics;
 		this._telemetryService.publicLog('startupTime', metrics);
-		this._logService.info('standard startup', metrics);
+	}
+
+	private async _appendStartupTimes(isStandardStartup: boolean) {
+		let appendTo = this._envService.args['prof-append-timers'];
+		if (!appendTo) {
+			// nothing to do
+			return;
+		}
+
+		const waitWhenNoCachedData = () => {
+			// wait 15s for cached data to be produced
+			return !didUseCachedData()
+				? timeout(15000)
+				: Promise.resolve();
+		};
+
+		Promise.all([
+			this._timerService.startupMetrics,
+			waitWhenNoCachedData(),
+		]).then(([startupMetrics]) => {
+			return nfcall(appendFile, appendTo, `${startupMetrics.ellapsed}\t${product.nameLong}\t${product.commit || '0000000'}\t${isStandardStartup ? 'standard_start' : 'NOT_standard_start'}\n`);
+		}).then(() => {
+			this._windowsService.quit();
+		}).catch(err => {
+			console.error(err);
+			this._windowsService.quit();
+		});
+	}
+
+	private async _isStandardStartup(): Promise<boolean> {
+		// check for standard startup:
+		// * new window (no reload)
+		// * just one window
+		// * explorer viewlet visible
+		// * one text editor (not multiple, not webview, welcome etc...)
+		// * cached data present (not rejected, not created)
+		if (this._lifecycleService.startupKind !== StartupKind.NewWindow) {
+			this._logService.info('no standard startup: not a new window');
+			return false;
+		}
+		if (await this._windowsService.getWindowCount() !== 1) {
+			this._logService.info('no standard startup: not just one window');
+			return false;
+		}
+		if (!this._viewletService.getActiveViewlet() || this._viewletService.getActiveViewlet().getId() !== files.VIEWLET_ID) {
+			this._logService.info('no standard startup: not the explorer viewlet');
+			return false;
+		}
+		const visibleControls = this._editorService.visibleControls;
+		if (visibleControls.length !== 1 || !isCodeEditor(visibleControls[0].getControl())) {
+			this._logService.info('no standard startup: not just one text editor');
+			return false;
+		}
+		if (this._panelService.getActivePanel()) {
+			this._logService.info('no standard startup: panel is active');
+			return false;
+		}
+		if (!didUseCachedData()) {
+			this._logService.info('no standard startup: not using cached data');
+			return false;
+		}
+		if (!await this._updateService.isLatestVersion()) {
+			this._logService.info('no standard startup: not running latest version');
+			return false;
+		}
+		this._logService.info('standard startup');
+		return true;
 	}
 }
 
 const registry = Registry.as<IWorkbenchContributionsRegistry>(Extensions.Workbench);
-registry.registerWorkbenchContribution(StartupTimings, LifecyclePhase.Running);
+registry.registerWorkbenchContribution(StartupTimings, LifecyclePhase.Eventually);

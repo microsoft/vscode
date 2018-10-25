@@ -13,7 +13,6 @@
     "onLanguage:json",
     "onLanguage:jsonc"
   ],
-  "enableProposedApi": true,
   "main": "./client/out/jsonMain",
   "scripts": {
     "compile": "gulp compile-extension:json-language-features-client && gulp compile-extension:json-language-features-server",

@@ -11,7 +11,7 @@ import { domEvent, stop } from 'vs/base/browser/event';
 import { basename } from 'vs/base/common/paths';
 import { IDisposable, dispose, combinedDisposable, Disposable, toDisposable } from 'vs/base/common/lifecycle';
 import { PanelViewlet, ViewletPanel, IViewletPanelOptions } from 'vs/workbench/browser/parts/views/panelViewlet';
-import { append, $, addClass, toggleClass, trackFocus, Dimension, addDisposableListener } from 'vs/base/browser/dom';
+import { append, $, addClass, toggleClass, trackFocus, Dimension, addDisposableListener, removeClass } from 'vs/base/browser/dom';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { List } from 'vs/base/browser/ui/list/listWidget';
 import { IListVirtualDelegate, IListRenderer, IListContextMenuEvent, IListEvent } from 'vs/base/browser/ui/list/list';
@@ -865,6 +865,10 @@ export class RepositoryPanel extends ViewletPanel {
 
 		this.updateInputBox();
 
+		// Input box visibility
+		this.repository.input.onDidChangeVisibility(this.updateInputBoxVisibility, this, this.disposables);
+		this.updateInputBoxVisibility();
+
 		// List
 
 		this.listContainer = append(container, $('.scm-status.show-file-icons'));
@@ -918,21 +922,35 @@ export class RepositoryPanel extends ViewletPanel {
 		}
 
 		this.cachedHeight = height;
-		this.inputBox.layout();
 
-		const editorHeight = this.inputBox.height;
-		const listHeight = height - (editorHeight + 12 /* margin */);
-		this.listContainer.style.height = `${listHeight}px`;
-		this.list.layout(listHeight);
+		if (this.repository.input.visible) {
+			removeClass(this.inputBoxContainer, 'hidden');
+			this.inputBox.layout();
 
-		toggleClass(this.inputBoxContainer, 'scroll', editorHeight >= 134);
+			const editorHeight = this.inputBox.height;
+			const listHeight = height - (editorHeight + 12 /* margin */);
+			this.listContainer.style.height = `${listHeight}px`;
+			this.list.layout(listHeight);
+
+			toggleClass(this.inputBoxContainer, 'scroll', editorHeight >= 134);
+		} else {
+			addClass(this.inputBoxContainer, 'hidden');
+			removeClass(this.inputBoxContainer, 'scroll');
+
+			this.listContainer.style.height = `${height}px`;
+			this.list.layout(height);
+		}
 	}
 
 	focus(): void {
 		super.focus();
 
 		if (this.isExpanded()) {
-			this.inputBox.focus();
+			if (this.repository.input.visible) {
+				this.inputBox.focus();
+			} else {
+				this.list.domFocus();
+			}
 		}
 	}
 
@@ -991,11 +1009,17 @@ export class RepositoryPanel extends ViewletPanel {
 	}
 
 	private updateInputBox(): void {
-		if (typeof this.repository.provider.commitTemplate === 'undefined' || this.inputBox.value) {
+		if (typeof this.repository.provider.commitTemplate === 'undefined' || !this.repository.input.visible || this.inputBox.value) {
 			return;
 		}
 
 		this.inputBox.value = this.repository.provider.commitTemplate;
+	}
+
+	private updateInputBoxVisibility(): void {
+		if (this.cachedHeight) {
+			this.layoutBody(this.cachedHeight);
+		}
 	}
 
 	dispose(): void {

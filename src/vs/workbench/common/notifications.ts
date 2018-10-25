@@ -195,6 +195,7 @@ export interface INotificationViewItem {
 	toggle(): void;
 
 	hasProgress(): boolean;
+	hasPrompt(): boolean;
 
 	updateSeverity(severity: Severity): void;
 	updateMessage(message: NotificationMessage): void;
@@ -420,11 +421,7 @@ export class NotificationViewItem extends Disposable implements INotificationVie
 	}
 
 	get canCollapse(): boolean {
-		if (!this._actions.primary) {
-			return true;
-		}
-
-		return this._actions.primary.length === 0;
+		return !this.hasPrompt();
 	}
 
 	get expanded(): boolean {
@@ -440,16 +437,24 @@ export class NotificationViewItem extends Disposable implements INotificationVie
 			return true; // explicitly sticky
 		}
 
-		const hasPrimaryActions = Array.isArray(this._actions.primary) && this._actions.primary.length > 0;
+		const hasPrompt = this.hasPrompt();
 		if (
-			(hasPrimaryActions && this._severity === Severity.Error) || // notification errors with actions are sticky
-			(!hasPrimaryActions && this._expanded) ||					// notifications that got expanded are sticky
-			(this._progress && !this._progress.state.done)				// notifications with running progress are sticky
+			(hasPrompt && this._severity === Severity.Error) || // notification errors with actions are sticky
+			(!hasPrompt && this._expanded) ||					// notifications that got expanded are sticky
+			(this._progress && !this._progress.state.done)		// notifications with running progress are sticky
 		) {
 			return true;
 		}
 
 		return false; // not sticky
+	}
+
+	hasPrompt(): boolean {
+		if (!this._actions.primary) {
+			return false;
+		}
+
+		return this._actions.primary.length > 0;
 	}
 
 	hasProgress(): boolean {

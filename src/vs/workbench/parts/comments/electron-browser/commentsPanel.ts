@@ -167,29 +167,18 @@ export class CommentsPanel extends Panel {
 			const control = this.editorService.activeTextEditorWidget;
 			if (threadToReveal && isCodeEditor(control)) {
 				const controller = ReviewController.get(control);
-				controller.revealCommentThread(threadToReveal, commentToReveal);
+				controller.revealCommentThread(threadToReveal, commentToReveal, false);
 			}
 
 			return true;
 		}
 
 
-		let setCommentsForFile = new Promise((resolve, reject) => {
-			this.commentService.onDidSetResourceCommentInfos(e => {
-				if (e.resource.toString() === element.resource.toString()) {
-					resolve();
-				}
-			});
-		});
-
 		const threadToReveal = element instanceof ResourceWithCommentThreads ? element.commentThreads[0].threadId : element.threadId;
 		const commentToReveal = element instanceof ResourceWithCommentThreads ? element.commentThreads[0].comment : element.comment;
 
 		if (commentToReveal.command) {
-			Promise.all([
-				this.commandService.executeCommand(commentToReveal.command.id, ...commentToReveal.command.arguments),
-				setCommentsForFile
-			]).then(_ => {
+			this.commandService.executeCommand(commentToReveal.command.id, ...commentToReveal.command.arguments).then(_ => {
 				let activeWidget = this.editorService.activeTextEditorWidget;
 				if (isDiffEditor(activeWidget)) {
 					const originalEditorWidget = activeWidget.getOriginalEditor();
@@ -203,7 +192,7 @@ export class CommentsPanel extends Panel {
 					}
 
 					if (controller) {
-						controller.revealCommentThread(threadToReveal, commentToReveal.commentId);
+						controller.revealCommentThread(threadToReveal, commentToReveal.commentId, true);
 					}
 				} else {
 					let activeEditor = this.editorService.activeEditor;
@@ -212,7 +201,7 @@ export class CommentsPanel extends Panel {
 						const control = this.editorService.activeTextEditorWidget;
 						if (threadToReveal && isCodeEditor(control)) {
 							const controller = ReviewController.get(control);
-							controller.revealCommentThread(threadToReveal, commentToReveal.commentId);
+							controller.revealCommentThread(threadToReveal, commentToReveal.commentId, true);
 						}
 					}
 				}
@@ -220,24 +209,21 @@ export class CommentsPanel extends Panel {
 				return true;
 			});
 		} else {
-			Promise.all([this.editorService.openEditor({
+			this.editorService.openEditor({
 				resource: element.resource,
 				options: {
 					pinned: pinned,
 					preserveFocus: preserveFocus,
 					selection: range
 				}
-			}, sideBySide ? SIDE_GROUP : ACTIVE_GROUP), setCommentsForFile]).then(vals => {
-				let editor = vals[0];
+			}, sideBySide ? SIDE_GROUP : ACTIVE_GROUP).then(editor => {
 				const control = editor.getControl();
 				if (threadToReveal && isCodeEditor(control)) {
 					const controller = ReviewController.get(control);
-					controller.revealCommentThread(threadToReveal, commentToReveal.commentId);
+					controller.revealCommentThread(threadToReveal, commentToReveal.commentId, true);
 				}
-				setCommentsForFile = null;
 			});
 		}
-
 
 		return true;
 	}
