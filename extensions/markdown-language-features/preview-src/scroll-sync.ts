@@ -24,13 +24,13 @@ const getCodeLineElements = (() => {
 	let elements: CodeLineElement[];
 	return () => {
 		if (!elements) {
-			elements = Array.prototype.map.call(
+			elements = ([{ element: document.body, line: 0 }]).concat(Array.prototype.map.call(
 				document.getElementsByClassName('code-line'),
 				(element: any) => {
 					const line = +element.getAttribute('data-line');
 					return { element, line };
 				})
-				.filter((x: any) => !isNaN(x.line));
+				.filter((x: any) => !isNaN(x.line)));
 		}
 		return elements;
 	};
@@ -49,8 +49,7 @@ export function getElementsForSourceLine(targetLine: number): { previous: CodeLi
 	for (const entry of lines) {
 		if (entry.line === lineNumber) {
 			return { previous: entry, next: undefined };
-		}
-		else if (entry.line > lineNumber) {
+		} else if (entry.line > lineNumber) {
 			return { previous, next: entry };
 		}
 		previous = entry;
