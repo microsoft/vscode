@@ -138,6 +138,7 @@ export function rgErrorMsgForDisplay(msg: string): Maybe<string> {
 export class RipgrepParser extends EventEmitter {
 	private remainder = '';
 	private isDone = false;
+	private hitLimit = false;
 	private stringDecoder: NodeStringDecoder;
 
 	private numResults = 0;
@@ -190,56 +191,62 @@ export class RipgrepParser extends EventEmitter {
 		}
 
 		if (parsedLine.type === 'match') {
-			let hitLimit = false;
 			const uri = URI.file(path.join(this.rootFolder, parsedLine.data.path.text));
-			parsedLine.data.submatches.map((match: any) => {
-				if (hitLimit) {
-					return null;
-				}
+			const result = this.submatchesToResult(parsedLine, parsedLine.data.submatches, uri);
+			this.onResult(result);
 
-				if (this.numResults >= this.maxResults) {
-					// Finish the line, then report the result below
-					hitLimit = true;
-				}
-
-				return this.submatchToResult(parsedLine, match, uri);
-			}).forEach((result: any) => {
-				if (result) {
-					this.onResult(result);
-				}
-			});
-
-			if (hitLimit) {
+			if (this.hitLimit) {
 				this.cancel();
 				this.emit('hitLimit');
 			}
 		}
 	}
 
-	private submatchToResult(parsedLine: any, match: any, uri: vscode.Uri): vscode.TextSearchResult {
+	private submatchesToResult(parsedLine: any, matches: any[], uri: vscode.Uri): vscode.TextSearchResult {
 		const lineNumber = parsedLine.data.line_number - 1;
-		let lineText = bytesOrTextToString(parsedLine.data.lines);
-		let matchText = bytesOrTextToString(match.match);
-		const newlineMatches = matchText.match(/\n/g);
-		const newlines = newlineMatches ? newlineMatches.length : 0;
+		const fullText = bytesOrTextToString(parsedLine.data.lines);
+		const fullTextBytes = Buffer.from(fullText);
 
-		const textBytes = Buffer.from(lineText);
-		let startCol = textBytes.slice(0, match.start).toString().length;
-		const endChars = startCol + textBytes.slice(match.start, match.end).toString().length;
+		let prevMatchEnd = 0;
+		let prevMatchEndCol = 0;
+		let prevMatchEndLine = lineNumber;
+		const ranges = matches.map((match, i) => {
+			if (this.hitLimit) {
+				return null;
+			}
 
-		const endLineNumber = lineNumber + newlines;
-		let endCol = endChars - (lineText.lastIndexOf('\n', lineText.length - 2) + 1);
+			this.numResults++;
+			if (this.numResults >= this.maxResults) {
+				// Finish the line, then report the result below
+				this.hitLimit = true;
+			}
 
-		if (lineNumber === 0) {
-			if (startsWithUTF8BOM(matchText)) {
+			let matchText = bytesOrTextToString(match.match);
+			const inBetweenChars = fullTextBytes.slice(prevMatchEnd, match.start).toString().length;
+			let startCol = prevMatchEndCol + inBetweenChars;
+
+			const stats = getNumLinesAndLastNewlineLength(matchText);
+			let startLineNumber = prevMatchEndLine;
+			let endLineNumber = stats.numLines + startLineNumber;
+			let endCol = stats.numLines > 0 ?
+				stats.lastLineLength :
+				stats.lastLineLength + startCol;
+
+			if (lineNumber === 0 && i === 0 && startsWithUTF8BOM(matchText)) {
 				matchText = stripUTF8BOM(matchText);
 				startCol -= 3;
 				endCol -= 3;
 			}
-		}
 
-		const range = new Range(lineNumber, startCol, endLineNumber, endCol);
-		return createTextSearchResult(uri, lineText, range, this.previewOptions);
+			prevMatchEnd = match.end;
+			prevMatchEndCol = endCol;
+			prevMatchEndLine = endLineNumber;
+
+			return new Range(startLineNumber, startCol, endLineNumber, endCol);
+		})
+			.filter(r => !!r);
+
+		return createTextSearchResult(uri, fullText, ranges, this.previewOptions);
 	}
 
 	private onResult(match: vscode.TextSearchResult): void {
@@ -251,6 +258,23 @@ function bytesOrTextToString(obj: any): string {
 	return obj.bytes ?
 		Buffer.from(obj.bytes, 'base64').toString() :
 		obj.text;
+}
+
+function getNumLinesAndLastNewlineLength(text: string): { numLines: number, lastLineLength: number } {
+	const re = /\n/g;
+	let numLines = 0;
+	let lastNewlineIdx = -1;
+	let match: ReturnType<typeof re.exec>;
+	while (match = re.exec(text)) {
+		numLines++;
+		lastNewlineIdx = match.index;
+	}
+
+	const lastLineLength = lastNewlineIdx >= 0 ?
+		text.length - lastNewlineIdx :
+		text.length;
+
+	return { numLines, lastLineLength };
 }
 
 function getRgArgs(query: vscode.TextSearchQuery, options: vscode.TextSearchOptions): string[] {

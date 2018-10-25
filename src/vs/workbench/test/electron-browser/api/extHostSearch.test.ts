@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 import * as assert from 'assert';
+import { mapArrayOrNot } from 'vs/base/common/arrays';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { isPromiseCanceledError } from 'vs/base/common/errors';
 import { dispose } from 'vs/base/common/lifecycle';
@@ -625,7 +626,7 @@ suite('ExtHostSearch', () => {
 
 		function makePreview(text: string): vscode.TextSearchResult['preview'] {
 			return {
-				match: new Range(0, 0, 0, text.length),
+				matches: new Range(0, 0, 0, text.length),
 				text
 			};
 		}
@@ -633,7 +634,7 @@ suite('ExtHostSearch', () => {
 		function makeTextResult(baseFolder: URI, relativePath: string): vscode.TextSearchResult {
 			return {
 				preview: makePreview('foo'),
-				range: new Range(0, 0, 0, 3),
+				ranges: new Range(0, 0, 0, 3),
 				uri: joinPath(baseFolder, relativePath)
 			};
 		}
@@ -663,9 +664,14 @@ suite('ExtHostSearch', () => {
 					actualTextSearchResults.push({
 						preview: {
 							text: lineMatch.preview.text,
-							match: new Range(lineMatch.preview.match.startLineNumber, lineMatch.preview.match.startColumn, lineMatch.preview.match.endLineNumber, lineMatch.preview.match.endColumn)
+							matches: mapArrayOrNot(
+								lineMatch.preview.matches,
+								m => new Range(m.startLineNumber, m.startColumn, m.endLineNumber, m.endColumn))
 						},
-						range: new Range(lineMatch.range.startLineNumber, lineMatch.range.startColumn, lineMatch.range.endLineNumber, lineMatch.range.endColumn),
+						ranges: mapArrayOrNot(
+							lineMatch.ranges,
+							r => new Range(r.startLineNumber, r.startColumn, r.endLineNumber, r.endColumn),
+						),
 						uri: fileMatch.resource
 					});
 				}
@@ -679,7 +685,7 @@ suite('ExtHostSearch', () => {
 					...r,
 					...{
 						uri: r.uri.toString(),
-						range: rangeToString(r.range),
+						range: mapArrayOrNot(r.ranges, rangeToString),
 						preview: {
 							text: r.preview.text,
 							match: null // Don't care about this right now

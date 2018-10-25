@@ -385,13 +385,13 @@ suite('Search-integration', function () {
 			};
 
 			return doRipgrepSearchTest(config, 1).then(results => {
-				const matchRange = results[0].matches[0].range;
-				assert.deepEqual(matchRange, {
+				const matchRange = results[0].matches[0].ranges;
+				assert.deepEqual(matchRange, [{
 					startLineNumber: 0,
 					startColumn: 1,
 					endLineNumber: 0,
 					endColumn: 2
-				});
+				}]);
 			});
 		});
 	});

@@ -21,7 +21,7 @@ import { IModelService } from 'vs/editor/common/services/modelService';
 import { createDecorator, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IProgressRunner } from 'vs/platform/progress/common/progress';
 import { ReplacePattern } from 'vs/platform/search/common/replace';
-import { IFileMatch, IPatternInfo, ISearchComplete, ISearchProgressItem, ISearchService, ITextSearchPreviewOptions, ITextSearchResult, ITextSearchStats, TextSearchResult, ITextQuery } from 'vs/platform/search/common/search';
+import { IFileMatch, IPatternInfo, ISearchComplete, ISearchProgressItem, ISearchService, ITextQuery, ITextSearchPreviewOptions, ITextSearchResult, ITextSearchStats, TextSearchResult } from 'vs/platform/search/common/search';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { overviewRulerFindMatchForeground } from 'vs/platform/theme/common/colorRegistry';
 import { themeColorFromId } from 'vs/platform/theme/common/themeService';
@@ -37,17 +37,21 @@ export class Match {
 	private _rangeInPreviewText: Range;
 
 	constructor(private _parent: FileMatch, _result: ITextSearchResult) {
+		if (Array.isArray(_result.ranges) || Array.isArray(_result.preview.matches)) {
+			throw new Error('A Match can only be built from a single search result');
+		}
+
 		this._range = new Range(
-			_result.range.startLineNumber + 1,
-			_result.range.startColumn + 1,
-			_result.range.endLineNumber + 1,
-			_result.range.endColumn + 1);
+			_result.ranges.startLineNumber + 1,
+			_result.ranges.startColumn + 1,
+			_result.ranges.endLineNumber + 1,
+			_result.ranges.endColumn + 1);
 
 		this._rangeInPreviewText = new Range(
-			_result.preview.match.startLineNumber + 1,
-			_result.preview.match.startColumn + 1,
-			_result.preview.match.endLineNumber + 1,
-			_result.preview.match.endColumn + 1);
+			_result.preview.matches.startLineNumber + 1,
+			_result.preview.matches.startColumn + 1,
+			_result.preview.matches.endLineNumber + 1,
+			_result.preview.matches.endColumn + 1);
 		this._previewText = _result.preview.text;
 
 		this._id = this._parent.id() + '>' + this._range + this.getMatchString();
@@ -171,8 +175,8 @@ export class FileMatch extends Disposable {
 			this.updateMatchesForModel();
 		} else {
 			this.rawMatch.matches.forEach(rawMatch => {
-				let match = new Match(this, rawMatch);
-				this.add(match);
+				textSearchResultToMatches(rawMatch, this)
+					.forEach(m => this.add(m));
 			});
 		}
 	}
@@ -416,8 +420,8 @@ export class FolderMatch extends Disposable {
 			if (this._fileMatches.has(rawFileMatch.resource)) {
 				const existingFileMatch = this._fileMatches.get(rawFileMatch.resource);
 				rawFileMatch.matches.forEach(m => {
-					let match = new Match(existingFileMatch, m);
-					existingFileMatch.add(match);
+					textSearchResultToMatches(m, existingFileMatch)
+						.forEach(m => existingFileMatch.add(m));
 				});
 				updated.push(existingFileMatch);
 			} else {
@@ -1010,4 +1014,22 @@ export function editorMatchToTextSearchResult(match: FindMatch, model: ITextMode
 		model.getLineContent(match.range.startLineNumber),
 		new Range(match.range.startLineNumber - 1, match.range.startColumn - 1, match.range.endLineNumber - 1, match.range.endColumn - 1),
 		previewOptions);
+}
+
+function textSearchResultToMatches(rawMatch: ITextSearchResult, fileMatch: FileMatch): Match[] {
+	if (Array.isArray(rawMatch.ranges)) {
+		return rawMatch.ranges.map((r, i) => {
+			return new Match(fileMatch, {
+				uri: rawMatch.uri,
+				ranges: r,
+				preview: {
+					text: rawMatch.preview.text,
+					matches: rawMatch.preview.matches[i]
+				}
+			});
+		});
+	} else {
+		let match = new Match(fileMatch, rawMatch);
+		return [match];
+	}
 }

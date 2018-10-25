@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { join, relative } from 'path';
-import { delta as arrayDelta } from 'vs/base/common/arrays';
+import { delta as arrayDelta, mapArrayOrNot } from 'vs/base/common/arrays';
 import { Emitter, Event } from 'vs/base/common/event';
 import { TernarySearchTree } from 'vs/base/common/map';
 import { Counter } from 'vs/base/common/numbers';
@@ -425,9 +425,13 @@ export class ExtHostWorkspace implements ExtHostWorkspaceShape {
 					uri: URI.revive(p.resource),
 					preview: {
 						text: match.preview.text,
-						match: new Range(match.preview.match.startLineNumber, match.preview.match.startColumn, match.preview.match.endLineNumber, match.preview.match.endColumn)
+						matches: mapArrayOrNot(
+							match.preview.matches,
+							m => new Range(m.startLineNumber, m.startColumn, m.endLineNumber, m.endColumn))
 					},
-					range: new Range(match.range.startLineNumber, match.range.startColumn, match.range.endLineNumber, match.range.endColumn)
+					ranges: mapArrayOrNot(
+						match.ranges,
+						r => new Range(r.startLineNumber, r.startColumn, r.endLineNumber, r.endColumn))
 				});
 			});
 		};
