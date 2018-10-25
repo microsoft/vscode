@@ -88,22 +88,31 @@ export function getLineElementsAtPageOffset(offset: number): { previous: CodeLin
  * Attempt to reveal the element for a source line in the editor.
  */
 export function scrollToRevealSourceLine(line: number) {
-	const { previous, next } = getElementsForSourceLine(line);
-	if (previous && getSettings().scrollPreviewWithEditor) {
-		let scrollTo = 0;
-		const rect = previous.element.getBoundingClientRect();
-		const previousTop = rect.top;
-		if (next && next.line !== previous.line) {
-			// Between two elements. Go to percentage offset between them.
-			const betweenProgress = (line - previous.line) / (next.line - previous.line);
-			const elementOffset = next.element.getBoundingClientRect().top - previousTop;
-			scrollTo = previousTop + betweenProgress * elementOffset;
-		}
-		else {
-			scrollTo = previousTop;
-		}
-		window.scroll(0, Math.max(1, window.scrollY + scrollTo));
+	if (!getSettings().scrollPreviewWithEditor) {
+		return;
 	}
+
+	if (line <= 0) {
+		window.scroll(window.scrollX, 0);
+		return;
+	}
+
+	const { previous, next } = getElementsForSourceLine(line);
+	if (!previous) {
+		return;
+	}
+	let scrollTo = 0;
+	const rect = previous.element.getBoundingClientRect();
+	const previousTop = rect.top;
+	if (next && next.line !== previous.line) {
+		// Between two elements. Go to percentage offset between them.
+		const betweenProgress = (line - previous.line) / (next.line - previous.line);
+		const elementOffset = next.element.getBoundingClientRect().top - previousTop;
+		scrollTo = previousTop + betweenProgress * elementOffset;
+	} else {
+		scrollTo = previousTop;
+	}
+	window.scroll(window.scrollX, Math.max(1, window.scrollY + scrollTo));
 }
 
 export function getEditorLineNumberForPageOffset(offset: number) {
