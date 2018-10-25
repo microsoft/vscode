@@ -38,20 +38,20 @@
 },
 {
 	"name": "libchromiumcontent",
-	"version": "66.0.3359.181",
+	"version": "69.0.3497.106",
 	"license": "MIT",
 	"repositoryURL": "https://github.com/electron/libchromiumcontent",
 	"isProd": true
 },
 {
 	"name": "nodejs",
-	"version": "10.2.0",
+	"version": "10.11.0",
 	"repositoryURL": "https://github.com/nodejs/node",
 	"isProd": true
 },
 {
 	"name": "electron",
-	"version": "3.0.6",
+	"version": "4.0.0-beta.5",
 	"license": "MIT",
 	"repositoryURL": "https://github.com/electron/electron",
 	"isProd": true
