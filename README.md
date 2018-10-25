@@ -50,6 +50,6 @@ For a complete list, please visit the [Related Projects](https://github.com/Micr
 
 ## License
 
-Copyright (c) Microsoft Corporation. All rights reserved.
+Copyright © Microsoft Corporation. All rights reserved.
 
 Licensed under the [MIT](LICENSE.txt) License.
