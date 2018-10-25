@@ -85,6 +85,7 @@ export const enum TaskExecuteKind {
 export interface ITaskExecuteResult {
 	kind: TaskExecuteKind;
 	promise: TPromise<ITaskSummary>;
+	task: Task;
 	started?: {
 		restartOnFileChanges?: string;
 	};
@@ -115,9 +116,8 @@ export interface TaskSystemInfoResovler {
 
 export interface ITaskSystem {
 	onDidStateChange: Event<TaskEvent>;
-	run(task: Task, resolver: ITaskResolver, trigger?: string, isRerun?: boolean): ITaskExecuteResult;
-	getLastTask(): Task | undefined;
-	getLastResolver(): ITaskResolver | undefined;
+	run(task: Task, resolver: ITaskResolver): ITaskExecuteResult;
+	rerun(): ITaskExecuteResult | undefined;
 	isActive(): TPromise<boolean>;
 	isActiveSync(): boolean;
 	getActiveTasks(): Task[];

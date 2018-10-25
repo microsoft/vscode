@@ -149,8 +149,7 @@ export class TerminalTaskSystem implements ITaskSystem {
 		this.outputService.showChannel(this.outputChannel.id, true);
 	}
 
-	public run(task: Task, resolver: ITaskResolver, trigger: string = Triggers.command, isRerun: boolean = false): ITaskExecuteResult {
-		this.isRerun = isRerun;
+	public run(task: Task, resolver: ITaskResolver, trigger: string = Triggers.command): ITaskExecuteResult {
 		this.lastTask = { task, resolver };
 		let terminalData = this.activeTasks[Task.getMapKey(task)];
 		if (terminalData && terminalData.promise) {
@@ -164,11 +163,11 @@ export class TerminalTaskSystem implements ITaskSystem {
 				this.terminalService.setActiveInstance(terminalData.terminal);
 				this.terminalService.showPanel(focus);
 			}
-			return { kind: TaskExecuteKind.Active, active: { same: true, background: task.isBackground }, promise: terminalData.promise };
+			return { kind: TaskExecuteKind.Active, task, active: { same: true, background: task.isBackground }, promise: terminalData.promise };
 		}
 
 		try {
-			return { kind: TaskExecuteKind.Started, started: {}, promise: this.executeTask(Object.create(null), task, resolver, trigger) };
+			return { kind: TaskExecuteKind.Started, task, started: {}, promise: this.executeTask(Object.create(null), task, resolver, trigger) };
 		} catch (error) {
 			if (error instanceof TaskError) {
 				throw error;
@@ -182,12 +181,15 @@ export class TerminalTaskSystem implements ITaskSystem {
 		}
 	}
 
-	public getLastTask(): Task | undefined {
-		return this.lastTask ? this.lastTask.task : undefined;
-	}
-
-	public getLastResolver(): ITaskResolver | undefined {
-		return this.lastTask ? this.lastTask.resolver : undefined;
+	public rerun(): ITaskExecuteResult | undefined {
+		this.isRerun = true;
+		if (this.lastTask && this.lastTask.task && this.lastTask.resolver) {
+			const result = this.run(this.lastTask.task, this.lastTask.resolver);
+			this.isRerun = false;
+			return result;
+		} else {
+			return undefined;
+		}
 	}
 
 	public revealTask(task: Task): boolean {

@@ -28,7 +28,6 @@ import { StartStopProblemCollector, WatchingProblemCollector, ProblemCollectorEv
 import {
 	ITaskSystem, ITaskSummary, ITaskExecuteResult, TaskExecuteKind, TaskError, TaskErrors, TelemetryEvent, Triggers,
 	TaskTerminateResponse,
-	ITaskResolver
 } from 'vs/workbench/parts/tasks/common/taskSystem';
 import {
 	Task, CustomTask, CommandOptions, RevealKind, CommandConfiguration, RuntimeType,
@@ -94,7 +93,7 @@ export class ProcessTaskSystem implements ITaskSystem {
 
 	public run(task: Task): ITaskExecuteResult {
 		if (this.activeTask) {
-			return { kind: TaskExecuteKind.Active, active: { same: this.activeTask._id === task._id, background: this.activeTask.isBackground }, promise: this.activeTaskPromise };
+			return { kind: TaskExecuteKind.Active, task, active: { same: this.activeTask._id === task._id, background: this.activeTask.isBackground }, promise: this.activeTaskPromise };
 		}
 		return this.executeTask(task);
 	}
@@ -196,11 +195,7 @@ export class ProcessTaskSystem implements ITaskSystem {
 		}
 	}
 
-	public getLastTask(): Task | undefined {
-		return undefined;
-	}
-
-	public getLastResolver(): ITaskResolver | undefined {
+	public rerun(): ITaskExecuteResult | undefined {
 		return undefined;
 	}
 
@@ -311,8 +306,8 @@ export class ProcessTaskSystem implements ITaskSystem {
 				return this.handleError(task, error);
 			});
 			let result: ITaskExecuteResult = (<any>task).tscWatch
-				? { kind: TaskExecuteKind.Started, started: { restartOnFileChanges: '**/*.ts' }, promise: this.activeTaskPromise }
-				: { kind: TaskExecuteKind.Started, started: {}, promise: this.activeTaskPromise };
+				? { kind: TaskExecuteKind.Started, task, started: { restartOnFileChanges: '**/*.ts' }, promise: this.activeTaskPromise }
+				: { kind: TaskExecuteKind.Started, task, started: {}, promise: this.activeTaskPromise };
 			return result;
 		} else {
 			this._onDidStateChange.fire(TaskEvent.create(TaskEventKind.Start, task));
@@ -355,7 +350,7 @@ export class ProcessTaskSystem implements ITaskSystem {
 				this._onDidStateChange.fire(TaskEvent.create(TaskEventKind.End, task));
 				return this.handleError(task, error);
 			});
-			return { kind: TaskExecuteKind.Started, started: {}, promise: this.activeTaskPromise };
+			return { kind: TaskExecuteKind.Started, task, started: {}, promise: this.activeTaskPromise };
 		}
 	}
 

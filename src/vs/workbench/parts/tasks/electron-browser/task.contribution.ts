@@ -70,7 +70,7 @@ import { Scope, IActionBarRegistry, Extensions as ActionBarExtensions } from 'vs
 
 import { ITerminalService } from 'vs/workbench/parts/terminal/common/terminal';
 
-import { ITaskSystem, ITaskResolver, ITaskSummary, TaskExecuteKind, TaskError, TaskErrors, TaskTerminateResponse, TaskSystemInfo } from 'vs/workbench/parts/tasks/common/taskSystem';
+import { ITaskSystem, ITaskResolver, ITaskSummary, TaskExecuteKind, TaskError, TaskErrors, TaskTerminateResponse, TaskSystemInfo, ITaskExecuteResult } from 'vs/workbench/parts/tasks/common/taskSystem';
 import {
 	Task, CustomTask, ConfiguringTask, ContributedTask, InMemoryTask, TaskEvent,
 	TaskEventKind, TaskSet, TaskGroup, GroupType, ExecutionEngine, JsonSchemaVersion, TaskSourceKind,
@@ -555,13 +555,6 @@ class TaskService extends Disposable implements ITaskService {
 
 		CommandsRegistry.registerCommand('workbench.action.tasks.reRunTask', (accessor, arg) => {
 			this.reRunTaskCommand(arg);
-		});
-
-		KeybindingsRegistry.registerKeybindingRule({
-			id: 'workbench.action.tasks.reRunTask',
-			weight: KeybindingWeight.WorkbenchContrib,
-			when: undefined,
-			primary: KeyMod.Shift | KeyMod.Alt | KeyCode.KEY_R
 		});
 
 		CommandsRegistry.registerCommand('workbench.action.tasks.restartTask', (accessor, arg) => {
@@ -1227,38 +1220,42 @@ class TaskService extends Disposable implements ITaskService {
 	private executeTask(task: Task, resolver: ITaskResolver, isRerun: boolean = false): TPromise<ITaskSummary> {
 		return ProblemMatcherRegistry.onReady().then(() => {
 			return this.textFileService.saveAll().then((value) => { // make sure all dirty files are saved
-				let executeResult = this.getTaskSystem().run(task, resolver, undefined, isRerun);
-				let key = Task.getRecentlyUsedKey(task);
-				if (key) {
-					this.getRecentlyUsedTasks().set(key, key, Touch.AsOld);
-				}
-				if (executeResult.kind === TaskExecuteKind.Active) {
-					let active = executeResult.active;
-					if (active.same) {
-						let message;
-						if (active.background) {
-							message = nls.localize('TaskSystem.activeSame.background', 'The task \'{0}\' is already active and in background mode.', Task.getQualifiedLabel(task));
-						} else {
-							message = nls.localize('TaskSystem.activeSame.noBackground', 'The task \'{0}\' is already active.', Task.getQualifiedLabel(task));
-						}
-						this.notificationService.prompt(Severity.Info, message,
-							[{
-								label: nls.localize('terminateTask', "Terminate Task"),
-								run: () => this.terminate(task)
-							},
-							{
-								label: nls.localize('restartTask', "Restart Task"),
-								run: () => this.restart(task)
-							}],
-							{ sticky: true }
-						);
-					} else {
-						throw new TaskError(Severity.Warning, nls.localize('TaskSystem.active', 'There is already a task running. Terminate it first before executing another task.'), TaskErrors.RunningTask);
-					}
-				}
-				return executeResult.promise;
+				let executeResult = this.getTaskSystem().run(task, resolver);
+				return this.handleExecuteResult(executeResult);
 			});
 		});
+	}
+
+	private handleExecuteResult(executeResult: ITaskExecuteResult): TPromise<ITaskSummary> {
+		let key = Task.getRecentlyUsedKey(executeResult.task);
+		if (key) {
+			this.getRecentlyUsedTasks().set(key, key, Touch.AsOld);
+		}
+		if (executeResult.kind === TaskExecuteKind.Active) {
+			let active = executeResult.active;
+			if (active.same) {
+				let message;
+				if (active.background) {
+					message = nls.localize('TaskSystem.activeSame.background', 'The task \'{0}\' is already active and in background mode.', Task.getQualifiedLabel(executeResult.task));
+				} else {
+					message = nls.localize('TaskSystem.activeSame.noBackground', 'The task \'{0}\' is already active.', Task.getQualifiedLabel(executeResult.task));
+				}
+				this.notificationService.prompt(Severity.Info, message,
+					[{
+						label: nls.localize('terminateTask', "Terminate Task"),
+						run: () => this.terminate(executeResult.task)
+					},
+					{
+						label: nls.localize('restartTask', "Restart Task"),
+						run: () => this.restart(executeResult.task)
+					}],
+					{ sticky: true }
+				);
+			} else {
+				throw new TaskError(Severity.Warning, nls.localize('TaskSystem.active', 'There is already a task running. Terminate it first before executing another task.'), TaskErrors.RunningTask);
+			}
+		}
+		return executeResult.promise;
 	}
 
 	public restart(task: Task): void {
@@ -1986,13 +1983,18 @@ class TaskService extends Disposable implements ITaskService {
 		if (!this.canRunCommand()) {
 			return;
 		}
-		let resolver: ITaskResolver;
-		let task: Task;
-		if (this._taskSystem && (task = this._taskSystem.getLastTask()) && (resolver = this._taskSystem.getLastResolver())) {
-			this.executeTask(task, resolver, true);
-		} else {
-			this.doRunTaskCommand();
-		}
+
+		ProblemMatcherRegistry.onReady().then(() => {
+			return this.textFileService.saveAll().then((value) => { // make sure all dirty files are saved
+				let executeResult = this.getTaskSystem().rerun();
+				if (executeResult) {
+					return this.handleExecuteResult(executeResult);
+				} else {
+					this.doRunTaskCommand();
+					return undefined;
+				}
+			});
+		});
 	}
 
 	private splitPerGroupType(tasks: Task[]): { none: Task[], defaults: Task[], users: Task[] } {
