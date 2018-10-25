@@ -9,7 +9,7 @@ import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { SelectBox } from 'vs/base/browser/ui/selectBox/selectBox';
 import * as lifecycle from 'vs/base/common/lifecycle';
 import * as dom from 'vs/base/browser/dom';
-import { Position } from 'vs/editor/common/core/position';
+import { Position, IPosition } from 'vs/editor/common/core/position';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { ZoneWidget } from 'vs/editor/contrib/zoneWidget/zoneWidget';
 import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
@@ -34,7 +34,7 @@ import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditorWidget';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { getSimpleCodeEditorWidgetOptions } from 'vs/workbench/parts/codeEditor/electron-browser/simpleEditorOptions';
 import { getSimpleEditorOptions } from 'vs/workbench/parts/codeEditor/browser/simpleEditorOptions';
-import { Range } from 'vs/editor/common/core/range';
+import { IRange, Range } from 'vs/editor/common/core/range';
 
 const $ = dom.$;
 const IPrivateBreakpointWidgetService = createDecorator<IPrivateBreakpointWidgetService>('privateBreakopintWidgetService');
@@ -127,6 +127,16 @@ export class BreakpointWidget extends ZoneWidget implements IPrivateBreakpointWi
 		}
 	}
 
+	public show(rangeOrPos: IRange | IPosition, _: number) {
+		let lineNum = this.input.getModel().getLineCount();
+		super.show(rangeOrPos, lineNum + 1);
+	}
+
+	public fitHeightToContent() {
+		let lineNum = this.input.getModel().getLineCount();
+		this._relayout(lineNum + 1);
+	}
+
 	protected _fillContainer(container: HTMLElement): void {
 		this.setCssClass('breakpoint-widget');
 		const selectBox = new SelectBox([nls.localize('expression', "Expression"), nls.localize('hitCount', "Hit Count"), nls.localize('logMessage', "Log Message")], this.context, this.contextViewService, null, { ariaLabel: nls.localize('breakpointType', 'Breakpoint Type') });
@@ -144,6 +154,9 @@ export class BreakpointWidget extends ZoneWidget implements IPrivateBreakpointWi
 		this.createBreakpointInput(dom.append(container, $('.inputContainer')));
 
 		this.input.getModel().setValue(this.getInputValue(this.breakpoint));
+		this.input.getModel().onDidChangeContent(() => {
+			this.fitHeightToContent();
+		});
 		this.input.setPosition({ lineNumber: 1, column: this.input.getModel().getLineMaxColumn(1) });
 		// Due to an electron bug we have to do the timeout, otherwise we do not get focus
 		setTimeout(() => this.input.focus(), 100);
@@ -191,7 +204,7 @@ export class BreakpointWidget extends ZoneWidget implements IPrivateBreakpointWi
 	}
 
 	protected _doLayout(heightInPixel: number, widthInPixel: number): void {
-		this.input.layout({ height: 18, width: widthInPixel - 113 });
+		this.input.layout({ height: heightInPixel, width: widthInPixel - 113 });
 	}
 
 	private createBreakpointInput(container: HTMLElement): void {
