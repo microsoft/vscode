@@ -575,7 +575,7 @@ class SuggestAdapter {
 		const pos = typeConvert.Position.to(position);
 
 		return asThenable<vscode.CompletionItem[] | vscode.CompletionList>(
-			() => this._provider.provideCompletionItems(doc, pos, token, typeConvert.CompletionContext.from(context))
+			() => this._provider.provideCompletionItems(doc, pos, token, typeConvert.CompletionContext.to(context))
 		).then(value => {
 
 			const _id = this._idPool++;
@@ -671,6 +671,7 @@ class SuggestAdapter {
 			//
 			range: undefined,
 			insertText: undefined,
+			insertTextRules: typeConvert.CompletionItemInsertTextRule.from(item.insertTextRules),
 			additionalTextEdits: item.additionalTextEdits && item.additionalTextEdits.map(typeConvert.TextEdit.from),
 			command: this._commands.toInternal(item.command),
 			commitCharacters: item.commitCharacters,
@@ -683,19 +684,16 @@ class SuggestAdapter {
 		// 'insertText'-logic
 		if (item.textEdit) {
 			result.insertText = item.textEdit.newText;
-			result.insertTextIsSnippet = false;
 
 		} else if (typeof item.insertText === 'string') {
 			result.insertText = item.insertText;
-			result.insertTextIsSnippet = false;
 
 		} else if (item.insertText instanceof SnippetString) {
 			result.insertText = item.insertText.value;
-			result.insertTextIsSnippet = true;
+			result.insertTextRules += modes.CompletionItemInsertTextRule.InsertAsSnippet;
 
 		} else {
 			result.insertText = item.label;
-			result.insertTextIsSnippet = false;
 		}
 
 		// 'overwrite[Before|After]'-logic

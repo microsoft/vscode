@@ -180,6 +180,7 @@ class MyCompletionItem extends vscode.CompletionItem {
 			case PConst.Kind.function:
 			case PConst.Kind.memberFunction:
 			case PConst.Kind.keyword:
+			case PConst.Kind.parameter:
 				commitCharacters.push('.', ',', ';');
 				if (this.commitCharactersSettings.enableCallCompletions) {
 					commitCharacters.push('(');
@@ -242,27 +243,20 @@ interface CompletionConfiguration {
 
 namespace CompletionConfiguration {
 	export const useCodeSnippetsOnMethodSuggest = 'suggest.completeFunctionCalls';
-	export const useCodeSnippetsOnMethodSuggest_deprecated = 'useCodeSnippetsOnMethodSuggest';
 	export const nameSuggestions = 'suggest.names';
-	export const nameSuggestions_deprecated = 'nameSuggestions';
 	export const pathSuggestions = 'suggest.paths';
 	export const autoImportSuggestions = 'suggest.autoImports';
-	export const autoImportSuggestions_deprecated = 'autoImportSuggestions.enabled';
 
 	export function getConfigurationForResource(
 		modeId: string,
 		resource: vscode.Uri
 	): CompletionConfiguration {
 		const config = vscode.workspace.getConfiguration(modeId, resource);
-
-		// Deprecated TS settings that were shared by both JS and TS.
-		const typeScriptConfig = vscode.workspace.getConfiguration('typescript', resource);
-
 		return {
-			useCodeSnippetsOnMethodSuggest: config.get<boolean>(CompletionConfiguration.useCodeSnippetsOnMethodSuggest, typeScriptConfig.get<boolean>(CompletionConfiguration.useCodeSnippetsOnMethodSuggest_deprecated, false)),
+			useCodeSnippetsOnMethodSuggest: config.get<boolean>(CompletionConfiguration.useCodeSnippetsOnMethodSuggest, false),
 			pathSuggestions: config.get<boolean>(CompletionConfiguration.pathSuggestions, true),
-			autoImportSuggestions: config.get<boolean>(CompletionConfiguration.autoImportSuggestions, typeScriptConfig.get<boolean>(CompletionConfiguration.autoImportSuggestions_deprecated, true)),
-			nameSuggestions: config.get<boolean>(CompletionConfiguration.nameSuggestions, vscode.workspace.getConfiguration('javascript', resource).get(CompletionConfiguration.nameSuggestions_deprecated, true))
+			autoImportSuggestions: config.get<boolean>(CompletionConfiguration.autoImportSuggestions, true),
+			nameSuggestions: config.get<boolean>(CompletionConfiguration.nameSuggestions, true)
 		};
 	}
 }

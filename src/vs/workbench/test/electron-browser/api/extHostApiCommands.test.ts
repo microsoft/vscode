@@ -7,7 +7,6 @@ import * as assert from 'assert';
 import { setUnexpectedErrorHandler, errorHandler } from 'vs/base/common/errors';
 import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
 import { URI } from 'vs/base/common/uri';
-import { TPromise } from 'vs/base/common/winjs.base';
 import * as types from 'vs/workbench/api/node/extHostTypes';
 import { TextModel as EditorModel } from 'vs/editor/common/model/textModel';
 import { TestRPCProtocol } from './testRPCProtocol';
@@ -49,6 +48,10 @@ let mainThread: MainThreadLanguageFeatures;
 let commands: ExtHostCommands;
 let disposables: vscode.Disposable[] = [];
 let originalErrorHandler: (e: any) => any;
+
+function assertRejects(fn: () => Thenable<any>, message: string = 'Expected rejection') {
+	return fn().then(() => assert.ok(false, message), _err => assert.ok(true));
+}
 
 suite('ExtHostLanguageFeatureCommands', function () {
 
@@ -145,15 +148,12 @@ suite('ExtHostLanguageFeatureCommands', function () {
 
 	test('WorkspaceSymbols, invalid arguments', function () {
 		let promises = [
-			commands.executeCommand('vscode.executeWorkspaceSymbolProvider'),
-			commands.executeCommand('vscode.executeWorkspaceSymbolProvider', null),
-			commands.executeCommand('vscode.executeWorkspaceSymbolProvider', undefined),
-			commands.executeCommand('vscode.executeWorkspaceSymbolProvider', true)
+			assertRejects(() => commands.executeCommand('vscode.executeWorkspaceSymbolProvider')),
+			assertRejects(() => commands.executeCommand('vscode.executeWorkspaceSymbolProvider', null)),
+			assertRejects(() => commands.executeCommand('vscode.executeWorkspaceSymbolProvider', undefined)),
+			assertRejects(() => commands.executeCommand('vscode.executeWorkspaceSymbolProvider', true))
 		];
-
-		return TPromise.join(<any[]>promises).then(undefined, (err: any[]) => {
-			assert.equal(err.length, 4);
-		});
+		return Promise.all(promises);
 	});
 
 	test('WorkspaceSymbols, back and forth', function () {
@@ -209,15 +209,13 @@ suite('ExtHostLanguageFeatureCommands', function () {
 
 	test('Definition, invalid arguments', function () {
 		let promises = [
-			commands.executeCommand('vscode.executeDefinitionProvider'),
-			commands.executeCommand('vscode.executeDefinitionProvider', null),
-			commands.executeCommand('vscode.executeDefinitionProvider', undefined),
-			commands.executeCommand('vscode.executeDefinitionProvider', true, false)
+			assertRejects(() => commands.executeCommand('vscode.executeDefinitionProvider')),
+			assertRejects(() => commands.executeCommand('vscode.executeDefinitionProvider', null)),
+			assertRejects(() => commands.executeCommand('vscode.executeDefinitionProvider', undefined)),
+			assertRejects(() => commands.executeCommand('vscode.executeDefinitionProvider', true, false))
 		];
 
-		return TPromise.join(<any[]>promises).then(undefined, (err: any[]) => {
-			assert.equal(err.length, 4);
-		});
+		return Promise.all(promises);
 	});
 
 	test('Definition, back and forth', function () {
@@ -252,15 +250,13 @@ suite('ExtHostLanguageFeatureCommands', function () {
 
 	test('Type Definition, invalid arguments', function () {
 		const promises = [
-			commands.executeCommand('vscode.executeTypeDefinitionProvider'),
-			commands.executeCommand('vscode.executeTypeDefinitionProvider', null),
-			commands.executeCommand('vscode.executeTypeDefinitionProvider', undefined),
-			commands.executeCommand('vscode.executeTypeDefinitionProvider', true, false)
+			assertRejects(() => commands.executeCommand('vscode.executeTypeDefinitionProvider')),
+			assertRejects(() => commands.executeCommand('vscode.executeTypeDefinitionProvider', null)),
+			assertRejects(() => commands.executeCommand('vscode.executeTypeDefinitionProvider', undefined)),
+			assertRejects(() => commands.executeCommand('vscode.executeTypeDefinitionProvider', true, false))
 		];
 
-		return TPromise.join(<any[]>promises).then(undefined, (err: any[]) => {
-			assert.equal(err.length, 4);
-		});
+		return Promise.all(promises);
 	});
 
 	test('Type Definition, back and forth', function () {

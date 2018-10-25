@@ -236,7 +236,7 @@ export class FeedbackDropdown extends Dropdown {
 
 		// Remaining Characters
 		const remainingCharacterCountContainer = dom.append(this.feedbackForm, dom.$('h3'));
-		remainingCharacterCountContainer.textContent = nls.localize("tell us why?", "Tell us why?");
+		remainingCharacterCountContainer.textContent = nls.localize("tell us why", "Tell us why?");
 
 		this.remainingCharacterCount = dom.append(remainingCharacterCountContainer, dom.$('span.char-counter'));
 		this.remainingCharacterCount.textContent = this.getCharCountText(0);

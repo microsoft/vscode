@@ -17,6 +17,7 @@ import * as monacodts from '../monaco/api';
 import * as nls from './nls';
 import { createReporter } from './reporter';
 import * as util from './util';
+import * as util2 from 'gulp-util';
 const watch = require('./watch');
 
 const reporter = createReporter();
@@ -95,15 +96,15 @@ export function compileTask(src: string, out: string, build: boolean): () => Nod
 			gulp.src(typesDts),
 		);
 
-		// Do not write .d.ts files to disk, as they are not needed there.
-		const dtsFilter = util.filter(data => !/\.d\.ts$/.test(data.path));
+		let generator = new MonacoGenerator(false);
+		if (src === 'src') {
+			generator.execute();
+		}
 
 		return srcPipe
+			.pipe(generator.stream)
 			.pipe(compile())
-			.pipe(dtsFilter)
-			.pipe(gulp.dest(out))
-			.pipe(dtsFilter.restore)
-			.pipe(src !== 'src' ? es.through() : monacodtsTask(out, false));
+			.pipe(gulp.dest(out));
 	};
 }
 
@@ -118,76 +119,110 @@ export function watchTask(out: string, build: boolean): () => NodeJS.ReadWriteSt
 		);
 		const watchSrc = watch('src/**', { base: 'src' });
 
-		// Do not write .d.ts files to disk, as they are not needed there.
-		const dtsFilter = util.filter(data => !/\.d\.ts$/.test(data.path));
+		let generator = new MonacoGenerator(true);
+		generator.execute();
 
 		return watchSrc
+			.pipe(generator.stream)
 			.pipe(util.incremental(compile, src, true))
-			.pipe(dtsFilter)
-			.pipe(gulp.dest(out))
-			.pipe(dtsFilter.restore)
-			.pipe(monacodtsTask(out, true));
+			.pipe(gulp.dest(out));
 	};
 }
 
-function monacodtsTask(out: string, isWatch: boolean): NodeJS.ReadWriteStream {
+const REPO_SRC_FOLDER = path.join(__dirname, '../../src');
 
-	const basePath = path.resolve(process.cwd(), out);
+class MonacoGenerator {
+	private readonly _isWatch: boolean;
+	public readonly stream: NodeJS.ReadWriteStream;
 
-	const neededFiles: { [file: string]: boolean; } = {};
-	monacodts.getFilesToWatch(out).forEach(function (filePath) {
-		filePath = path.normalize(filePath);
-		neededFiles[filePath] = true;
-	});
+	private readonly _watchers: fs.FSWatcher[];
+	private readonly _watchedFiles: { [filePath: string]: boolean; };
+	private readonly _fsProvider: monacodts.FSProvider;
+	private readonly _declarationResolver: monacodts.DeclarationResolver;
 
-	const inputFiles: { [file: string]: string; } = {};
-	for (const filePath in neededFiles) {
-		if (/\bsrc(\/|\\)vs\b/.test(filePath)) {
-			// This file is needed from source => simply read it now
-			inputFiles[filePath] = fs.readFileSync(filePath).toString();
+	constructor(isWatch: boolean) {
+		this._isWatch = isWatch;
+		this.stream = es.through();
+		this._watchers = [];
+		this._watchedFiles = {};
+		let onWillReadFile = (moduleId: string, filePath: string) => {
+			if (!this._isWatch) {
+				return;
+			}
+			if (this._watchedFiles[filePath]) {
+				return;
+			}
+			this._watchedFiles[filePath] = true;
+
+			const watcher = fs.watch(filePath);
+			watcher.addListener('change', () => {
+				this._declarationResolver.invalidateCache(moduleId);
+				this._executeSoon();
+			});
+			this._watchers.push(watcher);
+		};
+		this._fsProvider = new class extends monacodts.FSProvider {
+			public readFileSync(moduleId: string, filePath: string): Buffer {
+				onWillReadFile(moduleId, filePath);
+				return super.readFileSync(moduleId, filePath);
+			}
+		};
+		this._declarationResolver = new monacodts.DeclarationResolver(this._fsProvider);
+
+		if (this._isWatch) {
+			const recipeWatcher = fs.watch(monacodts.RECIPE_PATH);
+			recipeWatcher.addListener('change', () => {
+				this._executeSoon();
+			});
+			this._watchers.push(recipeWatcher);
 		}
 	}
 
-	const setInputFile = (filePath: string, contents: string) => {
-		if (inputFiles[filePath] === contents) {
-			// no change
+	private _executeSoonTimer: NodeJS.Timer | null = null;
+	private _executeSoon(): void {
+		if (this._executeSoonTimer !== null) {
+			clearTimeout(this._executeSoonTimer);
+			this._executeSoonTimer = null;
+		}
+		this._executeSoonTimer = setTimeout(() => {
+			this._executeSoonTimer = null;
+			this.execute();
+		}, 20);
+	}
+
+	public dispose(): void {
+		this._watchers.forEach(watcher => watcher.close());
+	}
+
+	private _run(): monacodts.IMonacoDeclarationResult | null {
+		let r = monacodts.run3(this._declarationResolver);
+		if (!r && !this._isWatch) {
+			// The build must always be able to generate the monaco.d.ts
+			throw new Error(`monaco.d.ts generation error - Cannot continue`);
+		}
+		return r;
+	}
+
+	private _log(message: any, ...rest: any[]): void {
+		util2.log(util2.colors.cyan('[monaco.d.ts]'), message, ...rest);
+	}
+
+	public execute(): void {
+		const startTime = Date.now();
+		const result = this._run();
+		if (!result) {
+			// nothing really changed
 			return;
 		}
-		inputFiles[filePath] = contents;
-		const neededInputFilesCount = Object.keys(neededFiles).length;
-		const availableInputFilesCount = Object.keys(inputFiles).length;
-		if (neededInputFilesCount === availableInputFilesCount) {
-			run();
+		if (result.isTheSame) {
+			return;
 		}
-	};
 
-	const run = () => {
-		const result = monacodts.run(out, inputFiles);
-		if (!result.isTheSame) {
-			if (isWatch) {
-				fs.writeFileSync(result.filePath, result.content);
-			} else {
-				fs.writeFileSync(result.filePath, result.content);
-				resultStream.emit('error', 'monaco.d.ts is no longer up to date. Please run gulp watch and commit the new file.');
-			}
+		fs.writeFileSync(result.filePath, result.content);
+		fs.writeFileSync(path.join(REPO_SRC_FOLDER, 'vs/editor/common/standalone/standaloneEnums.ts'), result.enums);
+		this._log(`monaco.d.ts is changed - total time took ${Date.now() - startTime} ms`);
+		if (!this._isWatch) {
+			this.stream.emit('error', 'monaco.d.ts is no longer up to date. Please run gulp watch and commit the new file.');
 		}
-	};
-
-	let resultStream: NodeJS.ReadWriteStream;
-
-	if (isWatch) {
-		watch('build/monaco/*').pipe(es.through(function () {
-			run();
-		}));
 	}
-
-	resultStream = es.through(function (data) {
-		const filePath = path.normalize(path.resolve(basePath, data.relative));
-		if (neededFiles[filePath]) {
-			setInputFile(filePath, data.contents.toString());
-		}
-		this.emit('data', data);
-	});
-
-	return resultStream;
 }

@@ -5,41 +5,41 @@
 
 import 'vs/css!./media/diffEditor';
 import * as nls from 'vs/nls';
-import { RunOnceScheduler } from 'vs/base/common/async';
-import { Disposable } from 'vs/base/common/lifecycle';
-import * as objects from 'vs/base/common/objects';
 import * as dom from 'vs/base/browser/dom';
 import { FastDomNode, createFastDomNode } from 'vs/base/browser/fastDomNode';
 import { ISashEvent, IVerticalSashLayoutProvider, Sash, SashState } from 'vs/base/browser/ui/sash/sash';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
-import { Range, IRange } from 'vs/editor/common/core/range';
-import * as editorCommon from 'vs/editor/common/editorCommon';
-import { IEditorWorkerService } from 'vs/editor/common/services/editorWorkerService';
-import { LineDecoration } from 'vs/editor/common/viewLayout/lineDecorations';
-import { renderViewLine, RenderLineInput } from 'vs/editor/common/viewLayout/viewLineRenderer';
-import * as editorBrowser from 'vs/editor/browser/editorBrowser';
-import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditorWidget';
-import { Configuration } from 'vs/editor/browser/config/configuration';
-import { Position, IPosition } from 'vs/editor/common/core/position';
-import { Selection, ISelection } from 'vs/editor/common/core/selection';
-import { InlineDecoration, InlineDecorationType, ViewLineRenderingData } from 'vs/editor/common/viewModel/viewModel';
-import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
-import { Event, Emitter } from 'vs/base/common/event';
-import * as editorOptions from 'vs/editor/common/config/editorOptions';
-import { registerThemingParticipant, IThemeService, ITheme, getThemeTypeSelector } from 'vs/platform/theme/common/themeService';
-import { scrollbarShadow, diffInserted, diffRemoved, defaultInsertColor, defaultRemoveColor, diffInsertedOutline, diffRemovedOutline, diffBorder } from 'vs/platform/theme/common/colorRegistry';
+import { RunOnceScheduler } from 'vs/base/common/async';
 import { Color } from 'vs/base/common/color';
-import { OverviewRulerZone } from 'vs/editor/common/view/overviewZoneManager';
-import { IEditorWhitespace } from 'vs/editor/common/viewLayout/whitespaceComputer';
-import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
-import { DiffReview } from 'vs/editor/browser/widget/diffReview';
+import { Emitter, Event } from 'vs/base/common/event';
+import { Disposable } from 'vs/base/common/lifecycle';
+import * as objects from 'vs/base/common/objects';
 import { URI } from 'vs/base/common/uri';
-import { IStringBuilder, createStringBuilder } from 'vs/editor/common/core/stringBuilder';
-import { IModelDeltaDecoration, IModelDecorationsChangeAccessor, ITextModel } from 'vs/editor/common/model';
-import { INotificationService } from 'vs/platform/notification/common/notification';
+import { Configuration } from 'vs/editor/browser/config/configuration';
 import { StableEditorScrollState } from 'vs/editor/browser/core/editorState';
+import * as editorBrowser from 'vs/editor/browser/editorBrowser';
+import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
+import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditorWidget';
+import { DiffReview } from 'vs/editor/browser/widget/diffReview';
+import * as editorOptions from 'vs/editor/common/config/editorOptions';
+import { IPosition, Position } from 'vs/editor/common/core/position';
+import { IRange, Range } from 'vs/editor/common/core/range';
+import { ISelection, Selection } from 'vs/editor/common/core/selection';
+import { IStringBuilder, createStringBuilder } from 'vs/editor/common/core/stringBuilder';
+import * as editorCommon from 'vs/editor/common/editorCommon';
+import { IModelDecorationsChangeAccessor, IModelDeltaDecoration, ITextModel } from 'vs/editor/common/model';
+import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
+import { IDiffComputationResult, IEditorWorkerService } from 'vs/editor/common/services/editorWorkerService';
+import { OverviewRulerZone } from 'vs/editor/common/view/overviewZoneManager';
+import { LineDecoration } from 'vs/editor/common/viewLayout/lineDecorations';
+import { RenderLineInput, renderViewLine } from 'vs/editor/common/viewLayout/viewLineRenderer';
+import { IEditorWhitespace } from 'vs/editor/common/viewLayout/whitespaceComputer';
+import { InlineDecoration, InlineDecorationType, ViewLineRenderingData } from 'vs/editor/common/viewModel/viewModel';
+import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
+import { INotificationService } from 'vs/platform/notification/common/notification';
+import { defaultInsertColor, defaultRemoveColor, diffBorder, diffInserted, diffInsertedOutline, diffRemoved, diffRemovedOutline, scrollbarShadow } from 'vs/platform/theme/common/colorRegistry';
+import { ITheme, IThemeService, getThemeTypeSelector, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 
 interface IEditorDiffDecorations {
 	decorations: IModelDeltaDecoration[];
@@ -171,7 +171,7 @@ export class DiffEditorWidget extends Disposable implements editorBrowser.IDiffE
 	private _currentlyChangingViewZones: boolean;
 	private _beginUpdateDecorationsTimeout: number;
 	private _diffComputationToken: number;
-	private _lineChanges: editorCommon.ILineChange[] | null;
+	private _diffComputationResult: IDiffComputationResult | null;
 
 	private _isVisible: boolean;
 	private _isHandlingScrollEvent: boolean;
@@ -281,7 +281,7 @@ export class DiffEditorWidget extends Disposable implements editorBrowser.IDiffE
 		this._height = 0;
 		this._reviewHeight = 0;
 
-		this._lineChanges = null;
+		this._diffComputationResult = null;
 
 		const leftContextKeyService = this._contextKeyService.createScoped();
 		leftContextKeyService.createKey('isInDiffLeftEditor', true);
@@ -524,7 +524,10 @@ export class DiffEditorWidget extends Disposable implements editorBrowser.IDiffE
 	}
 
 	public getLineChanges(): editorCommon.ILineChange[] | null {
-		return this._lineChanges;
+		if (!this._diffComputationResult) {
+			return null;
+		}
+		return this._diffComputationResult.changes;
 	}
 
 	public getOriginalEditor(): editorBrowser.ICodeEditor {
@@ -619,7 +622,7 @@ export class DiffEditorWidget extends Disposable implements editorBrowser.IDiffE
 		}
 
 		// Disable any diff computations that will come in
-		this._lineChanges = null;
+		this._diffComputationResult = null;
 		this._diffComputationToken++;
 
 		if (model) {
@@ -628,7 +631,7 @@ export class DiffEditorWidget extends Disposable implements editorBrowser.IDiffE
 			// Begin comparing
 			this._beginUpdateDecorations();
 		} else {
-			this._lineChanges = null;
+			this._diffComputationResult = null;
 		}
 
 		this._layoutOverviewViewport();
@@ -891,7 +894,7 @@ export class DiffEditorWidget extends Disposable implements editorBrowser.IDiffE
 				&& currentOriginalModel === this.originalEditor.getModel()
 				&& currentModifiedModel === this.modifiedEditor.getModel()
 			) {
-				this._lineChanges = result;
+				this._diffComputationResult = result;
 				this._updateDecorationsRunner.schedule();
 				this._onDidUpdateDiff.fire();
 			}
@@ -900,7 +903,7 @@ export class DiffEditorWidget extends Disposable implements editorBrowser.IDiffE
 				&& currentOriginalModel === this.originalEditor.getModel()
 				&& currentModifiedModel === this.modifiedEditor.getModel()
 			) {
-				this._lineChanges = null;
+				this._diffComputationResult = null;
 				this._updateDecorationsRunner.schedule();
 			}
 		});
@@ -915,7 +918,7 @@ export class DiffEditorWidget extends Disposable implements editorBrowser.IDiffE
 		if (!this.originalEditor.getModel() || !this.modifiedEditor.getModel()) {
 			return;
 		}
-		let lineChanges = this._lineChanges || [];
+		const lineChanges = (this._diffComputationResult ? this._diffComputationResult.changes : []);
 
 		let foreignOriginal = this._originalEditorState.getForeignViewZones(this.originalEditor.getWhitespaces());
 		let foreignModified = this._modifiedEditorState.getForeignViewZones(this.modifiedEditor.getWhitespaces());
@@ -1067,7 +1070,7 @@ export class DiffEditorWidget extends Disposable implements editorBrowser.IDiffE
 		this._strategy = newStrategy;
 		newStrategy.applyColors(this._themeService.getTheme());
 
-		if (this._lineChanges) {
+		if (this._diffComputationResult) {
 			this._updateDecorations();
 		}
 
@@ -1076,16 +1079,17 @@ export class DiffEditorWidget extends Disposable implements editorBrowser.IDiffE
 	}
 
 	private _getLineChangeAtOrBeforeLineNumber(lineNumber: number, startLineNumberExtractor: (lineChange: editorCommon.ILineChange) => number): editorCommon.ILineChange | null {
-		if (this._lineChanges.length === 0 || lineNumber < startLineNumberExtractor(this._lineChanges[0])) {
+		const lineChanges = (this._diffComputationResult ? this._diffComputationResult.changes : []);
+		if (lineChanges.length === 0 || lineNumber < startLineNumberExtractor(lineChanges[0])) {
 			// There are no changes or `lineNumber` is before the first change
 			return null;
 		}
 
-		let min = 0, max = this._lineChanges.length - 1;
+		let min = 0, max = lineChanges.length - 1;
 		while (min < max) {
 			let mid = Math.floor((min + max) / 2);
-			let midStart = startLineNumberExtractor(this._lineChanges[mid]);
-			let midEnd = (mid + 1 <= max ? startLineNumberExtractor(this._lineChanges[mid + 1]) : Number.MAX_VALUE);
+			let midStart = startLineNumberExtractor(lineChanges[mid]);
+			let midEnd = (mid + 1 <= max ? startLineNumberExtractor(lineChanges[mid + 1]) : Number.MAX_VALUE);
 
 			if (lineNumber < midStart) {
 				max = mid - 1;
@@ -1097,7 +1101,7 @@ export class DiffEditorWidget extends Disposable implements editorBrowser.IDiffE
 				max = mid;
 			}
 		}
-		return this._lineChanges[min];
+		return lineChanges[min];
 	}
 
 	private _getEquivalentLineForOriginalLineNumber(lineNumber: number): number {
@@ -1145,7 +1149,7 @@ export class DiffEditorWidget extends Disposable implements editorBrowser.IDiffE
 	}
 
 	public getDiffLineInformationForOriginal(lineNumber: number): editorBrowser.IDiffLineInformation | null {
-		if (!this._lineChanges) {
+		if (!this._diffComputationResult) {
 			// Cannot answer that which I don't know
 			return null;
 		}
@@ -1155,7 +1159,7 @@ export class DiffEditorWidget extends Disposable implements editorBrowser.IDiffE
 	}
 
 	public getDiffLineInformationForModified(lineNumber: number): editorBrowser.IDiffLineInformation | null {
-		if (!this._lineChanges) {
+		if (!this._diffComputationResult) {
 			// Cannot answer that which I don't know
 			return null;
 		}

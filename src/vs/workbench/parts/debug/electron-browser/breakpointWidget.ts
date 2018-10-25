@@ -183,7 +183,7 @@ export class BreakpointWidget extends ZoneWidget implements IPrivateBreakpointWi
 					condition,
 					hitCondition,
 					logMessage
-				}]);
+				}], `breakpointWidget`);
 			}
 		}
 

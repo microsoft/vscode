@@ -90,7 +90,7 @@ export class ExtensionsViewletViewsContribution implements IWorkbenchContributio
 	}
 
 	private registerViews(): void {
-		let viewDescriptors = [];
+		let viewDescriptors: IViewDescriptor[] = [];
 		viewDescriptors.push(this.createMarketPlaceExtensionsListViewDescriptor());
 		viewDescriptors.push(this.createEnabledExtensionsListViewDescriptor());
 		viewDescriptors.push(this.createDisabledExtensionsListViewDescriptor());
@@ -325,7 +325,7 @@ export class ExtensionsViewlet extends ViewContainerViewlet implements IExtensio
 		}, this, this.disposables);
 	}
 
-	create(parent: HTMLElement): Promise<void> {
+	create(parent: HTMLElement): void {
 		addClass(parent, 'extensions-viewlet');
 		this.root = parent;
 
@@ -358,18 +358,17 @@ export class ExtensionsViewlet extends ViewContainerViewlet implements IExtensio
 		this.searchBox.onShouldFocusResults(() => this.focusListView(), this, this.disposables);
 
 		this.extensionsBox = append(this.root, $('.extensions'));
-		return super.create(this.extensionsBox);
+		super.create(this.extensionsBox);
 	}
 
-	setVisible(visible: boolean): Promise<void> {
+	setVisible(visible: boolean): void {
 		const isVisibilityChanged = this.isVisible() !== visible;
-		return super.setVisible(visible).then(() => {
-			if (isVisibilityChanged) {
-				if (visible) {
-					this.searchBox.focus();
-				}
+		super.setVisible(visible);
+		if (isVisibilityChanged) {
+			if (visible) {
+				this.searchBox.focus();
 			}
-		});
+		}
 	}
 
 	focus(): void {

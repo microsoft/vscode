@@ -406,7 +406,7 @@ export class IndexTreeModel<T, TFilterData = void> implements ITreeModel<T, TFil
 
 	// TODO@joao perf!
 	getNodeLocation(node: ITreeNode<T, TFilterData>): number[] {
-		const location = [];
+		const location: number[] = [];
 
 		while (node.parent) {
 			location.push(node.parent.children.indexOf(node));
@@ -418,7 +418,7 @@ export class IndexTreeModel<T, TFilterData = void> implements ITreeModel<T, TFil
 
 	getParentNodeLocation(location: number[]): number[] | null {
 		if (location.length <= 1) {
-			return null;
+			return [];
 		}
 
 		return tail2(location)[0];

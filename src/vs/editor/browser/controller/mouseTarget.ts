@@ -3,19 +3,19 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import * as browser from 'vs/base/browser/browser';
+import { IPointerHandlerHelper } from 'vs/editor/browser/controller/mouseHandler';
+import { IMouseTarget, MouseTargetType } from 'vs/editor/browser/editorBrowser';
+import { ClientCoordinates, EditorMouseEvent, EditorPagePosition, PageCoordinates } from 'vs/editor/browser/editorDom';
+import { PartFingerprint, PartFingerprints } from 'vs/editor/browser/view/viewPart';
+import { ViewLine } from 'vs/editor/browser/viewParts/lines/viewLine';
+import { IViewCursorRenderData } from 'vs/editor/browser/viewParts/viewCursors/viewCursor';
+import { EditorLayoutInfo } from 'vs/editor/common/config/editorOptions';
 import { Position } from 'vs/editor/common/core/position';
 import { Range as EditorRange } from 'vs/editor/common/core/range';
-import { MouseTargetType, IMouseTarget } from 'vs/editor/browser/editorBrowser';
-import { ViewContext } from 'vs/editor/common/view/viewContext';
-import { IPointerHandlerHelper } from 'vs/editor/browser/controller/mouseHandler';
-import { EditorMouseEvent, PageCoordinates, ClientCoordinates, EditorPagePosition } from 'vs/editor/browser/editorDom';
-import * as browser from 'vs/base/browser/browser';
-import { IViewCursorRenderData } from 'vs/editor/browser/viewParts/viewCursors/viewCursor';
-import { PartFingerprint, PartFingerprints } from 'vs/editor/browser/view/viewPart';
-import { IViewModel } from 'vs/editor/common/viewModel/viewModel';
-import { EditorLayoutInfo } from 'vs/editor/common/config/editorOptions';
-import { ViewLine } from 'vs/editor/browser/viewParts/lines/viewLine';
 import { HorizontalRange } from 'vs/editor/common/view/renderingContext';
+import { ViewContext } from 'vs/editor/common/view/viewContext';
+import { IViewModel } from 'vs/editor/common/viewModel/viewModel';
 
 export interface IViewZoneData {
 	viewZoneId: number;

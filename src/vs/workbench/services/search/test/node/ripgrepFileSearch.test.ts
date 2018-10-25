@@ -5,9 +5,9 @@
 
 import * as assert from 'assert';
 import * as platform from 'vs/base/common/platform';
-import { fixDriveC, fixRegexEndingPattern, getAbsoluteGlob } from 'vs/workbench/services/search/node/ripgrepTextSearch';
+import { fixDriveC, getAbsoluteGlob } from 'vs/workbench/services/search/node/ripgrepFileSearch';
 
-suite('RipgrepTextSearch - etc', () => {
+suite('RipgrepFileSearch - etc', () => {
 	function testGetAbsGlob(params: string[]): void {
 		const [folder, glob, expectedResult] = params;
 		assert.equal(fixDriveC(getAbsoluteGlob(folder, glob)), expectedResult, JSON.stringify(params));
@@ -44,21 +44,5 @@ suite('RipgrepTextSearch - etc', () => {
 			// absolute paths are not resolved further
 			['/', '/project/folder', '/project/folder'],
 		].forEach(testGetAbsGlob);
-	});
-
-	test('fixRegexEndingPattern', () => {
-		function testFixRegexEndingPattern([input, expectedResult]: string[]): void {
-			assert.equal(fixRegexEndingPattern(input), expectedResult);
-		}
-
-		[
-			['foo', 'foo'],
-			['', ''],
-			['^foo.*bar\\s+', '^foo.*bar\\s+'],
-			['foo$', 'foo\\r?$'],
-			['$', '\\r?$'],
-			['foo\\$', 'foo\\$'],
-			['foo\\\\$', 'foo\\\\\\r?$'],
-		].forEach(testFixRegexEndingPattern);
 	});
 });

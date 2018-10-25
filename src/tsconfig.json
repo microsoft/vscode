@@ -4,7 +4,6 @@
 		"removeComments": false,
 		"preserveConstEnums": true,
 		"sourceMap": false,
-		"declaration": true,
 		"outDir": "../out"
 	},
 	"include": [

@@ -157,7 +157,7 @@ export class KeybindingsEditorModel extends EditorModel {
 	}
 
 	private splitKeybindingWords(wordsSeparatedBySpaces: string[]): string[] {
-		const result = [];
+		const result: string[] = [];
 		for (const word of wordsSeparatedBySpaces) {
 			result.push(...word.split('+').filter(w => !!w));
 		}
@@ -304,7 +304,7 @@ class KeybindingItemMatches {
 	private matchesKeybinding(keybinding: ResolvedKeybinding, searchValue: string, words: string[], completeMatch: boolean): KeybindingMatches {
 		const [firstPart, chordPart] = keybinding.getParts();
 
-		if (strings.compareIgnoreCase(searchValue, keybinding.getAriaLabel()) === 0 || strings.compareIgnoreCase(searchValue, keybinding.getLabel()) === 0) {
+		if (strings.compareIgnoreCase(searchValue, keybinding.getUserSettingsLabel()) === 0 || strings.compareIgnoreCase(searchValue, keybinding.getAriaLabel()) === 0 || strings.compareIgnoreCase(searchValue, keybinding.getLabel()) === 0) {
 			return {
 				firstPart: this.createCompleteMatch(firstPart),
 				chordPart: this.createCompleteMatch(chordPart)
@@ -314,9 +314,9 @@ class KeybindingItemMatches {
 		let firstPartMatch: KeybindingMatch = {};
 		let chordPartMatch: KeybindingMatch = {};
 
-		const matchedWords = [];
-		let firstPartMatchedWords = [];
-		let chordPartMatchedWords = [];
+		const matchedWords: number[] = [];
+		let firstPartMatchedWords: number[] = [];
+		let chordPartMatchedWords: number[] = [];
 		let matchFirstPart = true;
 		for (let index = 0; index < words.length; index++) {
 			const word = words[index];

@@ -31,7 +31,6 @@ export class PatternInputWidget extends Widget {
 
 	public inputFocusTracker: dom.IFocusTracker;
 
-	protected onOptionChange: (event: Event) => void;
 	private width: number;
 	private placeholder: string;
 	private ariaLabel: string;
@@ -50,7 +49,6 @@ export class PatternInputWidget extends Widget {
 		@IContextKeyService private contextKeyService: IContextKeyService
 	) {
 		super();
-		this.onOptionChange = null;
 		this.width = options.width || 100;
 		this.placeholder = options.placeholder || '';
 		this.ariaLabel = options.ariaLabel || nls.localize('defaultLabel', "input");
@@ -68,19 +66,6 @@ export class PatternInputWidget extends Widget {
 		if (this.inputFocusTracker) {
 			this.inputFocusTracker.dispose();
 		}
-	}
-
-	public on(eventType: string, handler: (event: Event) => void): PatternInputWidget {
-		switch (eventType) {
-			case 'keydown':
-			case 'keyup':
-				this._register(dom.addDisposableListener(this.inputBox.inputElement, eventType, handler));
-				break;
-			case PatternInputWidget.OPTION_CHANGE:
-				this.onOptionChange = handler;
-				break;
-		}
-		return this;
 	}
 
 	public setWidth(newWidth: number): void {
@@ -218,7 +203,6 @@ export class ExcludePatternInputWidget extends PatternInputWidget {
 			isChecked: true,
 		}));
 		this._register(this.useExcludesAndIgnoreFilesBox.onChange(viaKeyboard => {
-			this.onOptionChange(null);
 			if (!viaKeyboard) {
 				this.inputBox.focus();
 			}

@@ -39,7 +39,6 @@ import { IIntegrityService } from 'vs/platform/integrity/common/integrity';
 import { EditorWorkerServiceImpl } from 'vs/editor/common/services/editorWorkerServiceImpl';
 import { IEditorWorkerService } from 'vs/editor/common/services/editorWorkerService';
 import { ExtensionService } from 'vs/workbench/services/extensions/electron-browser/extensionService';
-import { IStorageLegacyService } from 'vs/platform/storage/common/storageLegacyService';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { InstantiationService } from 'vs/platform/instantiation/node/instantiationService';
@@ -75,7 +74,8 @@ import { IBroadcastService, BroadcastService } from 'vs/platform/broadcast/elect
 import { HashService } from 'vs/workbench/services/hash/node/hashService';
 import { IHashService } from 'vs/workbench/services/hash/common/hashService';
 import { ILogService } from 'vs/platform/log/common/log';
-import { IStorageService } from 'vs/platform/storage/common/storage';
+import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
+import { DelegatingStorageService } from 'vs/platform/storage/node/storageService';
 import { Event, Emitter } from 'vs/base/common/event';
 import { WORKBENCH_BACKGROUND } from 'vs/workbench/common/theme';
 import { ILocalizationsChannel, LocalizationsChannelClient } from 'vs/platform/localizations/node/localizationsIpc';
@@ -108,8 +108,7 @@ export interface ICoreServices {
 	configurationService: IConfigurationService;
 	environmentService: IEnvironmentService;
 	logService: ILogService;
-	storageLegacyService: IStorageLegacyService;
-	storageService: IStorageService;
+	storageService: DelegatingStorageService;
 }
 
 /**
@@ -121,8 +120,10 @@ export class WorkbenchShell extends Disposable {
 	private readonly _onShutdown = this._register(new Emitter<ShutdownEvent>());
 	get onShutdown(): Event<ShutdownEvent> { return this._onShutdown.event; }
 
-	private storageLegacyService: IStorageLegacyService;
-	private storageService: IStorageService;
+	private readonly _onRunning = this._register(new Emitter<void>());
+	get onRunning(): Event<void> { return this._onRunning.event; }
+
+	private storageService: DelegatingStorageService;
 	private environmentService: IEnvironmentService;
 	private logService: ILogService;
 	private configurationService: IConfigurationService;
@@ -152,7 +153,6 @@ export class WorkbenchShell extends Disposable {
 		this.configurationService = coreServices.configurationService;
 		this.environmentService = coreServices.environmentService;
 		this.logService = coreServices.logService;
-		this.storageLegacyService = coreServices.storageLegacyService;
 		this.storageService = coreServices.storageService;
 
 		this.mainProcessServices = mainProcessServices;
@@ -211,11 +211,18 @@ export class WorkbenchShell extends Disposable {
 			// Startup Workbench
 			workbench.startup().then(startupInfos => {
 
-				// Set lifecycle phase to `Runnning` so that other contributions can now do something
+				// Set lifecycle phase to `Runnning` so that other contributions can
+				// now do something we also emit this as event to interested parties outside
 				this.lifecycleService.phase = LifecyclePhase.Running;
+				this._onRunning.fire();
 
 				// Startup Telemetry
 				this.logStartupTelemetry(startupInfos);
+
+				// Storage Telemetry (TODO@Ben remove me later, including storage errors)
+				if (!this.environmentService.extensionTestsPath) {
+					this.logStorageTelemetry();
+				}
 
 				// Set lifecycle phase to `Runnning For A Bit` after a short delay
 				let eventuallPhaseTimeoutHandle = runWhenIdle(() => {
@@ -277,6 +284,87 @@ export class WorkbenchShell extends Disposable {
 		perf.mark('didStartWorkbench');
 	}
 
+	private logStorageTelemetry(): void {
+		const globalStorageInitDuration = perf.getDuration('willInitGlobalStorage', 'didInitGlobalStorage');
+		const workspaceStorageInitDuration = perf.getDuration('willInitWorkspaceStorage', 'didInitWorkspaceStorage');
+		const workbenchLoadDuration = perf.getDuration('willLoadWorkbenchMain', 'didLoadWorkbenchMain');
+		const localStorageAccessDuration = perf.getDuration('willAccessLocalStorage', 'didAccessLocalStorage');
+		const localStorageReadDuration = perf.getDuration('willReadLocalStorage', 'didReadLocalStorage');
+
+		let workspaceIntegrity: string;
+
+		// Handle errors (avoid duplicates to reduce spam)
+		const loggedStorageErrors = new Set<string>();
+		this._register(this.storageService.storage.onStorageError(error => {
+			const errorStr = `${error}`;
+
+			if (!loggedStorageErrors.has(errorStr)) {
+				loggedStorageErrors.add(errorStr);
+
+				/* __GDPR__
+					"sqliteStorageError2" : {
+						"globalReadTime" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
+						"workspaceReadTime" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
+						"localStorageAccessTime" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
+						"localStorageReadTime" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
+						"workbenchRequireTime" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
+						"globalKeys" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
+						"workspaceKeys" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
+						"startupKind": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
+						"workspaceIntegrity" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
+						"storageError": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true }
+					}
+				*/
+				this.telemetryService.publicLog('sqliteStorageError2', {
+					'globalReadTime': globalStorageInitDuration,
+					'workspaceReadTime': workspaceStorageInitDuration,
+					'localStorageAccessTime': localStorageAccessDuration,
+					'localStorageReadTime': localStorageReadDuration,
+					'workbenchRequireTime': workbenchLoadDuration,
+					'globalKeys': this.storageService.storage.getSize(StorageScope.GLOBAL),
+					'workspaceKeys': this.storageService.storage.getSize(StorageScope.WORKSPACE),
+					'startupKind': this.lifecycleService.startupKind,
+					'workspaceIntegrity': workspaceIntegrity,
+					'storageError': errorStr
+				});
+			}
+		}));
+
+		perf.mark('willCheckWorkspaceStorageIntegrity');
+		this.storageService.storage.checkIntegrity(StorageScope.WORKSPACE, false).then(integrity => {
+			perf.mark('didCheckWorkspaceStorageIntegrity');
+
+			workspaceIntegrity = integrity;
+
+			/* __GDPR__
+				"sqliteStorageTimers2" : {
+					"globalReadTime" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
+					"workspaceReadTime" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
+					"localStorageAccessTime" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
+					"localStorageReadTime" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
+					"workspaceIntegrity" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
+					"workspaceIntegrityCheckTime" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
+					"workbenchRequireTime" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
+					"globalKeys" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
+					"workspaceKeys" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
+					"startupKind": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true }
+				}
+			*/
+			this.telemetryService.publicLog('sqliteStorageTimers2', {
+				'globalReadTime': globalStorageInitDuration,
+				'workspaceReadTime': workspaceStorageInitDuration,
+				'localStorageAccessTime': localStorageAccessDuration,
+				'localStorageReadTime': localStorageReadDuration,
+				'workspaceIntegrity': workspaceIntegrity,
+				'workspaceIntegrityCheckTime': perf.getDuration('willCheckWorkspaceStorageIntegrity', 'didCheckWorkspaceStorageIntegrity'),
+				'workbenchRequireTime': workbenchLoadDuration,
+				'globalKeys': this.storageService.storage.getSize(StorageScope.GLOBAL),
+				'workspaceKeys': this.storageService.storage.getSize(StorageScope.WORKSPACE),
+				'startupKind': this.lifecycleService.startupKind
+			});
+		}, error => errors.onUnexpectedError(error));
+	}
+
 	private initServiceCollection(container: HTMLElement): [IInstantiationService, ServiceCollection] {
 		const serviceCollection = new ServiceCollection();
 		serviceCollection.set(IWorkspaceContextService, this.contextService);
@@ -284,7 +372,6 @@ export class WorkbenchShell extends Disposable {
 		serviceCollection.set(IEnvironmentService, this.environmentService);
 		serviceCollection.set(ILabelService, new SyncDescriptor(LabelService));
 		serviceCollection.set(ILogService, this._register(this.logService));
-		serviceCollection.set(IStorageLegacyService, this.storageLegacyService);
 		serviceCollection.set(IStorageService, this.storageService);
 
 		this.mainProcessServices.forEach((serviceIdentifier, serviceInstance) => {

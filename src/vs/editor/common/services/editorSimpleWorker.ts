@@ -3,24 +3,25 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { URI } from 'vs/base/common/uri';
-import { IDisposable } from 'vs/base/common/lifecycle';
-import { IRequestHandler } from 'vs/base/common/worker/simpleWorker';
-import { Range, IRange } from 'vs/editor/common/core/range';
-import { DiffComputer } from 'vs/editor/common/diff/diffComputer';
-import { stringDiff } from 'vs/base/common/diff/diff';
-import * as editorCommon from 'vs/editor/common/editorCommon';
-import { Position, IPosition } from 'vs/editor/common/core/position';
-import { MirrorTextModel as BaseMirrorModel, IModelChangedEvent } from 'vs/editor/common/model/mirrorTextModel';
-import { IInplaceReplaceSupportResult, ILink, CompletionList, CompletionItem, TextEdit, CompletionItemKind } from 'vs/editor/common/modes';
-import { computeLinks, ILinkComputerTarget } from 'vs/editor/common/modes/linkComputer';
-import { BasicInplaceReplace } from 'vs/editor/common/modes/supports/inplaceReplaceSupport';
-import { getWordAtText, ensureValidWordDefinition } from 'vs/editor/common/model/wordHelper';
-import { createMonacoBaseAPI } from 'vs/editor/common/standalone/standaloneBase';
-import { IWordAtPosition, EndOfLineSequence } from 'vs/editor/common/model';
-import { globals } from 'vs/base/common/platform';
-import { Iterator, IteratorResult, FIN } from 'vs/base/common/iterator';
 import { mergeSort } from 'vs/base/common/arrays';
+import { stringDiff } from 'vs/base/common/diff/diff';
+import { FIN, Iterator, IteratorResult } from 'vs/base/common/iterator';
+import { IDisposable } from 'vs/base/common/lifecycle';
+import { globals } from 'vs/base/common/platform';
+import { URI } from 'vs/base/common/uri';
+import { IRequestHandler } from 'vs/base/common/worker/simpleWorker';
+import { IPosition, Position } from 'vs/editor/common/core/position';
+import { IRange, Range } from 'vs/editor/common/core/range';
+import { DiffComputer } from 'vs/editor/common/diff/diffComputer';
+import * as editorCommon from 'vs/editor/common/editorCommon';
+import { EndOfLineSequence, IWordAtPosition } from 'vs/editor/common/model';
+import { IModelChangedEvent, MirrorTextModel as BaseMirrorModel } from 'vs/editor/common/model/mirrorTextModel';
+import { ensureValidWordDefinition, getWordAtText } from 'vs/editor/common/model/wordHelper';
+import { CompletionItem, CompletionItemKind, CompletionList, IInplaceReplaceSupportResult, ILink, TextEdit } from 'vs/editor/common/modes';
+import { ILinkComputerTarget, computeLinks } from 'vs/editor/common/modes/linkComputer';
+import { BasicInplaceReplace } from 'vs/editor/common/modes/supports/inplaceReplaceSupport';
+import { IDiffComputationResult } from 'vs/editor/common/services/editorWorkerService';
+import { createMonacoBaseAPI } from 'vs/editor/common/standalone/standaloneBase';
 
 export interface IMirrorModel {
 	readonly uri: URI;
@@ -334,22 +335,44 @@ export abstract class BaseEditorSimpleWorker {
 
 	// ---- BEGIN diff --------------------------------------------------------------------------
 
-	public computeDiff(originalUrl: string, modifiedUrl: string, ignoreTrimWhitespace: boolean): Promise<editorCommon.ILineChange[] | null> {
-		let original = this._getModel(originalUrl);
-		let modified = this._getModel(modifiedUrl);
+	public computeDiff(originalUrl: string, modifiedUrl: string, ignoreTrimWhitespace: boolean): Promise<IDiffComputationResult | null> {
+		const original = this._getModel(originalUrl);
+		const modified = this._getModel(modifiedUrl);
 		if (!original || !modified) {
 			return Promise.resolve(null);
 		}
 
-		let originalLines = original.getLinesContent();
-		let modifiedLines = modified.getLinesContent();
-		let diffComputer = new DiffComputer(originalLines, modifiedLines, {
+		const originalLines = original.getLinesContent();
+		const modifiedLines = modified.getLinesContent();
+		const diffComputer = new DiffComputer(originalLines, modifiedLines, {
 			shouldComputeCharChanges: true,
 			shouldPostProcessCharChanges: true,
 			shouldIgnoreTrimWhitespace: ignoreTrimWhitespace,
 			shouldMakePrettyDiff: true
 		});
-		return Promise.resolve(diffComputer.computeDiff());
+
+		const changes = diffComputer.computeDiff();
+		let identical = (changes.length > 0 ? false : this._modelsAreIdentical(original, modified));
+		return Promise.resolve({
+			identical: identical,
+			changes: changes
+		});
+	}
+
+	private _modelsAreIdentical(original: ICommonModel, modified: ICommonModel): boolean {
+		const originalLineCount = original.getLineCount();
+		const modifiedLineCount = modified.getLineCount();
+		if (originalLineCount !== modifiedLineCount) {
+			return false;
+		}
+		for (let line = 1; line <= originalLineCount; line++) {
+			const originalLine = original.getLineContent(line);
+			const modifiedLine = modified.getLineContent(line);
+			if (originalLine !== modifiedLine) {
+				return false;
+			}
+		}
+		return true;
 	}
 
 	public computeDirtyDiff(originalUrl: string, modifiedUrl: string, ignoreTrimWhitespace: boolean): Promise<editorCommon.IChange[] | null> {
@@ -492,7 +515,6 @@ export abstract class BaseEditorSimpleWorker {
 				kind: CompletionItemKind.Text,
 				label: word,
 				insertText: word,
-				noAutoAccept: true,
 				range: { startLineNumber: position.lineNumber, startColumn: currentWord.startColumn, endLineNumber: position.lineNumber, endColumn: currentWord.endColumn }
 			});
 		}

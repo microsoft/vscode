@@ -121,7 +121,7 @@ export class OpenAnythingHandler extends QuickOpenHandler {
 				}
 
 				// Combine results.
-				const mergedResults = [].concat(...results.map(r => r.entries));
+				const mergedResults: QuickOpenEntry[] = [].concat(...results.map(r => r.entries));
 
 				// Sort
 				const compare = (elementA: QuickOpenEntry, elementB: QuickOpenEntry) => compareItemsByScore(elementA, elementB, query, true, QuickOpenItemAccessor, this.scorerCache);

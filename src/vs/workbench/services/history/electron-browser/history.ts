@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as errors from 'vs/base/common/errors';
+import { onUnexpectedError } from 'vs/base/common/errors';
 import { URI } from 'vs/base/common/uri';
 import { IEditor } from 'vs/editor/common/editorCommon';
 import { ITextEditorOptions, IResourceInput, ITextEditorSelection } from 'vs/platform/editor/common/editor';
@@ -398,7 +398,7 @@ export class HistoryService extends Disposable implements IHistoryService {
 		}, error => {
 			this.navigatingInStack = false;
 
-			errors.onUnexpectedError(error);
+			onUnexpectedError(error);
 		});
 	}
 
@@ -786,29 +786,39 @@ export class HistoryService extends Disposable implements IHistoryService {
 		const registry = Registry.as<IEditorInputFactoryRegistry>(EditorExtensions.EditorInputFactories);
 
 		this.history = entries.map(entry => {
-			const serializedEditorHistoryEntry = entry as ISerializedEditorHistoryEntry;
+			try {
+				return this.safeLoadHistoryEntry(registry, entry);
+			} catch (error) {
+				onUnexpectedError(error);
 
-			// File resource: via URI.revive()
-			if (serializedEditorHistoryEntry.resourceJSON) {
-				return { resource: URI.revive(serializedEditorHistoryEntry.resourceJSON) } as IResourceInput;
+				return void 0; // https://github.com/Microsoft/vscode/issues/60960
 			}
-
-			// Editor input: via factory
-			const { editorInputJSON } = serializedEditorHistoryEntry;
-			if (editorInputJSON && editorInputJSON.deserialized) {
-				const factory = registry.getEditorInputFactory(editorInputJSON.typeId);
-				if (factory) {
-					const input = factory.deserialize(this.instantiationService, editorInputJSON.deserialized);
-					if (input) {
-						once(input.onDispose)(() => this.removeFromHistory(input)); // remove from history once disposed
-					}
-
-					return input;
-				}
-			}
-
-			return void 0;
 		}).filter(input => !!input);
+	}
+
+	private safeLoadHistoryEntry(registry: IEditorInputFactoryRegistry, entry: ISerializedEditorHistoryEntry): IEditorInput | IResourceInput {
+		const serializedEditorHistoryEntry = entry as ISerializedEditorHistoryEntry;
+
+		// File resource: via URI.revive()
+		if (serializedEditorHistoryEntry.resourceJSON) {
+			return { resource: URI.revive(serializedEditorHistoryEntry.resourceJSON) } as IResourceInput;
+		}
+
+		// Editor input: via factory
+		const { editorInputJSON } = serializedEditorHistoryEntry;
+		if (editorInputJSON && editorInputJSON.deserialized) {
+			const factory = registry.getEditorInputFactory(editorInputJSON.typeId);
+			if (factory) {
+				const input = factory.deserialize(this.instantiationService, editorInputJSON.deserialized);
+				if (input) {
+					once(input.onDispose)(() => this.removeFromHistory(input)); // remove from history once disposed
+				}
+
+				return input;
+			}
+		}
+
+		return void 0;
 	}
 
 	getLastActiveWorkspaceRoot(schemeFilter?: string): URI {

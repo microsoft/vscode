@@ -35,7 +35,7 @@ export interface ICompositeBarOptions {
 	getContextMenuActions: () => Action[];
 	openComposite: (compositeId: string) => TPromise<any>;
 	getDefaultCompositeId: () => string;
-	hidePart: () => TPromise<any>;
+	hidePart: () => void;
 }
 
 export class CompositeBar extends Widget implements ICompositeBar {

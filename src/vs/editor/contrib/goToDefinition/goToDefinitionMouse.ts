@@ -23,7 +23,7 @@ import { editorActiveLinkForeground } from 'vs/platform/theme/common/colorRegist
 import { EditorState, CodeEditorStateFlag } from 'vs/editor/browser/core/editorState';
 import { DefinitionAction, DefinitionActionConfig } from './goToDefinitionCommands';
 import { ClickLinkGesture, ClickLinkMouseEvent, ClickLinkKeyboardEvent } from 'vs/editor/contrib/goToDefinition/clickLinkGesture';
-import { IWordAtPosition, IModelDeltaDecoration, ITextModel } from 'vs/editor/common/model';
+import { IWordAtPosition, IModelDeltaDecoration, ITextModel, IFoundBracket } from 'vs/editor/common/model';
 import { Position } from 'vs/editor/common/core/position';
 
 class GotoDefinitionWithMouseEditorContribution implements editorCommon.IEditorContribution {
@@ -205,7 +205,7 @@ class GotoDefinitionWithMouseEditorContribution implements editorCommon.IEditorC
 	private getPreviewRangeBasedOnBrackets(textEditorModel: ITextModel, startLineNumber: number) {
 		const maxLineNumber = Math.min(textEditorModel.getLineCount(), startLineNumber + GotoDefinitionWithMouseEditorContribution.MAX_SOURCE_PREVIEW_LINES);
 
-		const brackets = [];
+		const brackets: IFoundBracket[] = [];
 
 		let ignoreFirstEmpty = true;
 		let currentBracket = textEditorModel.findNextBracket(new Position(startLineNumber, 1));

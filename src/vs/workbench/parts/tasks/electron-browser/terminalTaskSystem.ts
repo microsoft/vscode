@@ -518,6 +518,7 @@ export class TerminalTaskSystem implements ITaskSystem {
 	private createTerminal(task: CustomTask | ContributedTask, resolver: VariableResolver): [ITerminalInstance, string, TaskError | undefined] {
 		let platform = resolver.taskSystemInfo ? resolver.taskSystemInfo.platform : Platform.platform;
 		let options = this.resolveOptions(resolver, task.command.options);
+		let originalCommand = task.command.name;
 		let { command, args } = this.resolveCommandAndArgs(resolver, task.command);
 		let commandExecutable = CommandString.value(command);
 		let workspaceFolder = Task.getWorkspaceFolder(task);
@@ -530,7 +531,7 @@ export class TerminalTaskSystem implements ITaskSystem {
 			} else if (task.command.presentation.showReuseMessage) {
 				waitOnExit = nls.localize('reuseTerminal', 'Terminal will be reused by tasks, press any key to close it.');
 			} else {
-				waitOnExit = '\u200B';
+				waitOnExit = true;
 			}
 		}
 		let shellLaunchConfig: IShellLaunchConfig | undefined = undefined;
@@ -553,7 +554,7 @@ export class TerminalTaskSystem implements ITaskSystem {
 			}
 			let shellArgs = <string[]>shellLaunchConfig.args.slice(0);
 			let toAdd: string[] = [];
-			let commandLine = this.buildShellCommandLine(shellLaunchConfig.executable, shellOptions, command, args);
+			let commandLine = this.buildShellCommandLine(shellLaunchConfig.executable, shellOptions, command, originalCommand, args);
 			let windowsShellArgs: boolean = false;
 			if (platform === Platform.Platform.Windows) {
 				// Change Sysnative to System32 if the OS is Windows but NOT WoW64. It's
@@ -682,6 +683,9 @@ export class TerminalTaskSystem implements ITaskSystem {
 		}
 		if (terminalToReuse) {
 			terminalToReuse.terminal.reuseTerminal(shellLaunchConfig);
+			if (task.command.presentation.clear) {
+				terminalToReuse.terminal.clear();
+			}
 			return [terminalToReuse.terminal, commandExecutable, undefined];
 		}
 
@@ -693,19 +697,18 @@ export class TerminalTaskSystem implements ITaskSystem {
 				delete this.terminals[terminalKey];
 				delete this.sameTaskTerminals[terminalData.lastTask];
 				this.idleTaskTerminals.delete(terminalData.lastTask);
+				// Delete the task now as a work around for cases when the onExit isn't fired.
+				// This can happen if the terminal wasn't shutdown with an "immediate" flag and is expected.
+				// For correct terminal re-use, the task needs to be deleted immediately.
+				// Note that this shouldn't be a problem anymore since user initiated terminal kills are now immediate.
+				delete this.activeTasks[Task.getMapKey(task)];
 			}
 		});
 		this.terminals[terminalKey] = { terminal: result, lastTask: taskKey };
 		return [result, commandExecutable, undefined];
 	}
 
-	private buildShellCommandLine(shellExecutable: string, shellOptions: ShellConfiguration, command: CommandString, args: CommandString[]): string {
-		// If we have no args and the command is a string then use the
-		// command to stay backwards compatible with the old command line
-		// model.
-		if ((!args || args.length === 0) && Types.isString(command)) {
-			return command;
-		}
+	private buildShellCommandLine(shellExecutable: string, shellOptions: ShellConfiguration, command: CommandString, originalCommand: CommandString, args: CommandString[]): string {
 		let basename = path.parse(shellExecutable).name.toLowerCase();
 		let shellQuoteOptions = this.getQuotingOptions(basename, shellOptions);
 
@@ -768,6 +771,13 @@ export class TerminalTaskSystem implements ITaskSystem {
 			} else {
 				return quote(value.value, value.quoting);
 			}
+		}
+
+		// If we have no args and the command is a string then use the command to stay backwards compatible with the old command line
+		// model. To allow variable resolving with spaces we do continue if the resolved value is different than the original one
+		// and the resolved one needs quoting.
+		if ((!args || args.length === 0) && Types.isString(command) && (command === originalCommand as string || needsQuotes(originalCommand as string))) {
+			return command;
 		}
 
 		let result: string[] = [];

@@ -28,12 +28,22 @@ function writeFile(filePath, contents) {
 }
 function extractEditor(options) {
     const tsConfig = JSON.parse(fs.readFileSync(path.join(options.sourcesRoot, 'tsconfig.json')).toString());
-    tsConfig.compilerOptions.noUnusedLocals = false;
-    tsConfig.compilerOptions.preserveConstEnums = false;
-    tsConfig.compilerOptions.declaration = false;
-    delete tsConfig.compilerOptions.types;
+    let compilerOptions;
+    if (tsConfig.extends) {
+        compilerOptions = Object.assign({}, require(path.join(options.sourcesRoot, tsConfig.extends)).compilerOptions, tsConfig.compilerOptions);
+    }
+    else {
+        compilerOptions = tsConfig.compilerOptions;
+    }
+    tsConfig.compilerOptions = compilerOptions;
+    compilerOptions.noUnusedLocals = false;
+    compilerOptions.preserveConstEnums = false;
+    compilerOptions.declaration = false;
+    compilerOptions.moduleResolution = ts.ModuleResolutionKind.Classic;
+    delete compilerOptions.types;
+    delete tsConfig.extends;
     tsConfig.exclude = [];
-    options.compilerOptions = tsConfig.compilerOptions;
+    options.compilerOptions = compilerOptions;
     let result = tss.shake(options);
     for (let fileName in result) {
         if (result.hasOwnProperty(fileName)) {

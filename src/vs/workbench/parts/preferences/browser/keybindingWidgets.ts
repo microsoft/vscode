@@ -27,6 +27,7 @@ import { SearchWidget, SearchOptions } from 'vs/workbench/parts/preferences/brow
 
 export interface KeybindingsSearchOptions extends SearchOptions {
 	recordEnter?: boolean;
+	quoteRecordedKeys?: boolean;
 }
 
 export class KeybindingsSearchWidget extends SearchWidget {
@@ -113,6 +114,7 @@ export class KeybindingsSearchWidget extends SearchWidget {
 	private printKeybinding(keyboardEvent: IKeyboardEvent): void {
 		const keybinding = this.keybindingService.resolveKeyboardEvent(keyboardEvent);
 		const info = `code: ${keyboardEvent.browserEvent.code}, keyCode: ${keyboardEvent.browserEvent.keyCode}, key: ${keyboardEvent.browserEvent.key} => UI: ${keybinding.getAriaLabel()}, user settings: ${keybinding.getUserSettingsLabel()}, dispatch: ${keybinding.getDispatchParts()[0]}`;
+		const options = this.options as KeybindingsSearchOptions;
 
 		const hasFirstPart = (this._firstPart && this._firstPart.getDispatchParts()[0] !== null);
 		const hasChordPart = (this._chordPart && this._chordPart.getDispatchParts()[0] !== null);
@@ -133,7 +135,7 @@ export class KeybindingsSearchWidget extends SearchWidget {
 		if (this._chordPart) {
 			value = value + ' ' + this._chordPart.getUserSettingsLabel();
 		}
-		this.setInputValue(value);
+		this.setInputValue(options.quoteRecordedKeys ? `"${value}"` : value);
 
 		this.inputBox.inputElement.title = info;
 		this._onKeybinding.fire([this._firstPart, this._chordPart]);

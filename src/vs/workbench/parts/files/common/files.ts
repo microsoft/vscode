@@ -21,6 +21,7 @@ import { IViewlet } from 'vs/workbench/common/viewlet';
 import { InputFocusedContextKey } from 'vs/platform/workbench/common/contextkeys';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IViewContainersRegistry, Extensions as ViewContainerExtensions, ViewContainer } from 'vs/workbench/common/views';
+import { Schemas } from 'vs/base/common/network';
 
 /**
  * Explorer viewlet id.
@@ -156,7 +157,7 @@ export class FileOnDiskContentProvider implements ITextModelContentProvider {
 	}
 
 	provideTextContent(resource: URI): TPromise<ITextModel> {
-		const fileOnDiskResource = URI.file(resource.fsPath);
+		const fileOnDiskResource = resource.with({ scheme: Schemas.file });
 
 		// Make sure our file from disk is resolved up to date
 		return this.resolveEditorModel(resource).then(codeEditorModel => {

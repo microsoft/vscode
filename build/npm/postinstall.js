@@ -8,6 +8,10 @@ const path = require('path');
 const fs = require('fs');
 const yarn = process.platform === 'win32' ? 'yarn.cmd' : 'yarn';
 
+/**
+ * @param {string} location
+ * @param {*} [opts]
+ */
 function yarnInstall(location, opts) {
 	opts = opts || {};
 	opts.cwd = location;

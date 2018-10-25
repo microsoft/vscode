@@ -9,13 +9,13 @@
  */
 
 import { IDisposable } from 'vs/base/common/lifecycle';
-import * as modes from 'vs/editor/common/modes';
-import * as monarchCommon from 'vs/editor/standalone/common/monarch/monarchCommon';
-import { IModeService } from 'vs/editor/common/services/modeService';
 import { Token, TokenizationResult, TokenizationResult2 } from 'vs/editor/common/core/token';
-import { NULL_STATE, NULL_MODE_ID } from 'vs/editor/common/modes/nullMode';
-import { IStandaloneThemeService } from 'vs/editor/standalone/common/standaloneThemeService';
+import * as modes from 'vs/editor/common/modes';
+import { NULL_MODE_ID, NULL_STATE } from 'vs/editor/common/modes/nullMode';
 import { TokenTheme } from 'vs/editor/common/modes/supports/tokenization';
+import { IModeService } from 'vs/editor/common/services/modeService';
+import * as monarchCommon from 'vs/editor/standalone/common/monarch/monarchCommon';
+import { IStandaloneThemeService } from 'vs/editor/standalone/common/standaloneThemeService';
 
 const CACHE_STACK_DEPTH = 5;
 

@@ -598,7 +598,7 @@ export class SettingsRenderer implements ITreeRenderer {
 	private renderGroupTitleTemplate(container: HTMLElement): IGroupTitleTemplate {
 		DOM.addClass(container, 'group-title');
 
-		const toDispose = [];
+		const toDispose: IDisposable[] = [];
 		const template: IGroupTitleTemplate = {
 			parent: container,
 			toDispose
@@ -624,7 +624,7 @@ export class SettingsRenderer implements ITreeRenderer {
 
 		const deprecationWarningElement = DOM.append(container, $('.setting-item-deprecation-message'));
 
-		const toDispose = [];
+		const toDispose: IDisposable[] = [];
 
 		const toolbarContainer = DOM.append(container, $('.setting-toolbar-container'));
 		const toolbar = this.renderSettingToolbar(toolbarContainer);
@@ -775,7 +775,7 @@ export class SettingsRenderer implements ITreeRenderer {
 
 		const deprecationWarningElement = DOM.append(container, $('.setting-item-deprecation-message'));
 
-		const toDispose = [];
+		const toDispose: IDisposable[] = [];
 		const checkbox = new Checkbox({ actionClassName: 'setting-value-checkbox', isChecked: true, title: '', inputActiveOptionBorder: null });
 		controlElement.appendChild(checkbox.domNode);
 		toDispose.push(checkbox);
@@ -966,7 +966,7 @@ export class SettingsRenderer implements ITreeRenderer {
 	}
 
 	private renderNewExtensionsTemplate(container: HTMLElement): ISettingNewExtensionsTemplate {
-		const toDispose = [];
+		const toDispose: IDisposable[] = [];
 
 		container.classList.add('setting-item-new-extensions');
 

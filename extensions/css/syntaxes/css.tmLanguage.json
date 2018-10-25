@@ -4,7 +4,7 @@
 		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
 		"Once accepted there, we are happy to receive an update request."
 	],
-	"version": "https://github.com/octref/language-css/commit/e4504ed41711577951892ddcfe3be83a6fe8daa2",
+	"version": "https://github.com/octref/language-css/commit/7e06c88b89218fe6e8eba77fb674152f1cea0b10",
 	"name": "CSS",
 	"scopeName": "source.css",
 	"patterns": [
@@ -1389,7 +1389,7 @@
 					"name": "support.constant.vendored.property-value.css"
 				},
 				{
-					"match": "(?<![\\w-])(?i:arial|century|comic|courier|garamond|georgia|helvetica|impact|lucida|symbol|system|tahoma|times|trebuchet|utopia|verdana|webdings|sans-serif|serif|monospace)(?![\\w-])",
+					"match": "(?<![\\w-])(?i:arial|century|comic|courier|garamond|georgia|helvetica|impact|lucida|symbol|system|tahoma|times|trebuchet|utopia|verdana|webdings|sans-serif|serif|cursive|fantasy|monospace)(?![\\w-])",
 					"name": "support.constant.font-name.css"
 				}
 			]

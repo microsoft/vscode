@@ -109,7 +109,7 @@ export class Driver implements IDriver, IWindowDriverRegistry {
 		const resolvedKeybinding = new USLayoutResolvedKeybinding(noModifiedKeybinding, OS);
 		const keyCode = resolvedKeybinding.getElectronAccelerator();
 
-		const modifiers = [];
+		const modifiers: string[] = [];
 
 		if (keybinding.ctrlKey) {
 			modifiers.push('ctrl');

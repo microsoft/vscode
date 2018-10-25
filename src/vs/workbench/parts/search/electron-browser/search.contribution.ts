@@ -586,8 +586,15 @@ configurationRegistry.registerConfiguration({
 		},
 		'search.useRipgrep': {
 			type: 'boolean',
-			description: nls.localize('useRipgrep', "Controls whether to use ripgrep in text and file search."),
+			description: nls.localize('useRipgrep', "Deprecated. This setting now falls back on \"search.usePCRE2\"."),
+			deprecationMessage: nls.localize('useRipgrepDeprecated', "Deprecated. Consider \"search.usePCRE2\" for advanced regex feature support."),
 			default: true
+		},
+		'search.disableRipgrep': {
+			type: 'boolean',
+			description: nls.localize('disableRipgrep', "Deprecated. Controls whether to use ripgrep in text and file search."),
+			deprecationMessage: nls.localize('disableRipgrepDeprecated', "Deprecated. Consider \"search.usePCRE2\" for advanced regex feature support."),
+			default: false
 		},
 		'search.useIgnoreFiles': {
 			type: 'boolean',
@@ -653,6 +660,22 @@ configurationRegistry.registerConfiguration({
 			type: 'boolean',
 			default: false,
 			description: nls.localize('search.showLineNumbers', "Controls whether to show line numbers for search results."),
+		},
+		'searchRipgrep.enable': {
+			type: 'boolean',
+			default: false,
+			deprecationMessage: nls.localize('search.searchRipgrepEnableDeprecated', "Deprecated. Use \"search.runInExtensionHost\" instead"),
+			description: nls.localize('search.searchRipgrepEnable', "Whether to run search in the extension host")
+		},
+		'search.runInExtensionHost': {
+			type: 'boolean',
+			default: false,
+			description: nls.localize('search.runInExtensionHost', "Whether to run search in the extension host. Requires a restart to take effect.")
+		},
+		'search.usePCRE2': {
+			type: 'boolean',
+			default: false,
+			description: nls.localize('search.usePCRE2', "Whether to use the PCRE2 regex engine in text search. This enables using some advaned regex features like lookbehind and backreferences.")
 		}
 	}
 });

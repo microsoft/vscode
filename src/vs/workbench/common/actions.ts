@@ -45,7 +45,7 @@ Registry.add(Extensions.WorkbenchActions, new class implements IWorkbenchActionR
 			id: descriptor.id,
 			weight: weight,
 			when: descriptor.keybindingContext,
-			primary: keybindings && keybindings.primary,
+			primary: keybindings ? keybindings.primary : 0,
 			secondary: keybindings && keybindings.secondary,
 			win: keybindings && keybindings.win,
 			mac: keybindings && keybindings.mac,

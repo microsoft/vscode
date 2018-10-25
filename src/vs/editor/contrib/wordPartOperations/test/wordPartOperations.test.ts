@@ -2,12 +2,13 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
+
 import * as assert from 'assert';
-import { Position } from 'vs/editor/common/core/position';
-import { DeleteWordPartLeft, DeleteWordPartRight, CursorWordPartLeft, CursorWordPartLeftSelect, CursorWordPartRight, CursorWordPartRightSelect } from 'vs/editor/contrib/wordPartOperations/wordPartOperations';
-import { EditorCommand } from 'vs/editor/browser/editorExtensions';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { deserializePipePositions, testRepeatedActionAndExtractPositions, serializePipePositions } from 'vs/editor/contrib/wordOperations/test/wordTestUtils';
+import { EditorCommand } from 'vs/editor/browser/editorExtensions';
+import { Position } from 'vs/editor/common/core/position';
+import { deserializePipePositions, serializePipePositions, testRepeatedActionAndExtractPositions } from 'vs/editor/contrib/wordOperations/test/wordTestUtils';
+import { CursorWordPartLeft, CursorWordPartLeftSelect, CursorWordPartRight, CursorWordPartRightSelect, DeleteWordPartLeft, DeleteWordPartRight } from 'vs/editor/contrib/wordPartOperations/wordPartOperations';
 
 suite('WordPartOperations', () => {
 	const _deleteWordPartLeft = new DeleteWordPartLeft();

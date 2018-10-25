@@ -799,6 +799,7 @@ export class EditorPart extends Part implements EditorGroupsServiceImpl, IEditor
 
 	centerLayout(active: boolean): void {
 		this.centeredLayoutWidget.activate(active);
+		this._activeGroup.focus();
 	}
 
 	isLayoutCentered(): boolean {
@@ -984,7 +985,12 @@ export class EditorPart extends Part implements EditorGroupsServiceImpl, IEditor
 		}
 
 		// Persist centered view state
-		this.globalMemento[EditorPart.EDITOR_PART_CENTERED_VIEW_STORAGE_KEY] = this.centeredLayoutWidget.state;
+		const centeredLayoutState = this.centeredLayoutWidget.state;
+		if (this.centeredLayoutWidget.isDefault(centeredLayoutState)) {
+			delete this.globalMemento[EditorPart.EDITOR_PART_CENTERED_VIEW_STORAGE_KEY];
+		} else {
+			this.globalMemento[EditorPart.EDITOR_PART_CENTERED_VIEW_STORAGE_KEY] = centeredLayoutState;
+		}
 
 		super.saveState();
 	}

@@ -297,13 +297,12 @@ export class OpenEditorsView extends ViewletPanel {
 		}
 	}
 
-	public setVisible(visible: boolean): TPromise<void> {
-		return super.setVisible(visible).then(() => {
-			this.updateListVisibility(visible && this.isExpanded());
-			if (visible && this.needsRefresh) {
-				this.listRefreshScheduler.schedule(0);
-			}
-		});
+	public setVisible(visible: boolean): void {
+		super.setVisible(visible);
+		this.updateListVisibility(visible && this.isExpanded());
+		if (visible && this.needsRefresh) {
+			this.listRefreshScheduler.schedule(0);
+		}
 	}
 
 	public focus(): void {
@@ -468,7 +467,7 @@ export class OpenEditorsView extends ViewletPanel {
 
 	public getOptimalWidth(): number {
 		let parentNode = this.list.getHTMLElement();
-		let childNodes = [].slice.call(parentNode.querySelectorAll('.open-editor > a'));
+		let childNodes: HTMLElement[] = [].slice.call(parentNode.querySelectorAll('.open-editor > a'));
 
 		return dom.getLargestChildWidth(parentNode, childNodes);
 	}

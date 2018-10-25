@@ -211,7 +211,7 @@ export function registerCommands(): void {
 				return Promise.resolve(null);
 			}
 			if (debugService.getConfigurationManager().canSetBreakpointsIn(widget.getModel())) {
-				return debugService.addBreakpoints(modelUri, [{ lineNumber: position.lineNumber, column: position.column > 1 ? position.column : undefined }]);
+				return debugService.addBreakpoints(modelUri, [{ lineNumber: position.lineNumber, column: position.column > 1 ? position.column : undefined }], 'debugCommands.inlineBreakpointCommand');
 			}
 		}
 

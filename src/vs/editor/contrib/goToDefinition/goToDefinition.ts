@@ -10,7 +10,7 @@ import { registerDefaultLanguageCommand } from 'vs/editor/browser/editorExtensio
 import { Position } from 'vs/editor/common/core/position';
 import { ITextModel } from 'vs/editor/common/model';
 import { DefinitionLink, DefinitionProviderRegistry, ImplementationProviderRegistry, TypeDefinitionProviderRegistry } from 'vs/editor/common/modes';
-import LanguageFeatureRegistry from 'vs/editor/common/modes/languageFeatureRegistry';
+import { LanguageFeatureRegistry } from 'vs/editor/common/modes/languageFeatureRegistry';
 
 
 function getDefinitions<T>(
@@ -30,7 +30,7 @@ function getDefinitions<T>(
 	});
 	return Promise.all(promises)
 		.then(flatten)
-		.then(references => coalesce(references));
+		.then(coalesce);
 }
 
 

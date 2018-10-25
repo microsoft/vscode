@@ -3,9 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { Event } from 'vs/base/common/event';
 import { isFalsyOrWhitespace } from 'vs/base/common/strings';
+import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 
 export const enum ContextKeyExprType {
 	Defined = 1,
@@ -394,7 +394,8 @@ export class ContextKeyRegexExpr implements ContextKeyExpr {
 	}
 
 	public evaluate(context: IContext): boolean {
-		return this.regexp ? this.regexp.test(context.getValue(this.key)) : false;
+		let value = context.getValue<any>(this.key);
+		return this.regexp ? this.regexp.test(value) : false;
 	}
 
 	public normalize(): ContextKeyExpr {
@@ -525,7 +526,7 @@ export class RawContextKey<T> extends ContextKeyDefinedExpr {
 		return target.createKey(this.key, this._defaultValue);
 	}
 
-	public getValue(target: IContextKeyService): T {
+	public getValue(target: IContextKeyService): T | undefined {
 		return target.getContextKeyValue<T>(this.key);
 	}
 
@@ -543,7 +544,7 @@ export class RawContextKey<T> extends ContextKeyDefinedExpr {
 }
 
 export interface IContext {
-	getValue<T>(key: string): T;
+	getValue<T>(key: string): T | undefined;
 }
 
 export interface IContextKey<T> {
@@ -577,10 +578,10 @@ export interface IContextKeyService {
 	onDidChangeContext: Event<IContextKeyChangeEvent>;
 	createKey<T>(key: string, defaultValue: T | undefined): IContextKey<T>;
 	contextMatchesRules(rules: ContextKeyExpr | null): boolean;
-	getContextKeyValue<T>(key: string): T;
+	getContextKeyValue<T>(key: string): T | undefined;
 
 	createScoped(target?: IContextKeyServiceTarget): IContextKeyService;
-	getContext(target: IContextKeyServiceTarget): IContext;
+	getContext(target: IContextKeyServiceTarget | null): IContext;
 }
 
 export const SET_CONTEXT_COMMAND_ID = 'setContext';

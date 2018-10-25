@@ -17,9 +17,9 @@ export class FileIconThemeData implements IFileIconTheme {
 	label: string;
 	settingsId: string;
 	description?: string;
-	hasFileIcons?: boolean;
-	hasFolderIcons?: boolean;
-	hidesExplorerArrows?: boolean;
+	hasFileIcons: boolean;
+	hasFolderIcons: boolean;
+	hidesExplorerArrows: boolean;
 	isLoaded: boolean;
 	location?: URI;
 	extensionData: ExtensionData;

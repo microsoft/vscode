@@ -5,13 +5,13 @@
 
 'use strict';
 
+import { Schemas } from 'vs/base/common/network';
+import { DataUri, basenameOrAuthority } from 'vs/base/common/resources';
 import { URI as uri } from 'vs/base/common/uri';
+import { PLAINTEXT_MODE_ID } from 'vs/editor/common/modes/modesRegistry';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { IModelService } from 'vs/editor/common/services/modelService';
-import { Schemas } from 'vs/base/common/network';
 import { FileKind } from 'vs/platform/files/common/files';
-import { basenameOrAuthority, DataUri } from 'vs/base/common/resources';
-import { PLAINTEXT_MODE_ID } from 'vs/editor/common/modes/modesRegistry';
 
 export function getIconClasses(modelService: IModelService, modeService: IModeService, resource: uri, fileKind?: FileKind): string[] {
 	// we always set these base classes even if we do not have a path
@@ -45,7 +45,7 @@ export function getIconClasses(modelService: IModelService, modeService: IModeSe
 				classes.push(`ext-file-icon`); // extra segment to increase file-ext score
 			}
 			// Configured Language
-			let configuredLangId = getConfiguredLangId(modelService, resource);
+			let configuredLangId: string | null = getConfiguredLangId(modelService, resource);
 			configuredLangId = configuredLangId || modeService.getModeIdByFilepathOrFirstLine(path);
 			if (configuredLangId) {
 				classes.push(`${cssEscape(configuredLangId)}-lang-file-icon`);
@@ -55,8 +55,8 @@ export function getIconClasses(modelService: IModelService, modeService: IModeSe
 	return classes;
 }
 
-export function getConfiguredLangId(modelService: IModelService, resource: uri): string {
-	let configuredLangId: string;
+export function getConfiguredLangId(modelService: IModelService, resource: uri): string | null {
+	let configuredLangId: string | null = null;
 	if (resource) {
 		const model = modelService.getModel(resource);
 		if (model) {

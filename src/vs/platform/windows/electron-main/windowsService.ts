@@ -564,6 +564,19 @@ export class WindowsService implements IWindowsService, IURLHandler, IDisposable
 		return TPromise.wrap(true);
 	}
 
+	resolveProxy(windowId: number, url: string): Promise<string | undefined> {
+		return new Promise(resolve => {
+			const codeWindow = this.windowsMainService.getWindowById(windowId);
+			if (codeWindow) {
+				codeWindow.win.webContents.session.resolveProxy(url, proxy => {
+					resolve(proxy);
+				});
+			} else {
+				resolve();
+			}
+		});
+	}
+
 	dispose(): void {
 		this.disposables = dispose(this.disposables);
 	}

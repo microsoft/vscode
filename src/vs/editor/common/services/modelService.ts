@@ -5,9 +5,9 @@
 
 import { Event } from 'vs/base/common/event';
 import { URI } from 'vs/base/common/uri';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { ITextModel, ITextModelCreationOptions, ITextBufferFactory } from 'vs/editor/common/model';
+import { ITextBufferFactory, ITextModel, ITextModelCreationOptions } from 'vs/editor/common/model';
 import { IMode } from 'vs/editor/common/modes';
+import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 
 export const IModelService = createDecorator<IModelService>('modelService');
 

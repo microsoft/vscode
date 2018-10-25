@@ -5,7 +5,6 @@
 
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { Event } from 'vs/base/common/event';
-import { ShutdownReason } from 'vs/platform/lifecycle/common/lifecycle';
 
 export const IStorageService = createDecorator<IStorageService>('storageService');
 
@@ -22,7 +21,7 @@ export interface IStorageService {
 	 * to persist data to ensure it is stored before the application shuts
 	 * down.
 	 */
-	readonly onWillSaveState: Event<ShutdownReason>;
+	readonly onWillSaveState: Event<void>;
 
 	/**
 	 * Retrieve an element stored with the given key from storage. Use
@@ -31,6 +30,7 @@ export interface IStorageService {
 	 * The scope argument allows to define the scope of the storage
 	 * operation to either the current workspace only or all workspaces.
 	 */
+	get(key: string, scope: StorageScope, fallbackValue: string): string;
 	get(key: string, scope: StorageScope, fallbackValue?: string): string | undefined;
 
 	/**
@@ -41,6 +41,7 @@ export interface IStorageService {
 	 * The scope argument allows to define the scope of the storage
 	 * operation to either the current workspace only or all workspaces.
 	 */
+	getBoolean(key: string, scope: StorageScope, fallbackValue: boolean): boolean;
 	getBoolean(key: string, scope: StorageScope, fallbackValue?: boolean): boolean | undefined;
 
 	/**
@@ -51,7 +52,8 @@ export interface IStorageService {
 	 * The scope argument allows to define the scope of the storage
 	 * operation to either the current workspace only or all workspaces.
 	 */
-	getInteger(key: string, scope: StorageScope, fallbackValue?: number): number | undefined;
+	getInteger<R extends number | undefined>(key: string, scope: StorageScope, fallbackValue: number): number;
+	getInteger<R extends number | undefined>(key: string, scope: StorageScope, fallbackValue?: number): number | undefined;
 
 	/**
 	 * Store a string value under the given key to storage. The value will
@@ -89,27 +91,30 @@ export interface IWorkspaceStorageChangeEvent {
 	scope: StorageScope;
 }
 
-export const NullStorageService: IStorageService = {
-	_serviceBrand: undefined,
+export const NullStorageService: IStorageService = new class implements IStorageService {
+	_serviceBrand = undefined;
 
-	onDidChangeStorage: Event.None,
-	onWillSaveState: Event.None,
+	onDidChangeStorage = Event.None;
+	onWillSaveState = Event.None;
 
+	get(key: string, scope: StorageScope, fallbackValue: string): string;
 	get(key: string, scope: StorageScope, fallbackValue?: string): string | undefined {
 		return fallbackValue;
-	},
+	}
 
+	getBoolean(key: string, scope: StorageScope, fallbackValue: boolean): boolean;
 	getBoolean(key: string, scope: StorageScope, fallbackValue?: boolean): boolean | undefined {
 		return fallbackValue;
-	},
+	}
 
+	getInteger(key: string, scope: StorageScope, fallbackValue: number): number;
 	getInteger(key: string, scope: StorageScope, fallbackValue?: number): number | undefined {
 		return fallbackValue;
-	},
+	}
 
 	store(key: string, value: any, scope: StorageScope): Promise<void> {
 		return Promise.resolve();
-	},
+	}
 
 	remove(key: string, scope: StorageScope): Promise<void> {
 		return Promise.resolve();

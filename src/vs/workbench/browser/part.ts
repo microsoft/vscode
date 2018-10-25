@@ -20,8 +20,8 @@ export interface IPartOptions {
  */
 export abstract class Part extends Component {
 	private parent: HTMLElement;
-	private titleArea: HTMLElement;
-	private contentArea: HTMLElement;
+	private titleArea: HTMLElement | null;
+	private contentArea: HTMLElement | null;
 	private partLayout: PartLayout;
 
 	constructor(
@@ -67,28 +67,28 @@ export abstract class Part extends Component {
 	/**
 	 * Subclasses override to provide a title area implementation.
 	 */
-	protected createTitleArea(parent: HTMLElement): HTMLElement {
+	protected createTitleArea(parent: HTMLElement): HTMLElement | null {
 		return null;
 	}
 
 	/**
 	 * Returns the title area container.
 	 */
-	protected getTitleArea(): HTMLElement {
+	protected getTitleArea(): HTMLElement | null {
 		return this.titleArea;
 	}
 
 	/**
 	 * Subclasses override to provide a content area implementation.
 	 */
-	protected createContentArea(parent: HTMLElement): HTMLElement {
+	protected createContentArea(parent: HTMLElement): HTMLElement | null {
 		return null;
 	}
 
 	/**
 	 * Returns the content area container.
 	 */
-	protected getContentArea(): HTMLElement {
+	protected getContentArea(): HTMLElement | null {
 		return this.contentArea;
 	}
 
@@ -104,7 +104,7 @@ export class PartLayout {
 
 	private static readonly TITLE_HEIGHT = 35;
 
-	constructor(container: HTMLElement, private options: IPartOptions, titleArea: HTMLElement, private contentArea: HTMLElement) { }
+	constructor(container: HTMLElement, private options: IPartOptions, titleArea: HTMLElement | null, private contentArea: HTMLElement | null) { }
 
 	layout(dimension: Dimension): Dimension[] {
 		const { width, height } = dimension;

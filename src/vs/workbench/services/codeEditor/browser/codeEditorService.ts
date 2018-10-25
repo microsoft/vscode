@@ -3,14 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CodeEditorServiceImpl } from 'vs/editor/browser/services/codeEditorServiceImpl';
-import { ICodeEditor, isCodeEditor, isDiffEditor } from 'vs/editor/browser/editorBrowser';
-import { IResourceInput } from 'vs/platform/editor/common/editor';
-import { IEditorService, SIDE_GROUP, ACTIVE_GROUP } from 'vs/workbench/services/editor/common/editorService';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { TPromise } from 'vs/base/common/winjs.base';
-import { TextEditorOptions } from 'vs/workbench/common/editor';
+import { ICodeEditor, isCodeEditor, isDiffEditor } from 'vs/editor/browser/editorBrowser';
+import { CodeEditorServiceImpl } from 'vs/editor/browser/services/codeEditorServiceImpl';
 import { ScrollType } from 'vs/editor/common/editorCommon';
+import { IResourceInput } from 'vs/platform/editor/common/editor';
+import { IThemeService } from 'vs/platform/theme/common/themeService';
+import { TextEditorOptions } from 'vs/workbench/common/editor';
+import { ACTIVE_GROUP, IEditorService, SIDE_GROUP } from 'vs/workbench/services/editor/common/editorService';
 
 export class CodeEditorService extends CodeEditorServiceImpl {
 

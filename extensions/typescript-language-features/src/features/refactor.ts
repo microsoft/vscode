@@ -194,7 +194,7 @@ class TypeScriptRefactorProvider implements vscode.CodeActionProvider {
 			return false;
 		}
 
-		return rangeOrSelection instanceof vscode.Selection && !rangeOrSelection.isEmpty;
+		return rangeOrSelection instanceof vscode.Selection;
 	}
 
 	private static getKind(refactor: Proto.RefactorActionInfo) {

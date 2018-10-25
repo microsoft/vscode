@@ -2,27 +2,28 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
+
 import * as assert from 'assert';
+import { CoreEditingCommands, CoreNavigationCommands } from 'vs/editor/browser/controller/coreCommands';
+import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { Cursor, CursorStateChangedEvent } from 'vs/editor/common/controller/cursor';
 import { EditOperation } from 'vs/editor/common/core/editOperation';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
-import { Handler, ICommand, IEditOperationBuilder, ICursorStateComputerData } from 'vs/editor/common/editorCommon';
-import { EndOfLinePreference, ITextModel, EndOfLineSequence } from 'vs/editor/common/model';
+import { TokenizationResult2 } from 'vs/editor/common/core/token';
+import { Handler, ICommand, ICursorStateComputerData, IEditOperationBuilder } from 'vs/editor/common/editorCommon';
+import { EndOfLinePreference, EndOfLineSequence, ITextModel } from 'vs/editor/common/model';
 import { TextModel } from 'vs/editor/common/model/textModel';
+import { IState, ITokenizationSupport, LanguageIdentifier, TokenizationRegistry } from 'vs/editor/common/modes';
 import { IndentAction, IndentationRule } from 'vs/editor/common/modes/languageConfiguration';
 import { LanguageConfigurationRegistry } from 'vs/editor/common/modes/languageConfigurationRegistry';
-import { TestConfiguration } from 'vs/editor/test/common/mocks/testConfiguration';
-import { MockMode } from 'vs/editor/test/common/mocks/mockMode';
-import { LanguageIdentifier, ITokenizationSupport, IState, TokenizationRegistry } from 'vs/editor/common/modes';
-import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
-import { CoreNavigationCommands, CoreEditingCommands } from 'vs/editor/browser/controller/coreCommands';
-import { withTestCodeEditor } from 'vs/editor/test/browser/testCodeEditor';
-import { ViewModel } from 'vs/editor/common/viewModel/viewModelImpl';
 import { NULL_STATE } from 'vs/editor/common/modes/nullMode';
-import { TokenizationResult2 } from 'vs/editor/common/core/token';
-import { createTextModel, IRelaxedTextModelCreationOptions } from 'vs/editor/test/common/editorTestUtils';
+import { ViewModel } from 'vs/editor/common/viewModel/viewModelImpl';
+import { withTestCodeEditor } from 'vs/editor/test/browser/testCodeEditor';
+import { IRelaxedTextModelCreationOptions, createTextModel } from 'vs/editor/test/common/editorTestUtils';
+import { MockMode } from 'vs/editor/test/common/mocks/mockMode';
+import { TestConfiguration } from 'vs/editor/test/common/mocks/testConfiguration';
 import { javascriptOnEnterRules } from 'vs/editor/test/common/modes/supports/javascriptOnEnterRules';
 
 const H = Handler;
@@ -1868,7 +1869,7 @@ suite('Editor Controller - Regression tests', () => {
 		this.timeout(10000);
 		const LINE_CNT = 2000;
 
-		let text = [];
+		let text: string[] = [];
 		for (let i = 0; i < LINE_CNT; i++) {
 			text[i] = 'asd';
 		}

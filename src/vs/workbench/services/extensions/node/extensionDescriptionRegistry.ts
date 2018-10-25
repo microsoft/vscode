@@ -60,7 +60,7 @@ export class ExtensionDescriptionRegistry {
 		return this._extensionsArr.slice(0);
 	}
 
-	public getExtensionDescription(extensionId: string): IExtensionDescription {
+	public getExtensionDescription(extensionId: string): IExtensionDescription | null {
 		if (!hasOwnProperty.call(this._extensionsMap, extensionId)) {
 			return null;
 		}

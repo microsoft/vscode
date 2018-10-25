@@ -675,13 +675,14 @@ export class DebugService implements IDebugService {
 
 			const taskLabel = typeof taskId === 'string' ? taskId : taskId.name;
 			const message = errorCount > 1
-				? nls.localize('preLaunchTaskErrors', "Build errors have been detected during preLaunchTask '{0}'.", taskLabel)
+				? nls.localize('preLaunchTaskErrors', "Errors exist after running preLaunchTask '{0}'.", taskLabel)
 				: errorCount === 1
-					? nls.localize('preLaunchTaskError', "Build error has been detected during preLaunchTask '{0}'.", taskLabel)
+					? nls.localize('preLaunchTaskError', "Error exists after running preLaunchTask '{0}'.", taskLabel)
 					: nls.localize('preLaunchTaskExitCode', "The preLaunchTask '{0}' terminated with exit code {1}.", taskLabel, taskSummary.exitCode);
 
 			const showErrorsAction = new Action('debug.showErrors', nls.localize('showErrors', "Show Errors"), undefined, true, () => {
-				return this.panelService.openPanel(Constants.MARKERS_PANEL_ID).then(() => TaskRunResult.Failure);
+				this.panelService.openPanel(Constants.MARKERS_PANEL_ID);
+				return Promise.resolve(TaskRunResult.Failure);
 			});
 
 			return this.showError(message, [debugAnywayAction, showErrorsAction]);
@@ -822,9 +823,10 @@ export class DebugService implements IDebugService {
 		return this.sendAllBreakpoints();
 	}
 
-	addBreakpoints(uri: uri, rawBreakpoints: IBreakpointData[]): TPromise<IBreakpoint[]> {
+	addBreakpoints(uri: uri, rawBreakpoints: IBreakpointData[], context: string): TPromise<IBreakpoint[]> {
 		const breakpoints = this.model.addBreakpoints(uri, rawBreakpoints);
 		breakpoints.forEach(bp => aria.status(nls.localize('breakpointAdded', "Added breakpoint, line {0}, file {1}", bp.lineNumber, uri.fsPath)));
+		breakpoints.forEach(bp => this.telemetryDebugAddBreakpoint(bp, context));
 
 		return this.sendBreakpoints(uri).then(() => breakpoints);
 	}
@@ -1062,6 +1064,24 @@ export class DebugService implements IDebugService {
 		return this.telemetryService.publicLog('debugMisconfiguration', {
 			type: debugType,
 			error: message
+		});
+	}
+
+	private telemetryDebugAddBreakpoint(breakpoint: IBreakpoint, context: string): TPromise<any> {
+		/* __GDPR__
+			"debugAddBreakpoint" : {
+				"context": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+				"hasCondition": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+				"hasHitCondition": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+				"hasLogMessage": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+			}
+		*/
+
+		return this.telemetryService.publicLog('debugAddBreakpoint', {
+			context: context,
+			hasCondition: !!breakpoint.condition,
+			hasHitCondition: !!breakpoint.hitCondition,
+			hasLogMessage: !!breakpoint.logMessage
 		});
 	}
 }
