@@ -39,6 +39,7 @@ export class CallStackView extends TreeViewsViewletPanel {
 	private ignoreSelectionChangedEvent: boolean;
 	private treeContainer: HTMLElement;
 	private callStackItemType: IContextKey<string>;
+	private dataSource: CallStackDataSource;
 
 	constructor(
 		private options: IViewletViewOptions,
@@ -77,6 +78,7 @@ export class CallStackView extends TreeViewsViewletPanel {
 			}
 
 			this.needsRefresh = false;
+			this.dataSource.deemphasizedStackFramesToShow = [];
 			(this.tree.getInput() === newTreeInput ? this.tree.refresh() : this.tree.setInput(newTreeInput))
 				.then(() => this.updateTreeSelection());
 		}, 50);
@@ -91,14 +93,14 @@ export class CallStackView extends TreeViewsViewletPanel {
 		this.pauseMessageLabel = dom.append(this.pauseMessage, $('span.label'));
 	}
 
-	public renderBody(container: HTMLElement): void {
+	renderBody(container: HTMLElement): void {
 		dom.addClass(container, 'debug-call-stack');
 		this.treeContainer = renderViewTree(container);
 		const actionProvider = new CallStackActionProvider(this.debugService, this.keybindingService, this.instantiationService);
 		const controller = this.instantiationService.createInstance(CallStackController, actionProvider, MenuId.DebugCallStackContext, {});
-
+		this.dataSource = new CallStackDataSource();
 		this.tree = this.instantiationService.createInstance(WorkbenchTree, this.treeContainer, {
-			dataSource: new CallStackDataSource(),
+			dataSource: this.dataSource,
 			renderer: this.instantiationService.createInstance(CallStackRenderer),
 			accessibilityProvider: this.instantiationService.createInstance(CallstackAccessibilityProvider),
 			controller
@@ -132,6 +134,10 @@ export class CallStackView extends TreeViewsViewletPanel {
 					(<Thread>thread).fetchCallStack()
 						.then(() => this.tree.refresh());
 				}
+			}
+			if (element instanceof Array) {
+				this.dataSource.deemphasizedStackFramesToShow.push(...element);
+				this.tree.refresh();
 			}
 		}));
 		this.disposables.push(this.tree.onDidChangeFocus(() => {
@@ -217,7 +223,7 @@ export class CallStackView extends TreeViewsViewletPanel {
 		});
 	}
 
-	public setVisible(visible: boolean): void {
+	setVisible(visible: boolean): void {
 		super.setVisible(visible);
 		if (visible && this.needsRefresh) {
 			this.onCallStackChangeScheduler.schedule();
@@ -247,19 +253,19 @@ class CallStackActionProvider implements IActionProvider {
 		// noop
 	}
 
-	public hasActions(tree: ITree, element: any): boolean {
+	hasActions(tree: ITree, element: any): boolean {
 		return false;
 	}
 
-	public getActions(tree: ITree, element: any): TPromise<IAction[]> {
+	getActions(tree: ITree, element: any): TPromise<IAction[]> {
 		return Promise.resolve([]);
 	}
 
-	public hasSecondaryActions(tree: ITree, element: any): boolean {
+	hasSecondaryActions(tree: ITree, element: any): boolean {
 		return element !== tree.getInput();
 	}
 
-	public getSecondaryActions(tree: ITree, element: any): TPromise<IAction[]> {
+	getSecondaryActions(tree: ITree, element: any): TPromise<IAction[]> {
 		const actions: IAction[] = [];
 		if (element instanceof DebugSession) {
 			actions.push(this.instantiationService.createInstance(RestartAction, RestartAction.ID, RestartAction.LABEL));
@@ -287,28 +293,59 @@ class CallStackActionProvider implements IActionProvider {
 		return Promise.resolve(actions);
 	}
 
-	public getActionItem(tree: ITree, element: any, action: IAction): IActionItem {
+	getActionItem(tree: ITree, element: any, action: IAction): IActionItem {
 		return null;
 	}
 }
 
 class CallStackDataSource implements IDataSource {
 
-	public getId(tree: ITree, element: any): string {
+	deemphasizedStackFramesToShow: IStackFrame[];
+
+	getId(tree: ITree, element: any): string {
 		if (typeof element === 'string') {
 			return element;
+		}
+		if (element instanceof Array) {
+			return `showMore ${element[0].getId()}`;
 		}
 
 		return element.getId();
 	}
 
-	public hasChildren(tree: ITree, element: any): boolean {
+	hasChildren(tree: ITree, element: any): boolean {
 		return element instanceof DebugModel || element instanceof DebugSession || (element instanceof Thread && (<Thread>element).stopped);
 	}
 
-	public getChildren(tree: ITree, element: any): TPromise<any> {
+	getChildren(tree: ITree, element: any): TPromise<any> {
 		if (element instanceof Thread) {
-			return this.getThreadChildren(element);
+			return this.getThreadChildren(element).then(children => {
+				// Check if some stack frames should be hidden under a parent element since they are deemphasized
+				const result = [];
+				children.forEach((child, index) => {
+					if (child instanceof StackFrame && child.source && child.source.presentationHint === 'deemphasize') {
+						// Check if the user clicked to show the deemphasized source
+						if (this.deemphasizedStackFramesToShow.indexOf(child) === -1) {
+							if (result.length && result[result.length - 1] instanceof Array) {
+								// Collect all the stackframes that will be "collapsed"
+								result[result.length - 1].push(child);
+								return;
+							}
+
+							const nextChild = index < children.length - 1 ? children[index + 1] : undefined;
+							if (nextChild instanceof StackFrame && nextChild.source && nextChild.source.presentationHint === 'deemphasize') {
+								// Start collecting stackframes that will be "collapsed"
+								result.push([child]);
+								return;
+							}
+						}
+					}
+
+					result.push(child);
+				});
+
+				return result;
+			});
 		}
 		if (element instanceof DebugModel) {
 			return Promise.resolve(element.getSessions());
@@ -318,7 +355,7 @@ class CallStackDataSource implements IDataSource {
 		return Promise.resolve(session.getAllThreads());
 	}
 
-	private getThreadChildren(thread: Thread): TPromise<any> {
+	private getThreadChildren(thread: Thread): TPromise<(IStackFrame | string | ThreadAndSessionIds)[]> {
 		let callStack: any[] = thread.getCallStack();
 		let callStackPromise: TPromise<any> = Promise.resolve(null);
 		if (!callStack || !callStack.length) {
@@ -343,7 +380,7 @@ class CallStackDataSource implements IDataSource {
 		});
 	}
 
-	public getParent(tree: ITree, element: any): TPromise<any> {
+	getParent(tree: ITree, element: any): TPromise<any> {
 		return Promise.resolve(null);
 	}
 }
@@ -366,7 +403,7 @@ interface IErrorTemplateData {
 	label: HTMLElement;
 }
 
-interface ILoadMoreTemplateData {
+interface ILabelTemplateData {
 	label: HTMLElement;
 }
 
@@ -384,6 +421,7 @@ class CallStackRenderer implements IRenderer {
 	private static readonly STACK_FRAME_TEMPLATE_ID = 'stackFrame';
 	private static readonly ERROR_TEMPLATE_ID = 'error';
 	private static readonly LOAD_MORE_TEMPLATE_ID = 'loadMore';
+	private static readonly SHOW_MORE_TEMPLATE_ID = 'showMore';
 	private static readonly SESSION_TEMPLATE_ID = 'session';
 
 	constructor(
@@ -392,11 +430,11 @@ class CallStackRenderer implements IRenderer {
 		// noop
 	}
 
-	public getHeight(tree: ITree, element: any): number {
+	getHeight(tree: ITree, element: any): number {
 		return 22;
 	}
 
-	public getTemplateId(tree: ITree, element: any): string {
+	getTemplateId(tree: ITree, element: any): string {
 		if (element instanceof DebugSession) {
 			return CallStackRenderer.SESSION_TEMPLATE_ID;
 		}
@@ -409,11 +447,17 @@ class CallStackRenderer implements IRenderer {
 		if (typeof element === 'string') {
 			return CallStackRenderer.ERROR_TEMPLATE_ID;
 		}
+		if (element instanceof ThreadAndSessionIds) {
+			return CallStackRenderer.LOAD_MORE_TEMPLATE_ID;
+		}
+		if (element instanceof Array) {
+			return CallStackRenderer.SHOW_MORE_TEMPLATE_ID;
+		}
 
-		return CallStackRenderer.LOAD_MORE_TEMPLATE_ID;
+		return undefined;
 	}
 
-	public renderTemplate(tree: ITree, templateId: string, container: HTMLElement): any {
+	renderTemplate(tree: ITree, templateId: string, container: HTMLElement): any {
 		if (templateId === CallStackRenderer.SESSION_TEMPLATE_ID) {
 			let data: ISessionTemplateData = Object.create(null);
 			data.session = dom.append(container, $('.session'));
@@ -425,13 +469,19 @@ class CallStackRenderer implements IRenderer {
 		}
 
 		if (templateId === CallStackRenderer.LOAD_MORE_TEMPLATE_ID) {
-			let data: ILoadMoreTemplateData = Object.create(null);
+			let data: ILabelTemplateData = Object.create(null);
 			data.label = dom.append(container, $('.load-more'));
 
 			return data;
 		}
+		if (templateId === CallStackRenderer.SHOW_MORE_TEMPLATE_ID) {
+			let data: ILabelTemplateData = Object.create(null);
+			data.label = dom.append(container, $('.show-more'));
+
+			return data;
+		}
 		if (templateId === CallStackRenderer.ERROR_TEMPLATE_ID) {
-			let data: ILoadMoreTemplateData = Object.create(null);
+			let data: ILabelTemplateData = Object.create(null);
 			data.label = dom.append(container, $('.error'));
 
 			return data;
@@ -457,7 +507,7 @@ class CallStackRenderer implements IRenderer {
 		return data;
 	}
 
-	public renderElement(tree: ITree, element: any, templateId: string, templateData: any): void {
+	renderElement(tree: ITree, element: any, templateId: string, templateData: any): void {
 		if (templateId === CallStackRenderer.SESSION_TEMPLATE_ID) {
 			this.renderSession(element, templateData);
 		} else if (templateId === CallStackRenderer.THREAD_TEMPLATE_ID) {
@@ -468,6 +518,8 @@ class CallStackRenderer implements IRenderer {
 			this.renderError(element, templateData);
 		} else if (templateId === CallStackRenderer.LOAD_MORE_TEMPLATE_ID) {
 			this.renderLoadMore(templateData);
+		} else if (templateId === CallStackRenderer.SHOW_MORE_TEMPLATE_ID) {
+			this.renderShowMore(templateData, element);
 		}
 	}
 
@@ -497,12 +549,19 @@ class CallStackRenderer implements IRenderer {
 		data.label.title = element;
 	}
 
-	private renderLoadMore(data: ILoadMoreTemplateData): void {
+	private renderLoadMore(data: ILabelTemplateData): void {
 		data.label.textContent = nls.localize('loadMoreStackFrames', "Load More Stack Frames");
 	}
 
+	private renderShowMore(data: ILabelTemplateData, element: IStackFrame[]): void {
+		data.label.textContent = nls.localize('showMoreStackFrames', "Show More Stack Frames");
+		if (element && element.length && element.every(sf => sf.source && sf.source.origin === element[0].source.origin)) {
+			data.label.textContent += ` ${element[0].source.origin}`;
+		}
+	}
+
 	private renderStackFrame(stackFrame: IStackFrame, data: IStackFrameTemplateData): void {
-		dom.toggleClass(data.stackFrame, 'disabled', !stackFrame.source.available || stackFrame.source.presentationHint === 'deemphasize');
+		dom.toggleClass(data.stackFrame, 'disabled', !stackFrame.source || !stackFrame.source.available || stackFrame.source.presentationHint === 'deemphasize');
 		dom.toggleClass(data.stackFrame, 'label', stackFrame.presentationHint === 'label');
 		dom.toggleClass(data.stackFrame, 'subtle', stackFrame.presentationHint === 'subtle');
 
@@ -524,7 +583,7 @@ class CallStackRenderer implements IRenderer {
 		}
 	}
 
-	public disposeTemplate(tree: ITree, templateId: string, templateData: any): void {
+	disposeTemplate(tree: ITree, templateId: string, templateData: any): void {
 		// noop
 	}
 }
@@ -535,7 +594,7 @@ class CallstackAccessibilityProvider implements IAccessibilityProvider {
 		// noop
 	}
 
-	public getAriaLabel(tree: ITree, element: any): string {
+	getAriaLabel(tree: ITree, element: any): string {
 		if (element instanceof Thread) {
 			return nls.localize('threadAriaLabel', "Thread {0}, callstack, debug", (<Thread>element).name);
 		}
