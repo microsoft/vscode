@@ -84,7 +84,7 @@ export class Storage extends Disposable {
 		return value;
 	}
 
-	getBoolean(key: string, fallbackValue: boolean = false): boolean {
+	getBoolean(key: string, fallbackValue?: boolean): boolean | undefined {
 		const value = this.get(key);
 
 		if (isUndefinedOrNull(value)) {
@@ -94,7 +94,7 @@ export class Storage extends Disposable {
 		return value === 'true';
 	}
 
-	getInteger(key: string, fallbackValue: number = 0): number {
+	getInteger(key: string, fallbackValue?: number): number | undefined {
 		const value = this.get(key);
 
 		if (isUndefinedOrNull(value)) {
