@@ -1094,12 +1094,9 @@ declare module 'vscode' {
 		TriggerCharacter = 2,
 
 		/**
-		 * Signature help was retriggered.
-		 *
-		 * Retriggers occur when the signature help is already active and can be caused by typing a trigger character
-		 * or by a cursor move.
+		 * Signature help was triggered by the cursor moving or by the document content changing.
 		 */
-		Retrigger = 3,
+		ContentChange = 3,
 	}
 
 	/**
@@ -1115,9 +1112,18 @@ declare module 'vscode' {
 		/**
 		 * Character that caused signature help to be requested.
 		 *
-		 * This is `undefined` for manual triggers or retriggers for a cursor move.
+		 * This is `undefined` when signature help is not triggered by typing, such as when invoking signature help
+		 * or when moving the cursor.
 		 */
 		readonly triggerCharacter?: string;
+
+		/**
+		 * Whether or not signature help was previously showing when triggered.
+		 *
+		 * Retriggers occur when the signature help is already active and can be caused by typing a trigger character
+		 * or by a cursor move.
+		 */
+		readonly isRetrigger: boolean;
 	}
 
 	export interface SignatureHelpProvider {

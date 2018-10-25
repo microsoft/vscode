@@ -618,12 +618,13 @@ export interface SignatureHelp {
 export enum SignatureHelpTriggerReason {
 	Invoke = 1,
 	TriggerCharacter = 2,
-	Retrigger = 3,
+	ContentChange = 3,
 }
 
 export interface SignatureHelpContext {
-	triggerReason: SignatureHelpTriggerReason;
-	triggerCharacter?: string;
+	readonly triggerReason: SignatureHelpTriggerReason;
+	readonly triggerCharacter?: string;
+	readonly isRetrigger: boolean;
 }
 
 /**
