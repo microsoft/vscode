@@ -181,7 +181,7 @@ export class FileOnDiskContentProvider implements ITextModelContentProvider {
 	}
 
 	private resolveEditorModel(resource: URI, createAsNeeded = true): TPromise<ITextModel> {
-		const fileOnDiskResource = URI.file(resource.fsPath);
+		const fileOnDiskResource = resource.with({ scheme: Schemas.file });
 
 		return this.textFileService.resolveTextContent(fileOnDiskResource).then(content => {
 			let codeEditorModel = this.modelService.getModel(resource);
