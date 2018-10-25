@@ -7,6 +7,7 @@ import { ExtHostWorkspace } from 'vs/workbench/api/node/extHostWorkspace';
 import { ExtHostConfiguration } from 'vs/workbench/api/node/extHostConfiguration';
 import * as http from 'http';
 import * as https from 'https';
+import * as nodeurl from 'url';
 import ElectronProxyAgent = require('electron-proxy-agent');
 import { MainThreadTelemetryShape } from 'vs/workbench/api/node/extHost.protocol';
 import { ExtHostLogService } from 'vs/workbench/api/node/extHostLogService';
@@ -75,7 +76,7 @@ export function connectProxyResolver(extHostWorkspace: ExtHostWorkspace, extHost
 
 			if (config === 'force' || config === 'on' && !options.agent) {
 				if (url) {
-					const parsed = typeof url === 'string' ? new URL(url) : url;
+					const parsed = typeof url === 'string' ? nodeurl.parse(url) : url;
 					options = {
 						protocol: parsed.protocol,
 						hostname: parsed.hostname,
