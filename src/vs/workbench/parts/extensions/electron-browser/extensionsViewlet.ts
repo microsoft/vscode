@@ -361,15 +361,14 @@ export class ExtensionsViewlet extends ViewContainerViewlet implements IExtensio
 		super.create(this.extensionsBox);
 	}
 
-	setVisible(visible: boolean): Promise<void> {
+	setVisible(visible: boolean): void {
 		const isVisibilityChanged = this.isVisible() !== visible;
-		return super.setVisible(visible).then(() => {
-			if (isVisibilityChanged) {
-				if (visible) {
-					this.searchBox.focus();
-				}
+		super.setVisible(visible);
+		if (isVisibilityChanged) {
+			if (visible) {
+				this.searchBox.focus();
 			}
-		});
+		}
 	}
 
 	focus(): void {

@@ -59,8 +59,9 @@ export class CustomTreeViewPanel extends ViewletPanel {
 		this.updateTreeVisibility();
 	}
 
-	setVisible(visible: boolean): TPromise<void> {
-		return super.setVisible(visible).then(() => this.updateTreeVisibility());
+	setVisible(visible: boolean): void {
+		super.setVisible(visible);
+		this.updateTreeVisibility();
 	}
 
 	focus(): void {

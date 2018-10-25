@@ -757,7 +757,8 @@ export class Workbench extends Disposable implements IPartService {
 			perf.mark('willRestorePanel');
 			const isPanelToRestoreEnabled = !!this.panelPart.getPanels().filter(p => p.id === panelId).length;
 			const panelIdToRestore = isPanelToRestoreEnabled ? panelId : panelRegistry.getDefaultPanelId();
-			restorePromises.push(this.panelPart.openPanel(panelIdToRestore, false).then(() => perf.mark('didRestorePanel')));
+			this.panelPart.openPanel(panelIdToRestore, false);
+			perf.mark('didRestorePanel');
 		}
 
 		// Restore Zen Mode if active
@@ -1371,7 +1372,7 @@ export class Workbench extends Disposable implements IPartService {
 		}
 	}
 
-	setSideBarHidden(hidden: boolean, skipLayout?: boolean): TPromise<void> {
+	setSideBarHidden(hidden: boolean, skipLayout?: boolean): void {
 		this.sideBarHidden = hidden;
 		this.sideBarVisibleContext.set(!hidden);
 
@@ -1383,47 +1384,45 @@ export class Workbench extends Disposable implements IPartService {
 		}
 
 		// If sidebar becomes hidden, also hide the current active Viewlet if any
-		let promise = TPromise.wrap<any>(null);
 		if (hidden && this.sidebarPart.getActiveViewlet()) {
-			promise = this.sidebarPart.hideActiveViewlet().then(() => {
-				const activePanel = this.panelPart.getActivePanel();
+			this.sidebarPart.hideActiveViewlet();
+			const activePanel = this.panelPart.getActivePanel();
 
-				// Pass Focus to Editor or Panel if Sidebar is now hidden
-				if (this.hasFocus(Parts.PANEL_PART) && activePanel) {
-					activePanel.focus();
-				} else {
-					this.editorGroupService.activeGroup.focus();
-				}
-			});
+			// Pass Focus to Editor or Panel if Sidebar is now hidden
+			if (this.hasFocus(Parts.PANEL_PART) && activePanel) {
+				activePanel.focus();
+			} else {
+				this.editorGroupService.activeGroup.focus();
+			}
 		}
 
 		// If sidebar becomes visible, show last active Viewlet or default viewlet
 		else if (!hidden && !this.sidebarPart.getActiveViewlet()) {
 			const viewletToOpen = this.sidebarPart.getLastActiveViewletId();
 			if (viewletToOpen) {
-				promise = this.viewletService.openViewlet(viewletToOpen, true)
-					.then(viewlet => viewlet || this.viewletService.openViewlet(this.viewletService.getDefaultViewletId(), true));
+				const viewlet = this.viewletService.openViewlet(viewletToOpen, true);
+				if (!viewlet) {
+					this.viewletService.openViewlet(this.viewletService.getDefaultViewletId(), true);
+				}
 			}
 		}
 
-		return promise.then(() => {
 
-			// Remember in settings
-			const defaultHidden = this.contextService.getWorkbenchState() === WorkbenchState.EMPTY;
-			if (hidden !== defaultHidden) {
-				this.storageService.store(Workbench.sidebarHiddenStorageKey, hidden ? 'true' : 'false', StorageScope.WORKSPACE);
-			} else {
-				this.storageService.remove(Workbench.sidebarHiddenStorageKey, StorageScope.WORKSPACE);
-			}
+		// Remember in settings
+		const defaultHidden = this.contextService.getWorkbenchState() === WorkbenchState.EMPTY;
+		if (hidden !== defaultHidden) {
+			this.storageService.store(Workbench.sidebarHiddenStorageKey, hidden ? 'true' : 'false', StorageScope.WORKSPACE);
+		} else {
+			this.storageService.remove(Workbench.sidebarHiddenStorageKey, StorageScope.WORKSPACE);
+		}
 
-			// Layout
-			if (!skipLayout) {
-				this.workbenchLayout.layout();
-			}
-		});
+		// Layout
+		if (!skipLayout) {
+			this.workbenchLayout.layout();
+		}
 	}
 
-	setPanelHidden(hidden: boolean, skipLayout?: boolean): TPromise<void> {
+	setPanelHidden(hidden: boolean, skipLayout?: boolean): void {
 		this.panelHidden = hidden;
 
 		// Adjust CSS
@@ -1434,35 +1433,31 @@ export class Workbench extends Disposable implements IPartService {
 		}
 
 		// If panel part becomes hidden, also hide the current active panel if any
-		let promise = TPromise.wrap<any>(null);
 		if (hidden && this.panelPart.getActivePanel()) {
-			promise = this.panelPart.hideActivePanel().then(() => {
-				this.editorGroupService.activeGroup.focus(); // Pass focus to editor group if panel part is now hidden
-			});
+			this.panelPart.hideActivePanel();
+			this.editorGroupService.activeGroup.focus(); // Pass focus to editor group if panel part is now hidden
 		}
 
 		// If panel part becomes visible, show last active panel or default panel
 		else if (!hidden && !this.panelPart.getActivePanel()) {
 			const panelToOpen = this.panelPart.getLastActivePanelId();
 			if (panelToOpen) {
-				promise = this.panelPart.openPanel(panelToOpen, true);
+				this.panelPart.openPanel(panelToOpen, true);
 			}
 		}
 
-		return promise.then(() => {
 
-			// Remember in settings
-			if (!hidden) {
-				this.storageService.store(Workbench.panelHiddenStorageKey, 'false', StorageScope.WORKSPACE);
-			} else {
-				this.storageService.remove(Workbench.panelHiddenStorageKey, StorageScope.WORKSPACE);
-			}
+		// Remember in settings
+		if (!hidden) {
+			this.storageService.store(Workbench.panelHiddenStorageKey, 'false', StorageScope.WORKSPACE);
+		} else {
+			this.storageService.remove(Workbench.panelHiddenStorageKey, StorageScope.WORKSPACE);
+		}
 
-			// Layout
-			if (!skipLayout) {
-				this.workbenchLayout.layout();
-			}
-		});
+		// Layout
+		if (!skipLayout) {
+			this.workbenchLayout.layout();
+		}
 	}
 
 	toggleMaximizedPanel(): void {
@@ -1518,23 +1513,25 @@ export class Workbench extends Disposable implements IPartService {
 		return this.panelPosition;
 	}
 
-	setPanelPosition(position: Position): TPromise<void> {
-		return (this.panelHidden ? this.setPanelHidden(false, true /* Skip Layout */) : TPromise.as(undefined)).then(() => {
-			const newPositionValue = (position === Position.BOTTOM) ? 'bottom' : 'right';
-			const oldPositionValue = (this.panelPosition === Position.BOTTOM) ? 'bottom' : 'right';
-			this.panelPosition = position;
-			this.storageService.store(Workbench.panelPositionStorageKey, PositionToString(this.panelPosition).toLowerCase(), StorageScope.WORKSPACE);
+	setPanelPosition(position: Position): void {
+		if (this.panelHidden) {
+			this.setPanelHidden(false, true /* Skip Layout */);
+		}
 
-			// Adjust CSS
-			DOM.removeClass(this.panelPart.getContainer(), oldPositionValue);
-			DOM.addClass(this.panelPart.getContainer(), newPositionValue);
+		const newPositionValue = (position === Position.BOTTOM) ? 'bottom' : 'right';
+		const oldPositionValue = (this.panelPosition === Position.BOTTOM) ? 'bottom' : 'right';
+		this.panelPosition = position;
+		this.storageService.store(Workbench.panelPositionStorageKey, PositionToString(this.panelPosition).toLowerCase(), StorageScope.WORKSPACE);
 
-			// Update Styles
-			this.panelPart.updateStyles();
+		// Adjust CSS
+		DOM.removeClass(this.panelPart.getContainer(), oldPositionValue);
+		DOM.addClass(this.panelPart.getContainer(), newPositionValue);
 
-			// Layout
-			this.workbenchLayout.layout();
-		});
+		// Update Styles
+		this.panelPart.updateStyles();
+
+		// Layout
+		this.workbenchLayout.layout();
 	}
 
 	//#endregion

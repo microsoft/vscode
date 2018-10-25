@@ -42,12 +42,11 @@ export abstract class TreeViewsViewletPanel extends ViewletPanel {
 		}
 	}
 
-	setVisible(visible: boolean): TPromise<void> {
+	setVisible(visible: boolean): void {
 		if (this.isVisible() !== visible) {
-			return super.setVisible(visible)
-				.then(() => this.updateTreeVisibility(this.tree, visible && this.isExpanded()));
+			super.setVisible(visible);
+			this.updateTreeVisibility(this.tree, visible && this.isExpanded());
 		}
-		return TPromise.wrap(null);
 	}
 
 	focus(): void {
@@ -189,11 +188,10 @@ export abstract class ViewContainerViewlet extends PanelViewlet implements IView
 		return result;
 	}
 
-	setVisible(visible: boolean): Promise<void> {
-		return super.setVisible(visible)
-			.then(() => Promise.all(this.panels.filter(view => view.isVisible() !== visible)
-				.map((view) => view.setVisible(visible))))
-			.then(() => void 0);
+	setVisible(visible: boolean): void {
+		super.setVisible(visible);
+		this.panels.filter(view => view.isVisible() !== visible)
+			.map((view) => view.setVisible(visible));
 	}
 
 	openView(id: string, focus?: boolean): TPromise<IView> {

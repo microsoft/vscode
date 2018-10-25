@@ -717,7 +717,8 @@ export class FocusReplAction extends Action {
 	}
 
 	public run(): TPromise<any> {
-		return this.panelService.openPanel(REPL_ID, true);
+		this.panelService.openPanel(REPL_ID, true);
+		return Promise.resolve(null);
 	}
 }
 

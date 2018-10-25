@@ -735,7 +735,7 @@ export abstract class BaseNavigationAction extends Action {
 		}
 
 		if (isSidebarFocus) {
-			return this.navigateOnSidebarFocus(isSidebarPositionLeft, isPanelPositionDown);
+			return Promise.resolve(this.navigateOnSidebarFocus(isSidebarPositionLeft, isPanelPositionDown));
 		}
 
 		return Promise.resolve(false);
@@ -749,13 +749,13 @@ export abstract class BaseNavigationAction extends Action {
 		return Promise.resolve(true);
 	}
 
-	protected navigateOnSidebarFocus(_isSidebarPositionLeft: boolean, _isPanelPositionDown: boolean): Thenable<boolean | IViewlet> {
-		return Promise.resolve(true);
+	protected navigateOnSidebarFocus(_isSidebarPositionLeft: boolean, _isPanelPositionDown: boolean): boolean | IViewlet {
+		return true;
 	}
 
-	protected navigateToPanel(): Thenable<IPanel | boolean> {
+	protected navigateToPanel(): IPanel | boolean {
 		if (!this.partService.isVisible(Parts.PANEL_PART)) {
-			return Promise.resolve(false);
+			return false;
 		}
 
 		const activePanelId = this.panelService.getActivePanel().getId();
@@ -773,23 +773,23 @@ export abstract class BaseNavigationAction extends Action {
 		return this.viewletService.openViewlet(activeViewletId, true);
 	}
 
-	protected navigateAcrossEditorGroup(direction: GroupDirection): Promise<boolean> {
+	protected navigateAcrossEditorGroup(direction: GroupDirection): boolean {
 		return this.doNavigateToEditorGroup({ direction });
 	}
 
-	protected navigateToEditorGroup(location: GroupLocation): Promise<boolean> {
+	protected navigateToEditorGroup(location: GroupLocation): boolean {
 		return this.doNavigateToEditorGroup({ location });
 	}
 
-	private doNavigateToEditorGroup(scope: IFindGroupScope): Promise<boolean> {
+	private doNavigateToEditorGroup(scope: IFindGroupScope): boolean {
 		const targetGroup = this.editorGroupService.findGroup(scope, this.editorGroupService.activeGroup);
 		if (targetGroup) {
 			targetGroup.focus();
 
-			return Promise.resolve(true);
+			return true;
 		}
 
-		return Promise.resolve(false);
+		return false;
 	}
 }
 
@@ -809,19 +809,17 @@ export class NavigateLeftAction extends BaseNavigationAction {
 		super(id, label, editorGroupService, panelService, partService, viewletService);
 	}
 
-	protected navigateOnEditorFocus(isSidebarPositionLeft: boolean, _isPanelPositionDown: boolean): Promise<boolean | IViewlet> {
-		return this.navigateAcrossEditorGroup(GroupDirection.LEFT)
-			.then(didNavigate => {
-				if (didNavigate) {
-					return Promise.resolve(true);
-				}
+	protected navigateOnEditorFocus(isSidebarPositionLeft: boolean, _isPanelPositionDown: boolean): Thenable<boolean | IViewlet> {
+		const didNavigate = this.navigateAcrossEditorGroup(GroupDirection.LEFT);
+		if (didNavigate) {
+			return Promise.resolve(true);
+		}
 
-				if (isSidebarPositionLeft) {
-					return this.navigateToSidebar();
-				}
+		if (isSidebarPositionLeft) {
+			return this.navigateToSidebar();
+		}
 
-				return Promise.resolve(false);
-			});
+		return Promise.resolve(false);
 	}
 
 	protected navigateOnPanelFocus(isSidebarPositionLeft: boolean, isPanelPositionDown: boolean): Thenable<boolean | IViewlet> {
@@ -830,18 +828,18 @@ export class NavigateLeftAction extends BaseNavigationAction {
 		}
 
 		if (!isPanelPositionDown) {
-			return this.navigateToEditorGroup(GroupLocation.LAST);
+			return Promise.resolve(this.navigateToEditorGroup(GroupLocation.LAST));
 		}
 
 		return Promise.resolve(false);
 	}
 
-	protected navigateOnSidebarFocus(isSidebarPositionLeft: boolean, _isPanelPositionDown: boolean): Promise<boolean> {
+	protected navigateOnSidebarFocus(isSidebarPositionLeft: boolean, _isPanelPositionDown: boolean): boolean {
 		if (!isSidebarPositionLeft) {
 			return this.navigateToEditorGroup(GroupLocation.LAST);
 		}
 
-		return Promise.resolve(false);
+		return false;
 	}
 }
 
@@ -861,23 +859,21 @@ export class NavigateRightAction extends BaseNavigationAction {
 		super(id, label, editorGroupService, panelService, partService, viewletService);
 	}
 
-	protected navigateOnEditorFocus(isSidebarPositionLeft: boolean, isPanelPositionDown: boolean): Promise<boolean | IViewlet | IPanel> {
-		return this.navigateAcrossEditorGroup(GroupDirection.RIGHT)
-			.then(didNavigate => {
-				if (didNavigate) {
-					return Promise.resolve(true);
-				}
+	protected navigateOnEditorFocus(isSidebarPositionLeft: boolean, isPanelPositionDown: boolean): Thenable<boolean | IViewlet | IPanel> {
+		const didNavigate = this.navigateAcrossEditorGroup(GroupDirection.RIGHT);
+		if (didNavigate) {
+			return Promise.resolve(true);
+		}
 
-				if (!isPanelPositionDown) {
-					return this.navigateToPanel();
-				}
+		if (!isPanelPositionDown) {
+			return Promise.resolve(this.navigateToPanel());
+		}
 
-				if (!isSidebarPositionLeft) {
-					return this.navigateToSidebar();
-				}
+		if (!isSidebarPositionLeft) {
+			return this.navigateToSidebar();
+		}
 
-				return Promise.resolve(false);
-			});
+		return Promise.resolve(false);
 	}
 
 	protected navigateOnPanelFocus(isSidebarPositionLeft: boolean, _isPanelPositionDown: boolean): Thenable<boolean | IViewlet> {
@@ -888,12 +884,12 @@ export class NavigateRightAction extends BaseNavigationAction {
 		return Promise.resolve(false);
 	}
 
-	protected navigateOnSidebarFocus(isSidebarPositionLeft: boolean, _isPanelPositionDown: boolean): Promise<boolean> {
+	protected navigateOnSidebarFocus(isSidebarPositionLeft: boolean, _isPanelPositionDown: boolean): boolean {
 		if (isSidebarPositionLeft) {
 			return this.navigateToEditorGroup(GroupLocation.FIRST);
 		}
 
-		return Promise.resolve(false);
+		return false;
 	}
 }
 
@@ -914,12 +910,12 @@ export class NavigateUpAction extends BaseNavigationAction {
 	}
 
 	protected navigateOnEditorFocus(_isSidebarPositionLeft: boolean, _isPanelPositionDown: boolean): Promise<boolean> {
-		return this.navigateAcrossEditorGroup(GroupDirection.UP);
+		return Promise.resolve(this.navigateAcrossEditorGroup(GroupDirection.UP));
 	}
 
 	protected navigateOnPanelFocus(_isSidebarPositionLeft: boolean, isPanelPositionDown: boolean): Promise<boolean> {
 		if (isPanelPositionDown) {
-			return this.navigateToEditorGroup(GroupLocation.LAST);
+			return Promise.resolve(this.navigateToEditorGroup(GroupLocation.LAST));
 		}
 
 		return Promise.resolve(false);
@@ -943,18 +939,16 @@ export class NavigateDownAction extends BaseNavigationAction {
 	}
 
 	protected navigateOnEditorFocus(_isSidebarPositionLeft: boolean, isPanelPositionDown: boolean): Promise<boolean | IPanel> {
-		return this.navigateAcrossEditorGroup(GroupDirection.DOWN)
-			.then(didNavigate => {
-				if (didNavigate) {
-					return Promise.resolve(true);
-				}
+		const didNavigate = this.navigateAcrossEditorGroup(GroupDirection.DOWN);
+		if (didNavigate) {
+			return Promise.resolve(true);
+		}
 
-				if (isPanelPositionDown) {
-					return this.navigateToPanel();
-				}
+		if (isPanelPositionDown) {
+			return Promise.resolve(this.navigateToPanel());
+		}
 
-				return Promise.resolve(false);
-			});
+		return Promise.resolve(false);
 	}
 }
 

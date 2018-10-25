@@ -681,7 +681,8 @@ export class DebugService implements IDebugService {
 					: nls.localize('preLaunchTaskExitCode', "The preLaunchTask '{0}' terminated with exit code {1}.", taskLabel, taskSummary.exitCode);
 
 			const showErrorsAction = new Action('debug.showErrors', nls.localize('showErrors', "Show Errors"), undefined, true, () => {
-				return this.panelService.openPanel(Constants.MARKERS_PANEL_ID).then(() => TaskRunResult.Failure);
+				this.panelService.openPanel(Constants.MARKERS_PANEL_ID);
+				return Promise.resolve(TaskRunResult.Failure);
 			});
 
 			return this.showError(message, [debugAnywayAction, showErrorsAction]);

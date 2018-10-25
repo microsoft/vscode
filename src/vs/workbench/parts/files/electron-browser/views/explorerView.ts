@@ -322,57 +322,54 @@ export class ExplorerView extends TreeViewsViewletPanel implements IExplorerView
 		}
 	}
 
-	public setVisible(visible: boolean): TPromise<void> {
-		return super.setVisible(visible).then(() => {
+	public setVisible(visible: boolean): void {
+		super.setVisible(visible);
 
-			// Show
-			if (visible) {
+		// Show
+		if (visible) {
 
-				// If a refresh was requested and we are now visible, run it
-				let refreshPromise: Thenable<void> = TPromise.as(null);
-				if (this.shouldRefresh) {
-					refreshPromise = this.doRefresh();
-					this.shouldRefresh = false; // Reset flag
-				}
-
-				if (!this.autoReveal) {
-					return refreshPromise; // do not react to setVisible call if autoReveal === false
-				}
-
-				// Always select the current navigated file in explorer if input is file editor input
-				// unless autoReveal is set to false
-				const activeFile = this.getActiveFile();
-				if (activeFile) {
-					return refreshPromise.then(() => {
-						return this.select(activeFile);
-					});
-				}
-
-				// Return now if the workbench has not yet been created - in this case the workbench takes care of restoring last used editors
-				if (!this.partService.isCreated()) {
-					return Promise.resolve(null);
-				}
-
-				// Otherwise restore last used file: By lastActiveFileResource
-				let lastActiveFileResource: URI;
-				if (this.viewState[ExplorerView.MEMENTO_LAST_ACTIVE_FILE_RESOURCE]) {
-					lastActiveFileResource = URI.parse(this.viewState[ExplorerView.MEMENTO_LAST_ACTIVE_FILE_RESOURCE]);
-				}
-
-				if (lastActiveFileResource && this.isCreated && this.model.findClosest(lastActiveFileResource)) {
-					this.editorService.openEditor({ resource: lastActiveFileResource, options: { revealIfVisible: true } });
-
-					return refreshPromise;
-				}
-
-				// Otherwise restore last used file: By Explorer selection
-				return refreshPromise.then(() => {
-					this.openFocusedElement();
-				});
+			// If a refresh was requested and we are now visible, run it
+			let refreshPromise: Thenable<void> = TPromise.as(null);
+			if (this.shouldRefresh) {
+				refreshPromise = this.doRefresh();
+				this.shouldRefresh = false; // Reset flag
 			}
 
-			return void 0;
-		});
+			if (!this.autoReveal) {
+				return; // do not react to setVisible call if autoReveal === false
+			}
+
+			// Always select the current navigated file in explorer if input is file editor input
+			// unless autoReveal is set to false
+			const activeFile = this.getActiveFile();
+			if (activeFile) {
+				refreshPromise.then(() => {
+					this.select(activeFile);
+				});
+				return;
+			}
+
+			// Return now if the workbench has not yet been created - in this case the workbench takes care of restoring last used editors
+			if (!this.partService.isCreated()) {
+				return;
+			}
+
+			// Otherwise restore last used file: By lastActiveFileResource
+			let lastActiveFileResource: URI;
+			if (this.viewState[ExplorerView.MEMENTO_LAST_ACTIVE_FILE_RESOURCE]) {
+				lastActiveFileResource = URI.parse(this.viewState[ExplorerView.MEMENTO_LAST_ACTIVE_FILE_RESOURCE]);
+			}
+
+			if (lastActiveFileResource && this.isCreated && this.model.findClosest(lastActiveFileResource)) {
+				this.editorService.openEditor({ resource: lastActiveFileResource, options: { revealIfVisible: true } });
+				return;
+			}
+
+			// Otherwise restore last used file: By Explorer selection
+			refreshPromise.then(() => {
+				this.openFocusedElement();
+			});
+		}
 	}
 
 	private openFocusedElement(preserveFocus?: boolean): void {

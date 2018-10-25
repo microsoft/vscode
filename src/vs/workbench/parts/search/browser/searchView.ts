@@ -651,8 +651,7 @@ export class SearchView extends Viewlet implements IViewlet, IPanel {
 		}
 	}
 
-	public setVisible(visible: boolean): Promise<void> {
-		let promise: Promise<void>;
+	public setVisible(visible: boolean): void {
 		this.viewletVisible.set(visible);
 		if (visible) {
 			if (this.changedWhileHidden) {
@@ -661,11 +660,11 @@ export class SearchView extends Viewlet implements IViewlet, IPanel {
 				this.changedWhileHidden = false;
 			}
 
-			promise = super.setVisible(visible);
+			super.setVisible(visible);
 			this.tree.onVisible();
 		} else {
 			this.tree.onHidden();
-			promise = super.setVisible(visible);
+			super.setVisible(visible);
 		}
 
 		// Enable highlights if there are searchresults
@@ -680,8 +679,6 @@ export class SearchView extends Viewlet implements IViewlet, IPanel {
 				this.onFocus(focus, true);
 			}
 		}
-
-		return promise;
 	}
 
 	public moveFocusToResults(): void {

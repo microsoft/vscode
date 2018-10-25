@@ -70,7 +70,8 @@ export class ShowProblemsPanelAction extends Action {
 	}
 
 	public run(): TPromise<any> {
-		return this.panelService.openPanel(Constants.MARKERS_PANEL_ID, true);
+		this.panelService.openPanel(Constants.MARKERS_PANEL_ID, true);
+		return Promise.resolve(null);
 	}
 }
 
