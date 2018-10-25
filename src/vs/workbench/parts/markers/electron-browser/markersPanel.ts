@@ -157,18 +157,16 @@ export class MarkersPanel extends Panel implements IMarkerFilterController {
 		}
 	}
 
-	public setVisible(visible: boolean): Promise<void> {
+	public setVisible(visible: boolean): void {
 		const wasVisible = this.isVisible();
-		return super.setVisible(visible)
-			.then(() => {
-				if (this.isVisible()) {
-					if (!wasVisible) {
-						this.refreshPanel();
-					}
-				} else {
-					this.rangeHighlightDecorations.removeHighlightRange();
-				}
-			});
+		super.setVisible(visible);
+		if (this.isVisible()) {
+			if (!wasVisible) {
+				this.refreshPanel();
+			}
+		} else {
+			this.rangeHighlightDecorations.removeHighlightRange();
+		}
 	}
 
 	public getActions(): IAction[] {

@@ -125,7 +125,7 @@ export class Repl extends Panel implements IPrivateReplService, IHistoryNavigati
 		}));
 	}
 
-	setVisible(visible: boolean): Promise<void> {
+	setVisible(visible: boolean): void {
 		if (!visible) {
 			dispose(this.model);
 		} else {
@@ -138,7 +138,7 @@ export class Repl extends Panel implements IPrivateReplService, IHistoryNavigati
 			}
 		}
 
-		return super.setVisible(visible);
+		super.setVisible(visible);
 	}
 
 	get isReadonly(): boolean {

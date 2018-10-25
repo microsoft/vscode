@@ -228,16 +228,14 @@ export class CommentsPanel extends Panel {
 		return true;
 	}
 
-	public setVisible(visible: boolean): Promise<void> {
+	public setVisible(visible: boolean): void {
 		const wasVisible = this.isVisible();
-		return super.setVisible(visible)
-			.then(() => {
-				if (this.isVisible()) {
-					if (!wasVisible) {
-						this.refresh();
-					}
-				}
-			});
+		super.setVisible(visible);
+		if (this.isVisible()) {
+			if (!wasVisible) {
+				this.refresh();
+			}
+		}
 	}
 
 	private refresh(): void {
