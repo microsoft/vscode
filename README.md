@@ -16,9 +16,9 @@ VS Code is updated monthly with new features and bug fixes. You can download it 
 - Powerful Run and Debug tools.
 - Directly compatible with Git and its features.
 - Massive library of extensions to suit your coding needs.
-- Varioud themes and file icons available, with more that can be downloaded as extensions.
+- Various themes and file icons available, with more that can be downloaded as extensions.
 - Intelligent suggestions to fit your coding needs.
-- Live Share with collaborators on your code.
+- Live Share with collaborators on your code. (Requires Live Share extension)
 - and so much more!
 
 <p align="center">
