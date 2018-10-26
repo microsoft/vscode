@@ -18,10 +18,10 @@ const product = require('../product.json');
 // @ts-ignore
 const app = require('electron').app;
 
-// Enable portable support
+// Enable portable support.
 const portable = bootstrap.configurePortable();
 
-// Enable ASAR support
+// Enable ASAR support.
 bootstrap.enableASARSupport();
 
 // Set userData path before app 'ready' event and call to process.chdir
@@ -29,14 +29,14 @@ const args = parseCLIArgs();
 const userDataPath = getUserDataPath(args);
 app.setPath('userData', userDataPath);
 
-// Update cwd based on environment and platform
+// Update cwd based on environment and platform.
 setCurrentWorkingDirectory();
 
 // Global app listeners
 registerListeners();
 
 /**
- * Support user defined locale
+ * Support user defined locale.
  *
  * @type {Promise}
  */
@@ -48,11 +48,11 @@ userDefinedLocale.then((locale) => {
 	}
 });
 
-// Configure command line switches
+// Configure command line switches.
 const nodeCachedDataDir = getNodeCachedDir();
 configureCommandlineSwitches(args, nodeCachedDataDir);
 
-// Load our code once ready
+// Load our code once ready.
 app.once('ready', function () {
 	if (args['trace']) {
 		// @ts-ignore
@@ -90,11 +90,11 @@ function onReady() {
 				process.env['VSCODE_NLS_CONFIG'] = JSON.stringify(nlsConfig);
 				process.env['VSCODE_NODE_CACHED_DATA_DIR'] = cachedDataDir || '';
 
-				// Load main in AMD
+				// Load main in AMD.
 				require('./bootstrap-amd').load('vs/code/electron-main/main');
 			};
 
-			// We recevied a valid nlsConfig from a user defined locale
+			// We recevied a valid nlsConfig from a user defined locale.
 			if (nlsConfig) {
 				startup(nlsConfig);
 			}
@@ -108,7 +108,7 @@ function onReady() {
 					startup({ locale: 'en', availableLanguages: {} });
 				} else {
 
-					// See above the comment about the loader and case sensitiviness
+					// See the comment above about the loader and case sensitiveness.
 					appLocale = appLocale.toLowerCase();
 
 					getNLSConfiguration(appLocale).then((nlsConfig) => {
@@ -132,7 +132,7 @@ function onReady() {
  */
 function configureCommandlineSwitches(cliArgs, nodeCachedDataDir) {
 
-	// TODO@Ben Electron 2.0.x: prevent localStorage migration from SQLite to LevelDB due to issues
+	// TODO@Ben Electron 2.0.x: prevent localStorage migration from SQLite to LevelDB due to issues.
 	app.commandLine.appendSwitch('disable-mojo-local-storage');
 
 	// Force pre-Chrome-60 color profile handling (for https://github.com/Microsoft/vscode/issues/51791)
@@ -291,7 +291,7 @@ function stripComments(content) {
 	return content.replace(regexp, function (match, m1, m2, m3, m4) {
 		// Only one of m1, m2, m3, m4 matches
 		if (m3) {
-			// A block comment. Replace with nothing
+			// A block comment. Replace with nothing.
 			return '';
 		} else if (m4) {
 			// A line comment. If it ends in \r?\n then keep it.
@@ -303,7 +303,7 @@ function stripComments(content) {
 				return '';
 			}
 		} else {
-			// We match a string
+			// We match a string.
 			return match;
 		}
 	});
@@ -404,7 +404,7 @@ function rimraf(location) {
 	});
 }
 
-// Language tags are case insensitve however an amd loader is case sensitive
+// Language tags are case insensitve however an amd loader is case sensitive.
 // To make this work on case preserving & insensitive FS we do the following:
 // the language bundles have lower case language tags and we always lower case
 // the locale we receive from the user or OS.
@@ -549,7 +549,7 @@ function getNLSConfiguration(locale) {
 				return toDelete.then(() => {
 					return exists(coreLocation).then((fileExists) => {
 						if (fileExists) {
-							// We don't wait for this. No big harm if we can't touch
+							// We don't wait for this. No big harm if we can't touch.
 							touch(coreLocation).catch(() => { });
 							perf.mark('nlsGeneration:end');
 							return result;
