@@ -15,9 +15,9 @@ VS Code is updated monthly with new features and bug fixes. You can download it 
   <img alt="VS Code in action" src="https://cloud.githubusercontent.com/assets/11839736/16642200/6624dde0-43bd-11e6-8595-c81885ba0dc2.png">
 </p>
 
-The [`vscode`](https://github.com/microsoft/vscode) repository is where we do development and there are many ways you can participate in the project, for example:
+The [`vscode`](https://github.com/microsoft/vscode) repository is where we do development & there are many ways you can participate in the project, for example:
 
-* [Submit bugs and feature requests](https://github.com/microsoft/vscode/issues) and help us verify as they are checked in.
+* [Submit bugs and feature requests](https://github.com/microsoft/vscode/issues) & help us verify as they are checked in.
 * Review [source code changes](https://github.com/microsoft/vscode/pulls).
 * Review the [documentation](https://github.com/microsoft/vscode-docs) and make pull requests for anything from typos to new content.
 
@@ -46,7 +46,7 @@ Please also see our [Code of Conduct](CODE_OF_CONDUCT.md).
 
 Many of the core components and extensions to Code live in their own repositories on GitHub. For example, the [node debug adapter](https://github.com/microsoft/vscode-node-debug) and the [mono debug adapter](https://github.com/microsoft/vscode-mono-debug).
 
-For a complete list, please visit the [Related Projects](https://github.com/Microsoft/vscode/wiki/Related-Projects) page on our [wiki](https://github.com/Microsoft/vscode/wiki).
+For a complete list of related projects visit the [Related Projects](https://github.com/Microsoft/vscode/wiki/Related-Projects) page on our [wiki](https://github.com/Microsoft/vscode/wiki).
 
 ## License
 
