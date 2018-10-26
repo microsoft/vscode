@@ -62,8 +62,14 @@ const eventPrefix = 'monacoworkbench';
 
 function main(server: Server, initData: ISharedProcessInitData, configuration: ISharedProcessConfiguration): void {
 	const services = new ServiceCollection();
+
 	const disposables: IDisposable[] = [];
-	process.once('exit', () => dispose(disposables));
+
+	const onExit = () => dispose(disposables);
+	process.once('exit', onExit);
+	ipcRenderer.once('handshake:goodbye', onExit);
+
+	disposables.push(server);
 
 	const environmentService = new EnvironmentService(initData.args, process.execPath);
 	const mainRoute = () => TPromise.as('main');

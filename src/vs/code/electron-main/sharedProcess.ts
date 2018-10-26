@@ -15,6 +15,7 @@ import { ILogService } from 'vs/platform/log/common/log';
 import { ILifecycleService } from 'vs/platform/lifecycle/electron-main/lifecycleMain';
 import { IStateService } from 'vs/platform/state/common/state';
 import { getBackgroundColor } from 'vs/code/electron-main/theme';
+import { dispose, toDisposable, IDisposable } from 'vs/base/common/lifecycle';
 
 export class SharedProcess implements ISharedProcess {
 
@@ -69,7 +70,11 @@ export class SharedProcess implements ISharedProcess {
 
 		this.window.on('close', onClose);
 
+		const disposables: IDisposable[] = [];
+
 		this.lifecycleService.onShutdown(() => {
+			dispose(disposables);
+
 			// Shut the shared process down when we are quitting
 			//
 			// Note: because we veto the window close, we must first remove our veto.
@@ -98,6 +103,7 @@ export class SharedProcess implements ISharedProcess {
 					logLevel: this.logService.getLevel()
 				});
 
+				disposables.push(toDisposable(() => sender.send('handshake:goodbye')));
 				ipcMain.once('handshake:im ready', () => c(void 0));
 			});
 		});
