@@ -2363,7 +2363,7 @@ class TaskService extends Disposable implements ITaskService {
 								this.openConfig(task);
 							}
 							if (!InMemoryTask.is(task)) {
-								this.customize(task, { group: { kind: 'build', isDefault: true } }, true).then (() => {
+								this.customize(task, { group: { kind: 'build', isDefault: true } }, true).then(() => {
 									if (defaultTask && (task !== defaultTask) && !InMemoryTask.is(defaultTask)) {
 										this.customize(defaultTask, { group: 'build' }, true);
 									}
@@ -2406,20 +2406,20 @@ class TaskService extends Disposable implements ITaskService {
 				this.showIgnoredFoldersMessage().then(() => {
 					this.showQuickPick(tasks,
 						nls.localize('TaskService.pickDefaultTestTask', 'Select the task to be used as the default test task'), defaultEntry, true).then((task) => {
-						if (!task) {
-							return;
-						}
-						if (task === defaultTask && CustomTask.is(task)) {
-							this.openConfig(task);
-						}
-						if (!InMemoryTask.is(task)) {
-							this.customize(task, { group: { kind: 'test', isDefault: true } }, true).then (() => {
-								if (defaultTask && (task !== defaultTask) && !InMemoryTask.is(defaultTask)) {
-									this.customize(defaultTask, { group: 'test' }, true);
-								}
-							});
-						}
-					});
+							if (!task) {
+								return;
+							}
+							if (task === defaultTask && CustomTask.is(task)) {
+								this.openConfig(task);
+							}
+							if (!InMemoryTask.is(task)) {
+								this.customize(task, { group: { kind: 'test', isDefault: true } }, true).then(() => {
+									if (defaultTask && (task !== defaultTask) && !InMemoryTask.is(defaultTask)) {
+										this.customize(defaultTask, { group: 'test' }, true);
+									}
+								});
+							}
+						});
 				});
 			}));
 		} else {
