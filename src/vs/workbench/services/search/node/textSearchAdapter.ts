@@ -50,6 +50,6 @@ function fileMatchToSerialized(match: IFileMatch): ISerializedFileMatch {
 	return {
 		path: match.resource.fsPath,
 		matches: match.matches,
-		numMatches: match.matches.length
+		numMatches: match.matches.reduce((sum, m) => sum + (Array.isArray(m.ranges) ? m.ranges.length : 1), 0)
 	};
 }

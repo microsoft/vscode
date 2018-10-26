@@ -18,19 +18,18 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import * as pfs from 'vs/base/node/pfs';
 import { getNextTickChannel } from 'vs/base/parts/ipc/node/ipc';
 import { Client, IIPCOptions } from 'vs/base/parts/ipc/node/ipc.cp';
-import { Range } from 'vs/editor/common/core/range';
-import { FindMatch, ITextModel } from 'vs/editor/common/model';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IDebugParams, IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { ILogService } from 'vs/platform/log/common/log';
-import { FileMatch, ICachedSearchStats, IFileMatch, IFileQuery, IFileSearchStats, IFolderQuery, IProgress, ISearchComplete, ISearchConfiguration, ISearchEngineStats, ISearchProgressItem, ISearchQuery, ISearchResultProvider, ISearchService, ITextQuery, ITextSearchPreviewOptions, pathIncludedInQuery, QueryType, SearchProviderType, TextSearchResult } from 'vs/platform/search/common/search';
+import { FileMatch, ICachedSearchStats, IFileMatch, IFileQuery, IFileSearchStats, IFolderQuery, IProgress, ISearchComplete, ISearchConfiguration, ISearchEngineStats, ISearchProgressItem, ISearchQuery, ISearchResultProvider, ISearchService, ITextQuery, pathIncludedInQuery, QueryType, SearchProviderType } from 'vs/platform/search/common/search';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { IUntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
 import { IRawSearchService, ISerializedFileMatch, ISerializedSearchComplete, ISerializedSearchProgressItem, isSerializedSearchComplete, isSerializedSearchSuccess } from './search';
 import { ISearchChannel, SearchChannelClient } from './searchIpc';
+import { editorMatchesToTextSearchResults } from 'vs/workbench/services/search/common/searchHelpers';
 
 export class SearchService extends Disposable implements ISearchService {
 	public _serviceBrand: any;
@@ -378,7 +377,7 @@ export class SearchService extends Disposable implements ISearchService {
 				scheme,
 				error: errorType,
 				useRipgrep: query.useRipgrep,
-				usePCRE2: query.usePCRE2
+				usePCRE2: !!query.usePCRE2
 			});
 		}
 	}
@@ -423,9 +422,7 @@ export class SearchService extends Disposable implements ISearchService {
 					let fileMatch = new FileMatch(resource);
 					localResults.set(resource, fileMatch);
 
-					matches.forEach((match) => {
-						fileMatch.matches.push(editorMatchToTextSearchResult(match, model, query.previewOptions));
-					});
+					fileMatch.matches = editorMatchesToTextSearchResults(matches, model, query.previewOptions);
 				} else {
 					localResults.set(resource, null);
 				}
@@ -584,7 +581,7 @@ export class DiskSearch implements ISearchResultProvider {
 	private static createFileMatch(data: ISerializedFileMatch): FileMatch {
 		let fileMatch = new FileMatch(uri.file(data.path));
 		if (data.matches) {
-			fileMatch.matches.push(...data.matches); // TODO why
+			fileMatch.matches.push(...data.matches);
 		}
 		return fileMatch;
 	}
@@ -594,9 +591,3 @@ export class DiskSearch implements ISearchResultProvider {
 	}
 }
 
-function editorMatchToTextSearchResult(match: FindMatch, model: ITextModel, previewOptions: ITextSearchPreviewOptions): TextSearchResult {
-	return new TextSearchResult(
-		model.getLineContent(match.range.startLineNumber),
-		new Range(match.range.startLineNumber - 1, match.range.startColumn - 1, match.range.endLineNumber - 1, match.range.endColumn - 1),
-		previewOptions);
-}

@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as path from 'path';
+import { mapArrayOrNot } from 'vs/base/common/arrays';
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
 import * as glob from 'vs/base/common/glob';
@@ -82,6 +83,8 @@ export class TextSearchManager {
 		const testingPs: TPromise<void>[] = [];
 		const progress = {
 			report: (result: vscode.TextSearchResult) => {
+				// TODO: validate result.ranges vs result.preview.matches
+
 				const hasSibling = folderQuery.folder.scheme === 'file' && glob.hasSiblingPromiseFn(() => {
 					return this.readdir(path.dirname(result.uri.fsPath));
 				});
@@ -201,20 +204,20 @@ function extensionResultToFrontendResult(data: vscode.TextSearchResult): ITextSe
 	// Warning: result from RipgrepTextSearchEH has fake vscode.Range. Don't depend on any other props beyond these...
 	return {
 		preview: {
-			match: {
-				startLineNumber: data.preview.match.start.line,
-				startColumn: data.preview.match.start.character,
-				endLineNumber: data.preview.match.end.line,
-				endColumn: data.preview.match.end.character
-			},
+			matches: mapArrayOrNot(data.preview.matches, m => ({
+				startLineNumber: m.start.line,
+				startColumn: m.start.character,
+				endLineNumber: m.end.line,
+				endColumn: m.end.character
+			})),
 			text: data.preview.text
 		},
-		range: {
-			startLineNumber: data.range.start.line,
-			startColumn: data.range.start.character,
-			endLineNumber: data.range.end.line,
-			endColumn: data.range.end.character
-		}
+		ranges: mapArrayOrNot(data.ranges, r => ({
+			startLineNumber: r.start.line,
+			startColumn: r.start.character,
+			endLineNumber: r.end.line,
+			endColumn: r.end.character
+		}))
 	};
 }
 

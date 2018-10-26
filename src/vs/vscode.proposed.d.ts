@@ -234,8 +234,9 @@ declare module 'vscode' {
 
 		/**
 		 * The Range within `text` corresponding to the text of the match.
+		 * The number of matches must match the TextSearchResult's range property.
 		 */
-		match: Range;
+		matches: Range | Range[];
 	}
 
 	/**
@@ -248,9 +249,9 @@ declare module 'vscode' {
 		uri: Uri;
 
 		/**
-		 * The range of the match within the document.
+		 * The range of the match within the document, or multiple ranges for multiple matches.
 		 */
-		range: Range;
+		ranges: Range | Range[];
 
 		/**
 		 * A preview of the text result.

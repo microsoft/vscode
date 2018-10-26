@@ -36,7 +36,7 @@ suite('Search - Viewlet', () => {
 			}]
 		};
 
-		const range = {
+		const ranges = {
 			startLineNumber: 1,
 			startColumn: 0,
 			endLineNumber: 1,
@@ -47,9 +47,9 @@ suite('Search - Viewlet', () => {
 			matches: [{
 				preview: {
 					text: 'bar',
-					match: range
+					matches: ranges
 				},
-				range
+				ranges
 			}]
 		}]);
 

@@ -3,17 +3,18 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { mapArrayOrNot } from 'vs/base/common/arrays';
+import { CancellationToken } from 'vs/base/common/cancellation';
 import { Event } from 'vs/base/common/event';
 import * as glob from 'vs/base/common/glob';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import * as objects from 'vs/base/common/objects';
 import * as paths from 'vs/base/common/paths';
+import { getNLines } from 'vs/base/common/strings';
 import { URI as uri, UriComponents } from 'vs/base/common/uri';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IFilesConfiguration } from 'vs/platform/files/common/files';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { getNLines } from 'vs/base/common/strings';
 
 export const VIEW_ID = 'workbench.view.search';
 
@@ -170,12 +171,12 @@ export interface ISearchRange {
 
 export interface ITextSearchResultPreview {
 	text: string;
-	match: ISearchRange;
+	matches: ISearchRange | ISearchRange[];
 }
 
 export interface ITextSearchResult {
 	uri?: uri;
-	range: ISearchRange;
+	ranges: ISearchRange | ISearchRange[];
 	preview: ITextSearchResultPreview;
 }
 
@@ -248,13 +249,13 @@ export class FileMatch implements IFileMatch {
 }
 
 export class TextSearchResult implements ITextSearchResult {
-	range: ISearchRange;
+	ranges: ISearchRange | ISearchRange[];
 	preview: ITextSearchResultPreview;
 
-	constructor(text: string, range: ISearchRange, previewOptions?: ITextSearchPreviewOptions) {
-		this.range = range;
+	constructor(text: string, range: ISearchRange | ISearchRange[], previewOptions?: ITextSearchPreviewOptions) {
+		this.ranges = range;
 
-		if (previewOptions && previewOptions.matchLines === 1) {
+		if (previewOptions && previewOptions.matchLines === 1 && !Array.isArray(range)) {
 			// 1 line preview requested
 			text = getNLines(text, previewOptions.matchLines);
 			const leadingChars = Math.floor(previewOptions.charsPerLine / 5);
@@ -267,13 +268,15 @@ export class TextSearchResult implements ITextSearchResult {
 
 			this.preview = {
 				text: previewText,
-				match: new OneLineRange(0, range.startColumn - previewStart, endColInPreview)
+				matches: new OneLineRange(0, range.startColumn - previewStart, endColInPreview)
 			};
 		} else {
-			// n line or no preview requested
+			const firstMatchLine = Array.isArray(range) ? range[0].startLineNumber : range.startLineNumber;
+
+			// n line, no preview requested, or multiple matches in the preview
 			this.preview = {
 				text,
-				match: new SearchRange(0, range.startColumn, range.endLineNumber - range.startLineNumber, range.endColumn)
+				matches: mapArrayOrNot(range, r => new SearchRange(r.startLineNumber - firstMatchLine, r.startColumn, r.endLineNumber - firstMatchLine, r.endColumn))
 			};
 		}
 	}

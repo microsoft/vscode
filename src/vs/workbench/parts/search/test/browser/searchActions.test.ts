@@ -134,7 +134,7 @@ suite('Search Actions', () => {
 
 	function aMatch(fileMatch: FileMatch): Match {
 		const line = ++counter;
-		const range = {
+		const ranges = {
 			startLineNumber: line,
 			startColumn: 0,
 			endLineNumber: line,
@@ -143,9 +143,9 @@ suite('Search Actions', () => {
 		let match = new Match(fileMatch, {
 			preview: {
 				text: 'some match',
-				match: range
+				matches: ranges
 			},
-			range
+			ranges
 		});
 		fileMatch.add(match);
 		return match;
