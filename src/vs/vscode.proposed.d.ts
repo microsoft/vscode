@@ -227,8 +227,7 @@ declare module 'vscode' {
 	 */
 	export interface TextSearchResultPreview {
 		/**
-		 * The matching line of text, or a portion of the matching line that contains the match.
-		 * For now, this can only be a single line.
+		 * The matching lines of text, or a portion of the matching line that contains the match.
 		 */
 		text: string;
 
