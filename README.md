@@ -10,6 +10,17 @@ a code editor with what developers need for their core edit-build-debug cycle. I
 
 VS Code is updated monthly with new features and bug fixes. You can download it for Windows, macOS, and Linux on [VS Code's website](https://code.visualstudio.com/Download). To get the latest releases every day, you can install the [Insiders version of VS Code](https://code.visualstudio.com/insiders). This builds from the master branch and is updated daily at the very least.
 
+# Features
+
+- Chrome-style display of files.
+- Powerful Run and Debug tools.
+- Directly compatible with Git and its features.
+- Massive library of extensions to suit your coding needs.
+- Varioud themes and file icons available, with more that can be downloaded as extensions.
+- Intelligent suggestions to fit your coding needs.
+- Live Share with collaborators on your code.
+- and so much more!
+
 <p align="center">
   <img alt="VS Code in action" src="https://cloud.githubusercontent.com/assets/11839736/16642200/6624dde0-43bd-11e6-8595-c81885ba0dc2.png">
 </p>
