@@ -11,7 +11,6 @@ import { guessMimeTypes } from 'vs/base/common/mime';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
 import { URI } from 'vs/base/common/uri';
 import { isUndefinedOrNull } from 'vs/base/common/types';
-import { IMode } from 'vs/editor/common/modes';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { ITextFileService, IAutoSaveConfiguration, ModelState, ITextFileEditorModel, ISaveOptions, ISaveErrorHandler, ISaveParticipant, StateChange, SaveReason, IRawTextContent, ILoadOptions, LoadReason } from 'vs/workbench/services/textfile/common/textfiles';
@@ -20,7 +19,7 @@ import { BaseTextEditorModel } from 'vs/workbench/common/editor/textEditorModel'
 import { IBackupFileService } from 'vs/workbench/services/backup/common/backup';
 import { IFileService, IFileStat, FileOperationError, FileOperationResult, CONTENT_CHANGE_EVENT_BUFFER_DELAY, FileChangesEvent, FileChangeType } from 'vs/platform/files/common/files';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IModeService } from 'vs/editor/common/services/modeService';
+import { IModeService, ILanguageSelection } from 'vs/editor/common/services/modeService';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { RunOnceScheduler, timeout } from 'vs/base/common/async';
@@ -197,9 +196,9 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		}
 
 		const firstLineText = this.getFirstLineText(this.textEditorModel);
-		const mode = this.getOrCreateMode(this.modeService, void 0, firstLineText);
+		const languageSelection = this.getOrCreateMode(this.modeService, void 0, firstLineText);
 
-		this.modelService.setMode(this.textEditorModel, mode);
+		this.modelService.setMode(this.textEditorModel, languageSelection);
 	}
 
 	getVersionId(): number {
@@ -493,8 +492,8 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		return this.backupFileService.resolveBackupContent(backup).then(backupContent => backupContent, error => null /* ignore errors */);
 	}
 
-	protected getOrCreateMode(modeService: IModeService, preferredModeIds: string, firstLineText?: string): Promise<IMode> {
-		return modeService.getOrCreateModeByFilepathOrFirstLine(this.resource.fsPath, firstLineText);
+	protected getOrCreateMode(modeService: IModeService, preferredModeIds: string, firstLineText?: string): ILanguageSelection {
+		return modeService.createByFilepathOrFirstLine(this.resource.fsPath, firstLineText);
 	}
 
 	private onModelContentChanged(): void {

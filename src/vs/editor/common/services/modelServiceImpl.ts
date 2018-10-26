@@ -5,7 +5,6 @@
 
 import * as nls from 'vs/nls';
 import { isFalsyOrEmpty } from 'vs/base/common/arrays';
-import { isThenable } from 'vs/base/common/async';
 import { Emitter, Event } from 'vs/base/common/event';
 import { MarkdownString } from 'vs/base/common/htmlContent';
 import { Disposable, IDisposable, dispose } from 'vs/base/common/lifecycle';
@@ -20,8 +19,9 @@ import { DefaultEndOfLine, EndOfLinePreference, EndOfLineSequence, IIdentifiedSi
 import { ClassName } from 'vs/editor/common/model/intervalTree';
 import { TextModel, createTextBuffer } from 'vs/editor/common/model/textModel';
 import { IModelLanguageChangedEvent } from 'vs/editor/common/model/textModelEvents';
-import { IMode, LanguageIdentifier } from 'vs/editor/common/modes';
+import { LanguageIdentifier } from 'vs/editor/common/modes';
 import { PLAINTEXT_LANGUAGE_IDENTIFIER } from 'vs/editor/common/modes/modesRegistry';
+import { ILanguageSelection } from 'vs/editor/common/services/modeService';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { ITextResourcePropertiesService } from 'vs/editor/common/services/resourceConfiguration';
 import { overviewRulerError, overviewRulerInfo, overviewRulerWarning } from 'vs/editor/common/view/editorColorRegistry';
@@ -34,7 +34,10 @@ function MODEL_ID(resource: URI): string {
 }
 
 class ModelData implements IDisposable {
-	model: ITextModel;
+	public readonly model: ITextModel;
+
+	private _languageSelection: ILanguageSelection | null;
+	private _languageSelectionListener: IDisposable | null;
 
 	private _markerDecorations: string[];
 	private _modelEventListeners: IDisposable[];
@@ -46,6 +49,9 @@ class ModelData implements IDisposable {
 	) {
 		this.model = model;
 
+		this._languageSelection = null;
+		this._languageSelectionListener = null;
+
 		this._markerDecorations = [];
 
 		this._modelEventListeners = [];
@@ -53,13 +59,32 @@ class ModelData implements IDisposable {
 		this._modelEventListeners.push(model.onDidChangeLanguage((e) => onDidChangeLanguage(model, e)));
 	}
 
+	private _disposeLanguageSelection(): void {
+		if (this._languageSelectionListener) {
+			this._languageSelectionListener.dispose();
+			this._languageSelectionListener = null;
+		}
+		if (this._languageSelection) {
+			this._languageSelection.dispose();
+			this._languageSelection = null;
+		}
+	}
+
 	public dispose(): void {
 		this._markerDecorations = this.model.deltaDecorations(this._markerDecorations, []);
 		this._modelEventListeners = dispose(this._modelEventListeners);
+		this._disposeLanguageSelection();
 	}
 
 	public acceptMarkerDecorations(newDecorations: IModelDeltaDecoration[]): void {
 		this._markerDecorations = this.model.deltaDecorations(this._markerDecorations, newDecorations);
+	}
+
+	public setLanguage(languageSelection: ILanguageSelection): void {
+		this._disposeLanguageSelection();
+		this._languageSelection = languageSelection;
+		this._languageSelectionListener = this._languageSelection.onDidChange(() => this.model.setMode(languageSelection.languageIdentifier));
+		this.model.setMode(languageSelection.languageIdentifier);
 	}
 }
 
@@ -508,14 +533,14 @@ export class ModelServiceImpl extends Disposable implements IModelService {
 		return [EditOperation.replaceMove(oldRange, textBuffer.getValueInRange(newRange, EndOfLinePreference.TextDefined))];
 	}
 
-	public createModel(value: string | ITextBufferFactory, modeOrPromise: Promise<IMode> | IMode, resource: URI, isForSimpleWidget: boolean = false): ITextModel {
+	public createModel(value: string | ITextBufferFactory, languageSelection: ILanguageSelection | null, resource: URI, isForSimpleWidget: boolean = false): ITextModel {
 		let modelData: ModelData;
 
-		if (!modeOrPromise || isThenable(modeOrPromise)) {
-			modelData = this._createModelData(value, PLAINTEXT_LANGUAGE_IDENTIFIER, resource, isForSimpleWidget);
-			this.setMode(modelData.model, modeOrPromise);
+		if (languageSelection) {
+			modelData = this._createModelData(value, languageSelection.languageIdentifier, resource, isForSimpleWidget);
+			this.setMode(modelData.model, languageSelection);
 		} else {
-			modelData = this._createModelData(value, modeOrPromise.getLanguageIdentifier(), resource, isForSimpleWidget);
+			modelData = this._createModelData(value, PLAINTEXT_LANGUAGE_IDENTIFIER, resource, isForSimpleWidget);
 		}
 
 		// handle markers (marker service => model)
@@ -528,19 +553,15 @@ export class ModelServiceImpl extends Disposable implements IModelService {
 		return modelData.model;
 	}
 
-	public setMode(model: ITextModel, modeOrPromise: Promise<IMode> | IMode): void {
-		if (!modeOrPromise) {
+	public setMode(model: ITextModel, languageSelection: ILanguageSelection): void {
+		if (!languageSelection) {
 			return;
 		}
-		if (isThenable(modeOrPromise)) {
-			modeOrPromise.then((mode) => {
-				if (!model.isDisposed()) {
-					model.setMode(mode.getLanguageIdentifier());
-				}
-			});
-		} else {
-			model.setMode(modeOrPromise.getLanguageIdentifier());
+		let modelData = this._models[MODEL_ID(model.uri)];
+		if (!modelData) {
+			return;
 		}
+		modelData.setLanguage(languageSelection);
 	}
 
 	public destroyModel(resource: URI): void {

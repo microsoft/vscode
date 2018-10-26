@@ -13,9 +13,8 @@ import { ITextModelContentProvider } from 'vs/editor/common/services/resolverSer
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { ITextModel } from 'vs/editor/common/model';
-import { IMode } from 'vs/editor/common/modes';
 import { IModelService } from 'vs/editor/common/services/modelService';
-import { IModeService } from 'vs/editor/common/services/modeService';
+import { IModeService, ILanguageSelection } from 'vs/editor/common/services/modeService';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { IViewlet } from 'vs/workbench/common/viewlet';
 import { InputFocusedContextKey } from 'vs/platform/workbench/common/contextkeys';
@@ -190,14 +189,14 @@ export class FileOnDiskContentProvider implements ITextModelContentProvider {
 			} else if (createAsNeeded) {
 				const fileOnDiskModel = this.modelService.getModel(fileOnDiskResource);
 
-				let mode: Promise<IMode>;
+				let languageSelector: ILanguageSelection;
 				if (fileOnDiskModel) {
-					mode = this.modeService.getOrCreateMode(fileOnDiskModel.getModeId());
+					languageSelector = this.modeService.create(fileOnDiskModel.getModeId());
 				} else {
-					mode = this.modeService.getOrCreateModeByFilepathOrFirstLine(fileOnDiskResource.fsPath);
+					languageSelector = this.modeService.createByFilepathOrFirstLine(fileOnDiskResource.fsPath);
 				}
 
-				codeEditorModel = this.modelService.createModel(content.value, mode, resource);
+				codeEditorModel = this.modelService.createModel(content.value, languageSelector, resource);
 			}
 
 			return codeEditorModel;
