@@ -5,11 +5,31 @@
 
 import * as Proto from '../protocol';
 
+export enum RequestQueueingType {
+	/**
+	 * Normal request that is executed in order.
+	 */
+	Normal = 1,
+
+	/**
+	 * Request that normal requests jump in front of in the queue.
+	 */
+	LowPriority = 2,
+
+	/**
+	 * A fence that blocks request reordering.
+	 *
+	 * Fences are not reordered but unlike a normal request, a fence will never jump in front of a low priority request
+	 * in the request queue.
+	 */
+	Fence = 3,
+}
+
 export interface RequestItem {
 	readonly request: Proto.Request;
 	readonly expectsResponse: boolean;
 	readonly isAsync: boolean;
-	readonly lowPriority?: boolean;
+	readonly queueingType: RequestQueueingType;
 }
 
 export class RequestQueue {
@@ -21,20 +41,21 @@ export class RequestQueue {
 	}
 
 	public push(item: RequestItem): void {
-		// insert before existing lowPriority requestItems in the queue.
-		if (!item.lowPriority && this.length) {
+		if (item.queueingType === RequestQueueingType.Normal) {
+			// insert before lowPriority items queue.
 			for (let i = this.length - 1; i > -1; i--) {
-				if (!this.queue[i].lowPriority) {
+				if (this.queue[i].queueingType !== RequestQueueingType.LowPriority) {
 					this.queue.splice(i + 1, 0, item);
 					return;
 				}
 			}
-			//if all of the items are lowPriority insert at top
+			// If all of the items are lowPriority insert at top
 			this.queue.unshift(item);
 			return;
+		} else {
+			//if none is low priority just push to end
+			this.queue.push(item);
 		}
-		//if none is low priority just push to end
-		this.queue.push(item);
 	}
 
 	public shift(): RequestItem | undefined {

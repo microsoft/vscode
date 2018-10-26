@@ -5,7 +5,7 @@
 
 import * as assert from 'assert';
 import 'mocha';
-import { RequestQueue } from '../tsServer/requestQueue';
+import { RequestQueue, RequestQueueingType } from '../tsServer/requestQueue';
 
 suite('RequestQueue', () => {
 	test('should be empty on creation', async () => {
@@ -33,11 +33,11 @@ suite('RequestQueue', () => {
 		assert.strictEqual(queue.length, 0);
 
 		const request1 = queue.createRequest('a', 1);
-		queue.push({ request: request1, expectsResponse: true, isAsync: false });
+		queue.push({ request: request1, expectsResponse: true, isAsync: false, queueingType: RequestQueueingType.Normal });
 		assert.strictEqual(queue.length, 1);
 
 		const request2 = queue.createRequest('b', 2);
-		queue.push({ request: request2, expectsResponse: true, isAsync: false });
+		queue.push({ request: request2, expectsResponse: true, isAsync: false, queueingType: RequestQueueingType.Normal });
 		assert.strictEqual(queue.length, 2);
 
 		{
@@ -61,12 +61,52 @@ suite('RequestQueue', () => {
 		const queue = new RequestQueue();
 		assert.strictEqual(queue.length, 0);
 
-		const request1 = queue.createRequest('low', 1);
-		queue.push({ request: request1, expectsResponse: true, isAsync: false, lowPriority: true });
+		queue.push({ request: queue.createRequest('low-1', 1), expectsResponse: true, isAsync: false, queueingType: RequestQueueingType.LowPriority });
+		queue.push({ request: queue.createRequest('low-2', 1), expectsResponse: true, isAsync: false, queueingType: RequestQueueingType.LowPriority });
+		queue.push({ request: queue.createRequest('normal-1', 2), expectsResponse: true, isAsync: false, queueingType: RequestQueueingType.Normal });
+		queue.push({ request: queue.createRequest('normal-2', 2), expectsResponse: true, isAsync: false, queueingType: RequestQueueingType.Normal });
 
-		const request2 = queue.createRequest('normal', 2);
-		queue.push({ request: request2, expectsResponse: true, isAsync: false });
+		{
+			const item = queue.shift();
+			assert.strictEqual(queue.length, 3);
+			assert.strictEqual(item!.request.command, 'normal-1');
+		}
+		{
+			const item = queue.shift();
+			assert.strictEqual(queue.length, 2);
+			assert.strictEqual(item!.request.command, 'normal-2');
+		}
+		{
+			const item = queue.shift();
+			assert.strictEqual(queue.length, 1);
+			assert.strictEqual(item!.request.command, 'low-1');
+		}
+		{
+			const item = queue.shift();
+			assert.strictEqual(queue.length, 0);
+			assert.strictEqual(item!.request.command, 'low-2');
+		}
+	});
 
+	test('should not push fence requests front of low priority requests', async () => {
+		const queue = new RequestQueue();
+		assert.strictEqual(queue.length, 0);
+
+		queue.push({ request: queue.createRequest('low-1', 0), expectsResponse: true, isAsync: false, queueingType: RequestQueueingType.LowPriority });
+		queue.push({ request: queue.createRequest('fence', 0), expectsResponse: true, isAsync: false, queueingType: RequestQueueingType.Fence });
+		queue.push({ request: queue.createRequest('low-2', 0), expectsResponse: true, isAsync: false, queueingType: RequestQueueingType.LowPriority });
+		queue.push({ request: queue.createRequest('normal', 0), expectsResponse: true, isAsync: false, queueingType: RequestQueueingType.Normal });
+
+		{
+			const item = queue.shift();
+			assert.strictEqual(queue.length, 3);
+			assert.strictEqual(item!.request.command, 'low-1');
+		}
+		{
+			const item = queue.shift();
+			assert.strictEqual(queue.length, 2);
+			assert.strictEqual(item!.request.command, 'fence');
+		}
 		{
 			const item = queue.shift();
 			assert.strictEqual(queue.length, 1);
@@ -75,7 +115,7 @@ suite('RequestQueue', () => {
 		{
 			const item = queue.shift();
 			assert.strictEqual(queue.length, 0);
-			assert.strictEqual(item!.request.command, 'low');
+			assert.strictEqual(item!.request.command, 'low-2');
 		}
 	});
 });

@@ -22,7 +22,7 @@ import Tracer from '../utils/tracer';
 import { TypeScriptVersion, TypeScriptVersionProvider } from '../utils/versionProvider';
 import { Reader } from '../utils/wireProtocol';
 import { CallbackMap } from './callbackMap';
-import { RequestQueue, RequestItem } from './requestQueue';
+import { RequestQueue, RequestItem, RequestQueueingType } from './requestQueue';
 
 export class TypeScriptServerSpawner {
 	public constructor(
@@ -301,7 +301,7 @@ export class TypeScriptServer extends Disposable {
 			request: request,
 			expectsResponse: executeInfo.expectsResult,
 			isAsync: executeInfo.isAsync,
-			lowPriority: executeInfo.lowPriority
+			queueingType: getQueueingType(command, executeInfo.lowPriority)
 		};
 		let result: Promise<any>;
 		if (executeInfo.expectsResult) {
@@ -403,5 +403,17 @@ export class TypeScriptServer extends Disposable {
 		this._pendingResponses.delete(seq);
 		return callback;
 	}
+}
+
+const fenceCommands = new Set(['change', 'close', 'open']);
+
+function getQueueingType(
+	command: string,
+	lowPriority?: boolean
+): RequestQueueingType {
+	if (fenceCommands.has(command)) {
+		return RequestQueueingType.Fence;
+	}
+	return lowPriority ? RequestQueueingType.LowPriority : RequestQueueingType.Normal;
 }
 
