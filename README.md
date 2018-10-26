@@ -32,7 +32,7 @@ please see the document [How to Contribute](https://github.com/Microsoft/vscode/
 * [Submitting pull requests](https://github.com/Microsoft/vscode/wiki/How-to-Contribute#pull-requests)
 * [Contributing to translations](https://aka.ms/vscodeloc)
 
-Please also see our [Code of Conduct](CODE_OF_CONDUCT.md).
+Please also checkout our [Code of Conduct](CODE_OF_CONDUCT.md).
 
 ## Feedback
 
