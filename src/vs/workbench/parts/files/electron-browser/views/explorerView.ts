@@ -6,6 +6,7 @@
 import * as nls from 'vs/nls';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { URI } from 'vs/base/common/uri';
+import * as perf from 'vs/base/common/performance';
 import { ThrottledDelayer, Delayer } from 'vs/base/common/async';
 import * as paths from 'vs/base/common/paths';
 import * as resources from 'vs/base/common/resources';
@@ -803,6 +804,9 @@ export class ExplorerView extends TreeViewsViewletPanel implements IExplorerView
 
 		// Display roots only when multi folder workspace
 		let input = this.contextService.getWorkbenchState() === WorkbenchState.FOLDER ? this.model.roots[0] : this.model;
+		if (input !== this.explorerViewer.getInput()) {
+			perf.mark('willResolveExplorer');
+		}
 
 		const errorRoot = (resource: URI, root: ExplorerItem) => {
 			if (input === this.model.roots[0]) {
@@ -825,7 +829,8 @@ export class ExplorerView extends TreeViewsViewletPanel implements IExplorerView
 				statsToExpand = this.model.roots.concat(statsToExpand);
 			}
 
-			return this.explorerViewer.setInput(input).then(() => this.explorerViewer.expandAll(statsToExpand));
+			return this.explorerViewer.setInput(input).then(() => this.explorerViewer.expandAll(statsToExpand))
+				.then(() => perf.mark('didResolveExplorer'));
 		};
 
 		if (targetsToResolve.every(t => t.root.resource.scheme === 'file')) {
