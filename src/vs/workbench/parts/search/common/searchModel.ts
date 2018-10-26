@@ -244,14 +244,14 @@ export class FileMatch extends Disposable {
 	private updateMatches(matches: FindMatch[], modelChange: boolean) {
 		const textSearchResults = editorMatchesToTextSearchResults(matches, this._model, this._previewOptions);
 		textSearchResults.forEach(textSearchResult => {
-			const match = new Match(this, textSearchResult);
-
-			if (!this._removedMatches.has(match.id())) {
-				this.add(match);
-				if (this.isMatchSelected(match)) {
-					this._selectedMatch = match;
+			textSearchResultToMatches(textSearchResult, this).forEach(match => {
+				if (!this._removedMatches.has(match.id())) {
+					this.add(match);
+					if (this.isMatchSelected(match)) {
+						this._selectedMatch = match;
+					}
 				}
-			}
+			});
 		});
 
 		this._onChange.fire(modelChange);
