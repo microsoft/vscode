@@ -1884,8 +1884,8 @@ class TaskService extends Disposable implements ITaskService {
 			}
 		};
 		return this.quickInputService.pick(_createEntries().then((entries) => {
-			if (entries.length === 0 && defaultEntry) {
-				entries.push(defaultEntry);
+			if (defaultEntry) {
+				entries.unshift(defaultEntry);
 			}
 			return entries;
 		}), {
@@ -2347,7 +2347,6 @@ class TaskService extends Disposable implements ITaskService {
 					}
 				}
 				if (defaultTask) {
-					tasks = [];
 					defaultEntry = {
 						label: nls.localize('TaskService.defaultBuildTaskExists', '{0} is already marked as the default build task', Task.getQualifiedLabel(defaultTask)),
 						task: defaultTask
@@ -2364,7 +2363,11 @@ class TaskService extends Disposable implements ITaskService {
 								this.openConfig(task);
 							}
 							if (!InMemoryTask.is(task)) {
-								this.customize(task, { group: { kind: 'build', isDefault: true } }, true);
+								this.customize(task, { group: { kind: 'build', isDefault: true } }, true).then (() => {
+									if (defaultTask && (task !== defaultTask) && !InMemoryTask.is(defaultTask)) {
+										this.customize(defaultTask, { group: 'build' }, true);
+									}
+								});
 							}
 						});
 				});
@@ -2382,8 +2385,11 @@ class TaskService extends Disposable implements ITaskService {
 			this.tasks().then((tasks => {
 				if (tasks.length === 0) {
 					this.runConfigureTasks();
+					return;
 				}
 				let defaultTask: Task;
+				let defaultEntry: TaskQuickPickEntry;
+
 				for (let task of tasks) {
 					if (task.group === TaskGroup.Test && task.groupType === GroupType.default) {
 						defaultTask = task;
@@ -2391,16 +2397,27 @@ class TaskService extends Disposable implements ITaskService {
 					}
 				}
 				if (defaultTask) {
-					this.notificationService.info(nls.localize('TaskService.defaultTestTaskExists', '{0} is already marked as the default test task.', Task.getQualifiedLabel(defaultTask)));
-					return;
+					defaultEntry = {
+						label: nls.localize('TaskService.defaultTestTaskExists', '{0} is already marked as the default test task.', Task.getQualifiedLabel(defaultTask)),
+						task: defaultTask
+					};
 				}
+
 				this.showIgnoredFoldersMessage().then(() => {
-					this.showQuickPick(tasks, nls.localize('TaskService.pickDefaultTestTask', 'Select the task to be used as the default test task'), undefined, true).then((task) => {
+					this.showQuickPick(tasks,
+						nls.localize('TaskService.pickDefaultTestTask', 'Select the task to be used as the default test task'), defaultEntry, true).then((task) => {
 						if (!task) {
 							return;
 						}
+						if (task === defaultTask && CustomTask.is(task)) {
+							this.openConfig(task);
+						}
 						if (!InMemoryTask.is(task)) {
-							this.customize(task, { group: { kind: 'test', isDefault: true } }, true);
+							this.customize(task, { group: { kind: 'test', isDefault: true } }, true).then (() => {
+								if (defaultTask && (task !== defaultTask) && !InMemoryTask.is(defaultTask)) {
+									this.customize(defaultTask, { group: 'test' }, true);
+								}
+							});
 						}
 					});
 				});
