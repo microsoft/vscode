@@ -4,7 +4,6 @@
 [![Feature Requests](https://img.shields.io/github/issues/Microsoft/vscode/feature-request.svg)](https://github.com/Microsoft/vscode/issues?q=is%3Aopen+is%3Aissue+label%3Afeature-request+sort%3Areactions-%2B1-desc)
 [![Bugs](https://img.shields.io/github/issues/Microsoft/vscode/bug.svg)](https://github.com/Microsoft/vscode/issues?utf8=✓&q=is%3Aissue+is%3Aopen+label%3Abug)
 [![MIT licensed](https://img.shields.io/dub/l/vibe-d.svg)](https://github.com/Microsoft/vscode/blob/master/LICENSE.txt)
-
 [![Gitter](https://img.shields.io/badge/chat-on%20gitter-yellow.svg)](https://gitter.im/Microsoft/vscode)
 
 [VS Code](https://code.visualstudio.com) is a new type of tool that combines the simplicity of
