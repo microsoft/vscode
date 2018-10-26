@@ -32,6 +32,7 @@ import { isLinux } from 'vs/base/common/platform';
 import { IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { ILogService } from 'vs/platform/log/common/log';
 import { isEqual, isEqualOrParent } from 'vs/base/common/resources';
+import { onUnexpectedError } from 'vs/base/common/errors';
 
 /**
  * The text file editor model listens to changes to its underlying code editor model and saves these changes through the file service back to the disk.
@@ -846,7 +847,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 
 			// Updated resolved stat with updated stat since touching it might have changed mtime
 			this.updateLastResolvedDiskStat(stat);
-		}, () => void 0 /* gracefully ignore errors if just touching */));
+		}, error => onUnexpectedError(error) /* just log any error but do not notify the user since the file was not dirty */));
 	}
 
 	private setDirty(dirty: boolean): () => void {
