@@ -42,16 +42,14 @@ export class RequestQueue {
 
 	public push(item: RequestItem): void {
 		if (item.queueingType === RequestQueueingType.Normal) {
-			// insert before lowPriority items queue.
-			for (let i = this.length - 1; i > -1; i--) {
-				if (this.queue[i].queueingType !== RequestQueueingType.LowPriority) {
-					this.queue.splice(i + 1, 0, item);
-					return;
+			let index = this.queue.length - 1;
+			while (index >= 0) {
+				if (this.queue[index].queueingType !== RequestQueueingType.LowPriority) {
+					break;
 				}
+				--index;
 			}
-			// If all of the items are lowPriority insert at top
-			this.queue.unshift(item);
-			return;
+			this.queue.splice(index + 1, 0, item);
 		} else {
 			//if none is low priority just push to end
 			this.queue.push(item);
