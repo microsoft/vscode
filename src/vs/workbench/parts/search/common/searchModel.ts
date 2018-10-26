@@ -21,11 +21,12 @@ import { IModelService } from 'vs/editor/common/services/modelService';
 import { createDecorator, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IProgressRunner } from 'vs/platform/progress/common/progress';
 import { ReplacePattern } from 'vs/platform/search/common/replace';
-import { IFileMatch, IPatternInfo, ISearchComplete, ISearchProgressItem, ISearchService, ITextQuery, ITextSearchPreviewOptions, ITextSearchResult, ITextSearchStats, TextSearchResult } from 'vs/platform/search/common/search';
+import { IFileMatch, IPatternInfo, ISearchComplete, ISearchProgressItem, ISearchService, ITextQuery, ITextSearchPreviewOptions, ITextSearchResult, ITextSearchStats } from 'vs/platform/search/common/search';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { overviewRulerFindMatchForeground } from 'vs/platform/theme/common/colorRegistry';
 import { themeColorFromId } from 'vs/platform/theme/common/themeService';
 import { IReplaceService } from 'vs/workbench/parts/search/common/replace';
+import { editorMatchesToTextSearchResults } from 'vs/workbench/services/search/common/searchHelpers';
 
 export class Match {
 
@@ -241,8 +242,8 @@ export class FileMatch extends Disposable {
 	}
 
 	private updateMatches(matches: FindMatch[], modelChange: boolean) {
-		matches.forEach(m => {
-			const textSearchResult = editorMatchToTextSearchResult(m, this._model, this._previewOptions);
+		const textSearchResults = editorMatchesToTextSearchResults(matches, this._model, this._previewOptions);
+		textSearchResults.forEach(textSearchResult => {
 			const match = new Match(this, textSearchResult);
 
 			if (!this._removedMatches.has(match.id())) {
@@ -1007,13 +1008,6 @@ export class RangeHighlightDecorations implements IDisposable {
 		className: 'rangeHighlight',
 		isWholeLine: true
 	});
-}
-
-export function editorMatchToTextSearchResult(match: FindMatch, model: ITextModel, previewOptions: ITextSearchPreviewOptions): TextSearchResult {
-	return new TextSearchResult(
-		model.getLineContent(match.range.startLineNumber),
-		new Range(match.range.startLineNumber - 1, match.range.startColumn - 1, match.range.endLineNumber - 1, match.range.endColumn - 1),
-		previewOptions);
 }
 
 function textSearchResultToMatches(rawMatch: ITextSearchResult, fileMatch: FileMatch): Match[] {

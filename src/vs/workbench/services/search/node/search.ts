@@ -6,7 +6,7 @@
 import { Event } from 'vs/base/common/event';
 import * as glob from 'vs/base/common/glob';
 import { TPromise } from 'vs/base/common/winjs.base';
-import { IFileSearchStats, IFolderQuery, IProgress, IRawTextQuery, ISearchEngineStats, ISearchQuery, ITextSearchResult, ITextSearchStats, IRawFileQuery } from 'vs/platform/search/common/search';
+import { IFileSearchStats, IFolderQuery, IProgress, IRawFileQuery, IRawTextQuery, ISearchEngineStats, ISearchQuery, ITextSearchResult, ITextSearchStats } from 'vs/platform/search/common/search';
 import { ITelemetryData } from 'vs/platform/telemetry/common/telemetry';
 
 export interface ITelemetryEvent {
