@@ -8,7 +8,7 @@ import { ExtHostConfiguration } from 'vs/workbench/api/node/extHostConfiguration
 import * as http from 'http';
 import * as https from 'https';
 import * as nodeurl from 'url';
-import ElectronProxyAgent = require('electron-proxy-agent');
+import { ProxyAgent } from 'vscode-proxy-agent';
 import { MainThreadTelemetryShape } from 'vs/workbench/api/node/extHost.protocol';
 import { ExtHostLogService } from 'vs/workbench/api/node/extHostLogService';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
@@ -50,7 +50,7 @@ export function connectProxyResolver(extHostWorkspace: ExtHostWorkspace, extHost
 			});
 	}
 
-	const agent = new ElectronProxyAgent({ resolveProxy });
+	const agent = new ProxyAgent({ resolveProxy });
 
 	let config = extHostConfiguration.getConfiguration('http').get('systemProxy') || 'off';
 	extHostConfiguration.onDidChangeConfiguration(e => {

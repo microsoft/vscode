@@ -28,7 +28,6 @@
   },
   "dependencies": {
     "applicationinsights": "1.0.6",
-    "electron-proxy-agent": "^1.0.2",
     "fast-plist": "0.1.2",
     "gc-signals": "^0.0.1",
     "getmac": "1.4.1",
@@ -50,6 +49,7 @@
     "vscode-chokidar": "1.6.5",
     "vscode-debugprotocol": "1.32.0",
     "vscode-nsfw": "1.1.1",
+    "vscode-proxy-agent": "0.1.0",
     "vscode-ripgrep": "^1.2.4",
     "vscode-sqlite3": "4.0.2",
     "vscode-textmate": "^4.0.1",
