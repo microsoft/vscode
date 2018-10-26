@@ -5,7 +5,6 @@
 
 import 'vs/css!./selectBoxCustom';
 
-import * as nls from 'vs/nls';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { Event, Emitter, chain } from 'vs/base/common/event';
 import { KeyCode, KeyCodeUtils } from 'vs/base/common/keyCodes';
@@ -14,7 +13,7 @@ import * as dom from 'vs/base/browser/dom';
 import * as arrays from 'vs/base/common/arrays';
 import { IContextViewProvider, AnchorPosition } from 'vs/base/browser/ui/contextview/contextview';
 import { List } from 'vs/base/browser/ui/list/listWidget';
-import { IVirtualDelegate, IRenderer, IListEvent } from 'vs/base/browser/ui/list/list';
+import { IListVirtualDelegate, IListRenderer, IListEvent } from 'vs/base/browser/ui/list/list';
 import { domEvent } from 'vs/base/browser/event';
 import { ScrollbarVisibility } from 'vs/base/common/scrollable';
 import { ISelectBoxDelegate, ISelectBoxOptions, ISelectBoxStyles, ISelectData } from 'vs/base/browser/ui/selectBox/selectBox';
@@ -38,7 +37,7 @@ interface ISelectListTemplateData {
 	disposables: IDisposable[];
 }
 
-class SelectListRenderer implements IRenderer<ISelectOptionItem, ISelectListTemplateData> {
+class SelectListRenderer implements IListRenderer<ISelectOptionItem, ISelectListTemplateData> {
 
 	get templateId(): string { return SELECT_OPTION_ENTRY_TEMPLATE_ID; }
 
@@ -50,6 +49,7 @@ class SelectListRenderer implements IRenderer<ISelectOptionItem, ISelectListTemp
 		data.root = container;
 		data.optionText = dom.append(container, $('.option-text'));
 		data.optionDescriptionText = dom.append(container, $('.option-text-description'));
+		dom.addClass(data.optionDescriptionText, 'visually-hidden');
 
 		return data;
 	}
@@ -60,17 +60,13 @@ class SelectListRenderer implements IRenderer<ISelectOptionItem, ISelectListTemp
 		const optionDisabled = (<ISelectOptionItem>element).optionDisabled;
 
 		data.optionText.textContent = optionText;
-		data.root.setAttribute('aria-label', nls.localize('selectAriaOption', "{0}", optionText) + ',.');
 
 		if (typeof element.optionDescriptionText === 'string') {
 			const optionDescriptionId = (optionText.replace(/ /g, '_').toLowerCase() + '_description_' + data.root.id);
-			data.root.setAttribute('aria-describedby', optionDescriptionId);
+			data.optionText.setAttribute('aria-describedby', optionDescriptionId);
 			data.optionDescriptionText.id = optionDescriptionId;
-			data.optionDescriptionText.setAttribute('aria-label', element.optionDescriptionText);
+			data.optionDescriptionText.innerText = element.optionDescriptionText;
 		}
-
-		// Workaround for list labels
-		data.root.setAttribute('aria-selected', 'true');
 
 		// pseudo-select disabled option
 		if (optionDisabled) {
@@ -90,7 +86,7 @@ class SelectListRenderer implements IRenderer<ISelectOptionItem, ISelectListTemp
 	}
 }
 
-export class SelectBoxList implements ISelectBoxDelegate, IVirtualDelegate<ISelectOptionItem> {
+export class SelectBoxList implements ISelectBoxDelegate, IListVirtualDelegate<ISelectOptionItem> {
 
 	private static readonly DEFAULT_DROPDOWN_MINIMUM_BOTTOM_MARGIN = 32;
 	private static readonly DEFAULT_DROPDOWN_MINIMUM_TOP_MARGIN = 2;
@@ -133,6 +129,13 @@ export class SelectBoxList implements ISelectBoxDelegate, IVirtualDelegate<ISele
 		}
 
 		this.selectElement = document.createElement('select');
+
+		// Workaround for Electron 2.x
+		// Native select should not require explicit role attribute, however, Electron 2.x
+		// incorrectly exposes select as menuItem which interferes with labeling and results
+		// in the unlabeled not been read.  Electron 3 appears to fix.
+		this.selectElement.setAttribute('role', 'combobox');
+
 		// Use custom CSS vars for padding calculation
 		this.selectElement.className = 'monaco-select-box monaco-select-box-dropdown-padding';
 
@@ -196,7 +199,6 @@ export class SelectBoxList implements ISelectBoxDelegate, IVirtualDelegate<ISele
 		// Parent native select keyboard listeners
 
 		this.toDispose.push(dom.addStandardDisposableListener(this.selectElement, 'change', (e) => {
-			this.selectElement.title = e.target.value;
 			this.selected = e.target.selectedIndex;
 			this._onDidSelect.fire({
 				index: e.target.selectedIndex,
@@ -250,7 +252,6 @@ export class SelectBoxList implements ISelectBoxDelegate, IVirtualDelegate<ISele
 	}
 
 	public setOptions(options: string[], selected?: number, disabled?: number): void {
-
 		if (!this.options || !arrays.equals(this.options, options)) {
 			this.options = options;
 			this.selectElement.options.length = 0;
@@ -260,18 +261,16 @@ export class SelectBoxList implements ISelectBoxDelegate, IVirtualDelegate<ISele
 				this.selectElement.add(this.createOption(option, i, disabled === i++));
 			});
 
-			if (selected !== undefined) {
-				this.select(selected);
-				// Set current = selected since this is not necessarily a user exit
-				this._currentSelection = this.selected;
-			}
-
 			if (disabled !== undefined) {
 				this.disabledOptionIndex = disabled;
 			}
 		}
 
-
+		if (selected !== undefined) {
+			this.select(selected);
+			// Set current = selected since this is not necessarily a user exit
+			this._currentSelection = this.selected;
+		}
 	}
 
 
@@ -308,7 +307,6 @@ export class SelectBoxList implements ISelectBoxDelegate, IVirtualDelegate<ISele
 		}
 
 		this.selectElement.selectedIndex = this.selected;
-		this.selectElement.title = this.options[this.selected];
 	}
 
 	public setAriaLabel(label: string): void {
@@ -828,7 +826,7 @@ export class SelectBoxList implements ISelectBoxDelegate, IVirtualDelegate<ISele
 
 				this._onDidSelect.fire({
 					index: this.selectElement.selectedIndex,
-					selected: this.selectElement.title
+					selected: this.options[this.selected]
 				});
 			}
 
@@ -920,7 +918,7 @@ export class SelectBoxList implements ISelectBoxDelegate, IVirtualDelegate<ISele
 			this._currentSelection = this.selected;
 			this._onDidSelect.fire({
 				index: this.selectElement.selectedIndex,
-				selected: this.selectElement.title
+				selected: this.options[this.selected]
 			});
 		}
 

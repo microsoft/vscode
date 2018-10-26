@@ -2,7 +2,6 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
 import { Selection } from 'vs/editor/common/core/selection';
 import { CopyLinesCommand } from 'vs/editor/contrib/linesOperations/copyLinesCommand';

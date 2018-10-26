@@ -21,6 +21,7 @@ import { IPartService, Parts } from 'vs/workbench/services/part/common/partServi
 import { BaseWebviewEditor, KEYBINDING_CONTEXT_WEBVIEW_FIND_WIDGET_VISIBLE } from './baseWebviewEditor';
 import { WebviewElement } from './webviewElement';
 import { IWindowService } from 'vs/platform/windows/common/windows';
+import { IStorageService } from 'vs/platform/storage/common/storage';
 
 export class WebviewEditor extends BaseWebviewEditor {
 
@@ -44,9 +45,10 @@ export class WebviewEditor extends BaseWebviewEditor {
 		@IWorkspaceContextService private readonly _contextService: IWorkspaceContextService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IEditorService private readonly _editorService: IEditorService,
-		@IWindowService private readonly _windowService: IWindowService
+		@IWindowService private readonly _windowService: IWindowService,
+		@IStorageService storageService: IStorageService
 	) {
-		super(WebviewEditor.ID, telemetryService, themeService, _contextKeyService);
+		super(WebviewEditor.ID, telemetryService, themeService, _contextKeyService, storageService);
 	}
 
 	protected createEditor(parent: HTMLElement): void {
@@ -190,7 +192,7 @@ export class WebviewEditor extends BaseWebviewEditor {
 			enableWrappedPostMessage: true,
 			useSameOriginForRoot: false,
 			localResourceRoots: input.options.localResourceRoots || this.getDefaultLocalResourceRoots()
-		});
+		}, input.options.retainContextWhenHidden);
 
 		if (this._webviewContent) {
 			this._webviewContent.style.visibility = 'visible';

@@ -4,7 +4,7 @@
 		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
 		"Once accepted there, we are happy to receive an update request."
 	],
-	"version": "https://github.com/microsoft/vscode-markdown-tm-grammar/commit/83a1940ab00b770392c3ae71b92e80cca2960613",
+	"version": "https://github.com/microsoft/vscode-markdown-tm-grammar/commit/ee6a11d0bbbe8ef6bcf8e664f446c00fb14212f2",
 	"name": "Markdown",
 	"scopeName": "text.html.markdown",
 	"patterns": [
@@ -167,6 +167,9 @@
 				},
 				{
 					"include": "#fenced_code_block_handlebars"
+				},
+				{
+					"include": "#fenced_code_block_markdown"
 				},
 				{
 					"include": "#fenced_code_block_unknown"
@@ -1161,7 +1164,7 @@
 					]
 				},
 				"fenced_code_block_json": {
-					"begin": "(^|\\G)(\\s*)(`{3,}|~{3,})\\s*(?i:(json|sublime-settings|sublime-menu|sublime-keymap|sublime-mousemap|sublime-theme|sublime-build|sublime-project|sublime-completions)(\\s+[^`~]*)?$)",
+					"begin": "(^|\\G)(\\s*)(`{3,}|~{3,})\\s*(?i:(json|json5|sublime-settings|sublime-menu|sublime-keymap|sublime-mousemap|sublime-theme|sublime-build|sublime-project|sublime-completions)(\\s+[^`~]*)?$)",
 					"name": "markup.fenced_code.block.markdown",
 					"end": "(^|\\G)(\\2|\\s{0,3})(\\3)\\s*$",
 					"beginCaptures": {
@@ -1721,6 +1724,39 @@
 						}
 					]
 				},
+				"fenced_code_block_markdown": {
+					"begin": "(^|\\G)(\\s*)(`{3,}|~{3,})\\s*(?i:(markdown|md)(\\s+[^`~]*)?$)",
+					"name": "markup.fenced_code.block.markdown",
+					"end": "(^|\\G)(\\2|\\s{0,3})(\\3)\\s*$",
+					"beginCaptures": {
+						"3": {
+							"name": "punctuation.definition.markdown"
+						},
+						"5": {
+							"name": "fenced_code.block.language"
+						},
+						"6": {
+							"name": "fenced_code.block.language.attributes"
+						}
+					},
+					"endCaptures": {
+						"3": {
+							"name": "punctuation.definition.markdown"
+						}
+					},
+					"patterns": [
+						{
+							"begin": "(^|\\G)(\\s*)(.*)",
+							"while": "(^|\\G)(?!\\s*([`~]{3,})\\s*$)",
+							"contentName": "meta.embedded.block.markdown",
+							"patterns": [
+								{
+									"include": "text.html.markdown"
+								}
+							]
+						}
+					]
+				},
 				"fenced_code_block_unknown": {
 					"begin": "(^|\\G)(\\s*)(`{3,}|~{3,})\\s*(?=([^`~]*)?$)",
 					"beginCaptures": {
@@ -2030,7 +2066,7 @@
 					"while": "(^|\\G)([ ]{4}|\\t)"
 				},
 				"separator": {
-					"match": "(^|\\G)[ ]{0,3}([*-_])([ ]{0,2}\\2){2,}[ \\t]*$\\n?",
+					"match": "(^|\\G)[ ]{0,3}([\\*\\-\\_])([ ]{0,2}\\2){2,}[ \\t]*$\\n?",
 					"name": "meta.separator.markdown"
 				}
 			}
@@ -2043,7 +2079,7 @@
 					"include": "source.yaml"
 				}
 			],
-			"while": "^(?!(-{3}|\\.{3})\\s*$)"
+			"end": "(^|\\G)-{3}|\\.{3}\\s*$\""
 		},
 		"inline": {
 			"patterns": [
@@ -2433,7 +2469,7 @@
 						"2": {
 							"name": "string.other.link.title.markdown"
 						},
-						"4": {
+						"3": {
 							"name": "punctuation.definition.string.end.markdown"
 						}
 					},

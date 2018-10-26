@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import * as nls from 'vs/nls';
 import { basename, dirname } from 'vs/base/common/paths';
 import { ITextModel } from 'vs/editor/common/model';
@@ -44,7 +42,7 @@ export class CompositeSnippetVariableResolver implements VariableResolver {
 		//
 	}
 
-	resolve(variable: Variable): string {
+	resolve(variable: Variable): string | undefined {
 		for (const delegate of this._delegates) {
 			let value = delegate.resolve(variable);
 			if (value !== void 0) {
@@ -64,7 +62,7 @@ export class SelectionBasedVariableResolver implements VariableResolver {
 		//
 	}
 
-	resolve(variable: Variable): string {
+	resolve(variable: Variable): string | undefined {
 
 		const { name } = variable;
 
@@ -126,7 +124,7 @@ export class ModelBasedVariableResolver implements VariableResolver {
 		//
 	}
 
-	resolve(variable: Variable): string {
+	resolve(variable: Variable): string | undefined {
 
 		const { name } = variable;
 
@@ -164,7 +162,7 @@ export class ClipboardBasedVariableResolver implements VariableResolver {
 		//
 	}
 
-	resolve(variable: Variable): string {
+	resolve(variable: Variable): string | undefined {
 		if (variable.name !== 'CLIPBOARD' || !this._clipboardService) {
 			return undefined;
 		}
@@ -190,7 +188,7 @@ export class TimeBasedVariableResolver implements VariableResolver {
 	private static readonly monthNames = [nls.localize('January', "January"), nls.localize('February', "February"), nls.localize('March', "March"), nls.localize('April', "April"), nls.localize('May', "May"), nls.localize('June', "June"), nls.localize('July', "July"), nls.localize('August', "August"), nls.localize('September', "September"), nls.localize('October', "October"), nls.localize('November', "November"), nls.localize('December', "December")];
 	private static readonly monthNamesShort = [nls.localize('JanuaryShort', "Jan"), nls.localize('FebruaryShort', "Feb"), nls.localize('MarchShort', "Mar"), nls.localize('AprilShort', "Apr"), nls.localize('MayShort', "May"), nls.localize('JuneShort', "Jun"), nls.localize('JulyShort', "Jul"), nls.localize('AugustShort', "Aug"), nls.localize('SeptemberShort', "Sep"), nls.localize('OctoberShort', "Oct"), nls.localize('NovemberShort', "Nov"), nls.localize('DecemberShort', "Dec")];
 
-	resolve(variable: Variable): string {
+	resolve(variable: Variable): string | undefined {
 		const { name } = variable;
 
 		if (name === 'CURRENT_YEAR') {

@@ -31,10 +31,13 @@ function packageInnoSetup(iss, options, cb) {
 	options = options || {};
 
 	const definitions = options.definitions || {};
-	const debug = process.argv.some(arg => arg === '--debug-inno');
 
-	if (debug) {
+	if (process.argv.some(arg => arg === '--debug-inno')) {
 		definitions['Debug'] = 'true';
+	}
+
+	if (process.argv.some(arg => arg === '--sign')) {
+		definitions['Sign'] = 'true';
 	}
 
 	const keys = Object.keys(definitions);

@@ -60,6 +60,7 @@ suite('ParameterHintsModel', () => {
 
 		disposables.push(modes.SignatureHelpProviderRegistry.register(mockFileSelector, new class implements modes.SignatureHelpProvider {
 			signatureHelpTriggerCharacters = [triggerChar];
+			signatureHelpRetriggerCharacters = [];
 
 			provideSignatureHelp(_model: ITextModel, _position: Position, _token: CancellationToken, context: modes.SignatureHelpContext): modes.SignatureHelp | Thenable<modes.SignatureHelp> {
 				assert.strictEqual(context.triggerReason, modes.SignatureHelpTriggerReason.TriggerCharacter);
@@ -81,6 +82,7 @@ suite('ParameterHintsModel', () => {
 		let invokeCount = 0;
 		disposables.push(modes.SignatureHelpProviderRegistry.register(mockFileSelector, new class implements modes.SignatureHelpProvider {
 			signatureHelpTriggerCharacters = [triggerChar];
+			signatureHelpRetriggerCharacters = [];
 
 			provideSignatureHelp(_model: ITextModel, _position: Position, _token: CancellationToken, context: modes.SignatureHelpContext): modes.SignatureHelp | Thenable<modes.SignatureHelp> {
 				++invokeCount;
@@ -91,7 +93,8 @@ suite('ParameterHintsModel', () => {
 					editor.trigger('keyboard', Handler.Type, { text: triggerChar });
 				} else {
 					assert.strictEqual(invokeCount, 2);
-					assert.strictEqual(context.triggerReason, modes.SignatureHelpTriggerReason.Retrigger);
+					assert.strictEqual(context.triggerReason, modes.SignatureHelpTriggerReason.TriggerCharacter);
+					assert.ok(context.isRetrigger);
 					assert.strictEqual(context.triggerCharacter, triggerChar);
 					done();
 				}
@@ -112,6 +115,7 @@ suite('ParameterHintsModel', () => {
 		let invokeCount = 0;
 		disposables.push(modes.SignatureHelpProviderRegistry.register(mockFileSelector, new class implements modes.SignatureHelpProvider {
 			signatureHelpTriggerCharacters = [triggerChar];
+			signatureHelpRetriggerCharacters = [];
 
 			provideSignatureHelp(_model: ITextModel, _position: Position, _token: CancellationToken, context: modes.SignatureHelpContext): modes.SignatureHelp | Thenable<modes.SignatureHelp> {
 				++invokeCount;
@@ -142,10 +146,12 @@ suite('ParameterHintsModel', () => {
 		let invokeCount = 0;
 		disposables.push(modes.SignatureHelpProviderRegistry.register(mockFileSelector, new class implements modes.SignatureHelpProvider {
 			signatureHelpTriggerCharacters = ['a', 'b', 'c'];
+			signatureHelpRetriggerCharacters = [];
 
 			provideSignatureHelp(_model: ITextModel, _position: Position, _token: CancellationToken, context: modes.SignatureHelpContext): modes.SignatureHelp | Thenable<modes.SignatureHelp> {
 				++invokeCount;
-				assert.strictEqual(context.triggerReason, modes.SignatureHelpTriggerReason.Retrigger);
+				assert.strictEqual(context.triggerReason, modes.SignatureHelpTriggerReason.TriggerCharacter);
+				assert.ok(context.isRetrigger);
 				assert.strictEqual(context.triggerCharacter, 'c');
 
 				// Give some time to allow for later triggers
@@ -170,6 +176,7 @@ suite('ParameterHintsModel', () => {
 		let invokeCount = 0;
 		disposables.push(modes.SignatureHelpProviderRegistry.register(mockFileSelector, new class implements modes.SignatureHelpProvider {
 			signatureHelpTriggerCharacters = ['a', 'b'];
+			signatureHelpRetriggerCharacters = [];
 
 			provideSignatureHelp(_model: ITextModel, _position: Position, _token: CancellationToken, context: modes.SignatureHelpContext): modes.SignatureHelp | Thenable<modes.SignatureHelp> {
 				++invokeCount;
@@ -180,7 +187,8 @@ suite('ParameterHintsModel', () => {
 					// retrigger after delay for widget to show up
 					setTimeout(() => editor.trigger('keyboard', Handler.Type, { text: 'b' }), 50);
 				} else if (invokeCount === 2) {
-					assert.strictEqual(context.triggerReason, modes.SignatureHelpTriggerReason.Retrigger);
+					assert.strictEqual(context.triggerReason, modes.SignatureHelpTriggerReason.TriggerCharacter);
+					assert.ok(context.isRetrigger);
 					assert.strictEqual(context.triggerCharacter, 'b');
 					done();
 				} else {
@@ -202,6 +210,8 @@ suite('ParameterHintsModel', () => {
 		let invokeCount = 0;
 		const longRunningProvider = new class implements modes.SignatureHelpProvider {
 			signatureHelpTriggerCharacters = [];
+			signatureHelpRetriggerCharacters = [];
+
 
 			provideSignatureHelp(_model: ITextModel, _position: Position, token: CancellationToken): modes.SignatureHelp | Thenable<modes.SignatureHelp> {
 				const count = invokeCount++;
@@ -242,5 +252,45 @@ suite('ParameterHintsModel', () => {
 					reject(e);
 				}
 			}));
+	});
+
+	test('Provider should be retriggered by retrigger character', (done) => {
+		const triggerChar = 'a';
+		const retriggerChar = 'b';
+
+		const editor = createMockEditor('');
+		disposables.push(new ParameterHintsModel(editor, 5));
+
+		let invokeCount = 0;
+		disposables.push(modes.SignatureHelpProviderRegistry.register(mockFileSelector, new class implements modes.SignatureHelpProvider {
+			signatureHelpTriggerCharacters = [triggerChar];
+			signatureHelpRetriggerCharacters = [retriggerChar];
+
+			provideSignatureHelp(_model: ITextModel, _position: Position, _token: CancellationToken, context: modes.SignatureHelpContext): modes.SignatureHelp | Thenable<modes.SignatureHelp> {
+				++invokeCount;
+				if (invokeCount === 1) {
+					assert.strictEqual(context.triggerReason, modes.SignatureHelpTriggerReason.TriggerCharacter);
+					assert.strictEqual(context.triggerCharacter, triggerChar);
+
+					// retrigger after delay for widget to show up
+					setTimeout(() => editor.trigger('keyboard', Handler.Type, { text: retriggerChar }), 50);
+				} else if (invokeCount === 2) {
+					assert.strictEqual(context.triggerReason, modes.SignatureHelpTriggerReason.TriggerCharacter);
+					assert.ok(context.isRetrigger);
+					assert.strictEqual(context.triggerCharacter, retriggerChar);
+					done();
+				} else {
+					assert.fail('Unexpected invoke');
+				}
+
+				return emptySigHelpResult;
+			}
+		}));
+
+		// This should not trigger anything
+		editor.trigger('keyboard', Handler.Type, { text: retriggerChar });
+
+		// But a trigger character should
+		editor.trigger('keyboard', Handler.Type, { text: triggerChar });
 	});
 });

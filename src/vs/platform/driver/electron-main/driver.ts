@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IDriver, DriverChannel, IElement, IWindowDriverChannel, WindowDriverChannelClient, IWindowDriverRegistry, WindowDriverRegistryChannel, IWindowDriver, IDriverOptions } from 'vs/platform/driver/node/driver';
 import { IWindowsMainService } from 'vs/platform/windows/electron-main/windows';
@@ -111,7 +109,7 @@ export class Driver implements IDriver, IWindowDriverRegistry {
 		const resolvedKeybinding = new USLayoutResolvedKeybinding(noModifiedKeybinding, OS);
 		const keyCode = resolvedKeybinding.getElectronAccelerator();
 
-		const modifiers = [];
+		const modifiers: string[] = [];
 
 		if (keybinding.ctrlKey) {
 			modifiers.push('ctrl');

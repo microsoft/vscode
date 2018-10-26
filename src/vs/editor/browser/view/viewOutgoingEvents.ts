@@ -2,17 +2,16 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
-import { Disposable } from 'vs/base/common/lifecycle';
 import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
+import { Disposable } from 'vs/base/common/lifecycle';
+import { MouseTarget } from 'vs/editor/browser/controller/mouseTarget';
+import { IEditorMouseEvent, IMouseTarget, IPartialEditorMouseEvent, MouseTargetType } from 'vs/editor/browser/editorBrowser';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
-import { IViewModel } from 'vs/editor/common/viewModel/viewModel';
 import { IScrollEvent } from 'vs/editor/common/editorCommon';
-import { IEditorMouseEvent, IMouseTarget, MouseTargetType } from 'vs/editor/browser/editorBrowser';
-import { MouseTarget } from 'vs/editor/browser/controller/mouseTarget';
 import * as viewEvents from 'vs/editor/common/view/viewEvents';
+import { IViewModel } from 'vs/editor/common/viewModel/viewModel';
 
 export interface EventCallback<T> {
 	(event: T): void;
@@ -20,18 +19,18 @@ export interface EventCallback<T> {
 
 export class ViewOutgoingEvents extends Disposable {
 
-	public onDidScroll: EventCallback<IScrollEvent> = null;
-	public onDidGainFocus: EventCallback<void> = null;
-	public onDidLoseFocus: EventCallback<void> = null;
-	public onKeyDown: EventCallback<IKeyboardEvent> = null;
-	public onKeyUp: EventCallback<IKeyboardEvent> = null;
-	public onContextMenu: EventCallback<IEditorMouseEvent> = null;
-	public onMouseMove: EventCallback<IEditorMouseEvent> = null;
-	public onMouseLeave: EventCallback<IEditorMouseEvent> = null;
-	public onMouseUp: EventCallback<IEditorMouseEvent> = null;
-	public onMouseDown: EventCallback<IEditorMouseEvent> = null;
-	public onMouseDrag: EventCallback<IEditorMouseEvent> = null;
-	public onMouseDrop: EventCallback<IEditorMouseEvent> = null;
+	public onDidScroll: EventCallback<IScrollEvent> | null = null;
+	public onDidGainFocus: EventCallback<void> | null = null;
+	public onDidLoseFocus: EventCallback<void> | null = null;
+	public onKeyDown: EventCallback<IKeyboardEvent> | null = null;
+	public onKeyUp: EventCallback<IKeyboardEvent> | null = null;
+	public onContextMenu: EventCallback<IEditorMouseEvent> | null = null;
+	public onMouseMove: EventCallback<IEditorMouseEvent> | null = null;
+	public onMouseLeave: EventCallback<IPartialEditorMouseEvent> | null = null;
+	public onMouseUp: EventCallback<IEditorMouseEvent> | null = null;
+	public onMouseDown: EventCallback<IEditorMouseEvent> | null = null;
+	public onMouseDrag: EventCallback<IEditorMouseEvent> | null = null;
+	public onMouseDrop: EventCallback<IPartialEditorMouseEvent> | null = null;
 
 	private _viewModel: IViewModel;
 
@@ -82,7 +81,7 @@ export class ViewOutgoingEvents extends Disposable {
 		}
 	}
 
-	public emitMouseLeave(e: IEditorMouseEvent): void {
+	public emitMouseLeave(e: IPartialEditorMouseEvent): void {
 		if (this.onMouseLeave) {
 			this.onMouseLeave(this._convertViewToModelMouseEvent(e));
 		}
@@ -106,13 +105,15 @@ export class ViewOutgoingEvents extends Disposable {
 		}
 	}
 
-	public emitMouseDrop(e: IEditorMouseEvent): void {
+	public emitMouseDrop(e: IPartialEditorMouseEvent): void {
 		if (this.onMouseDrop) {
 			this.onMouseDrop(this._convertViewToModelMouseEvent(e));
 		}
 	}
 
-	private _convertViewToModelMouseEvent(e: IEditorMouseEvent): IEditorMouseEvent {
+	private _convertViewToModelMouseEvent(e: IEditorMouseEvent): IEditorMouseEvent;
+	private _convertViewToModelMouseEvent(e: IPartialEditorMouseEvent): IPartialEditorMouseEvent;
+	private _convertViewToModelMouseEvent(e: IEditorMouseEvent | IPartialEditorMouseEvent): IEditorMouseEvent | IPartialEditorMouseEvent {
 		if (e.target) {
 			return {
 				event: e.event,
@@ -144,14 +145,14 @@ export class ViewOutgoingEvents extends Disposable {
 
 class ExternalMouseTarget implements IMouseTarget {
 
-	public readonly element: Element;
+	public readonly element: Element | null;
 	public readonly type: MouseTargetType;
 	public readonly mouseColumn: number;
-	public readonly position: Position;
-	public readonly range: Range;
+	public readonly position: Position | null;
+	public readonly range: Range | null;
 	public readonly detail: any;
 
-	constructor(element: Element, type: MouseTargetType, mouseColumn: number, position: Position, range: Range, detail: any) {
+	constructor(element: Element | null, type: MouseTargetType, mouseColumn: number, position: Position | null, range: Range | null, detail: any) {
 		this.element = element;
 		this.type = type;
 		this.mouseColumn = mouseColumn;

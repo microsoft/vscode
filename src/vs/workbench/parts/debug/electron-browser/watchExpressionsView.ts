@@ -35,10 +35,8 @@ const MAX_VALUE_RENDER_LENGTH_IN_VIEWLET = 1024;
 
 export class WatchExpressionsView extends TreeViewsViewletPanel {
 
-	private static readonly MEMENTO = 'watchexpressionsview.memento';
 	private onWatchExpressionsUpdatedScheduler: RunOnceScheduler;
 	private treeContainer: HTMLElement;
-	private settings: any;
 	private needsRefresh: boolean;
 
 	constructor(
@@ -50,7 +48,6 @@ export class WatchExpressionsView extends TreeViewsViewletPanel {
 		@IConfigurationService configurationService: IConfigurationService
 	) {
 		super({ ...(options as IViewletPanelOptions), ariaHeaderLabel: nls.localize('watchExpressionsSection', "Watch Expressions Section") }, keybindingService, contextMenuService, configurationService);
-		this.settings = options.viewletSettings;
 
 		this.onWatchExpressionsUpdatedScheduler = new RunOnceScheduler(() => {
 			this.needsRefresh = false;
@@ -125,17 +122,11 @@ export class WatchExpressionsView extends TreeViewsViewletPanel {
 		}
 	}
 
-	public setVisible(visible: boolean): TPromise<void> {
-		return super.setVisible(visible).then(() => {
-			if (visible && this.needsRefresh) {
-				this.onWatchExpressionsUpdatedScheduler.schedule();
-			}
-		});
-	}
-
-	public shutdown(): void {
-		this.settings[WatchExpressionsView.MEMENTO] = !this.isExpanded();
-		super.shutdown();
+	public setVisible(visible: boolean): void {
+		super.setVisible(visible);
+		if (visible && this.needsRefresh) {
+			this.onWatchExpressionsUpdatedScheduler.schedule();
+		}
 	}
 }
 
@@ -213,7 +204,7 @@ class WatchExpressionsDataSource implements IDataSource {
 	public getChildren(tree: ITree, element: any): TPromise<any> {
 		if (element instanceof DebugModel) {
 			const viewModel = this.debugService.getViewModel();
-			return TPromise.join(element.getWatchExpressions().map(we =>
+			return Promise.all(element.getWatchExpressions().map(we =>
 				we.name ? we.evaluate(viewModel.focusedSession, viewModel.focusedStackFrame, 'watch').then(() => we) : Promise.resolve(we)));
 		}
 

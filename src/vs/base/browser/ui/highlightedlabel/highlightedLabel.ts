@@ -2,7 +2,6 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
 import { IDisposable } from 'vs/base/common/lifecycle';
 import * as dom from 'vs/base/browser/dom';
@@ -91,8 +90,8 @@ export class HighlightedLabel implements IDisposable {
 	}
 
 	dispose() {
-		this.text = null;
-		this.highlights = null;
+		this.text = null!; // StrictNullOverride: nulling out ok in dispose
+		this.highlights = null!; // StrictNullOverride: nulling out ok in dispose
 	}
 
 	static escapeNewLines(text: string, highlights: IHighlight[]): string {

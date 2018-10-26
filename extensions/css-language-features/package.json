@@ -14,7 +14,6 @@
     "onLanguage:scss",
     "onCommand:_css.applyCodeAction"
   ],
-  "enableProposedApi": true,
   "main": "./client/out/cssMain",
   "scripts": {
     "compile": "gulp compile-extension:css-language-features-client compile-extension:css-language-features-server",
@@ -143,7 +142,7 @@
               "error"
             ],
             "default": "warning",
-            "description": "%css.lint.fontFaceProperties.desc%"
+            "markdownDescription": "%css.lint.fontFaceProperties.desc%"
           },
           "css.lint.hexColorLength": {
             "type": "string",
@@ -220,7 +219,7 @@
               "error"
             ],
             "default": "ignore",
-            "description": "%css.lint.important.desc%"
+            "markdownDescription": "%css.lint.important.desc%"
           },
           "css.lint.float": {
             "type": "string",
@@ -679,7 +678,7 @@
               "error"
             ],
             "default": "ignore",
-            "description": "%less.lint.important.desc%"
+            "markdownDescription": "%less.lint.important.desc%"
           },
           "less.lint.float": {
             "type": "string",

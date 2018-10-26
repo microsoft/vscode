@@ -2,27 +2,29 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
 import { SimpleKeybinding } from 'vs/base/common/keyCodes';
-import { OperatingSystem } from 'vs/base/common/platform';
-import { IUserFriendlyKeybinding } from 'vs/platform/keybinding/common/keybinding';
-import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
-import { ResolvedKeybindingItem } from 'vs/platform/keybinding/common/resolvedKeybindingItem';
-import { ScanCodeBinding } from 'vs/base/common/scanCode';
 import { KeybindingParser } from 'vs/base/common/keybindingParser';
+import { OperatingSystem } from 'vs/base/common/platform';
+import { ScanCodeBinding } from 'vs/base/common/scanCode';
+import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
+import { IUserFriendlyKeybinding } from 'vs/platform/keybinding/common/keybinding';
+import { ResolvedKeybindingItem } from 'vs/platform/keybinding/common/resolvedKeybindingItem';
 
 export interface IUserKeybindingItem {
-	firstPart: SimpleKeybinding | ScanCodeBinding;
-	chordPart: SimpleKeybinding | ScanCodeBinding;
-	command: string;
+	firstPart: SimpleKeybinding | ScanCodeBinding | null;
+	chordPart: SimpleKeybinding | ScanCodeBinding | null;
+	command: string | null;
 	commandArgs?: any;
-	when: ContextKeyExpr;
+	when: ContextKeyExpr | null;
 }
 
 export class KeybindingIO {
 
 	public static writeKeybindingItem(out: OutputBuilder, item: ResolvedKeybindingItem, OS: OperatingSystem): void {
+		if (!item.resolvedKeybinding) {
+			return;
+		}
 		let quotedSerializedKeybinding = JSON.stringify(item.resolvedKeybinding.getUserSettingsLabel());
 		out.write(`{ "key": ${rightPaddedString(quotedSerializedKeybinding + ',', 25)} "command": `);
 

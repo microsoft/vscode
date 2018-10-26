@@ -12,6 +12,7 @@ import * as typeConverters from '../utils/typeConverters';
 class TypeScriptSignatureHelpProvider implements vscode.SignatureHelpProvider {
 
 	public static readonly triggerCharacters = ['(', ',', '<'];
+	public static readonly retriggerCharacters = [')'];
 
 	public constructor(
 		private readonly client: ITypeScriptServiceClient
@@ -72,15 +73,19 @@ class TypeScriptSignatureHelpProvider implements vscode.SignatureHelpProvider {
 
 function toTsTriggerReason(context: vscode.SignatureHelpContext): Proto.SignatureHelpTriggerReason {
 	switch (context.triggerReason) {
-		case vscode.SignatureHelpTriggerReason.Retrigger:
-			return { kind: 'retrigger' };
-
 		case vscode.SignatureHelpTriggerReason.TriggerCharacter:
 			if (context.triggerCharacter) {
-				return { kind: 'characterTyped', triggerCharacter: context.triggerCharacter as any };
+				if (context.isRetrigger) {
+					return { kind: 'retrigger', triggerCharacter: context.triggerCharacter as any };
+				} else {
+					return { kind: 'characterTyped', triggerCharacter: context.triggerCharacter as any };
+				}
 			} else {
 				return { kind: 'invoked' };
 			}
+
+		case vscode.SignatureHelpTriggerReason.ContentChange:
+			return context.isRetrigger ? { kind: 'retrigger' } : { kind: 'invoked' };
 
 		case vscode.SignatureHelpTriggerReason.Invoke:
 		default:
@@ -92,6 +97,8 @@ export function register(
 	client: ITypeScriptServiceClient,
 ) {
 	return vscode.languages.registerSignatureHelpProvider(selector,
-		new TypeScriptSignatureHelpProvider(client),
-		...TypeScriptSignatureHelpProvider.triggerCharacters);
+		new TypeScriptSignatureHelpProvider(client), {
+			triggerCharacters: TypeScriptSignatureHelpProvider.triggerCharacters,
+			retriggerCharacters: TypeScriptSignatureHelpProvider.retriggerCharacters
+		});
 }

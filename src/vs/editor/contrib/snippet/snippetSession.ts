@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import { groupBy } from 'vs/base/common/arrays';
 import { dispose } from 'vs/base/common/lifecycle';
 import { getLeadingWhitespace } from 'vs/base/common/strings';
@@ -26,7 +24,7 @@ import * as colors from 'vs/platform/theme/common/colorRegistry';
 registerThemingParticipant((theme, collector) => {
 
 	function getColorGraceful(name: string) {
-		let color = theme.getColor(name);
+		const color = theme.getColor(name);
 		return color ? color.toString() : 'transparent';
 	}
 
@@ -359,6 +357,10 @@ export class SnippetSession {
 		let firstBeforeText = model.getValueInRange(SnippetSession.adjustSelection(model, editor.getSelection(), overwriteBefore, 0));
 		let firstAfterText = model.getValueInRange(SnippetSession.adjustSelection(model, editor.getSelection(), 0, overwriteAfter));
 
+		// remember the first non-whitespace column to decide if
+		// `keepWhitespace` should be overruled for secondary selections
+		let firstLineFirstNonWhitespace = model.getLineFirstNonWhitespaceColumn(editor.getSelection().positionLineNumber);
+
 		// sort selections by their start position but remeber
 		// the original index. that allows you to create correct
 		// offset-based selection logic without changing the
@@ -389,8 +391,10 @@ export class SnippetSession {
 
 			// adjust the template string to match the indentation and
 			// whitespace rules of this insert location (can be different for each cursor)
+			// happens when being asked for (default) or when this is a secondary
+			// cursor and the leading whitespace is different
 			const start = snippetSelection.getStartPosition();
-			if (adjustWhitespace) {
+			if (adjustWhitespace || (idx > 0 && firstLineFirstNonWhitespace !== model.getLineFirstNonWhitespaceColumn(selection.positionLineNumber))) {
 				SnippetSession.adjustWhitespace(model, start, snippet);
 			}
 

@@ -2,8 +2,6 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
-
 import * as assert from 'assert';
 import * as sinon from 'sinon';
 import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
@@ -342,7 +340,7 @@ suite('SearchResult', () => {
 	//    lineHasDecoration(oneModel, 2, 1, 3);
 	//});
 	//
-	//test('Dispose', function () {
+	//test('Dispose', () => {
 	//
 	//    let fileMatch = instantiation.createInstance(FileMatch, null, toUri('folder\\file.txt'));
 	//    fileMatch.add(new Match(fileMatch, 'line2', 1, 0, 2));

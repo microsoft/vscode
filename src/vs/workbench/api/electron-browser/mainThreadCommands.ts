@@ -2,11 +2,9 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
 import { ICommandService, CommandsRegistry, ICommandHandlerDescription } from 'vs/platform/commands/common/commands';
 import { IDisposable } from 'vs/base/common/lifecycle';
-import { TPromise } from 'vs/base/common/winjs.base';
 import { ExtHostContext, MainThreadCommandsShape, ExtHostCommandsShape, MainContext, IExtHostContext } from '../node/extHost.protocol';
 import { extHostNamedCustomer } from 'vs/workbench/api/electron-browser/extHostCustomers';
 import { revive } from 'vs/base/common/marshalling';
@@ -80,7 +78,7 @@ export class MainThreadCommands implements MainThreadCommandsShape {
 	}
 
 	$getCommands(): Thenable<string[]> {
-		return TPromise.as(Object.keys(CommandsRegistry.getCommands()));
+		return Promise.resolve(Object.keys(CommandsRegistry.getCommands()));
 	}
 }
 

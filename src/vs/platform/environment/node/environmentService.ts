@@ -110,6 +110,9 @@ export class EnvironmentService implements IEnvironmentService {
 	get appSettingsPath(): string { return path.join(this.appSettingsHome, 'settings.json'); }
 
 	@memoize
+	get workspaceStorageHome(): string { return path.join(this.appSettingsHome, 'workspaceStorage'); }
+
+	@memoize
 	get settingsSearchBuildId(): number { return product.settingsSearchBuildId; }
 
 	@memoize
@@ -206,7 +209,9 @@ export class EnvironmentService implements IEnvironmentService {
 	get log(): string { return this._args.log; }
 
 	get wait(): boolean { return this._args.wait; }
+
 	get logExtensionHostCommunication(): boolean { return this._args.logExtensionHostCommunication; }
+	get logStorage(): boolean { return this._args.logStorage; }
 
 	get performance(): boolean { return this._args.performance; }
 	get status(): boolean { return this._args.status; }
@@ -218,7 +223,7 @@ export class EnvironmentService implements IEnvironmentService {
 	get sharedIPCHandle(): string { return getIPCHandle(this.userDataPath, 'shared'); }
 
 	@memoize
-	get nodeCachedDataDir(): string { return this.isBuilt ? path.join(this.userDataPath, 'CachedData', product.commit || new Array(41).join('0')) : undefined; }
+	get nodeCachedDataDir(): string { return process.env['VSCODE_NODE_CACHED_DATA_DIR'] || undefined; }
 
 	get disableUpdates(): boolean { return !!this._args['disable-updates']; }
 	get disableCrashReporter(): boolean { return !!this._args['disable-crash-reporter']; }

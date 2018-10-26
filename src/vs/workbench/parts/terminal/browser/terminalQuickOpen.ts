@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as nls from 'vs/nls';
-import { TPromise } from 'vs/base/common/winjs.base';
 import { Mode, IEntryRunContext, IAutoFocus, IQuickNavigateConfiguration, IModel } from 'vs/base/parts/quickopen/common/quickOpen';
 import { QuickOpenModel, QuickOpenEntry } from 'vs/base/parts/quickopen/browser/quickOpenModel';
 import { QuickOpenHandler } from 'vs/workbench/browser/quickopen';
@@ -84,7 +83,7 @@ export class TerminalPickerHandler extends QuickOpenHandler {
 		super();
 	}
 
-	public getResults(searchValue: string, token: CancellationToken): TPromise<QuickOpenModel> {
+	public getResults(searchValue: string, token: CancellationToken): Promise<QuickOpenModel> {
 		searchValue = searchValue.trim();
 		const normalizedSearchValueLowercase = stripWildcards(searchValue).toLowerCase();
 
@@ -106,7 +105,7 @@ export class TerminalPickerHandler extends QuickOpenHandler {
 			return true;
 		});
 
-		return TPromise.as(new QuickOpenModel(entries, new ContributableActionProvider()));
+		return Promise.resolve(new QuickOpenModel(entries, new ContributableActionProvider()));
 	}
 
 	private getTerminals(): TerminalEntry[] {

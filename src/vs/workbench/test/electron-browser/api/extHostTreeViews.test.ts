@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import * as assert from 'assert';
 import * as sinon from 'sinon';
 import { Emitter } from 'vs/base/common/event';
@@ -18,7 +16,6 @@ import { TestInstantiationService } from 'vs/platform/instantiation/test/common/
 import { MainThreadCommands } from 'vs/workbench/api/electron-browser/mainThreadCommands';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { mock } from 'vs/workbench/test/electron-browser/api/mock';
-import { TPromise } from 'vs/base/common/winjs.base';
 import { TreeItemCollapsibleState, ITreeItem } from 'vs/workbench/common/views';
 import { NullLogService } from 'vs/platform/log/common/log';
 
@@ -31,11 +28,11 @@ suite('ExtHostTreeView', function () {
 		$registerTreeViewDataProvider(treeViewId: string): void {
 		}
 
-		$refresh(viewId: string, itemsToRefresh?: { [treeItemHandle: string]: ITreeItem }): TPromise<void> {
-			return TPromise.as(null).then(() => this.onRefresh.fire(itemsToRefresh));
+		$refresh(viewId: string, itemsToRefresh?: { [treeItemHandle: string]: ITreeItem }): Promise<void> {
+			return Promise.resolve(null).then(() => this.onRefresh.fire(itemsToRefresh));
 		}
 
-		$reveal(): TPromise<void> {
+		$reveal(): Promise<void> {
 			return null;
 		}
 
@@ -77,6 +74,7 @@ suite('ExtHostTreeView', function () {
 		onDidChangeTreeNodeWithId = new Emitter<{ key: string }>();
 		testObject.createTreeView('testNodeTreeProvider', { treeDataProvider: aNodeTreeDataProvider() });
 		testObject.createTreeView('testNodeWithIdTreeProvider', { treeDataProvider: aNodeWithIdTreeDataProvider() });
+		testObject.createTreeView('testNodeWithHighlightsTreeProvider', { treeDataProvider: aNodeWithHighlightedLabelTreeDataProvider() });
 
 		return loadCompleteTree('testNodeTreeProvider');
 	});
@@ -86,12 +84,12 @@ suite('ExtHostTreeView', function () {
 			.then(elements => {
 				const actuals = elements.map(e => e.handle);
 				assert.deepEqual(actuals, ['0/0:a', '0/0:b']);
-				return TPromise.join([
+				return Promise.all([
 					testObject.$getChildren('testNodeTreeProvider', '0/0:a')
 						.then(children => {
 							const actuals = children.map(e => e.handle);
 							assert.deepEqual(actuals, ['0/0:a/0:aa', '0/0:a/0:ab']);
-							return TPromise.join([
+							return Promise.all([
 								testObject.$getChildren('testNodeTreeProvider', '0/0:a/0:aa').then(children => assert.equal(children.length, 0)),
 								testObject.$getChildren('testNodeTreeProvider', '0/0:a/0:ab').then(children => assert.equal(children.length, 0))
 							]);
@@ -100,7 +98,7 @@ suite('ExtHostTreeView', function () {
 						.then(children => {
 							const actuals = children.map(e => e.handle);
 							assert.deepEqual(actuals, ['0/0:b/0:ba', '0/0:b/0:bb']);
-							return TPromise.join([
+							return Promise.all([
 								testObject.$getChildren('testNodeTreeProvider', '0/0:b/0:ba').then(children => assert.equal(children.length, 0)),
 								testObject.$getChildren('testNodeTreeProvider', '0/0:b/0:bb').then(children => assert.equal(children.length, 0))
 							]);
@@ -114,12 +112,12 @@ suite('ExtHostTreeView', function () {
 			.then(elements => {
 				const actuals = elements.map(e => e.handle);
 				assert.deepEqual(actuals, ['1/a', '1/b']);
-				return TPromise.join([
+				return Promise.all([
 					testObject.$getChildren('testNodeWithIdTreeProvider', '1/a')
 						.then(children => {
 							const actuals = children.map(e => e.handle);
 							assert.deepEqual(actuals, ['1/aa', '1/ab']);
-							return TPromise.join([
+							return Promise.all([
 								testObject.$getChildren('testNodeWithIdTreeProvider', '1/aa').then(children => assert.equal(children.length, 0)),
 								testObject.$getChildren('testNodeWithIdTreeProvider', '1/ab').then(children => assert.equal(children.length, 0))
 							]);
@@ -128,10 +126,55 @@ suite('ExtHostTreeView', function () {
 						.then(children => {
 							const actuals = children.map(e => e.handle);
 							assert.deepEqual(actuals, ['1/ba', '1/bb']);
-							return TPromise.join([
+							return Promise.all([
 								testObject.$getChildren('testNodeWithIdTreeProvider', '1/ba').then(children => assert.equal(children.length, 0)),
 								testObject.$getChildren('testNodeWithIdTreeProvider', '1/bb').then(children => assert.equal(children.length, 0))
 							]);
+						})
+				]);
+			});
+	});
+
+	test('construct highlights tree', () => {
+		return testObject.$getChildren('testNodeWithHighlightsTreeProvider')
+			.then(elements => {
+				assert.deepEqual(removeUnsetKeys(elements), [{
+					handle: '1/a',
+					label: { label: 'a', highlights: [[0, 2], [3, 5]] },
+					collapsibleState: TreeItemCollapsibleState.Collapsed
+				}, {
+					handle: '1/b',
+					label: { label: 'b', highlights: [[0, 2], [3, 5]] },
+					collapsibleState: TreeItemCollapsibleState.Collapsed
+				}]);
+				return Promise.all([
+					testObject.$getChildren('testNodeWithHighlightsTreeProvider', '1/a')
+						.then(children => {
+							assert.deepEqual(removeUnsetKeys(children), [{
+								handle: '1/aa',
+								parentHandle: '1/a',
+								label: { label: 'aa', highlights: [[0, 2], [3, 5]] },
+								collapsibleState: TreeItemCollapsibleState.None
+							}, {
+								handle: '1/ab',
+								parentHandle: '1/a',
+								label: { label: 'ab', highlights: [[0, 2], [3, 5]] },
+								collapsibleState: TreeItemCollapsibleState.None
+							}]);
+						}),
+					testObject.$getChildren('testNodeWithHighlightsTreeProvider', '1/b')
+						.then(children => {
+							assert.deepEqual(removeUnsetKeys(children), [{
+								handle: '1/ba',
+								parentHandle: '1/b',
+								label: { label: 'ba', highlights: [[0, 2], [3, 5]] },
+								collapsibleState: TreeItemCollapsibleState.None
+							}, {
+								handle: '1/bb',
+								parentHandle: '1/b',
+								label: { label: 'bb', highlights: [[0, 2], [3, 5]] },
+								collapsibleState: TreeItemCollapsibleState.None
+							}]);
 						})
 				]);
 			});
@@ -167,12 +210,12 @@ suite('ExtHostTreeView', function () {
 	});
 
 	test('refresh a parent node', () => {
-		return new TPromise((c, e) => {
+		return new Promise((c, e) => {
 			target.onRefresh.event(actuals => {
 				assert.deepEqual(['0/0:b'], Object.keys(actuals));
 				assert.deepEqual(removeUnsetKeys(actuals['0/0:b']), {
 					handle: '0/0:b',
-					label: 'b',
+					label: { label: 'b' },
 					collapsibleState: TreeItemCollapsibleState.Collapsed
 				});
 				c(null);
@@ -187,7 +230,7 @@ suite('ExtHostTreeView', function () {
 			assert.deepEqual(removeUnsetKeys(actuals['0/0:b/0:bb']), {
 				handle: '0/0:b/0:bb',
 				parentHandle: '0/0:b',
-				label: 'bb',
+				label: { label: 'bb' },
 				collapsibleState: TreeItemCollapsibleState.None
 			});
 			done();
@@ -200,13 +243,13 @@ suite('ExtHostTreeView', function () {
 			assert.deepEqual(['0/0:b', '0/0:a/0:aa'], Object.keys(actuals));
 			assert.deepEqual(removeUnsetKeys(actuals['0/0:b']), {
 				handle: '0/0:b',
-				label: 'b',
+				label: { label: 'b' },
 				collapsibleState: TreeItemCollapsibleState.Collapsed
 			});
 			assert.deepEqual(removeUnsetKeys(actuals['0/0:a/0:aa']), {
 				handle: '0/0:a/0:aa',
 				parentHandle: '0/0:a',
-				label: 'aa',
+				label: { label: 'aa' },
 				collapsibleState: TreeItemCollapsibleState.None
 			});
 			done();
@@ -221,13 +264,13 @@ suite('ExtHostTreeView', function () {
 			assert.deepEqual(['0/0:a/0:aa', '0/0:b'], Object.keys(actuals));
 			assert.deepEqual(removeUnsetKeys(actuals['0/0:b']), {
 				handle: '0/0:b',
-				label: 'b',
+				label: { label: 'b' },
 				collapsibleState: TreeItemCollapsibleState.Collapsed
 			});
 			assert.deepEqual(removeUnsetKeys(actuals['0/0:a/0:aa']), {
 				handle: '0/0:a/0:aa',
 				parentHandle: '0/0:a',
-				label: 'aa',
+				label: { label: 'aa' },
 				collapsibleState: TreeItemCollapsibleState.None
 			});
 			done();
@@ -243,7 +286,7 @@ suite('ExtHostTreeView', function () {
 			assert.deepEqual(['0/0:a'], Object.keys(actuals));
 			assert.deepEqual(removeUnsetKeys(actuals['0/0:a']), {
 				handle: '0/0:aa',
-				label: 'aa',
+				label: { label: 'aa' },
 				collapsibleState: TreeItemCollapsibleState.Collapsed
 			});
 			done();
@@ -414,7 +457,7 @@ suite('ExtHostTreeView', function () {
 			.then(() => {
 				assert.ok(revealTarget.calledOnce);
 				assert.deepEqual('treeDataProvider', revealTarget.args[0][0]);
-				assert.deepEqual({ handle: '0/0:a', label: 'a', collapsibleState: TreeItemCollapsibleState.Collapsed }, removeUnsetKeys(revealTarget.args[0][1]));
+				assert.deepEqual({ handle: '0/0:a', label: { label: 'a' }, collapsibleState: TreeItemCollapsibleState.Collapsed }, removeUnsetKeys(revealTarget.args[0][1]));
 				assert.deepEqual([], revealTarget.args[0][2]);
 				assert.deepEqual({ select: true, focus: false }, revealTarget.args[0][3]);
 			});
@@ -427,8 +470,8 @@ suite('ExtHostTreeView', function () {
 			.then(() => {
 				assert.ok(revealTarget.calledOnce);
 				assert.deepEqual('treeDataProvider', revealTarget.args[0][0]);
-				assert.deepEqual({ handle: '0/0:a/0:aa', label: 'aa', collapsibleState: TreeItemCollapsibleState.None, parentHandle: '0/0:a' }, removeUnsetKeys(revealTarget.args[0][1]));
-				assert.deepEqual([{ handle: '0/0:a', label: 'a', collapsibleState: TreeItemCollapsibleState.Collapsed }], (<Array<any>>revealTarget.args[0][2]).map(arg => removeUnsetKeys(arg)));
+				assert.deepEqual({ handle: '0/0:a/0:aa', label: { label: 'aa' }, collapsibleState: TreeItemCollapsibleState.None, parentHandle: '0/0:a' }, removeUnsetKeys(revealTarget.args[0][1]));
+				assert.deepEqual([{ handle: '0/0:a', label: { label: 'a' }, collapsibleState: TreeItemCollapsibleState.Collapsed }], (<Array<any>>revealTarget.args[0][2]).map(arg => removeUnsetKeys(arg)));
 				assert.deepEqual({ select: true, focus: false }, revealTarget.args[0][3]);
 			});
 	});
@@ -442,8 +485,8 @@ suite('ExtHostTreeView', function () {
 				.then(() => {
 					assert.ok(revealTarget.calledOnce);
 					assert.deepEqual('treeDataProvider', revealTarget.args[0][0]);
-					assert.deepEqual({ handle: '0/0:a/0:aa', label: 'aa', collapsibleState: TreeItemCollapsibleState.None, parentHandle: '0/0:a' }, removeUnsetKeys(revealTarget.args[0][1]));
-					assert.deepEqual([{ handle: '0/0:a', label: 'a', collapsibleState: TreeItemCollapsibleState.Collapsed }], (<Array<any>>revealTarget.args[0][2]).map(arg => removeUnsetKeys(arg)));
+					assert.deepEqual({ handle: '0/0:a/0:aa', label: { label: 'aa' }, collapsibleState: TreeItemCollapsibleState.None, parentHandle: '0/0:a' }, removeUnsetKeys(revealTarget.args[0][1]));
+					assert.deepEqual([{ handle: '0/0:a', label: { label: 'a' }, collapsibleState: TreeItemCollapsibleState.Collapsed }], (<Array<any>>revealTarget.args[0][2]).map(arg => removeUnsetKeys(arg)));
 					assert.deepEqual({ select: true, focus: false }, revealTarget.args[0][3]);
 				}));
 	});
@@ -462,10 +505,10 @@ suite('ExtHostTreeView', function () {
 			.then(() => {
 				assert.ok(revealTarget.calledOnce);
 				assert.deepEqual('treeDataProvider', revealTarget.args[0][0]);
-				assert.deepEqual({ handle: '0/0:b/0:ba/0:bac', label: 'bac', collapsibleState: TreeItemCollapsibleState.None, parentHandle: '0/0:b/0:ba' }, removeUnsetKeys(revealTarget.args[0][1]));
+				assert.deepEqual({ handle: '0/0:b/0:ba/0:bac', label: { label: 'bac' }, collapsibleState: TreeItemCollapsibleState.None, parentHandle: '0/0:b/0:ba' }, removeUnsetKeys(revealTarget.args[0][1]));
 				assert.deepEqual([
-					{ handle: '0/0:b', label: 'b', collapsibleState: TreeItemCollapsibleState.Collapsed },
-					{ handle: '0/0:b/0:ba', label: 'ba', collapsibleState: TreeItemCollapsibleState.Collapsed, parentHandle: '0/0:b' }
+					{ handle: '0/0:b', label: { label: 'b' }, collapsibleState: TreeItemCollapsibleState.Collapsed },
+					{ handle: '0/0:b/0:ba', label: { label: 'ba' }, collapsibleState: TreeItemCollapsibleState.Collapsed, parentHandle: '0/0:b' }
 				], (<Array<any>>revealTarget.args[0][2]).map(arg => removeUnsetKeys(arg)));
 				assert.deepEqual({ select: false, focus: false }, revealTarget.args[0][3]);
 			});
@@ -492,8 +535,8 @@ suite('ExtHostTreeView', function () {
 					.then(() => {
 						assert.ok(revealTarget.calledOnce);
 						assert.deepEqual('treeDataProvider', revealTarget.args[0][0]);
-						assert.deepEqual({ handle: '0/0:a/0:ac', label: 'ac', collapsibleState: TreeItemCollapsibleState.None, parentHandle: '0/0:a' }, removeUnsetKeys(revealTarget.args[0][1]));
-						assert.deepEqual([{ handle: '0/0:a', label: 'a', collapsibleState: TreeItemCollapsibleState.Collapsed }], (<Array<any>>revealTarget.args[0][2]).map(arg => removeUnsetKeys(arg)));
+						assert.deepEqual({ handle: '0/0:a/0:ac', label: { label: 'ac' }, collapsibleState: TreeItemCollapsibleState.None, parentHandle: '0/0:a' }, removeUnsetKeys(revealTarget.args[0][1]));
+						assert.deepEqual([{ handle: '0/0:a', label: { label: 'a' }, collapsibleState: TreeItemCollapsibleState.Collapsed }], (<Array<any>>revealTarget.args[0][2]).map(arg => removeUnsetKeys(arg)));
 						assert.deepEqual({ select: true, focus: false }, revealTarget.args[0][3]);
 					});
 			});
@@ -531,8 +574,8 @@ suite('ExtHostTreeView', function () {
 					.then(() => {
 						assert.ok(revealTarget.calledOnce);
 						assert.deepEqual('treeDataProvider', revealTarget.args[0][0]);
-						assert.deepEqual({ handle: '0/0:b/0:bc', label: 'bc', collapsibleState: TreeItemCollapsibleState.None, parentHandle: '0/0:b' }, removeUnsetKeys(revealTarget.args[0][1]));
-						assert.deepEqual([{ handle: '0/0:b', label: 'b', collapsibleState: TreeItemCollapsibleState.Collapsed }], (<Array<any>>revealTarget.args[0][2]).map(arg => removeUnsetKeys(arg)));
+						assert.deepEqual({ handle: '0/0:b/0:bc', label: { label: 'bc' }, collapsibleState: TreeItemCollapsibleState.None, parentHandle: '0/0:b' }, removeUnsetKeys(revealTarget.args[0][1]));
+						assert.deepEqual([{ handle: '0/0:b', label: { label: 'b' }, collapsibleState: TreeItemCollapsibleState.Collapsed }], (<Array<any>>revealTarget.args[0][2]).map(arg => removeUnsetKeys(arg)));
 						assert.deepEqual({ select: true, focus: false }, revealTarget.args[0][3]);
 					});
 			});
@@ -545,13 +588,20 @@ suite('ExtHostTreeView', function () {
 	}
 
 	function removeUnsetKeys(obj: any): any {
-		const result = {};
-		for (const key of Object.keys(obj)) {
-			if (obj[key] !== void 0) {
-				result[key] = obj[key];
-			}
+		if (Array.isArray(obj)) {
+			return obj.map(o => removeUnsetKeys(o));
 		}
-		return result;
+
+		if (typeof obj === 'object') {
+			const result = {};
+			for (const key of Object.keys(obj)) {
+				if (obj[key] !== void 0) {
+					result[key] = removeUnsetKeys(obj[key]);
+				}
+			}
+			return result;
+		}
+		return obj;
 	}
 
 	function aNodeTreeDataProvider(): TreeDataProvider<{ key: string }> {
@@ -596,6 +646,20 @@ suite('ExtHostTreeView', function () {
 		};
 	}
 
+	function aNodeWithHighlightedLabelTreeDataProvider(): TreeDataProvider<{ key: string }> {
+		return {
+			getChildren: (element: { key: string }): { key: string }[] => {
+				return getChildren(element ? element.key : undefined).map(key => getNode(key));
+			},
+			getTreeItem: (element: { key: string }): TreeItem => {
+				const treeItem = getTreeItem(element.key, [[0, 2], [3, 5]]);
+				treeItem.id = element.key;
+				return treeItem;
+			},
+			onDidChangeTreeData: onDidChangeTreeNodeWithId.event
+		};
+	}
+
 	function getTreeElement(element): any {
 		let parent = tree;
 		for (let i = 0; i < element.length; i++) {
@@ -618,10 +682,10 @@ suite('ExtHostTreeView', function () {
 		return [];
 	}
 
-	function getTreeItem(key: string): TreeItem {
+	function getTreeItem(key: string, highlights?: [number, number][]): TreeItem {
 		const treeElement = getTreeElement(key);
 		return {
-			label: labels[key] || key,
+			label: <any>{ label: labels[key] || key, highlights },
 			collapsibleState: treeElement && Object.keys(treeElement).length ? TreeItemCollapsibleState.Collapsed : TreeItemCollapsibleState.None
 		};
 	}

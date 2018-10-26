@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import 'vs/css!./media/quickopen';
 import { TPromise, ValueCallback } from 'vs/base/common/winjs.base';
 import * as nls from 'vs/nls';
@@ -23,13 +21,13 @@ import { ITextFileService, AutoSaveMode } from 'vs/workbench/services/textfile/c
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IResourceInput } from 'vs/platform/editor/common/editor';
 import { IModeService } from 'vs/editor/common/services/modeService';
-import { getIconClasses } from 'vs/workbench/browser/labels';
+import { getIconClasses } from 'vs/editor/common/services/getIconClasses';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { EditorInput, IWorkbenchEditorConfiguration, IEditorInput } from 'vs/workbench/common/editor';
 import { Component } from 'vs/workbench/common/component';
 import { Event, Emitter } from 'vs/base/common/event';
 import { IPartService } from 'vs/workbench/services/part/common/partService';
-import { QuickOpenHandler, QuickOpenHandlerDescriptor, IQuickOpenRegistry, Extensions, EditorQuickOpenEntry, CLOSE_ON_FOCUS_LOST_CONFIG, SEARCH_EDITOR_HISTORY, PREFILL_CONFIG } from 'vs/workbench/browser/quickopen';
+import { QuickOpenHandler, QuickOpenHandlerDescriptor, IQuickOpenRegistry, Extensions, EditorQuickOpenEntry, CLOSE_ON_FOCUS_LOST_CONFIG, SEARCH_EDITOR_HISTORY, PRESERVE_INPUT_CONFIG } from 'vs/workbench/browser/quickopen';
 import * as errors from 'vs/base/common/errors';
 import { IQuickOpenService, IShowOptions } from 'vs/platform/quickOpen/common/quickOpen';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -52,6 +50,7 @@ import { ILabelService } from 'vs/platform/label/common/label';
 import { timeout } from 'vs/base/common/async';
 import { IQuickInputService, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
 import { CancellationTokenSource, CancellationToken } from 'vs/base/common/cancellation';
+import { IStorageService } from 'vs/platform/storage/common/storage';
 
 const HELP_PREFIX = '?';
 
@@ -68,7 +67,7 @@ export class QuickOpenController extends Component implements IQuickOpenService 
 	private readonly _onHide: Emitter<void> = this._register(new Emitter<void>());
 	get onHide(): Event<void> { return this._onHide.event; }
 
-	private prefill: boolean;
+	private preserveInput: boolean;
 	private isQuickOpen: boolean;
 	private lastInputValue: string;
 	private lastSubmittedInputValue: string;
@@ -93,9 +92,10 @@ export class QuickOpenController extends Component implements IQuickOpenService 
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@IPartService private partService: IPartService,
 		@IEnvironmentService private environmentService: IEnvironmentService,
-		@IThemeService themeService: IThemeService
+		@IThemeService themeService: IThemeService,
+		@IStorageService storageService: IStorageService
 	) {
-		super(QuickOpenController.ID, themeService);
+		super(QuickOpenController.ID, themeService, storageService);
 
 		this.editorHistoryHandler = this.instantiationService.createInstance(EditorHistoryHandler);
 
@@ -116,7 +116,7 @@ export class QuickOpenController extends Component implements IQuickOpenService 
 		} else {
 			this.closeOnFocusLost = this.configurationService.getValue(CLOSE_ON_FOCUS_LOST_CONFIG);
 		}
-		this.prefill = this.configurationService.getValue(PREFILL_CONFIG);
+		this.preserveInput = this.configurationService.getValue(PRESERVE_INPUT_CONFIG);
 
 		this.searchInEditorHistory = this.configurationService.getValue(SEARCH_EDITOR_HISTORY);
 	}
@@ -221,7 +221,7 @@ export class QuickOpenController extends Component implements IQuickOpenService 
 				// Update context
 				const registry = Registry.as<IQuickOpenRegistry>(Extensions.Quickopen);
 				this.setQuickOpenContextKey(registry.getDefaultQuickOpenHandler().contextKey);
-				if (this.prefill) {
+				if (this.preserveInput) {
 					this.quickOpenWidget.show(editorHistory, { value: this.lastSubmittedInputValue, quickNavigateConfiguration, autoFocus, inputSelection });
 				} else {
 					this.quickOpenWidget.show(editorHistory, { quickNavigateConfiguration, autoFocus, inputSelection });

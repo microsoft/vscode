@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import 'vs/css!./quickInput';
 import * as dom from 'vs/base/browser/dom';
 import { InputBox, IRange, MessageType } from 'vs/base/browser/ui/inputbox/inputBox';
@@ -48,7 +46,7 @@ export class QuickInputBox {
 		this.inputBox.value = value;
 	}
 
-	select(range: IRange = null): void {
+	select(range: IRange | null = null): void {
 		this.inputBox.select(range);
 	}
 

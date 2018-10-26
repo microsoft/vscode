@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import * as assert from 'assert';
 import * as lifecycle from 'vs/base/common/lifecycle';
 import * as _ from 'vs/base/parts/tree/browser/tree';

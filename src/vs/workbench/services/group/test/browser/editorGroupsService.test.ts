@@ -3,11 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import * as assert from 'assert';
 import { EditorPart } from 'vs/workbench/browser/parts/editor/editorPart';
-import { workbenchInstantiationService } from 'vs/workbench/test/workbenchTestServices';
+import { workbenchInstantiationService, TestStorageService } from 'vs/workbench/test/workbenchTestServices';
 import { GroupDirection, GroupsOrder, MergeGroupMode, GroupOrientation, GroupChangeKind, EditorsOrder, GroupLocation } from 'vs/workbench/services/group/common/editorGroupsService';
 import { Dimension } from 'vs/base/browser/dom';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -26,7 +24,7 @@ import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 
 export class TestEditorControl extends BaseEditor {
 
-	constructor(@ITelemetryService telemetryService: ITelemetryService) { super('MyFileEditorForEditorGroupService', NullTelemetryService, new TestThemeService()); }
+	constructor(@ITelemetryService telemetryService: ITelemetryService) { super('MyFileEditorForEditorGroupService', NullTelemetryService, new TestThemeService(), new TestStorageService()); }
 
 	getId(): string { return 'MyFileEditorForEditorGroupService'; }
 	layout(): void { }
@@ -337,7 +335,7 @@ suite('Editor groups service', () => {
 		});
 	});
 
-	test('whenRestored', function () {
+	test('whenRestored', () => {
 		const part = createPart();
 
 		return part.whenRestored.then(() => {
@@ -346,7 +344,7 @@ suite('Editor groups service', () => {
 		});
 	});
 
-	test('options', function () {
+	test('options', () => {
 		const part = createPart();
 
 		let oldOptions: IEditorPartOptions;
@@ -582,7 +580,7 @@ suite('Editor groups service', () => {
 		});
 	});
 
-	test('closeAllEditors', function () {
+	test('closeAllEditors', () => {
 		const part = createPart();
 		const group = part.activeGroup;
 		assert.equal(group.isEmpty(), true);
@@ -687,7 +685,7 @@ suite('Editor groups service', () => {
 		});
 	});
 
-	test('replaceEditors', function () {
+	test('replaceEditors', () => {
 		const part = createPart();
 		const group = part.activeGroup;
 		assert.equal(group.isEmpty(), true);

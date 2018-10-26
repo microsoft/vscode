@@ -2,7 +2,6 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { Emitter } from 'vs/base/common/event';
@@ -19,7 +18,7 @@ class DecorationRequestsQueue {
 	private _requests: { [id: number]: DecorationRequest } = Object.create(null);
 	private _resolver: { [id: number]: (data: DecorationData) => any } = Object.create(null);
 
-	private _timer: number;
+	private _timer: any;
 
 	constructor(
 		private _proxy: ExtHostDecorationsShape

@@ -2,15 +2,15 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
 import { ICompletionItem } from 'vs/editor/contrib/suggest/completionModel';
 import { LRUCache, TernarySearchTree } from 'vs/base/common/map';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { ITextModel } from 'vs/editor/common/model';
 import { IPosition } from 'vs/editor/common/core/position';
-import { RunOnceScheduler } from 'vs/base/common/async';
-import { SuggestionKind, suggestionKindFromLegacyString } from 'vs/editor/common/modes';
+import { CompletionItemKind, completionKindFromLegacyString } from 'vs/editor/common/modes';
+import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
+import { Disposable } from 'vs/base/common/lifecycle';
 
 export abstract class Memory {
 
@@ -56,7 +56,7 @@ export class NoMemory extends Memory {
 }
 
 export interface MemItem {
-	type: string | SuggestionKind;
+	type: string | CompletionItemKind;
 	insertText: string;
 	touch: number;
 }
@@ -120,7 +120,7 @@ export class LRUMemory extends Memory {
 		let seq = 0;
 		for (const [key, value] of data) {
 			value.touch = seq;
-			value.type = typeof value.type === 'number' ? value.type : suggestionKindFromLegacyString(value.type);
+			value.type = typeof value.type === 'number' ? value.type : completionKindFromLegacyString(value.type);
 			this._cache.set(key, value);
 		}
 		this._seq = this._cache.size;
@@ -184,7 +184,7 @@ export class PrefixMemory extends Memory {
 		if (data.length > 0) {
 			this._seq = data[0][1].touch + 1;
 			for (const [key, value] of data) {
-				value.type = typeof value.type === 'number' ? value.type : suggestionKindFromLegacyString(value.type);
+				value.type = typeof value.type === 'number' ? value.type : completionKindFromLegacyString(value.type);
 				this._trie.set(key, value);
 			}
 		}
@@ -193,23 +193,25 @@ export class PrefixMemory extends Memory {
 
 export type MemMode = 'first' | 'recentlyUsed' | 'recentlyUsedByPrefix';
 
-export class SuggestMemories {
+export class SuggestMemories extends Disposable {
 
 	private readonly _storagePrefix = 'suggest/memories';
 
 	private _mode: MemMode;
 	private _strategy: Memory;
-	private _persistSoon: RunOnceScheduler;
 
 	constructor(
-		mode: MemMode,
-		@IStorageService private readonly _storageService: IStorageService
+		editor: ICodeEditor,
+		@IStorageService private readonly _storageService: IStorageService,
 	) {
-		this._persistSoon = new RunOnceScheduler(() => this._flush(), 3000);
-		this.setMode(mode);
+		super();
+
+		this._setMode(editor.getConfiguration().contribInfo.suggestSelection);
+		this._register(editor.onDidChangeConfiguration(e => e.contribInfo && this._setMode(editor.getConfiguration().contribInfo.suggestSelection)));
+		this._register(_storageService.onWillSaveState(() => this._saveState()));
 	}
 
-	setMode(mode: MemMode): void {
+	private _setMode(mode: MemMode): void {
 		if (this._mode === mode) {
 			return;
 		}
@@ -228,14 +230,13 @@ export class SuggestMemories {
 
 	memorize(model: ITextModel, pos: IPosition, item: ICompletionItem): void {
 		this._strategy.memorize(model, pos, item);
-		this._persistSoon.schedule();
 	}
 
 	select(model: ITextModel, pos: IPosition, items: ICompletionItem[]): number {
 		return this._strategy.select(model, pos, items);
 	}
 
-	private _flush() {
+	private _saveState() {
 		const raw = JSON.stringify(this._strategy);
 		this._storageService.store(`${this._storagePrefix}/${this._mode}`, raw, StorageScope.WORKSPACE);
 	}

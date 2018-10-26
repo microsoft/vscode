@@ -19,6 +19,7 @@ import { IContextViewService } from 'vs/platform/contextview/browser/contextView
 import { foreground, inputBackground, inputBorder, inputForeground, listActiveSelectionBackground, listActiveSelectionForeground, listHoverBackground, listHoverForeground, listInactiveSelectionBackground, listInactiveSelectionForeground, registerColor, selectBackground, selectBorder, selectForeground, textLinkForeground, textPreformatForeground, editorWidgetBorder } from 'vs/platform/theme/common/colorRegistry';
 import { attachButtonStyler, attachInputBoxStyler } from 'vs/platform/theme/common/styler';
 import { ICssStyleCollector, ITheme, IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
+import { disposableTimeout } from 'vs/base/common/async';
 
 const $ = DOM.$;
 export const settingsHeaderForeground = registerColor('settings.headerForeground', { light: '#444444', dark: '#e7e7e7', hc: '#ffffff' }, localize('headerForeground', "(For settings editor preview) The foreground color for a section header or active title."));
@@ -457,10 +458,11 @@ export class ExcludeSettingWidget extends Disposable {
 		this.listDisposables.push(attachButtonStyler(cancelButton, this.themeService));
 		this.listDisposables.push(cancelButton.onDidClick(() => onSubmit(false)));
 
-		setTimeout(() => {
-			patternInput.focus();
-			patternInput.select();
-		}, 0);
+		this.listDisposables.push(
+			disposableTimeout(() => {
+				patternInput.focus();
+				patternInput.select();
+			}));
 
 		return rowElement;
 	}

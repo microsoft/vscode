@@ -2,8 +2,6 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
-
 import * as assert from 'assert';
 import * as async from 'vs/base/common/async';
 import { isPromiseCanceledError } from 'vs/base/common/errors';
@@ -55,7 +53,7 @@ suite('Async', () => {
 	// Cancelling a sync cancelable promise will fire the cancelled token.
 	// Also, every `then` callback runs in another execution frame.
 	test('CancelablePromise execution order (sync)', function () {
-		const order = [];
+		const order: string[] = [];
 
 		const cancellablePromise = async.createCancelablePromise(token => {
 			order.push('in callback');
@@ -77,12 +75,12 @@ suite('Async', () => {
 
 	// Cancelling an async cancelable promise is just the same as a sync cancellable promise.
 	test('CancelablePromise execution order (async)', function () {
-		const order = [];
+		const order: string[] = [];
 
 		const cancellablePromise = async.createCancelablePromise(token => {
 			order.push('in callback');
 			token.onCancellationRequested(_ => order.push('cancelled'));
-			return new Promise(c => setTimeout(c(1234), 0));
+			return new Promise(c => setTimeout(c.bind(1234), 0));
 		});
 
 		order.push('afterCreate');
@@ -167,7 +165,7 @@ suite('Async', () => {
 		]);
 	});
 
-	test('Throttler', function () {
+	test('Throttler', () => {
 		let count = 0;
 		let factory = () => TPromise.wrap(async.timeout(0)).then(() => ++count);
 
@@ -206,7 +204,7 @@ suite('Async', () => {
 		return TPromise.join(promises);
 	});
 
-	test('Delayer', function () {
+	test('Delayer', () => {
 		let count = 0;
 		let factory = () => {
 			return TPromise.as(++count);
@@ -357,7 +355,7 @@ suite('Async', () => {
 		return p;
 	});
 
-	test('Sequence', function () {
+	test('Sequence', () => {
 		let factoryFactory = (n: number) => () => {
 			return TPromise.as(n);
 		};

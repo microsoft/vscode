@@ -13,6 +13,7 @@ steps:
     yarn
     yarn gulp -- hygiene
     yarn monaco-compile-check
+    yarn strict-null-check
     VSCODE_MIXIN_PASSWORD="$(VSCODE_MIXIN_PASSWORD)" yarn gulp -- mixin
     node build/tfs/common/installDistro.js
     node build/lib/builtInExtensions.js

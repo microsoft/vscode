@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import { URI } from 'vs/base/common/uri';
 import { ViewletRegistry, Extensions as ViewletExtensions, ViewletDescriptor, ShowViewletAction } from 'vs/workbench/browser/viewlet';
 import * as nls from 'vs/nls';
@@ -240,13 +238,15 @@ configurationRegistry.registerConfiguration({
 			'type': 'string',
 			'enum': [
 				'\n',
-				'\r\n'
+				'\r\n',
+				'auto'
 			],
 			'enumDescriptions': [
 				nls.localize('eol.LF', "LF"),
-				nls.localize('eol.CRLF', "CRLF")
+				nls.localize('eol.CRLF', "CRLF"),
+				nls.localize('eol.auto', "Uses operating system specific end of line character.")
 			],
-			'default': (platform.isLinux || platform.isMacintosh) ? '\n' : '\r\n',
+			'default': 'auto',
 			'description': nls.localize('eol', "The default end of line character."),
 			'scope': ConfigurationScope.RESOURCE
 		},

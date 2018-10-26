@@ -7,7 +7,6 @@ import * as platform from 'vs/base/common/platform';
 import * as terminalEnvironment from 'vs/workbench/parts/terminal/node/terminalEnvironment';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { ProcessState, ITerminalProcessManager, IShellLaunchConfig, ITerminalConfigHelper } from 'vs/workbench/parts/terminal/common/terminal';
-import { TPromise } from 'vs/base/common/winjs.base';
 import { ILogService } from 'vs/platform/log/common/log';
 import { Emitter, Event } from 'vs/base/common/event';
 import { IHistoryService } from 'vs/workbench/services/history/common/history';
@@ -32,7 +31,7 @@ const LAUNCHING_DURATION = 500;
  */
 export class TerminalProcessManager implements ITerminalProcessManager {
 	public processState: ProcessState = ProcessState.UNINITIALIZED;
-	public ptyProcessReady: TPromise<void>;
+	public ptyProcessReady: Promise<void>;
 	public shellProcessId: number;
 	public initialCwd: string;
 
@@ -58,7 +57,7 @@ export class TerminalProcessManager implements ITerminalProcessManager {
 		@IWorkspaceContextService private readonly _workspaceContextService: IWorkspaceContextService,
 		@IConfigurationResolverService private readonly _configurationResolverService: IConfigurationResolverService
 	) {
-		this.ptyProcessReady = new TPromise<void>(c => {
+		this.ptyProcessReady = new Promise<void>(c => {
 			this.onProcessReady(() => {
 				this._logService.debug(`Terminal process ready (shellProcessId: ${this.shellProcessId})`);
 				c(void 0);
@@ -117,7 +116,7 @@ export class TerminalProcessManager implements ITerminalProcessManager {
 
 			// Adding other env keys necessary to create the process
 			const locale = this._configHelper.config.setLocaleVariables ? platform.locale : undefined;
-			terminalEnvironment.addTerminalEnvironmentKeys(env, platform.isWindows, locale);
+			terminalEnvironment.addTerminalEnvironmentKeys(env, locale);
 
 			this._logService.debug(`Terminal process launching`, shellLaunchConfig, this.initialCwd, cols, rows, env);
 			this._process = new TerminalProcess(shellLaunchConfig, this.initialCwd, cols, rows, env);

@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import { RawContextKey, IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
@@ -17,7 +15,7 @@ export class WordContextKey {
 	private readonly _confListener: IDisposable;
 
 	private _enabled: boolean;
-	private _selectionListener: IDisposable;
+	private _selectionListener?: IDisposable;
 
 	constructor(
 		private readonly _editor: ICodeEditor,
@@ -43,11 +41,11 @@ export class WordContextKey {
 
 		if (this._enabled) {
 			const checkForWordEnd = () => {
-				const model = this._editor.getModel();
-				if (!model) {
+				if (!this._editor.hasModel()) {
 					this._ckAtEnd.set(false);
 					return;
 				}
+				const model = this._editor.getModel();
 				const selection = this._editor.getSelection();
 				const word = model.getWordAtPosition(selection.getStartPosition());
 				if (!word) {

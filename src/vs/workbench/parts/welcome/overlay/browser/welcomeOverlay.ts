@@ -2,7 +2,6 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
 import 'vs/css!./welcomeOverlay';
 import * as dom from 'vs/base/browser/dom';
@@ -177,6 +176,7 @@ class WelcomeOverlay {
 		this._overlay.style.top = `${offset}px`;
 		this._overlay.style.height = `calc(100% - ${offset}px)`;
 		this._overlay.style.display = 'none';
+		this._overlay.tabIndex = -1;
 
 		this._toDispose.push(dom.addStandardDisposableListener(this._overlay, 'click', () => this.hide()));
 		this.commandService.onWillExecuteCommand(() => this.hide());
@@ -210,6 +210,7 @@ class WelcomeOverlay {
 			dom.addClass(workbench, 'blur-background');
 			this._overlayVisible.set(true);
 			this.updateProblemsKey();
+			this._overlay.focus();
 		}
 	}
 

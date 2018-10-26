@@ -2,7 +2,6 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
 import * as nls from 'vs/nls';
 import { assign, deepClone } from 'vs/base/common/objects';
@@ -44,7 +43,7 @@ configurationRegistry.registerConfiguration({
 
 export interface ICrashReporterService {
 	_serviceBrand: any;
-	getChildProcessStartOptions(processName: string): Electron.CrashReporterStartOptions; // TODO
+	getChildProcessStartOptions(processName: string): Electron.CrashReporterStartOptions | undefined; // TODO
 }
 
 export const NullCrashReporterService: ICrashReporterService = {
@@ -101,19 +100,17 @@ export class CrashReporterService implements ICrashReporterService {
 	}
 
 	private getSubmitURL(): string {
-		let submitURL: string;
 		if (isWindows) {
-			submitURL = product.hockeyApp[`win32-${process.arch}`];
+			return product.hockeyApp[`win32-${process.arch}`];
 		} else if (isMacintosh) {
-			submitURL = product.hockeyApp.darwin;
+			return product.hockeyApp.darwin;
 		} else if (isLinux) {
-			submitURL = product.hockeyApp[`linux-${process.arch}`];
+			return product.hockeyApp[`linux-${process.arch}`];
 		}
-
-		return submitURL;
+		throw new Error('Unknown platform');
 	}
 
-	getChildProcessStartOptions(name: string): Electron.CrashReporterStartOptions {
+	getChildProcessStartOptions(name: string): Electron.CrashReporterStartOptions | undefined {
 
 		// Experimental crash reporting support for child processes on Mac only for now
 		if (this.isEnabled && isMacintosh) {

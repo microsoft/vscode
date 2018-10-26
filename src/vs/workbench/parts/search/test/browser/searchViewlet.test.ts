@@ -2,14 +2,12 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
-
 import * as assert from 'assert';
 import { URI as uri } from 'vs/base/common/uri';
 import { Match, FileMatch, SearchResult } from 'vs/workbench/parts/search/common/searchModel';
 import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
 import { SearchDataSource, SearchSorter } from 'vs/workbench/parts/search/browser/searchResultsView';
-import { IFileMatch, TextSearchResult, OneLineRange, ITextSearchResult } from 'vs/platform/search/common/search';
+import { IFileMatch, TextSearchResult, OneLineRange, ITextSearchResult, QueryType } from 'vs/platform/search/common/search';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
 import { ModelServiceImpl } from 'vs/editor/common/services/modelServiceImpl';
@@ -30,9 +28,15 @@ suite('Search - Viewlet', () => {
 	test('Data Source', function () {
 		let ds = instantiation.createInstance(SearchDataSource);
 		let result: SearchResult = instantiation.createInstance(SearchResult, null);
-		result.query = { type: 1, folderQueries: [{ folder: uri.parse('file://c:/') }] };
+		result.query = {
+			type: QueryType.Text,
+			contentPattern: { pattern: 'foo' },
+			folderQueries: [{
+				folder: uri.parse('file://c:/')
+			}]
+		};
 
-		const range = {
+		const ranges = {
 			startLineNumber: 1,
 			startColumn: 0,
 			endLineNumber: 1,
@@ -43,9 +47,9 @@ suite('Search - Viewlet', () => {
 			matches: [{
 				preview: {
 					text: 'bar',
-					match: range
+					matches: ranges
 				},
-				range
+				ranges
 			}]
 		}]);
 
@@ -53,8 +57,8 @@ suite('Search - Viewlet', () => {
 		let lineMatch = fileMatch.matches()[0];
 
 		assert.equal(ds.getId(null, result), 'root');
-		assert.equal(ds.getId(null, fileMatch), 'file:///c:/foo');
-		assert.equal(ds.getId(null, lineMatch), 'file:///c:/foo>[2,1 -> 2,2]b');
+		assert.equal(ds.getId(null, fileMatch), 'file:///c%3A/foo');
+		assert.equal(ds.getId(null, lineMatch), 'file:///c%3A/foo>[2,1 -> 2,2]b');
 
 		assert(!ds.hasChildren(null, 'foo'));
 		assert(ds.hasChildren(null, result));
@@ -62,7 +66,7 @@ suite('Search - Viewlet', () => {
 		assert(!ds.hasChildren(null, lineMatch));
 	});
 
-	test('Sorter', function () {
+	test('Sorter', () => {
 		let fileMatch1 = aFileMatch('C:\\foo');
 		let fileMatch2 = aFileMatch('C:\\with\\path');
 		let fileMatch3 = aFileMatch('C:\\with\\path\\foo');

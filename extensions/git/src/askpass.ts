@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import { Disposable, window, InputBoxOptions } from 'vscode';
 import { denodeify } from './util';
 import * as path from 'path';

@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import { compareAnything } from 'vs/base/common/comparers';
 import { matchesPrefix, IMatch, createMatches, matchesCamelCase, isUpper } from 'vs/base/common/filters';
 import { nativeSep } from 'vs/base/common/paths';
@@ -63,8 +61,8 @@ export function score(target: string, query: string, queryLower: string, fuzzy: 
 }
 
 function doScore(query: string, queryLower: string, queryLength: number, target: string, targetLower: string, targetLength: number): [number, number[]] {
-	const scores = [];
-	const matches = [];
+	const scores: number[] = [];
+	const matches: number[] = [];
 
 	//
 	// Build Scorer Matrix:
@@ -123,7 +121,7 @@ function doScore(query: string, queryLower: string, queryLength: number, target:
 	}
 
 	// Restore Positions (starting from bottom right of matrix)
-	const positions = [];
+	const positions: number[] = [];
 	let queryIndex = queryLength - 1;
 	let targetIndex = targetLength - 1;
 	while (queryIndex >= 0 && targetIndex >= 0) {

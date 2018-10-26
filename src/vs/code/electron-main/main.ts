@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import 'vs/code/code.main';
 import { app, dialog } from 'electron';
 import { assign } from 'vs/base/common/objects';
@@ -98,10 +96,10 @@ async function cleanupOlderLogs(environmentService: EnvironmentService): Promise
 
 function createPaths(environmentService: IEnvironmentService): TPromise<any> {
 	const paths = [
-		environmentService.appSettingsHome,
 		environmentService.extensionsPath,
 		environmentService.nodeCachedDataDir,
-		environmentService.logsPath
+		environmentService.logsPath,
+		environmentService.workspaceStorageHome
 	];
 
 	return TPromise.join(paths.map(p => p && mkdirp(p))) as TPromise<any>;
@@ -187,7 +185,7 @@ function setupIPC(accessor: ServicesAccessor): Thenable<Server> {
 					// Show a warning dialog after some timeout if it takes long to talk to the other instance
 					// Skip this if we are running with --wait where it is expected that we wait for a while.
 					// Also skip when gathering diagnostics (--status) which can take a longer time.
-					let startupWarningDialogHandle: number;
+					let startupWarningDialogHandle: any;
 					if (!environmentService.wait && !environmentService.status && !environmentService.args['upload-logs']) {
 						startupWarningDialogHandle = setTimeout(() => {
 							showStartupWarningDialog(

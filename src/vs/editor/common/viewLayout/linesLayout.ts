@@ -2,10 +2,9 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
-import { WhitespaceComputer, IEditorWhitespace } from 'vs/editor/common/viewLayout/whitespaceComputer';
 import { IPartialViewLinesViewportData } from 'vs/editor/common/viewLayout/viewLinesViewportData';
+import { IEditorWhitespace, WhitespaceComputer } from 'vs/editor/common/viewLayout/whitespaceComputer';
 import { IViewWhitespaceViewportData } from 'vs/editor/common/viewModel/viewModel';
 
 /**
@@ -402,7 +401,7 @@ export class LinesLayout {
 	 * @param verticalOffset The vertical offset.
 	 * @return Precisely the whitespace that is layouted at `verticaloffset` or null.
 	 */
-	public getWhitespaceAtVerticalOffset(verticalOffset: number): IViewWhitespaceViewportData {
+	public getWhitespaceAtVerticalOffset(verticalOffset: number): IViewWhitespaceViewportData | null {
 		verticalOffset = verticalOffset | 0;
 
 		let candidateIndex = this.getWhitespaceIndexAtOrAfterVerticallOffset(verticalOffset);

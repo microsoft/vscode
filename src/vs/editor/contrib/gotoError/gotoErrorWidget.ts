@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import 'vs/css!./gotoErrorWidget';
 import * as nls from 'vs/nls';
 import * as dom from 'vs/base/browser/dom';
@@ -79,7 +77,7 @@ class MessageWidget {
 		dispose(this._disposables);
 	}
 
-	update({ source, message, relatedInformation }: IMarker): void {
+	update({ source, message, relatedInformation, code }: IMarker): void {
 
 		if (source) {
 			this._lines = 0;
@@ -89,6 +87,9 @@ class MessageWidget {
 			for (let i = 0; i < lines.length; i++) {
 				let line = lines[i];
 				this._lines += 1;
+				if (code && i === lines.length - 1) {
+					line += ` [${code}]`;
+				}
 				this._longestLineLength = Math.max(line.length, this._longestLineLength);
 				if (i === 0) {
 					message = `[${source}] ${line}`;
@@ -98,6 +99,9 @@ class MessageWidget {
 			}
 		} else {
 			this._lines = 1;
+			if (code) {
+				message += ` [${code}]`;
+			}
 			this._longestLineLength = message.length;
 		}
 
@@ -182,7 +186,7 @@ export class MarkerNavigationWidget extends ZoneWidget {
 		} else if (this._severity === MarkerSeverity.Info) {
 			colorId = editorMarkerNavigationInfo;
 		}
-		let frameColor = theme.getColor(colorId);
+		const frameColor = theme.getColor(colorId);
 		this.style({
 			arrowColor: frameColor,
 			frameColor: frameColor

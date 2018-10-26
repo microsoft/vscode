@@ -3,12 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import * as nls from 'vs/nls';
 import { URI } from 'vs/base/common/uri';
-import { EditorInput } from 'vs/workbench/common/editor';
 import { TPromise } from 'vs/base/common/winjs.base';
+import { EditorInput } from 'vs/workbench/common/editor';
 
 export class RuntimeExtensionsInput extends EditorInput {
 

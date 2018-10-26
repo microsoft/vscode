@@ -3,10 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import { IDownloadService } from 'vs/platform/download/common/download';
-import { TPromise } from 'vs/base/common/winjs.base';
 import { URI } from 'vs/base/common/uri';
 import { Schemas } from 'vs/base/common/network';
 import { copy } from 'vs/base/node/pfs';
@@ -22,7 +19,7 @@ export class DownloadService implements IDownloadService {
 		@IRequestService private requestService: IRequestService
 	) { }
 
-	download(uri: URI, target: string, cancellationToken: CancellationToken = CancellationToken.None): TPromise<void> {
+	download(uri: URI, target: string, cancellationToken: CancellationToken = CancellationToken.None): Promise<void> {
 		if (uri.scheme === Schemas.file) {
 			return copy(uri.fsPath, target);
 		}
@@ -33,7 +30,7 @@ export class DownloadService implements IDownloadService {
 					return download(target, context);
 				}
 				return asText(context)
-					.then(message => TPromise.wrapError(new Error(`Expected 200, got back ${context.res.statusCode} instead.\n\n${message}`)));
+					.then(message => Promise.reject(new Error(`Expected 200, got back ${context.res.statusCode} instead.\n\n${message}`)));
 			});
 	}
 }

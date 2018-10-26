@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import { TPromise } from 'vs/base/common/winjs.base';
 import { isArray } from 'vs/base/common/types';
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
@@ -23,8 +21,8 @@ export interface IPager<T> {
 
 interface IPage<T> {
 	isResolved: boolean;
-	promise: Thenable<void>;
-	cts: CancellationTokenSource;
+	promise: Thenable<void> | null;
+	cts: CancellationTokenSource | null;
 	promiseIndexes: Set<number>;
 	elements: T[];
 }
@@ -54,7 +52,9 @@ export function singlePagePager<T>(elements: T[]): IPager<T> {
 		firstPage: elements,
 		total: elements.length,
 		pageSize: elements.length,
-		getPage: null
+		getPage: (pageIndex: number, cancellationToken: CancellationToken): Thenable<T[]> => {
+			return Promise.resolve(elements);
+		}
 	};
 }
 

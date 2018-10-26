@@ -2,10 +2,8 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
 import { URI, UriComponents } from 'vs/base/common/uri';
-import { TPromise } from 'vs/base/common/winjs.base';
 import { Event, Emitter, once } from 'vs/base/common/event';
 import { debounce } from 'vs/base/common/decorators';
 import { dispose, IDisposable } from 'vs/base/common/lifecycle';
@@ -198,6 +196,18 @@ export class ExtHostSCMInputBox implements vscode.SourceControlInputBox {
 
 		this._validateInput = fn;
 		this._proxy.$setValidationProviderIsEnabled(this._sourceControlHandle, !!fn);
+	}
+
+	private _visible: boolean = true;
+
+	get visible(): boolean {
+		return this._visible;
+	}
+
+	set visible(visible: boolean | undefined) {
+		visible = !!visible;
+		this._visible = visible;
+		this._proxy.$setInputBoxVisibility(this._sourceControlHandle, visible);
 	}
 
 	constructor(private _extension: IExtensionDescription, private _proxy: MainThreadSCMShape, private _sourceControlHandle: number) {
@@ -605,23 +615,23 @@ export class ExtHostSCM implements ExtHostSCMShape {
 		const sourceControl = this._sourceControls.get(sourceControlHandle);
 
 		if (!sourceControl || !sourceControl.quickDiffProvider) {
-			return TPromise.as(null);
+			return Promise.resolve(null);
 		}
 
 		return asThenable(() => sourceControl.quickDiffProvider.provideOriginalResource(uri, token));
 	}
 
-	$onInputBoxValueChange(sourceControlHandle: number, value: string): TPromise<void> {
+	$onInputBoxValueChange(sourceControlHandle: number, value: string): Promise<void> {
 		this.logService.trace('ExtHostSCM#$onInputBoxValueChange', sourceControlHandle);
 
 		const sourceControl = this._sourceControls.get(sourceControlHandle);
 
 		if (!sourceControl) {
-			return TPromise.as(null);
+			return Promise.resolve(null);
 		}
 
 		sourceControl.inputBox.$onInputBoxValueChange(value);
-		return TPromise.as(null);
+		return Promise.resolve(null);
 	}
 
 	$executeResourceCommand(sourceControlHandle: number, groupHandle: number, handle: number): Thenable<void> {
@@ -630,13 +640,13 @@ export class ExtHostSCM implements ExtHostSCMShape {
 		const sourceControl = this._sourceControls.get(sourceControlHandle);
 
 		if (!sourceControl) {
-			return TPromise.as(null);
+			return Promise.resolve(null);
 		}
 
 		const group = sourceControl.getResourceGroup(groupHandle);
 
 		if (!group) {
-			return TPromise.as(null);
+			return Promise.resolve(null);
 		}
 
 		return group.$executeResourceCommand(handle);
@@ -648,19 +658,19 @@ export class ExtHostSCM implements ExtHostSCMShape {
 		const sourceControl = this._sourceControls.get(sourceControlHandle);
 
 		if (!sourceControl) {
-			return TPromise.as(undefined);
+			return Promise.resolve(undefined);
 		}
 
 		if (!sourceControl.inputBox.validateInput) {
-			return TPromise.as(undefined);
+			return Promise.resolve(undefined);
 		}
 
 		return asThenable(() => sourceControl.inputBox.validateInput(value, cursorPosition)).then(result => {
 			if (!result) {
-				return TPromise.as(undefined);
+				return Promise.resolve(undefined);
 			}
 
-			return TPromise.as<[string, number]>([result.message, result.type]);
+			return Promise.resolve<[string, number]>([result.message, result.type]);
 		});
 	}
 
@@ -698,6 +708,6 @@ export class ExtHostSCM implements ExtHostSCMShape {
 		});
 
 		this._selectedSourceControlHandles = set;
-		return TPromise.as(null);
+		return Promise.resolve(null);
 	}
 }

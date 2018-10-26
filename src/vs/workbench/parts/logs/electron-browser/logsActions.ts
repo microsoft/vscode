@@ -60,7 +60,7 @@ export class SetLogLevelAction extends Action {
 		});
 	}
 
-	private getDescription(level: LogLevel, current: LogLevel): string {
+	private getDescription(level: LogLevel, current: LogLevel): string | undefined {
 		if (DEFAULT_LOG_LEVEL === level && current === level) {
 			return nls.localize('default and current', "Default & Current");
 		}

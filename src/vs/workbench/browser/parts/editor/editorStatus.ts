@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import 'vs/css!./media/editorstatus';
 import * as nls from 'vs/nls';
 import { TPromise } from 'vs/base/common/winjs.base';
@@ -51,7 +49,7 @@ import { ICodeEditor, isCodeEditor, isDiffEditor, getCodeEditor } from 'vs/edito
 import { Schemas } from 'vs/base/common/network';
 import { IPreferencesService } from 'vs/workbench/services/preferences/common/preferences';
 import { IQuickInputService, IQuickPickItem, QuickPickInput } from 'vs/platform/quickinput/common/quickInput';
-import { getIconClasses } from 'vs/workbench/browser/labels';
+import { getIconClasses } from 'vs/editor/common/services/getIconClasses';
 import { timeout } from 'vs/base/common/async';
 import { INotificationHandle, INotificationService, Severity } from 'vs/platform/notification/common/notification';
 import { once } from 'vs/base/common/event';
@@ -514,7 +512,8 @@ export class EditorStatus implements IStatusbarItem {
 					run: () => {
 						this.configurationService.updateValue('editor.accessibilitySupport', 'off', ConfigurationTarget.USER);
 					}
-				}]
+				}],
+				{ sticky: true }
 			);
 
 			once(this.screenReaderNotification.onDidClose)(() => {
@@ -620,6 +619,10 @@ export class EditorStatus implements IStatusbarItem {
 			binaryEditors.forEach(editor => {
 				this.activeEditorListeners.push(editor.onMetadataChanged(metadata => {
 					this.onMetadataChange(activeControl);
+				}));
+
+				this.activeEditorListeners.push(editor.onDidOpenInPlace(() => {
+					this.updateStatusBar();
 				}));
 			});
 		}
@@ -974,7 +977,7 @@ export class ChangeModeAction extends Action {
 			}
 
 			// Find mode
-			let mode: TPromise<IMode>;
+			let mode: Promise<IMode>;
 			if (pick === autoDetectMode) {
 				mode = this.modeService.getOrCreateModeByFilepathOrFirstLine(toResource(activeEditor, { supportSideBySide: true }).fsPath, textModel.getLineContent(1));
 			} else {

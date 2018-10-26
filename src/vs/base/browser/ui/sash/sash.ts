@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import 'vs/css!./sash';
 import { IDisposable, dispose, Disposable } from 'vs/base/common/lifecycle';
 import { isIPad } from 'vs/base/browser/browser';
@@ -393,6 +391,6 @@ export class Sash extends Disposable {
 			this.el.parentElement.removeChild(this.el);
 		}
 
-		this.el = null;
+		this.el = null!; // StrictNullOverride: nulling out ok in dispose
 	}
 }

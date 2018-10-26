@@ -2,8 +2,6 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
-
 
 import { IDisposable, combinedDisposable, Disposable } from 'vs/base/common/lifecycle';
 import { Event, Emitter } from 'vs/base/common/event';
@@ -18,7 +16,7 @@ export interface IAction extends IDisposable {
 	id: string;
 	label: string;
 	tooltip: string;
-	class: string;
+	class: string | undefined;
 	enabled: boolean;
 	checked: boolean;
 	radio: boolean;
@@ -58,11 +56,11 @@ export class Action implements IAction {
 	protected _id: string;
 	protected _label: string;
 	protected _tooltip: string;
-	protected _cssClass: string;
+	protected _cssClass: string | undefined;
 	protected _enabled: boolean;
 	protected _checked: boolean;
 	protected _radio: boolean;
-	protected _actionCallback: (event?: any) => Thenable<any>;
+	protected _actionCallback?: (event?: any) => Thenable<any>;
 
 	constructor(id: string, label: string = '', cssClass: string = '', enabled: boolean = true, actionCallback?: (event?: any) => Thenable<any>) {
 		this._id = id;
@@ -106,15 +104,15 @@ export class Action implements IAction {
 		}
 	}
 
-	get class(): string {
+	get class(): string | undefined {
 		return this._cssClass;
 	}
 
-	set class(value: string) {
+	set class(value: string | undefined) {
 		this._setClass(value);
 	}
 
-	protected _setClass(value: string): void {
+	protected _setClass(value: string | undefined): void {
 		if (this._cssClass !== value) {
 			this._cssClass = value;
 			this._onDidChange.fire({ class: value });
@@ -166,8 +164,8 @@ export class Action implements IAction {
 		}
 	}
 
-	run(event?: any, data?: ITelemetryData): Thenable<any> {
-		if (this._actionCallback !== void 0) {
+	run(event?: any, _data?: ITelemetryData): Thenable<any> {
+		if (this._actionCallback) {
 			return this._actionCallback(event);
 		}
 

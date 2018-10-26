@@ -2,11 +2,10 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
+import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { WorkspaceEdit } from 'vs/editor/common/modes';
-import { ICodeEditor } from '../editorBrowser';
+import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IProgressRunner } from 'vs/platform/progress/common/progress';
 
 export const IBulkEditService = createDecorator<IBulkEditService>('IWorkspaceEditService');

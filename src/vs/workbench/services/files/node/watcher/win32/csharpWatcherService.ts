@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import * as cp from 'child_process';
 
 import { FileChangeType } from 'vs/platform/files/common/files';
@@ -125,7 +123,7 @@ export class OutOfProcessWin32FolderWatcher {
 	public dispose(): void {
 		if (this.handle) {
 			this.handle.kill();
-			this.handle = null;
+			this.handle = null!; // StrictNullOverride: nulling out ok in dispose
 		}
 	}
 }

@@ -72,6 +72,7 @@ interface RequestItem {
 	readonly request: Proto.Request;
 	readonly expectsResponse: boolean;
 	readonly isAsync: boolean;
+	readonly lowPriority?: boolean;
 }
 
 class RequestQueue {
@@ -83,6 +84,19 @@ class RequestQueue {
 	}
 
 	public push(item: RequestItem): void {
+		// insert before existing lowPriority requestItems in the queue.
+		if (!item.lowPriority && this.length) {
+			for (let i = this.length - 1; i > -1; i--) {
+				if (!this.queue[i].lowPriority) {
+					this.queue.splice(i + 1, 0, item);
+					return;
+				}
+			}
+			//if all of the items are lowPriority insert at top
+			this.queue.unshift(item);
+			return;
+		}
+		//if none is low priority just push to end
 		this.queue.push(item);
 	}
 
@@ -381,12 +395,13 @@ export class TypeScriptServer extends Disposable {
 		}
 	}
 
-	public executeImpl(command: string, args: any, executeInfo: { isAsync: boolean, token?: vscode.CancellationToken, expectsResult: boolean }): Promise<any> {
+	public executeImpl(command: string, args: any, executeInfo: { isAsync: boolean, token?: vscode.CancellationToken, expectsResult: boolean, lowPriority?: boolean }): Promise<any> {
 		const request = this._requestQueue.createRequest(command, args);
 		const requestInfo: RequestItem = {
 			request: request,
 			expectsResponse: executeInfo.expectsResult,
-			isAsync: executeInfo.isAsync
+			isAsync: executeInfo.isAsync,
+			lowPriority: executeInfo.lowPriority
 		};
 		let result: Promise<any>;
 		if (executeInfo.expectsResult) {

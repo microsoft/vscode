@@ -2,7 +2,6 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
 import * as arrays from 'vs/base/common/arrays';
 import { IDisposable, Disposable } from 'vs/base/common/lifecycle';
@@ -29,7 +28,7 @@ interface TouchData {
 }
 
 export interface GestureEvent extends MouseEvent {
-	initialTarget: EventTarget;
+	initialTarget: EventTarget | undefined;
 	translationX: number;
 	translationY: number;
 	pageX: number;
@@ -72,7 +71,7 @@ export class Gesture extends Disposable {
 
 	private dispatched: boolean;
 	private targets: HTMLElement[];
-	private handle: IDisposable;
+	private handle: IDisposable | null;
 
 	private activeTouches: { [id: number]: TouchData; };
 

@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import { onUnexpectedError } from 'vs/base/common/errors';
 import * as marked from 'vs/base/common/marked/marked';
 import { OS } from 'vs/base/common/platform';

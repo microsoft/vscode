@@ -2,19 +2,17 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
+import * as dom from 'vs/base/browser/dom';
+import { IDisposable, dispose as disposeAll } from 'vs/base/common/lifecycle';
 import * as strings from 'vs/base/common/strings';
 import { URI } from 'vs/base/common/uri';
-import * as dom from 'vs/base/browser/dom';
-import { IDecorationRenderOptions, IThemeDecorationRenderOptions, IContentDecorationRenderOptions, isThemeColor } from 'vs/editor/common/editorCommon';
-import { IModelDecorationOptions, IModelDecorationOverviewRulerOptions, OverviewRulerLane, TrackedRangeStickiness } from 'vs/editor/common/model';
-import { AbstractCodeEditorService } from 'vs/editor/browser/services/abstractCodeEditorService';
-import { IDisposable, dispose as disposeAll } from 'vs/base/common/lifecycle';
-import { IThemeService, ITheme, ThemeColor } from 'vs/platform/theme/common/themeService';
-import { IResourceInput } from 'vs/platform/editor/common/editor';
-import { TPromise } from 'vs/base/common/winjs.base';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
+import { AbstractCodeEditorService } from 'vs/editor/browser/services/abstractCodeEditorService';
+import { IContentDecorationRenderOptions, IDecorationRenderOptions, IThemeDecorationRenderOptions, isThemeColor } from 'vs/editor/common/editorCommon';
+import { IModelDecorationOptions, IModelDecorationOverviewRulerOptions, OverviewRulerLane, TrackedRangeStickiness } from 'vs/editor/common/model';
+import { IResourceInput } from 'vs/platform/editor/common/editor';
+import { ITheme, IThemeService, ThemeColor } from 'vs/platform/theme/common/themeService';
 
 export abstract class CodeEditorServiceImpl extends AbstractCodeEditorService {
 
@@ -68,8 +66,8 @@ export abstract class CodeEditorServiceImpl extends AbstractCodeEditorService {
 		return provider.getOptions(this, writable);
 	}
 
-	abstract getActiveCodeEditor(): ICodeEditor;
-	abstract openCodeEditor(input: IResourceInput, source: ICodeEditor, sideBySide?: boolean): TPromise<ICodeEditor>;
+	abstract getActiveCodeEditor(): ICodeEditor | null;
+	abstract openCodeEditor(input: IResourceInput, source: ICodeEditor | null, sideBySide?: boolean): Thenable<ICodeEditor | null>;
 }
 
 interface IModelDecorationOptionsProvider extends IDisposable {
@@ -81,9 +79,9 @@ class DecorationSubTypeOptionsProvider implements IModelDecorationOptionsProvide
 
 	public refCount: number;
 
-	private _parentTypeKey: string;
-	private _beforeContentRules: DecorationCSSRules;
-	private _afterContentRules: DecorationCSSRules;
+	private _parentTypeKey: string | undefined;
+	private _beforeContentRules: DecorationCSSRules | null;
+	private _afterContentRules: DecorationCSSRules | null;
 
 	constructor(themeService: IThemeService, providerArgs: ProviderArguments) {
 		this._parentTypeKey = providerArgs.parentTypeKey;
@@ -129,15 +127,15 @@ class DecorationTypeOptionsProvider implements IModelDecorationOptionsProvider {
 	private _disposables: IDisposable[];
 	public refCount: number;
 
-	public className: string;
+	public className: string | undefined;
 	public inlineClassName: string;
 	public inlineClassNameAffectsLetterSpacing: boolean;
-	public beforeContentClassName: string;
-	public afterContentClassName: string;
-	public glyphMarginClassName: string;
+	public beforeContentClassName: string | undefined;
+	public afterContentClassName: string | undefined;
+	public glyphMarginClassName: string | undefined;
 	public isWholeLine: boolean;
 	public overviewRuler: IModelDecorationOverviewRulerOptions;
-	public stickiness: TrackedRangeStickiness;
+	public stickiness: TrackedRangeStickiness | undefined;
 
 	constructor(themeService: IThemeService, providerArgs: ProviderArguments) {
 		this.refCount = 0;
@@ -252,7 +250,7 @@ class DecorationCSSRules {
 	private _hasContent: boolean;
 	private _hasLetterSpacing: boolean;
 	private _ruleType: ModelDecorationCSSRuleType;
-	private _themeListener: IDisposable;
+	private _themeListener: IDisposable | null;
 	private _providerArgs: ProviderArguments;
 	private _usesThemeColors: boolean;
 
@@ -280,6 +278,8 @@ class DecorationCSSRules {
 				this._removeCSS();
 				this._buildCSS();
 			});
+		} else {
+			this._themeListener = null;
 		}
 	}
 
@@ -363,7 +363,7 @@ class DecorationCSSRules {
 	/**
 	 * Build the CSS for decorations styled via `className`.
 	 */
-	private getCSSTextForModelDecorationClassName(opts: IThemeDecorationRenderOptions): string {
+	private getCSSTextForModelDecorationClassName(opts: IThemeDecorationRenderOptions | undefined): string {
 		if (!opts) {
 			return '';
 		}
@@ -377,7 +377,7 @@ class DecorationCSSRules {
 	/**
 	 * Build the CSS for decorations styled via `inlineClassName`.
 	 */
-	private getCSSTextForModelDecorationInlineClassName(opts: IThemeDecorationRenderOptions): string {
+	private getCSSTextForModelDecorationInlineClassName(opts: IThemeDecorationRenderOptions | undefined): string {
 		if (!opts) {
 			return '';
 		}
@@ -392,7 +392,7 @@ class DecorationCSSRules {
 	/**
 	 * Build the CSS for decorations styled before or after content.
 	 */
-	private getCSSTextForModelDecorationContentClassName(opts: IContentDecorationRenderOptions): string {
+	private getCSSTextForModelDecorationContentClassName(opts: IContentDecorationRenderOptions | undefined): string {
 		if (!opts) {
 			return '';
 		}
@@ -408,7 +408,7 @@ class DecorationCSSRules {
 				}
 			}
 			if (typeof opts.contentText === 'string') {
-				const truncated = opts.contentText.match(/^.*$/m)[0]; // only take first line
+				const truncated = opts.contentText.match(/^.*$/m)![0]; // only take first line
 				const escaped = truncated.replace(/['\\]/g, '\\$&');
 
 				cssTextArr.push(strings.format(_CSS_MAP.contentText, escaped));
@@ -425,11 +425,11 @@ class DecorationCSSRules {
 	/**
 	 * Build the CSS for decorations styled via `glpyhMarginClassName`.
 	 */
-	private getCSSTextForModelDecorationGlyphMarginClassName(opts: IThemeDecorationRenderOptions): string {
+	private getCSSTextForModelDecorationGlyphMarginClassName(opts: IThemeDecorationRenderOptions | undefined): string {
 		if (!opts) {
 			return '';
 		}
-		let cssTextArr = [];
+		let cssTextArr: string[] = [];
 
 		if (typeof opts.gutterIconPath !== 'undefined') {
 			if (typeof opts.gutterIconPath === 'string') {
@@ -491,7 +491,7 @@ class CSSNameHelper {
 		return 'ced-' + key + '-' + type;
 	}
 
-	public static getSelector(key: string, parentKey: string, ruleType: ModelDecorationCSSRuleType): string {
+	public static getSelector(key: string, parentKey: string | undefined, ruleType: ModelDecorationCSSRuleType): string {
 		let selector = '.monaco-editor .' + this.getClassName(key, ruleType);
 		if (parentKey) {
 			selector = selector + '.' + this.getClassName(parentKey, ruleType);

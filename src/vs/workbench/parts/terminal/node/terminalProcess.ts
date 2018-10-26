@@ -14,7 +14,7 @@ import { IShellLaunchConfig } from 'vs/workbench/parts/terminal/common/terminal'
 
 export class TerminalProcess implements ITerminalChildProcess, IDisposable {
 	private _exitCode: number;
-	private _closeTimeout: number;
+	private _closeTimeout: any;
 	private _ptyProcess: pty.IPty;
 	private _currentTitle: string = '';
 

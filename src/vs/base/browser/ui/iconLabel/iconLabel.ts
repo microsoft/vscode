@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import 'vs/css!./iconlabel';
 import * as dom from 'vs/base/browser/dom';
 import { HighlightedLabel } from 'vs/base/browser/ui/highlightedlabel/highlightedLabel';
@@ -23,6 +21,7 @@ export interface IIconLabelValueOptions {
 	extraClasses?: string[];
 	italic?: boolean;
 	matches?: IMatch[];
+	labelEscapeNewLines?: boolean;
 	descriptionMatches?: IMatch[];
 }
 
@@ -138,7 +137,7 @@ export class IconLabel extends Disposable {
 		this.domNode.title = options && options.title ? options.title : '';
 
 		if (this.labelNode instanceof HighlightedLabel) {
-			this.labelNode.set(label || '', options ? options.matches : void 0);
+			this.labelNode.set(label || '', options ? options.matches : void 0, void 0, options && options.labelEscapeNewLines);
 		} else {
 			this.labelNode.textContent = label || '';
 		}

@@ -2,18 +2,17 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
 import * as nls from 'vs/nls';
-import { KeyCode, KeyMod, KeyChord } from 'vs/base/common/keyCodes';
+import { KeyChord, KeyCode, KeyMod } from 'vs/base/common/keyCodes';
+import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
+import { EditorAction, IActionOptions, ServicesAccessor, registerEditorAction } from 'vs/editor/browser/editorExtensions';
 import { ICommand } from 'vs/editor/common/editorCommon';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
-import { registerEditorAction, IActionOptions, EditorAction, ServicesAccessor } from 'vs/editor/browser/editorExtensions';
-import { BlockCommentCommand } from './blockCommentCommand';
-import { LineCommentCommand, Type } from './lineCommentCommand';
-import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
+import { BlockCommentCommand } from 'vs/editor/contrib/comment/blockCommentCommand';
+import { LineCommentCommand, Type } from 'vs/editor/contrib/comment/lineCommentCommand';
 import { MenuId } from 'vs/platform/actions/common/actions';
+import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 
 abstract class CommentLineAction extends EditorAction {
 
@@ -25,11 +24,11 @@ abstract class CommentLineAction extends EditorAction {
 	}
 
 	public run(accessor: ServicesAccessor, editor: ICodeEditor): void {
-		let model = editor.getModel();
-		if (!model) {
+		if (!editor.hasModel()) {
 			return;
 		}
 
+		let model = editor.getModel();
 		let commands: ICommand[] = [];
 		let selections = editor.getSelections();
 		let opts = model.getOptions();
@@ -123,9 +122,12 @@ class BlockCommentAction extends EditorAction {
 	}
 
 	public run(accessor: ServicesAccessor, editor: ICodeEditor): void {
+		if (!editor.hasModel()) {
+			return;
+		}
+
 		let commands: ICommand[] = [];
 		let selections = editor.getSelections();
-
 		for (let i = 0; i < selections.length; i++) {
 			commands.push(new BlockCommentCommand(selections[i]));
 		}

@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import 'vs/css!vs/editor/contrib/documentSymbols/media/symbol-icons';
 import { TPromise } from 'vs/base/common/winjs.base';
 import * as nls from 'vs/nls';
@@ -119,8 +117,8 @@ class OutlineModel extends QuickOpenModel {
 		// Mark all type groups
 		const visibleResults = <SymbolEntry[]>this.getEntries(true);
 		if (visibleResults.length > 0 && searchValue.indexOf(SCOPE_PREFIX) === 0) {
-			let currentType: SymbolKind = null;
-			let currentResult: SymbolEntry = null;
+			let currentType: SymbolKind | null = null;
+			let currentResult: SymbolEntry | null = null;
 			let typeCounter = 0;
 
 			for (let i = 0; i < visibleResults.length; i++) {

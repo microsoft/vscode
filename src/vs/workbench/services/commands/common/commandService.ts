@@ -2,7 +2,6 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ICommandService, ICommandEvent, CommandsRegistry } from 'vs/platform/commands/common/commands';
@@ -36,17 +35,17 @@ export class CommandService extends Disposable implements ICommandService {
 		// we don't wait for it when the extension
 		// host didn't yet start and the command is already registered
 
-		const activation = Promise.resolve(this._extensionService.activateByEvent(`onCommand:${id}`));
+		const activation: Thenable<any> = this._extensionService.activateByEvent(`onCommand:${id}`);
 		const commandIsRegistered = !!CommandsRegistry.getCommand(id);
 
 		if (!this._extensionHostIsReady && commandIsRegistered) {
 			return this._tryExecuteCommand(id, args);
 		} else {
-			let waitFor: Promise<any> = activation;
+			let waitFor = activation;
 			if (!commandIsRegistered) {
 				waitFor = Promise.all([activation, this._extensionService.activateByEvent(`*`)]);
 			}
-			return waitFor.then(_ => this._tryExecuteCommand(id, args));
+			return (waitFor as Promise<any>).then(_ => this._tryExecuteCommand(id, args));
 		}
 	}
 

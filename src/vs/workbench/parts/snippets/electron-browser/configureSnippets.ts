@@ -2,7 +2,6 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
 import * as nls from 'vs/nls';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
@@ -20,6 +19,7 @@ import { IQuickPickItem, IQuickInputService, QuickPickInput } from 'vs/platform/
 import { SnippetSource } from 'vs/workbench/parts/snippets/electron-browser/snippetsFile';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IFileService } from 'vs/platform/files/common/files';
+import { INotificationService } from 'vs/platform/notification/common/notification';
 
 const id = 'workbench.action.openSnippets';
 
@@ -118,7 +118,7 @@ async function computePicks(snippetService: ISnippetsService, envService: IEnvir
 	return { existing, future };
 }
 
-async function createGlobalSnippetFile(defaultPath: URI, windowService: IWindowService, fileService: IFileService, opener: IOpenerService) {
+async function createGlobalSnippetFile(defaultPath: URI, windowService: IWindowService, notificationService: INotificationService, fileService: IFileService, opener: IOpenerService) {
 
 	await fileService.createFolder(defaultPath);
 	await timeout(100); // ensure quick pick closes...
@@ -132,6 +132,7 @@ async function createGlobalSnippetFile(defaultPath: URI, windowService: IWindowS
 	}
 	const resource = URI.file(path);
 	if (dirname(resource.fsPath) !== defaultPath.fsPath) {
+		notificationService.error(nls.localize('badPath', "Snippets must be inside this folder: '{0}'. ", defaultPath.fsPath));
 		return undefined;
 	}
 
@@ -191,6 +192,7 @@ CommandsRegistry.registerCommand(id, async accessor => {
 	const windowService = accessor.get(IWindowService);
 	const modeService = accessor.get(IModeService);
 	const envService = accessor.get(IEnvironmentService);
+	const notificationService = accessor.get(INotificationService);
 	const workspaceService = accessor.get(IWorkspaceContextService);
 	const fileService = accessor.get(IFileService);
 
@@ -222,7 +224,7 @@ CommandsRegistry.registerCommand(id, async accessor => {
 	});
 
 	if (globalSnippetPicks.indexOf(pick as GlobalSnippetPick) >= 0) {
-		return createGlobalSnippetFile((pick as GlobalSnippetPick).uri, windowService, fileService, opener);
+		return createGlobalSnippetFile((pick as GlobalSnippetPick).uri, windowService, notificationService, fileService, opener);
 	} else if (ISnippetPick.is(pick)) {
 		if (pick.hint) {
 			await createLanguageSnippetFile(pick, fileService);

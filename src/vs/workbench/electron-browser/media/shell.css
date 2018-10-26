@@ -139,7 +139,7 @@
 }
 
 .monaco-shell .mac select:focus {
-	border: none; /* outline is a square, but border has a radius, so we avoid this glitch when focused (https://github.com/Microsoft/vscode/issues/26045) */
+	border-color: transparent; /* outline is a square, but border has a radius, so we avoid this glitch when focused (https://github.com/Microsoft/vscode/issues/26045) */
 }
 
 .monaco-shell .monaco-tree.focused .monaco-tree-row.focused [tabindex="0"]:focus {

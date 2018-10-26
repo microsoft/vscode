@@ -2,7 +2,6 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
 import { IContextKeyService, RawContextKey, IContextKeyServiceTarget } from 'vs/platform/contextkey/common/contextkey';
 
@@ -14,7 +13,7 @@ export function createWidgetScopedContextKeyService(contextKeyService: IContextK
 	return contextKeyService.createScoped(widget.target);
 }
 
-export function getContextScopedWidget<T extends IContextScopedWidget>(contextKeyService: IContextKeyService, contextKey: string): T {
+export function getContextScopedWidget<T extends IContextScopedWidget>(contextKeyService: IContextKeyService, contextKey: string): T | undefined {
 	return contextKeyService.getContext(document.activeElement).getValue(contextKey);
 }
 

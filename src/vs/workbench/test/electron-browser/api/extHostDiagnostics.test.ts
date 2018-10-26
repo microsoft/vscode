@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import * as assert from 'assert';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { DiagnosticCollection, ExtHostDiagnostics } from 'vs/workbench/api/node/extHostDiagnostics';
@@ -25,7 +23,7 @@ suite('ExtHostDiagnostics', () => {
 		}
 	}
 
-	test('disposeCheck', function () {
+	test('disposeCheck', () => {
 
 		const collection = new DiagnosticCollection('test', 'test', 100, new DiagnosticsShape(), new Emitter());
 
@@ -400,5 +398,30 @@ suite('ExtHostDiagnostics', () => {
 		assert.equal(ownerHistory.length, 2);
 		assert.equal(ownerHistory[0], 'foo');
 		assert.equal(ownerHistory[1], 'foo0');
+	});
+
+	test('Error updating diagnostics from extension #60394', function () {
+		let callCount = 0;
+		let collection = new DiagnosticCollection('ddd', 'test', 100, new class extends DiagnosticsShape {
+			$changeMany(owner: string, entries: [UriComponents, IMarkerData[]][]) {
+				callCount += 1;
+			}
+		}, new Emitter<any>());
+
+		let array: Diagnostic[] = [];
+		let diag1 = new Diagnostic(new Range(0, 0, 1, 1), 'Foo');
+		let diag2 = new Diagnostic(new Range(0, 0, 1, 1), 'Bar');
+
+		array.push(diag1, diag2);
+
+		collection.set(URI.parse('test:me'), array);
+		assert.equal(callCount, 1);
+
+		collection.set(URI.parse('test:me'), array);
+		assert.equal(callCount, 1); // equal array
+
+		array.push(diag2);
+		collection.set(URI.parse('test:me'), array);
+		assert.equal(callCount, 2); // same but un-equal array
 	});
 });

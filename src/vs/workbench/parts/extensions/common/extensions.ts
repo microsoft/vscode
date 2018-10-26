@@ -6,7 +6,6 @@
 import { IViewlet } from 'vs/workbench/common/viewlet';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { Event } from 'vs/base/common/event';
-import { TPromise } from 'vs/base/common/winjs.base';
 import { IPager } from 'vs/base/common/paging';
 import { IQueryOptions, IExtensionManifest, LocalExtensionType, EnablementState, ILocalExtension, IGalleryExtension } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { IViewContainersRegistry, ViewContainer, Extensions as ViewContainerExtensions } from 'vs/workbench/common/views';
@@ -53,10 +52,10 @@ export interface IExtension {
 	extensionPack: string[];
 	telemetryData: any;
 	preview: boolean;
-	getManifest(token: CancellationToken): TPromise<IExtensionManifest | undefined>;
-	getReadme(token: CancellationToken): TPromise<string>;
+	getManifest(token: CancellationToken): Promise<IExtensionManifest | undefined>;
+	getReadme(token: CancellationToken): Promise<string>;
 	hasReadme(): boolean;
-	getChangelog(token: CancellationToken): TPromise<string>;
+	getChangelog(token: CancellationToken): Promise<string>;
 	hasChangelog(): boolean;
 	local?: ILocalExtension;
 	locals?: ILocalExtension[];
@@ -80,17 +79,17 @@ export interface IExtensionsWorkbenchService {
 	_serviceBrand: any;
 	onChange: Event<IExtension | undefined>;
 	local: IExtension[];
-	queryLocal(): TPromise<IExtension[]>;
-	queryGallery(options?: IQueryOptions): TPromise<IPager<IExtension>>;
+	queryLocal(): Promise<IExtension[]>;
+	queryGallery(options?: IQueryOptions): Promise<IPager<IExtension>>;
 	canInstall(extension: IExtension): boolean;
-	install(vsix: string): TPromise<void>;
-	install(extension: IExtension, promptToInstallDependencies?: boolean): TPromise<void>;
-	uninstall(extension: IExtension): TPromise<void>;
-	reinstall(extension: IExtension): TPromise<void>;
-	setEnablement(extensions: IExtension | IExtension[], enablementState: EnablementState): TPromise<void>;
-	loadDependencies(extension: IExtension, token: CancellationToken): TPromise<IExtensionDependencies>;
-	open(extension: IExtension, sideByside?: boolean): TPromise<any>;
-	checkForUpdates(): TPromise<void>;
+	install(vsix: string): Promise<void>;
+	install(extension: IExtension, promptToInstallDependencies?: boolean): Promise<void>;
+	uninstall(extension: IExtension): Promise<void>;
+	reinstall(extension: IExtension): Promise<void>;
+	setEnablement(extensions: IExtension | IExtension[], enablementState: EnablementState): Promise<void>;
+	loadDependencies(extension: IExtension, token: CancellationToken): Promise<IExtensionDependencies>;
+	open(extension: IExtension, sideByside?: boolean): Promise<any>;
+	checkForUpdates(): Promise<void>;
 	allowedBadgeProviders: string[];
 }
 

@@ -11,6 +11,46 @@ declare module 'vscode' {
 		export function sampleFunction(): Thenable<any>;
 	}
 
+	//#region Joh - https://github.com/Microsoft/vscode/issues/57093
+
+	/**
+	 * An insert text rule defines how the [`insertText`](#CompletionItem.insertText) of a
+	 * completion item should be modified.
+	 */
+	export enum CompletionItemInsertTextRule {
+
+		/**
+		 * Keep whitespace as is. By default, the editor adjusts leading
+		 * whitespace of new lines so that they match the indentation of
+		 * the line for which the item is accepeted.
+		 */
+		KeepWhitespace = 0b01
+	}
+
+	export interface CompletionItem {
+
+		/**
+		 * Rules about how/if the `insertText` should be modified by the
+		 * editor. Can be a bit mask of many rules.
+		 */
+		insertTextRules?: CompletionItemInsertTextRule;
+	}
+
+	//#endregion
+
+	//#region Joh - clipboard https://github.com/Microsoft/vscode/issues/217
+
+	export interface Clipboard {
+		readText(): Thenable<string>;
+		writeText(value: string): Thenable<void>;
+	}
+
+	export namespace env {
+		export const clipboard: Clipboard;
+	}
+
+	//#endregion
+
 	//#region Joh - read/write in chunks
 
 	export interface FileSystemProvider {
@@ -32,6 +72,11 @@ declare module 'vscode' {
 		 * The text pattern to search for.
 		 */
 		pattern: string;
+
+		/**
+		 * Whether or not `pattern` should match multiple lines of text.
+		 */
+		isMultiline?: boolean;
 
 		/**
 		 * Whether or not `pattern` should be interpreted as a regular expression.
@@ -86,6 +131,13 @@ declare module 'vscode' {
 		 * See the vscode setting `"search.followSymlinks"`.
 		 */
 		followSymlinks: boolean;
+
+		/**
+		 * Whether global files that exclude files, like .gitignore, should be respected.
+		 * See the vscode setting `"search.useGlobalIgnoreFiles"`.
+		 */
+		useGlobalIgnoreFiles: boolean;
+
 	}
 
 	/**
@@ -182,8 +234,9 @@ declare module 'vscode' {
 
 		/**
 		 * The Range within `text` corresponding to the text of the match.
+		 * The number of matches must match the TextSearchResult's range property.
 		 */
-		match: Range;
+		matches: Range | Range[];
 	}
 
 	/**
@@ -196,9 +249,9 @@ declare module 'vscode' {
 		uri: Uri;
 
 		/**
-		 * The range of the match within the document.
+		 * The range of the match within the document, or multiple ranges for multiple matches.
 		 */
-		range: Range;
+		ranges: Range | Range[];
 
 		/**
 		 * A preview of the text result.
@@ -290,6 +343,12 @@ declare module 'vscode' {
 		 * See the vscode setting `"search.useIgnoreFiles"`.
 		 */
 		useIgnoreFiles?: boolean;
+
+		/**
+		 * Whether global files that exclude files, like .gitignore, should be respected.
+		 * See the vscode setting `"search.useGlobalIgnoreFiles"`.
+		 */
+		useGlobalIgnoreFiles?: boolean;
 
 		/**
 		 * Whether symlinks should be followed while searching.
@@ -666,6 +725,21 @@ declare module 'vscode' {
 
 	//#endregion
 
+	//#region Joao: SCM Input Box
+
+	/**
+	 * Represents the input box in the Source Control viewlet.
+	 */
+	export interface SourceControlInputBox {
+
+		/**
+		* Whether the input box is visible.
+		*/
+		visible: boolean;
+	}
+
+	//#endregion
+
 	//#region Comments
 	/**
 	 * Comments provider related APIs are still in early stages, they may be changed significantly during our API experiments.
@@ -811,7 +885,7 @@ declare module 'vscode' {
 		replyToCommentThread(document: TextDocument, range: Range, commentThread: CommentThread, text: string, token: CancellationToken): Promise<CommentThread>;
 
 		/**
-		 * Called when a user edits the comment body to the be new text text.
+		 * Called when a user edits the comment body to the be new text.
 		 */
 		editComment?(document: TextDocument, comment: Comment, text: string, token: CancellationToken): Promise<void>;
 
@@ -970,19 +1044,6 @@ declare module 'vscode' {
 
 	export namespace window {
 		/**
-		 * The currently active terminal or `undefined`. The active terminal is the one that
-		 * currently has focus or most recently had focus.
-		 */
-		export const activeTerminal: Terminal | undefined;
-
-		/**
-		 * An [event](#Event) which fires when the [active terminal](#window.activeTerminal)
-		 * has changed. *Note* that the event also fires when the active terminal changes
-		 * to `undefined`.
-		 */
-		export const onDidChangeActiveTerminal: Event<Terminal | undefined>;
-
-		/**
 		 * Create a [TerminalRenderer](#TerminalRenderer).
 		 *
 		 * @param name The name of the terminal renderer, this shows up in the terminal selector.
@@ -1034,12 +1095,9 @@ declare module 'vscode' {
 		TriggerCharacter = 2,
 
 		/**
-		 * Signature help was retriggered.
-		 *
-		 * Retriggers occur when the signature help is already active and can be caused by typing a trigger character
-		 * or by a cursor move.
+		 * Signature help was triggered by the cursor moving or by the document content changing.
 		 */
-		Retrigger = 3,
+		ContentChange = 3,
 	}
 
 	/**
@@ -1055,15 +1113,36 @@ declare module 'vscode' {
 		/**
 		 * Character that caused signature help to be requested.
 		 *
-		 * This is `undefined` for manual triggers or retriggers for a cursor move.
+		 * This is `undefined` when signature help is not triggered by typing, such as when invoking signature help
+		 * or when moving the cursor.
 		 */
 		readonly triggerCharacter?: string;
+
+		/**
+		 * Whether or not signature help was previously showing when triggered.
+		 *
+		 * Retriggers occur when the signature help is already active and can be caused by typing a trigger character
+		 * or by a cursor move.
+		 */
+		readonly isRetrigger: boolean;
 	}
 
 	export interface SignatureHelpProvider {
 		provideSignatureHelp(document: TextDocument, position: Position, token: CancellationToken, context: SignatureHelpContext): ProviderResult<SignatureHelp>;
 	}
 
+	export interface SignatureHelpProviderMetadata {
+		readonly triggerCharacters: ReadonlyArray<string>;
+		readonly retriggerCharacters: ReadonlyArray<string>;
+	}
+
+	namespace languages {
+		export function registerSignatureHelpProvider(
+			selector: DocumentSelector,
+			provider: SignatureHelpProvider,
+			metadata: SignatureHelpProviderMetadata
+		): Disposable;
+	}
 	//#endregion
 
 	//#region Alex - OnEnter enhancement
@@ -1075,13 +1154,48 @@ declare module 'vscode' {
 	}
 	//#endregion
 
-	//#region #59232
+	//#region Tree Item Label Highlights
+	/**
+	 * Label describing the [Tree item](#TreeItem)
+	 */
+	export interface TreeItemLabel {
 
-	export interface QuickPickItem {
 		/**
-		 * Show this item always
+		 * A human-readable string describing the [Tree item](#TreeItem).
 		 */
-		alwaysShow?: boolean;
+		label: string;
+
+		/**
+		 * Ranges in the label to highlight.
+		 */
+		highlights?: [number, number][];
+
+	}
+
+	export class TreeItem2 extends TreeItem {
+		/**
+		 * Label describing this item. When `falsy`, it is derived from [resourceUri](#TreeItem.resourceUri).
+		 */
+		label?: string | TreeItemLabel | /* for compilation */ any;
+
+		/**
+		 * @param label Label describing this item
+		 * @param collapsibleState [TreeItemCollapsibleState](#TreeItemCollapsibleState) of the tree item. Default is [TreeItemCollapsibleState.None](#TreeItemCollapsibleState.None)
+		 */
+		constructor(label: TreeItemLabel, collapsibleState?: TreeItemCollapsibleState);
 	}
 	//#endregion
+
+	//#region Task
+	/**
+	 * Controls how the task is presented in the UI.
+	 */
+	export interface TaskPresentationOptions {
+		/**
+		 * Controls whether the terminal is cleared before executing the task.
+		 */
+		clear?: boolean;
+	}
+	//#endregion
+
 }

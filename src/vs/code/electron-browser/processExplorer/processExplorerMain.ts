@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import 'vs/css!./media/processExplorer';
 import { listProcesses, ProcessItem } from 'vs/base/node/ps';
 import { webFrame, ipcRenderer, clipboard } from 'electron';
@@ -79,6 +77,10 @@ function getProcessIdWithHighestProperty(processList, propertyName: string) {
 
 function updateProcessInfo(processList): void {
 	const target = document.getElementById('process-list');
+	if (!target) {
+		return;
+	}
+
 	const highestCPUProcess = getProcessIdWithHighestProperty(processList, 'cpu');
 	const highestMemoryProcess = getProcessIdWithHighestProperty(processList, 'memory');
 
@@ -129,7 +131,9 @@ function applyStyles(styles: ProcessExplorerStyles): void {
 	}
 
 	styleTag.innerHTML = content.join('\n');
-	document.head.appendChild(styleTag);
+	if (document.head) {
+		document.head.appendChild(styleTag);
+	}
 	document.body.style.color = styles.color;
 }
 

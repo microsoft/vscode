@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import { TPromise } from 'vs/base/common/winjs.base';
 import { Event, buffer } from 'vs/base/common/event';
 import { IChannel } from 'vs/base/parts/ipc/node/ipc';
@@ -75,6 +73,7 @@ export interface IWindowsChannel extends IChannel {
 	call(command: 'openExternal', arg: string): Thenable<boolean>;
 	call(command: 'startCrashReporter', arg: CrashReporterStartOptions): Thenable<void>;
 	call(command: 'openAboutDialog'): Thenable<void>;
+	call(command: 'resolveProxy', arg: [number, string]): Thenable<string | undefined>;
 }
 
 export class WindowsChannel implements IWindowsChannel {
@@ -143,7 +142,7 @@ export class WindowsChannel implements IWindowsChannel {
 			case 'removeFromRecentlyOpened': {
 				let paths: (IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier | URI | string)[] = arg;
 				if (Array.isArray(paths)) {
-					paths = paths.map(path => URI.isUri(path) ? URI.revive(path) : path);
+					paths = paths.map(path => isWorkspaceIdentifier(path) || typeof path === 'string' ? path : URI.revive(path));
 				}
 				return this.service.removeFromRecentlyOpened(paths);
 			}
@@ -180,6 +179,7 @@ export class WindowsChannel implements IWindowsChannel {
 			case 'openExternal': return this.service.openExternal(arg);
 			case 'startCrashReporter': return this.service.startCrashReporter(arg);
 			case 'openAboutDialog': return this.service.openAboutDialog();
+			case 'resolveProxy': return this.service.resolveProxy(arg[0], arg[1]);
 		}
 		return undefined;
 	}
@@ -405,5 +405,9 @@ export class WindowsChannelClient implements IWindowsService {
 
 	openAboutDialog(): TPromise<void> {
 		return TPromise.wrap(this.channel.call('openAboutDialog'));
+	}
+
+	resolveProxy(windowId: number, url: string): Promise<string | undefined> {
+		return Promise.resolve(this.channel.call('resolveProxy', [windowId, url]));
 	}
 }

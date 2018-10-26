@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import 'vs/css!./media/update.contribution';
 import 'vs/platform/update/node/update.config.contribution';
 import * as platform from 'vs/base/common/platform';
