@@ -8,19 +8,20 @@ import * as path from 'path';
 import { getPathFromAmdModule } from 'vs/base/common/amd';
 import { CancelablePromise, createCancelablePromise } from 'vs/base/common/async';
 import { Emitter, Event } from 'vs/base/common/event';
-import { IProgress, ISearchEngineStats, IFileSearchStats } from 'vs/platform/search/common/search';
+import { URI } from 'vs/base/common/uri';
+import { IFileQuery, IFileSearchStats, IFolderQuery, IProgress, ISearchEngineStats, QueryType } from 'vs/platform/search/common/search';
 import { SearchService as RawSearchService } from 'vs/workbench/services/search/node/rawSearchService';
-import { IFolderSearch, IRawFileMatch, IRawSearch, ISearchEngine, ISerializedFileMatch, ISerializedSearchComplete, ISerializedSearchProgressItem, ISerializedSearchSuccess, ISearchEngineSuccess } from 'vs/workbench/services/search/node/search';
+import { IRawFileMatch, ISearchEngine, ISearchEngineSuccess, ISerializedFileMatch, ISerializedSearchComplete, ISerializedSearchProgressItem, ISerializedSearchSuccess } from 'vs/workbench/services/search/node/search';
 import { DiskSearch } from 'vs/workbench/services/search/node/searchService';
 
 const TEST_FOLDER_QUERIES = [
-	{ folder: path.normalize('/some/where') }
+	{ folder: URI.file(path.normalize('/some/where')) }
 ];
 
 const TEST_FIXTURES = path.normalize(getPathFromAmdModule(require, './fixtures'));
-const MULTIROOT_QUERIES: IFolderSearch[] = [
-	{ folder: path.join(TEST_FIXTURES, 'examples') },
-	{ folder: path.join(TEST_FIXTURES, 'more') }
+const MULTIROOT_QUERIES: IFolderQuery[] = [
+	{ folder: URI.file(path.join(TEST_FIXTURES, 'examples')) },
+	{ folder: URI.file(path.join(TEST_FIXTURES, 'more')) }
 ];
 
 const stats: ISearchEngineStats = {
@@ -37,7 +38,7 @@ class TestSearchEngine implements ISearchEngine<IRawFileMatch> {
 
 	private isCanceled = false;
 
-	constructor(private result: () => IRawFileMatch, public config?: IRawSearch) {
+	constructor(private result: () => IRawFileMatch, public config?: IFileQuery) {
 		TestSearchEngine.last = this;
 	}
 
@@ -75,7 +76,8 @@ const testTimeout = 5000;
 
 suite('SearchService', () => {
 
-	const rawSearch: IRawSearch = {
+	const rawSearch: IFileQuery = {
+		type: QueryType.File,
 		folderQueries: TEST_FOLDER_QUERIES,
 		filePattern: 'a'
 	};
@@ -107,7 +109,7 @@ suite('SearchService', () => {
 			}
 		};
 
-		await service.doFileSearch(Engine, rawSearch, cb);
+		await service.doFileSearchWithEngine(Engine, rawSearch, cb, null, 0);
 		return assert.strictEqual(results, 5);
 	});
 
@@ -129,7 +131,7 @@ suite('SearchService', () => {
 			}
 		};
 
-		await service.doFileSearch(Engine, rawSearch, cb, undefined, 10);
+		await service.doFileSearchWithEngine(Engine, rawSearch, cb, undefined, 10);
 		assert.deepStrictEqual(results, [10, 10, 5]);
 	});
 
@@ -140,12 +142,12 @@ suite('SearchService', () => {
 		const Engine = TestSearchEngine.bind(null, () => i-- && rawMatch);
 		const service = new RawSearchService();
 
-		function fileSearch(config: IRawSearch, batchSize: number): Event<ISerializedSearchProgressItem | ISerializedSearchComplete> {
+		function fileSearch(config: IFileQuery, batchSize: number): Event<ISerializedSearchProgressItem | ISerializedSearchComplete> {
 			let promise: CancelablePromise<ISerializedSearchSuccess>;
 
 			const emitter = new Emitter<ISerializedSearchProgressItem | ISerializedSearchComplete>({
 				onFirstListenerAdd: () => {
-					promise = createCancelablePromise(token => service.doFileSearch(Engine, config, p => emitter.fire(p), token, batchSize)
+					promise = createCancelablePromise(token => service.doFileSearchWithEngine(Engine, config, p => emitter.fire(p), token, batchSize)
 						.then(c => emitter.fire(c), err => emitter.fire({ type: 'error', error: err })));
 				},
 				onLastListenerRemove: () => {
@@ -171,7 +173,8 @@ suite('SearchService', () => {
 		this.timeout(testTimeout);
 		const service = new RawSearchService();
 
-		const query: IRawSearch = {
+		const query: IFileQuery = {
+			type: QueryType.File,
 			folderQueries: MULTIROOT_QUERIES,
 			maxResults: 1,
 			includePattern: {
@@ -188,7 +191,8 @@ suite('SearchService', () => {
 		this.timeout(testTimeout);
 		const service = new RawSearchService();
 
-		const query: IRawSearch = {
+		const query: IFileQuery = {
+			type: QueryType.File,
 			folderQueries: MULTIROOT_QUERIES,
 			exists: true,
 			includePattern: {
@@ -223,7 +227,8 @@ suite('SearchService', () => {
 			}
 		};
 
-		await service.doFileSearch(Engine, {
+		await service.doFileSearchWithEngine(Engine, {
+			type: QueryType.File,
 			folderQueries: TEST_FOLDER_QUERIES,
 			filePattern: 'bb',
 			sortByScore: true,
@@ -250,7 +255,8 @@ suite('SearchService', () => {
 				assert.fail(JSON.stringify(value));
 			}
 		};
-		await service.doFileSearch(Engine, {
+		await service.doFileSearchWithEngine(Engine, {
+			type: QueryType.File,
 			folderQueries: TEST_FOLDER_QUERIES,
 			filePattern: 'a',
 			sortByScore: true,
@@ -279,7 +285,8 @@ suite('SearchService', () => {
 				assert.fail(JSON.stringify(value));
 			}
 		};
-		return service.doFileSearch(Engine, {
+		return service.doFileSearchWithEngine(Engine, {
+			type: QueryType.File,
 			folderQueries: TEST_FOLDER_QUERIES,
 			filePattern: 'b',
 			sortByScore: true,
@@ -297,7 +304,8 @@ suite('SearchService', () => {
 				}
 			};
 			try {
-				const complete = await service.doFileSearch(Engine, {
+				const complete = await service.doFileSearchWithEngine(Engine, {
+					type: QueryType.File,
 					folderQueries: TEST_FOLDER_QUERIES,
 					filePattern: 'bc',
 					sortByScore: true,
@@ -324,7 +332,8 @@ suite('SearchService', () => {
 					assert.fail(JSON.stringify(value));
 				}
 			};
-			const complete = await service.doFileSearch(Engine, {
+			const complete = await service.doFileSearchWithEngine(Engine, {
+				type: QueryType.File,
 				folderQueries: TEST_FOLDER_QUERIES,
 				filePattern: 'bc',
 				sortByScore: true,

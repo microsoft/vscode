@@ -4,17 +4,17 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IMarkdownString } from 'vs/base/common/htmlContent';
-import { URI } from 'vs/base/common/uri';
-import { LanguageId, LanguageIdentifier } from 'vs/editor/common/modes';
-import { LineTokens } from 'vs/editor/common/core/lineTokens';
 import { IDisposable } from 'vs/base/common/lifecycle';
-import { Position, IPosition } from 'vs/editor/common/core/position';
-import { Range, IRange } from 'vs/editor/common/core/range';
+import { URI } from 'vs/base/common/uri';
+import { LineTokens } from 'vs/editor/common/core/lineTokens';
+import { IPosition, Position } from 'vs/editor/common/core/position';
+import { IRange, Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
-import { ModelRawContentChangedEvent, IModelContentChangedEvent, IModelDecorationsChangedEvent, IModelLanguageChangedEvent, IModelOptionsChangedEvent, IModelLanguageConfigurationChangedEvent, IModelTokensChangedEvent, IModelContentChange } from 'vs/editor/common/model/textModelEvents';
-import { ThemeColor } from 'vs/platform/theme/common/themeService';
-import { ITextSnapshot } from 'vs/platform/files/common/files';
+import { IModelContentChange, IModelContentChangedEvent, IModelDecorationsChangedEvent, IModelLanguageChangedEvent, IModelLanguageConfigurationChangedEvent, IModelOptionsChangedEvent, IModelTokensChangedEvent, ModelRawContentChangedEvent } from 'vs/editor/common/model/textModelEvents';
 import { SearchData } from 'vs/editor/common/model/textModelSearch';
+import { LanguageId, LanguageIdentifier } from 'vs/editor/common/modes';
+import { ITextSnapshot } from 'vs/platform/files/common/files';
+import { ThemeColor } from 'vs/platform/theme/common/themeService';
 
 /**
  * Vertical Lane in the overview ruler of the editor.
@@ -220,7 +220,7 @@ export interface IWordAtPosition {
 /**
  * End of line character preference.
  */
-export enum EndOfLinePreference {
+export const enum EndOfLinePreference {
 	/**
 	 * Use the end of line character identified in the text buffer.
 	 */
@@ -238,7 +238,7 @@ export enum EndOfLinePreference {
 /**
  * The default end of line to use when instantiating models.
  */
-export enum DefaultEndOfLine {
+export const enum DefaultEndOfLine {
 	/**
 	 * Use line feed (\n) as the end of line character.
 	 */
@@ -252,7 +252,7 @@ export enum DefaultEndOfLine {
 /**
  * End of line character preference.
  */
-export enum EndOfLineSequence {
+export const enum EndOfLineSequence {
 	/**
 	 * Use line feed (\n) as the end of line character.
 	 */
@@ -437,7 +437,7 @@ export interface IFoundBracket {
  * Describes the behavior of decorations when typing/editing near their edges.
  * Note: Please do not edit the values, as they very carefully match `DecorationRangeBehavior`
  */
-export enum TrackedRangeStickiness {
+export const enum TrackedRangeStickiness {
 	AlwaysGrowsWhenTypingAtEdges = 0,
 	NeverGrowsWhenTypingAtEdges = 1,
 	GrowsOnlyWhenTypingBefore = 2,

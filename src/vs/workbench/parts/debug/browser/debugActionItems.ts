@@ -169,8 +169,9 @@ export class StartDebugActionItem implements IActionItem {
 
 		if (this.options.length === 0) {
 			this.options.push({ label: nls.localize('noConfigurations', "No Configurations"), handler: () => false });
+		} else {
+			this.options.push({ label: StartDebugActionItem.SEPARATOR, handler: undefined });
 		}
-		this.options.push({ label: StartDebugActionItem.SEPARATOR, handler: undefined });
 
 		const disabledIdx = this.options.length - 1;
 		launches.filter(l => !l.hidden).forEach(l => {

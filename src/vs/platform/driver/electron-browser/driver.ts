@@ -22,7 +22,7 @@ function serializeElement(element: Element, recursive: boolean): IElement {
 		attributes[attr.name] = attr.value;
 	}
 
-	const children = [];
+	const children: IElement[] = [];
 
 	if (recursive) {
 		for (let i = 0; i < element.children.length; i++) {
@@ -119,7 +119,7 @@ class WindowDriver implements IWindowDriver {
 		const element = document.querySelector(selector);
 
 		if (element !== document.activeElement) {
-			const chain = [];
+			const chain: string[] = [];
 			let el = document.activeElement;
 
 			while (el) {

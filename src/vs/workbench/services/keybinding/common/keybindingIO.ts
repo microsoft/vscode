@@ -4,12 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { SimpleKeybinding } from 'vs/base/common/keyCodes';
-import { OperatingSystem } from 'vs/base/common/platform';
-import { IUserFriendlyKeybinding } from 'vs/platform/keybinding/common/keybinding';
-import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
-import { ResolvedKeybindingItem } from 'vs/platform/keybinding/common/resolvedKeybindingItem';
-import { ScanCodeBinding } from 'vs/base/common/scanCode';
 import { KeybindingParser } from 'vs/base/common/keybindingParser';
+import { OperatingSystem } from 'vs/base/common/platform';
+import { ScanCodeBinding } from 'vs/base/common/scanCode';
+import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
+import { IUserFriendlyKeybinding } from 'vs/platform/keybinding/common/keybinding';
+import { ResolvedKeybindingItem } from 'vs/platform/keybinding/common/resolvedKeybindingItem';
 
 export interface IUserKeybindingItem {
 	firstPart: SimpleKeybinding | ScanCodeBinding | null;

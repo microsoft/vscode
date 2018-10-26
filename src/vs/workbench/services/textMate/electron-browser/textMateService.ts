@@ -3,11 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { TPromise } from 'vs/base/common/winjs.base';
 import { Event } from 'vs/base/common/event';
+import { TPromise } from 'vs/base/common/winjs.base';
+import { LanguageId } from 'vs/editor/common/modes';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IGrammar } from 'vscode-textmate';
-import { LanguageId } from 'vs/editor/common/modes';
 
 export const ITextMateService = createDecorator<ITextMateService>('textMateService');
 

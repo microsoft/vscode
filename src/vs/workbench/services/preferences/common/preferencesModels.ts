@@ -587,7 +587,7 @@ export class DefaultSettings extends Disposable {
 	}
 
 	private removeEmptySettingsGroups(settingsGroups: ISettingsGroup[]): ISettingsGroup[] {
-		const result = [];
+		const result: ISettingsGroup[] = [];
 		for (const settingsGroup of settingsGroups) {
 			settingsGroup.sections = settingsGroup.sections.filter(section => section.settings.length > 0);
 			if (settingsGroup.sections.length) {
@@ -1082,12 +1082,12 @@ export function createValidator(prop: IConfigurationPropertySchema): ((value: an
 			{
 				enabled: prop.maxLength !== undefined,
 				isValid: (value => value.length <= prop.maxLength),
-				message: nls.localize('validations.maxLength', "Value must be fewer than {0} characters long.", prop.maxLength)
+				message: nls.localize('validations.maxLength', "Value must be {0} or fewer characters long.", prop.maxLength)
 			},
 			{
 				enabled: prop.minLength !== undefined,
 				isValid: (value => value.length >= prop.minLength),
-				message: nls.localize('validations.minLength', "Value must be more than {0} characters long.", prop.minLength)
+				message: nls.localize('validations.minLength', "Value must be {0} or more characters long.", prop.minLength)
 			},
 			{
 				enabled: patternRegex !== undefined,
@@ -1099,7 +1099,7 @@ export function createValidator(prop: IConfigurationPropertySchema): ((value: an
 		if (prop.type === 'string' && stringValidations.length === 0) { return null; }
 		if (isNullable && value === '') { return ''; }
 
-		let errors = [];
+		let errors: string[] = [];
 
 		if (isNumeric) {
 			if (value === '' || isNaN(+value)) {

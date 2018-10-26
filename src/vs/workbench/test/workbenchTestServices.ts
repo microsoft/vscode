@@ -58,7 +58,7 @@ import { Range } from 'vs/editor/common/core/range';
 import { IConfirmation, IConfirmationResult, IDialogService, IDialogOptions, IPickAndOpenOptions, ISaveDialogOptions, IOpenDialogOptions, IFileDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { TestNotificationService } from 'vs/platform/notification/test/common/testNotificationService';
-import { IExtensionService, ProfileSession, IExtensionsStatus, ExtensionPointContribution, IExtensionDescription } from '../services/extensions/common/extensions';
+import { IExtensionService, ProfileSession, IExtensionsStatus, ExtensionPointContribution, IExtensionDescription, IWillActivateEvent } from '../services/extensions/common/extensions';
 import { IExtensionPoint } from 'vs/workbench/services/extensions/common/extensionsRegistry';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IDecorationsService, IResourceDecorationChangeEvent, IDecoration, IDecorationData, IDecorationsProvider } from 'vs/workbench/services/decorations/browser/decorations';
@@ -77,7 +77,7 @@ import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { ViewletDescriptor } from 'vs/workbench/browser/viewlet';
 import { IViewlet } from 'vs/workbench/common/viewlet';
 import { IProgressService } from 'vs/platform/progress/common/progress';
-import { StorageService } from 'vs/platform/storage/electron-browser/storageService';
+import { StorageService } from 'vs/platform/storage/node/storageService';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { isLinux, isMacintosh } from 'vs/base/common/platform';
 
@@ -310,6 +310,7 @@ export class TestExtensionService implements IExtensionService {
 	_serviceBrand: any;
 	onDidRegisterExtensions: Event<void> = Event.None;
 	onDidChangeExtensionsStatus: Event<string[]> = Event.None;
+	onWillActivateByEvent: Event<IWillActivateEvent> = Event.None;
 	activateByEvent(_activationEvent: string): TPromise<void> { return TPromise.as(void 0); }
 	whenInstalledExtensionsRegistered(): TPromise<boolean> { return TPromise.as(true); }
 	getExtensions(): TPromise<IExtensionDescription[]> { return TPromise.as([]); }
@@ -882,6 +883,10 @@ export class TestFileService implements IFileService {
 		return { dispose() { } };
 	}
 
+	activateProvider(_scheme: string) {
+		return Promise.resolve(null);
+	}
+
 	canHandleResource(resource: URI): boolean {
 		return resource.scheme === 'file';
 	}
@@ -1119,6 +1124,10 @@ export class TestWindowService implements IWindowService {
 
 	updateTouchBar(_items: ISerializableCommandAction[][]): TPromise<void> {
 		return TPromise.as(void 0);
+	}
+
+	resolveProxy(url: string): Promise<string | undefined> {
+		return Promise.resolve(void 0);
 	}
 }
 
@@ -1375,6 +1384,10 @@ export class TestWindowsService implements IWindowsService {
 
 	openAboutDialog(): TPromise<void> {
 		return TPromise.as(void 0);
+	}
+
+	resolveProxy(windowId: number, url: string): Promise<string | undefined> {
+		return Promise.resolve(void 0);
 	}
 }
 

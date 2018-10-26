@@ -6,19 +6,18 @@
 import { isPromiseCanceledError } from 'vs/base/common/errors';
 import { dispose, IDisposable } from 'vs/base/common/lifecycle';
 import { URI, UriComponents } from 'vs/base/common/uri';
-import { TPromise } from 'vs/base/common/winjs.base';
 import { localize } from 'vs/nls';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { areSameExtensions } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { ILabelService } from 'vs/platform/label/common/label';
-import { IFolderQuery, IPatternInfo, IQueryOptions, ISearchConfiguration, ISearchProgressItem, ISearchQuery, ISearchService, QueryType } from 'vs/platform/search/common/search';
+import { IFolderQuery, IPatternInfo, ISearchConfiguration, ISearchProgressItem, ISearchService, QueryType, IFileQuery } from 'vs/platform/search/common/search';
 import { IStatusbarService } from 'vs/platform/statusbar/common/statusbar';
 import { IWindowService } from 'vs/platform/windows/common/windows';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { extHostNamedCustomer } from 'vs/workbench/api/electron-browser/extHostCustomers';
-import { QueryBuilder } from 'vs/workbench/parts/search/common/queryBuilder';
+import { QueryBuilder, ITextQueryBuilderOptions } from 'vs/workbench/parts/search/common/queryBuilder';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { IWorkspaceEditingService } from 'vs/workbench/services/workspace/common/workspaceEditing';
@@ -41,6 +40,7 @@ export class MainThreadWorkspace implements MainThreadWorkspaceShape {
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IWorkspaceEditingService private readonly _workspaceEditingService: IWorkspaceEditingService,
 		@IStatusbarService private readonly _statusbarService: IStatusbarService,
+		@IWindowService private readonly _windowService: IWindowService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@ILabelService private readonly _labelService: ILabelService
 	) {
@@ -141,13 +141,18 @@ export class MainThreadWorkspace implements MainThreadWorkspaceShape {
 			return !folderConfig.search.followSymlinks;
 		});
 
-		const query: ISearchQuery = {
+		// TODO replace wth QueryBuilder
+		folderQueries.forEach(fq => {
+			fq.ignoreSymlinks = ignoreSymlinks;
+		});
+
+		const query: IFileQuery = {
 			folderQueries,
 			type: QueryType.File,
 			maxResults,
 			disregardExcludeSettings: excludePatternOrDisregardExcludes === false,
 			useRipgrep,
-			ignoreSymlinks
+			_reason: 'startFileSearch'
 		};
 		if (typeof includePattern === 'string') {
 			query.includePattern = { [includePattern]: true };
@@ -159,22 +164,23 @@ export class MainThreadWorkspace implements MainThreadWorkspaceShape {
 
 		this._searchService.extendQuery(query);
 
-		return this._searchService.search(query, token).then(result => {
+		return this._searchService.fileSearch(query, token).then(result => {
 			return result.results.map(m => m.resource);
 		}, err => {
 			if (!isPromiseCanceledError(err)) {
-				return TPromise.wrapError(err);
+				return Promise.reject(err);
 			}
 			return undefined;
 		});
 	}
 
-	$startTextSearch(pattern: IPatternInfo, options: IQueryOptions, requestId: number, token: CancellationToken): Thenable<TextSearchComplete> {
+	$startTextSearch(pattern: IPatternInfo, options: ITextQueryBuilderOptions, requestId: number, token: CancellationToken): Thenable<TextSearchComplete> {
 		const workspace = this._contextService.getWorkspace();
 		const folders = workspace.folders.map(folder => folder.uri);
 
 		const queryBuilder = this._instantiationService.createInstance(QueryBuilder);
 		const query = queryBuilder.text(pattern, folders, options);
+		query._reason = 'startTextSearch';
 
 		const onProgress = (p: ISearchProgressItem) => {
 			if (p.matches) {
@@ -182,13 +188,13 @@ export class MainThreadWorkspace implements MainThreadWorkspaceShape {
 			}
 		};
 
-		const search = this._searchService.search(query, token, onProgress).then(
+		const search = this._searchService.textSearch(query, token, onProgress).then(
 			result => {
 				return { limitHit: result.limitHit };
 			},
 			err => {
 				if (!isPromiseCanceledError(err)) {
-					return TPromise.wrapError(err);
+					return Promise.reject(err);
 				}
 
 				return undefined;
@@ -201,17 +207,18 @@ export class MainThreadWorkspace implements MainThreadWorkspaceShape {
 		const queryBuilder = this._instantiationService.createInstance(QueryBuilder);
 		const folders = this._contextService.getWorkspace().folders.map(folder => folder.uri);
 		const query = queryBuilder.file(folders, {
+			_reason: 'checkExists',
 			includePattern: includes.join(', '),
 			exists: true
 		});
 
-		return this._searchService.search(query, token).then(
+		return this._searchService.fileSearch(query, token).then(
 			result => {
 				return result.limitHit;
 			},
 			err => {
 				if (!isPromiseCanceledError(err)) {
-					return TPromise.wrapError(err);
+					return Promise.reject(err);
 				}
 
 				return undefined;
@@ -224,6 +231,10 @@ export class MainThreadWorkspace implements MainThreadWorkspaceShape {
 		return this._textFileService.saveAll(includeUntitled).then(result => {
 			return result.results.every(each => each.success === true);
 		});
+	}
+
+	$resolveProxy(url: string): Thenable<string> {
+		return this._windowService.resolveProxy(url);
 	}
 }
 

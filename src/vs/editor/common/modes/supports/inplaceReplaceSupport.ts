@@ -3,8 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IInplaceReplaceSupportResult } from 'vs/editor/common/modes';
 import { IRange } from 'vs/editor/common/core/range';
+import { IInplaceReplaceSupportResult } from 'vs/editor/common/modes';
 
 export class BasicInplaceReplace {
 

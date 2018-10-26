@@ -395,6 +395,16 @@ export class MainThreadSCM implements MainThreadSCMShape {
 		repository.input.placeholder = placeholder;
 	}
 
+	$setInputBoxVisibility(sourceControlHandle: number, visible: boolean): void {
+		const repository = this._repositories[sourceControlHandle];
+
+		if (!repository) {
+			return;
+		}
+
+		repository.input.visible = visible;
+	}
+
 	$setValidationProviderIsEnabled(sourceControlHandle: number, enabled: boolean): void {
 		const repository = this._repositories[sourceControlHandle];
 

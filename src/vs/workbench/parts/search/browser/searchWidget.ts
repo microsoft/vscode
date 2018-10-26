@@ -307,7 +307,7 @@ export class SearchWidget extends Widget {
 		this._register(this.searchInputFocusTracker.onDidFocus(() => {
 			this.searchInputBoxFocused.set(true);
 
-			const useGlobalFindBuffer = this.configurationService.getValue<ISearchConfigurationProperties>('search').globalFindClipboard;
+			const useGlobalFindBuffer = this.searchConfiguration.globalFindClipboard;
 			if (!this.ignoreGlobalFindBufferOnNextFocus && useGlobalFindBuffer) {
 				const globalBufferText = this.clipboardServce.readFindText();
 				if (this.previousGlobalFindBufferValue !== globalBufferText) {
@@ -398,7 +398,9 @@ export class SearchWidget extends Widget {
 		}
 
 		if (strings.regExpContainsBackreference(value)) {
-			return { content: nls.localize('regexp.backreferenceValidationFailure', "Backreferences are not supported") };
+			if (!this.searchConfiguration.usePCRE2) {
+				return { content: nls.localize('regexp.backreferenceValidationFailure', "Backreferences are not supported") };
+			}
 		}
 
 		return null;
@@ -475,8 +477,13 @@ export class SearchWidget extends Widget {
 	}
 
 	private submitSearch(): void {
+		this.searchInput.validate();
+		if (!this.searchInput.inputBox.isInputValid()) {
+			return;
+		}
+
 		const value = this.searchInput.getValue();
-		const useGlobalFindBuffer = this.configurationService.getValue<ISearchConfigurationProperties>('search').globalFindClipboard;
+		const useGlobalFindBuffer = this.searchConfiguration.globalFindClipboard;
 		if (value) {
 			if (useGlobalFindBuffer) {
 				this.clipboardServce.writeFindText(value);
@@ -491,6 +498,10 @@ export class SearchWidget extends Widget {
 		this.replaceAllAction.searchWidget = null;
 		this.replaceActionBar = null;
 		super.dispose();
+	}
+
+	private get searchConfiguration(): ISearchConfigurationProperties {
+		return this.configurationService.getValue<ISearchConfigurationProperties>('search');
 	}
 }
 

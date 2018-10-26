@@ -40,6 +40,20 @@ class SCMInput implements ISCMInput {
 	private _onDidChangePlaceholder = new Emitter<string>();
 	get onDidChangePlaceholder(): Event<string> { return this._onDidChangePlaceholder.event; }
 
+	private _visible = true;
+
+	get visible(): boolean {
+		return this._visible;
+	}
+
+	set visible(visible: boolean) {
+		this._visible = visible;
+		this._onDidChangeVisibility.fire(visible);
+	}
+
+	private _onDidChangeVisibility = new Emitter<boolean>();
+	get onDidChangeVisibility(): Event<boolean> { return this._onDidChangeVisibility.event; }
+
 	private _validateInput: IInputValidator = () => TPromise.as(undefined);
 
 	get validateInput(): IInputValidator {

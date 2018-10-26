@@ -104,7 +104,7 @@ export class MarkdownContentProvider {
 		// Use href if it is already an URL
 		const hrefUri = vscode.Uri.parse(href);
 		if (['http', 'https'].indexOf(hrefUri.scheme) >= 0) {
-			return hrefUri.toString();
+			return hrefUri.toString(true);
 		}
 
 		// Use href as file URI if it is absolute
@@ -131,7 +131,7 @@ export class MarkdownContentProvider {
 	private computeCustomStyleSheetIncludes(resource: vscode.Uri, config: MarkdownPreviewConfiguration): string {
 		if (Array.isArray(config.styles)) {
 			return config.styles.map(style => {
-				return `<link rel="stylesheet" class="code-user-style" data-source="${style.replace(/"/g, '&quot;')}" href="${this.fixHref(resource, style)}" type="text/css" media="screen">`;
+				return `<link rel="stylesheet" class="code-user-style" data-source="${style.replace(/"/g, '&quot;')}" href="${this.fixHref(resource, style).replace(/"/g, '&quot;')}" type="text/css" media="screen">`;
 			}).join('\n');
 		}
 		return '';

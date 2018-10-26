@@ -3,24 +3,24 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable } from 'vs/base/common/lifecycle';
-import * as platform from 'vs/base/common/platform';
 import * as browser from 'vs/base/browser/browser';
 import * as dom from 'vs/base/browser/dom';
+import { StandardMouseWheelEvent } from 'vs/base/browser/mouseEvent';
+import { RunOnceScheduler, TimeoutTimer } from 'vs/base/common/async';
+import { Disposable } from 'vs/base/common/lifecycle';
+import * as platform from 'vs/base/common/platform';
+import { HitTestContext, IViewZoneData, MouseTarget, MouseTargetFactory } from 'vs/editor/browser/controller/mouseTarget';
+import * as editorBrowser from 'vs/editor/browser/editorBrowser';
+import { ClientCoordinates, EditorMouseEvent, EditorMouseEventFactory, GlobalEditorMouseMoveMonitor, createEditorPagePosition } from 'vs/editor/browser/editorDom';
+import { ViewController } from 'vs/editor/browser/view/viewController';
+import { IViewCursorRenderData } from 'vs/editor/browser/viewParts/viewCursors/viewCursor';
+import { EditorZoom } from 'vs/editor/common/config/editorZoom';
 import { Position } from 'vs/editor/common/core/position';
 import { Selection } from 'vs/editor/common/core/selection';
-import { ViewEventHandler } from 'vs/editor/common/viewModel/viewEventHandler';
-import { MouseTarget, MouseTargetFactory, IViewZoneData, HitTestContext } from 'vs/editor/browser/controller/mouseTarget';
-import * as editorBrowser from 'vs/editor/browser/editorBrowser';
-import { TimeoutTimer, RunOnceScheduler } from 'vs/base/common/async';
-import { ViewContext } from 'vs/editor/common/view/viewContext';
 import { HorizontalRange } from 'vs/editor/common/view/renderingContext';
-import { EditorMouseEventFactory, GlobalEditorMouseMoveMonitor, EditorMouseEvent, createEditorPagePosition, ClientCoordinates } from 'vs/editor/browser/editorDom';
-import { StandardMouseWheelEvent } from 'vs/base/browser/mouseEvent';
-import { EditorZoom } from 'vs/editor/common/config/editorZoom';
-import { IViewCursorRenderData } from 'vs/editor/browser/viewParts/viewCursors/viewCursor';
+import { ViewContext } from 'vs/editor/common/view/viewContext';
 import * as viewEvents from 'vs/editor/common/view/viewEvents';
-import { ViewController } from 'vs/editor/browser/view/viewController';
+import { ViewEventHandler } from 'vs/editor/common/viewModel/viewEventHandler';
 
 /**
  * Merges mouse events when mouse move events are throttled

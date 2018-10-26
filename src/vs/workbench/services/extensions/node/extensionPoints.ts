@@ -4,18 +4,18 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as nls from 'vs/nls';
-import * as pfs from 'vs/base/node/pfs';
-import { IExtensionDescription } from 'vs/workbench/services/extensions/common/extensions';
-import { TPromise } from 'vs/base/common/winjs.base';
-import { join, normalize, extname } from 'path';
-import * as json from 'vs/base/common/json';
-import * as types from 'vs/base/common/types';
-import { isValidExtensionVersion } from 'vs/platform/extensions/node/extensionValidator';
+import { extname, join, normalize } from 'path';
 import * as semver from 'semver';
-import { getIdAndVersionFromLocalExtensionId } from 'vs/platform/extensionManagement/node/extensionManagementUtil';
+import * as json from 'vs/base/common/json';
 import { getParseErrorMessage } from 'vs/base/common/jsonErrorMessages';
-import { groupByExtension, getGalleryExtensionId, getLocalExtensionId } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
+import * as types from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
+import { TPromise } from 'vs/base/common/winjs.base';
+import * as pfs from 'vs/base/node/pfs';
+import { getGalleryExtensionId, getLocalExtensionId, groupByExtension } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
+import { getIdAndVersionFromLocalExtensionId } from 'vs/platform/extensionManagement/node/extensionManagementUtil';
+import { isValidExtensionVersion } from 'vs/platform/extensions/node/extensionValidator';
+import { IExtensionDescription } from 'vs/workbench/services/extensions/common/extensions';
 
 const MANIFEST_FILE = 'package.json';
 

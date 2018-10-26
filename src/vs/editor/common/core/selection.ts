@@ -3,8 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { IPosition, Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
-import { Position, IPosition } from 'vs/editor/common/core/position';
 
 /**
  * A selection in the editor.
@@ -32,7 +32,7 @@ export interface ISelection {
 /**
  * The direction of a selection.
  */
-export enum SelectionDirection {
+export const enum SelectionDirection {
 	/**
 	 * The selection starts above where it ends.
 	 */

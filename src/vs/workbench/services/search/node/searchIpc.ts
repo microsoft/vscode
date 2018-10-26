@@ -6,11 +6,12 @@
 import { Event } from 'vs/base/common/event';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IChannel } from 'vs/base/parts/ipc/node/ipc';
-import { IRawSearch, IRawSearchService, ISerializedSearchComplete, ISerializedSearchProgressItem } from './search';
+import { IRawFileQuery, IRawTextQuery } from 'vs/platform/search/common/search';
+import { IRawSearchService, ISerializedSearchComplete, ISerializedSearchProgressItem } from './search';
 
 export interface ISearchChannel extends IChannel {
-	listen(event: 'fileSearch', search: IRawSearch): Event<ISerializedSearchProgressItem | ISerializedSearchComplete>;
-	listen(event: 'textSearch', search: IRawSearch): Event<ISerializedSearchProgressItem | ISerializedSearchComplete>;
+	listen(event: 'fileSearch', search: IRawFileQuery): Event<ISerializedSearchProgressItem | ISerializedSearchComplete>;
+	listen(event: 'textSearch', search: IRawTextQuery): Event<ISerializedSearchProgressItem | ISerializedSearchComplete>;
 	call(command: 'clearCache', cacheKey: string): TPromise<void>;
 	call(command: string, arg: any): TPromise<any>;
 }
@@ -39,11 +40,11 @@ export class SearchChannelClient implements IRawSearchService {
 
 	constructor(private channel: ISearchChannel) { }
 
-	fileSearch(search: IRawSearch): Event<ISerializedSearchProgressItem | ISerializedSearchComplete> {
+	fileSearch(search: IRawFileQuery): Event<ISerializedSearchProgressItem | ISerializedSearchComplete> {
 		return this.channel.listen('fileSearch', search);
 	}
 
-	textSearch(search: IRawSearch): Event<ISerializedSearchProgressItem | ISerializedSearchComplete> {
+	textSearch(search: IRawTextQuery): Event<ISerializedSearchProgressItem | ISerializedSearchComplete> {
 		return this.channel.listen('textSearch', search);
 	}
 

@@ -4,10 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { EditOperation } from 'vs/editor/common/core/editOperation';
-import * as editorCommon from 'vs/editor/common/editorCommon';
 import { Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
-import { ITextModel, IIdentifiedSingleEditOperation } from 'vs/editor/common/model';
+import * as editorCommon from 'vs/editor/common/editorCommon';
+import { IIdentifiedSingleEditOperation, ITextModel } from 'vs/editor/common/model';
 
 export class SortLinesCommand implements editorCommon.ICommand {
 

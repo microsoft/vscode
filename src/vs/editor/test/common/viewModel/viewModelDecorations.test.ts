@@ -2,11 +2,12 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
+
 import * as assert from 'assert';
-import { Range } from 'vs/editor/common/core/range';
-import { testViewModel } from 'vs/editor/test/common/viewModel/testViewModel';
 import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
+import { Range } from 'vs/editor/common/core/range';
 import { InlineDecorationType } from 'vs/editor/common/viewModel/viewModel';
+import { testViewModel } from 'vs/editor/test/common/viewModel/testViewModel';
 
 suite('ViewModelDecorations', () => {
 	test('getDecorationsViewportData', () => {

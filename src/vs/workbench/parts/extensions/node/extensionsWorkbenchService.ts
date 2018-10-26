@@ -29,7 +29,7 @@ import { IURLService, IURLHandler } from 'vs/platform/url/common/url';
 import { ExtensionsInput } from 'vs/workbench/parts/extensions/common/extensionsInput';
 import product from 'vs/platform/node/product';
 import { ILogService } from 'vs/platform/log/common/log';
-import { IProgressService2, ProgressLocation } from 'vs/workbench/services/progress/common/progress';
+import { IProgressService2, ProgressLocation } from 'vs/platform/progress/common/progress';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { groupBy } from 'vs/base/common/collections';
@@ -615,7 +615,7 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService, 
 	}
 
 	private syncWithGallery(): Promise<void> {
-		const ids = [], names = [];
+		const ids: string[] = [], names: string[] = [];
 		for (const installed of this.installed) {
 			if (installed.type === LocalExtensionType.User) {
 				if (installed.uuid) {
@@ -626,7 +626,7 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService, 
 			}
 		}
 
-		const promises = [];
+		const promises: Promise<IPager<IExtension>>[] = [];
 		if (ids.length) {
 			promises.push(this.queryGallery({ ids, pageSize: ids.length }));
 		}

@@ -4,10 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { isFalsyOrEmpty } from 'vs/base/common/arrays';
-import { ContextKeyExpr, IContext, ContextKeyAndExpr } from 'vs/platform/contextkey/common/contextkey';
-import { ResolvedKeybindingItem } from 'vs/platform/keybinding/common/resolvedKeybindingItem';
-import { CommandsRegistry, ICommandHandlerDescription } from 'vs/platform/commands/common/commands';
 import { MenuRegistry } from 'vs/platform/actions/common/actions';
+import { CommandsRegistry, ICommandHandlerDescription } from 'vs/platform/commands/common/commands';
+import { ContextKeyAndExpr, ContextKeyExpr, IContext } from 'vs/platform/contextkey/common/contextkey';
+import { ResolvedKeybindingItem } from 'vs/platform/keybinding/common/resolvedKeybindingItem';
 
 export interface IResolveResult {
 	enterChord: boolean;

@@ -53,7 +53,7 @@ export class TerminalPanel extends Panel {
 		super(TERMINAL_PANEL_ID, telemetryService, _themeService, storageService);
 	}
 
-	public create(parent: HTMLElement): Promise<any> {
+	public create(parent: HTMLElement): void {
 		super.create(parent);
 		this._parentDomElement = parent;
 		dom.addClass(this._parentDomElement, 'integrated-terminal');
@@ -98,7 +98,6 @@ export class TerminalPanel extends Panel {
 
 		// Force another layout (first is setContainers) since config has changed
 		this.layout(new dom.Dimension(this._terminalContainer.offsetWidth, this._terminalContainer.offsetHeight));
-		return Promise.resolve(void 0);
 	}
 
 	public layout(dimension?: dom.Dimension): void {
@@ -108,26 +107,26 @@ export class TerminalPanel extends Panel {
 		this._terminalService.terminalTabs.forEach(t => t.layout(dimension.width, dimension.height));
 	}
 
-	public setVisible(visible: boolean): Promise<void> {
+	public setVisible(visible: boolean): void {
 		if (visible) {
 			if (this._terminalService.terminalInstances.length > 0) {
 				this._updateFont();
 				this._updateTheme();
 			} else {
-				return super.setVisible(visible).then(() => {
-					// Check if instances were already restored as part of workbench restore
-					if (this._terminalService.terminalInstances.length === 0) {
-						this._terminalService.createTerminal();
-					}
-					if (this._terminalService.terminalInstances.length > 0) {
-						this._updateFont();
-						this._updateTheme();
-					}
-					return Promise.resolve(void 0);
-				});
+				super.setVisible(visible);
+				// Check if instances were already restored as part of workbench restore
+				if (this._terminalService.terminalInstances.length === 0) {
+					this._terminalService.createTerminal();
+				}
+				if (this._terminalService.terminalInstances.length > 0) {
+					this._updateFont();
+					this._updateTheme();
+				}
+				return;
 			}
 		}
-		return super.setVisible(visible);
+		super.setVisible(visible);
+
 	}
 
 	public getActions(): IAction[] {

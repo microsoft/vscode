@@ -123,7 +123,7 @@ export class FolderSettingsModelParser extends ConfigurationModelParser {
 
 	private getScope(key: string, configurationProperties: { [qualifiedKey: string]: IConfigurationPropertySchema }): ConfigurationScope {
 		const propertySchema = configurationProperties[key];
-		return propertySchema ? propertySchema.scope : ConfigurationScope.WINDOW;
+		return propertySchema && typeof propertySchema.scope !== 'undefined' ? propertySchema.scope : ConfigurationScope.WINDOW;
 	}
 }
 
@@ -147,8 +147,8 @@ export class Configuration extends BaseConfiguration {
 	inspect<C>(key: string, overrides: IConfigurationOverrides = {}): {
 		default: C,
 		user: C,
-		workspace: C,
-		workspaceFolder: C
+		workspace?: C,
+		workspaceFolder?: C
 		memory?: C
 		value: C,
 	} {
@@ -208,7 +208,7 @@ export class Configuration extends BaseConfiguration {
 	}
 
 	compare(other: Configuration): string[] {
-		const result = [];
+		const result: string[] = [];
 		for (const key of this.allKeys()) {
 			if (!equals(this.getValue(key), other.getValue(key))
 				|| (this._workspace && this._workspace.folders.some(folder => !equals(this.getValue(key, { resource: folder.uri }), other.getValue(key, { resource: folder.uri }))))) {

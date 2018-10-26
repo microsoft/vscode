@@ -31,15 +31,27 @@ class ResourceModelCollection extends ReferenceCollection<TPromise<ITextEditorMo
 		super();
 	}
 
-	createReferencedObject(key: string): TPromise<ITextEditorModel> {
+	createReferencedObject(key: string, skipActivateProvider?: boolean): TPromise<ITextEditorModel> {
 		this.modelsToDispose.delete(key);
 
 		const resource = URI.parse(key);
+
+		// File or remote file provider already known
 		if (this.fileService.canHandleResource(resource)) {
 			return this.textFileService.models.loadOrCreate(resource, { reason: LoadReason.REFERENCE });
 		}
 
-		return this.resolveTextModelContent(key).then(() => this.instantiationService.createInstance(ResourceEditorModel, resource));
+		// Virtual documents
+		if (this.providers[resource.scheme]) {
+			return this.resolveTextModelContent(key).then(() => this.instantiationService.createInstance(ResourceEditorModel, resource));
+		}
+
+		// Either unknown schema, or not yet registered, try to activate
+		if (!skipActivateProvider) {
+			return this.fileService.activateProvider(resource.scheme).then(() => this.createReferencedObject(key, true));
+		}
+
+		return TPromise.wrapError<ITextEditorModel>(new Error('resource is not available'));
 	}
 
 	destroyReferencedObject(key: string, modelPromise: TPromise<ITextEditorModel>): void {

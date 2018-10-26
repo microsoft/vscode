@@ -4,26 +4,26 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as nls from 'vs/nls';
-import { KeyCode, KeyMod, KeyChord } from 'vs/base/common/keyCodes';
-import { SortLinesCommand } from 'vs/editor/contrib/linesOperations/sortLinesCommand';
-import { EditOperation } from 'vs/editor/common/core/editOperation';
-import { TrimTrailingWhitespaceCommand } from 'vs/editor/common/commands/trimTrailingWhitespaceCommand';
-import { ICommand } from 'vs/editor/common/editorCommon';
-import { IIdentifiedSingleEditOperation } from 'vs/editor/common/model';
-import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
-import { ReplaceCommand, ReplaceCommandThatPreservesSelection } from 'vs/editor/common/commands/replaceCommand';
-import { Range } from 'vs/editor/common/core/range';
-import { Selection } from 'vs/editor/common/core/selection';
-import { Position } from 'vs/editor/common/core/position';
-import { registerEditorAction, ServicesAccessor, IActionOptions, EditorAction } from 'vs/editor/browser/editorExtensions';
-import { CopyLinesCommand } from './copyLinesCommand';
-import { DeleteLinesCommand } from './deleteLinesCommand';
-import { MoveLinesCommand } from './moveLinesCommand';
-import { TypeOperations } from 'vs/editor/common/controller/cursorTypeOperations';
+import { KeyChord, KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { CoreEditingCommands } from 'vs/editor/browser/controller/coreCommands';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
+import { EditorAction, IActionOptions, ServicesAccessor, registerEditorAction } from 'vs/editor/browser/editorExtensions';
+import { ReplaceCommand, ReplaceCommandThatPreservesSelection } from 'vs/editor/common/commands/replaceCommand';
+import { TrimTrailingWhitespaceCommand } from 'vs/editor/common/commands/trimTrailingWhitespaceCommand';
+import { TypeOperations } from 'vs/editor/common/controller/cursorTypeOperations';
+import { EditOperation } from 'vs/editor/common/core/editOperation';
+import { Position } from 'vs/editor/common/core/position';
+import { Range } from 'vs/editor/common/core/range';
+import { Selection } from 'vs/editor/common/core/selection';
+import { ICommand } from 'vs/editor/common/editorCommon';
+import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
+import { IIdentifiedSingleEditOperation } from 'vs/editor/common/model';
+import { CopyLinesCommand } from 'vs/editor/contrib/linesOperations/copyLinesCommand';
+import { DeleteLinesCommand } from 'vs/editor/contrib/linesOperations/deleteLinesCommand';
+import { MoveLinesCommand } from 'vs/editor/contrib/linesOperations/moveLinesCommand';
+import { SortLinesCommand } from 'vs/editor/contrib/linesOperations/sortLinesCommand';
 import { MenuId } from 'vs/platform/actions/common/actions';
+import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 
 // copy lines
 
@@ -39,7 +39,7 @@ abstract class AbstractCopyLinesAction extends EditorAction {
 	public run(_accessor: ServicesAccessor, editor: ICodeEditor): void {
 
 		let commands: ICommand[] = [];
-		let selections = editor.getSelections();
+		let selections = editor.getSelections() || [];
 
 		for (let i = 0; i < selections.length; i++) {
 			commands.push(new CopyLinesCommand(selections[i], this.down));
@@ -111,7 +111,7 @@ abstract class AbstractMoveLinesAction extends EditorAction {
 	public run(_accessor: ServicesAccessor, editor: ICodeEditor): void {
 
 		let commands: ICommand[] = [];
-		let selections = editor.getSelections();
+		let selections = editor.getSelections() || [];
 		let autoIndent = editor.getConfiguration().autoIndent;
 
 		for (let i = 0; i < selections.length; i++) {
@@ -179,7 +179,7 @@ export abstract class AbstractSortLinesAction extends EditorAction {
 	}
 
 	public run(_accessor: ServicesAccessor, editor: ICodeEditor): void {
-		const selections = editor.getSelections();
+		const selections = editor.getSelections() || [];
 
 		for (let i = 0, len = selections.length; i < len; i++) {
 			const selection = selections[i];
@@ -246,7 +246,7 @@ export class TrimTrailingWhitespaceAction extends EditorAction {
 			// See https://github.com/editorconfig/editorconfig-vscode/issues/47
 			// It is very convenient for the editor config extension to invoke this action.
 			// So, if we get a reason:'auto-save' passed in, let's preserve cursor positions.
-			cursors = editor.getSelections().map(s => new Position(s.positionLineNumber, s.positionColumn));
+			cursors = (editor.getSelections() || []).map(s => new Position(s.positionLineNumber, s.positionColumn));
 		}
 
 		let command = new TrimTrailingWhitespaceCommand(editor.getSelection(), cursors);
@@ -649,8 +649,8 @@ export class JoinLinesAction extends EditorAction {
 		reducedSelections.push(lastSelection);
 
 		let model = editor.getModel();
-		let edits = [];
-		let endCursorState = [];
+		let edits: IIdentifiedSingleEditOperation[] = [];
+		let endCursorState: Selection[] = [];
 		let endPrimaryCursor = primaryCursor;
 		let lineOffset = 0;
 

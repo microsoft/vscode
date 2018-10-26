@@ -10,7 +10,7 @@ import { compare } from 'vs/base/common/strings';
 import { Position } from 'vs/editor/common/core/position';
 import { IRange, Range } from 'vs/editor/common/core/range';
 import { ITextModel } from 'vs/editor/common/model';
-import { CompletionItem, CompletionItemKind, CompletionItemProvider, CompletionList, LanguageId } from 'vs/editor/common/modes';
+import { CompletionItem, CompletionItemKind, CompletionItemProvider, CompletionList, LanguageId, CompletionItemInsertTextRule } from 'vs/editor/common/modes';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { SnippetParser } from 'vs/editor/contrib/snippet/snippetParser';
 import { localize } from 'vs/nls';
@@ -25,9 +25,8 @@ export class SnippetCompletion implements CompletionItem {
 	documentation: MarkdownString;
 	range: IRange;
 	sortText: string;
-	noAutoAccept: boolean;
 	kind: CompletionItemKind;
-	insertTextIsSnippet: true;
+	insertTextRules: CompletionItemInsertTextRule;
 
 	constructor(
 		readonly snippet: Snippet,
@@ -38,9 +37,8 @@ export class SnippetCompletion implements CompletionItem {
 		this.insertText = snippet.body;
 		this.range = range;
 		this.sortText = `${snippet.snippetSource === SnippetSource.Extension ? 'z' : 'a'}-${snippet.prefix}`;
-		this.noAutoAccept = true;
 		this.kind = CompletionItemKind.Snippet;
-		this.insertTextIsSnippet = true;
+		this.insertTextRules = CompletionItemInsertTextRule.InsertAsSnippet;
 	}
 
 	resolve(): this {

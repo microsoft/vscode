@@ -55,10 +55,16 @@ export interface ITheme {
 	getColor(color: ColorIdentifier, useDefault?: boolean): Color | null;
 
 	/**
-	 * Returns wheter the theme defines a value for the color. If not, that means the
+	 * Returns whether the theme defines a value for the color. If not, that means the
 	 * default color will be used.
 	 */
 	defines(color: ColorIdentifier): boolean;
+}
+
+export interface IIconTheme {
+	readonly hasFileIcons: boolean;
+	readonly hasFolderIcons: boolean;
+	readonly hidesExplorerArrows: boolean;
 }
 
 export interface ICssStyleCollector {
@@ -74,10 +80,11 @@ export interface IThemeService {
 
 	getTheme(): ITheme;
 
-	/**
-	 * Register a theming participant that is invoked after every theme change.
-	 */
-	onThemeChange: Event<ITheme>;
+	readonly onThemeChange: Event<ITheme>;
+
+	getIconTheme(): IIconTheme;
+
+	readonly onIconThemeChange: Event<IIconTheme>;
 
 }
 

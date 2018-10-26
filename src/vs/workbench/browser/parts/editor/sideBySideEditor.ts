@@ -109,9 +109,11 @@ export class SideBySideEditor extends BaseEditor {
 		if (this.masterEditor) {
 			this.masterEditor.setVisible(visible, group);
 		}
+
 		if (this.detailsEditor) {
 			this.detailsEditor.setVisible(visible, group);
 		}
+
 		super.setEditorVisible(visible, group);
 	}
 
@@ -119,10 +121,13 @@ export class SideBySideEditor extends BaseEditor {
 		if (this.masterEditor) {
 			this.masterEditor.clearInput();
 		}
+
 		if (this.detailsEditor) {
 			this.detailsEditor.clearInput();
 		}
+
 		this.disposeEditors();
+
 		super.clearInput();
 	}
 
@@ -141,6 +146,7 @@ export class SideBySideEditor extends BaseEditor {
 		if (this.masterEditor) {
 			return this.masterEditor.getControl();
 		}
+
 		return null;
 	}
 
@@ -161,7 +167,10 @@ export class SideBySideEditor extends BaseEditor {
 			return this.setNewInput(newInput, options, token);
 		}
 
-		return Promise.all([this.detailsEditor.setInput(newInput.details, null, token), this.masterEditor.setInput(newInput.master, options, token)]).then(() => void 0);
+		return Promise.all([
+			this.detailsEditor.setInput(newInput.details, null, token),
+			this.masterEditor.setInput(newInput.master, options, token)]
+		).then(() => void 0);
 	}
 
 	private setNewInput(newInput: SideBySideEditorInput, options: EditorOptions, token: CancellationToken): Thenable<void> {

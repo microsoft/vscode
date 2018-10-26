@@ -4,9 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IConfiguration } from 'vs/editor/common/editorCommon';
-import { IViewModel, IViewLayout } from 'vs/editor/common/viewModel/viewModel';
-import { ViewEventHandler } from 'vs/editor/common/viewModel/viewEventHandler';
 import { ViewEventDispatcher } from 'vs/editor/common/view/viewEventDispatcher';
+import { ViewEventHandler } from 'vs/editor/common/viewModel/viewEventHandler';
+import { IViewLayout, IViewModel } from 'vs/editor/common/viewModel/viewModel';
 import { ITheme } from 'vs/platform/theme/common/themeService';
 
 export class ViewContext {

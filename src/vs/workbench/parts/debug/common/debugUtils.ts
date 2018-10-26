@@ -5,6 +5,8 @@
 
 import { equalsIgnoreCase } from 'vs/base/common/strings';
 import { IConfig } from 'vs/workbench/parts/debug/common/debug';
+import { URI as uri } from 'vs/base/common/uri';
+import { isAbsolute_posix, isAbsolute_win32 } from 'vs/base/common/paths';
 
 const _formatPIIRegexp = /{([^}]+)}/g;
 
@@ -65,6 +67,41 @@ export function getExactExpressionStartAndEnd(lineContent: string, looseStart: n
 	return matchingExpression ?
 		{ start: startOffset, end: startOffset + matchingExpression.length - 1 } :
 		{ start: 0, end: 0 };
+}
+
+// RFC 2396, Appendix A: https://www.ietf.org/rfc/rfc2396.txt
+const _schemePattern = /^[a-zA-Z][a-zA-Z0-9\+\-\.]+:/;
+
+export function isUri(s: string) {
+	// heuristics: a valid uri starts with a scheme and
+	// the scheme has at least 2 characters so that it doesn't look like a drive letter.
+	return s && s.match(_schemePattern);
+}
+
+export function stringToUri(source: DebugProtocol.Source): void {
+	if (typeof source.path === 'string') {
+		if (isUri(source.path)) {
+			(<any>source).path = uri.parse(source.path);
+		} else {
+			// assume path
+			if (isAbsolute_posix(source.path) || isAbsolute_win32(source.path)) {
+				(<any>source).path = uri.file(source.path);
+			} else {
+				// leave relative path as is
+			}
+		}
+	}
+}
+
+export function uriToString(source: DebugProtocol.Source): void {
+	if (typeof source.path === 'object') {
+		const u = uri.revive(source.path);
+		if (u.scheme === 'file') {
+			source.path = u.fsPath;
+		} else {
+			source.path = u.toString();
+		}
+	}
 }
 
 // path hooks helpers

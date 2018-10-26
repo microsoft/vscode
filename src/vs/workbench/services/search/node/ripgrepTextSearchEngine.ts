@@ -7,11 +7,12 @@ import * as cp from 'child_process';
 import { EventEmitter } from 'events';
 import * as path from 'path';
 import { NodeStringDecoder, StringDecoder } from 'string_decoder';
-import { startsWith } from 'vs/base/common/strings';
+import { startsWith, startsWithUTF8BOM, stripUTF8BOM, createRegExp } from 'vs/base/common/strings';
 import { URI } from 'vs/base/common/uri';
 import * as vscode from 'vscode';
 import { rgPath } from 'vscode-ripgrep';
 import { anchorGlob, createTextSearchResult, IOutputChannel, Maybe, Range } from './ripgrepSearchUtils';
+import { IExtendedExtensionSearchOptions } from 'vs/platform/search/common/search';
 
 // If vscode-ripgrep is in an .asar file, then the binary is unpacked.
 const rgDiskPath = rgPath.replace(/\bnode_modules\.asar\b/, 'node_modules.asar.unpacked');
@@ -117,24 +118,18 @@ export class RipgrepTextSearchEngine {
 export function rgErrorMsgForDisplay(msg: string): Maybe<string> {
 	const firstLine = msg.split('\n')[0].trim();
 
-	if (startsWith(firstLine, 'Error parsing regex')) {
-		return firstLine;
+	if (startsWith(firstLine, 'regex parse error')) {
+		return 'Regex parse error';
 	}
 
-	if (startsWith(firstLine, 'error parsing glob') ||
-		startsWith(firstLine, 'unsupported encoding')) {
+	let match = firstLine.match(/grep config error: unknown encoding: (.*)/);
+	if (match) {
+		return `Unknown encoding: ${match[1]}`;
+	}
+
+	if (startsWith(firstLine, 'error parsing glob') || startsWith(firstLine, 'the literal')) {
 		// Uppercase first letter
 		return firstLine.charAt(0).toUpperCase() + firstLine.substr(1);
-	}
-
-	if (firstLine === `Literal '\\n' not allowed.`) {
-		// I won't localize this because none of the Ripgrep error messages are localized
-		return `Literal '\\n' currently not supported`;
-	}
-
-	if (startsWith(firstLine, 'Literal ')) {
-		// Other unsupported chars
-		return firstLine;
 	}
 
 	return undefined;
@@ -223,26 +218,39 @@ export class RipgrepParser extends EventEmitter {
 
 	private submatchToResult(parsedLine: any, match: any, uri: vscode.Uri): vscode.TextSearchResult {
 		const lineNumber = parsedLine.data.line_number - 1;
-		let matchText = parsedLine.data.lines.bytes ?
-			new Buffer(parsedLine.data.lines.bytes, 'base64').toString() :
-			parsedLine.data.lines.text;
-		let start = match.start;
-		let end = match.end;
+		let lineText = bytesOrTextToString(parsedLine.data.lines);
+		let matchText = bytesOrTextToString(match.match);
+		const newlineMatches = matchText.match(/\n/g);
+		const newlines = newlineMatches ? newlineMatches.length : 0;
+
+		const textBytes = Buffer.from(lineText);
+		let startCol = textBytes.slice(0, match.start).toString().length;
+		const endChars = startCol + textBytes.slice(match.start, match.end).toString().length;
+
+		const endLineNumber = lineNumber + newlines;
+		let endCol = endChars - (lineText.lastIndexOf('\n', lineText.length - 2) + 1);
+
 		if (lineNumber === 0) {
 			if (startsWithUTF8BOM(matchText)) {
 				matchText = stripUTF8BOM(matchText);
-				start -= 3;
-				end -= 3;
+				startCol -= 3;
+				endCol -= 3;
 			}
 		}
 
-		const range = new Range(lineNumber, start, lineNumber, end);
-		return createTextSearchResult(uri, matchText, range, this.previewOptions);
+		const range = new Range(lineNumber, startCol, endLineNumber, endCol);
+		return createTextSearchResult(uri, lineText, range, this.previewOptions);
 	}
 
 	private onResult(match: vscode.TextSearchResult): void {
 		this.emit('result', match);
 	}
+}
+
+function bytesOrTextToString(obj: any): string {
+	return obj.bytes ?
+		Buffer.from(obj.bytes, 'base64').toString() :
+		obj.text;
 }
 
 function getRgArgs(query: vscode.TextSearchQuery, options: vscode.TextSearchOptions): string[] {
@@ -276,22 +284,32 @@ function getRgArgs(query: vscode.TextSearchQuery, options: vscode.TextSearchOpti
 		args.push('--encoding', options.encoding);
 	}
 
+	let pattern = query.pattern;
+
 	// Ripgrep handles -- as a -- arg separator. Only --.
-	// - is ok, --- is ok, --some-flag is handled as query text. Need to special case.
-	if (query.pattern === '--') {
+	// - is ok, --- is ok, --some-flag is also ok. Need to special case.
+	if (pattern === '--') {
 		query.isRegExp = true;
-		query.pattern = '\\-\\-';
+		pattern = '\\-\\-';
+	}
+
+	if ((<IExtendedExtensionSearchOptions>options).usePCRE2) {
+		args.push('--pcre2');
+
+		if (query.isRegExp) {
+			pattern = unicodeEscapesToPCRE2(pattern);
+		}
 	}
 
 	let searchPatternAfterDoubleDashes: Maybe<string>;
 	if (query.isWordMatch) {
-		const regexp = createRegExp(query.pattern, !!query.isRegExp, { wholeWord: query.isWordMatch });
+		const regexp = createRegExp(pattern, !!query.isRegExp, { wholeWord: query.isWordMatch });
 		const regexpStr = regexp.source.replace(/\\\//g, '/'); // RegExp.source arbitrarily returns escaped slashes. Search and destroy.
 		args.push('--regexp', regexpStr);
 	} else if (query.isRegExp) {
-		args.push('--regexp', fixRegexEndingPattern(query.pattern));
+		args.push('--regexp', pattern);
 	} else {
-		searchPatternAfterDoubleDashes = query.pattern;
+		searchPatternAfterDoubleDashes = pattern;
 		args.push('--fixed-strings');
 	}
 
@@ -299,6 +317,9 @@ function getRgArgs(query: vscode.TextSearchQuery, options: vscode.TextSearchOpti
 	if (!options.useGlobalIgnoreFiles) {
 		args.push('--no-ignore-global');
 	}
+
+	// Match \r\n with $
+	args.push('--crlf');
 
 	args.push('--json');
 
@@ -319,65 +340,13 @@ function getRgArgs(query: vscode.TextSearchQuery, options: vscode.TextSearchOpti
 	return args;
 }
 
-interface RegExpOptions {
-	matchCase?: boolean;
-	wholeWord?: boolean;
-	multiline?: boolean;
-	global?: boolean;
-}
-
-function createRegExp(searchString: string, isRegex: boolean, options: RegExpOptions = {}): RegExp {
-	if (!searchString) {
-		throw new Error('Cannot create regex from empty string');
-	}
-	if (!isRegex) {
-		searchString = escapeRegExpCharacters(searchString);
-	}
-	if (options.wholeWord) {
-		if (!/\B/.test(searchString.charAt(0))) {
-			searchString = '\\b' + searchString;
-		}
-		if (!/\B/.test(searchString.charAt(searchString.length - 1))) {
-			searchString = searchString + '\\b';
-		}
-	}
-	let modifiers = '';
-	if (options.global) {
-		modifiers += 'g';
-	}
-	if (!options.matchCase) {
-		modifiers += 'i';
-	}
-	if (options.multiline) {
-		modifiers += 'm';
-	}
-
-	return new RegExp(searchString, modifiers);
-}
-
-/**
- * Escapes regular expression characters in a given string
- */
-function escapeRegExpCharacters(value: string): string {
-	return value.replace(/[\-\\\{\}\*\+\?\|\^\$\.\[\]\(\)\#]/g, '\\$&');
-}
-
-// -- UTF-8 BOM
-
-const UTF8_BOM = 65279;
-
-function startsWithUTF8BOM(str: string): boolean {
-	return !!(str && str.length > 0 && str.charCodeAt(0) === UTF8_BOM);
-}
-
-function stripUTF8BOM(str: string): string {
-	return startsWithUTF8BOM(str) ? str.substr(1) : str;
-}
-
-export function fixRegexEndingPattern(pattern: string): string {
+export function unicodeEscapesToPCRE2(pattern: string): string {
+	const reg = /((?:[^\\]|^)(?:\\\\)*)\\u([a-z0-9]{4})(?!\d)/g;
 	// Replace an unescaped $ at the end of the pattern with \r?$
 	// Match $ preceeded by none or even number of literal \
-	return pattern.match(/([^\\]|^)(\\\\)*\$$/) ?
-		pattern.replace(/\$$/, '\\r?$') :
-		pattern;
+	while (pattern.match(reg)) {
+		pattern = pattern.replace(reg, `$1\\x{$2}`);
+	}
+
+	return pattern;
 }

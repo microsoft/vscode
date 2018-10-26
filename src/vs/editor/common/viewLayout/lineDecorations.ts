@@ -3,9 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { InlineDecoration, InlineDecorationType } from 'vs/editor/common/viewModel/viewModel';
-import { Constants } from 'vs/editor/common/core/uint';
 import * as strings from 'vs/base/common/strings';
+import { Constants } from 'vs/editor/common/core/uint';
+import { InlineDecoration, InlineDecorationType } from 'vs/editor/common/viewModel/viewModel';
 
 export class LineDecoration {
 	_lineDecorationBrand: void;

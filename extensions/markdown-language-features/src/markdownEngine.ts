@@ -46,6 +46,9 @@ export class MarkdownEngine {
 					if (lang && lang.toLocaleLowerCase() === 'json5') {
 						lang = 'json';
 					}
+					if (lang && lang.toLocaleLowerCase() === 'c#') {
+						lang = 'cs';
+					}
 					if (lang && hljs.getLanguage(lang)) {
 						try {
 							return `<div>${hljs.highlight(lang, str, true).value}</div>`;
@@ -178,7 +181,8 @@ export class MarkdownEngine {
 			try {
 				const externalSchemeUri = getUriForLinkWithKnownExternalScheme(link);
 				if (externalSchemeUri) {
-					return normalizeLink(externalSchemeUri.toString());
+					// set true to skip encoding
+					return normalizeLink(externalSchemeUri.toString(true));
 				}
 
 

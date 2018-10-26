@@ -5,7 +5,7 @@
 
 import 'mocha';
 import * as assert from 'assert';
-import { Selection } from 'vscode';
+import { Selection, workspace, ConfigurationTarget } from 'vscode';
 import { withRandomFileEditor, closeAllEditors } from './testUtils';
 import { wrapWithAbbreviation, wrapIndividualLinesWithAbbreviation } from '../abbreviationActions';
 
@@ -56,6 +56,13 @@ const wrapMultiLineAbbrExpected = `
 	</ul>
 `;
 
+const wrapInlineElementExpectedFormatFalse = `
+	<ul class="nav main">
+		<h1><li class="item1">img</li></h1>
+		<h1><li class="item2">$hithere</li></h1>
+	</ul>
+`;
+
 suite('Tests for Wrap with Abbreviations', () => {
 	teardown(closeAllEditors);
 
@@ -63,6 +70,7 @@ suite('Tests for Wrap with Abbreviations', () => {
 	const multiCursorsWithSelection = [new Selection(2, 2, 2, 28), new Selection(3, 2, 3, 33)];
 	const multiCursorsWithFullLineSelection = [new Selection(2, 0, 2, 28), new Selection(3, 0, 4, 0)];
 
+	const oldValueForSyntaxProfiles = workspace.getConfiguration('emmet').inspect('syntaxProfile');
 
 	test('Wrap with block element using multi cursor', () => {
 		return testWrapWithAbbreviation(multiCursors, 'div', wrapBlockElementExpected);
@@ -337,6 +345,14 @@ suite('Tests for Wrap with Abbreviations', () => {
 			return promise.then(() => {
 				assert.equal(editor.document.getText(), wrapIndividualLinesExpected);
 				return Promise.resolve();
+			});
+		});
+	});
+
+	test('Wrap individual lines with abbreviation and format set to false', () => {
+		return workspace.getConfiguration('emmet').update('syntaxProfiles',{ 'html' : { 'format': false } } , ConfigurationTarget.Global).then(() => {
+			return testWrapWithAbbreviation(multiCursors,'h1',wrapInlineElementExpectedFormatFalse).then(() => {
+				return workspace.getConfiguration('emmet').update('syntaxProfiles',oldValueForSyntaxProfiles ? oldValueForSyntaxProfiles.globalValue : undefined, ConfigurationTarget.Global);
 			});
 		});
 	});

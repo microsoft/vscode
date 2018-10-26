@@ -4,17 +4,17 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { clipboard } from 'electron';
+import { RunOnceScheduler } from 'vs/base/common/async';
+import { Disposable } from 'vs/base/common/lifecycle';
 import * as platform from 'vs/base/common/platform';
 import { ICodeEditor, IEditorMouseEvent, MouseTargetType } from 'vs/editor/browser/editorBrowser';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { IEditorContribution } from 'vs/editor/common/editorCommon';
-import { EndOfLinePreference } from 'vs/editor/common/model';
 import { registerEditorContribution } from 'vs/editor/browser/editorExtensions';
-import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { RunOnceScheduler } from 'vs/base/common/async';
-import { Range } from 'vs/editor/common/core/range';
 import { IConfigurationChangedEvent } from 'vs/editor/common/config/editorOptions';
 import { ICursorSelectionChangedEvent } from 'vs/editor/common/controller/cursorEvents';
+import { Range } from 'vs/editor/common/core/range';
+import { IEditorContribution } from 'vs/editor/common/editorCommon';
+import { EndOfLinePreference } from 'vs/editor/common/model';
+import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 
 export class SelectionClipboard extends Disposable implements IEditorContribution {
 	private static SELECTION_LENGTH_LIMIT = 65536;

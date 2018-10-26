@@ -53,7 +53,7 @@ function assertDiff(originalLines: string[], modifiedLines: string[], expectedCh
 	});
 	let changes = diffComputer.computeDiff();
 
-	let extracted = [];
+	let extracted: IChange[] = [];
 	for (let i = 0; i < changes.length; i++) {
 		extracted.push(extractLineChangeRepresentation(changes[i], <ILineChange>(i < expectedChanges.length ? expectedChanges[i] : null)));
 	}

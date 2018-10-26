@@ -386,22 +386,6 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	}
 });
 
-CommandsRegistry.registerCommand(OpenGlobalKeybindingsFileAction.ID, serviceAccessor => {
-	serviceAccessor.get(IInstantiationService).createInstance(OpenGlobalKeybindingsFileAction, OpenGlobalKeybindingsFileAction.ID, OpenGlobalKeybindingsFileAction.LABEL).run();
-});
-MenuRegistry.appendMenuItem(MenuId.EditorTitle, {
-	command: {
-		id: OpenGlobalKeybindingsFileAction.ID,
-		title: OpenGlobalKeybindingsFileAction.LABEL,
-		iconLocation: {
-			light: URI.parse(require.toUrl(`vs/workbench/parts/preferences/browser/media/open-file.svg`)),
-			dark: URI.parse(require.toUrl(`vs/workbench/parts/preferences/browser/media/open-file-inverse.svg`))
-		}
-	},
-	when: ContextKeyExpr.and(CONTEXT_KEYBINDINGS_EDITOR),
-	group: 'navigation',
-});
-
 CommandsRegistry.registerCommand(KEYBINDINGS_EDITOR_SHOW_DEFAULT_KEYBINDINGS, serviceAccessor => {
 	const control = serviceAccessor.get(IEditorService).activeControl as IKeybindingsEditor;
 	if (control) {

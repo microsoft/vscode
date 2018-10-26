@@ -66,11 +66,11 @@ class TestViewletService implements IViewletService {
 class TestPanelService implements IPanelService {
 	public _serviceBrand: any;
 
-	onDidPanelOpen = new Emitter<IPanel>().event;
+	onDidPanelOpen = new Emitter<{ panel: IPanel, focus: boolean }>().event;
 	onDidPanelClose = new Emitter<IPanel>().event;
 
-	public openPanel(id: string, focus?: boolean): TPromise {
-		return TPromise.as(null);
+	public openPanel(id: string, focus?: boolean): IPanel {
+		return null;
 	}
 
 	public getPanels(): any[] {

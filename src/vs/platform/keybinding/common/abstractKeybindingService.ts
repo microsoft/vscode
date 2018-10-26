@@ -5,18 +5,18 @@
 
 import * as nls from 'vs/nls';
 import * as arrays from 'vs/base/common/arrays';
-import { ResolvedKeybinding, Keybinding, KeyCode } from 'vs/base/common/keyCodes';
-import { IDisposable, Disposable } from 'vs/base/common/lifecycle';
-import { ICommandService } from 'vs/platform/commands/common/commands';
-import { KeybindingResolver, IResolveResult } from 'vs/platform/keybinding/common/keybindingResolver';
-import { IKeybindingEvent, IKeybindingService, IKeyboardEvent } from 'vs/platform/keybinding/common/keybinding';
-import { IContextKeyService, IContextKeyServiceTarget } from 'vs/platform/contextkey/common/contextkey';
-import { IStatusbarService } from 'vs/platform/statusbar/common/statusbar';
-import { Event, Emitter } from 'vs/base/common/event';
-import { ResolvedKeybindingItem } from 'vs/platform/keybinding/common/resolvedKeybindingItem';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { INotificationService } from 'vs/platform/notification/common/notification';
 import { IntervalTimer } from 'vs/base/common/async';
+import { Emitter, Event } from 'vs/base/common/event';
+import { KeyCode, Keybinding, ResolvedKeybinding } from 'vs/base/common/keyCodes';
+import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
+import { ICommandService } from 'vs/platform/commands/common/commands';
+import { IContextKeyService, IContextKeyServiceTarget } from 'vs/platform/contextkey/common/contextkey';
+import { IKeybindingEvent, IKeybindingService, IKeyboardEvent } from 'vs/platform/keybinding/common/keybinding';
+import { IResolveResult, KeybindingResolver } from 'vs/platform/keybinding/common/keybindingResolver';
+import { ResolvedKeybindingItem } from 'vs/platform/keybinding/common/resolvedKeybindingItem';
+import { INotificationService } from 'vs/platform/notification/common/notification';
+import { IStatusbarService } from 'vs/platform/statusbar/common/statusbar';
+import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 
 interface CurrentChord {
 	keypress: string;

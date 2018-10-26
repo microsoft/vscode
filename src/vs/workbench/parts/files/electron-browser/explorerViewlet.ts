@@ -60,7 +60,7 @@ export class ExplorerViewletViewsContribution extends Disposable implements IWor
 	private registerViews(): void {
 		const viewDescriptors = ViewsRegistry.getViews(VIEW_CONTAINER);
 
-		let viewDescriptorsToRegister = [];
+		let viewDescriptorsToRegister: IViewDescriptor[] = [];
 		let viewDescriptorsToDeregister: string[] = [];
 
 		const openEditorsViewDescriptor = this.createOpenEditorsViewDescriptor();
@@ -175,10 +175,9 @@ export class ExplorerViewlet extends ViewContainerViewlet implements IExplorerVi
 		this._register(this.contextService.onDidChangeWorkspaceName(e => this.updateTitleArea()));
 	}
 
-	create(parent: HTMLElement): Promise<void> {
-		return super.create(parent).then(() => {
-			DOM.addClass(parent, 'explorer-viewlet');
-		});
+	create(parent: HTMLElement): void {
+		super.create(parent);
+		DOM.addClass(parent, 'explorer-viewlet');
 	}
 
 	protected createView(viewDescriptor: IViewDescriptor, options: IViewletViewOptions): ViewletPanel {
@@ -235,9 +234,9 @@ export class ExplorerViewlet extends ViewContainerViewlet implements IExplorerVi
 		return <EmptyView>this.getView(EmptyView.ID);
 	}
 
-	public setVisible(visible: boolean): Promise<void> {
+	public setVisible(visible: boolean): void {
 		this.viewletVisibleContextKey.set(visible);
-		return super.setVisible(visible);
+		super.setVisible(visible);
 	}
 
 	public getActionRunner(): IActionRunner {

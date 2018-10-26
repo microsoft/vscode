@@ -105,15 +105,11 @@ export abstract class BaseEditor extends Panel implements IEditor {
 		this._options = options;
 	}
 
-	create(parent: HTMLElement): void; // create is sync for editors
-	create(parent: HTMLElement): Promise<void>;
-	create(parent: HTMLElement): Promise<void> {
-		const res = super.create(parent);
+	create(parent: HTMLElement): void {
+		super.create(parent);
 
 		// Create Editor
 		this.createEditor(parent);
-
-		return res;
 	}
 
 	/**
@@ -121,15 +117,10 @@ export abstract class BaseEditor extends Panel implements IEditor {
 	 */
 	protected abstract createEditor(parent: HTMLElement): void;
 
-	setVisible(visible: boolean, group?: IEditorGroup): void; // setVisible is sync for editors
-	setVisible(visible: boolean, group?: IEditorGroup): Promise<void>;
-	setVisible(visible: boolean, group?: IEditorGroup): Promise<void> {
-		const promise = super.setVisible(visible);
-
+	setVisible(visible: boolean, group?: IEditorGroup): void {
+		super.setVisible(visible);
 		// Propagate to Editor
 		this.setEditorVisible(visible, group);
-
-		return promise;
 	}
 
 	/**

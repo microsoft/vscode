@@ -5,8 +5,8 @@
 	// $1, $2 for tab stops, $0 for the final cursor position, and ${1:label}, ${2:another} for placeholders.
 	// Placeholders with the same ids are connected.
 	// Example:
-	"JavaScript, TypeScript Copyright Header": {
-		"scope": "javascript,typescript",
+	"MSFT Copyright Header": {
+		"scope": "javascript,typescript,css",
 		"prefix": [
 			"header",
 			"stub",
@@ -17,8 +17,6 @@
 			" *  Copyright (c) Microsoft Corporation. All rights reserved.",
 			" *  Licensed under the MIT License. See License.txt in the project root for license information.",
 			" *--------------------------------------------------------------------------------------------*/",
-			"",
-			"'use strict';",
 			"",
 			"$0"
 		],
@@ -36,22 +34,5 @@
 			"private _onDid$1 = new Emitter<$2>();",
 			"readonly onDid$1: Event<$2> = this._onDid$1.event;"
 		],
-	},
-	"CSS Copyright Header": {
-		"scope": "css",
-		"prefix": [
-			"header",
-			"stub",
-			"copyright"
-		],
-		"body": [
-			"/*---------------------------------------------------------------------------------------------",
-			" *  Copyright (c) Microsoft Corporation. All rights reserved.",
-			" *  Licensed under the MIT License. See License.txt in the project root for license information.",
-			" *--------------------------------------------------------------------------------------------*/",
-			"",
-			"$0"
-		],
-		"description": "Insert Copyright Statement"
 	}
 }

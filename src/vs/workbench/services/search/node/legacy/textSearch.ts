@@ -5,17 +5,19 @@
 
 import * as path from 'path';
 import { onUnexpectedError } from 'vs/base/common/errors';
-import { IProgress } from 'vs/platform/search/common/search';
+import { IProgress, ITextQuery } from 'vs/platform/search/common/search';
 import { FileWalker } from 'vs/workbench/services/search/node/fileSearch';
-import { IRawSearch, ISearchEngine, ISearchEngineSuccess, ISerializedFileMatch } from './search';
+import { ISearchEngine, ISearchEngineSuccess, ISerializedFileMatch } from '../search';
 import { ITextSearchWorkerProvider } from './textSearchWorkerProvider';
 import { ISearchWorker, ISearchWorkerSearchArgs } from './worker/searchWorkerIpc';
+import { IRawSearch } from 'vs/workbench/services/search/node/legacy/search';
 
 export class Engine implements ISearchEngine<ISerializedFileMatch[]> {
 
 	private static readonly PROGRESS_FLUSH_CHUNK_SIZE = 50; // optimization: number of files to process before emitting progress event
 
 	private config: IRawSearch;
+	private config2: ITextQuery;
 	private walker: FileWalker;
 	private walkerError: Error;
 
@@ -33,8 +35,9 @@ export class Engine implements ISearchEngine<ISerializedFileMatch[]> {
 
 	private nextWorker = 0;
 
-	constructor(config: IRawSearch, walker: FileWalker, workerProvider: ITextSearchWorkerProvider) {
-		this.config = config;
+	constructor(config: ITextQuery, walker: FileWalker, workerProvider: ITextSearchWorkerProvider) {
+		this.config = makeRawSearch(config);
+		this.config2 = config;
 		this.walker = walker;
 		this.workerProvider = workerProvider;
 	}
@@ -122,7 +125,7 @@ export class Engine implements ISearchEngine<ISerializedFileMatch[]> {
 		let nextBatch: string[] = [];
 		let nextBatchBytes = 0;
 		const batchFlushBytes = 2 ** 20; // 1MB
-		this.walker.walk(this.config.folderQueries, this.config.extraFiles, result => {
+		this.walker.walk(this.config2.folderQueries, this.config2.extraFileResources, result => {
 			let bytes = result.size || 1;
 			this.totalBytes += bytes;
 
@@ -161,4 +164,43 @@ export class Engine implements ISearchEngine<ISerializedFileMatch[]> {
 				}
 			});
 	}
+}
+
+/**
+ * Exported for tests
+ */
+export function makeRawSearch(query: ITextQuery): IRawSearch {
+	let rawSearch: IRawSearch = {
+		folderQueries: [],
+		extraFiles: [],
+		excludePattern: query.excludePattern,
+		includePattern: query.includePattern,
+		maxResults: query.maxResults,
+		useRipgrep: query.useRipgrep,
+		disregardIgnoreFiles: query.folderQueries.some(fq => fq.disregardIgnoreFiles),
+		disregardGlobalIgnoreFiles: query.folderQueries.some(fq => fq.disregardGlobalIgnoreFiles),
+		ignoreSymlinks: query.folderQueries.some(fq => fq.ignoreSymlinks),
+		previewOptions: query.previewOptions
+	};
+
+	for (const q of query.folderQueries) {
+		rawSearch.folderQueries.push({
+			excludePattern: q.excludePattern,
+			includePattern: q.includePattern,
+			fileEncoding: q.fileEncoding,
+			disregardIgnoreFiles: q.disregardIgnoreFiles,
+			disregardGlobalIgnoreFiles: q.disregardGlobalIgnoreFiles,
+			folder: q.folder.fsPath
+		});
+	}
+
+	if (query.extraFileResources) {
+		for (const r of query.extraFileResources) {
+			rawSearch.extraFiles.push(r.fsPath);
+		}
+	}
+
+	rawSearch.contentPattern = query.contentPattern;
+
+	return rawSearch;
 }
