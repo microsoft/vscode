@@ -22,7 +22,7 @@ import Tracer from '../utils/tracer';
 import { TypeScriptVersion, TypeScriptVersionProvider } from '../utils/versionProvider';
 import { Reader } from '../utils/wireProtocol';
 import { CallbackMap } from './callbackMap';
-import { RequestQueue, RequestItem } from './requestItem';
+import { RequestQueue, RequestItem } from './requestQueue';
 
 export class TypeScriptServerSpawner {
 	public constructor(
