@@ -74,7 +74,7 @@ export function connectProxyResolver(extHostWorkspace: ExtHostWorkspace, extHost
 			}
 			options = options || {};
 
-			if (config === 'force' || config === 'on' && !options.agent) {
+			if (!options.socketPath && (config === 'force' || config === 'on' && !options.agent)) {
 				if (url) {
 					const parsed = typeof url === 'string' ? nodeurl.parse(url) : url;
 					options = {
