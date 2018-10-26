@@ -5,9 +5,9 @@
 
 import { Range } from 'vs/editor/common/core/range';
 import { FindMatch, ITextModel } from 'vs/editor/common/model';
-import { ITextSearchPreviewOptions, TextSearchResult } from 'vs/platform/search/common/search';
+import { ITextSearchPreviewOptions, TextSearchMatch } from 'vs/platform/search/common/search';
 
-function editorMatchToTextSearchResult(matches: FindMatch[], model: ITextModel, previewOptions?: ITextSearchPreviewOptions): TextSearchResult {
+function editorMatchToTextSearchResult(matches: FindMatch[], model: ITextModel, previewOptions?: ITextSearchPreviewOptions): TextSearchMatch {
 	const firstLine = matches[0].range.startLineNumber;
 	const lastLine = matches[matches.length - 1].range.endLineNumber;
 
@@ -17,7 +17,7 @@ function editorMatchToTextSearchResult(matches: FindMatch[], model: ITextModel, 
 		lineTexts.push(model.getLineContent(i));
 	}
 
-	return new TextSearchResult(
+	return new TextSearchMatch(
 		lineTexts.join('\n'),
 		matches.map(m => new Range(m.range.startLineNumber - 1, m.range.startColumn - 1, m.range.endLineNumber - 1, m.range.endColumn - 1)),
 		previewOptions);
@@ -26,7 +26,7 @@ function editorMatchToTextSearchResult(matches: FindMatch[], model: ITextModel, 
 /**
  * Combine a set of FindMatches into a set of TextSearchResults. They should be grouped by matches that start on the same line that the previous match ends on.
  */
-export function editorMatchesToTextSearchResults(matches: FindMatch[], model: ITextModel, previewOptions?: ITextSearchPreviewOptions): TextSearchResult[] {
+export function editorMatchesToTextSearchResults(matches: FindMatch[], model: ITextModel, previewOptions?: ITextSearchPreviewOptions): TextSearchMatch[] {
 	let previousEndLine = -1;
 	const groupedMatches: FindMatch[][] = [];
 	let currentMatches: FindMatch[] = [];

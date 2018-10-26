@@ -13,7 +13,7 @@ import { URI } from 'vs/base/common/uri';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { toCanonicalName } from 'vs/base/node/encoding';
 import * as extfs from 'vs/base/node/extfs';
-import { IExtendedExtensionSearchOptions, IFileMatch, IFolderQuery, IPatternInfo, ISearchCompleteStats, ITextQuery, ITextSearchResult } from 'vs/platform/search/common/search';
+import { IExtendedExtensionSearchOptions, IFileMatch, IFolderQuery, IPatternInfo, ISearchCompleteStats, ITextQuery, ITextSearchMatch, ITextSearchContext, ITextSearchResult } from 'vs/platform/search/common/search';
 import { QueryGlobTester, resolvePatternsForProvider } from 'vs/workbench/services/search/node/search';
 import * as vscode from 'vscode';
 
@@ -125,7 +125,7 @@ export class TextSearchManager {
 		const includes = resolvePatternsForProvider(this.query.includePattern, fq.includePattern);
 		const excludes = resolvePatternsForProvider(this.query.excludePattern, fq.excludePattern);
 
-		const options = {
+		const options = <vscode.TextSearchOptions>{
 			folder: URI.from(fq.folder),
 			excludes,
 			includes,
@@ -135,7 +135,9 @@ export class TextSearchManager {
 			encoding: fq.fileEncoding && toCanonicalName(fq.fileEncoding),
 			maxFileSize: this.query.maxFileSize,
 			maxResults: this.query.maxResults,
-			previewOptions: this.query.previewOptions
+			previewOptions: this.query.previewOptions,
+			afterContext: this.query.afterContext,
+			beforeContext: this.query.beforeContext
 		};
 		(<IExtendedExtensionSearchOptions>options).usePCRE2 = this.query.usePCRE2;
 		return options;
@@ -176,16 +178,16 @@ export class TextSearchResultsCollector {
 			this._currentFolderIdx = folderIdx;
 			this._currentFileMatch = {
 				resource: data.uri,
-				matches: []
+				results: []
 			};
 		}
 
-		this._currentFileMatch.matches.push(extensionResultToFrontendResult(data));
+		this._currentFileMatch.results.push(extensionResultToFrontendResult(data));
 	}
 
 	private pushToCollector(): void {
 		const size = this._currentFileMatch ?
-			this._currentFileMatch.matches.length :
+			this._currentFileMatch.results.length :
 			0;
 		this._batchedCollector.addItem(this._currentFileMatch, size);
 	}
@@ -202,23 +204,34 @@ export class TextSearchResultsCollector {
 
 function extensionResultToFrontendResult(data: vscode.TextSearchResult): ITextSearchResult {
 	// Warning: result from RipgrepTextSearchEH has fake vscode.Range. Don't depend on any other props beyond these...
-	return {
-		preview: {
-			matches: mapArrayOrNot(data.preview.matches, m => ({
-				startLineNumber: m.start.line,
-				startColumn: m.start.character,
-				endLineNumber: m.end.line,
-				endColumn: m.end.character
-			})),
-			text: data.preview.text
-		},
-		ranges: mapArrayOrNot(data.ranges, r => ({
-			startLineNumber: r.start.line,
-			startColumn: r.start.character,
-			endLineNumber: r.end.line,
-			endColumn: r.end.character
-		}))
-	};
+	if (extensionResultIsMatch(data)) {
+		return <ITextSearchMatch>{
+			preview: {
+				matches: mapArrayOrNot(data.preview.matches, m => ({
+					startLineNumber: m.start.line,
+					startColumn: m.start.character,
+					endLineNumber: m.end.line,
+					endColumn: m.end.character
+				})),
+				text: data.preview.text
+			},
+			ranges: mapArrayOrNot(data.ranges, r => ({
+				startLineNumber: r.start.line,
+				startColumn: r.start.character,
+				endLineNumber: r.end.line,
+				endColumn: r.end.character
+			}))
+		};
+	} else {
+		return <ITextSearchContext>{
+			text: data.text,
+			lineNumber: data.lineNumber
+		};
+	}
+}
+
+export function extensionResultIsMatch(data: vscode.TextSearchResult): data is vscode.TextSearchMatch {
+	return !!(<vscode.TextSearchMatch>data).preview;
 }
 
 /**

@@ -5,7 +5,7 @@
 
 import { startsWith } from 'vs/base/common/strings';
 import { ILogService } from 'vs/platform/log/common/log';
-import { SearchRange, TextSearchResult } from 'vs/platform/search/common/search';
+import { SearchRange, TextSearchMatch } from 'vs/platform/search/common/search';
 import * as vscode from 'vscode';
 import { mapArrayOrNot } from 'vs/base/common/arrays';
 
@@ -18,10 +18,10 @@ export function anchorGlob(glob: string): string {
 /**
  * Create a vscode.TextSearchResult by using our internal TextSearchResult type for its previewOptions logic.
  */
-export function createTextSearchResult(uri: vscode.Uri, text: string, range: Range | Range[], previewOptions?: vscode.TextSearchPreviewOptions): vscode.TextSearchResult {
+export function createTextSearchResult(uri: vscode.Uri, text: string, range: Range | Range[], previewOptions?: vscode.TextSearchPreviewOptions): vscode.TextSearchMatch {
 	const searchRange = mapArrayOrNot(range, rangeToSearchRange);
 
-	const internalResult = new TextSearchResult(text, searchRange, previewOptions);
+	const internalResult = new TextSearchMatch(text, searchRange, previewOptions);
 	const internalPreviewRange = internalResult.preview.matches;
 	return {
 		ranges: mapArrayOrNot(searchRange, searchRangeToRange),

@@ -127,7 +127,7 @@ suite('Search Actions', () => {
 	function aFileMatch(): FileMatch {
 		let rawMatch: IFileMatch = {
 			resource: URI.file('somepath' + ++counter),
-			matches: []
+			results: []
 		};
 		return instantiationService.createInstance(FileMatch, null, null, null, null, rawMatch);
 	}

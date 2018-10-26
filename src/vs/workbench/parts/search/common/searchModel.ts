@@ -21,7 +21,7 @@ import { IModelService } from 'vs/editor/common/services/modelService';
 import { createDecorator, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IProgressRunner } from 'vs/platform/progress/common/progress';
 import { ReplacePattern } from 'vs/platform/search/common/replace';
-import { IFileMatch, IPatternInfo, ISearchComplete, ISearchProgressItem, ISearchService, ITextQuery, ITextSearchPreviewOptions, ITextSearchResult, ITextSearchStats } from 'vs/platform/search/common/search';
+import { IFileMatch, IPatternInfo, ISearchComplete, ISearchProgressItem, ISearchService, ITextQuery, ITextSearchPreviewOptions, ITextSearchMatch, ITextSearchStats, resultIsMatch } from 'vs/platform/search/common/search';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { overviewRulerFindMatchForeground } from 'vs/platform/theme/common/colorRegistry';
 import { themeColorFromId } from 'vs/platform/theme/common/themeService';
@@ -37,7 +37,7 @@ export class Match {
 	private _previewText: string;
 	private _rangeInPreviewText: Range;
 
-	constructor(private _parent: FileMatch, _result: ITextSearchResult) {
+	constructor(private _parent: FileMatch, _result: ITextSearchMatch) {
 		if (Array.isArray(_result.ranges) || Array.isArray(_result.preview.matches)) {
 			throw new Error('A Match can only be built from a single search result');
 		}
@@ -175,10 +175,12 @@ export class FileMatch extends Disposable {
 			this.bindModel(model);
 			this.updateMatchesForModel();
 		} else {
-			this.rawMatch.matches.forEach(rawMatch => {
-				textSearchResultToMatches(rawMatch, this)
-					.forEach(m => this.add(m));
-			});
+			this.rawMatch.results
+				.filter(resultIsMatch)
+				.forEach(rawMatch => {
+					textSearchResultToMatches(rawMatch, this)
+						.forEach(m => this.add(m));
+				});
 		}
 	}
 
@@ -420,10 +422,13 @@ export class FolderMatch extends Disposable {
 		raw.forEach((rawFileMatch) => {
 			if (this._fileMatches.has(rawFileMatch.resource)) {
 				const existingFileMatch = this._fileMatches.get(rawFileMatch.resource);
-				rawFileMatch.matches.forEach(m => {
-					textSearchResultToMatches(m, existingFileMatch)
-						.forEach(m => existingFileMatch.add(m));
-				});
+				rawFileMatch
+					.results
+					.filter(resultIsMatch)
+					.forEach(m => {
+						textSearchResultToMatches(m, existingFileMatch)
+							.forEach(m => existingFileMatch.add(m));
+					});
 				updated.push(existingFileMatch);
 			} else {
 				const fileMatch = this.instantiationService.createInstance(FileMatch, this._query.contentPattern, this._query.previewOptions, this._query.maxResults, this, rawFileMatch);
@@ -1010,7 +1015,7 @@ export class RangeHighlightDecorations implements IDisposable {
 	});
 }
 
-function textSearchResultToMatches(rawMatch: ITextSearchResult, fileMatch: FileMatch): Match[] {
+function textSearchResultToMatches(rawMatch: ITextSearchMatch, fileMatch: FileMatch): Match[] {
 	if (Array.isArray(rawMatch.ranges)) {
 		return rawMatch.ranges.map((r, i) => {
 			return new Match(fileMatch, {
