@@ -343,4 +343,4 @@ function quit(accessor: ServicesAccessor, reason?: ExpectedError | Error): void 
 				return instantiationService.createInstance(CodeApplication, mainIpcServer, instanceEnv).startup();
 			});
 	}).then(null, err => instantiationService.invokeFunction(quit, err));
-})()
+})();
