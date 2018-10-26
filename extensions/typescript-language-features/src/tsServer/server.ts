@@ -8,7 +8,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import * as vscode from 'vscode';
 import * as Proto from '../protocol';
-import { CancelledResponse, NoContentResponse, ServerResponse } from '../typescriptService';
+import { CancelledResponse, NoContentResponse } from '../typescriptService';
 import API from '../utils/api';
 import { TsServerLogLevel, TypeScriptServiceConfiguration } from '../utils/configuration';
 import { Disposable } from '../utils/dispose';
@@ -21,52 +21,8 @@ import TelemetryReporter from '../utils/telemetry';
 import Tracer from '../utils/tracer';
 import { TypeScriptVersion, TypeScriptVersionProvider } from '../utils/versionProvider';
 import { Reader } from '../utils/wireProtocol';
+import { CallbackMap } from './callbackMap';
 
-interface CallbackItem<R> {
-	readonly onSuccess: (value: R) => void;
-	readonly onError: (err: any) => void;
-	readonly startTime: number;
-	readonly isAsync: boolean;
-}
-
-class CallbackMap<R extends Proto.Response> {
-	private readonly _callbacks = new Map<number, CallbackItem<ServerResponse<R> | undefined>>();
-	private readonly _asyncCallbacks = new Map<number, CallbackItem<ServerResponse<R> | undefined>>();
-
-	public destroy(cause: string): void {
-		const cancellation = new CancelledResponse(cause);
-		for (const callback of this._callbacks.values()) {
-			callback.onSuccess(cancellation);
-		}
-		this._callbacks.clear();
-
-		for (const callback of this._asyncCallbacks.values()) {
-			callback.onSuccess(cancellation);
-		}
-		this._asyncCallbacks.clear();
-	}
-
-	public add(seq: number, callback: CallbackItem<ServerResponse<R> | undefined>, isAsync: boolean) {
-		if (isAsync) {
-			this._asyncCallbacks.set(seq, callback);
-		} else {
-			this._callbacks.set(seq, callback);
-		}
-	}
-
-
-	public fetch(seq: number): CallbackItem<ServerResponse<R> | undefined> | undefined {
-		const callback = this._callbacks.get(seq) || this._asyncCallbacks.get(seq);
-		this.delete(seq);
-		return callback;
-	}
-
-	private delete(seq: number) {
-		if (!this._callbacks.delete(seq)) {
-			this._asyncCallbacks.delete(seq);
-		}
-	}
-}
 
 interface RequestItem {
 	readonly request: Proto.Request;
