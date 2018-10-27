@@ -183,7 +183,7 @@ export class RipgrepParser extends EventEmitter {
 			return;
 		}
 
-		let parsedLine: any;
+		let parsedLine: IRgMessage;
 		try {
 			parsedLine = JSON.parse(outputLine);
 		} catch (e) {
@@ -191,26 +191,32 @@ export class RipgrepParser extends EventEmitter {
 		}
 
 		if (parsedLine.type === 'match') {
-			const uri = URI.file(path.join(this.rootFolder, parsedLine.data.path.text));
-			const result = this.submatchesToResult(parsedLine, parsedLine.data.submatches, uri);
+			const matchPath = bytesOrTextToString(parsedLine.data.path);
+			const uri = URI.file(path.join(this.rootFolder, matchPath));
+			const result = this.createTextSearchMatch(parsedLine.data, uri);
 			this.onResult(result);
 
 			if (this.hitLimit) {
 				this.cancel();
 				this.emit('hitLimit');
 			}
+		} else if (parsedLine.type === 'context') {
+			const contextPath = bytesOrTextToString(parsedLine.data.path);
+			const uri = URI.file(path.join(this.rootFolder, contextPath));
+			const result = this.createTextSearchContext(parsedLine.data, uri);
+			result.forEach(r => this.onResult(r));
 		}
 	}
 
-	private submatchesToResult(parsedLine: any, matches: any[], uri: vscode.Uri): vscode.TextSearchResult {
-		const lineNumber = parsedLine.data.line_number - 1;
-		const fullText = bytesOrTextToString(parsedLine.data.lines);
+	private createTextSearchMatch(data: IRgMatch, uri: vscode.Uri): vscode.TextSearchMatch {
+		const lineNumber = data.line_number - 1;
+		const fullText = bytesOrTextToString(data.lines);
 		const fullTextBytes = Buffer.from(fullText);
 
 		let prevMatchEnd = 0;
 		let prevMatchEndCol = 0;
 		let prevMatchEndLine = lineNumber;
-		const ranges = matches.map((match, i) => {
+		const ranges = data.submatches.map((match, i) => {
 			if (this.hitLimit) {
 				return null;
 			}
@@ -247,6 +253,21 @@ export class RipgrepParser extends EventEmitter {
 			.filter(r => !!r);
 
 		return createTextSearchResult(uri, fullText, ranges, this.previewOptions);
+	}
+
+	private createTextSearchContext(data: IRgMatch, uri: URI): vscode.TextSearchContext[] {
+		const text = bytesOrTextToString(data.lines);
+		const startLine = data.line_number;
+		return text
+			.replace(/\n$/, '')
+			.split('\n')
+			.map((line, i) => {
+				return {
+					text: line,
+					uri,
+					lineNumber: startLine + i
+				};
+			});
 	}
 
 	private onResult(match: vscode.TextSearchResult): void {
@@ -351,6 +372,14 @@ function getRgArgs(query: vscode.TextSearchQuery, options: vscode.TextSearchOpti
 		args.push('--multiline');
 	}
 
+	if (options.beforeContext) {
+		args.push('--before-context', options.beforeContext + '');
+	}
+
+	if (options.afterContext) {
+		args.push('--after-context', options.afterContext + '');
+	}
+
 	// Folder to search
 	args.push('--');
 
@@ -374,3 +403,24 @@ export function unicodeEscapesToPCRE2(pattern: string): string {
 
 	return pattern;
 }
+
+interface IRgMessage {
+	type: 'match' | 'context' | string;
+	data: IRgMatch;
+}
+
+interface IRgMatch {
+	path: IRgBytesOrText;
+	lines: IRgBytesOrText;
+	line_number: number;
+	absolute_offset: number;
+	submatches: IRgSubmatch[];
+}
+
+interface IRgSubmatch {
+	match: IRgBytesOrText;
+	start: number;
+	end: number;
+}
+
+type IRgBytesOrText = { bytes: string } | { text: string };

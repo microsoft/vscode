@@ -181,6 +181,16 @@ declare module 'vscode' {
 		 * See the vscode setting `"files.encoding"`
 		 */
 		encoding?: string;
+
+		/**
+		 * Number of lines of context to include before each match.
+		 */
+		beforeContext?: number;
+
+		/**
+		 * Number of lines of context to include after each match.
+		 */
+		afterContext?: number;
 	}
 
 	/**
@@ -225,16 +235,15 @@ declare module 'vscode' {
 	/**
 	 * A preview of the text result.
 	 */
-	export interface TextSearchResultPreview {
+	export interface TextSearchMatchPreview {
 		/**
-		 * The matching line of text, or a portion of the matching line that contains the match.
-		 * For now, this can only be a single line.
+		 * The matching lines of text, or a portion of the matching line that contains the match.
 		 */
 		text: string;
 
 		/**
 		 * The Range within `text` corresponding to the text of the match.
-		 * The number of matches must match the TextSearchResult's range property.
+		 * The number of matches must match the TextSearchMatch's range property.
 		 */
 		matches: Range | Range[];
 	}
@@ -242,7 +251,7 @@ declare module 'vscode' {
 	/**
 	 * A match from a text search
 	 */
-	export interface TextSearchResult {
+	export interface TextSearchMatch {
 		/**
 		 * The uri for the matching document.
 		 */
@@ -254,10 +263,33 @@ declare module 'vscode' {
 		ranges: Range | Range[];
 
 		/**
-		 * A preview of the text result.
+		 * A preview of the text match.
 		 */
-		preview: TextSearchResultPreview;
+		preview: TextSearchMatchPreview;
 	}
+
+	/**
+	 * A line of context surrounding a TextSearchMatch.
+	 */
+	export interface TextSearchContext {
+		/**
+		 * The uri for the matching document.
+		 */
+		uri: Uri;
+
+		/**
+		 * One line of text.
+		 * previewOptions.charsPerLine applies to this
+		 */
+		text: string;
+
+		/**
+		 * The line number of this line of context.
+		 */
+		lineNumber: number;
+	}
+
+	export type TextSearchResult = TextSearchMatch | TextSearchContext;
 
 	/**
 	 * A FileIndexProvider provides a list of files in the given folder. VS Code will filter that list for searching with quickopen or from other extensions.
@@ -366,6 +398,16 @@ declare module 'vscode' {
 		 * Options to specify the size of the result text preview.
 		 */
 		previewOptions?: TextSearchPreviewOptions;
+
+		/**
+		 * Number of lines of context to include before each match.
+		 */
+		beforeContext?: number;
+
+		/**
+		 * Number of lines of context to include after each match.
+		 */
+		afterContext?: number;
 	}
 
 	export namespace workspace {

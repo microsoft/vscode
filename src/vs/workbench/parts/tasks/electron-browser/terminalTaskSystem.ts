@@ -352,10 +352,12 @@ export class TerminalTaskSystem implements ITaskSystem {
 				if (error || !terminal) {
 					return;
 				}
-				let processStartedSignaled: boolean = false;
+				let processStartedSignaled = false;
 				terminal.processReady.then(() => {
-					processStartedSignaled = true;
-					this._onDidStateChange.fire(TaskEvent.create(TaskEventKind.ProcessStarted, task, terminal.processId));
+					if (!processStartedSignaled) {
+						this._onDidStateChange.fire(TaskEvent.create(TaskEventKind.ProcessStarted, task, terminal.processId));
+						processStartedSignaled = true;
+					}
 				}, (_error) => {
 					// The process never got ready. Need to think how to handle this.
 				});
@@ -393,17 +395,19 @@ export class TerminalTaskSystem implements ITaskSystem {
 					watchingProblemMatcher.done();
 					watchingProblemMatcher.dispose();
 					registeredLinkMatchers.forEach(handle => terminal.deregisterLinkMatcher(handle));
-					if (processStartedSignaled) {
-						this._onDidStateChange.fire(TaskEvent.create(TaskEventKind.ProcessEnded, task, exitCode));
+					if (!processStartedSignaled) {
+						this._onDidStateChange.fire(TaskEvent.create(TaskEventKind.ProcessStarted, task, terminal.processId));
+						processStartedSignaled = true;
 					}
-					toDispose = dispose(toDispose);
-					toDispose = null;
+					this._onDidStateChange.fire(TaskEvent.create(TaskEventKind.ProcessEnded, task, exitCode));
 					for (let i = 0; i < eventCounter; i++) {
 						let event = TaskEvent.create(TaskEventKind.Inactive, task);
 						this._onDidStateChange.fire(event);
 					}
 					eventCounter = 0;
 					this._onDidStateChange.fire(TaskEvent.create(TaskEventKind.End, task));
+					toDispose = dispose(toDispose);
+					toDispose = null;
 					resolve({ exitCode });
 				});
 			});
@@ -413,10 +417,13 @@ export class TerminalTaskSystem implements ITaskSystem {
 				if (error || !terminal) {
 					return;
 				}
-				let processStartedSignaled: boolean = false;
+
+				let processStartedSignaled = false;
 				terminal.processReady.then(() => {
-					processStartedSignaled = true;
-					this._onDidStateChange.fire(TaskEvent.create(TaskEventKind.ProcessStarted, task, terminal.processId));
+					if (!processStartedSignaled) {
+						this._onDidStateChange.fire(TaskEvent.create(TaskEventKind.ProcessStarted, task, terminal.processId));
+						processStartedSignaled = true;
+					}
 				}, (_error) => {
 					// The process never got ready. Need to think how to handle this.
 				});
@@ -450,9 +457,11 @@ export class TerminalTaskSystem implements ITaskSystem {
 					startStopProblemMatcher.done();
 					startStopProblemMatcher.dispose();
 					registeredLinkMatchers.forEach(handle => terminal.deregisterLinkMatcher(handle));
-					if (processStartedSignaled) {
-						this._onDidStateChange.fire(TaskEvent.create(TaskEventKind.ProcessEnded, task, exitCode));
+					if (!processStartedSignaled) {
+						this._onDidStateChange.fire(TaskEvent.create(TaskEventKind.ProcessStarted, task, terminal.processId));
+						processStartedSignaled = true;
 					}
+					this._onDidStateChange.fire(TaskEvent.create(TaskEventKind.ProcessEnded, task, exitCode));
 					this._onDidStateChange.fire(TaskEvent.create(TaskEventKind.Inactive, task));
 					this._onDidStateChange.fire(TaskEvent.create(TaskEventKind.End, task));
 					resolve({ exitCode });

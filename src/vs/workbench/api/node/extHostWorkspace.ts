@@ -5,6 +5,7 @@
 
 import { join, relative } from 'path';
 import { delta as arrayDelta, mapArrayOrNot } from 'vs/base/common/arrays';
+import { CancellationToken } from 'vs/base/common/cancellation';
 import { Emitter, Event } from 'vs/base/common/event';
 import { TernarySearchTree } from 'vs/base/common/map';
 import { Counter } from 'vs/base/common/numbers';
@@ -16,14 +17,13 @@ import { URI } from 'vs/base/common/uri';
 import { localize } from 'vs/nls';
 import { ILogService } from 'vs/platform/log/common/log';
 import { Severity } from 'vs/platform/notification/common/notification';
-import { IRawFileMatch2 } from 'vs/platform/search/common/search';
+import { IRawFileMatch2, resultIsMatch } from 'vs/platform/search/common/search';
 import { Workspace, WorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import { Range, RelativePattern } from 'vs/workbench/api/node/extHostTypes';
+import { ITextQueryBuilderOptions } from 'vs/workbench/parts/search/common/queryBuilder';
 import { IExtensionDescription } from 'vs/workbench/services/extensions/common/extensions';
 import * as vscode from 'vscode';
 import { ExtHostWorkspaceShape, IMainContext, IWorkspaceData, MainContext, MainThreadMessageServiceShape, MainThreadWorkspaceShape } from './extHost.protocol';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { ITextQueryBuilderOptions } from 'vs/workbench/parts/search/common/queryBuilder';
 
 function isFolderEqual(folderA: URI, folderB: URI): boolean {
 	return isEqual(folderA, folderB, !isLinux);
@@ -408,6 +408,8 @@ export class ExtHostWorkspace implements ExtHostWorkspaceShape {
 			fileEncoding: options.encoding,
 			maxResults: options.maxResults,
 			previewOptions,
+			afterContext: options.afterContext,
+			beforeContext: options.beforeContext,
 
 			includePattern: options.include && globPatternToString(options.include),
 			excludePattern: options.exclude && globPatternToString(options.exclude)
@@ -420,19 +422,28 @@ export class ExtHostWorkspace implements ExtHostWorkspaceShape {
 				return;
 			}
 
-			p.matches.forEach(match => {
-				callback({
-					uri: URI.revive(p.resource),
-					preview: {
-						text: match.preview.text,
-						matches: mapArrayOrNot(
-							match.preview.matches,
-							m => new Range(m.startLineNumber, m.startColumn, m.endLineNumber, m.endColumn))
-					},
-					ranges: mapArrayOrNot(
-						match.ranges,
-						r => new Range(r.startLineNumber, r.startColumn, r.endLineNumber, r.endColumn))
-				});
+			const uri = URI.revive(p.resource);
+			p.results.forEach(result => {
+				if (resultIsMatch(result)) {
+					callback(<vscode.TextSearchMatch>{
+						uri,
+						preview: {
+							text: result.preview.text,
+							matches: mapArrayOrNot(
+								result.preview.matches,
+								m => new Range(m.startLineNumber, m.startColumn, m.endLineNumber, m.endColumn))
+						},
+						ranges: mapArrayOrNot(
+							result.ranges,
+							r => new Range(r.startLineNumber, r.startColumn, r.endLineNumber, r.endColumn))
+					});
+				} else {
+					callback(<vscode.TextSearchContext>{
+						uri,
+						text: result.text,
+						lineNumber: result.lineNumber
+					});
+				}
 			});
 		};
 

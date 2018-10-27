@@ -6,7 +6,7 @@
 import { Event } from 'vs/base/common/event';
 import * as glob from 'vs/base/common/glob';
 import { TPromise } from 'vs/base/common/winjs.base';
-import { IFileSearchStats, IFolderQuery, IProgress, IRawFileQuery, IRawTextQuery, ISearchEngineStats, ISearchQuery, ITextSearchResult, ITextSearchStats } from 'vs/platform/search/common/search';
+import { IFileSearchStats, IFolderQuery, IProgress, IRawFileQuery, IRawTextQuery, ISearchEngineStats, ISearchQuery, ITextSearchMatch, ITextSearchStats, ITextSearchResult } from 'vs/platform/search/common/search';
 import { ITelemetryData } from 'vs/platform/telemetry/common/telemetry';
 
 export interface ITelemetryEvent {
@@ -73,7 +73,7 @@ export function isSerializedFileMatch(arg: ISerializedSearchProgressItem): arg i
 
 export interface ISerializedFileMatch {
 	path: string;
-	matches?: ITextSearchResult[];
+	results?: ITextSearchResult[];
 	numMatches?: number;
 }
 
@@ -84,22 +84,22 @@ export type IFileSearchProgressItem = IRawFileMatch | IRawFileMatch[] | IProgres
 
 export class FileMatch implements ISerializedFileMatch {
 	path: string;
-	matches: ITextSearchResult[];
+	results: ITextSearchMatch[];
 
 	constructor(path: string) {
 		this.path = path;
-		this.matches = [];
+		this.results = [];
 	}
 
-	addMatch(match: ITextSearchResult): void {
-		this.matches.push(match);
+	addMatch(match: ITextSearchMatch): void {
+		this.results.push(match);
 	}
 
 	serialize(): ISerializedFileMatch {
 		return {
 			path: this.path,
-			matches: this.matches,
-			numMatches: this.matches.length
+			results: this.results,
+			numMatches: this.results.length
 		};
 	}
 }

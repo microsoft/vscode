@@ -54,6 +54,8 @@ export interface IFileQueryBuilderOptions extends ICommonQueryBuilderOptions {
 export interface ITextQueryBuilderOptions extends ICommonQueryBuilderOptions {
 	previewOptions?: ITextSearchPreviewOptions;
 	fileEncoding?: string;
+	beforeContext?: number;
+	afterContext?: number;
 }
 
 export class QueryBuilder {
@@ -64,7 +66,7 @@ export class QueryBuilder {
 		@IEnvironmentService private environmentService: IEnvironmentService
 	) { }
 
-	text(contentPattern: IPatternInfo, folderResources?: uri[], options?: ITextQueryBuilderOptions): ITextQuery {
+	text(contentPattern: IPatternInfo, folderResources?: uri[], options: ITextQueryBuilderOptions = {}): ITextQuery {
 		contentPattern.isCaseSensitive = this.isCaseSensitive(contentPattern);
 		contentPattern.isMultiline = this.isMultiline(contentPattern);
 		const searchConfig = this.configurationService.getValue<ISearchConfiguration>();
@@ -80,13 +82,15 @@ export class QueryBuilder {
 			...commonQuery,
 			type: QueryType.Text,
 			contentPattern,
-			previewOptions: options && options.previewOptions,
-			maxFileSize: options && options.maxFileSize,
-			usePCRE2: searchConfig.search.usePCRE2 || fallbackToPCRE || false
+			previewOptions: options.previewOptions,
+			maxFileSize: options.maxFileSize,
+			usePCRE2: searchConfig.search.usePCRE2 || fallbackToPCRE || false,
+			beforeContext: options.beforeContext,
+			afterContext: options.afterContext
 		};
 	}
 
-	file(folderResources: uri[] | undefined, options: IFileQueryBuilderOptions): IFileQuery {
+	file(folderResources: uri[] | undefined, options: IFileQueryBuilderOptions = {}): IFileQuery {
 		const commonQuery = this.commonQuery(folderResources, options);
 		return <IFileQuery>{
 			...commonQuery,

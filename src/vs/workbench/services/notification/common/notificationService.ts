@@ -63,8 +63,14 @@ export class NotificationService extends Disposable implements INotificationServ
 		choices.forEach((choice, index) => {
 			const action = new ChoiceAction(`workbench.dialog.choice.${index}`, choice);
 			if (!choice.isSecondary) {
+				if (!actions.primary) {
+					actions.primary = [];
+				}
 				actions.primary.push(action);
 			} else {
+				if (!actions.secondary) {
+					actions.secondary = [];
+				}
 				actions.secondary.push(action);
 			}
 

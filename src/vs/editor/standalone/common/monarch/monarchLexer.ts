@@ -787,38 +787,31 @@ class MonarchTokenizer implements modes.ITokenizationSupport {
 	}
 
 	private _getNestedEmbeddedModeData(mimetypeOrModeId: string): EmbeddedModeData {
-		let nestedMode = this._locateMode(mimetypeOrModeId);
-		if (nestedMode) {
-			let tokenizationSupport = modes.TokenizationRegistry.get(nestedMode.getId());
+		let nestedModeId = this._locateMode(mimetypeOrModeId);
+		if (nestedModeId) {
+			let tokenizationSupport = modes.TokenizationRegistry.get(nestedModeId);
 			if (tokenizationSupport) {
-				return new EmbeddedModeData(nestedMode.getId(), tokenizationSupport.getInitialState());
+				return new EmbeddedModeData(nestedModeId, tokenizationSupport.getInitialState());
 			}
 		}
 
-		let nestedModeId = nestedMode ? nestedMode.getId() : NULL_MODE_ID;
-		return new EmbeddedModeData(nestedModeId, NULL_STATE);
+		return new EmbeddedModeData(nestedModeId || NULL_MODE_ID, NULL_STATE);
 	}
 
-	private _locateMode(mimetypeOrModeId: string): modes.IMode {
+	private _locateMode(mimetypeOrModeId: string): string | null {
 		if (!mimetypeOrModeId || !this._modeService.isRegisteredMode(mimetypeOrModeId)) {
 			return null;
 		}
 
 		let modeId = this._modeService.getModeId(mimetypeOrModeId);
 
-		// Fire mode loading event
-		this._modeService.getOrCreateMode(modeId);
-
-		let mode = this._modeService.getMode(modeId);
-		if (mode) {
-			// Re-emit tokenizationSupport change events from all modes that I ever embedded
+		if (modeId) {
+			// Fire mode loading event
+			this._modeService.triggerMode(modeId);
 			this._embeddedModes[modeId] = true;
-			return mode;
 		}
 
-		this._embeddedModes[modeId] = true;
-
-		return null;
+		return modeId;
 	}
 
 }

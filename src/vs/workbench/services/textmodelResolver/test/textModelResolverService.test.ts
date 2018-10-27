@@ -59,8 +59,8 @@ suite('Workbench - TextModelResolverService', () => {
 			provideTextContent: function (resource: URI): TPromise<ITextModel> {
 				if (resource.scheme === 'test') {
 					let modelContent = 'Hello Test';
-					let mode = accessor.modeService.getOrCreateMode('json');
-					return TPromise.as(accessor.modelService.createModel(modelContent, mode, resource));
+					let languageSelection = accessor.modeService.create('json');
+					return TPromise.as(accessor.modelService.createModel(modelContent, languageSelection, resource));
 				}
 
 				return TPromise.as(null);
@@ -137,8 +137,8 @@ suite('Workbench - TextModelResolverService', () => {
 			provideTextContent: (resource: URI): TPromise<ITextModel> => {
 				return waitForIt.then(_ => {
 					let modelContent = 'Hello Test';
-					let mode = accessor.modeService.getOrCreateMode('json');
-					return accessor.modelService.createModel(modelContent, mode, resource);
+					let languageSelection = accessor.modeService.create('json');
+					return accessor.modelService.createModel(modelContent, languageSelection, resource);
 				});
 			}
 		});

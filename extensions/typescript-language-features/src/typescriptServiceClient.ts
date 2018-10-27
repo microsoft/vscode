@@ -10,7 +10,7 @@ import * as nls from 'vscode-nls';
 import BufferSyncSupport from './features/bufferSyncSupport';
 import { DiagnosticKind, DiagnosticsManager } from './features/diagnostics';
 import * as Proto from './protocol';
-import { TypeScriptServer, TypeScriptServerSpawner } from './server';
+import { TypeScriptServer, TypeScriptServerSpawner } from './tsServer/server';
 import { ITypeScriptServiceClient } from './typescriptService';
 import API from './utils/api';
 import { TsServerLogLevel, TypeScriptServiceConfiguration } from './utils/configuration';

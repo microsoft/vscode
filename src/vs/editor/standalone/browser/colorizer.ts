@@ -60,7 +60,7 @@ export class Colorizer {
 		}
 
 		// Send out the event to create the mode
-		modeService.getOrCreateMode(language);
+		modeService.triggerMode(language);
 
 		let tokenizationSupport = TokenizationRegistry.get(language);
 		if (tokenizationSupport) {

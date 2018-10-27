@@ -215,15 +215,14 @@ class Snapper {
 	}
 
 	public captureSyntaxTokens(fileName: string, content: string): Thenable<IToken[]> {
-		return this.modeService.getOrCreateModeByFilepathOrFirstLine(fileName).then(mode => {
-			return this.textMateService.createGrammar(mode.getId()).then((grammar) => {
-				let lines = content.split(/\r\n|\r|\n/);
+		const modeId = this.modeService.getModeIdByFilepathOrFirstLine(fileName);
+		return this.textMateService.createGrammar(modeId).then((grammar) => {
+			let lines = content.split(/\r\n|\r|\n/);
 
-				let result = this._tokenize(grammar, lines);
-				return this._getThemesResult(grammar, lines).then((themesResult) => {
-					this._enrichResult(result, themesResult);
-					return result.filter(t => t.c.length > 0);
-				});
+			let result = this._tokenize(grammar, lines);
+			return this._getThemesResult(grammar, lines).then((themesResult) => {
+				this._enrichResult(result, themesResult);
+				return result.filter(t => t.c.length > 0);
 			});
 		});
 	}

@@ -31,8 +31,8 @@ export interface IOptions {
 }
 
 export interface IStyles {
-	frameColor?: Color;
-	arrowColor?: Color;
+	frameColor?: Color | null;
+	arrowColor?: Color | null;
 }
 
 const defaultColor = new Color(new RGBA(0, 122, 204));
