@@ -24,7 +24,7 @@ Have you identified a reproducible problem in VS Code? Have a feature request? W
 
 The VS Code project is distributed across multiple repositories. Try to file the issue against the correct repository. Check the list of [Related Projects](https://github.com/Microsoft/vscode/wiki/Related-Projects) if you aren't sure which repo is correct.
 
-Can you recreate the issue even after [disabling all extensions](https://code.visualstudio.com/docs/editor/extension-gallery#_disable-an-extension)? If you find the issue is caused by an extension you have installed, please file an issue on the extension's repo directly.
+Can you recreate the issue even after [disabling all extensions](https://code.visualstudio.com/docs/editor/extension-gallery#_disable-an-extension)? If you find the issue is caused by an extension you installed, please file an issue on the extension's repo directly.
 
 ### Look For an Existing Issue
 
@@ -35,6 +35,7 @@ Be sure to scan through the [most popular](https://github.com/Microsoft/vscode/i
 If you find your issue already exists, make relevant comments and add your [reaction](https://github.com/blog/2119-add-reactions-to-pull-requests-issues-and-comments). Use a reaction in place of a "+1" comment:
 
 * 👍 - upvote
+
 * 👎 - downvote
 
 
@@ -91,7 +92,7 @@ We use a bot to help us manage issues. This bot currently:
 * Automatically closes any issue marked `needs-more-info` if there has been no response in the past 7 days.
 * Automatically locks issues 45 days after they are closed.
 
-If you believe the bot got something wrong, please open a new issue and let us know.
+If you believe that the bot got something wrong, please open a new issue and let us know. :)
 
 ## Contributing Fixes
 
