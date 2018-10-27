@@ -12,7 +12,7 @@ The active community will be eager to assist you. Your well-worded question will
 
 ## Providing Feedback
 
-Your comments and feedback are welcome, and the development team is available via a handful of different channels.
+Your comments and feedback are very welcome, and the development team is available via a handful of different channels.
 
 See the [Feedback Channels](https://github.com/Microsoft/vscode/wiki/Feedback-Channels) wiki page for details on how to share your thoughts.
 
