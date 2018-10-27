@@ -386,7 +386,8 @@ export class SuggestModel implements IDisposable {
 
 		this._requestToken = new CancellationTokenSource();
 
-		let wordDistance = WordDistance.create(this._editorWorker, this._editor);
+		// TODO: Remove this workaround - https://github.com/Microsoft/vscode/issues/61917
+		let wordDistance = Promise.resolve().then(() => WordDistance.create(this._editorWorker, this._editor));
 
 		let items = provideSuggestionItems(
 			model,
