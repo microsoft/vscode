@@ -24,7 +24,7 @@ Have you identified a reproducible problem in VS Code? Have a feature request? W
 
 The VS Code project is distributed across multiple repositories. Try to file the issue against the correct repository. Check the list of [Related Projects](https://github.com/Microsoft/vscode/wiki/Related-Projects) if you aren't sure which repo is correct.
 
-Can you recreate the issue even after [disabling all extensions](https://code.visualstudio.com/docs/editor/extension-gallery#_disable-an-extension)? If you find the issue is caused by an extension you have installed, please file an issue on the extension's repo directly.
+Can you recreate the issue even after [disabling all extensions](https://code.visualstudio.com/docs/editor/extension-gallery#_disable-an-extension)? If you find the issue is caused by an extension you installed, please file an issue on the extension's repo directly.
 
 ### Look For an Existing Issue
 
@@ -32,7 +32,7 @@ Before you create a new issue, please do a search in [open issues](https://githu
 
 Be sure to scan through the [most popular](https://github.com/Microsoft/vscode/issues?q=is%3Aopen+is%3Aissue+label%3Afeature-request+sort%3Areactions-%2B1-desc) feature requests.
 
-If you find your issue already exists, make relevant comments and add your [reaction](https://github.com/blog/2119-add-reactions-to-pull-requests-issues-and-comments). Use a reaction in place of a "+1" comment:
+If you find your issue already exists, make relevant comments, and add your [reaction](https://github.com/blog/2119-add-reactions-to-pull-requests-issues-and-comments). Use a reaction in place of a "+1" comment:
 
 * 👍 - upvote
 * 👎 - downvote
@@ -40,13 +40,13 @@ If you find your issue already exists, make relevant comments and add your [reac
 
 If you cannot find an existing issue that describes your bug or feature, create a new issue using the guidelines below.
 
-### Writing Good Bug Reports and Feature Requests
+### Writing Good Bug Reports & Feature Requests
 
-File a single issue per problem and feature request. Do not enumerate multiple bugs or feature requests in the same issue.
+File a single issue per problem, and feature request. Do not enumerate multiple bugs or feature requests in the same issue.
 
 Do not add your issue as a comment to an existing issue unless it's for the identical input. Many issues look similar, but have different causes.
 
-The more information you can provide, the more likely someone will be successful at reproducing the issue and finding a fix.
+The more information you can provide, the more likely someone will be successful at reproducing the issue, and finding a fix.
 
 The built-in tool for reporting an issue, which you can access by using `Report Issue` in VS Code's Help menu, can help streamline this process by automatically providing the version of VS Code, all your installed extensions, and your system info. Additionally, the tool will search among existing issues to see if a similar issue already exists.
 
@@ -82,7 +82,7 @@ Don't feel bad if the developers can't reproduce the issue right away. They will
 
 ### Follow Your Issue
 
-Once submitted, your report will go into the [issue tracking](https://github.com/Microsoft/vscode/wiki/Issue-Tracking) workflow. Be sure to understand what will happen next, so you know what to expect, and how to continue to assist throughout the process.
+Once submitted, your report will go into the [issue tracking](https://github.com/Microsoft/vscode/wiki/Issue-Tracking) workflow. Be sure to understand what will happen next so you know what to expect, and how to continue to assist throughout the process.
 
 ## Automated Issue Management
 
