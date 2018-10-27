@@ -1,3 +1,4 @@
+#Code_collection: true or false
 {
   "maxReviewers": 2,
   "requiredOrgs": ["Microsoft"],
