@@ -106,6 +106,15 @@ function validate(args: ParsedArgs): ParsedArgs {
 	return args;
 }
 
+function stripEmptyPath(argv: string[]): string[] | undefined {
+	const index = firstIndex(argv, a => !/^-/.test(a));
+
+	if (index > -1 && argv[index] === '') {
+		argv.splice(index, 1);
+	}
+	return argv;
+}
+
 function stripAppPath(argv: string[]): string[] | undefined {
 	const index = firstIndex(argv, a => !/^-/.test(a));
 
@@ -125,6 +134,9 @@ export function parseMainProcessArgv(processArgv: string[]): ParsedArgs {
 	if (process.env['VSCODE_DEV']) {
 		args = stripAppPath(args) || [];
 	}
+
+	// Ignore empty path arg
+	stripEmptyPath(args);
 
 	return validate(parseArgs(args));
 }
