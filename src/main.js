@@ -291,19 +291,19 @@ function stripComments(content) {
 	return content.replace(regexp, function (match, m1, m2, m3, m4) {
 		// Only one of m1, m2, m3, m4 matches
 		if (m3) {
-			// A block comment. Replace with nothing
+			// A block comment. Replace with nothing.
 			return '';
 		} else if (m4) {
 			// A line comment. If it ends in \r?\n then keep it.
 			const length_1 = m4.length;
 			if (length_1 > 2 && m4[length_1 - 1] === '\n') {
 				return m4[length_1 - 2] === '\r' ? '\r\n' : '\n';
-			}
-			else {
+			} else {
+				// Discard it since it does not end with \r?\n
 				return '';
 			}
 		} else {
-			// We match a string
+			// We match a string.
 			return match;
 		}
 	});
