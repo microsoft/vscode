@@ -269,7 +269,7 @@ export class PreferencesEditor extends BaseEditor {
 			this.sideBySidePreferencesWidget.setResultCount(count.target, count.count);
 		} else if (this.searchWidget.getValue()) {
 			if (countValue === 0) {
-				this.searchWidget.showMessage(nls.localize('noSettingsFound', "No Results"), countValue);
+				this.searchWidget.showMessage(nls.localize('noSettingsFound', "No Settings Found"), countValue);
 			} else if (countValue === 1) {
 				this.searchWidget.showMessage(nls.localize('oneSettingFound', "1 Setting Found"), countValue);
 			} else {
