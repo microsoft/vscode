@@ -330,9 +330,9 @@ export interface IExtensionManagementServer {
 
 export interface IExtensionManagementServerService {
 	_serviceBrand: any;
-	readonly localExtensionManagementServer: IExtensionManagementServer;
-	readonly otherExtensionManagementServer: IExtensionManagementServer;
-	getExtensionManagementServer(location: URI): IExtensionManagementServer;
+	readonly localExtensionManagementServer: IExtensionManagementServer | null;
+	readonly otherExtensionManagementServer: IExtensionManagementServer | null;
+	getExtensionManagementServer(location: URI): IExtensionManagementServer | null;
 }
 
 export const enum EnablementState {
