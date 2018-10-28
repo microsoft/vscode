@@ -82,7 +82,7 @@
 					}
 				};
 
-				const tree = new IndexTree(container, delegate, [renderer], { filter: treeFilter, setRowLineHeight: false });
+				const tree = new IndexTree(container, delegate, [renderer], { filter: treeFilter, setRowLineHeight: false, supportDynamicHeights: true });
 
 				return { tree, treeFilter };
 			}

@@ -47,12 +47,14 @@ export interface IListViewOptions {
 	readonly useShadows?: boolean;
 	readonly verticalScrollMode?: ScrollbarVisibility;
 	readonly setRowLineHeight?: boolean;
+	readonly supportDynamicHeights?: boolean;
 }
 
 const DefaultOptions: IListViewOptions = {
 	useShadows: true,
 	verticalScrollMode: ScrollbarVisibility.Auto,
-	setRowLineHeight: true
+	setRowLineHeight: true,
+	supportDynamicHeights: false
 };
 
 export class ListView<T> implements ISpliceable<T>, IDisposable {
@@ -77,6 +79,7 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 	private dragAndDropScrollTimeout: number;
 	private dragAndDropMouseY: number;
 	private setRowLineHeight: boolean;
+	private supportDynamicHeights: boolean;
 	private disposables: IDisposable[];
 
 	constructor(
@@ -129,6 +132,7 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 		onDragOver(this.onDragOver, this, this.disposables);
 
 		this.setRowLineHeight = getOrDefault(options, o => o.setRowLineHeight, DefaultOptions.setRowLineHeight);
+		this.supportDynamicHeights = getOrDefault(options, o => o.supportDynamicHeights, DefaultOptions.supportDynamicHeights);
 
 		this.layout();
 	}
@@ -203,7 +207,9 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 
 		this.updateScrollHeight();
 
-		this.rerender(this.scrollTop, this.renderHeight);
+		if (this.supportDynamicHeights) {
+			this.rerender(this.scrollTop, this.renderHeight);
+		}
 
 		return deleted.map(i => i.element);
 	}
@@ -298,14 +304,12 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 
 	// DOM operations
 
-	private insertItemInDOM(index: number, beforeElement: HTMLElement | null, dynamicHeightProbing = false): void {
+	private insertItemInDOM(index: number, beforeElement: HTMLElement | null): void {
 		const item = this.items[index];
 
 		if (!item.row) {
 			item.row = this.cache.alloc(item.templateId);
 		}
-
-		// item.row.domNode.style.visibility = dynamicHeightProbing ? 'hidden' : '';
 
 		if (!item.row.domNode.parentElement) {
 			if (beforeElement) {
@@ -315,17 +319,7 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 			}
 		}
 
-		if (dynamicHeightProbing) {
-			item.row.domNode.style.height = '';
-		} else {
-			item.row.domNode.style.height = `${item.size}px`;
-
-			if (this.setRowLineHeight) {
-				item.row.domNode.style.lineHeight = `${item.size}px`;
-			}
-
-			this.updateItemInDOM(item, index);
-		}
+		this.updateItemInDOM(item, index);
 
 		const renderer = this.renderers.get(item.templateId);
 		renderer.renderElement(item.element, index, item.row.templateData);
@@ -333,6 +327,12 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 
 	private updateItemInDOM(item: IItem<T>, index: number): void {
 		item.row.domNode.style.top = `${this.elementTop(index)}px`;
+		item.row.domNode.style.height = `${item.size}px`;
+
+		if (this.setRowLineHeight) {
+			item.row.domNode.style.lineHeight = `${item.size}px`;
+		}
+
 		item.row.domNode.setAttribute('data-index', `${index}`);
 		item.row.domNode.setAttribute('data-last-element', index === this.length - 1 ? 'true' : 'false');
 		item.row.domNode.setAttribute('aria-setsize', `${this.length}`);
@@ -410,7 +410,10 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 	private onScroll(e: ScrollEvent): void {
 		try {
 			this.render(e.scrollTop, e.height);
-			this.rerender(e.scrollTop, e.height);
+
+			if (this.supportDynamicHeights) {
+				this.rerender(e.scrollTop, e.height);
+			}
 		} catch (err) {
 			console.log('Got bad scroll event:', e);
 			throw err;
@@ -510,6 +513,9 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 	 */
 	private rerender(renderTop: number, renderHeight: number): void {
 		const previousRenderRange = this.getRenderRange(renderTop, renderHeight);
+
+		// Let's remember the second element's position, this helps in scrolling up
+		// and preserving a linear upwards scroll movement
 		let secondElementIndex: number | undefined;
 		let secondElementTopDelta: number | undefined;
 
@@ -527,6 +533,11 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 
 			for (let i = renderRange.start; i < renderRange.end; i++) {
 				const diff = this.probeDynamicHeight(i);
+
+				if (diff !== 0) {
+					this.rangeMap.splice(i, 1, this.items[i]);
+				}
+
 				heightDiff += diff;
 				didChange = didChange || diff !== 0;
 			}
@@ -570,22 +581,16 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 		}
 
 		const size = item.size;
-		const rendered = item.row;
+		const renderer = this.renderers.get(item.templateId);
+		const row = this.cache.alloc(item.templateId);
 
-		if (rendered) {
-			item.row.domNode.style.height = '';
-		} else {
-			this.insertItemInDOM(index, null, true);
-		}
-
-		item.size = item.row.domNode.offsetHeight;
+		row.domNode.style.height = '';
+		this.rowsContainer.appendChild(row.domNode);
+		renderer.renderElement(item.element, index, row.templateData);
+		item.size = row.domNode.offsetHeight;
 		item.dynamicSizeSnapshotId = this.dynamicSizeSnapshotId;
-
-		if (!rendered) {
-			this.removeItemFromDOM(index);
-		}
-
-		this.rangeMap.splice(index, 1, item);
+		this.rowsContainer.removeChild(row.domNode);
+		this.cache.release(row);
 
 		return item.size - size;
 	}
