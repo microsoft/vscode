@@ -651,7 +651,6 @@ export class SearchWidget extends Widget {
 		if (this.countElement && message !== this.countElement.textContent) {
 			this.countElement.textContent = message;
 			this.inputBox.inputElement.setAttribute('aria-label', message);
-			DOM.toggleClass(this.countElement, 'no-results', count === 0);
 			this.inputBox.inputElement.style.paddingRight = this.getControlsWidth() + 'px';
 		}
 	}
