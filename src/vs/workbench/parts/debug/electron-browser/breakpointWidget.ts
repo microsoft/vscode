@@ -127,13 +127,13 @@ export class BreakpointWidget extends ZoneWidget implements IPrivateBreakpointWi
 		}
 	}
 
-	public show(rangeOrPos: IRange | IPosition, _: number) {
-		let lineNum = this.input.getModel().getLineCount();
+	public show(rangeOrPos: IRange | IPosition, heightInLines: number) {
+		const lineNum = this.input.getModel().getLineCount();
 		super.show(rangeOrPos, lineNum + 1);
 	}
 
 	public fitHeightToContent() {
-		let lineNum = this.input.getModel().getLineCount();
+		const lineNum = this.input.getModel().getLineCount();
 		this._relayout(lineNum + 1);
 	}
 
@@ -154,9 +154,9 @@ export class BreakpointWidget extends ZoneWidget implements IPrivateBreakpointWi
 		this.createBreakpointInput(dom.append(container, $('.inputContainer')));
 
 		this.input.getModel().setValue(this.getInputValue(this.breakpoint));
-		this.input.getModel().onDidChangeContent(() => {
+		this.toDispose.push(this.input.getModel().onDidChangeContent(() => {
 			this.fitHeightToContent();
-		});
+		}));
 		this.input.setPosition({ lineNumber: 1, column: this.input.getModel().getLineMaxColumn(1) });
 		// Due to an electron bug we have to do the timeout, otherwise we do not get focus
 		setTimeout(() => this.input.focus(), 100);
