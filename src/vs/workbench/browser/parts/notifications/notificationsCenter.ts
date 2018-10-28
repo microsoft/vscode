@@ -37,6 +37,7 @@ export class NotificationsCenter extends Themable {
 	private _isVisible: boolean;
 	private workbenchDimensions: Dimension;
 	private notificationsCenterVisibleContextKey: IContextKey<boolean>;
+	private clearAllNotificationsAction: ClearAllNotificationsAction;
 
 	constructor(
 		private container: HTMLElement,
@@ -78,6 +79,9 @@ export class NotificationsCenter extends Themable {
 		// Title
 		this.updateTitle();
 
+		// Update 'ClearAll' action status
+		this.updateClearAllActionStatus();
+
 		// Make visible
 		this._isVisible = true;
 		addClass(this.notificationsCenterContainer, 'visible');
@@ -107,6 +111,15 @@ export class NotificationsCenter extends Themable {
 			this.notificationsCenterTitle.textContent = localize('notificationsEmpty', "No new notifications");
 		} else {
 			this.notificationsCenterTitle.textContent = localize('notifications', "Notifications");
+		}
+	}
+
+	private updateClearAllActionStatus(): void {
+		if (this.model.notifications.length === 0) {
+			this.clearAllNotificationsAction.enabled = false;
+		}
+		else {
+			this.clearAllNotificationsAction.enabled = true;
 		}
 	}
 
@@ -143,6 +156,7 @@ export class NotificationsCenter extends Themable {
 
 		const clearAllAction = this._register(this.instantiationService.createInstance(ClearAllNotificationsAction, ClearAllNotificationsAction.ID, ClearAllNotificationsAction.LABEL));
 		notificationsToolBar.push(clearAllAction, { icon: true, label: false, keybinding: this.getKeybindingLabel(clearAllAction) });
+		this.clearAllNotificationsAction = clearAllAction;
 
 		// Notifications List
 		this.notificationsList = this.instantiationService.createInstance(NotificationsList, this.notificationsCenterContainer, {
@@ -181,6 +195,9 @@ export class NotificationsCenter extends Themable {
 
 		// Update title
 		this.updateTitle();
+
+		// Update 'ClearAll' action status
+		this.updateClearAllActionStatus();
 
 		// Hide if no more notifications to show
 		if (this.model.notifications.length === 0) {
