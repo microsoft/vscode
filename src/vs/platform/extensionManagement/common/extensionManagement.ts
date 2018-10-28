@@ -330,8 +330,8 @@ export interface IExtensionManagementServer {
 
 export interface IExtensionManagementServerService {
 	_serviceBrand: any;
-	readonly extensionManagementServers: IExtensionManagementServer[];
-	getLocalExtensionManagementServer(): IExtensionManagementServer;
+	readonly localExtensionManagementServer: IExtensionManagementServer;
+	readonly otherExtensionManagementServer: IExtensionManagementServer;
 	getExtensionManagementServer(location: URI): IExtensionManagementServer;
 }
 

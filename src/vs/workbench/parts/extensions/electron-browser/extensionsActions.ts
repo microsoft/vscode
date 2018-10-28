@@ -1075,9 +1075,8 @@ export class ReloadAction extends Action {
 				}
 			} else {
 				const extensionServer = this.extensionManagementServerService.getExtensionManagementServer(installed.local.location);
-				const localServer = this.extensionManagementServerService.getLocalExtensionManagementServer();
 				// Only extension from local server requires reload if it is not running on the server
-				if (extensionServer && extensionServer.authority === localServer.authority && !isDisabled) {
+				if (extensionServer && extensionServer.authority === this.extensionManagementServerService.localExtensionManagementServer.authority && !isDisabled) {
 					// Requires reload to enable the extension
 					this.enabled = true;
 					this.tooltip = localize('postEnableTooltip', "Reload to Activate");

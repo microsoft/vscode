@@ -14,20 +14,20 @@ export class ExtensionManagementServerService implements IExtensionManagementSer
 
 	_serviceBrand: any;
 
-	readonly extensionManagementServers: IExtensionManagementServer[];
+	readonly localExtensionManagementServer;
 
 	constructor(
 		localExtensionManagementService: IExtensionManagementService
 	) {
-		this.extensionManagementServers = [{ extensionManagementService: localExtensionManagementService, authority: localExtensionManagementServerAuthority, label: localize('local', "Local") }];
+		this.localExtensionManagementServer = { extensionManagementService: localExtensionManagementService, authority: localExtensionManagementServerAuthority, label: localize('local', "Local") };
 	}
 
 	getExtensionManagementServer(location: URI): IExtensionManagementServer {
-		return this.extensionManagementServers[0];
+		return this.localExtensionManagementServer;
 	}
 
-	getLocalExtensionManagementServer(): IExtensionManagementServer {
-		return this.extensionManagementServers[0];
+	get otherExtensionManagementServer(): IExtensionManagementServer {
+		return null;
 	}
 }
 
@@ -35,20 +35,22 @@ export class SingleServerExtensionManagementServerService implements IExtensionM
 
 	_serviceBrand: any;
 
-	readonly extensionManagementServers: IExtensionManagementServer[];
 
 	constructor(
-		extensionManagementServer: IExtensionManagementServer
+		private readonly extensionManagementServer: IExtensionManagementServer
 	) {
-		this.extensionManagementServers = [extensionManagementServer];
 	}
 
 	getExtensionManagementServer(location: URI): IExtensionManagementServer {
 		const authority = location.scheme === Schemas.file ? localExtensionManagementServerAuthority : location.authority;
-		return this.extensionManagementServers.filter(server => authority === server.authority)[0];
+		return this.extensionManagementServer.authority === authority ? this.extensionManagementServer : null;
 	}
 
-	getLocalExtensionManagementServer(): IExtensionManagementServer {
-		return this.extensionManagementServers[0];
+	get localExtensionManagementServer(): IExtensionManagementServer {
+		return this.extensionManagementServer.authority === localExtensionManagementServerAuthority ? this.extensionManagementServer : null;
+	}
+
+	get otherExtensionManagementServer(): IExtensionManagementServer {
+		return this.extensionManagementServer.authority !== localExtensionManagementServerAuthority ? this.extensionManagementServer : null;
 	}
 }

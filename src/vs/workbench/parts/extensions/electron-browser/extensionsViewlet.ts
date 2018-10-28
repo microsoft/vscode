@@ -102,10 +102,9 @@ export class ExtensionsViewletViewsContribution implements IWorkbenchContributio
 		viewDescriptors.push(this.createOtherRecommendedExtensionsListViewDescriptor());
 		viewDescriptors.push(this.createWorkspaceRecommendedExtensionsListViewDescriptor());
 
-		if (this.extensionManagementServerService.extensionManagementServers.length > 1) {
-			for (const extensionManagementServer of this.extensionManagementServerService.extensionManagementServers) {
-				viewDescriptors.push(...this.createExtensionsViewDescriptorsForServer(extensionManagementServer));
-			}
+		if (this.extensionManagementServerService.otherExtensionManagementServer) {
+			viewDescriptors.push(...this.createExtensionsViewDescriptorsForServer(this.extensionManagementServerService.localExtensionManagementServer));
+			viewDescriptors.push(...this.createExtensionsViewDescriptorsForServer(this.extensionManagementServerService.otherExtensionManagementServer));
 		}
 
 		ViewsRegistry.registerViews(viewDescriptors);
@@ -415,7 +414,7 @@ export class ExtensionsViewlet extends ViewContainerViewlet implements IExtensio
 				this.instantiationService.createInstance(ChangeSortAction, 'extensions.sort.rating', localize('sort by rating', "Sort By: Rating"), this.onSearchChange, 'rating'),
 				this.instantiationService.createInstance(ChangeSortAction, 'extensions.sort.name', localize('sort by name', "Sort By: Name"), this.onSearchChange, 'name'),
 				new Separator(),
-				...(this.extensionManagementServerService.extensionManagementServers.length > 1 ? [this.groupByServerAction, new Separator()] : []),
+				...(this.extensionManagementServerService.otherExtensionManagementServer ? [this.groupByServerAction, new Separator()] : []),
 				this.instantiationService.createInstance(CheckForUpdatesAction, CheckForUpdatesAction.ID, CheckForUpdatesAction.LABEL),
 				...(this.configurationService.getValue(AutoUpdateConfigurationKey) ? [this.instantiationService.createInstance(DisableAutoUpdateAction, DisableAutoUpdateAction.ID, DisableAutoUpdateAction.LABEL)] : [this.instantiationService.createInstance(UpdateAllAction, UpdateAllAction.ID, UpdateAllAction.LABEL), this.instantiationService.createInstance(EnableAutoUpdateAction, EnableAutoUpdateAction.ID, EnableAutoUpdateAction.LABEL)]),
 				this.instantiationService.createInstance(InstallVSIXAction, InstallVSIXAction.ID, InstallVSIXAction.LABEL),
@@ -493,14 +492,15 @@ export class ExtensionsViewlet extends ViewContainerViewlet implements IExtensio
 	}
 
 	protected createView(viewDescriptor: IViewDescriptor, options: IViewletViewOptions): ViewletPanel {
-		for (const extensionManagementServer of this.extensionManagementServerService.extensionManagementServers) {
-			if (viewDescriptor.id === `server.extensionsList.${extensionManagementServer.authority}`) {
+		if (this.extensionManagementServerService.otherExtensionManagementServer) {
+			if (viewDescriptor.id === `server.extensionsList.${this.extensionManagementServerService.localExtensionManagementServer.authority}`
+				|| viewDescriptor.id === `server.extensionsList.${this.extensionManagementServerService.otherExtensionManagementServer.authority}`) {
 				const servicesCollection: ServiceCollection = new ServiceCollection();
-				servicesCollection.set(IExtensionManagementServerService, new SingleServerExtensionManagementServerService(extensionManagementServer));
-				servicesCollection.set(IExtensionManagementService, extensionManagementServer.extensionManagementService);
+				servicesCollection.set(IExtensionManagementServerService, new SingleServerExtensionManagementServerService(this.extensionManagementServerService.otherExtensionManagementServer));
+				servicesCollection.set(IExtensionManagementService, this.extensionManagementServerService.otherExtensionManagementServer.extensionManagementService);
 				servicesCollection.set(IExtensionsWorkbenchService, new SyncDescriptor(ExtensionsWorkbenchService));
 				const instantiationService = this.instantiationService.createChild(servicesCollection);
-				return instantiationService.createInstance(viewDescriptor.ctor, options, [extensionManagementServer]) as ViewletPanel;
+				return instantiationService.createInstance(viewDescriptor.ctor, options, [this.extensionManagementServerService.otherExtensionManagementServer]) as ViewletPanel;
 			}
 		}
 		return this.instantiationService.createInstance(viewDescriptor.ctor, options) as ViewletPanel;
