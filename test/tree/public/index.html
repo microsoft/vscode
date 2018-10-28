@@ -45,13 +45,16 @@
 			function createIndexTree() {
 				const delegate = {
 					getHeight() { return 22; },
-					getTemplateId() { return 'template'; }
+					getTemplateId() { return 'template'; },
+					hasDynamicHeight() { return true; }
 				};
 
 				const renderer = {
 					templateId: 'template',
 					renderTemplate(container) { return container; },
-					renderElement(element, index, container) { container.textContent = element.element; },
+					renderElement(element, index, container) {
+						container.innerHTML = `${element.element}<br />${element.element}<br />${element.element}`;
+					},
 					disposeElement() { },
 					disposeTemplate() { }
 				};
@@ -79,7 +82,7 @@
 					}
 				};
 
-				const tree = new IndexTree(container, delegate, [renderer], { filter: treeFilter });
+				const tree = new IndexTree(container, delegate, [renderer], { filter: treeFilter, setRowLineHeight: false });
 
 				return { tree, treeFilter };
 			}

@@ -68,6 +68,10 @@ export class ComposedTreeDelegate<T, N extends { element: T }> implements IListV
 	getTemplateId(element: N): string {
 		return this.delegate.getTemplateId(element.element);
 	}
+
+	hasDynamicHeight(element: N): boolean {
+		return !!this.delegate.hasDynamicHeight && this.delegate.hasDynamicHeight(element.element);
+	}
 }
 
 interface ITreeListTemplateData<T> {
