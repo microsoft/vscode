@@ -20,6 +20,7 @@ import { IModeService } from 'vs/editor/common/services/modeService';
 import { IFileService } from 'vs/platform/files/common/files';
 import { ILogService } from 'vs/platform/log/common/log';
 import { INotificationService } from 'vs/platform/notification/common/notification';
+import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { ExtensionMessageCollector } from 'vs/workbench/services/extensions/common/extensionsRegistry';
 import { IEmbeddedLanguagesMap, ITMSyntaxExtensionPoint, TokenTypesContribution, grammarsExtPoint } from 'vs/workbench/services/textMate/electron-browser/TMGrammars';
 import { ITextMateService } from 'vs/workbench/services/textMate/electron-browser/textMateService';
@@ -157,7 +158,8 @@ export class TextMateService implements ITextMateService {
 		@IWorkbenchThemeService themeService: IWorkbenchThemeService,
 		@IFileService fileService: IFileService,
 		@INotificationService notificationService: INotificationService,
-		@ILogService logService: ILogService
+		@ILogService logService: ILogService,
+		@IExtensionService extensionService: IExtensionService
 	) {
 		this._styleElement = dom.createStyleSheet();
 		this._styleElement.className = 'vscode-tokens-styles';
@@ -202,9 +204,12 @@ export class TextMateService implements ITextMateService {
 
 		this._modeService.onDidCreateMode((mode) => {
 			let modeId = mode.getId();
-			if (this._languageToScope.has(modeId)) {
-				this.registerDefinition(modeId);
-			}
+			// Modes can be instantiated before the extension points have finished registering
+			extensionService.whenInstalledExtensionsRegistered().then(() => {
+				if (this._languageToScope.has(modeId)) {
+					this.registerDefinition(modeId);
+				}
+			});
 		});
 	}
 
