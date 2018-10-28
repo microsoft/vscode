@@ -259,7 +259,7 @@ export class RipgrepParser extends EventEmitter {
 		const text = bytesOrTextToString(data.lines);
 		const startLine = data.line_number;
 		return text
-			.replace(/\n$/, '')
+			.replace(/\r?\n$/, '')
 			.split('\n')
 			.map((line, i) => {
 				return {
