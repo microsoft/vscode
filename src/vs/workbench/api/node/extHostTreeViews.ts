@@ -21,7 +21,7 @@ import { IExtensionDescription, checkProposedApiEnabled } from 'vs/workbench/ser
 
 type TreeItemHandle = string;
 
-function toTreeItemLabel(label: any): ITreeItemLabel {
+function toTreeItemLabel(label: any, extension: IExtensionDescription): ITreeItemLabel {
 	if (isString(label)) {
 		return { label };
 	}
@@ -29,6 +29,7 @@ function toTreeItemLabel(label: any): ITreeItemLabel {
 	if (label
 		&& typeof label === 'object'
 		&& typeof label.label === 'string') {
+		checkProposedApiEnabled(extension);
 		let highlights: [number, number][] = void 0;
 		if (Array.isArray(label.highlights)) {
 			highlights = (<[number, number][]>label.highlights).filter((highlight => highlight.length === 2 && typeof highlight[0] === 'number' && typeof highlight[1] === 'number'));
@@ -73,7 +74,7 @@ export class ExtHostTreeViews implements ExtHostTreeViewsShape {
 			checkProposedApiEnabled(extension);
 		}
 
-		const treeView = this.createExtHostTreeViewer(viewId, options);
+		const treeView = this.createExtHostTreeViewer(viewId, options, extension);
 		return {
 			get onDidCollapseElement() { return treeView.onDidCollapseElement; },
 			get onDidExpandElement() { return treeView.onDidExpandElement; },
@@ -123,8 +124,8 @@ export class ExtHostTreeViews implements ExtHostTreeViewsShape {
 		treeView.setVisible(isVisible);
 	}
 
-	private createExtHostTreeViewer<T>(id: string, options: vscode.TreeViewOptions<T>): ExtHostTreeView<T> {
-		const treeView = new ExtHostTreeView<T>(id, options, this._proxy, this.commands.converter, this.logService);
+	private createExtHostTreeViewer<T>(id: string, options: vscode.TreeViewOptions<T>, extension: IExtensionDescription): ExtHostTreeView<T> {
+		const treeView = new ExtHostTreeView<T>(id, options, this._proxy, this.commands.converter, this.logService, extension);
 		this.treeViews.set(id, treeView);
 		return treeView;
 	}
@@ -172,7 +173,7 @@ class ExtHostTreeView<T> extends Disposable {
 
 	private refreshPromise: Promise<void> = Promise.resolve(null);
 
-	constructor(private viewId: string, options: vscode.TreeViewOptions<T>, private proxy: MainThreadTreeViewsShape, private commands: CommandsConverter, private logService: ILogService) {
+	constructor(private viewId: string, options: vscode.TreeViewOptions<T>, private proxy: MainThreadTreeViewsShape, private commands: CommandsConverter, private logService: ILogService, private extension: IExtensionDescription) {
 		super();
 		this.dataProvider = options.treeDataProvider;
 		this.proxy.$registerTreeViewDataProvider(viewId, { showCollapseAll: !!options.showCollapseAll });
@@ -416,7 +417,7 @@ class ExtHostTreeView<T> extends Disposable {
 		const item = {
 			handle,
 			parentHandle: parent ? parent.item.handle : void 0,
-			label: toTreeItemLabel(extensionTreeItem.label),
+			label: toTreeItemLabel(extensionTreeItem.label, this.extension),
 			resourceUri: extensionTreeItem.resourceUri,
 			tooltip: typeof extensionTreeItem.tooltip === 'string' ? extensionTreeItem.tooltip : void 0,
 			command: extensionTreeItem.command ? this.commands.toInternal(extensionTreeItem.command) : void 0,
@@ -435,7 +436,7 @@ class ExtHostTreeView<T> extends Disposable {
 			return `${ExtHostTreeView.ID_HANDLE_PREFIX}/${id}`;
 		}
 
-		const treeItemLabel = toTreeItemLabel(label);
+		const treeItemLabel = toTreeItemLabel(label, this.extension);
 		const prefix: string = parent ? parent.item.handle : ExtHostTreeView.LABEL_HANDLE_PREFIX;
 		let elementId = treeItemLabel ? treeItemLabel.label : resourceUri ? basename(resourceUri.path) : '';
 		elementId = elementId.indexOf('/') !== -1 ? elementId.replace('/', '//') : elementId;
