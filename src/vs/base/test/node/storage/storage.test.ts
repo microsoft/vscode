@@ -9,6 +9,7 @@ import { join } from 'path';
 import { tmpdir } from 'os';
 import { equal, ok } from 'assert';
 import { mkdirp, del } from 'vs/base/node/pfs';
+import { timeout } from 'vs/base/common/async';
 
 suite('Storage Library', () => {
 
@@ -440,6 +441,57 @@ suite('SQLite Storage Library', () => {
 		equal(items.get('colorthemedata'), storedItems.get('colorthemedata'));
 		equal(items.get('commandpalette.mru.cache'), storedItems.get('commandpalette.mru.cache'));
 		ok(!storedItems.get('super.large.string'));
+
+		await storage.close();
+
+		await del(storageDir, tmpdir());
+	});
+
+	test('multiple concurrent writes execute in sequence', async () => {
+		const storageDir = uniqueStorageDir();
+		await mkdirp(storageDir);
+
+		const storage = new Storage({ path: join(storageDir, 'storage.db') });
+
+		await storage.init();
+
+		storage.set('foo', 'bar');
+		storage.set('some/foo/path', 'some/bar/path');
+
+		await timeout(10);
+
+		storage.set('foo1', 'bar');
+		storage.set('some/foo1/path', 'some/bar/path');
+
+		await timeout(10);
+
+		storage.set('foo2', 'bar');
+		storage.set('some/foo2/path', 'some/bar/path');
+
+		await timeout(10);
+
+		storage.delete('foo1');
+		storage.delete('some/foo1/path');
+
+		await timeout(10);
+
+		storage.delete('foo4');
+		storage.delete('some/foo4/path');
+
+		await timeout(70);
+
+		storage.set('foo3', 'bar');
+		await storage.set('some/foo3/path', 'some/bar/path');
+
+		const items = await storage.getItems();
+		equal(items.get('foo'), 'bar');
+		equal(items.get('some/foo/path'), 'some/bar/path');
+		equal(items.has('foo1'), false);
+		equal(items.has('some/foo1/path'), false);
+		equal(items.get('foo2'), 'bar');
+		equal(items.get('some/foo2/path'), 'some/bar/path');
+		equal(items.get('foo3'), 'bar');
+		equal(items.get('some/foo3/path'), 'some/bar/path');
 
 		await storage.close();
 

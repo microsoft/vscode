@@ -6,7 +6,7 @@
 import { Database, Statement } from 'vscode-sqlite3';
 import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import { Emitter, Event } from 'vs/base/common/event';
-import { RunOnceScheduler } from 'vs/base/common/async';
+import { RunOnceScheduler, Queue } from 'vs/base/common/async';
 import { isUndefinedOrNull } from 'vs/base/common/types';
 import { mapToString, setToString } from 'vs/base/common/map';
 import { basename } from 'path';
@@ -52,7 +52,7 @@ export interface IStorage extends IDisposable {
 	set(key: string, value: any): Promise<void>;
 	delete(key: string): Promise<void>;
 
-	close(): Promise<void>;
+	close(): Thenable<void>;
 
 	getItems(): Promise<Map<string, string>>;
 	checkIntegrity(full: boolean): Promise<string>;
@@ -71,6 +71,7 @@ export class Storage extends Disposable implements IStorage {
 	private storage: SQLiteStorageImpl;
 	private cache: Map<string, string> = new Map<string, string>();
 
+	private pendingQueue: Queue<void>;
 	private pendingScheduler: RunOnceScheduler;
 	private pendingDeletes: Set<string> = new Set<string>();
 	private pendingInserts: Map<string, string> = new Map();
@@ -81,6 +82,7 @@ export class Storage extends Disposable implements IStorage {
 
 		this.storage = new SQLiteStorageImpl(options);
 
+		this.pendingQueue = this._register(new Queue());
 		this.pendingScheduler = this._register(new RunOnceScheduler(() => this.flushPending(), Storage.FLUSH_DELAY));
 	}
 
@@ -199,7 +201,7 @@ export class Storage extends Disposable implements IStorage {
 		return new Promise((resolve, reject) => this.pendingPromises.push({ resolve, reject }));
 	}
 
-	close(): Promise<void> {
+	close(): Thenable<void> {
 		if (this.state === StorageState.Closed) {
 			return Promise.resolve(); // return if already closed
 		}
@@ -216,26 +218,34 @@ export class Storage extends Disposable implements IStorage {
 		});
 	}
 
-	private flushPending(): Promise<void> {
+	private flushPending(): Thenable<void> {
 
-		// Get pending data
-		const pendingPromises = this.pendingPromises;
-		const pendingDeletes = this.pendingDeletes;
-		const pendingInserts = this.pendingInserts;
+		// We use a Queue to ensure that:
+		// - there is only ever one call to storage.updateItems() at the same time
+		// - upon close() we are certain that all calls to storage.updateItems()
+		//   have finished. Otherwise there is a risk that we close() the DB while
+		//   a transaction is active.
+		return this.pendingQueue.queue(() => {
 
-		// Reset pending data for next run
-		this.pendingPromises = [];
-		this.pendingDeletes = new Set<string>();
-		this.pendingInserts = new Map<string, string>();
+			// Get pending data
+			const pendingPromises = this.pendingPromises;
+			const pendingDeletes = this.pendingDeletes;
+			const pendingInserts = this.pendingInserts;
 
-		return this.storage.updateItems({ insert: pendingInserts, delete: pendingDeletes }).then(() => {
+			// Reset pending data for next run
+			this.pendingPromises = [];
+			this.pendingDeletes = new Set<string>();
+			this.pendingInserts = new Map<string, string>();
 
-			// Resolve pending
-			pendingPromises.forEach(promise => promise.resolve());
-		}, error => {
+			return this.storage.updateItems({ insert: pendingInserts, delete: pendingDeletes }).then(() => {
 
-			// Forward error to pending
-			pendingPromises.forEach(promise => promise.reject(error));
+				// Resolve pending
+				pendingPromises.forEach(promise => promise.resolve());
+			}, error => {
+
+				// Forward error to pending
+				pendingPromises.forEach(promise => promise.reject(error));
+			});
 		});
 	}
 

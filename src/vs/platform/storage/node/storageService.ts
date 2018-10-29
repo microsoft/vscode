@@ -219,7 +219,7 @@ export class StorageService extends Disposable implements IStorageService {
 		});
 	}
 
-	migrate(toWorkspaceStorageFolder: string): Promise<void> {
+	migrate(toWorkspaceStorageFolder: string): Thenable<void> {
 		if (this.workspaceStoragePath === StorageService.IN_MEMORY_PATH) {
 			return Promise.resolve(); // no migration needed if running in memory
 		}
