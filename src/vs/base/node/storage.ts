@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Database, Statement } from 'vscode-sqlite3';
+import { Database, Statement, OPEN_READWRITE, OPEN_CREATE } from 'vscode-sqlite3';
 import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import { Emitter, Event } from 'vs/base/common/event';
 import { RunOnceScheduler, Queue } from 'vs/base/common/async';
@@ -14,6 +14,7 @@ import { mark } from 'vs/base/common/performance';
 
 export interface IStorageOptions {
 	path: string;
+	createPath: boolean;
 
 	logging?: IStorageLoggingOptions;
 }
@@ -363,18 +364,18 @@ export class SQLiteStorageImpl {
 		this.logger.info(`[storage ${this.name}] open()`);
 
 		return new Promise((resolve, reject) => {
-			this.doOpen(this.options.path).then(resolve, error => {
+			this.doOpen(this.options.path, this.options.createPath).then(resolve, error => {
 				this.logger.error(`[storage ${this.name}] open(): Error (open DB): ${error}`);
 				this.logger.error(`[storage ${this.name}] open(): Falling back to in-memory DB`);
 
 				// In case of any error to open the DB, use an in-memory
 				// DB so that we always have a valid DB to talk to.
-				this.doOpen(':memory:').then(resolve, reject);
+				this.doOpen(':memory:', true).then(resolve, reject);
 			});
 		});
 	}
 
-	private doOpen(path: string): Promise<Database> {
+	private doOpen(path: string, createPath: boolean): Promise<Database> {
 		return new Promise((resolve, reject) => {
 			let measureRequireDuration = false;
 			if (!SQLiteStorageImpl.measuredRequireDuration) {
@@ -388,12 +389,17 @@ export class SQLiteStorageImpl {
 					mark('didRequireSQLite');
 				}
 
-				const db = new (this.logger.verbose ? sqlite3.verbose().Database : sqlite3.Database)(path, error => {
+				const db = new (this.logger.verbose ? sqlite3.verbose().Database : sqlite3.Database)(path, createPath ? OPEN_READWRITE | OPEN_CREATE : OPEN_READWRITE, error => {
 					if (error) {
 						return reject(error);
 					}
 
-					// Setup schema
+					// Return early if we did not create the DB
+					if (!createPath) {
+						return resolve(db);
+					}
+
+					// Otherwise: Setup schema
 					mark('willSetupSQLiteSchema');
 					this.exec(db, [
 						'PRAGMA user_version = 1;',

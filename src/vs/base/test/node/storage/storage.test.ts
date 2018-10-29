@@ -23,7 +23,7 @@ suite('Storage Library', () => {
 		const storageDir = uniqueStorageDir();
 		await mkdirp(storageDir);
 
-		const storage = new Storage({ path: join(storageDir, 'storage.db') });
+		const storage = new Storage({ path: join(storageDir, 'storage.db'), createPath: true });
 
 		await storage.init();
 
@@ -97,7 +97,7 @@ suite('Storage Library', () => {
 		const storageDir = uniqueStorageDir();
 		await mkdirp(storageDir);
 
-		let storage = new Storage({ path: join(storageDir, 'storage.db') });
+		let storage = new Storage({ path: join(storageDir, 'storage.db'), createPath: true });
 		await storage.init();
 
 		const set1Promise = storage.set('foo', 'bar');
@@ -113,7 +113,7 @@ suite('Storage Library', () => {
 
 		equal(setPromiseResolved, true);
 
-		storage = new Storage({ path: join(storageDir, 'storage.db') });
+		storage = new Storage({ path: join(storageDir, 'storage.db'), createPath: false });
 		await storage.init();
 
 		equal(storage.get('foo'), 'bar');
@@ -121,7 +121,7 @@ suite('Storage Library', () => {
 
 		await storage.close();
 
-		storage = new Storage({ path: join(storageDir, 'storage.db') });
+		storage = new Storage({ path: join(storageDir, 'storage.db'), createPath: false });
 		await storage.init();
 
 		const delete1Promise = storage.delete('foo');
@@ -137,7 +137,7 @@ suite('Storage Library', () => {
 
 		equal(deletePromiseResolved, true);
 
-		storage = new Storage({ path: join(storageDir, 'storage.db') });
+		storage = new Storage({ path: join(storageDir, 'storage.db'), createPath: false });
 		await storage.init();
 
 		ok(!storage.get('foo'));
@@ -151,7 +151,7 @@ suite('Storage Library', () => {
 		const storageDir = uniqueStorageDir();
 		await mkdirp(storageDir);
 
-		let storage = new Storage({ path: join(storageDir, 'storage.db') });
+		let storage = new Storage({ path: join(storageDir, 'storage.db'), createPath: true });
 		await storage.init();
 
 		let changes = new Set<string>();
@@ -206,7 +206,7 @@ suite('SQLite Storage Library', () => {
 	}
 
 	async function testDBBasics(path, errorLogger?: (error) => void) {
-		const options: IStorageOptions = { path };
+		const options: IStorageOptions = { path, createPath: true };
 		if (errorLogger) {
 			options.logging = {
 				errorLogger
@@ -305,7 +305,8 @@ suite('SQLite Storage Library', () => {
 		await mkdirp(storageDir);
 
 		let storage = new SQLiteStorageImpl({
-			path: join(storageDir, 'storage.db')
+			path: join(storageDir, 'storage.db'),
+			createPath: true
 		});
 
 		const items1 = new Map<string, string>();
@@ -381,7 +382,8 @@ suite('SQLite Storage Library', () => {
 		await storage.close();
 
 		storage = new SQLiteStorageImpl({
-			path: join(storageDir, 'storage.db')
+			path: join(storageDir, 'storage.db'),
+			createPath: true
 		});
 
 		storedItems = await storage.getItems();
@@ -398,7 +400,8 @@ suite('SQLite Storage Library', () => {
 		await mkdirp(storageDir);
 
 		let storage = new SQLiteStorageImpl({
-			path: join(storageDir, 'storage.db')
+			path: join(storageDir, 'storage.db'),
+			createPath: true
 		});
 
 		const items = new Map<string, string>();
@@ -451,7 +454,7 @@ suite('SQLite Storage Library', () => {
 		const storageDir = uniqueStorageDir();
 		await mkdirp(storageDir);
 
-		const storage = new Storage({ path: join(storageDir, 'storage.db') });
+		const storage = new Storage({ path: join(storageDir, 'storage.db'), createPath: true });
 
 		await storage.init();
 
