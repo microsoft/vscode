@@ -10,6 +10,7 @@ import { Command } from './utils/commandManager';
 import { Lazy } from './utils/lazy';
 import { isImplicitProjectConfigFile, openOrCreateConfigFile } from './utils/tsconfig';
 import { nulToken } from './utils/cancellation';
+import { PluginConfigProvider } from './typescriptServiceClient';
 
 
 const localize = nls.loadMessageBundle();
@@ -109,11 +110,11 @@ export class ConfigurePluginCommand implements Command {
 	public readonly id = '_typescript.configurePlugin';
 
 	public constructor(
-		private readonly lazyClientHost: Lazy<TypeScriptServiceClientHost>,
+		private readonly pluginConfigProvider: PluginConfigProvider,
 	) { }
 
-	public execute(pluginName: string, configuration: any) {
-		this.lazyClientHost.value.serviceClient.configurePlugin(pluginName, configuration, true /* reconfigureOnRestart */);
+	public execute(pluginId: string, configuration: any) {
+		this.pluginConfigProvider.set(pluginId, configuration);
 	}
 }
 
