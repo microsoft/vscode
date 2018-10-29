@@ -346,10 +346,15 @@ export class SQLiteStorageImpl {
 
 			this.doOpen(this.options.path, this.options.createPath).then(resolve, error => {
 
-				// Retry after 2s if the DB is busy
+				// TODO@Ben check if this is still happening. This error code should only arise if
+				// another process is locking the same DB we want to open at that time. This typically
+				// never happens because a DB connection is limited per window. However, in the event
+				// of a window reload, it may be possible that the previous connection was not properly
+				// closed while the new connection is already established.
 				if (error.code === 'SQLITE_BUSY') {
 					this.logger.error(`[storage ${this.name}] open(): Retrying after ${SQLiteStorageImpl.BUSY_OPEN_TIMEOUT}ms due to SQLITE_BUSY`);
 
+					// Retry after 2s if the DB is busy
 					timeout(SQLiteStorageImpl.BUSY_OPEN_TIMEOUT).then(() => this.doOpen(this.options.path, this.options.createPath).then(resolve, fallbackToInMemoryDatabase));
 				}
 
