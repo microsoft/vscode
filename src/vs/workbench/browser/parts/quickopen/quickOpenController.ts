@@ -393,7 +393,7 @@ export class QuickOpenController extends Component implements IQuickOpenService 
 		else {
 			this.isQuickOpen = true;
 			// Cache the value for prefilling the quickOpen next time is opened
-			this.lastInputValue = trimmedValue;
+			this.lastInputValue = value;
 			resultPromise = this.handleDefaultHandler(defaultHandlerDescriptor, value, pendingResultsInvocationToken);
 		}
 
