@@ -611,11 +611,22 @@ export class ExtHostDebugService implements ExtHostDebugServiceShape {
 			.filter(pair => pair.provider.provideDebugAdapterTracker && (pair.type === type || pair.type === '*'))
 			.map(pair => asThenable(() => pair.provider.provideDebugAdapterTracker(session, folder, config, CancellationToken.None)).then(p => p).catch(err => null));
 
-		return Promise.all(promises).then(trackers => {
-			trackers = trackers.filter(t => t);	// filter null
-			if (trackers.length > 0) {
-				return new MultiTracker(trackers);
-			}
+		return Promise.race([
+			Promise.all(promises).then(trackers => {
+				trackers = trackers.filter(t => t);	// filter null
+				if (trackers.length > 0) {
+					return new MultiTracker(trackers);
+				}
+				return undefined;
+			}),
+			new Promise((resolve, reject) => {
+				const timeout = setTimeout(() => {
+					clearTimeout(timeout);
+					reject(new Error('timeout'));
+				}, 1000);
+			})
+		]).catch(err => {
+			// ignore errors
 			return undefined;
 		});
 	}
