@@ -87,7 +87,7 @@ export function activate(context: ExtensionContext) {
 
 	let showStatusBarItem = (message: string) => {
 		statusBarItem.tooltip = message + '\n' + localize('json.clickToRetry', 'Click to retry.');
-		statusBarItem.text = '$(alert)  JSON';
+		statusBarItem.text = '$(alert)';
 		statusBarItem.show();
 	};
 
@@ -107,8 +107,7 @@ export function activate(context: ExtensionContext) {
 				didChangeConfiguration: () => client.sendNotification(DidChangeConfigurationNotification.type, { settings: getSettings() })
 			},
 			handleDiagnostics: (uri: Uri, diagnostics: Diagnostic[], next: HandleDiagnosticsSignature) => {
-				const schemaErrorIndex = diagnostics
-					.findIndex(candidate => candidate.code === /* SchemaResolveError */ 0x300);
+				const schemaErrorIndex = diagnostics.findIndex(candidate => candidate.code === /* SchemaResolveError */ 0x300);
 				if (schemaErrorIndex !== -1) {
 					// Show schema resolution errors in status bar only; ref: #51032
 					const schemaResolveDiagnostic = diagnostics[schemaErrorIndex];
@@ -154,8 +153,9 @@ export function activate(context: ExtensionContext) {
 		};
 
 		let handleActiveEditorChange = (activeEditor?: TextEditor) => {
-			if (activeEditor && fileSchemaErrors.has(activeEditor.document.uri.toString())) {
-				const message = fileSchemaErrors.get(activeEditor.document.uri.toString())!;
+			const uriStr = activeEditor && activeEditor.document.uri.toString();
+			if (uriStr && fileSchemaErrors.has(uriStr)) {
+				const message = fileSchemaErrors.get(uriStr)!;
 				showStatusBarItem(message);
 			} else {
 				statusBarItem.hide();
@@ -172,7 +172,7 @@ export function activate(context: ExtensionContext) {
 		let handleRetrySchemaCommand = () => {
 			if (window.activeTextEditor) {
 				client.sendRequest(ForceValidateRequest.type, window.activeTextEditor.document.uri.toString());
-				statusBarItem.text = '$(watch)  JSON';
+				statusBarItem.text = '$(watch)';
 			}
 		};
 
