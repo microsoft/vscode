@@ -28,7 +28,7 @@ import { ResourceLabel } from 'vs/workbench/browser/labels';
 import { ActionBar, IActionItemProvider, ActionItem } from 'vs/base/browser/ui/actionbar/actionbar';
 import { URI } from 'vs/base/common/uri';
 import { basename } from 'vs/base/common/paths';
-import { LIGHT, FileThemeIcon, FolderThemeIcon } from 'vs/platform/theme/common/themeService';
+import { LIGHT, FileThemeIcon, FolderThemeIcon, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { FileKind } from 'vs/platform/files/common/files';
 import { WorkbenchTreeController } from 'vs/platform/list/browser/listService';
 import { ViewletPanel, IViewletPanelOptions } from 'vs/workbench/browser/parts/views/panelViewlet';
@@ -36,6 +36,7 @@ import { IMouseEvent } from 'vs/base/browser/mouseEvent';
 import { localize } from 'vs/nls';
 import { timeout } from 'vs/base/common/async';
 import { CollapseAllAction } from 'vs/base/parts/tree/browser/treeDefaults';
+import { editorFindMatchHighlight, editorFindMatchHighlightBorder } from 'vs/platform/theme/common/colorRegistry';
 
 export class CustomTreeViewPanel extends ViewletPanel {
 
@@ -505,6 +506,19 @@ interface ITreeExplorerTemplateData {
 	actionBar: ActionBar;
 	aligner: Aligner;
 }
+
+// todo@joh,sandy make this proper and contributable from extensions
+registerThemingParticipant((theme, collector) => {
+
+	const findMatchHighlightColor = theme.getColor(editorFindMatchHighlight);
+	if (findMatchHighlightColor) {
+		collector.addRule(`.file-icon-themable-tree .monaco-tree-row .content .monaco-highlighted-label .highlight { color: unset !important; background-color: ${findMatchHighlightColor}; }`);
+	}
+	const findMatchHighlightColorBorder = theme.getColor(editorFindMatchHighlightBorder);
+	if (findMatchHighlightColorBorder) {
+		collector.addRule(`.file-icon-themable-tree .monaco-tree-row .content .monaco-highlighted-label .highlight { color: unset !important; border: 1px dotted ${findMatchHighlightColorBorder}; box-sizing: border-box; }`);
+	}
+});
 
 class TreeRenderer implements IRenderer {
 
