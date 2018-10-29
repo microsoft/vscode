@@ -17,6 +17,7 @@ import { localize } from 'vs/nls';
 import { mark, getDuration } from 'vs/base/common/performance';
 import { join, basename } from 'path';
 import { copy } from 'vs/base/node/pfs';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
 export class StorageService extends Disposable implements IStorageService {
 	_serviceBrand: any;
@@ -273,13 +274,17 @@ export class DelegatingStorageService extends Disposable implements IStorageServ
 	get onWillSaveState(): Event<void> { return this._onWillSaveState.event; }
 
 	private closed: boolean;
+	private useLegacyWorkspaceStorage: boolean;
 
 	constructor(
 		private storageService: IStorageService,
 		private storageLegacyService: IStorageLegacyService,
-		private logService: ILogService
+		private logService: ILogService,
+		configurationService: IConfigurationService
 	) {
 		super();
+
+		this.useLegacyWorkspaceStorage = configurationService.inspect<boolean>('workbench.enableLegacyStorage').value === true;
 
 		this.registerListeners();
 	}
@@ -304,7 +309,7 @@ export class DelegatingStorageService extends Disposable implements IStorageServ
 	}
 
 	get(key: string, scope: StorageScope, fallbackValue?: string): string {
-		if (scope === StorageScope.WORKSPACE) {
+		if (scope === StorageScope.WORKSPACE && !this.useLegacyWorkspaceStorage) {
 			return this.storageService.get(key, scope, fallbackValue);
 		}
 
@@ -312,7 +317,7 @@ export class DelegatingStorageService extends Disposable implements IStorageServ
 	}
 
 	getBoolean(key: string, scope: StorageScope, fallbackValue?: boolean): boolean {
-		if (scope === StorageScope.WORKSPACE) {
+		if (scope === StorageScope.WORKSPACE && !this.useLegacyWorkspaceStorage) {
 			return this.storageService.getBoolean(key, scope, fallbackValue);
 		}
 
@@ -320,7 +325,7 @@ export class DelegatingStorageService extends Disposable implements IStorageServ
 	}
 
 	getInteger(key: string, scope: StorageScope, fallbackValue?: number): number {
-		if (scope === StorageScope.WORKSPACE) {
+		if (scope === StorageScope.WORKSPACE && !this.useLegacyWorkspaceStorage) {
 			return this.storageService.getInteger(key, scope, fallbackValue);
 		}
 

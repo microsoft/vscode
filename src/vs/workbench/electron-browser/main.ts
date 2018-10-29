@@ -123,7 +123,7 @@ function openWorkbench(configuration: IWindowConfiguration): Promise<void> {
 				createStorageService(workspaceStoragePath, payload, environmentService, logService)
 			]).then(services => {
 				const workspaceService = services[0];
-				const storageService = new DelegatingStorageService(services[1], createStorageLegacyService(workspaceService, environmentService), logService);
+				const storageService = new DelegatingStorageService(services[1], createStorageLegacyService(workspaceService, environmentService), logService, workspaceService);
 
 				return domContentLoaded().then(() => {
 					perf.mark('willStartWorkbench');

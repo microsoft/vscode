@@ -677,6 +677,12 @@ configurationRegistry.registerConfiguration({
 			'description': nls.localize('workbench.enableExperiments', "Fetches experiments to run from a Microsoft online service."),
 			'default': true,
 			'tags': ['usesOnlineServices']
+		},
+		//TODO@Ben remove ('enableLegacyStorage') after a while
+		'workbench.enableLegacyStorage': {
+			'type': 'boolean',
+			'description': nls.localize('workbench.enableLegacyStorage', "Switches back to the previous storage implementation. Only change this setting if advised to do so."),
+			'default': false
 		}
 	}
 });
