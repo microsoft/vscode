@@ -941,7 +941,7 @@ export class Workbench extends Disposable implements IPartService {
 
 		const windowConfig = this.configurationService.getValue<IWindowSettings>();
 		if (windowConfig && windowConfig.window) {
-			const useNativeTabs = windowConfig.window.nativeTabs;
+			const useNativeTabs = isMacintosh && windowConfig.window.nativeTabs;
 			if (useNativeTabs) {
 				return null; // native tabs on sierra do not work with custom title style
 			}

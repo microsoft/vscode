@@ -177,6 +177,10 @@ export class Menubar {
 	}
 
 	private get currentEnableNativeTabs(): boolean {
+		if (!isMacintosh) {
+			return false;
+		}
+
 		let enableNativeTabs = this.configurationService.getValue<boolean>('window.nativeTabs');
 		if (typeof enableNativeTabs !== 'boolean') {
 			enableNativeTabs = false;
