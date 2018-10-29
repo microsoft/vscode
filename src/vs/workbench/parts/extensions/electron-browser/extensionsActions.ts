@@ -572,7 +572,7 @@ export class EnableForWorkspaceAction extends Action implements IExtensionAction
 	private update(): void {
 		this.enabled = false;
 		if (this.extension) {
-			this.enabled = (this.extension.enablementState === EnablementState.Disabled || this.extension.enablementState === EnablementState.WorkspaceDisabled) && this.extension.local && this.extensionEnablementService.canChangeEnablement(this.extension.local);
+			this.enabled = this.extension.state === ExtensionState.Installed && (this.extension.enablementState === EnablementState.Disabled || this.extension.enablementState === EnablementState.WorkspaceDisabled) && this.extension.local && this.extensionEnablementService.canChangeEnablement(this.extension.local);
 		}
 	}
 
@@ -609,7 +609,7 @@ export class EnableGloballyAction extends Action implements IExtensionAction {
 	private update(): void {
 		this.enabled = false;
 		if (this.extension) {
-			this.enabled = (this.extension.enablementState === EnablementState.Disabled || this.extension.enablementState === EnablementState.WorkspaceDisabled) && this.extension.local && this.extensionEnablementService.canChangeEnablement(this.extension.local);
+			this.enabled = this.extension.state === ExtensionState.Installed && this.extension.enablementState === EnablementState.Disabled && this.extension.local && this.extensionEnablementService.canChangeEnablement(this.extension.local);
 		}
 	}
 
@@ -626,13 +626,11 @@ export class EnableGloballyAction extends Action implements IExtensionAction {
 export class EnableAction extends Action {
 
 	static readonly ID = 'extensions.enable';
-	private static readonly EnabledClass = 'extension-action prominent enable';
+	private static readonly EnabledClass = 'extension-action enable';
+	private static readonly EnabledDropDownClass = 'extension-action dropdown enable';
 	private static readonly DisabledClass = `${EnableAction.EnabledClass} disabled`;
 
 	private disposables: IDisposable[] = [];
-
-	private _enableActions: IExtensionAction[];
-
 	private _actionItem: DropDownMenuActionItem;
 	get actionItem(): IActionItem { return this._actionItem; }
 
@@ -640,18 +638,16 @@ export class EnableAction extends Action {
 	get extension(): IExtension { return this._extension; }
 	set extension(extension: IExtension) { this._extension = extension; this.update(); }
 
-
 	constructor(
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@IExtensionsWorkbenchService private extensionsWorkbenchService: IExtensionsWorkbenchService
 	) {
 		super(EnableAction.ID, localize('enableAction', "Enable"), EnableAction.DisabledClass, false);
 
-		this._enableActions = [
+		this._actionItem = this.instantiationService.createInstance(DropDownMenuActionItem, this, [[
 			instantiationService.createInstance(EnableGloballyAction, EnableGloballyAction.LABEL),
 			instantiationService.createInstance(EnableForWorkspaceAction, EnableForWorkspaceAction.LABEL)
-		];
-		this._actionItem = this.instantiationService.createInstance(DropDownMenuActionItem, this, [this._enableActions], false);
+		]], false);
 		this.disposables.push(this._actionItem);
 
 		this.disposables.push(this.extensionsWorkbenchService.onChange(extension => {
@@ -673,18 +669,27 @@ export class EnableAction extends Action {
 			}
 		}
 
-		if (!this.extension) {
-			this.enabled = false;
+		const enabledActions = this._actionItem.getActions().filter(a => a.enabled);
+		this.enabled = enabledActions.length > 0;
+		if (this.enabled) {
+			if (enabledActions.length === 1) {
+				this.label = enabledActions[0].label;
+				this.class = EnableAction.EnabledClass;
+			} else {
+				this.class = EnableAction.EnabledDropDownClass;
+			}
+		} else {
 			this.class = EnableAction.DisabledClass;
-			return;
 		}
-
-		this.enabled = this.extension.state === ExtensionState.Installed && this._enableActions.some(e => e.enabled);
-		this.class = this.enabled ? EnableAction.EnabledClass : EnableAction.DisabledClass;
 	}
 
 	public run(): Promise<any> {
-		this._actionItem.showMenu();
+		const enabledActions = this._actionItem.getActions().filter(a => a.enabled);
+		if (enabledActions.length === 1) {
+			enabledActions[0].run();
+		} else {
+			this._actionItem.showMenu();
+		}
 		return Promise.resolve(null);
 	}
 
@@ -776,10 +781,10 @@ export class DisableAction extends Action {
 	static readonly ID = 'extensions.disable';
 
 	private static readonly EnabledClass = 'extension-action disable';
+	private static readonly EnabledDropDownClass = 'extension-action dropdown enable';
 	private static readonly DisabledClass = `${DisableAction.EnabledClass} disabled`;
 
 	private disposables: IDisposable[] = [];
-	private _disableActions: IExtensionAction[];
 	private _actionItem: DropDownMenuActionItem;
 	get actionItem(): IActionItem { return this._actionItem; }
 
@@ -787,17 +792,16 @@ export class DisableAction extends Action {
 	get extension(): IExtension { return this._extension; }
 	set extension(extension: IExtension) { this._extension = extension; this.update(); }
 
-
 	constructor(
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@IExtensionsWorkbenchService private extensionsWorkbenchService: IExtensionsWorkbenchService,
 	) {
 		super(DisableAction.ID, localize('disableAction', "Disable"), DisableAction.DisabledClass, false);
-		this._disableActions = [
+
+		this._actionItem = this.instantiationService.createInstance(DropDownMenuActionItem, this, [[
 			instantiationService.createInstance(DisableGloballyAction, DisableGloballyAction.LABEL),
 			instantiationService.createInstance(DisableForWorkspaceAction, DisableForWorkspaceAction.LABEL)
-		];
-		this._actionItem = this.instantiationService.createInstance(DropDownMenuActionItem, this, [this._disableActions], false);
+		]], false);
 		this.disposables.push(this._actionItem);
 
 		this.disposables.push(this.extensionsWorkbenchService.onChange(extension => {
@@ -819,18 +823,27 @@ export class DisableAction extends Action {
 			}
 		}
 
-		if (!this.extension) {
-			this.enabled = false;
+		const enabledActions = this._actionItem.getActions().filter(a => a.enabled);
+		this.enabled = enabledActions.length > 0;
+		if (this.enabled) {
+			if (enabledActions.length === 1) {
+				this.label = enabledActions[0].label;
+				this.class = DisableAction.EnabledClass;
+			} else {
+				this.class = DisableAction.EnabledDropDownClass;
+			}
+		} else {
 			this.class = DisableAction.DisabledClass;
-			return;
 		}
-
-		this.enabled = this.extension.state === ExtensionState.Installed && this._disableActions.some(a => a.enabled);
-		this.class = this.enabled ? DisableAction.EnabledClass : DisableAction.DisabledClass;
 	}
 
 	public run(): Promise<any> {
-		this._actionItem.showMenu();
+		const enabledActions = this._actionItem.getActions().filter(a => a.enabled);
+		if (enabledActions.length === 1) {
+			enabledActions[0].run();
+		} else {
+			this._actionItem.showMenu();
+		}
 		return Promise.resolve(null);
 	}
 
@@ -2179,10 +2192,13 @@ export class DisabledStatusLabelAction extends Action {
 			.then(runningExtensions => {
 				this.class = `${DisabledStatusLabelAction.Class} hide`;
 				this.tooltip = '';
-				if (this.extension && !this.extension.isMalicious && !runningExtensions.some(e => e.id === this.extension.id)) {
-					if (this.extension.enablementState === EnablementState.Disabled || this.extension.enablementState === EnablementState.WorkspaceDisabled) {
+				if (this.extension && this.extension.local && !this.extension.isMalicious && !runningExtensions.some(e => e.id === this.extension.id)) {
+					if (this.extension.enablementState === EnablementState.Disabled) {
 						this.class = `${DisabledStatusLabelAction.Class}`;
-						this.tooltip = this.extension.enablementState === EnablementState.Disabled ? localize('disabled globally', "Disabled") : localize('disabled workspace', "Disabled for this Workspace");
+						this.label = localize('disabled globally', "Disabled for all Windows.");
+					} else if (this.extension.enablementState === EnablementState.WorkspaceDisabled) {
+						this.class = `${DisabledStatusLabelAction.Class}`;
+						this.label = localize('disabled workspace', "Disabled for this Workspace.");
 					}
 				}
 			}));
