@@ -17,6 +17,7 @@ import { TreeItemCollapsibleState, ThemeIcon } from 'vs/workbench/api/node/extHo
 import { isUndefinedOrNull, isString } from 'vs/base/common/types';
 import { equals } from 'vs/base/common/arrays';
 import { ILogService } from 'vs/platform/log/common/log';
+import { IExtensionDescription, checkProposedApiEnabled } from 'vs/workbench/services/extensions/common/extensions';
 
 type TreeItemHandle = string;
 
@@ -59,16 +60,20 @@ export class ExtHostTreeViews implements ExtHostTreeViewsShape {
 		});
 	}
 
-	registerTreeDataProvider<T>(id: string, treeDataProvider: vscode.TreeDataProvider<T>): vscode.Disposable {
-		const treeView = this.createTreeView(id, { treeDataProvider });
+	registerTreeDataProvider<T>(id: string, treeDataProvider: vscode.TreeDataProvider<T>, extension: IExtensionDescription): vscode.Disposable {
+		const treeView = this.createTreeView(id, { treeDataProvider }, extension);
 		return { dispose: () => treeView.dispose() };
 	}
 
-	createTreeView<T>(viewId: string, options: { treeDataProvider: vscode.TreeDataProvider<T> }): vscode.TreeView<T> {
+	createTreeView<T>(viewId: string, options: vscode.TreeViewOptions<T>, extension: IExtensionDescription): vscode.TreeView<T> {
 		if (!options || !options.treeDataProvider) {
 			throw new Error('Options with treeDataProvider is mandatory');
 		}
-		const treeView = this.createExtHostTreeViewer(viewId, options.treeDataProvider);
+		if (options.showCollapseAll) {
+			checkProposedApiEnabled(extension);
+		}
+
+		const treeView = this.createExtHostTreeViewer(viewId, options);
 		return {
 			get onDidCollapseElement() { return treeView.onDidCollapseElement; },
 			get onDidExpandElement() { return treeView.onDidExpandElement; },
@@ -118,8 +123,8 @@ export class ExtHostTreeViews implements ExtHostTreeViewsShape {
 		treeView.setVisible(isVisible);
 	}
 
-	private createExtHostTreeViewer<T>(id: string, dataProvider: vscode.TreeDataProvider<T>): ExtHostTreeView<T> {
-		const treeView = new ExtHostTreeView<T>(id, dataProvider, this._proxy, this.commands.converter, this.logService);
+	private createExtHostTreeViewer<T>(id: string, options: vscode.TreeViewOptions<T>): ExtHostTreeView<T> {
+		const treeView = new ExtHostTreeView<T>(id, options, this._proxy, this.commands.converter, this.logService);
 		this.treeViews.set(id, treeView);
 		return treeView;
 	}
@@ -140,6 +145,8 @@ class ExtHostTreeView<T> extends Disposable {
 
 	private static LABEL_HANDLE_PREFIX = '0';
 	private static ID_HANDLE_PREFIX = '1';
+
+	private readonly dataProvider: vscode.TreeDataProvider<T>;
 
 	private roots: TreeNode[] | null = null;
 	private elements: Map<TreeItemHandle, T> = new Map<TreeItemHandle, T>();
@@ -165,9 +172,10 @@ class ExtHostTreeView<T> extends Disposable {
 
 	private refreshPromise: Promise<void> = Promise.resolve(null);
 
-	constructor(private viewId: string, private dataProvider: vscode.TreeDataProvider<T>, private proxy: MainThreadTreeViewsShape, private commands: CommandsConverter, private logService: ILogService) {
+	constructor(private viewId: string, options: vscode.TreeViewOptions<T>, private proxy: MainThreadTreeViewsShape, private commands: CommandsConverter, private logService: ILogService) {
 		super();
-		this.proxy.$registerTreeViewDataProvider(viewId);
+		this.dataProvider = options.treeDataProvider;
+		this.proxy.$registerTreeViewDataProvider(viewId, { showCollapseAll: !!options.showCollapseAll });
 		if (this.dataProvider.onDidChangeTreeData) {
 			let refreshingPromise, promiseCallback;
 			this._register(debounceEvent<T, T[]>(this.dataProvider.onDidChangeTreeData, (last, current) => {

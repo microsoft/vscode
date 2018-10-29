@@ -59,22 +59,12 @@ import { ExtHostUrls } from 'vs/workbench/api/node/extHostUrls';
 import { ExtHostWebviews } from 'vs/workbench/api/node/extHostWebview';
 import { ExtHostWindow } from 'vs/workbench/api/node/extHostWindow';
 import { ExtHostWorkspace } from 'vs/workbench/api/node/extHostWorkspace';
-import { IExtensionDescription } from 'vs/workbench/services/extensions/common/extensions';
+import { IExtensionDescription, throwProposedApiError, checkProposedApiEnabled } from 'vs/workbench/services/extensions/common/extensions';
 import { ProxyIdentifier } from 'vs/workbench/services/extensions/node/proxyIdentifier';
 import * as vscode from 'vscode';
 
 export interface IExtensionApiFactory {
 	(extension: IExtensionDescription): typeof vscode;
-}
-
-export function checkProposedApiEnabled(extension: IExtensionDescription): void {
-	if (!extension.enableProposedApi) {
-		throwProposedApiError(extension);
-	}
-}
-
-function throwProposedApiError(extension: IExtensionDescription): never {
-	throw new Error(`[${extension.id}]: Proposed API is only available when running out of dev or with the following command line switch: --enable-proposed-api ${extension.id}`);
 }
 
 function proposedApiFunction<T>(extension: IExtensionDescription, fn: T): T {
@@ -461,10 +451,10 @@ export function createApiFactory(
 				return extHostTerminalService.createTerminalRenderer(name);
 			}),
 			registerTreeDataProvider(viewId: string, treeDataProvider: vscode.TreeDataProvider<any>): vscode.Disposable {
-				return extHostTreeViews.registerTreeDataProvider(viewId, treeDataProvider);
+				return extHostTreeViews.registerTreeDataProvider(viewId, treeDataProvider, extension);
 			},
 			createTreeView(viewId: string, options: { treeDataProvider: vscode.TreeDataProvider<any> }): vscode.TreeView<any> {
-				return extHostTreeViews.createTreeView(viewId, options);
+				return extHostTreeViews.createTreeView(viewId, options, extension);
 			},
 			registerWebviewPanelSerializer: (viewType: string, serializer: vscode.WebviewPanelSerializer) => {
 				return extHostWebviews.registerWebviewPanelSerializer(viewType, serializer);

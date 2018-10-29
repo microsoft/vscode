@@ -17,6 +17,7 @@ import { ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { values } from 'vs/base/common/map';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IKeybindings } from 'vs/platform/keybinding/common/keybindingsRegistry';
+import { IAction } from 'vs/base/common/actions';
 
 export const TEST_VIEW_CONTAINER_ID = 'workbench.view.extension.test';
 
@@ -238,6 +239,10 @@ export interface ITreeViewer extends IDisposable {
 
 	dataProvider: ITreeViewDataProvider;
 
+	showCollapseAllAction: boolean;
+
+	readonly visible: boolean;
+
 	readonly onDidExpandItem: Event<ITreeItem>;
 
 	readonly onDidCollapseItem: Event<ITreeItem>;
@@ -246,7 +251,7 @@ export interface ITreeViewer extends IDisposable {
 
 	readonly onDidChangeVisibility: Event<boolean>;
 
-	readonly visible: boolean;
+	readonly onDidChangeActions: Event<void>;
 
 	refresh(treeItems?: ITreeItem[]): TPromise<void>;
 
@@ -261,6 +266,10 @@ export interface ITreeViewer extends IDisposable {
 	getOptimalWidth(): number;
 
 	reveal(item: ITreeItem, parentChain: ITreeItem[], options: { select?: boolean }): TPromise<void>;
+
+	getPrimaryActions(): IAction[];
+
+	getSecondaryActions(): IAction[];
 }
 
 export interface ICustomViewDescriptor extends IViewDescriptor {

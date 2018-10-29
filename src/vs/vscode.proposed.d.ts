@@ -1196,7 +1196,30 @@ declare module 'vscode' {
 	}
 	//#endregion
 
-	//#region Tree Item Label Highlights
+	//#region Tree View
+
+	/**
+	 * Options for creating a [TreeView](#TreeView]
+	 */
+	export interface TreeViewOptions<T> {
+
+		/**
+		 * A data provider that provides tree data.
+		 */
+		treeDataProvider: TreeDataProvider<T>;
+
+		/**
+		 * Whether to show collapse all action or not.
+		 */
+		showCollapseAll?: boolean;
+	}
+
+	namespace window {
+
+		export function createTreeView<T>(viewId: string, options: TreeViewOptions<T>): TreeView<T>;
+
+	}
+
 	/**
 	 * Label describing the [Tree item](#TreeItem)
 	 */

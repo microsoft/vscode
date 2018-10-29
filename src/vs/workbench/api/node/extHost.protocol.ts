@@ -210,7 +210,7 @@ export interface MainThreadTextEditorsShape extends IDisposable {
 }
 
 export interface MainThreadTreeViewsShape extends IDisposable {
-	$registerTreeViewDataProvider(treeViewId: string): void;
+	$registerTreeViewDataProvider(treeViewId: string, options: { showCollapseAll: boolean }): void;
 	$refresh(treeViewId: string, itemsToRefresh?: { [treeItemHandle: string]: ITreeItem }): Thenable<void>;
 	$reveal(treeViewId: string, treeItem: ITreeItem, parentChain: ITreeItem[], options: { select: boolean, focus: boolean }): Thenable<void>;
 }

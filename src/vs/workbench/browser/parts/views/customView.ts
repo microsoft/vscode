@@ -8,7 +8,7 @@ import { Event, Emitter } from 'vs/base/common/event';
 import { IDisposable, dispose, Disposable, toDisposable } from 'vs/base/common/lifecycle';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { TPromise } from 'vs/base/common/winjs.base';
-import { IAction, IActionItem, ActionRunner } from 'vs/base/common/actions';
+import { IAction, IActionItem, ActionRunner, Action } from 'vs/base/common/actions';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IMenuService, MenuId, MenuItemAction } from 'vs/platform/actions/common/actions';
@@ -36,10 +36,10 @@ import { ViewletPanel, IViewletPanelOptions } from 'vs/workbench/browser/parts/v
 import { IMouseEvent } from 'vs/base/browser/mouseEvent';
 import { localize } from 'vs/nls';
 import { timeout } from 'vs/base/common/async';
+import { CollapseAllAction } from 'vs/base/parts/tree/browser/treeDefaults';
 
 export class CustomTreeViewPanel extends ViewletPanel {
 
-	private menus: TitleMenus;
 	private treeViewer: ITreeViewer;
 
 	constructor(
@@ -47,15 +47,14 @@ export class CustomTreeViewPanel extends ViewletPanel {
 		@INotificationService private notificationService: INotificationService,
 		@IKeybindingService keybindingService: IKeybindingService,
 		@IContextMenuService contextMenuService: IContextMenuService,
-		@IInstantiationService private instantiationService: IInstantiationService,
 		@IConfigurationService configurationService: IConfigurationService,
 		@IViewsService viewsService: IViewsService,
 	) {
 		super({ ...(options as IViewletPanelOptions), ariaHeaderLabel: options.title }, keybindingService, contextMenuService, configurationService);
-		this.treeViewer = (<ICustomViewDescriptor>ViewsRegistry.getView(options.id)).treeViewer;
+		const { treeViewer } = (<ICustomViewDescriptor>ViewsRegistry.getView(options.id));
+		this.treeViewer = treeViewer;
+		this.treeViewer.onDidChangeActions(() => this.updateActions(), this, this.disposables);
 		this.disposables.push(toDisposable(() => this.treeViewer.setVisibility(false)));
-		this.menus = this.instantiationService.createInstance(TitleMenus, this.id);
-		this.menus.onDidChangeTitle(() => this.updateActions(), this, this.disposables);
 		this.updateTreeVisibility();
 	}
 
@@ -83,11 +82,11 @@ export class CustomTreeViewPanel extends ViewletPanel {
 	}
 
 	getActions(): IAction[] {
-		return [...this.menus.getTitleActions()];
+		return [...this.treeViewer.getPrimaryActions()];
 	}
 
 	getSecondaryActions(): IAction[] {
-		return this.menus.getTitleSecondaryActions();
+		return [...this.treeViewer.getSecondaryActions()];
 	}
 
 	getActionItem(action: IAction): IActionItem {
@@ -180,6 +179,7 @@ export class CustomTreeViewer extends Disposable implements ITreeViewer {
 	private activated: boolean = false;
 	private _hasIconForParentNode = false;
 	private _hasIconForLeafNode = false;
+	private _showCollapseAllAction = false;
 
 	private domNode: HTMLElement;
 	private treeContainer: HTMLElement;
@@ -187,6 +187,7 @@ export class CustomTreeViewer extends Disposable implements ITreeViewer {
 	private tree: FileIconThemableWorkbenchTree;
 	private root: ITreeItem;
 	private elementsToRefresh: ITreeItem[] = [];
+	private menus: TitleMenus;
 
 	private _dataProvider: ITreeViewDataProvider;
 
@@ -202,6 +203,9 @@ export class CustomTreeViewer extends Disposable implements ITreeViewer {
 	private _onDidChangeVisibility: Emitter<boolean> = this._register(new Emitter<boolean>());
 	readonly onDidChangeVisibility: Event<boolean> = this._onDidChangeVisibility.event;
 
+	private _onDidChangeActions: Emitter<void> = this._register(new Emitter<void>());
+	readonly onDidChangeActions: Event<void> = this._onDidChangeActions.event;
+
 	constructor(
 		private id: string,
 		private container: ViewContainer,
@@ -214,6 +218,8 @@ export class CustomTreeViewer extends Disposable implements ITreeViewer {
 	) {
 		super();
 		this.root = new Root();
+		this.menus = this._register(this.instantiationService.createInstance(TitleMenus, this.id));
+		this._register(this.menus.onDidChangeTitle(() => this._onDidChangeActions.fire()));
 		this._register(this.themeService.onDidFileIconThemeChange(() => this.doRefresh([this.root]) /** soft refresh **/));
 		this._register(this.themeService.onThemeChange(() => this.doRefresh([this.root]) /** soft refresh **/));
 		this._register(this.configurationService.onDidChangeConfiguration(e => {
@@ -261,6 +267,30 @@ export class CustomTreeViewer extends Disposable implements ITreeViewer {
 
 	get visible(): boolean {
 		return this.isVisible;
+	}
+
+	get showCollapseAllAction(): boolean {
+		return this._showCollapseAllAction;
+	}
+
+	set showCollapseAllAction(showCollapseAllAction: boolean) {
+		if (this._showCollapseAllAction !== !!showCollapseAllAction) {
+			this._showCollapseAllAction = !!showCollapseAllAction;
+			this._onDidChangeActions.fire();
+		}
+	}
+
+	getPrimaryActions(): IAction[] {
+		if (this.showCollapseAllAction) {
+			const collapseAllAction = new Action('vs.tree.collapse', localize('collapse', "Collapse"), 'monaco-tree-action collapse-all', true, () => this.tree ? new CollapseAllAction(this.tree, true).run() : Promise.resolve());
+			return [...this.menus.getTitleActions(), collapseAllAction];
+		} else {
+			return this.menus.getTitleActions();
+		}
+	}
+
+	getSecondaryActions(): IAction[] {
+		return this.menus.getTitleSecondaryActions();
 	}
 
 	setVisibility(isVisible: boolean): void {

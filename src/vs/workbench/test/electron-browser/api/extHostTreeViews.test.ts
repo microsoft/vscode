@@ -72,9 +72,9 @@ suite('ExtHostTreeView', function () {
 		testObject = new ExtHostTreeViews(target, new ExtHostCommands(rpcProtocol, new ExtHostHeapService(), new NullLogService()), new NullLogService());
 		onDidChangeTreeNode = new Emitter<{ key: string }>();
 		onDidChangeTreeNodeWithId = new Emitter<{ key: string }>();
-		testObject.createTreeView('testNodeTreeProvider', { treeDataProvider: aNodeTreeDataProvider() });
-		testObject.createTreeView('testNodeWithIdTreeProvider', { treeDataProvider: aNodeWithIdTreeDataProvider() });
-		testObject.createTreeView('testNodeWithHighlightsTreeProvider', { treeDataProvider: aNodeWithHighlightedLabelTreeDataProvider() });
+		testObject.createTreeView('testNodeTreeProvider', { treeDataProvider: aNodeTreeDataProvider() }, null);
+		testObject.createTreeView('testNodeWithIdTreeProvider', { treeDataProvider: aNodeWithIdTreeDataProvider() }, null);
+		testObject.createTreeView('testNodeWithHighlightsTreeProvider', { treeDataProvider: aNodeWithHighlightedLabelTreeDataProvider() }, null);
 
 		return loadCompleteTree('testNodeTreeProvider');
 	});
@@ -445,14 +445,14 @@ suite('ExtHostTreeView', function () {
 	});
 
 	test('reveal will throw an error if getParent is not implemented', () => {
-		const treeView = testObject.createTreeView('treeDataProvider', { treeDataProvider: aNodeTreeDataProvider() });
+		const treeView = testObject.createTreeView('treeDataProvider', { treeDataProvider: aNodeTreeDataProvider() }, null);
 		return treeView.reveal({ key: 'a' })
 			.then(() => assert.fail('Reveal should throw an error as getParent is not implemented'), () => null);
 	});
 
 	test('reveal will return empty array for root element', () => {
 		const revealTarget = sinon.spy(target, '$reveal');
-		const treeView = testObject.createTreeView('treeDataProvider', { treeDataProvider: aCompleteNodeTreeDataProvider() });
+		const treeView = testObject.createTreeView('treeDataProvider', { treeDataProvider: aCompleteNodeTreeDataProvider() }, null);
 		return treeView.reveal({ key: 'a' })
 			.then(() => {
 				assert.ok(revealTarget.calledOnce);
@@ -465,7 +465,7 @@ suite('ExtHostTreeView', function () {
 
 	test('reveal will return parents array for an element when hierarchy is not loaded', () => {
 		const revealTarget = sinon.spy(target, '$reveal');
-		const treeView = testObject.createTreeView('treeDataProvider', { treeDataProvider: aCompleteNodeTreeDataProvider() });
+		const treeView = testObject.createTreeView('treeDataProvider', { treeDataProvider: aCompleteNodeTreeDataProvider() }, null);
 		return treeView.reveal({ key: 'aa' })
 			.then(() => {
 				assert.ok(revealTarget.calledOnce);
@@ -478,7 +478,7 @@ suite('ExtHostTreeView', function () {
 
 	test('reveal will return parents array for an element when hierarchy is loaded', () => {
 		const revealTarget = sinon.spy(target, '$reveal');
-		const treeView = testObject.createTreeView('treeDataProvider', { treeDataProvider: aCompleteNodeTreeDataProvider() });
+		const treeView = testObject.createTreeView('treeDataProvider', { treeDataProvider: aCompleteNodeTreeDataProvider() }, null);
 		return testObject.$getChildren('treeDataProvider')
 			.then(() => testObject.$getChildren('treeDataProvider', '0/0:a'))
 			.then(() => treeView.reveal({ key: 'aa' })
@@ -500,7 +500,7 @@ suite('ExtHostTreeView', function () {
 			}
 		};
 		const revealTarget = sinon.spy(target, '$reveal');
-		const treeView = testObject.createTreeView('treeDataProvider', { treeDataProvider: aCompleteNodeTreeDataProvider() });
+		const treeView = testObject.createTreeView('treeDataProvider', { treeDataProvider: aCompleteNodeTreeDataProvider() }, null);
 		return treeView.reveal({ key: 'bac' }, { select: false, focus: false })
 			.then(() => {
 				assert.ok(revealTarget.calledOnce);
@@ -516,7 +516,7 @@ suite('ExtHostTreeView', function () {
 
 	test('reveal after first udpate', () => {
 		const revealTarget = sinon.spy(target, '$reveal');
-		const treeView = testObject.createTreeView('treeDataProvider', { treeDataProvider: aCompleteNodeTreeDataProvider() });
+		const treeView = testObject.createTreeView('treeDataProvider', { treeDataProvider: aCompleteNodeTreeDataProvider() }, null);
 		return loadCompleteTree('treeDataProvider')
 			.then(() => {
 				tree = {
@@ -544,7 +544,7 @@ suite('ExtHostTreeView', function () {
 
 	test('reveal after second udpate', () => {
 		const revealTarget = sinon.spy(target, '$reveal');
-		const treeView = testObject.createTreeView('treeDataProvider', { treeDataProvider: aCompleteNodeTreeDataProvider() });
+		const treeView = testObject.createTreeView('treeDataProvider', { treeDataProvider: aCompleteNodeTreeDataProvider() }, null);
 		return loadCompleteTree('treeDataProvider')
 			.then(() => {
 				tree = {
