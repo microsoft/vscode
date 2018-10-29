@@ -6,7 +6,7 @@
 import { Database, Statement, OPEN_READWRITE, OPEN_CREATE } from 'vscode-sqlite3';
 import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import { Emitter, Event } from 'vs/base/common/event';
-import { ThrottledDelayer } from 'vs/base/common/async';
+import { ThrottledDelayer, timeout } from 'vs/base/common/async';
 import { isUndefinedOrNull } from 'vs/base/common/types';
 import { mapToString, setToString } from 'vs/base/common/map';
 import { basename } from 'path';
@@ -237,6 +237,8 @@ export class SQLiteStorageImpl {
 
 	private static measuredRequireDuration: boolean; // TODO@Ben remove me after a while
 
+	private static BUSY_OPEN_TIMEOUT = 2000; // timeout in ms to retry when opening DB fails with SQLITE_BUSY
+
 	private db: Promise<Database>;
 	private name: string;
 	private logger: SQLiteStorageLogger;
@@ -333,13 +335,28 @@ export class SQLiteStorageImpl {
 		this.logger.info(`[storage ${this.name}] open()`);
 
 		return new Promise((resolve, reject) => {
-			this.doOpen(this.options.path, this.options.createPath).then(resolve, error => {
+			const fallbackToInMemoryDatabase = (error: Error) => {
 				this.logger.error(`[storage ${this.name}] open(): Error (open DB): ${error}`);
 				this.logger.error(`[storage ${this.name}] open(): Falling back to in-memory DB`);
 
 				// In case of any error to open the DB, use an in-memory
 				// DB so that we always have a valid DB to talk to.
 				this.doOpen(':memory:', true).then(resolve, reject);
+			};
+
+			this.doOpen(this.options.path, this.options.createPath).then(resolve, error => {
+
+				// Retry after 2s if the DB is busy
+				if (error.code === 'SQLITE_BUSY') {
+					this.logger.error(`[storage ${this.name}] open(): Retrying after ${SQLiteStorageImpl.BUSY_OPEN_TIMEOUT}ms due to SQLITE_BUSY`);
+
+					timeout(SQLiteStorageImpl.BUSY_OPEN_TIMEOUT).then(() => this.doOpen(this.options.path, this.options.createPath).then(resolve, fallbackToInMemoryDatabase));
+				}
+
+				// Otherwise give up and fallback to in-memory DB
+				else {
+					fallbackToInMemoryDatabase(error);
+				}
 			});
 		});
 	}
