@@ -24,7 +24,7 @@ import {
 import { getGalleryExtensionIdFromLocal, adoptToGalleryExtensionId, areSameExtensions, getGalleryExtensionId, groupByExtension, getMaliciousExtensionsSet, getLocalExtensionId, getGalleryExtensionTelemetryData, getLocalExtensionTelemetryData, getIdFromLocalExtensionId } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { localizeManifest } from '../common/extensionNls';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { Limiter, always, createCancelablePromise, CancelablePromise } from 'vs/base/common/async';
+import { Limiter, always, createCancelablePromise, CancelablePromise, Queue } from 'vs/base/common/async';
 import { Event, Emitter } from 'vs/base/common/event';
 import * as semver from 'semver';
 import { URI } from 'vs/base/common/uri';
@@ -114,7 +114,7 @@ export class ExtensionManagementService extends Disposable implements IExtension
 	private systemExtensionsPath: string;
 	private extensionsPath: string;
 	private uninstalledPath: string;
-	private uninstalledFileLimiter: Limiter<void>;
+	private uninstalledFileLimiter: Queue<void>;
 	private reportedExtensions: Promise<IReportedExtension[]> | undefined;
 	private lastReportTimestamp = 0;
 	private readonly installingExtensions: Map<string, CancelablePromise<void>> = new Map<string, CancelablePromise<void>>();
@@ -146,7 +146,7 @@ export class ExtensionManagementService extends Disposable implements IExtension
 		this.systemExtensionsPath = environmentService.builtinExtensionsPath;
 		this.extensionsPath = environmentService.extensionsPath;
 		this.uninstalledPath = path.join(this.extensionsPath, '.obsolete');
-		this.uninstalledFileLimiter = new Limiter(1);
+		this.uninstalledFileLimiter = new Queue<void>();
 		this.manifestCache = this._register(new ExtensionsManifestCache(environmentService, this));
 		this.extensionLifecycle = this._register(new ExtensionsLifecycle(this.logService));
 
