@@ -177,6 +177,12 @@
             "default": "warning",
             "description": "%css.lint.unknownProperties.desc%"
           },
+          "css.lint.validProperties": {
+            "type": "string",
+            "scope": "resource",
+            "default": "",
+            "description": "%css.lint.validProperties.desc%"
+          },
           "css.lint.ieHack": {
             "type": "string",
             "scope": "resource",
@@ -417,6 +423,12 @@
             "default": "warning",
             "description": "%scss.lint.unknownProperties.desc%"
           },
+          "scss.lint.validProperties": {
+            "type": "string",
+            "scope": "resource",
+            "default": "",
+            "description": "%scss.lint.validProperties.desc%"
+          },
           "scss.lint.ieHack": {
             "type": "string",
             "scope": "resource",
@@ -635,6 +647,12 @@
             ],
             "default": "warning",
             "description": "%less.lint.unknownProperties.desc%"
+          },
+          "less.lint.validProperties": {
+            "type": "string",
+            "scope": "resource",
+            "default": "",
+            "description": "%less.lint.validProperties.desc%"
           },
           "less.lint.ieHack": {
             "type": "string",
