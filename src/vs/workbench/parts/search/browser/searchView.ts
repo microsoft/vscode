@@ -1245,11 +1245,18 @@ export class SearchView extends Viewlet implements IViewlet, IPanel {
 				this.searchWidget.searchInput.showMessage({ content: e.message, type: MessageType.ERROR });
 				this.viewModel.searchResult.clear();
 
-				if (e.code === SearchErrorCode.unknownEncoding) {
+				if (e.code === SearchErrorCode.unknownEncoding && !this.configurationService.getValue('search.useLegacySearch')) {
 					this.notificationService.prompt(Severity.Info, nls.localize('otherEncodingWarning', "You can enable \"search.useLegacySearch\" to search non-standard file encodings."),
 						[{
 							label: nls.localize('otherEncodingWarning.openSettingsLabel', "Open Settings"),
 							run: () => this.openSettings('search.useLegacySearch')
+						}]);
+				} else if (e.code === SearchErrorCode.regexParseError && !this.configurationService.getValue('search.usePCRE2')) {
+					// If the regex parsed in JS but not rg, it likely uses features that are supported in JS and PCRE2 but not Rust
+					this.notificationService.prompt(Severity.Info, nls.localize('rgRegexError', "You can enable \"search.usePCRE2\" to enable some extra regex features like lookbehind and backreferences."),
+						[{
+							label: nls.localize('otherEncodingWarning.openSettingsLabel', "Open Settings"),
+							run: () => this.openSettings('search.usePCRE2')
 						}]);
 				}
 			}
