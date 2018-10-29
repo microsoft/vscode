@@ -102,7 +102,7 @@ export interface MainThreadCommandsShape extends IDisposable {
 export interface MainThreadCommentsShape extends IDisposable {
 	$registerDocumentCommentProvider(handle: number): void;
 	$unregisterDocumentCommentProvider(handle: number): void;
-	$registerWorkspaceCommentProvider(handle: number): void;
+	$registerWorkspaceCommentProvider(handle: number, extensionId: string): void;
 	$unregisterWorkspaceCommentProvider(handle: number): void;
 	$onDidCommentThreadsChange(handle: number, event: modes.CommentThreadChangedEvent): void;
 }

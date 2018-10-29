@@ -15,6 +15,7 @@ import { ICommentService } from 'vs/workbench/parts/comments/electron-browser/co
 import { COMMENTS_PANEL_ID } from 'vs/workbench/parts/comments/electron-browser/commentsPanel';
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 import { URI } from 'vs/base/common/uri';
+import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 
 @extHostNamedCustomer(MainContext.MainThreadComments)
 export class MainThreadComments extends Disposable implements MainThreadCommentsShape {
@@ -28,7 +29,8 @@ export class MainThreadComments extends Disposable implements MainThreadComments
 		extHostContext: IExtHostContext,
 		@IEditorService private _editorService: IEditorService,
 		@ICommentService private _commentService: ICommentService,
-		@IPanelService private _panelService: IPanelService
+		@IPanelService private _panelService: IPanelService,
+		@ITelemetryService private _telemetryService: ITelemetryService
 	) {
 		super();
 		this._disposables = [];
@@ -62,7 +64,7 @@ export class MainThreadComments extends Disposable implements MainThreadComments
 		);
 	}
 
-	$registerWorkspaceCommentProvider(handle: number): void {
+	$registerWorkspaceCommentProvider(handle: number, extensionId: string): void {
 		this._workspaceProviders.set(handle, undefined);
 		this._panelService.setPanelEnablement(COMMENTS_PANEL_ID, true);
 		if (this._firstSessionStart) {
@@ -73,6 +75,15 @@ export class MainThreadComments extends Disposable implements MainThreadComments
 			if (commentThreads) {
 				this._commentService.setWorkspaceComments(handle, commentThreads);
 			}
+		});
+
+		/* __GDPR__
+			"comments:registerWorkspaceCommentProvider" : {
+				"extensionId" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+			}
+		*/
+		this._telemetryService.publicLog('comments:registerWorkspaceCommentProvider', {
+			extensionId: extensionId
 		});
 	}
 
