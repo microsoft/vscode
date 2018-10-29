@@ -70,7 +70,7 @@ export class ViewletService extends Disposable implements IViewletService {
 
 	openViewlet(id: string, focus?: boolean): Thenable<IViewlet> {
 		if (this.getViewlet(id)) {
-			return this.sidebarPart.openViewlet(id, focus);
+			return Promise.resolve(this.sidebarPart.openViewlet(id, focus));
 		}
 		return this.extensionService.whenInstalledExtensionsRegistered()
 			.then(() => {

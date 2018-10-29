@@ -246,6 +246,7 @@ export class QuickInputList {
 		this.list = this.instantiationService.createInstance(WorkbenchList, this.container, delegate, [new ListElementRenderer()], {
 			identityProvider: element => element.label,
 			openController: { shouldOpen: () => false }, // Workaround #58124
+			setRowLineHeight: false,
 			multipleSelectionSupport: false
 		}) as WorkbenchList<ListElement>;
 		this.list.getHTMLElement().id = id;

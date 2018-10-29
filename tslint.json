@@ -523,6 +523,7 @@
 			}
 		],
 		"duplicate-imports": true,
+		"no-new-buffer": true,
 		"translation-remind": true,
 		"no-standalone-editor": true
 	},

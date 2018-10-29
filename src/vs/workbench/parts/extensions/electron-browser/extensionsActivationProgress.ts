@@ -8,6 +8,8 @@ import { IExtensionService } from 'vs/workbench/services/extensions/common/exten
 import { IProgressService2, ProgressLocation } from 'vs/platform/progress/common/progress';
 import { localize } from 'vs/nls';
 import { IDisposable } from 'vs/base/common/lifecycle';
+import { timeout } from 'vs/base/common/async';
+import { ILogService } from 'vs/platform/log/common/log';
 
 export class ExtensionActivationProgress implements IWorkbenchContribution {
 
@@ -16,6 +18,7 @@ export class ExtensionActivationProgress implements IWorkbenchContribution {
 	constructor(
 		@IExtensionService extensionService: IExtensionService,
 		@IProgressService2 progressService: IProgressService2,
+		@ILogService logService: ILogService,
 	) {
 
 		const options = {
@@ -24,7 +27,8 @@ export class ExtensionActivationProgress implements IWorkbenchContribution {
 		};
 
 		this._listener = extensionService.onWillActivateByEvent(e => {
-			progressService.withProgress(options, _ => e.activation);
+			logService.trace('onWillActivateByEvent: ', e.event);
+			progressService.withProgress(options, _ => Promise.race([e.activation, timeout(5000)]));
 		});
 	}
 

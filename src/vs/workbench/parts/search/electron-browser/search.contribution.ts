@@ -58,7 +58,7 @@ import { SearchViewLocationUpdater } from 'vs/workbench/parts/search/browser/sea
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 
-registerSingleton(ISearchWorkbenchService, SearchWorkbenchService);
+registerSingleton(ISearchWorkbenchService, SearchWorkbenchService, true);
 replaceContributions();
 searchWidgetContributions();
 
@@ -675,7 +675,7 @@ configurationRegistry.registerConfiguration({
 		'search.usePCRE2': {
 			type: 'boolean',
 			default: false,
-			description: nls.localize('search.usePCRE2', "Whether to use the PCRE2 regex engine in text search. This enables using some advaned regex features like lookbehind and backreferences.")
+			description: nls.localize('search.usePCRE2', "Whether to use the PCRE2 regex engine in text search. This enables using some advanced regex features like lookbehind and backreferences. However, not all PCRE2 features are supported - only features that are also supported by JavaScript.")
 		}
 	}
 });

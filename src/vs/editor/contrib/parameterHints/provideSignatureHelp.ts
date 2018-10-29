@@ -27,4 +27,7 @@ export function provideSignatureHelp(model: ITextModel, position: Position, cont
 }
 
 registerDefaultLanguageCommand('_executeSignatureHelpProvider', (model, position) =>
-	provideSignatureHelp(model, position, { triggerReason: modes.SignatureHelpTriggerReason.Invoke }, CancellationToken.None));
+	provideSignatureHelp(model, position, {
+		triggerReason: modes.SignatureHelpTriggerReason.Invoke,
+		isRetrigger: false
+	}, CancellationToken.None));

@@ -24,7 +24,7 @@ interface IConfiguration extends IWindowsConfiguration {
 	update: { channel: string; };
 	telemetry: { enableCrashReporter: boolean };
 	keyboard: { touchbar: { enabled: boolean } };
-	workbench: { tree: { horizontalScrolling: boolean } };
+	workbench: { tree: { horizontalScrolling: boolean }, enableLegacyStorage: boolean };
 	files: { useExperimentalFileWatcher: boolean, watcherExclude: object };
 }
 
@@ -32,6 +32,7 @@ export class SettingsChangeRelauncher extends Disposable implements IWorkbenchCo
 
 	private titleBarStyle: 'native' | 'custom';
 	private nativeTabs: boolean;
+	private nativeFullscreen: boolean;
 	private clickThroughInactive: boolean;
 	private updateChannel: string;
 	private enableCrashReporter: boolean;
@@ -39,6 +40,7 @@ export class SettingsChangeRelauncher extends Disposable implements IWorkbenchCo
 	private treeHorizontalScrolling: boolean;
 	private experimentalFileWatcher: boolean;
 	private fileWatcherExclude: object;
+	private legacyStorage: boolean;
 
 	private firstFolderResource: URI;
 	private extensionHostRestarter: RunOnceScheduler;
@@ -86,6 +88,12 @@ export class SettingsChangeRelauncher extends Disposable implements IWorkbenchCo
 			changed = true;
 		}
 
+		// macOS: Native fullscreen
+		if (isMacintosh && config.window && typeof config.window.nativeFullscreen === 'boolean' && config.window.nativeFullscreen !== this.nativeFullscreen) {
+			this.nativeFullscreen = config.window.nativeFullscreen;
+			changed = true;
+		}
+
 		// macOS: Click through (accept first mouse)
 		if (isMacintosh && config.window && typeof config.window.clickThroughInactive === 'boolean' && config.window.clickThroughInactive !== this.clickThroughInactive) {
 			this.clickThroughInactive = config.window.clickThroughInactive;
@@ -127,6 +135,12 @@ export class SettingsChangeRelauncher extends Disposable implements IWorkbenchCo
 		// Tree horizontal scrolling support
 		if (config.workbench && config.workbench.tree && typeof config.workbench.tree.horizontalScrolling === 'boolean' && config.workbench.tree.horizontalScrolling !== this.treeHorizontalScrolling) {
 			this.treeHorizontalScrolling = config.workbench.tree.horizontalScrolling;
+			changed = true;
+		}
+
+		// Legacy Workspace Storage
+		if (config.workbench && typeof config.workbench.enableLegacyStorage === 'boolean' && config.workbench.enableLegacyStorage !== this.legacyStorage) {
+			this.legacyStorage = config.workbench.enableLegacyStorage;
 			changed = true;
 		}
 

@@ -192,12 +192,11 @@ export class BreakpointsView extends ViewletPanel {
 		}
 	}
 
-	public setVisible(visible: boolean): TPromise<void> {
-		return super.setVisible(visible).then(() => {
-			if (visible && this.needsRefresh) {
-				this.onBreakpointsChange();
-			}
-		});
+	public setVisible(visible: boolean): void {
+		super.setVisible(visible);
+		if (visible && this.needsRefresh) {
+			this.onBreakpointsChange();
+		}
 	}
 
 	private onBreakpointsChange(): void {

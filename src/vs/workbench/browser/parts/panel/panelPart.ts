@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import 'vs/css!./media/panelpart';
-import { TPromise } from 'vs/base/common/winjs.base';
 import { IAction } from 'vs/base/common/actions';
 import { Event, mapEvent } from 'vs/base/common/event';
 import { Registry } from 'vs/platform/registry/common/platform';
@@ -86,7 +85,7 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 			icon: false,
 			storageId: PanelPart.PINNED_PANELS,
 			orientation: ActionsOrientation.HORIZONTAL,
-			openComposite: (compositeId: string) => this.openPanel(compositeId, true),
+			openComposite: (compositeId: string) => Promise.resolve(this.openPanel(compositeId, true)),
 			getActivityAction: (compositeId: string) => this.getCompositeActions(compositeId).activityAction,
 			getCompositePinnedAction: (compositeId: string) => this.getCompositeActions(compositeId).pinnedAction,
 			getOnCompositeClickAction: (compositeId: string) => this.instantiationService.createInstance(PanelActivityAction, this.getPanel(compositeId)),
@@ -180,23 +179,22 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 		title.style.borderTopColor = this.getColor(PANEL_BORDER) || this.getColor(contrastBorder);
 	}
 
-	openPanel(id: string, focus?: boolean): TPromise<Panel> {
+	openPanel(id: string, focus?: boolean): Panel {
 		if (this.blockOpeningPanel) {
-			return Promise.resolve(null); // Workaround against a potential race condition
+			return null; // Workaround against a potential race condition
 		}
 
 		// First check if panel is hidden and show if so
-		let promise = TPromise.wrap(null);
 		if (!this.partService.isVisible(Parts.PANEL_PART)) {
 			try {
 				this.blockOpeningPanel = true;
-				promise = this.partService.setPanelHidden(false);
+				this.partService.setPanelHidden(false);
 			} finally {
 				this.blockOpeningPanel = false;
 			}
 		}
 
-		return promise.then(() => this.openComposite(id, focus));
+		return this.openComposite(id, focus);
 	}
 
 	showActivity(panelId: string, badge: IBadge, clazz?: string): IDisposable {
@@ -247,8 +245,8 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 		return this.getLastActiveCompositetId();
 	}
 
-	hideActivePanel(): TPromise<void> {
-		return this.hideActiveComposite().then(composite => void 0);
+	hideActivePanel(): void {
+		this.hideActiveComposite();
 	}
 
 	protected createTitleLabel(parent: HTMLElement): ICompositeTitleLabel {

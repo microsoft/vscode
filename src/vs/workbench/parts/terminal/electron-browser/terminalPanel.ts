@@ -107,26 +107,26 @@ export class TerminalPanel extends Panel {
 		this._terminalService.terminalTabs.forEach(t => t.layout(dimension.width, dimension.height));
 	}
 
-	public setVisible(visible: boolean): Promise<void> {
+	public setVisible(visible: boolean): void {
 		if (visible) {
 			if (this._terminalService.terminalInstances.length > 0) {
 				this._updateFont();
 				this._updateTheme();
 			} else {
-				return super.setVisible(visible).then(() => {
-					// Check if instances were already restored as part of workbench restore
-					if (this._terminalService.terminalInstances.length === 0) {
-						this._terminalService.createTerminal();
-					}
-					if (this._terminalService.terminalInstances.length > 0) {
-						this._updateFont();
-						this._updateTheme();
-					}
-					return Promise.resolve(void 0);
-				});
+				super.setVisible(visible);
+				// Check if instances were already restored as part of workbench restore
+				if (this._terminalService.terminalInstances.length === 0) {
+					this._terminalService.createTerminal();
+				}
+				if (this._terminalService.terminalInstances.length > 0) {
+					this._updateFont();
+					this._updateTheme();
+				}
+				return;
 			}
 		}
-		return super.setVisible(visible);
+		super.setVisible(visible);
+
 	}
 
 	public getActions(): IAction[] {

@@ -21,7 +21,6 @@ import { dispose, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { LRUCache } from 'vs/base/common/map';
 import { escape } from 'vs/base/common/strings';
 import { URI } from 'vs/base/common/uri';
-import { TPromise } from 'vs/base/common/winjs.base';
 import { ITree } from 'vs/base/parts/tree/browser/tree';
 import 'vs/css!./outlinePanel';
 import { ICodeEditor, isCodeEditor, isDiffEditor } from 'vs/editor/browser/editorBrowser';
@@ -383,12 +382,12 @@ export class OutlinePanel extends ViewletPanel {
 		}
 	}
 
-	setVisible(visible: boolean): TPromise<void> {
+	setVisible(visible: boolean): void {
 		if (visible && this.isExpanded() && !this._requestOracle) {
 			// workaround for https://github.com/Microsoft/vscode/issues/60011
 			this.setExpanded(true);
 		}
-		return super.setVisible(visible);
+		super.setVisible(visible);
 	}
 
 	setExpanded(expanded: boolean): void {

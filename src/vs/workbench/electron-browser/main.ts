@@ -123,7 +123,7 @@ function openWorkbench(configuration: IWindowConfiguration): Promise<void> {
 				createStorageService(workspaceStoragePath, payload, environmentService, logService)
 			]).then(services => {
 				const workspaceService = services[0];
-				const storageService = new DelegatingStorageService(services[1], createStorageLegacyService(workspaceService, environmentService), logService);
+				const storageService = new DelegatingStorageService(services[1], createStorageLegacyService(workspaceService, environmentService), logService, workspaceService);
 
 				return domContentLoaded().then(() => {
 					perf.mark('willStartWorkbench');
@@ -284,7 +284,7 @@ function createStorageService(workspaceStorageFolder: string, payload: IWorkspac
 	// Return early if we are using in-memory storage
 	const useInMemoryStorage = !!environmentService.extensionTestsPath; /* never keep any state when running extension tests */
 	if (useInMemoryStorage) {
-		const storageService = new StorageService(StorageService.IN_MEMORY_PATH, logService, environmentService);
+		const storageService = new StorageService(StorageService.IN_MEMORY_PATH, true, logService, environmentService);
 
 		return storageService.init().then(() => storageService);
 	}
@@ -292,14 +292,18 @@ function createStorageService(workspaceStorageFolder: string, payload: IWorkspac
 	// Otherwise do a migration of previous workspace data if the DB does not exist yet
 	// TODO@Ben remove me after one milestone
 	const workspaceStorageDBPath = join(workspaceStorageFolder, 'storage.db');
+	perf.mark('willCheckWorkspaceStorageExists');
 	return exists(workspaceStorageDBPath).then(exists => {
-		const storageService = new StorageService(workspaceStorageDBPath, logService, environmentService);
+		perf.mark('didCheckWorkspaceStorageExists');
+
+		const storageService = new StorageService(workspaceStorageDBPath, true, logService, environmentService);
 
 		return storageService.init().then(() => {
 			if (exists) {
 				return storageService; // return early if DB was already there
 			}
 
+			perf.mark('willMigrateWorkspaceStorageKeys');
 			return readdir(environmentService.extensionsPath).then(extensions => {
 
 				// Otherwise, we migrate data from window.localStorage over
@@ -417,6 +421,8 @@ function createStorageService(workspaceStorageFolder: string, payload: IWorkspac
 					logService.error(error);
 				}
 
+				perf.mark('didMigrateWorkspaceStorageKeys');
+
 				return storageService;
 			});
 		});
@@ -479,7 +485,7 @@ function createMainProcessServices(mainProcessClient: ElectronIPCClient, configu
 	serviceCollection.set(IWindowsService, new WindowsChannelClient(windowsChannel));
 
 	const updateChannel = mainProcessClient.getChannel('update');
-	serviceCollection.set(IUpdateService, new SyncDescriptor(UpdateChannelClient, updateChannel));
+	serviceCollection.set(IUpdateService, new SyncDescriptor(UpdateChannelClient, [updateChannel]));
 
 	const urlChannel = mainProcessClient.getChannel('url');
 	const mainUrlService = new URLServiceChannelClient(urlChannel);
@@ -490,10 +496,10 @@ function createMainProcessServices(mainProcessClient: ElectronIPCClient, configu
 	mainProcessClient.registerChannel('urlHandler', urlHandlerChannel);
 
 	const issueChannel = mainProcessClient.getChannel('issue');
-	serviceCollection.set(IIssueService, new SyncDescriptor(IssueChannelClient, issueChannel));
+	serviceCollection.set(IIssueService, new SyncDescriptor(IssueChannelClient, [issueChannel]));
 
 	const menubarChannel = mainProcessClient.getChannel('menubar');
-	serviceCollection.set(IMenubarService, new SyncDescriptor(MenubarChannelClient, menubarChannel));
+	serviceCollection.set(IMenubarService, new SyncDescriptor(MenubarChannelClient, [menubarChannel]));
 
 	const workspacesChannel = mainProcessClient.getChannel('workspaces');
 	serviceCollection.set(IWorkspacesService, new WorkspacesChannelClient(workspacesChannel));

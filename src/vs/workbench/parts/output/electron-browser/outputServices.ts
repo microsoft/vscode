@@ -131,7 +131,7 @@ abstract class AbstractFileOutputChannel extends Disposable implements OutputCha
 		if (this.model) {
 			this.model.setValue(content);
 		} else {
-			this.model = this.modelService.createModel(content, this.modeService.getOrCreateMode(this.mimeType), this.modelUri);
+			this.model = this.modelService.createModel(content, this.modeService.create(this.mimeType), this.modelUri);
 			this.onModelCreated(this.model);
 			const disposables: IDisposable[] = [];
 			disposables.push(this.model.onWillDispose(() => {
@@ -494,10 +494,10 @@ export class OutputService extends Disposable implements IOutputService, ITextMo
 		this.activeChannel = channel;
 		let promise: TPromise<void> = TPromise.as(null);
 		if (this.isPanelShown()) {
-			this.doShowChannel(channel, preserveFocus);
+			promise = this.doShowChannel(channel, preserveFocus);
 		} else {
-			promise = this.panelService.openPanel(OUTPUT_PANEL_ID)
-				.then(() => this.doShowChannel(this.activeChannel, preserveFocus));
+			this.panelService.openPanel(OUTPUT_PANEL_ID);
+			promise = this.doShowChannel(this.activeChannel, preserveFocus);
 		}
 		return promise.then(() => this._onActiveOutputChannel.fire(id));
 	}
@@ -744,7 +744,7 @@ class BufferredOutputChannel extends Disposable implements OutputChannel {
 	}
 
 	private createModel(content: string): ITextModel {
-		const model = this.modelService.createModel(content, this.modeService.getOrCreateMode(OUTPUT_MIME), URI.from({ scheme: OUTPUT_SCHEME, path: this.id }));
+		const model = this.modelService.createModel(content, this.modeService.create(OUTPUT_MIME), URI.from({ scheme: OUTPUT_SCHEME, path: this.id }));
 		const disposables: IDisposable[] = [];
 		disposables.push(model.onWillDispose(() => {
 			this.model = null;

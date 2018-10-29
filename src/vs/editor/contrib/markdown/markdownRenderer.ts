@@ -48,7 +48,8 @@ export class MarkdownRenderer {
 					}
 				}
 
-				return this._modeService.getOrCreateMode(modeId || '').then(_ => {
+				this._modeService.triggerMode(modeId || '');
+				return Promise.resolve(true).then(_ => {
 					const promise = TokenizationRegistry.getPromise(modeId || '');
 					if (promise) {
 						return promise.then(support => tokenizeToString(value, support));

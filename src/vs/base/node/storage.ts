@@ -4,12 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Database, Statement } from 'vscode-sqlite3';
-import { Disposable } from 'vs/base/common/lifecycle';
+import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import { Emitter, Event } from 'vs/base/common/event';
-import { RunOnceScheduler } from 'vs/base/common/async';
+import { ThrottledDelayer, timeout } from 'vs/base/common/async';
 import { isUndefinedOrNull } from 'vs/base/common/types';
 import { mapToString, setToString } from 'vs/base/common/map';
 import { basename } from 'path';
+import { mark } from 'vs/base/common/performance';
+import { rename } from 'vs/base/node/pfs';
 
 export interface IStorageOptions {
 	path: string;
@@ -32,7 +34,32 @@ enum StorageState {
 	Closed
 }
 
-export class Storage extends Disposable {
+export interface IStorage extends IDisposable {
+
+	readonly size: number;
+	readonly onDidChangeStorage: Event<string>;
+
+	init(): Promise<void>;
+
+	get(key: string, fallbackValue: string): string;
+	get(key: string, fallbackValue?: string): string | undefined;
+
+	getBoolean(key: string, fallbackValue: boolean): boolean;
+	getBoolean(key: string, fallbackValue?: boolean): boolean | undefined;
+
+	getInteger(key: string, fallbackValue: number): number;
+	getInteger(key: string, fallbackValue?: number): number | undefined;
+
+	set(key: string, value: any): Thenable<void>;
+	delete(key: string): Thenable<void>;
+
+	close(): Thenable<void>;
+
+	getItems(): Promise<Map<string, string>>;
+	checkIntegrity(full: boolean): Promise<string>;
+}
+
+export class Storage extends Disposable implements IStorage {
 	_serviceBrand: any;
 
 	private static readonly FLUSH_DELAY = 100;
@@ -45,17 +72,17 @@ export class Storage extends Disposable {
 	private storage: SQLiteStorageImpl;
 	private cache: Map<string, string> = new Map<string, string>();
 
-	private pendingScheduler: RunOnceScheduler;
+	private flushDelayer: ThrottledDelayer<void>;
+
 	private pendingDeletes: Set<string> = new Set<string>();
 	private pendingInserts: Map<string, string> = new Map();
-	private pendingPromises: { resolve: Function, reject: Function }[] = [];
 
 	constructor(options: IStorageOptions) {
 		super();
 
 		this.storage = new SQLiteStorageImpl(options);
 
-		this.pendingScheduler = this._register(new RunOnceScheduler(() => this.flushPending(), Storage.FLUSH_DELAY));
+		this.flushDelayer = this._register(new ThrottledDelayer(Storage.FLUSH_DELAY));
 	}
 
 	get size(): number {
@@ -74,6 +101,8 @@ export class Storage extends Disposable {
 		});
 	}
 
+	get(key: string, fallbackValue: string): string;
+	get(key: string, fallbackValue?: string): string | undefined;
 	get(key: string, fallbackValue?: string): string | undefined {
 		const value = this.cache.get(key);
 
@@ -84,7 +113,9 @@ export class Storage extends Disposable {
 		return value;
 	}
 
-	getBoolean(key: string, fallbackValue: boolean = false): boolean {
+	getBoolean(key: string, fallbackValue: boolean): boolean;
+	getBoolean(key: string, fallbackValue?: boolean): boolean | undefined;
+	getBoolean(key: string, fallbackValue?: boolean): boolean | undefined {
 		const value = this.get(key);
 
 		if (isUndefinedOrNull(value)) {
@@ -94,7 +125,9 @@ export class Storage extends Disposable {
 		return value === 'true';
 	}
 
-	getInteger(key: string, fallbackValue: number = 0): number {
+	getInteger(key: string, fallbackValue: number): number;
+	getInteger(key: string, fallbackValue?: number): number | undefined;
+	getInteger(key: string, fallbackValue?: number): number | undefined {
 		const value = this.get(key);
 
 		if (isUndefinedOrNull(value)) {
@@ -104,7 +137,7 @@ export class Storage extends Disposable {
 		return parseInt(value, 10);
 	}
 
-	set(key: string, value: any): Promise<void> {
+	set(key: string, value: any): Thenable<void> {
 		if (this.state === StorageState.Closed) {
 			return Promise.resolve(); // Return early if we are already closed
 		}
@@ -131,10 +164,11 @@ export class Storage extends Disposable {
 		// Event
 		this._onDidChangeStorage.fire(key);
 
-		return this.update();
+		// Accumulate work by scheduling after timeout
+		return this.flushDelayer.trigger(() => this.flushPending());
 	}
 
-	delete(key: string): Promise<void> {
+	delete(key: string): Thenable<void> {
 		if (this.state === StorageState.Closed) {
 			return Promise.resolve(); // Return early if we are already closed
 		}
@@ -154,20 +188,11 @@ export class Storage extends Disposable {
 		// Event
 		this._onDidChangeStorage.fire(key);
 
-		return this.update();
+		// Accumulate work by scheduling after timeout
+		return this.flushDelayer.trigger(() => this.flushPending());
 	}
 
-	private update(): Promise<void> {
-
-		// Schedule
-		if (!this.pendingScheduler.isScheduled()) {
-			this.pendingScheduler.schedule();
-		}
-
-		return new Promise((resolve, reject) => this.pendingPromises.push({ resolve, reject }));
-	}
-
-	close(): Promise<void> {
+	close(): Thenable<void> {
 		if (this.state === StorageState.Closed) {
 			return Promise.resolve(); // return if already closed
 		}
@@ -175,36 +200,23 @@ export class Storage extends Disposable {
 		// Update state
 		this.state = StorageState.Closed;
 
-		// Dispose scheduler (no more scheduling possible)
-		this.pendingScheduler.dispose();
-
-		// Flush & close
-		return this.flushPending().then(() => {
-			return this.storage.close();
-		});
+		// Trigger new flush to ensure data is persisted and then close
+		// even if there is an error flushing. We must always ensure
+		// the DB is closed to avoid corruption.
+		const onDone = () => this.storage.close();
+		return this.flushDelayer.trigger(() => this.flushPending()).then(onDone, onDone);
 	}
 
-	private flushPending(): Promise<void> {
+	private flushPending(): Thenable<void> {
 
 		// Get pending data
-		const pendingPromises = this.pendingPromises;
-		const pendingDeletes = this.pendingDeletes;
-		const pendingInserts = this.pendingInserts;
+		const updateRequest: IUpdateRequest = { insert: this.pendingInserts, delete: this.pendingDeletes };
 
 		// Reset pending data for next run
-		this.pendingPromises = [];
 		this.pendingDeletes = new Set<string>();
 		this.pendingInserts = new Map<string, string>();
 
-		return this.storage.updateItems({ insert: pendingInserts, delete: pendingDeletes }).then(() => {
-
-			// Resolve pending
-			pendingPromises.forEach(promise => promise.resolve());
-		}, error => {
-
-			// Forward error to pending
-			pendingPromises.forEach(promise => promise.reject(error));
-		});
+		return this.storage.updateItems(updateRequest);
 	}
 
 	getItems(): Promise<Map<string, string>> {
@@ -222,6 +234,11 @@ export interface IUpdateRequest {
 }
 
 export class SQLiteStorageImpl {
+
+	private static measuredRequireDuration: boolean; // TODO@Ben remove me after a while
+
+	private static BUSY_OPEN_TIMEOUT = 2000; // timeout in ms to retry when opening DB fails with SQLITE_BUSY
+
 	private db: Promise<Database>;
 	private name: string;
 	private logger: SQLiteStorageLogger;
@@ -318,33 +335,86 @@ export class SQLiteStorageImpl {
 		this.logger.info(`[storage ${this.name}] open()`);
 
 		return new Promise((resolve, reject) => {
-			this.doOpen(this.options.path).then(resolve, error => {
+			const fallbackToInMemoryDatabase = (error: Error) => {
 				this.logger.error(`[storage ${this.name}] open(): Error (open DB): ${error}`);
 				this.logger.error(`[storage ${this.name}] open(): Falling back to in-memory DB`);
 
 				// In case of any error to open the DB, use an in-memory
 				// DB so that we always have a valid DB to talk to.
 				this.doOpen(':memory:').then(resolve, reject);
+			};
+
+			this.doOpen(this.options.path).then(resolve, error => {
+
+				// TODO@Ben check if this is still happening. This error code should only arise if
+				// another process is locking the same DB we want to open at that time. This typically
+				// never happens because a DB connection is limited per window. However, in the event
+				// of a window reload, it may be possible that the previous connection was not properly
+				// closed while the new connection is already established.
+				if (error.code === 'SQLITE_BUSY') {
+					this.logger.error(`[storage ${this.name}] open(): Retrying after ${SQLiteStorageImpl.BUSY_OPEN_TIMEOUT}ms due to SQLITE_BUSY`);
+
+					// Retry after 2s if the DB is busy
+					timeout(SQLiteStorageImpl.BUSY_OPEN_TIMEOUT).then(() => this.doOpen(this.options.path).then(resolve, fallbackToInMemoryDatabase));
+				}
+
+				// This error code indicates that even though the DB file exists,
+				// SQLite cannot open it and signals it is corrupt.
+				else if (error.code === 'SQLITE_CORRUPT') {
+					this.logger.error(`[storage ${this.name}] open(): Recreating DB due to SQLITE_CORRUPT`);
+
+					// Move corrupt DB to different filename and start fresh
+					const randomSuffix = Math.random().toString(36).replace(/[^a-z]+/g, '').substr(0, 4);
+					rename(this.options.path, `${this.options.path}.${randomSuffix}.corrupt`)
+						.then(() => this.doOpen(this.options.path)).then(resolve, fallbackToInMemoryDatabase);
+				}
+
+				// Otherwise give up and fallback to in-memory DB
+				else {
+					fallbackToInMemoryDatabase(error);
+				}
 			});
 		});
 	}
 
 	private doOpen(path: string): Promise<Database> {
 		return new Promise((resolve, reject) => {
+			let measureRequireDuration = false;
+			if (!SQLiteStorageImpl.measuredRequireDuration) {
+				SQLiteStorageImpl.measuredRequireDuration = true;
+				measureRequireDuration = true;
+
+				mark('willRequireSQLite');
+			}
 			import('vscode-sqlite3').then(sqlite3 => {
+				if (measureRequireDuration) {
+					mark('didRequireSQLite');
+				}
+
 				const db = new (this.logger.verbose ? sqlite3.verbose().Database : sqlite3.Database)(path, error => {
 					if (error) {
 						return reject(error);
 					}
 
-					// Setup schema
+					// The following exec() statement serves two purposes:
+					// - create the DB if it does not exist yet
+					// - validate that the DB is not corrupt (the open() call does not throw otherwise)
+					mark('willSetupSQLiteSchema');
 					this.exec(db, [
 						'PRAGMA user_version = 1;',
 						'CREATE TABLE IF NOT EXISTS ItemTable (key TEXT UNIQUE ON CONFLICT REPLACE, value BLOB)'
-					].join('')).then(() => resolve(db), error => reject(error));
+					].join('')).then(() => {
+						mark('didSetupSQLiteSchema');
+
+						resolve(db);
+					}, error => {
+						mark('didSetupSQLiteSchema');
+
+						reject(error);
+					});
 				});
 
-				// Check for errors
+				// Errors
 				db.on('error', error => this.logger.error(`[storage ${this.name}] Error (event): ${error}`));
 
 				// Tracing
@@ -487,5 +557,53 @@ class SQLiteStorageLogger {
 		if (this.logError) {
 			this.options!.errorLogger!(error);
 		}
+	}
+}
+
+export class NullStorage extends Disposable implements IStorage {
+
+	readonly size = 0;
+	readonly onDidChangeStorage = Event.None;
+
+	private items = new Map<string, string>();
+
+	init(): Promise<void> { return Promise.resolve(); }
+
+	get(key: string, fallbackValue: string): string;
+	get(key: string, fallbackValue?: string): string | undefined;
+	get(key: string, fallbackValue?: string): string | undefined {
+		return void 0;
+	}
+
+	getBoolean(key: string, fallbackValue: boolean): boolean;
+	getBoolean(key: string, fallbackValue?: boolean): boolean | undefined;
+	getBoolean(key: string, fallbackValue?: boolean): boolean | undefined {
+		return void 0;
+	}
+
+	getInteger(key: string, fallbackValue: number): number;
+	getInteger(key: string, fallbackValue?: number): number | undefined;
+	getInteger(key: string, fallbackValue?: number): number | undefined {
+		return void 0;
+	}
+
+	set(key: string, value: any): Promise<void> {
+		return Promise.resolve();
+	}
+
+	delete(key: string): Promise<void> {
+		return Promise.resolve();
+	}
+
+	close(): Promise<void> {
+		return Promise.resolve();
+	}
+
+	getItems(): Promise<Map<string, string>> {
+		return Promise.resolve(this.items);
+	}
+
+	checkIntegrity(full: boolean): Promise<string> {
+		return Promise.resolve('ok');
 	}
 }

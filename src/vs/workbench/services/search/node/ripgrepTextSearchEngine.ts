@@ -7,7 +7,7 @@ import * as cp from 'child_process';
 import { EventEmitter } from 'events';
 import * as path from 'path';
 import { NodeStringDecoder, StringDecoder } from 'string_decoder';
-import { startsWith } from 'vs/base/common/strings';
+import { startsWith, startsWithUTF8BOM, stripUTF8BOM, createRegExp } from 'vs/base/common/strings';
 import { URI } from 'vs/base/common/uri';
 import * as vscode from 'vscode';
 import { rgPath } from 'vscode-ripgrep';
@@ -138,6 +138,7 @@ export function rgErrorMsgForDisplay(msg: string): Maybe<string> {
 export class RipgrepParser extends EventEmitter {
 	private remainder = '';
 	private isDone = false;
+	private hitLimit = false;
 	private stringDecoder: NodeStringDecoder;
 
 	private numResults = 0;
@@ -182,7 +183,7 @@ export class RipgrepParser extends EventEmitter {
 			return;
 		}
 
-		let parsedLine: any;
+		let parsedLine: IRgMessage;
 		try {
 			parsedLine = JSON.parse(outputLine);
 		} catch (e) {
@@ -190,56 +191,83 @@ export class RipgrepParser extends EventEmitter {
 		}
 
 		if (parsedLine.type === 'match') {
-			let hitLimit = false;
-			const uri = URI.file(path.join(this.rootFolder, parsedLine.data.path.text));
-			parsedLine.data.submatches.map((match: any) => {
-				if (hitLimit) {
-					return null;
-				}
+			const matchPath = bytesOrTextToString(parsedLine.data.path);
+			const uri = URI.file(path.join(this.rootFolder, matchPath));
+			const result = this.createTextSearchMatch(parsedLine.data, uri);
+			this.onResult(result);
 
-				if (this.numResults >= this.maxResults) {
-					// Finish the line, then report the result below
-					hitLimit = true;
-				}
-
-				return this.submatchToResult(parsedLine, match, uri);
-			}).forEach((result: any) => {
-				if (result) {
-					this.onResult(result);
-				}
-			});
-
-			if (hitLimit) {
+			if (this.hitLimit) {
 				this.cancel();
 				this.emit('hitLimit');
 			}
+		} else if (parsedLine.type === 'context') {
+			const contextPath = bytesOrTextToString(parsedLine.data.path);
+			const uri = URI.file(path.join(this.rootFolder, contextPath));
+			const result = this.createTextSearchContext(parsedLine.data, uri);
+			result.forEach(r => this.onResult(r));
 		}
 	}
 
-	private submatchToResult(parsedLine: any, match: any, uri: vscode.Uri): vscode.TextSearchResult {
-		const lineNumber = parsedLine.data.line_number - 1;
-		let lineText = bytesOrTextToString(parsedLine.data.lines);
-		let matchText = bytesOrTextToString(match.match);
-		const newlineMatches = matchText.match(/\n/g);
-		const newlines = newlineMatches ? newlineMatches.length : 0;
+	private createTextSearchMatch(data: IRgMatch, uri: vscode.Uri): vscode.TextSearchMatch {
+		const lineNumber = data.line_number - 1;
+		const fullText = bytesOrTextToString(data.lines);
+		const fullTextBytes = Buffer.from(fullText);
 
-		const textBytes = new Buffer(lineText);
-		let startCol = textBytes.slice(0, match.start).toString().length;
-		const endChars = startCol + textBytes.slice(match.start, match.end).toString().length;
+		let prevMatchEnd = 0;
+		let prevMatchEndCol = 0;
+		let prevMatchEndLine = lineNumber;
+		const ranges = data.submatches.map((match, i) => {
+			if (this.hitLimit) {
+				return null;
+			}
 
-		const endLineNumber = lineNumber + newlines;
-		let endCol = endChars - (lineText.lastIndexOf('\n', lineText.length - 2) + 1);
+			this.numResults++;
+			if (this.numResults >= this.maxResults) {
+				// Finish the line, then report the result below
+				this.hitLimit = true;
+			}
 
-		if (lineNumber === 0) {
-			if (startsWithUTF8BOM(matchText)) {
+			let matchText = bytesOrTextToString(match.match);
+			const inBetweenChars = fullTextBytes.slice(prevMatchEnd, match.start).toString().length;
+			let startCol = prevMatchEndCol + inBetweenChars;
+
+			const stats = getNumLinesAndLastNewlineLength(matchText);
+			let startLineNumber = prevMatchEndLine;
+			let endLineNumber = stats.numLines + startLineNumber;
+			let endCol = stats.numLines > 0 ?
+				stats.lastLineLength :
+				stats.lastLineLength + startCol;
+
+			if (lineNumber === 0 && i === 0 && startsWithUTF8BOM(matchText)) {
 				matchText = stripUTF8BOM(matchText);
 				startCol -= 3;
 				endCol -= 3;
 			}
-		}
 
-		const range = new Range(lineNumber, startCol, endLineNumber, endCol);
-		return createTextSearchResult(uri, lineText, range, this.previewOptions);
+			prevMatchEnd = match.end;
+			prevMatchEndCol = endCol;
+			prevMatchEndLine = endLineNumber;
+
+			return new Range(startLineNumber, startCol, endLineNumber, endCol);
+		})
+			.filter(r => !!r);
+
+		return createTextSearchResult(uri, fullText, ranges, this.previewOptions);
+	}
+
+	private createTextSearchContext(data: IRgMatch, uri: URI): vscode.TextSearchContext[] {
+		const text = bytesOrTextToString(data.lines);
+		const startLine = data.line_number;
+		return text
+			.replace(/\r?\n$/, '')
+			.split('\n')
+			.map((line, i) => {
+				return {
+					text: line,
+					uri,
+					lineNumber: startLine + i
+				};
+			});
 	}
 
 	private onResult(match: vscode.TextSearchResult): void {
@@ -249,8 +277,25 @@ export class RipgrepParser extends EventEmitter {
 
 function bytesOrTextToString(obj: any): string {
 	return obj.bytes ?
-		new Buffer(obj.bytes, 'base64').toString() :
+		Buffer.from(obj.bytes, 'base64').toString() :
 		obj.text;
+}
+
+function getNumLinesAndLastNewlineLength(text: string): { numLines: number, lastLineLength: number } {
+	const re = /\n/g;
+	let numLines = 0;
+	let lastNewlineIdx = -1;
+	let match: ReturnType<typeof re.exec>;
+	while (match = re.exec(text)) {
+		numLines++;
+		lastNewlineIdx = match.index;
+	}
+
+	const lastLineLength = lastNewlineIdx >= 0 ?
+		text.length - lastNewlineIdx :
+		text.length;
+
+	return { numLines, lastLineLength };
 }
 
 function getRgArgs(query: vscode.TextSearchQuery, options: vscode.TextSearchOptions): string[] {
@@ -284,22 +329,32 @@ function getRgArgs(query: vscode.TextSearchQuery, options: vscode.TextSearchOpti
 		args.push('--encoding', options.encoding);
 	}
 
+	let pattern = query.pattern;
+
 	// Ripgrep handles -- as a -- arg separator. Only --.
-	// - is ok, --- is ok, --some-flag is handled as query text. Need to special case.
-	if (query.pattern === '--') {
+	// - is ok, --- is ok, --some-flag is also ok. Need to special case.
+	if (pattern === '--') {
 		query.isRegExp = true;
-		query.pattern = '\\-\\-';
+		pattern = '\\-\\-';
+	}
+
+	if ((<IExtendedExtensionSearchOptions>options).usePCRE2) {
+		args.push('--pcre2');
+
+		if (query.isRegExp) {
+			pattern = unicodeEscapesToPCRE2(pattern);
+		}
 	}
 
 	let searchPatternAfterDoubleDashes: Maybe<string>;
 	if (query.isWordMatch) {
-		const regexp = createRegExp(query.pattern, !!query.isRegExp, { wholeWord: query.isWordMatch });
+		const regexp = createRegExp(pattern, !!query.isRegExp, { wholeWord: query.isWordMatch });
 		const regexpStr = regexp.source.replace(/\\\//g, '/'); // RegExp.source arbitrarily returns escaped slashes. Search and destroy.
 		args.push('--regexp', regexpStr);
 	} else if (query.isRegExp) {
-		args.push('--regexp', query.pattern);
+		args.push('--regexp', pattern);
 	} else {
-		searchPatternAfterDoubleDashes = query.pattern;
+		searchPatternAfterDoubleDashes = pattern;
 		args.push('--fixed-strings');
 	}
 
@@ -317,8 +372,12 @@ function getRgArgs(query: vscode.TextSearchQuery, options: vscode.TextSearchOpti
 		args.push('--multiline');
 	}
 
-	if ((<IExtendedExtensionSearchOptions>options).usePCRE2) {
-		args.push('--pcre2');
+	if (options.beforeContext) {
+		args.push('--before-context', options.beforeContext + '');
+	}
+
+	if (options.afterContext) {
+		args.push('--after-context', options.afterContext + '');
 	}
 
 	// Folder to search
@@ -334,57 +393,34 @@ function getRgArgs(query: vscode.TextSearchQuery, options: vscode.TextSearchOpti
 	return args;
 }
 
-interface RegExpOptions {
-	matchCase?: boolean;
-	wholeWord?: boolean;
-	multiline?: boolean;
-	global?: boolean;
+export function unicodeEscapesToPCRE2(pattern: string): string {
+	const reg = /((?:[^\\]|^)(?:\\\\)*)\\u([a-z0-9]{4})(?!\d)/g;
+	// Replace an unescaped $ at the end of the pattern with \r?$
+	// Match $ preceeded by none or even number of literal \
+	while (pattern.match(reg)) {
+		pattern = pattern.replace(reg, `$1\\x{$2}`);
+	}
+
+	return pattern;
 }
 
-function createRegExp(searchString: string, isRegex: boolean, options: RegExpOptions = {}): RegExp {
-	if (!searchString) {
-		throw new Error('Cannot create regex from empty string');
-	}
-	if (!isRegex) {
-		searchString = escapeRegExpCharacters(searchString);
-	}
-	if (options.wholeWord) {
-		if (!/\B/.test(searchString.charAt(0))) {
-			searchString = '\\b' + searchString;
-		}
-		if (!/\B/.test(searchString.charAt(searchString.length - 1))) {
-			searchString = searchString + '\\b';
-		}
-	}
-	let modifiers = '';
-	if (options.global) {
-		modifiers += 'g';
-	}
-	if (!options.matchCase) {
-		modifiers += 'i';
-	}
-	if (options.multiline) {
-		modifiers += 'm';
-	}
-
-	return new RegExp(searchString, modifiers);
+interface IRgMessage {
+	type: 'match' | 'context' | string;
+	data: IRgMatch;
 }
 
-/**
- * Escapes regular expression characters in a given string
- */
-function escapeRegExpCharacters(value: string): string {
-	return value.replace(/[\-\\\{\}\*\+\?\|\^\$\.\[\]\(\)\#]/g, '\\$&');
+interface IRgMatch {
+	path: IRgBytesOrText;
+	lines: IRgBytesOrText;
+	line_number: number;
+	absolute_offset: number;
+	submatches: IRgSubmatch[];
 }
 
-// -- UTF-8 BOM
-
-const UTF8_BOM = 65279;
-
-function startsWithUTF8BOM(str: string): boolean {
-	return !!(str && str.length > 0 && str.charCodeAt(0) === UTF8_BOM);
+interface IRgSubmatch {
+	match: IRgBytesOrText;
+	start: number;
+	end: number;
 }
 
-function stripUTF8BOM(str: string): string {
-	return startsWithUTF8BOM(str) ? str.substr(1) : str;
-}
+type IRgBytesOrText = { bytes: string } | { text: string };

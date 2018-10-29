@@ -297,13 +297,12 @@ export class OpenEditorsView extends ViewletPanel {
 		}
 	}
 
-	public setVisible(visible: boolean): TPromise<void> {
-		return super.setVisible(visible).then(() => {
-			this.updateListVisibility(visible && this.isExpanded());
-			if (visible && this.needsRefresh) {
-				this.listRefreshScheduler.schedule(0);
-			}
-		});
+	public setVisible(visible: boolean): void {
+		super.setVisible(visible);
+		this.updateListVisibility(visible && this.isExpanded());
+		if (visible && this.needsRefresh) {
+			this.listRefreshScheduler.schedule(0);
+		}
 	}
 
 	public focus(): void {

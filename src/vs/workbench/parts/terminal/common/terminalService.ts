@@ -298,22 +298,21 @@ export abstract class TerminalService implements ITerminalService {
 		return new Promise<void>((complete) => {
 			const panel = this._panelService.getActivePanel();
 			if (!panel || panel.getId() !== TERMINAL_PANEL_ID) {
-				return this._panelService.openPanel(TERMINAL_PANEL_ID, focus).then(() => {
-					if (focus) {
-						// Do the focus call asynchronously as going through the
-						// command palette will force editor focus
-						setTimeout(() => {
-							const instance = this.getActiveInstance();
-							if (instance) {
-								instance.focusWhenReady(true).then(() => complete(void 0));
-							} else {
-								complete(void 0);
-							}
-						}, 0);
-					} else {
-						complete(void 0);
-					}
-				});
+				this._panelService.openPanel(TERMINAL_PANEL_ID, focus);
+				if (focus) {
+					// Do the focus call asynchronously as going through the
+					// command palette will force editor focus
+					setTimeout(() => {
+						const instance = this.getActiveInstance();
+						if (instance) {
+							instance.focusWhenReady(true).then(() => complete(void 0));
+						} else {
+							complete(void 0);
+						}
+					}, 0);
+				} else {
+					complete(void 0);
+				}
 			} else {
 				if (focus) {
 					// Do the focus call asynchronously as going through the

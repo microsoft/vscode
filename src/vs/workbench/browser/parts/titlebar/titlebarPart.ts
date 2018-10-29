@@ -26,7 +26,7 @@ import { isMacintosh, isWindows, isLinux } from 'vs/base/common/platform';
 import { URI } from 'vs/base/common/uri';
 import { Color } from 'vs/base/common/color';
 import { trim } from 'vs/base/common/strings';
-import { EventType, EventHelper, Dimension, isAncestor, hide, show, removeClass, addClass, append, $, addDisposableListener, getComputedStyle } from 'vs/base/browser/dom';
+import { EventType, EventHelper, Dimension, isAncestor, hide, show, removeClass, addClass, append, $, addDisposableListener } from 'vs/base/browser/dom';
 import { MenubarControl } from 'vs/workbench/browser/parts/titlebar/menubarControl';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { template, getBaseLabel } from 'vs/base/common/labels';
@@ -56,14 +56,6 @@ export class TitlebarPart extends Part implements ITitleService {
 
 	private pendingTitle: string;
 	private representedFileName: string;
-
-	private initialSizing: {
-		titleFontSize?: number;
-		titlebarHeight?: number;
-		controlsWidth?: number;
-		appIconSize?: number;
-		appIconWidth?: number;
-	} = Object.create(null);
 
 	private isInactive: boolean;
 
@@ -499,93 +491,45 @@ export class TitlebarPart extends Part implements ITitleService {
 
 	private adjustTitleMarginToCenter(): void {
 		setTimeout(() => {
-			// Center the title in the window
-			const currentAppIconWidth = this.appIcon ? parseInt(getComputedStyle(this.appIcon).width, 10) : 0;
-			let currentMenubarWidth = parseInt(getComputedStyle(this.menubar).width, 10);
-			currentMenubarWidth = isNaN(currentMenubarWidth) ? 0 : currentMenubarWidth;
-			const currentTotalWidth = parseInt(getComputedStyle(document.body).width, 10);
-			const currentTitleWidth = parseInt(getComputedStyle(this.title).width, 10);
-			const currentWindowControlsWidth = this.windowControls ? parseInt(getComputedStyle(this.windowControls).width, 10) : 0;
-
-			let leftMargin = (currentTotalWidth / 2) - (currentTitleWidth / 2) - (currentMenubarWidth + currentAppIconWidth);
-			let rightMargin = currentTotalWidth - (currentAppIconWidth + currentMenubarWidth + leftMargin + currentTitleWidth + currentWindowControlsWidth);
-
-			// Center if we can, leaving some space on both sides
-			if (leftMargin >= 20 && rightMargin >= 20) {
-				this.title.style.marginLeft = `${leftMargin}px`;
+			// Cannot center
+			if (!isMacintosh &&
+				(this.appIcon.clientWidth + this.menubar.clientWidth + 10 > (this.titleContainer.clientWidth - this.title.clientWidth) / 2 ||
+					this.titleContainer.clientWidth - this.windowControls.clientWidth - 10 < (this.titleContainer.clientWidth + this.title.clientWidth) / 2)) {
+				this.title.style.position = null;
+				this.title.style.left = null;
+				this.title.style.transform = null;
 			} else {
-				this.title.style.marginLeft = null;
+				this.title.style.position = 'absolute';
+				this.title.style.left = '50%';
+				this.title.style.transform = 'translate(-50%, 0)';
 			}
-		}, 0); // delay so that we can get accurate information about the widths
-	}
-
-	private updateLayout(dimension: Dimension) {
-		// Store initital title sizing if we need to prevent zooming
-		if (typeof this.initialSizing.titleFontSize !== 'number') {
-			this.initialSizing.titleFontSize = parseInt(getComputedStyle(this.title).fontSize, 10);
-		}
-
-		if (typeof this.initialSizing.titlebarHeight !== 'number') {
-			this.initialSizing.titlebarHeight = parseInt(getComputedStyle(this.title).height, 10);
-		}
-
-		// Only prevent zooming behavior on macOS or when the menubar is not visible
-		if (isMacintosh || this.configurationService.getValue<MenuBarVisibility>('window.menuBarVisibility') === 'hidden') {
-			// To prevent zooming we need to adjust the font size with the zoom factor
-			const newHeight = this.initialSizing.titlebarHeight / getZoomFactor();
-			this.title.style.fontSize = `${this.initialSizing.titleFontSize / getZoomFactor()}px`;
-			this.title.style.lineHeight = `${newHeight}px`;
-
-			// Windows/Linux specific layout
-			if (isWindows || isLinux) {
-				if (typeof this.initialSizing.controlsWidth !== 'number') {
-					this.initialSizing.controlsWidth = parseInt(getComputedStyle(this.windowControls).width, 10);
-				}
-
-				const appIconComputedStyles = getComputedStyle(this.appIcon);
-				if (typeof this.initialSizing.appIconWidth !== 'number') {
-					this.initialSizing.appIconWidth = parseInt(appIconComputedStyles.width, 10);
-				}
-
-				if (typeof this.initialSizing.appIconSize !== 'number') {
-					this.initialSizing.appIconSize = parseInt(appIconComputedStyles.backgroundSize, 10);
-				}
-
-				const currentAppIconHeight = parseInt(appIconComputedStyles.height, 10);
-				const newControlsWidth = this.initialSizing.controlsWidth / getZoomFactor();
-				const newAppIconWidth = this.initialSizing.appIconWidth / getZoomFactor();
-				const newAppIconSize = this.initialSizing.appIconSize / getZoomFactor();
-
-				// Adjust app icon mimic menubar
-				this.appIcon.style.width = `${newAppIconWidth}px`;
-				this.appIcon.style.backgroundSize = `${newAppIconSize}px`;
-				this.appIcon.style.paddingTop = `${(newHeight - currentAppIconHeight) / 2.0}px`;
-				this.appIcon.style.paddingBottom = `${(newHeight - currentAppIconHeight) / 2.0}px`;
-
-				// Adjust windows controls
-				this.windowControls.style.width = `${newControlsWidth}px`;
-			}
-		} else {
-			// We need to undo zoom prevention
-			this.title.style.fontSize = null;
-			this.title.style.lineHeight = null;
-
-			this.appIcon.style.width = null;
-			this.appIcon.style.backgroundSize = null;
-			this.appIcon.style.paddingTop = null;
-			this.appIcon.style.paddingBottom = null;
-
-			this.windowControls.style.width = null;
-		}
-
-		if (this.menubarPart) {
-			const menubarDimension = new Dimension(undefined, dimension.height);
-			this.menubarPart.layout(menubarDimension);
-		}
+		}, 0); // delay so that we can get accurate information about widths
 	}
 
 	layout(dimension: Dimension): Dimension[] {
-		this.updateLayout(dimension);
+		if (this.configurationService.getValue<string>('window.titleBarStyle') === 'custom') {
+			// Only prevent zooming behavior on macOS or when the menubar is not visible
+			if (isMacintosh || this.configurationService.getValue<MenuBarVisibility>('window.menuBarVisibility') === 'hidden') {
+				this.title.style.zoom = `${1.0 / getZoomFactor()}`;
+				if (isWindows || isLinux) {
+					this.appIcon.style.zoom = `${1.0 / getZoomFactor()}`;
+					this.windowControls.style.zoom = `${1.0 / getZoomFactor()}`;
+				}
+			} else {
+				this.title.style.zoom = null;
+				if (isWindows || isLinux) {
+					this.appIcon.style.zoom = null;
+					this.windowControls.style.zoom = null;
+				}
+			}
+
+			this.adjustTitleMarginToCenter();
+
+			if (this.menubarPart) {
+				const menubarDimension = new Dimension(undefined, dimension.height);
+				this.menubarPart.layout(menubarDimension);
+			}
+		}
 
 		return super.layout(dimension);
 	}

@@ -622,7 +622,7 @@ suite('ExtensionsActions Test', () => {
 				return instantiationService.get(IExtensionsWorkbenchService).queryLocal()
 					.then(extensions => {
 						testObject.extension = extensions[0];
-						assert.ok(testObject.enabled);
+						assert.ok(!testObject.enabled);
 					});
 			});
 	});
@@ -653,7 +653,7 @@ suite('ExtensionsActions Test', () => {
 				return instantiationService.get(IExtensionsWorkbenchService).queryLocal()
 					.then(extensions => {
 						testObject.extension = extensions[0];
-						assert.ok(testObject.enabled);
+						assert.ok(!testObject.enabled);
 					});
 			});
 	});

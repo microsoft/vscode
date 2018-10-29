@@ -339,6 +339,9 @@ export class QuickOpenController extends Component implements IQuickOpenService 
 
 	private onType(value: string): void {
 
+		// Remove leading and trailing whitespace
+		value = strings.trim(value);
+
 		// cancel any pending get results invocation and create new
 		this.cancelPendingGetResultsInvocation();
 		const pendingResultsInvocationTokenSource = new CancellationTokenSource();
@@ -363,11 +366,8 @@ export class QuickOpenController extends Component implements IQuickOpenService 
 		// Update context
 		this.setQuickOpenContextKey(contextKey);
 
-		// Remove leading and trailing whitespace
-		const trimmedValue = strings.trim(value);
-
 		// If no value provided, default to editor history
-		if (!trimmedValue) {
+		if (!value) {
 
 			// Trigger onOpen
 			this.resolveHandler(handlerDescriptor || defaultHandlerDescriptor);
@@ -393,7 +393,7 @@ export class QuickOpenController extends Component implements IQuickOpenService 
 		else {
 			this.isQuickOpen = true;
 			// Cache the value for prefilling the quickOpen next time is opened
-			this.lastInputValue = trimmedValue;
+			this.lastInputValue = value;
 			resultPromise = this.handleDefaultHandler(defaultHandlerDescriptor, value, pendingResultsInvocationToken);
 		}
 

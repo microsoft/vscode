@@ -6,7 +6,7 @@
 import { Event } from 'vs/base/common/event';
 import { URI } from 'vs/base/common/uri';
 import { ITextBufferFactory, ITextModel, ITextModelCreationOptions } from 'vs/editor/common/model';
-import { IMode } from 'vs/editor/common/modes';
+import { ILanguageSelection } from 'vs/editor/common/services/modeService';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 
 export const IModelService = createDecorator<IModelService>('modelService');
@@ -14,11 +14,11 @@ export const IModelService = createDecorator<IModelService>('modelService');
 export interface IModelService {
 	_serviceBrand: any;
 
-	createModel(value: string | ITextBufferFactory, modeOrPromise: Promise<IMode> | IMode, resource: URI | undefined, isForSimpleWidget?: boolean): ITextModel;
+	createModel(value: string | ITextBufferFactory, languageSelection: ILanguageSelection | null, resource: URI, isForSimpleWidget?: boolean): ITextModel;
 
 	updateModel(model: ITextModel, value: string | ITextBufferFactory): void;
 
-	setMode(model: ITextModel, modeOrPromise: Promise<IMode> | IMode): void;
+	setMode(model: ITextModel, languageSelection: ILanguageSelection): void;
 
 	destroyModel(resource: URI): void;
 
