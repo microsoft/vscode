@@ -10,7 +10,7 @@ import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import * as glob from 'vs/base/common/glob';
 import { URI } from 'vs/base/common/uri';
 import { TPromise } from 'vs/base/common/winjs.base';
-import { IFolderQuery, ISearchRange, ITextQuery, ITextSearchMatch, QueryType, ITextSearchContext } from 'vs/platform/search/common/search';
+import { IFolderQuery, ISearchRange, ITextQuery, ITextSearchMatch, QueryType, ITextSearchContext, deserializeSearchError, SearchErrorCode } from 'vs/platform/search/common/search';
 import { LegacyTextSearchService } from 'vs/workbench/services/search/node/legacy/rawLegacyTextSearchService';
 import { ISerializedFileMatch } from 'vs/workbench/services/search/node/search';
 import { TextSearchEngineAdapter } from 'vs/workbench/services/search/node/textSearchAdapter';
@@ -383,7 +383,9 @@ suite('Search-integration', function () {
 			return doRipgrepSearchTest(config, 0).then(() => {
 				throw new Error('expected fail');
 			}, err => {
-				assert.equal(err.message, 'Unknown encoding: invalidEncoding');
+				const searchError = deserializeSearchError(err.message);
+				assert.equal(searchError.message, 'Unknown encoding: invalidEncoding');
+				assert.equal(searchError.code, SearchErrorCode.unknownEncoding);
 			});
 		});
 
@@ -397,7 +399,9 @@ suite('Search-integration', function () {
 			return doRipgrepSearchTest(config, 0).then(() => {
 				throw new Error('expected fail');
 			}, err => {
-				assert.equal(err.message, 'Regex parse error');
+				const searchError = deserializeSearchError(err.message);
+				assert.equal(searchError.message, 'Regex parse error');
+				assert.equal(searchError.code, SearchErrorCode.regexParseError);
 			});
 		});
 
@@ -414,7 +418,9 @@ suite('Search-integration', function () {
 			return doRipgrepSearchTest(config, 0).then(() => {
 				throw new Error('expected fail');
 			}, err => {
-				assert.equal(err.message, 'Error parsing glob \'***\': invalid use of **; must be one path component');
+				const searchError = deserializeSearchError(err.message);
+				assert.equal(searchError.message, 'Error parsing glob \'***\': invalid use of **; must be one path component');
+				assert.equal(searchError.code, SearchErrorCode.globParseError);
 			});
 		});
 
@@ -428,7 +434,9 @@ suite('Search-integration', function () {
 			return doRipgrepSearchTest(config, 0).then(() => {
 				throw new Error('expected fail');
 			}, err => {
-				assert.equal(err.message, 'The literal \'"\\n"\' is not allowed in a regex');
+				const searchError = deserializeSearchError(err.message);
+				assert.equal(searchError.message, 'The literal \'"\\n"\' is not allowed in a regex');
+				assert.equal(searchError.code, SearchErrorCode.invalidLiteral);
 			});
 		});
 	});
