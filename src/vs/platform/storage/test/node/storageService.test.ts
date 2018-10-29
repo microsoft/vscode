@@ -84,7 +84,7 @@ suite('StorageService', () => {
 		const storageDir = uniqueStorageDir();
 		await mkdirp(storageDir);
 
-		const storage = new StorageService(join(storageDir, 'storage.db'), new NullLogService(), TestEnvironmentService);
+		const storage = new StorageService(join(storageDir, 'storage.db'), false, new NullLogService(), TestEnvironmentService);
 		await storage.init();
 
 		storage.store('bar', 'foo', StorageScope.WORKSPACE);

@@ -284,7 +284,7 @@ function createStorageService(workspaceStorageFolder: string, payload: IWorkspac
 	// Return early if we are using in-memory storage
 	const useInMemoryStorage = !!environmentService.extensionTestsPath; /* never keep any state when running extension tests */
 	if (useInMemoryStorage) {
-		const storageService = new StorageService(StorageService.IN_MEMORY_PATH, logService, environmentService);
+		const storageService = new StorageService(StorageService.IN_MEMORY_PATH, true, logService, environmentService);
 
 		return storageService.init().then(() => storageService);
 	}
@@ -296,7 +296,7 @@ function createStorageService(workspaceStorageFolder: string, payload: IWorkspac
 	return exists(workspaceStorageDBPath).then(exists => {
 		perf.mark('didCheckWorkspaceStorageExists');
 
-		const storageService = new StorageService(workspaceStorageDBPath, logService, environmentService);
+		const storageService = new StorageService(workspaceStorageDBPath, true, logService, environmentService);
 
 		return storageService.init().then(() => {
 			if (exists) {

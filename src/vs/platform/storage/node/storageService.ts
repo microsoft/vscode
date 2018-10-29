@@ -8,7 +8,7 @@ import { Event, Emitter } from 'vs/base/common/event';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IWorkspaceStorageChangeEvent, IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
-import { Storage, IStorageLoggingOptions } from 'vs/base/node/storage';
+import { Storage, IStorageLoggingOptions, NullStorage, IStorage } from 'vs/base/node/storage';
 import { IStorageLegacyService, StorageLegacyScope } from 'vs/platform/storage/common/storageLegacyService';
 import { startsWith } from 'vs/base/common/strings';
 import { Action } from 'vs/base/common/actions';
@@ -28,7 +28,6 @@ export class StorageService extends Disposable implements IStorageService {
 
 	private _onWillSaveState: Emitter<void> = this._register(new Emitter<void>());
 	get onWillSaveState(): Event<void> { return this._onWillSaveState.event; }
-
 
 	private _hasErrors = false;
 	get hasErrors(): boolean { return this._hasErrors; }
@@ -51,17 +50,18 @@ export class StorageService extends Disposable implements IStorageService {
 		return this._onStorageError.event;
 	}
 
-	private globalStorage: Storage;
+	private globalStorage: IStorage;
 	private globalStorageWorkspacePath: string;
 
 	private workspaceStoragePath: string;
-	private workspaceStorage: Storage;
+	private workspaceStorage: IStorage;
 	private workspaceStorageListener: IDisposable;
 
 	private loggingOptions: IStorageLoggingOptions;
 
 	constructor(
 		workspaceStoragePath: string,
+		disableGlobalStorage: boolean,
 		@ILogService logService: ILogService,
 		@IEnvironmentService environmentService: IEnvironmentService
 	) {
@@ -84,7 +84,7 @@ export class StorageService extends Disposable implements IStorageService {
 		};
 
 		this.globalStorageWorkspacePath = workspaceStoragePath === StorageService.IN_MEMORY_PATH ? StorageService.IN_MEMORY_PATH : StorageService.IN_MEMORY_PATH;
-		this.globalStorage = new Storage({ path: this.globalStorageWorkspacePath, logging: this.loggingOptions });
+		this.globalStorage = disableGlobalStorage ? new NullStorage() : new Storage({ path: this.globalStorageWorkspacePath, logging: this.loggingOptions });
 		this._register(this.globalStorage.onDidChangeStorage(key => this.handleDidChangeStorage(key, StorageScope.GLOBAL)));
 
 		this.createWorkspaceStorage(workspaceStoragePath);
@@ -156,7 +156,7 @@ export class StorageService extends Disposable implements IStorageService {
 		]).then(() => void 0);
 	}
 
-	private getStorage(scope: StorageScope): Storage {
+	private getStorage(scope: StorageScope): IStorage {
 		return scope === StorageScope.GLOBAL ? this.globalStorage : this.workspaceStorage;
 	}
 

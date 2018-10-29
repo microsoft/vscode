@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Database, Statement } from 'vscode-sqlite3';
-import { Disposable } from 'vs/base/common/lifecycle';
+import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import { Emitter, Event } from 'vs/base/common/event';
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { isUndefinedOrNull } from 'vs/base/common/types';
@@ -33,7 +33,32 @@ enum StorageState {
 	Closed
 }
 
-export class Storage extends Disposable {
+export interface IStorage extends IDisposable {
+
+	readonly size: number;
+	readonly onDidChangeStorage: Event<string>;
+
+	init(): Promise<void>;
+
+	get(key: string, fallbackValue: string): string;
+	get(key: string, fallbackValue?: string): string | undefined;
+
+	getBoolean(key: string, fallbackValue: boolean): boolean;
+	getBoolean(key: string, fallbackValue?: boolean): boolean | undefined;
+
+	getInteger(key: string, fallbackValue: number): number;
+	getInteger(key: string, fallbackValue?: number): number | undefined;
+
+	set(key: string, value: any): Promise<void>;
+	delete(key: string): Promise<void>;
+
+	close(): Promise<void>;
+
+	getItems(): Promise<Map<string, string>>;
+	checkIntegrity(full: boolean): Promise<string>;
+}
+
+export class Storage extends Disposable implements IStorage {
 	_serviceBrand: any;
 
 	private static readonly FLUSH_DELAY = 100;
@@ -508,5 +533,53 @@ class SQLiteStorageLogger {
 		if (this.logError) {
 			this.options!.errorLogger!(error);
 		}
+	}
+}
+
+export class NullStorage extends Disposable implements IStorage {
+
+	readonly size = 0;
+	readonly onDidChangeStorage = Event.None;
+
+	private items = new Map<string, string>();
+
+	init(): Promise<void> { return Promise.resolve(); }
+
+	get(key: string, fallbackValue: string): string;
+	get(key: string, fallbackValue?: string): string | undefined;
+	get(key: string, fallbackValue?: string): string | undefined {
+		return void 0;
+	}
+
+	getBoolean(key: string, fallbackValue: boolean): boolean;
+	getBoolean(key: string, fallbackValue?: boolean): boolean | undefined;
+	getBoolean(key: string, fallbackValue?: boolean): boolean | undefined {
+		return void 0;
+	}
+
+	getInteger(key: string, fallbackValue: number): number;
+	getInteger(key: string, fallbackValue?: number): number | undefined;
+	getInteger(key: string, fallbackValue?: number): number | undefined {
+		return void 0;
+	}
+
+	set(key: string, value: any): Promise<void> {
+		return Promise.resolve();
+	}
+
+	delete(key: string): Promise<void> {
+		return Promise.resolve();
+	}
+
+	close(): Promise<void> {
+		return Promise.resolve();
+	}
+
+	getItems(): Promise<Map<string, string>> {
+		return Promise.resolve(this.items);
+	}
+
+	checkIntegrity(full: boolean): Promise<string> {
+		return Promise.resolve('ok');
 	}
 }
