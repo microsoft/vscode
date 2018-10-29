@@ -829,7 +829,7 @@ export class Repository implements Disposable {
 	}
 
 	async branch(name: string, _checkout: boolean, _ref?: string): Promise<void> {
-		await this.run(Operation.Branch, () => this.repository.branch(name, true));
+		await this.run(Operation.Branch, () => this.repository.branch(name, _checkout, _ref));
 	}
 
 	async deleteBranch(name: string, force?: boolean): Promise<void> {
