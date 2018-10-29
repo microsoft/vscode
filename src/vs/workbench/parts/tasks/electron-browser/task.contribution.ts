@@ -2517,7 +2517,7 @@ let outputChannelRegistry = Registry.as<IOutputChannelRegistry>(OutputExt.Output
 outputChannelRegistry.registerChannel({ id: TaskService.OutputChannelId, label: TaskService.OutputChannelLabel, log: false });
 
 // Task Service
-registerSingleton(ITaskService, TaskService);
+registerSingleton(ITaskService, TaskService, true);
 
 // Register Quick Open
 const quickOpenRegistry = (Registry.as<IQuickOpenRegistry>(QuickOpenExtensions.Quickopen));

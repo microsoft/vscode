@@ -418,7 +418,7 @@ class TimerService implements ITimerService {
 
 export const ITimerService = createDecorator<ITimerService>('timerService');
 
-registerSingleton(ITimerService, TimerService);
+registerSingleton(ITimerService, TimerService, true);
 
 //#region cached data logic
 
