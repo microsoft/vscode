@@ -31,9 +31,9 @@ import { IConfirmation, IDialogService } from 'vs/platform/dialogs/common/dialog
 import { FileChangesEvent, FileChangeType, IFileService } from 'vs/platform/files/common/files';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { TreeResourceNavigator, WorkbenchTree } from 'vs/platform/list/browser/listService';
-import { INotificationService } from 'vs/platform/notification/common/notification';
+import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
 import { IProgressService } from 'vs/platform/progress/common/progress';
-import { IPatternInfo, ISearchComplete, ISearchConfiguration, ISearchHistoryService, ISearchProgressItem, VIEW_ID, ISearchHistoryValues, ITextQuery } from 'vs/platform/search/common/search';
+import { IPatternInfo, ISearchComplete, ISearchConfiguration, ISearchHistoryService, ISearchHistoryValues, ISearchProgressItem, ITextQuery, VIEW_ID } from 'vs/platform/search/common/search';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { diffInserted, diffInsertedOutline, diffRemoved, diffRemovedOutline, editorFindMatchHighlight, editorFindMatchHighlightBorder, listActiveSelectionForeground } from 'vs/platform/theme/common/colorRegistry';
@@ -42,6 +42,7 @@ import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/
 import { OpenFileFolderAction, OpenFolderAction } from 'vs/workbench/browser/actions/workspaceActions';
 import { SimpleFileResourceDragAndDrop } from 'vs/workbench/browser/dnd';
 import { Viewlet } from 'vs/workbench/browser/viewlet';
+import { IEditor } from 'vs/workbench/common/editor';
 import { IPanel } from 'vs/workbench/common/panel';
 import { IViewlet } from 'vs/workbench/common/viewlet';
 import { ExcludePatternInputWidget, PatternInputWidget } from 'vs/workbench/parts/search/browser/patternInputWidget';
@@ -49,7 +50,7 @@ import { CancelSearchAction, ClearSearchResultsAction, CollapseDeepestExpandedLe
 import { SearchAccessibilityProvider, SearchDataSource, SearchFilter, SearchRenderer, SearchSorter, SearchTreeController } from 'vs/workbench/parts/search/browser/searchResultsView';
 import { ISearchWidgetOptions, SearchWidget } from 'vs/workbench/parts/search/browser/searchWidget';
 import * as Constants from 'vs/workbench/parts/search/common/constants';
-import { QueryBuilder, ITextQueryBuilderOptions } from 'vs/workbench/parts/search/common/queryBuilder';
+import { ITextQueryBuilderOptions, QueryBuilder } from 'vs/workbench/parts/search/common/queryBuilder';
 import { IReplaceService } from 'vs/workbench/parts/search/common/replace';
 import { getOutOfWorkspaceEditorResources } from 'vs/workbench/parts/search/common/search';
 import { FileMatch, FileMatchOrMatch, FolderMatch, IChangeEvent, ISearchWorkbenchService, Match, SearchModel } from 'vs/workbench/parts/search/common/searchModel';
@@ -1243,6 +1244,14 @@ export class SearchView extends Viewlet implements IViewlet, IPanel {
 				progressRunner.done();
 				this.searchWidget.searchInput.showMessage({ content: e.message, type: MessageType.ERROR });
 				this.viewModel.searchResult.clear();
+
+				if (e.message.indexOf('Unknown encoding') >= 0) {
+					this.notificationService.prompt(Severity.Info, nls.localize('otherEncodingWarning', "You can enable \"search.useLegacySearch\" to search non-standard file encodings."),
+						[{
+							label: nls.localize('otherEncodingWarning.openSettingsLabel', "Open Settings"),
+							run: () => this.openSettings('search.useLegacySearch')
+						}]);
+				}
 			}
 		};
 
@@ -1330,8 +1339,12 @@ export class SearchView extends Viewlet implements IViewlet, IPanel {
 	private onOpenSettings = (e: dom.EventLike): void => {
 		dom.EventHelper.stop(e, false);
 
-		const options: ISettingsEditorOptions = { query: '.exclude' };
-		this.contextService.getWorkbenchState() !== WorkbenchState.EMPTY ?
+		this.openSettings('.exclude');
+	}
+
+	private openSettings(query: string): TPromise<IEditor> {
+		const options: ISettingsEditorOptions = { query };
+		return this.contextService.getWorkbenchState() !== WorkbenchState.EMPTY ?
 			this.preferencesService.openWorkspaceSettings(undefined, options) :
 			this.preferencesService.openGlobalSettings(undefined, options);
 	}
