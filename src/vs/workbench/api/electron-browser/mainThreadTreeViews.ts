@@ -63,7 +63,7 @@ export class MainThreadTreeViews extends Disposable implements MainThreadTreeVie
 		options = options ? options : { select: false, focus: false };
 		const select = isUndefinedOrNull(options.select) ? false : options.select;
 		const focus = isUndefinedOrNull(options.focus) ? false : options.focus;
-		let expand = isNumber(options.expand) ? options.expand : options.expand === true ? 1 : 0;
+		let expand = Math.min(isNumber(options.expand) ? options.expand : options.expand === true ? 1 : 0, 3);
 
 		if (dataProvider.isEmpty()) {
 			// Refresh if empty

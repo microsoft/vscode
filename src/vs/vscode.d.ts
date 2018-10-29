@@ -6500,10 +6500,11 @@ declare module 'vscode' {
 		 * In order to not to select, set the option `select` to `false`.
 		 * In order to focus, set the option `focus` to `true`.
 		 * In order to expand the revealed element, set the option `expand` to `true` or `1`. To expand recursively set `expand` to the number of levels to expand.
+		 * **NOTE:** You can recursively expand to maximum only 3 levels.
 		 *
 		 * **NOTE:** [TreeDataProvider](#TreeDataProvider) is required to implement [getParent](#TreeDataProvider.getParent) method to access this API.
 		 */
-		reveal(element: T, options?: { select?: boolean, focus?: boolean, expand?: boolean | number }): Thenable<void>;
+		reveal(element: T, options?: { select?: boolean, focus?: boolean, expand?: boolean | 1 | 2 | 3 }): Thenable<void>;
 	}
 
 	/**
