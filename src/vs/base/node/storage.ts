@@ -394,10 +394,19 @@ export class SQLiteStorageImpl {
 					}
 
 					// Setup schema
+					mark('willSetupSQLiteSchema');
 					this.exec(db, [
 						'PRAGMA user_version = 1;',
 						'CREATE TABLE IF NOT EXISTS ItemTable (key TEXT UNIQUE ON CONFLICT REPLACE, value BLOB)'
-					].join('')).then(() => resolve(db), error => reject(error));
+					].join('')).then(() => {
+						mark('didSetupSQLiteSchema');
+
+						resolve(db);
+					}, error => {
+						mark('didSetupSQLiteSchema');
+
+						reject(error);
+					});
 				});
 
 				// Check for errors
