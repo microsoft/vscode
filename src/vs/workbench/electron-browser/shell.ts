@@ -285,6 +285,10 @@ export class WorkbenchShell extends Disposable {
 	}
 
 	private logStorageTelemetry(): void {
+		const initialStartup = !!this.configuration.isInitialStartup;
+
+		const appReadyDuration = initialStartup ? perf.getDuration('main:started', 'main:appReady') : 0;
+		const workbenchReadyDuration = perf.getDuration(initialStartup ? 'main:started' : 'main:loadWindow', 'didStartWorkbench');
 		const workspaceStorageRequireDuration = perf.getDuration('willRequireSQLite', 'didRequireSQLite');
 		const workspaceStorageInitDuration = perf.getDuration('willInitWorkspaceStorage', 'didInitWorkspaceStorage');
 		const workspaceStorageFileExistsDuration = perf.getDuration('willCheckWorkspaceStorageExists', 'didCheckWorkspaceStorageExists');
@@ -304,6 +308,8 @@ export class WorkbenchShell extends Disposable {
 
 				/* __GDPR__
 					"sqliteStorageError3" : {
+						"appReadyTime" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
+						"workbenchReadyTime" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
 						"workspaceExistsTime" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
 						"workspaceRequireTime" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
 						"workspaceReadTime" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
@@ -317,6 +323,8 @@ export class WorkbenchShell extends Disposable {
 					}
 				*/
 				this.telemetryService.publicLog('sqliteStorageError3', {
+					'appReadyTime': appReadyDuration,
+					'workbenchReadyTime': workbenchReadyDuration,
 					'workspaceExistsTime': workspaceStorageFileExistsDuration,
 					'workspaceMigrationTime': workspaceStorageMigrationDuration,
 					'workspaceRequireTime': workspaceStorageRequireDuration,
@@ -349,6 +357,8 @@ export class WorkbenchShell extends Disposable {
 
 			/* __GDPR__
 				"sqliteStorageTimers3" : {
+					"appReadyTime" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
+					"workbenchReadyTime" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
 					"workspaceExistsTime" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
 					"workspaceMigrationTime" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
 					"workspaceRequireTime" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
@@ -362,6 +372,8 @@ export class WorkbenchShell extends Disposable {
 				}
 			*/
 			this.telemetryService.publicLog('sqliteStorageTimers3', {
+				'appReadyTime': appReadyDuration,
+				'workbenchReadyTime': workbenchReadyDuration,
 				'workspaceExistsTime': workspaceStorageFileExistsDuration,
 				'workspaceMigrationTime': workspaceStorageMigrationDuration,
 				'workspaceRequireTime': workspaceStorageRequireDuration,
