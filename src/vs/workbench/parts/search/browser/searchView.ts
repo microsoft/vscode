@@ -33,7 +33,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { TreeResourceNavigator, WorkbenchTree } from 'vs/platform/list/browser/listService';
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
 import { IProgressService } from 'vs/platform/progress/common/progress';
-import { IPatternInfo, ISearchComplete, ISearchConfiguration, ISearchHistoryService, ISearchHistoryValues, ISearchProgressItem, ITextQuery, VIEW_ID } from 'vs/platform/search/common/search';
+import { IPatternInfo, ISearchComplete, ISearchConfiguration, ISearchHistoryService, ISearchHistoryValues, ISearchProgressItem, ITextQuery, VIEW_ID, SearchErrorCode } from 'vs/platform/search/common/search';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { diffInserted, diffInsertedOutline, diffRemoved, diffRemovedOutline, editorFindMatchHighlight, editorFindMatchHighlightBorder, listActiveSelectionForeground } from 'vs/platform/theme/common/colorRegistry';
@@ -1245,7 +1245,7 @@ export class SearchView extends Viewlet implements IViewlet, IPanel {
 				this.searchWidget.searchInput.showMessage({ content: e.message, type: MessageType.ERROR });
 				this.viewModel.searchResult.clear();
 
-				if (e.message.indexOf('Unknown encoding') >= 0) {
+				if (e.code === SearchErrorCode.unknownEncoding) {
 					this.notificationService.prompt(Severity.Info, nls.localize('otherEncodingWarning', "You can enable \"search.useLegacySearch\" to search non-standard file encodings."),
 						[{
 							label: nls.localize('otherEncodingWarning.openSettingsLabel', "Open Settings"),

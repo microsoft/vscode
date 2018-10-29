@@ -384,3 +384,32 @@ export function pathIncludedInQuery(queryProps: ICommonQueryProps<URI>, fsPath: 
 
 	return true;
 }
+
+export enum SearchErrorCode {
+	unknownEncoding = 1,
+	regexParseError,
+	globParseError,
+	invalidLiteral,
+	rgProcessError,
+	other
+}
+
+export class SearchError extends Error {
+	constructor(message: string, readonly code?: SearchErrorCode) {
+		super(message);
+	}
+}
+
+export function deserializeSearchError(errorMsg: string): SearchError {
+	try {
+		const details = JSON.parse(errorMsg);
+		return new SearchError(details.message, details.code);
+	} catch (e) {
+		return new SearchError(errorMsg, SearchErrorCode.other);
+	}
+}
+
+export function serializeSearchError(searchError: SearchError): Error {
+	const details = { message: searchError.message, code: searchError.code };
+	return new Error(JSON.stringify(details));
+}

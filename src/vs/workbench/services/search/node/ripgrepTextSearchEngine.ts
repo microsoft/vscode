@@ -7,12 +7,12 @@ import * as cp from 'child_process';
 import { EventEmitter } from 'events';
 import * as path from 'path';
 import { NodeStringDecoder, StringDecoder } from 'string_decoder';
-import { startsWith, startsWithUTF8BOM, stripUTF8BOM, createRegExp } from 'vs/base/common/strings';
+import { createRegExp, startsWith, startsWithUTF8BOM, stripUTF8BOM } from 'vs/base/common/strings';
 import { URI } from 'vs/base/common/uri';
+import { IExtendedExtensionSearchOptions, SearchError, SearchErrorCode, serializeSearchError } from 'vs/platform/search/common/search';
 import * as vscode from 'vscode';
 import { rgPath } from 'vscode-ripgrep';
 import { anchorGlob, createTextSearchResult, IOutputChannel, Maybe, Range } from './ripgrepSearchUtils';
-import { IExtendedExtensionSearchOptions } from 'vs/platform/search/common/search';
 
 // If vscode-ripgrep is in an .asar file, then the binary is unpacked.
 const rgDiskPath = rgPath.replace(/\bnode_modules\.asar\b/, 'node_modules.asar.unpacked');
@@ -45,7 +45,7 @@ export class RipgrepTextSearchEngine {
 			rgProc.on('error', e => {
 				console.error(e);
 				this.outputChannel.appendLine('Error: ' + (e && e.message));
-				reject(e);
+				reject(serializeSearchError(new SearchError(e && e.message, SearchErrorCode.rgProcessError)));
 			});
 
 			let gotResult = false;
@@ -98,9 +98,9 @@ export class RipgrepTextSearchEngine {
 					// Trigger last result
 					ripgrepParser.flush();
 					rgProc = null;
-					let displayMsg: Maybe<string>;
-					if (stderr && !gotData && (displayMsg = rgErrorMsgForDisplay(stderr))) {
-						reject(new Error(displayMsg));
+					let searchError: Maybe<SearchError>;
+					if (stderr && !gotData && (searchError = rgErrorMsgForDisplay(stderr))) {
+						reject(serializeSearchError(new SearchError(searchError.message, searchError.code)));
 					} else {
 						resolve({ limitHit });
 					}
@@ -115,21 +115,26 @@ export class RipgrepTextSearchEngine {
  * Ripgrep produces stderr output which is not from a fatal error, and we only want the search to be
  * "failed" when a fatal error was produced.
  */
-export function rgErrorMsgForDisplay(msg: string): Maybe<string> {
+export function rgErrorMsgForDisplay(msg: string): Maybe<SearchError> {
 	const firstLine = msg.split('\n')[0].trim();
 
 	if (startsWith(firstLine, 'regex parse error')) {
-		return 'Regex parse error';
+		return new SearchError('Regex parse error', SearchErrorCode.regexParseError);
 	}
 
 	let match = firstLine.match(/grep config error: unknown encoding: (.*)/);
 	if (match) {
-		return `Unknown encoding: ${match[1]}`;
+		return new SearchError(`Unknown encoding: ${match[1]}`, SearchErrorCode.unknownEncoding);
 	}
 
-	if (startsWith(firstLine, 'error parsing glob') || startsWith(firstLine, 'the literal')) {
+	if (startsWith(firstLine, 'error parsing glob')) {
 		// Uppercase first letter
-		return firstLine.charAt(0).toUpperCase() + firstLine.substr(1);
+		return new SearchError(firstLine.charAt(0).toUpperCase() + firstLine.substr(1), SearchErrorCode.globParseError);
+	}
+
+	if (startsWith(firstLine, 'the literal')) {
+		// Uppercase first letter
+		return new SearchError(firstLine.charAt(0).toUpperCase() + firstLine.substr(1), SearchErrorCode.invalidLiteral);
 	}
 
 	return undefined;
