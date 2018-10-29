@@ -166,7 +166,6 @@ export class DebugSession implements IDebugSession {
 						supportsRunInTerminalRequest: true, // #10574
 						locale: platform.locale
 					}).then(() => {
-						this.model.addSession(this);
 						this._onDidChangeState.fire();
 						this.model.setExceptionBreakpoints(this.raw.capabilities.exceptionBreakpointFilters);
 					});

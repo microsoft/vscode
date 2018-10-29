@@ -423,7 +423,7 @@ export class DebugService implements IDebugService {
 	private doCreateSession(root: IWorkspaceFolder, configuration: { resolved: IConfig, unresolved: IConfig }): TPromise<boolean> {
 
 		const session = this.instantiationService.createInstance(DebugSession, configuration, root, this.model);
-
+		this.model.addSession(session);
 		// register listeners as the very first thing!
 		this.registerSessionListeners(session);
 
