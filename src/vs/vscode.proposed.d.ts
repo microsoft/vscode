@@ -616,7 +616,7 @@ declare module 'vscode' {
 	/**
 	 * A Debug Adapter Tracker is a means to track the communication between VS Code and a Debug Adapter.
 	 */
-	export interface IDebugAdapterTracker {
+	export interface DebugAdapterTracker {
 		// VS Code -> Debug Adapter
 		startDebugAdapter?(): void;
 		toDebugAdapter?(message: any): void;
@@ -660,7 +660,7 @@ declare module 'vscode' {
 		 * @param config The resolved debug configuration.
 		 * @param token A cancellation token.
 		 */
-		provideDebugAdapterTracker?(session: DebugSession, folder: WorkspaceFolder | undefined, config: DebugConfiguration, token?: CancellationToken): ProviderResult<IDebugAdapterTracker>;
+		provideDebugAdapterTracker?(session: DebugSession, folder: WorkspaceFolder | undefined, config: DebugConfiguration, token?: CancellationToken): ProviderResult<DebugAdapterTracker>;
 
 		/**
 		 * Deprecated, use DebugConfigurationProvider.provideDebugAdapter instead.
