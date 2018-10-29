@@ -658,6 +658,11 @@
           "when": "scmProvider == git"
         },
         {
+          "command": "git.pushToForce",
+          "group": "1_sync",
+          "when": "scmProvider == git"
+        },
+        {
           "command": "git.publish",
           "group": "2_publish",
           "when": "scmProvider == git"
