@@ -65,7 +65,7 @@
 		"./vs/base/node/proxy.ts",
 		"./vs/base/node/request.ts",
 		"./vs/base/node/stats.ts",
-		// "./vs/base/node/storage.ts",
+		// "./vs/base/node/storage.ts", see https://github.com/Microsoft/vscode/issues/62072
 		"./vs/base/node/stream.ts",
 		"./vs/base/parts/contextmenu/common/contextmenu.ts",
 		"./vs/base/parts/contextmenu/electron-browser/contextmenu.ts",
