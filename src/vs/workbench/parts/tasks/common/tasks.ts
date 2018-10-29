@@ -432,8 +432,6 @@ export interface CommonTask {
 	_label: string;
 
 	type: string;
-
-	resolvedVariables?: Map<string, string> | undefined;
 }
 
 export interface CustomTask extends CommonTask, ConfigurationProperties {

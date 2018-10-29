@@ -1217,7 +1217,7 @@ class TaskService extends Disposable implements ITaskService {
 		};
 	}
 
-	private executeTask(task: Task, resolver: ITaskResolver, isRerun: boolean = false): TPromise<ITaskSummary> {
+	private executeTask(task: Task, resolver: ITaskResolver): TPromise<ITaskSummary> {
 		return ProblemMatcherRegistry.onReady().then(() => {
 			return this.textFileService.saveAll().then((value) => { // make sure all dirty files are saved
 				let executeResult = this.getTaskSystem().run(task, resolver);

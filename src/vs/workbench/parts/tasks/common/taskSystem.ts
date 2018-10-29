@@ -13,6 +13,7 @@ import { Platform } from 'vs/base/common/platform';
 import { IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 
 import { Task, TaskEvent, KeyedTaskIdentifier } from './tasks';
+import { IShellLaunchConfig } from 'vs/workbench/parts/terminal/common/terminal';
 
 export const enum TaskErrors {
 	NotConfigured,
@@ -93,6 +94,34 @@ export interface ITaskExecuteResult {
 		same: boolean;
 		background: boolean;
 	};
+}
+
+export class PreparedTask {
+	readonly task: Task;
+	readonly resolver: ITaskResolver;
+	readonly trigger: string;
+	resolvedVariables?: Map<string, string>;
+	systemInfo?: TaskSystemInfo;
+	workspaceFolder?: IWorkspaceFolder;
+	shellLaunchConfig?: IShellLaunchConfig;
+
+	constructor(task: Task, resolver: ITaskResolver, trigger: string) {
+		this.task = task;
+		this.resolver = resolver;
+		this.trigger = trigger;
+	}
+
+	public isPrepared(): boolean {
+		return this.trigger && this.resolvedVariables && this.workspaceFolder && (this.shellLaunchConfig !== undefined);
+	}
+
+	public getPreparedTask(): { task: Task, resolver: ITaskResolver, trigger: string, resolvedVariables: Map<string, string>, systemInfo: TaskSystemInfo, workspaceFolder: IWorkspaceFolder, shellLaunchConfig: IShellLaunchConfig } {
+		if (this.isPrepared()) {
+			return { task: this.task, resolver: this.resolver, trigger: this.trigger, resolvedVariables: this.resolvedVariables, systemInfo: this.systemInfo, workspaceFolder: this.workspaceFolder, shellLaunchConfig: this.shellLaunchConfig };
+		} else {
+			throw new Error('PreparedTask was not checked.');
+		}
+	}
 }
 
 export interface ITaskResolver {
