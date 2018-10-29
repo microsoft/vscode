@@ -454,7 +454,11 @@ export class DebugSession implements IDebugSession {
 	getLoadedSources(): TPromise<Source[]> {
 		if (this.raw) {
 			return this.raw.loadedSources({}).then(response => {
-				return response.body.sources.map(src => this.getSource(src));
+				if (response.body && response.body.sources) {
+					return response.body.sources.map(src => this.getSource(src));
+				} else {
+					return [];
+				}
 			}, () => {
 				return [];
 			});
