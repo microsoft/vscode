@@ -339,7 +339,7 @@ export class TerminalTaskSystem implements ITaskSystem {
 						this._onDidStateChange.fire(TaskEvent.create(TaskEventKind.Inactive, task));
 						if (eventCounter === 0) {
 							let reveal = task.command.presentation.reveal;
-							if (reveal === RevealKind.Silent && watchingProblemMatcher.numberOfMatches > 0 && watchingProblemMatcher.maxMarkerSeverity >= MarkerSeverity.Error) {
+							if ((reveal === RevealKind.Silent) && (watchingProblemMatcher.numberOfMatches > 0) && (watchingProblemMatcher.maxMarkerSeverity >= MarkerSeverity.Error)) {
 								this.terminalService.setActiveInstance(terminal);
 								this.terminalService.showPanel(false);
 							}
@@ -388,7 +388,7 @@ export class TerminalTaskSystem implements ITaskSystem {
 							break;
 					}
 					let reveal = task.command.presentation.reveal;
-					if (reveal === RevealKind.Silent && (exitCode !== 0 || watchingProblemMatcher.numberOfMatches > 0 && watchingProblemMatcher.maxMarkerSeverity >= MarkerSeverity.Error)) {
+					if ((reveal === RevealKind.Silent) && ((exitCode !== 0) || (watchingProblemMatcher.numberOfMatches > 0) && (watchingProblemMatcher.maxMarkerSeverity >= MarkerSeverity.Error))) {
 						this.terminalService.setActiveInstance(terminal);
 						this.terminalService.showPanel(false);
 					}
@@ -450,7 +450,7 @@ export class TerminalTaskSystem implements ITaskSystem {
 							break;
 					}
 					let reveal = task.command.presentation.reveal;
-					if (reveal === RevealKind.Silent && (exitCode !== 0 || startStopProblemMatcher.numberOfMatches > 0 && startStopProblemMatcher.maxMarkerSeverity >= MarkerSeverity.Error)) {
+					if ((reveal === RevealKind.Silent) && ((exitCode !== 0) || (startStopProblemMatcher.numberOfMatches > 0) && (startStopProblemMatcher.maxMarkerSeverity >= MarkerSeverity.Error))) {
 						this.terminalService.setActiveInstance(terminal);
 						this.terminalService.showPanel(false);
 					}
@@ -474,7 +474,7 @@ export class TerminalTaskSystem implements ITaskSystem {
 		if (!terminal) {
 			return TPromise.wrapError<ITaskSummary>(new Error(`Failed to create terminal for task ${task._label}`));
 		}
-		if (task.command.presentation.reveal === RevealKind.Always || (task.command.presentation.reveal === RevealKind.Silent && task.problemMatchers.length === 0)) {
+		if (task.command.presentation.reveal === RevealKind.Always) {
 			this.terminalService.setActiveInstance(terminal);
 			this.terminalService.showPanel(task.command.presentation.focus);
 		}
