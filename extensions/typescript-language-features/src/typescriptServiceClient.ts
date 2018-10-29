@@ -71,6 +71,8 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 	public readonly bufferSyncSupport: BufferSyncSupport;
 	public readonly diagnosticsManager: DiagnosticsManager;
 
+	private pluginConfigurations: Map<string, any>;
+
 	constructor(
 		private readonly workspaceState: vscode.Memento,
 		private readonly onDidChangeTypeScriptVersion: (version: TypeScriptVersion) => void,
@@ -132,6 +134,7 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 		this.telemetryReporter = this._register(new TelemetryReporter(() => this._tsserverVersion || this._apiVersion.versionString));
 
 		this.typescriptServerSpawner = new TypeScriptServerSpawner(this.versionProvider, this.logDirectoryProvider, this.pluginPathsProvider, this.logger, this.telemetryReporter, this.tracer);
+		this.pluginConfigurations = new Map<string, any>();
 	}
 
 	public get configuration() {
@@ -406,6 +409,11 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 		if (resendModels) {
 			this._onResendModelsRequested.fire();
 		}
+
+		// Reconfigure any plugins
+		this.pluginConfigurations.forEach((config, pluginName) => {
+			this.configurePlugin(pluginName, config);
+		});
 	}
 
 	private setCompilerOptionsForInferredProjects(configuration: TypeScriptServiceConfiguration): void {
@@ -719,8 +727,16 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 		this._apiVersion = API.defaultVersion;
 		this._tsserverVersion = undefined;
 	}
-}
 
+	public configurePlugin(pluginName: string, configuration: any, reconfigureOnRestart?: boolean): any {
+		this.executeWithoutWaitingForResponse('configurePlugin', { pluginName, configuration });
+
+		if (reconfigureOnRestart) {
+			// Remember the updated configuration so we can send the command again if TSServer restarts for any reason
+			this.pluginConfigurations.set(pluginName, configuration);
+		}
+	}
+}
 
 function getDignosticsKind(event: Proto.Event) {
 	switch (event.event) {

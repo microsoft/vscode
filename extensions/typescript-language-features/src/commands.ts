@@ -105,6 +105,18 @@ export class JavaScriptGoToProjectConfigCommand implements Command {
 	}
 }
 
+export class ConfigurePluginCommand implements Command {
+	public readonly id = '_typescript.configurePlugin';
+
+	public constructor(
+		private readonly lazyClientHost: Lazy<TypeScriptServiceClientHost>,
+	) { }
+
+	public execute(pluginName: string, configuration: any) {
+		this.lazyClientHost.value.serviceClient.configurePlugin(pluginName, configuration, true /* reconfigureOnRestart */);
+	}
+}
+
 async function goToProjectConfig(
 	clientHost: TypeScriptServiceClientHost,
 	isTypeScriptProject: boolean,
