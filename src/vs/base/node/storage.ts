@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Database, Statement, OPEN_READWRITE, OPEN_CREATE } from 'vscode-sqlite3';
+import { Database, Statement } from 'vscode-sqlite3';
 import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import { Emitter, Event } from 'vs/base/common/event';
 import { ThrottledDelayer, timeout } from 'vs/base/common/async';
@@ -14,7 +14,6 @@ import { mark } from 'vs/base/common/performance';
 
 export interface IStorageOptions {
 	path: string;
-	createPath: boolean;
 
 	logging?: IStorageLoggingOptions;
 }
@@ -341,10 +340,10 @@ export class SQLiteStorageImpl {
 
 				// In case of any error to open the DB, use an in-memory
 				// DB so that we always have a valid DB to talk to.
-				this.doOpen(':memory:', true).then(resolve, reject);
+				this.doOpen(':memory:').then(resolve, reject);
 			};
 
-			this.doOpen(this.options.path, this.options.createPath).then(resolve, error => {
+			this.doOpen(this.options.path).then(resolve, error => {
 
 				// TODO@Ben check if this is still happening. This error code should only arise if
 				// another process is locking the same DB we want to open at that time. This typically
@@ -355,7 +354,7 @@ export class SQLiteStorageImpl {
 					this.logger.error(`[storage ${this.name}] open(): Retrying after ${SQLiteStorageImpl.BUSY_OPEN_TIMEOUT}ms due to SQLITE_BUSY`);
 
 					// Retry after 2s if the DB is busy
-					timeout(SQLiteStorageImpl.BUSY_OPEN_TIMEOUT).then(() => this.doOpen(this.options.path, this.options.createPath).then(resolve, fallbackToInMemoryDatabase));
+					timeout(SQLiteStorageImpl.BUSY_OPEN_TIMEOUT).then(() => this.doOpen(this.options.path).then(resolve, fallbackToInMemoryDatabase));
 				}
 
 				// Otherwise give up and fallback to in-memory DB
@@ -366,7 +365,7 @@ export class SQLiteStorageImpl {
 		});
 	}
 
-	private doOpen(path: string, createPath: boolean): Promise<Database> {
+	private doOpen(path: string): Promise<Database> {
 		return new Promise((resolve, reject) => {
 			let measureRequireDuration = false;
 			if (!SQLiteStorageImpl.measuredRequireDuration) {
@@ -380,17 +379,14 @@ export class SQLiteStorageImpl {
 					mark('didRequireSQLite');
 				}
 
-				const db = new (this.logger.verbose ? sqlite3.verbose().Database : sqlite3.Database)(path, createPath ? OPEN_READWRITE | OPEN_CREATE : OPEN_READWRITE, error => {
+				const db = new (this.logger.verbose ? sqlite3.verbose().Database : sqlite3.Database)(path, error => {
 					if (error) {
 						return reject(error);
 					}
 
-					// Return early if we did not create the DB
-					if (!createPath) {
-						return resolve(db);
-					}
-
-					// Otherwise: Setup schema
+					// The following exec() statement serves two purposes:
+					// - create the DB if it does not exist yet
+					// - validate that the DB is not corrupt (the open() call does not throw otherwise)
 					mark('willSetupSQLiteSchema');
 					this.exec(db, [
 						'PRAGMA user_version = 1;',

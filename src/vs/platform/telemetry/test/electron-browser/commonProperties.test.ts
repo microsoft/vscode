@@ -24,7 +24,7 @@ suite('Telemetry - common properties', function () {
 	let nestStorage2Service: IStorageService;
 
 	setup(() => {
-		nestStorage2Service = new StorageService(':memory:', false, false, new NullLogService(), TestEnvironmentService);
+		nestStorage2Service = new StorageService(':memory:', false, new NullLogService(), TestEnvironmentService);
 	});
 
 	teardown(done => {

@@ -62,7 +62,6 @@ export class StorageService extends Disposable implements IStorageService {
 
 	constructor(
 		workspaceStoragePath: string,
-		workspaceStoragePathExists: boolean,
 		disableGlobalStorage: boolean,
 		@ILogService logService: ILogService,
 		@IEnvironmentService environmentService: IEnvironmentService
@@ -86,13 +85,13 @@ export class StorageService extends Disposable implements IStorageService {
 		};
 
 		this.globalStorageWorkspacePath = workspaceStoragePath === StorageService.IN_MEMORY_PATH ? StorageService.IN_MEMORY_PATH : StorageService.IN_MEMORY_PATH;
-		this.globalStorage = disableGlobalStorage ? new NullStorage() : new Storage({ path: this.globalStorageWorkspacePath, createPath: true, logging: this.loggingOptions });
+		this.globalStorage = disableGlobalStorage ? new NullStorage() : new Storage({ path: this.globalStorageWorkspacePath, logging: this.loggingOptions });
 		this._register(this.globalStorage.onDidChangeStorage(key => this.handleDidChangeStorage(key, StorageScope.GLOBAL)));
 
-		this.createWorkspaceStorage(workspaceStoragePath, workspaceStoragePathExists);
+		this.createWorkspaceStorage(workspaceStoragePath);
 	}
 
-	private createWorkspaceStorage(workspaceStoragePath: string, workspaceStoragePathExists: boolean): void {
+	private createWorkspaceStorage(workspaceStoragePath: string): void {
 
 		// Dispose old (if any)
 		this.workspaceStorage = dispose(this.workspaceStorage);
@@ -100,7 +99,7 @@ export class StorageService extends Disposable implements IStorageService {
 
 		// Create new
 		this.workspaceStoragePath = workspaceStoragePath;
-		this.workspaceStorage = new Storage({ path: workspaceStoragePath, createPath: !workspaceStoragePathExists, logging: this.loggingOptions });
+		this.workspaceStorage = new Storage({ path: workspaceStoragePath, logging: this.loggingOptions });
 		this.workspaceStorageListener = this.workspaceStorage.onDidChangeStorage(key => this.handleDidChangeStorage(key, StorageScope.WORKSPACE));
 	}
 
@@ -235,7 +234,7 @@ export class StorageService extends Disposable implements IStorageService {
 		// Close workspace DB to be able to copy
 		return this.workspaceStorage.close().then(() => {
 			return copy(this.workspaceStoragePath, newWorkspaceStoragePath).then(() => {
-				this.createWorkspaceStorage(newWorkspaceStoragePath, false);
+				this.createWorkspaceStorage(newWorkspaceStoragePath);
 
 				return this.workspaceStorage.init();
 			});
