@@ -265,11 +265,27 @@ export interface ITreeViewer extends IDisposable {
 
 	getOptimalWidth(): number;
 
-	reveal(item: ITreeItem, parentChain: ITreeItem[], options: { select?: boolean }): TPromise<void>;
+	reveal(item: ITreeItem): TPromise<void>;
+
+	expand(itemOrItems: ITreeItem | ITreeItem[]): TPromise<void>;
+
+	setSelection(items: ITreeItem[]): void;
+
+	setFocus(item: ITreeItem): void;
 
 	getPrimaryActions(): IAction[];
 
 	getSecondaryActions(): IAction[];
+}
+
+export interface IRevealOptions {
+
+	select?: boolean;
+
+	focus?: boolean;
+
+	expand?: boolean | number;
+
 }
 
 export interface ICustomViewDescriptor extends IViewDescriptor {

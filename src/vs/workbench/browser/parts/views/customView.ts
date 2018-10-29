@@ -23,7 +23,6 @@ import { IExtensionService } from 'vs/workbench/services/extensions/common/exten
 import { IWorkbenchThemeService } from 'vs/workbench/services/themes/common/workbenchThemeService';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import * as DOM from 'vs/base/browser/dom';
-import { isUndefinedOrNull } from 'vs/base/common/types';
 import { IDataSource, ITree, IRenderer, ContextMenuEvent } from 'vs/base/parts/tree/browser/tree';
 import { ResourceLabel } from 'vs/workbench/browser/labels';
 import { ActionBar, IActionItemProvider, ActionItem } from 'vs/base/browser/ui/actionbar/actionbar';
@@ -409,32 +408,22 @@ export class CustomTreeViewer extends Disposable implements ITreeViewer {
 		return Promise.resolve(null);
 	}
 
-	reveal(item: ITreeItem, parentChain: ITreeItem[], options?: { select?: boolean, focus?: boolean }): TPromise<void> {
-		if (this.dataProvider && this.tree && this.isVisible) {
-			options = options ? options : { select: false, focus: false };
-			const select = isUndefinedOrNull(options.select) ? false : options.select;
-			const focus = isUndefinedOrNull(options.focus) ? false : options.focus;
+	expand(itemOrItems: ITreeItem | ITreeItem[]): TPromise<void> {
+		itemOrItems = Array.isArray(itemOrItems) ? itemOrItems : [itemOrItems];
+		return this.tree.expandAll(itemOrItems);
+	}
 
-			const root: Root = this.tree.getInput();
-			const promise: Thenable<void> = root.children ? Promise.resolve(null) : this.refresh(); // Refresh if root is not populated
-			return promise.then(() => {
-				var result = Promise.resolve(null);
-				parentChain.forEach((e) => {
-					result = result.then(() => this.tree.expand(e));
-				});
-				return result.then(() => this.tree.reveal(item))
-					.then(() => {
-						if (select) {
-							this.tree.setSelection([item], { source: 'api' });
-						}
-						if (focus) {
-							this.focus();
-							this.tree.setFocus(item);
-						}
-					});
-			});
-		}
-		return Promise.resolve(null);
+	setSelection(items: ITreeItem[]): void {
+		this.tree.setSelection(items, { source: 'api' });
+	}
+
+	setFocus(item: ITreeItem): void {
+		this.focus();
+		this.tree.setFocus(item);
+	}
+
+	reveal(item: ITreeItem): TPromise<void> {
+		return this.tree.reveal(item);
 	}
 
 	private activate() {
