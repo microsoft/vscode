@@ -533,11 +533,8 @@ export class Workbench extends Disposable implements IPartService {
 		if (visible !== this.menubarToggled) {
 			this.menubarToggled = visible;
 
-			if (this.menubarVisibility === 'toggle' || (browser.isFullscreen() && this.menubarVisibility === 'default')) {
-				if (browser.isFullscreen() && this.menubarVisibility === 'default') {
-					this._onTitleBarVisibilityChange.fire();
-				}
-
+			if (browser.isFullscreen() && (this.menubarVisibility === 'toggle' || this.menubarVisibility === 'default')) {
+				this._onTitleBarVisibilityChange.fire();
 				this.layout();
 			}
 		}
