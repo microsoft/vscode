@@ -259,7 +259,7 @@ export function main(argv: ParsedArgs): TPromise<void> {
 					piiPaths: [appRoot, extensionsPath]
 				};
 
-				services.set(ITelemetryService, new SyncDescriptor(TelemetryService, config));
+				services.set(ITelemetryService, new SyncDescriptor(TelemetryService, [config]));
 			} else {
 				services.set(ITelemetryService, NullTelemetryService);
 			}

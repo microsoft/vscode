@@ -119,7 +119,7 @@ function main(server: Server, initData: ISharedProcessInitData, configuration: I
 				piiPaths: [appRoot, extensionsPath]
 			};
 
-			services.set(ITelemetryService, new SyncDescriptor(TelemetryService, config));
+			services.set(ITelemetryService, new SyncDescriptor(TelemetryService, [config]));
 		} else {
 			services.set(ITelemetryService, NullTelemetryService);
 		}

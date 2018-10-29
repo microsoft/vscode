@@ -409,7 +409,7 @@ export class WorkbenchShell extends Disposable {
 		this.broadcastService = instantiationService.createInstance(BroadcastService, this.configuration.windowId);
 		serviceCollection.set(IBroadcastService, this.broadcastService);
 
-		serviceCollection.set(IWindowService, new SyncDescriptor(WindowService, this.configuration.windowId, this.configuration));
+		serviceCollection.set(IWindowService, new SyncDescriptor(WindowService, [this.configuration.windowId, this.configuration]));
 
 		const sharedProcess = (<IWindowsService>serviceCollection.get(IWindowsService)).whenSharedProcessReady()
 			.then(() => connectNet(this.environmentService.sharedIPCHandle, `window:${this.configuration.windowId}`));
@@ -462,7 +462,7 @@ export class WorkbenchShell extends Disposable {
 
 		const extensionManagementChannel = getDelayedChannel<IExtensionManagementChannel>(sharedProcess.then(c => c.getChannel('extensions')));
 		const extensionManagementChannelClient = new ExtensionManagementChannelClient(extensionManagementChannel, DefaultURITransformer);
-		serviceCollection.set(IExtensionManagementServerService, new SyncDescriptor(ExtensionManagementServerService, extensionManagementChannelClient));
+		serviceCollection.set(IExtensionManagementServerService, new SyncDescriptor(ExtensionManagementServerService, [extensionManagementChannelClient]));
 		serviceCollection.set(IExtensionManagementService, extensionManagementChannelClient);
 
 		const extensionEnablementService = this._register(instantiationService.createInstance(ExtensionEnablementService));
@@ -504,7 +504,7 @@ export class WorkbenchShell extends Disposable {
 		serviceCollection.set(IIntegrityService, new SyncDescriptor(IntegrityServiceImpl));
 
 		const localizationsChannel = getDelayedChannel<ILocalizationsChannel>(sharedProcess.then(c => c.getChannel('localizations')));
-		serviceCollection.set(ILocalizationsService, new SyncDescriptor(LocalizationsChannelClient, localizationsChannel));
+		serviceCollection.set(ILocalizationsService, new SyncDescriptor(LocalizationsChannelClient, [localizationsChannel]));
 
 		return [instantiationService, serviceCollection];
 	}

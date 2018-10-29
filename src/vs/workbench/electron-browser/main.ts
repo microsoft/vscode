@@ -485,7 +485,7 @@ function createMainProcessServices(mainProcessClient: ElectronIPCClient, configu
 	serviceCollection.set(IWindowsService, new WindowsChannelClient(windowsChannel));
 
 	const updateChannel = mainProcessClient.getChannel('update');
-	serviceCollection.set(IUpdateService, new SyncDescriptor(UpdateChannelClient, updateChannel));
+	serviceCollection.set(IUpdateService, new SyncDescriptor(UpdateChannelClient, [updateChannel]));
 
 	const urlChannel = mainProcessClient.getChannel('url');
 	const mainUrlService = new URLServiceChannelClient(urlChannel);
@@ -496,10 +496,10 @@ function createMainProcessServices(mainProcessClient: ElectronIPCClient, configu
 	mainProcessClient.registerChannel('urlHandler', urlHandlerChannel);
 
 	const issueChannel = mainProcessClient.getChannel('issue');
-	serviceCollection.set(IIssueService, new SyncDescriptor(IssueChannelClient, issueChannel));
+	serviceCollection.set(IIssueService, new SyncDescriptor(IssueChannelClient, [issueChannel]));
 
 	const menubarChannel = mainProcessClient.getChannel('menubar');
-	serviceCollection.set(IMenubarService, new SyncDescriptor(MenubarChannelClient, menubarChannel));
+	serviceCollection.set(IMenubarService, new SyncDescriptor(MenubarChannelClient, [menubarChannel]));
 
 	const workspacesChannel = mainProcessClient.getChannel('workspaces');
 	serviceCollection.set(IWorkspacesService, new WorkspacesChannelClient(workspacesChannel));
