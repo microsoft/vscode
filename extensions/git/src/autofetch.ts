@@ -73,14 +73,14 @@ export class AutoFetcher {
 
 	private onConfiguration(): void {
 		const gitConfig = workspace.getConfiguration('git');
-		const Period = gitConfig.get<number>('autoFetchPeriod') as number;
+		const period = gitConfig.get<number>('autoFetchPeriod') as number;
 
 		if (gitConfig.get<boolean>('autofetch') === false) {
 			this.disable();
 		} else {
-			if (Period !== this.autoFetchPeriod) {
+			if (period !== this.autoFetchPeriod) {
 				this.disable();
-				this.autoFetchPeriod = Period;
+				this.autoFetchPeriod = period;
 			}
 			this.enable();
 		}
