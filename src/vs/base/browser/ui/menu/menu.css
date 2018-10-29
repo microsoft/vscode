@@ -135,7 +135,3 @@
 .hc-black .monaco-menu .monaco-action-bar.vertical .action-item.focused {
 	background: none;
 }
-
-.hc-black .monaco-menu .monaco-action-bar.vertical .action-menu-item {
-	margin: 0;
-}
