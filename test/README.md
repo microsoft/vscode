@@ -17,7 +17,7 @@ The best way to run the Code tests is from the terminal. To make development cha
 
 To debug tests use `--debug` when running the test script. Also, the set of tests can be reduced with the `--run` and `--runGlob` flags. Both require a file path/pattern. Like so:
 
-	./scripts/test.sh --debug --runGrep **/extHost*.test.js
+	./scripts/test.sh --debug --runGrep "**/extHost*.test.js"
 
 ## Coverage
 
