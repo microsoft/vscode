@@ -10,6 +10,7 @@ import { EditorViewColumn } from 'vs/workbench/api/shared/editor';
 import * as vscode from 'vscode';
 import { ExtHostWebviewsShape, IMainContext, MainContext, MainThreadWebviewsShape, WebviewPanelHandle, WebviewPanelViewState } from './extHost.protocol';
 import { Disposable } from './extHostTypes';
+import { IExtensionDescription } from 'vs/workbench/services/extensions/common/extensions';
 
 type IconPath = URI | { light: URI, dark: URI };
 
@@ -238,7 +239,7 @@ export class ExtHostWebviews implements ExtHostWebviewsShape {
 	}
 
 	public createWebview(
-		extensionLocation: URI,
+		extension: IExtensionDescription,
 		viewType: string,
 		title: string,
 		showOptions: vscode.ViewColumn | { viewColumn: vscode.ViewColumn, preserveFocus?: boolean },
@@ -251,7 +252,7 @@ export class ExtHostWebviews implements ExtHostWebviewsShape {
 		};
 
 		const handle = ExtHostWebviews.newHandle();
-		this._proxy.$createWebviewPanel(handle, viewType, title, webviewShowOptions, options, extensionLocation);
+		this._proxy.$createWebviewPanel(handle, viewType, title, webviewShowOptions, options, extension.id, extension.extensionLocation);
 
 		const webview = new ExtHostWebview(handle, this._proxy, options);
 		const panel = new ExtHostWebviewPanel(handle, this._proxy, viewType, title, viewColumn, options, webview);
