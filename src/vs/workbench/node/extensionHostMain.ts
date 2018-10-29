@@ -20,7 +20,6 @@ import { ExtensionActivatedByEvent } from 'vs/workbench/api/node/extHostExtensio
 import { ExtHostExtensionService } from 'vs/workbench/api/node/extHostExtensionService';
 import { ExtHostLogService } from 'vs/workbench/api/node/extHostLogService';
 import { ExtHostWorkspace } from 'vs/workbench/api/node/extHostWorkspace';
-import { connectProxyResolver } from 'vs/workbench/node/proxyResolver';
 import { IExtensionDescription } from 'vs/workbench/services/extensions/common/extensions';
 import { RPCProtocol } from 'vs/workbench/services/extensions/node/rpcProtocol';
 
@@ -92,7 +91,6 @@ export class ExtensionHostMain {
 		this._extHostConfiguration = new ExtHostConfiguration(rpcProtocol.getProxy(MainContext.MainThreadConfiguration), extHostWorkspace, initData.configuration);
 		const mainThreadTelemetry = rpcProtocol.getProxy(MainContext.MainThreadTelemetry);
 		this._extensionService = new ExtHostExtensionService(initData, rpcProtocol, extHostWorkspace, this._extHostConfiguration, this._extHostLogService, mainThreadTelemetry);
-		connectProxyResolver(extHostWorkspace, this._extHostConfiguration, this._extensionService, this._extHostLogService, mainThreadTelemetry);
 
 		// error forwarding and stack trace scanning
 		Error.stackTraceLimit = 100; // increase number of stack frames (from 10, https://github.com/v8/v8/wiki/Stack-Trace-API)

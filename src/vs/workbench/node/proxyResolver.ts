@@ -26,7 +26,7 @@ export function connectProxyResolver(
 ) {
 	const agent = createProxyAgent(extHostWorkspace, extHostLogService, mainThreadTelemetry);
 	const lookup = createPatchedModules(extHostConfiguration, agent);
-	configureModuleLoading(extensionService, lookup);
+	return configureModuleLoading(extensionService, lookup);
 }
 
 function createProxyAgent(
@@ -85,21 +85,23 @@ function createPatchedModules(extHostConfiguration: ExtHostConfiguration, agent:
 
 	return {
 		http: {
-			off: assign({}, http),
-			on: assign({}, http, patches(http, agent, { config: 'on' })),
-			force: assign({}, http, patches(http, agent, { config: 'force' })),
-			default: assign(http, patches(http, agent, setting)) // run last
+			off: assign({}, http, patches(http, agent, { config: 'off' }, true)),
+			on: assign({}, http, patches(http, agent, { config: 'on' }, true)),
+			force: assign({}, http, patches(http, agent, { config: 'force' }, true)),
+			onRequest: assign({}, http, patches(http, agent, setting, true)),
+			default: assign(http, patches(http, agent, setting, false)) // run last
 		},
 		https: {
-			off: assign({}, https),
-			on: assign({}, https, patches(https, agent, { config: 'on' })),
-			force: assign({}, https, patches(https, agent, { config: 'force' })),
-			default: assign(https, patches(https, agent, setting)) // run last
+			off: assign({}, https, patches(https, agent, { config: 'off' }, true)),
+			on: assign({}, https, patches(https, agent, { config: 'on' }, true)),
+			force: assign({}, https, patches(https, agent, { config: 'force' }, true)),
+			onRequest: assign({}, https, patches(https, agent, setting, true)),
+			default: assign(https, patches(https, agent, setting, false)) // run last
 		}
 	};
 }
 
-function patches(originals: typeof http | typeof https, agent: http.Agent, setting: { config: string; }) {
+function patches(originals: typeof http | typeof https, agent: http.Agent, setting: { config: string; }, onRequest: boolean) {
 
 	return {
 		get: patch(originals.get),
@@ -108,11 +110,6 @@ function patches(originals: typeof http | typeof https, agent: http.Agent, setti
 
 	function patch(original: typeof http.get) {
 		function patched(url: string | URL, options?: http.RequestOptions, callback?: (res: http.IncomingMessage) => void): http.ClientRequest {
-			const { config } = setting;
-			if (config === 'off') {
-				return original.apply(null, arguments);
-			}
-
 			if (typeof url !== 'string' && !(url && (<any>url).searchParams)) {
 				callback = <any>options;
 				options = url;
@@ -123,6 +120,11 @@ function patches(originals: typeof http | typeof https, agent: http.Agent, setti
 				options = null;
 			}
 			options = options || {};
+
+			const config = onRequest && (<any>options)._vscodeSystemProxy || setting.config;
+			if (config === 'off') {
+				return original.apply(null, arguments);
+			}
 
 			if (!options.socketPath && (config === 'force' || config === 'on' && !options.agent)) {
 				if (url) {
@@ -145,16 +147,22 @@ function patches(originals: typeof http | typeof https, agent: http.Agent, setti
 	}
 }
 
-async function configureModuleLoading(extensionService: ExtHostExtensionService, lookup: ReturnType<typeof createPatchedModules>): Promise<void> {
-	const extensionPaths = await extensionService.getExtensionPathIndex();
-	const node_module = <any>require.__$__nodeRequire('module');
-	const original = node_module._load;
-	node_module._load = function load(request: string, parent: any, isMain: any) {
-		if (request !== 'http' && request !== 'https') {
-			return original.apply(this, arguments);
-		}
+function configureModuleLoading(extensionService: ExtHostExtensionService, lookup: ReturnType<typeof createPatchedModules>): Promise<void> {
+	return extensionService.getExtensionPathIndex()
+		.then(extensionPaths => {
+			const node_module = <any>require.__$__nodeRequire('module');
+			const original = node_module._load;
+			node_module._load = function load(request: string, parent: any, isMain: any) {
+				if (request !== 'http' && request !== 'https') {
+					return original.apply(this, arguments);
+				}
 
-		const ext = extensionPaths.findSubstr(URI.file(parent.filename).fsPath);
-		return ext && ext.enableProposedApi && lookup[request][(<any>ext).systemProxy] || lookup[request].default;
-	};
+				const modules = lookup[request];
+				const ext = extensionPaths.findSubstr(URI.file(parent.filename).fsPath);
+				if (ext && ext.enableProposedApi) {
+					return modules[(<any>ext).systemProxy] || modules.onRequest;
+				}
+				return modules.default;
+			};
+		});
 }
