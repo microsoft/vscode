@@ -9,7 +9,7 @@ suite('HighlightedLabel', () => {
 	let label: HighlightedLabel;
 
 	setup(() => {
-		label = new HighlightedLabel(document.createElement('div'));
+		label = new HighlightedLabel(document.createElement('div'), true);
 	});
 
 	teardown(() => {

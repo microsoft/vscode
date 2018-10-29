@@ -547,7 +547,7 @@ class TreeRenderer implements IRenderer {
 		DOM.addClass(container, 'custom-view-tree-node-item');
 
 		const icon = DOM.append(container, DOM.$('.custom-view-tree-node-item-icon'));
-		const resourceLabel = this.instantiationService.createInstance(ResourceLabel, container, { supportHighlights: true });
+		const resourceLabel = this.instantiationService.createInstance(ResourceLabel, container, { supportHighlights: true, donotSupportOcticons: true });
 		DOM.addClass(resourceLabel.element, 'custom-view-tree-node-item-resourceLabel');
 		const actionsContainer = DOM.append(resourceLabel.element, DOM.$('.actions'));
 		const actionBar = new ActionBar(actionsContainer, {
