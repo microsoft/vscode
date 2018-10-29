@@ -10,6 +10,7 @@ import { RunOnceScheduler } from 'vs/base/common/async';
 import { isUndefinedOrNull } from 'vs/base/common/types';
 import { mapToString, setToString } from 'vs/base/common/map';
 import { basename } from 'path';
+import { mark } from 'vs/base/common/performance';
 
 export interface IStorageOptions {
 	path: string;
@@ -228,6 +229,9 @@ export interface IUpdateRequest {
 }
 
 export class SQLiteStorageImpl {
+
+	private static measuredRequireDuration: boolean; // TODO@Ben remove me after a while
+
 	private db: Promise<Database>;
 	private name: string;
 	private logger: SQLiteStorageLogger;
@@ -337,7 +341,18 @@ export class SQLiteStorageImpl {
 
 	private doOpen(path: string): Promise<Database> {
 		return new Promise((resolve, reject) => {
+			let measureRequireDuration = false;
+			if (!SQLiteStorageImpl.measuredRequireDuration) {
+				SQLiteStorageImpl.measuredRequireDuration = true;
+				measureRequireDuration = true;
+
+				mark('willRequireSQLite');
+			}
 			import('vscode-sqlite3').then(sqlite3 => {
+				if (measureRequireDuration) {
+					mark('didRequireSQLite');
+				}
+
 				const db = new (this.logger.verbose ? sqlite3.verbose().Database : sqlite3.Database)(path, error => {
 					if (error) {
 						return reject(error);

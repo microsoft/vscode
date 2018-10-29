@@ -292,7 +292,10 @@ function createStorageService(workspaceStorageFolder: string, payload: IWorkspac
 	// Otherwise do a migration of previous workspace data if the DB does not exist yet
 	// TODO@Ben remove me after one milestone
 	const workspaceStorageDBPath = join(workspaceStorageFolder, 'storage.db');
+	perf.mark('willCheckWorkspaceStorageExists');
 	return exists(workspaceStorageDBPath).then(exists => {
+		perf.mark('didCheckWorkspaceStorageExists');
+
 		const storageService = new StorageService(workspaceStorageDBPath, logService, environmentService);
 
 		return storageService.init().then(() => {
@@ -300,6 +303,7 @@ function createStorageService(workspaceStorageFolder: string, payload: IWorkspac
 				return storageService; // return early if DB was already there
 			}
 
+			perf.mark('willMigrateWorkspaceStorageKeys');
 			return readdir(environmentService.extensionsPath).then(extensions => {
 
 				// Otherwise, we migrate data from window.localStorage over
@@ -416,6 +420,8 @@ function createStorageService(workspaceStorageFolder: string, payload: IWorkspac
 					onUnexpectedError(error);
 					logService.error(error);
 				}
+
+				perf.mark('didMigrateWorkspaceStorageKeys');
 
 				return storageService;
 			});

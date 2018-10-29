@@ -29,6 +29,10 @@ export class StorageService extends Disposable implements IStorageService {
 	private _onWillSaveState: Emitter<void> = this._register(new Emitter<void>());
 	get onWillSaveState(): Event<void> { return this._onWillSaveState.event; }
 
+
+	private _hasErrors = false;
+	get hasErrors(): boolean { return this._hasErrors; }
+
 	private bufferedStorageErrors: (string | Error)[] = [];
 	private _onStorageError: Emitter<string | Error> = this._register(new Emitter<string | Error>());
 	get onStorageError(): Event<string | Error> {
@@ -69,6 +73,8 @@ export class StorageService extends Disposable implements IStorageService {
 			errorLogger: error => {
 				logService.error(error);
 
+				this._hasErrors = true;
+
 				if (Array.isArray(this.bufferedStorageErrors)) {
 					this.bufferedStorageErrors.push(error);
 				} else {
@@ -101,13 +107,15 @@ export class StorageService extends Disposable implements IStorageService {
 	}
 
 	init(): Promise<void> {
-		mark('willInitGlobalStorage');
 		mark('willInitWorkspaceStorage');
+		return this.workspaceStorage.init().then(() => {
+			mark('didInitWorkspaceStorage');
 
-		return Promise.all([
-			this.globalStorage.init().then(() => mark('didInitGlobalStorage')),
-			this.workspaceStorage.init().then(() => mark('didInitWorkspaceStorage'))
-		]).then(() => void 0);
+			mark('willInitGlobalStorage');
+			return this.globalStorage.init().then(() => {
+				mark('didInitGlobalStorage');
+			});
+		});
 	}
 
 	get(key: string, scope: StorageScope, fallbackValue: string): string;

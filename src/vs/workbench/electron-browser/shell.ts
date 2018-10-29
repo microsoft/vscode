@@ -286,12 +286,14 @@ export class WorkbenchShell extends Disposable {
 
 	private logStorageTelemetry(): void {
 		const globalStorageInitDuration = perf.getDuration('willInitGlobalStorage', 'didInitGlobalStorage');
+		const workspaceStorageRequireDuration = perf.getDuration('willRequireSQLite', 'didRequireSQLite');
 		const workspaceStorageInitDuration = perf.getDuration('willInitWorkspaceStorage', 'didInitWorkspaceStorage');
+		const workspaceStorageFileExistsDuration = perf.getDuration('willCheckWorkspaceStorageExists', 'didCheckWorkspaceStorageExists');
+		const workspaceStorageMigrationDuration = perf.getDuration('willMigrateWorkspaceStorageKeys', 'didMigrateWorkspaceStorageKeys');
 		const workbenchLoadDuration = perf.getDuration('willLoadWorkbenchMain', 'didLoadWorkbenchMain');
-		const localStorageAccessDuration = perf.getDuration('willAccessLocalStorage', 'didAccessLocalStorage');
-		const localStorageReadDuration = perf.getDuration('willReadLocalStorage', 'didReadLocalStorage');
+		const localStorageDuration = perf.getDuration('willReadLocalStorage', 'didReadLocalStorage');
 
-		let workspaceIntegrity: string;
+		let workspaceIntegrity = 'unresolved';
 
 		// Handle errors (avoid duplicates to reduce spam)
 		const loggedStorageErrors = new Set<string>();
@@ -302,29 +304,33 @@ export class WorkbenchShell extends Disposable {
 				loggedStorageErrors.add(errorStr);
 
 				/* __GDPR__
-					"sqliteStorageError2" : {
+					"sqliteStorageError3" : {
 						"globalReadTime" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
+						"workspaceExistsTime" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
+						"workspaceRequireTime" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
 						"workspaceReadTime" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-						"localStorageAccessTime" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-						"localStorageReadTime" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
+						"workspaceMigrationTime" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
+						"localStorageTime" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
 						"workbenchRequireTime" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
 						"globalKeys" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
 						"workspaceKeys" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
 						"startupKind": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-						"workspaceIntegrity" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
+						"integrityWorkspace" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
 						"storageError": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true }
 					}
 				*/
-				this.telemetryService.publicLog('sqliteStorageError2', {
+				this.telemetryService.publicLog('sqliteStorageError3', {
 					'globalReadTime': globalStorageInitDuration,
+					'workspaceExistsTime': workspaceStorageFileExistsDuration,
+					'workspaceMigrationTime': workspaceStorageMigrationDuration,
+					'workspaceRequireTime': workspaceStorageRequireDuration,
 					'workspaceReadTime': workspaceStorageInitDuration,
-					'localStorageAccessTime': localStorageAccessDuration,
-					'localStorageReadTime': localStorageReadDuration,
+					'localStorageTime': localStorageDuration,
 					'workbenchRequireTime': workbenchLoadDuration,
 					'globalKeys': this.storageService.storage.getSize(StorageScope.GLOBAL),
 					'workspaceKeys': this.storageService.storage.getSize(StorageScope.WORKSPACE),
 					'startupKind': this.lifecycleService.startupKind,
-					'workspaceIntegrity': workspaceIntegrity,
+					'integrityWorkspace': workspaceIntegrity,
 					'storageError': errorStr
 				});
 			}
@@ -334,15 +340,27 @@ export class WorkbenchShell extends Disposable {
 		this.storageService.storage.checkIntegrity(StorageScope.WORKSPACE, false).then(integrity => {
 			perf.mark('didCheckWorkspaceStorageIntegrity');
 
-			workspaceIntegrity = integrity;
+			if (integrity) {
+				workspaceIntegrity = integrity;
+			}
+
+			if (this.storageService.storage.hasErrors) {
+				return; // do not log performance numbers when errors occured
+			}
+
+			if (this.environmentService.verbose || this.environmentService.logStorage) {
+				return; // do not log when running in verbose mode
+			}
 
 			/* __GDPR__
-				"sqliteStorageTimers2" : {
+				"sqliteStorageTimers3" : {
 					"globalReadTime" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
+					"workspaceExistsTime" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
+					"workspaceMigrationTime" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
+					"workspaceRequireTime" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
 					"workspaceReadTime" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-					"localStorageAccessTime" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-					"localStorageReadTime" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-					"workspaceIntegrity" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
+					"localStorageTime" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
+					"integrityWorkspace" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
 					"workspaceIntegrityCheckTime" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
 					"workbenchRequireTime" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
 					"globalKeys" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
@@ -350,12 +368,14 @@ export class WorkbenchShell extends Disposable {
 					"startupKind": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true }
 				}
 			*/
-			this.telemetryService.publicLog('sqliteStorageTimers2', {
+			this.telemetryService.publicLog('sqliteStorageTimers3', {
 				'globalReadTime': globalStorageInitDuration,
+				'workspaceExistsTime': workspaceStorageFileExistsDuration,
+				'workspaceMigrationTime': workspaceStorageMigrationDuration,
+				'workspaceRequireTime': workspaceStorageRequireDuration,
 				'workspaceReadTime': workspaceStorageInitDuration,
-				'localStorageAccessTime': localStorageAccessDuration,
-				'localStorageReadTime': localStorageReadDuration,
-				'workspaceIntegrity': workspaceIntegrity,
+				'localStorageTime': localStorageDuration,
+				'integrityWorkspace': workspaceIntegrity,
 				'workspaceIntegrityCheckTime': perf.getDuration('willCheckWorkspaceStorageIntegrity', 'didCheckWorkspaceStorageIntegrity'),
 				'workbenchRequireTime': workbenchLoadDuration,
 				'globalKeys': this.storageService.storage.getSize(StorageScope.GLOBAL),
