@@ -228,6 +228,8 @@ export class WorkspaceStats implements IWorkbenchContribution {
 
 		// Cloud Stats
 		this.reportCloudStats();
+
+		this.reportProxyStats();
 	}
 
 	private static searchArray(arr: string[], regEx: RegExp): boolean {
@@ -694,5 +696,21 @@ export class WorkspaceStats implements IWorkbenchContribution {
 			this.reportRemotes(uris);
 			this.reportAzure(uris);
 		}
+	}
+
+	private reportProxyStats() {
+		this.windowService.resolveProxy('http://www.example.com/')
+			.then(proxy => {
+				let type = String(proxy).trim().split(/\s+/, 1)[0];
+				if (['DIRECT', 'PROXY', 'HTTPS', 'SOCKS'].indexOf(type) === -1) {
+					type = 'UNKNOWN';
+				}
+				/* __GDPR__
+					"resolveProxy" : {
+						"type": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true }
+					}
+				*/
+				this.telemetryService.publicLog('resolveProxy.stats', { type });
+			}).then(null, onUnexpectedError);
 	}
 }
