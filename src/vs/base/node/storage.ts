@@ -11,6 +11,7 @@ import { isUndefinedOrNull } from 'vs/base/common/types';
 import { mapToString, setToString } from 'vs/base/common/map';
 import { basename } from 'path';
 import { mark } from 'vs/base/common/performance';
+import { rename } from 'vs/base/node/pfs';
 
 export interface IStorageOptions {
 	path: string;
@@ -357,6 +358,17 @@ export class SQLiteStorageImpl {
 					timeout(SQLiteStorageImpl.BUSY_OPEN_TIMEOUT).then(() => this.doOpen(this.options.path).then(resolve, fallbackToInMemoryDatabase));
 				}
 
+				// This error code indicates that even though the DB file exists,
+				// SQLite cannot open it and signals it is corrupt.
+				else if (error.code === 'SQLITE_CORRUPT') {
+					this.logger.error(`[storage ${this.name}] open(): Recreating DB due to SQLITE_CORRUPT`);
+
+					// Move corrupt DB to different filename and start fresh
+					const randomSuffix = Math.random().toString(36).replace(/[^a-z]+/g, '').substr(0, 4);
+					rename(this.options.path, `${this.options.path}.${randomSuffix}.corrupt`)
+						.then(() => this.doOpen(this.options.path)).then(resolve, fallbackToInMemoryDatabase);
+				}
+
 				// Otherwise give up and fallback to in-memory DB
 				else {
 					fallbackToInMemoryDatabase(error);
@@ -402,7 +414,7 @@ export class SQLiteStorageImpl {
 					});
 				});
 
-				// Check for errors
+				// Errors
 				db.on('error', error => this.logger.error(`[storage ${this.name}] Error (event): ${error}`));
 
 				// Tracing
