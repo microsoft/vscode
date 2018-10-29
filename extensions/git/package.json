@@ -660,7 +660,7 @@
         {
           "command": "git.pushToForce",
           "group": "1_sync",
-          "when": "scmProvider == git"
+          "when": "scmProvider == git && config.git.allowForcePush"
         },
         {
           "command": "git.publish",
