@@ -38,7 +38,7 @@ gulp.task('watch-build', ['watch-client-build', 'watch-extensions-build']);
 
 process.on('unhandledRejection', (reason, p) => {
 	console.log('Unhandled Rejection at: Promise', p, 'reason:', reason);
-	process.exit(1);
+	process.exit(1); //method instructs js to terminate the process synchronously with an exit status 
 });
 
 // Load all the gulpfiles only if running tasks other than the editor tasks
