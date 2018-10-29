@@ -387,6 +387,8 @@ export class TitlebarPart extends Part implements ITitleService {
 			}, 0 /* need a timeout because we are in capture phase */);
 		}, true /* use capture to know the currently active element properly */));
 
+		this.updateStyles();
+
 		return this.titleContainer;
 	}
 
