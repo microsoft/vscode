@@ -6,7 +6,7 @@
   "version": "1.0.0",
   "icon": "images/gulp.png",
   "engines": {
-    "vscode": "*"
+    "vscode": "0.10.x"
   },
   "categories": [
     "Other"
