@@ -360,9 +360,9 @@ export class SQLiteStorageImpl {
 				}
 
 				// This error code indicates that even though the DB file exists,
-				// SQLite cannot open it and signals it is corrupt.
-				else if (error.code === 'SQLITE_CORRUPT') {
-					this.logger.error(`[storage ${this.name}] open(): Recreating DB due to SQLITE_CORRUPT`);
+				// SQLite cannot open it and signals it is corrupt or not a DB.
+				else if (error.code === 'SQLITE_CORRUPT' || error.code === 'SQLITE_NOTADB') {
+					this.logger.error(`[storage ${this.name}] open(): Recreating DB due to ${error.code}`);
 
 					// Move corrupt DB to different filename and start fresh
 					const randomSuffix = Math.random().toString(36).replace(/[^a-z]+/g, '').substr(0, 4);
