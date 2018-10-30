@@ -81,7 +81,7 @@ function onReady() {
 			nlsConfiguration = Promise.resolve(undefined);
 		}
 
-		// We first need to test a user defined locale. If it fails we try the app locale.
+		// First, we need to test a user defined locale. If it fails we try the app locale.
 		// If that fails we fall back to English.
 		nlsConfiguration.then((nlsConfig) => {
 
