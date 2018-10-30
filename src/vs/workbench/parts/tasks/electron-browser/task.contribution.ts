@@ -1875,32 +1875,37 @@ class TaskService extends Disposable implements ITaskService {
 		return entries;
 	}
 
-	private showQuickPick(tasks: TPromise<Task[]> | Task[], placeHolder: string, defaultEntry?: TaskQuickPickEntry, group: boolean = false, sort: boolean = false): TPromise<Task> {
-		let _createEntries = (): TPromise<TaskQuickPickEntry[]> => {
-			if (Array.isArray(tasks)) {
-				return TPromise.as(this.createTaskQuickPickEntries(tasks, group, sort));
-			} else {
-				return tasks.then((tasks) => this.createTaskQuickPickEntries(tasks, group, sort));
+	private createEntries(tasks: TPromise<Task[]> | Task[], group: boolean = false, sort: boolean = false): TPromise<TaskQuickPickEntry[]> {
+		if (Array.isArray(tasks)) {
+			return TPromise.as(this.createTaskQuickPickEntries(tasks, group, sort));
+		} else {
+			return tasks.then((tasks) => this.createTaskQuickPickEntries(tasks, group, sort));
+		}
+	}
+
+	private showQuickPickEntries(taskEntries: TPromise<TaskQuickPickEntry[]> | TaskQuickPickEntry[], placeHolder: string): TPromise<Task> {
+		return this.quickInputService.pick(taskEntries, {
+			placeHolder,
+			matchOnDescription: true,
+			onDidTriggerItemButton: context => {
+				let task = context.item.task;
+				this.quickInputService.cancel();
+				if (ContributedTask.is(task)) {
+					this.customize(task, undefined, true);
+				} else if (CustomTask.is(task)) {
+					this.openConfig(task);
+				}
 			}
-		};
-		return this.quickInputService.pick(_createEntries().then((entries) => {
-			if (defaultEntry) {
-				entries.unshift(defaultEntry);
+		}).then(entry => entry ? entry.task : undefined);
+	}
+
+	private showQuickPick(tasks: TPromise<Task[]> | Task[], placeHolder: string, defaultEntry?: TaskQuickPickEntry, group: boolean = false, sort: boolean = false): TPromise<Task> {
+		return this.showQuickPickEntries(this.createEntries(tasks, group, sort).then((entries) => {
+			if ((entries.length === 0) && defaultEntry) {
+				entries.push(defaultEntry);
 			}
 			return entries;
-		}), {
-				placeHolder,
-				matchOnDescription: true,
-				onDidTriggerItemButton: context => {
-					let task = context.item.task;
-					this.quickInputService.cancel();
-					if (ContributedTask.is(task)) {
-						this.customize(task, undefined, true);
-					} else if (CustomTask.is(task)) {
-						this.openConfig(task);
-					}
-				}
-			}).then(entry => entry ? entry.task : undefined);
+		}), placeHolder);
 	}
 
 	private showIgnoredFoldersMessage(): TPromise<void> {
@@ -2328,7 +2333,7 @@ class TaskService extends Disposable implements ITaskService {
 			});
 	}
 
-	private runConfigureDefaultBuildTask(): void {
+	private runConfigureDefaultTask(taskType: string, existingEntryLabel: (string) => string, quickPickPlaceholder: string): void {
 		if (!this.canRunCommand()) {
 			return;
 		}
@@ -2338,38 +2343,41 @@ class TaskService extends Disposable implements ITaskService {
 					this.runConfigureTasks();
 					return;
 				}
-				let defaultTask: Task;
-				let defaultEntry: TaskQuickPickEntry;
+				let existingTask: Task;
+				let existingEntry: TaskQuickPickEntry;
 				for (let task of tasks) {
-					if (task.group === TaskGroup.Build && task.groupType === GroupType.default) {
-						defaultTask = task;
+					if (task.group === taskType && task.groupType === GroupType.default) {
+						existingTask = task;
 						break;
 					}
 				}
-				if (defaultTask) {
-					defaultEntry = {
-						label: nls.localize('TaskService.defaultBuildTaskExists', '{0} is already marked as the default build task', Task.getQualifiedLabel(defaultTask)),
-						task: defaultTask
+				if (existingTask) {
+					existingEntry = {
+						label: existingEntryLabel(Task.getQualifiedLabel(existingTask)),
+						task: existingTask
 					};
 				}
 				this.showIgnoredFoldersMessage().then(() => {
-					this.showQuickPick(tasks,
-						nls.localize('TaskService.pickDefaultBuildTask', 'Select the task to be used as the default build task'), defaultEntry, true).
-						then((task) => {
+					this.createEntries(tasks, true).then((taskEntries) => {
+						if (existingEntry) {
+							taskEntries.unshift(existingEntry);
+						}
+						this.showQuickPickEntries(taskEntries, quickPickPlaceholder).then((task) => {
 							if (task === void 0) {
 								return;
 							}
-							if (task === defaultTask && CustomTask.is(task)) {
+							if (task === existingTask && CustomTask.is(task)) {
 								this.openConfig(task);
 							}
 							if (!InMemoryTask.is(task)) {
-								this.customize(task, { group: { kind: 'build', isDefault: true } }, true).then(() => {
-									if (defaultTask && (task !== defaultTask) && !InMemoryTask.is(defaultTask)) {
-										this.customize(defaultTask, { group: 'build' }, true);
+								this.customize(task, { group: { kind: taskType, isDefault: true } }, true).then(() => {
+									if (existingTask && (task !== existingTask) && !InMemoryTask.is(existingTask)) {
+										this.customize(existingTask, { group: taskType }, true);
 									}
 								});
 							}
 						});
+					});
 				});
 			}));
 		} else {
@@ -2377,54 +2385,16 @@ class TaskService extends Disposable implements ITaskService {
 		}
 	}
 
+	private runConfigureDefaultBuildTask(): void {
+		this.runConfigureDefaultTask(TaskGroup.Build, (taskLabel: string) => {
+			return nls.localize('TaskService.defaultBuildTaskExists', '{0} is already marked as the default build task', taskLabel);
+		}, nls.localize('TaskService.pickDefaultBuildTask', 'Select the task to be used as the default build task'));
+	}
+
 	private runConfigureDefaultTestTask(): void {
-		if (!this.canRunCommand()) {
-			return;
-		}
-		if (this.schemaVersion === JsonSchemaVersion.V2_0_0) {
-			this.tasks().then((tasks => {
-				if (tasks.length === 0) {
-					this.runConfigureTasks();
-					return;
-				}
-				let defaultTask: Task;
-				let defaultEntry: TaskQuickPickEntry;
-
-				for (let task of tasks) {
-					if (task.group === TaskGroup.Test && task.groupType === GroupType.default) {
-						defaultTask = task;
-						break;
-					}
-				}
-				if (defaultTask) {
-					defaultEntry = {
-						label: nls.localize('TaskService.defaultTestTaskExists', '{0} is already marked as the default test task.', Task.getQualifiedLabel(defaultTask)),
-						task: defaultTask
-					};
-				}
-
-				this.showIgnoredFoldersMessage().then(() => {
-					this.showQuickPick(tasks,
-						nls.localize('TaskService.pickDefaultTestTask', 'Select the task to be used as the default test task'), defaultEntry, true).then((task) => {
-							if (!task) {
-								return;
-							}
-							if (task === defaultTask && CustomTask.is(task)) {
-								this.openConfig(task);
-							}
-							if (!InMemoryTask.is(task)) {
-								this.customize(task, { group: { kind: 'test', isDefault: true } }, true).then(() => {
-									if (defaultTask && (task !== defaultTask) && !InMemoryTask.is(defaultTask)) {
-										this.customize(defaultTask, { group: 'test' }, true);
-									}
-								});
-							}
-						});
-				});
-			}));
-		} else {
-			this.runConfigureTasks();
-		}
+		this.runConfigureDefaultTask(TaskGroup.Test, (taskLabel: string) => {
+			return nls.localize('TaskService.defaultTestTaskExists', '{0} is already marked as the default test task.', taskLabel);
+		}, nls.localize('TaskService.pickDefaultTestTask', 'Select the task to be used as the default test task'));
 	}
 
 	public runShowTasks(): void {
