@@ -510,13 +510,13 @@ export class SQLiteStorageImpl {
 	private prepare(db: Database, sql: string, runCallback: (stmt: Statement) => void): void {
 		const stmt = db.prepare(sql);
 
-		runCallback(stmt);
-
 		const statementErrorListener = error => {
 			this.logger.error(`[storage ${this.name}] prepare(): ${error} (${sql})`);
 		};
 
 		stmt.on('error', statementErrorListener);
+
+		runCallback(stmt);
 
 		stmt.finalize(error => {
 			if (error) {
