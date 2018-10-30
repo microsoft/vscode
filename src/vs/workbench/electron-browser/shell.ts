@@ -354,7 +354,7 @@ export class WorkbenchShell extends Disposable {
 				return; // do not log performance numbers when errors occured
 			}
 
-			if (this.environmentService.verbose || this.environmentService.logStorage) {
+			if (this.environmentService.verbose) {
 				return; // do not log when running in verbose mode
 			}
 

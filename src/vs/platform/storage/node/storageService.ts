@@ -69,7 +69,7 @@ export class StorageService extends Disposable implements IStorageService {
 		super();
 
 		this.loggingOptions = {
-			info: environmentService.verbose || environmentService.logStorage,
+			info: environmentService.verbose,
 			infoLogger: msg => logService.info(msg),
 			errorLogger: error => {
 				logService.error(error);
