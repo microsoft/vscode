@@ -1424,21 +1424,31 @@ export class CommandCenter {
 		let run: (force?: boolean) => Promise<void>;
 		if (typeof name === 'string') {
 			run = force => repository.deleteBranch(name, force);
+			this.runDeleteBranch(run, name, force);
 		} else {
 			const currentHead = repository.HEAD && repository.HEAD.name;
 			const heads = repository.refs.filter(ref => ref.type === RefType.Head && ref.name !== currentHead)
 				.map(ref => new BranchDeleteItem(ref));
 
 			const placeHolder = localize('select branch to delete', 'Select a branch to delete');
-			const choice = await window.showQuickPick<BranchDeleteItem>(heads, { placeHolder });
+			const choices = await window.showQuickPick<BranchDeleteItem>(heads, { placeHolder, canPickMany: true });
 
-			if (!choice || !choice.branchName) {
+			if (!choices && !Array.isArray(choices)) {
 				return;
 			}
-			name = choice.branchName;
-			run = force => choice.run(repository, force);
-		}
 
+			choices.forEach((choice) => {
+				if (!choice || !choice.branchName) {
+					return;
+				}
+				name = choice.branchName;
+				run = force => choice.run(repository, force);
+				this.runDeleteBranch(run, name, force);
+			});
+		}
+	}
+
+	private async runDeleteBranch(run: (force?: boolean) => Promise<void>, branchName: string, force?: boolean) {
 		try {
 			await run(force);
 		} catch (err) {
@@ -1446,7 +1456,7 @@ export class CommandCenter {
 				throw err;
 			}
 
-			const message = localize('confirm force delete branch', "The branch '{0}' is not fully merged. Delete anyway?", name);
+			const message = localize('confirm force delete branch', "The branch '{0}' is not fully merged. Delete anyway?", branchName);
 			const yes = localize('delete branch', "Delete Branch");
 			const pick = await window.showWarningMessage(message, { modal: true }, yes);
 
