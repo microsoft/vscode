@@ -9348,10 +9348,9 @@ vscode-nls-dev@3.2.2:
     xml2js "^0.4.19"
     yargs "^10.1.1"
 
-vscode-nsfw@1.1.1:
-  version "1.1.1"
-  resolved "https://registry.yarnpkg.com/vscode-nsfw/-/vscode-nsfw-1.1.1.tgz#7c3febe153677c5850b197a0b64a197cd11e95c7"
-  integrity sha512-Wg3vzN1U3T6P1uE13LdVVRIhdy7XWnWkwmAXhkLsIkH2QY0E/pvNDRLrwAMMW6GC1Fvvbxm3hzdIrCmr7Hq3FA==
+vscode-nsfw@Microsoft/vscode-nsfw#electron-4.0.x:
+  version "1.1.2"
+  resolved "https://codeload.github.com/Microsoft/vscode-nsfw/tar.gz/16b99fe93bdf2567ab5496aa718fe216dc95c17d"
   dependencies:
     fs-extra "^7.0.0"
     lodash.isinteger "^4.0.4"
