@@ -66,7 +66,7 @@ export class LogAppender implements ITelemetryAppender {
 /* __GDPR__FRAGMENT__
 	"URIDescriptor" : {
 		"mimeType" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-		"scheme": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },,
+		"scheme": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
 		"ext": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
 		"path": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
 	}
