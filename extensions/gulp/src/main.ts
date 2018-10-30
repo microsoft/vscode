@@ -175,6 +175,9 @@ class FolderDetector {
 		if (this.fileWatcher) {
 			this.fileWatcher.dispose();
 		}
+		if (this.nodeModulesWatcher) {
+			this.nodeModulesWatcher.dispose();
+		}
 	}
 }
 
