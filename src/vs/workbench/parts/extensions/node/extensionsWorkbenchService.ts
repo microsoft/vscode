@@ -956,7 +956,7 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService, 
 
 	private onEnablementChanged(identifier: IExtensionIdentifier) {
 		const [extension] = this.local.filter(e => areSameExtensions(e, identifier));
-		if (extension) {
+		if (extension && extension.local) {
 			const enablementState = this.extensionEnablementService.getEnablementState(extension.local);
 			if (enablementState !== extension.enablementState) {
 				extension.enablementState = enablementState;
