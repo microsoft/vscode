@@ -8,8 +8,8 @@ import * as fs from 'fs';
 import * as nls from 'vscode-nls';
 const localize = nls.loadMessageBundle();
 
-import { workspace, languages, ExtensionContext, extensions, Uri, LanguageConfiguration } from 'vscode';
-import { LanguageClient, LanguageClientOptions, RequestType, ServerOptions, TransportKind, NotificationType, DidChangeConfigurationNotification } from 'vscode-languageclient';
+import { workspace, window, languages, commands, ExtensionContext, extensions, Uri, LanguageConfiguration, Diagnostic, StatusBarAlignment, TextEditor } from 'vscode';
+import { LanguageClient, LanguageClientOptions, RequestType, ServerOptions, TransportKind, NotificationType, DidChangeConfigurationNotification, HandleDiagnosticsSignature } from 'vscode-languageclient';
 import TelemetryReporter from 'vscode-extension-telemetry';
 
 import { hash } from './utils/hash';
@@ -20,6 +20,10 @@ namespace VSCodeContentRequest {
 
 namespace SchemaContentChangeNotification {
 	export const type: NotificationType<string, any> = new NotificationType('json/schemaContent');
+}
+
+namespace ForceValidateRequest {
+	export const type: RequestType<string, Diagnostic[], any, any> = new RequestType('json/validate');
 }
 
 export interface ISchemaAssociations {
@@ -77,6 +81,18 @@ export function activate(context: ExtensionContext) {
 
 	let documentSelector = ['json', 'jsonc'];
 
+	let statusBarItem = window.createStatusBarItem(StatusBarAlignment.Right, 0);
+	statusBarItem.command = '_json.retrySchema';
+	toDispose.push(statusBarItem);
+
+	let showStatusBarItem = (message: string) => {
+		statusBarItem.tooltip = message + '\n' + localize('json.clickToRetry', 'Click to retry.');
+		statusBarItem.text = '$(alert)';
+		statusBarItem.show();
+	};
+
+	let fileSchemaErrors = new Map<string, string>();
+
 	// Options to control the language client
 	let clientOptions: LanguageClientOptions = {
 		// Register the server for json documents
@@ -89,6 +105,20 @@ export function activate(context: ExtensionContext) {
 		middleware: {
 			workspace: {
 				didChangeConfiguration: () => client.sendNotification(DidChangeConfigurationNotification.type, { settings: getSettings() })
+			},
+			handleDiagnostics: (uri: Uri, diagnostics: Diagnostic[], next: HandleDiagnosticsSignature) => {
+				const schemaErrorIndex = diagnostics.findIndex(candidate => candidate.code === /* SchemaResolveError */ 0x300);
+				if (schemaErrorIndex !== -1) {
+					// Show schema resolution errors in status bar only; ref: #51032
+					const schemaResolveDiagnostic = diagnostics[schemaErrorIndex];
+					fileSchemaErrors.set(uri.toString(), schemaResolveDiagnostic.message);
+					showStatusBarItem(schemaResolveDiagnostic.message);
+					diagnostics.splice(schemaErrorIndex, 1);
+				} else {
+					statusBarItem.hide();
+					fileSchemaErrors.delete(uri.toString());
+				}
+				next(uri, diagnostics);
 			}
 		}
 	};
@@ -121,8 +151,32 @@ export function activate(context: ExtensionContext) {
 				client.sendNotification(SchemaContentChangeNotification.type, uri.toString());
 			}
 		};
+
+		let handleActiveEditorChange = (activeEditor?: TextEditor) => {
+			const uriStr = activeEditor && activeEditor.document.uri.toString();
+			if (uriStr && fileSchemaErrors.has(uriStr)) {
+				const message = fileSchemaErrors.get(uriStr)!;
+				showStatusBarItem(message);
+			} else {
+				statusBarItem.hide();
+			}
+		};
+
 		toDispose.push(workspace.onDidChangeTextDocument(e => handleContentChange(e.document.uri)));
-		toDispose.push(workspace.onDidCloseTextDocument(d => handleContentChange(d.uri)));
+		toDispose.push(workspace.onDidCloseTextDocument(d => {
+			handleContentChange(d.uri);
+			fileSchemaErrors.delete(d.uri.toString());
+		}));
+		toDispose.push(window.onDidChangeActiveTextEditor(handleActiveEditorChange));
+
+		let handleRetrySchemaCommand = () => {
+			if (window.activeTextEditor) {
+				client.sendRequest(ForceValidateRequest.type, window.activeTextEditor.document.uri.toString());
+				statusBarItem.text = '$(watch)';
+			}
+		};
+
+		toDispose.push(commands.registerCommand('_json.retrySchema', handleRetrySchemaCommand));
 
 		client.sendNotification(SchemaAssociationNotification.type, getSchemaAssociation(context));
 	});

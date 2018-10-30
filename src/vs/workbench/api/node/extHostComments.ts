@@ -31,11 +31,12 @@ export class ExtHostComments implements ExtHostCommentsShape {
 	}
 
 	registerWorkspaceCommentProvider(
+		extensionId: string,
 		provider: vscode.WorkspaceCommentProvider
 	): vscode.Disposable {
 		const handle = ExtHostComments.handlePool++;
 		this._workspaceProviders.set(handle, provider);
-		this._proxy.$registerWorkspaceCommentProvider(handle);
+		this._proxy.$registerWorkspaceCommentProvider(handle, extensionId);
 		this.registerListeners(handle, provider);
 
 		return {

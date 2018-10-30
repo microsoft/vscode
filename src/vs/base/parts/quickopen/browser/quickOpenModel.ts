@@ -377,7 +377,7 @@ class Renderer implements IRenderer<QuickOpenEntry> {
 		const detailContainer = document.createElement('div');
 		row2.appendChild(detailContainer);
 		DOM.addClass(detailContainer, 'quick-open-entry-meta');
-		const detail = new HighlightedLabel(detailContainer);
+		const detail = new HighlightedLabel(detailContainer, true);
 
 		// Entry Group
 		let group: HTMLDivElement;

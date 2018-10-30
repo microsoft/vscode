@@ -216,6 +216,7 @@ export class Storage extends Disposable implements IStorage {
 		this.pendingDeletes = new Set<string>();
 		this.pendingInserts = new Map<string, string>();
 
+		// Update in storage
 		return this.storage.updateItems(updateRequest);
 	}
 
@@ -378,6 +379,7 @@ export class SQLiteStorageImpl {
 	}
 
 	private doOpen(path: string): Promise<Database> {
+		// TODO@Ben clean up performance markers
 		return new Promise((resolve, reject) => {
 			let measureRequireDuration = false;
 			if (!SQLiteStorageImpl.measuredRequireDuration) {

@@ -4,7 +4,7 @@
 		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
 		"Once accepted there, we are happy to receive an update request."
 	],
-	"version": "https://github.com/Microsoft/TypeScript-TmLanguage/commit/a34cb117a38ac6f6eae0df88db984780c6b3df1e",
+	"version": "https://github.com/Microsoft/TypeScript-TmLanguage/commit/775080a1658f286730c647db75ecf2c1d1fcdc31",
 	"name": "TypeScript",
 	"scopeName": "source.ts",
 	"patterns": [
@@ -1421,8 +1421,11 @@
 							"name": "storage.type.function.arrow.ts"
 						}
 					},
-					"end": "(?<=\\}|\\S)(?<!=>)|((?!\\{)(?=\\S))",
+					"end": "((?<=\\}|\\S)(?<!=>)|((?!\\{)(?=\\S)))(?!\\/[\\/\\*])",
 					"patterns": [
+						{
+							"include": "#single-line-comment-consuming-line-ending"
+						},
 						{
 							"include": "#decl-block"
 						},
@@ -3816,9 +3819,6 @@
 				}
 			},
 			"patterns": [
-				{
-					"include": "#destructuring-parameter"
-				},
 				{
 					"match": "(?x)(?:(?<![_$[:alnum:]])(?:(?<=\\.\\.\\.)|(?<!\\.))(public|private|protected|readonly)\\s+)?(?:(\\.\\.\\.)\\s*)?(?<!=|:)(?<![_$[:alnum:]])(?:(?<=\\.\\.\\.)|(?<!\\.))(?:(this)|([_$[:alpha:]][_$[:alnum:]]*))\\s*(\\??)(?=\\s*(:\\s*(\n  (<) |\n  ([(]\\s*(\n    ([)]) |\n    (\\.\\.\\.) |\n    ([_$[:alnum:]]+\\s*(\n      ([:,?=])|\n      ([)]\\s*=>)\n    ))\n  ))\n)) |\n(:\\s*((<\\s*$)|((<\\s*([_$[:alpha:]]|(\\{([^\\{\\}]|(\\{[^\\{\\}]*\\}))*\\})|(\\(([^\\(\\)]|(\\([^\\(\\)]*\\)))*\\))|(\\[([^\\[\\]]|(\\[[^\\[\\]]*\\]))*\\]))([^=<>]|=[^<]|\\<\\s*([_$[:alpha:]]|(\\{([^\\{\\}]|(\\{[^\\{\\}]*\\}))*\\})|(\\(([^\\(\\)]|(\\([^\\(\\)]*\\)))*\\))|(\\[([^\\[\\]]|(\\[[^\\[\\]]*\\]))*\\]))([^=<>]|=[^<])*\\>)*>\\s*)?[\\(]\\s*([\\{\\[]\\s*)?$))))",
 					"captures": {

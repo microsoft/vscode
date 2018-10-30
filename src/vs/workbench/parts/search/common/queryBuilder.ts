@@ -120,7 +120,7 @@ export class QueryBuilder {
 
 		const useRipgrep = !folderResources || folderResources.every(folder => {
 			const folderConfig = this.configurationService.getValue<ISearchConfiguration>({ resource: folder });
-			return !folderConfig.search.disableRipgrep;
+			return !folderConfig.search.useLegacySearch;
 		});
 
 		const queryProps: ICommonQueryProps<uri> = {

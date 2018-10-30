@@ -221,9 +221,9 @@ export class MarkerRenderer implements ITreeRenderer<Marker, MarkerFilterData, I
 		const actionsContainer = dom.append(container, dom.$('.actions'));
 		data.actionBar = new ActionBar(actionsContainer, { actionItemProvider: this.actionItemProvider });
 		data.icon = dom.append(container, dom.$('.icon'));
-		data.source = new HighlightedLabel(dom.append(container, dom.$('')));
-		data.description = new HighlightedLabel(dom.append(container, dom.$('.marker-description')));
-		data.code = new HighlightedLabel(dom.append(container, dom.$('')));
+		data.source = new HighlightedLabel(dom.append(container, dom.$('')), false);
+		data.description = new HighlightedLabel(dom.append(container, dom.$('.marker-description')), false);
+		data.code = new HighlightedLabel(dom.append(container, dom.$('')), false);
 		data.lnCol = dom.append(container, dom.$('span.marker-line'));
 		return data;
 	}
@@ -291,14 +291,14 @@ export class RelatedInformationRenderer implements ITreeRenderer<RelatedInformat
 		dom.append(container, dom.$('.actions'));
 		dom.append(container, dom.$('.icon'));
 
-		data.resourceLabel = new HighlightedLabel(dom.append(container, dom.$('.related-info-resource')));
+		data.resourceLabel = new HighlightedLabel(dom.append(container, dom.$('.related-info-resource')), false);
 		data.lnCol = dom.append(container, dom.$('span.marker-line'));
 
 		const separator = dom.append(container, dom.$('span.related-info-resource-separator'));
 		separator.textContent = ':';
 		separator.style.paddingRight = '4px';
 
-		data.description = new HighlightedLabel(dom.append(container, dom.$('.marker-description')));
+		data.description = new HighlightedLabel(dom.append(container, dom.$('.marker-description')), false);
 		return data;
 	}
 

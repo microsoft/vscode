@@ -29,6 +29,22 @@ import { TypeScriptVersion, TypeScriptVersionProvider } from './utils/versionPro
 
 const localize = nls.loadMessageBundle();
 
+export class PluginConfigProvider extends Disposable {
+	private readonly _config = new Map<string, any>();
+
+	private readonly _onDidUpdateConfig = this._register(new vscode.EventEmitter<{ pluginId: string, config: any }>());
+	public readonly onDidUpdateConfig = this._onDidUpdateConfig.event;
+
+	public set(pluginId: string, config: any) {
+		this._config.set(pluginId, config);
+		this._onDidUpdateConfig.fire({ pluginId, config });
+	}
+
+	public entries(): IterableIterator<[string, any]> {
+		return this._config.entries();
+	}
+}
+
 export interface TsDiagnostics {
 	readonly kind: DiagnosticKind;
 	readonly resource: vscode.Uri;
@@ -75,6 +91,7 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 		private readonly workspaceState: vscode.Memento,
 		private readonly onDidChangeTypeScriptVersion: (version: TypeScriptVersion) => void,
 		public readonly plugins: TypeScriptServerPlugin[],
+		private readonly pluginConfigProvider: PluginConfigProvider,
 		private readonly logDirectoryProvider: LogDirectoryProvider,
 		allModeIds: string[]
 	) {
@@ -406,6 +423,11 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 		if (resendModels) {
 			this._onResendModelsRequested.fire();
 		}
+
+		// Reconfigure any plugins
+		for (const [config, pluginName] of this.pluginConfigProvider.entries()) {
+			this.configurePlugin(pluginName, config);
+		}
 	}
 
 	private setCompilerOptionsForInferredProjects(configuration: TypeScriptServiceConfiguration): void {
@@ -719,8 +741,13 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 		this._apiVersion = API.defaultVersion;
 		this._tsserverVersion = undefined;
 	}
-}
 
+	private configurePlugin(pluginName: string, configuration: any): any {
+		if (this._apiVersion.gte(API.v314)) {
+			this.executeWithoutWaitingForResponse('configurePlugin', { pluginName, configuration });
+		}
+	}
+}
 
 function getDignosticsKind(event: Proto.Event) {
 	switch (event.event) {

@@ -586,14 +586,13 @@ configurationRegistry.registerConfiguration({
 		},
 		'search.useRipgrep': {
 			type: 'boolean',
-			description: nls.localize('useRipgrep', "Deprecated. This setting now falls back on \"search.usePCRE2\"."),
+			description: nls.localize('useRipgrep', "This setting is deprecated and now falls back on \"search.usePCRE2\"."),
 			deprecationMessage: nls.localize('useRipgrepDeprecated', "Deprecated. Consider \"search.usePCRE2\" for advanced regex feature support."),
 			default: true
 		},
-		'search.disableRipgrep': {
+		'search.useLegacySearch': {
 			type: 'boolean',
-			description: nls.localize('disableRipgrep', "Deprecated. Controls whether to use ripgrep in text and file search."),
-			deprecationMessage: nls.localize('disableRipgrepDeprecated', "Deprecated. Consider \"search.usePCRE2\" for advanced regex feature support."),
+			description: nls.localize('useLegacySearch', "Controls whether to use the deprecated legacy mode for text and file search. It supports some text encodings that are not supported by the standard ripgrep-based search."),
 			default: false
 		},
 		'search.useIgnoreFiles': {
