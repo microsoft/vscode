@@ -204,7 +204,7 @@ export class Storage extends Disposable implements IStorage {
 		// even if there is an error flushing. We must always ensure
 		// the DB is closed to avoid corruption.
 		const onDone = () => this.storage.close();
-		return this.flushDelayer.trigger(() => this.flushPending()).then(onDone, onDone);
+		return this.flushDelayer.trigger(() => this.flushPending(), 0 /* immediately */).then(onDone, onDone);
 	}
 
 	private flushPending(): Thenable<void> {
@@ -254,9 +254,9 @@ export class SQLiteStorageImpl {
 		return this.db.then(db => {
 			const items = new Map<string, string>();
 
-			return this.each(db, 'SELECT * FROM ItemTable', row => {
-				items.set(row.key, row.value);
-			}).then(() => {
+			return this.all(db, 'SELECT * FROM ItemTable').then(rows => {
+				rows.forEach(row => items.set(row.key, row.value));
+
 				if (this.logger.verbose) {
 					this.logger.info(`[storage ${this.name}] getItems(): ${mapToString(items)}`);
 				}
@@ -460,29 +460,16 @@ export class SQLiteStorageImpl {
 		});
 	}
 
-	private each(db: Database, sql: string, callback: (row: any) => void): Promise<void> {
+	private all(db: Database, sql: string): Promise<{ key: string, value: string }[]> {
 		return new Promise((resolve, reject) => {
-			let hadError = false;
-			db.each(sql, (error, row) => {
+			db.all(sql, (error, rows) => {
 				if (error) {
-					this.logger.error(`[storage ${this.name}] each(): ${error}`);
-
-					hadError = true;
+					this.logger.error(`[storage ${this.name}] all(): ${error}`);
 
 					return reject(error);
 				}
 
-				if (!hadError) {
-					callback(row);
-				}
-			}, error => {
-				if (error) {
-					this.logger.error(`[storage ${this.name}] each(): ${error}`);
-
-					return reject(error);
-				}
-
-				return resolve();
+				return resolve(rows);
 			});
 		});
 	}
@@ -510,13 +497,13 @@ export class SQLiteStorageImpl {
 	private prepare(db: Database, sql: string, runCallback: (stmt: Statement) => void): void {
 		const stmt = db.prepare(sql);
 
-		runCallback(stmt);
-
 		const statementErrorListener = error => {
 			this.logger.error(`[storage ${this.name}] prepare(): ${error} (${sql})`);
 		};
 
 		stmt.on('error', statementErrorListener);
+
+		runCallback(stmt);
 
 		stmt.finalize(error => {
 			if (error) {

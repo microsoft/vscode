@@ -832,8 +832,11 @@ export class CodeWindow implements ICodeWindow {
 
 	private useNativeFullScreen(): boolean {
 		const windowConfig = this.configurationService.getValue<IWindowSettings>('window');
+		if (!windowConfig || typeof windowConfig.nativeFullscreen !== 'boolean') {
+			return true; // default
+		}
 
-		return windowConfig && windowConfig.nativeFullscreen !== false;
+		return windowConfig.nativeFullscreen !== false;
 	}
 
 	private getMenuBarVisibility(): MenuBarVisibility {
