@@ -228,7 +228,7 @@ export class NotificationsToasts extends Themable {
 				}
 
 				// Otherwise...
-				if (
+				else if (
 					item.sticky ||								// never hide sticky notifications
 					notificationList.hasFocus() ||				// never hide notifications with focus
 					isMouseOverToast							// never hide notifications under mouse

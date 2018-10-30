@@ -137,4 +137,4 @@ export class MainThreadHeapService {
 
 }
 
-registerSingleton(IHeapService, HeapService);
+registerSingleton(IHeapService, HeapService, true);

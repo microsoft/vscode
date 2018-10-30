@@ -50,7 +50,7 @@ export function openSearchView(viewletService: IViewletService, panelService: IP
 		return viewletService.openViewlet(VIEW_ID, focus).then(viewlet => <SearchView>viewlet);
 	}
 
-	return panelService.openPanel(VIEW_ID, focus).then(panel => <SearchView>panel);
+	return Promise.resolve(panelService.openPanel(VIEW_ID, focus) as SearchView);
 }
 
 export function getSearchView(viewletService: IViewletService, panelService: IPanelService): SearchView {

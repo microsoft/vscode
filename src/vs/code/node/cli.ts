@@ -20,6 +20,7 @@ import * as iconv from 'iconv-lite';
 import { writeFileAndFlushSync } from 'vs/base/node/extfs';
 import { isWindows } from 'vs/base/common/platform';
 import { ProfilingSession } from 'v8-inspect-profiler';
+import { createWaitMarkerFile } from 'vs/code/node/wait';
 
 function shouldSpawnCliProcess(argv: ParsedArgs): boolean {
 	return !!argv['install-source']
@@ -228,22 +229,9 @@ export async function main(argv: string[]): Promise<any> {
 		// is closed and then exit the waiting process.
 		let waitMarkerFilePath: string;
 		if (args.wait) {
-			let waitMarkerError: Error;
-			const randomTmpFile = paths.join(os.tmpdir(), Math.random().toString(36).replace(/[^a-z]+/g, '').substr(0, 10));
-			try {
-				fs.writeFileSync(randomTmpFile, '');
-				waitMarkerFilePath = randomTmpFile;
+			waitMarkerFilePath = await createWaitMarkerFile(verbose);
+			if (waitMarkerFilePath) {
 				argv.push('--waitMarkerFilePath', waitMarkerFilePath);
-			} catch (error) {
-				waitMarkerError = error;
-			}
-
-			if (verbose) {
-				if (waitMarkerError) {
-					console.error(`Failed to create marker file for --wait: ${waitMarkerError.toString()}`);
-				} else {
-					console.log(`Marker file for --wait created: ${waitMarkerFilePath}`);
-				}
 			}
 		}
 

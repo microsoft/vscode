@@ -234,9 +234,9 @@ export class ExplorerViewlet extends ViewContainerViewlet implements IExplorerVi
 		return <EmptyView>this.getView(EmptyView.ID);
 	}
 
-	public setVisible(visible: boolean): Promise<void> {
+	public setVisible(visible: boolean): void {
 		this.viewletVisibleContextKey.set(visible);
-		return super.setVisible(visible);
+		super.setVisible(visible);
 	}
 
 	public getActionRunner(): IActionRunner {

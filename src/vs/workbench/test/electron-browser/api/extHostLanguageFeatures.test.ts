@@ -864,7 +864,7 @@ suite('ExtHostLanguageFeatures', function () {
 
 		return rpcProtocol.sync().then(() => {
 
-			return provideSignatureHelp(model, new EditorPosition(1, 1), { triggerReason: modes.SignatureHelpTriggerReason.Invoke }, CancellationToken.None).then(value => {
+			return provideSignatureHelp(model, new EditorPosition(1, 1), { triggerReason: modes.SignatureHelpTriggerReason.Invoke, isRetrigger: false }, CancellationToken.None).then(value => {
 				assert.ok(value);
 			});
 		});
@@ -879,7 +879,7 @@ suite('ExtHostLanguageFeatures', function () {
 
 		return rpcProtocol.sync().then(() => {
 
-			return provideSignatureHelp(model, new EditorPosition(1, 1), { triggerReason: modes.SignatureHelpTriggerReason.Invoke }, CancellationToken.None).then(value => {
+			return provideSignatureHelp(model, new EditorPosition(1, 1), { triggerReason: modes.SignatureHelpTriggerReason.Invoke, isRetrigger: false }, CancellationToken.None).then(value => {
 				assert.equal(value, undefined);
 			});
 		});

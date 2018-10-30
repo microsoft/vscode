@@ -69,8 +69,8 @@ class TestPanelService implements IPanelService {
 	onDidPanelOpen = new Emitter<{ panel: IPanel, focus: boolean }>().event;
 	onDidPanelClose = new Emitter<IPanel>().event;
 
-	public openPanel(id: string, focus?: boolean): TPromise {
-		return TPromise.as(null);
+	public openPanel(id: string, focus?: boolean): IPanel {
+		return null;
 	}
 
 	public getPanels(): any[] {

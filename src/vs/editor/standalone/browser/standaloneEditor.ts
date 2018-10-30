@@ -18,6 +18,7 @@ import { FindMatch, ITextModel, TextModelResolvedOptions } from 'vs/editor/commo
 import * as modes from 'vs/editor/common/modes';
 import { NULL_STATE, nullTokenize } from 'vs/editor/common/modes/nullMode';
 import { IEditorWorkerService } from 'vs/editor/common/services/editorWorkerService';
+import { ILanguageSelection } from 'vs/editor/common/services/modeService';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { IWebWorkerOptions, MonacoWebWorker, createWebWorker as actualCreateWebWorker } from 'vs/editor/common/services/webWorker';
 import * as standaloneEnums from 'vs/editor/common/standalone/standaloneEnums';
@@ -134,8 +135,8 @@ export function createDiffNavigator(diffEditor: IStandaloneDiffEditor, opts?: ID
 	return new DiffNavigator(diffEditor, opts);
 }
 
-function doCreateModel(value: string, mode: Promise<modes.IMode>, uri?: URI): ITextModel {
-	return StaticServices.modelService.get().createModel(value, mode, uri);
+function doCreateModel(value: string, languageSelection: ILanguageSelection, uri?: URI): ITextModel {
+	return StaticServices.modelService.get().createModel(value, languageSelection, uri);
 }
 
 /**
@@ -154,16 +155,16 @@ export function createModel(value: string, language?: string, uri?: URI): ITextM
 			firstLine = value.substring(0, firstLF);
 		}
 
-		return doCreateModel(value, StaticServices.modeService.get().getOrCreateModeByFilepathOrFirstLine(path, firstLine), uri);
+		return doCreateModel(value, StaticServices.modeService.get().createByFilepathOrFirstLine(path, firstLine), uri);
 	}
-	return doCreateModel(value, StaticServices.modeService.get().getOrCreateMode(language), uri);
+	return doCreateModel(value, StaticServices.modeService.get().create(language), uri);
 }
 
 /**
  * Change the language for a model.
  */
 export function setModelLanguage(model: ITextModel, languageId: string): void {
-	StaticServices.modelService.get().setMode(model, StaticServices.modeService.get().getOrCreateMode(languageId));
+	StaticServices.modelService.get().setMode(model, StaticServices.modeService.get().create(languageId));
 }
 
 /**
@@ -277,7 +278,7 @@ function getSafeTokenizationSupport(language: string): modes.ITokenizationSuppor
 export function tokenize(text: string, languageId: string): Token[][] {
 	let modeService = StaticServices.modeService.get();
 	// Needed in order to get the mode registered for subsequent look-ups
-	modeService.getOrCreateMode(languageId);
+	modeService.triggerMode(languageId);
 
 	let tokenizationSupport = getSafeTokenizationSupport(languageId);
 	let lines = text.split(/\r\n|\r|\n/);

@@ -118,14 +118,11 @@ export abstract class Composite extends Component implements IComposite {
 	 * is called more than once during workbench lifecycle depending on the user interaction.
 	 * The composite will be on-DOM if visible is set to true and off-DOM otherwise.
 	 *
-	 * The returned promise is complete when the composite is visible. As such it is valid
-	 * to do a long running operation from this call. Typically this operation should be
-	 * fast though because setVisible might be called many times during a session.
+	 * Typically this operation should be fast though because setVisible might be called many times during a session.
+	 * If there is a long running opertaion it is fine to have it running in the background asyncly and return before.
 	 */
-	setVisible(visible: boolean): Promise<void> {
+	setVisible(visible: boolean): void {
 		this.visible = visible;
-
-		return Promise.resolve(null);
 	}
 
 	/**

@@ -15,6 +15,7 @@ import { IModeService } from 'vs/editor/common/services/modeService';
 import { IFileService } from 'vs/platform/files/common/files';
 import { Extensions, IJSONContributionRegistry } from 'vs/platform/jsonschemas/common/jsonContributionRegistry';
 import { Registry } from 'vs/platform/registry/common/platform';
+import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { ITextMateService } from 'vs/workbench/services/textMate/electron-browser/textMateService';
 
 interface IRegExp {
@@ -67,12 +68,19 @@ export class LanguageConfigurationFileHandler {
 	constructor(
 		@ITextMateService textMateService: ITextMateService,
 		@IModeService private readonly _modeService: IModeService,
-		@IFileService private readonly _fileService: IFileService
+		@IFileService private readonly _fileService: IFileService,
+		@IExtensionService private readonly _extensionService: IExtensionService
 	) {
 		this._done = [];
 
 		// Listen for hints that a language configuration is needed/usefull and then load it once
-		this._modeService.onDidCreateMode((mode) => this._loadConfigurationsForMode(mode.getLanguageIdentifier()));
+		this._modeService.onDidCreateMode((mode) => {
+			const languageIdentifier = mode.getLanguageIdentifier();
+			// Modes can be instantiated before the extension points have finished registering
+			this._extensionService.whenInstalledExtensionsRegistered().then(() => {
+				this._loadConfigurationsForMode(languageIdentifier);
+			});
+		});
 		textMateService.onDidEncounterLanguage((languageId) => {
 			this._loadConfigurationsForMode(this._modeService.getLanguageIdentifier(languageId));
 		});

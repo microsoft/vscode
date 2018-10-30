@@ -92,7 +92,7 @@ export class MainThreadOutputService extends Disposable implements MainThreadOut
 	public $close(channelId: string): Thenable<void> {
 		const panel = this._panelService.getActivePanel();
 		if (panel && panel.getId() === OUTPUT_PANEL_ID && channelId === this._outputService.getActiveChannel().id) {
-			return this._partService.setPanelHidden(true);
+			this._partService.setPanelHidden(true);
 		}
 
 		return undefined;

@@ -415,4 +415,4 @@ export class BulkEditService implements IBulkEditService {
 }
 
 
-registerSingleton(IBulkEditService, BulkEditService);
+registerSingleton(IBulkEditService, BulkEditService, true);

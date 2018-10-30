@@ -30,7 +30,8 @@ export class ClosePanelAction extends Action {
 	}
 
 	run(): Thenable<any> {
-		return this.partService.setPanelHidden(true);
+		this.partService.setPanelHidden(true);
+		return Promise.resolve(null);
 	}
 }
 
@@ -48,7 +49,8 @@ export class TogglePanelAction extends Action {
 	}
 
 	run(): Thenable<any> {
-		return this.partService.setPanelHidden(this.partService.isVisible(Parts.PANEL_PART));
+		this.partService.setPanelHidden(this.partService.isVisible(Parts.PANEL_PART));
+		return Promise.resolve(null);
 	}
 }
 
@@ -70,7 +72,8 @@ class FocusPanelAction extends Action {
 
 		// Show panel
 		if (!this.partService.isVisible(Parts.PANEL_PART)) {
-			return this.partService.setPanelHidden(false);
+			this.partService.setPanelHidden(false);
+			return Promise.resolve(null);
 		}
 
 		// Focus into active panel
@@ -79,7 +82,7 @@ class FocusPanelAction extends Action {
 			panel.focus();
 		}
 
-		return Promise.resolve(true);
+		return Promise.resolve(null);
 	}
 }
 
@@ -116,7 +119,8 @@ export class TogglePanelPositionAction extends Action {
 	run(): Thenable<any> {
 		const position = this.partService.getPanelPosition();
 
-		return this.partService.setPanelPosition(position === Position.BOTTOM ? Position.RIGHT : Position.BOTTOM);
+		this.partService.setPanelPosition(position === Position.BOTTOM ? Position.RIGHT : Position.BOTTOM);
+		return Promise.resolve(null);
 	}
 
 	dispose(): void {
@@ -153,9 +157,12 @@ export class ToggleMaximizedPanelAction extends Action {
 	}
 
 	run(): Thenable<any> {
-		const promise: Thenable<void> = !this.partService.isVisible(Parts.PANEL_PART) ? this.partService.setPanelHidden(false) : Promise.resolve(null);
+		if (!this.partService.isVisible(Parts.PANEL_PART)) {
+			this.partService.setPanelHidden(false);
+		}
 
-		return promise.then(() => this.partService.toggleMaximizedPanel());
+		this.partService.toggleMaximizedPanel();
+		return Promise.resolve(null);
 	}
 
 	dispose(): void {
@@ -175,7 +182,9 @@ export class PanelActivityAction extends ActivityAction {
 	}
 
 	run(event: any): Thenable<any> {
-		return this.panelService.openPanel(this.activity.id, true).then(() => this.activate());
+		this.panelService.openPanel(this.activity.id, true);
+		this.activate();
+		return Promise.resolve(null);
 	}
 }
 
@@ -202,7 +211,8 @@ export class SwitchPanelViewAction extends Action {
 				break;
 			}
 		}
-		return this.panelService.openPanel(targetPanelId, true);
+		this.panelService.openPanel(targetPanelId, true);
+		return Promise.resolve(null);
 	}
 }
 

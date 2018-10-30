@@ -257,6 +257,11 @@
 	text-align: center;
 }
 
+.debug-viewlet .debug-call-stack .show-more {
+	font-style: italic;
+	opacity: 0.35;
+}
+
 .monaco-workbench .debug-viewlet .monaco-tree-row .expression {
 	white-space: pre;
 }

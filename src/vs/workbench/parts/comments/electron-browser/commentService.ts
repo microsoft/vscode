@@ -37,8 +37,8 @@ export interface ICommentService {
 	registerDataProvider(owner: number, commentProvider: DocumentCommentProvider): void;
 	unregisterDataProvider(owner: number): void;
 	updateComments(event: CommentThreadChangedEvent): void;
-	createNewCommentThread(owner: number, resource: URI, range: Range, text: string): Promise<CommentThread>;
-	replyToCommentThread(owner: number, resource: URI, range: Range, thread: CommentThread, text: string): Promise<CommentThread>;
+	createNewCommentThread(owner: number, resource: URI, range: Range, text: string): Promise<CommentThread | null>;
+	replyToCommentThread(owner: number, resource: URI, range: Range, thread: CommentThread, text: string): Promise<CommentThread | null>;
 	editComment(owner: number, resource: URI, comment: Comment, text: string): Promise<void>;
 	deleteComment(owner: number, resource: URI, comment: Comment): Promise<boolean>;
 	getComments(resource: URI): Promise<CommentInfo[]>;
@@ -94,21 +94,21 @@ export class CommentService extends Disposable implements ICommentService {
 		this._onDidUpdateCommentThreads.fire(event);
 	}
 
-	createNewCommentThread(owner: number, resource: URI, range: Range, text: string): Promise<CommentThread> {
+	async createNewCommentThread(owner: number, resource: URI, range: Range, text: string): Promise<CommentThread | null> {
 		const commentProvider = this._commentProviders.get(owner);
 
 		if (commentProvider) {
-			return commentProvider.createNewCommentThread(resource, range, text, CancellationToken.None);
+			return await commentProvider.createNewCommentThread(resource, range, text, CancellationToken.None);
 		}
 
 		return null;
 	}
 
-	replyToCommentThread(owner: number, resource: URI, range: Range, thread: CommentThread, text: string): Promise<CommentThread> {
+	async replyToCommentThread(owner: number, resource: URI, range: Range, thread: CommentThread, text: string): Promise<CommentThread | null> {
 		const commentProvider = this._commentProviders.get(owner);
 
 		if (commentProvider) {
-			return commentProvider.replyToCommentThread(resource, range, thread, text, CancellationToken.None);
+			return await commentProvider.replyToCommentThread(resource, range, thread, text, CancellationToken.None);
 		}
 
 		return null;
@@ -121,7 +121,7 @@ export class CommentService extends Disposable implements ICommentService {
 			return commentProvider.editComment(resource, comment, text, CancellationToken.None);
 		}
 
-		return null;
+		return Promise.resolve(void 0);
 	}
 
 	deleteComment(owner: number, resource: URI, comment: Comment): Promise<boolean> {

@@ -5,7 +5,6 @@
 
 import 'vs/css!./media/panelviewlet';
 import * as nls from 'vs/nls';
-import { TPromise } from 'vs/base/common/winjs.base';
 import { Event, Emitter, filterEvent } from 'vs/base/common/event';
 import { ColorIdentifier } from 'vs/platform/theme/common/colorRegistry';
 import { attachStyler, IColorMapping } from 'vs/platform/theme/common/styler';
@@ -77,12 +76,10 @@ export abstract class ViewletPanel extends Panel implements IView {
 		this.actionRunner = options.actionRunner;
 	}
 
-	setVisible(visible: boolean): TPromise<void> {
+	setVisible(visible: boolean): void {
 		if (this._isVisible !== visible) {
 			this._isVisible = visible;
 		}
-
-		return TPromise.wrap(null);
 	}
 
 	isVisible(): boolean {

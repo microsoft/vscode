@@ -70,7 +70,8 @@ export class ShowProblemsPanelAction extends Action {
 	}
 
 	public run(): TPromise<any> {
-		return this.panelService.openPanel(Constants.MARKERS_PANEL_ID, true);
+		this.panelService.openPanel(Constants.MARKERS_PANEL_ID, true);
+		return Promise.resolve(null);
 	}
 }
 
@@ -147,7 +148,7 @@ export class MarkersFilterActionItem extends BaseActionItem {
 	) {
 		super(null, action);
 		this.focusContextKey = Constants.MarkerPanelFilterFocusContextKey.bindTo(contextKeyService);
-		this.delayedFilterUpdate = new Delayer<void>(500);
+		this.delayedFilterUpdate = new Delayer<void>(200);
 		this._register(toDisposable(() => this.delayedFilterUpdate.cancel()));
 	}
 
