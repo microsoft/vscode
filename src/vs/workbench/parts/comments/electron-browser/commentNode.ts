@@ -185,7 +185,6 @@ export class CommentNode extends Disposable {
 	private createDeleteAction(): Action {
 		return new Action('comment.delete', nls.localize('label.delete', "Delete"), 'octicon octicon-x', true, () => {
 			return this.dialogService.confirm({
-				title: nls.localize('deleteCommentTitle', "Delete Comment"),
 				message: nls.localize('confirmDelete', "Delete comment?"),
 				type: 'question',
 				primaryButton: nls.localize('label.delete', "Delete")
