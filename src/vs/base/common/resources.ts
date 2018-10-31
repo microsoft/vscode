@@ -25,7 +25,7 @@ export function basenameOrAuthority(resource: URI): string {
 }
 
 /**
- * Tests wheter a `candidate` URI is a parent or equal of a given `base` URI.
+ * Tests whether a `candidate` URI is a parent or equal of a given `base` URI.
  * @param base A uri which is "longer"
  * @param parentCandidate A uri which is "shorter" then `base`
  */
@@ -176,7 +176,7 @@ export function distinctParents<T>(items: T[], resourceAccessor: (item: T) => UR
 }
 
 /**
- * Tests wheter the given URL is a file URI created by `URI.parse` instead of `URI.file`.
+ * Tests whether the given URL is a file URI created by `URI.parse` instead of `URI.file`.
  * Such URI have no scheme or scheme that consist of a single letter (windows drive letter)
  * @param candidate The URI to test
  * @returns A corrected, real file URI if the input seems to be malformed.

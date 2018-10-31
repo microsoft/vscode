@@ -295,7 +295,7 @@ export function tokenize(text: string, languageId: string): Token[][] {
 }
 
 /**
- * Define a new theme or updte an existing theme.
+ * Define a new theme or update an existing theme.
  */
 export function defineTheme(themeName: string, themeData: IStandaloneThemeData): void {
 	StaticServices.standaloneThemeService.get().defineTheme(themeName, themeData);
