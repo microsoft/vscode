@@ -386,7 +386,7 @@ export class SplitTerminalAction extends Action {
 		}
 
 		return getCwdForSplit(this._terminalService.configHelper, instance, this.workspaceContextService.getWorkspace().folders, this.commandService).then(cwd => {
-			if (cwd) {
+			if (cwd || (cwd === '')) {
 				this._terminalService.splitInstance(instance, { cwd });
 				return this._terminalService.showPanel(true);
 			} else {
