@@ -113,9 +113,7 @@ export class Repl extends Panel implements IPrivateReplService, IHistoryNavigati
 
 	private registerListeners(): void {
 		this._register(this.debugService.getViewModel().onDidFocusSession(session => {
-			if (this.isVisible()) {
-				this.selectSession(session);
-			}
+			this.selectSession(session);
 		}));
 		this._register(this.debugService.onDidNewSession(() => this.updateTitleArea()));
 		this._register(this.themeService.onThemeChange(() => {
@@ -126,19 +124,15 @@ export class Repl extends Panel implements IPrivateReplService, IHistoryNavigati
 	}
 
 	setVisible(visible: boolean): void {
+		super.setVisible(visible);
 		if (!visible) {
 			dispose(this.model);
 		} else {
 			this.model = this.modelService.createModel('', null, uri.parse(`${DEBUG_SCHEME}:replinput`), true);
 			this.replInput.setModel(this.model);
 			this.updateInputDecoration();
-			const focusedSession = this.debugService.getViewModel().focusedSession;
-			if (focusedSession && this.tree.getInput() !== focusedSession) {
-				this.selectSession(focusedSession);
-			}
+			this.refreshReplElements(true);
 		}
-
-		super.setVisible(visible);
 	}
 
 	get isReadonly(): boolean {
