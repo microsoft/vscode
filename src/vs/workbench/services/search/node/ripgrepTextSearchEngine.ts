@@ -357,7 +357,7 @@ function getRgArgs(query: vscode.TextSearchQuery, options: vscode.TextSearchOpti
 		const regexpStr = regexp.source.replace(/\\\//g, '/'); // RegExp.source arbitrarily returns escaped slashes. Search and destroy.
 		args.push('--regexp', regexpStr);
 	} else if (query.isRegExp) {
-		args.push('--regexp', pattern);
+		args.push('--regexp', fixRegexEndingPattern(query.pattern));
 	} else {
 		searchPatternAfterDoubleDashes = pattern;
 		args.push('--fixed-strings');
@@ -367,9 +367,6 @@ function getRgArgs(query: vscode.TextSearchQuery, options: vscode.TextSearchOpti
 	if (!options.useGlobalIgnoreFiles) {
 		args.push('--no-ignore-global');
 	}
-
-	// Match \r\n with $
-	args.push('--crlf');
 
 	args.push('--json');
 
@@ -429,3 +426,11 @@ interface IRgSubmatch {
 }
 
 type IRgBytesOrText = { bytes: string } | { text: string };
+
+export function fixRegexEndingPattern(pattern: string): string {
+	// Replace an unescaped $ at the end of the pattern with \r?$
+	// Match $ preceeded by none or even number of literal \
+	return pattern.match(/([^\\]|^)(\\\\)*\$$/) ?
+		pattern.replace(/\$$/, '\\r?$') :
+		pattern;
+}
