@@ -205,11 +205,11 @@ suite('SQLite Storage Library', () => {
 		return set;
 	}
 
-	async function testDBBasics(path, errorLogger?: (error) => void) {
+	async function testDBBasics(path, logError?: (error) => void) {
 		const options: IStorageOptions = { path };
-		if (errorLogger) {
+		if (logError) {
 			options.logging = {
-				errorLogger
+				logError
 			};
 		}
 

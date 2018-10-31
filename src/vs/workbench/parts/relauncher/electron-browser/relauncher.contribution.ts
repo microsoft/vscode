@@ -32,7 +32,7 @@ export class SettingsChangeRelauncher extends Disposable implements IWorkbenchCo
 
 	private titleBarStyle: 'native' | 'custom';
 	private nativeTabs: boolean;
-	private nativeFullscreen: boolean;
+	private nativeFullScreen: boolean;
 	private clickThroughInactive: boolean;
 	private updateChannel: string;
 	private enableCrashReporter: boolean;
@@ -89,8 +89,8 @@ export class SettingsChangeRelauncher extends Disposable implements IWorkbenchCo
 		}
 
 		// macOS: Native fullscreen
-		if (isMacintosh && config.window && typeof config.window.nativeFullscreen === 'boolean' && config.window.nativeFullscreen !== this.nativeFullscreen) {
-			this.nativeFullscreen = config.window.nativeFullscreen;
+		if (isMacintosh && config.window && typeof config.window.nativeFullScreen === 'boolean' && config.window.nativeFullScreen !== this.nativeFullScreen) {
+			this.nativeFullScreen = config.window.nativeFullScreen;
 			changed = true;
 		}
 

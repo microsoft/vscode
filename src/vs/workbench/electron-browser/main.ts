@@ -112,52 +112,49 @@ function openWorkbench(configuration: IWindowConfiguration): Promise<void> {
 	// Resolve a workspace payload that we can get the workspace ID from
 	return createWorkspaceInitializationPayload(configuration, environmentService).then(payload => {
 
-		// Prepare the workspace storage folder
-		return prepareWorkspaceStorageFolder(payload, environmentService).then(workspaceStoragePath => {
-			return Promise.all([
+		return Promise.all([
 
-				// Create and initialize workspace/configuration service
-				createWorkspaceService(payload, environmentService, logService),
+			// Create and initialize workspace/configuration service
+			createWorkspaceService(payload, environmentService, logService),
 
-				// Create and initialize storage service
-				createStorageService(workspaceStoragePath, payload, environmentService, logService)
-			]).then(services => {
-				const workspaceService = services[0];
-				const storageService = new DelegatingStorageService(services[1], createStorageLegacyService(workspaceService, environmentService), logService, workspaceService);
+			// Create and initialize storage service
+			createStorageService(payload, environmentService, logService)
+		]).then(services => {
+			const workspaceService = services[0];
+			const storageService = new DelegatingStorageService(services[1], createStorageLegacyService(workspaceService, environmentService), logService, workspaceService);
 
-				return domContentLoaded().then(() => {
-					perf.mark('willStartWorkbench');
+			return domContentLoaded().then(() => {
+				perf.mark('willStartWorkbench');
 
-					// Create Shell
-					const shell = new WorkbenchShell(document.body, {
-						contextService: workspaceService,
-						configurationService: workspaceService,
-						environmentService,
-						logService,
-						storageService
-					}, mainServices, mainProcessClient, configuration);
+				// Create Shell
+				const shell = new WorkbenchShell(document.body, {
+					contextService: workspaceService,
+					configurationService: workspaceService,
+					environmentService,
+					logService,
+					storageService
+				}, mainServices, mainProcessClient, configuration);
 
-					// Store meta file in workspace storage after workbench is running
-					shell.onRunning(() => {
-						ensureWorkspaceStorageFolderMeta(workspaceStoragePath, workspaceService);
-					});
+				// Store meta file in workspace storage after workbench is running
+				shell.onRunning(() => {
+					ensureWorkspaceStorageFolderMeta(payload, workspaceService, environmentService);
+				});
 
-					// Gracefully Shutdown Storage
-					shell.onShutdown(event => {
-						event.join(storageService.close());
-					});
+				// Gracefully Shutdown Storage
+				shell.onShutdown(event => {
+					event.join(storageService.close());
+				});
 
-					// Open Shell
-					shell.open();
+				// Open Shell
+				shell.open();
 
-					// Inform user about loading issues from the loader
-					(<any>self).require.config({
-						onError: err => {
-							if (err.errorCode === 'load') {
-								shell.onUnexpectedError(new Error(nls.localize('loaderErrorNative', "Failed to load a required file. Please restart the application to try again. Details: {0}", JSON.stringify(err))));
-							}
+				// Inform user about loading issues from the loader
+				(<any>self).require.config({
+					onError: err => {
+						if (err.errorCode === 'load') {
+							shell.onUnexpectedError(new Error(nls.localize('loaderErrorNative', "Failed to load a required file. Please restart the application to try again. Details: {0}", JSON.stringify(err))));
 						}
-					});
+					}
 				});
 			});
 		});
@@ -234,8 +231,12 @@ function resolveSingleFolderWorkspaceInitializationPayload(folderUri: ISingleFol
 	}, error => onUnexpectedError(error));
 }
 
+function getWorkspaceStoragePath(payload: IWorkspaceInitializationPayload, environmentService: IEnvironmentService): string {
+	return join(environmentService.workspaceStorageHome, payload.id); // workspace home + workspace id;
+}
+
 function prepareWorkspaceStorageFolder(payload: IWorkspaceInitializationPayload, environmentService: IEnvironmentService): Thenable<string> {
-	const workspaceStoragePath = join(environmentService.workspaceStorageHome, payload.id); // workspace home + workspace id
+	const workspaceStoragePath = getWorkspaceStoragePath(payload, environmentService);
 
 	return exists(workspaceStoragePath).then(exists => {
 		if (exists) {
@@ -246,13 +247,13 @@ function prepareWorkspaceStorageFolder(payload: IWorkspaceInitializationPayload,
 	});
 }
 
-function ensureWorkspaceStorageFolderMeta(workspaceStoragePath: string, workspaceService: IWorkspaceContextService): void {
+function ensureWorkspaceStorageFolderMeta(payload: IWorkspaceInitializationPayload, workspaceService: IWorkspaceContextService, environmentService: IEnvironmentService): void {
 	const state = workspaceService.getWorkbenchState();
 	if (state === WorkbenchState.EMPTY) {
 		return; // no storage meta for empty workspaces
 	}
 
-	const workspaceStorageMetaPath = join(workspaceStoragePath, 'workspace.json');
+	const workspaceStorageMetaPath = join(getWorkspaceStoragePath(payload, environmentService), 'workspace.json');
 
 	exists(workspaceStorageMetaPath).then(exists => {
 		if (exists) {
@@ -279,151 +280,155 @@ function createWorkspaceService(payload: IWorkspaceInitializationPayload, enviro
 	});
 }
 
-function createStorageService(workspaceStorageFolder: string, payload: IWorkspaceInitializationPayload, environmentService: IEnvironmentService, logService: ILogService): Thenable<StorageService> {
+function createStorageService(payload: IWorkspaceInitializationPayload, environmentService: IEnvironmentService, logService: ILogService): Thenable<StorageService> {
 
-	// Return early if we are using in-memory storage
-	const useInMemoryStorage = !!environmentService.extensionTestsPath; /* never keep any state when running extension tests */
-	if (useInMemoryStorage) {
-		const storageService = new StorageService(StorageService.IN_MEMORY_PATH, true, logService, environmentService);
+	// Prepare the workspace storage folder
+	return prepareWorkspaceStorageFolder(payload, environmentService).then(workspaceStorageFolder => {
 
-		return storageService.init().then(() => storageService);
-	}
+		// Return early if we are using in-memory storage
+		const useInMemoryStorage = !!environmentService.extensionTestsPath; /* never keep any state when running extension tests */
+		if (useInMemoryStorage) {
+			const storageService = new StorageService(StorageService.IN_MEMORY_PATH, true, logService, environmentService);
 
-	// Otherwise do a migration of previous workspace data if the DB does not exist yet
-	// TODO@Ben remove me after one milestone
-	const workspaceStorageDBPath = join(workspaceStorageFolder, 'storage.db');
-	perf.mark('willCheckWorkspaceStorageExists');
-	return exists(workspaceStorageDBPath).then(exists => {
-		perf.mark('didCheckWorkspaceStorageExists');
+			return storageService.init().then(() => storageService);
+		}
 
-		const storageService = new StorageService(workspaceStorageDBPath, true, logService, environmentService);
+		// Otherwise do a migration of previous workspace data if the DB does not exist yet
+		// TODO@Ben remove me after one milestone
+		const workspaceStorageDBPath = join(workspaceStorageFolder, 'storage.db');
+		perf.mark('willCheckWorkspaceStorageExists');
+		return exists(workspaceStorageDBPath).then(exists => {
+			perf.mark('didCheckWorkspaceStorageExists');
 
-		return storageService.init().then(() => {
-			if (exists) {
-				return storageService; // return early if DB was already there
-			}
+			const storageService = new StorageService(workspaceStorageDBPath, true, logService, environmentService);
 
-			perf.mark('willMigrateWorkspaceStorageKeys');
-			return readdir(environmentService.extensionsPath).then(extensions => {
-
-				// Otherwise, we migrate data from window.localStorage over
-				try {
-					const parsedStorage = parseStorage(window.localStorage);
-
-					let workspaceItems: StorageObject;
-					if (isWorkspaceIdentifier(payload)) {
-						workspaceItems = parsedStorage.multiRoot.get(`root:${payload.id}`);
-					} else if (isSingleFolderWorkspaceInitializationPayload(payload)) {
-						workspaceItems = parsedStorage.folder.get(payload.folder.toString());
-					} else {
-						if (payload.id === 'ext-dev') {
-							workspaceItems = parsedStorage.noWorkspace;
-						} else {
-							workspaceItems = parsedStorage.empty.get(`empty:${payload.id}`);
-						}
-					}
-
-					const supportedKeys = new Map<string, string>();
-					[
-						'workbench.search.history',
-						'history.entries',
-						'ignoreNetVersionError',
-						'ignoreEnospcError',
-						'extensionUrlHandler.urlToHandle',
-						'terminal.integrated.isWorkspaceShellAllowed',
-						'workbench.tasks.ignoreTask010Shown',
-						'workbench.tasks.recentlyUsedTasks',
-						'workspaces.dontPromptToOpen',
-						'output.activechannel',
-						'outline/state',
-						'extensionsAssistant/workspaceRecommendationsIgnore',
-						'extensionsAssistant/dynamicWorkspaceRecommendations',
-						'debug.repl.history',
-						'editor.matchCase',
-						'editor.wholeWord',
-						'editor.isRegex',
-						'lifecyle.lastShutdownReason',
-						'debug.selectedroot',
-						'debug.selectedconfigname',
-						'debug.breakpoint',
-						'debug.breakpointactivated',
-						'debug.functionbreakpoint',
-						'debug.exceptionbreakpoint',
-						'debug.watchexpressions',
-						'workbench.sidebar.activeviewletid',
-						'workbench.panelpart.activepanelid',
-						'workbench.zenmode.active',
-						'workbench.centerededitorlayout.active',
-						'workbench.sidebar.restore',
-						'workbench.sidebar.hidden',
-						'workbench.panel.hidden',
-						'workbench.panel.location',
-						'extensionsIdentifiers/disabled',
-						'extensionsIdentifiers/enabled',
-						'scm.views',
-						'suggest/memories/first',
-						'suggest/memories/recentlyUsed',
-						'suggest/memories/recentlyUsedByPrefix',
-						'workbench.view.explorer.numberOfVisibleViews',
-						'workbench.view.extensions.numberOfVisibleViews',
-						'workbench.view.debug.numberOfVisibleViews',
-						'workbench.explorer.views.state',
-						'workbench.view.extensions.state',
-						'workbench.view.debug.state',
-						'memento/workbench.editor.walkThroughPart',
-						'memento/workbench.editor.settings2',
-						'memento/workbench.editor.htmlPreviewPart',
-						'memento/workbench.editor.defaultPreferences',
-						'memento/workbench.editors.files.textFileEditor',
-						'memento/workbench.editors.logViewer',
-						'memento/workbench.editors.textResourceEditor',
-						'memento/workbench.panel.output'
-					].forEach(key => supportedKeys.set(key.toLowerCase(), key));
-
-					// Support extension storage as well (always the ID of the extension)
-					extensions.forEach(extension => {
-						let extensionId: string;
-						if (extension.indexOf('-') >= 0) {
-							extensionId = extension.substring(0, extension.lastIndexOf('-')); // convert "author.extension-0.2.5" => "author.extension"
-						} else {
-							extensionId = extension;
-						}
-
-						if (extensionId) {
-							supportedKeys.set(extensionId.toLowerCase(), extensionId);
-						}
-					});
-
-					if (workspaceItems) {
-						Object.keys(workspaceItems).forEach(key => {
-							const value = workspaceItems[key];
-
-							// first check for a well known supported key and store with realcase value
-							const supportedKey = supportedKeys.get(key);
-							if (supportedKey) {
-								storageService.store(supportedKey, value, StorageScope.WORKSPACE);
-							}
-
-							// fix lowercased ".numberOfVisibleViews"
-							else if (endsWith(key, '.numberOfVisibleViews'.toLowerCase())) {
-								const normalizedKey = key.substring(0, key.length - '.numberOfVisibleViews'.length) + '.numberOfVisibleViews';
-								storageService.store(normalizedKey, value, StorageScope.WORKSPACE);
-							}
-
-							// support dynamic keys
-							else if (key.indexOf('memento/') === 0 || key.indexOf('viewservice.') === 0 || endsWith(key, '.state')) {
-								storageService.store(key, value, StorageScope.WORKSPACE);
-							}
-						});
-					}
-				} catch (error) {
-					onUnexpectedError(error);
-					logService.error(error);
+			return storageService.init().then(() => {
+				if (exists) {
+					return storageService; // return early if DB was already there
 				}
 
-				perf.mark('didMigrateWorkspaceStorageKeys');
+				perf.mark('willMigrateWorkspaceStorageKeys');
+				return readdir(environmentService.extensionsPath).then(extensions => {
 
-				return storageService;
+					// Otherwise, we migrate data from window.localStorage over
+					try {
+						const parsedStorage = parseStorage(window.localStorage);
+
+						let workspaceItems: StorageObject;
+						if (isWorkspaceIdentifier(payload)) {
+							workspaceItems = parsedStorage.multiRoot.get(`root:${payload.id}`);
+						} else if (isSingleFolderWorkspaceInitializationPayload(payload)) {
+							workspaceItems = parsedStorage.folder.get(payload.folder.toString());
+						} else {
+							if (payload.id === 'ext-dev') {
+								workspaceItems = parsedStorage.noWorkspace;
+							} else {
+								workspaceItems = parsedStorage.empty.get(`empty:${payload.id}`);
+							}
+						}
+
+						const supportedKeys = new Map<string, string>();
+						[
+							'workbench.search.history',
+							'history.entries',
+							'ignoreNetVersionError',
+							'ignoreEnospcError',
+							'extensionUrlHandler.urlToHandle',
+							'terminal.integrated.isWorkspaceShellAllowed',
+							'workbench.tasks.ignoreTask010Shown',
+							'workbench.tasks.recentlyUsedTasks',
+							'workspaces.dontPromptToOpen',
+							'output.activechannel',
+							'outline/state',
+							'extensionsAssistant/workspaceRecommendationsIgnore',
+							'extensionsAssistant/dynamicWorkspaceRecommendations',
+							'debug.repl.history',
+							'editor.matchCase',
+							'editor.wholeWord',
+							'editor.isRegex',
+							'lifecyle.lastShutdownReason',
+							'debug.selectedroot',
+							'debug.selectedconfigname',
+							'debug.breakpoint',
+							'debug.breakpointactivated',
+							'debug.functionbreakpoint',
+							'debug.exceptionbreakpoint',
+							'debug.watchexpressions',
+							'workbench.sidebar.activeviewletid',
+							'workbench.panelpart.activepanelid',
+							'workbench.zenmode.active',
+							'workbench.centerededitorlayout.active',
+							'workbench.sidebar.restore',
+							'workbench.sidebar.hidden',
+							'workbench.panel.hidden',
+							'workbench.panel.location',
+							'extensionsIdentifiers/disabled',
+							'extensionsIdentifiers/enabled',
+							'scm.views',
+							'suggest/memories/first',
+							'suggest/memories/recentlyUsed',
+							'suggest/memories/recentlyUsedByPrefix',
+							'workbench.view.explorer.numberOfVisibleViews',
+							'workbench.view.extensions.numberOfVisibleViews',
+							'workbench.view.debug.numberOfVisibleViews',
+							'workbench.explorer.views.state',
+							'workbench.view.extensions.state',
+							'workbench.view.debug.state',
+							'memento/workbench.editor.walkThroughPart',
+							'memento/workbench.editor.settings2',
+							'memento/workbench.editor.htmlPreviewPart',
+							'memento/workbench.editor.defaultPreferences',
+							'memento/workbench.editors.files.textFileEditor',
+							'memento/workbench.editors.logViewer',
+							'memento/workbench.editors.textResourceEditor',
+							'memento/workbench.panel.output'
+						].forEach(key => supportedKeys.set(key.toLowerCase(), key));
+
+						// Support extension storage as well (always the ID of the extension)
+						extensions.forEach(extension => {
+							let extensionId: string;
+							if (extension.indexOf('-') >= 0) {
+								extensionId = extension.substring(0, extension.lastIndexOf('-')); // convert "author.extension-0.2.5" => "author.extension"
+							} else {
+								extensionId = extension;
+							}
+
+							if (extensionId) {
+								supportedKeys.set(extensionId.toLowerCase(), extensionId);
+							}
+						});
+
+						if (workspaceItems) {
+							Object.keys(workspaceItems).forEach(key => {
+								const value = workspaceItems[key];
+
+								// first check for a well known supported key and store with realcase value
+								const supportedKey = supportedKeys.get(key);
+								if (supportedKey) {
+									storageService.store(supportedKey, value, StorageScope.WORKSPACE);
+								}
+
+								// fix lowercased ".numberOfVisibleViews"
+								else if (endsWith(key, '.numberOfVisibleViews'.toLowerCase())) {
+									const normalizedKey = key.substring(0, key.length - '.numberOfVisibleViews'.length) + '.numberOfVisibleViews';
+									storageService.store(normalizedKey, value, StorageScope.WORKSPACE);
+								}
+
+								// support dynamic keys
+								else if (key.indexOf('memento/') === 0 || key.indexOf('viewservice.') === 0 || endsWith(key, '.state')) {
+									storageService.store(key, value, StorageScope.WORKSPACE);
+								}
+							});
+						}
+					} catch (error) {
+						onUnexpectedError(error);
+						logService.error(error);
+					}
+
+					perf.mark('didMigrateWorkspaceStorageKeys');
+
+					return storageService;
+				});
 			});
 		});
 	});

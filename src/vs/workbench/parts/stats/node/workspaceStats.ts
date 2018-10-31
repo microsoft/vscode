@@ -707,7 +707,7 @@ export class WorkspaceStats implements IWorkbenchContribution {
 				}
 				/* __GDPR__
 					"resolveProxy.stats" : {
-						"type": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true }
+						"type": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" }
 					}
 				*/
 				this.telemetryService.publicLog('resolveProxy.stats', { type });

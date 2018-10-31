@@ -103,7 +103,7 @@ class RunToCursorAction extends EditorAction {
 			id: 'editor.debug.action.runToCursor',
 			label: nls.localize('runToCursor', "Run to Cursor"),
 			alias: 'Debug: Run to Cursor',
-			precondition: ContextKeyExpr.and(CONTEXT_IN_DEBUG_MODE, EditorContextKeys.writable, CONTEXT_DEBUG_STATE.isEqualTo('stopped'), EditorContextKeys.editorTextFocus),
+			precondition: ContextKeyExpr.and(CONTEXT_IN_DEBUG_MODE, CONTEXT_DEBUG_STATE.isEqualTo('stopped'), EditorContextKeys.editorTextFocus),
 			menuOpts: {
 				group: 'debug',
 				order: 2
