@@ -386,7 +386,7 @@ configurationRegistry.registerConfiguration({
 			type: 'string',
 			enum: ['workspaceRoot', 'sourceInitialCwd', 'sourceCwd'],
 			enumDescriptions: [
-				nls.localize('terminal.integrated.splitCwd.workspaceRoot', "A new split terminal will use the workspace root as the cwd."),
+				nls.localize('terminal.integrated.splitCwd.workspaceRoot', "A new split terminal will use the workspace root as the cwd. In a multi-root workspace a choice for which root folder to use is offered."),
 				nls.localize('terminal.integrated.splitCwd.sourceInitialCwd', "A new split terminal will use the cwd that the parent terminal started with."),
 				nls.localize('terminal.integrated.splitCwd.sourceCwd', "On macOS and Linux, a new split terminal will use the cwd of the parent terminal. On Windows, this behaves the same as sourceInitialCwd."),
 			],
