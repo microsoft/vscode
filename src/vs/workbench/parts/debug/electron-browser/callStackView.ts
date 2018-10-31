@@ -555,7 +555,7 @@ class CallStackRenderer implements IRenderer {
 
 	private renderShowMore(data: ILabelTemplateData, element: IStackFrame[]): void {
 		data.label.textContent = nls.localize('showMoreStackFrames', "Show {0} More Stack Frames", element.length);
-		if (element.every(sf => sf.source && sf.source.origin === element[0].source.origin)) {
+		if (element.every(sf => sf.source && sf.source.origin && sf.source.origin === element[0].source.origin)) {
 			data.label.textContent += ` ${element[0].source.origin}`;
 		}
 	}
