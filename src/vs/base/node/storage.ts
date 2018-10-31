@@ -20,12 +20,11 @@ export interface IStorageOptions {
 }
 
 export interface IStorageLoggingOptions {
-	errorLogger?: (error: string | Error) => void;
-	infoLogger?: (msg: string) => void;
+	logError?: (error: string | Error) => void;
 
-	info?: boolean;
 	trace?: boolean;
-	profile?: boolean;
+	logTrace?: (msg: string) => void;
+
 }
 
 enum StorageState {
@@ -257,8 +256,8 @@ export class SQLiteStorageImpl {
 			return this.all(db, 'SELECT * FROM ItemTable').then(rows => {
 				rows.forEach(row => items.set(row.key, row.value));
 
-				if (this.logger.verbose) {
-					this.logger.info(`[storage ${this.name}] getItems(): ${mapToString(items)}`);
+				if (this.logger.isTracing) {
+					this.logger.trace(`[storage ${this.name}] getItems(): ${mapToString(items)}`);
 				}
 
 				return items;
@@ -279,15 +278,15 @@ export class SQLiteStorageImpl {
 			return Promise.resolve();
 		}
 
-		if (this.logger.verbose) {
-			this.logger.info(`[storage ${this.name}] updateItems(): insert(${request.insert ? mapToString(request.insert) : '0'}), delete(${request.delete ? setToString(request.delete) : '0'})`);
+		if (this.logger.isTracing) {
+			this.logger.trace(`[storage ${this.name}] updateItems(): insert(${request.insert ? mapToString(request.insert) : '0'}), delete(${request.delete ? setToString(request.delete) : '0'})`);
 		}
 
 		return this.db.then(db => {
 			return this.transaction(db, () => {
 				if (request.insert && request.insert.size > 0) {
 					this.prepare(db, 'INSERT INTO ItemTable VALUES (?,?)', stmt => {
-						request.insert!.forEach((value, key) => {
+						request.insert.forEach((value, key) => {
 							stmt.run([key, value]);
 						});
 					});
@@ -295,7 +294,7 @@ export class SQLiteStorageImpl {
 
 				if (request.delete && request.delete.size) {
 					this.prepare(db, 'DELETE FROM ItemTable WHERE key=?', stmt => {
-						request.delete!.forEach(key => {
+						request.delete.forEach(key => {
 							stmt.run(key);
 						});
 					});
@@ -305,7 +304,7 @@ export class SQLiteStorageImpl {
 	}
 
 	close(): Promise<void> {
-		this.logger.info(`[storage ${this.name}] close()`);
+		this.logger.trace(`[storage ${this.name}] close()`);
 
 		return this.db.then(db => {
 			return new Promise((resolve, reject) => {
@@ -323,7 +322,7 @@ export class SQLiteStorageImpl {
 	}
 
 	checkIntegrity(full: boolean): Promise<string> {
-		this.logger.info(`[storage ${this.name}] checkIntegrity(full: ${full})`);
+		this.logger.trace(`[storage ${this.name}] checkIntegrity(full: ${full})`);
 
 		return this.db.then(db => {
 			return this.get(db, full ? 'PRAGMA integrity_check' : 'PRAGMA quick_check').then(row => {
@@ -333,7 +332,7 @@ export class SQLiteStorageImpl {
 	}
 
 	private open(): Promise<Database> {
-		this.logger.info(`[storage ${this.name}] open()`);
+		this.logger.trace(`[storage ${this.name}] open()`);
 
 		return new Promise((resolve, reject) => {
 			const fallbackToInMemoryDatabase = (error: Error) => {
@@ -393,7 +392,7 @@ export class SQLiteStorageImpl {
 					mark('didRequireSQLite');
 				}
 
-				const db = new (this.logger.verbose ? sqlite3.verbose().Database : sqlite3.Database)(path, error => {
+				const db = new (this.logger.isTracing ? sqlite3.verbose().Database : sqlite3.Database)(path, error => {
 					if (error) {
 						return reject(error);
 					}
@@ -420,13 +419,8 @@ export class SQLiteStorageImpl {
 				db.on('error', error => this.logger.error(`[storage ${this.name}] Error (event): ${error}`));
 
 				// Tracing
-				if (this.logger.trace) {
-					db.on('trace', sql => this.logger.info(`[storage ${this.name}] Trace (event): ${sql}`));
-				}
-
-				// Profiling
-				if (this.logger.profile) {
-					db.on('profile', (sql, time) => this.logger.info(`[storage ${this.name}] Profile (event): ${sql} (${time}ms)`));
+				if (this.logger.isTracing) {
+					db.on('trace', sql => this.logger.trace(`[storage ${this.name}] Trace (event): ${sql}`));
 				}
 			});
 		});
@@ -516,35 +510,27 @@ export class SQLiteStorageImpl {
 }
 
 class SQLiteStorageLogger {
-	private readonly logInfo: boolean;
+	private readonly logTrace: boolean;
 	private readonly logError: boolean;
 
 	constructor(private readonly options?: IStorageLoggingOptions) {
-		this.logInfo = !!(this.verbose && options && options.infoLogger);
-		this.logError = !!(options && options.errorLogger);
+		this.logTrace = !!(options && options.logTrace);
+		this.logError = !!(options && options.logError);
 	}
 
-	get verbose(): boolean {
-		return !!(this.options && (this.options.info || this.options.trace || this.options.profile));
+	get isTracing(): boolean {
+		return this.logTrace;
 	}
 
-	get trace(): boolean {
-		return !!(this.options && this.options.trace);
-	}
-
-	get profile(): boolean {
-		return !!(this.options && this.options.profile);
-	}
-
-	info(msg: string): void {
-		if (this.logInfo) {
-			this.options!.infoLogger!(msg);
+	trace(msg: string): void {
+		if (this.logTrace) {
+			this.options.logTrace(msg);
 		}
 	}
 
 	error(error: string | Error): void {
 		if (this.logError) {
-			this.options!.errorLogger!(error);
+			this.options.logError(error);
 		}
 	}
 }
