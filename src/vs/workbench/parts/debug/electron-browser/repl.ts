@@ -395,7 +395,7 @@ export class Repl extends Panel implements IPrivateReplService, IHistoryNavigati
 				},
 				renderOptions: {
 					after: {
-						contentText: nls.localize('startDebugFirst', "Please start a debug session to evaluate"),
+						contentText: nls.localize('startDebugFirst', "Please start a debug session to evaluate expressions"),
 						color: transparent(editorForeground, 0.4)(this.themeService.getTheme()).toString()
 					}
 				}
