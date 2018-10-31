@@ -456,14 +456,16 @@ class TypeScriptCompletionItemProvider implements vscode.CompletionItemProvider 
 		document: vscode.TextDocument,
 		position: vscode.Position
 	): boolean {
-		// TODO: Workaround for https://github.com/Microsoft/TypeScript/issues/13456
-		// Only enable dot completions when previous character is an identifier.
-		// Prevents incorrectly completing while typing spread operators.
-		if (position.character > 1) {
-			const preText = document.getText(new vscode.Range(
-				position.line, 0,
-				position.line, position.character));
-			return preText.match(/(^|[a-z_$\(\)\[\]\{\}]|[^.]\.)\s*$/ig) !== null;
+		if (this.client.apiVersion.lt(API.v320)) {
+			// Workaround for https://github.com/Microsoft/TypeScript/issues/27742
+			// Only enable dot completions when previous character not a dot preceeded by whitespace.
+			// Prevents incorrectly completing while typing spread operators.
+			if (position.character > 1) {
+				const preText = document.getText(new vscode.Range(
+					position.line, 0,
+					position.line, position.character));
+				return preText.match(/(\s|^)\.$/ig) === null;
+			}
 		}
 
 		return true;
