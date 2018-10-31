@@ -30,17 +30,17 @@ import { TypeScriptVersion, TypeScriptVersionProvider } from './utils/versionPro
 const localize = nls.loadMessageBundle();
 
 export class PluginConfigProvider extends Disposable {
-	private readonly _config = new Map<string, any>();
+	private readonly _config = new Map<string, {}>();
 
-	private readonly _onDidUpdateConfig = this._register(new vscode.EventEmitter<{ pluginId: string, config: any }>());
+	private readonly _onDidUpdateConfig = this._register(new vscode.EventEmitter<{ pluginId: string, config: {} }>());
 	public readonly onDidUpdateConfig = this._onDidUpdateConfig.event;
 
-	public set(pluginId: string, config: any) {
+	public set(pluginId: string, config: {}) {
 		this._config.set(pluginId, config);
 		this._onDidUpdateConfig.fire({ pluginId, config });
 	}
 
-	public entries(): IterableIterator<[string, any]> {
+	public entries(): IterableIterator<[string, {}]> {
 		return this._config.entries();
 	}
 }
@@ -149,6 +149,10 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 		this.telemetryReporter = this._register(new TelemetryReporter(() => this._tsserverVersion || this._apiVersion.versionString));
 
 		this.typescriptServerSpawner = new TypeScriptServerSpawner(this.versionProvider, this.logDirectoryProvider, this.pluginPathsProvider, this.logger, this.telemetryReporter, this.tracer);
+
+		this._register(this.pluginConfigProvider.onDidUpdateConfig(update => {
+			this.configurePlugin(update.pluginId, update.config);
+		}));
 	}
 
 	public get configuration() {
@@ -426,7 +430,7 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 
 		// Reconfigure any plugins
 		for (const [config, pluginName] of this.pluginConfigProvider.entries()) {
-			this.configurePlugin(pluginName, config);
+			this.configurePlugin(config, pluginName);
 		}
 	}
 
@@ -742,7 +746,7 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 		this._tsserverVersion = undefined;
 	}
 
-	private configurePlugin(pluginName: string, configuration: any): any {
+	private configurePlugin(pluginName: string, configuration: {}): any {
 		if (this._apiVersion.gte(API.v314)) {
 			this.executeWithoutWaitingForResponse('configurePlugin', { pluginName, configuration });
 		}
