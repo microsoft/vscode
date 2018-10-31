@@ -297,7 +297,7 @@ function getNumLinesAndLastNewlineLength(text: string): { numLines: number, last
 	}
 
 	const lastLineLength = lastNewlineIdx >= 0 ?
-		text.length - lastNewlineIdx :
+		text.length - lastNewlineIdx - 1 :
 		text.length;
 
 	return { numLines, lastLineLength };

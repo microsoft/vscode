@@ -21,7 +21,7 @@ import { IModelService } from 'vs/editor/common/services/modelService';
 import { createDecorator, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IProgressRunner } from 'vs/platform/progress/common/progress';
 import { ReplacePattern } from 'vs/platform/search/common/replace';
-import { IFileMatch, IPatternInfo, ISearchComplete, ISearchProgressItem, ISearchService, ITextQuery, ITextSearchPreviewOptions, ITextSearchMatch, ITextSearchStats, resultIsMatch } from 'vs/platform/search/common/search';
+import { IFileMatch, IPatternInfo, ISearchComplete, ISearchProgressItem, ISearchService, ITextQuery, ITextSearchPreviewOptions, ITextSearchMatch, ITextSearchStats, resultIsMatch, ISearchRange, OneLineRange } from 'vs/platform/search/common/search';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { overviewRulerFindMatchForeground } from 'vs/platform/theme/common/colorRegistry';
 import { themeColorFromId } from 'vs/platform/theme/common/themeService';
@@ -1017,18 +1017,44 @@ export class RangeHighlightDecorations implements IDisposable {
 
 function textSearchResultToMatches(rawMatch: ITextSearchMatch, fileMatch: FileMatch): Match[] {
 	if (Array.isArray(rawMatch.ranges)) {
+		const previewLines = rawMatch.preview.text.split('\n');
 		return rawMatch.ranges.map((r, i) => {
+			const previewRange: ISearchRange = rawMatch.preview.matches[i];
+			const matchText = previewLines[previewRange.startLineNumber];
+			const adjustedEndCol = previewRange.startLineNumber === previewRange.endLineNumber ?
+				previewRange.endColumn :
+				matchText.length;
+			const adjustedRange = new OneLineRange(0, previewRange.startColumn, adjustedEndCol);
+
 			return new Match(fileMatch, {
 				uri: rawMatch.uri,
 				ranges: r,
 				preview: {
-					text: rawMatch.preview.text,
-					matches: rawMatch.preview.matches[i]
+					text: matchText,
+					matches: adjustedRange
 				}
 			});
 		});
 	} else {
-		let match = new Match(fileMatch, rawMatch);
+		const firstNewlineIdx = rawMatch.preview.text.indexOf('\n');
+		const matchText = firstNewlineIdx >= 0 ?
+			rawMatch.preview.text.slice(0, firstNewlineIdx) :
+			rawMatch.preview.text;
+		const previewRange = <ISearchRange>rawMatch.preview.matches;
+		const adjustedEndCol = previewRange.startLineNumber === previewRange.endLineNumber ?
+			previewRange.endColumn :
+			matchText.length;
+		const adjustedRange = new OneLineRange(0, previewRange.startColumn, adjustedEndCol);
+
+		const adjustedMatch: ITextSearchMatch = {
+			preview: {
+				text: matchText,
+				matches: adjustedRange
+			},
+			ranges: rawMatch.ranges
+		};
+
+		let match = new Match(fileMatch, adjustedMatch);
 		return [match];
 	}
 }
