@@ -21,11 +21,11 @@ class LanguageSelection extends Disposable implements ILanguageSelection {
 	private readonly _onDidChange: Emitter<LanguageIdentifier> = this._register(new Emitter<LanguageIdentifier>());
 	public readonly onDidChange: Event<LanguageIdentifier> = this._onDidChange.event;
 
-	constructor(languagesRegistry: LanguagesRegistry, selector: () => LanguageIdentifier) {
+	constructor(onLanguagesMaybeChanged: Event<void>, selector: () => LanguageIdentifier) {
 		super();
 		this._selector = selector;
 		this.languageIdentifier = this._selector();
-		this._register(languagesRegistry.onDidChange(() => this._evaluate()));
+		this._register(onLanguagesMaybeChanged(() => this._evaluate()));
 	}
 
 	private _evaluate(): void {
@@ -48,10 +48,14 @@ export class ModeServiceImpl implements IModeService {
 	private readonly _onDidCreateMode: Emitter<IMode> = new Emitter<IMode>();
 	public readonly onDidCreateMode: Event<IMode> = this._onDidCreateMode.event;
 
+	protected readonly _onLanguagesMaybeChanged: Emitter<void> = new Emitter<void>();
+	private readonly onLanguagesMaybeChanged: Event<void> = this._onLanguagesMaybeChanged.event;
+
 	constructor(warnOnOverwrite = false) {
 		this._instantiatedModes = {};
 
 		this._registry = new LanguagesRegistry(true, warnOnOverwrite);
+		this._registry.onDidChange(() => this._onLanguagesMaybeChanged.fire());
 	}
 
 	protected _onReady(): Promise<boolean> {
@@ -121,21 +125,21 @@ export class ModeServiceImpl implements IModeService {
 	// --- instantiation
 
 	public create(commaSeparatedMimetypesOrCommaSeparatedIds: string): ILanguageSelection {
-		return new LanguageSelection(this._registry, () => {
+		return new LanguageSelection(this.onLanguagesMaybeChanged, () => {
 			const modeId = this.getModeId(commaSeparatedMimetypesOrCommaSeparatedIds);
 			return this._createModeAndGetLanguageIdentifier(modeId);
 		});
 	}
 
 	public createByLanguageName(languageName: string): ILanguageSelection {
-		return new LanguageSelection(this._registry, () => {
+		return new LanguageSelection(this.onLanguagesMaybeChanged, () => {
 			const modeId = this._getModeIdByLanguageName(languageName);
 			return this._createModeAndGetLanguageIdentifier(modeId);
 		});
 	}
 
 	public createByFilepathOrFirstLine(filepath: string, firstLine?: string): ILanguageSelection {
-		return new LanguageSelection(this._registry, () => {
+		return new LanguageSelection(this.onLanguagesMaybeChanged, () => {
 			const modeId = this.getModeIdByFilepathOrFirstLine(filepath, firstLine);
 			return this._createModeAndGetLanguageIdentifier(modeId);
 		});

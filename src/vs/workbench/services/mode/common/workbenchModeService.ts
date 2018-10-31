@@ -137,10 +137,14 @@ export class WorkbenchModeServiceImpl extends ModeServiceImpl {
 
 		});
 
+		this.updateMime();
 		this._configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration(FILES_ASSOCIATIONS_CONFIG)) {
 				this.updateMime();
 			}
+		});
+		this._extensionService.whenInstalledExtensionsRegistered().then(() => {
+			this.updateMime();
 		});
 
 		this.onDidCreateMode((mode) => {
@@ -151,10 +155,7 @@ export class WorkbenchModeServiceImpl extends ModeServiceImpl {
 	protected _onReady(): Promise<boolean> {
 		if (!this._onReadyPromise) {
 			this._onReadyPromise = Promise.resolve(
-				this._extensionService.whenInstalledExtensionsRegistered().then(() => {
-					this.updateMime();
-					return true;
-				})
+				this._extensionService.whenInstalledExtensionsRegistered().then(() => true)
 			);
 		}
 
@@ -176,6 +177,8 @@ export class WorkbenchModeServiceImpl extends ModeServiceImpl {
 				mime.registerTextMime({ id: langId, mime: mimetype, filepattern: pattern, userConfigured: true });
 			});
 		}
+
+		this._onLanguagesMaybeChanged.fire();
 	}
 }
 
