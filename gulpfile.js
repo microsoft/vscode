@@ -8,10 +8,10 @@
 // Increase max listeners for event emitters
 require('events').EventEmitter.defaultMaxListeners = 100;
 
-const gulp = require('gulp');
-const util = require('./build/lib/util');
-const path = require('path');
-const compilation = require('./build/lib/compilation');
+ const gulp = require('gulp');
+ const util = require('./build/lib/util');
+ const path = require('path');
+ const compilation = require('./build/lib/compilation');
 
 // Fast compile for development time
 gulp.task('clean-client', util.rimraf('out'));
