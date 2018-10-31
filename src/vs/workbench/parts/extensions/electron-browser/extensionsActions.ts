@@ -16,7 +16,7 @@ import { IContextMenuService } from 'vs/platform/contextview/browser/contextView
 import { IDisposable, dispose, Disposable } from 'vs/base/common/lifecycle';
 import { IExtension, ExtensionState, IExtensionsWorkbenchService, VIEWLET_ID, IExtensionsViewlet, AutoUpdateConfigurationKey } from 'vs/workbench/parts/extensions/common/extensions';
 import { ExtensionsConfigurationInitialContent } from 'vs/workbench/parts/extensions/common/extensionsFileTemplate';
-import { LocalExtensionType, IExtensionEnablementService, IExtensionTipsService, EnablementState, ExtensionsLabel, IExtensionRecommendation, IGalleryExtension, IExtensionsConfigContent, IExtensionManagementServerService } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { LocalExtensionType, IExtensionEnablementService, IExtensionTipsService, EnablementState, ExtensionsLabel, IExtensionRecommendation, IGalleryExtension, IExtensionsConfigContent, IExtensionManagementServerService, INSTALL_ERROR_MALICIOUS, INSTALL_ERROR_INCOMPATIBLE } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { areSameExtensions } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { ShowViewletAction } from 'vs/workbench/browser/viewlet';
@@ -53,25 +53,30 @@ import { CancellationToken } from 'vs/base/common/cancellation';
 import { IPartService } from 'vs/workbench/services/part/common/partService';
 import { alert } from 'vs/base/browser/ui/aria/aria';
 
-const promptDownloadManually = (extension: IGalleryExtension, message: string, instantiationService: IInstantiationService, notificationService: INotificationService, openerService: IOpenerService) => {
-	const downloadUrl = `${product.extensionsGallery.serviceUrl}/publishers/${extension.publisher}/vsextensions/${extension.name}/${extension.version}/vspackage`;
-	notificationService.prompt(Severity.Error, message, [{
-		label: localize('download', "Download Manually"),
-		run: () => openerService.open(URI.parse(downloadUrl)).then(() => {
-			notificationService.prompt(
-				Severity.Info,
-				localize('install vsix', 'Once downloaded, please manually install the downloaded VSIX of \'{0}\'.', extension.identifier.id),
-				[{
-					label: InstallVSIXAction.LABEL,
-					run: () => {
-						const action = instantiationService.createInstance(InstallVSIXAction, InstallVSIXAction.ID, InstallVSIXAction.LABEL);
-						action.run();
-						action.dispose();
-					}
-				}]
-			);
-		})
-	}]);
+const promptDownloadManually = (extension: IGalleryExtension, message: string, error: Error, instantiationService: IInstantiationService, notificationService: INotificationService, openerService: IOpenerService) => {
+	if (error.name === INSTALL_ERROR_INCOMPATIBLE || error.name === INSTALL_ERROR_MALICIOUS) {
+		return Promise.reject(error);
+	} else {
+		const downloadUrl = `${product.extensionsGallery.serviceUrl}/publishers/${extension.publisher}/vsextensions/${extension.name}/${extension.version}/vspackage`;
+		notificationService.prompt(Severity.Error, message, [{
+			label: localize('download', "Download Manually"),
+			run: () => openerService.open(URI.parse(downloadUrl)).then(() => {
+				notificationService.prompt(
+					Severity.Info,
+					localize('install vsix', 'Once downloaded, please manually install the downloaded VSIX of \'{0}\'.', extension.identifier.id),
+					[{
+						label: InstallVSIXAction.LABEL,
+						run: () => {
+							const action = instantiationService.createInstance(InstallVSIXAction, InstallVSIXAction.ID, InstallVSIXAction.LABEL);
+							action.run();
+							action.dispose();
+						}
+					}]
+				);
+			})
+		}]);
+		return Promise.resolve();
+	}
 };
 
 export interface IExtensionAction extends IAction {
@@ -147,7 +152,7 @@ export class InstallAction extends Action {
 
 			console.error(err);
 
-			promptDownloadManually(extension.gallery, localize('failedToInstall', "Failed to install \'{0}\'.", extension.id), this.instantiationService, this.notificationService, this.openerService);
+			return promptDownloadManually(extension.gallery, localize('failedToInstall', "Failed to install \'{0}\'.", extension.id), err, this.instantiationService, this.notificationService, this.openerService);
 		});
 	}
 
@@ -374,7 +379,7 @@ export class UpdateAction extends Action {
 
 			console.error(err);
 
-			promptDownloadManually(extension.gallery, localize('failedToUpdate', "Failed to update \'{0}\'.", extension.id), this.instantiationService, this.notificationService, this.openerService);
+			return promptDownloadManually(extension.gallery, localize('failedToUpdate', "Failed to update \'{0}\'.", extension.id), err, this.instantiationService, this.notificationService, this.openerService);
 		});
 	}
 
@@ -997,7 +1002,7 @@ export class UpdateAllAction extends Action {
 
 			console.error(err);
 
-			promptDownloadManually(extension.gallery, localize('failedToUpdate', "Failed to update \'{0}\'.", extension.id), this.instantiationService, this.notificationService, this.openerService);
+			return promptDownloadManually(extension.gallery, localize('failedToUpdate', "Failed to update \'{0}\'.", extension.id), err, this.instantiationService, this.notificationService, this.openerService);
 		});
 	}
 
@@ -1367,7 +1372,7 @@ export class InstallWorkspaceRecommendedExtensionsAction extends Action {
 						installPromises.push(model.resolve(i, CancellationToken.None).then(e => {
 							return this.extensionWorkbenchService.install(e).then(null, err => {
 								console.error(err);
-								promptDownloadManually(e.gallery, localize('failedToInstall', "Failed to install \'{0}\'.", e.id), this.instantiationService, this.notificationService, this.openerService);
+								return promptDownloadManually(e.gallery, localize('failedToInstall', "Failed to install \'{0}\'.", e.id), err, this.instantiationService, this.notificationService, this.openerService);
 							});
 						}));
 					}
@@ -1409,7 +1414,7 @@ export class InstallRecommendedExtensionAction extends Action {
 							return this.extensionWorkbenchService.install(extension)
 								.then(() => null, err => {
 									console.error(err);
-									promptDownloadManually(extension.gallery, localize('failedToInstall', "Failed to install \'{0}\'.", extension.id), this.instantiationService, this.notificationService, this.openerService);
+									return promptDownloadManually(extension.gallery, localize('failedToInstall', "Failed to install \'{0}\'.", extension.id), err, this.instantiationService, this.notificationService, this.openerService);
 								});
 						}
 						return null;
