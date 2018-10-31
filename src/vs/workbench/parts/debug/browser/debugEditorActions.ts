@@ -113,12 +113,14 @@ class RunToCursorAction extends EditorAction {
 
 	public run(accessor: ServicesAccessor, editor: ICodeEditor): TPromise<void> {
 		const debugService = accessor.get(IDebugService);
-		if (debugService.state !== State.Stopped) {
+		const focusedSession = debugService.getViewModel().focusedSession;
+		if (debugService.state !== State.Stopped || !focusedSession) {
 			return Promise.resolve(null);
 		}
 
 		let breakpointToRemove: IBreakpoint;
-		const oneTimeListener = debugService.onDidChangeState(state => {
+		const oneTimeListener = focusedSession.onDidChangeState(() => {
+			const state = focusedSession.state;
 			if (state === State.Stopped || state === State.Inactive) {
 				if (breakpointToRemove) {
 					debugService.removeBreakpoints(breakpointToRemove.getId());
