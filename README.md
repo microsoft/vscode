@@ -43,14 +43,14 @@ Please also see our [Code of Conduct](CODE_OF_CONDUCT.md).
 
 ## Related Projects
 
-Many of the core components and extensions to Code live in their own repositories on GitHub. For example, the [node debug adapter](https://github.com/microsoft/vscode-node-debug) and the [mono debug adapter](https://github.com/microsoft/vscode-mono-debug) have their own repositories. 
+Many of the core components and extensions to Code live in their own repositories on GitHub. For example, the [node debug adapter](https://github.com/microsoft/vscode-node-debug) and the [mono debug adapter](https://github.com/microsoft/vscode-mono-debug) have their own repositories.
 
 For a complete list, please visit the [Related Projects](https://github.com/Microsoft/vscode/wiki/Related-Projects) page on our [wiki](https://github.com/Microsoft/vscode/wiki).
 
 ## Bundled Extensions
 
-Code ships with a set of extensions. These extensions are located in the [extensions](extensions) folder. 
-These extensions include grammars and snippets for several languages. Extensions that provide rich language support (code completion, go to definition) for a language have the suffix 'language-features'. For example, the 'json' extension provides coloring for JSON and the 'json-language-features' provides rich language support for JSON. 
+Code ships with a set of extensions. These extensions are located in the [extensions](extensions) folder.
+These extensions include grammars and snippets for several languages. Extensions that provide rich language support (code completion, go to definition) for a language have the suffix 'language-features'. For example, the 'json' extension provides coloring for JSON and the 'json-language-features' provides rich language support for JSON.
 
 ## License
 
