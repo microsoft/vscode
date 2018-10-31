@@ -11,7 +11,7 @@ import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 import { MainThreadOutputServiceShape, MainContext, IExtHostContext, ExtHostOutputServiceShape, ExtHostContext } from '../node/extHost.protocol';
 import { extHostNamedCustomer } from 'vs/workbench/api/electron-browser/extHostCustomers';
 import { UriComponents, URI } from 'vs/base/common/uri';
-import { Disposable } from 'vs/base/common/lifecycle';
+import { Disposable, toDisposable } from 'vs/base/common/lifecycle';
 import { anyEvent } from 'vs/base/common/event';
 
 @extHostNamedCustomer(MainContext.MainThreadOutputService)
@@ -46,14 +46,10 @@ export class MainThreadOutputService extends Disposable implements MainThreadOut
 		setVisibleChannel();
 	}
 
-	public dispose(): void {
-		super.dispose();
-		// Leave all the existing channels intact (e.g. might help with troubleshooting)
-	}
-
 	public $register(label: string, log: boolean, file?: UriComponents): Thenable<string> {
 		const id = 'extension-output-#' + (MainThreadOutputService._idPool++);
 		Registry.as<IOutputChannelRegistry>(Extensions.OutputChannels).registerChannel({ id, label, file: file ? URI.revive(file) : null, log });
+		this._register(toDisposable(() => this.$dispose(id)));
 		return TPromise.as(id);
 	}
 
