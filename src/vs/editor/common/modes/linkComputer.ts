@@ -205,7 +205,7 @@ class LinkComputer {
 				let resetStateMachine = false;
 				const chCode = line.charCodeAt(j);
 
-				if (state === State.Accept) {
+				if (state === State.Accept || state === State.End) {
 					let chClass: CharacterClass;
 					switch (chCode) {
 						case CharCode.OpenParen:
@@ -245,14 +245,9 @@ class LinkComputer {
 
 					// Check if character terminates link
 					if (chClass === CharacterClass.ForceTermination) {
-						result.push(LinkComputer._createLink(classifier, line, i, linkBeginIndex, j));
-						resetStateMachine = true;
-					}
-				} else if (state === State.End) {
-					const chClass = classifier.get(chCode);
-
-					// Check if character terminates link
-					if (chClass === CharacterClass.ForceTermination) {
+						if (state === State.Accept) {
+							result.push(LinkComputer._createLink(classifier, line, i, linkBeginIndex, j));
+						}
 						resetStateMachine = true;
 					} else {
 						state = State.Accept;
