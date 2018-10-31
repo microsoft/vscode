@@ -10,6 +10,7 @@ import { SyncActionDescriptor, MenuRegistry, MenuId } from 'vs/platform/actions/
 import { IWorkbenchActionRegistry, Extensions } from 'vs/workbench/common/actions';
 import { IPartService, Parts } from 'vs/workbench/services/part/common/partService';
 import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
+import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 
 export class ToggleSidebarVisibilityAction extends Action {
 
@@ -41,7 +42,8 @@ MenuRegistry.appendMenuItem(MenuId.MenubarAppearanceMenu, {
 	group: '2_workbench_layout',
 	command: {
 		id: ToggleSidebarVisibilityAction.ID,
-		title: nls.localize({ key: 'miToggleSidebar', comment: ['&& denotes a mnemonic'] }, "&&Toggle Side Bar")
+		title: nls.localize({ key: 'miToggleSidebar', comment: ['&& denotes a mnemonic'] }, "&&Toggle Side Bar"),
+		toggled: ContextKeyExpr.has('sidebarVisible')
 	},
 	order: 1
 });

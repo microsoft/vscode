@@ -30,6 +30,8 @@ export const ActiveEditorGroupEmptyContext = new RawContextKey<boolean>('activeE
 export const MultipleEditorGroupsContext = new RawContextKey<boolean>('multipleEditorGroups', false);
 export const SingleEditorGroupsContext = MultipleEditorGroupsContext.toNegated();
 export const InEditorZenModeContext = new RawContextKey<boolean>('inZenMode', false);
+export const IsFullscreenContext = new RawContextKey<boolean>('isFullscreen', false);
+export const IsCenteredLayoutContext = new RawContextKey<boolean>('isCenteredLayout', false);
 export const SplitEditorsVertically = new RawContextKey<boolean>('splitEditorsVertically', false);
 
 /**

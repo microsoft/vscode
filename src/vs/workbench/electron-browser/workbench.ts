@@ -20,7 +20,7 @@ import { Registry } from 'vs/platform/registry/common/platform';
 import { isWindows, isLinux, isMacintosh } from 'vs/base/common/platform';
 import { IResourceInput } from 'vs/platform/editor/common/editor';
 import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
-import { IEditorInputFactoryRegistry, Extensions as EditorExtensions, TextCompareEditorVisibleContext, TEXT_DIFF_EDITOR_ID, EditorsVisibleContext, InEditorZenModeContext, ActiveEditorGroupEmptyContext, MultipleEditorGroupsContext, IUntitledResourceInput, IResourceDiffInput, SplitEditorsVertically, TextCompareEditorActiveContext, ActiveEditorContext } from 'vs/workbench/common/editor';
+import { IEditorInputFactoryRegistry, Extensions as EditorExtensions, TextCompareEditorVisibleContext, TEXT_DIFF_EDITOR_ID, EditorsVisibleContext, InEditorZenModeContext, ActiveEditorGroupEmptyContext, MultipleEditorGroupsContext, IUntitledResourceInput, IResourceDiffInput, SplitEditorsVertically, TextCompareEditorActiveContext, ActiveEditorContext, IsFullscreenContext, IsCenteredLayoutContext } from 'vs/workbench/common/editor';
 import { HistoryService } from 'vs/workbench/services/history/electron-browser/history';
 import { ActivitybarPart } from 'vs/workbench/browser/parts/activitybar/activitybarPart';
 import { SidebarPart } from 'vs/workbench/browser/parts/sidebar/sidebarPart';
@@ -228,6 +228,8 @@ export class Workbench extends Disposable implements IPartService {
 	private shouldCenterLayout = false;
 
 	private inZenMode: IContextKey<boolean>;
+	private isFullscreen: IContextKey<boolean>;
+	private isCenteredLayout: IContextKey<boolean>;
 	private sideBarVisibleContext: IContextKey<boolean>;
 
 	private closeEmptyWindowScheduler: RunOnceScheduler = this._register(new RunOnceScheduler(() => this.onAllEditorsClosed(), 50));
@@ -521,6 +523,8 @@ export class Workbench extends Disposable implements IPartService {
 			}
 		}
 
+		this.isFullscreen.set(isFullscreen);
+
 		// Changing fullscreen state of the window has an impact on custom title bar visibility, so we need to update
 		const hasCustomTitle = this.getCustomTitleBarStyle() === 'custom';
 		if (hasCustomTitle) {
@@ -606,6 +610,9 @@ export class Workbench extends Disposable implements IPartService {
 
 	private handleContextKeys(): void {
 		this.inZenMode = InEditorZenModeContext.bindTo(this.contextKeyService);
+		this.isFullscreen = IsFullscreenContext.bindTo(this.contextKeyService);
+		this.isCenteredLayout = IsCenteredLayoutContext.bindTo(this.contextKeyService);
+		this.isFullscreen.set(browser.isFullscreen());
 
 		IsMacContext.bindTo(this.contextKeyService);
 		IsLinuxContext.bindTo(this.contextKeyService);
@@ -1346,6 +1353,8 @@ export class Workbench extends Disposable implements IPartService {
 				this.layout();
 			}
 		}
+
+		this.isCenteredLayout.set(this.editorPart.isLayoutCentered());
 	}
 
 	resizePart(part: Parts, sizeChange: number): void {

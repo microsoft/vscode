@@ -15,6 +15,7 @@ import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 import { IPartService, Parts, Position } from 'vs/workbench/services/part/common/partService';
 import { ActivityAction } from 'vs/workbench/browser/parts/compositeBarActions';
 import { IActivity } from 'vs/workbench/common/activity';
+import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 
 export class ClosePanelAction extends Action {
 
@@ -266,7 +267,8 @@ MenuRegistry.appendMenuItem(MenuId.MenubarAppearanceMenu, {
 	group: '2_workbench_layout',
 	command: {
 		id: TogglePanelAction.ID,
-		title: nls.localize({ key: 'miTogglePanel', comment: ['&& denotes a mnemonic'] }, "Toggle &&Panel")
+		title: nls.localize({ key: 'miTogglePanel', comment: ['&& denotes a mnemonic'] }, "Toggle &&Panel"),
+		toggled: ContextKeyExpr.has('activePanel')
 	},
 	order: 5
 });

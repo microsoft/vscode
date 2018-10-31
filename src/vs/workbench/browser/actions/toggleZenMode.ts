@@ -10,6 +10,7 @@ import { Registry } from 'vs/platform/registry/common/platform';
 import { SyncActionDescriptor, MenuRegistry, MenuId } from 'vs/platform/actions/common/actions';
 import { IWorkbenchActionRegistry, Extensions } from 'vs/workbench/common/actions';
 import { IPartService } from 'vs/workbench/services/part/common/partService';
+import { InEditorZenModeContext } from 'vs/workbench/common/editor';
 
 class ToggleZenMode extends Action {
 
@@ -39,7 +40,8 @@ MenuRegistry.appendMenuItem(MenuId.MenubarAppearanceMenu, {
 	group: '1_toggle_view',
 	command: {
 		id: ToggleZenMode.ID,
-		title: nls.localize('miToggleZenMode', "Toggle Zen Mode")
+		title: nls.localize('miToggleZenMode', "Toggle Zen Mode"),
+		toggled: InEditorZenModeContext
 	},
 	order: 2
 });

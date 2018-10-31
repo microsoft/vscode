@@ -62,7 +62,7 @@ export class MenubarControl extends Disposable {
 		'window.nativeTabs'
 	];
 
-	private topLevelMenus: {
+	private menus: {
 		'File': IMenu;
 		'Edit': IMenu;
 		'Selection': IMenu;
@@ -129,7 +129,7 @@ export class MenubarControl extends Disposable {
 
 		super();
 
-		this.topLevelMenus = {
+		this.menus = {
 			'File': this._register(this.menuService.createMenu(MenuId.MenubarFileMenu, this.contextKeyService)),
 			'Edit': this._register(this.menuService.createMenu(MenuId.MenubarEditMenu, this.contextKeyService)),
 			'Selection': this._register(this.menuService.createMenu(MenuId.MenubarSelectionMenu, this.contextKeyService)),
@@ -141,7 +141,7 @@ export class MenubarControl extends Disposable {
 		};
 
 		if (isMacintosh) {
-			this.topLevelMenus['Preferences'] = this._register(this.menuService.createMenu(MenuId.MenubarPreferencesMenu, this.contextKeyService));
+			this.menus['Preferences'] = this._register(this.menuService.createMenu(MenuId.MenubarPreferencesMenu, this.contextKeyService));
 		}
 
 		this.menuUpdater = this._register(new RunOnceScheduler(() => this.doSetupMenubar(), 200));
@@ -155,8 +155,8 @@ export class MenubarControl extends Disposable {
 		this._onFocusStateChange = this._register(new Emitter<boolean>());
 
 		if (isMacintosh || this.currentTitlebarStyleSetting !== 'custom') {
-			for (let topLevelMenuName of Object.keys(this.topLevelMenus)) {
-				this._register(this.topLevelMenus[topLevelMenuName].onDidChange(() => this.setupMenubar()));
+			for (let topLevelMenuName of Object.keys(this.topLevelTitles)) {
+				this._register(this.menus[topLevelMenuName].onDidChange(() => this.setupMenubar()));
 			}
 			this.doSetupMenubar();
 		}
@@ -644,8 +644,8 @@ export class MenubarControl extends Disposable {
 
 		let idx = 0;
 
-		for (let menuTitle of Object.keys(this.topLevelMenus)) {
-			const menu: IMenu = this.topLevelMenus[menuTitle];
+		for (let menuTitle of Object.keys(this.topLevelTitles)) {
+			const menu: IMenu = this.menus[menuTitle];
 			let menuIndex = idx++;
 			const cleanMenuLabel = cleanMnemonic(this.topLevelTitles[menuTitle]);
 
@@ -697,7 +697,13 @@ export class MenubarControl extends Disposable {
 					for (let action of actions) {
 						this.insertActionsBefore(action, target);
 						if (action instanceof SubmenuItemAction) {
-							const submenu = this.menuService.createMenu(action.item.submenu, this.contextKeyService);
+
+							if (!this.menus[action.item.submenu.id]) {
+								this.menus[action.item.submenu.id] = this.menuService.createMenu(action.item.submenu, this.contextKeyService);
+								this._register(this.menus[action.item.submenu.id].onDidChange(() => updateActions(menu, target)));
+							}
+
+							const submenu = this.menus[action.item.submenu.id];
 							const submenuActions: SubmenuAction[] = [];
 							updateActions(submenu, submenuActions);
 							target.push(new SubmenuAction(action.label, submenuActions));
@@ -713,8 +719,8 @@ export class MenubarControl extends Disposable {
 				target.pop();
 			};
 
-			this.customMenus[menuIndex].actions = [];
 			if (firstTimeSetup) {
+				this.customMenus[menuIndex].actions = [];
 				this._register(menu.onDidChange(() => updateActions(menu, this.customMenus[menuIndex].actions)));
 			}
 
@@ -954,7 +960,13 @@ export class MenubarControl extends Disposable {
 
 				if (menuItem instanceof SubmenuItemAction) {
 					const submenu = { items: [] };
-					this.populateMenuItems(this.menuService.createMenu(menuItem.item.submenu, this.contextKeyService), submenu, keybindings);
+
+					if (!this.menus[menuItem.item.submenu.id]) {
+						this.menus[menuItem.item.submenu.id] = this.menuService.createMenu(menuItem.item.submenu, this.contextKeyService);
+						this._register(this.menus[menuItem.item.submenu.id].onDidChange(() => this.setupMenubar()));
+					}
+
+					this.populateMenuItems(this.menus[menuItem.item.submenu.id], submenu, keybindings);
 
 					let menubarSubmenuItem: IMenubarMenuItemSubmenu = {
 						id: menuItem.id,
@@ -1006,8 +1018,8 @@ export class MenubarControl extends Disposable {
 		}
 
 		menubarData.keybindings = this.getAdditionalKeybindings();
-		for (let topLevelMenuName of Object.keys(this.topLevelMenus)) {
-			const menu = this.topLevelMenus[topLevelMenuName];
+		for (let topLevelMenuName of Object.keys(this.topLevelTitles)) {
+			const menu = this.menus[topLevelMenuName];
 			let menubarMenu: IMenubarMenu = { items: [] };
 			this.populateMenuItems(menu, menubarMenu, menubarData.keybindings);
 			if (menubarMenu.items.length === 0) {
