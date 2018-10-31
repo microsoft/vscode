@@ -68,7 +68,6 @@ interface GulpTaskDefinition extends vscode.TaskDefinition {
 class FolderDetector {
 
 	private fileWatcher: vscode.FileSystemWatcher | undefined;
-	private nodeModulesWatcher: vscode.FileSystemWatcher | undefined;
 	private promise: Thenable<vscode.Task[]> | undefined;
 
 	constructor(private _workspaceFolder: vscode.WorkspaceFolder) {
@@ -83,16 +82,11 @@ class FolderDetector {
 	}
 
 	public start(): void {
-		let pattern = path.join(this._workspaceFolder.uri.fsPath, 'gulpfile{.babel.js,.js,.ts}');
+		let pattern = path.join(this._workspaceFolder.uri.fsPath, '{node_modules,gulpfile{.babel.js,.js,.ts}}');
 		this.fileWatcher = vscode.workspace.createFileSystemWatcher(pattern);
 		this.fileWatcher.onDidChange(() => this.promise = undefined);
 		this.fileWatcher.onDidCreate(() => this.promise = undefined);
 		this.fileWatcher.onDidDelete(() => this.promise = undefined);
-		let nodeModulesPattern = path.join(this._workspaceFolder.uri.fsPath, 'node_modules');
-		this.nodeModulesWatcher = vscode.workspace.createFileSystemWatcher(nodeModulesPattern);
-		this.nodeModulesWatcher.onDidChange(() => this.promise = undefined);
-		this.nodeModulesWatcher.onDidCreate(() => this.promise = undefined);
-		this.nodeModulesWatcher.onDidDelete(() => this.promise = undefined);
 	}
 
 	public async getTasks(): Promise<vscode.Task[]> {
@@ -174,9 +168,6 @@ class FolderDetector {
 		this.promise = undefined;
 		if (this.fileWatcher) {
 			this.fileWatcher.dispose();
-		}
-		if (this.nodeModulesWatcher) {
-			this.nodeModulesWatcher.dispose();
 		}
 	}
 }
