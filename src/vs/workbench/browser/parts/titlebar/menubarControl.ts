@@ -842,8 +842,8 @@ export class MenubarControl extends Disposable {
 				}
 			}));
 
-			this._register(DOM.addDisposableListener(window, DOM.EventType.KEY_DOWN, (e) => {
-				if (!this.currentEnableMenuBarMnemonics || !e.altKey || e.ctrlKey) {
+			this._register(DOM.addDisposableListener(window, DOM.EventType.KEY_DOWN, (e: KeyboardEvent) => {
+				if (!this.currentEnableMenuBarMnemonics || !e.altKey || e.ctrlKey || e.defaultPrevented) {
 					return;
 				}
 
