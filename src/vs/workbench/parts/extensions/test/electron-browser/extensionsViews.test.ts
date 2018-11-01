@@ -449,12 +449,6 @@ suite('ExtensionsListView Tests', () => {
 			otherRecommendationA,
 			workspaceRecommendationB
 		];
-		const preferredResults = [
-			workspaceRecommendationA,
-			workspaceRecommendationB,
-			fileBasedRecommendationA,
-			otherRecommendationA
-		];
 
 		const queryTarget = <SinonStub>instantiationService.stubPromise(IExtensionGalleryService, 'query', aPage(...realResults));
 		const experimentTarget = <SinonStub>instantiationService.stubPromise(IExperimentService, 'getExperimentsByType', [{
