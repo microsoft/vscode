@@ -441,6 +441,49 @@ suite('ExtensionsListView Tests', () => {
 		});
 	});
 
+	test('Skip preferred search experiment when user defines sort order', () => {
+		const searchText = 'search-me';
+		const realResults = [
+			fileBasedRecommendationA,
+			workspaceRecommendationA,
+			otherRecommendationA,
+			workspaceRecommendationB
+		];
+
+		const queryTarget = <SinonStub>instantiationService.stubPromise(IExtensionGalleryService, 'query', aPage(...realResults));
+		const experimentTarget = <SinonStub>instantiationService.stubPromise(IExperimentService, 'getExperimentsByType', [{
+			id: 'someId',
+			enabled: true,
+			state: ExperimentState.Run,
+			action: {
+				type: ExperimentActionType.ExtensionSearchResults,
+				properties: {
+					searchText: 'search-me',
+					preferredResults: [
+						workspaceRecommendationA.identifier.id,
+						'something-that-wasnt-in-first-page',
+						workspaceRecommendationB.identifier.id
+					]
+				}
+			}
+		}]);
+
+		testableView.dispose();
+		testableView = instantiationService.createInstance(ExtensionsListView, {});
+
+		return testableView.show('search-me @sort:installs').then(result => {
+			const options: IQueryOptions = queryTarget.args[0][0];
+
+			assert.ok(experimentTarget.calledOnce);
+			assert.ok(queryTarget.calledOnce);
+			assert.equal(options.text, searchText);
+			assert.equal(result.length, realResults.length);
+			for (let i = 0; i < realResults.length; i++) {
+				assert.equal(result.get(i).id, realResults[i].identifier.id);
+			}
+		});
+	});
+
 	function aLocalExtension(name: string = 'someext', manifest: any = {}, properties: any = {}, type: LocalExtensionType = LocalExtensionType.User): ILocalExtension {
 		const localExtension = <ILocalExtension>Object.create({ manifest: {} });
 		assign(localExtension, { type, manifest: {}, location: URI.file(`pub.${name}`) }, properties);

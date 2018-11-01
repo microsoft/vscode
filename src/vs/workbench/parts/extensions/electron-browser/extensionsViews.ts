@@ -125,9 +125,6 @@ export class ExtensionsListView extends ViewletPanel {
 			case 'rating': options = assign(options, { sortBy: SortBy.WeightedRating }); break;
 			case 'name': options = assign(options, { sortBy: SortBy.Title }); break;
 		}
-		if (!query || !query.trim()) {
-			options.sortBy = SortBy.InstallCount;
-		}
 
 		const successCallback = model => {
 			this.setModel(model);
@@ -302,6 +299,11 @@ export class ExtensionsListView extends ViewletPanel {
 	}
 
 	private async queryGallery(query: Query, options: IQueryOptions): Promise<IPagedModel<IExtension>> {
+		const hasUserDefinedSortOrder = options.sortBy !== undefined;
+		if (!hasUserDefinedSortOrder) {
+			options.sortBy = SortBy.InstallCount;
+		}
+
 		let value = query.value;
 
 		const idRegex = /@id:(([a-z0-9A-Z][a-z0-9\-A-Z]*)\.([a-z0-9A-Z][a-z0-9\-A-Z]*))/g;
@@ -358,11 +360,13 @@ export class ExtensionsListView extends ViewletPanel {
 		let preferredResults: string[] = [];
 		if (text) {
 			options = assign(options, { text: text.substr(0, 350), source: 'searchText' });
-			for (let i = 0; i < this.searchExperiments.length; i++) {
-				if (text.toLowerCase() === this.searchExperiments[i].action.properties['searchText'] && Array.isArray(this.searchExperiments[i].action.properties['preferredResults'])) {
-					preferredResults = this.searchExperiments[i].action.properties['preferredResults'];
-					options.source += `-experiment-${this.searchExperiments[i].id}`;
-					break;
+			if (!hasUserDefinedSortOrder) {
+				for (let i = 0; i < this.searchExperiments.length; i++) {
+					if (text.toLowerCase() === this.searchExperiments[i].action.properties['searchText'] && Array.isArray(this.searchExperiments[i].action.properties['preferredResults'])) {
+						preferredResults = this.searchExperiments[i].action.properties['preferredResults'];
+						options.source += `-experiment-${this.searchExperiments[i].id}`;
+						break;
+					}
 				}
 			}
 		} else {
