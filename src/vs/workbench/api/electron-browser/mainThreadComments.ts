@@ -79,7 +79,7 @@ export class MainThreadComments extends Disposable implements MainThreadComments
 
 		/* __GDPR__
 			"comments:registerWorkspaceCommentProvider" : {
-				"extensionId" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+				"extensionId" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
 			}
 		*/
 		this._telemetryService.publicLog('comments:registerWorkspaceCommentProvider', {
