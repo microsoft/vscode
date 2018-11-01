@@ -221,6 +221,9 @@ export class MarkersPanel extends Panel implements IMarkerFilterController {
 		this.filter.options = new FilterOptions(this.filterAction.filterText, excludeExpression);
 		this.tree.refilter();
 		this._onDidFilter.fire();
+
+		const { total, filtered } = this.getFilterStats();
+		dom.toggleClass(this.treeContainer, 'hidden', total > 0 && filtered === 0);
 		this.renderMessage();
 	}
 
