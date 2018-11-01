@@ -46,7 +46,7 @@ export interface IFileService {
 	onDidChangeFileSystemProviderRegistrations: Event<IFileSystemProviderRegistrationEvent>;
 
 	/**
-	 * Registeres a file system provider for a certain scheme.
+	 * Registers a file system provider for a certain scheme.
 	 */
 	registerProvider(scheme: string, provider: IFileSystemProvider): IDisposable;
 
@@ -80,7 +80,7 @@ export interface IFileService {
 	resolveFiles(toResolve: { resource: URI, options?: IResolveFileOptions }[]): TPromise<IResolveFileResult[]>;
 
 	/**
-	 *Finds out if a file identified by the resource exists.
+	 * Finds out if a file identified by the resource exists.
 	 */
 	existsFile(resource: URI): TPromise<boolean>;
 
