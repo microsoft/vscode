@@ -612,10 +612,9 @@ export class MaliciousExtensionChecker implements IWorkbenchContribution {
 		@INotificationService private notificationService: INotificationService,
 		@IEnvironmentService private environmentService: IEnvironmentService
 	) {
-		if (this.environmentService.args['disable-extensions']) {
-			return;
+		if (!this.environmentService.disableExtensions) {
+			this.loopCheckForMaliciousExtensions();
 		}
-		this.loopCheckForMaliciousExtensions();
 	}
 
 	private loopCheckForMaliciousExtensions(): void {
