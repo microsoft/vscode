@@ -180,6 +180,9 @@
           "css.lint.validProperties": {
             "type": "array",
             "uniqueItems": true,
+            "items": {
+              "type": "string"
+            },
             "scope": "resource",
             "default": [],
             "description": "%css.lint.validProperties.desc%"
@@ -427,6 +430,9 @@
           "scss.lint.validProperties": {
             "type": "array",
             "uniqueItems": true,
+            "items": {
+              "type": "string"
+            },
             "scope": "resource",
             "default": [],
             "description": "%scss.lint.validProperties.desc%"
@@ -653,6 +659,9 @@
           "less.lint.validProperties": {
             "type": "array",
             "uniqueItems": true,
+            "items": {
+              "type": "string"
+            },
             "scope": "resource",
             "default": [],
             "description": "%less.lint.validProperties.desc%"
