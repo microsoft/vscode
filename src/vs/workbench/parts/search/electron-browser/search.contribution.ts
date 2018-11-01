@@ -371,7 +371,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: FIND_IN_FOLDER_ID,
 	weight: KeybindingWeight.WorkbenchContrib,
 	when: ContextKeyExpr.and(ExplorerFolderContext, ResourceContextKey.Scheme.isEqualTo(Schemas.file)), // todo@remote
-	primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.KEY_F,
+	primary: KeyMod.Shift | KeyMod.Alt | KeyCode.KEY_F,
 	handler: searchInFolderCommand
 });
 
