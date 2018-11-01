@@ -53,12 +53,12 @@ function getCwdForSplit(configHelper: ITerminalConfigHelper, instance: ITerminal
 
 			return pathPromise;
 		}
-		case 'sourceInitialCwd': {
+		case 'initial': {
 			return new Promise<string>(resolve => {
 				resolve(instance.initialCwd);
 			});
 		}
-		case 'sourceCwd': {
+		case 'inherited': {
 			return instance.getCwd();
 		}
 	}

@@ -384,13 +384,13 @@ configurationRegistry.registerConfiguration({
 		'terminal.integrated.splitCwd': {
 			description: nls.localize('terminal.integrated.splitCwd', "Controls the working directory a split terminal starts with."),
 			type: 'string',
-			enum: ['workspaceRoot', 'sourceInitialCwd', 'sourceCwd'],
+			enum: ['workspaceRoot', 'initial', 'inherited'],
 			enumDescriptions: [
 				nls.localize('terminal.integrated.splitCwd.workspaceRoot', "A new split terminal will use the workspace root as the working directory. In a multi-root workspace a choice for which root folder to use is offered."),
-				nls.localize('terminal.integrated.splitCwd.sourceInitialCwd', "A new split terminal will use the working directory that the parent terminal started with."),
-				nls.localize('terminal.integrated.splitCwd.sourceCwd', "On macOS and Linux, a new split terminal will use the working directory of the parent terminal. On Windows, this behaves the same as sourceInitialCwd."),
+				nls.localize('terminal.integrated.splitCwd.initial', "A new split terminal will use the working directory that the parent terminal started with."),
+				nls.localize('terminal.integrated.splitCwd.inherited', "On macOS and Linux, a new split terminal will use the working directory of the parent terminal. On Windows, this behaves the same as initial."),
 			],
-			default: 'sourceCwd'
+			default: 'inherited'
 		},
 	}
 });
