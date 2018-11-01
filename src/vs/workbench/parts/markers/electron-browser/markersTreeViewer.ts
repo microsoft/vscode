@@ -347,14 +347,14 @@ export class Filter implements ITreeFilter<TreeElement, FilterData> {
 			return false;
 		}
 
-		if (this.options.includePattern && this.options.includePattern(resourceMarkers.resource.fsPath)) {
-			return true;
-		}
-
 		const uriMatches = FilterOptions._filter(this.options.textFilter, paths.basename(resourceMarkers.resource.fsPath));
 
 		if (this.options.textFilter && uriMatches) {
 			return { visibility: true, data: { type: FilterDataType.ResourceMarkers, uriMatches } };
+		}
+
+		if (this.options.includePattern && this.options.includePattern(resourceMarkers.resource.fsPath)) {
+			return true;
 		}
 
 		return TreeVisibility.Recurse;
