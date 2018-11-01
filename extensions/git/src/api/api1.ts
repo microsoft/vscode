@@ -167,6 +167,14 @@ export class ApiRepository implements Repository {
 	pull(): Promise<void> {
 		return this._repository.pull();
 	}
+
+	push(head: Branch): Promise<void> {
+		return this._repository.push(head);
+	}
+
+	pushTo(remote?: string, name?: string, setUpstream: boolean = false): Promise<void> {
+		return this._repository.pushTo(remote, name, setUpstream);
+	}
 }
 
 export class ApiGit implements Git {

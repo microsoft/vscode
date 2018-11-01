@@ -152,6 +152,8 @@ export interface Repository {
 
 	fetch(remote?: string, ref?: string): Promise<void>;
 	pull(): Promise<void>;
+	push(head: Branch): Promise<void>;
+	pushTo(remote?: string, name?: string, setUpstream?: boolean): Promise<void>;
 }
 
 export interface API {
