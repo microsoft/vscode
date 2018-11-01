@@ -1240,7 +1240,7 @@ declare module 'vscode' {
 		label: string;
 
 		/**
-		 * Ranges in the label to highlight. A range is Defined as a tuple of two number where the
+		 * Ranges in the label to highlight. A range is defined as a tuple of two number where the
 		 * first is the inclusive start index and the second the exclusive end index
 		 */
 		highlights?: [number, number][];
