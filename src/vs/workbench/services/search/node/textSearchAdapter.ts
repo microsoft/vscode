@@ -40,7 +40,7 @@ export class TextSearchEngineAdapter {
 					},
 					token)
 				.then(
-					() => resolve({ limitHit: false, stats: null, type: 'success' }),
+					c => resolve({ limitHit: c.limitHit, stats: null, type: 'success' }),
 					reject);
 		});
 	}
