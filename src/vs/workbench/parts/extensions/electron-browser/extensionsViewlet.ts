@@ -55,6 +55,7 @@ import { Query } from 'vs/workbench/parts/extensions/common/extensionQuery';
 import { SuggestEnabledInput, attachSuggestEnabledInputBoxStyler } from 'vs/workbench/parts/codeEditor/electron-browser/suggestEnabledInput';
 import { alert } from 'vs/base/browser/ui/aria/aria';
 import { createErrorWithActions } from 'vs/base/common/errorsWithActions';
+import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 
 interface SearchInputEvent extends Event {
 	target: HTMLInputElement;
@@ -608,9 +609,12 @@ export class MaliciousExtensionChecker implements IWorkbenchContribution {
 		@IExtensionManagementService private extensionsManagementService: IExtensionManagementService,
 		@IWindowService private windowService: IWindowService,
 		@ILogService private logService: ILogService,
-		@INotificationService private notificationService: INotificationService
+		@INotificationService private notificationService: INotificationService,
+		@IEnvironmentService private environmentService: IEnvironmentService
 	) {
-		this.loopCheckForMaliciousExtensions();
+		if (!this.environmentService.disableExtensions) {
+			this.loopCheckForMaliciousExtensions();
+		}
 	}
 
 	private loopCheckForMaliciousExtensions(): void {
