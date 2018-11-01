@@ -1071,9 +1071,9 @@ export class DebugService implements IDebugService {
 		/* __GDPR__
 			"debugAddBreakpoint" : {
 				"context": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-				"hasCondition": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-				"hasHitCondition": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-				"hasLogMessage": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+				"hasCondition": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
+				"hasHitCondition": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
+				"hasLogMessage": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true }
 			}
 		*/
 
