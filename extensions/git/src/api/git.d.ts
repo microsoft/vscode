@@ -164,8 +164,15 @@ export interface API {
 
 export interface GitExtension {
 
+	readonly enabled: boolean;
+	readonly onDidChangeEnablement: Event<boolean>;
+
 	/**
 	 * Returns a specific API version.
+	 *
+	 * Throws error if git extension is disabled. You can listed to the
+	 * [GitExtension.onDidChangeEnablement](#GitExtension.onDidChangeEnablement) event
+	 * to know when the extension becomes enabled/disabled.
 	 *
 	 * @param version Version number.
 	 * @returns API instance
