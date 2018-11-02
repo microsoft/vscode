@@ -25,8 +25,8 @@ import { ISpliceable } from 'vs/base/common/sequence';
 import { CombinedSpliceable } from 'vs/base/browser/ui/list/splice';
 import { clamp } from 'vs/base/common/numbers';
 
-export interface IIdentityProvider<T> {
-	(element: T): string;
+export interface IIdentityProvider<T, R extends string | number = string | number> {
+	(element: T): R;
 }
 
 interface ITraitChangeEvent {
@@ -188,7 +188,7 @@ class Trait<T> implements ISpliceable<boolean>, IDisposable {
 class FocusTrait<T> extends Trait<T> {
 
 	constructor(
-		private getDomId: IIdentityProvider<number>
+		private getDomId: IIdentityProvider<number, string>
 	) {
 		super('focused');
 	}

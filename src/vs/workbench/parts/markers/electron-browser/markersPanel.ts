@@ -297,7 +297,8 @@ export class MarkersPanel extends Panel implements IMarkerFilterController {
 			renderers,
 			{
 				filter: this.filter,
-				accessibilityProvider
+				accessibilityProvider,
+				identityProvider: (element: TreeElement) => element.hash
 			}
 		) as any as WorkbenchObjectTree<TreeElement, FilterData>;
 
