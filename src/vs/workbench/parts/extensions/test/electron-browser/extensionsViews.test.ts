@@ -12,7 +12,7 @@ import { IExtensionsWorkbenchService } from 'vs/workbench/parts/extensions/commo
 import { ExtensionsWorkbenchService } from 'vs/workbench/parts/extensions/node/extensionsWorkbenchService';
 import {
 	IExtensionManagementService, IExtensionGalleryService, IExtensionEnablementService, IExtensionTipsService, ILocalExtension, LocalExtensionType, IGalleryExtension, IQueryOptions,
-	DidInstallExtensionEvent, DidUninstallExtensionEvent, InstallExtensionEvent, IExtensionIdentifier, IExtensionManagementServerService, IExtensionManagementServer, EnablementState, ExtensionRecommendationReason
+	DidInstallExtensionEvent, DidUninstallExtensionEvent, InstallExtensionEvent, IExtensionIdentifier, IExtensionManagementServerService, IExtensionManagementServer, EnablementState, ExtensionRecommendationReason, SortBy
 } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { getGalleryExtensionId, getGalleryExtensionIdFromLocal } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { ExtensionManagementService, getLocalExtensionIdFromManifest } from 'vs/platform/extensionManagement/node/extensionManagementService';
@@ -150,6 +150,33 @@ suite('ExtensionsListView Tests', () => {
 		assert.equal(ExtensionsListView.isInstalledExtensionsQuery('@enabled searchText'), true);
 		assert.equal(ExtensionsListView.isInstalledExtensionsQuery('@disabled searchText'), true);
 		assert.equal(ExtensionsListView.isInstalledExtensionsQuery('@outdated searchText'), true);
+	});
+
+	test('Test empty query equates to sort by install count', () => {
+		const target = <SinonStub>instantiationService.stubPromise(IExtensionGalleryService, 'query', aPage());
+		return testableView.show('').then(() => {
+			assert.ok(target.calledOnce);
+			const options: IQueryOptions = target.args[0][0];
+			assert.equal(options.sortBy, SortBy.InstallCount);
+		});
+	});
+
+	test('Test non empty query without sort doesnt use sortBy', () => {
+		const target = <SinonStub>instantiationService.stubPromise(IExtensionGalleryService, 'query', aPage());
+		return testableView.show('some extension').then(() => {
+			assert.ok(target.calledOnce);
+			const options: IQueryOptions = target.args[0][0];
+			assert.equal(options.sortBy, undefined);
+		});
+	});
+
+	test('Test query with sort uses sortBy', () => {
+		const target = <SinonStub>instantiationService.stubPromise(IExtensionGalleryService, 'query', aPage());
+		return testableView.show('some extension @sort:rating').then(() => {
+			assert.ok(target.calledOnce);
+			const options: IQueryOptions = target.args[0][0];
+			assert.equal(options.sortBy, SortBy.WeightedRating);
+		});
 	});
 
 	test('Test installed query results', () => {
