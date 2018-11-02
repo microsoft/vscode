@@ -2,7 +2,6 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
 import {
 	createConnection, IConnection, TextDocuments, InitializeParams, InitializeResult, RequestType,
@@ -19,7 +18,6 @@ import { getDocumentContext } from './utils/documentContext';
 import uri from 'vscode-uri';
 import { formatError, runSafe, runSafeAsync } from './utils/runner';
 
-import { FoldingRangeRequest, FoldingRangeServerCapabilities } from 'vscode-languageserver-protocol-foldingprovider';
 import { getFoldingRanges } from './modes/htmlFolding';
 
 namespace TagCloseRequest {
@@ -119,7 +117,7 @@ connection.onInitialize((params: InitializeParams): InitializeResult => {
 	scopedSettingsSupport = getClientCapability('workspace.configuration', false);
 	workspaceFoldersSupport = getClientCapability('workspace.workspaceFolders', false);
 	foldingRangeLimit = getClientCapability('textDocument.foldingRange.rangeLimit', Number.MAX_VALUE);
-	const capabilities: ServerCapabilities & FoldingRangeServerCapabilities = {
+	const capabilities: ServerCapabilities = {
 		// Tell the client that the server works in FULL text document sync mode
 		textDocumentSync: documents.syncKind,
 		completionProvider: clientSnippetSupport ? { resolveProvider: true, triggerCharacters: ['.', ':', '<', '"', '=', '/'] } : undefined,
@@ -137,7 +135,7 @@ connection.onInitialize((params: InitializeParams): InitializeResult => {
 	return { capabilities };
 });
 
-connection.onInitialized((p) => {
+connection.onInitialized(() => {
 	if (workspaceFoldersSupport) {
 		connection.client.register(DidChangeWorkspaceFoldersNotification.type);
 
@@ -441,7 +439,7 @@ connection.onRequest(TagCloseRequest.type, (params, token) => {
 	}, null, `Error while computing tag close actions for ${params.textDocument.uri}`, token);
 });
 
-connection.onRequest(FoldingRangeRequest.type, (params, token) => {
+connection.onFoldingRanges((params, token) => {
 	return runSafe(() => {
 		const document = documents.get(params.textDocument.uri);
 		if (document) {

@@ -2,13 +2,11 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
 import * as nls from 'vs/nls';
 import { isFalsyOrEmpty } from 'vs/base/common/arrays';
 import { KeyCode, KeyMod, KeyChord } from 'vs/base/common/keyCodes';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
-import { TPromise } from 'vs/base/common/winjs.base';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { registerEditorAction, ServicesAccessor, EditorAction, registerEditorContribution, IActionOptions } from 'vs/editor/browser/editorExtensions';
@@ -26,6 +24,8 @@ import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { ISingleEditOperation } from 'vs/editor/common/model';
 import { INotificationService } from 'vs/platform/notification/common/notification';
+import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
+import { CancellationToken } from 'vs/base/common/cancellation';
 
 
 function alertFormattingEdits(edits: ISingleEditOperation[]): void {
@@ -238,7 +238,7 @@ class FormatOnPaste implements editorCommon.IEditorContribution {
 		const { tabSize, insertSpaces } = model.getOptions();
 		const state = new EditorState(this.editor, CodeEditorStateFlag.Value | CodeEditorStateFlag.Position);
 
-		getDocumentRangeFormattingEdits(model, range, { tabSize, insertSpaces }).then(edits => {
+		getDocumentRangeFormattingEdits(model, range, { tabSize, insertSpaces }, CancellationToken.None).then(edits => {
 			return this.workerService.computeMoreMinimalEdits(model.uri, edits);
 		}).then(edits => {
 			if (!state.validate(this.editor) || isFalsyOrEmpty(edits)) {
@@ -261,14 +261,14 @@ class FormatOnPaste implements editorCommon.IEditorContribution {
 
 export abstract class AbstractFormatAction extends EditorAction {
 
-	public run(accessor: ServicesAccessor, editor: ICodeEditor): TPromise<void> {
+	public run(accessor: ServicesAccessor, editor: ICodeEditor): Promise<void> {
 
 		const workerService = accessor.get(IEditorWorkerService);
 		const notificationService = accessor.get(INotificationService);
 
-		const formattingPromise = this._getFormattingEdits(editor);
+		const formattingPromise = this._getFormattingEdits(editor, CancellationToken.None);
 		if (!formattingPromise) {
-			return TPromise.as(void 0);
+			return Promise.resolve(void 0);
 		}
 
 		// Capture the state of the editor
@@ -283,6 +283,7 @@ export abstract class AbstractFormatAction extends EditorAction {
 			FormattingEdit.execute(editor, edits);
 			alertFormattingEdits(edits);
 			editor.focus();
+			editor.revealPositionInCenterIfOutsideViewport(editor.getPosition(), editorCommon.ScrollType.Immediate);
 		}, err => {
 			if (err instanceof Error && err.name === NoProviderError.Name) {
 				this._notifyNoProviderError(notificationService, editor.getModel().getLanguageIdentifier().language);
@@ -292,7 +293,8 @@ export abstract class AbstractFormatAction extends EditorAction {
 		});
 	}
 
-	protected abstract _getFormattingEdits(editor: ICodeEditor): TPromise<ISingleEditOperation[]>;
+	protected abstract _getFormattingEdits(editor: ICodeEditor, token: CancellationToken): Promise<ISingleEditOperation[]>;
+
 	protected _notifyNoProviderError(notificationService: INotificationService, language: string): void {
 		notificationService.info(nls.localize('no.provider', "There is no formatter for '{0}'-files installed.", language));
 	}
@@ -310,7 +312,8 @@ export class FormatDocumentAction extends AbstractFormatAction {
 				kbExpr: EditorContextKeys.editorTextFocus,
 				primary: KeyMod.Shift | KeyMod.Alt | KeyCode.KEY_F,
 				// secondary: [KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.KEY_D)],
-				linux: { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_I }
+				linux: { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_I },
+				weight: KeybindingWeight.EditorContrib
 			},
 			menuOpts: {
 				when: EditorContextKeys.hasDocumentFormattingProvider,
@@ -320,10 +323,10 @@ export class FormatDocumentAction extends AbstractFormatAction {
 		});
 	}
 
-	protected _getFormattingEdits(editor: ICodeEditor): TPromise<ISingleEditOperation[]> {
+	protected _getFormattingEdits(editor: ICodeEditor, token: CancellationToken): Promise<ISingleEditOperation[]> {
 		const model = editor.getModel();
 		const { tabSize, insertSpaces } = model.getOptions();
-		return getDocumentFormattingEdits(model, { tabSize, insertSpaces });
+		return getDocumentFormattingEdits(model, { tabSize, insertSpaces }, token);
 	}
 
 	protected _notifyNoProviderError(notificationService: INotificationService, language: string): void {
@@ -338,10 +341,11 @@ export class FormatSelectionAction extends AbstractFormatAction {
 			id: 'editor.action.formatSelection',
 			label: nls.localize('formatSelection.label', "Format Selection"),
 			alias: 'Format Code',
-			precondition: ContextKeyExpr.and(EditorContextKeys.writable, EditorContextKeys.hasNonEmptySelection),
+			precondition: ContextKeyExpr.and(EditorContextKeys.writable),
 			kbOpts: {
 				kbExpr: EditorContextKeys.editorTextFocus,
-				primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.KEY_F)
+				primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.KEY_F),
+				weight: KeybindingWeight.EditorContrib
 			},
 			menuOpts: {
 				when: ContextKeyExpr.and(EditorContextKeys.hasDocumentSelectionFormattingProvider, EditorContextKeys.hasNonEmptySelection),
@@ -351,10 +355,16 @@ export class FormatSelectionAction extends AbstractFormatAction {
 		});
 	}
 
-	protected _getFormattingEdits(editor: ICodeEditor): TPromise<ISingleEditOperation[]> {
+	protected _getFormattingEdits(editor: ICodeEditor, token: CancellationToken): Promise<ISingleEditOperation[]> {
 		const model = editor.getModel();
+		let selection = editor.getSelection();
+		if (selection.isEmpty()) {
+			const maxColumn = model.getLineMaxColumn(selection.startLineNumber);
+			selection = selection.setStartPosition(selection.startLineNumber, 1);
+			selection = selection.setEndPosition(selection.endLineNumber, maxColumn);
+		}
 		const { tabSize, insertSpaces } = model.getOptions();
-		return getDocumentRangeFormattingEdits(model, editor.getSelection(), { tabSize, insertSpaces });
+		return getDocumentRangeFormattingEdits(model, selection, { tabSize, insertSpaces }, token);
 	}
 
 	protected _notifyNoProviderError(notificationService: INotificationService, language: string): void {
@@ -376,14 +386,14 @@ CommandsRegistry.registerCommand('editor.action.format', accessor => {
 			constructor() {
 				super({} as IActionOptions);
 			}
-			_getFormattingEdits(editor: ICodeEditor): TPromise<ISingleEditOperation[]> {
+			_getFormattingEdits(editor: ICodeEditor, token: CancellationToken): Promise<ISingleEditOperation[]> {
 				const model = editor.getModel();
 				const editorSelection = editor.getSelection();
 				const { tabSize, insertSpaces } = model.getOptions();
 
 				return editorSelection.isEmpty()
-					? getDocumentFormattingEdits(model, { tabSize, insertSpaces })
-					: getDocumentRangeFormattingEdits(model, editorSelection, { tabSize, insertSpaces });
+					? getDocumentFormattingEdits(model, { tabSize, insertSpaces }, token)
+					: getDocumentRangeFormattingEdits(model, editorSelection, { tabSize, insertSpaces }, token);
 			}
 		}().run(accessor, editor);
 	}

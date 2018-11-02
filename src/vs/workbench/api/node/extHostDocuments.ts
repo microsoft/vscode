@@ -2,18 +2,16 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
-import { Event, Emitter } from 'vs/base/common/event';
-import URI, { UriComponents } from 'vs/base/common/uri';
+import { Emitter, Event } from 'vs/base/common/event';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
-import * as TypeConverters from './extHostTypeConverters';
-import { TPromise } from 'vs/base/common/winjs.base';
-import * as vscode from 'vscode';
-import { MainContext, MainThreadDocumentsShape, ExtHostDocumentsShape, IMainContext } from './extHost.protocol';
-import { ExtHostDocumentData, setWordDefinitionFor } from './extHostDocumentData';
-import { ExtHostDocumentsAndEditors } from './extHostDocumentsAndEditors';
+import { URI, UriComponents } from 'vs/base/common/uri';
 import { IModelChangedEvent } from 'vs/editor/common/model/mirrorTextModel';
+import { ExtHostDocumentsShape, IMainContext, MainContext, MainThreadDocumentsShape } from 'vs/workbench/api/node/extHost.protocol';
+import { ExtHostDocumentData, setWordDefinitionFor } from 'vs/workbench/api/node/extHostDocumentData';
+import { ExtHostDocumentsAndEditors } from 'vs/workbench/api/node/extHostDocumentsAndEditors';
+import * as TypeConverters from 'vs/workbench/api/node/extHostTypeConverters';
+import * as vscode from 'vscode';
 
 export class ExtHostDocuments implements ExtHostDocumentsShape {
 
@@ -21,18 +19,16 @@ export class ExtHostDocuments implements ExtHostDocumentsShape {
 	private _onDidRemoveDocument = new Emitter<vscode.TextDocument>();
 	private _onDidChangeDocument = new Emitter<vscode.TextDocumentChangeEvent>();
 	private _onDidSaveDocument = new Emitter<vscode.TextDocument>();
-	private _onDidRenameResource = new Emitter<vscode.ResourceRenamedEvent>();
 
 	readonly onDidAddDocument: Event<vscode.TextDocument> = this._onDidAddDocument.event;
 	readonly onDidRemoveDocument: Event<vscode.TextDocument> = this._onDidRemoveDocument.event;
 	readonly onDidChangeDocument: Event<vscode.TextDocumentChangeEvent> = this._onDidChangeDocument.event;
 	readonly onDidSaveDocument: Event<vscode.TextDocument> = this._onDidSaveDocument.event;
-	readonly onDidRenameResource: Event<vscode.ResourceRenamedEvent> = this._onDidRenameResource.event;
 
 	private _toDispose: IDisposable[];
 	private _proxy: MainThreadDocumentsShape;
 	private _documentsAndEditors: ExtHostDocumentsAndEditors;
-	private _documentLoader = new Map<string, TPromise<ExtHostDocumentData>>();
+	private _documentLoader = new Map<string, Thenable<ExtHostDocumentData>>();
 
 	constructor(mainContext: IMainContext, documentsAndEditors: ExtHostDocumentsAndEditors) {
 		this._proxy = mainContext.getProxy(MainContext.MainThreadDocuments);
@@ -71,11 +67,11 @@ export class ExtHostDocuments implements ExtHostDocumentsShape {
 		return undefined;
 	}
 
-	public ensureDocumentData(uri: URI): TPromise<ExtHostDocumentData> {
+	public ensureDocumentData(uri: URI): Thenable<ExtHostDocumentData> {
 
 		let cached = this._documentsAndEditors.getDocument(uri.toString());
 		if (cached) {
-			return TPromise.as(cached);
+			return Promise.resolve(cached);
 		}
 
 		let promise = this._documentLoader.get(uri.toString());
@@ -85,7 +81,7 @@ export class ExtHostDocuments implements ExtHostDocumentsShape {
 				return this._documentsAndEditors.getDocument(uri.toString());
 			}, err => {
 				this._documentLoader.delete(uri.toString());
-				return TPromise.wrapError<ExtHostDocumentData>(err);
+				return Promise.reject(err);
 			});
 			this._documentLoader.set(uri.toString(), promise);
 		}
@@ -93,7 +89,7 @@ export class ExtHostDocuments implements ExtHostDocumentsShape {
 		return promise;
 	}
 
-	public createDocumentData(options?: { language?: string; content?: string }): TPromise<URI> {
+	public createDocumentData(options?: { language?: string; content?: string }): Thenable<URI> {
 		return this._proxy.$tryCreateDocument(options).then(data => URI.revive(data));
 	}
 
@@ -150,11 +146,4 @@ export class ExtHostDocuments implements ExtHostDocumentsShape {
 	public setWordDefinitionFor(modeId: string, wordDefinition: RegExp): void {
 		setWordDefinitionFor(modeId, wordDefinition);
 	}
-
-	public $onDidRename(oldURL: UriComponents, newURL: UriComponents): void {
-		const oldResource = URI.revive(oldURL);
-		const newResource = URI.revive(newURL);
-		this._onDidRenameResource.fire({ oldResource, newResource });
-	}
-
 }

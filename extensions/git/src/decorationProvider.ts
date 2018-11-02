@@ -3,15 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import { window, workspace, Uri, Disposable, Event, EventEmitter, DecorationData, DecorationProvider, ThemeColor } from 'vscode';
 import * as path from 'path';
-import { Repository, GitResourceGroup, Status } from './repository';
+import { Repository, GitResourceGroup } from './repository';
 import { Model } from './model';
 import { debounce } from './decorators';
 import { filterEvent, dispose, anyEvent, fireEvent } from './util';
-import { GitErrorCodes } from './git';
+import { GitErrorCodes, Status } from './api/git';
 
 type Callback = { resolve: (status: boolean) => void, reject: (err: any) => void };
 
@@ -56,6 +54,7 @@ class GitIgnoreDecorationProvider implements DecorationProvider {
 					color: new ThemeColor('gitDecoration.ignoredResourceForeground')
 				};
 			}
+			return undefined;
 		});
 	}
 
@@ -93,7 +92,7 @@ class GitDecorationProvider implements DecorationProvider {
 
 	private static SubmoduleDecorationData: DecorationData = {
 		title: 'Submodule',
-		abbreviation: 'S',
+		letter: 'S',
 		color: new ThemeColor('gitDecoration.submoduleResourceForeground')
 	};
 

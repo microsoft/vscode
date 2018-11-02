@@ -3,15 +3,20 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import * as fs from 'fs';
 import * as path from 'path';
 import * as vscode from 'vscode';
 import * as nls from 'vscode-nls';
 import * as Proto from '../protocol';
 import { ITypeScriptServiceClient } from '../typescriptService';
-import * as languageIds from '../utils/languageModeIds';
+import API from '../utils/api';
+import * as fileSchemes from '../utils/fileSchemes';
+import { isTypeScriptDocument } from '../utils/languageModeIds';
+import { escapeRegExp } from '../utils/regexp';
 import * as typeConverters from '../utils/typeConverters';
-import BufferSyncSupport from './bufferSyncSupport';
 import FileConfigurationManager from './fileConfigurationManager';
+import { VersionDependentRegistration } from '../utils/dependentRegistration';
+import { nulToken } from '../utils/cancellation';
 
 const localize = nls.loadMessageBundle();
 
@@ -23,17 +28,16 @@ enum UpdateImportsOnFileMoveSetting {
 	Never = 'never',
 }
 
-export class UpdateImportsOnFileRenameHandler {
+class UpdateImportsOnFileRenameHandler {
 	private readonly _onDidRenameSub: vscode.Disposable;
 
 	public constructor(
 		private readonly client: ITypeScriptServiceClient,
-		private readonly bufferSyncSupport: BufferSyncSupport,
 		private readonly fileConfigurationManager: FileConfigurationManager,
-		private readonly handles: (uri: vscode.Uri) => Promise<boolean>,
+		private readonly _handles: (uri: vscode.Uri) => Promise<boolean>,
 	) {
-		this._onDidRenameSub = vscode.workspace.onDidRenameResource(e => {
-			this.doRename(e.oldResource, e.newResource);
+		this._onDidRenameSub = vscode.workspace.onDidRenameFile(e => {
+			this.doRename(e.oldUri, e.newUri);
 		});
 	}
 
@@ -45,25 +49,27 @@ export class UpdateImportsOnFileRenameHandler {
 		oldResource: vscode.Uri,
 		newResource: vscode.Uri,
 	): Promise<void> {
-		if (!this.client.apiVersion.has290Features) {
+		const targetResource = await this.getTargetResource(newResource);
+		if (!targetResource) {
 			return;
 		}
 
-		if (!await this.handles(newResource)) {
+		const targetFile = this.client.toPath(targetResource);
+		if (!targetFile) {
 			return;
 		}
 
-		const newFile = this.client.normalizePath(newResource);
+		const newFile = this.client.toPath(newResource);
 		if (!newFile) {
 			return;
 		}
 
-		const oldFile = this.client.normalizePath(oldResource);
+		const oldFile = this.client.toPath(oldResource);
 		if (!oldFile) {
 			return;
 		}
 
-		const document = await vscode.workspace.openTextDocument(newResource);
+		const document = await vscode.workspace.openTextDocument(targetResource);
 
 		const config = this.getConfiguration(document);
 		const setting = config.get<UpdateImportsOnFileMoveSetting>(updateImportsOnFileMoveName);
@@ -72,20 +78,41 @@ export class UpdateImportsOnFileRenameHandler {
 		}
 
 		// Make sure TS knows about file
-		this.bufferSyncSupport.closeResource(oldResource);
-		this.bufferSyncSupport.openTextDocument(document);
+		this.client.bufferSyncSupport.closeResource(oldResource);
+		this.client.bufferSyncSupport.openTextDocument(document);
 
-		const edits = await this.getEditsForFileRename(document, oldFile, newFile);
+		if (this.client.apiVersion.lt(API.v300) && !fs.lstatSync(newResource.fsPath).isDirectory()) {
+			// Workaround for https://github.com/Microsoft/vscode/issues/52967
+			// Never attempt to update import paths if the file does not contain something the looks like an export
+			try {
+				const response = await this.client.execute('navtree', { file: newFile }, nulToken);
+				if (response.type !== 'response' || !response.body) {
+					return;
+				}
+
+				const hasExport = (node: Proto.NavigationTree): boolean => {
+					return !!node.kindModifiers.match(/\bexports?\b/g) || !!(node.childItems && node.childItems.some(hasExport));
+				};
+				if (!hasExport(response.body)) {
+					return;
+				}
+			} catch {
+				// noop
+			}
+		}
+
+		const edits = await this.getEditsForFileRename(targetFile, document, oldFile, newFile);
 		if (!edits || !edits.size) {
 			return;
 		}
 
-		if (await this.confirmActionWithUser(document)) {
+		if (await this.confirmActionWithUser(newResource, document)) {
 			await vscode.workspace.applyEdit(edits);
 		}
 	}
 
 	private async confirmActionWithUser(
+		newResource: vscode.Uri,
 		newDocument: vscode.TextDocument
 	): Promise<boolean> {
 		const config = this.getConfiguration(newDocument);
@@ -97,7 +124,7 @@ export class UpdateImportsOnFileRenameHandler {
 				return false;
 			case UpdateImportsOnFileMoveSetting.Prompt:
 			default:
-				return this.promptUser(newDocument);
+				return this.promptUser(newResource, newDocument);
 		}
 	}
 
@@ -106,6 +133,7 @@ export class UpdateImportsOnFileRenameHandler {
 	}
 
 	private async promptUser(
+		newResource: vscode.Uri,
 		newDocument: vscode.TextDocument
 	): Promise<boolean> {
 		enum Choice {
@@ -121,24 +149,20 @@ export class UpdateImportsOnFileRenameHandler {
 		}
 
 		const response = await vscode.window.showInformationMessage<Item>(
-			localize('prompt', "Automatically update imports for moved file: '{0}'?", path.basename(newDocument.fileName)), {
+			localize('prompt', "Update imports for moved file: '{0}'?", path.basename(newResource.fsPath)), {
 				modal: true,
-			},
-			{
+			}, {
 				title: localize('reject.title', "No"),
 				choice: Choice.Reject,
 				isCloseAffordance: true,
-			},
-			{
+			}, {
 				title: localize('accept.title', "Yes"),
 				choice: Choice.Accept,
-			},
-			{
-				title: localize('always.title', "Yes, always update imports"),
+			}, {
+				title: localize('always.title', "Always automatically update imports"),
 				choice: Choice.Always,
-			},
-			{
-				title: localize('never.title', "No, never update imports"),
+			}, {
+				title: localize('never.title', "Never automatically update imports"),
 				choice: Choice.Never,
 			});
 
@@ -178,27 +202,117 @@ export class UpdateImportsOnFileRenameHandler {
 		return false;
 	}
 
+	private async getTargetResource(resource: vscode.Uri): Promise<vscode.Uri | undefined> {
+		if (resource.scheme !== fileSchemes.file) {
+			return undefined;
+		}
+
+		const isDirectory = fs.lstatSync(resource.fsPath).isDirectory();
+		if (isDirectory && this.client.apiVersion.gte(API.v300)) {
+			return resource;
+		}
+
+		if (isDirectory && this.client.apiVersion.gte(API.v292)) {
+			const files = await vscode.workspace.findFiles({
+				base: resource.fsPath,
+				pattern: '**/*.{ts,tsx,js,jsx}',
+			}, '**/node_modules/**', 1);
+			return files[0];
+		}
+
+		return (await this._handles(resource)) ? resource : undefined;
+	}
+
 	private async getEditsForFileRename(
+		targetResource: string,
 		document: vscode.TextDocument,
 		oldFile: string,
 		newFile: string,
 	) {
-		await this.fileConfigurationManager.ensureConfigurationForDocument(document, undefined);
+		const isDirectoryRename = fs.lstatSync(newFile).isDirectory();
+		await this.fileConfigurationManager.setGlobalConfigurationFromDocument(document, nulToken);
 
-		const args: Proto.GetEditsForFileRenameRequestArgs = {
-			file: newFile,
+		const args: Proto.GetEditsForFileRenameRequestArgs & { file: string } = {
+			file: targetResource,
 			oldFilePath: oldFile,
 			newFilePath: newFile,
 		};
-		const response = await this.client.execute('getEditsForFileRename', args);
-		if (!response || !response.body) {
+		const response = await this.client.execute('getEditsForFileRename', args, nulToken);
+		if (response.type !== 'response') {
 			return;
 		}
 
-		return typeConverters.WorkspaceEdit.fromFromFileCodeEdits(this.client, response.body);
+		if (!response.body) {
+			return;
+		}
+
+		const edits: Proto.FileCodeEdits[] = [];
+		for (const edit of response.body) {
+			// Workaround for https://github.com/Microsoft/vscode/issues/52675
+			if (this.client.apiVersion.lt(API.v300)) {
+				if ((edit as Proto.FileCodeEdits).fileName.match(/[\/\\]node_modules[\/\\]/gi)) {
+					continue;
+				}
+				for (const change of (edit as Proto.FileCodeEdits).textChanges) {
+					if (change.newText.match(/\/node_modules\//gi)) {
+						continue;
+					}
+				}
+			}
+
+			edits.push(await this.fixEdit(edit, isDirectoryRename, oldFile, newFile));
+		}
+		return typeConverters.WorkspaceEdit.fromFileCodeEdits(this.client, edits);
+	}
+
+	private async fixEdit(
+		edit: Proto.FileCodeEdits,
+		isDirectoryRename: boolean,
+		oldFile: string,
+		newFile: string,
+	): Promise<Proto.FileCodeEdits> {
+		if (!isDirectoryRename || this.client.apiVersion.gte(API.v300)) {
+			return edit;
+		}
+
+		const document = await vscode.workspace.openTextDocument(edit.fileName);
+		const oldFileRe = new RegExp('/' + escapeRegExp(path.basename(oldFile)) + '/');
+
+		// Workaround for https://github.com/Microsoft/TypeScript/issues/24968
+		const textChanges = edit.textChanges.map((change): Proto.CodeEdit => {
+			const existingText = document.getText(typeConverters.Range.fromTextSpan(change));
+			const existingMatch = existingText.match(oldFileRe);
+			if (!existingMatch) {
+				return change;
+			}
+
+			const match = new RegExp('/' + escapeRegExp(path.basename(newFile)) + '/(.+)$', 'g').exec(change.newText);
+			if (!match) {
+				return change;
+			}
+
+			return {
+				newText: change.newText.slice(0, -match[1].length),
+				start: change.start,
+				end: {
+					line: change.end.line,
+					offset: change.end.offset - match[1].length
+				}
+			};
+		});
+
+		return {
+			fileName: edit.fileName,
+			textChanges
+		};
 	}
 }
 
-function isTypeScriptDocument(document: vscode.TextDocument) {
-	return document.languageId === languageIds.typescript || document.languageId === languageIds.typescriptreact;
+export function register(
+	client: ITypeScriptServiceClient,
+	fileConfigurationManager: FileConfigurationManager,
+	handles: (uri: vscode.Uri) => Promise<boolean>,
+) {
+	return new VersionDependentRegistration(client, API.v290, () =>
+		new UpdateImportsOnFileRenameHandler(client, fileConfigurationManager, handles));
 }

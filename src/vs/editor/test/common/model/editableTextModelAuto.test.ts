@@ -2,13 +2,12 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
+import { CharCode } from 'vs/base/common/charCode';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { IIdentifiedSingleEditOperation } from 'vs/editor/common/model';
 import { testApplyEditsWithSyncedModels } from 'vs/editor/test/common/model/editableTextModelTestUtils';
-import { CharCode } from 'vs/base/common/charCode';
 
 const GENERATE_TESTS = false;
 

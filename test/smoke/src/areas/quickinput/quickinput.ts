@@ -25,4 +25,13 @@ export class QuickInput {
 	private async waitForQuickInputClosed(): Promise<void> {
 		await this.code.waitForElement(QuickInput.QUICK_INPUT, r => !!r && r.attributes.style.indexOf('display: none;') !== -1);
 	}
+
+	async selectQuickInputElement(index: number): Promise<void> {
+		await this.waitForQuickInputOpened();
+		for (let from = 0; from < index; from++) {
+			await this.code.dispatchKeybinding('down');
+		}
+		await this.code.dispatchKeybinding('enter');
+		await this.waitForQuickInputClosed();
+	}
 }

@@ -2,7 +2,7 @@
 
 ### Run
 
-```
+```bash
 # Dev
 yarn smoketest
 
@@ -14,7 +14,7 @@ yarn smoketest --build PATH_TO_BUILD
 
 You must always run the smoketest version which matches the release you are testing. So, if you want to run the smoketest for a release build (eg `release/1.22`), you need that version of the smoke tests too:
 
-```
+```bash
 git checkout release/1.22
 yarn
 yarn smoketest --build PATH_TO_RELEASE_BUILD
@@ -30,7 +30,7 @@ yarn smoketest --build PATH_TO_RELEASE_BUILD
 
 Start a watch task in `test/smoke`:
 
-```
+```bash
 cd test/smoke
 yarn watch
 ```

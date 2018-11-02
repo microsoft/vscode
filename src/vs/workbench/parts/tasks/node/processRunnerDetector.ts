@@ -2,7 +2,6 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
 import * as nls from 'vs/nls';
 import * as Objects from 'vs/base/common/objects';
@@ -12,7 +11,7 @@ import * as Strings from 'vs/base/common/strings';
 import * as Collections from 'vs/base/common/collections';
 
 import { CommandOptions, Source, ErrorData } from 'vs/base/common/processes';
-import { LineProcess } from 'vs/base/node/processes';
+import { LineProcess, LineData } from 'vs/base/node/processes';
 
 import { IFileService } from 'vs/platform/files/common/files';
 
@@ -39,7 +38,7 @@ interface TaskInfos {
 
 interface TaskDetectorMatcher {
 	init(): void;
-	match(tasks: string[], line: string);
+	match(tasks: string[], line: string): void;
 }
 
 interface DetectorConfig {
@@ -57,7 +56,7 @@ class RegexpTaskMatcher implements TaskDetectorMatcher {
 	init() {
 	}
 
-	match(tasks: string[], line: string) {
+	match(tasks: string[], line: string): void {
 		let matches = this.regexp.exec(line);
 		if (matches && matches.length > 0) {
 			tasks.push(matches[1]);
@@ -76,7 +75,7 @@ class GruntTaskMatcher implements TaskDetectorMatcher {
 		this.descriptionOffset = null;
 	}
 
-	match(tasks: string[], line: string) {
+	match(tasks: string[], line: string): void {
 		// grunt lists tasks as follows (description is wrapped into a new line if too long):
 		// ...
 		// Available tasks
@@ -170,8 +169,8 @@ export class ProcessRunnerDetector {
 	}
 
 	public detect(list: boolean = false, detectSpecific?: string): TPromise<DetectorResult> {
-		let commandExecutable = TaskConfig.CommandString.value(this.taskConfiguration.command);
-		if (this.taskConfiguration && this.taskConfiguration.command && ProcessRunnerDetector.supports(commandExecutable)) {
+		let commandExecutable: string;
+		if (this.taskConfiguration && this.taskConfiguration.command && (commandExecutable = TaskConfig.CommandString.value(this.taskConfiguration.command)) && ProcessRunnerDetector.supports(commandExecutable)) {
 			let config = ProcessRunnerDetector.detectorConfig(commandExecutable);
 			let args = (this.taskConfiguration.args || []).concat(config.arg);
 			let options: CommandOptions = this.taskConfiguration.options ? this.resolveCommandOptions(this._workspaceRoot, this.taskConfiguration.options) : { cwd: this._cwd };
@@ -269,7 +268,17 @@ export class ProcessRunnerDetector {
 	private runDetection(process: LineProcess, command: string, isShellCommand: boolean, matcher: TaskDetectorMatcher, problemMatchers: string[], list: boolean): TPromise<DetectorResult> {
 		let tasks: string[] = [];
 		matcher.init();
-		return process.start().then((success) => {
+
+		const onProgress = (progress: LineData) => {
+			if (progress.source === Source.stderr) {
+				this._stderr.push(progress.line);
+				return;
+			}
+			let line = Strings.removeAnsiEscapeCodes(progress.line);
+			matcher.match(tasks, line);
+		};
+
+		return process.start(onProgress).then((success) => {
 			if (tasks.length === 0) {
 				if (success.cmdCode !== 0) {
 					if (command === 'gulp') {
@@ -305,16 +314,6 @@ export class ProcessRunnerDetector {
 				this._stderr.push(nls.localize('TaskSystemDetector.noProgram', 'Program {0} was not found. Message is {1}', command, error.message));
 			}
 			return { config: null, stdout: this._stdout, stderr: this._stderr };
-		}, (progress) => {
-			if (progress.source === Source.stderr) {
-				this._stderr.push(progress.line);
-				return;
-			}
-			let line = Strings.removeAnsiEscapeCodes(progress.line);
-			let matches = matcher.match(tasks, line);
-			if (matches && matches.length > 0) {
-				tasks.push(matches[1]);
-			}
 		});
 	}
 

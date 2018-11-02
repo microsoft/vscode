@@ -3,28 +3,26 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import * as assert from 'assert';
 import { EditorOptions, TextEditorOptions } from 'vs/workbench/common/editor';
 
-suite('Workbench - EditorOptions', () => {
+suite('Workbench editor options', () => {
 
-	test('EditorOptions', function () {
+	test('EditorOptions', () => {
 		let options = new EditorOptions();
 
 		assert(!options.preserveFocus);
 		options.preserveFocus = true;
 		assert(options.preserveFocus);
-		assert(!options.forceOpen);
-		options.forceOpen = true;
-		assert(options.forceOpen);
+		assert(!options.forceReload);
+		options.forceReload = true;
+		assert(options.forceReload);
 
 		options = new EditorOptions();
-		options.forceOpen = true;
+		options.forceReload = true;
 	});
 
-	test('TextEditorOptions', function () {
+	test('TextEditorOptions', () => {
 		let options = new TextEditorOptions();
 		let otherOptions = new TextEditorOptions();
 
@@ -35,7 +33,7 @@ suite('Workbench - EditorOptions', () => {
 		otherOptions.selection(1, 1, 2, 2);
 
 		options = new TextEditorOptions();
-		options.forceOpen = true;
+		options.forceReload = true;
 		options.selection(1, 1, 2, 2);
 	});
 });

@@ -3,18 +3,18 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { MessageItem, workspace, Disposable, ProgressLocation, window } from 'vscode';
-import { ITypeScriptServiceClient } from '../typescriptService';
+import * as vscode from 'vscode';
 import { loadMessageBundle } from 'vscode-nls';
+import { ITypeScriptServiceClient } from '../typescriptService';
 
 const localize = loadMessageBundle();
 
 const typingsInstallTimeout = 30 * 1000;
 
-export default class TypingsStatus extends Disposable {
+export default class TypingsStatus extends vscode.Disposable {
 	private _acquiringTypings: { [eventId: string]: NodeJS.Timer } = Object.create({});
 	private _client: ITypeScriptServiceClient;
-	private _subscriptions: Disposable[] = [];
+	private _subscriptions: vscode.Disposable[] = [];
 
 	constructor(client: ITypeScriptServiceClient) {
 		super(() => this.dispose());
@@ -60,10 +60,10 @@ export default class TypingsStatus extends Disposable {
 export class AtaProgressReporter {
 
 	private _promises = new Map<number, Function>();
-	private _disposable: Disposable;
+	private _disposable: vscode.Disposable;
 
 	constructor(client: ITypeScriptServiceClient) {
-		this._disposable = Disposable.from(
+		this._disposable = vscode.Disposable.from(
 			client.onDidBeginInstallTypings(e => this._onBegin(e.eventId)),
 			client.onDidEndInstallTypings(e => this._onEndOrTimeout(e.eventId)),
 			client.onTypesInstallerInitializationFailed(_ => this.onTypesInstallerInitializationFailed()));
@@ -83,8 +83,8 @@ export class AtaProgressReporter {
 			});
 		});
 
-		window.withProgress({
-			location: ProgressLocation.Window,
+		vscode.window.withProgress({
+			location: vscode.ProgressLocation.Window,
 			title: localize('installingPackages', "Fetching data for better TypeScript IntelliSense")
 		}, () => promise);
 	}
@@ -98,12 +98,12 @@ export class AtaProgressReporter {
 	}
 
 	private onTypesInstallerInitializationFailed() {
-		interface MyMessageItem extends MessageItem {
+		interface MyMessageItem extends vscode.MessageItem {
 			id: number;
 		}
 
-		if (workspace.getConfiguration('typescript').get<boolean>('check.npmIsInstalled', true)) {
-			window.showWarningMessage<MyMessageItem>(
+		if (vscode.workspace.getConfiguration('typescript').get<boolean>('check.npmIsInstalled', true)) {
+			vscode.window.showWarningMessage<MyMessageItem>(
 				localize(
 					'typesInstallerInitializationFailed.title',
 					"Could not install typings files for JavaScript language features. Please ensure that NPM is installed or configure 'typescript.npm' in your user settings. Click [here]({0}) to learn more.",
@@ -118,7 +118,7 @@ export class AtaProgressReporter {
 				}
 				switch (selected.id) {
 					case 1:
-						const tsConfig = workspace.getConfiguration('typescript');
+						const tsConfig = vscode.workspace.getConfiguration('typescript');
 						tsConfig.update('check.npmIsInstalled', false, true);
 						break;
 				}

@@ -4,19 +4,23 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { Terminal } from 'vscode-xterm';
+import { Terminal, TerminalCore } from 'vscode-xterm';
 import { TerminalCommandTracker } from 'vs/workbench/parts/terminal/node/terminalCommandTracker';
 import { isWindows } from 'vs/base/common/platform';
 
-interface TestTerminal extends Terminal {
+interface TestTerminalCore extends TerminalCore {
 	writeBuffer: string[];
 	_innerWrite(): void;
 }
 
+interface TestTerminal extends Terminal {
+	_core: TestTerminalCore;
+}
+
 function syncWrite(term: TestTerminal, data: string): void {
 	// Terminal.write is asynchronous
-	term.writeBuffer.push(data);
-	term._innerWrite();
+	term._core.writeBuffer.push(data);
+	term._core._innerWrite();
 }
 
 const ROWS = 10;
@@ -62,24 +66,24 @@ suite('Workbench - TerminalCommandTracker', () => {
 			for (let i = 0; i < 20; i++) {
 				syncWrite(xterm, `\r\n`);
 			}
-			assert.equal(xterm.buffer.ybase, 20);
-			assert.equal(xterm.buffer.ydisp, 20);
+			assert.equal(xterm._core.buffer.ybase, 20);
+			assert.equal(xterm._core.buffer.ydisp, 20);
 
 			// Scroll to marker
 			commandTracker.scrollToPreviousCommand();
-			assert.equal(xterm.buffer.ydisp, 9);
+			assert.equal(xterm._core.buffer.ydisp, 9);
 
 			// Scroll to top boundary
 			commandTracker.scrollToPreviousCommand();
-			assert.equal(xterm.buffer.ydisp, 0);
+			assert.equal(xterm._core.buffer.ydisp, 0);
 
 			// Scroll to marker
 			commandTracker.scrollToNextCommand();
-			assert.equal(xterm.buffer.ydisp, 9);
+			assert.equal(xterm._core.buffer.ydisp, 9);
 
 			// Scroll to bottom boundary
 			commandTracker.scrollToNextCommand();
-			assert.equal(xterm.buffer.ydisp, 20);
+			assert.equal(xterm._core.buffer.ydisp, 20);
 		});
 		test('should select to the next and previous commands', () => {
 			(<any>window).matchMedia = () => {
@@ -98,8 +102,8 @@ suite('Workbench - TerminalCommandTracker', () => {
 			assert.equal(xterm.markers[1].line, 11);
 			syncWrite(xterm, '\n\r3');
 
-			assert.equal(xterm.buffer.ybase, 3);
-			assert.equal(xterm.buffer.ydisp, 3);
+			assert.equal(xterm._core.buffer.ybase, 3);
+			assert.equal(xterm._core.buffer.ydisp, 3);
 
 			assert.equal(xterm.getSelection(), '');
 			commandTracker.selectToPreviousCommand();
@@ -128,8 +132,8 @@ suite('Workbench - TerminalCommandTracker', () => {
 			assert.equal(xterm.markers[1].line, 11);
 			syncWrite(xterm, '\n\r3');
 
-			assert.equal(xterm.buffer.ybase, 3);
-			assert.equal(xterm.buffer.ydisp, 3);
+			assert.equal(xterm._core.buffer.ybase, 3);
+			assert.equal(xterm._core.buffer.ydisp, 3);
 
 			assert.equal(xterm.getSelection(), '');
 			commandTracker.selectToPreviousLine();

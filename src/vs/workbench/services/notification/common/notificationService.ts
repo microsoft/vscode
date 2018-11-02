@@ -3,35 +3,22 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
-import { INotificationService, INotification, INotificationHandle, Severity, NotificationMessage, INotificationActions, IPromptChoice } from 'vs/platform/notification/common/notification';
-import { INotificationsModel, NotificationsModel } from 'vs/workbench/common/notifications';
-import { IDisposable, dispose } from 'vs/base/common/lifecycle';
-import { TPromise } from 'vs/base/common/winjs.base';
-import { Action } from 'vs/base/common/actions';
+import { INotificationService, INotification, INotificationHandle, Severity, NotificationMessage, INotificationActions, IPromptChoice, IPromptOptions } from 'vs/platform/notification/common/notification';
+import { INotificationsModel, NotificationsModel, ChoiceAction } from 'vs/workbench/common/notifications';
+import { dispose, Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import { once } from 'vs/base/common/event';
 
-export class NotificationService implements INotificationService {
+export class NotificationService extends Disposable implements INotificationService {
 
-	public _serviceBrand: any;
+	_serviceBrand: any;
 
-	private _model: INotificationsModel;
-	private toDispose: IDisposable[];
+	private _model: INotificationsModel = this._register(new NotificationsModel());
 
-	constructor() {
-		this.toDispose = [];
-
-		const model = new NotificationsModel();
-		this.toDispose.push(model);
-		this._model = model;
-	}
-
-	public get model(): INotificationsModel {
+	get model(): INotificationsModel {
 		return this._model;
 	}
 
-	public info(message: NotificationMessage | NotificationMessage[]): void {
+	info(message: NotificationMessage | NotificationMessage[]): void {
 		if (Array.isArray(message)) {
 			message.forEach(m => this.info(m));
 
@@ -41,7 +28,7 @@ export class NotificationService implements INotificationService {
 		this.model.notify({ severity: Severity.Info, message });
 	}
 
-	public warn(message: NotificationMessage | NotificationMessage[]): void {
+	warn(message: NotificationMessage | NotificationMessage[]): void {
 		if (Array.isArray(message)) {
 			message.forEach(m => this.warn(m));
 
@@ -51,7 +38,7 @@ export class NotificationService implements INotificationService {
 		this.model.notify({ severity: Severity.Warning, message });
 	}
 
-	public error(message: NotificationMessage | NotificationMessage[]): void {
+	error(message: NotificationMessage | NotificationMessage[]): void {
 		if (Array.isArray(message)) {
 			message.forEach(m => this.error(m));
 
@@ -61,56 +48,59 @@ export class NotificationService implements INotificationService {
 		this.model.notify({ severity: Severity.Error, message });
 	}
 
-	public notify(notification: INotification): INotificationHandle {
+	notify(notification: INotification): INotificationHandle {
 		return this.model.notify(notification);
 	}
 
-	public prompt(severity: Severity, message: string, choices: IPromptChoice[], onCancel?: () => void): INotificationHandle {
-		let handle: INotificationHandle;
+	prompt(severity: Severity, message: string, choices: IPromptChoice[], options?: IPromptOptions): INotificationHandle {
+		const toDispose: IDisposable[] = [];
+
 		let choiceClicked = false;
+		let handle: INotificationHandle;
 
 		// Convert choices into primary/secondary actions
 		const actions: INotificationActions = { primary: [], secondary: [] };
 		choices.forEach((choice, index) => {
-			const action = new Action(`workbench.dialog.choice.${index}`, choice.label, null, true, () => {
-				choiceClicked = true;
+			const action = new ChoiceAction(`workbench.dialog.choice.${index}`, choice);
+			if (!choice.isSecondary) {
+				if (!actions.primary) {
+					actions.primary = [];
+				}
+				actions.primary.push(action);
+			} else {
+				if (!actions.secondary) {
+					actions.secondary = [];
+				}
+				actions.secondary.push(action);
+			}
 
-				// Pass to runner
-				choice.run();
+			// React to action being clicked
+			toDispose.push(action.onDidRun(() => {
+				choiceClicked = true;
 
 				// Close notification unless we are told to keep open
 				if (!choice.keepOpen) {
 					handle.close();
 				}
+			}));
 
-				return TPromise.as(void 0);
-			});
-
-			if (!choice.isSecondary) {
-				actions.primary.push(action);
-			} else {
-				actions.secondary.push(action);
-			}
+			toDispose.push(action);
 		});
 
 		// Show notification with actions
-		handle = this.notify({ severity, message, actions });
+		handle = this.notify({ severity, message, actions, sticky: options && options.sticky });
 
 		once(handle.onDidClose)(() => {
 
 			// Cleanup when notification gets disposed
-			dispose(...actions.primary, ...actions.secondary);
+			dispose(toDispose);
 
 			// Indicate cancellation to the outside if no action was executed
-			if (!choiceClicked && typeof onCancel === 'function') {
-				onCancel();
+			if (options && typeof options.onCancel === 'function' && !choiceClicked) {
+				options.onCancel();
 			}
 		});
 
 		return handle;
-	}
-
-	public dispose(): void {
-		this.toDispose = dispose(this.toDispose);
 	}
 }

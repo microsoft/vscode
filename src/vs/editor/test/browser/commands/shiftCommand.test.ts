@@ -2,19 +2,18 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
 import * as assert from 'assert';
 import { ShiftCommand } from 'vs/editor/common/commands/shiftCommand';
-import { Selection } from 'vs/editor/common/core/selection';
 import { Range } from 'vs/editor/common/core/range';
+import { Selection } from 'vs/editor/common/core/selection';
 import { IIdentifiedSingleEditOperation } from 'vs/editor/common/model';
-import { IndentAction } from 'vs/editor/common/modes/languageConfiguration';
+import { LanguageIdentifier } from 'vs/editor/common/modes';
 import { LanguageConfigurationRegistry } from 'vs/editor/common/modes/languageConfigurationRegistry';
 import { getEditOperation, testCommand } from 'vs/editor/test/browser/testCommand';
 import { withEditorModel } from 'vs/editor/test/common/editorTestUtils';
 import { MockMode } from 'vs/editor/test/common/mocks/mockMode';
-import { LanguageIdentifier } from 'vs/editor/common/modes';
+import { javascriptOnEnterRules } from 'vs/editor/test/common/modes/supports/javascriptOnEnterRules';
 
 /**
  * Create single edit operation
@@ -39,34 +38,7 @@ class DocBlockCommentMode extends MockMode {
 				['[', ']']
 			],
 
-			onEnterRules: [
-				{
-					// e.g. /** | */
-					beforeText: /^\s*\/\*\*(?!\/)([^\*]|\*(?!\/))*$/,
-					afterText: /^\s*\*\/$/,
-					action: { indentAction: IndentAction.IndentOutdent, appendText: ' * ' }
-				},
-				{
-					// e.g. /** ...|
-					beforeText: /^\s*\/\*\*(?!\/)([^\*]|\*(?!\/))*$/,
-					action: { indentAction: IndentAction.None, appendText: ' * ' }
-				},
-				{
-					// e.g.  * ...|
-					beforeText: /^(\t|(\ \ ))*\ \*(\ ([^\*]|\*(?!\/))*)?$/,
-					action: { indentAction: IndentAction.None, appendText: '* ' }
-				},
-				{
-					// e.g.  */|
-					beforeText: /^(\t|(\ \ ))*\ \*\/\s*$/,
-					action: { indentAction: IndentAction.None, removeText: 1 }
-				},
-				{
-					// e.g.  *-----*/|
-					beforeText: /^(\t|(\ \ ))*\ \*[^/]*\*\/\s*$/,
-					action: { indentAction: IndentAction.None, removeText: 1 }
-				}
-			]
+			onEnterRules: javascriptOnEnterRules
 		}));
 	}
 }

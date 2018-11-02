@@ -17,6 +17,7 @@
 	height: 100%;
 	width: 100%;
 	box-sizing: border-box;
+	overflow: hidden;
 }
 
 .monaco-workbench .panel.integrated-terminal .terminal-tab {

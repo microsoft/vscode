@@ -4,26 +4,16 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
-import { ITypeScriptServiceClient } from '../typescriptService';
 import { loadMessageBundle } from 'vscode-nls';
-import { dirname } from 'path';
-import { openOrCreateConfigFile, isImplicitProjectConfigFile } from './tsconfig';
-import * as languageModeIds from '../utils/languageModeIds';
+import { ITypeScriptServiceClient } from '../typescriptService';
 import TelemetryReporter from './telemetry';
+import { isImplicitProjectConfigFile, openOrCreateConfigFile } from './tsconfig';
 
 const localize = loadMessageBundle();
-const selector = [languageModeIds.javascript, languageModeIds.javascriptreact];
-
 
 interface Hint {
 	message: string;
 }
-
-interface ProjectHintedMap {
-	[k: string]: boolean;
-}
-
-const fileLimit = 500;
 
 class ExcludeHintItem {
 	public configFileName?: string;
@@ -67,68 +57,6 @@ class ExcludeHintItem {
 	}
 }
 
-function createLargeProjectMonitorForProject(item: ExcludeHintItem, client: ITypeScriptServiceClient, isOpen: (resource: vscode.Uri) => Promise<boolean>, memento: vscode.Memento): vscode.Disposable[] {
-	const toDispose: vscode.Disposable[] = [];
-	const projectHinted: ProjectHintedMap = Object.create(null);
-
-	const projectHintIgnoreList = memento.get<string[]>('projectHintIgnoreList', []);
-	for (let path of projectHintIgnoreList) {
-		if (path === null) {
-			path = 'undefined';
-		}
-		projectHinted[path] = true;
-	}
-
-	function onEditor(editor: vscode.TextEditor | undefined): void {
-		if (!editor
-			|| !vscode.languages.match(selector, editor.document)
-			|| !client.normalizePath(editor.document.uri)) {
-
-			item.hide();
-			return;
-		}
-
-		const file = client.normalizePath(editor.document.uri);
-		if (!file) {
-			return;
-		}
-		isOpen(editor.document.uri).then(value => {
-			if (!value) {
-				return;
-			}
-
-			return client.execute('projectInfo', { file, needFileNameList: true } as protocol.ProjectInfoRequestArgs).then(res => {
-				if (!res.body) {
-					return;
-				}
-				let { configFileName, fileNames } = res.body;
-
-				if (projectHinted[configFileName] === true || !fileNames) {
-					return;
-				}
-
-				if (fileNames.length > fileLimit || res.body.languageServiceDisabled) {
-					let largeRoots = computeLargeRoots(configFileName, fileNames).map(f => `'/${f}/'`).join(', ');
-					item.show(largeRoots);
-					projectHinted[configFileName] = true;
-				} else {
-					item.hide();
-				}
-			});
-		}).catch(err => {
-			client.logger.warn(err);
-		});
-	}
-
-	toDispose.push(vscode.workspace.onDidChangeTextDocument(e => {
-		delete projectHinted[e.document.fileName];
-	}));
-
-	toDispose.push(vscode.window.onDidChangeActiveTextEditor(onEditor));
-	onEditor(vscode.window.activeTextEditor);
-
-	return toDispose;
-}
 
 function createLargeProjectMonitorFromTypeScript(item: ExcludeHintItem, client: ITypeScriptServiceClient): vscode.Disposable {
 
@@ -178,9 +106,7 @@ function onConfigureExcludesSelected(
 
 export function create(
 	client: ITypeScriptServiceClient,
-	telemetryReporter: TelemetryReporter,
-	isOpen: (resource: vscode.Uri) => Promise<boolean>,
-	memento: vscode.Memento
+	telemetryReporter: TelemetryReporter
 ) {
 	const toDispose: vscode.Disposable[] = [];
 
@@ -193,50 +119,8 @@ export function create(
 		return vscode.window.showInformationMessage(message);
 	}));
 
-	if (client.apiVersion.has213Features()) {
-		toDispose.push(createLargeProjectMonitorFromTypeScript(item, client));
-	} else {
-		toDispose.push(...createLargeProjectMonitorForProject(item, client, isOpen, memento));
-	}
+	toDispose.push(createLargeProjectMonitorFromTypeScript(item, client));
 
 	return vscode.Disposable.from(...toDispose);
 }
 
-function computeLargeRoots(configFileName: string, fileNames: string[]): string[] {
-
-	let roots: { [first: string]: number } = Object.create(null);
-	let dir = dirname(configFileName);
-
-	// console.log(dir, fileNames);
-
-	for (const fileName of fileNames) {
-		if (fileName.indexOf(dir) === 0) {
-			let first = fileName.substring(dir.length + 1);
-			first = first.substring(0, first.indexOf('/'));
-			if (first) {
-				roots[first] = (roots[first] || 0) + 1;
-			}
-		}
-	}
-
-	let data: { root: string; count: number }[] = [];
-	for (let key in roots) {
-		data.push({ root: key, count: roots[key] });
-	}
-
-	data
-		.sort((a, b) => b.count - a.count)
-		.filter(s => s.root === 'src' || s.root === 'test' || s.root === 'tests');
-
-	let result: string[] = [];
-	let sum = 0;
-	for (const e of data) {
-		sum += e.count;
-		result.push(e.root);
-		if (fileNames.length - sum < fileLimit) {
-			break;
-		}
-	}
-
-	return result;
-}

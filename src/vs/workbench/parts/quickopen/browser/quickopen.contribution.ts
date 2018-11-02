@@ -3,13 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import * as env from 'vs/base/common/platform';
 import * as nls from 'vs/nls';
 import { QuickOpenHandlerDescriptor, IQuickOpenRegistry, Extensions as QuickOpenExtensions } from 'vs/workbench/browser/quickopen';
 import { Registry } from 'vs/platform/registry/common/platform';
-import { SyncActionDescriptor } from 'vs/platform/actions/common/actions';
+import { SyncActionDescriptor, MenuId, MenuRegistry } from 'vs/platform/actions/common/actions';
 import { IWorkbenchActionRegistry, Extensions as ActionExtensions } from 'vs/workbench/common/actions';
 import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
 import { GotoSymbolAction, GOTO_SYMBOL_PREFIX, SCOPE_PREFIX, GotoSymbolHandler } from 'vs/workbench/parts/quickopen/browser/gotoSymbolHandler';
@@ -19,7 +17,7 @@ import { HELP_PREFIX, HelpHandler } from 'vs/workbench/parts/quickopen/browser/h
 import { VIEW_PICKER_PREFIX, OpenViewPickerAction, QuickOpenViewPickerAction, ViewPickerHandler } from 'vs/workbench/parts/quickopen/browser/viewPickerHandler';
 import { inQuickOpenContext, getQuickNavigateHandler } from 'vs/workbench/browser/parts/quickopen/quickopen';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
-import { KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
+import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 
 // Register Actions
 const registry = Registry.as<IWorkbenchActionRegistry>(ActionExtensions.WorkbenchActions);
@@ -41,7 +39,7 @@ registry.registerWorkbenchAction(new SyncActionDescriptor(GotoSymbolAction, Goto
 const inViewsPickerContextKey = 'inViewsPicker';
 const inViewsPickerContext = ContextKeyExpr.and(inQuickOpenContext, ContextKeyExpr.has(inViewsPickerContextKey));
 
-const viewPickerKeybinding = { primary: KeyMod.CtrlCmd | KeyCode.KEY_Q, mac: { primary: KeyMod.WinCtrl | KeyCode.KEY_Q }, linux: { primary: null } };
+const viewPickerKeybinding = { primary: KeyMod.CtrlCmd | KeyCode.KEY_Q, mac: { primary: KeyMod.WinCtrl | KeyCode.KEY_Q }, linux: { primary: 0 } };
 
 const viewCategory = nls.localize('view', "View");
 registry.registerWorkbenchAction(new SyncActionDescriptor(OpenViewPickerAction, OpenViewPickerAction.ID, OpenViewPickerAction.LABEL), 'View: Open View', viewCategory);
@@ -50,7 +48,7 @@ registry.registerWorkbenchAction(new SyncActionDescriptor(QuickOpenViewPickerAct
 const quickOpenNavigateNextInViewPickerId = 'workbench.action.quickOpenNavigateNextInViewPicker';
 KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: quickOpenNavigateNextInViewPickerId,
-	weight: KeybindingsRegistry.WEIGHT.workbenchContrib(50),
+	weight: KeybindingWeight.WorkbenchContrib + 50,
 	handler: getQuickNavigateHandler(quickOpenNavigateNextInViewPickerId, true),
 	when: inViewsPickerContext,
 	primary: viewPickerKeybinding.primary,
@@ -61,7 +59,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 const quickOpenNavigatePreviousInViewPickerId = 'workbench.action.quickOpenNavigatePreviousInViewPicker';
 KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: quickOpenNavigatePreviousInViewPickerId,
-	weight: KeybindingsRegistry.WEIGHT.workbenchContrib(50),
+	weight: KeybindingWeight.WorkbenchContrib + 50,
 	handler: getQuickNavigateHandler(quickOpenNavigatePreviousInViewPickerId, false),
 	when: inViewsPickerContext,
 	primary: viewPickerKeybinding.primary | KeyMod.Shift,
@@ -145,3 +143,43 @@ Registry.as<IQuickOpenRegistry>(QuickOpenExtensions.Quickopen).registerQuickOpen
 		]
 	)
 );
+
+// View menu
+
+MenuRegistry.appendMenuItem(MenuId.MenubarViewMenu, {
+	group: '1_open',
+	command: {
+		id: ShowAllCommandsAction.ID,
+		title: nls.localize({ key: 'miCommandPalette', comment: ['&& denotes a mnemonic'] }, "&&Command Palette...")
+	},
+	order: 1
+});
+
+MenuRegistry.appendMenuItem(MenuId.MenubarViewMenu, {
+	group: '1_open',
+	command: {
+		id: OpenViewPickerAction.ID,
+		title: nls.localize({ key: 'miOpenView', comment: ['&& denotes a mnemonic'] }, "&&Open View...")
+	},
+	order: 2
+});
+
+// Go to menu
+
+MenuRegistry.appendMenuItem(MenuId.MenubarGoMenu, {
+	group: 'z_go_to',
+	command: {
+		id: 'workbench.action.gotoSymbol',
+		title: nls.localize({ key: 'miGotoSymbolInFile', comment: ['&& denotes a mnemonic'] }, "Go to &&Symbol in File...")
+	},
+	order: 2
+});
+
+MenuRegistry.appendMenuItem(MenuId.MenubarGoMenu, {
+	group: 'z_go_to',
+	command: {
+		id: 'workbench.action.gotoLine',
+		title: nls.localize({ key: 'miGotoLine', comment: ['&& denotes a mnemonic'] }, "Go to &&Line...")
+	},
+	order: 7
+});

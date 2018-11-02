@@ -2,11 +2,9 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
 import { TPromise } from 'vs/base/common/winjs.base';
 import { Registry } from 'vs/platform/registry/common/platform';
-import * as types from 'vs/base/common/types';
 import { Action, IAction } from 'vs/base/common/actions';
 import { BaseActionItem, Separator } from 'vs/base/browser/ui/actionbar/actionbar';
 import { ITree, IActionProvider } from 'vs/base/parts/tree/browser/tree';
@@ -20,35 +18,35 @@ export class ActionBarContributor {
 	/**
 	 * Returns true if this contributor has actions for the given context.
 	 */
-	public hasActions(context: any): boolean {
+	hasActions(context: any): boolean {
 		return false;
 	}
 
 	/**
 	 * Returns an array of primary actions in the given context.
 	 */
-	public getActions(context: any): IAction[] {
+	getActions(context: any): IAction[] {
 		return [];
 	}
 
 	/**
 	 * Returns true if this contributor has secondary actions for the given context.
 	 */
-	public hasSecondaryActions(context: any): boolean {
+	hasSecondaryActions(context: any): boolean {
 		return false;
 	}
 
 	/**
 	 * Returns an array of secondary actions in the given context.
 	 */
-	public getSecondaryActions(context: any): IAction[] {
+	getSecondaryActions(context: any): IAction[] {
 		return [];
 	}
 
 	/**
 	 * Can return a specific IActionItem to render the given action.
 	 */
-	public getActionItem(context: any, action: Action): BaseActionItem {
+	getActionItem(context: any, action: Action): BaseActionItem {
 		return null;
 	}
 }
@@ -80,7 +78,7 @@ export class ContributableActionProvider implements IActionProvider {
 		};
 	}
 
-	public hasActions(tree: ITree, element: any): boolean {
+	hasActions(tree: ITree, element: any): boolean {
 		const context = this.toContext(tree, element);
 
 		const contributors = this.registry.getActionBarContributors(Scope.VIEWER);
@@ -94,7 +92,7 @@ export class ContributableActionProvider implements IActionProvider {
 		return false;
 	}
 
-	public getActions(tree: ITree, element: any): TPromise<IAction[]> {
+	getActions(tree: ITree, element: any): TPromise<IAction[]> {
 		const actions: IAction[] = [];
 		const context = this.toContext(tree, element);
 
@@ -107,10 +105,10 @@ export class ContributableActionProvider implements IActionProvider {
 			}
 		}
 
-		return TPromise.as(prepareActions(actions));
+		return Promise.resolve(prepareActions(actions));
 	}
 
-	public hasSecondaryActions(tree: ITree, element: any): boolean {
+	hasSecondaryActions(tree: ITree, element: any): boolean {
 		const context = this.toContext(tree, element);
 
 		const contributors = this.registry.getActionBarContributors(Scope.VIEWER);
@@ -124,7 +122,7 @@ export class ContributableActionProvider implements IActionProvider {
 		return false;
 	}
 
-	public getSecondaryActions(tree: ITree, element: any): TPromise<IAction[]> {
+	getSecondaryActions(tree: ITree, element: any): TPromise<IAction[]> {
 		const actions: IAction[] = [];
 		const context = this.toContext(tree, element);
 
@@ -137,10 +135,10 @@ export class ContributableActionProvider implements IActionProvider {
 			}
 		}
 
-		return TPromise.as(prepareActions(actions));
+		return Promise.resolve(prepareActions(actions));
 	}
 
-	public getActionItem(tree: ITree, element: any, action: Action): BaseActionItem {
+	getActionItem(tree: ITree, element: any, action: Action): BaseActionItem {
 		const contributors = this.registry.getActionBarContributors(Scope.VIEWER);
 		const context = this.toContext(tree, element);
 
@@ -162,36 +160,6 @@ export function prepareActions(actions: IAction[]): IAction[] {
 	if (!actions.length) {
 		return actions;
 	}
-
-	// Patch order if not provided
-	let lastOrder = -1;
-	let orderOffset = 0;
-	for (let l = 0; l < actions.length; l++) {
-		const a = <any>actions[l];
-		if (types.isUndefinedOrNull(a.order)) {
-			a.order = ++lastOrder;
-			orderOffset++;
-		} else {
-			a.order += orderOffset;
-		}
-
-		lastOrder = a.order;
-	}
-
-	// Sort by order
-	actions = actions.sort((first: Action, second: Action) => {
-		const firstOrder = first.order;
-		const secondOrder = second.order;
-		if (firstOrder < secondOrder) {
-			return -1;
-		}
-
-		if (firstOrder > secondOrder) {
-			return 1;
-		}
-
-		return 0;
-	});
 
 	// Clean up leading separators
 	let firstIndexOfAction = -1;
@@ -279,7 +247,7 @@ class ActionBarRegistry implements IActionBarRegistry {
 	private actionBarContributorInstances: { [scope: string]: ActionBarContributor[] } = Object.create(null);
 	private instantiationService: IInstantiationService;
 
-	public setInstantiationService(service: IInstantiationService): void {
+	setInstantiationService(service: IInstantiationService): void {
 		this.instantiationService = service;
 
 		while (this.actionBarContributorConstructors.length > 0) {
@@ -301,7 +269,7 @@ class ActionBarRegistry implements IActionBarRegistry {
 		return this.actionBarContributorInstances[scope] || [];
 	}
 
-	public getActionBarActionsForContext(scope: string, context: any): IAction[] {
+	getActionBarActionsForContext(scope: string, context: any): IAction[] {
 		const actions: IAction[] = [];
 
 		// Go through contributors for scope
@@ -316,7 +284,7 @@ class ActionBarRegistry implements IActionBarRegistry {
 		return actions;
 	}
 
-	public getSecondaryActionBarActionsForContext(scope: string, context: any): IAction[] {
+	getSecondaryActionBarActionsForContext(scope: string, context: any): IAction[] {
 		const actions: IAction[] = [];
 
 		// Go through contributors
@@ -331,7 +299,7 @@ class ActionBarRegistry implements IActionBarRegistry {
 		return actions;
 	}
 
-	public getActionItemForContext(scope: string, context: any, action: Action): BaseActionItem {
+	getActionItemForContext(scope: string, context: any, action: Action): BaseActionItem {
 		const contributors = this.getContributors(scope);
 		for (let i = 0; i < contributors.length; i++) {
 			const contributor = contributors[i];
@@ -344,7 +312,7 @@ class ActionBarRegistry implements IActionBarRegistry {
 		return null;
 	}
 
-	public registerActionBarContributor(scope: string, ctor: IConstructorSignature0<ActionBarContributor>): void {
+	registerActionBarContributor(scope: string, ctor: IConstructorSignature0<ActionBarContributor>): void {
 		if (!this.instantiationService) {
 			this.actionBarContributorConstructors.push({
 				scope: scope,
@@ -355,7 +323,7 @@ class ActionBarRegistry implements IActionBarRegistry {
 		}
 	}
 
-	public getActionBarContributors(scope: string): ActionBarContributor[] {
+	getActionBarContributors(scope: string): ActionBarContributor[] {
 		return this.getContributors(scope).slice(0);
 	}
 }

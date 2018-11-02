@@ -2,12 +2,11 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
 import {
 	createConnection, IConnection,
 	TextDocuments, TextDocument, InitializeParams, InitializeResult, NotificationType, RequestType,
-	DocumentRangeFormattingRequest, Disposable, ServerCapabilities
+	DocumentRangeFormattingRequest, Disposable, ServerCapabilities, Diagnostic
 } from 'vscode-languageserver';
 
 import { xhr, XHRResponse, configure as configureHttpRequests, getErrorStatusDescription } from 'request-light';
@@ -18,8 +17,6 @@ import { startsWith } from './utils/strings';
 import { formatError, runSafe, runSafeAsync } from './utils/runner';
 import { JSONDocument, JSONSchema, getLanguageService, DocumentLanguageSettings, SchemaConfiguration } from 'vscode-json-languageservice';
 import { getLanguageModelCache } from './languageModelCache';
-
-import { FoldingRangeRequest, FoldingRangeServerCapabilities } from 'vscode-languageserver-protocol-foldingprovider';
 
 interface ISchemaAssociations {
 	[pattern: string]: string[];
@@ -37,6 +34,10 @@ namespace SchemaContentChangeNotification {
 	export const type: NotificationType<string, any> = new NotificationType('json/schemaContent');
 }
 
+namespace ForceValidateRequest {
+	export const type: RequestType<string, Diagnostic[], any, any> = new RequestType('json/validate');
+}
+
 // Create a connection for the server
 const connection: IConnection = createConnection();
 
@@ -51,50 +52,6 @@ process.on('uncaughtException', (e: any) => {
 console.log = connection.console.log.bind(connection.console);
 console.error = connection.console.error.bind(connection.console);
 
-// Create a simple text document manager. The text document manager
-// supports full document sync only
-const documents: TextDocuments = new TextDocuments();
-// Make the text document manager listen on the connection
-// for open, change and close text document events
-documents.listen(connection);
-
-let clientSnippetSupport = false;
-let clientDynamicRegisterSupport = false;
-let foldingRangeLimit = Number.MAX_VALUE;
-
-// After the server has started the client sends an initialize request. The server receives
-// in the passed params the rootPath of the workspace plus the client capabilities.
-connection.onInitialize((params: InitializeParams): InitializeResult => {
-
-	function getClientCapability<T>(name: string, def: T) {
-		const keys = name.split('.');
-		let c: any = params.capabilities;
-		for (let i = 0; c && i < keys.length; i++) {
-			if (!c.hasOwnProperty(keys[i])) {
-				return def;
-			}
-			c = c[keys[i]];
-		}
-		return c;
-	}
-
-	clientSnippetSupport = getClientCapability('textDocument.completion.completionItem.snippetSupport', false);
-	clientDynamicRegisterSupport = getClientCapability('workspace.symbol.dynamicRegistration', false);
-	foldingRangeLimit = getClientCapability('textDocument.foldingRange.rangeLimit', Number.MAX_VALUE);
-	const capabilities: ServerCapabilities & FoldingRangeServerCapabilities = {
-		// Tell the client that the server works in FULL text document sync mode
-		textDocumentSync: documents.syncKind,
-		completionProvider: clientSnippetSupport ? { resolveProvider: true, triggerCharacters: ['"', ':'] } : void 0,
-		hoverProvider: true,
-		documentSymbolProvider: true,
-		documentRangeFormattingProvider: false,
-		colorProvider: {},
-		foldingRangeProvider: true
-	};
-
-	return { capabilities };
-});
-
 const workspaceContext = {
 	resolveRelativePath: (relativePath: string, resource: string) => {
 		return URL.resolve(resource, relativePath);
@@ -106,7 +63,7 @@ const schemaRequestService = (uri: string): Thenable<string> => {
 		const fsPath = URI.parse(uri).fsPath;
 		return new Promise<string>((c, e) => {
 			fs.readFile(fsPath, 'UTF-8', (err, result) => {
-				err ? e('') : c(result.toString());
+				err ? e(err.message || err.toString()) : c(result.toString());
 			});
 		});
 	} else if (startsWith(uri, 'vscode://')) {
@@ -138,11 +95,66 @@ const schemaRequestService = (uri: string): Thenable<string> => {
 };
 
 // create the JSON language service
-const languageService = getLanguageService({
+let languageService = getLanguageService({
 	schemaRequestService,
 	workspaceContext,
-	contributions: []
+	contributions: [],
 });
+
+// Create a simple text document manager. The text document manager
+// supports full document sync only
+const documents: TextDocuments = new TextDocuments();
+// Make the text document manager listen on the connection
+// for open, change and close text document events
+documents.listen(connection);
+
+let clientSnippetSupport = false;
+let clientDynamicRegisterSupport = false;
+let foldingRangeLimit = Number.MAX_VALUE;
+let hierarchicalDocumentSymbolSupport = false;
+
+// After the server has started the client sends an initialize request. The server receives
+// in the passed params the rootPath of the workspace plus the client capabilities.
+connection.onInitialize((params: InitializeParams): InitializeResult => {
+
+	languageService = getLanguageService({
+		schemaRequestService,
+		workspaceContext,
+		contributions: [],
+		clientCapabilities: params.capabilities
+	});
+
+	function getClientCapability<T>(name: string, def: T) {
+		const keys = name.split('.');
+		let c: any = params.capabilities;
+		for (let i = 0; c && i < keys.length; i++) {
+			if (!c.hasOwnProperty(keys[i])) {
+				return def;
+			}
+			c = c[keys[i]];
+		}
+		return c;
+	}
+
+	clientSnippetSupport = getClientCapability('textDocument.completion.completionItem.snippetSupport', false);
+	clientDynamicRegisterSupport = getClientCapability('workspace.symbol.dynamicRegistration', false);
+	foldingRangeLimit = getClientCapability('textDocument.foldingRange.rangeLimit', Number.MAX_VALUE);
+	hierarchicalDocumentSymbolSupport = getClientCapability('textDocument.documentSymbol.hierarchicalDocumentSymbolSupport', false);
+	const capabilities: ServerCapabilities = {
+		// Tell the client that the server works in FULL text document sync mode
+		textDocumentSync: documents.syncKind,
+		completionProvider: clientSnippetSupport ? { resolveProvider: true, triggerCharacters: ['"', ':'] } : void 0,
+		hoverProvider: true,
+		documentSymbolProvider: true,
+		documentRangeFormattingProvider: false,
+		colorProvider: {},
+		foldingRangeProvider: true
+	};
+
+	return { capabilities };
+});
+
+
 
 // The settings interface describes the server relevant settings part
 interface Settings {
@@ -197,6 +209,21 @@ connection.onNotification(SchemaAssociationNotification.type, associations => {
 // A schema has changed
 connection.onNotification(SchemaContentChangeNotification.type, uri => {
 	languageService.resetSchema(uri);
+});
+
+// Retry schema validation on all open documents
+connection.onRequest(ForceValidateRequest.type, uri => {
+	return new Promise<Diagnostic[]>(resolve => {
+		const document = documents.get(uri);
+		if (document) {
+			updateConfiguration();
+			validateTextDocument(document, diagnostics => {
+				resolve(diagnostics);
+			});
+		} else {
+			resolve([]);
+		}
+	});
 });
 
 function updateConfiguration() {
@@ -263,10 +290,15 @@ function triggerValidation(textDocument: TextDocument): void {
 	}, validationDelayMs);
 }
 
-function validateTextDocument(textDocument: TextDocument): void {
+function validateTextDocument(textDocument: TextDocument, callback?: (diagnostics: Diagnostic[]) => void): void {
+	const respond = (diagnostics: Diagnostic[]) => {
+		connection.sendDiagnostics({ uri: textDocument.uri, diagnostics });
+		if (callback) {
+			callback(diagnostics);
+		}
+	};
 	if (textDocument.getText().length === 0) {
-		// ignore empty documents
-		connection.sendDiagnostics({ uri: textDocument.uri, diagnostics: [] });
+		respond([]); // ignore empty documents
 		return;
 	}
 	const jsonDocument = getJSONDocument(textDocument);
@@ -277,8 +309,7 @@ function validateTextDocument(textDocument: TextDocument): void {
 		setTimeout(() => {
 			const currDocument = documents.get(textDocument.uri);
 			if (currDocument && currDocument.version === version) {
-				// Send the computed diagnostics to VSCode.
-				connection.sendDiagnostics({ uri: textDocument.uri, diagnostics });
+				respond(diagnostics); // Send the computed diagnostics to VSCode.
 			}
 		}, 100);
 	}, error => {
@@ -344,7 +375,11 @@ connection.onDocumentSymbol((documentSymbolParams, token) => {
 		const document = documents.get(documentSymbolParams.textDocument.uri);
 		if (document) {
 			const jsonDocument = getJSONDocument(document);
-			return languageService.findDocumentSymbols(document, jsonDocument);
+			if (hierarchicalDocumentSymbolSupport) {
+				return languageService.findDocumentSymbols2(document, jsonDocument);
+			} else {
+				return languageService.findDocumentSymbols(document, jsonDocument);
+			}
 		}
 		return [];
 	}, [], `Error while computing document symbols for ${documentSymbolParams.textDocument.uri}`, token);
@@ -382,7 +417,7 @@ connection.onColorPresentation((params, token) => {
 	}, [], `Error while computing color presentations for ${params.textDocument.uri}`, token);
 });
 
-connection.onRequest(FoldingRangeRequest.type, (params, token) => {
+connection.onFoldingRanges((params, token) => {
 	return runSafe(() => {
 		const document = documents.get(params.textDocument.uri);
 		if (document) {

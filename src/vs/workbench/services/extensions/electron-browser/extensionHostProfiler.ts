@@ -3,13 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
-import { IExtensionService, IExtensionDescription, ProfileSession, IExtensionHostProfile, ProfileSegmentId } from 'vs/workbench/services/extensions/common/extensions';
-import { TPromise } from 'vs/base/common/winjs.base';
-import { TernarySearchTree } from 'vs/base/common/map';
-import { realpathSync } from 'vs/base/node/extfs';
 import { Profile, ProfileNode } from 'v8-inspect-profiler';
+import { TernarySearchTree } from 'vs/base/common/map';
+import { TPromise } from 'vs/base/common/winjs.base';
+import { realpathSync } from 'vs/base/node/extfs';
+import { IExtensionDescription, IExtensionHostProfile, IExtensionService, ProfileSegmentId, ProfileSession } from 'vs/workbench/services/extensions/common/extensions';
 
 export class ExtensionHostProfiler {
 

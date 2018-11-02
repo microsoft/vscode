@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IAction, IActionItem } from 'vs/base/common/actions';
-import { IEditorControl } from 'vs/platform/editor/common/editor';
 
 export interface IComposite {
 
@@ -41,10 +40,15 @@ export interface IComposite {
 	/**
 	 * Returns the underlying control of this composite.
 	 */
-	getControl(): IEditorControl;
+	getControl(): ICompositeControl;
 
 	/**
 	 * Asks the underlying control to focus.
 	 */
 	focus(): void;
 }
+
+/**
+ * Marker interface for the composite control
+ */
+export interface ICompositeControl { }

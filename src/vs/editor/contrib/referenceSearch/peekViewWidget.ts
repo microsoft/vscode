@@ -3,24 +3,22 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
-import 'vs/css!./media/peekViewWidget';
-import * as nls from 'vs/nls';
-import { Action } from 'vs/base/common/actions';
-import * as strings from 'vs/base/common/strings';
-import * as objects from 'vs/base/common/objects';
-import { $ } from 'vs/base/browser/builder';
-import { Event, Emitter } from 'vs/base/common/event';
 import * as dom from 'vs/base/browser/dom';
+import { IMouseEvent } from 'vs/base/browser/mouseEvent';
 import { ActionBar, IActionBarOptions } from 'vs/base/browser/ui/actionbar/actionbar';
-import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
-import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { IOptions, ZoneWidget, IStyles } from 'vs/editor/contrib/zoneWidget/zoneWidget';
-import { EmbeddedCodeEditorWidget } from 'vs/editor/browser/widget/embeddedCodeEditorWidget';
-import { ContextKeyExpr, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
+import { Action } from 'vs/base/common/actions';
 import { Color } from 'vs/base/common/color';
+import { Emitter, Event } from 'vs/base/common/event';
+import * as objects from 'vs/base/common/objects';
+import * as strings from 'vs/base/common/strings';
+import 'vs/css!./media/peekViewWidget';
+import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
+import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
+import { EmbeddedCodeEditorWidget } from 'vs/editor/browser/widget/embeddedCodeEditorWidget';
+import { IOptions, IStyles, ZoneWidget } from 'vs/editor/contrib/zoneWidget/zoneWidget';
+import * as nls from 'vs/nls';
+import { ContextKeyExpr, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
+import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 
 export namespace PeekContext {
 	export const inPeekEditor = new RawContextKey<boolean>('inReferenceSearchEditor', true);
@@ -111,8 +109,8 @@ export abstract class PeekViewWidget extends ZoneWidget {
 	protected _fillContainer(container: HTMLElement): void {
 		this.setCssClass('peekview-widget');
 
-		this._headElement = <HTMLDivElement>$('.head').getHTMLElement();
-		this._bodyElement = <HTMLDivElement>$('.body').getHTMLElement();
+		this._headElement = dom.$('.head');
+		this._bodyElement = dom.$('.body');
 
 		this._fillHead(this._headElement);
 		this._fillBody(this._bodyElement);
@@ -122,18 +120,20 @@ export abstract class PeekViewWidget extends ZoneWidget {
 	}
 
 	protected _fillHead(container: HTMLElement): void {
-		const titleElement = $('.peekview-title').
-			on(dom.EventType.CLICK, e => this._onTitleClick(<MouseEvent>e)).
-			appendTo(this._headElement).
-			getHTMLElement();
+		const titleElement = dom.$('.peekview-title');
+		dom.append(this._headElement, titleElement);
+		dom.addStandardDisposableListener(titleElement, 'click', event => this._onTitleClick(event));
 
-		this._primaryHeading = $('span.filename').appendTo(titleElement).getHTMLElement();
-		this._secondaryHeading = $('span.dirname').appendTo(titleElement).getHTMLElement();
-		this._metaHeading = $('span.meta').appendTo(titleElement).getHTMLElement();
+		this._primaryHeading = dom.$('span.filename');
+		this._secondaryHeading = dom.$('span.dirname');
+		this._metaHeading = dom.$('span.meta');
+		dom.append(titleElement, this._primaryHeading, this._secondaryHeading, this._metaHeading);
 
-		const actionsContainer = $('.peekview-actions').appendTo(this._headElement);
+		const actionsContainer = dom.$('.peekview-actions');
+		dom.append(this._headElement, actionsContainer);
+
 		const actionBarOptions = this._getActionBarOptions();
-		this._actionbarWidget = new ActionBar(actionsContainer.getHTMLElement(), actionBarOptions);
+		this._actionbarWidget = new ActionBar(actionsContainer, actionBarOptions);
 		this._disposables.push(this._actionbarWidget);
 
 		this._actionbarWidget.push(new Action('peekview.close', nls.localize('label.close', "Close"), 'close-peekview-action', true, () => {
@@ -146,15 +146,15 @@ export abstract class PeekViewWidget extends ZoneWidget {
 		return {};
 	}
 
-	protected _onTitleClick(event: MouseEvent): void {
+	protected _onTitleClick(event: IMouseEvent): void {
 		// implement me
 	}
 
 	public setTitle(primaryHeading: string, secondaryHeading?: string): void {
-		$(this._primaryHeading).safeInnerHtml(primaryHeading);
+		this._primaryHeading.innerHTML = strings.escape(primaryHeading);
 		this._primaryHeading.setAttribute('aria-label', primaryHeading);
 		if (secondaryHeading) {
-			$(this._secondaryHeading).safeInnerHtml(secondaryHeading);
+			this._secondaryHeading.innerHTML = strings.escape(secondaryHeading);
 		} else {
 			dom.clearNode(this._secondaryHeading);
 		}
@@ -162,7 +162,7 @@ export abstract class PeekViewWidget extends ZoneWidget {
 
 	public setMetaTitle(value: string): void {
 		if (value) {
-			$(this._metaHeading).safeInnerHtml(value);
+			this._metaHeading.innerHTML = strings.escape(value);
 		} else {
 			dom.clearNode(this._metaHeading);
 		}

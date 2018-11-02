@@ -2,7 +2,6 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
 import 'vs/css!./tree';
 import * as WinJS from 'vs/base/common/winjs.base';
@@ -119,6 +118,10 @@ export class Tree implements _.ITree {
 		return this.view && this.view.onDOMBlur;
 	}
 
+	get onDidScroll(): Event<void> {
+		return this.view && this.view.onDidScroll;
+	}
+
 	public getHTMLElement(): HTMLElement {
 		return this.view.getHTMLElement();
 	}
@@ -176,12 +179,8 @@ export class Tree implements _.ITree {
 		return this.model.collapse(element, recursive);
 	}
 
-	public collapseAll(elements: any[] = null, recursive: boolean = false): WinJS.Promise {
+	public collapseAll(elements: any[] | null = null, recursive: boolean = false): WinJS.Promise {
 		return this.model.collapseAll(elements, recursive);
-	}
-
-	public collapseDeepestExpandedLevel(): WinJS.Promise {
-		return this.model.collapseDeepestExpandedLevel();
 	}
 
 	public toggleExpansion(element: any, recursive: boolean = false): WinJS.Promise {
@@ -200,13 +199,21 @@ export class Tree implements _.ITree {
 		return this.model.getExpandedElements();
 	}
 
-	public reveal(element: any, relativeTop: number = null): WinJS.Promise {
+	public reveal(element: any, relativeTop: number | null = null): WinJS.Promise {
 		return this.model.reveal(element, relativeTop);
 	}
 
 	public getRelativeTop(element: any): number {
 		let item = this.model.getItem(element);
 		return this.view.getRelativeTop(item);
+	}
+
+	public getFirstVisibleElement(): any {
+		return this.view.getFirstVisibleElement();
+	}
+
+	public getLastVisibleElement(): any {
+		return this.view.getLastVisibleElement();
 	}
 
 	public getScrollPosition(): number {

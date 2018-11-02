@@ -2,7 +2,6 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
 import { StatusbarAlignment as MainThreadStatusBarAlignment } from 'vs/platform/statusbar/common/statusbar';
 import { StatusBarAlignment as ExtHostStatusBarAlignment, Disposable, ThemeColor } from './extHostTypes';
@@ -23,7 +22,7 @@ export class ExtHostStatusBarEntry implements StatusBarItem {
 	private _color: string | ThemeColor;
 	private _command: string;
 
-	private _timeoutHandle: number;
+	private _timeoutHandle: any;
 	private _proxy: MainThreadStatusBarShape;
 
 	private _extensionId: string;
@@ -174,7 +173,7 @@ export class ExtHostStatusBar {
 	setStatusBarMessage(text: string, timeoutOrThenable?: number | Thenable<any>): Disposable {
 
 		let d = this._statusMessage.setMessage(text);
-		let handle: number;
+		let handle: any;
 
 		if (typeof timeoutOrThenable === 'number') {
 			handle = setTimeout(() => d.dispose(), timeoutOrThenable);

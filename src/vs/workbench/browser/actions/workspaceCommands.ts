@@ -3,139 +3,54 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
-import { TPromise } from 'vs/base/common/winjs.base';
 import * as nls from 'vs/nls';
-import { IWindowService } from 'vs/platform/windows/common/windows';
-import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
+import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IWorkspaceEditingService } from 'vs/workbench/services/workspace/common/workspaceEditing';
-import URI from 'vs/base/common/uri';
 import * as resources from 'vs/base/common/resources';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
-import { dirname } from 'vs/base/common/paths';
-import { IQuickOpenService, IFilePickOpenEntry, IPickOptions } from 'vs/platform/quickOpen/common/quickOpen';
 import { CancellationToken } from 'vs/base/common/cancellation';
-import { mnemonicButtonLabel, getPathLabel } from 'vs/base/common/labels';
+import { mnemonicButtonLabel } from 'vs/base/common/labels';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
-import { IHistoryService } from 'vs/workbench/services/history/common/history';
-import { FileKind, isParent } from 'vs/platform/files/common/files';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
+import { FileKind } from 'vs/platform/files/common/files';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { isLinux } from 'vs/base/common/platform';
+import { ILabelService } from 'vs/platform/label/common/label';
+import { IQuickInputService, IPickOptions, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
+import { getIconClasses } from 'vs/editor/common/services/getIconClasses';
+import { IModelService } from 'vs/editor/common/services/modelService';
+import { IModeService } from 'vs/editor/common/services/modeService';
+import { Schemas } from 'vs/base/common/network';
+import { IFileDialogService } from 'vs/platform/dialogs/common/dialogs';
 
 export const ADD_ROOT_FOLDER_COMMAND_ID = 'addRootFolder';
 export const ADD_ROOT_FOLDER_LABEL = nls.localize('addFolderToWorkspace', "Add Folder to Workspace...");
 
 export const PICK_WORKSPACE_FOLDER_COMMAND_ID = '_workbench.pickWorkspaceFolder';
 
-function pickFolders(buttonLabel: string, title: string, windowService: IWindowService, contextService: IWorkspaceContextService, historyService: IHistoryService): TPromise<string[]> {
-	return windowService.showOpenDialog({
-		buttonLabel,
-		title,
-		properties: ['multiSelections', 'openDirectory', 'createDirectory'],
-		defaultPath: defaultFolderPath(contextService, historyService)
-	});
-}
-
-export function defaultFolderPath(contextService: IWorkspaceContextService, historyService: IHistoryService): string {
-	let candidate: URI;
-
-	// Check for last active file root first...
-	candidate = historyService.getLastActiveWorkspaceRoot('file');
-
-	// ...then for last active file
-	if (!candidate) {
-		candidate = historyService.getLastActiveFile();
-	}
-
-	return candidate ? dirname(candidate.fsPath) : void 0;
-}
-
-
-function services(accessor: ServicesAccessor): { windowService: IWindowService, historyService: IHistoryService, contextService: IWorkspaceContextService, environmentService: IEnvironmentService } {
-	return {
-		windowService: accessor.get(IWindowService),
-		historyService: accessor.get(IHistoryService),
-		contextService: accessor.get(IWorkspaceContextService),
-		environmentService: accessor.get(IEnvironmentService)
-	};
-}
-
-export function defaultFilePath(contextService: IWorkspaceContextService, historyService: IHistoryService): string {
-	let candidate: URI;
-
-	// Check for last active file first...
-	candidate = historyService.getLastActiveFile();
-
-	// ...then for last active file root
-	if (!candidate) {
-		candidate = historyService.getLastActiveWorkspaceRoot('file');
-	}
-
-	return candidate ? dirname(candidate.fsPath) : void 0;
-}
-
-export function defaultWorkspacePath(contextService: IWorkspaceContextService, historyService: IHistoryService, environmentService: IEnvironmentService): string {
-
-	// Check for current workspace config file first...
-	if (contextService.getWorkbenchState() === WorkbenchState.WORKSPACE && !isUntitledWorkspace(contextService.getWorkspace().configuration.fsPath, environmentService)) {
-		return dirname(contextService.getWorkspace().configuration.fsPath);
-	}
-
-	// ...then fallback to default folder path
-	return defaultFolderPath(contextService, historyService);
-}
-
-function isUntitledWorkspace(path: string, environmentService: IEnvironmentService): boolean {
-	return isParent(path, environmentService.workspacesHome, !isLinux /* ignore case */);
-}
-
 // Command registration
 
 CommandsRegistry.registerCommand({
 	id: 'workbench.action.files.openFileFolderInNewWindow',
-	handler: (accessor: ServicesAccessor) => {
-		const { windowService, historyService, contextService } = services(accessor);
-
-		windowService.pickFileFolderAndOpen({ forceNewWindow: true, dialogOptions: { defaultPath: defaultFilePath(contextService, historyService) } });
-	}
+	handler: (accessor: ServicesAccessor) => accessor.get(IFileDialogService).pickFileFolderAndOpen({ forceNewWindow: true })
 });
 
 CommandsRegistry.registerCommand({
 	id: '_files.pickFolderAndOpen',
-	handler: (accessor: ServicesAccessor, forceNewWindow: boolean) => {
-		const { windowService, historyService, contextService } = services(accessor);
-
-		windowService.pickFolderAndOpen({ forceNewWindow, dialogOptions: { defaultPath: defaultFolderPath(contextService, historyService) } });
-	}
+	handler: (accessor: ServicesAccessor, forceNewWindow: boolean) => accessor.get(IFileDialogService).pickFolderAndOpen({ forceNewWindow })
 });
 
 CommandsRegistry.registerCommand({
 	id: 'workbench.action.files.openFolderInNewWindow',
-	handler: (accessor: ServicesAccessor) => {
-		const { windowService, historyService, contextService } = services(accessor);
-
-		windowService.pickFolderAndOpen({ forceNewWindow: true, dialogOptions: { defaultPath: defaultFolderPath(contextService, historyService) } });
-	}
+	handler: (accessor: ServicesAccessor) => accessor.get(IFileDialogService).pickFolderAndOpen({ forceNewWindow: true })
 });
 
 CommandsRegistry.registerCommand({
 	id: 'workbench.action.files.openFileInNewWindow',
-	handler: (accessor: ServicesAccessor) => {
-		const { windowService, historyService, contextService } = services(accessor);
-
-		windowService.pickFileAndOpen({ forceNewWindow: true, dialogOptions: { defaultPath: defaultFilePath(contextService, historyService) } });
-	}
+	handler: (accessor: ServicesAccessor) => accessor.get(IFileDialogService).pickFileAndOpen({ forceNewWindow: true })
 });
 
 CommandsRegistry.registerCommand({
 	id: 'workbench.action.openWorkspaceInNewWindow',
-	handler: (accessor: ServicesAccessor) => {
-		const { windowService, historyService, contextService, environmentService } = services(accessor);
-
-		windowService.pickWorkspaceAndOpen({ forceNewWindow: true, dialogOptions: { defaultPath: defaultWorkspacePath(contextService, historyService, environmentService) } });
-	}
+	handler: (accessor: ServicesAccessor) => accessor.get(IFileDialogService).pickWorkspaceAndOpen({ forceNewWindow: true })
 });
 
 CommandsRegistry.registerCommand({
@@ -143,24 +58,32 @@ CommandsRegistry.registerCommand({
 	handler: (accessor) => {
 		const viewletService = accessor.get(IViewletService);
 		const workspaceEditingService = accessor.get(IWorkspaceEditingService);
-		return pickFolders(mnemonicButtonLabel(nls.localize({ key: 'add', comment: ['&& denotes a mnemonic'] }, "&&Add")), nls.localize('addFolderToWorkspaceTitle', "Add Folder to Workspace"),
-			accessor.get(IWindowService), accessor.get(IWorkspaceContextService), accessor.get(IHistoryService)).then(folders => {
-				if (!folders || !folders.length) {
-					return null;
-				}
+		const dialogsService = accessor.get(IFileDialogService);
+		return dialogsService.showOpenDialog({
+			openLabel: mnemonicButtonLabel(nls.localize({ key: 'add', comment: ['&& denotes a mnemonic'] }, "&&Add")),
+			title: nls.localize('addFolderToWorkspaceTitle', "Add Folder to Workspace"),
+			canSelectFolders: true,
+			canSelectMany: true,
+			defaultUri: dialogsService.defaultFolderPath(Schemas.file)
+		}).then(folders => {
+			if (!folders || !folders.length) {
+				return null;
+			}
 
-				// Add and show Files Explorer viewlet
-				return workspaceEditingService.addFolders(folders.map(folder => ({ uri: URI.file(folder) })))
-					.then(() => viewletService.openViewlet(viewletService.getDefaultViewletId(), true))
-					.then(() => void 0);
-			});
+			// Add and show Files Explorer viewlet
+			return workspaceEditingService.addFolders(folders.map(folder => ({ uri: folder })))
+				.then(() => viewletService.openViewlet(viewletService.getDefaultViewletId(), true))
+				.then(() => void 0);
+		});
 	}
 });
 
-CommandsRegistry.registerCommand(PICK_WORKSPACE_FOLDER_COMMAND_ID, function (accessor, args?: [IPickOptions, CancellationToken]) {
+CommandsRegistry.registerCommand(PICK_WORKSPACE_FOLDER_COMMAND_ID, function (accessor, args?: [IPickOptions<IQuickPickItem>, CancellationToken]) {
+	const quickInputService = accessor.get(IQuickInputService);
+	const labelService = accessor.get(ILabelService);
 	const contextService = accessor.get(IWorkspaceContextService);
-	const quickOpenService = accessor.get(IQuickOpenService);
-	const environmentService = accessor.get(IEnvironmentService);
+	const modelService = accessor.get(IModelService);
+	const modeService = accessor.get(IModeService);
 
 	const folders = contextService.getWorkspace().folders;
 	if (!folders.length) {
@@ -170,14 +93,13 @@ CommandsRegistry.registerCommand(PICK_WORKSPACE_FOLDER_COMMAND_ID, function (acc
 	const folderPicks = folders.map(folder => {
 		return {
 			label: folder.name,
-			description: getPathLabel(resources.dirname(folder.uri), void 0, environmentService),
+			description: labelService.getUriLabel(resources.dirname(folder.uri), { relative: true }),
 			folder,
-			resource: folder.uri,
-			fileKind: FileKind.ROOT_FOLDER
-		} as IFilePickOpenEntry;
+			iconClasses: getIconClasses(modelService, modeService, folder.uri, FileKind.ROOT_FOLDER)
+		} as IQuickPickItem;
 	});
 
-	let options: IPickOptions;
+	let options: IPickOptions<IQuickPickItem>;
 	if (args) {
 		options = args[0];
 	}
@@ -186,8 +108,8 @@ CommandsRegistry.registerCommand(PICK_WORKSPACE_FOLDER_COMMAND_ID, function (acc
 		options = Object.create(null);
 	}
 
-	if (!options.autoFocus) {
-		options.autoFocus = { autoFocusFirstEntry: true };
+	if (!options.activeItem) {
+		options.activeItem = folderPicks[0];
 	}
 
 	if (!options.placeHolder) {
@@ -207,7 +129,7 @@ CommandsRegistry.registerCommand(PICK_WORKSPACE_FOLDER_COMMAND_ID, function (acc
 		token = CancellationToken.None;
 	}
 
-	return quickOpenService.pick(folderPicks, options, token).then(pick => {
+	return quickInputService.pick(folderPicks, options, token).then(pick => {
 		if (!pick) {
 			return void 0;
 		}

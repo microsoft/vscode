@@ -47,6 +47,8 @@ export const LANGUAGE_MODES: any = {
 	'typescriptreact': ['!', '.', '}', '*', '$', ']', '0', '1', '2', '3', '4', '5', '6', '7', '8', '9']
 };
 
+export const allowedMimeTypesInScriptTag = ['text/html', 'text/plain', 'text/x-template', 'text/template', 'text/ng-template'];
+
 const emmetModes = ['html', 'pug', 'slim', 'haml', 'xml', 'xsl', 'jsx', 'css', 'scss', 'sass', 'less', 'stylus'];
 
 // Explicitly map languages that have built-in grammar in VS Code to their parent language
@@ -112,6 +114,7 @@ export function getEmmetMode(language: string, excludedLanguages: string[]): str
 	if (emmetModes.indexOf(language) > -1) {
 		return language;
 	}
+	return;
 }
 
 /**
@@ -257,7 +260,7 @@ export function parsePartialStylesheet(document: vscode.TextDocument, position: 
 	try {
 		return parseStylesheet(new DocumentStreamReader(document, startPosition, new vscode.Range(startPosition, endPosition)));
 	} catch (e) {
-
+		return;
 	}
 }
 
@@ -283,7 +286,7 @@ function findClosingCommentAfterPosition(document: vscode.TextDocument, position
 /**
  * Returns node corresponding to given position in the given root node
  */
-export function getNode(root: Node | undefined, position: vscode.Position, includeNodeBoundary: boolean = false) {
+export function getNode(root: Node | undefined, position: vscode.Position, includeNodeBoundary: boolean) {
 	if (!root) {
 		return null;
 	}
@@ -306,6 +309,24 @@ export function getNode(root: Node | undefined, position: vscode.Position, inclu
 	}
 
 	return foundNode;
+}
+
+export function getHtmlNode(document: vscode.TextDocument, root: Node | undefined, position: vscode.Position, includeNodeBoundary: boolean): HtmlNode | undefined {
+	let currentNode = <HtmlNode>getNode(root, position, includeNodeBoundary);
+	if (!currentNode) { return; }
+
+	if (isTemplateScript(currentNode) && currentNode.close &&
+		(position.isAfter(currentNode.open.end) && position.isBefore(currentNode.close.start))) {
+
+		let buffer = new DocumentStreamReader(document, currentNode.open.end, new vscode.Range(currentNode.open.end, currentNode.close.start));
+
+		try {
+			let scriptInnerNodes = parse(buffer);
+			currentNode = <HtmlNode>getNode(scriptInnerNodes, position, includeNodeBoundary) || currentNode;
+		} catch (e) { }
+	}
+
+	return currentNode;
 }
 
 /**
@@ -331,7 +352,7 @@ export function getDeepestNode(node: Node | undefined): Node | undefined {
 	return undefined;
 }
 
-export function findNextWord(propertyValue: string, pos: number): [number, number] {
+export function findNextWord(propertyValue: string, pos: number): [number | undefined, number | undefined] {
 
 	let foundSpace = pos === -1;
 	let foundStart = false;
@@ -369,7 +390,7 @@ export function findNextWord(propertyValue: string, pos: number): [number, numbe
 	return [newSelectionStart, newSelectionEnd];
 }
 
-export function findPrevWord(propertyValue: string, pos: number): [number, number] {
+export function findPrevWord(propertyValue: string, pos: number): [number | undefined, number | undefined] {
 
 	let foundSpace = pos === propertyValue.length;
 	let foundStart = false;
@@ -491,12 +512,13 @@ export function getEmmetConfiguration(syntax: string) {
  * Itereates by each child, as well as nested child's children, in their order
  * and invokes `fn` for each. If `fn` function returns `false`, iteration stops
  */
-export function iterateCSSToken(token: CssToken, fn: (x: any) => any) {
+export function iterateCSSToken(token: CssToken, fn: (x: any) => any): boolean {
 	for (let i = 0, il = token.size; i < il; i++) {
 		if (fn(token.item(i)) === false || iterateCSSToken(token.item(i), fn) === false) {
 			return false;
 		}
 	}
+	return true;
 }
 
 /**
@@ -510,9 +532,9 @@ export function getCssPropertyFromRule(rule: Rule, name: string): Property | und
  * Returns css property under caret in given editor or `null` if such node cannot
  * be found
  */
-export function getCssPropertyFromDocument(editor: vscode.TextEditor, position: vscode.Position): Property | null | undefined {
+export function getCssPropertyFromDocument(editor: vscode.TextEditor, position: vscode.Position): Property | null {
 	const rootNode = parseDocument(editor.document);
-	const node = getNode(rootNode, position);
+	const node = getNode(rootNode, position, true);
 
 	if (isStyleSheet(editor.document.languageId)) {
 		return node && node.type === 'property' ? <Property>node : null;
@@ -525,9 +547,11 @@ export function getCssPropertyFromDocument(editor: vscode.TextEditor, position: 
 		&& htmlNode.close.start.isAfter(position)) {
 		let buffer = new DocumentStreamReader(editor.document, htmlNode.start, new vscode.Range(htmlNode.start, htmlNode.end));
 		let rootNode = parseStylesheet(buffer);
-		const node = getNode(rootNode, position);
+		const node = getNode(rootNode, position, true);
 		return (node && node.type === 'property') ? <Property>node : null;
 	}
+
+	return null;
 }
 
 
@@ -549,6 +573,7 @@ export function getEmbeddedCssNodeIfAny(document: vscode.TextDocument, currentNo
 			}
 		}
 	}
+	return;
 }
 
 export function isStyleAttribute(currentNode: Node | null, position: vscode.Position): boolean {
@@ -562,4 +587,11 @@ export function isStyleAttribute(currentNode: Node | null, position: vscode.Posi
 	}
 	const styleAttribute = currentHtmlNode.attributes[index];
 	return position.isAfterOrEqual(styleAttribute.value.start) && position.isBeforeOrEqual(styleAttribute.value.end);
+}
+
+export function isTemplateScript(currentNode: HtmlNode): boolean {
+	return currentNode.name === 'script' &&
+		(currentNode.attributes &&
+			currentNode.attributes.some(x => x.name.toString() === 'type'
+				&& allowedMimeTypesInScriptTag.indexOf(x.value.toString()) > -1));
 }

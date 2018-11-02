@@ -2,10 +2,9 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
 import { mixin, deepClone } from 'vs/base/common/objects';
-import URI from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 import { Event, Emitter } from 'vs/base/common/event';
 import * as vscode from 'vscode';
 import { ExtHostWorkspace } from 'vs/workbench/api/node/extHostWorkspace';
@@ -15,10 +14,8 @@ import { IConfigurationData, ConfigurationTarget, IConfigurationModel } from 'vs
 import { Configuration, ConfigurationChangeEvent, ConfigurationModel } from 'vs/platform/configuration/common/configurationModels';
 import { WorkspaceConfigurationChangeEvent } from 'vs/workbench/services/configuration/common/configurationModels';
 import { ResourceMap } from 'vs/base/common/map';
-import { ConfigurationScope } from 'vs/platform/configuration/common/configurationRegistry';
+import { ConfigurationScope, OVERRIDE_PROPERTY_PATTERN } from 'vs/platform/configuration/common/configurationRegistry';
 import { isObject } from 'vs/base/common/types';
-
-declare var Proxy: any; // TODO@TypeScript
 
 function lookUp(tree: any, key: string) {
 	if (key) {
@@ -191,7 +188,7 @@ export class ExtHostConfiguration implements ExtHostConfigurationShape {
 	}
 
 	private _validateConfigurationAccess(key: string, resource: URI, extensionId: string): void {
-		const scope = this._configurationScopes[key];
+		const scope = OVERRIDE_PROPERTY_PATTERN.test(key) ? ConfigurationScope.RESOURCE : this._configurationScopes[key];
 		const extensionIdText = extensionId ? `[${extensionId}] ` : '';
 		if (ConfigurationScope.RESOURCE === scope) {
 			if (resource === void 0) {

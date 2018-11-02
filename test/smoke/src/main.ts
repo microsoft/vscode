@@ -10,9 +10,10 @@ import * as minimist from 'minimist';
 import * as tmp from 'tmp';
 import * as rimraf from 'rimraf';
 import * as mkdirp from 'mkdirp';
-import { Application, Quality } from './application';
+import { ncp } from 'ncp';
+import { Application, Quality, ApplicationOptions } from './application';
 
-import { setup as setupDataMigrationTests } from './areas/workbench/data-migration.test';
+// import { setup as setupDataMigrationTests } from './areas/workbench/data-migration.test';
 import { setup as setupDataLossTests } from './areas/workbench/data-loss.test';
 import { setup as setupDataExplorerTests } from './areas/explorer/explorer.test';
 import { setup as setupDataPreferencesTests } from './areas/preferences/preferences.test';
@@ -26,6 +27,7 @@ import { setup as setupDataExtensionTests } from './areas/extensions/extensions.
 import { setup as setupTerminalTests } from './areas/terminal/terminal.test';
 import { setup as setupDataMultirootTests } from './areas/multiroot/multiroot.test';
 import { setup as setupDataLocalizationTests } from './areas/workbench/localization.test';
+import { setup as setupLaunchTests } from './areas/workbench/launch.test';
 import { MultiLogger, Logger, ConsoleLogger, FileLogger } from './logger';
 
 const tmpDir = tmp.dirSync({ prefix: 't' }) as { name: string; removeCallback: Function; };
@@ -50,7 +52,6 @@ const opts = minimist(args, {
 	}
 });
 
-const workspaceFilePath = path.join(testDataPath, 'smoketest.code-workspace');
 const testRepoUrl = 'https://github.com/Microsoft/vscode-smoketest-express';
 const workspacePath = path.join(testDataPath, 'vscode-smoketest-express');
 const extensionsPath = path.join(testDataPath, 'extensions-dir');
@@ -140,37 +141,6 @@ if (process.env.VSCODE_DEV === '1') {
 	quality = Quality.Stable;
 }
 
-function toUri(path: string): string {
-	if (process.platform === 'win32') {
-		return `${path.replace(/\\/g, '/')}`;
-	}
-
-	return `${path}`;
-}
-
-async function createWorkspaceFile(): Promise<void> {
-	if (fs.existsSync(workspaceFilePath)) {
-		return;
-	}
-
-	console.log('*** Creating workspace file...');
-	const workspace = {
-		folders: [
-			{
-				path: toUri(path.join(workspacePath, 'public'))
-			},
-			{
-				path: toUri(path.join(workspacePath, 'routes'))
-			},
-			{
-				path: toUri(path.join(workspacePath, 'views'))
-			}
-		]
-	};
-
-	fs.writeFileSync(workspaceFilePath, JSON.stringify(workspace, null, '\t'));
-}
-
 async function setupRepository(): Promise<void> {
 	if (opts['test-repo']) {
 		console.log('*** Copying test project repository:', opts['test-repo']);
@@ -188,8 +158,8 @@ async function setupRepository(): Promise<void> {
 			cp.spawnSync('git', ['clean', '-xdf'], { cwd: workspacePath });
 		}
 
-		console.log('*** Running npm install...');
-		cp.execSync('npm install', { cwd: workspacePath, stdio: 'inherit' });
+		console.log('*** Running yarn...');
+		cp.execSync('yarn', { cwd: workspacePath, stdio: 'inherit' });
 	}
 }
 
@@ -197,54 +167,64 @@ async function setup(): Promise<void> {
 	console.log('*** Test data:', testDataPath);
 	console.log('*** Preparing smoketest setup...');
 
-	await createWorkspaceFile();
 	await setupRepository();
 
 	console.log('*** Smoketest setup done!\n');
 }
 
-function createApp(quality: Quality): Application {
+function createOptions(): ApplicationOptions {
 	const loggers: Logger[] = [];
 
 	if (opts.verbose) {
 		loggers.push(new ConsoleLogger());
 	}
 
+	let log: string | undefined = undefined;
+
 	if (opts.log) {
 		loggers.push(new FileLogger(opts.log));
+		log = 'trace';
 	}
-
-	return new Application({
+	return {
 		quality,
 		codePath: opts.build,
 		workspacePath,
 		userDataDir,
 		extensionsPath,
-		workspaceFilePath,
 		waitTime: parseInt(opts['wait-time'] || '0') || 20,
 		logger: new MultiLogger(loggers),
-		verbose: opts.verbose
-	});
+		verbose: opts.verbose,
+		log,
+		screenshotsPath
+	};
 }
 
 before(async function () {
 	// allow two minutes for setup
 	this.timeout(2 * 60 * 1000);
 	await setup();
+	this.defaultOptions = createOptions();
 });
 
 after(async function () {
 	await new Promise(c => setTimeout(c, 500)); // wait for shutdown
+
+	if (opts.log) {
+		const logsDir = path.join(userDataDir, 'logs');
+		const destLogsDir = path.join(path.dirname(opts.log), 'logs');
+		await new Promise((c, e) => ncp(logsDir, destLogsDir, err => err ? e(err) : c()));
+	}
+
 	await new Promise((c, e) => rimraf(testDataPath, { maxBusyTries: 10 }, err => err ? e(err) : c()));
 });
 
-describe('Data Migration', () => {
-	setupDataMigrationTests(userDataDir, createApp);
-});
+// describe('Data Migration', () => {
+// 	setupDataMigrationTests(userDataDir, createApp);
+// });
 
-describe('Test', () => {
+describe('Running Code', () => {
 	before(async function () {
-		const app = createApp(quality);
+		const app = new Application(this.defaultOptions);
 		await app!.start();
 		this.app = app;
 	});
@@ -258,19 +238,10 @@ describe('Test', () => {
 			if (this.currentTest.state !== 'failed') {
 				return;
 			}
-
 			const app = this.app as Application;
-			const raw = await app.capturePage();
-			const buffer = new Buffer(raw, 'base64');
-
 			const name = this.currentTest.fullTitle().replace(/[^a-z0-9\-]/ig, '_');
-			const screenshotPath = path.join(screenshotsPath, `${name}.png`);
 
-			if (opts.log) {
-				app.logger.log('*** Screenshot recorded:', screenshotPath);
-			}
-
-			fs.writeFileSync(screenshotPath, buffer);
+			await app.captureScreenshot(name);
 		});
 	}
 
@@ -297,3 +268,5 @@ describe('Test', () => {
 	setupDataMultirootTests();
 	setupDataLocalizationTests();
 });
+
+setupLaunchTests();

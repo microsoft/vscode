@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import * as assert from 'assert';
 import { ExtHostCommands } from 'vs/workbench/api/node/extHostCommands';
 import { MainThreadCommandsShape } from 'vs/workbench/api/node/extHost.protocol';

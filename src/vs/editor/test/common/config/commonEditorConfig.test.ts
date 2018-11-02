@@ -2,13 +2,12 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
-
 import * as assert from 'assert';
+import { AccessibilitySupport } from 'vs/base/common/platform';
+import { IEnvConfiguration } from 'vs/editor/common/config/commonEditorConfig';
+import { IEditorHoverOptions } from 'vs/editor/common/config/editorOptions';
 import { EditorZoom } from 'vs/editor/common/config/editorZoom';
 import { TestConfiguration } from 'vs/editor/test/common/mocks/testConfiguration';
-import { IEnvConfiguration } from 'vs/editor/common/config/commonEditorConfig';
-import { AccessibilitySupport } from 'vs/base/common/platform';
 
 suite('Common Editor Config', () => {
 	test('Zoom Level', () => {
@@ -175,5 +174,18 @@ suite('Common Editor Config', () => {
 			wordWrapColumn: -1
 		});
 		assertWrapping(config, true, 1);
+	});
+
+	test('issue #53152: Cannot assign to read only property \'enabled\' of object', () => {
+		let hoverOptions: IEditorHoverOptions = {};
+		Object.defineProperty(hoverOptions, 'enabled', {
+			writable: false,
+			value: true
+		});
+		let config = new TestConfiguration({ hover: hoverOptions });
+
+		assert.equal(config.editor.contribInfo.hover.enabled, true);
+		config.updateOptions({ hover: { enabled: false } });
+		assert.equal(config.editor.contribInfo.hover.enabled, false);
 	});
 });

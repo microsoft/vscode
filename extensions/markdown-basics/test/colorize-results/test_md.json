@@ -300,9 +300,9 @@
 		"c": "<!--",
 		"t": "text.html.markdown comment.block.html punctuation.definition.comment.html",
 		"r": {
-			"dark_plus": "comment: #608B4E",
+			"dark_plus": "comment: #6A9955",
 			"light_plus": "comment: #008000",
-			"dark_vs": "comment: #608B4E",
+			"dark_vs": "comment: #6A9955",
 			"light_vs": "comment: #008000",
 			"hc_black": "comment: #7CA668"
 		}
@@ -311,9 +311,9 @@
 		"c": " html madness ",
 		"t": "text.html.markdown comment.block.html",
 		"r": {
-			"dark_plus": "comment: #608B4E",
+			"dark_plus": "comment: #6A9955",
 			"light_plus": "comment: #008000",
-			"dark_vs": "comment: #608B4E",
+			"dark_vs": "comment: #6A9955",
 			"light_vs": "comment: #008000",
 			"hc_black": "comment: #7CA668"
 		}
@@ -322,16 +322,16 @@
 		"c": "-->",
 		"t": "text.html.markdown comment.block.html punctuation.definition.comment.html",
 		"r": {
-			"dark_plus": "comment: #608B4E",
+			"dark_plus": "comment: #6A9955",
 			"light_plus": "comment: #008000",
-			"dark_vs": "comment: #608B4E",
+			"dark_vs": "comment: #6A9955",
 			"light_vs": "comment: #008000",
 			"hc_black": "comment: #7CA668"
 		}
 	},
 	{
 		"c": "<",
-		"t": "text.html.markdown meta.tag.block.any.html punctuation.definition.tag.begin.html",
+		"t": "text.html.markdown meta.tag.structure.div.start.html punctuation.definition.tag.begin.html",
 		"r": {
 			"dark_plus": "punctuation.definition.tag: #808080",
 			"light_plus": "punctuation.definition.tag: #800000",
@@ -342,7 +342,7 @@
 	},
 	{
 		"c": "div",
-		"t": "text.html.markdown meta.tag.block.any.html entity.name.tag.block.any.html",
+		"t": "text.html.markdown meta.tag.structure.div.start.html entity.name.tag.html",
 		"r": {
 			"dark_plus": "entity.name.tag: #569CD6",
 			"light_plus": "entity.name.tag: #800000",
@@ -353,7 +353,7 @@
 	},
 	{
 		"c": " ",
-		"t": "text.html.markdown meta.tag.block.any.html",
+		"t": "text.html.markdown meta.tag.structure.div.start.html",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -364,7 +364,7 @@
 	},
 	{
 		"c": "class",
-		"t": "text.html.markdown meta.tag.block.any.html entity.other.attribute-name.html",
+		"t": "text.html.markdown meta.tag.structure.div.start.html meta.attribute.class.html entity.other.attribute-name.html",
 		"r": {
 			"dark_plus": "entity.other.attribute-name: #9CDCFE",
 			"light_plus": "entity.other.attribute-name: #FF0000",
@@ -375,7 +375,7 @@
 	},
 	{
 		"c": "=",
-		"t": "text.html.markdown meta.tag.block.any.html",
+		"t": "text.html.markdown meta.tag.structure.div.start.html meta.attribute.class.html punctuation.separator.key-value.html",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -386,7 +386,7 @@
 	},
 	{
 		"c": "\"",
-		"t": "text.html.markdown meta.tag.block.any.html string.quoted.double.html punctuation.definition.string.begin.html",
+		"t": "text.html.markdown meta.tag.structure.div.start.html meta.attribute.class.html string.quoted.double.html punctuation.definition.string.begin.html",
 		"r": {
 			"dark_plus": "string: #CE9178",
 			"light_plus": "string.quoted.double.html: #0000FF",
@@ -397,7 +397,7 @@
 	},
 	{
 		"c": "custom-class",
-		"t": "text.html.markdown meta.tag.block.any.html string.quoted.double.html",
+		"t": "text.html.markdown meta.tag.structure.div.start.html meta.attribute.class.html string.quoted.double.html",
 		"r": {
 			"dark_plus": "string: #CE9178",
 			"light_plus": "string.quoted.double.html: #0000FF",
@@ -408,7 +408,7 @@
 	},
 	{
 		"c": "\"",
-		"t": "text.html.markdown meta.tag.block.any.html string.quoted.double.html punctuation.definition.string.end.html",
+		"t": "text.html.markdown meta.tag.structure.div.start.html meta.attribute.class.html string.quoted.double.html punctuation.definition.string.end.html",
 		"r": {
 			"dark_plus": "string: #CE9178",
 			"light_plus": "string.quoted.double.html: #0000FF",
@@ -419,7 +419,7 @@
 	},
 	{
 		"c": " ",
-		"t": "text.html.markdown meta.tag.block.any.html",
+		"t": "text.html.markdown meta.tag.structure.div.start.html",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -430,7 +430,7 @@
 	},
 	{
 		"c": "markdown",
-		"t": "text.html.markdown meta.tag.block.any.html entity.other.attribute-name.html",
+		"t": "text.html.markdown meta.tag.structure.div.start.html meta.attribute.unrecognized.markdown.html entity.other.attribute-name.html",
 		"r": {
 			"dark_plus": "entity.other.attribute-name: #9CDCFE",
 			"light_plus": "entity.other.attribute-name: #FF0000",
@@ -441,7 +441,7 @@
 	},
 	{
 		"c": "=",
-		"t": "text.html.markdown meta.tag.block.any.html",
+		"t": "text.html.markdown meta.tag.structure.div.start.html meta.attribute.unrecognized.markdown.html punctuation.separator.key-value.html",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -452,7 +452,7 @@
 	},
 	{
 		"c": "\"",
-		"t": "text.html.markdown meta.tag.block.any.html string.quoted.double.html punctuation.definition.string.begin.html",
+		"t": "text.html.markdown meta.tag.structure.div.start.html meta.attribute.unrecognized.markdown.html string.quoted.double.html punctuation.definition.string.begin.html",
 		"r": {
 			"dark_plus": "string: #CE9178",
 			"light_plus": "string.quoted.double.html: #0000FF",
@@ -463,7 +463,7 @@
 	},
 	{
 		"c": "1",
-		"t": "text.html.markdown meta.tag.block.any.html string.quoted.double.html",
+		"t": "text.html.markdown meta.tag.structure.div.start.html meta.attribute.unrecognized.markdown.html string.quoted.double.html",
 		"r": {
 			"dark_plus": "string: #CE9178",
 			"light_plus": "string.quoted.double.html: #0000FF",
@@ -474,7 +474,7 @@
 	},
 	{
 		"c": "\"",
-		"t": "text.html.markdown meta.tag.block.any.html string.quoted.double.html punctuation.definition.string.end.html",
+		"t": "text.html.markdown meta.tag.structure.div.start.html meta.attribute.unrecognized.markdown.html string.quoted.double.html punctuation.definition.string.end.html",
 		"r": {
 			"dark_plus": "string: #CE9178",
 			"light_plus": "string.quoted.double.html: #0000FF",
@@ -485,7 +485,7 @@
 	},
 	{
 		"c": ">",
-		"t": "text.html.markdown meta.tag.block.any.html punctuation.definition.tag.end.html",
+		"t": "text.html.markdown meta.tag.structure.div.start.html punctuation.definition.tag.end.html",
 		"r": {
 			"dark_plus": "punctuation.definition.tag: #808080",
 			"light_plus": "punctuation.definition.tag: #800000",
@@ -507,7 +507,7 @@
 	},
 	{
 		"c": "<",
-		"t": "text.html.markdown meta.tag.block.any.html punctuation.definition.tag.begin.html",
+		"t": "text.html.markdown meta.tag.structure.div.start.html punctuation.definition.tag.begin.html",
 		"r": {
 			"dark_plus": "punctuation.definition.tag: #808080",
 			"light_plus": "punctuation.definition.tag: #800000",
@@ -518,7 +518,7 @@
 	},
 	{
 		"c": "div",
-		"t": "text.html.markdown meta.tag.block.any.html entity.name.tag.block.any.html",
+		"t": "text.html.markdown meta.tag.structure.div.start.html entity.name.tag.html",
 		"r": {
 			"dark_plus": "entity.name.tag: #569CD6",
 			"light_plus": "entity.name.tag: #800000",
@@ -529,7 +529,7 @@
 	},
 	{
 		"c": ">",
-		"t": "text.html.markdown meta.tag.block.any.html punctuation.definition.tag.end.html",
+		"t": "text.html.markdown meta.tag.structure.div.start.html punctuation.definition.tag.end.html",
 		"r": {
 			"dark_plus": "punctuation.definition.tag: #808080",
 			"light_plus": "punctuation.definition.tag: #800000",
@@ -562,7 +562,7 @@
 	},
 	{
 		"c": "</",
-		"t": "text.html.markdown meta.tag.block.any.html punctuation.definition.tag.begin.html",
+		"t": "text.html.markdown meta.tag.structure.div.end.html punctuation.definition.tag.begin.html",
 		"r": {
 			"dark_plus": "punctuation.definition.tag: #808080",
 			"light_plus": "punctuation.definition.tag: #800000",
@@ -573,7 +573,7 @@
 	},
 	{
 		"c": "div",
-		"t": "text.html.markdown meta.tag.block.any.html entity.name.tag.block.any.html",
+		"t": "text.html.markdown meta.tag.structure.div.end.html entity.name.tag.html",
 		"r": {
 			"dark_plus": "entity.name.tag: #569CD6",
 			"light_plus": "entity.name.tag: #800000",
@@ -584,7 +584,7 @@
 	},
 	{
 		"c": ">",
-		"t": "text.html.markdown meta.tag.block.any.html punctuation.definition.tag.end.html",
+		"t": "text.html.markdown meta.tag.structure.div.end.html punctuation.definition.tag.end.html",
 		"r": {
 			"dark_plus": "punctuation.definition.tag: #808080",
 			"light_plus": "punctuation.definition.tag: #800000",
@@ -606,7 +606,7 @@
 	},
 	{
 		"c": "<",
-		"t": "text.html.markdown meta.embedded.block.html meta.tag.metadata.script.html punctuation.definition.tag.begin.html",
+		"t": "text.html.markdown meta.embedded.block.html meta.tag.metadata.script.start.html punctuation.definition.tag.begin.html",
 		"r": {
 			"dark_plus": "punctuation.definition.tag: #808080",
 			"light_plus": "punctuation.definition.tag: #800000",
@@ -617,7 +617,7 @@
 	},
 	{
 		"c": "script",
-		"t": "text.html.markdown meta.embedded.block.html meta.tag.metadata.script.html entity.name.tag.html",
+		"t": "text.html.markdown meta.embedded.block.html meta.tag.metadata.script.start.html entity.name.tag.html",
 		"r": {
 			"dark_plus": "entity.name.tag: #569CD6",
 			"light_plus": "entity.name.tag: #800000",
@@ -628,7 +628,7 @@
 	},
 	{
 		"c": " ",
-		"t": "text.html.markdown meta.embedded.block.html meta.tag.metadata.script.html",
+		"t": "text.html.markdown meta.embedded.block.html meta.tag.metadata.script.start.html",
 		"r": {
 			"dark_plus": "meta.embedded: #D4D4D4",
 			"light_plus": "meta.embedded: #000000",
@@ -639,7 +639,7 @@
 	},
 	{
 		"c": "type",
-		"t": "text.html.markdown meta.embedded.block.html meta.tag.metadata.script.html entity.other.attribute-name.html",
+		"t": "text.html.markdown meta.embedded.block.html meta.tag.metadata.script.start.html meta.attribute.type.html entity.other.attribute-name.html",
 		"r": {
 			"dark_plus": "entity.other.attribute-name: #9CDCFE",
 			"light_plus": "entity.other.attribute-name: #FF0000",
@@ -650,7 +650,7 @@
 	},
 	{
 		"c": "=",
-		"t": "text.html.markdown meta.embedded.block.html meta.tag.metadata.script.html",
+		"t": "text.html.markdown meta.embedded.block.html meta.tag.metadata.script.start.html meta.attribute.type.html punctuation.separator.key-value.html",
 		"r": {
 			"dark_plus": "meta.embedded: #D4D4D4",
 			"light_plus": "meta.embedded: #000000",
@@ -661,7 +661,7 @@
 	},
 	{
 		"c": "'",
-		"t": "text.html.markdown meta.embedded.block.html meta.tag.metadata.script.html string.quoted.single.html punctuation.definition.string.begin.html",
+		"t": "text.html.markdown meta.embedded.block.html meta.tag.metadata.script.start.html meta.attribute.type.html string.quoted.single.html punctuation.definition.string.begin.html",
 		"r": {
 			"dark_plus": "string: #CE9178",
 			"light_plus": "string.quoted.single.html: #0000FF",
@@ -672,7 +672,7 @@
 	},
 	{
 		"c": "text/x-koka",
-		"t": "text.html.markdown meta.embedded.block.html meta.tag.metadata.script.html string.quoted.single.html",
+		"t": "text.html.markdown meta.embedded.block.html meta.tag.metadata.script.start.html meta.attribute.type.html string.quoted.single.html",
 		"r": {
 			"dark_plus": "string: #CE9178",
 			"light_plus": "string.quoted.single.html: #0000FF",
@@ -683,7 +683,7 @@
 	},
 	{
 		"c": "'",
-		"t": "text.html.markdown meta.embedded.block.html meta.tag.metadata.script.html string.quoted.single.html punctuation.definition.string.end.html",
+		"t": "text.html.markdown meta.embedded.block.html meta.tag.metadata.script.start.html meta.attribute.type.html string.quoted.single.html punctuation.definition.string.end.html",
 		"r": {
 			"dark_plus": "string: #CE9178",
 			"light_plus": "string.quoted.single.html: #0000FF",
@@ -694,7 +694,7 @@
 	},
 	{
 		"c": ">",
-		"t": "text.html.markdown meta.embedded.block.html meta.tag.metadata.script.html punctuation.definition.tag.end.html",
+		"t": "text.html.markdown meta.embedded.block.html meta.tag.metadata.script.start.html punctuation.definition.tag.end.html",
 		"r": {
 			"dark_plus": "punctuation.definition.tag: #808080",
 			"light_plus": "punctuation.definition.tag: #800000",
@@ -727,7 +727,7 @@
 	},
 	{
 		"c": "</",
-		"t": "text.html.markdown meta.embedded.block.html meta.tag.metadata.script.html punctuation.definition.tag.begin.html",
+		"t": "text.html.markdown meta.embedded.block.html meta.tag.metadata.script.end.html punctuation.definition.tag.begin.html",
 		"r": {
 			"dark_plus": "punctuation.definition.tag: #808080",
 			"light_plus": "punctuation.definition.tag: #800000",
@@ -738,7 +738,7 @@
 	},
 	{
 		"c": "script",
-		"t": "text.html.markdown meta.embedded.block.html meta.tag.metadata.script.html entity.name.tag.html",
+		"t": "text.html.markdown meta.embedded.block.html meta.tag.metadata.script.end.html entity.name.tag.html",
 		"r": {
 			"dark_plus": "entity.name.tag: #569CD6",
 			"light_plus": "entity.name.tag: #800000",
@@ -749,7 +749,7 @@
 	},
 	{
 		"c": ">",
-		"t": "text.html.markdown meta.embedded.block.html meta.tag.metadata.script.html punctuation.definition.tag.end.html",
+		"t": "text.html.markdown meta.embedded.block.html meta.tag.metadata.script.end.html punctuation.definition.tag.end.html",
 		"r": {
 			"dark_plus": "punctuation.definition.tag: #808080",
 			"light_plus": "punctuation.definition.tag: #800000",
@@ -770,29 +770,7 @@
 		}
 	},
 	{
-		"c": "  and a ",
-		"t": "text.html.markdown",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
-		}
-	},
-	{
-		"c": "&",
-		"t": "text.html.markdown invalid.illegal.bad-ampersand.html",
-		"r": {
-			"dark_plus": "invalid: #F44747",
-			"light_plus": "invalid: #CD3131",
-			"dark_vs": "invalid: #F44747",
-			"light_vs": "invalid: #CD3131",
-			"hc_black": "invalid: #F44747"
-		}
-	},
-	{
-		"c": " ",
+		"c": "  and a & ",
 		"t": "text.html.markdown",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
@@ -804,7 +782,7 @@
 	},
 	{
 		"c": "<",
-		"t": "text.html.markdown meta.tag.inline.any.html punctuation.definition.tag.begin.html",
+		"t": "text.html.markdown meta.tag.inline.b.start.html punctuation.definition.tag.begin.html",
 		"r": {
 			"dark_plus": "punctuation.definition.tag: #808080",
 			"light_plus": "punctuation.definition.tag: #800000",
@@ -815,7 +793,7 @@
 	},
 	{
 		"c": "b",
-		"t": "text.html.markdown meta.tag.inline.any.html entity.name.tag.inline.any.html",
+		"t": "text.html.markdown meta.tag.inline.b.start.html entity.name.tag.html",
 		"r": {
 			"dark_plus": "entity.name.tag: #569CD6",
 			"light_plus": "entity.name.tag: #800000",
@@ -826,7 +804,7 @@
 	},
 	{
 		"c": " ",
-		"t": "text.html.markdown meta.tag.inline.any.html",
+		"t": "text.html.markdown meta.tag.inline.b.start.html",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -837,7 +815,7 @@
 	},
 	{
 		"c": "class",
-		"t": "text.html.markdown meta.tag.inline.any.html entity.other.attribute-name.html",
+		"t": "text.html.markdown meta.tag.inline.b.start.html meta.attribute.class.html entity.other.attribute-name.html",
 		"r": {
 			"dark_plus": "entity.other.attribute-name: #9CDCFE",
 			"light_plus": "entity.other.attribute-name: #FF0000",
@@ -848,7 +826,7 @@
 	},
 	{
 		"c": "=",
-		"t": "text.html.markdown meta.tag.inline.any.html",
+		"t": "text.html.markdown meta.tag.inline.b.start.html meta.attribute.class.html punctuation.separator.key-value.html",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -859,7 +837,7 @@
 	},
 	{
 		"c": "\"",
-		"t": "text.html.markdown meta.tag.inline.any.html string.quoted.double.html punctuation.definition.string.begin.html",
+		"t": "text.html.markdown meta.tag.inline.b.start.html meta.attribute.class.html string.quoted.double.html punctuation.definition.string.begin.html",
 		"r": {
 			"dark_plus": "string: #CE9178",
 			"light_plus": "string.quoted.double.html: #0000FF",
@@ -870,7 +848,7 @@
 	},
 	{
 		"c": "bold",
-		"t": "text.html.markdown meta.tag.inline.any.html string.quoted.double.html",
+		"t": "text.html.markdown meta.tag.inline.b.start.html meta.attribute.class.html string.quoted.double.html",
 		"r": {
 			"dark_plus": "string: #CE9178",
 			"light_plus": "string.quoted.double.html: #0000FF",
@@ -881,7 +859,7 @@
 	},
 	{
 		"c": "\"",
-		"t": "text.html.markdown meta.tag.inline.any.html string.quoted.double.html punctuation.definition.string.end.html",
+		"t": "text.html.markdown meta.tag.inline.b.start.html meta.attribute.class.html string.quoted.double.html punctuation.definition.string.end.html",
 		"r": {
 			"dark_plus": "string: #CE9178",
 			"light_plus": "string.quoted.double.html: #0000FF",
@@ -892,7 +870,7 @@
 	},
 	{
 		"c": ">",
-		"t": "text.html.markdown meta.tag.inline.any.html punctuation.definition.tag.end.html",
+		"t": "text.html.markdown meta.tag.inline.b.start.html punctuation.definition.tag.end.html",
 		"r": {
 			"dark_plus": "punctuation.definition.tag: #808080",
 			"light_plus": "punctuation.definition.tag: #800000",
@@ -914,7 +892,7 @@
 	},
 	{
 		"c": "</",
-		"t": "text.html.markdown meta.tag.inline.any.html punctuation.definition.tag.begin.html",
+		"t": "text.html.markdown meta.tag.inline.b.end.html punctuation.definition.tag.begin.html",
 		"r": {
 			"dark_plus": "punctuation.definition.tag: #808080",
 			"light_plus": "punctuation.definition.tag: #800000",
@@ -925,7 +903,7 @@
 	},
 	{
 		"c": "b",
-		"t": "text.html.markdown meta.tag.inline.any.html entity.name.tag.inline.any.html",
+		"t": "text.html.markdown meta.tag.inline.b.end.html entity.name.tag.html",
 		"r": {
 			"dark_plus": "entity.name.tag: #569CD6",
 			"light_plus": "entity.name.tag: #800000",
@@ -936,7 +914,7 @@
 	},
 	{
 		"c": ">",
-		"t": "text.html.markdown meta.tag.inline.any.html punctuation.definition.tag.end.html",
+		"t": "text.html.markdown meta.tag.inline.b.end.html punctuation.definition.tag.end.html",
 		"r": {
 			"dark_plus": "punctuation.definition.tag: #808080",
 			"light_plus": "punctuation.definition.tag: #800000",
@@ -969,7 +947,7 @@
 	},
 	{
 		"c": "<",
-		"t": "text.html.markdown meta.embedded.block.html meta.tag.metadata.style.html punctuation.definition.tag.begin.html",
+		"t": "text.html.markdown meta.embedded.block.html meta.tag.metadata.style.start.html punctuation.definition.tag.begin.html",
 		"r": {
 			"dark_plus": "punctuation.definition.tag: #808080",
 			"light_plus": "punctuation.definition.tag: #800000",
@@ -980,7 +958,7 @@
 	},
 	{
 		"c": "style",
-		"t": "text.html.markdown meta.embedded.block.html meta.tag.metadata.style.html entity.name.tag.html",
+		"t": "text.html.markdown meta.embedded.block.html meta.tag.metadata.style.start.html entity.name.tag.html",
 		"r": {
 			"dark_plus": "entity.name.tag: #569CD6",
 			"light_plus": "entity.name.tag: #800000",
@@ -991,7 +969,7 @@
 	},
 	{
 		"c": ">",
-		"t": "text.html.markdown meta.embedded.block.html meta.tag.metadata.style.html punctuation.definition.tag.end.html",
+		"t": "text.html.markdown meta.embedded.block.html meta.tag.metadata.style.start.html punctuation.definition.tag.end.html",
 		"r": {
 			"dark_plus": "punctuation.definition.tag: #808080",
 			"light_plus": "punctuation.definition.tag: #800000",
@@ -1156,7 +1134,7 @@
 	},
 	{
 		"c": "<",
-		"t": "text.html.markdown meta.embedded.block.html meta.tag.metadata.style.html punctuation.definition.tag.begin.html source.css",
+		"t": "text.html.markdown meta.embedded.block.html meta.tag.metadata.style.end.html punctuation.definition.tag.begin.html source.css",
 		"r": {
 			"dark_plus": "punctuation.definition.tag: #808080",
 			"light_plus": "punctuation.definition.tag: #800000",
@@ -1167,7 +1145,7 @@
 	},
 	{
 		"c": "/",
-		"t": "text.html.markdown meta.embedded.block.html meta.tag.metadata.style.html punctuation.definition.tag.begin.html",
+		"t": "text.html.markdown meta.embedded.block.html meta.tag.metadata.style.end.html punctuation.definition.tag.begin.html",
 		"r": {
 			"dark_plus": "punctuation.definition.tag: #808080",
 			"light_plus": "punctuation.definition.tag: #800000",
@@ -1178,7 +1156,7 @@
 	},
 	{
 		"c": "style",
-		"t": "text.html.markdown meta.embedded.block.html meta.tag.metadata.style.html entity.name.tag.html",
+		"t": "text.html.markdown meta.embedded.block.html meta.tag.metadata.style.end.html entity.name.tag.html",
 		"r": {
 			"dark_plus": "entity.name.tag: #569CD6",
 			"light_plus": "entity.name.tag: #800000",
@@ -1189,7 +1167,7 @@
 	},
 	{
 		"c": ">",
-		"t": "text.html.markdown meta.embedded.block.html meta.tag.metadata.style.html punctuation.definition.tag.end.html",
+		"t": "text.html.markdown meta.embedded.block.html meta.tag.metadata.style.end.html punctuation.definition.tag.end.html",
 		"r": {
 			"dark_plus": "punctuation.definition.tag: #808080",
 			"light_plus": "punctuation.definition.tag: #800000",
@@ -1200,7 +1178,7 @@
 	},
 	{
 		"c": "</",
-		"t": "text.html.markdown meta.tag.block.any.html punctuation.definition.tag.begin.html",
+		"t": "text.html.markdown meta.tag.structure.div.end.html punctuation.definition.tag.begin.html",
 		"r": {
 			"dark_plus": "punctuation.definition.tag: #808080",
 			"light_plus": "punctuation.definition.tag: #800000",
@@ -1211,7 +1189,7 @@
 	},
 	{
 		"c": "div",
-		"t": "text.html.markdown meta.tag.block.any.html entity.name.tag.block.any.html",
+		"t": "text.html.markdown meta.tag.structure.div.end.html entity.name.tag.html",
 		"r": {
 			"dark_plus": "entity.name.tag: #569CD6",
 			"light_plus": "entity.name.tag: #800000",
@@ -1222,7 +1200,7 @@
 	},
 	{
 		"c": ">",
-		"t": "text.html.markdown meta.tag.block.any.html punctuation.definition.tag.end.html",
+		"t": "text.html.markdown meta.tag.structure.div.end.html punctuation.definition.tag.end.html",
 		"r": {
 			"dark_plus": "punctuation.definition.tag: #808080",
 			"light_plus": "punctuation.definition.tag: #800000",
@@ -1233,12 +1211,12 @@
 	},
 	{
 		"c": "*",
-		"t": "text.html.markdown markup.list.unnumbered.markdown beginning.punctuation.definition.list.markdown",
+		"t": "text.html.markdown markup.list.unnumbered.markdown punctuation.definition.list.begin.markdown",
 		"r": {
-			"dark_plus": "beginning.punctuation.definition.list.markdown: #6796E6",
-			"light_plus": "beginning.punctuation.definition.list.markdown: #0451A5",
-			"dark_vs": "beginning.punctuation.definition.list.markdown: #6796E6",
-			"light_vs": "beginning.punctuation.definition.list.markdown: #0451A5",
+			"dark_plus": "punctuation.definition.list.begin.markdown: #6796E6",
+			"light_plus": "punctuation.definition.list.begin.markdown: #0451A5",
+			"dark_vs": "punctuation.definition.list.begin.markdown: #6796E6",
+			"light_vs": "punctuation.definition.list.begin.markdown: #0451A5",
 			"hc_black": "default: #FFFFFF"
 		}
 	},
@@ -1266,12 +1244,12 @@
 	},
 	{
 		"c": "-",
-		"t": "text.html.markdown markup.list.unnumbered.markdown beginning.punctuation.definition.list.markdown",
+		"t": "text.html.markdown markup.list.unnumbered.markdown punctuation.definition.list.begin.markdown",
 		"r": {
-			"dark_plus": "beginning.punctuation.definition.list.markdown: #6796E6",
-			"light_plus": "beginning.punctuation.definition.list.markdown: #0451A5",
-			"dark_vs": "beginning.punctuation.definition.list.markdown: #6796E6",
-			"light_vs": "beginning.punctuation.definition.list.markdown: #0451A5",
+			"dark_plus": "punctuation.definition.list.begin.markdown: #6796E6",
+			"light_plus": "punctuation.definition.list.begin.markdown: #0451A5",
+			"dark_vs": "punctuation.definition.list.begin.markdown: #6796E6",
+			"light_vs": "punctuation.definition.list.begin.markdown: #0451A5",
 			"hc_black": "default: #FFFFFF"
 		}
 	},
@@ -1299,12 +1277,12 @@
 	},
 	{
 		"c": "+",
-		"t": "text.html.markdown markup.list.unnumbered.markdown beginning.punctuation.definition.list.markdown",
+		"t": "text.html.markdown markup.list.unnumbered.markdown punctuation.definition.list.begin.markdown",
 		"r": {
-			"dark_plus": "beginning.punctuation.definition.list.markdown: #6796E6",
-			"light_plus": "beginning.punctuation.definition.list.markdown: #0451A5",
-			"dark_vs": "beginning.punctuation.definition.list.markdown: #6796E6",
-			"light_vs": "beginning.punctuation.definition.list.markdown: #0451A5",
+			"dark_plus": "punctuation.definition.list.begin.markdown: #6796E6",
+			"light_plus": "punctuation.definition.list.begin.markdown: #0451A5",
+			"dark_vs": "punctuation.definition.list.begin.markdown: #6796E6",
+			"light_vs": "punctuation.definition.list.begin.markdown: #0451A5",
 			"hc_black": "default: #FFFFFF"
 		}
 	},
@@ -1343,12 +1321,12 @@
 	},
 	{
 		"c": "+",
-		"t": "text.html.markdown markup.list.unnumbered.markdown markup.list.unnumbered.markdown beginning.punctuation.definition.list.markdown",
+		"t": "text.html.markdown markup.list.unnumbered.markdown markup.list.unnumbered.markdown punctuation.definition.list.begin.markdown",
 		"r": {
-			"dark_plus": "beginning.punctuation.definition.list.markdown: #6796E6",
-			"light_plus": "beginning.punctuation.definition.list.markdown: #0451A5",
-			"dark_vs": "beginning.punctuation.definition.list.markdown: #6796E6",
-			"light_vs": "beginning.punctuation.definition.list.markdown: #0451A5",
+			"dark_plus": "punctuation.definition.list.begin.markdown: #6796E6",
+			"light_plus": "punctuation.definition.list.begin.markdown: #0451A5",
+			"dark_vs": "punctuation.definition.list.begin.markdown: #6796E6",
+			"light_vs": "punctuation.definition.list.begin.markdown: #0451A5",
 			"hc_black": "default: #FFFFFF"
 		}
 	},
@@ -1618,12 +1596,12 @@
 	},
 	{
 		"c": ">",
-		"t": "text.html.markdown markup.quote.markdown beginning.punctuation.definition.quote.markdown",
+		"t": "text.html.markdown markup.quote.markdown punctuation.definition.quote.begin.markdown",
 		"r": {
-			"dark_plus": "beginning.punctuation.definition.quote.markdown: #608B4E",
-			"light_plus": "beginning.punctuation.definition.quote.markdown: #0451A5",
-			"dark_vs": "beginning.punctuation.definition.quote.markdown: #608B4E",
-			"light_vs": "beginning.punctuation.definition.quote.markdown: #0451A5",
+			"dark_plus": "punctuation.definition.quote.begin.markdown: #6A9955",
+			"light_plus": "punctuation.definition.quote.begin.markdown: #0451A5",
+			"dark_vs": "punctuation.definition.quote.begin.markdown: #6A9955",
+			"light_vs": "punctuation.definition.quote.begin.markdown: #0451A5",
 			"hc_black": "default: #FFFFFF"
 		}
 	},
@@ -1651,23 +1629,23 @@
 	},
 	{
 		"c": ">",
-		"t": "text.html.markdown markup.quote.markdown beginning.punctuation.definition.quote.markdown",
+		"t": "text.html.markdown markup.quote.markdown punctuation.definition.quote.begin.markdown",
 		"r": {
-			"dark_plus": "beginning.punctuation.definition.quote.markdown: #608B4E",
-			"light_plus": "beginning.punctuation.definition.quote.markdown: #0451A5",
-			"dark_vs": "beginning.punctuation.definition.quote.markdown: #608B4E",
-			"light_vs": "beginning.punctuation.definition.quote.markdown: #0451A5",
+			"dark_plus": "punctuation.definition.quote.begin.markdown: #6A9955",
+			"light_plus": "punctuation.definition.quote.begin.markdown: #0451A5",
+			"dark_vs": "punctuation.definition.quote.begin.markdown: #6A9955",
+			"light_vs": "punctuation.definition.quote.begin.markdown: #0451A5",
 			"hc_black": "default: #FFFFFF"
 		}
 	},
 	{
 		"c": ">",
-		"t": "text.html.markdown markup.quote.markdown markup.quote.markdown beginning.punctuation.definition.quote.markdown",
+		"t": "text.html.markdown markup.quote.markdown markup.quote.markdown punctuation.definition.quote.begin.markdown",
 		"r": {
-			"dark_plus": "beginning.punctuation.definition.quote.markdown: #608B4E",
-			"light_plus": "beginning.punctuation.definition.quote.markdown: #0451A5",
-			"dark_vs": "beginning.punctuation.definition.quote.markdown: #608B4E",
-			"light_vs": "beginning.punctuation.definition.quote.markdown: #0451A5",
+			"dark_plus": "punctuation.definition.quote.begin.markdown: #6A9955",
+			"light_plus": "punctuation.definition.quote.begin.markdown: #0451A5",
+			"dark_vs": "punctuation.definition.quote.begin.markdown: #6A9955",
+			"light_vs": "punctuation.definition.quote.begin.markdown: #0451A5",
 			"hc_black": "default: #FFFFFF"
 		}
 	},
@@ -1695,12 +1673,12 @@
 	},
 	{
 		"c": "1.",
-		"t": "text.html.markdown markup.list.numbered.markdown beginning.punctuation.definition.list.markdown",
+		"t": "text.html.markdown markup.list.numbered.markdown punctuation.definition.list.begin.markdown",
 		"r": {
-			"dark_plus": "beginning.punctuation.definition.list.markdown: #6796E6",
-			"light_plus": "beginning.punctuation.definition.list.markdown: #0451A5",
-			"dark_vs": "beginning.punctuation.definition.list.markdown: #6796E6",
-			"light_vs": "beginning.punctuation.definition.list.markdown: #0451A5",
+			"dark_plus": "punctuation.definition.list.begin.markdown: #6796E6",
+			"light_plus": "punctuation.definition.list.begin.markdown: #0451A5",
+			"dark_vs": "punctuation.definition.list.begin.markdown: #6796E6",
+			"light_vs": "punctuation.definition.list.begin.markdown: #0451A5",
 			"hc_black": "default: #FFFFFF"
 		}
 	},
@@ -1739,12 +1717,12 @@
 	},
 	{
 		"c": ">",
-		"t": "text.html.markdown markup.list.numbered.markdown markup.quote.markdown beginning.punctuation.definition.quote.markdown",
+		"t": "text.html.markdown markup.list.numbered.markdown markup.quote.markdown punctuation.definition.quote.begin.markdown",
 		"r": {
-			"dark_plus": "beginning.punctuation.definition.quote.markdown: #608B4E",
-			"light_plus": "beginning.punctuation.definition.quote.markdown: #0451A5",
-			"dark_vs": "beginning.punctuation.definition.quote.markdown: #608B4E",
-			"light_vs": "beginning.punctuation.definition.quote.markdown: #0451A5",
+			"dark_plus": "punctuation.definition.quote.begin.markdown: #6A9955",
+			"light_plus": "punctuation.definition.quote.begin.markdown: #0451A5",
+			"dark_vs": "punctuation.definition.quote.begin.markdown: #6A9955",
+			"light_vs": "punctuation.definition.quote.begin.markdown: #0451A5",
 			"hc_black": "default: #FFFFFF"
 		}
 	},
@@ -1772,12 +1750,12 @@
 	},
 	{
 		"c": "2.",
-		"t": "text.html.markdown markup.list.numbered.markdown beginning.punctuation.definition.list.markdown",
+		"t": "text.html.markdown markup.list.numbered.markdown punctuation.definition.list.begin.markdown",
 		"r": {
-			"dark_plus": "beginning.punctuation.definition.list.markdown: #6796E6",
-			"light_plus": "beginning.punctuation.definition.list.markdown: #0451A5",
-			"dark_vs": "beginning.punctuation.definition.list.markdown: #6796E6",
-			"light_vs": "beginning.punctuation.definition.list.markdown: #0451A5",
+			"dark_plus": "punctuation.definition.list.begin.markdown: #6796E6",
+			"light_plus": "punctuation.definition.list.begin.markdown: #0451A5",
+			"dark_vs": "punctuation.definition.list.begin.markdown: #6796E6",
+			"light_vs": "punctuation.definition.list.begin.markdown: #0451A5",
 			"hc_black": "default: #FFFFFF"
 		}
 	},
@@ -1805,12 +1783,12 @@
 	},
 	{
 		"c": "3.",
-		"t": "text.html.markdown markup.list.numbered.markdown beginning.punctuation.definition.list.markdown",
+		"t": "text.html.markdown markup.list.numbered.markdown punctuation.definition.list.begin.markdown",
 		"r": {
-			"dark_plus": "beginning.punctuation.definition.list.markdown: #6796E6",
-			"light_plus": "beginning.punctuation.definition.list.markdown: #0451A5",
-			"dark_vs": "beginning.punctuation.definition.list.markdown: #6796E6",
-			"light_vs": "beginning.punctuation.definition.list.markdown: #0451A5",
+			"dark_plus": "punctuation.definition.list.begin.markdown: #6796E6",
+			"light_plus": "punctuation.definition.list.begin.markdown: #0451A5",
+			"dark_vs": "punctuation.definition.list.begin.markdown: #6796E6",
+			"light_vs": "punctuation.definition.list.begin.markdown: #0451A5",
 			"hc_black": "default: #FFFFFF"
 		}
 	},
@@ -2267,12 +2245,12 @@
 	},
 	{
 		"c": "*",
-		"t": "text.html.markdown markup.list.unnumbered.markdown beginning.punctuation.definition.list.markdown",
+		"t": "text.html.markdown markup.list.unnumbered.markdown punctuation.definition.list.begin.markdown",
 		"r": {
-			"dark_plus": "beginning.punctuation.definition.list.markdown: #6796E6",
-			"light_plus": "beginning.punctuation.definition.list.markdown: #0451A5",
-			"dark_vs": "beginning.punctuation.definition.list.markdown: #6796E6",
-			"light_vs": "beginning.punctuation.definition.list.markdown: #0451A5",
+			"dark_plus": "punctuation.definition.list.begin.markdown: #6796E6",
+			"light_plus": "punctuation.definition.list.begin.markdown: #0451A5",
+			"dark_vs": "punctuation.definition.list.begin.markdown: #6796E6",
+			"light_vs": "punctuation.definition.list.begin.markdown: #0451A5",
 			"hc_black": "default: #FFFFFF"
 		}
 	},
@@ -2300,12 +2278,12 @@
 	},
 	{
 		"c": "*",
-		"t": "text.html.markdown markup.list.unnumbered.markdown beginning.punctuation.definition.list.markdown",
+		"t": "text.html.markdown markup.list.unnumbered.markdown punctuation.definition.list.begin.markdown",
 		"r": {
-			"dark_plus": "beginning.punctuation.definition.list.markdown: #6796E6",
-			"light_plus": "beginning.punctuation.definition.list.markdown: #0451A5",
-			"dark_vs": "beginning.punctuation.definition.list.markdown: #6796E6",
-			"light_vs": "beginning.punctuation.definition.list.markdown: #0451A5",
+			"dark_plus": "punctuation.definition.list.begin.markdown: #6796E6",
+			"light_plus": "punctuation.definition.list.begin.markdown: #0451A5",
+			"dark_vs": "punctuation.definition.list.begin.markdown: #6796E6",
+			"light_vs": "punctuation.definition.list.begin.markdown: #0451A5",
 			"hc_black": "default: #FFFFFF"
 		}
 	},
@@ -2443,12 +2421,12 @@
 	},
 	{
 		"c": "*",
-		"t": "text.html.markdown markup.list.unnumbered.markdown beginning.punctuation.definition.list.markdown",
+		"t": "text.html.markdown markup.list.unnumbered.markdown punctuation.definition.list.begin.markdown",
 		"r": {
-			"dark_plus": "beginning.punctuation.definition.list.markdown: #6796E6",
-			"light_plus": "beginning.punctuation.definition.list.markdown: #0451A5",
-			"dark_vs": "beginning.punctuation.definition.list.markdown: #6796E6",
-			"light_vs": "beginning.punctuation.definition.list.markdown: #0451A5",
+			"dark_plus": "punctuation.definition.list.begin.markdown: #6796E6",
+			"light_plus": "punctuation.definition.list.begin.markdown: #0451A5",
+			"dark_vs": "punctuation.definition.list.begin.markdown: #6796E6",
+			"light_vs": "punctuation.definition.list.begin.markdown: #0451A5",
 			"hc_black": "default: #FFFFFF"
 		}
 	},
@@ -2476,12 +2454,12 @@
 	},
 	{
 		"c": "*",
-		"t": "text.html.markdown markup.list.unnumbered.markdown beginning.punctuation.definition.list.markdown",
+		"t": "text.html.markdown markup.list.unnumbered.markdown punctuation.definition.list.begin.markdown",
 		"r": {
-			"dark_plus": "beginning.punctuation.definition.list.markdown: #6796E6",
-			"light_plus": "beginning.punctuation.definition.list.markdown: #0451A5",
-			"dark_vs": "beginning.punctuation.definition.list.markdown: #6796E6",
-			"light_vs": "beginning.punctuation.definition.list.markdown: #0451A5",
+			"dark_plus": "punctuation.definition.list.begin.markdown: #6796E6",
+			"light_plus": "punctuation.definition.list.begin.markdown: #0451A5",
+			"dark_vs": "punctuation.definition.list.begin.markdown: #6796E6",
+			"light_vs": "punctuation.definition.list.begin.markdown: #0451A5",
 			"hc_black": "default: #FFFFFF"
 		}
 	},
@@ -2508,7 +2486,51 @@
 		}
 	},
 	{
-		"c": "*[ABBR]: Markdown plus abbreviations (produces an ",
+		"c": "*",
+		"t": "text.html.markdown meta.paragraph.markdown",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "[",
+		"t": "text.html.markdown meta.paragraph.markdown meta.link.reference.markdown punctuation.definition.string.begin.markdown",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "ABBR",
+		"t": "text.html.markdown meta.paragraph.markdown meta.link.reference.markdown string.other.link.title.markdown",
+		"r": {
+			"dark_plus": "string: #CE9178",
+			"light_plus": "string: #A31515",
+			"dark_vs": "string: #CE9178",
+			"light_vs": "string: #A31515",
+			"hc_black": "string: #CE9178"
+		}
+	},
+	{
+		"c": "]",
+		"t": "text.html.markdown meta.paragraph.markdown meta.link.reference.markdown punctuation.definition.string.end.markdown",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": ": Markdown plus abbreviations (produces an ",
 		"t": "text.html.markdown meta.paragraph.markdown",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
@@ -2520,7 +2542,7 @@
 	},
 	{
 		"c": "<",
-		"t": "text.html.markdown meta.paragraph.markdown meta.tag.inline.any.html punctuation.definition.tag.begin.html",
+		"t": "text.html.markdown meta.paragraph.markdown meta.tag.inline.abbr.start.html punctuation.definition.tag.begin.html",
 		"r": {
 			"dark_plus": "punctuation.definition.tag: #808080",
 			"light_plus": "punctuation.definition.tag: #800000",
@@ -2531,7 +2553,7 @@
 	},
 	{
 		"c": "abbr",
-		"t": "text.html.markdown meta.paragraph.markdown meta.tag.inline.any.html entity.name.tag.inline.any.html",
+		"t": "text.html.markdown meta.paragraph.markdown meta.tag.inline.abbr.start.html entity.name.tag.html",
 		"r": {
 			"dark_plus": "entity.name.tag: #569CD6",
 			"light_plus": "entity.name.tag: #800000",
@@ -2542,7 +2564,7 @@
 	},
 	{
 		"c": ">",
-		"t": "text.html.markdown meta.paragraph.markdown meta.tag.inline.any.html punctuation.definition.tag.end.html",
+		"t": "text.html.markdown meta.paragraph.markdown meta.tag.inline.abbr.start.html punctuation.definition.tag.end.html",
 		"r": {
 			"dark_plus": "punctuation.definition.tag: #808080",
 			"light_plus": "punctuation.definition.tag: #800000",

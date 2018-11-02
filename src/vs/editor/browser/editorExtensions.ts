@@ -2,99 +2,123 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
+import { IPosition } from 'vs/base/browser/ui/contextview/contextview';
+import { always } from 'vs/base/common/async';
 import { illegalArgument } from 'vs/base/common/errors';
-import URI from 'vs/base/common/uri';
-import { TPromise } from 'vs/base/common/winjs.base';
-import { ServicesAccessor, IConstructorSignature1 } from 'vs/platform/instantiation/common/instantiation';
+import { URI } from 'vs/base/common/uri';
+import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
+import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
+import { Position } from 'vs/editor/common/core/position';
+import { IEditorContribution } from 'vs/editor/common/editorCommon';
+import { ITextModel } from 'vs/editor/common/model';
+import { IModelService } from 'vs/editor/common/services/modelService';
+import { ITextModelService } from 'vs/editor/common/services/resolverService';
+import { MenuId, MenuRegistry } from 'vs/platform/actions/common/actions';
 import { CommandsRegistry, ICommandHandlerDescription } from 'vs/platform/commands/common/commands';
-import { KeybindingsRegistry, ICommandAndKeybindingRule, IKeybindings } from 'vs/platform/keybinding/common/keybindingsRegistry';
+import { ContextKeyExpr, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { IConstructorSignature1, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
+import { IKeybindings, KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { Position } from 'vs/editor/common/core/position';
-import * as editorCommon from 'vs/editor/common/editorCommon';
-import { IModelService } from 'vs/editor/common/services/modelService';
-import { MenuId, MenuRegistry, IMenuItem } from 'vs/platform/actions/common/actions';
-import { IEditorService } from 'vs/platform/editor/common/editor';
-import { IContextKeyService, ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
-import { ICodeEditorService, getCodeEditor } from 'vs/editor/browser/services/codeEditorService';
-import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { ITextModel } from 'vs/editor/common/model';
 
 export type ServicesAccessor = ServicesAccessor;
-export type IEditorContributionCtor = IConstructorSignature1<ICodeEditor, editorCommon.IEditorContribution>;
+export type IEditorContributionCtor = IConstructorSignature1<ICodeEditor, IEditorContribution>;
 
 //#region Command
 
 export interface ICommandKeybindingsOptions extends IKeybindings {
-	kbExpr?: ContextKeyExpr;
-	weight?: number;
+	kbExpr?: ContextKeyExpr | null;
+	weight: number;
+}
+export interface ICommandMenubarOptions {
+	menuId: MenuId;
+	group: string;
+	order: number;
+	when?: ContextKeyExpr;
+	title: string;
 }
 export interface ICommandOptions {
 	id: string;
-	precondition: ContextKeyExpr;
-	kbOpts?: ICommandKeybindingsOptions;
+	precondition: ContextKeyExpr | null;
+	kbOpts?: ICommandKeybindingsOptions | null;
 	description?: ICommandHandlerDescription;
+	menubarOpts?: ICommandMenubarOptions;
 }
 export abstract class Command {
 	public readonly id: string;
-	public readonly precondition: ContextKeyExpr;
-	private readonly _kbOpts: ICommandKeybindingsOptions;
-	private readonly _description: ICommandHandlerDescription;
+	public readonly precondition: ContextKeyExpr | null;
+	private readonly _kbOpts: ICommandKeybindingsOptions | null | undefined;
+	private readonly _menubarOpts: ICommandMenubarOptions | null | undefined;
+	private readonly _description: ICommandHandlerDescription | null | undefined;
 
 	constructor(opts: ICommandOptions) {
 		this.id = opts.id;
 		this.precondition = opts.precondition;
 		this._kbOpts = opts.kbOpts;
+		this._menubarOpts = opts.menubarOpts;
 		this._description = opts.description;
 	}
 
-	public toCommandAndKeybindingRule(defaultWeight: number): ICommandAndKeybindingRule {
-		const kbOpts = this._kbOpts || { primary: 0 };
+	public register(): void {
 
-		let kbWhen = kbOpts.kbExpr;
-		if (this.precondition) {
-			if (kbWhen) {
-				kbWhen = ContextKeyExpr.and(kbWhen, this.precondition);
-			} else {
-				kbWhen = this.precondition;
-			}
+		if (this._menubarOpts) {
+			MenuRegistry.appendMenuItem(this._menubarOpts.menuId, {
+				group: this._menubarOpts.group,
+				command: {
+					id: this.id,
+					title: this._menubarOpts.title,
+					// precondition: this.precondition
+				},
+				when: this._menubarOpts.when,
+				order: this._menubarOpts.order
+			});
 		}
 
-		const weight = (typeof kbOpts.weight === 'number' ? kbOpts.weight : defaultWeight);
+		if (this._kbOpts) {
+			let kbWhen = this._kbOpts.kbExpr;
+			if (this.precondition) {
+				if (kbWhen) {
+					kbWhen = ContextKeyExpr.and(kbWhen, this.precondition);
+				} else {
+					kbWhen = this.precondition;
+				}
+			}
 
-		return {
-			id: this.id,
-			handler: (accessor, args) => this.runCommand(accessor, args),
-			weight: weight,
-			when: kbWhen,
-			primary: kbOpts.primary,
-			secondary: kbOpts.secondary,
-			win: kbOpts.win,
-			linux: kbOpts.linux,
-			mac: kbOpts.mac,
-			description: this._description
-		};
+			KeybindingsRegistry.registerCommandAndKeybindingRule({
+				id: this.id,
+				handler: (accessor, args) => this.runCommand(accessor, args),
+				weight: this._kbOpts.weight,
+				when: kbWhen || null,
+				primary: this._kbOpts.primary,
+				secondary: this._kbOpts.secondary,
+				win: this._kbOpts.win,
+				linux: this._kbOpts.linux,
+				mac: this._kbOpts.mac,
+				description: this._description
+			});
+
+		} else {
+
+			CommandsRegistry.registerCommand({
+				id: this.id,
+				handler: (accessor, args) => this.runCommand(accessor, args),
+				description: this._description
+			});
+		}
 	}
 
-	public abstract runCommand(accessor: ServicesAccessor, args: any): void | TPromise<void>;
+	public abstract runCommand(accessor: ServicesAccessor, args: any): void | Thenable<void>;
 }
 
 //#endregion Command
 
 //#region EditorCommand
 
-function getWorkbenchActiveEditor(accessor: ServicesAccessor): ICodeEditor {
-	const editorService = accessor.get(IEditorService);
-	let activeEditor = (<any>editorService).getActiveEditor && (<any>editorService).getActiveEditor();
-	return getCodeEditor(activeEditor);
-}
-
 export interface IContributionCommandOptions<T> extends ICommandOptions {
 	handler: (controller: T) => void;
 }
-export interface EditorControllerCommand<T extends editorCommon.IEditorContribution> {
+export interface EditorControllerCommand<T extends IEditorContribution> {
 	new(opts: IContributionCommandOptions<T>): EditorCommand;
 }
 export abstract class EditorCommand extends Command {
@@ -102,7 +126,7 @@ export abstract class EditorCommand extends Command {
 	/**
 	 * Create a command class that is bound to a certain editor contribution.
 	 */
-	public static bindToContribution<T extends editorCommon.IEditorContribution>(controllerGetter: (editor: ICodeEditor) => T): EditorControllerCommand<T> {
+	public static bindToContribution<T extends IEditorContribution>(controllerGetter: (editor: ICodeEditor) => T): EditorControllerCommand<T> {
 		return class EditorControllerCommandImpl extends EditorCommand {
 			private _callback: (controller: T) => void;
 
@@ -121,17 +145,11 @@ export abstract class EditorCommand extends Command {
 		};
 	}
 
-	public runCommand(accessor: ServicesAccessor, args: any): void | TPromise<void> {
+	public runCommand(accessor: ServicesAccessor, args: any): void | Thenable<void> {
 		const codeEditorService = accessor.get(ICodeEditorService);
 
-		// Find the editor with text focus
-		let editor = codeEditorService.getFocusedCodeEditor();
-
-		if (!editor) {
-			// Fallback to use what the workbench considers the active editor
-			editor = getWorkbenchActiveEditor(accessor);
-		}
-
+		// Find the editor with text focus or active
+		let editor = codeEditorService.getFocusedCodeEditor() || codeEditorService.getActiveCodeEditor();
 		if (!editor) {
 			// well, at least we tried...
 			return;
@@ -144,11 +162,11 @@ export abstract class EditorCommand extends Command {
 				return;
 			}
 
-			return this.runEditorCommand(editorAccessor, editor, args);
+			return this.runEditorCommand(editorAccessor, editor!, args);
 		});
 	}
 
-	public abstract runEditorCommand(accessor: ServicesAccessor, editor: ICodeEditor, args: any): void | TPromise<void>;
+	public abstract runEditorCommand(accessor: ServicesAccessor, editor: ICodeEditor, args: any): void | Thenable<void>;
 }
 
 //#endregion EditorCommand
@@ -156,8 +174,8 @@ export abstract class EditorCommand extends Command {
 //#region EditorAction
 
 export interface IEditorCommandMenuOptions {
-	group?: string;
-	order?: number;
+	group: string;
+	order: number;
 	when?: ContextKeyExpr;
 }
 export interface IActionOptions extends ICommandOptions {
@@ -169,7 +187,7 @@ export abstract class EditorAction extends EditorCommand {
 
 	public label: string;
 	public alias: string;
-	private menuOpts: IEditorCommandMenuOptions;
+	private menuOpts: IEditorCommandMenuOptions | undefined;
 
 	constructor(opts: IActionOptions) {
 		super(opts);
@@ -178,23 +196,24 @@ export abstract class EditorAction extends EditorCommand {
 		this.menuOpts = opts.menuOpts;
 	}
 
-	public toMenuItem(): IMenuItem {
-		if (!this.menuOpts) {
-			return null;
+	public register(): void {
+
+		if (this.menuOpts) {
+			MenuRegistry.appendMenuItem(MenuId.EditorContext, {
+				command: {
+					id: this.id,
+					title: this.label
+				},
+				when: ContextKeyExpr.and(this.precondition, this.menuOpts.when),
+				group: this.menuOpts.group,
+				order: this.menuOpts.order
+			});
 		}
 
-		return {
-			command: {
-				id: this.id,
-				title: this.label
-			},
-			when: ContextKeyExpr.and(this.precondition, this.menuOpts.when),
-			group: this.menuOpts.group,
-			order: this.menuOpts.order
-		};
+		super.register();
 	}
 
-	public runEditorCommand(accessor: ServicesAccessor, editor: ICodeEditor, args: any): void | TPromise<void> {
+	public runEditorCommand(accessor: ServicesAccessor, editor: ICodeEditor, args: any): void | Thenable<void> {
 		this.reportTelemetry(accessor, editor);
 		return this.run(accessor, editor, args || {});
 	}
@@ -212,7 +231,7 @@ export abstract class EditorAction extends EditorCommand {
 		accessor.get(ITelemetryService).publicLog('editorActionInvoked', { name: this.label, id: this.id, ...editor.getTelemetryData() });
 	}
 
-	public abstract run(accessor: ServicesAccessor, editor: ICodeEditor, args: any): void | TPromise<void>;
+	public abstract run(accessor: ServicesAccessor, editor: ICodeEditor, args: any): void | Thenable<void>;
 }
 
 //#endregion EditorAction
@@ -223,8 +242,14 @@ export function registerLanguageCommand(id: string, handler: (accessor: Services
 	CommandsRegistry.registerCommand(id, (accessor, args) => handler(accessor, args || {}));
 }
 
-export function registerDefaultLanguageCommand(id: string, handler: (model: ITextModel, position: Position, args: { [n: string]: any }) => any) {
-	registerLanguageCommand(id, function (accessor, args) {
+interface IDefaultArgs {
+	resource: URI;
+	position: IPosition;
+	[name: string]: any;
+}
+
+export function registerDefaultLanguageCommand(id: string, handler: (model: ITextModel, position: Position, args: IDefaultArgs) => any) {
+	registerLanguageCommand(id, function (accessor, args: IDefaultArgs) {
 
 		const { resource, position } = args;
 		if (!(resource instanceof URI)) {
@@ -235,13 +260,23 @@ export function registerDefaultLanguageCommand(id: string, handler: (model: ITex
 		}
 
 		const model = accessor.get(IModelService).getModel(resource);
-		if (!model) {
-			throw illegalArgument('Can not find open model for ' + resource);
+		if (model) {
+			const editorPosition = Position.lift(position);
+			return handler(model, editorPosition, args);
 		}
 
-		const editorPosition = Position.lift(position);
-
-		return handler(model, editorPosition, args);
+		return accessor.get(ITextModelService).createModelReference(resource).then(reference => {
+			return always(new Promise((resolve, reject) => {
+				try {
+					let result = handler(reference.object.textEditorModel, Position.lift(position), args);
+					resolve(result);
+				} catch (err) {
+					reject(err);
+				}
+			}), () => {
+				reference.dispose();
+			});
+		});
 	});
 }
 
@@ -301,14 +336,7 @@ class EditorContributionRegistry {
 	}
 
 	public registerEditorAction(action: EditorAction) {
-
-		let menuItem = action.toMenuItem();
-		if (menuItem) {
-			MenuRegistry.appendMenuItem(MenuId.EditorContext, menuItem);
-		}
-
-		KeybindingsRegistry.registerCommandAndKeybindingRule(action.toCommandAndKeybindingRule(KeybindingsRegistry.WEIGHT.editorContrib()));
-
+		action.register();
 		this.editorActions.push(action);
 	}
 
@@ -321,7 +349,7 @@ class EditorContributionRegistry {
 	}
 
 	public registerEditorCommand(editorCommand: EditorCommand) {
-		KeybindingsRegistry.registerCommandAndKeybindingRule(editorCommand.toCommandAndKeybindingRule(KeybindingsRegistry.WEIGHT.editorContrib()));
+		editorCommand.register();
 		this.editorCommands[editorCommand.id] = editorCommand;
 	}
 

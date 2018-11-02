@@ -3,14 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import * as assert from 'assert';
-import URI from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 import { ExtHostWorkspace } from 'vs/workbench/api/node/extHostWorkspace';
 import { ExtHostConfiguration } from 'vs/workbench/api/node/extHostConfiguration';
 import { MainThreadConfigurationShape, IConfigurationInitData } from 'vs/workbench/api/node/extHost.protocol';
-import { TPromise } from 'vs/base/common/winjs.base';
 import { ConfigurationModel } from 'vs/platform/configuration/common/configurationModels';
 import { TestRPCProtocol } from './testRPCProtocol';
 import { mock } from 'vs/workbench/test/electron-browser/api/mock';
@@ -18,14 +15,15 @@ import { IWorkspaceFolder, WorkspaceFolder } from 'vs/platform/workspace/common/
 import { ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
 import { NullLogService } from 'vs/platform/log/common/log';
 import { assign } from 'vs/base/common/objects';
+import { Counter } from 'vs/base/common/numbers';
 
 suite('ExtHostConfiguration', function () {
 
 	class RecordingShape extends mock<MainThreadConfigurationShape>() {
 		lastArgs: [ConfigurationTarget, string, any];
-		$updateConfigurationOption(target: ConfigurationTarget, key: string, value: any): TPromise<void> {
+		$updateConfigurationOption(target: ConfigurationTarget, key: string, value: any): Promise<void> {
 			this.lastArgs = [target, key, value];
-			return TPromise.as(void 0);
+			return Promise.resolve(void 0);
 		}
 	}
 
@@ -33,7 +31,7 @@ suite('ExtHostConfiguration', function () {
 		if (!shape) {
 			shape = new class extends mock<MainThreadConfigurationShape>() { };
 		}
-		return new ExtHostConfiguration(shape, new ExtHostWorkspace(new TestRPCProtocol(), null, new NullLogService()), createConfigurationData(contents));
+		return new ExtHostConfiguration(shape, new ExtHostWorkspace(new TestRPCProtocol(), null, new NullLogService(), new Counter()), createConfigurationData(contents));
 	}
 
 	function createConfigurationData(contents: any): IConfigurationInitData {
@@ -64,7 +62,7 @@ suite('ExtHostConfiguration', function () {
 		assert.equal(extHostConfig.getConfiguration('search').has('exclude.**/node_modules'), true);
 	});
 
-	test('has/get', function () {
+	test('has/get', () => {
 
 		const all = createExtHostConfiguration({
 			'farboo': {
@@ -267,7 +265,7 @@ suite('ExtHostConfiguration', function () {
 	test('inspect in no workspace context', function () {
 		const testObject = new ExtHostConfiguration(
 			new class extends mock<MainThreadConfigurationShape>() { },
-			new ExtHostWorkspace(new TestRPCProtocol(), null, new NullLogService()),
+			new ExtHostWorkspace(new TestRPCProtocol(), null, new NullLogService(), new Counter()),
 			{
 				defaults: new ConfigurationModel({
 					'editor': {
@@ -314,7 +312,7 @@ suite('ExtHostConfiguration', function () {
 				'id': 'foo',
 				'folders': [aWorkspaceFolder(URI.file('foo'), 0)],
 				'name': 'foo'
-			}, new NullLogService()),
+			}, new NullLogService(), new Counter()),
 			{
 				defaults: new ConfigurationModel({
 					'editor': {
@@ -388,7 +386,7 @@ suite('ExtHostConfiguration', function () {
 				'id': 'foo',
 				'folders': [aWorkspaceFolder(firstRoot, 0), aWorkspaceFolder(secondRoot, 1)],
 				'name': 'foo'
-			}, new NullLogService()),
+			}, new NullLogService(), new Counter()),
 			{
 				defaults: new ConfigurationModel({
 					'editor': {
@@ -577,8 +575,8 @@ suite('ExtHostConfiguration', function () {
 	test('update/error-state not OK', function () {
 
 		const shape = new class extends mock<MainThreadConfigurationShape>() {
-			$updateConfigurationOption(target: ConfigurationTarget, key: string, value: any): TPromise<any> {
-				return TPromise.wrapError(new Error('Unknown Key')); // something !== OK
+			$updateConfigurationOption(target: ConfigurationTarget, key: string, value: any): Promise<any> {
+				return Promise.reject(new Error('Unknown Key')); // something !== OK
 			}
 		};
 
@@ -597,7 +595,7 @@ suite('ExtHostConfiguration', function () {
 				'id': 'foo',
 				'folders': [workspaceFolder],
 				'name': 'foo'
-			}, new NullLogService()),
+			}, new NullLogService(), new Counter()),
 			createConfigurationData({
 				'farboo': {
 					'config': false,

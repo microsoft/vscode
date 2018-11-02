@@ -11,7 +11,7 @@ import { TableOfContentsProvider } from '../tableOfContentsProvider';
 import { InMemoryDocument } from './inMemoryDocument';
 import { createNewMarkdownEngine } from './engine';
 
-const testFileName = vscode.Uri.parse('test.md');
+const testFileName = vscode.Uri.file('test.md');
 
 suite('markdown.TableOfContentsProvider', () => {
 	test('Lookup should not return anything for empty document', async () => {
@@ -105,5 +105,26 @@ suite('markdown.TableOfContentsProvider', () => {
 		assert.strictEqual((await provider.lookup('Заголовок-3'))!.line, 3);
 		assert.strictEqual((await provider.lookup('Заголовок-header-3'))!.line, 4);
 		assert.strictEqual((await provider.lookup('Заголовок'))!.line, 5);
+	});
+
+	test('Lookup should support suffixes for repeated headers', async () => {
+		const doc = new InMemoryDocument(testFileName, `# a\n# a\n## a`);
+		const provider = new TableOfContentsProvider(createNewMarkdownEngine(), doc);
+
+		{
+			const entry = await provider.lookup('a');
+			assert.ok(entry);
+			assert.strictEqual(entry!.line, 0);
+		}
+		{
+			const entry = await provider.lookup('a-1');
+			assert.ok(entry);
+			assert.strictEqual(entry!.line, 1);
+		}
+		{
+			const entry = await provider.lookup('a-2');
+			assert.ok(entry);
+			assert.strictEqual(entry!.line, 2);
+		}
 	});
 });

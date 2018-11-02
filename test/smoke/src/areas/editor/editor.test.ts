@@ -53,18 +53,18 @@ export function setup() {
 			const app = this.app as Application;
 			await app.workbench.quickopen.openFile('app.js');
 
-			await app.workbench.editor.gotoDefinition('app.js', 'express', 11);
+			await app.workbench.editor.gotoDefinition('app.js', 'app', 14);
 
-			await app.workbench.editors.waitForActiveTab('index.d.ts');
+			await app.workbench.editor.waitForHighlightingLine('app.js', 11);
 		});
 
 		it(`verifies that 'Peek Definition' works`, async function () {
 			const app = this.app as Application;
 			await app.workbench.quickopen.openFile('app.js');
 
-			const peek = await app.workbench.editor.peekDefinition('app.js', 'express', 11);
+			const peek = await app.workbench.editor.peekDefinition('app.js', 'app', 14);
 
-			await peek.waitForFile('index.d.ts');
+			await peek.waitForFile('app.js');
 		});
 	});
 }

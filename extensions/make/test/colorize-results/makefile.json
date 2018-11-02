@@ -300,9 +300,9 @@
 		"c": "#",
 		"t": "source.makefile meta.scope.target.makefile meta.scope.prerequisites.makefile comment.line.number-sign.makefile punctuation.definition.comment.makefile",
 		"r": {
-			"dark_plus": "comment: #608B4E",
+			"dark_plus": "comment: #6A9955",
 			"light_plus": "comment: #008000",
-			"dark_vs": "comment: #608B4E",
+			"dark_vs": "comment: #6A9955",
 			"light_vs": "comment: #008000",
 			"hc_black": "comment: #7CA668"
 		}
@@ -311,9 +311,9 @@
 		"c": " This is a long ",
 		"t": "source.makefile meta.scope.target.makefile meta.scope.prerequisites.makefile comment.line.number-sign.makefile",
 		"r": {
-			"dark_plus": "comment: #608B4E",
+			"dark_plus": "comment: #6A9955",
 			"light_plus": "comment: #008000",
-			"dark_vs": "comment: #608B4E",
+			"dark_vs": "comment: #6A9955",
 			"light_vs": "comment: #008000",
 			"hc_black": "comment: #7CA668"
 		}
@@ -324,7 +324,7 @@
 		"r": {
 			"dark_plus": "constant.character.escape: #D7BA7D",
 			"light_plus": "constant.character.escape: #FF0000",
-			"dark_vs": "comment: #608B4E",
+			"dark_vs": "comment: #6A9955",
 			"light_vs": "comment: #008000",
 			"hc_black": "constant.character: #569CD6"
 		}
@@ -333,9 +333,9 @@
 		"c": "         comment inside prerequisites.",
 		"t": "source.makefile meta.scope.target.makefile meta.scope.prerequisites.makefile comment.line.number-sign.makefile",
 		"r": {
-			"dark_plus": "comment: #608B4E",
+			"dark_plus": "comment: #6A9955",
 			"light_plus": "comment: #008000",
-			"dark_vs": "comment: #608B4E",
+			"dark_vs": "comment: #6A9955",
 			"light_vs": "comment: #008000",
 			"hc_black": "comment: #7CA668"
 		}
@@ -355,9 +355,9 @@
 		"c": "#",
 		"t": "source.makefile comment.line.number-sign.makefile punctuation.definition.comment.makefile",
 		"r": {
-			"dark_plus": "comment: #608B4E",
+			"dark_plus": "comment: #6A9955",
 			"light_plus": "comment: #008000",
-			"dark_vs": "comment: #608B4E",
+			"dark_vs": "comment: #6A9955",
 			"light_vs": "comment: #008000",
 			"hc_black": "comment: #7CA668"
 		}
@@ -366,9 +366,9 @@
 		"c": " There are a building steps ",
 		"t": "source.makefile comment.line.number-sign.makefile",
 		"r": {
-			"dark_plus": "comment: #608B4E",
+			"dark_plus": "comment: #6A9955",
 			"light_plus": "comment: #008000",
-			"dark_vs": "comment: #608B4E",
+			"dark_vs": "comment: #6A9955",
 			"light_vs": "comment: #008000",
 			"hc_black": "comment: #7CA668"
 		}
@@ -379,7 +379,7 @@
 		"r": {
 			"dark_plus": "constant.character.escape: #D7BA7D",
 			"light_plus": "constant.character.escape: #FF0000",
-			"dark_vs": "comment: #608B4E",
+			"dark_vs": "comment: #6A9955",
 			"light_vs": "comment: #008000",
 			"hc_black": "constant.character: #569CD6"
 		}
@@ -388,9 +388,9 @@
 		"c": "\tbelow. And the tab is at the beginning of this line.",
 		"t": "source.makefile comment.line.number-sign.makefile",
 		"r": {
-			"dark_plus": "comment: #608B4E",
+			"dark_plus": "comment: #6A9955",
 			"light_plus": "comment: #008000",
-			"dark_vs": "comment: #608B4E",
+			"dark_vs": "comment: #6A9955",
 			"light_vs": "comment: #008000",
 			"hc_black": "comment: #7CA668"
 		}
@@ -683,6 +683,94 @@
 	},
 	{
 		"c": "\trm *o hello",
+		"t": "source.makefile",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "all",
+		"t": "source.makefile meta.scope.target.makefile entity.name.function.target.makefile",
+		"r": {
+			"dark_plus": "entity.name.function: #DCDCAA",
+			"light_plus": "entity.name.function: #795E26",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "entity.name.function: #DCDCAA"
+		}
+	},
+	{
+		"c": ":",
+		"t": "source.makefile meta.scope.target.makefile punctuation.separator.key-value.makefile",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "\t",
+		"t": "source.makefile punctuation.whitespace.comment.leading.makefile",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "#",
+		"t": "source.makefile comment.line.number-sign.makefile punctuation.definition.comment.makefile",
+		"r": {
+			"dark_plus": "comment: #6A9955",
+			"light_plus": "comment: #008000",
+			"dark_vs": "comment: #6A9955",
+			"light_vs": "comment: #008000",
+			"hc_black": "comment: #7CA668"
+		}
+	},
+	{
+		"c": " \"$$\" in a shell means to escape makefile's variable substitution.",
+		"t": "source.makefile comment.line.number-sign.makefile",
+		"r": {
+			"dark_plus": "comment: #6A9955",
+			"light_plus": "comment: #008000",
+			"dark_vs": "comment: #6A9955",
+			"light_vs": "comment: #008000",
+			"hc_black": "comment: #7CA668"
+		}
+	},
+	{
+		"c": "\tsome_shell_var=",
+		"t": "source.makefile",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "$$",
+		"t": "source.makefile variable.language.makefile",
+		"r": {
+			"dark_plus": "variable.language: #569CD6",
+			"light_plus": "variable.language: #0000FF",
+			"dark_vs": "variable.language: #569CD6",
+			"light_vs": "variable.language: #0000FF",
+			"hc_black": "variable: #9CDCFE"
+		}
+	},
+	{
+		"c": "(sed -nre 's/some regex with (group)/\\1/p')",
 		"t": "source.makefile",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
@@ -1570,6 +1658,545 @@
 			"dark_vs": "string: #CE9178",
 			"light_vs": "string: #A31515",
 			"hc_black": "string: #CE9178"
+		}
+	},
+	{
+		"c": "endif",
+		"t": "source.makefile meta.scope.conditional.makefile keyword.control.endif.makefile",
+		"r": {
+			"dark_plus": "keyword.control: #C586C0",
+			"light_plus": "keyword.control: #AF00DB",
+			"dark_vs": "keyword.control: #569CD6",
+			"light_vs": "keyword.control: #0000FF",
+			"hc_black": "keyword.control: #C586C0"
+		}
+	},
+	{
+		"c": "CXXVER_GE480",
+		"t": "source.makefile variable.other.makefile",
+		"r": {
+			"dark_plus": "variable: #9CDCFE",
+			"light_plus": "variable: #001080",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "variable: #9CDCFE"
+		}
+	},
+	{
+		"c": " ",
+		"t": "source.makefile",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": ":=",
+		"t": "source.makefile punctuation.separator.key-value.makefile",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": " ",
+		"t": "source.makefile",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "$(",
+		"t": "source.makefile string.interpolated.makefile punctuation.definition.variable.makefile",
+		"r": {
+			"dark_plus": "string: #CE9178",
+			"light_plus": "string: #A31515",
+			"dark_vs": "string: #CE9178",
+			"light_vs": "string: #A31515",
+			"hc_black": "string: #CE9178"
+		}
+	},
+	{
+		"c": "shell",
+		"t": "source.makefile string.interpolated.makefile meta.scope.function-call.makefile support.function.shell.makefile",
+		"r": {
+			"dark_plus": "support.function: #DCDCAA",
+			"light_plus": "support.function: #795E26",
+			"dark_vs": "string: #CE9178",
+			"light_vs": "string: #A31515",
+			"hc_black": "support.function: #DCDCAA"
+		}
+	},
+	{
+		"c": " expr `",
+		"t": "source.makefile string.interpolated.makefile meta.scope.function-call.makefile",
+		"r": {
+			"dark_plus": "string: #CE9178",
+			"light_plus": "string: #A31515",
+			"dark_vs": "string: #CE9178",
+			"light_vs": "string: #A31515",
+			"hc_black": "string: #CE9178"
+		}
+	},
+	{
+		"c": "$(",
+		"t": "source.makefile string.interpolated.makefile meta.scope.function-call.makefile string.interpolated.makefile punctuation.definition.variable.makefile",
+		"r": {
+			"dark_plus": "string: #CE9178",
+			"light_plus": "string: #A31515",
+			"dark_vs": "string: #CE9178",
+			"light_vs": "string: #A31515",
+			"hc_black": "string: #CE9178"
+		}
+	},
+	{
+		"c": "CXX",
+		"t": "source.makefile string.interpolated.makefile meta.scope.function-call.makefile string.interpolated.makefile variable.other.makefile",
+		"r": {
+			"dark_plus": "variable: #9CDCFE",
+			"light_plus": "variable: #001080",
+			"dark_vs": "string: #CE9178",
+			"light_vs": "string: #A31515",
+			"hc_black": "variable: #9CDCFE"
+		}
+	},
+	{
+		"c": ")",
+		"t": "source.makefile string.interpolated.makefile meta.scope.function-call.makefile string.interpolated.makefile punctuation.definition.variable.makefile",
+		"r": {
+			"dark_plus": "string: #CE9178",
+			"light_plus": "string: #A31515",
+			"dark_vs": "string: #CE9178",
+			"light_vs": "string: #A31515",
+			"hc_black": "string: #CE9178"
+		}
+	},
+	{
+		"c": " -dumpversion | sed -e 's/\\.\\([0-9][0-9]\\)/\\1/g' -e 's/\\.\\([0-9]\\)/0\\1/g' -e 's/^[0-9]\\{3,4\\}",
+		"t": "source.makefile string.interpolated.makefile meta.scope.function-call.makefile",
+		"r": {
+			"dark_plus": "string: #CE9178",
+			"light_plus": "string: #A31515",
+			"dark_vs": "string: #CE9178",
+			"light_vs": "string: #A31515",
+			"hc_black": "string: #CE9178"
+		}
+	},
+	{
+		"c": "$$",
+		"t": "source.makefile string.interpolated.makefile meta.scope.function-call.makefile variable.language.makefile",
+		"r": {
+			"dark_plus": "variable.language: #569CD6",
+			"light_plus": "variable.language: #0000FF",
+			"dark_vs": "variable.language: #569CD6",
+			"light_vs": "variable.language: #0000FF",
+			"hc_black": "variable: #9CDCFE"
+		}
+	},
+	{
+		"c": "/&00/'` \\>= 40800",
+		"t": "source.makefile string.interpolated.makefile meta.scope.function-call.makefile",
+		"r": {
+			"dark_plus": "string: #CE9178",
+			"light_plus": "string: #A31515",
+			"dark_vs": "string: #CE9178",
+			"light_vs": "string: #A31515",
+			"hc_black": "string: #CE9178"
+		}
+	},
+	{
+		"c": ")",
+		"t": "source.makefile string.interpolated.makefile punctuation.definition.variable.makefile",
+		"r": {
+			"dark_plus": "string: #CE9178",
+			"light_plus": "string: #A31515",
+			"dark_vs": "string: #CE9178",
+			"light_vs": "string: #A31515",
+			"hc_black": "string: #CE9178"
+		}
+	},
+	{
+		"c": "ok",
+		"t": "source.makefile variable.other.makefile",
+		"r": {
+			"dark_plus": "variable: #9CDCFE",
+			"light_plus": "variable: #001080",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "variable: #9CDCFE"
+		}
+	},
+	{
+		"c": " ",
+		"t": "source.makefile",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": ":=",
+		"t": "source.makefile punctuation.separator.key-value.makefile",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": " ok",
+		"t": "source.makefile",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "$(",
+		"t": "source.makefile string.interpolated.makefile punctuation.definition.variable.makefile",
+		"r": {
+			"dark_plus": "string: #CE9178",
+			"light_plus": "string: #A31515",
+			"dark_vs": "string: #CE9178",
+			"light_vs": "string: #A31515",
+			"hc_black": "string: #CE9178"
+		}
+	},
+	{
+		"c": "info",
+		"t": "source.makefile string.interpolated.makefile meta.scope.function-call.makefile support.function.info.makefile",
+		"r": {
+			"dark_plus": "support.function: #DCDCAA",
+			"light_plus": "support.function: #795E26",
+			"dark_vs": "string: #CE9178",
+			"light_vs": "string: #A31515",
+			"hc_black": "support.function: #DCDCAA"
+		}
+	},
+	{
+		"c": " Braces {} in parentheses ({}): ",
+		"t": "source.makefile string.interpolated.makefile meta.scope.function-call.makefile",
+		"r": {
+			"dark_plus": "string: #CE9178",
+			"light_plus": "string: #A31515",
+			"dark_vs": "string: #CE9178",
+			"light_vs": "string: #A31515",
+			"hc_black": "string: #CE9178"
+		}
+	},
+	{
+		"c": "${",
+		"t": "source.makefile string.interpolated.makefile meta.scope.function-call.makefile string.interpolated.makefile punctuation.definition.variable.makefile",
+		"r": {
+			"dark_plus": "string: #CE9178",
+			"light_plus": "string: #A31515",
+			"dark_vs": "string: #CE9178",
+			"light_vs": "string: #A31515",
+			"hc_black": "string: #CE9178"
+		}
+	},
+	{
+		"c": "ok",
+		"t": "source.makefile string.interpolated.makefile meta.scope.function-call.makefile string.interpolated.makefile variable.other.makefile",
+		"r": {
+			"dark_plus": "variable: #9CDCFE",
+			"light_plus": "variable: #001080",
+			"dark_vs": "string: #CE9178",
+			"light_vs": "string: #A31515",
+			"hc_black": "variable: #9CDCFE"
+		}
+	},
+	{
+		"c": "}",
+		"t": "source.makefile string.interpolated.makefile meta.scope.function-call.makefile string.interpolated.makefile punctuation.definition.variable.makefile",
+		"r": {
+			"dark_plus": "string: #CE9178",
+			"light_plus": "string: #A31515",
+			"dark_vs": "string: #CE9178",
+			"light_vs": "string: #A31515",
+			"hc_black": "string: #CE9178"
+		}
+	},
+	{
+		"c": ")",
+		"t": "source.makefile string.interpolated.makefile punctuation.definition.variable.makefile",
+		"r": {
+			"dark_plus": "string: #CE9178",
+			"light_plus": "string: #A31515",
+			"dark_vs": "string: #CE9178",
+			"light_vs": "string: #A31515",
+			"hc_black": "string: #CE9178"
+		}
+	},
+	{
+		"c": "${",
+		"t": "source.makefile string.interpolated.makefile punctuation.definition.variable.makefile",
+		"r": {
+			"dark_plus": "string: #CE9178",
+			"light_plus": "string: #A31515",
+			"dark_vs": "string: #CE9178",
+			"light_vs": "string: #A31515",
+			"hc_black": "string: #CE9178"
+		}
+	},
+	{
+		"c": "info",
+		"t": "source.makefile string.interpolated.makefile meta.scope.function-call.makefile support.function.info.makefile",
+		"r": {
+			"dark_plus": "support.function: #DCDCAA",
+			"light_plus": "support.function: #795E26",
+			"dark_vs": "string: #CE9178",
+			"light_vs": "string: #A31515",
+			"hc_black": "support.function: #DCDCAA"
+		}
+	},
+	{
+		"c": " Parentheses () in braces {()}: ",
+		"t": "source.makefile string.interpolated.makefile meta.scope.function-call.makefile",
+		"r": {
+			"dark_plus": "string: #CE9178",
+			"light_plus": "string: #A31515",
+			"dark_vs": "string: #CE9178",
+			"light_vs": "string: #A31515",
+			"hc_black": "string: #CE9178"
+		}
+	},
+	{
+		"c": "$(",
+		"t": "source.makefile string.interpolated.makefile meta.scope.function-call.makefile string.interpolated.makefile punctuation.definition.variable.makefile",
+		"r": {
+			"dark_plus": "string: #CE9178",
+			"light_plus": "string: #A31515",
+			"dark_vs": "string: #CE9178",
+			"light_vs": "string: #A31515",
+			"hc_black": "string: #CE9178"
+		}
+	},
+	{
+		"c": "ok",
+		"t": "source.makefile string.interpolated.makefile meta.scope.function-call.makefile string.interpolated.makefile variable.other.makefile",
+		"r": {
+			"dark_plus": "variable: #9CDCFE",
+			"light_plus": "variable: #001080",
+			"dark_vs": "string: #CE9178",
+			"light_vs": "string: #A31515",
+			"hc_black": "variable: #9CDCFE"
+		}
+	},
+	{
+		"c": ")",
+		"t": "source.makefile string.interpolated.makefile meta.scope.function-call.makefile string.interpolated.makefile punctuation.definition.variable.makefile",
+		"r": {
+			"dark_plus": "string: #CE9178",
+			"light_plus": "string: #A31515",
+			"dark_vs": "string: #CE9178",
+			"light_vs": "string: #A31515",
+			"hc_black": "string: #CE9178"
+		}
+	},
+	{
+		"c": "}",
+		"t": "source.makefile string.interpolated.makefile punctuation.definition.variable.makefile",
+		"r": {
+			"dark_plus": "string: #CE9178",
+			"light_plus": "string: #A31515",
+			"dark_vs": "string: #CE9178",
+			"light_vs": "string: #A31515",
+			"hc_black": "string: #CE9178"
+		}
+	},
+	{
+		"c": "ifeq",
+		"t": "source.makefile meta.scope.conditional.makefile keyword.control.ifeq.makefile",
+		"r": {
+			"dark_plus": "keyword.control: #C586C0",
+			"light_plus": "keyword.control: #AF00DB",
+			"dark_vs": "keyword.control: #569CD6",
+			"light_vs": "keyword.control: #0000FF",
+			"hc_black": "keyword.control: #C586C0"
+		}
+	},
+	{
+		"c": " (\"",
+		"t": "source.makefile meta.scope.conditional.makefile meta.scope.condition.makefile",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "${",
+		"t": "source.makefile meta.scope.conditional.makefile meta.scope.condition.makefile string.interpolated.makefile punctuation.definition.variable.makefile",
+		"r": {
+			"dark_plus": "string: #CE9178",
+			"light_plus": "string: #A31515",
+			"dark_vs": "string: #CE9178",
+			"light_vs": "string: #A31515",
+			"hc_black": "string: #CE9178"
+		}
+	},
+	{
+		"c": "ok",
+		"t": "source.makefile meta.scope.conditional.makefile meta.scope.condition.makefile string.interpolated.makefile variable.other.makefile",
+		"r": {
+			"dark_plus": "variable: #9CDCFE",
+			"light_plus": "variable: #001080",
+			"dark_vs": "string: #CE9178",
+			"light_vs": "string: #A31515",
+			"hc_black": "variable: #9CDCFE"
+		}
+	},
+	{
+		"c": "}",
+		"t": "source.makefile meta.scope.conditional.makefile meta.scope.condition.makefile string.interpolated.makefile punctuation.definition.variable.makefile",
+		"r": {
+			"dark_plus": "string: #CE9178",
+			"light_plus": "string: #A31515",
+			"dark_vs": "string: #CE9178",
+			"light_vs": "string: #A31515",
+			"hc_black": "string: #CE9178"
+		}
+	},
+	{
+		"c": "\", \"skip\")",
+		"t": "source.makefile meta.scope.conditional.makefile meta.scope.condition.makefile",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "  ",
+		"t": "source.makefile meta.scope.conditional.makefile",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "$(",
+		"t": "source.makefile meta.scope.conditional.makefile string.interpolated.makefile punctuation.definition.variable.makefile",
+		"r": {
+			"dark_plus": "string: #CE9178",
+			"light_plus": "string: #A31515",
+			"dark_vs": "string: #CE9178",
+			"light_vs": "string: #A31515",
+			"hc_black": "string: #CE9178"
+		}
+	},
+	{
+		"c": "ok",
+		"t": "source.makefile meta.scope.conditional.makefile string.interpolated.makefile variable.other.makefile",
+		"r": {
+			"dark_plus": "variable: #9CDCFE",
+			"light_plus": "variable: #001080",
+			"dark_vs": "string: #CE9178",
+			"light_vs": "string: #A31515",
+			"hc_black": "variable: #9CDCFE"
+		}
+	},
+	{
+		"c": ")",
+		"t": "source.makefile meta.scope.conditional.makefile string.interpolated.makefile punctuation.definition.variable.makefile",
+		"r": {
+			"dark_plus": "string: #CE9178",
+			"light_plus": "string: #A31515",
+			"dark_vs": "string: #CE9178",
+			"light_vs": "string: #A31515",
+			"hc_black": "string: #CE9178"
+		}
+	},
+	{
+		"c": ")}",
+		"t": "source.makefile meta.scope.conditional.makefile",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "  ",
+		"t": "source.makefile meta.scope.conditional.makefile",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "${",
+		"t": "source.makefile meta.scope.conditional.makefile string.interpolated.makefile punctuation.definition.variable.makefile",
+		"r": {
+			"dark_plus": "string: #CE9178",
+			"light_plus": "string: #A31515",
+			"dark_vs": "string: #CE9178",
+			"light_vs": "string: #A31515",
+			"hc_black": "string: #CE9178"
+		}
+	},
+	{
+		"c": "ok",
+		"t": "source.makefile meta.scope.conditional.makefile string.interpolated.makefile variable.other.makefile",
+		"r": {
+			"dark_plus": "variable: #9CDCFE",
+			"light_plus": "variable: #001080",
+			"dark_vs": "string: #CE9178",
+			"light_vs": "string: #A31515",
+			"hc_black": "variable: #9CDCFE"
+		}
+	},
+	{
+		"c": "}",
+		"t": "source.makefile meta.scope.conditional.makefile string.interpolated.makefile punctuation.definition.variable.makefile",
+		"r": {
+			"dark_plus": "string: #CE9178",
+			"light_plus": "string: #A31515",
+			"dark_vs": "string: #CE9178",
+			"light_vs": "string: #A31515",
+			"hc_black": "string: #CE9178"
+		}
+	},
+	{
+		"c": "})",
+		"t": "source.makefile meta.scope.conditional.makefile",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
 		}
 	},
 	{

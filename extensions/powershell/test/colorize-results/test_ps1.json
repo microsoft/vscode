@@ -3,9 +3,9 @@
 		"c": "#",
 		"t": "source.powershell comment.line.powershell punctuation.definition.comment.powershell",
 		"r": {
-			"dark_plus": "comment: #608B4E",
+			"dark_plus": "comment: #6A9955",
 			"light_plus": "comment: #008000",
-			"dark_vs": "comment: #608B4E",
+			"dark_vs": "comment: #6A9955",
 			"light_vs": "comment: #008000",
 			"hc_black": "comment: #7CA668"
 		}
@@ -14,9 +14,9 @@
 		"c": " Copyright Microsoft Corporation",
 		"t": "source.powershell comment.line.powershell",
 		"r": {
-			"dark_plus": "comment: #608B4E",
+			"dark_plus": "comment: #6A9955",
 			"light_plus": "comment: #008000",
-			"dark_vs": "comment: #608B4E",
+			"dark_vs": "comment: #6A9955",
 			"light_vs": "comment: #008000",
 			"hc_black": "comment: #7CA668"
 		}
@@ -155,13 +155,13 @@
 	},
 	{
 		"c": "$",
-		"t": "source.powershell meta.scriptblock.powershell meta.scriptblock.powershell keyword.other.variable.definition.powershell",
+		"t": "source.powershell meta.scriptblock.powershell meta.scriptblock.powershell variable.other.readwrite.powershell punctuation.definition.variable.powershell",
 		"r": {
-			"dark_plus": "keyword: #569CD6",
-			"light_plus": "keyword: #0000FF",
-			"dark_vs": "keyword: #569CD6",
-			"light_vs": "keyword: #0000FF",
-			"hc_black": "keyword: #569CD6"
+			"dark_plus": "variable: #9CDCFE",
+			"light_plus": "variable: #001080",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "variable: #9CDCFE"
 		}
 	},
 	{
@@ -287,13 +287,13 @@
 	},
 	{
 		"c": "$",
-		"t": "source.powershell meta.scriptblock.powershell meta.scriptblock.powershell keyword.other.variable.definition.powershell",
+		"t": "source.powershell meta.scriptblock.powershell meta.scriptblock.powershell variable.other.readwrite.powershell punctuation.definition.variable.powershell",
 		"r": {
-			"dark_plus": "keyword: #569CD6",
-			"light_plus": "keyword: #0000FF",
-			"dark_vs": "keyword: #569CD6",
-			"light_vs": "keyword: #0000FF",
-			"hc_black": "keyword: #569CD6"
+			"dark_plus": "variable: #9CDCFE",
+			"light_plus": "variable: #001080",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "variable: #9CDCFE"
 		}
 	},
 	{
@@ -386,13 +386,13 @@
 	},
 	{
 		"c": "$",
-		"t": "source.powershell meta.scriptblock.powershell meta.scriptblock.powershell keyword.other.variable.definition.powershell",
+		"t": "source.powershell meta.scriptblock.powershell meta.scriptblock.powershell variable.other.readwrite.powershell punctuation.definition.variable.powershell",
 		"r": {
-			"dark_plus": "keyword: #569CD6",
-			"light_plus": "keyword: #0000FF",
-			"dark_vs": "keyword: #569CD6",
-			"light_vs": "keyword: #0000FF",
-			"hc_black": "keyword: #569CD6"
+			"dark_plus": "variable: #9CDCFE",
+			"light_plus": "variable: #001080",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "variable: #9CDCFE"
 		}
 	},
 	{
@@ -441,13 +441,13 @@
 	},
 	{
 		"c": "$",
-		"t": "source.powershell meta.scriptblock.powershell meta.scriptblock.powershell keyword.other.variable.definition.powershell",
+		"t": "source.powershell meta.scriptblock.powershell meta.scriptblock.powershell variable.other.readwrite.powershell punctuation.definition.variable.powershell",
 		"r": {
-			"dark_plus": "keyword: #569CD6",
-			"light_plus": "keyword: #0000FF",
-			"dark_vs": "keyword: #569CD6",
-			"light_vs": "keyword: #0000FF",
-			"hc_black": "keyword: #569CD6"
+			"dark_plus": "variable: #9CDCFE",
+			"light_plus": "variable: #001080",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "variable: #9CDCFE"
 		}
 	},
 	{
@@ -463,13 +463,13 @@
 	},
 	{
 		"c": ".IsInRole",
-		"t": "source.powershell meta.scriptblock.powershell meta.scriptblock.powershell entity.name.function.invocation.powershell",
+		"t": "source.powershell meta.scriptblock.powershell meta.scriptblock.powershell variable.other.readwrite.powershell variable.other.member.powershell",
 		"r": {
-			"dark_plus": "entity.name.function: #DCDCAA",
-			"light_plus": "entity.name.function: #795E26",
+			"dark_plus": "variable: #9CDCFE",
+			"light_plus": "variable: #001080",
 			"dark_vs": "default: #D4D4D4",
 			"light_vs": "default: #000000",
-			"hc_black": "entity.name.function: #DCDCAA"
+			"hc_black": "variable: #9CDCFE"
 		}
 	},
 	{
@@ -649,8 +649,30 @@
 		}
 	},
 	{
-		"c": "\"Failed to determine if the current user has elevated privileges. The error was: '{0}'.\"",
+		"c": "\"",
+		"t": "source.powershell meta.scriptblock.powershell meta.scriptblock.powershell string.quoted.double.powershell punctuation.definition.string.begin.powershell",
+		"r": {
+			"dark_plus": "string: #CE9178",
+			"light_plus": "string: #A31515",
+			"dark_vs": "string: #CE9178",
+			"light_vs": "string: #A31515",
+			"hc_black": "string: #CE9178"
+		}
+	},
+	{
+		"c": "Failed to determine if the current user has elevated privileges. The error was: '{0}'.",
 		"t": "source.powershell meta.scriptblock.powershell meta.scriptblock.powershell string.quoted.double.powershell",
+		"r": {
+			"dark_plus": "string: #CE9178",
+			"light_plus": "string: #A31515",
+			"dark_vs": "string: #CE9178",
+			"light_vs": "string: #A31515",
+			"hc_black": "string: #CE9178"
+		}
+	},
+	{
+		"c": "\"",
+		"t": "source.powershell meta.scriptblock.powershell meta.scriptblock.powershell string.quoted.double.powershell punctuation.definition.string.end.powershell",
 		"r": {
 			"dark_plus": "string: #CE9178",
 			"light_plus": "string: #A31515",
@@ -694,13 +716,13 @@
 	},
 	{
 		"c": "$",
-		"t": "source.powershell meta.scriptblock.powershell meta.scriptblock.powershell keyword.other.variable.definition.powershell",
+		"t": "source.powershell meta.scriptblock.powershell meta.scriptblock.powershell support.constant.automatic.powershell punctuation.definition.variable.powershell",
 		"r": {
-			"dark_plus": "keyword: #569CD6",
-			"light_plus": "keyword: #0000FF",
-			"dark_vs": "keyword: #569CD6",
-			"light_vs": "keyword: #0000FF",
-			"hc_black": "keyword: #569CD6"
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
 		}
 	},
 	{
@@ -991,13 +1013,13 @@
 	},
 	{
 		"c": "$",
-		"t": "source.powershell meta.scriptblock.powershell interpolated.simple.source.powershell keyword.other.variable.definition.powershell",
+		"t": "source.powershell meta.scriptblock.powershell interpolated.simple.source.powershell variable.other.readwrite.powershell punctuation.definition.variable.powershell",
 		"r": {
-			"dark_plus": "keyword: #569CD6",
-			"light_plus": "keyword: #0000FF",
-			"dark_vs": "keyword: #569CD6",
-			"light_vs": "keyword: #0000FF",
-			"hc_black": "keyword: #569CD6"
+			"dark_plus": "variable: #9CDCFE",
+			"light_plus": "variable: #001080",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "variable: #9CDCFE"
 		}
 	},
 	{
@@ -1068,13 +1090,13 @@
 	},
 	{
 		"c": "$",
-		"t": "source.powershell meta.scriptblock.powershell interpolated.simple.source.powershell keyword.other.variable.definition.powershell",
+		"t": "source.powershell meta.scriptblock.powershell interpolated.simple.source.powershell support.constant.automatic.powershell punctuation.definition.variable.powershell",
 		"r": {
-			"dark_plus": "keyword: #569CD6",
-			"light_plus": "keyword: #0000FF",
-			"dark_vs": "keyword: #569CD6",
-			"light_vs": "keyword: #0000FF",
-			"hc_black": "keyword: #569CD6"
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
 		}
 	},
 	{
@@ -1145,7 +1167,7 @@
 	},
 	{
 		"c": "\"",
-		"t": "source.powershell meta.scriptblock.powershell interpolated.simple.source.powershell string.quoted.double.powershell",
+		"t": "source.powershell meta.scriptblock.powershell interpolated.simple.source.powershell string.quoted.double.powershell punctuation.definition.string.begin.powershell",
 		"r": {
 			"dark_plus": "string: #CE9178",
 			"light_plus": "string: #A31515",
@@ -1156,13 +1178,13 @@
 	},
 	{
 		"c": "$",
-		"t": "source.powershell meta.scriptblock.powershell interpolated.simple.source.powershell string.quoted.double.powershell keyword.other.variable.definition.powershell",
+		"t": "source.powershell meta.scriptblock.powershell interpolated.simple.source.powershell string.quoted.double.powershell variable.other.readwrite.powershell punctuation.definition.variable.powershell",
 		"r": {
-			"dark_plus": "keyword: #569CD6",
-			"light_plus": "keyword: #0000FF",
-			"dark_vs": "keyword: #569CD6",
-			"light_vs": "keyword: #0000FF",
-			"hc_black": "keyword: #569CD6"
+			"dark_plus": "variable: #9CDCFE",
+			"light_plus": "variable: #001080",
+			"dark_vs": "string: #CE9178",
+			"light_vs": "string: #A31515",
+			"hc_black": "variable: #9CDCFE"
 		}
 	},
 	{
@@ -1177,8 +1199,19 @@
 		}
 	},
 	{
-		"c": "  2>&1 & set\"",
+		"c": "  2>&1 & set",
 		"t": "source.powershell meta.scriptblock.powershell interpolated.simple.source.powershell string.quoted.double.powershell",
+		"r": {
+			"dark_plus": "string: #CE9178",
+			"light_plus": "string: #A31515",
+			"dark_vs": "string: #CE9178",
+			"light_vs": "string: #A31515",
+			"hc_black": "string: #CE9178"
+		}
+	},
+	{
+		"c": "\"",
+		"t": "source.powershell meta.scriptblock.powershell interpolated.simple.source.powershell string.quoted.double.powershell punctuation.definition.string.end.powershell",
 		"r": {
 			"dark_plus": "string: #CE9178",
 			"light_plus": "string: #A31515",
@@ -1266,13 +1299,13 @@
 	},
 	{
 		"c": "$",
-		"t": "source.powershell meta.scriptblock.powershell meta.scriptblock.powershell interpolated.simple.source.powershell keyword.other.variable.definition.powershell",
+		"t": "source.powershell meta.scriptblock.powershell meta.scriptblock.powershell interpolated.simple.source.powershell support.constant.automatic.powershell punctuation.definition.variable.powershell",
 		"r": {
-			"dark_plus": "keyword: #569CD6",
-			"light_plus": "keyword: #0000FF",
-			"dark_vs": "keyword: #569CD6",
-			"light_vs": "keyword: #0000FF",
-			"hc_black": "keyword: #569CD6"
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
 		}
 	},
 	{
@@ -1320,8 +1353,30 @@
 		}
 	},
 	{
-		"c": "'^([^=]+)=(.*)'",
+		"c": "'",
+		"t": "source.powershell meta.scriptblock.powershell meta.scriptblock.powershell interpolated.simple.source.powershell string.quoted.single.powershell punctuation.definition.string.begin.powershell",
+		"r": {
+			"dark_plus": "string: #CE9178",
+			"light_plus": "string: #A31515",
+			"dark_vs": "string: #CE9178",
+			"light_vs": "string: #A31515",
+			"hc_black": "string: #CE9178"
+		}
+	},
+	{
+		"c": "^([^=]+)=(.*)",
 		"t": "source.powershell meta.scriptblock.powershell meta.scriptblock.powershell interpolated.simple.source.powershell string.quoted.single.powershell",
+		"r": {
+			"dark_plus": "string: #CE9178",
+			"light_plus": "string: #A31515",
+			"dark_vs": "string: #CE9178",
+			"light_vs": "string: #A31515",
+			"hc_black": "string: #CE9178"
+		}
+	},
+	{
+		"c": "'",
+		"t": "source.powershell meta.scriptblock.powershell meta.scriptblock.powershell interpolated.simple.source.powershell string.quoted.single.powershell punctuation.definition.string.end.powershell",
 		"r": {
 			"dark_plus": "string: #CE9178",
 			"light_plus": "string: #A31515",
@@ -1431,13 +1486,13 @@
 	},
 	{
 		"c": "$",
-		"t": "source.powershell meta.scriptblock.powershell meta.scriptblock.powershell meta.scriptblock.powershell interpolated.simple.source.powershell keyword.other.variable.definition.powershell",
+		"t": "source.powershell meta.scriptblock.powershell meta.scriptblock.powershell meta.scriptblock.powershell interpolated.simple.source.powershell support.constant.automatic.powershell punctuation.definition.variable.powershell",
 		"r": {
-			"dark_plus": "keyword: #569CD6",
-			"light_plus": "keyword: #0000FF",
-			"dark_vs": "keyword: #569CD6",
-			"light_vs": "keyword: #0000FF",
-			"hc_black": "keyword: #569CD6"
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
 		}
 	},
 	{
@@ -1508,13 +1563,13 @@
 	},
 	{
 		"c": "$",
-		"t": "source.powershell meta.scriptblock.powershell meta.scriptblock.powershell meta.scriptblock.powershell interpolated.simple.source.powershell keyword.other.variable.definition.powershell",
+		"t": "source.powershell meta.scriptblock.powershell meta.scriptblock.powershell meta.scriptblock.powershell interpolated.simple.source.powershell support.constant.automatic.powershell punctuation.definition.variable.powershell",
 		"r": {
-			"dark_plus": "keyword: #569CD6",
-			"light_plus": "keyword: #0000FF",
-			"dark_vs": "keyword: #569CD6",
-			"light_vs": "keyword: #0000FF",
-			"hc_black": "keyword: #569CD6"
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
 		}
 	},
 	{
@@ -1672,7 +1727,18 @@
 		}
 	},
 	{
-		"c": "'Initializing Azure PowerShell environment...'",
+		"c": "'",
+		"t": "source.powershell string.quoted.single.powershell punctuation.definition.string.begin.powershell",
+		"r": {
+			"dark_plus": "string: #CE9178",
+			"light_plus": "string: #A31515",
+			"dark_vs": "string: #CE9178",
+			"light_vs": "string: #A31515",
+			"hc_black": "string: #CE9178"
+		}
+	},
+	{
+		"c": "Initializing Azure PowerShell environment...",
 		"t": "source.powershell string.quoted.single.powershell",
 		"r": {
 			"dark_plus": "string: #CE9178",
@@ -1683,23 +1749,34 @@
 		}
 	},
 	{
-		"c": ";",
-		"t": "source.powershell keyword.other.statement-separator.powershell",
+		"c": "'",
+		"t": "source.powershell string.quoted.single.powershell punctuation.definition.string.end.powershell",
 		"r": {
-			"dark_plus": "keyword: #569CD6",
-			"light_plus": "keyword: #0000FF",
-			"dark_vs": "keyword: #569CD6",
-			"light_vs": "keyword: #0000FF",
-			"hc_black": "keyword: #569CD6"
+			"dark_plus": "string: #CE9178",
+			"light_plus": "string: #A31515",
+			"dark_vs": "string: #CE9178",
+			"light_vs": "string: #A31515",
+			"hc_black": "string: #CE9178"
+		}
+	},
+	{
+		"c": ";",
+		"t": "source.powershell punctuation.terminator.statement.powershell",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
 		}
 	},
 	{
 		"c": "#",
 		"t": "source.powershell comment.line.powershell punctuation.definition.comment.powershell",
 		"r": {
-			"dark_plus": "comment: #608B4E",
+			"dark_plus": "comment: #6A9955",
 			"light_plus": "comment: #008000",
-			"dark_vs": "comment: #608B4E",
+			"dark_vs": "comment: #6A9955",
 			"light_vs": "comment: #008000",
 			"hc_black": "comment: #7CA668"
 		}
@@ -1708,9 +1785,9 @@
 		"c": " PowerShell commands need elevation for dependencies installation and running tests",
 		"t": "source.powershell comment.line.powershell",
 		"r": {
-			"dark_plus": "comment: #608B4E",
+			"dark_plus": "comment: #6A9955",
 			"light_plus": "comment: #008000",
-			"dark_vs": "comment: #608B4E",
+			"dark_vs": "comment: #6A9955",
 			"light_vs": "comment: #008000",
 			"hc_black": "comment: #7CA668"
 		}
@@ -1870,8 +1947,30 @@
 		}
 	},
 	{
-		"c": "'Please launch command under administrator account. It is needed for environment setting up and unit test.'",
+		"c": "'",
+		"t": "source.powershell meta.scriptblock.powershell string.quoted.single.powershell punctuation.definition.string.begin.powershell",
+		"r": {
+			"dark_plus": "string: #CE9178",
+			"light_plus": "string: #A31515",
+			"dark_vs": "string: #CE9178",
+			"light_vs": "string: #A31515",
+			"hc_black": "string: #CE9178"
+		}
+	},
+	{
+		"c": "Please launch command under administrator account. It is needed for environment setting up and unit test.",
 		"t": "source.powershell meta.scriptblock.powershell string.quoted.single.powershell",
+		"r": {
+			"dark_plus": "string: #CE9178",
+			"light_plus": "string: #A31515",
+			"dark_vs": "string: #CE9178",
+			"light_vs": "string: #A31515",
+			"hc_black": "string: #CE9178"
+		}
+	},
+	{
+		"c": "'",
+		"t": "source.powershell meta.scriptblock.powershell string.quoted.single.powershell punctuation.definition.string.end.powershell",
 		"r": {
 			"dark_plus": "string: #CE9178",
 			"light_plus": "string: #A31515",
@@ -1915,13 +2014,13 @@
 	},
 	{
 		"c": ";",
-		"t": "source.powershell meta.scriptblock.powershell keyword.other.statement-separator.powershell",
+		"t": "source.powershell meta.scriptblock.powershell punctuation.terminator.statement.powershell",
 		"r": {
-			"dark_plus": "keyword: #569CD6",
-			"light_plus": "keyword: #0000FF",
-			"dark_vs": "keyword: #569CD6",
-			"light_vs": "keyword: #0000FF",
-			"hc_black": "keyword: #569CD6"
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
 		}
 	},
 	{
@@ -1937,18 +2036,18 @@
 	},
 	{
 		"c": "$",
-		"t": "source.powershell keyword.other.variable.definition.powershell",
+		"t": "source.powershell variable.other.readwrite.powershell punctuation.definition.variable.powershell",
 		"r": {
-			"dark_plus": "keyword: #569CD6",
-			"light_plus": "keyword: #0000FF",
-			"dark_vs": "keyword: #569CD6",
-			"light_vs": "keyword: #0000FF",
-			"hc_black": "keyword: #569CD6"
+			"dark_plus": "variable: #9CDCFE",
+			"light_plus": "variable: #001080",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "variable: #9CDCFE"
 		}
 	},
 	{
 		"c": "env:",
-		"t": "source.powershell support.variable.drive.powershell",
+		"t": "source.powershell variable.other.readwrite.powershell support.variable.drive.powershell",
 		"r": {
 			"dark_plus": "support.variable: #9CDCFE",
 			"light_plus": "support.variable: #001080",
@@ -2069,18 +2168,18 @@
 	},
 	{
 		"c": "$",
-		"t": "source.powershell keyword.other.variable.definition.powershell",
+		"t": "source.powershell variable.other.readwrite.powershell punctuation.definition.variable.powershell",
 		"r": {
-			"dark_plus": "keyword: #569CD6",
-			"light_plus": "keyword: #0000FF",
-			"dark_vs": "keyword: #569CD6",
-			"light_vs": "keyword: #0000FF",
-			"hc_black": "keyword: #569CD6"
+			"dark_plus": "variable: #9CDCFE",
+			"light_plus": "variable: #001080",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "variable: #9CDCFE"
 		}
 	},
 	{
 		"c": "env:",
-		"t": "source.powershell support.variable.drive.powershell",
+		"t": "source.powershell variable.other.readwrite.powershell support.variable.drive.powershell",
 		"r": {
 			"dark_plus": "support.variable: #9CDCFE",
 			"light_plus": "support.variable: #001080",
@@ -2102,13 +2201,13 @@
 	},
 	{
 		"c": ";",
-		"t": "source.powershell keyword.other.statement-separator.powershell",
+		"t": "source.powershell punctuation.terminator.statement.powershell",
 		"r": {
-			"dark_plus": "keyword: #569CD6",
-			"light_plus": "keyword: #0000FF",
-			"dark_vs": "keyword: #569CD6",
-			"light_vs": "keyword: #0000FF",
-			"hc_black": "keyword: #569CD6"
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
 		}
 	},
 	{
@@ -2190,7 +2289,7 @@
 	},
 	{
 		"c": "\"",
-		"t": "source.powershell interpolated.simple.source.powershell string.quoted.double.powershell",
+		"t": "source.powershell interpolated.simple.source.powershell string.quoted.double.powershell punctuation.definition.string.begin.powershell",
 		"r": {
 			"dark_plus": "string: #CE9178",
 			"light_plus": "string: #A31515",
@@ -2201,18 +2300,18 @@
 	},
 	{
 		"c": "$",
-		"t": "source.powershell interpolated.simple.source.powershell string.quoted.double.powershell keyword.other.variable.definition.powershell",
+		"t": "source.powershell interpolated.simple.source.powershell string.quoted.double.powershell variable.other.readwrite.powershell punctuation.definition.variable.powershell",
 		"r": {
-			"dark_plus": "keyword: #569CD6",
-			"light_plus": "keyword: #0000FF",
-			"dark_vs": "keyword: #569CD6",
-			"light_vs": "keyword: #0000FF",
-			"hc_black": "keyword: #569CD6"
+			"dark_plus": "variable: #9CDCFE",
+			"light_plus": "variable: #001080",
+			"dark_vs": "string: #CE9178",
+			"light_vs": "string: #A31515",
+			"hc_black": "variable: #9CDCFE"
 		}
 	},
 	{
 		"c": "env:",
-		"t": "source.powershell interpolated.simple.source.powershell string.quoted.double.powershell support.variable.drive.powershell",
+		"t": "source.powershell interpolated.simple.source.powershell string.quoted.double.powershell variable.other.readwrite.powershell support.variable.drive.powershell",
 		"r": {
 			"dark_plus": "support.variable: #9CDCFE",
 			"light_plus": "support.variable: #001080",
@@ -2233,8 +2332,19 @@
 		}
 	},
 	{
-		"c": "\\Microsoft Visual Studio 12.0\"",
+		"c": "\\Microsoft Visual Studio 12.0",
 		"t": "source.powershell interpolated.simple.source.powershell string.quoted.double.powershell",
+		"r": {
+			"dark_plus": "string: #CE9178",
+			"light_plus": "string: #A31515",
+			"dark_vs": "string: #CE9178",
+			"light_vs": "string: #A31515",
+			"hc_black": "string: #CE9178"
+		}
+	},
+	{
+		"c": "\"",
+		"t": "source.powershell interpolated.simple.source.powershell string.quoted.double.powershell punctuation.definition.string.end.powershell",
 		"r": {
 			"dark_plus": "string: #CE9178",
 			"light_plus": "string: #A31515",
@@ -2289,13 +2399,13 @@
 	},
 	{
 		"c": "$",
-		"t": "source.powershell meta.scriptblock.powershell keyword.other.variable.definition.powershell",
+		"t": "source.powershell meta.scriptblock.powershell variable.other.readwrite.powershell punctuation.definition.variable.powershell",
 		"r": {
-			"dark_plus": "keyword: #569CD6",
-			"light_plus": "keyword: #0000FF",
-			"dark_vs": "keyword: #569CD6",
-			"light_vs": "keyword: #0000FF",
-			"hc_black": "keyword: #569CD6"
+			"dark_plus": "variable: #9CDCFE",
+			"light_plus": "variable: #001080",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "variable: #9CDCFE"
 		}
 	},
 	{
@@ -2321,8 +2431,30 @@
 		}
 	},
 	{
-		"c": "\"12.0\"",
+		"c": "\"",
+		"t": "source.powershell meta.scriptblock.powershell string.quoted.double.powershell punctuation.definition.string.begin.powershell",
+		"r": {
+			"dark_plus": "string: #CE9178",
+			"light_plus": "string: #A31515",
+			"dark_vs": "string: #CE9178",
+			"light_vs": "string: #A31515",
+			"hc_black": "string: #CE9178"
+		}
+	},
+	{
+		"c": "12.0",
 		"t": "source.powershell meta.scriptblock.powershell string.quoted.double.powershell",
+		"r": {
+			"dark_plus": "string: #CE9178",
+			"light_plus": "string: #A31515",
+			"dark_vs": "string: #CE9178",
+			"light_vs": "string: #A31515",
+			"hc_black": "string: #CE9178"
+		}
+	},
+	{
+		"c": "\"",
+		"t": "source.powershell meta.scriptblock.powershell string.quoted.double.powershell punctuation.definition.string.end.powershell",
 		"r": {
 			"dark_plus": "string: #CE9178",
 			"light_plus": "string: #A31515",
@@ -2399,13 +2531,13 @@
 	},
 	{
 		"c": "$",
-		"t": "source.powershell meta.scriptblock.powershell keyword.other.variable.definition.powershell",
+		"t": "source.powershell meta.scriptblock.powershell variable.other.readwrite.powershell punctuation.definition.variable.powershell",
 		"r": {
-			"dark_plus": "keyword: #569CD6",
-			"light_plus": "keyword: #0000FF",
-			"dark_vs": "keyword: #569CD6",
-			"light_vs": "keyword: #0000FF",
-			"hc_black": "keyword: #569CD6"
+			"dark_plus": "variable: #9CDCFE",
+			"light_plus": "variable: #001080",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "variable: #9CDCFE"
 		}
 	},
 	{
@@ -2431,8 +2563,30 @@
 		}
 	},
 	{
-		"c": "\"11.0\"",
+		"c": "\"",
+		"t": "source.powershell meta.scriptblock.powershell string.quoted.double.powershell punctuation.definition.string.begin.powershell",
+		"r": {
+			"dark_plus": "string: #CE9178",
+			"light_plus": "string: #A31515",
+			"dark_vs": "string: #CE9178",
+			"light_vs": "string: #A31515",
+			"hc_black": "string: #CE9178"
+		}
+	},
+	{
+		"c": "11.0",
 		"t": "source.powershell meta.scriptblock.powershell string.quoted.double.powershell",
+		"r": {
+			"dark_plus": "string: #CE9178",
+			"light_plus": "string: #A31515",
+			"dark_vs": "string: #CE9178",
+			"light_vs": "string: #A31515",
+			"hc_black": "string: #CE9178"
+		}
+	},
+	{
+		"c": "\"",
+		"t": "source.powershell meta.scriptblock.powershell string.quoted.double.powershell punctuation.definition.string.end.powershell",
 		"r": {
 			"dark_plus": "string: #CE9178",
 			"light_plus": "string: #A31515",
@@ -2454,13 +2608,13 @@
 	},
 	{
 		"c": "$",
-		"t": "source.powershell keyword.other.variable.definition.powershell",
+		"t": "source.powershell variable.other.readwrite.powershell punctuation.definition.variable.powershell",
 		"r": {
-			"dark_plus": "keyword: #569CD6",
-			"light_plus": "keyword: #0000FF",
-			"dark_vs": "keyword: #569CD6",
-			"light_vs": "keyword: #0000FF",
-			"hc_black": "keyword: #569CD6"
+			"dark_plus": "variable: #9CDCFE",
+			"light_plus": "variable: #001080",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "variable: #9CDCFE"
 		}
 	},
 	{
@@ -2508,8 +2662,30 @@
 		}
 	},
 	{
-		"c": "'\"{0}\\Microsoft Visual Studio {1}\\VC\\vcvarsall.bat\" x64'",
+		"c": "'",
+		"t": "source.powershell string.quoted.single.powershell punctuation.definition.string.begin.powershell",
+		"r": {
+			"dark_plus": "string: #CE9178",
+			"light_plus": "string: #A31515",
+			"dark_vs": "string: #CE9178",
+			"light_vs": "string: #A31515",
+			"hc_black": "string: #CE9178"
+		}
+	},
+	{
+		"c": "\"{0}\\Microsoft Visual Studio {1}\\VC\\vcvarsall.bat\" x64",
 		"t": "source.powershell string.quoted.single.powershell",
+		"r": {
+			"dark_plus": "string: #CE9178",
+			"light_plus": "string: #A31515",
+			"dark_vs": "string: #CE9178",
+			"light_vs": "string: #A31515",
+			"hc_black": "string: #CE9178"
+		}
+	},
+	{
+		"c": "'",
+		"t": "source.powershell string.quoted.single.powershell punctuation.definition.string.end.powershell",
 		"r": {
 			"dark_plus": "string: #CE9178",
 			"light_plus": "string: #A31515",
@@ -2553,18 +2729,18 @@
 	},
 	{
 		"c": "$",
-		"t": "source.powershell keyword.other.variable.definition.powershell",
+		"t": "source.powershell variable.other.readwrite.powershell punctuation.definition.variable.powershell",
 		"r": {
-			"dark_plus": "keyword: #569CD6",
-			"light_plus": "keyword: #0000FF",
-			"dark_vs": "keyword: #569CD6",
-			"light_vs": "keyword: #0000FF",
-			"hc_black": "keyword: #569CD6"
+			"dark_plus": "variable: #9CDCFE",
+			"light_plus": "variable: #001080",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "variable: #9CDCFE"
 		}
 	},
 	{
 		"c": "env:",
-		"t": "source.powershell support.variable.drive.powershell",
+		"t": "source.powershell variable.other.readwrite.powershell support.variable.drive.powershell",
 		"r": {
 			"dark_plus": "support.variable: #9CDCFE",
 			"light_plus": "support.variable: #001080",
@@ -2608,13 +2784,13 @@
 	},
 	{
 		"c": "$",
-		"t": "source.powershell keyword.other.variable.definition.powershell",
+		"t": "source.powershell variable.other.readwrite.powershell punctuation.definition.variable.powershell",
 		"r": {
-			"dark_plus": "keyword: #569CD6",
-			"light_plus": "keyword: #0000FF",
-			"dark_vs": "keyword: #569CD6",
-			"light_vs": "keyword: #0000FF",
-			"hc_black": "keyword: #569CD6"
+			"dark_plus": "variable: #9CDCFE",
+			"light_plus": "variable: #001080",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "variable: #9CDCFE"
 		}
 	},
 	{
@@ -2630,13 +2806,13 @@
 	},
 	{
 		"c": ";",
-		"t": "source.powershell keyword.other.statement-separator.powershell",
+		"t": "source.powershell punctuation.terminator.statement.powershell",
 		"r": {
-			"dark_plus": "keyword: #569CD6",
-			"light_plus": "keyword: #0000FF",
-			"dark_vs": "keyword: #569CD6",
-			"light_vs": "keyword: #0000FF",
-			"hc_black": "keyword: #569CD6"
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
 		}
 	},
 	{
@@ -2685,13 +2861,13 @@
 	},
 	{
 		"c": "$",
-		"t": "source.powershell keyword.other.variable.definition.powershell",
+		"t": "source.powershell variable.other.readwrite.powershell punctuation.definition.variable.powershell",
 		"r": {
-			"dark_plus": "keyword: #569CD6",
-			"light_plus": "keyword: #0000FF",
-			"dark_vs": "keyword: #569CD6",
-			"light_vs": "keyword: #0000FF",
-			"hc_black": "keyword: #569CD6"
+			"dark_plus": "variable: #9CDCFE",
+			"light_plus": "variable: #001080",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "variable: #9CDCFE"
 		}
 	},
 	{
@@ -2707,13 +2883,13 @@
 	},
 	{
 		"c": ";",
-		"t": "source.powershell keyword.other.statement-separator.powershell",
+		"t": "source.powershell punctuation.terminator.statement.powershell",
 		"r": {
-			"dark_plus": "keyword: #569CD6",
-			"light_plus": "keyword: #0000FF",
-			"dark_vs": "keyword: #569CD6",
-			"light_vs": "keyword: #0000FF",
-			"hc_black": "keyword: #569CD6"
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
 		}
 	}
 ]

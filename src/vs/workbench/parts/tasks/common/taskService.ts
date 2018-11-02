@@ -2,7 +2,6 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
 import { TPromise } from 'vs/base/common/winjs.base';
 import { Action } from 'vs/base/common/actions';
@@ -11,15 +10,16 @@ import { LinkedMap } from 'vs/base/common/map';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 
 import { IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
-import { Task, ContributedTask, CustomTask, TaskSet, TaskSorter, TaskEvent } from 'vs/workbench/parts/tasks/common/tasks';
+import { Task, ContributedTask, CustomTask, TaskSet, TaskSorter, TaskEvent, TaskIdentifier } from 'vs/workbench/parts/tasks/common/tasks';
 import { ITaskSummary, TaskTerminateResponse, TaskSystemInfo } from 'vs/workbench/parts/tasks/common/taskSystem';
+import { IStringDictionary } from 'vs/base/common/collections';
 
 export { ITaskSummary, Task, TaskTerminateResponse };
 
 export const ITaskService = createDecorator<ITaskService>('taskService');
 
 export interface ITaskProvider {
-	provideTasks(): TPromise<TaskSet>;
+	provideTasks(validTypes: IStringDictionary<boolean>): TPromise<TaskSet>;
 }
 
 export interface RunOptions {
@@ -40,6 +40,8 @@ export interface TaskFilter {
 export interface ITaskService {
 	_serviceBrand: any;
 	onDidStateChange: Event<TaskEvent>;
+	supportsMultipleTaskExecutions: boolean;
+
 	configureAction(): Action;
 	build(): TPromise<ITaskSummary>;
 	runTest(): TPromise<ITaskSummary>;
@@ -54,7 +56,7 @@ export interface ITaskService {
 	/**
 	 * @param alias The task's name, label or defined identifier.
 	 */
-	getTask(workspaceFolder: IWorkspaceFolder | string, alias: string, compareId?: boolean): TPromise<Task>;
+	getTask(workspaceFolder: IWorkspaceFolder | string, alias: string | TaskIdentifier, compareId?: boolean): TPromise<Task>;
 	getTasksForGroup(group: string): TPromise<Task[]>;
 	getRecentlyUsedTasks(): LinkedMap<string, string>;
 	createSorter(): TaskSorter;

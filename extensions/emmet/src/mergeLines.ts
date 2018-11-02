@@ -34,7 +34,7 @@ function getRangesToReplace(document: vscode.TextDocument, selection: vscode.Sel
 	let endNodeToUpdate: Node | null;
 
 	if (selection.isEmpty) {
-		startNodeToUpdate = endNodeToUpdate = getNode(rootNode, selection.start);
+		startNodeToUpdate = endNodeToUpdate = getNode(rootNode, selection.start, true);
 	} else {
 		startNodeToUpdate = getNode(rootNode, selection.start, true);
 		endNodeToUpdate = getNode(rootNode, selection.end, true);

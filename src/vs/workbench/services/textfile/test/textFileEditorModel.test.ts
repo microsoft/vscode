@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import * as assert from 'assert';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -16,7 +14,11 @@ import { toResource } from 'vs/base/test/common/utils';
 import { TextFileEditorModelManager } from 'vs/workbench/services/textfile/common/textFileEditorModelManager';
 import { FileOperationResult, FileOperationError, IFileService, snapshotToString } from 'vs/platform/files/common/files';
 import { IModelService } from 'vs/editor/common/services/modelService';
-import { timeout } from 'vs/base/common/async';
+import { timeout as thenableTimeout } from 'vs/base/common/async';
+
+function timeout(n: number) {
+	return TPromise.wrap(thenableTimeout(n));
+}
 
 class ServiceAccessor {
 	constructor(@ITextFileService public textFileService: TestTextFileService, @IModelService public modelService: IModelService, @IFileService public fileService: TestFileService) {
@@ -367,7 +369,7 @@ suite('Files - TextFileEditorModel', () => {
 		let nextDone = false;
 		const res = sequentializer.setNext(() => TPromise.as(null).then(() => { nextDone = true; return null; }));
 
-		return res.done(() => {
+		return res.then(() => {
 			assert.ok(pendingDone);
 			assert.ok(nextDone);
 		});
@@ -383,7 +385,7 @@ suite('Files - TextFileEditorModel', () => {
 		let nextDone = false;
 		const res = sequentializer.setNext(() => timeout(1).then(() => { nextDone = true; return null; }));
 
-		return res.done(() => {
+		return res.then(() => {
 			assert.ok(pendingDone);
 			assert.ok(nextDone);
 		});

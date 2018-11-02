@@ -3,12 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import * as fs from 'fs';
 import { dirname, basename } from 'path';
 import * as objects from 'vs/base/common/objects';
-import { IDisposable, dispose, toDisposable } from 'vs/base/common/lifecycle';
+import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { Event, Emitter } from 'vs/base/common/event';
 import * as json from 'vs/base/common/json';
 import * as extfs from 'vs/base/node/extfs';
@@ -152,17 +150,10 @@ export class ConfigWatcher<T> implements IConfigWatcher<T>, IDisposable {
 			return; // avoid watchers that will never get disposed by checking for being disposed
 		}
 
-		const watcher = extfs.watch(path,
+		this.disposables.push(extfs.watch(path,
 			(type, file) => this.onConfigFileChange(type, file, isParentFolder),
 			(error: string) => this.options.onError(error)
-		);
-
-		if (watcher) {
-			this.disposables.push(toDisposable(() => {
-				watcher.removeAllListeners();
-				watcher.close();
-			}));
-		}
+		));
 	}
 
 	private onConfigFileChange(eventType: string, filename: string, isParentFolder: boolean): void {

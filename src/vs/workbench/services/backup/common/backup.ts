@@ -3,9 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
-import Uri from 'vs/base/common/uri';
+import { URI as Uri } from 'vs/base/common/uri';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IResolveContentOptions, IUpdateContentOptions, ITextSnapshot } from 'vs/platform/files/common/files';
@@ -21,11 +19,6 @@ export const BACKUP_FILE_UPDATE_OPTIONS: IUpdateContentOptions = { encoding: 'ut
  */
 export interface IBackupFileService {
 	_serviceBrand: any;
-
-	/**
-	 * If backups are enabled.
-	 */
-	backupEnabled: boolean;
 
 	/**
 	 * Finds out if there are any backups stored.

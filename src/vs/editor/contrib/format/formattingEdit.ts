@@ -2,7 +2,6 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { EditOperation } from 'vs/editor/common/core/editOperation';
@@ -13,7 +12,7 @@ import { TextEdit } from 'vs/editor/common/modes';
 export class FormattingEdit {
 
 	private static _handleEolEdits(editor: ICodeEditor, edits: TextEdit[]): ISingleEditOperation[] {
-		let newEol: EndOfLineSequence = undefined;
+		let newEol: EndOfLineSequence | undefined = undefined;
 		let singleEdits: ISingleEditOperation[] = [];
 
 		for (let edit of edits) {

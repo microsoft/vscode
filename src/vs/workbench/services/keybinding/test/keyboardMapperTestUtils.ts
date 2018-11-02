@@ -3,15 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import * as assert from 'assert';
-import { IKeyboardMapper } from 'vs/workbench/services/keybinding/common/keyboardMapper';
+import * as path from 'path';
+import { getPathFromAmdModule } from 'vs/base/common/amd';
 import { Keybinding, ResolvedKeybinding, SimpleKeybinding } from 'vs/base/common/keyCodes';
+import { ScanCodeBinding } from 'vs/base/common/scanCode';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { readFile, writeFile } from 'vs/base/node/pfs';
 import { IKeyboardEvent } from 'vs/platform/keybinding/common/keybinding';
-import { ScanCodeBinding } from 'vs/workbench/services/keybinding/common/scanCode';
+import { IKeyboardMapper } from 'vs/workbench/services/keybinding/common/keyboardMapper';
 
 export interface IResolvedKeybinding {
 	label: string;
@@ -51,10 +51,10 @@ export function assertResolveUserBinding(mapper: IKeyboardMapper, firstPart: Sim
 }
 
 export function readRawMapping<T>(file: string): TPromise<T> {
-	return readFile(require.toUrl(`vs/workbench/services/keybinding/test/${file}.js`)).then((buff) => {
+	return readFile(getPathFromAmdModule(require, `vs/workbench/services/keybinding/test/${file}.js`)).then((buff) => {
 		let contents = buff.toString();
 		let func = new Function('define', contents);
-		let rawMappings: T = null;
+		let rawMappings: T | null = null;
 		func(function (value: T) {
 			rawMappings = value;
 		});
@@ -63,13 +63,14 @@ export function readRawMapping<T>(file: string): TPromise<T> {
 }
 
 export function assertMapping(writeFileIfDifferent: boolean, mapper: IKeyboardMapper, file: string): TPromise<void> {
-	const filePath = require.toUrl(`vs/workbench/services/keybinding/test/${file}`);
+	const filePath = path.normalize(getPathFromAmdModule(require, `vs/workbench/services/keybinding/test/${file}`));
 
 	return readFile(filePath).then((buff) => {
 		let expected = buff.toString();
 		const actual = mapper.dumpDebugInfo();
 		if (actual !== expected && writeFileIfDifferent) {
-			writeFile(filePath, actual);
+			const destPath = filePath.replace(/vscode\/out\/vs/, 'vscode/src/vs');
+			writeFile(destPath, actual);
 		}
 
 		assert.deepEqual(actual.split(/\r\n|\n/), expected.split(/\r\n|\n/));

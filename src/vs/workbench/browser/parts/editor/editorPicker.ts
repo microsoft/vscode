@@ -2,75 +2,68 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
 import 'vs/css!./media/editorpicker';
 import { TPromise } from 'vs/base/common/winjs.base';
 import * as nls from 'vs/nls';
-import URI from 'vs/base/common/uri';
-import * as errors from 'vs/base/common/errors';
+import { URI } from 'vs/base/common/uri';
 import { IIconLabelValueOptions } from 'vs/base/browser/ui/iconLabel/iconLabel';
 import { IAutoFocus, Mode, IEntryRunContext, IQuickNavigateConfiguration, IModel } from 'vs/base/parts/quickopen/common/quickOpen';
 import { QuickOpenModel, QuickOpenEntry, QuickOpenEntryGroup, QuickOpenItemAccessor } from 'vs/base/parts/quickopen/browser/quickOpenModel';
 import { IModeService } from 'vs/editor/common/services/modeService';
-import { getIconClasses } from 'vs/workbench/browser/labels';
+import { getIconClasses } from 'vs/editor/common/services/getIconClasses';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { QuickOpenHandler } from 'vs/workbench/browser/quickopen';
-import { Position } from 'vs/platform/editor/common/editor';
-import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
-import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { IEditorGroupsService, IEditorGroup, EditorsOrder, GroupsOrder } from 'vs/workbench/services/group/common/editorGroupsService';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { EditorInput, toResource, IEditorGroup, IEditorStacksModel } from 'vs/workbench/common/editor';
+import { EditorInput, toResource } from 'vs/workbench/common/editor';
 import { compareItemsByScore, scoreItem, ScorerCache, prepareQuery } from 'vs/base/parts/quickopen/common/quickOpenScorer';
+import { CancellationToken } from 'vs/base/common/cancellation';
 
 export class EditorPickerEntry extends QuickOpenEntryGroup {
-	private stacks: IEditorStacksModel;
 
 	constructor(
 		private editor: EditorInput,
 		private _group: IEditorGroup,
-		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
 		@IModeService private modeService: IModeService,
-		@IModelService private modelService: IModelService,
-		@IEditorGroupService editorGroupService: IEditorGroupService
+		@IModelService private modelService: IModelService
 	) {
 		super();
-
-		this.stacks = editorGroupService.getStacksModel();
 	}
 
-	public getLabelOptions(): IIconLabelValueOptions {
+	getLabelOptions(): IIconLabelValueOptions {
 		return {
 			extraClasses: getIconClasses(this.modelService, this.modeService, this.getResource()),
-			italic: this._group.isPreview(this.editor)
+			italic: !this._group.isPinned(this.editor)
 		};
 	}
 
-	public getLabel(): string {
+	getLabel(): string {
 		return this.editor.getName();
 	}
 
-	public getIcon(): string {
+	getIcon(): string {
 		return this.editor.isDirty() ? 'dirty' : '';
 	}
 
-	public get group(): IEditorGroup {
+	get group(): IEditorGroup {
 		return this._group;
 	}
 
-	public getResource(): URI {
+	getResource(): URI {
 		return toResource(this.editor, { supportSideBySide: true });
 	}
 
-	public getAriaLabel(): string {
+	getAriaLabel(): string {
 		return nls.localize('entryAriaLabel', "{0}, editor group picker", this.getLabel());
 	}
 
-	public getDescription(): string {
+	getDescription(): string {
 		return this.editor.getDescription();
 	}
 
-	public run(mode: Mode, context: IEntryRunContext): boolean {
+	run(mode: Mode, context: IEntryRunContext): boolean {
 		if (mode === Mode.OPEN) {
 			return this.runOpen(context);
 		}
@@ -79,7 +72,7 @@ export class EditorPickerEntry extends QuickOpenEntryGroup {
 	}
 
 	private runOpen(context: IEntryRunContext): boolean {
-		this.editorService.openEditor(this.editor, null, this.stacks.positionOfGroup(this.group)).done(null, errors.onUnexpectedError);
+		this._group.openEditor(this.editor);
 
 		return true;
 	}
@@ -90,15 +83,15 @@ export abstract class BaseEditorPicker extends QuickOpenHandler {
 
 	constructor(
 		@IInstantiationService protected instantiationService: IInstantiationService,
-		@IWorkbenchEditorService protected editorService: IWorkbenchEditorService,
-		@IEditorGroupService protected editorGroupService: IEditorGroupService
+		@IEditorService protected editorService: IEditorService,
+		@IEditorGroupsService protected editorGroupService: IEditorGroupsService
 	) {
 		super();
 
 		this.scorerCache = Object.create(null);
 	}
 
-	public getResults(searchValue: string): TPromise<QuickOpenModel> {
+	getResults(searchValue: string, token: CancellationToken): TPromise<QuickOpenModel> {
 		const editorEntries = this.getEditorEntries();
 		if (!editorEntries.length) {
 			return TPromise.as(null);
@@ -123,11 +116,11 @@ export abstract class BaseEditorPicker extends QuickOpenHandler {
 		});
 
 		// Sorting
-		const stacks = this.editorGroupService.getStacksModel();
 		if (query.value) {
+			const groups = this.editorGroupService.getGroups(GroupsOrder.GRID_APPEARANCE);
 			entries.sort((e1, e2) => {
 				if (e1.group !== e2.group) {
-					return stacks.positionOfGroup(e1.group) - stacks.positionOfGroup(e2.group);
+					return groups.indexOf(e1.group) - groups.indexOf(e2.group); // older groups first
 				}
 
 				return compareItemsByScore(e1, e2, query, true, QuickOpenItemAccessor, this.scorerCache);
@@ -135,11 +128,11 @@ export abstract class BaseEditorPicker extends QuickOpenHandler {
 		}
 
 		// Grouping (for more than one group)
-		if (stacks.groups.length > 1) {
+		if (this.editorGroupService.count > 1) {
 			let lastGroup: IEditorGroup;
 			entries.forEach(e => {
 				if (!lastGroup || lastGroup !== e.group) {
-					e.setGroupLabel(nls.localize('groupLabel', "Group: {0}", e.group.label));
+					e.setGroupLabel(e.group.label);
 					e.setShowBorder(!!lastGroup);
 					lastGroup = e.group;
 				}
@@ -149,28 +142,26 @@ export abstract class BaseEditorPicker extends QuickOpenHandler {
 		return TPromise.as(new QuickOpenModel(entries));
 	}
 
-	public onClose(canceled: boolean): void {
+	onClose(canceled: boolean): void {
 		this.scorerCache = Object.create(null);
 	}
 
 	protected abstract getEditorEntries(): EditorPickerEntry[];
 }
 
-export abstract class EditorGroupPicker extends BaseEditorPicker {
+export class ActiveEditorGroupPicker extends BaseEditorPicker {
+
+	static readonly ID = 'workbench.picker.activeEditors';
 
 	protected getEditorEntries(): EditorPickerEntry[] {
-		const stacks = this.editorGroupService.getStacksModel();
-		const group = stacks.groupAt(this.getPosition());
-		if (!group) {
-			return [];
-		}
-
-		return group.getEditors(true).map((editor, index) => this.instantiationService.createInstance(EditorPickerEntry, editor, group));
+		return this.group.getEditors(EditorsOrder.MOST_RECENTLY_ACTIVE).map((editor, index) => this.instantiationService.createInstance(EditorPickerEntry, editor, this.group));
 	}
 
-	protected abstract getPosition(): Position;
+	private get group(): IEditorGroup {
+		return this.editorGroupService.activeGroup;
+	}
 
-	public getEmptyLabel(searchString: string): string {
+	getEmptyLabel(searchString: string): string {
 		if (searchString) {
 			return nls.localize('noResultsFoundInGroup', "No matching opened editor found in group");
 		}
@@ -178,17 +169,11 @@ export abstract class EditorGroupPicker extends BaseEditorPicker {
 		return nls.localize('noOpenedEditors', "List of opened editors is currently empty in group");
 	}
 
-	public getAutoFocus(searchValue: string, context: { model: IModel<QuickOpenEntry>, quickNavigateConfiguration?: IQuickNavigateConfiguration }): IAutoFocus {
+	getAutoFocus(searchValue: string, context: { model: IModel<QuickOpenEntry>, quickNavigateConfiguration?: IQuickNavigateConfiguration }): IAutoFocus {
 		if (searchValue || !context.quickNavigateConfiguration) {
 			return {
 				autoFocusFirstEntry: true
 			};
-		}
-
-		const stacks = this.editorGroupService.getStacksModel();
-		const group = stacks.groupAt(this.getPosition());
-		if (!group) {
-			return super.getAutoFocus(searchValue, context);
 		}
 
 		const isShiftNavigate = (context.quickNavigateConfiguration && context.quickNavigateConfiguration.keybindings.some(k => {
@@ -196,58 +181,33 @@ export abstract class EditorGroupPicker extends BaseEditorPicker {
 			if (chordPart) {
 				return false;
 			}
+
 			return firstPart.shiftKey;
 		}));
+
 		if (isShiftNavigate) {
 			return {
 				autoFocusLastEntry: true
 			};
 		}
 
+		const editors = this.group.count;
 		return {
-			autoFocusFirstEntry: group.count === 1,
-			autoFocusSecondEntry: group.count > 1
+			autoFocusFirstEntry: editors === 1,
+			autoFocusSecondEntry: editors > 1
 		};
-	}
-}
-
-export class GroupOnePicker extends EditorGroupPicker {
-
-	public static readonly ID = 'workbench.picker.editors.one';
-
-	protected getPosition(): Position {
-		return Position.ONE;
-	}
-}
-
-export class GroupTwoPicker extends EditorGroupPicker {
-
-	public static readonly ID = 'workbench.picker.editors.two';
-
-	protected getPosition(): Position {
-		return Position.TWO;
-	}
-}
-
-export class GroupThreePicker extends EditorGroupPicker {
-
-	public static readonly ID = 'workbench.picker.editors.three';
-
-	protected getPosition(): Position {
-		return Position.THREE;
 	}
 }
 
 export class AllEditorsPicker extends BaseEditorPicker {
 
-	public static readonly ID = 'workbench.picker.editors';
+	static readonly ID = 'workbench.picker.editors';
 
 	protected getEditorEntries(): EditorPickerEntry[] {
 		const entries: EditorPickerEntry[] = [];
 
-		const stacks = this.editorGroupService.getStacksModel();
-		stacks.groups.forEach((group, position) => {
-			group.getEditors().forEach((editor, index) => {
+		this.editorGroupService.getGroups(GroupsOrder.GRID_APPEARANCE).forEach(group => {
+			group.editors.forEach(editor => {
 				entries.push(this.instantiationService.createInstance(EditorPickerEntry, editor, group));
 			});
 		});
@@ -255,7 +215,7 @@ export class AllEditorsPicker extends BaseEditorPicker {
 		return entries;
 	}
 
-	public getEmptyLabel(searchString: string): string {
+	getEmptyLabel(searchString: string): string {
 		if (searchString) {
 			return nls.localize('noResultsFound', "No matching opened editor found");
 		}
@@ -263,7 +223,7 @@ export class AllEditorsPicker extends BaseEditorPicker {
 		return nls.localize('noOpenedEditorsAllGroups', "List of opened editors is currently empty");
 	}
 
-	public getAutoFocus(searchValue: string, context: { model: IModel<QuickOpenEntry>, quickNavigateConfiguration?: IQuickNavigateConfiguration }): IAutoFocus {
+	getAutoFocus(searchValue: string, context: { model: IModel<QuickOpenEntry>, quickNavigateConfiguration?: IQuickNavigateConfiguration }): IAutoFocus {
 		if (searchValue) {
 			return {
 				autoFocusFirstEntry: true

@@ -8,7 +8,6 @@ import { onUnexpectedError } from 'vs/base/common/errors';
 import { ConfigurationModelParser, ConfigurationModel } from 'vs/platform/configuration/common/configurationModels';
 import { ConfigWatcher } from 'vs/base/node/config';
 import { Event, Emitter } from 'vs/base/common/event';
-import { TPromise } from 'vs/base/common/winjs.base';
 
 export class UserConfiguration extends Disposable {
 
@@ -37,8 +36,8 @@ export class UserConfiguration extends Disposable {
 		return this.userConfigModelWatcher.getConfig().configurationModel;
 	}
 
-	reload(): TPromise<void> {
-		return new TPromise(c => this.userConfigModelWatcher.reload(() => c(null)));
+	reload(): Promise<void> {
+		return new Promise(c => this.userConfigModelWatcher.reload(() => c(null)));
 	}
 
 }

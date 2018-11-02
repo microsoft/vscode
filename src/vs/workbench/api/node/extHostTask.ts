@@ -2,13 +2,11 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
-import URI, { UriComponents } from 'vs/base/common/uri';
+import { URI, UriComponents } from 'vs/base/common/uri';
 import * as nls from 'vs/nls';
-import { TPromise } from 'vs/base/common/winjs.base';
 import * as Objects from 'vs/base/common/objects';
-import { asWinJsPromise } from 'vs/base/common/async';
+import { asThenable } from 'vs/base/common/async';
 import { Event, Emitter } from 'vs/base/common/event';
 
 import { IExtensionDescription } from 'vs/workbench/services/extensions/common/extensions';
@@ -23,8 +21,11 @@ import {
 	TaskDefinitionDTO, TaskExecutionDTO, TaskPresentationOptionsDTO, ProcessExecutionOptionsDTO, ProcessExecutionDTO,
 	ShellExecutionOptionsDTO, ShellExecutionDTO, TaskDTO, TaskHandleDTO, TaskFilterDTO, TaskProcessStartedDTO, TaskProcessEndedDTO, TaskSystemInfoDTO
 } from '../shared/tasks';
-
-export { TaskExecutionDTO };
+import { ExtHostVariableResolverService } from 'vs/workbench/api/node/extHostDebugService';
+import { ExtHostDocumentsAndEditors } from 'vs/workbench/api/node/extHostDocumentsAndEditors';
+import { ExtHostConfiguration } from 'vs/workbench/api/node/extHostConfiguration';
+import { IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
+import { CancellationToken } from 'vs/base/common/cancellation';
 
 /*
 namespace ProblemPattern {
@@ -230,13 +231,15 @@ namespace TaskPanelKind {
 namespace PresentationOptions {
 	export function from(value: vscode.TaskPresentationOptions): tasks.PresentationOptions {
 		if (value === void 0 || value === null) {
-			return { reveal: tasks.RevealKind.Always, echo: true, focus: false, panel: tasks.PanelKind.Shared };
+			return { reveal: tasks.RevealKind.Always, echo: true, focus: false, panel: tasks.PanelKind.Shared, showReuseMessage: true, clear: false };
 		}
 		return {
 			reveal: TaskRevealKind.from(value.reveal),
 			echo: value.echo === void 0 ? true : !!value.echo,
 			focus: !!value.focus,
-			panel: TaskPanelKind.from(value.panel)
+			panel: TaskPanelKind.from(value.panel),
+			showReuseMessage: value.showReuseMessage === void 0 ? true : !!value.showReuseMessage,
+			clear: value.clear === void 0 ? false : !!value.clear,
 		};
 	}
 }
@@ -381,21 +384,16 @@ namespace Tasks {
 		// in shape and we don't have backwards converting function. So transfer the URI and resolve the
 		// workspace folder on the main side.
 		(source as any as tasks.ExtensionTaskSourceTransfer).__workspaceFolder = workspaceFolder ? workspaceFolder.uri as URI : undefined;
+		(source as any as tasks.ExtensionTaskSourceTransfer).__definition = task.definition;
 		let label = nls.localize('task.label', '{0}: {1}', source.label, task.name);
-		let key = (task as types.Task).definitionKey;
-		let kind = (task as types.Task).definition;
-		let id = `${extension.id}.${key}`;
-		let taskKind: tasks.TaskIdentifier = {
-			_key: key,
-			type: kind.type
-		};
-		Objects.assign(taskKind, kind);
+		// The definition id will be prefix on the main side since we compute it there.
+		let id = `${extension.id}`;
 		let result: tasks.ContributedTask = {
-			_id: id, // uuidMap.getUUID(identifier),
+			_id: id,
 			_source: source,
 			_label: label,
-			type: kind.type,
-			defines: taskKind,
+			type: task.definition.type,
+			defines: undefined,
 			name: task.name,
 			identifier: label,
 			group: task.group ? (task.group as types.TaskGroup).id : undefined,
@@ -729,6 +727,8 @@ export class ExtHostTask implements ExtHostTaskShape {
 
 	private _proxy: MainThreadTaskShape;
 	private _workspaceService: ExtHostWorkspace;
+	private _editorService: ExtHostDocumentsAndEditors;
+	private _configurationService: ExtHostConfiguration;
 	private _handleCounter: number;
 	private _handlers: Map<number, HandlerData>;
 	private _taskExecutions: Map<string, TaskExecutionImpl>;
@@ -739,9 +739,11 @@ export class ExtHostTask implements ExtHostTaskShape {
 	private readonly _onDidTaskProcessStarted: Emitter<vscode.TaskProcessStartEvent> = new Emitter<vscode.TaskProcessStartEvent>();
 	private readonly _onDidTaskProcessEnded: Emitter<vscode.TaskProcessEndEvent> = new Emitter<vscode.TaskProcessEndEvent>();
 
-	constructor(mainContext: IMainContext, workspaceService: ExtHostWorkspace) {
+	constructor(mainContext: IMainContext, workspaceService: ExtHostWorkspace, editorService: ExtHostDocumentsAndEditors, configurationService: ExtHostConfiguration) {
 		this._proxy = mainContext.getProxy(MainContext.MainThreadTask);
 		this._workspaceService = workspaceService;
+		this._editorService = editorService;
+		this._configurationService = configurationService;
 		this._handleCounter = 0;
 		this._handlers = new Map<number, HandlerData>();
 		this._taskExecutions = new Map<string, TaskExecutionImpl>();
@@ -801,7 +803,7 @@ export class ExtHostTask implements ExtHostTaskShape {
 		return result;
 	}
 
-	public terminateTask(execution: vscode.TaskExecution): TPromise<void> {
+	public terminateTask(execution: vscode.TaskExecution): Thenable<void> {
 		if (!(execution instanceof TaskExecutionImpl)) {
 			throw new Error('No valid task execution provided');
 		}
@@ -858,18 +860,46 @@ export class ExtHostTask implements ExtHostTaskShape {
 		}
 	}
 
-	public $provideTasks(handle: number): TPromise<tasks.TaskSet> {
+	public $provideTasks(handle: number, validTypes: { [key: string]: boolean; }): Thenable<tasks.TaskSet> {
 		let handler = this._handlers.get(handle);
 		if (!handler) {
-			return TPromise.wrapError<tasks.TaskSet>(new Error('no handler found'));
+			return Promise.reject(new Error('no handler found'));
 		}
-		return asWinJsPromise(token => handler.provider.provideTasks(token)).then(value => {
+		return asThenable(() => handler.provider.provideTasks(CancellationToken.None)).then(value => {
+			let sanitized: vscode.Task[] = [];
+			for (let task of value) {
+				if (task.definition && validTypes[task.definition.type] === true) {
+					sanitized.push(task);
+				} else {
+					sanitized.push(task);
+					console.warn(`The task [${task.source}, ${task.name}] uses an undefined task type. The task will be ignored in the future.`);
+				}
+			}
 			let workspaceFolders = this._workspaceService.getWorkspaceFolders();
 			return {
-				tasks: Tasks.from(value, workspaceFolders && workspaceFolders.length > 0 ? workspaceFolders[0] : undefined, handler.extension),
+				tasks: Tasks.from(sanitized, workspaceFolders && workspaceFolders.length > 0 ? workspaceFolders[0] : undefined, handler.extension),
 				extension: handler.extension
 			};
 		});
+	}
+
+	public $resolveVariables(uriComponents: UriComponents, variables: string[]): any {
+		let uri: URI = URI.revive(uriComponents);
+		let result: { [key: string]: string; } = Object.create(null);
+		let workspaceFolder = this._workspaceService.resolveWorkspaceFolder(uri);
+		let resolver = new ExtHostVariableResolverService(this._workspaceService, this._editorService, this._configurationService);
+		let ws: IWorkspaceFolder = {
+			uri: workspaceFolder.uri,
+			name: workspaceFolder.name,
+			index: workspaceFolder.index,
+			toResource: () => {
+				throw new Error('Not implemented');
+			}
+		};
+		for (let variable of variables) {
+			result[variable] = resolver.resolve(ws, variable);
+		}
+		return result;
 	}
 
 	private nextHandle(): number {

@@ -2,22 +2,21 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
 import * as nls from 'vs/nls';
+import * as browser from 'vs/base/browser/browser';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { matchesFuzzy } from 'vs/base/common/filters';
-import { TPromise } from 'vs/base/common/winjs.base';
+import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { IContext, IHighlight, QuickOpenEntryGroup, QuickOpenModel } from 'vs/base/parts/quickopen/browser/quickOpenModel';
 import { IAutoFocus, Mode } from 'vs/base/parts/quickopen/common/quickOpen';
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { IEditorAction, IEditor } from 'vs/editor/common/editorCommon';
-import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
-import { BaseEditorQuickOpenAction } from './editorQuickOpen';
-import { registerEditorAction, ServicesAccessor } from 'vs/editor/browser/editorExtensions';
-import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
-import * as browser from 'vs/base/browser/browser';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
+import { ServicesAccessor, registerEditorAction } from 'vs/editor/browser/editorExtensions';
+import { IEditor, IEditorAction } from 'vs/editor/common/editorCommon';
+import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
+import { BaseEditorQuickOpenAction } from 'vs/editor/standalone/browser/quickOpen/editorQuickOpen';
+import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
+import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 
 export class EditorActionCommandEntry extends QuickOpenEntryGroup {
 	private key: string;
@@ -49,18 +48,18 @@ export class EditorActionCommandEntry extends QuickOpenEntryGroup {
 		if (mode === Mode.OPEN) {
 
 			// Use a timeout to give the quick open widget a chance to close itself first
-			TPromise.timeout(50).done(() => {
+			setTimeout(() => {
 
 				// Some actions are enabled only when editor has focus
 				this.editor.focus();
 
 				try {
-					let promise = this.action.run() || TPromise.as(null);
-					promise.done(null, onUnexpectedError);
+					let promise = this.action.run() || Promise.resolve();
+					promise.then(null, onUnexpectedError);
 				} catch (error) {
 					onUnexpectedError(error);
 				}
-			}, onUnexpectedError);
+			}, 50);
 
 			return true;
 		}
@@ -79,9 +78,12 @@ export class QuickCommandAction extends BaseEditorQuickOpenAction {
 			precondition: null,
 			kbOpts: {
 				kbExpr: EditorContextKeys.focus,
-				primary: (browser.isIE ? KeyMod.Alt | KeyCode.F1 : KeyCode.F1)
+				primary: (browser.isIE ? KeyMod.Alt | KeyCode.F1 : KeyCode.F1),
+				weight: KeybindingWeight.EditorContrib
 			},
 			menuOpts: {
+				group: 'z_commands',
+				order: 1
 			}
 		});
 	}

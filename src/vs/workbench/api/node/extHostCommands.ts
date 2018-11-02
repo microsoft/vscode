@@ -2,7 +2,6 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
 import { validateConstraint } from 'vs/base/common/types';
 import { ICommandHandlerDescription } from 'vs/platform/commands/common/commands';
@@ -131,6 +130,8 @@ export class ExtHostCommands implements ExtHostCommandsShape {
 	}
 
 	$executeContributedCommand<T>(id: string, ...args: any[]): Thenable<T> {
+		this._logService.trace('ExtHostCommands#$executeContributedCommand', id);
+
 		if (!this._commands.has(id)) {
 			return Promise.reject(new Error(`Contributed command '${id}' does not exist.`));
 		} else {

@@ -2,13 +2,12 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
-import { IViewLineTokens } from 'vs/editor/common/core/lineTokens';
 import { CharCode } from 'vs/base/common/charCode';
-import { LineDecoration, LineDecorationsNormalizer } from 'vs/editor/common/viewLayout/lineDecorations';
 import * as strings from 'vs/base/common/strings';
+import { IViewLineTokens } from 'vs/editor/common/core/lineTokens';
 import { IStringBuilder, createStringBuilder } from 'vs/editor/common/core/stringBuilder';
+import { LineDecoration, LineDecorationsNormalizer } from 'vs/editor/common/viewLayout/lineDecorations';
 import { InlineDecorationType } from 'vs/editor/common/viewModel/viewModel';
 
 export const enum RenderWhitespace {
@@ -35,6 +34,7 @@ class LinePart {
 export class RenderLineInput {
 
 	public readonly useMonospaceOptimizations: boolean;
+	public readonly canUseHalfwidthRightwardsArrow: boolean;
 	public readonly lineContent: string;
 	public readonly continuesWithWrappedLine: boolean;
 	public readonly isBasicASCII: boolean;
@@ -51,6 +51,7 @@ export class RenderLineInput {
 
 	constructor(
 		useMonospaceOptimizations: boolean,
+		canUseHalfwidthRightwardsArrow: boolean,
 		lineContent: string,
 		continuesWithWrappedLine: boolean,
 		isBasicASCII: boolean,
@@ -66,6 +67,7 @@ export class RenderLineInput {
 		fontLigatures: boolean
 	) {
 		this.useMonospaceOptimizations = useMonospaceOptimizations;
+		this.canUseHalfwidthRightwardsArrow = canUseHalfwidthRightwardsArrow;
 		this.lineContent = lineContent;
 		this.continuesWithWrappedLine = continuesWithWrappedLine;
 		this.isBasicASCII = isBasicASCII;
@@ -90,6 +92,7 @@ export class RenderLineInput {
 	public equals(other: RenderLineInput): boolean {
 		return (
 			this.useMonospaceOptimizations === other.useMonospaceOptimizations
+			&& this.canUseHalfwidthRightwardsArrow === other.canUseHalfwidthRightwardsArrow
 			&& this.lineContent === other.lineContent
 			&& this.continuesWithWrappedLine === other.continuesWithWrappedLine
 			&& this.isBasicASCII === other.isBasicASCII
@@ -303,6 +306,7 @@ export function renderViewLine2(input: RenderLineInput): RenderLineOutput2 {
 class ResolvedRenderLineInput {
 	constructor(
 		public readonly fontIsMonospace: boolean,
+		public readonly canUseHalfwidthRightwardsArrow: boolean,
 		public readonly lineContent: string,
 		public readonly len: number,
 		public readonly isOverflowing: boolean,
@@ -352,12 +356,14 @@ function resolveRenderLineInput(input: RenderLineInput): ResolvedRenderLineInput
 		}
 		tokens = _applyInlineDecorations(lineContent, len, tokens, input.lineDecorations);
 	}
-	if (input.isBasicASCII && !input.fontLigatures) {
-		tokens = splitLargeTokens(lineContent, tokens);
+	if (!input.containsRTL) {
+		// We can never split RTL text, as it ruins the rendering
+		tokens = splitLargeTokens(lineContent, tokens, !input.isBasicASCII || input.fontLigatures);
 	}
 
 	return new ResolvedRenderLineInput(
 		useMonospaceOptimizations,
+		input.canUseHalfwidthRightwardsArrow,
 		lineContent,
 		len,
 		isOverflowing,
@@ -412,25 +418,59 @@ const enum Constants {
  * It appears that having very large spans causes very slow reading of character positions.
  * So here we try to avoid that.
  */
-function splitLargeTokens(lineContent: string, tokens: LinePart[]): LinePart[] {
+function splitLargeTokens(lineContent: string, tokens: LinePart[], onlyAtSpaces: boolean): LinePart[] {
 	let lastTokenEndIndex = 0;
 	let result: LinePart[] = [], resultLen = 0;
-	for (let i = 0, len = tokens.length; i < len; i++) {
-		const token = tokens[i];
-		const tokenEndIndex = token.endIndex;
-		let diff = (tokenEndIndex - lastTokenEndIndex);
-		if (diff > Constants.LongToken) {
-			const tokenType = token.type;
-			const piecesCount = Math.ceil(diff / Constants.LongToken);
-			for (let j = 1; j < piecesCount; j++) {
-				let pieceEndIndex = lastTokenEndIndex + (j * Constants.LongToken);
-				result[resultLen++] = new LinePart(pieceEndIndex, tokenType);
+
+	if (onlyAtSpaces) {
+		// Split only at spaces => we need to walk each character
+		for (let i = 0, len = tokens.length; i < len; i++) {
+			const token = tokens[i];
+			const tokenEndIndex = token.endIndex;
+			if (lastTokenEndIndex + Constants.LongToken < tokenEndIndex) {
+				const tokenType = token.type;
+
+				let lastSpaceOffset = -1;
+				let currTokenStart = lastTokenEndIndex;
+				for (let j = lastTokenEndIndex; j < tokenEndIndex; j++) {
+					if (lineContent.charCodeAt(j) === CharCode.Space) {
+						lastSpaceOffset = j;
+					}
+					if (lastSpaceOffset !== -1 && j - currTokenStart >= Constants.LongToken) {
+						// Split at `lastSpaceOffset` + 1
+						result[resultLen++] = new LinePart(lastSpaceOffset + 1, tokenType);
+						currTokenStart = lastSpaceOffset + 1;
+						lastSpaceOffset = -1;
+					}
+				}
+				if (currTokenStart !== tokenEndIndex) {
+					result[resultLen++] = new LinePart(tokenEndIndex, tokenType);
+				}
+			} else {
+				result[resultLen++] = token;
 			}
-			result[resultLen++] = new LinePart(tokenEndIndex, tokenType);
-		} else {
-			result[resultLen++] = token;
+
+			lastTokenEndIndex = tokenEndIndex;
 		}
-		lastTokenEndIndex = tokenEndIndex;
+	} else {
+		// Split anywhere => we don't need to walk each character
+		for (let i = 0, len = tokens.length; i < len; i++) {
+			const token = tokens[i];
+			const tokenEndIndex = token.endIndex;
+			let diff = (tokenEndIndex - lastTokenEndIndex);
+			if (diff > Constants.LongToken) {
+				const tokenType = token.type;
+				const piecesCount = Math.ceil(diff / Constants.LongToken);
+				for (let j = 1; j < piecesCount; j++) {
+					let pieceEndIndex = lastTokenEndIndex + (j * Constants.LongToken);
+					result[resultLen++] = new LinePart(pieceEndIndex, tokenType);
+				}
+				result[resultLen++] = new LinePart(tokenEndIndex, tokenType);
+			} else {
+				result[resultLen++] = token;
+			}
+			lastTokenEndIndex = tokenEndIndex;
+		}
 	}
 
 	return result;
@@ -447,6 +487,7 @@ function _applyRenderWhitespace(lineContent: string, len: number, continuesWithW
 	let tokenIndex = 0;
 	let tokenType = tokens[tokenIndex].type;
 	let tokenEndIndex = tokens[tokenIndex].endIndex;
+	const tokensLength = tokens.length;
 
 	let firstNonWhitespaceIndex = strings.firstNonWhitespaceIndex(lineContent);
 	let lastNonWhitespaceIndex: number;
@@ -526,8 +567,10 @@ function _applyRenderWhitespace(lineContent: string, len: number, continuesWithW
 
 		if (charIndex === tokenEndIndex) {
 			tokenIndex++;
-			tokenType = tokens[tokenIndex].type;
-			tokenEndIndex = tokens[tokenIndex].endIndex;
+			if (tokenIndex < tokensLength) {
+				tokenType = tokens[tokenIndex].type;
+				tokenEndIndex = tokens[tokenIndex].endIndex;
+			}
 		}
 	}
 
@@ -613,6 +656,7 @@ function _applyInlineDecorations(lineContent: string, len: number, tokens: LineP
  */
 function _renderLine(input: ResolvedRenderLineInput, sb: IStringBuilder): RenderLineOutput {
 	const fontIsMonospace = input.fontIsMonospace;
+	const canUseHalfwidthRightwardsArrow = input.canUseHalfwidthRightwardsArrow;
 	const containsForeignElements = input.containsForeignElements;
 	const lineContent = input.lineContent;
 	const len = input.len;
@@ -688,7 +732,7 @@ function _renderLine(input: ResolvedRenderLineInput, sb: IStringBuilder): Render
 					tabsCharDelta += insertSpacesCount - 1;
 					charOffsetInPart += insertSpacesCount - 1;
 					if (insertSpacesCount > 0) {
-						if (insertSpacesCount > 1) {
+						if (!canUseHalfwidthRightwardsArrow || insertSpacesCount > 1) {
 							sb.write1(0x2192); // RIGHTWARDS ARROW
 						} else {
 							sb.write1(0xffeb); // HALFWIDTH RIGHTWARDS ARROW

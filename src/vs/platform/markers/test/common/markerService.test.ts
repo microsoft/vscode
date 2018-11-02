@@ -2,11 +2,9 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
-
 
 import * as assert from 'assert';
-import URI from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 import * as markerService from 'vs/platform/markers/common/markerService';
 import { IMarkerData, MarkerSeverity } from 'vs/platform/markers/common/markers';
 
@@ -58,16 +56,16 @@ suite('Marker Service', () => {
 	test('changeOne override', () => {
 
 		let service = new markerService.MarkerService();
-		service.changeOne('far', URI.parse('/path/only.cs'), [randomMarkerData()]);
+		service.changeOne('far', URI.parse('file:///path/only.cs'), [randomMarkerData()]);
 		assert.equal(service.read().length, 1);
 		assert.equal(service.read({ owner: 'far' }).length, 1);
 
-		service.changeOne('boo', URI.parse('/path/only.cs'), [randomMarkerData()]);
+		service.changeOne('boo', URI.parse('file:///path/only.cs'), [randomMarkerData()]);
 		assert.equal(service.read().length, 2);
 		assert.equal(service.read({ owner: 'far' }).length, 1);
 		assert.equal(service.read({ owner: 'boo' }).length, 1);
 
-		service.changeOne('far', URI.parse('/path/only.cs'), [randomMarkerData(), randomMarkerData()]);
+		service.changeOne('far', URI.parse('file:///path/only.cs'), [randomMarkerData(), randomMarkerData()]);
 		assert.equal(service.read({ owner: 'far' }).length, 2);
 		assert.equal(service.read({ owner: 'boo' }).length, 1);
 
@@ -76,13 +74,13 @@ suite('Marker Service', () => {
 	test('changeOne/All clears', () => {
 
 		let service = new markerService.MarkerService();
-		service.changeOne('far', URI.parse('/path/only.cs'), [randomMarkerData()]);
-		service.changeOne('boo', URI.parse('/path/only.cs'), [randomMarkerData()]);
+		service.changeOne('far', URI.parse('file:///path/only.cs'), [randomMarkerData()]);
+		service.changeOne('boo', URI.parse('file:///path/only.cs'), [randomMarkerData()]);
 		assert.equal(service.read({ owner: 'far' }).length, 1);
 		assert.equal(service.read({ owner: 'boo' }).length, 1);
 		assert.equal(service.read().length, 2);
 
-		service.changeOne('far', URI.parse('/path/only.cs'), []);
+		service.changeOne('far', URI.parse('file:///path/only.cs'), []);
 		assert.equal(service.read({ owner: 'far' }).length, 0);
 		assert.equal(service.read({ owner: 'boo' }).length, 1);
 		assert.equal(service.read().length, 1);

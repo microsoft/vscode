@@ -72,6 +72,34 @@ declare module 'vscode-xterm' {
 		enableBold?: boolean;
 
 		/**
+		 * What character atlas implementation to use. The character atlas caches drawn characters,
+		 * speeding up rendering significantly. However, it can introduce some minor rendering
+		 * artifacts.
+		 *
+		 * - 'none': Don't use an atlas.
+		 * - 'static': Generate an atlas when the terminal starts or is reconfigured. This atlas will
+		 *   only contain ASCII characters in 16 colors.
+		 * - 'dynamic': Generate an atlas using a LRU cache as characters are requested. Limited to
+		 *   ASCII characters (for now), but supports 256 colors. For characters covered by the static
+		 *   cache, it's slightly slower in comparison, since there's more overhead involved in
+		 *   managing the cache.
+		 *
+		 * Currently defaults to 'static'. This option may be removed in the future. If it is, passed
+		 * parameters will be ignored.
+		 */
+		experimentalCharAtlas?: 'none' | 'static' | 'dynamic';
+
+		/**
+		 * (EXPERIMENTAL) Defines which implementation to use for buffer lines.
+		 *
+		 * - 'JsArray': The default/stable implementation.
+		 * - 'TypedArray': The new experimental implementation based on TypedArrays that is expected to
+		 *   significantly boost performance and memory consumption. Use at your own risk.
+		 *
+		 * This option will be removed in the future.
+		 */
+		experimentalBufferLineImpl?: 'JsArray' | 'TypedArray';
+		/**
 		 * The font size used to render text.
 		 */
 		fontSize?: number;
@@ -105,6 +133,15 @@ declare module 'vscode-xterm' {
 		 * Whether to treat option as the meta key.
 		 */
 		macOptionIsMeta?: boolean;
+
+		/**
+		 * Whether holding a modifier key will force normal selection behavior,
+		 * regardless of whether the terminal is in mouse events mode. This will
+		 * also prevent mouse events from being emitted by the terminal. For example,
+		 * this allows you to use xterm.js' regular selection inside tmux with
+		 * mouse mode enabled.
+		 */
+		macOptionClickForcesSelection?: boolean;
 
 		/**
 		 * (EXPERIMENTAL) The type of renderer to use, this allows using the
@@ -344,37 +381,37 @@ declare module 'vscode-xterm' {
 		 * @param type The type of the event.
 		 * @param listener The listener.
 		 */
-		on(type: 'key', listener: (key?: string, event?: KeyboardEvent) => void): void;
+		on(type: 'key', listener: (key: string, event: KeyboardEvent) => void): void;
 		/**
 		 * Registers an event listener.
 		 * @param type The type of the event.
 		 * @param listener The listener.
 		 */
-		on(type: 'keypress' | 'keydown', listener: (event?: KeyboardEvent) => void): void;
+		on(type: 'keypress' | 'keydown', listener: (event: KeyboardEvent) => void): void;
 		/**
 		 * Registers an event listener.
 		 * @param type The type of the event.
 		 * @param listener The listener.
 		 */
-		on(type: 'refresh', listener: (data?: { start: number, end: number }) => void): void;
+		on(type: 'refresh', listener: (data: {start: number, end: number}) => void): void;
 		/**
 		 * Registers an event listener.
 		 * @param type The type of the event.
 		 * @param listener The listener.
 		 */
-		on(type: 'resize', listener: (data?: { cols: number, rows: number }) => void): void;
+		on(type: 'resize', listener: (data: {cols: number, rows: number}) => void): void;
 		/**
 		 * Registers an event listener.
 		 * @param type The type of the event.
 		 * @param listener The listener.
 		 */
-		on(type: 'scroll', listener: (ydisp?: number) => void): void;
+		on(type: 'scroll', listener: (ydisp: number) => void): void;
 		/**
 		 * Registers an event listener.
 		 * @param type The type of the event.
 		 * @param listener The listener.
 		 */
-		on(type: 'title', listener: (title?: string) => void): void;
+		on(type: 'title', listener: (title: string) => void): void;
 		/**
 		 * Registers an event listener.
 		 * @param type The type of the event.
@@ -652,37 +689,71 @@ declare module 'vscode-xterm' {
 
 // Modifications to official .d.ts below
 declare module 'vscode-xterm' {
-	interface Terminal {
+	interface TerminalCore {
+		debug: boolean;
+
 		buffer: {
 			y: number;
 			ybase: number;
 			ydisp: number;
 			x: number;
+			lines: any[];
+
+			translateBufferLineToString(lineIndex: number, trimRight: boolean): string;
 		};
+
+		handler(text: string): void;
 
 		/**
 		 * Emit an event on the terminal.
 		 */
 		emit(type: string, data: any): void;
 
+		charMeasure?: { height: number, width: number };
+
+		renderer: {
+			_renderLayers: any[];
+			onIntersectionChange: any;
+		};
+	}
+
+	interface ISearchOptions  {
+		/**
+		 * Whether the find should be done as a regex.
+		 */
+		regex?: boolean;
+		/**
+		 * Whether only whole words should match.
+		 */
+		wholeWord?: boolean;
+		/**
+		 * Whether find should pay attention to case.
+		 */
+		caseSensitive?: boolean;
+	}
+
+	interface Terminal {
+		_core: TerminalCore;
+
+		webLinksInit(handler?: (event: MouseEvent, uri: string) => void, options?: ILinkMatcherOptions): void;
+		winptyCompatInit(): void;
+
 		/**
 		 * Find the next instance of the term, then scroll to and select it. If it
 		 * doesn't exist, do nothing.
-		 * @param term Tne search term.
+		 * @param term The search term.
+		 * @param findOptions Regex, whole word, and case sensitive options.
 		 * @return Whether a result was found.
 		 */
-		findNext(term: string): boolean;
+		findNext(term: string, findOptions: ISearchOptions): boolean;
 
 		/**
 		 * Find the previous instance of the term, then scroll to and select it. If it
 		 * doesn't exist, do nothing.
-		 * @param term Tne search term.
+		 * @param term The search term.
+		 * @param findOptions Regex, whole word, and case sensitive options.
 		 * @return Whether a result was found.
 		 */
-		findPrevious(term: string): boolean;
-
-		webLinksInit(handler?: (event: MouseEvent, uri: string) => void, options?: ILinkMatcherOptions): void;
-		winptyCompatInit(): void;
-		charMeasure?: { height: number, width: number };
+		findPrevious(term: string, findOptions: ISearchOptions): boolean;
 	}
 }

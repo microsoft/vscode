@@ -2,23 +2,21 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
 import 'vs/css!./media/scrollbars';
-
-import * as DomUtils from 'vs/base/browser/dom';
-import * as Platform from 'vs/base/common/platform';
-import { StandardMouseWheelEvent, IMouseEvent } from 'vs/base/browser/mouseEvent';
+import * as dom from 'vs/base/browser/dom';
+import { FastDomNode, createFastDomNode } from 'vs/base/browser/fastDomNode';
+import { IMouseEvent, StandardMouseWheelEvent } from 'vs/base/browser/mouseEvent';
+import { ScrollbarHost } from 'vs/base/browser/ui/scrollbar/abstractScrollbar';
 import { HorizontalScrollbar } from 'vs/base/browser/ui/scrollbar/horizontalScrollbar';
+import { ScrollableElementChangeOptions, ScrollableElementCreationOptions, ScrollableElementResolvedOptions } from 'vs/base/browser/ui/scrollbar/scrollableElementOptions';
 import { VerticalScrollbar } from 'vs/base/browser/ui/scrollbar/verticalScrollbar';
-import { ScrollableElementCreationOptions, ScrollableElementChangeOptions, ScrollableElementResolvedOptions } from 'vs/base/browser/ui/scrollbar/scrollableElementOptions';
-import { IDisposable, dispose } from 'vs/base/common/lifecycle';
-import { Scrollable, ScrollEvent, ScrollbarVisibility, INewScrollDimensions, IScrollDimensions, INewScrollPosition, IScrollPosition } from 'vs/base/common/scrollable';
 import { Widget } from 'vs/base/browser/ui/widget';
 import { TimeoutTimer } from 'vs/base/common/async';
-import { FastDomNode, createFastDomNode } from 'vs/base/browser/fastDomNode';
-import { ScrollbarHost } from 'vs/base/browser/ui/scrollbar/abstractScrollbar';
-import { Event, Emitter } from 'vs/base/common/event';
+import { Emitter, Event } from 'vs/base/common/event';
+import { IDisposable, dispose } from 'vs/base/common/lifecycle';
+import * as platform from 'vs/base/common/platform';
+import { INewScrollDimensions, INewScrollPosition, IScrollDimensions, IScrollPosition, ScrollEvent, Scrollable, ScrollbarVisibility } from 'vs/base/common/scrollable';
 
 const HIDE_TIMEOUT = 500;
 const SCROLL_WHEEL_SENSITIVITY = 50;
@@ -163,10 +161,12 @@ export abstract class AbstractScrollableElement extends Widget {
 	private readonly _hideTimeout: TimeoutTimer;
 	private _shouldRender: boolean;
 
+	private _revealOnScroll: boolean;
+
 	private readonly _onScroll = this._register(new Emitter<ScrollEvent>());
 	public readonly onScroll: Event<ScrollEvent> = this._onScroll.event;
 
-	protected constructor(element: HTMLElement, options: ScrollableElementCreationOptions, scrollable?: Scrollable) {
+	protected constructor(element: HTMLElement, options: ScrollableElementCreationOptions, scrollable: Scrollable) {
 		super();
 		element.style.overflow = 'hidden';
 		this._options = resolveOptions(options);
@@ -221,6 +221,8 @@ export abstract class AbstractScrollableElement extends Widget {
 		this._mouseIsOver = false;
 
 		this._shouldRender = true;
+
+		this._revealOnScroll = true;
 	}
 
 	public dispose(): void {
@@ -264,7 +266,7 @@ export abstract class AbstractScrollableElement extends Widget {
 	public updateClassName(newClassName: string): void {
 		this._options.className = newClassName;
 		// Defaults are different on Macs
-		if (Platform.isMacintosh) {
+		if (platform.isMacintosh) {
 			this._options.className += ' mac';
 		}
 		this._domNode.className = 'monaco-scrollable-element ' + this._options.className;
@@ -284,6 +286,10 @@ export abstract class AbstractScrollableElement extends Widget {
 		if (!this._options.lazyRender) {
 			this._render();
 		}
+	}
+
+	public setRevealOnScroll(value: boolean) {
+		this._revealOnScroll = value;
 	}
 
 	// -------------------- mouse wheel scrolling --------------------
@@ -306,8 +312,8 @@ export abstract class AbstractScrollableElement extends Widget {
 				this._onMouseWheel(e);
 			};
 
-			this._mouseWheelToDispose.push(DomUtils.addDisposableListener(this._listenOnDomNode, 'mousewheel', onMouseWheel));
-			this._mouseWheelToDispose.push(DomUtils.addDisposableListener(this._listenOnDomNode, 'DOMMouseScroll', onMouseWheel));
+			this._mouseWheelToDispose.push(dom.addDisposableListener(this._listenOnDomNode, 'mousewheel', onMouseWheel));
+			this._mouseWheelToDispose.push(dom.addDisposableListener(this._listenOnDomNode, 'DOMMouseScroll', onMouseWheel));
 		}
 	}
 
@@ -330,7 +336,7 @@ export abstract class AbstractScrollableElement extends Widget {
 
 			// Convert vertical scrolling to horizontal if shift is held, this
 			// is handled at a higher level on Mac
-			const shiftConvert = !Platform.isMacintosh && e.browserEvent && e.browserEvent.shiftKey;
+			const shiftConvert = !platform.isMacintosh && e.browserEvent && e.browserEvent.shiftKey;
 			if ((this._options.scrollYToX || shiftConvert) && !deltaX) {
 				deltaX = deltaY;
 				deltaY = 0;
@@ -382,7 +388,9 @@ export abstract class AbstractScrollableElement extends Widget {
 			this._shouldRender = true;
 		}
 
-		this._reveal();
+		if (this._revealOnScroll) {
+			this._reveal();
+		}
 
 		if (!this._options.lazyRender) {
 			this._render();
@@ -469,7 +477,7 @@ export class ScrollableElement extends AbstractScrollableElement {
 	constructor(element: HTMLElement, options: ScrollableElementCreationOptions) {
 		options = options || {};
 		options.mouseWheelSmoothScroll = false;
-		const scrollable = new Scrollable(0, (callback) => DomUtils.scheduleAtNextAnimationFrame(callback));
+		const scrollable = new Scrollable(0, (callback) => dom.scheduleAtNextAnimationFrame(callback));
 		super(element, options, scrollable);
 		this._register(scrollable);
 	}
@@ -554,7 +562,7 @@ function resolveOptions(opts: ScrollableElementCreationOptions): ScrollableEleme
 	result.verticalSliderSize = (typeof opts.verticalSliderSize !== 'undefined' ? opts.verticalSliderSize : result.verticalScrollbarSize);
 
 	// Defaults are different on Macs
-	if (Platform.isMacintosh) {
+	if (platform.isMacintosh) {
 		result.className += ' mac';
 	}
 

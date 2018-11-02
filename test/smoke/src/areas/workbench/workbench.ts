@@ -11,7 +11,7 @@ import { Extensions } from '../extensions/extensions';
 import { Search } from '../search/search';
 import { Editor } from '../editor/editor';
 import { SCM } from '../git/scm';
-import { Debug } from '../debug/debug';
+import { Debug } from '../debug/debugSmoke';
 import { StatusBar } from '../statusbar/statusbar';
 import { Problems } from '../problems/problems';
 import { SettingsEditor } from '../preferences/settings';
@@ -57,7 +57,6 @@ export class Workbench {
 		this.problems = new Problems(code);
 		this.settingsEditor = new SettingsEditor(code, userDataPath, this.editors, this.editor, this.quickopen);
 		this.keybindingsEditor = new KeybindingsEditor(code);
-		this.terminal = new Terminal(code);
+		this.terminal = new Terminal(code, this.quickopen);
 	}
 }
-

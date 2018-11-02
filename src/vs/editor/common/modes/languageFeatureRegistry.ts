@@ -3,10 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
-import { Event, Emitter } from 'vs/base/common/event';
-import { IDisposable } from 'vs/base/common/lifecycle';
+import { Emitter, Event } from 'vs/base/common/event';
+import { IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { ITextModel } from 'vs/editor/common/model';
 import { LanguageSelector, score } from 'vs/editor/common/modes/languageSelector';
 import { shouldSynchronizeModel } from 'vs/editor/common/services/modelService';
@@ -24,11 +22,11 @@ function isExclusive(selector: LanguageSelector): boolean {
 	} else if (Array.isArray(selector)) {
 		return selector.every(isExclusive);
 	} else {
-		return selector.exclusive;
+		return !!selector.exclusive;
 	}
 }
 
-export default class LanguageFeatureRegistry<T> {
+export class LanguageFeatureRegistry<T> {
 
 	private _clock: number = 0;
 	private _entries: Entry<T>[] = [];
@@ -43,7 +41,7 @@ export default class LanguageFeatureRegistry<T> {
 
 	register(selector: LanguageSelector, provider: T): IDisposable {
 
-		let entry: Entry<T> = {
+		let entry: Entry<T> | undefined = {
 			selector,
 			provider,
 			_score: -1,
@@ -54,19 +52,17 @@ export default class LanguageFeatureRegistry<T> {
 		this._lastCandidate = undefined;
 		this._onDidChange.fire(this._entries.length);
 
-		return {
-			dispose: () => {
-				if (entry) {
-					let idx = this._entries.indexOf(entry);
-					if (idx >= 0) {
-						this._entries.splice(idx, 1);
-						this._lastCandidate = undefined;
-						this._onDidChange.fire(this._entries.length);
-						entry = undefined;
-					}
+		return toDisposable(() => {
+			if (entry) {
+				let idx = this._entries.indexOf(entry);
+				if (idx >= 0) {
+					this._entries.splice(idx, 1);
+					this._lastCandidate = undefined;
+					this._onDidChange.fire(this._entries.length);
+					entry = undefined;
 				}
 			}
-		};
+		});
 	}
 
 	has(model: ITextModel): boolean {
@@ -131,7 +127,7 @@ export default class LanguageFeatureRegistry<T> {
 		}
 	}
 
-	private _lastCandidate: { uri: string; language: string; };
+	private _lastCandidate: { uri: string; language: string; } | undefined;
 
 	private _updateScores(model: ITextModel): void {
 

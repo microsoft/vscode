@@ -25,29 +25,12 @@ declare namespace monaco {
 		dispose(): void;
 	}
 
-	export enum Severity {
-		Ignore = 0,
-		Info = 1,
-		Warning = 2,
-		Error = 3,
-	}
-
-	export enum MarkerTag {
-		Unnecessary = 1,
-	}
-
-	export enum MarkerSeverity {
-		Hint = 1,
-		Info = 2,
-		Warning = 4,
-		Error = 8,
-	}
-
-
-#include(vs/base/common/winjs.base.d.ts): TValueCallback, ProgressCallback, Promise
+#include(vs/platform/markers/common/markers): MarkerTag, MarkerSeverity
+#include(vs/base/common/winjs.base.d.ts): Promise
 #include(vs/base/common/cancellation): CancellationTokenSource, CancellationToken
 #include(vs/base/common/uri): URI, UriComponents
-#include(vs/editor/common/standalone/standaloneBase): KeyCode, KeyMod
+#include(vs/base/common/keyCodes): KeyCode
+#include(vs/editor/common/standalone/standaloneBase): KeyMod
 #include(vs/base/common/htmlContent): IMarkdownString
 #include(vs/base/browser/keyboardEvent): IKeyboardEvent
 #include(vs/base/browser/mouseEvent): IMouseEvent
@@ -66,7 +49,7 @@ declare namespace monaco.editor {
 #include(vs/editor/common/services/webWorker): MonacoWebWorker, IWebWorkerOptions
 #include(vs/editor/standalone/browser/standaloneCodeEditor): IActionDescriptor, IEditorConstructionOptions, IDiffEditorConstructionOptions, IStandaloneCodeEditor, IStandaloneDiffEditor
 export interface ICommandHandler {
-	(...args:any[]): void;
+	(...args: any[]): void;
 }
 #include(vs/platform/contextkey/common/contextkey): IContextKey
 #include(vs/editor/standalone/browser/standaloneServices): IEditorOverrideServices
@@ -102,3 +85,5 @@ declare namespace monaco.worker {
 #includeAll(vs/editor/common/services/editorSimpleWorker;):
 
 }
+
+//dtsv=2

@@ -3,23 +3,21 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import { clipboard } from 'electron';
+import { RunOnceScheduler } from 'vs/base/common/async';
+import { Disposable } from 'vs/base/common/lifecycle';
 import * as platform from 'vs/base/common/platform';
 import { ICodeEditor, IEditorMouseEvent, MouseTargetType } from 'vs/editor/browser/editorBrowser';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { IEditorContribution } from 'vs/editor/common/editorCommon';
-import { EndOfLinePreference } from 'vs/editor/common/model';
 import { registerEditorContribution } from 'vs/editor/browser/editorExtensions';
-import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { RunOnceScheduler } from 'vs/base/common/async';
-import { Range } from 'vs/editor/common/core/range';
 import { IConfigurationChangedEvent } from 'vs/editor/common/config/editorOptions';
 import { ICursorSelectionChangedEvent } from 'vs/editor/common/controller/cursorEvents';
+import { Range } from 'vs/editor/common/core/range';
+import { IEditorContribution } from 'vs/editor/common/editorCommon';
+import { EndOfLinePreference } from 'vs/editor/common/model';
+import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 
 export class SelectionClipboard extends Disposable implements IEditorContribution {
-
+	private static SELECTION_LENGTH_LIMIT = 65536;
 	private static readonly ID = 'editor.contrib.selectionClipboard';
 
 	constructor(editor: ICodeEditor, @IContextKeyService contextKeyService: IContextKeyService) {
@@ -38,7 +36,7 @@ export class SelectionClipboard extends Disposable implements IEditorContributio
 				if (!isEnabled) {
 					return;
 				}
-				if (!editor.getModel()) {
+				if (!editor.hasModel()) {
 					return;
 				}
 				if (e.event.middleButton) {
@@ -65,22 +63,33 @@ export class SelectionClipboard extends Disposable implements IEditorContributio
 			}));
 
 			let setSelectionToClipboard = this._register(new RunOnceScheduler(() => {
-				let model = editor.getModel();
-				if (!model) {
+				if (!editor.hasModel()) {
 					return;
 				}
-
+				let model = editor.getModel();
 				let selections = editor.getSelections();
 				selections = selections.slice(0);
 				selections.sort(Range.compareRangesUsingStarts);
 
-				let result: string[] = [];
+				let resultLength = 0;
 				for (let i = 0; i < selections.length; i++) {
 					let sel = selections[i];
 					if (sel.isEmpty()) {
 						// Only write if all cursors have selection
 						return;
 					}
+					resultLength += model.getValueLengthInRange(sel);
+				}
+
+				if (resultLength > SelectionClipboard.SELECTION_LENGTH_LIMIT) {
+					// This is a large selection!
+					// => do not write it to the selection clipboard
+					return;
+				}
+
+				let result: string[] = [];
+				for (let i = 0; i < selections.length; i++) {
+					let sel = selections[i];
 					result.push(model.getValueInRange(sel, EndOfLinePreference.TextDefined));
 				}
 

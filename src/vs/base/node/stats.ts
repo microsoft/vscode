@@ -3,10 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import { readdir, stat, exists, readFile } from 'fs';
 import { join } from 'path';
+import { parse, ParseError } from 'vs/base/common/json';
 
 export interface WorkspaceStatItem {
 	name: string;
@@ -38,25 +37,26 @@ export function collectLaunchConfigs(folder: string): Promise<WorkspaceStatItem[
 						return resolve([]);
 					}
 
-					try {
-						const json = JSON.parse(contents.toString());
-						if (json['configurations']) {
-							for (const each of json['configurations']) {
-								const type = each['type'];
-								if (type) {
-									if (launchConfigs.has(type)) {
-										launchConfigs.set(type, launchConfigs.get(type) + 1);
-									}
-									else {
-										launchConfigs.set(type, 1);
-									}
+					const errors: ParseError[] = [];
+					const json = parse(contents.toString(), errors);
+					if (errors.length) {
+						console.log(`Unable to parse ${launchConfig}`);
+						return resolve([]);
+					}
+
+					if (json['configurations']) {
+						for (const each of json['configurations']) {
+							const type = each['type'];
+							if (type) {
+								if (launchConfigs.has(type)) {
+									launchConfigs.set(type, launchConfigs.get(type) + 1);
+								}
+								else {
+									launchConfigs.set(type, 1);
 								}
 							}
 						}
-					} catch (e) {
-						console.log(`Unable to parse ${launchConfig}`);
 					}
-
 
 					return resolve(asSortedItems(launchConfigs));
 				});
@@ -93,7 +93,7 @@ export function collectWorkspaceStats(folder: string, filter: string[]): Promise
 	const MAX_FILES = 20000;
 
 	function walk(dir: string, filter: string[], token, done: (allFiles: string[]) => void): void {
-		let results = [];
+		let results: string[] = [];
 		readdir(dir, async (err, files) => {
 			// Ignore folders that can't be read
 			if (err) {
@@ -116,32 +116,32 @@ export function collectWorkspaceStats(folder: string, filter: string[]): Promise
 						if (--pending === 0) {
 							return done(results);
 						}
-					}
+					} else {
+						if (stats.isDirectory()) {
+							if (filter.indexOf(file) === -1) {
+								walk(join(dir, file), filter, token, (res: string[]) => {
+									results = results.concat(res);
 
-					if (stats.isDirectory()) {
-						if (filter.indexOf(file) === -1) {
-							walk(join(dir, file), filter, token, (res: string[]) => {
-								results = results.concat(res);
-
+									if (--pending === 0) {
+										return done(results);
+									}
+								});
+							} else {
 								if (--pending === 0) {
-									return done(results);
+									done(results);
 								}
-							});
+							}
 						} else {
+							if (token.count >= MAX_FILES) {
+								token.maxReached = true;
+							}
+
+							token.count++;
+							results.push(file);
+
 							if (--pending === 0) {
 								done(results);
 							}
-						}
-					} else {
-						if (token.count >= MAX_FILES) {
-							token.maxReached = true;
-						}
-
-						token.count++;
-						results.push(file);
-
-						if (--pending === 0) {
-							done(results);
 						}
 					}
 				});

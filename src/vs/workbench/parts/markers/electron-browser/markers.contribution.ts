@@ -3,14 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-
 import { clipboard } from 'electron';
 import { CommandsRegistry, ICommandHandler } from 'vs/platform/commands/common/commands';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { Extensions, IConfigurationRegistry } from 'vs/platform/configuration/common/configurationRegistry';
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 import { IWorkbenchActionRegistry, Extensions as ActionExtensions } from 'vs/workbench/common/actions';
-import { KeybindingsRegistry, IKeybindings } from 'vs/platform/keybinding/common/keybindingsRegistry';
+import { KeybindingsRegistry, KeybindingWeight, IKeybindings } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { localize } from 'vs/nls';
 import { Marker, RelatedInformation } from 'vs/workbench/parts/markers/electron-browser/markersModel';
@@ -27,7 +26,7 @@ import './markersFileDecorations';
 
 KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: Constants.MARKER_OPEN_SIDE_ACTION_ID,
-	weight: KeybindingsRegistry.WEIGHT.workbenchContrib(),
+	weight: KeybindingWeight.WorkbenchContrib,
 	when: ContextKeyExpr.and(Constants.MarkerFocusContextKey),
 	primary: KeyMod.CtrlCmd | KeyCode.Enter,
 	mac: {
@@ -41,7 +40,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 
 KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: Constants.MARKER_SHOW_PANEL_ID,
-	weight: KeybindingsRegistry.WEIGHT.workbenchContrib(),
+	weight: KeybindingWeight.WorkbenchContrib,
 	when: undefined,
 	primary: undefined,
 	handler: (accessor, args: any) => {
@@ -123,6 +122,30 @@ registerAction({
 		group: 'navigation'
 	}
 });
+registerAction({
+	id: Constants.FOCUS_PROBLEMS_FROM_FILTER,
+	handler(accessor) {
+		focusProblemsView(accessor.get(IPanelService));
+	},
+	keybinding: {
+		when: Constants.MarkerPanelFilterFocusContextKey,
+		keys: {
+			primary: KeyMod.CtrlCmd | KeyCode.DownArrow
+		},
+	}
+});
+registerAction({
+	id: Constants.MARKERS_PANEL_FOCUS_FILTER,
+	handler(accessor) {
+		focusProblemsFilter(accessor.get(IPanelService));
+	},
+	keybinding: {
+		when: Constants.MarkerPanelFocusContextKey,
+		keys: {
+			primary: KeyMod.CtrlCmd | KeyCode.KEY_F
+		},
+	}
+});
 
 
 function copyMarker(panelService: IPanelService) {
@@ -140,7 +163,7 @@ function copyMessage(panelService: IPanelService) {
 	if (activePanel instanceof MarkersPanel) {
 		const element = (<MarkersPanel>activePanel).getFocusElement();
 		if (element instanceof Marker) {
-			clipboard.writeText(element.raw.message);
+			clipboard.writeText(element.marker.message);
 		}
 	}
 }
@@ -155,12 +178,26 @@ function copyRelatedInformationMessage(panelService: IPanelService) {
 	}
 }
 
+function focusProblemsView(panelService: IPanelService) {
+	const activePanel = panelService.getActivePanel();
+	if (activePanel instanceof MarkersPanel) {
+		activePanel.focus();
+	}
+}
+
+function focusProblemsFilter(panelService: IPanelService) {
+	const activePanel = panelService.getActivePanel();
+	if (activePanel instanceof MarkersPanel) {
+		activePanel.focusFilter();
+	}
+}
+
 interface IActionDescriptor {
 	id: string;
 	handler: ICommandHandler;
 
 	// ICommandUI
-	title: string;
+	title?: string;
 	category?: string;
 	f1?: boolean;
 
@@ -212,3 +249,12 @@ function registerAction(desc: IActionDescriptor) {
 		});
 	}
 }
+
+MenuRegistry.appendMenuItem(MenuId.MenubarViewMenu, {
+	group: '4_panels',
+	command: {
+		id: ToggleMarkersPanelAction.ID,
+		title: localize({ key: 'miMarker', comment: ['&& denotes a mnemonic'] }, "&&Problems")
+	},
+	order: 4
+});

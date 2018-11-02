@@ -3,10 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 import * as path from 'path';
-import { workspace } from 'vscode';
-
+import * as vscode from 'vscode';
 import { TypeScriptServiceConfiguration } from './configuration';
 import { RelativeWorkspacePathResolver } from './relativePathResolver';
+
 
 export class TypeScriptPluginPathsProvider {
 	public readonly relativePathResolver: RelativeWorkspacePathResolver = new RelativeWorkspacePathResolver();
@@ -37,7 +37,7 @@ export class TypeScriptPluginPathsProvider {
 			return [workspacePath];
 		}
 
-		return (workspace.workspaceFolders || [])
+		return (vscode.workspace.workspaceFolders || [])
 			.map(workspaceFolder => path.join(workspaceFolder.uri.fsPath, pluginPath));
 	}
 }

@@ -278,8 +278,8 @@
 		"c": "args",
 		"t": "source.cs entity.name.variable.parameter.cs",
 		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
+			"dark_plus": "entity.name.variable: #9CDCFE",
+			"light_plus": "entity.name.variable: #001080",
 			"dark_vs": "default: #D4D4D4",
 			"light_vs": "default: #000000",
 			"hc_black": "default: #FFFFFF"
@@ -377,8 +377,8 @@
 		"c": "radii",
 		"t": "source.cs entity.name.variable.local.cs",
 		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
+			"dark_plus": "entity.name.variable: #9CDCFE",
+			"light_plus": "entity.name.variable: #001080",
 			"dark_vs": "default: #D4D4D4",
 			"light_vs": "default: #000000",
 			"hc_black": "default: #FFFFFF"
@@ -674,8 +674,8 @@
 		"c": "pi",
 		"t": "source.cs entity.name.variable.local.cs",
 		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
+			"dark_plus": "entity.name.variable: #9CDCFE",
+			"light_plus": "entity.name.variable: #001080",
 			"dark_vs": "default: #D4D4D4",
 			"light_vs": "default: #000000",
 			"hc_black": "default: #FFFFFF"
@@ -806,8 +806,8 @@
 		"c": "radius",
 		"t": "source.cs entity.name.variable.local.cs",
 		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
+			"dark_plus": "entity.name.variable: #9CDCFE",
+			"light_plus": "entity.name.variable: #001080",
 			"dark_vs": "default: #D4D4D4",
 			"light_vs": "default: #000000",
 			"hc_black": "default: #FFFFFF"
@@ -927,8 +927,8 @@
 		"c": "circumference",
 		"t": "source.cs entity.name.variable.local.cs",
 		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
+			"dark_plus": "entity.name.variable: #9CDCFE",
+			"light_plus": "entity.name.variable: #001080",
 			"dark_vs": "default: #D4D4D4",
 			"light_vs": "default: #000000",
 			"hc_black": "default: #FFFFFF"
@@ -1114,9 +1114,9 @@
 		"c": "//",
 		"t": "source.cs comment.line.double-slash.cs punctuation.definition.comment.cs",
 		"r": {
-			"dark_plus": "comment: #608B4E",
+			"dark_plus": "comment: #6A9955",
 			"light_plus": "comment: #008000",
-			"dark_vs": "comment: #608B4E",
+			"dark_vs": "comment: #6A9955",
 			"light_vs": "comment: #008000",
 			"hc_black": "comment: #7CA668"
 		}
@@ -1125,9 +1125,9 @@
 		"c": " Display the number of command line arguments:",
 		"t": "source.cs comment.line.double-slash.cs",
 		"r": {
-			"dark_plus": "comment: #608B4E",
+			"dark_plus": "comment: #6A9955",
 			"light_plus": "comment: #008000",
-			"dark_vs": "comment: #608B4E",
+			"dark_vs": "comment: #6A9955",
 			"light_vs": "comment: #008000",
 			"hc_black": "comment: #7CA668"
 		}

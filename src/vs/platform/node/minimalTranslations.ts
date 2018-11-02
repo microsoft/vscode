@@ -9,10 +9,9 @@ import { localize } from 'vs/nls';
 // So that they are available for VS Code to use without downloading the entire language pack.
 
 export const minimumTranslatedStrings = {
-	showLanguagePackExtensions: localize('showLanguagePackExtensions', "The Marketplace has extensions that can localize VS Code in the {0} language"),
+	showLanguagePackExtensions: localize('showLanguagePackExtensions', "Search language packs in the Marketplace to change the display language to {0}."),
 	searchMarketplace: localize('searchMarketplace', "Search Marketplace"),
-	installAndRestartMessage: localize('installAndRestartMessage', "Install language pack to localize VS Code in {0} language. Restart VS Code after installing for the language to take effect."),
-	installAndRestart: localize('installAndRestart', "Install and Restart"),
-	install: localize('install', 'Install')
+	installAndRestartMessage: localize('installAndRestartMessage', "Install language pack to change the display language to {0}."),
+	installAndRestart: localize('installAndRestart', "Install and Restart")
 };
 

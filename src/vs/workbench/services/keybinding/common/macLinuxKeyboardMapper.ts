@@ -3,15 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
-import { OperatingSystem } from 'vs/base/common/platform';
-import { KeyCode, ResolvedKeybinding, KeyCodeUtils, SimpleKeybinding, Keybinding, KeybindingType, ResolvedKeybindingPart } from 'vs/base/common/keyCodes';
-import { ScanCode, ScanCodeUtils, IMMUTABLE_CODE_TO_KEY_CODE, IMMUTABLE_KEY_CODE_TO_CODE, ScanCodeBinding } from 'vs/workbench/services/keybinding/common/scanCode';
 import { CharCode } from 'vs/base/common/charCode';
-import { UILabelProvider, AriaLabelProvider, UserSettingsLabelProvider, ElectronAcceleratorLabelProvider } from 'vs/base/common/keybindingLabels';
-import { IKeyboardMapper } from 'vs/workbench/services/keybinding/common/keyboardMapper';
+import { KeyCode, KeyCodeUtils, Keybinding, KeybindingType, ResolvedKeybinding, ResolvedKeybindingPart, SimpleKeybinding } from 'vs/base/common/keyCodes';
+import { AriaLabelProvider, ElectronAcceleratorLabelProvider, UILabelProvider, UserSettingsLabelProvider } from 'vs/base/common/keybindingLabels';
+import { OperatingSystem } from 'vs/base/common/platform';
+import { IMMUTABLE_CODE_TO_KEY_CODE, IMMUTABLE_KEY_CODE_TO_CODE, ScanCode, ScanCodeBinding, ScanCodeUtils } from 'vs/base/common/scanCode';
 import { IKeyboardEvent } from 'vs/platform/keybinding/common/keybinding';
+import { IKeyboardMapper } from 'vs/workbench/services/keybinding/common/keyboardMapper';
 
 export interface IMacLinuxKeyMapping {
 	value: string;
@@ -39,7 +37,7 @@ export interface IMacLinuxKeyboardMapping {
 	[scanCode: string]: IMacLinuxKeyMapping;
 }
 
-export function macLinuxKeyboardMappingEquals(a: IMacLinuxKeyboardMapping, b: IMacLinuxKeyboardMapping): boolean {
+export function macLinuxKeyboardMappingEquals(a: IMacLinuxKeyboardMapping | null, b: IMacLinuxKeyboardMapping | null): boolean {
 	if (!a && !b) {
 		return true;
 	}
@@ -63,16 +61,16 @@ export function macLinuxKeyboardMappingEquals(a: IMacLinuxKeyboardMapping, b: IM
  *  - '/' => { keyCode: KeyCode.US_SLASH, shiftKey: false }
  *  - '?' => { keyCode: KeyCode.US_SLASH, shiftKey: true }
  */
-const CHAR_CODE_TO_KEY_CODE: { keyCode: KeyCode; shiftKey: boolean }[] = [];
+const CHAR_CODE_TO_KEY_CODE: ({ keyCode: KeyCode; shiftKey: boolean } | null)[] = [];
 
 export class NativeResolvedKeybinding extends ResolvedKeybinding {
 
 	private readonly _mapper: MacLinuxKeyboardMapper;
 	private readonly _OS: OperatingSystem;
 	private readonly _firstPart: ScanCodeBinding;
-	private readonly _chordPart: ScanCodeBinding;
+	private readonly _chordPart: ScanCodeBinding | null;
 
-	constructor(mapper: MacLinuxKeyboardMapper, OS: OperatingSystem, firstPart: ScanCodeBinding, chordPart: ScanCodeBinding) {
+	constructor(mapper: MacLinuxKeyboardMapper, OS: OperatingSystem, firstPart: ScanCodeBinding, chordPart: ScanCodeBinding | null) {
 		super();
 		if (!firstPart) {
 			throw new Error(`Invalid USLayoutResolvedKeybinding`);
@@ -83,19 +81,19 @@ export class NativeResolvedKeybinding extends ResolvedKeybinding {
 		this._chordPart = chordPart;
 	}
 
-	public getLabel(): string {
+	public getLabel(): string | null {
 		let firstPart = this._mapper.getUILabelForScanCodeBinding(this._firstPart);
 		let chordPart = this._mapper.getUILabelForScanCodeBinding(this._chordPart);
 		return UILabelProvider.toLabel(this._firstPart, firstPart, this._chordPart, chordPart, this._OS);
 	}
 
-	public getAriaLabel(): string {
+	public getAriaLabel(): string | null {
 		let firstPart = this._mapper.getAriaLabelForScanCodeBinding(this._firstPart);
 		let chordPart = this._mapper.getAriaLabelForScanCodeBinding(this._chordPart);
 		return AriaLabelProvider.toLabel(this._firstPart, firstPart, this._chordPart, chordPart, this._OS);
 	}
 
-	public getElectronAccelerator(): string {
+	public getElectronAccelerator(): string | null {
 		if (this._chordPart !== null) {
 			// Electron cannot handle chords
 			return null;
@@ -105,13 +103,13 @@ export class NativeResolvedKeybinding extends ResolvedKeybinding {
 		return ElectronAcceleratorLabelProvider.toLabel(this._firstPart, firstPart, null, null, this._OS);
 	}
 
-	public getUserSettingsLabel(): string {
+	public getUserSettingsLabel(): string | null {
 		let firstPart = this._mapper.getUserSettingsLabelForScanCodeBinding(this._firstPart);
 		let chordPart = this._mapper.getUserSettingsLabelForScanCodeBinding(this._chordPart);
 		return UserSettingsLabelProvider.toLabel(this._firstPart, firstPart, this._chordPart, chordPart, this._OS);
 	}
 
-	private _isWYSIWYG(binding: ScanCodeBinding): boolean {
+	private _isWYSIWYG(binding: ScanCodeBinding | null): boolean {
 		if (!binding) {
 			return true;
 		}
@@ -138,18 +136,14 @@ export class NativeResolvedKeybinding extends ResolvedKeybinding {
 		return (this._chordPart ? true : false);
 	}
 
-	public getParts(): [ResolvedKeybindingPart, ResolvedKeybindingPart] {
+	public getParts(): [ResolvedKeybindingPart, ResolvedKeybindingPart | null] {
 		return [
 			this._toResolvedKeybindingPart(this._firstPart),
-			this._toResolvedKeybindingPart(this._chordPart)
+			this._chordPart ? this._toResolvedKeybindingPart(this._chordPart) : null
 		];
 	}
 
 	private _toResolvedKeybindingPart(binding: ScanCodeBinding): ResolvedKeybindingPart {
-		if (!binding) {
-			return null;
-		}
-
 		return new ResolvedKeybindingPart(
 			binding.ctrlKey,
 			binding.shiftKey,
@@ -160,7 +154,7 @@ export class NativeResolvedKeybinding extends ResolvedKeybinding {
 		);
 	}
 
-	public getDispatchParts(): [string, string] {
+	public getDispatchParts(): [string | null, string | null] {
 		let firstPart = this._firstPart ? this._mapper.getDispatchStrForScanCodeBinding(this._firstPart) : null;
 		let chordPart = this._chordPart ? this._mapper.getDispatchStrForScanCodeBinding(this._chordPart) : null;
 		return [firstPart, chordPart];
@@ -451,11 +445,11 @@ export class MacLinuxKeyboardMapper implements IKeyboardMapper {
 	/**
 	 * UI label for a ScanCode.
 	 */
-	private readonly _scanCodeToLabel: string[] = [];
+	private readonly _scanCodeToLabel: (string | null)[] = [];
 	/**
 	 * Dispatching string for a ScanCode.
 	 */
-	private readonly _scanCodeToDispatch: string[] = [];
+	private readonly _scanCodeToDispatch: (string | null)[] = [];
 
 	constructor(isUSStandard: boolean, rawMappings: IMacLinuxKeyboardMapping, OS: OperatingSystem) {
 		this._isUSStandard = isUSStandard;
@@ -840,7 +834,7 @@ export class MacLinuxKeyboardMapper implements IKeyboardMapper {
 		return result.join('\n');
 	}
 
-	private _leftPad(str: string, cnt: number): string {
+	private _leftPad(str: string | null, cnt: number): string {
 		if (str === null) {
 			str = 'null';
 		}
@@ -868,7 +862,7 @@ export class MacLinuxKeyboardMapper implements IKeyboardMapper {
 		return result;
 	}
 
-	public getUILabelForScanCodeBinding(binding: ScanCodeBinding): string {
+	public getUILabelForScanCodeBinding(binding: ScanCodeBinding | null): string | null {
 		if (!binding) {
 			return null;
 		}
@@ -890,7 +884,7 @@ export class MacLinuxKeyboardMapper implements IKeyboardMapper {
 		return this._scanCodeToLabel[binding.scanCode];
 	}
 
-	public getAriaLabelForScanCodeBinding(binding: ScanCodeBinding): string {
+	public getAriaLabelForScanCodeBinding(binding: ScanCodeBinding | null): string | null {
 		if (!binding) {
 			return null;
 		}
@@ -900,7 +894,7 @@ export class MacLinuxKeyboardMapper implements IKeyboardMapper {
 		return this._scanCodeToLabel[binding.scanCode];
 	}
 
-	public getDispatchStrForScanCodeBinding(keypress: ScanCodeBinding): string {
+	public getDispatchStrForScanCodeBinding(keypress: ScanCodeBinding): string | null {
 		const codeDispatch = this._scanCodeToDispatch[keypress.scanCode];
 		if (!codeDispatch) {
 			return null;
@@ -924,7 +918,7 @@ export class MacLinuxKeyboardMapper implements IKeyboardMapper {
 		return result;
 	}
 
-	public getUserSettingsLabelForScanCodeBinding(binding: ScanCodeBinding): string {
+	public getUserSettingsLabelForScanCodeBinding(binding: ScanCodeBinding | null): string | null {
 		if (!binding) {
 			return null;
 		}
@@ -953,7 +947,7 @@ export class MacLinuxKeyboardMapper implements IKeyboardMapper {
 		return this._scanCodeToDispatch[binding.scanCode];
 	}
 
-	private _getElectronLabelForKeyCode(keyCode: KeyCode): string {
+	private _getElectronLabelForKeyCode(keyCode: KeyCode): string | null {
 		if (keyCode >= KeyCode.NUMPAD_0 && keyCode <= KeyCode.NUMPAD_DIVIDE) {
 			// Electron cannot handle numpad keys
 			return null;
@@ -974,7 +968,7 @@ export class MacLinuxKeyboardMapper implements IKeyboardMapper {
 		return KeyCodeUtils.toString(keyCode);
 	}
 
-	public getElectronAcceleratorLabelForScanCodeBinding(binding: ScanCodeBinding): string {
+	public getElectronAcceleratorLabelForScanCodeBinding(binding: ScanCodeBinding | null): string | null {
 		if (!binding) {
 			return null;
 		}
@@ -1103,7 +1097,7 @@ export class MacLinuxKeyboardMapper implements IKeyboardMapper {
 		return new NativeResolvedKeybinding(this, this._OS, keypress, null);
 	}
 
-	private _resolveSimpleUserBinding(binding: SimpleKeybinding | ScanCodeBinding): ScanCodeBinding[] {
+	private _resolveSimpleUserBinding(binding: SimpleKeybinding | ScanCodeBinding | null): ScanCodeBinding[] {
 		if (!binding) {
 			return [];
 		}
@@ -1113,7 +1107,7 @@ export class MacLinuxKeyboardMapper implements IKeyboardMapper {
 		return this.simpleKeybindingToScanCodeBinding(binding);
 	}
 
-	public resolveUserBinding(_firstPart: SimpleKeybinding | ScanCodeBinding, _chordPart: SimpleKeybinding | ScanCodeBinding): ResolvedKeybinding[] {
+	public resolveUserBinding(_firstPart: SimpleKeybinding | ScanCodeBinding | null, _chordPart: SimpleKeybinding | ScanCodeBinding | null): ResolvedKeybinding[] {
 		const firstParts = this._resolveSimpleUserBinding(_firstPart);
 		const chordParts = this._resolveSimpleUserBinding(_chordPart);
 
@@ -1133,7 +1127,7 @@ export class MacLinuxKeyboardMapper implements IKeyboardMapper {
 		return result;
 	}
 
-	private static _charCodeToKb(charCode: number): { keyCode: KeyCode; shiftKey: boolean } {
+	private static _charCodeToKb(charCode: number): { keyCode: KeyCode; shiftKey: boolean } | null {
 		if (charCode < CHAR_CODE_TO_KEY_CODE.length) {
 			return CHAR_CODE_TO_KEY_CODE[charCode];
 		}

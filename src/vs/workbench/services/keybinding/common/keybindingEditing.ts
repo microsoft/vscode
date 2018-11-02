@@ -4,27 +4,27 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { localize } from 'vs/nls';
-import URI from 'vs/base/common/uri';
-import { TPromise } from 'vs/base/common/winjs.base';
-import { isArray } from 'vs/base/common/types';
 import { Queue } from 'vs/base/common/async';
-import { IReference, Disposable } from 'vs/base/common/lifecycle';
 import * as json from 'vs/base/common/json';
-import { Edit } from 'vs/base/common/jsonFormatter';
 import { setProperty } from 'vs/base/common/jsonEdit';
-import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { Edit } from 'vs/base/common/jsonFormatter';
+import { Disposable, IReference } from 'vs/base/common/lifecycle';
+import { isArray } from 'vs/base/common/types';
+import { URI } from 'vs/base/common/uri';
+import { TPromise } from 'vs/base/common/winjs.base';
 import { EditOperation } from 'vs/editor/common/core/editOperation';
 import { Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
-import { IUserFriendlyKeybinding } from 'vs/platform/keybinding/common/keybinding';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { ITextModelService, ITextEditorModel } from 'vs/editor/common/services/resolverService';
-import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
-import { IFileService } from 'vs/platform/files/common/files';
-import { createDecorator, ServiceIdentifier } from 'vs/platform/instantiation/common/instantiation';
-import { ResolvedKeybindingItem } from 'vs/platform/keybinding/common/resolvedKeybindingItem';
 import { ITextModel } from 'vs/editor/common/model';
+import { ITextEditorModel, ITextModelService } from 'vs/editor/common/services/resolverService';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
+import { IEnvironmentService } from 'vs/platform/environment/common/environment';
+import { IFileService } from 'vs/platform/files/common/files';
+import { ServiceIdentifier, createDecorator } from 'vs/platform/instantiation/common/instantiation';
+import { IUserFriendlyKeybinding } from 'vs/platform/keybinding/common/keybinding';
+import { ResolvedKeybindingItem } from 'vs/platform/keybinding/common/resolvedKeybindingItem';
+import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 
 
 export const IKeybindingEditingService = createDecorator<IKeybindingEditingService>('keybindingEditingService');
@@ -74,10 +74,11 @@ export class KeybindingsEditingService extends Disposable implements IKeybinding
 		return this.resolveAndValidate()
 			.then(reference => {
 				const model = reference.object.textEditorModel;
-				if (keybindingItem.isDefault) {
-					this.updateDefaultKeybinding(key, keybindingItem, model);
-				} else {
-					this.updateUserKeybinding(key, keybindingItem, model);
+				const userKeybindingEntries = <IUserFriendlyKeybinding[]>json.parse(model.getValue());
+				const userKeybindingEntryIndex = this.findUserKeybindingEntryIndex(keybindingItem, userKeybindingEntries);
+				this.updateKeybinding(key, keybindingItem, model, userKeybindingEntryIndex);
+				if (keybindingItem.isDefault && keybindingItem.resolvedKeybinding) {
+					this.removeDefaultKeybinding(keybindingItem, model);
 				}
 				return this.save().then(() => reference.dispose());
 			});
@@ -112,31 +113,15 @@ export class KeybindingsEditingService extends Disposable implements IKeybinding
 		return this.textFileService.save(this.resource);
 	}
 
-	private updateUserKeybinding(newKey: string, keybindingItem: ResolvedKeybindingItem, model: ITextModel): void {
+	private updateKeybinding(newKey: string, keybindingItem: ResolvedKeybindingItem, model: ITextModel, userKeybindingEntryIndex: number): void {
 		const { tabSize, insertSpaces } = model.getOptions();
 		const eol = model.getEOL();
-		const userKeybindingEntries = <IUserFriendlyKeybinding[]>json.parse(model.getValue());
-		const userKeybindingEntryIndex = this.findUserKeybindingEntryIndex(keybindingItem, userKeybindingEntries);
-		if (userKeybindingEntryIndex !== -1) {
-			this.applyEditsToBuffer(setProperty(model.getValue(), [userKeybindingEntryIndex, 'key'], newKey, { tabSize, insertSpaces, eol })[0], model);
-		}
-	}
-
-	private updateDefaultKeybinding(newKey: string, keybindingItem: ResolvedKeybindingItem, model: ITextModel): void {
-		const { tabSize, insertSpaces } = model.getOptions();
-		const eol = model.getEOL();
-		const userKeybindingEntries = <IUserFriendlyKeybinding[]>json.parse(model.getValue());
-		const userKeybindingEntryIndex = this.findUserKeybindingEntryIndex(keybindingItem, userKeybindingEntries);
 		if (userKeybindingEntryIndex !== -1) {
 			// Update the keybinding with new key
 			this.applyEditsToBuffer(setProperty(model.getValue(), [userKeybindingEntryIndex, 'key'], newKey, { tabSize, insertSpaces, eol })[0], model);
 		} else {
-			// Add the new keybinidng with new key
+			// Add the new keybinding with new key
 			this.applyEditsToBuffer(setProperty(model.getValue(), [-1], this.asObject(newKey, keybindingItem.command, keybindingItem.when, false), { tabSize, insertSpaces, eol })[0], model);
-		}
-		if (keybindingItem.resolvedKeybinding) {
-			// Unassign the default keybinding
-			this.applyEditsToBuffer(setProperty(model.getValue(), [-1], this.asObject(keybindingItem.resolvedKeybinding.getUserSettingsLabel(), keybindingItem.command, keybindingItem.when, true), { tabSize, insertSpaces, eol })[0], model);
 		}
 	}
 
@@ -160,8 +145,8 @@ export class KeybindingsEditingService extends Disposable implements IKeybinding
 		const { tabSize, insertSpaces } = model.getOptions();
 		const eol = model.getEOL();
 		const userKeybindingEntries = <IUserFriendlyKeybinding[]>json.parse(model.getValue());
-		const index = this.findUnassignedDefaultKeybindingEntryIndex(keybindingItem, userKeybindingEntries);
-		if (index !== -1) {
+		const indices = this.findUnassignedDefaultKeybindingEntryIndex(keybindingItem, userKeybindingEntries).reverse();
+		for (const index of indices) {
 			this.applyEditsToBuffer(setProperty(model.getValue(), [index], void 0, { tabSize, insertSpaces, eol })[0], model);
 		}
 	}
@@ -183,13 +168,14 @@ export class KeybindingsEditingService extends Disposable implements IKeybinding
 		return -1;
 	}
 
-	private findUnassignedDefaultKeybindingEntryIndex(keybindingItem: ResolvedKeybindingItem, userKeybindingEntries: IUserFriendlyKeybinding[]): number {
+	private findUnassignedDefaultKeybindingEntryIndex(keybindingItem: ResolvedKeybindingItem, userKeybindingEntries: IUserFriendlyKeybinding[]): number[] {
+		const indices: number[] = [];
 		for (let index = 0; index < userKeybindingEntries.length; index++) {
 			if (userKeybindingEntries[index].command === `-${keybindingItem.command}`) {
-				return index;
+				indices.push(index);
 			}
 		}
-		return -1;
+		return indices;
 	}
 
 	private asObject(key: string, command: string, when: ContextKeyExpr, negate: boolean): any {
@@ -255,7 +241,7 @@ export class KeybindingsEditingService extends Disposable implements IKeybinding
 
 	private parse(model: ITextModel): { result: IUserFriendlyKeybinding[], parseErrors: json.ParseError[] } {
 		const parseErrors: json.ParseError[] = [];
-		const result = json.parse(model.getValue(), parseErrors, { allowTrailingComma: true });
+		const result = json.parse(model.getValue(), parseErrors);
 		return { result, parseErrors };
 	}
 

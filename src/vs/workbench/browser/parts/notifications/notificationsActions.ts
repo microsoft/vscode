@@ -3,13 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import 'vs/css!./media/notificationsActions';
 import { INotificationViewItem } from 'vs/workbench/common/notifications';
 import { localize } from 'vs/nls';
 import { Action, IAction, ActionRunner } from 'vs/base/common/actions';
-import { TPromise } from 'vs/base/common/winjs.base';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { CLEAR_NOTIFICATION, EXPAND_NOTIFICATION, COLLAPSE_NOTIFICATION, CLEAR_ALL_NOTIFICATIONS, HIDE_NOTIFICATIONS_CENTER } from 'vs/workbench/browser/parts/notifications/notificationsCommands';
@@ -18,8 +15,8 @@ import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService
 
 export class ClearNotificationAction extends Action {
 
-	public static readonly ID = CLEAR_NOTIFICATION;
-	public static readonly LABEL = localize('clearNotification', "Clear Notification");
+	static readonly ID = CLEAR_NOTIFICATION;
+	static readonly LABEL = localize('clearNotification', "Clear Notification");
 
 	constructor(
 		id: string,
@@ -29,17 +26,17 @@ export class ClearNotificationAction extends Action {
 		super(id, label, 'clear-notification-action');
 	}
 
-	public run(notification: INotificationViewItem): TPromise<any> {
+	run(notification: INotificationViewItem): Promise<any> {
 		this.commandService.executeCommand(CLEAR_NOTIFICATION, notification);
 
-		return TPromise.as(void 0);
+		return Promise.resolve(void 0);
 	}
 }
 
 export class ClearAllNotificationsAction extends Action {
 
-	public static readonly ID = CLEAR_ALL_NOTIFICATIONS;
-	public static readonly LABEL = localize('clearNotifications', "Clear All Notifications");
+	static readonly ID = CLEAR_ALL_NOTIFICATIONS;
+	static readonly LABEL = localize('clearNotifications', "Clear All Notifications");
 
 	constructor(
 		id: string,
@@ -49,17 +46,17 @@ export class ClearAllNotificationsAction extends Action {
 		super(id, label, 'clear-all-notifications-action');
 	}
 
-	public run(notification: INotificationViewItem): TPromise<any> {
+	run(notification: INotificationViewItem): Promise<any> {
 		this.commandService.executeCommand(CLEAR_ALL_NOTIFICATIONS);
 
-		return TPromise.as(void 0);
+		return Promise.resolve(void 0);
 	}
 }
 
 export class HideNotificationsCenterAction extends Action {
 
-	public static readonly ID = HIDE_NOTIFICATIONS_CENTER;
-	public static readonly LABEL = localize('hideNotificationsCenter', "Hide Notifications");
+	static readonly ID = HIDE_NOTIFICATIONS_CENTER;
+	static readonly LABEL = localize('hideNotificationsCenter', "Hide Notifications");
 
 	constructor(
 		id: string,
@@ -69,17 +66,17 @@ export class HideNotificationsCenterAction extends Action {
 		super(id, label, 'hide-all-notifications-action');
 	}
 
-	public run(notification: INotificationViewItem): TPromise<any> {
+	run(notification: INotificationViewItem): Promise<any> {
 		this.commandService.executeCommand(HIDE_NOTIFICATIONS_CENTER);
 
-		return TPromise.as(void 0);
+		return Promise.resolve(void 0);
 	}
 }
 
 export class ExpandNotificationAction extends Action {
 
-	public static readonly ID = EXPAND_NOTIFICATION;
-	public static readonly LABEL = localize('expandNotification', "Expand Notification");
+	static readonly ID = EXPAND_NOTIFICATION;
+	static readonly LABEL = localize('expandNotification', "Expand Notification");
 
 	constructor(
 		id: string,
@@ -89,17 +86,17 @@ export class ExpandNotificationAction extends Action {
 		super(id, label, 'expand-notification-action');
 	}
 
-	public run(notification: INotificationViewItem): TPromise<any> {
+	run(notification: INotificationViewItem): Promise<any> {
 		this.commandService.executeCommand(EXPAND_NOTIFICATION, notification);
 
-		return TPromise.as(void 0);
+		return Promise.resolve(void 0);
 	}
 }
 
 export class CollapseNotificationAction extends Action {
 
-	public static readonly ID = COLLAPSE_NOTIFICATION;
-	public static readonly LABEL = localize('collapseNotification', "Collapse Notification");
+	static readonly ID = COLLAPSE_NOTIFICATION;
+	static readonly LABEL = localize('collapseNotification', "Collapse Notification");
 
 	constructor(
 		id: string,
@@ -109,17 +106,17 @@ export class CollapseNotificationAction extends Action {
 		super(id, label, 'collapse-notification-action');
 	}
 
-	public run(notification: INotificationViewItem): TPromise<any> {
+	run(notification: INotificationViewItem): Promise<any> {
 		this.commandService.executeCommand(COLLAPSE_NOTIFICATION, notification);
 
-		return TPromise.as(void 0);
+		return Promise.resolve(void 0);
 	}
 }
 
 export class ConfigureNotificationAction extends Action {
 
-	public static readonly ID = 'workbench.action.configureNotification';
-	public static readonly LABEL = localize('configureNotification', "Configure Notification");
+	static readonly ID = 'workbench.action.configureNotification';
+	static readonly LABEL = localize('configureNotification', "Configure Notification");
 
 	constructor(
 		id: string,
@@ -129,15 +126,15 @@ export class ConfigureNotificationAction extends Action {
 		super(id, label, 'configure-notification-action');
 	}
 
-	public get configurationActions(): IAction[] {
+	get configurationActions(): IAction[] {
 		return this._configurationActions;
 	}
 }
 
 export class CopyNotificationMessageAction extends Action {
 
-	public static readonly ID = 'workbench.action.copyNotificationMessage';
-	public static readonly LABEL = localize('copyNotification', "Copy Text");
+	static readonly ID = 'workbench.action.copyNotificationMessage';
+	static readonly LABEL = localize('copyNotification', "Copy Text");
 
 	constructor(
 		id: string,
@@ -147,10 +144,10 @@ export class CopyNotificationMessageAction extends Action {
 		super(id, label);
 	}
 
-	public run(notification: INotificationViewItem): TPromise<any> {
+	run(notification: INotificationViewItem): Promise<any> {
 		this.clipboardService.writeText(notification.message.raw);
 
-		return TPromise.as(void 0);
+		return Promise.resolve(void 0);
 	}
 }
 
@@ -163,7 +160,7 @@ export class NotificationActionRunner extends ActionRunner {
 		super();
 	}
 
-	protected runAction(action: IAction, context: INotificationViewItem): TPromise<any> {
+	protected runAction(action: IAction, context: INotificationViewItem): Promise<any> {
 
 		/* __GDPR__
 			"workbenchActionExecuted" : {
@@ -174,8 +171,8 @@ export class NotificationActionRunner extends ActionRunner {
 		this.telemetryService.publicLog('workbenchActionExecuted', { id: action.id, from: 'message' });
 
 		// Run and make sure to notify on any error again
-		super.runAction(action, context).done(null, error => this.notificationService.error(error));
+		super.runAction(action, context).then(null, error => this.notificationService.error(error));
 
-		return TPromise.as(void 0);
+		return Promise.resolve(void 0);
 	}
 }

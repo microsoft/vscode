@@ -3,21 +3,20 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
-import { IDisposable, dispose } from 'vs/base/common/lifecycle';
+import { Disposable } from 'vs/base/common/lifecycle';
 import { addDisposableListener } from 'vs/base/browser/dom';
 
 /**
  * A helper that will execute a provided function when the provided HTMLElement receives
  *  dragover event for 800ms. If the drag is aborted before, the callback will not be triggered.
  */
-export class DelayedDragHandler {
-	private toDispose: IDisposable[] = [];
-	private timeout: number;
+export class DelayedDragHandler extends Disposable {
+	private timeout: any;
 
 	constructor(container: HTMLElement, callback: () => void) {
-		this.toDispose.push(addDisposableListener(container, 'dragover', () => {
+		super();
+
+		this._register(addDisposableListener(container, 'dragover', () => {
 			if (!this.timeout) {
 				this.timeout = setTimeout(() => {
 					callback();
@@ -28,7 +27,7 @@ export class DelayedDragHandler {
 		}));
 
 		['dragleave', 'drop', 'dragend'].forEach(type => {
-			this.toDispose.push(addDisposableListener(container, type, () => {
+			this._register(addDisposableListener(container, type, () => {
 				this.clearDragTimeout();
 			}));
 		});
@@ -41,8 +40,9 @@ export class DelayedDragHandler {
 		}
 	}
 
-	public dispose(): void {
-		this.toDispose = dispose(this.toDispose);
+	dispose(): void {
+		super.dispose();
+
 		this.clearDragTimeout();
 	}
 }
@@ -70,3 +70,17 @@ export const DataTransfers = {
 	 */
 	TEXT: 'text/plain'
 };
+
+export function applyDragImage(event: DragEvent, label: string, clazz: string): void {
+	const dragImage = document.createElement('div');
+	dragImage.className = clazz;
+	dragImage.textContent = label;
+
+	if (event.dataTransfer) {
+		document.body.appendChild(dragImage);
+		event.dataTransfer.setDragImage(dragImage, -10, -10);
+
+		// Removes the element when the DND operation is done
+		setTimeout(() => document.body.removeChild(dragImage), 0);
+	}
+}

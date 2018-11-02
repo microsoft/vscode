@@ -22,13 +22,11 @@ exports.collectModules = function () {
 		createModuleDescription('vs/workbench/parts/debug/node/telemetryApp', []),
 
 		createModuleDescription('vs/workbench/services/search/node/searchApp', []),
-		createModuleDescription('vs/workbench/services/search/node/worker/searchWorkerApp', []),
+		createModuleDescription('vs/workbench/services/search/node/legacy/worker/searchWorkerApp', []),
 		createModuleDescription('vs/workbench/services/files/node/watcher/unix/watcherApp', []),
 		createModuleDescription('vs/workbench/services/files/node/watcher/nsfw/watcherApp', []),
 
 		createModuleDescription('vs/workbench/node/extensionHostProcess', []),
-
-		createModuleDescription('vs/workbench/parts/terminal/node/terminalProcess', [])
 	];
 
 	return modules;

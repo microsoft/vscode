@@ -13,6 +13,7 @@ const minimatch = require('minimatch');
 const istanbul = require('istanbul');
 const i_remap = require('remap-istanbul/lib/remap');
 const util = require('util');
+const bootstrap = require('../../src/bootstrap');
 
 // Disabled custom inspect. See #38847
 if (util.inspect && util.inspect['defaultOptions']) {
@@ -33,11 +34,11 @@ function initLoader(opts) {
 		nodeRequire: require,
 		nodeMain: __filename,
 		catchError: true,
-		baseUrl: path.join(__dirname, '../../src'),
+		baseUrl: bootstrap.uriFromPath(path.join(__dirname, '../../src')),
 		paths: {
 			'vs': `../${outdir}/vs`,
 			'lib': `../${outdir}/lib`,
-			'bootstrap': `../${outdir}/bootstrap`
+			'bootstrap-fork': `../${outdir}/bootstrap-fork`
 		}
 	};
 

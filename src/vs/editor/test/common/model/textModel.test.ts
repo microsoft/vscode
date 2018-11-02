@@ -2,13 +2,12 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
 import * as assert from 'assert';
+import { UTF8_BOM_CHARACTER } from 'vs/base/common/strings';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { TextModel, createTextBuffer } from 'vs/editor/common/model/textModel';
-import { UTF8_BOM_CHARACTER } from 'vs/base/common/strings';
 import { createTextModel } from 'vs/editor/test/common/editorTestUtils';
 
 function testGuessIndentation(defaultInsertSpaces: boolean, defaultTabSize: number, expectedInsertSpaces: boolean, expectedTabSize: number, text: string[], msg?: string): void {
@@ -315,7 +314,7 @@ suite('Editor Model - TextModel', () => {
 			'            ',
 			'              ',
 		], 'whitespace lines don\'t count');
-		assertGuess(true, 4, [
+		assertGuess(true, 3, [
 			'x',
 			'   x',
 			'   x',
@@ -328,8 +327,8 @@ suite('Editor Model - TextModel', () => {
 			'   x',
 			'   x',
 			'    x',
-		], 'odd number is not allowed: 6x3, 3x4');
-		assertGuess(true, 4, [
+		], '6x3, 3x4');
+		assertGuess(true, 5, [
 			'x',
 			'     x',
 			'     x',
@@ -342,8 +341,12 @@ suite('Editor Model - TextModel', () => {
 			'     x',
 			'     x',
 			'    x',
-		], 'odd number is not allowed: 6x5, 3x4');
-		assertGuess(true, 4, [
+		], '6x5, 3x4');
+		assertGuess(true, 7, [
+			'x',
+			'       x',
+			'       x',
+			'     x',
 			'x',
 			'       x',
 			'       x',
@@ -352,11 +355,7 @@ suite('Editor Model - TextModel', () => {
 			'       x',
 			'       x',
 			'    x',
-			'x',
-			'       x',
-			'       x',
-			'    x',
-		], 'odd number is not allowed: 6x7, 3x4');
+		], '6x7, 1x5, 2x4');
 		assertGuess(true, 2, [
 			'x',
 			'  x',
@@ -508,7 +507,7 @@ suite('Editor Model - TextModel', () => {
 			'        x',
 			'        x',
 		], '6x4, 2x5, 4x8');
-		assertGuess(true, undefined, [
+		assertGuess(true, 3, [
 			'x',
 			' x',
 			' x',
@@ -547,6 +546,32 @@ suite('Editor Model - TextModel', () => {
 			'        b += 1     # 8 space indent      delta 8 spaces',
 			'        b += 1     # 8 space indent',
 			'        b += 1     # 8 space indent',
+		]);
+	});
+
+	test('issue #55818: Broken indentation detection', () => {
+		assertGuess(true, 2, [
+			'',
+			'/* REQUIRE */',
+			'',
+			'const foo = require ( \'foo\' ),',
+			'      bar = require ( \'bar\' );',
+			'',
+			'/* MY FN */',
+			'',
+			'function myFn () {',
+			'',
+			'  const asd = 1,',
+			'        dsa = 2;',
+			'',
+			'  return bar ( foo ( asd ) );',
+			'',
+			'}',
+			'',
+			'/* EXPORT */',
+			'',
+			'module.exports = myFn;',
+			'',
 		]);
 	});
 
@@ -618,6 +643,18 @@ suite('Editor Model - TextModel', () => {
 		assert.deepEqual(m.validatePosition(new Position(1, 6)), new Position(1, 6));
 		assert.deepEqual(m.validatePosition(new Position(1, 7)), new Position(1, 7));
 
+	});
+
+	test('validatePosition handle NaN.', () => {
+
+		let m = TextModel.createFromString('line one\nline two');
+
+		assert.deepEqual(m.validatePosition(new Position(NaN, 1)), new Position(1, 1));
+		assert.deepEqual(m.validatePosition(new Position(1, NaN)), new Position(1, 1));
+
+		assert.deepEqual(m.validatePosition(new Position(NaN, NaN)), new Position(1, 1));
+		assert.deepEqual(m.validatePosition(new Position(2, NaN)), new Position(2, 1));
+		assert.deepEqual(m.validatePosition(new Position(NaN, 3)), new Position(1, 3));
 	});
 
 	test('validateRange around high-low surrogate pairs 1', () => {
@@ -828,6 +865,12 @@ suite('Editor Model - TextModel', () => {
 		assert.equal(model.getLineLastNonWhitespaceColumn(10), 4, '10');
 		assert.equal(model.getLineLastNonWhitespaceColumn(11), 0, '11');
 		assert.equal(model.getLineLastNonWhitespaceColumn(12), 0, '12');
+	});
+
+	test('#50471. getValueInRange with invalid range', () => {
+		let m = TextModel.createFromString('My First Line\r\nMy Second Line\r\nMy Third Line');
+		assert.equal(m.getValueInRange(new Range(1, NaN, 1, 3)), 'My');
+		assert.equal(m.getValueInRange(new Range(NaN, NaN, NaN, NaN)), '');
 	});
 });
 

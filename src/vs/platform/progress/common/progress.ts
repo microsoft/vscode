@@ -2,10 +2,10 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
-import { TPromise } from 'vs/base/common/winjs.base';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
+import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
+import { IDisposable, dispose, toDisposable } from 'vs/base/common/lifecycle';
 
 export const IProgressService = createDecorator<IProgressService>('progressService');
 
@@ -22,7 +22,37 @@ export interface IProgressService {
 	 * Indicate progress for the duration of the provided promise. Progress will stop in
 	 * any case of promise completion, error or cancellation.
 	 */
-	showWhile(promise: TPromise<any>, delay?: number): TPromise<void>;
+	showWhile(promise: Thenable<any>, delay?: number): Thenable<void>;
+}
+
+export const enum ProgressLocation {
+	Explorer = 1,
+	Scm = 3,
+	Extensions = 5,
+	Window = 10,
+	Notification = 15
+}
+
+export interface IProgressOptions {
+	location: ProgressLocation | string;
+	title?: string;
+	source?: string;
+	total?: number;
+	cancellable?: boolean;
+}
+
+export interface IProgressStep {
+	message?: string;
+	increment?: number;
+}
+
+export const IProgressService2 = createDecorator<IProgressService2>('progressService2');
+
+export interface IProgressService2 {
+
+	_serviceBrand: any;
+
+	withProgress<P extends Thenable<R>, R=any>(options: IProgressOptions, task: (progress: IProgress<IProgressStep>) => P, onDidCancel?: () => void): P;
 }
 
 export interface IProgressRunner {
@@ -62,32 +92,66 @@ export class Progress<T> implements IProgress<T> {
 	}
 }
 
-export enum ProgressLocation {
-	Explorer = 1,
-	Scm = 3,
-	Extensions = 5,
-	Window = 10,
-	Notification = 15
+/**
+ * A helper to show progress during a long running operation. If the operation
+ * is started multiple times, only the last invocation will drive the progress.
+ */
+export interface IOperation {
+	id: number;
+	isCurrent: () => boolean;
+	token: CancellationToken;
+	stop(): void;
 }
 
-export interface IProgressOptions {
-	location: ProgressLocation;
-	title?: string;
-	source?: string;
-	total?: number;
-	cancellable?: boolean;
-}
+export class LongRunningOperation {
+	private currentOperationId = 0;
+	private currentOperationDisposables: IDisposable[] = [];
+	private currentProgressRunner: IProgressRunner;
+	private currentProgressTimeout: any;
 
-export interface IProgressStep {
-	message?: string;
-	increment?: number;
-}
+	constructor(
+		private progressService: IProgressService
+	) { }
 
-export const IProgressService2 = createDecorator<IProgressService2>('progressService2');
+	start(progressDelay: number): IOperation {
 
-export interface IProgressService2 {
+		// Stop any previous operation
+		this.stop();
 
-	_serviceBrand: any;
+		// Start new
+		const newOperationId = ++this.currentOperationId;
+		const newOperationToken = new CancellationTokenSource();
+		this.currentProgressTimeout = setTimeout(() => {
+			if (newOperationId === this.currentOperationId) {
+				this.currentProgressRunner = this.progressService.show(true);
+			}
+		}, progressDelay);
 
-	withProgress<P extends Thenable<R>, R=any>(options: IProgressOptions, task: (progress: IProgress<IProgressStep>) => P, onDidCancel?: () => void): P;
+		this.currentOperationDisposables.push(
+			toDisposable(() => clearTimeout(this.currentProgressTimeout)),
+			toDisposable(() => newOperationToken.cancel()),
+			toDisposable(() => this.currentProgressRunner ? this.currentProgressRunner.done() : void 0)
+		);
+
+		return {
+			id: newOperationId,
+			token: newOperationToken.token,
+			stop: () => this.doStop(newOperationId),
+			isCurrent: () => this.currentOperationId === newOperationId
+		};
+	}
+
+	stop(): void {
+		this.doStop(this.currentOperationId);
+	}
+
+	private doStop(operationId: number): void {
+		if (this.currentOperationId === operationId) {
+			this.currentOperationDisposables = dispose(this.currentOperationDisposables);
+		}
+	}
+
+	dispose(): void {
+		this.currentOperationDisposables = dispose(this.currentOperationDisposables);
+	}
 }

@@ -14,10 +14,11 @@
     "onLanguage:scss",
     "onCommand:_css.applyCodeAction"
   ],
-  "enableProposedApi": true,
   "main": "./client/out/cssMain",
   "scripts": {
-    "compile": "gulp compile-extension:css-language-features-client && gulp compile-extension:css-language-features-server",
+    "compile": "gulp compile-extension:css-language-features-client compile-extension:css-language-features-server",
+    "watch": "gulp watch-extension:css-language-features-client watch-extension:css-language-features-server",
+    "test": "mocha",
     "postinstall": "cd server && yarn install",
     "install-client-next": "yarn add vscode-languageclient@next"
   },
@@ -108,7 +109,7 @@
               "error"
             ],
             "default": "ignore",
-            "description": "%css.lint.boxModel.desc%"
+            "markdownDescription": "%css.lint.boxModel.desc%"
           },
           "css.lint.universalSelector": {
             "type": "string",
@@ -119,7 +120,7 @@
               "error"
             ],
             "default": "ignore",
-            "description": "%css.lint.universalSelector.desc%"
+            "markdownDescription": "%css.lint.universalSelector.desc%"
           },
           "css.lint.zeroUnits": {
             "type": "string",
@@ -141,7 +142,7 @@
               "error"
             ],
             "default": "warning",
-            "description": "%css.lint.fontFaceProperties.desc%"
+            "markdownDescription": "%css.lint.fontFaceProperties.desc%"
           },
           "css.lint.hexColorLength": {
             "type": "string",
@@ -176,6 +177,16 @@
             "default": "warning",
             "description": "%css.lint.unknownProperties.desc%"
           },
+          "css.lint.validProperties": {
+            "type": "array",
+            "uniqueItems": true,
+            "items": {
+              "type": "string"
+            },
+            "scope": "resource",
+            "default": [],
+            "description": "%css.lint.validProperties.desc%"
+          },
           "css.lint.ieHack": {
             "type": "string",
             "scope": "resource",
@@ -207,7 +218,7 @@
               "error"
             ],
             "default": "warning",
-            "description": "%css.lint.propertyIgnoredDueToDisplay.desc%"
+            "markdownDescription": "%css.lint.propertyIgnoredDueToDisplay.desc%"
           },
           "css.lint.important": {
             "type": "string",
@@ -218,7 +229,7 @@
               "error"
             ],
             "default": "ignore",
-            "description": "%css.lint.important.desc%"
+            "markdownDescription": "%css.lint.important.desc%"
           },
           "css.lint.float": {
             "type": "string",
@@ -229,7 +240,7 @@
               "error"
             ],
             "default": "ignore",
-            "description": "%css.lint.float.desc%"
+            "markdownDescription": "%css.lint.float.desc%"
           },
           "css.lint.idSelector": {
             "type": "string",
@@ -241,6 +252,17 @@
             ],
             "default": "ignore",
             "description": "%css.lint.idSelector.desc%"
+          },
+          "css.lint.unknownAtRules": {
+            "type": "string",
+            "scope": "resource",
+            "enum": [
+              "ignore",
+              "warning",
+              "error"
+            ],
+            "default": "warning",
+            "description": "%css.lint.unknownAtRules.desc%"
           },
           "css.trace.server": {
             "type": "string",
@@ -337,7 +359,7 @@
               "error"
             ],
             "default": "ignore",
-            "description": "%scss.lint.boxModel.desc%"
+            "markdownDescription": "%scss.lint.boxModel.desc%"
           },
           "scss.lint.universalSelector": {
             "type": "string",
@@ -348,7 +370,7 @@
               "error"
             ],
             "default": "ignore",
-            "description": "%scss.lint.universalSelector.desc%"
+            "markdownDescription": "%scss.lint.universalSelector.desc%"
           },
           "scss.lint.zeroUnits": {
             "type": "string",
@@ -370,7 +392,7 @@
               "error"
             ],
             "default": "warning",
-            "description": "%scss.lint.fontFaceProperties.desc%"
+            "markdownDescription": "%scss.lint.fontFaceProperties.desc%"
           },
           "scss.lint.hexColorLength": {
             "type": "string",
@@ -405,6 +427,16 @@
             "default": "warning",
             "description": "%scss.lint.unknownProperties.desc%"
           },
+          "scss.lint.validProperties": {
+            "type": "array",
+            "uniqueItems": true,
+            "items": {
+              "type": "string"
+            },
+            "scope": "resource",
+            "default": [],
+            "description": "%scss.lint.validProperties.desc%"
+          },
           "scss.lint.ieHack": {
             "type": "string",
             "scope": "resource",
@@ -436,7 +468,7 @@
               "error"
             ],
             "default": "warning",
-            "description": "%scss.lint.propertyIgnoredDueToDisplay.desc%"
+            "markdownDescription": "%scss.lint.propertyIgnoredDueToDisplay.desc%"
           },
           "scss.lint.important": {
             "type": "string",
@@ -447,7 +479,7 @@
               "error"
             ],
             "default": "ignore",
-            "description": "%scss.lint.important.desc%"
+            "markdownDescription": "%scss.lint.important.desc%"
           },
           "scss.lint.float": {
             "type": "string",
@@ -458,7 +490,7 @@
               "error"
             ],
             "default": "ignore",
-            "description": "%scss.lint.float.desc%"
+            "markdownDescription": "%scss.lint.float.desc%"
           },
           "scss.lint.idSelector": {
             "type": "string",
@@ -556,7 +588,7 @@
               "error"
             ],
             "default": "ignore",
-            "description": "%less.lint.boxModel.desc%"
+            "markdownDescription": "%less.lint.boxModel.desc%"
           },
           "less.lint.universalSelector": {
             "type": "string",
@@ -567,7 +599,7 @@
               "error"
             ],
             "default": "ignore",
-            "description": "%less.lint.universalSelector.desc%"
+            "markdownDescription": "%less.lint.universalSelector.desc%"
           },
           "less.lint.zeroUnits": {
             "type": "string",
@@ -589,7 +621,7 @@
               "error"
             ],
             "default": "warning",
-            "description": "%less.lint.fontFaceProperties.desc%"
+            "markdownDescription": "%less.lint.fontFaceProperties.desc%"
           },
           "less.lint.hexColorLength": {
             "type": "string",
@@ -624,6 +656,16 @@
             "default": "warning",
             "description": "%less.lint.unknownProperties.desc%"
           },
+          "less.lint.validProperties": {
+            "type": "array",
+            "uniqueItems": true,
+            "items": {
+              "type": "string"
+            },
+            "scope": "resource",
+            "default": [],
+            "description": "%less.lint.validProperties.desc%"
+          },
           "less.lint.ieHack": {
             "type": "string",
             "scope": "resource",
@@ -655,7 +697,7 @@
               "error"
             ],
             "default": "warning",
-            "description": "%less.lint.propertyIgnoredDueToDisplay.desc%"
+            "markdownDescription": "%less.lint.propertyIgnoredDueToDisplay.desc%"
           },
           "less.lint.important": {
             "type": "string",
@@ -666,7 +708,7 @@
               "error"
             ],
             "default": "ignore",
-            "description": "%less.lint.important.desc%"
+            "markdownDescription": "%less.lint.important.desc%"
           },
           "less.lint.float": {
             "type": "string",
@@ -677,7 +719,7 @@
               "error"
             ],
             "default": "ignore",
-            "description": "%less.lint.float.desc%"
+            "markdownDescription": "%less.lint.float.desc%"
           },
           "less.lint.idSelector": {
             "type": "string",
@@ -695,11 +737,11 @@
     ]
   },
   "dependencies": {
-    "vscode-languageclient": "^4.1.4",
-    "vscode-languageserver-protocol-foldingprovider": "^2.0.1",
-    "vscode-nls": "^3.2.2"
+    "vscode-languageclient": "^5.1.0",
+    "vscode-nls": "^4.0.0"
   },
   "devDependencies": {
-    "@types/node": "7.0.43"
+    "@types/node": "^8.10.25",
+    "mocha": "^5.2.0"
   }
 }
