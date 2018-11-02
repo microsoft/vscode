@@ -169,8 +169,18 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 			row: null
 		}));
 
-		this.rangeMap.splice(start, deleteCount, ...inserted);
-		const deleted = this.items.splice(start, deleteCount, ...inserted);
+		let deleted: IItem<T>[];
+
+		// TODO@joao: improve this optimization to catch even more cases
+		if (start === 0 && deleteCount >= this.items.length) {
+			this.rangeMap = new RangeMap();
+			this.rangeMap.splice(0, 0, inserted);
+			this.items = inserted;
+			deleted = [];
+		} else {
+			this.rangeMap.splice(start, deleteCount, inserted);
+			deleted = this.items.splice(start, deleteCount, ...inserted);
+		}
 
 		const delta = elements.length - deleteCount;
 		const renderRange = this.getRenderRange(this.lastRenderTop, this.lastRenderHeight);
