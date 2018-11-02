@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import * as assert from 'assert';
 import * as lifecycle from 'vs/base/common/lifecycle';
 import * as _ from 'vs/base/parts/tree/browser/tree';
@@ -12,6 +10,7 @@ import * as WinJS from 'vs/base/common/winjs.base';
 import * as model from 'vs/base/parts/tree/browser/treeModel';
 import * as TreeDefaults from 'vs/base/parts/tree/browser/treeDefaults';
 import { Event, Emitter } from 'vs/base/common/event';
+import { timeout } from 'vs/base/common/async';
 
 export class FakeRenderer {
 
@@ -607,23 +606,6 @@ suite('TreeModel - Expansion', () => {
 						return model.expand(SAMPLE.DEEP2.children[0]).then(() => {
 							assert(!model.isExpanded(SAMPLE.DEEP2.children[0].children[0]));
 						});
-					});
-				});
-			});
-		});
-	});
-
-	test('collapseDeepestExpandedLevel', () => {
-		return model.setInput(SAMPLE.DEEP2).then(() => {
-			return model.expand(SAMPLE.DEEP2.children[0]).then(() => {
-				return model.expand(SAMPLE.DEEP2.children[0].children[0]).then(() => {
-
-					assert(model.isExpanded(SAMPLE.DEEP2.children[0]));
-					assert(model.isExpanded(SAMPLE.DEEP2.children[0].children[0]));
-
-					return model.collapseDeepestExpandedLevel().then(() => {
-						assert(model.isExpanded(SAMPLE.DEEP2.children[0]));
-						assert(!model.isExpanded(SAMPLE.DEEP2.children[0].children[0]));
 					});
 				});
 			});
@@ -1339,7 +1321,7 @@ suite('TreeModel - Dynamic data model', () => {
 			dataModel.addChild('father', 'brother');
 			dataModel.addChild('mother', 'sister');
 
-			dataModel.promiseFactory = () => { return WinJS.TPromise.timeout(0); };
+			dataModel.promiseFactory = () => { return WinJS.TPromise.wrap(timeout(0)); };
 
 			var getTimes = 0;
 			var gotTimes = 0;
@@ -1600,7 +1582,7 @@ suite('TreeModel - Dynamic data model', () => {
 		return model.setInput('root').then(() => {
 
 			// delay expansions and refreshes
-			dataModel.promiseFactory = () => { return WinJS.TPromise.timeout(0); };
+			dataModel.promiseFactory = () => { return WinJS.TPromise.wrap(timeout(0)); };
 
 			var promises: WinJS.Promise[] = [];
 
@@ -1653,9 +1635,9 @@ suite('TreeModel - bugs', () => {
 		let listeners = <any>[];
 
 		// helpers
-		var getGetRootChildren = (children: string[], timeout = 0) => () => WinJS.TPromise.timeout(timeout).then(() => children);
+		var getGetRootChildren = (children: string[], millis = 0) => () => WinJS.TPromise.wrap(timeout(millis)).then(() => children);
 		var getRootChildren = getGetRootChildren(['homer', 'bart', 'lisa', 'marge', 'maggie'], 0);
-		var getGetBartChildren = (timeout = 0) => () => WinJS.TPromise.timeout(timeout).then(() => ['milhouse', 'nelson']);
+		var getGetBartChildren = (millis = 0) => () => WinJS.TPromise.wrap(timeout(millis)).then(() => ['milhouse', 'nelson']);
 		var getBartChildren = getGetBartChildren(0);
 
 		// item expanding should not exist!

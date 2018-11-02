@@ -2,17 +2,16 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
 import { equals } from 'vs/base/common/objects';
 import { compare, toValuesTree, IConfigurationChangeEvent, ConfigurationTarget, IConfigurationModel, IConfigurationOverrides } from 'vs/platform/configuration/common/configuration';
 import { Configuration as BaseConfiguration, ConfigurationModelParser, ConfigurationChangeEvent, ConfigurationModel, AbstractConfigurationChangeEvent } from 'vs/platform/configuration/common/configurationModels';
 import { Registry } from 'vs/platform/registry/common/platform';
-import { IConfigurationRegistry, IConfigurationPropertySchema, Extensions, ConfigurationScope } from 'vs/platform/configuration/common/configurationRegistry';
+import { IConfigurationRegistry, IConfigurationPropertySchema, Extensions, ConfigurationScope, OVERRIDE_PROPERTY_PATTERN } from 'vs/platform/configuration/common/configurationRegistry';
 import { IStoredWorkspaceFolder } from 'vs/platform/workspaces/common/workspaces';
 import { Workspace } from 'vs/platform/workspace/common/workspace';
 import { ResourceMap } from 'vs/base/common/map';
-import URI from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 
 export class WorkspaceConfigurationModelParser extends ConfigurationModelParser {
 
@@ -101,21 +100,30 @@ export class FolderSettingsModelParser extends ConfigurationModelParser {
 	}
 
 	private parseWorkspaceSettings(rawSettings: any): void {
-		const rawWorkspaceSettings = {};
 		const configurationProperties = Registry.as<IConfigurationRegistry>(Extensions.Configuration).getConfigurationProperties();
-		for (let key in rawSettings) {
-			const scope = this.getScope(key, configurationProperties);
-			if (this.scopes.indexOf(scope) !== -1) {
-				rawWorkspaceSettings[key] = rawSettings[key];
-			}
-		}
+		const rawWorkspaceSettings = this.filterByScope(rawSettings, configurationProperties, true);
 		const configurationModel = this.parseRaw(rawWorkspaceSettings);
 		this._settingsModel = new ConfigurationModel(configurationModel.contents, configurationModel.keys, configurationModel.overrides);
 	}
 
+	private filterByScope(properties: {}, configurationProperties: { [qualifiedKey: string]: IConfigurationPropertySchema }, filterOverriddenProperties: boolean): {} {
+		const result = {};
+		for (let key in properties) {
+			if (OVERRIDE_PROPERTY_PATTERN.test(key) && filterOverriddenProperties) {
+				result[key] = this.filterByScope(properties[key], configurationProperties, false);
+			} else {
+				const scope = this.getScope(key, configurationProperties);
+				if (this.scopes.indexOf(scope) !== -1) {
+					result[key] = properties[key];
+				}
+			}
+		}
+		return result;
+	}
+
 	private getScope(key: string, configurationProperties: { [qualifiedKey: string]: IConfigurationPropertySchema }): ConfigurationScope {
 		const propertySchema = configurationProperties[key];
-		return propertySchema ? propertySchema.scope : ConfigurationScope.WINDOW;
+		return propertySchema && typeof propertySchema.scope !== 'undefined' ? propertySchema.scope : ConfigurationScope.WINDOW;
 	}
 }
 
@@ -139,8 +147,8 @@ export class Configuration extends BaseConfiguration {
 	inspect<C>(key: string, overrides: IConfigurationOverrides = {}): {
 		default: C,
 		user: C,
-		workspace: C,
-		workspaceFolder: C
+		workspace?: C,
+		workspaceFolder?: C
 		memory?: C
 		value: C,
 	} {
@@ -160,9 +168,7 @@ export class Configuration extends BaseConfiguration {
 		const { added, updated, removed } = compare(this.user, user);
 		let changedKeys = [...added, ...updated, ...removed];
 		if (changedKeys.length) {
-			const oldValues = changedKeys.map(key => this.getValue(key));
 			super.updateUserConfiguration(user);
-			changedKeys = changedKeys.filter((key, index) => !equals(oldValues[index], this.getValue(key)));
 		}
 		return new ConfigurationChangeEvent().change(changedKeys);
 	}
@@ -171,9 +177,7 @@ export class Configuration extends BaseConfiguration {
 		const { added, updated, removed } = compare(this.workspace, workspaceConfiguration);
 		let changedKeys = [...added, ...updated, ...removed];
 		if (changedKeys.length) {
-			const oldValues = changedKeys.map(key => this.getValue(key));
 			super.updateWorkspaceConfiguration(workspaceConfiguration);
-			changedKeys = changedKeys.filter((key, index) => !equals(oldValues[index], this.getValue(key)));
 		}
 		return new ConfigurationChangeEvent().change(changedKeys);
 	}
@@ -184,9 +188,7 @@ export class Configuration extends BaseConfiguration {
 			const { added, updated, removed } = compare(currentFolderConfiguration, folderConfiguration);
 			let changedKeys = [...added, ...updated, ...removed];
 			if (changedKeys.length) {
-				const oldValues = changedKeys.map(key => this.getValue(key, { resource }));
 				super.updateFolderConfiguration(resource, folderConfiguration);
-				changedKeys = changedKeys.filter((key, index) => !equals(oldValues[index], this.getValue(key, { resource })));
 			}
 			return new ConfigurationChangeEvent().change(changedKeys, resource);
 		} else {
@@ -206,7 +208,7 @@ export class Configuration extends BaseConfiguration {
 	}
 
 	compare(other: Configuration): string[] {
-		const result = [];
+		const result: string[] = [];
 		for (const key of this.allKeys()) {
 			if (!equals(this.getValue(key), other.getValue(key))
 				|| (this._workspace && this._workspace.folders.some(folder => !equals(this.getValue(key, { resource: folder.uri }), other.getValue(key, { resource: folder.uri }))))) {
@@ -223,7 +225,7 @@ export class Configuration extends BaseConfiguration {
 
 export class AllKeysConfigurationChangeEvent extends AbstractConfigurationChangeEvent implements IConfigurationChangeEvent {
 
-	private _changedConfiguration: ConfigurationModel = null;
+	private _changedConfiguration: ConfigurationModel | null = null;
 
 	constructor(private _configuration: Configuration, readonly source: ConfigurationTarget, readonly sourceConfig: any) { super(); }
 

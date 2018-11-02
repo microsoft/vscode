@@ -2,48 +2,48 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
 import * as nls from 'vs/nls';
-import { IJSONSchema } from 'vs/base/common/jsonSchema';
-import { ResolvedKeybinding, Keybinding } from 'vs/base/common/keyCodes';
-import { OS, OperatingSystem } from 'vs/base/common/platform';
-import { ExtensionMessageCollector, ExtensionsRegistry } from 'vs/workbench/services/extensions/common/extensionsRegistry';
-import { Extensions, IJSONContributionRegistry } from 'vs/platform/jsonschemas/common/jsonContributionRegistry';
-import { AbstractKeybindingService } from 'vs/platform/keybinding/common/abstractKeybindingService';
-import { IStatusbarService } from 'vs/platform/statusbar/common/statusbar';
-import { KeybindingResolver } from 'vs/platform/keybinding/common/keybindingResolver';
-import { ICommandService } from 'vs/platform/commands/common/commands';
-import { IKeybindingEvent, IUserFriendlyKeybinding, KeybindingSource, IKeyboardEvent } from 'vs/platform/keybinding/common/keybinding';
-import { ContextKeyExpr, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { IKeybindingItem, KeybindingsRegistry, IKeybindingRule2, KeybindingRuleSource } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { keybindingsTelemetry } from 'vs/platform/telemetry/common/telemetryUtils';
-import { ConfigWatcher } from 'vs/base/node/config';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
+import * as nativeKeymap from 'native-keymap';
+import { release } from 'os';
 import * as dom from 'vs/base/browser/dom';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
-import { ResolvedKeybindingItem } from 'vs/platform/keybinding/common/resolvedKeybindingItem';
-import { KeybindingIO, OutputBuilder, IUserKeybindingItem } from 'vs/workbench/services/keybinding/common/keybindingIO';
-import * as nativeKeymap from 'native-keymap';
-import { IKeyboardMapper, CachedKeyboardMapper } from 'vs/workbench/services/keybinding/common/keyboardMapper';
-import { WindowsKeyboardMapper, IWindowsKeyboardMapping, windowsKeyboardMappingEquals } from 'vs/workbench/services/keybinding/common/windowsKeyboardMapper';
-import { IMacLinuxKeyboardMapping, MacLinuxKeyboardMapper, macLinuxKeyboardMappingEquals } from 'vs/workbench/services/keybinding/common/macLinuxKeyboardMapper';
-import { MacLinuxFallbackKeyboardMapper } from 'vs/workbench/services/keybinding/common/macLinuxFallbackKeyboardMapper';
-import { Event, Emitter } from 'vs/base/common/event';
-import { Extensions as ConfigExtensions, IConfigurationRegistry, IConfigurationNode } from 'vs/platform/configuration/common/configurationRegistry';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { onUnexpectedError } from 'vs/base/common/errors';
-import { release } from 'os';
+import { Emitter, Event } from 'vs/base/common/event';
+import { IJSONSchema } from 'vs/base/common/jsonSchema';
+import { Keybinding, ResolvedKeybinding } from 'vs/base/common/keyCodes';
+import { KeybindingParser } from 'vs/base/common/keybindingParser';
+import { OS, OperatingSystem } from 'vs/base/common/platform';
+import { ConfigWatcher } from 'vs/base/node/config';
+import { ICommandService } from 'vs/platform/commands/common/commands';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { Extensions as ConfigExtensions, IConfigurationNode, IConfigurationRegistry } from 'vs/platform/configuration/common/configurationRegistry';
+import { ContextKeyExpr, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { IEnvironmentService } from 'vs/platform/environment/common/environment';
+import { Extensions, IJSONContributionRegistry } from 'vs/platform/jsonschemas/common/jsonContributionRegistry';
+import { AbstractKeybindingService } from 'vs/platform/keybinding/common/abstractKeybindingService';
+import { IKeybindingEvent, IKeyboardEvent, IUserFriendlyKeybinding, KeybindingSource } from 'vs/platform/keybinding/common/keybinding';
+import { KeybindingResolver } from 'vs/platform/keybinding/common/keybindingResolver';
+import { IKeybindingItem, IKeybindingRule2, KeybindingRuleSource, KeybindingWeight, KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
+import { ResolvedKeybindingItem } from 'vs/platform/keybinding/common/resolvedKeybindingItem';
 import { INotificationService } from 'vs/platform/notification/common/notification';
+import { Registry } from 'vs/platform/registry/common/platform';
+import { IStatusbarService } from 'vs/platform/statusbar/common/statusbar';
+import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { keybindingsTelemetry } from 'vs/platform/telemetry/common/telemetryUtils';
+import { ExtensionMessageCollector, ExtensionsRegistry } from 'vs/workbench/services/extensions/common/extensionsRegistry';
+import { IUserKeybindingItem, KeybindingIO, OutputBuilder } from 'vs/workbench/services/keybinding/common/keybindingIO';
+import { CachedKeyboardMapper, IKeyboardMapper } from 'vs/workbench/services/keybinding/common/keyboardMapper';
+import { MacLinuxFallbackKeyboardMapper } from 'vs/workbench/services/keybinding/common/macLinuxFallbackKeyboardMapper';
+import { IMacLinuxKeyboardMapping, MacLinuxKeyboardMapper, macLinuxKeyboardMappingEquals } from 'vs/workbench/services/keybinding/common/macLinuxKeyboardMapper';
+import { IWindowsKeyboardMapping, WindowsKeyboardMapper, windowsKeyboardMappingEquals } from 'vs/workbench/services/keybinding/common/windowsKeyboardMapper';
 
 export class KeyboardMapperFactory {
 	public static readonly INSTANCE = new KeyboardMapperFactory();
 
-	private _layoutInfo: nativeKeymap.IKeyboardLayoutInfo;
-	private _rawMapping: nativeKeymap.IKeyboardMapping;
-	private _keyboardMapper: IKeyboardMapper;
+	private _layoutInfo: nativeKeymap.IKeyboardLayoutInfo | null;
+	private _rawMapping: nativeKeymap.IKeyboardMapping | null;
+	private _keyboardMapper: IKeyboardMapper | null;
 	private _initialized: boolean;
 
 	private readonly _onDidChangeKeyboardMapper: Emitter<void> = new Emitter<void>();
@@ -70,10 +70,10 @@ export class KeyboardMapperFactory {
 			// Forcefully set to use keyCode
 			return new MacLinuxFallbackKeyboardMapper(OS);
 		}
-		return this._keyboardMapper;
+		return this._keyboardMapper!;
 	}
 
-	public getCurrentKeyboardLayout(): nativeKeymap.IKeyboardLayoutInfo {
+	public getCurrentKeyboardLayout(): nativeKeymap.IKeyboardLayoutInfo | null {
 		if (!this._initialized) {
 			this._setKeyboardData(nativeKeymap.getCurrentKeyboardLayout(), nativeKeymap.getKeyMap());
 		}
@@ -99,7 +99,7 @@ export class KeyboardMapperFactory {
 		return false;
 	}
 
-	public getRawKeyboardMapping(): nativeKeymap.IKeyboardMapping {
+	public getRawKeyboardMapping(): nativeKeymap.IKeyboardMapping | null {
 		if (!this._initialized) {
 			this._setKeyboardData(nativeKeymap.getCurrentKeyboardLayout(), nativeKeymap.getKeyMap());
 		}
@@ -144,7 +144,7 @@ export class KeyboardMapperFactory {
 		return new MacLinuxKeyboardMapper(isUSStandard, <IMacLinuxKeyboardMapping>rawMapping, OS);
 	}
 
-	private static _equals(a: nativeKeymap.IKeyboardMapping, b: nativeKeymap.IKeyboardMapping): boolean {
+	private static _equals(a: nativeKeymap.IKeyboardMapping | null, b: nativeKeymap.IKeyboardMapping | null): boolean {
 		if (OS === OperatingSystem.Windows) {
 			return windowsKeyboardMappingEquals(<IWindowsKeyboardMapping>a, <IWindowsKeyboardMapping>b);
 		}
@@ -175,8 +175,8 @@ function isValidContributedKeyBinding(keyBinding: ContributedKeyBinding, rejects
 		rejects.push(nls.localize('requirestring', "property `{0}` is mandatory and must be of type `string`", 'command'));
 		return false;
 	}
-	if (typeof keyBinding.key !== 'string') {
-		rejects.push(nls.localize('requirestring', "property `{0}` is mandatory and must be of type `string`", 'key'));
+	if (keyBinding.key && typeof keyBinding.key !== 'string') {
+		rejects.push(nls.localize('optstring', "property `{0}` can be omitted or must be of type `string`", 'key'));
 		return false;
 	}
 	if (keyBinding.when && typeof keyBinding.when !== 'string') {
@@ -254,7 +254,7 @@ function getDispatchConfig(configurationService: IConfigurationService): Dispatc
 export class WorkbenchKeybindingService extends AbstractKeybindingService {
 
 	private _keyboardMapper: IKeyboardMapper;
-	private _cachedResolver: KeybindingResolver;
+	private _cachedResolver: KeybindingResolver | null;
 	private _firstTimeComputingResolver: boolean;
 	private userKeybindings: ConfigWatcher<IUserFriendlyKeybinding[]>;
 
@@ -438,7 +438,7 @@ export class WorkbenchKeybindingService extends AbstractKeybindingService {
 	}
 
 	public resolveUserBinding(userBinding: string): ResolvedKeybinding[] {
-		const [firstPart, chordPart] = KeybindingIO._readUserBinding(userBinding);
+		const [firstPart, chordPart] = KeybindingParser.parseUserBinding(userBinding);
 		return this._keyboardMapper.resolveUserBinding(firstPart, chordPart);
 	}
 
@@ -479,25 +479,25 @@ export class WorkbenchKeybindingService extends AbstractKeybindingService {
 		return commandAdded;
 	}
 
-	private _asCommandRule(isBuiltin: boolean, idx: number, binding: ContributedKeyBinding): IKeybindingRule2 {
+	private _asCommandRule(isBuiltin: boolean, idx: number, binding: ContributedKeyBinding): IKeybindingRule2 | undefined {
 
 		let { command, when, key, mac, linux, win } = binding;
 
 		let weight: number;
 		if (isBuiltin) {
-			weight = KeybindingsRegistry.WEIGHT.builtinExtension(idx);
+			weight = KeybindingWeight.BuiltinExtension + idx;
 		} else {
-			weight = KeybindingsRegistry.WEIGHT.externalExtension(idx);
+			weight = KeybindingWeight.ExternalExtension + idx;
 		}
 
-		let desc = {
+		let desc: IKeybindingRule2 = {
 			id: command,
 			when: ContextKeyExpr.deserialize(when),
 			weight: weight,
-			primary: KeybindingIO.readKeybinding(key, OS),
-			mac: mac && { primary: KeybindingIO.readKeybinding(mac, OS) },
-			linux: linux && { primary: KeybindingIO.readKeybinding(linux, OS) },
-			win: win && { primary: KeybindingIO.readKeybinding(win, OS) }
+			primary: KeybindingParser.parseKeybinding(key, OS),
+			mac: mac ? { primary: KeybindingParser.parseKeybinding(mac, OS) } : null,
+			linux: linux ? { primary: KeybindingParser.parseKeybinding(linux, OS) } : null,
+			win: win ? { primary: KeybindingParser.parseKeybinding(win, OS) } : null
 		};
 
 		if (!desc.primary && !desc.mac && !desc.linux && !desc.win) {
@@ -539,6 +539,27 @@ export class WorkbenchKeybindingService extends AbstractKeybindingService {
 		const unboundCommands = KeybindingResolver.getAllUnboundCommands(boundCommands);
 		let pretty = unboundCommands.sort().join('\n// - ');
 		return '// ' + nls.localize('unboundCommands', "Here are other available commands: ") + '\n// - ' + pretty;
+	}
+
+	mightProducePrintableCharacter(event: IKeyboardEvent): boolean {
+		if (event.ctrlKey || event.metaKey) {
+			// ignore ctrl/cmd-combination but not shift/alt-combinatios
+			return false;
+		}
+		// consult the KeyboardMapperFactory to check the given event for
+		// a printable value.
+		const mapping = KeyboardMapperFactory.INSTANCE.getRawKeyboardMapping();
+		if (!mapping) {
+			return false;
+		}
+		const keyInfo = mapping[event.code];
+		if (!keyInfo) {
+			return false;
+		}
+		if (!keyInfo.value || /\s/.test(keyInfo.value)) {
+			return false;
+		}
+		return true;
 	}
 }
 
@@ -585,7 +606,7 @@ const keyboardConfiguration: IConfigurationNode = {
 			'type': 'string',
 			'enum': ['code', 'keyCode'],
 			'default': 'code',
-			'description': nls.localize('dispatch', "Controls the dispatching logic for key presses to use either `code` (recommended) or `keyCode`."),
+			'markdownDescription': nls.localize('dispatch', "Controls the dispatching logic for key presses to use either `code` (recommended) or `keyCode`."),
 			'included': OS === OperatingSystem.Macintosh || OS === OperatingSystem.Linux
 		},
 		'keyboard.touchbar.enabled': {

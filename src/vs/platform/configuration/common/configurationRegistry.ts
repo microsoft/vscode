@@ -2,7 +2,6 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
 import * as nls from 'vs/nls';
 import { Event, Emitter } from 'vs/base/common/event';
@@ -38,6 +37,12 @@ export interface IConfigurationRegistry {
 	 * Event that fires whenver a configuration has been
 	 * registered.
 	 */
+	onDidSchemaChange: Event<void>;
+
+	/**
+	 * Event that fires whenver a configuration has been
+	 * registered.
+	 */
 	onDidRegisterConfiguration: Event<string[]>;
 
 	/**
@@ -61,7 +66,7 @@ export interface IConfigurationRegistry {
 	registerOverrideIdentifiers(identifiers: string[]): void;
 }
 
-export enum ConfigurationScope {
+export const enum ConfigurationScope {
 	APPLICATION = 1,
 	WINDOW,
 	RESOURCE,
@@ -70,8 +75,8 @@ export enum ConfigurationScope {
 export interface IConfigurationPropertySchema extends IJSONSchema {
 	overridable?: boolean;
 	scope?: ConfigurationScope;
-	notMultiRootAdopted?: boolean;
 	included?: boolean;
+	tags?: string[];
 }
 
 export interface IConfigurationNode {
@@ -84,6 +89,7 @@ export interface IConfigurationNode {
 	allOf?: IConfigurationNode[];
 	overridable?: boolean;
 	scope?: ConfigurationScope;
+	contributedByExtension?: boolean;
 }
 
 export interface IDefaultConfigurationExtension {
@@ -108,6 +114,9 @@ class ConfigurationRegistry implements IConfigurationRegistry {
 	private editorConfigurationSchema: IJSONSchema;
 	private overrideIdentifiers: string[] = [];
 	private overridePropertyPattern: string;
+
+	private readonly _onDidSchemaChange: Emitter<void> = new Emitter<void>();
+	readonly onDidSchemaChange: Event<void> = this._onDidSchemaChange.event;
 
 	private readonly _onDidRegisterConfiguration: Emitter<string[]> = new Emitter<string[]>();
 	readonly onDidRegisterConfiguration: Event<string[]> = this._onDidRegisterConfiguration.event;
@@ -152,7 +161,7 @@ class ConfigurationRegistry implements IConfigurationRegistry {
 		this.updateOverridePropertyPatternKey();
 	}
 
-	private toConfiguration(defaultConfigurations: IDefaultConfigurationExtension[]): IConfigurationNode {
+	private toConfiguration(defaultConfigurations: IDefaultConfigurationExtension[]): IConfigurationNode | null {
 		const configurationNode: IConfigurationNode = {
 			id: 'defaultOverrides',
 			title: nls.localize('defaultConfigurations.title', "Default Configuration Overrides"),
@@ -162,7 +171,7 @@ class ConfigurationRegistry implements IConfigurationRegistry {
 			for (const key in defaultConfiguration.defaults) {
 				const defaultValue = defaultConfiguration.defaults[key];
 				if (OVERRIDE_PROPERTY_PATTERN.test(key) && typeof defaultValue === 'object') {
-					configurationNode.properties[key] = {
+					configurationNode.properties![key] = {
 						type: 'object',
 						default: defaultValue,
 						description: nls.localize('overrideSettings.description', "Configure editor settings to be overridden for {0} language.", key),
@@ -171,13 +180,13 @@ class ConfigurationRegistry implements IConfigurationRegistry {
 				}
 			}
 		}
-		return Object.keys(configurationNode.properties).length ? configurationNode : null;
+		return Object.keys(configurationNode.properties!).length ? configurationNode : null;
 	}
 
 	private validateAndRegisterProperties(configuration: IConfigurationNode, validate: boolean = true, scope: ConfigurationScope = ConfigurationScope.WINDOW, overridable: boolean = false): string[] {
-		scope = configuration.scope !== void 0 && configuration.scope !== null ? configuration.scope : scope;
+		scope = types.isUndefinedOrNull(configuration.scope) ? scope : configuration.scope;
 		overridable = configuration.overridable || overridable;
-		let propertyKeys = [];
+		let propertyKeys: string[] = [];
 		let properties = configuration.properties;
 		if (properties) {
 			for (let key in properties) {
@@ -197,8 +206,11 @@ class ConfigurationRegistry implements IConfigurationRegistry {
 				if (overridable) {
 					property.overridable = true;
 				}
-				if (property.scope === void 0) {
-					property.scope = scope;
+
+				if (OVERRIDE_PROPERTY_PATTERN.test(key)) {
+					property.scope = void 0; // No scope for overridable properties `[${identifier}]`
+				} else {
+					property.scope = types.isUndefinedOrNull(property.scope) ? scope : property.scope;
 				}
 
 				// Add to properties maps
@@ -239,7 +251,7 @@ class ConfigurationRegistry implements IConfigurationRegistry {
 		function register(configuration: IConfigurationNode) {
 			let properties = configuration.properties;
 			if (properties) {
-				for (let key in properties) {
+				for (const key in properties) {
 					allSettings.properties[key] = properties[key];
 					switch (properties[key].scope) {
 						case ConfigurationScope.APPLICATION:
@@ -260,6 +272,7 @@ class ConfigurationRegistry implements IConfigurationRegistry {
 			}
 		}
 		register(configuration);
+		this._onDidSchemaChange.fire();
 	}
 
 	private updateSchemaForOverrideSettingsConfiguration(configuration: IConfigurationNode): void {
@@ -291,6 +304,8 @@ class ConfigurationRegistry implements IConfigurationRegistry {
 		applicationSettings.patternProperties[this.overridePropertyPattern] = patternProperties;
 		windowSettings.patternProperties[this.overridePropertyPattern] = patternProperties;
 		resourceSettings.patternProperties[this.overridePropertyPattern] = patternProperties;
+
+		this._onDidSchemaChange.fire();
 	}
 
 	private update(configuration: IConfigurationNode): void {
@@ -298,7 +313,7 @@ class ConfigurationRegistry implements IConfigurationRegistry {
 		if (properties) {
 			for (let key in properties) {
 				if (properties[key].overridable) {
-					this.editorConfigurationSchema.properties[key] = this.getConfigurationProperties()[key];
+					this.editorConfigurationSchema.properties![key] = this.getConfigurationProperties()[key];
 				}
 			}
 		}
@@ -318,7 +333,7 @@ const OVERRIDE_PROPERTY = '\\[.*\\]$';
 const OVERRIDE_PATTERN_WITH_SUBSTITUTION = '\\[(${0})\\]$';
 export const OVERRIDE_PROPERTY_PATTERN = new RegExp(OVERRIDE_PROPERTY);
 
-function getDefaultValue(type: string | string[]): any {
+function getDefaultValue(type: string | string[] | undefined): any {
 	const t = Array.isArray(type) ? (<string[]>type)[0] : <string>type;
 	switch (t) {
 		case 'boolean':
@@ -341,7 +356,7 @@ function getDefaultValue(type: string | string[]): any {
 const configurationRegistry = new ConfigurationRegistry();
 Registry.add(Extensions.Configuration, configurationRegistry);
 
-export function validateProperty(property: string): string {
+export function validateProperty(property: string): string | null {
 	if (OVERRIDE_PROPERTY_PATTERN.test(property)) {
 		return nls.localize('config.property.languageDefault', "Cannot register '{0}'. This matches property pattern '\\\\[.*\\\\]$' for describing language specific editor settings. Use 'configurationDefaults' contribution.", property);
 	}

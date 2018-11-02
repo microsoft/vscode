@@ -2,12 +2,11 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
-import { ILink } from 'vs/editor/common/modes';
 import { CharCode } from 'vs/base/common/charCode';
 import { CharacterClassifier } from 'vs/editor/common/core/characterClassifier';
 import { Uint8Matrix } from 'vs/editor/common/core/uint';
+import { ILink } from 'vs/editor/common/modes';
 
 export interface ILinkComputerTarget {
 	getLineCount(): number;
@@ -76,7 +75,7 @@ class StateMachine {
 }
 
 // State machine for http:// or https:// or file://
-let _stateMachine: StateMachine = null;
+let _stateMachine: StateMachine | null = null;
 function getStateMachine(): StateMachine {
 	if (_stateMachine === null) {
 		_stateMachine = new StateMachine([
@@ -124,7 +123,7 @@ const enum CharacterClass {
 	CannotEndIn = 2
 }
 
-let _classifier: CharacterClassifier<CharacterClass> = null;
+let _classifier: CharacterClassifier<CharacterClass> | null = null;
 function getClassifier(): CharacterClassifier<CharacterClass> {
 	if (_classifier === null) {
 		_classifier = new CharacterClassifier<CharacterClass>(CharacterClass.None);

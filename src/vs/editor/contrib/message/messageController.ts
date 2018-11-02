@@ -3,11 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import 'vs/css!./messageController';
 import * as nls from 'vs/nls';
-import { setDisposableTimeout } from 'vs/base/common/async';
+import { TimeoutTimer } from 'vs/base/common/async';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { IDisposable, dispose, Disposable } from 'vs/base/common/lifecycle';
 import { alert } from 'vs/base/browser/ui/aria/aria';
@@ -18,8 +16,8 @@ import { ICodeEditor, IContentWidget, IContentWidgetPosition, ContentWidgetPosit
 import { IContextKeyService, RawContextKey, IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IPosition } from 'vs/editor/common/core/position';
 import { registerThemingParticipant, HIGH_CONTRAST } from 'vs/platform/theme/common/themeService';
-import { inputValidationInfoBorder, inputValidationInfoBackground } from 'vs/platform/theme/common/colorRegistry';
-import { KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
+import { inputValidationInfoBorder, inputValidationInfoBackground, inputValidationInfoForeground } from 'vs/platform/theme/common/colorRegistry';
+import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 
 export class MessageController extends Disposable implements editorCommon.IEditorContribution {
 
@@ -75,7 +73,7 @@ export class MessageController extends Disposable implements editorCommon.IEdito
 		this._messageListeners.push(this._editor.onDidChangeModel(() => this.closeMessage()));
 
 		// close after 3s
-		this._messageListeners.push(setDisposableTimeout(() => this.closeMessage(), 3000));
+		this._messageListeners.push(new TimeoutTimer(() => this.closeMessage(), 3000));
 
 		// close on mouse move
 		let bounds: Range;
@@ -102,7 +100,9 @@ export class MessageController extends Disposable implements editorCommon.IEdito
 	}
 
 	private _onDidAttemptReadOnlyEdit(): void {
-		this.showMessage(nls.localize('editor.readonly', "Cannot edit in read-only editor"), this._editor.getPosition());
+		if (this._editor.hasModel()) {
+			this.showMessage(nls.localize('editor.readonly', "Cannot edit in read-only editor"), this._editor.getPosition());
+		}
 	}
 }
 
@@ -114,7 +114,7 @@ registerEditorCommand(new MessageCommand({
 	precondition: MessageController.MESSAGE_VISIBLE,
 	handler: c => c.closeMessage(),
 	kbOpts: {
-		weight: KeybindingsRegistry.WEIGHT.editorContrib(30),
+		weight: KeybindingWeight.EditorContrib + 30,
 		primary: KeyCode.Escape
 	}
 }));
@@ -130,7 +130,7 @@ class MessageWidget implements IContentWidget {
 	private _domNode: HTMLDivElement;
 
 	static fadeOut(messageWidget: MessageWidget): IDisposable {
-		let handle: number;
+		let handle: any;
 		const dispose = () => {
 			messageWidget.dispose();
 			clearTimeout(handle);
@@ -184,14 +184,18 @@ class MessageWidget implements IContentWidget {
 registerEditorContribution(MessageController);
 
 registerThemingParticipant((theme, collector) => {
-	let border = theme.getColor(inputValidationInfoBorder);
+	const border = theme.getColor(inputValidationInfoBorder);
 	if (border) {
 		let borderWidth = theme.type === HIGH_CONTRAST ? 2 : 1;
 		collector.addRule(`.monaco-editor .monaco-editor-overlaymessage .anchor { border-top-color: ${border}; }`);
 		collector.addRule(`.monaco-editor .monaco-editor-overlaymessage .message { border: ${borderWidth}px solid ${border}; }`);
 	}
-	let background = theme.getColor(inputValidationInfoBackground);
+	const background = theme.getColor(inputValidationInfoBackground);
 	if (background) {
 		collector.addRule(`.monaco-editor .monaco-editor-overlaymessage .message { background-color: ${background}; }`);
+	}
+	const foreground = theme.getColor(inputValidationInfoForeground);
+	if (foreground) {
+		collector.addRule(`.monaco-editor .monaco-editor-overlaymessage .message { color: ${foreground}; }`);
 	}
 });

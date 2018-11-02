@@ -44,7 +44,7 @@
 }
 
 .extensions-viewlet > .extensions .panel-header {
-	padding-right: 12px;
+	padding-right: 28px;
 }
 
 .extensions-viewlet > .extensions .panel-header > .title {
@@ -80,7 +80,7 @@
 	box-sizing: border-box;
 	width: 100%;
 	height: 100%;
-	padding: 0 11px 0 16px;
+	padding: 0 0 0 16px;
 	overflow: hidden;
 	display: flex;
 	position: absolute;
@@ -117,6 +117,7 @@
 	height: 19px;
 	display: flex;
 	overflow: hidden;
+	padding-right: 11px;
 }
 
 .extensions-viewlet > .extensions .extension > .details > .header-container > .header {
@@ -162,10 +163,15 @@
 	display: none;
 }
 
+.extensions-viewlet > .extensions .extension > .details > .description {
+	padding-right: 11px;
+}
+
 .extensions-viewlet > .extensions .extension > .details > .footer {
 	display: flex;
 	justify-content: flex-end;
-	height: 18px;
+	padding-right: 7px;
+	height: 24px;
 	overflow: hidden;
 }
 
@@ -173,8 +179,13 @@
 	flex: 1;
 	font-size: 90%;
 	padding-right: 6px;
-	opacity: 0.6;
+	opacity: 0.9;
 	font-weight: 600;
+}
+
+.extensions-viewlet > .extensions .selected .extension > .details > .footer > .author,
+.extensions-viewlet > .extensions .selected.focused .extension > .details > .footer > .author {
+	opacity: 1;
 }
 
 .extensions-viewlet > .extensions .extension > .details > .footer > .monaco-action-bar > .actions-container {
@@ -182,23 +193,25 @@
 }
 
 .extensions-viewlet > .extensions .extension > .details > .footer > .monaco-action-bar .action-label {
-	margin-right: 0;
+	margin-top: 0.3em;
 	margin-left: 0.3em;
-	line-height: 15px;
+	line-height: 14px;
 }
 
 .extensions-viewlet > .extensions .extension > .details > .footer > .monaco-action-bar .action-label:not(:empty) {
 	opacity: 0.9;
 }
 
-.vs .extensions-viewlet > .extensions .extension.disabled > .icon,
-.vs-dark .extensions-viewlet > .extensions .extension.disabled > .icon,
-.vs .extensions-viewlet > .extensions .extension.disabled > .details > .header-container,
-.vs-dark .extensions-viewlet > .extensions .extension.disabled > .details > .header-container,
-.vs .extensions-viewlet > .extensions .extension.disabled > .details > .description,
-.vs-dark .extensions-viewlet > .extensions .extension.disabled > .details > .description,
-.vs .extensions-viewlet > .extensions .extension.disabled > .details > .footer > .author,
-.vs-dark .extensions-viewlet > .extensions .extension.disabled > .details > .footer > .author {
+.vs .extensions-viewlet > .extensions .monaco-list-row.disabled > .bookmark,
+.vs-dark  .extensions-viewlet > .extensions .monaco-list-row.disabled > .bookmark,
+.vs .extensions-viewlet > .extensions .monaco-list-row.disabled > .extension > .icon,
+.vs-dark .extensions-viewlet > .extensions .monaco-list-row.disabled > .extension > .icon,
+.vs .extensions-viewlet > .extensions .monaco-list-row.disabled > .extension > .details > .header-container,
+.vs-dark .extensions-viewlet > .extensions .monaco-list-row.disabled > .extension > .details > .header-container,
+.vs .extensions-viewlet > .extensions .monaco-list-row.disabled > .extension > .details > .description,
+.vs-dark .extensions-viewlet > .extensions .monaco-list-row.disabled > .extension > .details > .description,
+.vs .extensions-viewlet > .extensions .monaco-list-row.disabled > .extension > .details > .footer > .author,
+.vs-dark .extensions-viewlet > .extensions .monaco-list-row.disabled > .extension > .details > .footer > .author {
 	opacity: 0.5;
 }
 

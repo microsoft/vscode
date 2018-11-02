@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import * as nls from 'vs/nls';
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { MarkdownString } from 'vs/base/common/htmlContent';
@@ -20,15 +18,16 @@ import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { SnippetController2 } from 'vs/editor/contrib/snippet/snippetController2';
 import { SmartSnippetInserter } from 'vs/workbench/parts/preferences/common/smartSnippetInserter';
 import { DefineKeybindingOverlayWidget } from 'vs/workbench/parts/preferences/browser/keybindingWidgets';
-import { FloatingClickWidget } from 'vs/workbench/parts/preferences/browser/preferencesWidgets';
+import { FloatingClickWidget } from 'vs/workbench/browser/parts/editor/editorWidgets';
 import { parseTree, Node } from 'vs/base/common/json';
-import { KeybindingIO } from 'vs/workbench/services/keybinding/common/keybindingIO';
-import { ScanCodeBinding } from 'vs/workbench/services/keybinding/common/scanCode';
+import { ScanCodeBinding } from 'vs/base/common/scanCode';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { WindowsNativeResolvedKeybinding } from 'vs/workbench/services/keybinding/common/windowsKeyboardMapper';
 import { themeColorFromId, ThemeColor } from 'vs/platform/theme/common/themeService';
 import { overviewRulerInfo, overviewRulerError } from 'vs/editor/common/view/editorColorRegistry';
 import { IModelDeltaDecoration, ITextModel, TrackedRangeStickiness, OverviewRulerLane } from 'vs/editor/common/model';
+import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
+import { KeybindingParser } from 'vs/base/common/keybindingParser';
 
 const NLS_LAUNCH_MESSAGE = nls.localize('defineKeybinding.start', "Define Keybinding");
 const NLS_KB_LAYOUT_ERROR_MESSAGE = nls.localize('defineKeybinding.kbLayoutErrorMessage', "You won't be able to produce this key combination under your current keyboard layout.");
@@ -234,11 +233,16 @@ export class KeybindingEditorDecorationsRenderer extends Disposable {
 				return this._createDecoration(true, null, null, model, value);
 			}
 			const resolvedKeybinding = resolvedKeybindings[0];
-			let usLabel: string = null;
+			let usLabel: string | null = null;
 			if (resolvedKeybinding instanceof WindowsNativeResolvedKeybinding) {
 				usLabel = resolvedKeybinding.getUSLabel();
 			}
 			if (!resolvedKeybinding.isWYSIWYG()) {
+				const uiLabel = resolvedKeybinding.getLabel();
+				if (value.value.toLowerCase() === uiLabel.toLowerCase()) {
+					// coincidentally, this is actually WYSIWYG
+					return null;
+				}
 				return this._createDecoration(false, resolvedKeybinding.getLabel(), usLabel, model, value);
 			}
 			if (/abnt_|oem_/.test(value.value)) {
@@ -261,8 +265,8 @@ export class KeybindingEditorDecorationsRenderer extends Disposable {
 			return true;
 		}
 
-		const [parsedA1, parsedA2] = KeybindingIO._readUserBinding(a);
-		const [parsedB1, parsedB2] = KeybindingIO._readUserBinding(b);
+		const [parsedA1, parsedA2] = KeybindingParser.parseUserBinding(a);
+		const [parsedB1, parsedB2] = KeybindingParser.parseUserBinding(b);
 
 		return (
 			this._userBindingEquals(parsedA1, parsedB1)
@@ -346,7 +350,6 @@ export class KeybindingEditorDecorationsRenderer extends Disposable {
 				hoverMessage: msg,
 				overviewRuler: {
 					color: overviewRulerColor,
-					darkColor: overviewRulerColor,
 					position: OverviewRulerLane.Right
 				}
 			}
@@ -365,7 +368,8 @@ class DefineKeybindingCommand extends EditorCommand {
 			precondition: ContextKeyExpr.and(EditorContextKeys.writable, EditorContextKeys.languageId.isEqualTo('jsonc')),
 			kbOpts: {
 				kbExpr: EditorContextKeys.editorTextFocus,
-				primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.KEY_K)
+				primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.KEY_K),
+				weight: KeybindingWeight.EditorContrib
 			}
 		});
 	}

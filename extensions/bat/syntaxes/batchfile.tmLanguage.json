@@ -4,7 +4,7 @@
 		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
 		"Once accepted there, we are happy to receive an update request."
 	],
-	"version": "https://github.com/mmims/language-batchfile/commit/6235c491be4dff49cd3966b50142874d7f79580a",
+	"version": "https://github.com/mmims/language-batchfile/commit/4b67596631b4ecd2c89c2ec1b2e08a6623438903",
 	"name": "Batch File",
 	"scopeName": "source.batchfile",
 	"patterns": [
@@ -164,12 +164,6 @@
 					"name": "meta.expression.set.batchfile",
 					"patterns": [
 						{
-							"include": "#command_set_inside_arithmetic"
-						},
-						{
-							"include": "#command_set_group"
-						},
-						{
 							"begin": "\"",
 							"beginCaptures": {
 								"0": {
@@ -194,6 +188,12 @@
 									"include": "#variables"
 								}
 							]
+						},
+						{
+							"include": "#command_set_inside_arithmetic"
+						},
+						{
+							"include": "#command_set_group"
 						}
 					]
 				},
@@ -266,8 +266,15 @@
 		"command_set_operators": {
 			"patterns": [
 				{
-					"match": "\\+\\=|\\-\\=|\\*\\=|/\\=|%%\\=|&\\=|\\|\\=|\\^\\=|<<\\=|>>\\=",
-					"name": "keyword.operator.assignment.augmented.batchfile"
+					"match": "([^ ]*)(\\+\\=|\\-\\=|\\*\\=|\\/\\=|%%\\=|&\\=|\\|\\=|\\^\\=|<<\\=|>>\\=)",
+					"captures": {
+						"1": {
+							"name": "variable.other.readwrite.batchfile"
+						},
+						"2": {
+							"name": "keyword.operator.assignment.augmented.batchfile"
+						}
+					}
 				},
 				{
 					"match": "\\+|\\-|/|\\*|%%|\\||&|\\^|<<|>>|~",
@@ -278,8 +285,15 @@
 					"name": "keyword.operator.logical.batchfile"
 				},
 				{
-					"match": "=",
-					"name": "keyword.operator.assignment.batchfile"
+					"match": "([^ ][^=]*)(=)",
+					"captures": {
+						"1": {
+							"name": "variable.other.readwrite.batchfile"
+						},
+						"2": {
+							"name": "keyword.operator.assignment.batchfile"
+						}
+					}
 				}
 			]
 		},

@@ -2,15 +2,17 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-
+import * as aria from 'vs/base/browser/ui/aria/aria';
+import * as nls from 'vs/nls';
 import { ITerminalInstance, IShellLaunchConfig, ITerminalTab, Direction, ITerminalService, ITerminalConfigHelper } from 'vs/workbench/parts/terminal/common/terminal';
 import { IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { Event, Emitter, anyEvent } from 'vs/base/common/event';
 import { IDisposable, Disposable } from 'vs/base/common/lifecycle';
-import { SplitView, Orientation, IView } from 'vs/base/browser/ui/splitview/splitview';
+import { SplitView, Orientation, IView, Sizing } from 'vs/base/browser/ui/splitview/splitview';
 import { IPartService, Position } from 'vs/workbench/services/part/common/partService';
 
 const SPLIT_PANE_MIN_SIZE = 120;
+const TERMINAL_MIN_USEFUL_SIZE = 250;
 
 class SplitPaneContainer {
 	private _height: number;
@@ -19,10 +21,6 @@ class SplitPaneContainer {
 	private _splitViewDisposables: IDisposable[];
 	private _children: SplitPane[] = [];
 
-	// If the user sizes the panes manually, the proportional resizing will not be applied.
-	// Proportional resizing will come back when: a sash is reset, an instance is added/removed or
-	// the panel position moves.
-	private _isManuallySized: boolean = false;
 
 	private _onDidChange: Event<number | undefined> = Event.None;
 	public get onDidChange(): Event<number | undefined> { return this._onDidChange; }
@@ -40,28 +38,11 @@ class SplitPaneContainer {
 	private _createSplitView(): void {
 		this._splitView = new SplitView(this._container, { orientation: this.orientation });
 		this._splitViewDisposables = [];
-		this._splitViewDisposables.push(this._splitView.onDidSashReset(() => this.resetSize()));
-		this._splitViewDisposables.push(this._splitView.onDidSashChange(() => {
-			this._isManuallySized = true;
-		}));
+		this._splitViewDisposables.push(this._splitView.onDidSashReset(() => this._splitView.distributeViewSizes()));
 	}
 
 	public split(instance: ITerminalInstance, index: number = this._children.length): void {
-		const size = this.orientation === Orientation.HORIZONTAL ? this._width : this._height;
-		this._addChild(size / (this._children.length + 1), instance, index);
-	}
-
-	public resetSize(): void {
-		// TODO: Optimize temrinal instance layout
-		let totalSize = 0;
-		for (let i = 0; i < this._splitView.length; i++) {
-			totalSize += this._splitView.getViewSize(i);
-		}
-		const newSize = Math.floor(totalSize / this._splitView.length);
-		for (let i = 0; i < this._splitView.length - 1; i++) {
-			this._splitView.resizeView(i, newSize);
-		}
-		this._isManuallySized = false;
+		this._addChild(instance, index);
 	}
 
 	public resizePane(index: number, direction: Direction, amount: number): void {
@@ -80,7 +61,7 @@ class SplitPaneContainer {
 		}
 
 		// Get sizes
-		const sizes = [];
+		const sizes: number[] = [];
 		for (let i = 0; i < this._splitView.length; i++) {
 			sizes.push(this._splitView.getViewSize(i));
 		}
@@ -111,10 +92,9 @@ class SplitPaneContainer {
 		for (let i = 0; i < this._splitView.length - 1; i++) {
 			this._splitView.resizeView(i, sizes[i]);
 		}
-		this._isManuallySized = true;
 	}
 
-	private _addChild(size: number, instance: ITerminalInstance, index: number): void {
+	private _addChild(instance: ITerminalInstance, index: number): void {
 		const child = new SplitPane(instance, this.orientation === Orientation.HORIZONTAL ? this._height : this._width);
 		child.orientation = this.orientation;
 		if (typeof index === 'number') {
@@ -123,15 +103,13 @@ class SplitPaneContainer {
 			this._children.push(child);
 		}
 
-		this._withDisabledLayout(() => this._splitView.addView(child, size, index));
-
-		this.resetSize();
+		this._withDisabledLayout(() => this._splitView.addView(child, Sizing.Distribute, index));
 
 		this._onDidChange = anyEvent(...this._children.map(c => c.onDidChange));
 	}
 
 	public remove(instance: ITerminalInstance): void {
-		let index = null;
+		let index: number | null = null;
 		for (let i = 0; i < this._children.length; i++) {
 			if (this._children[i].instance === instance) {
 				index = i;
@@ -139,8 +117,7 @@ class SplitPaneContainer {
 		}
 		if (index !== null) {
 			this._children.splice(index, 1);
-			this._splitView.removeView(index);
-			this.resetSize();
+			this._splitView.removeView(index, Sizing.Distribute);
 		}
 	}
 
@@ -153,9 +130,6 @@ class SplitPaneContainer {
 		} else {
 			this._children.forEach(c => c.orthogonalLayout(width));
 			this._splitView.layout(height);
-		}
-		if (!this._isManuallySized) {
-			this.resetSize();
 		}
 	}
 
@@ -235,7 +209,7 @@ class SplitPane implements IView {
 export class TerminalTab extends Disposable implements ITerminalTab {
 	private _terminalInstances: ITerminalInstance[] = [];
 	private _splitPaneContainer: SplitPaneContainer | undefined;
-	private _tabElement: HTMLElement;
+	private _tabElement: HTMLElement | null;
 	private _panelPosition: Position = Position.BOTTOM;
 
 	private _activeInstanceIndex: number;
@@ -284,7 +258,7 @@ export class TerminalTab extends Disposable implements ITerminalTab {
 		this._onInstancesChanged.fire();
 	}
 
-	public get activeInstance(): ITerminalInstance {
+	public get activeInstance(): ITerminalInstance | null {
 		if (this._terminalInstances.length === 0) {
 			return null;
 		}
@@ -293,7 +267,10 @@ export class TerminalTab extends Disposable implements ITerminalTab {
 
 	private _initInstanceListeners(instance: ITerminalInstance): void {
 		instance.addDisposable(instance.onDisposed(instance => this._onInstanceDisposed(instance)));
-		instance.addDisposable(instance.onFocused(instance => this._setActiveInstance(instance)));
+		instance.addDisposable(instance.onFocused(instance => {
+			aria.alert(nls.localize('terminalFocus', "Terminal {0}", this._terminalService.activeTabIndex + 1));
+			this._setActiveInstance(instance);
+		}));
 	}
 
 	private _onInstanceDisposed(instance: ITerminalInstance): void {
@@ -306,10 +283,12 @@ export class TerminalTab extends Disposable implements ITerminalTab {
 
 		// Adjust focus if the instance was active
 		if (wasActiveInstance && this._terminalInstances.length > 0) {
-			let newIndex = index < this._terminalInstances.length ? index : this._terminalInstances.length - 1;
+			const newIndex = index < this._terminalInstances.length ? index : this._terminalInstances.length - 1;
 			this.setActiveInstanceByIndex(newIndex);
 			// TODO: Only focus the new instance if the tab had focus?
-			this.activeInstance.focus(true);
+			if (this.activeInstance) {
+				this.activeInstance.focus(true);
+			}
 		}
 
 		// Remove the instance from the split pane if it has been created
@@ -364,8 +343,9 @@ export class TerminalTab extends Disposable implements ITerminalTab {
 		if (!this._splitPaneContainer) {
 			this._panelPosition = this._partService.getPanelPosition();
 			const orientation = this._panelPosition === Position.BOTTOM ? Orientation.HORIZONTAL : Orientation.VERTICAL;
-			this._splitPaneContainer = new SplitPaneContainer(this._tabElement, orientation);
-			this.terminalInstances.forEach(instance => this._splitPaneContainer.split(instance));
+			const newLocal = new SplitPaneContainer(this._tabElement, orientation);
+			this._splitPaneContainer = newLocal;
+			this.terminalInstances.forEach(instance => this._splitPaneContainer!.split(instance));
 		}
 	}
 
@@ -388,7 +368,11 @@ export class TerminalTab extends Disposable implements ITerminalTab {
 		terminalFocusContextKey: IContextKey<boolean>,
 		configHelper: ITerminalConfigHelper,
 		shellLaunchConfig: IShellLaunchConfig
-	): ITerminalInstance {
+	): ITerminalInstance | undefined {
+		const newTerminalSize = ((this._panelPosition === Position.BOTTOM ? this._container.clientWidth : this._container.clientHeight) / (this._terminalInstances.length + 1));
+		if (newTerminalSize < TERMINAL_MIN_USEFUL_SIZE) {
+			return undefined;
+		}
 		const instance = this._terminalService.createInstance(
 			terminalFocusContextKey,
 			configHelper,
@@ -422,10 +406,6 @@ export class TerminalTab extends Disposable implements ITerminalTab {
 			}
 
 			this._splitPaneContainer.layout(width, height);
-
-			if (panelPositionChanged) {
-				this._splitPaneContainer.resetSize();
-			}
 		}
 	}
 

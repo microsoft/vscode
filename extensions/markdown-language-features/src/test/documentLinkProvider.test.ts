@@ -10,7 +10,7 @@ import LinkProvider from '../features/documentLinkProvider';
 import { InMemoryDocument } from './inMemoryDocument';
 
 
-const testFileName = vscode.Uri.parse('test.md');
+const testFileName = vscode.Uri.file('test.md');
 
 const noopToken = new class implements vscode.CancellationToken {
 	private _onCancellationRequestedEmitter = new vscode.EventEmitter<void>();

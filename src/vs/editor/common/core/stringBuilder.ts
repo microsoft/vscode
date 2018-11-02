@@ -2,7 +2,6 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
 import * as strings from 'vs/base/common/strings';
 
@@ -33,7 +32,7 @@ class StringBuilder implements IStringBuilder {
 	private readonly _capacity: number;
 	private readonly _buffer: Uint16Array;
 
-	private _completedStrings: string[];
+	private _completedStrings: string[] | null;
 	private _bufferLength: number;
 
 	constructor(capacity: number) {
@@ -105,7 +104,7 @@ class StringBuilder implements IStringBuilder {
 			// This string does not fit in the remaining buffer space
 
 			this._flushBuffer();
-			this._completedStrings[this._completedStrings.length] = str;
+			this._completedStrings![this._completedStrings!.length] = str;
 			return;
 		}
 

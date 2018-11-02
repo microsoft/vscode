@@ -44,11 +44,14 @@ const indentationFilter = [
 	'!ThirdPartyNotices.txt',
 	'!LICENSE.txt',
 	'!src/vs/nls.js',
+	'!src/vs/nls.build.js',
 	'!src/vs/css.js',
+	'!src/vs/css.build.js',
 	'!src/vs/loader.js',
 	'!src/vs/base/common/marked/marked.js',
 	'!src/vs/base/common/winjs.base.js',
 	'!src/vs/base/node/terminateProcess.sh',
+	'!src/vs/base/node/cpuUsage.sh',
 	'!test/assert.js',
 
 	// except specific folders
@@ -77,10 +80,11 @@ const indentationFilter = [
 	'!src/vs/*/**/*.d.ts',
 	'!src/typings/**/*.d.ts',
 	'!extensions/**/*.d.ts',
-	'!**/*.{svg,exe,png,bmp,scpt,bat,cmd,cur,ttf,woff,eot,md,ps1,template,yaml,yml,d.ts.recipe}',
+	'!**/*.{svg,exe,png,bmp,scpt,bat,cmd,cur,ttf,woff,eot,md,ps1,template,yaml,yml,d.ts.recipe,ico,icns}',
 	'!build/{lib,tslintRules}/**/*.js',
 	'!build/**/*.sh',
 	'!build/tfs/**/*.js',
+	'!build/tfs/**/*.config',
 	'!**/Dockerfile',
 	'!extensions/markdown-language-features/media/*.js'
 ];
@@ -94,6 +98,8 @@ const copyrightFilter = [
 	'!**/*.md',
 	'!**/*.bat',
 	'!**/*.cmd',
+	'!**/*.ico',
+	'!**/*.icns',
 	'!**/*.xml',
 	'!**/*.sh',
 	'!**/*.txt',
@@ -103,8 +109,9 @@ const copyrightFilter = [
 	'!**/*.code-workspace',
 	'!build/**/*.init',
 	'!resources/linux/snap/snapcraft.yaml',
+	'!resources/linux/snap/electron-launch',
 	'!resources/win32/bin/code.js',
-	'!extensions/markdown-language-features/media/tomorrow.css',
+	'!extensions/markdown-language-features/media/highlight.css',
 	'!extensions/html-language-features/server/src/modes/typescript/*',
 	'!extensions/*/server/bin/*'
 ];

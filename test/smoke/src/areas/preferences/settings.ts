@@ -8,8 +8,9 @@ import * as path from 'path';
 import { Editor } from '../editor/editor';
 import { Editors } from '../editor/editors';
 import { Code } from '../../vscode/code';
+import { QuickOpen } from '../quickopen/quickopen';
 
-export enum ActivityBarPosition {
+export const enum ActivityBarPosition {
 	LEFT = 0,
 	RIGHT = 1
 }
@@ -18,7 +19,7 @@ const SEARCH_INPUT = '.settings-search-input input';
 
 export class SettingsEditor {
 
-	constructor(private code: Code, private userDataPath: string, private editors: Editors, private editor: Editor) { }
+	constructor(private code: Code, private userDataPath: string, private editors: Editors, private editor: Editor, private quickopen: QuickOpen) { }
 
 	async addUserSetting(setting: string, value: string): Promise<void> {
 		await this.openSettings();
@@ -41,10 +42,6 @@ export class SettingsEditor {
 	}
 
 	private async openSettings(): Promise<void> {
-		if (process.platform === 'darwin') {
-			await this.code.dispatchKeybinding('cmd+,');
-		} else {
-			await this.code.dispatchKeybinding('ctrl+,');
-		}
+		await this.quickopen.runCommand('Preferences: Open Settings (JSON)');
 	}
 }

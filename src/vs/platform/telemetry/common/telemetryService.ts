@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import { localize } from 'vs/nls';
 import { escapeRegExpCharacters } from 'vs/base/common/strings';
 import { ITelemetryService, ITelemetryInfo, ITelemetryData } from 'vs/platform/telemetry/common/telemetry';
@@ -21,7 +19,6 @@ export interface ITelemetryServiceConfig {
 	appender: ITelemetryAppender;
 	commonProperties?: TPromise<{ [name: string]: any }>;
 	piiPaths?: string[];
-	userOptIn?: boolean;
 }
 
 export class TelemetryService implements ITelemetryService {
@@ -46,7 +43,7 @@ export class TelemetryService implements ITelemetryService {
 		this._appender = config.appender;
 		this._commonProperties = config.commonProperties || TPromise.as({});
 		this._piiPaths = config.piiPaths || [];
-		this._userOptIn = typeof config.userOptIn === 'undefined' ? true : config.userOptIn;
+		this._userOptIn = true;
 
 		// static cleanup pattern for: `file:///DANGEROUS/PATH/resources/app/Useful/Information`
 		this._cleanupPatterns = [/file:\/\/\/.*?\/resources\/app\//gi];
@@ -167,8 +164,9 @@ Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerConfigurat
 	'properties': {
 		'telemetry.enableTelemetry': {
 			'type': 'boolean',
-			'description': localize('telemetry.enableTelemetry', "Enable usage data and errors to be sent to Microsoft."),
-			'default': true
+			'description': localize('telemetry.enableTelemetry', "Enable usage data and errors to be sent to a Microsoft online service."),
+			'default': true,
+			'tags': ['usesOnlineServices']
 		}
 	}
 });

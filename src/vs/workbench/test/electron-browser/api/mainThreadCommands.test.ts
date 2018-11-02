@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import * as assert from 'assert';
 import { MainThreadCommands } from 'vs/workbench/api/electron-browser/mainThreadCommands';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';

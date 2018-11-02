@@ -2,19 +2,17 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
 import * as nls from 'vs/nls';
 
 import * as types from 'vs/base/common/types';
-import * as Paths from 'path';
+import * as resources from 'vs/base/common/resources';
 import { ExtensionsRegistry, ExtensionMessageCollector } from 'vs/workbench/services/extensions/common/extensionsRegistry';
 import { IColorTheme, ExtensionData, IThemeExtensionPoint, VS_LIGHT_THEME, VS_DARK_THEME, VS_HC_THEME } from 'vs/workbench/services/themes/common/workbenchThemeService';
 import { ColorThemeData } from 'vs/workbench/services/themes/electron-browser/colorThemeData';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
-import { TPromise } from 'vs/base/common/winjs.base';
 import { Event, Emitter } from 'vs/base/common/event';
-import URI from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 
 
 let themesExtPoint = ExtensionsRegistry.registerExtensionPoint<IThemeExtensionPoint[]>('themes', [], {
@@ -93,13 +91,13 @@ export class ColorThemeStore {
 				));
 				return;
 			}
-			// TODO@extensionLocation
-			let normalizedAbsolutePath = Paths.normalize(Paths.join(extensionLocation.fsPath, theme.path));
 
-			if (normalizedAbsolutePath.indexOf(Paths.normalize(extensionLocation.fsPath)) !== 0) {
-				collector.warn(nls.localize('invalid.path.1', "Expected `contributes.{0}.path` ({1}) to be included inside extension's folder ({2}). This might make the extension non-portable.", themesExtPoint.name, normalizedAbsolutePath, extensionLocation.fsPath));
+			const colorThemeLocation = resources.joinPath(extensionLocation, theme.path);
+			if (!resources.isEqualOrParent(colorThemeLocation, extensionLocation)) {
+				collector.warn(nls.localize('invalid.path.1', "Expected `contributes.{0}.path` ({1}) to be included inside extension's folder ({2}). This might make the extension non-portable.", themesExtPoint.name, colorThemeLocation.path, extensionLocation.path));
 			}
-			let themeData = ColorThemeData.fromExtensionTheme(theme, normalizedAbsolutePath, extensionData);
+
+			let themeData = ColorThemeData.fromExtensionTheme(theme, colorThemeLocation, extensionData);
 			if (themeData.id === this.extensionsColorThemes[0].id) {
 				this.extensionsColorThemes[0] = themeData;
 			} else {
@@ -108,7 +106,7 @@ export class ColorThemeStore {
 		});
 	}
 
-	public findThemeData(themeId: string, defaultId?: string): TPromise<ColorThemeData> {
+	public findThemeData(themeId: string, defaultId?: string): Thenable<ColorThemeData> {
 		return this.getColorThemes().then(allThemes => {
 			let defaultTheme: ColorThemeData = void 0;
 			for (let t of allThemes) {
@@ -123,7 +121,7 @@ export class ColorThemeStore {
 		});
 	}
 
-	public findThemeDataBySettingsId(settingsId: string, defaultId: string): TPromise<ColorThemeData> {
+	public findThemeDataBySettingsId(settingsId: string, defaultId: string): Thenable<ColorThemeData> {
 		return this.getColorThemes().then(allThemes => {
 			let defaultTheme: ColorThemeData = void 0;
 			for (let t of allThemes) {
@@ -138,7 +136,7 @@ export class ColorThemeStore {
 		});
 	}
 
-	public getColorThemes(): TPromise<IColorTheme[]> {
+	public getColorThemes(): Thenable<IColorTheme[]> {
 		return this.extensionService.whenInstalledExtensionsRegistered().then(isReady => {
 			return this.extensionsColorThemes;
 		});

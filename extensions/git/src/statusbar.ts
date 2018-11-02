@@ -3,13 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
-import { Disposable, Command, EventEmitter, Event } from 'vscode';
-import { Branch } from './git';
+import { Disposable, Command, EventEmitter, Event, workspace, Uri } from 'vscode';
 import { Repository, Operation } from './repository';
 import { anyEvent, dispose } from './util';
 import * as nls from 'vscode-nls';
+import { Branch } from './api/git';
 
 const localize = nls.loadMessageBundle();
 
@@ -24,7 +22,8 @@ class CheckoutStatusBar {
 	}
 
 	get command(): Command | undefined {
-		const title = `$(git-branch) ${this.repository.headLabel}`;
+		const rebasing = !!this.repository.rebaseCommit;
+		const title = `$(git-branch) ${this.repository.headLabel}${rebasing ? ` (${localize('rebasing', 'Rebasing')})` : ''}`;
 
 		return {
 			command: 'git.checkout',
@@ -71,10 +70,11 @@ class SyncStatusBar {
 	}
 
 	private onOperationsChange(): void {
-		this.state = {
-			...this.state,
-			isSyncRunning: this.repository.operations.isRunning(Operation.Sync)
-		};
+		const isSyncRunning = this.repository.operations.isRunning(Operation.Sync) ||
+			this.repository.operations.isRunning(Operation.Push) ||
+			this.repository.operations.isRunning(Operation.Pull);
+
+		this.state = { ...this.state, isSyncRunning };
 	}
 
 	private onModelChange(): void {
@@ -101,7 +101,11 @@ class SyncStatusBar {
 				if (HEAD.ahead || HEAD.behind) {
 					text += this.repository.syncLabel;
 				}
-				command = 'git.sync';
+
+				const config = workspace.getConfiguration('git', Uri.file(this.repository.root));
+				const rebaseWhenSync = config.get<string>('rebaseWhenSync');
+
+				command = rebaseWhenSync ? 'git.syncRebase' : 'git.sync';
 				tooltip = localize('sync changes', "Synchronize Changes");
 			} else {
 				icon = '$(cloud-upload)';

@@ -3,14 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import * as nls from 'vs/nls';
 import { TPromise } from 'vs/base/common/winjs.base';
 import * as paths from 'vs/base/common/paths';
 import * as strings from 'vs/base/common/strings';
 import { isWindows } from 'vs/base/common/platform';
-import URI from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 import { ConfirmResult } from 'vs/workbench/common/editor';
 import { TextFileService as AbstractTextFileService } from 'vs/workbench/services/textfile/common/textFileService';
 import { IRawTextContent } from 'vs/workbench/services/textfile/common/textfiles';
@@ -28,9 +26,9 @@ import { IWindowsService, IWindowService } from 'vs/platform/windows/common/wind
 import { IHistoryService } from 'vs/workbench/services/history/common/history';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IModelService } from 'vs/editor/common/services/modelService';
-import { INotificationService } from 'vs/platform/notification/common/notification';
-import { getConfirmMessage, IDialogService } from 'vs/platform/dialogs/common/dialogs';
-import { Severity } from 'vs/editor/common/standalone/standaloneBase';
+import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
+import { getConfirmMessage, IDialogService, ISaveDialogOptions, IFileDialogService } from 'vs/platform/dialogs/common/dialogs';
+import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 
 export class TextFileService extends AbstractTextFileService {
 
@@ -43,19 +41,21 @@ export class TextFileService extends AbstractTextFileService {
 		@IConfigurationService configurationService: IConfigurationService,
 		@IModeService private modeService: IModeService,
 		@IModelService modelService: IModelService,
-		@IWindowService private windowService: IWindowService,
+		@IWindowService windowService: IWindowService,
 		@IEnvironmentService environmentService: IEnvironmentService,
 		@INotificationService notificationService: INotificationService,
 		@IBackupFileService backupFileService: IBackupFileService,
 		@IWindowsService windowsService: IWindowsService,
 		@IHistoryService historyService: IHistoryService,
 		@IContextKeyService contextKeyService: IContextKeyService,
-		@IDialogService private dialogService: IDialogService
+		@IDialogService private dialogService: IDialogService,
+		@IFileDialogService private fileDialogService: IFileDialogService,
+		@IEditorService private editorService: IEditorService
 	) {
-		super(lifecycleService, contextService, configurationService, fileService, untitledEditorService, instantiationService, notificationService, environmentService, backupFileService, windowsService, historyService, contextKeyService, modelService);
+		super(lifecycleService, contextService, configurationService, fileService, untitledEditorService, instantiationService, notificationService, environmentService, backupFileService, windowsService, windowService, historyService, contextKeyService, modelService);
 	}
 
-	public resolveTextContent(resource: URI, options?: IResolveContentOptions): TPromise<IRawTextContent> {
+	resolveTextContent(resource: URI, options?: IResolveContentOptions): TPromise<IRawTextContent> {
 		return this.fileService.resolveStreamContent(resource, options).then(streamContent => {
 			return createTextBufferFactoryFromStream(streamContent.value).then(res => {
 				const r: IRawTextContent = {
@@ -64,6 +64,7 @@ export class TextFileService extends AbstractTextFileService {
 					mtime: streamContent.mtime,
 					etag: streamContent.etag,
 					encoding: streamContent.encoding,
+					isReadonly: streamContent.isReadonly,
 					value: res
 				};
 				return r;
@@ -71,7 +72,7 @@ export class TextFileService extends AbstractTextFileService {
 		});
 	}
 
-	public confirmSave(resources?: URI[]): TPromise<ConfirmResult> {
+	confirmSave(resources?: URI[]): TPromise<ConfirmResult> {
 		if (this.environmentService.isExtensionDevelopment) {
 			return TPromise.wrap(ConfirmResult.DONT_SAVE); // no veto when we are in extension dev mode because we cannot assum we run interactive (e.g. tests)
 		}
@@ -102,12 +103,19 @@ export class TextFileService extends AbstractTextFileService {
 		});
 	}
 
-	public promptForPath(defaultPath: string): TPromise<string> {
-		return this.windowService.showSaveDialog(this.getSaveDialogOptions(defaultPath));
+	promptForPath(resource: URI, defaultUri: URI): TPromise<URI> {
+
+		// Help user to find a name for the file by opening it first
+		return this.editorService.openEditor({ resource, options: { revealIfOpened: true, preserveFocus: true, } }).then(() => {
+			return this.fileDialogService.showSaveDialog(this.getSaveDialogOptions(defaultUri));
+		});
 	}
 
-	private getSaveDialogOptions(defaultPath: string): Electron.SaveDialogOptions {
-		const options: Electron.SaveDialogOptions = { defaultPath };
+	private getSaveDialogOptions(defaultUri: URI): ISaveDialogOptions {
+		const options: ISaveDialogOptions = {
+			defaultUri,
+			title: nls.localize('saveAsTitle', "Save As")
+		};
 
 		// Filters are only enabled on Windows where they work properly
 		if (!isWindows) {
@@ -117,7 +125,7 @@ export class TextFileService extends AbstractTextFileService {
 		interface IFilter { name: string; extensions: string[]; }
 
 		// Build the file filter by using our known languages
-		const ext: string = defaultPath ? paths.extname(defaultPath) : void 0;
+		const ext: string = defaultUri ? paths.extname(defaultUri.path) : void 0;
 		let matchingFilter: IFilter;
 		const filters: IFilter[] = this.modeService.getRegisteredLanguageNames().map(languageName => {
 			const extensions = this.modeService.getExtensions(languageName);

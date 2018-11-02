@@ -53,34 +53,6 @@
 	padding: 10px 14px 10px 0;
 }
 
-.monaco-action-bar .extension-host-profile-start {
-	background: url('profile-start.svg') center center no-repeat;
-}
-
-.monaco-action-bar .extension-host-profile-stop {
-	background: url('profile-stop.svg') center center no-repeat;
-}
-
-.vs-dark .monaco-action-bar .extension-host-profile-start,
-.hc-black .monaco-action-bar .extension-host-profile-start {
-	background: url('profile-start-inverse.svg') center center no-repeat;
-}
-
-.vs-dark .monaco-action-bar .extension-host-profile-stop,
-.hc-black .monaco-action-bar .extension-host-profile-stop {
-	background: url('profile-stop-inverse.svg') center center no-repeat;
-	animation:fade 1000ms infinite;
-}
-
-.monaco-action-bar .save-extension-host-profile {
-	background: url('save.svg') center center no-repeat;
-}
-
-.vs-dark .monaco-action-bar .save-extension-host-profile,
-.hc-black .monaco-action-bar .save-extension-host-profile {
-	background: url('save-inverse.svg') center center no-repeat;
-}
-
 .runtime-extensions-editor .monaco-action-bar {
 	padding-top: 21px;
 	flex-shrink: 0;

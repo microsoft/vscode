@@ -2,16 +2,17 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
 import * as nls from 'vs/nls';
-import { KeyCode, KeyMod, KeyChord } from 'vs/base/common/keyCodes';
+import { KeyChord, KeyCode, KeyMod } from 'vs/base/common/keyCodes';
+import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
+import { EditorAction, IActionOptions, ServicesAccessor, registerEditorAction } from 'vs/editor/browser/editorExtensions';
 import { ICommand } from 'vs/editor/common/editorCommon';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
-import { registerEditorAction, IActionOptions, EditorAction, ServicesAccessor } from 'vs/editor/browser/editorExtensions';
-import { BlockCommentCommand } from './blockCommentCommand';
-import { LineCommentCommand, Type } from './lineCommentCommand';
-import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
+import { BlockCommentCommand } from 'vs/editor/contrib/comment/blockCommentCommand';
+import { LineCommentCommand, Type } from 'vs/editor/contrib/comment/lineCommentCommand';
+import { MenuId } from 'vs/platform/actions/common/actions';
+import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 
 abstract class CommentLineAction extends EditorAction {
 
@@ -23,11 +24,11 @@ abstract class CommentLineAction extends EditorAction {
 	}
 
 	public run(accessor: ServicesAccessor, editor: ICodeEditor): void {
-		let model = editor.getModel();
-		if (!model) {
+		if (!editor.hasModel()) {
 			return;
 		}
 
+		let model = editor.getModel();
 		let commands: ICommand[] = [];
 		let selections = editor.getSelections();
 		let opts = model.getOptions();
@@ -52,7 +53,14 @@ class ToggleCommentLineAction extends CommentLineAction {
 			precondition: EditorContextKeys.writable,
 			kbOpts: {
 				kbExpr: EditorContextKeys.editorTextFocus,
-				primary: KeyMod.CtrlCmd | KeyCode.US_SLASH
+				primary: KeyMod.CtrlCmd | KeyCode.US_SLASH,
+				weight: KeybindingWeight.EditorContrib
+			},
+			menubarOpts: {
+				menuId: MenuId.MenubarEditMenu,
+				group: '5_insert',
+				title: nls.localize({ key: 'miToggleLineComment', comment: ['&& denotes a mnemonic'] }, "&&Toggle Line Comment"),
+				order: 1
 			}
 		});
 	}
@@ -67,7 +75,8 @@ class AddLineCommentAction extends CommentLineAction {
 			precondition: EditorContextKeys.writable,
 			kbOpts: {
 				kbExpr: EditorContextKeys.editorTextFocus,
-				primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.KEY_C)
+				primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.KEY_C),
+				weight: KeybindingWeight.EditorContrib
 			}
 		});
 	}
@@ -82,7 +91,8 @@ class RemoveLineCommentAction extends CommentLineAction {
 			precondition: EditorContextKeys.writable,
 			kbOpts: {
 				kbExpr: EditorContextKeys.editorTextFocus,
-				primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.KEY_U)
+				primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.KEY_U),
+				weight: KeybindingWeight.EditorContrib
 			}
 		});
 	}
@@ -99,15 +109,25 @@ class BlockCommentAction extends EditorAction {
 			kbOpts: {
 				kbExpr: EditorContextKeys.editorTextFocus,
 				primary: KeyMod.Shift | KeyMod.Alt | KeyCode.KEY_A,
-				linux: { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_A }
+				linux: { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_A },
+				weight: KeybindingWeight.EditorContrib
+			},
+			menubarOpts: {
+				menuId: MenuId.MenubarEditMenu,
+				group: '5_insert',
+				title: nls.localize({ key: 'miToggleBlockComment', comment: ['&& denotes a mnemonic'] }, "Toggle &&Block Comment"),
+				order: 2
 			}
 		});
 	}
 
 	public run(accessor: ServicesAccessor, editor: ICodeEditor): void {
+		if (!editor.hasModel()) {
+			return;
+		}
+
 		let commands: ICommand[] = [];
 		let selections = editor.getSelections();
-
 		for (let i = 0; i < selections.length; i++) {
 			commands.push(new BlockCommentCommand(selections[i]));
 		}

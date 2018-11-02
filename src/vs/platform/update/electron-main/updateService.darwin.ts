@@ -3,19 +3,18 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import * as electron from 'electron';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { Event, fromNodeEventEmitter } from 'vs/base/common/event';
 import { memoize } from 'vs/base/common/decorators';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ILifecycleService } from 'vs/platform/lifecycle/electron-main/lifecycleMain';
-import { State, IUpdate, StateType } from 'vs/platform/update/common/update';
+import { State, IUpdate, StateType, UpdateType } from 'vs/platform/update/common/update';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { ILogService } from 'vs/platform/log/common/log';
 import { AbstractUpdateService, createUpdateURL } from 'vs/platform/update/electron-main/abstractUpdateService';
+import { IRequestService } from 'vs/platform/request/node/request';
 
 export class DarwinUpdateService extends AbstractUpdateService {
 
@@ -33,9 +32,10 @@ export class DarwinUpdateService extends AbstractUpdateService {
 		@IConfigurationService configurationService: IConfigurationService,
 		@ITelemetryService private telemetryService: ITelemetryService,
 		@IEnvironmentService environmentService: IEnvironmentService,
+		@IRequestService requestService: IRequestService,
 		@ILogService logService: ILogService
 	) {
-		super(lifecycleService, configurationService, environmentService, logService);
+		super(lifecycleService, configurationService, environmentService, requestService, logService);
 		this.onRawError(this.onError, this, this.disposables);
 		this.onRawUpdateAvailable(this.onUpdateAvailable, this, this.disposables);
 		this.onRawUpdateDownloaded(this.onUpdateDownloaded, this, this.disposables);
@@ -43,20 +43,20 @@ export class DarwinUpdateService extends AbstractUpdateService {
 	}
 
 	private onError(err: string): void {
-		this.logService.error('UpdateService error: ', err);
-		this.setState(State.Idle);
+		this.logService.error('UpdateService error:', err);
+		this.setState(State.Idle(UpdateType.Archive, err));
 	}
 
-	protected setUpdateFeedUrl(quality: string): boolean {
+	protected buildUpdateFeedUrl(quality: string): string | undefined {
+		const url = createUpdateURL('darwin', quality);
 		try {
-			electron.autoUpdater.setFeedURL(createUpdateURL('darwin', quality));
+			electron.autoUpdater.setFeedURL({ url });
 		} catch (e) {
 			// application is very likely not signed
-			this.logService.error('Failed to set update feed URL');
-			return false;
+			this.logService.error('Failed to set update feed URL', e);
+			return undefined;
 		}
-
-		return true;
+		return url;
 	}
 
 	protected doCheckForUpdates(context: any): void {
@@ -99,7 +99,7 @@ export class DarwinUpdateService extends AbstractUpdateService {
 			*/
 		this.telemetryService.publicLog('update:notAvailable', { explicit: !!this.state.context });
 
-		this.setState(State.Idle);
+		this.setState(State.Idle(UpdateType.Archive));
 	}
 
 	protected doQuitAndInstall(): void {
@@ -107,7 +107,9 @@ export class DarwinUpdateService extends AbstractUpdateService {
 		// we workaround this issue by forcing an explicit flush of the storage data.
 		// see also https://github.com/Microsoft/vscode/issues/172
 		this.logService.trace('update#quitAndInstall(): calling flushStorageData()');
-		electron.session.defaultSession.flushStorageData();
+		if (electron.session.defaultSession) {
+			electron.session.defaultSession.flushStorageData();
+		}
 
 		this.logService.trace('update#quitAndInstall(): running raw#quitAndInstall()');
 		electron.autoUpdater.quitAndInstall();

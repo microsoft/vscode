@@ -3,25 +3,23 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
-import URI from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 import { IListService } from 'vs/platform/list/browser/listService';
-import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { ExplorerItem, OpenEditor } from 'vs/workbench/parts/files/common/explorerModel';
 import { toResource } from 'vs/workbench/common/editor';
 import { Tree } from 'vs/base/parts/tree/browser/treeImpl';
 import { List } from 'vs/base/browser/ui/list/listWidget';
+import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 
 // Commands can get exeucted from a command pallete, from a context menu or from some list using a keybinding
 // To cover all these cases we need to properly compute the resource on which the command is being executed
-export function getResourceForCommand(resource: URI | object, listService: IListService, editorService: IWorkbenchEditorService): URI {
+export function getResourceForCommand(resource: URI | object, listService: IListService, editorService: IEditorService): URI {
 	if (URI.isUri(resource)) {
 		return resource;
 	}
 
 	let list = listService.lastFocusedList;
-	if (list && list.isDOMFocused()) {
+	if (list && list.getHTMLElement() === document.activeElement) {
 		let focus: any;
 		if (list instanceof List) {
 			const focused = list.getFocusedElements();
@@ -39,12 +37,12 @@ export function getResourceForCommand(resource: URI | object, listService: IList
 		}
 	}
 
-	return toResource(editorService.getActiveEditorInput(), { supportSideBySide: true });
+	return toResource(editorService.activeEditor, { supportSideBySide: true });
 }
 
-export function getMultiSelectedResources(resource: URI | object, listService: IListService, editorService: IWorkbenchEditorService): URI[] {
+export function getMultiSelectedResources(resource: URI | object, listService: IListService, editorService: IEditorService): URI[] {
 	const list = listService.lastFocusedList;
-	if (list && list.isDOMFocused()) {
+	if (list && list.getHTMLElement() === document.activeElement) {
 		// Explorer
 		if (list instanceof Tree) {
 			const selection = list.getSelection().map((fs: ExplorerItem) => fs.resource);
@@ -52,7 +50,7 @@ export function getMultiSelectedResources(resource: URI | object, listService: I
 			const mainUriStr = URI.isUri(resource) ? resource.toString() : focus instanceof ExplorerItem ? focus.resource.toString() : undefined;
 			// If the resource is passed it has to be a part of the returned context.
 			// We only respect the selection if it contains the focused element.
-			if (selection.some(s => s.toString() === mainUriStr)) {
+			if (selection.some(s => URI.isUri(s) && s.toString() === mainUriStr)) {
 				return selection;
 			}
 		}

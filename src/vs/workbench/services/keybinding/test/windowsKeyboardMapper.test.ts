@@ -3,21 +3,18 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
+import { KeyChord, KeyCode, KeyMod, SimpleKeybinding, createKeybinding } from 'vs/base/common/keyCodes';
 import { OperatingSystem } from 'vs/base/common/platform';
+import { ScanCode, ScanCodeBinding } from 'vs/base/common/scanCode';
 import { TPromise } from 'vs/base/common/winjs.base';
-import { WindowsKeyboardMapper, IWindowsKeyboardMapping } from 'vs/workbench/services/keybinding/common/windowsKeyboardMapper';
-import { createKeybinding, KeyMod, KeyCode, KeyChord, SimpleKeybinding } from 'vs/base/common/keyCodes';
-import { IResolvedKeybinding, assertResolveKeybinding, readRawMapping, assertMapping, assertResolveKeyboardEvent, assertResolveUserBinding } from 'vs/workbench/services/keybinding/test/keyboardMapperTestUtils';
-import { ScanCodeBinding, ScanCode } from 'vs/workbench/services/keybinding/common/scanCode';
+import { IWindowsKeyboardMapping, WindowsKeyboardMapper } from 'vs/workbench/services/keybinding/common/windowsKeyboardMapper';
+import { IResolvedKeybinding, assertMapping, assertResolveKeybinding, assertResolveKeyboardEvent, assertResolveUserBinding, readRawMapping } from 'vs/workbench/services/keybinding/test/keyboardMapperTestUtils';
 
 const WRITE_FILE_IF_DIFFERENT = false;
 
-function createKeyboardMapper(isUSStandard: boolean, file: string): TPromise<WindowsKeyboardMapper> {
-	return readRawMapping<IWindowsKeyboardMapping>(file).then((rawMappings) => {
-		return new WindowsKeyboardMapper(isUSStandard, rawMappings);
-	});
+async function createKeyboardMapper(isUSStandard: boolean, file: string): TPromise<WindowsKeyboardMapper> {
+	const rawMappings = await readRawMapping<IWindowsKeyboardMapping>(file);
+	return new WindowsKeyboardMapper(isUSStandard, rawMappings);
 }
 
 function _assertResolveKeybinding(mapper: WindowsKeyboardMapper, k: number, expected: IResolvedKeybinding[]): void {
@@ -28,10 +25,8 @@ suite('keyboardMapper - WINDOWS de_ch', () => {
 
 	let mapper: WindowsKeyboardMapper;
 
-	suiteSetup(() => {
-		return createKeyboardMapper(false, 'win_de_ch').then((_mapper) => {
-			mapper = _mapper;
-		});
+	suiteSetup(async () => {
+		mapper = await createKeyboardMapper(false, 'win_de_ch');
 	});
 
 	test('mapping', () => {
@@ -320,10 +315,8 @@ suite('keyboardMapper - WINDOWS en_us', () => {
 
 	let mapper: WindowsKeyboardMapper;
 
-	suiteSetup(() => {
-		return createKeyboardMapper(true, 'win_en_us').then((_mapper) => {
-			mapper = _mapper;
-		});
+	suiteSetup(async () => {
+		mapper = await createKeyboardMapper(true, 'win_en_us');
 	});
 
 	test('mapping', () => {
@@ -408,10 +401,8 @@ suite('keyboardMapper - WINDOWS por_ptb', () => {
 
 	let mapper: WindowsKeyboardMapper;
 
-	suiteSetup(() => {
-		return createKeyboardMapper(false, 'win_por_ptb').then((_mapper) => {
-			mapper = _mapper;
-		});
+	suiteSetup(async () => {
+		mapper = await createKeyboardMapper(false, 'win_por_ptb');
 	});
 
 	test('mapping', () => {
@@ -469,10 +460,8 @@ suite('keyboardMapper - WINDOWS ru', () => {
 
 	let mapper: WindowsKeyboardMapper;
 
-	suiteSetup(() => {
-		return createKeyboardMapper(false, 'win_ru').then((_mapper) => {
-			mapper = _mapper;
-		});
+	suiteSetup(async () => {
+		mapper = await createKeyboardMapper(false, 'win_ru');
 	});
 
 	test('mapping', () => {

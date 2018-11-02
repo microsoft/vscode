@@ -2,15 +2,14 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
 import * as assert from 'assert';
-import { Position } from 'vs/editor/common/core/position';
-import { FindMatch, EndOfLineSequence } from 'vs/editor/common/model';
-import { Range } from 'vs/editor/common/core/range';
-import { TextModel } from 'vs/editor/common/model/textModel';
-import { TextModelSearch, SearchParams, SearchData } from 'vs/editor/common/model/textModelSearch';
 import { getMapForWordSeparators } from 'vs/editor/common/controller/wordCharacterClassifier';
+import { Position } from 'vs/editor/common/core/position';
+import { Range } from 'vs/editor/common/core/range';
+import { EndOfLineSequence, FindMatch } from 'vs/editor/common/model';
+import { TextModel } from 'vs/editor/common/model/textModel';
+import { SearchData, SearchParams, TextModelSearch, isMultilineRegexSource } from 'vs/editor/common/model/textModelSearch';
 import { USUAL_WORD_SEPARATORS } from 'vs/editor/common/model/wordHelper';
 
 // --------- Find
@@ -18,7 +17,7 @@ suite('TextModelSearch', () => {
 
 	const usualWordSeparators = getMapForWordSeparators(USUAL_WORD_SEPARATORS);
 
-	function assertFindMatch(actual: FindMatch, expectedRange: Range, expectedMatches: string[] = null): void {
+	function assertFindMatch(actual: FindMatch, expectedRange: Range, expectedMatches: string[] | null = null): void {
 		assert.deepEqual(actual, new FindMatch(expectedRange, expectedMatches));
 	}
 
@@ -632,5 +631,107 @@ suite('TextModelSearch', () => {
 		assertParseSearchResult('foo\\\\n', true, false, null, new SearchData(/foo\\n/gi, null, null));
 		assertParseSearchResult('foo\\r', true, false, null, new SearchData(/foo\r/gim, null, null));
 		assertParseSearchResult('foo\\\\r', true, false, null, new SearchData(/foo\\r/gi, null, null));
+	});
+
+	test('issue #53415. \W should match line break.', () => {
+		assertFindMatches(
+			[
+				'text',
+				'180702-',
+				'180703-180704'
+			].join('\n'),
+			'\\d{6}-\\W', true, false, null,
+			[
+				[2, 1, 3, 1]
+			]
+		);
+
+		assertFindMatches(
+			[
+				'Just some text',
+				'',
+				'Just'
+			].join('\n'),
+			'\\W', true, false, null,
+			[
+				[1, 5, 1, 6],
+				[1, 10, 1, 11],
+				[1, 15, 2, 1],
+				[2, 1, 3, 1]
+			]
+		);
+
+		// Line break doesn't affect the result as we always use \n as line break when doing search
+		assertFindMatches(
+			[
+				'Just some text',
+				'',
+				'Just'
+			].join('\r\n'),
+			'\\W', true, false, null,
+			[
+				[1, 5, 1, 6],
+				[1, 10, 1, 11],
+				[1, 15, 2, 1],
+				[2, 1, 3, 1]
+			]
+		);
+
+		assertFindMatches(
+			[
+				'Just some text',
+				'\tJust',
+				'Just'
+			].join('\n'),
+			'\\W', true, false, null,
+			[
+				[1, 5, 1, 6],
+				[1, 10, 1, 11],
+				[1, 15, 2, 1],
+				[2, 1, 2, 2],
+				[2, 6, 3, 1],
+			]
+		);
+
+		// line break is seen as one non-word character
+		assertFindMatches(
+			[
+				'Just  some text',
+				'',
+				'Just'
+			].join('\n'),
+			'\\W{2}', true, false, null,
+			[
+				[1, 5, 1, 7],
+				[1, 16, 3, 1]
+			]
+		);
+
+		// even if it's \r\n
+		assertFindMatches(
+			[
+				'Just  some text',
+				'',
+				'Just'
+			].join('\r\n'),
+			'\\W{2}', true, false, null,
+			[
+				[1, 5, 1, 7],
+				[1, 16, 3, 1]
+			]
+		);
+	});
+
+	test('isMultilineRegexSource', () => {
+		assert(!isMultilineRegexSource('foo'));
+		assert(!isMultilineRegexSource(''));
+		assert(!isMultilineRegexSource('foo\\sbar'));
+		assert(!isMultilineRegexSource('\\\\notnewline'));
+
+		assert(isMultilineRegexSource('foo\\nbar'));
+		assert(isMultilineRegexSource('foo\\nbar\\s'));
+		assert(isMultilineRegexSource('foo\\r\\n'));
+		assert(isMultilineRegexSource('\\n'));
+		assert(isMultilineRegexSource('foo\\W'));
 	});
 });

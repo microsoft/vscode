@@ -4,20 +4,30 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as platform from 'vs/base/common/platform';
-import { TPromise } from 'vs/base/common/winjs.base';
 import { Emitter, debounceEvent } from 'vs/base/common/event';
 import { ITerminalInstance } from 'vs/workbench/parts/terminal/common/terminal';
 import { Terminal as XTermTerminal } from 'vscode-xterm';
 import WindowsProcessTreeType = require('windows-process-tree');
 
-const SHELL_EXECUTABLES = ['cmd.exe', 'powershell.exe', 'bash.exe', 'wsl.exe', 'ubuntu.exe'];
+const SHELL_EXECUTABLES = [
+	'cmd.exe',
+	'powershell.exe',
+	'bash.exe',
+	'wsl.exe',
+	'ubuntu.exe',
+	'ubuntu1804.exe',
+	'kali.exe',
+	'debian.exe',
+	'opensuse-42.exe',
+	'sles-12.exe'
+];
 
 let windowsProcessTree: typeof WindowsProcessTreeType;
 
 export class WindowsShellHelper {
-	private _onCheckShell: Emitter<TPromise<string>>;
+	private _onCheckShell: Emitter<Promise<string>>;
 	private _isDisposed: boolean;
-	private _currentRequest: TPromise<string>;
+	private _currentRequest: Promise<string> | null;
 	private _newLineFeed: boolean;
 
 	public constructor(
@@ -37,7 +47,7 @@ export class WindowsShellHelper {
 			}
 
 			windowsProcessTree = mod;
-			this._onCheckShell = new Emitter<TPromise<string>>();
+			this._onCheckShell = new Emitter<Promise<string>>();
 			// The debounce is necessary to prevent multiple processes from spawning when
 			// the enter key or output is spammed
 			debounceEvent(this._onCheckShell.event, (l, e) => e, 150, true)(() => {
@@ -106,15 +116,15 @@ export class WindowsShellHelper {
 	/**
 	 * Returns the innermost shell executable running in the terminal
 	 */
-	public getShellName(): TPromise<string> {
+	public getShellName(): Promise<string> {
 		if (this._isDisposed) {
-			return TPromise.as('');
+			return Promise.resolve('');
 		}
 		// Prevent multiple requests at once, instead return current request
 		if (this._currentRequest) {
 			return this._currentRequest;
 		}
-		this._currentRequest = new TPromise<string>(resolve => {
+		this._currentRequest = new Promise<string>(resolve => {
 			windowsProcessTree.getProcessTree(this._rootProcessId, (tree) => {
 				const name = this.traverseTree(tree);
 				this._currentRequest = null;

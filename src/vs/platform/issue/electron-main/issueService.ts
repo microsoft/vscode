@@ -3,19 +3,18 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import { TPromise, Promise } from 'vs/base/common/winjs.base';
 import { localize } from 'vs/nls';
 import * as objects from 'vs/base/common/objects';
 import { parseArgs } from 'vs/platform/environment/node/argv';
 import { IIssueService, IssueReporterData, IssueReporterFeatures, ProcessExplorerData } from 'vs/platform/issue/common/issue';
-import { BrowserWindow, ipcMain, screen } from 'electron';
-import { ILaunchService } from 'vs/code/electron-main/launch';
-import { getPerformanceInfo, PerformanceInfo, getSystemInfo, SystemInfo } from 'vs/code/electron-main/diagnostics';
+import { BrowserWindow, ipcMain, screen, Event } from 'electron';
+import { ILaunchService } from 'vs/platform/launch/electron-main/launchService';
+import { PerformanceInfo, SystemInfo, IDiagnosticsService } from 'vs/platform/diagnostics/electron-main/diagnosticsService';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { isMacintosh, IProcessEnvironment } from 'vs/base/common/platform';
 import { ILogService } from 'vs/platform/log/common/log';
+import { IWindowsService } from 'vs/platform/windows/common/windows';
 
 const DEFAULT_BACKGROUND_COLOR = '#1E1E1E';
 
@@ -31,59 +30,92 @@ export class IssueService implements IIssueService {
 		@IEnvironmentService private environmentService: IEnvironmentService,
 		@ILaunchService private launchService: ILaunchService,
 		@ILogService private logService: ILogService,
-	) { }
+		@IDiagnosticsService private diagnosticsService: IDiagnosticsService,
+		@IWindowsService private windowsService: IWindowsService
+	) {
+		this.registerListeners();
+	}
+
+	private registerListeners(): void {
+		ipcMain.on('vscode:issueSystemInfoRequest', (event: Event) => {
+			this.getSystemInformation().then(msg => {
+				event.sender.send('vscode:issueSystemInfoResponse', msg);
+			});
+		});
+
+		ipcMain.on('vscode:issuePerformanceInfoRequest', (event: Event) => {
+			this.getPerformanceInfo().then(msg => {
+				event.sender.send('vscode:issuePerformanceInfoResponse', msg);
+			});
+		});
+
+		ipcMain.on('vscode:workbenchCommand', (event, arg) => {
+			if (this._issueParentWindow) {
+				this._issueParentWindow.webContents.send('vscode:runAction', { id: arg, from: 'issueReporter' });
+			}
+		});
+
+		ipcMain.on('vscode:openExternal', (_, arg) => {
+			this.windowsService.openExternal(arg);
+		});
+
+		ipcMain.on('vscode:closeIssueReporter', (event: Event) => {
+			if (this._issueWindow) {
+				this._issueWindow.close();
+			}
+		});
+
+		ipcMain.on('windowsInfoRequest', (event: Event) => {
+			this.launchService.getMainProcessInfo().then(info => {
+				event.sender.send('vscode:windowsInfoResponse', info.windows);
+			});
+		});
+
+	}
 
 	openReporter(data: IssueReporterData): TPromise<void> {
-		ipcMain.on('issueSystemInfoRequest', event => {
-			this.getSystemInformation().then(msg => {
-				event.sender.send('issueSystemInfoResponse', msg);
-			});
-		});
-
-		ipcMain.on('issuePerformanceInfoRequest', event => {
-			this.getPerformanceInfo().then(msg => {
-				event.sender.send('issuePerformanceInfoResponse', msg);
-			});
-		});
-
-		ipcMain.on('workbenchCommand', (event, arg) => {
-			this._issueParentWindow.webContents.send('vscode:runAction', { id: arg, from: 'issueReporter' });
-		});
-
 		this._issueParentWindow = BrowserWindow.getFocusedWindow();
-		const position = this.getWindowPosition(this._issueParentWindow, 800, 900);
-		this._issueWindow = new BrowserWindow({
-			width: position.width,
-			height: position.height,
-			minWidth: 300,
-			minHeight: 200,
-			x: position.x,
-			y: position.y,
-			title: localize('issueReporter', "Issue Reporter"),
-			backgroundColor: data.styles.backgroundColor || DEFAULT_BACKGROUND_COLOR
-		});
+		const position = this.getWindowPosition(this._issueParentWindow, 700, 800);
+		if (!this._issueWindow) {
+			this._issueWindow = new BrowserWindow({
+				width: position.width,
+				height: position.height,
+				minWidth: 300,
+				minHeight: 200,
+				x: position.x,
+				y: position.y,
+				title: localize('issueReporter', "Issue Reporter"),
+				backgroundColor: data.styles.backgroundColor || DEFAULT_BACKGROUND_COLOR
+			});
 
-		this._issueWindow.setMenuBarVisibility(false); // workaround for now, until a menu is implemented
+			this._issueWindow.setMenuBarVisibility(false); // workaround for now, until a menu is implemented
 
-		// Modified when testing UI
-		const features: IssueReporterFeatures = {};
+			// Modified when testing UI
+			const features: IssueReporterFeatures = {};
 
-		this.logService.trace('issueService#openReporter: opening issue reporter');
-		this._issueWindow.loadURL(this.getIssueReporterPath(data, features));
+			this.logService.trace('issueService#openReporter: opening issue reporter');
+			this._issueWindow.loadURL(this.getIssueReporterPath(data, features));
+
+			this._issueWindow.on('close', () => this._issueWindow = null);
+
+			this._issueParentWindow.on('closed', () => {
+				if (this._issueWindow) {
+					this._issueWindow.close();
+					this._issueWindow = null;
+				}
+			});
+		}
+
+		this._issueWindow.focus();
 
 		return TPromise.as(null);
 	}
 
 	openProcessExplorer(data: ProcessExplorerData): TPromise<void> {
-		ipcMain.on('windowsInfoRequest', event => {
-			this.launchService.getMainProcessInfo().then(info => {
-				event.sender.send('windowsInfoResponse', info.windows);
-			});
-		});
-
 		// Create as singleton
 		if (!this._processExplorerWindow) {
-			const position = this.getWindowPosition(BrowserWindow.getFocusedWindow(), 800, 300);
+			const parentWindow = BrowserWindow.getFocusedWindow();
+			const position = this.getWindowPosition(parentWindow, 800, 300);
 			this._processExplorerWindow = new BrowserWindow({
 				skipTaskbar: true,
 				resizable: true,
@@ -119,6 +151,13 @@ export class IssueService implements IIssueService {
 			this._processExplorerWindow.loadURL(`${require.toUrl('vs/code/electron-browser/processExplorer/processExplorer.html')}?config=${encodeURIComponent(JSON.stringify(config))}`);
 
 			this._processExplorerWindow.on('close', () => this._processExplorerWindow = void 0);
+
+			parentWindow.on('close', () => {
+				if (this._processExplorerWindow) {
+					this._processExplorerWindow.close();
+					this._processExplorerWindow = null;
+				}
+			});
 		}
 
 		// Focus
@@ -200,7 +239,7 @@ export class IssueService implements IIssueService {
 	private getSystemInformation(): TPromise<SystemInfo> {
 		return new Promise((resolve, reject) => {
 			this.launchService.getMainProcessInfo().then(info => {
-				resolve(getSystemInfo(info));
+				resolve(this.diagnosticsService.getSystemInfo(info));
 			});
 		});
 	}
@@ -208,7 +247,7 @@ export class IssueService implements IIssueService {
 	private getPerformanceInfo(): TPromise<PerformanceInfo> {
 		return new Promise((resolve, reject) => {
 			this.launchService.getMainProcessInfo().then(info => {
-				getPerformanceInfo(info)
+				this.diagnosticsService.getPerformanceInfo(info)
 					.then(diagnosticInfo => {
 						resolve(diagnosticInfo);
 					})

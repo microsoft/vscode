@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import * as nls from 'vs/nls';
 import { OperatingSystem } from 'vs/base/common/platform';
 
@@ -28,14 +26,14 @@ export class ModifierLabelProvider {
 	public readonly modifierLabels: ModifierLabels[];
 
 	constructor(mac: ModifierLabels, windows: ModifierLabels, linux: ModifierLabels = windows) {
-		this.modifierLabels = [null];
+		this.modifierLabels = [null!]; // index 0 will never me accessed.
 		this.modifierLabels[OperatingSystem.Macintosh] = mac;
 		this.modifierLabels[OperatingSystem.Windows] = windows;
 		this.modifierLabels[OperatingSystem.Linux] = linux;
 	}
 
-	public toLabel(firstPartMod: Modifiers, firstPartKey: string, chordPartMod: Modifiers, chordPartKey: string, OS: OperatingSystem): string {
-		if (firstPartKey === null && chordPartKey === null) {
+	public toLabel(firstPartMod: Modifiers | null, firstPartKey: string | null, chordPartMod: Modifiers | null, chordPartKey: string | null, OS: OperatingSystem): string | null {
+		if (firstPartMod === null || firstPartKey === null) {
 			return null;
 		}
 		return _asString(firstPartMod, firstPartKey, chordPartMod, chordPartKey, this.modifierLabels[OS]);
@@ -59,6 +57,13 @@ export const UILabelProvider = new ModifierLabelProvider(
 		altKey: nls.localize({ key: 'altKey', comment: ['This is the short form for the Alt key on the keyboard'] }, "Alt"),
 		metaKey: nls.localize({ key: 'windowsKey', comment: ['This is the short form for the Windows key on the keyboard'] }, "Windows"),
 		separator: '+',
+	},
+	{
+		ctrlKey: nls.localize({ key: 'ctrlKey', comment: ['This is the short form for the Control key on the keyboard'] }, "Ctrl"),
+		shiftKey: nls.localize({ key: 'shiftKey', comment: ['This is the short form for the Shift key on the keyboard'] }, "Shift"),
+		altKey: nls.localize({ key: 'altKey', comment: ['This is the short form for the Alt key on the keyboard'] }, "Alt"),
+		metaKey: nls.localize({ key: 'superKey', comment: ['This is the short form for the Super key on the keyboard'] }, "Super"),
+		separator: '+',
 	}
 );
 
@@ -78,6 +83,13 @@ export const AriaLabelProvider = new ModifierLabelProvider(
 		shiftKey: nls.localize({ key: 'shiftKey.long', comment: ['This is the long form for the Shift key on the keyboard'] }, "Shift"),
 		altKey: nls.localize({ key: 'altKey.long', comment: ['This is the long form for the Alt key on the keyboard'] }, "Alt"),
 		metaKey: nls.localize({ key: 'windowsKey.long', comment: ['This is the long form for the Windows key on the keyboard'] }, "Windows"),
+		separator: '+',
+	},
+	{
+		ctrlKey: nls.localize({ key: 'ctrlKey.long', comment: ['This is the long form for the Control key on the keyboard'] }, "Control"),
+		shiftKey: nls.localize({ key: 'shiftKey.long', comment: ['This is the long form for the Shift key on the keyboard'] }, "Shift"),
+		altKey: nls.localize({ key: 'altKey.long', comment: ['This is the long form for the Alt key on the keyboard'] }, "Alt"),
+		metaKey: nls.localize({ key: 'superKey.long', comment: ['This is the long form for the Super key on the keyboard'] }, "Super"),
 		separator: '+',
 	}
 );
@@ -160,10 +172,10 @@ function _simpleAsString(modifiers: Modifiers, key: string, labels: ModifierLabe
 	return result.join(labels.separator);
 }
 
-function _asString(firstPartMod: Modifiers, firstPartKey: string, chordPartMod: Modifiers, chordPartKey: string, labels: ModifierLabels): string {
+function _asString(firstPartMod: Modifiers, firstPartKey: string, chordPartMod: Modifiers | null, chordPartKey: string | null, labels: ModifierLabels): string {
 	let result = _simpleAsString(firstPartMod, firstPartKey, labels);
 
-	if (chordPartKey !== null) {
+	if (chordPartMod !== null && chordPartKey !== null) {
 		result += ' ';
 		result += _simpleAsString(chordPartMod, chordPartKey, labels);
 	}

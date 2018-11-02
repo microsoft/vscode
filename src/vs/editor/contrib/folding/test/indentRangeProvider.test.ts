@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import * as assert from 'assert';
 import { TextModel } from 'vs/editor/common/model/textModel';
 import { computeRanges } from 'vs/editor/contrib/folding/indentRangeProvider';
@@ -20,7 +18,7 @@ function assertRanges(lines: string[], expected: ExpectedIndentRange[], offside:
 	let model = TextModel.createFromString(lines.join('\n'));
 	let actual = computeRanges(model, offside, markers);
 
-	let actualRanges = [];
+	let actualRanges: ExpectedIndentRange[] = [];
 	for (let i = 0; i < actual.length; i++) {
 		actualRanges[i] = r(actual.getStartLineNumber(i), actual.getEndLineNumber(i), actual.getParentIndex(i));
 	}

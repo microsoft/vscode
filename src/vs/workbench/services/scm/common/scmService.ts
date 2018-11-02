@@ -3,13 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import { IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { Event, Emitter } from 'vs/base/common/event';
 import { ISCMService, ISCMProvider, ISCMInput, ISCMRepository, IInputValidator } from './scm';
 import { ILogService } from 'vs/platform/log/common/log';
 import { TPromise } from 'vs/base/common/winjs.base';
+import { equals } from 'vs/base/common/arrays';
 
 class SCMInput implements ISCMInput {
 
@@ -41,6 +40,20 @@ class SCMInput implements ISCMInput {
 	private _onDidChangePlaceholder = new Emitter<string>();
 	get onDidChangePlaceholder(): Event<string> { return this._onDidChangePlaceholder.event; }
 
+	private _visible = true;
+
+	get visible(): boolean {
+		return this._visible;
+	}
+
+	set visible(visible: boolean) {
+		this._visible = visible;
+		this._onDidChangeVisibility.fire(visible);
+	}
+
+	private _onDidChangeVisibility = new Emitter<boolean>();
+	get onDidChangeVisibility(): Event<boolean> { return this._onDidChangeVisibility.event; }
+
 	private _validateInput: IInputValidator = () => TPromise.as(undefined);
 
 	get validateInput(): IInputValidator {
@@ -61,6 +74,14 @@ class SCMRepository implements ISCMRepository {
 	private _onDidFocus = new Emitter<void>();
 	readonly onDidFocus: Event<void> = this._onDidFocus.event;
 
+	private _selected = false;
+	get selected(): boolean {
+		return this._selected;
+	}
+
+	private _onDidChangeSelection = new Emitter<boolean>();
+	readonly onDidChangeSelection: Event<boolean> = this._onDidChangeSelection.event;
+
 	readonly input: ISCMInput = new SCMInput();
 
 	constructor(
@@ -70,6 +91,11 @@ class SCMRepository implements ISCMRepository {
 
 	focus(): void {
 		this._onDidFocus.fire();
+	}
+
+	setSelected(selected: boolean): void {
+		this._selected = selected;
+		this._onDidChangeSelection.fire(selected);
 	}
 
 	dispose(): void {
@@ -85,6 +111,12 @@ export class SCMService implements ISCMService {
 	private _providerIds = new Set<string>();
 	private _repositories: ISCMRepository[] = [];
 	get repositories(): ISCMRepository[] { return [...this._repositories]; }
+
+	private _selectedRepositories: ISCMRepository[] = [];
+	get selectedRepositories(): ISCMRepository[] { return [...this._selectedRepositories]; }
+
+	private _onDidChangeSelectedRepositories = new Emitter<ISCMRepository[]>();
+	readonly onDidChangeSelectedRepositories: Event<ISCMRepository[]> = this._onDidChangeSelectedRepositories.event;
 
 	private _onDidAddProvider = new Emitter<ISCMRepository>();
 	get onDidAddRepository(): Event<ISCMRepository> { return this._onDidAddProvider.event; }
@@ -110,15 +142,35 @@ export class SCMService implements ISCMService {
 				return;
 			}
 
+			selectedDisposable.dispose();
 			this._providerIds.delete(provider.id);
 			this._repositories.splice(index, 1);
 			this._onDidRemoveProvider.fire(repository);
+			this.onDidChangeSelection();
 		});
 
 		const repository = new SCMRepository(provider, disposable);
+		const selectedDisposable = repository.onDidChangeSelection(this.onDidChangeSelection, this);
+
 		this._repositories.push(repository);
 		this._onDidAddProvider.fire(repository);
 
+		// automatically select the first repository
+		if (this._repositories.length === 1) {
+			repository.setSelected(true);
+		}
+
 		return repository;
+	}
+
+	private onDidChangeSelection(): void {
+		const selectedRepositories = this._repositories.filter(r => r.selected);
+
+		if (equals(this._selectedRepositories, selectedRepositories)) {
+			return;
+		}
+
+		this._selectedRepositories = this._repositories.filter(r => r.selected);
+		this._onDidChangeSelectedRepositories.fire(this.selectedRepositories);
 	}
 }

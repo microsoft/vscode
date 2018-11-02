@@ -3,15 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import * as assert from 'assert';
 import { FileDecorationsService } from 'vs/workbench/services/decorations/browser/decorationsService';
 import { IDecorationsProvider, IDecorationData } from 'vs/workbench/services/decorations/browser/decorations';
-import URI from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 import { Event, toPromise, Emitter } from 'vs/base/common/event';
 import { TestThemeService } from 'vs/platform/theme/test/common/testThemeService';
-import { TPromise } from 'vs/base/common/winjs.base';
+import { CancellationToken } from 'vs/base/common/cancellation';
 
 suite('DecorationsService', function () {
 
@@ -34,7 +32,7 @@ suite('DecorationsService', function () {
 			readonly onDidChange: Event<URI[]> = Event.None;
 			provideDecorations(uri: URI) {
 				callCounter += 1;
-				return new TPromise<IDecorationData>(resolve => {
+				return new Promise<IDecorationData>(resolve => {
 					setTimeout(() => resolve({
 						color: 'someBlue',
 						tooltip: 'T'
@@ -174,6 +172,7 @@ suite('DecorationsService', function () {
 	test('Decorations not showing up for second root folder #48502', async function () {
 
 		let cancelCount = 0;
+		let winjsCancelCount = 0;
 		let callCount = 0;
 
 		let provider = new class implements IDecorationsProvider {
@@ -183,14 +182,17 @@ suite('DecorationsService', function () {
 
 			label: string = 'foo';
 
-			provideDecorations(uri: URI): TPromise<IDecorationData> {
-				return new TPromise(resolve => {
+			provideDecorations(uri: URI, token: CancellationToken): Promise<IDecorationData> {
+
+				token.onCancellationRequested(() => {
+					cancelCount += 1;
+				});
+
+				return new Promise(resolve => {
 					callCount += 1;
 					setTimeout(() => {
 						resolve({ letter: 'foo' });
 					}, 10);
-				}, () => {
-					cancelCount += 1;
 				});
 			}
 		};
@@ -204,7 +206,35 @@ suite('DecorationsService', function () {
 		service.getDecoration(uri, false);
 
 		assert.equal(cancelCount, 1);
+		assert.equal(winjsCancelCount, 0);
 		assert.equal(callCount, 2);
+
+		reg.dispose();
+	});
+
+	test('Decorations not bubbling... #48745', function () {
+
+		let reg = service.registerDecorationsProvider({
+			label: 'Test',
+			onDidChange: Event.None,
+			provideDecorations(uri: URI) {
+				if (uri.path.match(/hello$/)) {
+					return { tooltip: 'FOO', weight: 17, bubble: true };
+				} else {
+					return new Promise<IDecorationData>(_resolve => { });
+				}
+			}
+		});
+
+		let data1 = service.getDecoration(URI.parse('a:b/'), true);
+		assert.ok(!data1);
+
+		let data2 = service.getDecoration(URI.parse('a:b/c.hello'), false);
+		assert.ok(data2.tooltip);
+
+		let data3 = service.getDecoration(URI.parse('a:b/'), true);
+		assert.ok(data3);
+
 
 		reg.dispose();
 	});

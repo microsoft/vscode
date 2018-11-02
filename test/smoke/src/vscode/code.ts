@@ -89,6 +89,7 @@ export interface SpawnOptions {
 	logger: Logger;
 	verbose?: boolean;
 	extraArgs?: string[];
+	log?: string;
 }
 
 async function createDriverHandle(): Promise<string> {
@@ -125,6 +126,10 @@ export async function spawn(options: SpawnOptions): Promise<Code> {
 
 	if (options.verbose) {
 		args.push('--driver-verbose');
+	}
+
+	if (options.log) {
+		args.push('--log', options.log);
 	}
 
 	if (options.extraArgs) {
@@ -190,6 +195,10 @@ export class Code {
 	) {
 		this.driver = new Proxy(driver, {
 			get(target, prop, receiver) {
+				if (typeof prop === 'symbol') {
+					throw new Error('Invalid usage');
+				}
+
 				if (typeof target[prop] !== 'function') {
 					return target[prop];
 				}
@@ -240,11 +249,6 @@ export class Code {
 	async waitAndDoubleClick(selector: string): Promise<void> {
 		const windowId = await this.getActiveWindowId();
 		await poll(() => this.driver.doubleClick(windowId, selector), () => true, `double click '${selector}'`);
-	}
-
-	async waitAndMove(selector: string): Promise<void> {
-		const windowId = await this.getActiveWindowId();
-		await poll(() => this.driver.move(windowId, selector), () => true, `move '${selector}'`);
 	}
 
 	async waitForSetValue(selector: string, value: string): Promise<void> {

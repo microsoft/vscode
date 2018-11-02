@@ -7,34 +7,46 @@ import * as os from 'os';
 import * as platform from 'vs/base/common/platform';
 import * as processes from 'vs/base/node/processes';
 import { readFile, fileExists } from 'vs/base/node/pfs';
-
-export interface IMessageFromTerminalProcess {
-	type: 'pid' | 'data' | 'title';
-	content: number | string;
-}
-
-export interface IMessageToTerminalProcess {
-	event: 'resize' | 'input' | 'shutdown';
-	data?: string;
-	cols?: number;
-	rows?: number;
-}
+import { Event } from 'vs/base/common/event';
 
 /**
  * An interface representing a raw terminal child process, this is a subset of the
  * child_process.ChildProcess node.js interface.
  */
 export interface ITerminalChildProcess {
-	readonly connected: boolean;
+	onProcessData: Event<string>;
+	onProcessExit: Event<number>;
+	onProcessIdReady: Event<number>;
+	onProcessTitleChanged: Event<string>;
 
-	send(message: IMessageToTerminalProcess): boolean;
-
-	on(event: 'exit', listener: (code: number) => void): this;
-	on(event: 'message', listener: (message: IMessageFromTerminalProcess) => void): this;
+	/**
+	 * Shutdown the terminal process.
+	 *
+	 * @param immediate When true the process will be killed immediately, otherwise the process will
+	 * be given some time to make sure no additional data comes through.
+	 */
+	shutdown(immediate: boolean): void;
+	input(data: string): void;
+	resize(cols: number, rows: number): void;
 }
 
-let _TERMINAL_DEFAULT_SHELL_UNIX_LIKE: string = null;
-export function getTerminalDefaultShellUnixLike(): string {
+export function getDefaultShell(p: platform.Platform): string {
+	if (p === platform.Platform.Windows) {
+		if (platform.isWindows) {
+			return getTerminalDefaultShellWindows();
+		}
+		// Don't detect Windows shell when not on Windows
+		return processes.getWindowsShell();
+	}
+	// Only use $SHELL for the current OS
+	if (platform.isLinux && p === platform.Platform.Mac || platform.isMacintosh && p === platform.Platform.Linux) {
+		return '/bin/bash';
+	}
+	return getTerminalDefaultShellUnixLike();
+}
+
+let _TERMINAL_DEFAULT_SHELL_UNIX_LIKE: string | null = null;
+function getTerminalDefaultShellUnixLike(): string {
 	if (!_TERMINAL_DEFAULT_SHELL_UNIX_LIKE) {
 		let unixLikeTerminal = 'sh';
 		if (!platform.isWindows && process.env.SHELL) {
@@ -49,8 +61,8 @@ export function getTerminalDefaultShellUnixLike(): string {
 	return _TERMINAL_DEFAULT_SHELL_UNIX_LIKE;
 }
 
-let _TERMINAL_DEFAULT_SHELL_WINDOWS: string = null;
-export function getTerminalDefaultShellWindows(): string {
+let _TERMINAL_DEFAULT_SHELL_WINDOWS: string | null = null;
+function getTerminalDefaultShellWindows(): string {
 	if (!_TERMINAL_DEFAULT_SHELL_WINDOWS) {
 		const isAtLeastWindows10 = platform.isWindows && parseFloat(os.release()) >= 10;
 		const is32ProcessOn64Windows = process.env.hasOwnProperty('PROCESSOR_ARCHITEW6432');
@@ -68,11 +80,14 @@ if (platform.isLinux) {
 		}
 		readFile(file).then(b => {
 			const contents = b.toString();
-			if (contents.indexOf('NAME=Fedora') >= 0) {
+			if (/NAME="?Fedora"?/.test(contents)) {
 				isFedora = true;
+			} else if (/NAME="?Ubuntu"?/.test(contents)) {
+				isUbuntu = true;
 			}
 		});
 	});
 }
 
 export let isFedora = false;
+export let isUbuntu = false;

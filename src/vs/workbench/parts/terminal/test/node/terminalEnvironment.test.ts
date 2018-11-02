@@ -7,47 +7,49 @@ import * as assert from 'assert';
 import * as os from 'os';
 import * as platform from 'vs/base/common/platform';
 import * as terminalEnvironment from 'vs/workbench/parts/terminal/node/terminalEnvironment';
-import Uri from 'vs/base/common/uri';
+import { URI as Uri } from 'vs/base/common/uri';
 import { IStringDictionary } from 'vs/base/common/collections';
-import { IShellLaunchConfig, ITerminalConfigHelper } from 'vs/workbench/parts/terminal/common/terminal';
+import { ITerminalConfigHelper } from 'vs/workbench/parts/terminal/common/terminal';
 
 suite('Workbench - TerminalEnvironment', () => {
-	test('createTerminalEnv', function () {
-		const shell1 = {
-			executable: '/bin/foosh',
-			args: ['-bar', 'baz']
-		};
-		const parentEnv1: IStringDictionary<string> = {
-			ok: true
-		} as any;
-		const env1 = terminalEnvironment.createTerminalEnv(parentEnv1, shell1, '/foo', 'en-au');
-		assert.ok(env1['ok'], 'Parent environment is copied');
-		assert.deepStrictEqual(parentEnv1, { ok: true }, 'Parent environment is unchanged');
-		assert.equal(env1['PTYPID'], process.pid.toString(), 'PTYPID is equal to the current PID');
-		assert.equal(env1['PTYSHELL'], '/bin/foosh', 'PTYSHELL is equal to the provided shell');
-		assert.equal(env1['PTYSHELLARG0'], '-bar', 'PTYSHELLARG0 is equal to the first shell argument');
-		assert.equal(env1['PTYSHELLARG1'], 'baz', 'PTYSHELLARG1 is equal to the first shell argument');
-		assert.ok(!('PTYSHELLARG2' in env1), 'PTYSHELLARG2 is unset');
-		assert.equal(env1['PTYCWD'], '/foo', 'PTYCWD is equal to requested cwd');
-		assert.equal(env1['LANG'], 'en_AU.UTF-8', 'LANG is equal to the requested locale with UTF-8');
+	test('addTerminalEnvironmentKeys', () => {
+		const env = { FOO: 'bar' };
+		const locale = 'en-au';
+		terminalEnvironment.addTerminalEnvironmentKeys(env, locale);
+		assert.equal(env['TERM_PROGRAM'], 'vscode');
+		assert.equal(env['TERM_PROGRAM_VERSION'].search(/^\d+\.\d+\.\d+$/), 0);
+		assert.equal(env['LANG'], 'en_AU.UTF-8', 'LANG is equal to the requested locale with UTF-8');
 
-		const shell2: IShellLaunchConfig = {
-			executable: '/bin/foosh',
-			args: []
-		};
-		const parentEnv2: IStringDictionary<string> = {
-			LANG: 'en_US.UTF-8'
-		};
-		const env2 = terminalEnvironment.createTerminalEnv(parentEnv2, shell2, '/foo', 'en-au');
-		assert.ok(!('PTYSHELLARG0' in env2), 'PTYSHELLARG0 is unset');
-		assert.equal(env2['PTYCWD'], '/foo', 'PTYCWD is equal to /foo');
-		assert.equal(env2['LANG'], 'en_AU.UTF-8', 'LANG is equal to the requested locale with UTF-8');
+		const env2 = { FOO: 'bar' };
+		terminalEnvironment.addTerminalEnvironmentKeys(env2, null);
+		assert.equal(env2['LANG'], 'en_US.UTF-8', 'LANG is equal to en_US.UTF-8 as fallback.'); // More info on issue #14586
 
-		const env3 = terminalEnvironment.createTerminalEnv(parentEnv1, shell1, '/', null);
-		assert.equal(env3['LANG'], 'en_US.UTF-8', 'LANG is equal to en_US.UTF-8 as fallback.'); // More info on issue #14586
+		const env3 = { LANG: 'en_US.UTF-8' };
+		terminalEnvironment.addTerminalEnvironmentKeys(env3, null);
+		assert.equal(env3['LANG'], 'en_US.UTF-8', 'LANG is equal to the parent environment\'s LANG');
+	});
 
-		const env4 = terminalEnvironment.createTerminalEnv(parentEnv2, shell1, '/', null);
-		assert.equal(env4['LANG'], 'en_US.UTF-8', 'LANG is equal to the parent environment\'s LANG');
+	test('sanitizeEnvironment', () => {
+		let env = {
+			FOO: 'bar',
+			ELECTRON_ENABLE_STACK_DUMPING: 'x',
+			ELECTRON_ENABLE_LOGGING: 'x',
+			ELECTRON_NO_ASAR: 'x',
+			ELECTRON_NO_ATTACH_CONSOLE: 'x',
+			ELECTRON_RUN_AS_NODE: 'x',
+			GOOGLE_API_KEY: 'x',
+			VSCODE_CLI: 'x',
+			VSCODE_DEV: 'x',
+			VSCODE_IPC_HOOK: 'x',
+			VSCODE_LOGS: 'x',
+			VSCODE_NLS_CONFIG: 'x',
+			VSCODE_PORTABLE: 'x',
+			VSCODE_PID: 'x',
+			VSCODE_NODE_CACHED_DATA_DIR: 'x'
+		};
+		terminalEnvironment.sanitizeEnvironment(env);
+		assert.equal(env['FOO'], 'bar');
+		assert.equal(Object.keys(env).length, 1);
 	});
 
 	suite('mergeEnvironments', () => {
@@ -166,7 +168,7 @@ suite('Workbench - TerminalEnvironment', () => {
 		});
 	});
 
-	test('preparePathForTerminal', function () {
+	test('preparePathForTerminal', () => {
 		if (platform.isWindows) {
 			assert.equal(terminalEnvironment.preparePathForTerminal('C:\\foo'), 'C:\\foo');
 			assert.equal(terminalEnvironment.preparePathForTerminal('C:\\foo bar'), '"C:\\foo bar"');

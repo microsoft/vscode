@@ -2,37 +2,37 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
 import * as nls from 'vs/nls';
-import { ResolvedKeybinding, Keybinding } from 'vs/base/common/keyCodes';
-import { IDisposable, Disposable } from 'vs/base/common/lifecycle';
-import { ICommandService } from 'vs/platform/commands/common/commands';
-import { KeybindingResolver, IResolveResult } from 'vs/platform/keybinding/common/keybindingResolver';
-import { IKeybindingEvent, IKeybindingService, IKeyboardEvent } from 'vs/platform/keybinding/common/keybinding';
-import { IContextKeyService, IContextKeyServiceTarget } from 'vs/platform/contextkey/common/contextkey';
-import { IStatusbarService } from 'vs/platform/statusbar/common/statusbar';
-import { Event, Emitter } from 'vs/base/common/event';
-import { ResolvedKeybindingItem } from 'vs/platform/keybinding/common/resolvedKeybindingItem';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { INotificationService } from 'vs/platform/notification/common/notification';
+import * as arrays from 'vs/base/common/arrays';
 import { IntervalTimer } from 'vs/base/common/async';
+import { Emitter, Event } from 'vs/base/common/event';
+import { KeyCode, Keybinding, ResolvedKeybinding } from 'vs/base/common/keyCodes';
+import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
+import { ICommandService } from 'vs/platform/commands/common/commands';
+import { IContextKeyService, IContextKeyServiceTarget } from 'vs/platform/contextkey/common/contextkey';
+import { IKeybindingEvent, IKeybindingService, IKeyboardEvent } from 'vs/platform/keybinding/common/keybinding';
+import { IResolveResult, KeybindingResolver } from 'vs/platform/keybinding/common/keybindingResolver';
+import { ResolvedKeybindingItem } from 'vs/platform/keybinding/common/resolvedKeybindingItem';
+import { INotificationService } from 'vs/platform/notification/common/notification';
+import { IStatusbarService } from 'vs/platform/statusbar/common/statusbar';
+import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 
 interface CurrentChord {
 	keypress: string;
-	label: string;
+	label: string | null;
 }
 
 export abstract class AbstractKeybindingService extends Disposable implements IKeybindingService {
 	public _serviceBrand: any;
 
-	private _currentChord: CurrentChord;
+	private _currentChord: CurrentChord | null;
 	private _currentChordChecker: IntervalTimer;
-	private _currentChordStatusMessage: IDisposable;
+	private _currentChordStatusMessage: IDisposable | null;
 	protected _onDidUpdateKeybindings: Emitter<IKeybindingEvent>;
 
 	private _contextKeyService: IContextKeyService;
-	private _statusService: IStatusbarService;
+	private _statusService: IStatusbarService | undefined;
 	private _notificationService: INotificationService;
 	protected _commandService: ICommandService;
 	protected _telemetryService: ITelemetryService;
@@ -88,10 +88,12 @@ export abstract class AbstractKeybindingService extends Disposable implements IK
 	}
 
 	public lookupKeybindings(commandId: string): ResolvedKeybinding[] {
-		return this._getResolver().lookupKeybindings(commandId).map(item => item.resolvedKeybinding);
+		return arrays.coalesce(
+			this._getResolver().lookupKeybindings(commandId).map(item => item.resolvedKeybinding)
+		);
 	}
 
-	public lookupKeybinding(commandId: string): ResolvedKeybinding {
+	public lookupKeybinding(commandId: string): ResolvedKeybinding | null {
 		let result = this._getResolver().lookupPrimaryKeybinding(commandId);
 		if (!result) {
 			return null;
@@ -99,7 +101,7 @@ export abstract class AbstractKeybindingService extends Disposable implements IK
 		return result.resolvedKeybinding;
 	}
 
-	public softDispatch(e: IKeyboardEvent, target: IContextKeyServiceTarget): IResolveResult {
+	public softDispatch(e: IKeyboardEvent, target: IContextKeyServiceTarget): IResolveResult | null {
 		const keybinding = this.resolveKeyboardEvent(e);
 		if (keybinding.isChord()) {
 			console.warn('Unexpected keyboard event mapped to a chord');
@@ -116,7 +118,7 @@ export abstract class AbstractKeybindingService extends Disposable implements IK
 		return this._getResolver().resolve(contextValue, currentChord, firstPart);
 	}
 
-	private _enterChordMode(firstPart: string, keypressLabel: string): void {
+	private _enterChordMode(firstPart: string, keypressLabel: string | null): void {
 		this._currentChord = {
 			keypress: firstPart,
 			label: keypressLabel
@@ -156,7 +158,7 @@ export abstract class AbstractKeybindingService extends Disposable implements IK
 		const keybinding = this.resolveKeyboardEvent(e);
 		if (keybinding.isChord()) {
 			console.warn('Unexpected keyboard event mapped to a chord');
-			return null;
+			return false;
 		}
 		const [firstPart,] = keybinding.getDispatchParts();
 		if (firstPart === null) {
@@ -188,9 +190,11 @@ export abstract class AbstractKeybindingService extends Disposable implements IK
 			if (!resolveResult.bubble) {
 				shouldPreventDefault = true;
 			}
-			this._commandService.executeCommand(resolveResult.commandId, resolveResult.commandArgs).done(undefined, err => {
-				this._notificationService.warn(err);
-			});
+			if (typeof resolveResult.commandArgs === 'undefined') {
+				this._commandService.executeCommand(resolveResult.commandId).then(undefined, err => this._notificationService.warn(err));
+			} else {
+				this._commandService.executeCommand(resolveResult.commandId, resolveResult.commandArgs).then(undefined, err => this._notificationService.warn(err));
+			}
 			/* __GDPR__
 				"workbenchActionExecuted" : {
 					"id" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
@@ -201,5 +205,19 @@ export abstract class AbstractKeybindingService extends Disposable implements IK
 		}
 
 		return shouldPreventDefault;
+	}
+
+	mightProducePrintableCharacter(event: IKeyboardEvent): boolean {
+		if (event.ctrlKey || event.metaKey) {
+			// ignore ctrl/cmd-combination but not shift/alt-combinatios
+			return false;
+		}
+		// weak check for certain ranges. this is properly implemented in a subclass
+		// with access to the KeyboardMapperFactory.
+		if ((event.keyCode >= KeyCode.KEY_A && event.keyCode <= KeyCode.KEY_Z)
+			|| (event.keyCode >= KeyCode.KEY_0 && event.keyCode <= KeyCode.KEY_9)) {
+			return true;
+		}
+		return false;
 	}
 }

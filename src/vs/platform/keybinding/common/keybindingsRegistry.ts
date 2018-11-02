@@ -2,19 +2,18 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
-import { SimpleKeybinding, KeyCode, KeybindingType, createKeybinding, Keybinding } from 'vs/base/common/keyCodes';
+import { KeyCode, Keybinding, KeybindingType, SimpleKeybinding, createKeybinding } from 'vs/base/common/keyCodes';
 import { OS, OperatingSystem } from 'vs/base/common/platform';
-import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { CommandsRegistry, ICommandHandler, ICommandHandlerDescription } from 'vs/platform/commands/common/commands';
+import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { Registry } from 'vs/platform/registry/common/platform';
 
 export interface IKeybindingItem {
 	keybinding: Keybinding;
 	command: string;
 	commandArgs?: any;
-	when: ContextKeyExpr;
+	when: ContextKeyExpr | null | undefined;
 	weight1: number;
 	weight2: number;
 }
@@ -39,17 +38,17 @@ export interface IKeybindings {
 export interface IKeybindingRule extends IKeybindings {
 	id: string;
 	weight: number;
-	when: ContextKeyExpr;
+	when: ContextKeyExpr | null | undefined;
 }
 
 export interface IKeybindingRule2 {
-	primary: Keybinding;
-	win?: { primary: Keybinding; };
-	linux?: { primary: Keybinding; };
-	mac?: { primary: Keybinding; };
+	primary: Keybinding | null;
+	win?: { primary: Keybinding | null; } | null;
+	linux?: { primary: Keybinding | null; } | null;
+	mac?: { primary: Keybinding | null; } | null;
 	id: string;
 	weight: number;
-	when: ContextKeyExpr;
+	when: ContextKeyExpr | null;
 }
 
 export const enum KeybindingRuleSource {
@@ -57,9 +56,17 @@ export const enum KeybindingRuleSource {
 	Extension = 1
 }
 
+export const enum KeybindingWeight {
+	EditorCore = 0,
+	EditorContrib = 100,
+	WorkbenchContrib = 200,
+	BuiltinExtension = 300,
+	ExternalExtension = 400
+}
+
 export interface ICommandAndKeybindingRule extends IKeybindingRule {
 	handler: ICommandHandler;
-	description?: ICommandHandlerDescription;
+	description?: ICommandHandlerDescription | null;
 }
 
 export interface IKeybindingsRegistry {
@@ -67,38 +74,12 @@ export interface IKeybindingsRegistry {
 	registerKeybindingRule2(rule: IKeybindingRule2, source?: KeybindingRuleSource): void;
 	registerCommandAndKeybindingRule(desc: ICommandAndKeybindingRule, source?: KeybindingRuleSource): void;
 	getDefaultKeybindings(): IKeybindingItem[];
-
-	WEIGHT: {
-		editorCore(importance?: number): number;
-		editorContrib(importance?: number): number;
-		workbenchContrib(importance?: number): number;
-		builtinExtension(importance?: number): number;
-		externalExtension(importance?: number): number;
-	};
 }
 
 class KeybindingsRegistryImpl implements IKeybindingsRegistry {
 
 	private _keybindings: IKeybindingItem[];
 	private _keybindingsSorted: boolean;
-
-	public WEIGHT = {
-		editorCore: (importance: number = 0): number => {
-			return 0 + importance;
-		},
-		editorContrib: (importance: number = 0): number => {
-			return 100 + importance;
-		},
-		workbenchContrib: (importance: number = 0): number => {
-			return 200 + importance;
-		},
-		builtinExtension: (importance: number = 0): number => {
-			return 300 + importance;
-		},
-		externalExtension: (importance: number = 0): number => {
-			return 400 + importance;
-		}
-	};
 
 	constructor() {
 		this._keybindings = [];
@@ -129,7 +110,7 @@ class KeybindingsRegistryImpl implements IKeybindingsRegistry {
 	/**
 	 * Take current platform into account and reduce to primary & secondary.
 	 */
-	private static bindToCurrentPlatform2(kb: IKeybindingRule2): { primary?: Keybinding; } {
+	private static bindToCurrentPlatform2(kb: IKeybindingRule2): { primary?: Keybinding | null; } {
 		if (OS === OperatingSystem.Windows) {
 			if (kb && kb.win) {
 				return kb.win;
@@ -151,13 +132,19 @@ class KeybindingsRegistryImpl implements IKeybindingsRegistry {
 		let actualKb = KeybindingsRegistryImpl.bindToCurrentPlatform(rule);
 
 		if (actualKb && actualKb.primary) {
-			this._registerDefaultKeybinding(createKeybinding(actualKb.primary, OS), rule.id, rule.weight, 0, rule.when, source);
+			const kk = createKeybinding(actualKb.primary, OS);
+			if (kk) {
+				this._registerDefaultKeybinding(kk, rule.id, rule.weight, 0, rule.when, source);
+			}
 		}
 
 		if (actualKb && Array.isArray(actualKb.secondary)) {
 			for (let i = 0, len = actualKb.secondary.length; i < len; i++) {
 				const k = actualKb.secondary[i];
-				this._registerDefaultKeybinding(createKeybinding(k, OS), rule.id, rule.weight, -i - 1, rule.when, source);
+				const kk = createKeybinding(k, OS);
+				if (kk) {
+					this._registerDefaultKeybinding(kk, rule.id, rule.weight, -i - 1, rule.when, source);
+				}
 			}
 		}
 	}
@@ -209,7 +196,7 @@ class KeybindingsRegistryImpl implements IKeybindingsRegistry {
 		}
 	}
 
-	private _registerDefaultKeybinding(keybinding: Keybinding, commandId: string, weight1: number, weight2: number, when: ContextKeyExpr, source: KeybindingRuleSource): void {
+	private _registerDefaultKeybinding(keybinding: Keybinding, commandId: string, weight1: number, weight2: number, when: ContextKeyExpr | null | undefined, source: KeybindingRuleSource): void {
 		if (source === KeybindingRuleSource.Core && OS === OperatingSystem.Windows) {
 			if (keybinding.type === KeybindingType.Chord) {
 				this._assertNoCtrlAlt(keybinding.firstPart, commandId);

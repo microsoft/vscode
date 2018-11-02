@@ -2,31 +2,41 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
-import { ITree, ITreeConfiguration, ITreeOptions } from 'vs/base/parts/tree/browser/tree';
-import { List, IListOptions, isSelectionRangeChangeEvent, isSelectionSingleChangeEvent, IMultipleSelectionController, IOpenController, DefaultStyleController } from 'vs/base/browser/ui/list/listWidget';
-import { createDecorator, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IDisposable, toDisposable, combinedDisposable, dispose, Disposable } from 'vs/base/common/lifecycle';
-import { IContextKeyService, IContextKey, RawContextKey, ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
-import { PagedList, IPagedRenderer } from 'vs/base/browser/ui/list/listPaging';
-import { IDelegate, IRenderer, IListMouseEvent, IListTouchEvent } from 'vs/base/browser/ui/list/list';
+import { addClass, addStandardDisposableListener, createStyleSheet, getTotalHeight, removeClass } from 'vs/base/browser/dom';
+import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
+import { IInputOptions, InputBox } from 'vs/base/browser/ui/inputbox/inputBox';
+import { IListMouseEvent, IListTouchEvent, IListRenderer, IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
+import { IPagedRenderer, PagedList } from 'vs/base/browser/ui/list/listPaging';
+import { DefaultStyleController, IListOptions, IMultipleSelectionController, IOpenController, isSelectionRangeChangeEvent, isSelectionSingleChangeEvent, List } from 'vs/base/browser/ui/list/listWidget';
+import { canceled, onUnexpectedError } from 'vs/base/common/errors';
+import { Emitter, Event } from 'vs/base/common/event';
+import { FuzzyScore } from 'vs/base/common/filters';
+import { KeyCode } from 'vs/base/common/keyCodes';
+import { combinedDisposable, Disposable, dispose, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import { ScrollbarVisibility } from 'vs/base/common/scrollable';
+import { isUndefinedOrNull } from 'vs/base/common/types';
+import { TPromise } from 'vs/base/common/winjs.base';
+import { IFilter, ITree, ITreeConfiguration, ITreeOptions } from 'vs/base/parts/tree/browser/tree';
+import { ClickBehavior, DefaultController, DefaultTreestyler, IControllerOptions, OpenMode } from 'vs/base/parts/tree/browser/treeDefaults';
 import { Tree } from 'vs/base/parts/tree/browser/treeImpl';
-import { attachListStyler, defaultListStyles, computeStyles } from 'vs/platform/theme/common/styler';
+import { localize } from 'vs/nls';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { Extensions as ConfigurationExtensions, IConfigurationRegistry } from 'vs/platform/configuration/common/configurationRegistry';
+import { ContextKeyExpr, IContextKey, IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
+import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
+import { IEditorOptions } from 'vs/platform/editor/common/editor';
+import { createDecorator, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
+import { Registry } from 'vs/platform/registry/common/platform';
+import { attachInputBoxStyler, attachListStyler, computeStyles, defaultListStyles } from 'vs/platform/theme/common/styler';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { InputFocusedContextKey } from 'vs/platform/workbench/common/contextkeys';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { localize } from 'vs/nls';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { Extensions as ConfigurationExtensions, IConfigurationRegistry } from 'vs/platform/configuration/common/configurationRegistry';
-import { DefaultController, IControllerOptions, OpenMode, ClickBehavior, DefaultTreestyler } from 'vs/base/parts/tree/browser/treeDefaults';
-import { isUndefinedOrNull } from 'vs/base/common/types';
-import { IEditorOptions } from 'vs/platform/editor/common/editor';
-import { Event, Emitter } from 'vs/base/common/event';
-import { createStyleSheet } from 'vs/base/browser/dom';
-import { ScrollbarVisibility } from 'vs/base/common/scrollable';
+import { ObjectTree } from 'vs/base/browser/ui/tree/objectTree';
+import { ITreeOptions as ITreeOptions2, ITreeEvent } from 'vs/base/browser/ui/tree/abstractTree';
+import { ITreeRenderer } from 'vs/base/browser/ui/tree/tree';
 
-export type ListWidget = List<any> | PagedList<any> | ITree;
+export type ListWidget = List<any> | PagedList<any> | ITree | ObjectTree<any, any>;
 
 export const IListService = createDecorator<IListService>('listService');
 
@@ -68,7 +78,7 @@ export class ListService implements IListService {
 		this.lists.push(registeredList);
 
 		// Check for currently being focused
-		if (widget.isDOMFocused()) {
+		if (widget.getHTMLElement() === document.activeElement) {
 			this._lastFocusedWidget = widget;
 		}
 
@@ -90,16 +100,12 @@ export class ListService implements IListService {
 const RawWorkbenchListFocusContextKey = new RawContextKey<boolean>('listFocus', true);
 export const WorkbenchListSupportsMultiSelectContextKey = new RawContextKey<boolean>('listSupportsMultiselect', true);
 export const WorkbenchListFocusContextKey = ContextKeyExpr.and(RawWorkbenchListFocusContextKey, ContextKeyExpr.not(InputFocusedContextKey));
+export const WorkbenchListHasSelectionOrFocus = new RawContextKey<boolean>('listHasSelectionOrFocus', false);
 export const WorkbenchListDoubleSelection = new RawContextKey<boolean>('listDoubleSelection', false);
 export const WorkbenchListMultiSelection = new RawContextKey<boolean>('listMultiSelection', false);
 
 function createScopedContextKeyService(contextKeyService: IContextKeyService, widget: ListWidget): IContextKeyService {
 	const result = contextKeyService.createScoped(widget.getHTMLElement());
-
-	if (widget instanceof List || widget instanceof PagedList) {
-		WorkbenchListSupportsMultiSelectContextKey.bindTo(result);
-	}
-
 	RawWorkbenchListFocusContextKey.bindTo(result);
 	return result;
 }
@@ -199,6 +205,7 @@ export class WorkbenchList<T> extends List<T> {
 
 	readonly contextKeyService: IContextKeyService;
 
+	private listHasSelectionOrFocus: IContextKey<boolean>;
 	private listDoubleSelection: IContextKey<boolean>;
 	private listMultiSelection: IContextKey<boolean>;
 
@@ -206,8 +213,8 @@ export class WorkbenchList<T> extends List<T> {
 
 	constructor(
 		container: HTMLElement,
-		delegate: IDelegate<T>,
-		renderers: IRenderer<T, any>[],
+		delegate: IListVirtualDelegate<T>,
+		renderers: IListRenderer<T, any>[],
 		options: IListOptions<T>,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IListService listService: IListService,
@@ -225,6 +232,11 @@ export class WorkbenchList<T> extends List<T> {
 		);
 
 		this.contextKeyService = createScopedContextKeyService(contextKeyService, this);
+
+		const listSupportsMultiSelect = WorkbenchListSupportsMultiSelectContextKey.bindTo(this.contextKeyService);
+		listSupportsMultiSelect.set(!(options.multipleSelectionSupport === false));
+
+		this.listHasSelectionOrFocus = WorkbenchListHasSelectionOrFocus.bindTo(this.contextKeyService);
 		this.listDoubleSelection = WorkbenchListDoubleSelection.bindTo(this.contextKeyService);
 		this.listMultiSelection = WorkbenchListMultiSelection.bindTo(this.contextKeyService);
 
@@ -236,8 +248,17 @@ export class WorkbenchList<T> extends List<T> {
 			attachListStyler(this, themeService),
 			this.onSelectionChange(() => {
 				const selection = this.getSelection();
+				const focus = this.getFocus();
+
+				this.listHasSelectionOrFocus.set(selection.length > 0 || focus.length > 0);
 				this.listMultiSelection.set(selection.length > 1);
 				this.listDoubleSelection.set(selection.length === 2);
+			}),
+			this.onFocusChange(() => {
+				const selection = this.getSelection();
+				const focus = this.getFocus();
+
+				this.listHasSelectionOrFocus.set(selection.length > 0 || focus.length > 0);
 			})
 		]));
 
@@ -267,7 +288,7 @@ export class WorkbenchPagedList<T> extends PagedList<T> {
 
 	constructor(
 		container: HTMLElement,
-		delegate: IDelegate<number>,
+		delegate: IListVirtualDelegate<number>,
 		renderers: IPagedRenderer<T, any>[],
 		options: IListOptions<T>,
 		@IContextKeyService contextKeyService: IContextKeyService,
@@ -286,6 +307,9 @@ export class WorkbenchPagedList<T> extends PagedList<T> {
 		);
 
 		this.contextKeyService = createScopedContextKeyService(contextKeyService, this);
+
+		const listSupportsMultiSelect = WorkbenchListSupportsMultiSelectContextKey.bindTo(this.contextKeyService);
+		listSupportsMultiSelect.set(!(options.multipleSelectionSupport === false));
 
 		this._useAltAsMultipleSelectionModifier = useAltAsMultipleSelectionModifier(configurationService);
 
@@ -323,6 +347,7 @@ export class WorkbenchTree extends Tree {
 
 	protected disposables: IDisposable[];
 
+	private listHasSelectionOrFocus: IContextKey<boolean>;
 	private listDoubleSelection: IContextKey<boolean>;
 	private listMultiSelection: IContextKey<boolean>;
 
@@ -352,6 +377,10 @@ export class WorkbenchTree extends Tree {
 
 		this.disposables = [];
 		this.contextKeyService = createScopedContextKeyService(contextKeyService, this);
+
+		WorkbenchListSupportsMultiSelectContextKey.bindTo(this.contextKeyService);
+
+		this.listHasSelectionOrFocus = WorkbenchListHasSelectionOrFocus.bindTo(this.contextKeyService);
 		this.listDoubleSelection = WorkbenchListDoubleSelection.bindTo(this.contextKeyService);
 		this.listMultiSelection = WorkbenchListMultiSelection.bindTo(this.contextKeyService);
 
@@ -366,8 +395,18 @@ export class WorkbenchTree extends Tree {
 
 		this.disposables.push(this.onDidChangeSelection(() => {
 			const selection = this.getSelection();
+			const focus = this.getFocus();
+
+			this.listHasSelectionOrFocus.set((selection && selection.length > 0) || !!focus);
 			this.listDoubleSelection.set(selection && selection.length === 2);
 			this.listMultiSelection.set(selection && selection.length > 1);
+		}));
+
+		this.disposables.push(this.onDidChangeFocus(() => {
+			const selection = this.getSelection();
+			const focus = this.getFocus();
+
+			this.listHasSelectionOrFocus.set((selection && selection.length > 0) || !!focus);
 		}));
 
 		this.disposables.push(configurationService.onDidChangeConfiguration(e => {
@@ -526,6 +565,396 @@ export class TreeResourceNavigator extends Disposable {
 	}
 }
 
+export interface IOpenEvent<T> {
+	editorOptions: IEditorOptions;
+	sideBySide: boolean;
+	element: T;
+}
+
+export interface IResourceResultsNavigationOptions {
+	openOnFocus: boolean;
+}
+
+export class ObjectTreeResourceNavigator<T, TFilterData> extends Disposable {
+
+	private readonly _openResource: Emitter<IOpenEvent<T>> = new Emitter<IOpenEvent<T>>();
+	readonly openResource: Event<IOpenEvent<T>> = this._openResource.event;
+
+	constructor(private tree: WorkbenchObjectTree<T, TFilterData>, private options?: IResourceResultsNavigationOptions) {
+		super();
+
+		this.registerListeners();
+	}
+
+	private registerListeners(): void {
+		if (this.options && this.options.openOnFocus) {
+			this._register(this.tree.onDidChangeFocus(e => this.onFocus(e)));
+		}
+
+		this._register(this.tree.onDidChangeSelection(e => this.onSelection(e)));
+	}
+
+	private onFocus(e: ITreeEvent<T, TFilterData>): void {
+		const focus = this.tree.getFocus();
+		this.tree.setSelection(focus, e.browserEvent);
+
+		if (!e.browserEvent) {
+			return;
+		}
+
+		const isMouseEvent = e.browserEvent && e.browserEvent instanceof MouseEvent;
+
+		if (!isMouseEvent) {
+			this.open(true, false, false);
+		}
+	}
+
+	private onSelection(e: ITreeEvent<T, TFilterData>): void {
+		if (!e.browserEvent || !(e.browserEvent instanceof MouseEvent)) {
+			return;
+		}
+
+		const isDoubleClick = e.browserEvent.detail === 2;
+		const sideBySide = e.browserEvent.ctrlKey || e.browserEvent.metaKey || e.browserEvent.altKey;
+		this.open(!isDoubleClick, isDoubleClick, sideBySide);
+	}
+
+	private open(preserveFocus: boolean, pinned: boolean, sideBySide: boolean): void {
+		this._openResource.fire({
+			editorOptions: {
+				preserveFocus,
+				pinned,
+				revealIfVisible: true
+			},
+			sideBySide,
+			element: this.tree.getSelection()[0]
+		});
+	}
+}
+
+export interface IHighlighter {
+	getHighlights(tree: ITree, element: any, pattern: string): FuzzyScore;
+	getHighlightsStorageKey?(element: any): any;
+}
+
+export interface IHighlightingTreeConfiguration extends ITreeConfiguration {
+	highlighter: IHighlighter;
+}
+
+export interface IHighlightingTreeOptions extends ITreeOptions {
+	filterOnType?: boolean;
+}
+
+export class HighlightingTreeController extends WorkbenchTreeController {
+
+	constructor(
+		options: IControllerOptions,
+		private readonly onType: () => any,
+		@IConfigurationService configurationService: IConfigurationService,
+		@IKeybindingService private readonly _keybindingService: IKeybindingService,
+	) {
+		super(options, configurationService);
+	}
+
+	onKeyDown(tree: ITree, event: IKeyboardEvent) {
+		let handled = super.onKeyDown(tree, event);
+		if (handled) {
+			return true;
+		}
+		if (this.upKeyBindingDispatcher.has(event.keyCode)) {
+			return false;
+		}
+		if (this._keybindingService.mightProducePrintableCharacter(event)) {
+			this.onType();
+			return true;
+		}
+		return false;
+	}
+}
+
+class HightlightsFilter implements IFilter {
+
+	static add(config: ITreeConfiguration, options: IHighlightingTreeOptions): ITreeConfiguration {
+		let myFilter = new HightlightsFilter();
+		myFilter.enabled = options.filterOnType;
+		if (!config.filter) {
+			config.filter = myFilter;
+		} else {
+			let otherFilter = config.filter;
+			config.filter = {
+				isVisible(tree: ITree, element: any): boolean {
+					return myFilter.isVisible(tree, element) && otherFilter.isVisible(tree, element);
+				}
+			};
+		}
+		return config;
+	}
+
+	enabled: boolean = true;
+
+	isVisible(tree: ITree, element: any): boolean {
+		if (!this.enabled) {
+			return true;
+		}
+		let tree2 = (tree as HighlightingWorkbenchTree);
+		if (!tree2.isHighlighterScoring()) {
+			return true;
+		}
+		if (tree2.getHighlighterScore(element)) {
+			return true;
+		}
+		return false;
+	}
+}
+
+export class HighlightingWorkbenchTree extends WorkbenchTree {
+
+	protected readonly domNode: HTMLElement;
+	protected readonly inputContainer: HTMLElement;
+	protected readonly input: InputBox;
+
+	protected readonly highlighter: IHighlighter;
+	protected readonly highlights: Map<any, FuzzyScore>;
+
+	private readonly _onDidStartFilter: Emitter<this>;
+	readonly onDidStartFiltering: Event<this>;
+
+	constructor(
+		parent: HTMLElement,
+		treeConfiguration: IHighlightingTreeConfiguration,
+		treeOptions: IHighlightingTreeOptions,
+		listOptions: IInputOptions,
+		@IContextKeyService contextKeyService: IContextKeyService,
+		@IContextViewService contextViewService: IContextViewService,
+		@IListService listService: IListService,
+		@IThemeService themeService: IThemeService,
+		@IInstantiationService instantiationService: IInstantiationService,
+		@IConfigurationService configurationService: IConfigurationService
+	) {
+		// build html skeleton
+		const container = document.createElement('div');
+		container.className = 'highlighting-tree';
+		const inputContainer = document.createElement('div');
+		inputContainer.className = 'input';
+		const treeContainer = document.createElement('div');
+		treeContainer.className = 'tree';
+		container.appendChild(inputContainer);
+		container.appendChild(treeContainer);
+		parent.appendChild(container);
+
+		// create tree
+		treeConfiguration.controller = treeConfiguration.controller || instantiationService.createInstance(HighlightingTreeController, {}, () => this.onTypeInTree());
+		super(treeContainer, HightlightsFilter.add(treeConfiguration, treeOptions), treeOptions, contextKeyService, listService, themeService, instantiationService, configurationService);
+		this.highlighter = treeConfiguration.highlighter;
+		this.highlights = new Map<any, FuzzyScore>();
+
+		this.domNode = container;
+		addClass(this.domNode, 'inactive');
+
+		// create input
+		this.inputContainer = inputContainer;
+		this.input = new InputBox(inputContainer, contextViewService, listOptions);
+		this.input.setEnabled(false);
+		this.input.onDidChange(this.updateHighlights, this, this.disposables);
+		this.disposables.push(attachInputBoxStyler(this.input, themeService));
+		this.disposables.push(this.input);
+		this.disposables.push(addStandardDisposableListener(this.input.inputElement, 'keydown', event => {
+			//todo@joh make this command/context-key based
+			switch (event.keyCode) {
+				case KeyCode.UpArrow:
+				case KeyCode.DownArrow:
+				case KeyCode.Tab:
+					this.domFocus();
+					event.preventDefault();
+					break;
+				case KeyCode.Enter:
+					this.setSelection(this.getSelection());
+					event.preventDefault();
+					break;
+				case KeyCode.Escape:
+					this.input.value = '';
+					this.domFocus();
+					event.preventDefault();
+					break;
+			}
+		}));
+
+		this._onDidStartFilter = new Emitter<this>();
+		this.onDidStartFiltering = this._onDidStartFilter.event;
+		this.disposables.push(this._onDidStartFilter);
+	}
+
+	setInput(element: any): TPromise<any> {
+		this.input.setEnabled(false);
+		return super.setInput(element).then(value => {
+			if (!this.input.inputElement) {
+				// has been disposed in the meantime -> cancel
+				return Promise.reject(canceled());
+			}
+			this.input.setEnabled(true);
+			return value;
+		});
+	}
+
+	layout(height?: number, width?: number): void {
+		this.input.layout();
+		super.layout(isNaN(height) ? height : height - getTotalHeight(this.inputContainer), width);
+	}
+
+	private onTypeInTree(): void {
+		removeClass(this.domNode, 'inactive');
+		this.input.focus();
+		this.layout();
+		this._onDidStartFilter.fire(this);
+	}
+
+	private lastSelection: any[];
+
+	private updateHighlights(pattern: string): void {
+
+		// remember old selection
+		let defaultSelection: any[] = [];
+		if (!this.lastSelection && pattern) {
+			this.lastSelection = this.getSelection();
+		} else if (this.lastSelection && !pattern) {
+			defaultSelection = this.lastSelection;
+			this.lastSelection = [];
+		}
+
+		let topElement: any;
+		if (pattern) {
+			let nav = this.getNavigator(undefined, false);
+			let topScore: FuzzyScore;
+			while (nav.next()) {
+				let element = nav.current();
+				let score = this.highlighter.getHighlights(this, element, pattern);
+				this.highlights.set(this._getHighlightsStorageKey(element), score);
+				element.foo = 1;
+				if (!topScore || score && topScore[0] < score[0]) {
+					topScore = score;
+					topElement = element;
+				}
+			}
+		} else {
+			// no pattern, clear highlights
+			this.highlights.clear();
+		}
+
+		this.refresh().then(() => {
+			if (topElement) {
+				this.reveal(topElement, .5).then(_ => {
+					this.setSelection([topElement], this);
+					this.setFocus(topElement, this);
+				});
+			} else {
+				this.setSelection(defaultSelection, this);
+			}
+		}, onUnexpectedError);
+	}
+
+	isHighlighterScoring(): boolean {
+		return this.highlights.size > 0;
+	}
+
+	getHighlighterScore(element: any): FuzzyScore {
+		return this.highlights.get(this._getHighlightsStorageKey(element));
+	}
+
+	private _getHighlightsStorageKey(element: any): any {
+		return typeof this.highlighter.getHighlightsStorageKey === 'function'
+			? this.highlighter.getHighlightsStorageKey(element)
+			: element;
+	}
+}
+
+export class WorkbenchObjectTree<T extends NonNullable<any>, TFilterData = void> extends ObjectTree<T, TFilterData> {
+
+	readonly contextKeyService: IContextKeyService;
+
+	protected disposables: IDisposable[];
+
+	private hasSelectionOrFocus: IContextKey<boolean>;
+	private hasDoubleSelection: IContextKey<boolean>;
+	private hasMultiSelection: IContextKey<boolean>;
+
+	private _openOnSingleClick: boolean;
+	private _useAltAsMultipleSelectionModifier: boolean;
+
+	constructor(
+		container: HTMLElement,
+		delegate: IListVirtualDelegate<T>,
+		renderers: ITreeRenderer<T, TFilterData, any>[],
+		options: ITreeOptions2<T, TFilterData>,
+		@IContextKeyService contextKeyService: IContextKeyService,
+		@IListService listService: IListService,
+		@IThemeService themeService: IThemeService,
+		@IConfigurationService configurationService: IConfigurationService
+	) {
+		super(container, delegate, renderers, {
+			keyboardSupport: false,
+			selectOnMouseDown: true,
+			styleController: new DefaultStyleController(getSharedListStyleSheet()),
+			...computeStyles(themeService.getTheme(), defaultListStyles),
+			...handleListControllers(options, configurationService)
+		});
+
+		this.contextKeyService = createScopedContextKeyService(contextKeyService, this);
+
+		const listSupportsMultiSelect = WorkbenchListSupportsMultiSelectContextKey.bindTo(this.contextKeyService);
+		listSupportsMultiSelect.set(!(options.multipleSelectionSupport === false));
+
+		this.hasSelectionOrFocus = WorkbenchListHasSelectionOrFocus.bindTo(this.contextKeyService);
+		this.hasDoubleSelection = WorkbenchListDoubleSelection.bindTo(this.contextKeyService);
+		this.hasMultiSelection = WorkbenchListMultiSelection.bindTo(this.contextKeyService);
+
+		this._openOnSingleClick = useSingleClickToOpen(configurationService);
+		this._useAltAsMultipleSelectionModifier = useAltAsMultipleSelectionModifier(configurationService);
+
+		this.disposables.push(
+			this.contextKeyService,
+			(listService as ListService).register(this),
+			attachListStyler(this, themeService),
+			this.onDidChangeSelection(() => {
+				const selection = this.getSelection();
+				const focus = this.getFocus();
+
+				this.hasSelectionOrFocus.set(selection.length > 0 || focus.length > 0);
+				this.hasMultiSelection.set(selection.length > 1);
+				this.hasDoubleSelection.set(selection.length === 2);
+			}),
+			this.onDidChangeFocus(() => {
+				const selection = this.getSelection();
+				const focus = this.getFocus();
+
+				this.hasSelectionOrFocus.set(selection.length > 0 || focus.length > 0);
+			}),
+			configurationService.onDidChangeConfiguration(e => {
+				if (e.affectsConfiguration(openModeSettingKey)) {
+					this._openOnSingleClick = useSingleClickToOpen(configurationService);
+				}
+
+				if (e.affectsConfiguration(multiSelectModifierSettingKey)) {
+					this._useAltAsMultipleSelectionModifier = useAltAsMultipleSelectionModifier(configurationService);
+				}
+			})
+		);
+	}
+
+	get openOnSingleClick(): boolean {
+		return this._openOnSingleClick;
+	}
+
+	get useAltAsMultipleSelectionModifier(): boolean {
+		return this._useAltAsMultipleSelectionModifier;
+	}
+
+	dispose(): void {
+		super.dispose();
+
+		this.disposables = dispose(this.disposables);
+	}
+}
+
 const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
 
 configurationRegistry.registerConfiguration({
@@ -548,20 +977,16 @@ configurationRegistry.registerConfiguration({
 					'- `ctrlCmd` refers to a value the setting can take and should not be localized.',
 					'- `Control` and `Command` refer to the modifier keys Ctrl or Cmd on the keyboard and can be localized.'
 				]
-			}, "The modifier to be used to add an item in trees and lists to a multi-selection with the mouse (for example in the explorer, open editors and scm view). `ctrlCmd` maps to `Control` on Windows and Linux and to `Command` on macOS. The 'Open to Side' mouse gestures - if supported - will adapt such that they do not conflict with the multiselect modifier.")
+			}, "The modifier to be used to add an item in trees and lists to a multi-selection with the mouse (for example in the explorer, open editors and scm view). The 'Open to Side' mouse gestures - if supported - will adapt such that they do not conflict with the multiselect modifier.")
 		},
 		[openModeSettingKey]: {
 			'type': 'string',
 			'enum': ['singleClick', 'doubleClick'],
-			'enumDescriptions': [
-				localize('openMode.singleClick', "Opens items on mouse single click."),
-				localize('openMode.doubleClick', "Open items on mouse double click.")
-			],
 			'default': 'singleClick',
 			'description': localize({
 				key: 'openModeModifier',
 				comment: ['`singleClick` and `doubleClick` refers to a value the setting can take and should not be localized.']
-			}, "Controls how to open items in trees and lists using the mouse (if supported). Set to `singleClick` to open items with a single mouse click and `doubleClick` to only open via mouse double click. For parents with children in trees, this setting will control if a single click expands the parent or a double click. Note that some trees and lists might choose to ignore this setting if it is not applicable. ")
+			}, "Controls how to open items in trees and lists using the mouse (if supported). For parents with children in trees, this setting will control if a single click expands the parent or a double click. Note that some trees and lists might choose to ignore this setting if it is not applicable. ")
 		},
 		[horizontalScrollingKey]: {
 			'type': 'boolean',

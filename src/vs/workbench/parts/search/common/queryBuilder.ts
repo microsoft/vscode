@@ -2,21 +2,22 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
-import * as nls from 'vs/nls';
 import * as arrays from 'vs/base/common/arrays';
-import * as objects from 'vs/base/common/objects';
 import * as collections from 'vs/base/common/collections';
-import * as strings from 'vs/base/common/strings';
 import * as glob from 'vs/base/common/glob';
-import * as paths from 'vs/base/common/paths';
-import uri from 'vs/base/common/uri';
 import { untildify } from 'vs/base/common/labels';
-import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
-import { IPatternInfo, IQueryOptions, IFolderQuery, ISearchQuery, QueryType, ISearchConfiguration, getExcludes, pathIncludedInQuery } from 'vs/platform/search/common/search';
+import * as objects from 'vs/base/common/objects';
+import * as paths from 'vs/base/common/paths';
+import * as resources from 'vs/base/common/resources';
+import * as strings from 'vs/base/common/strings';
+import { URI as uri } from 'vs/base/common/uri';
+import { isMultilineRegexSource } from 'vs/editor/common/model/textModelSearch';
+import * as nls from 'vs/nls';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
+import { getExcludes, ICommonQueryProps, IFileQuery, IFolderQuery, IPatternInfo, ISearchConfiguration, ITextQuery, ITextSearchPreviewOptions, pathIncludedInQuery, QueryType } from 'vs/platform/search/common/search';
+import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 
 export interface ISearchPathPattern {
 	searchPath: uri;
@@ -28,6 +29,35 @@ export interface ISearchPathsResult {
 	pattern?: glob.IExpression;
 }
 
+export interface ICommonQueryBuilderOptions {
+	_reason?: string;
+	excludePattern?: string;
+	includePattern?: string;
+	extraFileResources?: uri[];
+
+	maxResults?: number;
+	maxFileSize?: number;
+	useRipgrep?: boolean;
+	disregardIgnoreFiles?: boolean;
+	disregardGlobalIgnoreFiles?: boolean;
+	disregardExcludeSettings?: boolean;
+	ignoreSymlinks?: boolean;
+}
+
+export interface IFileQueryBuilderOptions extends ICommonQueryBuilderOptions {
+	filePattern?: string;
+	exists?: boolean;
+	sortByScore?: boolean;
+	cacheKey?: string;
+}
+
+export interface ITextQueryBuilderOptions extends ICommonQueryBuilderOptions {
+	previewOptions?: ITextSearchPreviewOptions;
+	fileEncoding?: string;
+	beforeContext?: number;
+	afterContext?: number;
+}
+
 export class QueryBuilder {
 
 	constructor(
@@ -36,84 +66,110 @@ export class QueryBuilder {
 		@IEnvironmentService private environmentService: IEnvironmentService
 	) { }
 
-	public text(contentPattern: IPatternInfo, folderResources?: uri[], options?: IQueryOptions): ISearchQuery {
-		return this.query(QueryType.Text, contentPattern, folderResources, options);
+	text(contentPattern: IPatternInfo, folderResources?: uri[], options: ITextQueryBuilderOptions = {}): ITextQuery {
+		contentPattern.isCaseSensitive = this.isCaseSensitive(contentPattern);
+		contentPattern.isMultiline = this.isMultiline(contentPattern);
+		const searchConfig = this.configurationService.getValue<ISearchConfiguration>();
+		contentPattern.wordSeparators = searchConfig.editor.wordSeparators;
+
+		const fallbackToPCRE = folderResources && folderResources.some(folder => {
+			const folderConfig = this.configurationService.getValue<ISearchConfiguration>({ resource: folder });
+			return !folderConfig.search.useRipgrep;
+		});
+
+		const commonQuery = this.commonQuery(folderResources, options);
+		return <ITextQuery>{
+			...commonQuery,
+			type: QueryType.Text,
+			contentPattern,
+			previewOptions: options.previewOptions,
+			maxFileSize: options.maxFileSize,
+			usePCRE2: searchConfig.search.usePCRE2 || fallbackToPCRE || false,
+			beforeContext: options.beforeContext,
+			afterContext: options.afterContext
+		};
 	}
 
-	public file(folderResources?: uri[], options?: IQueryOptions): ISearchQuery {
-		return this.query(QueryType.File, null, folderResources, options);
+	file(folderResources: uri[] | undefined, options: IFileQueryBuilderOptions = {}): IFileQuery {
+		const commonQuery = this.commonQuery(folderResources, options);
+		return <IFileQuery>{
+			...commonQuery,
+			type: QueryType.File,
+			filePattern: options.filePattern
+				? options.filePattern.trim()
+				: options.filePattern,
+			exists: options.exists,
+			sortByScore: options.sortByScore,
+			cacheKey: options.cacheKey
+		};
 	}
 
-	private query(type: QueryType, contentPattern?: IPatternInfo, folderResources?: uri[], options: IQueryOptions = {}): ISearchQuery {
-		let { searchPaths, pattern: includePattern } = this.parseSearchPaths(options.includePattern);
-		let excludePattern = this.parseExcludePattern(options.excludePattern);
+	private commonQuery(folderResources?: uri[], options: ICommonQueryBuilderOptions = {}): ICommonQueryProps<uri> {
+		let { searchPaths, pattern: includePattern } = this.parseSearchPaths(options.includePattern || '');
+		let excludePattern = this.parseExcludePattern(options.excludePattern || '');
 
 		// Build folderQueries from searchPaths, if given, otherwise folderResources
-		let folderQueries = folderResources && folderResources.map(uri => this.getFolderQueryForRoot(uri, type === QueryType.File, options));
+		let folderQueries = folderResources && folderResources.map(uri => this.getFolderQueryForRoot(uri, options));
 		if (searchPaths && searchPaths.length) {
 			const allRootExcludes = folderQueries && this.mergeExcludesFromFolderQueries(folderQueries);
-			folderQueries = searchPaths.map(searchPath => this.getFolderQueryForSearchPath(searchPath));
+			folderQueries = searchPaths.map(searchPath => this.getFolderQueryForSearchPath(searchPath)); // TODO Rob
 			if (allRootExcludes) {
 				excludePattern = objects.mixin(excludePattern || Object.create(null), allRootExcludes);
 			}
 		}
 
-		// TODO@rob - see #37998
-		const useIgnoreFiles = !folderResources || folderResources.every(folder => {
-			const folderConfig = this.configurationService.getValue<ISearchConfiguration>({ resource: folder });
-			return folderConfig.search.useIgnoreFiles;
-		});
-
 		const useRipgrep = !folderResources || folderResources.every(folder => {
 			const folderConfig = this.configurationService.getValue<ISearchConfiguration>({ resource: folder });
-			return folderConfig.search.useRipgrep;
+			return !folderConfig.search.useLegacySearch;
 		});
 
-		const ignoreSymlinks = !this.configurationService.getValue<ISearchConfiguration>().search.followSymlinks;
-
-		if (contentPattern) {
-			this.resolveSmartCaseToCaseSensitive(contentPattern);
-		}
-
-		const query = <ISearchQuery>{
-			type,
-			folderQueries,
+		const queryProps: ICommonQueryProps<uri> = {
+			_reason: options._reason,
+			folderQueries: folderQueries || [],
 			usingSearchPaths: !!(searchPaths && searchPaths.length),
 			extraFileResources: options.extraFileResources,
-			filePattern: options.filePattern,
+
 			excludePattern,
 			includePattern,
 			maxResults: options.maxResults,
-			sortByScore: options.sortByScore,
-			cacheKey: options.cacheKey,
-			contentPattern: contentPattern,
-			useRipgrep,
-			disregardIgnoreFiles: options.disregardIgnoreFiles || !useIgnoreFiles,
-			disregardExcludeSettings: options.disregardExcludeSettings,
-			ignoreSymlinks
+			useRipgrep
 		};
 
 		// Filter extraFileResources against global include/exclude patterns - they are already expected to not belong to a workspace
-		let extraFileResources = options.extraFileResources && options.extraFileResources.filter(extraFile => pathIncludedInQuery(query, extraFile.fsPath));
-		query.extraFileResources = extraFileResources && extraFileResources.length ? extraFileResources : undefined;
+		let extraFileResources = options.extraFileResources && options.extraFileResources.filter(extraFile => pathIncludedInQuery(queryProps, extraFile.fsPath));
+		queryProps.extraFileResources = extraFileResources && extraFileResources.length ? extraFileResources : undefined;
 
-		return query;
+		return queryProps;
 	}
 
 	/**
-	 * Fix the isCaseSensitive flag based on the query and the isSmartCase flag, for search providers that don't support smart case natively.
+	 * Resolve isCaseSensitive flag based on the query and the isSmartCase flag, for search providers that don't support smart case natively.
 	 */
-	private resolveSmartCaseToCaseSensitive(contentPattern: IPatternInfo): void {
+	private isCaseSensitive(contentPattern: IPatternInfo): boolean {
 		if (contentPattern.isSmartCase) {
 			if (contentPattern.isRegExp) {
 				// Consider it case sensitive if it contains an unescaped capital letter
 				if (strings.containsUppercaseCharacter(contentPattern.pattern, true)) {
-					contentPattern.isCaseSensitive = true;
+					return true;
 				}
 			} else if (strings.containsUppercaseCharacter(contentPattern.pattern)) {
-				contentPattern.isCaseSensitive = true;
+				return true;
 			}
 		}
+
+		return !!contentPattern.isCaseSensitive;
+	}
+
+	private isMultiline(contentPattern: IPatternInfo): boolean {
+		if (contentPattern.isMultiline) {
+			return true;
+		}
+
+		if (contentPattern.isRegExp && isMultilineRegexSource(contentPattern.pattern)) {
+			return true;
+		}
+
+		return false;
 	}
 
 	/**
@@ -182,28 +238,6 @@ export class QueryBuilder {
 		return Object.keys(excludeExpression).length ? excludeExpression : undefined;
 	}
 
-	/**
-	 * A helper that splits positive and negative patterns from a string that combines both.
-	 */
-	public parseIncludeExcludePattern(pattern: string): { includePattern?: string, excludePattern?: string } {
-		const grouped = collections.groupBy(
-			splitGlobPattern(pattern),
-			s => strings.startsWith(s, '!') ? 'excludePattern' : 'includePattern');
-
-		const result = {};
-		if (grouped.includePattern) {
-			result['includePattern'] = grouped.includePattern.join(', ');
-		}
-
-		if (grouped.excludePattern) {
-			result['excludePattern'] = grouped.excludePattern
-				.map(s => strings.ltrim(s, '!'))
-				.join(', ');
-		}
-
-		return result;
-	}
-
 	private mergeExcludesFromFolderQueries(folderQueries: IFolderQuery[]): glob.IExpression | undefined {
 		const mergedExcludes = folderQueries.reduce((merged: glob.IExpression, fq: IFolderQuery) => {
 			if (fq.excludePattern) {
@@ -229,7 +263,7 @@ export class QueryBuilder {
 			}, Object.create(null));
 	}
 
-	private getExcludesForFolder(folderConfig: ISearchConfiguration, options: IQueryOptions): glob.IExpression | undefined {
+	private getExcludesForFolder(folderConfig: ISearchConfiguration, options: ICommonQueryBuilderOptions): glob.IExpression | undefined {
 		return options.disregardExcludeSettings ?
 			undefined :
 			getExcludes(folderConfig);
@@ -268,20 +302,20 @@ export class QueryBuilder {
 			return [uri.file(paths.normalize(searchPath))];
 		}
 
-		if (this.workspaceContextService.getWorkbenchState() === WorkbenchState.FOLDER) { // TODO: @Sandy Try checking workspace folders length instead.
+		if (this.workspaceContextService.getWorkbenchState() === WorkbenchState.FOLDER) {
 			const workspaceUri = this.workspaceContextService.getWorkspace().folders[0].uri;
-			return [workspaceUri.with({ path: paths.normalize(paths.join(workspaceUri.path, searchPath)) })];
+			return [resources.joinPath(workspaceUri, searchPath)];
 		} else if (searchPath === './') {
 			return []; // ./ or ./**/foo makes sense for single-folder but not multi-folder workspaces
 		} else {
 			const relativeSearchPathMatch = searchPath.match(/\.[\/\\]([^\/\\]+)([\/\\].+)?/);
 			if (relativeSearchPathMatch) {
 				const searchPathRoot = relativeSearchPathMatch[1];
-				const matchingRoots = this.workspaceContextService.getWorkspace().folders.filter(folder => paths.basename(folder.uri.fsPath) === searchPathRoot);
+				const matchingRoots = this.workspaceContextService.getWorkspace().folders.filter(folder => folder.name === searchPathRoot);
 				if (matchingRoots.length) {
 					return matchingRoots.map(root => {
 						return relativeSearchPathMatch[2] ?
-							root.uri.with({ path: paths.normalize(paths.join(root.uri.path, relativeSearchPathMatch[2])) }) :
+							resources.joinPath(root.uri, relativeSearchPathMatch[2]) :
 							root.uri;
 					});
 				} else {
@@ -307,13 +341,15 @@ export class QueryBuilder {
 		};
 	}
 
-	private getFolderQueryForRoot(folder: uri, perFolderUseIgnoreFiles: boolean, options?: IQueryOptions): IFolderQuery {
+	private getFolderQueryForRoot(folder: uri, options: ICommonQueryBuilderOptions): IFolderQuery {
 		const folderConfig = this.configurationService.getValue<ISearchConfiguration>({ resource: folder });
 		return <IFolderQuery>{
 			folder,
 			excludePattern: this.getExcludesForFolder(folderConfig, options),
 			fileEncoding: folderConfig.files && folderConfig.files.encoding,
-			disregardIgnoreFiles: perFolderUseIgnoreFiles ? !folderConfig.search.useIgnoreFiles : undefined
+			disregardIgnoreFiles: typeof options.disregardIgnoreFiles === 'boolean' ? options.disregardIgnoreFiles : !folderConfig.search.useIgnoreFiles,
+			disregardGlobalIgnoreFiles: typeof options.disregardGlobalIgnoreFiles === 'boolean' ? options.disregardGlobalIgnoreFiles : !folderConfig.search.useGlobalIgnoreFiles,
+			ignoreSymlinks: typeof options.ignoreSymlinks === 'boolean' ? options.ignoreSymlinks : !folderConfig.search.followSymlinks,
 		};
 	}
 }
@@ -332,7 +368,7 @@ function splitGlobFromPath(searchPath: string): { pathPortion: string, globPorti
 
 			return {
 				pathPortion,
-				globPortion: searchPath.substr(lastSlashMatch.index + 1)
+				globPortion: searchPath.substr((lastSlashMatch.index || 0) + 1)
 			};
 		}
 	}
@@ -359,8 +395,10 @@ function splitGlobPattern(pattern: string): string[] {
  * Note - we used {} here previously but ripgrep can't handle nested {} patterns. See https://github.com/Microsoft/vscode/issues/32761
  */
 function expandGlobalGlob(pattern: string): string[] {
-	return [
+	const patterns = [
 		`**/${pattern}/**`,
 		`**/${pattern}`
 	];
+
+	return patterns.map(p => p.replace(/\*\*\/\*\*/g, '**'));
 }

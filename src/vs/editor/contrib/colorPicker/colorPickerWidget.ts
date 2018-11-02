@@ -4,16 +4,16 @@
  *--------------------------------------------------------------------------------------------*/
 
 import 'vs/css!./colorPicker';
-import { Event, Emitter } from 'vs/base/common/event';
-import { Widget } from 'vs/base/browser/ui/widget';
-import * as dom from 'vs/base/browser/dom';
 import { onDidChangeZoomLevel } from 'vs/base/browser/browser';
-import { ColorPickerModel } from 'vs/editor/contrib/colorPicker/colorPickerModel';
-import { Disposable } from 'vs/base/common/lifecycle';
+import * as dom from 'vs/base/browser/dom';
 import { GlobalMouseMoveMonitor, IStandardMouseMoveEventData, standardMouseMoveMerger } from 'vs/base/browser/globalMouseMoveMonitor';
-import { Color, RGBA, HSVA } from 'vs/base/common/color';
+import { Widget } from 'vs/base/browser/ui/widget';
+import { Color, HSVA, RGBA } from 'vs/base/common/color';
+import { Emitter, Event } from 'vs/base/common/event';
+import { Disposable } from 'vs/base/common/lifecycle';
+import { ColorPickerModel } from 'vs/editor/contrib/colorPicker/colorPickerModel';
 import { editorHoverBackground } from 'vs/platform/theme/common/colorRegistry';
-import { registerThemingParticipant, IThemeService } from 'vs/platform/theme/common/themeService';
+import { IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 
 const $ = dom.$;
 

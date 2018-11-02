@@ -99,7 +99,7 @@
 			return;
 		}
 
-		const progress = event.target.body.scrollTop / event.target.body.clientHeight;
+		const progress = event.currentTarget.scrollY / event.target.body.clientHeight;
 		if (isNaN(progress)) {
 			return;
 		}
@@ -116,11 +116,11 @@
 	};
 
 	document.addEventListener('DOMContentLoaded', () => {
-		ipcRenderer.on('baseUrl', (event, value) => {
+		ipcRenderer.on('baseUrl', (_event, value) => {
 			initData.baseUrl = value;
 		});
 
-		ipcRenderer.on('styles', (event, variables, activeTheme) => {
+		ipcRenderer.on('styles', (_event, variables, activeTheme) => {
 			initData.styles = variables;
 			initData.activeTheme = activeTheme;
 
@@ -172,7 +172,7 @@
 			}
 
 			// apply default script
-			if (enableWrappedPostMessage) {
+			if (enableWrappedPostMessage && options.allowScripts) {
 				const defaultScript = newDocument.createElement('script');
 				defaultScript.textContent = `
 					const acquireVsCodeApi = (function() {
@@ -190,8 +190,10 @@
 								postMessage: function(msg) {
 									return originalPostMessage({ command: 'onmessage', data: msg }, '*');
 								},
-								setState: function(state) {
-									return originalPostMessage({ command: 'do-update-state', data: JSON.stringify(state) }, '*');
+								setState: function(newState) {
+									state = newState;
+									originalPostMessage({ command: 'do-update-state', data: JSON.stringify(newState) }, '*');
+									return newState;
 								},
 								getState: function() {
 									return state;
@@ -216,17 +218,17 @@
 			defaultStyles.id = '_defaultStyles';
 
 			const vars = Object.keys(initData.styles || {}).map(variable => {
-				return `--${variable}: ${initData.styles[variable]};`;
+				return `--${variable}: ${initData.styles[variable].replace(/[^\#\"\'\,\. a-z0-9\-\(\)]/gi, '')};`;
 			});
 			defaultStyles.innerHTML = `
-			:root { ${vars.join(' ')} }
+			:root { ${vars.join('\n')} }
 
 			body {
-				background-color: var(--background-color);
-				color: var(--color);
-				font-family: var(--font-family);
-				font-weight: var(--font-weight);
-				font-size: var(--font-size);
+				background-color: var(--vscode-editor-background);
+				color: var(--vscode-editor-foreground);
+				font-family: var(--vscode-editor-font-family);
+				font-weight: var(--vscode-editor-font-weight);
+				font-size: var(--vscode-editor-font-size);
 				margin: 0;
 				padding: 0 20px;
 			}
@@ -236,12 +238,12 @@
 				max-height: 100%;
 			}
 
-			body a {
-				color: var(--link-color);
+			a {
+				color: var(--vscode-textLink-foreground);
 			}
 
-			body a:hover {
-				color: var(--link-active-color);
+			a:hover {
+				color: var(--vscode-textLink-activeForeground);
 			}
 
 			a:focus,
@@ -251,39 +253,29 @@
 				outline: 1px solid -webkit-focus-ring-color;
 				outline-offset: -1px;
 			}
+
+			code {
+				color: var(--vscode-textPreformat-foreground);
+			}
+
+			blockquote {
+				background: var(--vscode-textBlockQuote-background);
+				border-color: var(--vscode-textBlockQuote-border);
+			}
+
 			::-webkit-scrollbar {
 				width: 10px;
 				height: 10px;
 			}
 
 			::-webkit-scrollbar-thumb {
-				background-color: rgba(121, 121, 121, 0.4);
+				background-color: var(--vscode-scrollbarSlider-background);
 			}
-			body.vscode-light::-webkit-scrollbar-thumb {
-				background-color: rgba(100, 100, 100, 0.4);
-			}
-			body.vscode-high-contrast::-webkit-scrollbar-thumb {
-				background-color: rgba(111, 195, 223, 0.3);
-			}
-
 			::-webkit-scrollbar-thumb:hover {
-				background-color: rgba(100, 100, 100, 0.7);
+				background-color: var(--vscode-scrollbarSlider-hoverBackground);
 			}
-			body.vscode-light::-webkit-scrollbar-thumb:hover {
-				background-color: rgba(100, 100, 100, 0.7);
-			}
-			body.vscode-high-contrast::-webkit-scrollbar-thumb:hover {
-				background-color: rgba(111, 195, 223, 0.8);
-			}
-
 			::-webkit-scrollbar-thumb:active {
-				background-color: rgba(85, 85, 85, 0.8);
-			}
-			body.vscode-light::-webkit-scrollbar-thumb:active {
-				background-color: rgba(0, 0, 0, 0.6);
-			}
-			body.vscode-high-contrast::-webkit-scrollbar-thumb:active {
-				background-color: rgba(111, 195, 223, 0.8);
+				background-color: var(--vscode-scrollbarSlider-activeBackground);
 			}
 			`;
 			if (newDocument.head.hasChildNodes()) {
@@ -296,22 +288,22 @@
 
 			const frame = getActiveFrame();
 
-			// keep current scrollTop around and use later
+			// keep current scrollY around and use later
 			var setInitialScrollPosition;
 			if (firstLoad) {
 				firstLoad = false;
-				setInitialScrollPosition = (body) => {
+				setInitialScrollPosition = (body, window) => {
 					if (!isNaN(initData.initialScrollProgress)) {
-						if (body.scrollTop === 0) {
-							body.scrollTop = body.clientHeight * initData.initialScrollProgress;
+						if (window.scrollY === 0) {
+							window.scroll(0, body.clientHeight * initData.initialScrollProgress);
 						}
 					}
 				};
 			} else {
-				const scrollY = frame && frame.contentDocument && frame.contentDocument.body ? frame.contentDocument.body.scrollTop : 0;
-				setInitialScrollPosition = (body) => {
-					if (body.scrollTop === 0) {
-						body.scrollTop = scrollY;
+				const scrollY = frame && frame.contentDocument && frame.contentDocument.body ? frame.contentWindow.scrollY : 0;
+				setInitialScrollPosition = (body, window) => {
+					if (window.scrollY === 0) {
+						window.scroll(0, scrollY);
 					}
 				};
 			}
@@ -347,11 +339,8 @@
 			var onLoad = (contentDocument, contentWindow) => {
 				if (contentDocument.body) {
 					// Workaround for https://github.com/Microsoft/vscode/issues/12865
-					// check new scrollTop and reset if neccessary
-					setInitialScrollPosition(contentDocument.body);
-
-					// Bubble out link clicks
-					contentDocument.body.addEventListener('click', handleInnerClick);
+					// check new scrollY and reset if neccessary
+					setInitialScrollPosition(contentDocument.body, contentWindow);
 				}
 
 				const newFrame = getPendingFrame();
@@ -362,6 +351,8 @@
 					}
 					newFrame.setAttribute('id', 'active-frame');
 					newFrame.style.visibility = 'visible';
+					newFrame.contentWindow.focus();
+
 					contentWindow.addEventListener('scroll', handleInnerScroll);
 
 					pendingMessages.forEach((data) => {
@@ -387,6 +378,9 @@
 				}
 			});
 
+			// Bubble out link clicks
+			newFrame.contentWindow.addEventListener('click', handleInnerClick);
+
 			// set DOCTYPE for newDocument explicitly as DOMParser.parseFromString strips it off
 			// and DOCTYPE is needed in the iframe to ensure that the user agent stylesheet is correctly overridden
 			newFrame.contentDocument.write('<!DOCTYPE html>');
@@ -397,7 +391,7 @@
 		});
 
 		// Forward message to the embedded iframe
-		ipcRenderer.on('message', (event, data) => {
+		ipcRenderer.on('message', (_event, data) => {
 			const pending = getPendingFrame();
 			if (pending) {
 				pendingMessages.push(data);
@@ -409,7 +403,7 @@
 			}
 		});
 
-		ipcRenderer.on('initial-scroll-position', (event, progress) => {
+		ipcRenderer.on('initial-scroll-position', (_event, progress) => {
 			initData.initialScrollProgress = progress;
 		});
 

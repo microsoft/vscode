@@ -2,29 +2,29 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
-import { TPromise } from 'vs/base/common/winjs.base';
 import { IRequestOptions, IRequestContext, IRequestFunction } from 'vs/base/node/request';
 import { Readable } from 'stream';
 import { RequestService as NodeRequestService } from 'vs/platform/request/node/requestService';
+import { CancellationToken } from 'vscode';
+import { canceled } from 'vs/base/common/errors';
 
 /**
  * This service exposes the `request` API, while using the global
  * or configured proxy settings.
  */
 export class RequestService extends NodeRequestService {
-	request(options: IRequestOptions): TPromise<IRequestContext> {
-		return super.request(options, xhrRequest);
+	request(options: IRequestOptions, token: CancellationToken): Promise<IRequestContext> {
+		return super.request(options, token, xhrRequest);
 	}
 }
 
-export const xhrRequest: IRequestFunction = (options: IRequestOptions): TPromise<IRequestContext> => {
+export const xhrRequest: IRequestFunction = (options: IRequestOptions, token: CancellationToken): Promise<IRequestContext> => {
 
 	const xhr = new XMLHttpRequest();
-	return new TPromise<IRequestContext>((resolve, reject) => {
+	return new Promise<IRequestContext>((resolve, reject) => {
 
-		xhr.open(options.type || 'GET', options.url, true, options.user, options.password);
+		xhr.open(options.type || 'GET', options.url || '', true, options.user, options.password);
 		setRequestHeaders(xhr, options);
 
 		xhr.responseType = 'arraybuffer';
@@ -66,12 +66,14 @@ export const xhrRequest: IRequestFunction = (options: IRequestOptions): TPromise
 			xhr.timeout = options.timeout;
 		}
 
-		xhr.send(options.data);
-		return null;
+		// TODO: remove any
+		xhr.send(options.data as any);
 
-	}, () => {
 		// cancel
-		xhr.abort();
+		token.onCancellationRequested(() => {
+			xhr.abort();
+			reject(canceled());
+		});
 	});
 };
 

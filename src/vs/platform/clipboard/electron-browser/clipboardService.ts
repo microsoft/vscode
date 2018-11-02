@@ -3,13 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 import { clipboard } from 'electron';
-import URI from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 import { isMacintosh } from 'vs/base/common/platform';
-import { Schemas } from 'vs/base/common/network';
 
 export class ClipboardService implements IClipboardService {
 
@@ -40,27 +37,25 @@ export class ClipboardService implements IClipboardService {
 		}
 	}
 
-	public writeFiles(resources: URI[]): void {
-		const files = resources.filter(f => f.scheme === Schemas.file);
-
-		if (files.length) {
-			clipboard.writeBuffer(ClipboardService.FILE_FORMAT, this.filesToBuffer(files));
+	public writeResources(resources: URI[]): void {
+		if (resources.length) {
+			clipboard.writeBuffer(ClipboardService.FILE_FORMAT, this.resourcesToBuffer(resources));
 		}
 	}
 
-	public readFiles(): URI[] {
-		return this.bufferToFiles(clipboard.readBuffer(ClipboardService.FILE_FORMAT));
+	public readResources(): URI[] {
+		return this.bufferToResources(clipboard.readBuffer(ClipboardService.FILE_FORMAT));
 	}
 
-	public hasFiles(): boolean {
+	public hasResources(): boolean {
 		return clipboard.has(ClipboardService.FILE_FORMAT);
 	}
 
-	private filesToBuffer(resources: URI[]): Buffer {
-		return Buffer.from(resources.map(r => r.fsPath).join('\n'));
+	private resourcesToBuffer(resources: URI[]): Buffer {
+		return Buffer.from(resources.map(r => r.toString()).join('\n'));
 	}
 
-	private bufferToFiles(buffer: Buffer): URI[] {
+	private bufferToResources(buffer: Buffer): URI[] {
 		if (!buffer) {
 			return [];
 		}
@@ -71,7 +66,7 @@ export class ClipboardService implements IClipboardService {
 		}
 
 		try {
-			return bufferValue.split('\n').map(f => URI.file(f));
+			return bufferValue.split('\n').map(f => URI.parse(f));
 		} catch (error) {
 			return []; // do not trust clipboard data
 		}

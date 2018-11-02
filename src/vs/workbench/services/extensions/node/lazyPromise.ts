@@ -2,18 +2,15 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
-import { TPromise, ValueCallback, ErrorCallback } from 'vs/base/common/winjs.base';
 import { onUnexpectedError } from 'vs/base/common/errors';
+import { ErrorCallback, TPromise, ValueCallback } from 'vs/base/common/winjs.base';
 
-export class LazyPromise implements TPromise<any> {
+export class LazyPromise implements Thenable<any> {
 
-	private _onCancel: () => void;
-
-	private _actual: TPromise<any>;
-	private _actualOk: ValueCallback;
-	private _actualErr: ErrorCallback;
+	private _actual: TPromise<any> | null;
+	private _actualOk: ValueCallback | null;
+	private _actualErr: ErrorCallback | null;
 
 	private _hasValue: boolean;
 	private _value: any;
@@ -21,10 +18,7 @@ export class LazyPromise implements TPromise<any> {
 	private _hasErr: boolean;
 	private _err: any;
 
-	private _isCanceled: boolean;
-
-	constructor(onCancel: () => void) {
-		this._onCancel = onCancel;
+	constructor() {
 		this._actual = null;
 		this._actualOk = null;
 		this._actualErr = null;
@@ -32,7 +26,6 @@ export class LazyPromise implements TPromise<any> {
 		this._value = null;
 		this._hasErr = false;
 		this._err = null;
-		this._isCanceled = false;
 	}
 
 	private _ensureActual(): TPromise<any> {
@@ -40,21 +33,21 @@ export class LazyPromise implements TPromise<any> {
 			this._actual = new TPromise<any>((c, e) => {
 				this._actualOk = c;
 				this._actualErr = e;
-			}, this._onCancel);
 
-			if (this._hasValue) {
-				this._actualOk(this._value);
-			}
+				if (this._hasValue) {
+					this._actualOk(this._value);
+				}
 
-			if (this._hasErr) {
-				this._actualErr(this._err);
-			}
+				if (this._hasErr) {
+					this._actualErr(this._err);
+				}
+			});
 		}
 		return this._actual;
 	}
 
 	public resolveOk(value: any): void {
-		if (this._isCanceled || this._hasErr) {
+		if (this._hasValue || this._hasErr) {
 			return;
 		}
 
@@ -62,12 +55,12 @@ export class LazyPromise implements TPromise<any> {
 		this._value = value;
 
 		if (this._actual) {
-			this._actualOk(value);
+			this._actualOk!(value);
 		}
 	}
 
 	public resolveErr(err: any): void {
-		if (this._isCanceled || this._hasValue) {
+		if (this._hasValue || this._hasErr) {
 			return;
 		}
 
@@ -75,7 +68,7 @@ export class LazyPromise implements TPromise<any> {
 		this._err = err;
 
 		if (this._actual) {
-			this._actualErr(err);
+			this._actualErr!(err);
 		} else {
 			// If nobody's listening at this point, it is safe to assume they never will,
 			// since resolving this promise is always "async"
@@ -84,32 +77,6 @@ export class LazyPromise implements TPromise<any> {
 	}
 
 	public then(success: any, error: any): any {
-		if (this._isCanceled) {
-			return;
-		}
-
 		return this._ensureActual().then(success, error);
-	}
-
-	public done(success: any, error: any): void {
-		if (this._isCanceled) {
-			return;
-		}
-
-		this._ensureActual().done(success, error);
-	}
-
-	public cancel(): void {
-		if (this._hasValue || this._hasErr) {
-			return;
-		}
-
-		this._isCanceled = true;
-
-		if (this._actual) {
-			this._actual.cancel();
-		} else {
-			this._onCancel();
-		}
 	}
 }

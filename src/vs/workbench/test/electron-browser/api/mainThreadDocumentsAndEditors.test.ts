@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import * as assert from 'assert';
 import { MainThreadDocumentsAndEditors } from 'vs/workbench/api/electron-browser/mainThreadDocumentsAndEditors';
 import { SingleProxyRPCProtocol } from './testRPCProtocol';
@@ -12,22 +10,22 @@ import { TestConfigurationService } from 'vs/platform/configuration/test/common/
 import { ModelServiceImpl } from 'vs/editor/common/services/modelServiceImpl';
 import { TestCodeEditorService } from 'vs/editor/test/browser/editorTestServices';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
-import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { ExtHostDocumentsAndEditorsShape, IDocumentsAndEditorsDelta } from 'vs/workbench/api/node/extHost.protocol';
 import { createTestCodeEditor, TestCodeEditor } from 'vs/editor/test/browser/testCodeEditor';
 import { mock } from 'vs/workbench/test/electron-browser/api/mock';
-import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
+import { TestEditorService, TestEditorGroupsService, TestTextResourcePropertiesService } from 'vs/workbench/test/workbenchTestServices';
 import { Event } from 'vs/base/common/event';
 import { ITextModel } from 'vs/editor/common/model';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
+import { IFileService } from 'vs/platform/files/common/files';
+import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 
 suite('MainThreadDocumentsAndEditors', () => {
 
 	let modelService: ModelServiceImpl;
 	let codeEditorService: TestCodeEditorService;
 	let textFileService: ITextFileService;
-	let workbenchEditorService: IWorkbenchEditorService;
 	let deltas: IDocumentsAndEditorsDelta[] = [];
 	const hugeModelString = new Array(2 + (50 * 1024 * 1024)).join('-');
 
@@ -44,7 +42,7 @@ suite('MainThreadDocumentsAndEditors', () => {
 		deltas.length = 0;
 		const configService = new TestConfigurationService();
 		configService.setUserConfiguration('editor', { 'detectIndentation': false });
-		modelService = new ModelServiceImpl(null, configService);
+		modelService = new ModelServiceImpl(null, configService, new TestTextResourcePropertiesService(configService));
 		codeEditorService = new TestCodeEditorService();
 		textFileService = new class extends mock<ITextFileService>() {
 			isDirty() { return false; }
@@ -54,13 +52,11 @@ suite('MainThreadDocumentsAndEditors', () => {
 				onModelDirty: Event.None,
 			};
 		};
-		workbenchEditorService = <IWorkbenchEditorService>{
-			getVisibleEditors() { return []; },
-			getActiveEditor() { return undefined; }
-		};
-		const editorGroupService = new class extends mock<IEditorGroupService>() {
-			onEditorsChanged = Event.None;
-			onEditorGroupMoved = Event.None;
+		const workbenchEditorService = new TestEditorService();
+		const editorGroupService = new TestEditorGroupsService();
+
+		const fileService = new class extends mock<IFileService>() {
+			onAfterOperation = Event.None;
 		};
 
 		/* tslint:disable */
@@ -73,11 +69,19 @@ suite('MainThreadDocumentsAndEditors', () => {
 			workbenchEditorService,
 			codeEditorService,
 			null,
-			null,
+			fileService,
 			null,
 			null,
 			editorGroupService,
-			null
+			null,
+			new class extends mock<IPanelService>() implements IPanelService {
+				_serviceBrand: any;
+				onDidPanelOpen = Event.None;
+				onDidPanelClose = Event.None;
+				getActivePanel() {
+					return null;
+				}
+			}
 		);
 		/* tslint:enable */
 	});

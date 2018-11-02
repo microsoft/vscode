@@ -35,6 +35,10 @@
 			"project": "vscode-workbench"
 		},
 		{
+			"name": "vs/workbench/parts/comments",
+			"project": "vscode-workbench"
+		},
+		{
 			"name": "vs/workbench/parts/debug",
 			"project": "vscode-workbench"
 		},
@@ -107,6 +111,10 @@
 			"project": "vscode-workbench"
 		},
 		{
+			"name": "vs/workbench/parts/stats",
+			"project": "vscode-workbench"
+		},
+		{
 			"name": "vs/workbench/parts/surveys",
 			"project": "vscode-workbench"
 		},
@@ -147,11 +155,19 @@
 			"project": "vscode-workbench"
 		},
 		{
+			"name": "vs/workbench/parts/outline",
+			"project": "vscode-workbench"
+		},
+		{
 			"name": "vs/workbench/services/actions",
 			"project": "vscode-workbench"
 		},
 		{
 			"name": "vs/workbench/services/bulkEdit",
+			"project": "vscode-workbench"
+		},
+		{
+			"name": "vs/workbench/services/commands",
 			"project": "vscode-workbench"
 		},
 		{

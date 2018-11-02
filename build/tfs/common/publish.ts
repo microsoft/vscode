@@ -43,7 +43,7 @@ function createDefaultConfig(quality: string): Config {
 }
 
 function getConfig(quality: string): Promise<Config> {
-	const client = new DocumentClient(process.env['AZURE_DOCUMENTDB_ENDPOINT'], { masterKey: process.env['AZURE_DOCUMENTDB_MASTERKEY'] });
+	const client = new DocumentClient(process.env['AZURE_DOCUMENTDB_ENDPOINT']!, { masterKey: process.env['AZURE_DOCUMENTDB_MASTERKEY'] });
 	const collection = 'dbs/builds/colls/config';
 	const query = {
 		query: `SELECT TOP 1 * FROM c WHERE c.id = @quality`,
@@ -73,7 +73,7 @@ interface Asset {
 }
 
 function createOrUpdate(commit: string, quality: string, platform: string, type: string, release: NewDocument, asset: Asset, isUpdate: boolean): Promise<void> {
-	const client = new DocumentClient(process.env['AZURE_DOCUMENTDB_ENDPOINT'], { masterKey: process.env['AZURE_DOCUMENTDB_MASTERKEY'] });
+	const client = new DocumentClient(process.env['AZURE_DOCUMENTDB_ENDPOINT']!, { masterKey: process.env['AZURE_DOCUMENTDB_MASTERKEY'] });
 	const collection = 'dbs/builds/colls/' + quality;
 	const updateQuery = {
 		query: 'SELECT TOP 1 * FROM c WHERE c.id = @id',
@@ -127,7 +127,7 @@ async function assertContainer(blobService: azure.BlobService, quality: string):
 	await new Promise((c, e) => blobService.createContainerIfNotExists(quality, { publicAccessLevel: 'blob' }, err => err ? e(err) : c()));
 }
 
-async function doesAssetExist(blobService: azure.BlobService, quality: string, blobName: string): Promise<boolean> {
+async function doesAssetExist(blobService: azure.BlobService, quality: string, blobName: string): Promise<boolean | undefined> {
 	const existsResult = await new Promise<azure.BlobService.BlobResult>((c, e) => blobService.doesBlobExist(quality, blobName, (err, r) => err ? e(err) : c(r)));
 	return existsResult.exists;
 }
@@ -150,8 +150,8 @@ interface PublishOptions {
 async function publish(commit: string, quality: string, platform: string, type: string, name: string, version: string, _isUpdate: string, file: string, opts: PublishOptions): Promise<void> {
 	const isUpdate = _isUpdate === 'true';
 
-	const queuedBy = process.env['BUILD_QUEUEDBY'];
-	const sourceBranch = process.env['BUILD_SOURCEBRANCH'];
+	const queuedBy = process.env['BUILD_QUEUEDBY']!;
+	const sourceBranch = process.env['BUILD_SOURCEBRANCH']!;
 	const isReleased = quality === 'insider'
 		&& /^master$|^refs\/heads\/master$/.test(sourceBranch)
 		&& /Project Collection Service Accounts|Microsoft.VisualStudio.Services.TFS/.test(queuedBy);
@@ -179,12 +179,12 @@ async function publish(commit: string, quality: string, platform: string, type: 
 	console.log('SHA256:', sha256hash);
 
 	const blobName = commit + '/' + name;
-	const storageAccount = process.env['AZURE_STORAGE_ACCOUNT_2'];
+	const storageAccount = process.env['AZURE_STORAGE_ACCOUNT_2']!;
 
-	const blobService = azure.createBlobService(storageAccount, process.env['AZURE_STORAGE_ACCESS_KEY_2'])
+	const blobService = azure.createBlobService(storageAccount, process.env['AZURE_STORAGE_ACCESS_KEY_2']!)
 		.withFilter(new azure.ExponentialRetryPolicyFilter(20));
 
-	const mooncakeBlobService = azure.createBlobService(storageAccount, process.env['MOONCAKE_STORAGE_ACCESS_KEY'], `${storageAccount}.blob.core.chinacloudapi.cn`)
+	const mooncakeBlobService = azure.createBlobService(storageAccount, process.env['MOONCAKE_STORAGE_ACCESS_KEY']!, `${storageAccount}.blob.core.chinacloudapi.cn`)
 		.withFilter(new azure.ExponentialRetryPolicyFilter(20));
 
 	// mooncake is fussy and far away, this is needed!
@@ -200,7 +200,7 @@ async function publish(commit: string, quality: string, platform: string, type: 
 		doesAssetExist(mooncakeBlobService, quality, blobName)
 	]);
 
-	const promises = [];
+	const promises: Array<Promise<void>> = [];
 
 	if (!blobExists) {
 		promises.push(uploadBlob(blobService, quality, blobName, file));
@@ -249,7 +249,7 @@ async function publish(commit: string, quality: string, platform: string, type: 
 		isReleased: config.frozen ? false : isReleased,
 		sourceBranch,
 		queuedBy,
-		assets: [],
+		assets: [] as Array<Asset>,
 		updates: {} as any
 	};
 

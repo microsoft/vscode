@@ -2,7 +2,6 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
 import { escape } from 'vs/base/common/strings';
 import { localize } from 'vs/nls';
@@ -66,7 +65,7 @@ export default (): string => `
 			<label class="caption" for="includeSystemInfo">${escape(localize({
 		key: 'sendSystemInfo',
 		comment: ['{0} is either "show" or "hide" and is a button to toggle the visibililty of the system information']
-	}, "Send my system information ({0})")).replace('{0}', `<a href="#" class="showInfo">${escape(localize('show', "show"))}</a>`)}</label>
+	}, "Include my system information ({0})")).replace('{0}', `<a href="#" class="showInfo">${escape(localize('show', "show"))}</a>`)}</label>
 			<div class="block-info hidden">
 				<!-- To be dynamically filled -->
 			</div>
@@ -76,7 +75,7 @@ export default (): string => `
 			<label class="caption" for="includeProcessInfo">${escape(localize({
 		key: 'sendProcessInfo',
 		comment: ['{0} is either "show" or "hide" and is a button to toggle the visibililty of the process info']
-	}, "Send my currently running processes ({0})")).replace('{0}', `<a href="#" class="showInfo">${escape(localize('show', "show"))}</a>`)}</label>
+	}, "Include my currently running processes ({0})")).replace('{0}', `<a href="#" class="showInfo">${escape(localize('show', "show"))}</a>`)}</label>
 			<pre class="block-info hidden">
 				<code>
 				<!-- To be dynamically filled -->
@@ -88,7 +87,7 @@ export default (): string => `
 			<label class="caption" for="includeWorkspaceInfo">${escape(localize({
 		key: 'sendWorkspaceInfo',
 		comment: ['{0} is either "show" or "hide" and is a button to toggle the visibililty of the workspace information']
-	}, "Send my workspace metadata ({0})")).replace('{0}', `<a href="#" class="showInfo">${escape(localize('show', "show"))}</a>`)}</label>
+	}, "Include my workspace metadata ({0})")).replace('{0}', `<a href="#" class="showInfo">${escape(localize('show', "show"))}</a>`)}</label>
 			<pre id="systemInfo" class="block-info hidden">
 				<code>
 				<!-- To be dynamically filled -->
@@ -100,7 +99,7 @@ export default (): string => `
 			<label class="caption" for="includeExtensions">${escape(localize({
 		key: 'sendExtensions',
 		comment: ['{0} is either "show" or "hide" and is a button to toggle the visibililty of the enabled extensions list']
-	}, "Send my enabled extensions ({0})")).replace('{0}', `<a href="#" class="showInfo">${escape(localize('show', "show"))}</a>`)}</label>
+	}, "Include my enabled extensions ({0})")).replace('{0}', `<a href="#" class="showInfo">${escape(localize('show', "show"))}</a>`)}</label>
 			<div id="systemInfo" class="block-info hidden">
 				<!-- To be dynamically filled -->
 			</div>

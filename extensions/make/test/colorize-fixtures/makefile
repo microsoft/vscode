@@ -25,6 +25,10 @@ hello.o: hello.cpp \
 clean:
 	rm *o hello
 
+all:
+	# "$$" in a shell means to escape makefile's variable substitution.
+	some_shell_var=$$(sed -nre 's/some regex with (group)/\1/p')
+
 define defined
   $(info Checking existance of $(1) $(flavor $(1)))
   $(if $(filter undefined,$(flavor $(1))),0,1)
@@ -38,4 +42,15 @@ endif
 
 ifeq ($(strip $(call defined,CODIT_DIR)),0)
   $(info CODIT_DIR must be set in $(TOP_DIR)3rdparty.mk)
+endif
+
+CXXVER_GE480 := $(shell expr `$(CXX) -dumpversion | sed -e 's/\.\([0-9][0-9]\)/\1/g' -e 's/\.\([0-9]\)/0\1/g' -e 's/^[0-9]\{3,4\}$$/&00/'` \>= 40800)
+
+ok := ok
+$(info Braces {} in parentheses ({}): ${ok})
+${info Parentheses () in braces {()}: $(ok)}
+
+ifeq ("${ok}", "skip")
+  $(ok))}
+  ${ok}})
 endif

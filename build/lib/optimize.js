@@ -4,29 +4,30 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 Object.defineProperty(exports, "__esModule", { value: true });
-var path = require("path");
-var gulp = require("gulp");
-var sourcemaps = require("gulp-sourcemaps");
-var filter = require("gulp-filter");
-var minifyCSS = require("gulp-cssnano");
-var uglify = require("gulp-uglify");
-var composer = require("gulp-uglify/composer");
-var uglifyes = require("uglify-es");
-var es = require("event-stream");
-var concat = require("gulp-concat");
-var VinylFile = require("vinyl");
-var bundle = require("./bundle");
-var util = require("./util");
-var i18n = require("./i18n");
-var gulpUtil = require("gulp-util");
-var flatmap = require("gulp-flatmap");
-var pump = require("pump");
-var REPO_ROOT_PATH = path.join(__dirname, '../..');
+const es = require("event-stream");
+const gulp = require("gulp");
+const concat = require("gulp-concat");
+const minifyCSS = require("gulp-cssnano");
+const filter = require("gulp-filter");
+const flatmap = require("gulp-flatmap");
+const sourcemaps = require("gulp-sourcemaps");
+const uglify = require("gulp-uglify");
+const composer = require("gulp-uglify/composer");
+const gulpUtil = require("gulp-util");
+const path = require("path");
+const pump = require("pump");
+const uglifyes = require("uglify-es");
+const VinylFile = require("vinyl");
+const bundle = require("./bundle");
+const i18n_1 = require("./i18n");
+const stats_1 = require("./stats");
+const util = require("./util");
+const REPO_ROOT_PATH = path.join(__dirname, '../..');
 function log(prefix, message) {
     gulpUtil.log(gulpUtil.colors.cyan('[' + prefix + ']'), message);
 }
 function loaderConfig(emptyPaths) {
-    var result = {
+    const result = {
         paths: {
             'vs': 'out-build/vs',
             'vscode': 'empty:'
@@ -37,20 +38,20 @@ function loaderConfig(emptyPaths) {
     return result;
 }
 exports.loaderConfig = loaderConfig;
-var IS_OUR_COPYRIGHT_REGEXP = /Copyright \(C\) Microsoft Corporation/i;
-function loader(bundledFileHeader, bundleLoader) {
-    var sources = [
-        'out-build/vs/loader.js'
+const IS_OUR_COPYRIGHT_REGEXP = /Copyright \(C\) Microsoft Corporation/i;
+function loader(src, bundledFileHeader, bundleLoader) {
+    let sources = [
+        `${src}/vs/loader.js`
     ];
     if (bundleLoader) {
         sources = sources.concat([
-            'out-build/vs/css.js',
-            'out-build/vs/nls.js'
+            `${src}/vs/css.js`,
+            `${src}/vs/nls.js`
         ]);
     }
-    var isFirst = true;
+    let isFirst = true;
     return (gulp
-        .src(sources, { base: 'out-build' })
+        .src(sources, { base: `${src}` })
         .pipe(es.through(function (data) {
         if (isFirst) {
             isFirst = false;
@@ -72,13 +73,13 @@ function loader(bundledFileHeader, bundleLoader) {
         return f;
     })));
 }
-function toConcatStream(bundledFileHeader, sources, dest) {
-    var useSourcemaps = /\.js$/.test(dest) && !/\.nls\.js$/.test(dest);
+function toConcatStream(src, bundledFileHeader, sources, dest) {
+    const useSourcemaps = /\.js$/.test(dest) && !/\.nls\.js$/.test(dest);
     // If a bundle ends up including in any of the sources our copyright, then
     // insert a fake source at the beginning of each bundle with our copyright
-    var containsOurCopyright = false;
-    for (var i = 0, len = sources.length; i < len; i++) {
-        var fileContents = sources[i].contents;
+    let containsOurCopyright = false;
+    for (let i = 0, len = sources.length; i < len; i++) {
+        const fileContents = sources[i].contents;
         if (IS_OUR_COPYRIGHT_REGEXP.test(fileContents)) {
             containsOurCopyright = true;
             break;
@@ -90,9 +91,9 @@ function toConcatStream(bundledFileHeader, sources, dest) {
             contents: bundledFileHeader
         });
     }
-    var treatedSources = sources.map(function (source) {
-        var root = source.path ? REPO_ROOT_PATH.replace(/\\/g, '/') : '';
-        var base = source.path ? root + '/out-build' : '';
+    const treatedSources = sources.map(function (source) {
+        const root = source.path ? REPO_ROOT_PATH.replace(/\\/g, '/') : '';
+        const base = source.path ? root + `/${src}` : '';
         return new VinylFile({
             path: source.path ? root + '/' + source.path.replace(/\\/g, '/') : 'fake',
             base: base,
@@ -101,40 +102,42 @@ function toConcatStream(bundledFileHeader, sources, dest) {
     });
     return es.readArray(treatedSources)
         .pipe(useSourcemaps ? util.loadSourcemaps() : es.through())
-        .pipe(concat(dest));
+        .pipe(concat(dest))
+        .pipe(stats_1.createStatsStream(dest));
 }
-function toBundleStream(bundledFileHeader, bundles) {
+function toBundleStream(src, bundledFileHeader, bundles) {
     return es.merge(bundles.map(function (bundle) {
-        return toConcatStream(bundledFileHeader, bundle.sources, bundle.dest);
+        return toConcatStream(src, bundledFileHeader, bundle.sources, bundle.dest);
     }));
 }
 function optimizeTask(opts) {
-    var entryPoints = opts.entryPoints;
-    var otherSources = opts.otherSources;
-    var resources = opts.resources;
-    var loaderConfig = opts.loaderConfig;
-    var bundledFileHeader = opts.header;
-    var bundleLoader = (typeof opts.bundleLoader === 'undefined' ? true : opts.bundleLoader);
-    var out = opts.out;
+    const src = opts.src;
+    const entryPoints = opts.entryPoints;
+    const otherSources = opts.otherSources;
+    const resources = opts.resources;
+    const loaderConfig = opts.loaderConfig;
+    const bundledFileHeader = opts.header;
+    const bundleLoader = (typeof opts.bundleLoader === 'undefined' ? true : opts.bundleLoader);
+    const out = opts.out;
     return function () {
-        var bundlesStream = es.through(); // this stream will contain the bundled files
-        var resourcesStream = es.through(); // this stream will contain the resources
-        var bundleInfoStream = es.through(); // this stream will contain bundleInfo.json
+        const bundlesStream = es.through(); // this stream will contain the bundled files
+        const resourcesStream = es.through(); // this stream will contain the resources
+        const bundleInfoStream = es.through(); // this stream will contain bundleInfo.json
         bundle.bundle(entryPoints, loaderConfig, function (err, result) {
-            if (err) {
+            if (err || !result) {
                 return bundlesStream.emit('error', JSON.stringify(err));
             }
-            toBundleStream(bundledFileHeader, result.files).pipe(bundlesStream);
+            toBundleStream(src, bundledFileHeader, result.files).pipe(bundlesStream);
             // Remove css inlined resources
-            var filteredResources = resources.slice();
+            const filteredResources = resources.slice();
             result.cssInlinedResources.forEach(function (resource) {
                 if (process.env['VSCODE_BUILD_VERBOSE']) {
                     log('optimizer', 'excluding inlined: ' + resource);
                 }
                 filteredResources.push('!' + resource);
             });
-            gulp.src(filteredResources, { base: 'out-build' }).pipe(resourcesStream);
-            var bundleInfoArray = [];
+            gulp.src(filteredResources, { base: `${src}` }).pipe(resourcesStream);
+            const bundleInfoArray = [];
             if (opts.bundleInfo) {
                 bundleInfoArray.push(new VinylFile({
                     path: 'bundleInfo.json',
@@ -144,11 +147,11 @@ function optimizeTask(opts) {
             }
             es.readArray(bundleInfoArray).pipe(bundleInfoStream);
         });
-        var otherSourcesStream = es.through();
-        var otherSourcesStreamArr = [];
-        gulp.src(otherSources, { base: 'out-build' })
+        const otherSourcesStream = es.through();
+        const otherSourcesStreamArr = [];
+        gulp.src(otherSources, { base: `${src}` })
             .pipe(es.through(function (data) {
-            otherSourcesStreamArr.push(toConcatStream(bundledFileHeader, [data], data.relative));
+            otherSourcesStreamArr.push(toConcatStream(src, bundledFileHeader, [data], data.relative));
         }, function () {
             if (!otherSourcesStreamArr.length) {
                 setTimeout(function () { otherSourcesStream.emit('end'); }, 0);
@@ -157,17 +160,17 @@ function optimizeTask(opts) {
                 es.merge(otherSourcesStreamArr).pipe(otherSourcesStream);
             }
         }));
-        var result = es.merge(loader(bundledFileHeader, bundleLoader), bundlesStream, otherSourcesStream, resourcesStream, bundleInfoStream);
+        const result = es.merge(loader(src, bundledFileHeader, bundleLoader), bundlesStream, otherSourcesStream, resourcesStream, bundleInfoStream);
         return result
             .pipe(sourcemaps.write('./', {
-            sourceRoot: null,
+            sourceRoot: undefined,
             addComment: true,
             includeContent: true
         }))
-            .pipe(i18n.processNlsFiles({
+            .pipe(opts.languages && opts.languages.length ? i18n_1.processNlsFiles({
             fileHeader: bundledFileHeader,
             languages: opts.languages
-        }))
+        }) : es.through())
             .pipe(gulp.dest(out));
     };
 }
@@ -177,14 +180,14 @@ exports.optimizeTask = optimizeTask;
  * to have a file "context" to include our copyright only once per file.
  */
 function uglifyWithCopyrights() {
-    var preserveComments = function (f) {
-        return function (node, comment) {
-            var text = comment.value;
-            var type = comment.type;
+    const preserveComments = (f) => {
+        return (_node, comment) => {
+            const text = comment.value;
+            const type = comment.type;
             if (/@minifier_do_not_preserve/.test(text)) {
                 return false;
             }
-            var isOurCopyright = IS_OUR_COPYRIGHT_REGEXP.test(text);
+            const isOurCopyright = IS_OUR_COPYRIGHT_REGEXP.test(text);
             if (isOurCopyright) {
                 if (f.__hasOurCopyright) {
                     return false;
@@ -202,10 +205,10 @@ function uglifyWithCopyrights() {
             return false;
         };
     };
-    var minify = composer(uglifyes);
-    var input = es.through();
-    var output = input
-        .pipe(flatmap(function (stream, f) {
+    const minify = composer(uglifyes);
+    const input = es.through();
+    const output = input
+        .pipe(flatmap((stream, f) => {
         return stream.pipe(minify({
             output: {
                 comments: preserveComments(f),
@@ -216,18 +219,18 @@ function uglifyWithCopyrights() {
     return es.duplex(input, output);
 }
 function minifyTask(src, sourceMapBaseUrl) {
-    var sourceMappingURL = sourceMapBaseUrl && (function (f) { return sourceMapBaseUrl + "/" + f.relative + ".map"; });
-    return function (cb) {
-        var jsFilter = filter('**/*.js', { restore: true });
-        var cssFilter = filter('**/*.css', { restore: true });
+    const sourceMappingURL = sourceMapBaseUrl ? ((f) => `${sourceMapBaseUrl}/${f.relative}.map`) : undefined;
+    return cb => {
+        const jsFilter = filter('**/*.js', { restore: true });
+        const cssFilter = filter('**/*.css', { restore: true });
         pump(gulp.src([src + '/**', '!' + src + '/**/*.map']), jsFilter, sourcemaps.init({ loadMaps: true }), uglifyWithCopyrights(), jsFilter.restore, cssFilter, minifyCSS({ reduceIdents: false }), cssFilter.restore, sourcemaps.write('./', {
-            sourceMappingURL: sourceMappingURL,
-            sourceRoot: null,
+            sourceMappingURL,
+            sourceRoot: undefined,
             includeContent: true,
             addComment: true
-        }), gulp.dest(src + '-min'), function (err) {
+        }), gulp.dest(src + '-min'), (err) => {
             if (err instanceof uglify.GulpUglifyError) {
-                console.error("Uglify error in '" + (err.cause && err.cause.filename) + "'");
+                console.error(`Uglify error in '${err.cause && err.cause.filename}'`);
             }
             cb(err);
         });

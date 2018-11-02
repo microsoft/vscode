@@ -2,34 +2,34 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
 import * as nls from 'vs/nls';
 import { BaseBinaryResourceEditor } from 'vs/workbench/browser/parts/editor/binaryEditor';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IWindowsService } from 'vs/platform/windows/common/windows';
-import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { EditorInput, EditorOptions } from 'vs/workbench/common/editor';
-import { onUnexpectedError } from 'vs/base/common/errors';
 import { FileEditorInput } from 'vs/workbench/parts/files/common/editors/fileEditorInput';
-import URI from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 import { BINARY_FILE_EDITOR_ID } from 'vs/workbench/parts/files/common/files';
 import { IFileService } from 'vs/platform/files/common/files';
+import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { IStorageService } from 'vs/platform/storage/common/storage';
 
 /**
  * An implementation of editor for binary files like images.
  */
 export class BinaryFileEditor extends BaseBinaryResourceEditor {
 
-	public static readonly ID = BINARY_FILE_EDITOR_ID;
+	static readonly ID = BINARY_FILE_EDITOR_ID;
 
 	constructor(
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IThemeService themeService: IThemeService,
 		@IFileService fileService: IFileService,
 		@IWindowsService private windowsService: IWindowsService,
-		@IWorkbenchEditorService private editorService: IWorkbenchEditorService
+		@IEditorService private editorService: IEditorService,
+		@IStorageService storageService: IStorageService
 	) {
 		super(
 			BinaryFileEditor.ID,
@@ -39,15 +39,19 @@ export class BinaryFileEditor extends BaseBinaryResourceEditor {
 			},
 			telemetryService,
 			themeService,
-			fileService
+			fileService,
+			storageService
 		);
 	}
 
-	private openInternal(input: EditorInput, options: EditorOptions): void {
+	private openInternal(input: EditorInput, options: EditorOptions): Thenable<void> {
 		if (input instanceof FileEditorInput) {
 			input.setForceOpenAsText();
-			this.editorService.openEditor(input, options, this.position).done(null, onUnexpectedError);
+
+			return this.editorService.openEditor(input, options, this.group).then(() => void 0);
 		}
+
+		return Promise.resolve();
 	}
 
 	private openExternal(resource: URI): void {
@@ -60,7 +64,7 @@ export class BinaryFileEditor extends BaseBinaryResourceEditor {
 		});
 	}
 
-	public getTitle(): string {
+	getTitle(): string {
 		return this.input ? this.input.getName() : nls.localize('binaryFileEditor', "Binary File Viewer");
 	}
 }

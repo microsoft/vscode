@@ -8,11 +8,13 @@ import { Constants } from 'vs/editor/common/core/uint';
 import { Range } from 'vs/editor/common/core/range';
 import { ITextModel, TrackedRangeStickiness, IModelDeltaDecoration, IModelDecorationOptions } from 'vs/editor/common/model';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
-import { IDebugService, IBreakpoint, State } from 'vs/workbench/parts/debug/common/debug';
+import { IDebugService, IBreakpoint, State, IBreakpointUpdateData } from 'vs/workbench/parts/debug/common/debug';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { MarkdownString } from 'vs/base/common/htmlContent';
 import { getBreakpointMessageAndClassName } from 'vs/workbench/parts/debug/browser/breakpointsView';
-import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
+import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
+import { registerColor } from 'vs/platform/theme/common/colorRegistry';
+import { localize } from 'vs/nls';
 
 interface IBreakpointDecoration {
 	decorationId: string;
@@ -38,7 +40,6 @@ export class DebugEditorModelManager implements IWorkbenchContribution {
 	constructor(
 		@IModelService private modelService: IModelService,
 		@IDebugService private debugService: IDebugService,
-		@ITextFileService private textFileService: ITextFileService
 	) {
 		this.modelDataMap = new Map<string, IDebugEditorModelData>();
 		this.toDispose = [];
@@ -136,12 +137,6 @@ export class DebugEditorModelManager implements IWorkbenchContribution {
 					options: DebugEditorModelManager.TOP_STACK_FRAME_DECORATION,
 					range: columnUntilEOLRange
 				});
-				if (stackFrame.range.endLineNumber && stackFrame.range.endColumn) {
-					result.push({
-						options: { className: 'debug-top-stack-frame-range' },
-						range: stackFrame.range
-					});
-				}
 
 				if (this.modelDataMap.has(modelUriStr)) {
 					const modelData = this.modelDataMap.get(modelUriStr);
@@ -159,12 +154,6 @@ export class DebugEditorModelManager implements IWorkbenchContribution {
 				options: DebugEditorModelManager.FOCUSED_STACK_FRAME_MARGIN,
 				range
 			});
-			if (stackFrame.range.endLineNumber && stackFrame.range.endColumn) {
-				result.push({
-					options: { className: 'debug-focused-stack-frame-range' },
-					range: stackFrame.range
-				});
-			}
 
 			result.push({
 				options: DebugEditorModelManager.FOCUSED_STACK_FRAME_DECORATION,
@@ -197,7 +186,7 @@ export class DebugEditorModelManager implements IWorkbenchContribution {
 			return;
 		}
 
-		const data: { [id: string]: DebugProtocol.Breakpoint } = Object.create(null);
+		const data: { [id: string]: IBreakpointUpdateData } = Object.create(null);
 		const breakpoints = this.debugService.getModel().getBreakpoints();
 		const modelUri = modelData.model.uri;
 		for (let i = 0, len = modelData.breakpointDecorations.length; i < len; i++) {
@@ -209,9 +198,8 @@ export class DebugEditorModelManager implements IWorkbenchContribution {
 				// since we know it is collapsed, it cannot grow to multiple lines
 				if (breakpoint) {
 					data[breakpoint.getId()] = {
-						line: decorationRange.startLineNumber,
+						lineNumber: decorationRange.startLineNumber,
 						column: breakpoint.column ? decorationRange.startColumn : undefined,
-						verified: breakpoint.verified
 					};
 				}
 			}
@@ -278,7 +266,7 @@ export class DebugEditorModelManager implements IWorkbenchContribution {
 	}
 
 	private getBreakpointDecorationOptions(breakpoint: IBreakpoint): IModelDecorationOptions {
-		const { className, message } = getBreakpointMessageAndClassName(this.debugService, this.textFileService, breakpoint);
+		const { className, message } = getBreakpointMessageAndClassName(this.debugService, breakpoint);
 		let glyphMarginHoverMessage: MarkdownString;
 
 		if (message) {
@@ -337,3 +325,19 @@ export class DebugEditorModelManager implements IWorkbenchContribution {
 		stickiness: DebugEditorModelManager.STICKINESS
 	};
 }
+
+registerThemingParticipant((theme, collector) => {
+	const topStackFrame = theme.getColor(topStackFrameColor);
+	if (topStackFrame) {
+		collector.addRule(`.monaco-editor .view-overlays .debug-top-stack-frame-line { background: ${topStackFrame}; }`);
+		collector.addRule(`.monaco-editor .view-overlays .debug-top-stack-frame-line { background: ${topStackFrame}; }`);
+	}
+
+	const focusedStackFrame = theme.getColor(focusedStackFrameColor);
+	if (focusedStackFrame) {
+		collector.addRule(`.monaco-editor .view-overlays .debug-focused-stack-frame-line { background: ${focusedStackFrame}; }`);
+	}
+});
+
+const topStackFrameColor = registerColor('editor.stackFrameHighlightBackground', { dark: '#ffff0033', light: '#ffff6673', hc: '#fff600' }, localize('topStackFrameLineHighlight', 'Background color for the highlight of line at the top stack frame position.'));
+const focusedStackFrameColor = registerColor('editor.focusedStackFrameHighlightBackground', { dark: '#7abd7a4d', light: '#cee7ce73', hc: '#cee7ce' }, localize('focusedStackFrameLineHighlight', 'Background color for the highlight of line at focused stack frame position.'));

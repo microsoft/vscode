@@ -5,7 +5,6 @@
 
 .monaco-workbench > .activitybar > .content .monaco-action-bar .action-label.scm {
 	-webkit-mask: url('icon-dark.svg') no-repeat 50% 50%;
-	-webkit-mask-size: 19px;
 }
 
 .monaco-workbench .viewlet.scm-viewlet .collapsible.header .actions {
@@ -15,7 +14,6 @@
 
 .scm-viewlet .empty-message {
 	padding: 10px 22px 0 22px;
-	opacity: 0.5;
 }
 
 .scm-viewlet:not(.empty) .empty-message,
@@ -51,6 +49,7 @@
 	display: none;
 }
 
+.scm-viewlet .scm-provider > .type,
 .scm-viewlet .scm-provider > .name > .type {
 	opacity: 0.7;
 	margin-left: 0.5em;
@@ -124,6 +123,11 @@
 	display: block;
 }
 
+.scm-viewlet .scm-status.show-actions > .monaco-list .monaco-list-row > .resource-group > .actions,
+.scm-viewlet .scm-status.show-actions > .monaco-list .monaco-list-row > .resource > .name > .monaco-icon-label > .actions {
+	display: block;
+}
+
 .scm-viewlet .monaco-list-row > .resource > .name > .monaco-icon-label > .actions .action-label,
 .scm-viewlet .monaco-list-row > .resource-group > .actions .action-label {
 	width: 16px;
@@ -133,12 +137,12 @@
 }
 
 .scm-viewlet .scm-editor {
+	box-sizing: border-box;
 	padding: 5px 9px 5px 16px;
 }
 
-.scm-viewlet .scm-editor {
-	box-sizing: border-box;
-	padding: 5px 9px 5px 16px;
+.scm-viewlet .scm-editor.hidden {
+	display: none;
 }
 
 .scm-viewlet .scm-editor > .monaco-inputbox {

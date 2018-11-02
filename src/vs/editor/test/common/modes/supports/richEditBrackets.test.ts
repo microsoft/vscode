@@ -2,11 +2,10 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
 import * as assert from 'assert';
-import { BracketsUtils } from 'vs/editor/common/modes/supports/richEditBrackets';
 import { Range } from 'vs/editor/common/core/range';
+import { BracketsUtils } from 'vs/editor/common/modes/supports/richEditBrackets';
 
 suite('richEditBrackets', () => {
 
@@ -64,6 +63,11 @@ suite('richEditBrackets', () => {
 		let result = findNextBracketInToken(/(world)/i, 'hello world!', 0, 12);
 		assert.equal(result.startColumn, 7);
 		assert.equal(result.endColumn, 12);
+	});
+
+	test('findNextBracketInToken with emoty result', () => {
+		let result = findNextBracketInToken(/(\{)|(\})/i, '', 0, 0);
+		assert.equal(result, null);
 	});
 
 	test('issue #3894: [Handlebars] Curly braces edit issues', () => {

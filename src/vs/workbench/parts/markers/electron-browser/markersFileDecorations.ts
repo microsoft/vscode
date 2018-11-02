@@ -3,13 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import { IWorkbenchContribution, IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
 import { IMarkerService, IMarker, MarkerSeverity } from 'vs/platform/markers/common/markers';
 import { IDecorationsService, IDecorationsProvider, IDecorationData } from 'vs/workbench/services/decorations/browser/decorations';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
-import URI from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 import { Event } from 'vs/base/common/event';
 import { localize } from 'vs/nls';
 import { Registry } from 'vs/platform/registry/common/platform';
@@ -29,12 +27,12 @@ class MarkersDecorationsProvider implements IDecorationsProvider {
 		this.onDidChange = _markerService.onMarkerChanged;
 	}
 
-	provideDecorations(resource: URI): IDecorationData {
+	provideDecorations(resource: URI): IDecorationData | undefined {
 		let markers = this._markerService.read({
 			resource,
 			severities: MarkerSeverity.Error | MarkerSeverity.Warning
 		});
-		let first: IMarker;
+		let first: IMarker | undefined;
 		for (const marker of markers) {
 			if (!first || marker.severity > first.severity) {
 				first = marker;
@@ -49,7 +47,7 @@ class MarkersDecorationsProvider implements IDecorationsProvider {
 			weight: 100 * first.severity,
 			bubble: true,
 			tooltip: markers.length === 1 ? localize('tooltip.1', "1 problem in this file") : localize('tooltip.N', "{0} problems in this file", markers.length),
-			letter: markers.length < 10 ? markers.length.toString() : '+9',
+			letter: markers.length < 10 ? markers.length.toString() : '9+',
 			color: first.severity === MarkerSeverity.Error ? listErrorForeground : listWarningForeground,
 		};
 	}

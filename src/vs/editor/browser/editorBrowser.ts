@@ -2,23 +2,22 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
-import { IDisposable } from 'vs/base/common/lifecycle';
 import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { IMouseEvent } from 'vs/base/browser/mouseEvent';
-import * as editorCommon from 'vs/editor/common/editorCommon';
-import { Position, IPosition } from 'vs/editor/common/core/position';
-import { Selection } from 'vs/editor/common/core/selection';
-import { Range, IRange } from 'vs/editor/common/core/range';
+import { IDisposable } from 'vs/base/common/lifecycle';
 import * as editorOptions from 'vs/editor/common/config/editorOptions';
-import { OverviewRulerZone } from 'vs/editor/common/view/overviewZoneManager';
-import { IModelContentChangedEvent, IModelLanguageChangedEvent, IModelLanguageConfigurationChangedEvent, IModelOptionsChangedEvent, IModelDecorationsChangedEvent } from 'vs/editor/common/model/textModelEvents';
+import { ICursors } from 'vs/editor/common/controller/cursorCommon';
 import { ICursorPositionChangedEvent, ICursorSelectionChangedEvent } from 'vs/editor/common/controller/cursorEvents';
-import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { ICursors, CursorConfiguration } from 'vs/editor/common/controller/cursorCommon';
+import { IPosition, Position } from 'vs/editor/common/core/position';
+import { IRange, Range } from 'vs/editor/common/core/range';
+import { Selection } from 'vs/editor/common/core/selection';
+import * as editorCommon from 'vs/editor/common/editorCommon';
+import { IIdentifiedSingleEditOperation, IModelDecoration, IModelDeltaDecoration, ITextModel } from 'vs/editor/common/model';
+import { IModelContentChangedEvent, IModelDecorationsChangedEvent, IModelLanguageChangedEvent, IModelLanguageConfigurationChangedEvent, IModelOptionsChangedEvent } from 'vs/editor/common/model/textModelEvents';
+import { OverviewRulerZone } from 'vs/editor/common/view/overviewZoneManager';
 import { IEditorWhitespace } from 'vs/editor/common/viewLayout/whitespaceComputer';
-import { ITextModel, IIdentifiedSingleEditOperation, IModelDecoration, IModelDeltaDecoration } from 'vs/editor/common/model';
+import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 
 /**
  * A view zone is a full horizontal rectangle that 'pushes' text down.
@@ -65,7 +64,7 @@ export interface IViewZone {
 	/**
 	 * An optional dom node for the view zone that will be placed in the margin area.
 	 */
-	marginDomNode?: HTMLElement;
+	marginDomNode?: HTMLElement | null;
 	/**
 	 * Callback which gives the relative top of the view zone as it appears (taking scrolling into account).
 	 */
@@ -100,7 +99,7 @@ export interface IViewZoneChangeAccessor {
 /**
  * A positioning preference for rendering content widgets.
  */
-export enum ContentWidgetPositionPreference {
+export const enum ContentWidgetPositionPreference {
 	/**
 	 * Place the content widget exactly at a position
 	 */
@@ -122,7 +121,12 @@ export interface IContentWidgetPosition {
 	 * Desired position for the content widget.
 	 * `preference` will also affect the placement.
 	 */
-	position: IPosition;
+	position: IPosition | null;
+	/**
+	 * Optionally, a range can be provided to further
+	 * define the position of the content widget.
+	 */
+	range?: IRange | null;
 	/**
 	 * Placement preference for position, in order of preference.
 	 */
@@ -150,13 +154,13 @@ export interface IContentWidget {
 	 * Get the placement of the content widget.
 	 * If null is returned, the content widget will be placed off screen.
 	 */
-	getPosition(): IContentWidgetPosition;
+	getPosition(): IContentWidgetPosition | null;
 }
 
 /**
  * A positioning preference for rendering overlay widgets.
  */
-export enum OverlayWidgetPositionPreference {
+export const enum OverlayWidgetPositionPreference {
 	/**
 	 * Position the overlay widget in the top right corner
 	 */
@@ -179,7 +183,7 @@ export interface IOverlayWidgetPosition {
 	/**
 	 * The position preference for the overlay widget.
 	 */
-	preference: OverlayWidgetPositionPreference;
+	preference: OverlayWidgetPositionPreference | null;
 }
 /**
  * An overlay widgets renders on top of the text.
@@ -197,13 +201,13 @@ export interface IOverlayWidget {
 	 * Get the placement of the overlay widget.
 	 * If null is returned, the overlay widget is responsible to place itself.
 	 */
-	getPosition(): IOverlayWidgetPosition;
+	getPosition(): IOverlayWidgetPosition | null;
 }
 
 /**
  * Type of hit element with the mouse in the editor.
  */
-export enum MouseTargetType {
+export const enum MouseTargetType {
 	/**
 	 * Mouse is on top of an unknown element.
 	 */
@@ -269,7 +273,7 @@ export interface IMouseTarget {
 	/**
 	 * The target element
 	 */
-	readonly element: Element;
+	readonly element: Element | null;
 	/**
 	 * The target type
 	 */
@@ -277,7 +281,7 @@ export interface IMouseTarget {
 	/**
 	 * The 'approximate' editor position
 	 */
-	readonly position: Position;
+	readonly position: Position | null;
 	/**
 	 * Desired mouse column (e.g. when position.column gets clamped to text length -- clicking after text on a line).
 	 */
@@ -285,7 +289,7 @@ export interface IMouseTarget {
 	/**
 	 * The 'approximate' editor range
 	 */
-	readonly range: Range;
+	readonly range: Range | null;
 	/**
 	 * Some extra detail.
 	 */
@@ -297,6 +301,10 @@ export interface IMouseTarget {
 export interface IEditorMouseEvent {
 	readonly event: IMouseEvent;
 	readonly target: IMouseTarget;
+}
+export interface IPartialEditorMouseEvent {
+	readonly event: IMouseEvent;
+	readonly target: IMouseTarget | null;
 }
 
 /**
@@ -397,6 +405,14 @@ export interface ICodeEditor extends editorCommon.IEditor {
 	 */
 	onDidType(listener: (text: string) => void): IDisposable;
 	/**
+	 * An event emitted after composition has started.
+	 */
+	onCompositionStart(listener: () => void): IDisposable;
+	/**
+	 * An event emitted after composition has ended.
+	 */
+	onCompositionEnd(listener: () => void): IDisposable;
+	/**
 	 * An event emitted when editing failed because the editor is read-only.
 	 * @event
 	 * @internal
@@ -429,7 +445,7 @@ export interface ICodeEditor extends editorCommon.IEditor {
 	 * @internal
 	 * @event
 	 */
-	onMouseDrop(listener: (e: IEditorMouseEvent) => void): IDisposable;
+	onMouseDrop(listener: (e: IPartialEditorMouseEvent) => void): IDisposable;
 	/**
 	 * An event emitted on a "contextmenu".
 	 * @event
@@ -444,7 +460,7 @@ export interface ICodeEditor extends editorCommon.IEditor {
 	 * An event emitted on a "mouseleave".
 	 * @event
 	 */
-	onMouseLeave(listener: (e: IEditorMouseEvent) => void): IDisposable;
+	onMouseLeave(listener: (e: IPartialEditorMouseEvent) => void): IDisposable;
 	/**
 	 * An event emitted on a "keyup".
 	 * @event
@@ -469,7 +485,7 @@ export interface ICodeEditor extends editorCommon.IEditor {
 	/**
 	 * Saves current view state of the editor in a serializable object.
 	 */
-	saveViewState(): editorCommon.ICodeEditorViewState;
+	saveViewState(): editorCommon.ICodeEditorViewState | null;
 
 	/**
 	 * Restores the view state of the editor from a serializable object generated by `saveViewState`.
@@ -497,7 +513,17 @@ export interface ICodeEditor extends editorCommon.IEditor {
 	/**
 	 * Type the getModel() of IEditor.
 	 */
-	getModel(): ITextModel;
+	getModel(): ITextModel | null;
+
+	/**
+	 * Sets the current model attached to this editor.
+	 * If the previous model was created by the editor via the value key in the options
+	 * literal object, it will be destroyed. Otherwise, if the previous model was set
+	 * via setModel, or the model key in the options literal object, the previous model
+	 * will not be destroyed.
+	 * It is safe to call setModel(null) to simply detach the current model from the editor.
+	 */
+	setModel(model: ITextModel | null): void;
 
 	/**
 	 * Returns the current editor's configuration
@@ -578,31 +604,26 @@ export interface ICodeEditor extends editorCommon.IEditor {
 	 * The edits will land on the undo-redo stack, but no "undo stop" will be pushed.
 	 * @param source The source of the call.
 	 * @param edits The edits to execute.
-	 * @param endCursoState Cursor state after the edits were applied.
+	 * @param endCursorState Cursor state after the edits were applied.
 	 */
-	executeEdits(source: string, edits: IIdentifiedSingleEditOperation[], endCursoState?: Selection[]): boolean;
+	executeEdits(source: string, edits: IIdentifiedSingleEditOperation[], endCursorState?: Selection[]): boolean;
 
 	/**
-	 * Execute multiple (concommitent) commands on the editor.
+	 * Execute multiple (concomitant) commands on the editor.
 	 * @param source The source of the call.
 	 * @param command The commands to execute
 	 */
-	executeCommands(source: string, commands: editorCommon.ICommand[]): void;
+	executeCommands(source: string, commands: (editorCommon.ICommand | null)[]): void;
 
 	/**
 	 * @internal
 	 */
-	_getCursors(): ICursors;
-
-	/**
-	 * @internal
-	 */
-	_getCursorConfiguration(): CursorConfiguration;
+	_getCursors(): ICursors | null;
 
 	/**
 	 * Get all the decorations on a line (filtering out decorations from other editors).
 	 */
-	getLineDecorations(lineNumber: number): IModelDecoration[];
+	getLineDecorations(lineNumber: number): IModelDecoration[] | null;
 
 	/**
 	 * All decorations added through this call will get the ownerId of this editor.
@@ -661,12 +682,12 @@ export interface ICodeEditor extends editorCommon.IEditor {
 	/**
 	 * @internal
 	 */
-	getTelemetryData(): { [key: string]: any; };
+	getTelemetryData(): { [key: string]: any; } | null;
 
 	/**
 	 * Returns the editor's dom node
 	 */
-	getDomNode(): HTMLElement;
+	getDomNode(): HTMLElement | null;
 
 	/**
 	 * Add a content widget. Widgets must have unique ids, otherwise they will be overwritten.
@@ -674,7 +695,7 @@ export interface ICodeEditor extends editorCommon.IEditor {
 	addContentWidget(widget: IContentWidget): void;
 	/**
 	 * Layout/Reposition a content widget. This is a ping to the editor to call widget.getPosition()
-	 * and update appropiately.
+	 * and update appropriately.
 	 */
 	layoutContentWidget(widget: IContentWidget): void;
 	/**
@@ -688,7 +709,7 @@ export interface ICodeEditor extends editorCommon.IEditor {
 	addOverlayWidget(widget: IOverlayWidget): void;
 	/**
 	 * Layout/Reposition an overlay widget. This is a ping to the editor to call widget.getPosition()
-	 * and update appropiately.
+	 * and update appropriately.
 	 */
 	layoutOverlayWidget(widget: IOverlayWidget): void;
 	/**
@@ -719,21 +740,81 @@ export interface ICodeEditor extends editorCommon.IEditor {
 	 *
 	 * @returns Hit test target or null if the coordinates fall outside the editor or the editor has no model.
 	 */
-	getTargetAtClientPoint(clientX: number, clientY: number): IMouseTarget;
+	getTargetAtClientPoint(clientX: number, clientY: number): IMouseTarget | null;
 
 	/**
 	 * Get the visible position for `position`.
 	 * The result position takes scrolling into account and is relative to the top left corner of the editor.
 	 * Explanation 1: the results of this method will change for the same `position` if the user scrolls the editor.
 	 * Explanation 2: the results of this method will not change if the container of the editor gets repositioned.
-	 * Warning: the results of this method are innacurate for positions that are outside the current editor viewport.
+	 * Warning: the results of this method are inaccurate for positions that are outside the current editor viewport.
 	 */
-	getScrolledVisiblePosition(position: IPosition): { top: number; left: number; height: number; };
+	getScrolledVisiblePosition(position: IPosition): { top: number; left: number; height: number; } | null;
 
 	/**
 	 * Apply the same font settings as the editor to `target`.
 	 */
 	applyFontInfo(target: HTMLElement): void;
+
+	/**
+	 * Check if the current instance has a model attached.
+	 * @internal
+	 */
+	hasModel(): this is IActiveCodeEditor;
+}
+
+/**
+ * @internal
+ */
+export interface IActiveCodeEditor extends ICodeEditor {
+	/**
+	 * Returns the primary position of the cursor.
+	 */
+	getPosition(): Position;
+
+	/**
+	 * Returns the primary selection of the editor.
+	 */
+	getSelection(): Selection;
+
+	/**
+	 * Returns all the selections of the editor.
+	 */
+	getSelections(): Selection[];
+
+	/**
+	 * Saves current view state of the editor in a serializable object.
+	 */
+	saveViewState(): editorCommon.ICodeEditorViewState;
+
+	/**
+	 * Type the getModel() of IEditor.
+	 */
+	getModel(): ITextModel;
+
+	/**
+	 * @internal
+	 */
+	_getCursors(): ICursors;
+
+	/**
+	 * Get all the decorations on a line (filtering out decorations from other editors).
+	 */
+	getLineDecorations(lineNumber: number): IModelDecoration[];
+
+	/**
+	 * Returns the editor's dom node
+	 */
+	getDomNode(): HTMLElement;
+
+	/**
+	 * Get the visible position for `position`.
+	 * The result position takes scrolling into account and is relative to the top left corner of the editor.
+	 * Explanation 1: the results of this method will change for the same `position` if the user scrolls the editor.
+	 * Explanation 2: the results of this method will not change if the container of the editor gets repositioned.
+	 * Warning: the results of this method are inaccurate for positions that are outside the current editor viewport.
+	 */
+	getScrolledVisiblePosition(position: IPosition): { top: number; left: number; height: number; };
 }
 
 /**
@@ -778,7 +859,7 @@ export interface IDiffEditor extends editorCommon.IEditor {
 	/**
 	 * Saves current view state of the editor in a serializable object.
 	 */
-	saveViewState(): editorCommon.IDiffEditorViewState;
+	saveViewState(): editorCommon.IDiffEditorViewState | null;
 
 	/**
 	 * Restores the view state of the editor from a serializable object generated by `saveViewState`.
@@ -788,7 +869,17 @@ export interface IDiffEditor extends editorCommon.IEditor {
 	/**
 	 * Type the getModel() of IEditor.
 	 */
-	getModel(): editorCommon.IDiffEditorModel;
+	getModel(): editorCommon.IDiffEditorModel | null;
+
+	/**
+	 * Sets the current model attached to this editor.
+	 * If the previous model was created by the editor via the value key in the options
+	 * literal object, it will be destroyed. Otherwise, if the previous model was set
+	 * via setModel, or the model key in the options literal object, the previous model
+	 * will not be destroyed.
+	 * It is safe to call setModel(null) to simply detach the current model from the editor.
+	 */
+	setModel(model: editorCommon.IDiffEditorModel | null): void;
 
 	/**
 	 * Get the `original` editor.
@@ -803,19 +894,19 @@ export interface IDiffEditor extends editorCommon.IEditor {
 	/**
 	 * Get the computed diff information.
 	 */
-	getLineChanges(): editorCommon.ILineChange[];
+	getLineChanges(): editorCommon.ILineChange[] | null;
 
 	/**
 	 * Get information based on computed diff about a line number from the original model.
 	 * If the diff computation is not finished or the model is missing, will return null.
 	 */
-	getDiffLineInformationForOriginal(lineNumber: number): IDiffLineInformation;
+	getDiffLineInformationForOriginal(lineNumber: number): IDiffLineInformation | null;
 
 	/**
 	 * Get information based on computed diff about a line number from the modified model.
 	 * If the diff computation is not finished or the model is missing, will return null.
 	 */
-	getDiffLineInformationForModified(lineNumber: number): IDiffLineInformation;
+	getDiffLineInformationForModified(lineNumber: number): IDiffLineInformation | null;
 }
 
 /**
@@ -838,4 +929,19 @@ export function isDiffEditor(thing: any): thing is IDiffEditor {
 	} else {
 		return false;
 	}
+}
+
+/**
+ *@internal
+ */
+export function getCodeEditor(thing: any): ICodeEditor | null {
+	if (isCodeEditor(thing)) {
+		return thing;
+	}
+
+	if (isDiffEditor(thing)) {
+		return thing.getModifiedEditor();
+	}
+
+	return null;
 }

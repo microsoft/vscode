@@ -2,13 +2,13 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
-
 import * as assert from 'assert';
+import * as sinon from 'sinon';
 import * as platform from 'vs/base/common/platform';
+import { URI } from 'vs/base/common/uri';
 import { TPromise } from 'vs/base/common/winjs.base';
-import { ILifecycleService, ShutdownEvent, ShutdownReason } from 'vs/platform/lifecycle/common/lifecycle';
-import { workbenchInstantiationService, TestLifecycleService, TestTextFileService, TestWindowsService, TestContextService } from 'vs/workbench/test/workbenchTestServices';
+import { ILifecycleService, WillShutdownEvent, ShutdownReason } from 'vs/platform/lifecycle/common/lifecycle';
+import { workbenchInstantiationService, TestLifecycleService, TestTextFileService, TestWindowsService, TestContextService, TestFileService } from 'vs/workbench/test/workbenchTestServices';
 import { toResource } from 'vs/base/test/common/utils';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IWindowsService } from 'vs/platform/windows/common/windows';
@@ -17,9 +17,12 @@ import { ITextFileService } from 'vs/workbench/services/textfile/common/textfile
 import { ConfirmResult } from 'vs/workbench/common/editor';
 import { IUntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
 import { UntitledEditorModel } from 'vs/workbench/common/editor/untitledEditorModel';
-import { HotExitConfiguration } from 'vs/platform/files/common/files';
+import { HotExitConfiguration, IFileService } from 'vs/platform/files/common/files';
 import { TextFileEditorModelManager } from 'vs/workbench/services/textfile/common/textFileEditorModelManager';
 import { IWorkspaceContextService, Workspace } from 'vs/platform/workspace/common/workspace';
+import { IModelService } from 'vs/editor/common/services/modelService';
+import { ModelServiceImpl } from 'vs/editor/common/services/modelServiceImpl';
+import { Schemas } from 'vs/base/common/network';
 
 class ServiceAccessor {
 	constructor(
@@ -27,12 +30,14 @@ class ServiceAccessor {
 		@ITextFileService public textFileService: TestTextFileService,
 		@IUntitledEditorService public untitledEditorService: IUntitledEditorService,
 		@IWindowsService public windowsService: TestWindowsService,
-		@IWorkspaceContextService public contextService: TestContextService
+		@IWorkspaceContextService public contextService: TestContextService,
+		@IModelService public modelService: ModelServiceImpl,
+		@IFileService public fileService: TestFileService
 	) {
 	}
 }
 
-class ShutdownEventImpl implements ShutdownEvent {
+class ShutdownEventImpl implements WillShutdownEvent {
 
 	public value: boolean | TPromise<boolean>;
 	public reason = ShutdownReason.CLOSE;
@@ -194,6 +199,34 @@ suite('Files - TextFileService', () => {
 		});
 	});
 
+	test('save - UNC path', function () {
+		const untitledUncUri = URI.from({ scheme: 'untitled', authority: 'server', path: '/share/path/file.txt' });
+		model = instantiationService.createInstance(TextFileEditorModel, untitledUncUri, 'utf8');
+		(<TextFileEditorModelManager>accessor.textFileService.models).add(model.getResource(), model);
+
+		const mockedFileUri = untitledUncUri.with({ scheme: Schemas.file });
+		const mockedEditorInput = instantiationService.createInstance(TextFileEditorModel, mockedFileUri, 'utf8');
+		const loadOrCreateStub = sinon.stub(accessor.textFileService.models, 'loadOrCreate', () => TPromise.wrap(mockedEditorInput));
+
+		sinon.stub(accessor.untitledEditorService, 'exists', () => true);
+		sinon.stub(accessor.untitledEditorService, 'hasAssociatedFilePath', () => true);
+		sinon.stub(accessor.modelService, 'updateModel', () => { });
+
+		return model.load().then(() => {
+			model.textEditorModel.setValue('foo');
+
+			return accessor.textFileService.saveAll(true).then(res => {
+				assert.ok(loadOrCreateStub.calledOnce);
+				assert.equal(res.results.length, 1);
+				assert.ok(res.results[0].success);
+
+				assert.equal(res.results[0].target.scheme, Schemas.file);
+				assert.equal(res.results[0].target.authority, untitledUncUri.authority);
+				assert.equal(res.results[0].target.path, untitledUncUri.path);
+			});
+		});
+	});
+
 	test('saveAll - file', function () {
 		model = instantiationService.createInstance(TextFileEditorModel, toResource.call(this, '/path/file.txt'), 'utf8');
 		(<TextFileEditorModelManager>accessor.textFileService.models).add(model.getResource(), model);
@@ -219,7 +252,7 @@ suite('Files - TextFileService', () => {
 		(<TextFileEditorModelManager>accessor.textFileService.models).add(model.getResource(), model);
 
 		const service = accessor.textFileService;
-		service.setPromptPath(model.getResource().fsPath);
+		service.setPromptPath(model.getResource());
 
 		return model.load().then(() => {
 			model.textEditorModel.setValue('foo');
@@ -238,7 +271,7 @@ suite('Files - TextFileService', () => {
 		(<TextFileEditorModelManager>accessor.textFileService.models).add(model.getResource(), model);
 
 		const service = accessor.textFileService;
-		service.setPromptPath(model.getResource().fsPath);
+		service.setPromptPath(model.getResource());
 
 		return model.load().then(() => {
 			model.textEditorModel.setValue('foo');
@@ -248,6 +281,45 @@ suite('Files - TextFileService', () => {
 			return service.revert(model.getResource()).then(res => {
 				assert.ok(res);
 				assert.ok(!service.isDirty(model.getResource()));
+			});
+		});
+	});
+
+	test('delete - dirty file', function () {
+		model = instantiationService.createInstance(TextFileEditorModel, toResource.call(this, '/path/file.txt'), 'utf8');
+		(<TextFileEditorModelManager>accessor.textFileService.models).add(model.getResource(), model);
+
+		const service = accessor.textFileService;
+
+		return model.load().then(() => {
+			model.textEditorModel.setValue('foo');
+
+			assert.ok(service.isDirty(model.getResource()));
+
+			return service.delete(model.getResource()).then(() => {
+				assert.ok(!service.isDirty(model.getResource()));
+			});
+		});
+	});
+
+	test('move - dirty file', function () {
+		let sourceModel: TextFileEditorModel = instantiationService.createInstance(TextFileEditorModel, toResource.call(this, '/path/file.txt'), 'utf8');
+		let targetModel: TextFileEditorModel = instantiationService.createInstance(TextFileEditorModel, toResource.call(this, '/path/file_target.txt'), 'utf8');
+		(<TextFileEditorModelManager>accessor.textFileService.models).add(sourceModel.getResource(), sourceModel);
+		(<TextFileEditorModelManager>accessor.textFileService.models).add(targetModel.getResource(), targetModel);
+
+		const service = accessor.textFileService;
+
+		return sourceModel.load().then(() => {
+			sourceModel.textEditorModel.setValue('foo');
+
+			assert.ok(service.isDirty(sourceModel.getResource()));
+
+			return service.move(sourceModel.getResource(), targetModel.getResource(), true).then(() => {
+				assert.ok(!service.isDirty(sourceModel.getResource()));
+
+				sourceModel.dispose();
+				targetModel.dispose();
 			});
 		});
 	});

@@ -26,13 +26,13 @@ export class CopyValueAction extends Action {
 		if (this.value instanceof Variable) {
 			const frameId = this.debugService.getViewModel().focusedStackFrame.frameId;
 			const session = this.debugService.getViewModel().focusedSession;
-			return session.raw.evaluate({ expression: this.value.evaluateName, frameId }).then(result => {
+			return session.evaluate(this.value.evaluateName, frameId).then(result => {
 				clipboard.writeText(result.body.result);
 			}, err => clipboard.writeText(this.value.value));
 		}
 
 		clipboard.writeText(this.value);
-		return TPromise.as(null);
+		return Promise.resolve(undefined);
 	}
 }
 
@@ -47,7 +47,7 @@ export class CopyEvaluatePathAction extends Action {
 
 	public run(): TPromise<any> {
 		clipboard.writeText(this.value.evaluateName);
-		return TPromise.as(null);
+		return Promise.resolve(undefined);
 	}
 }
 
@@ -57,7 +57,7 @@ export class CopyAction extends Action {
 
 	public run(): TPromise<any> {
 		clipboard.writeText(window.getSelection().toString());
-		return TPromise.as(null);
+		return Promise.resolve(undefined);
 	}
 }
 
@@ -82,7 +82,7 @@ export class CopyAllAction extends Action {
 		}
 
 		clipboard.writeText(removeAnsiEscapeCodes(text));
-		return TPromise.as(null);
+		return Promise.resolve(undefined);
 	}
 }
 
@@ -92,6 +92,6 @@ export class CopyStackTraceAction extends Action {
 
 	public run(frame: IStackFrame): TPromise<any> {
 		clipboard.writeText(frame.thread.getCallStack().map(sf => sf.toString()).join(lineDelimiter));
-		return TPromise.as(null);
+		return Promise.resolve(undefined);
 	}
 }

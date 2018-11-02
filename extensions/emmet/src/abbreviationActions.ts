@@ -5,11 +5,10 @@
 
 import * as vscode from 'vscode';
 import { Node, HtmlNode, Rule, Property, Stylesheet } from 'EmmetNode';
-import { getEmmetHelper, getNode, getInnerRange, getMappingForIncludedLanguages, parseDocument, validate, getEmmetConfiguration, isStyleSheet, getEmmetMode, parsePartialStylesheet, isStyleAttribute, getEmbeddedCssNodeIfAny } from './util';
+import { getEmmetHelper, getNode, getInnerRange, getMappingForIncludedLanguages, parseDocument, validate, getEmmetConfiguration, isStyleSheet, getEmmetMode, parsePartialStylesheet, isStyleAttribute, getEmbeddedCssNodeIfAny, allowedMimeTypesInScriptTag } from './util';
 
 const trimRegex = /[\u00a0]*[\d|#|\-|\*|\u2022]+\.?/;
-const hexColorRegex = /^#\d+$/;
-const allowedMimeTypesInScriptTag = ['text/html', 'text/plain', 'text/x-template', 'text/template'];
+const hexColorRegex = /^#[\d,a-f,A-F]{0,6}$/;
 const inlineElements = ['a', 'abbr', 'acronym', 'applet', 'b', 'basefont', 'bdo',
 	'big', 'br', 'button', 'cite', 'code', 'del', 'dfn', 'em', 'font', 'i',
 	'iframe', 'img', 'input', 'ins', 'kbd', 'label', 'map', 'object', 'q',
@@ -45,7 +44,6 @@ function doWrapping(individualLines: boolean, args: any) {
 	}
 
 	const editor = vscode.window.activeTextEditor;
-	const rootNode = parseDocument(editor.document, false);
 	if (individualLines) {
 		if (editor.selections.length === 1 && editor.selection.isEmpty) {
 			vscode.window.showInformationMessage('Select more than 1 line and try again.');
@@ -56,29 +54,15 @@ function doWrapping(individualLines: boolean, args: any) {
 			return;
 		}
 	}
-	const syntax = getSyntaxFromArgs({ language: editor.document.languageId });
-	if (!syntax) {
-		return;
-	}
-
-	const selections = editor.selections.sort((a: vscode.Selection, b: vscode.Selection) => { return a.start.compareTo(b.start); });
-	let disableLivePreview = false;
-	for (let i = 1; i < selections.length; i++) {
-		if (selections[i].start.line === selections[i - 1].start.line
-			|| selections[i].end.line === selections[i - 1].start.line
-			|| selections[i].start.line === selections[i - 1].end.line
-			|| selections[i].end.line === selections[i - 1].end.line) {
-			disableLivePreview = true; // Disable Live Preview due to https://github.com/Microsoft/vscode/issues/49138
-			break;
-		}
-	}
+	const syntax = 'html';
+	const rootNode = parseDocument(editor.document, false);
 
 	let inPreview = false;
 	let currentValue = '';
 	const helper = getEmmetHelper();
 
 	// Fetch general information for the succesive expansions. i.e. the ranges to replace and its contents
-	let rangesToReplace: PreviewRangesWithContent[] = selections.map(selection => {
+	let rangesToReplace: PreviewRangesWithContent[] = editor.selections.sort((a: vscode.Selection, b: vscode.Selection) => { return a.start.compareTo(b.start); }).map(selection => {
 		let rangeToReplace: vscode.Range = selection.isReversed ? new vscode.Range(selection.active, selection.anchor) : selection;
 		if (!rangeToReplace.isSingleLine && rangeToReplace.end.character === 0) {
 			const previousLine = rangeToReplace.end.line - 1;
@@ -109,6 +93,7 @@ function doWrapping(individualLines: boolean, args: any) {
 			const preceedingWhiteSpace = otherMatches ? otherMatches[1] : '';
 			textToWrapInPreview = rangeToReplace.isSingleLine ? [textToReplace] : ['\n\t' + textToReplace.split('\n' + preceedingWhiteSpace).join('\n\t') + '\n'];
 		}
+		textToWrapInPreview = textToWrapInPreview.map(e => e.replace(/(\$\d)/g, '\\$1'));
 
 		return {
 			previewRange: rangeToReplace,
@@ -128,6 +113,8 @@ function doWrapping(individualLines: boolean, args: any) {
 	}
 
 	function applyPreview(expandAbbrList: ExpandAbbreviationInput[]): Thenable<boolean> {
+		let lastOldPreviewRange = new vscode.Range(0, 0, 0, 0);
+		let lastNewPreviewRange = new vscode.Range(0, 0, 0, 0);
 		let totalLinesInserted = 0;
 
 		return editor.edit(builder => {
@@ -153,13 +140,29 @@ function doWrapping(individualLines: boolean, args: any) {
 				const oldPreviewLines = oldPreviewRange.end.line - oldPreviewRange.start.line + 1;
 				const newLinesInserted = expandedTextLines.length - oldPreviewLines;
 
-				let lastLineEnd = expandedTextLines[expandedTextLines.length - 1].length;
-				if (expandedTextLines.length === 1) {
-					// If the expandedText is single line, add the length of preceeding whitespace as it will not be included in line length.
-					lastLineEnd += oldPreviewRange.start.character;
+				let newPreviewLineStart = oldPreviewRange.start.line + totalLinesInserted;
+				let newPreviewStart = oldPreviewRange.start.character;
+				const newPreviewLineEnd = oldPreviewRange.end.line + totalLinesInserted + newLinesInserted;
+				let newPreviewEnd = expandedTextLines[expandedTextLines.length - 1].length;
+				if (i > 0 && newPreviewLineEnd === lastNewPreviewRange.end.line) {
+					// If newPreviewLineEnd is equal to the previous expandedText lineEnd,
+					// set newPreviewStart to the length of the previous expandedText in that line
+					// plus the number of characters between both selections.
+					newPreviewStart = lastNewPreviewRange.end.character + (oldPreviewRange.start.character - lastOldPreviewRange.end.character);
+					newPreviewEnd += newPreviewStart;
+				}
+				else if (i > 0 && newPreviewLineStart === lastNewPreviewRange.end.line) {
+					// Same as above but expandedTextLines.length > 1 so newPreviewEnd keeps its value.
+					newPreviewStart = lastNewPreviewRange.end.character + (oldPreviewRange.start.character - lastOldPreviewRange.end.character);
+				}
+				else if (expandedTextLines.length === 1) {
+					// If the expandedText is single line, add the length of preceeding text as it will not be included in line length.
+					newPreviewEnd += oldPreviewRange.start.character;
 				}
 
-				rangesToReplace[i].previewRange = new vscode.Range(oldPreviewRange.start.line + totalLinesInserted, oldPreviewRange.start.character, oldPreviewRange.end.line + totalLinesInserted + newLinesInserted, lastLineEnd);
+				lastOldPreviewRange = rangesToReplace[i].previewRange;
+				rangesToReplace[i].previewRange = lastNewPreviewRange = new vscode.Range(newPreviewLineStart, newPreviewStart, newPreviewLineEnd, newPreviewEnd);
+
 				totalLinesInserted += newLinesInserted;
 			}
 		}, { undoStopBefore: false, undoStopAfter: false });
@@ -203,9 +206,6 @@ function doWrapping(individualLines: boolean, args: any) {
 	}
 
 	function inputChanged(value: string): string {
-		if (disableLivePreview) {
-			return '';
-		}
 		if (value !== currentValue) {
 			currentValue = value;
 			makeChanges(value, false).then((out) => {
@@ -216,7 +216,7 @@ function doWrapping(individualLines: boolean, args: any) {
 		}
 		return '';
 	}
-	const abbreviationPromise = (args && args['abbreviation']) ? Promise.resolve(args['abbreviation']) : vscode.window.showInputBox({ prompt: 'Enter Abbreviation', validateInput: inputChanged });
+	const abbreviationPromise: Thenable<string | undefined> = (args && args['abbreviation']) ? Promise.resolve(args['abbreviation']) : vscode.window.showInputBox({ prompt: 'Enter Abbreviation', validateInput: inputChanged });
 	return abbreviationPromise.then(inputAbbreviation => {
 		return makeChanges(inputAbbreviation, true);
 	});
@@ -340,9 +340,7 @@ export function expandEmmetAbbreviation(args: any): Thenable<boolean | undefined
 	});
 
 	return expandAbbreviationInRange(editor, abbreviationList, allAbbreviationsSame).then(success => {
-		if (!success) {
-			return fallbackTab();
-		}
+		return success ? Promise.resolve(undefined) : fallbackTab();
 	});
 }
 
@@ -399,6 +397,9 @@ export function isValidLocationForEmmetAbbreviation(document: vscode.TextDocumen
 				&& abbreviation.indexOf(':') === -1) {
 				return hexColorRegex.test(abbreviation) || abbreviation === '!';
 			}
+			if (hexColorRegex.test(abbreviation) || abbreviation === '!') {
+				return false;
+			}
 		}
 
 		// If current node is a rule or at-rule, then perform additional checks to ensure
@@ -439,9 +440,18 @@ export function isValidLocationForEmmetAbbreviation(document: vscode.TextDocumen
 
 	if (currentHtmlNode) {
 		if (currentHtmlNode.name === 'script') {
-			return (currentHtmlNode.attributes
-				&& currentHtmlNode.attributes.some(x => x.name.toString() === 'type'
-					&& allowedMimeTypesInScriptTag.indexOf(x.value.toString()) > -1));
+			const typeAttribute = (currentHtmlNode.attributes || []).filter(x => x.name.toString() === 'type')[0];
+			const typeValue = typeAttribute ? typeAttribute.value.toString() : '';
+
+			if (allowedMimeTypesInScriptTag.indexOf(typeValue) > -1) {
+				return true;
+			}
+
+			const isScriptJavascriptType = !typeValue || typeValue === 'application/javascript' || typeValue === 'text/javascript';
+			if (isScriptJavascriptType) {
+				return !!getSyntaxFromArgs({ language: 'javascript' });
+			}
+			return false;
 		}
 
 		const innerRange = getInnerRange(currentHtmlNode);
@@ -491,6 +501,12 @@ export function isValidLocationForEmmetAbbreviation(document: vscode.TextDocumen
 			continue;
 		}
 		if (char === question && textToBackTrack[i] === startAngle) {
+			i--;
+			continue;
+		}
+		// Fix for https://github.com/Microsoft/vscode/issues/55411
+		// A space is not a valid character right after < in a tag name.
+		if (/\s/.test(char) && textToBackTrack[i] === startAngle) {
 			i--;
 			continue;
 		}
@@ -563,7 +579,7 @@ function expandAbbreviationInRange(editor: vscode.TextEditor, expandAbbrList: Ex
 /**
  * Expands abbreviation as detailed in given input.
  */
-function expandAbbr(input: ExpandAbbreviationInput): string | undefined {
+function expandAbbr(input: ExpandAbbreviationInput): string {
 	const helper = getEmmetHelper();
 	const expandOptions = helper.getExpandOptions(input.syntax, getEmmetConfiguration(input.syntax), input.filter);
 
@@ -583,9 +599,9 @@ function expandAbbr(input: ExpandAbbreviationInput): string | undefined {
 		}
 	}
 
+	let expandedText;
 	try {
 		// Expand the abbreviation
-		let expandedText;
 
 		if (input.textToWrap) {
 			let parsedAbbr = helper.parseAbbreviation(input.abbreviation, expandOptions);
@@ -598,7 +614,7 @@ function expandAbbr(input: ExpandAbbreviationInput): string | undefined {
 				}
 
 				// If wrapping with a block element, insert newline in the text to wrap.
-				if (wrappingNode && inlineElements.indexOf(wrappingNode.name) === -1) {
+				if (wrappingNode && inlineElements.indexOf(wrappingNode.name) === -1 && (expandOptions['profile'].hasOwnProperty('format') ? expandOptions['profile'].format : true)) {
 					wrappingNode.value = '\n\t' + wrappingNode.value + '\n';
 				}
 			}
@@ -610,16 +626,14 @@ function expandAbbr(input: ExpandAbbreviationInput): string | undefined {
 			expandedText = helper.expandAbbreviation(input.abbreviation, expandOptions);
 		}
 
-		return expandedText;
-
 	} catch (e) {
 		vscode.window.showErrorMessage('Failed to expand abbreviation');
 	}
 
-
+	return expandedText;
 }
 
-function getSyntaxFromArgs(args: Object): string | undefined {
+function getSyntaxFromArgs(args: { [x: string]: string }): string | undefined {
 	const mappedModes = getMappingForIncludedLanguages();
 	const language: string = args['language'];
 	const parentMode: string = args['parentMode'];

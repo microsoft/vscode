@@ -2,16 +2,15 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
 import * as nls from 'vs/nls';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { IJSONSchema } from 'vs/base/common/jsonSchema';
 import Severity from 'vs/base/common/severity';
-import { IMessage, IExtensionDescription } from 'vs/workbench/services/extensions/common/extensions';
+import { EXTENSION_IDENTIFIER_PATTERN } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { Extensions, IJSONContributionRegistry } from 'vs/platform/jsonschemas/common/jsonContributionRegistry';
 import { Registry } from 'vs/platform/registry/common/platform';
-import { EXTENSION_IDENTIFIER_PATTERN } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { IExtensionDescription, IMessage } from 'vs/workbench/services/extensions/common/extensions';
 
 const hasOwnProperty = Object.hasOwnProperty;
 const schemaRegistry = Registry.as<IJSONContributionRegistry>(Extensions.JSONContribution);
@@ -72,8 +71,8 @@ export interface IExtensionPoint<T> {
 export class ExtensionPoint<T> implements IExtensionPoint<T> {
 
 	public readonly name: string;
-	private _handler: IExtensionPointHandler<T>;
-	private _users: IExtensionPointUser<T>[];
+	private _handler: IExtensionPointHandler<T> | null;
+	private _users: IExtensionPointUser<T>[] | null;
 	private _done: boolean;
 
 	constructor(name: string) {
@@ -120,7 +119,7 @@ export class ExtensionPoint<T> implements IExtensionPoint<T> {
 }
 
 const schemaId = 'vscode://schemas/vscode-extensions';
-const schema: IJSONSchema = {
+export const schema = {
 	properties: {
 		engines: {
 			type: 'object',
@@ -221,6 +220,16 @@ const schema: IJSONSchema = {
 						body: 'workspaceContains:${4:filePattern}'
 					},
 					{
+						label: 'onFileSystem',
+						description: nls.localize('vscode.extension.activationEvents.onFileSystem', 'An activation event emitted whenever a file or folder is accessed with the given scheme.'),
+						body: 'onFileSystem:${1:scheme}'
+					},
+					{
+						label: 'onSearch',
+						description: nls.localize('vscode.extension.activationEvents.onSearch', 'An activation event emitted whenever a search is started in the folder with the given scheme.'),
+						body: 'onSearch:${7:scheme}'
+					},
+					{
 						label: 'onView',
 						body: 'onView:${5:viewId}',
 						description: nls.localize('vscode.extension.activationEvents.onView', 'An activation event emitted whenever the specified view is expanded.'),
@@ -281,6 +290,15 @@ const schema: IJSONSchema = {
 		},
 		extensionDependencies: {
 			description: nls.localize('vscode.extension.extensionDependencies', 'Dependencies to other extensions. The identifier of an extension is always ${publisher}.${name}. For example: vscode.csharp.'),
+			type: 'array',
+			uniqueItems: true,
+			items: {
+				type: 'string',
+				pattern: EXTENSION_IDENTIFIER_PATTERN
+			}
+		},
+		extensionPack: {
+			description: nls.localize('vscode.extension.contributes.extensionPack', "A set of extensions that can be installed together. The identifier of an extension is always ${publisher}.${name}. For example: vscode.csharp."),
 			type: 'array',
 			uniqueItems: true,
 			items: {
