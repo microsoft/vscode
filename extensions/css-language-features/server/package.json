@@ -9,10 +9,8 @@
   },
   "main": "./out/cssServerMain",
   "dependencies": {
-    "add": "^2.0.6",
     "vscode-css-languageservice": "^3.0.13-next.3",
-    "vscode-languageserver": "^5.1.0",
-    "yarn": "^1.12.1"
+    "vscode-languageserver": "^5.1.0"
   },
   "devDependencies": {
     "@types/mocha": "2.2.33",
