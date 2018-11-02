@@ -169,31 +169,24 @@ class InsertCursorAtEndOfLineSelected extends EditorAction {
 
 	constructor() {
 		super({
-			id: 'editor.action.addCursorsUntilItReachesEOF',
-			label: nls.localize('mutlicursor.addCursorsUntilItReachesEOF', "Add Cursors Until it Reaches End of File"),
-			alias: 'Add Cursors to End Of File',
-			precondition: null,
-			kbOpts: {
-				kbExpr: EditorContextKeys.editorTextFocus,
-				primary: KeyMod.Shift | KeyMod.Alt | KeyCode.KEY_N
-			}
+			id: 'editor.action.addCursorsToBottom',
+			label: nls.localize('mutlicursor.addCursorsToBottom', "Add Cursors To Bottom"),
+			alias: 'Add Cursors To Bottom',
+			precondition: null
 		});
 	}
 
 	public run(accessor: ServicesAccessor, editor: ICodeEditor): void {
-		const model = editor.getModel();
 		const selections = editor.getSelections();
+		const lineCount = editor.getModel().getLineCount();
 
-		let maxLine = model.getLineCount();
-		let selectionsToChange = [];
-
-
-		for (let i = selections[0].startLineNumber; i <= maxLine; i++) {
-			selectionsToChange.push(new Selection(i, selections[0].startColumn, i, selections[0].endColumn));
+		let newSelections = [];
+		for (let i = selections[0].startLineNumber; i <= lineCount; i++) {
+			newSelections.push(new Selection(i, selections[0].startColumn, i, selections[0].endColumn));
 		}
 
-		if (selectionsToChange.length > 0) {
-			editor.setSelections(selectionsToChange);
+		if (newSelections.length > 0) {
+			editor.setSelections(newSelections);
 		}
 	}
 }
@@ -202,28 +195,23 @@ class InsertCursorAtTopOfLineSelected extends EditorAction {
 
 	constructor() {
 		super({
-			id: 'editor.action.addCursorsUntilItReachesTop',
-			label: nls.localize('mutlicursor.addCursorsUntilItReachesTop', "Add Cursors Until it Reaches Top of File"),
-			alias: 'Add Cursors to Top Of File',
-			precondition: null,
-			kbOpts: {
-				kbExpr: EditorContextKeys.editorTextFocus,
-				primary: KeyMod.Shift | KeyMod.Alt | KeyCode.KEY_Q
-			}
+			id: 'editor.action.addCursorsToTop',
+			label: nls.localize('mutlicursor.addCursorsToTop', "Add Cursors To Top"),
+			alias: 'Add Cursors To Top',
+			precondition: null
 		});
 	}
 
 	public run(accessor: ServicesAccessor, editor: ICodeEditor): void {
 		const selections = editor.getSelections();
 
-		let selectionsToChange = [];
-
+		let newSelections = [];
 		for (let i = selections[0].startLineNumber; i >= 1; i--) {
-			selectionsToChange.push(new Selection(i, selections[0].startColumn, i, selections[0].endColumn));
+			newSelections.push(new Selection(i, selections[0].startColumn, i, selections[0].endColumn));
 		}
 
-		if (selectionsToChange.length > 0) {
-			editor.setSelections(selectionsToChange);
+		if (newSelections.length > 0) {
+			editor.setSelections(newSelections);
 		}
 	}
 }
