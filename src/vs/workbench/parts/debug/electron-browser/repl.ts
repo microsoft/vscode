@@ -165,10 +165,10 @@ export class Repl extends Panel implements IPrivateReplService, IHistoryNavigati
 	}
 
 	selectSession(session: IDebugSession): void {
-		if (this.replElementsChangeListener) {
-			this.replElementsChangeListener.dispose();
-		}
 		if (session) {
+			if (this.replElementsChangeListener) {
+				this.replElementsChangeListener.dispose();
+			}
 			this.replElementsChangeListener = session.onDidChangeReplElements(() => {
 				this.refreshReplElements(session.getReplElements().length === 0);
 			});
