@@ -300,7 +300,7 @@ export class ExtensionsListView extends ViewletPanel {
 
 	private async queryGallery(query: Query, options: IQueryOptions): Promise<IPagedModel<IExtension>> {
 		const hasUserDefinedSortOrder = options.sortBy !== undefined;
-		if (!hasUserDefinedSortOrder) {
+		if (!hasUserDefinedSortOrder && !query.value.trim()) {
 			options.sortBy = SortBy.InstallCount;
 		}
 
