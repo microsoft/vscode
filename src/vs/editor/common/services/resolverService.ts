@@ -2,14 +2,13 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
+import { IDisposable, IReference } from 'vs/base/common/lifecycle';
+import { URI } from 'vs/base/common/uri';
 import { TPromise } from 'vs/base/common/winjs.base';
-import URI from 'vs/base/common/uri';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { ITextModel } from 'vs/editor/common/model';
 import { IEditorModel } from 'vs/platform/editor/common/editor';
-import { IDisposable, IReference } from 'vs/base/common/lifecycle';
+import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 
 export const ITextModelService = createDecorator<ITextModelService>('textModelService');
 
@@ -33,7 +32,7 @@ export interface ITextModelContentProvider {
 	/**
 	 * Given a resource, return the content of the resource as `ITextModel`.
 	 */
-	provideTextContent(resource: URI): TPromise<ITextModel>;
+	provideTextContent(resource: URI): Thenable<ITextModel>;
 }
 
 export interface ITextEditorModel extends IEditorModel {
@@ -42,4 +41,6 @@ export interface ITextEditorModel extends IEditorModel {
 	 * Provides access to the underlying `ITextModel`.
 	 */
 	textEditorModel: ITextModel;
+
+	isReadonly(): boolean;
 }

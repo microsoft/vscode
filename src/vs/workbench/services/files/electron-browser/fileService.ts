@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import * as paths from 'path';
 import * as fs from 'fs';
 import * as os from 'os';
@@ -18,8 +16,8 @@ import * as arrays from 'vs/base/common/arrays';
 import { TPromise } from 'vs/base/common/winjs.base';
 import * as objects from 'vs/base/common/objects';
 import * as extfs from 'vs/base/node/extfs';
-import { nfcall, ThrottledDelayer, toWinJsPromise } from 'vs/base/common/async';
-import uri from 'vs/base/common/uri';
+import { nfcall, ThrottledDelayer, timeout } from 'vs/base/common/async';
+import { URI as uri } from 'vs/base/common/uri';
 import * as nls from 'vs/nls';
 import { isWindows, isLinux, isMacintosh } from 'vs/base/common/platform';
 import { IDisposable, toDisposable, Disposable } from 'vs/base/common/lifecycle';
@@ -45,31 +43,6 @@ import { onUnexpectedError } from 'vs/base/common/errors';
 import product from 'vs/platform/node/product';
 import { IEncodingOverride, ResourceEncodings } from 'vs/workbench/services/files/electron-browser/encoding';
 import { createReadableOfSnapshot } from 'vs/workbench/services/files/electron-browser/streams';
-
-class BufferPool {
-
-	static _64K = new BufferPool(64 * 1024, 5);
-
-	constructor(
-		readonly bufferSize: number,
-		private readonly _capacity: number,
-		private readonly _free: Buffer[] = [],
-	) { }
-
-	acquire(): Buffer {
-		if (this._free.length === 0) {
-			return Buffer.allocUnsafe(this.bufferSize);
-		} else {
-			return this._free.shift();
-		}
-	}
-
-	release(buf: Buffer): void {
-		if (this._free.length <= this._capacity) {
-			this._free.push(buf);
-		}
-	}
-}
 
 export interface IFileServiceTestOptions {
 	disableWatcher?: boolean;
@@ -99,7 +72,7 @@ export class FileService extends Disposable implements IFileService {
 	get onDidChangeFileSystemProviderRegistrations(): Event<IFileSystemProviderRegistrationEvent> { return this._onDidChangeFileSystemProviderRegistrations.event; }
 
 	private activeWorkspaceFileChangeWatcher: IDisposable;
-	private activeFileChangesWatchers: ResourceMap<fs.FSWatcher>;
+	private activeFileChangesWatchers: ResourceMap<{ unwatch: Function, count: number }>;
 	private fileChangesWatchDelayer: ThrottledDelayer<void>;
 	private undeliveredRawFileChangesEvents: IRawFileChange[];
 
@@ -117,7 +90,7 @@ export class FileService extends Disposable implements IFileService {
 	) {
 		super();
 
-		this.activeFileChangesWatchers = new ResourceMap<fs.FSWatcher>();
+		this.activeFileChangesWatchers = new ResourceMap<{ unwatch: Function, count: number }>();
 		this.fileChangesWatchDelayer = new ThrottledDelayer<void>(FileService.FS_EVENT_DELAY);
 		this.undeliveredRawFileChangesEvents = [];
 
@@ -170,7 +143,8 @@ export class FileService extends Disposable implements IFileService {
 					label: nls.localize('neverShowAgain', "Don't Show Again"),
 					isSecondary: true,
 					run: () => this.storageService.store(FileService.NET_VERSION_ERROR_IGNORE_KEY, true, StorageScope.WORKSPACE)
-				}]
+				}],
+				{ sticky: true }
 			);
 		}
 
@@ -187,7 +161,8 @@ export class FileService extends Disposable implements IFileService {
 					label: nls.localize('neverShowAgain', "Don't Show Again"),
 					isSecondary: true,
 					run: () => this.storageService.store(FileService.ENOSPC_ERROR_IGNORE_KEY, true, StorageScope.WORKSPACE)
-				}]
+				}],
+				{ sticky: true }
 			);
 		}
 	}
@@ -231,6 +206,10 @@ export class FileService extends Disposable implements IFileService {
 
 	registerProvider(scheme: string, provider: IFileSystemProvider): IDisposable {
 		throw new Error('not implemented');
+	}
+
+	activateProvider(scheme: string): Thenable<void> {
+		return Promise.reject(new Error('not implemented'));
 	}
 
 	canHandleResource(resource: uri): boolean {
@@ -416,7 +395,7 @@ export class FileService extends Disposable implements IFileService {
 
 	private resolveFileData(resource: uri, options: IResolveContentOptions, token: CancellationToken): TPromise<IContentData> {
 
-		const chunkBuffer = BufferPool._64K.acquire();
+		const chunkBuffer = Buffer.allocUnsafe(64 * 1024);
 
 		const result: IContentData = {
 			encoding: void 0,
@@ -463,9 +442,6 @@ export class FileService extends Disposable implements IFileService {
 					if (decoder) {
 						decoder.end();
 					}
-
-					// return the shared buffer
-					BufferPool._64K.release(chunkBuffer);
 
 					if (fd) {
 						fs.close(fd, err => {
@@ -529,10 +505,9 @@ export class FileService extends Disposable implements IFileService {
 						} else {
 							// when receiving the first chunk of data we need to create the
 							// decoding stream which is then used to drive the string stream.
-							const autoGuessEncoding = (options && options.autoGuessEncoding) || this.textResourceConfigurationService.getValue(resource, 'files.autoGuessEncoding');
 							TPromise.as(encoding.detectEncodingFromBuffer(
 								{ buffer: chunkBuffer, bytesRead },
-								autoGuessEncoding
+								(options && options.autoGuessEncoding) || this.textResourceConfigurationService.getValue(resource, 'files.autoGuessEncoding')
 							)).then(detected => {
 
 								if (options && options.acceptTextOnly && detected.seemsBinary) {
@@ -607,22 +582,41 @@ export class FileService extends Disposable implements IFileService {
 				return addBomPromise.then(addBom => {
 
 					// 4.) set contents and resolve
-					return this.doSetContentsAndResolve(resource, absolutePath, value, addBom, encodingToWrite).then(void 0, error => {
-						if (!exists || error.code !== 'EPERM' || !isWindows) {
-							return TPromise.wrapError(error);
-						}
+					if (!exists || !isWindows) {
+						return this.doSetContentsAndResolve(resource, absolutePath, value, addBom, encodingToWrite);
+					}
 
-						// On Windows and if the file exists with an EPERM error, we try a different strategy of saving the file
-						// by first truncating the file and then writing with r+ mode. This helps to save hidden files on Windows
-						// (see https://github.com/Microsoft/vscode/issues/931)
+					// On Windows and if the file exists, we use a different strategy of saving the file
+					// by first truncating the file and then writing with r+ mode. This helps to save hidden files on Windows
+					// (see https://github.com/Microsoft/vscode/issues/931) and prevent removing alternate data streams
+					// (see https://github.com/Microsoft/vscode/issues/6363)
+					else {
 
-						// 5.) truncate
+						// 4.) truncate
 						return pfs.truncate(absolutePath, 0).then(() => {
 
-							// 6.) set contents (this time with r+ mode) and resolve again
-							return this.doSetContentsAndResolve(resource, absolutePath, value, addBom, encodingToWrite, { flag: 'r+' });
+							// 5.) set contents (with r+ mode) and resolve
+							return this.doSetContentsAndResolve(resource, absolutePath, value, addBom, encodingToWrite, { flag: 'r+' }).then(null, error => {
+								if (this.environmentService.verbose) {
+									console.error(`Truncate succeeded, but save failed (${error}), retrying after 100ms`);
+								}
+
+								// We heard from one user that fs.truncate() succeeds, but the save fails (https://github.com/Microsoft/vscode/issues/61310)
+								// In that case, the file is now entirely empty and the contents are gone. This can happen if an external file watcher is
+								// installed that reacts on the truncate and keeps the file busy right after. Our workaround is to retry to save after a
+								// short timeout, assuming that the file is free to write then.
+								return timeout(100).then(() => this.doSetContentsAndResolve(resource, absolutePath, value, addBom, encodingToWrite, { flag: 'r+' }));
+							});
+						}, error => {
+							if (this.environmentService.verbose) {
+								console.error(`Truncate failed (${error}), falling back to normal save`);
+							}
+
+							// we heard from users that fs.truncate() fails (https://github.com/Microsoft/vscode/issues/59561)
+							// in that case we simply save the file without truncating first (same as macOS and Linux)
+							return this.doSetContentsAndResolve(resource, absolutePath, value, addBom, encodingToWrite);
 						});
-					});
+					}
 				});
 			});
 		}).then(null, error => {
@@ -678,7 +672,7 @@ export class FileService extends Disposable implements IFileService {
 			return this.updateContent(uri.file(tmpPath), value, writeOptions).then(() => {
 
 				// 3.) invoke our CLI as super user
-				return toWinJsPromise(import('sudo-prompt')).then(sudoPrompt => {
+				return TPromise.wrap(import('sudo-prompt')).then(sudoPrompt => {
 					return new TPromise<void>((c, e) => {
 						const promptOptions = {
 							name: this.environmentService.appNameLong.replace('-', ''),
@@ -918,7 +912,7 @@ export class FileService extends Disposable implements IFileService {
 	private doMoveItemToTrash(resource: uri): TPromise<void> {
 		const absolutePath = resource.fsPath;
 
-		const shell = (require('electron') as Electron.RendererInterface).shell; // workaround for being able to run tests out of VSCode debugger
+		const shell = (require('electron') as any as Electron.RendererInterface).shell; // workaround for being able to run tests out of VSCode debugger
 		const result = shell.moveItemToTrash(absolutePath);
 		if (!result) {
 			return TPromise.wrapError(new Error(isWindows ? nls.localize('binFailed', "Failed to move '{0}' to the recycle bin", paths.basename(absolutePath)) : nls.localize('trashFailed', "Failed to move '{0}' to the trash", paths.basename(absolutePath))));
@@ -990,59 +984,67 @@ export class FileService extends Disposable implements IFileService {
 	watchFileChanges(resource: uri): void {
 		assert.ok(resource && resource.scheme === Schemas.file, `Invalid resource for watching: ${resource}`);
 
-		// Create or get watcher for provided path
-		let watcher = this.activeFileChangesWatchers.get(resource);
-		if (!watcher) {
-			const fsPath = resource.fsPath;
-			const fsName = paths.basename(resource.fsPath);
+		// Check for existing watcher first
+		const entry = this.activeFileChangesWatchers.get(resource);
+		if (entry) {
+			entry.count += 1;
 
-			watcher = extfs.watch(fsPath, (eventType: string, filename: string) => {
-				const renamedOrDeleted = ((filename && filename !== fsName) || eventType === 'rename');
-
-				// The file was either deleted or renamed. Many tools apply changes to files in an
-				// atomic way ("Atomic Save") by first renaming the file to a temporary name and then
-				// renaming it back to the original name. Our watcher will detect this as a rename
-				// and then stops to work on Mac and Linux because the watcher is applied to the
-				// inode and not the name. The fix is to detect this case and trying to watch the file
-				// again after a certain delay.
-				// In addition, we send out a delete event if after a timeout we detect that the file
-				// does indeed not exist anymore.
-				if (renamedOrDeleted) {
-
-					// Very important to dispose the watcher which now points to a stale inode
-					this.unwatchFileChanges(resource);
-
-					// Wait a bit and try to install watcher again, assuming that the file was renamed quickly ("Atomic Save")
-					setTimeout(() => {
-						this.existsFile(resource).done(exists => {
-
-							// File still exists, so reapply the watcher
-							if (exists) {
-								this.watchFileChanges(resource);
-							}
-
-							// File seems to be really gone, so emit a deleted event
-							else {
-								this.onRawFileChange({
-									type: FileChangeType.DELETED,
-									path: fsPath
-								});
-							}
-						});
-					}, FileService.FS_REWATCH_DELAY);
-				}
-
-				// Handle raw file change
-				this.onRawFileChange({
-					type: FileChangeType.UPDATED,
-					path: fsPath
-				});
-			}, (error: string) => this.handleError(error));
-
-			if (watcher) {
-				this.activeFileChangesWatchers.set(resource, watcher);
-			}
+			return;
 		}
+
+		// Create or get watcher for provided path
+		const fsPath = resource.fsPath;
+		const fsName = paths.basename(resource.fsPath);
+
+		const watcherDisposable = extfs.watch(fsPath, (eventType: string, filename: string) => {
+			const renamedOrDeleted = ((filename && filename !== fsName) || eventType === 'rename');
+
+			// The file was either deleted or renamed. Many tools apply changes to files in an
+			// atomic way ("Atomic Save") by first renaming the file to a temporary name and then
+			// renaming it back to the original name. Our watcher will detect this as a rename
+			// and then stops to work on Mac and Linux because the watcher is applied to the
+			// inode and not the name. The fix is to detect this case and trying to watch the file
+			// again after a certain delay.
+			// In addition, we send out a delete event if after a timeout we detect that the file
+			// does indeed not exist anymore.
+			if (renamedOrDeleted) {
+
+				// Very important to dispose the watcher which now points to a stale inode
+				watcherDisposable.dispose();
+				this.activeFileChangesWatchers.delete(resource);
+
+				// Wait a bit and try to install watcher again, assuming that the file was renamed quickly ("Atomic Save")
+				setTimeout(() => {
+					this.existsFile(resource).then(exists => {
+
+						// File still exists, so reapply the watcher
+						if (exists) {
+							this.watchFileChanges(resource);
+						}
+
+						// File seems to be really gone, so emit a deleted event
+						else {
+							this.onRawFileChange({
+								type: FileChangeType.DELETED,
+								path: fsPath
+							});
+						}
+					});
+				}, FileService.FS_REWATCH_DELAY);
+			}
+
+			// Handle raw file change
+			this.onRawFileChange({
+				type: FileChangeType.UPDATED,
+				path: fsPath
+			});
+		}, (error: string) => this.handleError(error));
+
+		// Remember in map
+		this.activeFileChangesWatchers.set(resource, {
+			count: 1,
+			unwatch: () => watcherDisposable.dispose()
+		});
 	}
 
 	private onRawFileChange(event: IRawFileChange): void {
@@ -1051,7 +1053,7 @@ export class FileService extends Disposable implements IFileService {
 		this.undeliveredRawFileChangesEvents.push(event);
 
 		if (this.environmentService.verbose) {
-			console.log('%c[node.js Watcher]%c', 'color: green', 'color: black', event.type === FileChangeType.ADDED ? '[ADDED]' : event.type === FileChangeType.DELETED ? '[DELETED]' : '[CHANGED]', event.path);
+			console.log('%c[File Watcher (node.js)]%c', 'color: blue', 'color: black', `${event.type === FileChangeType.ADDED ? '[ADDED]' : event.type === FileChangeType.DELETED ? '[DELETED]' : '[CHANGED]'} ${event.path}`);
 		}
 
 		// handle emit through delayer to accommodate for bulk changes
@@ -1065,7 +1067,7 @@ export class FileService extends Disposable implements IFileService {
 			// Logging
 			if (this.environmentService.verbose) {
 				normalizedEvents.forEach(r => {
-					console.log('%c[node.js Watcher]%c >> normalized', 'color: green', 'color: black', r.type === FileChangeType.ADDED ? '[ADDED]' : r.type === FileChangeType.DELETED ? '[DELETED]' : '[CHANGED]', r.path);
+					console.log('%c[File Watcher (node.js)]%c >> normalized', 'color: blue', 'color: black', `${r.type === FileChangeType.ADDED ? '[ADDED]' : r.type === FileChangeType.DELETED ? '[DELETED]' : '[CHANGED]'} ${r.path}`);
 				});
 			}
 
@@ -1078,8 +1080,8 @@ export class FileService extends Disposable implements IFileService {
 
 	unwatchFileChanges(resource: uri): void {
 		const watcher = this.activeFileChangesWatchers.get(resource);
-		if (watcher) {
-			watcher.close();
+		if (watcher && --watcher.count === 0) {
+			watcher.unwatch();
 			this.activeFileChangesWatchers.delete(resource);
 		}
 	}
@@ -1092,7 +1094,7 @@ export class FileService extends Disposable implements IFileService {
 			this.activeWorkspaceFileChangeWatcher = null;
 		}
 
-		this.activeFileChangesWatchers.forEach(watcher => watcher.close());
+		this.activeFileChangesWatchers.forEach(watcher => watcher.unwatch());
 		this.activeFileChangesWatchers.clear();
 	}
 }
@@ -1154,7 +1156,7 @@ export class StatResolver {
 		else {
 
 			// Convert the paths from options.resolveTo to absolute paths
-			let absoluteTargetPaths: string[] = null;
+			let absoluteTargetPaths: string[] | null = null;
 			if (options && options.resolveTo) {
 				absoluteTargetPaths = [];
 				options.resolveTo.forEach(resource => {

@@ -2,14 +2,11 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
-
-import URI from 'vs/base/common/uri';
 import * as assert from 'assert';
-import { TPromise } from 'vs/base/common/winjs.base';
-import { TestCodeEditorService } from 'vs/editor/test/browser/editorTestServices';
-import { ICommandService, NullCommandService, CommandsRegistry } from 'vs/platform/commands/common/commands';
+import { URI } from 'vs/base/common/uri';
 import { OpenerService } from 'vs/editor/browser/services/openerService';
+import { TestCodeEditorService } from 'vs/editor/test/browser/editorTestServices';
+import { CommandsRegistry, ICommandService, NullCommandService } from 'vs/platform/commands/common/commands';
 
 suite('OpenerService', function () {
 
@@ -20,9 +17,9 @@ suite('OpenerService', function () {
 	const commandService = new class implements ICommandService {
 		_serviceBrand: any;
 		onWillExecuteCommand = () => ({ dispose: () => { } });
-		executeCommand(id: string, ...args: any[]): TPromise<any> {
+		executeCommand(id: string, ...args: any[]): Promise<any> {
 			lastCommand = { id, args };
-			return TPromise.as(undefined);
+			return Promise.resolve(undefined);
 		}
 	};
 

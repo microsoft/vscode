@@ -4,17 +4,18 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as path from 'path';
-
+import * as fs from 'fs';
+import { URL } from 'url';
 import * as nls from 'vscode-nls';
 const localize = nls.loadMessageBundle();
 
 import { parseTree, findNodeAtLocation, Node as JsonNode } from 'jsonc-parser';
 import * as MarkdownItType from 'markdown-it';
 
-import { languages, workspace, Disposable, TextDocument, Uri, Diagnostic, Range, DiagnosticSeverity, Position } from 'vscode';
+import { languages, workspace, Disposable, TextDocument, Uri, Diagnostic, Range, DiagnosticSeverity, Position, env } from 'vscode';
 
-const product = require('../../../product.json');
-const allowedBadgeProviders: string[] = (product.extensionAllowedBadgeProviders || []).map(s => s.toLowerCase());
+const product = JSON.parse(fs.readFileSync(path.join(env.appRoot, 'product.json'), { encoding: 'utf-8' }));
+const allowedBadgeProviders: string[] = (product.extensionAllowedBadgeProviders || []).map((s: string) => s.toLowerCase());
 
 const httpsRequired = localize('httpsRequired', "Images must use the HTTPS protocol.");
 const svgsNotValid = localize('svgsNotValid', "SVGs are not a valid image source.");
@@ -39,6 +40,7 @@ interface TokenAndPosition {
 interface PackageJsonInfo {
 	isExtension: boolean;
 	hasHttpsRepository: boolean;
+	repository: Uri;
 }
 
 export class ExtensionLinter {
@@ -50,8 +52,8 @@ export class ExtensionLinter {
 	private folderToPackageJsonInfo: Record<string, PackageJsonInfo> = {};
 	private packageJsonQ = new Set<TextDocument>();
 	private readmeQ = new Set<TextDocument>();
-	private timer: NodeJS.Timer;
-	private markdownIt: MarkdownItType.MarkdownIt;
+	private timer: NodeJS.Timer | undefined;
+	private markdownIt: MarkdownItType.MarkdownIt | undefined;
 
 	constructor() {
 		this.disposables.push(
@@ -116,10 +118,10 @@ export class ExtensionLinter {
 				}
 
 				const badges = findNodeAtLocation(tree, ['badges']);
-				if (badges && badges.type === 'array') {
+				if (badges && badges.type === 'array' && badges.children) {
 					badges.children.map(child => findNodeAtLocation(child, ['url']))
 						.filter(url => url && url.type === 'string')
-						.map(url => this.addDiagnostics(diagnostics, document, url.offset + 1, url.offset + url.length - 1, url.value, Context.BADGE, info));
+						.map(url => this.addDiagnostics(diagnostics, document, url!.offset + 1, url!.offset + url!.length - 1, url!.value, Context.BADGE, info));
 				}
 
 			}
@@ -150,7 +152,7 @@ export class ExtensionLinter {
 				this.markdownIt = new (await import('markdown-it'));
 			}
 			const tokens = this.markdownIt.parse(text, {});
-			const tokensAndPositions = (function toTokensAndPositions(this: ExtensionLinter, tokens: MarkdownItType.Token[], begin = 0, end = text.length): TokenAndPosition[] {
+			const tokensAndPositions: TokenAndPosition[] = (function toTokensAndPositions(this: ExtensionLinter, tokens: MarkdownItType.Token[], begin = 0, end = text.length): TokenAndPosition[] {
 				const tokensAndPositions = tokens.map<TokenAndPosition>(token => {
 					if (token.map) {
 						const tokenBegin = document.offsetAt(new Position(token.map[0], 0));
@@ -179,7 +181,7 @@ export class ExtensionLinter {
 
 			tokensAndPositions.filter(tnp => tnp.token.type === 'image' && tnp.token.attrGet('src'))
 				.map(inp => {
-					const src = inp.token.attrGet('src');
+					const src = inp.token.attrGet('src')!;
 					const begin = text.indexOf(src, inp.begin);
 					if (begin !== -1 && begin < inp.end) {
 						this.addDiagnostics(diagnostics, document, begin, begin + src.length, src, Context.MARKDOWN, info);
@@ -197,16 +199,16 @@ export class ExtensionLinter {
 				if (tnp.token.type === 'text' && tnp.token.content) {
 					const parse5 = await import('parse5');
 					const parser = new parse5.SAXParser({ locationInfo: true });
-					parser.on('startTag', (name, attrs, selfClosing, location) => {
+					parser.on('startTag', (name, attrs, _selfClosing, location) => {
 						if (name === 'img') {
 							const src = attrs.find(a => a.name === 'src');
-							if (src && src.value) {
+							if (src && src.value && location) {
 								const begin = text.indexOf(src.value, tnp.begin + location.startOffset);
 								if (begin !== -1 && begin < tnp.end) {
 									this.addDiagnostics(diagnostics, document, begin, begin + src.value.length, src.value, Context.MARKDOWN, info);
 								}
 							}
-						} else if (name === 'svg') {
+						} else if (name === 'svg' && location) {
 							const begin = tnp.begin + location.startOffset;
 							const end = tnp.begin + location.endOffset;
 							const range = new Range(document.positionAt(begin), document.positionAt(end));
@@ -215,7 +217,7 @@ export class ExtensionLinter {
 						}
 					});
 					parser.on('endTag', (name, location) => {
-						if (name === 'svg' && svgStart) {
+						if (name === 'svg' && svgStart && location) {
 							const end = tnp.begin + location.endOffset;
 							svgStart.range = new Range(svgStart.range.start, document.positionAt(end));
 						}
@@ -229,7 +231,7 @@ export class ExtensionLinter {
 		}
 	}
 
-	private locateToken(text: string, begin: number, end: number, token: MarkdownItType.Token, content: string) {
+	private locateToken(text: string, begin: number, end: number, token: MarkdownItType.Token, content: string | null) {
 		if (content) {
 			const tokenBegin = text.indexOf(content, begin);
 			if (tokenBegin !== -1) {
@@ -244,14 +246,17 @@ export class ExtensionLinter {
 				}
 			}
 		}
+		return undefined;
 	}
 
-	private readPackageJsonInfo(folder: Uri, tree: JsonNode) {
+	private readPackageJsonInfo(folder: Uri, tree: JsonNode | undefined) {
 		const engine = tree && findNodeAtLocation(tree, ['engines', 'vscode']);
 		const repo = tree && findNodeAtLocation(tree, ['repository', 'url']);
+		const uri = repo && parseUri(repo.value);
 		const info: PackageJsonInfo = {
 			isExtension: !!(engine && engine.type === 'string'),
-			hasHttpsRepository: !!(repo && repo.type === 'string' && repo.value && parseUri(repo.value).scheme.toLowerCase() === 'https')
+			hasHttpsRepository: !!(repo && repo.type === 'string' && repo.value && uri && uri.scheme.toLowerCase() === 'https'),
+			repository: uri!
 		};
 		const str = folder.toString();
 		const oldInfo = this.folderToPackageJsonInfo[str];
@@ -287,20 +292,24 @@ export class ExtensionLinter {
 	}
 
 	private addDiagnostics(diagnostics: Diagnostic[], document: TextDocument, begin: number, end: number, src: string, context: Context, info: PackageJsonInfo) {
-		const uri = parseUri(src);
+		const hasScheme = /^\w[\w\d+.-]*:/.test(src);
+		const uri = parseUri(src, info.repository ? info.repository.toString() : document.uri.toString());
+		if (!uri) {
+			return;
+		}
 		const scheme = uri.scheme.toLowerCase();
 
-		if (scheme && scheme !== 'https' && scheme !== 'data') {
+		if (hasScheme && scheme !== 'https' && scheme !== 'data') {
 			const range = new Range(document.positionAt(begin), document.positionAt(end));
 			diagnostics.push(new Diagnostic(range, httpsRequired, DiagnosticSeverity.Warning));
 		}
 
-		if (scheme === 'data') {
+		if (hasScheme && scheme === 'data') {
 			const range = new Range(document.positionAt(begin), document.positionAt(end));
 			diagnostics.push(new Diagnostic(range, dataUrlsNotValid, DiagnosticSeverity.Warning));
 		}
 
-		if (!scheme && !info.hasHttpsRepository) {
+		if (!hasScheme && !info.hasHttpsRepository) {
 			const range = new Range(document.positionAt(begin), document.positionAt(end));
 			let message = (() => {
 				switch (context) {
@@ -340,14 +349,15 @@ function endsWith(haystack: string, needle: string): boolean {
 	}
 }
 
-function parseUri(src: string) {
+function parseUri(src: string, base?: string, retry: boolean = true): Uri | null {
 	try {
-		return Uri.parse(src);
+		let url = new URL(src, base);
+		return Uri.parse(url.toString());
 	} catch (err) {
-		try {
-			return Uri.parse(encodeURI(src));
-		} catch (err) {
-			return Uri.parse('');
+		if (retry) {
+			return parseUri(encodeURI(src), base, false);
+		} else {
+			return null;
 		}
 	}
 }

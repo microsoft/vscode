@@ -2,38 +2,41 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
-import { ITree, ITreeConfiguration, ITreeOptions, IRenderer as ITreeRenderer } from 'vs/base/parts/tree/browser/tree';
-import { List, IListOptions, isSelectionRangeChangeEvent, isSelectionSingleChangeEvent, IMultipleSelectionController, IOpenController, DefaultStyleController } from 'vs/base/browser/ui/list/listWidget';
-import { createDecorator, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IDisposable, toDisposable, combinedDisposable, dispose, Disposable } from 'vs/base/common/lifecycle';
-import { IContextKeyService, IContextKey, RawContextKey, ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
-import { PagedList, IPagedRenderer } from 'vs/base/browser/ui/list/listPaging';
-import { IVirtualDelegate, IRenderer, IListMouseEvent, IListTouchEvent } from 'vs/base/browser/ui/list/list';
+import { addClass, addStandardDisposableListener, createStyleSheet, getTotalHeight, removeClass } from 'vs/base/browser/dom';
+import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
+import { IInputOptions, InputBox } from 'vs/base/browser/ui/inputbox/inputBox';
+import { IListMouseEvent, IListTouchEvent, IListRenderer, IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
+import { IPagedRenderer, PagedList } from 'vs/base/browser/ui/list/listPaging';
+import { DefaultStyleController, IListOptions, IMultipleSelectionController, IOpenController, isSelectionRangeChangeEvent, isSelectionSingleChangeEvent, List } from 'vs/base/browser/ui/list/listWidget';
+import { canceled, onUnexpectedError } from 'vs/base/common/errors';
+import { Emitter, Event } from 'vs/base/common/event';
+import { FuzzyScore } from 'vs/base/common/filters';
+import { KeyCode } from 'vs/base/common/keyCodes';
+import { combinedDisposable, Disposable, dispose, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import { ScrollbarVisibility } from 'vs/base/common/scrollable';
+import { isUndefinedOrNull } from 'vs/base/common/types';
+import { TPromise } from 'vs/base/common/winjs.base';
+import { IFilter, ITree, ITreeConfiguration, ITreeOptions } from 'vs/base/parts/tree/browser/tree';
+import { ClickBehavior, DefaultController, DefaultTreestyler, IControllerOptions, OpenMode } from 'vs/base/parts/tree/browser/treeDefaults';
 import { Tree } from 'vs/base/parts/tree/browser/treeImpl';
-import { attachListStyler, defaultListStyles, computeStyles, attachInputBoxStyler } from 'vs/platform/theme/common/styler';
+import { localize } from 'vs/nls';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { Extensions as ConfigurationExtensions, IConfigurationRegistry } from 'vs/platform/configuration/common/configurationRegistry';
+import { ContextKeyExpr, IContextKey, IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
+import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
+import { IEditorOptions } from 'vs/platform/editor/common/editor';
+import { createDecorator, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
+import { Registry } from 'vs/platform/registry/common/platform';
+import { attachInputBoxStyler, attachListStyler, computeStyles, defaultListStyles } from 'vs/platform/theme/common/styler';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { InputFocusedContextKey } from 'vs/platform/workbench/common/contextkeys';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { localize } from 'vs/nls';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { Extensions as ConfigurationExtensions, IConfigurationRegistry } from 'vs/platform/configuration/common/configurationRegistry';
-import { DefaultController, IControllerOptions, OpenMode, ClickBehavior, DefaultTreestyler } from 'vs/base/parts/tree/browser/treeDefaults';
-import { isUndefinedOrNull } from 'vs/base/common/types';
-import { IEditorOptions } from 'vs/platform/editor/common/editor';
-import { Event, Emitter } from 'vs/base/common/event';
-import { createStyleSheet, addStandardDisposableListener, getTotalHeight, removeClass, addClass } from 'vs/base/browser/dom';
-import { ScrollbarVisibility } from 'vs/base/common/scrollable';
-import { InputBox, IInputOptions } from 'vs/base/browser/ui/inputbox/inputBox';
-import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
-import { TPromise } from 'vs/base/common/winjs.base';
-import { onUnexpectedError, canceled } from 'vs/base/common/errors';
-import { KeyCode } from 'vs/base/common/keyCodes';
-import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
+import { ObjectTree } from 'vs/base/browser/ui/tree/objectTree';
+import { ITreeOptions as ITreeOptions2, ITreeEvent } from 'vs/base/browser/ui/tree/abstractTree';
+import { ITreeRenderer } from 'vs/base/browser/ui/tree/tree';
 
-export type ListWidget = List<any> | PagedList<any> | ITree;
+export type ListWidget = List<any> | PagedList<any> | ITree | ObjectTree<any, any>;
 
 export const IListService = createDecorator<IListService>('listService');
 
@@ -75,7 +78,7 @@ export class ListService implements IListService {
 		this.lists.push(registeredList);
 
 		// Check for currently being focused
-		if (widget.isDOMFocused()) {
+		if (widget.getHTMLElement() === document.activeElement) {
 			this._lastFocusedWidget = widget;
 		}
 
@@ -210,8 +213,8 @@ export class WorkbenchList<T> extends List<T> {
 
 	constructor(
 		container: HTMLElement,
-		delegate: IVirtualDelegate<T>,
-		renderers: IRenderer<T, any>[],
+		delegate: IListVirtualDelegate<T>,
+		renderers: IListRenderer<T, any>[],
 		options: IListOptions<T>,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IListService listService: IListService,
@@ -285,7 +288,7 @@ export class WorkbenchPagedList<T> extends PagedList<T> {
 
 	constructor(
 		container: HTMLElement,
-		delegate: IVirtualDelegate<number>,
+		delegate: IListVirtualDelegate<number>,
 		renderers: IPagedRenderer<T, any>[],
 		options: IListOptions<T>,
 		@IContextKeyService contextKeyService: IContextKeyService,
@@ -562,16 +565,84 @@ export class TreeResourceNavigator extends Disposable {
 	}
 }
 
+export interface IOpenEvent<T> {
+	editorOptions: IEditorOptions;
+	sideBySide: boolean;
+	element: T;
+}
 
-export interface IHighlightingRenderer extends ITreeRenderer {
-	/**
-	 * Update hightlights and return the best matching element
-	 */
-	updateHighlights(tree: ITree, pattern: string): any;
+export interface IResourceResultsNavigationOptions {
+	openOnFocus: boolean;
+}
+
+export class ObjectTreeResourceNavigator<T, TFilterData> extends Disposable {
+
+	private readonly _openResource: Emitter<IOpenEvent<T>> = new Emitter<IOpenEvent<T>>();
+	readonly openResource: Event<IOpenEvent<T>> = this._openResource.event;
+
+	constructor(private tree: WorkbenchObjectTree<T, TFilterData>, private options?: IResourceResultsNavigationOptions) {
+		super();
+
+		this.registerListeners();
+	}
+
+	private registerListeners(): void {
+		if (this.options && this.options.openOnFocus) {
+			this._register(this.tree.onDidChangeFocus(e => this.onFocus(e)));
+		}
+
+		this._register(this.tree.onDidChangeSelection(e => this.onSelection(e)));
+	}
+
+	private onFocus(e: ITreeEvent<T, TFilterData>): void {
+		const focus = this.tree.getFocus();
+		this.tree.setSelection(focus, e.browserEvent);
+
+		if (!e.browserEvent) {
+			return;
+		}
+
+		const isMouseEvent = e.browserEvent && e.browserEvent instanceof MouseEvent;
+
+		if (!isMouseEvent) {
+			this.open(true, false, false);
+		}
+	}
+
+	private onSelection(e: ITreeEvent<T, TFilterData>): void {
+		if (!e.browserEvent || !(e.browserEvent instanceof MouseEvent)) {
+			return;
+		}
+
+		const isDoubleClick = e.browserEvent.detail === 2;
+		const sideBySide = e.browserEvent.ctrlKey || e.browserEvent.metaKey || e.browserEvent.altKey;
+		this.open(!isDoubleClick, isDoubleClick, sideBySide);
+	}
+
+	private open(preserveFocus: boolean, pinned: boolean, sideBySide: boolean): void {
+		this._openResource.fire({
+			editorOptions: {
+				preserveFocus,
+				pinned,
+				revealIfVisible: true
+			},
+			sideBySide,
+			element: this.tree.getSelection()[0]
+		});
+	}
+}
+
+export interface IHighlighter {
+	getHighlights(tree: ITree, element: any, pattern: string): FuzzyScore;
+	getHighlightsStorageKey?(element: any): any;
 }
 
 export interface IHighlightingTreeConfiguration extends ITreeConfiguration {
-	renderer: IHighlightingRenderer & ITreeRenderer;
+	highlighter: IHighlighter;
+}
+
+export interface IHighlightingTreeOptions extends ITreeOptions {
+	filterOnType?: boolean;
 }
 
 export class HighlightingTreeController extends WorkbenchTreeController {
@@ -601,18 +672,57 @@ export class HighlightingTreeController extends WorkbenchTreeController {
 	}
 }
 
+class HightlightsFilter implements IFilter {
+
+	static add(config: ITreeConfiguration, options: IHighlightingTreeOptions): ITreeConfiguration {
+		let myFilter = new HightlightsFilter();
+		myFilter.enabled = options.filterOnType;
+		if (!config.filter) {
+			config.filter = myFilter;
+		} else {
+			let otherFilter = config.filter;
+			config.filter = {
+				isVisible(tree: ITree, element: any): boolean {
+					return myFilter.isVisible(tree, element) && otherFilter.isVisible(tree, element);
+				}
+			};
+		}
+		return config;
+	}
+
+	enabled: boolean = true;
+
+	isVisible(tree: ITree, element: any): boolean {
+		if (!this.enabled) {
+			return true;
+		}
+		let tree2 = (tree as HighlightingWorkbenchTree);
+		if (!tree2.isHighlighterScoring()) {
+			return true;
+		}
+		if (tree2.getHighlighterScore(element)) {
+			return true;
+		}
+		return false;
+	}
+}
+
 export class HighlightingWorkbenchTree extends WorkbenchTree {
 
 	protected readonly domNode: HTMLElement;
 	protected readonly inputContainer: HTMLElement;
 	protected readonly input: InputBox;
 
-	protected readonly renderer: IHighlightingRenderer;
+	protected readonly highlighter: IHighlighter;
+	protected readonly highlights: Map<any, FuzzyScore>;
+
+	private readonly _onDidStartFilter: Emitter<this>;
+	readonly onDidStartFiltering: Event<this>;
 
 	constructor(
 		parent: HTMLElement,
 		treeConfiguration: IHighlightingTreeConfiguration,
-		treeOptions: ITreeOptions,
+		treeOptions: IHighlightingTreeOptions,
 		listOptions: IInputOptions,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IContextViewService contextViewService: IContextViewService,
@@ -634,8 +744,9 @@ export class HighlightingWorkbenchTree extends WorkbenchTree {
 
 		// create tree
 		treeConfiguration.controller = treeConfiguration.controller || instantiationService.createInstance(HighlightingTreeController, {}, () => this.onTypeInTree());
-		super(treeContainer, treeConfiguration, treeOptions, contextKeyService, listService, themeService, instantiationService, configurationService);
-		this.renderer = treeConfiguration.renderer;
+		super(treeContainer, HightlightsFilter.add(treeConfiguration, treeOptions), treeOptions, contextKeyService, listService, themeService, instantiationService, configurationService);
+		this.highlighter = treeConfiguration.highlighter;
+		this.highlights = new Map<any, FuzzyScore>();
 
 		this.domNode = container;
 		addClass(this.domNode, 'inactive');
@@ -650,6 +761,7 @@ export class HighlightingWorkbenchTree extends WorkbenchTree {
 		this.disposables.push(addStandardDisposableListener(this.input.inputElement, 'keydown', event => {
 			//todo@joh make this command/context-key based
 			switch (event.keyCode) {
+				case KeyCode.UpArrow:
 				case KeyCode.DownArrow:
 				case KeyCode.Tab:
 					this.domFocus();
@@ -666,6 +778,10 @@ export class HighlightingWorkbenchTree extends WorkbenchTree {
 					break;
 			}
 		}));
+
+		this._onDidStartFilter = new Emitter<this>();
+		this.onDidStartFiltering = this._onDidStartFilter.event;
+		this.disposables.push(this._onDidStartFilter);
 	}
 
 	setInput(element: any): TPromise<any> {
@@ -689,6 +805,7 @@ export class HighlightingWorkbenchTree extends WorkbenchTree {
 		removeClass(this.domNode, 'inactive');
 		this.input.focus();
 		this.layout();
+		this._onDidStartFilter.fire(this);
 	}
 
 	private lastSelection: any[];
@@ -704,10 +821,27 @@ export class HighlightingWorkbenchTree extends WorkbenchTree {
 			this.lastSelection = [];
 		}
 
-		const topElement = this.renderer.updateHighlights(this, pattern);
+		let topElement: any;
+		if (pattern) {
+			let nav = this.getNavigator(undefined, false);
+			let topScore: FuzzyScore;
+			while (nav.next()) {
+				let element = nav.current();
+				let score = this.highlighter.getHighlights(this, element, pattern);
+				this.highlights.set(this._getHighlightsStorageKey(element), score);
+				element.foo = 1;
+				if (!topScore || score && topScore[0] < score[0]) {
+					topScore = score;
+					topElement = element;
+				}
+			}
+		} else {
+			// no pattern, clear highlights
+			this.highlights.clear();
+		}
 
 		this.refresh().then(() => {
-			if (topElement && pattern) {
+			if (topElement) {
 				this.reveal(topElement, .5).then(_ => {
 					this.setSelection([topElement], this);
 					this.setFocus(topElement, this);
@@ -716,6 +850,108 @@ export class HighlightingWorkbenchTree extends WorkbenchTree {
 				this.setSelection(defaultSelection, this);
 			}
 		}, onUnexpectedError);
+	}
+
+	isHighlighterScoring(): boolean {
+		return this.highlights.size > 0;
+	}
+
+	getHighlighterScore(element: any): FuzzyScore {
+		return this.highlights.get(this._getHighlightsStorageKey(element));
+	}
+
+	private _getHighlightsStorageKey(element: any): any {
+		return typeof this.highlighter.getHighlightsStorageKey === 'function'
+			? this.highlighter.getHighlightsStorageKey(element)
+			: element;
+	}
+}
+
+export class WorkbenchObjectTree<T extends NonNullable<any>, TFilterData = void> extends ObjectTree<T, TFilterData> {
+
+	readonly contextKeyService: IContextKeyService;
+
+	protected disposables: IDisposable[];
+
+	private hasSelectionOrFocus: IContextKey<boolean>;
+	private hasDoubleSelection: IContextKey<boolean>;
+	private hasMultiSelection: IContextKey<boolean>;
+
+	private _openOnSingleClick: boolean;
+	private _useAltAsMultipleSelectionModifier: boolean;
+
+	constructor(
+		container: HTMLElement,
+		delegate: IListVirtualDelegate<T>,
+		renderers: ITreeRenderer<T, TFilterData, any>[],
+		options: ITreeOptions2<T, TFilterData>,
+		@IContextKeyService contextKeyService: IContextKeyService,
+		@IListService listService: IListService,
+		@IThemeService themeService: IThemeService,
+		@IConfigurationService configurationService: IConfigurationService
+	) {
+		super(container, delegate, renderers, {
+			keyboardSupport: false,
+			selectOnMouseDown: true,
+			styleController: new DefaultStyleController(getSharedListStyleSheet()),
+			...computeStyles(themeService.getTheme(), defaultListStyles),
+			...handleListControllers(options, configurationService)
+		});
+
+		this.contextKeyService = createScopedContextKeyService(contextKeyService, this);
+
+		const listSupportsMultiSelect = WorkbenchListSupportsMultiSelectContextKey.bindTo(this.contextKeyService);
+		listSupportsMultiSelect.set(!(options.multipleSelectionSupport === false));
+
+		this.hasSelectionOrFocus = WorkbenchListHasSelectionOrFocus.bindTo(this.contextKeyService);
+		this.hasDoubleSelection = WorkbenchListDoubleSelection.bindTo(this.contextKeyService);
+		this.hasMultiSelection = WorkbenchListMultiSelection.bindTo(this.contextKeyService);
+
+		this._openOnSingleClick = useSingleClickToOpen(configurationService);
+		this._useAltAsMultipleSelectionModifier = useAltAsMultipleSelectionModifier(configurationService);
+
+		this.disposables.push(
+			this.contextKeyService,
+			(listService as ListService).register(this),
+			attachListStyler(this, themeService),
+			this.onDidChangeSelection(() => {
+				const selection = this.getSelection();
+				const focus = this.getFocus();
+
+				this.hasSelectionOrFocus.set(selection.length > 0 || focus.length > 0);
+				this.hasMultiSelection.set(selection.length > 1);
+				this.hasDoubleSelection.set(selection.length === 2);
+			}),
+			this.onDidChangeFocus(() => {
+				const selection = this.getSelection();
+				const focus = this.getFocus();
+
+				this.hasSelectionOrFocus.set(selection.length > 0 || focus.length > 0);
+			}),
+			configurationService.onDidChangeConfiguration(e => {
+				if (e.affectsConfiguration(openModeSettingKey)) {
+					this._openOnSingleClick = useSingleClickToOpen(configurationService);
+				}
+
+				if (e.affectsConfiguration(multiSelectModifierSettingKey)) {
+					this._useAltAsMultipleSelectionModifier = useAltAsMultipleSelectionModifier(configurationService);
+				}
+			})
+		);
+	}
+
+	get openOnSingleClick(): boolean {
+		return this._openOnSingleClick;
+	}
+
+	get useAltAsMultipleSelectionModifier(): boolean {
+		return this._useAltAsMultipleSelectionModifier;
+	}
+
+	dispose(): void {
+		super.dispose();
+
+		this.disposables = dispose(this.disposables);
 	}
 }
 

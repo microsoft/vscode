@@ -3,21 +3,19 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import 'vs/css!./clipboard';
 import * as nls from 'vs/nls';
-import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import * as browser from 'vs/base/browser/browser';
+import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import * as platform from 'vs/base/common/platform';
-import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
-import { registerEditorAction, IActionOptions, EditorAction, ICommandKeybindingsOptions } from 'vs/editor/browser/editorExtensions';
 import { CopyOptions } from 'vs/editor/browser/controller/textAreaInput';
-import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
+import { EditorAction, IActionOptions, ICommandKeybindingsOptions, registerEditorAction } from 'vs/editor/browser/editorExtensions';
+import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
+import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { MenuId } from 'vs/platform/actions/common/actions';
+import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
+import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 
 const CLIPBOARD_CONTEXT_MENU_GROUP = '9_cutcopypaste';
 
@@ -61,7 +59,7 @@ abstract class ExecCommandAction extends EditorAction {
 class ExecCommandCutAction extends ExecCommandAction {
 
 	constructor() {
-		let kbOpts: ICommandKeybindingsOptions = {
+		let kbOpts: ICommandKeybindingsOptions | null = {
 			kbExpr: EditorContextKeys.textInputFocus,
 			primary: KeyMod.CtrlCmd | KeyCode.KEY_X,
 			win: { primary: KeyMod.CtrlCmd | KeyCode.KEY_X, secondary: [KeyMod.Shift | KeyCode.Delete] },
@@ -92,6 +90,10 @@ class ExecCommandCutAction extends ExecCommandAction {
 	}
 
 	public run(accessor: ServicesAccessor, editor: ICodeEditor): void {
+		if (!editor.hasModel()) {
+			return;
+		}
+
 		const emptySelectionClipboard = editor.getConfiguration().emptySelectionClipboard;
 
 		if (!emptySelectionClipboard && editor.getSelection().isEmpty()) {
@@ -105,7 +107,7 @@ class ExecCommandCutAction extends ExecCommandAction {
 class ExecCommandCopyAction extends ExecCommandAction {
 
 	constructor() {
-		let kbOpts: ICommandKeybindingsOptions = {
+		let kbOpts: ICommandKeybindingsOptions | null = {
 			kbExpr: EditorContextKeys.textInputFocus,
 			primary: KeyMod.CtrlCmd | KeyCode.KEY_C,
 			win: { primary: KeyMod.CtrlCmd | KeyCode.KEY_C, secondary: [KeyMod.CtrlCmd | KeyCode.Insert] },
@@ -137,6 +139,10 @@ class ExecCommandCopyAction extends ExecCommandAction {
 	}
 
 	public run(accessor: ServicesAccessor, editor: ICodeEditor): void {
+		if (!editor.hasModel()) {
+			return;
+		}
+
 		const emptySelectionClipboard = editor.getConfiguration().emptySelectionClipboard;
 
 		if (!emptySelectionClipboard && editor.getSelection().isEmpty()) {
@@ -150,7 +156,7 @@ class ExecCommandCopyAction extends ExecCommandAction {
 class ExecCommandPasteAction extends ExecCommandAction {
 
 	constructor() {
-		let kbOpts: ICommandKeybindingsOptions = {
+		let kbOpts: ICommandKeybindingsOptions | null = {
 			kbExpr: EditorContextKeys.textInputFocus,
 			primary: KeyMod.CtrlCmd | KeyCode.KEY_V,
 			win: { primary: KeyMod.CtrlCmd | KeyCode.KEY_V, secondary: [KeyMod.Shift | KeyCode.Insert] },
@@ -192,13 +198,17 @@ class ExecCommandCopyWithSyntaxHighlightingAction extends ExecCommandAction {
 			precondition: null,
 			kbOpts: {
 				kbExpr: EditorContextKeys.textInputFocus,
-				primary: null,
+				primary: 0,
 				weight: KeybindingWeight.EditorContrib
 			}
 		});
 	}
 
 	public run(accessor: ServicesAccessor, editor: ICodeEditor): void {
+		if (!editor.hasModel()) {
+			return;
+		}
+
 		const emptySelectionClipboard = editor.getConfiguration().emptySelectionClipboard;
 
 		if (!emptySelectionClipboard && editor.getSelection().isEmpty()) {

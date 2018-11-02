@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import * as nls from 'vs/nls';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { VIEWLET_ID } from 'vs/workbench/parts/files/common/files';
@@ -13,7 +11,7 @@ import { platform, Platform } from 'vs/base/common/platform';
 import { IWindowService } from 'vs/platform/windows/common/windows';
 import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
 import { IDisposable, dispose, Disposable } from 'vs/base/common/lifecycle';
-import URI from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 import { IActivityService, NumberBadge } from 'vs/workbench/services/activity/common/activity';
 import { IUntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
 import * as arrays from 'vs/base/common/arrays';

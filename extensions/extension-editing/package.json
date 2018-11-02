@@ -18,10 +18,10 @@
 		"watch": "gulp watch-extension:extension-editing"
 	},
 	"dependencies": {
-		"jsonc-parser": "^1.0.0",
+		"jsonc-parser": "^2.0.2",
 		"markdown-it": "^8.3.1",
 		"parse5": "^3.0.2",
-		"vscode-nls": "^3.2.4"
+		"vscode-nls": "^4.0.0"
 	},
 	"contributes": {
 		"jsonValidation": [
@@ -45,6 +45,6 @@
 	},
 	"devDependencies": {
 		"@types/markdown-it": "0.0.2",
-		"@types/node": "6.0.78"
+		"@types/node": "^8.10.25"
 	}
 }

@@ -23,7 +23,7 @@ export class CodeActionKind {
 	}
 }
 
-export enum CodeActionAutoApply {
+export const enum CodeActionAutoApply {
 	IfSingle = 1,
 	First = 2,
 	Never = 3

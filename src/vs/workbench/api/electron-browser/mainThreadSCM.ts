@@ -3,10 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import { TPromise } from 'vs/base/common/winjs.base';
-import URI, { UriComponents } from 'vs/base/common/uri';
+import { URI, UriComponents } from 'vs/base/common/uri';
 import { Event, Emitter, debounceEvent } from 'vs/base/common/event';
 import { assign } from 'vs/base/common/objects';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
@@ -15,6 +13,7 @@ import { ExtHostContext, MainThreadSCMShape, ExtHostSCMShape, SCMProviderFeature
 import { Command } from 'vs/editor/common/modes';
 import { extHostNamedCustomer } from 'vs/workbench/api/electron-browser/extHostCustomers';
 import { ISplice, Sequence } from 'vs/base/common/sequence';
+import { CancellationToken } from 'vs/base/common/cancellation';
 
 class MainThreadSCMResourceGroup implements ISCMResourceGroup {
 
@@ -73,7 +72,7 @@ class MainThreadSCMResource implements ISCMResource {
 		public decorations: ISCMResourceDecorations
 	) { }
 
-	open(): TPromise<void> {
+	open(): Thenable<void> {
 		return this.proxy.$executeResourceCommand(this.sourceControlHandle, this.groupHandle, this.handle);
 	}
 
@@ -241,7 +240,7 @@ class MainThreadSCMProvider implements ISCMProvider {
 			return TPromise.as(null);
 		}
 
-		return this.proxy.$provideOriginalResource(this.handle, uri)
+		return TPromise.wrap(this.proxy.$provideOriginalResource(this.handle, uri, CancellationToken.None))
 			.then(result => result && URI.revive(result));
 	}
 
@@ -396,6 +395,16 @@ export class MainThreadSCM implements MainThreadSCMShape {
 		repository.input.placeholder = placeholder;
 	}
 
+	$setInputBoxVisibility(sourceControlHandle: number, visible: boolean): void {
+		const repository = this._repositories[sourceControlHandle];
+
+		if (!repository) {
+			return;
+		}
+
+		repository.input.visible = visible;
+	}
+
 	$setValidationProviderIsEnabled(sourceControlHandle: number, enabled: boolean): void {
 		const repository = this._repositories[sourceControlHandle];
 
@@ -405,7 +414,7 @@ export class MainThreadSCM implements MainThreadSCMShape {
 
 		if (enabled) {
 			repository.input.validateInput = (value, pos): TPromise<IInputValidation | undefined> => {
-				return this._proxy.$validateInput(sourceControlHandle, value, pos).then(result => {
+				return TPromise.wrap(this._proxy.$validateInput(sourceControlHandle, value, pos).then(result => {
 					if (!result) {
 						return undefined;
 					}
@@ -414,7 +423,7 @@ export class MainThreadSCM implements MainThreadSCMShape {
 						message: result[0],
 						type: result[1]
 					};
-				});
+				}));
 			};
 		} else {
 			repository.input.validateInput = () => TPromise.as(undefined);

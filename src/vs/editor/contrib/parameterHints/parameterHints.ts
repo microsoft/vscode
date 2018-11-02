@@ -2,7 +2,6 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
 import * as nls from 'vs/nls';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
@@ -13,9 +12,10 @@ import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { registerEditorAction, registerEditorContribution, ServicesAccessor, EditorAction, EditorCommand, registerEditorCommand } from 'vs/editor/browser/editorExtensions';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { ParameterHintsWidget } from './parameterHintsWidget';
+import { ParameterHintsWidget, TriggerContext } from './parameterHintsWidget';
 import { Context } from 'vs/editor/contrib/parameterHints/provideSignatureHelp';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
+import * as modes from 'vs/editor/common/modes';
 
 class ParameterHintsController implements IEditorContribution {
 
@@ -49,8 +49,8 @@ class ParameterHintsController implements IEditorContribution {
 		this.widget.next();
 	}
 
-	trigger(): void {
-		this.widget.trigger();
+	trigger(context: TriggerContext): void {
+		this.widget.trigger(context);
 	}
 
 	dispose(): void {
@@ -77,7 +77,9 @@ export class TriggerParameterHintsAction extends EditorAction {
 	public run(accessor: ServicesAccessor, editor: ICodeEditor): void {
 		let controller = ParameterHintsController.get(editor);
 		if (controller) {
-			controller.trigger();
+			controller.trigger({
+				triggerReason: modes.SignatureHelpTriggerReason.Invoke
+			});
 		}
 	}
 }

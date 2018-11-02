@@ -12,6 +12,9 @@ var cson = require('cson-parser');
 var https = require('https');
 var url = require('url');
 
+/**
+ * @param {string} urlString
+ */
 function getOptions(urlString) {
 	var _url = url.parse(urlString);
 	var headers = {
@@ -19,7 +22,7 @@ function getOptions(urlString) {
 	};
 	var token = process.env['GITHUB_TOKEN'];
 	if (token) {
-		headers['Authorization'] = 'token ' + token
+		headers['Authorization'] = 'token ' + token;
 	}
 	return {
 		protocol: _url.protocol,
@@ -30,6 +33,10 @@ function getOptions(urlString) {
 	};
 }
 
+/**
+ * @param {string} url
+ * @param {number} redirectCount
+ */
 function download(url, redirectCount) {
 	return new Promise((c, e) => {
 		var content = '';
@@ -112,7 +119,7 @@ exports.update = function (repoId, repoPath, dest, modifyGrammar, version = 'mas
 			}
 
 			try {
-				fs.writeFileSync(dest, JSON.stringify(result, null, '\t'));
+				fs.writeFileSync(dest, JSON.stringify(result, null, '\t').replace(/\n/g, '\r\n'));
 				if (info) {
 					console.log('Updated ' + path.basename(dest) + ' to ' + repoId + '@' + info.commitSha.substr(0, 7) + ' (' + info.commitDate.substr(0, 10) + ')');
 				} else {

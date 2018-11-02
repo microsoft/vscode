@@ -7,7 +7,7 @@ import * as vscode from 'vscode';
 import { ResourceMap } from '../utils/resourceMap';
 import { DiagnosticLanguage, allDiagnosticLangauges } from '../utils/languageDescription';
 
-export enum DiagnosticKind {
+export const enum DiagnosticKind {
 	Syntax,
 	Semantic,
 	Suggestion

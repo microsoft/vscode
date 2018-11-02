@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import * as assert from 'assert';
 import { Query } from 'vs/workbench/parts/extensions/common/extensionQuery';
 
@@ -142,10 +140,10 @@ suite('Extension query', () => {
 	});
 
 	test('autocomplete', () => {
-		Query.autocompletions('@sort:in').some(x => x === '@sort:installs ');
-		Query.autocompletions('@sort:installs').every(x => x !== '@sort:rating ');
+		Query.suggestions('@sort:in').some(x => x === '@sort:installs ');
+		Query.suggestions('@sort:installs').every(x => x !== '@sort:rating ');
 
-		Query.autocompletions('@category:blah').some(x => x === '@category:"extension packs" ');
-		Query.autocompletions('@category:"extension packs"').every(x => x !== '@category:formatters ');
+		Query.suggestions('@category:blah').some(x => x === '@category:"extension packs" ');
+		Query.suggestions('@category:"extension packs"').every(x => x !== '@category:formatters ');
 	});
 });

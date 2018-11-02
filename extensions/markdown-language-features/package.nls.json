@@ -12,14 +12,17 @@
 	"markdown.preview.scrollPreviewWithEditor.desc": "When a markdown editor is scrolled, update the view of the preview.",
 	"markdown.preview.scrollPreviewWithEditorSelection.desc": "[Deprecated] Scrolls the markdown preview to reveal the currently selected line from the editor.",
 	"markdown.preview.scrollPreviewWithEditorSelection.deprecationMessage": "This setting has been replaced by 'markdown.preview.scrollPreviewWithEditor' and no longer has any effect.",
-	"markdown.preview.title" : "Open Preview",
+	"markdown.preview.title": "Open Preview",
 	"markdown.previewFrontMatter.dec": "Sets how YAML front matter should be rendered in the markdown preview. 'hide' removes the front matter. Otherwise, the front matter is treated as markdown content.",
-	"markdown.previewSide.title" : "Open Preview to the Side",
+	"markdown.previewSide.title": "Open Preview to the Side",
 	"markdown.showLockedPreviewToSide.title": "Open Locked Preview to the Side",
-	"markdown.showSource.title" : "Show Source",
+	"markdown.showSource.title": "Show Source",
 	"markdown.styles.dec": "A list of URLs or local paths to CSS style sheets to use from the markdown preview. Relative paths are interpreted relative to the folder open in the explorer. If there is no open folder, they are interpreted relative to the location of the markdown file. All '\\' need to be written as '\\\\'.",
 	"markdown.showPreviewSecuritySelector.title": "Change Preview Security Settings",
 	"markdown.trace.desc": "Enable debug logging for the markdown extension.",
 	"markdown.preview.refresh.title": "Refresh Preview",
-	"markdown.preview.toggleLock.title": "Toggle Preview Locking"
+	"markdown.preview.toggleLock.title": "Toggle Preview Locking",
+	"configuration.markdown.preview.openMarkdownLinks.description": "How should clicking on links to markdown files be handled in the preview.",
+	"configuration.markdown.preview.openMarkdownLinks.inEditor": "Try to open links in the editor",
+	"configuration.markdown.preview.openMarkdownLinks.inPreview": "Try to open links in the markdown preview"
 }

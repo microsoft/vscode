@@ -3,9 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
-import URI from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 
 export interface IRemoteConsoleLog {
 	type: string;
@@ -31,7 +29,7 @@ export function isRemoteConsoleLog(obj: any): obj is IRemoteConsoleLog {
 
 export function parse(entry: IRemoteConsoleLog): { args: any[], stack?: string } {
 	const args: any[] = [];
-	let stack: string;
+	let stack: string | undefined;
 
 	// Parse Entry
 	try {
@@ -52,11 +50,11 @@ export function parse(entry: IRemoteConsoleLog): { args: any[], stack?: string }
 	return { args, stack };
 }
 
-export function getFirstFrame(entry: IRemoteConsoleLog): IStackFrame;
-export function getFirstFrame(stack: string): IStackFrame;
-export function getFirstFrame(arg0: IRemoteConsoleLog | string): IStackFrame {
+export function getFirstFrame(entry: IRemoteConsoleLog): IStackFrame | undefined;
+export function getFirstFrame(stack: string | undefined): IStackFrame | undefined;
+export function getFirstFrame(arg0: IRemoteConsoleLog | string | undefined): IStackFrame | undefined {
 	if (typeof arg0 !== 'string') {
-		return getFirstFrame(parse(arg0).stack);
+		return getFirstFrame(parse(arg0!).stack);
 	}
 
 	// Parse a source information out of the stack if we have one. Format can be:
@@ -75,7 +73,7 @@ export function getFirstFrame(arg0: IRemoteConsoleLog | string): IStackFrame {
 		// (?:(?:[a-zA-Z]+:)|(?:[\/])|(?:\\\\) => windows drive letter OR unix root OR unc root
 		// (?:.+) => simple pattern for the path, only works because of the line/col pattern after
 		// :(?:\d+):(?:\d+) => :line:column data
-		const matches = /at [^\/]*((?:(?:[a-zA-Z]+:)|(?:[\/])|(?:\\\\))(?:.+)):(\d+):(\d+)/.exec(topFrame);
+		const matches = /at [^\/]*((?:(?:[a-zA-Z]+:)|(?:[\/])|(?:\\\\))(?:.+)):(\d+):(\d+)/.exec(topFrame || '');
 		if (matches && matches.length === 4) {
 			return {
 				uri: URI.file(matches[1]),
@@ -88,7 +86,7 @@ export function getFirstFrame(arg0: IRemoteConsoleLog | string): IStackFrame {
 	return void 0;
 }
 
-function findFirstFrame(stack: string): string {
+function findFirstFrame(stack: string | undefined): string | undefined {
 	if (!stack) {
 		return stack;
 	}
@@ -111,7 +109,7 @@ export function log(entry: IRemoteConsoleLog, label: string): void {
 		topFrame = `(${topFrame.trim()})`;
 	}
 
-	let consoleArgs = [];
+	let consoleArgs: string[] = [];
 
 	// First arg is a string
 	if (typeof args[0] === 'string') {

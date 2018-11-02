@@ -3,9 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
-import URI from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 import { IRange } from 'vs/editor/common/core/range';
 import { Comment, CommentThread, CommentThreadChangedEvent } from 'vs/editor/common/modes';
 import { groupBy, firstIndex, flatten } from 'vs/base/common/arrays';
@@ -129,7 +127,7 @@ export class CommentsModel {
 	}
 
 	private groupByResource(commentThreads: CommentThread[]): ResourceWithCommentThreads[] {
-		const resourceCommentThreads = [];
+		const resourceCommentThreads: ResourceWithCommentThreads[] = [];
 		const commentThreadsByResource = new Map<string, ResourceWithCommentThreads>();
 		for (const group of groupBy(commentThreads, CommentsModel._compareURIs)) {
 			commentThreadsByResource.set(group[0].resource, new ResourceWithCommentThreads(URI.parse(group[0].resource), group));

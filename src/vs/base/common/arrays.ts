@@ -2,9 +2,9 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
-import { TPromise } from 'vs/base/common/winjs.base';
+import { CancellationToken } from 'vs/base/common/cancellation';
+import { canceled } from 'vs/base/common/errors';
 import { ISplice } from 'vs/base/common/sequence';
 
 /**
@@ -25,6 +25,14 @@ export function tail2<T>(arr: T[]): [T[], T] {
 }
 
 export function equals<T>(one: ReadonlyArray<T>, other: ReadonlyArray<T>, itemEquals: (a: T, b: T) => boolean = (a, b) => a === b): boolean {
+	if (one === other) {
+		return true;
+	}
+
+	if (!one || !other) {
+		return false;
+	}
+
 	if (one.length !== other.length) {
 		return false;
 	}
@@ -129,7 +137,7 @@ function _sort<T>(a: T[], compare: Compare<T>, lo: number, hi: number, aux: T[])
 
 export function groupBy<T>(data: T[], compare: (a: T, b: T) => number): T[][] {
 	const result: T[][] = [];
-	let currentGroup: T[];
+	let currentGroup: T[] | undefined = undefined;
 	for (const element of mergeSort(data.slice(0), compare)) {
 		if (!currentGroup || compare(currentGroup[0], element) !== 0) {
 			currentGroup = [element];
@@ -252,12 +260,12 @@ export function top<T>(array: T[], compare: (a: T, b: T) => number, n: number): 
  * @param batch The number of elements to examine before yielding to the event loop.
  * @return The first n elemnts from array when sorted with compare.
  */
-export function topAsync<T>(array: T[], compare: (a: T, b: T) => number, n: number, batch: number): TPromise<T[]> {
+export function topAsync<T>(array: T[], compare: (a: T, b: T) => number, n: number, batch: number, token?: CancellationToken): Promise<T[]> {
 	if (n === 0) {
-		return TPromise.as([]);
+		return Promise.resolve([]);
 	}
-	let canceled = false;
-	return new TPromise((resolve, reject) => {
+
+	return new Promise((resolve, reject) => {
 		(async () => {
 			const o = array.length;
 			const result = array.slice(0, n).sort(compare);
@@ -265,16 +273,14 @@ export function topAsync<T>(array: T[], compare: (a: T, b: T) => number, n: numb
 				if (i > n) {
 					await new Promise(resolve => setTimeout(resolve)); // nextTick() would starve I/O.
 				}
-				if (canceled) {
-					throw new Error('canceled');
+				if (token && token.isCancellationRequested) {
+					throw canceled();
 				}
 				topStep(array, compare, result, i, m);
 			}
 			return result;
 		})()
 			.then(resolve, reject);
-	}, () => {
-		canceled = true;
 	});
 }
 
@@ -290,29 +296,30 @@ function topStep<T>(array: T[], compare: (a: T, b: T) => number, result: T[], i:
 }
 
 /**
- * @returns a new array with all undefined or null values removed. The original array is not modified at all.
+ * @returns a new array with all falsy values removed. The original array IS NOT modified.
  */
-export function coalesce<T>(array: T[]): T[];
-export function coalesce<T>(array: T[], inplace: true): void;
-export function coalesce<T>(array: T[], inplace?: true): void | T[] {
+export function coalesce<T>(array: (T | undefined | null)[]): T[] {
 	if (!array) {
-		if (!inplace) {
-			return array;
-		}
+		return array;
 	}
-	if (!inplace) {
-		return array.filter(e => !!e);
+	return <T[]>array.filter(e => !!e);
+}
 
-	} else {
-		let to = 0;
-		for (let i = 0; i < array.length; i++) {
-			if (!!array[i]) {
-				array[to] = array[i];
-				to += 1;
-			}
-		}
-		array.length = to;
+/**
+ * Remove all falsey values from `array`. The original array IS modified.
+ */
+export function coalesceInPlace<T>(array: (T | undefined | null)[]): void {
+	if (!array) {
+		return;
 	}
+	let to = 0;
+	for (let i = 0; i < array.length; i++) {
+		if (!!array[i]) {
+			array[to] = array[i];
+			to += 1;
+		}
+	}
+	array.length = to;
 }
 
 /**
@@ -381,7 +388,9 @@ export function firstIndex<T>(array: T[] | ReadonlyArray<T>, fn: (item: T) => bo
 	return -1;
 }
 
-export function first<T>(array: T[] | ReadonlyArray<T>, fn: (item: T) => boolean, notFoundValue: T = null): T {
+export function first<T>(array: T[] | ReadonlyArray<T>, fn: (item: T) => boolean, notFoundValue: T): T;
+export function first<T>(array: T[] | ReadonlyArray<T>, fn: (item: T) => boolean): T | null;
+export function first<T>(array: T[] | ReadonlyArray<T>, fn: (item: T) => boolean, notFoundValue: T | null = null): T | null {
 	const index = firstIndex(array, fn);
 	return index < 0 ? notFoundValue : array[index];
 }
@@ -397,7 +406,7 @@ export function commonPrefixLength<T>(one: T[], other: T[], equals: (a: T, b: T)
 }
 
 export function flatten<T>(arr: T[][]): T[] {
-	return [].concat(...arr);
+	return (<T[]>[]).concat(...arr);
 }
 
 export function range(to: number): number[];
@@ -474,15 +483,20 @@ export function arrayInsert<T>(target: T[], insertIndex: number, insertArr: T[])
  * Uses Fisher-Yates shuffle to shuffle the given array
  * @param array
  */
-export function shuffle<T>(array: T[], seed?: number): void {
-	// Seeded random number generator in JS. Modified from:
-	// https://stackoverflow.com/questions/521295/seeding-the-random-number-generator-in-javascript
-	const random = () => {
-		var x = Math.sin(seed++) * 179426549; // throw away most significant digits and reduce any potential bias
-		return x - Math.floor(x);
-	};
+export function shuffle<T>(array: T[], _seed?: number): void {
+	let rand: () => number;
 
-	const rand = typeof seed === 'number' ? random : Math.random;
+	if (typeof _seed === 'number') {
+		let seed = _seed;
+		// Seeded random number generator in JS. Modified from:
+		// https://stackoverflow.com/questions/521295/seeding-the-random-number-generator-in-javascript
+		rand = () => {
+			var x = Math.sin(seed++) * 179426549; // throw away most significant digits and reduce any potential bias
+			return x - Math.floor(x);
+		};
+	} else {
+		rand = Math.random;
+	}
 
 	for (let i = array.length - 1; i > 0; i -= 1) {
 		let j = Math.floor(rand() * (i + 1));
@@ -514,4 +528,21 @@ export function pushToEnd<T>(arr: T[], value: T): void {
 		arr.splice(index, 1);
 		arr.push(value);
 	}
+}
+
+export function find<T>(arr: ArrayLike<T>, predicate: (value: T, index: number, arr: ArrayLike<T>) => any): T | undefined {
+	for (let i = 0; i < arr.length; i++) {
+		const element = arr[i];
+		if (predicate(element, i, arr)) {
+			return element;
+		}
+	}
+
+	return undefined;
+}
+
+export function mapArrayOrNot<T, U>(items: T | T[], fn: (_: T) => U): U | U[] {
+	return Array.isArray(items) ?
+		items.map(fn) :
+		fn(items);
 }

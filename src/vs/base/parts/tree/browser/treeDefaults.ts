@@ -2,7 +2,6 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
 import * as nls from 'vs/nls';
 import { TPromise } from 'vs/base/common/winjs.base';
@@ -25,7 +24,7 @@ export interface ICancelableEvent {
 	stopPropagation(): void;
 }
 
-export enum ClickBehavior {
+export const enum ClickBehavior {
 
 	/**
 	 * Handle the click when the mouse button is pressed but not released yet.
@@ -38,7 +37,7 @@ export enum ClickBehavior {
 	ON_MOUSE_UP
 }
 
-export enum OpenMode {
+export const enum OpenMode {
 	SINGLE_CLICK,
 	DOUBLE_CLICK
 }
@@ -191,9 +190,9 @@ export class DefaultController implements _.IController {
 
 			if (this.shouldToggleExpansion(element, event, origin)) {
 				if (tree.isExpanded(element)) {
-					tree.collapse(element).done(null, errors.onUnexpectedError);
+					tree.collapse(element).then(null, errors.onUnexpectedError);
 				} else {
-					tree.expand(element).done(null, errors.onUnexpectedError);
+					tree.expand(element).then(null, errors.onUnexpectedError);
 				}
 			}
 		}
@@ -264,8 +263,9 @@ export class DefaultController implements _.IController {
 	}
 
 	private onKey(bindings: KeybindingDispatcher, tree: _.ITree, event: IKeyboardEvent): boolean {
-		const handler = bindings.dispatch(event.toKeybinding());
+		const handler: any = bindings.dispatch(event.toKeybinding());
 		if (handler) {
+			// TODO: TS 3.1 upgrade. Why are we checking against void?
 			if (handler(tree, event)) {
 				event.preventDefault();
 				event.stopPropagation();
@@ -282,7 +282,7 @@ export class DefaultController implements _.IController {
 			tree.clearHighlight(payload);
 		} else {
 			tree.focusPrevious(1, payload);
-			tree.reveal(tree.getFocus()).done(null, errors.onUnexpectedError);
+			tree.reveal(tree.getFocus()).then(null, errors.onUnexpectedError);
 		}
 		return true;
 	}
@@ -294,7 +294,7 @@ export class DefaultController implements _.IController {
 			tree.clearHighlight(payload);
 		} else {
 			tree.focusPreviousPage(payload);
-			tree.reveal(tree.getFocus()).done(null, errors.onUnexpectedError);
+			tree.reveal(tree.getFocus()).then(null, errors.onUnexpectedError);
 		}
 		return true;
 	}
@@ -306,7 +306,7 @@ export class DefaultController implements _.IController {
 			tree.clearHighlight(payload);
 		} else {
 			tree.focusNext(1, payload);
-			tree.reveal(tree.getFocus()).done(null, errors.onUnexpectedError);
+			tree.reveal(tree.getFocus()).then(null, errors.onUnexpectedError);
 		}
 		return true;
 	}
@@ -318,7 +318,7 @@ export class DefaultController implements _.IController {
 			tree.clearHighlight(payload);
 		} else {
 			tree.focusNextPage(payload);
-			tree.reveal(tree.getFocus()).done(null, errors.onUnexpectedError);
+			tree.reveal(tree.getFocus()).then(null, errors.onUnexpectedError);
 		}
 		return true;
 	}
@@ -330,7 +330,7 @@ export class DefaultController implements _.IController {
 			tree.clearHighlight(payload);
 		} else {
 			tree.focusFirst(payload);
-			tree.reveal(tree.getFocus()).done(null, errors.onUnexpectedError);
+			tree.reveal(tree.getFocus()).then(null, errors.onUnexpectedError);
 		}
 		return true;
 	}
@@ -342,7 +342,7 @@ export class DefaultController implements _.IController {
 			tree.clearHighlight(payload);
 		} else {
 			tree.focusLast(payload);
-			tree.reveal(tree.getFocus()).done(null, errors.onUnexpectedError);
+			tree.reveal(tree.getFocus()).then(null, errors.onUnexpectedError);
 		}
 		return true;
 	}
@@ -360,7 +360,7 @@ export class DefaultController implements _.IController {
 					return tree.reveal(tree.getFocus());
 				}
 				return undefined;
-			}).done(null, errors.onUnexpectedError);
+			}).then(null, errors.onUnexpectedError);
 		}
 		return true;
 	}
@@ -378,7 +378,7 @@ export class DefaultController implements _.IController {
 					return tree.reveal(tree.getFocus());
 				}
 				return undefined;
-			}).done(null, errors.onUnexpectedError);
+			}).then(null, errors.onUnexpectedError);
 		}
 		return true;
 	}

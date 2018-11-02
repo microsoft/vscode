@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import { exec } from 'child_process';
 
 import { getPathFromAmdModule } from 'vs/base/common/amd';
@@ -60,7 +58,7 @@ export function listProcesses(rootPid: number): Promise<ProcessItem> {
 
 		function findName(cmd: string): string {
 
-			const RENDERER_PROCESS_HINT = /--disable-blink-features=Auxclick/;
+			const SHARED_PROCESS_HINT = /--disable-blink-features=Auxclick/;
 			const WINDOWS_WATCHER_HINT = /\\watcher\\win32\\CodeHelper\.exe/;
 			const WINDOWS_CRASH_REPORTER = /--crashes-directory/;
 			const WINDOWS_PTY = /\\pipe\\winpty-control/;
@@ -91,7 +89,7 @@ export function listProcesses(rootPid: number): Promise<ProcessItem> {
 			let matches = TYPE.exec(cmd);
 			if (matches && matches.length === 2) {
 				if (matches[1] === 'renderer') {
-					if (!RENDERER_PROCESS_HINT.exec(cmd)) {
+					if (SHARED_PROCESS_HINT.exec(cmd)) {
 						return 'shared-process';
 					}
 
@@ -139,14 +137,14 @@ export function listProcesses(rootPid: number): Promise<ProcessItem> {
 					windowsProcessTree.getProcessCpuUsage(processList, (completeProcessList) => {
 						const processItems: Map<number, ProcessItem> = new Map();
 						completeProcessList.forEach(process => {
-							const commandLine = cleanUNCPrefix(process.commandLine);
+							const commandLine = cleanUNCPrefix(process.commandLine || '');
 							processItems.set(process.pid, {
 								name: findName(commandLine),
 								cmd: commandLine,
 								pid: process.pid,
 								ppid: process.ppid,
-								load: process.cpu,
-								mem: process.memory
+								load: process.cpu || 0,
+								mem: process.memory || 0
 							});
 						});
 
@@ -196,12 +194,14 @@ export function listProcesses(rootPid: number): Promise<ProcessItem> {
 					if (process.platform === 'linux') {
 						// Flatten rootItem to get a list of all VSCode processes
 						let processes = [rootItem];
-						const pids = [];
+						const pids: number[] = [];
 						while (processes.length) {
 							const process = processes.shift();
-							pids.push(process.pid);
-							if (process.children) {
-								processes = processes.concat(process.children);
+							if (process) {
+								pids.push(process.pid);
+								if (process.children) {
+									processes = processes.concat(process.children);
+								}
 							}
 						}
 

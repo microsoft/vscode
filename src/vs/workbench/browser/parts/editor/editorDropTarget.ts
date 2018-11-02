@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import 'vs/css!./media/editordroptarget';
 import { LocalSelectionTransfer, DraggedEditorIdentifier, ResourcesDropHandler, DraggedEditorGroupIdentifier, DragAndDropObserver } from 'vs/workbench/browser/dnd';
 import { addDisposableListener, EventType, EventHelper, isAncestor, toggleClass, addClass, removeClass } from 'vs/base/browser/dom';
@@ -17,6 +15,7 @@ import { isMacintosh } from 'vs/base/common/platform';
 import { GroupDirection, MergeGroupMode } from 'vs/workbench/services/group/common/editorGroupsService';
 import { toDisposable } from 'vs/base/common/lifecycle';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { RunOnceScheduler } from 'vs/base/common/async';
 
 interface IDropOperation {
 	splitDirection?: GroupDirection;
@@ -32,6 +31,8 @@ class DropOverlay extends Themable {
 	private currentDropOperation: IDropOperation;
 	private _disposed: boolean;
 
+	private cleanupOverlayScheduler: RunOnceScheduler;
+
 	private readonly editorTransfer = LocalSelectionTransfer.getInstance<DraggedEditorIdentifier>();
 	private readonly groupTransfer = LocalSelectionTransfer.getInstance<DraggedEditorGroupIdentifier>();
 
@@ -42,6 +43,8 @@ class DropOverlay extends Themable {
 		private instantiationService: IInstantiationService
 	) {
 		super(themeService);
+
+		this.cleanupOverlayScheduler = this._register(new RunOnceScheduler(() => this.dispose(), 300));
 
 		this.create();
 	}
@@ -118,6 +121,11 @@ class DropOverlay extends Themable {
 
 				// Position overlay
 				this.positionOverlay(e.offsetX, e.offsetY, isDraggingGroup);
+
+				// Make sure to stop any running cleanup scheduler to remove the overlay
+				if (this.cleanupOverlayScheduler.isScheduled()) {
+					this.cleanupOverlayScheduler.cancel();
+				}
 			},
 
 			onDragLeave: e => this.dispose(),
@@ -144,9 +152,9 @@ class DropOverlay extends Themable {
 			// To protect against this issue we always destroy the overlay as soon as we detect a
 			// mouse event over it. The delay is used to guarantee we are not interfering with the
 			// actual DROP event that can also trigger a mouse over event.
-			setTimeout(() => {
-				this.dispose();
-			}, 300);
+			if (!this.cleanupOverlayScheduler.isScheduled()) {
+				this.cleanupOverlayScheduler.schedule();
+			}
 		}));
 	}
 

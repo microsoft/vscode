@@ -19,7 +19,6 @@
 	"reportIssueUrl": "https://github.com/Microsoft/vscode/issues/new",
 	"urlProtocol": "code-oss",
 	"extensionAllowedProposedApi": [
-		"ms-vscode.node-debug",
-		"ms-vscode.node-debug2"
+		"ms-vscode.references-view"
 	]
 }

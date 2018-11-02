@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import * as fs from 'fs';
 import * as platform from 'vs/base/common/platform';
 import product from 'vs/platform/node/product';
@@ -16,7 +14,7 @@ import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { InstantiationService } from 'vs/platform/instantiation/common/instantiationService';
 import { IEnvironmentService, ParsedArgs } from 'vs/platform/environment/common/environment';
 import { EnvironmentService } from 'vs/platform/environment/node/environmentService';
-import { ExtensionManagementChannel } from 'vs/platform/extensionManagement/common/extensionManagementIpc';
+import { ExtensionManagementChannel } from 'vs/platform/extensionManagement/node/extensionManagementIpc';
 import { IExtensionManagementService, IExtensionGalleryService } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { ExtensionManagementService } from 'vs/platform/extensionManagement/node/extensionManagementService';
 import { ExtensionGalleryService } from 'vs/platform/extensionManagement/node/extensionGalleryService';
@@ -27,22 +25,24 @@ import { RequestService } from 'vs/platform/request/electron-browser/requestServ
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { combinedAppender, NullTelemetryService, ITelemetryAppender, NullAppender, LogAppender } from 'vs/platform/telemetry/common/telemetryUtils';
 import { resolveCommonProperties } from 'vs/platform/telemetry/node/commonProperties';
-import { TelemetryAppenderChannel } from 'vs/platform/telemetry/common/telemetryIpc';
+import { TelemetryAppenderChannel } from 'vs/platform/telemetry/node/telemetryIpc';
 import { TelemetryService, ITelemetryServiceConfig } from 'vs/platform/telemetry/common/telemetryService';
 import { AppInsightsAppender } from 'vs/platform/telemetry/node/appInsightsAppender';
 import { IWindowsService, ActiveWindowManager } from 'vs/platform/windows/common/windows';
-import { WindowsChannelClient } from 'vs/platform/windows/common/windowsIpc';
+import { WindowsChannelClient } from 'vs/platform/windows/node/windowsIpc';
 import { ipcRenderer } from 'electron';
 import { createSharedProcessContributions } from 'vs/code/electron-browser/sharedProcess/contrib/contributions';
 import { createSpdLogService } from 'vs/platform/log/node/spdlogService';
 import { ILogService, LogLevel } from 'vs/platform/log/common/log';
-import { LogLevelSetterChannelClient, FollowerLogService } from 'vs/platform/log/common/logIpc';
+import { LogLevelSetterChannelClient, FollowerLogService } from 'vs/platform/log/node/logIpc';
 import { LocalizationsService } from 'vs/platform/localizations/node/localizations';
 import { ILocalizationsService } from 'vs/platform/localizations/common/localizations';
-import { LocalizationsChannel } from 'vs/platform/localizations/common/localizationsIpc';
-import { DialogChannelClient } from 'vs/platform/dialogs/common/dialogIpc';
+import { LocalizationsChannel } from 'vs/platform/localizations/node/localizationsIpc';
+import { DialogChannelClient } from 'vs/platform/dialogs/node/dialogIpc';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
+import { DownloadService } from 'vs/platform/download/node/downloadService';
+import { IDownloadService } from 'vs/platform/download/common/download';
 
 export interface ISharedProcessConfiguration {
 	readonly machineId: string;
@@ -62,8 +62,14 @@ const eventPrefix = 'monacoworkbench';
 
 function main(server: Server, initData: ISharedProcessInitData, configuration: ISharedProcessConfiguration): void {
 	const services = new ServiceCollection();
+
 	const disposables: IDisposable[] = [];
-	process.once('exit', () => dispose(disposables));
+
+	const onExit = () => dispose(disposables);
+	process.once('exit', onExit);
+	ipcRenderer.once('handshake:goodbye', onExit);
+
+	disposables.push(server);
 
 	const environmentService = new EnvironmentService(initData.args, process.execPath);
 	const mainRoute = () => TPromise.as('main');
@@ -77,6 +83,7 @@ function main(server: Server, initData: ISharedProcessInitData, configuration: I
 	services.set(ILogService, logService);
 	services.set(IConfigurationService, new SyncDescriptor(ConfigurationService));
 	services.set(IRequestService, new SyncDescriptor(RequestService));
+	services.set(IDownloadService, new SyncDescriptor(DownloadService));
 
 	const windowsChannel = server.getChannel('windows', { routeCall: mainRoute, routeEvent: mainRoute });
 	const windowsService = new WindowsChannelClient(windowsChannel);
@@ -84,6 +91,7 @@ function main(server: Server, initData: ISharedProcessInitData, configuration: I
 
 	const activeWindowManager = new ActiveWindowManager(windowsService);
 	const route = () => activeWindowManager.getActiveClientId();
+
 	const dialogChannel = server.getChannel('dialog', { routeCall: route, routeEvent: route });
 	services.set(IDialogService, new DialogChannelClient(dialogChannel));
 
@@ -92,27 +100,28 @@ function main(server: Server, initData: ISharedProcessInitData, configuration: I
 	instantiationService.invokeFunction(accessor => {
 		const services = new ServiceCollection();
 		const environmentService = accessor.get(IEnvironmentService);
-		const { appRoot, extensionsPath, extensionDevelopmentPath, isBuilt, installSourcePath } = environmentService;
+		const { appRoot, extensionsPath, extensionDevelopmentLocationURI, isBuilt, installSourcePath } = environmentService;
 		const telemetryLogService = new FollowerLogService(logLevelClient, createSpdLogService('telemetry', initData.logLevel, environmentService.logsPath));
+		telemetryLogService.info('The below are logs for every telemetry event sent from VS Code once the log level is set to trace.');
+		telemetryLogService.info('===========================================================');
 
-		let appInsightsAppender: ITelemetryAppender = NullAppender;
-		if (product.aiConfig && product.aiConfig.asimovKey && isBuilt) {
-			appInsightsAppender = new AppInsightsAppender(eventPrefix, null, product.aiConfig.asimovKey, telemetryLogService);
-			disposables.push(appInsightsAppender); // Ensure the AI appender is disposed so that it flushes remaining data
-		}
-		server.registerChannel('telemetryAppender', new TelemetryAppenderChannel(appInsightsAppender));
-
-		if (!extensionDevelopmentPath && !environmentService.args['disable-telemetry'] && product.enableTelemetry) {
+		let appInsightsAppender: ITelemetryAppender | null = NullAppender;
+		if (!extensionDevelopmentLocationURI && !environmentService.args['disable-telemetry'] && product.enableTelemetry) {
+			if (product.aiConfig && product.aiConfig.asimovKey && isBuilt) {
+				appInsightsAppender = new AppInsightsAppender(eventPrefix, null, product.aiConfig.asimovKey, telemetryLogService);
+				disposables.push(appInsightsAppender); // Ensure the AI appender is disposed so that it flushes remaining data
+			}
 			const config: ITelemetryServiceConfig = {
 				appender: combinedAppender(appInsightsAppender, new LogAppender(logService)),
 				commonProperties: resolveCommonProperties(product.commit, pkg.version, configuration.machineId, installSourcePath),
 				piiPaths: [appRoot, extensionsPath]
 			};
 
-			services.set(ITelemetryService, new SyncDescriptor(TelemetryService, config));
+			services.set(ITelemetryService, new SyncDescriptor(TelemetryService, [config]));
 		} else {
 			services.set(ITelemetryService, NullTelemetryService);
 		}
+		server.registerChannel('telemetryAppender', new TelemetryAppenderChannel(appInsightsAppender));
 
 		services.set(IExtensionManagementService, new SyncDescriptor(ExtensionManagementService));
 		services.set(IExtensionGalleryService, new SyncDescriptor(ExtensionGalleryService));
@@ -138,11 +147,11 @@ function main(server: Server, initData: ISharedProcessInitData, configuration: I
 	});
 }
 
-function setupIPC(hook: string): TPromise<Server> {
-	function setup(retry: boolean): TPromise<Server> {
+function setupIPC(hook: string): Thenable<Server> {
+	function setup(retry: boolean): Thenable<Server> {
 		return serve(hook).then(null, err => {
 			if (!retry || platform.isWindows || err.code !== 'EADDRINUSE') {
-				return TPromise.wrapError(err);
+				return Promise.reject(err);
 			}
 
 			// should retry, not windows and eaddrinuse
@@ -151,7 +160,7 @@ function setupIPC(hook: string): TPromise<Server> {
 				client => {
 					// we could connect to a running instance. this is not good, abort
 					client.dispose();
-					return TPromise.wrapError(new Error('There is an instance already running.'));
+					return Promise.reject(new Error('There is an instance already running.'));
 				},
 				err => {
 					// it happens on Linux and OS X that the pipe is left behind
@@ -160,7 +169,7 @@ function setupIPC(hook: string): TPromise<Server> {
 					try {
 						fs.unlinkSync(hook);
 					} catch (e) {
-						return TPromise.wrapError(new Error('Error deleting the shared ipc hook.'));
+						return Promise.reject(new Error('Error deleting the shared ipc hook.'));
 					}
 
 					return setup(false);

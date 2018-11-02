@@ -51,6 +51,11 @@
 	overflow: visible;
 }
 
+.monaco-workbench.windows > .part.titlebar > .window-title,
+.monaco-workbench.linux > .part.titlebar > .window-title {
+	cursor: default;
+}
+
 .monaco-workbench.linux > .part.titlebar > .window-title {
 	font-size: inherit;
 }
@@ -96,6 +101,7 @@
 	-webkit-app-region: no-drag;
 	height: 100%;
 	width: 138px;
+	margin-left: auto;
 }
 
 .monaco-workbench.fullscreen > .part.titlebar > .window-controls-container {
@@ -187,15 +193,11 @@
 }
 
 .monaco-workbench .menubar .menubar-menu-items-holder.monaco-menu-container {
-	font-family: "Segoe WPC", "Segoe UI", ".SFNSDisplay-Light", "SFUIText-Light", "HelveticaNeue-Light", sans-serif, "Droid Sans Fallback";
+	font-family: -apple-system, BlinkMacSystemFont, "Segoe WPC", "Segoe UI", "HelveticaNeue-Light", "Ubuntu", "Droid Sans", sans-serif;
 	outline: 0;
 	border: none;
 }
 
 .monaco-workbench .menubar .menubar-menu-items-holder.monaco-menu-container :focus {
 	outline: 0;
-}
-
-.hc-black .monaco-workbench .menubar .menubar-menu-items-holder.monaco-menu-container {
-	border: 2px solid #6FC3DF;
 }

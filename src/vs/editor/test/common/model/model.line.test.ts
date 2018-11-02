@@ -2,14 +2,13 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
 import * as assert from 'assert';
 import { LineTokens } from 'vs/editor/common/core/lineTokens';
-import { LanguageIdentifier, MetadataConsts } from 'vs/editor/common/modes';
 import { Range } from 'vs/editor/common/core/range';
-import { ViewLineToken, ViewLineTokenFactory } from 'vs/editor/test/common/core/viewLineToken';
 import { TextModel } from 'vs/editor/common/model/textModel';
+import { LanguageIdentifier, MetadataConsts } from 'vs/editor/common/modes';
+import { ViewLineToken, ViewLineTokenFactory } from 'vs/editor/test/common/core/viewLineToken';
 
 interface ILineEdit {
 	startColumn: number;

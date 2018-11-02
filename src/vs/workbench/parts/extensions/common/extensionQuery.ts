@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-
 import { flatten } from 'vs/base/common/arrays';
 
 export class Query {
@@ -12,7 +11,7 @@ export class Query {
 		this.value = value.trim();
 	}
 
-	static autocompletions(query: string): string[] {
+	static suggestions(query: string): string[] {
 		const commands = ['installed', 'outdated', 'enabled', 'disabled', 'builtin', 'recommended', 'sort', 'category', 'tag', 'ext'];
 		const subcommands = {
 			'sort': ['installs', 'rating', 'name'],

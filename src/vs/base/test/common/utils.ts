@@ -3,25 +3,21 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import * as paths from 'vs/base/common/paths';
-import URI from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 import { TPromise, TValueCallback } from 'vs/base/common/winjs.base';
+import { canceled } from 'vs/base/common/errors';
 
 export class DeferredTPromise<T> extends TPromise<T> {
-
-	public canceled: boolean;
 
 	private completeCallback: TValueCallback<T>;
 	private errorCallback: (err: any) => void;
 
-	constructor(oncancel?: any) {
+	constructor() {
 		let captured: any;
 		super((c, e) => {
 			captured = { c, e };
-		}, oncancel ? oncancel : () => this.oncancel);
-		this.canceled = false;
+		});
 		this.completeCallback = captured.c;
 		this.errorCallback = captured.e;
 	}
@@ -34,8 +30,8 @@ export class DeferredTPromise<T> extends TPromise<T> {
 		this.errorCallback(err);
 	}
 
-	private oncancel(): void {
-		this.canceled = true;
+	public cancel() {
+		this.errorCallback(canceled());
 	}
 }
 

@@ -3,38 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
-import { TPromise } from 'vs/base/common/winjs.base';
-import { IExpression } from 'vs/base/common/glob';
-import { IProgress, ILineMatch, IPatternInfo, ISearchStats } from 'vs/platform/search/common/search';
-import { ITelemetryData } from 'vs/platform/telemetry/common/telemetry';
 import { Event } from 'vs/base/common/event';
-
-export interface IFolderSearch {
-	folder: string;
-	excludePattern?: IExpression;
-	includePattern?: IExpression;
-	fileEncoding?: string;
-	disregardIgnoreFiles?: boolean;
-}
-
-export interface IRawSearch {
-	folderQueries: IFolderSearch[];
-	ignoreSymlinks?: boolean;
-	extraFiles?: string[];
-	filePattern?: string;
-	excludePattern?: IExpression;
-	includePattern?: IExpression;
-	contentPattern?: IPatternInfo;
-	maxResults?: number;
-	exists?: boolean;
-	sortByScore?: boolean;
-	cacheKey?: string;
-	maxFilesize?: number;
-	useRipgrep?: boolean;
-	disregardIgnoreFiles?: boolean;
-}
+import * as glob from 'vs/base/common/glob';
+import { TPromise } from 'vs/base/common/winjs.base';
+import { IFileSearchStats, IFolderQuery, IProgress, IRawFileQuery, IRawTextQuery, ISearchEngineStats, ISearchQuery, ITextSearchMatch, ITextSearchStats, ITextSearchResult } from 'vs/platform/search/common/search';
+import { ITelemetryData } from 'vs/platform/telemetry/common/telemetry';
 
 export interface ITelemetryEvent {
 	eventName: string;
@@ -42,10 +15,9 @@ export interface ITelemetryEvent {
 }
 
 export interface IRawSearchService {
-	fileSearch(search: IRawSearch): Event<ISerializedSearchProgressItem | ISerializedSearchComplete>;
-	textSearch(search: IRawSearch): Event<ISerializedSearchProgressItem | ISerializedSearchComplete>;
+	fileSearch(search: IRawFileQuery): Event<ISerializedSearchProgressItem | ISerializedSearchComplete>;
+	textSearch(search: IRawTextQuery): Event<ISerializedSearchProgressItem | ISerializedSearchComplete>;
 	clearCache(cacheKey: string): TPromise<void>;
-	readonly onTelemetry: Event<ITelemetryEvent>;
 }
 
 export interface IRawFileMatch {
@@ -56,14 +28,19 @@ export interface IRawFileMatch {
 }
 
 export interface ISearchEngine<T> {
-	search: (onResult: (matches: T) => void, onProgress: (progress: IProgress) => void, done: (error: Error, complete: ISerializedSearchSuccess) => void) => void;
+	search: (onResult: (matches: T) => void, onProgress: (progress: IProgress) => void, done: (error: Error, complete: ISearchEngineSuccess) => void) => void;
 	cancel: () => void;
 }
 
 export interface ISerializedSearchSuccess {
 	type: 'success';
 	limitHit: boolean;
-	stats: ISearchStats;
+	stats: IFileSearchStats | ITextSearchStats;
+}
+
+export interface ISearchEngineSuccess {
+	limitHit: boolean;
+	stats: ISearchEngineStats;
 }
 
 export interface ISerializedSearchError {
@@ -90,9 +67,13 @@ export function isSerializedSearchSuccess(arg: ISerializedSearchComplete): arg i
 	return arg.type === 'success';
 }
 
+export function isSerializedFileMatch(arg: ISerializedSearchProgressItem): arg is ISerializedFileMatch {
+	return !!(<ISerializedFileMatch>arg).path;
+}
+
 export interface ISerializedFileMatch {
 	path: string;
-	lineMatches?: ILineMatch[];
+	results?: ITextSearchResult[];
 	numMatches?: number;
 }
 
@@ -103,56 +84,121 @@ export type IFileSearchProgressItem = IRawFileMatch | IRawFileMatch[] | IProgres
 
 export class FileMatch implements ISerializedFileMatch {
 	path: string;
-	lineMatches: LineMatch[];
+	results: ITextSearchMatch[];
 
 	constructor(path: string) {
 		this.path = path;
-		this.lineMatches = [];
+		this.results = [];
 	}
 
-	addMatch(lineMatch: LineMatch): void {
-		this.lineMatches.push(lineMatch);
+	addMatch(match: ITextSearchMatch): void {
+		this.results.push(match);
 	}
 
 	serialize(): ISerializedFileMatch {
-		let lineMatches: ILineMatch[] = [];
-		let numMatches = 0;
-
-		for (let i = 0; i < this.lineMatches.length; i++) {
-			numMatches += this.lineMatches[i].offsetAndLengths.length;
-			lineMatches.push(this.lineMatches[i].serialize());
-		}
-
 		return {
 			path: this.path,
-			lineMatches,
-			numMatches
+			results: this.results,
+			numMatches: this.results.length
 		};
 	}
 }
 
-export class LineMatch implements ILineMatch {
-	preview: string;
-	lineNumber: number;
-	offsetAndLengths: number[][];
+/**
+ *  Computes the patterns that the provider handles. Discards sibling clauses and 'false' patterns
+ */
+export function resolvePatternsForProvider(globalPattern: glob.IExpression, folderPattern: glob.IExpression): string[] {
+	const merged = {
+		...(globalPattern || {}),
+		...(folderPattern || {})
+	};
 
-	constructor(preview: string, lineNumber: number) {
-		this.preview = preview.replace(/(\r|\n)*$/, '');
-		this.lineNumber = lineNumber;
-		this.offsetAndLengths = [];
-	}
+	return Object.keys(merged)
+		.filter(key => {
+			const value = merged[key];
+			return typeof value === 'boolean' && value;
+		});
+}
 
-	addMatch(offset: number, length: number): void {
-		this.offsetAndLengths.push([offset, length]);
-	}
+export class QueryGlobTester {
 
-	serialize(): ILineMatch {
-		const result = {
-			preview: this.preview,
-			lineNumber: this.lineNumber,
-			offsetAndLengths: this.offsetAndLengths
+	private _excludeExpression: glob.IExpression;
+	private _parsedExcludeExpression: glob.ParsedExpression;
+
+	private _parsedIncludeExpression: glob.ParsedExpression;
+
+	constructor(config: ISearchQuery, folderQuery: IFolderQuery) {
+		this._excludeExpression = {
+			...(config.excludePattern || {}),
+			...(folderQuery.excludePattern || {})
 		};
+		this._parsedExcludeExpression = glob.parse(this._excludeExpression);
 
-		return result;
+		// Empty includeExpression means include nothing, so no {} shortcuts
+		let includeExpression: glob.IExpression | undefined = config.includePattern;
+		if (folderQuery.includePattern) {
+			if (includeExpression) {
+				includeExpression = {
+					...includeExpression,
+					...folderQuery.includePattern
+				};
+			} else {
+				includeExpression = folderQuery.includePattern;
+			}
+		}
+
+		if (includeExpression) {
+			this._parsedIncludeExpression = glob.parse(includeExpression);
+		}
 	}
+
+	/**
+	 * Guaranteed sync - siblingsFn should not return a promise.
+	 */
+	public includedInQuerySync(testPath: string, basename?: string, hasSibling?: (name: string) => boolean): boolean {
+		if (this._parsedExcludeExpression && this._parsedExcludeExpression(testPath, basename, hasSibling)) {
+			return false;
+		}
+
+		if (this._parsedIncludeExpression && !this._parsedIncludeExpression(testPath, basename, hasSibling)) {
+			return false;
+		}
+
+		return true;
+	}
+
+	/**
+	 * Guaranteed async.
+	 */
+	public includedInQuery(testPath: string, basename?: string, hasSibling?: (name: string) => boolean | TPromise<boolean>): TPromise<boolean> {
+		const excludeP = this._parsedExcludeExpression ?
+			TPromise.as(this._parsedExcludeExpression(testPath, basename, hasSibling)).then(result => !!result) :
+			TPromise.wrap(false);
+
+		return excludeP.then(excluded => {
+			if (excluded) {
+				return false;
+			}
+
+			return this._parsedIncludeExpression ?
+				TPromise.as(this._parsedIncludeExpression(testPath, basename, hasSibling)).then(result => !!result) :
+				TPromise.wrap(true);
+		}).then(included => {
+			return included;
+		});
+	}
+
+	public hasSiblingExcludeClauses(): boolean {
+		return hasSiblingClauses(this._excludeExpression);
+	}
+}
+
+function hasSiblingClauses(pattern: glob.IExpression): boolean {
+	for (let key in pattern) {
+		if (typeof pattern[key] !== 'boolean') {
+			return true;
+		}
+	}
+
+	return false;
 }

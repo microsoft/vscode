@@ -3,23 +3,34 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
-import 'vs/css!./snippetSession';
-import { getLeadingWhitespace } from 'vs/base/common/strings';
-import { ITextModel, TrackedRangeStickiness, IIdentifiedSingleEditOperation } from 'vs/editor/common/model';
-import { EditOperation } from 'vs/editor/common/core/editOperation';
-import { TextmateSnippet, Placeholder, Choice, Text, SnippetParser } from './snippetParser';
-import { Selection } from 'vs/editor/common/core/selection';
-import { Range } from 'vs/editor/common/core/range';
-import { IPosition } from 'vs/editor/common/core/position';
 import { groupBy } from 'vs/base/common/arrays';
 import { dispose } from 'vs/base/common/lifecycle';
-import { SelectionBasedVariableResolver, CompositeSnippetVariableResolver, ModelBasedVariableResolver, ClipboardBasedVariableResolver, TimeBasedVariableResolver } from './snippetVariables';
-import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
+import { getLeadingWhitespace } from 'vs/base/common/strings';
+import 'vs/css!./snippetSession';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
+import { EditOperation } from 'vs/editor/common/core/editOperation';
+import { IPosition } from 'vs/editor/common/core/position';
+import { Range } from 'vs/editor/common/core/range';
+import { Selection } from 'vs/editor/common/core/selection';
+import { IIdentifiedSingleEditOperation, ITextModel, TrackedRangeStickiness } from 'vs/editor/common/model';
+import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 import { optional } from 'vs/platform/instantiation/common/instantiation';
+import { Choice, Placeholder, SnippetParser, Text, TextmateSnippet } from './snippetParser';
+import { ClipboardBasedVariableResolver, CompositeSnippetVariableResolver, ModelBasedVariableResolver, SelectionBasedVariableResolver, TimeBasedVariableResolver } from './snippetVariables';
+import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
+import * as colors from 'vs/platform/theme/common/colorRegistry';
+
+registerThemingParticipant((theme, collector) => {
+
+	function getColorGraceful(name: string) {
+		const color = theme.getColor(name);
+		return color ? color.toString() : 'transparent';
+	}
+
+	collector.addRule(`.monaco-editor .snippet-placeholder { background-color: ${getColorGraceful(colors.snippetTabstopHighlightBackground)}; outline-color: ${getColorGraceful(colors.snippetTabstopHighlightBorder)}; }`);
+	collector.addRule(`.monaco-editor .finish-snippet-placeholder { background-color: ${getColorGraceful(colors.snippetFinalTabstopHighlightBackground)}; outline-color: ${getColorGraceful(colors.snippetFinalTabstopHighlightBorder)}; }`);
+});
 
 export class OneSnippet {
 
@@ -106,18 +117,21 @@ export class OneSnippet {
 			}
 		}
 
+		let skipThisPlaceholder = false;
 		if (fwd === true && this._placeholderGroupsIdx < this._placeholderGroups.length - 1) {
 			this._placeholderGroupsIdx += 1;
+			skipThisPlaceholder = true;
 
 		} else if (fwd === false && this._placeholderGroupsIdx > 0) {
 			this._placeholderGroupsIdx -= 1;
+			skipThisPlaceholder = true;
 
 		} else {
 			// the selection of the current placeholder might
 			// not acurate any more -> simply restore it
 		}
 
-		return this._editor.getModel().changeDecorations(accessor => {
+		const newSelections = this._editor.getModel().changeDecorations(accessor => {
 
 			const activePlaceholders = new Set<Placeholder>();
 
@@ -131,6 +145,11 @@ export class OneSnippet {
 				const id = this._placeholderDecorations.get(placeholder);
 				const range = this._editor.getModel().getDecorationRange(id);
 				selections.push(new Selection(range.startLineNumber, range.startColumn, range.endLineNumber, range.endColumn));
+
+				// consider to skip this placeholder index when the decoration
+				// range is empty but when the placeholder wasn't. that's a strong
+				// hint that the placeholder has been deleted. (all placeholder must match this)
+				skipThisPlaceholder = skipThisPlaceholder && (range.isEmpty() && placeholder.toString().length > 0);
 
 				accessor.changeDecorationOptions(id, placeholder.isFinalTabstop ? OneSnippet._decor.activeFinal : OneSnippet._decor.active);
 				activePlaceholders.add(placeholder);
@@ -152,6 +171,8 @@ export class OneSnippet {
 
 			return selections;
 		});
+
+		return !skipThisPlaceholder ? newSelections : this.move(fwd);
 	}
 
 	get isAtFirstPlaceholder() {
@@ -220,9 +241,11 @@ export class OneSnippet {
 				// Massage placeholder-indicies of the nested snippet to be
 				// sorted right after the insertion point. This ensures we move
 				// through the placeholders in the correct order
+				const indexLastPlaceholder = nested._snippet.placeholderInfo.last.index;
+
 				for (const nestedPlaceholder of nested._snippet.placeholderInfo.all) {
 					if (nestedPlaceholder.isFinalTabstop) {
-						nestedPlaceholder.index = placeholder.index + ((nested._snippet.placeholderInfo.last.index + 1) / this._nestingLevel);
+						nestedPlaceholder.index = placeholder.index + ((indexLastPlaceholder + 1) / this._nestingLevel);
 					} else {
 						nestedPlaceholder.index = placeholder.index + (nestedPlaceholder.index / this._nestingLevel);
 					}
@@ -271,7 +294,7 @@ export class OneSnippet {
 
 export class SnippetSession {
 
-	static adjustWhitespace2(model: ITextModel, position: IPosition, snippet: TextmateSnippet): void {
+	static adjustWhitespace(model: ITextModel, position: IPosition, snippet: TextmateSnippet): void {
 		const line = model.getLineContent(position.lineNumber);
 		const lineLeadingWhitespace = getLeadingWhitespace(line, 0, position.column - 1);
 
@@ -317,7 +340,7 @@ export class SnippetSession {
 		return selection;
 	}
 
-	static createEditsAndSnippets(editor: ICodeEditor, template: string, overwriteBefore: number, overwriteAfter: number, enforceFinalTabstop: boolean): { edits: IIdentifiedSingleEditOperation[], snippets: OneSnippet[] } {
+	static createEditsAndSnippets(editor: ICodeEditor, template: string, overwriteBefore: number, overwriteAfter: number, enforceFinalTabstop: boolean, adjustWhitespace: boolean): { edits: IIdentifiedSingleEditOperation[], snippets: OneSnippet[] } {
 
 		const model = editor.getModel();
 		const edits: IIdentifiedSingleEditOperation[] = [];
@@ -333,6 +356,10 @@ export class SnippetSession {
 		// secondary selections extend to the same text we can grow them
 		let firstBeforeText = model.getValueInRange(SnippetSession.adjustSelection(model, editor.getSelection(), overwriteBefore, 0));
 		let firstAfterText = model.getValueInRange(SnippetSession.adjustSelection(model, editor.getSelection(), 0, overwriteAfter));
+
+		// remember the first non-whitespace column to decide if
+		// `keepWhitespace` should be overruled for secondary selections
+		let firstLineFirstNonWhitespace = model.getLineFirstNonWhitespaceColumn(editor.getSelection().positionLineNumber);
 
 		// sort selections by their start position but remeber
 		// the original index. that allows you to create correct
@@ -364,8 +391,12 @@ export class SnippetSession {
 
 			// adjust the template string to match the indentation and
 			// whitespace rules of this insert location (can be different for each cursor)
+			// happens when being asked for (default) or when this is a secondary
+			// cursor and the leading whitespace is different
 			const start = snippetSelection.getStartPosition();
-			SnippetSession.adjustWhitespace2(model, start, snippet);
+			if (adjustWhitespace || (idx > 0 && firstLineFirstNonWhitespace !== model.getLineFirstNonWhitespaceColumn(selection.positionLineNumber))) {
+				SnippetSession.adjustWhitespace(model, start, snippet);
+			}
 
 			snippet.resolveVariables(new CompositeSnippetVariableResolver([
 				modelBasedVariableResolver,
@@ -392,13 +423,15 @@ export class SnippetSession {
 	private readonly _templateMerges: [number, number, string][] = [];
 	private readonly _overwriteBefore: number;
 	private readonly _overwriteAfter: number;
+	private readonly _adjustWhitespace: boolean;
 	private _snippets: OneSnippet[] = [];
 
-	constructor(editor: ICodeEditor, template: string, overwriteBefore: number = 0, overwriteAfter: number = 0) {
+	constructor(editor: ICodeEditor, template: string, overwriteBefore: number = 0, overwriteAfter: number = 0, adjustWhitespace: boolean = true) {
 		this._editor = editor;
 		this._template = template;
 		this._overwriteBefore = overwriteBefore;
 		this._overwriteAfter = overwriteAfter;
+		this._adjustWhitespace = adjustWhitespace;
 	}
 
 	dispose(): void {
@@ -414,7 +447,7 @@ export class SnippetSession {
 		const model = this._editor.getModel();
 
 		// make insert edit and start with first selections
-		const { edits, snippets } = SnippetSession.createEditsAndSnippets(this._editor, this._template, this._overwriteBefore, this._overwriteAfter, false);
+		const { edits, snippets } = SnippetSession.createEditsAndSnippets(this._editor, this._template, this._overwriteBefore, this._overwriteAfter, false, this._adjustWhitespace);
 		this._snippets = snippets;
 
 		const selections = model.pushEditOperations(this._editor.getSelections(), edits, undoEdits => {
@@ -428,9 +461,9 @@ export class SnippetSession {
 		this._editor.revealRange(selections[0]);
 	}
 
-	merge(template: string, overwriteBefore: number = 0, overwriteAfter: number = 0): void {
+	merge(template: string, overwriteBefore: number = 0, overwriteAfter: number = 0, adjustWhitespace: boolean = true): void {
 		this._templateMerges.push([this._snippets[0]._nestingLevel, this._snippets[0]._placeholderGroupsIdx, template]);
-		const { edits, snippets } = SnippetSession.createEditsAndSnippets(this._editor, template, overwriteBefore, overwriteAfter, true);
+		const { edits, snippets } = SnippetSession.createEditsAndSnippets(this._editor, template, overwriteBefore, overwriteAfter, true, adjustWhitespace);
 
 		this._editor.setSelections(this._editor.getModel().pushEditOperations(this._editor.getSelections(), edits, undoEdits => {
 

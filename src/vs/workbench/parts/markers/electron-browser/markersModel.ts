@@ -2,414 +2,170 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
 import * as paths from 'vs/base/common/paths';
-import URI from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 import { Range, IRange } from 'vs/editor/common/core/range';
-import { IMarker, MarkerSeverity, IRelatedInformation, IMarkerData } from 'vs/platform/markers/common/markers';
-import { IFilter, IMatch, or, matchesContiguousSubString, matchesPrefix, matchesFuzzy } from 'vs/base/common/filters';
-import Messages from 'vs/workbench/parts/markers/electron-browser/messages';
-import { Schemas } from 'vs/base/common/network';
-import { groupBy, isFalsyOrEmpty, flatten } from 'vs/base/common/arrays';
+import { IMarker, MarkerSeverity, IRelatedInformation } from 'vs/platform/markers/common/markers';
+import { groupBy, flatten, isFalsyOrEmpty } from 'vs/base/common/arrays';
 import { values } from 'vs/base/common/map';
-import * as glob from 'vs/base/common/glob';
-import * as strings from 'vs/base/common/strings';
-import { ITextModelService } from 'vs/editor/common/services/resolverService';
-import { CodeAction } from 'vs/editor/common/modes';
-import { getCodeActions } from 'vs/editor/contrib/codeAction/codeAction';
-import { CodeActionKind } from 'vs/editor/contrib/codeAction/codeActionTrigger';
+import { memoize } from 'vs/base/common/decorators';
+import { Emitter, Event } from 'vs/base/common/event';
+import { Hasher } from 'vs/base/common/hash';
 
 function compareUris(a: URI, b: URI) {
-	if (a.toString() < b.toString()) {
-		return -1;
-	} else if (a.toString() > b.toString()) {
-		return 1;
-	} else {
-		return 0;
+	const astr = a.toString();
+	const bstr = b.toString();
+	return astr === bstr ? 0 : (astr < bstr ? -1 : 1);
+}
+
+export function compareMarkersByUri(a: IMarker, b: IMarker) {
+	return compareUris(a.resource, b.resource);
+}
+
+function compareResourceMarkers(a: ResourceMarkers, b: ResourceMarkers): number {
+	let [firstMarkerOfA] = a.markers;
+	let [firstMarkerOfB] = b.markers;
+	let res = 0;
+	if (firstMarkerOfA && firstMarkerOfB) {
+		res = MarkerSeverity.compare(firstMarkerOfA.marker.severity, firstMarkerOfB.marker.severity);
 	}
+	if (res === 0) {
+		res = a.path.localeCompare(b.path) || a.name.localeCompare(b.name);
+	}
+	return res;
 }
 
-export abstract class NodeWithId {
-	constructor(readonly id: string) { }
+function compareMarkers(a: Marker, b: Marker): number {
+	return MarkerSeverity.compare(a.marker.severity, b.marker.severity)
+		|| Range.compareRangesUsingStarts(a.marker, b.marker);
 }
 
-export class ResourceMarkers extends NodeWithId {
+export class ResourceMarkers {
 
-	private _name: string = null;
-	private _path: string = null;
-	private _allFixesPromise: Promise<CodeAction[]>;
+	@memoize
+	get path(): string { return this.resource.fsPath; }
 
-	markers: Marker[] = [];
-	isExcluded: boolean = false;
-	isIncluded: boolean = false;
-	filteredCount: number;
-	uriMatches: IMatch[] = [];
+	@memoize
+	get name(): string { return paths.basename(this.resource.fsPath); }
+
+	@memoize
+	get hash(): string {
+		const hasher = new Hasher();
+		hasher.hash(this.resource.toString());
+		return `${hasher.value}`;
+	}
+
+	constructor(readonly resource: URI, readonly markers: Marker[]) { }
+}
+
+export class Marker {
+
+	get resource(): URI { return this.marker.resource; }
+	get range(): IRange { return this.marker; }
+
+	@memoize
+	get hash(): string {
+		const hasher = new Hasher();
+		hasher.hash(this.resource.toString());
+		hasher.hash(this.marker.startLineNumber);
+		hasher.hash(this.marker.startColumn);
+		hasher.hash(this.marker.endLineNumber);
+		hasher.hash(this.marker.endColumn);
+		return `${hasher.value}`;
+	}
 
 	constructor(
-		readonly uri: URI,
-		private textModelService: ITextModelService
-	) {
-		super(uri.toString());
-	}
+		readonly marker: IMarker,
+		readonly relatedInformation: RelatedInformation[] = []
+	) { }
 
-	public get path(): string {
-		if (this._path === null) {
-			this._path = this.uri.fsPath;
-		}
-		return this._path;
-	}
-
-	public get name(): string {
-		if (this._name === null) {
-			this._name = paths.basename(this.uri.fsPath);
-		}
-		return this._name;
-	}
-
-	public getFixes(marker: Marker): Promise<CodeAction[]> {
-		return this._getFixes(new Range(marker.range.startLineNumber, marker.range.startColumn, marker.range.endLineNumber, marker.range.endColumn));
-	}
-
-	public async hasFixes(marker: Marker): Promise<boolean> {
-		if (!this._allFixesPromise) {
-			this._allFixesPromise = this._getFixes();
-		}
-		const allFixes = await this._allFixesPromise;
-		if (allFixes.length) {
-			const markerKey = IMarkerData.makeKey(marker.raw);
-			for (const fix of allFixes) {
-				if (fix.diagnostics && fix.diagnostics.some(d => IMarkerData.makeKey(d) === markerKey)) {
-					return true;
-				}
-			}
-		}
-		return false;
-	}
-
-	private async _getFixes(range?: Range): Promise<CodeAction[]> {
-		const modelReference = await this.textModelService.createModelReference(this.uri);
-		if (modelReference) {
-			const model = modelReference.object.textEditorModel;
-			const codeActions = await getCodeActions(model, range ? range : model.getFullModelRange(), { type: 'manual', filter: { kind: CodeActionKind.QuickFix } });
-			modelReference.dispose();
-			return codeActions;
-		}
-		return [];
-	}
-
-	static compare(a: ResourceMarkers, b: ResourceMarkers): number {
-		let [firstMarkerOfA] = a.markers;
-		let [firstMarkerOfB] = b.markers;
-		let res = 0;
-		if (firstMarkerOfA && firstMarkerOfB) {
-			res = MarkerSeverity.compare(firstMarkerOfA.raw.severity, firstMarkerOfB.raw.severity);
-		}
-		if (res === 0) {
-			res = a.path.localeCompare(b.path) || a.name.localeCompare(b.name);
-		}
-		return res;
-	}
-}
-
-export class Marker extends NodeWithId {
-
-	isSelected: boolean = false;
-	messageMatches: IMatch[] = [];
-	sourceMatches: IMatch[] = [];
-	resourceRelatedInformation: RelatedInformation[] = [];
-
-	constructor(
-		id: string,
-		readonly raw: IMarker
-	) {
-		super(id);
-	}
-
-	public get resource(): URI {
-		return this.raw.resource;
-	}
-
-	public get range(): IRange {
-		return this.raw;
-	}
-
-	public toString(): string {
+	toString(): string {
 		return JSON.stringify({
-			...this.raw,
-			resource: this.raw.resource.path,
-			relatedInformation: this.resourceRelatedInformation.length ? this.resourceRelatedInformation.map(r => ({ ...r.raw, resource: r.raw.resource.path })) : void 0
+			...this.marker,
+			resource: this.marker.resource.path,
+			relatedInformation: this.relatedInformation.length ? this.relatedInformation.map(r => ({ ...r.raw, resource: r.raw.resource.path })) : void 0
 		}, null, '\t');
 	}
-
-	static compare(a: Marker, b: Marker): number {
-		return MarkerSeverity.compare(a.raw.severity, b.raw.severity)
-			|| Range.compareRangesUsingStarts(a.raw, b.raw);
-	}
 }
 
-export class RelatedInformation extends NodeWithId {
+export class RelatedInformation {
 
-	messageMatches: IMatch[];
-	uriMatches: IMatch[];
-
-	constructor(id: string, readonly raw: IRelatedInformation) {
-		super(id);
-	}
-}
-
-export class FilterOptions {
-
-	static readonly _filter: IFilter = or(matchesPrefix, matchesContiguousSubString);
-	static readonly _fuzzyFilter: IFilter = or(matchesPrefix, matchesContiguousSubString, matchesFuzzy);
-
-	readonly filterErrors: boolean = false;
-	readonly filterWarnings: boolean = false;
-	readonly filterInfos: boolean = false;
-	readonly excludePattern: glob.ParsedExpression = null;
-	readonly includePattern: glob.ParsedExpression = null;
-	readonly textFilter: string = '';
-
-	constructor(readonly filter: string = '', excludePatterns: glob.IExpression = {}) {
-		filter = filter.trim();
-		for (const key of Object.keys(excludePatterns)) {
-			if (excludePatterns[key]) {
-				this.setPattern(excludePatterns, key);
-			}
-			delete excludePatterns[key];
-		}
-		const includePatterns: glob.IExpression = glob.getEmptyExpression();
-		if (filter) {
-			const filters = glob.splitGlobAware(filter, ',').map(s => s.trim()).filter(s => !!s.length);
-			for (const f of filters) {
-				this.filterErrors = this.filterErrors || this.matches(f, Messages.MARKERS_PANEL_FILTER_ERRORS);
-				this.filterWarnings = this.filterWarnings || this.matches(f, Messages.MARKERS_PANEL_FILTER_WARNINGS);
-				this.filterInfos = this.filterInfos || this.matches(f, Messages.MARKERS_PANEL_FILTER_INFOS);
-				if (strings.startsWith(f, '!')) {
-					this.setPattern(excludePatterns, strings.ltrim(f, '!'));
-				} else {
-					this.setPattern(includePatterns, f);
-					this.textFilter += ` ${f}`;
-				}
-			}
-		}
-		if (Object.keys(excludePatterns).length) {
-			this.excludePattern = glob.parse(excludePatterns);
-		}
-		if (Object.keys(includePatterns).length) {
-			this.includePattern = glob.parse(includePatterns);
-		}
-		this.textFilter = this.textFilter.trim();
+	@memoize
+	get hash(): string {
+		const hasher = new Hasher();
+		hasher.hash(this.resource.toString());
+		hasher.hash(this.marker.startLineNumber);
+		hasher.hash(this.marker.startColumn);
+		hasher.hash(this.marker.endLineNumber);
+		hasher.hash(this.marker.endColumn);
+		hasher.hash(this.raw.resource.toString());
+		hasher.hash(this.raw.startLineNumber);
+		hasher.hash(this.raw.startColumn);
+		hasher.hash(this.raw.endLineNumber);
+		hasher.hash(this.raw.endColumn);
+		return `${hasher.value}`;
 	}
 
-	private setPattern(expression: glob.IExpression, pattern: string) {
-		if (pattern[0] === '.') {
-			pattern = '*' + pattern; // convert ".js" to "*.js"
-		}
-		expression[`**/${pattern}/**`] = true;
-		expression[`**/${pattern}`] = true;
-	}
-
-	private matches(prefix: string, word: string): boolean {
-		let result = matchesPrefix(prefix, word);
-		return result && result.length > 0;
-	}
+	constructor(
+		private resource: URI,
+		private marker: IMarker,
+		readonly raw: IRelatedInformation
+	) { }
 }
 
 export class MarkersModel {
 
-	private _cachedSortedResources: ResourceMarkers[];
-	private _markersByResource: Map<string, ResourceMarkers>;
-	private _filterOptions: FilterOptions;
+	private cachedSortedResources: ResourceMarkers[] | undefined = undefined;
 
-	constructor(
-		markers: IMarker[] = [],
-		@ITextModelService private textModelService: ITextModelService
-	) {
-		this._markersByResource = new Map<string, ResourceMarkers>();
-		this._filterOptions = new FilterOptions();
+	private readonly _onDidChange: Emitter<URI> = new Emitter<URI>();
+	readonly onDidChange: Event<URI> = this._onDidChange.event;
 
-		for (const group of groupBy(markers, MarkersModel._compareMarkersByUri)) {
-			const resource = this.createResource(group[0].resource, group);
-			this._markersByResource.set(resource.uri.toString(), resource);
+	get resourceMarkers(): ResourceMarkers[] {
+		if (!this.cachedSortedResources) {
+			this.cachedSortedResources = values(this.resourcesByUri).sort(compareResourceMarkers);
 		}
+
+		return this.cachedSortedResources;
 	}
 
-	private static _compareMarkersByUri(a: IMarker, b: IMarker) {
-		return compareUris(a.resource, b.resource);
+	private resourcesByUri: Map<string, ResourceMarkers>;
+
+	constructor() {
+		this.resourcesByUri = new Map<string, ResourceMarkers>();
 	}
 
-	public get filterOptions(): FilterOptions {
-		return this._filterOptions;
+	getResourceMarkers(resource: URI): ResourceMarkers | null {
+		return this.resourcesByUri.get(resource.toString()) || null;
 	}
 
-	public get resources(): ResourceMarkers[] {
-		if (!this._cachedSortedResources) {
-			this._cachedSortedResources = values(this._markersByResource).sort(ResourceMarkers.compare);
-		}
-		return this._cachedSortedResources;
-	}
-
-	public forEachFilteredResource(callback: (resource: ResourceMarkers) => any) {
-		this._markersByResource.forEach(resource => {
-			if (resource.filteredCount > 0) {
-				callback(resource);
-			}
-		});
-	}
-
-	public hasFilteredResources(): boolean {
-		let res = false;
-		this._markersByResource.forEach(resource => {
-			res = res || resource.filteredCount > 0;
-		});
-		return res;
-	}
-
-	public hasResources(): boolean {
-		return this._markersByResource.size > 0;
-	}
-
-	public hasResource(resource: URI): boolean {
-		return this._markersByResource.has(resource.toString());
-	}
-
-	public stats(): { total: number, filtered: number } {
-		let total = 0;
-		let filtered = 0;
-		this._markersByResource.forEach(resource => {
-			total += resource.markers.length;
-			filtered += resource.filteredCount;
-		});
-		return { total, filtered };
-
-	}
-
-	public updateMarkers(callback: (updater: (resource: URI, markers: IMarker[]) => any) => void): void {
-		callback((resource, markers) => {
-			if (isFalsyOrEmpty(markers)) {
-				this._markersByResource.delete(resource.toString());
-			} else {
-				this._markersByResource.set(resource.toString(), this.createResource(resource, markers));
-			}
-		});
-		this._cachedSortedResources = undefined;
-	}
-
-	public updateFilterOptions(filterOptions: FilterOptions): void {
-		this._filterOptions = filterOptions;
-		this._markersByResource.forEach(resource => {
-			this.updateResource(resource);
-			for (const marker of resource.markers) {
-				this.updateMarker(marker, resource);
-			}
-			this.updateFilteredCount(resource);
-		});
-	}
-
-	private createResource(uri: URI, rawMarkers: IMarker[]): ResourceMarkers {
-
-		const markers: Marker[] = [];
-		const resource = new ResourceMarkers(uri, this.textModelService);
-		this.updateResource(resource);
-
-		rawMarkers.forEach((rawMarker, index) => {
-			const marker = new Marker(uri.toString() + index, rawMarker);
-			if (rawMarker.relatedInformation) {
-				const groupedByResource = groupBy(rawMarker.relatedInformation, MarkersModel._compareMarkersByUri);
-				groupedByResource.sort((a, b) => compareUris(a[0].resource, b[0].resource));
-				marker.resourceRelatedInformation = flatten(groupedByResource).map((r, index) => new RelatedInformation(marker.id + index, r));
-			}
-			this.updateMarker(marker, resource);
-			markers.push(marker);
-		});
-		resource.markers = markers.sort(Marker.compare);
-
-		this.updateFilteredCount(resource);
-
-		return resource;
-	}
-
-	private updateResource(resource: ResourceMarkers): void {
-		resource.isExcluded = this.isResourceExcluded(resource);
-		resource.isIncluded = this.isResourceIncluded(resource);
-		resource.uriMatches = this._filterOptions.textFilter ? FilterOptions._filter(this._filterOptions.textFilter, paths.basename(resource.uri.fsPath)) : [];
-	}
-
-	private updateFilteredCount(resource: ResourceMarkers): void {
-		if (resource.isExcluded) {
-			resource.filteredCount = 0;
-		} else if (resource.isIncluded) {
-			resource.filteredCount = resource.markers.length;
+	setResourceMarkers(resource: URI, rawMarkers: IMarker[]): void {
+		if (isFalsyOrEmpty(rawMarkers)) {
+			this.resourcesByUri.delete(resource.toString());
 		} else {
-			resource.filteredCount = resource.markers.filter(m => m.isSelected).length;
+			const markers = rawMarkers.map(rawMarker => {
+				let relatedInformation: RelatedInformation[] | undefined = undefined;
+
+				if (rawMarker.relatedInformation) {
+					const groupedByResource = groupBy(rawMarker.relatedInformation, compareMarkersByUri);
+					groupedByResource.sort((a, b) => compareUris(a[0].resource, b[0].resource));
+					relatedInformation = flatten(groupedByResource).map(r => new RelatedInformation(resource, rawMarker, r));
+				}
+
+				return new Marker(rawMarker, relatedInformation);
+			});
+
+			markers.sort(compareMarkers);
+
+			this.resourcesByUri.set(resource.toString(), new ResourceMarkers(resource, markers));
 		}
+
+		this.cachedSortedResources = undefined;
+		this._onDidChange.fire(resource);
 	}
 
-	private updateMarker(marker: Marker, resource: ResourceMarkers): void {
-		marker.messageMatches = !resource.isExcluded && this._filterOptions.textFilter ? FilterOptions._fuzzyFilter(this._filterOptions.textFilter, marker.raw.message) : [];
-		marker.sourceMatches = !resource.isExcluded && marker.raw.source && this._filterOptions.textFilter ? FilterOptions._filter(this._filterOptions.textFilter, marker.raw.source) : [];
-		marker.resourceRelatedInformation.forEach(r => {
-			r.uriMatches = !resource.isExcluded && this._filterOptions.textFilter ? FilterOptions._filter(this._filterOptions.textFilter, paths.basename(r.raw.resource.fsPath)) : [];
-			r.messageMatches = !resource.isExcluded && this._filterOptions.textFilter ? FilterOptions._fuzzyFilter(this._filterOptions.textFilter, r.raw.message) : [];
-		});
-		marker.isSelected = this.isMarkerSelected(marker.raw, resource);
-	}
-
-	private isResourceExcluded(resource: ResourceMarkers): boolean {
-		if (resource.uri.scheme === Schemas.walkThrough || resource.uri.scheme === Schemas.walkThroughSnippet) {
-			return true;
-		}
-		if (this.filterOptions.excludePattern && !!this.filterOptions.excludePattern(resource.uri.fsPath)) {
-			return true;
-		}
-		return false;
-	}
-
-	private isResourceIncluded(resource: ResourceMarkers): boolean {
-		if (this.filterOptions.includePattern && this.filterOptions.includePattern(resource.uri.fsPath)) {
-			return true;
-		}
-		if (this._filterOptions.textFilter && !!FilterOptions._filter(this._filterOptions.textFilter, paths.basename(resource.uri.fsPath))) {
-			return true;
-		}
-		return false;
-	}
-
-	private isMarkerSelected(marker: IMarker, resource: ResourceMarkers): boolean {
-		if (resource.isExcluded) {
-			return false;
-		}
-		if (resource.isIncluded) {
-			return true;
-		}
-		if (this._filterOptions.filterErrors && MarkerSeverity.Error === marker.severity) {
-			return true;
-		}
-		if (this._filterOptions.filterWarnings && MarkerSeverity.Warning === marker.severity) {
-			return true;
-		}
-		if (this._filterOptions.filterInfos && MarkerSeverity.Info === marker.severity) {
-			return true;
-		}
-		if (!this._filterOptions.textFilter) {
-			return true;
-		}
-		if (!!FilterOptions._fuzzyFilter(this._filterOptions.textFilter, marker.message)) {
-			return true;
-		}
-		if (!!marker.source && !!FilterOptions._filter(this._filterOptions.textFilter, marker.source)) {
-			return true;
-		}
-		if (!!marker.relatedInformation && marker.relatedInformation.some(r =>
-			!!FilterOptions._filter(this._filterOptions.textFilter, paths.basename(r.resource.fsPath)) || !
-			!FilterOptions._filter(this._filterOptions.textFilter, r.message))) {
-			return true;
-		}
-		return false;
-	}
-
-	public dispose(): void {
-		this._markersByResource.clear();
+	dispose(): void {
+		this._onDidChange.dispose();
+		this.resourcesByUri.clear();
 	}
 }

@@ -3,31 +3,32 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as nls from 'vs/nls';
-import * as resources from 'vs/base/common/resources';
-import * as paths from 'vs/base/common/paths';
 import * as DOM from 'vs/base/browser/dom';
-import { Disposable, IDisposable, dispose } from 'vs/base/common/lifecycle';
-import { TPromise } from 'vs/base/common/winjs.base';
-import { IAction, IActionRunner } from 'vs/base/common/actions';
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
 import { CountBadge } from 'vs/base/browser/ui/countBadge/countBadge';
-import { FileLabel } from 'vs/workbench/browser/labels';
-import { ITree, IDataSource, IAccessibilityProvider, IFilter, IRenderer, ContextMenuEvent, ISorter } from 'vs/base/parts/tree/browser/tree';
-import { Match, SearchResult, FileMatch, FileMatchOrMatch, SearchModel, FolderMatch, searchMatchComparer, RenderableMatch } from 'vs/workbench/parts/search/common/searchModel';
-import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
-import { SearchView } from 'vs/workbench/parts/search/browser/searchView';
-import { RemoveAction, ReplaceAllAction, ReplaceAction, ReplaceAllInFolderAction } from 'vs/workbench/parts/search/browser/searchActions';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { attachBadgeStyler } from 'vs/platform/theme/common/styler';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { FileKind } from 'vs/platform/files/common/files';
+import { IAction } from 'vs/base/common/actions';
+import { Disposable, dispose, IDisposable } from 'vs/base/common/lifecycle';
+import * as paths from 'vs/base/common/paths';
+import * as resources from 'vs/base/common/resources';
+import { TPromise } from 'vs/base/common/winjs.base';
+import { ContextMenuEvent, IAccessibilityProvider, IDataSource, IFilter, IRenderer, ISorter, ITree } from 'vs/base/parts/tree/browser/tree';
+import * as nls from 'vs/nls';
+import { fillInContextMenuActions } from 'vs/platform/actions/browser/menuItemActionItem';
+import { IMenu, IMenuService, MenuId } from 'vs/platform/actions/common/actions';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
-import { IMenuService, MenuId, IMenu } from 'vs/platform/actions/common/actions';
-import { WorkbenchTreeController, WorkbenchTree } from 'vs/platform/list/browser/listService';
-import { fillInContextMenuActions } from 'vs/platform/actions/browser/menuItemActionItem';
-import { IUriDisplayService } from 'vs/platform/uriDisplay/common/uriDisplay';
+import { FileKind } from 'vs/platform/files/common/files';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { ILabelService } from 'vs/platform/label/common/label';
+import { WorkbenchTree, WorkbenchTreeController } from 'vs/platform/list/browser/listService';
+import { ISearchConfigurationProperties } from 'vs/platform/search/common/search';
+import { attachBadgeStyler } from 'vs/platform/theme/common/styler';
+import { IThemeService } from 'vs/platform/theme/common/themeService';
+import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
+import { FileLabel } from 'vs/workbench/browser/labels';
+import { RemoveAction, ReplaceAction, ReplaceAllAction, ReplaceAllInFolderAction } from 'vs/workbench/parts/search/browser/searchActions';
+import { SearchView } from 'vs/workbench/parts/search/browser/searchView';
+import { FileMatch, FileMatchOrMatch, FolderMatch, Match, RenderableMatch, searchMatchComparer, SearchModel, SearchResult } from 'vs/workbench/parts/search/common/searchModel';
 
 export class SearchDataSource implements IDataSource {
 
@@ -36,7 +37,10 @@ export class SearchDataSource implements IDataSource {
 	private includeFolderMatch: boolean;
 	private listener: IDisposable;
 
-	constructor(@IWorkspaceContextService private contextService: IWorkspaceContextService) {
+	constructor(
+		@IWorkspaceContextService private contextService: IWorkspaceContextService,
+		@IConfigurationService private configurationService: IConfigurationService,
+	) {
 		this.updateIncludeFolderMatch();
 		this.listener = this.contextService.onDidChangeWorkbenchState(() => this.updateIncludeFolderMatch());
 	}
@@ -103,6 +107,14 @@ export class SearchDataSource implements IDataSource {
 		if (numChildren <= 0) {
 			return false;
 		}
+
+		const collapseOption = this.configurationService.getValue('search.collapseResults');
+		if (collapseOption === 'alwaysCollapse') {
+			return false;
+		} else if (collapseOption === 'alwaysExpand') {
+			return true;
+		}
+
 		return numChildren < SearchDataSource.AUTOEXPAND_CHILD_LIMIT || element instanceof FolderMatch;
 	}
 
@@ -136,6 +148,7 @@ interface IMatchTemplate {
 	match: HTMLElement;
 	replace: HTMLElement;
 	after: HTMLElement;
+	lineNumber: HTMLElement;
 	actions: ActionBar;
 }
 
@@ -146,10 +159,10 @@ export class SearchRenderer extends Disposable implements IRenderer {
 	private static readonly MATCH_TEMPLATE_ID = 'match';
 
 	constructor(
-		actionRunner: IActionRunner,
 		private searchView: SearchView,
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@IThemeService private themeService: IThemeService,
+		@IConfigurationService private configurationService: IConfigurationService,
 		@IWorkspaceContextService protected contextService: IWorkspaceContextService
 	) {
 		super();
@@ -222,7 +235,9 @@ export class SearchRenderer extends Disposable implements IRenderer {
 		const match = DOM.append(parent, DOM.$('span.findInFileMatch'));
 		const replace = DOM.append(parent, DOM.$('span.replaceMatch'));
 		const after = DOM.append(parent, DOM.$('span'));
-		const actions = new ActionBar(container, { animated: false });
+		const lineNumber = DOM.append(container, DOM.$('span.matchLineNum'));
+		const actionBarContainer = DOM.append(container, DOM.$('span.actionBarContainer'));
+		const actions = new ActionBar(actionBarContainer, { animated: false });
 
 		return {
 			parent,
@@ -230,12 +245,13 @@ export class SearchRenderer extends Disposable implements IRenderer {
 			match,
 			replace,
 			after,
+			lineNumber,
 			actions
 		};
 	}
 
 	private renderFolderMatch(tree: ITree, folderMatch: FolderMatch, templateData: IFolderMatchTemplate): void {
-		if (folderMatch.hasRoot()) {
+		if (folderMatch.hasResource()) {
 			const workspaceFolder = this.contextService.getWorkspaceFolder(folderMatch.resource());
 			if (workspaceFolder && resources.isEqual(workspaceFolder.uri, folderMatch.resource())) {
 				templateData.label.setFile(folderMatch.resource(), { fileKind: FileKind.ROOT_FOLDER, hidePath: true });
@@ -291,12 +307,37 @@ export class SearchRenderer extends Disposable implements IRenderer {
 		templateData.after.textContent = preview.after;
 		templateData.parent.title = (preview.before + (replace ? match.replaceString : preview.inside) + preview.after).trim().substr(0, 999);
 
+		const numLines = match.range().endLineNumber - match.range().startLineNumber;
+		const extraLinesStr = numLines > 0 ? `+${numLines}` : '';
+
+		const showLineNumbers = this.configurationService.getValue<ISearchConfigurationProperties>('search').showLineNumbers;
+		const lineNumberStr = showLineNumbers ? `:${match.range().startLineNumber}` : '';
+		DOM.toggleClass(templateData.lineNumber, 'show', (numLines > 0) || showLineNumbers);
+
+		templateData.lineNumber.textContent = lineNumberStr + extraLinesStr;
+		templateData.lineNumber.setAttribute('title', this.getMatchTitle(match, showLineNumbers));
+
 		templateData.actions.clear();
 		if (searchModel.isReplaceActive()) {
 			templateData.actions.push([this.instantiationService.createInstance(ReplaceAction, tree, match, this.searchView), new RemoveAction(tree, match)], { icon: true, label: false });
 		} else {
 			templateData.actions.push([new RemoveAction(tree, match)], { icon: true, label: false });
 		}
+	}
+
+	private getMatchTitle(match: Match, showLineNumbers: boolean): string {
+		const startLine = match.range().startLineNumber;
+		const numLines = match.range().endLineNumber - match.range().startLineNumber;
+
+		const lineNumStr = showLineNumbers ?
+			nls.localize('lineNumStr', "From line {0}", startLine, numLines) + ' ' :
+			'';
+
+		const numLinesStr = numLines > 0 ?
+			'+ ' + nls.localize('numLinesStr', "{0} more lines", numLines) :
+			'';
+
+		return lineNumStr + numLinesStr;
 	}
 
 	public disposeTemplate(tree: ITree, templateId: string, templateData: any): void {
@@ -318,17 +359,19 @@ export class SearchRenderer extends Disposable implements IRenderer {
 export class SearchAccessibilityProvider implements IAccessibilityProvider {
 
 	constructor(
-		@IUriDisplayService private uriDisplayService: IUriDisplayService
+		@ILabelService private labelService: ILabelService
 	) {
 	}
 
 	public getAriaLabel(tree: ITree, element: FileMatchOrMatch): string {
 		if (element instanceof FolderMatch) {
-			return nls.localize('folderMatchAriaLabel', "{0} matches in folder root {1}, Search result", element.count(), element.name());
+			return element.hasResource() ?
+				nls.localize('folderMatchAriaLabel', "{0} matches in folder root {1}, Search result", element.count(), element.name()) :
+				nls.localize('otherFilesAriaLabel', "{0} matches outside of the workspace, Search result", element.count());
 		}
 
 		if (element instanceof FileMatch) {
-			const path = this.uriDisplayService.getLabel(element.resource(), true) || element.resource().fsPath;
+			const path = this.labelService.getUriLabel(element.resource(), { relative: true }) || element.resource().fsPath;
 
 			return nls.localize('fileMatchAriaLabel', "{0} matches in file {1} of folder {2}, Search result", element.count(), element.name(), paths.dirname(path));
 		}

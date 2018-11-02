@@ -3,15 +3,16 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
-import { onUnexpectedError } from 'vs/base/common/errors';
-import { ExtensionHostMain, exit } from 'vs/workbench/node/extensionHostMain';
-import { IInitData } from 'vs/workbench/api/node/extHost.protocol';
-import { IMessagePassingProtocol } from 'vs/base/parts/ipc/common/ipc';
-import { Protocol } from 'vs/base/parts/ipc/node/ipc.net';
+import * as nativeWatchdog from 'native-watchdog';
 import { createConnection } from 'net';
+import { onUnexpectedError } from 'vs/base/common/errors';
 import { Event, filterEvent } from 'vs/base/common/event';
+import { IMessagePassingProtocol } from 'vs/base/parts/ipc/node/ipc';
+import { Protocol } from 'vs/base/parts/ipc/node/ipc.net';
+import product from 'vs/platform/node/product';
+import { IInitData } from 'vs/workbench/api/node/extHost.protocol';
+import { MessageType, createMessageOfType, isMessageOfType } from 'vs/workbench/common/extensionHostProtocol';
+import { ExtensionHostMain, exit } from 'vs/workbench/node/extensionHostMain';
 
 // With Electron 2.x and node.js 8.x the "natives" module
 // can cause a native crash (see https://github.com/nodejs/node/issues/19891 and
@@ -61,7 +62,7 @@ function createExtHostProtocol(): Promise<IMessagePassingProtocol> {
 			private _terminating = false;
 
 			readonly onMessage: Event<any> = filterEvent(protocol.onMessage, msg => {
-				if (msg.type !== '__$terminate') {
+				if (!isMessageOfType(msg, MessageType.Terminate)) {
 					return true;
 				}
 				this._terminating = true;
@@ -85,7 +86,17 @@ function connectToRenderer(protocol: IMessagePassingProtocol): Promise<IRenderer
 		const first = protocol.onMessage(raw => {
 			first.dispose();
 
-			const initData = <IInitData>JSON.parse(raw);
+			const initData = <IInitData>JSON.parse(raw.toString());
+
+			const rendererCommit = initData.commit;
+			const myCommit = product.commit;
+
+			if (rendererCommit && myCommit) {
+				// Running in the built version where commits are defined
+				if (rendererCommit !== myCommit) {
+					exit(55);
+				}
+			}
 
 			// Print a console message when rejection isn't handled within N seconds. For details:
 			// see https://nodejs.org/api/process.html#process_event_unhandledrejection
@@ -102,6 +113,7 @@ function connectToRenderer(protocol: IMessagePassingProtocol): Promise<IRenderer
 					}
 				}, 1000);
 			});
+
 			process.on('rejectionHandled', (promise: Promise<any>) => {
 				const idx = unhandledPromises.indexOf(promise);
 				if (idx >= 0) {
@@ -121,16 +133,28 @@ function connectToRenderer(protocol: IMessagePassingProtocol): Promise<IRenderer
 				} catch (e) {
 					onTerminate();
 				}
-			}, 5000);
+			}, 1000);
+
+			// In certain cases, the event loop can become busy and never yield
+			// e.g. while-true or process.nextTick endless loops
+			// So also use the native node module to do it from a separate thread
+			let watchdog: typeof nativeWatchdog;
+			try {
+				watchdog = require.__$__nodeRequire('native-watchdog');
+				watchdog.start(initData.parentPid);
+			} catch (err) {
+				// no problem...
+				onUnexpectedError(err);
+			}
 
 			// Tell the outside that we are initialized
-			protocol.send('initialized');
+			protocol.send(createMessageOfType(MessageType.Initialized));
 
 			c({ protocol, initData });
 		});
 
 		// Tell the outside that we are ready to receive messages
-		protocol.send('ready');
+		protocol.send(createMessageOfType(MessageType.Ready));
 	});
 }
 

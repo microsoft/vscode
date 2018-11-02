@@ -2,17 +2,16 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IStorageService } from 'vs/platform/storage/common/storage';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { registerEditorContribution } from 'vs/editor/browser/editorExtensions';
-import { INotificationService } from 'vs/platform/notification/common/notification';
-import { ReferencesController } from 'vs/editor/contrib/referenceSearch/referencesController';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
+import { ReferencesController } from 'vs/editor/contrib/referenceSearch/referencesController';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { INotificationService } from 'vs/platform/notification/common/notification';
+import { IStorageService } from 'vs/platform/storage/common/storage';
 
 export class WorkbenchReferencesController extends ReferencesController {
 
@@ -33,7 +32,7 @@ export class WorkbenchReferencesController extends ReferencesController {
 			notificationService,
 			instantiationService,
 			storageService,
-			configurationService,
+			configurationService
 		);
 	}
 }

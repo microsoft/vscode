@@ -3,10 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import * as assert from 'assert';
-import URI, { UriComponents } from 'vs/base/common/uri';
+import { URI, UriComponents } from 'vs/base/common/uri';
 import { DiagnosticCollection, ExtHostDiagnostics } from 'vs/workbench/api/node/extHostDiagnostics';
 import { Diagnostic, DiagnosticSeverity, Range, DiagnosticRelatedInformation, Location } from 'vs/workbench/api/node/extHostTypes';
 import { MainThreadDiagnosticsShape, IMainContext } from 'vs/workbench/api/node/extHost.protocol';
@@ -25,7 +23,7 @@ suite('ExtHostDiagnostics', () => {
 		}
 	}
 
-	test('disposeCheck', function () {
+	test('disposeCheck', () => {
 
 		const collection = new DiagnosticCollection('test', 'test', 100, new DiagnosticsShape(), new Emitter());
 
@@ -188,6 +186,31 @@ suite('ExtHostDiagnostics', () => {
 		assert.equal(data2.length, 1);
 		assert.equal(data2[0].message, 'warning');
 		lastEntries = undefined;
+	});
+
+	test('don\'t send message when not making a change', function () {
+
+		let changeCount = 0;
+		let eventCount = 0;
+
+		const emitter = new Emitter<any>();
+		emitter.event(_ => eventCount += 1);
+		const collection = new DiagnosticCollection('test', 'test', 100, new class extends DiagnosticsShape {
+			$changeMany() {
+				changeCount += 1;
+			}
+		}, emitter);
+
+		let uri = URI.parse('sc:hightower');
+		let diag = new Diagnostic(new Range(0, 0, 0, 1), 'ffff');
+
+		collection.set(uri, [diag]);
+		assert.equal(changeCount, 1);
+		assert.equal(eventCount, 1);
+
+		collection.set(uri, [diag]);
+		assert.equal(changeCount, 1);
+		assert.equal(eventCount, 2);
 	});
 
 	test('diagnostics collection, tuples and undefined (small array), #15585', function () {
@@ -375,5 +398,30 @@ suite('ExtHostDiagnostics', () => {
 		assert.equal(ownerHistory.length, 2);
 		assert.equal(ownerHistory[0], 'foo');
 		assert.equal(ownerHistory[1], 'foo0');
+	});
+
+	test('Error updating diagnostics from extension #60394', function () {
+		let callCount = 0;
+		let collection = new DiagnosticCollection('ddd', 'test', 100, new class extends DiagnosticsShape {
+			$changeMany(owner: string, entries: [UriComponents, IMarkerData[]][]) {
+				callCount += 1;
+			}
+		}, new Emitter<any>());
+
+		let array: Diagnostic[] = [];
+		let diag1 = new Diagnostic(new Range(0, 0, 1, 1), 'Foo');
+		let diag2 = new Diagnostic(new Range(0, 0, 1, 1), 'Bar');
+
+		array.push(diag1, diag2);
+
+		collection.set(URI.parse('test:me'), array);
+		assert.equal(callCount, 1);
+
+		collection.set(URI.parse('test:me'), array);
+		assert.equal(callCount, 1); // equal array
+
+		array.push(diag2);
+		collection.set(URI.parse('test:me'), array);
+		assert.equal(callCount, 2); // same but un-equal array
 	});
 });

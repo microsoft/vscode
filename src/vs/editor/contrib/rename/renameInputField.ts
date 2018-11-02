@@ -3,12 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import 'vs/css!./renameInputField';
 import { localize } from 'vs/nls';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
-import { TPromise } from 'vs/base/common/winjs.base';
 import { Range, IRange } from 'vs/editor/common/core/range';
 import { ContentWidgetPositionPreference, ICodeEditor, IContentWidget, IContentWidgetPosition } from 'vs/editor/browser/editorBrowser';
 import { IThemeService, ITheme } from 'vs/platform/theme/common/themeService';
@@ -102,14 +99,14 @@ export default class RenameInputField implements IContentWidget, IDisposable {
 		this._inputField.style.fontSize = `${fontInfo.fontSize}px`;
 	}
 
-	public getPosition(): IContentWidgetPosition {
+	public getPosition(): IContentWidgetPosition | null {
 		return this._visible
 			? { position: this._position, preference: [ContentWidgetPositionPreference.BELOW, ContentWidgetPositionPreference.ABOVE] }
 			: null;
 	}
 
-	private _currentAcceptInput: () => void = null;
-	private _currentCancelInput: (focusEditor) => void = null;
+	private _currentAcceptInput: (() => void) | null = null;
+	private _currentCancelInput: ((focusEditor) => void) | null = null;
 
 	public acceptInput(): void {
 		if (this._currentAcceptInput) {
@@ -123,7 +120,7 @@ export default class RenameInputField implements IContentWidget, IDisposable {
 		}
 	}
 
-	public getInput(where: IRange, value: string, selectionStart: number, selectionEnd: number): TPromise<string | boolean> {
+	public getInput(where: IRange, value: string, selectionStart: number, selectionEnd: number): Promise<string | boolean> {
 
 		this._position = new Position(where.startLineNumber, where.startColumn);
 		this._inputField.value = value;
@@ -139,7 +136,7 @@ export default class RenameInputField implements IContentWidget, IDisposable {
 			this._hide();
 		};
 
-		return new TPromise<string>(resolve => {
+		return new Promise<string>(resolve => {
 
 			this._currentCancelInput = (focusEditor) => {
 				this._currentAcceptInput = null;
@@ -161,7 +158,8 @@ export default class RenameInputField implements IContentWidget, IDisposable {
 			};
 
 			let onCursorChanged = () => {
-				if (!Range.containsPosition(where, this._editor.getPosition())) {
+				const editorPosition = this._editor.getPosition();
+				if (!editorPosition || !Range.containsPosition(where, editorPosition)) {
 					this.cancelInput(true);
 				}
 			};
@@ -171,14 +169,12 @@ export default class RenameInputField implements IContentWidget, IDisposable {
 
 			this._show();
 
-		}, () => {
-			this._currentCancelInput(true);
 		}).then(newValue => {
 			always();
 			return newValue;
 		}, err => {
 			always();
-			return TPromise.wrapError<string>(err);
+			return Promise.reject(err);
 		});
 	}
 
@@ -190,8 +186,8 @@ export default class RenameInputField implements IContentWidget, IDisposable {
 		setTimeout(() => {
 			this._inputField.focus();
 			this._inputField.setSelectionRange(
-				parseInt(this._inputField.getAttribute('selectionStart')),
-				parseInt(this._inputField.getAttribute('selectionEnd')));
+				parseInt(this._inputField.getAttribute('selectionStart')!),
+				parseInt(this._inputField.getAttribute('selectionEnd')!));
 		}, 100);
 	}
 

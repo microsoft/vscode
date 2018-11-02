@@ -2,15 +2,13 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
 import { TPromise } from 'vs/base/common/winjs.base';
 import { ITextModel, ITextBufferFactory } from 'vs/editor/common/model';
-import { IMode } from 'vs/editor/common/modes';
 import { EditorModel } from 'vs/workbench/common/editor';
-import URI from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 import { ITextEditorModel } from 'vs/editor/common/services/resolverService';
-import { IModeService } from 'vs/editor/common/services/modeService';
+import { IModeService, ILanguageSelection } from 'vs/editor/common/services/modeService';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { ITextSnapshot } from 'vs/platform/files/common/files';
@@ -73,21 +71,22 @@ export abstract class BaseTextEditorModel extends EditorModel implements ITextEd
 	 */
 	protected createTextEditorModel(value: ITextBufferFactory, resource?: URI, modeId?: string): TPromise<EditorModel> {
 		const firstLineText = this.getFirstLineText(value);
-		const mode = this.getOrCreateMode(this.modeService, modeId, firstLineText);
-		return TPromise.as(this.doCreateTextEditorModel(value, mode, resource));
+		const languageSelection = this.getOrCreateMode(this.modeService, modeId, firstLineText);
+
+		return TPromise.as(this.doCreateTextEditorModel(value, languageSelection, resource));
 	}
 
-	private doCreateTextEditorModel(value: ITextBufferFactory, mode: TPromise<IMode>, resource: URI): EditorModel {
+	private doCreateTextEditorModel(value: ITextBufferFactory, languageSelection: ILanguageSelection, resource: URI): EditorModel {
 		let model = resource && this.modelService.getModel(resource);
 		if (!model) {
-			model = this.modelService.createModel(value, mode, resource);
+			model = this.modelService.createModel(value, languageSelection, resource);
 			this.createdEditorModel = true;
 
 			// Make sure we clean up when this model gets disposed
 			this.registerModelDisposeListener(model);
 		} else {
 			this.modelService.updateModel(model, value);
-			this.modelService.setMode(model, mode);
+			this.modelService.setMode(model, languageSelection);
 		}
 
 		this.textEditorModelHandle = model.uri;
@@ -113,8 +112,8 @@ export abstract class BaseTextEditorModel extends EditorModel implements ITextEd
 	 *
 	 * @param firstLineText optional first line of the text buffer to set the mode on. This can be used to guess a mode from content.
 	 */
-	protected getOrCreateMode(modeService: IModeService, modeId: string, firstLineText?: string): TPromise<IMode> {
-		return modeService.getOrCreateMode(modeId);
+	protected getOrCreateMode(modeService: IModeService, modeId: string, firstLineText?: string): ILanguageSelection {
+		return modeService.create(modeId);
 	}
 
 	/**

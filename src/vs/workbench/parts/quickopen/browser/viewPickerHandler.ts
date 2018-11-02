@@ -2,11 +2,9 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
 import { TPromise } from 'vs/base/common/winjs.base';
 import * as nls from 'vs/nls';
-import * as errors from 'vs/base/common/errors';
 import { Mode, IEntryRunContext, IAutoFocus, IQuickNavigateConfiguration, IModel } from 'vs/base/parts/quickopen/common/quickOpen';
 import { QuickOpenModel, QuickOpenEntryGroup, QuickOpenEntry } from 'vs/base/parts/quickopen/browser/quickOpenModel';
 import { QuickOpenHandler, QuickOpenAction } from 'vs/workbench/browser/quickopen';
@@ -23,6 +21,7 @@ import { ViewsRegistry, ViewContainer, IViewsService, IViewContainersRegistry, E
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { ViewletDescriptor } from 'vs/workbench/browser/viewlet';
 import { Registry } from 'vs/platform/registry/common/platform';
+import { CancellationToken } from 'vs/base/common/cancellation';
 
 export const VIEW_PICKER_PREFIX = 'view ';
 
@@ -80,7 +79,7 @@ export class ViewPickerHandler extends QuickOpenHandler {
 		super();
 	}
 
-	getResults(searchValue: string): TPromise<QuickOpenModel> {
+	getResults(searchValue: string, token: CancellationToken): TPromise<QuickOpenModel> {
 		searchValue = searchValue.trim();
 		const normalizedSearchValueLowercase = stripWildcards(searchValue).toLowerCase();
 
@@ -103,6 +102,13 @@ export class ViewPickerHandler extends QuickOpenHandler {
 			return true;
 		});
 
+		const entryToCategory = {};
+		entries.forEach(e => {
+			if (!entryToCategory[e.getLabel()]) {
+				entryToCategory[e.getLabel()] = e.getCategory();
+			}
+		});
+
 		let lastCategory: string;
 		entries.forEach((e, index) => {
 			if (lastCategory !== e.getCategory()) {
@@ -110,6 +116,11 @@ export class ViewPickerHandler extends QuickOpenHandler {
 
 				e.setShowBorder(index > 0);
 				e.setGroupLabel(lastCategory);
+
+				// When the entry category has a parent category, set group label as Parent / Child. For example, Views / Explorer.
+				if (entryToCategory[lastCategory]) {
+					e.setGroupLabel(`${entryToCategory[lastCategory]} / ${lastCategory}`);
+				}
 			} else {
 				e.setShowBorder(false);
 				e.setGroupLabel(void 0);
@@ -137,11 +148,11 @@ export class ViewPickerHandler extends QuickOpenHandler {
 
 		// Viewlets
 		const viewlets = this.viewletService.getViewlets();
-		viewlets.forEach((viewlet, index) => viewEntries.push(new ViewEntry(viewlet.name, nls.localize('views', "Views"), () => this.viewletService.openViewlet(viewlet.id, true).done(null, errors.onUnexpectedError))));
+		viewlets.forEach((viewlet, index) => viewEntries.push(new ViewEntry(viewlet.name, nls.localize('views', "Side Bar"), () => this.viewletService.openViewlet(viewlet.id, true))));
 
 		// Panels
 		const panels = this.panelService.getPanels();
-		panels.forEach((panel, index) => viewEntries.push(new ViewEntry(panel.name, nls.localize('panels', "Panels"), () => this.panelService.openPanel(panel.id, true).done(null, errors.onUnexpectedError))));
+		panels.forEach((panel, index) => viewEntries.push(new ViewEntry(panel.name, nls.localize('panels', "Panel"), () => this.panelService.openPanel(panel.id, true))));
 
 		// Viewlet Views
 		viewlets.forEach((viewlet, index) => {
@@ -158,9 +169,9 @@ export class ViewPickerHandler extends QuickOpenHandler {
 			tab.terminalInstances.forEach((terminal, terminalIndex) => {
 				const index = `${tabIndex + 1}.${terminalIndex + 1}`;
 				const entry = new ViewEntry(nls.localize('terminalTitle', "{0}: {1}", index, terminal.title), terminalsCategory, () => {
-					this.terminalService.showPanel(true).done(() => {
+					this.terminalService.showPanel(true).then(() => {
 						this.terminalService.setActiveInstance(terminal);
-					}, errors.onUnexpectedError);
+					});
 				});
 
 				viewEntries.push(entry);
@@ -168,10 +179,10 @@ export class ViewPickerHandler extends QuickOpenHandler {
 		});
 
 		// Output Channels
-		const channels = this.outputService.getChannels();
+		const channels = this.outputService.getChannelDescriptors();
 		channels.forEach((channel, index) => {
 			const outputCategory = nls.localize('channels', "Output");
-			const entry = new ViewEntry(channel.label, outputCategory, () => this.outputService.showChannel(channel.id).done(null, errors.onUnexpectedError));
+			const entry = new ViewEntry(channel.log ? nls.localize('logChannel', "Log ({0})", channel.label) : channel.label, outputCategory, () => this.outputService.showChannel(channel.id));
 
 			viewEntries.push(entry);
 		});

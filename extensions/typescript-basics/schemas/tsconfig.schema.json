@@ -1,5 +1,5 @@
 {
-	"title": "JSON schema for the JavaScript configuration file",
+	"title": "JSON schema for the TypeScript compiler's configuration file",
 	"type": "object",
 	"default": {
 		"compilerOptions": {

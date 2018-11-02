@@ -2,7 +2,6 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
 import { ICodeEditor, IContentWidgetPosition, ContentWidgetPositionPreference } from 'vs/editor/browser/editorBrowser';
 import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
@@ -30,7 +29,7 @@ export class CommentGlyphWidget {
 			options: this._commentsOptions
 		}];
 
-		this.commentsDecorations = this._editor.getModel().deltaDecorations(this.commentsDecorations, commentsDecorations);
+		this.commentsDecorations = this._editor.deltaDecorations(this.commentsDecorations, commentsDecorations);
 	}
 
 	setLineNumber(lineNumber: number): void {

@@ -5,9 +5,7 @@
 
 import * as nls from 'vs/nls';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
-import { TPromise } from 'vs/base/common/winjs.base';
 import { List } from 'vs/base/browser/ui/list/listWidget';
-import * as errors from 'vs/base/common/errors';
 import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { IListService } from 'vs/platform/list/browser/listService';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
@@ -24,6 +22,7 @@ import { openBreakpointSource } from 'vs/workbench/parts/debug/browser/breakpoin
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { InputFocusedContext } from 'vs/platform/workbench/common/contextkeys';
 import { ServicesAccessor } from 'vs/editor/browser/editorExtensions';
+import { PanelFocusContext } from 'vs/workbench/browser/parts/panel/panelPart';
 
 export const ADD_CONFIGURATION_ID = 'debug.addConfiguration';
 export const TOGGLE_INLINE_BREAKPOINT_ID = 'editor.debug.action.toggleInlineBreakpoint';
@@ -42,7 +41,7 @@ export function registerCommands(): void {
 			if (list instanceof List) {
 				const focused = <IEnablement[]>list.getFocusedElements();
 				if (focused && focused.length) {
-					debugService.enableOrDisableBreakpoints(!focused[0].enabled, focused[0]).done(null, errors.onUnexpectedError);
+					debugService.enableOrDisableBreakpoints(!focused[0].enabled, focused[0]);
 				}
 			}
 		}
@@ -63,7 +62,7 @@ export function registerCommands(): void {
 					const position = widget.getPosition();
 					const bps = debugService.getModel().getBreakpoints({ uri: model.uri, lineNumber: position.lineNumber });
 					if (bps.length) {
-						debugService.enableOrDisableBreakpoints(!bps[0].enabled, bps[0]).done(null, errors.onUnexpectedError);
+						debugService.enableOrDisableBreakpoints(!bps[0].enabled, bps[0]);
 					}
 				}
 			}
@@ -149,9 +148,9 @@ export function registerCommands(): void {
 				const focused = list.getFocusedElements();
 				const element = focused.length ? focused[0] : undefined;
 				if (element instanceof Breakpoint) {
-					debugService.removeBreakpoints(element.getId()).done(null, errors.onUnexpectedError);
+					debugService.removeBreakpoints(element.getId());
 				} else if (element instanceof FunctionBreakpoint) {
-					debugService.removeFunctionBreakpoints(element.getId()).done(null, errors.onUnexpectedError);
+					debugService.removeFunctionBreakpoints(element.getId());
 				}
 			}
 		}
@@ -182,11 +181,11 @@ export function registerCommands(): void {
 			const manager = accessor.get(IDebugService).getConfigurationManager();
 			if (accessor.get(IWorkspaceContextService).getWorkbenchState() === WorkbenchState.EMPTY) {
 				accessor.get(INotificationService).info(nls.localize('noFolderDebugConfig', "Please first open a folder in order to do advanced debug configuration."));
-				return TPromise.as(null);
+				return Promise.resolve(null);
 			}
 			const launch = manager.getLaunches().filter(l => l.uri.toString() === launchUri).pop() || manager.selectedConfiguration.launch;
 
-			return launch.openConfigFile(false).done(({ editor, created }) => {
+			return launch.openConfigFile(false, false).then(({ editor, created }) => {
 				if (editor && !created) {
 					const codeEditor = <ICodeEditor>editor.getControl();
 					if (codeEditor) {
@@ -210,14 +209,14 @@ export function registerCommands(): void {
 				.filter(bp => (bp.column === position.column || !bp.column && position.column <= 1)).pop();
 
 			if (bp) {
-				return TPromise.as(null);
+				return Promise.resolve(null);
 			}
 			if (debugService.getConfigurationManager().canSetBreakpointsIn(widget.getModel())) {
-				return debugService.addBreakpoints(modelUri, [{ lineNumber: position.lineNumber, column: position.column > 1 ? position.column : undefined }]);
+				return debugService.addBreakpoints(modelUri, [{ lineNumber: position.lineNumber, column: position.column > 1 ? position.column : undefined }], 'debugCommands.inlineBreakpointCommand');
 			}
 		}
 
-		return TPromise.as(null);
+		return Promise.resolve(null);
 	};
 	KeybindingsRegistry.registerCommandAndKeybindingRule({
 		weight: KeybindingWeight.WorkbenchContrib,
@@ -230,7 +229,7 @@ export function registerCommands(): void {
 	MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
 		command: {
 			id: TOGGLE_INLINE_BREAKPOINT_ID,
-			title: nls.localize('inlineBreakpoint', "Inline Breakpoint"),
+			title: { value: nls.localize('inlineBreakpoint', "Inline Breakpoint"), original: 'Debug: Inline Breakpoint' },
 			category: nls.localize('debug', "Debug")
 		}
 	});
@@ -239,7 +238,7 @@ export function registerCommands(): void {
 			id: TOGGLE_INLINE_BREAKPOINT_ID,
 			title: nls.localize('addInlineBreakpoint', "Add Inline Breakpoint")
 		},
-		when: ContextKeyExpr.and(CONTEXT_IN_DEBUG_MODE, EditorContextKeys.writable, EditorContextKeys.editorTextFocus),
+		when: ContextKeyExpr.and(CONTEXT_IN_DEBUG_MODE, PanelFocusContext.toNegated(), EditorContextKeys.editorTextFocus),
 		group: 'debug',
 		order: 1
 	});
@@ -260,7 +259,7 @@ export function registerCommands(): void {
 				}
 			}
 
-			return TPromise.as(undefined);
+			return Promise.resolve(undefined);
 		}
 	});
 }

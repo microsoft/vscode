@@ -19,7 +19,7 @@ export function setup() {
 			await app.workbench.quickopen.openFile('app.js');
 			await app.workbench.debug.configure();
 
-			const launchJsonPath = path.join(app.workspacePath, '.vscode', 'launch.json');
+			const launchJsonPath = path.join(app.workspacePathOrFolder, '.vscode', 'launch.json');
 			const content = fs.readFileSync(launchJsonPath, 'utf8');
 			const config = JSON.parse(stripJsonComments(content));
 			config.configurations[0].protocol = 'inspector';

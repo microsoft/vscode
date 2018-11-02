@@ -3,12 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import * as nls from 'vs/nls';
 import { TPromise } from 'vs/base/common/winjs.base';
 import * as types from 'vs/base/common/types';
-import URI from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 import { ITree, IActionProvider } from 'vs/base/parts/tree/browser/tree';
 import { IconLabel, IIconLabelValueOptions } from 'vs/base/browser/ui/iconLabel/iconLabel';
 import { IQuickNavigateConfiguration, IModel, IDataSource, IFilter, IAccessiblityProvider, IRenderer, IRunner, Mode } from 'vs/base/parts/quickopen/common/quickOpen';
@@ -330,7 +328,7 @@ class Renderer implements IRenderer<QuickOpenEntry> {
 	private actionProvider: IActionProvider;
 	private actionRunner: IActionRunner;
 
-	constructor(actionProvider: IActionProvider = new NoActionProvider(), actionRunner: IActionRunner = null) {
+	constructor(actionProvider: IActionProvider = new NoActionProvider(), actionRunner: IActionRunner | null = null) {
 		this.actionProvider = actionProvider;
 		this.actionRunner = actionRunner;
 	}
@@ -379,7 +377,7 @@ class Renderer implements IRenderer<QuickOpenEntry> {
 		const detailContainer = document.createElement('div');
 		row2.appendChild(detailContainer);
 		DOM.addClass(detailContainer, 'quick-open-entry-meta');
-		const detail = new HighlightedLabel(detailContainer);
+		const detail = new HighlightedLabel(detailContainer, true);
 
 		// Entry Group
 		let group: HTMLDivElement;

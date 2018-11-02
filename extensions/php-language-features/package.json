@@ -73,13 +73,13 @@
 		}
 	},
 	"scripts": {
-		"compile": "gulp compile-extension:php",
-		"watch": "gulp watch-extension:php"
+		"compile": "npx gulp compile-extension:php-language-features",
+		"watch": "npx gulp watch-extension:php-language-features"
 	},
 	"dependencies": {
-		"vscode-nls": "^3.2.4"
+		"vscode-nls": "^4.0.0"
 	},
 	"devDependencies": {
-		"@types/node": "7.0.43"
+		"@types/node": "^8.10.25"
 	}
 }

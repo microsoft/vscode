@@ -3,22 +3,18 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import 'vs/css!./media/editorstatus';
 import * as nls from 'vs/nls';
 import { TPromise } from 'vs/base/common/winjs.base';
-import { $, append, runAtThisOrScheduleAtNextAnimationFrame, addDisposableListener, getDomNodePagePosition } from 'vs/base/browser/dom';
+import { $, append, runAtThisOrScheduleAtNextAnimationFrame } from 'vs/base/browser/dom';
 import * as strings from 'vs/base/common/strings';
 import * as paths from 'vs/base/common/paths';
 import * as types from 'vs/base/common/types';
-import uri from 'vs/base/common/uri';
-import * as errors from 'vs/base/common/errors';
+import { URI as uri } from 'vs/base/common/uri';
 import { IStatusbarItem } from 'vs/workbench/browser/parts/statusbar/statusbar';
 import { Action } from 'vs/base/common/actions';
 import { language, LANGUAGE_DEFAULT, AccessibilitySupport } from 'vs/base/common/platform';
 import * as browser from 'vs/base/browser/browser';
-import { IMode } from 'vs/editor/common/modes';
 import { UntitledEditorInput } from 'vs/workbench/common/editor/untitledEditorInput';
 import { IFileEditorInput, EncodingMode, IEncodingSupport, toResource, SideBySideEditorInput, IEditor as IBaseEditor, IEditorInput } from 'vs/workbench/common/editor';
 import { IDisposable, combinedDisposable, dispose } from 'vs/base/common/lifecycle';
@@ -35,7 +31,7 @@ import { IQuickOpenService } from 'vs/platform/quickOpen/common/quickOpen';
 import { IWorkspaceConfigurationService } from 'vs/workbench/services/configuration/common/configuration';
 import { SUPPORTED_ENCODINGS, IFileService, FILES_ASSOCIATIONS_CONFIG } from 'vs/platform/files/common/files';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IModeService } from 'vs/editor/common/services/modeService';
+import { IModeService, ILanguageSelection } from 'vs/editor/common/services/modeService';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
@@ -46,20 +42,16 @@ import { ITextFileService } from 'vs/workbench/services/textfile/common/textfile
 import { ICursorPositionChangedEvent } from 'vs/editor/common/controller/cursorEvents';
 import { IConfigurationChangedEvent, IEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { ITextResourceConfigurationService } from 'vs/editor/common/services/resourceConfiguration';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
-import { attachButtonStyler } from 'vs/platform/theme/common/styler';
-import { widgetShadow, editorWidgetBackground, foreground, darken, contrastBorder } from 'vs/platform/theme/common/colorRegistry';
 import { ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
 import { deepClone } from 'vs/base/common/objects';
 import { ICodeEditor, isCodeEditor, isDiffEditor, getCodeEditor } from 'vs/editor/browser/editorBrowser';
-import { Button } from 'vs/base/browser/ui/button/button';
 import { Schemas } from 'vs/base/common/network';
-import { IAnchor } from 'vs/base/browser/ui/contextview/contextview';
-import { Themable } from 'vs/workbench/common/theme';
 import { IPreferencesService } from 'vs/workbench/services/preferences/common/preferences';
 import { IQuickInputService, IQuickPickItem, QuickPickInput } from 'vs/platform/quickinput/common/quickInput';
-import { getIconClasses } from 'vs/workbench/browser/labels';
+import { getIconClasses } from 'vs/editor/common/services/getIconClasses';
+import { timeout } from 'vs/base/common/async';
+import { INotificationHandle, INotificationService, Severity } from 'vs/platform/notification/common/notification';
+import { once } from 'vs/base/common/event';
 
 class SideBySideEditorEncodingSupport implements IEncodingSupport {
 	constructor(private master: IEncodingSupport, private details: IEncodingSupport) { }
@@ -293,7 +285,7 @@ export class EditorStatus implements IStatusbarItem {
 	private activeEditorListeners: IDisposable[];
 	private delayedRender: IDisposable;
 	private toRender: StateChange;
-	private screenReaderExplanation: ScreenReaderDetectedExplanation;
+	private screenReaderNotification: INotificationHandle;
 
 	constructor(
 		@IEditorService private editorService: IEditorService,
@@ -303,6 +295,7 @@ export class EditorStatus implements IStatusbarItem {
 		@IModeService private modeService: IModeService,
 		@ITextFileService private textFileService: ITextFileService,
 		@IWorkspaceConfigurationService private readonly configurationService: IWorkspaceConfigurationService,
+		@INotificationService private readonly notificationService: INotificationService
 	) {
 		this.toDispose = [];
 		this.activeEditorListeners = [];
@@ -493,28 +486,38 @@ export class EditorStatus implements IStatusbarItem {
 	private onModeClick(): void {
 		const action = this.instantiationService.createInstance(ChangeModeAction, ChangeModeAction.ID, ChangeModeAction.LABEL);
 
-		action.run().done(null, errors.onUnexpectedError);
+		action.run();
 		action.dispose();
 	}
 
 	private onIndentationClick(): void {
 		const action = this.instantiationService.createInstance(ChangeIndentationAction, ChangeIndentationAction.ID, ChangeIndentationAction.LABEL);
-		action.run().done(null, errors.onUnexpectedError);
+		action.run();
 		action.dispose();
 	}
 
 	private onScreenReaderModeClick(): void {
-		const showExplanation = !this.screenReaderExplanation || !this.screenReaderExplanation.visible;
+		if (!this.screenReaderNotification) {
+			this.screenReaderNotification = this.notificationService.prompt(
+				Severity.Info,
+				nls.localize('screenReaderDetectedExplanation.question', "Are you using a screen reader to operate VS Code?"),
+				[{
+					label: nls.localize('screenReaderDetectedExplanation.answerYes', "Yes"),
+					run: () => {
+						this.configurationService.updateValue('editor.accessibilitySupport', 'on', ConfigurationTarget.USER);
+					}
+				}, {
+					label: nls.localize('screenReaderDetectedExplanation.answerNo', "No"),
+					run: () => {
+						this.configurationService.updateValue('editor.accessibilitySupport', 'off', ConfigurationTarget.USER);
+					}
+				}],
+				{ sticky: true }
+			);
 
-		if (!this.screenReaderExplanation) {
-			this.screenReaderExplanation = this.instantiationService.createInstance(ScreenReaderDetectedExplanation);
-			this.toDispose.push(this.screenReaderExplanation);
-		}
-
-		if (showExplanation) {
-			this.screenReaderExplanation.show(this.screenRedearModeElement);
-		} else {
-			this.screenReaderExplanation.hide();
+			once(this.screenReaderNotification.onDidClose)(() => {
+				this.screenReaderNotification = null;
+			});
 		}
 	}
 
@@ -525,14 +528,14 @@ export class EditorStatus implements IStatusbarItem {
 	private onEOLClick(): void {
 		const action = this.instantiationService.createInstance(ChangeEOLAction, ChangeEOLAction.ID, ChangeEOLAction.LABEL);
 
-		action.run().done(null, errors.onUnexpectedError);
+		action.run();
 		action.dispose();
 	}
 
 	private onEncodingClick(): void {
 		const action = this.instantiationService.createInstance(ChangeEncodingAction, ChangeEncodingAction.ID, ChangeEncodingAction.LABEL);
 
-		action.run().done(null, errors.onUnexpectedError);
+		action.run();
 		action.dispose();
 	}
 
@@ -616,6 +619,10 @@ export class EditorStatus implements IStatusbarItem {
 				this.activeEditorListeners.push(editor.onMetadataChanged(metadata => {
 					this.onMetadataChange(activeControl);
 				}));
+
+				this.activeEditorListeners.push(editor.onDidOpenInPlace(() => {
+					this.updateStatusBar();
+				}));
 			});
 		}
 	}
@@ -688,8 +695,8 @@ export class EditorStatus implements IStatusbarItem {
 			screenReaderMode = (editorWidget.getConfiguration().accessibilitySupport === AccessibilitySupport.Enabled);
 		}
 
-		if (screenReaderMode === false && this.screenReaderExplanation && this.screenReaderExplanation.visible) {
-			this.screenReaderExplanation.hide();
+		if (screenReaderMode === false && this.screenReaderNotification) {
+			this.screenReaderNotification.close();
 		}
 
 		this.updateState({ screenReaderMode: screenReaderMode });
@@ -969,16 +976,16 @@ export class ChangeModeAction extends Action {
 			}
 
 			// Find mode
-			let mode: TPromise<IMode>;
+			let languageSelection: ILanguageSelection;
 			if (pick === autoDetectMode) {
-				mode = this.modeService.getOrCreateModeByFilenameOrFirstLine(toResource(activeEditor, { supportSideBySide: true }).fsPath, textModel.getLineContent(1));
+				languageSelection = this.modeService.createByFilepathOrFirstLine(toResource(activeEditor, { supportSideBySide: true }).fsPath, textModel.getLineContent(1));
 			} else {
-				mode = this.modeService.getOrCreateModeByLanguageName(pick.label);
+				languageSelection = this.modeService.createByLanguageName(pick.label);
 			}
 
 			// Change mode
 			models.forEach(textModel => {
-				this.modelService.setMode(textModel, mode);
+				this.modelService.setMode(textModel, languageSelection);
 			});
 		});
 	}
@@ -986,7 +993,7 @@ export class ChangeModeAction extends Action {
 	private configureFileAssociation(resource: uri): void {
 		const extension = paths.extname(resource.fsPath);
 		const basename = paths.basename(resource.fsPath);
-		const currentAssociation = this.modeService.getModeIdByFilenameOrFirstLine(basename);
+		const currentAssociation = this.modeService.getModeIdByFilepathOrFirstLine(basename);
 
 		const languages = this.modeService.getRegisteredLanguageNames();
 		const picks: IQuickPickItem[] = languages.sort().map((lang, index) => {
@@ -1000,7 +1007,7 @@ export class ChangeModeAction extends Action {
 		});
 
 		setTimeout(() => {
-			this.quickInputService.pick(picks, { placeHolder: nls.localize('pickLanguageToConfigure', "Select Language Mode to Associate with '{0}'", extension || basename) }).done(language => {
+			this.quickInputService.pick(picks, { placeHolder: nls.localize('pickLanguageToConfigure', "Select Language Mode to Associate with '{0}'", extension || basename) }).then(language => {
 				if (language) {
 					const fileAssociationsConfig = this.configurationService.inspect(FILES_ASSOCIATIONS_CONFIG);
 
@@ -1027,7 +1034,7 @@ export class ChangeModeAction extends Action {
 
 					this.configurationService.updateValue(FILES_ASSOCIATIONS_CONFIG, currentAssociations, target);
 				}
-			}, error => errors.onUnexpectedError(error));
+			});
 		}, 50 /* quick open is sensitive to being opened so soon after another */);
 	}
 }
@@ -1185,7 +1192,7 @@ export class ChangeEncodingAction extends Action {
 
 			const resource = toResource(activeControl.input, { supportSideBySide: true });
 
-			return TPromise.timeout(50 /* quick open is sensitive to being opened so soon after another */)
+			return timeout(50 /* quick open is sensitive to being opened so soon after another */)
 				.then(() => {
 					if (!resource || !this.fileService.canHandleResource(resource)) {
 						return TPromise.as(null); // encoding detection only possible for resources the file service can handle
@@ -1229,13 +1236,14 @@ export class ChangeEncodingAction extends Action {
 							return { id: key, label: SUPPORTED_ENCODINGS[key].labelLong, description: key };
 						});
 
+					const items = picks.slice() as IQuickPickItem[];
+
 					// If we have a guessed encoding, show it first unless it matches the configured encoding
 					if (guessedEncoding && configuredEncoding !== guessedEncoding && SUPPORTED_ENCODINGS[guessedEncoding]) {
 						picks.unshift({ type: 'separator' });
 						picks.unshift({ id: guessedEncoding, label: SUPPORTED_ENCODINGS[guessedEncoding].labelLong, description: nls.localize('guessedEncoding', "Guessed from content") });
 					}
 
-					const items = picks.filter(p => p.type !== 'separator') as IQuickPickItem[];
 					return this.quickInputService.pick(picks, {
 						placeHolder: isReopenWithEncoding ? nls.localize('pickEncodingForReopen', "Select File Encoding to Reopen File") : nls.localize('pickEncodingForSave', "Select File Encoding to Save with"),
 						activeItem: items[typeof directMatchIndex === 'number' ? directMatchIndex : typeof aliasMatchIndex === 'number' ? aliasMatchIndex : -1]
@@ -1250,149 +1258,5 @@ export class ChangeEncodingAction extends Action {
 					});
 				});
 		});
-	}
-}
-
-class ScreenReaderDetectedExplanation extends Themable {
-	private container: HTMLElement;
-	private hrElement: HTMLHRElement;
-	private _visible: boolean;
-
-	constructor(
-		@IThemeService themeService: IThemeService,
-		@IContextViewService private readonly contextViewService: IContextViewService,
-		@IWorkspaceConfigurationService private readonly configurationService: IWorkspaceConfigurationService,
-	) {
-		super(themeService);
-	}
-
-	get visible(): boolean {
-		return this._visible;
-	}
-
-	protected updateStyles(): void {
-		if (this.container) {
-			const background = this.getColor(editorWidgetBackground);
-			this.container.style.backgroundColor = background ? background.toString() : null;
-
-			const widgetShadowColor = this.getColor(widgetShadow);
-			this.container.style.boxShadow = widgetShadowColor ? `0 0px 8px ${widgetShadowColor}` : null;
-
-			const contrastBorderColor = this.getColor(contrastBorder);
-			this.container.style.border = contrastBorderColor ? `1px solid ${contrastBorderColor}` : null;
-
-			const foregroundColor = this.getColor(foreground);
-			this.hrElement.style.backgroundColor = foregroundColor ? foregroundColor.toString() : null;
-		}
-	}
-
-	show(anchorElement: HTMLElement): void {
-		this._visible = true;
-
-		this.contextViewService.showContextView({
-			getAnchor: () => {
-				const res = getDomNodePagePosition(anchorElement);
-
-				return {
-					x: res.left,
-					y: res.top - 9, /* above the status bar */
-					width: res.width,
-					height: res.height
-				} as IAnchor;
-			},
-			render: (container) => {
-				return this.renderContents(container);
-			},
-			onDOMEvent: (e, activeElement) => { },
-			onHide: () => {
-				this._visible = false;
-			}
-		});
-	}
-
-	hide(): void {
-		this.contextViewService.hideContextView();
-	}
-
-	protected renderContents(parent: HTMLElement): IDisposable {
-		const toDispose: IDisposable[] = [];
-
-		this.container = $('div.screen-reader-detected-explanation', {
-			'aria-hidden': 'true'
-		});
-
-		const title = $('h2.title', {}, nls.localize('screenReaderDetectedExplanation.title', "Screen Reader Optimized"));
-		this.container.appendChild(title);
-
-		const closeBtn = $('div.cancel');
-		toDispose.push(addDisposableListener(closeBtn, 'click', () => {
-			this.contextViewService.hideContextView();
-		}));
-		toDispose.push(addDisposableListener(closeBtn, 'mouseover', () => {
-			const theme = this.themeService.getTheme();
-			let darkenFactor: number;
-			switch (theme.type) {
-				case 'light':
-					darkenFactor = 0.1;
-					break;
-				case 'dark':
-					darkenFactor = 0.2;
-					break;
-			}
-
-			if (darkenFactor) {
-				closeBtn.style.backgroundColor = this.getColor(editorWidgetBackground, (color, theme) => darken(color, darkenFactor)(theme));
-			}
-		}));
-		toDispose.push(addDisposableListener(closeBtn, 'mouseout', () => {
-			closeBtn.style.backgroundColor = null;
-		}));
-		this.container.appendChild(closeBtn);
-
-		const question = $('p.question', {}, nls.localize('screenReaderDetectedExplanation.question', "Are you using a screen reader to operate VS Code?"));
-		this.container.appendChild(question);
-
-		const buttonContainer = $('div.buttons');
-		this.container.appendChild(buttonContainer);
-
-		const yesBtn = new Button(buttonContainer);
-		yesBtn.label = nls.localize('screenReaderDetectedExplanation.answerYes', "Yes");
-		toDispose.push(attachButtonStyler(yesBtn, this.themeService));
-		toDispose.push(yesBtn.onDidClick(e => {
-			this.configurationService.updateValue('editor.accessibilitySupport', 'on', ConfigurationTarget.USER);
-			this.contextViewService.hideContextView();
-		}));
-
-		const noBtn = new Button(buttonContainer);
-		noBtn.label = nls.localize('screenReaderDetectedExplanation.answerNo', "No");
-		toDispose.push(attachButtonStyler(noBtn, this.themeService));
-		toDispose.push(noBtn.onDidClick(e => {
-			this.configurationService.updateValue('editor.accessibilitySupport', 'off', ConfigurationTarget.USER);
-			this.contextViewService.hideContextView();
-		}));
-
-		const clear = $('div');
-		clear.style.clear = 'both';
-		this.container.appendChild(clear);
-
-		const br = $('br');
-		this.container.appendChild(br);
-
-		this.hrElement = $('hr');
-		this.container.appendChild(this.hrElement);
-
-		const explanation1 = $('p.body1', {}, nls.localize('screenReaderDetectedExplanation.body1', "VS Code is now optimized for usage with a screen reader."));
-		this.container.appendChild(explanation1);
-
-		const explanation2 = $('p.body2', {}, nls.localize('screenReaderDetectedExplanation.body2', "Some editor features will have different behaviour: e.g. word wrapping, folding, etc."));
-		this.container.appendChild(explanation2);
-
-		parent.appendChild(this.container);
-
-		this.updateStyles();
-
-		return {
-			dispose: () => dispose(toDispose)
-		};
 	}
 }

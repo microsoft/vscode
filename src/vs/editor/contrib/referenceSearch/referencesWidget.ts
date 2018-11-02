@@ -2,47 +2,44 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
-import 'vs/css!./media/referencesWidget';
-import * as nls from 'vs/nls';
-import { onUnexpectedError } from 'vs/base/common/errors';
-import { Event, Emitter } from 'vs/base/common/event';
-import { IDisposable, dispose, IReference } from 'vs/base/common/lifecycle';
-import { Schemas } from 'vs/base/common/network';
-import * as strings from 'vs/base/common/strings';
-import { TPromise } from 'vs/base/common/winjs.base';
-import { Color } from 'vs/base/common/color';
-import { $, Builder } from 'vs/base/browser/builder';
 import * as dom from 'vs/base/browser/dom';
-import { Sash, ISashEvent, IVerticalSashLayoutProvider } from 'vs/base/browser/ui/sash/sash';
 import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { IMouseEvent } from 'vs/base/browser/mouseEvent';
 import { GestureEvent } from 'vs/base/browser/touch';
 import { CountBadge } from 'vs/base/browser/ui/countBadge/countBadge';
 import { IconLabel } from 'vs/base/browser/ui/iconLabel/iconLabel';
+import { ISashEvent, IVerticalSashLayoutProvider, Sash } from 'vs/base/browser/ui/sash/sash';
+import { Color } from 'vs/base/common/color';
+import { onUnexpectedError } from 'vs/base/common/errors';
+import { Emitter, Event } from 'vs/base/common/event';
+import { getBaseLabel } from 'vs/base/common/labels';
+import { dispose, IDisposable, IReference } from 'vs/base/common/lifecycle';
+import { Schemas } from 'vs/base/common/network';
+import { basenameOrAuthority, dirname } from 'vs/base/common/resources';
+import * as strings from 'vs/base/common/strings';
 import * as tree from 'vs/base/parts/tree/browser/tree';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { Range, IRange } from 'vs/editor/common/core/range';
-import * as editorCommon from 'vs/editor/common/editorCommon';
-import { TextModel, ModelDecorationOptions } from 'vs/editor/common/model/textModel';
+import { ClickBehavior } from 'vs/base/parts/tree/browser/treeDefaults';
+import 'vs/css!./media/referencesWidget';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { EmbeddedCodeEditorWidget } from 'vs/editor/browser/widget/embeddedCodeEditorWidget';
+import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
+import { IRange, Range } from 'vs/editor/common/core/range';
+import * as editorCommon from 'vs/editor/common/editorCommon';
+import { IModelDeltaDecoration, TrackedRangeStickiness } from 'vs/editor/common/model';
+import { ModelDecorationOptions, TextModel } from 'vs/editor/common/model/textModel';
+import { Location } from 'vs/editor/common/modes';
+import { ITextEditorModel, ITextModelService } from 'vs/editor/common/services/resolverService';
+import * as nls from 'vs/nls';
+import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { ILabelService } from 'vs/platform/label/common/label';
+import { WorkbenchTree, WorkbenchTreeController } from 'vs/platform/list/browser/listService';
+import { activeContrastBorder, contrastBorder, registerColor } from 'vs/platform/theme/common/colorRegistry';
+import { attachBadgeStyler } from 'vs/platform/theme/common/styler';
+import { ITheme, IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { PeekViewWidget } from './peekViewWidget';
 import { FileReferences, OneReference, ReferencesModel } from './referencesModel';
-import { ITextModelService, ITextEditorModel } from 'vs/editor/common/services/resolverService';
-import { registerColor, activeContrastBorder, contrastBorder } from 'vs/platform/theme/common/colorRegistry';
-import { registerThemingParticipant, ITheme, IThemeService } from 'vs/platform/theme/common/themeService';
-import { attachBadgeStyler } from 'vs/platform/theme/common/styler';
-import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
-import { TrackedRangeStickiness, IModelDeltaDecoration } from 'vs/editor/common/model';
-import { WorkbenchTree, WorkbenchTreeController } from 'vs/platform/list/browser/listService';
-import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
-import { Location } from 'vs/editor/common/modes';
-import { ClickBehavior } from 'vs/base/parts/tree/browser/treeDefaults';
-import { IUriDisplayService } from 'vs/platform/uriDisplay/common/uriDisplay';
-import { dirname, basenameOrAuthority } from 'vs/base/common/resources';
-import { getBaseLabel } from 'vs/base/common/labels';
 
 
 class DecorationsManager implements IDisposable {
@@ -185,9 +182,9 @@ class DataSource implements tree.IDataSource {
 		return false;
 	}
 
-	public getChildren(tree: tree.ITree, element: ReferencesModel | FileReferences): TPromise<any[]> {
+	public getChildren(tree: tree.ITree, element: ReferencesModel | FileReferences): Promise<any[]> {
 		if (element instanceof ReferencesModel) {
-			return TPromise.as(element.groups);
+			return Promise.resolve(element.groups);
 		} else if (element instanceof FileReferences) {
 			return element.resolve(this._textModelResolverService).then(val => {
 				if (element.failure) {
@@ -198,18 +195,18 @@ class DataSource implements tree.IDataSource {
 				return val.children;
 			});
 		} else {
-			return TPromise.as([]);
+			return Promise.resolve([]);
 		}
 	}
 
-	public getParent(tree: tree.ITree, element: any): TPromise<any> {
+	public getParent(tree: tree.ITree, element: any): Promise<any> {
 		let result: any = null;
 		if (element instanceof FileReferences) {
 			result = (<FileReferences>element).parent;
 		} else if (element instanceof OneReference) {
 			result = (<OneReference>element).parent;
 		}
-		return TPromise.as(result);
+		return Promise.resolve(result);
 	}
 }
 
@@ -274,9 +271,9 @@ class Controller extends WorkbenchTreeController {
 	private _expandCollapse(tree: tree.ITree, element: any): boolean {
 
 		if (tree.isExpanded(element)) {
-			tree.collapse(element).done(null, onUnexpectedError);
+			tree.collapse(element).then(null, onUnexpectedError);
 		} else {
-			tree.expand(element).done(null, onUnexpectedError);
+			tree.expand(element).then(null, onUnexpectedError);
 		}
 		return true;
 	}
@@ -300,7 +297,7 @@ class FileReferencesTemplate {
 
 	constructor(
 		container: HTMLElement,
-		@IUriDisplayService private readonly _uriDisplay: IUriDisplayService,
+		@ILabelService private readonly _uriLabel: ILabelService,
 		@IThemeService themeService: IThemeService,
 	) {
 		const parent = document.createElement('div');
@@ -308,7 +305,7 @@ class FileReferencesTemplate {
 		container.appendChild(parent);
 		this.file = new IconLabel(parent);
 
-		this.badge = new CountBadge($('.count').appendTo(parent).getHTMLElement());
+		this.badge = new CountBadge(dom.append(parent, dom.$('.count')));
 		const styler = attachBadgeStyler(this.badge, themeService);
 
 		this.dispose = () => {
@@ -319,7 +316,7 @@ class FileReferencesTemplate {
 
 	set(element: FileReferences) {
 		let parent = dirname(element.uri);
-		this.file.setValue(getBaseLabel(element.uri), parent ? this._uriDisplay.getLabel(parent, true) : undefined, { title: this._uriDisplay.getLabel(element.uri) });
+		this.file.setValue(getBaseLabel(element.uri), parent ? this._uriLabel.getUriLabel(parent, { relative: true }) : undefined, { title: this._uriLabel.getUriLabel(element.uri) });
 		const len = element.children.length;
 		this.badge.setCount(len);
 		if (element.failure) {
@@ -368,7 +365,7 @@ class Renderer implements tree.IRenderer {
 
 	constructor(
 		@IThemeService private readonly _themeService: IThemeService,
-		@IUriDisplayService private readonly _uriDisplay: IUriDisplayService,
+		@ILabelService private readonly _uriLabel: ILabelService,
 	) {
 		//
 	}
@@ -388,7 +385,7 @@ class Renderer implements tree.IRenderer {
 
 	renderTemplate(tree: tree.ITree, templateId: string, container: HTMLElement) {
 		if (templateId === Renderer._ids.FileReferences) {
-			return new FileReferencesTemplate(container, this._uriDisplay, this._themeService);
+			return new FileReferencesTemplate(container, this._uriLabel, this._themeService);
 		} else if (templateId === Renderer._ids.OneReference) {
 			return new OneReferenceTemplate(container);
 		}
@@ -517,13 +514,13 @@ export class ReferenceWidget extends PeekViewWidget {
 	private _onDidSelectReference = new Emitter<SelectionEvent>();
 
 	private _tree: WorkbenchTree;
-	private _treeContainer: Builder;
+	private _treeContainer: HTMLElement;
 	private _sash: VSash;
 	private _preview: ICodeEditor;
 	private _previewModelReference: IReference<ITextEditorModel>;
 	private _previewNotAvailableMessage: TextModel;
-	private _previewContainer: Builder;
-	private _messageContainer: Builder;
+	private _previewContainer: HTMLElement;
+	private _messageContainer: HTMLElement;
 
 	constructor(
 		editor: ICodeEditor,
@@ -532,7 +529,7 @@ export class ReferenceWidget extends PeekViewWidget {
 		@IThemeService themeService: IThemeService,
 		@ITextModelService private _textModelResolverService: ITextModelService,
 		@IInstantiationService private _instantiationService: IInstantiationService,
-		@IUriDisplayService private _uriDisplay: IUriDisplayService
+		@ILabelService private _uriLabel: ILabelService
 	) {
 		super(editor, { showFrame: false, showArrow: true, isResizeable: true, isAccessible: true });
 
@@ -542,7 +539,7 @@ export class ReferenceWidget extends PeekViewWidget {
 	}
 
 	private _applyTheme(theme: ITheme) {
-		let borderColor = theme.getColor(peekViewBorder) || Color.transparent;
+		const borderColor = theme.getColor(peekViewBorder) || Color.transparent;
 		this.style({
 			arrowColor: borderColor,
 			frameColor: borderColor,
@@ -572,7 +569,7 @@ export class ReferenceWidget extends PeekViewWidget {
 		this._tree.domFocus();
 	}
 
-	protected _onTitleClick(e: MouseEvent): void {
+	protected _onTitleClick(e: IMouseEvent): void {
 		if (this._preview && this._preview.getModel()) {
 			this._onDidSelectReference.fire({
 				element: this._getFocusedReference(),
@@ -583,96 +580,88 @@ export class ReferenceWidget extends PeekViewWidget {
 	}
 
 	protected _fillBody(containerElement: HTMLElement): void {
-		let container = $(containerElement);
-
 		this.setCssClass('reference-zone-widget');
 
 		// message pane
-		container.div({ 'class': 'messages' }, div => {
-			this._messageContainer = div.hide();
-		});
+		this._messageContainer = dom.append(containerElement, dom.$('div.messages'));
+		dom.hide(this._messageContainer);
 
 		// editor
-		container.div({ 'class': 'preview inline' }, (div: Builder) => {
-
-			let options: IEditorOptions = {
-				scrollBeyondLastLine: false,
-				scrollbar: {
-					verticalScrollbarSize: 14,
-					horizontal: 'auto',
-					useShadows: true,
-					verticalHasArrows: false,
-					horizontalHasArrows: false
-				},
-				overviewRulerLanes: 2,
-				fixedOverflowWidgets: true,
-				minimap: {
-					enabled: false
-				}
-			};
-
-			this._preview = this._instantiationService.createInstance(EmbeddedCodeEditorWidget, div.getHTMLElement(), options, this.editor);
-			this._previewContainer = div.hide();
-			this._previewNotAvailableMessage = TextModel.createFromString(nls.localize('missingPreviewMessage', "no preview available"));
-		});
+		this._previewContainer = dom.append(containerElement, dom.$('div.preview.inline'));
+		let options: IEditorOptions = {
+			scrollBeyondLastLine: false,
+			scrollbar: {
+				verticalScrollbarSize: 14,
+				horizontal: 'auto',
+				useShadows: true,
+				verticalHasArrows: false,
+				horizontalHasArrows: false
+			},
+			overviewRulerLanes: 2,
+			fixedOverflowWidgets: true,
+			minimap: {
+				enabled: false
+			}
+		};
+		this._preview = this._instantiationService.createInstance(EmbeddedCodeEditorWidget, this._previewContainer, options, this.editor);
+		dom.hide(this._previewContainer);
+		this._previewNotAvailableMessage = TextModel.createFromString(nls.localize('missingPreviewMessage', "no preview available"));
 
 		// sash
 		this._sash = new VSash(containerElement, this.layoutData.ratio || .8);
 		this._sash.onDidChangePercentages(() => {
 			let [left, right] = this._sash.percentages;
-			this._previewContainer.style({ width: left });
-			this._treeContainer.style({ width: right });
+			this._previewContainer.style.width = left;
+			this._treeContainer.style.width = right;
 			this._preview.layout();
 			this._tree.layout();
 			this.layoutData.ratio = this._sash.ratio;
 		});
 
 		// tree
-		container.div({ 'class': 'ref-tree inline' }, (div: Builder) => {
-			let controller = this._instantiationService.createInstance(Controller, { keyboardSupport: this._defaultTreeKeyboardSupport, clickBehavior: ClickBehavior.ON_MOUSE_UP /* our controller already deals with this */ });
-			this._callOnDispose.push(controller);
+		this._treeContainer = dom.append(containerElement, dom.$('div.ref-tree.inline'));
+		let controller = this._instantiationService.createInstance(Controller, { keyboardSupport: this._defaultTreeKeyboardSupport, clickBehavior: ClickBehavior.ON_MOUSE_UP /* our controller already deals with this */ });
+		this._callOnDispose.push(controller);
 
-			let config = <tree.ITreeConfiguration>{
-				dataSource: this._instantiationService.createInstance(DataSource),
-				renderer: this._instantiationService.createInstance(Renderer),
-				controller,
-				accessibilityProvider: new AriaProvider()
-			};
+		let config = <tree.ITreeConfiguration>{
+			dataSource: this._instantiationService.createInstance(DataSource),
+			renderer: this._instantiationService.createInstance(Renderer),
+			controller,
+			accessibilityProvider: new AriaProvider()
+		};
 
-			let options: tree.ITreeOptions = {
-				twistiePixels: 20,
-				ariaLabel: nls.localize('treeAriaLabel', "References")
-			};
+		let treeOptions: tree.ITreeOptions = {
+			twistiePixels: 20,
+			ariaLabel: nls.localize('treeAriaLabel', "References")
+		};
 
-			this._tree = this._instantiationService.createInstance(WorkbenchTree, div.getHTMLElement(), config, options);
+		this._tree = this._instantiationService.createInstance(WorkbenchTree, this._treeContainer, config, treeOptions);
 
-			ctxReferenceWidgetSearchTreeFocused.bindTo(this._tree.contextKeyService);
+		ctxReferenceWidgetSearchTreeFocused.bindTo(this._tree.contextKeyService);
 
-			// listen on selection and focus
-			let onEvent = (element: any, kind: 'show' | 'goto' | 'side') => {
-				if (element instanceof OneReference) {
-					if (kind === 'show') {
-						this._revealReference(element, false);
-					}
-					this._onDidSelectReference.fire({ element, kind, source: 'tree' });
+		// listen on selection and focus
+		let onEvent = (element: any, kind: 'show' | 'goto' | 'side') => {
+			if (element instanceof OneReference) {
+				if (kind === 'show') {
+					this._revealReference(element, false);
 				}
-			};
-			this._disposables.push(this._tree.onDidChangeFocus(event => {
-				if (event && event.payload && event.payload.origin === 'keyboard') {
-					onEvent(event.focus, 'show'); // only handle events from keyboard, mouse/touch is handled by other listeners below
-				}
-			}));
-			this._disposables.push(this._tree.onDidChangeSelection(event => {
-				if (event && event.payload && event.payload.origin === 'keyboard') {
-					onEvent(event.selection[0], 'goto'); // only handle events from keyboard, mouse/touch is handled by other listeners below
-				}
-			}));
-			this._disposables.push(controller.onDidFocus(element => onEvent(element, 'show')));
-			this._disposables.push(controller.onDidSelect(element => onEvent(element, 'goto')));
-			this._disposables.push(controller.onDidOpenToSide(element => onEvent(element, 'side')));
-
-			this._treeContainer = div.hide();
-		});
+				this._onDidSelectReference.fire({ element, kind, source: 'tree' });
+			}
+		};
+		this._disposables.push(this._tree.onDidChangeFocus(event => {
+			if (event && event.payload && event.payload.origin === 'keyboard') {
+				onEvent(event.focus, 'show'); // only handle events from keyboard, mouse/touch is handled by other listeners below
+			}
+		}));
+		this._disposables.push(this._tree.onDidChangeSelection(event => {
+			if (event && event.payload && event.payload.origin === 'keyboard') {
+				onEvent(event.selection[0], 'goto'); // only handle events from keyboard, mouse/touch is handled by other listeners below
+			}
+		}));
+		this._disposables.push(controller.onDidFocus(element => onEvent(element, 'show')));
+		this._disposables.push(controller.onDidSelect(element => onEvent(element, 'goto')));
+		this._disposables.push(controller.onDidOpenToSide(element => onEvent(element, 'side')));
+		dom.hide(this._treeContainer);
 	}
 
 	protected _doLayoutBody(heightInPixel: number, widthInPixel: number): void {
@@ -684,9 +673,10 @@ export class ReferenceWidget extends PeekViewWidget {
 
 		// set height/width
 		const [left, right] = this._sash.percentages;
-		this._previewContainer.style({ height, width: left });
-		this._treeContainer.style({ height, width: right });
-
+		this._previewContainer.style.height = height;
+		this._previewContainer.style.width = left;
+		this._treeContainer.style.height = height;
+		this._treeContainer.style.width = right;
 		// forward
 		this._tree.layout(heightInPixel);
 		this._preview.layout();
@@ -705,14 +695,17 @@ export class ReferenceWidget extends PeekViewWidget {
 
 	public setSelection(selection: OneReference): Promise<any> {
 		return this._revealReference(selection, true).then(() => {
-
+			if (!this._model) {
+				// disposed
+				return;
+			}
 			// show in tree
 			this._tree.setSelection([selection]);
 			this._tree.setFocus(selection);
 		});
 	}
 
-	public setModel(newModel: ReferencesModel): TPromise<any> {
+	public setModel(newModel: ReferencesModel): Thenable<any> {
 		// clean up
 		this._disposeOnNewModel = dispose(this._disposeOnNewModel);
 		this._model = newModel;
@@ -722,15 +715,16 @@ export class ReferenceWidget extends PeekViewWidget {
 		return undefined;
 	}
 
-	private _onNewModel(): TPromise<any> {
+	private _onNewModel(): Thenable<any> {
 
 		if (this._model.empty) {
 			this.setTitle('');
-			this._messageContainer.innerHtml(nls.localize('noResults', "No results")).show();
-			return TPromise.as(void 0);
+			this._messageContainer.innerHTML = nls.localize('noResults', "No results");
+			dom.show(this._messageContainer);
+			return Promise.resolve(void 0);
 		}
 
-		this._messageContainer.hide();
+		dom.hide(this._messageContainer);
 		this._decorationsManager = new DecorationsManager(this._preview, this._model);
 		this._disposeOnNewModel.push(this._decorationsManager);
 
@@ -751,8 +745,8 @@ export class ReferenceWidget extends PeekViewWidget {
 
 		// make sure things are rendered
 		dom.addClass(this.container, 'results-loaded');
-		this._treeContainer.show();
-		this._previewContainer.show();
+		dom.show(this._treeContainer);
+		dom.show(this._previewContainer);
 		this._preview.layout();
 		this._tree.layout();
 		this.focus();
@@ -778,7 +772,7 @@ export class ReferenceWidget extends PeekViewWidget {
 
 		// Update widget header
 		if (reference.uri.scheme !== Schemas.inMemory) {
-			this.setTitle(basenameOrAuthority(reference.uri), this._uriDisplay.getLabel(dirname(reference.uri), false));
+			this.setTitle(basenameOrAuthority(reference.uri), this._uriLabel.getUriLabel(dirname(reference.uri)));
 		} else {
 			this.setTitle(nls.localize('peekView.alternateTitle', "References"));
 		}
@@ -789,7 +783,7 @@ export class ReferenceWidget extends PeekViewWidget {
 			await this._tree.reveal(reference.parent);
 		}
 
-		return TPromise.join([promise, this._tree.reveal(reference)]).then(values => {
+		return Promise.all([promise, this._tree.reveal(reference)]).then(values => {
 			const ref = values[0];
 
 			if (!this._model) {
@@ -838,43 +832,43 @@ export const peekViewEditorMatchHighlightBorder = registerColor('peekViewEditor.
 
 
 registerThemingParticipant((theme, collector) => {
-	let findMatchHighlightColor = theme.getColor(peekViewResultsMatchHighlight);
+	const findMatchHighlightColor = theme.getColor(peekViewResultsMatchHighlight);
 	if (findMatchHighlightColor) {
 		collector.addRule(`.monaco-editor .reference-zone-widget .ref-tree .referenceMatch { background-color: ${findMatchHighlightColor}; }`);
 	}
-	let referenceHighlightColor = theme.getColor(peekViewEditorMatchHighlight);
+	const referenceHighlightColor = theme.getColor(peekViewEditorMatchHighlight);
 	if (referenceHighlightColor) {
 		collector.addRule(`.monaco-editor .reference-zone-widget .preview .reference-decoration { background-color: ${referenceHighlightColor}; }`);
 	}
-	let referenceHighlightBorder = theme.getColor(peekViewEditorMatchHighlightBorder);
+	const referenceHighlightBorder = theme.getColor(peekViewEditorMatchHighlightBorder);
 	if (referenceHighlightBorder) {
 		collector.addRule(`.monaco-editor .reference-zone-widget .preview .reference-decoration { border: 2px solid ${referenceHighlightBorder}; box-sizing: border-box; }`);
 	}
-	let hcOutline = theme.getColor(activeContrastBorder);
+	const hcOutline = theme.getColor(activeContrastBorder);
 	if (hcOutline) {
 		collector.addRule(`.monaco-editor .reference-zone-widget .ref-tree .referenceMatch { border: 1px dotted ${hcOutline}; box-sizing: border-box; }`);
 	}
-	let resultsBackground = theme.getColor(peekViewResultsBackground);
+	const resultsBackground = theme.getColor(peekViewResultsBackground);
 	if (resultsBackground) {
 		collector.addRule(`.monaco-editor .reference-zone-widget .ref-tree { background-color: ${resultsBackground}; }`);
 	}
-	let resultsMatchForeground = theme.getColor(peekViewResultsMatchForeground);
+	const resultsMatchForeground = theme.getColor(peekViewResultsMatchForeground);
 	if (resultsMatchForeground) {
 		collector.addRule(`.monaco-editor .reference-zone-widget .ref-tree { color: ${resultsMatchForeground}; }`);
 	}
-	let resultsFileForeground = theme.getColor(peekViewResultsFileForeground);
+	const resultsFileForeground = theme.getColor(peekViewResultsFileForeground);
 	if (resultsFileForeground) {
 		collector.addRule(`.monaco-editor .reference-zone-widget .ref-tree .reference-file { color: ${resultsFileForeground}; }`);
 	}
-	let resultsSelectedBackground = theme.getColor(peekViewResultsSelectionBackground);
+	const resultsSelectedBackground = theme.getColor(peekViewResultsSelectionBackground);
 	if (resultsSelectedBackground) {
 		collector.addRule(`.monaco-editor .reference-zone-widget .ref-tree .monaco-tree.focused .monaco-tree-rows > .monaco-tree-row.selected:not(.highlighted) { background-color: ${resultsSelectedBackground}; }`);
 	}
-	let resultsSelectedForeground = theme.getColor(peekViewResultsSelectionForeground);
+	const resultsSelectedForeground = theme.getColor(peekViewResultsSelectionForeground);
 	if (resultsSelectedForeground) {
 		collector.addRule(`.monaco-editor .reference-zone-widget .ref-tree .monaco-tree.focused .monaco-tree-rows > .monaco-tree-row.selected:not(.highlighted) { color: ${resultsSelectedForeground} !important; }`);
 	}
-	let editorBackground = theme.getColor(peekViewEditorBackground);
+	const editorBackground = theme.getColor(peekViewEditorBackground);
 	if (editorBackground) {
 		collector.addRule(
 			`.monaco-editor .reference-zone-widget .preview .monaco-editor .monaco-editor-background,` +
@@ -882,7 +876,7 @@ registerThemingParticipant((theme, collector) => {
 			`	background-color: ${editorBackground};` +
 			`}`);
 	}
-	let editorGutterBackground = theme.getColor(peekViewEditorGutterBackground);
+	const editorGutterBackground = theme.getColor(peekViewEditorGutterBackground);
 	if (editorGutterBackground) {
 		collector.addRule(
 			`.monaco-editor .reference-zone-widget .preview .monaco-editor .margin {` +

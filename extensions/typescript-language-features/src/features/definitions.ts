@@ -28,25 +28,21 @@ export default class TypeScriptDefinitionProvider extends DefinitionProviderBase
 			}
 
 			const args = typeConverters.Position.toFileLocationRequestArgs(filepath, position);
-			try {
-				const { body } = await this.client.execute('definitionAndBoundSpan', args, token);
-				if (!body) {
-					return undefined;
-				}
-
-				const span = body.textSpan ? typeConverters.Range.fromTextSpan(body.textSpan) : undefined;
-				return body.definitions
-					.map(location => {
-						const target = typeConverters.Location.fromTextSpan(this.client.toResource(location.file), location);
-						return <vscode.DefinitionLink>{
-							originSelectionRange: span,
-							targetRange: target.range,
-							targetUri: target.uri,
-						};
-					});
-			} catch {
-				return [];
+			const response = await this.client.execute('definitionAndBoundSpan', args, token);
+			if (response.type !== 'response' || !response.body) {
+				return undefined;
 			}
+
+			const span = response.body.textSpan ? typeConverters.Range.fromTextSpan(response.body.textSpan) : undefined;
+			return response.body.definitions
+				.map(location => {
+					const target = typeConverters.Location.fromTextSpan(this.client.toResource(location.file), location);
+					return <vscode.DefinitionLink>{
+						originSelectionRange: span,
+						targetRange: target.range,
+						targetUri: target.uri,
+					};
+				});
 		}
 
 		return this.getSymbolLocations('definition', document, position, token);

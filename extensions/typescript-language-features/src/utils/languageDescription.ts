@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 import * as languageModeIds from './languageModeIds';
 
-export enum DiagnosticLanguage {
+export const enum DiagnosticLanguage {
 	JavaScript,
 	TypeScript
 }

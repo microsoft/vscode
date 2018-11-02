@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import * as cp from 'child_process';
 import * as nls from 'vs/nls';
 import * as env from 'vs/base/common/platform';
@@ -16,7 +14,7 @@ import { getPathFromAmdModule } from 'vs/base/common/amd';
 
 const TERMINAL_TITLE = nls.localize('console.title', "VS Code Console");
 
-let terminalLauncher: ITerminalLauncher = undefined;
+let terminalLauncher: ITerminalLauncher | undefined = undefined;
 
 export function getTerminalLauncher() {
 	if (!terminalLauncher) {
@@ -31,10 +29,10 @@ export function getTerminalLauncher() {
 	return terminalLauncher;
 }
 
-let _DEFAULT_TERMINAL_LINUX_READY: TPromise<string> = null;
+let _DEFAULT_TERMINAL_LINUX_READY: TPromise<string> | null = null;
 export function getDefaultTerminalLinuxReady(): TPromise<string> {
 	if (!_DEFAULT_TERMINAL_LINUX_READY) {
-		_DEFAULT_TERMINAL_LINUX_READY = new TPromise<string>(c => {
+		_DEFAULT_TERMINAL_LINUX_READY = new Promise<string>(c => {
 			if (env.isLinux) {
 				TPromise.join([pfs.exists('/etc/debian_version'), process.lazyEnv]).then(([isDebian]) => {
 					if (isDebian) {
@@ -55,12 +53,12 @@ export function getDefaultTerminalLinuxReady(): TPromise<string> {
 			}
 
 			c('xterm');
-		}, () => { });
+		});
 	}
 	return _DEFAULT_TERMINAL_LINUX_READY;
 }
 
-let _DEFAULT_TERMINAL_WINDOWS: string = null;
+let _DEFAULT_TERMINAL_WINDOWS: string | null = null;
 export function getDefaultTerminalWindows(): string {
 	if (!_DEFAULT_TERMINAL_WINDOWS) {
 		const isWoW64 = !!process.env.hasOwnProperty('PROCESSOR_ARCHITEW6432');
@@ -86,7 +84,7 @@ class WinTerminalService extends TerminalLauncher {
 
 		const exec = configuration.external.windowsExec || getDefaultTerminalWindows();
 
-		return new TPromise<void>((c, e) => {
+		return new Promise<void>((c, e) => {
 
 			const title = `"${dir} - ${TERMINAL_TITLE}"`;
 			const command = `""${args.join('" "')}" & pause"`; // use '|' to only pause on non-zero exit code
@@ -124,7 +122,7 @@ class MacTerminalService extends TerminalLauncher {
 
 		const terminalApp = configuration.external.osxExec || MacTerminalService.DEFAULT_TERMINAL_OSX;
 
-		return new TPromise<void>((c, e) => {
+		return new Promise<void>((c, e) => {
 
 			if (terminalApp === MacTerminalService.DEFAULT_TERMINAL_OSX || terminalApp === 'iTerm.app') {
 
@@ -190,14 +188,14 @@ class LinuxTerminalService extends TerminalLauncher {
 	public runInTerminal0(title: string, dir: string, args: string[], envVars: env.IProcessEnvironment, configuration: ITerminalSettings): TPromise<void> {
 
 		const terminalConfig = configuration.external;
-		const execPromise = terminalConfig.linuxExec ? TPromise.as(terminalConfig.linuxExec) : getDefaultTerminalLinuxReady();
+		const execThenable: Thenable<string> = terminalConfig.linuxExec ? Promise.resolve(terminalConfig.linuxExec) : getDefaultTerminalLinuxReady();
 
-		return new TPromise<void>((c, e) => {
+		return new Promise<void>((c, e) => {
 
 			let termArgs: string[] = [];
 			//termArgs.push('--title');
 			//termArgs.push(`"${TERMINAL_TITLE}"`);
-			execPromise.then(exec => {
+			execThenable.then(exec => {
 				if (exec.indexOf('gnome-terminal') >= 0) {
 					termArgs.push('-x');
 				} else {
@@ -312,7 +310,7 @@ export function prepareCommand(args: DebugProtocol.RunInTerminalRequestArguments
 
 	// try to determine the shell type
 	shell = shell.trim().toLowerCase();
-	if (shell.indexOf('powershell') >= 0) {
+	if (shell.indexOf('powershell') >= 0 || shell.indexOf('pwsh') >= 0) {
 		shellType = ShellType.powershell;
 	} else if (shell.indexOf('cmd.exe') >= 0) {
 		shellType = ShellType.cmd;
@@ -370,11 +368,12 @@ export function prepareCommand(args: DebugProtocol.RunInTerminalRequestArguments
 			if (args.env) {
 				command += 'cmd /C "';
 				for (let key in args.env) {
-					const value = args.env[key];
+					let value = args.env[key];
 					if (value === null) {
 						command += `set "${key}=" && `;
 					} else {
-						command += `set "${key}=${args.env[key]}" && `;
+						value = value.replace(/[\^\&]/g, s => `^${s}`);
+						command += `set "${key}=${value}" && `;
 					}
 				}
 			}

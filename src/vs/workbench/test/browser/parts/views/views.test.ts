@@ -4,14 +4,15 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { ContributableViewsModel } from 'vs/workbench/browser/parts/views/views';
-import { ViewsRegistry, IViewDescriptor, IViewContainersRegistry, Extensions as ViewContainerExtensions } from 'vs/workbench/common/views';
-import { ContextKeyService } from 'vs/platform/contextkey/browser/contextKeyService';
-import { IContextKeyService, ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
-import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
+import { ContributableViewsModel, ViewsService } from 'vs/workbench/browser/parts/views/views';
+import { ViewsRegistry, IViewDescriptor, IViewContainersRegistry, Extensions as ViewContainerExtensions, IViewsService } from 'vs/workbench/common/views';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { move } from 'vs/base/common/arrays';
 import { Registry } from 'vs/platform/registry/common/platform';
+import { workbenchInstantiationService } from 'vs/workbench/test/workbenchTestServices';
+import { ContextKeyExpr, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
+import { ContextKeyService } from 'vs/platform/contextkey/browser/contextKeyService';
 
 const container = Registry.as<IViewContainersRegistry>(ViewContainerExtensions.ViewContainersRegistry).registerViewContainer('test');
 
@@ -33,24 +34,28 @@ class ViewDescriptorSequence {
 }
 
 suite('ContributableViewsModel', () => {
+
+	let viewsService: IViewsService;
 	let contextKeyService: IContextKeyService;
 
 	setup(() => {
-		const configurationService = new TestConfigurationService();
-		contextKeyService = new ContextKeyService(configurationService);
+		const instantiationService: TestInstantiationService = <TestInstantiationService>workbenchInstantiationService();
+		contextKeyService = instantiationService.createInstance(ContextKeyService);
+		instantiationService.stub(IContextKeyService, contextKeyService);
+		viewsService = instantiationService.createInstance(ViewsService);
 	});
 
 	teardown(() => {
-		contextKeyService.dispose();
+		ViewsRegistry.deregisterViews(ViewsRegistry.getViews(container).map(({ id }) => id), container);
 	});
 
 	test('empty model', function () {
-		const model = new ContributableViewsModel(container, contextKeyService);
+		const model = new ContributableViewsModel(container, viewsService);
 		assert.equal(model.visibleViewDescriptors.length, 0);
 	});
 
-	test('register/unregister', function () {
-		const model = new ContributableViewsModel(container, contextKeyService);
+	test('register/unregister', () => {
+		const model = new ContributableViewsModel(container, viewsService);
 		const seq = new ViewDescriptorSequence(model);
 
 		assert.equal(model.visibleViewDescriptors.length, 0);
@@ -77,7 +82,7 @@ suite('ContributableViewsModel', () => {
 	});
 
 	test('when contexts', async function () {
-		const model = new ContributableViewsModel(container, contextKeyService);
+		const model = new ContributableViewsModel(container, viewsService);
 		const seq = new ViewDescriptorSequence(model);
 
 		assert.equal(model.visibleViewDescriptors.length, 0);
@@ -122,7 +127,7 @@ suite('ContributableViewsModel', () => {
 	});
 
 	test('when contexts - multiple', async function () {
-		const model = new ContributableViewsModel(container, contextKeyService);
+		const model = new ContributableViewsModel(container, viewsService);
 		const seq = new ViewDescriptorSequence(model);
 
 		const view1: IViewDescriptor = { id: 'view1', ctor: null, container, name: 'Test View 1' };
@@ -145,7 +150,7 @@ suite('ContributableViewsModel', () => {
 	});
 
 	test('when contexts - multiple 2', async function () {
-		const model = new ContributableViewsModel(container, contextKeyService);
+		const model = new ContributableViewsModel(container, viewsService);
 		const seq = new ViewDescriptorSequence(model);
 
 		const view1: IViewDescriptor = { id: 'view1', ctor: null, container, name: 'Test View 1', when: ContextKeyExpr.equals('showview1', true) };
@@ -167,8 +172,8 @@ suite('ContributableViewsModel', () => {
 		ViewsRegistry.deregisterViews([view1.id, view2.id], container);
 	});
 
-	test('setVisible', function () {
-		const model = new ContributableViewsModel(container, contextKeyService);
+	test('setVisible', () => {
+		const model = new ContributableViewsModel(container, viewsService);
 		const seq = new ViewDescriptorSequence(model);
 
 		const view1: IViewDescriptor = { id: 'view1', ctor: null, container, name: 'Test View 1', canToggleVisibility: true };
@@ -212,8 +217,8 @@ suite('ContributableViewsModel', () => {
 		assert.deepEqual(seq.elements, []);
 	});
 
-	test('move', function () {
-		const model = new ContributableViewsModel(container, contextKeyService);
+	test('move', () => {
+		const model = new ContributableViewsModel(container, viewsService);
 		const seq = new ViewDescriptorSequence(model);
 
 		const view1: IViewDescriptor = { id: 'view1', ctor: null, container, name: 'Test View 1' };

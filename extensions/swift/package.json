@@ -6,7 +6,7 @@
 	"publisher": "vscode",
 	"engines": { "vscode": "*" },
 	"scripts": {
-		"update-grammar": "node ../../build/npm/update-grammar.js freebroccolo/atom-language-swift grammars/swift.cson ./syntaxes/swift.tmLanguage.json"
+		"update-grammar": "node ../../build/npm/update-grammar.js textmate/swift.tmbundle Syntaxes/Swift.tmLanguage ./syntaxes/swift.tmLanguage.json"
 	},
 	"contributes": {
 		"languages": [{

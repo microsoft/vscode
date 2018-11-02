@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import product from 'vs/platform/node/product';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ILifecycleService } from 'vs/platform/lifecycle/electron-main/lifecycleMain';
@@ -17,6 +15,7 @@ import { createUpdateURL, AbstractUpdateService } from 'vs/platform/update/elect
 import { asJson } from 'vs/base/node/request';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { shell } from 'electron';
+import { CancellationToken } from 'vs/base/common/cancellation';
 
 export class LinuxUpdateService extends AbstractUpdateService {
 
@@ -44,7 +43,7 @@ export class LinuxUpdateService extends AbstractUpdateService {
 
 		this.setState(State.CheckingForUpdates(context));
 
-		this.requestService.request({ url: this.url })
+		this.requestService.request({ url: this.url }, CancellationToken.None)
 			.then<IUpdate>(asJson)
 			.then(update => {
 				if (!update || !update.url || !update.version || !update.productVersion) {
@@ -69,7 +68,7 @@ export class LinuxUpdateService extends AbstractUpdateService {
 					}
 					*/
 				this.telemetryService.publicLog('update:notAvailable', { explicit: !!context });
-				this.setState(State.Idle(UpdateType.Archive));
+				this.setState(State.Idle(UpdateType.Archive, err.message || err));
 			});
 	}
 
@@ -78,11 +77,11 @@ export class LinuxUpdateService extends AbstractUpdateService {
 		// installed and the website download page is more useful than the tarball generally.
 		if (product.downloadUrl && product.downloadUrl.length > 0) {
 			shell.openExternal(product.downloadUrl);
-		} else {
+		} else if (state.update.url) {
 			shell.openExternal(state.update.url);
 		}
 
 		this.setState(State.Idle(UpdateType.Archive));
-		return TPromise.as(null);
+		return TPromise.as(void 0);
 	}
 }

@@ -2,11 +2,10 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
 import { TPromise } from 'vs/base/common/winjs.base';
 import * as paths from 'vs/base/common/paths';
-import URI from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 import * as glob from 'vs/base/common/glob';
 import { isLinux } from 'vs/base/common/platform';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
@@ -52,6 +51,11 @@ export interface IFileService {
 	registerProvider(scheme: string, provider: IFileSystemProvider): IDisposable;
 
 	/**
+	 * Tries to activate a provider with the given scheme.
+	 */
+	activateProvider(scheme: string): Thenable<void>;
+
+	/**
 	 * Checks if this file service can handle the given resource.
 	 */
 	canHandleResource(resource: URI): boolean;
@@ -70,7 +74,7 @@ export interface IFileService {
 	resolveFile(resource: URI, options?: IResolveFileOptions): TPromise<IFileStat>;
 
 	/**
-	 * Same as resolveFile but supports resolving mulitple resources in parallel.
+	 * Same as resolveFile but supports resolving multiple resources in parallel.
 	 * If one of the resolve targets fails to resolve returns a fake IFileStat instead of making the whole call fail.
 	 */
 	resolveFiles(toResolve: { resource: URI, options?: IResolveFileOptions }[]): TPromise<IResolveFileResult[]>;
@@ -182,7 +186,7 @@ export interface IWatchOptions {
 	excludes: string[];
 }
 
-export enum FileSystemProviderCapabilities {
+export const enum FileSystemProviderCapabilities {
 	FileReadWrite = 1 << 1,
 	FileOpenReadWriteClose = 1 << 2,
 	FileFolderCopy = 1 << 3,
@@ -198,21 +202,21 @@ export interface IFileSystemProvider {
 	onDidChangeFile: Event<IFileChange[]>;
 	watch(resource: URI, opts: IWatchOptions): IDisposable;
 
-	stat(resource: URI): TPromise<IStat>;
-	mkdir(resource: URI): TPromise<void>;
-	readdir(resource: URI): TPromise<[string, FileType][]>;
-	delete(resource: URI, opts: FileDeleteOptions): TPromise<void>;
+	stat(resource: URI): Thenable<IStat>;
+	mkdir(resource: URI): Thenable<void>;
+	readdir(resource: URI): Thenable<[string, FileType][]>;
+	delete(resource: URI, opts: FileDeleteOptions): Thenable<void>;
 
-	rename(from: URI, to: URI, opts: FileOverwriteOptions): TPromise<void>;
-	copy?(from: URI, to: URI, opts: FileOverwriteOptions): TPromise<void>;
+	rename(from: URI, to: URI, opts: FileOverwriteOptions): Thenable<void>;
+	copy?(from: URI, to: URI, opts: FileOverwriteOptions): Thenable<void>;
 
-	readFile?(resource: URI): TPromise<Uint8Array>;
-	writeFile?(resource: URI, content: Uint8Array, opts: FileWriteOptions): TPromise<void>;
+	readFile?(resource: URI): Thenable<Uint8Array>;
+	writeFile?(resource: URI, content: Uint8Array, opts: FileWriteOptions): Thenable<void>;
 
-	open?(resource: URI): TPromise<number>;
-	close?(fd: number): TPromise<void>;
-	read?(fd: number, pos: number, data: Uint8Array, offset: number, length: number): TPromise<number>;
-	write?(fd: number, pos: number, data: Uint8Array, offset: number, length: number): TPromise<number>;
+	open?(resource: URI): Thenable<number>;
+	close?(fd: number): Thenable<void>;
+	read?(fd: number, pos: number, data: Uint8Array, offset: number, length: number): Thenable<number>;
+	write?(fd: number, pos: number, data: Uint8Array, offset: number, length: number): Thenable<number>;
 }
 
 export interface IFileSystemProviderRegistrationEvent {
@@ -221,7 +225,7 @@ export interface IFileSystemProviderRegistrationEvent {
 	provider?: IFileSystemProvider;
 }
 
-export enum FileOperation {
+export const enum FileOperation {
 	CREATE,
 	DELETE,
 	MOVE,
@@ -237,7 +241,7 @@ export class FileOperationEvent {
 		return this._resource;
 	}
 
-	get target(): IFileStat {
+	get target(): IFileStat | undefined {
 		return this._target;
 	}
 
@@ -249,7 +253,7 @@ export class FileOperationEvent {
 /**
  * Possible changes that can occur to a file.
  */
-export enum FileChangeType {
+export const enum FileChangeType {
 	UPDATED = 0,
 	ADDED = 1,
 	DELETED = 2
@@ -284,22 +288,24 @@ export class FileChangesEvent {
 	}
 
 	/**
-	 * Returns true if this change event contains the provided file with the given change type. In case of
+	 * Returns true if this change event contains the provided file with the given change type (if provided). In case of
 	 * type DELETED, this method will also return true if a folder got deleted that is the parent of the
 	 * provided file path.
 	 */
-	contains(resource: URI, type: FileChangeType): boolean {
+	contains(resource: URI, type?: FileChangeType): boolean {
 		if (!resource) {
 			return false;
 		}
 
+		const checkForChangeType = !isUndefinedOrNull(type);
+
 		return this._changes.some(change => {
-			if (change.type !== type) {
+			if (checkForChangeType && change.type !== type) {
 				return false;
 			}
 
 			// For deleted also return true when deleted folder is parent of target path
-			if (type === FileChangeType.DELETED) {
+			if (change.type === FileChangeType.DELETED) {
 				return isEqualOrParent(resource, change.resource, !isLinux /* ignorecase */);
 			}
 
@@ -483,12 +489,15 @@ export interface IStringStream {
  * Will return null when finished.
  */
 export interface ITextSnapshot {
-	read(): string;
+	read(): string | null;
 }
 
 export class StringSnapshot implements ITextSnapshot {
-	constructor(private _value: string) { }
-	read(): string {
+	private _value: string | null;
+	constructor(value: string) {
+		this._value = value;
+	}
+	read(): string | null {
 		let ret = this._value;
 		this._value = null;
 		return ret;
@@ -499,7 +508,7 @@ export class StringSnapshot implements ITextSnapshot {
  */
 export function snapshotToString(snapshot: ITextSnapshot): string {
 	const chunks: string[] = [];
-	let chunk: string;
+	let chunk: string | null;
 	while (typeof (chunk = snapshot.read()) === 'string') {
 		chunks.push(chunk);
 	}
@@ -620,7 +629,7 @@ export class FileOperationError extends Error {
 	}
 }
 
-export enum FileOperationResult {
+export const enum FileOperationResult {
 	FILE_IS_BINARY,
 	FILE_IS_DIRECTORY,
 	FILE_NOT_FOUND,

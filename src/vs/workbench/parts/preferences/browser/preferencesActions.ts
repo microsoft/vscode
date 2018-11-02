@@ -2,21 +2,20 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
-import { TPromise } from 'vs/base/common/winjs.base';
-import * as nls from 'vs/nls';
-import URI from 'vs/base/common/uri';
 import { Action } from 'vs/base/common/actions';
-import { IDisposable, dispose } from 'vs/base/common/lifecycle';
-import { IModeService } from 'vs/editor/common/services/modeService';
-import { IPreferencesService } from 'vs/workbench/services/preferences/common/preferences';
-import { IWorkspaceContextService, WorkbenchState, IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
-import { ICommandService } from 'vs/platform/commands/common/commands';
-import { PICK_WORKSPACE_FOLDER_COMMAND_ID } from 'vs/workbench/browser/actions/workspaceCommands';
-import { IQuickInputService, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
-import { getIconClasses } from 'vs/workbench/browser/labels';
+import { dispose, IDisposable } from 'vs/base/common/lifecycle';
+import { URI } from 'vs/base/common/uri';
+import { TPromise } from 'vs/base/common/winjs.base';
 import { IModelService } from 'vs/editor/common/services/modelService';
+import { IModeService } from 'vs/editor/common/services/modeService';
+import * as nls from 'vs/nls';
+import { ICommandService } from 'vs/platform/commands/common/commands';
+import { IQuickInputService, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
+import { IWorkspaceContextService, IWorkspaceFolder, WorkbenchState } from 'vs/platform/workspace/common/workspace';
+import { PICK_WORKSPACE_FOLDER_COMMAND_ID } from 'vs/workbench/browser/actions/workspaceCommands';
+import { getIconClasses } from 'vs/editor/common/services/getIconClasses';
+import { IPreferencesService } from 'vs/workbench/services/preferences/common/preferences';
 
 export class OpenRawDefaultSettingsAction extends Action {
 
@@ -39,21 +38,20 @@ export class OpenRawDefaultSettingsAction extends Action {
 export class OpenSettings2Action extends Action {
 
 	public static readonly ID = 'workbench.action.openSettings2';
-	public static readonly LABEL = nls.localize('openSettings2', "Open Settings (Preview)");
+	public static readonly LABEL = nls.localize('openSettings2', "Open Settings (UI)");
 
 	constructor(
 		id: string,
 		label: string,
-		@IPreferencesService private preferencesService2: IPreferencesService
+		@IPreferencesService private preferencesService: IPreferencesService
 	) {
 		super(id, label);
 	}
 
 	public run(event?: any): TPromise<any> {
-		return this.preferencesService2.openSettings2();
+		return this.preferencesService.openSettings(false);
 	}
 }
-
 
 export class OpenSettingsAction extends Action {
 
@@ -73,6 +71,24 @@ export class OpenSettingsAction extends Action {
 	}
 }
 
+export class OpenSettingsJsonAction extends Action {
+
+	public static readonly ID = 'workbench.action.openSettingsJson';
+	public static readonly LABEL = nls.localize('openSettingsJson', "Open Settings (JSON)");
+
+	constructor(
+		id: string,
+		label: string,
+		@IPreferencesService private preferencesService: IPreferencesService
+	) {
+		super(id, label);
+	}
+
+	public run(event?: any): TPromise<any> {
+		return this.preferencesService.openSettings(true);
+	}
+}
+
 export class OpenGlobalSettingsAction extends Action {
 
 	public static readonly ID = 'workbench.action.openGlobalSettings';
@@ -81,7 +97,7 @@ export class OpenGlobalSettingsAction extends Action {
 	constructor(
 		id: string,
 		label: string,
-		@IPreferencesService private preferencesService: IPreferencesService
+		@IPreferencesService private preferencesService: IPreferencesService,
 	) {
 		super(id, label);
 	}
@@ -156,7 +172,7 @@ export class OpenWorkspaceSettingsAction extends Action {
 		id: string,
 		label: string,
 		@IPreferencesService private preferencesService: IPreferencesService,
-		@IWorkspaceContextService private workspaceContextService: IWorkspaceContextService
+		@IWorkspaceContextService private workspaceContextService: IWorkspaceContextService,
 	) {
 		super(id, label);
 		this.update();
@@ -191,7 +207,8 @@ export class OpenFolderSettingsAction extends Action {
 		id: string,
 		label: string,
 		@IWorkspaceContextService private workspaceContextService: IWorkspaceContextService,
-		@ICommandService private commandService: ICommandService
+		@IPreferencesService private preferencesService: IPreferencesService,
+		@ICommandService private commandService: ICommandService,
 	) {
 		super(id, label);
 		this.update();
@@ -207,8 +224,9 @@ export class OpenFolderSettingsAction extends Action {
 		return this.commandService.executeCommand<IWorkspaceFolder>(PICK_WORKSPACE_FOLDER_COMMAND_ID)
 			.then(workspaceFolder => {
 				if (workspaceFolder) {
-					return this.commandService.executeCommand(OPEN_FOLDER_SETTINGS_COMMAND, workspaceFolder.uri);
+					return this.preferencesService.openFolderSettings(workspaceFolder.uri);
 				}
+
 				return null;
 			});
 	}
@@ -260,8 +278,8 @@ export class ConfigureLanguageBasedSettingsAction extends Action {
 		return this.quickInputService.pick(picks, { placeHolder: nls.localize('pickLanguage', "Select Language") })
 			.then(pick => {
 				if (pick) {
-					return this.modeService.getOrCreateModeByLanguageName(pick.label)
-						.then(mode => this.preferencesService.configureSettingsForLanguage(mode.getLanguageIdentifier().language));
+					const modeId = this.modeService.getModeIdForLanguageName(pick.label.toLowerCase());
+					return this.preferencesService.configureSettingsForLanguage(modeId);
 				}
 				return undefined;
 			});

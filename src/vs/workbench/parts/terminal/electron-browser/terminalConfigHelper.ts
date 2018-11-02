@@ -12,7 +12,7 @@ import { IWorkspaceConfigurationService } from 'vs/workbench/services/configurat
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { ITerminalConfiguration, ITerminalConfigHelper, ITerminalFont, IShellLaunchConfig, IS_WORKSPACE_SHELL_ALLOWED_STORAGE_KEY, TERMINAL_CONFIG_SECTION, DEFAULT_LETTER_SPACING, DEFAULT_LINE_HEIGHT, MINIMUM_LETTER_SPACING } from 'vs/workbench/parts/terminal/common/terminal';
 import Severity from 'vs/base/common/severity';
-import { isFedora } from 'vs/workbench/parts/terminal/node/terminal';
+import { isFedora, isUbuntu } from 'vs/workbench/parts/terminal/node/terminal';
 import { Terminal as XTermTerminal } from 'vscode-xterm';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 
@@ -114,15 +114,21 @@ export class TerminalConfigHelper implements ITerminalConfigHelper {
 		const editorConfig = this._configurationService.getValue<IEditorOptions>('editor');
 
 		let fontFamily = this.config.fontFamily || editorConfig.fontFamily;
+		let fontSize = this._toInteger(this.config.fontSize, MINIMUM_FONT_SIZE, MAXIMUM_FONT_SIZE, EDITOR_FONT_DEFAULTS.fontSize);
 
-		// Work around bad font on Fedora
+		// Work around bad font on Fedora/Ubuntu
 		if (!this.config.fontFamily) {
 			if (isFedora) {
-				fontFamily = '\'DejaVu Sans Mono\'';
+				fontFamily = '\'DejaVu Sans Mono\', monospace';
+			}
+			if (isUbuntu) {
+				fontFamily = '\'Ubuntu Mono\', monospace';
+
+				// Ubuntu mono is somehow smaller, so set fontSize a bit larger to get the same perceived size.
+				fontSize = this._toInteger(fontSize + 2, MINIMUM_FONT_SIZE, MAXIMUM_FONT_SIZE, EDITOR_FONT_DEFAULTS.fontSize);
 			}
 		}
 
-		const fontSize = this._toInteger(this.config.fontSize, MINIMUM_FONT_SIZE, MAXIMUM_FONT_SIZE, EDITOR_FONT_DEFAULTS.fontSize);
 		const letterSpacing = this.config.letterSpacing ? Math.max(Math.floor(this.config.letterSpacing), MINIMUM_LETTER_SPACING) : DEFAULT_LETTER_SPACING;
 		const lineHeight = this.config.lineHeight ? Math.max(this.config.lineHeight, 1) : DEFAULT_LINE_HEIGHT;
 

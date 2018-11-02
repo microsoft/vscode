@@ -6,6 +6,7 @@
 import * as nls from 'vs/nls';
 
 import { registerColor, ColorIdentifier } from 'vs/platform/theme/common/colorRegistry';
+import { PANEL_BORDER, PANEL_BACKGROUND } from 'vs/workbench/common/theme';
 
 /**
  * The color identifiers for the terminal's ansi colors. The index in the array corresponds to the index
@@ -13,7 +14,11 @@ import { registerColor, ColorIdentifier } from 'vs/platform/theme/common/colorRe
  */
 export const ansiColorIdentifiers: ColorIdentifier[] = [];
 
-export const TERMINAL_BACKGROUND_COLOR = registerColor('terminal.background', null, nls.localize('terminal.background', 'The background color of the terminal, this allows coloring the terminal differently to the panel.'));
+export const TERMINAL_BACKGROUND_COLOR = registerColor('terminal.background', {
+	dark: PANEL_BACKGROUND,
+	light: PANEL_BACKGROUND,
+	hc: PANEL_BACKGROUND
+}, nls.localize('terminal.background', 'The background color of the terminal, this allows coloring the terminal differently to the panel.'));
 export const TERMINAL_FOREGROUND_COLOR = registerColor('terminal.foreground', {
 	light: '#333333',
 	dark: '#CCCCCC',
@@ -26,7 +31,11 @@ export const TERMINAL_SELECTION_BACKGROUND_COLOR = registerColor('terminal.selec
 	dark: '#FFFFFF40',
 	hc: '#FFFFFF80'
 }, nls.localize('terminal.selectionBackground', 'The selection background color of the terminal.'));
-export const TERMINAL_BORDER_COLOR = registerColor('terminal.border', null, nls.localize('terminal.border', 'The color of the border that separates split panes within the terminal. This defaults to panel.border.'));
+export const TERMINAL_BORDER_COLOR = registerColor('terminal.border', {
+	dark: PANEL_BORDER,
+	light: PANEL_BORDER,
+	hc: PANEL_BORDER
+}, nls.localize('terminal.border', 'The color of the border that separates split panes within the terminal. This defaults to panel.border.'));
 
 const ansiColorMap = {
 	'terminal.ansiBlack': {

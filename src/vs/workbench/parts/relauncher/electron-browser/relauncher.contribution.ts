@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import { IDisposable, dispose, Disposable } from 'vs/base/common/lifecycle';
 import { IWorkbenchContributionsRegistry, IWorkbenchContribution, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
 import { Registry } from 'vs/platform/registry/common/platform';
@@ -15,9 +13,9 @@ import { IEnvironmentService } from 'vs/platform/environment/common/environment'
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { RunOnceScheduler } from 'vs/base/common/async';
-import URI from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 import { isEqual } from 'vs/base/common/resources';
-import { isLinux, isMacintosh, isWindows } from 'vs/base/common/platform';
+import { isLinux, isMacintosh } from 'vs/base/common/platform';
 import { LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { equals } from 'vs/base/common/objects';
@@ -26,7 +24,7 @@ interface IConfiguration extends IWindowsConfiguration {
 	update: { channel: string; };
 	telemetry: { enableCrashReporter: boolean };
 	keyboard: { touchbar: { enabled: boolean } };
-	workbench: { tree: { horizontalScrolling: boolean } };
+	workbench: { tree: { horizontalScrolling: boolean }, enableLegacyStorage: boolean };
 	files: { useExperimentalFileWatcher: boolean, watcherExclude: object };
 }
 
@@ -34,14 +32,15 @@ export class SettingsChangeRelauncher extends Disposable implements IWorkbenchCo
 
 	private titleBarStyle: 'native' | 'custom';
 	private nativeTabs: boolean;
+	private nativeFullScreen: boolean;
 	private clickThroughInactive: boolean;
 	private updateChannel: string;
 	private enableCrashReporter: boolean;
 	private touchbarEnabled: boolean;
 	private treeHorizontalScrolling: boolean;
-	private windowsSmoothScrollingWorkaround: boolean;
 	private experimentalFileWatcher: boolean;
 	private fileWatcherExclude: object;
+	private legacyStorage: boolean;
 
 	private firstFolderResource: URI;
 	private extensionHostRestarter: RunOnceScheduler;
@@ -89,6 +88,12 @@ export class SettingsChangeRelauncher extends Disposable implements IWorkbenchCo
 			changed = true;
 		}
 
+		// macOS: Native fullscreen
+		if (isMacintosh && config.window && typeof config.window.nativeFullScreen === 'boolean' && config.window.nativeFullScreen !== this.nativeFullScreen) {
+			this.nativeFullScreen = config.window.nativeFullScreen;
+			changed = true;
+		}
+
 		// macOS: Click through (accept first mouse)
 		if (isMacintosh && config.window && typeof config.window.clickThroughInactive === 'boolean' && config.window.clickThroughInactive !== this.clickThroughInactive) {
 			this.clickThroughInactive = config.window.clickThroughInactive;
@@ -133,9 +138,9 @@ export class SettingsChangeRelauncher extends Disposable implements IWorkbenchCo
 			changed = true;
 		}
 
-		// Windows: smooth scrolling workaround
-		if (isWindows && config.window && typeof config.window.smoothScrollingWorkaround === 'boolean' && config.window.smoothScrollingWorkaround !== this.windowsSmoothScrollingWorkaround) {
-			this.windowsSmoothScrollingWorkaround = config.window.smoothScrollingWorkaround;
+		// Legacy Workspace Storage
+		if (config.workbench && typeof config.workbench.enableLegacyStorage === 'boolean' && config.workbench.enableLegacyStorage !== this.legacyStorage) {
+			this.legacyStorage = config.workbench.enableLegacyStorage;
 			changed = true;
 		}
 

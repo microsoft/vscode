@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as path from 'path';
+import * as vscode from 'vscode';
 import VsCodeTelemetryReporter from 'vscode-extension-telemetry';
 import { memoize } from './memoize';
 
@@ -59,13 +59,12 @@ export default class TelemetryReporter {
 
 	@memoize
 	private get packageInfo(): IPackageInfo | null {
-		const packagePath = path.join(__dirname, '..', '..', 'package.json');
-		const extensionPackage = require(packagePath);
-		if (extensionPackage) {
+		const { packageJSON } = vscode.extensions.getExtension('vscode.typescript-language-features')!;
+		if (packageJSON) {
 			return {
-				name: extensionPackage.name,
-				version: extensionPackage.version,
-				aiKey: extensionPackage.aiKey
+				name: packageJSON.name,
+				version: packageJSON.version,
+				aiKey: packageJSON.aiKey
 			};
 		}
 		return null;

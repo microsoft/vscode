@@ -3,11 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
-import { asWinJsPromise } from 'vs/base/common/async';
-import URI, { UriComponents } from 'vs/base/common/uri';
-import { TPromise } from 'vs/base/common/winjs.base';
+import { asThenable } from 'vs/base/common/async';
+import { URI, UriComponents } from 'vs/base/common/uri';
 import * as modes from 'vs/editor/common/modes';
 import { ExtHostDocuments } from 'vs/workbench/api/node/extHostDocuments';
 import * as extHostTypeConverter from 'vs/workbench/api/node/extHostTypeConverters';
@@ -15,6 +12,7 @@ import * as vscode from 'vscode';
 import { ExtHostCommentsShape, IMainContext, MainContext, MainThreadCommentsShape } from './extHost.protocol';
 import { CommandsConverter } from './extHostCommands';
 import { IRange } from 'vs/editor/common/core/range';
+import { CancellationToken } from 'vs/base/common/cancellation';
 
 export class ExtHostComments implements ExtHostCommentsShape {
 	private static handlePool = 0;
@@ -33,11 +31,12 @@ export class ExtHostComments implements ExtHostCommentsShape {
 	}
 
 	registerWorkspaceCommentProvider(
+		extensionId: string,
 		provider: vscode.WorkspaceCommentProvider
 	): vscode.Disposable {
 		const handle = ExtHostComments.handlePool++;
 		this._workspaceProviders.set(handle, provider);
-		this._proxy.$registerWorkspaceCommentProvider(handle);
+		this._proxy.$registerWorkspaceCommentProvider(handle, extensionId);
 		this.registerListeners(handle, provider);
 
 		return {
@@ -64,57 +63,82 @@ export class ExtHostComments implements ExtHostCommentsShape {
 		};
 	}
 
-	$createNewCommentThread(handle: number, uri: UriComponents, range: IRange, text: string): TPromise<modes.CommentThread> {
+	$createNewCommentThread(handle: number, uri: UriComponents, range: IRange, text: string): Thenable<modes.CommentThread> {
 		const data = this._documents.getDocumentData(URI.revive(uri));
 		const ran = <vscode.Range>extHostTypeConverter.Range.to(range);
 
 		if (!data || !data.document) {
-			return TPromise.as(null);
+			return Promise.resolve(null);
 		}
 
-		return asWinJsPromise(token => {
-			let provider = this._documentProviders.get(handle);
-			return provider.createNewCommentThread(data.document, ran, text, token);
-		}).then(commentThread => commentThread ? convertToCommentThread(commentThread, this._commandsConverter) : null);
+		const provider = this._documentProviders.get(handle);
+		return asThenable(() => {
+			return provider.createNewCommentThread(data.document, ran, text, CancellationToken.None);
+		}).then(commentThread => commentThread ? convertToCommentThread(provider, commentThread, this._commandsConverter) : null);
 	}
 
-	$replyToCommentThread(handle: number, uri: UriComponents, range: IRange, thread: modes.CommentThread, text: string): TPromise<modes.CommentThread> {
+	$replyToCommentThread(handle: number, uri: UriComponents, range: IRange, thread: modes.CommentThread, text: string): Thenable<modes.CommentThread> {
 		const data = this._documents.getDocumentData(URI.revive(uri));
 		const ran = <vscode.Range>extHostTypeConverter.Range.to(range);
 
 		if (!data || !data.document) {
-			return TPromise.as(null);
+			return Promise.resolve(null);
 		}
 
-		return asWinJsPromise(token => {
-			let provider = this._documentProviders.get(handle);
-			return provider.replyToCommentThread(data.document, ran, convertFromCommentThread(thread), text, token);
-		}).then(commentThread => commentThread ? convertToCommentThread(commentThread, this._commandsConverter) : null);
+		const provider = this._documentProviders.get(handle);
+		return asThenable(() => {
+			return provider.replyToCommentThread(data.document, ran, convertFromCommentThread(thread), text, CancellationToken.None);
+		}).then(commentThread => commentThread ? convertToCommentThread(provider, commentThread, this._commandsConverter) : null);
 	}
 
-	$provideDocumentComments(handle: number, uri: UriComponents): TPromise<modes.CommentInfo> {
+	$editComment(handle: number, uri: UriComponents, comment: modes.Comment, text: string): Thenable<void> {
+		const data = this._documents.getDocumentData(URI.revive(uri));
+
+		if (!data || !data.document) {
+			throw new Error('Unable to retrieve document from URI');
+		}
+
+		const provider = this._documentProviders.get(handle);
+		return asThenable(() => {
+			return provider.editComment(data.document, convertFromComment(comment), text, CancellationToken.None);
+		});
+	}
+
+	$deleteComment(handle: number, uri: UriComponents, comment: modes.Comment): Thenable<void> {
+		const data = this._documents.getDocumentData(URI.revive(uri));
+
+		if (!data || !data.document) {
+			throw new Error('Unable to retrieve document from URI');
+		}
+
+		const provider = this._documentProviders.get(handle);
+		return asThenable(() => {
+			return provider.deleteComment(data.document, convertFromComment(comment), CancellationToken.None);
+		});
+	}
+
+	$provideDocumentComments(handle: number, uri: UriComponents): Thenable<modes.CommentInfo> {
 		const data = this._documents.getDocumentData(URI.revive(uri));
 		if (!data || !data.document) {
-			return TPromise.as(null);
+			return Promise.resolve(null);
 		}
 
-		return asWinJsPromise(token => {
-			let provider = this._documentProviders.get(handle);
-			return provider.provideDocumentComments(data.document, token);
-		})
-			.then(commentInfo => commentInfo ? convertCommentInfo(handle, commentInfo, this._commandsConverter) : null);
+		const provider = this._documentProviders.get(handle);
+		return asThenable(() => {
+			return provider.provideDocumentComments(data.document, CancellationToken.None);
+		}).then(commentInfo => commentInfo ? convertCommentInfo(handle, provider, commentInfo, this._commandsConverter) : null);
 	}
 
-	$provideWorkspaceComments(handle: number): TPromise<modes.CommentThread[]> {
+	$provideWorkspaceComments(handle: number): Thenable<modes.CommentThread[]> {
 		const provider = this._workspaceProviders.get(handle);
 		if (!provider) {
-			return TPromise.as(null);
+			return Promise.resolve(null);
 		}
 
-		return asWinJsPromise(token => {
-			return provider.provideWorkspaceComments(token);
+		return asThenable(() => {
+			return provider.provideWorkspaceComments(CancellationToken.None);
 		}).then(comments =>
-			comments.map(x => convertToCommentThread(x, this._commandsConverter)
+			comments.map(comment => convertToCommentThread(provider, comment, this._commandsConverter)
 			));
 	}
 
@@ -123,28 +147,28 @@ export class ExtHostComments implements ExtHostCommentsShape {
 
 			this._proxy.$onDidCommentThreadsChange(handle, {
 				owner: handle,
-				changed: event.changed.map(x => convertToCommentThread(x, this._commandsConverter)),
-				added: event.added.map(x => convertToCommentThread(x, this._commandsConverter)),
-				removed: event.removed.map(x => convertToCommentThread(x, this._commandsConverter))
+				changed: event.changed.map(thread => convertToCommentThread(provider, thread, this._commandsConverter)),
+				added: event.added.map(thread => convertToCommentThread(provider, thread, this._commandsConverter)),
+				removed: event.removed.map(thread => convertToCommentThread(provider, thread, this._commandsConverter))
 			});
 		});
 	}
 }
 
-function convertCommentInfo(owner: number, vscodeCommentInfo: vscode.CommentInfo, commandsConverter: CommandsConverter): modes.CommentInfo {
+function convertCommentInfo(owner: number, provider: vscode.DocumentCommentProvider, vscodeCommentInfo: vscode.CommentInfo, commandsConverter: CommandsConverter): modes.CommentInfo {
 	return {
 		owner: owner,
-		threads: vscodeCommentInfo.threads.map(x => convertToCommentThread(x, commandsConverter)),
+		threads: vscodeCommentInfo.threads.map(x => convertToCommentThread(provider, x, commandsConverter)),
 		commentingRanges: vscodeCommentInfo.commentingRanges ? vscodeCommentInfo.commentingRanges.map(range => extHostTypeConverter.Range.from(range)) : []
 	};
 }
 
-function convertToCommentThread(vscodeCommentThread: vscode.CommentThread, commandsConverter: CommandsConverter): modes.CommentThread {
+function convertToCommentThread(provider: vscode.DocumentCommentProvider | vscode.WorkspaceCommentProvider, vscodeCommentThread: vscode.CommentThread, commandsConverter: CommandsConverter): modes.CommentThread {
 	return {
 		threadId: vscodeCommentThread.threadId,
 		resource: vscodeCommentThread.resource.toString(),
 		range: extHostTypeConverter.Range.from(vscodeCommentThread.range),
-		comments: vscodeCommentThread.comments.map(comment => convertToComment(comment, commandsConverter)),
+		comments: vscodeCommentThread.comments.map(comment => convertToComment(provider, comment, commandsConverter)),
 		collapsibleState: vscodeCommentThread.collapsibleState
 	};
 }
@@ -160,20 +184,36 @@ function convertFromCommentThread(commentThread: modes.CommentThread): vscode.Co
 }
 
 function convertFromComment(comment: modes.Comment): vscode.Comment {
+	let userIconPath: URI;
+	if (comment.userIconPath) {
+		try {
+			userIconPath = URI.parse(comment.userIconPath);
+		} catch (e) {
+			// Ignore
+		}
+	}
+
 	return {
 		commentId: comment.commentId,
 		body: extHostTypeConverter.MarkdownString.to(comment.body),
 		userName: comment.userName,
-		gravatar: comment.gravatar
+		userIconPath: userIconPath,
+		canEdit: comment.canEdit,
+		canDelete: comment.canDelete
 	};
 }
 
-function convertToComment(vscodeComment: vscode.Comment, commandsConverter: CommandsConverter): modes.Comment {
+function convertToComment(provider: vscode.DocumentCommentProvider | vscode.WorkspaceCommentProvider, vscodeComment: vscode.Comment, commandsConverter: CommandsConverter): modes.Comment {
+	const canEdit = !!(provider as vscode.DocumentCommentProvider).editComment && vscodeComment.canEdit;
+	const canDelete = !!(provider as vscode.DocumentCommentProvider).deleteComment && vscodeComment.canDelete;
+	const iconPath = vscodeComment.userIconPath ? vscodeComment.userIconPath.toString() : vscodeComment.gravatar;
 	return {
 		commentId: vscodeComment.commentId,
 		body: extHostTypeConverter.MarkdownString.from(vscodeComment.body),
 		userName: vscodeComment.userName,
-		gravatar: vscodeComment.gravatar,
+		userIconPath: iconPath,
+		canEdit: canEdit,
+		canDelete: canDelete,
 		command: vscodeComment.command ? commandsConverter.toInternal(vscodeComment.command) : null
 	};
 }

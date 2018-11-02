@@ -5,12 +5,11 @@
 
 import 'vs/css!./media/debugViewlet';
 import * as nls from 'vs/nls';
-import { Action, IAction } from 'vs/base/common/actions';
+import { IAction } from 'vs/base/common/actions';
 import * as DOM from 'vs/base/browser/dom';
-import { TPromise } from 'vs/base/common/winjs.base';
 import { IActionItem } from 'vs/base/browser/ui/actionbar/actionbar';
 import { ViewContainerViewlet } from 'vs/workbench/browser/parts/views/viewsViewlet';
-import { IDebugService, VIEWLET_ID, State, VARIABLES_VIEW_ID, WATCH_VIEW_ID, CALLSTACK_VIEW_ID, BREAKPOINTS_VIEW_ID, IDebugConfiguration } from 'vs/workbench/parts/debug/common/debug';
+import { IDebugService, VIEWLET_ID, State, BREAKPOINTS_VIEW_ID, IDebugConfiguration } from 'vs/workbench/parts/debug/common/debug';
 import { StartAction, ToggleReplAction, ConfigureAction, AbstractDebugAction, SelectAndStartAction, FocusSessionAction } from 'vs/workbench/parts/debug/browser/debugActions';
 import { StartDebugActionItem, FocusSessionActionItem } from 'vs/workbench/parts/debug/browser/debugActionItems';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -20,13 +19,12 @@ import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { IContextMenuService, IContextViewService } from 'vs/platform/contextview/browser/contextView';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { IPartService } from 'vs/workbench/services/part/common/partService';
 import { memoize } from 'vs/base/common/decorators';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { DebugActionsWidget } from 'vs/workbench/parts/debug/browser/debugActionsWidget';
+import { DebugToolbar } from 'vs/workbench/parts/debug/browser/debugToolbar';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { ViewletPanel } from 'vs/workbench/browser/parts/views/panelViewlet';
 
@@ -49,11 +47,11 @@ export class DebugViewlet extends ViewContainerViewlet {
 		@IThemeService themeService: IThemeService,
 		@IContextMenuService contextMenuService: IContextMenuService,
 		@IExtensionService extensionService: IExtensionService,
-		@IConfigurationService private configurationService: IConfigurationService,
+		@IConfigurationService configurationService: IConfigurationService,
 		@IKeybindingService private keybindingService: IKeybindingService,
 		@IContextViewService private contextViewService: IContextViewService,
 	) {
-		super(VIEWLET_ID, `${VIEWLET_ID}.state`, false, partService, telemetryService, storageService, instantiationService, themeService, contextMenuService, extensionService, contextService);
+		super(VIEWLET_ID, `${VIEWLET_ID}.state`, false, configurationService, partService, telemetryService, storageService, instantiationService, themeService, contextMenuService, extensionService, contextService);
 
 		this.progressRunner = null;
 
@@ -66,10 +64,9 @@ export class DebugViewlet extends ViewContainerViewlet {
 		}));
 	}
 
-	create(parent: HTMLElement): TPromise<void> {
-		return super.create(parent).then(() => {
-			DOM.addClass(parent, 'debug-viewlet');
-		});
+	create(parent: HTMLElement): void {
+		super.create(parent);
+		DOM.addClass(parent, 'debug-viewlet');
 	}
 
 	public focus(): void {
@@ -105,7 +102,7 @@ export class DebugViewlet extends ViewContainerViewlet {
 			return [this.startAction, this.configureAction, this.toggleReplAction];
 		}
 
-		return DebugActionsWidget.getActions(this.allActions, this.toDispose, this.debugService, this.keybindingService, this.instantiationService);
+		return DebugToolbar.getActions(this.allActions, this.toDispose, this.debugService, this.keybindingService, this.instantiationService);
 	}
 
 	public get showInitialDebugActions(): boolean {
@@ -184,77 +181,5 @@ export class DebugViewlet extends ViewContainerViewlet {
 			const allOtherCollapsed = this.panels.every(view => !view.isExpanded() || view === this.breakpointView);
 			this.breakpointView.maximumBodySize = allOtherCollapsed ? Number.POSITIVE_INFINITY : this.breakpointView.minimumBodySize;
 		}
-	}
-}
-
-export class FocusVariablesViewAction extends Action {
-
-	static readonly ID = 'workbench.debug.action.focusVariablesView';
-	static LABEL = nls.localize('debugFocusVariablesView', 'Focus Variables');
-
-	constructor(id: string, label: string,
-		@IViewletService private viewletService: IViewletService
-	) {
-		super(id, label);
-	}
-
-	public run(): TPromise<any> {
-		return this.viewletService.openViewlet(VIEWLET_ID).then((viewlet: DebugViewlet) => {
-			viewlet.focusView(VARIABLES_VIEW_ID);
-		});
-	}
-}
-
-export class FocusWatchViewAction extends Action {
-
-	static readonly ID = 'workbench.debug.action.focusWatchView';
-	static LABEL = nls.localize({ comment: ['Debug is a noun in this context, not a verb.'], key: 'debugFocusWatchView' }, 'Focus Watch');
-
-	constructor(id: string, label: string,
-		@IViewletService private viewletService: IViewletService
-	) {
-		super(id, label);
-	}
-
-	public run(): TPromise<any> {
-		return this.viewletService.openViewlet(VIEWLET_ID).then((viewlet: DebugViewlet) => {
-			viewlet.focusView(WATCH_VIEW_ID);
-		});
-	}
-}
-
-export class FocusCallStackViewAction extends Action {
-
-	static readonly ID = 'workbench.debug.action.focusCallStackView';
-	static LABEL = nls.localize({ comment: ['Debug is a noun in this context, not a verb.'], key: 'debugFocusCallStackView' }, 'Focus Call Stack');
-
-	constructor(id: string, label: string,
-		@IViewletService private viewletService: IViewletService
-	) {
-		super(id, label);
-	}
-
-	public run(): TPromise<any> {
-		return this.viewletService.openViewlet(VIEWLET_ID).then((viewlet: DebugViewlet) => {
-			viewlet.focusView(CALLSTACK_VIEW_ID);
-		});
-	}
-}
-
-export class FocusBreakpointsViewAction extends Action {
-
-	static readonly ID = 'workbench.debug.action.focusBreakpointsView';
-	static LABEL = nls.localize({ comment: ['Debug is a noun in this context, not a verb.'], key: 'debugFocusBreakpointsView' }, 'Focus Breakpoints');
-
-	constructor(id: string, label: string,
-		@IViewletService private viewletService: IViewletService
-	) {
-		super(id, label);
-	}
-
-	public run(): TPromise<any> {
-		return this.viewletService.openViewlet(VIEWLET_ID).then((viewlet: DebugViewlet) => {
-			viewlet.focusView(BREAKPOINTS_VIEW_ID);
-		});
 	}
 }

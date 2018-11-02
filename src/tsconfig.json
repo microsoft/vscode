@@ -1,27 +1,16 @@
 {
+	"extends": "./tsconfig.base.json",
 	"compilerOptions": {
-		"module": "amd",
-		"moduleResolution": "classic",
-		"noImplicitAny": false,
 		"removeComments": false,
 		"preserveConstEnums": true,
-		"target": "es5",
 		"sourceMap": false,
-		"experimentalDecorators": true,
-		"declaration": true,
-		"noImplicitReturns": true,
-		"noUnusedLocals": true,
-		"noImplicitThis": true,
-		"alwaysStrict": true,
-		"baseUrl": ".",
-		"outDir": "../out",
-		"typeRoots": [
-			"typings"
-		]
+		"outDir": "../out"
 	},
+	"include": [
+		"./typings",
+		"./vs"
+	],
 	"exclude": [
-		"../out",
-		"../out-build",
-		"../out-vscode"
+		"./typings/require-monaco.d.ts"
 	]
 }

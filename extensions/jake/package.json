@@ -16,10 +16,10 @@
     "watch": "gulp watch-extension:jake"
   },
   "dependencies": {
-    "vscode-nls": "^3.2.4"
+    "vscode-nls": "^4.0.0"
   },
   "devDependencies": {
-    "@types/node": "7.0.43"
+    "@types/node": "^8.10.25"
   },
   "main": "./out/main",
   "activationEvents": [
@@ -46,7 +46,9 @@
     "taskDefinitions": [
       {
         "type": "jake",
-        "required": ["task"],
+        "required": [
+          "task"
+        ],
         "properties": {
           "task": {
             "type": "string",

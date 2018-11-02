@@ -3,30 +3,31 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as nls from 'vs/nls';
 import { alert } from 'vs/base/browser/ui/aria/aria';
-import { KeyCode, KeyMod, KeyChord } from 'vs/base/common/keyCodes';
+import { createCancelablePromise } from 'vs/base/common/async';
+import { CancellationToken } from 'vs/base/common/cancellation';
+import { KeyChord, KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import * as platform from 'vs/base/common/platform';
-import { TPromise } from 'vs/base/common/winjs.base';
+import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
+import { EditorAction, IActionOptions, registerEditorAction, ServicesAccessor } from 'vs/editor/browser/editorExtensions';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
+import * as corePosition from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
-import { registerEditorAction, IActionOptions, ServicesAccessor, EditorAction } from 'vs/editor/browser/editorExtensions';
-import { DefinitionLink } from 'vs/editor/common/modes';
-import { getDefinitionsAtPosition, getImplementationsAtPosition, getTypeDefinitionsAtPosition } from './goToDefinition';
+import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
+import { ITextModel, IWordAtPosition } from 'vs/editor/common/model';
+import { DefinitionLink, Location } from 'vs/editor/common/modes';
+import { MessageController } from 'vs/editor/contrib/message/messageController';
+import { PeekContext } from 'vs/editor/contrib/referenceSearch/peekViewWidget';
 import { ReferencesController } from 'vs/editor/contrib/referenceSearch/referencesController';
 import { ReferencesModel } from 'vs/editor/contrib/referenceSearch/referencesModel';
-import { PeekContext } from 'vs/editor/contrib/referenceSearch/peekViewWidget';
+import * as nls from 'vs/nls';
+import { MenuId, MenuRegistry } from 'vs/platform/actions/common/actions';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
-import { MessageController } from 'vs/editor/contrib/message/messageController';
-import * as corePosition from 'vs/editor/common/core/position';
-import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
-import { IProgressService } from 'vs/platform/progress/common/progress';
-import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { ITextModel, IWordAtPosition } from 'vs/editor/common/model';
-import { INotificationService } from 'vs/platform/notification/common/notification';
-import { createCancelablePromise } from 'vs/base/common/async';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { MenuRegistry, MenuId } from 'vs/platform/actions/common/actions';
+import { INotificationService } from 'vs/platform/notification/common/notification';
+import { IProgressService } from 'vs/platform/progress/common/progress';
+import { getDefinitionsAtPosition, getImplementationsAtPosition, getTypeDefinitionsAtPosition } from './goToDefinition';
+
 
 export class DefinitionActionConfig {
 
@@ -49,7 +50,7 @@ export class DefinitionAction extends EditorAction {
 		this._configuration = configuration;
 	}
 
-	public run(accessor: ServicesAccessor, editor: ICodeEditor): TPromise<void> {
+	public run(accessor: ServicesAccessor, editor: ICodeEditor): Thenable<void> {
 		const notificationService = accessor.get(INotificationService);
 		const editorService = accessor.get(ICodeEditorService);
 		const progressService = accessor.get(IProgressService);
@@ -57,7 +58,7 @@ export class DefinitionAction extends EditorAction {
 		const model = editor.getModel();
 		const pos = editor.getPosition();
 
-		const definitionPromise = this._getDeclarationsAtPosition(model, pos).then(references => {
+		const definitionPromise = this._getDeclarationsAtPosition(model, pos, CancellationToken.None).then(references => {
 
 			if (model.isDisposed() || editor.getModel() !== model) {
 				// new model, no more model
@@ -112,8 +113,8 @@ export class DefinitionAction extends EditorAction {
 		return definitionPromise;
 	}
 
-	protected _getDeclarationsAtPosition(model: ITextModel, position: corePosition.Position): TPromise<DefinitionLink[]> {
-		return getDefinitionsAtPosition(model, position);
+	protected _getDeclarationsAtPosition(model: ITextModel, position: corePosition.Position, token: CancellationToken): Thenable<DefinitionLink[]> {
+		return getDefinitionsAtPosition(model, position, token);
 	}
 
 	protected _getNoResultFoundMessage(info?: IWordAtPosition): string {
@@ -145,12 +146,11 @@ export class DefinitionAction extends EditorAction {
 		}
 	}
 
-	private _openReference(editor: ICodeEditor, editorService: ICodeEditorService, reference: DefinitionLink, sideBySide: boolean): TPromise<ICodeEditor> {
-		const { uri, range } = reference;
+	private _openReference(editor: ICodeEditor, editorService: ICodeEditorService, reference: Location, sideBySide: boolean): Thenable<ICodeEditor> {
 		return editorService.openCodeEditor({
-			resource: uri,
+			resource: reference.uri,
 			options: {
-				selection: Range.collapseToStart(range),
+				selection: Range.collapseToStart(reference.range),
 				revealIfOpened: true,
 				revealInCenterIfOutsideViewport: true
 			}
@@ -250,8 +250,8 @@ export class PeekDefinitionAction extends DefinitionAction {
 }
 
 export class ImplementationAction extends DefinitionAction {
-	protected _getDeclarationsAtPosition(model: ITextModel, position: corePosition.Position): TPromise<DefinitionLink[]> {
-		return getImplementationsAtPosition(model, position);
+	protected _getDeclarationsAtPosition(model: ITextModel, position: corePosition.Position, token: CancellationToken): Thenable<DefinitionLink[]> {
+		return getImplementationsAtPosition(model, position, token);
 	}
 
 	protected _getNoResultFoundMessage(info?: IWordAtPosition): string {
@@ -308,8 +308,8 @@ export class PeekImplementationAction extends ImplementationAction {
 }
 
 export class TypeDefinitionAction extends DefinitionAction {
-	protected _getDeclarationsAtPosition(model: ITextModel, position: corePosition.Position): TPromise<DefinitionLink[]> {
-		return getTypeDefinitionsAtPosition(model, position);
+	protected _getDeclarationsAtPosition(model: ITextModel, position: corePosition.Position, token: CancellationToken): Thenable<DefinitionLink[]> {
+		return getTypeDefinitionsAtPosition(model, position, token);
 	}
 
 	protected _getNoResultFoundMessage(info?: IWordAtPosition): string {

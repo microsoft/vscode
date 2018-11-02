@@ -2,10 +2,9 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
 import { TPromise } from 'vs/base/common/winjs.base';
-import URI from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 import { suggestFilename } from 'vs/base/common/mime';
 import { memoize } from 'vs/base/common/decorators';
 import { PLAINTEXT_MODE_ID } from 'vs/editor/common/modes/modesRegistry';
@@ -18,7 +17,7 @@ import { Event, Emitter } from 'vs/base/common/event';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { telemetryURIDescriptor } from 'vs/platform/telemetry/common/telemetryUtils';
 import { IHashService } from 'vs/workbench/services/hash/common/hashService';
-import { IUriDisplayService } from 'vs/platform/uriDisplay/common/uriDisplay';
+import { ILabelService } from 'vs/platform/label/common/label';
 
 /**
  * An editor input to be used for untitled text buffers.
@@ -46,7 +45,7 @@ export class UntitledEditorInput extends EditorInput implements IEncodingSupport
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@ITextFileService private textFileService: ITextFileService,
 		@IHashService private hashService: IHashService,
-		@IUriDisplayService private uriDisplayService: IUriDisplayService
+		@ILabelService private labelService: ILabelService
 	) {
 		super();
 
@@ -79,17 +78,17 @@ export class UntitledEditorInput extends EditorInput implements IEncodingSupport
 
 	@memoize
 	private get shortDescription(): string {
-		return paths.basename(this.uriDisplayService.getLabel(resources.dirname(this.resource)));
+		return paths.basename(this.labelService.getUriLabel(resources.dirname(this.resource)));
 	}
 
 	@memoize
 	private get mediumDescription(): string {
-		return this.uriDisplayService.getLabel(resources.dirname(this.resource), true);
+		return this.labelService.getUriLabel(resources.dirname(this.resource), { relative: true });
 	}
 
 	@memoize
 	private get longDescription(): string {
-		return this.uriDisplayService.getLabel(resources.dirname(this.resource));
+		return this.labelService.getUriLabel(resources.dirname(this.resource));
 	}
 
 	getDescription(verbosity: Verbosity = Verbosity.MEDIUM): string {
@@ -121,12 +120,12 @@ export class UntitledEditorInput extends EditorInput implements IEncodingSupport
 
 	@memoize
 	private get mediumTitle(): string {
-		return this.uriDisplayService.getLabel(this.resource, true);
+		return this.labelService.getUriLabel(this.resource, { relative: true });
 	}
 
 	@memoize
 	private get longTitle(): string {
-		return this.uriDisplayService.getLabel(this.resource);
+		return this.labelService.getUriLabel(this.resource);
 	}
 
 	getTitle(verbosity: Verbosity): string {

@@ -7,7 +7,6 @@ import { CancelablePromise } from 'vs/base/common/async';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { dispose, IDisposable } from 'vs/base/common/lifecycle';
 import { escapeRegExpCharacters } from 'vs/base/common/strings';
-import { TPromise } from 'vs/base/common/winjs.base';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { EditorAction, EditorCommand, ServicesAccessor } from 'vs/editor/browser/editorExtensions';
 import { IBulkEditService } from 'vs/editor/browser/services/bulkEditService';
@@ -27,6 +26,7 @@ import { CodeActionAutoApply, CodeActionFilter, CodeActionKind } from './codeAct
 import { CodeActionContextMenu } from './codeActionWidget';
 import { LightBulbWidget } from './lightBulbWidget';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
+import { onUnexpectedError } from 'vs/base/common/errors';
 
 function contextKeyForSupportedActions(kind: CodeActionKind) {
 	return ContextKeyExpr.regex(
@@ -98,7 +98,7 @@ export class QuickFixController implements IEditorContribution {
 				} else {
 					this._codeActionContextMenu.show(e.actions, e.position);
 				}
-			});
+			}).catch(onUnexpectedError);
 			return;
 		}
 
@@ -123,7 +123,7 @@ export class QuickFixController implements IEditorContribution {
 	}
 
 	private _handleLightBulbSelect(coords: { x: number, y: number }): void {
-		if (this._lightBulbWidget.model.actions) {
+		if (this._lightBulbWidget.model && this._lightBulbWidget.model.actions) {
 			this._codeActionContextMenu.show(this._lightBulbWidget.model.actions, coords);
 		}
 	}
@@ -143,8 +143,8 @@ export class QuickFixController implements IEditorContribution {
 		this._lightBulbWidget.title = title;
 	}
 
-	private _onApplyCodeAction(action: CodeAction): TPromise<void> {
-		return TPromise.wrap(applyCodeAction(action, this._bulkEditService, this._commandService, this._editor));
+	private _onApplyCodeAction(action: CodeAction): Promise<void> {
+		return applyCodeAction(action, this._bulkEditService, this._commandService, this._editor);
 	}
 }
 

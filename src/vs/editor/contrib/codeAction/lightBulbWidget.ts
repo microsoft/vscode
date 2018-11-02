@@ -25,8 +25,8 @@ export class LightBulbWidget implements IDisposable, IContentWidget {
 
 	readonly onClick: Event<{ x: number, y: number }> = this._onClick.event;
 
-	private _position: IContentWidgetPosition;
-	private _model: CodeActionsComputeEvent;
+	private _position: IContentWidgetPosition | null;
+	private _model: CodeActionsComputeEvent | null;
 	private _futureFixes = new CancellationTokenSource();
 
 	constructor(editor: ICodeEditor) {
@@ -40,7 +40,8 @@ export class LightBulbWidget implements IDisposable, IContentWidget {
 		this._disposables.push(this._editor.onDidChangeModelLanguage(_ => this._futureFixes.cancel()));
 		this._disposables.push(this._editor.onDidChangeModelContent(_ => {
 			// cancel when the line in question has been removed
-			if (this._model && this.model.position.lineNumber >= this._editor.getModel().getLineCount()) {
+			const editorModel = this._editor.getModel();
+			if (!this.model || !this.model.position || !editorModel || this.model.position.lineNumber >= editorModel.getLineCount()) {
 				this._futureFixes.cancel();
 			}
 		}));
@@ -53,7 +54,7 @@ export class LightBulbWidget implements IDisposable, IContentWidget {
 			const { lineHeight } = this._editor.getConfiguration();
 
 			let pad = Math.floor(lineHeight / 3);
-			if (this._position && this._position.position.lineNumber < this._model.position.lineNumber) {
+			if (this._position && this._model && this._model.position && this._position.position !== null && this._position.position.lineNumber < this._model.position.lineNumber) {
 				pad += lineHeight;
 			}
 
@@ -96,13 +97,13 @@ export class LightBulbWidget implements IDisposable, IContentWidget {
 		return this._domNode;
 	}
 
-	getPosition(): IContentWidgetPosition {
+	getPosition(): IContentWidgetPosition | null {
 		return this._position;
 	}
 
-	set model(value: CodeActionsComputeEvent) {
+	set model(value: CodeActionsComputeEvent | null) {
 
-		if (this._position && (!value.position || this._position.position.lineNumber !== value.position.lineNumber)) {
+		if (!value || this._position && (!value.position || this._position.position && this._position.position.lineNumber !== value.position.lineNumber)) {
 			// hide when getting a 'hide'-request or when currently
 			// showing on another line
 			this.hide();
@@ -115,10 +116,14 @@ export class LightBulbWidget implements IDisposable, IContentWidget {
 		const { token } = this._futureFixes;
 		this._model = value;
 
+		if (!this._model || !this._model.actions) {
+			return;
+		}
+
 		const selection = this._model.rangeOrSelection;
 		this._model.actions.then(fixes => {
 			if (!token.isCancellationRequested && fixes && fixes.length > 0) {
-				if (selection.isEmpty() && fixes.every(fix => fix.kind && CodeActionKind.Refactor.contains(fix.kind))) {
+				if (!selection || selection.isEmpty() && fixes.every(fix => !!(fix.kind && CodeActionKind.Refactor.contains(fix.kind)))) {
 					this.hide();
 				} else {
 					this._show();
@@ -126,12 +131,12 @@ export class LightBulbWidget implements IDisposable, IContentWidget {
 			} else {
 				this.hide();
 			}
-		}).catch(err => {
+		}).catch(() => {
 			this.hide();
 		});
 	}
 
-	get model(): CodeActionsComputeEvent {
+	get model(): CodeActionsComputeEvent | null {
 		return this._model;
 	}
 
@@ -148,7 +153,10 @@ export class LightBulbWidget implements IDisposable, IContentWidget {
 		if (!config.contribInfo.lightbulbEnabled) {
 			return;
 		}
-		const { lineNumber } = this._model.position;
+		if (!this._model || !this._model.position) {
+			return;
+		}
+		const { lineNumber, column } = this._model.position;
 		const model = this._editor.getModel();
 		if (!model) {
 			return;
@@ -158,13 +166,21 @@ export class LightBulbWidget implements IDisposable, IContentWidget {
 		const lineContent = model.getLineContent(lineNumber);
 		const indent = TextModel.computeIndentLevel(lineContent, tabSize);
 		const lineHasSpace = config.fontInfo.spaceWidth * indent > 22;
+		const isFolded = (lineNumber) => {
+			return lineNumber > 2 && this._editor.getTopForLineNumber(lineNumber) === this._editor.getTopForLineNumber(lineNumber - 1);
+		};
 
 		let effectiveLineNumber = lineNumber;
 		if (!lineHasSpace) {
-			if (lineNumber > 1) {
+			if (lineNumber > 1 && !isFolded(lineNumber - 1)) {
 				effectiveLineNumber -= 1;
-			} else {
+			} else if (!isFolded(lineNumber + 1)) {
 				effectiveLineNumber += 1;
+			} else if (column * config.fontInfo.spaceWidth < 22) {
+				// cannot show lightbulb above/below and showing
+				// it inline would overlay the cursor...
+				this.hide();
+				return;
 			}
 		}
 

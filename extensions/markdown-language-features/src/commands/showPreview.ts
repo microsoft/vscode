@@ -38,9 +38,10 @@ async function showPreview(
 		return;
 	}
 
+	const resourceColumn = (vscode.window.activeTextEditor && vscode.window.activeTextEditor.viewColumn) || vscode.ViewColumn.One;
 	webviewManager.preview(resource, {
-		resourceColumn: (vscode.window.activeTextEditor && vscode.window.activeTextEditor.viewColumn) || vscode.ViewColumn.One,
-		previewColumn: previewSettings.sideBySide ? vscode.ViewColumn.Beside : vscode.ViewColumn.Active,
+		resourceColumn: resourceColumn,
+		previewColumn: previewSettings.sideBySide ? resourceColumn + 1 : resourceColumn,
 		locked: !!previewSettings.locked
 	});
 

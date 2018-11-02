@@ -2,7 +2,6 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
 import { localize } from 'vs/nls';
 import { forEach } from 'vs/base/common/collections';
@@ -112,8 +111,8 @@ class ViewsContainersExtensionHandler implements IWorkbenchContribution {
 						container = this.viewContainersRegistry.get(EXPLORER);
 					}
 					const registeredViews = ViewsRegistry.getViews(container);
-					const viewIds = [];
-					const viewDescriptors = coalesce(entry.value.map(item => {
+					const viewIds: string[] = [];
+					const viewDescriptors = coalesce(entry.value.map((item, index) => {
 						// validate
 						if (viewIds.indexOf(item.id) !== -1) {
 							collector.error(localize('duplicateView1', "Cannot register multiple views with same id `{0}` in the view container `{1}`", item.id, container.id));
@@ -132,7 +131,8 @@ class ViewsContainersExtensionHandler implements IWorkbenchContribution {
 							when: ContextKeyExpr.deserialize(item.when),
 							canToggleVisibility: true,
 							collapsed: this.showCollapsed(container),
-							treeViewer: this.instantiationService.createInstance(CustomTreeViewer, item.id, container)
+							treeViewer: this.instantiationService.createInstance(CustomTreeViewer, item.id, container),
+							order: extension.description.id === container.extensionId ? index + 1 : void 0
 						};
 
 						viewIds.push(viewDescriptor.id);

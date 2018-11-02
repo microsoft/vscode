@@ -8,7 +8,6 @@ import { Action } from 'vs/base/common/actions';
 import { always } from 'vs/base/common/async';
 import { canceled } from 'vs/base/common/errors';
 import { Emitter, Event } from 'vs/base/common/event';
-import { TPromise } from 'vs/base/common/winjs.base';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { Position } from 'vs/editor/common/core/position';
 import { ScrollType } from 'vs/editor/common/editorCommon';
@@ -25,12 +24,12 @@ export class CodeActionContextMenu {
 	constructor(
 		private readonly _editor: ICodeEditor,
 		private readonly _contextMenuService: IContextMenuService,
-		private readonly _onApplyCodeAction: (action: CodeAction) => TPromise<any>
+		private readonly _onApplyCodeAction: (action: CodeAction) => Promise<any>
 	) { }
 
 	show(fixes: Thenable<CodeAction[]>, at: { x: number; y: number } | Position) {
 
-		const actions = fixes.then(value => {
+		const actions = fixes ? fixes.then(value => {
 			return value.map(action => {
 				return new Action(action.command ? action.command.id : action.title, action.title, undefined, true, () => {
 					return always(
@@ -41,10 +40,10 @@ export class CodeActionContextMenu {
 		}).then(actions => {
 			if (!this._editor.getDomNode()) {
 				// cancel when editor went off-dom
-				return TPromise.wrapError<any>(canceled());
+				return Promise.reject(canceled());
 			}
 			return actions;
-		});
+		}) : Promise.resolve([] as Action[]);
 
 		this._contextMenuService.showContextMenu({
 			getAnchor: () => {
@@ -53,7 +52,7 @@ export class CodeActionContextMenu {
 				}
 				return at;
 			},
-			getActions: () => TPromise.wrap(actions),
+			getActions: () => actions,
 			onHide: () => {
 				this._visible = false;
 				this._editor.focus();

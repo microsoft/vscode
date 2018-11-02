@@ -23,18 +23,20 @@
 	outline: none;
 }
 
-.monaco-breadcrumbs .monaco-breadcrumb-item:not(:first-child)::before {
-	background-image: url(./collapsed.svg);
-	opacity: .7;
-	width: 16px;
+.monaco-breadcrumbs .monaco-breadcrumb-item::before {
+	width: 14px;
 	height: 16px;
 	display: inline-block;
-	background-size: 16px;
-	background-position: 50% 50%;
 	content: ' ';
 }
 
-.vs-dark .monaco-breadcrumbs .monaco-breadcrumb-item:not(:first-child)::before {
-	background-image: url(./collpased-dark.svg);
+.monaco-breadcrumbs .monaco-breadcrumb-item:not(:nth-child(2))::before {
+	background-image: url(./collapsed.svg);
+	opacity: .7;
+	background-size: 16px;
+	background-position: 50% 50%;
 }
 
+.vs-dark .monaco-breadcrumbs .monaco-breadcrumb-item:not(:nth-child(2))::before {
+	background-image: url(./collpased-dark.svg);
+}

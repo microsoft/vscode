@@ -28,7 +28,7 @@ var editorEntryPoints = [
 		name: 'vs/editor/editor.main',
 		include: [],
 		exclude: ['vs/css', 'vs/nls'],
-		prepend: ['out-build/vs/css.js', 'out-build/vs/nls.js'],
+		prepend: ['out-editor-build/vs/css.js', 'out-editor-build/vs/nls.js'],
 	},
 	{
 		name: 'vs/base/common/worker/simpleWorker',
@@ -79,15 +79,20 @@ gulp.task('extract-editor-src', ['clean-editor-src'], function () {
 			apiusages,
 			extrausages
 		],
+		typings: [
+			'typings/lib.ie11_safe_es6.d.ts',
+			'typings/thenable.d.ts',
+			'typings/es6-promise.d.ts',
+			'typings/require-monaco.d.ts',
+			'vs/monaco.d.ts'
+		],
 		libs: [
-			`lib.d.ts`,
-			`lib.es2015.collection.d.ts`
+			`lib.es5.d.ts`,
+			`lib.dom.d.ts`,
+			`lib.webworker.importscripts.d.ts`
 		],
 		redirects: {
 			'vs/base/browser/ui/octiconLabel/octiconLabel': 'vs/base/browser/ui/octiconLabel/octiconLabel.mock',
-		},
-		compilerOptions: {
-			module: 2, // ModuleKind.AMD
 		},
 		shakeLevel: 2, // 0-Files, 1-InnerFile, 2-ClassMembers
 		importIgnorePattern: /^vs\/css!/,
@@ -108,6 +113,8 @@ gulp.task('optimize-editor', ['clean-optimized-editor', 'compile-editor-build'],
 	loaderConfig: {
 		paths: {
 			'vs': 'out-editor-build/vs',
+			'vs/css': 'out-editor-build/vs/css.build',
+			'vs/nls': 'out-editor-build/vs/nls.build',
 			'vscode': 'empty:'
 		}
 	},
@@ -122,17 +129,25 @@ gulp.task('clean-minified-editor', util.rimraf('out-editor-min'));
 gulp.task('minify-editor', ['clean-minified-editor', 'optimize-editor'], common.minifyTask('out-editor'));
 
 gulp.task('clean-editor-esm', util.rimraf('out-editor-esm'));
-gulp.task('extract-editor-esm', ['clean-editor-esm', 'clean-editor-distro'], function () {
-	standalone.createESMSourcesAndResources({
-		entryPoints: [
-			'vs/editor/editor.main',
-			'vs/editor/editor.worker'
-		],
-		outFolder: './out-editor-esm/src',
+gulp.task('extract-editor-esm', ['clean-editor-esm', 'clean-editor-distro', 'extract-editor-src'], function () {
+	standalone.createESMSourcesAndResources2({
+		srcFolder: './out-editor-src',
+		outFolder: './out-editor-esm',
 		outResourcesFolder: './out-monaco-editor-core/esm',
-		redirects: {
-			'vs/base/browser/ui/octiconLabel/octiconLabel': 'vs/base/browser/ui/octiconLabel/octiconLabel.mock',
-			'vs/nls': 'vs/nls.mock',
+		ignores: [
+			'inlineEntryPoint:0.ts',
+			'inlineEntryPoint:1.ts',
+			'vs/loader.js',
+			'vs/nls.ts',
+			'vs/nls.build.js',
+			'vs/nls.d.ts',
+			'vs/css.js',
+			'vs/css.build.js',
+			'vs/css.d.ts',
+			'vs/base/worker/workerMain.ts',
+		],
+		renames: {
+			'vs/nls.mock.ts': 'vs/nls.ts'
 		}
 	});
 });
@@ -194,7 +209,7 @@ gulp.task('editor-distro', ['clean-editor-distro', 'compile-editor-esm', 'minify
 				this.emit('data', new File({
 					path: data.path.replace(/monaco\.d\.ts/, 'editor.api.d.ts'),
 					base: data.base,
-					contents: new Buffer(toExternalDTS(data.contents.toString()))
+					contents: Buffer.from(toExternalDTS(data.contents.toString()))
 				}));
 			}))
 			.pipe(gulp.dest('out-monaco-editor-core/esm/vs/editor')),

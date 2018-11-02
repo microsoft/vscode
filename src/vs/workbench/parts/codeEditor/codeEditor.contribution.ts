@@ -3,10 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import './browser/menuPreventer';
 import './electron-browser/accessibility';
 import './electron-browser/inspectKeybindings';
 import './electron-browser/largeFileOptimizations';
-import './electron-browser/menuPreventer';
 import './electron-browser/selectionClipboard';
 import './electron-browser/textMate/inspectTMScopes';
 import './electron-browser/toggleMinimap';

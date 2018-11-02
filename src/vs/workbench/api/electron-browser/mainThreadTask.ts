@@ -2,11 +2,10 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
 import * as nls from 'vs/nls';
 
-import URI from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 import { generateUuid } from 'vs/base/common/uuid';
 import * as Objects from 'vs/base/common/objects';
 import { TPromise } from 'vs/base/common/winjs.base';
@@ -92,7 +91,7 @@ namespace TaskPresentationOptionsDTO {
 	}
 	export function to(value: TaskPresentationOptionsDTO): PresentationOptions {
 		if (value === void 0 || value === null) {
-			return undefined;
+			return { reveal: RevealKind.Always, echo: true, focus: false, panel: PanelKind.Shared, showReuseMessage: true, clear: false };
 		}
 		return Objects.assign(Object.create(null), value);
 	}
@@ -393,10 +392,10 @@ export class MainThreadTask implements MainThreadTaskShape {
 		this._activeHandles = Object.create(null);
 	}
 
-	public $registerTaskProvider(handle: number): TPromise<void> {
+	public $registerTaskProvider(handle: number): Thenable<void> {
 		this._taskService.registerTaskProvider(handle, {
 			provideTasks: (validTypes: IStringDictionary<boolean>) => {
-				return this._proxy.$provideTasks(handle, validTypes).then((value) => {
+				return TPromise.wrap(this._proxy.$provideTasks(handle, validTypes)).then((value) => {
 					let tasks: Task[] = [];
 					for (let task of value.tasks) {
 						let taskTransfer = task._source as any as ExtensionTaskSourceTransfer;
@@ -423,13 +422,13 @@ export class MainThreadTask implements MainThreadTaskShape {
 		return TPromise.wrap<void>(undefined);
 	}
 
-	public $unregisterTaskProvider(handle: number): TPromise<void> {
+	public $unregisterTaskProvider(handle: number): Thenable<void> {
 		this._taskService.unregisterTaskProvider(handle);
 		delete this._activeHandles[handle];
 		return TPromise.wrap<void>(undefined);
 	}
 
-	public $fetchTasks(filter?: TaskFilterDTO): TPromise<TaskDTO[]> {
+	public $fetchTasks(filter?: TaskFilterDTO): Thenable<TaskDTO[]> {
 		return this._taskService.tasks(TaskFilterDTO.to(filter)).then((tasks) => {
 			let result: TaskDTO[] = [];
 			for (let task of tasks) {
@@ -442,7 +441,7 @@ export class MainThreadTask implements MainThreadTaskShape {
 		});
 	}
 
-	public $executeTask(value: TaskHandleDTO | TaskDTO): TPromise<TaskExecutionDTO> {
+	public $executeTask(value: TaskHandleDTO | TaskDTO): Thenable<TaskExecutionDTO> {
 		return new TPromise<TaskExecutionDTO>((resolve, reject) => {
 			if (TaskHandleDTO.is(value)) {
 				let workspaceFolder = this._workspaceContextServer.getWorkspaceFolder(URI.revive(value.workspaceFolder));
@@ -468,7 +467,7 @@ export class MainThreadTask implements MainThreadTaskShape {
 		});
 	}
 
-	public $terminateTask(id: string): TPromise<void> {
+	public $terminateTask(id: string): Thenable<void> {
 		return new TPromise<void>((resolve, reject) => {
 			this._taskService.getActiveTasks().then((tasks) => {
 				for (let task of tasks) {
@@ -504,13 +503,13 @@ export class MainThreadTask implements MainThreadTaskShape {
 		this._taskService.registerTaskSystem(key, {
 			platform: platform,
 			uriProvider: (path: string): URI => {
-				return URI.parse(`${info.scheme}://${info.host}:${info.port}${path}`);
+				return URI.parse(`${info.scheme}://${info.authority}${path}`);
 			},
 			context: this._extHostContext,
 			resolveVariables: (workspaceFolder: IWorkspaceFolder, variables: Set<string>): TPromise<Map<string, string>> => {
 				let vars: string[] = [];
 				variables.forEach(item => vars.push(item));
-				return this._proxy.$resolveVariables(workspaceFolder.uri, vars).then(values => {
+				return TPromise.wrap(this._proxy.$resolveVariables(workspaceFolder.uri, vars)).then(values => {
 					let result = new Map<string, string>();
 					Object.keys(values).forEach(key => result.set(key, values[key]));
 					return result;

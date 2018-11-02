@@ -2,11 +2,11 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
-import { Registry } from 'vs/platform/registry/common/platform';
 import { IInstantiationService, IConstructorSignature0 } from 'vs/platform/instantiation/common/instantiation';
 import { ILifecycleService, LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
+import { Registry } from 'vs/platform/registry/common/platform';
+import { runWhenIdle, IdleDeadline } from 'vs/base/common/async';
 
 // --- Workbench Contribution Registry
 
@@ -39,7 +39,8 @@ export interface IWorkbenchContributionsRegistry {
 	start(instantiationService: IInstantiationService, lifecycleService: ILifecycleService): void;
 }
 
-export class WorkbenchContributionsRegistry implements IWorkbenchContributionsRegistry {
+
+class WorkbenchContributionsRegistry implements IWorkbenchContributionsRegistry {
 	private instantiationService: IInstantiationService;
 	private lifecycleService: ILifecycleService;
 
@@ -91,8 +92,30 @@ export class WorkbenchContributionsRegistry implements IWorkbenchContributionsRe
 	private doInstantiateByPhase(instantiationService: IInstantiationService, phase: LifecyclePhase): void {
 		const toBeInstantiated = this.toBeInstantiated.get(phase);
 		if (toBeInstantiated) {
-			while (toBeInstantiated.length > 0) {
-				instantiationService.createInstance(toBeInstantiated.shift());
+			this.toBeInstantiated.delete(phase);
+			if (phase !== LifecyclePhase.Eventually) {
+				// instantiate everything synchronously and blocking
+				for (const ctor of toBeInstantiated) {
+					instantiationService.createInstance(ctor);
+				}
+			} else {
+				// for the Eventually-phase we instantiate contributions
+				// only when idle. this might take a few idle-busy-cycles
+				// but will finish within the timeouts
+				let forcedTimeout = 3000;
+				let i = 0;
+				let instantiateSome = (idle: IdleDeadline) => {
+					while (i < toBeInstantiated.length) {
+						const ctor = toBeInstantiated[i++];
+						instantiationService.createInstance(ctor);
+						if (idle.timeRemaining() < 1) {
+							// time is up -> reschedule
+							runWhenIdle(instantiateSome, forcedTimeout);
+							break;
+						}
+					}
+				};
+				runWhenIdle(instantiateSome, forcedTimeout);
 			}
 		}
 	}

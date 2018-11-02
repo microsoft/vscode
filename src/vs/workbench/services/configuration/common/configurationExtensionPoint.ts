@@ -28,7 +28,7 @@ const configurationEntrySchema: IJSONSchema = {
 			type: 'object',
 			additionalProperties: {
 				anyOf: [
-					{ $ref: 'http://json-schema.org/draft-04/schema#' },
+					{ $ref: 'http://json-schema.org/draft-07/schema#' },
 					{
 						type: 'object',
 						properties: {
@@ -53,6 +53,21 @@ const configurationEntrySchema: IJSONSchema = {
 									type: 'string',
 								},
 								description: nls.localize('scope.enumDescriptions', 'Descriptions for enum values')
+							},
+							markdownEnumDescription: {
+								type: 'array',
+								items: {
+									type: 'string',
+								},
+								description: nls.localize('scope.markdownEnumDescription', 'Descriptions for enum values in the markdown format.')
+							},
+							markdownDescription: {
+								type: 'string',
+								description: nls.localize('scope.markdownDescription', 'The description in the markdown format.')
+							},
+							deprecationMessage: {
+								type: 'string',
+								description: nls.localize('scope.deprecationMessage', 'If set, the property is marked as deprecated and the given message is shown as an explanation.')
 							}
 						}
 					}
@@ -145,7 +160,7 @@ function validateProperties(configuration: IConfigurationNode, extension: IExten
 				extension.collector.warn(message);
 				continue;
 			}
-			const propertyConfiguration = configuration.properties[key];
+			const propertyConfiguration = properties[key];
 			if (!isObject(propertyConfiguration)) {
 				delete properties[key];
 				extension.collector.error(nls.localize('invalid.property', "'configuration.property' must be an object"));
@@ -162,7 +177,6 @@ function validateProperties(configuration: IConfigurationNode, extension: IExten
 			} else {
 				propertyConfiguration.scope = ConfigurationScope.WINDOW;
 			}
-			propertyConfiguration.notMultiRootAdopted = !(extension.description.isBuiltin || (Array.isArray(extension.description.keywords) && extension.description.keywords.indexOf('multi-root ready') !== -1));
 		}
 	}
 	let subNodes = configuration.allOf;

@@ -12,7 +12,7 @@
 		"postinstall": "node ./node_modules/vscode/bin/install"
 	},
 	"devDependencies": {
-		"@types/node": "7.0.43",
+		"@types/node": "^8.10.25",
 		"mocha-junit-reporter": "^1.17.0",
 		"mocha-multi-reporters": "^1.1.7",
 		"vscode": "1.1.5"

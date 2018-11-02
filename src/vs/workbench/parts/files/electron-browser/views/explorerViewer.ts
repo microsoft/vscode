@@ -2,14 +2,13 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
 import { TPromise } from 'vs/base/common/winjs.base';
 import * as nls from 'vs/nls';
 import * as objects from 'vs/base/common/objects';
 import * as DOM from 'vs/base/browser/dom';
 import * as path from 'path';
-import URI from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 import { once } from 'vs/base/common/functional';
 import * as paths from 'vs/base/common/paths';
 import * as resources from 'vs/base/common/resources';
@@ -56,7 +55,6 @@ import { IDialogService, IConfirmationResult, IConfirmation, getConfirmMessage }
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { IEditorService, SIDE_GROUP, ACTIVE_GROUP } from 'vs/workbench/services/editor/common/editorService';
 import { fillInContextMenuActions } from 'vs/platform/actions/browser/menuItemActionItem';
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 
 export class FileDataSource implements IDataSource {
 	constructor(
@@ -80,12 +78,12 @@ export class FileDataSource implements IDataSource {
 
 	public getChildren(tree: ITree, stat: ExplorerItem | Model): TPromise<ExplorerItem[]> {
 		if (stat instanceof Model) {
-			return TPromise.as(stat.roots);
+			return Promise.resolve(stat.roots);
 		}
 
 		// Return early if stat is already resolved
 		if (stat.isDirectoryResolved) {
-			return TPromise.as(stat.getChildrenArray());
+			return Promise.resolve(stat.getChildrenArray());
 		}
 
 		// Resolve children and add to fileStat for future lookup
@@ -125,23 +123,23 @@ export class FileDataSource implements IDataSource {
 
 	public getParent(tree: ITree, stat: ExplorerItem | Model): TPromise<ExplorerItem> {
 		if (!stat) {
-			return TPromise.as(null); // can be null if nothing selected in the tree
+			return Promise.resolve(null); // can be null if nothing selected in the tree
 		}
 
 		// Return if root reached
 		if (tree.getInput() === stat) {
-			return TPromise.as(null);
+			return Promise.resolve(null);
 		}
 
 		// Return if parent already resolved
 		if (stat instanceof ExplorerItem && stat.parent) {
-			return TPromise.as(stat.parent);
+			return Promise.resolve(stat.parent);
 		}
 
 		// We never actually resolve the parent from the disk for performance reasons. It wouldnt make
 		// any sense to resolve parent by parent with requests to walk up the chain. Instead, the explorer
 		// makes sure to properly resolve a deep path to a specific file and merges the result with the model.
-		return TPromise.as(null);
+		return Promise.resolve(null);
 	}
 }
 
@@ -408,7 +406,6 @@ export class FileController extends WorkbenchTreeController implements IDisposab
 		@IMenuService private menuService: IMenuService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IClipboardService private clipboardService: IClipboardService,
-		@IKeybindingService private keybindingService: IKeybindingService,
 		@IConfigurationService configurationService: IConfigurationService
 	) {
 		super({ clickBehavior: ClickBehavior.ON_MOUSE_UP /* do not change to not break DND */ }, configurationService);
@@ -509,6 +506,18 @@ export class FileController extends WorkbenchTreeController implements IDisposab
 		return true;
 	}
 
+	public onMouseMiddleClick(tree: WorkbenchTree, element: ExplorerItem | Model, event: IMouseEvent): boolean {
+		let sideBySide = false;
+		if (event) {
+			sideBySide = tree.useAltAsMultipleSelectionModifier ? (event.ctrlKey || event.metaKey) : event.altKey;
+		}
+		if (element instanceof ExplorerItem && !element.isDirectory) {
+			this.openEditor(element, { preserveFocus: true, sideBySide, pinned: true });
+		}
+
+		return true;
+	}
+
 	public onContextMenu(tree: WorkbenchTree, stat: ExplorerItem | Model, event: ContextMenuEvent): boolean {
 		if (event.target && event.target.tagName && event.target.tagName.toLowerCase() === 'input') {
 			return false;
@@ -534,15 +543,12 @@ export class FileController extends WorkbenchTreeController implements IDisposab
 			getActions: () => {
 				const actions: IAction[] = [];
 				fillInContextMenuActions(this.contributedContextMenu, { arg: stat instanceof ExplorerItem ? stat.resource : {}, shouldForwardArgs: true }, actions, this.contextMenuService);
-				return TPromise.as(actions);
+				return Promise.resolve(actions);
 			},
 			onHide: (wasCancelled?: boolean) => {
 				if (wasCancelled) {
 					tree.domFocus();
 				}
-			},
-			getKeyBinding: (action) => {
-				return this.keybindingService.lookupKeybinding(action.id);
 			},
 			getActionsContext: () => selection && selection.indexOf(stat) >= 0
 				? selection.map((fs: ExplorerItem) => fs.resource)
@@ -871,6 +877,11 @@ export class FileDragAndDrop extends SimpleFileResourceDragAndDrop {
 					return true; // Can not move anything onto itself
 				}
 
+				if (source.isRoot && target instanceof ExplorerItem && target.isRoot) {
+					// Disable moving workspace roots in one another
+					return false;
+				}
+
 				if (!isCopy && resources.dirname(source.resource).toString() === target.resource.toString()) {
 					return true; // Can not move a file to the same parent unless we copy
 				}
@@ -908,19 +919,16 @@ export class FileDragAndDrop extends SimpleFileResourceDragAndDrop {
 	}
 
 	public drop(tree: ITree, data: IDragAndDropData, target: ExplorerItem | Model, originalEvent: DragMouseEvent): void {
-		let promise: TPromise<void> = TPromise.as(null);
 
 		// Desktop DND (Import file)
 		if (data instanceof DesktopDragAndDropData) {
-			promise = this.handleExternalDrop(tree, data, target, originalEvent);
+			this.handleExternalDrop(tree, data, target, originalEvent);
 		}
 
 		// In-Explorer DND (Move/Copy file)
 		else {
-			promise = this.handleExplorerDrop(tree, data, target, originalEvent);
+			this.handleExplorerDrop(tree, data, target, originalEvent);
 		}
-
-		promise.done(null, errors.onUnexpectedError);
 	}
 
 	private handleExternalDrop(tree: ITree, data: DesktopDragAndDropData, target: ExplorerItem | Model, originalEvent: DragMouseEvent): TPromise<void> {
@@ -937,7 +945,7 @@ export class FileDragAndDrop extends SimpleFileResourceDragAndDrop {
 			if (folders.length > 0) {
 
 				// If we are in no-workspace context, ask for confirmation to create a workspace
-				let confirmedPromise: TPromise<IConfirmationResult> = TPromise.wrap({ confirmed: true });
+				let confirmedPromise: TPromise<IConfirmationResult> = Promise.resolve({ confirmed: true });
 				if (this.contextService.getWorkbenchState() !== WorkbenchState.WORKSPACE) {
 					confirmedPromise = this.dialogService.confirm({
 						message: folders.length > 1 ? nls.localize('dropFolders', "Do you want to add the folders to the workspace?") : nls.localize('dropFolder', "Do you want to add the folder to the workspace?"),
@@ -987,13 +995,13 @@ export class FileDragAndDrop extends SimpleFileResourceDragAndDrop {
 				primaryButton: nls.localize({ key: 'moveButtonLabel', comment: ['&& denotes a mnemonic'] }, "&&Move")
 			});
 		} else {
-			confirmPromise = TPromise.as({ confirmed: true } as IConfirmationResult);
+			confirmPromise = Promise.resolve({ confirmed: true } as IConfirmationResult);
 		}
 
 		return confirmPromise.then(res => {
 
 			// Check for confirmation checkbox
-			let updateConfirmSettingsPromise: TPromise<void> = TPromise.as(void 0);
+			let updateConfirmSettingsPromise: TPromise<void> = Promise.resolve(void 0);
 			if (res.confirmed && res.checkboxChecked === true) {
 				updateConfirmSettingsPromise = this.configurationService.updateValue(FileDragAndDrop.CONFIRM_DND_SETTING_KEY, false, ConfigurationTarget.USER);
 			}
@@ -1001,17 +1009,17 @@ export class FileDragAndDrop extends SimpleFileResourceDragAndDrop {
 			return updateConfirmSettingsPromise.then(() => {
 				if (res.confirmed) {
 					const rootDropPromise = this.doHandleRootDrop(sources.filter(s => s.isRoot), target);
-					return TPromise.join(sources.filter(s => !s.isRoot).map(source => this.doHandleExplorerDrop(tree, source, target, isCopy)).concat(rootDropPromise)).then(() => void 0);
+					return Promise.all(sources.filter(s => !s.isRoot).map(source => this.doHandleExplorerDrop(tree, source, target, isCopy)).concat(rootDropPromise)).then(() => void 0);
 				}
 
-				return TPromise.as(void 0);
+				return Promise.resolve(void 0);
 			});
 		});
 	}
 
 	private doHandleRootDrop(roots: ExplorerItem[], target: ExplorerItem | Model): TPromise<void> {
 		if (roots.length === 0) {
-			return TPromise.as(undefined);
+			return Promise.resolve(undefined);
 		}
 
 		const folders = this.contextService.getWorkspace().folders;
@@ -1043,7 +1051,7 @@ export class FileDragAndDrop extends SimpleFileResourceDragAndDrop {
 
 	private doHandleExplorerDrop(tree: ITree, source: ExplorerItem, target: ExplorerItem | Model, isCopy: boolean): TPromise<void> {
 		if (!(target instanceof ExplorerItem)) {
-			return TPromise.as(void 0);
+			return Promise.resolve(void 0);
 		}
 
 		return tree.expand(target).then(() => {

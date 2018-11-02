@@ -3,13 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
-import { INotificationService, INotification, INotificationHandle, Severity, NotificationMessage, INotificationActions, IPromptChoice } from 'vs/platform/notification/common/notification';
-import { INotificationsModel, NotificationsModel } from 'vs/workbench/common/notifications';
-import { dispose, Disposable } from 'vs/base/common/lifecycle';
-import { TPromise } from 'vs/base/common/winjs.base';
-import { Action } from 'vs/base/common/actions';
+import { INotificationService, INotification, INotificationHandle, Severity, NotificationMessage, INotificationActions, IPromptChoice, IPromptOptions } from 'vs/platform/notification/common/notification';
+import { INotificationsModel, NotificationsModel, ChoiceAction } from 'vs/workbench/common/notifications';
+import { dispose, Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import { once } from 'vs/base/common/event';
 
 export class NotificationService extends Disposable implements INotificationService {
@@ -56,45 +52,52 @@ export class NotificationService extends Disposable implements INotificationServ
 		return this.model.notify(notification);
 	}
 
-	prompt(severity: Severity, message: string, choices: IPromptChoice[], onCancel?: () => void): INotificationHandle {
-		let handle: INotificationHandle;
+	prompt(severity: Severity, message: string, choices: IPromptChoice[], options?: IPromptOptions): INotificationHandle {
+		const toDispose: IDisposable[] = [];
+
 		let choiceClicked = false;
+		let handle: INotificationHandle;
 
 		// Convert choices into primary/secondary actions
 		const actions: INotificationActions = { primary: [], secondary: [] };
 		choices.forEach((choice, index) => {
-			const action = new Action(`workbench.dialog.choice.${index}`, choice.label, null, true, () => {
-				choiceClicked = true;
+			const action = new ChoiceAction(`workbench.dialog.choice.${index}`, choice);
+			if (!choice.isSecondary) {
+				if (!actions.primary) {
+					actions.primary = [];
+				}
+				actions.primary.push(action);
+			} else {
+				if (!actions.secondary) {
+					actions.secondary = [];
+				}
+				actions.secondary.push(action);
+			}
 
-				// Pass to runner
-				choice.run();
+			// React to action being clicked
+			toDispose.push(action.onDidRun(() => {
+				choiceClicked = true;
 
 				// Close notification unless we are told to keep open
 				if (!choice.keepOpen) {
 					handle.close();
 				}
+			}));
 
-				return TPromise.as(void 0);
-			});
-
-			if (!choice.isSecondary) {
-				actions.primary.push(action);
-			} else {
-				actions.secondary.push(action);
-			}
+			toDispose.push(action);
 		});
 
 		// Show notification with actions
-		handle = this.notify({ severity, message, actions });
+		handle = this.notify({ severity, message, actions, sticky: options && options.sticky });
 
 		once(handle.onDidClose)(() => {
 
 			// Cleanup when notification gets disposed
-			dispose(...actions.primary, ...actions.secondary);
+			dispose(toDispose);
 
 			// Indicate cancellation to the outside if no action was executed
-			if (!choiceClicked && typeof onCancel === 'function') {
-				onCancel();
+			if (options && typeof options.onCancel === 'function' && !choiceClicked) {
+				options.onCancel();
 			}
 		});
 

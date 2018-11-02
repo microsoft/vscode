@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import 'vs/css!./media/tabstitlecontrol';
 import { isMacintosh } from 'vs/base/common/platform';
 import { shorten } from 'vs/base/common/labels';
@@ -27,8 +25,8 @@ import { ScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElemen
 import { ScrollbarVisibility } from 'vs/base/common/scrollable';
 import { getOrSet } from 'vs/base/common/map';
 import { IThemeService, registerThemingParticipant, ITheme, ICssStyleCollector } from 'vs/platform/theme/common/themeService';
-import { TAB_INACTIVE_BACKGROUND, TAB_ACTIVE_BACKGROUND, TAB_ACTIVE_FOREGROUND, TAB_INACTIVE_FOREGROUND, TAB_BORDER, EDITOR_DRAG_AND_DROP_BACKGROUND, TAB_UNFOCUSED_ACTIVE_FOREGROUND, TAB_UNFOCUSED_INACTIVE_FOREGROUND, TAB_UNFOCUSED_ACTIVE_BORDER, TAB_ACTIVE_BORDER, TAB_HOVER_BACKGROUND, TAB_HOVER_BORDER, TAB_UNFOCUSED_HOVER_BACKGROUND, TAB_UNFOCUSED_HOVER_BORDER, EDITOR_GROUP_HEADER_TABS_BACKGROUND, WORKBENCH_BACKGROUND, TAB_ACTIVE_BORDER_TOP, TAB_UNFOCUSED_ACTIVE_BORDER_TOP } from 'vs/workbench/common/theme';
-import { activeContrastBorder, contrastBorder, editorBackground } from 'vs/platform/theme/common/colorRegistry';
+import { TAB_INACTIVE_BACKGROUND, TAB_ACTIVE_BACKGROUND, TAB_ACTIVE_FOREGROUND, TAB_INACTIVE_FOREGROUND, TAB_BORDER, EDITOR_DRAG_AND_DROP_BACKGROUND, TAB_UNFOCUSED_ACTIVE_FOREGROUND, TAB_UNFOCUSED_INACTIVE_FOREGROUND, TAB_UNFOCUSED_ACTIVE_BORDER, TAB_ACTIVE_BORDER, TAB_HOVER_BACKGROUND, TAB_HOVER_BORDER, TAB_UNFOCUSED_HOVER_BACKGROUND, TAB_UNFOCUSED_HOVER_BORDER, EDITOR_GROUP_HEADER_TABS_BACKGROUND, WORKBENCH_BACKGROUND, TAB_ACTIVE_BORDER_TOP, TAB_UNFOCUSED_ACTIVE_BORDER_TOP, TAB_ACTIVE_MODIFIED_BORDER, TAB_INACTIVE_MODIFIED_BORDER, TAB_UNFOCUSED_ACTIVE_MODIFIED_BORDER, TAB_UNFOCUSED_INACTIVE_MODIFIED_BORDER } from 'vs/workbench/common/theme';
+import { activeContrastBorder, contrastBorder, editorBackground, breadcrumbsBackground } from 'vs/platform/theme/common/colorRegistry';
 import { ResourcesDropHandler, fillResourceDataTransfers, DraggedEditorIdentifier, DraggedEditorGroupIdentifier, DragAndDropObserver } from 'vs/workbench/browser/dnd';
 import { Color } from 'vs/base/common/color';
 import { INotificationService } from 'vs/platform/notification/common/notification';
@@ -116,7 +114,7 @@ export class TabsTitleControl extends TitleControl {
 		const breadcrumbsContainer = document.createElement('div');
 		addClass(breadcrumbsContainer, 'tabs-breadcrumbs');
 		this.titleContainer.appendChild(breadcrumbsContainer);
-		this.createBreadcrumbsControl(breadcrumbsContainer, { showFileIcons: true, showSymbolIcons: true, showDecorationColors: false, extraClasses: [] });
+		this.createBreadcrumbsControl(breadcrumbsContainer, { showFileIcons: true, showSymbolIcons: true, showDecorationColors: false, breadcrumbsBackground: breadcrumbsBackground });
 	}
 
 	private createScrollbar(): void {
@@ -341,7 +339,7 @@ export class TabsTitleControl extends TitleControl {
 
 		// Activity has an impact on each tab
 		this.forEachTab((editor, index, tabContainer, tabLabelWidget, tabLabel) => {
-			this.redrawEditorActive(isGroupActive, editor, tabContainer, tabLabelWidget);
+			this.redrawEditorActiveAndDirty(isGroupActive, editor, tabContainer, tabLabelWidget);
 		});
 
 		// Activity has an impact on the toolbar, so we need to update and layout
@@ -364,7 +362,7 @@ export class TabsTitleControl extends TitleControl {
 	}
 
 	updateEditorDirty(editor: IEditorInput): void {
-		this.withTab(editor, tabContainer => this.redrawEditorDirty(editor, tabContainer));
+		this.withTab(editor, (tabContainer, tabLabelWidget) => this.redrawEditorActiveAndDirty(this.accessor.activeGroup === this.group, editor, tabContainer, tabLabelWidget));
 	}
 
 	updateOptions(oldOptions: IEditorPartOptions, newOptions: IEditorPartOptions): void {
@@ -380,7 +378,8 @@ export class TabsTitleControl extends TitleControl {
 			oldOptions.tabCloseButton !== newOptions.tabCloseButton ||
 			oldOptions.tabSizing !== newOptions.tabSizing ||
 			oldOptions.showIcons !== newOptions.showIcons ||
-			oldOptions.iconTheme !== newOptions.iconTheme
+			oldOptions.iconTheme !== newOptions.iconTheme ||
+			oldOptions.highlightModifiedTabs !== newOptions.highlightModifiedTabs
 		) {
 			this.redraw();
 		}
@@ -490,6 +489,8 @@ export class TabsTitleControl extends TitleControl {
 			tab.blur();
 
 			if (e.button === 1 /* Middle Button*/ && !this.originatesFromTabActionBar(e)) {
+				e.stopPropagation(); // for https://github.com/Microsoft/vscode/issues/56715
+
 				this.blockRevealActiveTabOnce();
 				this.closeOneEditorAction.run({ groupId: this.group.id, editorIndex: index });
 			}
@@ -814,9 +815,7 @@ export class TabsTitleControl extends TitleControl {
 		this.redrawLabel(editor, tabContainer, tabLabelWidget, tabLabel);
 
 		// Borders / Outline
-		const borderLeftColor = (index !== 0) ? (this.getColor(TAB_BORDER) || this.getColor(contrastBorder)) : null;
-		const borderRightColor = (index === this.group.count - 1) ? (this.getColor(TAB_BORDER) || this.getColor(contrastBorder)) : null;
-		tabContainer.style.borderLeft = borderLeftColor ? `1px solid ${borderLeftColor}` : null;
+		const borderRightColor = (this.getColor(TAB_BORDER) || this.getColor(contrastBorder));
 		tabContainer.style.borderRight = borderRightColor ? `1px solid ${borderRightColor}` : null;
 		tabContainer.style.outlineColor = this.getColor(activeContrastBorder);
 
@@ -839,11 +838,8 @@ export class TabsTitleControl extends TitleControl {
 			removeClass(tabContainer, 'has-icon-theme');
 		}
 
-		// Active state
-		this.redrawEditorActive(this.accessor.activeGroup === this.group, editor, tabContainer, tabLabelWidget);
-
-		// Dirty State
-		this.redrawEditorDirty(editor, tabContainer);
+		// Active / dirty state
+		this.redrawEditorActiveAndDirty(this.accessor.activeGroup === this.group, editor, tabContainer, tabLabelWidget);
 	}
 
 	private redrawLabel(editor: IEditorInput, tabContainer: HTMLElement, tabLabelWidget: ResourceLabel, tabLabel: IEditorInputLabel): void {
@@ -856,10 +852,18 @@ export class TabsTitleControl extends TitleControl {
 		tabContainer.title = title;
 
 		// Label
-		tabLabelWidget.setLabel({ name, description, resource: toResource(editor, { supportSideBySide: true }) }, { extraClasses: ['tab-label'], italic: !this.group.isPinned(editor) });
+		tabLabelWidget.setLabel({ name, description, resource: toResource(editor, { supportSideBySide: true }) }, { title, extraClasses: ['tab-label'], italic: !this.group.isPinned(editor) });
 	}
 
-	private redrawEditorActive(isGroupActive: boolean, editor: IEditorInput, tabContainer: HTMLElement, tabLabelWidget: ResourceLabel): void {
+	private redrawEditorActiveAndDirty(isGroupActive: boolean, editor: IEditorInput, tabContainer: HTMLElement, tabLabelWidget: ResourceLabel): void {
+		const isTabActive = this.group.isActive(editor);
+
+		const hasModifiedBorderTop = this.doRedrawEditorDirty(isGroupActive, isTabActive, editor, tabContainer);
+
+		this.doRedrawEditorActive(isGroupActive, !hasModifiedBorderTop, editor, tabContainer, tabLabelWidget);
+	}
+
+	private doRedrawEditorActive(isGroupActive: boolean, allowBorderTop: boolean, editor: IEditorInput, tabContainer: HTMLElement, tabLabelWidget: ResourceLabel): void {
 
 		// Tab is active
 		if (this.group.isActive(editor)) {
@@ -878,7 +882,7 @@ export class TabsTitleControl extends TitleControl {
 				tabContainer.style.removeProperty('--tab-border-bottom-color');
 			}
 
-			const activeTabBorderColorTop = this.getColor(isGroupActive ? TAB_ACTIVE_BORDER_TOP : TAB_UNFOCUSED_ACTIVE_BORDER_TOP);
+			const activeTabBorderColorTop = allowBorderTop ? this.getColor(isGroupActive ? TAB_ACTIVE_BORDER_TOP : TAB_UNFOCUSED_ACTIVE_BORDER_TOP) : void 0;
 			if (activeTabBorderColorTop) {
 				addClass(tabContainer, 'tab-border-top');
 				tabContainer.style.setProperty('--tab-border-top-color', activeTabBorderColorTop.toString());
@@ -894,7 +898,7 @@ export class TabsTitleControl extends TitleControl {
 		// Tab is inactive
 		else {
 
-			// Containr
+			// Container
 			removeClass(tabContainer, 'active');
 			tabContainer.setAttribute('aria-selected', 'false');
 			tabContainer.style.backgroundColor = this.getColor(TAB_INACTIVE_BACKGROUND);
@@ -905,21 +909,56 @@ export class TabsTitleControl extends TitleControl {
 		}
 	}
 
-	private redrawEditorDirty(editor: IEditorInput, tabContainer: HTMLElement): void {
+	private doRedrawEditorDirty(isGroupActive: boolean, isTabActive: boolean, editor: IEditorInput, tabContainer: HTMLElement): boolean {
+		let hasModifiedBorderColor = false;
+
+		// Tab: dirty
 		if (editor.isDirty()) {
 			addClass(tabContainer, 'dirty');
-		} else {
-			removeClass(tabContainer, 'dirty');
+
+			// Highlight modified tabs with a border if configured
+			if (this.accessor.partOptions.highlightModifiedTabs) {
+				let modifiedBorderColor: string;
+				if (isGroupActive && isTabActive) {
+					modifiedBorderColor = this.getColor(TAB_ACTIVE_MODIFIED_BORDER);
+				} else if (isGroupActive && !isTabActive) {
+					modifiedBorderColor = this.getColor(TAB_INACTIVE_MODIFIED_BORDER);
+				} else if (!isGroupActive && isTabActive) {
+					modifiedBorderColor = this.getColor(TAB_UNFOCUSED_ACTIVE_MODIFIED_BORDER);
+				} else {
+					modifiedBorderColor = this.getColor(TAB_UNFOCUSED_INACTIVE_MODIFIED_BORDER);
+				}
+
+				if (modifiedBorderColor) {
+					hasModifiedBorderColor = true;
+
+					addClass(tabContainer, 'dirty-border-top');
+					tabContainer.style.setProperty('--tab-dirty-border-top-color', modifiedBorderColor);
+				}
+			} else {
+				removeClass(tabContainer, 'dirty-border-top');
+				tabContainer.style.removeProperty('--tab-dirty-border-top-color');
+			}
 		}
+
+		// Tab: not dirty
+		else {
+			removeClass(tabContainer, 'dirty');
+
+			removeClass(tabContainer, 'dirty-border-top');
+			tabContainer.style.removeProperty('--tab-dirty-border-top-color');
+		}
+
+		return hasModifiedBorderColor;
 	}
 
 	layout(dimension: Dimension): void {
+		this.dimension = dimension;
+
 		const activeTab = this.getTab(this.group.activeEditor);
-		if (!activeTab || !dimension) {
+		if (!activeTab || !this.dimension) {
 			return;
 		}
-
-		this.dimension = dimension;
 
 		// The layout of tabs can be an expensive operation because we access DOM properties
 		// that can result in the browser doing a full page layout to validate them. To buffer
@@ -1193,7 +1232,7 @@ registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
 			const adjustedColorDrag = editorDragAndDropBackground.flatten(adjustedTabDragBackground);
 			collector.addRule(`
 			.monaco-workbench > .part.editor > .content.dragged-over .editor-group-container.active > .title .tabs-container > .tab.sizing-shrink.dragged-over:not(.active):not(.dragged) > .tab-label::after,
-			.monaco-workbench > .part.editor > .content.dragged-over .editor-group-container > .title .tabs-container > .tab.sizing-shrink.dragged-over:not(.dragged) > .tab-label::after {
+			.monaco-workbench > .part.editor > .content.dragged-over .editor-group-container:not(.active) > .title .tabs-container > .tab.sizing-shrink.dragged-over:not(.dragged) > .tab-label::after {
 				background: linear-gradient(to left, ${adjustedColorDrag}, transparent) !important;
 			}
 		`);

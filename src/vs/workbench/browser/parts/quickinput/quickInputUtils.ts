@@ -5,7 +5,7 @@
 
 import 'vs/css!./quickInput';
 import * as dom from 'vs/base/browser/dom';
-import URI from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 import { IdGenerator } from 'vs/base/common/idGenerator';
 
 const iconPathToClass = {};

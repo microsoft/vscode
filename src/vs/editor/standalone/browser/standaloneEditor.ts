@@ -2,47 +2,45 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
 import 'vs/css!./standalone-tokens';
-import * as editorCommon from 'vs/editor/common/editorCommon';
-import { ICodeEditor, ContentWidgetPositionPreference, OverlayWidgetPositionPreference, MouseTargetType } from 'vs/editor/browser/editorBrowser';
-import { StandaloneEditor, IStandaloneCodeEditor, StandaloneDiffEditor, IStandaloneDiffEditor, IEditorConstructionOptions, IDiffEditorConstructionOptions } from 'vs/editor/standalone/browser/standaloneCodeEditor';
-import { ScrollbarVisibility } from 'vs/base/common/scrollable';
-import { IEditorOverrideServices, DynamicStandaloneServices, StaticServices } from 'vs/editor/standalone/browser/standaloneServices';
 import { IDisposable } from 'vs/base/common/lifecycle';
-import URI from 'vs/base/common/uri';
-import { TPromise } from 'vs/base/common/winjs.base';
+import { URI } from 'vs/base/common/uri';
+import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
+import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { OpenerService } from 'vs/editor/browser/services/openerService';
-import { IOpenerService } from 'vs/platform/opener/common/opener';
+import { DiffNavigator } from 'vs/editor/browser/widget/diffNavigator';
+import * as editorOptions from 'vs/editor/common/config/editorOptions';
+import { BareFontInfo, FontInfo } from 'vs/editor/common/config/fontInfo';
+import { Token } from 'vs/editor/common/core/token';
+import * as editorCommon from 'vs/editor/common/editorCommon';
+import { FindMatch, ITextModel, TextModelResolvedOptions } from 'vs/editor/common/model';
+import * as modes from 'vs/editor/common/modes';
+import { NULL_STATE, nullTokenize } from 'vs/editor/common/modes/nullMode';
+import { IEditorWorkerService } from 'vs/editor/common/services/editorWorkerService';
+import { ILanguageSelection } from 'vs/editor/common/services/modeService';
+import { ITextModelService } from 'vs/editor/common/services/resolverService';
+import { IWebWorkerOptions, MonacoWebWorker, createWebWorker as actualCreateWebWorker } from 'vs/editor/common/services/webWorker';
+import * as standaloneEnums from 'vs/editor/common/standalone/standaloneEnums';
 import { Colorizer, IColorizerElementOptions, IColorizerOptions } from 'vs/editor/standalone/browser/colorizer';
 import { SimpleEditorModelResolverService } from 'vs/editor/standalone/browser/simpleServices';
-import * as modes from 'vs/editor/common/modes';
-import { IWebWorkerOptions, MonacoWebWorker, createWebWorker as actualCreateWebWorker } from 'vs/editor/common/services/webWorker';
-import { IMarkerData, IMarker } from 'vs/platform/markers/common/markers';
-import { DiffNavigator } from 'vs/editor/browser/widget/diffNavigator';
+import { IDiffEditorConstructionOptions, IEditorConstructionOptions, IStandaloneCodeEditor, IStandaloneDiffEditor, StandaloneDiffEditor, StandaloneEditor } from 'vs/editor/standalone/browser/standaloneCodeEditor';
+import { DynamicStandaloneServices, IEditorOverrideServices, StaticServices } from 'vs/editor/standalone/browser/standaloneServices';
+import { IStandaloneThemeData, IStandaloneThemeService } from 'vs/editor/standalone/common/standaloneThemeService';
 import { ICommandService } from 'vs/platform/commands/common/commands';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
-import { IEditorWorkerService } from 'vs/editor/common/services/editorWorkerService';
-import { ITextModelService } from 'vs/editor/common/services/resolverService';
-import { NULL_STATE, nullTokenize } from 'vs/editor/common/modes/nullMode';
-import { IStandaloneThemeData, IStandaloneThemeService } from 'vs/editor/standalone/common/standaloneThemeService';
-import { Token } from 'vs/editor/common/core/token';
-import { FontInfo, BareFontInfo } from 'vs/editor/common/config/fontInfo';
-import * as editorOptions from 'vs/editor/common/config/editorOptions';
-import { CursorChangeReason } from 'vs/editor/common/controller/cursorEvents';
-import { ITextModel, OverviewRulerLane, EndOfLinePreference, DefaultEndOfLine, EndOfLineSequence, TrackedRangeStickiness, TextModelResolvedOptions, FindMatch } from 'vs/editor/common/model';
+import { IMarker, IMarkerData } from 'vs/platform/markers/common/markers';
 import { INotificationService } from 'vs/platform/notification/common/notification';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { IOpenerService } from 'vs/platform/opener/common/opener';
 
 function withAllStandaloneServices<T extends editorCommon.IEditor>(domElement: HTMLElement, override: IEditorOverrideServices, callback: (services: DynamicStandaloneServices) => T): T {
 	let services = new DynamicStandaloneServices(domElement, override);
 
-	let simpleEditorModelResolverService: SimpleEditorModelResolverService = null;
+	let simpleEditorModelResolverService: SimpleEditorModelResolverService | null = null;
 	if (!services.has(ITextModelService)) {
 		simpleEditorModelResolverService = new SimpleEditorModelResolverService();
 		services.set(ITextModelService, simpleEditorModelResolverService);
@@ -67,7 +65,7 @@ function withAllStandaloneServices<T extends editorCommon.IEditor>(domElement: H
  * The editor will read the size of `domElement`.
  */
 export function create(domElement: HTMLElement, options?: IEditorConstructionOptions, override?: IEditorOverrideServices): IStandaloneCodeEditor {
-	return withAllStandaloneServices(domElement, override, (services) => {
+	return withAllStandaloneServices(domElement, override || {}, (services) => {
 		return new StandaloneEditor(
 			domElement,
 			options,
@@ -137,8 +135,8 @@ export function createDiffNavigator(diffEditor: IStandaloneDiffEditor, opts?: ID
 	return new DiffNavigator(diffEditor, opts);
 }
 
-function doCreateModel(value: string, mode: TPromise<modes.IMode>, uri?: URI): ITextModel {
-	return StaticServices.modelService.get().createModel(value, mode, uri);
+function doCreateModel(value: string, languageSelection: ILanguageSelection, uri?: URI): ITextModel {
+	return StaticServices.modelService.get().createModel(value, languageSelection, uri);
 }
 
 /**
@@ -157,16 +155,16 @@ export function createModel(value: string, language?: string, uri?: URI): ITextM
 			firstLine = value.substring(0, firstLF);
 		}
 
-		return doCreateModel(value, StaticServices.modeService.get().getOrCreateModeByFilenameOrFirstLine(path, firstLine), uri);
+		return doCreateModel(value, StaticServices.modeService.get().createByFilepathOrFirstLine(path, firstLine), uri);
 	}
-	return doCreateModel(value, StaticServices.modeService.get().getOrCreateMode(language), uri);
+	return doCreateModel(value, StaticServices.modeService.get().create(language), uri);
 }
 
 /**
  * Change the language for a model.
  */
 export function setModelLanguage(model: ITextModel, languageId: string): void {
-	StaticServices.modelService.get().setMode(model, StaticServices.modeService.get().getOrCreateMode(languageId));
+	StaticServices.modelService.get().setMode(model, StaticServices.modeService.get().create(languageId));
 }
 
 /**
@@ -190,7 +188,7 @@ export function getModelMarkers(filter: { owner?: string, resource?: URI, take?:
 /**
  * Get the model that has `uri` if it exists.
  */
-export function getModel(uri: URI): ITextModel {
+export function getModel(uri: URI): ITextModel | null {
 	return StaticServices.modelService.get().getModel(uri);
 }
 
@@ -241,14 +239,14 @@ export function createWebWorker<T>(opts: IWebWorkerOptions): MonacoWebWorker<T> 
 /**
  * Colorize the contents of `domNode` using attribute `data-lang`.
  */
-export function colorizeElement(domNode: HTMLElement, options: IColorizerElementOptions): TPromise<void> {
+export function colorizeElement(domNode: HTMLElement, options: IColorizerElementOptions): Promise<void> {
 	return Colorizer.colorizeElement(StaticServices.standaloneThemeService.get(), StaticServices.modeService.get(), domNode, options);
 }
 
 /**
  * Colorize `text` using language `languageId`.
  */
-export function colorize(text: string, languageId: string, options: IColorizerOptions): TPromise<string> {
+export function colorize(text: string, languageId: string, options: IColorizerOptions): Promise<string> {
 	return Colorizer.colorize(StaticServices.modeService.get(), text, languageId, options);
 }
 
@@ -280,7 +278,7 @@ function getSafeTokenizationSupport(language: string): modes.ITokenizationSuppor
 export function tokenize(text: string, languageId: string): Token[][] {
 	let modeService = StaticServices.modeService.get();
 	// Needed in order to get the mode registered for subsequent look-ups
-	modeService.getOrCreateMode(languageId);
+	modeService.triggerMode(languageId);
 
 	let tokenizationSupport = getSafeTokenizationSupport(languageId);
 	let lines = text.split(/\r\n|\r|\n/);
@@ -297,7 +295,7 @@ export function tokenize(text: string, languageId: string): Token[][] {
 }
 
 /**
- * Define a new theme or updte an existing theme.
+ * Define a new theme or update an existing theme.
  */
 export function defineTheme(themeName: string, themeData: IStandaloneThemeData): void {
 	StaticServices.standaloneThemeService.get().defineTheme(themeName, themeData);
@@ -312,33 +310,6 @@ export function setTheme(themeName: string): void {
 
 /**
  * @internal
- * --------------------------------------------
- * This is repeated here so it can be exported
- * because TS inlines const enums
- * --------------------------------------------
- */
-enum ScrollType {
-	Smooth = 0,
-	Immediate = 1,
-}
-
-/**
- * @internal
- * --------------------------------------------
- * This is repeated here so it can be exported
- * because TS inlines const enums
- * --------------------------------------------
- */
-enum RenderLineNumbersType {
-	Off = 0,
-	On = 1,
-	Relative = 2,
-	Interval = 3,
-	Custom = 4
-}
-
-/**
- * @internal
  */
 export function createMonacoEditorAPI(): typeof monaco.editor {
 	return {
@@ -348,42 +319,42 @@ export function createMonacoEditorAPI(): typeof monaco.editor {
 		createDiffEditor: <any>createDiffEditor,
 		createDiffNavigator: <any>createDiffNavigator,
 
-		createModel: createModel,
-		setModelLanguage: setModelLanguage,
-		setModelMarkers: setModelMarkers,
-		getModelMarkers: getModelMarkers,
-		getModels: getModels,
-		getModel: getModel,
-		onDidCreateModel: onDidCreateModel,
-		onWillDisposeModel: onWillDisposeModel,
-		onDidChangeModelLanguage: onDidChangeModelLanguage,
+		createModel: <any>createModel,
+		setModelLanguage: <any>setModelLanguage,
+		setModelMarkers: <any>setModelMarkers,
+		getModelMarkers: <any>getModelMarkers,
+		getModels: <any>getModels,
+		getModel: <any>getModel,
+		onDidCreateModel: <any>onDidCreateModel,
+		onWillDisposeModel: <any>onWillDisposeModel,
+		onDidChangeModelLanguage: <any>onDidChangeModelLanguage,
 
 
-		createWebWorker: createWebWorker,
-		colorizeElement: colorizeElement,
-		colorize: colorize,
-		colorizeModelLine: colorizeModelLine,
-		tokenize: tokenize,
-		defineTheme: defineTheme,
-		setTheme: setTheme,
+		createWebWorker: <any>createWebWorker,
+		colorizeElement: <any>colorizeElement,
+		colorize: <any>colorize,
+		colorizeModelLine: <any>colorizeModelLine,
+		tokenize: <any>tokenize,
+		defineTheme: <any>defineTheme,
+		setTheme: <any>setTheme,
 
 		// enums
-		ScrollbarVisibility: ScrollbarVisibility,
-		WrappingIndent: editorOptions.WrappingIndent,
-		OverviewRulerLane: OverviewRulerLane,
-		EndOfLinePreference: EndOfLinePreference,
-		DefaultEndOfLine: DefaultEndOfLine,
-		EndOfLineSequence: EndOfLineSequence,
-		TrackedRangeStickiness: TrackedRangeStickiness,
-		CursorChangeReason: CursorChangeReason,
-		MouseTargetType: MouseTargetType,
-		TextEditorCursorStyle: editorOptions.TextEditorCursorStyle,
-		TextEditorCursorBlinkingStyle: editorOptions.TextEditorCursorBlinkingStyle,
-		ContentWidgetPositionPreference: ContentWidgetPositionPreference,
-		OverlayWidgetPositionPreference: OverlayWidgetPositionPreference,
-		RenderMinimap: editorOptions.RenderMinimap,
-		ScrollType: <any>ScrollType,
-		RenderLineNumbersType: <any>RenderLineNumbersType,
+		ScrollbarVisibility: standaloneEnums.ScrollbarVisibility,
+		WrappingIndent: standaloneEnums.WrappingIndent,
+		OverviewRulerLane: standaloneEnums.OverviewRulerLane,
+		EndOfLinePreference: standaloneEnums.EndOfLinePreference,
+		DefaultEndOfLine: standaloneEnums.DefaultEndOfLine,
+		EndOfLineSequence: standaloneEnums.EndOfLineSequence,
+		TrackedRangeStickiness: standaloneEnums.TrackedRangeStickiness,
+		CursorChangeReason: standaloneEnums.CursorChangeReason,
+		MouseTargetType: standaloneEnums.MouseTargetType,
+		TextEditorCursorStyle: standaloneEnums.TextEditorCursorStyle,
+		TextEditorCursorBlinkingStyle: standaloneEnums.TextEditorCursorBlinkingStyle,
+		ContentWidgetPositionPreference: standaloneEnums.ContentWidgetPositionPreference,
+		OverlayWidgetPositionPreference: standaloneEnums.OverlayWidgetPositionPreference,
+		RenderMinimap: standaloneEnums.RenderMinimap,
+		ScrollType: standaloneEnums.ScrollType,
+		RenderLineNumbersType: standaloneEnums.RenderLineNumbersType,
 
 		// classes
 		InternalEditorOptions: <any>editorOptions.InternalEditorOptions,

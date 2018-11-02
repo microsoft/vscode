@@ -2,9 +2,7 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
-import { TPromise } from 'vs/base/common/winjs.base';
 import { IViewlet } from 'vs/workbench/common/viewlet';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { Event, Emitter } from 'vs/base/common/event';
@@ -70,9 +68,9 @@ export class ViewletService extends Disposable implements IViewletService {
 		}
 	}
 
-	openViewlet(id: string, focus?: boolean): TPromise<IViewlet> {
+	openViewlet(id: string, focus?: boolean): Thenable<IViewlet> {
 		if (this.getViewlet(id)) {
-			return this.sidebarPart.openViewlet(id, focus);
+			return Promise.resolve(this.sidebarPart.openViewlet(id, focus));
 		}
 		return this.extensionService.whenInstalledExtensionsRegistered()
 			.then(() => {
@@ -92,7 +90,7 @@ export class ViewletService extends Disposable implements IViewletService {
 			.filter(v => v.enabled);
 	}
 
-	private getAllViewlets(): ViewletDescriptor[] {
+	getAllViewlets(): ViewletDescriptor[] {
 		return this.viewletRegistry.getViewlets()
 			.sort((v1, v2) => v1.order - v2.order);
 	}

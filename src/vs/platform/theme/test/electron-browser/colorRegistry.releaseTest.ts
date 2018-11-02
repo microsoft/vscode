@@ -3,15 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IColorRegistry, Extensions, ColorContribution } from 'vs/platform/theme/common/colorRegistry';
 import { editorMarkerNavigationError } from 'vs/editor/contrib/gotoError/gotoErrorWidget';
 import { overviewRulerModifiedForeground } from 'vs/workbench/parts/scm/electron-browser/dirtydiffDecorator';
 import { STATUS_BAR_DEBUGGING_BACKGROUND } from 'vs/workbench/parts/debug/browser/statusbarColorProvider';
 import { debugExceptionWidgetBackground } from 'vs/workbench/parts/debug/browser/exceptionWidget';
-import { debugToolBarBackground } from 'vs/workbench/parts/debug/browser/debugActionsWidget';
+import { debugToolBarBackground } from 'vs/workbench/parts/debug/browser/debugToolbar';
 import { buttonBackground } from 'vs/workbench/parts/welcome/page/electron-browser/welcomePage';
 import { embeddedEditorBackground } from 'vs/workbench/parts/welcome/walkThrough/electron-browser/walkThroughPart';
 import { request, asText } from 'vs/base/node/request';
@@ -19,6 +17,7 @@ import * as pfs from 'vs/base/node/pfs';
 import * as path from 'path';
 import * as assert from 'assert';
 import { getPathFromAmdModule } from 'vs/base/common/amd';
+import { CancellationToken } from 'vs/base/common/cancellation';
 
 
 interface ColorInfo {
@@ -36,12 +35,12 @@ interface DescriptionDiff {
 export const forceColorLoad = [editorMarkerNavigationError, overviewRulerModifiedForeground, STATUS_BAR_DEBUGGING_BACKGROUND,
 	debugExceptionWidgetBackground, debugToolBarBackground, buttonBackground, embeddedEditorBackground];
 
-export const experimental = []; // 'settings.modifiedItemForeground', 'editorUnnecessary.foreground' ];
+export const experimental: string[] = []; // 'settings.modifiedItemForeground', 'editorUnnecessary.foreground' ];
 
 suite('Color Registry', function () {
 
 	test('all colors documented', async function () {
-		const reqContext = await request({ url: 'https://raw.githubusercontent.com/Microsoft/vscode-docs/vnext/docs/getstarted/theme-color-reference.md' });
+		const reqContext = await request({ url: 'https://raw.githubusercontent.com/Microsoft/vscode-docs/vnext/docs/getstarted/theme-color-reference.md' }, CancellationToken.None);
 		const content = await asText(reqContext);
 
 		const expression = /\-\s*\`([\w\.]+)\`: (.*)/g;

@@ -3,18 +3,16 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import 'vs/css!./gridview';
 import { Orientation } from 'vs/base/browser/ui/sash/sash';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
-import { tail2 as tail } from 'vs/base/common/arrays';
+import { tail2 as tail, equals } from 'vs/base/common/arrays';
 import { orthogonal, IView, GridView, Sizing as GridViewSizing, Box, IGridViewStyles } from './gridview';
 import { Event } from 'vs/base/common/event';
 
 export { Orientation } from './gridview';
 
-export enum Direction {
+export const enum Direction {
 	Up,
 	Down,
 	Left,
@@ -168,7 +166,7 @@ function getGridLocation(element: HTMLElement): number[] {
 	return [...getGridLocation(ancestor), index];
 }
 
-export enum Sizing {
+export const enum Sizing {
 	Distribute = 'distribute',
 	Split = 'split'
 }
@@ -256,13 +254,25 @@ export class Grid<T extends IView> implements IDisposable {
 			throw new Error('Can\'t remove last view');
 		}
 
-		if (!this.views.has(view)) {
-			throw new Error('View not found');
-		}
-
 		const location = this.getViewLocation(view);
 		this.gridview.removeView(location, sizing === Sizing.Distribute ? GridViewSizing.Distribute : undefined);
 		this.views.delete(view);
+	}
+
+	moveView(view: T, sizing: number | Sizing, referenceView: T, direction: Direction): void {
+		const sourceLocation = this.getViewLocation(view);
+		const [sourceParentLocation, from] = tail(sourceLocation);
+
+		const referenceLocation = this.getViewLocation(referenceView);
+		const targetLocation = getRelativeLocation(this.gridview.orientation, referenceLocation, direction);
+		const [targetParentLocation, to] = tail(targetLocation);
+
+		if (equals(sourceParentLocation, targetParentLocation)) {
+			this.gridview.moveView(sourceParentLocation, from, to);
+		} else {
+			this.removeView(view, typeof sizing === 'number' ? undefined : sizing);
+			this.addView(view, sizing, referenceView, direction);
+		}
 	}
 
 	swapViews(from: T, to: T): void {

@@ -14,6 +14,7 @@ import product from 'vs/platform/node/product';
 import { toLocalISOString } from 'vs/base/common/date';
 import { isWindows, isLinux } from 'vs/base/common/platform';
 import { getPathFromAmdModule } from 'vs/base/common/amd';
+import { URI } from 'vs/base/common/uri';
 
 // Read this before there's any chance it is overwritten
 // Related to https://github.com/Microsoft/vscode/issues/30624
@@ -109,6 +110,9 @@ export class EnvironmentService implements IEnvironmentService {
 	get appSettingsPath(): string { return path.join(this.appSettingsHome, 'settings.json'); }
 
 	@memoize
+	get workspaceStorageHome(): string { return path.join(this.appSettingsHome, 'workspaceStorage'); }
+
+	@memoize
 	get settingsSearchBuildId(): number { return product.settingsSearchBuildId; }
 
 	@memoize
@@ -133,6 +137,16 @@ export class EnvironmentService implements IEnvironmentService {
 	get installSourcePath(): string { return path.join(this.userDataPath, 'installSource'); }
 
 	@memoize
+	get builtinExtensionsPath(): string {
+		const fromArgs = parsePathArg(this._args['builtin-extensions-dir'], process);
+		if (fromArgs) {
+			return fromArgs;
+		} else {
+			return path.normalize(path.join(getPathFromAmdModule(require, ''), '..', 'extensions'));
+		}
+	}
+
+	@memoize
 	get extensionsPath(): string {
 		const fromArgs = parsePathArg(this._args['extensions-dir'], process);
 
@@ -148,7 +162,16 @@ export class EnvironmentService implements IEnvironmentService {
 	}
 
 	@memoize
-	get extensionDevelopmentPath(): string { return this._args.extensionDevelopmentPath ? path.normalize(this._args.extensionDevelopmentPath) : this._args.extensionDevelopmentPath; }
+	get extensionDevelopmentLocationURI(): URI {
+		const s = this._args.extensionDevelopmentPath;
+		if (s) {
+			if (/^[^:/?#]+?:\/\//.test(s)) {
+				return URI.parse(s);
+			}
+			return URI.file(path.normalize(s));
+		}
+		return void 0;
+	}
 
 	@memoize
 	get extensionTestsPath(): string { return this._args.extensionTestsPath ? path.normalize(this._args.extensionTestsPath) : this._args.extensionTestsPath; }
@@ -186,6 +209,7 @@ export class EnvironmentService implements IEnvironmentService {
 	get log(): string { return this._args.log; }
 
 	get wait(): boolean { return this._args.wait; }
+
 	get logExtensionHostCommunication(): boolean { return this._args.logExtensionHostCommunication; }
 
 	get performance(): boolean { return this._args.performance; }
@@ -198,7 +222,7 @@ export class EnvironmentService implements IEnvironmentService {
 	get sharedIPCHandle(): string { return getIPCHandle(this.userDataPath, 'shared'); }
 
 	@memoize
-	get nodeCachedDataDir(): string { return this.isBuilt ? path.join(this.userDataPath, 'CachedData', product.commit || new Array(41).join('0')) : undefined; }
+	get nodeCachedDataDir(): string { return process.env['VSCODE_NODE_CACHED_DATA_DIR'] || undefined; }
 
 	get disableUpdates(): boolean { return !!this._args['disable-updates']; }
 	get disableCrashReporter(): boolean { return !!this._args['disable-crash-reporter']; }

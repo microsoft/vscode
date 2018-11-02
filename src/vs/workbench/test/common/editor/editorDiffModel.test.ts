@@ -3,15 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import * as assert from 'assert';
 import { TextDiffEditorModel } from 'vs/workbench/common/editor/textDiffEditorModel';
 import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { ResourceEditorInput } from 'vs/workbench/common/editor/resourceEditorInput';
-import URI from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { TestTextFileService, workbenchInstantiationService } from 'vs/workbench/test/workbenchTestServices';
@@ -38,13 +36,13 @@ suite('Workbench editor model', () => {
 		accessor = instantiationService.createInstance(ServiceAccessor);
 	});
 
-	test('TextDiffEditorModel', function () {
+	test('TextDiffEditorModel', () => {
 		const dispose = accessor.textModelResolverService.registerTextModelContentProvider('test', {
 			provideTextContent: function (resource: URI): TPromise<ITextModel> {
 				if (resource.scheme === 'test') {
 					let modelContent = 'Hello Test';
-					let mode = accessor.modeService.getOrCreateMode('json');
-					return TPromise.as(accessor.modelService.createModel(modelContent, mode, resource));
+					let languageSelection = accessor.modeService.create('json');
+					return TPromise.as(accessor.modelService.createModel(modelContent, languageSelection, resource));
 				}
 
 				return TPromise.as(null);

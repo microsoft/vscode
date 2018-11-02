@@ -3,10 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import { TPromise } from 'vs/base/common/winjs.base';
-import URI from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { Event } from 'vs/base/common/event';
 import { IDisposable } from 'vs/base/common/lifecycle';
@@ -36,7 +34,7 @@ export interface ISCMResource {
 	readonly resourceGroup: ISCMResourceGroup;
 	readonly sourceUri: URI;
 	readonly decorations: ISCMResourceDecorations;
-	open(): TPromise<void>;
+	open(): Thenable<void>;
 }
 
 export interface ISCMResourceGroup extends ISequence<ISCMResource> {
@@ -68,7 +66,7 @@ export interface ISCMProvider extends IDisposable {
 	getOriginalResource(uri: URI): TPromise<URI>;
 }
 
-export enum InputValidationType {
+export const enum InputValidationType {
 	Error = 0,
 	Warning = 1,
 	Information = 2
@@ -92,6 +90,9 @@ export interface ISCMInput {
 
 	validateInput: IInputValidator;
 	readonly onDidChangeValidateInput: Event<void>;
+
+	visible: boolean;
+	readonly onDidChangeVisibility: Event<boolean>;
 }
 
 export interface ISCMRepository extends IDisposable {

@@ -2,17 +2,20 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
-import { ScopedLineTokens } from 'vs/editor/common/modes/supports';
 import { CharacterPair, IAutoClosingPair, IAutoClosingPairConditional, StandardAutoClosingPairConditional } from 'vs/editor/common/modes/languageConfiguration';
+import { ScopedLineTokens } from 'vs/editor/common/modes/supports';
 
 export class CharacterPairSupport {
 
+	static readonly DEFAULT_AUTOCLOSE_BEFORE_LANGUAGE_DEFINED = ';:.,=}])> \n\t';
+	static readonly DEFAULT_AUTOCLOSE_BEFORE_WHITESPACE = ' \n\t';
+
 	private readonly _autoClosingPairs: StandardAutoClosingPairConditional[];
 	private readonly _surroundingPairs: IAutoClosingPair[];
+	private readonly _autoCloseBefore: string;
 
-	constructor(config: { brackets?: CharacterPair[]; autoClosingPairs?: IAutoClosingPairConditional[], surroundingPairs?: IAutoClosingPair[] }) {
+	constructor(config: { brackets?: CharacterPair[]; autoClosingPairs?: IAutoClosingPairConditional[], surroundingPairs?: IAutoClosingPair[], autoCloseBefore?: string }) {
 		if (config.autoClosingPairs) {
 			this._autoClosingPairs = config.autoClosingPairs.map(el => new StandardAutoClosingPairConditional(el));
 		} else if (config.brackets) {
@@ -21,11 +24,17 @@ export class CharacterPairSupport {
 			this._autoClosingPairs = [];
 		}
 
+		this._autoCloseBefore = typeof config.autoCloseBefore === 'string' ? config.autoCloseBefore : CharacterPairSupport.DEFAULT_AUTOCLOSE_BEFORE_LANGUAGE_DEFINED;
+
 		this._surroundingPairs = config.surroundingPairs || this._autoClosingPairs;
 	}
 
 	public getAutoClosingPairs(): IAutoClosingPair[] {
 		return this._autoClosingPairs;
+	}
+
+	public getAutoCloseBeforeSet(): string {
+		return this._autoCloseBefore;
 	}
 
 	public shouldAutoClosePair(character: string, context: ScopedLineTokens, column: number): boolean {

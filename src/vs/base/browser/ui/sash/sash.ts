@@ -3,10 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import 'vs/css!./sash';
-import { IDisposable, dispose } from 'vs/base/common/lifecycle';
+import { IDisposable, dispose, Disposable } from 'vs/base/common/lifecycle';
 import { isIPad } from 'vs/base/browser/browser';
 import { isMacintosh } from 'vs/base/common/platform';
 import * as types from 'vs/base/common/types';
@@ -46,25 +44,24 @@ export interface ISashOptions {
 	orthogonalEndSash?: Sash;
 }
 
-export enum Orientation {
+export const enum Orientation {
 	VERTICAL,
 	HORIZONTAL
 }
 
-export enum SashState {
+export const enum SashState {
 	Disabled,
 	Minimum,
 	Maximum,
 	Enabled
 }
 
-export class Sash {
+export class Sash extends Disposable {
 
 	private el: HTMLElement;
 	private layoutProvider: ISashLayoutProvider;
 	private hidden: boolean;
 	private orientation: Orientation;
-	private disposables: IDisposable[] = [];
 
 	private _state: SashState = SashState.Enabled;
 	get state(): SashState { return this._state; }
@@ -81,19 +78,19 @@ export class Sash {
 		this._onDidEnablementChange.fire(state);
 	}
 
-	private readonly _onDidEnablementChange = new Emitter<SashState>();
+	private readonly _onDidEnablementChange = this._register(new Emitter<SashState>());
 	readonly onDidEnablementChange: Event<SashState> = this._onDidEnablementChange.event;
 
-	private readonly _onDidStart = new Emitter<ISashEvent>();
+	private readonly _onDidStart = this._register(new Emitter<ISashEvent>());
 	readonly onDidStart: Event<ISashEvent> = this._onDidStart.event;
 
-	private readonly _onDidChange = new Emitter<ISashEvent>();
+	private readonly _onDidChange = this._register(new Emitter<ISashEvent>());
 	readonly onDidChange: Event<ISashEvent> = this._onDidChange.event;
 
-	private readonly _onDidReset = new Emitter<void>();
+	private readonly _onDidReset = this._register(new Emitter<void>());
 	readonly onDidReset: Event<void> = this._onDidReset.event;
 
-	private readonly _onDidEnd = new Emitter<void>();
+	private readonly _onDidEnd = this._register(new Emitter<void>());
 	readonly onDidEnd: Event<void> = this._onDidEnd.event;
 
 	linkedSash: Sash | undefined = undefined;
@@ -131,17 +128,19 @@ export class Sash {
 	}
 
 	constructor(container: HTMLElement, layoutProvider: ISashLayoutProvider, options: ISashOptions = {}) {
+		super();
+
 		this.el = append(container, $('.monaco-sash'));
 
 		if (isMacintosh) {
 			addClass(this.el, 'mac');
 		}
 
-		domEvent(this.el, 'mousedown')(this.onMouseDown, this, this.disposables);
-		domEvent(this.el, 'dblclick')(this.onMouseDoubleClick, this, this.disposables);
+		this._register(domEvent(this.el, 'mousedown')(this.onMouseDown, this));
+		this._register(domEvent(this.el, 'dblclick')(this.onMouseDoubleClick, this));
 
 		Gesture.addTarget(this.el);
-		domEvent(this.el, EventType.Start)(this.onTouchStart, this, this.disposables);
+		this._register(domEvent(this.el, EventType.Start)(this.onTouchStart, this));
 
 		if (isIPad) {
 			// see also http://ux.stackexchange.com/questions/39023/what-is-the-optimum-button-size-of-touch-screen-applications
@@ -383,6 +382,8 @@ export class Sash {
 	}
 
 	dispose(): void {
+		super.dispose();
+
 		this.orthogonalStartSashDisposables = dispose(this.orthogonalStartSashDisposables);
 		this.orthogonalEndSashDisposables = dispose(this.orthogonalEndSashDisposables);
 
@@ -390,7 +391,6 @@ export class Sash {
 			this.el.parentElement.removeChild(this.el);
 		}
 
-		this.el = null;
-		this.disposables = dispose(this.disposables);
+		this.el = null!; // StrictNullOverride: nulling out ok in dispose
 	}
 }

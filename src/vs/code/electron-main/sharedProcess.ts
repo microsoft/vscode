@@ -13,19 +13,23 @@ import { ISharedProcess } from 'vs/platform/windows/electron-main/windows';
 import { Barrier } from 'vs/base/common/async';
 import { ILogService } from 'vs/platform/log/common/log';
 import { ILifecycleService } from 'vs/platform/lifecycle/electron-main/lifecycleMain';
+import { IStateService } from 'vs/platform/state/common/state';
+import { getBackgroundColor } from 'vs/code/electron-main/theme';
+import { dispose, toDisposable, IDisposable } from 'vs/base/common/lifecycle';
 
 export class SharedProcess implements ISharedProcess {
 
 	private barrier = new Barrier();
 
-	private window: Electron.BrowserWindow;
+	private window: Electron.BrowserWindow | null;
 
 	constructor(
-		private readonly environmentService: IEnvironmentService,
-		private readonly lifecycleService: ILifecycleService,
-		private readonly logService: ILogService,
 		private readonly machineId: string,
 		private readonly userEnv: IProcessEnvironment,
+		@IEnvironmentService private readonly environmentService: IEnvironmentService,
+		@ILifecycleService private readonly lifecycleService: ILifecycleService,
+		@IStateService private readonly stateService: IStateService,
+		@ILogService private readonly logService: ILogService
 	) {
 	}
 
@@ -33,10 +37,12 @@ export class SharedProcess implements ISharedProcess {
 	private get _whenReady(): TPromise<void> {
 		this.window = new BrowserWindow({
 			show: false,
+			backgroundColor: getBackgroundColor(this.stateService),
 			webPreferences: {
 				images: false,
 				webaudio: false,
-				webgl: false
+				webgl: false,
+				disableBlinkFeatures: 'Auxclick' // do NOT change, allows us to identify this window as shared-process in the process explorer
 			}
 		});
 		const config = assign({
@@ -57,26 +63,34 @@ export class SharedProcess implements ISharedProcess {
 			e.preventDefault();
 
 			// Still hide the window though if visible
-			if (this.window.isVisible()) {
+			if (this.window && this.window.isVisible()) {
 				this.window.hide();
 			}
 		};
 
 		this.window.on('close', onClose);
 
+		const disposables: IDisposable[] = [];
+
 		this.lifecycleService.onShutdown(() => {
+			dispose(disposables);
+
 			// Shut the shared process down when we are quitting
 			//
 			// Note: because we veto the window close, we must first remove our veto.
 			// Otherwise the application would never quit because the shared process
 			// window is refusing to close!
 			//
-			this.window.removeListener('close', onClose);
+			if (this.window) {
+				this.window.removeListener('close', onClose);
+			}
 
 			// Electron seems to crash on Windows without this setTimeout :|
 			setTimeout(() => {
 				try {
-					this.window.close();
+					if (this.window) {
+						this.window.close();
+					}
 				} catch (err) {
 					// ignore, as electron is already shutting down
 				}
@@ -93,7 +107,8 @@ export class SharedProcess implements ISharedProcess {
 					logLevel: this.logService.getLevel()
 				});
 
-				ipcMain.once('handshake:im ready', () => c(null));
+				disposables.push(toDisposable(() => sender.send('handshake:goodbye')));
+				ipcMain.once('handshake:im ready', () => c(void 0));
 			});
 		});
 	}
@@ -107,7 +122,7 @@ export class SharedProcess implements ISharedProcess {
 	}
 
 	toggle(): void {
-		if (this.window.isVisible()) {
+		if (!this.window || this.window.isVisible()) {
 			this.hide();
 		} else {
 			this.show();
@@ -115,12 +130,16 @@ export class SharedProcess implements ISharedProcess {
 	}
 
 	show(): void {
-		this.window.show();
-		this.window.webContents.openDevTools();
+		if (this.window) {
+			this.window.show();
+			this.window.webContents.openDevTools();
+		}
 	}
 
 	hide(): void {
-		this.window.webContents.closeDevTools();
-		this.window.hide();
+		if (this.window) {
+			this.window.webContents.closeDevTools();
+			this.window.hide();
+		}
 	}
 }

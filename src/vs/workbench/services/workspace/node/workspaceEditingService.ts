@@ -3,10 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import { IWorkspaceEditingService } from 'vs/workbench/services/workspace/common/workspaceEditing';
-import URI from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 import * as nls from 'vs/nls';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
@@ -15,10 +13,9 @@ import { IJSONEditingService, JSONEditingError, JSONEditingErrorCode } from 'vs/
 import { IWorkspaceIdentifier, IWorkspaceFolderCreationData } from 'vs/platform/workspaces/common/workspaces';
 import { IWorkspaceConfigurationService } from 'vs/workbench/services/configuration/common/configuration';
 import { WorkspaceService } from 'vs/workbench/services/configuration/node/configurationService';
-import { migrateStorageToMultiRootWorkspace } from 'vs/platform/storage/common/migration';
 import { IStorageService } from 'vs/platform/storage/common/storage';
-import { StorageService } from 'vs/platform/storage/common/storageService';
-import { ConfigurationScope, IConfigurationRegistry, Extensions as ConfigurationExtensions } from 'vs/platform/configuration/common/configurationRegistry';
+import { DelegatingStorageService } from 'vs/platform/storage/node/storageService';
+import { ConfigurationScope, IConfigurationRegistry, Extensions as ConfigurationExtensions, IConfigurationPropertySchema } from 'vs/platform/configuration/common/configurationRegistry';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { IBackupFileService } from 'vs/workbench/services/backup/common/backup';
@@ -26,8 +23,11 @@ import { BackupFileService } from 'vs/workbench/services/backup/node/backupFileS
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { distinct } from 'vs/base/common/arrays';
 import { isLinux } from 'vs/base/common/platform';
-import { isEqual, hasToIgnoreCase } from 'vs/base/common/resources';
+import { isEqual } from 'vs/base/common/resources';
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
+import { join } from 'path';
+import { IEnvironmentService } from 'vs/platform/environment/common/environment';
+import { mkdirp } from 'vs/base/node/pfs';
 
 export class WorkspaceEditingService implements IWorkspaceEditingService {
 
@@ -42,7 +42,8 @@ export class WorkspaceEditingService implements IWorkspaceEditingService {
 		@IExtensionService private extensionService: IExtensionService,
 		@IBackupFileService private backupFileService: IBackupFileService,
 		@INotificationService private notificationService: INotificationService,
-		@ICommandService private commandService: ICommandService
+		@ICommandService private commandService: ICommandService,
+		@IEnvironmentService private environmentService: IEnvironmentService
 	) {
 	}
 
@@ -138,7 +139,7 @@ export class WorkspaceEditingService implements IWorkspaceEditingService {
 	private includesSingleFolderWorkspace(folders: URI[]): boolean {
 		if (this.contextService.getWorkbenchState() === WorkbenchState.FOLDER) {
 			const workspaceFolder = this.contextService.getWorkspace().folders[0];
-			return (folders.some(folder => isEqual(folder, workspaceFolder.uri, hasToIgnoreCase(folder))));
+			return (folders.some(folder => isEqual(folder, workspaceFolder.uri)));
 		}
 
 		return false;
@@ -166,6 +167,7 @@ export class WorkspaceEditingService implements IWorkspaceEditingService {
 				return TPromise.as(void 0);
 		}
 		this.notificationService.error(error.message);
+
 		return TPromise.as(void 0);
 	}
 
@@ -221,36 +223,52 @@ export class WorkspaceEditingService implements IWorkspaceEditingService {
 			if (!extensionHostStarted) {
 				startExtensionHost(); // start the extension host if not started
 			}
+
 			return TPromise.wrapError(error);
 		});
 	}
 
-	private migrate(toWorkspace: IWorkspaceIdentifier): TPromise<void> {
+	private migrate(toWorkspace: IWorkspaceIdentifier): Thenable<void> {
 
-		// Storage (UI State) migration
-		this.migrateStorage(toWorkspace);
+		// Storage migration
+		return this.migrateStorage(toWorkspace).then(() => {
 
-		// Settings migration (only if we come from a folder workspace)
-		if (this.contextService.getWorkbenchState() === WorkbenchState.FOLDER) {
-			return this.copyWorkspaceSettings(toWorkspace);
-		}
+			// Settings migration (only if we come from a folder workspace)
+			if (this.contextService.getWorkbenchState() === WorkbenchState.FOLDER) {
+				return this.migrateWorkspaceSettings(toWorkspace);
+			}
 
-		return TPromise.as(void 0);
+			return void 0;
+		});
 	}
 
-	private migrateStorage(toWorkspace: IWorkspaceIdentifier): void {
+	private migrateStorage(toWorkspace: IWorkspaceIdentifier): Thenable<void> {
+		const newWorkspaceStorageHome = join(this.environmentService.workspaceStorageHome, toWorkspace.id);
 
-		// TODO@Ben revisit this when we move away from local storage to a file based approach
-		const storageImpl = this.storageService as StorageService;
-		const newWorkspaceId = migrateStorageToMultiRootWorkspace(storageImpl.workspaceId, toWorkspace, storageImpl.workspaceStorage);
-		storageImpl.setWorkspaceId(newWorkspaceId);
+		return mkdirp(newWorkspaceStorageHome).then(() => {
+			const storageImpl = this.storageService as DelegatingStorageService;
+
+			return storageImpl.storage.migrate(newWorkspaceStorageHome);
+		});
+	}
+
+	private migrateWorkspaceSettings(toWorkspace: IWorkspaceIdentifier): TPromise<void> {
+		return this.doCopyWorkspaceSettings(toWorkspace, setting => setting.scope === ConfigurationScope.WINDOW);
 	}
 
 	copyWorkspaceSettings(toWorkspace: IWorkspaceIdentifier): TPromise<void> {
+		return this.doCopyWorkspaceSettings(toWorkspace);
+	}
+
+	private doCopyWorkspaceSettings(toWorkspace: IWorkspaceIdentifier, filter?: (config: IConfigurationPropertySchema) => boolean): TPromise<void> {
 		const configurationProperties = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).getConfigurationProperties();
 		const targetWorkspaceConfiguration = {};
 		for (const key of this.workspaceConfigurationService.keys().workspace) {
-			if (configurationProperties[key] && !configurationProperties[key].notMultiRootAdopted && configurationProperties[key].scope === ConfigurationScope.WINDOW) {
+			if (configurationProperties[key]) {
+				if (filter && !filter(configurationProperties[key])) {
+					continue;
+				}
+
 				targetWorkspaceConfiguration[key] = this.workspaceConfigurationService.inspect(key).workspace;
 			}
 		}

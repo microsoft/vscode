@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as nls from 'vs/nls';
-import { TPromise } from 'vs/base/common/winjs.base';
 import { IAutoFocus, Mode, IModel } from 'vs/base/parts/quickopen/common/quickOpen';
 import { QuickOpenEntry, QuickOpenModel } from 'vs/base/parts/quickopen/browser/quickOpenModel';
 import { QuickOpenHandler } from 'vs/workbench/browser/quickopen';
@@ -12,6 +11,7 @@ import { IExtensionsViewlet, VIEWLET_ID } from 'vs/workbench/parts/extensions/co
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { IExtensionGalleryService, IExtensionManagementService } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { INotificationService } from 'vs/platform/notification/common/notification';
+import { CancellationToken } from 'vs/base/common/cancellation';
 
 class SimpleEntry extends QuickOpenEntry {
 
@@ -46,18 +46,18 @@ export class ExtensionsHandler extends QuickOpenHandler {
 		super();
 	}
 
-	getResults(text: string): TPromise<IModel<any>> {
+	getResults(text: string, token: CancellationToken): Promise<IModel<any>> {
 		const label = nls.localize('manage', "Press Enter to manage your extensions.");
 		const action = () => {
 			this.viewletService.openViewlet(VIEWLET_ID, true)
 				.then(viewlet => viewlet as IExtensionsViewlet)
-				.done(viewlet => {
+				.then(viewlet => {
 					viewlet.search('');
 					viewlet.focus();
 				});
 		};
 
-		return TPromise.as(new QuickOpenModel([new SimpleEntry(label, action)]));
+		return Promise.resolve(new QuickOpenModel([new SimpleEntry(label, action)]));
 	}
 
 	getEmptyLabel(input: string): string {
@@ -82,7 +82,7 @@ export class GalleryExtensionsHandler extends QuickOpenHandler {
 		super();
 	}
 
-	getResults(text: string): TPromise<IModel<any>> {
+	getResults(text: string, token: CancellationToken): Promise<IModel<any>> {
 		if (/\./.test(text)) {
 			return this.galleryService.query({ names: [text], pageSize: 1 })
 				.then(galleryResult => {
@@ -100,7 +100,7 @@ export class GalleryExtensionsHandler extends QuickOpenHandler {
 								.then(viewlet => viewlet as IExtensionsViewlet)
 								.then(viewlet => viewlet.search(`@id:${text}`))
 								.then(() => this.extensionsService.installFromGallery(galleryExtension))
-								.done(null, err => this.notificationService.error(err));
+								.then(null, err => this.notificationService.error(err));
 						};
 
 						entries.push(new SimpleEntry(label, action));
@@ -117,7 +117,7 @@ export class GalleryExtensionsHandler extends QuickOpenHandler {
 			const action = () => {
 				this.viewletService.openViewlet(VIEWLET_ID, true)
 					.then(viewlet => viewlet as IExtensionsViewlet)
-					.done(viewlet => {
+					.then(viewlet => {
 						viewlet.search(text);
 						viewlet.focus();
 					});
@@ -126,7 +126,7 @@ export class GalleryExtensionsHandler extends QuickOpenHandler {
 			entries.push(new SimpleEntry(label, action));
 		}
 
-		return TPromise.as(new QuickOpenModel(entries));
+		return Promise.resolve(new QuickOpenModel(entries));
 	}
 
 	getEmptyLabel(input: string): string {

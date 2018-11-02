@@ -77,6 +77,7 @@ export class DebugHoverWidget implements IContentWidget {
 			controller: this.instantiationService.createInstance(DebugHoverController, this.editor)
 		}, {
 				indentPixels: 6,
+				horizontalScrollMode: ScrollbarVisibility.Auto,
 				twistiePixels: 15,
 				ariaLabel: nls.localize('treeAriaLabel', "Debug Hover")
 			});
@@ -148,11 +149,11 @@ export class DebugHoverWidget implements IContentWidget {
 		// use regex to extract the sub-expression #9821
 		const matchingExpression = lineContent.substring(start - 1, end);
 		if (!matchingExpression) {
-			return TPromise.as(this.hide());
+			return Promise.resolve(this.hide());
 		}
 
 		let promise: TPromise<IExpression>;
-		if (session.raw.capabilities.supportsEvaluateForHovers) {
+		if (session.capabilities.supportsEvaluateForHovers) {
 			const result = new Expression(matchingExpression);
 			promise = result.evaluate(session, this.debugService.getViewModel().focusedStackFrame, 'hover').then(() => result);
 		} else {
@@ -180,7 +181,7 @@ export class DebugHoverWidget implements IContentWidget {
 
 	private doFindExpression(container: IExpressionContainer, namesToFind: string[]): TPromise<IExpression> {
 		if (!container) {
-			return TPromise.as(null);
+			return Promise.resolve(null);
 		}
 
 		return container.getChildren().then(children => {
@@ -201,7 +202,7 @@ export class DebugHoverWidget implements IContentWidget {
 	private findExpressionInStackFrame(namesToFind: string[]): TPromise<IExpression> {
 		return this.debugService.getViewModel().focusedStackFrame.getScopes()
 			.then(scopes => scopes.filter(s => !s.expensive))
-			.then(scopes => TPromise.join(scopes.map(scope => this.doFindExpression(scope, namesToFind))))
+			.then(scopes => Promise.all(scopes.map(scope => this.doFindExpression(scope, namesToFind))))
 			.then(expressions => expressions.filter(exp => !!exp))
 			// only show if all expressions found have the same value
 			.then(expressions => (expressions.length > 0 && expressions.every(e => e.value === expressions[0].value)) ? expressions[0] : null);
@@ -232,7 +233,7 @@ export class DebugHoverWidget implements IContentWidget {
 				this.valueContainer.focus();
 			}
 
-			return TPromise.as(null);
+			return Promise.resolve(null);
 		}
 
 		this.valueContainer.hidden = true;

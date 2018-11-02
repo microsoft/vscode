@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import * as fs from 'fs';
 import * as path from 'path';
 import * as os from 'os';
@@ -13,7 +11,7 @@ import * as assert from 'assert';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { FileService } from 'vs/workbench/services/files/electron-browser/fileService';
 import { FileOperation, FileOperationEvent, FileChangesEvent, FileOperationResult, FileOperationError } from 'vs/platform/files/common/files';
-import uri from 'vs/base/common/uri';
+import { URI as uri } from 'vs/base/common/uri';
 import * as uuid from 'vs/base/common/uuid';
 import * as pfs from 'vs/base/node/pfs';
 import * as encodingLib from 'vs/base/node/encoding';
@@ -37,7 +35,7 @@ suite('FileService', () => {
 		const sourceDir = getPathFromAmdModule(require, './fixtures/service');
 
 		return pfs.copy(sourceDir, testDir).then(() => {
-			service = new FileService(new TestContextService(new Workspace(testDir, testDir, toWorkspaceFolders([{ path: testDir }]))), TestEnvironmentService, new TestTextResourceConfigurationService(), new TestConfigurationService(), new TestLifecycleService(), new TestStorageService(), new TestNotificationService(), { disableWatcher: true });
+			service = new FileService(new TestContextService(new Workspace(testDir, toWorkspaceFolders([{ path: testDir }]))), TestEnvironmentService, new TestTextResourceConfigurationService(), new TestConfigurationService(), new TestLifecycleService(), new TestStorageService(), new TestNotificationService(), { disableWatcher: true });
 		});
 	});
 
@@ -46,7 +44,7 @@ suite('FileService', () => {
 		return pfs.del(parentDir, os.tmpdir());
 	});
 
-	test('createFile', function () {
+	test('createFile', () => {
 		let event: FileOperationEvent;
 		const toDispose = service.onAfterOperation(e => {
 			event = e;
@@ -102,7 +100,7 @@ suite('FileService', () => {
 		});
 	});
 
-	test('createFolder', function () {
+	test('createFolder', () => {
 		let event: FileOperationEvent;
 		const toDispose = service.onAfterOperation(e => {
 			event = e;
@@ -150,7 +148,7 @@ suite('FileService', () => {
 		});
 	});
 
-	test('renameFile', function () {
+	test('renameFile', () => {
 		let event: FileOperationEvent;
 		const toDispose = service.onAfterOperation(e => {
 			event = e;
@@ -195,7 +193,7 @@ suite('FileService', () => {
 		});
 	});
 
-	test('renameFolder', function () {
+	test('renameFolder', () => {
 		let event: FileOperationEvent;
 		const toDispose = service.onAfterOperation(e => {
 			event = e;
@@ -260,7 +258,7 @@ suite('FileService', () => {
 		});
 	});
 
-	test('moveFile', function () {
+	test('moveFile', () => {
 		let event: FileOperationEvent;
 		const toDispose = service.onAfterOperation(e => {
 			event = e;
@@ -371,7 +369,7 @@ suite('FileService', () => {
 		});
 	});
 
-	test('copyFile', function () {
+	test('copyFile', () => {
 		let event: FileOperationEvent;
 		const toDispose = service.onAfterOperation(e => {
 			event = e;
@@ -458,7 +456,7 @@ suite('FileService', () => {
 		});
 	});
 
-	test('deleteFile', function () {
+	test('deleteFile', () => {
 		let event: FileOperationEvent;
 		const toDispose = service.onAfterOperation(e => {
 			event = e;
@@ -507,7 +505,7 @@ suite('FileService', () => {
 		});
 	});
 
-	test('resolveFile', function () {
+	test('resolveFile', () => {
 		return service.resolveFile(uri.file(testDir), { resolveTo: [uri.file(path.join(testDir, 'deep'))] }).then(r => {
 			assert.equal(r.children.length, 8);
 
@@ -516,7 +514,7 @@ suite('FileService', () => {
 		});
 	});
 
-	test('resolveFiles', function () {
+	test('resolveFiles', () => {
 		return service.resolveFiles([
 			{ resource: uri.file(testDir), options: { resolveTo: [uri.file(path.join(testDir, 'deep'))] } },
 			{ resource: uri.file(path.join(testDir, 'deep')) }
@@ -534,7 +532,7 @@ suite('FileService', () => {
 		});
 	});
 
-	test('existsFile', function () {
+	test('existsFile', () => {
 		return service.existsFile(uri.file(testDir)).then((exists) => {
 			assert.equal(exists, true);
 
@@ -544,7 +542,7 @@ suite('FileService', () => {
 		});
 	});
 
-	test('updateContent', function () {
+	test('updateContent', () => {
 		const resource = uri.file(path.join(testDir, 'small.txt'));
 
 		return service.resolveContent(resource).then(c => {
@@ -853,7 +851,7 @@ suite('FileService', () => {
 			const textResourceConfigurationService = new TestTextResourceConfigurationService(configurationService);
 
 			const _service = new FileService(
-				new TestContextService(new Workspace(_testDir, _testDir, toWorkspaceFolders([{ path: _testDir }]))),
+				new TestContextService(new Workspace(_testDir, toWorkspaceFolders([{ path: _testDir }]))),
 				TestEnvironmentService,
 				textResourceConfigurationService,
 				configurationService,
@@ -898,7 +896,7 @@ suite('FileService', () => {
 			const textResourceConfigurationService = new TestTextResourceConfigurationService(configurationService);
 
 			const _service = new FileService(
-				new TestContextService(new Workspace(_testDir, _testDir, toWorkspaceFolders([{ path: _testDir }]))),
+				new TestContextService(new Workspace(_testDir, toWorkspaceFolders([{ path: _testDir }]))),
 				TestEnvironmentService,
 				textResourceConfigurationService,
 				configurationService,
@@ -932,7 +930,7 @@ suite('FileService', () => {
 		const resource = uri.file(path.join(testDir, 'index.html'));
 
 		const _service = new FileService(
-			new TestContextService(new Workspace(_testDir, _testDir, toWorkspaceFolders([{ path: _testDir }]))),
+			new TestContextService(new Workspace(_testDir, toWorkspaceFolders([{ path: _testDir }]))),
 			TestEnvironmentService,
 			new TestTextResourceConfigurationService(),
 			new TestConfigurationService(),

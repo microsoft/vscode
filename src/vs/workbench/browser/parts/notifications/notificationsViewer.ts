@@ -3,12 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
-import { IVirtualDelegate, IRenderer } from 'vs/base/browser/ui/list/list';
+import { IListVirtualDelegate, IListRenderer } from 'vs/base/browser/ui/list/list';
 import { clearNode, addClass, removeClass, toggleClass, addDisposableListener, EventType, EventHelper } from 'vs/base/browser/dom';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
-import URI from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { localize } from 'vs/nls';
 import { ButtonGroup } from 'vs/base/browser/ui/button/button';
@@ -20,13 +18,13 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { DropdownMenuActionItem } from 'vs/base/browser/ui/dropdown/dropdown';
-import { INotificationViewItem, NotificationViewItem, NotificationViewItemLabelKind, INotificationMessage } from 'vs/workbench/common/notifications';
+import { INotificationViewItem, NotificationViewItem, NotificationViewItemLabelKind, INotificationMessage, ChoiceAction } from 'vs/workbench/common/notifications';
 import { ClearNotificationAction, ExpandNotificationAction, CollapseNotificationAction, ConfigureNotificationAction } from 'vs/workbench/browser/parts/notifications/notificationsActions';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { ProgressBar } from 'vs/base/browser/ui/progressbar/progressbar';
 import { Severity } from 'vs/platform/notification/common/notification';
 
-export class NotificationsListDelegate implements IVirtualDelegate<INotificationViewItem> {
+export class NotificationsListDelegate implements IListVirtualDelegate<INotificationViewItem> {
 
 	private static readonly ROW_HEIGHT = 42;
 	private static readonly LINE_HEIGHT = 22;
@@ -179,7 +177,7 @@ class NotificationMessageRenderer {
 	}
 }
 
-export class NotificationRenderer implements IRenderer<INotificationViewItem, INotificationTemplateData> {
+export class NotificationRenderer implements IListRenderer<INotificationViewItem, INotificationTemplateData> {
 
 	static readonly TEMPLATE_ID = 'notification';
 
@@ -426,10 +424,10 @@ export class NotificationTemplateRenderer {
 
 	private renderSource(notification): void {
 		if (notification.expanded && notification.source) {
-			this.template.source.innerText = localize('notificationSource', "Source: {0}", notification.source);
+			this.template.source.textContent = localize('notificationSource', "Source: {0}", notification.source);
 			this.template.source.title = notification.source;
 		} else {
-			this.template.source.innerText = '';
+			this.template.source.textContent = '';
 			this.template.source.removeAttribute('title');
 		}
 	}
@@ -449,8 +447,10 @@ export class NotificationTemplateRenderer {
 					// Run action
 					this.actionRunner.run(action, notification);
 
-					// Hide notification
-					notification.close();
+					// Hide notification (unless explicitly prevented)
+					if (!(action instanceof ChoiceAction) || !action.keepOpen) {
+						notification.close();
+					}
 				}));
 
 				this.inputDisposeables.push(attachButtonStyler(button, this.themeService));

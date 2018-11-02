@@ -2,7 +2,6 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
 import {
 	createConnection, IConnection, TextDocuments, InitializeParams, InitializeResult, RequestType,
@@ -136,7 +135,7 @@ connection.onInitialize((params: InitializeParams): InitializeResult => {
 	return { capabilities };
 });
 
-connection.onInitialized((p) => {
+connection.onInitialized(() => {
 	if (workspaceFoldersSupport) {
 		connection.client.register(DidChangeWorkspaceFoldersNotification.type);
 

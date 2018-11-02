@@ -5,7 +5,7 @@
 
 import { Code } from '../../vscode/code';
 
-const SEARCH_INPUT = '.settings-search-input input';
+const SEARCH_INPUT = '.keybindings-header .settings-search-input input';
 
 export class KeybindingsEditor {
 

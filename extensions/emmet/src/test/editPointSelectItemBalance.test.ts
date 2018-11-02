@@ -59,7 +59,7 @@ suite('Tests for Next/Previous Select/Edit point and Balance actions', () => {
 `;
 
 	test('Emmet Next/Prev Edit point in html file', function (): any {
-		return withRandomFileEditor(htmlContents, '.html', (editor, doc) => {
+		return withRandomFileEditor(htmlContents, '.html', (editor, _) => {
 			editor.selections = [new Selection(1, 5, 1, 5)];
 
 			let expectedNextEditPoints: [number, number][] = [[4, 16], [6, 8], [10, 2], [20, 0]];
@@ -79,7 +79,7 @@ suite('Tests for Next/Previous Select/Edit point and Balance actions', () => {
 	});
 
 	test('Emmet Select Next/Prev Item in html file', function (): any {
-		return withRandomFileEditor(htmlContents, '.html', (editor, doc) => {
+		return withRandomFileEditor(htmlContents, '.html', (editor, _) => {
 			editor.selections = [new Selection(2, 2, 2, 2)];
 
 			let expectedNextItemPoints: [number, number, number][] = [
@@ -114,7 +114,7 @@ suite('Tests for Next/Previous Select/Edit point and Balance actions', () => {
 	});
 
 	test('Emmet Select Next/Prev item at boundary', function(): any {
-		return withRandomFileEditor(htmlContents, '.html', (editor, doc) => {
+		return withRandomFileEditor(htmlContents, '.html', (editor, _) => {
 			editor.selections = [new Selection(4, 1, 4, 1)];
 
 			fetchSelectItem('next');
@@ -138,7 +138,7 @@ suite('Tests for Next/Previous Select/Edit point and Balance actions', () => {
 	</div>
 </script>
 `;
-		return withRandomFileEditor(templateContents, '.html', (editor, doc) => {
+		return withRandomFileEditor(templateContents, '.html', (editor, _) => {
 			editor.selections = [new Selection(2, 2, 2, 2)];
 
 			let expectedNextItemPoints: [number, number, number][] = [
@@ -167,7 +167,7 @@ suite('Tests for Next/Previous Select/Edit point and Balance actions', () => {
 	});
 
 	test('Emmet Select Next/Prev Item in css file', function (): any {
-		return withRandomFileEditor(cssContents, '.css', (editor, doc) => {
+		return withRandomFileEditor(cssContents, '.css', (editor, _) => {
 			editor.selections = [new Selection(0, 0, 0, 0)];
 
 			let expectedNextItemPoints: [number, number, number][] = [
@@ -198,7 +198,7 @@ suite('Tests for Next/Previous Select/Edit point and Balance actions', () => {
 	});
 
 	test('Emmet Select Next/Prev Item in scss file with nested rules', function (): any {
-		return withRandomFileEditor(scssContents, '.scss', (editor, doc) => {
+		return withRandomFileEditor(scssContents, '.scss', (editor, _) => {
 			editor.selections = [new Selection(0, 0, 0, 0)];
 
 			let expectedNextItemPoints: [number, number, number][] = [
@@ -229,7 +229,7 @@ suite('Tests for Next/Previous Select/Edit point and Balance actions', () => {
 	});
 
 	test('Emmet Balance Out in html file', function (): any {
-		return withRandomFileEditor(htmlContents, 'html', (editor, doc) => {
+		return withRandomFileEditor(htmlContents, 'html', (editor, _) => {
 
 			editor.selections = [new Selection(14, 6, 14, 10)];
 			let expectedBalanceOutRanges: [number, number, number, number][] = [
@@ -250,6 +250,7 @@ suite('Tests for Next/Previous Select/Edit point and Balance actions', () => {
 
 			editor.selections = [new Selection(12, 7, 12, 7)];
 			let expectedBalanceInRanges: [number, number, number, number][] = [
+				[12, 21, 17, 1],   // inner contents of <div class="header">
 				[13, 2, 16, 7],		// outer contents of <ul class="nav main">
 				[13, 23, 16, 2],  // inner contents of <ul class="nav main">
 				[14, 3, 14, 32],   // <li class="item1">Item 1</li>
@@ -265,7 +266,7 @@ suite('Tests for Next/Previous Select/Edit point and Balance actions', () => {
 	});
 
 	test('Emmet Balance In using the same stack as Balance out in html file', function (): any {
-		return withRandomFileEditor(htmlContents, 'html', (editor, doc) => {
+		return withRandomFileEditor(htmlContents, 'html', (editor, _) => {
 
 			editor.selections = [new Selection(15, 6, 15, 10)];
 			let expectedBalanceOutRanges: [number, number, number, number][] = [
@@ -293,6 +294,25 @@ suite('Tests for Next/Previous Select/Edit point and Balance actions', () => {
 		});
 	});
 
+	test('Emmet Balance In when selection doesnt span entire node or its inner contents', function (): any {
+		return withRandomFileEditor(htmlContents, 'html', (editor, _) => {
+
+			editor.selection = new Selection(13, 7, 13, 10); // Inside the open tag of <ul class="nav main">
+			balanceIn();
+			testSelection(editor.selection, 23, 13, 2, 16); // inner contents of <ul class="nav main">
+
+			editor.selection = new Selection(16, 4, 16, 5); // Inside the open close of <ul class="nav main">
+			balanceIn();
+			testSelection(editor.selection, 23, 13, 2, 16); // inner contents of <ul class="nav main">
+
+			editor.selection = new Selection(13, 7, 14, 2); // Inside the open tag of <ul class="nav main"> and the next line
+			balanceIn();
+			testSelection(editor.selection, 23, 13, 2, 16); // inner contents of <ul class="nav main">
+
+			return Promise.resolve();
+		});
+	});
+
 	test('Emmet Balance In/Out in html template', function (): any {
 		const htmlTemplate = `
 <script type="text/html">
@@ -304,7 +324,7 @@ suite('Tests for Next/Previous Select/Edit point and Balance actions', () => {
 </div>
 </script>`;
 
-		return withRandomFileEditor(htmlTemplate, 'html', (editor, doc) => {
+		return withRandomFileEditor(htmlTemplate, 'html', (editor, _) => {
 
 			editor.selections = [new Selection(5, 24, 5, 24)];
 			let expectedBalanceOutRanges: [number, number, number, number][] = [

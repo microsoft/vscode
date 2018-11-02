@@ -72,7 +72,6 @@
 	background-position: center center;
 	flex-shrink: 0;
 	transition: transform 50ms ease;
-	-webkit-transition: -webkit-transform 50ms ease;
 }
 
 .vs-dark .monaco-workbench > .part > .title > .title-actions .start-debug-action-item .icon,
@@ -93,7 +92,6 @@
 }
 
 .monaco-workbench > .part > .title > .title-actions .start-debug-action-item .icon.active {
-	-webkit-transform: scale(1.272019649, 1.272019649);
 	transform: scale(1.272019649, 1.272019649);
 }
 
@@ -109,6 +107,7 @@
 	font-size: 0.9em;
 	padding: 0 3px;
 	margin-left: 0.8em;
+	line-height: 20px;
 }
 
 .debug-viewlet .monaco-tree .monaco-tree-row.selected .line-number,
@@ -258,6 +257,11 @@
 	text-align: center;
 }
 
+.debug-viewlet .debug-call-stack .show-more {
+	font-style: italic;
+	opacity: 0.35;
+}
+
 .monaco-workbench .debug-viewlet .monaco-tree-row .expression {
 	white-space: pre;
 }
@@ -349,6 +353,10 @@
 }
 
 /* Breakpoints */
+
+.debug-viewlet .monaco-list-row {
+	line-height: 22px;
+}
 
 .debug-viewlet .debug-breakpoints .monaco-list-row .breakpoint {
 	padding-left: 2px;

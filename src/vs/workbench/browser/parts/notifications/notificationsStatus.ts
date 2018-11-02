@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import { INotificationsModel, INotificationChangeEvent, NotificationChangeType, INotificationViewItem } from 'vs/workbench/common/notifications';
 import { IStatusbarService, StatusbarAlignment } from 'vs/platform/statusbar/common/statusbar';
 import { IDisposable, Disposable } from 'vs/base/common/lifecycle';

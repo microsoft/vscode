@@ -14,9 +14,10 @@ import { IShellLaunchConfig } from 'vs/workbench/parts/terminal/common/terminal'
 
 export class TerminalProcess implements ITerminalChildProcess, IDisposable {
 	private _exitCode: number;
-	private _closeTimeout: number;
+	private _closeTimeout: any;
 	private _ptyProcess: pty.IPty;
 	private _currentTitle: string = '';
+	private _processStartupComplete: Promise<void>;
 
 	private readonly _onProcessData: Emitter<string> = new Emitter<string>();
 	public get onProcessData(): Event<string> { return this._onProcessData.event; }
@@ -51,7 +52,20 @@ export class TerminalProcess implements ITerminalChildProcess, IDisposable {
 			rows
 		};
 
-		this._ptyProcess = pty.spawn(shellLaunchConfig.executable, shellLaunchConfig.args, options);
+		try {
+			this._ptyProcess = pty.spawn(shellLaunchConfig.executable, shellLaunchConfig.args, options);
+			this._processStartupComplete = new Promise<void>(c => {
+				this.onProcessIdReady((pid) => {
+					c();
+				});
+			});
+		} catch (error) {
+			// The only time this is expected to happen is when the file specified to launch with does not exist.
+			this._exitCode = 2;
+			this._queueProcessExit();
+			this._processStartupComplete = Promise.resolve(void 0);
+			return;
+		}
 		this._ptyProcess.on('data', (data) => {
 			this._onProcessData.fire(data);
 			if (this._closeTimeout) {
@@ -79,7 +93,11 @@ export class TerminalProcess implements ITerminalChildProcess, IDisposable {
 	}
 
 	private _setupTitlePolling() {
-		this._sendProcessTitle();
+		// Send initial timeout async to give event listeners a chance to init
+		setTimeout(() => {
+			this._sendProcessTitle();
+		}, 0);
+		// Setup polling
 		setInterval(() => {
 			if (this._currentTitle !== this._ptyProcess.process) {
 				this._sendProcessTitle();
@@ -93,11 +111,23 @@ export class TerminalProcess implements ITerminalChildProcess, IDisposable {
 		if (this._closeTimeout) {
 			clearTimeout(this._closeTimeout);
 		}
-		this._closeTimeout = setTimeout(() => {
-			this._ptyProcess.kill();
+		this._closeTimeout = setTimeout(() => this._kill(), 250);
+	}
+
+	private _kill(): void {
+		// Wait to kill to process until the start up code has run. This prevents us from firing a process exit before a
+		// process start.
+		this._processStartupComplete.then(() => {
+			// Attempt to kill the pty, it may have already been killed at this
+			// point but we want to make sure
+			try {
+				this._ptyProcess.kill();
+			} catch (ex) {
+				// Swallow, the pty has already been killed
+			}
 			this._onProcessExit.fire(this._exitCode);
 			this.dispose();
-		}, 250);
+		});
 	}
 
 	private _sendProcessId() {
@@ -109,8 +139,12 @@ export class TerminalProcess implements ITerminalChildProcess, IDisposable {
 		this._onProcessTitleChanged.fire(this._currentTitle);
 	}
 
-	public shutdown(): void {
-		this._queueProcessExit();
+	public shutdown(immediate: boolean): void {
+		if (immediate) {
+			this._kill();
+		} else {
+			this._queueProcessExit();
+		}
 	}
 
 	public input(data: string): void {

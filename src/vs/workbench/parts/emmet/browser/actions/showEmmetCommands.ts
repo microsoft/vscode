@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import * as nls from 'vs/nls';
 
 import { TPromise } from 'vs/base/common/winjs.base';
@@ -36,7 +34,7 @@ class ShowEmmetCommandsAction extends EditorAction {
 	public run(accessor: ServicesAccessor, editor: ICodeEditor): TPromise<void> {
 		const quickOpenService = accessor.get(IQuickOpenService);
 		quickOpenService.show(EMMET_COMMANDS_PREFIX);
-		return TPromise.as(null);
+		return TPromise.as(void 0);
 	}
 }
 

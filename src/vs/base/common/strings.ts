@@ -2,7 +2,6 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
 import { CharCode } from 'vs/base/common/charCode';
 
@@ -79,7 +78,7 @@ export function escapeRegExpCharacters(value: string): string {
  * @param haystack string to trim
  * @param needle the thing to trim (default is a blank)
  */
-export function trim(haystack: string, needle: string = ' '): string {
+export function trim(haystack: string, needle: string = ' '): string | undefined {
 	let trimmed = ltrim(haystack, needle);
 	return rtrim(trimmed, needle);
 }
@@ -89,7 +88,7 @@ export function trim(haystack: string, needle: string = ' '): string {
  * @param haystack string to trim
  * @param needle the thing to trim
  */
-export function ltrim(haystack?: string, needle?: string): string {
+export function ltrim(haystack: string, needle: string): string {
 	if (!haystack || !needle) {
 		return haystack;
 	}
@@ -99,10 +98,9 @@ export function ltrim(haystack?: string, needle?: string): string {
 		return haystack;
 	}
 
-	let offset = 0,
-		idx = -1;
+	let offset = 0;
 
-	while ((idx = haystack.indexOf(needle, offset)) === offset) {
+	while (haystack.indexOf(needle, offset) === offset) {
 		offset = offset + needleLen;
 	}
 	return haystack.substring(offset);
@@ -113,7 +111,7 @@ export function ltrim(haystack?: string, needle?: string): string {
  * @param haystack string to trim
  * @param needle the thing to trim
  */
-export function rtrim(haystack?: string, needle?: string): string {
+export function rtrim(haystack: string, needle: string): string {
 	if (!haystack || !needle) {
 		return haystack;
 	}
@@ -231,7 +229,7 @@ export function regExpLeadsToEndlessLoop(regexp: RegExp): boolean {
 	// We check against an empty string. If the regular expression doesn't advance
 	// (e.g. ends in an endless loop) it will match an empty string.
 	let match = regexp.exec('');
-	return (match && <any>regexp.lastIndex === 0);
+	return !!(match && <any>regexp.lastIndex === 0);
 }
 
 export function regExpContainsBackreference(regexpValue: string): boolean {
@@ -623,7 +621,7 @@ export function removeAnsiEscapeCodes(str: string): string {
 export const UTF8_BOM_CHARACTER = String.fromCharCode(CharCode.UTF8_BOM);
 
 export function startsWithUTF8BOM(str: string): boolean {
-	return (str && str.length > 0 && str.charCodeAt(0) === CharCode.UTF8_BOM);
+	return !!(str && str.length > 0 && str.charCodeAt(0) === CharCode.UTF8_BOM);
 }
 
 export function stripUTF8BOM(str: string): string {
@@ -684,4 +682,24 @@ export function containsUppercaseCharacter(target: string, ignoreEscapedChars = 
 	}
 
 	return target.toLowerCase() !== target;
+}
+
+export function uppercaseFirstLetter(str: string): string {
+	return str.charAt(0).toUpperCase() + str.slice(1);
+}
+
+export function getNLines(str: string, n = 1): string {
+	if (n === 0) {
+		return '';
+	}
+
+	let idx = -1;
+	do {
+		idx = str.indexOf('\n', idx + 1);
+		n--;
+	} while (n > 0 && idx >= 0);
+
+	return idx >= 0 ?
+		str.substr(0, idx) :
+		str;
 }

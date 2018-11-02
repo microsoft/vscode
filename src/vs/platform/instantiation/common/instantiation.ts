@@ -2,7 +2,6 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
 import { ServiceCollection } from './serviceCollection';
 import * as descriptors from './descriptors';
@@ -63,42 +62,6 @@ export interface ServicesAccessor {
 	get<T>(id: ServiceIdentifier<T>, isOptional?: typeof optional): T;
 }
 
-export interface IFunctionSignature0<R> {
-	(accessor: ServicesAccessor): R;
-}
-
-export interface IFunctionSignature1<A1, R> {
-	(accessor: ServicesAccessor, first: A1): R;
-}
-
-export interface IFunctionSignature2<A1, A2, R> {
-	(accessor: ServicesAccessor, first: A1, second: A2): R;
-}
-
-export interface IFunctionSignature3<A1, A2, A3, R> {
-	(accessor: ServicesAccessor, first: A1, second: A2, third: A3): R;
-}
-
-export interface IFunctionSignature4<A1, A2, A3, A4, R> {
-	(accessor: ServicesAccessor, first: A1, second: A2, third: A3, fourth: A4): R;
-}
-
-export interface IFunctionSignature5<A1, A2, A3, A4, A5, R> {
-	(accessor: ServicesAccessor, first: A1, second: A2, third: A3, fourth: A4, fifth: A5): R;
-}
-
-export interface IFunctionSignature6<A1, A2, A3, A4, A5, A6, R> {
-	(accessor: ServicesAccessor, first: A1, second: A2, third: A3, fourth: A4, fifth: A5, sixth: A6): R;
-}
-
-export interface IFunctionSignature7<A1, A2, A3, A4, A5, A6, A7, R> {
-	(accessor: ServicesAccessor, first: A1, second: A2, third: A3, fourth: A4, fifth: A5, sixth: A6, seventh: A7): R;
-}
-
-export interface IFunctionSignature8<A1, A2, A3, A4, A5, A6, A7, A8, R> {
-	(accessor: ServicesAccessor, first: A1, second: A2, third: A3, fourth: A4, fifth: A5, sixth: A6, seventh: A7, eigth: A8): R;
-}
-
 export const IInstantiationService = createDecorator<IInstantiationService>('instantiationService');
 
 export interface IInstantiationService {
@@ -132,15 +95,7 @@ export interface IInstantiationService {
 	/**
 	 *
 	 */
-	invokeFunction<R>(ctor: IFunctionSignature0<R>): R;
-	invokeFunction<A1, R>(ctor: IFunctionSignature1<A1, R>, first: A1): R;
-	invokeFunction<A1, A2, R>(ctor: IFunctionSignature2<A1, A2, R>, first: A1, second: A2): R;
-	invokeFunction<A1, A2, A3, R>(ctor: IFunctionSignature3<A1, A2, A3, R>, first: A1, second: A2, third: A3): R;
-	invokeFunction<A1, A2, A3, A4, R>(ctor: IFunctionSignature4<A1, A2, A3, A4, R>, first: A1, second: A2, third: A3, fourth: A4): R;
-	invokeFunction<A1, A2, A3, A4, A5, R>(ctor: IFunctionSignature5<A1, A2, A3, A4, A5, R>, first: A1, second: A2, third: A3, fourth: A4, fifth: A5): R;
-	invokeFunction<A1, A2, A3, A4, A5, A6, R>(ctor: IFunctionSignature6<A1, A2, A3, A4, A5, A6, R>, first: A1, second: A2, third: A3, fourth: A4, fifth: A5, sixth: A6): R;
-	invokeFunction<A1, A2, A3, A4, A5, A6, A7, R>(ctor: IFunctionSignature7<A1, A2, A3, A4, A5, A6, A7, R>, first: A1, second: A2, third: A3, fourth: A4, fifth: A5, sixth: A6, seventh: A7): R;
-	invokeFunction<A1, A2, A3, A4, A5, A6, A7, A8, R>(ctor: IFunctionSignature8<A1, A2, A3, A4, A5, A6, A7, A8, R>, first: A1, second: A2, third: A3, fourth: A4, fifth: A5, sixth: A6, seventh: A7, eigth: A8): R;
+	invokeFunction<R, TS extends any[]=[]>(fn: (accessor: ServicesAccessor, ...args: TS) => R, ...args: TS): R;
 
 	/**
 	 * Creates a child of this service which inherts all current services

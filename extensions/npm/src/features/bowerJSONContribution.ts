@@ -2,10 +2,9 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
 import { MarkedString, CompletionItemKind, CompletionItem, DocumentSelector, SnippetString, workspace } from 'vscode';
-import { IJSONContribution, ISuggestionsCollector, xhrDisabled } from './jsonContributions';
+import { IJSONContribution, ISuggestionsCollector } from './jsonContributions';
 import { XHRRequest } from 'request-light';
 import { Location } from 'jsonc-parser';
 import { textToMarkedString } from './markedTextUtil';
@@ -27,21 +26,16 @@ export class BowerJSONContribution implements IJSONContribution {
 
 	private xhr: XHRRequest;
 
-	public constructor(httprequestxhr: XHRRequest) {
-
-		const getxhr = () => {
-			return workspace.getConfiguration('npm').get('fetchOnlinePackageInfo') === false ? xhrDisabled : httprequestxhr;
-		};
-		this.xhr = getxhr();
-		workspace.onDidChangeConfiguration((e) => {
-			if (e.affectsConfiguration('npm.fetchOnlinePackageInfo')) {
-				this.xhr = getxhr();
-			}
-		});
+	public constructor(xhr: XHRRequest) {
+		this.xhr = xhr;
 	}
 
 	public getDocumentSelector(): DocumentSelector {
 		return [{ language: 'json', scheme: '*', pattern: '**/bower.json' }, { language: 'json', scheme: '*', pattern: '**/.bower.json' }];
+	}
+
+	private onlineEnabled() {
+		return !!workspace.getConfiguration('npm').get('fetchOnlinePackageInfo');
 	}
 
 	public collectDefaultSuggestions(_resource: string, collector: ISuggestionsCollector): Thenable<any> {
@@ -62,7 +56,7 @@ export class BowerJSONContribution implements IJSONContribution {
 
 	public collectPropertySuggestions(_resource: string, location: Location, currentWord: string, addValue: boolean, isLast: boolean, collector: ISuggestionsCollector): Thenable<any> | null {
 		if ((location.matches(['dependencies']) || location.matches(['devDependencies']))) {
-			if (currentWord.length > 0) {
+			if (currentWord.length > 0 && this.onlineEnabled()) {
 				const queryUrl = 'https://registry.bower.io/packages/search/' + encodeURIComponent(currentWord);
 
 				return this.xhr({
@@ -156,6 +150,10 @@ export class BowerJSONContribution implements IJSONContribution {
 	}
 
 	private getInfo(pack: string): Thenable<string | undefined> {
+		if (!this.onlineEnabled()) {
+			return Promise.resolve(undefined);
+		}
+
 		const queryUrl = 'https://registry.bower.io/packages/' + encodeURIComponent(pack);
 
 		return this.xhr({

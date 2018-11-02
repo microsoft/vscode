@@ -2,13 +2,10 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
-
 
 import { mergeSort } from 'vs/base/common/arrays';
 import { dispose, IDisposable, IReference } from 'vs/base/common/lifecycle';
-import URI from 'vs/base/common/uri';
-import { TPromise } from 'vs/base/common/winjs.base';
+import { URI } from 'vs/base/common/uri';
 import { ICodeEditor, isCodeEditor } from 'vs/editor/browser/editorBrowser';
 import { IBulkEditOptions, IBulkEditResult, IBulkEditService } from 'vs/editor/browser/services/bulkEditService';
 import { EditOperation } from 'vs/editor/common/core/editOperation';
@@ -24,7 +21,8 @@ import { ILogService } from 'vs/platform/log/common/log';
 import { emptyProgressRunner, IProgress, IProgressRunner } from 'vs/platform/progress/common/progress';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
-import { IUriDisplayService } from 'vs/platform/uriDisplay/common/uriDisplay';
+import { ILabelService } from 'vs/platform/label/common/label';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
 abstract class Recording {
 
@@ -171,7 +169,7 @@ class BulkEditModel implements IDisposable {
 		}
 
 		this._tasks = [];
-		const promises: TPromise<any>[] = [];
+		const promises: Thenable<any>[] = [];
 
 		this._edits.forEach((value, key) => {
 			const promise = this._textModelResolverService.createModelReference(URI.parse(key)).then(ref => {
@@ -195,7 +193,7 @@ class BulkEditModel implements IDisposable {
 			promises.push(promise);
 		});
 
-		await TPromise.join(promises);
+		await Promise.all(promises);
 
 		return this;
 	}
@@ -233,7 +231,8 @@ export class BulkEdit {
 		@ITextModelService private readonly _textModelService: ITextModelService,
 		@IFileService private readonly _fileService: IFileService,
 		@ITextFileService private readonly _textFileService: ITextFileService,
-		@IUriDisplayService private readonly _uriDisplayServie: IUriDisplayService
+		@ILabelService private readonly _uriLabelServie: ILabelService,
+		@IConfigurationService private readonly _configurationService: IConfigurationService
 	) {
 		this._editor = editor;
 		this._progress = progress || emptyProgressRunner;
@@ -316,7 +315,7 @@ export class BulkEdit {
 			} else if (!edit.newUri && edit.oldUri) {
 				// delete file
 				if (!options.ignoreIfNotExists || await this._fileService.existsFile(edit.oldUri)) {
-					await this._textFileService.delete(edit.oldUri, { useTrash: true, recursive: options.recursive });
+					await this._textFileService.delete(edit.oldUri, { useTrash: this._configurationService.getValue<boolean>('files.enableTrash'), recursive: options.recursive });
 				}
 
 			} else if (edit.newUri && !edit.oldUri) {
@@ -339,7 +338,7 @@ export class BulkEdit {
 
 		const conflicts = edits
 			.filter(edit => recording.hasChanged(edit.resource))
-			.map(edit => this._uriDisplayServie.getLabel(edit.resource, true));
+			.map(edit => this._uriLabelServie.getUriLabel(edit.resource, { relative: true }));
 
 		recording.stop();
 
@@ -369,12 +368,13 @@ export class BulkEditService implements IBulkEditService {
 		@ITextModelService private readonly _textModelService: ITextModelService,
 		@IFileService private readonly _fileService: IFileService,
 		@ITextFileService private readonly _textFileService: ITextFileService,
-		@IUriDisplayService private readonly _uriDisplayService: IUriDisplayService
+		@ILabelService private readonly _labelService: ILabelService,
+		@IConfigurationService private readonly _configurationService: IConfigurationService
 	) {
 
 	}
 
-	apply(edit: WorkspaceEdit, options: IBulkEditOptions = {}): TPromise<IBulkEditResult> {
+	apply(edit: WorkspaceEdit, options: IBulkEditOptions = {}): Promise<IBulkEditResult> {
 
 		let { edits } = edit;
 		let codeEditor = options.editor;
@@ -386,7 +386,7 @@ export class BulkEditService implements IBulkEditService {
 				let model = this._modelService.getModel(edit.resource);
 				if (model && model.getVersionId() !== edit.modelVersionId) {
 					// model changed in the meantime
-					return TPromise.wrapError(new Error(`${model.uri.toString()} has changed in the meantime`));
+					return Promise.reject(new Error(`${model.uri.toString()} has changed in the meantime`));
 				}
 			}
 		}
@@ -400,19 +400,19 @@ export class BulkEditService implements IBulkEditService {
 			}
 		}
 
-		const bulkEdit = new BulkEdit(options.editor, options.progress, this._logService, this._textModelService, this._fileService, this._textFileService, this._uriDisplayService);
+		const bulkEdit = new BulkEdit(options.editor, options.progress, this._logService, this._textModelService, this._fileService, this._textFileService, this._labelService, this._configurationService);
 		bulkEdit.add(edits);
 
-		return TPromise.wrap(bulkEdit.perform().then(() => {
+		return bulkEdit.perform().then(() => {
 			return { ariaSummary: bulkEdit.ariaMessage() };
-		}, err => {
+		}).catch(err => {
 			// console.log('apply FAILED');
 			// console.log(err);
 			this._logService.error(err);
 			throw err;
-		}));
+		});
 	}
 }
 
 
-registerSingleton(IBulkEditService, BulkEditService);
+registerSingleton(IBulkEditService, BulkEditService, true);

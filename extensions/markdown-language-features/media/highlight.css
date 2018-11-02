@@ -99,13 +99,15 @@ https://raw.githubusercontent.com/isagalaev/highlight.js/master/src/styles/vs201
 }
 
 .hljs-addition {
-	background-color: #144212;
+	background-color: var(--vscode-diffEditor-insertedTextBackground, rgba(155, 185, 85, 0.2));
+	color: rgb(155, 185, 85);
 	display: inline-block;
 	width: 100%;
 }
 
 .hljs-deletion {
-	background-color: #600;
+	background: var(--vscode-diffEditor-removedTextBackground, rgba(255, 0, 0, 0.2));
+	color: rgb(255, 0, 0);
 	display: inline-block;
 	width: 100%;
 }
@@ -146,12 +148,10 @@ Visual Studio-like style based on original C# coloring by Jason Diamond <jason@d
 .vscode-light .hljs-literal,
 .vscode-light .hljs-template-tag,
 .vscode-light .hljs-template-variable,
-.vscode-light .hljs-type,
-.vscode-light .hljs-addition {
+.vscode-light .hljs-type {
 	color: #a31515;
 }
 
-.vscode-light .hljs-deletion,
 .vscode-light .hljs-selector-attr,
 .vscode-light .hljs-selector-pseudo,
 .vscode-light .hljs-meta {

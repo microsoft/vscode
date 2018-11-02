@@ -3,11 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
-import URI from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 import { CharCode } from 'vs/base/common/charCode';
-import { Iterator } from './iterator';
+import { Iterator, IteratorResult, FIN } from './iterator';
 
 export function values<V = any>(set: Set<V>): V[];
 export function values<K = any, V = any>(map: Map<K, V>): V[];
@@ -32,6 +30,24 @@ export function getOrSet<K, V>(map: Map<K, V>, key: K, value: V): V {
 	}
 
 	return result;
+}
+
+export function mapToString<K, V>(map: Map<K, V>): string {
+	const entries: string[] = [];
+	map.forEach((value, key) => {
+		entries.push(`${key} => ${value}`);
+	});
+
+	return `Map(${map.size}) {${entries.join(', ')}}`;
+}
+
+export function setToString<K>(set: Set<K>): string {
+	const entries: K[] = [];
+	set.forEach(value => {
+		entries.push(value);
+	});
+
+	return `Set(${set.size}) {${entries.join(', ')}}`;
 }
 
 export interface IKeyIterator {
@@ -141,11 +157,11 @@ export class PathIterator implements IKeyIterator {
 
 class TernarySearchTreeNode<E> {
 	segment: string;
-	value: E;
+	value: E | undefined;
 	key: string;
-	left: TernarySearchTreeNode<E>;
-	mid: TernarySearchTreeNode<E>;
-	right: TernarySearchTreeNode<E>;
+	left: TernarySearchTreeNode<E> | undefined;
+	mid: TernarySearchTreeNode<E> | undefined;
+	right: TernarySearchTreeNode<E> | undefined;
 
 	isEmpty(): boolean {
 		return !this.left && !this.mid && !this.right && !this.value;
@@ -163,7 +179,7 @@ export class TernarySearchTree<E> {
 	}
 
 	private _iter: IKeyIterator;
-	private _root: TernarySearchTreeNode<E>;
+	private _root: TernarySearchTreeNode<E> | undefined;
 
 	constructor(segments: IKeyIterator) {
 		this._iter = segments;
@@ -173,7 +189,7 @@ export class TernarySearchTree<E> {
 		this._root = undefined;
 	}
 
-	set(key: string, element: E): E {
+	set(key: string, element: E): E | undefined {
 		let iter = this._iter.reset(key);
 		let node: TernarySearchTreeNode<E>;
 
@@ -219,7 +235,7 @@ export class TernarySearchTree<E> {
 		return oldElement;
 	}
 
-	get(key: string): E {
+	get(key: string): E | undefined {
 		let iter = this._iter.reset(key);
 		let node = this._root;
 		while (node) {
@@ -269,7 +285,7 @@ export class TernarySearchTree<E> {
 
 				// clean up empty nodes
 				while (stack.length > 0 && node.isEmpty()) {
-					let [dir, parent] = stack.pop();
+					let [dir, parent] = stack.pop()!;
 					switch (dir) {
 						case 1: parent.left = undefined; break;
 						case 0: parent.mid = undefined; break;
@@ -282,10 +298,10 @@ export class TernarySearchTree<E> {
 		}
 	}
 
-	findSubstr(key: string): E {
+	findSubstr(key: string): E | undefined {
 		let iter = this._iter.reset(key);
 		let node = this._root;
-		let candidate: E;
+		let candidate: E | undefined = undefined;
 		while (node) {
 			let val = iter.cmp(node.segment);
 			if (val > 0) {
@@ -306,7 +322,7 @@ export class TernarySearchTree<E> {
 		return node && node.value || candidate;
 	}
 
-	findSuperstr(key: string): Iterator<E> {
+	findSuperstr(key: string): Iterator<E> | undefined {
 		let iter = this._iter.reset(key);
 		let node = this._root;
 		while (node) {
@@ -334,13 +350,10 @@ export class TernarySearchTree<E> {
 	}
 
 	private _nodeIterator(node: TernarySearchTreeNode<E>): Iterator<E> {
-		let res = {
-			done: false,
-			value: undefined
-		};
+		let res: { done: false; value: E; };
 		let idx: number;
 		let data: E[];
-		let next = () => {
+		let next = (): IteratorResult<E> => {
 			if (!data) {
 				// lazy till first invocation
 				data = [];
@@ -348,10 +361,12 @@ export class TernarySearchTree<E> {
 				this._forEach(node, value => data.push(value));
 			}
 			if (idx >= data.length) {
-				res.done = true;
-				res.value = undefined;
+				return FIN;
+			}
+
+			if (!res) {
+				res = { done: false, value: data[idx++] };
 			} else {
-				res.done = false;
 				res.value = data[idx++];
 			}
 			return res;
@@ -363,7 +378,7 @@ export class TernarySearchTree<E> {
 		this._forEach(this._root, callback);
 	}
 
-	private _forEach(node: TernarySearchTreeNode<E>, callback: (value: E, index: string) => any) {
+	private _forEach(node: TernarySearchTreeNode<E> | undefined, callback: (value: E, index: string) => any) {
 		if (node) {
 			// left
 			this._forEach(node.left, callback);
@@ -455,7 +470,7 @@ interface Item<K, V> {
 	value: V;
 }
 
-export enum Touch {
+export const enum Touch {
 	None = 0,
 	AsOld = 1,
 	AsNew = 2
@@ -651,7 +666,9 @@ export class LinkedMap<K, V> {
 		}
 		this._head = current;
 		this._size = currentSize;
-		current.previous = void 0;
+		if (current) {
+			current.previous = void 0;
+		}
 	}
 
 	private addItemFirst(item: Item<K, V>): void {

@@ -3,15 +3,73 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-// This is the place for API experiments and proposal.
-
-import { QuickPickItem } from 'vscode';
+/**
+ * This is the place for API experiments and proposals.
+ * These API are NOT stable and subject to change. They are only available in the Insiders
+ * distribution and CANNOT be used in published extensions.
+ *
+ * To test these API in local environment:
+ * - Use Insiders release of VS Code.
+ * - Add `"enableProposedApi": true` to your package.json.
+ * - Copy this file to your project.
+ */
 
 declare module 'vscode' {
 
 	export namespace window {
 		export function sampleFunction(): Thenable<any>;
 	}
+
+	//#region Joh - https://github.com/Microsoft/vscode/issues/57093
+
+	/**
+	 * An insert text rule defines how the [`insertText`](#CompletionItem.insertText) of a
+	 * completion item should be modified.
+	 */
+	export enum CompletionItemInsertTextRule {
+
+		/**
+		 * Keep whitespace as is. By default, the editor adjusts leading
+		 * whitespace of new lines so that they match the indentation of
+		 * the line for which the item is accepeted.
+		 */
+		KeepWhitespace = 0b01
+	}
+
+	export interface CompletionItem {
+
+		/**
+		 * Rules about how/if the `insertText` should be modified by the
+		 * editor. Can be a bit mask of many rules.
+		 */
+		insertTextRules?: CompletionItemInsertTextRule;
+	}
+
+	//#endregion
+
+	//#region Joh - clipboard https://github.com/Microsoft/vscode/issues/217
+
+	export interface Clipboard {
+		readText(): Thenable<string>;
+		writeText(value: string): Thenable<void>;
+	}
+
+	export namespace env {
+		export const clipboard: Clipboard;
+	}
+
+	//#endregion
+
+	//#region Joh - read/write in chunks
+
+	export interface FileSystemProvider {
+		open?(resource: Uri): number | Thenable<number>;
+		close?(fd: number): void | Thenable<void>;
+		read?(fd: number, pos: number, data: Uint8Array, offset: number, length: number): number | Thenable<number>;
+		write?(fd: number, pos: number, data: Uint8Array, offset: number, length: number): number | Thenable<number>;
+	}
+
+	//#endregion
 
 	//#region Rob: search provider
 
@@ -23,6 +81,11 @@ declare module 'vscode' {
 		 * The text pattern to search for.
 		 */
 		pattern: string;
+
+		/**
+		 * Whether or not `pattern` should match multiple lines of text.
+		 */
+		isMultiline?: boolean;
 
 		/**
 		 * Whether or not `pattern` should be interpreted as a regular expression.
@@ -77,6 +140,30 @@ declare module 'vscode' {
 		 * See the vscode setting `"search.followSymlinks"`.
 		 */
 		followSymlinks: boolean;
+
+		/**
+		 * Whether global files that exclude files, like .gitignore, should be respected.
+		 * See the vscode setting `"search.useGlobalIgnoreFiles"`.
+		 */
+		useGlobalIgnoreFiles: boolean;
+
+	}
+
+	/**
+	 * Options to specify the size of the result text preview.
+	 * These options don't affect the size of the match itself, just the amount of preview text.
+	 */
+	export interface TextSearchPreviewOptions {
+		/**
+		 * The maximum number of lines in the preview.
+		 * Only search providers that support multiline search will ever return more than one line in the match.
+		 */
+		matchLines: number;
+
+		/**
+		 * The maximum number of characters included per line.
+		 */
+		charsPerLine: number;
 	}
 
 	/**
@@ -89,9 +176,9 @@ declare module 'vscode' {
 		maxResults: number;
 
 		/**
-		 *  TODO@roblou - total length? # of context lines? leading and trailing # of chars?
+		 * Options to specify the size of the result text preview.
 		 */
-		previewOptions?: any;
+		previewOptions?: TextSearchPreviewOptions;
 
 		/**
 		 * Exclude files larger than `maxFileSize` in bytes.
@@ -103,6 +190,30 @@ declare module 'vscode' {
 		 * See the vscode setting `"files.encoding"`
 		 */
 		encoding?: string;
+
+		/**
+		 * Number of lines of context to include before each match.
+		 */
+		beforeContext?: number;
+
+		/**
+		 * Number of lines of context to include after each match.
+		 */
+		afterContext?: number;
+	}
+
+	/**
+	 * Information collected when text search is complete.
+	 */
+	export interface TextSearchComplete {
+		/**
+		 * Whether the search hit the limit on the maximum number of search results.
+		 * `maxResults` on [`TextSearchOptions`](#TextSearchOptions) specifies the max number of results.
+		 * - If exactly that number of matches exist, this should be false.
+		 * - If `maxResults` matches are returned and more exist, this should be true.
+		 * - If search hits an internal limit which is less than `maxResults`, this should be true.
+		 */
+		limitHit?: boolean;
 	}
 
 	/**
@@ -130,38 +241,64 @@ declare module 'vscode' {
 	 */
 	export interface FileIndexOptions extends SearchOptions { }
 
-	export interface TextSearchResultPreview {
+	/**
+	 * A preview of the text result.
+	 */
+	export interface TextSearchMatchPreview {
 		/**
-		 * The matching line of text, or a portion of the matching line that contains the match.
-		 * For now, this can only be a single line.
+		 * The matching lines of text, or a portion of the matching line that contains the match.
 		 */
 		text: string;
 
 		/**
 		 * The Range within `text` corresponding to the text of the match.
+		 * The number of matches must match the TextSearchMatch's range property.
 		 */
-		match: Range;
+		matches: Range | Range[];
 	}
 
 	/**
 	 * A match from a text search
 	 */
-	export interface TextSearchResult {
+	export interface TextSearchMatch {
 		/**
 		 * The uri for the matching document.
 		 */
 		uri: Uri;
 
 		/**
-		 * The range of the match within the document.
+		 * The range of the match within the document, or multiple ranges for multiple matches.
 		 */
-		range: Range;
+		ranges: Range | Range[];
 
 		/**
-		 * A preview of the matching line
+		 * A preview of the text match.
 		 */
-		preview: TextSearchResultPreview;
+		preview: TextSearchMatchPreview;
 	}
+
+	/**
+	 * A line of context surrounding a TextSearchMatch.
+	 */
+	export interface TextSearchContext {
+		/**
+		 * The uri for the matching document.
+		 */
+		uri: Uri;
+
+		/**
+		 * One line of text.
+		 * previewOptions.charsPerLine applies to this
+		 */
+		text: string;
+
+		/**
+		 * The line number of this line of context.
+		 */
+		lineNumber: number;
+	}
+
+	export type TextSearchResult = TextSearchMatch | TextSearchContext;
 
 	/**
 	 * A FileIndexProvider provides a list of files in the given folder. VS Code will filter that list for searching with quickopen or from other extensions.
@@ -180,7 +317,7 @@ declare module 'vscode' {
 		 * @param options A set of options to consider while searching.
 		 * @param token A cancellation token.
 		 */
-		provideFileIndex(options: FileIndexOptions, token: CancellationToken): Thenable<Uri[]>;
+		provideFileIndex(options: FileIndexOptions, token: CancellationToken): ProviderResult<Uri[]>;
 	}
 
 	/**
@@ -202,7 +339,7 @@ declare module 'vscode' {
 		 * @param progress A progress callback that must be invoked for all results.
 		 * @param token A cancellation token.
 		 */
-		provideFileSearchResults(query: FileSearchQuery, options: FileSearchOptions, token: CancellationToken): Thenable<Uri[]>;
+		provideFileSearchResults(query: FileSearchQuery, options: FileSearchOptions, token: CancellationToken): ProviderResult<Uri[]>;
 	}
 
 	/**
@@ -216,7 +353,7 @@ declare module 'vscode' {
 		 * @param progress A progress callback that must be invoked for all results.
 		 * @param token A cancellation token.
 		 */
-		provideTextSearchResults(query: TextSearchQuery, options: TextSearchOptions, progress: Progress<TextSearchResult>, token: CancellationToken): Thenable<void>;
+		provideTextSearchResults(query: TextSearchQuery, options: TextSearchOptions, progress: Progress<TextSearchResult>, token: CancellationToken): ProviderResult<TextSearchComplete>;
 	}
 
 	/**
@@ -249,6 +386,12 @@ declare module 'vscode' {
 		useIgnoreFiles?: boolean;
 
 		/**
+		 * Whether global files that exclude files, like .gitignore, should be respected.
+		 * See the vscode setting `"search.useGlobalIgnoreFiles"`.
+		 */
+		useGlobalIgnoreFiles?: boolean;
+
+		/**
 		 * Whether symlinks should be followed while searching.
 		 * See the vscode setting `"search.followSymlinks"`.
 		 */
@@ -259,6 +402,21 @@ declare module 'vscode' {
 		 * See the vscode setting `"files.encoding"`
 		 */
 		encoding?: string;
+
+		/**
+		 * Options to specify the size of the result text preview.
+		 */
+		previewOptions?: TextSearchPreviewOptions;
+
+		/**
+		 * Number of lines of context to include before each match.
+		 */
+		beforeContext?: number;
+
+		/**
+		 * Number of lines of context to include after each match.
+		 */
+		afterContext?: number;
 	}
 
 	export namespace workspace {
@@ -307,7 +465,7 @@ declare module 'vscode' {
 		 * @param token A token that can be used to signal cancellation to the underlying search engine.
 		 * @return A thenable that resolves when the search is complete.
 		 */
-		export function findTextInFiles(query: TextSearchQuery, callback: (result: TextSearchResult) => void, token?: CancellationToken): Thenable<void>;
+		export function findTextInFiles(query: TextSearchQuery, callback: (result: TextSearchResult) => void, token?: CancellationToken): Thenable<TextSearchComplete>;
 
 		/**
 		 * Search text in files across all [workspace folders](#workspace.workspaceFolders) in the workspace.
@@ -317,7 +475,7 @@ declare module 'vscode' {
 		 * @param token A token that can be used to signal cancellation to the underlying search engine.
 		 * @return A thenable that resolves when the search is complete.
 		 */
-		export function findTextInFiles(query: TextSearchQuery, options: FindTextInFilesOptions, callback: (result: TextSearchResult) => void, token?: CancellationToken): Thenable<void>;
+		export function findTextInFiles(query: TextSearchQuery, options: FindTextInFilesOptions, callback: (result: TextSearchResult) => void, token?: CancellationToken): Thenable<TextSearchComplete>;
 	}
 
 	//#endregion
@@ -359,11 +517,11 @@ declare module 'vscode' {
 
 	//todo@joh -> make class
 	export interface DecorationData {
-		priority?: number;
+		letter?: string;
 		title?: string;
-		bubble?: boolean;
-		abbreviation?: string; // letter, not optional
 		color?: ThemeColor;
+		priority?: number;
+		bubble?: boolean;
 		source?: string; // hacky... we should remove it and use equality under the hood
 	}
 
@@ -390,6 +548,9 @@ declare module 'vscode' {
 	 * Represents a debug adapter executable and optional arguments passed to it.
 	 */
 	export class DebugAdapterExecutable {
+
+		readonly type: 'executable';
+
 		/**
 		 * The command path of the debug adapter executable.
 		 * A command must be either an absolute path or the name of an executable looked up via the PATH environment variable.
@@ -403,18 +564,116 @@ declare module 'vscode' {
 		readonly args: string[];
 
 		/**
-		 * Create a new debug adapter specification.
+		 * The additional environment of the executed program or shell. If omitted
+		 * the parent process' environment is used. If provided it is merged with
+		 * the parent process' environment.
 		 */
-		constructor(command: string, args?: string[]);
+		readonly env?: { [key: string]: string };
+
+		/**
+		 * The working directory for the debug adapter.
+		 */
+		readonly cwd?: string;
+
+		/**
+		 * Create a description for a debug adapter based on an executable program.
+		 */
+		constructor(command: string, args?: string[], env?: { [key: string]: string }, cwd?: string);
+	}
+
+	/**
+	 * Represents a debug adapter running as a socket based server.
+	 */
+	export class DebugAdapterServer {
+
+		readonly type: 'server';
+
+		/**
+		 * The port.
+		 */
+		readonly port: number;
+
+		/**
+		 * The host.
+		 */
+		readonly host?: string;
+
+		/**
+		 * Create a description for a debug adapter running as a socket based server.
+		 */
+		constructor(port: number, host?: string);
+	}
+
+	/**
+	 * Represents a debug adapter that is implemented in the extension.
+	 */
+	export class DebugAdapterImplementation {
+
+		readonly type: 'implementation';
+
+		readonly implementation: any;
+
+		/**
+		 * Create a description for a debug adapter directly implemented in the extension.
+		 * The implementation's "type": TBD
+		 */
+		constructor(implementation: any);
+	}
+
+	export type DebugAdapterDescriptor = DebugAdapterExecutable | DebugAdapterServer | DebugAdapterImplementation;
+
+	/**
+	 * A Debug Adapter Tracker is a means to track the communication between VS Code and a Debug Adapter.
+	 */
+	export interface DebugAdapterTracker {
+		// VS Code -> Debug Adapter
+		startDebugAdapter?(): void;
+		toDebugAdapter?(message: any): void;
+		stopDebugAdapter?(): void;
+
+		// Debug Adapter -> VS Code
+		fromDebugAdapter?(message: any): void;
+		debugAdapterError?(error: Error): void;
+		debugAdapterExit?(code?: number, signal?: string): void;
 	}
 
 	export interface DebugConfigurationProvider {
 		/**
-		 * This optional method is called just before a debug adapter is started to determine its executable path and arguments.
-		 * Registering more than one debugAdapterExecutable for a type results in an error.
+		 * The optional method 'provideDebugAdapter' is called at the start of a debug session to provide details about the debug adapter to use.
+		 * These details must be returned as objects of type DebugAdapterDescriptor.
+		 * Currently two types of debug adapters are supported:
+		 * - a debug adapter executable specified as a command path and arguments (see DebugAdapterExecutable),
+		 * - a debug adapter server reachable via a communication port (see DebugAdapterServer).
+		 * If the method is not implemented the default behavior is this:
+		 *   provideDebugAdapter(session: DebugSession, folder: WorkspaceFolder | undefined, executable: DebugAdapterExecutable, config: DebugConfiguration, token?: CancellationToken) {
+		 *      if (typeof config.debugServer === 'number') {
+		 *         return new DebugAdapterServer(config.debugServer);
+		 *      }
+		 * 		return executable;
+		 *   }
+		 * An extension is only allowed to register a DebugConfigurationProvider with a provideDebugAdapter method if the extension defines the debug type. Otherwise an error is thrown.
+		 * Registering more than one DebugConfigurationProvider with a provideDebugAdapter method for a type results in an error.
+		 * @param session The [debug session](#DebugSession) for which the debug adapter will be used.
 		 * @param folder The workspace folder from which the configuration originates from or undefined for a folderless setup.
+		 * @param executable The debug adapter's executable information as specified in the package.json (or undefined if no such information exists).
+		 * @param config The resolved debug configuration.
 		 * @param token A cancellation token.
-		 * @return a [debug adapter's executable and optional arguments](#DebugAdapterExecutable) or undefined.
+		 * @return a [debug adapter's descriptor](#DebugAdapterDescriptor) or undefined.
+		 */
+		provideDebugAdapter?(session: DebugSession, folder: WorkspaceFolder | undefined, executable: DebugAdapterExecutable | undefined, config: DebugConfiguration, token?: CancellationToken): ProviderResult<DebugAdapterDescriptor>;
+
+		/**
+		 * The optional method 'provideDebugAdapterTracker' is called at the start of a debug session to provide a tracker that gives access to the communication between VS Code and a Debug Adapter.
+		 * @param session The [debug session](#DebugSession) for which the tracker will be used.
+		 * @param folder The workspace folder from which the configuration originates from or undefined for a folderless setup.
+		 * @param config The resolved debug configuration.
+		 * @param token A cancellation token.
+		 */
+		provideDebugAdapterTracker?(session: DebugSession, folder: WorkspaceFolder | undefined, config: DebugConfiguration, token?: CancellationToken): ProviderResult<DebugAdapterTracker>;
+
+		/**
+		 * Deprecated, use DebugConfigurationProvider.provideDebugAdapter instead.
+		 * @deprecated Use DebugConfigurationProvider.provideDebugAdapter instead
 		 */
 		debugAdapterExecutable?(folder: WorkspaceFolder | undefined, token?: CancellationToken): ProviderResult<DebugAdapterExecutable>;
 	}
@@ -436,39 +695,16 @@ declare module 'vscode' {
 		Off = 7
 	}
 
-	/**
-	 * A logger for writing to an extension's log file, and accessing its dedicated log directory.
-	 */
-	export interface Logger {
-		trace(message: string, ...args: any[]): void;
-		debug(message: string, ...args: any[]): void;
-		info(message: string, ...args: any[]): void;
-		warn(message: string, ...args: any[]): void;
-		error(message: string | Error, ...args: any[]): void;
-		critical(message: string | Error, ...args: any[]): void;
-	}
-
-	export interface ExtensionContext {
-		/**
-		 * This extension's logger
-		 */
-		logger: Logger;
-
-		/**
-		 * Path where an extension can write log files.
-		 *
-		 * Extensions must create this directory before writing to it. The parent directory will always exist.
-		 */
-		readonly logDirectory: string;
-	}
-
 	export namespace env {
 		/**
 		 * Current logging level.
-		 *
-		 * @readonly
 		 */
 		export const logLevel: LogLevel;
+
+		/**
+		 * An [event](#Event) that fires when the log level has changed.
+		 */
+		export const onDidChangeLogLevel: Event<LogLevel>;
 	}
 
 	//#endregion
@@ -540,13 +776,35 @@ declare module 'vscode' {
 
 	//#endregion
 
+	//#region Joao: SCM Input Box
+
+	/**
+	 * Represents the input box in the Source Control viewlet.
+	 */
+	export interface SourceControlInputBox {
+
+		/**
+			* Controls whether the input box is visible (default is `true`).
+			*/
+		visible: boolean;
+	}
+
+	//#endregion
+
 	//#region Comments
 	/**
 	 * Comments provider related APIs are still in early stages, they may be changed significantly during our API experiments.
 	 */
 
 	interface CommentInfo {
+		/**
+		 * All of the comment threads associated with the document.
+		 */
 		threads: CommentThread[];
+
+		/**
+		 * The ranges of the document which support commenting.
+		 */
 		commentingRanges?: Range[];
 	}
 
@@ -561,19 +819,86 @@ declare module 'vscode' {
 		Expanded = 1
 	}
 
+	/**
+	 * A collection of comments representing a conversation at a particular range in a document.
+	 */
 	interface CommentThread {
+		/**
+		 * A unique identifier of the comment thread.
+		 */
 		threadId: string;
+
+		/**
+		 * The uri of the document the thread has been created on.
+		 */
 		resource: Uri;
+
+		/**
+		 * The range the comment thread is located within the document. The thread icon will be shown
+		 * at the first line of the range.
+		 */
 		range: Range;
+
+		/**
+		 * The ordered comments of the thread.
+		 */
 		comments: Comment[];
+
+		/**
+		 * Whether the thread should be collapsed or expanded when opening the document. Defaults to Collapsed.
+		 */
 		collapsibleState?: CommentThreadCollapsibleState;
 	}
 
+	/**
+	 * A comment is displayed within the editor or the Comments Panel, depending on how it is provided.
+	 */
 	interface Comment {
+		/**
+		 * The id of the comment
+		 */
 		commentId: string;
+
+		/**
+		 * The text of the comment
+		 */
 		body: MarkdownString;
+
+		/**
+		 * The display name of the user who created the comment
+		 */
 		userName: string;
-		gravatar: string;
+
+		/**
+		 * The icon path for the user who created the comment
+		 */
+		userIconPath?: Uri;
+
+
+		/**
+		 * @deprecated Use userIconPath instead. The avatar src of the user who created the comment
+		 */
+		gravatar?: string;
+
+		/**
+		 * Whether the current user has permission to edit the comment.
+		 *
+		 * This will be treated as false if the comment is provided by a `WorkspaceCommentProvider`, or
+		 * if it is provided by a `DocumentCommentProvider` and  no `editComment` method is given.
+		 */
+		canEdit?: boolean;
+
+		/**
+		 * Whether the current user has permission to delete the comment.
+		 *
+		 * This will be treated as false if the comment is provided by a `WorkspaceCommentProvider`, or
+		 * if it is provided by a `DocumentCommentProvider` and  no `deleteComment` method is given.
+		 */
+		canDelete?: boolean;
+
+		/**
+		 * The command to be executed if the comment is selected in the Comments Panel
+		 */
 		command?: Command;
 	}
 
@@ -595,18 +920,48 @@ declare module 'vscode' {
 	}
 
 	interface DocumentCommentProvider {
+		/**
+		 * Provide the commenting ranges and comment threads for the given document. The comments are displayed within the editor.
+		 */
 		provideDocumentComments(document: TextDocument, token: CancellationToken): Promise<CommentInfo>;
-		createNewCommentThread?(document: TextDocument, range: Range, text: string, token: CancellationToken): Promise<CommentThread>;
-		replyToCommentThread?(document: TextDocument, range: Range, commentThread: CommentThread, text: string, token: CancellationToken): Promise<CommentThread>;
-		onDidChangeCommentThreads?: Event<CommentThreadChangedEvent>;
+
+		/**
+		 * Called when a user adds a new comment thread in the document at the specified range, with body text.
+		 */
+		createNewCommentThread(document: TextDocument, range: Range, text: string, token: CancellationToken): Promise<CommentThread>;
+
+		/**
+		 * Called when a user replies to a new comment thread in the document at the specified range, with body text.
+		 */
+		replyToCommentThread(document: TextDocument, range: Range, commentThread: CommentThread, text: string, token: CancellationToken): Promise<CommentThread>;
+
+		/**
+		 * Called when a user edits the comment body to the be new text.
+		 */
+		editComment?(document: TextDocument, comment: Comment, text: string, token: CancellationToken): Promise<void>;
+
+		/**
+		 * Called when a user deletes the comment.
+		 */
+		deleteComment?(document: TextDocument, comment: Comment, token: CancellationToken): Promise<void>;
+
+		/**
+		 * Notify of updates to comment threads.
+		 */
+		onDidChangeCommentThreads: Event<CommentThreadChangedEvent>;
 	}
 
 	interface WorkspaceCommentProvider {
+		/**
+		 * Provide all comments for the workspace. Comments are shown within the comments panel. Selecting a comment
+		 * from the panel runs the comment's command.
+		 */
 		provideWorkspaceComments(token: CancellationToken): Promise<CommentThread[]>;
-		createNewCommentThread?(document: TextDocument, range: Range, text: string, token: CancellationToken): Promise<CommentThread>;
-		replyToCommentThread?(document: TextDocument, range: Range, commentThread: CommentThread, text: string, token: CancellationToken): Promise<CommentThread>;
 
-		onDidChangeCommentThreads?: Event<CommentThreadChangedEvent>;
+		/**
+		 * Notify of updates to comment threads.
+		 */
+		onDidChangeCommentThreads: Event<CommentThreadChangedEvent>;
 	}
 
 	namespace workspace {
@@ -740,19 +1095,6 @@ declare module 'vscode' {
 
 	export namespace window {
 		/**
-		 * The currently active terminal or `undefined`. The active terminal is the one that
-		 * currently has focus or most recently had focus.
-		 */
-		export const activeTerminal: Terminal | undefined;
-
-		/**
-		 * An [event](#Event) which fires when the [active terminal](#window.activeTerminal)
-		 * has changed. *Note* that the event also fires when the active terminal changes
-		 * to `undefined`.
-		 */
-		export const onDidChangeActiveTerminal: Event<Terminal | undefined>;
-
-		/**
 		 * Create a [TerminalRenderer](#TerminalRenderer).
 		 *
 		 * @param name The name of the terminal renderer, this shows up in the terminal selector.
@@ -787,4 +1129,148 @@ declare module 'vscode' {
 		export const onDidRenameFile: Event<FileRenameEvent>;
 	}
 	//#endregion
+
+	//#region Signature Help
+	/**
+	 * How a [Signature provider](#SignatureHelpProvider) was triggered
+	 */
+	export enum SignatureHelpTriggerReason {
+		/**
+		 * Signature help was invoked manually by the user or by a command.
+		 */
+		Invoke = 1,
+
+		/**
+		 * Signature help was triggered by a trigger character.
+		 */
+		TriggerCharacter = 2,
+
+		/**
+		 * Signature help was triggered by the cursor moving or by the document content changing.
+		 */
+		ContentChange = 3,
+	}
+
+	/**
+	 * Contains additional information about the context in which a
+	 * [signature help provider](#SignatureHelpProvider.provideSignatureHelp) is triggered.
+	 */
+	export interface SignatureHelpContext {
+		/**
+		 * Action that caused signature help to be requested.
+		 */
+		readonly triggerReason: SignatureHelpTriggerReason;
+
+		/**
+		 * Character that caused signature help to be requested.
+		 *
+		 * This is `undefined` when signature help is not triggered by typing, such as when invoking signature help
+		 * or when moving the cursor.
+		 */
+		readonly triggerCharacter?: string;
+
+		/**
+		 * Whether or not signature help was previously showing when triggered.
+		 *
+		 * Retriggers occur when the signature help is already active and can be caused by typing a trigger character
+		 * or by a cursor move.
+		 */
+		readonly isRetrigger: boolean;
+	}
+
+	export interface SignatureHelpProvider {
+		provideSignatureHelp(document: TextDocument, position: Position, token: CancellationToken, context: SignatureHelpContext): ProviderResult<SignatureHelp>;
+	}
+
+	export interface SignatureHelpProviderMetadata {
+		readonly triggerCharacters: ReadonlyArray<string>;
+		readonly retriggerCharacters: ReadonlyArray<string>;
+	}
+
+	namespace languages {
+		export function registerSignatureHelpProvider(
+			selector: DocumentSelector,
+			provider: SignatureHelpProvider,
+			metadata: SignatureHelpProviderMetadata
+		): Disposable;
+	}
+	//#endregion
+
+	//#region Alex - OnEnter enhancement
+	export interface OnEnterRule {
+		/**
+		 * This rule will only execute if the text above the this line matches this regular expression.
+		 */
+		oneLineAboveText?: RegExp;
+	}
+	//#endregion
+
+	//#region Tree View
+
+	/**
+	 * Options for creating a [TreeView](#TreeView]
+	 */
+	export interface TreeViewOptions<T> {
+
+		/**
+		 * A data provider that provides tree data.
+		 */
+		treeDataProvider: TreeDataProvider<T>;
+
+		/**
+		 * Whether to show collapse all action or not.
+		 */
+		showCollapseAll?: boolean;
+	}
+
+	namespace window {
+
+		export function createTreeView<T>(viewId: string, options: TreeViewOptions<T>): TreeView<T>;
+
+	}
+
+	/**
+	 * Label describing the [Tree item](#TreeItem)
+	 */
+	export interface TreeItemLabel {
+
+		/**
+		 * A human-readable string describing the [Tree item](#TreeItem).
+		 */
+		label: string;
+
+		/**
+		 * Ranges in the label to highlight. A range is defined as a tuple of two number where the
+		 * first is the inclusive start index and the second the exclusive end index
+		 */
+		highlights?: [number, number][];
+
+	}
+
+	export class TreeItem2 extends TreeItem {
+		/**
+		 * Label describing this item. When `falsy`, it is derived from [resourceUri](#TreeItem.resourceUri).
+		 */
+		label?: string | TreeItemLabel | /* for compilation */ any;
+
+		/**
+		 * @param label Label describing this item
+		 * @param collapsibleState [TreeItemCollapsibleState](#TreeItemCollapsibleState) of the tree item. Default is [TreeItemCollapsibleState.None](#TreeItemCollapsibleState.None)
+		 */
+		constructor(label: TreeItemLabel, collapsibleState?: TreeItemCollapsibleState);
+	}
+	//#endregion
+
+	//#region Task
+	/**
+	 * Controls how the task is presented in the UI.
+	 */
+	export interface TaskPresentationOptions {
+		/**
+		 * Controls whether the terminal is cleared before executing the task.
+		 */
+		clear?: boolean;
+	}
+	//#endregion
+
 }

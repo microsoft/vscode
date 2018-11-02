@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as nls from 'vs/nls';
-import * as errors from 'vs/base/common/errors';
 import { IAction, IActionRunner } from 'vs/base/common/actions';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import * as dom from 'vs/base/browser/dom';
@@ -13,7 +12,7 @@ import { SelectBox } from 'vs/base/browser/ui/selectBox/selectBox';
 import { SelectActionItem, IActionItem } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ICommandService } from 'vs/platform/commands/common/commands';
-import { IDebugService } from 'vs/workbench/parts/debug/common/debug';
+import { IDebugService, IDebugSession } from 'vs/workbench/parts/debug/common/debug';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { attachSelectBoxStyler, attachStylerCallback } from 'vs/platform/theme/common/styler';
 import { SIDE_BAR_BACKGROUND } from 'vs/workbench/common/theme';
@@ -77,7 +76,7 @@ export class StartDebugActionItem implements IActionItem {
 
 		this.toDispose.push(dom.addDisposableListener(this.start, dom.EventType.CLICK, () => {
 			this.start.blur();
-			this.actionRunner.run(this.action, this.context).done(null, errors.onUnexpectedError);
+			this.actionRunner.run(this.action, this.context);
 		}));
 
 		this.toDispose.push(dom.addDisposableListener(this.start, dom.EventType.MOUSE_DOWN, (e: MouseEvent) => {
@@ -95,7 +94,7 @@ export class StartDebugActionItem implements IActionItem {
 		this.toDispose.push(dom.addDisposableListener(this.start, dom.EventType.KEY_DOWN, (e: KeyboardEvent) => {
 			const event = new StandardKeyboardEvent(e);
 			if (event.equals(KeyCode.Enter)) {
-				this.actionRunner.run(this.action, this.context).done(null, errors.onUnexpectedError);
+				this.actionRunner.run(this.action, this.context);
 			}
 			if (event.equals(KeyCode.RightArrow)) {
 				this.selectBox.focus();
@@ -170,15 +169,16 @@ export class StartDebugActionItem implements IActionItem {
 
 		if (this.options.length === 0) {
 			this.options.push({ label: nls.localize('noConfigurations', "No Configurations"), handler: () => false });
+		} else {
+			this.options.push({ label: StartDebugActionItem.SEPARATOR, handler: undefined });
 		}
-		this.options.push({ label: StartDebugActionItem.SEPARATOR, handler: undefined });
 
 		const disabledIdx = this.options.length - 1;
 		launches.filter(l => !l.hidden).forEach(l => {
 			const label = inWorkspace ? nls.localize("addConfigTo", "Add Config ({0})...", l.name) : nls.localize('addConfiguration', "Add Configuration...");
 			this.options.push({
 				label, handler: () => {
-					this.commandService.executeCommand('debug.addConfiguration', l.uri.toString()).done(undefined, errors.onUnexpectedError);
+					this.commandService.executeCommand('debug.addConfiguration', l.uri.toString());
 					return false;
 				}
 			});
@@ -191,31 +191,36 @@ export class StartDebugActionItem implements IActionItem {
 export class FocusSessionActionItem extends SelectActionItem {
 	constructor(
 		action: IAction,
-		@IDebugService private debugService: IDebugService,
+		@IDebugService protected debugService: IDebugService,
 		@IThemeService themeService: IThemeService,
-		@IContextViewService contextViewService: IContextViewService
+		@IContextViewService contextViewService: IContextViewService,
 	) {
 		super(null, action, [], -1, contextViewService, { ariaLabel: nls.localize('debugSession', 'Debug Session') });
 
 		this.toDispose.push(attachSelectBoxStyler(this.selectBox, themeService));
 
-		this.debugService.getViewModel().onDidFocusStackFrame(() => {
+		this.toDispose.push(this.debugService.getViewModel().onDidFocusSession(() => {
 			const session = this.debugService.getViewModel().focusedSession;
 			if (session) {
-				const index = this.debugService.getModel().getSessions().indexOf(session);
+				const index = this.getSessions().indexOf(session);
 				this.select(index);
 			}
-		});
+		}));
 
-		this.debugService.getModel().onDidChangeCallStack(() => this.update());
+		this.toDispose.push(this.debugService.onDidNewSession(() => this.update()));
+		this.toDispose.push(this.debugService.onDidEndSession(() => this.update()));
+
 		this.update();
 	}
 
 	private update() {
 		const session = this.debugService.getViewModel().focusedSession;
-		const sessions = this.debugService.getModel().getSessions();
-		const showRootName = this.debugService.getConfigurationManager().getLaunches().length > 1;
-		const names = sessions.map(s => s.getName(showRootName));
+		const sessions = this.getSessions();
+		const names = sessions.map(s => s.getLabel());
 		this.setOptions(names, session ? sessions.indexOf(session) : undefined);
+	}
+
+	protected getSessions(): ReadonlyArray<IDebugSession> {
+		return this.debugService.getModel().getSessions();
 	}
 }

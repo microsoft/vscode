@@ -17,8 +17,8 @@
     "watch": "gulp watch-extension:configuration-editing"
   },
   "dependencies": {
-    "jsonc-parser": "^1.0.0",
-    "vscode-nls": "^3.2.4"
+    "jsonc-parser": "2.0.2",
+    "vscode-nls": "^4.0.0"
   },
   "contributes": {
     "languages": [
@@ -96,6 +96,6 @@
     ]
   },
   "devDependencies": {
-    "@types/node": "7.0.4"
+    "@types/node": "^8.10.25"
   }
 }

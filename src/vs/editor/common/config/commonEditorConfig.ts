@@ -2,19 +2,18 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
 import * as nls from 'vs/nls';
-import { Event, Emitter } from 'vs/base/common/event';
+import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
 import * as objects from 'vs/base/common/objects';
 import * as platform from 'vs/base/common/platform';
-import { Extensions, IConfigurationRegistry, IConfigurationNode, ConfigurationScope } from 'vs/platform/configuration/common/configurationRegistry';
-import { Registry } from 'vs/platform/registry/common/platform';
-import * as editorCommon from 'vs/editor/common/editorCommon';
-import { FontInfo, BareFontInfo } from 'vs/editor/common/config/fontInfo';
-import { EditorZoom } from 'vs/editor/common/config/editorZoom';
 import * as editorOptions from 'vs/editor/common/config/editorOptions';
+import { EditorZoom } from 'vs/editor/common/config/editorZoom';
+import { BareFontInfo, FontInfo } from 'vs/editor/common/config/fontInfo';
+import * as editorCommon from 'vs/editor/common/editorCommon';
+import { ConfigurationScope, Extensions, IConfigurationNode, IConfigurationRegistry } from 'vs/platform/configuration/common/configurationRegistry';
+import { Registry } from 'vs/platform/registry/common/platform';
 import EDITOR_DEFAULTS = editorOptions.EDITOR_DEFAULTS;
 import EDITOR_FONT_DEFAULTS = editorOptions.EDITOR_FONT_DEFAULTS;
 import EDITOR_MODEL_DEFAULTS = editorOptions.EDITOR_MODEL_DEFAULTS;
@@ -86,7 +85,6 @@ export abstract class CommonEditorConfiguration extends Disposable implements ed
 		this._rawOptions.parameterHints = objects.mixin({}, this._rawOptions.parameterHints || {});
 
 		this._validatedOptions = editorOptions.EditorOptionsValidator.validate(this._rawOptions, EDITOR_DEFAULTS);
-		this.editor = null;
 		this._isDominatedByLongLines = false;
 		this._lineNumbersDigitCount = 1;
 
@@ -283,14 +281,12 @@ const editorConfiguration: IConfigurationNode = {
 			'type': 'number',
 			'default': EDITOR_MODEL_DEFAULTS.tabSize,
 			'minimum': 1,
-			'markdownDescription': nls.localize('tabSize', "The number of spaces a tab is equal to. This setting is overridden based on the file contents when `#editor.detectIndentation#` is on."),
-			'errorMessage': nls.localize('tabSize.errorMessage', "Expected 'number'. Note that the value \"auto\" has been replaced by the `editor.detectIndentation` setting.")
+			'markdownDescription': nls.localize('tabSize', "The number of spaces a tab is equal to. This setting is overridden based on the file contents when `#editor.detectIndentation#` is on.")
 		},
 		'editor.insertSpaces': {
 			'type': 'boolean',
 			'default': EDITOR_MODEL_DEFAULTS.insertSpaces,
-			'markdownDescription': nls.localize('insertSpaces', "Insert spaces when pressing `Tab`. This setting is overridden based on the file contents when `#editor.detectIndentation#` is on."),
-			'errorMessage': nls.localize('insertSpaces.errorMessage', "Expected 'boolean'. Note that the value \"auto\" has been replaced by the `editor.detectIndentation` setting.")
+			'markdownDescription': nls.localize('insertSpaces', "Insert spaces when pressing `Tab`. This setting is overridden based on the file contents when `#editor.detectIndentation#` is on.")
 		},
 		'editor.detectIndentation': {
 			'type': 'boolean',
@@ -352,7 +348,7 @@ const editorConfiguration: IConfigurationNode = {
 		'editor.hover.delay': {
 			'type': 'number',
 			'default': EDITOR_DEFAULTS.contribInfo.hover.delay,
-			'description': nls.localize('hover.delay', "Time delay in milliseconds after which to the hover is shown.")
+			'description': nls.localize('hover.delay', "Controls the delay in milliseconds after which the hover is shown.")
 		},
 		'editor.hover.sticky': {
 			'type': 'boolean',
@@ -367,7 +363,7 @@ const editorConfiguration: IConfigurationNode = {
 		'editor.find.autoFindInSelection': {
 			'type': 'boolean',
 			'default': EDITOR_DEFAULTS.contribInfo.find.autoFindInSelection,
-			'description': nls.localize('find.autoFindInSelection', "Controls whether the find operation is carried on selected text or the entire file in the editor.")
+			'description': nls.localize('find.autoFindInSelection', "Controls whether the find operation is carried out on selected text or the entire file in the editor.")
 		},
 		'editor.find.globalFindClipboard': {
 			'type': 'boolean',
@@ -436,7 +432,7 @@ const editorConfiguration: IConfigurationNode = {
 		'editor.multiCursorModifier': {
 			'type': 'string',
 			'enum': ['ctrlCmd', 'alt'],
-			'enumDescriptions': [
+			'markdownEnumDescriptions': [
 				nls.localize('multiCursorModifier.ctrlCmd', "Maps to `Control` on Windows and Linux and to `Command` on macOS."),
 				nls.localize('multiCursorModifier.alt', "Maps to `Alt` on Windows and Linux and to `Option` on macOS.")
 			],
@@ -500,9 +496,41 @@ const editorConfiguration: IConfigurationNode = {
 			'description': nls.localize('parameterHints.cycle', "Controls whether the parameter hints menu cycles or closes when reaching the end of the list.")
 		},
 		'editor.autoClosingBrackets': {
-			'type': 'boolean',
+			type: 'string',
+			enum: ['always', 'languageDefined', 'beforeWhitespace', 'never'],
+			enumDescriptions: [
+				'',
+				nls.localize('editor.autoClosingBrackets.languageDefined', "Use language configurations to determine when to autoclose brackets."),
+				nls.localize('editor.autoClosingBrackets.beforeWhitespace', "Autoclose brackets only when the cursor is to the left of whitespace."),
+				'',
+
+			],
 			'default': EDITOR_DEFAULTS.autoClosingBrackets,
 			'description': nls.localize('autoClosingBrackets', "Controls whether the editor should automatically close brackets after the user adds an opening bracket.")
+		},
+		'editor.autoClosingQuotes': {
+			type: 'string',
+			enum: ['always', 'languageDefined', 'beforeWhitespace', 'never'],
+			enumDescriptions: [
+				'',
+				nls.localize('editor.autoClosingQuotes.languageDefined', "Use language configurations to determine when to autoclose quotes."),
+				nls.localize('editor.autoClosingQuotes.beforeWhitespace', "Autoclose quotes only when the cursor is to the left of whitespace."),
+				'',
+			],
+			'default': EDITOR_DEFAULTS.autoClosingQuotes,
+			'description': nls.localize('autoClosingQuotes', "Controls whether the editor should automatically close quotes after the user adds an opening quote.")
+		},
+		'editor.autoSurround': {
+			type: 'string',
+			enum: ['languageDefined', 'brackets', 'quotes', 'never'],
+			enumDescriptions: [
+				nls.localize('editor.autoSurround.languageDefined', "Use language configurations to determine when to automatically surround selections."),
+				nls.localize('editor.autoSurround.brackets', "Surround with brackets but not quotes."),
+				nls.localize('editor.autoSurround.quotes', "Surround with quotes but not brackets."),
+				''
+			],
+			'default': EDITOR_DEFAULTS.autoSurround,
+			'description': nls.localize('autoSurround', "Controls whether the editor should automatically surround selections.")
 		},
 		'editor.formatOnType': {
 			'type': 'boolean',
@@ -528,7 +556,7 @@ const editorConfiguration: IConfigurationNode = {
 			'type': 'string',
 			'enum': ['on', 'smart', 'off'],
 			'default': EDITOR_DEFAULTS.contribInfo.acceptSuggestionOnEnter,
-			'enumDescriptions': [
+			'markdownEnumDescriptions': [
 				'',
 				nls.localize('acceptSuggestionOnEnterSmart', "Only accept a suggestion with `Enter` when it makes a textual change."),
 				''
@@ -557,6 +585,11 @@ const editorConfiguration: IConfigurationNode = {
 			'default': EDITOR_DEFAULTS.emptySelectionClipboard,
 			'description': nls.localize('emptySelectionClipboard', "Controls whether copying without a selection copies the current line.")
 		},
+		'editor.copyWithSyntaxHighlighting': {
+			'type': 'boolean',
+			'default': EDITOR_DEFAULTS.copyWithSyntaxHighlighting,
+			'description': nls.localize('copyWithSyntaxHighlighting', "Controls whether syntax highlighting should be copied into the clipboard.")
+		},
 		'editor.wordBasedSuggestions': {
 			'type': 'boolean',
 			'default': EDITOR_DEFAULTS.contribInfo.wordBasedSuggestions,
@@ -565,7 +598,7 @@ const editorConfiguration: IConfigurationNode = {
 		'editor.suggestSelection': {
 			'type': 'string',
 			'enum': ['first', 'recentlyUsed', 'recentlyUsedByPrefix'],
-			'enumDescriptions': [
+			'markdownEnumDescriptions': [
 				nls.localize('suggestSelection.first', "Always select the first suggestion."),
 				nls.localize('suggestSelection.recentlyUsed', "Select recent suggestions unless further typing selects one, e.g. `console.| -> console.log` because `log` has been completed recently."),
 				nls.localize('suggestSelection.recentlyUsedByPrefix', "Select suggestions based on previous prefixes that have completed those suggestions, e.g. `co -> console` and `con -> const`."),
@@ -577,18 +610,34 @@ const editorConfiguration: IConfigurationNode = {
 			'type': 'integer',
 			'default': 0,
 			'minimum': 0,
-			'description': nls.localize('suggestFontSize', "Font size for the suggest widget.")
+			'markdownDescription': nls.localize('suggestFontSize', "Font size for the suggest widget. When set to `0`, the value of `#editor.fontSize#` is used.")
 		},
 		'editor.suggestLineHeight': {
 			'type': 'integer',
 			'default': 0,
 			'minimum': 0,
-			'description': nls.localize('suggestLineHeight', "Line height for the suggest widget.")
+			'markdownDescription': nls.localize('suggestLineHeight', "Line height for the suggest widget. When set to `0`, the value of `#editor.lineHeight#` is used.")
+		},
+		'editor.tabCompletion': {
+			type: 'string',
+			default: 'off',
+			enum: ['on', 'off', 'onlySnippets'],
+			enumDescriptions: [
+				nls.localize('tabCompletion.on', "Tab complete will insert the best matching suggestion when pressing tab."),
+				nls.localize('tabCompletion.off', "Disable tab completions."),
+				nls.localize('tabCompletion.onlySnippets', "Tab complete snippets when their prefix match. Works best when 'quickSuggestions' aren't enabled."),
+			],
+			description: nls.localize('tabCompletion', "Enables tab completions.")
 		},
 		'editor.suggest.filterGraceful': {
 			type: 'boolean',
 			default: true,
 			description: nls.localize('suggest.filterGraceful', "Controls whether filtering and sorting suggestions accounts for small typos.")
+		},
+		'editor.suggest.localityBonus': {
+			type: 'boolean',
+			default: false,
+			description: nls.localize('suggest.localityBonus', "Controls whether sorting favours words that appear close to the cursor.")
 		},
 		'editor.suggest.snippetsPreventQuickSuggestions': {
 			type: 'boolean',
@@ -821,12 +870,12 @@ const editorConfiguration: IConfigurationNode = {
 	}
 };
 
-let cachedEditorConfigurationKeys: { [key: string]: boolean; } = null;
+let cachedEditorConfigurationKeys: { [key: string]: boolean; } | null = null;
 function getEditorConfigurationKeys(): { [key: string]: boolean; } {
 	if (cachedEditorConfigurationKeys === null) {
-		cachedEditorConfigurationKeys = Object.create(null);
-		Object.keys(editorConfiguration.properties).forEach((prop) => {
-			cachedEditorConfigurationKeys[prop] = true;
+		cachedEditorConfigurationKeys = <{ [key: string]: boolean; }>Object.create(null);
+		Object.keys(editorConfiguration.properties!).forEach((prop) => {
+			cachedEditorConfigurationKeys![prop] = true;
 		});
 	}
 	return cachedEditorConfigurationKeys;

@@ -3,15 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import * as assert from 'assert';
 import { Range } from 'vs/editor/common/core/range';
-import { EndOfLineSequence, IIdentifiedSingleEditOperation, EndOfLinePreference } from 'vs/editor/common/model';
-import { TextModel } from 'vs/editor/common/model/textModel';
+import { EndOfLinePreference, EndOfLineSequence, IIdentifiedSingleEditOperation } from 'vs/editor/common/model';
 import { MirrorTextModel } from 'vs/editor/common/model/mirrorTextModel';
-import { assertSyncedModels, testApplyEditsWithSyncedModels } from 'vs/editor/test/common/model/editableTextModelTestUtils';
+import { TextModel } from 'vs/editor/common/model/textModel';
 import { IModelContentChangedEvent } from 'vs/editor/common/model/textModelEvents';
+import { assertSyncedModels, testApplyEditsWithSyncedModels } from 'vs/editor/test/common/model/editableTextModelTestUtils';
 
 function createEditableTextModelFromString(text: string): TextModel {
 	return new TextModel(text, TextModel.DEFAULT_CREATION_OPTIONS, null);

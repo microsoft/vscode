@@ -3,28 +3,31 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IExtensionManagementService, IExtensionManagementServerService, IExtensionManagementServer } from 'vs/platform/extensionManagement/common/extensionManagement';
-import URI from 'vs/base/common/uri';
+import { localize } from 'vs/nls';
 import { Schemas } from 'vs/base/common/network';
+import { URI } from 'vs/base/common/uri';
+import { IExtensionManagementServer, IExtensionManagementServerService, IExtensionManagementService } from 'vs/platform/extensionManagement/common/extensionManagement';
+
+const localExtensionManagementServerAuthority: string = 'vscode-local';
 
 export class ExtensionManagementServerService implements IExtensionManagementServerService {
 
 	_serviceBrand: any;
 
-	readonly extensionManagementServers: IExtensionManagementServer[];
+	readonly localExtensionManagementServer;
 
 	constructor(
 		localExtensionManagementService: IExtensionManagementService
 	) {
-		this.extensionManagementServers = [{ extensionManagementService: localExtensionManagementService, location: URI.from({ scheme: Schemas.file }) }];
+		this.localExtensionManagementServer = { extensionManagementService: localExtensionManagementService, authority: localExtensionManagementServerAuthority, label: localize('local', "Local") };
 	}
 
-	getExtensionManagementServer(location: URI): IExtensionManagementServer {
-		return this.extensionManagementServers[0];
+	getExtensionManagementServer(location: URI): IExtensionManagementServer | null {
+		return this.localExtensionManagementServer;
 	}
 
-	getDefaultExtensionManagementServer(): IExtensionManagementServer {
-		return this.extensionManagementServers[0];
+	get otherExtensionManagementServer(): IExtensionManagementServer | null {
+		return null;
 	}
 }
 
@@ -32,20 +35,22 @@ export class SingleServerExtensionManagementServerService implements IExtensionM
 
 	_serviceBrand: any;
 
-	readonly extensionManagementServers: IExtensionManagementServer[];
 
 	constructor(
-		extensionManagementServer: IExtensionManagementServer
+		private readonly extensionManagementServer: IExtensionManagementServer
 	) {
-		this.extensionManagementServers = [extensionManagementServer];
 	}
 
-	getExtensionManagementServer(location: URI): IExtensionManagementServer {
-		location = location.scheme === Schemas.file ? URI.from({ scheme: Schemas.file }) : location;
-		return this.extensionManagementServers.filter(server => location.authority === server.location.authority)[0];
+	getExtensionManagementServer(location: URI): IExtensionManagementServer | null {
+		const authority = location.scheme === Schemas.file ? localExtensionManagementServerAuthority : location.authority;
+		return this.extensionManagementServer.authority === authority ? this.extensionManagementServer : null;
 	}
 
-	getDefaultExtensionManagementServer(): IExtensionManagementServer {
-		return this.extensionManagementServers[0];
+	get localExtensionManagementServer(): IExtensionManagementServer | null {
+		return this.extensionManagementServer.authority === localExtensionManagementServerAuthority ? this.extensionManagementServer : null;
+	}
+
+	get otherExtensionManagementServer(): IExtensionManagementServer | null {
+		return this.extensionManagementServer.authority !== localExtensionManagementServerAuthority ? this.extensionManagementServer : null;
 	}
 }

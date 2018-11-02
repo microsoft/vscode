@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import uri from 'vs/base/common/uri';
+import { URI as uri } from 'vs/base/common/uri';
 import { isMacintosh } from 'vs/base/common/platform';
 import * as errors from 'vs/base/common/errors';
 import { IMouseEvent, StandardMouseEvent } from 'vs/base/browser/mouseEvent';
@@ -46,7 +46,7 @@ export class LinkDetector {
 
 			let match = pattern.exec(text);
 			while (match !== null) {
-				let resource: uri = null;
+				let resource: uri | null = null;
 				if (!resource) {
 					match = pattern.exec(text);
 					continue;
@@ -106,6 +106,6 @@ export class LinkDetector {
 					startColumn: column
 				}
 			}
-		}, group).done(null, errors.onUnexpectedError);
+		}, group).then(null, errors.onUnexpectedError);
 	}
 }

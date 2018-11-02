@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import 'vs/css!./media/notificationsCenter';
 import 'vs/css!./media/notificationsActions';
 import { Themable, NOTIFICATIONS_BORDER, NOTIFICATIONS_CENTER_HEADER_FOREGROUND, NOTIFICATIONS_CENTER_HEADER_BACKGROUND, NOTIFICATIONS_CENTER_BORDER } from 'vs/workbench/common/theme';
@@ -106,9 +104,9 @@ export class NotificationsCenter extends Themable {
 
 	private updateTitle(): void {
 		if (this.model.notifications.length === 0) {
-			this.notificationsCenterTitle.innerText = localize('notificationsEmpty', "No new notifications");
+			this.notificationsCenterTitle.textContent = localize('notificationsEmpty', "No new notifications");
 		} else {
-			this.notificationsCenterTitle.innerText = localize('notifications', "Notifications");
+			this.notificationsCenterTitle.textContent = localize('notifications', "Notifications");
 		}
 	}
 

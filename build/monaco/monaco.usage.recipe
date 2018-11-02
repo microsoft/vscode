@@ -1,19 +1,19 @@
 
 // This file is adding references to various symbols which should not be removed via tree shaking
 
-import { ServiceIdentifier } from 'vs/platform/instantiation/common/instantiation';
-import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
-import { IHighlight } from 'vs/base/parts/quickopen/browser/quickOpenModel';
-import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { CountBadge } from 'vs/base/browser/ui/countBadge/countBadge';
-import { SimpleWorkerClient, create as create1 } from 'vs/base/common/worker/simpleWorker';
-import { create as create2 } from 'vs/editor/common/services/editorSimpleWorker';
-import { QuickOpenWidget } from 'vs/base/parts/quickopen/browser/quickOpenWidget';
-import { SyncDescriptor0, SyncDescriptor1, SyncDescriptor2, SyncDescriptor3, SyncDescriptor4, SyncDescriptor5, SyncDescriptor6, SyncDescriptor7, SyncDescriptor8 } from 'vs/platform/instantiation/common/descriptors';
-import { PolyfillPromise } from 'vs/base/common/winjs.polyfill.promise';
-import { DiffNavigator } from 'vs/editor/browser/widget/diffNavigator';
-import * as editorAPI from 'vs/editor/editor.api';
+import { ServiceIdentifier } from './vs/platform/instantiation/common/instantiation';
+import { IContextViewService } from './vs/platform/contextview/browser/contextView';
+import { IHighlight } from './vs/base/parts/quickopen/browser/quickOpenModel';
+import { IWorkspaceContextService } from './vs/platform/workspace/common/workspace';
+import { IEnvironmentService } from './vs/platform/environment/common/environment';
+import { CountBadge } from './vs/base/browser/ui/countBadge/countBadge';
+import { SimpleWorkerClient, create as create1 } from './vs/base/common/worker/simpleWorker';
+import { create as create2 } from './vs/editor/common/services/editorSimpleWorker';
+import { QuickOpenWidget } from './vs/base/parts/quickopen/browser/quickOpenWidget';
+import { SyncDescriptor0, SyncDescriptor1, SyncDescriptor2, SyncDescriptor3, SyncDescriptor4, SyncDescriptor5, SyncDescriptor6, SyncDescriptor7, SyncDescriptor8 } from './vs/platform/instantiation/common/descriptors';
+import { PolyfillPromise } from './vs/base/common/winjs.polyfill.promise';
+import { DiffNavigator } from './vs/editor/browser/widget/diffNavigator';
+import * as editorAPI from './vs/editor/editor.api';
 
 (function () {
 	var a: any;
@@ -71,7 +71,6 @@ import * as editorAPI from 'vs/editor/editor.api';
 	a = editorAPI.Range;
 	a = editorAPI.Selection;
 	a = editorAPI.SelectionDirection;
-	a = editorAPI.Severity;
 	a = editorAPI.MarkerSeverity;
 	a = editorAPI.MarkerTag;
 	a = editorAPI.Promise;

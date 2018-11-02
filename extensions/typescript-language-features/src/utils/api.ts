@@ -30,6 +30,9 @@ export default class API {
 	public static readonly v291 = API.fromSimpleString('2.9.1');
 	public static readonly v292 = API.fromSimpleString('2.9.2');
 	public static readonly v300 = API.fromSimpleString('3.0.0');
+	public static readonly v310 = API.fromSimpleString('3.1.0');
+	public static readonly v314 = API.fromSimpleString('3.1.4');
+	public static readonly v320 = API.fromSimpleString('3.2.0');
 
 
 	public static fromVersionString(versionString: string): API {
@@ -53,5 +56,9 @@ export default class API {
 
 	public gte(other: API): boolean {
 		return semver.gte(this.version, other.version);
+	}
+
+	public lt(other: API): boolean {
+		return !this.gte(other);
 	}
 }

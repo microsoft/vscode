@@ -2,7 +2,6 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
 import * as fs from 'fs';
 import * as path from 'path';
@@ -321,10 +320,10 @@ export class TerminalTaskSystem implements ITaskSystem {
 	}
 
 	private executeInTerminal(task: CustomTask | ContributedTask, trigger: string, resolver: VariableResolver): TPromise<ITaskSummary> {
-		let terminal: ITerminalInstance = undefined;
-		let executedCommand: string = undefined;
-		let error: TaskError = undefined;
-		let promise: TPromise<ITaskSummary> = undefined;
+		let terminal: ITerminalInstance | undefined = undefined;
+		let executedCommand: string | undefined = undefined;
+		let error: TaskError | undefined = undefined;
+		let promise: TPromise<ITaskSummary> | undefined = undefined;
 		if (task.isBackground) {
 			promise = new TPromise<ITaskSummary>((resolve, reject) => {
 				const problemMatchers = this.resolveMatchers(resolver, task.problemMatchers);
@@ -340,7 +339,7 @@ export class TerminalTaskSystem implements ITaskSystem {
 						this._onDidStateChange.fire(TaskEvent.create(TaskEventKind.Inactive, task));
 						if (eventCounter === 0) {
 							let reveal = task.command.presentation.reveal;
-							if (reveal === RevealKind.Silent && watchingProblemMatcher.numberOfMatches > 0 && watchingProblemMatcher.maxMarkerSeverity >= MarkerSeverity.Error) {
+							if ((reveal === RevealKind.Silent) && (watchingProblemMatcher.numberOfMatches > 0) && (watchingProblemMatcher.maxMarkerSeverity >= MarkerSeverity.Error)) {
 								this.terminalService.setActiveInstance(terminal);
 								this.terminalService.showPanel(false);
 							}
@@ -353,10 +352,12 @@ export class TerminalTaskSystem implements ITaskSystem {
 				if (error || !terminal) {
 					return;
 				}
-				let processStartedSignaled: boolean = false;
-				terminal.processReady.done(() => {
-					processStartedSignaled = true;
-					this._onDidStateChange.fire(TaskEvent.create(TaskEventKind.ProcessStarted, task, terminal.processId));
+				let processStartedSignaled = false;
+				terminal.processReady.then(() => {
+					if (!processStartedSignaled) {
+						this._onDidStateChange.fire(TaskEvent.create(TaskEventKind.ProcessStarted, task, terminal.processId));
+						processStartedSignaled = true;
+					}
 				}, (_error) => {
 					// The process never got ready. Need to think how to handle this.
 				});
@@ -387,24 +388,26 @@ export class TerminalTaskSystem implements ITaskSystem {
 							break;
 					}
 					let reveal = task.command.presentation.reveal;
-					if (reveal === RevealKind.Silent && (exitCode !== 0 || watchingProblemMatcher.numberOfMatches > 0 && watchingProblemMatcher.maxMarkerSeverity >= MarkerSeverity.Error)) {
+					if ((reveal === RevealKind.Silent) && ((exitCode !== 0) || (watchingProblemMatcher.numberOfMatches > 0) && (watchingProblemMatcher.maxMarkerSeverity >= MarkerSeverity.Error))) {
 						this.terminalService.setActiveInstance(terminal);
 						this.terminalService.showPanel(false);
 					}
 					watchingProblemMatcher.done();
 					watchingProblemMatcher.dispose();
 					registeredLinkMatchers.forEach(handle => terminal.deregisterLinkMatcher(handle));
-					if (processStartedSignaled) {
-						this._onDidStateChange.fire(TaskEvent.create(TaskEventKind.ProcessEnded, task, exitCode));
+					if (!processStartedSignaled) {
+						this._onDidStateChange.fire(TaskEvent.create(TaskEventKind.ProcessStarted, task, terminal.processId));
+						processStartedSignaled = true;
 					}
-					toDispose = dispose(toDispose);
-					toDispose = null;
+					this._onDidStateChange.fire(TaskEvent.create(TaskEventKind.ProcessEnded, task, exitCode));
 					for (let i = 0; i < eventCounter; i++) {
 						let event = TaskEvent.create(TaskEventKind.Inactive, task);
 						this._onDidStateChange.fire(event);
 					}
 					eventCounter = 0;
 					this._onDidStateChange.fire(TaskEvent.create(TaskEventKind.End, task));
+					toDispose = dispose(toDispose);
+					toDispose = null;
 					resolve({ exitCode });
 				});
 			});
@@ -414,10 +417,13 @@ export class TerminalTaskSystem implements ITaskSystem {
 				if (error || !terminal) {
 					return;
 				}
-				let processStartedSignaled: boolean = false;
-				terminal.processReady.done(() => {
-					processStartedSignaled = true;
-					this._onDidStateChange.fire(TaskEvent.create(TaskEventKind.ProcessStarted, task, terminal.processId));
+
+				let processStartedSignaled = false;
+				terminal.processReady.then(() => {
+					if (!processStartedSignaled) {
+						this._onDidStateChange.fire(TaskEvent.create(TaskEventKind.ProcessStarted, task, terminal.processId));
+						processStartedSignaled = true;
+					}
 				}, (_error) => {
 					// The process never got ready. Need to think how to handle this.
 				});
@@ -444,16 +450,18 @@ export class TerminalTaskSystem implements ITaskSystem {
 							break;
 					}
 					let reveal = task.command.presentation.reveal;
-					if (reveal === RevealKind.Silent && (exitCode !== 0 || startStopProblemMatcher.numberOfMatches > 0 && startStopProblemMatcher.maxMarkerSeverity >= MarkerSeverity.Error)) {
+					if ((reveal === RevealKind.Silent) && ((exitCode !== 0) || (startStopProblemMatcher.numberOfMatches > 0) && (startStopProblemMatcher.maxMarkerSeverity >= MarkerSeverity.Error))) {
 						this.terminalService.setActiveInstance(terminal);
 						this.terminalService.showPanel(false);
 					}
 					startStopProblemMatcher.done();
 					startStopProblemMatcher.dispose();
 					registeredLinkMatchers.forEach(handle => terminal.deregisterLinkMatcher(handle));
-					if (processStartedSignaled) {
-						this._onDidStateChange.fire(TaskEvent.create(TaskEventKind.ProcessEnded, task, exitCode));
+					if (!processStartedSignaled) {
+						this._onDidStateChange.fire(TaskEvent.create(TaskEventKind.ProcessStarted, task, terminal.processId));
+						processStartedSignaled = true;
 					}
+					this._onDidStateChange.fire(TaskEvent.create(TaskEventKind.ProcessEnded, task, exitCode));
 					this._onDidStateChange.fire(TaskEvent.create(TaskEventKind.Inactive, task));
 					this._onDidStateChange.fire(TaskEvent.create(TaskEventKind.End, task));
 					resolve({ exitCode });
@@ -466,7 +474,7 @@ export class TerminalTaskSystem implements ITaskSystem {
 		if (!terminal) {
 			return TPromise.wrapError<ITaskSummary>(new Error(`Failed to create terminal for task ${task._label}`));
 		}
-		if (task.command.presentation.reveal === RevealKind.Always || (task.command.presentation.reveal === RevealKind.Silent && task.problemMatchers.length === 0)) {
+		if (task.command.presentation.reveal === RevealKind.Always) {
 			this.terminalService.setActiveInstance(terminal);
 			this.terminalService.showPanel(task.command.presentation.focus);
 		}
@@ -519,6 +527,7 @@ export class TerminalTaskSystem implements ITaskSystem {
 	private createTerminal(task: CustomTask | ContributedTask, resolver: VariableResolver): [ITerminalInstance, string, TaskError | undefined] {
 		let platform = resolver.taskSystemInfo ? resolver.taskSystemInfo.platform : Platform.platform;
 		let options = this.resolveOptions(resolver, task.command.options);
+		let originalCommand = task.command.name;
 		let { command, args } = this.resolveCommandAndArgs(resolver, task.command);
 		let commandExecutable = CommandString.value(command);
 		let workspaceFolder = Task.getWorkspaceFolder(task);
@@ -531,10 +540,10 @@ export class TerminalTaskSystem implements ITaskSystem {
 			} else if (task.command.presentation.showReuseMessage) {
 				waitOnExit = nls.localize('reuseTerminal', 'Terminal will be reused by tasks, press any key to close it.');
 			} else {
-				waitOnExit = '\u200B';
+				waitOnExit = true;
 			}
 		}
-		let shellLaunchConfig: IShellLaunchConfig = undefined;
+		let shellLaunchConfig: IShellLaunchConfig | undefined = undefined;
 		let isShellCommand = task.command.runtime === RuntimeType.Shell;
 		if (isShellCommand) {
 			shellLaunchConfig = { name: terminalName, executable: null, args: null, waitOnExit };
@@ -554,7 +563,7 @@ export class TerminalTaskSystem implements ITaskSystem {
 			}
 			let shellArgs = <string[]>shellLaunchConfig.args.slice(0);
 			let toAdd: string[] = [];
-			let commandLine = this.buildShellCommandLine(shellLaunchConfig.executable, shellOptions, command, args);
+			let commandLine = this.buildShellCommandLine(shellLaunchConfig.executable, shellOptions, command, originalCommand, args);
 			let windowsShellArgs: boolean = false;
 			if (platform === Platform.Platform.Windows) {
 				// Change Sysnative to System32 if the OS is Windows but NOT WoW64. It's
@@ -683,6 +692,9 @@ export class TerminalTaskSystem implements ITaskSystem {
 		}
 		if (terminalToReuse) {
 			terminalToReuse.terminal.reuseTerminal(shellLaunchConfig);
+			if (task.command.presentation.clear) {
+				terminalToReuse.terminal.clear();
+			}
 			return [terminalToReuse.terminal, commandExecutable, undefined];
 		}
 
@@ -694,19 +706,18 @@ export class TerminalTaskSystem implements ITaskSystem {
 				delete this.terminals[terminalKey];
 				delete this.sameTaskTerminals[terminalData.lastTask];
 				this.idleTaskTerminals.delete(terminalData.lastTask);
+				// Delete the task now as a work around for cases when the onExit isn't fired.
+				// This can happen if the terminal wasn't shutdown with an "immediate" flag and is expected.
+				// For correct terminal re-use, the task needs to be deleted immediately.
+				// Note that this shouldn't be a problem anymore since user initiated terminal kills are now immediate.
+				delete this.activeTasks[Task.getMapKey(task)];
 			}
 		});
 		this.terminals[terminalKey] = { terminal: result, lastTask: taskKey };
 		return [result, commandExecutable, undefined];
 	}
 
-	private buildShellCommandLine(shellExecutable: string, shellOptions: ShellConfiguration, command: CommandString, args: CommandString[]): string {
-		// If we have no args and the command is a string then use the
-		// command to stay backwards compatible with the old command line
-		// model.
-		if ((!args || args.length === 0) && Types.isString(command)) {
-			return command;
-		}
+	private buildShellCommandLine(shellExecutable: string, shellOptions: ShellConfiguration, command: CommandString, originalCommand: CommandString, args: CommandString[]): string {
 		let basename = path.parse(shellExecutable).name.toLowerCase();
 		let shellQuoteOptions = this.getQuotingOptions(basename, shellOptions);
 
@@ -769,6 +780,13 @@ export class TerminalTaskSystem implements ITaskSystem {
 			} else {
 				return quote(value.value, value.quoting);
 			}
+		}
+
+		// If we have no args and the command is a string then use the command to stay backwards compatible with the old command line
+		// model. To allow variable resolving with spaces we do continue if the resolved value is different than the original one
+		// and the resolved one needs quoting.
+		if ((!args || args.length === 0) && Types.isString(command) && (command === originalCommand as string || needsQuotes(originalCommand as string))) {
+			return command;
 		}
 
 		let result: string[] = [];
@@ -897,7 +915,7 @@ export class TerminalTaskSystem implements ITaskSystem {
 			// to the current working directory.
 			return path.join(cwd, command);
 		}
-		let paths: string[] = undefined;
+		let paths: string[] | undefined = undefined;
 		// The options can override the PATH. So consider that PATH if present.
 		if (options && options.env) {
 			// Path can be named in many different ways and for the execution it doesn't matter

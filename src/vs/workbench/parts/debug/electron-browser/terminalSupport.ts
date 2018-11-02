@@ -45,7 +45,7 @@ export class TerminalLauncher implements ITerminalLauncher {
 		this.terminalService.setActiveInstance(t);
 		this.terminalService.showPanel(true);
 
-		return new TPromise((resolve, error) => {
+		return new Promise((resolve, error) => {
 			setTimeout(_ => {
 				const command = prepareCommand(args, config);
 				t.sendText(command, true);

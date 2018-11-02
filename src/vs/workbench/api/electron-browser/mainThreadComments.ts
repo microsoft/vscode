@@ -2,11 +2,9 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
 import { Disposable, IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { ICodeEditor, isCodeEditor, isDiffEditor, IDiffEditor } from 'vs/editor/browser/editorBrowser';
-import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import * as modes from 'vs/editor/common/modes';
 import { extHostNamedCustomer } from 'vs/workbench/api/electron-browser/extHostCustomers';
 import { keys } from 'vs/base/common/map';
@@ -16,8 +14,8 @@ import { ExtHostCommentsShape, ExtHostContext, IExtHostContext, MainContext, Mai
 import { ICommentService } from 'vs/workbench/parts/comments/electron-browser/commentService';
 import { COMMENTS_PANEL_ID } from 'vs/workbench/parts/comments/electron-browser/commentsPanel';
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
-import URI from 'vs/base/common/uri';
-import { ReviewController } from 'vs/workbench/parts/comments/electron-browser/commentsEditorContribution';
+import { URI } from 'vs/base/common/uri';
+import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 
 @extHostNamedCustomer(MainContext.MainThreadComments)
 export class MainThreadComments extends Disposable implements MainThreadCommentsShape {
@@ -25,39 +23,19 @@ export class MainThreadComments extends Disposable implements MainThreadComments
 	private _proxy: ExtHostCommentsShape;
 	private _documentProviders = new Map<number, IDisposable>();
 	private _workspaceProviders = new Map<number, IDisposable>();
+	private _firstSessionStart: boolean;
 
 	constructor(
 		extHostContext: IExtHostContext,
 		@IEditorService private _editorService: IEditorService,
 		@ICommentService private _commentService: ICommentService,
 		@IPanelService private _panelService: IPanelService,
-		@ICodeEditorService private _codeEditorService: ICodeEditorService
+		@ITelemetryService private _telemetryService: ITelemetryService
 	) {
 		super();
 		this._disposables = [];
+		this._firstSessionStart = true;
 		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostComments);
-		this._disposables.push(this._editorService.onDidActiveEditorChange(e => {
-			const editors = this.getFocusedEditors();
-			if (!editors || !editors.length) {
-				return;
-			}
-
-			editors.forEach(editor => {
-				const controller = ReviewController.get(editor);
-				if (!controller) {
-					return;
-				}
-
-				if (!editor.getModel()) {
-					return;
-				}
-
-				const outerEditorURI = editor.getModel().uri;
-				this.provideDocumentComments(outerEditorURI).then(commentInfos => {
-					this._commentService.setDocumentComments(outerEditorURI, commentInfos.filter(info => info !== null));
-				});
-			});
-		}));
 	}
 
 	$registerDocumentCommentProvider(handle: number): void {
@@ -75,19 +53,37 @@ export class MainThreadComments extends Disposable implements MainThreadComments
 				},
 				replyToCommentThread: async (uri, range, thread, text, token) => {
 					return this._proxy.$replyToCommentThread(handle, uri, range, thread, text);
+				},
+				editComment: async (uri, comment, text, token) => {
+					return this._proxy.$editComment(handle, uri, comment, text);
+				},
+				deleteComment: async (uri, comment, token) => {
+					return this._proxy.$deleteComment(handle, uri, comment);
 				}
 			}
 		);
 	}
 
-	$registerWorkspaceCommentProvider(handle: number): void {
+	$registerWorkspaceCommentProvider(handle: number, extensionId: string): void {
 		this._workspaceProviders.set(handle, undefined);
 		this._panelService.setPanelEnablement(COMMENTS_PANEL_ID, true);
-		this._panelService.openPanel(COMMENTS_PANEL_ID);
+		if (this._firstSessionStart) {
+			this._panelService.openPanel(COMMENTS_PANEL_ID);
+			this._firstSessionStart = false;
+		}
 		this._proxy.$provideWorkspaceComments(handle).then(commentThreads => {
 			if (commentThreads) {
 				this._commentService.setWorkspaceComments(handle, commentThreads);
 			}
+		});
+
+		/* __GDPR__
+			"comments:registerWorkspaceCommentProvider" : {
+				"extensionId" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+			}
+		*/
+		this._telemetryService.publicLog('comments:registerWorkspaceCommentProvider', {
+			extensionId: extensionId
 		});
 	}
 
@@ -109,33 +105,21 @@ export class MainThreadComments extends Disposable implements MainThreadComments
 		this._commentService.updateComments(event);
 	}
 
-	dispose(): void {
-		this._disposables = dispose(this._disposables);
-		this._workspaceProviders.forEach(value => dispose(value));
-		this._workspaceProviders.clear();
-		this._documentProviders.forEach(value => dispose(value));
-		this._documentProviders.clear();
-	}
+	getVisibleEditors(): ICodeEditor[] {
+		let ret: ICodeEditor[] = [];
 
-	getFocusedEditors(): ICodeEditor[] {
-		let activeControl = this._editorService.activeControl;
-		if (activeControl) {
-			if (isCodeEditor(activeControl.getControl())) {
-				return [this._editorService.activeControl.getControl() as ICodeEditor];
+		this._editorService.visibleControls.forEach(control => {
+			if (isCodeEditor(control.getControl())) {
+				ret.push(control.getControl() as ICodeEditor);
 			}
 
-			if (isDiffEditor(activeControl.getControl())) {
-				let diffEditor = activeControl.getControl() as IDiffEditor;
-				return [diffEditor.getOriginalEditor(), diffEditor.getModifiedEditor()];
+			if (isDiffEditor(control.getControl())) {
+				let diffEditor = control.getControl() as IDiffEditor;
+				ret.push(diffEditor.getOriginalEditor(), diffEditor.getModifiedEditor());
 			}
-		}
+		});
 
-		let editor = this._codeEditorService.getFocusedCodeEditor();
-
-		if (editor) {
-			return [editor];
-		}
-		return [];
+		return ret;
 	}
 
 	async provideWorkspaceComments(): Promise<modes.CommentThread[]> {
@@ -152,5 +136,13 @@ export class MainThreadComments extends Disposable implements MainThreadComments
 			result.push(await this._proxy.$provideDocumentComments(handle, resource));
 		}
 		return result;
+	}
+
+	dispose(): void {
+		this._disposables = dispose(this._disposables);
+		this._workspaceProviders.forEach(value => dispose(value));
+		this._workspaceProviders.clear();
+		this._documentProviders.forEach(value => dispose(value));
+		this._documentProviders.clear();
 	}
 }

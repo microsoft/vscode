@@ -2,7 +2,6 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
 import * as nls from 'vs/nls';
 import { IJSONSchema, IJSONSchemaMap } from 'vs/base/common/jsonSchema';
@@ -47,7 +46,7 @@ namespace Configuration {
 		properties?: IJSONSchemaMap;
 	}
 
-	export function from(value: TaskDefinition, extensionId: string, messageCollector: ExtensionMessageCollector): Tasks.TaskDefinition {
+	export function from(value: TaskDefinition, extensionId: string, messageCollector: ExtensionMessageCollector): Tasks.TaskDefinition | undefined {
 		if (!value) {
 			return undefined;
 		}
@@ -107,7 +106,7 @@ class TaskDefinitionRegistryImpl implements ITaskDefinitionRegistry {
 				}
 				resolve(undefined);
 			});
-		}, () => { });
+		});
 	}
 
 	public onReady(): TPromise<void> {
@@ -138,7 +137,7 @@ class TaskDefinitionRegistryImpl implements ITaskDefinitionRegistry {
 				} else {
 					schema.properties = Object.create(null);
 				}
-				schema.properties.type = {
+				schema.properties!.type = {
 					type: 'string',
 					enum: [definition.taskType]
 				};

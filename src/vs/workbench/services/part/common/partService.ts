@@ -2,14 +2,12 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
-import { TPromise } from 'vs/base/common/winjs.base';
 import { createDecorator, ServiceIdentifier } from 'vs/platform/instantiation/common/instantiation';
 import { Event } from 'vs/base/common/event';
 import { MenuBarVisibility } from 'vs/platform/windows/common/windows';
 
-export enum Parts {
+export const enum Parts {
 	ACTIVITYBAR_PART,
 	SIDEBAR_PART,
 	PANEL_PART,
@@ -19,10 +17,17 @@ export enum Parts {
 	MENUBAR_PART
 }
 
-export enum Position {
+export const enum Position {
 	LEFT,
 	RIGHT,
 	BOTTOM
+}
+export function PositionToString(position: Position): string {
+	switch (position) {
+		case Position.LEFT: return 'LEFT';
+		case Position.RIGHT: return 'RIGHT';
+		case Position.BOTTOM: return 'BOTTOM';
+	}
 }
 
 export interface ILayoutOptions {
@@ -49,11 +54,6 @@ export interface IPartService {
 	 * Emits when the editor part's layout changes.
 	 */
 	onEditorLayout: Event<IDimension>;
-
-	/**
-	 * Asks the part service to layout all parts.
-	 */
-	layout(options?: ILayoutOptions): void;
 
 	/**
 	 * Asks the part service to if all parts have been created.
@@ -88,12 +88,12 @@ export interface IPartService {
 	/**
 	 * Set sidebar hidden or not
 	 */
-	setSideBarHidden(hidden: boolean): TPromise<void>;
+	setSideBarHidden(hidden: boolean): void;
 
 	/**
 	 * Set panel part hidden or not
 	 */
-	setPanelHidden(hidden: boolean): TPromise<void>;
+	setPanelHidden(hidden: boolean): void;
 
 	/**
 	 * Maximizes the panel height if the panel is not already maximized.
@@ -124,12 +124,12 @@ export interface IPartService {
 	/**
 	 * Sets the panel position.
 	 */
-	setPanelPosition(position: Position): TPromise<void>;
+	setPanelPosition(position: Position): void;
 
 	/**
-	 * Returns the identifier of the element that contains the workbench.
+	 * Returns the element that contains the workbench.
 	 */
-	getWorkbenchElementId(): string;
+	getWorkbenchElement(): HTMLElement;
 
 	/**
 	 * Toggles the workbench in and out of zen mode - parts get hidden and window goes fullscreen.

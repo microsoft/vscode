@@ -2,28 +2,26 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
 import * as strings from 'vs/base/common/strings';
 import * as paths from 'vs/base/common/paths';
+import { IdleValue } from 'vs/base/common/async';
 
-let intlFileNameCollator: Intl.Collator;
-let intlFileNameCollatorIsNumeric: boolean;
+let intlFileNameCollator: IdleValue<{ collator: Intl.Collator, collatorIsNumeric: boolean }>;
 
-export function setFileNameComparer(collator: Intl.Collator): void {
+export function setFileNameComparer(collator: IdleValue<{ collator: Intl.Collator, collatorIsNumeric: boolean }>): void {
 	intlFileNameCollator = collator;
-	intlFileNameCollatorIsNumeric = collator.resolvedOptions().numeric;
 }
 
 export function compareFileNames(one: string, other: string, caseSensitive = false): number {
 	if (intlFileNameCollator) {
 		const a = one || '';
 		const b = other || '';
-		const result = intlFileNameCollator.compare(a, b);
+		const result = intlFileNameCollator.getValue().collator.compare(a, b);
 
 		// Using the numeric option in the collator will
 		// make compare(`foo1`, `foo01`) === 0. We must disambiguate.
-		if (intlFileNameCollatorIsNumeric && result === 0 && a !== b) {
+		if (intlFileNameCollator.getValue().collatorIsNumeric && result === 0 && a !== b) {
 			return a < b ? -1 : 1;
 		}
 
@@ -60,19 +58,19 @@ export function compareFileExtensions(one: string, other: string): number {
 		const [oneName, oneExtension] = extractNameAndExtension(one);
 		const [otherName, otherExtension] = extractNameAndExtension(other);
 
-		let result = intlFileNameCollator.compare(oneExtension, otherExtension);
+		let result = intlFileNameCollator.getValue().collator.compare(oneExtension, otherExtension);
 
 		if (result === 0) {
 			// Using the numeric option in the collator will
 			// make compare(`foo1`, `foo01`) === 0. We must disambiguate.
-			if (intlFileNameCollatorIsNumeric && oneExtension !== otherExtension) {
+			if (intlFileNameCollator.getValue().collatorIsNumeric && oneExtension !== otherExtension) {
 				return oneExtension < otherExtension ? -1 : 1;
 			}
 
 			// Extensions are equal, compare filenames
-			result = intlFileNameCollator.compare(oneName, otherName);
+			result = intlFileNameCollator.getValue().collator.compare(oneName, otherName);
 
-			if (intlFileNameCollatorIsNumeric && result === 0 && oneName !== otherName) {
+			if (intlFileNameCollator.getValue().collatorIsNumeric && result === 0 && oneName !== otherName) {
 				return oneName < otherName ? -1 : 1;
 			}
 		}
@@ -99,7 +97,7 @@ function noIntlCompareFileExtensions(one: string, other: string): number {
 }
 
 function extractNameAndExtension(str?: string): [string, string] {
-	const match = str ? FileNameMatch.exec(str) : [] as RegExpExecArray;
+	const match = str ? FileNameMatch.exec(str) as Array<string> : ([] as Array<string>);
 
 	return [(match && match[1]) || '', (match && match[3]) || ''];
 }

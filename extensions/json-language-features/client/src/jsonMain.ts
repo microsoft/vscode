@@ -2,14 +2,14 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
 import * as path from 'path';
+import * as fs from 'fs';
 import * as nls from 'vscode-nls';
 const localize = nls.loadMessageBundle();
 
-import { workspace, languages, ExtensionContext, extensions, Uri, LanguageConfiguration } from 'vscode';
-import { LanguageClient, LanguageClientOptions, RequestType, ServerOptions, TransportKind, NotificationType, DidChangeConfigurationNotification } from 'vscode-languageclient';
+import { workspace, window, languages, commands, ExtensionContext, extensions, Uri, LanguageConfiguration, Diagnostic, StatusBarAlignment, TextEditor } from 'vscode';
+import { LanguageClient, LanguageClientOptions, RequestType, ServerOptions, TransportKind, NotificationType, DidChangeConfigurationNotification, HandleDiagnosticsSignature } from 'vscode-languageclient';
 import TelemetryReporter from 'vscode-extension-telemetry';
 
 import { hash } from './utils/hash';
@@ -20,6 +20,10 @@ namespace VSCodeContentRequest {
 
 namespace SchemaContentChangeNotification {
 	export const type: NotificationType<string, any> = new NotificationType('json/schemaContent');
+}
+
+namespace ForceValidateRequest {
+	export const type: RequestType<string, Diagnostic[], any, any> = new RequestType('json/validate');
 }
 
 export interface ISchemaAssociations {
@@ -62,8 +66,9 @@ export function activate(context: ExtensionContext) {
 	let packageInfo = getPackageInfo(context);
 	telemetryReporter = packageInfo && new TelemetryReporter(packageInfo.name, packageInfo.version, packageInfo.aiKey);
 
-	// The server is implemented in node
-	let serverModule = context.asAbsolutePath(path.join('server', 'out', 'jsonServerMain.js'));
+	let serverMain = readJSONFile(context.asAbsolutePath('./server/package.json')).main;
+	let serverModule = context.asAbsolutePath(path.join('server', serverMain));
+
 	// The debug options for the server
 	let debugOptions = { execArgv: ['--nolazy', '--inspect=' + (9000 + Math.round(Math.random() * 10000))] };
 
@@ -75,6 +80,18 @@ export function activate(context: ExtensionContext) {
 	};
 
 	let documentSelector = ['json', 'jsonc'];
+
+	let statusBarItem = window.createStatusBarItem(StatusBarAlignment.Right, 0);
+	statusBarItem.command = '_json.retrySchema';
+	toDispose.push(statusBarItem);
+
+	let showStatusBarItem = (message: string) => {
+		statusBarItem.tooltip = message + '\n' + localize('json.clickToRetry', 'Click to retry.');
+		statusBarItem.text = '$(alert)';
+		statusBarItem.show();
+	};
+
+	let fileSchemaErrors = new Map<string, string>();
 
 	// Options to control the language client
 	let clientOptions: LanguageClientOptions = {
@@ -88,6 +105,20 @@ export function activate(context: ExtensionContext) {
 		middleware: {
 			workspace: {
 				didChangeConfiguration: () => client.sendNotification(DidChangeConfigurationNotification.type, { settings: getSettings() })
+			},
+			handleDiagnostics: (uri: Uri, diagnostics: Diagnostic[], next: HandleDiagnosticsSignature) => {
+				const schemaErrorIndex = diagnostics.findIndex(candidate => candidate.code === /* SchemaResolveError */ 0x300);
+				if (schemaErrorIndex !== -1) {
+					// Show schema resolution errors in status bar only; ref: #51032
+					const schemaResolveDiagnostic = diagnostics[schemaErrorIndex];
+					fileSchemaErrors.set(uri.toString(), schemaResolveDiagnostic.message);
+					showStatusBarItem(schemaResolveDiagnostic.message);
+					diagnostics.splice(schemaErrorIndex, 1);
+				} else {
+					statusBarItem.hide();
+					fileSchemaErrors.delete(uri.toString());
+				}
+				next(uri, diagnostics);
 			}
 		}
 	};
@@ -120,8 +151,32 @@ export function activate(context: ExtensionContext) {
 				client.sendNotification(SchemaContentChangeNotification.type, uri.toString());
 			}
 		};
+
+		let handleActiveEditorChange = (activeEditor?: TextEditor) => {
+			const uriStr = activeEditor && activeEditor.document.uri.toString();
+			if (uriStr && fileSchemaErrors.has(uriStr)) {
+				const message = fileSchemaErrors.get(uriStr)!;
+				showStatusBarItem(message);
+			} else {
+				statusBarItem.hide();
+			}
+		};
+
 		toDispose.push(workspace.onDidChangeTextDocument(e => handleContentChange(e.document.uri)));
-		toDispose.push(workspace.onDidCloseTextDocument(d => handleContentChange(d.uri)));
+		toDispose.push(workspace.onDidCloseTextDocument(d => {
+			handleContentChange(d.uri);
+			fileSchemaErrors.delete(d.uri.toString());
+		}));
+		toDispose.push(window.onDidChangeActiveTextEditor(handleActiveEditorChange));
+
+		let handleRetrySchemaCommand = () => {
+			if (window.activeTextEditor) {
+				client.sendRequest(ForceValidateRequest.type, window.activeTextEditor.document.uri.toString());
+				statusBarItem.text = '$(watch)';
+			}
+		};
+
+		toDispose.push(commands.registerCommand('_json.retrySchema', handleRetrySchemaCommand));
 
 		client.sendNotification(SchemaAssociationNotification.type, getSchemaAssociation(context));
 	});
@@ -141,7 +196,7 @@ export function deactivate(): Promise<any> {
 	return telemetryReporter ? telemetryReporter.dispose() : Promise.resolve(null);
 }
 
-function getSchemaAssociation(context: ExtensionContext): ISchemaAssociations {
+function getSchemaAssociation(_context: ExtensionContext): ISchemaAssociations {
 	let associations: ISchemaAssociations = {};
 	extensions.all.forEach(extension => {
 		let packageJSON = extension.packageJSON;
@@ -232,7 +287,9 @@ function getSettings(): Settings {
 	if (folders) {
 		for (let folder of folders) {
 			let folderUri = folder.uri;
+
 			let schemaConfigInfo = workspace.getConfiguration('json', folderUri).inspect<JSONSchemaSettings[]>('schemas');
+
 			let folderSchemas = schemaConfigInfo!.workspaceFolderValue;
 			if (Array.isArray(folderSchemas)) {
 				let folderPath = folderUri.toString();
@@ -259,7 +316,7 @@ function getSchemaId(schema: JSONSchemaSettings, rootPath?: string) {
 }
 
 function getPackageInfo(context: ExtensionContext): IPackageInfo | undefined {
-	let extensionPackage = require(context.asAbsolutePath('./package.json'));
+	let extensionPackage = readJSONFile(context.asAbsolutePath('./package.json'));
 	if (extensionPackage) {
 		return {
 			name: extensionPackage.name,
@@ -268,4 +325,14 @@ function getPackageInfo(context: ExtensionContext): IPackageInfo | undefined {
 		};
 	}
 	return void 0;
+}
+
+function readJSONFile(location: string) {
+	try {
+		return JSON.parse(fs.readFileSync(location).toString());
+	} catch (e) {
+		console.log(`Problems reading ${location}: ${e}`);
+		return {};
+	}
+
 }

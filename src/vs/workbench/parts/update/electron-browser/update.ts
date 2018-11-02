@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import * as nls from 'vs/nls';
 import severity from 'vs/base/common/severity';
 import { TPromise } from 'vs/base/common/winjs.base';
@@ -13,7 +11,7 @@ import { IDisposable, dispose, Disposable } from 'vs/base/common/lifecycle';
 import { Separator } from 'vs/base/browser/ui/actionbar/actionbar';
 import pkg from 'vs/platform/node/package';
 import product from 'vs/platform/node/product';
-import URI from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 import { IActivityService, NumberBadge, IBadge, ProgressBadge } from 'vs/workbench/services/activity/common/activity';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IGlobalActivity } from 'vs/workbench/common/activity';
@@ -21,10 +19,10 @@ import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
-import { IUpdateService, State as UpdateState, StateType, IUpdate, UpdateType } from 'vs/platform/update/common/update';
+import { IUpdateService, State as UpdateState, StateType, IUpdate } from 'vs/platform/update/common/update';
 import * as semver from 'semver';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { INotificationService, INotificationHandle } from 'vs/platform/notification/common/notification';
+import { INotificationService, INotificationHandle, Severity } from 'vs/platform/notification/common/notification';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { IWindowService } from 'vs/platform/windows/common/windows';
 import { ReleaseNotesManager } from './releaseNotesEditor';
@@ -50,8 +48,11 @@ export class OpenLatestReleaseNotesInBrowserAction extends Action {
 	}
 
 	run(): TPromise<any> {
-		const uri = URI.parse(product.releaseNotesUrl);
-		return this.openerService.open(uri);
+		if (product.releaseNotesUrl) {
+			const uri = URI.parse(product.releaseNotesUrl);
+			return this.openerService.open(uri);
+		}
+		return TPromise.as(void 0);
 	}
 }
 
@@ -133,7 +134,8 @@ export class ProductContribution implements IWorkbenchContribution {
 								const uri = URI.parse(product.releaseNotesUrl);
 								openerService.open(uri);
 							}
-						}]
+						}],
+						{ sticky: true }
 					);
 				});
 		}
@@ -176,7 +178,6 @@ export class Win3264BitContribution implements IWorkbenchContribution {
 
 	constructor(
 		@IStorageService storageService: IStorageService,
-		@IInstantiationService instantiationService: IInstantiationService,
 		@INotificationService notificationService: INotificationService,
 		@IEnvironmentService environmentService: IEnvironmentService
 	) {
@@ -204,127 +205,9 @@ export class Win3264BitContribution implements IWorkbenchContribution {
 					neverShowAgain.action.run(handle);
 					neverShowAgain.action.dispose();
 				}
-			}]
+			}],
+			{ sticky: true }
 		);
-	}
-}
-
-async function isUserSetupInstalled(): Promise<boolean> {
-	const rawUserAppId = process.arch === 'x64' ? product.win32x64UserAppId : product.win32UserAppId;
-	const userAppId = rawUserAppId.replace(/^\{\{/, '{');
-	const Registry = await import('winreg');
-	const key = new Registry({
-		hive: Registry.HKCU,
-		key: `\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\${userAppId}_is1`
-	});
-
-	try {
-		await new Promise((c, e) => key.get('', (err, result) => err ? e(err) : c(result)));
-	} catch (err) {
-		return false;
-	}
-
-	return true;
-}
-
-export class WinUserSetupContribution implements IWorkbenchContribution {
-
-	private static readonly KEY = 'update/win32-usersetup';
-	private static readonly KEY_BOTH = 'update/win32-usersetup-both';
-
-	private static readonly STABLE_URL = 'https://vscode-update.azurewebsites.net/latest/win32-x64-user/stable';
-	private static readonly STABLE_URL_32BIT = 'https://vscode-update.azurewebsites.net/latest/win32-user/stable';
-	private static readonly INSIDER_URL = 'https://vscode-update.azurewebsites.net/latest/win32-x64-user/insider';
-	private static readonly INSIDER_URL_32BIT = 'https://vscode-update.azurewebsites.net/latest/win32-user/insider';
-
-	// TODO@joao this needs to change to the 1.26 release notes
-	private static readonly READ_MORE = 'https://aka.ms/vscode-win32-user-setup';
-
-	private disposables: IDisposable[] = [];
-
-	constructor(
-		@IStorageService private storageService: IStorageService,
-		@INotificationService private notificationService: INotificationService,
-		@IEnvironmentService private environmentService: IEnvironmentService,
-		@IOpenerService private openerService: IOpenerService,
-		@IUpdateService private updateService: IUpdateService
-	) {
-		const neverShowAgain = new NeverShowAgain(WinUserSetupContribution.KEY_BOTH, this.storageService);
-
-		if (!neverShowAgain.shouldShow()) {
-			return;
-		}
-
-		isUserSetupInstalled().then(userSetupIsInstalled => {
-			if (!userSetupIsInstalled) {
-				updateService.onStateChange(this.onUpdateStateChange, this, this.disposables);
-				this.onUpdateStateChange(this.updateService.state);
-				return;
-			}
-
-			const handle = this.notificationService.prompt(
-				severity.Warning,
-				nls.localize('usersetupsystem', "You are running the system-wide installation of {0}, while having the user-wide distribution installed as well. Make sure you're running the {0} version you expect.", product.nameShort),
-				[
-					{ label: nls.localize('ok', "OK"), run: () => null },
-					{
-						label: nls.localize('neveragain', "Don't Show Again"),
-						isSecondary: true,
-						run: () => {
-							neverShowAgain.action.run(handle);
-							neverShowAgain.action.dispose();
-						}
-					}]
-			);
-		});
-	}
-
-	private onUpdateStateChange(state: UpdateState): void {
-		if (state.type !== StateType.Idle) {
-			return;
-		}
-
-		if (state.updateType !== UpdateType.Setup) {
-			return;
-		}
-
-		if (!this.environmentService.isBuilt || this.environmentService.disableUpdates) {
-			return;
-		}
-
-		const neverShowAgain = new NeverShowAgain(WinUserSetupContribution.KEY, this.storageService);
-
-		if (!neverShowAgain.shouldShow()) {
-			return;
-		}
-
-		const handle = this.notificationService.prompt(
-			severity.Info,
-			nls.localize('usersetup', "We recommend switching to our new User Setup distribution of {0} for Windows! Click [here]({1}) to learn more.", product.nameShort, WinUserSetupContribution.READ_MORE),
-			[
-				{
-					label: nls.localize('downloadnow', "Download"),
-					run: () => {
-						const url = product.quality === 'insider'
-							? (process.arch === 'ia32' ? WinUserSetupContribution.INSIDER_URL_32BIT : WinUserSetupContribution.INSIDER_URL)
-							: (process.arch === 'ia32' ? WinUserSetupContribution.STABLE_URL_32BIT : WinUserSetupContribution.STABLE_URL);
-
-						return this.openerService.open(URI.parse(url));
-					}
-				},
-				{
-					label: nls.localize('neveragain', "Don't Show Again"),
-					isSecondary: true,
-					run: () => {
-						neverShowAgain.action.run(handle);
-						neverShowAgain.action.dispose();
-					}
-				}]
-		);
-	}
-
-	dispose(): void {
-		this.disposables = dispose(this.disposables);
 	}
 }
 
@@ -350,7 +233,7 @@ export class UpdateContribution implements IGlobalActivity {
 	private static readonly showExtensionsId = 'workbench.view.extensions';
 
 	get id() { return 'vs.update'; }
-	get name() { return ''; }
+	get name() { return nls.localize('manage', "Manage"); }
 	get cssClass() { return 'update-activity'; }
 
 	private state: UpdateState;
@@ -393,7 +276,9 @@ export class UpdateContribution implements IGlobalActivity {
 	private onUpdateStateChange(state: UpdateState): void {
 		switch (state.type) {
 			case StateType.Idle:
-				if (this.state.type === StateType.CheckingForUpdates && this.state.context && this.state.context.windowId === this.windowService.getCurrentWindowId()) {
+				if (state.error) {
+					this.onError(state.error);
+				} else if (this.state.type === StateType.CheckingForUpdates && this.state.context && this.state.context.windowId === this.windowService.getCurrentWindowId()) {
 					this.onUpdateNotAvailable();
 				}
 				break;
@@ -434,6 +319,16 @@ export class UpdateContribution implements IGlobalActivity {
 		this.state = state;
 	}
 
+	private onError(error: string): void {
+		error = error.replace(/See https:\/\/github\.com\/Squirrel\/Squirrel\.Mac\/issues\/182 for more information/, 'See [this link](https://github.com/Microsoft/vscode/issues/7426#issuecomment-425093469) for more information');
+
+		this.notificationService.notify({
+			severity: Severity.Error,
+			message: error,
+			source: nls.localize('update service', "Update Service"),
+		});
+	}
+
 	private onUpdateNotAvailable(): void {
 		this.dialogService.show(
 			severity.Info,
@@ -464,7 +359,8 @@ export class UpdateContribution implements IGlobalActivity {
 					action.run();
 					action.dispose();
 				}
-			}]
+			}],
+			{ sticky: true }
 		);
 	}
 
@@ -490,7 +386,8 @@ export class UpdateContribution implements IGlobalActivity {
 					action.run();
 					action.dispose();
 				}
-			}]
+			}],
+			{ sticky: true }
 		);
 	}
 
@@ -544,7 +441,8 @@ export class UpdateContribution implements IGlobalActivity {
 					action.run();
 					action.dispose();
 				}
-			}]
+			}],
+			{ sticky: true }
 		);
 	}
 
@@ -570,8 +468,8 @@ export class UpdateContribution implements IGlobalActivity {
 			new CommandAction(UpdateContribution.showCommandsId, nls.localize('commandPalette', "Command Palette..."), this.commandService),
 			new Separator(),
 			new CommandAction(UpdateContribution.openSettingsId, nls.localize('settings', "Settings"), this.commandService),
+			new CommandAction(UpdateContribution.showExtensionsId, nls.localize('showExtensions', "Extensions"), this.commandService),
 			new CommandAction(UpdateContribution.openKeybindingsId, nls.localize('keyboardShortcuts', "Keyboard Shortcuts"), this.commandService),
-			new CommandAction(UpdateContribution.showExtensionsId, nls.localize('showExtensions', "Manage Extensions"), this.commandService),
 			new Separator(),
 			new CommandAction(UpdateContribution.openUserSnippets, nls.localize('userSnippets', "User Snippets"), this.commandService),
 			new Separator(),

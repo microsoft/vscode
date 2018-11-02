@@ -34,6 +34,6 @@ export class Extensions extends Viewlet {
 		await this.searchForExtension(name);
 		const ariaLabel = `${name}. Press enter for extension details.`;
 		await this.code.waitAndClick(`div.extensions-viewlet[id="workbench.view.extensions"] .monaco-list-row[aria-label="${ariaLabel}"] .extension li[class='action-item'] .extension-action.install`);
-		await this.code.waitForElement(`div.extensions-viewlet[id="workbench.view.extensions"] .monaco-list-row[aria-label="${ariaLabel}"] .extension li[class='action-item'] .extension-action.reload`);
+		await this.code.waitForElement(`.extension-editor .monaco-action-bar .action-item:not(.disabled) .extension-action.uninstall`);
 	}
 }

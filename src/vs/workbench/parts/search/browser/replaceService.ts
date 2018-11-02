@@ -6,7 +6,7 @@
 import * as nls from 'vs/nls';
 import * as errors from 'vs/base/common/errors';
 import { TPromise } from 'vs/base/common/winjs.base';
-import URI from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 import * as network from 'vs/base/common/network';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { IReplaceService } from 'vs/workbench/parts/search/common/replace';
@@ -18,12 +18,15 @@ import { IProgressRunner } from 'vs/platform/progress/common/progress';
 import { ITextModelService, ITextModelContentProvider } from 'vs/editor/common/services/resolverService';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { ScrollType } from 'vs/editor/common/editorCommon';
-import { ITextModel } from 'vs/editor/common/model';
+import { ITextModel, IIdentifiedSingleEditOperation } from 'vs/editor/common/model';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ResourceTextEdit } from 'vs/editor/common/modes';
 import { createTextBufferFactoryFromSnapshot } from 'vs/editor/common/model/textModel';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { IBulkEditService } from 'vs/editor/browser/services/bulkEditService';
+import { Range } from 'vs/editor/common/core/range';
+import { EditOperation } from 'vs/editor/common/core/editOperation';
+import { mergeSort } from 'vs/base/common/arrays';
 
 const REPLACE_PREVIEW = 'replacePreview';
 
@@ -70,7 +73,7 @@ class ReplacePreviewModel extends Disposable {
 			ref = this._register(ref);
 			const sourceModel = ref.object.textEditorModel;
 			const sourceModelModeId = sourceModel.getLanguageIdentifier().language;
-			const replacePreviewModel = this.modelService.createModel(createTextBufferFactoryFromSnapshot(sourceModel.createSnapshot()), this.modeService.getOrCreateMode(sourceModelModeId), replacePreviewUri);
+			const replacePreviewModel = this.modelService.createModel(createTextBufferFactoryFromSnapshot(sourceModel.createSnapshot()), this.modeService.create(sourceModelModeId), replacePreviewUri);
 			this._register(fileMatch.onChange(modelChange => this.update(sourceModel, replacePreviewModel, fileMatch, modelChange)));
 			this._register(this.searchWorkbenchService.searchModel.onReplaceTermChanged(() => this.update(sourceModel, replacePreviewModel, fileMatch)));
 			this._register(fileMatch.onDispose(() => replacePreviewModel.dispose())); // TODO@Sandeep we should not dispose a model directly but rather the reference (depends on https://github.com/Microsoft/vscode/issues/17073)
@@ -101,28 +104,9 @@ export class ReplaceService implements IReplaceService {
 	public replace(match: Match): TPromise<any>;
 	public replace(files: FileMatch[], progress?: IProgressRunner): TPromise<any>;
 	public replace(match: FileMatchOrMatch, progress?: IProgressRunner, resource?: URI): TPromise<any>;
-	public replace(arg: any, progress: IProgressRunner = null, resource: URI = null): TPromise<any> {
+	public replace(arg: any, progress: IProgressRunner | null = null, resource: URI | null = null): TPromise<any> {
 
-		const edits: ResourceTextEdit[] = [];
-
-		if (arg instanceof Match) {
-			let match = <Match>arg;
-			edits.push(this.createEdit(match, match.replaceString, resource));
-		}
-
-		if (arg instanceof FileMatch) {
-			arg = [arg];
-		}
-
-		if (arg instanceof Array) {
-			arg.forEach(element => {
-				let fileMatch = <FileMatch>element;
-				if (fileMatch.count() > 0) {
-					edits.push(...fileMatch.matches().map(match => this.createEdit(match, match.replaceString, resource)));
-				}
-			});
-		}
-
+		const edits: ResourceTextEdit[] = this.createEdits(arg, resource);
 		return this.bulkEditorService.apply({ edits }, { progress }).then(() => this.textFileService.saveAll(edits.map(e => e.resource)));
 
 	}
@@ -140,6 +124,12 @@ export class ReplaceService implements IReplaceService {
 				revealIfVisible: true
 			}
 		}).then(editor => {
+			const disposable = fileMatch.onDispose(() => {
+				if (editor && editor.input) {
+					editor.input.dispose();
+				}
+				disposable.dispose();
+			});
 			this.updateReplacePreview(fileMatch).then(() => {
 				let editorControl = editor.getControl();
 				if (element instanceof Match) {
@@ -163,7 +153,7 @@ export class ReplaceService implements IReplaceService {
 					} else {
 						replaceModel.undo();
 					}
-					returnValue = this.replace(fileMatch, null, replacePreviewUri);
+					this.applyEditsToPreview(fileMatch, replaceModel);
 				}
 				return returnValue.then(() => {
 					sourceModelRef.dispose();
@@ -172,7 +162,43 @@ export class ReplaceService implements IReplaceService {
 			});
 	}
 
-	private createEdit(match: Match, text: string, resource: URI = null): ResourceTextEdit {
+	private applyEditsToPreview(fileMatch: FileMatch, replaceModel: ITextModel): void {
+		const resourceEdits = this.createEdits(fileMatch, replaceModel.uri);
+		const modelEdits: IIdentifiedSingleEditOperation[] = [];
+		for (const resourceEdit of resourceEdits) {
+			for (const edit of resourceEdit.edits) {
+				const range = Range.lift(edit.range);
+				modelEdits.push(EditOperation.replaceMove(range, edit.text));
+			}
+		}
+		replaceModel.pushEditOperations([], mergeSort(modelEdits, (a, b) => Range.compareRangesUsingStarts(a.range, b.range)), () => []);
+	}
+
+	private createEdits(arg: FileMatchOrMatch | FileMatch[], resource: URI | null = null): ResourceTextEdit[] {
+		const edits: ResourceTextEdit[] = [];
+
+		if (arg instanceof Match) {
+			let match = <Match>arg;
+			edits.push(this.createEdit(match, match.replaceString, resource));
+		}
+
+		if (arg instanceof FileMatch) {
+			arg = [arg];
+		}
+
+		if (arg instanceof Array) {
+			arg.forEach(element => {
+				let fileMatch = <FileMatch>element;
+				if (fileMatch.count() > 0) {
+					edits.push(...fileMatch.matches().map(match => this.createEdit(match, match.replaceString, resource)));
+				}
+			});
+		}
+
+		return edits;
+	}
+
+	private createEdit(match: Match, text: string, resource: URI | null = null): ResourceTextEdit {
 		let fileMatch: FileMatch = match.parent();
 		let resourceEdit: ResourceTextEdit = {
 			resource: resource !== null ? resource : fileMatch.resource(),

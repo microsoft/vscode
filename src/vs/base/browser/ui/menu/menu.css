@@ -14,25 +14,13 @@
 
 .monaco-menu .monaco-action-bar.vertical .action-item {
 	padding: 0;
-	-ms-transform: none;
-	-webkit-transform: none;
-	-moz-transform: none;
-	-o-transform: none;
 	transform: none;
 	display: -ms-flexbox;
 	display: flex;
 }
 
 .monaco-menu .monaco-action-bar.vertical .action-item.active {
-	-ms-transform: none;
-	-webkit-transform: none;
-	-moz-transform: none;
-	-o-transform: none;
 	transform: none;
-}
-
-.monaco-menu .monaco-action-bar.vertical .action-item.focused {
-	background-color: #E4E4E4;
 }
 
 .monaco-menu .monaco-action-bar.vertical .action-menu-item {
@@ -40,7 +28,7 @@
 	flex: 1 1 auto;
 	display: -ms-flexbox;
 	display: flex;
-	height: 2.6em;
+	height: 2em;
 	align-items: center;
 }
 
@@ -50,7 +38,7 @@
 	text-decoration: none;
 	padding: 0 1em;
 	background: none;
-	font-size: inherit;
+	font-size: 12px;
 	line-height: 1;
 }
 
@@ -61,10 +49,15 @@
 	flex: 2 1 auto;
 	padding: 0 1em;
 	text-align: right;
-	font-size: inherit;
+	font-size: 12px;
 	line-height: 1;
 }
 
+.monaco-menu .monaco-action-bar.vertical .submenu-indicator {
+	height: 100%;
+	-webkit-mask: url('submenu.svg') no-repeat 90% 50%/13px 13px;
+	mask: url('submenu.svg') no-repeat 90% 50%/13px 13px;
+}
 
 .monaco-menu .monaco-action-bar.vertical .action-item.disabled .keybinding,
 .monaco-menu .monaco-action-bar.vertical .action-item.disabled .submenu-indicator {
@@ -97,19 +90,25 @@
 	color: inherit;
 }
 
-.monaco-menu .monaco-action-bar.vertical .action-label.checked:after {
-	content: '  \2713';
+.monaco-menu .monaco-action-bar.vertical .menu-item-check {
+	position: absolute;
+	visibility: hidden;
+	-webkit-mask: url('check.svg') no-repeat 50% 56%/15px 15px;
+	mask: url('check.svg') no-repeat 50% 56%/15px 15px;
+	width: 1em;
+	height: 100%;
+}
+
+.monaco-menu .monaco-action-bar.vertical .action-menu-item.checked .menu-item-check {
+	visibility: visible;
 }
 
 /* Context Menu */
 
 .context-view.monaco-menu-container {
-	font-family: "Segoe WPC", "Segoe UI", ".SFNSDisplay-Light", "SFUIText-Light", "HelveticaNeue-Light", sans-serif, "Droid Sans Fallback";
+	font-family: -apple-system, BlinkMacSystemFont, "Segoe WPC", "Segoe UI", "HelveticaNeue-Light", "Ubuntu", "Droid Sans", sans-serif;
 	outline: 0;
-	box-shadow: 0 2px 8px #A8A8A8;
 	border: none;
-	color: #646465;
-	background-color: white;
 	-webkit-animation: fadeIn 0.083s linear;
 	-o-animation: fadeIn 0.083s linear;
 	-moz-animation: fadeIn 0.083s linear;
@@ -127,26 +126,12 @@
 	border: 1px solid transparent; /* prevents jumping behaviour on hover or focus */
 }
 
-/* Dark theme */
-.vs-dark .monaco-menu .monaco-action-bar.vertical .action-item.focused {
-	background-color: #4B4C4D;
-}
-
-.vs-dark .context-view.monaco-menu-container {
-	box-shadow: 0 2px 8px #000;
-	color: #BBB;
-	background-color: #2D2F31;
-}
 
 /* High Contrast Theming */
 .hc-black .context-view.monaco-menu-container {
-	border: 2px solid #6FC3DF;
-	color: white;
-	background-color: #0C141F;
 	box-shadow: none;
 }
 
 .hc-black .monaco-menu .monaco-action-bar.vertical .action-item.focused {
 	background: none;
-	border: 1px dotted #f38518;
 }

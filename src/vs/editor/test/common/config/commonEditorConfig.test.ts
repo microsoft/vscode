@@ -2,14 +2,12 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
-
 import * as assert from 'assert';
+import { AccessibilitySupport } from 'vs/base/common/platform';
+import { IEnvConfiguration } from 'vs/editor/common/config/commonEditorConfig';
+import { IEditorHoverOptions } from 'vs/editor/common/config/editorOptions';
 import { EditorZoom } from 'vs/editor/common/config/editorZoom';
 import { TestConfiguration } from 'vs/editor/test/common/mocks/testConfiguration';
-import { IEnvConfiguration } from 'vs/editor/common/config/commonEditorConfig';
-import { AccessibilitySupport } from 'vs/base/common/platform';
-import { IEditorHoverOptions } from 'vs/editor/common/config/editorOptions';
 
 suite('Common Editor Config', () => {
 	test('Zoom Level', () => {

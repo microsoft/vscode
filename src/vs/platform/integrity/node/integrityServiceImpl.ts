@@ -2,38 +2,36 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
 import * as nls from 'vs/nls';
-import * as fs from 'fs';
 import * as crypto from 'crypto';
-import { TPromise } from 'vs/base/common/winjs.base';
-import { IIntegrityService, IntegrityTestResult, ChecksumPair } from 'vs/platform/integrity/common/integrity';
-import product from 'vs/platform/node/product';
-import URI from 'vs/base/common/uri';
+import * as fs from 'fs';
 import Severity from 'vs/base/common/severity';
-import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
+import { URI } from 'vs/base/common/uri';
+import { ChecksumPair, IIntegrityService, IntegrityTestResult } from 'vs/platform/integrity/common/integrity';
 import { ILifecycleService, LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
+import product from 'vs/platform/node/product';
 import { INotificationService } from 'vs/platform/notification/common/notification';
+import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 
 interface IStorageData {
 	dontShowPrompt: boolean;
-	commit: string;
+	commit: string | undefined;
 }
 
 class IntegrityStorage {
 	private static readonly KEY = 'integrityService';
 
-	private _storageService: IStorageService;
-	private _value: IStorageData;
+	private storageService: IStorageService;
+	private value: IStorageData | null;
 
 	constructor(storageService: IStorageService) {
-		this._storageService = storageService;
-		this._value = this._read();
+		this.storageService = storageService;
+		this.value = this._read();
 	}
 
-	private _read(): IStorageData {
-		let jsonValue = this._storageService.get(IntegrityStorage.KEY, StorageScope.GLOBAL);
+	private _read(): IStorageData | null {
+		let jsonValue = this.storageService.get(IntegrityStorage.KEY, StorageScope.GLOBAL);
 		if (!jsonValue) {
 			return null;
 		}
@@ -44,19 +42,19 @@ class IntegrityStorage {
 		}
 	}
 
-	public get(): IStorageData {
-		return this._value;
+	get(): IStorageData | null {
+		return this.value;
 	}
 
-	public set(data: IStorageData): void {
-		this._value = data;
-		this._storageService.store(IntegrityStorage.KEY, JSON.stringify(this._value), StorageScope.GLOBAL);
+	set(data: IStorageData | null): void {
+		this.value = data;
+		this.storageService.store(IntegrityStorage.KEY, JSON.stringify(this.value), StorageScope.GLOBAL);
 	}
 }
 
 export class IntegrityServiceImpl implements IIntegrityService {
 
-	public _serviceBrand: any;
+	_serviceBrand: any;
 
 	private _storage: IntegrityStorage;
 	private _isPurePromise: Thenable<IntegrityTestResult>;
@@ -98,11 +96,12 @@ export class IntegrityServiceImpl implements IIntegrityService {
 					isSecondary: true,
 					run: () => this._storage.set({ dontShowPrompt: true, commit: product.commit })
 				}
-			]
+			],
+			{ sticky: true }
 		);
 	}
 
-	public isPure(): Thenable<IntegrityTestResult> {
+	isPure(): Thenable<IntegrityTestResult> {
 		return this._isPurePromise;
 	}
 
@@ -110,11 +109,11 @@ export class IntegrityServiceImpl implements IIntegrityService {
 		const expectedChecksums = product.checksums || {};
 
 		return this.lifecycleService.when(LifecyclePhase.Eventually).then(() => {
-			let asyncResults: TPromise<ChecksumPair>[] = Object.keys(expectedChecksums).map((filename) => {
+			let asyncResults: Promise<ChecksumPair>[] = Object.keys(expectedChecksums).map((filename) => {
 				return this._resolve(filename, expectedChecksums[filename]);
 			});
 
-			return TPromise.join(asyncResults).then<IntegrityTestResult>((allResults) => {
+			return Promise.all(asyncResults).then<IntegrityTestResult>((allResults) => {
 				let isPure = true;
 				for (let i = 0, len = allResults.length; isPure && i < len; i++) {
 					if (!allResults[i].isPure) {
@@ -131,14 +130,14 @@ export class IntegrityServiceImpl implements IIntegrityService {
 		});
 	}
 
-	private _resolve(filename: string, expected: string): TPromise<ChecksumPair> {
+	private _resolve(filename: string, expected: string): Promise<ChecksumPair> {
 		let fileUri = URI.parse(require.toUrl(filename));
-		return new TPromise<ChecksumPair>((c, e) => {
+		return new Promise<ChecksumPair>((resolve, reject) => {
 			fs.readFile(fileUri.fsPath, (err, buff) => {
 				if (err) {
-					return e(err);
+					return reject(err);
 				}
-				c(IntegrityServiceImpl._createChecksumPair(fileUri, this._computeChecksum(buff), expected));
+				resolve(IntegrityServiceImpl._createChecksumPair(fileUri, this._computeChecksum(buff), expected));
 			});
 		});
 	}

@@ -2,10 +2,9 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
 import { TPromise } from 'vs/base/common/winjs.base';
-import URI from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 import { first } from 'vs/base/common/async';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ITextModel } from 'vs/editor/common/model';
@@ -22,6 +21,7 @@ import { IFileService } from 'vs/platform/files/common/files';
 class ResourceModelCollection extends ReferenceCollection<TPromise<ITextEditorModel>> {
 
 	private providers: { [scheme: string]: ITextModelContentProvider[] } = Object.create(null);
+	private modelsToDispose = new Set<string>();
 
 	constructor(
 		@IInstantiationService private instantiationService: IInstantiationService,
@@ -31,21 +31,39 @@ class ResourceModelCollection extends ReferenceCollection<TPromise<ITextEditorMo
 		super();
 	}
 
-	createReferencedObject(key: string): TPromise<ITextEditorModel> {
+	createReferencedObject(key: string, skipActivateProvider?: boolean): TPromise<ITextEditorModel> {
+		this.modelsToDispose.delete(key);
+
 		const resource = URI.parse(key);
+
+		// File or remote file provider already known
 		if (this.fileService.canHandleResource(resource)) {
 			return this.textFileService.models.loadOrCreate(resource, { reason: LoadReason.REFERENCE });
 		}
 
-		return this.resolveTextModelContent(key).then(() => this.instantiationService.createInstance(ResourceEditorModel, resource));
+		// Virtual documents
+		if (this.providers[resource.scheme]) {
+			return this.resolveTextModelContent(key).then(() => this.instantiationService.createInstance(ResourceEditorModel, resource));
+		}
+
+		// Either unknown schema, or not yet registered, try to activate
+		if (!skipActivateProvider) {
+			return this.fileService.activateProvider(resource.scheme).then(() => this.createReferencedObject(key, true));
+		}
+
+		return TPromise.wrapError<ITextEditorModel>(new Error('resource is not available'));
 	}
 
-	destroyReferencedObject(modelPromise: TPromise<ITextEditorModel>): void {
-		modelPromise.done(model => {
-			if (model instanceof TextFileEditorModel) {
-				this.textFileService.models.disposeModel(model);
-			} else {
-				model.dispose();
+	destroyReferencedObject(key: string, modelPromise: TPromise<ITextEditorModel>): void {
+		this.modelsToDispose.add(key);
+
+		modelPromise.then(model => {
+			if (this.modelsToDispose.has(key)) {
+				if (model instanceof TextFileEditorModel) {
+					this.textFileService.models.disposeModel(model);
+				} else {
+					model.dispose();
+				}
 			}
 		}, err => {
 			// ignore
@@ -82,11 +100,10 @@ class ResourceModelCollection extends ReferenceCollection<TPromise<ITextEditorMo
 	private resolveTextModelContent(key: string): TPromise<ITextModel> {
 		const resource = URI.parse(key);
 		const providers = this.providers[resource.scheme] || [];
-		const factories = providers.map(p => () => p.provideTextContent(resource));
+		const factories = providers.map(p => () => TPromise.wrap(p.provideTextContent(resource)));
 
 		return first(factories).then(model => {
 			if (!model) {
-				console.error(`Unable to open '${resource}' resource is not available.`); // TODO PII
 				return TPromise.wrapError<ITextModel>(new Error('resource is not available'));
 			}
 

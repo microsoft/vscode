@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import { localize } from 'vs/nls';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { ITextModel } from 'vs/editor/common/model';
@@ -61,9 +59,9 @@ export class HtmlPreviewPart extends BaseWebviewEditor {
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IEditorGroupsService readonly editorGroupService: IEditorGroupsService
 	) {
-		super(HtmlPreviewPart.ID, telemetryService, themeService, contextKeyService);
+		super(HtmlPreviewPart.ID, telemetryService, themeService, contextKeyService, _storageService);
 
-		this.editorMemento = this.getEditorMemento<HtmlPreviewEditorViewState>(_storageService, editorGroupService, this.viewStateStorageKey);
+		this.editorMemento = this.getEditorMemento<HtmlPreviewEditorViewState>(editorGroupService, this.viewStateStorageKey);
 	}
 
 	dispose(): void {
@@ -95,8 +93,6 @@ export class HtmlPreviewPart extends BaseWebviewEditor {
 
 			this._webview = this._instantiationService.createInstance(WebviewElement,
 				this._partService.getContainer(Parts.EDITOR_PART),
-				this.contextKey,
-				this.findInputFocusContextKey,
 				{
 					...webviewOptions,
 					useSameOriginForRoot: true
@@ -166,13 +162,14 @@ export class HtmlPreviewPart extends BaseWebviewEditor {
 		super.clearInput();
 	}
 
-	public shutdown(): void {
+	protected saveState(): void {
 		if (this.input instanceof HtmlInput) {
 			this.saveHTMLPreviewViewState(this.input, {
 				scrollYPercentage: this._scrollYPercentage
 			});
 		}
-		super.shutdown();
+
+		super.saveState();
 	}
 
 	public sendMessage(data: any): void {
@@ -246,10 +243,10 @@ export class HtmlPreviewPart extends BaseWebviewEditor {
 	}
 
 	private saveHTMLPreviewViewState(input: HtmlInput, editorViewState: HtmlPreviewEditorViewState): void {
-		this.editorMemento.saveState(this.group, input, editorViewState);
+		this.editorMemento.saveEditorState(this.group, input, editorViewState);
 	}
 
 	private loadHTMLPreviewViewState(input: HtmlInput): HtmlPreviewEditorViewState {
-		return this.editorMemento.loadState(this.group, input);
+		return this.editorMemento.loadEditorState(this.group, input);
 	}
 }

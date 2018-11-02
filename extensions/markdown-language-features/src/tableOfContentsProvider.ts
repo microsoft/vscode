@@ -17,6 +17,7 @@ export interface TocEntry {
 
 export interface SkinnyTextDocument {
 	readonly uri: vscode.Uri;
+	readonly lineCount: number;
 	getText(): string;
 	lineAt(line: number): vscode.TextLine;
 }
@@ -50,18 +51,48 @@ export class TableOfContentsProvider {
 		const toc: TocEntry[] = [];
 		const tokens = await this.engine.parse(document.uri, document.getText());
 
+		const slugCount = new Map<string, number>();
+
 		for (const heading of tokens.filter(token => token.type === 'heading_open')) {
 			const lineNumber = heading.map[0];
 			const line = document.lineAt(lineNumber);
+
+			let slug = githubSlugifier.fromHeading(line.text);
+			if (slugCount.has(slug.value)) {
+				const count = slugCount.get(slug.value)!;
+				slugCount.set(slug.value, count + 1);
+				slug = githubSlugifier.fromHeading(slug.value + '-' + (count + 1));
+			} else {
+				slugCount.set(slug.value, 0);
+			}
+
 			toc.push({
-				slug: githubSlugifier.fromHeading(line.text),
+				slug,
 				text: TableOfContentsProvider.getHeaderText(line.text),
 				level: TableOfContentsProvider.getHeaderLevel(heading.markup),
 				line: lineNumber,
 				location: new vscode.Location(document.uri, line.range)
 			});
 		}
-		return toc;
+
+		// Get full range of section
+		return toc.map((entry, startIndex): TocEntry => {
+			let end: number | undefined = undefined;
+			for (let i = startIndex + 1; i < toc.length; ++i) {
+				if (toc[i].level <= entry.level) {
+					end = toc[i].line - 1;
+					break;
+				}
+			}
+			const endLine = typeof end === 'number' ? end : document.lineCount - 1;
+			return {
+				...entry,
+				location: new vscode.Location(document.uri,
+					new vscode.Range(
+						entry.location.range.start,
+						new vscode.Position(endLine, document.lineAt(endLine).range.end.character)))
+			};
+		});
 	}
 
 	private static getHeaderLevel(markup: string): number {

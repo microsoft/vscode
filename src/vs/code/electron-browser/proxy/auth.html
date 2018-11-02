@@ -79,11 +79,6 @@
 </body>
 
 <script>
-	const electron = require('electron');
-	const shell = electron.shell;
-	const ipc = electron.ipcRenderer;
-	const remote = electron.remote;
-	const currentWindow = remote.getCurrentWindow();
 
 	function promptForCredentials(data) {
 		return new Promise((c, e) => {

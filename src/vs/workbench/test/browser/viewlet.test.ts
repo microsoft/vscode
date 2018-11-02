@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import * as assert from 'assert';
 import * as Platform from 'vs/platform/registry/common/platform';
 import { ViewletDescriptor, Extensions, Viewlet, ViewletRegistry } from 'vs/workbench/browser/viewlet';
@@ -15,7 +13,7 @@ suite('Viewlets', () => {
 	class TestViewlet extends Viewlet {
 
 		constructor() {
-			super('id', null, null, null);
+			super('id', null, null, null, null, null);
 		}
 
 		public layout(dimension: any): void {

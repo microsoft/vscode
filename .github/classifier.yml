@@ -15,12 +15,15 @@
         css-less-scss: [ aeschli ],
         debug-console: [],
         debug: {
-            assignees: [ weinand ],
+            assignees: [ isidorn ],
             assignLabel: false
         },
         diff-editor: [],
         dropdown: [],
-        editor: [],
+        editor: {
+            assignees: [],
+            assignLabel: false
+        },
         editor-1000-limit: [],
         editor-autoclosing: [],
         editor-autoindent: [],
@@ -75,10 +78,10 @@
         formatting: [],
         git: [ joaomoreno ],
         grammar: [],
-        hot-exit: [ Tyriar ],
+        hot-exit: [],
         html: [ aeschli ],
         install-update: [],
-        integrated-terminal: [ Tyriar ],
+        integrated-terminal: [],
         integration-test: [],
         intellisense-config: [],
         issue-reporter: [ RMacfarlane ],

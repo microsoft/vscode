@@ -2,7 +2,6 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
 import { posix } from 'path';
 import * as dom from 'vs/base/browser/dom';
@@ -13,30 +12,31 @@ import { InputBox } from 'vs/base/browser/ui/inputbox/inputBox';
 import { ProgressBar } from 'vs/base/browser/ui/progressbar/progressbar';
 import { Action, IAction, RadioGroup } from 'vs/base/common/actions';
 import { firstIndex } from 'vs/base/common/arrays';
-import { asDisposablePromise, setDisposableTimeout, createCancelablePromise, timeout } from 'vs/base/common/async';
-import { onUnexpectedError, isPromiseCanceledError } from 'vs/base/common/errors';
+import { createCancelablePromise, TimeoutTimer } from 'vs/base/common/async';
+import { isPromiseCanceledError, onUnexpectedError } from 'vs/base/common/errors';
 import { Emitter } from 'vs/base/common/event';
 import { defaultGenerator } from 'vs/base/common/idGenerator';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { dispose, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { LRUCache } from 'vs/base/common/map';
 import { escape } from 'vs/base/common/strings';
-import URI from 'vs/base/common/uri';
-import { TPromise } from 'vs/base/common/winjs.base';
+import { URI } from 'vs/base/common/uri';
 import { ITree } from 'vs/base/parts/tree/browser/tree';
 import 'vs/css!./outlinePanel';
 import { ICodeEditor, isCodeEditor, isDiffEditor } from 'vs/editor/browser/editorBrowser';
 import { ServicesAccessor } from 'vs/editor/browser/editorExtensions';
 import { Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
+import { ITextModel } from 'vs/editor/common/model';
 import { IModelContentChangedEvent } from 'vs/editor/common/model/textModelEvents';
 import { DocumentSymbolProviderRegistry } from 'vs/editor/common/modes';
-import LanguageFeatureRegistry from 'vs/editor/common/modes/languageFeatureRegistry';
+import { LanguageFeatureRegistry } from 'vs/editor/common/modes/languageFeatureRegistry';
 import { OutlineElement, OutlineModel, TreeElement } from 'vs/editor/contrib/documentSymbols/outlineModel';
 import { localize } from 'vs/nls';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ContextKeyExpr, IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
+import { IResourceInput } from 'vs/platform/editor/common/editor';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
@@ -50,10 +50,8 @@ import { IViewletViewOptions } from 'vs/workbench/browser/parts/views/viewsViewl
 import { CollapseAction } from 'vs/workbench/browser/viewlet';
 import { IViewsService } from 'vs/workbench/common/views';
 import { ACTIVE_GROUP, IEditorService, SIDE_GROUP } from 'vs/workbench/services/editor/common/editorService';
-import { OutlineConfigKeys, OutlineViewFiltered, OutlineViewFocused, OutlineViewId } from './outline';
 import { OutlineController, OutlineDataSource, OutlineItemComparator, OutlineItemCompareType, OutlineItemFilter, OutlineRenderer, OutlineTreeState } from '../../../../editor/contrib/documentSymbols/outlineTree';
-import { IResourceInput } from 'vs/platform/editor/common/editor';
-import { ITextModel } from 'vs/editor/common/model';
+import { OutlineConfigKeys, OutlineViewFiltered, OutlineViewFocused, OutlineViewId } from './outline';
 
 class RequestState {
 
@@ -99,7 +97,7 @@ class RequestOracle {
 	private _update(): void {
 
 		let widget = this._editorService.activeTextEditorWidget;
-		let codeEditor: ICodeEditor = undefined;
+		let codeEditor: ICodeEditor | undefined = undefined;
 		if (isCodeEditor(widget)) {
 			codeEditor = widget;
 		} else if (isDiffEditor(widget)) {
@@ -127,7 +125,7 @@ class RequestOracle {
 		this._lastState = thisState;
 		this._callback(codeEditor, undefined);
 
-		let handle: number;
+		let handle: any;
 		let contentListener = codeEditor.onDidChangeModelContent(event => {
 			clearTimeout(handle);
 			handle = setTimeout(() => this._callback(codeEditor, event), 350);
@@ -277,12 +275,19 @@ export class OutlinePanel extends ViewletPanel {
 
 	focus(): void {
 		if (this._tree) {
+			// focus on tree and fallback to root
+			// dom node when the tree cannot take focus,
+			// e.g. when hidden
 			this._tree.domFocus();
+			if (!this._tree.isDOMFocused()) {
+				this._domNode.focus();
+			}
 		}
 	}
 
 	protected renderBody(container: HTMLElement): void {
 		this._domNode = container;
+		this._domNode.tabIndex = 0;
 		dom.addClass(container, 'outline-panel');
 
 		let progressContainer = dom.$('.outline-progress');
@@ -369,21 +374,31 @@ export class OutlinePanel extends ViewletPanel {
 		}));
 	}
 
-	protected layoutBody(height: number = this._cachedHeight): void {
-		this._cachedHeight = height;
-		this._input.layout();
-		this._tree.layout(height - (dom.getTotalHeight(this._inputContainer) + 5 /*progressbar height, defined in outlinePanel.css*/));
+	protected layoutBody(height: number): void {
+		if (height !== this._cachedHeight) {
+			this._cachedHeight = height;
+			const treeHeight = height - (5 /*progressbar height*/ + 33 /*input height*/);
+			this._tree.layout(treeHeight);
+		}
 	}
 
-	setVisible(visible: boolean): TPromise<void> {
-		if (visible) {
+	setVisible(visible: boolean): void {
+		if (visible && this.isExpanded() && !this._requestOracle) {
+			// workaround for https://github.com/Microsoft/vscode/issues/60011
+			this.setExpanded(true);
+		}
+		super.setVisible(visible);
+	}
+
+	setExpanded(expanded: boolean): void {
+		if (expanded) {
 			this._requestOracle = this._requestOracle || this._instantiationService.createInstance(RequestOracle, (editor, event) => this._doUpdate(editor, event).then(undefined, onUnexpectedError), DocumentSymbolProviderRegistry);
 		} else {
 			dispose(this._requestOracle);
 			this._requestOracle = undefined;
 			this._doUpdate(undefined, undefined);
 		}
-		return super.setVisible(visible);
+		return super.setExpanded(expanded);
 	}
 
 	getActions(): IAction[] {
@@ -462,7 +477,7 @@ export class OutlinePanel extends ViewletPanel {
 		let loadingMessage: IDisposable;
 		let oldModel = <OutlineModel>this._tree.getInput();
 		if (!oldModel) {
-			loadingMessage = setDisposableTimeout(
+			loadingMessage = new TimeoutTimer(
 				() => this._showMessage(localize('loading', "Loading document symbols for '{0}'...", posix.basename(textModel.uri.path))),
 				100
 			);
@@ -495,11 +510,21 @@ export class OutlinePanel extends ViewletPanel {
 			let oldLength = newLength - event.changes.reduce((prev, value) => prev + value.rangeLength, 0);
 			let oldRatio = oldSize / oldLength;
 			if (newRatio <= oldRatio * 0.5 || newRatio >= oldRatio * 1.5) {
-				if (!await asDisposablePromise(
-					timeout(2000).then(_ => true),
-					false,
-					this._editorDisposables).promise
-				) {
+
+				let waitPromise = new Promise<boolean>(resolve => {
+					let handle = setTimeout(() => {
+						handle = undefined;
+						resolve(true);
+					}, 2000);
+					this._disposables.push({
+						dispose() {
+							clearTimeout(handle);
+							resolve(false);
+						}
+					});
+				});
+
+				if (!await waitPromise) {
 					return;
 				}
 			}
@@ -523,7 +548,12 @@ export class OutlinePanel extends ViewletPanel {
 		}
 
 		this._input.enable();
-		this.layoutBody();
+		this.layoutBody(this._cachedHeight);
+
+		// transfer focus from domNode to the tree
+		if (this._domNode === document.activeElement) {
+			this._tree.domFocus();
+		}
 
 		// feature: filter on type
 		// on type -> update filters
@@ -669,7 +699,13 @@ export class OutlinePanel extends ViewletPanel {
 			lineNumber: selection.selectionStartLineNumber,
 			column: selection.selectionStartColumn
 		}, first instanceof OutlineElement ? first : undefined);
-		if (item) {
+		if (!item) {
+			// nothing to reveal
+			return;
+		}
+		let top = this._tree.getRelativeTop(item);
+		if (top < 0 || top > 1) {
+			// only when outside view port
 			await this._tree.reveal(item, .5);
 			this._tree.setFocus(item, this);
 			this._tree.setSelection([item], this);

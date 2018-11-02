@@ -7,7 +7,7 @@ import * as assert from 'assert';
 import * as os from 'os';
 import * as platform from 'vs/base/common/platform';
 import * as terminalEnvironment from 'vs/workbench/parts/terminal/node/terminalEnvironment';
-import Uri from 'vs/base/common/uri';
+import { URI as Uri } from 'vs/base/common/uri';
 import { IStringDictionary } from 'vs/base/common/collections';
 import { ITerminalConfigHelper } from 'vs/workbench/parts/terminal/common/terminal';
 
@@ -45,7 +45,7 @@ suite('Workbench - TerminalEnvironment', () => {
 			VSCODE_NLS_CONFIG: 'x',
 			VSCODE_PORTABLE: 'x',
 			VSCODE_PID: 'x',
-			VSCODE_NODE_CACHED_DATA_DIR_12345: 'x'
+			VSCODE_NODE_CACHED_DATA_DIR: 'x'
 		};
 		terminalEnvironment.sanitizeEnvironment(env);
 		assert.equal(env['FOO'], 'bar');
@@ -168,7 +168,7 @@ suite('Workbench - TerminalEnvironment', () => {
 		});
 	});
 
-	test('preparePathForTerminal', function () {
+	test('preparePathForTerminal', () => {
 		if (platform.isWindows) {
 			assert.equal(terminalEnvironment.preparePathForTerminal('C:\\foo'), 'C:\\foo');
 			assert.equal(terminalEnvironment.preparePathForTerminal('C:\\foo bar'), '"C:\\foo bar"');

@@ -3,28 +3,24 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
-import { TPromise } from 'vs/base/common/winjs.base';
+import { CancellationToken } from 'vs/base/common/cancellation';
 import { IDisposable } from 'vs/base/common/lifecycle';
-import { ModesRegistry } from 'vs/editor/common/modes/modesRegistry';
-import { IMonarchLanguage } from 'vs/editor/standalone/common/monarch/monarchTypes';
-import { ILanguageExtensionPoint } from 'vs/editor/common/services/modeService';
-import { StaticServices } from 'vs/editor/standalone/browser/standaloneServices';
-import * as modes from 'vs/editor/common/modes';
-import { LanguageConfiguration, IndentAction } from 'vs/editor/common/modes/languageConfiguration';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { toThenable } from 'vs/base/common/async';
+import { Token, TokenizationResult, TokenizationResult2 } from 'vs/editor/common/core/token';
+import * as model from 'vs/editor/common/model';
+import * as modes from 'vs/editor/common/modes';
+import { LanguageConfiguration } from 'vs/editor/common/modes/languageConfiguration';
+import { LanguageConfigurationRegistry } from 'vs/editor/common/modes/languageConfigurationRegistry';
+import { ModesRegistry } from 'vs/editor/common/modes/modesRegistry';
+import { ILanguageExtensionPoint } from 'vs/editor/common/services/modeService';
+import * as standaloneEnums from 'vs/editor/common/standalone/standaloneEnums';
+import { StaticServices } from 'vs/editor/standalone/browser/standaloneServices';
 import { compile } from 'vs/editor/standalone/common/monarch/monarchCompile';
 import { createTokenizationSupport } from 'vs/editor/standalone/common/monarch/monarchLexer';
-import { LanguageConfigurationRegistry } from 'vs/editor/common/modes/languageConfigurationRegistry';
-import { IMarkerData } from 'vs/platform/markers/common/markers';
-import { Token, TokenizationResult, TokenizationResult2 } from 'vs/editor/common/core/token';
+import { IMonarchLanguage } from 'vs/editor/standalone/common/monarch/monarchTypes';
 import { IStandaloneThemeService } from 'vs/editor/standalone/common/standaloneThemeService';
-import * as model from 'vs/editor/common/model';
-import { IMarkdownString } from 'vs/base/common/htmlContent';
+import { IMarkerData } from 'vs/platform/markers/common/markers';
 
 /**
  * Register information about a new language.
@@ -44,7 +40,7 @@ export function getLanguages(): ILanguageExtensionPoint[] {
 
 export function getEncodedLanguageId(languageId: string): number {
 	let lid = StaticServices.modeService.get().getLanguageIdentifier(languageId);
-	return lid && lid.id;
+	return lid ? lid.id : 0;
 }
 
 /**
@@ -338,7 +334,7 @@ export function registerRenameProvider(languageId: string, provider: modes.Renam
 }
 
 /**
- * Register a signature help provider (used by e.g. paremeter hints).
+ * Register a signature help provider (used by e.g. parameter hints).
  */
 export function registerSignatureHelpProvider(languageId: string, provider: modes.SignatureHelpProvider): IDisposable {
 	return modes.SignatureHelpProviderRegistry.register(languageId, provider);
@@ -352,7 +348,7 @@ export function registerHoverProvider(languageId: string, provider: modes.HoverP
 		provideHover: (model: model.ITextModel, position: Position, token: CancellationToken): Thenable<modes.Hover> => {
 			let word = model.getWordAtPosition(position);
 
-			return toThenable<modes.Hover>(provider.provideHover(model, position, token)).then((value) => {
+			return Promise.resolve<modes.Hover | null | undefined>(provider.provideHover(model, position, token)).then((value) => {
 				if (!value) {
 					return undefined;
 				}
@@ -455,17 +451,8 @@ export function registerLinkProvider(languageId: string, provider: modes.LinkPro
 /**
  * Register a completion item provider (use by e.g. suggestions).
  */
-export function registerCompletionItemProvider(languageId: string, provider: CompletionItemProvider): IDisposable {
-	let adapter = new SuggestAdapter(provider);
-	return modes.SuggestRegistry.register(languageId, {
-		triggerCharacters: provider.triggerCharacters,
-		provideCompletionItems: (model: model.ITextModel, position: Position, context: modes.SuggestContext, token: CancellationToken): Thenable<modes.ISuggestResult> => {
-			return adapter.provideCompletionItems(model, position, context, token);
-		},
-		resolveCompletionItem: (model: model.ITextModel, position: Position, suggestion: modes.ISuggestion, token: CancellationToken): Thenable<modes.ISuggestion> => {
-			return adapter.resolveCompletionItem(model, position, suggestion, token);
-		}
-	});
+export function registerCompletionItemProvider(languageId: string, provider: modes.CompletionItemProvider): IDisposable {
+	return modes.CompletionProviderRegistry.register(languageId, provider);
 }
 
 /**
@@ -513,374 +500,48 @@ export interface CodeActionProvider {
 }
 
 /**
- * Completion item kinds.
- */
-export enum CompletionItemKind {
-	Text,
-	Method,
-	Function,
-	Constructor,
-	Field,
-	Variable,
-	Class,
-	Interface,
-	Module,
-	Property,
-	Unit,
-	Value,
-	Enum,
-	Keyword,
-	Snippet,
-	Color,
-	File,
-	Reference,
-	Folder
-}
-
-/**
- * A snippet string is a template which allows to insert text
- * and to control the editor cursor when insertion happens.
- *
- * A snippet can define tab stops and placeholders with `$1`, `$2`
- * and `${3:foo}`. `$0` defines the final tab stop, it defaults to
- * the end of the snippet. Variables are defined with `$name` and
- * `${name:default value}`. The full snippet syntax is documented
- * [here](http://code.visualstudio.com/docs/editor/userdefinedsnippets#_creating-your-own-snippets).
- */
-export interface SnippetString {
-
-	/**
-	 * The snippet string.
-	 */
-	value: string;
-}
-
-/**
- * A completion item represents a text snippet that is
- * proposed to complete text that is being typed.
- */
-export interface CompletionItem {
-	/**
-	 * The label of this completion item. By default
-	 * this is also the text that is inserted when selecting
-	 * this completion.
-	 */
-	label: string;
-	/**
-	 * The kind of this completion item. Based on the kind
-	 * an icon is chosen by the editor.
-	 */
-	kind: CompletionItemKind;
-	/**
-	 * A human-readable string with additional information
-	 * about this item, like type or symbol information.
-	 */
-	detail?: string;
-	/**
-	 * A human-readable string that represents a doc-comment.
-	 */
-	documentation?: string | IMarkdownString;
-	/**
-	 * A command that should be run upon acceptance of this item.
-	 */
-	command?: modes.Command;
-	/**
-	 * A string that should be used when comparing this item
-	 * with other items. When `falsy` the [label](#CompletionItem.label)
-	 * is used.
-	 */
-	sortText?: string;
-	/**
-	 * A string that should be used when filtering a set of
-	 * completion items. When `falsy` the [label](#CompletionItem.label)
-	 * is used.
-	 */
-	filterText?: string;
-	/**
-	 * A string or snippet that should be inserted in a document when selecting
-	 * this completion. When `falsy` the [label](#CompletionItem.label)
-	 * is used.
-	 */
-	insertText?: string | SnippetString;
-	/**
-	 * A range of text that should be replaced by this completion item.
-	 *
-	 * Defaults to a range from the start of the [current word](#TextDocument.getWordRangeAtPosition) to the
-	 * current position.
-	 *
-	 * *Note:* The range must be a [single line](#Range.isSingleLine) and it must
-	 * [contain](#Range.contains) the position at which completion has been [requested](#CompletionItemProvider.provideCompletionItems).
-	 */
-	range?: Range;
-	/**
-	 * An optional set of characters that when pressed while this completion is active will accept it first and
-	 * then type that character. *Note* that all commit characters should have `length=1` and that superfluous
-	 * characters will be ignored.
-	 */
-	commitCharacters?: string[];
-	/**
-	 * @deprecated **Deprecated** in favor of `CompletionItem.insertText` and `CompletionItem.range`.
-	 *
-	 * ~~An [edit](#TextEdit) which is applied to a document when selecting
-	 * this completion. When an edit is provided the value of
-	 * [insertText](#CompletionItem.insertText) is ignored.~~
-	 *
-	 * ~~The [range](#Range) of the edit must be single-line and on the same
-	 * line completions were [requested](#CompletionItemProvider.provideCompletionItems) at.~~
-	 */
-	textEdit?: model.ISingleEditOperation;
-	/**
-	 * An optional array of additional text edits that are applied when
-	 * selecting this completion. Edits must not overlap with the main edit
-	 * nor with themselves.
-	 */
-	additionalTextEdits?: model.ISingleEditOperation[];
-}
-/**
- * Represents a collection of [completion items](#CompletionItem) to be presented
- * in the editor.
- */
-export interface CompletionList {
-	/**
-	 * This list it not complete. Further typing should result in recomputing
-	 * this list.
-	 */
-	isIncomplete?: boolean;
-	/**
-	 * The completion items.
-	 */
-	items: CompletionItem[];
-}
-
-/**
- * Contains additional information about the context in which
- * [completion provider](#CompletionItemProvider.provideCompletionItems) is triggered.
- */
-export interface CompletionContext {
-	/**
-	 * How the completion was triggered.
-	 */
-	triggerKind: modes.SuggestTriggerKind;
-
-	/**
-	 * Character that triggered the completion item provider.
-	 *
-	 * `undefined` if provider was not triggered by a character.
-	 */
-	triggerCharacter?: string;
-}
-
-/**
- * The completion item provider interface defines the contract between extensions and
- * the [IntelliSense](https://code.visualstudio.com/docs/editor/intellisense).
- *
- * When computing *complete* completion items is expensive, providers can optionally implement
- * the `resolveCompletionItem`-function. In that case it is enough to return completion
- * items with a [label](#CompletionItem.label) from the
- * [provideCompletionItems](#CompletionItemProvider.provideCompletionItems)-function. Subsequently,
- * when a completion item is shown in the UI and gains focus this provider is asked to resolve
- * the item, like adding [doc-comment](#CompletionItem.documentation) or [details](#CompletionItem.detail).
- */
-export interface CompletionItemProvider {
-	triggerCharacters?: string[];
-	/**
-	 * Provide completion items for the given position and document.
-	 */
-	provideCompletionItems(document: model.ITextModel, position: Position, token: CancellationToken, context: CompletionContext): CompletionItem[] | Thenable<CompletionItem[]> | CompletionList | Thenable<CompletionList>;
-
-	/**
-	 * Given a completion item fill in more data, like [doc-comment](#CompletionItem.documentation)
-	 * or [details](#CompletionItem.detail).
-	 *
-	 * The editor will only resolve a completion item once.
-	 */
-	resolveCompletionItem?(item: CompletionItem, token: CancellationToken): CompletionItem | Thenable<CompletionItem>;
-}
-
-interface ISuggestion2 extends modes.ISuggestion {
-	_actual: CompletionItem;
-}
-function convertKind(kind: CompletionItemKind): modes.SuggestionType {
-	switch (kind) {
-		case CompletionItemKind.Method: return 'method';
-		case CompletionItemKind.Function: return 'function';
-		case CompletionItemKind.Constructor: return 'constructor';
-		case CompletionItemKind.Field: return 'field';
-		case CompletionItemKind.Variable: return 'variable';
-		case CompletionItemKind.Class: return 'class';
-		case CompletionItemKind.Interface: return 'interface';
-		case CompletionItemKind.Module: return 'module';
-		case CompletionItemKind.Property: return 'property';
-		case CompletionItemKind.Unit: return 'unit';
-		case CompletionItemKind.Value: return 'value';
-		case CompletionItemKind.Enum: return 'enum';
-		case CompletionItemKind.Keyword: return 'keyword';
-		case CompletionItemKind.Snippet: return 'snippet';
-		case CompletionItemKind.Text: return 'text';
-		case CompletionItemKind.Color: return 'color';
-		case CompletionItemKind.File: return 'file';
-		case CompletionItemKind.Reference: return 'reference';
-		case CompletionItemKind.Folder: return 'folder';
-	}
-	return 'property';
-}
-
-class SuggestAdapter {
-
-	private _provider: CompletionItemProvider;
-
-	constructor(provider: CompletionItemProvider) {
-		this._provider = provider;
-	}
-
-	private static from(item: CompletionItem, position: Position, wordStartPos: Position): ISuggestion2 {
-		let suggestion: ISuggestion2 = {
-			_actual: item,
-			label: item.label,
-			insertText: item.label,
-			type: convertKind(item.kind),
-			detail: item.detail,
-			documentation: item.documentation,
-			command: item.command,
-			sortText: item.sortText,
-			filterText: item.filterText,
-			snippetType: 'internal',
-			additionalTextEdits: item.additionalTextEdits,
-			commitCharacters: item.commitCharacters
-		};
-		let editRange = item.textEdit ? item.textEdit.range : item.range;
-		if (editRange) {
-			let isSingleLine = (editRange.startLineNumber === editRange.endLineNumber);
-
-			// invalid text edit
-			if (!isSingleLine || editRange.startLineNumber !== position.lineNumber) {
-				console.warn('INVALID range, must be single line and on the same line');
-				return null;
-			}
-
-			// insert the text of the edit and create a dedicated
-			// suggestion-container with overwrite[Before|After]
-			suggestion.overwriteBefore = position.column - editRange.startColumn;
-			suggestion.overwriteAfter = editRange.endColumn - position.column;
-		} else {
-			suggestion.overwriteBefore = position.column - wordStartPos.column;
-			suggestion.overwriteAfter = 0;
-		}
-		if (item.textEdit) {
-			suggestion.insertText = item.textEdit.text;
-		} else if (typeof item.insertText === 'object' && typeof item.insertText.value === 'string') {
-			suggestion.insertText = item.insertText.value;
-			suggestion.snippetType = 'textmate';
-		} else if (typeof item.insertText === 'string') {
-			suggestion.insertText = item.insertText;
-		}
-		return suggestion;
-	}
-
-	provideCompletionItems(model: model.ITextModel, position: Position, context: modes.SuggestContext, token: CancellationToken): Thenable<modes.ISuggestResult> {
-		const result = this._provider.provideCompletionItems(model, position, token, context);
-		return toThenable<CompletionItem[] | CompletionList>(result).then(value => {
-			const result: modes.ISuggestResult = {
-				suggestions: []
-			};
-
-			// default text edit start
-			let wordStartPos = position;
-			const word = model.getWordUntilPosition(position);
-			if (word) {
-				wordStartPos = new Position(wordStartPos.lineNumber, word.startColumn);
-			}
-
-			let list: CompletionList;
-			if (Array.isArray(value)) {
-				list = {
-					items: value,
-					isIncomplete: false
-				};
-			} else if (typeof value === 'object' && Array.isArray(value.items)) {
-				list = value;
-				result.incomplete = list.isIncomplete;
-			} else if (!value) {
-				// undefined and null are valid results
-				return undefined;
-			} else {
-				// warn about everything else
-				console.warn('INVALID result from completion provider. expected CompletionItem-array or CompletionList but got:', value);
-			}
-
-			for (let i = 0; i < list.items.length; i++) {
-				const item = list.items[i];
-				const suggestion = SuggestAdapter.from(item, position, wordStartPos);
-				if (suggestion) {
-					result.suggestions.push(suggestion);
-				}
-			}
-
-			return result;
-		});
-	}
-
-	resolveCompletionItem(model: model.ITextModel, position: Position, suggestion: modes.ISuggestion, token: CancellationToken): Thenable<modes.ISuggestion> {
-		if (typeof this._provider.resolveCompletionItem !== 'function') {
-			return TPromise.as(suggestion);
-		}
-
-		let item = (<ISuggestion2>suggestion)._actual;
-		if (!item) {
-			return TPromise.as(suggestion);
-		}
-
-		return toThenable(this._provider.resolveCompletionItem(item, token)).then(resolvedItem => {
-			let wordStartPos = position;
-			const word = model.getWordUntilPosition(position);
-			if (word) {
-				wordStartPos = new Position(wordStartPos.lineNumber, word.startColumn);
-			}
-			return SuggestAdapter.from(resolvedItem, position, wordStartPos);
-		});
-	}
-}
-
-/**
  * @internal
  */
 export function createMonacoLanguagesAPI(): typeof monaco.languages {
 	return {
-		register: register,
-		getLanguages: getLanguages,
-		onLanguage: onLanguage,
-		getEncodedLanguageId: getEncodedLanguageId,
+		register: <any>register,
+		getLanguages: <any>getLanguages,
+		onLanguage: <any>onLanguage,
+		getEncodedLanguageId: <any>getEncodedLanguageId,
 
 		// provider methods
-		setLanguageConfiguration: setLanguageConfiguration,
-		setTokensProvider: setTokensProvider,
-		setMonarchTokensProvider: setMonarchTokensProvider,
-		registerReferenceProvider: registerReferenceProvider,
-		registerRenameProvider: registerRenameProvider,
-		registerCompletionItemProvider: registerCompletionItemProvider,
-		registerSignatureHelpProvider: registerSignatureHelpProvider,
-		registerHoverProvider: registerHoverProvider,
-		registerDocumentSymbolProvider: registerDocumentSymbolProvider,
-		registerDocumentHighlightProvider: registerDocumentHighlightProvider,
-		registerDefinitionProvider: registerDefinitionProvider,
-		registerImplementationProvider: registerImplementationProvider,
-		registerTypeDefinitionProvider: registerTypeDefinitionProvider,
-		registerCodeLensProvider: registerCodeLensProvider,
-		registerCodeActionProvider: registerCodeActionProvider,
-		registerDocumentFormattingEditProvider: registerDocumentFormattingEditProvider,
-		registerDocumentRangeFormattingEditProvider: registerDocumentRangeFormattingEditProvider,
-		registerOnTypeFormattingEditProvider: registerOnTypeFormattingEditProvider,
-		registerLinkProvider: registerLinkProvider,
-		registerColorProvider: registerColorProvider,
-		registerFoldingRangeProvider: registerFoldingRangeProvider,
+		setLanguageConfiguration: <any>setLanguageConfiguration,
+		setTokensProvider: <any>setTokensProvider,
+		setMonarchTokensProvider: <any>setMonarchTokensProvider,
+		registerReferenceProvider: <any>registerReferenceProvider,
+		registerRenameProvider: <any>registerRenameProvider,
+		registerCompletionItemProvider: <any>registerCompletionItemProvider,
+		registerSignatureHelpProvider: <any>registerSignatureHelpProvider,
+		registerHoverProvider: <any>registerHoverProvider,
+		registerDocumentSymbolProvider: <any>registerDocumentSymbolProvider,
+		registerDocumentHighlightProvider: <any>registerDocumentHighlightProvider,
+		registerDefinitionProvider: <any>registerDefinitionProvider,
+		registerImplementationProvider: <any>registerImplementationProvider,
+		registerTypeDefinitionProvider: <any>registerTypeDefinitionProvider,
+		registerCodeLensProvider: <any>registerCodeLensProvider,
+		registerCodeActionProvider: <any>registerCodeActionProvider,
+		registerDocumentFormattingEditProvider: <any>registerDocumentFormattingEditProvider,
+		registerDocumentRangeFormattingEditProvider: <any>registerDocumentRangeFormattingEditProvider,
+		registerOnTypeFormattingEditProvider: <any>registerOnTypeFormattingEditProvider,
+		registerLinkProvider: <any>registerLinkProvider,
+		registerColorProvider: <any>registerColorProvider,
+		registerFoldingRangeProvider: <any>registerFoldingRangeProvider,
 
 		// enums
-		DocumentHighlightKind: modes.DocumentHighlightKind,
-		CompletionItemKind: CompletionItemKind,
-		SymbolKind: modes.SymbolKind,
-		IndentAction: IndentAction,
-		SuggestTriggerKind: modes.SuggestTriggerKind,
-		CommentThreadCollapsibleState: modes.CommentThreadCollapsibleState,
-		FoldingRangeKind: modes.FoldingRangeKind
+		DocumentHighlightKind: standaloneEnums.DocumentHighlightKind,
+		CompletionItemKind: standaloneEnums.CompletionItemKind,
+		CompletionItemInsertTextRule: standaloneEnums.CompletionItemInsertTextRule,
+		SymbolKind: standaloneEnums.SymbolKind,
+		IndentAction: standaloneEnums.IndentAction,
+		CompletionTriggerKind: standaloneEnums.CompletionTriggerKind,
+		SignatureHelpTriggerReason: standaloneEnums.SignatureHelpTriggerReason,
+
+		// classes
+		FoldingRangeKind: modes.FoldingRangeKind,
 	};
 }

@@ -51,7 +51,6 @@
 			// !!! Do not relax these rules !!!
 			// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 			{
-				// vs/base/common cannot depend on anything else
 				"target": "**/vs/base/common/**",
 				"restrictions": [
 					"vs/nls",
@@ -59,7 +58,6 @@
 				]
 			},
 			{
-				// vs/base/test/common contains tests for vs/base/common
 				"target": "**/vs/base/test/common/**",
 				"restrictions": [
 					"assert",
@@ -69,12 +67,19 @@
 				]
 			},
 			{
-				// vs/base/browser can only depend on vs/base/common
 				"target": "**/vs/base/browser/**",
 				"restrictions": [
 					"vs/nls",
 					"vs/css!./**/*",
 					"**/vs/base/{common,browser}/**"
+				]
+			},
+			{
+				"target": "**/vs/base/node/**",
+				"restrictions": [
+					"vs/nls",
+					"**/vs/base/{common,browser,node}/**",
+					"*" // node modules
 				]
 			},
 			{
@@ -105,6 +110,34 @@
 				]
 			},
 			{
+				"target": "**/vs/base/parts/*/node/**",
+				"restrictions": [
+					"vs/nls",
+					"**/vs/base/{common,browser,node}/**",
+					"**/vs/base/parts/*/{common,browser,node}/**",
+					"*" // node modules
+				]
+			},
+			{
+				"target": "**/vs/base/parts/*/electron-browser/**",
+				"restrictions": [
+					"vs/nls",
+					"vs/css!./**/*",
+					"**/vs/base/{common,browser,node,electron-browser}/**",
+					"**/vs/base/parts/*/{common,browser,node,electron-browser}/**",
+					"*" // node modules
+				]
+			},
+			{
+				"target": "**/vs/base/parts/*/electron-main/**",
+				"restrictions": [
+					"vs/nls",
+					"**/vs/base/{common,browser,node,electron-main}/**",
+					"**/vs/base/parts/*/{common,browser,node,electron-main}/**",
+					"*" // node modules
+				]
+			},
+			{
 				"target": "**/vs/platform/*/common/**",
 				"restrictions": [
 					"vs/nls",
@@ -132,6 +165,40 @@
 					"**/vs/base/{common,browser}/**",
 					"**/vs/base/parts/*/{common,browser}/**",
 					"**/vs/platform/*/{common,browser}/**"
+				]
+			},
+			{
+				"target": "**/vs/platform/*/node/**",
+				"restrictions": [
+					"vs/nls",
+					"**/vs/base/{common,browser,node}/**",
+					"**/vs/base/parts/*/{common,browser,node}/**",
+					"**/vs/platform/node/*",
+					"**/vs/platform/*/{common,browser,node}/**",
+					"*" // node modules
+				]
+			},
+			{
+				"target": "**/vs/platform/*/electron-browser/**",
+				"restrictions": [
+					"vs/nls",
+					"vs/css!./**/*",
+					"**/vs/base/{common,browser,node}/**",
+					"**/vs/base/parts/*/{common,browser,node,electron-browser}/**",
+					"**/vs/platform/node/*",
+					"**/vs/platform/*/{common,browser,node,electron-browser}/**",
+					"*" // node modules
+				]
+			},
+			{
+				"target": "**/vs/platform/*/electron-main/**",
+				"restrictions": [
+					"vs/nls",
+					"**/vs/base/{common,browser,node}/**",
+					"**/vs/base/parts/*/{common,browser,node,electron-browser}/**",
+					"**/vs/platform/node/*",
+					"**/vs/platform/*/{common,browser,node,electron-main}/**",
+					"*" // node modules
 				]
 			},
 			{
@@ -268,7 +335,6 @@
 				"target": "**/vs/workbench/common/**",
 				"restrictions": [
 					"vs/nls",
-					"vs/css!./**/*",
 					"**/vs/base/common/**",
 					"**/vs/base/parts/*/common/**",
 					"**/vs/platform/*/common/**",
@@ -320,7 +386,6 @@
 				"target": "**/vs/workbench/node/**",
 				"restrictions": [
 					"vs/nls",
-					"vs/css!./**/*",
 					"**/vs/base/{common,node}/**",
 					"**/vs/base/parts/*/{common,node}/**",
 					"**/vs/platform/node/**",
@@ -351,7 +416,6 @@
 				"target": "**/vs/workbench/services/**/common/**",
 				"restrictions": [
 					"vs/nls",
-					"vs/css!./**/*",
 					"**/vs/base/**/common/**",
 					"**/vs/platform/**/common/**",
 					"**/vs/editor/common/**",
@@ -375,7 +439,6 @@
 				"target": "**/vs/workbench/services/**/node/**",
 				"restrictions": [
 					"vs/nls",
-					"vs/css!./**/*",
 					"**/vs/base/**/{common,node}/**",
 					"**/vs/platform/**/{common,node}/**",
 					"**/vs/editor/{common,node}/**",
@@ -398,14 +461,13 @@
 				]
 			},
 			{
-				"target": "**/vs/code/electron-browser/**",
+				"target": "**/vs/code/node/**",
 				"restrictions": [
 					"vs/nls",
-					"vs/css!./**/*",
-					"vs/nls",
-					"**/vs/base/**",
-					"**/vs/platform/**",
-					"**/vs/code/**",
+					"**/vs/base/**/{common,browser,node}/**",
+					"**/vs/base/parts/**/{common,browser,node}/**",
+					"**/vs/platform/**/{common,browser,node}/**",
+					"**/vs/code/**/{common,browser,node}/**",
 					"*" // node modules
 				]
 			},
@@ -414,20 +476,22 @@
 				"restrictions": [
 					"vs/nls",
 					"vs/css!./**/*",
-					"vs/nls",
-					"**/vs/base/**",
-					"**/vs/platform/**",
-					"**/vs/code/**",
+					"**/vs/base/**/{common,browser,node,electron-browser}/**",
+					"**/vs/base/parts/**/{common,browser,node,electron-browser}/**",
+					"**/vs/platform/**/{common,browser,node,electron-browser}/**",
+					"**/vs/code/**/{common,browser,node,electron-browser}/**",
 					"*" // node modules
 				]
 			},
 			{
-				"target": "**/vs/code/**",
+				"target": "**/vs/code/electron-main/**",
 				"restrictions": [
 					"vs/nls",
-					"**/vs/base/**",
-					"**/vs/platform/**",
-					"**/vs/code/**",
+					"**/vs/base/**/{common,browser,node}/**",
+					"**/vs/base/parts/**/{common,browser,node,electron-main}/**",
+					"**/vs/platform/**/{common,browser,node,electron-main}/**",
+					"**/vs/code/**/{common,browser,node,electron-main}/**",
+					"**/vs/code/code.main",
 					"*" // node modules
 				]
 			},
@@ -459,6 +523,7 @@
 			}
 		],
 		"duplicate-imports": true,
+		"no-new-buffer": true,
 		"translation-remind": true,
 		"no-standalone-editor": true
 	},

@@ -3,13 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import { workspace, Disposable, EventEmitter, Memento, window, MessageItem, ConfigurationTarget } from 'vscode';
-import { GitErrorCodes } from './git';
 import { Repository, Operation } from './repository';
 import { eventToPromise, filterEvent, onceEvent } from './util';
 import * as nls from 'vscode-nls';
+import { GitErrorCodes } from './api/git';
 
 const localize = nls.loadMessageBundle();
 
@@ -102,7 +100,7 @@ export class AutoFetcher {
 			}
 
 			try {
-				await this.repository.fetch();
+				await this.repository.fetchDefault();
 			} catch (err) {
 				if (err.gitErrorCode === GitErrorCodes.AuthenticationFailed) {
 					this.disable();

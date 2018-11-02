@@ -28,6 +28,7 @@ export const ToggleRegexCommandId = 'toggleSearchRegex';
 export const ToggleSearchViewPositionCommandId = 'search.action.toggleSearchViewPosition';
 
 export const SearchViewVisibleKey = new RawContextKey<boolean>('searchViewletVisible', true);
+export const SearchViewFocusedKey = new RawContextKey<boolean>('searchViewletFocus', false);
 export const InputBoxFocusedKey = new RawContextKey<boolean>('inputBoxFocus', false);
 export const SearchInputBoxFocusedKey = new RawContextKey<boolean>('searchInputBoxFocus', false);
 export const ReplaceInputBoxFocusedKey = new RawContextKey<boolean>('replaceInputBoxFocus', false);

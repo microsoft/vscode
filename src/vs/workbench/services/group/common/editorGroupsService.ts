@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import { Event } from 'vs/base/common/event';
 import { createDecorator, ServiceIdentifier, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { IEditorInput, IEditor, GroupIdentifier, IEditorInputWithOptions, CloseDirection } from 'vs/workbench/common/editor';
@@ -14,7 +12,7 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 
 export const IEditorGroupsService = createDecorator<IEditorGroupsService>('editorGroupsService');
 
-export enum GroupDirection {
+export const enum GroupDirection {
 	UP,
 	DOWN,
 	LEFT,
@@ -31,12 +29,12 @@ export function preferredSideBySideGroupDirection(configurationService: IConfigu
 	return GroupDirection.RIGHT;
 }
 
-export enum GroupOrientation {
+export const enum GroupOrientation {
 	HORIZONTAL,
 	VERTICAL
 }
 
-export enum GroupLocation {
+export const enum GroupLocation {
 	FIRST,
 	LAST,
 	NEXT,
@@ -48,7 +46,7 @@ export interface IFindGroupScope {
 	location?: GroupLocation;
 }
 
-export enum GroupsArrangement {
+export const enum GroupsArrangement {
 
 	/**
 	 * Make the current active group consume the maximum
@@ -84,7 +82,7 @@ export interface IAddGroupOptions {
 	activate?: boolean;
 }
 
-export enum MergeGroupMode {
+export const enum MergeGroupMode {
 	COPY_EDITORS,
 	MOVE_EDITORS
 }
@@ -106,7 +104,7 @@ export interface IEditorReplacement {
 	options?: IEditorOptions | ITextEditorOptions;
 }
 
-export enum GroupsOrder {
+export const enum GroupsOrder {
 
 	/**
 	 * Groups sorted by creation order (oldest one first)
@@ -124,7 +122,7 @@ export enum GroupsOrder {
 	GRID_APPEARANCE
 }
 
-export enum EditorsOrder {
+export const enum EditorsOrder {
 
 	/**
 	 * Editors sorted by most recent activity (most recent active first)
@@ -290,7 +288,7 @@ export interface IEditorGroupsService {
 	copyGroup(group: IEditorGroup | GroupIdentifier, location: IEditorGroup | GroupIdentifier, direction: GroupDirection): IEditorGroup;
 }
 
-export enum GroupChangeKind {
+export const enum GroupChangeKind {
 
 	/* Group Changes */
 	GROUP_ACTIVE,

@@ -2,7 +2,6 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
 import { IExtensionDescription } from 'vs/workbench/services/extensions/common/extensions';
 
@@ -61,7 +60,7 @@ export class ExtensionDescriptionRegistry {
 		return this._extensionsArr.slice(0);
 	}
 
-	public getExtensionDescription(extensionId: string): IExtensionDescription {
+	public getExtensionDescription(extensionId: string): IExtensionDescription | null {
 		if (!hasOwnProperty.call(this._extensionsMap, extensionId)) {
 			return null;
 		}

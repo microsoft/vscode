@@ -2,11 +2,10 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
-import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
 import { Range } from 'vs/editor/common/core/range';
-import { IModelDecoration, TrackedRangeStickiness as ActualTrackedRangeStickiness } from 'vs/editor/common/model';
+import { IModelDecoration, TrackedRangeStickiness, TrackedRangeStickiness as ActualTrackedRangeStickiness } from 'vs/editor/common/model';
+import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
 
 //
 // The red-black tree is based on the "Introduction to Algorithms" by Cormen, Leiserson and Rivest.
@@ -19,17 +18,6 @@ export const enum ClassName {
 	EditorErrorDecoration = 'squiggly-error',
 	EditorUnnecessaryDecoration = 'squiggly-unnecessary',
 	EditorUnnecessaryInlineDecoration = 'squiggly-inline-unnecessary'
-}
-
-/**
- * Describes the behavior of decorations when typing/editing near their edges.
- * Note: Please do not edit the values, as they very carefully match `DecorationRangeBehavior`
- */
-const enum TrackedRangeStickiness {
-	AlwaysGrowsWhenTypingAtEdges = 0,
-	NeverGrowsWhenTypingAtEdges = 1,
-	GrowsOnlyWhenTypingBefore = 2,
-	GrowsOnlyWhenTypingAfter = 3,
 }
 
 export const enum NodeColor {
@@ -57,6 +45,10 @@ const enum Constants {
 	StickinessMask = 0b00110000,
 	StickinessMaskInverse = 0b11001111,
 	StickinessOffset = 4,
+
+	CollapseOnReplaceEditMask = 0b01000000,
+	CollapseOnReplaceEditMaskInverse = 0b10111111,
+	CollapseOnReplaceEditOffset = 6,
 
 	/**
 	 * Due to how deletion works (in order to avoid always walking the right subtree of the deleted node),
@@ -121,6 +113,14 @@ function _setNodeStickiness(node: IntervalNode, stickiness: TrackedRangeStickine
 		(node.metadata & Constants.StickinessMaskInverse) | (stickiness << Constants.StickinessOffset)
 	);
 }
+function getCollapseOnReplaceEdit(node: IntervalNode): boolean {
+	return ((node.metadata & Constants.CollapseOnReplaceEditMask) >>> Constants.CollapseOnReplaceEditOffset) === 1;
+}
+function setCollapseOnReplaceEdit(node: IntervalNode, value: boolean): void {
+	node.metadata = (
+		(node.metadata & Constants.CollapseOnReplaceEditMaskInverse) | ((value ? 1 : 0) << Constants.CollapseOnReplaceEditOffset)
+	);
+}
 export function setNodeStickiness(node: IntervalNode, stickiness: ActualTrackedRangeStickiness): void {
 	_setNodeStickiness(node, <number>stickiness);
 }
@@ -153,9 +153,9 @@ export class IntervalNode implements IModelDecoration {
 	constructor(id: string, start: number, end: number) {
 		this.metadata = 0;
 
-		this.parent = null;
-		this.left = null;
-		this.right = null;
+		this.parent = this;
+		this.left = this;
+		this.right = this;
 		setNodeColor(this, NodeColor.Red);
 
 		this.start = start;
@@ -166,15 +166,16 @@ export class IntervalNode implements IModelDecoration {
 
 		this.id = id;
 		this.ownerId = 0;
-		this.options = null;
+		this.options = null!;
 		setNodeIsForValidation(this, false);
 		_setNodeStickiness(this, TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges);
 		setNodeIsInOverviewRuler(this, false);
+		setCollapseOnReplaceEdit(this, false);
 
 		this.cachedVersionId = 0;
 		this.cachedAbsoluteStart = start;
 		this.cachedAbsoluteEnd = end;
-		this.range = null;
+		this.range = null!;
 
 		setNodeIsVisited(this, false);
 	}
@@ -198,12 +199,13 @@ export class IntervalNode implements IModelDecoration {
 			|| className === ClassName.EditorInfoDecoration
 		));
 		_setNodeStickiness(this, <number>this.options.stickiness);
-		setNodeIsInOverviewRuler(this, this.options.overviewRuler.color ? true : false);
+		setNodeIsInOverviewRuler(this, (this.options.overviewRuler && this.options.overviewRuler.color) ? true : false);
+		setCollapseOnReplaceEdit(this, this.options.collapseOnReplaceEdit);
 	}
 
 	public setCachedOffsets(absoluteStart: number, absoluteEnd: number, cachedVersionId: number): void {
 		if (this.cachedVersionId !== cachedVersionId) {
-			this.range = null;
+			this.range = null!;
 		}
 		this.cachedVersionId = cachedVersionId;
 		this.cachedAbsoluteStart = absoluteStart;
@@ -211,13 +213,13 @@ export class IntervalNode implements IModelDecoration {
 	}
 
 	public detach(): void {
-		this.parent = null;
-		this.left = null;
-		this.right = null;
+		this.parent = null!;
+		this.left = null!;
+		this.right = null!;
 	}
 }
 
-export const SENTINEL: IntervalNode = new IntervalNode(null, 0, 0);
+export const SENTINEL: IntervalNode = new IntervalNode(null!, 0, 0);
 SENTINEL.parent = SENTINEL;
 SENTINEL.left = SENTINEL;
 SENTINEL.right = SENTINEL;
@@ -416,6 +418,15 @@ export function nodeAcceptEdit(node: IntervalNode, start: number, end: number, t
 
 	const nodeEnd = node.end;
 	let endDone = false;
+
+	if (start <= nodeStart && nodeEnd <= end && getCollapseOnReplaceEdit(node)) {
+		// This edit encompasses the entire decoration range
+		// and the decoration has asked to become collapsed
+		node.start = start;
+		startDone = true;
+		node.end = start;
+		endDone = true;
+	}
 
 	{
 		const moveSemantics = forceMoveMarkers ? MarkerMoveSemantics.ForceMove : (deletingCnt > 0 ? MarkerMoveSemantics.ForceStay : MarkerMoveSemantics.MarkerDefined);

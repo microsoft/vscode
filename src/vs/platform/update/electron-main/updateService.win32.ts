@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import * as fs from 'fs';
 import * as path from 'path';
 import * as pfs from 'vs/base/node/pfs';
@@ -24,6 +22,7 @@ import { checksum } from 'vs/base/node/crypto';
 import { tmpdir } from 'os';
 import { spawn } from 'child_process';
 import { shell } from 'electron';
+import { CancellationToken } from 'vs/base/common/cancellation';
 
 function pollUntil(fn: () => boolean, timeout = 1000): TPromise<void> {
 	return new TPromise<void>(c => {
@@ -115,7 +114,7 @@ export class Win32UpdateService extends AbstractUpdateService {
 
 		this.setState(State.CheckingForUpdates(context));
 
-		this.requestService.request({ url: this.url })
+		this.requestService.request({ url: this.url }, CancellationToken.None)
 			.then<IUpdate>(asJson)
 			.then(update => {
 				const updateType = getUpdateType();
@@ -150,7 +149,7 @@ export class Win32UpdateService extends AbstractUpdateService {
 							const hash = update.hash;
 							const downloadPath = `${updatePackagePath}.tmp`;
 
-							return this.requestService.request({ url })
+							return this.requestService.request({ url }, CancellationToken.None)
 								.then(context => download(downloadPath, context))
 								.then(hash ? () => checksum(downloadPath, update.hash) : () => null)
 								.then(() => pfs.rename(downloadPath, updatePackagePath))
@@ -181,7 +180,7 @@ export class Win32UpdateService extends AbstractUpdateService {
 					}
 					*/
 				this.telemetryService.publicLog('update:notAvailable', { explicit: !!context });
-				this.setState(State.Idle(getUpdateType()));
+				this.setState(State.Idle(getUpdateType(), err.message || err));
 			});
 	}
 
@@ -195,7 +194,7 @@ export class Win32UpdateService extends AbstractUpdateService {
 		return this.cachePath.then(cachePath => path.join(cachePath, `CodeSetup-${product.quality}-${version}.exe`));
 	}
 
-	private cleanup(exceptVersion: string = null): Promise {
+	private cleanup(exceptVersion: string | null = null): Promise {
 		const filter = exceptVersion ? one => !(new RegExp(`${product.quality}-${exceptVersion}\\.exe$`).test(one)) : () => true;
 
 		return this.cachePath

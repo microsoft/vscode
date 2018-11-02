@@ -2,10 +2,9 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
 import * as vscode from 'vscode';
-import URI from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 import { MainContext, MainThreadDiaglogsShape, IMainContext } from 'vs/workbench/api/node/extHost.protocol';
 
 export class ExtHostDialogs {
@@ -18,13 +17,13 @@ export class ExtHostDialogs {
 
 	showOpenDialog(options: vscode.OpenDialogOptions): Thenable<URI[]> {
 		return this._proxy.$showOpenDialog(options).then(filepaths => {
-			return filepaths && filepaths.map(URI.file);
+			return filepaths && filepaths.map(URI.revive);
 		});
 	}
 
 	showSaveDialog(options: vscode.SaveDialogOptions): Thenable<URI> {
 		return this._proxy.$showSaveDialog(options).then(filepath => {
-			return filepath && URI.file(filepath);
+			return filepath && URI.revive(filepath);
 		});
 	}
 }
