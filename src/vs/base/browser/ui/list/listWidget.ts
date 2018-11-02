@@ -1087,7 +1087,7 @@ export class List<T> implements ISpliceable<T>, IDisposable {
 		if (this.length === 0) { return; }
 		const focus = this.focus.get();
 		let index = focus.length > 0 ? focus[0] + n : 0;
-		this.setFocus(loop ? [index % this.length] : [Math.min(index, this.length - 1)]);
+		this.setFocus(loop ? [index % this.length] : [Math.min(index, this.length - 1)], browserEvent);
 	}
 
 	focusPrevious(n = 1, loop = false, browserEvent?: UIEvent): void {
@@ -1095,7 +1095,7 @@ export class List<T> implements ISpliceable<T>, IDisposable {
 		const focus = this.focus.get();
 		let index = focus.length > 0 ? focus[0] - n : 0;
 		if (loop && index < 0) { index = (this.length + (index % this.length)) % this.length; }
-		this.setFocus([Math.max(index, 0)]);
+		this.setFocus([Math.max(index, 0)], browserEvent);
 	}
 
 	focusNextPage(browserEvent?: UIEvent): void {
@@ -1105,14 +1105,14 @@ export class List<T> implements ISpliceable<T>, IDisposable {
 		const currentlyFocusedElement = this.getFocusedElements()[0];
 
 		if (currentlyFocusedElement !== lastPageElement) {
-			this.setFocus([lastPageIndex]);
+			this.setFocus([lastPageIndex], browserEvent);
 		} else {
 			const previousScrollTop = this.view.getScrollTop();
 			this.view.setScrollTop(previousScrollTop + this.view.renderHeight - this.view.elementHeight(lastPageIndex));
 
 			if (this.view.getScrollTop() !== previousScrollTop) {
 				// Let the scroll event listener run
-				setTimeout(() => this.focusNextPage(), 0);
+				setTimeout(() => this.focusNextPage(browserEvent), 0);
 			}
 		}
 	}
@@ -1131,26 +1131,26 @@ export class List<T> implements ISpliceable<T>, IDisposable {
 		const currentlyFocusedElement = this.getFocusedElements()[0];
 
 		if (currentlyFocusedElement !== firstPageElement) {
-			this.setFocus([firstPageIndex]);
+			this.setFocus([firstPageIndex], browserEvent);
 		} else {
 			const previousScrollTop = scrollTop;
 			this.view.setScrollTop(scrollTop - this.view.renderHeight);
 
 			if (this.view.getScrollTop() !== previousScrollTop) {
 				// Let the scroll event listener run
-				setTimeout(() => this.focusPreviousPage(), 0);
+				setTimeout(() => this.focusPreviousPage(browserEvent), 0);
 			}
 		}
 	}
 
 	focusLast(browserEvent?: UIEvent): void {
 		if (this.length === 0) { return; }
-		this.setFocus([this.length - 1]);
+		this.setFocus([this.length - 1], browserEvent);
 	}
 
 	focusFirst(browserEvent?: UIEvent): void {
 		if (this.length === 0) { return; }
-		this.setFocus([0]);
+		this.setFocus([0], browserEvent);
 	}
 
 	getFocus(): number[] {
