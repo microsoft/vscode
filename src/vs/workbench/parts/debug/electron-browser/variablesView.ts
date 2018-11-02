@@ -139,12 +139,11 @@ export class VariablesView extends TreeViewsViewletPanel {
 		}
 	}
 
-	public setVisible(visible: boolean): TPromise<void> {
-		return super.setVisible(visible).then(() => {
-			if (visible && this.needsRefresh) {
-				this.onFocusStackFrameScheduler.schedule();
-			}
-		});
+	public setVisible(visible: boolean): void {
+		super.setVisible(visible);
+		if (visible && this.needsRefresh) {
+			this.onFocusStackFrameScheduler.schedule();
+		}
 	}
 }
 

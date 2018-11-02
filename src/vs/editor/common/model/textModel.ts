@@ -11,7 +11,6 @@ import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import { StopWatch } from 'vs/base/common/stopwatch';
 import * as strings from 'vs/base/common/strings';
 import { URI } from 'vs/base/common/uri';
-import { TPromise } from 'vs/base/common/winjs.base';
 import { EDITOR_MODEL_DEFAULTS } from 'vs/editor/common/config/editorOptions';
 import { LineTokens } from 'vs/editor/common/core/lineTokens';
 import { IPosition, Position } from 'vs/editor/common/core/position';
@@ -46,8 +45,8 @@ export function createTextBufferFactory(text: string): model.ITextBufferFactory 
 	return builder.finish();
 }
 
-export function createTextBufferFactoryFromStream(stream: IStringStream, filter?: (chunk: string) => string): TPromise<model.ITextBufferFactory> {
-	return new TPromise<model.ITextBufferFactory>((c, e) => {
+export function createTextBufferFactoryFromStream(stream: IStringStream, filter?: (chunk: string) => string): Promise<model.ITextBufferFactory> {
+	return new Promise<model.ITextBufferFactory>((c, e) => {
 		let done = false;
 		let builder = createTextBufferBuilder();
 
@@ -2005,7 +2004,8 @@ export class TextModel extends Disposable implements model.ITextModel {
 			lineContent.substring(rbStartOffset, rbEndOffset),
 			rbStartOffset
 		);
-		if (rightBiasedWord) {
+		// Make sure the result touches the original passed in position
+		if (rightBiasedWord && rightBiasedWord.startColumn <= _position.column && _position.column <= rightBiasedWord.endColumn) {
 			return rightBiasedWord;
 		}
 
@@ -2019,7 +2019,8 @@ export class TextModel extends Disposable implements model.ITextModel {
 				lineContent.substring(lbStartOffset, lbEndOffset),
 				lbStartOffset
 			);
-			if (leftBiasedWord) {
+			// Make sure the result touches the original passed in position
+			if (leftBiasedWord && leftBiasedWord.startColumn <= _position.column && _position.column <= leftBiasedWord.endColumn) {
 				return leftBiasedWord;
 			}
 		}

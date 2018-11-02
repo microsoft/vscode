@@ -66,7 +66,7 @@
 	"config.autoRepositoryDetection.subFolders": "Scan for subfolders of the currently opened folder.",
 	"config.autoRepositoryDetection.openEditors": "Scan for parent folders of open files.",
 	"config.autorefresh": "Whether auto refreshing is enabled.",
-	"config.autofetch": "Whether auto fetching is enabled.",
+	"config.autofetch": "When enabled, commits will automatically be fetched from the default remote of the current Git repository.",
 	"config.confirmSync": "Confirm before synchronizing git repositories.",
 	"config.countBadge": "Controls the git badge counter.",
 	"config.countBadge.all": "Count all changes.",

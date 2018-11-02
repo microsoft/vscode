@@ -366,13 +366,17 @@ export class MenubarControl extends Disposable {
 	}
 
 	private hideMenubar(): void {
-		this.container.style.display = 'none';
-		this._onVisibilityChange.fire(false);
+		if (this.container.style.display !== 'none') {
+			this.container.style.display = 'none';
+			this._onVisibilityChange.fire(false);
+		}
 	}
 
 	private showMenubar(): void {
-		this.container.style.display = 'flex';
-		this._onVisibilityChange.fire(true);
+		if (this.container.style.display !== 'flex') {
+			this.container.style.display = 'flex';
+			this._onVisibilityChange.fire(true);
+		}
 	}
 
 	private onModifierKeyToggled(modifierKeyStatus: IModifierKeyStatus): void {
@@ -838,8 +842,8 @@ export class MenubarControl extends Disposable {
 				}
 			}));
 
-			this._register(DOM.addDisposableListener(window, DOM.EventType.KEY_DOWN, (e) => {
-				if (!this.currentEnableMenuBarMnemonics || !e.altKey || e.ctrlKey) {
+			this._register(DOM.addDisposableListener(window, DOM.EventType.KEY_DOWN, (e: KeyboardEvent) => {
+				if (!this.currentEnableMenuBarMnemonics || !e.altKey || e.ctrlKey || e.defaultPrevented) {
 					return;
 				}
 

@@ -163,10 +163,6 @@ export class ContextMenuController implements IEditorContribution {
 			anchor = { x: posx, y: posy };
 		}
 
-		// prevent menu from appearing right below the cursor
-		anchor.height = 1;
-		anchor.width = 2;
-
 		// Show menu
 		this._contextMenuIsBeingShownCount++;
 		this._contextMenuService.showContextMenu({

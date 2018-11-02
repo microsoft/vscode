@@ -598,6 +598,10 @@ export class ObjectTreeResourceNavigator<T, TFilterData> extends Disposable {
 		const focus = this.tree.getFocus();
 		this.tree.setSelection(focus, e.browserEvent);
 
+		if (!e.browserEvent) {
+			return;
+		}
+
 		const isMouseEvent = e.browserEvent && e.browserEvent instanceof MouseEvent;
 
 		if (!isMouseEvent) {

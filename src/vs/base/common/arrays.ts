@@ -540,3 +540,9 @@ export function find<T>(arr: ArrayLike<T>, predicate: (value: T, index: number, 
 
 	return undefined;
 }
+
+export function mapArrayOrNot<T, U>(items: T | T[], fn: (_: T) => U): U | U[] {
+	return Array.isArray(items) ?
+		items.map(fn) :
+		fn(items);
+}

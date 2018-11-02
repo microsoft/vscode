@@ -183,7 +183,7 @@ export class MainThreadWorkspace implements MainThreadWorkspaceShape {
 		query._reason = 'startTextSearch';
 
 		const onProgress = (p: ISearchProgressItem) => {
-			if (p.matches) {
+			if (p.results) {
 				this._proxy.$handleTextSearchResult(p, requestId);
 			}
 		};

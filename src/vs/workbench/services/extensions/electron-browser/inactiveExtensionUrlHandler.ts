@@ -167,7 +167,7 @@ export class ExtensionUrlHandler implements IExtensionUrlHandler, IURLHandler {
 				this.dialogService.confirm({
 					message: localize('reloadAndHandle', "Extension '{0}' is not loaded. Would you like to reload the window to load the extension and open the URL?", extension.manifest.displayName || extension.manifest.name),
 					detail: `${extension.manifest.displayName || extension.manifest.name} (${extensionIdentifier.id}) wants to open a URL:\n\n${uri.toString()}`,
-					primaryButton: localize('reload&Open', "&&Reload Window and Open"),
+					primaryButton: localize('reloadAndOpen', "&&Reload Window and Open"),
 					type: 'question'
 				}).then(result => {
 					if (result.confirmed) {

@@ -465,7 +465,7 @@ const encodeTable: { [ch: number]: string } = {
 };
 
 function encodeURIComponentFast(uriComponent: string, allowSlash: boolean): string {
-	let res: string = undefined;
+	let res: string | undefined = undefined;
 	let nativeEncodePos = -1;
 
 	for (let pos = 0; pos < uriComponent.length; pos++) {

@@ -8,7 +8,7 @@ import { Range } from 'vs/editor/common/core/range';
 import { Position } from 'vs/editor/common/core/position';
 import { LanguageIdentifier } from 'vs/editor/common/modes';
 import { TokenSelectionSupport } from 'vs/editor/contrib/smartSelect/tokenSelectionSupport';
-import { MockMode } from 'vs/editor/test/common/mocks/mockMode';
+import { MockMode, StaticLanguageSelector } from 'vs/editor/test/common/mocks/mockMode';
 import { LanguageConfigurationRegistry } from 'vs/editor/common/modes/languageConfigurationRegistry';
 import { ModelServiceImpl } from 'vs/editor/common/services/modelServiceImpl';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
@@ -56,7 +56,7 @@ suite('TokenSelectionSupport', () => {
 
 	function assertGetRangesToPosition(text: string[], lineNumber: number, column: number, ranges: Range[]): void {
 		let uri = URI.file('test.js');
-		modelService.createModel(text.join('\n'), mode, uri);
+		modelService.createModel(text.join('\n'), new StaticLanguageSelector(mode.getLanguageIdentifier()), uri);
 
 		let actual = tokenSelectionSupport.getRangesToPositionSync(uri, new Position(lineNumber, column));
 

@@ -28,6 +28,11 @@ import { MarkdownRenderer } from 'vs/editor/contrib/markdown/markdownRenderer';
 
 const $ = dom.$;
 
+export interface TriggerContext {
+	readonly triggerReason: modes.SignatureHelpTriggerReason;
+	readonly triggerCharacter?: string;
+}
+
 export interface IHintEvent {
 	hints: modes.SignatureHelp;
 }
@@ -95,13 +100,20 @@ export class ParameterHintsModel extends Disposable {
 		}
 	}
 
-	trigger(context: modes.SignatureHelpContext, delay?: number): void {
+	trigger(context: TriggerContext, delay?: number): void {
 		if (!modes.SignatureHelpProviderRegistry.has(this.editor.getModel())) {
 			return;
 		}
 
+		const wasTriggered = this.isTriggered;
 		this.cancel(true);
-		this.triggerContext = context;
+
+		this.triggerContext = {
+			triggerReason: context.triggerReason,
+			triggerCharacter: context.triggerCharacter,
+			isRetrigger: wasTriggered
+		};
+
 		return this.throttledDelayer.schedule(delay);
 	}
 
@@ -112,7 +124,7 @@ export class ParameterHintsModel extends Disposable {
 
 		this.pending = true;
 
-		const triggerContext = this.triggerContext || { triggerReason: modes.SignatureHelpTriggerReason.Invoke };
+		const triggerContext = this.triggerContext || { triggerReason: modes.SignatureHelpTriggerReason.Invoke, isRetrigger: false };
 		this.triggerContext = undefined;
 
 		this.provideSignatureHelpRequest = createCancelablePromise(token =>
@@ -180,15 +192,10 @@ export class ParameterHintsModel extends Disposable {
 		const lastCharIndex = text.length - 1;
 		const triggerCharCode = text.charCodeAt(lastCharIndex);
 
-		if (this.isTriggered && this.retriggerChars.has(triggerCharCode)) {
-			this.trigger({
-				triggerReason: modes.SignatureHelpTriggerReason.Retrigger,
-				triggerCharacter: text.charAt(lastCharIndex)
-			});
-		} else if (this.triggerChars.has(triggerCharCode)) {
+		if (this.triggerChars.has(triggerCharCode) || this.isTriggered && this.retriggerChars.has(triggerCharCode)) {
 			this.trigger({
 				triggerReason: modes.SignatureHelpTriggerReason.TriggerCharacter,
-				triggerCharacter: text.charAt(lastCharIndex)
+				triggerCharacter: text.charAt(lastCharIndex),
 			});
 		}
 	}
@@ -197,13 +204,13 @@ export class ParameterHintsModel extends Disposable {
 		if (e.source === 'mouse') {
 			this.cancel();
 		} else if (this.isTriggered) {
-			this.trigger({ triggerReason: modes.SignatureHelpTriggerReason.Retrigger });
+			this.trigger({ triggerReason: modes.SignatureHelpTriggerReason.ContentChange });
 		}
 	}
 
 	private onModelContentChange(): void {
 		if (this.isTriggered) {
-			this.trigger({ triggerReason: modes.SignatureHelpTriggerReason.Retrigger });
+			this.trigger({ triggerReason: modes.SignatureHelpTriggerReason.ContentChange });
 		}
 	}
 
@@ -571,7 +578,7 @@ export class ParameterHintsWidget implements IContentWidget, IDisposable {
 		return ParameterHintsWidget.ID;
 	}
 
-	trigger(context: modes.SignatureHelpContext): void {
+	trigger(context: TriggerContext): void {
 		this.model.trigger(context, 0);
 	}
 

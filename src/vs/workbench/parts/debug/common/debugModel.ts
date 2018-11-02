@@ -227,7 +227,7 @@ export class Expression extends ExpressionContainer implements IExpression {
 
 	public evaluate(session: IDebugSession, stackFrame: IStackFrame, context: string): TPromise<void> {
 		if (!session || (!stackFrame && context !== 'repl')) {
-			this.value = context === 'repl' ? nls.localize('startDebugFirst', "Please start a debug session to evaluate") : Expression.DEFAULT_VALUE;
+			this.value = context === 'repl' ? nls.localize('startDebugFirst', "Please start a debug session to evaluate expressions") : Expression.DEFAULT_VALUE;
 			this.available = false;
 			this.reference = 0;
 
@@ -758,9 +758,18 @@ export class DebugModel implements IDebugModel {
 	}
 
 	public addSession(session: IDebugSession): void {
-		// Make sure to remove all inactive sessions once a new session is started
-		// Also make sure to de-dupe if a session is re-intialized. In case of EH debugging we are adding a session again after an attach.
-		this.sessions = this.sessions.filter(s => s.state !== State.Inactive && s.getId() !== session.getId());
+		this.sessions = this.sessions.filter(s => {
+			if (s.getId() === session.getId()) {
+				// Make sure to de-dupe if a session is re-intialized. In case of EH debugging we are adding a session again after an attach.
+				return false;
+			}
+			if (s.state === State.Inactive && s.getLabel() === session.getLabel()) {
+				// Make sure to remove all inactive sessions that are using the same configuration as the new session
+				return false;
+			}
+
+			return true;
+		});
 		this.sessions.push(session);
 		this._onDidChangeCallStack.fire();
 	}

@@ -120,7 +120,7 @@ suite('MarkersModel Test', () => {
 		const testObject = new Marker(marker, null);
 
 		// hack
-		(testObject as any).relatedInformation = marker.relatedInformation.map(r => new RelatedInformation(r));
+		(testObject as any).relatedInformation = marker.relatedInformation.map(r => new RelatedInformation(marker.resource, marker, r));
 		assert.equal(JSON.stringify({ ...marker, resource: marker.resource.path, relatedInformation: marker.relatedInformation.map(r => ({ ...r, resource: r.resource.path })) }, null, '\t'), testObject.toString());
 	});
 

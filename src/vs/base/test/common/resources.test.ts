@@ -214,15 +214,15 @@ suite('Resources', () => {
 
 	test('isMalformedFileUri', () => {
 		if (isWindows) {
-			assertMalformedFileUri('c:/foo/bar', 'file:///c:/foo/bar');
-			assertMalformedFileUri('c:\\foo\\bar', 'file:///c:/foo/bar');
-			assertMalformedFileUri('C:\\foo\\bar', 'file:///c:/foo/bar');
+			assertMalformedFileUri('c:/foo/bar', 'file:///c%3A/foo/bar');
+			assertMalformedFileUri('c:\\foo\\bar', 'file:///c%3A/foo/bar');
+			assertMalformedFileUri('C:\\foo\\bar', 'file:///c%3A/foo/bar');
 			assertMalformedFileUri('\\\\localhost\\c$\\devel\\test', 'file://localhost/c%24/devel/test');
 		}
 		assertMalformedFileUri('/foo/bar', 'file:///foo/bar');
 
 		assertMalformedFileUri('file:///foo/bar', void 0);
-		assertMalformedFileUri('file:///c:/foo/bar', void 0);
+		assertMalformedFileUri('file:///c%3A/foo/bar', void 0);
 		assertMalformedFileUri('file://localhost/c$/devel/test', void 0);
 		assertMalformedFileUri('foo://dadie/foo/bar', void 0);
 		assertMalformedFileUri('foo:///dadie/foo/bar', void 0);

@@ -23,14 +23,14 @@
 		"prefix": "fenced codeblock",
 		"body": [
 			"```${1:language}",
-			"$0",
+			"${TM_SELECTED_TEXT}$0",
 			"```"
 		],
 		"description": "Insert fenced code block"
 	},
 	"Insert heading": {
 		"prefix": "heading",
-		"body": "# ${1:text}",
+		"body": "# ${1:${TM_SELECTED_TEXT}}",
 		"description": "Insert heading"
 	},
 	"Insert unordered list": {
@@ -60,12 +60,12 @@
 	},
 	"Insert link": {
 		"prefix": "link",
-		"body": "[${1:text}](https://${2:link})$0",
+		"body": "[${TM_SELECTED_TEXT:${1:text}}](https://${2:link})$0",
 		"description": "Insert link"
 	},
 	"Insert image": {
 		"prefix": "image",
-		"body": "![${1:alt}](https://${2:link})$0",
+		"body": "![${TM_SELECTED_TEXT:${1:alt}}](https://${2:link})$0",
 		"description": "Insert image"
 	}
 }

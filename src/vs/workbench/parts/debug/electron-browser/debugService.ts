@@ -423,7 +423,7 @@ export class DebugService implements IDebugService {
 	private doCreateSession(root: IWorkspaceFolder, configuration: { resolved: IConfig, unresolved: IConfig }): TPromise<boolean> {
 
 		const session = this.instantiationService.createInstance(DebugSession, configuration, root, this.model);
-
+		this.model.addSession(session);
 		// register listeners as the very first thing!
 		this.registerSessionListeners(session);
 
@@ -527,6 +527,7 @@ export class DebugService implements IDebugService {
 				);
 			}
 			session.shutdown();
+			this.endInitializingState();
 			this._onDidEndSession.fire(session);
 
 			const focusedSession = this.viewModel.focusedSession;
@@ -675,13 +676,14 @@ export class DebugService implements IDebugService {
 
 			const taskLabel = typeof taskId === 'string' ? taskId : taskId.name;
 			const message = errorCount > 1
-				? nls.localize('preLaunchTaskErrors', "Build errors have been detected during preLaunchTask '{0}'.", taskLabel)
+				? nls.localize('preLaunchTaskErrors', "Errors exist after running preLaunchTask '{0}'.", taskLabel)
 				: errorCount === 1
-					? nls.localize('preLaunchTaskError', "Build error has been detected during preLaunchTask '{0}'.", taskLabel)
+					? nls.localize('preLaunchTaskError', "Error exists after running preLaunchTask '{0}'.", taskLabel)
 					: nls.localize('preLaunchTaskExitCode', "The preLaunchTask '{0}' terminated with exit code {1}.", taskLabel, taskSummary.exitCode);
 
 			const showErrorsAction = new Action('debug.showErrors', nls.localize('showErrors', "Show Errors"), undefined, true, () => {
-				return this.panelService.openPanel(Constants.MARKERS_PANEL_ID).then(() => TaskRunResult.Failure);
+				this.panelService.openPanel(Constants.MARKERS_PANEL_ID);
+				return Promise.resolve(TaskRunResult.Failure);
 			});
 
 			return this.showError(message, [debugAnywayAction, showErrorsAction]);
@@ -779,7 +781,7 @@ export class DebugService implements IDebugService {
 
 		if (stackFrame) {
 			stackFrame.openInEditor(this.editorService, true).then(undefined, errors.onUnexpectedError);
-			aria.alert(nls.localize('debuggingPaused', "Debugging paused, reason {0}, {1} {2}", thread.stoppedDetails.reason, stackFrame.source ? stackFrame.source.name : '', stackFrame.range.startLineNumber));
+			aria.alert(nls.localize('debuggingPaused', "Debugging paused {0}, {1} {2}", thread.stoppedDetails ? `, reason ${thread.stoppedDetails.reason}` : '', stackFrame.source ? stackFrame.source.name : '', stackFrame.range.startLineNumber));
 		}
 
 		this.viewModel.setFocus(stackFrame, thread, session, explicit);
@@ -1070,9 +1072,9 @@ export class DebugService implements IDebugService {
 		/* __GDPR__
 			"debugAddBreakpoint" : {
 				"context": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-				"hasCondition": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-				"hasHitCondition": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-				"hasLogMessage": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+				"hasCondition": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
+				"hasHitCondition": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
+				"hasLogMessage": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true }
 			}
 		*/
 

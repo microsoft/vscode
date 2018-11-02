@@ -573,7 +573,7 @@
 	},
 	{
 		"c": "{{",
-		"t": "source.python string.quoted.single.python constant.character.format.placeholder.other.python",
+		"t": "source.python string.quoted.single.python meta.format.brace.python constant.character.format.placeholder.other.python",
 		"r": {
 			"dark_plus": "constant.character: #569CD6",
 			"light_plus": "constant.character: #0000FF",

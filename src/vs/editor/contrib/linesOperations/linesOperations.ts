@@ -39,7 +39,7 @@ abstract class AbstractCopyLinesAction extends EditorAction {
 	public run(_accessor: ServicesAccessor, editor: ICodeEditor): void {
 
 		let commands: ICommand[] = [];
-		let selections = editor.getSelections();
+		let selections = editor.getSelections() || [];
 
 		for (let i = 0; i < selections.length; i++) {
 			commands.push(new CopyLinesCommand(selections[i], this.down));
@@ -111,7 +111,7 @@ abstract class AbstractMoveLinesAction extends EditorAction {
 	public run(_accessor: ServicesAccessor, editor: ICodeEditor): void {
 
 		let commands: ICommand[] = [];
-		let selections = editor.getSelections();
+		let selections = editor.getSelections() || [];
 		let autoIndent = editor.getConfiguration().autoIndent;
 
 		for (let i = 0; i < selections.length; i++) {
@@ -179,7 +179,7 @@ export abstract class AbstractSortLinesAction extends EditorAction {
 	}
 
 	public run(_accessor: ServicesAccessor, editor: ICodeEditor): void {
-		const selections = editor.getSelections();
+		const selections = editor.getSelections() || [];
 
 		for (let i = 0, len = selections.length; i < len; i++) {
 			const selection = selections[i];
@@ -246,7 +246,7 @@ export class TrimTrailingWhitespaceAction extends EditorAction {
 			// See https://github.com/editorconfig/editorconfig-vscode/issues/47
 			// It is very convenient for the editor config extension to invoke this action.
 			// So, if we get a reason:'auto-save' passed in, let's preserve cursor positions.
-			cursors = editor.getSelections().map(s => new Position(s.positionLineNumber, s.positionColumn));
+			cursors = (editor.getSelections() || []).map(s => new Position(s.positionLineNumber, s.positionColumn));
 		}
 
 		let command = new TrimTrailingWhitespaceCommand(editor.getSelection(), cursors);

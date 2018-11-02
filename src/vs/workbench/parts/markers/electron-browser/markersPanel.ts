@@ -157,18 +157,16 @@ export class MarkersPanel extends Panel implements IMarkerFilterController {
 		}
 	}
 
-	public setVisible(visible: boolean): Promise<void> {
+	public setVisible(visible: boolean): void {
 		const wasVisible = this.isVisible();
-		return super.setVisible(visible)
-			.then(() => {
-				if (this.isVisible()) {
-					if (!wasVisible) {
-						this.refreshPanel();
-					}
-				} else {
-					this.rangeHighlightDecorations.removeHighlightRange();
-				}
-			});
+		super.setVisible(visible);
+		if (this.isVisible()) {
+			if (!wasVisible) {
+				this.refreshPanel();
+			}
+		} else {
+			this.rangeHighlightDecorations.removeHighlightRange();
+		}
 	}
 
 	public getActions(): IAction[] {
@@ -223,6 +221,9 @@ export class MarkersPanel extends Panel implements IMarkerFilterController {
 		this.filter.options = new FilterOptions(this.filterAction.filterText, excludeExpression);
 		this.tree.refilter();
 		this._onDidFilter.fire();
+
+		const { total, filtered } = this.getFilterStats();
+		dom.toggleClass(this.treeContainer, 'hidden', total > 0 && filtered === 0);
 		this.renderMessage();
 	}
 
@@ -296,7 +297,8 @@ export class MarkersPanel extends Panel implements IMarkerFilterController {
 			renderers,
 			{
 				filter: this.filter,
-				accessibilityProvider
+				accessibilityProvider,
+				identityProvider: (element: TreeElement) => element.hash
 			}
 		) as any as WorkbenchObjectTree<TreeElement, FilterData>;
 

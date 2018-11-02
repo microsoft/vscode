@@ -18,16 +18,15 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import * as pfs from 'vs/base/node/pfs';
 import { getNextTickChannel } from 'vs/base/parts/ipc/node/ipc';
 import { Client, IIPCOptions } from 'vs/base/parts/ipc/node/ipc.cp';
-import { Range } from 'vs/editor/common/core/range';
-import { FindMatch, ITextModel } from 'vs/editor/common/model';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IDebugParams, IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { ILogService } from 'vs/platform/log/common/log';
-import { FileMatch, ICachedSearchStats, IFileMatch, IFileQuery, IFileSearchStats, IFolderQuery, IProgress, ISearchComplete, ISearchConfiguration, ISearchEngineStats, ISearchProgressItem, ISearchQuery, ISearchResultProvider, ISearchService, ITextQuery, ITextSearchPreviewOptions, pathIncludedInQuery, QueryType, SearchProviderType, TextSearchResult } from 'vs/platform/search/common/search';
+import { deserializeSearchError, FileMatch, ICachedSearchStats, IFileMatch, IFileQuery, IFileSearchStats, IFolderQuery, IProgress, ISearchComplete, ISearchConfiguration, ISearchEngineStats, ISearchProgressItem, ISearchQuery, ISearchResultProvider, ISearchService, ITextQuery, pathIncludedInQuery, QueryType, SearchError, SearchErrorCode, SearchProviderType } from 'vs/platform/search/common/search';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
+import { addContextToEditorMatches, editorMatchesToTextSearchResults } from 'vs/workbench/services/search/common/searchHelpers';
 import { IUntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
 import { IRawSearchService, ISerializedFileMatch, ISerializedSearchComplete, ISerializedSearchProgressItem, isSerializedSearchComplete, isSerializedSearchSuccess } from './search';
 import { ISearchChannel, SearchChannelClient } from './searchIpc';
@@ -135,7 +134,17 @@ export class SearchService extends Disposable implements ISearchService {
 					return TPromise.wrapError(canceled());
 				}
 
-				return this.searchWithProviders(query, onProgress, token);
+				const progressCallback = (item: ISearchProgressItem) => {
+					if (token && token.isCancellationRequested) {
+						return;
+					}
+
+					if (onProgress) {
+						onProgress(item);
+					}
+				};
+
+				return this.searchWithProviders(query, progressCallback, token);
 			})
 			.then(completes => {
 				completes = completes.filter(c => !!c);
@@ -241,11 +250,10 @@ export class SearchService extends Disposable implements ISearchService {
 			errs = errs
 				.filter(e => !!e);
 
-			errs.forEach(e => {
-				this.sendTelemetry(query, endToEndTime, null, e);
-			});
+			const searchError = deserializeSearchError(errs[0] && errs[0].message);
+			this.sendTelemetry(query, endToEndTime, null, searchError);
 
-			throw errs[0];
+			throw searchError;
 		});
 	}
 
@@ -262,7 +270,7 @@ export class SearchService extends Disposable implements ISearchService {
 		return queries;
 	}
 
-	private sendTelemetry(query: ISearchQuery, endToEndTime: number, complete?: ISearchComplete, err?: Error): void {
+	private sendTelemetry(query: ISearchQuery, endToEndTime: number, complete?: ISearchComplete, err?: SearchError): void {
 		const fileSchemeOnly = query.folderQueries.every(fq => fq.folder.scheme === 'file');
 		const otherSchemeOnly = query.folderQueries.every(fq => fq.folder.scheme !== 'file');
 		const scheme = fileSchemeOnly ? 'file' :
@@ -343,11 +351,12 @@ export class SearchService extends Disposable implements ISearchService {
 		} else if (query.type === QueryType.Text) {
 			let errorType: string;
 			if (err) {
-				errorType = err.message.indexOf('Regex parse error') >= 0 ? 'regex' :
-					err.message.indexOf('Unknown encoding') >= 0 ? 'encoding' :
-						err.message.indexOf('Error parsing glob') >= 0 ? 'glob' :
-							err.message.indexOf('The literal') >= 0 ? 'literal' :
-								'other';
+				errorType = err.code === SearchErrorCode.regexParseError ? 'regex' :
+					err.code === SearchErrorCode.unknownEncoding ? 'encoding' :
+						err.code === SearchErrorCode.globParseError ? 'glob' :
+							err.code === SearchErrorCode.invalidLiteral ? 'literal' :
+								err.code === SearchErrorCode.other ? 'other' :
+									'unknown';
 			}
 
 			/* __GDPR__
@@ -368,7 +377,7 @@ export class SearchService extends Disposable implements ISearchService {
 				scheme,
 				error: errorType,
 				useRipgrep: query.useRipgrep,
-				usePCRE2: query.usePCRE2
+				usePCRE2: !!query.usePCRE2
 			});
 		}
 	}
@@ -413,9 +422,8 @@ export class SearchService extends Disposable implements ISearchService {
 					let fileMatch = new FileMatch(resource);
 					localResults.set(resource, fileMatch);
 
-					matches.forEach((match) => {
-						fileMatch.matches.push(editorMatchToTextSearchResult(match, model, query.previewOptions));
-					});
+					const textSearchResults = editorMatchesToTextSearchResults(matches, model, query.previewOptions);
+					fileMatch.results = addContextToEditorMatches(textSearchResults, model, query);
 				} else {
 					localResults.set(resource, null);
 				}
@@ -572,9 +580,10 @@ export class DiskSearch implements ISearchResultProvider {
 	}
 
 	private static createFileMatch(data: ISerializedFileMatch): FileMatch {
-		let fileMatch = new FileMatch(uri.file(data.path));
-		if (data.matches) {
-			fileMatch.matches.push(...data.matches); // TODO why
+		const fileMatch = new FileMatch(uri.file(data.path));
+		if (data.results) {
+			// const matches = data.results.filter(resultIsMatch);
+			fileMatch.results.push(...data.results);
 		}
 		return fileMatch;
 	}
@@ -582,11 +591,4 @@ export class DiskSearch implements ISearchResultProvider {
 	public clearCache(cacheKey: string): TPromise<void> {
 		return this.raw.clearCache(cacheKey);
 	}
-}
-
-function editorMatchToTextSearchResult(match: FindMatch, model: ITextModel, previewOptions: ITextSearchPreviewOptions): TextSearchResult {
-	return new TextSearchResult(
-		model.getLineContent(match.range.startLineNumber),
-		new Range(match.range.startLineNumber - 1, match.range.startColumn - 1, match.range.endLineNumber - 1, match.range.endColumn - 1),
-		previewOptions);
 }

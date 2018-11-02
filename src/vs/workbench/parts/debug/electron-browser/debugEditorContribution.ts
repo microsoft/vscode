@@ -524,7 +524,7 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 		if (this.configurationWidget) {
 			this.configurationWidget.dispose();
 		}
-		if (model && LAUNCH_JSON_REGEX.test(model.uri.toString())) {
+		if (model && LAUNCH_JSON_REGEX.test(model.uri.toString()) && !this.editor.getConfiguration().readOnly) {
 			this.configurationWidget = this.instantiationService.createInstance(FloatingClickWidget, this.editor, nls.localize('addConfiguration', "Add Configuration..."), null);
 			this.configurationWidget.render();
 			this.toDispose.push(this.configurationWidget.onClick(() => this.addLaunchConfiguration()));

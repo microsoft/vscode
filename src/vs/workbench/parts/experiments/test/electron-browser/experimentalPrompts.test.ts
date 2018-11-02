@@ -163,9 +163,12 @@ suite('Experimental Prompts', () => {
 			promptText: 'My simple prompt',
 			commands: []
 		};
-		const englishTextCase: IExperimentActionPromptProperties = {
+		const multipleLocaleCase: IExperimentActionPromptProperties = {
 			promptText: {
-				en: 'My simple prompt for en'
+				en: 'My simple prompt for en',
+				de: 'My simple prompt for de',
+				'en-au': 'My simple prompt for Austrailian English',
+				'en-us': 'My simple prompt for US English'
 			},
 			commands: []
 		};
@@ -175,10 +178,20 @@ suite('Experimental Prompts', () => {
 			},
 			commands: []
 		};
+		const noEnglishTextCase: IExperimentActionPromptProperties = {
+			promptText: {
+				'de-de': 'My simple prompt for German'
+			},
+			commands: []
+		};
+
 		assert.equal(ExperimentalPrompts.getPromptText(simpleTextCase, 'any-language'), simpleTextCase.promptText);
-		assert.equal(ExperimentalPrompts.getPromptText(englishTextCase, 'en'), englishTextCase.promptText['en']);
-		assert.equal(ExperimentalPrompts.getPromptText(englishUSTextCase, 'en-us'), englishUSTextCase.promptText['en-us']);
-		assert.equal(ExperimentalPrompts.getPromptText(englishTextCase, 'en-au'), englishTextCase.promptText['en']);
-		assert.equal(!!ExperimentalPrompts.getPromptText(englishTextCase, 'de'), false);
+		assert.equal(ExperimentalPrompts.getPromptText(multipleLocaleCase, 'en'), multipleLocaleCase.promptText['en']);
+		assert.equal(ExperimentalPrompts.getPromptText(multipleLocaleCase, 'de'), multipleLocaleCase.promptText['de']);
+		assert.equal(ExperimentalPrompts.getPromptText(multipleLocaleCase, 'en-au'), multipleLocaleCase.promptText['en-au']);
+		assert.equal(ExperimentalPrompts.getPromptText(multipleLocaleCase, 'en-gb'), multipleLocaleCase.promptText['en']);
+		assert.equal(ExperimentalPrompts.getPromptText(multipleLocaleCase, 'fr'), multipleLocaleCase.promptText['en']);
+		assert.equal(ExperimentalPrompts.getPromptText(englishUSTextCase, 'fr'), englishUSTextCase.promptText['en-us']);
+		assert.equal(!!ExperimentalPrompts.getPromptText(noEnglishTextCase, 'fr'), false);
 	});
 });

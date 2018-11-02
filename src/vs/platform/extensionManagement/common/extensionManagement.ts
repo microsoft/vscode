@@ -300,6 +300,9 @@ export interface DidUninstallExtensionEvent {
 	error?: string;
 }
 
+export const INSTALL_ERROR_MALICIOUS = 'malicious';
+export const INSTALL_ERROR_INCOMPATIBLE = 'incompatible';
+
 export interface IExtensionManagementService {
 	_serviceBrand: any;
 
@@ -330,9 +333,9 @@ export interface IExtensionManagementServer {
 
 export interface IExtensionManagementServerService {
 	_serviceBrand: any;
-	readonly extensionManagementServers: IExtensionManagementServer[];
-	getLocalExtensionManagementServer(): IExtensionManagementServer;
-	getExtensionManagementServer(location: URI): IExtensionManagementServer;
+	readonly localExtensionManagementServer: IExtensionManagementServer | null;
+	readonly otherExtensionManagementServer: IExtensionManagementServer | null;
+	getExtensionManagementServer(location: URI): IExtensionManagementServer | null;
 }
 
 export const enum EnablementState {

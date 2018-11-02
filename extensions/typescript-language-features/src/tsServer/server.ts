@@ -7,122 +7,22 @@ import * as cp from 'child_process';
 import * as fs from 'fs';
 import * as path from 'path';
 import * as vscode from 'vscode';
-import * as Proto from './protocol';
-import { CancelledResponse, NoContentResponse, ServerResponse } from './typescriptService';
-import API from './utils/api';
-import { TsServerLogLevel, TypeScriptServiceConfiguration } from './utils/configuration';
-import { Disposable } from './utils/dispose';
-import * as electron from './utils/electron';
-import LogDirectoryProvider from './utils/logDirectoryProvider';
-import Logger from './utils/logger';
-import { TypeScriptPluginPathsProvider } from './utils/pluginPathsProvider';
-import { TypeScriptServerPlugin } from './utils/plugins';
-import TelemetryReporter from './utils/telemetry';
-import Tracer from './utils/tracer';
-import { TypeScriptVersion, TypeScriptVersionProvider } from './utils/versionProvider';
-import { Reader } from './utils/wireProtocol';
-
-interface CallbackItem<R> {
-	readonly onSuccess: (value: R) => void;
-	readonly onError: (err: any) => void;
-	readonly startTime: number;
-	readonly isAsync: boolean;
-}
-
-class CallbackMap<R extends Proto.Response> {
-	private readonly _callbacks = new Map<number, CallbackItem<ServerResponse<R> | undefined>>();
-	private readonly _asyncCallbacks = new Map<number, CallbackItem<ServerResponse<R> | undefined>>();
-
-	public destroy(cause: string): void {
-		const cancellation = new CancelledResponse(cause);
-		for (const callback of this._callbacks.values()) {
-			callback.onSuccess(cancellation);
-		}
-		this._callbacks.clear();
-
-		for (const callback of this._asyncCallbacks.values()) {
-			callback.onSuccess(cancellation);
-		}
-		this._asyncCallbacks.clear();
-	}
-
-	public add(seq: number, callback: CallbackItem<ServerResponse<R> | undefined>, isAsync: boolean) {
-		if (isAsync) {
-			this._asyncCallbacks.set(seq, callback);
-		} else {
-			this._callbacks.set(seq, callback);
-		}
-	}
-
-
-	public fetch(seq: number): CallbackItem<ServerResponse<R> | undefined> | undefined {
-		const callback = this._callbacks.get(seq) || this._asyncCallbacks.get(seq);
-		this.delete(seq);
-		return callback;
-	}
-
-	private delete(seq: number) {
-		if (!this._callbacks.delete(seq)) {
-			this._asyncCallbacks.delete(seq);
-		}
-	}
-}
-
-interface RequestItem {
-	readonly request: Proto.Request;
-	readonly expectsResponse: boolean;
-	readonly isAsync: boolean;
-	readonly lowPriority?: boolean;
-}
-
-class RequestQueue {
-	private readonly queue: RequestItem[] = [];
-	private sequenceNumber: number = 0;
-
-	public get length(): number {
-		return this.queue.length;
-	}
-
-	public push(item: RequestItem): void {
-		// insert before existing lowPriority requestItems in the queue.
-		if (!item.lowPriority && this.length) {
-			for (let i = this.length - 1; i > -1; i--) {
-				if (!this.queue[i].lowPriority) {
-					this.queue.splice(i + 1, 0, item);
-					return;
-				}
-			}
-			//if all of the items are lowPriority insert at top
-			this.queue.unshift(item);
-			return;
-		}
-		//if none is low priority just push to end
-		this.queue.push(item);
-	}
-
-	public shift(): RequestItem | undefined {
-		return this.queue.shift();
-	}
-
-	public tryCancelPendingRequest(seq: number): boolean {
-		for (let i = 0; i < this.queue.length; i++) {
-			if (this.queue[i].request.seq === seq) {
-				this.queue.splice(i, 1);
-				return true;
-			}
-		}
-		return false;
-	}
-
-	public createRequest(command: string, args: any): Proto.Request {
-		return {
-			seq: this.sequenceNumber++,
-			type: 'request',
-			command: command,
-			arguments: args
-		};
-	}
-}
+import * as Proto from '../protocol';
+import { CancelledResponse, NoContentResponse } from '../typescriptService';
+import API from '../utils/api';
+import { TsServerLogLevel, TypeScriptServiceConfiguration } from '../utils/configuration';
+import { Disposable } from '../utils/dispose';
+import * as electron from '../utils/electron';
+import LogDirectoryProvider from '../utils/logDirectoryProvider';
+import Logger from '../utils/logger';
+import { TypeScriptPluginPathsProvider } from '../utils/pluginPathsProvider';
+import { TypeScriptServerPlugin } from '../utils/plugins';
+import TelemetryReporter from '../utils/telemetry';
+import Tracer from '../utils/tracer';
+import { TypeScriptVersion, TypeScriptVersionProvider } from '../utils/versionProvider';
+import { Reader } from '../utils/wireProtocol';
+import { CallbackMap } from './callbackMap';
+import { RequestQueue, RequestItem, RequestQueueingType } from './requestQueue';
 
 export class TypeScriptServerSpawner {
 	public constructor(
@@ -401,7 +301,7 @@ export class TypeScriptServer extends Disposable {
 			request: request,
 			expectsResponse: executeInfo.expectsResult,
 			isAsync: executeInfo.isAsync,
-			lowPriority: executeInfo.lowPriority
+			queueingType: getQueueingType(command, executeInfo.lowPriority)
 		};
 		let result: Promise<any>;
 		if (executeInfo.expectsResult) {
@@ -503,5 +403,17 @@ export class TypeScriptServer extends Disposable {
 		this._pendingResponses.delete(seq);
 		return callback;
 	}
+}
+
+const fenceCommands = new Set(['change', 'close', 'open']);
+
+function getQueueingType(
+	command: string,
+	lowPriority?: boolean
+): RequestQueueingType {
+	if (fenceCommands.has(command)) {
+		return RequestQueueingType.Fence;
+	}
+	return lowPriority ? RequestQueueingType.LowPriority : RequestQueueingType.Normal;
 }
 

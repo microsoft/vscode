@@ -21,7 +21,10 @@ export function testCommand(
 	expectedSelection: Selection
 ): void {
 	let model = TextModel.createFromString(lines.join('\n'), undefined, languageIdentifier);
-	withTestCodeEditor(null, { model: model }, (editor, cursor) => {
+	withTestCodeEditor('', { model: model }, (_editor, cursor) => {
+		if (!cursor) {
+			return;
+		}
 
 		cursor.setSelections('tests', [selection]);
 
@@ -58,7 +61,7 @@ export function getEditOperation(model: ITextModel, command: editorCommon.IComma
 
 
 		trackSelection: (selection: Selection) => {
-			return null;
+			return '';
 		}
 	};
 	command.getEditOperations(model, editOperationBuilder);

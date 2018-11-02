@@ -57,7 +57,7 @@ class HorizontalRevealRequest {
 
 export class ViewLines extends ViewPart implements IVisibleLinesHost<ViewLine>, IViewLines {
 	/**
-	 * Adds this ammount of pixels to the right of lines (no-one wants to type near the edge of the viewport)
+	 * Adds this amount of pixels to the right of lines (no-one wants to type near the edge of the viewport)
 	 */
 	private static readonly HORIZONTAL_EXTRA_PX = 30;
 

@@ -14,7 +14,7 @@ import { ModelServiceImpl } from 'vs/editor/common/services/modelServiceImpl';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
 import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
-import { IFileMatch, IFileSearchStats, IFolderQuery, ISearchComplete, ISearchProgressItem, ISearchQuery, ISearchService, ITextSearchResult, TextSearchResult, OneLineRange } from 'vs/platform/search/common/search';
+import { IFileMatch, IFileSearchStats, IFolderQuery, ISearchComplete, ISearchProgressItem, ISearchQuery, ISearchService, ITextSearchMatch, TextSearchMatch, OneLineRange } from 'vs/platform/search/common/search';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { NullTelemetryService } from 'vs/platform/telemetry/common/telemetryUtils';
 import { SearchModel } from 'vs/workbench/parts/search/common/searchModel';
@@ -122,9 +122,9 @@ suite('SearchModel', () => {
 	test('Search Model: Search adds to results', async () => {
 		let results = [
 			aRawMatch('file://c:/1',
-				new TextSearchResult('preview 1', new OneLineRange(1, 1, 4)),
-				new TextSearchResult('preview 1', new OneLineRange(1, 4, 11))),
-			aRawMatch('file://c:/2', new TextSearchResult('preview 2', lineOneRange))];
+				new TextSearchMatch('preview 1', new OneLineRange(1, 1, 4)),
+				new TextSearchMatch('preview 1', new OneLineRange(1, 4, 11))),
+			aRawMatch('file://c:/2', new TextSearchMatch('preview 2', lineOneRange))];
 		instantiationService.stub(ISearchService, searchServiceWithResults(results));
 
 		let testObject: SearchModel = instantiationService.createInstance(SearchModel);
@@ -152,10 +152,10 @@ suite('SearchModel', () => {
 		let target = instantiationService.spy(ITelemetryService, 'publicLog');
 		let results = [
 			aRawMatch('file://c:/1',
-				new TextSearchResult('preview 1', new OneLineRange(1, 1, 4)),
-				new TextSearchResult('preview 1', new OneLineRange(1, 4, 11))),
+				new TextSearchMatch('preview 1', new OneLineRange(1, 1, 4)),
+				new TextSearchMatch('preview 1', new OneLineRange(1, 4, 11))),
 			aRawMatch('file://c:/2',
-				new TextSearchResult('preview 2', lineOneRange))];
+				new TextSearchMatch('preview 2', lineOneRange))];
 		instantiationService.stub(ISearchService, searchServiceWithResults(results));
 
 		let testObject: SearchModel = instantiationService.createInstance(SearchModel);
@@ -193,7 +193,7 @@ suite('SearchModel', () => {
 		instantiationService.stub(ITelemetryService, 'publicLog', target1);
 
 		instantiationService.stub(ISearchService, searchServiceWithResults(
-			[aRawMatch('file://c:/1', new TextSearchResult('some preview', lineOneRange))],
+			[aRawMatch('file://c:/1', new TextSearchMatch('some preview', lineOneRange))],
 			{ results: [], stats: testSearchStats }));
 
 		let testObject = instantiationService.createInstance(SearchModel);
@@ -256,10 +256,10 @@ suite('SearchModel', () => {
 	test('Search Model: Search results are cleared during search', async () => {
 		let results = [
 			aRawMatch('file://c:/1',
-				new TextSearchResult('preview 1', new OneLineRange(1, 1, 4)),
-				new TextSearchResult('preview 1', new OneLineRange(1, 4, 11))),
+				new TextSearchMatch('preview 1', new OneLineRange(1, 1, 4)),
+				new TextSearchMatch('preview 1', new OneLineRange(1, 4, 11))),
 			aRawMatch('file://c:/2',
-				new TextSearchResult('preview 2', lineOneRange))];
+				new TextSearchMatch('preview 2', lineOneRange))];
 		instantiationService.stub(ISearchService, searchServiceWithResults(results));
 		let testObject: SearchModel = instantiationService.createInstance(SearchModel);
 		await testObject.search({ contentPattern: { pattern: 'somestring' }, type: 1, folderQueries });
@@ -286,8 +286,8 @@ suite('SearchModel', () => {
 	test('getReplaceString returns proper replace string for regExpressions', async () => {
 		let results = [
 			aRawMatch('file://c:/1',
-				new TextSearchResult('preview 1', new OneLineRange(1, 1, 4)),
-				new TextSearchResult('preview 1', new OneLineRange(1, 4, 11)))];
+				new TextSearchMatch('preview 1', new OneLineRange(1, 1, 4)),
+				new TextSearchMatch('preview 1', new OneLineRange(1, 4, 11)))];
 		instantiationService.stub(ISearchService, searchServiceWithResults(results));
 
 		let testObject: SearchModel = instantiationService.createInstance(SearchModel);
@@ -314,8 +314,8 @@ suite('SearchModel', () => {
 		assert.equal('helloe', match.replaceString);
 	});
 
-	function aRawMatch(resource: string, ...matches: ITextSearchResult[]): IFileMatch {
-		return { resource: URI.parse(resource), matches };
+	function aRawMatch(resource: string, ...results: ITextSearchMatch[]): IFileMatch {
+		return { resource: URI.parse(resource), results };
 	}
 
 	function stub(arg1: any, arg2: any, arg3: any): sinon.SinonStub {

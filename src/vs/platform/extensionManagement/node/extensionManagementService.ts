@@ -19,12 +19,14 @@ import {
 	StatisticType,
 	IExtensionIdentifier,
 	IReportedExtension,
-	InstallOperation
+	InstallOperation,
+	INSTALL_ERROR_MALICIOUS,
+	INSTALL_ERROR_INCOMPATIBLE
 } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { getGalleryExtensionIdFromLocal, adoptToGalleryExtensionId, areSameExtensions, getGalleryExtensionId, groupByExtension, getMaliciousExtensionsSet, getLocalExtensionId, getGalleryExtensionTelemetryData, getLocalExtensionTelemetryData, getIdFromLocalExtensionId } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { localizeManifest } from '../common/extensionNls';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { Limiter, always, createCancelablePromise, CancelablePromise } from 'vs/base/common/async';
+import { Limiter, always, createCancelablePromise, CancelablePromise, Queue } from 'vs/base/common/async';
 import { Event, Emitter } from 'vs/base/common/event';
 import * as semver from 'semver';
 import { URI } from 'vs/base/common/uri';
@@ -48,7 +50,6 @@ import { CancellationToken } from 'vs/base/common/cancellation';
 const ERROR_SCANNING_SYS_EXTENSIONS = 'scanningSystem';
 const ERROR_SCANNING_USER_EXTENSIONS = 'scanningUser';
 const INSTALL_ERROR_UNSET_UNINSTALLED = 'unsetUninstalled';
-const INSTALL_ERROR_INCOMPATIBLE = 'incompatible';
 const INSTALL_ERROR_DOWNLOADING = 'downloading';
 const INSTALL_ERROR_VALIDATING = 'validating';
 const INSTALL_ERROR_GALLERY = 'gallery';
@@ -56,7 +57,6 @@ const INSTALL_ERROR_LOCAL = 'local';
 const INSTALL_ERROR_EXTRACTING = 'extracting';
 const INSTALL_ERROR_RENAMING = 'renaming';
 const INSTALL_ERROR_DELETING = 'deleting';
-const INSTALL_ERROR_MALICIOUS = 'malicious';
 const ERROR_UNKNOWN = 'unknown';
 
 export class ExtensionManagementError extends Error {
@@ -114,7 +114,7 @@ export class ExtensionManagementService extends Disposable implements IExtension
 	private systemExtensionsPath: string;
 	private extensionsPath: string;
 	private uninstalledPath: string;
-	private uninstalledFileLimiter: Limiter<void>;
+	private uninstalledFileLimiter: Queue<void>;
 	private reportedExtensions: Promise<IReportedExtension[]> | undefined;
 	private lastReportTimestamp = 0;
 	private readonly installingExtensions: Map<string, CancelablePromise<void>> = new Map<string, CancelablePromise<void>>();
@@ -146,7 +146,7 @@ export class ExtensionManagementService extends Disposable implements IExtension
 		this.systemExtensionsPath = environmentService.builtinExtensionsPath;
 		this.extensionsPath = environmentService.extensionsPath;
 		this.uninstalledPath = path.join(this.extensionsPath, '.obsolete');
-		this.uninstalledFileLimiter = new Limiter(1);
+		this.uninstalledFileLimiter = new Queue<void>();
 		this.manifestCache = this._register(new ExtensionsManifestCache(environmentService, this));
 		this.extensionLifecycle = this._register(new ExtensionsLifecycle(this.logService));
 
@@ -207,7 +207,7 @@ export class ExtensionManagementService extends Disposable implements IExtension
 						.then(manifest => {
 							const identifier = { id: getLocalExtensionIdFromManifest(manifest) };
 							if (manifest.engines && manifest.engines.vscode && !isEngineValid(manifest.engines.vscode)) {
-								return Promise.reject(new Error(nls.localize('incompatible', "Unable to install Extension '{0}' as it is not compatible with Code '{1}'.", identifier.id, pkg.version)));
+								return Promise.reject(new Error(nls.localize('incompatible', "Unable to install extension '{0}' as it is not compatible with VS Code '{1}'.", identifier.id, pkg.version)));
 							}
 							return this.removeIfExists(identifier.id)
 								.then(
@@ -229,7 +229,7 @@ export class ExtensionManagementService extends Disposable implements IExtension
 											}
 											return null;
 										}),
-									e => Promise.reject(new Error(nls.localize('restartCode', "Please restart Code before reinstalling {0}.", manifest.displayName || manifest.name))));
+									e => Promise.reject(new Error(nls.localize('restartCode', "Please restart VS Code before reinstalling {0}.", manifest.displayName || manifest.name))));
 						});
 				});
 		});
@@ -330,6 +330,9 @@ export class ExtensionManagementService extends Disposable implements IExtension
 							this.logService.error(`Failed to install extension:`, extension.identifier.id, error ? error.message : errorCode);
 							this._onDidInstallExtension.fire({ identifier, gallery: extension, operation, error: errorCode });
 							this.reportTelemetry(this.getTelemetryEvent(operation), telemetryData, new Date().getTime() - startTime, error);
+							if (error instanceof Error) {
+								error.name = errorCode;
+							}
 							errorCallback(error);
 						});
 
@@ -404,7 +407,7 @@ export class ExtensionManagementService extends Disposable implements IExtension
 								},
 								error => Promise.reject(new ExtensionManagementError(this.joinErrors(error).message, INSTALL_ERROR_DOWNLOADING)));
 					} else {
-						return Promise.reject(new ExtensionManagementError(nls.localize('notFoundCompatibleDependency', "Unable to install because, the depending extension '{0}' compatible with current version '{1}' of VS Code is not found.", extension.identifier.id, pkg.version), INSTALL_ERROR_INCOMPATIBLE));
+						return Promise.reject(new ExtensionManagementError(nls.localize('notFoundCompatibleDependency', "Unable to install because, the extension '{0}' compatible with current version '{1}' of VS Code is not found.", extension.identifier.id, pkg.version), INSTALL_ERROR_INCOMPATIBLE));
 					}
 				},
 				error => Promise.reject(new ExtensionManagementError(this.joinErrors(error).message, INSTALL_ERROR_GALLERY)));
@@ -758,7 +761,7 @@ export class ExtensionManagementService extends Disposable implements IExtension
 	}
 
 	private scanExtension(folderName: string, root: string, type: LocalExtensionType): Promise<ILocalExtension> {
-		if (type === LocalExtensionType.User && folderName.indexOf('.') === 0) { // Do not consider user exension folder starting with `.`
+		if (type === LocalExtensionType.User && folderName.indexOf('.') === 0) { // Do not consider user extension folder starting with `.`
 			return Promise.resolve(null);
 		}
 		const extensionPath = path.join(root, folderName);

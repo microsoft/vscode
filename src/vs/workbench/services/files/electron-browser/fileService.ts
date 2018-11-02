@@ -16,7 +16,7 @@ import * as arrays from 'vs/base/common/arrays';
 import { TPromise } from 'vs/base/common/winjs.base';
 import * as objects from 'vs/base/common/objects';
 import * as extfs from 'vs/base/node/extfs';
-import { nfcall, ThrottledDelayer } from 'vs/base/common/async';
+import { nfcall, ThrottledDelayer, timeout } from 'vs/base/common/async';
 import { URI as uri } from 'vs/base/common/uri';
 import * as nls from 'vs/nls';
 import { isWindows, isLinux, isMacintosh } from 'vs/base/common/platform';
@@ -593,24 +593,28 @@ export class FileService extends Disposable implements IFileService {
 					else {
 
 						// 4.) truncate
-						let retryFromFailingTruncate = true;
 						return pfs.truncate(absolutePath, 0).then(() => {
-							retryFromFailingTruncate = false;
 
 							// 5.) set contents (with r+ mode) and resolve
-							return this.doSetContentsAndResolve(resource, absolutePath, value, addBom, encodingToWrite, { flag: 'r+' });
-						}, error => {
-							if (retryFromFailingTruncate) {
+							return this.doSetContentsAndResolve(resource, absolutePath, value, addBom, encodingToWrite, { flag: 'r+' }).then(null, error => {
 								if (this.environmentService.verbose) {
-									console.error(`Truncate failed (${error}), falling back to normal save`);
+									console.error(`Truncate succeeded, but save failed (${error}), retrying after 100ms`);
 								}
 
-								// we heard from users that fs.truncate() fails (https://github.com/Microsoft/vscode/issues/59561)
-								// in that case we simply save the file without truncating first (same as macOS and Linux)
-								return this.doSetContentsAndResolve(resource, absolutePath, value, addBom, encodingToWrite);
+								// We heard from one user that fs.truncate() succeeds, but the save fails (https://github.com/Microsoft/vscode/issues/61310)
+								// In that case, the file is now entirely empty and the contents are gone. This can happen if an external file watcher is
+								// installed that reacts on the truncate and keeps the file busy right after. Our workaround is to retry to save after a
+								// short timeout, assuming that the file is free to write then.
+								return timeout(100).then(() => this.doSetContentsAndResolve(resource, absolutePath, value, addBom, encodingToWrite, { flag: 'r+' }));
+							});
+						}, error => {
+							if (this.environmentService.verbose) {
+								console.error(`Truncate failed (${error}), falling back to normal save`);
 							}
 
-							return TPromise.wrapError(error);
+							// we heard from users that fs.truncate() fails (https://github.com/Microsoft/vscode/issues/59561)
+							// in that case we simply save the file without truncating first (same as macOS and Linux)
+							return this.doSetContentsAndResolve(resource, absolutePath, value, addBom, encodingToWrite);
 						});
 					}
 				});

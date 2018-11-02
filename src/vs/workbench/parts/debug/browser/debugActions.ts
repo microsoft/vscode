@@ -384,6 +384,11 @@ export class PauseAction extends AbstractDebugAction {
 	public run(thread: IThread): TPromise<any> {
 		if (!(thread instanceof Thread)) {
 			thread = this.debugService.getViewModel().focusedThread;
+			if (!thread) {
+				const session = this.debugService.getViewModel().focusedSession;
+				const threads = session && session.getAllThreads();
+				thread = threads && threads.length ? threads[0] : undefined;
+			}
 		}
 
 		return thread ? thread.pause() : Promise.resolve(null);
@@ -690,7 +695,7 @@ export class ToggleReplAction extends TogglePanelAction {
 	}
 
 	private registerListeners(): void {
-		this.toDispose.push(this.panelService.onDidPanelOpen(panel => {
+		this.toDispose.push(this.panelService.onDidPanelOpen(({ panel }) => {
 			if (panel.getId() === REPL_ID) {
 				this.class = 'debug-action toggle-repl';
 				this.tooltip = ToggleReplAction.LABEL;
@@ -717,7 +722,8 @@ export class FocusReplAction extends Action {
 	}
 
 	public run(): TPromise<any> {
-		return this.panelService.openPanel(REPL_ID, true);
+		this.panelService.openPanel(REPL_ID, true);
+		return Promise.resolve(null);
 	}
 }
 

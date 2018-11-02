@@ -207,7 +207,7 @@ export interface PresentationOptions {
 	/**
 	 * Controls whether to clear the terminal before executing the task.
 	 */
-	clearBeforeExecuting: boolean;
+	clear: boolean;
 }
 
 export enum RuntimeType {

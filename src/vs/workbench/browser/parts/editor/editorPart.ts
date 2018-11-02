@@ -799,6 +799,7 @@ export class EditorPart extends Part implements EditorGroupsServiceImpl, IEditor
 
 	centerLayout(active: boolean): void {
 		this.centeredLayoutWidget.activate(active);
+		this._activeGroup.focus();
 	}
 
 	isLayoutCentered(): boolean {

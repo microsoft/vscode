@@ -64,7 +64,7 @@ export interface ITreeFilter<T, TFilterData = void> {
 	 *
 	 * @param element The tree element.
 	 */
-	filter(element: T): TreeFilterResult<TFilterData>;
+	filter(element: T, parentVisibility: TreeVisibility): TreeFilterResult<TFilterData>;
 }
 
 export interface ITreeElement<T> {

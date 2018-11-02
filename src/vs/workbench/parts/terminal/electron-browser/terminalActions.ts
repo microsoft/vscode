@@ -8,7 +8,7 @@ import * as os from 'os';
 import { Action, IAction } from 'vs/base/common/actions';
 import { EndOfLinePreference } from 'vs/editor/common/model';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
-import { ITerminalService, TERMINAL_PANEL_ID, ITerminalInstance, Direction, IShellLaunchConfig, ITerminalConfigHelper } from 'vs/workbench/parts/terminal/common/terminal';
+import { ITerminalService, TERMINAL_PANEL_ID, ITerminalInstance, Direction, ITerminalConfigHelper } from 'vs/workbench/parts/terminal/common/terminal';
 import { SelectActionItem } from 'vs/base/browser/ui/actionbar/actionbar';
 import { TogglePanelAction } from 'vs/workbench/browser/panel';
 import { IPartService } from 'vs/workbench/services/part/common/partService';
@@ -22,7 +22,7 @@ import { TerminalEntry } from 'vs/workbench/parts/terminal/browser/terminalQuick
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
 import { ICommandService } from 'vs/platform/commands/common/commands';
-import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
+import { IWorkspaceContextService, IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import { PICK_WORKSPACE_FOLDER_COMMAND_ID } from 'vs/workbench/browser/actions/workspaceCommands';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { TERMINAL_COMMAND_ID } from 'vs/workbench/parts/terminal/common/terminalCommands';
@@ -32,20 +32,33 @@ import { FindReplaceState } from 'vs/editor/contrib/find/findState';
 
 export const TERMINAL_PICKER_PREFIX = 'term ';
 
-function getCwdForSplit(configHelper: ITerminalConfigHelper, instance: ITerminalInstance): Promise<string> {
+function getCwdForSplit(configHelper: ITerminalConfigHelper, instance: ITerminalInstance, folders?: IWorkspaceFolder[], commandService?: ICommandService): Promise<string | undefined> {
 	switch (configHelper.config.splitCwd) {
 		case 'workspaceRoot': {
-			// allow default behavior
-			return new Promise<string>(resolve => {
-				resolve('');
-			});
+			// allow original behavior
+			let pathPromise: Promise<string> = Promise.resolve('');
+			if (folders.length > 1) {
+				// Only choose a path when there's more than 1 folder
+				const options: IPickOptions<IQuickPickItem> = {
+					placeHolder: nls.localize('workbench.action.terminal.newWorkspacePlaceholder', "Select current working directory for new terminal")
+				};
+				pathPromise = commandService.executeCommand(PICK_WORKSPACE_FOLDER_COMMAND_ID, [options]).then(workspace => {
+					if (!workspace) {
+						// Don't split the instance if the workspace picker was canceled
+						return undefined;
+					}
+					return Promise.resolve(workspace.uri.fsPath);
+				});
+			}
+
+			return pathPromise;
 		}
-		case 'sourceInitialCwd': {
+		case 'initial': {
 			return new Promise<string>(resolve => {
 				resolve(instance.initialCwd);
 			});
 		}
-		case 'sourceCwd': {
+		case 'inherited': {
 			return instance.getCwd();
 		}
 	}
@@ -372,32 +385,13 @@ export class SplitTerminalAction extends Action {
 			return Promise.resolve(void 0);
 		}
 
-		const folders = this.workspaceContextService.getWorkspace().folders;
-
-		let pathPromise: Promise<IShellLaunchConfig> = Promise.resolve({});
-		if (folders.length > 1) {
-			// Only choose a path when there's more than 1 folder
-			const options: IPickOptions<IQuickPickItem> = {
-				placeHolder: nls.localize('workbench.action.terminal.newWorkspacePlaceholder', "Select current working directory for new terminal")
-			};
-			pathPromise = this.commandService.executeCommand(PICK_WORKSPACE_FOLDER_COMMAND_ID, [options]).then(workspace => {
-				if (!workspace) {
-					// Don't split the instance if the workspace picker was canceled
-					return null;
-				}
-				return Promise.resolve({ cwd: workspace.uri.fsPath });
-			});
-		}
-
-		return pathPromise.then(path => {
-			if (!path) {
-				return Promise.resolve(void 0);
-			}
-			return getCwdForSplit(this._terminalService.configHelper, instance).then(cwd => {
-				path.cwd = cwd;
-				this._terminalService.splitInstance(instance, path);
+		return getCwdForSplit(this._terminalService.configHelper, instance, this.workspaceContextService.getWorkspace().folders, this.commandService).then(cwd => {
+			if (cwd || (cwd === '')) {
+				this._terminalService.splitInstance(instance, { cwd });
 				return this._terminalService.showPanel(true);
-			});
+			} else {
+				return undefined;
+			}
 		});
 	}
 }
@@ -731,7 +725,7 @@ export class SwitchTerminalActionItem extends SelectActionItem {
 		@IThemeService themeService: IThemeService,
 		@IContextViewService contextViewService: IContextViewService
 	) {
-		super(null, action, terminalService.getTabLabels(), terminalService.activeTabIndex, contextViewService, { ariaLabel: nls.localize('terminals', 'Terminals') });
+		super(null, action, terminalService.getTabLabels(), terminalService.activeTabIndex, contextViewService, { ariaLabel: nls.localize('terminals', 'Open Terminals.') });
 
 		this.toDispose.push(terminalService.onInstancesChanged(this._updateItems, this));
 		this.toDispose.push(terminalService.onActiveTabChanged(this._updateItems, this));

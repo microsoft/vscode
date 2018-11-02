@@ -74,7 +74,7 @@ class TestSearchEngine implements ISearchEngine<IRawFileMatch> {
 
 const testTimeout = 5000;
 
-suite('SearchService', () => {
+suite('RawSearchService', () => {
 
 	const rawSearch: IFileQuery = {
 		type: QueryType.File,

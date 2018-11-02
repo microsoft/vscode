@@ -302,33 +302,33 @@ export abstract class AbstractTree<T, TFilterData, TRef> implements IDisposable 
 		return nodes.map(n => n.element);
 	}
 
-	setFocus(elements: TRef[]): void {
+	setFocus(elements: TRef[], browserEvent?: UIEvent): void {
 		const indexes = elements.map(e => this.model.getListIndex(e));
-		this.view.setFocus(indexes);
+		this.view.setFocus(indexes, browserEvent);
 	}
 
-	focusNext(n = 1, loop = false): void {
-		this.view.focusNext(n, loop);
+	focusNext(n = 1, loop = false, browserEvent?: UIEvent): void {
+		this.view.focusNext(n, loop, browserEvent);
 	}
 
-	focusPrevious(n = 1, loop = false): void {
-		this.view.focusPrevious(n, loop);
+	focusPrevious(n = 1, loop = false, browserEvent?: UIEvent): void {
+		this.view.focusPrevious(n, loop, browserEvent);
 	}
 
-	focusNextPage(): void {
-		this.view.focusNextPage();
+	focusNextPage(browserEvent?: UIEvent): void {
+		this.view.focusNextPage(browserEvent);
 	}
 
-	focusPreviousPage(): void {
-		this.view.focusPreviousPage();
+	focusPreviousPage(browserEvent?: UIEvent): void {
+		this.view.focusPreviousPage(browserEvent);
 	}
 
-	focusLast(): void {
-		this.view.focusLast();
+	focusLast(browserEvent?: UIEvent): void {
+		this.view.focusLast(browserEvent);
 	}
 
-	focusFirst(): void {
-		this.view.focusFirst();
+	focusFirst(browserEvent?: UIEvent): void {
+		this.view.focusFirst(browserEvent);
 	}
 
 	getFocus(): T[] {

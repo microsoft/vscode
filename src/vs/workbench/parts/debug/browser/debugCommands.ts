@@ -22,6 +22,7 @@ import { openBreakpointSource } from 'vs/workbench/parts/debug/browser/breakpoin
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { InputFocusedContext } from 'vs/platform/workbench/common/contextkeys';
 import { ServicesAccessor } from 'vs/editor/browser/editorExtensions';
+import { PanelFocusContext } from 'vs/workbench/browser/parts/panel/panelPart';
 
 export const ADD_CONFIGURATION_ID = 'debug.addConfiguration';
 export const TOGGLE_INLINE_BREAKPOINT_ID = 'editor.debug.action.toggleInlineBreakpoint';
@@ -237,7 +238,7 @@ export function registerCommands(): void {
 			id: TOGGLE_INLINE_BREAKPOINT_ID,
 			title: nls.localize('addInlineBreakpoint', "Add Inline Breakpoint")
 		},
-		when: ContextKeyExpr.and(CONTEXT_IN_DEBUG_MODE, EditorContextKeys.writable, EditorContextKeys.editorTextFocus),
+		when: ContextKeyExpr.and(CONTEXT_IN_DEBUG_MODE, PanelFocusContext.toNegated(), EditorContextKeys.editorTextFocus),
 		group: 'debug',
 		order: 1
 	});
