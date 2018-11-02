@@ -719,7 +719,7 @@ export class PieceTreeBase {
 	// #endregion
 
 	// #region Piece Table
-	insert(offset: number, value: string, eolNormalized: boolean = false): void {
+	insert(offset: number, value: string, eolNormalized: boolean): void {
 		this._EOLNormalized = this._EOLNormalized && eolNormalized;
 		this._lastVisitedLine.lineNumber = 0;
 		this._lastVisitedLine.value = '';
