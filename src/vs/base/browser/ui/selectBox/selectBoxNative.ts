@@ -27,6 +27,13 @@ export class SelectBoxNative implements ISelectBoxDelegate {
 		this.selectBoxOptions = selectBoxOptions || Object.create(null);
 
 		this.selectElement = document.createElement('select');
+
+		// Workaround for Electron 2.x
+		// Native select should not require explicit role attribute, however, Electron 2.x
+		// incorrectly exposes select as menuItem which interferes with labeling and results
+		// in the unlabeled not been read.  Electron 3 appears to fix.
+		this.selectElement.setAttribute('role', 'combobox');
+
 		this.selectElement.className = 'monaco-select-box';
 
 		if (typeof this.selectBoxOptions.ariaLabel === 'string') {
