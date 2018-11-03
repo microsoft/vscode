@@ -3,24 +3,21 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import * as assert from 'assert';
 import { assign } from 'vs/base/common/objects';
 import { generateUuid } from 'vs/base/common/uuid';
 import { ExtensionsListView } from 'vs/workbench/parts/extensions/electron-browser/extensionsViews';
 import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
-import { TPromise } from 'vs/base/common/winjs.base';
 import { IExtensionsWorkbenchService } from 'vs/workbench/parts/extensions/common/extensions';
 import { ExtensionsWorkbenchService } from 'vs/workbench/parts/extensions/node/extensionsWorkbenchService';
 import {
 	IExtensionManagementService, IExtensionGalleryService, IExtensionEnablementService, IExtensionTipsService, ILocalExtension, LocalExtensionType, IGalleryExtension, IQueryOptions,
-	DidInstallExtensionEvent, DidUninstallExtensionEvent, InstallExtensionEvent, IExtensionIdentifier, IExtensionManagementServerService, IExtensionManagementServer, EnablementState, ExtensionRecommendationReason
+	DidInstallExtensionEvent, DidUninstallExtensionEvent, InstallExtensionEvent, IExtensionIdentifier, IExtensionManagementServerService, IExtensionManagementServer, EnablementState, ExtensionRecommendationReason, SortBy
 } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { getGalleryExtensionId, getGalleryExtensionIdFromLocal } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { ExtensionManagementService, getLocalExtensionIdFromManifest } from 'vs/platform/extensionManagement/node/extensionManagementService';
 import { ExtensionTipsService } from 'vs/workbench/parts/extensions/electron-browser/extensionTipsService';
-import { TestExtensionEnablementService } from 'vs/platform/extensionManagement/test/common/extensionEnablementService.test';
+import { TestExtensionEnablementService } from 'vs/platform/extensionManagement/test/electron-browser/extensionEnablementService.test';
 import { ExtensionGalleryService } from 'vs/platform/extensionManagement/node/extensionGalleryService';
 import { IURLService } from 'vs/platform/url/common/url';
 import { Emitter } from 'vs/base/common/event';
@@ -122,7 +119,7 @@ suite('ExtensionsListView Tests', () => {
 
 		instantiationService.stub(IExtensionService, {
 			getExtensions: () => {
-				return TPromise.wrap([
+				return Promise.resolve([
 					{ id: localEnabledTheme.galleryIdentifier.id },
 					{ id: localEnabledLanguage.galleryIdentifier.id },
 					{ id: localRandom.galleryIdentifier.id },
@@ -153,6 +150,33 @@ suite('ExtensionsListView Tests', () => {
 		assert.equal(ExtensionsListView.isInstalledExtensionsQuery('@enabled searchText'), true);
 		assert.equal(ExtensionsListView.isInstalledExtensionsQuery('@disabled searchText'), true);
 		assert.equal(ExtensionsListView.isInstalledExtensionsQuery('@outdated searchText'), true);
+	});
+
+	test('Test empty query equates to sort by install count', () => {
+		const target = <SinonStub>instantiationService.stubPromise(IExtensionGalleryService, 'query', aPage());
+		return testableView.show('').then(() => {
+			assert.ok(target.calledOnce);
+			const options: IQueryOptions = target.args[0][0];
+			assert.equal(options.sortBy, SortBy.InstallCount);
+		});
+	});
+
+	test('Test non empty query without sort doesnt use sortBy', () => {
+		const target = <SinonStub>instantiationService.stubPromise(IExtensionGalleryService, 'query', aPage());
+		return testableView.show('some extension').then(() => {
+			assert.ok(target.calledOnce);
+			const options: IQueryOptions = target.args[0][0];
+			assert.equal(options.sortBy, undefined);
+		});
+	});
+
+	test('Test query with sort uses sortBy', () => {
+		const target = <SinonStub>instantiationService.stubPromise(IExtensionGalleryService, 'query', aPage());
+		return testableView.show('some extension @sort:rating').then(() => {
+			assert.ok(target.calledOnce);
+			const options: IQueryOptions = target.args[0][0];
+			assert.equal(options.sortBy, SortBy.WeightedRating);
+		});
 	});
 
 	test('Test installed query results', () => {
@@ -205,7 +229,7 @@ suite('ExtensionsListView Tests', () => {
 			assert.equal(result.get(0).name, builtInTheme.manifest.name, 'Unexpected extension for @builtin query.');
 		});
 
-		return TPromise.join([
+		return Promise.all([
 			allInstalledCheck,
 			installedCheck,
 			allDisabledCheck,
@@ -272,7 +296,7 @@ suite('ExtensionsListView Tests', () => {
 			assert.equal(result.get(0).name, localDisabledLanguage.manifest.name, 'Unexpected extension for @disabled query with quoted category including space.');
 		});
 
-		return TPromise.join([
+		return Promise.resolve([
 			installedCategoryWithoutQuotesCheck,
 			installedCategoryWithQuotesCheck,
 			installedCategoryWithSpaceCheck,
@@ -440,6 +464,49 @@ suite('ExtensionsListView Tests', () => {
 			assert.equal(result.length, preferredResults.length);
 			for (let i = 0; i < preferredResults.length; i++) {
 				assert.equal(result.get(i).id, preferredResults[i].identifier.id);
+			}
+		});
+	});
+
+	test('Skip preferred search experiment when user defines sort order', () => {
+		const searchText = 'search-me';
+		const realResults = [
+			fileBasedRecommendationA,
+			workspaceRecommendationA,
+			otherRecommendationA,
+			workspaceRecommendationB
+		];
+
+		const queryTarget = <SinonStub>instantiationService.stubPromise(IExtensionGalleryService, 'query', aPage(...realResults));
+		const experimentTarget = <SinonStub>instantiationService.stubPromise(IExperimentService, 'getExperimentsByType', [{
+			id: 'someId',
+			enabled: true,
+			state: ExperimentState.Run,
+			action: {
+				type: ExperimentActionType.ExtensionSearchResults,
+				properties: {
+					searchText: 'search-me',
+					preferredResults: [
+						workspaceRecommendationA.identifier.id,
+						'something-that-wasnt-in-first-page',
+						workspaceRecommendationB.identifier.id
+					]
+				}
+			}
+		}]);
+
+		testableView.dispose();
+		testableView = instantiationService.createInstance(ExtensionsListView, {});
+
+		return testableView.show('search-me @sort:installs').then(result => {
+			const options: IQueryOptions = queryTarget.args[0][0];
+
+			assert.ok(experimentTarget.calledOnce);
+			assert.ok(queryTarget.calledOnce);
+			assert.equal(options.text, searchText);
+			assert.equal(result.length, realResults.length);
+			for (let i = 0; i < realResults.length; i++) {
+				assert.equal(result.get(i).id, realResults[i].identifier.id);
 			}
 		});
 	});

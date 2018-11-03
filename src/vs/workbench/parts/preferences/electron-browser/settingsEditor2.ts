@@ -19,7 +19,7 @@ import { Tree } from 'vs/base/parts/tree/browser/treeImpl';
 import { collapseAll, expandAll } from 'vs/base/parts/tree/browser/treeUtils';
 import 'vs/css!./media/settingsEditor2';
 import { localize } from 'vs/nls';
-import { ConfigurationTarget, IConfigurationOverrides, IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { ConfigurationTarget, IConfigurationOverrides, IConfigurationService, ConfigurationTargetToString } from 'vs/platform/configuration/common/configuration';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
@@ -34,12 +34,12 @@ import { badgeBackground, badgeForeground, contrastBorder, editorForeground } fr
 import { attachStylerCallback } from 'vs/platform/theme/common/styler';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { BaseEditor } from 'vs/workbench/browser/parts/editor/baseEditor';
-import { IEditor } from 'vs/workbench/common/editor';
+import { IEditor, IEditorMemento } from 'vs/workbench/common/editor';
 import { attachSuggestEnabledInputBoxStyler, SuggestEnabledInput } from 'vs/workbench/parts/codeEditor/electron-browser/suggestEnabledInput';
 import { PreferencesEditor } from 'vs/workbench/parts/preferences/browser/preferencesEditor';
 import { SettingsTarget, SettingsTargetsWidget } from 'vs/workbench/parts/preferences/browser/preferencesWidgets';
 import { commonlyUsedData, tocData } from 'vs/workbench/parts/preferences/browser/settingsLayout';
-import { ISettingLinkClickEvent, resolveExtensionsSettings, resolveSettingsTree, SettingsDataSource, SettingsRenderer, SettingsTree, SimplePagedDataSource } from 'vs/workbench/parts/preferences/browser/settingsTree';
+import { ISettingLinkClickEvent, resolveExtensionsSettings, resolveSettingsTree, SettingsDataSource, SettingsRenderer, SettingsTree, SimplePagedDataSource, ISettingOverrideClickEvent } from 'vs/workbench/parts/preferences/browser/settingsTree';
 import { ISettingsEditorViewState, MODIFIED_SETTING_TAG, ONLINE_SERVICES_SETTING_TAG, parseQuery, SearchResultIdx, SearchResultModel, SettingsTreeGroupElement, SettingsTreeModel, SettingsTreeSettingElement } from 'vs/workbench/parts/preferences/browser/settingsTreeModels';
 import { settingsTextInputBorder } from 'vs/workbench/parts/preferences/browser/settingsWidgets';
 import { TOCRenderer, TOCTree, TOCTreeModel } from 'vs/workbench/parts/preferences/browser/tocTree';
@@ -47,9 +47,11 @@ import { CONTEXT_SETTINGS_EDITOR, CONTEXT_SETTINGS_SEARCH_FOCUS, CONTEXT_TOC_ROW
 import { IPreferencesService, ISearchResult, ISettingsEditorModel, ISettingsEditorOptions, SettingsEditorOptions, SettingValueType } from 'vs/workbench/services/preferences/common/preferences';
 import { SettingsEditor2Input } from 'vs/workbench/services/preferences/common/preferencesEditorInput';
 import { Settings2EditorModel } from 'vs/workbench/services/preferences/common/preferencesModels';
+import { IEditorGroupsService } from 'vs/workbench/services/group/common/editorGroupsService';
 
 const $ = DOM.$;
 
+const SETTINGS_EDITOR_STATE_KEY = 'settingsEditorState';
 export class SettingsEditor2 extends BaseEditor {
 
 	public static readonly ID: string = 'workbench.editor.settings2';
@@ -85,6 +87,7 @@ export class SettingsEditor2 extends BaseEditor {
 	private tocTreeModel: TOCTreeModel;
 	private settingsTreeModel: SettingsTreeModel;
 	private noResultsMessage: HTMLElement;
+	private clearFilterLinkContainer: HTMLElement;
 
 	private tocTreeContainer: HTMLElement;
 	private tocTree: WorkbenchTree;
@@ -103,7 +106,7 @@ export class SettingsEditor2 extends BaseEditor {
 	private settingSlowUpdateDelayer: Delayer<void>;
 	private pendingSettingUpdate: { key: string, value: any };
 
-	private viewState: ISettingsEditorViewState;
+	private readonly viewState: ISettingsEditorViewState;
 	private _searchResultModel: SearchResultModel;
 
 	private tocRowFocused: IContextKey<boolean>;
@@ -115,6 +118,8 @@ export class SettingsEditor2 extends BaseEditor {
 
 	/** Don't spam warnings */
 	private hasWarnedMissingSettings: boolean;
+
+	private editorMemento: IEditorMemento<ISettingsEditor2State>;
 
 	constructor(
 		@ITelemetryService telemetryService: ITelemetryService,
@@ -129,9 +134,10 @@ export class SettingsEditor2 extends BaseEditor {
 		@IContextMenuService private contextMenuService: IContextMenuService,
 		@IStorageService private storageService: IStorageService,
 		@INotificationService private notificationService: INotificationService,
+		@IEditorGroupsService protected editorGroupService: IEditorGroupsService,
 		@IKeybindingService private keybindingService: IKeybindingService
 	) {
-		super(SettingsEditor2.ID, telemetryService, themeService);
+		super(SettingsEditor2.ID, telemetryService, themeService, storageService);
 		this.delayedFilterLogging = new Delayer<void>(1000);
 		this.localSearchDelayer = new Delayer(300);
 		this.remoteSearchThrottle = new ThrottledDelayer(200);
@@ -147,12 +153,21 @@ export class SettingsEditor2 extends BaseEditor {
 
 		this.scheduledRefreshes = new Map<string, DOM.IFocusTracker>();
 
+		this.editorMemento = this.getEditorMemento<ISettingsEditor2State>(editorGroupService, SETTINGS_EDITOR_STATE_KEY);
+
 		this._register(configurationService.onDidChangeConfiguration(e => {
 			if (e.source !== ConfigurationTarget.DEFAULT) {
 				this.onConfigUpdate(e.affectedKeys);
 			}
 		}));
 	}
+
+	get minimumWidth(): number { return 375; }
+	get maximumWidth(): number { return Number.POSITIVE_INFINITY; }
+
+	// these setters need to exist because this extends from BaseEditor
+	set minimumWidth(value: number) { /*noop*/ }
+	set maximumWidth(value: number) { /*noop*/ }
 
 	private get currentSettingsModel() {
 		return this.searchResultModel || this.settingsTreeModel;
@@ -194,7 +209,6 @@ export class SettingsEditor2 extends BaseEditor {
 				} else if (!options.target) {
 					options.target = ConfigurationTarget.USER;
 				}
-
 				this._setOptions(options);
 
 				this.render(token);
@@ -202,7 +216,23 @@ export class SettingsEditor2 extends BaseEditor {
 			.then(() => {
 				// Init TOC selection
 				this.updateTreeScrollSync();
+
+				this.restoreCachedState();
 			});
+	}
+
+	private restoreCachedState(): void {
+		const cachedState = this.editorMemento.loadEditorState(this.group, this.input);
+		if (cachedState && typeof cachedState.target === 'object') {
+			cachedState.target = URI.revive(cachedState.target);
+		}
+
+		if (cachedState) {
+			const settingsTarget = cachedState.target;
+			this.settingsTargetsWidget.settingsTarget = settingsTarget;
+			this.onDidSettingsTargetChange(settingsTarget);
+			this.searchWidget.setValue(cachedState.searchQuery);
+		}
 	}
 
 	setOptions(options: SettingsEditorOptions): void {
@@ -227,6 +257,7 @@ export class SettingsEditor2 extends BaseEditor {
 
 	clearInput(): void {
 		this.inSettingsEditorContextKey.set(false);
+		this.editorMemento.clearEditorState(this.input, this.group);
 		super.clearInput();
 	}
 
@@ -240,7 +271,8 @@ export class SettingsEditor2 extends BaseEditor {
 		const monacoWidth = (innerWidth > 1000 ? 1000 : innerWidth) - 10;
 		this.searchWidget.layout({ height: 20, width: monacoWidth });
 
-		DOM.toggleClass(this.rootElement, 'narrow', dimension.width < 600);
+		DOM.toggleClass(this.rootElement, 'mid-width', dimension.width < 1000 && dimension.width >= 600);
+		DOM.toggleClass(this.rootElement, 'narrow-width', dimension.width < 600);
 
 		// #56185
 		if (dimension.width !== this.lastLayedoutWidth) {
@@ -313,6 +345,16 @@ export class SettingsEditor2 extends BaseEditor {
 		this.searchWidget.setValue('');
 	}
 
+	clearSearchFilters(): void {
+		let query = this.searchWidget.getValue();
+
+		SettingsEditor2.SUGGESTIONS.forEach(suggestion => {
+			query = query.replace(suggestion, '');
+		});
+
+		this.searchWidget.setValue(query.trim());
+	}
+
 	private createHeader(parent: HTMLElement): void {
 		this.headerContainer = DOM.append(parent, $('.settings-header'));
 
@@ -328,7 +370,8 @@ export class SettingsEditor2 extends BaseEditor {
 				placeholderText: searchBoxLabel,
 				focusContextKey: this.searchFocusContextKey,
 				// TODO: Aria-live
-			}));
+			})
+		);
 
 		this._register(attachSuggestEnabledInputBoxStyler(this.searchWidget, this.themeService, {
 			inputBorder: settingsTextInputBorder
@@ -445,7 +488,31 @@ export class SettingsEditor2 extends BaseEditor {
 		const bodyContainer = DOM.append(parent, $('.settings-body'));
 
 		this.noResultsMessage = DOM.append(bodyContainer, $('.no-results'));
+
 		this.noResultsMessage.innerText = localize('noResults', "No Settings Found");
+
+		this.clearFilterLinkContainer = $('span.clear-search-filters');
+
+		this.clearFilterLinkContainer.textContent = ' - ';
+		const clearFilterLink = DOM.append(this.clearFilterLinkContainer, $('a.pointer.prominent', { tabindex: 0 }, localize('clearSearchFilters', 'Clear Filters')));
+		this._register(DOM.addDisposableListener(clearFilterLink, DOM.EventType.CLICK, (e: MouseEvent) => {
+			DOM.EventHelper.stop(e, false);
+			this.clearSearchFilters();
+		}));
+
+		DOM.append(this.noResultsMessage, this.clearFilterLinkContainer);
+
+		const clearSearchContainer = $('span.clear-search');
+		clearSearchContainer.textContent = ' - ';
+
+		const clearSearch = DOM.append(clearSearchContainer, $('a.pointer.prominent', { tabindex: 0 }, localize('clearSearch', 'Clear Search')));
+		this._register(DOM.addDisposableListener(clearSearch, DOM.EventType.CLICK, (e: MouseEvent) => {
+			DOM.EventHelper.stop(e, false);
+			this.clearSearchResults();
+		}));
+
+		DOM.append(this.noResultsMessage, clearSearchContainer);
+
 		this._register(attachStylerCallback(this.themeService, { editorForeground }, colors => {
 			this.noResultsMessage.style.color = colors.editorForeground ? colors.editorForeground.toString() : null;
 		}));
@@ -564,6 +631,15 @@ export class SettingsEditor2 extends BaseEditor {
 			this.lastFocusedSettingElement = element.setting.key;
 			this.settingsTree.reveal(element);
 		}));
+		this._register(this.settingsTreeRenderer.onDidClickOverrideElement((element: ISettingOverrideClickEvent) => {
+			if (ConfigurationTargetToString(ConfigurationTarget.WORKSPACE) === element.scope.toUpperCase()) {
+				this.settingsTargetsWidget.updateTarget(ConfigurationTarget.WORKSPACE);
+			} else if (ConfigurationTargetToString(ConfigurationTarget.USER) === element.scope.toUpperCase()) {
+				this.settingsTargetsWidget.updateTarget(ConfigurationTarget.USER);
+			}
+
+			this.searchWidget.setValue(element.targetKey);
+		}));
 
 		this.settingsTreeDataSource = this.instantiationService.createInstance(SimplePagedDataSource,
 			this.instantiationService.createInstance(SettingsDataSource, this.viewState));
@@ -617,7 +693,6 @@ export class SettingsEditor2 extends BaseEditor {
 		if (!this.tocTree.getInput()) {
 			return;
 		}
-
 		this.updateTreePagingByScroll();
 
 		const elementToSync = this.settingsTree.getFirstVisibleElement();
@@ -738,29 +813,6 @@ export class SettingsEditor2 extends BaseEditor {
 			}
 		*/
 		this.telemetryService.publicLog('settingsEditor.settingModified', data);
-
-		const data2 = {
-			key: props.key,
-			groupId,
-			nlpIndex,
-			displayIndex,
-			showConfiguredOnly: props.showConfiguredOnly,
-			isReset: props.isReset,
-			target: reportedTarget
-		};
-
-		/* __GDPR__
-			"settingsEditor.settingModified<NUMBER>" : {
-				"key" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-				"groupId" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-				"nlpIndex" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-				"displayIndex" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-				"showConfiguredOnly" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-				"isReset" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-				"target" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
-			}
-		*/
-		this.telemetryService.publicLog('settingsEditor.settingModified2', data2);
 	}
 
 	private render(token: CancellationToken): TPromise<any> {
@@ -823,7 +875,7 @@ export class SettingsEditor2 extends BaseEditor {
 
 		// Warn for settings not included in layout
 		if (settingsResult.leftoverSettings.size && !this.hasWarnedMissingSettings) {
-			const settingKeyList = [];
+			const settingKeyList: string[] = [];
 			settingsResult.leftoverSettings.forEach(s => {
 				settingKeyList.push(s.key);
 			});
@@ -844,7 +896,13 @@ export class SettingsEditor2 extends BaseEditor {
 		if (this.settingsTreeModel) {
 			this.settingsTreeModel.update(resolvedSettingsRoot);
 
-			return this.renderTree(undefined, forceRefresh);
+			// Make sure that all extensions' settings are included in search results
+			const cachedState = this.editorMemento.loadEditorState(this.group, this.input);
+			if (cachedState && cachedState.searchQuery) {
+				this.triggerSearch(cachedState.searchQuery);
+			} else {
+				return this.renderTree(undefined, forceRefresh);
+			}
 		} else {
 			this.settingsTreeModel = this.instantiationService.createInstance(SettingsTreeModel, this.viewState);
 			this.settingsTreeModel.update(resolvedSettingsRoot);
@@ -1066,22 +1124,6 @@ export class SettingsEditor2 extends BaseEditor {
 			}
 		*/
 		this.telemetryService.publicLog('settingsEditor.filter', data);
-
-		const data2 = {
-			durations,
-			counts,
-			requestCount
-		};
-
-		/* __GDPR__
-			"settingsEditor.filter<NUMBER>" : {
-				"durations.nlpResult" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-				"counts.nlpResult" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-				"counts.filterResult" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-				"requestCount" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true }
-			}
-		*/
-		this.telemetryService.publicLog('settingsEditor.filter2', data2);
 	}
 
 	private triggerFilterPreferences(query: string): TPromise<void> {
@@ -1095,7 +1137,7 @@ export class SettingsEditor2 extends BaseEditor {
 		return this.localSearchDelayer.trigger(() => {
 			if (searchInProgress && !searchInProgress.token.isCancellationRequested) {
 				return this.localFilterPreferences(query).then(result => {
-					if (!result.exactMatch) {
+					if (result && !result.exactMatch) {
 						this.remoteSearchThrottle.trigger(() => {
 							return searchInProgress && !searchInProgress.token.isCancellationRequested ?
 								this.remoteSearchPreferences(query, this.searchInProgress.token) :
@@ -1167,6 +1209,9 @@ export class SettingsEditor2 extends BaseEditor {
 
 			this.countElement.style.display = 'block';
 			this.noResultsMessage.style.display = count === 0 ? 'block' : 'none';
+			this.clearFilterLinkContainer.style.display = this.viewState.tagFilters && this.viewState.tagFilters.size > 0
+				? 'initial'
+				: 'none';
 		}
 	}
 
@@ -1206,7 +1251,23 @@ export class SettingsEditor2 extends BaseEditor {
 
 		this.settingsTreeRenderer.updateWidth(dimension.width);
 	}
+
+	protected saveState(): void {
+		if (this.isVisible()) {
+			const searchQuery = this.searchWidget.getValue().trim();
+			const target = this.settingsTargetsWidget.settingsTarget as SettingsTarget;
+			this.editorMemento.saveEditorState(this.group, this.input, { searchQuery, target });
+		}
+
+		super.saveState();
+	}
 }
+
+interface ISettingsEditor2State {
+	searchQuery: string;
+	target: SettingsTarget;
+}
+
 
 interface ISettingsToolbarContext {
 	target: SettingsTarget;

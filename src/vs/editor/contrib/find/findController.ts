@@ -2,30 +2,29 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
 import * as nls from 'vs/nls';
+import { Delayer } from 'vs/base/common/async';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { Disposable } from 'vs/base/common/lifecycle';
-import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import * as strings from 'vs/base/common/strings';
-import * as editorCommon from 'vs/editor/common/editorCommon';
-import { registerEditorContribution, registerEditorAction, ServicesAccessor, EditorAction, EditorCommand, registerEditorCommand } from 'vs/editor/browser/editorExtensions';
-import { FIND_IDS, FindModelBoundToEditorModel, ToggleCaseSensitiveKeybinding, ToggleRegexKeybinding, ToggleWholeWordKeybinding, ToggleSearchScopeKeybinding, CONTEXT_FIND_WIDGET_VISIBLE, CONTEXT_FIND_INPUT_FOCUSED } from 'vs/editor/contrib/find/findModel';
-import { FindReplaceState, FindReplaceStateChangedEvent, INewFindReplaceState } from 'vs/editor/contrib/find/findState';
-import { Delayer } from 'vs/base/common/async';
-import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
-import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
-import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
-import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { FindWidget, IFindController } from 'vs/editor/contrib/find/findWidget';
+import { EditorAction, EditorCommand, ServicesAccessor, registerEditorAction, registerEditorCommand, registerEditorContribution } from 'vs/editor/browser/editorExtensions';
+import * as editorCommon from 'vs/editor/common/editorCommon';
+import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
+import { CONTEXT_FIND_INPUT_FOCUSED, CONTEXT_FIND_WIDGET_VISIBLE, FIND_IDS, FindModelBoundToEditorModel, ToggleCaseSensitiveKeybinding, ToggleRegexKeybinding, ToggleSearchScopeKeybinding, ToggleWholeWordKeybinding } from 'vs/editor/contrib/find/findModel';
 import { FindOptionsWidget } from 'vs/editor/contrib/find/findOptionsWidget';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { optional } from 'vs/platform/instantiation/common/instantiation';
+import { FindReplaceState, FindReplaceStateChangedEvent, INewFindReplaceState } from 'vs/editor/contrib/find/findState';
+import { FindWidget, IFindController } from 'vs/editor/contrib/find/findWidget';
 import { MenuId } from 'vs/platform/actions/common/actions';
+import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
+import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
+import { optional } from 'vs/platform/instantiation/common/instantiation';
+import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
+import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
+import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
+import { IThemeService } from 'vs/platform/theme/common/themeService';
 
 const SEARCH_STRING_MAX_LENGTH = 524288;
 
@@ -73,7 +72,7 @@ export class CommonFindController extends Disposable implements editorCommon.IEd
 	protected _state: FindReplaceState;
 	protected _updateHistoryDelayer: Delayer<void>;
 	private _model: FindModelBoundToEditorModel;
-	protected _storageService: IStorageService;
+	private _storageService: IStorageService;
 	private _clipboardService: IClipboardService;
 	protected readonly _contextKeyService: IContextKeyService;
 
@@ -196,17 +195,23 @@ export class CommonFindController extends Disposable implements editorCommon.IEd
 
 	public toggleCaseSensitive(): void {
 		this._state.change({ matchCase: !this._state.matchCase }, false);
-		this.highlightFindOptions();
+		if (!this._state.isRevealed) {
+			this.highlightFindOptions();
+		}
 	}
 
 	public toggleWholeWords(): void {
 		this._state.change({ wholeWord: !this._state.wholeWord }, false);
-		this.highlightFindOptions();
+		if (!this._state.isRevealed) {
+			this.highlightFindOptions();
+		}
 	}
 
 	public toggleRegex(): void {
 		this._state.change({ isRegex: !this._state.isRegex }, false);
-		this.highlightFindOptions();
+		if (!this._state.isRevealed) {
+			this.highlightFindOptions();
+		}
 	}
 
 	public toggleSearchScope(): void {
@@ -450,7 +455,7 @@ export class StartFindWithSelectionAction extends EditorAction {
 			precondition: null,
 			kbOpts: {
 				kbExpr: null,
-				primary: null,
+				primary: 0,
 				mac: {
 					primary: KeyMod.CtrlCmd | KeyCode.KEY_E,
 				},

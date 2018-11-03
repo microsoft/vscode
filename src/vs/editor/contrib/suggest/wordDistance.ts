@@ -3,15 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import { binarySearch, isFalsyOrEmpty } from 'vs/base/common/arrays';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { IEditorWorkerService } from 'vs/editor/common/services/editorWorkerService';
 import { IPosition } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
-import { find, build, Block } from 'vs/editor/contrib/smartSelect/tokenTree';
-import { ISuggestion, SuggestionKind } from 'vs/editor/common/modes';
+import * as tokenTree from 'vs/editor/contrib/smartSelect/tokenTree';
+import { CompletionItem, CompletionItemKind } from 'vs/editor/common/modes';
 
 
 export abstract class WordDistance {
@@ -26,6 +24,10 @@ export abstract class WordDistance {
 			return Promise.resolve(WordDistance.None);
 		}
 
+		if (!editor.hasModel()) {
+			return Promise.resolve(WordDistance.None);
+		}
+
 		const model = editor.getModel();
 		const position = editor.getPosition();
 
@@ -34,14 +36,14 @@ export abstract class WordDistance {
 		}
 
 		// use token tree ranges
-		let node = find(build(model), position);
+		let node = tokenTree.find(tokenTree.build(model), position);
 		let ranges: Range[] = [];
-		let stop = false;
-		while (node && !stop) {
-			if (node instanceof Block || !node.parent) {
-				// assign block score
+		while (node) {
+			if (!node.range.isEmpty()) {
 				ranges.push(node.range);
-				stop = node.end.lineNumber - node.start.lineNumber >= 100;
+			}
+			if (node.end.lineNumber - node.start.lineNumber >= 100) {
+				break;
 			}
 			node = node.parent;
 		}
@@ -54,11 +56,11 @@ export abstract class WordDistance {
 		return service.computeWordRanges(model.uri, ranges[0]).then(wordRanges => {
 
 			return new class extends WordDistance {
-				distance(anchor: IPosition, suggestion: ISuggestion) {
+				distance(anchor: IPosition, suggestion: CompletionItem) {
 					if (!wordRanges || !position.equals(editor.getPosition())) {
 						return 0;
 					}
-					if (suggestion.kind === SuggestionKind.Keyword) {
+					if (suggestion.kind === CompletionItemKind.Keyword) {
 						return 2 << 20;
 					}
 					let word = suggestion.label;
@@ -81,7 +83,7 @@ export abstract class WordDistance {
 		});
 	}
 
-	abstract distance(anchor: IPosition, suggestion: ISuggestion): number;
+	abstract distance(anchor: IPosition, suggestion: CompletionItem): number;
 }
 
 

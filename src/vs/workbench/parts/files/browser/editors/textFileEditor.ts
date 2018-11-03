@@ -2,11 +2,8 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
-import { TPromise } from 'vs/base/common/winjs.base';
 import * as nls from 'vs/nls';
-import * as errors from 'vs/base/common/errors';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
 import * as types from 'vs/base/common/types';
 import * as paths from 'vs/base/common/paths';
@@ -32,6 +29,7 @@ import { IEditorService } from 'vs/workbench/services/editor/common/editorServic
 import { IEditorGroupsService, IEditorGroup } from 'vs/workbench/services/group/common/editorGroupsService';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { IEditorGroupView } from 'vs/workbench/browser/parts/editor/editor';
+import { createErrorWithActions } from 'vs/base/common/errorsWithActions';
 
 /**
  * An implementation of editor for file system resources.
@@ -132,19 +130,7 @@ export class TextFileEditor extends BaseTextEditor {
 					return this.openAsBinary(input, options);
 				}
 
-				// Check Model state
 				const textFileModel = <ITextFileEditorModel>resolvedModel;
-
-				const hasInput = !!this.input;
-				const modelDisposed = textFileModel.isDisposed();
-				const inputChanged = hasInput && this.input.getResource().toString() !== textFileModel.getResource().toString();
-				if (
-					!hasInput ||		// editor got hidden meanwhile
-					modelDisposed || 	// input got disposed meanwhile
-					inputChanged 		// a different input was set meanwhile
-				) {
-					return void 0;
-				}
 
 				// Editor
 				const textEditor = this.getControl();
@@ -176,12 +162,12 @@ export class TextFileEditor extends BaseTextEditor {
 				if ((<FileOperationError>error).fileOperationResult === FileOperationResult.FILE_IS_DIRECTORY) {
 					this.openAsFolder(input);
 
-					return TPromise.wrapError(new Error(nls.localize('openFolderError', "File is a directory")));
+					return Promise.reject(new Error(nls.localize('openFolderError', "File is a directory")));
 				}
 
 				// Offer to create a file from the error if we have a file not found and the name is valid
 				if ((<FileOperationError>error).fileOperationResult === FileOperationResult.FILE_NOT_FOUND && paths.isValidBasename(paths.basename(input.getResource().fsPath))) {
-					return TPromise.wrapError<void>(errors.create(toErrorMessage(error), {
+					return Promise.reject(createErrorWithActions(toErrorMessage(error), {
 						actions: [
 							new Action('workbench.files.action.createMissingFile', nls.localize('createFile', "Create File"), null, true, () => {
 								return this.fileService.updateContent(input.getResource(), '').then(() => this.editorService.openEditor({
@@ -198,7 +184,7 @@ export class TextFileEditor extends BaseTextEditor {
 				if ((<FileOperationError>error).fileOperationResult === FileOperationResult.FILE_EXCEED_MEMORY_LIMIT) {
 					const memoryLimit = Math.max(MIN_MAX_MEMORY_SIZE_MB, +this.configurationService.getValue<number>(null, 'files.maxMemoryForLargeFilesMB') || FALLBACK_MAX_MEMORY_SIZE_MB);
 
-					return TPromise.wrapError<void>(errors.create(toErrorMessage(error), {
+					return Promise.reject(createErrorWithActions(toErrorMessage(error), {
 						actions: [
 							new Action('workbench.window.action.relaunchWithIncreasedMemoryLimit', nls.localize('relaunchWithIncreasedMemoryLimit', "Restart with {0} MB", memoryLimit), null, true, () => {
 								return this.windowsService.relaunch({
@@ -215,7 +201,7 @@ export class TextFileEditor extends BaseTextEditor {
 				}
 
 				// Otherwise make sure the error bubbles up
-				return TPromise.wrapError<void>(error);
+				return Promise.reject(error);
 			});
 		});
 	}
@@ -265,13 +251,12 @@ export class TextFileEditor extends BaseTextEditor {
 		super.clearInput();
 	}
 
-	shutdown(): void {
+	protected saveState(): void {
 
 		// Update/clear editor view State
 		this.doSaveOrClearTextEditorViewState(this.input);
 
-		// Call Super
-		super.shutdown();
+		super.saveState();
 	}
 
 	private doSaveOrClearTextEditorViewState(input: FileEditorInput): void {

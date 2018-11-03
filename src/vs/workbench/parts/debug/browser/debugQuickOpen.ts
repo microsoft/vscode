@@ -120,7 +120,7 @@ export class DebugQuickOpenHandler extends Quickopen.QuickOpenHandler {
 
 		});
 
-		return TPromise.as(new Model.QuickOpenModel(configurations));
+		return Promise.resolve(new Model.QuickOpenModel(configurations));
 	}
 
 	public getAutoFocus(input: string): QuickOpen.IAutoFocus {

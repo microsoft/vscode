@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import { Event, Emitter } from 'vs/base/common/event';
 import { Throttler, timeout } from 'vs/base/common/async';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -76,23 +74,18 @@ export abstract class AbstractUpdateService implements IUpdateService {
 		this.setState(State.Idle(this.getUpdateType()));
 
 		// Start checking for updates after 30 seconds
-		this.scheduleCheckForUpdates(30 * 1000).then(null, err => this.logService.error(err));
+		this.scheduleCheckForUpdates(30 * 1000).then(undefined, err => this.logService.error(err));
 	}
 
-	private getProductQuality(): string {
+	private getProductQuality(): string | undefined {
 		const quality = this.configurationService.getValue<string>('update.channel');
-		return quality === 'none' ? null : product.quality;
+		return quality === 'none' ? undefined : product.quality;
 	}
 
 	private scheduleCheckForUpdates(delay = 60 * 60 * 1000): Thenable<void> {
 		return timeout(delay)
 			.then(() => this.checkForUpdates(null))
-			.then(update => {
-				if (update) {
-					// Update found, no need to check more
-					return TPromise.as(null);
-				}
-
+			.then(() => {
 				// Check again after 1 hour
 				return this.scheduleCheckForUpdates(60 * 60 * 1000);
 			});
@@ -102,7 +95,7 @@ export abstract class AbstractUpdateService implements IUpdateService {
 		this.logService.trace('update#checkForUpdates, state = ', this.state.type);
 
 		if (this.state.type !== StateType.Idle) {
-			return TPromise.as(null);
+			return TPromise.as(void 0);
 		}
 
 		return this.throttler.queue(() => TPromise.as(this.doCheckForUpdates(context)));
@@ -112,35 +105,35 @@ export abstract class AbstractUpdateService implements IUpdateService {
 		this.logService.trace('update#downloadUpdate, state = ', this.state.type);
 
 		if (this.state.type !== StateType.AvailableForDownload) {
-			return TPromise.as(null);
+			return TPromise.as(void 0);
 		}
 
 		return this.doDownloadUpdate(this.state);
 	}
 
 	protected doDownloadUpdate(state: AvailableForDownload): TPromise<void> {
-		return TPromise.as(null);
+		return TPromise.as(void 0);
 	}
 
 	applyUpdate(): TPromise<void> {
 		this.logService.trace('update#applyUpdate, state = ', this.state.type);
 
 		if (this.state.type !== StateType.Downloaded) {
-			return TPromise.as(null);
+			return TPromise.as(void 0);
 		}
 
 		return this.doApplyUpdate();
 	}
 
 	protected doApplyUpdate(): TPromise<void> {
-		return TPromise.as(null);
+		return TPromise.as(void 0);
 	}
 
 	quitAndInstall(): TPromise<void> {
 		this.logService.trace('update#quitAndInstall, state = ', this.state.type);
 
 		if (this.state.type !== StateType.Ready) {
-			return TPromise.as(null);
+			return TPromise.as(void 0);
 		}
 
 		this.logService.trace('update#quitAndInstall(): before lifecycle quit()');
@@ -155,7 +148,7 @@ export abstract class AbstractUpdateService implements IUpdateService {
 			this.doQuitAndInstall();
 		});
 
-		return TPromise.as(null);
+		return TPromise.as(void 0);
 	}
 
 	isLatestVersion(): TPromise<boolean | undefined> {

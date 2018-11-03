@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import { TPromise } from 'vs/base/common/winjs.base';
 import { URI } from 'vs/base/common/uri';
 import { ITextModelService, ITextModelContentProvider } from 'vs/editor/common/services/resolverService';
@@ -42,7 +40,7 @@ export class WalkThroughContentProvider implements ITextModelContentProvider, IW
 		return content.then(content => {
 			let codeEditorModel = this.modelService.getModel(resource);
 			if (!codeEditorModel) {
-				codeEditorModel = this.modelService.createModel(content, this.modeService.getOrCreateModeByFilenameOrFirstLine(resource.fsPath), resource);
+				codeEditorModel = this.modelService.createModel(content, this.modeService.createByFilepathOrFirstLine(resource.fsPath), resource);
 			} else {
 				this.modelService.updateModel(codeEditorModel, content);
 			}
@@ -87,9 +85,9 @@ export class WalkThroughSnippetContentProvider implements ITextModelContentProvi
 				const markdown = textBuffer.getValueInRange(range, EndOfLinePreference.TextDefined);
 				marked(markdown, { renderer });
 
-				const modeId = this.modeService.getModeIdForLanguageName(languageName);
-				const mode = this.modeService.getOrCreateMode(modeId);
-				codeEditorModel = this.modelService.createModel(codeSnippet, mode, resource);
+				const languageId = this.modeService.getModeIdForLanguageName(languageName);
+				const languageSelection = this.modeService.create(languageId);
+				codeEditorModel = this.modelService.createModel(codeSnippet, languageSelection, resource);
 			} else {
 				this.modelService.updateModel(codeEditorModel, content.value);
 			}

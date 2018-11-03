@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import * as nls from 'vs/nls';
 import { Action, IAction } from 'vs/base/common/actions';
 import { illegalArgument } from 'vs/base/common/errors';
@@ -37,7 +35,7 @@ export interface ICompositeBarOptions {
 	getContextMenuActions: () => Action[];
 	openComposite: (compositeId: string) => TPromise<any>;
 	getDefaultCompositeId: () => string;
-	hidePart: () => TPromise<any>;
+	hidePart: () => void;
 }
 
 export class CompositeBar extends Widget implements ICompositeBar {
@@ -69,7 +67,11 @@ export class CompositeBar extends Widget implements ICompositeBar {
 	}
 
 	getComposites(): ICompositeBarItem[] {
-		return this.model.items;
+		return [...this.model.items];
+	}
+
+	getPinnedComposites(): ICompositeBarItem[] {
+		return this.model.pinnedItems;
 	}
 
 	create(parent: HTMLElement): HTMLElement {
@@ -399,7 +401,7 @@ export class CompositeBar extends Widget implements ICompositeBar {
 		const event = new StandardMouseEvent(e);
 		this.contextMenuService.showContextMenu({
 			getAnchor: () => { return { x: event.posx, y: event.posy }; },
-			getActions: () => TPromise.as(this.getContextMenuActions())
+			getActions: () => Promise.resolve(this.getContextMenuActions())
 		});
 	}
 
@@ -458,6 +460,10 @@ class CompositeBarModel {
 
 	get visibleItems(): ICompositeBarItem[] {
 		return this.items.filter(item => item.visible);
+	}
+
+	get pinnedItems(): ICompositeBarItem[] {
+		return this.items.filter(item => item.visible && item.pinned);
 	}
 
 	private createCompositeBarItem(id: string, name: string, order: number, pinned: boolean, visible: boolean): ICompositeBarItem {

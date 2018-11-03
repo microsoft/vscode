@@ -2,7 +2,6 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
 import { TPromise } from 'vs/base/common/winjs.base';
 import * as nls from 'vs/nls';
@@ -103,6 +102,13 @@ export class ViewPickerHandler extends QuickOpenHandler {
 			return true;
 		});
 
+		const entryToCategory = {};
+		entries.forEach(e => {
+			if (!entryToCategory[e.getLabel()]) {
+				entryToCategory[e.getLabel()] = e.getCategory();
+			}
+		});
+
 		let lastCategory: string;
 		entries.forEach((e, index) => {
 			if (lastCategory !== e.getCategory()) {
@@ -110,6 +116,11 @@ export class ViewPickerHandler extends QuickOpenHandler {
 
 				e.setShowBorder(index > 0);
 				e.setGroupLabel(lastCategory);
+
+				// When the entry category has a parent category, set group label as Parent / Child. For example, Views / Explorer.
+				if (entryToCategory[lastCategory]) {
+					e.setGroupLabel(`${entryToCategory[lastCategory]} / ${lastCategory}`);
+				}
 			} else {
 				e.setShowBorder(false);
 				e.setGroupLabel(void 0);
@@ -137,11 +148,11 @@ export class ViewPickerHandler extends QuickOpenHandler {
 
 		// Viewlets
 		const viewlets = this.viewletService.getViewlets();
-		viewlets.forEach((viewlet, index) => viewEntries.push(new ViewEntry(viewlet.name, nls.localize('views', "Views"), () => this.viewletService.openViewlet(viewlet.id, true))));
+		viewlets.forEach((viewlet, index) => viewEntries.push(new ViewEntry(viewlet.name, nls.localize('views', "Side Bar"), () => this.viewletService.openViewlet(viewlet.id, true))));
 
 		// Panels
 		const panels = this.panelService.getPanels();
-		panels.forEach((panel, index) => viewEntries.push(new ViewEntry(panel.name, nls.localize('panels', "Panels"), () => this.panelService.openPanel(panel.id, true))));
+		panels.forEach((panel, index) => viewEntries.push(new ViewEntry(panel.name, nls.localize('panels', "Panel"), () => this.panelService.openPanel(panel.id, true))));
 
 		// Viewlet Views
 		viewlets.forEach((viewlet, index) => {
@@ -171,7 +182,7 @@ export class ViewPickerHandler extends QuickOpenHandler {
 		const channels = this.outputService.getChannelDescriptors();
 		channels.forEach((channel, index) => {
 			const outputCategory = nls.localize('channels', "Output");
-			const entry = new ViewEntry(channel.label, outputCategory, () => this.outputService.showChannel(channel.id));
+			const entry = new ViewEntry(channel.log ? nls.localize('logChannel', "Log ({0})", channel.label) : channel.label, outputCategory, () => this.outputService.showChannel(channel.id));
 
 			viewEntries.push(entry);
 		});

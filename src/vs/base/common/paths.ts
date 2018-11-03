@@ -2,7 +2,6 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
 import { isWindows } from 'vs/base/common/platform';
 import { startsWithIgnoreCase, equalsIgnoreCase } from 'vs/base/common/strings';
@@ -84,7 +83,7 @@ export function normalize(path: string, toOSPath?: boolean): string {
 		return '.';
 	}
 
-	const wantsBackslash = isWindows && toOSPath;
+	const wantsBackslash = !!(isWindows && toOSPath);
 	if (_isNormal(path, wantsBackslash)) {
 		return path;
 	}
@@ -399,5 +398,5 @@ export function isAbsolute_win32(path: string): boolean {
 }
 
 export function isAbsolute_posix(path: string): boolean {
-	return path && path.charCodeAt(0) === CharCode.Slash;
+	return !!(path && path.charCodeAt(0) === CharCode.Slash);
 }

@@ -19,6 +19,7 @@ import { IExtensionService } from 'vs/workbench/services/extensions/common/exten
 import { IEditorGroupsService } from 'vs/workbench/services/group/common/editorGroupsService';
 import * as vscode from 'vscode';
 import { extHostNamedCustomer } from './extHostCustomers';
+import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 
 @extHostNamedCustomer(MainContext.MainThreadWebviews)
 export class MainThreadWebviews implements MainThreadWebviewsShape, WebviewReviver {
@@ -45,7 +46,7 @@ export class MainThreadWebviews implements MainThreadWebviewsShape, WebviewReviv
 		@IWebviewEditorService private readonly _webviewService: IWebviewEditorService,
 		@IOpenerService private readonly _openerService: IOpenerService,
 		@IExtensionService private readonly _extensionService: IExtensionService,
-
+		@ITelemetryService private readonly _telemetryService: ITelemetryService
 	) {
 		this._proxy = context.getProxy(ExtHostContext.ExtHostWebviews);
 		_editorService.onDidActiveEditorChange(this.onActiveEditorChanged, this, this._toDispose);
@@ -68,6 +69,7 @@ export class MainThreadWebviews implements MainThreadWebviewsShape, WebviewReviv
 		title: string,
 		showOptions: { viewColumn: EditorViewColumn | null, preserveFocus: boolean },
 		options: WebviewInputOptions,
+		extensionId: string,
 		extensionLocation: UriComponents
 	): void {
 		const mainThreadShowOptions: ICreateWebViewShowOptions = Object.create(null);
@@ -84,6 +86,13 @@ export class MainThreadWebviews implements MainThreadWebviewsShape, WebviewReviv
 
 		this._webviews.set(handle, webview);
 		this._activeWebview = handle;
+
+		/* __GDPR__
+			"webviews:createWebviewPanel" : {
+				"extensionId" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+			}
+		*/
+		this._telemetryService.publicLog('webviews:createWebviewPanel', { extensionId: extensionId });
 	}
 
 	public $disposeWebview(handle: WebviewPanelHandle): void {

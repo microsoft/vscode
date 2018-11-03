@@ -3,11 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import * as nls from 'vs/nls';
 import { Action } from 'vs/base/common/actions';
-import { TPromise } from 'vs/base/common/winjs.base';
 import * as dom from 'vs/base/browser/dom';
 import { BaseActionItem, IBaseActionItemOptions, Separator } from 'vs/base/browser/ui/actionbar/actionbar';
 import { ICommandService } from 'vs/platform/commands/common/commands';
@@ -136,7 +133,7 @@ export class ActivityActionItem extends BaseActionItem {
 
 	private badgeContent: HTMLElement;
 	private badgeDisposable: IDisposable = Disposable.None;
-	private mouseUpTimeout: number;
+	private mouseUpTimeout: any;
 
 	constructor(
 		action: ActivityAction,
@@ -253,10 +250,14 @@ export class ActivityActionItem extends BaseActionItem {
 			if (badge instanceof NumberBadge) {
 				if (badge.number) {
 					let number = badge.number.toString();
-					if (badge.number > 9999) {
-						number = nls.localize('largeNumberBadge', '10k+');
-					} else if (badge.number > 999) {
-						number = number.charAt(0) + 'k';
+					if (badge.number > 999) {
+						const noOfThousands = badge.number / 1000;
+						const floor = Math.floor(noOfThousands);
+						if (noOfThousands > floor) {
+							number = nls.localize('largeNumberBadge1', '{0}k+', floor);
+						} else {
+							number = nls.localize('largeNumberBadge2', '{0}k', noOfThousands);
+						}
 					}
 					this.badgeContent.textContent = number;
 					dom.show(this.badge);
@@ -340,10 +341,10 @@ export class CompositeOverflowActivityAction extends ActivityAction {
 		});
 	}
 
-	run(event: any): TPromise<any> {
+	run(event: any): Promise<any> {
 		this.showMenu();
 
-		return TPromise.as(true);
+		return Promise.resolve(true);
 	}
 }
 
@@ -372,7 +373,7 @@ export class CompositeOverflowActivityActionItem extends ActivityActionItem {
 
 		this.contextMenuService.showContextMenu({
 			getAnchor: () => this.element,
-			getActions: () => TPromise.as(this.actions),
+			getActions: () => Promise.resolve(this.actions),
 			onHide: () => dispose(this.actions)
 		});
 	}
@@ -415,7 +416,7 @@ class ManageExtensionAction extends Action {
 		super('activitybar.manage.extension', nls.localize('manageExtension', "Manage Extension"));
 	}
 
-	run(id: string): TPromise<any> {
+	run(id: string): Promise<any> {
 		return this.commandService.executeCommand('_extensions.manage', id);
 	}
 }
@@ -597,7 +598,7 @@ export class CompositeActionItem extends ActivityActionItem {
 		this.contextMenuService.showContextMenu({
 			getAnchor: () => anchor,
 			getActionsContext: () => this.activity.id,
-			getActions: () => TPromise.as(actions)
+			getActions: () => Promise.resolve(actions)
 		});
 	}
 
@@ -655,7 +656,7 @@ export class ToggleCompositePinnedAction extends Action {
 		this.checked = this.activity && this.compositeBar.isPinned(this.activity.id);
 	}
 
-	run(context: string): TPromise<any> {
+	run(context: string): Promise<any> {
 		const id = this.activity ? this.activity.id : context;
 
 		if (this.compositeBar.isPinned(id)) {
@@ -664,6 +665,6 @@ export class ToggleCompositePinnedAction extends Action {
 			this.compositeBar.pin(id);
 		}
 
-		return TPromise.as(true);
+		return Promise.resolve(true);
 	}
 }

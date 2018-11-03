@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import 'vs/css!./gotoErrorWidget';
 import * as nls from 'vs/nls';
 import * as dom from 'vs/base/browser/dom';
@@ -79,7 +77,7 @@ class MessageWidget {
 		dispose(this._disposables);
 	}
 
-	update({ source, message, relatedInformation }: IMarker): void {
+	update({ source, message, relatedInformation, code }: IMarker): void {
 
 		if (source) {
 			this._lines = 0;
@@ -89,6 +87,9 @@ class MessageWidget {
 			for (let i = 0; i < lines.length; i++) {
 				let line = lines[i];
 				this._lines += 1;
+				if (code && i === lines.length - 1) {
+					line += ` [${code}]`;
+				}
 				this._longestLineLength = Math.max(line.length, this._longestLineLength);
 				if (i === 0) {
 					message = `[${source}] ${line}`;
@@ -98,6 +99,9 @@ class MessageWidget {
 			}
 		} else {
 			this._lines = 1;
+			if (code) {
+				message += ` [${code}]`;
+			}
 			this._longestLineLength = message.length;
 		}
 
@@ -107,7 +111,7 @@ class MessageWidget {
 			this._relatedBlock.style.paddingTop = `${Math.floor(this._editor.getConfiguration().lineHeight * .66)}px`;
 			this._lines += 1;
 
-			for (const related of relatedInformation) {
+			for (const related of relatedInformation || []) {
 
 				let container = document.createElement('div');
 
@@ -155,7 +159,7 @@ export class MarkerNavigationWidget extends ZoneWidget {
 	private _message: MessageWidget;
 	private _callOnDispose: IDisposable[] = [];
 	private _severity: MarkerSeverity;
-	private _backgroundColor: Color;
+	private _backgroundColor: Color | null;
 	private _onDidSelectRelatedInformation = new Emitter<IRelatedInformation>();
 
 	readonly onDidSelectRelatedInformation: Event<IRelatedInformation> = this._onDidSelectRelatedInformation.event;
@@ -182,7 +186,7 @@ export class MarkerNavigationWidget extends ZoneWidget {
 		} else if (this._severity === MarkerSeverity.Info) {
 			colorId = editorMarkerNavigationInfo;
 		}
-		let frameColor = theme.getColor(colorId);
+		const frameColor = theme.getColor(colorId);
 		this.style({
 			arrowColor: frameColor,
 			frameColor: frameColor
@@ -191,7 +195,7 @@ export class MarkerNavigationWidget extends ZoneWidget {
 
 	protected _applyStyles(): void {
 		if (this._parentContainer) {
-			this._parentContainer.style.backgroundColor = this._backgroundColor.toString();
+			this._parentContainer.style.backgroundColor = this._backgroundColor ? this._backgroundColor.toString() : '';
 		}
 		super._applyStyles();
 	}
@@ -240,7 +244,8 @@ export class MarkerNavigationWidget extends ZoneWidget {
 
 		// show
 		let range = Range.lift(marker);
-		let position = range.containsPosition(this.editor.getPosition()) ? this.editor.getPosition() : range.getStartPosition();
+		const editorPosition = this.editor.getPosition();
+		let position = editorPosition && range.containsPosition(editorPosition) ? editorPosition : range.getStartPosition();
 		super.show(position, this.computeRequiredHeight());
 
 		this.editor.revealPositionInCenter(position, ScrollType.Smooth);

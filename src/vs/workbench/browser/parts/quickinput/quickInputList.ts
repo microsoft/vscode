@@ -3,10 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import 'vs/css!./quickInput';
-import { IVirtualDelegate, IRenderer } from 'vs/base/browser/ui/list/list';
+import { IListVirtualDelegate, IListRenderer } from 'vs/base/browser/ui/list/list';
 import * as dom from 'vs/base/browser/dom';
 import { dispose, IDisposable } from 'vs/base/common/lifecycle';
 import { WorkbenchList } from 'vs/platform/list/browser/listService';
@@ -49,7 +47,6 @@ class ListElement implements IListElement {
 	saneLabel: string;
 	saneDescription?: string;
 	saneDetail?: string;
-	shouldAlwaysShow = false;
 	hidden = false;
 	private _onChecked = new Emitter<boolean>();
 	onChecked = this._onChecked.event;
@@ -86,7 +83,7 @@ interface IListElementTemplateData {
 	toDisposeTemplate: IDisposable[];
 }
 
-class ListElementRenderer implements IRenderer<ListElement, IListElementTemplateData> {
+class ListElementRenderer implements IListRenderer<ListElement, IListElementTemplateData> {
 
 	static readonly ID = 'listelement';
 
@@ -119,7 +116,7 @@ class ListElementRenderer implements IRenderer<ListElement, IListElementTemplate
 
 		// Detail
 		const detailContainer = dom.append(row2, $('.quick-input-list-label-meta'));
-		data.detail = new HighlightedLabel(detailContainer);
+		data.detail = new HighlightedLabel(detailContainer, true);
 
 		// Separator
 		data.separator = dom.append(data.entry, $('.quick-input-list-separator'));
@@ -153,6 +150,7 @@ class ListElementRenderer implements IRenderer<ListElement, IListElementTemplate
 
 		// ARIA label
 		data.entry.setAttribute('aria-label', [element.saneLabel, element.saneDescription, element.saneDetail]
+			.map(s => s && parseOcticons(s).text)
 			.filter(s => !!s)
 			.join(', '));
 
@@ -200,7 +198,7 @@ class ListElementRenderer implements IRenderer<ListElement, IListElementTemplate
 	}
 }
 
-class ListElementDelegate implements IVirtualDelegate<ListElement> {
+class ListElementDelegate implements IListVirtualDelegate<ListElement> {
 
 	getHeight(element: ListElement): number {
 		return element.saneDetail ? 44 : 22;
@@ -248,6 +246,7 @@ export class QuickInputList {
 		this.list = this.instantiationService.createInstance(WorkbenchList, this.container, delegate, [new ListElementRenderer()], {
 			identityProvider: element => element.label,
 			openController: { shouldOpen: () => false }, // Workaround #58124
+			setRowLineHeight: false,
 			multipleSelectionSupport: false
 		}) as WorkbenchList<ListElement>;
 		this.list.getHTMLElement().id = id;
@@ -282,11 +281,6 @@ export class QuickInputList {
 		this.disposables.push(dom.addDisposableListener(this.container, dom.EventType.CLICK, e => {
 			if (e.x || e.y) { // Avoid 'click' triggered by 'space' on checkbox.
 				this._onLeave.fire();
-			}
-		}));
-		this.disposables.push(this.list.onSelectionChange(e => {
-			if (e.elements.length) {
-				this.list.setSelection([]);
 			}
 		}));
 	}
@@ -381,8 +375,8 @@ export class QuickInputList {
 			map.set(element.item, index);
 			return map;
 		}, new Map<IQuickPickItem, number>());
+		this.list.splice(0, this.list.length); // Clear focus and selection first, sending the events when the list is empty.
 		this.list.splice(0, this.list.length, this.elements);
-		this.list.setFocus([]);
 		this._onChangedVisibleCount.fire(this.elements.length);
 	}
 
@@ -487,7 +481,7 @@ export class QuickInputList {
 				const descriptionHighlights = this.matchOnDescription ? matchesFuzzyOcticonAware(query, parseOcticons(element.saneDescription || '')) : undefined;
 				const detailHighlights = this.matchOnDetail ? matchesFuzzyOcticonAware(query, parseOcticons(element.saneDetail || '')) : undefined;
 
-				if (element.shouldAlwaysShow || labelHighlights || descriptionHighlights || detailHighlights) {
+				if (labelHighlights || descriptionHighlights || detailHighlights) {
 					element.labelHighlights = labelHighlights;
 					element.descriptionHighlights = descriptionHighlights;
 					element.detailHighlights = detailHighlights;

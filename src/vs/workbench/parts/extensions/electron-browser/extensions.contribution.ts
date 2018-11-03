@@ -38,10 +38,13 @@ import { areSameExtensions } from 'vs/platform/extensionManagement/common/extens
 import { GalleryExtensionsHandler, ExtensionsHandler } from 'vs/workbench/parts/extensions/browser/extensionsQuickOpen';
 import { EditorDescriptor, IEditorRegistry, Extensions as EditorExtensions } from 'vs/workbench/browser/editor';
 import { LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
-import { RuntimeExtensionsEditor, ShowRuntimeExtensionsAction, IExtensionHostProfileService } from 'vs/workbench/parts/extensions/electron-browser/runtimeExtensionsEditor';
-import { EditorInput, IEditorInputFactory, IEditorInputFactoryRegistry, Extensions as EditorInputExtensions } from 'vs/workbench/common/editor';
+import { RuntimeExtensionsEditor, ShowRuntimeExtensionsAction, IExtensionHostProfileService, DebugExtensionHostAction, StartExtensionHostProfileAction, StopExtensionHostProfileAction, CONTEXT_PROFILE_SESSION_STATE, SaveExtensionHostProfileAction, CONTEXT_EXTENSION_HOST_PROFILE_RECORDED } from 'vs/workbench/parts/extensions/electron-browser/runtimeExtensionsEditor';
+import { EditorInput, IEditorInputFactory, IEditorInputFactoryRegistry, Extensions as EditorInputExtensions, ActiveEditorContext } from 'vs/workbench/common/editor';
 import { ExtensionHostProfileService } from 'vs/workbench/parts/extensions/electron-browser/extensionProfileService';
 import { RuntimeExtensionsInput } from 'vs/workbench/services/extensions/electron-browser/runtimeExtensionsInput';
+import { URI } from 'vs/base/common/uri';
+import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
+import { ExtensionActivationProgress } from 'vs/workbench/parts/extensions/electron-browser/extensionsActivationProgress';
 
 // Singletons
 registerSingleton(IExtensionsWorkbenchService, ExtensionsWorkbenchService);
@@ -54,6 +57,7 @@ workbenchRegistry.registerWorkbenchContribution(MaliciousExtensionChecker, Lifec
 workbenchRegistry.registerWorkbenchContribution(ConfigureRecommendedExtensionsCommandsContributor, LifecyclePhase.Eventually);
 workbenchRegistry.registerWorkbenchContribution(KeymapExtensions, LifecyclePhase.Running);
 workbenchRegistry.registerWorkbenchContribution(ExtensionsViewletViewsContribution, LifecyclePhase.Starting);
+workbenchRegistry.registerWorkbenchContribution(ExtensionActivationProgress, LifecyclePhase.Eventually);
 
 Registry.as<IOutputChannelRegistry>(OutputExtensions.OutputChannels)
 	.registerChannel({ id: ExtensionsChannelId, label: ExtensionsLabel, log: false });
@@ -163,7 +167,7 @@ const disabledActionDescriptor = new SyncActionDescriptor(ShowDisabledExtensions
 actionRegistry.registerWorkbenchAction(disabledActionDescriptor, 'Extensions: Show Disabled Extensions', ExtensionsLabel);
 
 const builtinActionDescriptor = new SyncActionDescriptor(ShowBuiltInExtensionsAction, ShowBuiltInExtensionsAction.ID, ShowBuiltInExtensionsAction.LABEL);
-actionRegistry.registerWorkbenchAction(builtinActionDescriptor, 'Extensions: Show Show Built-in Extensions', ExtensionsLabel);
+actionRegistry.registerWorkbenchAction(builtinActionDescriptor, 'Extensions: Show Built-in Extensions', ExtensionsLabel);
 
 const updateAllActionDescriptor = new SyncActionDescriptor(UpdateAllAction, UpdateAllAction.ID, UpdateAllAction.LABEL);
 actionRegistry.registerWorkbenchAction(updateAllActionDescriptor, 'Extensions: Update All Extensions', ExtensionsLabel);
@@ -258,6 +262,26 @@ CommandsRegistry.registerCommand('extension.open', (accessor: ServicesAccessor, 
 	});
 });
 
+CommandsRegistry.registerCommand(DebugExtensionHostAction.ID, (accessor: ServicesAccessor) => {
+	const instantationService = accessor.get(IInstantiationService);
+	instantationService.createInstance(DebugExtensionHostAction).run();
+});
+
+CommandsRegistry.registerCommand(StartExtensionHostProfileAction.ID, (accessor: ServicesAccessor) => {
+	const instantationService = accessor.get(IInstantiationService);
+	instantationService.createInstance(StartExtensionHostProfileAction, StartExtensionHostProfileAction.ID, StartExtensionHostProfileAction.LABEL).run();
+});
+
+CommandsRegistry.registerCommand(StopExtensionHostProfileAction.ID, (accessor: ServicesAccessor) => {
+	const instantationService = accessor.get(IInstantiationService);
+	instantationService.createInstance(StopExtensionHostProfileAction, StopExtensionHostProfileAction.ID, StopExtensionHostProfileAction.LABEL).run();
+});
+
+CommandsRegistry.registerCommand(SaveExtensionHostProfileAction.ID, (accessor: ServicesAccessor) => {
+	const instantationService = accessor.get(IInstantiationService);
+	instantationService.createInstance(SaveExtensionHostProfileAction, SaveExtensionHostProfileAction.ID, SaveExtensionHostProfileAction.LABEL).run();
+});
+
 // File menu registration
 
 MenuRegistry.appendMenuItem(MenuId.MenubarPreferencesMenu, {
@@ -287,4 +311,59 @@ MenuRegistry.appendMenuItem(MenuId.MenubarViewMenu, {
 		title: localize({ key: 'miViewExtensions', comment: ['&& denotes a mnemonic'] }, "E&&xtensions")
 	},
 	order: 5
+});
+
+// Running extensions
+
+MenuRegistry.appendMenuItem(MenuId.EditorTitle, {
+	command: {
+		id: DebugExtensionHostAction.ID,
+		title: DebugExtensionHostAction.LABEL,
+		iconLocation: {
+			dark: URI.parse(require.toUrl(`vs/workbench/parts/extensions/electron-browser/media/start-inverse.svg`)),
+			light: URI.parse(require.toUrl(`vs/workbench/parts/extensions/electron-browser/media/start.svg`)),
+		}
+	},
+	group: 'navigation',
+	when: ActiveEditorContext.isEqualTo(RuntimeExtensionsEditor.ID)
+});
+
+MenuRegistry.appendMenuItem(MenuId.EditorTitle, {
+	command: {
+		id: StartExtensionHostProfileAction.ID,
+		title: StartExtensionHostProfileAction.LABEL,
+		iconLocation: {
+			dark: URI.parse(require.toUrl(`vs/workbench/parts/extensions/electron-browser/media/profile-start-inverse.svg`)),
+			light: URI.parse(require.toUrl(`vs/workbench/parts/extensions/electron-browser/media/profile-start.svg`)),
+		}
+	},
+	group: 'navigation',
+	when: ContextKeyExpr.and(ActiveEditorContext.isEqualTo(RuntimeExtensionsEditor.ID), CONTEXT_PROFILE_SESSION_STATE.notEqualsTo('running'))
+});
+
+MenuRegistry.appendMenuItem(MenuId.EditorTitle, {
+	command: {
+		id: StopExtensionHostProfileAction.ID,
+		title: StopExtensionHostProfileAction.LABEL,
+		iconLocation: {
+			dark: URI.parse(require.toUrl(`vs/workbench/parts/extensions/electron-browser/media/profile-stop-inverse.svg`)),
+			light: URI.parse(require.toUrl(`vs/workbench/parts/extensions/electron-browser/media/profile-stop.svg`)),
+		}
+	},
+	group: 'navigation',
+	when: ContextKeyExpr.and(ActiveEditorContext.isEqualTo(RuntimeExtensionsEditor.ID), CONTEXT_PROFILE_SESSION_STATE.isEqualTo('running'))
+});
+
+MenuRegistry.appendMenuItem(MenuId.EditorTitle, {
+	command: {
+		id: SaveExtensionHostProfileAction.ID,
+		title: SaveExtensionHostProfileAction.LABEL,
+		iconLocation: {
+			dark: URI.parse(require.toUrl(`vs/workbench/parts/extensions/electron-browser/media/save-inverse.svg`)),
+			light: URI.parse(require.toUrl(`vs/workbench/parts/extensions/electron-browser/media/save.svg`)),
+		},
+		precondition: CONTEXT_EXTENSION_HOST_PROFILE_RECORDED
+	},
+	group: 'navigation',
+	when: ContextKeyExpr.and(ActiveEditorContext.isEqualTo(RuntimeExtensionsEditor.ID))
 });

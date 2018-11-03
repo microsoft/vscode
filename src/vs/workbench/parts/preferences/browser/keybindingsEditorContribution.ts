@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import * as nls from 'vs/nls';
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { MarkdownString } from 'vs/base/common/htmlContent';
@@ -20,7 +18,7 @@ import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { SnippetController2 } from 'vs/editor/contrib/snippet/snippetController2';
 import { SmartSnippetInserter } from 'vs/workbench/parts/preferences/common/smartSnippetInserter';
 import { DefineKeybindingOverlayWidget } from 'vs/workbench/parts/preferences/browser/keybindingWidgets';
-import { FloatingClickWidget } from 'vs/workbench/parts/preferences/browser/preferencesWidgets';
+import { FloatingClickWidget } from 'vs/workbench/browser/parts/editor/editorWidgets';
 import { parseTree, Node } from 'vs/base/common/json';
 import { ScanCodeBinding } from 'vs/base/common/scanCode';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
@@ -235,7 +233,7 @@ export class KeybindingEditorDecorationsRenderer extends Disposable {
 				return this._createDecoration(true, null, null, model, value);
 			}
 			const resolvedKeybinding = resolvedKeybindings[0];
-			let usLabel: string = null;
+			let usLabel: string | null = null;
 			if (resolvedKeybinding instanceof WindowsNativeResolvedKeybinding) {
 				usLabel = resolvedKeybinding.getUSLabel();
 			}

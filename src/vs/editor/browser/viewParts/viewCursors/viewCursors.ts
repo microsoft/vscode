@@ -3,20 +3,18 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import 'vs/css!./viewCursors';
-import { ViewPart } from 'vs/editor/browser/view/viewPart';
-import { Position } from 'vs/editor/common/core/position';
-import { IViewCursorRenderData, ViewCursor } from 'vs/editor/browser/viewParts/viewCursors/viewCursor';
-import { ViewContext } from 'vs/editor/common/view/viewContext';
-import { RenderingContext, RestrictedRenderingContext } from 'vs/editor/common/view/renderingContext';
 import { FastDomNode, createFastDomNode } from 'vs/base/browser/fastDomNode';
-import { TimeoutTimer, IntervalTimer } from 'vs/base/common/async';
+import { IntervalTimer, TimeoutTimer } from 'vs/base/common/async';
+import { ViewPart } from 'vs/editor/browser/view/viewPart';
+import { IViewCursorRenderData, ViewCursor } from 'vs/editor/browser/viewParts/viewCursors/viewCursor';
+import { TextEditorCursorBlinkingStyle, TextEditorCursorStyle } from 'vs/editor/common/config/editorOptions';
+import { Position } from 'vs/editor/common/core/position';
+import { editorCursorBackground, editorCursorForeground } from 'vs/editor/common/view/editorColorRegistry';
+import { RenderingContext, RestrictedRenderingContext } from 'vs/editor/common/view/renderingContext';
+import { ViewContext } from 'vs/editor/common/view/viewContext';
 import * as viewEvents from 'vs/editor/common/view/viewEvents';
 import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
-import { editorCursorForeground, editorCursorBackground } from 'vs/editor/common/view/editorColorRegistry';
-import { TextEditorCursorBlinkingStyle, TextEditorCursorStyle } from 'vs/editor/common/config/editorOptions';
 
 export class ViewCursors extends ViewPart {
 
@@ -25,6 +23,7 @@ export class ViewCursors extends ViewPart {
 	private _readOnly: boolean;
 	private _cursorBlinking: TextEditorCursorBlinkingStyle;
 	private _cursorStyle: TextEditorCursorStyle;
+	private _cursorSmoothCaretAnimation: boolean;
 	private _selectionIsEmpty: boolean;
 
 	private _isVisible: boolean;
@@ -47,6 +46,7 @@ export class ViewCursors extends ViewPart {
 		this._readOnly = this._context.configuration.editor.readOnly;
 		this._cursorBlinking = this._context.configuration.editor.viewInfo.cursorBlinking;
 		this._cursorStyle = this._context.configuration.editor.viewInfo.cursorStyle;
+		this._cursorSmoothCaretAnimation = this._context.configuration.editor.viewInfo.cursorSmoothCaretAnimation;
 		this._selectionIsEmpty = true;
 
 		this._primaryCursor = new ViewCursor(this._context);
@@ -297,6 +297,9 @@ export class ViewCursors extends ViewPart {
 		} else {
 			result += ' cursor-solid';
 		}
+		if (this._cursorSmoothCaretAnimation) {
+			result += ' cursor-smooth-caret-animation';
+		}
 		return result;
 	}
 
@@ -349,7 +352,7 @@ export class ViewCursors extends ViewPart {
 }
 
 registerThemingParticipant((theme, collector) => {
-	let caret = theme.getColor(editorCursorForeground);
+	const caret = theme.getColor(editorCursorForeground);
 	if (caret) {
 		let caretBackground = theme.getColor(editorCursorBackground);
 		if (!caretBackground) {

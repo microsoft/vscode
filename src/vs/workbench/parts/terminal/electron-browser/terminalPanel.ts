@@ -20,12 +20,12 @@ import { editorHoverBackground, editorHoverBorder, editorForeground } from 'vs/p
 import { KillTerminalAction, SwitchTerminalAction, SwitchTerminalActionItem, CopyTerminalSelectionAction, TerminalPasteAction, ClearTerminalAction, SelectAllTerminalAction, CreateNewTerminalAction, SplitTerminalAction } from 'vs/workbench/parts/terminal/electron-browser/terminalActions';
 import { Panel } from 'vs/workbench/browser/panel';
 import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
-import { TPromise } from 'vs/base/common/winjs.base';
 import { URI } from 'vs/base/common/uri';
 import { TERMINAL_BACKGROUND_COLOR, TERMINAL_BORDER_COLOR } from 'vs/workbench/parts/terminal/common/terminalColorRegistry';
 import { DataTransfers } from 'vs/base/browser/dnd';
 import { INotificationService, IPromptChoice, Severity } from 'vs/platform/notification/common/notification';
 import { TerminalConfigHelper } from 'vs/workbench/parts/terminal/electron-browser/terminalConfigHelper';
+import { IStorageService } from 'vs/platform/storage/common/storage';
 
 const FIND_FOCUS_CLASS = 'find-focused';
 
@@ -47,12 +47,13 @@ export class TerminalPanel extends Panel {
 		@ITerminalService private readonly _terminalService: ITerminalService,
 		@IThemeService protected readonly _themeService: IThemeService,
 		@ITelemetryService telemetryService: ITelemetryService,
-		@INotificationService private readonly _notificationService: INotificationService
+		@INotificationService private readonly _notificationService: INotificationService,
+		@IStorageService storageService: IStorageService
 	) {
-		super(TERMINAL_PANEL_ID, telemetryService, _themeService);
+		super(TERMINAL_PANEL_ID, telemetryService, _themeService, storageService);
 	}
 
-	public create(parent: HTMLElement): TPromise<any> {
+	public create(parent: HTMLElement): void {
 		super.create(parent);
 		this._parentDomElement = parent;
 		dom.addClass(this._parentDomElement, 'integrated-terminal');
@@ -97,7 +98,6 @@ export class TerminalPanel extends Panel {
 
 		// Force another layout (first is setContainers) since config has changed
 		this.layout(new dom.Dimension(this._terminalContainer.offsetWidth, this._terminalContainer.offsetHeight));
-		return TPromise.as(void 0);
 	}
 
 	public layout(dimension?: dom.Dimension): void {
@@ -107,26 +107,26 @@ export class TerminalPanel extends Panel {
 		this._terminalService.terminalTabs.forEach(t => t.layout(dimension.width, dimension.height));
 	}
 
-	public setVisible(visible: boolean): TPromise<void> {
+	public setVisible(visible: boolean): void {
 		if (visible) {
 			if (this._terminalService.terminalInstances.length > 0) {
 				this._updateFont();
 				this._updateTheme();
 			} else {
-				return super.setVisible(visible).then(() => {
-					// Check if instances were already restored as part of workbench restore
-					if (this._terminalService.terminalInstances.length === 0) {
-						this._terminalService.createTerminal();
-					}
-					if (this._terminalService.terminalInstances.length > 0) {
-						this._updateFont();
-						this._updateTheme();
-					}
-					return TPromise.as(void 0);
-				});
+				super.setVisible(visible);
+				// Check if instances were already restored as part of workbench restore
+				if (this._terminalService.terminalInstances.length === 0) {
+					this._terminalService.createTerminal();
+				}
+				if (this._terminalService.terminalInstances.length > 0) {
+					this._updateFont();
+					this._updateTheme();
+				}
+				return;
 			}
 		}
-		return super.setVisible(visible);
+		super.setVisible(visible);
+
 	}
 
 	public getActions(): IAction[] {
@@ -259,7 +259,7 @@ export class TerminalPanel extends Panel {
 				const anchor: { x: number, y: number } = { x: standardEvent.posx, y: standardEvent.posy };
 				this._contextMenuService.showContextMenu({
 					getAnchor: () => anchor,
-					getActions: () => TPromise.as(this._getContextMenuActions()),
+					getActions: () => Promise.resolve(this._getContextMenuActions()),
 					getActionsContext: () => this._parentDomElement
 				});
 			}

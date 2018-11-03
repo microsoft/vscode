@@ -2,12 +2,9 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
-import { TPromise } from 'vs/base/common/winjs.base';
 import { IDisposable, combinedDisposable, Disposable } from 'vs/base/common/lifecycle';
 import { Event, Emitter } from 'vs/base/common/event';
-import { isThenable } from 'vs/base/common/async';
 
 export interface ITelemetryData {
 	from?: string;
@@ -19,15 +16,15 @@ export interface IAction extends IDisposable {
 	id: string;
 	label: string;
 	tooltip: string;
-	class: string;
+	class: string | undefined;
 	enabled: boolean;
 	checked: boolean;
 	radio: boolean;
-	run(event?: any): TPromise<any>;
+	run(event?: any): Thenable<any>;
 }
 
 export interface IActionRunner extends IDisposable {
-	run(action: IAction, context?: any): TPromise<any>;
+	run(action: IAction, context?: any): Thenable<any>;
 	onDidRun: Event<IRunEvent>;
 	onDidBeforeRun: Event<IRunEvent>;
 }
@@ -54,18 +51,18 @@ export interface IActionChangeEvent {
 export class Action implements IAction {
 
 	protected _onDidChange = new Emitter<IActionChangeEvent>();
-	get onDidChange(): Event<IActionChangeEvent> { return this._onDidChange.event; }
+	readonly onDidChange: Event<IActionChangeEvent> = this._onDidChange.event;
 
 	protected _id: string;
 	protected _label: string;
 	protected _tooltip: string;
-	protected _cssClass: string;
+	protected _cssClass: string | undefined;
 	protected _enabled: boolean;
 	protected _checked: boolean;
 	protected _radio: boolean;
-	protected _actionCallback: (event?: any) => TPromise<any>;
+	protected _actionCallback?: (event?: any) => Thenable<any>;
 
-	constructor(id: string, label: string = '', cssClass: string = '', enabled: boolean = true, actionCallback?: (event?: any) => TPromise<any>) {
+	constructor(id: string, label: string = '', cssClass: string = '', enabled: boolean = true, actionCallback?: (event?: any) => Thenable<any>) {
 		this._id = id;
 		this._label = label;
 		this._cssClass = cssClass;
@@ -107,15 +104,15 @@ export class Action implements IAction {
 		}
 	}
 
-	get class(): string {
+	get class(): string | undefined {
 		return this._cssClass;
 	}
 
-	set class(value: string) {
+	set class(value: string | undefined) {
 		this._setClass(value);
 	}
 
-	protected _setClass(value: string): void {
+	protected _setClass(value: string | undefined): void {
 		if (this._cssClass !== value) {
 			this._cssClass = value;
 			this._onDidChange.fire({ class: value });
@@ -167,12 +164,12 @@ export class Action implements IAction {
 		}
 	}
 
-	run(event?: any, data?: ITelemetryData): TPromise<any> {
-		if (this._actionCallback !== void 0) {
+	run(event?: any, _data?: ITelemetryData): Thenable<any> {
+		if (this._actionCallback) {
 			return this._actionCallback(event);
 		}
 
-		return TPromise.as(true);
+		return Promise.resolve(true);
 	}
 
 	dispose() {
@@ -189,14 +186,14 @@ export interface IRunEvent {
 export class ActionRunner extends Disposable implements IActionRunner {
 
 	private _onDidBeforeRun = this._register(new Emitter<IRunEvent>());
-	get onDidBeforeRun(): Event<IRunEvent> { return this._onDidBeforeRun.event; }
+	readonly onDidBeforeRun: Event<IRunEvent> = this._onDidBeforeRun.event;
 
 	private _onDidRun = this._register(new Emitter<IRunEvent>());
-	get onDidRun(): Event<IRunEvent> { return this._onDidRun.event; }
+	readonly onDidRun: Event<IRunEvent> = this._onDidRun.event;
 
-	run(action: IAction, context?: any): TPromise<any> {
+	run(action: IAction, context?: any): Thenable<any> {
 		if (!action.enabled) {
-			return TPromise.as(null);
+			return Promise.resolve(null);
 		}
 
 		this._onDidBeforeRun.fire({ action: action });
@@ -208,14 +205,9 @@ export class ActionRunner extends Disposable implements IActionRunner {
 		});
 	}
 
-	protected runAction(action: IAction, context?: any): TPromise<any> {
+	protected runAction(action: IAction, context?: any): Thenable<any> {
 		const res = context ? action.run(context) : action.run();
-
-		if (isThenable(res)) {
-			return res;
-		}
-
-		return TPromise.wrap(res);
+		return Promise.resolve(res);
 	}
 }
 

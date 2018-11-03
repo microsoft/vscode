@@ -2,8 +2,6 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
-
 import * as assert from 'assert';
 import { DiffComputer } from 'vs/editor/common/diff/diffComputer';
 import { IChange, ICharChange, ILineChange } from 'vs/editor/common/editorCommon';
@@ -55,7 +53,7 @@ function assertDiff(originalLines: string[], modifiedLines: string[], expectedCh
 	});
 	let changes = diffComputer.computeDiff();
 
-	let extracted = [];
+	let extracted: IChange[] = [];
 	for (let i = 0; i < changes.length; i++) {
 		extracted.push(extractLineChangeRepresentation(changes[i], <ILineChange>(i < expectedChanges.length ? expectedChanges[i] : null)));
 	}

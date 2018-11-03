@@ -11,7 +11,6 @@ import { URI as Uri } from 'vs/base/common/uri';
 import { dispose, IDisposable } from 'vs/base/common/lifecycle';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { TerminalWidgetManager } from 'vs/workbench/parts/terminal/browser/terminalWidgetManager';
-import { TPromise } from 'vs/base/common/winjs.base';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ITerminalService } from 'vs/workbench/parts/terminal/common/terminal';
 import { ITextEditorSelection } from 'vs/platform/editor/common/editor';
@@ -169,7 +168,7 @@ export class TerminalLinkHandler {
 		return this._localLinkPattern;
 	}
 
-	private _handleLocalLink(link: string): TPromise<any> {
+	private _handleLocalLink(link: string): PromiseLike<any> {
 		return this._resolvePath(link).then(resolvedLink => {
 			const normalizedPath = path.normalize(path.resolve(resolvedLink));
 			const normalizedUrl = this.extractLinkUrl(normalizedPath);
@@ -246,15 +245,15 @@ export class TerminalLinkHandler {
 		return link;
 	}
 
-	private _resolvePath(link: string): TPromise<string> {
+	private _resolvePath(link: string): PromiseLike<string> {
 		link = this._preprocessPath(link);
 		if (!link) {
-			return TPromise.as(void 0);
+			return Promise.resolve(void 0);
 		}
 
 		const linkUrl = this.extractLinkUrl(link);
 		if (!linkUrl) {
-			return TPromise.as(void 0);
+			return Promise.resolve(void 0);
 		}
 
 		// Open an editor if the path exists

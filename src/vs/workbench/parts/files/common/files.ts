@@ -2,7 +2,6 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
 import { URI } from 'vs/base/common/uri';
 import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
@@ -14,14 +13,14 @@ import { ITextModelContentProvider } from 'vs/editor/common/services/resolverSer
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { ITextModel } from 'vs/editor/common/model';
-import { IMode } from 'vs/editor/common/modes';
 import { IModelService } from 'vs/editor/common/services/modelService';
-import { IModeService } from 'vs/editor/common/services/modeService';
+import { IModeService, ILanguageSelection } from 'vs/editor/common/services/modeService';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { IViewlet } from 'vs/workbench/common/viewlet';
 import { InputFocusedContextKey } from 'vs/platform/workbench/common/contextkeys';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IViewContainersRegistry, Extensions as ViewContainerExtensions, ViewContainer } from 'vs/workbench/common/views';
+import { Schemas } from 'vs/base/common/network';
 
 /**
  * Explorer viewlet id.
@@ -157,7 +156,7 @@ export class FileOnDiskContentProvider implements ITextModelContentProvider {
 	}
 
 	provideTextContent(resource: URI): TPromise<ITextModel> {
-		const fileOnDiskResource = URI.file(resource.fsPath);
+		const fileOnDiskResource = resource.with({ scheme: Schemas.file });
 
 		// Make sure our file from disk is resolved up to date
 		return this.resolveEditorModel(resource).then(codeEditorModel => {
@@ -181,7 +180,7 @@ export class FileOnDiskContentProvider implements ITextModelContentProvider {
 	}
 
 	private resolveEditorModel(resource: URI, createAsNeeded = true): TPromise<ITextModel> {
-		const fileOnDiskResource = URI.file(resource.fsPath);
+		const fileOnDiskResource = resource.with({ scheme: Schemas.file });
 
 		return this.textFileService.resolveTextContent(fileOnDiskResource).then(content => {
 			let codeEditorModel = this.modelService.getModel(resource);
@@ -190,14 +189,14 @@ export class FileOnDiskContentProvider implements ITextModelContentProvider {
 			} else if (createAsNeeded) {
 				const fileOnDiskModel = this.modelService.getModel(fileOnDiskResource);
 
-				let mode: TPromise<IMode>;
+				let languageSelector: ILanguageSelection;
 				if (fileOnDiskModel) {
-					mode = this.modeService.getOrCreateMode(fileOnDiskModel.getModeId());
+					languageSelector = this.modeService.create(fileOnDiskModel.getModeId());
 				} else {
-					mode = this.modeService.getOrCreateModeByFilenameOrFirstLine(fileOnDiskResource.fsPath);
+					languageSelector = this.modeService.createByFilepathOrFirstLine(fileOnDiskResource.fsPath);
 				}
 
-				codeEditorModel = this.modelService.createModel(content.value, mode, resource);
+				codeEditorModel = this.modelService.createModel(content.value, languageSelector, resource);
 			}
 
 			return codeEditorModel;

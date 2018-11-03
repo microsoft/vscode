@@ -5,7 +5,6 @@
 
 import 'vs/css!./media/panelviewlet';
 import * as nls from 'vs/nls';
-import { TPromise } from 'vs/base/common/winjs.base';
 import { Event, Emitter, filterEvent } from 'vs/base/common/event';
 import { ColorIdentifier } from 'vs/platform/theme/common/colorRegistry';
 import { attachStyler, IColorMapping } from 'vs/platform/theme/common/styler';
@@ -28,6 +27,7 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { IPartService } from 'vs/workbench/services/part/common/partService';
 import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
 import { IView } from 'vs/workbench/common/views';
+import { IStorageService } from 'vs/platform/storage/common/storage';
 
 export interface IPanelColors extends IColorMapping {
 	dropBackground?: ColorIdentifier;
@@ -76,12 +76,10 @@ export abstract class ViewletPanel extends Panel implements IView {
 		this.actionRunner = options.actionRunner;
 	}
 
-	setVisible(visible: boolean): TPromise<void> {
+	setVisible(visible: boolean): void {
 		if (this._isVisible !== visible) {
 			this._isVisible = visible;
 		}
-
-		return TPromise.wrap(null);
 	}
 
 	isVisible(): boolean {
@@ -165,7 +163,8 @@ export abstract class ViewletPanel extends Panel implements IView {
 		return 0;
 	}
 
-	shutdown(): void {
+	saveState(): void {
+		// Subclasses to implement for saving state
 	}
 }
 
@@ -199,20 +198,21 @@ export class PanelViewlet extends Viewlet {
 	constructor(
 		id: string,
 		private options: IViewsViewletOptions,
+		@IConfigurationService configurationService: IConfigurationService,
 		@IPartService partService: IPartService,
 		@IContextMenuService protected contextMenuService: IContextMenuService,
 		@ITelemetryService telemetryService: ITelemetryService,
-		@IThemeService themeService: IThemeService
+		@IThemeService themeService: IThemeService,
+		@IStorageService storageService: IStorageService
 	) {
-		super(id, partService, telemetryService, themeService);
+		super(id, configurationService, partService, telemetryService, themeService, storageService);
 	}
 
-	create(parent: HTMLElement): TPromise<void> {
-		return super.create(parent).then(() => {
-			this.panelview = this._register(new PanelView(parent, this.options));
-			this._register(this.panelview.onDidDrop(({ from, to }) => this.movePanel(from as ViewletPanel, to as ViewletPanel)));
-			this._register(addDisposableListener(parent, EventType.CONTEXT_MENU, (e: MouseEvent) => this.showContextMenu(new StandardMouseEvent(e))));
-		});
+	create(parent: HTMLElement): void {
+		super.create(parent);
+		this.panelview = this._register(new PanelView(parent, this.options));
+		this._register(this.panelview.onDidDrop(({ from, to }) => this.movePanel(from as ViewletPanel, to as ViewletPanel)));
+		this._register(addDisposableListener(parent, EventType.CONTEXT_MENU, (e: MouseEvent) => this.showContextMenu(new StandardMouseEvent(e))));
 	}
 
 	private showContextMenu(event: StandardMouseEvent): void {
@@ -229,7 +229,7 @@ export class PanelViewlet extends Viewlet {
 		let anchor: { x: number, y: number } = { x: event.posx, y: event.posy };
 		this.contextMenuService.showContextMenu({
 			getAnchor: () => anchor,
-			getActions: () => TPromise.as(this.getContextMenuActions())
+			getActions: () => Promise.resolve(this.getContextMenuActions())
 		});
 	}
 

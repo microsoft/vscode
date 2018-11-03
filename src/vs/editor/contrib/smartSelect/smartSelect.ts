@@ -2,12 +2,10 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
 import * as nls from 'vs/nls';
 import * as arrays from 'vs/base/common/arrays';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
-import { TPromise } from 'vs/base/common/winjs.base';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { Range } from 'vs/editor/common/core/range';
 import { IEditorContribution } from 'vs/editor/common/editorCommon';
@@ -66,7 +64,7 @@ class SmartSelectController implements IEditorContribution {
 		return SmartSelectController.ID;
 	}
 
-	public run(forward: boolean): TPromise<void> {
+	public run(forward: boolean): Promise<void> {
 
 		const selection = this.editor.getSelection();
 		const model = this.editor.getModel();
@@ -78,9 +76,9 @@ class SmartSelectController implements IEditorContribution {
 			}
 		}
 
-		let promise: TPromise<void> = TPromise.as(null);
+		let promise: Promise<void> = Promise.resolve(null);
 		if (!this._state) {
-			promise = this._tokenSelectionSupport.getRangesToPosition(model.uri, selection.getStartPosition()).then((elements: ILogicalSelectionEntry[]) => {
+			promise = Promise.resolve(this._tokenSelectionSupport.getRangesToPositionSync(model.uri, selection.getStartPosition())).then((elements: ILogicalSelectionEntry[]) => {
 
 				if (arrays.isFalsyOrEmpty(elements)) {
 					return;
@@ -156,7 +154,7 @@ abstract class AbstractSmartSelect extends EditorAction {
 		this._forward = forward;
 	}
 
-	public run(accessor: ServicesAccessor, editor: ICodeEditor): TPromise<void> {
+	public run(accessor: ServicesAccessor, editor: ICodeEditor): Promise<void> {
 		let controller = SmartSelectController.get(editor);
 		if (controller) {
 			return controller.run(this._forward);

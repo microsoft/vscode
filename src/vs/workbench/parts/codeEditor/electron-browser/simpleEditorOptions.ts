@@ -4,11 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { ICodeEditorWidgetOptions } from 'vs/editor/browser/widget/codeEditorWidget';
+import { ContextMenuController } from 'vs/editor/contrib/contextmenu/contextmenu';
+import { SnippetController2 } from 'vs/editor/contrib/snippet/snippetController2';
+import { SuggestController } from 'vs/editor/contrib/suggest/suggestController';
 import { MenuPreventer } from 'vs/workbench/parts/codeEditor/browser/menuPreventer';
 import { SelectionClipboard } from 'vs/workbench/parts/codeEditor/electron-browser/selectionClipboard';
-import { ContextMenuController } from 'vs/editor/contrib/contextmenu/contextmenu';
-import { SuggestController } from 'vs/editor/contrib/suggest/suggestController';
-import { SnippetController2 } from 'vs/editor/contrib/snippet/snippetController2';
 import { TabCompletionController } from 'vs/workbench/parts/snippets/electron-browser/tabCompletion';
 
 export function getSimpleCodeEditorWidgetOptions(): ICodeEditorWidgetOptions {

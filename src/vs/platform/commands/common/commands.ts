@@ -2,9 +2,7 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
-import { TPromise } from 'vs/base/common/winjs.base';
 import { IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { TypeConstraint, validateConstraints } from 'vs/base/common/types';
 import { ServicesAccessor, createDecorator } from 'vs/platform/instantiation/common/instantiation';
@@ -20,7 +18,7 @@ export interface ICommandEvent {
 export interface ICommandService {
 	_serviceBrand: any;
 	onWillExecuteCommand: Event<ICommandEvent>;
-	executeCommand<T = any>(commandId: string, ...args: any[]): TPromise<T>;
+	executeCommand<T = any>(commandId: string, ...args: any[]): Promise<T | undefined>;
 }
 
 export interface ICommandsMap {
@@ -34,7 +32,7 @@ export interface ICommandHandler {
 export interface ICommand {
 	id: string;
 	handler: ICommandHandler;
-	description?: ICommandHandlerDescription;
+	description?: ICommandHandlerDescription | null;
 }
 
 export interface ICommandHandlerDescription {
@@ -47,7 +45,7 @@ export interface ICommandRegistry {
 	registerCommand(id: string, command: ICommandHandler): IDisposable;
 	registerCommand(command: ICommand): IDisposable;
 	registerCommandAlias(oldId: string, newId: string): IDisposable;
-	getCommand(id: string): ICommand;
+	getCommand(id: string): ICommand | undefined;
 	getCommands(): ICommandsMap;
 }
 
@@ -70,7 +68,7 @@ export const CommandsRegistry: ICommandRegistry = new class implements ICommandR
 
 		// add argument validation if rich command metadata is provided
 		if (idOrCommand.description) {
-			const constraints: TypeConstraint[] = [];
+			const constraints: (TypeConstraint | undefined)[] = [];
 			for (let arg of idOrCommand.description.args) {
 				constraints.push(arg.constraint);
 			}
@@ -106,7 +104,7 @@ export const CommandsRegistry: ICommandRegistry = new class implements ICommandR
 		});
 	}
 
-	getCommand(id: string): ICommand {
+	getCommand(id: string): ICommand | undefined {
 		const list = this._commands.get(id);
 		if (!list || list.isEmpty()) {
 			return undefined;
@@ -117,7 +115,7 @@ export const CommandsRegistry: ICommandRegistry = new class implements ICommandR
 	getCommands(): ICommandsMap {
 		const result: ICommandsMap = Object.create(null);
 		this._commands.forEach((value, key) => {
-			result[key] = this.getCommand(key);
+			result[key] = this.getCommand(key)!;
 		});
 		return result;
 	}
@@ -126,7 +124,7 @@ export const CommandsRegistry: ICommandRegistry = new class implements ICommandR
 export const NullCommandService: ICommandService = {
 	_serviceBrand: undefined,
 	onWillExecuteCommand: () => ({ dispose: () => { } }),
-	executeCommand() {
-		return TPromise.as(undefined);
+	executeCommand<T = any>() {
+		return Promise.resolve<T>(undefined);
 	}
 };

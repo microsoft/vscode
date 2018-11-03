@@ -2,7 +2,6 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
 import * as vscode from 'vscode';
 import * as os from 'os';
@@ -14,6 +13,7 @@ import { ExtHostConfiguration } from 'vs/workbench/api/node/extHostConfiguration
 import { ILogService } from 'vs/platform/log/common/log';
 import { EXT_HOST_CREATION_DELAY } from 'vs/workbench/parts/terminal/common/terminal';
 import { TerminalProcess } from 'vs/workbench/parts/terminal/node/terminalProcess';
+import { timeout } from 'vs/base/common/async';
 
 const RENDERER_NO_PROCESS_ID = -1;
 
@@ -403,7 +403,7 @@ export class ExtHostTerminalService implements ExtHostTerminalServiceShape {
 		// Continue env initialization, merging in the env from the launch
 		// config and adding keys that are needed to create the process
 		const locale = terminalConfig.get('setLocaleVariables') ? platform.locale : undefined;
-		terminalEnvironment.addTerminalEnvironmentKeys(env, platform.isWindows, locale);
+		terminalEnvironment.addTerminalEnvironmentKeys(env, locale);
 
 		// Fork the process and listen for messages
 		this._logService.debug(`Terminal process launching on ext host`, shellLaunchConfig, initialCwd, cols, rows, env);
@@ -455,12 +455,6 @@ export class ExtHostTerminalService implements ExtHostTerminalServiceShape {
 		return this._getTerminalPromises[id];
 	}
 
-	private _delay(timeout: number, result: any) {
-		return new Promise(c => {
-			setTimeout(c(result), timeout);
-		});
-	}
-
 	private _createGetTerminalPromise(id: number, retries: number = 5): Promise<ExtHostTerminal> {
 		return new Promise(c => {
 			if (retries === 0) {
@@ -474,7 +468,7 @@ export class ExtHostTerminalService implements ExtHostTerminalServiceShape {
 			} else {
 				// This should only be needed immediately after createTerminalRenderer is called as
 				// the ExtHostTerminal has not yet been iniitalized
-				this._delay(200, c(this._getTerminalByIdEventually(id, retries - 1)));
+				timeout(200).then(() => c(this._getTerminalByIdEventually(id, retries - 1)));
 			}
 		});
 	}
@@ -493,7 +487,7 @@ export class ExtHostTerminalService implements ExtHostTerminalServiceShape {
 	}
 
 	private _getTerminalObjectIndexById<T extends ExtHostTerminal | ExtHostTerminalRenderer>(array: T[], id: number): number {
-		let index: number = null;
+		let index: number | null = null;
 		array.some((item, i) => {
 			const thisId = item._id;
 			if (thisId === id) {

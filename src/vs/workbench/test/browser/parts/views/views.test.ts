@@ -54,7 +54,7 @@ suite('ContributableViewsModel', () => {
 		assert.equal(model.visibleViewDescriptors.length, 0);
 	});
 
-	test('register/unregister', function () {
+	test('register/unregister', () => {
 		const model = new ContributableViewsModel(container, viewsService);
 		const seq = new ViewDescriptorSequence(model);
 
@@ -172,7 +172,7 @@ suite('ContributableViewsModel', () => {
 		ViewsRegistry.deregisterViews([view1.id, view2.id], container);
 	});
 
-	test('setVisible', function () {
+	test('setVisible', () => {
 		const model = new ContributableViewsModel(container, viewsService);
 		const seq = new ViewDescriptorSequence(model);
 
@@ -217,7 +217,7 @@ suite('ContributableViewsModel', () => {
 		assert.deepEqual(seq.elements, []);
 	});
 
-	test('move', function () {
+	test('move', () => {
 		const model = new ContributableViewsModel(container, viewsService);
 		const seq = new ViewDescriptorSequence(model);
 

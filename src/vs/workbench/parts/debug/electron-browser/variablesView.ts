@@ -34,9 +34,7 @@ const $ = dom.$;
 
 export class VariablesView extends TreeViewsViewletPanel {
 
-	private static readonly MEMENTO = 'variablesview.memento';
 	private onFocusStackFrameScheduler: RunOnceScheduler;
-	private settings: any;
 	private expandedElements: any[];
 	private needsRefresh: boolean;
 	private treeContainer: HTMLElement;
@@ -51,7 +49,6 @@ export class VariablesView extends TreeViewsViewletPanel {
 	) {
 		super({ ...(options as IViewletPanelOptions), ariaHeaderLabel: nls.localize('variablesSection', "Variables Section") }, keybindingService, contextMenuService, configurationService);
 
-		this.settings = options.viewletSettings;
 		this.expandedElements = [];
 		// Use scheduler to prevent unnecessary flashing
 		this.onFocusStackFrameScheduler = new RunOnceScheduler(() => {
@@ -142,17 +139,11 @@ export class VariablesView extends TreeViewsViewletPanel {
 		}
 	}
 
-	public setVisible(visible: boolean): TPromise<void> {
-		return super.setVisible(visible).then(() => {
-			if (visible && this.needsRefresh) {
-				this.onFocusStackFrameScheduler.schedule();
-			}
-		});
-	}
-
-	public shutdown(): void {
-		this.settings[VariablesView.MEMENTO] = !this.isExpanded();
-		super.shutdown();
+	public setVisible(visible: boolean): void {
+		super.setVisible(visible);
+		if (visible && this.needsRefresh) {
+			this.onFocusStackFrameScheduler.schedule();
+		}
 	}
 }
 
@@ -167,7 +158,7 @@ class VariablesActionProvider implements IActionProvider {
 	}
 
 	public getActions(tree: ITree, element: any): TPromise<IAction[]> {
-		return TPromise.as([]);
+		return Promise.resolve([]);
 	}
 
 	public hasSecondaryActions(tree: ITree, element: any): boolean {
@@ -184,7 +175,7 @@ class VariablesActionProvider implements IActionProvider {
 		actions.push(new Separator());
 		actions.push(new AddToWatchExpressionsAction(AddToWatchExpressionsAction.ID, AddToWatchExpressionsAction.LABEL, variable, this.debugService, this.keybindingService));
 
-		return TPromise.as(actions);
+		return Promise.resolve(actions);
 	}
 
 	public getActionItem(tree: ITree, element: any, action: IAction): IActionItem {
@@ -210,7 +201,7 @@ export class VariablesDataSource implements IDataSource {
 	public getChildren(tree: ITree, element: any): TPromise<any> {
 		if (element instanceof ViewModel) {
 			const focusedStackFrame = (<ViewModel>element).focusedStackFrame;
-			return focusedStackFrame ? focusedStackFrame.getScopes() : TPromise.as([]);
+			return focusedStackFrame ? focusedStackFrame.getScopes() : Promise.resolve([]);
 		}
 
 		let scope = <Scope>element;
@@ -218,7 +209,7 @@ export class VariablesDataSource implements IDataSource {
 	}
 
 	public getParent(tree: ITree, element: any): TPromise<any> {
-		return TPromise.as(null);
+		return Promise.resolve(null);
 	}
 }
 

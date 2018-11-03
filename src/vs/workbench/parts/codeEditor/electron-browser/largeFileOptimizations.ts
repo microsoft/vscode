@@ -2,17 +2,16 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
 import * as nls from 'vs/nls';
 import * as path from 'path';
 import { Disposable } from 'vs/base/common/lifecycle';
-import { IEditorContribution } from 'vs/editor/common/editorCommon';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { registerEditorContribution } from 'vs/editor/browser/editorExtensions';
+import { IEditorContribution } from 'vs/editor/common/editorCommon';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
 /**
  * Shows a message when opening a large file which has been memory optimized (and features disabled).
@@ -31,7 +30,7 @@ export class LargeFileOptimizationsWarner extends Disposable implements IEditorC
 	) {
 		super();
 
-		this._isDisabled = this._storageService.getBoolean('editor.neverPromptForLargeFiles', StorageScope.GLOBAL, false);
+		this._isDisabled = Boolean(this._storageService.getBoolean('editor.neverPromptForLargeFiles', StorageScope.GLOBAL, false));
 
 		this._register(this._editor.onDidChangeModel((e) => {
 			const model = this._editor.getModel();

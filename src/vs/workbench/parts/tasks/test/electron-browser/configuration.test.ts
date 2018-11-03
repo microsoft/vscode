@@ -2,8 +2,6 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
-
 import { URI } from 'vs/base/common/uri';
 import * as assert from 'assert';
 import Severity from 'vs/base/common/severity';
@@ -28,7 +26,7 @@ class ProblemReporter implements IProblemReporter {
 	private _validationStatus: ValidationStatus = new ValidationStatus();
 
 	public receivedMessage: boolean = false;
-	public lastMessage: string = undefined;
+	public lastMessage: string | undefined = undefined;
 
 	public info(message: string): void {
 		this.log(message);
@@ -85,7 +83,7 @@ class PresentationBuilder {
 	public result: Tasks.PresentationOptions;
 
 	constructor(public parent: CommandConfigurationBuilder) {
-		this.result = { echo: false, reveal: Tasks.RevealKind.Always, focus: false, panel: Tasks.PanelKind.Shared, showReuseMessage: true };
+		this.result = { echo: false, reveal: Tasks.RevealKind.Always, focus: false, panel: Tasks.PanelKind.Shared, showReuseMessage: true, clear: false };
 	}
 
 	public echo(value: boolean): PresentationBuilder {

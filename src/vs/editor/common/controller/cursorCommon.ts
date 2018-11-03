@@ -2,24 +2,23 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
-import { Position } from 'vs/editor/common/core/position';
 import { CharCode } from 'vs/base/common/charCode';
-import * as strings from 'vs/base/common/strings';
-import { ICommand, IConfiguration, ScrollType } from 'vs/editor/common/editorCommon';
-import { TextModel } from 'vs/editor/common/model/textModel';
-import { Selection, ISelection } from 'vs/editor/common/core/selection';
-import { Range } from 'vs/editor/common/core/range';
-import { LanguageConfigurationRegistry } from 'vs/editor/common/modes/languageConfigurationRegistry';
 import { onUnexpectedError } from 'vs/base/common/errors';
+import * as strings from 'vs/base/common/strings';
+import { EditorAutoClosingStrategy, EditorAutoSurroundStrategy, IConfigurationChangedEvent } from 'vs/editor/common/config/editorOptions';
+import { CursorChangeReason } from 'vs/editor/common/controller/cursorEvents';
+import { Position } from 'vs/editor/common/core/position';
+import { Range } from 'vs/editor/common/core/range';
+import { ISelection, Selection } from 'vs/editor/common/core/selection';
+import { ICommand, IConfiguration, ScrollType } from 'vs/editor/common/editorCommon';
+import { ITextModel, TextModelResolvedOptions } from 'vs/editor/common/model';
+import { TextModel } from 'vs/editor/common/model/textModel';
 import { LanguageIdentifier } from 'vs/editor/common/modes';
 import { IAutoClosingPair } from 'vs/editor/common/modes/languageConfiguration';
-import { IConfigurationChangedEvent, EditorAutoClosingStrategy, EditorAutoSurroundStrategy } from 'vs/editor/common/config/editorOptions';
-import { IViewModel } from 'vs/editor/common/viewModel/viewModel';
-import { CursorChangeReason } from 'vs/editor/common/controller/cursorEvents';
+import { LanguageConfigurationRegistry } from 'vs/editor/common/modes/languageConfigurationRegistry';
 import { VerticalRevealType } from 'vs/editor/common/view/viewEvents';
-import { TextModelResolvedOptions, ITextModel } from 'vs/editor/common/model';
+import { IViewModel } from 'vs/editor/common/viewModel/viewModel';
 
 export interface IColumnSelectData {
 	toViewLineNumber: number;
@@ -52,7 +51,7 @@ export interface ICursors {
 	getColumnSelectData(): IColumnSelectData;
 	setColumnSelectData(columnSelectData: IColumnSelectData): void;
 
-	setStates(source: string, reason: CursorChangeReason, states: CursorState[]): void;
+	setStates(source: string, reason: CursorChangeReason, states: PartialCursorState[] | null): void;
 	reveal(horizontal: boolean, target: RevealTarget, scrollType: ScrollType): void;
 	revealRange(revealHorizontal: boolean, viewRange: Range, verticalType: VerticalRevealType, scrollType: ScrollType): void;
 
@@ -94,7 +93,7 @@ export class CursorConfiguration {
 	public readonly shouldAutoCloseBefore: { quote: (ch: string) => boolean, bracket: (ch: string) => boolean };
 
 	private readonly _languageIdentifier: LanguageIdentifier;
-	private _electricChars: { [key: string]: boolean; };
+	private _electricChars: { [key: string]: boolean; } | null;
 
 	public static shouldRecreate(e: IConfigurationChangedEvent): boolean {
 		return (
@@ -180,7 +179,7 @@ export class CursorConfiguration {
 		return TextModel.normalizeIndentation(str, this.tabSize, this.insertSpaces);
 	}
 
-	private static _getElectricCharacters(languageIdentifier: LanguageIdentifier): string[] {
+	private static _getElectricCharacters(languageIdentifier: LanguageIdentifier): string[] | null {
 		try {
 			return LanguageConfigurationRegistry.getElectricCharacters(languageIdentifier.id);
 		} catch (e) {
@@ -189,7 +188,7 @@ export class CursorConfiguration {
 		}
 	}
 
-	private static _getAutoClosingPairs(languageIdentifier: LanguageIdentifier): IAutoClosingPair[] {
+	private static _getAutoClosingPairs(languageIdentifier: LanguageIdentifier): IAutoClosingPair[] | null {
 		try {
 			return LanguageConfigurationRegistry.getAutoClosingPairs(languageIdentifier.id);
 		} catch (e) {
@@ -221,7 +220,7 @@ export class CursorConfiguration {
 		}
 	}
 
-	private static _getSurroundingPairs(languageIdentifier: LanguageIdentifier): IAutoClosingPair[] {
+	private static _getSurroundingPairs(languageIdentifier: LanguageIdentifier): IAutoClosingPair[] | null {
 		try {
 			return LanguageConfigurationRegistry.getSurroundingPairs(languageIdentifier.id);
 		} catch (e) {
@@ -395,18 +394,40 @@ export class CursorContext {
 	}
 }
 
+export class PartialModelCursorState {
+	readonly modelState: SingleCursorState;
+	readonly viewState: null;
+
+	constructor(modelState: SingleCursorState) {
+		this.modelState = modelState;
+		this.viewState = null;
+	}
+}
+
+export class PartialViewCursorState {
+	readonly modelState: null;
+	readonly viewState: SingleCursorState;
+
+	constructor(viewState: SingleCursorState) {
+		this.modelState = null;
+		this.viewState = viewState;
+	}
+}
+
+export type PartialCursorState = CursorState | PartialModelCursorState | PartialViewCursorState;
+
 export class CursorState {
 	_cursorStateBrand: void;
 
-	public static fromModelState(modelState: SingleCursorState): CursorState {
-		return new CursorState(modelState, null);
+	public static fromModelState(modelState: SingleCursorState): PartialModelCursorState {
+		return new PartialModelCursorState(modelState);
 	}
 
-	public static fromViewState(viewState: SingleCursorState): CursorState {
-		return new CursorState(null, viewState);
+	public static fromViewState(viewState: SingleCursorState): PartialViewCursorState {
+		return new PartialViewCursorState(viewState);
 	}
 
-	public static fromModelSelection(modelSelection: ISelection): CursorState {
+	public static fromModelSelection(modelSelection: ISelection): PartialModelCursorState {
 		const selectionStartLineNumber = modelSelection.selectionStartLineNumber;
 		const selectionStartColumn = modelSelection.selectionStartColumn;
 		const positionLineNumber = modelSelection.positionLineNumber;
@@ -418,8 +439,8 @@ export class CursorState {
 		return CursorState.fromModelState(modelState);
 	}
 
-	public static fromModelSelections(modelSelections: ISelection[]): CursorState[] {
-		let states: CursorState[] = [];
+	public static fromModelSelections(modelSelections: ISelection[]): PartialModelCursorState[] {
+		let states: PartialModelCursorState[] = [];
 		for (let i = 0, len = modelSelections.length; i < len; i++) {
 			states[i] = this.fromModelSelection(modelSelections[i]);
 		}
@@ -443,13 +464,13 @@ export class EditOperationResult {
 	_editOperationResultBrand: void;
 
 	readonly type: EditOperationType;
-	readonly commands: ICommand[];
+	readonly commands: (ICommand | null)[];
 	readonly shouldPushStackElementBefore: boolean;
 	readonly shouldPushStackElementAfter: boolean;
 
 	constructor(
 		type: EditOperationType,
-		commands: ICommand[],
+		commands: (ICommand | null)[],
 		opts: {
 			shouldPushStackElementBefore: boolean;
 			shouldPushStackElementAfter: boolean;

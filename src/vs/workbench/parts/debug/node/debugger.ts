@@ -23,6 +23,9 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { memoize } from 'vs/base/common/decorators';
 import { TaskDefinitionRegistry } from 'vs/workbench/parts/tasks/common/taskDefinitionRegistry';
 import { getPathFromAmdModule } from 'vs/base/common/amd';
+import { ITextResourcePropertiesService } from 'vs/editor/common/services/resourceConfiguration';
+import { URI } from 'vs/base/common/uri';
+import { Schemas } from 'vs/base/common/network';
 
 export class Debugger implements IDebugger {
 
@@ -30,6 +33,7 @@ export class Debugger implements IDebugger {
 
 	constructor(private configurationManager: IConfigurationManager, private debuggerContribution: IDebuggerContribution, public extensionDescription: IExtensionDescription,
 		@IConfigurationService private configurationService: IConfigurationService,
+		@ITextResourcePropertiesService private resourcePropertiesService: ITextResourcePropertiesService,
 		@ICommandService private commandService: ICommandService,
 		@IConfigurationResolverService private configurationResolverService: IConfigurationResolverService,
 		@ITelemetryService private telemetryService: ITelemetryService,
@@ -41,7 +45,7 @@ export class Debugger implements IDebugger {
 
 	public createDebugAdapter(session: IDebugSession, root: IWorkspaceFolder, config: IConfig, outputService: IOutputService): TPromise<IDebugAdapter> {
 		if (this.inExtHost()) {
-			return TPromise.as(this.configurationManager.createDebugAdapter(session, root, config));
+			return Promise.resolve(this.configurationManager.createDebugAdapter(session, root, config));
 		} else {
 			return this.getAdapterDescriptor(session, root, config).then(adapterDescriptor => {
 				switch (adapterDescriptor.type) {
@@ -60,7 +64,7 @@ export class Debugger implements IDebugger {
 
 		// a "debugServer" attribute in the launch config takes precedence
 		if (typeof config.debugServer === 'number') {
-			return TPromise.wrap(<IDebugAdapterServer>{
+			return Promise.resolve(<IDebugAdapterServer>{
 				type: 'server',
 				port: config.debugServer
 			});
@@ -153,7 +157,7 @@ export class Debugger implements IDebugger {
 			initialConfigurations = initialConfigurations.concat(initialConfigs);
 		}
 
-		const eol = this.configurationService.getValue<string>('files.eol') === '\r\n' ? '\r\n' : '\n';
+		const eol = this.resourcePropertiesService.getEOL(URI.from({ scheme: Schemas.untitled, path: '1' })) === '\r\n' ? '\r\n' : '\n';
 		const configs = JSON.stringify(initialConfigurations, null, '\t').split('\n').map(line => '\t' + line).join(eol).trim();
 		const comment1 = nls.localize('launch.config.comment1', "Use IntelliSense to learn about possible attributes.");
 		const comment2 = nls.localize('launch.config.comment2', "Hover to view descriptions of existing attributes.");
@@ -175,13 +179,13 @@ export class Debugger implements IDebugger {
 			content = content.replace(new RegExp('\t', 'g'), strings.repeat(' ', editorConfig.editor.tabSize));
 		}
 
-		return TPromise.as(content);
+		return Promise.resolve(content);
 	}
 
 	@memoize
 	public getCustomTelemetryService(): TPromise<TelemetryService> {
 		if (!this.debuggerContribution.aiKey) {
-			return TPromise.as(undefined);
+			return Promise.resolve(undefined);
 		}
 
 		return this.telemetryService.getTelemetryInfo().then(info => {

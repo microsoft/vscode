@@ -3,15 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import * as assert from 'assert';
-import { RPCProtocol } from 'vs/workbench/services/extensions/node/rpcProtocol';
-import { IMessagePassingProtocol } from 'vs/base/parts/ipc/node/ipc';
-import { Event, Emitter } from 'vs/base/common/event';
-import { ProxyIdentifier } from 'vs/workbench/services/extensions/node/proxyIdentifier';
-import { TPromise } from 'vs/base/common/winjs.base';
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
+import { Emitter, Event } from 'vs/base/common/event';
+import { TPromise } from 'vs/base/common/winjs.base';
+import { IMessagePassingProtocol } from 'vs/base/parts/ipc/node/ipc';
+import { ProxyIdentifier } from 'vs/workbench/services/extensions/node/proxyIdentifier';
+import { RPCProtocol } from 'vs/workbench/services/extensions/node/rpcProtocol';
 
 suite('RPCProtocol', () => {
 
@@ -173,6 +171,21 @@ suite('RPCProtocol', () => {
 			done(null);
 		}, (err) => {
 			assert.equal(err, undefined);
+			done(null);
+		});
+	});
+
+	test('issue #60450: Converting circular structure to JSON', function (done) {
+		delegate = (a1: number, a2: number) => {
+			let circular = <any>{};
+			circular.self = circular;
+			return circular;
+		};
+		bProxy.$m(4, 1).then((res) => {
+			assert.equal(res, null);
+			done(null);
+		}, (err) => {
+			assert.fail('unexpected');
 			done(null);
 		});
 	});

@@ -2,7 +2,6 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
 import * as modes from 'vs/editor/common/modes';
 import * as types from './extHostTypes';
@@ -13,7 +12,7 @@ import { IDecorationOptions } from 'vs/editor/common/editorCommon';
 import { EndOfLineSequence } from 'vs/editor/common/model';
 import * as vscode from 'vscode';
 import { URI } from 'vs/base/common/uri';
-import { ProgressLocation as MainProgressLocation } from 'vs/workbench/services/progress/common/progress';
+import { ProgressLocation as MainProgressLocation } from 'vs/platform/progress/common/progress';
 import { SaveReason } from 'vs/workbench/services/textfile/common/textfiles';
 import { IPosition } from 'vs/editor/common/core/position';
 import { IRange } from 'vs/editor/common/core/range';
@@ -43,14 +42,14 @@ export interface SelectionLike extends RangeLike {
 export namespace Selection {
 
 	export function to(selection: ISelection): types.Selection {
-		let { selectionStartLineNumber, selectionStartColumn, positionLineNumber, positionColumn } = selection;
-		let start = new types.Position(selectionStartLineNumber - 1, selectionStartColumn - 1);
-		let end = new types.Position(positionLineNumber - 1, positionColumn - 1);
+		const { selectionStartLineNumber, selectionStartColumn, positionLineNumber, positionColumn } = selection;
+		const start = new types.Position(selectionStartLineNumber - 1, selectionStartColumn - 1);
+		const end = new types.Position(positionLineNumber - 1, positionColumn - 1);
 		return new types.Selection(start, end);
 	}
 
 	export function from(selection: SelectionLike): ISelection {
-		let { anchor, active } = selection;
+		const { anchor, active } = selection;
 		return {
 			selectionStartLineNumber: anchor.line + 1,
 			selectionStartColumn: anchor.character + 1,
@@ -65,7 +64,7 @@ export namespace Range {
 		if (!range) {
 			return undefined;
 		}
-		let { start, end } = range;
+		const { start, end } = range;
 		return {
 			startLineNumber: start.line + 1,
 			startColumn: start.character + 1,
@@ -78,7 +77,7 @@ export namespace Range {
 		if (!range) {
 			return undefined;
 		}
-		let { startLineNumber, startColumn, endLineNumber, endColumn } = range;
+		const { startLineNumber, startColumn, endLineNumber, endColumn } = range;
 		return new types.Range(startLineNumber - 1, startColumn - 1, endLineNumber - 1, endColumn - 1);
 	}
 }
@@ -253,21 +252,22 @@ export function fromRangeOrRangeWithMessage(ranges: vscode.Range[] | vscode.Deco
 	}
 }
 
-export const TextEdit = {
+export namespace TextEdit {
 
-	from(edit: vscode.TextEdit): modes.TextEdit {
+	export function from(edit: vscode.TextEdit): modes.TextEdit {
 		return <modes.TextEdit>{
 			text: edit.newText,
 			eol: EndOfLine.from(edit.newEol),
 			range: Range.from(edit.range)
 		};
-	},
-	to(edit: modes.TextEdit): types.TextEdit {
-		let result = new types.TextEdit(Range.to(edit.range), edit.text);
+	}
+
+	export function to(edit: modes.TextEdit): types.TextEdit {
+		const result = new types.TextEdit(Range.to(edit.range), edit.text);
 		result.newEol = EndOfLine.to(edit.eol);
 		return result;
 	}
-};
+}
 
 export namespace WorkspaceEdit {
 	export function from(value: vscode.WorkspaceEdit, documents?: ExtHostDocumentsAndEditors): WorkspaceEditDto {
@@ -278,7 +278,7 @@ export namespace WorkspaceEdit {
 			const [uri, uriOrEdits] = entry;
 			if (Array.isArray(uriOrEdits)) {
 				// text edits
-				let doc = documents ? documents.getDocument(uri.toString()) : undefined;
+				const doc = documents ? documents.getDocument(uri.toString()) : undefined;
 				result.edits.push(<ResourceTextEditDto>{ resource: uri, modelVersionId: doc && doc.version, edits: uriOrEdits.map(TextEdit.from) });
 			} else {
 				// resource edits
@@ -340,11 +340,11 @@ export namespace SymbolKind {
 	_fromMapping[types.SymbolKind.TypeParameter] = modes.SymbolKind.TypeParameter;
 
 	export function from(kind: vscode.SymbolKind): modes.SymbolKind {
-		return _fromMapping[kind] || modes.SymbolKind.Property;
+		return typeof _fromMapping[kind] === 'number' ? _fromMapping[kind] : modes.SymbolKind.Property;
 	}
 
 	export function to(kind: modes.SymbolKind): vscode.SymbolKind {
-		for (let k in _fromMapping) {
+		for (const k in _fromMapping) {
 			if (_fromMapping[k] === kind) {
 				return Number(k);
 			}
@@ -374,7 +374,7 @@ export namespace WorkspaceSymbol {
 
 export namespace DocumentSymbol {
 	export function from(info: vscode.DocumentSymbol): modes.DocumentSymbol {
-		let result: modes.DocumentSymbol = {
+		const result: modes.DocumentSymbol = {
 			name: info.name,
 			detail: info.detail,
 			range: Range.from(info.range),
@@ -387,7 +387,7 @@ export namespace DocumentSymbol {
 		return result;
 	}
 	export function to(info: modes.DocumentSymbol): vscode.DocumentSymbol {
-		let result = new types.DocumentSymbol(
+		const result = new types.DocumentSymbol(
 			info.name,
 			info.detail,
 			SymbolKind.to(info.kind),
@@ -401,17 +401,18 @@ export namespace DocumentSymbol {
 	}
 }
 
-export const location = {
-	from(value: vscode.Location): modes.Location {
+export namespace location {
+	export function from(value: vscode.Location): modes.Location {
 		return {
 			range: value.range && Range.from(value.range),
 			uri: value.uri
 		};
-	},
-	to(value: modes.Location): types.Location {
+	}
+
+	export function to(value: modes.Location): types.Location {
 		return new types.Location(value.uri, Range.to(value.range));
 	}
-};
+}
 
 export namespace DefinitionLink {
 	export function from(value: vscode.Location | vscode.DefinitionLink): modes.DefinitionLink {
@@ -455,13 +456,13 @@ export namespace DocumentHighlight {
 }
 
 export namespace CompletionTriggerKind {
-	export function from(kind: modes.SuggestTriggerKind) {
+	export function to(kind: modes.CompletionTriggerKind) {
 		switch (kind) {
-			case modes.SuggestTriggerKind.TriggerCharacter:
+			case modes.CompletionTriggerKind.TriggerCharacter:
 				return types.CompletionTriggerKind.TriggerCharacter;
-			case modes.SuggestTriggerKind.TriggerForIncompleteCompletions:
+			case modes.CompletionTriggerKind.TriggerForIncompleteCompletions:
 				return types.CompletionTriggerKind.TriggerForIncompleteCompletions;
-			case modes.SuggestTriggerKind.Invoke:
+			case modes.CompletionTriggerKind.Invoke:
 			default:
 				return types.CompletionTriggerKind.Invoke;
 		}
@@ -469,82 +470,101 @@ export namespace CompletionTriggerKind {
 }
 
 export namespace CompletionContext {
-	export function from(context: modes.SuggestContext): types.CompletionContext {
+	export function to(context: modes.CompletionContext): types.CompletionContext {
 		return {
-			triggerKind: CompletionTriggerKind.from(context.triggerKind),
+			triggerKind: CompletionTriggerKind.to(context.triggerKind),
 			triggerCharacter: context.triggerCharacter
 		};
 	}
 }
 
-export const CompletionItemKind = {
+export namespace CompletionItemKind {
 
-	from(kind: types.CompletionItemKind): modes.SuggestionKind {
+	export function from(kind: types.CompletionItemKind): modes.CompletionItemKind {
 		switch (kind) {
-			case types.CompletionItemKind.Method: return modes.SuggestionKind.Method;
-			case types.CompletionItemKind.Function: return modes.SuggestionKind.Function;
-			case types.CompletionItemKind.Constructor: return modes.SuggestionKind.Constructor;
-			case types.CompletionItemKind.Field: return modes.SuggestionKind.Field;
-			case types.CompletionItemKind.Variable: return modes.SuggestionKind.Variable;
-			case types.CompletionItemKind.Class: return modes.SuggestionKind.Class;
-			case types.CompletionItemKind.Interface: return modes.SuggestionKind.Interface;
-			case types.CompletionItemKind.Struct: return modes.SuggestionKind.Struct;
-			case types.CompletionItemKind.Module: return modes.SuggestionKind.Module;
-			case types.CompletionItemKind.Property: return modes.SuggestionKind.Property;
-			case types.CompletionItemKind.Unit: return modes.SuggestionKind.Unit;
-			case types.CompletionItemKind.Value: return modes.SuggestionKind.Value;
-			case types.CompletionItemKind.Constant: return modes.SuggestionKind.Constant;
-			case types.CompletionItemKind.Enum: return modes.SuggestionKind.Enum;
-			case types.CompletionItemKind.EnumMember: return modes.SuggestionKind.EnumMember;
-			case types.CompletionItemKind.Keyword: return modes.SuggestionKind.Keyword;
-			case types.CompletionItemKind.Snippet: return modes.SuggestionKind.Snippet;
-			case types.CompletionItemKind.Text: return modes.SuggestionKind.Text;
-			case types.CompletionItemKind.Color: return modes.SuggestionKind.Color;
-			case types.CompletionItemKind.File: return modes.SuggestionKind.File;
-			case types.CompletionItemKind.Reference: return modes.SuggestionKind.Reference;
-			case types.CompletionItemKind.Folder: return modes.SuggestionKind.Folder;
-			case types.CompletionItemKind.Event: return modes.SuggestionKind.Event;
-			case types.CompletionItemKind.Operator: return modes.SuggestionKind.Operator;
-			case types.CompletionItemKind.TypeParameter: return modes.SuggestionKind.TypeParameter;
+			case types.CompletionItemKind.Method: return modes.CompletionItemKind.Method;
+			case types.CompletionItemKind.Function: return modes.CompletionItemKind.Function;
+			case types.CompletionItemKind.Constructor: return modes.CompletionItemKind.Constructor;
+			case types.CompletionItemKind.Field: return modes.CompletionItemKind.Field;
+			case types.CompletionItemKind.Variable: return modes.CompletionItemKind.Variable;
+			case types.CompletionItemKind.Class: return modes.CompletionItemKind.Class;
+			case types.CompletionItemKind.Interface: return modes.CompletionItemKind.Interface;
+			case types.CompletionItemKind.Struct: return modes.CompletionItemKind.Struct;
+			case types.CompletionItemKind.Module: return modes.CompletionItemKind.Module;
+			case types.CompletionItemKind.Property: return modes.CompletionItemKind.Property;
+			case types.CompletionItemKind.Unit: return modes.CompletionItemKind.Unit;
+			case types.CompletionItemKind.Value: return modes.CompletionItemKind.Value;
+			case types.CompletionItemKind.Constant: return modes.CompletionItemKind.Constant;
+			case types.CompletionItemKind.Enum: return modes.CompletionItemKind.Enum;
+			case types.CompletionItemKind.EnumMember: return modes.CompletionItemKind.EnumMember;
+			case types.CompletionItemKind.Keyword: return modes.CompletionItemKind.Keyword;
+			case types.CompletionItemKind.Snippet: return modes.CompletionItemKind.Snippet;
+			case types.CompletionItemKind.Text: return modes.CompletionItemKind.Text;
+			case types.CompletionItemKind.Color: return modes.CompletionItemKind.Color;
+			case types.CompletionItemKind.File: return modes.CompletionItemKind.File;
+			case types.CompletionItemKind.Reference: return modes.CompletionItemKind.Reference;
+			case types.CompletionItemKind.Folder: return modes.CompletionItemKind.Folder;
+			case types.CompletionItemKind.Event: return modes.CompletionItemKind.Event;
+			case types.CompletionItemKind.Operator: return modes.CompletionItemKind.Operator;
+			case types.CompletionItemKind.TypeParameter: return modes.CompletionItemKind.TypeParameter;
 		}
-		return modes.SuggestionKind.Property;
-	},
+		return modes.CompletionItemKind.Property;
+	}
 
-	to(kind: modes.SuggestionKind): types.CompletionItemKind {
+	export function to(kind: modes.CompletionItemKind): types.CompletionItemKind {
 		switch (kind) {
-			case modes.SuggestionKind.Method: return types.CompletionItemKind.Method;
-			case modes.SuggestionKind.Function: return types.CompletionItemKind.Function;
-			case modes.SuggestionKind.Constructor: return types.CompletionItemKind.Constructor;
-			case modes.SuggestionKind.Field: return types.CompletionItemKind.Field;
-			case modes.SuggestionKind.Variable: return types.CompletionItemKind.Variable;
-			case modes.SuggestionKind.Class: return types.CompletionItemKind.Class;
-			case modes.SuggestionKind.Interface: return types.CompletionItemKind.Interface;
-			case modes.SuggestionKind.Struct: return types.CompletionItemKind.Struct;
-			case modes.SuggestionKind.Module: return types.CompletionItemKind.Module;
-			case modes.SuggestionKind.Property: return types.CompletionItemKind.Property;
-			case modes.SuggestionKind.Unit: return types.CompletionItemKind.Unit;
-			case modes.SuggestionKind.Value: return types.CompletionItemKind.Value;
-			case modes.SuggestionKind.Constant: return types.CompletionItemKind.Constant;
-			case modes.SuggestionKind.Enum: return types.CompletionItemKind.Enum;
-			case modes.SuggestionKind.EnumMember: return types.CompletionItemKind.EnumMember;
-			case modes.SuggestionKind.Keyword: return types.CompletionItemKind.Keyword;
-			case modes.SuggestionKind.Snippet: return types.CompletionItemKind.Snippet;
-			case modes.SuggestionKind.Text: return types.CompletionItemKind.Text;
-			case modes.SuggestionKind.Color: return types.CompletionItemKind.Color;
-			case modes.SuggestionKind.File: return types.CompletionItemKind.File;
-			case modes.SuggestionKind.Reference: return types.CompletionItemKind.Reference;
-			case modes.SuggestionKind.Folder: return types.CompletionItemKind.Folder;
-			case modes.SuggestionKind.Event: return types.CompletionItemKind.Event;
-			case modes.SuggestionKind.Operator: return types.CompletionItemKind.Operator;
-			case modes.SuggestionKind.TypeParameter: return types.CompletionItemKind.TypeParameter;
+			case modes.CompletionItemKind.Method: return types.CompletionItemKind.Method;
+			case modes.CompletionItemKind.Function: return types.CompletionItemKind.Function;
+			case modes.CompletionItemKind.Constructor: return types.CompletionItemKind.Constructor;
+			case modes.CompletionItemKind.Field: return types.CompletionItemKind.Field;
+			case modes.CompletionItemKind.Variable: return types.CompletionItemKind.Variable;
+			case modes.CompletionItemKind.Class: return types.CompletionItemKind.Class;
+			case modes.CompletionItemKind.Interface: return types.CompletionItemKind.Interface;
+			case modes.CompletionItemKind.Struct: return types.CompletionItemKind.Struct;
+			case modes.CompletionItemKind.Module: return types.CompletionItemKind.Module;
+			case modes.CompletionItemKind.Property: return types.CompletionItemKind.Property;
+			case modes.CompletionItemKind.Unit: return types.CompletionItemKind.Unit;
+			case modes.CompletionItemKind.Value: return types.CompletionItemKind.Value;
+			case modes.CompletionItemKind.Constant: return types.CompletionItemKind.Constant;
+			case modes.CompletionItemKind.Enum: return types.CompletionItemKind.Enum;
+			case modes.CompletionItemKind.EnumMember: return types.CompletionItemKind.EnumMember;
+			case modes.CompletionItemKind.Keyword: return types.CompletionItemKind.Keyword;
+			case modes.CompletionItemKind.Snippet: return types.CompletionItemKind.Snippet;
+			case modes.CompletionItemKind.Text: return types.CompletionItemKind.Text;
+			case modes.CompletionItemKind.Color: return types.CompletionItemKind.Color;
+			case modes.CompletionItemKind.File: return types.CompletionItemKind.File;
+			case modes.CompletionItemKind.Reference: return types.CompletionItemKind.Reference;
+			case modes.CompletionItemKind.Folder: return types.CompletionItemKind.Folder;
+			case modes.CompletionItemKind.Event: return types.CompletionItemKind.Event;
+			case modes.CompletionItemKind.Operator: return types.CompletionItemKind.Operator;
+			case modes.CompletionItemKind.TypeParameter: return types.CompletionItemKind.TypeParameter;
 		}
 		return types.CompletionItemKind.Property;
 	}
-};
+}
 
-export namespace Suggest {
+export namespace CompletionItemInsertTextRule {
 
-	export function to(position: types.Position, suggestion: modes.ISuggestion): types.CompletionItem {
+	export function from(rule: types.CompletionItemInsertTextRule): modes.CompletionItemInsertTextRule {
+		let result = 0;
+		if ((rule & types.CompletionItemInsertTextRule.KeepWhitespace)) {
+			result += modes.CompletionItemInsertTextRule.KeepWhitespace;
+		}
+		return result;
+	}
+
+	export function to(rule: modes.CompletionItemInsertTextRule): types.CompletionItemInsertTextRule {
+		let result = 0;
+		if ((rule & modes.CompletionItemInsertTextRule.KeepWhitespace)) {
+			result += types.CompletionItemInsertTextRule.KeepWhitespace;
+		}
+		return result;
+	}
+}
+
+export namespace CompletionItem {
+
+	export function to(suggestion: modes.CompletionItem): types.CompletionItem {
 		const result = new types.CompletionItem(suggestion.label);
 		result.insertText = suggestion.insertText;
 		result.kind = CompletionItemKind.to(suggestion.kind);
@@ -554,24 +574,15 @@ export namespace Suggest {
 		result.filterText = suggestion.filterText;
 		result.preselect = suggestion.preselect;
 		result.commitCharacters = suggestion.commitCharacters;
-
-		// 'overwrite[Before|After]'-logic
-		let overwriteBefore = (typeof suggestion.overwriteBefore === 'number') ? suggestion.overwriteBefore : 0;
-		let startPosition = new types.Position(position.line, Math.max(0, position.character - overwriteBefore));
-		let endPosition = position;
-		if (typeof suggestion.overwriteAfter === 'number') {
-			endPosition = new types.Position(position.line, position.character + suggestion.overwriteAfter);
-		}
-		result.range = new types.Range(startPosition, endPosition);
-
+		result.range = Range.to(suggestion.range);
+		result.insertTextRules = CompletionItemInsertTextRule.to(suggestion.insertTextRules);
 		// 'inserText'-logic
-		if (suggestion.insertTextIsSnippet) {
+		if (suggestion.insertTextRules & modes.CompletionItemInsertTextRule.InsertAsSnippet) {
 			result.insertText = new types.SnippetString(suggestion.insertText);
 		} else {
 			result.insertText = suggestion.insertText;
 			result.textEdit = new types.TextEdit(result.range, result.insertText);
 		}
-
 		// TODO additionalEdits, command
 
 		return result;
@@ -647,7 +658,7 @@ export namespace DocumentLink {
 
 export namespace ColorPresentation {
 	export function to(colorPresentation: modes.IColorPresentation): types.ColorPresentation {
-		let cp = new types.ColorPresentation(colorPresentation.label);
+		const cp = new types.ColorPresentation(colorPresentation.label);
 		if (colorPresentation.textEdit) {
 			cp.textEdit = TextEdit.to(colorPresentation.textEdit);
 		}
@@ -725,7 +736,7 @@ export namespace ProgressLocation {
 
 export namespace FoldingRange {
 	export function from(r: vscode.FoldingRange): modes.FoldingRange {
-		let range: modes.FoldingRange = { start: r.start + 1, end: r.end + 1 };
+		const range: modes.FoldingRange = { start: r.start + 1, end: r.end + 1 };
 		if (r.kind) {
 			range.kind = FoldingRangeKind.from(r.kind);
 		}

@@ -3,9 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
-import { sequence } from 'vs/base/common/async';
+import { sequence, IdleValue } from 'vs/base/common/async';
 import * as strings from 'vs/base/common/strings';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { ISaveParticipant, ITextFileEditorModel, SaveReason } from 'vs/workbench/services/textfile/common/textfiles';
@@ -24,7 +22,7 @@ import { EditOperation } from 'vs/editor/common/core/editOperation';
 import { extHostCustomer } from 'vs/workbench/api/electron-browser/extHostCustomers';
 import { IEditorWorkerService } from 'vs/editor/common/services/editorWorkerService';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { IProgressService2, ProgressLocation } from 'vs/workbench/services/progress/common/progress';
+import { IProgressService2, ProgressLocation } from 'vs/platform/progress/common/progress';
 import { localize } from 'vs/nls';
 import { isFalsyOrEmpty } from 'vs/base/common/arrays';
 import { ILogService } from 'vs/platform/log/common/log';
@@ -88,7 +86,7 @@ class TrimWhitespaceParticipant implements ISaveParticipantParticipant {
 }
 
 function findEditor(model: ITextModel, codeEditorService: ICodeEditorService): ICodeEditor {
-	let candidate: ICodeEditor = null;
+	let candidate: ICodeEditor | null = null;
 
 	if (model.isAttachedToEditor()) {
 		for (const editor of codeEditorService.listCodeEditors()) {
@@ -376,7 +374,7 @@ class ExtHostSaveParticipant implements ISaveParticipantParticipant {
 @extHostCustomer
 export class SaveParticipant implements ISaveParticipant {
 
-	private _saveParticipants: ISaveParticipantParticipant[];
+	private readonly _saveParticipants: IdleValue<ISaveParticipantParticipant[]>;
 
 	constructor(
 		extHostContext: IExtHostContext,
@@ -384,26 +382,27 @@ export class SaveParticipant implements ISaveParticipant {
 		@IProgressService2 private readonly _progressService: IProgressService2,
 		@ILogService private readonly _logService: ILogService
 	) {
-		this._saveParticipants = [
+		this._saveParticipants = new IdleValue(() => [
 			instantiationService.createInstance(TrimWhitespaceParticipant),
 			instantiationService.createInstance(CodeActionOnParticipant),
 			instantiationService.createInstance(FormatOnSaveParticipant),
 			instantiationService.createInstance(FinalNewLineParticipant),
 			instantiationService.createInstance(TrimFinalNewLinesParticipant),
 			instantiationService.createInstance(ExtHostSaveParticipant, extHostContext),
-		];
+		]);
 		// Hook into model
 		TextFileEditorModel.setSaveParticipant(this);
 	}
 
 	dispose(): void {
 		TextFileEditorModel.setSaveParticipant(undefined);
+		this._saveParticipants.dispose();
 	}
 
 	participate(model: ITextFileEditorModel, env: { reason: SaveReason }): Thenable<void> {
 		return this._progressService.withProgress({ location: ProgressLocation.Window }, progress => {
 			progress.report({ message: localize('saveParticipants', "Running Save Participants...") });
-			const promiseFactory = this._saveParticipants.map(p => () => {
+			const promiseFactory = this._saveParticipants.getValue().map(p => () => {
 				return Promise.resolve(p.participate(model, env));
 			});
 			return sequence(promiseFactory).then(() => { }, err => this._logService.warn(err));

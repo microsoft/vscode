@@ -3,17 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import 'vs/editor/browser/controller/coreCommands';
 import 'vs/editor/browser/widget/codeEditorWidget';
 import 'vs/editor/browser/widget/diffEditorWidget';
 import 'vs/editor/browser/widget/diffNavigator';
-
 import 'vs/editor/contrib/bracketMatching/bracketMatching';
 import 'vs/editor/contrib/caretOperations/caretOperations';
 import 'vs/editor/contrib/caretOperations/transpose';
 import 'vs/editor/contrib/clipboard/clipboard';
+import 'vs/editor/contrib/codeAction/codeActionContributions';
 import 'vs/editor/contrib/codelens/codelensController';
 import 'vs/editor/contrib/colorPicker/colorDetector';
 import 'vs/editor/contrib/comment/comment';
@@ -33,7 +31,6 @@ import 'vs/editor/contrib/linesOperations/linesOperations';
 import 'vs/editor/contrib/links/links';
 import 'vs/editor/contrib/multicursor/multicursor';
 import 'vs/editor/contrib/parameterHints/parameterHints';
-import 'vs/editor/contrib/codeAction/codeActionContributions';
 import 'vs/editor/contrib/referenceSearch/referenceSearch';
 import 'vs/editor/contrib/rename/rename';
 import 'vs/editor/contrib/smartSelect/smartSelect';

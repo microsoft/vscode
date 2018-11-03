@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import { isWindows, isMacintosh } from 'vs/base/common/platform';
 import { systemPreferences } from 'electron';
 import { IStateService } from 'vs/platform/state/common/state';
@@ -21,7 +19,7 @@ export function getBackgroundColor(stateService: IStateService): string {
 		return DEFAULT_BG_HC_BLACK;
 	}
 
-	let background = stateService.getItem<string>(THEME_BG_STORAGE_KEY, null);
+	let background = stateService.getItem<string | null>(THEME_BG_STORAGE_KEY, null);
 	if (!background) {
 		let baseTheme: string;
 		if (isWindows && systemPreferences.isInvertedColorScheme()) {

@@ -5,8 +5,6 @@
 
 /* Based on @sergeche's work in his emmet plugin */
 
-'use strict';
-
 import { TextDocument, Position, Range, EndOfLine } from 'vscode';
 
 /**

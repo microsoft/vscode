@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import 'vs/code/code.main';
 import { app, dialog } from 'electron';
 import { assign } from 'vs/base/common/objects';
@@ -19,7 +17,7 @@ import { Server, serve, connect } from 'vs/base/parts/ipc/node/ipc.net';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { ILaunchChannel, LaunchChannelClient } from 'vs/platform/launch/electron-main/launchService';
 import { ServicesAccessor, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { InstantiationService } from 'vs/platform/instantiation/common/instantiationService';
+import { InstantiationService } from 'vs/platform/instantiation/node/instantiationService';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { ILogService, ConsoleLogMainService, MultiplexLogService, getLogLevel } from 'vs/platform/log/common/log';
@@ -51,6 +49,7 @@ import { setUnexpectedErrorHandler } from 'vs/base/common/errors';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { CommandLineDialogService } from 'vs/platform/dialogs/node/dialogService';
 import { ILabelService, LabelService } from 'vs/platform/label/common/label';
+import { createWaitMarkerFile } from 'vs/code/node/wait';
 
 function createServices(args: ParsedArgs, bufferLogService: BufferLogService): IInstantiationService {
 	const services = new ServiceCollection();
@@ -98,10 +97,10 @@ async function cleanupOlderLogs(environmentService: EnvironmentService): Promise
 
 function createPaths(environmentService: IEnvironmentService): TPromise<any> {
 	const paths = [
-		environmentService.appSettingsHome,
 		environmentService.extensionsPath,
 		environmentService.nodeCachedDataDir,
-		environmentService.logsPath
+		environmentService.logsPath,
+		environmentService.workspaceStorageHome
 	];
 
 	return TPromise.join(paths.map(p => p && mkdirp(p))) as TPromise<any>;
@@ -187,7 +186,7 @@ function setupIPC(accessor: ServicesAccessor): Thenable<Server> {
 					// Show a warning dialog after some timeout if it takes long to talk to the other instance
 					// Skip this if we are running with --wait where it is expected that we wait for a while.
 					// Also skip when gathering diagnostics (--status) which can take a longer time.
-					let startupWarningDialogHandle: number;
+					let startupWarningDialogHandle: any;
 					if (!environmentService.wait && !environmentService.status && !environmentService.args['upload-logs']) {
 						startupWarningDialogHandle = setTimeout(() => {
 							showStartupWarningDialog(
@@ -295,23 +294,7 @@ function quit(accessor: ServicesAccessor, reason?: ExpectedError | Error): void 
 	lifecycleService.kill(exitCode);
 }
 
-function main() {
-
-	// Set the error handler early enough so that we are not getting the
-	// default electron error dialog popping up
-	setUnexpectedErrorHandler(err => console.error(err));
-
-	let args: ParsedArgs;
-	try {
-		args = parseMainProcessArgv(process.argv);
-		args = validatePaths(args);
-	} catch (err) {
-		console.error(err.message);
-		app.exit(1);
-
-		return void 0;
-	}
-
+function startup(args: ParsedArgs): void {
 	// We need to buffer the spdlog logs until we are sure
 	// we are the only instance running, otherwise we'll have concurrent
 	// log file access on Windows
@@ -319,7 +302,7 @@ function main() {
 	const bufferLogService = new BufferLogService();
 	const instantiationService = createServices(args, bufferLogService);
 
-	return instantiationService.invokeFunction(accessor => {
+	instantiationService.invokeFunction(accessor => {
 
 		// Patch `process.env` with the instance's environment
 		const environmentService = accessor.get(IEnvironmentService);
@@ -343,6 +326,48 @@ function main() {
 				return instantiationService.createInstance(CodeApplication, mainIpcServer, instanceEnv).startup();
 			});
 	}).then(null, err => instantiationService.invokeFunction(quit, err));
+}
+
+function main(): void {
+
+	// Set the error handler early enough so that we are not getting the
+	// default electron error dialog popping up
+	setUnexpectedErrorHandler(err => console.error(err));
+
+	// Parse arguments
+	let args: ParsedArgs;
+	try {
+		args = parseMainProcessArgv(process.argv);
+		args = validatePaths(args);
+	} catch (err) {
+		console.error(err.message);
+		app.exit(1);
+
+		return void 0;
+	}
+
+	// If we are started with --wait create a random temporary file
+	// and pass it over to the starting instance. We can use this file
+	// to wait for it to be deleted to monitor that the edited file
+	// is closed and then exit the waiting process.
+	//
+	// Note: we are not doing this if the wait marker has been already
+	// added as argument. This can happen if Code was started from CLI.
+	if (args.wait && !args.waitMarkerFilePath) {
+		createWaitMarkerFile(args.verbose).then(waitMarkerFilePath => {
+			if (waitMarkerFilePath) {
+				process.argv.push('--waitMarkerFilePath', waitMarkerFilePath);
+				args.waitMarkerFilePath = waitMarkerFilePath;
+			}
+
+			startup(args);
+		});
+	}
+
+	// Otherwise just startup normally
+	else {
+		startup(args);
+	}
 }
 
 main();

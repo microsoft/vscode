@@ -2,7 +2,6 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
 import { ScrollbarVisibility } from 'vs/base/common/scrollable';
 
@@ -121,7 +120,7 @@ export interface ScrollableElementResolvedOptions {
 	mouseWheelScrollSensitivity: number;
 	mouseWheelSmoothScroll: boolean;
 	arrowSize: number;
-	listenOnDomNode: HTMLElement;
+	listenOnDomNode: HTMLElement | null;
 	horizontal: ScrollbarVisibility;
 	horizontalScrollbarSize: number;
 	horizontalSliderSize: number;

@@ -3,27 +3,25 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import * as nls from 'vs/nls';
-import * as pfs from 'vs/base/node/pfs';
-import { TPromise } from 'vs/base/common/winjs.base';
 import { join } from 'path';
-import { ExtHostExtensionService } from 'vs/workbench/api/node/extHostExtensionService';
+import { timeout } from 'vs/base/common/async';
+import { CancellationTokenSource } from 'vs/base/common/cancellation';
+import * as errors from 'vs/base/common/errors';
+import { IDisposable, dispose } from 'vs/base/common/lifecycle';
+import { Counter } from 'vs/base/common/numbers';
+import { URI, setUriThrowOnMissingScheme } from 'vs/base/common/uri';
+import { TPromise } from 'vs/base/common/winjs.base';
+import * as pfs from 'vs/base/node/pfs';
+import { IMessagePassingProtocol } from 'vs/base/parts/ipc/node/ipc';
+import { IEnvironment, IInitData, IWorkspaceData, MainContext, MainThreadWorkspaceShape } from 'vs/workbench/api/node/extHost.protocol';
 import { ExtHostConfiguration } from 'vs/workbench/api/node/extHostConfiguration';
+import { ExtensionActivatedByEvent } from 'vs/workbench/api/node/extHostExtensionActivator';
+import { ExtHostExtensionService } from 'vs/workbench/api/node/extHostExtensionService';
+import { ExtHostLogService } from 'vs/workbench/api/node/extHostLogService';
 import { ExtHostWorkspace } from 'vs/workbench/api/node/extHostWorkspace';
 import { IExtensionDescription } from 'vs/workbench/services/extensions/common/extensions';
-import { IInitData, IEnvironment, IWorkspaceData, MainContext, MainThreadWorkspaceShape } from 'vs/workbench/api/node/extHost.protocol';
-import * as errors from 'vs/base/common/errors';
-import { ExtensionActivatedByEvent } from 'vs/workbench/api/node/extHostExtensionActivator';
-import { IDisposable, dispose } from 'vs/base/common/lifecycle';
-import { IMessagePassingProtocol } from 'vs/base/parts/ipc/node/ipc';
 import { RPCProtocol } from 'vs/workbench/services/extensions/node/rpcProtocol';
-import { URI, setUriThrowOnMissingScheme } from 'vs/base/common/uri';
-import { ExtHostLogService } from 'vs/workbench/api/node/extHostLogService';
-import { timeout } from 'vs/base/common/async';
-import { Counter } from 'vs/base/common/numbers';
-import { CancellationTokenSource } from 'vs/base/common/cancellation';
 
 // we don't (yet) throw when extensions parse
 // uris that have no scheme
@@ -56,7 +54,7 @@ interface ITestRunner {
 
 export class ExtensionHostMain {
 
-	private static readonly WORKSPACE_CONTAINS_TIMEOUT = 5000;
+	private static readonly WORKSPACE_CONTAINS_TIMEOUT = 7000;
 
 	private _isTerminating: boolean = false;
 	private _workspace: IWorkspaceData;
@@ -91,7 +89,8 @@ export class ExtensionHostMain {
 		this._extHostLogService.trace('initData', initData);
 
 		this._extHostConfiguration = new ExtHostConfiguration(rpcProtocol.getProxy(MainContext.MainThreadConfiguration), extHostWorkspace, initData.configuration);
-		this._extensionService = new ExtHostExtensionService(initData, rpcProtocol, extHostWorkspace, this._extHostConfiguration, this._extHostLogService);
+		const mainThreadTelemetry = rpcProtocol.getProxy(MainContext.MainThreadTelemetry);
+		this._extensionService = new ExtHostExtensionService(initData, rpcProtocol, extHostWorkspace, this._extHostConfiguration, this._extHostLogService, mainThreadTelemetry);
 
 		// error forwarding and stack trace scanning
 		Error.stackTraceLimit = 100; // increase number of stack frames (from 10, https://github.com/v8/v8/wiki/Stack-Trace-API)

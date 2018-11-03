@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { IStatusbarItem } from 'vs/workbench/browser/parts/statusbar/statusbar';
 import { FeedbackDropdown, IFeedback, IFeedbackDelegate, FEEDBACK_VISIBLE_CONFIG, IFeedbackDropdownOptions } from 'vs/workbench/parts/feedback/electron-browser/feedback';
@@ -18,7 +16,6 @@ import { IWorkspaceConfigurationService } from 'vs/workbench/services/configurat
 import { IConfigurationChangeEvent } from 'vs/platform/configuration/common/configuration';
 import { clearNode, EventHelper, addClass, removeClass, addDisposableListener } from 'vs/base/browser/dom';
 import { localize } from 'vs/nls';
-import { TPromise } from 'vs/base/common/winjs.base';
 import { Action } from 'vs/base/common/actions';
 
 class TwitterFeedbackService implements IFeedbackDelegate {
@@ -113,7 +110,7 @@ export class FeedbackStatusbarItem extends Themable implements IStatusbarItem {
 
 			this.contextMenuService.showContextMenu({
 				getAnchor: () => this.container,
-				getActions: () => TPromise.as([this.hideAction])
+				getActions: () => Promise.resolve([this.hideAction])
 			});
 		}));
 
@@ -163,7 +160,7 @@ class HideAction extends Action {
 		super('feedback.hide', localize('hide', "Hide"));
 	}
 
-	run(extensionId: string): TPromise<any> {
+	run(extensionId: string): Promise<any> {
 		return this.configurationService.updateValue(FEEDBACK_VISIBLE_CONFIG, false);
 	}
 }

@@ -9,7 +9,7 @@ import { IExtensionManagementService, ILocalExtension, IExtensionIdentifier } fr
 import { Disposable } from 'vs/base/common/lifecycle';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { TPromise } from 'vs/base/common/winjs.base';
-import { Limiter } from 'vs/base/common/async';
+import { Queue } from 'vs/base/common/async';
 import { areSameExtensions, getGalleryExtensionIdFromLocal, getIdFromLocalExtensionId } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { ILogService } from 'vs/platform/log/common/log';
 import { isValidLocalization, ILocalizationsService, LanguageType } from 'vs/platform/localizations/common/localizations';
@@ -100,7 +100,7 @@ class LanguagePacksCache extends Disposable {
 
 	private languagePacks: { [language: string]: ILanguagePack } = {};
 	private languagePacksFilePath: string;
-	private languagePacksFileLimiter: Limiter<void>;
+	private languagePacksFileLimiter: Queue<void>;
 
 	constructor(
 		@IEnvironmentService environmentService: IEnvironmentService,
@@ -108,7 +108,7 @@ class LanguagePacksCache extends Disposable {
 	) {
 		super();
 		this.languagePacksFilePath = posix.join(environmentService.userDataPath, 'languagepacks.json');
-		this.languagePacksFileLimiter = new Limiter(1);
+		this.languagePacksFileLimiter = new Queue<void>();
 	}
 
 	getLanguagePacks(): TPromise<{ [language: string]: ILanguagePack }> {
@@ -170,7 +170,7 @@ class LanguagePacksCache extends Disposable {
 
 	private withLanguagePacks<T>(fn: (languagePacks: { [language: string]: ILanguagePack }) => T = () => null): TPromise<T> {
 		return this.languagePacksFileLimiter.queue(() => {
-			let result: T = null;
+			let result: T | null = null;
 			return pfs.readFile(this.languagePacksFilePath, 'utf8')
 				.then(null, err => err.code === 'ENOENT' ? TPromise.as('{}') : TPromise.wrapError(err))
 				.then<{ [language: string]: ILanguagePack }>(raw => { try { return JSON.parse(raw); } catch (e) { return {}; } })

@@ -94,9 +94,10 @@ export class PreferencesEditor extends BaseEditor {
 		@IContextKeyService private contextKeyService: IContextKeyService,
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@IThemeService themeService: IThemeService,
-		@IProgressService private progressService: IProgressService
+		@IProgressService private progressService: IProgressService,
+		@IStorageService storageService: IStorageService
 	) {
-		super(PreferencesEditor.ID, telemetryService, themeService);
+		super(PreferencesEditor.ID, telemetryService, themeService, storageService);
 		this.defaultSettingsEditorContextKey = CONTEXT_SETTINGS_EDITOR.bindTo(this.contextKeyService);
 		this.searchFocusContextKey = CONTEXT_SETTINGS_SEARCH_FOCUS.bindTo(this.contextKeyService);
 		this.delayedFilterLogging = new Delayer<void>(1000);
@@ -268,7 +269,7 @@ export class PreferencesEditor extends BaseEditor {
 			this.sideBySidePreferencesWidget.setResultCount(count.target, count.count);
 		} else if (this.searchWidget.getValue()) {
 			if (countValue === 0) {
-				this.searchWidget.showMessage(nls.localize('noSettingsFound', "No Results"), countValue);
+				this.searchWidget.showMessage(nls.localize('noSettingsFound', "No Settings Found"), countValue);
 			} else if (countValue === 1) {
 				this.searchWidget.showMessage(nls.localize('oneSettingFound', "1 Setting Found"), countValue);
 			} else {

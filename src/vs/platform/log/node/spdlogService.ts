@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import * as path from 'path';
 import { ILogService, LogLevel, NullLogService, AbstractLogService } from 'vs/platform/log/common/log';
 import * as spdlog from 'spdlog';

@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import 'vs/css!./media/activitybarpart';
 import * as nls from 'vs/nls';
 import { illegalArgument } from 'vs/base/common/errors';
@@ -63,7 +61,7 @@ export class ActivitybarPart extends Part {
 		@IStorageService private storageService: IStorageService,
 		@IExtensionService private extensionService: IExtensionService
 	) {
-		super(id, { hasTitle: false }, themeService);
+		super(id, { hasTitle: false }, themeService, storageService);
 
 		this.compositeBar = this._register(this.instantiationService.createInstance(CompositeBar, {
 			icon: true,
@@ -267,7 +265,6 @@ export class ActivitybarPart extends Part {
 			this.enableCompositeActions(viewlet);
 			const activeViewlet = this.viewletService.getActiveViewlet();
 			if (activeViewlet && activeViewlet.getId() === viewlet.id) {
-				this.compositeBar.pin(viewlet.id);
 				this.compositeBar.activateComposite(viewlet.id);
 			}
 		}
@@ -306,8 +303,12 @@ export class ActivitybarPart extends Part {
 		}
 	}
 
-	getPinned(): string[] {
-		return this.viewletService.getViewlets().map(v => v.id).filter(id => this.compositeBar.isPinned(id));
+	getPinnedViewletIds(): string[] {
+		const pinnedCompositeIds = this.compositeBar.getPinnedComposites().map(v => v.id);
+		return this.viewletService.getViewlets()
+			.filter(v => this.compositeBar.isPinned(v.id))
+			.sort((v1, v2) => pinnedCompositeIds.indexOf(v1.id) - pinnedCompositeIds.indexOf(v2.id))
+			.map(v => v.id);
 	}
 
 	layout(dimension: Dimension): Dimension[] {
@@ -330,10 +331,10 @@ export class ActivitybarPart extends Part {
 		return sizes;
 	}
 
-	shutdown(): void {
+	protected saveState(): void {
 		const state = this.viewletService.getAllViewlets().map(({ id, iconUrl }) => ({ id, iconUrl }));
 		this.storageService.store(ActivitybarPart.PLACEHOLDER_VIEWLETS, JSON.stringify(state), StorageScope.GLOBAL);
 
-		super.shutdown();
+		super.saveState();
 	}
 }

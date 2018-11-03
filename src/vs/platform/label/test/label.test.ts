@@ -6,7 +6,6 @@
 import * as assert from 'assert';
 import { LabelService } from 'vs/platform/label/common/label';
 import { TestEnvironmentService, TestContextService } from 'vs/workbench/test/workbenchTestServices';
-import { Schemas } from 'vs/base/common/network';
 import { TestWorkspace } from 'vs/platform/workspace/test/common/testWorkspace';
 import { URI } from 'vs/base/common/uri';
 import { nativeSep } from 'vs/base/common/paths';
@@ -21,7 +20,7 @@ suite('URI Label', () => {
 	});
 
 	test('file scheme', function () {
-		labelService.registerFormatter(Schemas.file, {
+		labelService.registerFormatter('file://', {
 			uri: {
 				label: '${path}',
 				separator: nativeSep,
@@ -39,7 +38,7 @@ suite('URI Label', () => {
 	});
 
 	test('custom scheme', function () {
-		labelService.registerFormatter(Schemas.vscode, {
+		labelService.registerFormatter('vscode://', {
 			uri: {
 				label: 'LABEL/${path}/${authority}/END',
 				separator: '/',

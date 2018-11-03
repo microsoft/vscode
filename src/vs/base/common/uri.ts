@@ -2,7 +2,6 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
 import { isWindows } from 'vs/base/common/platform';
 import { CharCode } from 'vs/base/common/charCode';
@@ -142,7 +141,7 @@ export class URI implements UriComponents {
 	/**
 	 * @internal
 	 */
-	protected constructor(scheme: string, authority: string, path: string, query: string, fragment: string);
+	protected constructor(scheme: string, authority?: string, path?: string, query?: string, fragment?: string);
 
 	/**
 	 * @internal
@@ -337,7 +336,7 @@ export class URI implements UriComponents {
 	// ---- printing/externalize ---------------------------
 
 	/**
-	 * Creates a string presentation for this URI. It's guardeed that calling
+	 * Creates a string presentation for this URI. It's guaranteed that calling
 	 * `URI.parse` with the result of this function creates an URI which is equal
 	 * to this URI.
 	 *
@@ -387,8 +386,8 @@ interface UriState extends UriComponents {
 // tslint:disable-next-line:class-name
 class _URI extends URI {
 
-	_formatted: string = null;
-	_fsPath: string = null;
+	_formatted: string | null = null;
+	_fsPath: string | null = null;
 
 	get fsPath(): string {
 		if (!this._fsPath) {
@@ -466,7 +465,7 @@ const encodeTable: { [ch: number]: string } = {
 };
 
 function encodeURIComponentFast(uriComponent: string, allowSlash: boolean): string {
-	let res: string = undefined;
+	let res: string | undefined = undefined;
 	let nativeEncodePos = -1;
 
 	for (let pos = 0; pos < uriComponent.length; pos++) {
@@ -527,7 +526,7 @@ function encodeURIComponentFast(uriComponent: string, allowSlash: boolean): stri
 }
 
 function encodeURIComponentMinimal(path: string): string {
-	let res: string = undefined;
+	let res: string | undefined = undefined;
 	for (let pos = 0; pos < path.length; pos++) {
 		let code = path.charCodeAt(pos);
 		if (code === CharCode.Hash || code === CharCode.QuestionMark) {

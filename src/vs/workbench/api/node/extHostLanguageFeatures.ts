@@ -2,10 +2,8 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
 import { URI, UriComponents } from 'vs/base/common/uri';
-import { TPromise } from 'vs/base/common/winjs.base';
 import { mixin } from 'vs/base/common/objects';
 import * as vscode from 'vscode';
 import * as typeConvert from 'vs/workbench/api/node/extHostTypeConverters';
@@ -17,7 +15,7 @@ import { ExtHostDocuments } from 'vs/workbench/api/node/extHostDocuments';
 import { ExtHostCommands, CommandsConverter } from 'vs/workbench/api/node/extHostCommands';
 import { ExtHostDiagnostics } from 'vs/workbench/api/node/extHostDiagnostics';
 import { asThenable } from 'vs/base/common/async';
-import { MainContext, MainThreadLanguageFeaturesShape, ExtHostLanguageFeaturesShape, ObjectIdentifier, IRawColorInfo, IMainContext, IdObject, ISerializedRegExp, ISerializedIndentationRule, ISerializedOnEnterRule, ISerializedLanguageConfiguration, WorkspaceSymbolDto, SuggestResultDto, WorkspaceSymbolsDto, SuggestionDto, CodeActionDto, ISerializedDocumentFilter, WorkspaceEditDto } from './extHost.protocol';
+import { MainContext, MainThreadLanguageFeaturesShape, ExtHostLanguageFeaturesShape, ObjectIdentifier, IRawColorInfo, IMainContext, IdObject, ISerializedRegExp, ISerializedIndentationRule, ISerializedOnEnterRule, ISerializedLanguageConfiguration, WorkspaceSymbolDto, SuggestResultDto, WorkspaceSymbolsDto, SuggestionDto, CodeActionDto, ISerializedDocumentFilter, WorkspaceEditDto, ISerializedSignatureHelpProviderMetadata } from './extHost.protocol';
 import { regExpLeadsToEndlessLoop } from 'vs/base/common/strings';
 import { IPosition } from 'vs/editor/common/core/position';
 import { IRange, Range as EditorRange } from 'vs/editor/common/core/range';
@@ -132,7 +130,7 @@ class CodeLensAdapter {
 
 		let resolve: Thenable<vscode.CodeLens>;
 		if (typeof this._provider.resolveCodeLens !== 'function' || lens.isResolved) {
-			resolve = TPromise.as(lens);
+			resolve = Promise.resolve(lens);
 		} else {
 			resolve = asThenable(() => this._provider.resolveCodeLens(lens, token));
 		}
@@ -447,7 +445,7 @@ class NavigateTypeAdapter {
 	resolveWorkspaceSymbol(symbol: WorkspaceSymbolDto, token: CancellationToken): Thenable<WorkspaceSymbolDto> {
 
 		if (typeof this._provider.resolveWorkspaceSymbol !== 'function') {
-			return TPromise.as(symbol);
+			return Promise.resolve(symbol);
 		}
 
 		const item = this._symbolCache[symbol._id];
@@ -504,7 +502,7 @@ class RenameAdapter {
 
 	resolveRenameLocation(resource: URI, position: IPosition, token: CancellationToken): Thenable<modes.RenameLocation & modes.Rejection> {
 		if (typeof this._provider.prepareRename !== 'function') {
-			return TPromise.as(undefined);
+			return Promise.resolve(undefined);
 		}
 
 		let doc = this._documents.getDocumentData(resource).document;
@@ -526,9 +524,8 @@ class RenameAdapter {
 			if (!range) {
 				return undefined;
 			}
-
-			if (!range.contains(pos)) {
-				console.warn('INVALID rename location: range must contain position');
+			if (range.start.line > pos.line || range.end.line < pos.line) {
+				console.warn('INVALID rename location: position line must be within range start/end lines');
 				return undefined;
 			}
 			return { range: typeConvert.Range.from(range), text };
@@ -572,13 +569,13 @@ class SuggestAdapter {
 		this._provider = provider;
 	}
 
-	provideCompletionItems(resource: URI, position: IPosition, context: modes.SuggestContext, token: CancellationToken): Thenable<SuggestResultDto> {
+	provideCompletionItems(resource: URI, position: IPosition, context: modes.CompletionContext, token: CancellationToken): Thenable<SuggestResultDto> {
 
 		const doc = this._documents.getDocumentData(resource).document;
 		const pos = typeConvert.Position.to(position);
 
 		return asThenable<vscode.CompletionItem[] | vscode.CompletionList>(
-			() => this._provider.provideCompletionItems(doc, pos, token, typeConvert.CompletionContext.from(context))
+			() => this._provider.provideCompletionItems(doc, pos, token, typeConvert.CompletionContext.to(context))
 		).then(value => {
 
 			const _id = this._idPool++;
@@ -619,16 +616,16 @@ class SuggestAdapter {
 		});
 	}
 
-	resolveCompletionItem(resource: URI, position: IPosition, suggestion: modes.ISuggestion, token: CancellationToken): Thenable<modes.ISuggestion> {
+	resolveCompletionItem(resource: URI, position: IPosition, suggestion: modes.CompletionItem, token: CancellationToken): Thenable<modes.CompletionItem> {
 
 		if (typeof this._provider.resolveCompletionItem !== 'function') {
-			return TPromise.as(suggestion);
+			return Promise.resolve(suggestion);
 		}
 
 		const { _parentId, _id } = (<SuggestionDto>suggestion);
 		const item = this._cache.has(_parentId) && this._cache.get(_parentId)[_id];
 		if (!item) {
-			return TPromise.as(suggestion);
+			return Promise.resolve(suggestion);
 		}
 
 		return asThenable(() => this._provider.resolveCompletionItem(item, token)).then(resolvedItem => {
@@ -672,28 +669,31 @@ class SuggestAdapter {
 			sortText: item.sortText,
 			preselect: item.preselect,
 			//
+			range: undefined,
 			insertText: undefined,
+			insertTextRules: typeConvert.CompletionItemInsertTextRule.from(item.insertTextRules),
 			additionalTextEdits: item.additionalTextEdits && item.additionalTextEdits.map(typeConvert.TextEdit.from),
 			command: this._commands.toInternal(item.command),
-			commitCharacters: item.commitCharacters
+			commitCharacters: item.commitCharacters,
+			// help with perf
+			_labelLow: item.label.toLowerCase(),
+			_filterTextLow: item.filterText && item.filterText.toLowerCase(),
+			_sortTextLow: item.sortText && item.sortText.toLowerCase()
 		};
 
 		// 'insertText'-logic
 		if (item.textEdit) {
 			result.insertText = item.textEdit.newText;
-			result.insertTextIsSnippet = false;
 
 		} else if (typeof item.insertText === 'string') {
 			result.insertText = item.insertText;
-			result.insertTextIsSnippet = false;
 
 		} else if (item.insertText instanceof SnippetString) {
 			result.insertText = item.insertText.value;
-			result.insertTextIsSnippet = true;
+			result.insertTextRules += modes.CompletionItemInsertTextRule.InsertAsSnippet;
 
 		} else {
 			result.insertText = item.label;
-			result.insertTextIsSnippet = false;
 		}
 
 		// 'overwrite[Before|After]'-logic
@@ -705,8 +705,7 @@ class SuggestAdapter {
 		} else {
 			range = defaultRange;
 		}
-		result.overwriteBefore = position.character - range.start.character;
-		result.overwriteAfter = range.end.character - position.character;
+		result.range = typeConvert.Range.from(range);
 
 		if (!range.isSingleLine || range.start.line !== position.line) {
 			console.warn('INVALID text edit -> must be single line and on the same line');
@@ -928,7 +927,7 @@ export class ExtHostLanguageFeatures implements ExtHostLanguageFeaturesShape {
 	private _withAdapter<A, R>(handle: number, ctor: { new(...args: any[]): A }, callback: (adapter: A) => Thenable<R>): Thenable<R> {
 		let adapter = this._adapter.get(handle);
 		if (!(adapter instanceof ctor)) {
-			return TPromise.wrapError<R>(new Error('no adapter found'));
+			return Promise.reject(new Error('no adapter found'));
 		}
 		return callback(<any>adapter);
 	}
@@ -1134,11 +1133,11 @@ export class ExtHostLanguageFeatures implements ExtHostLanguageFeaturesShape {
 		return this._createDisposable(handle);
 	}
 
-	$provideCompletionItems(handle: number, resource: UriComponents, position: IPosition, context: modes.SuggestContext, token: CancellationToken): Thenable<SuggestResultDto> {
+	$provideCompletionItems(handle: number, resource: UriComponents, position: IPosition, context: modes.CompletionContext, token: CancellationToken): Thenable<SuggestResultDto> {
 		return this._withAdapter(handle, SuggestAdapter, adapter => adapter.provideCompletionItems(URI.revive(resource), position, context, token));
 	}
 
-	$resolveCompletionItem(handle: number, resource: UriComponents, position: IPosition, suggestion: modes.ISuggestion, token: CancellationToken): Thenable<modes.ISuggestion> {
+	$resolveCompletionItem(handle: number, resource: UriComponents, position: IPosition, suggestion: modes.CompletionItem, token: CancellationToken): Thenable<modes.CompletionItem> {
 		return this._withAdapter(handle, SuggestAdapter, adapter => adapter.resolveCompletionItem(URI.revive(resource), position, suggestion, token));
 	}
 
@@ -1148,9 +1147,13 @@ export class ExtHostLanguageFeatures implements ExtHostLanguageFeaturesShape {
 
 	// --- parameter hints
 
-	registerSignatureHelpProvider(selector: vscode.DocumentSelector, provider: vscode.SignatureHelpProvider, triggerCharacters: string[]): vscode.Disposable {
+	registerSignatureHelpProvider(selector: vscode.DocumentSelector, provider: vscode.SignatureHelpProvider, metadataOrTriggerChars?: string[] | vscode.SignatureHelpProviderMetadata): vscode.Disposable {
+		const metadata: ISerializedSignatureHelpProviderMetadata = Array.isArray(metadataOrTriggerChars)
+			? { triggerCharacters: metadataOrTriggerChars, retriggerCharacters: [] }
+			: metadataOrTriggerChars;
+
 		const handle = this._addNewAdapter(new SignatureHelpAdapter(this._documents, provider));
-		this._proxy.$registerSignatureHelpProvider(handle, this._transformDocumentSelector(selector), triggerCharacters);
+		this._proxy.$registerSignatureHelpProvider(handle, this._transformDocumentSelector(selector), metadata);
 		return this._createDisposable(handle);
 	}
 

@@ -2,7 +2,6 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
 import 'vs/css!./inputBox';
 
@@ -261,7 +260,7 @@ export class InputBox extends Widget {
 		return document.activeElement === this.input;
 	}
 
-	public select(range: IRange = null): void {
+	public select(range: IRange | null = null): void {
 		this.input.select();
 
 		if (range) {
@@ -340,7 +339,7 @@ export class InputBox extends Widget {
 	}
 
 	public validate(): boolean {
-		let errorMsg: IMessage = null;
+		let errorMsg: IMessage | null = null;
 
 		if (this.validation) {
 			errorMsg = this.validation(this.value);

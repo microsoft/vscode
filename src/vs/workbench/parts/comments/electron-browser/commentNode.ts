@@ -2,7 +2,6 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
 import * as nls from 'vs/nls';
 import * as dom from 'vs/base/browser/dom';
@@ -29,6 +28,8 @@ import { Selection } from 'vs/editor/common/core/selection';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { Emitter, Event } from 'vs/base/common/event';
 import { INotificationService } from 'vs/platform/notification/common/notification';
+import { assign } from 'vs/base/common/objects';
+import { MarkdownString } from 'vs/base/common/htmlContent';
 
 const UPDATE_COMMENT_LABEL = nls.localize('label.updateComment', "Update comment");
 const UPDATE_IN_PROGRESS_LABEL = nls.localize('label.updatingComment', "Updating comment...");
@@ -122,7 +123,7 @@ export class CommentNode extends Disposable {
 		const container = dom.append(this._commentEditContainer, dom.$('.edit-textarea'));
 		this._commentEditor = this.instantiationService.createInstance(SimpleCommentEditor, container, SimpleCommentEditor.getEditorOptions());
 		const resource = URI.parse(`comment:commentinput-${this.comment.commentId}-${Date.now()}.md`);
-		this._commentEditorModel = this.modelService.createModel('', this.modeService.getOrCreateModeByFilenameOrFirstLine(resource.path), resource, true);
+		this._commentEditorModel = this.modelService.createModel('', this.modeService.createByFilepathOrFirstLine(resource.path), resource, true);
 
 		this._commentEditor.setModel(this._commentEditorModel);
 		this._commentEditor.setValue(this.comment.body.value);
@@ -159,14 +160,14 @@ export class CommentNode extends Disposable {
 		this._updateCommentButton.label = UPDATE_IN_PROGRESS_LABEL;
 
 		try {
-			const editedComment = await this.commentService.editComment(this.owner, this.resource, this.comment, this._commentEditor.getValue());
-			if (!(editedComment instanceof Comment)) {
-				throw Error();
-			}
+			const newBody = this._commentEditor.getValue();
+			await this.commentService.editComment(this.owner, this.resource, this.comment, newBody);
+
 			this._updateCommentButton.enabled = true;
 			this._updateCommentButton.label = UPDATE_COMMENT_LABEL;
 			this._commentEditor.getDomNode().style.outline = '';
 			this.removeCommentEditor();
+			const editedComment = assign({}, this.comment, { body: new MarkdownString(newBody) });
 			this.update(editedComment);
 		} catch (e) {
 			this._updateCommentButton.enabled = true;
@@ -184,7 +185,6 @@ export class CommentNode extends Disposable {
 	private createDeleteAction(): Action {
 		return new Action('comment.delete', nls.localize('label.delete', "Delete"), 'octicon octicon-x', true, () => {
 			return this.dialogService.confirm({
-				title: nls.localize('deleteCommentTitle', "Delete Comment"),
 				message: nls.localize('confirmDelete', "Delete comment?"),
 				type: 'question',
 				primaryButton: nls.localize('label.delete', "Delete")

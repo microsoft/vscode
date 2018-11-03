@@ -44,7 +44,7 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 
 	_serviceBrand: any;
 
-	private lastOpenedSettingsInput: PreferencesEditorInput = null;
+	private lastOpenedSettingsInput: PreferencesEditorInput | null = null;
 
 	private readonly _onDispose: Emitter<void> = new Emitter<void>();
 
@@ -108,8 +108,8 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 		if (this.isDefaultSettingsResource(uri)) {
 
 			const target = this.getConfigurationTargetFromDefaultSettingsResource(uri);
-			const mode = this.modeService.getOrCreateMode('jsonc');
-			const model = this._register(this.modelService.createModel('', mode, uri));
+			const languageSelection = this.modeService.create('jsonc');
+			const model = this._register(this.modelService.createModel('', languageSelection, uri));
 
 			let defaultSettings: DefaultSettings;
 			this.configurationService.onDidChangeConfiguration(e => {
@@ -136,15 +136,15 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 
 		if (this.defaultSettingsRawResource.toString() === uri.toString()) {
 			let defaultSettings: DefaultSettings = this.getDefaultSettings(ConfigurationTarget.USER);
-			const mode = this.modeService.getOrCreateMode('jsonc');
-			const model = this._register(this.modelService.createModel(defaultSettings.raw, mode, uri));
+			const languageSelection = this.modeService.create('jsonc');
+			const model = this._register(this.modelService.createModel(defaultSettings.raw, languageSelection, uri));
 			return TPromise.as(model);
 		}
 
 		if (this.defaultKeybindingsResource.toString() === uri.toString()) {
 			const defaultKeybindingsEditorModel = this.instantiationService.createInstance(DefaultKeybindingsEditorModel, uri);
-			const mode = this.modeService.getOrCreateMode('jsonc');
-			const model = this._register(this.modelService.createModel(defaultKeybindingsEditorModel.content, mode, uri));
+			const languageSelection = this.modeService.create('jsonc');
+			const model = this._register(this.modelService.createModel(defaultKeybindingsEditorModel.content, languageSelection, uri));
 			return TPromise.as(model);
 		}
 
@@ -280,11 +280,11 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 	}
 
 	openDefaultKeybindingsFile(): TPromise<IEditor> {
-		return this.editorService.openEditor({ resource: this.defaultKeybindingsResource });
+		return this.editorService.openEditor({ resource: this.defaultKeybindingsResource, label: nls.localize('defaultKeybindings', "Default Keybindings") });
 	}
 
 	configureSettingsForLanguage(language: string): void {
-		this.openGlobalSettings()
+		this.openGlobalSettings(true)
 			.then(editor => this.createPreferencesEditorModel(this.userSettingsResource)
 				.then((settingsModel: IPreferencesEditorModel<ISetting>) => {
 					const codeEditor = getCodeEditor(editor.getControl());
@@ -293,6 +293,7 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 							.then(position => {
 								if (codeEditor) {
 									codeEditor.setPosition(position);
+									codeEditor.revealLine(position.lineNumber);
 									codeEditor.focus();
 								}
 							});
@@ -530,8 +531,8 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 		const languageKey = `[${language}]`;
 		let setting = settingsModel.getPreference(languageKey);
 		const model = codeEditor.getModel();
-		const configuration = this.configurationService.getValue<{ editor: { tabSize: number; insertSpaces: boolean }, files: { eol: string } }>();
-		const eol = configuration.files && configuration.files.eol;
+		const configuration = this.configurationService.getValue<{ editor: { tabSize: number; insertSpaces: boolean } }>();
+		const eol = model.getEOL();
 		if (setting) {
 			if (setting.overrides.length) {
 				const lastSetting = setting.overrides[setting.overrides.length - 1];

@@ -2,19 +2,20 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
-
 import * as assert from 'assert';
 import { URI } from 'vs/base/common/uri';
 import { Range } from 'vs/editor/common/core/range';
 import { Position } from 'vs/editor/common/core/position';
 import { LanguageIdentifier } from 'vs/editor/common/modes';
 import { TokenSelectionSupport } from 'vs/editor/contrib/smartSelect/tokenSelectionSupport';
-import { MockMode } from 'vs/editor/test/common/mocks/mockMode';
+import { MockMode, StaticLanguageSelector } from 'vs/editor/test/common/mocks/mockMode';
 import { LanguageConfigurationRegistry } from 'vs/editor/common/modes/languageConfigurationRegistry';
 import { ModelServiceImpl } from 'vs/editor/common/services/modelServiceImpl';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
 import { javascriptOnEnterRules } from 'vs/editor/test/common/modes/supports/javascriptOnEnterRules';
+import { ITextResourcePropertiesService } from 'vs/editor/common/services/resourceConfiguration';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { isLinux, isMacintosh } from 'vs/base/common/platform';
 
 class MockJSMode extends MockMode {
 
@@ -37,12 +38,13 @@ class MockJSMode extends MockMode {
 
 suite('TokenSelectionSupport', () => {
 
-	let modelService: ModelServiceImpl = null;
+	let modelService: ModelServiceImpl | null = null;
 	let tokenSelectionSupport: TokenSelectionSupport;
-	let mode: MockJSMode = null;
+	let mode: MockJSMode | null = null;
 
 	setup(() => {
-		modelService = new ModelServiceImpl(null, new TestConfigurationService());
+		const configurationService = new TestConfigurationService();
+		modelService = new ModelServiceImpl(null, configurationService, new TestTextResourcePropertiesService(configurationService));
 		tokenSelectionSupport = new TokenSelectionSupport(modelService);
 		mode = new MockJSMode();
 	});
@@ -54,7 +56,7 @@ suite('TokenSelectionSupport', () => {
 
 	function assertGetRangesToPosition(text: string[], lineNumber: number, column: number, ranges: Range[]): void {
 		let uri = URI.file('test.js');
-		modelService.createModel(text.join('\n'), mode, uri);
+		modelService.createModel(text.join('\n'), new StaticLanguageSelector(mode.getLanguageIdentifier()), uri);
 
 		let actual = tokenSelectionSupport.getRangesToPositionSync(uri, new Position(lineNumber, column));
 
@@ -163,3 +165,24 @@ suite('TokenSelectionSupport', () => {
 			]);
 	});
 });
+
+class TestTextResourcePropertiesService implements ITextResourcePropertiesService {
+
+	_serviceBrand: any;
+
+	constructor(
+		@IConfigurationService private configurationService: IConfigurationService,
+	) {
+	}
+
+	getEOL(resource: URI): string {
+		const filesConfiguration = this.configurationService.getValue<{ eol: string }>('files');
+		if (filesConfiguration && filesConfiguration.eol) {
+			if (filesConfiguration.eol !== 'auto') {
+				return filesConfiguration.eol;
+			}
+		}
+		return (isLinux || isMacintosh) ? '\n' : '\r\n';
+	}
+}
+

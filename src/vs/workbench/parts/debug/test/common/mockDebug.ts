@@ -8,17 +8,14 @@ import { Event } from 'vs/base/common/event';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import { Position } from 'vs/editor/common/core/position';
-import { ILaunch, IDebugService, State, IDebugSession, IConfigurationManager, IStackFrame, IBreakpointData, IBreakpointUpdateData, IConfig, IDebugModel, IViewModel, IBreakpoint, LoadedSourceEvent, IThread, IRawModelUpdate, ActualBreakpoints, IFunctionBreakpoint, IExceptionBreakpoint, IDebugger, IExceptionInfo, AdapterEndEvent } from 'vs/workbench/parts/debug/common/debug';
+import { ILaunch, IDebugService, State, IDebugSession, IConfigurationManager, IStackFrame, IBreakpointData, IBreakpointUpdateData, IConfig, IDebugModel, IViewModel, IBreakpoint, LoadedSourceEvent, IThread, IRawModelUpdate, IFunctionBreakpoint, IExceptionBreakpoint, IDebugger, IExceptionInfo, AdapterEndEvent, IReplElement, IExpression, IReplElementSource } from 'vs/workbench/parts/debug/common/debug';
 import { Source } from 'vs/workbench/parts/debug/common/debugSource';
-import { ISuggestion } from 'vs/editor/common/modes';
+import { CompletionItem } from 'vs/editor/common/modes';
+import Severity from 'vs/base/common/severity';
 
 export class MockDebugService implements IDebugService {
 
 	public _serviceBrand: any;
-
-	getSession(sessionId: string): IDebugSession {
-		return undefined;
-	}
 
 	public get state(): State {
 		return null;
@@ -48,25 +45,25 @@ export class MockDebugService implements IDebugService {
 	}
 
 	sendAllBreakpoints(session?: IDebugSession): TPromise<any> {
-		return TPromise.as(null);
+		return Promise.resolve(null);
 	}
 
 	public addBreakpoints(uri: uri, rawBreakpoints: IBreakpointData[]): TPromise<IBreakpoint[]> {
-		return TPromise.as(null);
+		return Promise.resolve(null);
 	}
 
 	public updateBreakpoints(uri: uri, data: { [id: string]: IBreakpointUpdateData }, sendOnResourceSaved: boolean): void { }
 
 	public enableOrDisableBreakpoints(enabled: boolean): TPromise<void> {
-		return TPromise.as(null);
+		return Promise.resolve(null);
 	}
 
 	public setBreakpointsActivated(): TPromise<void> {
-		return TPromise.as(null);
+		return Promise.resolve(null);
 	}
 
 	public removeBreakpoints(): TPromise<any> {
-		return TPromise.as(null);
+		return Promise.resolve(null);
 	}
 
 	public addFunctionBreakpoint(): void { }
@@ -74,39 +71,39 @@ export class MockDebugService implements IDebugService {
 	public moveWatchExpression(id: string, position: number): void { }
 
 	public renameFunctionBreakpoint(id: string, newFunctionName: string): TPromise<void> {
-		return TPromise.as(null);
+		return Promise.resolve(null);
 	}
 
 	public removeFunctionBreakpoints(id?: string): TPromise<void> {
-		return TPromise.as(null);
+		return Promise.resolve(null);
 	}
 
 	public addReplExpression(name: string): TPromise<void> {
-		return TPromise.as(null);
+		return Promise.resolve(null);
 	}
 
 	public removeReplExpressions(): void { }
 
 	public addWatchExpression(name?: string): TPromise<void> {
-		return TPromise.as(null);
+		return Promise.resolve(null);
 	}
 
 	public renameWatchExpression(id: string, newName: string): TPromise<void> {
-		return TPromise.as(null);
+		return Promise.resolve(null);
 	}
 
 	public removeWatchExpressions(id?: string): void { }
 
-	public startDebugging(launch: ILaunch, configOrName?: IConfig | string, noDebug?: boolean): TPromise<any> {
-		return TPromise.as(null);
+	public startDebugging(launch: ILaunch, configOrName?: IConfig | string, noDebug?: boolean): TPromise<boolean> {
+		return Promise.resolve(true);
 	}
 
 	public restartSession(): TPromise<any> {
-		return TPromise.as(null);
+		return Promise.resolve(null);
 	}
 
 	public stopSession(): TPromise<any> {
-		return TPromise.as(null);
+		return Promise.resolve(null);
 	}
 
 	public getModel(): IDebugModel {
@@ -117,16 +114,31 @@ export class MockDebugService implements IDebugService {
 		return null;
 	}
 
-	public logToRepl(value: string): void { }
+	public logToRepl(session: IDebugSession, value: string): void { }
 
 	public sourceIsNotAvailable(uri: uri): void { }
 
 	public tryToAutoFocusStackFrame(thread: IThread): TPromise<any> {
-		return TPromise.as(null);
+		return Promise.resolve(null);
 	}
 }
 
 export class MockSession implements IDebugSession {
+	getReplElements(): ReadonlyArray<IReplElement> {
+		return [];
+	}
+
+	removeReplExpressions(): void { }
+	get onDidChangeReplElements(): Event<void> {
+		return null;
+	}
+
+	addReplExpression(stackFrame: IStackFrame, name: string): TPromise<void> {
+		return TPromise.as(void 0);
+	}
+
+	appendToRepl(data: string | IExpression, severity: Severity, source?: IReplElementSource): void { }
+	logToRepl(sev: Severity, args: any[], frame?: { uri: uri; line: number; column: number; }) { }
 
 	configuration: IConfig = { type: 'mock', request: 'launch' };
 	unresolvedConfiguration: IConfig = { type: 'mock', request: 'launch' };
@@ -138,7 +150,7 @@ export class MockSession implements IDebugSession {
 		return 'mock';
 	}
 
-	getName(includeRoot: boolean): string {
+	getLabel(): string {
 		return 'mockname';
 	}
 
@@ -177,11 +189,11 @@ export class MockSession implements IDebugSession {
 	}
 
 	getLoadedSources(): TPromise<Source[]> {
-		return TPromise.as([]);
+		return Promise.resolve([]);
 	}
 
-	completions(frameId: number, text: string, position: Position, overwriteBefore: number): TPromise<ISuggestion[]> {
-		return TPromise.as([]);
+	completions(frameId: number, text: string, position: Position, overwriteBefore: number): TPromise<CompletionItem[]> {
+		return Promise.resolve([]);
 	}
 
 	clearThreads(removeThreads: boolean, reference?: number): void { }
@@ -194,16 +206,16 @@ export class MockSession implements IDebugSession {
 	launchOrAttach(config: IConfig): TPromise<void> {
 		throw new Error('Method not implemented.');
 	}
-	restart(): TPromise<DebugProtocol.RestartResponse> {
+	restart(): TPromise<void> {
 		throw new Error('Method not implemented.');
 	}
-	sendBreakpoints(modelUri: uri, bpts: IBreakpoint[], sourceModified: boolean): TPromise<ActualBreakpoints> {
+	sendBreakpoints(modelUri: uri, bpts: IBreakpoint[], sourceModified: boolean): TPromise<void> {
 		throw new Error('Method not implemented.');
 	}
-	sendFunctionBreakpoints(fbps: IFunctionBreakpoint[]): TPromise<ActualBreakpoints> {
+	sendFunctionBreakpoints(fbps: IFunctionBreakpoint[]): TPromise<void> {
 		throw new Error('Method not implemented.');
 	}
-	sendExceptionBreakpoints(exbpts: IExceptionBreakpoint[]): TPromise<any> {
+	sendExceptionBreakpoints(exbpts: IExceptionBreakpoint[]): TPromise<void> {
 		throw new Error('Method not implemented.');
 	}
 	customRequest(request: string, args: any): TPromise<DebugProtocol.Response> {
@@ -224,31 +236,31 @@ export class MockSession implements IDebugSession {
 	evaluate(expression: string, frameId: number, context?: string): TPromise<DebugProtocol.EvaluateResponse> {
 		throw new Error('Method not implemented.');
 	}
-	restartFrame(frameId: number, threadId: number): TPromise<DebugProtocol.RestartFrameResponse> {
+	restartFrame(frameId: number, threadId: number): TPromise<void> {
 		throw new Error('Method not implemented.');
 	}
-	next(threadId: number): TPromise<DebugProtocol.NextResponse> {
+	next(threadId: number): TPromise<void> {
 		throw new Error('Method not implemented.');
 	}
-	stepIn(threadId: number): TPromise<DebugProtocol.StepInResponse> {
+	stepIn(threadId: number): TPromise<void> {
 		throw new Error('Method not implemented.');
 	}
-	stepOut(threadId: number): TPromise<DebugProtocol.StepOutResponse> {
+	stepOut(threadId: number): TPromise<void> {
 		throw new Error('Method not implemented.');
 	}
-	stepBack(threadId: number): TPromise<DebugProtocol.StepBackResponse> {
+	stepBack(threadId: number): TPromise<void> {
 		throw new Error('Method not implemented.');
 	}
-	continue(threadId: number): TPromise<DebugProtocol.ContinueResponse> {
+	continue(threadId: number): TPromise<void> {
 		throw new Error('Method not implemented.');
 	}
-	reverseContinue(threadId: number): TPromise<DebugProtocol.ReverseContinueResponse> {
+	reverseContinue(threadId: number): TPromise<void> {
 		throw new Error('Method not implemented.');
 	}
-	pause(threadId: number): TPromise<DebugProtocol.PauseResponse> {
+	pause(threadId: number): TPromise<void> {
 		throw new Error('Method not implemented.');
 	}
-	terminateThreads(threadIds: number[]): TPromise<DebugProtocol.TerminateThreadsResponse> {
+	terminateThreads(threadIds: number[]): TPromise<void> {
 		throw new Error('Method not implemented.');
 	}
 	setVariable(variablesReference: number, name: string, value: string): TPromise<DebugProtocol.SetVariableResponse> {
@@ -282,7 +294,7 @@ export class MockRawSession {
 	}
 
 	public stackTrace(args: DebugProtocol.StackTraceArguments): TPromise<DebugProtocol.StackTraceResponse> {
-		return TPromise.as({
+		return Promise.resolve({
 			seq: 1,
 			type: 'response',
 			request_seq: 1,
@@ -300,103 +312,103 @@ export class MockRawSession {
 	}
 
 	public exceptionInfo(args: DebugProtocol.ExceptionInfoArguments): TPromise<DebugProtocol.ExceptionInfoResponse> {
-		return TPromise.as(null);
+		return Promise.resolve(null);
 	}
 
 	public launchOrAttach(args: IConfig): TPromise<DebugProtocol.Response> {
-		return TPromise.as(null);
+		return Promise.resolve(null);
 	}
 
 	public scopes(args: DebugProtocol.ScopesArguments): TPromise<DebugProtocol.ScopesResponse> {
-		return TPromise.as(null);
+		return Promise.resolve(null);
 	}
 
 	public variables(args: DebugProtocol.VariablesArguments): TPromise<DebugProtocol.VariablesResponse> {
-		return TPromise.as(null);
+		return Promise.resolve(null);
 	}
 
 	evaluate(args: DebugProtocol.EvaluateArguments): TPromise<DebugProtocol.EvaluateResponse> {
-		return TPromise.as(null);
+		return Promise.resolve(null);
 	}
 
 	public custom(request: string, args: any): TPromise<DebugProtocol.Response> {
-		return TPromise.as(null);
+		return Promise.resolve(null);
 	}
 
 	public terminate(restart = false): TPromise<DebugProtocol.TerminateResponse> {
-		return TPromise.as(null);
+		return Promise.resolve(null);
 	}
 
 	public disconnect(restart?: boolean): TPromise<any> {
-		return TPromise.as(null);
+		return Promise.resolve(null);
 	}
 
 	public threads(): TPromise<DebugProtocol.ThreadsResponse> {
-		return TPromise.as(null);
+		return Promise.resolve(null);
 	}
 
 	public stepIn(args: DebugProtocol.StepInArguments): TPromise<DebugProtocol.StepInResponse> {
-		return TPromise.as(null);
+		return Promise.resolve(null);
 	}
 
 	public stepOut(args: DebugProtocol.StepOutArguments): TPromise<DebugProtocol.StepOutResponse> {
-		return TPromise.as(null);
+		return Promise.resolve(null);
 	}
 
 	public stepBack(args: DebugProtocol.StepBackArguments): TPromise<DebugProtocol.StepBackResponse> {
-		return TPromise.as(null);
+		return Promise.resolve(null);
 	}
 
 	public continue(args: DebugProtocol.ContinueArguments): TPromise<DebugProtocol.ContinueResponse> {
-		return TPromise.as(null);
+		return Promise.resolve(null);
 	}
 
 	public reverseContinue(args: DebugProtocol.ReverseContinueArguments): TPromise<DebugProtocol.ReverseContinueResponse> {
-		return TPromise.as(null);
+		return Promise.resolve(null);
 	}
 
 	public pause(args: DebugProtocol.PauseArguments): TPromise<DebugProtocol.PauseResponse> {
-		return TPromise.as(null);
+		return Promise.resolve(null);
 	}
 
 	public terminateThreads(args: DebugProtocol.TerminateThreadsArguments): TPromise<DebugProtocol.TerminateThreadsResponse> {
-		return TPromise.as(null);
+		return Promise.resolve(null);
 	}
 
 	public setVariable(args: DebugProtocol.SetVariableArguments): TPromise<DebugProtocol.SetVariableResponse> {
-		return TPromise.as(null);
+		return Promise.resolve(null);
 	}
 
 	public restartFrame(args: DebugProtocol.RestartFrameArguments): TPromise<DebugProtocol.RestartFrameResponse> {
-		return TPromise.as(null);
+		return Promise.resolve(null);
 	}
 
 	public completions(args: DebugProtocol.CompletionsArguments): TPromise<DebugProtocol.CompletionsResponse> {
-		return TPromise.as(null);
+		return Promise.resolve(null);
 	}
 
 	public next(args: DebugProtocol.NextArguments): TPromise<DebugProtocol.NextResponse> {
-		return TPromise.as(null);
+		return Promise.resolve(null);
 	}
 
 	public source(args: DebugProtocol.SourceArguments): TPromise<DebugProtocol.SourceResponse> {
-		return TPromise.as(null);
+		return Promise.resolve(null);
 	}
 
 	public loadedSources(args: DebugProtocol.LoadedSourcesArguments): TPromise<DebugProtocol.LoadedSourcesResponse> {
-		return TPromise.as(null);
+		return Promise.resolve(null);
 	}
 
 	public setBreakpoints(args: DebugProtocol.SetBreakpointsArguments): TPromise<DebugProtocol.SetBreakpointsResponse> {
-		return TPromise.as(null);
+		return Promise.resolve(null);
 	}
 
 	public setFunctionBreakpoints(args: DebugProtocol.SetFunctionBreakpointsArguments): TPromise<DebugProtocol.SetFunctionBreakpointsResponse> {
-		return TPromise.as(null);
+		return Promise.resolve(null);
 	}
 
 	public setExceptionBreakpoints(args: DebugProtocol.SetExceptionBreakpointsArguments): TPromise<DebugProtocol.SetExceptionBreakpointsResponse> {
-		return TPromise.as(null);
+		return Promise.resolve(null);
 	}
 
 	public readonly onDidStop: Event<DebugProtocol.StoppedEvent> = null;

@@ -2,31 +2,30 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
 import * as nls from 'vs/nls';
-import { Disposable, IDisposable, dispose } from 'vs/base/common/lifecycle';
-import { KeyCode, KeyMod, KeyChord } from 'vs/base/common/keyCodes';
 import { RunOnceScheduler } from 'vs/base/common/async';
-import { ScrollType, IEditorContribution } from 'vs/editor/common/editorCommon';
-import { FindMatch, TrackedRangeStickiness, OverviewRulerLane, ITextModel } from 'vs/editor/common/model';
-import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
-import { registerEditorAction, registerEditorContribution, ServicesAccessor, EditorAction } from 'vs/editor/browser/editorExtensions';
-import { Range } from 'vs/editor/common/core/range';
-import { Selection } from 'vs/editor/common/core/selection';
+import { KeyChord, KeyCode, KeyMod } from 'vs/base/common/keyCodes';
+import { Disposable, IDisposable, dispose } from 'vs/base/common/lifecycle';
+import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
+import { EditorAction, ServicesAccessor, registerEditorAction, registerEditorContribution } from 'vs/editor/browser/editorExtensions';
+import { RevealTarget } from 'vs/editor/common/controller/cursorCommon';
 import { CursorChangeReason, ICursorSelectionChangedEvent } from 'vs/editor/common/controller/cursorEvents';
 import { CursorMoveCommands } from 'vs/editor/common/controller/cursorMoveCommands';
-import { RevealTarget } from 'vs/editor/common/controller/cursorCommon';
+import { Range } from 'vs/editor/common/core/range';
+import { Selection } from 'vs/editor/common/core/selection';
 import { Constants } from 'vs/editor/common/core/uint';
+import { IEditorContribution, ScrollType } from 'vs/editor/common/editorCommon';
+import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
+import { FindMatch, ITextModel, OverviewRulerLane, TrackedRangeStickiness } from 'vs/editor/common/model';
+import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
 import { DocumentHighlightProviderRegistry } from 'vs/editor/common/modes';
 import { CommonFindController } from 'vs/editor/contrib/find/findController';
-import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
+import { FindOptionOverride, INewFindReplaceState } from 'vs/editor/contrib/find/findState';
+import { MenuId } from 'vs/platform/actions/common/actions';
+import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { overviewRulerSelectionHighlightForeground } from 'vs/platform/theme/common/colorRegistry';
 import { themeColorFromId } from 'vs/platform/theme/common/themeService';
-import { INewFindReplaceState, FindOptionOverride } from 'vs/editor/contrib/find/findState';
-import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { MenuId } from 'vs/platform/actions/common/actions';
 
 export class InsertCursorAbove extends EditorAction {
 
@@ -166,6 +165,57 @@ class InsertCursorAtEndOfEachLineSelected extends EditorAction {
 	}
 }
 
+class InsertCursorAtEndOfLineSelected extends EditorAction {
+
+	constructor() {
+		super({
+			id: 'editor.action.addCursorsToBottom',
+			label: nls.localize('mutlicursor.addCursorsToBottom', "Add Cursors To Bottom"),
+			alias: 'Add Cursors To Bottom',
+			precondition: null
+		});
+	}
+
+	public run(accessor: ServicesAccessor, editor: ICodeEditor): void {
+		const selections = editor.getSelections();
+		const lineCount = editor.getModel().getLineCount();
+
+		let newSelections = [];
+		for (let i = selections[0].startLineNumber; i <= lineCount; i++) {
+			newSelections.push(new Selection(i, selections[0].startColumn, i, selections[0].endColumn));
+		}
+
+		if (newSelections.length > 0) {
+			editor.setSelections(newSelections);
+		}
+	}
+}
+
+class InsertCursorAtTopOfLineSelected extends EditorAction {
+
+	constructor() {
+		super({
+			id: 'editor.action.addCursorsToTop',
+			label: nls.localize('mutlicursor.addCursorsToTop', "Add Cursors To Top"),
+			alias: 'Add Cursors To Top',
+			precondition: null
+		});
+	}
+
+	public run(accessor: ServicesAccessor, editor: ICodeEditor): void {
+		const selections = editor.getSelections();
+
+		let newSelections = [];
+		for (let i = selections[0].startLineNumber; i >= 1; i--) {
+			newSelections.push(new Selection(i, selections[0].startColumn, i, selections[0].endColumn));
+		}
+
+		if (newSelections.length > 0) {
+			editor.setSelections(newSelections);
+		}
+	}
+}
+
 export class MultiCursorSessionResult {
 	constructor(
 		public readonly selections: Selection[],
@@ -207,7 +257,7 @@ export class MultiCursorSession {
 		const s = editor.getSelection();
 
 		let searchText: string;
-		let currentMatch: Selection = null;
+		let currentMatch: Selection | null = null;
 
 		if (s.isEmpty()) {
 			// selection is empty => expand to current word
@@ -477,7 +527,7 @@ export class MultiCursorSelectionController extends Disposable implements IEdito
 	}
 
 	public selectAll(findController: CommonFindController): void {
-		let matches: FindMatch[] = null;
+		let matches: FindMatch[] | null = null;
 
 		const findState = findController.getState();
 
@@ -944,3 +994,5 @@ registerEditorAction(MoveSelectionToNextFindMatchAction);
 registerEditorAction(MoveSelectionToPreviousFindMatchAction);
 registerEditorAction(SelectHighlightsAction);
 registerEditorAction(CompatChangeAll);
+registerEditorAction(InsertCursorAtEndOfLineSelected);
+registerEditorAction(InsertCursorAtTopOfLineSelected);

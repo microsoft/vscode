@@ -44,10 +44,6 @@
 	/* Background rule added for IE9 - to allow clicks on dom node */
 	background:rgba(0,0,0,0);
 
-	-webkit-transition: opacity 100ms linear;
-	-o-transition: opacity 100ms linear;
-	-moz-transition: opacity 100ms linear;
-	-ms-transition: opacity 100ms linear;
 	transition: opacity 100ms linear;
 }
 .monaco-scrollable-element > .invisible {
@@ -55,10 +51,6 @@
 	pointer-events: none;
 }
 .monaco-scrollable-element > .invisible.fade {
-	-webkit-transition: opacity 800ms linear;
-	-o-transition: opacity 800ms linear;
-	-moz-transition: opacity 800ms linear;
-	-ms-transition: opacity 800ms linear;
 	transition: opacity 800ms linear;
 }
 

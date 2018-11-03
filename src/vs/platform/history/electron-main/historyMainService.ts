@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import * as nls from 'vs/nls';
 import * as arrays from 'vs/base/common/arrays';
 import { IStateService } from 'vs/platform/state/common/state';
@@ -376,7 +374,8 @@ export class HistoryMainService implements IHistoryMainService {
 					let description;
 					let args;
 					if (isSingleFolderWorkspaceIdentifier(workspace)) {
-						description = nls.localize('folderDesc', "{0} {1}", getBaseLabel(workspace), this.labelService.getUriLabel(dirname(workspace)));
+						const parentFolder = dirname(workspace);
+						description = parentFolder ? nls.localize('folderDesc', "{0} {1}", getBaseLabel(workspace), this.labelService.getUriLabel(parentFolder)) : getBaseLabel(workspace);
 						args = `--folder-uri "${workspace.toString()}"`;
 					} else {
 						description = nls.localize('codeWorkspace', "Code Workspace");

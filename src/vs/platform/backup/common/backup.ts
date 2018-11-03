@@ -10,13 +10,18 @@ import { URI } from 'vs/base/common/uri';
 export interface IBackupWorkspacesFormat {
 	rootWorkspaces: IWorkspaceIdentifier[];
 	folderURIWorkspaces: string[];
-	emptyWorkspaces: string[];
+	emptyWorkspaceInfos: IEmptyWindowBackupInfo[];
 
 	// deprecated
 	folderWorkspaces?: string[]; // use folderURIWorkspaces instead
+	emptyWorkspaces?: string[];
 }
 
 export const IBackupMainService = createDecorator<IBackupMainService>('backupMainService');
+
+export interface IEmptyWindowBackupInfo {
+	backupFolder: string;
+}
 
 export interface IBackupMainService {
 	_serviceBrand: any;
@@ -25,11 +30,11 @@ export interface IBackupMainService {
 
 	getWorkspaceBackups(): IWorkspaceIdentifier[];
 	getFolderBackupPaths(): URI[];
-	getEmptyWindowBackupPaths(): string[];
+	getEmptyWindowBackupPaths(): IEmptyWindowBackupInfo[];
 
 	registerWorkspaceBackupSync(workspace: IWorkspaceIdentifier, migrateFrom?: string): string;
 	registerFolderBackupSync(folderUri: URI): string;
-	registerEmptyWindowBackupSync(backupFolder?: string): string;
+	registerEmptyWindowBackupSync(backupInfo: IEmptyWindowBackupInfo): string;
 
 	unregisterWorkspaceBackupSync(workspace: IWorkspaceIdentifier): void;
 	unregisterFolderBackupSync(folderUri: URI): void;

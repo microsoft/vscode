@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import * as assert from 'assert';
 import { URI } from 'vs/base/common/uri';
 import { basename } from 'path';
@@ -40,7 +38,7 @@ suite('ExtHostWorkspace', function () {
 		}
 	}
 
-	test('asRelativePath', function () {
+	test('asRelativePath', () => {
 
 		const ws = new ExtHostWorkspace(new TestRPCProtocol(), { id: 'foo', folders: [aWorkspaceFolderData(URI.file('/Coding/Applications/NewsWoWBot'), 0)], name: 'Test' }, new NullLogService(), new Counter());
 
@@ -127,7 +125,7 @@ suite('ExtHostWorkspace', function () {
 		assert.equal(two.index, 1);
 	});
 
-	test('getContainingWorkspaceFolder', function () {
+	test('getContainingWorkspaceFolder', () => {
 		const ws = new ExtHostWorkspace(new TestRPCProtocol(), {
 			id: 'foo',
 			name: 'Test',

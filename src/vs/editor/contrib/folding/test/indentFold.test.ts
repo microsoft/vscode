@@ -2,8 +2,6 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
-
 import * as assert from 'assert';
 import { computeRanges } from 'vs/editor/contrib/folding/indentRangeProvider';
 import { TextModel } from 'vs/editor/common/model/textModel';
@@ -52,9 +50,9 @@ suite('Indentation Folding', () => {
 		let model = TextModel.createFromString(lines.join('\n'));
 
 		function assertLimit(maxEntries: number, expectedRanges: IndentRange[], message: string) {
-			let indentRanges = computeRanges(model, true, null, maxEntries);
+			let indentRanges = computeRanges(model, true, undefined, maxEntries);
 			assert.ok(indentRanges.length <= maxEntries, 'max ' + message);
-			let actual = [];
+			let actual: IndentRange[] = [];
 			for (let i = 0; i < indentRanges.length; i++) {
 				actual.push({ start: indentRanges.getStartLineNumber(i), end: indentRanges.getEndLineNumber(i) });
 			}

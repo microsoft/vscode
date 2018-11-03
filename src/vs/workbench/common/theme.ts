@@ -60,23 +60,47 @@ export const TAB_ACTIVE_BORDER = registerColor('tab.activeBorder', {
 	hc: null
 }, nls.localize('tabActiveBorder', "Border on the bottom of an active tab. Tabs are the containers for editors in the editor area. Multiple tabs can be opened in one editor group. There can be multiple editor groups."));
 
-export const TAB_ACTIVE_BORDER_TOP = registerColor('tab.activeBorderTop', {
-	dark: null,
-	light: null,
-	hc: null
-}, nls.localize('tabActiveBorderTop', "Border to the top of an active tab. Tabs are the containers for editors in the editor area. Multiple tabs can be opened in one editor group. There can be multiple editor groups."));
-
 export const TAB_UNFOCUSED_ACTIVE_BORDER = registerColor('tab.unfocusedActiveBorder', {
 	dark: transparent(TAB_ACTIVE_BORDER, 0.5),
 	light: transparent(TAB_ACTIVE_BORDER, 0.7),
 	hc: null
 }, nls.localize('tabActiveUnfocusedBorder', "Border on the bottom of an active tab in an unfocused group. Tabs are the containers for editors in the editor area. Multiple tabs can be opened in one editor group. There can be multiple editor groups."));
 
+export const TAB_ACTIVE_BORDER_TOP = registerColor('tab.activeBorderTop', {
+	dark: null,
+	light: null,
+	hc: null
+}, nls.localize('tabActiveBorderTop', "Border to the top of an active tab. Tabs are the containers for editors in the editor area. Multiple tabs can be opened in one editor group. There can be multiple editor groups."));
+
 export const TAB_UNFOCUSED_ACTIVE_BORDER_TOP = registerColor('tab.unfocusedActiveBorderTop', {
 	dark: transparent(TAB_ACTIVE_BORDER_TOP, 0.5),
 	light: transparent(TAB_ACTIVE_BORDER_TOP, 0.7),
 	hc: null
 }, nls.localize('tabActiveUnfocusedBorderTop', "Border to the top of an active tab in an unfocused group. Tabs are the containers for editors in the editor area. Multiple tabs can be opened in one editor group. There can be multiple editor groups."));
+
+export const TAB_ACTIVE_MODIFIED_BORDER = registerColor('tab.activeModifiedBorder', {
+	dark: '#3399CC',
+	light: '#33AAEE',
+	hc: null
+}, nls.localize('tabActiveModifiedBorder', "Border on the top of modified (dirty) active tabs in an active group. Tabs are the containers for editors in the editor area. Multiple tabs can be opened in one editor group. There can be multiple editor groups."));
+
+export const TAB_INACTIVE_MODIFIED_BORDER = registerColor('tab.inactiveModifiedBorder', {
+	dark: transparent(TAB_ACTIVE_MODIFIED_BORDER, 0.5),
+	light: transparent(TAB_ACTIVE_MODIFIED_BORDER, 0.5),
+	hc: Color.white
+}, nls.localize('tabInactiveModifiedBorder', "Border on the top of modified (dirty) inactive tabs in an active group. Tabs are the containers for editors in the editor area. Multiple tabs can be opened in one editor group. There can be multiple editor groups."));
+
+export const TAB_UNFOCUSED_ACTIVE_MODIFIED_BORDER = registerColor('tab.unfocusedActiveModifiedBorder', {
+	dark: transparent(TAB_ACTIVE_MODIFIED_BORDER, 0.5),
+	light: transparent(TAB_ACTIVE_MODIFIED_BORDER, 0.7),
+	hc: Color.white
+}, nls.localize('unfocusedActiveModifiedBorder', "Border on the top of modified (dirty) active tabs in an unfocused group. Tabs are the containers for editors in the editor area. Multiple tabs can be opened in one editor group. There can be multiple editor groups."));
+
+export const TAB_UNFOCUSED_INACTIVE_MODIFIED_BORDER = registerColor('tab.unfocusedInactiveModifiedBorder', {
+	dark: transparent(TAB_INACTIVE_MODIFIED_BORDER, 0.5),
+	light: transparent(TAB_INACTIVE_MODIFIED_BORDER, 0.5),
+	hc: Color.white
+}, nls.localize('unfocusedINactiveModifiedBorder', "Border on the top of modified (dirty) inactive tabs in an unfocused group. Tabs are the containers for editors in the editor area. Multiple tabs can be opened in one editor group. There can be multiple editor groups."));
 
 export const TAB_HOVER_BORDER = registerColor('tab.hoverBorder', {
 	dark: null,
@@ -98,7 +122,7 @@ export const TAB_ACTIVE_FOREGROUND = registerColor('tab.activeForeground', {
 
 export const TAB_INACTIVE_FOREGROUND = registerColor('tab.inactiveForeground', {
 	dark: transparent(TAB_ACTIVE_FOREGROUND, 0.5),
-	light: transparent(TAB_ACTIVE_FOREGROUND, 0.5),
+	light: transparent(TAB_ACTIVE_FOREGROUND, 0.7),
 	hc: Color.white
 }, nls.localize('tabInactiveForeground', "Inactive tab foreground color in an active group. Tabs are the containers for editors in the editor area. Multiple tabs can be opened in one editor group. There can be multiple editor groups."));
 
@@ -501,7 +525,7 @@ export class Themable extends Disposable {
 		// Subclasses to override
 	}
 
-	protected getColor(id: string, modify?: (color: Color, theme: ITheme) => Color): string {
+	protected getColor(id: string, modify?: (color: Color, theme: ITheme) => Color): string | null {
 		let color = this.theme.getColor(id);
 
 		if (color && modify) {

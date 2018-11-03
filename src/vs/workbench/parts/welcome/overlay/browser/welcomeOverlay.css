@@ -12,6 +12,7 @@
 	z-index: 9999;
 	font-size: 10px;
 	transition: font-size .25s;
+	outline: none;
 }
 
 #workbench\.parts\.editor {
