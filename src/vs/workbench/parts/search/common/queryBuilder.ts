@@ -109,14 +109,9 @@ export class QueryBuilder {
 		let excludePattern = this.parseExcludePattern(options.excludePattern || '');
 
 		// Build folderQueries from searchPaths, if given, otherwise folderResources
-		let folderQueries = folderResources && folderResources.map(uri => this.getFolderQueryForRoot(uri, options));
-		if (searchPaths && searchPaths.length) {
-			const allRootExcludes = folderQueries && this.mergeExcludesFromFolderQueries(folderQueries);
-			folderQueries = searchPaths.map(searchPath => this.getFolderQueryForSearchPath(searchPath)); // TODO Rob
-			if (allRootExcludes) {
-				excludePattern = objects.mixin(excludePattern || Object.create(null), allRootExcludes);
-			}
-		}
+		const folderQueries = searchPaths && searchPaths.length ?
+			searchPaths.map(searchPath => this.getFolderQueryForSearchPath(searchPath, options)) :
+			folderResources && folderResources.map(uri => this.getFolderQueryForRoot(uri, options));
 
 		const useRipgrep = !folderResources || folderResources.every(folder => {
 			const folderConfig = this.configurationService.getValue<ISearchConfiguration>({ resource: folder });
@@ -238,31 +233,6 @@ export class QueryBuilder {
 		return Object.keys(excludeExpression).length ? excludeExpression : undefined;
 	}
 
-	private mergeExcludesFromFolderQueries(folderQueries: IFolderQuery[]): glob.IExpression | undefined {
-		const mergedExcludes = folderQueries.reduce((merged: glob.IExpression, fq: IFolderQuery) => {
-			if (fq.excludePattern) {
-				objects.mixin(merged, this.getAbsoluteIExpression(fq.excludePattern, fq.folder.fsPath));
-			}
-
-			return merged;
-		}, Object.create(null));
-
-		// Don't return an empty IExpression
-		return Object.keys(mergedExcludes).length ? mergedExcludes : undefined;
-	}
-
-	private getAbsoluteIExpression(expr: glob.IExpression, root: string): glob.IExpression {
-		return Object.keys(expr)
-			.reduce((absExpr: glob.IExpression, key: string) => {
-				if (expr[key] && !paths.isAbsolute(key)) {
-					const absPattern = paths.join(root, key);
-					absExpr[absPattern] = expr[key];
-				}
-
-				return absExpr;
-			}, Object.create(null));
-	}
-
 	private getExcludesForFolder(folderConfig: ISearchConfiguration, options: ICommonQueryBuilderOptions): glob.IExpression | undefined {
 		return options.disregardExcludeSettings ?
 			undefined :
@@ -331,13 +301,36 @@ export class QueryBuilder {
 		return [];
 	}
 
-	private getFolderQueryForSearchPath(searchPath: ISearchPathPattern): IFolderQuery {
-		const folder = searchPath.searchPath;
-		const folderConfig = this.configurationService.getValue<ISearchConfiguration>({ resource: folder });
-		return <IFolderQuery>{
-			folder,
-			includePattern: searchPath.pattern && patternListToIExpression([searchPath.pattern]),
-			fileEncoding: folderConfig.files && folderConfig.files.encoding
+	private getFolderQueryForSearchPath(searchPath: ISearchPathPattern, options: ICommonQueryBuilderOptions): IFolderQuery {
+		const searchPathWorkspaceFolder = this.workspaceContextService.getWorkspaceFolder(searchPath.searchPath);
+		const searchPathRelativePath = searchPathWorkspaceFolder && searchPath.searchPath.path.substr(searchPathWorkspaceFolder.uri.path.length + 1);
+
+		const rootConfig = this.getFolderQueryForRoot(searchPath.searchPath, options);
+		let resolvedExcludes: glob.IExpression = {};
+		if (searchPathWorkspaceFolder && rootConfig.excludePattern) {
+			// Resolve excludes relative to the search path
+			for (let excludePattern in rootConfig.excludePattern) {
+				const { pathPortion, globPortion } = splitSimpleGlob(excludePattern);
+				if (!pathPortion) { // **/foo
+					resolvedExcludes[globPortion] = rootConfig.excludePattern[excludePattern];
+				} else if (strings.startsWith(pathPortion, searchPathRelativePath)) { // searchPathRelativePath/something/**/foo
+					// Strip `searchPathRelativePath/`
+					const resolvedPathPortion = pathPortion.substr(searchPathRelativePath.length + 1);
+					const resolvedPattern = globPortion ?
+						resolvedPathPortion + globPortion :
+						resolvedPathPortion;
+
+					resolvedExcludes[resolvedPattern] = rootConfig.excludePattern[excludePattern];
+				}
+			}
+		}
+
+		return {
+			...rootConfig,
+			...{
+				includePattern: searchPath.pattern && patternListToIExpression([searchPath.pattern]),
+				excludePattern: Object.keys(resolvedExcludes).length ? resolvedExcludes : undefined
+			}
 		};
 	}
 
@@ -362,7 +355,7 @@ function splitGlobFromPath(searchPath: string): { pathPortion: string, globPorti
 		if (lastSlashMatch) {
 			let pathPortion = searchPath.substr(0, lastSlashMatch.index);
 			if (!pathPortion.match(/[/\\]/)) {
-				// If the last slash was the only slash, then we now have '' or 'C:'. Append a slash.
+				// If the last slash was the only slash, then we now have '' or 'C:' or '.'. Append a slash.
 				pathPortion += '/';
 			}
 
@@ -374,6 +367,22 @@ function splitGlobFromPath(searchPath: string): { pathPortion: string, globPorti
 	}
 
 	// No glob char, or malformed
+	return {
+		pathPortion: searchPath
+	};
+}
+
+function splitSimpleGlob(searchPath: string): { pathPortion: string, globPortion?: string } {
+	const globCharMatch = searchPath.match(/[\*\{\}\(\)\[\]\?]/);
+	if (globCharMatch) {
+		const globCharIdx = globCharMatch.index;
+		return {
+			pathPortion: searchPath.substr(0, globCharIdx),
+			globPortion: searchPath.substr(globCharIdx)
+		};
+	}
+
+	// No glob char
 	return {
 		pathPortion: searchPath
 	};
