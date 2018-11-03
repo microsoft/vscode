@@ -312,7 +312,9 @@ export class QueryBuilder {
 			for (let excludePattern in rootConfig.excludePattern) {
 				const { pathPortion, globPortion } = splitSimpleGlob(excludePattern);
 				if (!pathPortion) { // **/foo
-					resolvedExcludes[globPortion] = rootConfig.excludePattern[excludePattern];
+					if (globPortion) {
+						resolvedExcludes[globPortion] = rootConfig.excludePattern[excludePattern];
+					}
 				} else if (strings.startsWith(pathPortion, searchPathRelativePath)) { // searchPathRelativePath/something/**/foo
 					// Strip `searchPathRelativePath/`
 					const resolvedPathPortion = pathPortion.substr(searchPathRelativePath.length + 1);
@@ -328,7 +330,7 @@ export class QueryBuilder {
 		return {
 			...rootConfig,
 			...{
-				includePattern: searchPath.pattern && patternListToIExpression([searchPath.pattern]),
+				includePattern: searchPath.pattern ? patternListToIExpression([searchPath.pattern]) : undefined,
 				excludePattern: Object.keys(resolvedExcludes).length ? resolvedExcludes : undefined
 			}
 		};
@@ -375,7 +377,7 @@ function splitGlobFromPath(searchPath: string): { pathPortion: string, globPorti
 function splitSimpleGlob(searchPath: string): { pathPortion: string, globPortion?: string } {
 	const globCharMatch = searchPath.match(/[\*\{\}\(\)\[\]\?]/);
 	if (globCharMatch) {
-		const globCharIdx = globCharMatch.index;
+		const globCharIdx = globCharMatch.index || 0;
 		return {
 			pathPortion: searchPath.substr(0, globCharIdx),
 			globPortion: searchPath.substr(globCharIdx)
