@@ -20,7 +20,7 @@ import { IEditorGroupsService } from 'vs/workbench/services/group/common/editorG
 import { localize } from 'vs/nls';
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
 import { ClearAllNotificationsAction, HideNotificationsCenterAction, NotificationActionRunner } from 'vs/workbench/browser/parts/notifications/notificationsActions';
-import { IAction } from 'vs/base/common/actions';
+import { IAction, Action } from 'vs/base/common/actions';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 
 export class NotificationsCenter extends Themable {
@@ -34,6 +34,7 @@ export class NotificationsCenter extends Themable {
 	private notificationsCenterHeader: HTMLElement;
 	private notificationsCenterTitle: HTMLSpanElement;
 	private notificationsList: NotificationsList;
+	private clearAllNotificationsAction: Action;
 	private _isVisible: boolean;
 	private workbenchDimensions: Dimension;
 	private notificationsCenterVisibleContextKey: IContextKey<boolean>;
@@ -78,6 +79,9 @@ export class NotificationsCenter extends Themable {
 		// Title
 		this.updateTitle();
 
+		// "Clear all" action
+		this.updateClearAllAction();
+
 		// Make visible
 		this._isVisible = true;
 		addClass(this.notificationsCenterContainer, 'visible');
@@ -108,6 +112,10 @@ export class NotificationsCenter extends Themable {
 		} else {
 			this.notificationsCenterTitle.textContent = localize('notifications', "Notifications");
 		}
+	}
+
+	private updateClearAllAction(): void {
+		this.clearAllNotificationsAction.enabled = this.model.notifications.length > 0;
 	}
 
 	private create(): void {
@@ -141,7 +149,8 @@ export class NotificationsCenter extends Themable {
 		const hideAllAction = this._register(this.instantiationService.createInstance(HideNotificationsCenterAction, HideNotificationsCenterAction.ID, HideNotificationsCenterAction.LABEL));
 		notificationsToolBar.push(hideAllAction, { icon: true, label: false, keybinding: this.getKeybindingLabel(hideAllAction) });
 
-		const clearAllAction = this._register(this.instantiationService.createInstance(ClearAllNotificationsAction, ClearAllNotificationsAction.ID, ClearAllNotificationsAction.LABEL));
+		this.clearAllNotificationsAction = this.instantiationService.createInstance(ClearAllNotificationsAction, ClearAllNotificationsAction.ID, ClearAllNotificationsAction.LABEL);
+		const clearAllAction = this._register(this.clearAllNotificationsAction);
 		notificationsToolBar.push(clearAllAction, { icon: true, label: false, keybinding: this.getKeybindingLabel(clearAllAction) });
 
 		// Notifications List
@@ -181,6 +190,9 @@ export class NotificationsCenter extends Themable {
 
 		// Update title
 		this.updateTitle();
+
+		// Update "Clear all" action
+		this.updateClearAllAction();
 
 		// Hide if no more notifications to show
 		if (this.model.notifications.length === 0) {
