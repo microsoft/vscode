@@ -223,7 +223,7 @@ class FormatOnSaveParticipant implements ISaveParticipantParticipant {
 	participate(editorModel: ITextFileEditorModel, env: { reason: SaveReason }): Promise<void> {
 
 		const model = editorModel.textEditorModel;
-		if (env.reason === SaveReason.AUTO
+		if (env.reason !== SaveReason.EXPLICIT
 			|| !this._configurationService.getValue('editor.formatOnSave', { overrideIdentifier: model.getLanguageIdentifier().language, resource: editorModel.getResource() })) {
 			return undefined;
 		}
