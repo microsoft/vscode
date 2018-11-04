@@ -61,6 +61,8 @@ class ExtensionsViewState extends Disposable implements IExtensionsViewState {
 		this.currentlyFocusedItems.forEach(extension => this._onFocus.fire(extension));
 	}
 }
+=======
+>>>>>>> added optional cancelation to ExtensionsListView#show
 
 export class ExtensionsListView extends ViewletPanel {
 
@@ -136,7 +138,7 @@ export class ExtensionsListView extends ViewletPanel {
 		this.list.layout(height, width);
 	}
 
-	async show(query: string): Promise<IPagedModel<IExtension>> {
+	async show(query: string, token?: CancellationToken): Promise<IPagedModel<IExtension>> {
 		const parsedQuery = Query.parse(query);
 
 		let options: IQueryOptions = {
@@ -150,13 +152,25 @@ export class ExtensionsListView extends ViewletPanel {
 		}
 
 		const successCallback = model => {
-			this.setModel(model);
+			if (token) {
+				if (!token.isCancellationRequested) {
+					this.setModel(model);
+				}
+			} else {
+				this.setModel(model);
+			}
 			return model;
 		};
 		const errorCallback = e => {
 			console.warn('Error querying extensions gallery', e);
 			const model = new PagedModel([]);
-			this.setModel(model, true);
+			if (token) {
+				if (!token.isCancellationRequested) {
+					this.setModel(model);
+				}
+			} else {
+				this.setModel(model);
+			}
 			return model;
 		};
 
@@ -736,29 +750,29 @@ export class ExtensionsListView extends ViewletPanel {
 
 export class GroupByServerExtensionsView extends ExtensionsListView {
 
-	async show(query: string): Promise<IPagedModel<IExtension>> {
+	async show(query: string, token?: CancellationToken): Promise<IPagedModel<IExtension>> {
 		query = query.replace(/@group:server/g, '').trim();
 		query = query ? query : '@installed';
 		if (!ExtensionsListView.isInstalledExtensionsQuery(query) && !ExtensionsListView.isBuiltInExtensionsQuery(query)) {
 			query = query += ' @installed';
 		}
-		return super.show(query.trim());
+		return super.show(query.trim(), token);
 	}
 }
 
 export class EnabledExtensionsView extends ExtensionsListView {
 	private readonly enabledExtensionsQuery = '@enabled';
 
-	async show(query: string): Promise<IPagedModel<IExtension>> {
-		return (query && query.trim() !== this.enabledExtensionsQuery) ? this.showEmptyModel() : super.show(this.enabledExtensionsQuery);
+	async show(query: string, token?: CancellationToken): Promise<IPagedModel<IExtension>> {
+		return (query && query.trim() !== this.enabledExtensionsQuery) ? this.showEmptyModel() : super.show(this.enabledExtensionsQuery, token);
 	}
 }
 
 export class DisabledExtensionsView extends ExtensionsListView {
 	private readonly disabledExtensionsQuery = '@disabled';
 
-	async show(query: string): Promise<IPagedModel<IExtension>> {
-		return (query && query.trim() !== this.disabledExtensionsQuery) ? this.showEmptyModel() : super.show(this.disabledExtensionsQuery);
+	async show(query: string, token?: CancellationToken): Promise<IPagedModel<IExtension>> {
+		return (query && query.trim() !== this.disabledExtensionsQuery) ? this.showEmptyModel() : super.show(this.disabledExtensionsQuery, token);
 	}
 }
 
@@ -791,12 +805,17 @@ export class DefaultRecommendedExtensionsView extends ExtensionsListView {
 		}));
 	}
 
-	async show(query: string): Promise<IPagedModel<IExtension>> {
+	async show(query: string, token?: CancellationToken): Promise<IPagedModel<IExtension>> {
 		if (query && query.trim() !== this.recommendedExtensionsQuery) {
 			return this.showEmptyModel();
 		}
+<<<<<<< HEAD
 		const model = await super.show(this.recommendedExtensionsQuery);
 		if (!this.extensionsWorkbenchService.local.some(e => e.type === ExtensionType.User)) {
+=======
+		const model = await super.show(this.recommendedExtensionsQuery, token);
+		if (!this.extensionsWorkbenchService.local.some(e => e.type === LocalExtensionType.User)) {
+>>>>>>> added optional cancelation to ExtensionsListView#show
 			// This is part of popular extensions view. Collapse if no installed extensions.
 			this.setExpanded(model.length > 0);
 		}
@@ -816,8 +835,8 @@ export class RecommendedExtensionsView extends ExtensionsListView {
 		}));
 	}
 
-	async show(query: string): Promise<IPagedModel<IExtension>> {
-		return (query && query.trim() !== this.recommendedExtensionsQuery) ? this.showEmptyModel() : super.show(this.recommendedExtensionsQuery);
+	async show(query: string, token?: CancellationToken): Promise<IPagedModel<IExtension>> {
+		return (query && query.trim() !== this.recommendedExtensionsQuery) ? this.showEmptyModel() : super.show(this.recommendedExtensionsQuery, token);
 	}
 }
 
@@ -856,9 +875,9 @@ export class WorkspaceRecommendedExtensionsView extends ExtensionsListView {
 		this.disposables.push(...[this.installAllAction, configureWorkspaceFolderAction, actionbar]);
 	}
 
-	async show(query: string): Promise<IPagedModel<IExtension>> {
+	async show(query: string, token?: CancellationToken): Promise<IPagedModel<IExtension>> {
 		let shouldShowEmptyView = query && query.trim() !== '@recommended' && query.trim() !== '@recommended:workspace';
-		let model = await (shouldShowEmptyView ? this.showEmptyModel() : super.show(this.recommendedExtensionsQuery));
+		let model = await (shouldShowEmptyView ? this.showEmptyModel() : super.show(this.recommendedExtensionsQuery, token));
 		this.setExpanded(model.length > 0);
 		return model;
 	}
