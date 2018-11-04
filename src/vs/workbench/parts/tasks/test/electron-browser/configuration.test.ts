@@ -190,7 +190,7 @@ class CustomTaskBuilder {
 			name: name,
 			command: this.commandBuilder.result,
 			isBackground: false,
-			singleInstanceOnly: false,
+			instanceLimit: false,
 			promptOnClose: true,
 			problemMatchers: [],
 			hasDefinedMatchers: false
@@ -218,8 +218,8 @@ class CustomTaskBuilder {
 		return this;
 	}
 
-	public singleInstanceOnly(value: boolean): CustomTaskBuilder {
-		this.result.singleInstanceOnly = value;
+	public instanceLimit(value: boolean): CustomTaskBuilder {
+		this.result.instanceLimit = value;
 		return this;
 	}
 

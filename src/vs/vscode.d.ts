@@ -5022,7 +5022,7 @@ declare module 'vscode' {
 		/**
 		 * Defines if the application can have only 1 active instance at a time
 		 */
-		singleInstanceOnly?: boolean;
+		instanceLimit?: boolean;
 
 		/**
 		 * A human-readable string describing the source of this

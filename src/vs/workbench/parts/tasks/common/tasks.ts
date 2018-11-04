@@ -406,7 +406,7 @@ export interface ConfigurationProperties {
 	/**
 	 * Defines if the application can have only 1 active instance at a time
 	 */
-	singleInstanceOnly?: boolean;
+	instanceLimit?: boolean;
 
 	/**
 	 * Whether the task should prompt on close for confirmation if running.

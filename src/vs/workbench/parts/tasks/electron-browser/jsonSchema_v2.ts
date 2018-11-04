@@ -303,9 +303,9 @@ let taskConfiguration: IJSONSchema = {
 			description: nls.localize('JsonSchema.tasks.background', 'Whether the executed task is kept alive and is running in the background.'),
 			default: true
 		},
-		singleInstanceOnly: {
+		instanceLimit: {
 			type: 'boolean',
-			description: nls.localize('JsonSchema.tasks.singleInstanceOnly', 'Whether the executed task can have only 1 active instance at a time.'),
+			description: nls.localize('JsonSchema.tasks.instanceLimit', 'Whether the executed task can have only 1 active instance at a time.'),
 			default: false
 		},
 		promptOnClose: {
