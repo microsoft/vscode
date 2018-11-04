@@ -16,9 +16,9 @@ import { asJson } from 'vs/base/node/request';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { shell } from 'electron';
 import { CancellationToken } from 'vs/base/common/cancellation';
-import { realpath } from 'vs/base/node/pfs';
 import * as path from 'path';
 import { spawn } from 'child_process';
+import { realpath } from 'fs';
 
 export class LinuxUpdateService extends AbstractUpdateService {
 
@@ -83,11 +83,17 @@ export class LinuxUpdateService extends AbstractUpdateService {
 		// If the application was installed as a snap, updates happen in the
 		// background automatically, we just need to check to see if an update
 		// has already happened.
-		realpath(`/snap/${product.applicationName}/current`).then(resolvedCurrentSnapPath => {
+		realpath(`/snap/${product.applicationName}/current`, (err, resolvedCurrentSnapPath) => {
+			if (err) {
+				this.logService.error('update#checkForSnapUpdate(): Could not get realpath of application.');
+				return;
+			}
+
 			const currentRevision = path.basename(resolvedCurrentSnapPath);
 
 			if (process.env.SNAP_REVISION !== currentRevision) {
-				this.setState(State.Ready(null));
+				// TODO@joao: snap
+				this.setState(State.Ready({ version: '', productVersion: '' }));
 			} else {
 				this.setState(State.Idle(UpdateType.Archive));
 			}
@@ -110,8 +116,15 @@ export class LinuxUpdateService extends AbstractUpdateService {
 	protected doQuitAndInstall(): void {
 		this.logService.trace('update#quitAndInstall(): running raw#quitAndInstall()');
 
+		const snap = process.env.SNAP;
+
+		// TODO@joao what to do?
+		if (!snap) {
+			return;
+		}
+
 		// Allow 3 seconds for VS Code to close
-		spawn('bash', ['-c', path.join(process.env.SNAP, `usr/share/${product.applicationName}/snapUpdate.sh`)], {
+		spawn('bash', ['-c', path.join(snap, `usr/share/${product.applicationName}/snapUpdate.sh`)], {
 			detached: true,
 			stdio: ['ignore', 'ignore', 'ignore']
 		});
