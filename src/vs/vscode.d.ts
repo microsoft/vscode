@@ -1432,7 +1432,7 @@ declare module 'vscode' {
 		/**
 		 * Dispose this object.
 		 */
-		dispose(): any;
+		dispose(this: Disposable): any;
 	}
 
 	/**
