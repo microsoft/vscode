@@ -1852,7 +1852,7 @@ class ConfigurationParser {
 		if ((!result.custom || result.custom.length === 0) && (globals.command && globals.command.name)) {
 			let matchers: ProblemMatcher[] = ProblemMatcherConverter.from(fileConfig.problemMatcher, context);
 			let isBackground = fileConfig.isBackground ? !!fileConfig.isBackground : fileConfig.isWatching ? !!fileConfig.isWatching : undefined;
-			let instanceLimit = fileConfig.instanceLimit ? !!fileConfig.instanceLimit : fileConfig.isWatching ? !!fileConfig.isWatching : undefined;
+			let instanceLimit = fileConfig.instanceLimit ? true : undefined;
 			let name = Tasks.CommandString.value(globals.command.name);
 			let task: Tasks.CustomTask = {
 				_id: context.uuidMap.getUUID(name),
