@@ -2,7 +2,6 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
 import * as path from 'path';
 import * as pfs from 'vs/base/node/pfs';
@@ -66,9 +65,13 @@ export class LanguagePackCachedDataCleaner {
 				}
 				// Cleanup entries for language packs that aren't installed anymore
 				const cacheDir = path.join(this._environmentService.userDataPath, 'clp');
+				let exists = await pfs.exists(cacheDir);
+				if (!exists) {
+					return;
+				}
 				for (let entry of await pfs.readdir(cacheDir)) {
 					if (installed[entry]) {
-						this._logService.info(`Skipping directory ${entry}. Language pack still in use`);
+						this._logService.info(`Skipping directory ${entry}. Language pack still in use.`);
 						continue;
 					}
 					this._logService.info('Removing unused language pack:', entry);

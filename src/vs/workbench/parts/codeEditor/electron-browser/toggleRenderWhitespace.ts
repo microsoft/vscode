@@ -2,28 +2,31 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
 import * as nls from 'vs/nls';
-import { registerEditorAction, ServicesAccessor, EditorAction } from 'vs/editor/browser/editorExtensions';
-import { IConfigurationService, ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
-import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
+import { Action } from 'vs/base/common/actions';
+import { MenuId, MenuRegistry, SyncActionDescriptor } from 'vs/platform/actions/common/actions';
+import { ConfigurationTarget, IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
+import { Registry } from 'vs/platform/registry/common/platform';
+import { Extensions as ActionExtensions, IWorkbenchActionRegistry } from 'vs/workbench/common/actions';
 
-export class ToggleRenderWhitespaceAction extends EditorAction {
+export class ToggleRenderWhitespaceAction extends Action {
 
-	constructor() {
-		super({
-			id: 'editor.action.toggleRenderWhitespace',
-			label: nls.localize('toggleRenderWhitespace', "View: Toggle Render Whitespace"),
-			alias: 'View: Toggle Render Whitespace',
-			precondition: null
-		});
+	public static readonly ID = 'editor.action.toggleRenderWhitespace';
+	public static readonly LABEL = nls.localize('toggleRenderWhitespace', "View: Toggle Render Whitespace");
+
+	constructor(
+		id: string,
+		label: string,
+		@IConfigurationService private readonly _configurationService: IConfigurationService
+	) {
+		super(id, label);
 	}
 
-	public run(accessor: ServicesAccessor, editor: ICodeEditor): void {
-		const configurationService = accessor.get(IConfigurationService);
+	public run(): Promise<any> {
+		const renderWhitespace = this._configurationService.getValue<string>('editor.renderWhitespace');
 
-		let renderWhitespace = editor.getConfiguration().viewInfo.renderWhitespace;
 		let newRenderWhitespace: string;
 		if (renderWhitespace === 'none') {
 			newRenderWhitespace = 'all';
@@ -31,8 +34,19 @@ export class ToggleRenderWhitespaceAction extends EditorAction {
 			newRenderWhitespace = 'none';
 		}
 
-		configurationService.updateValue('editor.renderWhitespace', newRenderWhitespace, ConfigurationTarget.USER);
+		return this._configurationService.updateValue('editor.renderWhitespace', newRenderWhitespace, ConfigurationTarget.USER);
 	}
 }
 
-registerEditorAction(ToggleRenderWhitespaceAction);
+const registry = Registry.as<IWorkbenchActionRegistry>(ActionExtensions.WorkbenchActions);
+registry.registerWorkbenchAction(new SyncActionDescriptor(ToggleRenderWhitespaceAction, ToggleRenderWhitespaceAction.ID, ToggleRenderWhitespaceAction.LABEL), 'View: Toggle Render Whitespace');
+
+MenuRegistry.appendMenuItem(MenuId.MenubarViewMenu, {
+	group: '5_editor',
+	command: {
+		id: ToggleRenderWhitespaceAction.ID,
+		title: nls.localize({ key: 'miToggleRenderWhitespace', comment: ['&& denotes a mnemonic'] }, "Toggle &&Render Whitespace"),
+		toggled: ContextKeyExpr.notEquals('config.editor.renderWhitespace', 'none')
+	},
+	order: 3
+});

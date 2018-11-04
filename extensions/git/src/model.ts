@@ -3,17 +3,16 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import { workspace, WorkspaceFoldersChangeEvent, Uri, window, Event, EventEmitter, QuickPickItem, Disposable, SourceControl, SourceControlResourceGroup, TextEditor, Memento, OutputChannel } from 'vscode';
 import { Repository, RepositoryState } from './repository';
 import { memoize, sequentialize, debounce } from './decorators';
 import { dispose, anyEvent, filterEvent, isDescendant, firstIndex } from './util';
-import { Git, GitErrorCodes } from './git';
+import { Git } from './git';
 import * as path from 'path';
 import * as fs from 'fs';
 import * as nls from 'vscode-nls';
 import { fromGitUri } from './uri';
+import { GitErrorCodes } from './api/git';
 
 const localize = nls.loadMessageBundle();
 
@@ -91,6 +90,13 @@ export class Model {
 	 * for git repositories.
 	 */
 	private async scanWorkspaceFolders(): Promise<void> {
+		const config = workspace.getConfiguration('git');
+		const autoRepositoryDetection = config.get<boolean | 'subFolders' | 'openEditors'>('autoRepositoryDetection');
+
+		if (autoRepositoryDetection !== true && autoRepositoryDetection !== 'subFolders') {
+			return;
+		}
+
 		for (const folder of workspace.workspaceFolders || []) {
 			const root = folder.uri.fsPath;
 
@@ -99,7 +105,19 @@ export class Model {
 
 				children
 					.filter(child => child !== '.git')
-					.forEach(child => this.tryOpenRepository(path.join(root, child)));
+					.forEach(child => this.openRepository(path.join(root, child)));
+
+				const folderConfig = workspace.getConfiguration('git', folder.uri);
+				const paths = folderConfig.get<string[]>('scanRepositories') || [];
+
+				for (const possibleRepositoryPath of paths) {
+					if (path.isAbsolute(possibleRepositoryPath)) {
+						console.warn(localize('not supported', "Absolute paths not supported in 'git.scanRepositories' setting."));
+						continue;
+					}
+
+					this.openRepository(path.join(root, possibleRepositoryPath));
+				}
 			} catch (err) {
 				// noop
 			}
@@ -118,7 +136,7 @@ export class Model {
 	@debounce(500)
 	private eventuallyScanPossibleGitRepositories(): void {
 		for (const path of this.possibleGitRepositoryPaths) {
-			this.tryOpenRepository(path);
+			this.openRepository(path);
 		}
 
 		this.possibleGitRepositoryPaths.clear();
@@ -139,7 +157,7 @@ export class Model {
 			.filter(r => !activeRepositories.has(r!.repository))
 			.filter(r => !(workspace.workspaceFolders || []).some(f => isDescendant(f.uri.fsPath, r!.repository.root))) as OpenRepository[];
 
-		possibleRepositoryFolders.forEach(p => this.tryOpenRepository(p.uri.fsPath));
+		possibleRepositoryFolders.forEach(p => this.openRepository(p.uri.fsPath));
 		openRepositoriesToDispose.forEach(r => r.dispose());
 	}
 
@@ -153,15 +171,15 @@ export class Model {
 			.filter(({ root }) => workspace.getConfiguration('git', root).get<boolean>('enabled') !== true)
 			.map(({ repository }) => repository);
 
-		possibleRepositoryFolders.forEach(p => this.tryOpenRepository(p.uri.fsPath));
+		possibleRepositoryFolders.forEach(p => this.openRepository(p.uri.fsPath));
 		openRepositoriesToDispose.forEach(r => r.dispose());
 	}
 
 	private onDidChangeVisibleTextEditors(editors: TextEditor[]): void {
 		const config = workspace.getConfiguration('git');
-		const enabled = config.get<boolean>('autoRepositoryDetection') === true;
+		const autoRepositoryDetection = config.get<boolean | 'subFolders' | 'openEditors'>('autoRepositoryDetection');
 
-		if (!enabled) {
+		if (autoRepositoryDetection !== true && autoRepositoryDetection !== 'openEditors') {
 			return;
 		}
 
@@ -178,12 +196,12 @@ export class Model {
 				return;
 			}
 
-			this.tryOpenRepository(path.dirname(uri.fsPath));
+			this.openRepository(path.dirname(uri.fsPath));
 		});
 	}
 
 	@sequentialize
-	async tryOpenRepository(path: string): Promise<void> {
+	async openRepository(path: string): Promise<void> {
 		if (this.getRepository(path)) {
 			return;
 		}
@@ -207,6 +225,13 @@ export class Model {
 				return;
 			}
 
+			const config = workspace.getConfiguration('git');
+			const ignoredRepos = new Set(config.get<Array<string>>('ignoredRepositories'));
+
+			if (ignoredRepos.has(rawRoot)) {
+				return;
+			}
+
 			const repository = new Repository(this.git.open(repositoryRoot), this.globalState);
 
 			this.open(repository);
@@ -227,17 +252,28 @@ export class Model {
 		const changeListener = repository.onDidChangeRepository(uri => this._onDidChangeRepository.fire({ repository, uri }));
 		const originalResourceChangeListener = repository.onDidChangeOriginalResource(uri => this._onDidChangeOriginalResource.fire({ repository, uri }));
 
+		const shouldDetectSubmodules = workspace
+			.getConfiguration('git', Uri.file(repository.root))
+			.get<boolean>('detectSubmodules') as boolean;
+
 		const submodulesLimit = workspace
 			.getConfiguration('git', Uri.file(repository.root))
 			.get<number>('detectSubmodulesLimit') as number;
 
 		const checkForSubmodules = () => {
+			if (!shouldDetectSubmodules) {
+				return;
+			}
+
 			if (repository.submodules.length > submodulesLimit) {
 				window.showWarningMessage(localize('too many submodules', "The '{0}' repository has {1} submodules which won't be opened automatically. You can still open each one individually by opening a file within.", path.basename(repository.root), repository.submodules.length));
 				statusListener.dispose();
 			}
 
-			this.scanSubmodules(repository, submodulesLimit);
+			repository.submodules
+				.slice(0, submodulesLimit)
+				.map(r => path.join(repository.root, r.path))
+				.forEach(p => this.eventuallyScanPossibleGitRepository(p));
 		};
 
 		const statusListener = repository.onDidRunGitStatus(checkForSubmodules);
@@ -257,21 +293,6 @@ export class Model {
 		const openRepository = { repository, dispose };
 		this.openRepositories.push(openRepository);
 		this._onDidOpenRepository.fire(repository);
-	}
-
-	private scanSubmodules(repository: Repository, limit: number): void {
-		const shouldScanSubmodules = workspace
-			.getConfiguration('git', Uri.file(repository.root))
-			.get<boolean>('detectSubmodules') === true;
-
-		if (!shouldScanSubmodules) {
-			return;
-		}
-
-		repository.submodules
-			.slice(0, limit)
-			.map(r => path.join(repository.root, r.path))
-			.forEach(p => this.eventuallyScanPossibleGitRepository(p));
 	}
 
 	close(repository: Repository): void {

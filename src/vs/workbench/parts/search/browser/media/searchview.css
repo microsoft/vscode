@@ -210,9 +210,20 @@
 }
 
 .search-view .linematch > .match {
-	flex: 1;
 	overflow: hidden;
 	text-overflow: ellipsis;
+}
+
+.search-view .linematch .matchLineNum {
+	margin-left: 7px;
+	margin-right: 4px;
+	opacity: .7;
+	font-size: 0.9em;
+	display: none;
+}
+
+.search-view .linematch .matchLineNum.show {
+	display: block;
 }
 
 .search-view .linematch.changedOrRemoved {
@@ -233,15 +244,17 @@
 	margin: 0;
 }
 
-.search-view .monaco-tree .monaco-tree-row.focused .monaco-action-bar {
-	width: 0; /* in order to support a11y with keyboard, we use width: 0 to hide the actions, which still allows to "Tab" into the actions */
-	display: block;
-}
-
 .search-view .monaco-tree .monaco-tree-row:hover:not(.highlighted) .monaco-action-bar,
 .search-view .monaco-tree .monaco-tree-row.focused .monaco-action-bar {
-	width: inherit;
-	display: block;
+	display: inline-block;
+}
+
+.search-view:not(.wide) .monaco-tree .monaco-tree-row .linematch .actionBarContainer {
+	flex: 1;
+}
+
+.search-view:not(.wide) .monaco-tree .monaco-tree-row .monaco-action-bar {
+	float: right;
 }
 
 .search-view .monaco-tree .monaco-tree-row .monaco-action-bar .action-label {
@@ -250,6 +263,11 @@
 	background-repeat: no-repeat;
 	width: 16px;
 	height: 16px;
+}
+
+/* Adjusts spacing in high contrast mode so that actions are vertically centered */
+.hc-black .monaco-tree .monaco-tree-row .monaco-action-bar .action-label {
+	margin-top: 2px;
 }
 
 .search-view .action-remove {
@@ -282,22 +300,13 @@
 	margin-right: 12px;
 }
 
-.search-view:not(.wide) > .results > .monaco-tree .monaco-tree-row:hover .content .filematch .monaco-count-badge,
-.search-view:not(.wide) > .results > .monaco-tree .monaco-tree-row:hover .content .foldermatch .monaco-count-badge,
-.search-view:not(.wide) > .results > .monaco-tree .monaco-tree-row:hover .content .linematch .monaco-count-badge,
-.search-view:not(.wide) > .results > .monaco-tree .monaco-tree-row.focused .content .filematch .monaco-count-badge,
-.search-view:not(.wide) > .results > .monaco-tree .monaco-tree-row.focused .content .foldermatch .monaco-count-badge,
-.search-view:not(.wide) > .results > .monaco-tree .monaco-tree-row.focused .content .linematch .monaco-count-badge {
+.search-view > .results > .monaco-tree .monaco-tree-row:hover .content .filematch .monaco-count-badge,
+.search-view > .results > .monaco-tree .monaco-tree-row:hover .content .foldermatch .monaco-count-badge,
+.search-view > .results > .monaco-tree .monaco-tree-row:hover .content .linematch .monaco-count-badge,
+.search-view > .results > .monaco-tree .monaco-tree-row.focused .content .filematch .monaco-count-badge,
+.search-view > .results > .monaco-tree .monaco-tree-row.focused .content .foldermatch .monaco-count-badge,
+.search-view > .results > .monaco-tree .monaco-tree-row.focused .content .linematch .monaco-count-badge {
 	display: none;
-}
-
-.search-view.wide > .results > .monaco-tree .monaco-tree-row:hover .content .filematch .badge,
-.search-view.wide > .results > .monaco-tree .monaco-tree-row:hover .content .foldermatch .badge,
-.search-view.wide > .results > .monaco-tree .monaco-tree-row:hover .content .linematch .badge,
-.search-view.wide > .results > .monaco-tree .monaco-tree-row.focused .content .filematch .badge,
-.search-view.wide > .results > .monaco-tree .monaco-tree-row.focused .content .foldermatch .badge,
-.search-view.wide > .results > .monaco-tree .monaco-tree-row.focused .content .linematch .badge {
-	flex: 1;
 }
 
 .search-view .focused .monaco-tree-row.selected:not(.highlighted) > .content.actions .action-remove,

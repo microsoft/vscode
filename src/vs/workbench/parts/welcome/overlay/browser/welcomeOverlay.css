@@ -12,6 +12,7 @@
 	z-index: 9999;
 	font-size: 10px;
 	transition: font-size .25s;
+	outline: none;
 }
 
 #workbench\.parts\.editor {
@@ -97,8 +98,22 @@
 	left: 45px;
 }
 
+.monaco-workbench > .welcomeOverlay > .key.terminal {
+	position: absolute;
+	bottom: 25px;
+	left: 50%;
+}
+
+.monaco-workbench > .welcomeOverlay > .key.notifications {
+	position: absolute;
+	bottom: 25px;
+	right: 16px;
+}
+
 .monaco-workbench > .welcomeOverlay > .key.problems > .label,
-.monaco-workbench > .welcomeOverlay > .key.problems > .shortcut {
+.monaco-workbench > .welcomeOverlay > .key.problems > .shortcut,
+.monaco-workbench > .welcomeOverlay > .key.notifications > .label,
+.monaco-workbench > .welcomeOverlay > .key.notifications > .shortcut {
 	vertical-align: super;
 }
 

@@ -39,6 +39,11 @@
         }
       },
       {
+        "command": "git.openRepository",
+        "title": "%command.openRepository%",
+        "category": "Git"
+      },
+      {
         "command": "git.close",
         "title": "%command.close%",
         "category": "Git"
@@ -186,6 +191,11 @@
         "category": "Git"
       },
       {
+        "command": "git.commitEmpty",
+        "title": "%command.commitEmpty%",
+        "category": "Git"
+      },
+      {
         "command": "git.commitStagedSigned",
         "title": "%command.commitStagedSigned%",
         "category": "Git"
@@ -208,6 +218,11 @@
       {
         "command": "git.commitAllAmend",
         "title": "%command.commitAllAmend%",
+        "category": "Git"
+      },
+      {
+        "command": "git.restoreCommitTemplate",
+        "title": "%command.restoreCommitTemplate%",
         "category": "Git"
       },
       {
@@ -251,6 +266,11 @@
         "category": "Git"
       },
       {
+        "command": "git.fetchAll",
+        "title": "%command.fetchAll%",
+        "category": "Git"
+      },
+      {
         "command": "git.pull",
         "title": "%command.pull%",
         "category": "Git"
@@ -271,13 +291,28 @@
         "category": "Git"
       },
       {
+        "command": "git.pushForce",
+        "title": "%command.pushForce%",
+        "category": "Git"
+      },
+      {
         "command": "git.pushTo",
         "title": "%command.pushTo%",
         "category": "Git"
       },
       {
+        "command": "git.pushToForce",
+        "title": "%command.pushToForce%",
+        "category": "Git"
+      },
+      {
         "command": "git.pushWithTags",
         "title": "%command.pushWithTags%",
+        "category": "Git"
+      },
+      {
+        "command": "git.pushWithTagsForce",
+        "title": "%command.pushWithTagsForce%",
         "category": "Git"
       },
       {
@@ -324,6 +359,16 @@
         "command": "git.stashPopLatest",
         "title": "%command.stashPopLatest%",
         "category": "Git"
+      },
+      {
+        "command": "git.stashApply",
+        "title": "%command.stashApply%",
+        "category": "Git"
+      },
+      {
+        "command": "git.stashApplyLatest",
+        "title": "%command.stashApplyLatest%",
+        "category": "Git"
       }
     ],
     "menus": {
@@ -334,6 +379,10 @@
         },
         {
           "command": "git.init",
+          "when": "config.git.enabled"
+        },
+        {
+          "command": "git.openRepository",
           "when": "config.git.enabled"
         },
         {
@@ -433,6 +482,10 @@
           "when": "config.git.enabled && gitOpenRepositoryCount != 0"
         },
         {
+          "command": "git.restoreCommitTemplate",
+          "when": "false"
+        },
+        {
           "command": "git.undoCommit",
           "when": "config.git.enabled && gitOpenRepositoryCount != 0"
         },
@@ -481,16 +534,32 @@
           "when": "config.git.enabled && gitOpenRepositoryCount != 0"
         },
         {
+          "command": "git.fetchAll",
+          "when": "config.git.enabled && gitOpenRepositoryCount != 0"
+        },
+        {
           "command": "git.push",
           "when": "config.git.enabled && gitOpenRepositoryCount != 0"
+        },
+        {
+          "command": "git.pushForce",
+          "when": "config.git.enabled && config.git.allowForcePush && gitOpenRepositoryCount != 0"
         },
         {
           "command": "git.pushTo",
           "when": "config.git.enabled && gitOpenRepositoryCount != 0"
         },
         {
+          "command": "git.pushToForce",
+          "when": "config.git.enabled && config.git.allowForcePush && gitOpenRepositoryCount != 0"
+        },
+        {
           "command": "git.pushWithTags",
           "when": "config.git.enabled && gitOpenRepositoryCount != 0"
+        },
+        {
+          "command": "git.pushWithTagsForce",
+          "when": "config.git.enabled && config.git.allowForcePush && gitOpenRepositoryCount != 0"
         },
         {
           "command": "git.sync",
@@ -526,6 +595,14 @@
         },
         {
           "command": "git.stashPopLatest",
+          "when": "config.git.enabled && gitOpenRepositoryCount != 0"
+        },
+        {
+          "command": "git.stashApply",
+          "when": "config.git.enabled && gitOpenRepositoryCount != 0"
+        },
+        {
+          "command": "git.stashApplyLatest",
           "when": "config.git.enabled && gitOpenRepositoryCount != 0"
         }
       ],
@@ -652,6 +729,16 @@
         },
         {
           "command": "git.stashPopLatest",
+          "group": "5_stash",
+          "when": "scmProvider == git"
+        },
+        {
+          "command": "git.stashApply",
+          "group": "5_stash",
+          "when": "scmProvider == git"
+        },
+        {
+          "command": "git.stashApplyLatest",
           "group": "5_stash",
           "when": "scmProvider == git"
         },
@@ -876,12 +963,27 @@
             "string",
             "null"
           ],
-          "description": "%config.path%",
+          "markdownDescription": "%config.path%",
           "default": null,
-          "isExecutable": true
+          "scope": "application"
         },
         "git.autoRepositoryDetection": {
-          "type": "boolean",
+          "type": [
+            "boolean",
+            "string"
+          ],
+          "enum": [
+            true,
+            false,
+            "subFolders",
+            "openEditors"
+          ],
+          "enumDescriptions": [
+            "%config.autoRepositoryDetection.true%",
+            "%config.autoRepositoryDetection.false%",
+            "%config.autoRepositoryDetection.subFolders%",
+            "%config.autoRepositoryDetection.openEditors%"
+          ],
           "description": "%config.autoRepositoryDetection%",
           "default": true
         },
@@ -893,7 +995,20 @@
         "git.autofetch": {
           "type": "boolean",
           "description": "%config.autofetch%",
-          "default": false
+          "default": false,
+          "tags": [
+            "usesOnlineServices"
+          ]
+        },
+        "git.branchValidationRegex": {
+          "type": "string",
+          "description": "%config.branchValidationRegex%",
+          "default": ""
+        },
+        "git.branchWhitespaceChar": {
+          "type": "string",
+          "description": "%config.branchWhitespaceChar%",
+          "default": "-"
         },
         "git.confirmSync": {
           "type": "boolean",
@@ -907,6 +1022,11 @@
             "tracked",
             "off"
           ],
+          "enumDescriptions": [
+            "%config.countBadge.all%",
+            "%config.countBadge.tracked%",
+            "%config.countBadge.off%"
+          ],
           "description": "%config.countBadge%",
           "default": "all"
         },
@@ -918,7 +1038,13 @@
             "tags",
             "remote"
           ],
-          "description": "%config.checkoutType%",
+          "enumDescriptions": [
+            "%config.checkoutType.all%",
+            "%config.checkoutType.local%",
+            "%config.checkoutType.tags%",
+            "%config.checkoutType.remote%"
+          ],
+          "markdownDescription": "%config.checkoutType%",
           "default": "all"
         },
         "git.ignoreLegacyWarning": {
@@ -943,13 +1069,21 @@
         },
         "git.enableSmartCommit": {
           "type": "boolean",
+          "scope": "resource",
           "description": "%config.enableSmartCommit%",
           "default": false
         },
         "git.enableCommitSigning": {
           "type": "boolean",
+          "scope": "resource",
           "description": "%config.enableCommitSigning%",
           "default": false
+        },
+        "git.confirmEmptyCommits": {
+          "type": "boolean",
+          "scope": "resource",
+          "description": "%config.confirmEmptyCommits%",
+          "default": true
         },
         "git.decorations.enabled": {
           "type": "boolean",
@@ -958,6 +1092,7 @@
         },
         "git.promptToSaveFilesBeforeCommit": {
           "type": "boolean",
+          "scope": "resource",
           "default": false,
           "description": "%config.promptToSaveFilesBeforeCommit%"
         },
@@ -965,6 +1100,11 @@
           "type": "boolean",
           "default": true,
           "description": "%config.showInlineOpenFileAction%"
+        },
+        "git.showPushSuccessNotification": {
+          "type": "boolean",
+          "description": "%config.showPushSuccessNotification%",
+          "default": false
         },
         "git.inputValidation": {
           "type": "string",
@@ -975,6 +1115,11 @@
           ],
           "default": "warn",
           "description": "%config.inputValidation%"
+        },
+        "git.inputValidationLength": {
+          "type": "number",
+          "default": 72,
+          "description": "%config.inputValidationLength%"
         },
         "git.detectSubmodules": {
           "type": "boolean",
@@ -987,15 +1132,81 @@
           "scope": "resource",
           "default": 10,
           "description": "%config.detectSubmodulesLimit%"
+        },
+        "git.alwaysShowStagedChangesResourceGroup": {
+          "type": "boolean",
+          "scope": "resource",
+          "default": false,
+          "description": "%config.alwaysShowStagedChangesResourceGroup%"
+        },
+        "git.alwaysSignOff": {
+          "type": "boolean",
+          "scope": "resource",
+          "default": false,
+          "description": "%config.alwaysSignOff%"
+        },
+        "git.ignoredRepositories": {
+          "type": "array",
+          "default": [],
+          "scope": "window",
+          "description": "%config.ignoredRepositories%"
+        },
+        "git.scanRepositories": {
+          "type": "array",
+          "default": [],
+          "scope": "resource",
+          "description": "%config.scanRepositories%"
+        },
+        "git.showProgress": {
+          "type": "boolean",
+          "description": "%config.showProgress%",
+          "default": true,
+          "scope": "resource"
+        },
+        "git.rebaseWhenSync": {
+          "type": "boolean",
+          "scope": "resource",
+          "default": false,
+          "description": "%config.rebaseWhenSync%"
+        },
+        "git.fetchOnPull": {
+          "type": "boolean",
+          "scope": "resource",
+          "default": false,
+          "description": "%config.fetchOnPull%"
+        },
+        "git.allowForcePush": {
+          "type": "boolean",
+          "default": false,
+          "description": "%config.allowForcePush%"
+        },
+        "git.useForcePushWithLease": {
+          "type": "boolean",
+          "default": true,
+          "description": "%config.useForcePushWithLease%"
+        },
+        "git.confirmForcePush": {
+          "type": "boolean",
+          "default": true,
+          "description": "%config.confirmForcePush%"
         }
       }
     },
     "colors": [
       {
+        "id": "gitDecoration.addedResourceForeground",
+        "description": "%colors.added%",
+        "defaults": {
+          "light": "#587c0c",
+          "dark": "#81b88b",
+          "highContrast": "#1b5225"
+        }
+      },
+      {
         "id": "gitDecoration.modifiedResourceForeground",
         "description": "%colors.modified%",
         "defaults": {
-          "light": "#a76e12",
+          "light": "#895503",
           "dark": "#E2C08D",
           "highContrast": "#E2C08D"
         }
@@ -1013,7 +1224,7 @@
         "id": "gitDecoration.untrackedResourceForeground",
         "description": "%colors.untracked%",
         "defaults": {
-          "light": "#019001",
+          "light": "#007100",
           "dark": "#73C991",
           "highContrast": "#73C991"
         }
@@ -1023,7 +1234,7 @@
         "description": "%colors.ignored%",
         "defaults": {
           "light": "#8E8E90",
-          "dark": "#A7A8A9",
+          "dark": "#8C8C8C",
           "highContrast": "#A7A8A9"
         }
       },
@@ -1082,6 +1293,17 @@
           ".rej"
         ],
         "configuration": "./languages/diff.language-configuration.json"
+      },
+      {
+        "id": "ignore",
+        "aliases": [
+          "Ignore",
+          "ignore"
+        ],
+        "filenames": [
+          ".gitignore"
+        ],
+        "configuration": "./languages/ignore.language-configuration.json"
       }
     ],
     "grammars": [
@@ -1099,6 +1321,11 @@
         "language": "diff",
         "scopeName": "source.diff",
         "path": "./syntaxes/diff.tmLanguage.json"
+      },
+      {
+        "language": "ignore",
+        "scopeName": "source.ignore",
+        "path": "./syntaxes/ignore.tmLanguage.json"
       }
     ],
     "configurationDefaults": {
@@ -1114,15 +1341,15 @@
     "file-type": "^7.2.0",
     "iconv-lite": "0.4.19",
     "jschardet": "^1.6.0",
-    "vscode-extension-telemetry": "0.0.15",
-    "vscode-nls": "^3.2.1",
+    "vscode-extension-telemetry": "0.1.0",
+    "vscode-nls": "^4.0.0",
     "which": "^1.3.0"
   },
   "devDependencies": {
     "@types/byline": "4.2.31",
     "@types/file-type": "^5.2.1",
     "@types/mocha": "2.2.43",
-    "@types/node": "7.0.43",
+    "@types/node": "^8.10.25",
     "@types/which": "^1.0.28",
     "mocha": "^3.2.0"
   }

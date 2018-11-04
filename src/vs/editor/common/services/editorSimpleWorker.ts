@@ -3,25 +3,25 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
-import URI from 'vs/base/common/uri';
-import { TPromise } from 'vs/base/common/winjs.base';
-import { IDisposable } from 'vs/base/common/lifecycle';
-import { IRequestHandler } from 'vs/base/common/worker/simpleWorker';
-import { Range, IRange } from 'vs/editor/common/core/range';
-import { DiffComputer } from 'vs/editor/common/diff/diffComputer';
+import { mergeSort } from 'vs/base/common/arrays';
 import { stringDiff } from 'vs/base/common/diff/diff';
-import * as editorCommon from 'vs/editor/common/editorCommon';
-import { Position, IPosition } from 'vs/editor/common/core/position';
-import { MirrorTextModel as BaseMirrorModel, IModelChangedEvent } from 'vs/editor/common/model/mirrorTextModel';
-import { IInplaceReplaceSupportResult, ILink, ISuggestResult, ISuggestion, TextEdit } from 'vs/editor/common/modes';
-import { computeLinks } from 'vs/editor/common/modes/linkComputer';
-import { BasicInplaceReplace } from 'vs/editor/common/modes/supports/inplaceReplaceSupport';
-import { getWordAtText, ensureValidWordDefinition } from 'vs/editor/common/model/wordHelper';
-import { createMonacoBaseAPI } from 'vs/editor/common/standalone/standaloneBase';
-import { IWordAtPosition, EndOfLineSequence } from 'vs/editor/common/model';
+import { FIN, Iterator, IteratorResult } from 'vs/base/common/iterator';
+import { IDisposable } from 'vs/base/common/lifecycle';
 import { globals } from 'vs/base/common/platform';
+import { URI } from 'vs/base/common/uri';
+import { IRequestHandler } from 'vs/base/common/worker/simpleWorker';
+import { IPosition, Position } from 'vs/editor/common/core/position';
+import { IRange, Range } from 'vs/editor/common/core/range';
+import { DiffComputer } from 'vs/editor/common/diff/diffComputer';
+import * as editorCommon from 'vs/editor/common/editorCommon';
+import { EndOfLineSequence, IWordAtPosition } from 'vs/editor/common/model';
+import { IModelChangedEvent, MirrorTextModel as BaseMirrorModel } from 'vs/editor/common/model/mirrorTextModel';
+import { ensureValidWordDefinition, getWordAtText } from 'vs/editor/common/model/wordHelper';
+import { CompletionItem, CompletionItemKind, CompletionList, IInplaceReplaceSupportResult, ILink, TextEdit } from 'vs/editor/common/modes';
+import { ILinkComputerTarget, computeLinks } from 'vs/editor/common/modes/linkComputer';
+import { BasicInplaceReplace } from 'vs/editor/common/modes/supports/inplaceReplaceSupport';
+import { IDiffComputationResult } from 'vs/editor/common/services/editorWorkerService';
+import { createMonacoBaseAPI } from 'vs/editor/common/standalone/standaloneBase';
 
 export interface IMirrorModel {
 	readonly uri: URI;
@@ -49,7 +49,7 @@ export interface IRawModelData {
 /**
  * @internal
  */
-export interface ICommonModel {
+export interface ICommonModel extends ILinkComputerTarget, IMirrorModel {
 	uri: URI;
 	version: number;
 	eol: string;
@@ -58,10 +58,11 @@ export interface ICommonModel {
 	getLinesContent(): string[];
 	getLineCount(): number;
 	getLineContent(lineNumber: number): string;
+	getLineWords(lineNumber: number, wordDefinition: RegExp): IWordAtPosition[];
+	createWordIterator(wordDefinition: RegExp): Iterator<string>;
 	getWordUntilPosition(position: IPosition, wordDefinition: RegExp): IWordAtPosition;
-	getAllUniqueWords(wordDefinition: RegExp, skipWordOnce?: string): string[];
 	getValueInRange(range: IRange): string;
-	getWordAtPosition(position: IPosition, wordDefinition: RegExp): Range;
+	getWordAtPosition(position: IPosition, wordDefinition: RegExp): Range | null;
 	offsetAt(position: IPosition): number;
 	positionAt(offset: number): IPosition;
 }
@@ -114,7 +115,7 @@ class MirrorModel extends BaseMirrorModel implements ICommonModel {
 		return this._lines[lineNumber - 1];
 	}
 
-	public getWordAtPosition(position: IPosition, wordDefinition: RegExp): Range {
+	public getWordAtPosition(position: IPosition, wordDefinition: RegExp): Range | null {
 
 		let wordAtText = getWordAtText(
 			position.column,
@@ -146,35 +147,55 @@ class MirrorModel extends BaseMirrorModel implements ICommonModel {
 		};
 	}
 
-	private _getAllWords(wordDefinition: RegExp): string[] {
-		let result: string[] = [];
-		this._lines.forEach((line) => {
-			this._wordenize(line, wordDefinition).forEach((info) => {
-				result.push(line.substring(info.start, info.end));
-			});
-		});
-		return result;
+	public createWordIterator(wordDefinition: RegExp): Iterator<string> {
+		let obj: { done: false; value: string; };
+		let lineNumber = 0;
+		let lineText: string;
+		let wordRangesIdx = 0;
+		let wordRanges: IWordRange[] = [];
+		let next = (): IteratorResult<string> => {
+
+			if (wordRangesIdx < wordRanges.length) {
+				const value = lineText.substring(wordRanges[wordRangesIdx].start, wordRanges[wordRangesIdx].end);
+				wordRangesIdx += 1;
+				if (!obj) {
+					obj = { done: false, value: value };
+				} else {
+					obj.value = value;
+				}
+				return obj;
+
+			} else if (lineNumber >= this._lines.length) {
+				return FIN;
+
+			} else {
+				lineText = this._lines[lineNumber];
+				wordRanges = this._wordenize(lineText, wordDefinition);
+				wordRangesIdx = 0;
+				lineNumber += 1;
+				return next();
+			}
+		};
+		return { next };
 	}
 
-	public getAllUniqueWords(wordDefinition: RegExp, skipWordOnce?: string): string[] {
-		let foundSkipWord = false;
-		let uniqueWords = Object.create(null);
-		return this._getAllWords(wordDefinition).filter((word) => {
-			if (skipWordOnce && !foundSkipWord && skipWordOnce === word) {
-				foundSkipWord = true;
-				return false;
-			} else if (uniqueWords[word]) {
-				return false;
-			} else {
-				uniqueWords[word] = true;
-				return true;
-			}
-		});
+	public getLineWords(lineNumber: number, wordDefinition: RegExp): IWordAtPosition[] {
+		let content = this._lines[lineNumber - 1];
+		let ranges = this._wordenize(content, wordDefinition);
+		let words: IWordAtPosition[] = [];
+		for (const range of ranges) {
+			words.push({
+				word: content.substring(range.start, range.end),
+				startColumn: range.start + 1,
+				endColumn: range.end + 1
+			});
+		}
+		return words;
 	}
 
 	private _wordenize(content: string, wordDefinition: RegExp): IWordRange[] {
 		const result: IWordRange[] = [];
-		let match: RegExpExecArray;
+		let match: RegExpExecArray | null;
 
 		wordDefinition.lastIndex = 0; // reset lastIndex just to be sure
 
@@ -212,7 +233,7 @@ class MirrorModel extends BaseMirrorModel implements ICommonModel {
 	public offsetAt(position: IPosition): number {
 		position = this._validatePosition(position);
 		this._ensureLineStarts();
-		return this._lineStarts.getAccumulatedValue(position.lineNumber - 2) + (position.column - 1);
+		return this._lineStarts!.getAccumulatedValue(position.lineNumber - 2) + (position.column - 1);
 	}
 
 	public positionAt(offset: number): IPosition {
@@ -220,7 +241,7 @@ class MirrorModel extends BaseMirrorModel implements ICommonModel {
 		offset = Math.max(0, offset);
 
 		this._ensureLineStarts();
-		let out = this._lineStarts.getIndexOf(offset);
+		let out = this._lineStarts!.getIndexOf(offset);
 		let lineLength = this._lines[out.index].length;
 
 		// Ensure we return a valid position
@@ -295,16 +316,16 @@ export interface IForeignModuleFactory {
 	(ctx: IWorkerContext, createData: any): any;
 }
 
-declare var require;
+declare var require: any;
 
 /**
  * @internal
  */
 export abstract class BaseEditorSimpleWorker {
-	private _foreignModuleFactory: IForeignModuleFactory;
+	private _foreignModuleFactory: IForeignModuleFactory | null;
 	private _foreignModule: any;
 
-	constructor(foreignModuleFactory: IForeignModuleFactory) {
+	constructor(foreignModuleFactory: IForeignModuleFactory | null) {
 		this._foreignModuleFactory = foreignModuleFactory;
 		this._foreignModule = null;
 	}
@@ -314,38 +335,62 @@ export abstract class BaseEditorSimpleWorker {
 
 	// ---- BEGIN diff --------------------------------------------------------------------------
 
-	public computeDiff(originalUrl: string, modifiedUrl: string, ignoreTrimWhitespace: boolean): TPromise<editorCommon.ILineChange[]> {
-		let original = this._getModel(originalUrl);
-		let modified = this._getModel(modifiedUrl);
+	public computeDiff(originalUrl: string, modifiedUrl: string, ignoreTrimWhitespace: boolean): Promise<IDiffComputationResult | null> {
+		const original = this._getModel(originalUrl);
+		const modified = this._getModel(modifiedUrl);
 		if (!original || !modified) {
-			return null;
+			return Promise.resolve(null);
 		}
 
-		let originalLines = original.getLinesContent();
-		let modifiedLines = modified.getLinesContent();
-		let diffComputer = new DiffComputer(originalLines, modifiedLines, {
+		const originalLines = original.getLinesContent();
+		const modifiedLines = modified.getLinesContent();
+		const diffComputer = new DiffComputer(originalLines, modifiedLines, {
+			shouldComputeCharChanges: true,
 			shouldPostProcessCharChanges: true,
 			shouldIgnoreTrimWhitespace: ignoreTrimWhitespace,
 			shouldMakePrettyDiff: true
 		});
-		return TPromise.as(diffComputer.computeDiff());
+
+		const changes = diffComputer.computeDiff();
+		let identical = (changes.length > 0 ? false : this._modelsAreIdentical(original, modified));
+		return Promise.resolve({
+			identical: identical,
+			changes: changes
+		});
 	}
 
-	public computeDirtyDiff(originalUrl: string, modifiedUrl: string, ignoreTrimWhitespace: boolean): TPromise<editorCommon.IChange[]> {
+	private _modelsAreIdentical(original: ICommonModel, modified: ICommonModel): boolean {
+		const originalLineCount = original.getLineCount();
+		const modifiedLineCount = modified.getLineCount();
+		if (originalLineCount !== modifiedLineCount) {
+			return false;
+		}
+		for (let line = 1; line <= originalLineCount; line++) {
+			const originalLine = original.getLineContent(line);
+			const modifiedLine = modified.getLineContent(line);
+			if (originalLine !== modifiedLine) {
+				return false;
+			}
+		}
+		return true;
+	}
+
+	public computeDirtyDiff(originalUrl: string, modifiedUrl: string, ignoreTrimWhitespace: boolean): Promise<editorCommon.IChange[] | null> {
 		let original = this._getModel(originalUrl);
 		let modified = this._getModel(modifiedUrl);
 		if (!original || !modified) {
-			return null;
+			return Promise.resolve(null);
 		}
 
 		let originalLines = original.getLinesContent();
 		let modifiedLines = modified.getLinesContent();
 		let diffComputer = new DiffComputer(originalLines, modifiedLines, {
+			shouldComputeCharChanges: false,
 			shouldPostProcessCharChanges: false,
 			shouldIgnoreTrimWhitespace: ignoreTrimWhitespace,
 			shouldMakePrettyDiff: true
 		});
-		return TPromise.as(diffComputer.computeDiff());
+		return Promise.resolve(diffComputer.computeDiff());
 	}
 
 	// ---- END diff --------------------------------------------------------------------------
@@ -355,14 +400,24 @@ export abstract class BaseEditorSimpleWorker {
 
 	private static readonly _diffLimit = 10000;
 
-	public computeMoreMinimalEdits(modelUrl: string, edits: TextEdit[]): TPromise<TextEdit[]> {
+	public computeMoreMinimalEdits(modelUrl: string, edits: TextEdit[]): Promise<TextEdit[]> {
 		const model = this._getModel(modelUrl);
 		if (!model) {
-			return TPromise.as(edits);
+			return Promise.resolve(edits);
 		}
 
 		const result: TextEdit[] = [];
-		let lastEol: EndOfLineSequence;
+		let lastEol: EndOfLineSequence | undefined = undefined;
+
+		edits = mergeSort(edits, (a, b) => {
+			if (a.range && b.range) {
+				return Range.compareRangesUsingStarts(a.range, b.range);
+			}
+			// eol only changes should go to the end
+			let aRng = a.range ? 0 : 1;
+			let bRng = b.range ? 0 : 1;
+			return aRng - bRng;
+		});
 
 		for (let { range, text, eol } of edits) {
 
@@ -376,7 +431,7 @@ export abstract class BaseEditorSimpleWorker {
 			}
 
 			const original = model.getValueInRange(range);
-			text = text.replace(/\r\n|\n|\r/g, model.eol);
+			text = text!.replace(/\r\n|\n|\r/g, model.eol);
 
 			if (original === text) {
 				// noop
@@ -411,52 +466,102 @@ export abstract class BaseEditorSimpleWorker {
 			result.push({ eol: lastEol, text: undefined, range: undefined });
 		}
 
-		return TPromise.as(result);
+		return Promise.resolve(result);
 	}
 
 	// ---- END minimal edits ---------------------------------------------------------------
 
-	public computeLinks(modelUrl: string): TPromise<ILink[]> {
+	public computeLinks(modelUrl: string): Promise<ILink[] | null> {
 		let model = this._getModel(modelUrl);
 		if (!model) {
-			return null;
+			return Promise.resolve(null);
 		}
 
-		return TPromise.as(computeLinks(model));
+		return Promise.resolve(computeLinks(model));
 	}
 
 	// ---- BEGIN suggest --------------------------------------------------------------------------
 
-	public textualSuggest(modelUrl: string, position: IPosition, wordDef: string, wordDefFlags: string): TPromise<ISuggestResult> {
-		const model = this._getModel(modelUrl);
-		if (model) {
-			const suggestions: ISuggestion[] = [];
-			const wordDefRegExp = new RegExp(wordDef, wordDefFlags);
-			const currentWord = model.getWordUntilPosition(position, wordDefRegExp).word;
+	private static readonly _suggestionsLimit = 10000;
 
-			for (const word of model.getAllUniqueWords(wordDefRegExp)) {
-				if (word !== currentWord && isNaN(Number(word))) {
-					suggestions.push({
-						type: 'text',
-						label: word,
-						insertText: word,
-						noAutoAccept: true,
-						overwriteBefore: currentWord.length
-					});
-				}
-			}
-			return TPromise.as({ suggestions });
+	public textualSuggest(modelUrl: string, position: IPosition, wordDef: string, wordDefFlags: string): Promise<CompletionList | null> {
+		const model = this._getModel(modelUrl);
+		if (!model) {
+			return Promise.resolve(null);
 		}
-		return undefined;
+
+		const suggestions: CompletionItem[] = [];
+		const wordDefRegExp = new RegExp(wordDef, wordDefFlags);
+		const currentWord = model.getWordUntilPosition(position, wordDefRegExp);
+
+		const seen: Record<string, boolean> = Object.create(null);
+		seen[currentWord.word] = true;
+
+		for (
+			let iter = model.createWordIterator(wordDefRegExp), e = iter.next();
+			!e.done && suggestions.length <= BaseEditorSimpleWorker._suggestionsLimit;
+			e = iter.next()
+		) {
+			const word = e.value;
+			if (seen[word]) {
+				continue;
+			}
+			seen[word] = true;
+			if (!isNaN(Number(word))) {
+				continue;
+			}
+
+			suggestions.push({
+				kind: CompletionItemKind.Text,
+				label: word,
+				insertText: word,
+				range: { startLineNumber: position.lineNumber, startColumn: currentWord.startColumn, endLineNumber: position.lineNumber, endColumn: currentWord.endColumn }
+			});
+		}
+
+		return Promise.resolve({ suggestions });
 	}
 
 
 	// ---- END suggest --------------------------------------------------------------------------
 
-	public navigateValueSet(modelUrl: string, range: IRange, up: boolean, wordDef: string, wordDefFlags: string): TPromise<IInplaceReplaceSupportResult> {
+	//#region -- word ranges --
+
+	computeWordRanges(modelUrl: string, range: IRange, wordDef: string, wordDefFlags: string): Promise<{ [word: string]: IRange[] }> {
 		let model = this._getModel(modelUrl);
 		if (!model) {
-			return null;
+			return Promise.resolve(Object.create(null));
+		}
+		const wordDefRegExp = new RegExp(wordDef, wordDefFlags);
+		const result: { [word: string]: IRange[] } = Object.create(null);
+		for (let line = range.startLineNumber; line < range.endLineNumber; line++) {
+			let words = model.getLineWords(line, wordDefRegExp);
+			for (const word of words) {
+				if (!isNaN(Number(word.word))) {
+					continue;
+				}
+				let array = result[word.word];
+				if (!array) {
+					array = [];
+					result[word.word] = array;
+				}
+				array.push({
+					startLineNumber: line,
+					startColumn: word.startColumn,
+					endLineNumber: line,
+					endColumn: word.endColumn
+				});
+			}
+		}
+		return Promise.resolve(result);
+	}
+
+	//#endregion
+
+	public navigateValueSet(modelUrl: string, range: IRange, up: boolean, wordDef: string, wordDefFlags: string): Promise<IInplaceReplaceSupportResult | null> {
+		let model = this._getModel(modelUrl);
+		if (!model) {
+			return Promise.resolve(null);
 		}
 
 		let wordDefRegExp = new RegExp(wordDef, wordDefFlags);
@@ -473,18 +578,17 @@ export abstract class BaseEditorSimpleWorker {
 		let selectionText = model.getValueInRange(range);
 
 		let wordRange = model.getWordAtPosition({ lineNumber: range.startLineNumber, column: range.startColumn }, wordDefRegExp);
-		let word: string = null;
-		if (wordRange !== null) {
-			word = model.getValueInRange(wordRange);
+		if (!wordRange) {
+			return Promise.resolve(null);
 		}
-
+		let word = model.getValueInRange(wordRange);
 		let result = BasicInplaceReplace.INSTANCE.navigateValueSet(range, selectionText, wordRange, word, up);
-		return TPromise.as(result);
+		return Promise.resolve(result);
 	}
 
 	// ---- BEGIN foreign module support --------------------------------------------------------------------------
 
-	public loadForeignModule(moduleId: string, createData: any): TPromise<string[]> {
+	public loadForeignModule(moduleId: string, createData: any): Promise<string[]> {
 		let ctx: IWorkerContext = {
 			getMirrorModels: (): IMirrorModel[] => {
 				return this._getModels();
@@ -500,9 +604,10 @@ export abstract class BaseEditorSimpleWorker {
 					methods.push(prop);
 				}
 			}
-			return TPromise.as(methods);
+			return Promise.resolve(methods);
 		}
-		return new TPromise<any>((c, e) => {
+		// ESM-comment-begin
+		return new Promise<any>((resolve, reject) => {
 			require([moduleId], (foreignModule: { create: IForeignModuleFactory }) => {
 				this._foreignModule = foreignModule.create(ctx, createData);
 
@@ -513,22 +618,27 @@ export abstract class BaseEditorSimpleWorker {
 					}
 				}
 
-				c(methods);
+				resolve(methods);
 
-			}, e);
+			}, reject);
 		});
+		// ESM-comment-end
+
+		// ESM-uncomment-begin
+		// return Promise.reject(new Error(`Unexpected usage`));
+		// ESM-uncomment-end
 	}
 
 	// foreign method request
-	public fmr(method: string, args: any[]): TPromise<any> {
+	public fmr(method: string, args: any[]): Promise<any> {
 		if (!this._foreignModule || typeof this._foreignModule[method] !== 'function') {
-			return TPromise.wrapError(new Error('Missing requestHandler or method: ' + method));
+			return Promise.reject(new Error('Missing requestHandler or method: ' + method));
 		}
 
 		try {
-			return TPromise.as(this._foreignModule[method].apply(this._foreignModule, args));
+			return Promise.resolve(this._foreignModule[method].apply(this._foreignModule, args));
 		} catch (e) {
-			return TPromise.wrapError(e);
+			return Promise.reject(e);
 		}
 	}
 
@@ -543,7 +653,7 @@ export class EditorSimpleWorkerImpl extends BaseEditorSimpleWorker implements IR
 
 	private _models: { [uri: string]: MirrorModel; };
 
-	constructor(foreignModuleFactory: IForeignModuleFactory) {
+	constructor(foreignModuleFactory: IForeignModuleFactory | null) {
 		super(foreignModuleFactory);
 		this._models = Object.create(null);
 	}

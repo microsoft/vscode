@@ -2,14 +2,12 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
-import URI, { UriComponents } from 'vs/base/common/uri';
-import { TPromise } from 'vs/base/common/winjs.base';
+import { URI, UriComponents } from 'vs/base/common/uri';
 import { Event, Emitter, once } from 'vs/base/common/event';
 import { debounce } from 'vs/base/common/decorators';
 import { dispose, IDisposable } from 'vs/base/common/lifecycle';
-import { asWinJsPromise } from 'vs/base/common/async';
+import { asThenable } from 'vs/base/common/async';
 import { IExtensionDescription } from 'vs/workbench/services/extensions/common/extensions';
 import { ExtHostCommands } from 'vs/workbench/api/node/extHostCommands';
 import { MainContext, MainThreadSCMShape, SCMRawResource, SCMRawResourceSplice, SCMRawResourceSplices, IMainContext, ExtHostSCMShape } from './extHost.protocol';
@@ -18,6 +16,7 @@ import { comparePaths } from 'vs/base/common/comparers';
 import * as vscode from 'vscode';
 import { ISplice } from 'vs/base/common/sequence';
 import { ILogService } from 'vs/platform/log/common/log';
+import { CancellationToken } from 'vs/base/common/cancellation';
 
 type ProviderHandle = number;
 type GroupHandle = number;
@@ -110,6 +109,37 @@ function compareResourceStates(a: vscode.SourceControlResourceState, b: vscode.S
 	return result;
 }
 
+function compareArgs(a: any[], b: any[]): boolean {
+	for (let i = 0; i < a.length; i++) {
+		if (a[i] !== b[i]) {
+			return false;
+		}
+	}
+
+	return true;
+}
+
+function commandEquals(a: vscode.Command, b: vscode.Command): boolean {
+	return a.command === b.command
+		&& a.title === b.title
+		&& a.tooltip === b.tooltip
+		&& (a.arguments && b.arguments ? compareArgs(a.arguments, b.arguments) : a.arguments === b.arguments);
+}
+
+function commandListEquals(a: vscode.Command[], b: vscode.Command[]): boolean {
+	if (a.length !== b.length) {
+		return false;
+	}
+
+	for (let i = 0; i < a.length; i++) {
+		if (!commandEquals(a[i], b[i])) {
+			return false;
+		}
+	}
+
+	return true;
+}
+
 export interface IValidateInput {
 	(value: string, cursorPosition: number): vscode.ProviderResult<vscode.SourceControlInputBoxValidation | undefined | null>;
 }
@@ -166,6 +196,18 @@ export class ExtHostSCMInputBox implements vscode.SourceControlInputBox {
 
 		this._validateInput = fn;
 		this._proxy.$setValidationProviderIsEnabled(this._sourceControlHandle, !!fn);
+	}
+
+	private _visible: boolean = true;
+
+	get visible(): boolean {
+		return this._visible;
+	}
+
+	set visible(visible: boolean | undefined) {
+		visible = !!visible;
+		this._visible = visible;
+		this._proxy.$setInputBoxVisibility(this._sourceControlHandle, visible);
 	}
 
 	constructor(private _extension: IExtensionDescription, private _proxy: MainThreadSCMShape, private _sourceControlHandle: number) {
@@ -237,14 +279,14 @@ class ExtHostSourceControlResourceGroup implements vscode.SourceControlResourceG
 		return this._resourceStatesMap.get(handle);
 	}
 
-	async $executeResourceCommand(handle: number): TPromise<void> {
+	$executeResourceCommand(handle: number): Thenable<void> {
 		const command = this._resourceStatesCommandsMap.get(handle);
 
 		if (!command) {
-			return;
+			return Promise.resolve(null);
 		}
 
-		await this._commands.executeCommand(command.command, ...command.arguments);
+		return asThenable(() => this._commands.executeCommand(command.command, ...command.arguments));
 	}
 
 	_takeResourceStateSnapshot(): SCMRawResourceSplice[] {
@@ -343,6 +385,10 @@ class ExtHostSourceControl implements vscode.SourceControl {
 	}
 
 	set count(count: number | undefined) {
+		if (this._count === count) {
+			return;
+		}
+
 		this._count = count;
 		this._proxy.$updateSourceControl(this.handle, { count });
 	}
@@ -389,11 +435,24 @@ class ExtHostSourceControl implements vscode.SourceControl {
 	}
 
 	set statusBarCommands(statusBarCommands: vscode.Command[] | undefined) {
+		if (this._statusBarCommands && statusBarCommands && commandListEquals(this._statusBarCommands, statusBarCommands)) {
+			return;
+		}
+
 		this._statusBarCommands = statusBarCommands;
 
 		const internal = (statusBarCommands || []).map(c => this._commands.converter.toInternal(c));
 		this._proxy.$updateSourceControl(this.handle, { statusBarCommands: internal });
 	}
+
+	private _selected: boolean = false;
+
+	get selected(): boolean {
+		return this._selected;
+	}
+
+	private _onDidChangeSelection = new Emitter<boolean>();
+	readonly onDidChangeSelection = this._onDidChangeSelection.event;
 
 	private handle: number = ExtHostSourceControl._handlePool++;
 
@@ -454,6 +513,11 @@ class ExtHostSourceControl implements vscode.SourceControl {
 		return this._groups.get(handle);
 	}
 
+	setSelectionState(selected: boolean): void {
+		this._selected = selected;
+		this._onDidChangeSelection.fire(selected);
+	}
+
 	dispose(): void {
 		this._groups.forEach(group => group.dispose());
 		this._proxy.$unregisterSourceControl(this.handle);
@@ -470,6 +534,8 @@ export class ExtHostSCM implements ExtHostSCMShape {
 
 	private _onDidChangeActiveProvider = new Emitter<vscode.SourceControl>();
 	get onDidChangeActiveProvider(): Event<vscode.SourceControl> { return this._onDidChangeActiveProvider.event; }
+
+	private _selectedSourceControlHandles = new Set<number>();
 
 	constructor(
 		mainContext: IMainContext,
@@ -542,69 +608,106 @@ export class ExtHostSCM implements ExtHostSCMShape {
 		return inputBox;
 	}
 
-	$provideOriginalResource(sourceControlHandle: number, uriComponents: UriComponents): TPromise<UriComponents> {
+	$provideOriginalResource(sourceControlHandle: number, uriComponents: UriComponents, token: CancellationToken): Thenable<UriComponents> {
 		const uri = URI.revive(uriComponents);
 		this.logService.trace('ExtHostSCM#$provideOriginalResource', sourceControlHandle, uri.toString());
 
 		const sourceControl = this._sourceControls.get(sourceControlHandle);
 
 		if (!sourceControl || !sourceControl.quickDiffProvider) {
-			return TPromise.as(null);
+			return Promise.resolve(null);
 		}
 
-		return asWinJsPromise(token => sourceControl.quickDiffProvider.provideOriginalResource(uri, token));
+		return asThenable(() => sourceControl.quickDiffProvider.provideOriginalResource(uri, token));
 	}
 
-	$onInputBoxValueChange(sourceControlHandle: number, value: string): TPromise<void> {
+	$onInputBoxValueChange(sourceControlHandle: number, value: string): Promise<void> {
 		this.logService.trace('ExtHostSCM#$onInputBoxValueChange', sourceControlHandle);
 
 		const sourceControl = this._sourceControls.get(sourceControlHandle);
 
 		if (!sourceControl) {
-			return TPromise.as(null);
+			return Promise.resolve(null);
 		}
 
 		sourceControl.inputBox.$onInputBoxValueChange(value);
-		return TPromise.as(null);
+		return Promise.resolve(null);
 	}
 
-	async $executeResourceCommand(sourceControlHandle: number, groupHandle: number, handle: number): TPromise<void> {
+	$executeResourceCommand(sourceControlHandle: number, groupHandle: number, handle: number): Thenable<void> {
 		this.logService.trace('ExtHostSCM#$executeResourceCommand', sourceControlHandle, groupHandle, handle);
 
 		const sourceControl = this._sourceControls.get(sourceControlHandle);
 
 		if (!sourceControl) {
-			return;
+			return Promise.resolve(null);
 		}
 
 		const group = sourceControl.getResourceGroup(groupHandle);
 
 		if (!group) {
-			return;
+			return Promise.resolve(null);
 		}
 
-		await group.$executeResourceCommand(handle);
+		return group.$executeResourceCommand(handle);
 	}
 
-	async $validateInput(sourceControlHandle: number, value: string, cursorPosition: number): TPromise<[string, number] | undefined> {
+	$validateInput(sourceControlHandle: number, value: string, cursorPosition: number): Thenable<[string, number] | undefined> {
 		this.logService.trace('ExtHostSCM#$validateInput', sourceControlHandle);
 
 		const sourceControl = this._sourceControls.get(sourceControlHandle);
 
 		if (!sourceControl) {
-			return TPromise.as(undefined);
+			return Promise.resolve(undefined);
 		}
 
 		if (!sourceControl.inputBox.validateInput) {
-			return TPromise.as(undefined);
+			return Promise.resolve(undefined);
 		}
 
-		const result = await sourceControl.inputBox.validateInput(value, cursorPosition);
+		return asThenable(() => sourceControl.inputBox.validateInput(value, cursorPosition)).then(result => {
+			if (!result) {
+				return Promise.resolve(undefined);
+			}
 
-		if (!result) {
-			return TPromise.as(undefined);
+			return Promise.resolve<[string, number]>([result.message, result.type]);
+		});
+	}
+
+	$setSelectedSourceControls(selectedSourceControlHandles: number[]): Thenable<void> {
+		this.logService.trace('ExtHostSCM#$setSelectedSourceControls', selectedSourceControlHandles);
+
+		const set = new Set<number>();
+
+		for (const handle of selectedSourceControlHandles) {
+			set.add(handle);
 		}
 
-		return [result.message, result.type];
+		set.forEach(handle => {
+			if (!this._selectedSourceControlHandles.has(handle)) {
+				const sourceControl = this._sourceControls.get(handle);
+
+				if (!sourceControl) {
+					return;
+				}
+
+				sourceControl.setSelectionState(true);
+			}
+		});
+
+		this._selectedSourceControlHandles.forEach(handle => {
+			if (!set.has(handle)) {
+				const sourceControl = this._sourceControls.get(handle);
+
+				if (!sourceControl) {
+					return;
+				}
+
+				sourceControl.setSelectionState(false);
+			}
+		});
+
+		this._selectedSourceControlHandles = set;
+		return Promise.resolve(null);
 	}
 }

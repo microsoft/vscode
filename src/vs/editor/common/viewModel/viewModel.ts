@@ -2,16 +2,16 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
-import { INewScrollPosition } from 'vs/editor/common/editorCommon';
-import { EndOfLinePreference, IModelDecorationOptions } from 'vs/editor/common/model';
-import { IViewLineTokens } from 'vs/editor/common/core/lineTokens';
-import { Position, IPosition } from 'vs/editor/common/core/position';
-import { Range } from 'vs/editor/common/core/range';
-import { IViewEventListener } from 'vs/editor/common/view/viewEvents';
 import { IDisposable } from 'vs/base/common/lifecycle';
-import { Scrollable, IScrollPosition } from 'vs/base/common/scrollable';
+import { IScrollPosition, Scrollable } from 'vs/base/common/scrollable';
+import * as strings from 'vs/base/common/strings';
+import { IViewLineTokens } from 'vs/editor/common/core/lineTokens';
+import { IPosition, Position } from 'vs/editor/common/core/position';
+import { IRange, Range } from 'vs/editor/common/core/range';
+import { INewScrollPosition } from 'vs/editor/common/editorCommon';
+import { EndOfLinePreference, IActiveIndentGuideInfo, IModelDecorationOptions } from 'vs/editor/common/model';
+import { IViewEventListener } from 'vs/editor/common/view/viewEvents';
 import { IPartialViewLinesViewportData } from 'vs/editor/common/viewLayout/viewLinesViewportData';
 import { IEditorWhitespace } from 'vs/editor/common/viewLayout/whitespaceComputer';
 import { ITheme } from 'vs/platform/theme/common/themeService';
@@ -66,7 +66,7 @@ export interface IViewLayout {
 	isAfterLines(verticalOffset: number): boolean;
 	getLineNumberAtVerticalOffset(verticalOffset: number): number;
 	getVerticalOffsetForLineNumber(lineNumber: number): number;
-	getWhitespaceAtVerticalOffset(verticalOffset: number): IViewWhitespaceViewportData;
+	getWhitespaceAtVerticalOffset(verticalOffset: number): IViewWhitespaceViewportData | null;
 
 	// --------------- Begin vertical whitespace management
 
@@ -74,7 +74,7 @@ export interface IViewLayout {
 	 * Reserve rendering space.
 	 * @return an identifier that can be later used to remove or change the whitespace.
 	 */
-	addWhitespace(afterLineNumber: number, ordinal: number, height: number): number;
+	addWhitespace(afterLineNumber: number, ordinal: number, height: number, minWidth: number): number;
 	/**
 	 * Change the properties of a whitespace.
 	 */
@@ -123,6 +123,7 @@ export interface IViewModel {
 
 	getDecorationsInViewport(visibleRange: Range): ViewModelDecoration[];
 	getViewLineRenderingData(visibleRange: Range, lineNumber: number): ViewLineRenderingData;
+	getViewLineData(lineNumber: number): ViewLineData;
 	getMinimapLinesRenderingData(startLineNumber: number, endLineNumber: number, needed: boolean[]): MinimapLinesRenderingData;
 	getCompletelyVisibleViewRange(): Range;
 	getCompletelyVisibleViewRangeAtScrollTop(scrollTop: number): Range;
@@ -130,6 +131,8 @@ export interface IViewModel {
 	getTabSize(): number;
 	getLineCount(): number;
 	getLineContent(lineNumber: number): string;
+	getLineLength(lineNumber: number): number;
+	getActiveIndentGuide(lineNumber: number, minLineNumber: number, maxLineNumber: number): IActiveIndentGuideInfo;
 	getLinesIndentGuides(startLineNumber: number, endLineNumber: number): number[];
 	getLineMinColumn(lineNumber: number): number;
 	getLineMaxColumn(lineNumber: number): number;
@@ -141,20 +144,21 @@ export interface IViewModel {
 
 	getModelLineMaxColumn(modelLineNumber: number): number;
 	validateModelPosition(modelPosition: IPosition): Position;
+	validateModelRange(range: IRange): Range;
 
 	deduceModelPositionRelativeToViewPosition(viewAnchorPosition: Position, deltaOffset: number, lineFeedCnt: number): Position;
 	getEOL(): string;
-	getPlainTextToCopy(ranges: Range[], emptySelectionClipboard: boolean): string | string[];
-	getHTMLToCopy(ranges: Range[], emptySelectionClipboard: boolean): string;
+	getPlainTextToCopy(ranges: Range[], emptySelectionClipboard: boolean, forceCRLF: boolean): string | string[];
+	getHTMLToCopy(ranges: Range[], emptySelectionClipboard: boolean): string | null;
 }
 
 export class MinimapLinesRenderingData {
 	public readonly tabSize: number;
-	public readonly data: ViewLineData[];
+	public readonly data: (ViewLineData | null)[];
 
 	constructor(
 		tabSize: number,
-		data: ViewLineData[]
+		data: (ViewLineData | null)[]
 	) {
 		this.tabSize = tabSize;
 		this.data = data;
@@ -168,6 +172,10 @@ export class ViewLineData {
 	 * The content at this view line.
 	 */
 	public readonly content: string;
+	/**
+	 * Does this line continue with a wrapped line?
+	 */
+	public readonly continuesWithWrappedLine: boolean;
 	/**
 	 * The minimum allowed column at this view line.
 	 */
@@ -183,11 +191,13 @@ export class ViewLineData {
 
 	constructor(
 		content: string,
+		continuesWithWrappedLine: boolean,
 		minColumn: number,
 		maxColumn: number,
 		tokens: IViewLineTokens
 	) {
 		this.content = content;
+		this.continuesWithWrappedLine = continuesWithWrappedLine;
 		this.minColumn = minColumn;
 		this.maxColumn = maxColumn;
 		this.tokens = tokens;
@@ -208,13 +218,17 @@ export class ViewLineRenderingData {
 	 */
 	public readonly content: string;
 	/**
-	 * If set to false, it is guaranteed that `content` contains only LTR chars.
+	 * Does this line continue with a wrapped line?
 	 */
-	public readonly mightContainRTL: boolean;
+	public readonly continuesWithWrappedLine: boolean;
 	/**
-	 * If set to false, it is guaranteed that `content` contains only basic ASCII chars.
+	 * Describes if `content` contains RTL characters.
 	 */
-	public readonly mightContainNonBasicASCII: boolean;
+	public readonly containsRTL: boolean;
+	/**
+	 * Describes if `content` contains non basic ASCII chars.
+	 */
+	public readonly isBasicASCII: boolean;
 	/**
 	 * The tokens at this view line.
 	 */
@@ -232,6 +246,7 @@ export class ViewLineRenderingData {
 		minColumn: number,
 		maxColumn: number,
 		content: string,
+		continuesWithWrappedLine: boolean,
 		mightContainRTL: boolean,
 		mightContainNonBasicASCII: boolean,
 		tokens: IViewLineTokens,
@@ -241,18 +256,36 @@ export class ViewLineRenderingData {
 		this.minColumn = minColumn;
 		this.maxColumn = maxColumn;
 		this.content = content;
-		this.mightContainRTL = mightContainRTL;
-		this.mightContainNonBasicASCII = mightContainNonBasicASCII;
+		this.continuesWithWrappedLine = continuesWithWrappedLine;
+
+		this.isBasicASCII = ViewLineRenderingData.isBasicASCII(content, mightContainNonBasicASCII);
+		this.containsRTL = ViewLineRenderingData.containsRTL(content, this.isBasicASCII, mightContainRTL);
+
 		this.tokens = tokens;
 		this.inlineDecorations = inlineDecorations;
 		this.tabSize = tabSize;
+	}
+
+	public static isBasicASCII(lineContent: string, mightContainNonBasicASCII: boolean): boolean {
+		if (mightContainNonBasicASCII) {
+			return strings.isBasicASCII(lineContent);
+		}
+		return true;
+	}
+
+	public static containsRTL(lineContent: string, isBasicASCII: boolean, mightContainRTL: boolean): boolean {
+		if (!isBasicASCII && mightContainRTL) {
+			return strings.containsRTL(lineContent);
+		}
+		return false;
 	}
 }
 
 export const enum InlineDecorationType {
 	Regular = 0,
 	Before = 1,
-	After = 2
+	After = 2,
+	RegularAffectingLetterSpacing = 3
 }
 
 export class InlineDecoration {

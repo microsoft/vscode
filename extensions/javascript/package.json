@@ -61,9 +61,9 @@
         },
         "tokenTypes": {
           "entity.name.type.instance.jsdoc": "other",
-          "entity.name.function.tagged-template.js": "other",
-          "entity.name.function.tagged-template.js.jsx": "other",
-          "meta.import string.quoted": "other"
+          "entity.name.function.tagged-template": "other",
+          "meta.import string.quoted": "other",
+          "variable.other.jsdoc": "other"
         }
       },
       {
@@ -78,9 +78,9 @@
         },
         "tokenTypes": {
           "entity.name.type.instance.jsdoc": "other",
-          "entity.name.function.tagged-template.js": "other",
-          "entity.name.function.tagged-template.js.jsx": "other",
-          "meta.import string.quoted": "other"
+          "entity.name.function.tagged-template": "other",
+          "meta.import string.quoted": "other",
+          "variable.other.jsdoc": "other"
         }
       },
       {

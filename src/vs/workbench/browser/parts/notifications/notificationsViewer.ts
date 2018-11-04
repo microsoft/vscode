@@ -3,12 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
-import { IDelegate, IRenderer } from 'vs/base/browser/ui/list/list';
-import { clearNode, addClass, removeClass, toggleClass, addDisposableListener } from 'vs/base/browser/dom';
+import { IListVirtualDelegate, IListRenderer } from 'vs/base/browser/ui/list/list';
+import { clearNode, addClass, removeClass, toggleClass, addDisposableListener, EventType, EventHelper } from 'vs/base/browser/dom';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
-import URI from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { localize } from 'vs/nls';
 import { ButtonGroup } from 'vs/base/browser/ui/button/button';
@@ -20,13 +18,13 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { DropdownMenuActionItem } from 'vs/base/browser/ui/dropdown/dropdown';
-import { INotificationViewItem, NotificationViewItem, NotificationViewItemLabelKind, INotificationMessage } from 'vs/workbench/common/notifications';
+import { INotificationViewItem, NotificationViewItem, NotificationViewItemLabelKind, INotificationMessage, ChoiceAction } from 'vs/workbench/common/notifications';
 import { ClearNotificationAction, ExpandNotificationAction, CollapseNotificationAction, ConfigureNotificationAction } from 'vs/workbench/browser/parts/notifications/notificationsActions';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { ProgressBar } from 'vs/base/browser/ui/progressbar/progressbar';
 import { Severity } from 'vs/platform/notification/common/notification';
 
-export class NotificationsListDelegate implements IDelegate<INotificationViewItem> {
+export class NotificationsListDelegate implements IListVirtualDelegate<INotificationViewItem> {
 
 	private static readonly ROW_HEIGHT = 42;
 	private static readonly LINE_HEIGHT = 22;
@@ -46,7 +44,7 @@ export class NotificationsListDelegate implements IDelegate<INotificationViewIte
 		return offsetHelper;
 	}
 
-	public getHeight(notification: INotificationViewItem): number {
+	getHeight(notification: INotificationViewItem): number {
 
 		// First row: message and actions
 		let expandedHeight = NotificationsListDelegate.ROW_HEIGHT;
@@ -102,7 +100,7 @@ export class NotificationsListDelegate implements IDelegate<INotificationViewIte
 		return preferredHeight;
 	}
 
-	public getTemplateId(element: INotificationViewItem): string {
+	getTemplateId(element: INotificationViewItem): string {
 		if (element instanceof NotificationViewItem) {
 			return NotificationRenderer.TEMPLATE_ID;
 		}
@@ -135,7 +133,7 @@ interface IMessageActionHandler {
 
 class NotificationMessageRenderer {
 
-	public static render(message: INotificationMessage, actionHandler?: IMessageActionHandler): HTMLElement {
+	static render(message: INotificationMessage, actionHandler?: IMessageActionHandler): HTMLElement {
 		const messageContainer = document.createElement('span');
 
 		// Message has no links
@@ -179,9 +177,9 @@ class NotificationMessageRenderer {
 	}
 }
 
-export class NotificationRenderer implements IRenderer<INotificationViewItem, INotificationTemplateData> {
+export class NotificationRenderer implements IListRenderer<INotificationViewItem, INotificationTemplateData> {
 
-	public static readonly TEMPLATE_ID = 'notification';
+	static readonly TEMPLATE_ID = 'notification';
 
 	constructor(
 		private actionRunner: IActionRunner,
@@ -191,11 +189,11 @@ export class NotificationRenderer implements IRenderer<INotificationViewItem, IN
 	) {
 	}
 
-	public get templateId() {
+	get templateId() {
 		return NotificationRenderer.TEMPLATE_ID;
 	}
 
-	public renderTemplate(container: HTMLElement): INotificationTemplateData {
+	renderTemplate(container: HTMLElement): INotificationTemplateData {
 		const data: INotificationTemplateData = Object.create(null);
 		data.toDispose = [];
 
@@ -274,11 +272,15 @@ export class NotificationRenderer implements IRenderer<INotificationViewItem, IN
 		return data;
 	}
 
-	public renderElement(notification: INotificationViewItem, index: number, data: INotificationTemplateData): void {
+	renderElement(notification: INotificationViewItem, index: number, data: INotificationTemplateData): void {
 		data.renderer.setInput(notification);
 	}
 
-	public disposeTemplate(templateData: INotificationTemplateData): void {
+	disposeElement(): void {
+		// noop
+	}
+
+	disposeTemplate(templateData: INotificationTemplateData): void {
 		templateData.toDispose = dispose(templateData.toDispose);
 	}
 }
@@ -291,7 +293,7 @@ export class NotificationTemplateRenderer {
 
 	private static readonly SEVERITIES: ('info' | 'warning' | 'error')[] = ['info', 'warning', 'error'];
 
-	private inputDisposeables: IDisposable[];
+	private inputDisposeables: IDisposable[] = [];
 
 	constructor(
 		private template: INotificationTemplateData,
@@ -301,8 +303,6 @@ export class NotificationTemplateRenderer {
 		@IThemeService private themeService: IThemeService,
 		@IKeybindingService private keybindingService: IKeybindingService
 	) {
-		this.inputDisposeables = [];
-
 		if (!NotificationTemplateRenderer.closeNotificationAction) {
 			NotificationTemplateRenderer.closeNotificationAction = instantiationService.createInstance(ClearNotificationAction, ClearNotificationAction.ID, ClearNotificationAction.LABEL);
 			NotificationTemplateRenderer.expandNotificationAction = instantiationService.createInstance(ExpandNotificationAction, ExpandNotificationAction.ID, ExpandNotificationAction.LABEL);
@@ -310,7 +310,7 @@ export class NotificationTemplateRenderer {
 		}
 	}
 
-	public setInput(notification: INotificationViewItem): void {
+	setInput(notification: INotificationViewItem): void {
 		this.inputDisposeables = dispose(this.inputDisposeables);
 
 		this.render(notification);
@@ -320,6 +320,13 @@ export class NotificationTemplateRenderer {
 
 		// Container
 		toggleClass(this.template.container, 'expanded', notification.expanded);
+		this.inputDisposeables.push(addDisposableListener(this.template.container, EventType.MOUSE_UP, e => {
+			if (e.button === 1 /* Middle Button */) {
+				EventHelper.stop(e);
+
+				notification.close();
+			}
+		}));
 
 		// Severity Icon
 		this.renderSeverity(notification);
@@ -417,10 +424,10 @@ export class NotificationTemplateRenderer {
 
 	private renderSource(notification): void {
 		if (notification.expanded && notification.source) {
-			this.template.source.innerText = localize('notificationSource', "Source: {0}", notification.source);
+			this.template.source.textContent = localize('notificationSource', "Source: {0}", notification.source);
 			this.template.source.title = notification.source;
 		} else {
-			this.template.source.innerText = '';
+			this.template.source.textContent = '';
 			this.template.source.removeAttribute('title');
 		}
 	}
@@ -435,14 +442,15 @@ export class NotificationTemplateRenderer {
 				button.label = action.label;
 
 				this.inputDisposeables.push(button.onDidClick(e => {
-					e.preventDefault();
-					e.stopPropagation();
+					EventHelper.stop(e, true);
 
 					// Run action
 					this.actionRunner.run(action, notification);
 
-					// Hide notification
-					notification.dispose();
+					// Hide notification (unless explicitly prevented)
+					if (!(action instanceof ChoiceAction) || !action.keepOpen) {
+						notification.close();
+					}
 				}));
 
 				this.inputDisposeables.push(attachButtonStyler(button, this.themeService));
@@ -456,7 +464,7 @@ export class NotificationTemplateRenderer {
 
 		// Return early if the item has no progress
 		if (!notification.hasProgress()) {
-			this.template.progress.stop().getContainer().hide();
+			this.template.progress.stop().hide();
 
 			return;
 		}
@@ -464,7 +472,7 @@ export class NotificationTemplateRenderer {
 		// Infinite
 		const state = notification.progress.state;
 		if (state.infinite) {
-			this.template.progress.infinite().getContainer().show();
+			this.template.progress.infinite().show();
 		}
 
 		// Total / Worked
@@ -474,13 +482,13 @@ export class NotificationTemplateRenderer {
 			}
 
 			if (typeof state.worked === 'number') {
-				this.template.progress.worked(state.worked).getContainer().show();
+				this.template.progress.setWorked(state.worked).show();
 			}
 		}
 
 		// Done
 		else {
-			this.template.progress.done().getContainer().hide();
+			this.template.progress.done().hide();
 		}
 	}
 
@@ -501,7 +509,7 @@ export class NotificationTemplateRenderer {
 		return keybinding ? keybinding.getLabel() : void 0;
 	}
 
-	public dispose(): void {
+	dispose(): void {
 		this.inputDisposeables = dispose(this.inputDisposeables);
 	}
 }

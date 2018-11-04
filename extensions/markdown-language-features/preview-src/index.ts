@@ -3,16 +3,33 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { getSettings } from './settings';
-import { postCommand, postMessage } from './messaging';
-import { onceDocumentLoaded } from './events';
-import { getEditorLineNumberForPageOffset, scrollToRevealSourceLine } from './scroll-sync';
 import { ActiveLineMarker } from './activeLineMarker';
+import { onceDocumentLoaded } from './events';
+import { createPosterForVsCode } from './messaging';
+import { getEditorLineNumberForPageOffset, scrollToRevealSourceLine } from './scroll-sync';
+import { getSettings, getData } from './settings';
 import throttle = require('lodash.throttle');
+
+declare var acquireVsCodeApi: any;
 
 var scrollDisabled = true;
 const marker = new ActiveLineMarker();
 const settings = getSettings();
+
+const vscode = acquireVsCodeApi();
+
+// Set VS Code state
+const state = getData('data-state');
+vscode.setState(state);
+
+const messaging = createPosterForVsCode(vscode);
+
+window.cspAlerter.setPoster(messaging);
+window.styleLoadingMonitor.setPoster(messaging);
+
+window.onload = () => {
+	updateImageSizes();
+};
 
 onceDocumentLoaded(() => {
 	if (settings.scrollPreviewWithEditor) {
@@ -40,8 +57,32 @@ const onUpdateView = (() => {
 	};
 })();
 
+let updateImageSizes = throttle(() => {
+	const imageInfo: { id: string, height: number, width: number }[] = [];
+	let images = document.getElementsByTagName('img');
+	if (images) {
+		let i;
+		for (i = 0; i < images.length; i++) {
+			const img = images[i];
+
+			if (img.classList.contains('loading')) {
+				img.classList.remove('loading');
+			}
+
+			imageInfo.push({
+				id: img.id,
+				height: img.height,
+				width: img.width
+			});
+		}
+
+		messaging.postMessage('cacheImageSizes', imageInfo);
+	}
+}, 50);
+
 window.addEventListener('resize', () => {
 	scrollDisabled = true;
+	updateImageSizes();
 }, true);
 
 window.addEventListener('message', event => {
@@ -75,7 +116,7 @@ document.addEventListener('dblclick', event => {
 	const offset = event.pageY;
 	const line = getEditorLineNumberForPageOffset(offset);
 	if (typeof line === 'number' && !isNaN(line)) {
-		postMessage('didClick', { line });
+		messaging.postMessage('didClick', { line: Math.floor(line) });
 	}
 });
 
@@ -92,7 +133,7 @@ document.addEventListener('click', event => {
 			}
 			if (node.href.startsWith('file://') || node.href.startsWith('vscode-resource:')) {
 				const [path, fragment] = node.href.replace(/^(file:\/\/|vscode-resource:)/i, '').split('#');
-				postCommand('_markdown.openDocumentLink', [{ path, fragment }]);
+				messaging.postMessage('clickLink', { path, fragment });
 				event.preventDefault();
 				event.stopPropagation();
 				break;
@@ -110,7 +151,7 @@ if (settings.scrollEditorWithPreview) {
 		} else {
 			const line = getEditorLineNumberForPageOffset(window.scrollY);
 			if (typeof line === 'number' && !isNaN(line)) {
-				postMessage('revealLine', { line });
+				messaging.postMessage('revealLine', { line });
 			}
 		}
 	}, 50));

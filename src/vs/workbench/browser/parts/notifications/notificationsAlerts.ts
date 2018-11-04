@@ -3,45 +3,61 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import { alert } from 'vs/base/browser/ui/aria/aria';
 import { localize } from 'vs/nls';
-import { INotificationViewItem, INotificationsModel, NotificationChangeType, INotificationChangeEvent } from 'vs/workbench/common/notifications';
-import { IDisposable, dispose } from 'vs/base/common/lifecycle';
+import { INotificationViewItem, INotificationsModel, NotificationChangeType, INotificationChangeEvent, NotificationViewItemLabelKind } from 'vs/workbench/common/notifications';
+import { Disposable } from 'vs/base/common/lifecycle';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
 import { Severity } from 'vs/platform/notification/common/notification';
+import { once } from 'vs/base/common/event';
 
-export class NotificationsAlerts {
-	private toDispose: IDisposable[];
+export class NotificationsAlerts extends Disposable {
 
 	constructor(private model: INotificationsModel) {
-		this.toDispose = [];
+		super();
 
 		// Alert initial notifications if any
-		model.notifications.forEach(n => this.ariaAlert(n));
+		model.notifications.forEach(n => this.triggerAriaAlert(n));
 
 		this.registerListeners();
 	}
 
 	private registerListeners(): void {
-		this.toDispose.push(this.model.onDidNotificationChange(e => this.onDidNotificationChange(e)));
+		this._register(this.model.onDidNotificationChange(e => this.onDidNotificationChange(e)));
 	}
 
 	private onDidNotificationChange(e: INotificationChangeEvent): void {
 		if (e.kind === NotificationChangeType.ADD) {
 
 			// ARIA alert for screen readers
-			this.ariaAlert(e.item);
+			this.triggerAriaAlert(e.item);
 
 			// Always log errors to console with full details
 			if (e.item.severity === Severity.Error) {
-				console.error(toErrorMessage(e.item.message.value, true));
+				if (e.item.message.original instanceof Error) {
+					console.error(e.item.message.original);
+				} else {
+					console.error(toErrorMessage(e.item.message.value, true));
+				}
 			}
 		}
 	}
 
-	private ariaAlert(notifiation: INotificationViewItem): void {
+	private triggerAriaAlert(notifiation: INotificationViewItem): void {
+
+		// Trigger the alert again whenever the label changes
+		const listener = notifiation.onDidLabelChange(e => {
+			if (e.kind === NotificationViewItemLabelKind.MESSAGE) {
+				this.doTriggerAriaAlert(notifiation);
+			}
+		});
+
+		once(notifiation.onDidClose)(() => listener.dispose());
+
+		this.doTriggerAriaAlert(notifiation);
+	}
+
+	private doTriggerAriaAlert(notifiation: INotificationViewItem): void {
 		let alertText: string;
 		if (notifiation.severity === Severity.Error) {
 			alertText = localize('alertErrorMessage', "Error: {0}", notifiation.message.value);
@@ -52,9 +68,5 @@ export class NotificationsAlerts {
 		}
 
 		alert(alertText);
-	}
-
-	public dispose(): void {
-		this.toDispose = dispose(this.toDispose);
 	}
 }

@@ -2,9 +2,7 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
-import { IAction } from 'vs/base/common/actions';
 import { TPromise, IPromiseError, IPromiseErrorDetail } from 'vs/base/common/winjs.base';
 
 // ------ BEGIN Hook up error listeners to winjs promises
@@ -231,28 +229,6 @@ export function readonly(name?: string): Error {
 export function disposed(what: string): Error {
 	const result = new Error(`${what} has been disposed`);
 	result.name = 'DISPOSED';
-	return result;
-}
-
-export interface IErrorOptions {
-	actions?: IAction[];
-}
-
-export interface IErrorWithActions {
-	actions?: IAction[];
-}
-
-export function isErrorWithActions(obj: any): obj is IErrorWithActions {
-	return obj instanceof Error && Array.isArray((obj as IErrorWithActions).actions);
-}
-
-export function create(message: string, options: IErrorOptions = Object.create(null)): Error & IErrorWithActions {
-	const result = new Error(message);
-
-	if (options.actions) {
-		(<IErrorWithActions>result).actions = options.actions;
-	}
-
 	return result;
 }
 

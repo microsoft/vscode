@@ -2,8 +2,6 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
-
 import * as assert from 'assert';
 import { Scanner, TokenType, SnippetParser, Text, Placeholder, Variable, Marker, TextmateSnippet, Choice, FormatString, Transform } from 'vs/editor/contrib/snippet/snippetParser';
 
@@ -240,6 +238,20 @@ suite('SnippetParser', () => {
 
 	});
 
+	test('Parser, placeholder transforms', function () {
+		assertTextAndMarker('${1///}', '', Placeholder);
+		assertTextAndMarker('${1/regex/format/gmi}', '', Placeholder);
+		assertTextAndMarker('${1/([A-Z][a-z])/format/}', '', Placeholder);
+
+		// tricky regex
+		assertTextAndMarker('${1/m\\/atch/$1/i}', '', Placeholder);
+		assertMarker('${1/regex\/format/options}', Text);
+
+		// incomplete
+		assertTextAndMarker('${1///', '${1///', Text);
+		assertTextAndMarker('${1/regex/format/options', '${1/regex/format/options', Text);
+	});
+
 	test('No way to escape forward slash in snippet regex #36715', function () {
 		assertMarker('${TM_DIRECTORY/src\\//$1/}', Variable);
 	});
@@ -339,6 +351,12 @@ suite('SnippetParser', () => {
 		assertText('${1||}', '${1||}');
 	});
 
+	test('Backslash character escape in choice tabstop doesn\'t work #58494', function () {
+
+		const { placeholders } = new SnippetParser().parse('${1|\\,,},$,\\|,\\\\|}');
+		assert.equal(placeholders.length, 1);
+		assert.ok(placeholders[0].choice instanceof Choice);
+	});
 
 	test('Parser, only textmate', () => {
 		const p = new SnippetParser();
@@ -378,6 +396,41 @@ suite('SnippetParser', () => {
 		assert.ok(marker[0] instanceof Variable);
 	});
 
+	test('Parser, transform example', () => {
+		let { children } = new SnippetParser().parse('${1:name} : ${2:type}${3/\\s:=(.*)/${1:+ :=}${1}/};\n$0');
+
+		//${1:name}
+		assert.ok(children[0] instanceof Placeholder);
+		assert.equal(children[0].children.length, 1);
+		assert.equal(children[0].children[0].toString(), 'name');
+		assert.equal((<Placeholder>children[0]).transform, undefined);
+
+		// :
+		assert.ok(children[1] instanceof Text);
+		assert.equal(children[1].toString(), ' : ');
+
+		//${2:type}
+		assert.ok(children[2] instanceof Placeholder);
+		assert.equal(children[2].children.length, 1);
+		assert.equal(children[2].children[0].toString(), 'type');
+
+		//${3/\\s:=(.*)/${1:+ :=}${1}/}
+		assert.ok(children[3] instanceof Placeholder);
+		assert.equal(children[3].children.length, 0);
+		assert.notEqual((<Placeholder>children[3]).transform, undefined);
+		let transform = (<Placeholder>children[3]).transform;
+		assert.equal(transform.regexp, '/\\s:=(.*)/');
+		assert.equal(transform.children.length, 2);
+		assert.ok(transform.children[0] instanceof FormatString);
+		assert.equal((<FormatString>transform.children[0]).index, 1);
+		assert.equal((<FormatString>transform.children[0]).ifValue, ' :=');
+		assert.ok(transform.children[1] instanceof FormatString);
+		assert.equal((<FormatString>transform.children[1]).index, 1);
+		assert.ok(children[4] instanceof Text);
+		assert.equal(children[4].toString(), ';\n');
+
+	});
+
 	test('Parser, default placeholder values', () => {
 
 		assertMarker('errorContext: `${1:err}`, error: $1', Text, Placeholder, Text, Placeholder);
@@ -391,6 +444,23 @@ suite('SnippetParser', () => {
 		assert.equal((<Placeholder>p2).index, '1');
 		assert.equal((<Placeholder>p2).children.length, '1');
 		assert.equal((<Text>(<Placeholder>p2).children[0]), 'err');
+	});
+
+	test('Parser, default placeholder values and one transform', () => {
+
+		assertMarker('errorContext: `${1:err}`, error: ${1/err/ok/}', Text, Placeholder, Text, Placeholder);
+
+		const [, p3, , p4] = new SnippetParser().parse('errorContext: `${1:err}`, error:${1/err/ok/}').children;
+
+		assert.equal((<Placeholder>p3).index, '1');
+		assert.equal((<Placeholder>p3).children.length, '1');
+		assert.equal((<Text>(<Placeholder>p3).children[0]), 'err');
+		assert.equal((<Placeholder>p3).transform, undefined);
+
+		assert.equal((<Placeholder>p4).index, '1');
+		assert.equal((<Placeholder>p4).children.length, '1');
+		assert.equal((<Text>(<Placeholder>p4).children[0]), 'err');
+		assert.notEqual((<Placeholder>p4).transform, undefined);
 	});
 
 	test('Repeated snippet placeholder should always inherit, #31040', function () {
@@ -457,7 +527,7 @@ suite('SnippetParser', () => {
 		assert.ok(first.parent === snippet.children[0]);
 	});
 
-	test('TextmateSnippet#enclosingPlaceholders', function () {
+	test('TextmateSnippet#enclosingPlaceholders', () => {
 		let snippet = new SnippetParser().parse('This ${1:is ${2:nested}}$0', true);
 		let [first, second] = snippet.placeholders;
 
@@ -583,6 +653,7 @@ suite('SnippetParser', () => {
 		assert.equal(new FormatString(1, 'downcase').resolve('FOO'), 'foo');
 		assert.equal(new FormatString(1, 'capitalize').resolve('bar'), 'Bar');
 		assert.equal(new FormatString(1, 'capitalize').resolve('bar no repeat'), 'Bar no repeat');
+		assert.equal(new FormatString(1, 'pascalcase').resolve('bar-foo'), 'BarFoo');
 		assert.equal(new FormatString(1, 'notKnown').resolve('input'), 'input');
 
 		// if
@@ -599,6 +670,11 @@ suite('SnippetParser', () => {
 		assert.equal(new FormatString(1, undefined, 'bar', 'foo').resolve(undefined), 'foo');
 		assert.equal(new FormatString(1, undefined, 'bar', 'foo').resolve(''), 'foo');
 		assert.equal(new FormatString(1, undefined, 'bar', 'foo').resolve('baz'), 'bar');
+	});
+
+	test('Snippet variable transformation doesn\'t work if regex is complicated and snippet body contains \'$$\' #55627', function () {
+		const snippet = new SnippetParser().parse('const fileName = "${TM_FILENAME/(.*)\\..+$/$1/}"');
+		assert.equal(snippet.toTextmateString(), 'const fileName = "${TM_FILENAME/(.*)\\..+$/${1}/}"');
 	});
 
 	test('[BUG] HTML attribute suggestions: Snippet session does not have end-position set, #33147', function () {
@@ -629,5 +705,47 @@ suite('SnippetParser', () => {
 
 		const snippet = new SnippetParser().parse('${TM_DIRECTORY/.*src[\\/](.*)/$1/}');
 		assertMarker(snippet, Variable);
+	});
+
+	test('Variable transformation doesn\'t work if undefined variables are used in the same snippet #51769', function () {
+		let transform = new Transform();
+		transform.appendChild(new Text('bar'));
+		transform.regexp = new RegExp('foo', 'gi');
+		assert.equal(transform.toTextmateString(), '/foo/bar/ig');
+	});
+
+	test('Snippet parser freeze #53144', function () {
+		let snippet = new SnippetParser().parse('${1/(void$)|(.+)/${1:?-\treturn nil;}/}');
+		assertMarker(snippet, Placeholder);
+	});
+
+	test('snippets variable not resolved in JSON proposal #52931', function () {
+		assertTextAndMarker('FOO${1:/bin/bash}', 'FOO/bin/bash', Text, Placeholder);
+	});
+
+	test('Mirroring sequence of nested placeholders not selected properly on backjumping #58736', function () {
+		let snippet = new SnippetParser().parse('${3:nest1 ${1:nest2 ${2:nest3}}} $3');
+		assert.equal(snippet.children.length, 3);
+		assert.ok(snippet.children[0] instanceof Placeholder);
+		assert.ok(snippet.children[1] instanceof Text);
+		assert.ok(snippet.children[2] instanceof Placeholder);
+
+		function assertParent(marker: Marker) {
+			marker.children.forEach(assertParent);
+			if (!(marker instanceof Placeholder)) {
+				return;
+			}
+			let found = false;
+			let m: Marker = marker;
+			while (m && !found) {
+				if (m.parent === snippet) {
+					found = true;
+				}
+				m = m.parent;
+			}
+			assert.ok(found);
+		}
+		let [, , clone] = snippet.children;
+		assertParent(clone);
 	});
 });

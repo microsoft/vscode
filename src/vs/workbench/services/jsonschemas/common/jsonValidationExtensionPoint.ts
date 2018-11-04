@@ -2,13 +2,11 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
 import * as nls from 'vs/nls';
 import { ExtensionsRegistry } from 'vs/workbench/services/extensions/common/extensionsRegistry';
-import URI from 'vs/base/common/uri';
 import * as strings from 'vs/base/common/strings';
-import * as paths from 'vs/base/common/paths';
+import * as resources from 'vs/base/common/resources';
 
 interface IJSONValidationExtensionPoint {
 	fileMatch: string;
@@ -42,7 +40,7 @@ export class JSONValidationExtensionPoint {
 			for (let i = 0; i < extensions.length; i++) {
 				const extensionValue = <IJSONValidationExtensionPoint[]>extensions[i].value;
 				const collector = extensions[i].collector;
-				const extensionPath = extensions[i].description.extensionFolderPath;
+				const extensionLocation = extensions[i].description.extensionLocation;
 
 				if (!extensionValue || !Array.isArray(extensionValue)) {
 					collector.error(nls.localize('invalid.jsonValidation', "'configuration.jsonValidation' must be a array"));
@@ -60,7 +58,10 @@ export class JSONValidationExtensionPoint {
 					}
 					if (strings.startsWith(uri, './')) {
 						try {
-							uri = URI.file(paths.normalize(paths.join(extensionPath, uri))).toString();
+							const colorThemeLocation = resources.joinPath(extensionLocation, uri);
+							if (!resources.isEqualOrParent(colorThemeLocation, extensionLocation)) {
+								collector.warn(nls.localize('invalid.path.1', "Expected `contributes.{0}.url` ({1}) to be included inside extension's folder ({2}). This might make the extension non-portable.", configurationExtPoint.name, colorThemeLocation.toString(), extensionLocation.path));
+							}
 						} catch (e) {
 							collector.error(nls.localize('invalid.url.fileschema', "'configuration.jsonValidation.url' is an invalid relative URL: {0}", e.message));
 						}

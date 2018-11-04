@@ -3,33 +3,31 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
-import { empty as emptyDisposable, IDisposable, combinedDisposable } from 'vs/base/common/lifecycle';
-import { TPromise } from 'vs/base/common/winjs.base';
-import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { CommandsRegistry, ICommandService, ICommandHandler } from 'vs/platform/commands/common/commands';
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { ContextKeyExpr, IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { IModelChangedEvent } from 'vs/editor/common/editorCommon';
-import { ITextModel } from 'vs/editor/common/model';
-import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
-import { IEditorWorkerService } from 'vs/editor/common/services/editorWorkerService';
-import { StandaloneKeybindingService } from 'vs/editor/standalone/browser/simpleServices';
-import { IEditorContextViewService } from 'vs/editor/standalone/browser/standaloneServices';
-import { CodeEditor } from 'vs/editor/browser/codeEditor';
-import { DiffEditorWidget } from 'vs/editor/browser/widget/diffEditorWidget';
-import { ICodeEditor, IDiffEditor } from 'vs/editor/browser/editorBrowser';
-import { IStandaloneThemeService } from 'vs/editor/standalone/common/standaloneThemeService';
-import { InternalEditorAction } from 'vs/editor/common/editorAction';
-import { MenuId, MenuRegistry, IMenuItem } from 'vs/platform/actions/common/actions';
-import { IDiffEditorOptions, IEditorOptions } from 'vs/editor/common/config/editorOptions';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
-import * as aria from 'vs/base/browser/ui/aria/aria';
 import * as nls from 'vs/nls';
 import * as browser from 'vs/base/browser/browser';
+import * as aria from 'vs/base/browser/ui/aria/aria';
+import { Disposable, IDisposable, combinedDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import { ICodeEditor, IDiffEditor } from 'vs/editor/browser/editorBrowser';
+import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
+import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditorWidget';
+import { DiffEditorWidget } from 'vs/editor/browser/widget/diffEditorWidget';
+import { IDiffEditorOptions, IEditorOptions } from 'vs/editor/common/config/editorOptions';
+import { InternalEditorAction } from 'vs/editor/common/editorAction';
+import { IModelChangedEvent } from 'vs/editor/common/editorCommon';
+import { ITextModel } from 'vs/editor/common/model';
+import { IEditorWorkerService } from 'vs/editor/common/services/editorWorkerService';
+import { StandaloneKeybindingService, applyConfigurationValues } from 'vs/editor/standalone/browser/simpleServices';
+import { IStandaloneThemeService } from 'vs/editor/standalone/common/standaloneThemeService';
+import { IMenuItem, MenuId, MenuRegistry } from 'vs/platform/actions/common/actions';
+import { CommandsRegistry, ICommandHandler, ICommandService } from 'vs/platform/commands/common/commands';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { ContextKeyExpr, IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
+import { ContextViewService } from 'vs/platform/contextview/browser/contextViewService';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { INotificationService } from 'vs/platform/notification/common/notification';
+import { IThemeService } from 'vs/platform/theme/common/themeService';
 
 /**
  * Description of an action contribution
@@ -71,9 +69,9 @@ export interface IActionDescriptor {
 	contextMenuOrder?: number;
 	/**
 	 * Method that will be executed when the action is triggered.
-	 * @param editor The editor instance is passed in as a convinience
+	 * @param editor The editor instance is passed in as a convenience
 	 */
-	run(editor: ICodeEditor): void | TPromise<void>;
+	run(editor: ICodeEditor): void | Promise<void>;
 }
 
 /**
@@ -83,7 +81,7 @@ export interface IEditorConstructionOptions extends IEditorOptions {
 	/**
 	 * The initial model associated with this code editor.
 	 */
-	model?: ITextModel;
+	model?: ITextModel | null;
 	/**
 	 * The initial value of the auto created model in the editor.
 	 * To not create automatically a model, use `model: null`.
@@ -124,13 +122,13 @@ export interface IDiffEditorConstructionOptions extends IDiffEditorOptions {
 }
 
 export interface IStandaloneCodeEditor extends ICodeEditor {
-	addCommand(keybinding: number, handler: ICommandHandler, context: string): string;
+	addCommand(keybinding: number, handler: ICommandHandler, context: string): string | null;
 	createContextKey<T>(key: string, defaultValue: T): IContextKey<T>;
 	addAction(descriptor: IActionDescriptor): IDisposable;
 }
 
 export interface IStandaloneDiffEditor extends IDiffEditor {
-	addCommand(keybinding: number, handler: ICommandHandler, context: string): string;
+	addCommand(keybinding: number, handler: ICommandHandler, context: string): string | null;
 	createContextKey<T>(key: string, defaultValue: T): IContextKey<T>;
 	addAction(descriptor: IActionDescriptor): IDisposable;
 
@@ -152,7 +150,7 @@ function createAriaDomNode() {
 /**
  * A code editor to be used both by the standalone editor and the standalone diff editor.
  */
-export class StandaloneCodeEditor extends CodeEditor implements IStandaloneCodeEditor {
+export class StandaloneCodeEditor extends CodeEditorWidget implements IStandaloneCodeEditor {
 
 	private _standaloneKeybindingService: StandaloneKeybindingService;
 
@@ -164,7 +162,8 @@ export class StandaloneCodeEditor extends CodeEditor implements IStandaloneCodeE
 		@ICommandService commandService: ICommandService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IKeybindingService keybindingService: IKeybindingService,
-		@IThemeService themeService: IThemeService
+		@IThemeService themeService: IThemeService,
+		@INotificationService notificationService: INotificationService
 	) {
 		options = options || {};
 		options.ariaLabel = options.ariaLabel || nls.localize('editorViewAccessibleLabel', "Editor content");
@@ -173,7 +172,7 @@ export class StandaloneCodeEditor extends CodeEditor implements IStandaloneCodeE
 				? nls.localize('accessibilityHelpMessageIE', "Press Ctrl+F1 for Accessibility Options.")
 				: nls.localize('accessibilityHelpMessage', "Press Alt+F1 for Accessibility Options.")
 		);
-		super(domElement, options, instantiationService, codeEditorService, commandService, contextKeyService, themeService);
+		super(domElement, options, {}, instantiationService, codeEditorService, commandService, contextKeyService, themeService, notificationService);
 
 		if (keybindingService instanceof StandaloneKeybindingService) {
 			this._standaloneKeybindingService = keybindingService;
@@ -183,7 +182,7 @@ export class StandaloneCodeEditor extends CodeEditor implements IStandaloneCodeE
 		createAriaDomNode();
 	}
 
-	public addCommand(keybinding: number, handler: ICommandHandler, context: string): string {
+	public addCommand(keybinding: number, handler: ICommandHandler, context: string): string | null {
 		if (!this._standaloneKeybindingService) {
 			console.warn('Cannot add command because the editor is configured with an unrecognized KeybindingService');
 			return null;
@@ -204,7 +203,7 @@ export class StandaloneCodeEditor extends CodeEditor implements IStandaloneCodeE
 		}
 		if (!this._standaloneKeybindingService) {
 			console.warn('Cannot add keybinding because the editor is configured with an unrecognized KeybindingService');
-			return emptyDisposable;
+			return Disposable.None;
 		}
 
 		// Read descriptor options
@@ -221,9 +220,8 @@ export class StandaloneCodeEditor extends CodeEditor implements IStandaloneCodeE
 		);
 		const contextMenuGroupId = _descriptor.contextMenuGroupId || null;
 		const contextMenuOrder = _descriptor.contextMenuOrder || 0;
-		const run = (): TPromise<void> => {
-			const r = _descriptor.run(this);
-			return r ? r : TPromise.as(void 0);
+		const run = (): Promise<void> => {
+			return Promise.resolve(_descriptor.run(this));
 		};
 
 
@@ -270,11 +268,9 @@ export class StandaloneCodeEditor extends CodeEditor implements IStandaloneCodeE
 
 		// Store it under the original id, such that trigger with the original id will work
 		this._actions[id] = internalAction;
-		toDispose.push({
-			dispose: () => {
-				delete this._actions[id];
-			}
-		});
+		toDispose.push(toDisposable(() => {
+			delete this._actions[id];
+		}));
 
 		return combinedDisposable(toDispose);
 	}
@@ -282,12 +278,13 @@ export class StandaloneCodeEditor extends CodeEditor implements IStandaloneCodeE
 
 export class StandaloneEditor extends StandaloneCodeEditor implements IStandaloneCodeEditor {
 
-	private _contextViewService: IEditorContextViewService;
+	private _contextViewService: ContextViewService;
+	private readonly _configurationService: IConfigurationService;
 	private _ownsModel: boolean;
 
 	constructor(
 		domElement: HTMLElement,
-		options: IEditorConstructionOptions,
+		options: IEditorConstructionOptions | undefined,
 		toDispose: IDisposable,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@ICodeEditorService codeEditorService: ICodeEditorService,
@@ -295,23 +292,29 @@ export class StandaloneEditor extends StandaloneCodeEditor implements IStandalon
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IKeybindingService keybindingService: IKeybindingService,
 		@IContextViewService contextViewService: IContextViewService,
-		@IStandaloneThemeService themeService: IStandaloneThemeService
+		@IStandaloneThemeService themeService: IStandaloneThemeService,
+		@INotificationService notificationService: INotificationService,
+		@IConfigurationService configurationService: IConfigurationService
 	) {
+		applyConfigurationValues(configurationService, options, false);
 		options = options || {};
 		if (typeof options.theme === 'string') {
 			themeService.setTheme(options.theme);
 		}
-		let model: ITextModel = options.model;
+		let _model: ITextModel | null | undefined = options.model;
 		delete options.model;
-		super(domElement, options, instantiationService, codeEditorService, commandService, contextKeyService, keybindingService, themeService);
+		super(domElement, options, instantiationService, codeEditorService, commandService, contextKeyService, keybindingService, themeService, notificationService);
 
-		this._contextViewService = <IEditorContextViewService>contextViewService;
+		this._contextViewService = <ContextViewService>contextViewService;
+		this._configurationService = configurationService;
 		this._register(toDispose);
 
-		if (typeof model === 'undefined') {
+		let model: ITextModel | null;
+		if (typeof _model === 'undefined') {
 			model = (<any>self).monaco.editor.createModel(options.value || '', options.language || 'text/plain');
 			this._ownsModel = true;
 		} else {
+			model = _model;
 			this._ownsModel = false;
 		}
 
@@ -329,10 +332,15 @@ export class StandaloneEditor extends StandaloneCodeEditor implements IStandalon
 		super.dispose();
 	}
 
-	_attachModel(model: ITextModel): void {
+	public updateOptions(newOptions: IEditorOptions): void {
+		applyConfigurationValues(this._configurationService, newOptions, false);
+		super.updateOptions(newOptions);
+	}
+
+	_attachModel(model: ITextModel | null): void {
 		super._attachModel(model);
-		if (this._view) {
-			this._contextViewService.setContainer(this._view.domNode.domNode);
+		if (this._modelData) {
+			this._contextViewService.setContainer(this._modelData.view.domNode.domNode);
 		}
 	}
 
@@ -347,7 +355,8 @@ export class StandaloneEditor extends StandaloneCodeEditor implements IStandalon
 
 export class StandaloneDiffEditor extends DiffEditorWidget implements IStandaloneDiffEditor {
 
-	private _contextViewService: IEditorContextViewService;
+	private _contextViewService: ContextViewService;
+	private readonly _configurationService: IConfigurationService;
 
 	constructor(
 		domElement: HTMLElement,
@@ -360,8 +369,10 @@ export class StandaloneDiffEditor extends DiffEditorWidget implements IStandalon
 		@IEditorWorkerService editorWorkerService: IEditorWorkerService,
 		@ICodeEditorService codeEditorService: ICodeEditorService,
 		@IStandaloneThemeService themeService: IStandaloneThemeService,
-		@INotificationService notificationService: INotificationService
+		@INotificationService notificationService: INotificationService,
+		@IConfigurationService configurationService: IConfigurationService
 	) {
+		applyConfigurationValues(configurationService, options, true);
 		options = options || {};
 		if (typeof options.theme === 'string') {
 			options.theme = themeService.setTheme(options.theme);
@@ -369,7 +380,8 @@ export class StandaloneDiffEditor extends DiffEditorWidget implements IStandalon
 
 		super(domElement, options, editorWorkerService, contextKeyService, instantiationService, codeEditorService, themeService, notificationService);
 
-		this._contextViewService = <IEditorContextViewService>contextViewService;
+		this._contextViewService = <ContextViewService>contextViewService;
+		this._configurationService = configurationService;
 
 		this._register(toDispose);
 
@@ -380,7 +392,12 @@ export class StandaloneDiffEditor extends DiffEditorWidget implements IStandalon
 		super.dispose();
 	}
 
-	protected _createInnerEditor(instantiationService: IInstantiationService, container: HTMLElement, options: IEditorOptions): CodeEditor {
+	public updateOptions(newOptions: IDiffEditorOptions): void {
+		applyConfigurationValues(this._configurationService, newOptions, true);
+		super.updateOptions(newOptions);
+	}
+
+	protected _createInnerEditor(instantiationService: IInstantiationService, container: HTMLElement, options: IEditorOptions): CodeEditorWidget {
 		return instantiationService.createInstance(StandaloneCodeEditor, container, options);
 	}
 
@@ -392,7 +409,7 @@ export class StandaloneDiffEditor extends DiffEditorWidget implements IStandalon
 		return <StandaloneCodeEditor>super.getModifiedEditor();
 	}
 
-	public addCommand(keybinding: number, handler: ICommandHandler, context: string): string {
+	public addCommand(keybinding: number, handler: ICommandHandler, context: string): string | null {
 		return this.getModifiedEditor().addCommand(keybinding, handler, context);
 	}
 

@@ -8,8 +8,9 @@ const { tmpdir } = require('os');
 const { join } = require('path');
 const path = require('path');
 const mocha = require('mocha');
-const JUnitReporter = require('mocha-junit-reporter');
 const events = require('events');
+const MochaJUnitReporter = require('mocha-junit-reporter');
+const url = require('url');
 
 const defaultReporterName = process.platform === 'win32' ? 'list' : 'spec';
 
@@ -22,7 +23,7 @@ const optimist = require('optimist')
 	.describe('debug', 'open dev tools, keep window open, reuse app data').string('debug')
 	.describe('reporter', 'the mocha reporter').string('reporter').default('reporter', defaultReporterName)
 	.describe('reporter-options', 'the mocha reporter options').string('reporter-options').default('reporter-options', '')
-	.describe('tfs').boolean('tfs')
+	.describe('tfs').string('tfs')
 	.describe('help', 'show the help').alias('help', 'h');
 
 const argv = optimist.argv;
@@ -97,26 +98,6 @@ function parseReporterOption(value) {
 	return r ? { [r[1]]: r[2] } : {};
 }
 
-class TFSReporter extends mocha.reporters.Base {
-
-	constructor(runner) {
-		super(runner);
-
-		runner.on('pending', test => {
-			console.log('PEND', test.fullTitle());
-		});
-		runner.on('pass', test => {
-			console.log('OK  ', test.fullTitle(), `(${test.duration}ms)`);
-		});
-		runner.on('fail', test => {
-			console.log('FAIL', test.fullTitle(), `(${test.duration}ms)`);
-		});
-		runner.once('end', () => {
-			this.epilogue();
-		});
-	}
-}
-
 app.on('ready', () => {
 
 	const win = new BrowserWindow({
@@ -132,20 +113,21 @@ app.on('ready', () => {
 	win.webContents.on('did-finish-load', () => {
 		if (argv.debug) {
 			win.show();
-			win.webContents.openDevTools('right');
+			win.webContents.openDevTools({ mode: 'right' });
 		}
 		win.webContents.send('run', argv);
 	});
 
-	win.loadURL(`file://${__dirname}/renderer.html`);
+	win.loadURL(url.format({ pathname: path.join(__dirname, 'renderer.html'), protocol: 'file:', slashes: true }));
 
 	const runner = new IPCRunner();
 
 	if (argv.tfs) {
-		new TFSReporter(runner);
-		new JUnitReporter(runner, {
+		new mocha.reporters.Spec(runner);
+		new MochaJUnitReporter(runner, {
 			reporterOptions: {
-				mochaFile: '.build/tests/unit-test-results.xml'
+				testsuitesTitle: `${argv.tfs} ${process.platform}`,
+				mochaFile: process.env.BUILD_ARTIFACTSTAGINGDIRECTORY ? path.join(process.env.BUILD_ARTIFACTSTAGINGDIRECTORY, `test-results/${process.platform}-${argv.tfs.toLowerCase().replace(/[^\w]/g, '-')}-results.xml`) : undefined
 			}
 		});
 	} else {

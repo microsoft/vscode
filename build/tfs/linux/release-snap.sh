@@ -1,10 +1,8 @@
 #!/bin/bash
 
 . ./scripts/env.sh
-. ./build/tfs/common/common.sh
 
-step "Build snap package" \
-	npm run gulp -- "vscode-linux-$ARCH-build-snap"
+yarn gulp "vscode-linux-$ARCH-build-snap"
 
 # Variables
 PLATFORM_LINUX="linux-$ARCH"
@@ -19,8 +17,7 @@ VERSION=$(node -p "require(\"$PACKAGEJSON\").version")
 SNAP_FILENAME="$(ls $REPO/.build/linux/snap/$ARCH/ | grep .snap)"
 SNAP_PATH="$REPO/.build/linux/snap/$ARCH/$SNAP_FILENAME"
 
-step "Publish Snap package" \
-	node build/tfs/common/publish.js $VSCODE_QUALITY $PLATFORM_SNAP package $SNAP_FILENAME $VERSION true $SNAP_PATH
+node build/tfs/common/publish.js $VSCODE_QUALITY $PLATFORM_SNAP package $SNAP_FILENAME $VERSION true $SNAP_PATH
 
 if [ -z "$VSCODE_QUALITY" ]; then
 	echo "VSCODE_QUALITY is not set, skipping repo package publish"

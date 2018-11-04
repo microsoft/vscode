@@ -2,7 +2,6 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
 import * as nls from 'vs/nls';
 import { IJSONSchema, IJSONSchemaMap } from 'vs/base/common/jsonSchema';
@@ -22,7 +21,7 @@ const taskDefinitionSchema: IJSONSchema = {
 	properties: {
 		type: {
 			type: 'string',
-			description: nls.localize('TaskDefinition.description', 'The actual task type')
+			description: nls.localize('TaskDefinition.description', 'The actual task type. Please note that types starting with a \'$\' are reserved for internal usage.')
 		},
 		required: {
 			type: 'array',
@@ -47,7 +46,7 @@ namespace Configuration {
 		properties?: IJSONSchemaMap;
 	}
 
-	export function from(value: TaskDefinition, extensionId: string, messageCollector: ExtensionMessageCollector): Tasks.TaskDefinition {
+	export function from(value: TaskDefinition, extensionId: string, messageCollector: ExtensionMessageCollector): Tasks.TaskDefinition | undefined {
 		if (!value) {
 			return undefined;
 		}
@@ -64,7 +63,7 @@ namespace Configuration {
 				}
 			}
 		}
-		return { extensionId, taskType, required: required.length >= 0 ? required : undefined, properties: value.properties ? Objects.deepClone(value.properties) : undefined };
+		return { extensionId, taskType, required: required, properties: value.properties ? Objects.deepClone(value.properties) : {} };
 	}
 }
 
@@ -80,12 +79,14 @@ export interface ITaskDefinitionRegistry {
 
 	get(key: string): Tasks.TaskDefinition;
 	all(): Tasks.TaskDefinition[];
+	getJsonSchema(): IJSONSchema;
 }
 
 class TaskDefinitionRegistryImpl implements ITaskDefinitionRegistry {
 
 	private taskTypes: IStringDictionary<Tasks.TaskDefinition>;
 	private readyPromise: TPromise<void>;
+	private _schema: IJSONSchema;
 
 	constructor() {
 		this.taskTypes = Object.create(null);
@@ -105,7 +106,7 @@ class TaskDefinitionRegistryImpl implements ITaskDefinitionRegistry {
 				}
 				resolve(undefined);
 			});
-		}, () => { });
+		});
 	}
 
 	public onReady(): TPromise<void> {
@@ -118,6 +119,33 @@ class TaskDefinitionRegistryImpl implements ITaskDefinitionRegistry {
 
 	public all(): Tasks.TaskDefinition[] {
 		return Object.keys(this.taskTypes).map(key => this.taskTypes[key]);
+	}
+
+	public getJsonSchema(): IJSONSchema {
+		if (this._schema === void 0) {
+			let schemas: IJSONSchema[] = [];
+			for (let definition of this.all()) {
+				let schema: IJSONSchema = {
+					type: 'object',
+					additionalProperties: false
+				};
+				if (definition.required.length > 0) {
+					schema.required = definition.required.slice(0);
+				}
+				if (definition.properties !== void 0) {
+					schema.properties = Objects.deepClone(definition.properties);
+				} else {
+					schema.properties = Object.create(null);
+				}
+				schema.properties!.type = {
+					type: 'string',
+					enum: [definition.taskType]
+				};
+				schemas.push(schema);
+			}
+			this._schema = { oneOf: schemas };
+		}
+		return this._schema;
 	}
 }
 

@@ -3,57 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { IRange, Range } from 'vs/base/common/range';
+
 export interface IItem {
 	size: number;
-}
-
-export interface IRange {
-	start: number;
-	end: number;
 }
 
 export interface IRangedGroup {
 	range: IRange;
 	size: number;
-}
-
-/**
- * Returns the intersection between two ranges as a range itself.
- * Returns `{ start: 0, end: 0 }` if the intersection is empty.
- */
-export function intersect(one: IRange, other: IRange): IRange {
-	if (one.start >= other.end || other.start >= one.end) {
-		return { start: 0, end: 0 };
-	}
-
-	const start = Math.max(one.start, other.start);
-	const end = Math.min(one.end, other.end);
-
-	if (end - start <= 0) {
-		return { start: 0, end: 0 };
-	}
-
-	return { start, end };
-}
-
-export function isEmpty(range: IRange): boolean {
-	return range.end - range.start <= 0;
-}
-
-export function relativeComplement(one: IRange, other: IRange): IRange[] {
-	const result: IRange[] = [];
-	const first = { start: one.start, end: Math.min(other.start, one.end) };
-	const second = { start: Math.max(other.end, one.start), end: one.end };
-
-	if (!isEmpty(first)) {
-		result.push(first);
-	}
-
-	if (!isEmpty(second)) {
-		result.push(second);
-	}
-
-	return result;
 }
 
 /**
@@ -72,9 +30,9 @@ export function groupIntersect(range: IRange, groups: IRangedGroup[]): IRangedGr
 			break;
 		}
 
-		const intersection = intersect(range, r.range);
+		const intersection = Range.intersect(range, r.range);
 
-		if (isEmpty(intersection)) {
+		if (Range.isEmpty(intersection)) {
 			continue;
 		}
 
@@ -102,7 +60,7 @@ export function shift({ start, end }: IRange, much: number): IRange {
  */
 export function consolidate(groups: IRangedGroup[]): IRangedGroup[] {
 	const result: IRangedGroup[] = [];
-	let previousGroup: IRangedGroup = null;
+	let previousGroup: IRangedGroup | null = null;
 
 	for (let group of groups) {
 		const start = group.range.start;
@@ -134,7 +92,7 @@ export class RangeMap {
 	private groups: IRangedGroup[] = [];
 	private _size = 0;
 
-	splice(index: number, deleteCount: number, ...items: IItem[]): void {
+	splice(index: number, deleteCount: number, items: IItem[] = []): void {
 		const diff = items.length - deleteCount;
 		const before = groupIntersect({ start: 0, end: index }, this.groups);
 		const after = groupIntersect({ start: index + deleteCount, end: Number.POSITIVE_INFINITY }, this.groups)
@@ -230,6 +188,6 @@ export class RangeMap {
 	}
 
 	dispose() {
-		this.groups = null;
+		this.groups = null!; // StrictNullOverride: nulling out ok in dispose
 	}
 }

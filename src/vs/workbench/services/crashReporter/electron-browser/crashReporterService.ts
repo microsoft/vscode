@@ -2,10 +2,8 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
 import * as nls from 'vs/nls';
-import { onUnexpectedError } from 'vs/base/common/errors';
 import { assign, deepClone } from 'vs/base/common/objects';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IWindowsService } from 'vs/platform/windows/common/windows';
@@ -36,15 +34,16 @@ configurationRegistry.registerConfiguration({
 	'properties': {
 		'telemetry.enableCrashReporter': {
 			'type': 'boolean',
-			'description': nls.localize('telemetry.enableCrashReporting', "Enable crash reports to be sent to Microsoft.\nThis option requires restart to take effect."),
-			'default': true
+			'description': nls.localize('telemetry.enableCrashReporting', "Enable crash reports to be sent to a Microsoft online service. \nThis option requires restart to take effect."),
+			'default': true,
+			'tags': ['usesOnlineServices']
 		}
 	}
 });
 
 export interface ICrashReporterService {
 	_serviceBrand: any;
-	getChildProcessStartOptions(processName: string): Electron.CrashReporterStartOptions; // TODO
+	getChildProcessStartOptions(processName: string): Electron.CrashReporterStartOptions | undefined; // TODO
 }
 
 export const NullCrashReporterService: ICrashReporterService = {
@@ -54,7 +53,7 @@ export const NullCrashReporterService: ICrashReporterService = {
 
 export class CrashReporterService implements ICrashReporterService {
 
-	public _serviceBrand: any;
+	_serviceBrand: any;
 
 	private options: Electron.CrashReporterStartOptions;
 	private isEnabled: boolean;
@@ -97,29 +96,26 @@ export class CrashReporterService implements ICrashReporterService {
 
 				// start crash reporter in the main process
 				return this.windowsService.startCrashReporter(this.options);
-			})
-			.done(null, onUnexpectedError);
+			});
 	}
 
 	private getSubmitURL(): string {
-		let submitURL: string;
 		if (isWindows) {
-			submitURL = product.hockeyApp[`win32-${process.arch}`];
+			return product.hockeyApp[`win32-${process.arch}`];
 		} else if (isMacintosh) {
-			submitURL = product.hockeyApp.darwin;
+			return product.hockeyApp.darwin;
 		} else if (isLinux) {
-			submitURL = product.hockeyApp[`linux-${process.arch}`];
+			return product.hockeyApp[`linux-${process.arch}`];
 		}
-
-		return submitURL;
+		throw new Error('Unknown platform');
 	}
 
-	public getChildProcessStartOptions(name: string): Electron.CrashReporterStartOptions {
+	getChildProcessStartOptions(name: string): Electron.CrashReporterStartOptions | undefined {
 
 		// Experimental crash reporting support for child processes on Mac only for now
 		if (this.isEnabled && isMacintosh) {
 			const childProcessOptions = deepClone(this.options);
-			childProcessOptions.extra.processName = name;
+			(<any>childProcessOptions.extra).processName = name;
 			childProcessOptions.crashesDirectory = os.tmpdir();
 
 			return childProcessOptions;

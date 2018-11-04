@@ -2,24 +2,22 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
-
 import * as assert from 'assert';
 import { Range } from 'vs/editor/common/core/range';
 import { IIdentifiedSingleEditOperation } from 'vs/editor/common/model';
 import { TextModel } from 'vs/editor/common/model/textModel';
 
 suite('Editor Model - Model Edit Operation', () => {
-	var LINE1 = 'My First Line';
-	var LINE2 = '\t\tMy Second Line';
-	var LINE3 = '    Third Line';
-	var LINE4 = '';
-	var LINE5 = '1';
+	const LINE1 = 'My First Line';
+	const LINE2 = '\t\tMy Second Line';
+	const LINE3 = '    Third Line';
+	const LINE4 = '';
+	const LINE5 = '1';
 
-	var model: TextModel;
+	let model: TextModel;
 
 	setup(() => {
-		var text =
+		const text =
 			LINE1 + '\r\n' +
 			LINE2 + '\n' +
 			LINE3 + '\n' +
@@ -34,7 +32,7 @@ suite('Editor Model - Model Edit Operation', () => {
 	});
 
 	function createSingleEditOp(text: string, positionLineNumber: number, positionColumn: number, selectionLineNumber: number = positionLineNumber, selectionColumn: number = positionColumn): IIdentifiedSingleEditOperation {
-		var range = new Range(
+		let range = new Range(
 			selectionLineNumber,
 			selectionColumn,
 			positionLineNumber,
@@ -50,16 +48,16 @@ suite('Editor Model - Model Edit Operation', () => {
 	}
 
 	function assertSingleEditOp(singleEditOp: IIdentifiedSingleEditOperation, editedLines: string[]) {
-		var editOp = [singleEditOp];
+		let editOp = [singleEditOp];
 
-		var inverseEditOp = model.applyEdits(editOp);
+		let inverseEditOp = model.applyEdits(editOp);
 
 		assert.equal(model.getLineCount(), editedLines.length);
-		for (var i = 0; i < editedLines.length; i++) {
+		for (let i = 0; i < editedLines.length; i++) {
 			assert.equal(model.getLineContent(i + 1), editedLines[i]);
 		}
 
-		var originalOp = model.applyEdits(inverseEditOp);
+		let originalOp = model.applyEdits(inverseEditOp);
 
 		assert.equal(model.getLineCount(), 5);
 		assert.equal(model.getLineContent(1), LINE1);

@@ -2,7 +2,6 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
 import { UriComponents } from 'vs/base/common/uri';
 
@@ -16,6 +15,8 @@ export interface TaskPresentationOptionsDTO {
 	echo?: boolean;
 	focus?: boolean;
 	panel?: number;
+	showReuseMessage?: boolean;
+	clear?: boolean;
 }
 
 export interface ExecutionOptionsDTO {
@@ -86,4 +87,26 @@ export interface TaskDTO {
 export interface TaskExecutionDTO {
 	id: string;
 	task: TaskDTO;
+}
+
+export interface TaskProcessStartedDTO {
+	id: string;
+	processId: number;
+}
+
+export interface TaskProcessEndedDTO {
+	id: string;
+	exitCode: number;
+}
+
+
+export interface TaskFilterDTO {
+	version?: string;
+	type?: string;
+}
+
+export interface TaskSystemInfoDTO {
+	scheme: string;
+	authority: string;
+	platform: string;
 }

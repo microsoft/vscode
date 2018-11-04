@@ -3,11 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import * as nls from 'vs/nls';
-import { TPromise } from 'vs/base/common/winjs.base';
-import URI from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 import * as json from 'vs/base/common/json';
 import * as encoding from 'vs/base/node/encoding';
 import * as strings from 'vs/base/common/strings';
@@ -27,17 +24,22 @@ import { FOLDER_SETTINGS_PATH, WORKSPACE_STANDALONE_CONFIGURATIONS, TASKS_CONFIG
 import { IFileService } from 'vs/platform/files/common/files';
 import { ITextModelService, ITextEditorModel } from 'vs/editor/common/services/resolverService';
 import { OVERRIDE_PROPERTY_PATTERN, IConfigurationRegistry, Extensions as ConfigurationExtensions, ConfigurationScope } from 'vs/platform/configuration/common/configurationRegistry';
-import { ICommandService } from 'vs/platform/commands/common/commands';
-import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { ITextModel } from 'vs/editor/common/model';
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
+import { IPreferencesService } from 'vs/workbench/services/preferences/common/preferences';
 
-export enum ConfigurationEditingErrorCode {
+export const enum ConfigurationEditingErrorCode {
 
 	/**
 	 * Error when trying to write a configuration key that is not registered.
 	 */
 	ERROR_UNKNOWN_KEY,
+
+	/**
+	 * Error when trying to write an application setting into workspace settings.
+	 */
+	ERROR_INVALID_WORKSPACE_CONFIGURATION_APPLICATION,
 
 	/**
 	 * Error when trying to write an invalid folder configuration key to folder settings.
@@ -127,25 +129,25 @@ export class ConfigurationEditingService {
 		@ITextModelService private textModelResolverService: ITextModelService,
 		@ITextFileService private textFileService: ITextFileService,
 		@INotificationService private notificationService: INotificationService,
-		@ICommandService private commandService: ICommandService,
-		@IWorkbenchEditorService private editorService: IWorkbenchEditorService
+		@IPreferencesService private preferencesService: IPreferencesService,
+		@IEditorService private editorService: IEditorService
 	) {
 		this.queue = new Queue<void>();
 	}
 
-	writeConfiguration(target: ConfigurationTarget, value: IConfigurationValue, options: IConfigurationEditingOptions = {}): TPromise<void> {
+	writeConfiguration(target: ConfigurationTarget, value: IConfigurationValue, options: IConfigurationEditingOptions = {}): Promise<void> {
 		const operation = this.getConfigurationEditOperation(target, value, options.scopes || {});
-		return this.queue.queue(() => this.doWriteConfiguration(operation, options) // queue up writes to prevent race conditions
+		return Promise.resolve(this.queue.queue(() => this.doWriteConfiguration(operation, options) // queue up writes to prevent race conditions
 			.then(() => null,
 				error => {
 					if (!options.donotNotifyError) {
 						this.onError(error, operation, options.scopes);
 					}
-					return TPromise.wrapError(error);
-				}));
+					return Promise.reject(error);
+				})));
 	}
 
-	private doWriteConfiguration(operation: IConfigurationEditOperation, options: ConfigurationEditingOptions): TPromise<void> {
+	private doWriteConfiguration(operation: IConfigurationEditOperation, options: ConfigurationEditingOptions): Promise<void> {
 		const checkDirtyConfiguration = !(options.force || options.donotSave);
 		const saveConfiguration = options.force || !options.donotSave;
 		return this.resolveAndValidate(operation.target, operation, checkDirtyConfiguration, options.scopes || {})
@@ -153,12 +155,11 @@ export class ConfigurationEditingService {
 				.then(() => reference.dispose()));
 	}
 
-	private writeToBuffer(model: ITextModel, operation: IConfigurationEditOperation, save: boolean): TPromise<any> {
+	private async writeToBuffer(model: ITextModel, operation: IConfigurationEditOperation, save: boolean): Promise<any> {
 		const edit = this.getEdits(model, operation)[0];
 		if (edit && this.applyEditsToBuffer(edit, model) && save) {
 			return this.textFileService.save(operation.resource, { skipSaveParticipants: true /* programmatic change */ });
 		}
-		return TPromise.as(null);
 	}
 
 	private applyEditsToBuffer(edit: Edit, model: ITextModel): boolean {
@@ -192,19 +193,19 @@ export class ConfigurationEditingService {
 			: operation.workspaceStandAloneConfigurationKey === LAUNCH_CONFIGURATION_KEY ? nls.localize('openLaunchConfiguration', "Open Launch Configuration")
 				: null;
 		if (openStandAloneConfigurationActionLabel) {
-			this.notificationService.prompt(Severity.Error, error.message, [openStandAloneConfigurationActionLabel])
-				.then(option => {
-					if (option === 0) {
-						this.openFile(operation.resource);
-					}
-				});
+			this.notificationService.prompt(Severity.Error, error.message,
+				[{
+					label: openStandAloneConfigurationActionLabel,
+					run: () => this.openFile(operation.resource)
+				}]
+			);
 		} else {
-			this.notificationService.prompt(Severity.Error, error.message, [nls.localize('open', "Open Settings")])
-				.then(option => {
-					if (option === 0) {
-						this.openSettings(operation);
-					}
-				});
+			this.notificationService.prompt(Severity.Error, error.message,
+				[{
+					label: nls.localize('open', "Open Settings"),
+					run: () => this.openSettings(operation)
+				}]
+			);
 		}
 	}
 
@@ -213,46 +214,46 @@ export class ConfigurationEditingService {
 			: operation.workspaceStandAloneConfigurationKey === LAUNCH_CONFIGURATION_KEY ? nls.localize('openLaunchConfiguration', "Open Launch Configuration")
 				: null;
 		if (openStandAloneConfigurationActionLabel) {
-			this.notificationService.prompt(Severity.Error, error.message, [nls.localize('saveAndRetry', "Save and Retry"), openStandAloneConfigurationActionLabel])
-				.then(option => {
-					switch (option) {
-						case 0 /* Save & Retry */:
-							const key = operation.key ? `${operation.workspaceStandAloneConfigurationKey}.${operation.key}` : operation.workspaceStandAloneConfigurationKey;
-							this.writeConfiguration(operation.target, { key, value: operation.value }, <ConfigurationEditingOptions>{ force: true, scopes });
-							break;
-						case 1 /* Open Config */:
-							this.openFile(operation.resource);
-							break;
+			this.notificationService.prompt(Severity.Error, error.message,
+				[{
+					label: nls.localize('saveAndRetry', "Save and Retry"),
+					run: () => {
+						const key = operation.key ? `${operation.workspaceStandAloneConfigurationKey}.${operation.key}` : operation.workspaceStandAloneConfigurationKey;
+						this.writeConfiguration(operation.target, { key, value: operation.value }, <ConfigurationEditingOptions>{ force: true, scopes });
 					}
-				});
+				},
+				{
+					label: openStandAloneConfigurationActionLabel,
+					run: () => this.openFile(operation.resource)
+				}]
+			);
 		} else {
-			this.notificationService.prompt(Severity.Error, error.message, [nls.localize('saveAndRetry', "Save and Retry"), nls.localize('open', "Open Settings")])
-				.then(option => {
-					switch (option) {
-						case 0 /* Save and Retry */:
-							this.writeConfiguration(operation.target, { key: operation.key, value: operation.value }, <ConfigurationEditingOptions>{ force: true, scopes });
-							break;
-						case 1 /* Open Settings */:
-							this.openSettings(operation);
-							break;
-					}
-				});
+			this.notificationService.prompt(Severity.Error, error.message,
+				[{
+					label: nls.localize('saveAndRetry', "Save and Retry"),
+					run: () => this.writeConfiguration(operation.target, { key: operation.key, value: operation.value }, <ConfigurationEditingOptions>{ force: true, scopes })
+				},
+				{
+					label: nls.localize('open', "Open Settings"),
+					run: () => this.openSettings(operation)
+				}]
+			);
 		}
 	}
 
 	private openSettings(operation: IConfigurationEditOperation): void {
 		switch (operation.target) {
 			case ConfigurationTarget.USER:
-				this.commandService.executeCommand('workbench.action.openGlobalSettings');
+				this.preferencesService.openGlobalSettings(true);
 				break;
 			case ConfigurationTarget.WORKSPACE:
-				this.commandService.executeCommand('workbench.action.openWorkspaceSettings');
+				this.preferencesService.openWorkspaceSettings(true);
 				break;
 			case ConfigurationTarget.WORKSPACE_FOLDER:
 				if (operation.resource) {
 					const workspaceFolder = this.contextService.getWorkspaceFolder(operation.resource);
 					if (workspaceFolder) {
-						this.commandService.executeCommand('_workbench.action.openFolderSettings', workspaceFolder);
+						this.preferencesService.openFolderSettings(workspaceFolder.uri, true);
 					}
 				}
 				break;
@@ -263,10 +264,10 @@ export class ConfigurationEditingService {
 		this.editorService.openEditor({ resource });
 	}
 
-	private wrapError<T = never>(code: ConfigurationEditingErrorCode, target: ConfigurationTarget, operation: IConfigurationEditOperation): TPromise<T> {
+	private wrapError<T = never>(code: ConfigurationEditingErrorCode, target: ConfigurationTarget, operation: IConfigurationEditOperation): Promise<T> {
 		const message = this.toErrorMessage(code, target, operation);
 
-		return TPromise.wrapError<T>(new ConfigurationEditingError(message, code));
+		return Promise.reject(new ConfigurationEditingError(message, code));
 	}
 
 	private toErrorMessage(error: ConfigurationEditingErrorCode, target: ConfigurationTarget, operation: IConfigurationEditOperation): string {
@@ -274,6 +275,7 @@ export class ConfigurationEditingService {
 
 			// API constraints
 			case ConfigurationEditingErrorCode.ERROR_UNKNOWN_KEY: return nls.localize('errorUnknownKey', "Unable to write to {0} because {1} is not a registered configuration.", this.stringifyTarget(target), operation.key);
+			case ConfigurationEditingErrorCode.ERROR_INVALID_WORKSPACE_CONFIGURATION_APPLICATION: return nls.localize('errorInvalidWorkspaceConfigurationApplication', "Unable to write {0} to Workspace Settings. This setting can be written only into User settings.", operation.key);
 			case ConfigurationEditingErrorCode.ERROR_INVALID_FOLDER_CONFIGURATION: return nls.localize('errorInvalidFolderConfiguration', "Unable to write to Folder Settings because {0} does not support the folder resource scope.", operation.key);
 			case ConfigurationEditingErrorCode.ERROR_INVALID_USER_TARGET: return nls.localize('errorInvalidUserTarget', "Unable to write to User Settings because {0} does not support for global scope.", operation.key);
 			case ConfigurationEditingErrorCode.ERROR_INVALID_WORKSPACE_TARGET: return nls.localize('errorInvalidWorkspaceTarget', "Unable to write to Workspace Settings because {0} does not support for workspace scope in a multi folder workspace.", operation.key);
@@ -350,12 +352,12 @@ export class ConfigurationEditingService {
 		return setProperty(model.getValue(), jsonPath, value, { tabSize, insertSpaces, eol });
 	}
 
-	private resolveModelReference(resource: URI): TPromise<IReference<ITextEditorModel>> {
-		return this.fileService.existsFile(resource)
-			.then(exists => {
-				const result = exists ? TPromise.as(null) : this.fileService.updateContent(resource, '{}', { encoding: encoding.UTF8 });
-				return result.then(() => this.textModelResolverService.createModelReference(resource));
-			});
+	private async resolveModelReference(resource: URI): Promise<IReference<ITextEditorModel>> {
+		const exists = await this.fileService.existsFile(resource);
+		if (!exists) {
+			await this.fileService.updateContent(resource, '{}', { encoding: encoding.UTF8 });
+		}
+		return this.textModelResolverService.createModelReference(resource);
 	}
 
 	private hasParseErrors(model: ITextModel, operation: IConfigurationEditOperation): boolean {
@@ -365,11 +367,11 @@ export class ConfigurationEditingService {
 			return false;
 		}
 		const parseErrors: json.ParseError[] = [];
-		json.parse(model.getValue(), parseErrors, { allowTrailingComma: true });
+		json.parse(model.getValue(), parseErrors);
 		return parseErrors.length > 0;
 	}
 
-	private resolveAndValidate(target: ConfigurationTarget, operation: IConfigurationEditOperation, checkDirty: boolean, overrides: IConfigurationOverrides): TPromise<IReference<ITextEditorModel>> {
+	private resolveAndValidate(target: ConfigurationTarget, operation: IConfigurationEditOperation, checkDirty: boolean, overrides: IConfigurationOverrides): Promise<IReference<ITextEditorModel>> {
 
 		// Any key must be a known setting from the registry (unless this is a standalone config)
 		if (!operation.workspaceStandAloneConfigurationKey) {
@@ -394,6 +396,15 @@ export class ConfigurationEditingService {
 		// Target cannot be workspace or folder if no workspace opened
 		if ((target === ConfigurationTarget.WORKSPACE || target === ConfigurationTarget.WORKSPACE_FOLDER) && this.contextService.getWorkbenchState() === WorkbenchState.EMPTY) {
 			return this.wrapError(ConfigurationEditingErrorCode.ERROR_NO_WORKSPACE_OPENED, target, operation);
+		}
+
+		if (target === ConfigurationTarget.WORKSPACE) {
+			if (!operation.workspaceStandAloneConfigurationKey) {
+				const configurationProperties = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).getConfigurationProperties();
+				if (configurationProperties[operation.key].scope === ConfigurationScope.APPLICATION) {
+					return this.wrapError(ConfigurationEditingErrorCode.ERROR_INVALID_WORKSPACE_CONFIGURATION_APPLICATION, target, operation);
+				}
+			}
 		}
 
 		if (target === ConfigurationTarget.WORKSPACE_FOLDER) {

@@ -3,31 +3,31 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import * as dom from 'vs/base/browser/dom';
 import * as nls from 'vs/nls';
 import * as platform from 'vs/base/common/platform';
+import * as terminalEnvironment from 'vs/workbench/parts/terminal/node/terminalEnvironment';
 import { Action, IAction } from 'vs/base/common/actions';
-import { Builder, Dimension } from 'vs/base/browser/builder';
 import { IActionItem, Separator } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { ITerminalService, TERMINAL_PANEL_ID } from 'vs/workbench/parts/terminal/common/terminal';
-import { IThemeService, ITheme } from 'vs/platform/theme/common/themeService';
-import { TerminalFindWidget } from './terminalFindWidget';
+import { IThemeService, ITheme, registerThemingParticipant, ICssStyleCollector } from 'vs/platform/theme/common/themeService';
+import { TerminalFindWidget } from 'vs/workbench/parts/terminal/browser/terminalFindWidget';
 import { editorHoverBackground, editorHoverBorder, editorForeground } from 'vs/platform/theme/common/colorRegistry';
 import { KillTerminalAction, SwitchTerminalAction, SwitchTerminalActionItem, CopyTerminalSelectionAction, TerminalPasteAction, ClearTerminalAction, SelectAllTerminalAction, CreateNewTerminalAction, SplitTerminalAction } from 'vs/workbench/parts/terminal/electron-browser/terminalActions';
 import { Panel } from 'vs/workbench/browser/panel';
 import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
-import { TPromise } from 'vs/base/common/winjs.base';
-import URI from 'vs/base/common/uri';
-import { PANEL_BACKGROUND, PANEL_BORDER } from 'vs/workbench/common/theme';
-import { TERMINAL_BACKGROUND_COLOR, TERMINAL_BORDER_COLOR } from 'vs/workbench/parts/terminal/electron-browser/terminalColorRegistry';
+import { URI } from 'vs/base/common/uri';
+import { TERMINAL_BACKGROUND_COLOR, TERMINAL_BORDER_COLOR } from 'vs/workbench/parts/terminal/common/terminalColorRegistry';
 import { DataTransfers } from 'vs/base/browser/dnd';
-import { ILifecycleService, LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
+import { INotificationService, IPromptChoice, Severity } from 'vs/platform/notification/common/notification';
+import { TerminalConfigHelper } from 'vs/workbench/parts/terminal/electron-browser/terminalConfigHelper';
+import { IStorageService } from 'vs/platform/storage/common/storage';
+
+const FIND_FOCUS_CLASS = 'find-focused';
 
 export class TerminalPanel extends Panel {
 
@@ -38,7 +38,6 @@ export class TerminalPanel extends Panel {
 	private _fontStyleElement: HTMLElement;
 	private _parentDomElement: HTMLElement;
 	private _terminalContainer: HTMLElement;
-	private _themeStyleElement: HTMLElement;
 	private _findWidget: TerminalFindWidget;
 
 	constructor(
@@ -46,95 +45,95 @@ export class TerminalPanel extends Panel {
 		@IContextMenuService private readonly _contextMenuService: IContextMenuService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@ITerminalService private readonly _terminalService: ITerminalService,
-		@ILifecycleService private readonly _lifecycleService: ILifecycleService,
-		@IThemeService protected themeService: IThemeService,
-		@ITelemetryService telemetryService: ITelemetryService
+		@IThemeService protected readonly _themeService: IThemeService,
+		@ITelemetryService telemetryService: ITelemetryService,
+		@INotificationService private readonly _notificationService: INotificationService,
+		@IStorageService storageService: IStorageService
 	) {
-		super(TERMINAL_PANEL_ID, telemetryService, themeService);
+		super(TERMINAL_PANEL_ID, telemetryService, _themeService, storageService);
 	}
 
-	public create(parent: Builder): TPromise<any> {
+	public create(parent: HTMLElement): void {
 		super.create(parent);
-		this._parentDomElement = parent.getHTMLElement();
+		this._parentDomElement = parent;
 		dom.addClass(this._parentDomElement, 'integrated-terminal');
-		this._themeStyleElement = document.createElement('style');
 		this._fontStyleElement = document.createElement('style');
 
 		this._terminalContainer = document.createElement('div');
 		dom.addClass(this._terminalContainer, 'terminal-outer-container');
 
-		this._findWidget = this._instantiationService.createInstance(TerminalFindWidget);
+		this._findWidget = this._instantiationService.createInstance(TerminalFindWidget, this._terminalService.getFindState());
+		this._findWidget.focusTracker.onDidFocus(() => this._terminalContainer.classList.add(FIND_FOCUS_CLASS));
+		this._findWidget.focusTracker.onDidBlur(() => this._terminalContainer.classList.remove(FIND_FOCUS_CLASS));
 
-		this._parentDomElement.appendChild(this._themeStyleElement);
 		this._parentDomElement.appendChild(this._fontStyleElement);
 		this._parentDomElement.appendChild(this._terminalContainer);
 		this._parentDomElement.appendChild(this._findWidget.getDomNode());
 
 		this._attachEventListeners();
 
-		this._terminalService.setContainers(this.getContainer().getHTMLElement(), this._terminalContainer);
+		this._terminalService.setContainers(this.getContainer(), this._terminalContainer);
 
 		this._register(this.themeService.onThemeChange(theme => this._updateTheme(theme)));
 		this._register(this._configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration('terminal.integrated') || e.affectsConfiguration('editor.fontFamily')) {
 				this._updateFont();
 			}
+
+			if (e.affectsConfiguration('terminal.integrated.fontFamily') || e.affectsConfiguration('editor.fontFamily')) {
+				const configHelper = this._terminalService.configHelper;
+				if (configHelper instanceof TerminalConfigHelper) {
+					if (!configHelper.configFontIsMonospace()) {
+						const choices: IPromptChoice[] = [{
+							label: nls.localize('terminal.useMonospace', "Use 'monospace'"),
+							run: () => this._configurationService.updateValue('terminal.integrated.fontFamily', 'monospace'),
+						}];
+						this._notificationService.prompt(Severity.Warning, nls.localize('terminal.monospaceOnly', "The terminal only supports monospace fonts."), choices);
+					}
+				}
+			}
 		}));
 		this._updateFont();
 		this._updateTheme();
 
 		// Force another layout (first is setContainers) since config has changed
-		this.layout(new Dimension(this._terminalContainer.offsetWidth, this._terminalContainer.offsetHeight));
-		return TPromise.as(void 0);
+		this.layout(new dom.Dimension(this._terminalContainer.offsetWidth, this._terminalContainer.offsetHeight));
 	}
 
-	public layout(dimension?: Dimension): void {
+	public layout(dimension?: dom.Dimension): void {
 		if (!dimension) {
 			return;
 		}
 		this._terminalService.terminalTabs.forEach(t => t.layout(dimension.width, dimension.height));
 	}
 
-	public setVisible(visible: boolean): TPromise<void> {
+	public setVisible(visible: boolean): void {
 		if (visible) {
 			if (this._terminalService.terminalInstances.length > 0) {
 				this._updateFont();
 				this._updateTheme();
 			} else {
-				return super.setVisible(visible).then(() => {
-					// Ensure the "Running" lifecycle face has been reached before creating the
-					// first terminal.
-					this._lifecycleService.when(LifecyclePhase.Running).then(() => {
-						// Allow time for the panel to display if it is being shown
-						// for the first time. If there is not wait here the initial
-						// dimensions of the pty could be wrong.
-						setTimeout(() => {
-							// Check if instances were already restored as part of workbench restore
-							if (this._terminalService.terminalInstances.length > 0) {
-								this._updateFont();
-								this._updateTheme();
-								return;
-							}
-
-							const instance = this._terminalService.createInstance();
-							if (instance) {
-								this._updateFont();
-								this._updateTheme();
-							}
-						}, 0);
-					});
-					return TPromise.as(void 0);
-				});
+				super.setVisible(visible);
+				// Check if instances were already restored as part of workbench restore
+				if (this._terminalService.terminalInstances.length === 0) {
+					this._terminalService.createTerminal();
+				}
+				if (this._terminalService.terminalInstances.length > 0) {
+					this._updateFont();
+					this._updateTheme();
+				}
+				return;
 			}
 		}
-		return super.setVisible(visible);
+		super.setVisible(visible);
+
 	}
 
 	public getActions(): IAction[] {
 		if (!this._actions) {
 			this._actions = [
 				this._instantiationService.createInstance(SwitchTerminalAction, SwitchTerminalAction.ID, SwitchTerminalAction.LABEL),
-				this._instantiationService.createInstance(CreateNewTerminalAction, CreateNewTerminalAction.ID, CreateNewTerminalAction.PANEL_LABEL),
+				this._instantiationService.createInstance(CreateNewTerminalAction, CreateNewTerminalAction.ID, CreateNewTerminalAction.SHORT_LABEL),
 				this._instantiationService.createInstance(SplitTerminalAction, SplitTerminalAction.ID, SplitTerminalAction.LABEL),
 				this._instantiationService.createInstance(KillTerminalAction, KillTerminalAction.ID, KillTerminalAction.PANEL_LABEL)
 			];
@@ -147,16 +146,16 @@ export class TerminalPanel extends Panel {
 
 	private _getContextMenuActions(): IAction[] {
 		if (!this._contextMenuActions) {
-			this._copyContextMenuAction = this._instantiationService.createInstance(CopyTerminalSelectionAction, CopyTerminalSelectionAction.ID, nls.localize('copy', "Copy"));
+			this._copyContextMenuAction = this._instantiationService.createInstance(CopyTerminalSelectionAction, CopyTerminalSelectionAction.ID, CopyTerminalSelectionAction.SHORT_LABEL);
 			this._contextMenuActions = [
-				this._instantiationService.createInstance(CreateNewTerminalAction, CreateNewTerminalAction.ID, CreateNewTerminalAction.PANEL_LABEL),
-				this._instantiationService.createInstance(SplitTerminalAction, SplitTerminalAction.ID, nls.localize('split', "Split")),
+				this._instantiationService.createInstance(CreateNewTerminalAction, CreateNewTerminalAction.ID, CreateNewTerminalAction.SHORT_LABEL),
+				this._instantiationService.createInstance(SplitTerminalAction, SplitTerminalAction.ID, SplitTerminalAction.SHORT_LABEL),
 				new Separator(),
 				this._copyContextMenuAction,
-				this._instantiationService.createInstance(TerminalPasteAction, TerminalPasteAction.ID, nls.localize('paste', "Paste")),
-				this._instantiationService.createInstance(SelectAllTerminalAction, SelectAllTerminalAction.ID, nls.localize('selectAll', "Select All")),
+				this._instantiationService.createInstance(TerminalPasteAction, TerminalPasteAction.ID, TerminalPasteAction.SHORT_LABEL),
+				this._instantiationService.createInstance(SelectAllTerminalAction, SelectAllTerminalAction.ID, SelectAllTerminalAction.LABEL),
 				new Separator(),
-				this._instantiationService.createInstance(ClearTerminalAction, ClearTerminalAction.ID, nls.localize('clear', "Clear"))
+				this._instantiationService.createInstance(ClearTerminalAction, ClearTerminalAction.ID, ClearTerminalAction.LABEL)
 			];
 			this._contextMenuActions.forEach(a => {
 				this._register(a);
@@ -178,13 +177,13 @@ export class TerminalPanel extends Panel {
 	public focus(): void {
 		const activeInstance = this._terminalService.getActiveInstance();
 		if (activeInstance) {
-			activeInstance.focus(true);
+			activeInstance.focusWhenReady(true);
 		}
 	}
 
 	public focusFindWidget() {
 		const activeInstance = this._terminalService.getActiveInstance();
-		if (activeInstance && activeInstance.hasSelection() && activeInstance.selection.indexOf('\n') === -1) {
+		if (activeInstance && activeInstance.hasSelection() && (activeInstance.selection.indexOf('\n') === -1)) {
 			this._findWidget.reveal(activeInstance.selection);
 		} else {
 			this._findWidget.reveal();
@@ -195,12 +194,17 @@ export class TerminalPanel extends Panel {
 		this._findWidget.hide();
 	}
 
-	public showNextFindTermFindWidget(): void {
-		this._findWidget.showNextFindTerm();
+	public showFindWidget() {
+		const activeInstance = this._terminalService.getActiveInstance();
+		if (activeInstance && activeInstance.hasSelection() && (activeInstance.selection.indexOf('\n') === -1)) {
+			this._findWidget.show(activeInstance.selection);
+		} else {
+			this._findWidget.show();
+		}
 	}
 
-	public showPreviousFindTermFindWidget(): void {
-		this._findWidget.showPreviousFindTerm();
+	public getFindWidget(): TerminalFindWidget {
+		return this._findWidget;
 	}
 
 	private _attachEventListeners(): void {
@@ -215,7 +219,7 @@ export class TerminalPanel extends Panel {
 				this._terminalService.getActiveInstance().focus();
 			} else if (event.which === 3) {
 				if (this._terminalService.configHelper.config.rightClickBehavior === 'copyPaste') {
-					let terminal = this._terminalService.getActiveInstance();
+					const terminal = this._terminalService.getActiveInstance();
 					if (terminal.hasSelection()) {
 						terminal.copySelection();
 						terminal.clearSelection();
@@ -242,7 +246,7 @@ export class TerminalPanel extends Panel {
 				}
 
 				if (event.which === 1) {
-					let terminal = this._terminalService.getActiveInstance();
+					const terminal = this._terminalService.getActiveInstance();
 					if (terminal.hasSelection()) {
 						terminal.copySelection();
 					}
@@ -252,10 +256,10 @@ export class TerminalPanel extends Panel {
 		this._register(dom.addDisposableListener(this._parentDomElement, 'contextmenu', (event: MouseEvent) => {
 			if (!this._cancelContextMenu) {
 				const standardEvent = new StandardMouseEvent(event);
-				let anchor: { x: number, y: number } = { x: standardEvent.posx, y: standardEvent.posy };
+				const anchor: { x: number, y: number } = { x: standardEvent.posx, y: standardEvent.posy };
 				this._contextMenuService.showContextMenu({
 					getAnchor: () => anchor,
-					getActions: () => TPromise.as(this._getContextMenuActions()),
+					getActions: () => Promise.resolve(this._getContextMenuActions()),
 					getActionsContext: () => this._parentDomElement
 				});
 			}
@@ -281,9 +285,9 @@ export class TerminalPanel extends Panel {
 
 				// Check if files were dragged from the tree explorer
 				let path: string;
-				let resources = e.dataTransfer.getData(DataTransfers.RESOURCES);
+				const resources = e.dataTransfer.getData(DataTransfers.RESOURCES);
 				if (resources) {
-					path = URI.parse(JSON.parse(resources)[0]).path;
+					path = URI.parse(JSON.parse(resources)[0]).fsPath;
 				} else if (e.dataTransfer.files.length > 0) {
 					// Check if the file was dragged from the filesystem
 					path = URI.file(e.dataTransfer.files[0].path).fsPath;
@@ -294,7 +298,7 @@ export class TerminalPanel extends Panel {
 				}
 
 				const terminal = this._terminalService.getActiveInstance();
-				terminal.sendText(TerminalPanel.preparePathForTerminal(path), false);
+				terminal.sendText(terminalEnvironment.preparePathForTerminal(path), false);
 			}
 		}));
 	}
@@ -304,31 +308,6 @@ export class TerminalPanel extends Panel {
 			theme = this.themeService.getTheme();
 		}
 
-		let css = '';
-
-		const backgroundColor = theme.getColor(TERMINAL_BACKGROUND_COLOR) || theme.getColor(PANEL_BACKGROUND);
-		this._terminalContainer.style.backgroundColor = backgroundColor ? backgroundColor.toString() : '';
-
-		const borderColor = theme.getColor(TERMINAL_BORDER_COLOR) || theme.getColor(PANEL_BORDER);
-		if (borderColor) {
-			css += `.monaco-workbench .panel.integrated-terminal .split-view-view:not(:first-child) { border-color: ${borderColor.toString()}; }`;
-		}
-
-		// Borrow the editor's hover background for now
-		let hoverBackground = theme.getColor(editorHoverBackground);
-		if (hoverBackground) {
-			css += `.monaco-workbench .panel.integrated-terminal .terminal-message-widget { background-color: ${hoverBackground}; }`;
-		}
-		let hoverBorder = theme.getColor(editorHoverBorder);
-		if (hoverBorder) {
-			css += `.monaco-workbench .panel.integrated-terminal .terminal-message-widget { border: 1px solid ${hoverBorder}; }`;
-		}
-		let hoverForeground = theme.getColor(editorForeground);
-		if (hoverForeground) {
-			css += `.monaco-workbench .panel.integrated-terminal .terminal-message-widget { color: ${hoverForeground}; }`;
-		}
-
-		this._themeStyleElement.innerHTML = css;
 		this._findWidget.updateTheme(theme);
 	}
 
@@ -338,30 +317,30 @@ export class TerminalPanel extends Panel {
 		}
 		// TODO: Can we support ligatures?
 		// dom.toggleClass(this._parentDomElement, 'enable-ligatures', this._terminalService.configHelper.config.fontLigatures);
-		this.layout(new Dimension(this._parentDomElement.offsetWidth, this._parentDomElement.offsetHeight));
-	}
-
-	/**
-	 * Adds quotes to a path if it contains whitespaces
-	 */
-	public static preparePathForTerminal(path: string): string {
-		if (platform.isWindows) {
-			if (/\s+/.test(path)) {
-				return `"${path}"`;
-			}
-			return path;
-		}
-		path = path.replace(/(%5C|\\)/g, '\\\\');
-		const charsToEscape = [
-			' ', '\'', '"', '?', ':', ';', '!', '*', '(', ')', '{', '}', '[', ']'
-		];
-		for (let i = 0; i < path.length; i++) {
-			const indexOfChar = charsToEscape.indexOf(path.charAt(i));
-			if (indexOfChar >= 0) {
-				path = `${path.substring(0, i)}\\${path.charAt(i)}${path.substring(i + 1)}`;
-				i++; // Skip char due to escape char being added
-			}
-		}
-		return path;
+		this.layout(new dom.Dimension(this._parentDomElement.offsetWidth, this._parentDomElement.offsetHeight));
 	}
 }
+
+registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
+	const backgroundColor = theme.getColor(TERMINAL_BACKGROUND_COLOR);
+	collector.addRule(`.monaco-workbench .panel.integrated-terminal .terminal-outer-container { background-color: ${backgroundColor ? backgroundColor.toString() : ''}; }`);
+
+	const borderColor = theme.getColor(TERMINAL_BORDER_COLOR);
+	if (borderColor) {
+		collector.addRule(`.monaco-workbench .panel.integrated-terminal .split-view-view:not(:first-child) { border-color: ${borderColor.toString()}; }`);
+	}
+
+	// Borrow the editor's hover background for now
+	const hoverBackground = theme.getColor(editorHoverBackground);
+	if (hoverBackground) {
+		collector.addRule(`.monaco-workbench .panel.integrated-terminal .terminal-message-widget { background-color: ${hoverBackground}; }`);
+	}
+	const hoverBorder = theme.getColor(editorHoverBorder);
+	if (hoverBorder) {
+		collector.addRule(`.monaco-workbench .panel.integrated-terminal .terminal-message-widget { border: 1px solid ${hoverBorder}; }`);
+	}
+	const hoverForeground = theme.getColor(editorForeground);
+	if (hoverForeground) {
+		collector.addRule(`.monaco-workbench .panel.integrated-terminal .terminal-message-widget { color: ${hoverForeground}; }`);
+	}
+});

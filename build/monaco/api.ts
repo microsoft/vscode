@@ -3,52 +3,24 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import fs = require('fs');
-import ts = require('typescript');
-import path = require('path');
+import * as fs from 'fs';
+import * as ts from 'typescript';
+import * as path from 'path';
+import * as util from 'gulp-util';
+
+const dtsv = '2';
+
 const tsfmt = require('../../tsfmt.json');
 
-var util = require('gulp-util');
-function log(message: any, ...rest: any[]): void {
-	util.log(util.colors.cyan('[monaco.d.ts]'), message, ...rest);
-}
-
 const SRC = path.join(__dirname, '../../src');
-const OUT_ROOT = path.join(__dirname, '../../');
-const RECIPE_PATH = path.join(__dirname, './monaco.d.ts.recipe');
+export const RECIPE_PATH = path.join(__dirname, './monaco.d.ts.recipe');
 const DECLARATION_PATH = path.join(__dirname, '../../src/vs/monaco.d.ts');
 
-var CURRENT_PROCESSING_RULE = '';
 function logErr(message: any, ...rest: any[]): void {
-	util.log(util.colors.red('[monaco.d.ts]'), 'WHILE HANDLING RULE: ', CURRENT_PROCESSING_RULE);
-	util.log(util.colors.red('[monaco.d.ts]'), message, ...rest);
+	util.log(util.colors.yellow(`[monaco.d.ts]`), message, ...rest);
 }
 
-function moduleIdToPath(out: string, moduleId: string): string {
-	if (/\.d\.ts/.test(moduleId)) {
-		return path.join(SRC, moduleId);
-	}
-	return path.join(OUT_ROOT, out, moduleId) + '.d.ts';
-}
-
-let SOURCE_FILE_MAP: { [moduleId: string]: ts.SourceFile; } = {};
-function getSourceFile(out: string, inputFiles: { [file: string]: string; }, moduleId: string): ts.SourceFile {
-	if (!SOURCE_FILE_MAP[moduleId]) {
-		let filePath = path.normalize(moduleIdToPath(out, moduleId));
-
-		if (!inputFiles.hasOwnProperty(filePath)) {
-			logErr('CANNOT FIND FILE ' + filePath + '. YOU MIGHT NEED TO RESTART gulp');
-			return null;
-		}
-
-		let fileContents = inputFiles[filePath];
-		let sourceFile = ts.createSourceFile(filePath, fileContents, ts.ScriptTarget.ES5);
-
-		SOURCE_FILE_MAP[moduleId] = sourceFile;
-	}
-	return SOURCE_FILE_MAP[moduleId];
-}
-
+type SourceFileGetter = (moduleId: string) => ts.SourceFile | null;
 
 type TSTopLevelDeclaration = ts.InterfaceDeclaration | ts.EnumDeclaration | ts.ClassDeclaration | ts.TypeAliasDeclaration | ts.FunctionDeclaration | ts.ModuleDeclaration;
 type TSTopLevelDeclare = TSTopLevelDeclaration | ts.VariableStatement;
@@ -83,13 +55,6 @@ function visitTopLevelDeclarations(sourceFile: ts.SourceFile, visitor: (node: TS
 				stop = visitor(<TSTopLevelDeclare>node);
 		}
 
-		// if (node.kind !== ts.SyntaxKind.SourceFile) {
-		// 	if (getNodeText(sourceFile, node).indexOf('SymbolKind') >= 0) {
-		// 		console.log('FOUND TEXT IN NODE: ' + ts.SyntaxKind[node.kind]);
-		// 		console.log(getNodeText(sourceFile, node));
-		// 	}
-		// }
-
 		if (stop) {
 			return;
 		}
@@ -109,10 +74,6 @@ function getAllTopLevelDeclarations(sourceFile: ts.SourceFile): TSTopLevelDeclar
 			let triviaEnd = interfaceDeclaration.name.pos;
 			let triviaText = getNodeText(sourceFile, { pos: triviaStart, end: triviaEnd });
 
-			// // let nodeText = getNodeText(sourceFile, node);
-			// if (getNodeText(sourceFile, node).indexOf('SymbolKind') >= 0) {
-			// 	console.log('TRIVIA: ', triviaText);
-			// }
 			if (triviaText.indexOf('@internal') === -1) {
 				all.push(node);
 			}
@@ -128,10 +89,10 @@ function getAllTopLevelDeclarations(sourceFile: ts.SourceFile): TSTopLevelDeclar
 }
 
 
-function getTopLevelDeclaration(sourceFile: ts.SourceFile, typeName: string): TSTopLevelDeclare {
-	let result: TSTopLevelDeclare = null;
+function getTopLevelDeclaration(sourceFile: ts.SourceFile, typeName: string): TSTopLevelDeclare | null {
+	let result: TSTopLevelDeclare | null = null;
 	visitTopLevelDeclarations(sourceFile, (node) => {
-		if (isDeclaration(node)) {
+		if (isDeclaration(node) && node.name) {
 			if (node.name.text === typeName) {
 				result = node;
 				return true /*stop*/;
@@ -153,24 +114,63 @@ function getNodeText(sourceFile: ts.SourceFile, node: { pos: number; end: number
 	return sourceFile.getFullText().substring(node.pos, node.end);
 }
 
+function hasModifier(modifiers: ts.NodeArray<ts.Modifier> | undefined, kind: ts.SyntaxKind): boolean {
+	if (modifiers) {
+		for (let i = 0; i < modifiers.length; i++) {
+			let mod = modifiers[i];
+			if (mod.kind === kind) {
+				return true;
+			}
+		}
+	}
+	return false;
+}
 
-function getMassagedTopLevelDeclarationText(sourceFile: ts.SourceFile, declaration: TSTopLevelDeclare): string {
+function isStatic(member: ts.ClassElement | ts.TypeElement): boolean {
+	return hasModifier(member.modifiers, ts.SyntaxKind.StaticKeyword);
+}
+
+function isDefaultExport(declaration: ts.InterfaceDeclaration | ts.ClassDeclaration): boolean {
+	return (
+		hasModifier(declaration.modifiers, ts.SyntaxKind.DefaultKeyword)
+		&& hasModifier(declaration.modifiers, ts.SyntaxKind.ExportKeyword)
+	);
+}
+
+function getMassagedTopLevelDeclarationText(sourceFile: ts.SourceFile, declaration: TSTopLevelDeclare, importName: string, usage: string[], enums: string[]): string {
 	let result = getNodeText(sourceFile, declaration);
-	// if (result.indexOf('MonacoWorker') >= 0) {
-	// 	console.log('here!');
-	// 	// console.log(ts.SyntaxKind[declaration.kind]);
-	// }
 	if (declaration.kind === ts.SyntaxKind.InterfaceDeclaration || declaration.kind === ts.SyntaxKind.ClassDeclaration) {
 		let interfaceDeclaration = <ts.InterfaceDeclaration | ts.ClassDeclaration>declaration;
 
-		let members: ts.NodeArray<ts.Node> = interfaceDeclaration.members;
+		const staticTypeName = (
+			isDefaultExport(interfaceDeclaration)
+				? `${importName}.default`
+				: `${importName}.${declaration.name!.text}`
+		);
+
+		let instanceTypeName = staticTypeName;
+		const typeParametersCnt = (interfaceDeclaration.typeParameters ? interfaceDeclaration.typeParameters.length : 0);
+		if (typeParametersCnt > 0) {
+			let arr: string[] = [];
+			for (let i = 0; i < typeParametersCnt; i++) {
+				arr.push('any');
+			}
+			instanceTypeName = `${instanceTypeName}<${arr.join(',')}>`;
+		}
+
+		const members: ts.NodeArray<ts.ClassElement | ts.TypeElement> = interfaceDeclaration.members;
 		members.forEach((member) => {
 			try {
 				let memberText = getNodeText(sourceFile, member);
 				if (memberText.indexOf('@internal') >= 0 || memberText.indexOf('private') >= 0) {
-					// console.log('BEFORE: ', result);
 					result = result.replace(memberText, '');
-					// console.log('AFTER: ', result);
+				} else {
+					const memberName = (<ts.Identifier | ts.StringLiteral>member.name).text;
+					if (isStatic(member)) {
+						usage.push(`a = ${staticTypeName}.${memberName};`);
+					} else {
+						usage.push(`a = (<${instanceTypeName}>b).${memberName};`);
+					}
 				}
 			} catch (err) {
 				// life..
@@ -179,10 +179,22 @@ function getMassagedTopLevelDeclarationText(sourceFile: ts.SourceFile, declarati
 	}
 	result = result.replace(/export default/g, 'export');
 	result = result.replace(/export declare/g, 'export');
+
+	if (declaration.kind === ts.SyntaxKind.EnumDeclaration) {
+		result = result.replace(/const enum/, 'enum');
+		enums.push(result);
+	}
+
 	return result;
 }
 
-function format(text: string): string {
+function format(text: string, endl: string): string {
+	const REALLY_FORMAT = false;
+
+	text = preformat(text, endl);
+	if (!REALLY_FORMAT) {
+		return text;
+	}
 
 	// Parse the source text
 	let sourceFile = ts.createSourceFile('file.ts', text, ts.ScriptTarget.Latest, /*setParentPointers*/ true);
@@ -192,6 +204,104 @@ function format(text: string): string {
 
 	// Apply the edits on the input code
 	return applyEdits(text, edits);
+
+	function countParensCurly(text: string): number {
+		let cnt = 0;
+		for (let i = 0; i < text.length; i++) {
+			if (text.charAt(i) === '(' || text.charAt(i) === '{') {
+				cnt++;
+			}
+			if (text.charAt(i) === ')' || text.charAt(i) === '}') {
+				cnt--;
+			}
+		}
+		return cnt;
+	}
+
+	function repeatStr(s: string, cnt: number): string {
+		let r = '';
+		for (let i = 0; i < cnt; i++) {
+			r += s;
+		}
+		return r;
+	}
+
+	function preformat(text: string, endl: string): string {
+		let lines = text.split(endl);
+		let inComment = false;
+		let inCommentDeltaIndent = 0;
+		let indent = 0;
+		for (let i = 0; i < lines.length; i++) {
+			let line = lines[i].replace(/\s$/, '');
+			let repeat = false;
+			let lineIndent = 0;
+			do {
+				repeat = false;
+				if (line.substring(0, 4) === '    ') {
+					line = line.substring(4);
+					lineIndent++;
+					repeat = true;
+				}
+				if (line.charAt(0) === '\t') {
+					line = line.substring(1);
+					lineIndent++;
+					repeat = true;
+				}
+			} while (repeat);
+
+			if (line.length === 0) {
+				continue;
+			}
+
+			if (inComment) {
+				if (/\*\//.test(line)) {
+					inComment = false;
+				}
+				lines[i] = repeatStr('\t', lineIndent + inCommentDeltaIndent) + line;
+				continue;
+			}
+
+			if (/\/\*/.test(line)) {
+				inComment = true;
+				inCommentDeltaIndent = indent - lineIndent;
+				lines[i] = repeatStr('\t', indent) + line;
+				continue;
+			}
+
+			const cnt = countParensCurly(line);
+			let shouldUnindentAfter = false;
+			let shouldUnindentBefore = false;
+			if (cnt < 0) {
+				if (/[({]/.test(line)) {
+					shouldUnindentAfter = true;
+				} else {
+					shouldUnindentBefore = true;
+				}
+			} else if (cnt === 0) {
+				shouldUnindentBefore = /^\}/.test(line);
+			}
+			let shouldIndentAfter = false;
+			if (cnt > 0) {
+				shouldIndentAfter = true;
+			} else if (cnt === 0) {
+				shouldIndentAfter = /{$/.test(line);
+			}
+
+			if (shouldUnindentBefore) {
+				indent--;
+			}
+
+			lines[i] = repeatStr('\t', indent) + line;
+
+			if (shouldUnindentAfter) {
+				indent--;
+			}
+			if (shouldIndentAfter) {
+				indent++;
+			}
+		}
+		return lines.join(endl);
+	}
 
 	function getRuleProvider(options: ts.FormatCodeSettings) {
 		// Share this between multiple formatters using the same options.
@@ -237,22 +347,59 @@ function createReplacer(data: string): (str: string) => string {
 	};
 }
 
-function generateDeclarationFile(out: string, inputFiles: { [file: string]: string; }, recipe: string): string {
+interface ITempResult {
+	result: string;
+	usageContent: string;
+	enums: string;
+}
+
+function generateDeclarationFile(recipe: string, sourceFileGetter: SourceFileGetter): ITempResult | null {
 	const endl = /\r\n/.test(recipe) ? '\r\n' : '\n';
 
 	let lines = recipe.split(endl);
-	let result = [];
+	let result: string[] = [];
+
+	let usageCounter = 0;
+	let usageImports: string[] = [];
+	let usage: string[] = [];
+
+	let failed = false;
+
+	usage.push(`var a;`);
+	usage.push(`var b;`);
+
+	const generateUsageImport = (moduleId: string) => {
+		let importName = 'm' + (++usageCounter);
+		usageImports.push(`import * as ${importName} from './${moduleId.replace(/\.d\.ts$/, '')}';`);
+		return importName;
+	};
+
+	let enums: string[] = [];
+	let version: string | null = null;
 
 	lines.forEach(line => {
 
+		if (failed) {
+			return;
+		}
+
+		let m0 = line.match(/^\/\/dtsv=(\d+)$/);
+		if (m0) {
+			version = m0[1];
+		}
+
 		let m1 = line.match(/^\s*#include\(([^;)]*)(;[^)]*)?\)\:(.*)$/);
 		if (m1) {
-			CURRENT_PROCESSING_RULE = line;
 			let moduleId = m1[1];
-			let sourceFile = getSourceFile(out, inputFiles, moduleId);
+			const sourceFile = sourceFileGetter(moduleId);
 			if (!sourceFile) {
+				logErr(`While handling ${line}`);
+				logErr(`Cannot find ${moduleId}`);
+				failed = true;
 				return;
 			}
+
+			const importName = generateUsageImport(moduleId);
 
 			let replacer = createReplacer(m1[2]);
 
@@ -264,22 +411,28 @@ function generateDeclarationFile(out: string, inputFiles: { [file: string]: stri
 				}
 				let declaration = getTopLevelDeclaration(sourceFile, typeName);
 				if (!declaration) {
-					logErr('Cannot find type ' + typeName);
+					logErr(`While handling ${line}`);
+					logErr(`Cannot find ${typeName}`);
+					failed = true;
 					return;
 				}
-				result.push(replacer(getMassagedTopLevelDeclarationText(sourceFile, declaration)));
+				result.push(replacer(getMassagedTopLevelDeclarationText(sourceFile, declaration, importName, usage, enums)));
 			});
 			return;
 		}
 
 		let m2 = line.match(/^\s*#includeAll\(([^;)]*)(;[^)]*)?\)\:(.*)$/);
 		if (m2) {
-			CURRENT_PROCESSING_RULE = line;
 			let moduleId = m2[1];
-			let sourceFile = getSourceFile(out, inputFiles, moduleId);
+			const sourceFile = sourceFileGetter(moduleId);
 			if (!sourceFile) {
+				logErr(`While handling ${line}`);
+				logErr(`Cannot find ${moduleId}`);
+				failed = true;
 				return;
 			}
+
+			const importName = generateUsageImport(moduleId);
 
 			let replacer = createReplacer(m2[2]);
 
@@ -296,7 +449,7 @@ function generateDeclarationFile(out: string, inputFiles: { [file: string]: stri
 			});
 
 			getAllTopLevelDeclarations(sourceFile).forEach((declaration) => {
-				if (isDeclaration(declaration)) {
+				if (isDeclaration(declaration) && declaration.name) {
 					if (typesToExcludeMap[declaration.name.text]) {
 						return;
 					}
@@ -309,7 +462,7 @@ function generateDeclarationFile(out: string, inputFiles: { [file: string]: stri
 						}
 					}
 				}
-				result.push(replacer(getMassagedTopLevelDeclarationText(sourceFile, declaration)));
+				result.push(replacer(getMassagedTopLevelDeclarationText(sourceFile, declaration, importName, usage, enums)));
 			});
 			return;
 		}
@@ -317,68 +470,198 @@ function generateDeclarationFile(out: string, inputFiles: { [file: string]: stri
 		result.push(line);
 	});
 
+	if (failed) {
+		return null;
+	}
+
+	if (version !== dtsv) {
+		if (!version) {
+			logErr(`gulp watch restart required. 'monaco.d.ts.recipe' is written before versioning was introduced.`);
+		} else {
+			logErr(`gulp watch restart required. 'monaco.d.ts.recipe' v${version} does not match runtime v${dtsv}.`);
+		}
+		return null;
+	}
+
 	let resultTxt = result.join(endl);
 	resultTxt = resultTxt.replace(/\bURI\b/g, 'Uri');
 	resultTxt = resultTxt.replace(/\bEvent</g, 'IEvent<');
-	resultTxt = resultTxt.replace(/\bTPromise</g, 'Promise<');
+	resultTxt = resultTxt.split(/\r\n|\n|\r/).join(endl);
+	resultTxt = format(resultTxt, endl);
+	resultTxt = resultTxt.split(/\r\n|\n|\r/).join(endl);
 
-	resultTxt = format(resultTxt);
+	let resultEnums = [
+		'/*---------------------------------------------------------------------------------------------',
+		' *  Copyright (c) Microsoft Corporation. All rights reserved.',
+		' *  Licensed under the MIT License. See License.txt in the project root for license information.',
+		' *--------------------------------------------------------------------------------------------*/',
+		'',
+		'// THIS IS A GENERATED FILE. DO NOT EDIT DIRECTLY.',
+		''
+	].concat(enums).join(endl);
+	resultEnums = resultEnums.split(/\r\n|\n|\r/).join(endl);
+	resultEnums = format(resultEnums, endl);
+	resultEnums = resultEnums.split(/\r\n|\n|\r/).join(endl);
 
-	return resultTxt;
-}
-
-export function getFilesToWatch(out: string): string[] {
-	let recipe = fs.readFileSync(RECIPE_PATH).toString();
-	let lines = recipe.split(/\r\n|\n|\r/);
-	let result = [];
-
-	lines.forEach(line => {
-
-		let m1 = line.match(/^\s*#include\(([^;)]*)(;[^)]*)?\)\:(.*)$/);
-		if (m1) {
-			let moduleId = m1[1];
-			result.push(moduleIdToPath(out, moduleId));
-			return;
-		}
-
-		let m2 = line.match(/^\s*#includeAll\(([^;)]*)(;[^)]*)?\)\:(.*)$/);
-		if (m2) {
-			let moduleId = m2[1];
-			result.push(moduleIdToPath(out, moduleId));
-			return;
-		}
-	});
-
-	return result;
+	return {
+		result: resultTxt,
+		usageContent: `${usageImports.join('\n')}\n\n${usage.join('\n')}`,
+		enums: resultEnums
+	};
 }
 
 export interface IMonacoDeclarationResult {
 	content: string;
+	usageContent: string;
+	enums: string;
 	filePath: string;
 	isTheSame: boolean;
 }
 
-export function run(out: string, inputFiles: { [file: string]: string; }): IMonacoDeclarationResult {
-	log('Starting monaco.d.ts generation');
-	SOURCE_FILE_MAP = {};
+function _run(sourceFileGetter: SourceFileGetter): IMonacoDeclarationResult | null {
+	const recipe = fs.readFileSync(RECIPE_PATH).toString();
+	const t = generateDeclarationFile(recipe, sourceFileGetter);
+	if (!t) {
+		return null;
+	}
 
-	let recipe = fs.readFileSync(RECIPE_PATH).toString();
-	let result = generateDeclarationFile(out, inputFiles, recipe);
+	const result = t.result;
+	const usageContent = t.usageContent;
+	const enums = t.enums;
 
-	let currentContent = fs.readFileSync(DECLARATION_PATH).toString();
-	log('Finished monaco.d.ts generation');
-
+	const currentContent = fs.readFileSync(DECLARATION_PATH).toString();
 	const one = currentContent.replace(/\r\n/gm, '\n');
 	const other = result.replace(/\r\n/gm, '\n');
-	const isTheSame = one === other;
+	const isTheSame = (one === other);
 
 	return {
 		content: result,
+		usageContent: usageContent,
+		enums: enums,
 		filePath: DECLARATION_PATH,
 		isTheSame
 	};
 }
 
-export function complainErrors() {
-	logErr('Not running monaco.d.ts generation due to compile errors');
+export class FSProvider {
+	public existsSync(filePath: string): boolean {
+		return fs.existsSync(filePath);
+	}
+	public readFileSync(_moduleId: string, filePath: string): Buffer {
+		return fs.readFileSync(filePath);
+	}
+}
+
+export class DeclarationResolver {
+
+	private _sourceFileCache: { [moduleId: string]: ts.SourceFile | null; };
+
+	constructor(private readonly _fsProvider: FSProvider) {
+		this._sourceFileCache = Object.create(null);
+	}
+
+	public invalidateCache(moduleId: string): void {
+		this._sourceFileCache[moduleId] = null;
+	}
+
+	public getDeclarationSourceFile(moduleId: string): ts.SourceFile | null {
+		if (!this._sourceFileCache[moduleId]) {
+			this._sourceFileCache[moduleId] = this._getDeclarationSourceFile(moduleId);
+		}
+		return this._sourceFileCache[moduleId];
+	}
+
+	private _getDeclarationSourceFile(moduleId: string): ts.SourceFile | null {
+		if (/\.d\.ts$/.test(moduleId)) {
+			const fileName = path.join(SRC, moduleId);
+			if (!this._fsProvider.existsSync(fileName)) {
+				return null;
+			}
+			const fileContents = this._fsProvider.readFileSync(moduleId, fileName).toString();
+			return ts.createSourceFile(fileName, fileContents, ts.ScriptTarget.ES5);
+		}
+		const fileName = path.join(SRC, `${moduleId}.ts`);
+		if (!this._fsProvider.existsSync(fileName)) {
+			return null;
+		}
+		const fileContents = this._fsProvider.readFileSync(moduleId, fileName).toString();
+		const fileMap: IFileMap = {
+			'file.ts': fileContents
+		};
+		const service = ts.createLanguageService(new TypeScriptLanguageServiceHost({}, fileMap, {}));
+		const text = service.getEmitOutput('file.ts', true).outputFiles[0].text;
+		return ts.createSourceFile(fileName, text, ts.ScriptTarget.ES5);
+	}
+}
+
+export function run3(resolver: DeclarationResolver): IMonacoDeclarationResult | null {
+	const sourceFileGetter = (moduleId: string) => resolver.getDeclarationSourceFile(moduleId);
+	return _run(sourceFileGetter);
+}
+
+
+
+
+interface ILibMap { [libName: string]: string; }
+interface IFileMap { [fileName: string]: string; }
+
+class TypeScriptLanguageServiceHost implements ts.LanguageServiceHost {
+
+	private readonly _libs: ILibMap;
+	private readonly _files: IFileMap;
+	private readonly _compilerOptions: ts.CompilerOptions;
+
+	constructor(libs: ILibMap, files: IFileMap, compilerOptions: ts.CompilerOptions) {
+		this._libs = libs;
+		this._files = files;
+		this._compilerOptions = compilerOptions;
+	}
+
+	// --- language service host ---------------
+
+	getCompilationSettings(): ts.CompilerOptions {
+		return this._compilerOptions;
+	}
+	getScriptFileNames(): string[] {
+		return (
+			([] as string[])
+				.concat(Object.keys(this._libs))
+				.concat(Object.keys(this._files))
+		);
+	}
+	getScriptVersion(_fileName: string): string {
+		return '1';
+	}
+	getProjectVersion(): string {
+		return '1';
+	}
+	getScriptSnapshot(fileName: string): ts.IScriptSnapshot {
+		if (this._files.hasOwnProperty(fileName)) {
+			return ts.ScriptSnapshot.fromString(this._files[fileName]);
+		} else if (this._libs.hasOwnProperty(fileName)) {
+			return ts.ScriptSnapshot.fromString(this._libs[fileName]);
+		} else {
+			return ts.ScriptSnapshot.fromString('');
+		}
+	}
+	getScriptKind(_fileName: string): ts.ScriptKind {
+		return ts.ScriptKind.TS;
+	}
+	getCurrentDirectory(): string {
+		return '';
+	}
+	getDefaultLibFileName(_options: ts.CompilerOptions): string {
+		return 'defaultLib:es5';
+	}
+	isDefaultLibFileName(fileName: string): boolean {
+		return fileName === this.getDefaultLibFileName(this._compilerOptions);
+	}
+}
+
+export function execute(): IMonacoDeclarationResult {
+	let r = run3(new DeclarationResolver(new FSProvider()));
+	if (!r) {
+		throw new Error(`monaco.d.ts generation error - Cannot continue`);
+	}
+	return r;
 }

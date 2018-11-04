@@ -17,16 +17,16 @@ The core editor in VS Code is packed with features.  This page highlights a numb
 
 ### Multi-Cursor Editing
 Using multiple cursors allows you to edit multiple parts of the document at once, greatly improving your productivity.  Try the following actions in the code block below:
-1. Box Selection - press <span class="mac-only windows-only">any combination of kb(cursorColumnSelectDown), kb(cursorColumnSelectRight), kb(cursorColumnSelectUp), kb(cursorColumnSelectLeft) to select a block of text. You can also press</span> <span class="shortcut mac-only">`⇧⌥`</span><span class="shortcut windows-only linux-only">`Shift+Alt`</span> while selecting text with the mouse.
+1. Box Selection - press <span class="mac-only windows-only">any combination of kb(cursorColumnSelectDown), kb(cursorColumnSelectRight), kb(cursorColumnSelectUp), kb(cursorColumnSelectLeft) to select a block of text. You can also press</span> <span class="shortcut mac-only">`⇧⌥`</span><span class="shortcut windows-only linux-only">`Shift+Alt`</span> while selecting text with the mouse or drag-select using the middle mouse button.
 2. Add a cursor - press kb(editor.action.insertCursorAbove) to add a new cursor above, or kb(editor.action.insertCursorBelow) to add a new cursor below. You can also use your mouse with <span class="shortcut"><span class="multi-cursor-modifier"></span>+Click</span> to add a cursor anywhere.
 3. Create cursors on all occurrences of a string - select one instance of a string e.g. `background-color` and press kb(editor.action.selectHighlights).  Now you can replace all instances by simply typing.
 
 That is the tip of the iceberg for multi-cursor editing. Have a look at the selection menu and our handy [keyboard reference guide](command:workbench.action.keybindingsReference) for additional actions.
 
 ```css
-#p1 {background-color: #ff0000;}   /* red */
-#p2 {background-color: #00ff00;}   /* green */
-#p3 {background-color: #0000ff;}   /* blue */
+#p1 {background-color: #ff0000;}                /* red in HEX format */
+#p2 {background-color: hsl(120, 100%, 50%);}    /* green in HSL format */
+#p3 {background-color: rgba(0, 4, 255, 0.733);} /* blue with alpha channel in RGBA format */
 ```
 
 > **CSS Tip:** you may have noticed in the example above we also provide color swatches inline for CSS, additionally if you hover over an element such as `#p1` we will show how this is represented in HTML.  These swatches also act as color pickers that allow you to easily change a color value.  A simple example of some language-specific editor features.
@@ -36,10 +36,10 @@ That is the tip of the iceberg for multi-cursor editing. Have a look at the sele
 Visual Studio Code comes with the powerful IntelliSense for JavaScript and TypeScript pre-installed. In the below example, position the text cursor in front of the error underline, right after the dot and press kb(editor.action.triggerSuggest) to invoke IntelliSense.  Notice how the suggestion comes from the Request API.
 
 ```js
-var express = require('express');
-var app = express();
+const express = require('express');
+const app = express();
 
-app.get('/', function (req, res) {
+app.get('/',  (req, res) => {
     res.send(`Hello ${req.}`);
 });
 
@@ -92,9 +92,9 @@ Sometimes you want to refactor already written code into a separate function or 
 
 ```js
 function findFirstEvenNumber(arr) {
-    for (let i = 0; i < arr.length; i++) {
-        if (typeof arr[i] === 'number' && arr[i] % 2 === 0) {
-            return arr[i];
+    for (const el of arr) {
+        if (typeof el === 'number' && el % 2 === 0) {
+            return el;
         }
     }
     return null;
@@ -103,22 +103,22 @@ function findFirstEvenNumber(arr) {
 
 
 ### Formatting
-Keeping your code looking great is hard without a good formatter.  Luckily it's easy to format content either the entire document with kb(editor.action.formatDocument). Formatting can be applied to the current selection with kb(editor.action.formatSelection).  Both of these options are also available through the right-click context menu.
+Keeping your code looking great is hard without a good formatter.  Luckily it's easy to format content, either for the entire document with kb(editor.action.formatDocument) or for the current selection with kb(editor.action.formatSelection).  Both of these options are also available through the right-click context menu.
 
 ```js
-var cars = ["Saab", "Volvo", "BMW"];
+const cars = ["🚗", "🚙", "🚕"];
 
-for (var i=0; i < cars.length; i++) {
-// Drive the car
-console.log(`This is the manufacturer [${cars[i]}])`);
-    }
+for (const car of cars){
+    // Drive the car
+    console.log(`This is the car ${car}`);
+}
 ```
 
 >**Tip:** Additional formatters are available in the [extension gallery](command:workbench.extensions.action.showPopularExtensions).  Formatting support can also be configured via [settings](command:workbench.action.openGlobalSettings) e.g. enabling `editor.formatOnSave`.
 
 
 ### Code Folding
-In a large file it can often be useful to collapse sections of code to increase readability.  To do this you can simply press kb(editor.fold) to fold the code, press kb(editor.unfold) to unfold.  Folding can also be done with the +/- icons in the left gutter.  To fold all sections use kb(editor.foldAll) or to unfold all use kb(editor.unfoldAll).
+In a large file it can often be useful to collapse sections of code to increase readability.  To do this, you can simply press kb(editor.fold) to fold or press kb(editor.unfold) to unfold the ranges at the current cursor position.  Folding can also be done with the +/- icons in the left gutter.  To fold all sections use kb(editor.foldAll) or to unfold all use kb(editor.unfoldAll).
 
 ```html
 <div>
@@ -137,7 +137,7 @@ In a large file it can often be useful to collapse sections of code to increase 
 >**Tip:** Folding is based on indentation and as a result can apply to all languages.  Simply indent your code to create a foldable section you can fold a certain number of levels with shortcuts like kb(editor.foldLevel1) through to kb(editor.foldLevel5).
 
 ### Errors and Warnings
-Errors and warnings are highlighted as you edit your code with squiggles.  In the sample below you can see a number of syntax errors.  By pressing kb(editor.action.marker.next) you can navigate across them in sequence and see the detailed error message.  As you correct them the squiggles and scrollbar indicators will update.
+Errors and warnings are highlighted as you edit your code with squiggles.  In the sample below you can see a number of syntax errors.  By pressing kb(editor.action.marker.nextInFiles) you can navigate across them in sequence and see the detailed error message.  As you correct them the squiggles and scrollbar indicators will update.
 
 ```js
 // This code has a few syntax errors
@@ -192,4 +192,4 @@ Well if you have got this far then you will have touched on some of the editing 
 
 That's all for now,
 
-Happy Coding!
+Happy Coding! 🎉

@@ -3,18 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import 'vs/css!./button';
 import * as DOM from 'vs/base/browser/dom';
-import { Builder, $ } from 'vs/base/browser/builder';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { Color } from 'vs/base/common/color';
 import { mixin } from 'vs/base/common/objects';
 import { Event as BaseEvent, Emitter } from 'vs/base/common/event';
-import { dispose, IDisposable } from 'vs/base/common/lifecycle';
-import { Gesture, EventType } from 'vs/base/browser/touch';
+import { Disposable } from 'vs/base/common/lifecycle';
+import { Gesture } from 'vs/base/browser/touch';
 
 export interface IButtonOptions extends IButtonStyles {
 	title?: boolean;
@@ -33,24 +30,24 @@ const defaultOptions: IButtonStyles = {
 	buttonForeground: Color.white
 };
 
-export class Button {
+export class Button extends Disposable {
 
-	private $el: Builder;
+	private _element: HTMLElement;
 	private options: IButtonOptions;
 
-	private buttonBackground: Color;
-	private buttonHoverBackground: Color;
-	private buttonForeground: Color;
-	private buttonBorder: Color;
+	private buttonBackground: Color | undefined;
+	private buttonHoverBackground: Color | undefined;
+	private buttonForeground: Color | undefined;
+	private buttonBorder: Color | undefined;
 
-	private _onDidClick = new Emitter<any>();
-	readonly onDidClick: BaseEvent<Event> = this._onDidClick.event;
+	private _onDidClick = this._register(new Emitter<any>());
+	get onDidClick(): BaseEvent<Event> { return this._onDidClick.event; }
 
 	private focusTracker: DOM.IFocusTracker;
 
-	constructor(container: Builder, options?: IButtonOptions);
-	constructor(container: HTMLElement, options?: IButtonOptions);
-	constructor(container: any, options?: IButtonOptions) {
+	constructor(container: HTMLElement, options?: IButtonOptions) {
+		super();
+
 		this.options = options || Object.create(null);
 		mixin(this.options, defaultOptions, false);
 
@@ -59,52 +56,54 @@ export class Button {
 		this.buttonForeground = this.options.buttonForeground;
 		this.buttonBorder = this.options.buttonBorder;
 
-		this.$el = $('a.monaco-button').attr({
-			'tabIndex': '0',
-			'role': 'button'
-		}).appendTo(container);
+		this._element = document.createElement('a');
+		DOM.addClass(this._element, 'monaco-button');
+		this._element.tabIndex = 0;
+		this._element.setAttribute('role', 'button');
 
-		Gesture.addTarget(this.$el.getHTMLElement());
+		container.appendChild(this._element);
 
-		this.$el.on([DOM.EventType.CLICK, EventType.Tap], e => {
+		Gesture.addTarget(this._element);
+
+		this._register(DOM.addDisposableListener(this._element, DOM.EventType.CLICK, e => {
 			if (!this.enabled) {
 				DOM.EventHelper.stop(e);
 				return;
 			}
 
 			this._onDidClick.fire(e);
-		});
+		}));
 
-		this.$el.on(DOM.EventType.KEY_DOWN, e => {
-			let event = new StandardKeyboardEvent(e as KeyboardEvent);
+		this._register(DOM.addDisposableListener(this._element, DOM.EventType.KEY_DOWN, e => {
+			const event = new StandardKeyboardEvent(e as KeyboardEvent);
 			let eventHandled = false;
 			if (this.enabled && event.equals(KeyCode.Enter) || event.equals(KeyCode.Space)) {
 				this._onDidClick.fire(e);
 				eventHandled = true;
 			} else if (event.equals(KeyCode.Escape)) {
-				this.$el.domBlur();
+				this._element.blur();
 				eventHandled = true;
 			}
 
 			if (eventHandled) {
 				DOM.EventHelper.stop(event, true);
 			}
-		});
+		}));
 
-		this.$el.on(DOM.EventType.MOUSE_OVER, e => {
-			if (!this.$el.hasClass('disabled')) {
+		this._register(DOM.addDisposableListener(this._element, DOM.EventType.MOUSE_OVER, e => {
+			if (!DOM.hasClass(this._element, 'disabled')) {
 				this.setHoverBackground();
 			}
-		});
+		}));
 
-		this.$el.on(DOM.EventType.MOUSE_OUT, e => {
+		this._register(DOM.addDisposableListener(this._element, DOM.EventType.MOUSE_OUT, e => {
 			this.applyStyles(); // restore standard styles
-		});
+		}));
 
 		// Also set hover background when button is focused for feedback
-		this.focusTracker = DOM.trackFocus(this.$el.getHTMLElement());
-		this.focusTracker.onDidFocus(() => this.setHoverBackground());
-		this.focusTracker.onDidBlur(() => this.applyStyles()); // restore standard styles
+		this.focusTracker = this._register(DOM.trackFocus(this._element));
+		this._register(this.focusTracker.onDidFocus(() => this.setHoverBackground()));
+		this._register(this.focusTracker.onDidBlur(() => this.applyStyles())); // restore standard styles
 
 		this.applyStyles();
 	}
@@ -112,7 +111,7 @@ export class Button {
 	private setHoverBackground(): void {
 		const hoverBackground = this.buttonHoverBackground ? this.buttonHoverBackground.toString() : null;
 		if (hoverBackground) {
-			this.$el.style('background-color', hoverBackground);
+			this._element.style.backgroundColor = hoverBackground;
 		}
 	}
 
@@ -126,82 +125,64 @@ export class Button {
 	}
 
 	private applyStyles(): void {
-		if (this.$el) {
+		if (this._element) {
 			const background = this.buttonBackground ? this.buttonBackground.toString() : null;
 			const foreground = this.buttonForeground ? this.buttonForeground.toString() : null;
 			const border = this.buttonBorder ? this.buttonBorder.toString() : null;
 
-			this.$el.style('color', foreground);
-			this.$el.style('background-color', background);
+			this._element.style.color = foreground;
+			this._element.style.backgroundColor = background;
 
-			this.$el.style('border-width', border ? '1px' : null);
-			this.$el.style('border-style', border ? 'solid' : null);
-			this.$el.style('border-color', border);
+			this._element.style.borderWidth = border ? '1px' : null;
+			this._element.style.borderStyle = border ? 'solid' : null;
+			this._element.style.borderColor = border;
 		}
 	}
 
 	get element(): HTMLElement {
-		return this.$el.getHTMLElement();
+		return this._element;
 	}
 
 	set label(value: string) {
-		if (!this.$el.hasClass('monaco-text-button')) {
-			this.$el.addClass('monaco-text-button');
+		if (!DOM.hasClass(this._element, 'monaco-text-button')) {
+			DOM.addClass(this._element, 'monaco-text-button');
 		}
-		this.$el.text(value);
+		this._element.textContent = value;
 		if (this.options.title) {
-			this.$el.title(value);
+			this._element.title = value;
 		}
 	}
 
 	set icon(iconClassName: string) {
-		this.$el.addClass(iconClassName);
+		DOM.addClass(this._element, iconClassName);
 	}
 
 	set enabled(value: boolean) {
 		if (value) {
-			this.$el.removeClass('disabled');
-			this.$el.attr({
-				'aria-disabled': 'false',
-				'tabIndex': '0'
-			});
+			DOM.removeClass(this._element, 'disabled');
+			this._element.setAttribute('aria-disabled', String(false));
+			this._element.tabIndex = 0;
 		} else {
-			this.$el.addClass('disabled');
-			this.$el.attr('aria-disabled', String(true));
-			DOM.removeTabIndexAndUpdateFocus(this.$el.getHTMLElement());
+			DOM.addClass(this._element, 'disabled');
+			this._element.setAttribute('aria-disabled', String(true));
+			DOM.removeTabIndexAndUpdateFocus(this._element);
 		}
 	}
 
 	get enabled() {
-		return !this.$el.hasClass('disabled');
+		return !DOM.hasClass(this._element, 'disabled');
 	}
 
 	focus(): void {
-		this.$el.domFocus();
-	}
-
-	dispose(): void {
-		if (this.$el) {
-			this.$el.dispose();
-			this.$el = null;
-
-			this.focusTracker.dispose();
-			this.focusTracker = null;
-		}
-
-		this._onDidClick.dispose();
+		this._element.focus();
 	}
 }
 
-export class ButtonGroup {
-	private _buttons: Button[];
-	private toDispose: IDisposable[];
+export class ButtonGroup extends Disposable {
+	private _buttons: Button[] = [];
 
-	constructor(container: Builder, count: number, options?: IButtonOptions);
-	constructor(container: HTMLElement, count: number, options?: IButtonOptions);
-	constructor(container: any, count: number, options?: IButtonOptions) {
-		this._buttons = [];
-		this.toDispose = [];
+	constructor(container: HTMLElement, count: number, options?: IButtonOptions) {
+		super();
 
 		this.create(container, count, options);
 	}
@@ -210,22 +191,19 @@ export class ButtonGroup {
 		return this._buttons;
 	}
 
-	private create(container: Builder, count: number, options?: IButtonOptions): void;
-	private create(container: HTMLElement, count: number, options?: IButtonOptions): void;
-	private create(container: any, count: number, options?: IButtonOptions): void {
+	private create(container: HTMLElement, count: number, options?: IButtonOptions): void {
 		for (let index = 0; index < count; index++) {
-			const button = new Button(container, options);
+			const button = this._register(new Button(container, options));
 			this._buttons.push(button);
-			this.toDispose.push(button);
 
 			// Implement keyboard access in buttons if there are multiple
 			if (count > 1) {
-				$(button.element).on(DOM.EventType.KEY_DOWN, e => {
+				this._register(DOM.addDisposableListener(button.element, DOM.EventType.KEY_DOWN, e => {
 					const event = new StandardKeyboardEvent(e as KeyboardEvent);
 					let eventHandled = true;
 
 					// Next / Previous Button
-					let buttonIndexToFocus: number;
+					let buttonIndexToFocus: number | undefined;
 					if (event.equals(KeyCode.LeftArrow)) {
 						buttonIndexToFocus = index > 0 ? index - 1 : this._buttons.length - 1;
 					} else if (event.equals(KeyCode.RightArrow)) {
@@ -234,16 +212,13 @@ export class ButtonGroup {
 						eventHandled = false;
 					}
 
-					if (eventHandled) {
+					if (eventHandled && typeof buttonIndexToFocus === 'number') {
 						this._buttons[buttonIndexToFocus].focus();
 						DOM.EventHelper.stop(e, true);
 					}
-				}, this.toDispose);
+
+				}));
 			}
 		}
-	}
-
-	dispose(): void {
-		this.toDispose = dispose(this.toDispose);
 	}
 }

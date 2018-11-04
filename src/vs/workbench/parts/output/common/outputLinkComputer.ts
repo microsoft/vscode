@@ -2,13 +2,12 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
 import { IMirrorModel, IWorkerContext } from 'vs/editor/common/services/editorSimpleWorker';
 import { ILink } from 'vs/editor/common/modes';
-import { TPromise } from 'vs/base/common/winjs.base';
-import URI from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 import * as paths from 'vs/base/common/paths';
+import * as resources from 'vs/base/common/resources';
 import * as strings from 'vs/base/common/strings';
 import * as arrays from 'vs/base/common/arrays';
 import { Range } from 'vs/editor/common/core/range';
@@ -18,16 +17,16 @@ export interface ICreateData {
 }
 
 export interface IResourceCreator {
-	toResource: (folderRelativePath: string) => URI;
+	toResource: (folderRelativePath: string) => URI | null;
 }
 
 export class OutputLinkComputer {
 	private ctx: IWorkerContext;
-	private patterns: Map<string /* folder fsPath */, RegExp[]>;
+	private patterns: Map<URI /* folder uri */, RegExp[]>;
 
 	constructor(ctx: IWorkerContext, createData: ICreateData) {
 		this.ctx = ctx;
-		this.patterns = new Map<string, RegExp[]>();
+		this.patterns = new Map<URI, RegExp[]>();
 
 		this.computePatterns(createData);
 	}
@@ -40,11 +39,11 @@ export class OutputLinkComputer {
 		const workspaceFolders = createData.workspaceFolders.map(r => URI.parse(r));
 		workspaceFolders.forEach(workspaceFolder => {
 			const patterns = OutputLinkComputer.createPatterns(workspaceFolder);
-			this.patterns.set(workspaceFolder.fsPath, patterns);
+			this.patterns.set(workspaceFolder, patterns);
 		});
 	}
 
-	private getModel(uri: string): IMirrorModel {
+	private getModel(uri: string): IMirrorModel | null {
 		const models = this.ctx.getMirrorModels();
 		for (let i = 0; i < models.length; i++) {
 			const model = models[i];
@@ -56,7 +55,7 @@ export class OutputLinkComputer {
 		return null;
 	}
 
-	public computeLinks(uri: string): TPromise<ILink[]> {
+	public computeLinks(uri: string): Promise<ILink[]> | undefined {
 		const model = this.getModel(uri);
 		if (!model) {
 			return void 0;
@@ -66,11 +65,11 @@ export class OutputLinkComputer {
 		const lines = model.getValue().split(/\r\n|\r|\n/);
 
 		// For each workspace root patterns
-		this.patterns.forEach((folderPatterns, folderPath) => {
+		this.patterns.forEach((folderPatterns, folderUri) => {
 			const resourceCreator: IResourceCreator = {
-				toResource: (folderRelativePath: string): URI => {
+				toResource: (folderRelativePath: string): URI | null => {
 					if (typeof folderRelativePath === 'string') {
-						return URI.file(paths.join(folderPath, folderRelativePath));
+						return resources.joinPath(folderUri, folderRelativePath);
 					}
 
 					return null;
@@ -82,15 +81,16 @@ export class OutputLinkComputer {
 			}
 		});
 
-		return TPromise.as(links);
+		return Promise.resolve(links);
 	}
 
 	public static createPatterns(workspaceFolder: URI): RegExp[] {
 		const patterns: RegExp[] = [];
 
+		const workspaceFolderPath = workspaceFolder.scheme === 'file' ? workspaceFolder.fsPath : workspaceFolder.path;
 		const workspaceFolderVariants = arrays.distinct([
-			paths.normalize(workspaceFolder.fsPath, true),
-			paths.normalize(workspaceFolder.fsPath, false)
+			paths.normalize(workspaceFolderPath, true),
+			paths.normalize(workspaceFolderPath, false)
 		]);
 
 		workspaceFolderVariants.forEach(workspaceFolderVariant => {
@@ -130,15 +130,18 @@ export class OutputLinkComputer {
 		patterns.forEach(pattern => {
 			pattern.lastIndex = 0; // the holy grail of software development
 
-			let match: RegExpExecArray;
+			let match: RegExpExecArray | null;
 			let offset = 0;
 			while ((match = pattern.exec(line)) !== null) {
 
 				// Convert the relative path information to a resource that we can use in links
 				const folderRelativePath = strings.rtrim(match[1], '.').replace(/\\/g, '/'); // remove trailing "." that likely indicate end of sentence
-				let resource: string;
+				let resourceString: string | undefined;
 				try {
-					resource = resourceCreator.toResource(folderRelativePath).toString();
+					const resource = resourceCreator.toResource(folderRelativePath);
+					if (resource) {
+						resourceString = resource.toString();
+					}
 				} catch (error) {
 					continue; // we might find an invalid URI and then we dont want to loose all other links
 				}
@@ -149,9 +152,9 @@ export class OutputLinkComputer {
 
 					if (match[5]) {
 						const columnNumber = match[5];
-						resource = strings.format('{0}#{1},{2}', resource, lineNumber, columnNumber);
+						resourceString = strings.format('{0}#{1},{2}', resourceString, lineNumber, columnNumber);
 					} else {
-						resource = strings.format('{0}#{1}', resource, lineNumber);
+						resourceString = strings.format('{0}#{1}', resourceString, lineNumber);
 					}
 				}
 
@@ -173,7 +176,7 @@ export class OutputLinkComputer {
 
 				links.push({
 					range: linkRange,
-					url: resource
+					url: resourceString
 				});
 			}
 		});

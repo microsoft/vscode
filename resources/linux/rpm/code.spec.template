@@ -20,6 +20,7 @@ mkdir -p %{buildroot}/usr/share/applications
 mkdir -p %{buildroot}/usr/share/pixmaps
 cp -r usr/share/@@NAME@@/* %{buildroot}/usr/share/@@NAME@@
 cp -r usr/share/applications/@@NAME@@.desktop %{buildroot}/usr/share/applications
+cp -r usr/share/applications/@@NAME@@-url-handler.desktop %{buildroot}/usr/share/applications
 cp -r usr/share/pixmaps/@@NAME@@.png %{buildroot}/usr/share/pixmaps
 
 %post
@@ -51,4 +52,5 @@ fi
 
 /usr/share/@@NAME@@/
 /usr/share/applications/@@NAME@@.desktop
+/usr/share/applications/@@NAME@@-url-handler.desktop
 /usr/share/pixmaps/@@NAME@@.png

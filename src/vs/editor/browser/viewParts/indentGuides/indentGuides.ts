@@ -3,31 +3,33 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import 'vs/css!./indentGuides';
 import { DynamicViewOverlay } from 'vs/editor/browser/view/dynamicViewOverlay';
-import { ViewContext } from 'vs/editor/common/view/viewContext';
+import { Position } from 'vs/editor/common/core/position';
+import { editorActiveIndentGuides, editorIndentGuides } from 'vs/editor/common/view/editorColorRegistry';
 import { RenderingContext } from 'vs/editor/common/view/renderingContext';
+import { ViewContext } from 'vs/editor/common/view/viewContext';
 import * as viewEvents from 'vs/editor/common/view/viewEvents';
 import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
-import { editorIndentGuides } from 'vs/editor/common/view/editorColorRegistry';
-import { Position } from 'vs/editor/common/core/position';
 
 export class IndentGuidesOverlay extends DynamicViewOverlay {
 
 	private _context: ViewContext;
+	private _primaryLineNumber: number;
 	private _lineHeight: number;
 	private _spaceWidth: number;
-	private _renderResult: string[];
+	private _renderResult: string[] | null;
 	private _enabled: boolean;
+	private _activeIndentEnabled: boolean;
 
 	constructor(context: ViewContext) {
 		super();
 		this._context = context;
+		this._primaryLineNumber = 0;
 		this._lineHeight = this._context.configuration.editor.lineHeight;
 		this._spaceWidth = this._context.configuration.editor.fontInfo.spaceWidth;
 		this._enabled = this._context.configuration.editor.viewInfo.renderIndentGuides;
+		this._activeIndentEnabled = this._context.configuration.editor.viewInfo.highlightActiveIndentGuide;
 		this._renderResult = null;
 
 		this._context.addEventHandler(this);
@@ -35,7 +37,6 @@ export class IndentGuidesOverlay extends DynamicViewOverlay {
 
 	public dispose(): void {
 		this._context.removeEventHandler(this);
-		this._context = null;
 		this._renderResult = null;
 		super.dispose();
 	}
@@ -51,8 +52,20 @@ export class IndentGuidesOverlay extends DynamicViewOverlay {
 		}
 		if (e.viewInfo) {
 			this._enabled = this._context.configuration.editor.viewInfo.renderIndentGuides;
+			this._activeIndentEnabled = this._context.configuration.editor.viewInfo.highlightActiveIndentGuide;
 		}
 		return true;
+	}
+	public onCursorStateChanged(e: viewEvents.ViewCursorStateChangedEvent): boolean {
+		const selection = e.selections[0];
+		const newPrimaryLineNumber = selection.isEmpty() ? selection.positionLineNumber : 0;
+
+		if (this._primaryLineNumber !== newPrimaryLineNumber) {
+			this._primaryLineNumber = newPrimaryLineNumber;
+			return true;
+		}
+
+		return false;
 	}
 	public onDecorationsChanged(e: viewEvents.ViewDecorationsChangedEvent): boolean {
 		// true for inline decorations
@@ -92,22 +105,38 @@ export class IndentGuidesOverlay extends DynamicViewOverlay {
 		const visibleEndLineNumber = ctx.visibleRange.endLineNumber;
 		const tabSize = this._context.model.getTabSize();
 		const tabWidth = tabSize * this._spaceWidth;
+		const scrollWidth = ctx.scrollWidth;
 		const lineHeight = this._lineHeight;
 		const indentGuideWidth = tabWidth;
 
 		const indents = this._context.model.getLinesIndentGuides(visibleStartLineNumber, visibleEndLineNumber);
 
+		let activeIndentStartLineNumber = 0;
+		let activeIndentEndLineNumber = 0;
+		let activeIndentLevel = 0;
+		if (this._activeIndentEnabled && this._primaryLineNumber) {
+			const activeIndentInfo = this._context.model.getActiveIndentGuide(this._primaryLineNumber, visibleStartLineNumber, visibleEndLineNumber);
+			activeIndentStartLineNumber = activeIndentInfo.startLineNumber;
+			activeIndentEndLineNumber = activeIndentInfo.endLineNumber;
+			activeIndentLevel = activeIndentInfo.indent;
+		}
+
 		let output: string[] = [];
 		for (let lineNumber = visibleStartLineNumber; lineNumber <= visibleEndLineNumber; lineNumber++) {
+			const containsActiveIndentGuide = (activeIndentStartLineNumber <= lineNumber && lineNumber <= activeIndentEndLineNumber);
 			const lineIndex = lineNumber - visibleStartLineNumber;
 			const indent = indents[lineIndex];
 
 			let result = '';
 			let leftMostVisiblePosition = ctx.visibleRangeForPosition(new Position(lineNumber, 1));
 			let left = leftMostVisiblePosition ? leftMostVisiblePosition.left : 0;
-			for (let i = 0; i < indent; i++) {
-				result += `<div class="cigr" style="left:${left}px;height:${lineHeight}px;width:${indentGuideWidth}px"></div>`;
+			for (let i = 1; i <= indent; i++) {
+				let className = (containsActiveIndentGuide && i === activeIndentLevel ? 'cigra' : 'cigr');
+				result += `<div class="${className}" style="left:${left}px;height:${lineHeight}px;width:${indentGuideWidth}px"></div>`;
 				left += tabWidth;
+				if (left > scrollWidth) {
+					break;
+				}
 			}
 
 			output[lineIndex] = result;
@@ -128,8 +157,12 @@ export class IndentGuidesOverlay extends DynamicViewOverlay {
 }
 
 registerThemingParticipant((theme, collector) => {
-	let editorGuideColor = theme.getColor(editorIndentGuides);
-	if (editorGuideColor) {
-		collector.addRule(`.monaco-editor .lines-content .cigr { box-shadow: 1px 0 0 0 ${editorGuideColor} inset; }`);
+	const editorIndentGuidesColor = theme.getColor(editorIndentGuides);
+	if (editorIndentGuidesColor) {
+		collector.addRule(`.monaco-editor .lines-content .cigr { box-shadow: 1px 0 0 0 ${editorIndentGuidesColor} inset; }`);
+	}
+	const editorActiveIndentGuidesColor = theme.getColor(editorActiveIndentGuides) || editorIndentGuidesColor;
+	if (editorActiveIndentGuidesColor) {
+		collector.addRule(`.monaco-editor .lines-content .cigra { box-shadow: 1px 0 0 0 ${editorActiveIndentGuidesColor} inset; }`);
 	}
 });

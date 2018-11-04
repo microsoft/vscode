@@ -199,7 +199,7 @@
 	},
 	{
 		"c": " ",
-		"t": "source.ts meta.function.ts meta.block.ts",
+		"t": "source.ts meta.function.ts meta.block.ts meta.array.literal.ts",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",

@@ -3,8 +3,13 @@
   "version": "0.1.0",
   "main": "./src/main.js",
   "scripts": {
-    "postinstall": "tsc",
-    "watch": "tsc --watch",
+    "postinstall": "npm run compile",
+    "compile": "npm run copy-driver && npm run copy-driver-definition && tsc",
+    "watch": "concurrently \"npm run watch-driver\" \"npm run watch-driver-definition\" \"tsc --watch\"",
+    "copy-driver": "cpx src/vscode/driver.js out/vscode",
+    "watch-driver": "cpx src/vscode/driver.js out/vscode -w",
+    "copy-driver-definition": "node tools/copy-driver-definition.js",
+    "watch-driver-definition": "watch \"node tools/copy-driver-definition.js\" ../../src/vs/platform/driver/node",
     "mocha": "mocha"
   },
   "devDependencies": {
@@ -15,16 +20,20 @@
     "@types/node": "8.0.33",
     "@types/rimraf": "2.0.2",
     "@types/webdriverio": "4.6.1",
-    "electron": "1.7.7",
+    "concurrently": "^3.5.1",
+    "cpx": "^1.5.0",
+    "electron": "^2.0.12",
     "htmlparser2": "^3.9.2",
     "mkdirp": "^0.5.1",
-    "mocha": "^3.2.0",
+    "mocha": "^5.2.0",
+    "mocha-junit-reporter": "^1.17.0",
+    "mocha-multi-reporters": "^1.1.7",
     "ncp": "^2.0.0",
     "portastic": "^1.0.1",
     "rimraf": "^2.6.1",
-    "spectron": "^3.7.2",
     "strip-json-comments": "^2.0.1",
     "tmp": "0.0.33",
-    "typescript": "2.5.2"
+    "typescript": "2.9.2",
+    "watch": "^1.0.2"
   }
 }

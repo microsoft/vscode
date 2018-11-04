@@ -2,9 +2,7 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
-import { TPromise } from 'vs/base/common/winjs.base';
 import * as nls from 'vs/nls';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { Action } from 'vs/base/common/actions';
@@ -15,8 +13,8 @@ import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 
 export class ToggleTabsVisibilityAction extends Action {
 
-	public static readonly ID = 'workbench.action.toggleTabsVisibility';
-	public static readonly LABEL = nls.localize('toggleTabs', "Toggle Tab Visibility");
+	static readonly ID = 'workbench.action.toggleTabsVisibility';
+	static readonly LABEL = nls.localize('toggleTabs', "Toggle Tab Visibility");
 
 	private static readonly tabsVisibleKey = 'workbench.editor.showTabs';
 
@@ -28,7 +26,7 @@ export class ToggleTabsVisibilityAction extends Action {
 		super(id, label);
 	}
 
-	public run(): TPromise<any> {
+	run(): Promise<any> {
 		const visibility = this.configurationService.getValue<string>(ToggleTabsVisibilityAction.tabsVisibleKey);
 		const newVisibilityValue = !visibility;
 

@@ -114,7 +114,7 @@ export class HSLA {
 		return new HSLA(h, s, l, a);
 	}
 
-	private static _hue2rgb(p: number, q: number, t: number) {
+	private static _hue2rgb(p: number, q: number, t: number): number {
 		if (t < 0) {
 			t += 1;
 		}
@@ -416,7 +416,7 @@ export class Color {
 	}
 
 	toString(): string {
-		return Color.Format.CSS.format(this);
+		return '' + Color.Format.CSS.format(this);
 	}
 
 	static getLighterColor(of: Color, relative: Color, factor?: number): Color {

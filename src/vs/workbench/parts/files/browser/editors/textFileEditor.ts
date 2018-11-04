@@ -2,42 +2,43 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
-import { TPromise } from 'vs/base/common/winjs.base';
 import * as nls from 'vs/nls';
-import * as errors from 'vs/base/common/errors';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
 import * as types from 'vs/base/common/types';
 import * as paths from 'vs/base/common/paths';
 import { Action } from 'vs/base/common/actions';
-import { VIEWLET_ID, TEXT_FILE_EDITOR_ID, IExplorerViewlet } from 'vs/workbench/parts/files/common/files';
+import { VIEWLET_ID, IExplorerViewlet, TEXT_FILE_EDITOR_ID } from 'vs/workbench/parts/files/common/files';
 import { ITextFileEditorModel, ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
-import { BaseTextEditor } from 'vs/workbench/browser/parts/editor/textEditor';
-import { EditorOptions, TextEditorOptions, IEditorCloseEvent } from 'vs/workbench/common/editor';
+import { BaseTextEditor, IEditorConfiguration } from 'vs/workbench/browser/parts/editor/textEditor';
+import { EditorOptions, TextEditorOptions } from 'vs/workbench/common/editor';
 import { BinaryEditorModel } from 'vs/workbench/common/editor/binaryEditorModel';
 import { FileEditorInput } from 'vs/workbench/parts/files/common/editors/fileEditorInput';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
-import { FileOperationError, FileOperationResult, FileChangesEvent, IFileService } from 'vs/platform/files/common/files';
+import { FileOperationError, FileOperationResult, FileChangesEvent, IFileService, FALLBACK_MAX_MEMORY_SIZE_MB, MIN_MAX_MEMORY_SIZE_MB } from 'vs/platform/files/common/files';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { ITextResourceConfigurationService } from 'vs/editor/common/services/resourceConfiguration';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IPreferencesService } from 'vs/workbench/parts/preferences/common/preferences';
-import { PreferencesEditor } from 'vs/workbench/parts/preferences/browser/preferencesEditor';
-import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { IPreferencesService } from 'vs/workbench/services/preferences/common/preferences';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
 import { ScrollType } from 'vs/editor/common/editorCommon';
-import { IWindowsService } from 'vs/platform/windows/common/windows';
+import { IWindowsService, IWindowService } from 'vs/platform/windows/common/windows';
+import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { IEditorGroupsService, IEditorGroup } from 'vs/workbench/services/group/common/editorGroupsService';
+import { CancellationToken } from 'vs/base/common/cancellation';
+import { IEditorGroupView } from 'vs/workbench/browser/parts/editor/editor';
+import { createErrorWithActions } from 'vs/base/common/errorsWithActions';
 
 /**
  * An implementation of editor for file system resources.
  */
 export class TextFileEditor extends BaseTextEditor {
 
-	public static readonly ID = TEXT_FILE_EDITOR_ID;
+	static readonly ID = TEXT_FILE_EDITOR_ID;
+
+	private restoreViewState: boolean;
 
 	constructor(
 		@ITelemetryService telemetryService: ITelemetryService,
@@ -47,20 +48,20 @@ export class TextFileEditor extends BaseTextEditor {
 		@IWorkspaceContextService private contextService: IWorkspaceContextService,
 		@IStorageService storageService: IStorageService,
 		@ITextResourceConfigurationService configurationService: ITextResourceConfigurationService,
-		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
+		@IEditorService editorService: IEditorService,
 		@IThemeService themeService: IThemeService,
-		@IEditorGroupService editorGroupService: IEditorGroupService,
+		@IEditorGroupsService editorGroupService: IEditorGroupsService,
 		@ITextFileService textFileService: ITextFileService,
 		@IWindowsService private windowsService: IWindowsService,
-		@IPreferencesService private preferencesService: IPreferencesService
+		@IPreferencesService private preferencesService: IPreferencesService,
+		@IWindowService windowService: IWindowService
 	) {
-		super(TextFileEditor.ID, telemetryService, instantiationService, storageService, configurationService, themeService, textFileService, editorGroupService);
+		super(TextFileEditor.ID, telemetryService, instantiationService, storageService, configurationService, themeService, textFileService, editorService, editorGroupService, windowService);
+
+		this.updateRestoreViewStateConfiguration();
 
 		// Clear view state for deleted files
-		this.toUnbind.push(this.fileService.onFileChanges(e => this.onFilesChanged(e)));
-
-		// React to editors closing to preserve view state
-		this.toUnbind.push(editorGroupService.getStacksModel().onWillCloseEditor(e => this.onWillCloseEditor(e)));
+		this._register(this.fileService.onFileChanges(e => this.onFilesChanged(e)));
 	}
 
 	private onFilesChanged(e: FileChangesEvent): void {
@@ -70,40 +71,57 @@ export class TextFileEditor extends BaseTextEditor {
 		}
 	}
 
-	private onWillCloseEditor(e: IEditorCloseEvent): void {
-		if (e.editor === this.input && this.position === this.editorGroupService.getStacksModel().positionOfGroup(e.group)) {
-			this.doSaveTextEditorViewState(this.input);
-		}
+	protected handleConfigurationChangeEvent(configuration?: IEditorConfiguration): void {
+		super.handleConfigurationChangeEvent(configuration);
+
+		this.updateRestoreViewStateConfiguration();
 	}
 
-	public getTitle(): string {
+	private updateRestoreViewStateConfiguration(): void {
+		this.restoreViewState = this.configurationService.getValue(null, 'workbench.editor.restoreViewState');
+	}
+
+	getTitle(): string {
 		return this.input ? this.input.getName() : nls.localize('textFileEditor', "Text File Editor");
 	}
 
-	public get input(): FileEditorInput {
+	get input(): FileEditorInput {
 		return this._input as FileEditorInput;
 	}
 
-	public setInput(input: FileEditorInput, options?: EditorOptions): TPromise<void> {
+	setEditorVisible(visible: boolean, group: IEditorGroup): void {
+		super.setEditorVisible(visible, group);
 
-		// Return early for same input unless we force to open
-		const forceOpen = options && options.forceOpen;
-		if (!forceOpen && input.matches(this.input)) {
-
-			// Still apply options if any (avoiding instanceof here for a reason, do not change!)
-			if (options && types.isFunction((<TextEditorOptions>options).apply)) {
-				(<TextEditorOptions>options).apply(this.getControl(), ScrollType.Smooth);
+		// React to editors closing to preserve or clear view state. This needs to happen
+		// in the onWillCloseEditor because at that time the editor has not yet
+		// been disposed and we can safely persist the view state still as needed.
+		this._register((group as IEditorGroupView).onWillCloseEditor(e => {
+			if (e.editor === this.input) {
+				this.doSaveOrClearTextEditorViewState(this.input);
 			}
+		}));
+	}
 
-			return TPromise.wrap<void>(null);
+	setOptions(options: EditorOptions): void {
+		const textOptions = <TextEditorOptions>options;
+		if (textOptions && types.isFunction(textOptions.apply)) {
+			textOptions.apply(this.getControl(), ScrollType.Smooth);
 		}
+	}
 
-		// Remember view settings if input changes
-		this.doSaveTextEditorViewState(this.input);
+	setInput(input: FileEditorInput, options: EditorOptions, token: CancellationToken): Thenable<void> {
+
+		// Update/clear view settings if input changes
+		this.doSaveOrClearTextEditorViewState(this.input);
 
 		// Set input and resolve
-		return super.setInput(input, options).then(() => {
-			return input.resolve(true).then(resolvedModel => {
+		return super.setInput(input, options, token).then(() => {
+			return input.resolve().then(resolvedModel => {
+
+				// Check for cancellation
+				if (token.isCancellationRequested) {
+					return void 0;
+				}
 
 				// There is a special case where the text editor has to handle binary file editor input: if a binary file
 				// has been resolved and cached before, it maybe an actual instance of BinaryEditorModel. In this case our text
@@ -112,19 +130,7 @@ export class TextFileEditor extends BaseTextEditor {
 					return this.openAsBinary(input, options);
 				}
 
-				// Check Model state
 				const textFileModel = <ITextFileEditorModel>resolvedModel;
-
-				const hasInput = !!this.input;
-				const modelDisposed = textFileModel.isDisposed();
-				const inputChanged = hasInput && this.input.getResource().toString() !== textFileModel.getResource().toString();
-				if (
-					!hasInput ||		// editor got hidden meanwhile
-					modelDisposed || 	// input got disposed meanwhile
-					inputChanged 		// a different input was set meanwhile
-				) {
-					return null;
-				}
 
 				// Editor
 				const textEditor = this.getControl();
@@ -140,6 +146,9 @@ export class TextFileEditor extends BaseTextEditor {
 				if (options && types.isFunction((<TextEditorOptions>options).apply)) {
 					(<TextEditorOptions>options).apply(textEditor, ScrollType.Immediate);
 				}
+
+				// Readonly flag
+				textEditor.updateOptions({ readOnly: textFileModel.isReadonly() });
 			}, error => {
 
 				// In case we tried to open a file inside the text editor and the response
@@ -150,13 +159,15 @@ export class TextFileEditor extends BaseTextEditor {
 				}
 
 				// Similar, handle case where we were asked to open a folder in the text editor.
-				if ((<FileOperationError>error).fileOperationResult === FileOperationResult.FILE_IS_DIRECTORY && this.openAsFolder(input)) {
-					return;
+				if ((<FileOperationError>error).fileOperationResult === FileOperationResult.FILE_IS_DIRECTORY) {
+					this.openAsFolder(input);
+
+					return Promise.reject(new Error(nls.localize('openFolderError', "File is a directory")));
 				}
 
 				// Offer to create a file from the error if we have a file not found and the name is valid
 				if ((<FileOperationError>error).fileOperationResult === FileOperationResult.FILE_NOT_FOUND && paths.isValidBasename(paths.basename(input.getResource().fsPath))) {
-					return TPromise.wrapError<void>(errors.create(toErrorMessage(error), {
+					return Promise.reject(createErrorWithActions(toErrorMessage(error), {
 						actions: [
 							new Action('workbench.files.action.createMissingFile', nls.localize('createFile', "Create File"), null, true, () => {
 								return this.fileService.updateContent(input.getResource(), '').then(() => this.editorService.openEditor({
@@ -171,9 +182,9 @@ export class TextFileEditor extends BaseTextEditor {
 				}
 
 				if ((<FileOperationError>error).fileOperationResult === FileOperationResult.FILE_EXCEED_MEMORY_LIMIT) {
-					let memoryLimit = Math.max(2048, +this.configurationService.getValue<number>(null, 'files.maxMemoryForLargeFilesMB') || 4096);
+					const memoryLimit = Math.max(MIN_MAX_MEMORY_SIZE_MB, +this.configurationService.getValue<number>(null, 'files.maxMemoryForLargeFilesMB') || FALLBACK_MAX_MEMORY_SIZE_MB);
 
-					return TPromise.wrapError<void>(errors.create(toErrorMessage(error), {
+					return Promise.reject(createErrorWithActions(toErrorMessage(error), {
 						actions: [
 							new Action('workbench.window.action.relaunchWithIncreasedMemoryLimit', nls.localize('relaunchWithIncreasedMemoryLimit', "Restart with {0} MB", memoryLimit), null, true, () => {
 								return this.windowsService.relaunch({
@@ -183,41 +194,35 @@ export class TextFileEditor extends BaseTextEditor {
 								});
 							}),
 							new Action('workbench.window.action.configureMemoryLimit', nls.localize('configureMemoryLimit', 'Configure Memory Limit'), null, true, () => {
-								return this.preferencesService.openGlobalSettings().then(editor => {
-									if (editor instanceof PreferencesEditor) {
-										editor.focusSearch('files.maxMemoryForLargeFilesMB');
-									}
-								});
+								return this.preferencesService.openGlobalSettings(undefined, { query: 'files.maxMemoryForLargeFilesMB' });
 							})
 						]
 					}));
 				}
 
 				// Otherwise make sure the error bubbles up
-				return TPromise.wrapError<void>(error);
+				return Promise.reject(error);
 			});
 		});
 	}
 
 	private openAsBinary(input: FileEditorInput, options: EditorOptions): void {
 		input.setForceOpenAsBinary();
-		this.editorService.openEditor(input, options, this.position).done(null, errors.onUnexpectedError);
+		this.editorService.openEditor(input, options, this.group);
 	}
 
-	private openAsFolder(input: FileEditorInput): boolean {
+	private openAsFolder(input: FileEditorInput): void {
 
 		// Since we cannot open a folder, we have to restore the previous input if any and close the editor
-		this.editorService.closeEditor(this.position, this.input).done(() => {
+		this.group.closeEditor(this.input).then(() => {
 
 			// Best we can do is to reveal the folder in the explorer
 			if (this.contextService.isInsideWorkspace(input.getResource())) {
-				this.viewletService.openViewlet(VIEWLET_ID, true).done(viewlet => {
+				this.viewletService.openViewlet(VIEWLET_ID, true).then(viewlet => {
 					return (viewlet as IExplorerViewlet).getExplorerView().select(input.getResource(), true);
-				}, errors.onUnexpectedError);
+				});
 			}
-		}, errors.onUnexpectedError);
-
-		return true; // in any case we handled it
+		});
 	}
 
 	protected getAriaLabel(): string {
@@ -234,10 +239,10 @@ export class TextFileEditor extends BaseTextEditor {
 		return ariaLabel;
 	}
 
-	public clearInput(): void {
+	clearInput(): void {
 
-		// Keep editor view state in settings to restore when coming back
-		this.doSaveTextEditorViewState(this.input);
+		// Update/clear editor view state in settings
+		this.doSaveOrClearTextEditorViewState(this.input);
 
 		// Clear Model
 		this.getControl().setModel(null);
@@ -246,17 +251,27 @@ export class TextFileEditor extends BaseTextEditor {
 		super.clearInput();
 	}
 
-	public shutdown(): void {
+	protected saveState(): void {
 
-		// Save View State
-		this.doSaveTextEditorViewState(this.input);
+		// Update/clear editor view State
+		this.doSaveOrClearTextEditorViewState(this.input);
 
-		// Call Super
-		super.shutdown();
+		super.saveState();
 	}
 
-	private doSaveTextEditorViewState(input: FileEditorInput): void {
-		if (input && !input.isDisposed()) {
+	private doSaveOrClearTextEditorViewState(input: FileEditorInput): void {
+		if (!input) {
+			return; // ensure we have an input to handle view state for
+		}
+
+		// If the user configured to not restore view state, we clear the view
+		// state unless the editor is still opened in the group.
+		if (!this.restoreViewState && (!this.group || !this.group.isOpened(input))) {
+			this.clearTextEditorViewState([input.getResource()], this.group);
+		}
+
+		// Otherwise we save the view state to restore it later
+		else if (!input.isDisposed()) {
 			this.saveTextEditorViewState(input.getResource());
 		}
 	}

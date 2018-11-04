@@ -2,16 +2,15 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
 import * as assert from 'vs/base/common/assert';
+import { Emitter, Event } from 'vs/base/common/event';
+import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import * as objects from 'vs/base/common/objects';
+import { IDiffEditor } from 'vs/editor/browser/editorBrowser';
+import { ICursorPositionChangedEvent } from 'vs/editor/common/controller/cursorEvents';
 import { Range } from 'vs/editor/common/core/range';
 import { ILineChange, ScrollType } from 'vs/editor/common/editorCommon';
-import { IDisposable, dispose } from 'vs/base/common/lifecycle';
-import { ICursorPositionChangedEvent } from 'vs/editor/common/controller/cursorEvents';
-import { IDiffEditor } from 'vs/editor/browser/editorBrowser';
-import { Event, Emitter } from 'vs/base/common/event';
 
 
 interface IDiffRange {
@@ -59,7 +58,7 @@ export class DiffNavigator {
 		this.nextIdx = -1;
 		this.ranges = [];
 		this.ignoreSelectionChange = false;
-		this.revealFirst = this._options.alwaysRevealFirst;
+		this.revealFirst = Boolean(this._options.alwaysRevealFirst);
 
 		// hook up to diff editor for diff, disposal, and caret move
 		this._disposables.push(this._editor.onDidDispose(() => this.dispose()));
@@ -99,12 +98,12 @@ export class DiffNavigator {
 			if (this._editor.getLineChanges() !== null) {
 				this.revealFirst = false;
 				this.nextIdx = -1;
-				this.next();
+				this.next(ScrollType.Immediate);
 			}
 		}
 	}
 
-	private _compute(lineChanges: ILineChange[]): void {
+	private _compute(lineChanges: ILineChange[] | null): void {
 
 		// new ranges
 		this.ranges = [];
@@ -151,6 +150,10 @@ export class DiffNavigator {
 	private _initIdx(fwd: boolean): void {
 		let found = false;
 		let position = this._editor.getPosition();
+		if (!position) {
+			this.nextIdx = 0;
+			return;
+		}
 		for (let i = 0, len = this.ranges.length; i < len && !found; i++) {
 			let range = this.ranges[i].range;
 			if (position.isBeforeOrEqual(range.getStartPosition())) {
@@ -167,7 +170,7 @@ export class DiffNavigator {
 		}
 	}
 
-	private _move(fwd: boolean): void {
+	private _move(fwd: boolean, scrollType: ScrollType): void {
 		assert.ok(!this.disposed, 'Illegal State - diff navigator has been disposed');
 
 		if (!this.canNavigate()) {
@@ -194,7 +197,7 @@ export class DiffNavigator {
 		try {
 			let pos = info.range.getStartPosition();
 			this._editor.setPosition(pos);
-			this._editor.revealPositionInCenter(pos, ScrollType.Smooth);
+			this._editor.revealPositionInCenter(pos, scrollType);
 		} finally {
 			this.ignoreSelectionChange = false;
 		}
@@ -204,19 +207,19 @@ export class DiffNavigator {
 		return this.ranges && this.ranges.length > 0;
 	}
 
-	next(): void {
-		this._move(true);
+	next(scrollType: ScrollType = ScrollType.Smooth): void {
+		this._move(true, scrollType);
 	}
 
-	previous(): void {
-		this._move(false);
+	previous(scrollType: ScrollType = ScrollType.Smooth): void {
+		this._move(false, scrollType);
 	}
 
 	dispose(): void {
 		dispose(this._disposables);
 		this._disposables.length = 0;
 		this._onDidUpdate.dispose();
-		this.ranges = null;
+		this.ranges = [];
 		this.disposed = true;
 	}
 }

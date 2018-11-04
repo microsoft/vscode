@@ -2,29 +2,43 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
 import { Event, Emitter, debounceEvent } from 'vs/base/common/event';
 import { TPromise } from 'vs/base/common/winjs.base';
-import URI from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 import { TextFileEditorModel } from 'vs/workbench/services/textfile/common/textFileEditorModel';
-import { dispose, IDisposable } from 'vs/base/common/lifecycle';
+import { dispose, IDisposable, Disposable } from 'vs/base/common/lifecycle';
 import { ITextFileEditorModel, ITextFileEditorModelManager, TextFileModelChangeEvent, StateChange, IModelLoadOrCreateOptions } from 'vs/workbench/services/textfile/common/textfiles';
 import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ResourceMap } from 'vs/base/common/map';
+import { onUnexpectedError } from 'vs/base/common/errors';
 
-export class TextFileEditorModelManager implements ITextFileEditorModelManager {
-	private toUnbind: IDisposable[];
+export class TextFileEditorModelManager extends Disposable implements ITextFileEditorModelManager {
 
-	private readonly _onModelDisposed: Emitter<URI>;
-	private readonly _onModelContentChanged: Emitter<TextFileModelChangeEvent>;
-	private readonly _onModelDirty: Emitter<TextFileModelChangeEvent>;
-	private readonly _onModelSaveError: Emitter<TextFileModelChangeEvent>;
-	private readonly _onModelSaved: Emitter<TextFileModelChangeEvent>;
-	private readonly _onModelReverted: Emitter<TextFileModelChangeEvent>;
-	private readonly _onModelEncodingChanged: Emitter<TextFileModelChangeEvent>;
-	private readonly _onModelOrphanedChanged: Emitter<TextFileModelChangeEvent>;
+	private readonly _onModelDisposed: Emitter<URI> = this._register(new Emitter<URI>());
+	get onModelDisposed(): Event<URI> { return this._onModelDisposed.event; }
+
+	private readonly _onModelContentChanged: Emitter<TextFileModelChangeEvent> = this._register(new Emitter<TextFileModelChangeEvent>());
+	get onModelContentChanged(): Event<TextFileModelChangeEvent> { return this._onModelContentChanged.event; }
+
+	private readonly _onModelDirty: Emitter<TextFileModelChangeEvent> = this._register(new Emitter<TextFileModelChangeEvent>());
+	get onModelDirty(): Event<TextFileModelChangeEvent> { return this._onModelDirty.event; }
+
+	private readonly _onModelSaveError: Emitter<TextFileModelChangeEvent> = this._register(new Emitter<TextFileModelChangeEvent>());
+	get onModelSaveError(): Event<TextFileModelChangeEvent> { return this._onModelSaveError.event; }
+
+	private readonly _onModelSaved: Emitter<TextFileModelChangeEvent> = this._register(new Emitter<TextFileModelChangeEvent>());
+	get onModelSaved(): Event<TextFileModelChangeEvent> { return this._onModelSaved.event; }
+
+	private readonly _onModelReverted: Emitter<TextFileModelChangeEvent> = this._register(new Emitter<TextFileModelChangeEvent>());
+	get onModelReverted(): Event<TextFileModelChangeEvent> { return this._onModelReverted.event; }
+
+	private readonly _onModelEncodingChanged: Emitter<TextFileModelChangeEvent> = this._register(new Emitter<TextFileModelChangeEvent>());
+	get onModelEncodingChanged(): Event<TextFileModelChangeEvent> { return this._onModelEncodingChanged.event; }
+
+	private readonly _onModelOrphanedChanged: Emitter<TextFileModelChangeEvent> = this._register(new Emitter<TextFileModelChangeEvent>());
+	get onModelOrphanedChanged(): Event<TextFileModelChangeEvent> { return this._onModelOrphanedChanged.event; }
 
 	private _onModelsDirtyEvent: Event<TextFileModelChangeEvent[]>;
 	private _onModelsSaveError: Event<TextFileModelChangeEvent[]>;
@@ -41,25 +55,7 @@ export class TextFileEditorModelManager implements ITextFileEditorModelManager {
 		@ILifecycleService private lifecycleService: ILifecycleService,
 		@IInstantiationService private instantiationService: IInstantiationService
 	) {
-		this.toUnbind = [];
-
-		this._onModelDisposed = new Emitter<URI>();
-		this._onModelContentChanged = new Emitter<TextFileModelChangeEvent>();
-		this._onModelDirty = new Emitter<TextFileModelChangeEvent>();
-		this._onModelSaveError = new Emitter<TextFileModelChangeEvent>();
-		this._onModelSaved = new Emitter<TextFileModelChangeEvent>();
-		this._onModelReverted = new Emitter<TextFileModelChangeEvent>();
-		this._onModelEncodingChanged = new Emitter<TextFileModelChangeEvent>();
-		this._onModelOrphanedChanged = new Emitter<TextFileModelChangeEvent>();
-
-		this.toUnbind.push(this._onModelDisposed);
-		this.toUnbind.push(this._onModelContentChanged);
-		this.toUnbind.push(this._onModelDirty);
-		this.toUnbind.push(this._onModelSaveError);
-		this.toUnbind.push(this._onModelSaved);
-		this.toUnbind.push(this._onModelReverted);
-		this.toUnbind.push(this._onModelEncodingChanged);
-		this.toUnbind.push(this._onModelOrphanedChanged);
+		super();
 
 		this.mapResourceToModel = new ResourceMap<ITextFileEditorModel>();
 		this.mapResourceToDisposeListener = new ResourceMap<IDisposable>();
@@ -76,39 +72,7 @@ export class TextFileEditorModelManager implements ITextFileEditorModelManager {
 		this.lifecycleService.onShutdown(this.dispose, this);
 	}
 
-	public get onModelDisposed(): Event<URI> {
-		return this._onModelDisposed.event;
-	}
-
-	public get onModelContentChanged(): Event<TextFileModelChangeEvent> {
-		return this._onModelContentChanged.event;
-	}
-
-	public get onModelDirty(): Event<TextFileModelChangeEvent> {
-		return this._onModelDirty.event;
-	}
-
-	public get onModelSaveError(): Event<TextFileModelChangeEvent> {
-		return this._onModelSaveError.event;
-	}
-
-	public get onModelSaved(): Event<TextFileModelChangeEvent> {
-		return this._onModelSaved.event;
-	}
-
-	public get onModelReverted(): Event<TextFileModelChangeEvent> {
-		return this._onModelReverted.event;
-	}
-
-	public get onModelEncodingChanged(): Event<TextFileModelChangeEvent> {
-		return this._onModelEncodingChanged.event;
-	}
-
-	public get onModelOrphanedChanged(): Event<TextFileModelChangeEvent> {
-		return this._onModelOrphanedChanged.event;
-	}
-
-	public get onModelsDirty(): Event<TextFileModelChangeEvent[]> {
+	get onModelsDirty(): Event<TextFileModelChangeEvent[]> {
 		if (!this._onModelsDirtyEvent) {
 			this._onModelsDirtyEvent = this.debounce(this.onModelDirty);
 		}
@@ -116,7 +80,7 @@ export class TextFileEditorModelManager implements ITextFileEditorModelManager {
 		return this._onModelsDirtyEvent;
 	}
 
-	public get onModelsSaveError(): Event<TextFileModelChangeEvent[]> {
+	get onModelsSaveError(): Event<TextFileModelChangeEvent[]> {
 		if (!this._onModelsSaveError) {
 			this._onModelsSaveError = this.debounce(this.onModelSaveError);
 		}
@@ -124,7 +88,7 @@ export class TextFileEditorModelManager implements ITextFileEditorModelManager {
 		return this._onModelsSaveError;
 	}
 
-	public get onModelsSaved(): Event<TextFileModelChangeEvent[]> {
+	get onModelsSaved(): Event<TextFileModelChangeEvent[]> {
 		if (!this._onModelsSaved) {
 			this._onModelsSaved = this.debounce(this.onModelSaved);
 		}
@@ -132,7 +96,7 @@ export class TextFileEditorModelManager implements ITextFileEditorModelManager {
 		return this._onModelsSaved;
 	}
 
-	public get onModelsReverted(): Event<TextFileModelChangeEvent[]> {
+	get onModelsReverted(): Event<TextFileModelChangeEvent[]> {
 		if (!this._onModelsReverted) {
 			this._onModelsReverted = this.debounce(this.onModelReverted);
 		}
@@ -155,11 +119,11 @@ export class TextFileEditorModelManager implements ITextFileEditorModelManager {
 		return 250;
 	}
 
-	public get(resource: URI): ITextFileEditorModel {
+	get(resource: URI): ITextFileEditorModel {
 		return this.mapResourceToModel.get(resource);
 	}
 
-	public loadOrCreate(resource: URI, options?: IModelLoadOrCreateOptions): TPromise<ITextFileEditorModel> {
+	loadOrCreate(resource: URI, options?: IModelLoadOrCreateOptions): TPromise<ITextFileEditorModel> {
 
 		// Return early if model is currently being loaded
 		const pendingLoad = this.mapResourceToPendingModelLoaders.get(resource);
@@ -172,17 +136,27 @@ export class TextFileEditorModelManager implements ITextFileEditorModelManager {
 		// Model exists
 		let model = this.get(resource);
 		if (model) {
-			if (!options || !options.reload) {
-				modelPromise = TPromise.as(model);
+			if (options && options.reload) {
+
+				// async reload: trigger a reload but return immediately
+				if (options.reload.async) {
+					modelPromise = TPromise.as(model);
+					model.load(options).then(null, onUnexpectedError);
+				}
+
+				// sync reload: do not return until model reloaded
+				else {
+					modelPromise = model.load(options);
+				}
 			} else {
-				modelPromise = model.load();
+				modelPromise = TPromise.as(model);
 			}
 		}
 
 		// Model does not exist
 		else {
 			model = this.instantiationService.createInstance(TextFileEditorModel, resource, options ? options.encoding : void 0);
-			modelPromise = model.load();
+			modelPromise = model.load(options);
 
 			// Install state change listener
 			this.mapResourceToStateChangeListener.set(resource, model.onDidStateChange(state => {
@@ -244,7 +218,7 @@ export class TextFileEditorModelManager implements ITextFileEditorModelManager {
 		});
 	}
 
-	public getAll(resource?: URI, filter?: (model: ITextFileEditorModel) => boolean): ITextFileEditorModel[] {
+	getAll(resource?: URI, filter?: (model: ITextFileEditorModel) => boolean): ITextFileEditorModel[] {
 		if (resource) {
 			const res = this.mapResourceToModel.get(resource);
 
@@ -261,7 +235,7 @@ export class TextFileEditorModelManager implements ITextFileEditorModelManager {
 		return res;
 	}
 
-	public add(resource: URI, model: ITextFileEditorModel): void {
+	add(resource: URI, model: ITextFileEditorModel): void {
 		const knownModel = this.mapResourceToModel.get(resource);
 		if (knownModel === model) {
 			return; // already cached
@@ -281,7 +255,7 @@ export class TextFileEditorModelManager implements ITextFileEditorModelManager {
 		}));
 	}
 
-	public remove(resource: URI): void {
+	remove(resource: URI): void {
 		this.mapResourceToModel.delete(resource);
 
 		const disposeListener = this.mapResourceToDisposeListener.get(resource);
@@ -303,7 +277,7 @@ export class TextFileEditorModelManager implements ITextFileEditorModelManager {
 		}
 	}
 
-	public clear(): void {
+	clear(): void {
 
 		// model caches
 		this.mapResourceToModel.clear();
@@ -322,7 +296,7 @@ export class TextFileEditorModelManager implements ITextFileEditorModelManager {
 		this.mapResourceToModelContentChangeListener.clear();
 	}
 
-	public disposeModel(model: TextFileEditorModel): void {
+	disposeModel(model: TextFileEditorModel): void {
 		if (!model) {
 			return; // we need data!
 		}
@@ -340,9 +314,5 @@ export class TextFileEditorModelManager implements ITextFileEditorModelManager {
 		}
 
 		model.dispose();
-	}
-
-	public dispose(): void {
-		this.toUnbind = dispose(this.toUnbind);
 	}
 }

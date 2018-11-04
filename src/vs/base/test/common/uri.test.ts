@@ -2,10 +2,8 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
-
 import * as assert from 'assert';
-import URI from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 import { normalize } from 'vs/base/common/paths';
 import { isWindows } from 'vs/base/common/platform';
 
@@ -51,18 +49,20 @@ suite('URI', () => {
 	test('URI#fsPath - no `fsPath` when no `path`', () => {
 		const value = URI.parse('file://%2Fhome%2Fticino%2Fdesktop%2Fcpluscplus%2Ftest.cpp');
 		assert.equal(value.authority, '/home/ticino/desktop/cpluscplus/test.cpp');
-		assert.equal(value.path, '');
-		assert.equal(value.fsPath, '');
+		assert.equal(value.path, '/');
+		if (isWindows) {
+			assert.equal(value.fsPath, '\\');
+		} else {
+			assert.equal(value.fsPath, '/');
+		}
 	});
 
 	test('http#toString', () => {
 		assert.equal(URI.from({ scheme: 'http', authority: 'www.msft.com', path: '/my/path' }).toString(), 'http://www.msft.com/my/path');
 		assert.equal(URI.from({ scheme: 'http', authority: 'www.msft.com', path: '/my/path' }).toString(), 'http://www.msft.com/my/path');
 		assert.equal(URI.from({ scheme: 'http', authority: 'www.MSFT.com', path: '/my/path' }).toString(), 'http://www.msft.com/my/path');
-		assert.equal(URI.from({ scheme: 'http', authority: '', path: 'my/path' }).toString(), 'http:my/path');
+		assert.equal(URI.from({ scheme: 'http', authority: '', path: 'my/path' }).toString(), 'http:/my/path');
 		assert.equal(URI.from({ scheme: 'http', authority: '', path: '/my/path' }).toString(), 'http:/my/path');
-		assert.equal(URI.from({ scheme: '', authority: '', path: 'my/path' }).toString(), 'my/path');
-		assert.equal(URI.from({ scheme: '', authority: '', path: '/my/path' }).toString(), '/my/path');
 		//http://a-test-site.com/#test=true
 		assert.equal(URI.from({ scheme: 'http', authority: 'a-test-site.com', path: '/', query: 'test=true' }).toString(), 'http://a-test-site.com/?test%3Dtrue');
 		assert.equal(URI.from({ scheme: 'http', authority: 'a-test-site.com', path: '/', query: '', fragment: 'test=true' }).toString(), 'http://a-test-site.com/#test%3Dtrue');
@@ -71,7 +71,7 @@ suite('URI', () => {
 	test('http#toString, encode=FALSE', () => {
 		assert.equal(URI.from({ scheme: 'http', authority: 'a-test-site.com', path: '/', query: 'test=true' }).toString(true), 'http://a-test-site.com/?test=true');
 		assert.equal(URI.from({ scheme: 'http', authority: 'a-test-site.com', path: '/', query: '', fragment: 'test=true' }).toString(true), 'http://a-test-site.com/#test=true');
-		assert.equal(URI.from({}).with({ scheme: 'http', path: '/api/files/test.me', query: 't=1234' }).toString(true), 'http:/api/files/test.me?t=1234');
+		assert.equal(URI.from({ scheme: 'http', path: '/api/files/test.me', query: 't=1234' }).toString(true), 'http:/api/files/test.me?t=1234');
 
 		var value = URI.parse('file://shares/pröjects/c%23/#l12');
 		assert.equal(value.authority, 'shares');
@@ -103,12 +103,12 @@ suite('URI', () => {
 
 	test('with, changes', () => {
 		assert.equal(URI.parse('before:some/file/path').with({ scheme: 'after' }).toString(), 'after:some/file/path');
-		assert.equal(URI.from({}).with({ scheme: 'http', path: '/api/files/test.me', query: 't=1234' }).toString(), 'http:/api/files/test.me?t%3D1234');
-		assert.equal(URI.from({}).with({ scheme: 'http', authority: '', path: '/api/files/test.me', query: 't=1234', fragment: '' }).toString(), 'http:/api/files/test.me?t%3D1234');
-		assert.equal(URI.from({}).with({ scheme: 'https', authority: '', path: '/api/files/test.me', query: 't=1234', fragment: '' }).toString(), 'https:/api/files/test.me?t%3D1234');
-		assert.equal(URI.from({}).with({ scheme: 'HTTP', authority: '', path: '/api/files/test.me', query: 't=1234', fragment: '' }).toString(), 'HTTP:/api/files/test.me?t%3D1234');
-		assert.equal(URI.from({}).with({ scheme: 'HTTPS', authority: '', path: '/api/files/test.me', query: 't=1234', fragment: '' }).toString(), 'HTTPS:/api/files/test.me?t%3D1234');
-		assert.equal(URI.from({}).with({ scheme: 'boo', authority: '', path: '/api/files/test.me', query: 't=1234', fragment: '' }).toString(), 'boo:/api/files/test.me?t%3D1234');
+		assert.equal(URI.from({ scheme: 's' }).with({ scheme: 'http', path: '/api/files/test.me', query: 't=1234' }).toString(), 'http:/api/files/test.me?t%3D1234');
+		assert.equal(URI.from({ scheme: 's' }).with({ scheme: 'http', authority: '', path: '/api/files/test.me', query: 't=1234', fragment: '' }).toString(), 'http:/api/files/test.me?t%3D1234');
+		assert.equal(URI.from({ scheme: 's' }).with({ scheme: 'https', authority: '', path: '/api/files/test.me', query: 't=1234', fragment: '' }).toString(), 'https:/api/files/test.me?t%3D1234');
+		assert.equal(URI.from({ scheme: 's' }).with({ scheme: 'HTTP', authority: '', path: '/api/files/test.me', query: 't=1234', fragment: '' }).toString(), 'HTTP:/api/files/test.me?t%3D1234');
+		assert.equal(URI.from({ scheme: 's' }).with({ scheme: 'HTTPS', authority: '', path: '/api/files/test.me', query: 't=1234', fragment: '' }).toString(), 'HTTPS:/api/files/test.me?t%3D1234');
+		assert.equal(URI.from({ scheme: 's' }).with({ scheme: 'boo', authority: '', path: '/api/files/test.me', query: 't=1234', fragment: '' }).toString(), 'boo:/api/files/test.me?t%3D1234');
 	});
 
 	test('with, remove components #8465', () => {
@@ -182,52 +182,24 @@ suite('URI', () => {
 		assert.equal(value.query, '');
 		assert.equal(value.fragment, '');
 
-		value = URI.parse('api/files/test');
-		assert.equal(value.scheme, '');
+		value = URI.parse('foo:api/files/test');
+		assert.equal(value.scheme, 'foo');
 		assert.equal(value.authority, '');
 		assert.equal(value.path, 'api/files/test');
 		assert.equal(value.query, '');
 		assert.equal(value.fragment, '');
 
-		value = URI.parse('api');
-		assert.equal(value.scheme, '');
-		assert.equal(value.authority, '');
-		assert.equal(value.path, 'api');
-		assert.equal(value.query, '');
-		assert.equal(value.fragment, '');
-
-		value = URI.parse('/api/files/test');
-		assert.equal(value.scheme, '');
-		assert.equal(value.authority, '');
-		assert.equal(value.path, '/api/files/test');
-		assert.equal(value.query, '');
-		assert.equal(value.fragment, '');
-
-		value = URI.parse('?test');
-		assert.equal(value.scheme, '');
-		assert.equal(value.authority, '');
-		assert.equal(value.path, '');
-		assert.equal(value.query, 'test');
-		assert.equal(value.fragment, '');
-
 		value = URI.parse('file:?q');
 		assert.equal(value.scheme, 'file');
 		assert.equal(value.authority, '');
-		assert.equal(value.path, '');
+		assert.equal(value.path, '/');
 		assert.equal(value.query, 'q');
 		assert.equal(value.fragment, '');
-
-		value = URI.parse('#test');
-		assert.equal(value.scheme, '');
-		assert.equal(value.authority, '');
-		assert.equal(value.path, '');
-		assert.equal(value.query, '');
-		assert.equal(value.fragment, 'test');
 
 		value = URI.parse('file:#d');
 		assert.equal(value.scheme, 'file');
 		assert.equal(value.authority, '');
-		assert.equal(value.path, '');
+		assert.equal(value.path, '/');
 		assert.equal(value.query, '');
 		assert.equal(value.fragment, 'd');
 
@@ -427,6 +399,35 @@ suite('URI', () => {
 		assert.equal(uri.toString(true), 'https://twitter.com/search?src=typd&q=%23tag');
 	});
 
+
+	test('class URI cannot represent relative file paths #34449', function () {
+
+		let path = '/foo/bar';
+		assert.equal(URI.file(path).path, path);
+		path = 'foo/bar';
+		assert.equal(URI.file(path).path, '/foo/bar');
+		path = './foo/bar';
+		assert.equal(URI.file(path).path, '/./foo/bar'); // todo@joh missing normalization
+
+		const fileUri1 = URI.parse(`file:foo/bar`);
+		assert.equal(fileUri1.path, '/foo/bar');
+		assert.equal(fileUri1.authority, '');
+		const uri = fileUri1.toString();
+		assert.equal(uri, 'file:///foo/bar');
+		const fileUri2 = URI.parse(uri);
+		assert.equal(fileUri2.path, '/foo/bar');
+		assert.equal(fileUri2.authority, '');
+	});
+
+	test('Ctrl click to follow hash query param url gets urlencoded #49628', function () {
+		let input = 'http://localhost:3000/#/foo?bar=baz';
+		let uri = URI.parse(input);
+		assert.equal(uri.toString(true), input);
+
+		input = 'http://localhost:3000/foo?bar=baz';
+		uri = URI.parse(input);
+		assert.equal(uri.toString(true), input);
+	});
 
 	test('URI - (de)serialize', function () {
 

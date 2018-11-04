@@ -5,20 +5,22 @@
 
 import { getSettings } from './settings';
 
-/**
- * Post a message to the markdown extension
- */
-export function postMessage(type: string, body: object) {
-	window.parent.postMessage({
-		type,
-		source: getSettings().source,
-		body
-	}, '*');
+export interface MessagePoster {
+	/**
+	 * Post a message to the markdown extension
+	 */
+	postMessage(type: string, body: object): void;
 }
 
-/**
- * Post a command to be executed to the markdown extension
- */
-export function postCommand(command: string, args: any[]) {
-	postMessage('command', { command, args });
-}
+export const createPosterForVsCode = (vscode: any) => {
+	return new class implements MessagePoster {
+		postMessage(type: string, body: object): void {
+			vscode.postMessage({
+				type,
+				source: getSettings().source,
+				body
+			});
+		}
+	};
+};
+

@@ -2,12 +2,11 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
 import {
 	createConnection, IConnection,
 	TextDocuments, TextDocument, InitializeParams, InitializeResult, NotificationType, RequestType,
-	DocumentRangeFormattingRequest, Disposable, ServerCapabilities
+	DocumentRangeFormattingRequest, Disposable, ServerCapabilities, Diagnostic
 } from 'vscode-languageserver';
 
 import { xhr, XHRResponse, configure as configureHttpRequests, getErrorStatusDescription } from 'request-light';
@@ -18,9 +17,6 @@ import { startsWith } from './utils/strings';
 import { formatError, runSafe, runSafeAsync } from './utils/runner';
 import { JSONDocument, JSONSchema, getLanguageService, DocumentLanguageSettings, SchemaConfiguration } from 'vscode-json-languageservice';
 import { getLanguageModelCache } from './languageModelCache';
-import { getFoldingRegions } from './jsonFolding';
-
-import { FoldingRangesRequest, FoldingProviderServerCapabilities } from 'vscode-languageserver-protocol-foldingprovider';
 
 interface ISchemaAssociations {
 	[pattern: string]: string[];
@@ -38,8 +34,12 @@ namespace SchemaContentChangeNotification {
 	export const type: NotificationType<string, any> = new NotificationType('json/schemaContent');
 }
 
+namespace ForceValidateRequest {
+	export const type: RequestType<string, Diagnostic[], any, any> = new RequestType('json/validate');
+}
+
 // Create a connection for the server
-let connection: IConnection = createConnection();
+const connection: IConnection = createConnection();
 
 process.on('unhandledRejection', (e: any) => {
 	console.error(formatError(`Unhandled exception`, e));
@@ -52,56 +52,18 @@ process.on('uncaughtException', (e: any) => {
 console.log = connection.console.log.bind(connection.console);
 console.error = connection.console.error.bind(connection.console);
 
-// Create a simple text document manager. The text document manager
-// supports full document sync only
-let documents: TextDocuments = new TextDocuments();
-// Make the text document manager listen on the connection
-// for open, change and close text document events
-documents.listen(connection);
-
-let clientSnippetSupport = false;
-let clientDynamicRegisterSupport = false;
-
-// After the server has started the client sends an initilize request. The server receives
-// in the passed params the rootPath of the workspace plus the client capabilities.
-connection.onInitialize((params: InitializeParams): InitializeResult => {
-
-	function hasClientCapability(...keys: string[]) {
-		let c = params.capabilities as any;
-		for (let i = 0; c && i < keys.length; i++) {
-			c = c[keys[i]];
-		}
-		return !!c;
-	}
-
-	clientSnippetSupport = hasClientCapability('textDocument', 'completion', 'completionItem', 'snippetSupport');
-	clientDynamicRegisterSupport = hasClientCapability('workspace', 'symbol', 'dynamicRegistration');
-	let capabilities: ServerCapabilities & FoldingProviderServerCapabilities = {
-		// Tell the client that the server works in FULL text document sync mode
-		textDocumentSync: documents.syncKind,
-		completionProvider: clientSnippetSupport ? { resolveProvider: true, triggerCharacters: ['"', ':'] } : void 0,
-		hoverProvider: true,
-		documentSymbolProvider: true,
-		documentRangeFormattingProvider: false,
-		colorProvider: true,
-		foldingProvider: true
-	};
-
-	return { capabilities };
-});
-
-let workspaceContext = {
+const workspaceContext = {
 	resolveRelativePath: (relativePath: string, resource: string) => {
 		return URL.resolve(resource, relativePath);
 	}
 };
 
-let schemaRequestService = (uri: string): Thenable<string> => {
+const schemaRequestService = (uri: string): Thenable<string> => {
 	if (startsWith(uri, 'file://')) {
-		let fsPath = URI.parse(uri).fsPath;
+		const fsPath = URI.parse(uri).fsPath;
 		return new Promise<string>((c, e) => {
 			fs.readFile(fsPath, 'UTF-8', (err, result) => {
-				err ? e('') : c(result.toString());
+				err ? e(err.message || err.toString()) : c(result.toString());
 			});
 		});
 	} else if (startsWith(uri, 'vscode://')) {
@@ -124,7 +86,7 @@ let schemaRequestService = (uri: string): Thenable<string> => {
 			}
 		});
 	}
-	let headers = { 'Accept-Encoding': 'gzip, deflate' };
+	const headers = { 'Accept-Encoding': 'gzip, deflate' };
 	return xhr({ url: uri, followRedirects: 5, headers }).then(response => {
 		return response.responseText;
 	}, (error: XHRResponse) => {
@@ -136,8 +98,63 @@ let schemaRequestService = (uri: string): Thenable<string> => {
 let languageService = getLanguageService({
 	schemaRequestService,
 	workspaceContext,
-	contributions: []
+	contributions: [],
 });
+
+// Create a simple text document manager. The text document manager
+// supports full document sync only
+const documents: TextDocuments = new TextDocuments();
+// Make the text document manager listen on the connection
+// for open, change and close text document events
+documents.listen(connection);
+
+let clientSnippetSupport = false;
+let clientDynamicRegisterSupport = false;
+let foldingRangeLimit = Number.MAX_VALUE;
+let hierarchicalDocumentSymbolSupport = false;
+
+// After the server has started the client sends an initialize request. The server receives
+// in the passed params the rootPath of the workspace plus the client capabilities.
+connection.onInitialize((params: InitializeParams): InitializeResult => {
+
+	languageService = getLanguageService({
+		schemaRequestService,
+		workspaceContext,
+		contributions: [],
+		clientCapabilities: params.capabilities
+	});
+
+	function getClientCapability<T>(name: string, def: T) {
+		const keys = name.split('.');
+		let c: any = params.capabilities;
+		for (let i = 0; c && i < keys.length; i++) {
+			if (!c.hasOwnProperty(keys[i])) {
+				return def;
+			}
+			c = c[keys[i]];
+		}
+		return c;
+	}
+
+	clientSnippetSupport = getClientCapability('textDocument.completion.completionItem.snippetSupport', false);
+	clientDynamicRegisterSupport = getClientCapability('workspace.symbol.dynamicRegistration', false);
+	foldingRangeLimit = getClientCapability('textDocument.foldingRange.rangeLimit', Number.MAX_VALUE);
+	hierarchicalDocumentSymbolSupport = getClientCapability('textDocument.documentSymbol.hierarchicalDocumentSymbolSupport', false);
+	const capabilities: ServerCapabilities = {
+		// Tell the client that the server works in FULL text document sync mode
+		textDocumentSync: documents.syncKind,
+		completionProvider: clientSnippetSupport ? { resolveProvider: true, triggerCharacters: ['"', ':'] } : void 0,
+		hoverProvider: true,
+		documentSymbolProvider: true,
+		documentRangeFormattingProvider: false,
+		colorProvider: {},
+		foldingRangeProvider: true
+	};
+
+	return { capabilities };
+});
+
+
 
 // The settings interface describes the server relevant settings part
 interface Settings {
@@ -171,7 +188,7 @@ connection.onDidChangeConfiguration((change) => {
 
 	// dynamically enable & disable the formatter
 	if (clientDynamicRegisterSupport) {
-		let enableFormatter = settings && settings.json && settings.json.format && settings.json.format.enable;
+		const enableFormatter = settings && settings.json && settings.json.format && settings.json.format.enable;
 		if (enableFormatter) {
 			if (!formatterRegistration) {
 				formatterRegistration = connection.client.register(DocumentRangeFormattingRequest.type, { documentSelector: [{ language: 'json' }, { language: 'jsonc' }] });
@@ -194,15 +211,30 @@ connection.onNotification(SchemaContentChangeNotification.type, uri => {
 	languageService.resetSchema(uri);
 });
 
+// Retry schema validation on all open documents
+connection.onRequest(ForceValidateRequest.type, uri => {
+	return new Promise<Diagnostic[]>(resolve => {
+		const document = documents.get(uri);
+		if (document) {
+			updateConfiguration();
+			validateTextDocument(document, diagnostics => {
+				resolve(diagnostics);
+			});
+		} else {
+			resolve([]);
+		}
+	});
+});
+
 function updateConfiguration() {
-	let languageSettings = {
+	const languageSettings = {
 		validate: true,
 		allowComments: true,
 		schemas: new Array<SchemaConfiguration>()
 	};
 	if (schemaAssociations) {
 		for (var pattern in schemaAssociations) {
-			let association = schemaAssociations[pattern];
+			const association = schemaAssociations[pattern];
 			if (Array.isArray(association)) {
 				association.forEach(uri => {
 					languageSettings.schemas.push({ uri, fileMatch: [pattern] });
@@ -239,11 +271,11 @@ documents.onDidClose(event => {
 	connection.sendDiagnostics({ uri: event.document.uri, diagnostics: [] });
 });
 
-let pendingValidationRequests: { [uri: string]: NodeJS.Timer; } = {};
+const pendingValidationRequests: { [uri: string]: NodeJS.Timer; } = {};
 const validationDelayMs = 500;
 
 function cleanPendingValidation(textDocument: TextDocument): void {
-	let request = pendingValidationRequests[textDocument.uri];
+	const request = pendingValidationRequests[textDocument.uri];
 	if (request) {
 		clearTimeout(request);
 		delete pendingValidationRequests[textDocument.uri];
@@ -258,22 +290,26 @@ function triggerValidation(textDocument: TextDocument): void {
 	}, validationDelayMs);
 }
 
-function validateTextDocument(textDocument: TextDocument): void {
+function validateTextDocument(textDocument: TextDocument, callback?: (diagnostics: Diagnostic[]) => void): void {
+	const respond = (diagnostics: Diagnostic[]) => {
+		connection.sendDiagnostics({ uri: textDocument.uri, diagnostics });
+		if (callback) {
+			callback(diagnostics);
+		}
+	};
 	if (textDocument.getText().length === 0) {
-		// ignore empty documents
-		connection.sendDiagnostics({ uri: textDocument.uri, diagnostics: [] });
+		respond([]); // ignore empty documents
 		return;
 	}
-	let jsonDocument = getJSONDocument(textDocument);
-	let version = textDocument.version;
+	const jsonDocument = getJSONDocument(textDocument);
+	const version = textDocument.version;
 
-	let documentSettings: DocumentLanguageSettings = textDocument.languageId === 'jsonc' ? { comments: 'ignore', trailingCommas: 'ignore' } : { comments: 'error', trailingCommas: 'error' };
+	const documentSettings: DocumentLanguageSettings = textDocument.languageId === 'jsonc' ? { comments: 'ignore', trailingCommas: 'ignore' } : { comments: 'error', trailingCommas: 'error' };
 	languageService.doValidation(textDocument, jsonDocument, documentSettings).then(diagnostics => {
 		setTimeout(() => {
-			let currDocument = documents.get(textDocument.uri);
+			const currDocument = documents.get(textDocument.uri);
 			if (currDocument && currDocument.version === version) {
-				// Send the computed diagnostics to VSCode.
-				connection.sendDiagnostics({ uri: textDocument.uri, diagnostics });
+				respond(diagnostics); // Send the computed diagnostics to VSCode.
 			}
 		}, 100);
 	}, error => {
@@ -294,7 +330,7 @@ connection.onDidChangeWatchedFiles((change) => {
 	}
 });
 
-let jsonDocuments = getLanguageModelCache<JSONDocument>(10, 60, document => languageService.parseJSONDocument(document));
+const jsonDocuments = getLanguageModelCache<JSONDocument>(10, 60, document => languageService.parseJSONDocument(document));
 documents.onDidClose(e => {
 	jsonDocuments.onDocumentRemoved(e.document);
 });
@@ -307,10 +343,13 @@ function getJSONDocument(document: TextDocument): JSONDocument {
 }
 
 connection.onCompletion((textDocumentPosition, token) => {
-	return runSafeAsync(() => {
-		let document = documents.get(textDocumentPosition.textDocument.uri);
-		let jsonDocument = getJSONDocument(document);
-		return languageService.doComplete(document, textDocumentPosition.position, jsonDocument);
+	return runSafeAsync(async () => {
+		const document = documents.get(textDocumentPosition.textDocument.uri);
+		if (document) {
+			const jsonDocument = getJSONDocument(document);
+			return languageService.doComplete(document, textDocumentPosition.position, jsonDocument);
+		}
+		return null;
 	}, null, `Error while computing completions for ${textDocumentPosition.textDocument.uri}`, token);
 });
 
@@ -321,55 +360,68 @@ connection.onCompletionResolve((completionItem, token) => {
 });
 
 connection.onHover((textDocumentPositionParams, token) => {
-	return runSafeAsync(() => {
-		let document = documents.get(textDocumentPositionParams.textDocument.uri);
-		let jsonDocument = getJSONDocument(document);
-		return languageService.doHover(document, textDocumentPositionParams.position, jsonDocument);
+	return runSafeAsync(async () => {
+		const document = documents.get(textDocumentPositionParams.textDocument.uri);
+		if (document) {
+			const jsonDocument = getJSONDocument(document);
+			return languageService.doHover(document, textDocumentPositionParams.position, jsonDocument);
+		}
+		return null;
 	}, null, `Error while computing hover for ${textDocumentPositionParams.textDocument.uri}`, token);
 });
 
 connection.onDocumentSymbol((documentSymbolParams, token) => {
 	return runSafe(() => {
-		let document = documents.get(documentSymbolParams.textDocument.uri);
-		let jsonDocument = getJSONDocument(document);
-		return languageService.findDocumentSymbols(document, jsonDocument);
+		const document = documents.get(documentSymbolParams.textDocument.uri);
+		if (document) {
+			const jsonDocument = getJSONDocument(document);
+			if (hierarchicalDocumentSymbolSupport) {
+				return languageService.findDocumentSymbols2(document, jsonDocument);
+			} else {
+				return languageService.findDocumentSymbols(document, jsonDocument);
+			}
+		}
+		return [];
 	}, [], `Error while computing document symbols for ${documentSymbolParams.textDocument.uri}`, token);
 });
 
 connection.onDocumentRangeFormatting((formatParams, token) => {
 	return runSafe(() => {
-		let document = documents.get(formatParams.textDocument.uri);
-		return languageService.format(document, formatParams.range, formatParams.options);
+		const document = documents.get(formatParams.textDocument.uri);
+		if (document) {
+			return languageService.format(document, formatParams.range, formatParams.options);
+		}
+		return [];
 	}, [], `Error while formatting range for ${formatParams.textDocument.uri}`, token);
 });
 
 connection.onDocumentColor((params, token) => {
-	return runSafeAsync(() => {
-		let document = documents.get(params.textDocument.uri);
+	return runSafeAsync(async () => {
+		const document = documents.get(params.textDocument.uri);
 		if (document) {
-			let jsonDocument = getJSONDocument(document);
+			const jsonDocument = getJSONDocument(document);
 			return languageService.findDocumentColors(document, jsonDocument);
 		}
-		return Promise.resolve([]);
+		return [];
 	}, [], `Error while computing document colors for ${params.textDocument.uri}`, token);
 });
 
 connection.onColorPresentation((params, token) => {
 	return runSafe(() => {
-		let document = documents.get(params.textDocument.uri);
+		const document = documents.get(params.textDocument.uri);
 		if (document) {
-			let jsonDocument = getJSONDocument(document);
+			const jsonDocument = getJSONDocument(document);
 			return languageService.getColorPresentations(document, jsonDocument, params.color, params.range);
 		}
 		return [];
 	}, [], `Error while computing color presentations for ${params.textDocument.uri}`, token);
 });
 
-connection.onRequest(FoldingRangesRequest.type, (params, token) => {
+connection.onFoldingRanges((params, token) => {
 	return runSafe(() => {
-		let document = documents.get(params.textDocument.uri);
+		const document = documents.get(params.textDocument.uri);
 		if (document) {
-			return getFoldingRegions(document, params.maxRanges, token);
+			return languageService.getFoldingRanges(document, { rangeLimit: foldingRangeLimit });
 		}
 		return null;
 	}, null, `Error while computing folding ranges for ${params.textDocument.uri}`, token);

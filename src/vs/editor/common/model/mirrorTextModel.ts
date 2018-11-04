@@ -2,13 +2,12 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
-import URI from 'vs/base/common/uri';
-import { IRange } from 'vs/editor/common/core/range';
-import { PrefixSumComputer } from 'vs/editor/common/viewModel/prefixSumComputer';
-import { IModelContentChange } from 'vs/editor/common/model/textModelEvents';
+import { URI } from 'vs/base/common/uri';
 import { Position } from 'vs/editor/common/core/position';
+import { IRange } from 'vs/editor/common/core/range';
+import { IModelContentChange } from 'vs/editor/common/model/textModelEvents';
+import { PrefixSumComputer } from 'vs/editor/common/viewModel/prefixSumComputer';
 
 export interface IModelChangedEvent {
 	/**
@@ -31,13 +30,14 @@ export class MirrorTextModel {
 	protected _lines: string[];
 	protected _eol: string;
 	protected _versionId: number;
-	protected _lineStarts: PrefixSumComputer;
+	protected _lineStarts: PrefixSumComputer | null;
 
 	constructor(uri: URI, lines: string[], eol: string, versionId: number) {
 		this._uri = uri;
 		this._lines = lines;
 		this._eol = eol;
 		this._versionId = versionId;
+		this._lineStarts = null;
 	}
 
 	dispose(): void {

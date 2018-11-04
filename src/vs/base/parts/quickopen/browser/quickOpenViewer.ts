@@ -23,7 +23,7 @@ export class DataSource implements IDataSource {
 		this.modelProvider = isFunction(arg.getModel) ? arg : { getModel: () => arg };
 	}
 
-	public getId(tree: ITree, element: any): string {
+	getId(tree: ITree, element: any): string {
 		if (!element) {
 			return null;
 		}
@@ -32,17 +32,17 @@ export class DataSource implements IDataSource {
 		return model === element ? '__root__' : model.dataSource.getId(element);
 	}
 
-	public hasChildren(tree: ITree, element: any): boolean {
+	hasChildren(tree: ITree, element: any): boolean {
 		const model = this.modelProvider.getModel();
 		return model && model === element && model.entries.length > 0;
 	}
 
-	public getChildren(tree: ITree, element: any): TPromise<any[]> {
+	getChildren(tree: ITree, element: any): TPromise<any[]> {
 		const model = this.modelProvider.getModel();
 		return TPromise.as(model === element ? model.entries : []);
 	}
 
-	public getParent(tree: ITree, element: any): TPromise<any> {
+	getParent(tree: ITree, element: any): TPromise<any> {
 		return TPromise.as(null);
 	}
 }
@@ -50,20 +50,43 @@ export class DataSource implements IDataSource {
 export class AccessibilityProvider implements IAccessibilityProvider {
 	constructor(private modelProvider: IModelProvider) { }
 
-	public getAriaLabel(tree: ITree, element: any): string {
+	getAriaLabel(tree: ITree, element: any): string {
 		const model = this.modelProvider.getModel();
 
 		return model.accessibilityProvider && model.accessibilityProvider.getAriaLabel(element);
 	}
 
-	public getPosInSet(tree: ITree, element: any): string {
+	getPosInSet(tree: ITree, element: any): string {
 		const model = this.modelProvider.getModel();
-		return String(model.entries.indexOf(element) + 1);
+		let i = 0;
+		if (model.filter) {
+			for (const entry of model.entries) {
+				if (model.filter.isVisible(entry)) {
+					i++;
+				}
+				if (entry === element) {
+					break;
+				}
+			}
+		} else {
+			i = model.entries.indexOf(element) + 1;
+		}
+		return String(i);
 	}
 
-	public getSetSize(): string {
+	getSetSize(): string {
 		const model = this.modelProvider.getModel();
-		return String(model.entries.length);
+		let n = 0;
+		if (model.filter) {
+			for (const entry of model.entries) {
+				if (model.filter.isVisible(entry)) {
+					n++;
+				}
+			}
+		} else {
+			n = model.entries.length;
+		}
+		return String(n);
 	}
 }
 
@@ -71,7 +94,7 @@ export class Filter implements IFilter {
 
 	constructor(private modelProvider: IModelProvider) { }
 
-	public isVisible(tree: ITree, element: any): boolean {
+	isVisible(tree: ITree, element: any): boolean {
 		const model = this.modelProvider.getModel();
 
 		if (!model.filter) {
@@ -89,31 +112,31 @@ export class Renderer implements IRenderer {
 		this.styles = styles;
 	}
 
-	public updateStyles(styles: IQuickOpenStyles): void {
+	updateStyles(styles: IQuickOpenStyles): void {
 		this.styles = styles;
 	}
 
-	public getHeight(tree: ITree, element: any): number {
+	getHeight(tree: ITree, element: any): number {
 		const model = this.modelProvider.getModel();
 		return model.renderer.getHeight(element);
 	}
 
-	public getTemplateId(tree: ITree, element: any): string {
+	getTemplateId(tree: ITree, element: any): string {
 		const model = this.modelProvider.getModel();
 		return model.renderer.getTemplateId(element);
 	}
 
-	public renderTemplate(tree: ITree, templateId: string, container: HTMLElement): any {
+	renderTemplate(tree: ITree, templateId: string, container: HTMLElement): any {
 		const model = this.modelProvider.getModel();
 		return model.renderer.renderTemplate(templateId, container, this.styles);
 	}
 
-	public renderElement(tree: ITree, element: any, templateId: string, templateData: any): void {
+	renderElement(tree: ITree, element: any, templateId: string, templateData: any): void {
 		const model = this.modelProvider.getModel();
 		model.renderer.renderElement(element, templateId, templateData, this.styles);
 	}
 
-	public disposeTemplate(tree: ITree, templateId: string, templateData: any): void {
+	disposeTemplate(tree: ITree, templateId: string, templateData: any): void {
 		const model = this.modelProvider.getModel();
 		model.renderer.disposeTemplate(templateId, templateData);
 	}

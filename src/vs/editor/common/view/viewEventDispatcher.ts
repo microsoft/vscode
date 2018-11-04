@@ -2,16 +2,15 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
-import { ViewEventHandler } from 'vs/editor/common/viewModel/viewEventHandler';
 import { ViewEvent } from 'vs/editor/common/view/viewEvents';
+import { ViewEventHandler } from 'vs/editor/common/viewModel/viewEventHandler';
 
 export class ViewEventDispatcher {
 
 	private _eventHandlerGateKeeper: (callback: () => void) => void;
 	private _eventHandlers: ViewEventHandler[];
-	private _eventQueue: ViewEvent[];
+	private _eventQueue: ViewEvent[] | null;
 	private _isConsumingQueue: boolean;
 
 	constructor(eventHandlerGateKeeper: (callback: () => void) => void) {

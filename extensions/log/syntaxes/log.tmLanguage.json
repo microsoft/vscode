@@ -4,12 +4,12 @@
 		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
 		"Once accepted there, we are happy to receive an update request."
 	],
-	"version": "https://github.com/emilast/vscode-logfile-highlighter/commit/73d0058c4712dc93bb4f8f6ca3629d421da0651d",
+	"version": "https://github.com/emilast/vscode-logfile-highlighter/commit/30a19d24b9a0070b0fab5eef45f89c92e7cd71ea",
 	"name": "Log file",
 	"scopeName": "text.log",
 	"patterns": [
 		{
-			"match": "\\b(DEBUG)\\b|(?i)\\b(debug)\\:",
+			"match": "\\b(DEBUG|Debug|Trace)\\b|(?i)\\b(debug)\\:",
 			"name": "markup.changed log.debug"
 		},
 		{
@@ -17,7 +17,7 @@
 			"name": "markup.changed log.debug"
 		},
 		{
-			"match": "\\b(HINT|INFO|INFORMATION)\\b|(?i)\\b(info|information)\\:",
+			"match": "\\b(HINT|INFO|INFORMATION|Info|NOTICE)\\b|(?i)\\b(info|information)\\:",
 			"name": "markup.inserted log.info"
 		},
 		{
@@ -25,7 +25,7 @@
 			"name": "markup.inserted log.info"
 		},
 		{
-			"match": "\\b(WARNING|WARN)\\b|(?i)\\b(warning)\\:",
+			"match": "\\b(WARNING|WARN|Warn)\\b|(?i)\\b(warning)\\:",
 			"name": "markup.deleted log.warning"
 		},
 		{
@@ -33,7 +33,7 @@
 			"name": "markup.deleted log.warning"
 		},
 		{
-			"match": "\\b(ERROR|FAILURE|FAIL)\\b|(?i)\\b(error)\\:",
+			"match": "\\b(ALERT|CRITICAL|EMERGENCY|ERROR|FAILURE|FAIL|Fatal|Error)\\b|(?i)\\b(error)\\:",
 			"name": "string.regexp, strong log.error"
 		},
 		{
@@ -49,7 +49,7 @@
 			"name": "comment log.date"
 		},
 		{
-			"match": "\\d{2}:\\d{2}(:\\d{2}([.,]\\d{3,})?)?(Z| ?[+-]\\d{2}:\\d{2})?\\b",
+			"match": "\\d{1,2}:\\d{2}(:\\d{2}([.,]\\d{1,})?)?(Z| ?[+-]\\d{1,2}:\\d{2})?\\b",
 			"name": "comment log.date"
 		},
 		{
@@ -69,7 +69,7 @@
 			"name": "string log.string"
 		},
 		{
-			"match": "'[^']*'",
+			"match": "(?<![\\w])'[^']*'",
 			"name": "string log.string"
 		},
 		{
@@ -86,11 +86,7 @@
 			"name": "constant.language log.constant"
 		},
 		{
-			"match": "(([a-zA-Z]\\:)|(\\.\\.)|(\\.))?((/|\\\\)[\\w\\-\\.]*)",
-			"name": "constant.language log.constant"
-		},
-		{
-			"match": "\\b([\\w-]+\\.)+([\\w-])+\\b",
+			"match": "(?<![\\w/\\\\])([\\w-]+\\.)+([\\w-])+(?![\\w/\\\\])",
 			"name": "constant.language log.constant"
 		}
 	]

@@ -2,26 +2,25 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
-import { dispose } from 'vs/base/common/lifecycle';
 import { join } from 'path';
-import { mkdirp, dirExists, realpath, writeFile } from 'vs/base/node/pfs';
-import Severity from 'vs/base/common/severity';
-import { TPromise } from 'vs/base/common/winjs.base';
-import { ExtensionDescriptionRegistry } from 'vs/workbench/services/extensions/node/extensionDescriptionRegistry';
-import { IExtensionDescription } from 'vs/workbench/services/extensions/common/extensions';
-import { ExtHostStorage } from 'vs/workbench/api/node/extHostStorage';
-import { createApiFactory, initializeExtensionApi, checkProposedApiEnabled } from 'vs/workbench/api/node/extHost.api.impl';
-import { MainContext, MainThreadExtensionServiceShape, IWorkspaceData, IEnvironment, IInitData, ExtHostExtensionServiceShape, MainThreadTelemetryShape, IExtHostContext } from './extHost.protocol';
-import { IExtensionMemento, ExtensionsActivator, ActivatedExtension, IExtensionAPI, IExtensionContext, EmptyExtension, IExtensionModule, ExtensionActivationTimesBuilder, ExtensionActivationTimes, ExtensionActivationReason, ExtensionActivatedByEvent } from 'vs/workbench/api/node/extHostExtensionActivator';
-import { ExtHostConfiguration } from 'vs/workbench/api/node/extHostConfiguration';
-import { ExtHostWorkspace } from 'vs/workbench/api/node/extHostWorkspace';
-import { TernarySearchTree } from 'vs/base/common/map';
 import { Barrier } from 'vs/base/common/async';
+import { IDisposable, dispose } from 'vs/base/common/lifecycle';
+import { TernarySearchTree } from 'vs/base/common/map';
+import Severity from 'vs/base/common/severity';
+import { URI } from 'vs/base/common/uri';
+import { dirExists, mkdirp, realpath, writeFile } from 'vs/base/node/pfs';
 import { ILogService } from 'vs/platform/log/common/log';
+import { createApiFactory, initializeExtensionApi } from 'vs/workbench/api/node/extHost.api.impl';
+import { ExtHostExtensionServiceShape, IEnvironment, IInitData, IMainContext, IWorkspaceData, MainContext, MainThreadExtensionServiceShape, MainThreadTelemetryShape } from 'vs/workbench/api/node/extHost.protocol';
+import { ExtHostConfiguration } from 'vs/workbench/api/node/extHostConfiguration';
+import { ActivatedExtension, EmptyExtension, ExtensionActivatedByAPI, ExtensionActivatedByEvent, ExtensionActivationReason, ExtensionActivationTimes, ExtensionActivationTimesBuilder, ExtensionsActivator, IExtensionAPI, IExtensionContext, IExtensionMemento, IExtensionModule } from 'vs/workbench/api/node/extHostExtensionActivator';
 import { ExtHostLogService } from 'vs/workbench/api/node/extHostLogService';
-import URI from 'vs/base/common/uri';
+import { ExtHostStorage } from 'vs/workbench/api/node/extHostStorage';
+import { ExtHostWorkspace } from 'vs/workbench/api/node/extHostWorkspace';
+import { IExtensionDescription } from 'vs/workbench/services/extensions/common/extensions';
+import { ExtensionDescriptionRegistry } from 'vs/workbench/services/extensions/node/extensionDescriptionRegistry';
+import { connectProxyResolver } from 'vs/workbench/node/proxyResolver';
 
 class ExtensionMemento implements IExtensionMemento {
 
@@ -29,8 +28,9 @@ class ExtensionMemento implements IExtensionMemento {
 	private readonly _shared: boolean;
 	private readonly _storage: ExtHostStorage;
 
-	private readonly _init: TPromise<ExtensionMemento>;
+	private readonly _init: Thenable<ExtensionMemento>;
 	private _value: { [n: string]: any; };
+	private readonly _storageListener: IDisposable;
 
 	constructor(id: string, global: boolean, storage: ExtHostStorage) {
 		this._id = id;
@@ -41,9 +41,15 @@ class ExtensionMemento implements IExtensionMemento {
 			this._value = value;
 			return this;
 		});
+
+		this._storageListener = this._storage.onDidChangeStorage(e => {
+			if (e.shared === this._shared && e.key === this._id) {
+				this._value = e.value;
+			}
+		});
 	}
 
-	get whenReady(): TPromise<ExtensionMemento> {
+	get whenReady(): Thenable<ExtensionMemento> {
 		return this._init;
 	}
 
@@ -61,6 +67,10 @@ class ExtensionMemento implements IExtensionMemento {
 			.setValue(this._shared, this._id, this._value)
 			.then(() => true);
 	}
+
+	dispose(): void {
+		this._storageListener.dispose();
+	}
 }
 
 class ExtensionStoragePath {
@@ -68,7 +78,7 @@ class ExtensionStoragePath {
 	private readonly _workspace: IWorkspaceData;
 	private readonly _environment: IEnvironment;
 
-	private readonly _ready: TPromise<string>;
+	private readonly _ready: Promise<string>;
 	private _value: string;
 
 	constructor(workspace: IWorkspaceData, environment: IEnvironment) {
@@ -77,7 +87,7 @@ class ExtensionStoragePath {
 		this._ready = this._getOrCreateWorkspaceStoragePath().then(value => this._value = value);
 	}
 
-	get whenReady(): TPromise<any> {
+	get whenReady(): Promise<any> {
 		return this._ready;
 	}
 
@@ -88,13 +98,13 @@ class ExtensionStoragePath {
 		return undefined;
 	}
 
-	private async _getOrCreateWorkspaceStoragePath(): TPromise<string> {
+	private async _getOrCreateWorkspaceStoragePath(): Promise<string> {
 		if (!this._workspace) {
-			return TPromise.as(undefined);
+			return Promise.resolve(undefined);
 		}
 
 		const storageName = this._workspace.id;
-		const storagePath = join(this._environment.appSettingsHome, 'workspaceStorage', storageName);
+		const storagePath = join(this._environment.appSettingsHome.fsPath, 'workspaceStorage', storageName);
 
 		const exists = await dirExists(storagePath);
 
@@ -120,7 +130,6 @@ class ExtensionStoragePath {
 		}
 	}
 }
-
 export class ExtHostExtensionService implements ExtHostExtensionServiceShape {
 
 	private readonly _barrier: Barrier;
@@ -131,29 +140,33 @@ export class ExtHostExtensionService implements ExtHostExtensionServiceShape {
 	private readonly _proxy: MainThreadExtensionServiceShape;
 	private readonly _extHostLogService: ExtHostLogService;
 	private _activator: ExtensionsActivator;
-	private _extensionPathIndex: TPromise<TernarySearchTree<IExtensionDescription>>;
+	private _extensionPathIndex: Promise<TernarySearchTree<IExtensionDescription>>;
 	/**
 	 * This class is constructed manually because it is a service, so it doesn't use any ctor injection
 	 */
 	constructor(initData: IInitData,
-		extHostContext: IExtHostContext,
+		extHostContext: IMainContext,
 		extHostWorkspace: ExtHostWorkspace,
 		extHostConfiguration: ExtHostConfiguration,
-		extHostLogService: ExtHostLogService
+		extHostLogService: ExtHostLogService,
+		mainThreadTelemetry: MainThreadTelemetryShape
 	) {
 		this._barrier = new Barrier();
 		this._registry = new ExtensionDescriptionRegistry(initData.extensions);
 		this._extHostLogService = extHostLogService;
-		this._mainThreadTelemetry = extHostContext.getProxy(MainContext.MainThreadTelemetry);
+		this._mainThreadTelemetry = mainThreadTelemetry;
 		this._storage = new ExtHostStorage(extHostContext);
 		this._storagePath = new ExtensionStoragePath(initData.workspace, initData.environment);
 		this._proxy = extHostContext.getProxy(MainContext.MainThreadExtensionService);
 		this._activator = null;
 
 		// initialize API first (i.e. do not release barrier until the API is initialized)
-		const apiFactory = createApiFactory(initData, extHostContext, extHostWorkspace, extHostConfiguration, this, this._extHostLogService);
+		const apiFactory = createApiFactory(initData, extHostContext, extHostWorkspace, extHostConfiguration, this, this._extHostLogService, this._storage);
 
 		initializeExtensionApi(this, apiFactory).then(() => {
+			// Do this when extension service exists, but extensions are not being activated yet.
+			return connectProxyResolver(extHostWorkspace, extHostConfiguration, this, this._extHostLogService, this._mainThreadTelemetry);
+		}).then(() => {
 
 			this._activator = new ExtensionsActivator(this._registry, {
 				showMessage: (severity: Severity, message: string): void => {
@@ -171,7 +184,7 @@ export class ExtHostExtensionService implements ExtHostExtensionServiceShape {
 					}
 				},
 
-				actualActivateExtension: (extensionDescription: IExtensionDescription, reason: ExtensionActivationReason): TPromise<ActivatedExtension> => {
+				actualActivateExtension: (extensionDescription: IExtensionDescription, reason: ExtensionActivationReason): Promise<ActivatedExtension> => {
 					return this._activateExtension(extensionDescription, reason);
 				}
 			});
@@ -180,7 +193,7 @@ export class ExtHostExtensionService implements ExtHostExtensionServiceShape {
 		});
 	}
 
-	public onExtensionAPIReady(): TPromise<boolean> {
+	public onExtensionAPIReady(): Thenable<boolean> {
 		return this._barrier.wait();
 	}
 
@@ -191,7 +204,7 @@ export class ExtHostExtensionService implements ExtHostExtensionServiceShape {
 		return false;
 	}
 
-	public activateByEvent(activationEvent: string, startup: boolean): TPromise<void> {
+	public activateByEvent(activationEvent: string, startup: boolean): Thenable<void> {
 		const reason = new ExtensionActivatedByEvent(startup, activationEvent);
 		if (this._barrier.isOpen()) {
 			return this._activator.activateByEvent(activationEvent, reason);
@@ -200,12 +213,23 @@ export class ExtHostExtensionService implements ExtHostExtensionServiceShape {
 		}
 	}
 
-	public activateById(extensionId: string, reason: ExtensionActivationReason): TPromise<void> {
+	public activateById(extensionId: string, reason: ExtensionActivationReason): Thenable<void> {
 		if (this._barrier.isOpen()) {
 			return this._activator.activateById(extensionId, reason);
 		} else {
 			return this._barrier.wait().then(() => this._activator.activateById(extensionId, reason));
 		}
+	}
+
+	public activateByIdWithErrors(extensionId: string, reason: ExtensionActivationReason): Thenable<void> {
+		return this.activateById(extensionId, reason).then(() => {
+			const extension = this._activator.getActivatedExtension(extensionId);
+			if (extension.activationFailed) {
+				// activation failed => bubble up the error as the promise result
+				return Promise.reject(extension.activationFailedError);
+			}
+			return void 0;
+		});
 	}
 
 	public getAllExtensionDescriptions(): IExtensionDescription[] {
@@ -225,24 +249,23 @@ export class ExtHostExtensionService implements ExtHostExtensionServiceShape {
 	}
 
 	// create trie to enable fast 'filename -> extension id' look up
-	public getExtensionPathIndex(): TPromise<TernarySearchTree<IExtensionDescription>> {
+	public getExtensionPathIndex(): Promise<TernarySearchTree<IExtensionDescription>> {
 		if (!this._extensionPathIndex) {
 			const tree = TernarySearchTree.forPaths<IExtensionDescription>();
 			const extensions = this.getAllExtensionDescriptions().map(ext => {
 				if (!ext.main) {
 					return undefined;
 				}
-				return realpath(ext.extensionFolderPath).then(value => tree.set(value, ext));
-
+				return realpath(ext.extensionLocation.fsPath).then(value => tree.set(URI.file(value).fsPath, ext));
 			});
-			this._extensionPathIndex = TPromise.join(extensions).then(() => tree);
+			this._extensionPathIndex = Promise.all(extensions).then(() => tree);
 		}
 		return this._extensionPathIndex;
 	}
 
 
-	public deactivate(extensionId: string): TPromise<void> {
-		let result: TPromise<void> = TPromise.as(void 0);
+	public deactivate(extensionId: string): Thenable<void> {
+		let result = Promise.resolve(void 0);
 
 		if (!this._barrier.isOpen()) {
 			return result;
@@ -260,9 +283,9 @@ export class ExtHostExtensionService implements ExtHostExtensionServiceShape {
 		// call deactivate if available
 		try {
 			if (typeof extension.module.deactivate === 'function') {
-				result = TPromise.wrap(extension.module.deactivate()).then(null, (err) => {
+				result = Promise.resolve(extension.module.deactivate()).then(null, (err) => {
 					// TODO: Do something with err if this is not the shutdown case
-					return TPromise.as(void 0);
+					return Promise.resolve(void 0);
 				});
 			}
 		} catch (err) {
@@ -285,7 +308,7 @@ export class ExtHostExtensionService implements ExtHostExtensionServiceShape {
 
 	// --- impl
 
-	private _activateExtension(extensionDescription: IExtensionDescription, reason: ExtensionActivationReason): TPromise<ActivatedExtension> {
+	private _activateExtension(extensionDescription: IExtensionDescription, reason: ExtensionActivationReason): Promise<ActivatedExtension> {
 		return this._doActivateExtension(extensionDescription, reason).then((activatedExtension) => {
 			const activationTimes = activatedExtension.activationTimes;
 			let activationEvent = (reason instanceof ExtensionActivatedByEvent ? reason.activationEvent : null);
@@ -297,8 +320,8 @@ export class ExtHostExtensionService implements ExtHostExtensionServiceShape {
 		});
 	}
 
-	private _doActivateExtension(extensionDescription: IExtensionDescription, reason: ExtensionActivationReason): TPromise<ActivatedExtension> {
-		let event = getTelemetryActivationEvent(extensionDescription);
+	private _doActivateExtension(extensionDescription: IExtensionDescription, reason: ExtensionActivationReason): Promise<ActivatedExtension> {
+		let event = getTelemetryActivationEvent(extensionDescription, reason);
 		/* __GDPR__
 			"activatePlugin" : {
 				"${include}": [
@@ -309,36 +332,27 @@ export class ExtHostExtensionService implements ExtHostExtensionServiceShape {
 		this._mainThreadTelemetry.$publicLog('activatePlugin', event);
 		if (!extensionDescription.main) {
 			// Treat the extension as being empty => NOT AN ERROR CASE
-			return TPromise.as(new EmptyExtension(ExtensionActivationTimes.NONE));
+			return Promise.resolve(new EmptyExtension(ExtensionActivationTimes.NONE));
 		}
 
 		this._extHostLogService.info(`ExtensionService#_doActivateExtension ${extensionDescription.id} ${JSON.stringify(reason)}`);
 
 		const activationTimesBuilder = new ExtensionActivationTimesBuilder(reason.startup);
-		return TPromise.join<any>([
+		return Promise.all<any>([
 			loadCommonJSModule(this._extHostLogService, extensionDescription.main, activationTimesBuilder),
 			this._loadExtensionContext(extensionDescription)
 		]).then(values => {
 			return ExtHostExtensionService._callActivate(this._extHostLogService, extensionDescription.id, <IExtensionModule>values[0], <IExtensionContext>values[1], activationTimesBuilder);
-		}, (errors: any[]) => {
-			// Avoid failing with an array of errors, fail with a single error
-			if (errors[0]) {
-				return TPromise.wrapError<ActivatedExtension>(errors[0]);
-			}
-			if (errors[1]) {
-				return TPromise.wrapError<ActivatedExtension>(errors[1]);
-			}
-			return undefined;
 		});
 	}
 
-	private _loadExtensionContext(extensionDescription: IExtensionDescription): TPromise<IExtensionContext> {
+	private _loadExtensionContext(extensionDescription: IExtensionDescription): Promise<IExtensionContext> {
 
 		let globalState = new ExtensionMemento(extensionDescription.id, true, this._storage);
 		let workspaceState = new ExtensionMemento(extensionDescription.id, false, this._storage);
 
 		this._extHostLogService.trace(`ExtensionService#loadExtensionContext ${extensionDescription.id}`);
-		return TPromise.join([
+		return Promise.all([
 			globalState.whenReady,
 			workspaceState.whenReady,
 			this._storagePath.whenReady
@@ -348,17 +362,10 @@ export class ExtHostExtensionService implements ExtHostExtensionServiceShape {
 				globalState,
 				workspaceState,
 				subscriptions: [],
-				get extensionPath() { return extensionDescription.extensionFolderPath; },
+				get extensionPath() { return extensionDescription.extensionLocation.fsPath; },
 				storagePath: this._storagePath.value(extensionDescription),
-				asAbsolutePath: (relativePath: string) => { return join(extensionDescription.extensionFolderPath, relativePath); },
-				get logger() {
-					checkProposedApiEnabled(extensionDescription);
-					return that._extHostLogService.getExtLogger(extensionDescription.id);
-				},
-				get logDirectory() {
-					checkProposedApiEnabled(extensionDescription);
-					return that._extHostLogService.getLogDirectory(extensionDescription.id);
-				}
+				asAbsolutePath: (relativePath: string) => { return join(extensionDescription.extensionLocation.fsPath, relativePath); },
+				logPath: that._extHostLogService.getLogDirectory(extensionDescription.id)
 			});
 		});
 	}
@@ -371,7 +378,7 @@ export class ExtHostExtensionService implements ExtHostExtensionServiceShape {
 		};
 
 		return this._callActivateOptional(logService, extensionId, extensionModule, context, activationTimesBuilder).then((extensionExports) => {
-			return new ActivatedExtension(false, activationTimesBuilder.build(), extensionModule, extensionExports, context.subscriptions);
+			return new ActivatedExtension(false, null, activationTimesBuilder.build(), extensionModule, extensionExports, context.subscriptions);
 		});
 	}
 
@@ -380,52 +387,57 @@ export class ExtHostExtensionService implements ExtHostExtensionServiceShape {
 			try {
 				activationTimesBuilder.activateCallStart();
 				logService.trace(`ExtensionService#_callActivateOptional ${extensionId}`);
-				const activateResult: TPromise<IExtensionAPI> = extensionModule.activate.apply(global, [context]);
+				const activateResult: Thenable<IExtensionAPI> = extensionModule.activate.apply(global, [context]);
 				activationTimesBuilder.activateCallStop();
 
 				activationTimesBuilder.activateResolveStart();
-				return TPromise.as(activateResult).then((value) => {
+				return Promise.resolve(activateResult).then((value) => {
 					activationTimesBuilder.activateResolveStop();
 					return value;
 				});
 			} catch (err) {
-				return TPromise.wrapError(err);
+				return Promise.reject(err);
 			}
 		} else {
 			// No activate found => the module is the extension's exports
-			return TPromise.as<IExtensionAPI>(extensionModule);
+			return Promise.resolve<IExtensionAPI>(extensionModule);
 		}
 	}
 
 	// -- called by main thread
 
-	public $activateByEvent(activationEvent: string): TPromise<void> {
+	public $activateByEvent(activationEvent: string): Thenable<void> {
 		return this.activateByEvent(activationEvent, false);
 	}
 }
 
-function loadCommonJSModule<T>(logService: ILogService, modulePath: string, activationTimesBuilder: ExtensionActivationTimesBuilder): TPromise<T> {
-	let r: T = null;
+function loadCommonJSModule<T>(logService: ILogService, modulePath: string, activationTimesBuilder: ExtensionActivationTimesBuilder): Promise<T> {
+	let r: T | null = null;
 	activationTimesBuilder.codeLoadingStart();
 	logService.info(`ExtensionService#loadCommonJSModule ${modulePath}`);
 	try {
 		r = require.__$__nodeRequire<T>(modulePath);
 	} catch (e) {
-		return TPromise.wrapError<T>(e);
+		return Promise.reject(e);
 	} finally {
 		activationTimesBuilder.codeLoadingStop();
 	}
-	return TPromise.as(r);
+	return Promise.resolve(r);
 }
 
-function getTelemetryActivationEvent(extensionDescription: IExtensionDescription): any {
+function getTelemetryActivationEvent(extensionDescription: IExtensionDescription, reason: ExtensionActivationReason): any {
+	const reasonStr = reason instanceof ExtensionActivatedByEvent ? reason.activationEvent :
+		reason instanceof ExtensionActivatedByAPI ? 'api' :
+			'';
+
 	/* __GDPR__FRAGMENT__
 		"TelemetryActivationEvent" : {
 			"id": { "classification": "PublicNonPersonalData", "purpose": "FeatureInsight" },
 			"name": { "classification": "PublicNonPersonalData", "purpose": "FeatureInsight" },
 			"publisherDisplayName": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
 			"activationEvents": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-			"isBuiltin": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+			"isBuiltin": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+			"reason": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
 		}
 	*/
 	let event = {
@@ -433,7 +445,8 @@ function getTelemetryActivationEvent(extensionDescription: IExtensionDescription
 		name: extensionDescription.name,
 		publisherDisplayName: extensionDescription.publisher,
 		activationEvents: extensionDescription.activationEvents ? extensionDescription.activationEvents.join(',') : null,
-		isBuiltin: extensionDescription.isBuiltin
+		isBuiltin: extensionDescription.isBuiltin,
+		reason: reasonStr
 	};
 
 	return event;

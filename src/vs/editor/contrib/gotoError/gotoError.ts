@@ -3,29 +3,25 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import * as nls from 'vs/nls';
 import { Emitter } from 'vs/base/common/event';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
-import URI from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 import { RawContextKey, IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IMarker, IMarkerService, MarkerSeverity } from 'vs/platform/markers/common/markers';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import { registerEditorAction, registerEditorContribution, ServicesAccessor, IActionOptions, EditorAction, EditorCommand, registerEditorCommand } from 'vs/editor/browser/editorExtensions';
-import { ICodeEditor, isCodeEditor } from 'vs/editor/browser/editorBrowser';
-import { } from 'vs/platform/theme/common/colorRegistry';
+import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
-import { KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
+import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { MarkerNavigationWidget } from './gotoErrorWidget';
 import { compare } from 'vs/base/common/strings';
 import { binarySearch } from 'vs/base/common/arrays';
-import { IEditorService } from 'vs/platform/editor/common/editor';
-import { TPromise } from 'vs/base/common/winjs.base';
+import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { onUnexpectedError } from 'vs/base/common/errors';
 
 class MarkerModel {
@@ -203,7 +199,7 @@ class MarkerController implements editorCommon.IEditorContribution {
 		@IMarkerService private readonly _markerService: IMarkerService,
 		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
 		@IThemeService private readonly _themeService: IThemeService,
-		@IEditorService private readonly _editorService: IEditorService
+		@ICodeEditorService private readonly _editorService: ICodeEditorService
 	) {
 		this._editor = editor;
 		this._widgetVisible = CONTEXT_MARKERS_NAVIGATION_VISIBLE.bindTo(this._contextKeyService);
@@ -240,10 +236,10 @@ class MarkerController implements editorCommon.IEditorContribution {
 		this._disposeOnClose.push(this._model);
 		this._disposeOnClose.push(this._widget);
 		this._disposeOnClose.push(this._widget.onDidSelectRelatedInformation(related => {
-			this._editorService.openEditor({
+			this._editorService.openCodeEditor({
 				resource: related.resource,
 				options: { pinned: true, revealIfOpened: true, selection: Range.lift(related).collapseToStart() }
-			}).then(undefined, onUnexpectedError);
+			}, this._editor).then(undefined, onUnexpectedError);
 			this.closeMarkersNavigation(false);
 		}));
 		this._disposeOnClose.push(this._editor.onDidChangeModel(() => this._cleanUp()));
@@ -295,23 +291,26 @@ class MarkerNavigationAction extends EditorAction {
 
 	private _isNext: boolean;
 
-	constructor(next: boolean, opts: IActionOptions) {
+	private _multiFile: boolean;
+
+	constructor(next: boolean, multiFile: boolean, opts: IActionOptions) {
 		super(opts);
 		this._isNext = next;
+		this._multiFile = multiFile;
 	}
 
-	public run(accessor: ServicesAccessor, editor: ICodeEditor): TPromise<void> {
+	public run(accessor: ServicesAccessor, editor: ICodeEditor): Thenable<void> {
 
 		const markerService = accessor.get(IMarkerService);
-		const editorService = accessor.get(IEditorService);
+		const editorService = accessor.get(ICodeEditorService);
 		const controller = MarkerController.get(editor);
 		if (!controller) {
 			return undefined;
 		}
 
 		const model = controller.getOrCreateModel();
-		const atEdge = model.move(this._isNext, false);
-		if (!atEdge) {
+		const atEdge = model.move(this._isNext, !this._multiFile);
+		if (!atEdge || !this._multiFile) {
 			return undefined;
 		}
 
@@ -345,14 +344,14 @@ class MarkerNavigationAction extends EditorAction {
 		// for the next marker and re-start marker navigation in there
 		controller.closeMarkersNavigation();
 
-		return editorService.openEditor({
+		return editorService.openCodeEditor({
 			resource: newMarker.resource,
 			options: { pinned: false, revealIfOpened: true, revealInCenterIfOutsideViewport: true, selection: newMarker }
-		}).then(editor => {
-			if (!editor || !isCodeEditor(editor.getControl())) {
+		}, editor).then(editor => {
+			if (!editor) {
 				return undefined;
 			}
-			return (<ICodeEditor>editor.getControl()).getAction(this.id).run();
+			return editor.getAction(this.id).run();
 		});
 	}
 
@@ -370,29 +369,53 @@ class MarkerNavigationAction extends EditorAction {
 
 class NextMarkerAction extends MarkerNavigationAction {
 	constructor() {
-		super(true, {
+		super(true, false, {
 			id: 'editor.action.marker.next',
 			label: nls.localize('markerAction.next.label', "Go to Next Problem (Error, Warning, Info)"),
 			alias: 'Go to Next Error or Warning',
-			precondition: EditorContextKeys.writable,
-			kbOpts: {
-				kbExpr: EditorContextKeys.focus,
-				primary: KeyCode.F8
-			}
+			precondition: EditorContextKeys.writable
 		});
 	}
 }
 
 class PrevMarkerAction extends MarkerNavigationAction {
 	constructor() {
-		super(false, {
+		super(false, false, {
 			id: 'editor.action.marker.prev',
 			label: nls.localize('markerAction.previous.label', "Go to Previous Problem (Error, Warning, Info)"),
 			alias: 'Go to Previous Error or Warning',
+			precondition: EditorContextKeys.writable
+		});
+	}
+}
+
+class NextMarkerInFilesAction extends MarkerNavigationAction {
+	constructor() {
+		super(true, true, {
+			id: 'editor.action.marker.nextInFiles',
+			label: nls.localize('markerAction.nextInFiles.label', "Go to Next Problem in Files (Error, Warning, Info)"),
+			alias: 'Go to Next Error or Warning in Files',
 			precondition: EditorContextKeys.writable,
 			kbOpts: {
 				kbExpr: EditorContextKeys.focus,
-				primary: KeyMod.Shift | KeyCode.F8
+				primary: KeyCode.F8,
+				weight: KeybindingWeight.EditorContrib
+			}
+		});
+	}
+}
+
+class PrevMarkerInFilesAction extends MarkerNavigationAction {
+	constructor() {
+		super(false, true, {
+			id: 'editor.action.marker.prevInFiles',
+			label: nls.localize('markerAction.previousInFiles.label', "Go to Previous Problem in Files (Error, Warning, Info)"),
+			alias: 'Go to Previous Error or Warning in Files',
+			precondition: EditorContextKeys.writable,
+			kbOpts: {
+				kbExpr: EditorContextKeys.focus,
+				primary: KeyMod.Shift | KeyCode.F8,
+				weight: KeybindingWeight.EditorContrib
 			}
 		});
 	}
@@ -401,6 +424,8 @@ class PrevMarkerAction extends MarkerNavigationAction {
 registerEditorContribution(MarkerController);
 registerEditorAction(NextMarkerAction);
 registerEditorAction(PrevMarkerAction);
+registerEditorAction(NextMarkerInFilesAction);
+registerEditorAction(PrevMarkerInFilesAction);
 
 const CONTEXT_MARKERS_NAVIGATION_VISIBLE = new RawContextKey<boolean>('markersNavigationVisible', false);
 
@@ -411,7 +436,7 @@ registerEditorCommand(new MarkerCommand({
 	precondition: CONTEXT_MARKERS_NAVIGATION_VISIBLE,
 	handler: x => x.closeMarkersNavigation(),
 	kbOpts: {
-		weight: KeybindingsRegistry.WEIGHT.editorContrib(50),
+		weight: KeybindingWeight.EditorContrib + 50,
 		kbExpr: EditorContextKeys.focus,
 		primary: KeyCode.Escape,
 		secondary: [KeyMod.Shift | KeyCode.Escape]

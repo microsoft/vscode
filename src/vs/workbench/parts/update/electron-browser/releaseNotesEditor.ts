@@ -3,31 +3,30 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
-import { TPromise } from 'vs/base/common/winjs.base';
-import { marked } from 'vs/base/common/marked/marked';
-import { IModeService } from 'vs/editor/common/services/modeService';
-import { tokenizeToString } from 'vs/editor/common/modes/textToHtmlTokenizer';
-import { IMode, TokenizationRegistry } from 'vs/editor/common/modes';
-import { generateTokensCSSForColorMap } from 'vs/editor/common/modes/supports/tokenization';
-import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { KeybindingIO } from 'vs/workbench/services/keybinding/common/keybindingIO';
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { IRequestService } from 'vs/platform/request/node/request';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { IPartService } from 'vs/workbench/services/part/common/partService';
-import { IOpenerService } from 'vs/platform/opener/common/opener';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { WebviewInput } from 'vs/workbench/parts/webview/electron-browser/webviewInput';
 import { onUnexpectedError } from 'vs/base/common/errors';
-import { addGAParameters } from 'vs/platform/telemetry/node/telemetryNodeUtils';
-import URI from 'vs/base/common/uri';
-import { asText } from 'vs/base/node/request';
-import * as nls from 'vs/nls';
+import * as marked from 'vs/base/common/marked/marked';
 import { OS } from 'vs/base/common/platform';
-import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
+import { URI } from 'vs/base/common/uri';
+import { TPromise } from 'vs/base/common/winjs.base';
+import { asText } from 'vs/base/node/request';
+import { TokenizationRegistry, ITokenizationSupport } from 'vs/editor/common/modes';
+import { generateTokensCSSForColorMap } from 'vs/editor/common/modes/supports/tokenization';
+import { tokenizeToString } from 'vs/editor/common/modes/textToHtmlTokenizer';
+import { IModeService } from 'vs/editor/common/services/modeService';
+import * as nls from 'vs/nls';
+import { IEnvironmentService } from 'vs/platform/environment/common/environment';
+import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
+import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
+import { IOpenerService } from 'vs/platform/opener/common/opener';
+import { IRequestService } from 'vs/platform/request/node/request';
+import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { addGAParameters } from 'vs/platform/telemetry/node/telemetryNodeUtils';
+import { IWebviewEditorService } from 'vs/workbench/parts/webview/electron-browser/webviewEditorService';
+import { IEditorService, ACTIVE_GROUP } from 'vs/workbench/services/editor/common/editorService';
+import { WebviewEditorInput } from 'vs/workbench/parts/webview/electron-browser/webviewEditorInput';
+import { KeybindingParser } from 'vs/base/common/keybindingParser';
+import { CancellationToken } from 'vs/base/common/cancellation';
+import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 
 function renderBody(
 	body: string,
@@ -51,43 +50,62 @@ export class ReleaseNotesManager {
 
 	private _releaseNotesCache: { [version: string]: TPromise<string>; } = Object.create(null);
 
-	private _currentReleaseNotes: WebviewInput | undefined = undefined;
+	private _currentReleaseNotes: WebviewEditorInput | undefined = undefined;
+	private _lastText: string;
 
 	public constructor(
-		@IEditorGroupService private readonly _editorGroupService: IEditorGroupService,
 		@IEnvironmentService private readonly _environmentService: IEnvironmentService,
 		@IKeybindingService private readonly _keybindingService: IKeybindingService,
 		@IModeService private readonly _modeService: IModeService,
 		@IOpenerService private readonly _openerService: IOpenerService,
-		@IPartService private readonly _partService: IPartService,
 		@IRequestService private readonly _requestService: IRequestService,
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
-		@IWorkbenchEditorService private readonly _editorService: IWorkbenchEditorService,
-	) { }
+		@IEditorService private readonly _editorService: IEditorService,
+		@IWebviewEditorService private readonly _webviewEditorService: IWebviewEditorService,
+		@IExtensionService private readonly _extensionService: IExtensionService
+	) {
+		TokenizationRegistry.onDidChange(async () => {
+			if (!this._currentReleaseNotes || !this._lastText) {
+				return;
+			}
+			const html = await this.renderBody(this._lastText);
+			if (this._currentReleaseNotes) {
+				this._currentReleaseNotes.html = html;
+			}
+		});
+	}
 
 	public async show(
 		accessor: ServicesAccessor,
 		version: string
-	): TPromise<boolean> {
+	): Promise<boolean> {
 		const releaseNoteText = await this.loadReleaseNotes(version);
+		this._lastText = releaseNoteText;
 		const html = await this.renderBody(releaseNoteText);
 		const title = nls.localize('releaseNotesInputName', "Release Notes: {0}", version);
 
+		const activeControl = this._editorService.activeControl;
 		if (this._currentReleaseNotes) {
 			this._currentReleaseNotes.setName(title);
-			this._currentReleaseNotes.setHtml(html);
-			const activeEditor = this._editorService.getActiveEditor();
-			if (activeEditor && activeEditor.position !== this._currentReleaseNotes.position) {
-				this._editorGroupService.moveEditor(this._currentReleaseNotes, this._currentReleaseNotes.position, activeEditor.position, { preserveFocus: true });
-			} else {
-				this._editorService.openEditor(this._currentReleaseNotes, { preserveFocus: true });
-			}
+			this._currentReleaseNotes.html = html;
+			this._webviewEditorService.revealWebview(this._currentReleaseNotes, activeControl ? activeControl.group : undefined, false);
 		} else {
-			this._currentReleaseNotes = new WebviewInput(title, { tryRestoreScrollPosition: true, enableFindWidget: true }, html, {
-				onDidClickLink: uri => this.onDidClickLink(uri),
-				onDispose: () => { this._currentReleaseNotes = undefined; }
-			}, this._partService);
-			await this._editorService.openEditor(this._currentReleaseNotes, { pinned: true });
+			this._currentReleaseNotes = this._webviewEditorService.createWebview(
+				'releaseNotes',
+				title,
+				{ group: ACTIVE_GROUP, preserveFocus: false },
+				{ tryRestoreScrollPosition: true, enableFindWidget: true },
+				undefined, {
+					onDidClickLink: uri => this.onDidClickLink(uri),
+					onDispose: () => { this._currentReleaseNotes = undefined; }
+				});
+
+			const iconPath = URI.parse(require.toUrl('./media/code-icon.svg'));
+			this._currentReleaseNotes.iconPath = {
+				light: iconPath,
+				dark: iconPath
+			};
+			this._currentReleaseNotes.html = html;
 		}
 
 		return true;
@@ -118,7 +136,7 @@ export class ReleaseNotesManager {
 			};
 
 			const kbstyle = (match: string, kb: string) => {
-				const keybinding = KeybindingIO.readKeybinding(kb, OS);
+				const keybinding = KeybindingParser.parseKeybinding(kb, OS);
 
 				if (!keybinding) {
 					return unassigned;
@@ -139,8 +157,15 @@ export class ReleaseNotesManager {
 		};
 
 		if (!this._releaseNotesCache[version]) {
-			this._releaseNotesCache[version] = this._requestService.request({ url })
+			this._releaseNotesCache[version] = this._requestService.request({ url }, CancellationToken.None)
 				.then(asText)
+				.then(text => {
+					if (!/^#\s/.test(text)) { // release notes always starts with `#` followed by whitespace
+						return TPromise.wrapError<string>(new Error('Invalid release notes'));
+					}
+
+					return TPromise.wrap(text);
+				})
 				.then(text => patchKeybindings(text));
 		}
 
@@ -154,33 +179,34 @@ export class ReleaseNotesManager {
 	}
 
 	private async renderBody(text: string) {
+		const content = await this.renderContent(text);
 		const colorMap = TokenizationRegistry.getColorMap();
 		const css = generateTokensCSSForColorMap(colorMap);
-		const body = renderBody(await this.renderContent(text), css);
+		const body = renderBody(content, css);
 		return body;
 	}
 
-	private async renderContent(text: string): TPromise<string> {
+	private async renderContent(text: string): Promise<string> {
 		const renderer = await this.getRenderer(text);
 		return marked(text, { renderer });
 	}
 
 	private async getRenderer(text: string) {
-		const result: TPromise<IMode>[] = [];
+		let result: TPromise<ITokenizationSupport>[] = [];
 		const renderer = new marked.Renderer();
 		renderer.code = (code, lang) => {
 			const modeId = this._modeService.getModeIdForLanguageName(lang);
-			result.push(this._modeService.getOrCreateMode(modeId));
+			result.push(this._extensionService.whenInstalledExtensionsRegistered().then(_ => {
+				this._modeService.triggerMode(modeId);
+				return TokenizationRegistry.getPromise(modeId);
+			}));
 			return '';
 		};
 
 		marked(text, { renderer });
 		await TPromise.join(result);
 
-		renderer.code = (code, lang) => {
-			const modeId = this._modeService.getModeIdForLanguageName(lang);
-			return `<code>${tokenizeToString(code, modeId)}</code>`;
-		};
+		renderer.code = (code, lang) => `<code>${tokenizeToString(code, TokenizationRegistry.get(lang))}</code>`;
 		return renderer;
 	}
 }

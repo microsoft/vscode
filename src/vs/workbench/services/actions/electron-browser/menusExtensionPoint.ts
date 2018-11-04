@@ -2,16 +2,16 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
 import { localize } from 'vs/nls';
 import { isFalsyOrWhitespace } from 'vs/base/common/strings';
-import { join } from 'path';
+import * as resources from 'vs/base/common/resources';
 import { IJSONSchema } from 'vs/base/common/jsonSchema';
 import { forEach } from 'vs/base/common/collections';
 import { IExtensionPointUser, ExtensionMessageCollector, ExtensionsRegistry } from 'vs/workbench/services/extensions/common/extensionsRegistry';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { MenuId, MenuRegistry, ILocalizedString } from 'vs/platform/actions/common/actions';
+import { URI } from 'vs/base/common/uri';
 
 namespace schema {
 
@@ -286,19 +286,19 @@ ExtensionsRegistry.registerExtensionPoint<schema.IUserFriendlyCommand | schema.I
 
 		const { icon, category, title, command } = userFriendlyCommand;
 
-		let absoluteIcon: { dark: string; light?: string; };
+		let absoluteIcon: { dark: URI; light?: URI; };
 		if (icon) {
 			if (typeof icon === 'string') {
-				absoluteIcon = { dark: join(extension.description.extensionFolderPath, icon) };
+				absoluteIcon = { dark: resources.joinPath(extension.description.extensionLocation, icon) };
 			} else {
 				absoluteIcon = {
-					dark: join(extension.description.extensionFolderPath, icon.dark),
-					light: join(extension.description.extensionFolderPath, icon.light)
+					dark: resources.joinPath(extension.description.extensionLocation, icon.dark),
+					light: resources.joinPath(extension.description.extensionLocation, icon.light)
 				};
 			}
 		}
 
-		if (MenuRegistry.addCommand({ id: command, title, category, iconPath: absoluteIcon })) {
+		if (MenuRegistry.addCommand({ id: command, title, category, iconLocation: absoluteIcon })) {
 			extension.collector.info(localize('dup', "Command `{0}` appears multiple times in the `commands` section.", userFriendlyCommand.command));
 		}
 	}

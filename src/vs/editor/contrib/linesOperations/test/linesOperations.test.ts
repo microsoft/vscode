@@ -2,18 +2,16 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
-
 import * as assert from 'assert';
-import { Selection } from 'vs/editor/common/core/selection';
-import { Position } from 'vs/editor/common/core/position';
-import { Handler } from 'vs/editor/common/editorCommon';
-import { ITextModel, DefaultEndOfLine } from 'vs/editor/common/model';
-import { withTestCodeEditor } from 'vs/editor/test/browser/testCodeEditor';
-import { DeleteAllLeftAction, JoinLinesAction, TransposeAction, UpperCaseAction, LowerCaseAction, DeleteAllRightAction, InsertLineBeforeAction, InsertLineAfterAction, IndentLinesAction, SortLinesAscendingAction, SortLinesDescendingAction } from 'vs/editor/contrib/linesOperations/linesOperations';
-import { Cursor } from 'vs/editor/common/controller/cursor';
-import { TextModel } from 'vs/editor/common/model/textModel';
 import { CoreEditingCommands } from 'vs/editor/browser/controller/coreCommands';
+import { Cursor } from 'vs/editor/common/controller/cursor';
+import { Position } from 'vs/editor/common/core/position';
+import { Selection } from 'vs/editor/common/core/selection';
+import { Handler } from 'vs/editor/common/editorCommon';
+import { ITextModel } from 'vs/editor/common/model';
+import { DeleteAllLeftAction, DeleteAllRightAction, IndentLinesAction, InsertLineAfterAction, InsertLineBeforeAction, JoinLinesAction, LowerCaseAction, SortLinesAscendingAction, SortLinesDescendingAction, TransposeAction, UpperCaseAction } from 'vs/editor/contrib/linesOperations/linesOperations';
+import { withTestCodeEditor } from 'vs/editor/test/browser/testCodeEditor';
+import { createTextModel } from 'vs/editor/test/common/editorTestUtils';
 
 suite('Editor Contrib - Line Operations', () => {
 	suite('SortLinesAscendingAction', () => {
@@ -155,6 +153,101 @@ suite('Editor Contrib - Line Operations', () => {
 				});
 		});
 
+		test('should jump to the previous line when on first column', function () {
+			withTestCodeEditor(
+				[
+					'one',
+					'two',
+					'three'
+				], {}, (editor, cursor) => {
+					let model = editor.getModel();
+					let deleteAllLeftAction = new DeleteAllLeftAction();
+
+					editor.setSelection(new Selection(2, 1, 2, 1));
+					deleteAllLeftAction.run(null, editor);
+					assert.equal(model.getLineContent(1), 'onetwo', '001');
+
+					editor.setSelections([new Selection(1, 1, 1, 1), new Selection(2, 1, 2, 1)]);
+					deleteAllLeftAction.run(null, editor);
+					assert.equal(model.getLinesContent()[0], 'onetwothree');
+					assert.equal(model.getLinesContent().length, 1);
+
+					editor.setSelection(new Selection(1, 1, 1, 1));
+					deleteAllLeftAction.run(null, editor);
+					assert.equal(model.getLinesContent()[0], 'onetwothree');
+				});
+		});
+
+		test('should keep deleting lines in multi cursor mode', function () {
+			withTestCodeEditor(
+				[
+					'hi my name is Carlos Matos',
+					'BCC',
+					'waso waso waso',
+					'my wife doesnt believe in me',
+					'nonononono',
+					'bitconneeeect'
+				], {}, (editor, cursor) => {
+					let model = editor.getModel();
+					let deleteAllLeftAction = new DeleteAllLeftAction();
+
+					const beforeSecondWasoSelection = new Selection(3, 5, 3, 5);
+					const endOfBCCSelection = new Selection(2, 4, 2, 4);
+					const endOfNonono = new Selection(5, 11, 5, 11);
+
+					editor.setSelections([beforeSecondWasoSelection, endOfBCCSelection, endOfNonono]);
+					let selections;
+
+					deleteAllLeftAction.run(null, editor);
+					selections = editor.getSelections();
+
+					assert.equal(model.getLineContent(2), '');
+					assert.equal(model.getLineContent(3), ' waso waso');
+					assert.equal(model.getLineContent(5), '');
+
+					assert.deepEqual([
+						selections[0].startLineNumber,
+						selections[0].startColumn,
+						selections[0].endLineNumber,
+						selections[0].endColumn
+					], [3, 1, 3, 1]);
+
+					assert.deepEqual([
+						selections[1].startLineNumber,
+						selections[1].startColumn,
+						selections[1].endLineNumber,
+						selections[1].endColumn
+					], [2, 1, 2, 1]);
+
+					assert.deepEqual([
+						selections[2].startLineNumber,
+						selections[2].startColumn,
+						selections[2].endLineNumber,
+						selections[2].endColumn
+					], [5, 1, 5, 1]);
+
+					deleteAllLeftAction.run(null, editor);
+					selections = editor.getSelections();
+
+					assert.equal(model.getLineContent(1), 'hi my name is Carlos Matos waso waso');
+					assert.equal(selections.length, 2);
+
+					assert.deepEqual([
+						selections[0].startLineNumber,
+						selections[0].startColumn,
+						selections[0].endLineNumber,
+						selections[0].endColumn
+					], [1, 27, 1, 27]);
+
+					assert.deepEqual([
+						selections[1].startLineNumber,
+						selections[1].startColumn,
+						selections[1].endLineNumber,
+						selections[1].endColumn
+					], [2, 29, 2, 29]);
+				});
+		});
+
 		test('should work in multi cursor mode', function () {
 			withTestCodeEditor(
 				[
@@ -265,6 +358,23 @@ suite('Editor Contrib - Line Operations', () => {
 				});
 		});
 
+		test('#50471 Join lines at the end of document', function () {
+			withTestCodeEditor(
+				[
+					'hello',
+					'world'
+				], {}, (editor, cursor) => {
+					let model = editor.getModel();
+					let joinLinesAction = new JoinLinesAction();
+
+					editor.setSelection(new Selection(2, 1, 2, 1));
+					joinLinesAction.run(null, editor);
+					assert.equal(model.getLineContent(1), 'hello', '001');
+					assert.equal(model.getLineContent(2), 'world', '002');
+					assert.deepEqual(editor.getSelection().toString(), new Selection(2, 6, 2, 6).toString(), '003');
+				});
+		});
+
 		test('should work in multi cursor mode', function () {
 			withTestCodeEditor(
 				[
@@ -335,7 +445,7 @@ suite('Editor Contrib - Line Operations', () => {
 		});
 	});
 
-	test('transpose', function () {
+	test('transpose', () => {
 		withTestCodeEditor(
 			[
 				'hello world',
@@ -662,7 +772,7 @@ suite('Editor Contrib - Line Operations', () => {
 		});
 	});
 
-	test('InsertLineBeforeAction', function () {
+	test('InsertLineBeforeAction', () => {
 		function testInsertLineBefore(lineNumber: number, column: number, callback: (model: ITextModel, cursor: Cursor) => void): void {
 			const TEXT = [
 				'First line',
@@ -746,17 +856,12 @@ suite('Editor Contrib - Line Operations', () => {
 
 	test('Bug 18276:[editor] Indentation broken when selection is empty', () => {
 
-		let model = TextModel.createFromString(
+		let model = createTextModel(
 			[
 				'function baz() {'
 			].join('\n'),
 			{
-				isForSimpleWidget: false,
-				defaultEOL: DefaultEndOfLine.LF,
-				detectIndentation: false,
 				insertSpaces: false,
-				tabSize: 4,
-				trimAutoWhitespace: true
 			}
 		);
 

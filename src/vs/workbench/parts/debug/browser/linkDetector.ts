@@ -3,12 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import uri from 'vs/base/common/uri';
+import { URI as uri } from 'vs/base/common/uri';
 import { isMacintosh } from 'vs/base/common/platform';
 import * as errors from 'vs/base/common/errors';
 import { IMouseEvent, StandardMouseEvent } from 'vs/base/browser/mouseEvent';
 import * as nls from 'vs/nls';
-import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { IEditorService, SIDE_GROUP, ACTIVE_GROUP } from 'vs/workbench/services/editor/common/editorService';
 
 export class LinkDetector {
 	private static readonly MAX_LENGTH = 500;
@@ -23,7 +23,7 @@ export class LinkDetector {
 	];
 
 	constructor(
-		@IWorkbenchEditorService private editorService: IWorkbenchEditorService
+		@IEditorService private editorService: IEditorService
 	) {
 		// noop
 	}
@@ -46,7 +46,7 @@ export class LinkDetector {
 
 			let match = pattern.exec(text);
 			while (match !== null) {
-				let resource: uri = null;
+				let resource: uri | null = null;
 				if (!resource) {
 					match = pattern.exec(text);
 					continue;
@@ -96,6 +96,7 @@ export class LinkDetector {
 		}
 
 		event.preventDefault();
+		const group = event.ctrlKey || event.metaKey ? SIDE_GROUP : ACTIVE_GROUP;
 
 		this.editorService.openEditor({
 			resource,
@@ -105,6 +106,6 @@ export class LinkDetector {
 					startColumn: column
 				}
 			}
-		}, event.ctrlKey || event.metaKey).done(null, errors.onUnexpectedError);
+		}, group).then(null, errors.onUnexpectedError);
 	}
 }

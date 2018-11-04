@@ -3,11 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import { endsWith, rtrim } from 'vs/base/common/strings';
 
-export function normalizeGitHubIssuesUrl(url: string): string {
+export function normalizeGitHubUrl(url: string): string {
 	// If the url has a .git suffix, remove it
 	if (endsWith(url, '.git')) {
 		url = url.substr(0, url.length - 4);
@@ -16,15 +14,13 @@ export function normalizeGitHubIssuesUrl(url: string): string {
 	// Remove trailing slash
 	url = rtrim(url, '/');
 
-	// If the url already ends with issues/new, it's beautiful, return it
-	if (endsWith(url, 'issues/new')) {
-		return url;
+	if (endsWith(url, '/new')) {
+		url = rtrim(url, '/new');
 	}
 
-	// Add new segment if it does not exist
-	if (endsWith(url, 'issues')) {
-		return url + '/new';
+	if (endsWith(url, '/issues')) {
+		url = rtrim(url, '/issues');
 	}
 
-	return url + '/issues/new';
+	return url;
 }

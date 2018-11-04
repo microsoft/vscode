@@ -2,20 +2,19 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
 import * as assert from 'assert';
+import { WordCharacterClassifier } from 'vs/editor/common/controller/wordCharacterClassifier';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
-import { PieceTreeTextBufferBuilder } from 'vs/editor/common/model/pieceTreeTextBuffer/pieceTreeTextBufferBuilder';
 import { DefaultEndOfLine } from 'vs/editor/common/model';
 import { PieceTreeBase } from 'vs/editor/common/model/pieceTreeTextBuffer/pieceTreeBase';
-import { SENTINEL, NodeColor, TreeNode } from 'vs/editor/common/model/pieceTreeTextBuffer/rbTreeBase';
 import { PieceTreeTextBuffer } from 'vs/editor/common/model/pieceTreeTextBuffer/pieceTreeTextBuffer';
+import { PieceTreeTextBufferBuilder } from 'vs/editor/common/model/pieceTreeTextBuffer/pieceTreeTextBufferBuilder';
+import { NodeColor, SENTINEL, TreeNode } from 'vs/editor/common/model/pieceTreeTextBuffer/rbTreeBase';
 import { TextModel } from 'vs/editor/common/model/textModel';
-import { ITextSnapshot } from 'vs/platform/files/common/files';
 import { SearchData } from 'vs/editor/common/model/textModelSearch';
-import { WordCharacterClassifier } from 'vs/editor/common/controller/wordCharacterClassifier';
+import { ITextSnapshot } from 'vs/platform/files/common/files';
 
 const alphabet = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ\r\n';
 
@@ -32,7 +31,7 @@ function randomStr(len: number) {
 		len = 10;
 	}
 	return (function () {
-		var j, ref, results;
+		let j, ref, results;
 		results = [];
 		for (
 			j = 1, ref = len;
@@ -1517,7 +1516,7 @@ suite('random is unsupervised', () => {
 
 	test('random chunks', function () {
 		this.timeout(500000);
-		let chunks = [];
+		let chunks: string[] = [];
 		for (let i = 0; i < 5; i++) {
 			chunks.push(randomStr(1000));
 		}
@@ -1552,7 +1551,7 @@ suite('random is unsupervised', () => {
 
 	test('random chunks 2', function () {
 		this.timeout(500000);
-		let chunks = [];
+		let chunks: string[] = [];
 		chunks.push(randomStr(1000));
 
 		let pieceTable = createTextBuffer(chunks, false);
@@ -1613,6 +1612,28 @@ suite('buffer api', () => {
 
 	test('getLineCharCode - issue #45735', () => {
 		let pieceTable = createTextBuffer(['LINE1\nline2']);
+		assert.equal(pieceTable.getLineCharCode(1, 0), 'L'.charCodeAt(0), 'L');
+		assert.equal(pieceTable.getLineCharCode(1, 1), 'I'.charCodeAt(0), 'I');
+		assert.equal(pieceTable.getLineCharCode(1, 2), 'N'.charCodeAt(0), 'N');
+		assert.equal(pieceTable.getLineCharCode(1, 3), 'E'.charCodeAt(0), 'E');
+		assert.equal(pieceTable.getLineCharCode(1, 4), '1'.charCodeAt(0), '1');
+		assert.equal(pieceTable.getLineCharCode(1, 5), '\n'.charCodeAt(0), '\\n');
+		assert.equal(pieceTable.getLineCharCode(2, 0), 'l'.charCodeAt(0), 'l');
+		assert.equal(pieceTable.getLineCharCode(2, 1), 'i'.charCodeAt(0), 'i');
+		assert.equal(pieceTable.getLineCharCode(2, 2), 'n'.charCodeAt(0), 'n');
+		assert.equal(pieceTable.getLineCharCode(2, 3), 'e'.charCodeAt(0), 'e');
+		assert.equal(pieceTable.getLineCharCode(2, 4), '2'.charCodeAt(0), '2');
+	});
+
+
+	test('getLineCharCode - issue #47733', () => {
+		let pieceTable = createTextBuffer(['', 'LINE1\n', 'line2']);
+		assert.equal(pieceTable.getLineCharCode(1, 0), 'L'.charCodeAt(0), 'L');
+		assert.equal(pieceTable.getLineCharCode(1, 1), 'I'.charCodeAt(0), 'I');
+		assert.equal(pieceTable.getLineCharCode(1, 2), 'N'.charCodeAt(0), 'N');
+		assert.equal(pieceTable.getLineCharCode(1, 3), 'E'.charCodeAt(0), 'E');
+		assert.equal(pieceTable.getLineCharCode(1, 4), '1'.charCodeAt(0), '1');
+		assert.equal(pieceTable.getLineCharCode(1, 5), '\n'.charCodeAt(0), '\\n');
 		assert.equal(pieceTable.getLineCharCode(2, 0), 'l'.charCodeAt(0), 'l');
 		assert.equal(pieceTable.getLineCharCode(2, 1), 'i'.charCodeAt(0), 'i');
 		assert.equal(pieceTable.getLineCharCode(2, 2), 'n'.charCodeAt(0), 'n');
@@ -1674,7 +1695,7 @@ suite('search offset cache', () => {
 		pieceTable.delete(15, 2);
 		str = str.substring(0, 15) + str.substring(15 + 2);
 
-		var content = pieceTable.getLinesRawContent();
+		let content = pieceTable.getLinesRawContent();
 		assert(content === str);
 	});
 

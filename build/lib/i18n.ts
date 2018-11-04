@@ -7,15 +7,15 @@ import * as path from 'path';
 import * as fs from 'fs';
 
 import { through, readable, ThroughStream } from 'event-stream';
-import File = require('vinyl');
+import * as File from 'vinyl';
 import * as Is from 'is';
 import * as xml2js from 'xml2js';
 import * as glob from 'glob';
 import * as https from 'https';
 import * as gulp from 'gulp';
 
-var util = require('gulp-util');
-var iconv = require('iconv-lite');
+import * as util from 'gulp-util';
+import * as iconv from 'iconv-lite';
 
 const NUMBER_OF_CONCURRENT_DOWNLOADS = 4;
 
@@ -71,7 +71,7 @@ interface Map<V> {
 interface Item {
 	id: string;
 	message: string;
-	comment: string;
+	comment?: string;
 }
 
 export interface Resource {
@@ -137,27 +137,6 @@ module PackageJsonFormat {
 	}
 }
 
-interface ModuleJsonFormat {
-	messages: string[];
-	keys: (string | LocalizeInfo)[];
-}
-
-module ModuleJsonFormat {
-	export function is(value: any): value is ModuleJsonFormat {
-		let candidate = value as ModuleJsonFormat;
-		return Is.defined(candidate)
-			&& Is.array(candidate.messages) && candidate.messages.every(message => Is.string(message))
-			&& Is.array(candidate.keys) && candidate.keys.every(key => Is.string(key) || LocalizeInfo.is(key));
-	}
-}
-
-interface BundledExtensionHeaderFormat {
-	id: string;
-	type: string;
-	hash: string;
-	outDir: string;
-}
-
 interface BundledExtensionFormat {
 	[key: string]: {
 		messages: string[];
@@ -168,7 +147,7 @@ interface BundledExtensionFormat {
 export class Line {
 	private buffer: string[] = [];
 
-	constructor(private indent: number = 0) {
+	constructor(indent: number = 0) {
 		if (indent > 0) {
 			this.buffer.push(new Array(indent + 1).join(' '));
 		}
@@ -235,8 +214,8 @@ export class XLF {
 		let existingKeys = new Set<string>();
 		for (let i = 0; i < keys.length; i++) {
 			let key = keys[i];
-			let realKey: string;
-			let comment: string;
+			let realKey: string | undefined;
+			let comment: string | undefined;
 			if (Is.string(key)) {
 				realKey = key;
 				comment = undefined;
@@ -286,17 +265,17 @@ export class XLF {
 	}
 
 	static parsePseudo = function (xlfString: string): Promise<ParsedXLF[]> {
-		return new Promise((resolve, reject) => {
+		return new Promise((resolve) => {
 			let parser = new xml2js.Parser();
 			let files: { messages: Map<string>, originalFilePath: string, language: string }[] = [];
-			parser.parseString(xlfString, function (err, result) {
+			parser.parseString(xlfString, function (_err: any, result: any) {
 				const fileNodes: any[] = result['xliff']['file'];
 				fileNodes.forEach(file => {
 					const originalFilePath = file.$.original;
 					const messages: Map<string> = {};
 					const transUnits = file.body[0]['trans-unit'];
 					if (transUnits) {
-						transUnits.forEach(unit => {
+						transUnits.forEach((unit: any) => {
 							const key = unit.$.id;
 							const val = pseudify(unit.source[0]['_'].toString());
 							if (key && val) {
@@ -317,7 +296,7 @@ export class XLF {
 
 			let files: { messages: Map<string>, originalFilePath: string, language: string }[] = [];
 
-			parser.parseString(xlfString, function (err, result) {
+			parser.parseString(xlfString, function (err: any, result: any) {
 				if (err) {
 					reject(new Error(`XLF parsing error: Failed to parse XLIFF string. ${err}`));
 				}
@@ -340,7 +319,7 @@ export class XLF {
 
 					const transUnits = file.body[0]['trans-unit'];
 					if (transUnits) {
-						transUnits.forEach(unit => {
+						transUnits.forEach((unit: any) => {
 							const key = unit.$.id;
 							if (!unit.target) {
 								return; // No translation available
@@ -369,7 +348,7 @@ export interface ITask<T> {
 
 interface ILimitedTaskFactory<T> {
 	factory: ITask<Promise<T>>;
-	c: (value?: T | Thenable<T>) => void;
+	c: (value?: T | Promise<T>) => void;
 	e: (error?: any) => void;
 }
 
@@ -391,7 +370,7 @@ export class Limiter<T> {
 
 	private consume(): void {
 		while (this.outstandingPromises.length && this.runningPromises < this.maxDegreeOfParalellism) {
-			const iLimitedTask = this.outstandingPromises.shift();
+			const iLimitedTask = this.outstandingPromises.shift()!;
 			this.runningPromises++;
 
 			const promise = iLimitedTask.factory();
@@ -419,8 +398,8 @@ function stripComments(content: string): string {
 	* Third matches block comments
 	* Fourth matches line comments
 	*/
-	var regexp: RegExp = /("(?:[^\\\"]*(?:\\.)?)*")|('(?:[^\\\']*(?:\\.)?)*')|(\/\*(?:\r?\n|.)*?\*\/)|(\/{2,}.*?(?:(?:\r?\n)|$))/g;
-	let result = content.replace(regexp, (match, m1, m2, m3, m4) => {
+	const regexp = /("(?:[^\\\"]*(?:\\.)?)*")|('(?:[^\\\']*(?:\\.)?)*')|(\/\*(?:\r?\n|.)*?\*\/)|(\/{2,}.*?(?:(?:\r?\n)|$))/g;
+	let result = content.replace(regexp, (match, _m1, _m2, m3, m4) => {
 		// Only one of m1, m2, m3, m4 matches
 		if (m3) {
 			// A block comment. Replace with nothing
@@ -442,9 +421,9 @@ function stripComments(content: string): string {
 }
 
 function escapeCharacters(value: string): string {
-	var result: string[] = [];
-	for (var i = 0; i < value.length; i++) {
-		var ch = value.charAt(i);
+	const result: string[] = [];
+	for (let i = 0; i < value.length; i++) {
+		const ch = value.charAt(i);
 		switch (ch) {
 			case '\'':
 				result.push('\\\'');
@@ -484,7 +463,6 @@ function processCoreBundleFormat(fileHeader: string, languages: Language[], json
 
 	let statistics: Map<number> = Object.create(null);
 
-	let total: number = 0;
 	let defaultMessages: Map<Map<string>> = Object.create(null);
 	let modules = Object.keys(keysSection);
 	modules.forEach((module) => {
@@ -497,7 +475,6 @@ function processCoreBundleFormat(fileHeader: string, languages: Language[], json
 		let messageMap: Map<string> = Object.create(null);
 		defaultMessages[module] = messageMap;
 		keys.map((key, i) => {
-			total++;
 			if (typeof key === 'string') {
 				messageMap[key] = messages[i];
 			} else {
@@ -520,7 +497,7 @@ function processCoreBundleFormat(fileHeader: string, languages: Language[], json
 		modules.forEach((module) => {
 			let order = keysSection[module];
 			let i18nFile = path.join(cwd, module) + '.i18n.json';
-			let messages: Map<string> = null;
+			let messages: Map<string> | null = null;
 			if (fs.existsSync(i18nFile)) {
 				let content = stripComments(fs.readFileSync(i18nFile, 'utf8'));
 				messages = JSON.parse(content);
@@ -533,13 +510,13 @@ function processCoreBundleFormat(fileHeader: string, languages: Language[], json
 			}
 			let localizedMessages: string[] = [];
 			order.forEach((keyInfo) => {
-				let key: string = null;
+				let key: string | null = null;
 				if (typeof keyInfo === 'string') {
 					key = keyInfo;
 				} else {
 					key = keyInfo.key;
 				}
-				let message: string = messages[key];
+				let message: string = messages![key];
 				if (!message) {
 					if (process.env['VSCODE_BUILD_VERBOSE']) {
 						log(`No localized message found for key ${key} in module ${module}. Using default message.`);
@@ -816,8 +793,8 @@ export function createXlfFilesForIsl(): ThroughStream {
 }
 
 export function pushXlfFiles(apiHostname: string, username: string, password: string): ThroughStream {
-	let tryGetPromises = [];
-	let updateCreatePromises = [];
+	let tryGetPromises: Array<Promise<boolean>> = [];
+	let updateCreatePromises: Array<Promise<boolean>> = [];
 
 	return through(function (this: ThroughStream, file: File) {
 		const project = path.dirname(file.relative);
@@ -882,7 +859,7 @@ function getAllResources(project: string, apiHostname: string, username: string,
 
 export function findObsoleteResources(apiHostname: string, username: string, password: string): ThroughStream {
 	let resourcesByProject: Map<string[]> = Object.create(null);
-	resourcesByProject[extensionsProject] = [].concat(externalExtensionsWithTranslations); // clone
+	resourcesByProject[extensionsProject] = ([] as any[]).concat(externalExtensionsWithTranslations); // clone
 
 	return through(function (this: ThroughStream, file: File) {
 		const project = path.dirname(file.relative);
@@ -899,7 +876,7 @@ export function findObsoleteResources(apiHostname: string, username: string, pas
 
 		const json = JSON.parse(fs.readFileSync('./build/lib/i18n.resources.json', 'utf8'));
 		let i18Resources = [...json.editor, ...json.workbench].map((r: Resource) => r.project + '/' + r.name.replace(/\//g, '_'));
-		let extractedResources = [];
+		let extractedResources: string[] = [];
 		for (let project of [workbenchProject, editorProject]) {
 			for (let resource of resourcesByProject[project]) {
 				if (resource !== 'setup_messages') {
@@ -912,7 +889,7 @@ export function findObsoleteResources(apiHostname: string, username: string, pas
 			console.log(`[i18n] Missing resources in file 'build/lib/i18n.resources.json': JSON.stringify(${extractedResources.filter(p => i18Resources.indexOf(p) === -1)})`);
 		}
 
-		let promises = [];
+		let promises: Array<Promise<void>> = [];
 		for (let project in resourcesByProject) {
 			promises.push(
 				getAllResources(project, apiHostname, username, password).then(resources => {
@@ -957,7 +934,7 @@ function tryGetResource(project: string, slug: string, apiHostname: string, cred
 }
 
 function createResource(project: string, slug: string, xlfFile: File, apiHostname: string, credentials: any): Promise<any> {
-	return new Promise((resolve, reject) => {
+	return new Promise((_resolve, reject) => {
 		const data = JSON.stringify({
 			'content': xlfFile.contents.toString(),
 			'name': slug,
@@ -1048,8 +1025,8 @@ export function pullCoreAndExtensionsXlfFiles(apiHostname: string, username: str
 
 		// extensions
 		let extensionsToLocalize = Object.create(null);
-		glob.sync('./extensions/**/*.nls.json', ).forEach(extension => extensionsToLocalize[extension.split('/')[2]] = true);
-		glob.sync('./extensions/*/node_modules/vscode-nls', ).forEach(extension => extensionsToLocalize[extension.split('/')[2]] = true);
+		glob.sync('./extensions/**/*.nls.json').forEach(extension => extensionsToLocalize[extension.split('/')[2]] = true);
+		glob.sync('./extensions/*/node_modules/vscode-nls').forEach(extension => extensionsToLocalize[extension.split('/')[2]] = true);
 
 		Object.keys(extensionsToLocalize).forEach(extension => {
 			_coreAndExtensionResources.push({ name: extension, project: extensionsProject });
@@ -1077,7 +1054,7 @@ function pullXlfFiles(apiHostname: string, username: string, password: string, l
 	let expectedTranslationsCount = resources.length;
 	let translationsRetrieved = 0, called = false;
 
-	return readable(function (count, callback) {
+	return readable(function (_count: any, callback: any) {
 		// Mark end of stream when all resources were retrieved
 		if (translationsRetrieved === expectedTranslationsCount) {
 			return this.emit('end');
@@ -1087,7 +1064,7 @@ function pullXlfFiles(apiHostname: string, username: string, password: string, l
 			called = true;
 			const stream = this;
 			resources.map(function (resource) {
-				retrieveResource(language, resource, apiHostname, credentials).then((file: File) => {
+				retrieveResource(language, resource, apiHostname, credentials).then((file: File | null) => {
 					if (file) {
 						stream.emit('data', file);
 					}
@@ -1099,10 +1076,10 @@ function pullXlfFiles(apiHostname: string, username: string, password: string, l
 		callback();
 	});
 }
-const limiter = new Limiter<File>(NUMBER_OF_CONCURRENT_DOWNLOADS);
+const limiter = new Limiter<File | null>(NUMBER_OF_CONCURRENT_DOWNLOADS);
 
-function retrieveResource(language: Language, resource: Resource, apiHostname, credentials): Promise<File> {
-	return limiter.queue(() => new Promise<File>((resolve, reject) => {
+function retrieveResource(language: Language, resource: Resource, apiHostname: string, credentials: string): Promise<File | null> {
+	return limiter.queue(() => new Promise<File | null>((resolve, reject) => {
 		const slug = resource.name.replace(/\//g, '_');
 		const project = resource.project;
 		let transifexLanguageId = language.id === 'ps' ? 'en' : language.transifexId || language.id;
@@ -1205,7 +1182,6 @@ export function prepareI18nPackFiles(externalExtensions: Map<string>, resultingT
 	let mainPack: I18nPack = { version: i18nPackVersion, contents: {} };
 	let extensionsPacks: Map<I18nPack> = {};
 	return through(function (this: ThroughStream, xlf: File) {
-		let stream = this;
 		let project = path.dirname(xlf.path);
 		let resource = path.basename(xlf.path, '.xlf');
 		let contents = xlf.contents.toString();
@@ -1298,7 +1274,7 @@ function createIslFile(originalFilePath: string, messages: Map<string>, language
 			let firstChar = line.charAt(0);
 			if (firstChar === '[' || firstChar === ';') {
 				if (line === '; *** Inno Setup version 5.5.3+ English messages ***') {
-					content.push(`; *** Inno Setup version 5.5.3+ ${innoSetup.defaultInfo.name} messages ***`);
+					content.push(`; *** Inno Setup version 5.5.3+ ${innoSetup.defaultInfo!.name} messages ***`);
 				} else {
 					content.push(line);
 				}
@@ -1308,9 +1284,9 @@ function createIslFile(originalFilePath: string, messages: Map<string>, language
 				let translated = line;
 				if (key) {
 					if (key === 'LanguageName') {
-						translated = `${key}=${innoSetup.defaultInfo.name}`;
+						translated = `${key}=${innoSetup.defaultInfo!.name}`;
 					} else if (key === 'LanguageID') {
-						translated = `${key}=${innoSetup.defaultInfo.id}`;
+						translated = `${key}=${innoSetup.defaultInfo!.id}`;
 					} else if (key === 'LanguageCodePage') {
 						translated = `${key}=${innoSetup.codePage.substr(2)}`;
 					} else {
@@ -1331,14 +1307,14 @@ function createIslFile(originalFilePath: string, messages: Map<string>, language
 
 	return new File({
 		path: filePath,
-		contents: iconv.encode(Buffer.from(content.join('\r\n'), 'utf8'), innoSetup.codePage)
+		contents: iconv.encode(Buffer.from(content.join('\r\n'), 'utf8').toString(), innoSetup.codePage)
 	});
 }
 
 function encodeEntities(value: string): string {
-	var result: string[] = [];
-	for (var i = 0; i < value.length; i++) {
-		var ch = value[i];
+	let result: string[] = [];
+	for (let i = 0; i < value.length; i++) {
+		let ch = value[i];
 		switch (ch) {
 			case '<':
 				result.push('&lt;');

@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import { localize } from 'vs/nls';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { IWindowsMainService } from 'vs/platform/windows/electron-main/windows';
@@ -14,8 +12,8 @@ import { BrowserWindow, app } from 'electron';
 type LoginEvent = {
 	event: Electron.Event;
 	webContents: Electron.WebContents;
-	req: Electron.LoginRequest;
-	authInfo: Electron.LoginAuthInfo;
+	req: Electron.Request;
+	authInfo: Electron.AuthInfo;
 	cb: (username: string, password: string) => void;
 };
 

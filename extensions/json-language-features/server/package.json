@@ -10,18 +10,18 @@
   "bin": {
     "vscode-json-languageserver": "./bin/vscode-json-languageserver"
   },
+  "main": "./out/jsonServerMain",
   "dependencies": {
-    "jsonc-parser": "^2.0.0-next.1",
-    "request-light": "^0.2.2",
-    "vscode-json-languageservice": "^3.0.13",
-    "vscode-languageserver": "^4.0.0",
-    "vscode-languageserver-protocol-foldingprovider": "^1.0.1",
-    "vscode-nls": "^3.2.2",
-    "vscode-uri": "^1.0.3"
+    "jsonc-parser": "^2.0.2",
+    "request-light": "^0.2.4",
+    "vscode-json-languageservice": "^3.2.1",
+    "vscode-languageserver": "^5.1.0",
+    "vscode-nls": "^4.0.0",
+    "vscode-uri": "^1.0.6"
   },
   "devDependencies": {
     "@types/mocha": "2.2.33",
-    "@types/node": "7.0.43"
+    "@types/node": "^8.10.25"
   },
   "scripts": {
     "prepublishOnly": "npm run clean && npm run test",
@@ -33,7 +33,6 @@
     "install-service-local": "yarn link vscode-json-languageservice",
     "install-server-next": "yarn add vscode-languageserver@next",
     "install-server-local": "yarn link vscode-languageserver-server",
-    "test": "npm run compile && ../../../node_modules/.bin/mocha",
     "version": "git commit -m \"JSON Language Server $npm_package_version\" package.json"
   }
 }

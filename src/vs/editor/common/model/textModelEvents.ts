@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import { IRange } from 'vs/editor/common/core/range';
 
 /**
@@ -32,6 +30,10 @@ export interface IModelContentChange {
 	 * The range that got replaced.
 	 */
 	readonly range: IRange;
+	/**
+	 * The offset of the range that got replaced.
+	 */
+	readonly rangeOffset: number;
 	/**
 	 * The length of the range that got replaced.
 	 */
@@ -236,7 +238,7 @@ export class ModelRawContentChangedEvent {
 	}
 
 	public static merge(a: ModelRawContentChangedEvent, b: ModelRawContentChangedEvent): ModelRawContentChangedEvent {
-		const changes = [].concat(a.changes).concat(b.changes);
+		const changes = ([] as ModelRawChange[]).concat(a.changes).concat(b.changes);
 		const versionId = b.versionId;
 		const isUndoing = (a.isUndoing || b.isUndoing);
 		const isRedoing = (a.isRedoing || b.isRedoing);
@@ -260,7 +262,7 @@ export class InternalModelContentChangeEvent {
 	}
 
 	private static _mergeChangeEvents(a: IModelContentChangedEvent, b: IModelContentChangedEvent): IModelContentChangedEvent {
-		const changes = [].concat(a.changes).concat(b.changes);
+		const changes = ([] as IModelContentChange[]).concat(a.changes).concat(b.changes);
 		const eol = b.eol;
 		const versionId = b.versionId;
 		const isUndoing = (a.isUndoing || b.isUndoing);

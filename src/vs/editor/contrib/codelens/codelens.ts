@@ -3,37 +3,34 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
-import { illegalArgument, onUnexpectedExternalError } from 'vs/base/common/errors';
 import { mergeSort } from 'vs/base/common/arrays';
-import URI from 'vs/base/common/uri';
-import { TPromise } from 'vs/base/common/winjs.base';
-import { ITextModel } from 'vs/editor/common/model';
+import { CancellationToken } from 'vs/base/common/cancellation';
+import { illegalArgument, onUnexpectedExternalError } from 'vs/base/common/errors';
+import { URI } from 'vs/base/common/uri';
 import { registerLanguageCommand } from 'vs/editor/browser/editorExtensions';
-import { CodeLensProviderRegistry, CodeLensProvider, ICodeLensSymbol } from 'vs/editor/common/modes';
+import { ITextModel } from 'vs/editor/common/model';
+import { CodeLensProvider, CodeLensProviderRegistry, ICodeLensSymbol } from 'vs/editor/common/modes';
 import { IModelService } from 'vs/editor/common/services/modelService';
-import { asWinJsPromise } from 'vs/base/common/async';
 
 export interface ICodeLensData {
 	symbol: ICodeLensSymbol;
 	provider: CodeLensProvider;
 }
 
-export function getCodeLensData(model: ITextModel): TPromise<ICodeLensData[]> {
+export function getCodeLensData(model: ITextModel, token: CancellationToken): Promise<ICodeLensData[]> {
 
 	const symbols: ICodeLensData[] = [];
 	const provider = CodeLensProviderRegistry.ordered(model);
 
-	const promises = provider.map(provider => asWinJsPromise(token => provider.provideCodeLenses(model, token)).then(result => {
+	const promises = provider.map(provider => Promise.resolve(provider.provideCodeLenses(model, token)).then(result => {
 		if (Array.isArray(result)) {
 			for (let symbol of result) {
 				symbols.push({ symbol, provider });
 			}
 		}
-	}, onUnexpectedExternalError));
+	}).catch(onUnexpectedExternalError));
 
-	return TPromise.join(promises).then(() => {
+	return Promise.all(promises).then(() => {
 
 		return mergeSort(symbols, (a, b) => {
 			// sort by lineNumber, provider-rank, and column
@@ -58,7 +55,7 @@ export function getCodeLensData(model: ITextModel): TPromise<ICodeLensData[]> {
 
 registerLanguageCommand('_executeCodeLensProvider', function (accessor, args) {
 
-	const { resource } = args;
+	let { resource, itemResolveCount } = args;
 	if (!(resource instanceof URI)) {
 		throw illegalArgument();
 	}
@@ -68,5 +65,22 @@ registerLanguageCommand('_executeCodeLensProvider', function (accessor, args) {
 		throw illegalArgument();
 	}
 
-	return getCodeLensData(model).then(value => value.map(item => item.symbol));
+	const result: ICodeLensSymbol[] = [];
+	return getCodeLensData(model, CancellationToken.None).then(value => {
+
+		let resolve: Thenable<any>[] = [];
+
+		for (const item of value) {
+			if (typeof itemResolveCount === 'undefined' || Boolean(item.symbol.command)) {
+				result.push(item.symbol);
+			} else if (itemResolveCount-- > 0 && item.provider.resolveCodeLens) {
+				resolve.push(Promise.resolve(item.provider.resolveCodeLens(model, item.symbol, CancellationToken.None)).then(symbol => result.push(symbol || item.symbol)));
+			}
+		}
+
+		return Promise.all(resolve);
+
+	}).then(() => {
+		return result;
+	});
 });

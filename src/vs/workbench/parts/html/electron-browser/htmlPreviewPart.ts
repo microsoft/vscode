@@ -3,15 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import { localize } from 'vs/nls';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { ITextModel } from 'vs/editor/common/model';
-import { Dimension, Builder } from 'vs/base/browser/builder';
-import { empty as EmptyDisposable, IDisposable, dispose, IReference } from 'vs/base/common/lifecycle';
-import { EditorOptions, EditorInput } from 'vs/workbench/common/editor';
-import { Position } from 'vs/platform/editor/common/editor';
+import { Disposable, IDisposable, dispose, IReference } from 'vs/base/common/lifecycle';
+import { EditorOptions, EditorInput, IEditorMemento } from 'vs/workbench/common/editor';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { BaseTextEditorModel } from 'vs/workbench/common/editor/textEditorModel';
 import { HtmlInput, HtmlInputOptions, areHtmlInputOptionsEqual } from 'vs/workbench/parts/html/common/htmlInput';
@@ -19,15 +15,14 @@ import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { ITextModelService, ITextEditorModel } from 'vs/editor/common/services/resolverService';
 import { Parts, IPartService } from 'vs/workbench/services/part/common/partService';
-import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-
-import { Webview, WebviewOptions } from './webview';
 import { IStorageService } from 'vs/platform/storage/common/storage';
-import { BaseWebviewEditor } from './baseWebviewEditor';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import URI from 'vs/base/common/uri';
-import { Scope } from 'vs/workbench/common/memento';
+import { Dimension } from 'vs/base/browser/dom';
+import { BaseWebviewEditor } from 'vs/workbench/parts/webview/electron-browser/baseWebviewEditor';
+import { WebviewElement, WebviewOptions } from 'vs/workbench/parts/webview/electron-browser/webviewElement';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { IEditorGroupsService, IEditorGroup } from 'vs/workbench/services/group/common/editorGroupsService';
+import { CancellationToken } from 'vs/base/common/cancellation';
 
 export interface HtmlPreviewEditorViewState {
 	scrollYPercentage: number;
@@ -45,24 +40,28 @@ export class HtmlPreviewPart extends BaseWebviewEditor {
 
 	private _modelRef: IReference<ITextEditorModel>;
 	public get model(): ITextModel { return this._modelRef && this._modelRef.object.textEditorModel; }
-	private _modelChangeSubscription = EmptyDisposable;
-	private _themeChangeSubscription = EmptyDisposable;
+	private _modelChangeSubscription = Disposable.None;
+	private _themeChangeSubscription = Disposable.None;
 
 	private _content: HTMLElement;
 	private _scrollYPercentage: number = 0;
+
+	private editorMemento: IEditorMemento<HtmlPreviewEditorViewState>;
 
 	constructor(
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IThemeService themeService: IThemeService,
 		@IContextKeyService contextKeyService: IContextKeyService,
-		@IContextViewService private readonly _contextViewService: IContextViewService,
-		@IEnvironmentService private readonly _environmentService: IEnvironmentService,
 		@IOpenerService private readonly _openerService: IOpenerService,
 		@IPartService private readonly _partService: IPartService,
-		@IStorageService private readonly _storageService: IStorageService,
-		@ITextModelService private readonly _textModelResolverService: ITextModelService
+		@IStorageService readonly _storageService: IStorageService,
+		@ITextModelService private readonly _textModelResolverService: ITextModelService,
+		@IInstantiationService private readonly _instantiationService: IInstantiationService,
+		@IEditorGroupsService readonly editorGroupService: IEditorGroupsService
 	) {
-		super(HtmlPreviewPart.ID, telemetryService, themeService, contextKeyService);
+		super(HtmlPreviewPart.ID, telemetryService, themeService, contextKeyService, _storageService);
+
+		this.editorMemento = this.getEditorMemento<HtmlPreviewEditorViewState>(editorGroupService, this.viewStateStorageKey);
 	}
 
 	dispose(): void {
@@ -73,32 +72,27 @@ export class HtmlPreviewPart extends BaseWebviewEditor {
 		this._themeChangeSubscription.dispose();
 		this._modelChangeSubscription.dispose();
 
-		// dipose model ref
+		// dispose model ref
 		dispose(this._modelRef);
 		super.dispose();
 	}
 
-	protected createEditor(parent: Builder): void {
+	protected createEditor(parent: HTMLElement): void {
 		this._content = document.createElement('div');
 		this._content.style.position = 'absolute';
 		this._content.classList.add(HtmlPreviewPart.class);
-		parent.getHTMLElement().appendChild(this._content);
+		parent.appendChild(this._content);
 	}
 
-	private get webview(): Webview {
+	private get webview(): WebviewElement {
 		if (!this._webview) {
 			let webviewOptions: WebviewOptions = {};
 			if (this.input && this.input instanceof HtmlInput) {
 				webviewOptions = this.input.options;
 			}
 
-			this._webview = new Webview(
+			this._webview = this._instantiationService.createInstance(WebviewElement,
 				this._partService.getContainer(Parts.EDITOR_PART),
-				this.themeService,
-				this._environmentService,
-				this._contextViewService,
-				this.contextKey,
-				this.findInputFocusContextKey,
 				{
 					...webviewOptions,
 					useSameOriginForRoot: true
@@ -106,7 +100,7 @@ export class HtmlPreviewPart extends BaseWebviewEditor {
 			this._webview.mountTo(this._content);
 
 			if (this.input && this.input instanceof HtmlInput) {
-				const state = this.loadViewState(this.input.getResource());
+				const state = this.loadHTMLPreviewViewState(this.input);
 				this._scrollYPercentage = state ? state.scrollYPercentage : 0;
 				this.webview.initialScrollProgress = this._scrollYPercentage;
 
@@ -124,18 +118,9 @@ export class HtmlPreviewPart extends BaseWebviewEditor {
 		return this._webview;
 	}
 
-	public changePosition(position: Position): void {
-		// what this actually means is that we got reparented. that
-		// has caused the webview to stop working and we need to reset it
-		this._doSetVisible(false);
-		this._doSetVisible(true);
-
-		super.changePosition(position);
-	}
-
-	protected setEditorVisible(visible: boolean, position?: Position): void {
+	protected setEditorVisible(visible: boolean, group: IEditorGroup): void {
 		this._doSetVisible(visible);
-		super.setEditorVisible(visible, position);
+		super.setEditorVisible(visible, group);
 	}
 
 	private _doSetVisible(visible: boolean): void {
@@ -168,7 +153,7 @@ export class HtmlPreviewPart extends BaseWebviewEditor {
 
 	public clearInput(): void {
 		if (this.input instanceof HtmlInput) {
-			this.saveViewState(this.input.getResource(), {
+			this.saveHTMLPreviewViewState(this.input, {
 				scrollYPercentage: this._scrollYPercentage
 			});
 		}
@@ -177,20 +162,21 @@ export class HtmlPreviewPart extends BaseWebviewEditor {
 		super.clearInput();
 	}
 
-	public shutdown(): void {
+	protected saveState(): void {
 		if (this.input instanceof HtmlInput) {
-			this.saveViewState(this.input.getResource(), {
+			this.saveHTMLPreviewViewState(this.input, {
 				scrollYPercentage: this._scrollYPercentage
 			});
 		}
-		super.shutdown();
+
+		super.saveState();
 	}
 
 	public sendMessage(data: any): void {
 		this.webview.sendMessage(data);
 	}
 
-	public setInput(input: EditorInput, options?: EditorOptions): TPromise<void> {
+	public setInput(input: EditorInput, options: EditorOptions, token: CancellationToken): Thenable<void> {
 
 		if (this.input && this.input.matches(input) && this._hasValidModel() && this.input instanceof HtmlInput && input instanceof HtmlInput && areHtmlInputOptionsEqual(this.input.options, input.options)) {
 			return TPromise.as(undefined);
@@ -200,7 +186,7 @@ export class HtmlPreviewPart extends BaseWebviewEditor {
 
 		if (this.input instanceof HtmlInput) {
 			oldOptions = this.input.options;
-			this.saveViewState(this.input.getResource(), {
+			this.saveHTMLPreviewViewState(this.input, {
 				scrollYPercentage: this._scrollYPercentage
 			});
 		}
@@ -214,11 +200,14 @@ export class HtmlPreviewPart extends BaseWebviewEditor {
 			return TPromise.wrapError<void>(new Error('Invalid input'));
 		}
 
-		return super.setInput(input, options).then(() => {
+		return super.setInput(input, options, token).then(() => {
 			const resourceUri = input.getResource();
 			return this._textModelResolverService.createModelReference(resourceUri).then(ref => {
-				const model = ref.object;
+				if (token.isCancellationRequested) {
+					return undefined;
+				}
 
+				const model = ref.object;
 				if (model instanceof BaseTextEditorModel) {
 					this._modelRef = ref;
 				}
@@ -237,7 +226,7 @@ export class HtmlPreviewPart extends BaseWebviewEditor {
 						this.webview.contents = this.model.getLinesContent().join('\n');
 					}
 				});
-				const state = this.loadViewState(resourceUri);
+				const state = this.loadHTMLPreviewViewState(input);
 				this._scrollYPercentage = state ? state.scrollYPercentage : 0;
 				this.webview.baseUrl = resourceUri.toString(true);
 				this.webview.options = input.options;
@@ -253,34 +242,11 @@ export class HtmlPreviewPart extends BaseWebviewEditor {
 		return this.getId() + '.editorViewState';
 	}
 
-	protected saveViewState(resource: URI | string, editorViewState: HtmlPreviewEditorViewState): void {
-		const memento = this.getMemento(this._storageService, Scope.WORKSPACE);
-		let editorViewStateMemento: { [key: string]: { [position: number]: HtmlPreviewEditorViewState } } = memento[this.viewStateStorageKey];
-		if (!editorViewStateMemento) {
-			editorViewStateMemento = Object.create(null);
-			memento[this.viewStateStorageKey] = editorViewStateMemento;
-		}
-
-		let fileViewState = editorViewStateMemento[resource.toString()];
-		if (!fileViewState) {
-			fileViewState = Object.create(null);
-			editorViewStateMemento[resource.toString()] = fileViewState;
-		}
-
-		if (typeof this.position === 'number') {
-			fileViewState[this.position] = editorViewState;
-		}
+	private saveHTMLPreviewViewState(input: HtmlInput, editorViewState: HtmlPreviewEditorViewState): void {
+		this.editorMemento.saveEditorState(this.group, input, editorViewState);
 	}
 
-	protected loadViewState(resource: URI | string): HtmlPreviewEditorViewState | null {
-		const memento = this.getMemento(this._storageService, Scope.WORKSPACE);
-		const editorViewStateMemento: { [key: string]: { [position: number]: HtmlPreviewEditorViewState } } = memento[this.viewStateStorageKey];
-		if (editorViewStateMemento) {
-			const fileViewState = editorViewStateMemento[resource.toString()];
-			if (fileViewState) {
-				return fileViewState[this.position];
-			}
-		}
-		return null;
+	private loadHTMLPreviewViewState(input: HtmlInput): HtmlPreviewEditorViewState {
+		return this.editorMemento.loadEditorState(this.group, input);
 	}
 }

@@ -2,17 +2,15 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
 import * as path from 'path';
+import * as fs from 'fs';
 import * as nls from 'vscode-nls';
 const localize = nls.loadMessageBundle();
 
-import { workspace, languages, ExtensionContext, extensions, Uri, LanguageConfiguration, TextDocument, FoldingRangeList, FoldingRange, Disposable, FoldingContext } from 'vscode';
-import { LanguageClient, LanguageClientOptions, RequestType, ServerOptions, TransportKind, NotificationType, DidChangeConfigurationNotification, CancellationToken } from 'vscode-languageclient';
+import { workspace, window, languages, commands, ExtensionContext, extensions, Uri, LanguageConfiguration, Diagnostic, StatusBarAlignment, TextEditor } from 'vscode';
+import { LanguageClient, LanguageClientOptions, RequestType, ServerOptions, TransportKind, NotificationType, DidChangeConfigurationNotification, HandleDiagnosticsSignature } from 'vscode-languageclient';
 import TelemetryReporter from 'vscode-extension-telemetry';
-
-import { FoldingRangesRequest, FoldingRangeRequestParam } from 'vscode-languageserver-protocol-foldingprovider';
 
 import { hash } from './utils/hash';
 
@@ -22,6 +20,10 @@ namespace VSCodeContentRequest {
 
 namespace SchemaContentChangeNotification {
 	export const type: NotificationType<string, any> = new NotificationType('json/schemaContent');
+}
+
+namespace ForceValidateRequest {
+	export const type: RequestType<string, Diagnostic[], any, any> = new RequestType('json/validate');
 }
 
 export interface ISchemaAssociations {
@@ -64,8 +66,9 @@ export function activate(context: ExtensionContext) {
 	let packageInfo = getPackageInfo(context);
 	telemetryReporter = packageInfo && new TelemetryReporter(packageInfo.name, packageInfo.version, packageInfo.aiKey);
 
-	// The server is implemented in node
-	let serverModule = context.asAbsolutePath(path.join('server', 'out', 'jsonServerMain.js'));
+	let serverMain = readJSONFile(context.asAbsolutePath('./server/package.json')).main;
+	let serverModule = context.asAbsolutePath(path.join('server', serverMain));
+
 	// The debug options for the server
 	let debugOptions = { execArgv: ['--nolazy', '--inspect=' + (9000 + Math.round(Math.random() * 10000))] };
 
@@ -77,6 +80,14 @@ export function activate(context: ExtensionContext) {
 	};
 
 	let documentSelector = ['json', 'jsonc'];
+
+	let schemaResolutionErrorStatusBarItem = window.createStatusBarItem(StatusBarAlignment.Right, 0);
+	schemaResolutionErrorStatusBarItem.command = '_json.retryResolveSchema';
+	schemaResolutionErrorStatusBarItem.tooltip = localize('json.schemaResolutionErrorMessage', 'Unable to resolve schema.') + ' ' + localize('json.clickToRetry', 'Click to retry.');
+	schemaResolutionErrorStatusBarItem.text = '$(alert)';
+	toDispose.push(schemaResolutionErrorStatusBarItem);
+
+	let fileSchemaErrors = new Map<string, string>();
 
 	// Options to control the language client
 	let clientOptions: LanguageClientOptions = {
@@ -90,6 +101,23 @@ export function activate(context: ExtensionContext) {
 		middleware: {
 			workspace: {
 				didChangeConfiguration: () => client.sendNotification(DidChangeConfigurationNotification.type, { settings: getSettings() })
+			},
+			handleDiagnostics: (uri: Uri, diagnostics: Diagnostic[], next: HandleDiagnosticsSignature) => {
+				const schemaErrorIndex = diagnostics.findIndex(candidate => candidate.code === /* SchemaResolveError */ 0x300);
+
+				if (schemaErrorIndex === -1) {
+					fileSchemaErrors.delete(uri.toString());
+					return next(uri, diagnostics);
+				}
+
+				const schemaResolveDiagnostic = diagnostics[schemaErrorIndex];
+				fileSchemaErrors.set(uri.toString(), schemaResolveDiagnostic.message);
+
+				if (window.activeTextEditor && window.activeTextEditor.document.uri.toString() === uri.toString()) {
+					schemaResolutionErrorStatusBarItem.show();
+				}
+
+				next(uri, diagnostics);
 			}
 		}
 	};
@@ -122,12 +150,49 @@ export function activate(context: ExtensionContext) {
 				client.sendNotification(SchemaContentChangeNotification.type, uri.toString());
 			}
 		};
+
+		let handleActiveEditorChange = (activeEditor?: TextEditor) => {
+			if (!activeEditor) {
+				return;
+			}
+
+			const activeDocUri = activeEditor.document.uri.toString();
+
+			if (activeDocUri && fileSchemaErrors.has(activeDocUri)) {
+				schemaResolutionErrorStatusBarItem.show();
+			} else {
+				schemaResolutionErrorStatusBarItem.hide();
+			}
+		};
+
 		toDispose.push(workspace.onDidChangeTextDocument(e => handleContentChange(e.document.uri)));
-		toDispose.push(workspace.onDidCloseTextDocument(d => handleContentChange(d.uri)));
+		toDispose.push(workspace.onDidCloseTextDocument(d => {
+			handleContentChange(d.uri);
+			fileSchemaErrors.delete(d.uri.toString());
+		}));
+		toDispose.push(window.onDidChangeActiveTextEditor(handleActiveEditorChange));
+
+		let handleRetryResolveSchemaCommand = () => {
+			if (window.activeTextEditor) {
+				schemaResolutionErrorStatusBarItem.text = '$(watch)';
+				const activeDocUri = window.activeTextEditor.document.uri.toString();
+				client.sendRequest(ForceValidateRequest.type, activeDocUri).then((diagnostics) => {
+					const schemaErrorIndex = diagnostics.findIndex(candidate => candidate.code === /* SchemaResolveError */ 0x300);
+					if (schemaErrorIndex !== -1) {
+						// Show schema resolution errors in status bar only; ref: #51032
+						const schemaResolveDiagnostic = diagnostics[schemaErrorIndex];
+						fileSchemaErrors.set(activeDocUri, schemaResolveDiagnostic.message);
+					} else {
+						schemaResolutionErrorStatusBarItem.hide();
+					}
+					schemaResolutionErrorStatusBarItem.text = '$(alert)';
+				});
+			}
+		};
+
+		toDispose.push(commands.registerCommand('_json.retryResolveSchema', handleRetryResolveSchemaCommand));
 
 		client.sendNotification(SchemaAssociationNotification.type, getSchemaAssociation(context));
-
-		toDispose.push(initFoldingProvider());
 	});
 
 	let languageConfiguration: LanguageConfiguration = {
@@ -139,33 +204,13 @@ export function activate(context: ExtensionContext) {
 	};
 	languages.setLanguageConfiguration('json', languageConfiguration);
 	languages.setLanguageConfiguration('jsonc', languageConfiguration);
-
-	function initFoldingProvider(): Disposable {
-		return languages.registerFoldingProvider(documentSelector, {
-			provideFoldingRanges(document: TextDocument, context: FoldingContext, token: CancellationToken) {
-				const param: FoldingRangeRequestParam = {
-					textDocument: client.code2ProtocolConverter.asTextDocumentIdentifier(document),
-					maxRanges: context.maxRanges
-				};
-				return client.sendRequest(FoldingRangesRequest.type, param, token).then(res => {
-					if (res && Array.isArray(res.ranges)) {
-						return new FoldingRangeList(res.ranges.map(r => new FoldingRange(r.startLine, r.endLine, r.type)));
-					}
-					return null;
-				}, error => {
-					client.logFailedRequest(FoldingRangesRequest.type, error);
-					return null;
-				});
-			}
-		});
-	}
 }
 
 export function deactivate(): Promise<any> {
 	return telemetryReporter ? telemetryReporter.dispose() : Promise.resolve(null);
 }
 
-function getSchemaAssociation(context: ExtensionContext): ISchemaAssociations {
+function getSchemaAssociation(_context: ExtensionContext): ISchemaAssociations {
 	let associations: ISchemaAssociations = {};
 	extensions.all.forEach(extension => {
 		let packageJSON = extension.packageJSON;
@@ -224,11 +269,22 @@ function getSettings(): Settings {
 				settings.json!.schemas!.push(schemaSetting);
 			}
 			let fileMatches = setting.fileMatch;
+			let resultingFileMatches = schemaSetting.fileMatch!;
 			if (Array.isArray(fileMatches)) {
 				if (fileMatchPrefix) {
-					fileMatches = fileMatches.map(m => fileMatchPrefix + m);
+					for (let fileMatch of fileMatches) {
+						if (fileMatch[0] === '/') {
+							resultingFileMatches.push(fileMatchPrefix + fileMatch);
+							resultingFileMatches.push(fileMatchPrefix + '/*' + fileMatch);
+						} else {
+							resultingFileMatches.push(fileMatchPrefix + '/' + fileMatch);
+							resultingFileMatches.push(fileMatchPrefix + '/*/' + fileMatch);
+						}
+					}
+				} else {
+					resultingFileMatches.push(...fileMatches);
 				}
-				schemaSetting.fileMatch!.push(...fileMatches);
+
 			}
 			if (setting.schema) {
 				schemaSetting.schema = setting.schema;
@@ -245,14 +301,16 @@ function getSettings(): Settings {
 	if (folders) {
 		for (let folder of folders) {
 			let folderUri = folder.uri;
+
 			let schemaConfigInfo = workspace.getConfiguration('json', folderUri).inspect<JSONSchemaSettings[]>('schemas');
+
 			let folderSchemas = schemaConfigInfo!.workspaceFolderValue;
 			if (Array.isArray(folderSchemas)) {
 				let folderPath = folderUri.toString();
-				if (folderPath[folderPath.length - 1] !== '/') {
-					folderPath = folderPath + '/';
+				if (folderPath[folderPath.length - 1] === '/') {
+					folderPath = folderPath.substr(0, folderPath.length - 1);
 				}
-				collectSchemaSettings(folderSchemas, folderUri.fsPath, folderPath + '*');
+				collectSchemaSettings(folderSchemas, folderUri.fsPath, folderPath);
 			}
 		}
 	}
@@ -272,7 +330,7 @@ function getSchemaId(schema: JSONSchemaSettings, rootPath?: string) {
 }
 
 function getPackageInfo(context: ExtensionContext): IPackageInfo | undefined {
-	let extensionPackage = require(context.asAbsolutePath('./package.json'));
+	let extensionPackage = readJSONFile(context.asAbsolutePath('./package.json'));
 	if (extensionPackage) {
 		return {
 			name: extensionPackage.name,
@@ -281,4 +339,14 @@ function getPackageInfo(context: ExtensionContext): IPackageInfo | undefined {
 		};
 	}
 	return void 0;
+}
+
+function readJSONFile(location: string) {
+	try {
+		return JSON.parse(fs.readFileSync(location).toString());
+	} catch (e) {
+		console.log(`Problems reading ${location}: ${e}`);
+		return {};
+	}
+
 }

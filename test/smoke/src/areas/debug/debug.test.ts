@@ -8,30 +8,26 @@ import * as http from 'http';
 import * as path from 'path';
 import * as fs from 'fs';
 import * as stripJsonComments from 'strip-json-comments';
-import { SpectronApplication } from '../../spectron/application';
+import { Application } from '../../application';
 
 export function setup() {
 	describe('Debug', () => {
-		before(async function () {
-			const app = this.app as SpectronApplication;
-			app.suiteName = 'Debug';
-		});
-
 		it('configure launch json', async function () {
-			const app = this.app as SpectronApplication;
+			const app = this.app as Application;
 
 			await app.workbench.debug.openDebugViewlet();
 			await app.workbench.quickopen.openFile('app.js');
 			await app.workbench.debug.configure();
 
-			const launchJsonPath = path.join(app.workspacePath, '.vscode', 'launch.json');
+			const launchJsonPath = path.join(app.workspacePathOrFolder, '.vscode', 'launch.json');
 			const content = fs.readFileSync(launchJsonPath, 'utf8');
 			const config = JSON.parse(stripJsonComments(content));
 			config.configurations[0].protocol = 'inspector';
 			fs.writeFileSync(launchJsonPath, JSON.stringify(config, undefined, 4), 'utf8');
 
+			// force load from disk since file events are sometimes missing
+			await app.workbench.quickopen.runCommand('File: Revert File');
 			await app.workbench.editor.waitForEditorContents('launch.json', contents => /"protocol": "inspector"/.test(contents));
-			await app.screenCapturer.capture('launch.json file');
 
 			assert.equal(config.configurations[0].request, 'launch');
 			assert.equal(config.configurations[0].type, 'node');
@@ -43,87 +39,77 @@ export function setup() {
 		});
 
 		it('breakpoints', async function () {
-			const app = this.app as SpectronApplication;
+			const app = this.app as Application;
 
 			await app.workbench.quickopen.openFile('index.js');
 			await app.workbench.debug.setBreakpointOnLine(6);
-			await app.screenCapturer.capture('breakpoints are set');
 		});
 
 		let port: number;
 		it('start debugging', async function () {
-			const app = this.app as SpectronApplication;
+			const app = this.app as Application;
 
 			port = await app.workbench.debug.startDebugging();
-			await app.screenCapturer.capture('debugging has started');
 
 			await new Promise((c, e) => {
 				const request = http.get(`http://localhost:${port}`);
 				request.on('error', e);
-				app.workbench.debug.waitForStackFrame(sf => sf.name === 'index.js' && sf.lineNumber === 6, 'looking for index.js and line 6').then(c, e);
+				app.workbench.debug.waitForStackFrame(sf => /index\.js$/.test(sf.name) && sf.lineNumber === 6, 'looking for index.js and line 6').then(c, e);
 			});
-
-			await app.screenCapturer.capture('debugging is paused');
 		});
 
 		it('focus stack frames and variables', async function () {
-			const app = this.app as SpectronApplication;
+			const app = this.app as Application;
 
-			await app.client.waitFor(() => app.workbench.debug.getLocalVariableCount(), c => c === 4, 'there should be 4 local variables');
+			await app.workbench.debug.waitForVariableCount(4);
 
 			await app.workbench.debug.focusStackFrame('layer.js', 'looking for layer.js');
-			await app.client.waitFor(() => app.workbench.debug.getLocalVariableCount(), c => c === 5, 'there should be 5 local variables');
+			await app.workbench.debug.waitForVariableCount(5);
 
 			await app.workbench.debug.focusStackFrame('route.js', 'looking for route.js');
-			await app.client.waitFor(() => app.workbench.debug.getLocalVariableCount(), c => c === 3, 'there should be 3 local variables');
+			await app.workbench.debug.waitForVariableCount(3);
 
 			await app.workbench.debug.focusStackFrame('index.js', 'looking for index.js');
-			await app.client.waitFor(() => app.workbench.debug.getLocalVariableCount(), c => c === 4, 'there should be 4 local variables');
+			await app.workbench.debug.waitForVariableCount(4);
 		});
 
 		it('stepOver, stepIn, stepOut', async function () {
-			const app = this.app as SpectronApplication;
+			const app = this.app as Application;
 
 			await app.workbench.debug.stepIn();
-			await app.screenCapturer.capture('debugging has stepped in');
 
-			const first = await app.workbench.debug.waitForStackFrame(sf => sf.name === 'response.js', 'looking for response.js');
+			const first = await app.workbench.debug.waitForStackFrame(sf => /response\.js$/.test(sf.name), 'looking for response.js');
 			await app.workbench.debug.stepOver();
-			await app.screenCapturer.capture('debugging has stepped over');
 
-			await app.workbench.debug.waitForStackFrame(sf => sf.name === 'response.js' && sf.lineNumber === first.lineNumber + 1, `looking for response.js and line ${first.lineNumber + 1}`);
+			await app.workbench.debug.waitForStackFrame(sf => /response\.js$/.test(sf.name) && sf.lineNumber === first.lineNumber + 1, `looking for response.js and line ${first.lineNumber + 1}`);
 			await app.workbench.debug.stepOut();
-			await app.screenCapturer.capture('debugging has stepped out');
 
-			await app.workbench.debug.waitForStackFrame(sf => sf.name === 'index.js' && sf.lineNumber === 7, `looking for index.js and line 7`);
+			await app.workbench.debug.waitForStackFrame(sf => /index\.js$/.test(sf.name) && sf.lineNumber === 7, `looking for index.js and line 7`);
 		});
 
 		it('continue', async function () {
-			const app = this.app as SpectronApplication;
+			const app = this.app as Application;
 
 			await app.workbench.debug.continue();
-			await app.screenCapturer.capture('debugging has continued');
 
 			await new Promise((c, e) => {
 				const request = http.get(`http://localhost:${port}`);
 				request.on('error', e);
-				app.workbench.debug.waitForStackFrame(sf => sf.name === 'index.js' && sf.lineNumber === 6, `looking for index.js and line 6`).then(c, e);
+				app.workbench.debug.waitForStackFrame(sf => /index\.js$/.test(sf.name) && sf.lineNumber === 6, `looking for index.js and line 6`).then(c, e);
 			});
 
-			await app.screenCapturer.capture('debugging is paused');
 		});
 
 		it('debug console', async function () {
-			const app = this.app as SpectronApplication;
+			const app = this.app as Application;
 
 			await app.workbench.debug.waitForReplCommand('2 + 2', r => r === '4');
 		});
 
 		it('stop debugging', async function () {
-			const app = this.app as SpectronApplication;
+			const app = this.app as Application;
 
 			await app.workbench.debug.stopDebugging();
-			await app.screenCapturer.capture('debugging has stopped');
 		});
 	});
 }

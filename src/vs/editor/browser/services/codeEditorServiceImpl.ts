@@ -2,18 +2,19 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
-import * as strings from 'vs/base/common/strings';
-import URI from 'vs/base/common/uri';
 import * as dom from 'vs/base/browser/dom';
-import { IDecorationRenderOptions, IThemeDecorationRenderOptions, IContentDecorationRenderOptions, isThemeColor } from 'vs/editor/common/editorCommon';
-import { IModelDecorationOptions, IModelDecorationOverviewRulerOptions, OverviewRulerLane, TrackedRangeStickiness } from 'vs/editor/common/model';
-import { AbstractCodeEditorService } from 'vs/editor/browser/services/abstractCodeEditorService';
 import { IDisposable, dispose as disposeAll } from 'vs/base/common/lifecycle';
-import { IThemeService, ITheme, ThemeColor } from 'vs/platform/theme/common/themeService';
+import * as strings from 'vs/base/common/strings';
+import { URI } from 'vs/base/common/uri';
+import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
+import { AbstractCodeEditorService } from 'vs/editor/browser/services/abstractCodeEditorService';
+import { IContentDecorationRenderOptions, IDecorationRenderOptions, IThemeDecorationRenderOptions, isThemeColor } from 'vs/editor/common/editorCommon';
+import { IModelDecorationOptions, IModelDecorationOverviewRulerOptions, OverviewRulerLane, TrackedRangeStickiness } from 'vs/editor/common/model';
+import { IResourceInput } from 'vs/platform/editor/common/editor';
+import { ITheme, IThemeService, ThemeColor } from 'vs/platform/theme/common/themeService';
 
-export class CodeEditorServiceImpl extends AbstractCodeEditorService {
+export abstract class CodeEditorServiceImpl extends AbstractCodeEditorService {
 
 	private _styleSheet: HTMLStyleElement;
 	private _decorationOptionProviders: { [key: string]: IModelDecorationOptionsProvider };
@@ -65,6 +66,8 @@ export class CodeEditorServiceImpl extends AbstractCodeEditorService {
 		return provider.getOptions(this, writable);
 	}
 
+	abstract getActiveCodeEditor(): ICodeEditor | null;
+	abstract openCodeEditor(input: IResourceInput, source: ICodeEditor | null, sideBySide?: boolean): Thenable<ICodeEditor | null>;
 }
 
 interface IModelDecorationOptionsProvider extends IDisposable {
@@ -76,9 +79,9 @@ class DecorationSubTypeOptionsProvider implements IModelDecorationOptionsProvide
 
 	public refCount: number;
 
-	private _parentTypeKey: string;
-	private _beforeContentRules: DecorationCSSRules;
-	private _afterContentRules: DecorationCSSRules;
+	private _parentTypeKey: string | undefined;
+	private _beforeContentRules: DecorationCSSRules | null;
+	private _afterContentRules: DecorationCSSRules | null;
 
 	constructor(themeService: IThemeService, providerArgs: ProviderArguments) {
 		this._parentTypeKey = providerArgs.parentTypeKey;
@@ -124,14 +127,15 @@ class DecorationTypeOptionsProvider implements IModelDecorationOptionsProvider {
 	private _disposables: IDisposable[];
 	public refCount: number;
 
-	public className: string;
+	public className: string | undefined;
 	public inlineClassName: string;
-	public beforeContentClassName: string;
-	public afterContentClassName: string;
-	public glyphMarginClassName: string;
+	public inlineClassNameAffectsLetterSpacing: boolean;
+	public beforeContentClassName: string | undefined;
+	public afterContentClassName: string | undefined;
+	public glyphMarginClassName: string | undefined;
 	public isWholeLine: boolean;
 	public overviewRuler: IModelDecorationOverviewRulerOptions;
-	public stickiness: TrackedRangeStickiness;
+	public stickiness: TrackedRangeStickiness | undefined;
 
 	constructor(themeService: IThemeService, providerArgs: ProviderArguments) {
 		this.refCount = 0;
@@ -145,9 +149,21 @@ class DecorationTypeOptionsProvider implements IModelDecorationOptionsProvider {
 			}
 			return void 0;
 		};
+		let createInlineCSSRules = (type: ModelDecorationCSSRuleType) => {
+			let rules = new DecorationCSSRules(type, providerArgs, themeService);
+			if (rules.hasContent) {
+				this._disposables.push(rules);
+				return { className: rules.className, hasLetterSpacing: rules.hasLetterSpacing };
+			}
+			return null;
+		};
 
 		this.className = createCSSRules(ModelDecorationCSSRuleType.ClassName);
-		this.inlineClassName = createCSSRules(ModelDecorationCSSRuleType.InlineClassName);
+		const inlineData = createInlineCSSRules(ModelDecorationCSSRuleType.InlineClassName);
+		if (inlineData) {
+			this.inlineClassName = inlineData.className;
+			this.inlineClassNameAffectsLetterSpacing = inlineData.hasLetterSpacing;
+		}
 		this.beforeContentClassName = createCSSRules(ModelDecorationCSSRuleType.BeforeContentClassName);
 		this.afterContentClassName = createCSSRules(ModelDecorationCSSRuleType.AfterContentClassName);
 		this.glyphMarginClassName = createCSSRules(ModelDecorationCSSRuleType.GlyphMarginClassName);
@@ -192,8 +208,9 @@ class DecorationTypeOptionsProvider implements IModelDecorationOptionsProvider {
 }
 
 
-const _CSS_MAP = {
+const _CSS_MAP: { [prop: string]: string; } = {
 	color: 'color:{0} !important;',
+	opacity: 'opacity:{0}; will-change: opacity;', // TODO@Ben: 'will-change: opacity' is a workaround for https://github.com/Microsoft/vscode/issues/52196
 	backgroundColor: 'background-color:{0};',
 
 	outline: 'outline:{0};',
@@ -231,8 +248,9 @@ class DecorationCSSRules {
 	private _className: string;
 	private _unThemedSelector: string;
 	private _hasContent: boolean;
+	private _hasLetterSpacing: boolean;
 	private _ruleType: ModelDecorationCSSRuleType;
-	private _themeListener: IDisposable;
+	private _themeListener: IDisposable | null;
 	private _providerArgs: ProviderArguments;
 	private _usesThemeColors: boolean;
 
@@ -242,6 +260,7 @@ class DecorationCSSRules {
 		this._providerArgs = providerArgs;
 		this._usesThemeColors = false;
 		this._hasContent = false;
+		this._hasLetterSpacing = false;
 
 		let className = CSSNameHelper.getClassName(this._providerArgs.key, ruleType);
 		if (this._providerArgs.parentTypeKey) {
@@ -259,6 +278,8 @@ class DecorationCSSRules {
 				this._removeCSS();
 				this._buildCSS();
 			});
+		} else {
+			this._themeListener = null;
 		}
 	}
 
@@ -275,6 +296,10 @@ class DecorationCSSRules {
 
 	public get hasContent(): boolean {
 		return this._hasContent;
+	}
+
+	public get hasLetterSpacing(): boolean {
+		return this._hasLetterSpacing;
 	}
 
 	public get className(): string {
@@ -338,7 +363,7 @@ class DecorationCSSRules {
 	/**
 	 * Build the CSS for decorations styled via `className`.
 	 */
-	private getCSSTextForModelDecorationClassName(opts: IThemeDecorationRenderOptions): string {
+	private getCSSTextForModelDecorationClassName(opts: IThemeDecorationRenderOptions | undefined): string {
 		if (!opts) {
 			return '';
 		}
@@ -352,19 +377,22 @@ class DecorationCSSRules {
 	/**
 	 * Build the CSS for decorations styled via `inlineClassName`.
 	 */
-	private getCSSTextForModelDecorationInlineClassName(opts: IThemeDecorationRenderOptions): string {
+	private getCSSTextForModelDecorationInlineClassName(opts: IThemeDecorationRenderOptions | undefined): string {
 		if (!opts) {
 			return '';
 		}
 		let cssTextArr: string[] = [];
-		this.collectCSSText(opts, ['fontStyle', 'fontWeight', 'textDecoration', 'cursor', 'color', 'letterSpacing'], cssTextArr);
+		this.collectCSSText(opts, ['fontStyle', 'fontWeight', 'textDecoration', 'cursor', 'color', 'opacity', 'letterSpacing'], cssTextArr);
+		if (opts.letterSpacing) {
+			this._hasLetterSpacing = true;
+		}
 		return cssTextArr.join('');
 	}
 
 	/**
 	 * Build the CSS for decorations styled before or after content.
 	 */
-	private getCSSTextForModelDecorationContentClassName(opts: IContentDecorationRenderOptions): string {
+	private getCSSTextForModelDecorationContentClassName(opts: IContentDecorationRenderOptions | undefined): string {
 		if (!opts) {
 			return '';
 		}
@@ -380,12 +408,12 @@ class DecorationCSSRules {
 				}
 			}
 			if (typeof opts.contentText === 'string') {
-				const truncated = opts.contentText.match(/^.*$/m)[0]; // only take first line
+				const truncated = opts.contentText.match(/^.*$/m)![0]; // only take first line
 				const escaped = truncated.replace(/['\\]/g, '\\$&');
 
 				cssTextArr.push(strings.format(_CSS_MAP.contentText, escaped));
 			}
-			this.collectCSSText(opts, ['fontStyle', 'fontWeight', 'textDecoration', 'color', 'backgroundColor', 'margin'], cssTextArr);
+			this.collectCSSText(opts, ['fontStyle', 'fontWeight', 'textDecoration', 'color', 'opacity', 'backgroundColor', 'margin'], cssTextArr);
 			if (this.collectCSSText(opts, ['width', 'height'], cssTextArr)) {
 				cssTextArr.push('display:inline-block;');
 			}
@@ -397,11 +425,11 @@ class DecorationCSSRules {
 	/**
 	 * Build the CSS for decorations styled via `glpyhMarginClassName`.
 	 */
-	private getCSSTextForModelDecorationGlyphMarginClassName(opts: IThemeDecorationRenderOptions): string {
+	private getCSSTextForModelDecorationGlyphMarginClassName(opts: IThemeDecorationRenderOptions | undefined): string {
 		if (!opts) {
 			return '';
 		}
-		let cssTextArr = [];
+		let cssTextArr: string[] = [];
 
 		if (typeof opts.gutterIconPath !== 'undefined') {
 			if (typeof opts.gutterIconPath === 'string') {
@@ -463,7 +491,7 @@ class CSSNameHelper {
 		return 'ced-' + key + '-' + type;
 	}
 
-	public static getSelector(key: string, parentKey: string, ruleType: ModelDecorationCSSRuleType): string {
+	public static getSelector(key: string, parentKey: string | undefined, ruleType: ModelDecorationCSSRuleType): string {
 		let selector = '.monaco-editor .' + this.getClassName(key, ruleType);
 		if (parentKey) {
 			selector = selector + '.' + this.getClassName(parentKey, ruleType);

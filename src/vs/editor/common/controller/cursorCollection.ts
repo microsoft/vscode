@@ -2,12 +2,11 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
+import { CursorContext, CursorState, PartialCursorState } from 'vs/editor/common/controller/cursorCommon';
 import { OneCursor } from 'vs/editor/common/controller/oneCursor';
-import { Selection, ISelection } from 'vs/editor/common/core/selection';
 import { Position } from 'vs/editor/common/core/position';
-import { CursorState, CursorContext } from 'vs/editor/common/controller/cursorCommon';
+import { ISelection, Selection } from 'vs/editor/common/core/selection';
 
 export class CursorCollection {
 
@@ -29,6 +28,20 @@ export class CursorCollection {
 	public dispose(): void {
 		this.primaryCursor.dispose(this.context);
 		this.killSecondaryCursors();
+	}
+
+	public startTrackingSelections(): void {
+		this.primaryCursor.startTrackingSelection(this.context);
+		for (let i = 0, len = this.secondaryCursors.length; i < len; i++) {
+			this.secondaryCursors[i].startTrackingSelection(this.context);
+		}
+	}
+
+	public stopTrackingSelections(): void {
+		this.primaryCursor.stopTrackingSelection(this.context);
+		for (let i = 0, len = this.secondaryCursors.length; i < len; i++) {
+			this.secondaryCursors[i].stopTrackingSelection(this.context);
+		}
 	}
 
 	public updateContext(context: CursorContext): void {
@@ -95,7 +108,7 @@ export class CursorCollection {
 		return this.primaryCursor.asCursorState();
 	}
 
-	public setStates(states: CursorState[]): void {
+	public setStates(states: PartialCursorState[] | null): void {
 		if (states === null) {
 			return;
 		}
@@ -106,7 +119,7 @@ export class CursorCollection {
 	/**
 	 * Creates or disposes secondary cursors as necessary to match the number of `secondarySelections`.
 	 */
-	private _setSecondaryStates(secondaryStates: CursorState[]): void {
+	private _setSecondaryStates(secondaryStates: PartialCursorState[]): void {
 		const secondaryCursorsLength = this.secondaryCursors.length;
 		const secondaryStatesLength = secondaryStates.length;
 
@@ -169,37 +182,39 @@ export class CursorCollection {
 		interface SortedCursor {
 			index: number;
 			selection: Selection;
-			viewSelection: Selection;
 		}
 		let sortedCursors: SortedCursor[] = [];
 		for (let i = 0, len = cursors.length; i < len; i++) {
 			sortedCursors.push({
 				index: i,
 				selection: cursors[i].modelState.selection,
-				viewSelection: cursors[i].viewState.selection
 			});
 		}
 		sortedCursors.sort((a, b) => {
-			if (a.viewSelection.startLineNumber === b.viewSelection.startLineNumber) {
-				return a.viewSelection.startColumn - b.viewSelection.startColumn;
+			if (a.selection.startLineNumber === b.selection.startLineNumber) {
+				return a.selection.startColumn - b.selection.startColumn;
 			}
-			return a.viewSelection.startLineNumber - b.viewSelection.startLineNumber;
+			return a.selection.startLineNumber - b.selection.startLineNumber;
 		});
 
 		for (let sortedCursorIndex = 0; sortedCursorIndex < sortedCursors.length - 1; sortedCursorIndex++) {
 			const current = sortedCursors[sortedCursorIndex];
 			const next = sortedCursors[sortedCursorIndex + 1];
 
-			const currentViewSelection = current.viewSelection;
-			const nextViewSelection = next.viewSelection;
+			const currentSelection = current.selection;
+			const nextSelection = next.selection;
+
+			if (!this.context.config.multiCursorMergeOverlapping) {
+				continue;
+			}
 
 			let shouldMergeCursors: boolean;
-			if (nextViewSelection.isEmpty() || currentViewSelection.isEmpty()) {
+			if (nextSelection.isEmpty() || currentSelection.isEmpty()) {
 				// Merge touching cursors if one of them is collapsed
-				shouldMergeCursors = nextViewSelection.getStartPosition().isBeforeOrEqual(currentViewSelection.getEndPosition());
+				shouldMergeCursors = nextSelection.getStartPosition().isBeforeOrEqual(currentSelection.getEndPosition());
 			} else {
 				// Merge only overlapping cursors (i.e. allow touching ranges)
-				shouldMergeCursors = nextViewSelection.getStartPosition().isBefore(currentViewSelection.getEndPosition());
+				shouldMergeCursors = nextSelection.getStartPosition().isBefore(currentSelection.getEndPosition());
 			}
 
 			if (shouldMergeCursors) {

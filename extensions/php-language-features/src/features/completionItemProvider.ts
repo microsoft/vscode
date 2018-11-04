@@ -3,10 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import { CompletionItemProvider, CompletionItem, CompletionItemKind, CancellationToken, TextDocument, Position, Range, TextEdit, workspace, CompletionContext } from 'vscode';
 import phpGlobals = require('./phpGlobals');
+import phpGlobalFunctions = require('./phpGlobalFunctions');
 
 export default class PHPCompletionItemProvider implements CompletionItemProvider {
 
@@ -69,10 +68,10 @@ export default class PHPCompletionItemProvider implements CompletionItemProvider
 				result.push(createNewProposal(CompletionItemKind.Variable, globalvariables, phpGlobals.globalvariables[globalvariables]));
 			}
 		}
-		for (var globalfunctions in phpGlobals.globalfunctions) {
-			if (phpGlobals.globalfunctions.hasOwnProperty(globalfunctions) && matches(globalfunctions)) {
+		for (var globalfunctions in phpGlobalFunctions.globalfunctions) {
+			if (phpGlobalFunctions.globalfunctions.hasOwnProperty(globalfunctions) && matches(globalfunctions)) {
 				added[globalfunctions] = true;
-				result.push(createNewProposal(CompletionItemKind.Function, globalfunctions, phpGlobals.globalfunctions[globalfunctions]));
+				result.push(createNewProposal(CompletionItemKind.Function, globalfunctions, phpGlobalFunctions.globalfunctions[globalfunctions]));
 			}
 		}
 		for (var compiletimeconstants in phpGlobals.compiletimeconstants) {

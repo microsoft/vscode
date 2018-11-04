@@ -13,6 +13,11 @@
 	overflow: hidden;
 }
 
+/* -- smooth-caret-animation -- */
+.monaco-editor .cursors-layer.cursor-smooth-caret-animation > .cursor {
+	transition: 80ms;
+}
+
 /* -- block-outline-style -- */
 .monaco-editor .cursors-layer.cursor-block-outline-style > .cursor {
 	box-sizing: border-box;

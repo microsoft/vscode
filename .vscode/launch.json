@@ -19,6 +19,7 @@
 			"protocol": "inspector",
 			"port": 5870,
 			"restart": true,
+			"smartStep": true,
 			"outFiles": [
 				"${workspaceFolder}/out/**/*.js"
 			]
@@ -29,6 +30,7 @@
 			"name": "Attach to Shared Process",
 			"protocol": "inspector",
 			"port": 5871,
+			"smartStep": true,
 			"outFiles": [
 				"${workspaceFolder}/out/**/*.js"
 			]
@@ -39,6 +41,7 @@
 			"protocol": "inspector",
 			"name": "Attach to Search Process",
 			"port": 5876,
+			"smartStep": true,
 			"outFiles": [
 				"${workspaceFolder}/out/**/*.js"
 			]
@@ -49,6 +52,7 @@
 			"name": "Attach to CLI Process",
 			"protocol": "inspector",
 			"port": 5874,
+			"smartStep": true,
 			"outFiles": [
 				"${workspaceFolder}/out/**/*.js"
 			]
@@ -59,6 +63,7 @@
 			"name": "Attach to Main Process",
 			"protocol": "inspector",
 			"port": 5875,
+			"smartStep": true,
 			"outFiles": [
 				"${workspaceFolder}/out/**/*.js"
 			]
@@ -83,6 +88,7 @@
 			"name": "VS Code API Tests (single folder)",
 			"runtimeExecutable": "${execPath}",
 			"args": [
+				// "${workspaceFolder}", // Uncomment for running out of sources.
 				"${workspaceFolder}/extensions/vscode-api-tests/testWorkspace",
 				"--extensionDevelopmentPath=${workspaceFolder}/extensions/vscode-api-tests",
 				"--extensionTestsPath=${workspaceFolder}/extensions/vscode-api-tests/out/singlefolder-tests"
@@ -123,6 +129,7 @@
 			"type": "chrome",
 			"request": "attach",
 			"name": "Attach to VS Code",
+			"smartStep": true,
 			"port": 9222
 		},
 		{
@@ -138,14 +145,28 @@
 			"linux": {
 				"runtimeExecutable": "${workspaceFolder}/scripts/code.sh"
 			},
-			"urlFilter": "*index.html*",
+			"urlFilter": "*workbench.html*",
 			"runtimeArgs": [
-				"--inspect=5875"
+				"--inspect=5875", "--no-cached-data"
 			],
+			"smartStep": true,
 			"skipFiles": [
 				"**/winjs*.js"
 			],
 			"webRoot": "${workspaceFolder}"
+		},
+		{
+		    "type": "node",
+		    "request": "launch",
+		    "name": "Launch VS Code (Main Process)",
+		    "runtimeExecutable": "${workspaceFolder}/scripts/code.sh",
+		    "runtimeArgs": [
+		        "--no-cached-data"
+		    ],
+		    "smartStep": true,
+		    "outFiles": [
+		        "${workspaceFolder}/out/**/*.js"
+		    ]
 		},
 		{
 			"type": "node",
@@ -162,7 +183,7 @@
 		{
 			"type": "extensionHost",
 			"request": "launch",
-			"name": "VS Code Markdown Extension Tests",
+			"name": "Markdown Extension Tests",
 			"runtimeExecutable": "${execPath}",
 			"args": [
 				"${workspaceFolder}/extensions/markdown-language-features/test-fixtures",
@@ -171,6 +192,20 @@
 			],
 			"outFiles": [
 				"${workspaceFolder}/extensions/markdown-language-features/out/**/*.js"
+			]
+		},
+		{
+			"type": "extensionHost",
+			"request": "launch",
+			"name": "TypeScript Extension Tests",
+			"runtimeExecutable": "${execPath}",
+			"args": [
+				"${workspaceFolder}/extensions/typescript-language-features/test-fixtures",
+				"--extensionDevelopmentPath=${workspaceFolder}/extensions/typescript-language-features",
+				"--extensionTestsPath=${workspaceFolder}/extensions/typescript-language-features/out/test"
+			],
+			"outFiles": [
+				"${workspaceFolder}/extensions/typescript-language-features/out/**/*.js"
 			]
 		},
 		{
@@ -186,7 +221,7 @@
 			"linux": {
 				"runtimeExecutable": "${workspaceFolder}/.build/electron/code-oss"
 			},
-			"stopOnEntry": false,
+			"outputCapture": "std",
 			"args": [
 				"--delay",
 				"--timeout",
@@ -220,6 +255,15 @@
 				"VSCODE_DEV": "1",
 				"VSCODE_CLI": "1"
 			}
+		},
+		{
+			"name": "Launch Built-in Extension",
+			"type": "extensionHost",
+			"request": "launch",
+			"runtimeExecutable": "${execPath}",
+			"args": [
+				"--extensionDevelopmentPath=${workspaceRoot}/extensions/debug-auto-launch"
+			]
 		}
 	],
 	"compounds": [
@@ -235,6 +279,13 @@
 			"configurations": [
 				"Launch VS Code",
 				"Attach to Search Process"
+			]
+		},
+		{
+			"name": "Renderer and Extension Host processes",
+			"configurations": [
+				"Launch VS Code",
+				"Attach to Extension Host"
 			]
 		}
 	]

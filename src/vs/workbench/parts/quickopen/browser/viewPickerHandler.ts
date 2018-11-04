@@ -2,11 +2,9 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
 import { TPromise } from 'vs/base/common/winjs.base';
 import * as nls from 'vs/nls';
-import * as errors from 'vs/base/common/errors';
 import { Mode, IEntryRunContext, IAutoFocus, IQuickNavigateConfiguration, IModel } from 'vs/base/parts/quickopen/common/quickOpen';
 import { QuickOpenModel, QuickOpenEntryGroup, QuickOpenEntry } from 'vs/base/parts/quickopen/browser/quickOpenModel';
 import { QuickOpenHandler, QuickOpenAction } from 'vs/workbench/browser/quickopen';
@@ -19,12 +17,11 @@ import { Action } from 'vs/base/common/actions';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { fuzzyContains, stripWildcards } from 'vs/base/common/strings';
 import { matchesFuzzy } from 'vs/base/common/filters';
-import { ViewsRegistry, ViewLocation, IViewsViewlet } from 'vs/workbench/common/views';
+import { ViewsRegistry, ViewContainer, IViewsService, IViewContainersRegistry, Extensions as ViewContainerExtensions } from 'vs/workbench/common/views';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { VIEWLET_ID as EXPLORER_VIEWLET_ID } from 'vs/workbench/parts/files/common/files';
-import { VIEWLET_ID as DEBUG_VIEWLET_ID } from 'vs/workbench/parts/debug/common/debug';
-import { VIEWLET_ID as EXTENSIONS_VIEWLET_ID } from 'vs/workbench/parts/extensions/common/extensions';
 import { ViewletDescriptor } from 'vs/workbench/browser/viewlet';
+import { Registry } from 'vs/platform/registry/common/platform';
+import { CancellationToken } from 'vs/base/common/cancellation';
 
 export const VIEW_PICKER_PREFIX = 'view ';
 
@@ -38,19 +35,19 @@ export class ViewEntry extends QuickOpenEntryGroup {
 		super();
 	}
 
-	public getLabel(): string {
+	getLabel(): string {
 		return this.label;
 	}
 
-	public getCategory(): string {
+	getCategory(): string {
 		return this.category;
 	}
 
-	public getAriaLabel(): string {
+	getAriaLabel(): string {
 		return nls.localize('entryAriaLabel', "{0}, view picker", this.getLabel());
 	}
 
-	public run(mode: Mode, context: IEntryRunContext): boolean {
+	run(mode: Mode, context: IEntryRunContext): boolean {
 		if (mode === Mode.OPEN) {
 			return this.runOpen(context);
 		}
@@ -69,10 +66,11 @@ export class ViewEntry extends QuickOpenEntryGroup {
 
 export class ViewPickerHandler extends QuickOpenHandler {
 
-	public static readonly ID = 'workbench.picker.views';
+	static readonly ID = 'workbench.picker.views';
 
 	constructor(
 		@IViewletService private viewletService: IViewletService,
+		@IViewsService private viewsService: IViewsService,
 		@IOutputService private outputService: IOutputService,
 		@ITerminalService private terminalService: ITerminalService,
 		@IPanelService private panelService: IPanelService,
@@ -81,7 +79,7 @@ export class ViewPickerHandler extends QuickOpenHandler {
 		super();
 	}
 
-	public getResults(searchValue: string): TPromise<QuickOpenModel> {
+	getResults(searchValue: string, token: CancellationToken): TPromise<QuickOpenModel> {
 		searchValue = searchValue.trim();
 		const normalizedSearchValueLowercase = stripWildcards(searchValue).toLowerCase();
 
@@ -104,6 +102,13 @@ export class ViewPickerHandler extends QuickOpenHandler {
 			return true;
 		});
 
+		const entryToCategory = {};
+		entries.forEach(e => {
+			if (!entryToCategory[e.getLabel()]) {
+				entryToCategory[e.getLabel()] = e.getCategory();
+			}
+		});
+
 		let lastCategory: string;
 		entries.forEach((e, index) => {
 			if (lastCategory !== e.getCategory()) {
@@ -111,6 +116,11 @@ export class ViewPickerHandler extends QuickOpenHandler {
 
 				e.setShowBorder(index > 0);
 				e.setGroupLabel(lastCategory);
+
+				// When the entry category has a parent category, set group label as Parent / Child. For example, Views / Explorer.
+				if (entryToCategory[lastCategory]) {
+					e.setGroupLabel(`${entryToCategory[lastCategory]} / ${lastCategory}`);
+				}
 			} else {
 				e.setShowBorder(false);
 				e.setGroupLabel(void 0);
@@ -123,13 +133,13 @@ export class ViewPickerHandler extends QuickOpenHandler {
 	private getViewEntries(): ViewEntry[] {
 		const viewEntries: ViewEntry[] = [];
 
-		const getViewEntriesForViewlet = (viewlet: ViewletDescriptor, viewLocation: ViewLocation): ViewEntry[] => {
-			const views = ViewsRegistry.getViews(viewLocation);
+		const getViewEntriesForViewlet = (viewlet: ViewletDescriptor, viewContainer: ViewContainer): ViewEntry[] => {
+			const views = ViewsRegistry.getViews(viewContainer);
 			const result: ViewEntry[] = [];
 			if (views.length) {
 				for (const view of views) {
 					if (this.contextKeyService.contextMatchesRules(view.when)) {
-						result.push(new ViewEntry(view.name, viewlet.name, () => this.viewletService.openViewlet(viewlet.id, true).done(viewlet => (<IViewsViewlet>viewlet).openView(view.id, true), errors.onUnexpectedError)));
+						result.push(new ViewEntry(view.name, viewlet.name, () => this.viewsService.openView(view.id, true)));
 					}
 				}
 			}
@@ -138,43 +148,41 @@ export class ViewPickerHandler extends QuickOpenHandler {
 
 		// Viewlets
 		const viewlets = this.viewletService.getViewlets();
-		viewlets.forEach((viewlet, index) => viewEntries.push(new ViewEntry(viewlet.name, nls.localize('views', "Views"), () => this.viewletService.openViewlet(viewlet.id, true).done(null, errors.onUnexpectedError))));
+		viewlets.forEach((viewlet, index) => viewEntries.push(new ViewEntry(viewlet.name, nls.localize('views', "Side Bar"), () => this.viewletService.openViewlet(viewlet.id, true))));
 
 		// Panels
 		const panels = this.panelService.getPanels();
-		panels.forEach((panel, index) => viewEntries.push(new ViewEntry(panel.name, nls.localize('panels', "Panels"), () => this.panelService.openPanel(panel.id, true).done(null, errors.onUnexpectedError))));
+		panels.forEach((panel, index) => viewEntries.push(new ViewEntry(panel.name, nls.localize('panels', "Panel"), () => this.panelService.openPanel(panel.id, true))));
 
-		// Views
+		// Viewlet Views
 		viewlets.forEach((viewlet, index) => {
-			const viewLocation: ViewLocation = viewlet.id === EXPLORER_VIEWLET_ID ? ViewLocation.Explorer
-				: viewlet.id === DEBUG_VIEWLET_ID ? ViewLocation.Debug
-					: viewlet.id === EXTENSIONS_VIEWLET_ID ? ViewLocation.Extensions
-						: null;
-
-			if (viewLocation) {
-				const viewEntriesForViewlet: ViewEntry[] = getViewEntriesForViewlet(viewlet, viewLocation);
+			const viewContainer: ViewContainer = Registry.as<IViewContainersRegistry>(ViewContainerExtensions.ViewContainersRegistry).get(viewlet.id);
+			if (viewContainer) {
+				const viewEntriesForViewlet: ViewEntry[] = getViewEntriesForViewlet(viewlet, viewContainer);
 				viewEntries.push(...viewEntriesForViewlet);
 			}
 		});
 
 		// Terminals
-		const terminals = this.terminalService.terminalInstances;
-		terminals.forEach((terminal, index) => {
-			const terminalsCategory = nls.localize('terminals', "Terminal");
-			const entry = new ViewEntry(nls.localize('terminalTitle', "{0}: {1}", index + 1, terminal.title), terminalsCategory, () => {
-				this.terminalService.showPanel(true).done(() => {
-					this.terminalService.setActiveInstance(terminal);
-				}, errors.onUnexpectedError);
-			});
+		const terminalsCategory = nls.localize('terminals', "Terminal");
+		this.terminalService.terminalTabs.forEach((tab, tabIndex) => {
+			tab.terminalInstances.forEach((terminal, terminalIndex) => {
+				const index = `${tabIndex + 1}.${terminalIndex + 1}`;
+				const entry = new ViewEntry(nls.localize('terminalTitle', "{0}: {1}", index, terminal.title), terminalsCategory, () => {
+					this.terminalService.showPanel(true).then(() => {
+						this.terminalService.setActiveInstance(terminal);
+					});
+				});
 
-			viewEntries.push(entry);
+				viewEntries.push(entry);
+			});
 		});
 
 		// Output Channels
-		const channels = this.outputService.getChannels();
+		const channels = this.outputService.getChannelDescriptors();
 		channels.forEach((channel, index) => {
 			const outputCategory = nls.localize('channels', "Output");
-			const entry = new ViewEntry(channel.label, outputCategory, () => this.outputService.showChannel(channel.id).done(null, errors.onUnexpectedError));
+			const entry = new ViewEntry(channel.log ? nls.localize('logChannel', "Log ({0})", channel.label) : channel.label, outputCategory, () => this.outputService.showChannel(channel.id));
 
 			viewEntries.push(entry);
 		});
@@ -182,7 +190,7 @@ export class ViewPickerHandler extends QuickOpenHandler {
 		return viewEntries;
 	}
 
-	public getAutoFocus(searchValue: string, context: { model: IModel<QuickOpenEntry>, quickNavigateConfiguration?: IQuickNavigateConfiguration }): IAutoFocus {
+	getAutoFocus(searchValue: string, context: { model: IModel<QuickOpenEntry>, quickNavigateConfiguration?: IQuickNavigateConfiguration }): IAutoFocus {
 		return {
 			autoFocusFirstEntry: !!searchValue || !!context.quickNavigateConfiguration
 		};
@@ -191,8 +199,8 @@ export class ViewPickerHandler extends QuickOpenHandler {
 
 export class OpenViewPickerAction extends QuickOpenAction {
 
-	public static readonly ID = 'workbench.action.openView';
-	public static readonly LABEL = nls.localize('openView', "Open View");
+	static readonly ID = 'workbench.action.openView';
+	static readonly LABEL = nls.localize('openView', "Open View");
 
 	constructor(
 		id: string,
@@ -205,8 +213,8 @@ export class OpenViewPickerAction extends QuickOpenAction {
 
 export class QuickOpenViewPickerAction extends Action {
 
-	public static readonly ID = 'workbench.action.quickOpenView';
-	public static readonly LABEL = nls.localize('quickOpenView', "Quick Open View");
+	static readonly ID = 'workbench.action.quickOpenView';
+	static readonly LABEL = nls.localize('quickOpenView', "Quick Open View");
 
 	constructor(
 		id: string,
@@ -217,7 +225,7 @@ export class QuickOpenViewPickerAction extends Action {
 		super(id, label);
 	}
 
-	public run(): TPromise<boolean> {
+	run(): TPromise<boolean> {
 		const keys = this.keybindingService.lookupKeybindings(this.id);
 
 		this.quickOpenService.show(VIEW_PICKER_PREFIX, { quickNavigateConfiguration: { keybindings: keys } });

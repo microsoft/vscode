@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import { Event } from 'vscode';
 import { dirname, sep } from 'path';
 import { Readable } from 'stream';
@@ -44,6 +42,18 @@ export function mapEvent<I, O>(event: Event<I>, map: (i: I) => O): Event<O> {
 
 export function filterEvent<T>(event: Event<T>, filter: (e: T) => boolean): Event<T> {
 	return (listener, thisArgs = null, disposables?) => event(e => filter(e) && listener.call(thisArgs, e), null, disposables);
+}
+
+export function latchEvent<T>(event: Event<T>): Event<T> {
+	let firstCall = true;
+	let cache: T;
+
+	return filterEvent(event, value => {
+		let shouldEmit = firstCall || value !== cache;
+		firstCall = false;
+		cache = value;
+		return shouldEmit;
+	});
 }
 
 export function anyEvent<T>(...events: Event<T>[]): Event<T> {
@@ -268,7 +278,7 @@ export function readBytes(stream: Readable, bytes: number): Promise<Buffer> {
 	});
 }
 
-export enum Encoding {
+export const enum Encoding {
 	UTF8 = 'utf8',
 	UTF16be = 'utf16be',
 	UTF16le = 'utf16le'
@@ -323,4 +333,14 @@ export function isDescendant(parent: string, descendant: string): boolean {
 	}
 
 	return descendant.startsWith(parent);
+}
+
+export function pathEquals(a: string, b: string): boolean {
+	// Windows is case insensitive
+	if (isWindowsPath(a)) {
+		a = a.toLowerCase();
+		b = b.toLowerCase();
+	}
+
+	return a === b;
 }

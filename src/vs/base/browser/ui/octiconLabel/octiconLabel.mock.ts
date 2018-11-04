@@ -5,7 +5,7 @@
 
 import { escape } from 'vs/base/common/strings';
 
-export function render(text: string): string {
+export function renderOcticons(text: string): string {
 	return escape(text);
 }
 
@@ -18,7 +18,7 @@ export class OcticonLabel {
 	}
 
 	set text(text: string) {
-		this._container.innerHTML = render(text || '');
+		this._container.innerHTML = renderOcticons(text || '');
 	}
 
 }

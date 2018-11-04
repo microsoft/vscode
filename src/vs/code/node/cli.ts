@@ -14,11 +14,13 @@ import * as paths from 'path';
 import * as os from 'os';
 import * as fs from 'fs';
 import { whenDeleted } from 'vs/base/node/pfs';
-import { findFreePort } from 'vs/base/node/ports';
+import { findFreePort, randomPort } from 'vs/base/node/ports';
 import { resolveTerminalEncoding } from 'vs/base/node/encoding';
 import * as iconv from 'iconv-lite';
 import { writeFileAndFlushSync } from 'vs/base/node/extfs';
 import { isWindows } from 'vs/base/common/platform';
+import { ProfilingSession } from 'v8-inspect-profiler';
+import { createWaitMarkerFile } from 'vs/code/node/wait';
 
 function shouldSpawnCliProcess(argv: ParsedArgs): boolean {
 	return !!argv['install-source']
@@ -31,7 +33,7 @@ interface IMainCli {
 	main: (argv: ParsedArgs) => TPromise<void>;
 }
 
-export async function main(argv: string[]): TPromise<any> {
+export async function main(argv: string[]): Promise<any> {
 	let args: ParsedArgs;
 
 	try {
@@ -87,18 +89,17 @@ export async function main(argv: string[]): TPromise<any> {
 
 			// Write source to target
 			const data = fs.readFileSync(source);
-			try {
+			if (isWindows) {
+				// On Windows we use a different strategy of saving the file
+				// by first truncating the file and then writing with r+ mode.
+				// This helps to save hidden files on Windows
+				// (see https://github.com/Microsoft/vscode/issues/931) and
+				// prevent removing alternate data streams
+				// (see https://github.com/Microsoft/vscode/issues/6363)
+				fs.truncateSync(target, 0);
+				writeFileAndFlushSync(target, data, { flag: 'r+' });
+			} else {
 				writeFileAndFlushSync(target, data);
-			} catch (error) {
-				// On Windows and if the file exists with an EPERM error, we try a different strategy of saving the file
-				// by first truncating the file and then writing with r+ mode. This helps to save hidden files on Windows
-				// (see https://github.com/Microsoft/vscode/issues/931)
-				if (isWindows && error.code === 'EPERM') {
-					fs.truncateSync(target, 0);
-					writeFileAndFlushSync(target, data, { flag: 'r+' });
-				} else {
-					throw error;
-				}
 			}
 
 			// Restore previous mode as needed
@@ -172,7 +173,7 @@ export async function main(argv: string[]): TPromise<any> {
 				if (!stdinFileError) {
 
 					// Pipe into tmp file using terminals encoding
-					resolveTerminalEncoding(verbose).done(encoding => {
+					resolveTerminalEncoding(verbose).then(encoding => {
 						const converterStream = iconv.decodeStream(encoding);
 						process.stdin.pipe(converterStream).pipe(stdinFileStream);
 					});
@@ -228,22 +229,9 @@ export async function main(argv: string[]): TPromise<any> {
 		// is closed and then exit the waiting process.
 		let waitMarkerFilePath: string;
 		if (args.wait) {
-			let waitMarkerError: Error;
-			const randomTmpFile = paths.join(os.tmpdir(), Math.random().toString(36).replace(/[^a-z]+/g, '').substr(0, 10));
-			try {
-				fs.writeFileSync(randomTmpFile, '');
-				waitMarkerFilePath = randomTmpFile;
+			waitMarkerFilePath = await createWaitMarkerFile(verbose);
+			if (waitMarkerFilePath) {
 				argv.push('--waitMarkerFilePath', waitMarkerFilePath);
-			} catch (error) {
-				waitMarkerError = error;
-			}
-
-			if (verbose) {
-				if (waitMarkerError) {
-					console.error(`Failed to create marker file for --wait: ${waitMarkerError.toString()}`);
-				} else {
-					console.log(`Marker file for --wait created: ${waitMarkerFilePath}`);
-				}
 			}
 		}
 
@@ -252,16 +240,16 @@ export async function main(argv: string[]): TPromise<any> {
 		// to get better profile traces. Last, we listen on stdout for a signal that tells us to
 		// stop profiling.
 		if (args['prof-startup']) {
-			const portMain = await findFreePort(9222, 10, 6000);
-			const portRenderer = await findFreePort(portMain + 1, 10, 6000);
-			const portExthost = await findFreePort(portRenderer + 1, 10, 6000);
+			const portMain = await findFreePort(randomPort(), 10, 3000);
+			const portRenderer = await findFreePort(portMain + 1, 10, 3000);
+			const portExthost = await findFreePort(portRenderer + 1, 10, 3000);
 
-			if (!portMain || !portRenderer || !portExthost) {
-				console.error('Failed to find free ports for profiler to connect to do.');
-				return;
+			// fail the operation when one of the ports couldn't be accquired.
+			if (portMain * portRenderer * portExthost === 0) {
+				throw new Error('Failed to find free ports for profiler. Make sure to shutdown all instances of the editor first.');
 			}
 
-			const filenamePrefix = paths.join(os.homedir(), Math.random().toString(16).slice(-4));
+			const filenamePrefix = paths.join(os.homedir(), 'prof-' + Math.random().toString(16).slice(-4));
 
 			argv.push(`--inspect-brk=${portMain}`);
 			argv.push(`--remote-debugging-port=${portRenderer}`);
@@ -271,38 +259,81 @@ export async function main(argv: string[]): TPromise<any> {
 
 			fs.writeFileSync(filenamePrefix, argv.slice(-6).join('|'));
 
-			processCallbacks.push(async child => {
+			processCallbacks.push(async _child => {
 
-				// load and start profiler
-				const profiler = await import('v8-inspect-profiler');
-				const main = await profiler.startProfiling({ port: portMain });
-				const renderer = await profiler.startProfiling({ port: portRenderer, tries: 200 });
-				const extHost = await profiler.startProfiling({ port: portExthost, tries: 300 });
+				class Profiler {
+					static async start(name: string, filenamePrefix: string, opts: { port: number, tries?: number, chooseTab?: Function }) {
+						const profiler = await import('v8-inspect-profiler');
 
-				// wait for the renderer to delete the
-				// marker file
-				whenDeleted(filenamePrefix);
+						let session: ProfilingSession;
+						try {
+							session = await profiler.startProfiling(opts);
+						} catch (err) {
+							console.error(`FAILED to start profiling for '${name}' on port '${opts.port}'`);
+						}
 
-				let profileMain = await main.stop();
-				let profileRenderer = await renderer.stop();
-				let profileExtHost = await extHost.stop();
-				let suffix = '';
+						return {
+							async stop() {
+								if (!session) {
+									return;
+								}
+								let suffix = '';
+								let profile = await session.stop();
+								if (!process.env['VSCODE_DEV']) {
+									// when running from a not-development-build we remove
+									// absolute filenames because we don't want to reveal anything
+									// about users. We also append the `.txt` suffix to make it
+									// easier to attach these files to GH issues
+									profile = profiler.rewriteAbsolutePaths(profile, 'piiRemoved');
+									suffix = '.txt';
+								}
 
-				if (!process.env['VSCODE_DEV']) {
-					// when running from a not-development-build we remove
-					// absolute filenames because we don't want to reveal anything
-					// about users. We also append the `.txt` suffix to make it
-					// easier to attach these files to GH issues
-					profileMain = profiler.rewriteAbsolutePaths(profileMain, 'piiRemoved');
-					profileRenderer = profiler.rewriteAbsolutePaths(profileRenderer, 'piiRemoved');
-					profileExtHost = profiler.rewriteAbsolutePaths(profileExtHost, 'piiRemoved');
-					suffix = '.txt';
+								await profiler.writeProfile(profile, `${filenamePrefix}.${name}.cpuprofile${suffix}`);
+							}
+						};
+					}
 				}
 
-				// finally stop profiling and save profiles to disk
-				await profiler.writeProfile(profileMain, `${filenamePrefix}-main.cpuprofile${suffix}`);
-				await profiler.writeProfile(profileRenderer, `${filenamePrefix}-renderer.cpuprofile${suffix}`);
-				await profiler.writeProfile(profileExtHost, `${filenamePrefix}-exthost.cpuprofile${suffix}`);
+				try {
+					// load and start profiler
+					const mainProfileRequest = Profiler.start('main', filenamePrefix, { port: portMain });
+					const extHostProfileRequest = Profiler.start('extHost', filenamePrefix, { port: portExthost, tries: 300 });
+					const rendererProfileRequest = Profiler.start('renderer', filenamePrefix, {
+						port: portRenderer,
+						tries: 200,
+						chooseTab: function (targets) {
+							return targets.find(target => {
+								if (!target.webSocketDebuggerUrl) {
+									return false;
+								}
+								if (target.type === 'page') {
+									return target.url.indexOf('workbench/workbench.html') > 0;
+								} else {
+									return true;
+								}
+							});
+						}
+					});
+
+					const main = await mainProfileRequest;
+					const extHost = await extHostProfileRequest;
+					const renderer = await rendererProfileRequest;
+
+					// wait for the renderer to delete the
+					// marker file
+					await whenDeleted(filenamePrefix);
+
+					// stop profiling
+					await main.stop();
+					await renderer.stop();
+					await extHost.stop();
+
+					// re-create the marker file to signal that profiling is done
+					fs.writeFileSync(filenamePrefix, '');
+
+				} catch (e) {
+					console.error('Failed to profile startup. Make sure to quit Code first.');
+				}
 			});
 		}
 
@@ -318,7 +349,7 @@ export async function main(argv: string[]): TPromise<any> {
 			env
 		};
 
-		if (typeof args['upload-logs'] !== undefined) {
+		if (typeof args['upload-logs'] !== 'undefined') {
 			options['stdio'] = ['pipe', 'pipe', 'pipe'];
 		} else if (!verbose) {
 			options['stdio'] = 'ignore';
@@ -333,7 +364,7 @@ export async function main(argv: string[]): TPromise<any> {
 				child.once('exit', () => c(null));
 
 				// Complete when wait marker file is deleted
-				whenDeleted(waitMarkerFilePath).done(c, c);
+				whenDeleted(waitMarkerFilePath).then(c, c);
 			}).then(() => {
 
 				// Make sure to delete the tmp stdin file if we have any

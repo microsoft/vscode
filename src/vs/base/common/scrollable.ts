@@ -2,12 +2,11 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
+import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
-import { Event, Emitter } from 'vs/base/common/event';
 
-export enum ScrollbarVisibility {
+export const enum ScrollbarVisibility {
 	Auto = 1,
 	Hidden = 2,
 	Visible = 3
@@ -183,7 +182,7 @@ export class Scrollable extends Disposable {
 	private _smoothScrollDuration: number;
 	private readonly _scheduleAtNextAnimationFrame: (callback: () => void) => IDisposable;
 	private _state: ScrollState;
-	private _smoothScrolling: SmoothScrollingOperation;
+	private _smoothScrolling: SmoothScrollingOperation | null;
 
 	private _onScroll = this._register(new Emitter<ScrollEvent>());
 	public readonly onScroll: Event<ScrollEvent> = this._onScroll.event;
@@ -229,7 +228,7 @@ export class Scrollable extends Disposable {
 
 	/**
 	 * Returns the final scroll position that the instance will have once the smooth scroll animation concludes.
-	 * If no scroll animation is occuring, it will return the current scroll position instead.
+	 * If no scroll animation is occurring, it will return the current scroll position instead.
 	 */
 	public getFutureScrollPosition(): IScrollPosition {
 		if (this._smoothScrolling) {
@@ -301,6 +300,9 @@ export class Scrollable extends Disposable {
 	}
 
 	private _performSmoothScrolling(): void {
+		if (!this._smoothScrolling) {
+			return;
+		}
 		const update = this._smoothScrolling.tick();
 		const newState = this._state.withScrollPosition(update);
 
@@ -373,7 +375,7 @@ export class SmoothScrollingOperation {
 	public to: ISmoothScrollPosition;
 	public readonly duration: number;
 	private readonly _startTime: number;
-	public animationFrameDisposable: IDisposable;
+	public animationFrameDisposable: IDisposable | null;
 
 	private scrollLeft: IAnimation;
 	private scrollTop: IAnimation;

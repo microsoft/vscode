@@ -2,7 +2,6 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
@@ -61,7 +60,7 @@ export class NodeList extends Node {
 		return !this.hasChildren && !this.parent;
 	}
 
-	public append(node: Node): boolean {
+	public append(node: Node | null): boolean {
 		if (!node) {
 			return false;
 		}
@@ -106,9 +105,9 @@ class Token {
 
 	readonly range: Range;
 	readonly bracket: TokenTreeBracket;
-	readonly bracketType: string;
+	readonly bracketType: string | null;
 
-	constructor(range: Range, bracket: TokenTreeBracket, bracketType: string) {
+	constructor(range: Range, bracket: TokenTreeBracket, bracketType: string | null) {
 		this.range = range;
 		this.bracket = bracket;
 		this.bracketType = bracketType;
@@ -116,7 +115,7 @@ class Token {
 }
 
 function newNode(token: Token): Node {
-	var node = new Node();
+	let node = new Node();
 	node.start = token.range.getStartPosition();
 	node.end = token.range.getEndPosition();
 	return node;
@@ -149,7 +148,7 @@ class ModelRawTokenScanner {
 	private _versionId: number;
 	private _lineNumber: number;
 	private _tokenIndex: number;
-	private _lineTokens: LineTokens;
+	private _lineTokens: LineTokens | null;
 
 	constructor(model: ITextModel) {
 		this._model = model;
@@ -174,14 +173,14 @@ class ModelRawTokenScanner {
 			this._model.forceTokenization(this._lineNumber);
 			this._lineTokens = this._model.getLineTokens(this._lineNumber);
 			this._tokenIndex = 0;
-			if (this._lineTokens.getCount() === 0) {
+			if (this._lineTokens.getLineContent().length === 0) {
 				// Skip empty lines
 				this._lineTokens = null;
 			}
 		}
 	}
 
-	public next(): RawToken {
+	public next(): RawToken | null {
 		if (!this._lineTokens) {
 			return null;
 		}
@@ -200,7 +199,7 @@ class TokenScanner {
 	private _rawTokenScanner: ModelRawTokenScanner;
 	private _nextBuff: Token[];
 
-	private _cachedLanguageBrackets: RichEditBrackets;
+	private _cachedLanguageBrackets: RichEditBrackets | null;
 	private _cachedLanguageId: LanguageId;
 
 	constructor(model: ITextModel) {
@@ -210,9 +209,9 @@ class TokenScanner {
 		this._cachedLanguageId = -1;
 	}
 
-	next(): Token {
+	next(): Token | null {
 		if (this._nextBuff.length > 0) {
-			return this._nextBuff.shift();
+			return this._nextBuff.shift()!;
 		}
 
 		const token = this._rawTokenScanner.next();
@@ -239,7 +238,7 @@ class TokenScanner {
 			);
 		}
 
-		let foundBracket: Range;
+		let foundBracket: Range | null;
 		do {
 			foundBracket = BracketsUtils.findNextBracketInToken(modeBrackets.forwardRegex, lineNumber, lineText, startOffset, endOffset);
 			if (foundBracket) {
@@ -280,7 +279,7 @@ class TokenScanner {
 			));
 		}
 
-		return this._nextBuff.shift();
+		return this._nextBuff.shift() || null;
 	}
 }
 
@@ -295,7 +294,7 @@ class TokenTreeBuilder {
 	}
 
 	public build(): Node {
-		var node = new NodeList();
+		let node = new NodeList();
 		while (node.append(this._line() || this._any())) {
 			// accept all
 		}
@@ -303,14 +302,14 @@ class TokenTreeBuilder {
 	}
 
 	private _accept(condt: (info: Token) => boolean): boolean {
-		var token = this._stack.pop() || this._scanner.next();
+		let token = this._stack.pop() || this._scanner.next();
 		if (!token) {
 			return false;
 		}
-		var accepted = condt(token);
+		let accepted = condt(token);
 		if (!accepted) {
 			this._stack.push(token);
-			this._currentToken = null;
+			// this._currentToken = null;
 		} else {
 			this._currentToken = token;
 			//			console.log('accepted: ' + token.__debugContent);
@@ -319,7 +318,7 @@ class TokenTreeBuilder {
 	}
 
 	private _peek(condt: (info: Token) => boolean): boolean {
-		var ret = false;
+		let ret = false;
 		this._accept(info => {
 			ret = condt(info);
 			return false;
@@ -327,9 +326,9 @@ class TokenTreeBuilder {
 		return ret;
 	}
 
-	private _line(): Node {
-		var node = new NodeList(),
-			lineNumber: number;
+	private _line(): Node | null {
+		let node = new NodeList();
+		let lineNumber: number;
 
 		// capture current linenumber
 		this._peek(info => {
@@ -352,17 +351,17 @@ class TokenTreeBuilder {
 		}
 	}
 
-	private _token(): Node {
+	private _token(): Node | null {
 		if (!this._accept(token => token.bracket === TokenTreeBracket.None)) {
 			return null;
 		}
 		return newNode(this._currentToken);
 	}
 
-	private _block(): Node {
+	private _block(): Node | null {
 
-		var bracketType: string,
-			accepted: boolean;
+		let bracketType: string | null;
+		let accepted: boolean;
 
 		accepted = this._accept(token => {
 			bracketType = token.bracketType;
@@ -372,7 +371,7 @@ class TokenTreeBuilder {
 			return null;
 		}
 
-		var bracket = new Block();
+		let bracket = new Block();
 		bracket.open = newNode(this._currentToken);
 		while (bracket.elements.append(this._line())) {
 			// inside brackets
@@ -380,7 +379,7 @@ class TokenTreeBuilder {
 
 		if (!this._accept(token => token.bracket === TokenTreeBracket.Close && token.bracketType === bracketType)) {
 			// missing closing bracket -> return just a node list
-			var nodelist = new NodeList();
+			let nodelist = new NodeList();
 			nodelist.append(bracket.open);
 			nodelist.append(bracket.elements);
 			return nodelist;
@@ -390,7 +389,7 @@ class TokenTreeBuilder {
 		return bracket;
 	}
 
-	private _any(): Node {
+	private _any(): Node | null {
 		if (!this._accept(_ => true)) {
 			return null;
 		}
@@ -405,11 +404,11 @@ class TokenTreeBuilder {
  *	block = "open_bracket" { line } "close_bracket"
  */
 export function build(model: ITextModel): Node {
-	var node = new TokenTreeBuilder(model).build();
+	let node = new TokenTreeBuilder(model).build();
 	return node;
 }
 
-export function find(node: Node, position: Position): Node {
+export function find(node: Node, position: Position): Node | null {
 	if (node instanceof NodeList && node.isEmpty) {
 		return null;
 	}
@@ -418,17 +417,17 @@ export function find(node: Node, position: Position): Node {
 		return null;
 	}
 
-	var result: Node;
+	let result: Node | null = null;
 
 	if (node instanceof NodeList) {
 		if (node.hasChildren) {
-			for (var i = 0, len = node.children.length; i < len && !result; i++) {
+			for (let i = 0, len = node.children.length; i < len && !result; i++) {
 				result = find(node.children[i], position);
 			}
 		}
 
 	} else if (node instanceof Block) {
-		result = find(node.open, position) || find(node.elements, position) || find(node.close, position);
+		result = find(node.elements, position) || find(node.open, position) || find(node.close, position);
 	}
 
 	return result || node;

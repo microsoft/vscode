@@ -6,7 +6,7 @@
 /* marker zone */
 
 .monaco-editor .marker-widget {
-	padding-left: 2px;
+	padding: 6px 12px;
 	text-overflow: ellipsis;
 	white-space: nowrap;
 }

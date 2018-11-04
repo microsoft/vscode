@@ -2,25 +2,28 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
 import * as modes from 'vs/editor/common/modes';
 import * as types from './extHostTypes';
-import { Position as EditorPosition, ITextEditorOptions } from 'vs/platform/editor/common/editor';
+import * as search from 'vs/workbench/parts/search/common/search';
+import { ITextEditorOptions } from 'vs/platform/editor/common/editor';
+import { EditorViewColumn } from 'vs/workbench/api/shared/editor';
 import { IDecorationOptions } from 'vs/editor/common/editorCommon';
 import { EndOfLineSequence } from 'vs/editor/common/model';
 import * as vscode from 'vscode';
-import URI from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 import { ProgressLocation as MainProgressLocation } from 'vs/platform/progress/common/progress';
 import { SaveReason } from 'vs/workbench/services/textfile/common/textfiles';
 import { IPosition } from 'vs/editor/common/core/position';
 import { IRange } from 'vs/editor/common/core/range';
 import { ISelection } from 'vs/editor/common/core/selection';
 import * as htmlContent from 'vs/base/common/htmlContent';
-import { IRelativePattern } from 'vs/base/common/glob';
-import { LanguageSelector, LanguageFilter } from 'vs/editor/common/modes/languageSelector';
-import { WorkspaceEditDto, ResourceTextEditDto } from 'vs/workbench/api/node/extHost.protocol';
-import { MarkerSeverity, IRelatedInformation, IMarkerData } from 'vs/platform/markers/common/markers';
+import * as languageSelector from 'vs/editor/common/modes/languageSelector';
+import { WorkspaceEditDto, ResourceTextEditDto, ResourceFileEditDto } from 'vs/workbench/api/node/extHost.protocol';
+import { MarkerSeverity, IRelatedInformation, IMarkerData, MarkerTag } from 'vs/platform/markers/common/markers';
+import { ACTIVE_GROUP, SIDE_GROUP } from 'vs/workbench/services/editor/common/editorService';
+import { ExtHostDocumentsAndEditors } from 'vs/workbench/api/node/extHostDocumentsAndEditors';
+import { isString, isNumber } from 'vs/base/common/types';
 
 export interface PositionLike {
 	line: number;
@@ -36,131 +39,145 @@ export interface SelectionLike extends RangeLike {
 	anchor: PositionLike;
 	active: PositionLike;
 }
+export namespace Selection {
 
-export function toSelection(selection: ISelection): types.Selection {
-	let { selectionStartLineNumber, selectionStartColumn, positionLineNumber, positionColumn } = selection;
-	let start = new types.Position(selectionStartLineNumber - 1, selectionStartColumn - 1);
-	let end = new types.Position(positionLineNumber - 1, positionColumn - 1);
-	return new types.Selection(start, end);
+	export function to(selection: ISelection): types.Selection {
+		const { selectionStartLineNumber, selectionStartColumn, positionLineNumber, positionColumn } = selection;
+		const start = new types.Position(selectionStartLineNumber - 1, selectionStartColumn - 1);
+		const end = new types.Position(positionLineNumber - 1, positionColumn - 1);
+		return new types.Selection(start, end);
+	}
+
+	export function from(selection: SelectionLike): ISelection {
+		const { anchor, active } = selection;
+		return {
+			selectionStartLineNumber: anchor.line + 1,
+			selectionStartColumn: anchor.character + 1,
+			positionLineNumber: active.line + 1,
+			positionColumn: active.character + 1
+		};
+	}
+}
+export namespace Range {
+
+	export function from(range: RangeLike): IRange {
+		if (!range) {
+			return undefined;
+		}
+		const { start, end } = range;
+		return {
+			startLineNumber: start.line + 1,
+			startColumn: start.character + 1,
+			endLineNumber: end.line + 1,
+			endColumn: end.character + 1
+		};
+	}
+
+	export function to(range: IRange): types.Range {
+		if (!range) {
+			return undefined;
+		}
+		const { startLineNumber, startColumn, endLineNumber, endColumn } = range;
+		return new types.Range(startLineNumber - 1, startColumn - 1, endLineNumber - 1, endColumn - 1);
+	}
 }
 
-export function fromSelection(selection: SelectionLike): ISelection {
-	let { anchor, active } = selection;
-	return {
-		selectionStartLineNumber: anchor.line + 1,
-		selectionStartColumn: anchor.character + 1,
-		positionLineNumber: active.line + 1,
-		positionColumn: active.character + 1
-	};
+export namespace Position {
+	export function to(position: IPosition): types.Position {
+		return new types.Position(position.lineNumber - 1, position.column - 1);
+	}
+	export function from(position: types.Position): IPosition {
+		return { lineNumber: position.line + 1, column: position.character + 1 };
+	}
 }
 
-export function fromRange(range: RangeLike): IRange {
-	if (!range) {
+export namespace DiagnosticTag {
+	export function from(value: vscode.DiagnosticTag): MarkerTag {
+		switch (value) {
+			case types.DiagnosticTag.Unnecessary:
+				return MarkerTag.Unnecessary;
+		}
 		return undefined;
 	}
-	let { start, end } = range;
-	return {
-		startLineNumber: start.line + 1,
-		startColumn: start.character + 1,
-		endLineNumber: end.line + 1,
-		endColumn: end.character + 1
-	};
 }
 
-export function toRange(range: IRange): types.Range {
-	if (!range) {
+export namespace Diagnostic {
+	export function from(value: vscode.Diagnostic): IMarkerData {
+		return {
+			...Range.from(value.range),
+			message: value.message,
+			source: value.source,
+			code: isString(value.code) || isNumber(value.code) ? String(value.code) : void 0,
+			severity: DiagnosticSeverity.from(value.severity),
+			relatedInformation: value.relatedInformation && value.relatedInformation.map(DiagnosticRelatedInformation.from),
+			tags: Array.isArray(value.tags) ? value.tags.map(DiagnosticTag.from) : undefined,
+		};
+	}
+}
+
+export namespace DiagnosticRelatedInformation {
+	export function from(value: types.DiagnosticRelatedInformation): IRelatedInformation {
+		return {
+			...Range.from(value.location.range),
+			message: value.message,
+			resource: value.location.uri
+		};
+	}
+	export function to(value: IRelatedInformation): types.DiagnosticRelatedInformation {
+		return new types.DiagnosticRelatedInformation(new types.Location(value.resource, Range.to(value)), value.message);
+	}
+}
+export namespace DiagnosticSeverity {
+
+	export function from(value: number): MarkerSeverity {
+		switch (value) {
+			case types.DiagnosticSeverity.Error:
+				return MarkerSeverity.Error;
+			case types.DiagnosticSeverity.Warning:
+				return MarkerSeverity.Warning;
+			case types.DiagnosticSeverity.Information:
+				return MarkerSeverity.Info;
+			case types.DiagnosticSeverity.Hint:
+				return MarkerSeverity.Hint;
+		}
+		return MarkerSeverity.Error;
+	}
+
+	export function to(value: MarkerSeverity): types.DiagnosticSeverity {
+		switch (value) {
+			case MarkerSeverity.Info:
+				return types.DiagnosticSeverity.Information;
+			case MarkerSeverity.Warning:
+				return types.DiagnosticSeverity.Warning;
+			case MarkerSeverity.Error:
+				return types.DiagnosticSeverity.Error;
+			case MarkerSeverity.Hint:
+				return types.DiagnosticSeverity.Hint;
+		}
+		return types.DiagnosticSeverity.Error;
+	}
+}
+
+export namespace ViewColumn {
+	export function from(column?: vscode.ViewColumn): EditorViewColumn {
+		if (typeof column === 'number' && column >= types.ViewColumn.One) {
+			return column - 1; // adjust zero index (ViewColumn.ONE => 0)
+		}
+
+		if (column === types.ViewColumn.Beside) {
+			return SIDE_GROUP;
+		}
+
+		return ACTIVE_GROUP; // default is always the active group
+	}
+
+	export function to(position?: EditorViewColumn): vscode.ViewColumn {
+		if (typeof position === 'number' && position >= 0) {
+			return position + 1; // adjust to index (ViewColumn.ONE => 1)
+		}
+
 		return undefined;
 	}
-	let { startLineNumber, startColumn, endLineNumber, endColumn } = range;
-	return new types.Range(startLineNumber - 1, startColumn - 1, endLineNumber - 1, endColumn - 1);
-}
-
-export function toPosition(position: IPosition): types.Position {
-	return new types.Position(position.lineNumber - 1, position.column - 1);
-}
-
-export function fromPosition(position: types.Position): IPosition {
-	return { lineNumber: position.line + 1, column: position.character + 1 };
-}
-
-export function fromDiagnostic(value: vscode.Diagnostic): IMarkerData {
-	return {
-		...fromRange(value.range),
-		message: value.message,
-		source: value.source,
-		code: String(value.code),
-		severity: fromDiagnosticSeverity(value.severity),
-		relatedInformation: value.relatedInformation && value.relatedInformation.map(fromDiagnosticRelatedInformation)
-	};
-}
-
-export function fromDiagnosticRelatedInformation(value: types.DiagnosticRelatedInformation): IRelatedInformation {
-	return {
-		...fromRange(value.location.range),
-		message: value.message,
-		resource: value.location.uri
-	};
-}
-
-export function toDiagnosticRelatedInformation(value: IRelatedInformation): types.DiagnosticRelatedInformation {
-	return new types.DiagnosticRelatedInformation(new types.Location(value.resource, toRange(value)), value.message);
-}
-
-export function fromDiagnosticSeverity(value: number): MarkerSeverity {
-	switch (value) {
-		case types.DiagnosticSeverity.Error:
-			return MarkerSeverity.Error;
-		case types.DiagnosticSeverity.Warning:
-			return MarkerSeverity.Warning;
-		case types.DiagnosticSeverity.Information:
-			return MarkerSeverity.Info;
-		case types.DiagnosticSeverity.Hint:
-			return MarkerSeverity.Hint;
-	}
-	return MarkerSeverity.Error;
-}
-
-export function toDiagnosticSeverty(value: MarkerSeverity): types.DiagnosticSeverity {
-	switch (value) {
-		case MarkerSeverity.Info:
-			return types.DiagnosticSeverity.Information;
-		case MarkerSeverity.Warning:
-			return types.DiagnosticSeverity.Warning;
-		case MarkerSeverity.Error:
-			return types.DiagnosticSeverity.Error;
-		case MarkerSeverity.Hint:
-			return types.DiagnosticSeverity.Hint;
-	}
-	return types.DiagnosticSeverity.Error;
-}
-
-
-export function fromViewColumn(column?: vscode.ViewColumn): EditorPosition {
-	let editorColumn = EditorPosition.ONE;
-	if (typeof column !== 'number') {
-		// stick with ONE
-	} else if (column === <number>types.ViewColumn.Two) {
-		editorColumn = EditorPosition.TWO;
-	} else if (column === <number>types.ViewColumn.Three) {
-		editorColumn = EditorPosition.THREE;
-	} else if (column === <number>types.ViewColumn.Active) {
-		editorColumn = undefined;
-	}
-	return editorColumn;
-}
-
-export function toViewColumn(position?: EditorPosition): vscode.ViewColumn {
-	if (typeof position !== 'number') {
-		return undefined;
-	}
-	if (position === EditorPosition.ONE) {
-		return <number>types.ViewColumn.One;
-	} else if (position === EditorPosition.TWO) {
-		return <number>types.ViewColumn.Two;
-	} else if (position === EditorPosition.THREE) {
-		return <number>types.ViewColumn.Three;
-	}
-	return undefined;
 }
 
 function isDecorationOptions(something: any): something is vscode.DecorationOptions {
@@ -221,7 +238,7 @@ export function fromRangeOrRangeWithMessage(ranges: vscode.Range[] | vscode.Deco
 	if (isDecorationOptionsArr(ranges)) {
 		return ranges.map(r => {
 			return {
-				range: fromRange(r.range),
+				range: Range.from(r.range),
 				hoverMessage: Array.isArray(r.hoverMessage) ? MarkdownString.fromMany(r.hoverMessage) : r.hoverMessage && MarkdownString.from(r.hoverMessage),
 				renderOptions: <any> /* URI vs Uri */r.renderOptions
 			};
@@ -229,41 +246,43 @@ export function fromRangeOrRangeWithMessage(ranges: vscode.Range[] | vscode.Deco
 	} else {
 		return ranges.map((r): IDecorationOptions => {
 			return {
-				range: fromRange(r)
+				range: Range.from(r)
 			};
 		});
 	}
 }
 
-export const TextEdit = {
+export namespace TextEdit {
 
-	from(edit: vscode.TextEdit): modes.TextEdit {
+	export function from(edit: vscode.TextEdit): modes.TextEdit {
 		return <modes.TextEdit>{
 			text: edit.newText,
 			eol: EndOfLine.from(edit.newEol),
-			range: fromRange(edit.range)
+			range: Range.from(edit.range)
 		};
-	},
-	to(edit: modes.TextEdit): types.TextEdit {
-		let result = new types.TextEdit(toRange(edit.range), edit.text);
+	}
+
+	export function to(edit: modes.TextEdit): types.TextEdit {
+		const result = new types.TextEdit(Range.to(edit.range), edit.text);
 		result.newEol = EndOfLine.to(edit.eol);
 		return result;
 	}
-};
+}
 
 export namespace WorkspaceEdit {
-	export function from(value: vscode.WorkspaceEdit): modes.WorkspaceEdit {
-		const result: modes.WorkspaceEdit = {
+	export function from(value: vscode.WorkspaceEdit, documents?: ExtHostDocumentsAndEditors): WorkspaceEditDto {
+		const result: WorkspaceEditDto = {
 			edits: []
 		};
-		for (const entry of value.entries()) {
+		for (const entry of (value as types.WorkspaceEdit)._allEntries()) {
 			const [uri, uriOrEdits] = entry;
 			if (Array.isArray(uriOrEdits)) {
 				// text edits
-				result.edits.push({ resource: uri, edits: uriOrEdits.map(TextEdit.from) });
+				const doc = documents ? documents.getDocument(uri.toString()) : undefined;
+				result.edits.push(<ResourceTextEditDto>{ resource: uri, modelVersionId: doc && doc.version, edits: uriOrEdits.map(TextEdit.from) });
 			} else {
 				// resource edits
-				result.edits.push({ oldUri: uri, newUri: uriOrEdits });
+				result.edits.push(<ResourceFileEditDto>{ oldUri: uri, newUri: uriOrEdits, options: entry[2] });
 			}
 		}
 		return result;
@@ -277,11 +296,12 @@ export namespace WorkspaceEdit {
 					URI.revive((<ResourceTextEditDto>edit).resource),
 					<types.TextEdit[]>(<ResourceTextEditDto>edit).edits.map(TextEdit.to)
 				);
-				// } else {
-				// 	result.renameResource(
-				// 		URI.revive((<ResourceFileEditDto>edit).oldUri),
-				// 		URI.revive((<ResourceFileEditDto>edit).newUri)
-				// 	);
+			} else {
+				result.renameFile(
+					URI.revive((<ResourceFileEditDto>edit).oldUri),
+					URI.revive((<ResourceFileEditDto>edit).newUri),
+					(<ResourceFileEditDto>edit).options
+				);
 			}
 		}
 		return result;
@@ -320,11 +340,11 @@ export namespace SymbolKind {
 	_fromMapping[types.SymbolKind.TypeParameter] = modes.SymbolKind.TypeParameter;
 
 	export function from(kind: vscode.SymbolKind): modes.SymbolKind {
-		return _fromMapping[kind] || modes.SymbolKind.Property;
+		return typeof _fromMapping[kind] === 'number' ? _fromMapping[kind] : modes.SymbolKind.Property;
 	}
 
 	export function to(kind: modes.SymbolKind): vscode.SymbolKind {
-		for (let k in _fromMapping) {
+		for (const k in _fromMapping) {
 			if (_fromMapping[k] === kind) {
 				return Number(k);
 			}
@@ -333,60 +353,116 @@ export namespace SymbolKind {
 	}
 }
 
-export function fromSymbolInformation(info: vscode.SymbolInformation): modes.SymbolInformation {
-	return <modes.SymbolInformation>{
-		name: info.name,
-		kind: SymbolKind.from(info.kind),
-		containerName: info.containerName,
-		location: location.from(info.location)
-	};
+export namespace WorkspaceSymbol {
+	export function from(info: vscode.SymbolInformation): search.IWorkspaceSymbol {
+		return <search.IWorkspaceSymbol>{
+			name: info.name,
+			kind: SymbolKind.from(info.kind),
+			containerName: info.containerName,
+			location: location.from(info.location)
+		};
+	}
+	export function to(info: search.IWorkspaceSymbol): types.SymbolInformation {
+		return new types.SymbolInformation(
+			info.name,
+			SymbolKind.to(info.kind),
+			info.containerName,
+			location.to(info.location)
+		);
+	}
 }
 
-export function toSymbolInformation(bearing: modes.SymbolInformation): types.SymbolInformation {
-	return new types.SymbolInformation(
-		bearing.name,
-		SymbolKind.to(bearing.kind),
-		bearing.containerName,
-		location.to(bearing.location)
-	);
+export namespace DocumentSymbol {
+	export function from(info: vscode.DocumentSymbol): modes.DocumentSymbol {
+		const result: modes.DocumentSymbol = {
+			name: info.name,
+			detail: info.detail,
+			range: Range.from(info.range),
+			selectionRange: Range.from(info.selectionRange),
+			kind: SymbolKind.from(info.kind)
+		};
+		if (info.children) {
+			result.children = info.children.map(from);
+		}
+		return result;
+	}
+	export function to(info: modes.DocumentSymbol): vscode.DocumentSymbol {
+		const result = new types.DocumentSymbol(
+			info.name,
+			info.detail,
+			SymbolKind.to(info.kind),
+			Range.to(info.range),
+			Range.to(info.selectionRange),
+		);
+		if (info.children) {
+			result.children = info.children.map(to) as any;
+		}
+		return result;
+	}
 }
 
-
-export const location = {
-	from(value: vscode.Location): modes.Location {
+export namespace location {
+	export function from(value: vscode.Location): modes.Location {
 		return {
-			range: value.range && fromRange(value.range),
+			range: value.range && Range.from(value.range),
 			uri: value.uri
 		};
-	},
-	to(value: modes.Location): types.Location {
-		return new types.Location(value.uri, toRange(value.range));
 	}
-};
 
-export function fromHover(hover: vscode.Hover): modes.Hover {
-	return <modes.Hover>{
-		range: fromRange(hover.range),
-		contents: MarkdownString.fromMany(hover.contents)
-	};
+	export function to(value: modes.Location): types.Location {
+		return new types.Location(value.uri, Range.to(value.range));
+	}
 }
 
-export function toHover(info: modes.Hover): types.Hover {
-	return new types.Hover(info.contents.map(MarkdownString.to), toRange(info.range));
+export namespace DefinitionLink {
+	export function from(value: vscode.Location | vscode.DefinitionLink): modes.DefinitionLink {
+		const definitionLink = <vscode.DefinitionLink>value;
+		const location = <vscode.Location>value;
+		return {
+			origin: definitionLink.originSelectionRange
+				? Range.from(definitionLink.originSelectionRange)
+				: undefined,
+			uri: definitionLink.targetUri ? definitionLink.targetUri : location.uri,
+			range: Range.from(definitionLink.targetRange ? definitionLink.targetRange : location.range),
+			selectionRange: definitionLink.targetSelectionRange
+				? Range.from(definitionLink.targetSelectionRange)
+				: undefined,
+		};
+	}
 }
 
-export function toDocumentHighlight(occurrence: modes.DocumentHighlight): types.DocumentHighlight {
-	return new types.DocumentHighlight(toRange(occurrence.range), occurrence.kind);
+export namespace Hover {
+	export function from(hover: vscode.Hover): modes.Hover {
+		return <modes.Hover>{
+			range: Range.from(hover.range),
+			contents: MarkdownString.fromMany(hover.contents)
+		};
+	}
+
+	export function to(info: modes.Hover): types.Hover {
+		return new types.Hover(info.contents.map(MarkdownString.to), Range.to(info.range));
+	}
+}
+export namespace DocumentHighlight {
+	export function from(documentHighlight: vscode.DocumentHighlight): modes.DocumentHighlight {
+		return {
+			range: Range.from(documentHighlight.range),
+			kind: documentHighlight.kind
+		};
+	}
+	export function to(occurrence: modes.DocumentHighlight): types.DocumentHighlight {
+		return new types.DocumentHighlight(Range.to(occurrence.range), occurrence.kind);
+	}
 }
 
 export namespace CompletionTriggerKind {
-	export function from(kind: modes.SuggestTriggerKind) {
+	export function to(kind: modes.CompletionTriggerKind) {
 		switch (kind) {
-			case modes.SuggestTriggerKind.TriggerCharacter:
+			case modes.CompletionTriggerKind.TriggerCharacter:
 				return types.CompletionTriggerKind.TriggerCharacter;
-			case modes.SuggestTriggerKind.TriggerForIncompleteCompletions:
+			case modes.CompletionTriggerKind.TriggerForIncompleteCompletions:
 				return types.CompletionTriggerKind.TriggerForIncompleteCompletions;
-			case modes.SuggestTriggerKind.Invoke:
+			case modes.CompletionTriggerKind.Invoke:
 			default:
 				return types.CompletionTriggerKind.Invoke;
 		}
@@ -394,84 +470,119 @@ export namespace CompletionTriggerKind {
 }
 
 export namespace CompletionContext {
-	export function from(context: modes.SuggestContext): types.CompletionContext {
+	export function to(context: modes.CompletionContext): types.CompletionContext {
 		return {
-			triggerKind: CompletionTriggerKind.from(context.triggerKind),
+			triggerKind: CompletionTriggerKind.to(context.triggerKind),
 			triggerCharacter: context.triggerCharacter
 		};
 	}
 }
 
-export const CompletionItemKind = {
+export namespace CompletionItemKind {
 
-	from(kind: types.CompletionItemKind): modes.SuggestionType {
+	export function from(kind: types.CompletionItemKind): modes.CompletionItemKind {
 		switch (kind) {
-			case types.CompletionItemKind.Method: return 'method';
-			case types.CompletionItemKind.Function: return 'function';
-			case types.CompletionItemKind.Constructor: return 'constructor';
-			case types.CompletionItemKind.Field: return 'field';
-			case types.CompletionItemKind.Variable: return 'variable';
-			case types.CompletionItemKind.Class: return 'class';
-			case types.CompletionItemKind.Interface: return 'interface';
-			case types.CompletionItemKind.Struct: return 'struct';
-			case types.CompletionItemKind.Module: return 'module';
-			case types.CompletionItemKind.Property: return 'property';
-			case types.CompletionItemKind.Unit: return 'unit';
-			case types.CompletionItemKind.Value: return 'value';
-			case types.CompletionItemKind.Constant: return 'constant';
-			case types.CompletionItemKind.Enum: return 'enum';
-			case types.CompletionItemKind.EnumMember: return 'enum-member';
-			case types.CompletionItemKind.Keyword: return 'keyword';
-			case types.CompletionItemKind.Snippet: return 'snippet';
-			case types.CompletionItemKind.Text: return 'text';
-			case types.CompletionItemKind.Color: return 'color';
-			case types.CompletionItemKind.File: return 'file';
-			case types.CompletionItemKind.Reference: return 'reference';
-			case types.CompletionItemKind.Folder: return 'folder';
-			case types.CompletionItemKind.Event: return 'event';
-			case types.CompletionItemKind.Operator: return 'operator';
-			case types.CompletionItemKind.TypeParameter: return 'type-parameter';
+			case types.CompletionItemKind.Method: return modes.CompletionItemKind.Method;
+			case types.CompletionItemKind.Function: return modes.CompletionItemKind.Function;
+			case types.CompletionItemKind.Constructor: return modes.CompletionItemKind.Constructor;
+			case types.CompletionItemKind.Field: return modes.CompletionItemKind.Field;
+			case types.CompletionItemKind.Variable: return modes.CompletionItemKind.Variable;
+			case types.CompletionItemKind.Class: return modes.CompletionItemKind.Class;
+			case types.CompletionItemKind.Interface: return modes.CompletionItemKind.Interface;
+			case types.CompletionItemKind.Struct: return modes.CompletionItemKind.Struct;
+			case types.CompletionItemKind.Module: return modes.CompletionItemKind.Module;
+			case types.CompletionItemKind.Property: return modes.CompletionItemKind.Property;
+			case types.CompletionItemKind.Unit: return modes.CompletionItemKind.Unit;
+			case types.CompletionItemKind.Value: return modes.CompletionItemKind.Value;
+			case types.CompletionItemKind.Constant: return modes.CompletionItemKind.Constant;
+			case types.CompletionItemKind.Enum: return modes.CompletionItemKind.Enum;
+			case types.CompletionItemKind.EnumMember: return modes.CompletionItemKind.EnumMember;
+			case types.CompletionItemKind.Keyword: return modes.CompletionItemKind.Keyword;
+			case types.CompletionItemKind.Snippet: return modes.CompletionItemKind.Snippet;
+			case types.CompletionItemKind.Text: return modes.CompletionItemKind.Text;
+			case types.CompletionItemKind.Color: return modes.CompletionItemKind.Color;
+			case types.CompletionItemKind.File: return modes.CompletionItemKind.File;
+			case types.CompletionItemKind.Reference: return modes.CompletionItemKind.Reference;
+			case types.CompletionItemKind.Folder: return modes.CompletionItemKind.Folder;
+			case types.CompletionItemKind.Event: return modes.CompletionItemKind.Event;
+			case types.CompletionItemKind.Operator: return modes.CompletionItemKind.Operator;
+			case types.CompletionItemKind.TypeParameter: return modes.CompletionItemKind.TypeParameter;
 		}
-		return 'property';
-	},
-
-	to(type: modes.SuggestionType): types.CompletionItemKind {
-		if (!type) {
-			return types.CompletionItemKind.Property;
-		} else {
-			return types.CompletionItemKind[type.charAt(0).toUpperCase() + type.substr(1)];
-		}
+		return modes.CompletionItemKind.Property;
 	}
-};
 
-export namespace Suggest {
+	export function to(kind: modes.CompletionItemKind): types.CompletionItemKind {
+		switch (kind) {
+			case modes.CompletionItemKind.Method: return types.CompletionItemKind.Method;
+			case modes.CompletionItemKind.Function: return types.CompletionItemKind.Function;
+			case modes.CompletionItemKind.Constructor: return types.CompletionItemKind.Constructor;
+			case modes.CompletionItemKind.Field: return types.CompletionItemKind.Field;
+			case modes.CompletionItemKind.Variable: return types.CompletionItemKind.Variable;
+			case modes.CompletionItemKind.Class: return types.CompletionItemKind.Class;
+			case modes.CompletionItemKind.Interface: return types.CompletionItemKind.Interface;
+			case modes.CompletionItemKind.Struct: return types.CompletionItemKind.Struct;
+			case modes.CompletionItemKind.Module: return types.CompletionItemKind.Module;
+			case modes.CompletionItemKind.Property: return types.CompletionItemKind.Property;
+			case modes.CompletionItemKind.Unit: return types.CompletionItemKind.Unit;
+			case modes.CompletionItemKind.Value: return types.CompletionItemKind.Value;
+			case modes.CompletionItemKind.Constant: return types.CompletionItemKind.Constant;
+			case modes.CompletionItemKind.Enum: return types.CompletionItemKind.Enum;
+			case modes.CompletionItemKind.EnumMember: return types.CompletionItemKind.EnumMember;
+			case modes.CompletionItemKind.Keyword: return types.CompletionItemKind.Keyword;
+			case modes.CompletionItemKind.Snippet: return types.CompletionItemKind.Snippet;
+			case modes.CompletionItemKind.Text: return types.CompletionItemKind.Text;
+			case modes.CompletionItemKind.Color: return types.CompletionItemKind.Color;
+			case modes.CompletionItemKind.File: return types.CompletionItemKind.File;
+			case modes.CompletionItemKind.Reference: return types.CompletionItemKind.Reference;
+			case modes.CompletionItemKind.Folder: return types.CompletionItemKind.Folder;
+			case modes.CompletionItemKind.Event: return types.CompletionItemKind.Event;
+			case modes.CompletionItemKind.Operator: return types.CompletionItemKind.Operator;
+			case modes.CompletionItemKind.TypeParameter: return types.CompletionItemKind.TypeParameter;
+		}
+		return types.CompletionItemKind.Property;
+	}
+}
 
-	export function to(position: types.Position, suggestion: modes.ISuggestion): types.CompletionItem {
+export namespace CompletionItemInsertTextRule {
+
+	export function from(rule: types.CompletionItemInsertTextRule): modes.CompletionItemInsertTextRule {
+		let result = 0;
+		if ((rule & types.CompletionItemInsertTextRule.KeepWhitespace)) {
+			result += modes.CompletionItemInsertTextRule.KeepWhitespace;
+		}
+		return result;
+	}
+
+	export function to(rule: modes.CompletionItemInsertTextRule): types.CompletionItemInsertTextRule {
+		let result = 0;
+		if ((rule & modes.CompletionItemInsertTextRule.KeepWhitespace)) {
+			result += types.CompletionItemInsertTextRule.KeepWhitespace;
+		}
+		return result;
+	}
+}
+
+export namespace CompletionItem {
+
+	export function to(suggestion: modes.CompletionItem): types.CompletionItem {
 		const result = new types.CompletionItem(suggestion.label);
 		result.insertText = suggestion.insertText;
-		result.kind = CompletionItemKind.to(suggestion.type);
+		result.kind = CompletionItemKind.to(suggestion.kind);
 		result.detail = suggestion.detail;
 		result.documentation = htmlContent.isMarkdownString(suggestion.documentation) ? MarkdownString.to(suggestion.documentation) : suggestion.documentation;
 		result.sortText = suggestion.sortText;
 		result.filterText = suggestion.filterText;
-
-		// 'overwrite[Before|After]'-logic
-		let overwriteBefore = (typeof suggestion.overwriteBefore === 'number') ? suggestion.overwriteBefore : 0;
-		let startPosition = new types.Position(position.line, Math.max(0, position.character - overwriteBefore));
-		let endPosition = position;
-		if (typeof suggestion.overwriteAfter === 'number') {
-			endPosition = new types.Position(position.line, position.character + suggestion.overwriteAfter);
-		}
-		result.range = new types.Range(startPosition, endPosition);
-
+		result.preselect = suggestion.preselect;
+		result.commitCharacters = suggestion.commitCharacters;
+		result.range = Range.to(suggestion.range);
+		result.insertTextRules = CompletionItemInsertTextRule.to(suggestion.insertTextRules);
 		// 'inserText'-logic
-		if (suggestion.snippetType === 'textmate') {
+		if (suggestion.insertTextRules & modes.CompletionItemInsertTextRule.InsertAsSnippet) {
 			result.insertText = new types.SnippetString(suggestion.insertText);
 		} else {
 			result.insertText = suggestion.insertText;
 			result.textEdit = new types.TextEdit(result.range, result.insertText);
 		}
-
 		// TODO additionalEdits, command
 
 		return result;
@@ -535,19 +646,19 @@ export namespace DocumentLink {
 
 	export function from(link: vscode.DocumentLink): modes.ILink {
 		return {
-			range: fromRange(link.range),
+			range: Range.from(link.range),
 			url: link.target && link.target.toString()
 		};
 	}
 
 	export function to(link: modes.ILink): vscode.DocumentLink {
-		return new types.DocumentLink(toRange(link.range), link.url && URI.parse(link.url));
+		return new types.DocumentLink(Range.to(link.range), link.url && URI.parse(link.url));
 	}
 }
 
 export namespace ColorPresentation {
 	export function to(colorPresentation: modes.IColorPresentation): types.ColorPresentation {
-		let cp = new types.ColorPresentation(colorPresentation.label);
+		const cp = new types.ColorPresentation(colorPresentation.label);
 		if (colorPresentation.textEdit) {
 			cp.textEdit = TextEdit.to(colorPresentation.textEdit);
 		}
@@ -623,64 +734,88 @@ export namespace ProgressLocation {
 	}
 }
 
-export namespace FoldingRangeList {
-	export function from(rangeList: vscode.FoldingRangeList): modes.IFoldingRangeList {
-		return {
-			ranges: rangeList.ranges.map(r => ({ startLineNumber: r.startLine + 1, endLineNumber: r.endLine + 1, type: r.type }))
-		};
+export namespace FoldingRange {
+	export function from(r: vscode.FoldingRange): modes.FoldingRange {
+		const range: modes.FoldingRange = { start: r.start + 1, end: r.end + 1 };
+		if (r.kind) {
+			range.kind = FoldingRangeKind.from(r.kind);
+		}
+		return range;
 	}
 }
 
-export function toTextEditorOptions(options?: vscode.TextDocumentShowOptions): ITextEditorOptions {
-	if (options) {
-		return {
-			pinned: typeof options.preview === 'boolean' ? !options.preview : undefined,
-			preserveFocus: options.preserveFocus,
-			selection: typeof options.selection === 'object' ? fromRange(options.selection) : undefined
-		} as ITextEditorOptions;
+export namespace FoldingRangeKind {
+	export function from(kind: vscode.FoldingRangeKind | undefined): modes.FoldingRangeKind | undefined {
+		if (kind) {
+			switch (kind) {
+				case types.FoldingRangeKind.Comment:
+					return modes.FoldingRangeKind.Comment;
+				case types.FoldingRangeKind.Imports:
+					return modes.FoldingRangeKind.Imports;
+				case types.FoldingRangeKind.Region:
+					return modes.FoldingRangeKind.Region;
+			}
+		}
+		return void 0;
 	}
-
-	return undefined;
 }
 
-export function toGlobPattern(pattern: vscode.GlobPattern): string | IRelativePattern {
-	if (typeof pattern === 'string') {
-		return pattern;
+export namespace TextEditorOptions {
+
+	export function from(options?: vscode.TextDocumentShowOptions): ITextEditorOptions {
+		if (options) {
+			return {
+				pinned: typeof options.preview === 'boolean' ? !options.preview : undefined,
+				preserveFocus: options.preserveFocus,
+				selection: typeof options.selection === 'object' ? Range.from(options.selection) : undefined
+			} as ITextEditorOptions;
+		}
+
+		return undefined;
 	}
 
-	if (isRelativePattern(pattern)) {
-		return new types.RelativePattern(pattern.base, pattern.pattern);
-	}
-
-	return pattern; // preserve `undefined` and `null`
 }
 
-function isRelativePattern(obj: any): obj is vscode.RelativePattern {
-	const rp = obj as vscode.RelativePattern;
+export namespace GlobPattern {
 
-	return rp && typeof rp.base === 'string' && typeof rp.pattern === 'string';
+	export function from(pattern: vscode.GlobPattern): string | types.RelativePattern {
+		if (pattern instanceof types.RelativePattern) {
+			return pattern;
+		}
+
+		if (typeof pattern === 'string') {
+			return pattern;
+		}
+
+		if (isRelativePattern(pattern)) {
+			return new types.RelativePattern(pattern.base, pattern.pattern);
+		}
+
+		return pattern; // preserve `undefined` and `null`
+	}
+
+	function isRelativePattern(obj: any): obj is vscode.RelativePattern {
+		const rp = obj as vscode.RelativePattern;
+		return rp && typeof rp.base === 'string' && typeof rp.pattern === 'string';
+	}
 }
 
-export function toLanguageSelector(selector: vscode.DocumentSelector): LanguageSelector {
-	if (Array.isArray(selector)) {
-		return selector.map(sel => doToLanguageSelector(sel));
+export namespace LanguageSelector {
+
+	export function from(selector: vscode.DocumentSelector): languageSelector.LanguageSelector {
+		if (!selector) {
+			return undefined;
+		} else if (Array.isArray(selector)) {
+			return <languageSelector.LanguageSelector>selector.map(from);
+		} else if (typeof selector === 'string') {
+			return selector;
+		} else {
+			return <languageSelector.LanguageFilter>{
+				language: selector.language,
+				scheme: selector.scheme,
+				pattern: GlobPattern.from(selector.pattern),
+				exclusive: selector.exclusive
+			};
+		}
 	}
-
-	return doToLanguageSelector(selector);
-}
-
-function doToLanguageSelector(selector: string | vscode.DocumentFilter): string | LanguageFilter {
-	if (typeof selector === 'string') {
-		return selector;
-	}
-
-	if (selector) {
-		return {
-			language: selector.language,
-			scheme: selector.scheme,
-			pattern: toGlobPattern(selector.pattern)
-		};
-	}
-
-	return undefined;
 }

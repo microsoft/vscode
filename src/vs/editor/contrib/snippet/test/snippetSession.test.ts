@@ -2,16 +2,15 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
-
 import * as assert from 'assert';
-import { Selection } from 'vs/editor/common/core/selection';
-import { Range } from 'vs/editor/common/core/range';
+import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { IPosition, Position } from 'vs/editor/common/core/position';
+import { Range } from 'vs/editor/common/core/range';
+import { Selection } from 'vs/editor/common/core/selection';
+import { TextModel } from 'vs/editor/common/model/textModel';
+import { SnippetParser } from 'vs/editor/contrib/snippet/snippetParser';
 import { SnippetSession } from 'vs/editor/contrib/snippet/snippetSession';
 import { createTestCodeEditor } from 'vs/editor/test/browser/testCodeEditor';
-import { TextModel } from 'vs/editor/common/model/textModel';
-import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 
 suite('SnippetSession', function () {
 
@@ -28,7 +27,7 @@ suite('SnippetSession', function () {
 
 	setup(function () {
 		model = TextModel.createFromString('function foo() {\n    console.log(a);\n}');
-		editor = createTestCodeEditor(model);
+		editor = createTestCodeEditor({ model: model });
 		editor.setSelections([new Selection(1, 1, 1, 1), new Selection(2, 5, 2, 5)]);
 		assert.equal(model.getEOL(), '\n');
 	});
@@ -41,8 +40,9 @@ suite('SnippetSession', function () {
 	test('normalize whitespace', function () {
 
 		function assertNormalized(position: IPosition, input: string, expected: string): void {
-			const actual = SnippetSession.adjustWhitespace(model, position, input);
-			assert.equal(actual, expected);
+			const snippet = new SnippetParser().parse(input);
+			SnippetSession.adjustWhitespace(model, position, snippet);
+			assert.equal(snippet.toTextmateString(), expected);
 		}
 
 		assertNormalized(new Position(1, 1), 'foo', 'foo');
@@ -51,6 +51,9 @@ suite('SnippetSession', function () {
 		assertNormalized(new Position(2, 5), 'foo\r\tbar', 'foo\n        bar');
 		assertNormalized(new Position(2, 3), 'foo\r\tbar', 'foo\n      bar');
 		assertNormalized(new Position(2, 5), 'foo\r\tbar\nfoo', 'foo\n        bar\n    foo');
+
+		//Indentation issue with choice elements that span multiple lines #46266
+		assertNormalized(new Position(2, 5), 'a\nb${1|foo,\nbar|}', 'a\n    b${1|foo,\nbar|}');
 	});
 
 	test('adjust selection (overwrite[Before|After])', function () {
@@ -118,6 +121,14 @@ suite('SnippetSession', function () {
 
 		session.next();
 		assertSelections(editor, new Selection(3, 1, 3, 1), new Selection(6, 5, 6, 5));
+	});
+
+	test('snippets, newline NO whitespace adjust', () => {
+
+		editor.setSelection(new Selection(2, 5, 2, 5));
+		const session = new SnippetSession(editor, 'abc\n    foo\n        bar\n$0', 0, 0, false);
+		session.insert();
+		assert.equal(editor.getModel().getValue(), 'function foo() {\n    abc\n    foo\n        bar\nconsole.log(a);\n}');
 	});
 
 	test('snippets, selections -> next/prev', () => {
@@ -432,6 +443,121 @@ suite('SnippetSession', function () {
 		// back to `${1:is ...}` which now grew
 		session.prev();
 		assertSelections(editor, new Selection(1, 6, 1, 25));
+	});
+
+	test('snippets, transform', function () {
+		editor.getModel().setValue('');
+		editor.setSelection(new Selection(1, 1, 1, 1));
+		const session = new SnippetSession(editor, '${1/foo/bar/}$0');
+		session.insert();
+		assertSelections(editor, new Selection(1, 1, 1, 1));
+
+		editor.trigger('test', 'type', { text: 'foo' });
+		session.next();
+
+		assert.equal(model.getValue(), 'bar');
+		assert.equal(session.isAtLastPlaceholder, true);
+		assertSelections(editor, new Selection(1, 4, 1, 4));
+	});
+
+	test('snippets, multi placeholder same index one transform', function () {
+		editor.getModel().setValue('');
+		editor.setSelection(new Selection(1, 1, 1, 1));
+		const session = new SnippetSession(editor, '$1 baz ${1/foo/bar/}$0');
+		session.insert();
+		assertSelections(editor, new Selection(1, 1, 1, 1), new Selection(1, 6, 1, 6));
+
+		editor.trigger('test', 'type', { text: 'foo' });
+		session.next();
+
+		assert.equal(model.getValue(), 'foo baz bar');
+		assert.equal(session.isAtLastPlaceholder, true);
+		assertSelections(editor, new Selection(1, 12, 1, 12));
+	});
+
+	test('snippets, transform example', function () {
+		editor.getModel().setValue('');
+		editor.setSelection(new Selection(1, 1, 1, 1));
+		const session = new SnippetSession(editor, '${1:name} : ${2:type}${3/\\s:=(.*)/${1:+ :=}${1}/};\n$0');
+		session.insert();
+
+		assertSelections(editor, new Selection(1, 1, 1, 5));
+		editor.trigger('test', 'type', { text: 'clk' });
+		session.next();
+
+		assertSelections(editor, new Selection(1, 7, 1, 11));
+		editor.trigger('test', 'type', { text: 'std_logic' });
+		session.next();
+
+		assertSelections(editor, new Selection(1, 16, 1, 16));
+		session.next();
+
+		assert.equal(model.getValue(), 'clk : std_logic;\n');
+		assert.equal(session.isAtLastPlaceholder, true);
+		assertSelections(editor, new Selection(2, 1, 2, 1));
+	});
+
+	test('snippets, transform with indent', function () {
+		const snippet = [
+			'private readonly ${1} = new Emitter<$2>();',
+			'readonly ${1/^_(.*)/$1/}: Event<$2> = this.$1.event;',
+			'$0'
+		].join('\n');
+		const expected = [
+			'{',
+			'\tprivate readonly _prop = new Emitter<string>();',
+			'\treadonly prop: Event<string> = this._prop.event;',
+			'\t',
+			'}'
+		].join('\n');
+		const base = [
+			'{',
+			'\t',
+			'}'
+		].join('\n');
+
+		editor.getModel().setValue(base);
+		editor.getModel().updateOptions({ insertSpaces: false });
+		editor.setSelection(new Selection(2, 2, 2, 2));
+
+		const session = new SnippetSession(editor, snippet);
+		session.insert();
+
+		assertSelections(editor, new Selection(2, 19, 2, 19), new Selection(3, 11, 3, 11), new Selection(3, 28, 3, 28));
+		editor.trigger('test', 'type', { text: '_prop' });
+		session.next();
+
+		assertSelections(editor, new Selection(2, 39, 2, 39), new Selection(3, 23, 3, 23));
+		editor.trigger('test', 'type', { text: 'string' });
+		session.next();
+
+		assert.equal(model.getValue(), expected);
+		assert.equal(session.isAtLastPlaceholder, true);
+		assertSelections(editor, new Selection(4, 2, 4, 2));
+
+	});
+
+	test('snippets, transform example hit if', function () {
+		editor.getModel().setValue('');
+		editor.setSelection(new Selection(1, 1, 1, 1));
+		const session = new SnippetSession(editor, '${1:name} : ${2:type}${3/\\s:=(.*)/${1:+ :=}${1}/};\n$0');
+		session.insert();
+
+		assertSelections(editor, new Selection(1, 1, 1, 5));
+		editor.trigger('test', 'type', { text: 'clk' });
+		session.next();
+
+		assertSelections(editor, new Selection(1, 7, 1, 11));
+		editor.trigger('test', 'type', { text: 'std_logic' });
+		session.next();
+
+		assertSelections(editor, new Selection(1, 16, 1, 16));
+		editor.trigger('test', 'type', { text: ' := \'1\'' });
+		session.next();
+
+		assert.equal(model.getValue(), 'clk : std_logic := \'1\';\n');
+		assert.equal(session.isAtLastPlaceholder, true);
+		assertSelections(editor, new Selection(2, 1, 2, 1));
 	});
 
 	test('Snippet placeholder index incorrect after using 2+ snippets in a row that each end with a placeholder, #30769', function () {

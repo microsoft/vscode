@@ -8,15 +8,16 @@ import { createHash } from 'crypto';
 import { IExtensionManagementService, ILocalExtension, IExtensionIdentifier } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { join } from 'vs/base/common/paths';
 import { TPromise } from 'vs/base/common/winjs.base';
-import { Limiter } from 'vs/base/common/async';
+import { Queue } from 'vs/base/common/async';
 import { areSameExtensions, getGalleryExtensionIdFromLocal, getIdFromLocalExtensionId } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { ILogService } from 'vs/platform/log/common/log';
-import { isValidLocalization, ILocalizationsService } from 'vs/platform/localizations/common/localizations';
+import { isValidLocalization, ILocalizationsService, LanguageType } from 'vs/platform/localizations/common/localizations';
 import product from 'vs/platform/node/product';
 import { distinct, equals } from 'vs/base/common/arrays';
 import { Event, Emitter } from 'vs/base/common/event';
+import { Schemas } from 'vs/base/common/network';
+import { posix } from 'path';
 
 interface ILanguagePack {
 	hash: string;
@@ -55,10 +56,13 @@ export class LocalizationsService extends Disposable implements ILocalizationsSe
 		this.extensionManagementService.getInstalled().then(installed => this.cache.update(installed));
 	}
 
-	getLanguageIds(): TPromise<string[]> {
+	getLanguageIds(type: LanguageType): TPromise<string[]> {
+		if (type === LanguageType.Core) {
+			return TPromise.as([...systemLanguages]);
+		}
 		return this.cache.getLanguagePacks()
 			.then(languagePacks => {
-				const languages = [...systemLanguages, ...Object.keys(languagePacks)];
+				const languages = type === LanguageType.Contributed ? Object.keys(languagePacks) : [...systemLanguages, ...Object.keys(languagePacks)];
 				return TPromise.as(distinct(languages));
 			});
 	}
@@ -96,15 +100,15 @@ class LanguagePacksCache extends Disposable {
 
 	private languagePacks: { [language: string]: ILanguagePack } = {};
 	private languagePacksFilePath: string;
-	private languagePacksFileLimiter: Limiter<void>;
+	private languagePacksFileLimiter: Queue<void>;
 
 	constructor(
 		@IEnvironmentService environmentService: IEnvironmentService,
 		@ILogService private logService: ILogService
 	) {
 		super();
-		this.languagePacksFilePath = join(environmentService.userDataPath, 'languagepacks.json');
-		this.languagePacksFileLimiter = new Limiter(1);
+		this.languagePacksFilePath = posix.join(environmentService.userDataPath, 'languagepacks.json');
+		this.languagePacksFileLimiter = new Queue<void>();
 	}
 
 	getLanguagePacks(): TPromise<{ [language: string]: ILanguagePack }> {
@@ -135,7 +139,7 @@ class LanguagePacksCache extends Disposable {
 	private createLanguagePacksFromExtension(languagePacks: { [language: string]: ILanguagePack }, extension: ILocalExtension): void {
 		const extensionIdentifier = { id: getGalleryExtensionIdFromLocal(extension), uuid: extension.identifier.uuid };
 		for (const localizationContribution of extension.manifest.contributes.localizations) {
-			if (isValidLocalization(localizationContribution)) {
+			if (extension.location.scheme === Schemas.file && isValidLocalization(localizationContribution)) {
 				let languagePack = languagePacks[localizationContribution.languageId];
 				if (!languagePack) {
 					languagePack = { hash: '', extensions: [], translations: {} };
@@ -148,7 +152,7 @@ class LanguagePacksCache extends Disposable {
 					languagePack.extensions.push({ extensionIdentifier, version: extension.manifest.version });
 				}
 				for (const translation of localizationContribution.translations) {
-					languagePack.translations[translation.id] = join(extension.path, translation.path);
+					languagePack.translations[translation.id] = posix.join(extension.location.fsPath, translation.path);
 				}
 			}
 		}
@@ -166,7 +170,7 @@ class LanguagePacksCache extends Disposable {
 
 	private withLanguagePacks<T>(fn: (languagePacks: { [language: string]: ILanguagePack }) => T = () => null): TPromise<T> {
 		return this.languagePacksFileLimiter.queue(() => {
-			let result: T = null;
+			let result: T | null = null;
 			return pfs.readFile(this.languagePacksFilePath, 'utf8')
 				.then(null, err => err.code === 'ENOENT' ? TPromise.as('{}') : TPromise.wrapError(err))
 				.then<{ [language: string]: ILanguagePack }>(raw => { try { return JSON.parse(raw); } catch (e) { return {}; } })

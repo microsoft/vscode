@@ -5,13 +5,14 @@
 
 import * as nls from 'vs/nls';
 import { TPromise } from 'vs/base/common/winjs.base';
-import uri from 'vs/base/common/uri';
+import { URI as uri } from 'vs/base/common/uri';
 import * as paths from 'vs/base/common/paths';
 import * as resources from 'vs/base/common/resources';
 import { DEBUG_SCHEME } from 'vs/workbench/parts/debug/common/debug';
 import { IRange } from 'vs/editor/common/core/range';
-import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { IEditorService, SIDE_GROUP, ACTIVE_GROUP } from 'vs/workbench/services/editor/common/editorService';
 import { Schemas } from 'vs/base/common/network';
+import { isUri } from 'vs/workbench/parts/debug/common/debugUtils';
 
 const UNKNOWN_SOURCE_LABEL = nls.localize('unknownSource', "Unknown Source");
 
@@ -35,25 +36,36 @@ export class Source {
 	public available: boolean;
 
 	constructor(public raw: DebugProtocol.Source, sessionId: string) {
-		if (!raw) {
+		let path: string;
+		if (raw) {
+			path = this.raw.path || this.raw.name;
+			this.available = true;
+		} else {
 			this.raw = { name: UNKNOWN_SOURCE_LABEL };
+			this.available = false;
+			path = `${DEBUG_SCHEME}:${UNKNOWN_SOURCE_LABEL}`;
 		}
-		this.available = this.raw.name !== UNKNOWN_SOURCE_LABEL;
-		const path = this.raw.path || this.raw.name;
+
 		if (this.raw.sourceReference > 0) {
 			this.uri = uri.parse(`${DEBUG_SCHEME}:${encodeURIComponent(path)}?session=${encodeURIComponent(sessionId)}&ref=${this.raw.sourceReference}`);
 		} else {
-			if (paths.isAbsolute(path)) {
-				this.uri = uri.file(path);
-			} else {
-				// assume that path is a URI
+			if (isUri(path)) {	// path looks like a uri
 				this.uri = uri.parse(path);
+			} else {
+				// assume a filesystem path
+				if (paths.isAbsolute_posix(path) || paths.isAbsolute_win32(path)) {
+					this.uri = uri.file(path);
+				} else {
+					// path is relative: since VS Code cannot deal with this by itself
+					// create a debug url that will result in a DAP 'source' request when the url is resolved.
+					this.uri = uri.parse(`${DEBUG_SCHEME}:${encodeURIComponent(path)}?session=${encodeURIComponent(sessionId)}`);
+				}
 			}
 		}
 	}
 
 	public get name() {
-		return this.raw.name;
+		return this.raw.name || resources.basenameOrAuthority(this.uri);
 	}
 
 	public get origin() {
@@ -72,8 +84,8 @@ export class Source {
 		return this.uri.scheme === DEBUG_SCHEME;
 	}
 
-	public openInEditor(editorService: IWorkbenchEditorService, selection: IRange, preserveFocus?: boolean, sideBySide?: boolean, pinned?: boolean): TPromise<any> {
-		return !this.available ? TPromise.as(null) : editorService.openEditor({
+	public openInEditor(editorService: IEditorService, selection: IRange, preserveFocus?: boolean, sideBySide?: boolean, pinned?: boolean): TPromise<any> {
+		return !this.available ? Promise.resolve(null) : editorService.openEditor({
 			resource: this.uri,
 			description: this.origin,
 			options: {
@@ -83,13 +95,13 @@ export class Source {
 				revealInCenterIfOutsideViewport: true,
 				pinned: pinned || (!preserveFocus && !this.inMemory)
 			}
-		}, sideBySide);
+		}, sideBySide ? SIDE_GROUP : ACTIVE_GROUP);
 	}
 
-	public static getEncodedDebugData(modelUri: uri): { name: string, path: string, processId: string, sourceReference: number } {
+	public static getEncodedDebugData(modelUri: uri): { name: string, path: string, sessionId: string, sourceReference: number } {
 		let path: string;
 		let sourceReference: number;
-		let processId: string;
+		let sessionId: string;
 
 		switch (modelUri.scheme) {
 			case Schemas.file:
@@ -104,7 +116,7 @@ export class Source {
 						if (pair.length === 2) {
 							switch (pair[0]) {
 								case 'session':
-									processId = decodeURIComponent(pair[1]);
+									sessionId = decodeURIComponent(pair[1]);
 									break;
 								case 'ref':
 									sourceReference = parseInt(pair[1]);
@@ -123,7 +135,7 @@ export class Source {
 			name: resources.basenameOrAuthority(modelUri),
 			path,
 			sourceReference,
-			processId
+			sessionId
 		};
 	}
 }

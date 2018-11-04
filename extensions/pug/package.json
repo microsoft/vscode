@@ -6,7 +6,7 @@
 	"publisher": "vscode",
 	"engines": { "vscode": "*" },
 	"scripts": {
-		"update-grammar": "node ../../build/npm/update-grammar.js davidrios/jade-tmbundle Syntaxes/Jade.tmLanguage ./syntaxes/pug.tmLanguage.json"
+		"update-grammar": "node ../../build/npm/update-grammar.js davidrios/pug-tmbundle Syntaxes/Pug.JSON-tmLanguage ./syntaxes/pug.tmLanguage.json"
 	},
 	"contributes": {
 		"languages": [{
@@ -17,7 +17,7 @@
 		}],
 		"grammars": [{
 			"language": "jade",
-			"scopeName": "text.jade",
+			"scopeName": "text.pug",
 			"path": "./syntaxes/pug.tmLanguage.json"
 		}]
 	}

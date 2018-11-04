@@ -16,7 +16,7 @@
 }
 
 .monaco-workbench .debug-action.start {
-	background: url('continue.svg') center center no-repeat;
+	background: url('start.svg') center center no-repeat;
 }
 
 .monaco-workbench .debug-action.toggle-repl {
@@ -67,17 +67,16 @@
 .monaco-workbench > .part > .title > .title-actions .start-debug-action-item .icon {
 	height: 20px;
 	width: 20px;
-	background: url('continue.svg') no-repeat;
+	background: url('start.svg') no-repeat;
 	background-size: 16px 16px;
 	background-position: center center;
 	flex-shrink: 0;
 	transition: transform 50ms ease;
-	-webkit-transition: -webkit-transform 50ms ease;
 }
 
 .vs-dark .monaco-workbench > .part > .title > .title-actions .start-debug-action-item .icon,
 .hc-black .monaco-workbench > .part > .title > .title-actions .start-debug-action-item .icon {
-	background-image: url('continue-inverse.svg');
+	background-image: url('start-inverse.svg');
 }
 
 .monaco-workbench .monaco-action-bar .start-debug-action-item .configuration .monaco-select-box {
@@ -93,7 +92,6 @@
 }
 
 .monaco-workbench > .part > .title > .title-actions .start-debug-action-item .icon.active {
-	-webkit-transform: scale(1.272019649, 1.272019649);
 	transform: scale(1.272019649, 1.272019649);
 }
 
@@ -109,12 +107,13 @@
 	font-size: 0.9em;
 	padding: 0 3px;
 	margin-left: 0.8em;
+	line-height: 20px;
 }
 
 .debug-viewlet .monaco-tree .monaco-tree-row.selected .line-number,
 .debug-viewlet .monaco-list .monaco-list-row.selected .line-number,
 .debug-viewlet .monaco-tree .monaco-tree-row.selected .thread > .state > .label,
-.debug-viewlet .monaco-tree .monaco-tree-row.selected .process > .state > .label {
+.debug-viewlet .monaco-tree .monaco-tree-row.selected .session > .state > .label {
 	background-color: #ffffff;
 	color: #666;
 }
@@ -177,12 +176,12 @@
 }
 
 .debug-viewlet .debug-call-stack .thread,
-.debug-viewlet .debug-call-stack .process {
+.debug-viewlet .debug-call-stack .session {
 	display: flex;
 }
 
 .debug-viewlet .debug-call-stack .thread > .state,
-.debug-viewlet .debug-call-stack .process > .state {
+.debug-viewlet .debug-call-stack .session > .state {
 	flex: 1;
 	text-align: right;
 	overflow: hidden;
@@ -192,7 +191,7 @@
 }
 
 .debug-viewlet .debug-call-stack .thread > .state > .label,
-.debug-viewlet .debug-call-stack .process > .state > .label {
+.debug-viewlet .debug-call-stack .session > .state > .label {
 	background: rgba(136, 136, 136, 0.3);
 	border-radius: 2px;
 	font-size: 0.8em;
@@ -256,6 +255,11 @@
 .debug-viewlet .debug-call-stack .load-more {
 	font-style: italic;
 	text-align: center;
+}
+
+.debug-viewlet .debug-call-stack .show-more {
+	font-style: italic;
+	opacity: 0.35;
 }
 
 .monaco-workbench .debug-viewlet .monaco-tree-row .expression {
@@ -350,6 +354,10 @@
 
 /* Breakpoints */
 
+.debug-viewlet .monaco-list-row {
+	line-height: 22px;
+}
+
 .debug-viewlet .debug-breakpoints .monaco-list-row .breakpoint {
 	padding-left: 2px;
 }
@@ -372,6 +380,7 @@
 .debug-viewlet .debug-breakpoints .breakpoint > .icon {
 	width: 19px;
 	height: 19px;
+	min-width: 19px;
 }
 
 .debug-viewlet .debug-breakpoints .breakpoint > .file-path {
@@ -381,6 +390,11 @@
 	flex: 1;
 	text-overflow: ellipsis;
 	overflow: hidden;
+}
+
+.debug-viewlet .debug-breakpoints .breakpoint .name {
+	overflow: hidden;
+	text-overflow: ellipsis
 }
 
 .debug-viewlet .debug-action.remove {

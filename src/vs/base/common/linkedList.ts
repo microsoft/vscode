@@ -3,14 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
-import { IIterator } from 'vs/base/common/iterator';
+import { Iterator, IteratorResult, FIN } from 'vs/base/common/iterator';
 
 class Node<E> {
 	element: E;
-	next: Node<E>;
-	prev: Node<E>;
+	next: Node<E> | undefined;
+	prev: Node<E> | undefined;
 
 	constructor(element: E) {
 		this.element = element;
@@ -19,8 +17,8 @@ class Node<E> {
 
 export class LinkedList<E> {
 
-	private _first: Node<E>;
-	private _last: Node<E>;
+	private _first: Node<E> | undefined;
+	private _last: Node<E> | undefined;
 
 	isEmpty(): boolean {
 		return !this._first;
@@ -47,7 +45,7 @@ export class LinkedList<E> {
 
 		} else if (atTheEnd) {
 			// push
-			const oldLast = this._last;
+			const oldLast = this._last!;
 			this._last = newNode;
 			newNode.prev = oldLast;
 			oldLast.next = newNode;
@@ -61,9 +59,10 @@ export class LinkedList<E> {
 		}
 
 		return () => {
-
-			for (let candidate = this._first; candidate instanceof Node; candidate = candidate.next) {
+			let candidate: Node<E> | undefined = this._first;
+			while (candidate instanceof Node) {
 				if (candidate !== newNode) {
+					candidate = candidate.next;
 					continue;
 				}
 				if (candidate.prev && candidate.next) {
@@ -79,12 +78,12 @@ export class LinkedList<E> {
 
 				} else if (!candidate.next) {
 					// last
-					this._last = this._last.prev;
+					this._last = this._last!.prev!;
 					this._last.next = undefined;
 
 				} else if (!candidate.prev) {
 					// first
-					this._first = this._first.next;
+					this._first = this._first!.next!;
 					this._first.prev = undefined;
 				}
 
@@ -94,22 +93,21 @@ export class LinkedList<E> {
 		};
 	}
 
-	iterator(): IIterator<E> {
-		let element = {
-			done: undefined,
-			value: undefined,
-		};
+	iterator(): Iterator<E> {
+		let element: { done: false; value: E; };
 		let node = this._first;
 		return {
-			next(): { done: boolean; value: E } {
+			next(): IteratorResult<E> {
 				if (!node) {
-					element.done = true;
-					element.value = undefined;
-				} else {
-					element.done = false;
-					element.value = node.element;
-					node = node.next;
+					return FIN;
 				}
+
+				if (!element) {
+					element = { done: false, value: node.element };
+				} else {
+					element.value = node.element;
+				}
+				node = node.next;
 				return element;
 			}
 		};

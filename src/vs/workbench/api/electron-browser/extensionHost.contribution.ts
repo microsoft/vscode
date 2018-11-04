@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import { IWorkbenchContribution, IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -16,6 +14,8 @@ import { ColorExtensionPoint } from 'vs/workbench/services/themes/common/colorEx
 import { LanguageConfigurationFileHandler } from 'vs/workbench/parts/codeEditor/electron-browser/languageConfiguration/languageConfigurationExtensionPoint';
 
 // --- mainThread participants
+import 'vs/workbench/api/node/apiCommands';
+import './mainThreadClipboard';
 import './mainThreadCommands';
 import './mainThreadConfiguration';
 import './mainThreadDebugService';
@@ -39,6 +39,7 @@ import './mainThreadOutputService';
 import './mainThreadProgress';
 import './mainThreadQuickOpen';
 import './mainThreadSCM';
+import './mainThreadSearch';
 import './mainThreadSaveParticipant';
 import './mainThreadStatusBar';
 import './mainThreadStorage';
@@ -48,6 +49,8 @@ import './mainThreadTerminalService';
 import './mainThreadTreeViews';
 import './mainThreadLogService';
 import './mainThreadWebview';
+import './mainThreadComments';
+import './mainThreadUrls';
 import './mainThreadWindow';
 import './mainThreadWorkspace';
 

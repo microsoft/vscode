@@ -2,14 +2,13 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 import { Selection } from 'vs/editor/common/core/selection';
-import { MoveLinesCommand } from 'vs/editor/contrib/linesOperations/moveLinesCommand';
-import { testCommand } from 'vs/editor/test/browser/testCommand';
-import { MockMode } from 'vs/editor/test/common/mocks/mockMode';
 import { LanguageIdentifier } from 'vs/editor/common/modes';
 import { IndentationRule } from 'vs/editor/common/modes/languageConfiguration';
 import { LanguageConfigurationRegistry } from 'vs/editor/common/modes/languageConfigurationRegistry';
+import { MoveLinesCommand } from 'vs/editor/contrib/linesOperations/moveLinesCommand';
+import { testCommand } from 'vs/editor/test/browser/testCommand';
+import { MockMode } from 'vs/editor/test/common/mocks/mockMode';
 
 function testMoveLinesDownCommand(lines: string[], selection: Selection, expectedLines: string[], expectedSelection: Selection): void {
 	testCommand(lines, null, selection, (sel) => new MoveLinesCommand(sel, true, false), expectedLines, expectedSelection);

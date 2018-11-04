@@ -14,13 +14,16 @@
     "onLanguage:handlebars",
     "onLanguage:razor"
   ],
-  "enableProposedApi": true,
   "main": "./client/out/htmlMain",
   "scripts": {
-    "compile": "gulp compile-extension:html-language-features-client & gulp compile-extension:html-language-features-server",
+    "compile": "gulp compile-extension:html-language-features-client compile-extension:html-language-features-server",
+    "watch": "gulp watch-extension:html-language-features-client watch-extension:html-language-features-server",
     "postinstall": "cd server && yarn install",
     "install-client-next": "yarn add vscode-languageclient@next"
   },
+  "categories": [
+    "Programming Languages"
+  ],
   "contributes": {
     "configuration": {
       "id": "html",
@@ -47,7 +50,7 @@
           ],
           "scope": "resource",
           "default": "wbr",
-          "description": "%html.format.unformatted.desc%"
+          "markdownDescription": "%html.format.unformatted.desc%"
         },
         "html.format.contentUnformatted": {
           "type": [
@@ -56,13 +59,13 @@
           ],
           "scope": "resource",
           "default": "pre,code,textarea",
-          "description": "%html.format.contentUnformatted.desc%"
+          "markdownDescription": "%html.format.contentUnformatted.desc%"
         },
         "html.format.indentInnerHtml": {
           "type": "boolean",
           "scope": "resource",
           "default": false,
-          "description": "%html.format.indentInnerHtml.desc%"
+          "markdownDescription": "%html.format.indentInnerHtml.desc%"
         },
         "html.format.preserveNewLines": {
           "type": "boolean",
@@ -77,13 +80,13 @@
           ],
           "scope": "resource",
           "default": null,
-          "description": "%html.format.maxPreserveNewLines.desc%"
+          "markdownDescription": "%html.format.maxPreserveNewLines.desc%"
         },
         "html.format.indentHandlebars": {
           "type": "boolean",
           "scope": "resource",
           "default": false,
-          "description": "%html.format.indentHandlebars.desc%"
+          "markdownDescription": "%html.format.indentHandlebars.desc%"
         },
         "html.format.endWithNewline": {
           "type": "boolean",
@@ -98,7 +101,7 @@
           ],
           "scope": "resource",
           "default": "head, body, /html",
-          "description": "%html.format.extraLiners.desc%"
+          "markdownDescription": "%html.format.extraLiners.desc%"
         },
         "html.format.wrapAttributes": {
           "type": "string",
@@ -108,26 +111,28 @@
             "auto",
             "force",
             "force-aligned",
-            "force-expand-multiline"
+            "force-expand-multiline",
+            "aligned-multiple"
           ],
           "enumDescriptions": [
             "%html.format.wrapAttributes.auto%",
             "%html.format.wrapAttributes.force%",
             "%html.format.wrapAttributes.forcealign%",
-            "%html.format.wrapAttributes.forcemultiline%"
+            "%html.format.wrapAttributes.forcemultiline%",
+            "%html.format.wrapAttributes.alignedmultiple%"
           ],
           "description": "%html.format.wrapAttributes.desc%"
         },
         "html.suggest.angular1": {
           "type": "boolean",
           "scope": "resource",
-          "default": true,
+          "default": false,
           "description": "%html.suggest.angular1.desc%"
         },
         "html.suggest.ionic": {
           "type": "boolean",
           "scope": "resource",
-          "default": true,
+          "default": false,
           "description": "%html.suggest.ionic.desc%"
         },
         "html.suggest.html5": {
@@ -169,12 +174,11 @@
     }
   },
   "dependencies": {
-    "vscode-extension-telemetry": "0.0.15",
-    "vscode-languageclient": "^4.0.0",
-    "vscode-languageserver-protocol-foldingprovider": "^1.0.1",
-    "vscode-nls": "^3.2.2"
+    "vscode-extension-telemetry": "0.1.0",
+    "vscode-languageclient": "^5.1.0",
+    "vscode-nls": "^4.0.0"
   },
   "devDependencies": {
-    "@types/node": "7.0.43"
+    "@types/node": "^8.10.25"
   }
 }

@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import { isObject, isUndefinedOrNull, isArray } from 'vs/base/common/types';
 
 export function deepClone<T>(obj: T): T {
@@ -16,7 +14,7 @@ export function deepClone<T>(obj: T): T {
 		return obj as any;
 	}
 	const result: any = Array.isArray(obj) ? [] : {};
-	Object.keys(obj).forEach((key: keyof T) => {
+	Object.keys(obj).forEach((key: string) => {
 		if (obj[key] && typeof obj[key] === 'object') {
 			result[key] = deepClone(obj[key]);
 		} else {
@@ -220,11 +218,12 @@ export function safeStringify(obj: any): string {
 	});
 }
 
-export function getOrDefault<T, R>(obj: T, fn: (obj: T) => R, defaultValue: R = null): R {
+export function getOrDefault<T, R>(obj: T, fn: (obj: T) => R, defaultValue: R | null = null): R | null {
 	const result = fn(obj);
 	return typeof result === 'undefined' ? defaultValue : result;
 }
 
+type obj = { [key: string]: any; };
 /**
  * Returns an object that has keys for each value that is different in the base object. Keys
  * that do not exist in the target but in the base object are not considered.
@@ -235,7 +234,6 @@ export function getOrDefault<T, R>(obj: T, fn: (obj: T) => R, defaultValue: R = 
  * @param base the object to diff against
  * @param obj the object to use for diffing
  */
-export type obj = { [key: string]: any; };
 export function distinct(base: obj, target: obj): obj {
 	const result = Object.create(null);
 

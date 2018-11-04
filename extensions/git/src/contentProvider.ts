@@ -3,13 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import { workspace, Uri, Disposable, Event, EventEmitter, window } from 'vscode';
 import { debounce, throttle } from './decorators';
 import { fromGitUri, toGitUri } from './uri';
 import { Model, ModelChangeEvent, OriginalResourceChangeEvent } from './model';
-import { filterEvent, eventToPromise, isDescendant } from './util';
+import { filterEvent, eventToPromise, isDescendant, pathEquals } from './util';
 
 interface CacheRow {
 	uri: Uri;
@@ -92,7 +90,11 @@ export class GitContentProvider {
 				return '';
 			}
 
-			return await repository.diff(path, { cached: ref === 'index' });
+			if (ref === 'index') {
+				return await repository.diffIndexWithHEAD(path);
+			} else {
+				return await repository.diffWithHEAD(path);
+			}
 		}
 
 		const repository = this.model.getRepository(uri);
@@ -112,6 +114,8 @@ export class GitContentProvider {
 			const uriString = fileUri.toString();
 			const [indexStatus] = repository.indexGroup.resourceStates.filter(r => r.resourceUri.toString() === uriString);
 			ref = indexStatus ? '' : 'HEAD';
+		} else if (/^~\d$/.test(ref)) {
+			ref = `:${ref[1]}`;
 		}
 
 		try {
@@ -130,7 +134,7 @@ export class GitContentProvider {
 			const { path } = fromGitUri(row.uri);
 			const isOpen = workspace.textDocuments
 				.filter(d => d.uri.scheme === 'file')
-				.some(d => d.uri.fsPath === path);
+				.some(d => pathEquals(d.uri.fsPath, path));
 
 			if (isOpen || now - row.timestamp < THREE_MINUTES) {
 				cache[row.uri.toString()] = row;

@@ -12,14 +12,19 @@
   "engines": {
     "vscode": "*"
   },
+  "categories": [
+    "Programming Languages"
+  ],
   "dependencies": {
-    "semver": "4.3.6",
-    "vscode-extension-telemetry": "0.0.15",
-    "vscode-nls": "^3.2.1"
+    "jsonc-parser": "^2.0.1",
+    "semver": "5.5.1",
+    "vscode-extension-telemetry": "0.1.0",
+    "vscode-nls": "^4.0.0"
   },
   "devDependencies": {
     "@types/node": "8.0.33",
-    "@types/semver": "5.4.0"
+    "@types/semver": "^5.5.0",
+    "vscode": "^1.1.10"
   },
   "scripts": {
     "vscode:prepublish": "node ../../node_modules/gulp/bin/gulp.js --gulpfile ../../build/gulpfile.extensions.js compile-extension:typescript ./tsconfig.json"
@@ -36,11 +41,18 @@
     "onCommand:javascript.goToProjectConfig",
     "onCommand:typescript.goToProjectConfig",
     "onCommand:typescript.openTsServerLog",
-    "onCommand:typescript.organizeImports",
-    "onCommand:workbench.action.tasks.runTask"
+    "onCommand:workbench.action.tasks.runTask",
+    "onCommand:_typescript.configurePlugin",
+    "onLanguage:jsonc"
   ],
   "main": "./out/extension",
   "contributes": {
+    "jsonValidation": [
+      {
+        "fileMatch": "package.json",
+        "url": "./schemas/package.schema.json"
+      }
+    ],
     "configuration": {
       "type": "object",
       "title": "%configuration.typescript%",
@@ -59,7 +71,10 @@
           "type": "boolean",
           "default": false,
           "description": "%typescript.disableAutomaticTypeAcquisition%",
-          "scope": "window"
+          "scope": "window",
+          "tags": [
+            "usesOnlineServices"
+          ]
         },
         "typescript.npm": {
           "type": [
@@ -68,8 +83,7 @@
           ],
           "default": null,
           "description": "%typescript.npm%",
-          "isExecutable": true,
-          "scope": "window"
+          "scope": "application"
         },
         "typescript.check.npmIsInstalled": {
           "type": "boolean",
@@ -115,8 +129,7 @@
           },
           "default": [],
           "description": "%typescript.tsserver.pluginPaths%",
-          "scope": "window",
-          "isExecutable": true
+          "scope": "application"
         },
         "typescript.tsserver.trace": {
           "type": "string",
@@ -129,10 +142,16 @@
           "description": "%typescript.tsserver.trace%",
           "scope": "window"
         },
-        "typescript.useCodeSnippetsOnMethodSuggest": {
+        "javascript.suggest.completeFunctionCalls": {
           "type": "boolean",
           "default": false,
-          "description": "%typescript.useCodeSnippetsOnMethodSuggest.dec%",
+          "description": "%configuration.suggest.completeFunctionCalls%",
+          "scope": "resource"
+        },
+        "typescript.suggest.completeFunctionCalls": {
+          "type": "boolean",
+          "default": false,
+          "description": "%configuration.suggest.completeFunctionCalls%",
           "scope": "resource"
         },
         "typescript.reportStyleChecksAsWarnings": {
@@ -354,13 +373,13 @@
         "javascript.implicitProjectConfig.experimentalDecorators": {
           "type": "boolean",
           "default": false,
-          "description": "%javascript.implicitProjectConfig.experimentalDecorators%",
+          "markdownDescription": "%javascript.implicitProjectConfig.experimentalDecorators%",
           "scope": "window"
         },
-        "javascript.nameSuggestions": {
+        "javascript.suggest.names": {
           "type": "boolean",
           "default": true,
-          "description": "%javascript.nameSuggestions%",
+          "description": "%configuration.suggest.names%",
           "scope": "resource"
         },
         "typescript.tsc.autoDetect": {
@@ -372,19 +391,37 @@
             "build",
             "watch"
           ],
+          "markdownEnumDescriptions": [
+            "%typescript.tsc.autoDetect.on%",
+            "%typescript.tsc.autoDetect.off%",
+            "%typescript.tsc.autoDetect.build%",
+            "%typescript.tsc.autoDetect.watch%"
+          ],
           "description": "%typescript.tsc.autoDetect%",
           "scope": "window"
         },
-        "typescript.quickSuggestionsForPaths": {
+        "javascript.suggest.paths": {
           "type": "boolean",
           "default": true,
-          "description": "%typescript.quickSuggestionsForPaths%",
+          "description": "%configuration.suggest.paths%",
           "scope": "resource"
         },
-        "typescript.autoImportSuggestions.enabled": {
+        "typescript.suggest.paths": {
           "type": "boolean",
           "default": true,
-          "description": "%typescript.autoImportSuggestions.enabled%",
+          "description": "%configuration.suggest.paths%",
+          "scope": "resource"
+        },
+        "javascript.suggest.autoImports": {
+          "type": "boolean",
+          "default": true,
+          "description": "%configuration.suggest.autoImports%",
+          "scope": "resource"
+        },
+        "typescript.suggest.autoImports": {
+          "type": "boolean",
+          "default": true,
+          "description": "%configuration.suggest.autoImports%",
           "scope": "resource"
         },
         "typescript.locale": {
@@ -406,24 +443,133 @@
             null
           ],
           "default": null,
-          "description": "%typescript.locale%",
+          "markdownDescription": "%typescript.locale%",
           "scope": "window"
-        },
-        "typescript.experimental.syntaxFolding": {
-          "type": "boolean",
-          "default": true,
-          "description": "%typescript.experimental.syntaxFolding%"
         },
         "javascript.suggestionActions.enabled": {
           "type": "boolean",
           "default": true,
           "description": "%javascript.suggestionActions.enabled%",
-          "scope": "window"
+          "scope": "resource"
         },
         "typescript.suggestionActions.enabled": {
           "type": "boolean",
           "default": true,
           "description": "%typescript.suggestionActions.enabled%",
+          "scope": "resource"
+        },
+        "javascript.preferences.quoteStyle": {
+          "type": "string",
+          "enum": [
+            "auto",
+            "single",
+            "double"
+          ],
+          "default": "auto",
+          "markdownDescription": "%typescript.preferences.quoteStyle%",
+          "scope": "resource"
+        },
+        "typescript.preferences.quoteStyle": {
+          "type": "string",
+          "enum": [
+            "auto",
+            "single",
+            "double"
+          ],
+          "default": "auto",
+          "markdownDescription": "%typescript.preferences.quoteStyle%",
+          "scope": "resource"
+        },
+        "javascript.preferences.importModuleSpecifier": {
+          "type": "string",
+          "enum": [
+            "auto",
+            "relative",
+            "non-relative"
+          ],
+          "markdownEnumDescriptions": [
+            "%typescript.preferences.importModuleSpecifier.auto%",
+            "%typescript.preferences.importModuleSpecifier.relative%",
+            "%typescript.preferences.importModuleSpecifier.nonRelative%"
+          ],
+          "default": "auto",
+          "description": "%typescript.preferences.importModuleSpecifier%",
+          "scope": "resource"
+        },
+        "typescript.preferences.importModuleSpecifier": {
+          "type": "string",
+          "enum": [
+            "auto",
+            "relative",
+            "non-relative"
+          ],
+          "markdownEnumDescriptions": [
+            "%typescript.preferences.importModuleSpecifier.auto%",
+            "%typescript.preferences.importModuleSpecifier.relative%",
+            "%typescript.preferences.importModuleSpecifier.nonRelative%"
+          ],
+          "default": "auto",
+          "description": "%typescript.preferences.importModuleSpecifier%",
+          "scope": "resource"
+        },
+        "typescript.updateImportsOnFileMove.enabled": {
+          "type": "string",
+          "enum": [
+            "prompt",
+            "always",
+            "never"
+          ],
+          "markdownEnumDescriptions": [
+            "%typescript.updateImportsOnFileMove.enabled.prompt%",
+            "%typescript.updateImportsOnFileMove.enabled.always%",
+            "%typescript.updateImportsOnFileMove.enabled.never%"
+          ],
+          "default": "prompt",
+          "description": "%typescript.updateImportsOnFileMove.enabled%",
+          "scope": "resource"
+        },
+        "javascript.updateImportsOnFileMove.enabled": {
+          "type": "string",
+          "enum": [
+            "prompt",
+            "always",
+            "never"
+          ],
+          "markdownEnumDescriptions": [
+            "%typescript.updateImportsOnFileMove.enabled.prompt%",
+            "%typescript.updateImportsOnFileMove.enabled.always%",
+            "%typescript.updateImportsOnFileMove.enabled.never%"
+          ],
+          "default": "prompt",
+          "description": "%typescript.updateImportsOnFileMove.enabled%",
+          "scope": "resource"
+        },
+        "typescript.autoClosingTags": {
+          "type": "boolean",
+          "default": true,
+          "description": "%typescript.autoClosingTags%"
+        },
+        "javascript.autoClosingTags": {
+          "type": "boolean",
+          "default": true,
+          "description": "%typescript.autoClosingTags%"
+        },
+        "javascript.suggest.enabled": {
+          "type": "boolean",
+          "default": true,
+          "description": "%typescript.suggest.enabled%",
+          "scope": "resource"
+        },
+        "typescript.suggest.enabled": {
+          "type": "boolean",
+          "default": true,
+          "description": "%typescript.suggest.enabled%",
+          "scope": "resource"
+        },
+        "typescript.surveys.enabled": {
+          "type": "boolean",
+          "default": true,
+          "description": "%configuration.surveys.enabled%",
           "scope": "window"
         }
       }
@@ -431,12 +577,12 @@
     "commands": [
       {
         "command": "typescript.reloadProjects",
-        "title": "%typescript.reloadProjects.title%",
+        "title": "%reloadProjects.title%",
         "category": "TypeScript"
       },
       {
         "command": "javascript.reloadProjects",
-        "title": "%javascript.reloadProjects.title%",
+        "title": "%reloadProjects.title%",
         "category": "JavaScript"
       },
       {
@@ -446,12 +592,12 @@
       },
       {
         "command": "typescript.goToProjectConfig",
-        "title": "%typescript.goToProjectConfig.title%",
+        "title": "%goToProjectConfig.title%",
         "category": "TypeScript"
       },
       {
         "command": "javascript.goToProjectConfig",
-        "title": "%javascript.goToProjectConfig.title%",
+        "title": "%goToProjectConfig.title%",
         "category": "JavaScript"
       },
       {
@@ -463,23 +609,6 @@
         "command": "typescript.restartTsServer",
         "title": "%typescript.restartTsServer%",
         "category": "TypeScript"
-      },
-      {
-        "command": "typescript.organizeImports",
-        "title": "%typescript.organizeImports%",
-        "category": "TypeScript"
-      },
-      {
-        "command": "javascript.organizeImports",
-        "title": "%typescript.organizeImports%",
-        "category": "JavaScript"
-      }
-    ],
-    "keybindings": [
-      {
-        "command": "typescript.organizeImports",
-        "key": "shift+alt+o",
-        "when": "typescript.isManagedFile && typescript.canOrganizeImports"
       }
     ],
     "menus": {
@@ -527,22 +656,6 @@
         {
           "command": "typescript.restartTsServer",
           "when": "typescript.isManagedFile"
-        },
-        {
-          "command": "typescript.organizeImports",
-          "when": "editorLangId == typescriptreact && typescript.isManagedFile && typescript.canOrganizeImports"
-        },
-        {
-          "command": "typescript.organizeImports",
-          "when": "editorLangId == typescript && typescript.isManagedFile && typescript.canOrganizeImports"
-        },
-        {
-          "command": "javascript.organizeImports",
-          "when": "editorLangId == javascriptreact && typescript.isManagedFile && typescript.canOrganizeImports"
-        },
-        {
-          "command": "javascript.organizeImports",
-          "when": "editorLangId == javascript && typescript.isManagedFile && typescript.canOrganizeImports"
         }
       ]
     },
@@ -574,12 +687,13 @@
     "problemPatterns": [
       {
         "name": "tsc",
-        "regexp": "^([^\\s].*)\\((\\d+|\\d+,\\d+|\\d+,\\d+,\\d+,\\d+)\\):\\s+(error|warning|info)\\s+(TS\\d+)\\s*:\\s*(.*)$",
+        "regexp": "^([^\\s].*)[\\(:](\\d+)[,:](\\d+)(?:\\):\\s+|\\s+-\\s+)(error|warning|info)\\s+(TS\\d+)\\s*:\\s*(.*)$",
         "file": 1,
-        "location": 2,
-        "severity": 3,
-        "code": 4,
-        "message": 5
+        "line": 2,
+        "column": 3,
+        "severity": 4,
+        "code": 5,
+        "message": 6
       }
     ],
     "problemMatchers": [
@@ -612,7 +726,7 @@
             "regexp": "^\\s*(?:message TS6032:|\\[?\\d{1,2}:\\d{1,2}:\\d{1,2}(?: AM| PM| a\\.m\\.| p\\.m\\.)?(?:\\]| -)) File change detected\\. Starting incremental compilation\\.\\.\\."
           },
           "endsPattern": {
-            "regexp": "^\\s*(?:message TS6042:|\\[?\\d{1,2}:\\d{1,2}:\\d{1,2}(?: AM| PM| a\\.m\\.| p\\.m\\.)?(?:\\]| -)) Compilation complete\\. Watching for file changes\\."
+            "regexp": "^\\s*(?:message TS6042:|\\[?\\d{1,2}:\\d{1,2}:\\d{1,2}(?: AM| PM| a\\.m\\.| p\\.m\\.)?(?:\\]| -)) (?:Compilation complete\\.|Found \\d+ errors?\\.) Watching for file changes\\."
           }
         }
       }

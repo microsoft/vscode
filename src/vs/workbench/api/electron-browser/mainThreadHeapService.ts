@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import { ExtHostContext, ObjectIdentifier, IExtHostContext } from '../node/extHost.protocol';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
@@ -37,7 +35,7 @@ export class HeapService implements IHeapService {
 
 	private _activeSignals = new WeakMap<any, object>();
 	private _activeIds = new Set<number>();
-	private _consumeHandle: number;
+	private _consumeHandle: any;
 
 	constructor() {
 		//
@@ -139,4 +137,4 @@ export class MainThreadHeapService {
 
 }
 
-registerSingleton(IHeapService, HeapService);
+registerSingleton(IHeapService, HeapService, true);

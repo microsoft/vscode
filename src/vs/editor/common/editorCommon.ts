@@ -2,18 +2,16 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
 import { IMarkdownString } from 'vs/base/common/htmlContent';
-import URI, { UriComponents } from 'vs/base/common/uri';
-import { TPromise } from 'vs/base/common/winjs.base';
 import { IDisposable } from 'vs/base/common/lifecycle';
-import { Position, IPosition } from 'vs/editor/common/core/position';
-import { Range, IRange } from 'vs/editor/common/core/range';
-import { Selection, ISelection } from 'vs/editor/common/core/selection';
+import { URI, UriComponents } from 'vs/base/common/uri';
 import * as editorOptions from 'vs/editor/common/config/editorOptions';
+import { IPosition, Position } from 'vs/editor/common/core/position';
+import { IRange, Range } from 'vs/editor/common/core/range';
+import { ISelection, Selection } from 'vs/editor/common/core/selection';
+import { IIdentifiedSingleEditOperation, IModelDecorationsChangeAccessor, ITextModel, OverviewRulerLane, TrackedRangeStickiness } from 'vs/editor/common/model';
 import { ThemeColor } from 'vs/platform/theme/common/themeService';
-import { ITextModel, IModelDecorationsChangeAccessor, TrackedRangeStickiness, OverviewRulerLane, IIdentifiedSingleEditOperation } from 'vs/editor/common/model';
 
 /**
  * A builder and helper for edit operations for a command.
@@ -24,7 +22,7 @@ export interface IEditOperationBuilder {
 	 * @param range The range to replace (delete). May be empty to represent a simple insert.
 	 * @param text The text to replace with. May be null to represent a simple delete.
 	 */
-	addEditOperation(range: Range, text: string): void;
+	addEditOperation(range: Range, text: string | null): void;
 
 	/**
 	 * Add a new edit operation (a replace operation).
@@ -32,7 +30,7 @@ export interface IEditOperationBuilder {
 	 * @param range The range to replace (delete). May be empty to represent a simple insert.
 	 * @param text The text to replace with. May be null to represent a simple delete.
 	 */
-	addTrackedEditOperation(range: Range, text: string): void;
+	addTrackedEditOperation(range: Range, text: string | null): void;
 
 	/**
 	 * Track `selection` when applying edit operations.
@@ -41,7 +39,7 @@ export interface IEditOperationBuilder {
 	 * @param selection The selection to track.
 	 * @param trackPreviousOnEmpty If set, and the selection is empty, indicates whether the selection
 	 *           should clamp to the previous or the next character.
-	 * @return A unique identifer.
+	 * @return A unique identifier.
 	 */
 	trackSelection(selection: Selection, trackPreviousOnEmpty?: boolean): string;
 }
@@ -82,7 +80,7 @@ export interface ICommand {
 
 	/**
 	 * Compute the cursor state after the edit operations were applied.
-	 * @param model The model the commad has executed on.
+	 * @param model The model the command has executed on.
 	 * @param helper A helper to get inverse edit operations and to get previously tracked selections.
 	 * @return The cursor state after the command executed.
 	 */
@@ -110,11 +108,11 @@ export interface IModelChangedEvent {
 	/**
 	 * The `uri` of the previous model or null.
 	 */
-	readonly oldModelUrl: URI;
+	readonly oldModelUrl: URI | null;
 	/**
 	 * The `uri` of the new model or null.
 	 */
-	readonly newModelUrl: URI;
+	readonly newModelUrl: URI | null;
 }
 
 export interface IDimension {
@@ -144,18 +142,22 @@ export interface ICharChange extends IChange {
  * A line change
  */
 export interface ILineChange extends IChange {
-	readonly charChanges: ICharChange[];
+	readonly charChanges: ICharChange[] | undefined;
 }
 
 /**
  * @internal
  */
-export interface IConfiguration {
+export interface IConfiguration extends IDisposable {
 	onDidChange(listener: (e: editorOptions.IConfigurationChangedEvent) => void): IDisposable;
 
 	readonly editor: editorOptions.InternalEditorOptions;
 
 	setMaxLineNumber(maxLineNumber: number): void;
+	updateOptions(newOptions: editorOptions.IEditorOptions): void;
+	getRawOptions(): editorOptions.IEditorOptions;
+	observeReferenceElement(dimension?: IDimension): void;
+	setIsDominatedByLongLines(isDominatedByLongLines: boolean): void;
 }
 
 // --- view
@@ -182,7 +184,7 @@ export interface IEditorAction {
 	readonly label: string;
 	readonly alias: string;
 	isSupported(): boolean;
-	run(): TPromise<void>;
+	run(): Promise<void>;
 }
 
 export type IEditorModel = ITextModel | IDiffEditorModel;
@@ -287,9 +289,9 @@ export interface IEditor {
 	focus(): void;
 
 	/**
-	 * Returns true if this editor has keyboard focus (e.g. cursor is blinking).
+	 * Returns true if the text inside this editor is focused (i.e. cursor is blinking).
 	 */
-	isFocused(): boolean;
+	hasTextFocus(): boolean;
 
 	/**
 	 * Returns all actions associated with this editor.
@@ -299,7 +301,7 @@ export interface IEditor {
 	/**
 	 * Saves current view state of the editor in a serializable object.
 	 */
-	saveViewState(): IEditorViewState;
+	saveViewState(): IEditorViewState | null;
 
 	/**
 	 * Restores the view state of the editor from a serializable object generated by `saveViewState`.
@@ -314,7 +316,7 @@ export interface IEditor {
 	/**
 	 * Returns the primary position of the cursor.
 	 */
-	getPosition(): Position;
+	getPosition(): Position | null;
 
 	/**
 	 * Set the primary position of the cursor. This will remove any secondary cursors.
@@ -355,12 +357,12 @@ export interface IEditor {
 	/**
 	 * Returns the primary selection of the editor.
 	 */
-	getSelection(): Selection;
+	getSelection(): Selection | null;
 
 	/**
 	 * Returns all the selections of the editor.
 	 */
-	getSelections(): Selection[];
+	getSelections(): Selection[] | null;
 
 	/**
 	 * Set the primary selection of the editor. This will remove any secondary cursors.
@@ -435,7 +437,7 @@ export interface IEditor {
 	/**
 	 * Gets the current model attached to this editor.
 	 */
-	getModel(): IEditorModel;
+	getModel(): IEditorModel | null;
 
 	/**
 	 * Sets the current model attached to this editor.
@@ -445,7 +447,7 @@ export interface IEditor {
 	 * will not be destroyed.
 	 * It is safe to call setModel(null) to simply detach the current model from the editor.
 	 */
-	setModel(model: IEditorModel): void;
+	setModel(model: IEditorModel | null): void;
 
 	/**
 	 * Change the decorations. All decorations added through this changeAccessor
@@ -455,6 +457,29 @@ export interface IEditor {
 	 * @internal
 	 */
 	changeDecorations(callback: (changeAccessor: IModelDecorationsChangeAccessor) => any): any;
+}
+
+/**
+ * A diff editor.
+ *
+ * @internal
+ */
+export interface IDiffEditor extends IEditor {
+
+	/**
+	 * Type the getModel() of IEditor.
+	 */
+	getModel(): IDiffEditorModel;
+
+	/**
+	 * Get the `original` editor.
+	 */
+	getOriginalEditor(): IEditor;
+
+	/**
+	 * Get the `modified` editor.
+	 */
+	getModifiedEditor(): IEditor;
 }
 
 /**
@@ -509,6 +534,7 @@ export interface IThemeDecorationRenderOptions {
 	textDecoration?: string;
 	cursor?: string;
 	color?: string | ThemeColor;
+	opacity?: number;
 	letterSpacing?: string;
 
 	gutterIconPath?: string | UriComponents;

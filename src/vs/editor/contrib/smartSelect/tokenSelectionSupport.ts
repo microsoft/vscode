@@ -2,10 +2,8 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
-import URI from 'vs/base/common/uri';
-import { TPromise } from 'vs/base/common/winjs.base';
+import { URI } from 'vs/base/common/uri';
 import { Range } from 'vs/editor/common/core/range';
 import { ITextModel } from 'vs/editor/common/model';
 import { IModelService } from 'vs/editor/common/services/modelService';
@@ -28,13 +26,9 @@ export class TokenSelectionSupport {
 		this._modelService = modelService;
 	}
 
-	public getRangesToPosition(resource: URI, position: Position): TPromise<ILogicalSelectionEntry[]> {
-		return TPromise.as(this.getRangesToPositionSync(resource, position));
-	}
-
 	public getRangesToPositionSync(resource: URI, position: Position): ILogicalSelectionEntry[] {
-		var model = this._modelService.getModel(resource),
-			entries: ILogicalSelectionEntry[] = [];
+		const model = this._modelService.getModel(resource);
+		let entries: ILogicalSelectionEntry[] = [];
 
 		if (model) {
 			this._doGetRangesToPosition(model, position).forEach(range => {
@@ -50,12 +44,12 @@ export class TokenSelectionSupport {
 
 	private _doGetRangesToPosition(model: ITextModel, position: Position): Range[] {
 
-		var tree = build(model),
-			node: Node,
-			lastRange: Range;
+		let tree = build(model);
+		let node: Node;
+		let lastRange: Range;
 
 		node = find(tree, position);
-		var ranges: Range[] = [];
+		let ranges: Range[] = [];
 		while (node) {
 			if (!lastRange || !Range.equalsRange(lastRange, node.range)) {
 				ranges.push(node.range);

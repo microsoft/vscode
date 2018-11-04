@@ -2,23 +2,22 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
+import { CharCode } from 'vs/base/common/charCode';
 import { onUnexpectedError } from 'vs/base/common/errors';
-import { ReplaceCommand, ReplaceCommandWithoutChangingPosition, ReplaceCommandWithOffsetCursorState } from 'vs/editor/common/commands/replaceCommand';
-import { CursorColumns, CursorConfiguration, ICursorSimpleModel, EditOperationResult, EditOperationType } from 'vs/editor/common/controller/cursorCommon';
+import * as strings from 'vs/base/common/strings';
+import { ReplaceCommand, ReplaceCommandWithOffsetCursorState, ReplaceCommandWithoutChangingPosition } from 'vs/editor/common/commands/replaceCommand';
+import { ShiftCommand } from 'vs/editor/common/commands/shiftCommand';
+import { SurroundSelectionCommand } from 'vs/editor/common/commands/surroundSelectionCommand';
+import { CursorColumns, CursorConfiguration, EditOperationResult, EditOperationType, ICursorSimpleModel, isQuote } from 'vs/editor/common/controller/cursorCommon';
+import { WordCharacterClass, getMapForWordSeparators } from 'vs/editor/common/controller/wordCharacterClassifier';
 import { Range } from 'vs/editor/common/core/range';
+import { Selection } from 'vs/editor/common/core/selection';
 import { ICommand } from 'vs/editor/common/editorCommon';
 import { ITextModel } from 'vs/editor/common/model';
-import * as strings from 'vs/base/common/strings';
-import { ShiftCommand } from 'vs/editor/common/commands/shiftCommand';
-import { Selection } from 'vs/editor/common/core/selection';
+import { EnterAction, IndentAction } from 'vs/editor/common/modes/languageConfiguration';
 import { LanguageConfigurationRegistry } from 'vs/editor/common/modes/languageConfigurationRegistry';
-import { IndentAction, EnterAction } from 'vs/editor/common/modes/languageConfiguration';
-import { SurroundSelectionCommand } from 'vs/editor/common/commands/surroundSelectionCommand';
 import { IElectricAction } from 'vs/editor/common/modes/supports/electricCharacter';
-import { getMapForWordSeparators, WordCharacterClass } from 'vs/editor/common/controller/wordCharacterClassifier';
-import { CharCode } from 'vs/base/common/charCode';
 
 export class TypeOperations {
 
@@ -111,7 +110,7 @@ export class TypeOperations {
 		});
 	}
 
-	private static _distributePasteToCursors(selections: Selection[], text: string, pasteOnNewLine: boolean, multicursorText: string[]): string[] {
+	private static _distributePasteToCursors(selections: Selection[], text: string, pasteOnNewLine: boolean, multicursorText: string[]): string[] | null {
 		if (pasteOnNewLine) {
 			return null;
 		}
@@ -147,9 +146,9 @@ export class TypeOperations {
 		}
 	}
 
-	private static _goodIndentForLine(config: CursorConfiguration, model: ITextModel, lineNumber: number): string {
-		let action: IndentAction | EnterAction;
-		let indentation: string;
+	private static _goodIndentForLine(config: CursorConfiguration, model: ITextModel, lineNumber: number): string | null {
+		let action: IndentAction | EnterAction | null = null;
+		let indentation: string = '';
 
 		let expectedIndentAction = config.autoIndent ? LanguageConfigurationRegistry.getInheritIndentForLine(model, lineNumber, false) : null;
 		if (expectedIndentAction) {
@@ -260,7 +259,7 @@ export class TypeOperations {
 	}
 
 	public static replacePreviousChar(prevEditOperationType: EditOperationType, config: CursorConfiguration, model: ITextModel, selections: Selection[], txt: string, replaceCharCnt: number): EditOperationResult {
-		let commands: ICommand[] = [];
+		let commands: (ICommand | null)[] = [];
 		for (let i = 0, len = selections.length; i < len; i++) {
 			const selection = selections[i];
 			if (!selection.isEmpty()) {
@@ -400,7 +399,7 @@ export class TypeOperations {
 		return true;
 	}
 
-	private static _runAutoIndentType(config: CursorConfiguration, model: ITextModel, range: Range, ch: string): ICommand {
+	private static _runAutoIndentType(config: CursorConfiguration, model: ITextModel, range: Range, ch: string): ICommand | null {
 		let currentIndentation = LanguageConfigurationRegistry.getIndentationAtPosition(model, range.startLineNumber, range.startColumn);
 		let actualIndentation = LanguageConfigurationRegistry.getIndentActionForType(model, range, ch, {
 			shiftIndent: (indentation) => {
@@ -437,7 +436,9 @@ export class TypeOperations {
 	}
 
 	private static _isAutoClosingCloseCharType(config: CursorConfiguration, model: ITextModel, selections: Selection[], ch: string): boolean {
-		if (!config.autoClosingBrackets || !config.autoClosingPairsClose.hasOwnProperty(ch)) {
+		const autoCloseConfig = isQuote(ch) ? config.autoClosingQuotes : config.autoClosingBrackets;
+
+		if (autoCloseConfig === 'never' || !config.autoClosingPairsClose.hasOwnProperty(ch)) {
 			return false;
 		}
 
@@ -493,10 +494,32 @@ export class TypeOperations {
 		});
 	}
 
+	private static _isBeforeClosingBrace(config: CursorConfiguration, ch: string, characterAfter: string) {
+		const thisBraceIsSymmetric = (config.autoClosingPairsOpen[ch] === ch);
+		let isBeforeCloseBrace = false;
+		for (let otherCloseBrace in config.autoClosingPairsClose) {
+			const otherBraceIsSymmetric = (config.autoClosingPairsOpen[otherCloseBrace] === otherCloseBrace);
+			if (!thisBraceIsSymmetric && otherBraceIsSymmetric) {
+				continue;
+			}
+			if (characterAfter === otherCloseBrace) {
+				isBeforeCloseBrace = true;
+				break;
+			}
+		}
+
+		return isBeforeCloseBrace;
+	}
+
 	private static _isAutoClosingOpenCharType(config: CursorConfiguration, model: ITextModel, selections: Selection[], ch: string): boolean {
-		if (!config.autoClosingBrackets || !config.autoClosingPairsOpen.hasOwnProperty(ch)) {
+		const chIsQuote = isQuote(ch);
+		const autoCloseConfig = chIsQuote ? config.autoClosingQuotes : config.autoClosingBrackets;
+
+		if (autoCloseConfig === 'never' || !config.autoClosingPairsOpen.hasOwnProperty(ch)) {
 			return false;
 		}
+
+		let shouldAutoCloseBefore = chIsQuote ? config.shouldAutoCloseBefore.quote : config.shouldAutoCloseBefore.bracket;
 
 		for (let i = 0, len = selections.length; i < len; i++) {
 			const selection = selections[i];
@@ -508,7 +531,7 @@ export class TypeOperations {
 			const lineText = model.getLineContent(position.lineNumber);
 
 			// Do not auto-close ' or " after a word character
-			if ((ch === '\'' || ch === '"') && position.column > 1) {
+			if (chIsQuote && position.column > 1) {
 				const wordSeparators = getMapForWordSeparators(config.wordSeparators);
 				const characterBeforeCode = lineText.charCodeAt(position.column - 2);
 				const characterBeforeType = wordSeparators.get(characterBeforeCode);
@@ -520,20 +543,9 @@ export class TypeOperations {
 			// Only consider auto closing the pair if a space follows or if another autoclosed pair follows
 			const characterAfter = lineText.charAt(position.column - 1);
 			if (characterAfter) {
-				const thisBraceIsSymmetric = (config.autoClosingPairsOpen[ch] === ch);
+				let isBeforeCloseBrace = TypeOperations._isBeforeClosingBrace(config, ch, characterAfter);
 
-				let isBeforeCloseBrace = false;
-				for (let otherCloseBrace in config.autoClosingPairsClose) {
-					const otherBraceIsSymmetric = (config.autoClosingPairsOpen[otherCloseBrace] === otherCloseBrace);
-					if (!thisBraceIsSymmetric && otherBraceIsSymmetric) {
-						continue;
-					}
-					if (characterAfter === otherCloseBrace) {
-						isBeforeCloseBrace = true;
-						break;
-					}
-				}
-				if (!isBeforeCloseBrace && !/\s/.test(characterAfter)) {
+				if (!isBeforeCloseBrace && !shouldAutoCloseBefore(characterAfter)) {
 					return false;
 				}
 			}
@@ -574,10 +586,21 @@ export class TypeOperations {
 		});
 	}
 
+	private static _shouldSurroundChar(config: CursorConfiguration, ch: string): boolean {
+		if (isQuote(ch)) {
+			return (config.autoSurround === 'quotes' || config.autoSurround === 'languageDefined');
+		} else {
+			// Character is a bracket
+			return (config.autoSurround === 'brackets' || config.autoSurround === 'languageDefined');
+		}
+	}
+
 	private static _isSurroundSelectionType(config: CursorConfiguration, model: ITextModel, selections: Selection[], ch: string): boolean {
-		if (!config.autoClosingBrackets || !config.surroundingPairs.hasOwnProperty(ch)) {
+		if (!TypeOperations._shouldSurroundChar(config, ch) || !config.surroundingPairs.hasOwnProperty(ch)) {
 			return false;
 		}
+
+		const isTypingAQuoteCharacter = isQuote(ch);
 
 		for (let i = 0, len = selections.length; i < len; i++) {
 			const selection = selections[i];
@@ -602,6 +625,15 @@ export class TypeOperations {
 
 			if (selectionContainsOnlyWhitespace) {
 				return false;
+			}
+
+			if (isTypingAQuoteCharacter && selection.startLineNumber === selection.endLineNumber && selection.startColumn + 1 === selection.endColumn) {
+				const selectionText = model.getValueInRange(selection);
+				if (isQuote(selectionText)) {
+					// Typing a quote character on top of another quote character
+					// => disable surround selection type
+					return false;
+				}
 			}
 		}
 
@@ -628,7 +660,7 @@ export class TypeOperations {
 		return false;
 	}
 
-	private static _typeInterceptorElectricChar(prevEditOperationType: EditOperationType, config: CursorConfiguration, model: ITextModel, selection: Selection, ch: string): EditOperationResult {
+	private static _typeInterceptorElectricChar(prevEditOperationType: EditOperationType, config: CursorConfiguration, model: ITextModel, selection: Selection, ch: string): EditOperationResult | null {
 		if (!config.electricChars.hasOwnProperty(ch) || !selection.isEmpty()) {
 			return null;
 		}
@@ -637,11 +669,12 @@ export class TypeOperations {
 		model.forceTokenization(position.lineNumber);
 		let lineTokens = model.getLineTokens(position.lineNumber);
 
-		let electricAction: IElectricAction;
+		let electricAction: IElectricAction | null;
 		try {
 			electricAction = LanguageConfigurationRegistry.onElectricCharacter(ch, lineTokens, position.column);
 		} catch (e) {
 			onUnexpectedError(e);
+			return null;
 		}
 
 		if (!electricAction) {
@@ -691,6 +724,89 @@ export class TypeOperations {
 		return null;
 	}
 
+	public static compositionEndWithInterceptors(prevEditOperationType: EditOperationType, config: CursorConfiguration, model: ITextModel, selections: Selection[]): EditOperationResult | null {
+		if (config.autoClosingQuotes === 'never') {
+			return null;
+		}
+
+		let commands: ICommand[] = [];
+
+		for (let i = 0; i < selections.length; i++) {
+			if (!selections[i].isEmpty()) {
+				continue;
+			}
+			const position = selections[i].getPosition();
+			const lineText = model.getLineContent(position.lineNumber);
+			const ch = lineText.charAt(position.column - 2);
+
+			if (config.autoClosingPairsClose.hasOwnProperty(ch)) { // first of all, it's a closing tag
+				if (ch === config.autoClosingPairsClose[ch] /** isEqualPair */) {
+					const lineTextBeforeCursor = lineText.substr(0, position.column - 2);
+					const chCntBefore = this._countNeedlesInHaystack(lineTextBeforeCursor, ch);
+
+					if (chCntBefore % 2 === 1) {
+						continue; // it pairs with the opening tag.
+					}
+				}
+			}
+
+			// As we are not typing in a new character, so we don't need to run `_runAutoClosingCloseCharType`
+			// Next step, let's try to check if it's an open char.
+			if (config.autoClosingPairsOpen.hasOwnProperty(ch)) {
+				if (isQuote(ch) && position.column > 2) {
+					const wordSeparators = getMapForWordSeparators(config.wordSeparators);
+					const characterBeforeCode = lineText.charCodeAt(position.column - 3);
+					const characterBeforeType = wordSeparators.get(characterBeforeCode);
+					if (characterBeforeType === WordCharacterClass.Regular) {
+						continue;
+					}
+				}
+
+				const characterAfter = lineText.charAt(position.column - 1);
+
+				if (characterAfter) {
+					let isBeforeCloseBrace = TypeOperations._isBeforeClosingBrace(config, ch, characterAfter);
+					let shouldAutoCloseBefore = isQuote(ch) ? config.shouldAutoCloseBefore.quote : config.shouldAutoCloseBefore.bracket;
+					if (isBeforeCloseBrace) {
+						// In normal auto closing logic, we will auto close if the cursor is even before a closing brace intentionally.
+						// However for composition mode, we do nothing here as users might clear all the characters for composition and we don't want to do a unnecessary auto close.
+						// Related: microsoft/vscode#57250.
+						continue;
+					}
+					if (!shouldAutoCloseBefore(characterAfter)) {
+						continue;
+					}
+				}
+
+				if (!model.isCheapToTokenize(position.lineNumber)) {
+					// Do not force tokenization
+					continue;
+				}
+
+				model.forceTokenization(position.lineNumber);
+				const lineTokens = model.getLineTokens(position.lineNumber);
+
+				let shouldAutoClosePair = false;
+
+				try {
+					shouldAutoClosePair = LanguageConfigurationRegistry.shouldAutoClosePair(ch, lineTokens, position.column - 1);
+				} catch (e) {
+					onUnexpectedError(e);
+				}
+
+				if (shouldAutoClosePair) {
+					const closeCharacter = config.autoClosingPairsOpen[ch];
+					commands[i] = new ReplaceCommandWithOffsetCursorState(selections[i], closeCharacter, 0, -closeCharacter.length);
+				}
+			}
+		}
+
+		return new EditOperationResult(EditOperationType.Typing, commands, {
+			shouldPushStackElementBefore: true,
+			shouldPushStackElementAfter: false
+		});
+	}
+
 	public static typeWithInterceptors(prevEditOperationType: EditOperationType, config: CursorConfiguration, model: ITextModel, selections: Selection[], ch: string): EditOperationResult {
 
 		if (ch === '\n') {
@@ -705,7 +821,7 @@ export class TypeOperations {
 		}
 
 		if (this._isAutoIndentType(config, model, selections)) {
-			let commands: ICommand[] = [];
+			let commands: (ICommand | null)[] = [];
 			let autoIndentFails = false;
 			for (let i = 0, len = selections.length; i < len; i++) {
 				commands[i] = this._runAutoIndentType(config, model, selections[i], ch);

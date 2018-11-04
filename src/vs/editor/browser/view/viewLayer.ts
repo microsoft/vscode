@@ -2,18 +2,17 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
 import { FastDomNode, createFastDomNode } from 'vs/base/browser/fastDomNode';
-import { ViewportData } from 'vs/editor/common/viewLayout/viewLinesViewportData';
+import { IStringBuilder, createStringBuilder } from 'vs/editor/common/core/stringBuilder';
 import * as viewEvents from 'vs/editor/common/view/viewEvents';
-import { createStringBuilder, IStringBuilder } from 'vs/editor/common/core/stringBuilder';
+import { ViewportData } from 'vs/editor/common/viewLayout/viewLinesViewportData';
 
 /**
  * Represents a visible line
  */
 export interface IVisibleLine extends ILine {
-	getDomNode(): HTMLElement;
+	getDomNode(): HTMLElement | null;
 	setDomNode(domNode: HTMLElement): void;
 
 	/**
@@ -88,7 +87,7 @@ export class RenderedLinesCollection<T extends ILine> {
 	/**
 	 * @returns Lines that were removed from this collection
 	 */
-	public onLinesDeleted(deleteFromLineNumber: number, deleteToLineNumber: number): T[] {
+	public onLinesDeleted(deleteFromLineNumber: number, deleteToLineNumber: number): T[] | null {
 		if (this.getCount() === 0) {
 			// no lines
 			return null;
@@ -168,7 +167,7 @@ export class RenderedLinesCollection<T extends ILine> {
 		return someoneNotified;
 	}
 
-	public onLinesInserted(insertFromLineNumber: number, insertToLineNumber: number): T[] {
+	public onLinesInserted(insertFromLineNumber: number, insertToLineNumber: number): T[] | null {
 		if (this.getCount() === 0) {
 			// no lines
 			return null;
@@ -528,8 +527,8 @@ class ViewLayerRenderer<T extends IVisibleLine> {
 			let line = ctx.lines[i];
 			if (wasInvalid[i]) {
 				let source = <HTMLElement>hugeDomNode.firstChild;
-				let lineDomNode = line.getDomNode();
-				lineDomNode.parentNode.replaceChild(source, lineDomNode);
+				let lineDomNode = line.getDomNode()!;
+				lineDomNode.parentNode!.replaceChild(source, lineDomNode);
 				line.setDomNode(source);
 			}
 		}

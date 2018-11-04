@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import { localize } from 'vs/nls';
 import { escapeRegExpCharacters } from 'vs/base/common/strings';
 import { ITelemetryService, ITelemetryInfo, ITelemetryData } from 'vs/platform/telemetry/common/telemetry';
@@ -21,7 +19,6 @@ export interface ITelemetryServiceConfig {
 	appender: ITelemetryAppender;
 	commonProperties?: TPromise<{ [name: string]: any }>;
 	piiPaths?: string[];
-	userOptIn?: boolean;
 }
 
 export class TelemetryService implements ITelemetryService {
@@ -46,7 +43,7 @@ export class TelemetryService implements ITelemetryService {
 		this._appender = config.appender;
 		this._commonProperties = config.commonProperties || TPromise.as({});
 		this._piiPaths = config.piiPaths || [];
-		this._userOptIn = typeof config.userOptIn === 'undefined' ? true : config.userOptIn;
+		this._userOptIn = true;
 
 		// static cleanup pattern for: `file:///DANGEROUS/PATH/resources/app/Useful/Information`
 		this._cleanupPatterns = [/file:\/\/\/.*?\/resources\/app\//gi];
@@ -91,7 +88,7 @@ export class TelemetryService implements ITelemetryService {
 		this._disposables = dispose(this._disposables);
 	}
 
-	publicLog(eventName: string, data?: ITelemetryData): TPromise<any> {
+	publicLog(eventName: string, data?: ITelemetryData, anonymizeFilePaths?: boolean): TPromise<any> {
 		// don't send events when the user is optout
 		if (!this._userOptIn) {
 			return TPromise.as(undefined);
@@ -105,7 +102,7 @@ export class TelemetryService implements ITelemetryService {
 			// (last) remove all PII from data
 			data = cloneAndChange(data, value => {
 				if (typeof value === 'string') {
-					return this._cleanupInfo(value);
+					return this._cleanupInfo(value, anonymizeFilePaths);
 				}
 				return undefined;
 			});
@@ -118,28 +115,33 @@ export class TelemetryService implements ITelemetryService {
 		});
 	}
 
-	private _cleanupInfo(stack: string): string {
-		const cleanUpIndexes: [number, number][] = [];
-		for (let regexp of this._cleanupPatterns) {
+	private _cleanupInfo(stack: string, anonymizeFilePaths?: boolean): string {
+		let updatedStack = stack;
+
+		if (anonymizeFilePaths) {
+			const cleanUpIndexes: [number, number][] = [];
+			for (let regexp of this._cleanupPatterns) {
+				while (true) {
+					const result = regexp.exec(stack);
+					if (!result) {
+						break;
+					}
+					cleanUpIndexes.push([result.index, regexp.lastIndex]);
+				}
+			}
+
+			const nodeModulesRegex = /^[\\\/]?(node_modules|node_modules\.asar)[\\\/]/;
+			const fileRegex = /(file:\/\/)?([a-zA-Z]:(\\\\|\\|\/)|(\\\\|\\|\/))?([\w-\._]+(\\\\|\\|\/))+[\w-\._]*/g;
+
 			while (true) {
-				const result = regexp.exec(stack);
+				const result = fileRegex.exec(stack);
 				if (!result) {
 					break;
 				}
-				cleanUpIndexes.push([result.index, regexp.lastIndex]);
-			}
-		}
-
-		const fileRegex = /(file:\/\/)?([a-z,A-Z]:)?([\\\/]\w+)+/g;
-		let updatedStack = stack;
-		while (true) {
-			const result = fileRegex.exec(stack);
-			if (!result) {
-				break;
-			}
-			// Anoynimize user file paths that do not need cleanup.
-			if (cleanUpIndexes.every(([x, y]) => result.index < x || result.index >= y)) {
-				updatedStack = updatedStack.slice(0, result.index) + result[0].replace(/./g, 'a') + updatedStack.slice(fileRegex.lastIndex);
+				// Anoynimize user file paths that do not need to be retained or cleaned up.
+				if (!nodeModulesRegex.test(result[0]) && cleanUpIndexes.every(([x, y]) => result.index < x || result.index >= y)) {
+					updatedStack = updatedStack.slice(0, result.index) + result[0].replace(/./g, 'a') + updatedStack.slice(fileRegex.lastIndex);
+				}
 			}
 		}
 
@@ -162,8 +164,9 @@ Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerConfigurat
 	'properties': {
 		'telemetry.enableTelemetry': {
 			'type': 'boolean',
-			'description': localize('telemetry.enableTelemetry', "Enable usage data and errors to be sent to Microsoft."),
-			'default': true
+			'description': localize('telemetry.enableTelemetry', "Enable usage data and errors to be sent to a Microsoft online service."),
+			'default': true,
+			'tags': ['usesOnlineServices']
 		}
 	}
 });

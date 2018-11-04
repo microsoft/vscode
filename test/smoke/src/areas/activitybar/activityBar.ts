@@ -3,21 +3,18 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Element } from 'webdriverio';
-import { SpectronApplication } from '../../spectron/application';
+import { Code } from '../../vscode/code';
 
-export enum ActivityBarPosition {
+export const enum ActivityBarPosition {
 	LEFT = 0,
 	RIGHT = 1
 }
 
 export class ActivityBar {
 
-	constructor(private spectron: SpectronApplication) {
-		// noop
-	}
+	constructor(private code: Code) { }
 
-	public async getActivityBar(position: ActivityBarPosition): Promise<Element> {
+	async waitForActivityBar(position: ActivityBarPosition): Promise<void> {
 		let positionClass: string;
 
 		if (position === ActivityBarPosition.LEFT) {
@@ -28,6 +25,6 @@ export class ActivityBar {
 			throw new Error('No such position for activity bar defined.');
 		}
 
-		return this.spectron.client.waitForElement(`.part.activitybar.${positionClass}`);
+		await this.code.waitForElement(`.part.activitybar.${positionClass}`);
 	}
 }

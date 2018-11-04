@@ -2,32 +2,16 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
 import { equals } from 'vs/base/common/objects';
-import { compare, toValuesTree, IConfigurationChangeEvent, ConfigurationTarget, IConfigurationModel, IConfigurationOverrides, IOverrides } from 'vs/platform/configuration/common/configuration';
+import { compare, toValuesTree, IConfigurationChangeEvent, ConfigurationTarget, IConfigurationModel, IConfigurationOverrides } from 'vs/platform/configuration/common/configuration';
 import { Configuration as BaseConfiguration, ConfigurationModelParser, ConfigurationChangeEvent, ConfigurationModel, AbstractConfigurationChangeEvent } from 'vs/platform/configuration/common/configurationModels';
 import { Registry } from 'vs/platform/registry/common/platform';
-import { IConfigurationRegistry, IConfigurationPropertySchema, Extensions, ConfigurationScope } from 'vs/platform/configuration/common/configurationRegistry';
+import { IConfigurationRegistry, IConfigurationPropertySchema, Extensions, ConfigurationScope, OVERRIDE_PROPERTY_PATTERN } from 'vs/platform/configuration/common/configurationRegistry';
 import { IStoredWorkspaceFolder } from 'vs/platform/workspaces/common/workspaces';
 import { Workspace } from 'vs/platform/workspace/common/workspace';
-import { StrictResourceMap } from 'vs/base/common/map';
-import URI from 'vs/base/common/uri';
-
-export class SettingsModel extends ConfigurationModel {
-
-	private _unsupportedKeys: string[];
-
-	constructor(contents: any, keys: string[], overrides: IOverrides[], unsupportedKeys: string[]) {
-		super(contents, keys, overrides);
-		this._unsupportedKeys = unsupportedKeys;
-	}
-
-	public get unsupportedKeys(): string[] {
-		return this._unsupportedKeys;
-	}
-
-}
+import { ResourceMap } from 'vs/base/common/map';
+import { URI } from 'vs/base/common/uri';
 
 export class WorkspaceConfigurationModelParser extends ConfigurationModelParser {
 
@@ -37,7 +21,7 @@ export class WorkspaceConfigurationModelParser extends ConfigurationModelParser 
 
 	constructor(name: string) {
 		super(name);
-		this._settingsModelParser = new FolderSettingsModelParser(name);
+		this._settingsModelParser = new FolderSettingsModelParser(name, [ConfigurationScope.WINDOW, ConfigurationScope.RESOURCE]);
 		this._launchModel = new ConfigurationModel();
 	}
 
@@ -45,8 +29,8 @@ export class WorkspaceConfigurationModelParser extends ConfigurationModelParser 
 		return this._folders;
 	}
 
-	get settingsModel(): SettingsModel {
-		return this._settingsModelParser.settingsModel;
+	get settingsModel(): ConfigurationModel {
+		return this._settingsModelParser.configurationModel;
 	}
 
 	get launchModel(): ConfigurationModel {
@@ -96,9 +80,9 @@ export class StandaloneConfigurationModelParser extends ConfigurationModelParser
 export class FolderSettingsModelParser extends ConfigurationModelParser {
 
 	private _raw: any;
-	private _settingsModel: SettingsModel;
+	private _settingsModel: ConfigurationModel;
 
-	constructor(name: string, private configurationScope?: ConfigurationScope) {
+	constructor(name: string, private scopes: ConfigurationScope[]) {
 		super(name);
 	}
 
@@ -108,11 +92,7 @@ export class FolderSettingsModelParser extends ConfigurationModelParser {
 	}
 
 	get configurationModel(): ConfigurationModel {
-		return this._settingsModel || new SettingsModel({}, [], [], []);
-	}
-
-	get settingsModel(): SettingsModel {
-		return <SettingsModel>this.configurationModel;
+		return this._settingsModel || new ConfigurationModel();
 	}
 
 	reprocess(): void {
@@ -120,33 +100,30 @@ export class FolderSettingsModelParser extends ConfigurationModelParser {
 	}
 
 	private parseWorkspaceSettings(rawSettings: any): void {
-		const unsupportedKeys = [];
-		const rawWorkspaceSettings = {};
 		const configurationProperties = Registry.as<IConfigurationRegistry>(Extensions.Configuration).getConfigurationProperties();
-		for (let key in rawSettings) {
-			if (this.isNotExecutable(key, configurationProperties)) {
-				if (this.configurationScope === void 0 || this.getScope(key, configurationProperties) === this.configurationScope) {
-					rawWorkspaceSettings[key] = rawSettings[key];
-				}
+		const rawWorkspaceSettings = this.filterByScope(rawSettings, configurationProperties, true);
+		const configurationModel = this.parseRaw(rawWorkspaceSettings);
+		this._settingsModel = new ConfigurationModel(configurationModel.contents, configurationModel.keys, configurationModel.overrides);
+	}
+
+	private filterByScope(properties: {}, configurationProperties: { [qualifiedKey: string]: IConfigurationPropertySchema }, filterOverriddenProperties: boolean): {} {
+		const result = {};
+		for (let key in properties) {
+			if (OVERRIDE_PROPERTY_PATTERN.test(key) && filterOverriddenProperties) {
+				result[key] = this.filterByScope(properties[key], configurationProperties, false);
 			} else {
-				unsupportedKeys.push(key);
+				const scope = this.getScope(key, configurationProperties);
+				if (this.scopes.indexOf(scope) !== -1) {
+					result[key] = properties[key];
+				}
 			}
 		}
-		const configurationModel = this.parseRaw(rawWorkspaceSettings);
-		this._settingsModel = new SettingsModel(configurationModel.contents, configurationModel.keys, configurationModel.overrides, unsupportedKeys);
+		return result;
 	}
 
 	private getScope(key: string, configurationProperties: { [qualifiedKey: string]: IConfigurationPropertySchema }): ConfigurationScope {
 		const propertySchema = configurationProperties[key];
-		return propertySchema ? propertySchema.scope : ConfigurationScope.WINDOW;
-	}
-
-	private isNotExecutable(key: string, configurationProperties: { [qualifiedKey: string]: IConfigurationPropertySchema }): boolean {
-		const propertySchema = configurationProperties[key];
-		if (!propertySchema) {
-			return true; // Unknown propertis are ignored from checks
-		}
-		return !propertySchema.isExecutable;
+		return propertySchema && typeof propertySchema.scope !== 'undefined' ? propertySchema.scope : ConfigurationScope.WINDOW;
 	}
 }
 
@@ -156,9 +133,9 @@ export class Configuration extends BaseConfiguration {
 		defaults: ConfigurationModel,
 		user: ConfigurationModel,
 		workspaceConfiguration: ConfigurationModel,
-		folders: StrictResourceMap<ConfigurationModel>,
+		folders: ResourceMap<ConfigurationModel>,
 		memoryConfiguration: ConfigurationModel,
-		memoryConfigurationByResource: StrictResourceMap<ConfigurationModel>,
+		memoryConfigurationByResource: ResourceMap<ConfigurationModel>,
 		private readonly _workspace: Workspace) {
 		super(defaults, user, workspaceConfiguration, folders, memoryConfiguration, memoryConfigurationByResource);
 	}
@@ -170,8 +147,8 @@ export class Configuration extends BaseConfiguration {
 	inspect<C>(key: string, overrides: IConfigurationOverrides = {}): {
 		default: C,
 		user: C,
-		workspace: C,
-		workspaceFolder: C
+		workspace?: C,
+		workspaceFolder?: C
 		memory?: C
 		value: C,
 	} {
@@ -191,9 +168,7 @@ export class Configuration extends BaseConfiguration {
 		const { added, updated, removed } = compare(this.user, user);
 		let changedKeys = [...added, ...updated, ...removed];
 		if (changedKeys.length) {
-			const oldValues = changedKeys.map(key => this.getValue(key));
 			super.updateUserConfiguration(user);
-			changedKeys = changedKeys.filter((key, index) => !equals(oldValues[index], this.getValue(key)));
 		}
 		return new ConfigurationChangeEvent().change(changedKeys);
 	}
@@ -202,9 +177,7 @@ export class Configuration extends BaseConfiguration {
 		const { added, updated, removed } = compare(this.workspace, workspaceConfiguration);
 		let changedKeys = [...added, ...updated, ...removed];
 		if (changedKeys.length) {
-			const oldValues = changedKeys.map(key => this.getValue(key));
 			super.updateWorkspaceConfiguration(workspaceConfiguration);
-			changedKeys = changedKeys.filter((key, index) => !equals(oldValues[index], this.getValue(key)));
 		}
 		return new ConfigurationChangeEvent().change(changedKeys);
 	}
@@ -215,9 +188,7 @@ export class Configuration extends BaseConfiguration {
 			const { added, updated, removed } = compare(currentFolderConfiguration, folderConfiguration);
 			let changedKeys = [...added, ...updated, ...removed];
 			if (changedKeys.length) {
-				const oldValues = changedKeys.map(key => this.getValue(key, { resource }));
 				super.updateFolderConfiguration(resource, folderConfiguration);
-				changedKeys = changedKeys.filter((key, index) => !equals(oldValues[index], this.getValue(key, { resource })));
 			}
 			return new ConfigurationChangeEvent().change(changedKeys, resource);
 		} else {
@@ -237,7 +208,7 @@ export class Configuration extends BaseConfiguration {
 	}
 
 	compare(other: Configuration): string[] {
-		const result = [];
+		const result: string[] = [];
 		for (const key of this.allKeys()) {
 			if (!equals(this.getValue(key), other.getValue(key))
 				|| (this._workspace && this._workspace.folders.some(folder => !equals(this.getValue(key, { resource: folder.uri }), other.getValue(key, { resource: folder.uri }))))) {
@@ -254,7 +225,7 @@ export class Configuration extends BaseConfiguration {
 
 export class AllKeysConfigurationChangeEvent extends AbstractConfigurationChangeEvent implements IConfigurationChangeEvent {
 
-	private _changedConfiguration: ConfigurationModel = null;
+	private _changedConfiguration: ConfigurationModel | null = null;
 
 	constructor(private _configuration: Configuration, readonly source: ConfigurationTarget, readonly sourceConfig: any) { super(); }
 
@@ -266,8 +237,8 @@ export class AllKeysConfigurationChangeEvent extends AbstractConfigurationChange
 		return this._changedConfiguration;
 	}
 
-	get changedConfigurationByResource(): StrictResourceMap<IConfigurationModel> {
-		return new StrictResourceMap();
+	get changedConfigurationByResource(): ResourceMap<IConfigurationModel> {
+		return new ResourceMap();
 	}
 
 	get affectedKeys(): string[] {
@@ -287,7 +258,7 @@ export class WorkspaceConfigurationChangeEvent implements IConfigurationChangeEv
 		return this.configurationChangeEvent.changedConfiguration;
 	}
 
-	get changedConfigurationByResource(): StrictResourceMap<IConfigurationModel> {
+	get changedConfigurationByResource(): ResourceMap<IConfigurationModel> {
 		return this.configurationChangeEvent.changedConfigurationByResource;
 	}
 

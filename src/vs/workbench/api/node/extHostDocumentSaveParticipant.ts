@@ -2,15 +2,14 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
 import { Event } from 'vs/base/common/event';
-import URI, { UriComponents } from 'vs/base/common/uri';
+import { URI, UriComponents } from 'vs/base/common/uri';
 import { sequence, always } from 'vs/base/common/async';
 import { illegalState } from 'vs/base/common/errors';
 import { ExtHostDocumentSaveParticipantShape, MainThreadTextEditorsShape, ResourceTextEditDto } from 'vs/workbench/api/node/extHost.protocol';
 import { TextEdit } from 'vs/workbench/api/node/extHostTypes';
-import { fromRange, TextDocumentSaveReason, EndOfLine } from 'vs/workbench/api/node/extHostTypeConverters';
+import { Range, TextDocumentSaveReason, EndOfLine } from 'vs/workbench/api/node/extHostTypeConverters';
 import { ExtHostDocuments } from 'vs/workbench/api/node/extHostDocuments';
 import { SaveReason } from 'vs/workbench/services/textfile/common/textfiles';
 import * as vscode from 'vscode';
@@ -78,32 +77,32 @@ export class ExtHostDocumentSaveParticipant implements ExtHostDocumentSavePartic
 			return Promise.resolve(false);
 		}
 
-		return this._deliverEventAsync(listener, thisArg, stubEvent).then(() => {
+		return this._deliverEventAsync(extension, listener, thisArg, stubEvent).then(() => {
 			// don't send result across the wire
 			return true;
 
 		}, err => {
 
-			this._logService.error('[onWillSaveTextDocument]', extension.id);
+			this._logService.error(`onWillSaveTextDocument-listener from extension '${extension.id}' threw ERROR`);
 			this._logService.error(err);
 
 			if (!(err instanceof Error) || (<Error>err).message !== 'concurrent_edits') {
 				const errors = this._badListeners.get(listener);
 				this._badListeners.set(listener, !errors ? 1 : errors + 1);
 
-				// todo@joh signal to the listener?
-				// if (errors === this._thresholds.errors) {
-				// 	console.warn('BAD onWillSaveTextDocumentEvent-listener is from now on being ignored');
-				// }
+				if (errors > this._thresholds.errors) {
+					this._logService.info(`onWillSaveTextDocument-listener from extension '${extension.id}' will now be IGNORED because of timeouts and/or errors`);
+				}
 			}
 			return false;
 		});
 	}
 
-	private _deliverEventAsync(listener: Function, thisArg: any, stubEvent: vscode.TextDocumentWillSaveEvent): Promise<any> {
+	private _deliverEventAsync(extension: IExtensionDescription, listener: Function, thisArg: any, stubEvent: vscode.TextDocumentWillSaveEvent): Promise<any> {
 
 		const promises: Promise<vscode.TextEdit[]>[] = [];
 
+		const t1 = Date.now();
 		const { document, reason } = stubEvent;
 		const { version } = document;
 
@@ -133,6 +132,7 @@ export class ExtHostDocumentSaveParticipant implements ExtHostDocumentSavePartic
 			const handle = setTimeout(() => reject(new Error('timeout')), this._thresholds.timeout);
 
 			return Promise.all(promises).then(edits => {
+				this._logService.debug(`onWillSaveTextDocument-listener from extension '${extension.id}' finished after ${(Date.now() - t1)}ms`);
 				clearTimeout(handle);
 				resolve(edits);
 			}).catch(err => {
@@ -151,7 +151,7 @@ export class ExtHostDocumentSaveParticipant implements ExtHostDocumentSavePartic
 				if (Array.isArray(value) && (<vscode.TextEdit[]>value).every(e => e instanceof TextEdit)) {
 					for (const { newText, newEol, range } of value) {
 						resourceEdit.edits.push({
-							range: range && fromRange(range),
+							range: range && Range.from(range),
 							text: newText,
 							eol: EndOfLine.from(newEol)
 						});

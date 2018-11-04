@@ -2,23 +2,32 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
 import * as nls from 'vs/nls';
-import { onUnexpectedError } from 'vs/base/common/errors';
-import * as paths from 'vs/base/common/paths';
-import { TPromise } from 'vs/base/common/winjs.base';
 import * as mime from 'vs/base/common/mime';
-import { IFilesConfiguration, FILES_ASSOCIATIONS_CONFIG } from 'vs/platform/files/common/files';
-import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
-import { IExtensionPointUser, ExtensionMessageCollector, IExtensionPoint, ExtensionsRegistry } from 'vs/workbench/services/extensions/common/extensionsRegistry';
+import * as resources from 'vs/base/common/resources';
+import { URI } from 'vs/base/common/uri';
 import { ModesRegistry } from 'vs/editor/common/modes/modesRegistry';
-import { ILanguageExtensionPoint, IValidLanguageExtensionPoint } from 'vs/editor/common/services/modeService';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { ILanguageExtensionPoint } from 'vs/editor/common/services/modeService';
 import { ModeServiceImpl } from 'vs/editor/common/services/modeServiceImpl';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
+import { FILES_ASSOCIATIONS_CONFIG, IFilesConfiguration } from 'vs/platform/files/common/files';
+import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
+import { ExtensionMessageCollector, ExtensionsRegistry, IExtensionPoint, IExtensionPointUser } from 'vs/workbench/services/extensions/common/extensionsRegistry';
 
-export const languagesExtPoint: IExtensionPoint<ILanguageExtensionPoint[]> = ExtensionsRegistry.registerExtensionPoint<ILanguageExtensionPoint[]>('languages', [], {
+export interface IRawLanguageExtensionPoint {
+	id: string;
+	extensions: string[];
+	filenames: string[];
+	filenamePatterns: string[];
+	firstLine: string;
+	aliases: string[];
+	mimetypes: string[];
+	configuration: string;
+}
+
+export const languagesExtPoint: IExtensionPoint<IRawLanguageExtensionPoint[]> = ExtensionsRegistry.registerExtensionPoint<IRawLanguageExtensionPoint[]>('languages', [], {
 	description: nls.localize('vscode.extension.contributes.languages', 'Contributes language declarations.'),
 	type: 'array',
 	items: {
@@ -81,7 +90,7 @@ export const languagesExtPoint: IExtensionPoint<ILanguageExtensionPoint[]> = Ext
 export class WorkbenchModeServiceImpl extends ModeServiceImpl {
 	private _configurationService: IConfigurationService;
 	private _extensionService: IExtensionService;
-	private _onReadyPromise: TPromise<boolean>;
+	private _onReadyPromise: Promise<boolean>;
 
 	constructor(
 		@IExtensionService extensionService: IExtensionService,
@@ -92,8 +101,8 @@ export class WorkbenchModeServiceImpl extends ModeServiceImpl {
 		this._configurationService = configurationService;
 		this._extensionService = extensionService;
 
-		languagesExtPoint.setHandler((extensions: IExtensionPointUser<ILanguageExtensionPoint[]>[]) => {
-			let allValidLanguages: IValidLanguageExtensionPoint[] = [];
+		languagesExtPoint.setHandler((extensions: IExtensionPointUser<IRawLanguageExtensionPoint[]>[]) => {
+			let allValidLanguages: ILanguageExtensionPoint[] = [];
 
 			for (let i = 0, len = extensions.length; i < len; i++) {
 				let extension = extensions[i];
@@ -106,7 +115,10 @@ export class WorkbenchModeServiceImpl extends ModeServiceImpl {
 				for (let j = 0, lenJ = extension.value.length; j < lenJ; j++) {
 					let ext = extension.value[j];
 					if (isValidLanguageExtensionPoint(ext, extension.collector)) {
-						let configuration = (ext.configuration ? paths.join(extension.description.extensionFolderPath, ext.configuration) : ext.configuration);
+						let configuration: URI | undefined = undefined;
+						if (ext.configuration) {
+							configuration = resources.joinPath(extension.description.extensionLocation, ext.configuration);
+						}
 						allValidLanguages.push({
 							id: ext.id,
 							extensions: ext.extensions,
@@ -125,23 +137,26 @@ export class WorkbenchModeServiceImpl extends ModeServiceImpl {
 
 		});
 
+		this.updateMime();
 		this._configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration(FILES_ASSOCIATIONS_CONFIG)) {
 				this.updateMime();
 			}
 		});
+		this._extensionService.whenInstalledExtensionsRegistered().then(() => {
+			this.updateMime();
+		});
 
 		this.onDidCreateMode((mode) => {
-			this._extensionService.activateByEvent(`onLanguage:${mode.getId()}`).done(null, onUnexpectedError);
+			this._extensionService.activateByEvent(`onLanguage:${mode.getId()}`);
 		});
 	}
 
-	protected _onReady(): TPromise<boolean> {
+	protected _onReady(): Promise<boolean> {
 		if (!this._onReadyPromise) {
-			this._onReadyPromise = this._extensionService.whenInstalledExtensionsRegistered().then(() => {
-				this.updateMime();
-				return true;
-			});
+			this._onReadyPromise = Promise.resolve(
+				this._extensionService.whenInstalledExtensionsRegistered().then(() => true)
+			);
 		}
 
 		return this._onReadyPromise;
@@ -162,6 +177,8 @@ export class WorkbenchModeServiceImpl extends ModeServiceImpl {
 				mime.registerTextMime({ id: langId, mime: mimetype, filepattern: pattern, userConfigured: true });
 			});
 		}
+
+		this._onLanguagesMaybeChanged.fire();
 	}
 }
 
@@ -175,7 +192,7 @@ function isUndefinedOrStringArray(value: string[]): boolean {
 	return value.every(item => typeof item === 'string');
 }
 
-function isValidLanguageExtensionPoint(value: ILanguageExtensionPoint, collector: ExtensionMessageCollector): boolean {
+function isValidLanguageExtensionPoint(value: IRawLanguageExtensionPoint, collector: ExtensionMessageCollector): boolean {
 	if (!value) {
 		collector.error(nls.localize('invalid.empty', "Empty value for `contributes.{0}`", languagesExtPoint.name));
 		return false;

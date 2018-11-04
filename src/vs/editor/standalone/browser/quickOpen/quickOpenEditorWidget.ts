@@ -2,17 +2,16 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
-import { $, Dimension } from 'vs/base/browser/builder';
+import { Dimension } from 'vs/base/browser/dom';
+import { IDisposable } from 'vs/base/common/lifecycle';
 import { QuickOpenModel } from 'vs/base/parts/quickopen/browser/quickOpenModel';
 import { QuickOpenWidget } from 'vs/base/parts/quickopen/browser/quickOpenWidget';
 import { IAutoFocus } from 'vs/base/parts/quickopen/common/quickOpen';
 import { ICodeEditor, IOverlayWidget, IOverlayWidgetPosition, OverlayWidgetPositionPreference } from 'vs/editor/browser/editorBrowser';
-import { attachQuickOpenStyler } from 'vs/platform/theme/common/styler';
-import { IDisposable } from 'vs/base/common/lifecycle';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { foreground } from 'vs/platform/theme/common/colorRegistry';
+import { attachQuickOpenStyler } from 'vs/platform/theme/common/styler';
+import { IThemeService } from 'vs/platform/theme/common/themeService';
 
 export interface IQuickOpenEditorWidgetOptions {
 	inputAriaLabel: string;
@@ -37,7 +36,7 @@ export class QuickOpenEditorWidget implements IOverlayWidget {
 	}
 
 	private create(onOk: () => void, onCancel: () => void, onType: (value: string) => void, configuration: IQuickOpenEditorWidgetOptions): void {
-		this.domNode = $().div().getHTMLElement();
+		this.domNode = document.createElement('div');
 
 		this.quickOpenWidget = new QuickOpenWidget(
 			this.domNode,

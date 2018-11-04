@@ -2,7 +2,6 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
 import * as nls from 'vs/nls';
 import Severity from 'vs/base/common/severity';
@@ -14,7 +13,6 @@ import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { once } from 'vs/base/common/event';
 import { ICommandService } from 'vs/platform/commands/common/commands';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { dispose } from 'vs/base/common/lifecycle';
 
 @extHostNamedCustomer(MainContext.MainThreadMessageService)
@@ -24,8 +22,7 @@ export class MainThreadMessageService implements MainThreadMessageServiceShape {
 		extHostContext: IExtHostContext,
 		@INotificationService private readonly _notificationService: INotificationService,
 		@ICommandService private readonly _commandService: ICommandService,
-		@IDialogService private readonly _dialogService: IDialogService,
-		@IEnvironmentService private readonly _environmentService: IEnvironmentService
+		@IDialogService private readonly _dialogService: IDialogService
 	) {
 		//
 	}
@@ -79,7 +76,7 @@ export class MainThreadMessageService implements MainThreadMessageServiceShape {
 			}
 
 			const secondaryActions: IAction[] = [];
-			if (extension && extension.extensionFolderPath !== this._environmentService.extensionDevelopmentPath) {
+			if (extension && !extension.isUnderDevelopment) {
 				secondaryActions.push(new ManageExtensionAction(extension.id, nls.localize('manageExtension', "Manage Extension"), this._commandService));
 			}
 
@@ -92,7 +89,7 @@ export class MainThreadMessageService implements MainThreadMessageServiceShape {
 
 			// if promise has not been resolved yet, now is the time to ensure a return value
 			// otherwise if already resolved it means the user clicked one of the buttons
-			once(messageHandle.onDidDispose)(() => {
+			once(messageHandle.onDidClose)(() => {
 				dispose(...primaryActions, ...secondaryActions);
 				resolve(undefined);
 			});

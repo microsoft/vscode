@@ -2,32 +2,45 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
-import { TextDocument, CancellationToken, Position } from 'vscode-languageserver';
-import { LanguageService as HTMLLanguageService, TokenType, Range } from 'vscode-html-languageservice';
 
-import { FoldingRangeType, FoldingRange, FoldingRangeList } from 'vscode-languageserver-protocol-foldingprovider';
-import { LanguageModes } from './languageModes';
-import { binarySearch } from '../utils/arrays';
+import { TextDocument, CancellationToken, Position, Range } from 'vscode-languageserver';
+import { FoldingRange } from 'vscode-languageserver-types';
+import { LanguageModes, LanguageMode } from './languageModes';
 
-export function getFoldingRegions(languageModes: LanguageModes, document: TextDocument, maxRanges: number | undefined, cancellationToken: CancellationToken | null): FoldingRangeList {
+export function getFoldingRanges(languageModes: LanguageModes, document: TextDocument, maxRanges: number | undefined, _cancellationToken: CancellationToken | null): FoldingRange[] {
 	let htmlMode = languageModes.getMode('html');
 	let range = Range.create(Position.create(0, 0), Position.create(document.lineCount, 0));
-	let ranges: FoldingRange[] = [];
+	let result: FoldingRange[] = [];
 	if (htmlMode && htmlMode.getFoldingRanges) {
-		ranges.push(...htmlMode.getFoldingRanges(document, range));
+		result.push(...htmlMode.getFoldingRanges(document));
 	}
+
+	// cache folding ranges per mode
+	let rangesPerMode: { [mode: string]: FoldingRange[] } = Object.create(null);
+	let getRangesForMode = (mode: LanguageMode) => {
+		if (mode.getFoldingRanges) {
+			let ranges = rangesPerMode[mode.getId()];
+			if (!Array.isArray(ranges)) {
+				ranges = mode.getFoldingRanges(document) || [];
+				rangesPerMode[mode.getId()] = ranges;
+			}
+			return ranges;
+		}
+		return [];
+	};
+
 	let modeRanges = languageModes.getModesInRange(document, range);
 	for (let modeRange of modeRanges) {
 		let mode = modeRange.mode;
-		if (mode && mode !== htmlMode && mode.getFoldingRanges && !modeRange.attributeValue) {
-			ranges.push(...mode.getFoldingRanges(document, modeRange));
+		if (mode && mode !== htmlMode && !modeRange.attributeValue) {
+			const ranges = getRangesForMode(mode);
+			result.push(...ranges.filter(r => r.startLine >= modeRange.start.line && r.endLine < modeRange.end.line));
 		}
 	}
-	if (maxRanges && ranges.length > maxRanges) {
-		ranges = limitRanges(ranges, maxRanges);
+	if (maxRanges && result.length > maxRanges) {
+		result = limitRanges(result, maxRanges);
 	}
-	return { ranges };
+	return result;
 }
 
 function limitRanges(ranges: FoldingRange[], maxRanges: number) {
@@ -90,96 +103,14 @@ function limitRanges(ranges: FoldingRange[], maxRanges: number) {
 			entries += n;
 		}
 	}
-	return ranges.filter((r, index) => (typeof nestingLevels[index] === 'number') && nestingLevels[index] < maxLevel);
-}
-
-export const EMPTY_ELEMENTS: string[] = ['area', 'base', 'br', 'col', 'embed', 'hr', 'img', 'input', 'keygen', 'link', 'menuitem', 'meta', 'param', 'source', 'track', 'wbr'];
-
-export function isEmptyElement(e: string): boolean {
-	return !!e && binarySearch(EMPTY_ELEMENTS, e.toLowerCase(), (s1: string, s2: string) => s1.localeCompare(s2)) >= 0;
-}
-
-export function getHTMLFoldingRegions(htmlLanguageService: HTMLLanguageService, document: TextDocument, range: Range): FoldingRange[] {
-	const scanner = htmlLanguageService.createScanner(document.getText());
-	let token = scanner.scan();
-	let ranges: FoldingRange[] = [];
-	let stack: { startLine: number, tagName: string }[] = [];
-	let lastTagName = null;
-	let prevStart = -1;
-
-	function addRange(range: FoldingRange) {
-		ranges.push(range);
-		prevStart = range.startLine;
-	}
-
-	while (token !== TokenType.EOS) {
-		switch (token) {
-			case TokenType.StartTag: {
-				let tagName = scanner.getTokenText();
-				let startLine = document.positionAt(scanner.getTokenOffset()).line;
-				stack.push({ startLine, tagName });
-				lastTagName = tagName;
-				break;
-			}
-			case TokenType.EndTag: {
-				lastTagName = scanner.getTokenText();
-				break;
-			}
-			case TokenType.StartTagClose:
-				if (!lastTagName || !isEmptyElement(lastTagName)) {
-					break;
-				}
-			// fallthrough
-			case TokenType.EndTagClose:
-			case TokenType.StartTagSelfClose: {
-				let i = stack.length - 1;
-				while (i >= 0 && stack[i].tagName !== lastTagName) {
-					i--;
-				}
-				if (i >= 0) {
-					let stackElement = stack[i];
-					stack.length = i;
-					let line = document.positionAt(scanner.getTokenOffset()).line;
-					let startLine = stackElement.startLine;
-					let endLine = line - 1;
-					if (endLine > startLine && prevStart !== startLine) {
-						addRange({ startLine, endLine });
-					}
-				}
-				break;
-			}
-			case TokenType.Comment: {
-				let startLine = document.positionAt(scanner.getTokenOffset()).line;
-				let text = scanner.getTokenText();
-				let m = text.match(/^\s*#(region\b)|(endregion\b)/);
-				if (m) {
-					if (m[1]) { // start pattern match
-						stack.push({ startLine, tagName: '' }); // empty tagName marks region
-					} else {
-						let i = stack.length - 1;
-						while (i >= 0 && stack[i].tagName.length) {
-							i--;
-						}
-						if (i >= 0) {
-							let stackElement = stack[i];
-							stack.length = i;
-							let endLine = startLine;
-							startLine = stackElement.startLine;
-							if (endLine > startLine && prevStart !== startLine) {
-								addRange({ startLine, endLine, type: FoldingRangeType.Region });
-							}
-						}
-					}
-				} else {
-					let endLine = document.positionAt(scanner.getTokenOffset() + scanner.getTokenLength()).line;
-					if (startLine < endLine) {
-						addRange({ startLine, endLine, type: FoldingRangeType.Comment });
-					}
-				}
-				break;
+	let result = [];
+	for (let i = 0; i < ranges.length; i++) {
+		let level = nestingLevels[i];
+		if (typeof level === 'number') {
+			if (level < maxLevel || (level === maxLevel && entries++ < maxRanges)) {
+				result.push(ranges[i]);
 			}
 		}
-		token = scanner.scan();
 	}
-	return ranges;
+	return result;
 }

@@ -12,6 +12,39 @@
 	margin-left: -300px;
 }
 
+.quick-input-titlebar {
+	display: flex;
+}
+
+.quick-input-left-action-bar {
+	display: flex;
+	margin-left: 4px;
+	flex: 1;
+}
+
+.quick-input-left-action-bar.monaco-action-bar .actions-container {
+	justify-content: flex-start;
+}
+
+.quick-input-title {
+	padding: 3px 0px;
+	text-align: center;
+}
+
+.quick-input-right-action-bar {
+	display: flex;
+	margin-right: 4px;
+	flex: 1;
+}
+
+.quick-input-titlebar .monaco-action-bar .action-label.icon {
+	margin: 0;
+	width: 19px;
+	height: 100%;
+	background-position: center;
+	background-repeat: no-repeat;
+}
+
 .quick-input-header {
 	display: flex;
 	padding: 6px 6px 4px 6px;
@@ -30,7 +63,15 @@
 
 .quick-input-box {
 	flex-grow: 1;
+}
+
+.quick-input-widget.show-checkboxes .quick-input-box {
 	margin-left: 5px;
+}
+
+.quick-input-visible-count {
+	position: absolute;
+	left: -10000px;
 }
 
 .quick-input-count {
@@ -45,13 +86,20 @@
 
 .quick-input-action {
 	margin-left: 6px;
-	border: 0;
-	padding: 6px;
-	cursor: pointer;
 }
 
-.quick-input-action:focus {
-	outline:0;
+.quick-input-action .monaco-text-button {
+	font-size: 85%;
+	padding: 7px 6px 6px 6px;
+	line-height: initial;
+}
+
+.quick-input-message {
+	margin: 0px 11px;
+}
+
+.quick-input-progress.monaco-progress-container {
+	position: relative;
 }
 
 .quick-input-progress.monaco-progress-container,
@@ -59,56 +107,121 @@
 	height: 2px;
 }
 
-.quick-input-checkbox-list {
+.quick-input-list {
 	line-height: 22px;
 }
 
-.quick-input-checkbox-list .monaco-list {
+.quick-input-list .monaco-list {
 	overflow: hidden;
 	max-height: calc(20 * 22px);
 }
 
-.quick-input-checkbox-list .quick-input-checkbox-list-entry {
+.quick-input-list .quick-input-list-entry {
+	box-sizing: border-box;
 	overflow: hidden;
 	display: flex;
 	height: 100%;
 	padding: 0 6px;
 }
 
-.quick-input-checkbox-list .quick-input-checkbox-list-label {
+.quick-input-list .quick-input-list-entry.quick-input-list-separator-border {
+	border-top-width: 1px;
+	border-top-style: solid;
+}
+
+.quick-input-list .monaco-list-row:first-child .quick-input-list-entry.quick-input-list-separator-border {
+	border-top-style: none;
+}
+
+.quick-input-list .quick-input-list-label {
 	overflow: hidden;
 	display: flex;
 	height: 100%;
 	flex: 1;
 }
 
-.quick-input-checkbox-list .quick-input-checkbox-list-checkbox {
+.quick-input-list .quick-input-list-checkbox {
 	align-self: center;
 	margin: 0;
-	/* TODO */
-	/* margin-top: 5px; */
 }
 
-.quick-input-checkbox-list .quick-input-checkbox-list-rows {
+.quick-input-list .quick-input-list-rows {
 	overflow: hidden;
 	text-overflow: ellipsis;
 	display: flex;
 	flex-direction: column;
 	height: 100%;
 	flex: 1;
+	margin-left: 5px;
+}
+
+.quick-input-widget.show-checkboxes .quick-input-list .quick-input-list-rows {
 	margin-left: 10px;
 }
 
-.quick-input-checkbox-list .quick-input-checkbox-list-rows > .quick-input-checkbox-list-row {
+.quick-input-widget .quick-input-list .quick-input-list-checkbox {
+	display: none;
+}
+.quick-input-widget.show-checkboxes .quick-input-list .quick-input-list-checkbox {
+	display: inline;
+}
+
+.quick-input-list .quick-input-list-rows > .quick-input-list-row {
 	display: flex;
 	align-items: center;
 }
 
-.quick-input-checkbox-list .quick-input-checkbox-list-rows .monaco-highlighted-label span {
+.quick-input-list .quick-input-list-rows .monaco-highlighted-label span {
 	opacity: 1;
 }
 
-.quick-input-checkbox-list .quick-input-checkbox-list-label-meta {
+.quick-input-list .quick-input-list-label-meta {
 	opacity: 0.7;
 	line-height: normal;
+	text-overflow: ellipsis;
+	overflow: hidden;
+}
+
+.quick-input-list .monaco-highlighted-label .highlight {
+	font-weight: bold;
+}
+
+.quick-input-list .quick-input-list-separator {
+	margin-right: 18px;
+}
+
+.quick-input-list .quick-input-list-entry.has-actions:hover .quick-input-list-separator,
+.quick-input-list .monaco-list-row.focused .quick-input-list-entry.has-actions .quick-input-list-separator {
+	margin-right: 0;
+}
+
+.quick-input-list .quick-input-list-entry-action-bar {
+	display: none;
+	flex: 0;
+	overflow: visible;
+}
+
+.quick-input-list .quick-input-list-entry-action-bar .action-label.icon {
+	margin: 0;
+	width: 19px;
+	height: 100%;
+	background-position: center;
+	background-repeat: no-repeat;
+}
+
+.quick-input-list .quick-input-list-entry-action-bar {
+	margin-top: 1px;
+}
+
+.quick-input-list .quick-input-list-entry-action-bar ul:first-child .action-label.icon {
+	margin-left: 2px;
+}
+
+.quick-input-list .quick-input-list-entry-action-bar ul:last-child .action-label.icon {
+	margin-right: 8px;
+}
+
+.quick-input-list .quick-input-list-entry:hover .quick-input-list-entry-action-bar,
+.quick-input-list .monaco-list-row.focused .quick-input-list-entry-action-bar {
+	display: flex;
 }

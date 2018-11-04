@@ -3,7 +3,7 @@ declare module 'jschardet' {
 		encoding: string,
 		confidence: number
 	}
-	export function detect(buffer: NodeBuffer): IDetectedMap;
+	export function detect(buffer: Buffer): IDetectedMap;
 
 	export const Constants: {
 		MINIMUM_THRESHOLD: number,

@@ -3,19 +3,19 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import { Event, filterEvent, mapEvent, anyEvent } from 'vs/base/common/event';
 import { TPromise } from 'vs/base/common/winjs.base';
-import { IWindowService, IWindowsService, INativeOpenDialogOptions, IEnterWorkspaceResult, IMessageBoxResult, IWindowConfiguration } from 'vs/platform/windows/common/windows';
+import { IWindowService, IWindowsService, INativeOpenDialogOptions, IEnterWorkspaceResult, IMessageBoxResult, IWindowConfiguration, IDevToolsOptions } from 'vs/platform/windows/common/windows';
 import { IRecentlyOpened } from 'vs/platform/history/common/history';
-import { ICommandAction } from 'vs/platform/actions/common/actions';
+import { ISerializableCommandAction } from 'vs/platform/actions/common/actions';
 import { IWorkspaceFolderCreationData } from 'vs/platform/workspaces/common/workspaces';
 import { ParsedArgs } from 'vs/platform/environment/common/environment';
+import { URI } from 'vs/base/common/uri';
 
 export class WindowService implements IWindowService {
 
 	readonly onDidChangeFocus: Event<boolean>;
+	readonly onDidChangeMaximize: Event<boolean>;
 
 	_serviceBrand: any;
 
@@ -26,7 +26,10 @@ export class WindowService implements IWindowService {
 	) {
 		const onThisWindowFocus = mapEvent(filterEvent(windowsService.onWindowFocus, id => id === windowId), _ => true);
 		const onThisWindowBlur = mapEvent(filterEvent(windowsService.onWindowBlur, id => id === windowId), _ => false);
+		const onThisWindowMaximize = mapEvent(filterEvent(windowsService.onWindowMaximize, id => id === windowId), _ => true);
+		const onThisWindowUnmaximize = mapEvent(filterEvent(windowsService.onWindowUnmaximize, id => id === windowId), _ => false);
 		this.onDidChangeFocus = anyEvent(onThisWindowFocus, onThisWindowBlur);
+		this.onDidChangeMaximize = anyEvent(onThisWindowMaximize, onThisWindowUnmaximize);
 	}
 
 	getCurrentWindowId(): number {
@@ -65,8 +68,8 @@ export class WindowService implements IWindowService {
 		return this.windowsService.reloadWindow(this.windowId, args);
 	}
 
-	openDevTools(): TPromise<void> {
-		return this.windowsService.openDevTools(this.windowId);
+	openDevTools(options?: IDevToolsOptions): TPromise<void> {
+		return this.windowsService.openDevTools(this.windowId, options);
 	}
 
 	toggleDevTools(): TPromise<void> {
@@ -77,12 +80,20 @@ export class WindowService implements IWindowService {
 		return this.windowsService.closeWorkspace(this.windowId);
 	}
 
+	enterWorkspace(path: string): TPromise<IEnterWorkspaceResult> {
+		return this.windowsService.enterWorkspace(this.windowId, path);
+	}
+
 	createAndEnterWorkspace(folders?: IWorkspaceFolderCreationData[], path?: string): TPromise<IEnterWorkspaceResult> {
 		return this.windowsService.createAndEnterWorkspace(this.windowId, folders, path);
 	}
 
 	saveAndEnterWorkspace(path: string): TPromise<IEnterWorkspaceResult> {
 		return this.windowsService.saveAndEnterWorkspace(this.windowId, path);
+	}
+
+	openWindow(paths: URI[], options?: { forceNewWindow?: boolean, forceReuseWindow?: boolean, forceOpenWorkspaceAsFile?: boolean, args?: ParsedArgs }): TPromise<void> {
+		return this.windowsService.openWindow(this.windowId, paths, options);
 	}
 
 	closeWindow(): TPromise<void> {
@@ -109,6 +120,22 @@ export class WindowService implements IWindowService {
 		return this.windowsService.isFocused(this.windowId);
 	}
 
+	isMaximized(): TPromise<boolean> {
+		return this.windowsService.isMaximized(this.windowId);
+	}
+
+	maximizeWindow(): TPromise<void> {
+		return this.windowsService.maximizeWindow(this.windowId);
+	}
+
+	unmaximizeWindow(): TPromise<void> {
+		return this.windowsService.unmaximizeWindow(this.windowId);
+	}
+
+	minimizeWindow(): TPromise<void> {
+		return this.windowsService.minimizeWindow(this.windowId);
+	}
+
 	onWindowTitleDoubleClick(): TPromise<void> {
 		return this.windowsService.onWindowTitleDoubleClick(this.windowId);
 	}
@@ -133,7 +160,11 @@ export class WindowService implements IWindowService {
 		return this.windowsService.showOpenDialog(this.windowId, options);
 	}
 
-	updateTouchBar(items: ICommandAction[][]): TPromise<void> {
+	updateTouchBar(items: ISerializableCommandAction[][]): TPromise<void> {
 		return this.windowsService.updateTouchBar(this.windowId, items);
+	}
+
+	resolveProxy(url: string): Promise<string | undefined> {
+		return this.windowsService.resolveProxy(this.windowId, url);
 	}
 }

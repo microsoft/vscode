@@ -2,28 +2,52 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
 import { TPromise } from 'vs/base/common/winjs.base';
 import { Event } from 'vs/base/common/event';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
+import { isThenable } from 'vs/base/common/async';
 
 export const ILifecycleService = createDecorator<ILifecycleService>('lifecycleService');
 
 /**
- * An event that is send out when the window is about to close. Clients have a chance to veto the closing by either calling veto
- * with a boolean "true" directly or with a promise that resolves to a boolean. Returning a promise is useful
- * in cases of long running operations on shutdown.
+ * An event that is send out when the window is about to close. Clients have a chance to veto
+ * the closing by either calling veto with a boolean "true" directly or with a promise that
+ * resolves to a boolean. Returning a promise is useful in cases of long running operations
+ * on shutdown.
  *
- * Note: It is absolutely important to avoid long running promises on this call. Please try hard to return
- * a boolean directly. Returning a promise has quite an impact on the shutdown sequence!
+ * Note: It is absolutely important to avoid long running promises if possible. Please try hard
+ * to return a boolean directly. Returning a promise has quite an impact on the shutdown sequence!
+ */
+export interface WillShutdownEvent {
+
+	/**
+	 * Allows to veto the shutdown. The veto can be a long running operation but it
+	 * will block the application from closing.
+	 */
+	veto(value: boolean | Thenable<boolean>): void;
+
+	/**
+	 * The reason why Code will be shutting down.
+	 */
+	reason: ShutdownReason;
+}
+
+/**
+ * An event that is send out when the window closes. Clients have a chance to join the closing
+ * by providing a promise from the join method. Returning a promise is useful in cases of long
+ * running operations on shutdown.
+ *
+ * Note: It is absolutely important to avoid long running promises if possible. Please try hard
+ * to return a boolean directly. Returning a promise has quite an impact on the shutdown sequence!
  */
 export interface ShutdownEvent {
 
 	/**
-	 * Allows to veto the shutdown. The veto can be a long running operation.
+	 * Allows to join the shutdown. The promise can be a long running operation but it
+	 * will block the application from closing.
 	 */
-	veto(value: boolean | TPromise<boolean>): void;
+	join(promise: Thenable<void>): void;
 
 	/**
 	 * The reason why Code is shutting down.
@@ -31,7 +55,7 @@ export interface ShutdownEvent {
 	reason: ShutdownReason;
 }
 
-export enum ShutdownReason {
+export const enum ShutdownReason {
 
 	/** Window is closed */
 	CLOSE = 1,
@@ -46,17 +70,34 @@ export enum ShutdownReason {
 	LOAD = 4
 }
 
-export enum StartupKind {
+export const enum StartupKind {
 	NewWindow = 1,
 	ReloadedWindow = 3,
 	ReopenedWindow = 4,
 }
 
-export enum LifecyclePhase {
+export function StartupKindToString(startupKind: StartupKind): string {
+	switch (startupKind) {
+		case StartupKind.NewWindow: return 'NewWindow';
+		case StartupKind.ReloadedWindow: return 'ReloadedWindow';
+		case StartupKind.ReopenedWindow: return 'ReopenedWindow';
+	}
+}
+
+export const enum LifecyclePhase {
 	Starting = 1,
 	Restoring = 2,
 	Running = 3,
 	Eventually = 4
+}
+
+export function LifecyclePhaseToString(phase: LifecyclePhase) {
+	switch (phase) {
+		case LifecyclePhase.Starting: return 'Starting';
+		case LifecyclePhase.Restoring: return 'Restoring';
+		case LifecyclePhase.Running: return 'Running';
+		case LifecyclePhase.Eventually: return 'Eventually';
+	}
 }
 
 /**
@@ -78,16 +119,10 @@ export interface ILifecycleService {
 	readonly phase: LifecyclePhase;
 
 	/**
-	 * Returns a promise that resolves when a certain lifecycle phase
-	 * has started.
-	 */
-	when(phase: LifecyclePhase): Thenable<void>;
-
-	/**
 	 * Fired before shutdown happens. Allows listeners to veto against the
 	 * shutdown.
 	 */
-	readonly onWillShutdown: Event<ShutdownEvent>;
+	readonly onWillShutdown: Event<WillShutdownEvent>;
 
 	/**
 	 * Fired when no client is preventing the shutdown from happening. Can be used to dispose heavy resources
@@ -95,25 +130,31 @@ export interface ILifecycleService {
 	 *
 	 * The event carries a shutdown reason that indicates how the shutdown was triggered.
 	 */
-	readonly onShutdown: Event<ShutdownReason>;
+	readonly onShutdown: Event<ShutdownEvent>;
+
+	/**
+	 * Returns a promise that resolves when a certain lifecycle phase
+	 * has started.
+	 */
+	when(phase: LifecyclePhase): Thenable<void>;
 }
 
 export const NullLifecycleService: ILifecycleService = {
 	_serviceBrand: null,
-	phase: LifecyclePhase.Running,
-	when() { return Promise.resolve(); },
-	startupKind: StartupKind.NewWindow,
 	onWillShutdown: Event.None,
-	onShutdown: Event.None
+	onShutdown: Event.None,
+	phase: LifecyclePhase.Running,
+	startupKind: StartupKind.NewWindow,
+	when() { return Promise.resolve(); }
 };
 
 // Shared veto handling across main and renderer
-export function handleVetos(vetos: (boolean | TPromise<boolean>)[], onError: (error: Error) => void): TPromise<boolean /* veto */> {
+export function handleVetos(vetos: (boolean | Thenable<boolean>)[], onError: (error: Error) => void): TPromise<boolean /* veto */> {
 	if (vetos.length === 0) {
 		return TPromise.as(false);
 	}
 
-	const promises: TPromise<void>[] = [];
+	const promises: Thenable<void>[] = [];
 	let lazyValue = false;
 
 	for (let valueOrPromise of vetos) {
@@ -123,7 +164,7 @@ export function handleVetos(vetos: (boolean | TPromise<boolean>)[], onError: (er
 			return TPromise.as(true);
 		}
 
-		if (TPromise.is(valueOrPromise)) {
+		if (isThenable(valueOrPromise)) {
 			promises.push(valueOrPromise.then(value => {
 				if (value) {
 					lazyValue = true; // veto, done

@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 // Broadcast communication constants
 
 export const EXTENSION_LOG_BROADCAST_CHANNEL = 'vscode:extensionLog';

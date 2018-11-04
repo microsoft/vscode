@@ -4,20 +4,20 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 Object.defineProperty(exports, "__esModule", { value: true });
-var es = require("event-stream");
-var _ = require("underscore");
-var util = require("gulp-util");
-var fs = require("fs");
-var path = require("path");
-var allErrors = [];
-var startTime = null;
-var count = 0;
+const es = require("event-stream");
+const _ = require("underscore");
+const util = require("gulp-util");
+const fs = require("fs");
+const path = require("path");
+const allErrors = [];
+let startTime = null;
+let count = 0;
 function onStart() {
     if (count++ > 0) {
         return;
     }
     startTime = new Date().getTime();
-    util.log("Starting " + util.colors.green('compilation') + "...");
+    util.log(`Starting ${util.colors.green('compilation')}...`);
 }
 function onEnd() {
     if (--count > 0) {
@@ -25,7 +25,7 @@ function onEnd() {
     }
     log();
 }
-var buildLogPath = path.join(path.dirname(path.dirname(__dirname)), '.build', 'log');
+const buildLogPath = path.join(path.dirname(path.dirname(__dirname)), '.build', 'log');
 try {
     fs.mkdirSync(path.dirname(buildLogPath));
 }
@@ -33,51 +33,52 @@ catch (err) {
     // ignore
 }
 function log() {
-    var errors = _.flatten(allErrors);
-    errors.map(function (err) { return util.log(util.colors.red('Error') + ": " + err); });
-    var regex = /^([^(]+)\((\d+),(\d+)\): (.*)$/;
-    var messages = errors
-        .map(function (err) { return regex.exec(err); })
-        .filter(function (match) { return !!match; })
-        .map(function (_a) {
-        var path = _a[1], line = _a[2], column = _a[3], message = _a[4];
-        return ({ path: path, line: parseInt(line), column: parseInt(column), message: message });
+    const errors = _.flatten(allErrors);
+    const seen = new Set();
+    errors.map(err => {
+        if (!seen.has(err)) {
+            seen.add(err);
+            util.log(`${util.colors.red('Error')}: ${err}`);
+        }
     });
+    const regex = /^([^(]+)\((\d+),(\d+)\): (.*)$/;
+    const messages = errors
+        .map(err => regex.exec(err))
+        .filter(match => !!match)
+        .map(x => x)
+        .map(([, path, line, column, message]) => ({ path, line: parseInt(line), column: parseInt(column), message }));
     try {
         fs.writeFileSync(buildLogPath, JSON.stringify(messages));
     }
     catch (err) {
         //noop
     }
-    util.log("Finished " + util.colors.green('compilation') + " with " + errors.length + " errors after " + util.colors.magenta((new Date().getTime() - startTime) + ' ms'));
+    util.log(`Finished ${util.colors.green('compilation')} with ${errors.length} errors after ${util.colors.magenta((new Date().getTime() - startTime) + ' ms')}`);
 }
 function createReporter() {
-    var errors = [];
+    const errors = [];
     allErrors.push(errors);
-    var ReportFunc = /** @class */ (function () {
-        function ReportFunc(err) {
-            errors.push(err);
-        }
-        ReportFunc.hasErrors = function () {
-            return errors.length > 0;
-        };
-        ReportFunc.end = function (emitError) {
-            errors.length = 0;
-            onStart();
-            return es.through(null, function () {
-                onEnd();
-                if (emitError && errors.length > 0) {
+    const result = (err) => errors.push(err);
+    result.hasErrors = () => errors.length > 0;
+    result.end = (emitError) => {
+        errors.length = 0;
+        onStart();
+        return es.through(undefined, function () {
+            onEnd();
+            if (emitError && errors.length > 0) {
+                if (!errors.__logged__) {
                     log();
-                    this.emit('error');
                 }
-                else {
-                    this.emit('end');
-                }
-            });
-        };
-        return ReportFunc;
-    }());
-    return ReportFunc;
+                errors.__logged__ = true;
+                const err = new Error(`Found ${errors.length} errors`);
+                err.__reporter__ = true;
+                this.emit('error', err);
+            }
+            else {
+                this.emit('end');
+            }
+        });
+    };
+    return result;
 }
 exports.createReporter = createReporter;
-;

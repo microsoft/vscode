@@ -2,8 +2,6 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
-
 import { FormattingOptions, Edit } from 'vs/base/common/jsonFormatter';
 import { setProperty, removeProperty } from 'vs/base/common/jsonEdit';
 import * as assert from 'assert';
@@ -103,13 +101,13 @@ suite('JSON - edits', () => {
 
 		content = '//comment';
 		edits = setProperty(content, ['foo', 0], 'bar', formatterOptions);
-		assertEdit(content, edits, '{\n  "foo": [\n    "bar"\n  ]\n} //comment\n');
+		assertEdit(content, edits, '{\n  "foo": [\n    "bar"\n  ]\n} //comment');
 	});
 
 	test('remove property', () => {
 		let content = '{\n  "x": "y"\n}';
 		let edits = removeProperty(content, ['x'], formatterOptions);
-		assertEdit(content, edits, '{}');
+		assertEdit(content, edits, '{\n}');
 
 		content = '{\n  "x": "y", "a": []\n}';
 		edits = removeProperty(content, ['x'], formatterOptions);

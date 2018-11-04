@@ -13,13 +13,16 @@
     "onLanguage:json",
     "onLanguage:jsonc"
   ],
-  "enableProposedApi": true,
   "main": "./client/out/jsonMain",
   "scripts": {
-    "compile": "gulp compile-extension:json-language-features-client && gulp compile-extension:json-language-features-server",
+    "compile": "gulp compile-extension:json-language-features-client compile-extension:json-language-features-server",
+    "watch": "gulp watch-extension:json-language-features-client watch-extension:json-language-features-server",
     "postinstall": "cd server && yarn install",
     "install-client-next": "yarn add vscode-languageclient@next"
   },
+  "categories": [
+    "Programming Languages"
+  ],
   "contributes": {
     "configuration": {
       "id": "json",
@@ -56,7 +59,7 @@
                 "description": "%json.schemas.fileMatch.desc%"
               },
               "schema": {
-                "$ref": "http://json-schema.org/draft-04/schema#",
+                "$ref": "http://json-schema.org/draft-07/schema#",
                 "description": "%json.schemas.schema.desc%"
               }
             }
@@ -97,12 +100,11 @@
     }
   },
   "dependencies": {
-    "vscode-extension-telemetry": "0.0.15",
-    "vscode-languageclient": "^4.0.0",
-    "vscode-languageserver-protocol-foldingprovider": "^1.0.1",
-    "vscode-nls": "^3.2.2"
+    "vscode-extension-telemetry": "0.1.0",
+    "vscode-languageclient": "^5.1.0",
+    "vscode-nls": "^4.0.0"
   },
   "devDependencies": {
-    "@types/node": "7.0.43"
+    "@types/node": "^8.10.25"
   }
 }

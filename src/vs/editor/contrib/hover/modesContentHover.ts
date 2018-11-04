@@ -2,27 +2,27 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
 import * as nls from 'vs/nls';
 import * as dom from 'vs/base/browser/dom';
-import { TPromise } from 'vs/base/common/winjs.base';
-import { IRange, Range } from 'vs/editor/common/core/range';
-import { Position } from 'vs/editor/common/core/position';
-import { HoverProviderRegistry, Hover, IColor, DocumentColorProvider } from 'vs/editor/common/modes';
-import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { getHover } from 'vs/editor/contrib/hover/getHover';
-import { HoverOperation, IHoverComputer } from './hoverOperation';
-import { ContentHoverWidget } from './hoverWidgets';
+import { CancellationToken } from 'vs/base/common/cancellation';
+import { Color, RGBA } from 'vs/base/common/color';
 import { IMarkdownString, MarkdownString, isEmptyMarkdownString, markedStringsEquals } from 'vs/base/common/htmlContent';
-import { MarkdownRenderer } from 'vs/editor/contrib/markdown/markdownRenderer';
+import { Disposable, IDisposable, combinedDisposable } from 'vs/base/common/lifecycle';
+import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
+import { Position } from 'vs/editor/common/core/position';
+import { IRange, Range } from 'vs/editor/common/core/range';
 import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
+import { DocumentColorProvider, Hover, HoverProviderRegistry, IColor } from 'vs/editor/common/modes';
+import { getColorPresentations } from 'vs/editor/contrib/colorPicker/color';
+import { ColorDetector } from 'vs/editor/contrib/colorPicker/colorDetector';
 import { ColorPickerModel } from 'vs/editor/contrib/colorPicker/colorPickerModel';
 import { ColorPickerWidget } from 'vs/editor/contrib/colorPicker/colorPickerWidget';
-import { ColorDetector } from 'vs/editor/contrib/colorPicker/colorDetector';
-import { Color, RGBA } from 'vs/base/common/color';
-import { IDisposable, empty as EmptyDisposable, dispose, combinedDisposable } from 'vs/base/common/lifecycle';
-import { getColorPresentations } from 'vs/editor/contrib/colorPicker/color';
+import { getHover } from 'vs/editor/contrib/hover/getHover';
+import { HoverOperation, HoverStartMode, IHoverComputer } from 'vs/editor/contrib/hover/hoverOperation';
+import { ContentHoverWidget } from 'vs/editor/contrib/hover/hoverWidgets';
+import { MarkdownRenderer } from 'vs/editor/contrib/markdown/markdownRenderer';
+import { IThemeService } from 'vs/platform/theme/common/themeService';
 const $ = dom.$;
 
 class ColorHover {
@@ -56,17 +56,17 @@ class ModesContentComputer implements IHoverComputer<HoverPart[]> {
 		this._result = [];
 	}
 
-	computeAsync(): TPromise<HoverPart[]> {
+	computeAsync(token: CancellationToken): Promise<HoverPart[]> {
 		const model = this._editor.getModel();
 
 		if (!HoverProviderRegistry.has(model)) {
-			return TPromise.as(null);
+			return Promise.resolve(null);
 		}
 
 		return getHover(model, new Position(
 			this._range.startLineNumber,
 			this._range.startColumn
-		));
+		), token);
 	}
 
 	computeSync(): HoverPart[] {
@@ -166,18 +166,21 @@ export class ModesContentHoverWidget extends ContentHoverWidget {
 	private _shouldFocus: boolean;
 	private _colorPicker: ColorPickerWidget;
 
-	private renderDisposable: IDisposable = EmptyDisposable;
-	private toDispose: IDisposable[] = [];
+	private renderDisposable: IDisposable = Disposable.None;
 
-	constructor(editor: ICodeEditor, markdownRenderner: MarkdownRenderer) {
+	constructor(
+		editor: ICodeEditor,
+		markdownRenderer: MarkdownRenderer,
+		private readonly _themeService: IThemeService
+	) {
 		super(ModesContentHoverWidget.ID, editor);
 
 		this._computer = new ModesContentComputer(this._editor);
 		this._highlightDecorations = [];
 		this._isChangingDecorations = false;
 
-		this._markdownRenderer = markdownRenderner;
-		markdownRenderner.onDidRenderCodeBlock(this.onContentsChange, this, this.toDispose);
+		this._markdownRenderer = markdownRenderer;
+		this._register(markdownRenderer.onDidRenderCodeBlock(this.onContentsChange, this));
 
 		this._hoverOperation = new HoverOperation(
 			this._computer,
@@ -186,21 +189,23 @@ export class ModesContentHoverWidget extends ContentHoverWidget {
 			result => this._withResult(result, false)
 		);
 
-		this.toDispose.push(dom.addStandardDisposableListener(this.getDomNode(), dom.EventType.FOCUS, () => {
+		this._register(dom.addStandardDisposableListener(this.getDomNode(), dom.EventType.FOCUS, () => {
 			if (this._colorPicker) {
 				dom.addClass(this.getDomNode(), 'colorpicker-hover');
 			}
 		}));
-		this.toDispose.push(dom.addStandardDisposableListener(this.getDomNode(), dom.EventType.BLUR, () => {
+		this._register(dom.addStandardDisposableListener(this.getDomNode(), dom.EventType.BLUR, () => {
 			dom.removeClass(this.getDomNode(), 'colorpicker-hover');
+		}));
+		this._register(editor.onDidChangeConfiguration((e) => {
+			this._hoverOperation.setHoverTime(this._editor.getConfiguration().contribInfo.hover.delay);
 		}));
 	}
 
 	dispose(): void {
 		this.renderDisposable.dispose();
-		this.renderDisposable = EmptyDisposable;
+		this.renderDisposable = Disposable.None;
 		this._hoverOperation.cancel();
-		this.toDispose = dispose(this.toDispose);
 		super.dispose();
 	}
 
@@ -215,12 +220,12 @@ export class ModesContentHoverWidget extends ContentHoverWidget {
 			this._computer.clearResult();
 
 			if (!this._colorPicker) { // TODO@Michel ensure that displayed text for other decorations is computed even if color picker is in place
-				this._hoverOperation.start();
+				this._hoverOperation.start(HoverStartMode.Delayed);
 			}
 		}
 	}
 
-	startShowingAt(range: Range, focus: boolean): void {
+	startShowingAt(range: Range, mode: HoverStartMode, focus: boolean): void {
 		if (this._lastRange && this._lastRange.equalsRange(range)) {
 			// We have to show the widget at the exact same range as before, so no work is needed
 			return;
@@ -235,10 +240,10 @@ export class ModesContentHoverWidget extends ContentHoverWidget {
 			if (this._showAtPosition.lineNumber !== range.startLineNumber) {
 				this.hide();
 			} else {
-				var filteredMessages: HoverPart[] = [];
-				for (var i = 0, len = this._messages.length; i < len; i++) {
-					var msg = this._messages[i];
-					var rng = msg.range;
+				let filteredMessages: HoverPart[] = [];
+				for (let i = 0, len = this._messages.length; i < len; i++) {
+					const msg = this._messages[i];
+					const rng = msg.range;
 					if (rng.startColumn <= range.startColumn && rng.endColumn >= range.endColumn) {
 						filteredMessages.push(msg);
 					}
@@ -257,7 +262,7 @@ export class ModesContentHoverWidget extends ContentHoverWidget {
 		this._lastRange = range;
 		this._computer.setRange(range);
 		this._shouldFocus = focus;
-		this._hoverOperation.start();
+		this._hoverOperation.start(mode);
 	}
 
 	hide(): void {
@@ -268,7 +273,7 @@ export class ModesContentHoverWidget extends ContentHoverWidget {
 		this._highlightDecorations = this._editor.deltaDecorations(this._highlightDecorations, []);
 		this._isChangingDecorations = false;
 		this.renderDisposable.dispose();
-		this.renderDisposable = EmptyDisposable;
+		this.renderDisposable = Disposable.None;
 		this._colorPicker = null;
 	}
 
@@ -294,10 +299,10 @@ export class ModesContentHoverWidget extends ContentHoverWidget {
 		this._colorPicker = null;
 
 		// update column from which to show
-		var renderColumn = Number.MAX_VALUE,
-			highlightRange = messages[0].range,
-			fragment = document.createDocumentFragment(),
-			isEmptyHoverContent = true;
+		let renderColumn = Number.MAX_VALUE;
+		let highlightRange = Range.lift(messages[0].range);
+		let fragment = document.createDocumentFragment();
+		let isEmptyHoverContent = true;
 
 		let containColorPicker = false;
 		let markdownDisposeable: IDisposable;
@@ -331,9 +336,9 @@ export class ModesContentHoverWidget extends ContentHoverWidget {
 
 				// create blank olor picker model and widget first to ensure it's positioned correctly.
 				const model = new ColorPickerModel(color, [], 0);
-				const widget = new ColorPickerWidget(fragment, model, this._editor.getConfiguration().pixelRatio);
+				const widget = new ColorPickerWidget(fragment, model, this._editor.getConfiguration().pixelRatio, this._themeService);
 
-				getColorPresentations(editorModel, colorInfo, msg.provider).then(colorPresentations => {
+				getColorPresentations(editorModel, colorInfo, msg.provider, CancellationToken.None).then(colorPresentations => {
 					model.colorPresentations = colorPresentations;
 					const originalText = this._editor.getModel().getValueInRange(msg.range);
 					model.guessColorPresentation(color, originalText);
@@ -355,11 +360,12 @@ export class ModesContentHoverWidget extends ContentHoverWidget {
 							newRange = range.setEndPosition(range.endLineNumber, range.startColumn + model.presentation.label.length);
 						}
 
-						editorModel.pushEditOperations([], textEdits, () => []);
+						this._editor.pushUndoStop();
+						this._editor.executeEdits('colorpicker', textEdits);
 
 						if (model.presentation.additionalTextEdits) {
 							textEdits = [...model.presentation.additionalTextEdits];
-							editorModel.pushEditOperations([], textEdits, () => []);
+							this._editor.executeEdits('colorpicker', textEdits);
 							this.hide();
 						}
 						this._editor.pushUndoStop();
@@ -375,7 +381,7 @@ export class ModesContentHoverWidget extends ContentHoverWidget {
 								blue: color.rgba.b / 255,
 								alpha: color.rgba.a
 							}
-						}, msg.provider).then((colorPresentations) => {
+						}, msg.provider, CancellationToken.None).then((colorPresentations) => {
 							model.colorPresentations = colorPresentations;
 						});
 					};
@@ -386,7 +392,7 @@ export class ModesContentHoverWidget extends ContentHoverWidget {
 					const colorChangeListener = model.onDidChangeColor(updateColorPresentations);
 
 					this._colorPicker = widget;
-					this.showAt(new Position(renderRange.startLineNumber, renderColumn), this._shouldFocus);
+					this.showAt(range.getStartPosition(), range, this._shouldFocus);
 					this.updateContents(fragment);
 					this._colorPicker.layout();
 
@@ -398,7 +404,7 @@ export class ModesContentHoverWidget extends ContentHoverWidget {
 		// show
 
 		if (!containColorPicker && !isEmptyHoverContent) {
-			this.showAt(new Position(renderRange.startLineNumber, renderColumn), this._shouldFocus);
+			this.showAt(new Position(renderRange.startLineNumber, renderColumn), highlightRange, this._shouldFocus);
 			this.updateContents(fragment);
 		}
 

@@ -3,14 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import * as assert from 'assert';
 import { Color, RGBA, HSLA, HSVA } from 'vs/base/common/color';
 
 suite('Color', () => {
 
-	test('isLighterColor', function () {
+	test('isLighterColor', () => {
 		let color1 = new Color(new HSLA(60, 1, 0.5, 1)), color2 = new Color(new HSLA(0, 0, 0.753, 1));
 
 		assert.ok(color1.isLighterThan(color2));
@@ -19,7 +17,7 @@ suite('Color', () => {
 		assert.ok(Color.fromHex('#770811').isLighterThan(Color.fromHex('#000c18')));
 	});
 
-	test('getLighterColor', function () {
+	test('getLighterColor', () => {
 		let color1 = new Color(new HSLA(60, 1, 0.5, 1)), color2 = new Color(new HSLA(0, 0, 0.753, 1));
 
 		assert.deepEqual(color1.hsla, Color.getLighterColor(color1, color2).hsla);
@@ -30,14 +28,14 @@ suite('Color', () => {
 
 	});
 
-	test('isDarkerColor', function () {
+	test('isDarkerColor', () => {
 		let color1 = new Color(new HSLA(60, 1, 0.5, 1)), color2 = new Color(new HSLA(0, 0, 0.753, 1));
 
 		assert.ok(color2.isDarkerThan(color1));
 
 	});
 
-	test('getDarkerColor', function () {
+	test('getDarkerColor', () => {
 		let color1 = new Color(new HSLA(60, 1, 0.5, 1)), color2 = new Color(new HSLA(0, 0, 0.753, 1));
 
 		assert.deepEqual(color2.hsla, Color.getDarkerColor(color2, color1).hsla);
@@ -50,7 +48,7 @@ suite('Color', () => {
 		assert.deepEqual(new HSLA(355, 0.874, 0.157, 1), Color.getDarkerColor(Color.fromHex('#770811'), Color.fromHex('#000c18'), 0.4).hsla);
 	});
 
-	test('luminance', function () {
+	test('luminance', () => {
 		assert.deepEqual(0, new Color(new RGBA(0, 0, 0, 1)).getRelativeLuminance());
 		assert.deepEqual(1, new Color(new RGBA(255, 255, 255, 1)).getRelativeLuminance());
 
@@ -73,7 +71,7 @@ suite('Color', () => {
 		assert.deepEqual(0.0156, new Color(new RGBA(0, 0, 128, 1)).getRelativeLuminance());
 	});
 
-	test('blending', function () {
+	test('blending', () => {
 		assert.deepEqual(new Color(new RGBA(0, 0, 0, 0)).blend(new Color(new RGBA(243, 34, 43))), new Color(new RGBA(243, 34, 43)));
 		assert.deepEqual(new Color(new RGBA(255, 255, 255)).blend(new Color(new RGBA(243, 34, 43))), new Color(new RGBA(255, 255, 255)));
 		assert.deepEqual(new Color(new RGBA(122, 122, 122, 0.7)).blend(new Color(new RGBA(243, 34, 43))), new Color(new RGBA(158, 95, 98)));
@@ -81,7 +79,7 @@ suite('Color', () => {
 	});
 
 	suite('HSLA', () => {
-		test('HSLA.toRGBA', function () {
+		test('HSLA.toRGBA', () => {
 			assert.deepEqual(HSLA.toRGBA(new HSLA(0, 0, 0, 0)), new RGBA(0, 0, 0, 0));
 			assert.deepEqual(HSLA.toRGBA(new HSLA(0, 0, 0, 1)), new RGBA(0, 0, 0, 1));
 			assert.deepEqual(HSLA.toRGBA(new HSLA(0, 0, 1, 1)), new RGBA(255, 255, 255, 1));
@@ -105,7 +103,7 @@ suite('Color', () => {
 			assert.deepEqual(HSLA.toRGBA(new HSLA(240, 1, 0.251, 1)), new RGBA(0, 0, 128, 1));
 		});
 
-		test('HSLA.fromRGBA', function () {
+		test('HSLA.fromRGBA', () => {
 			assert.deepEqual(HSLA.fromRGBA(new RGBA(0, 0, 0, 0)), new HSLA(0, 0, 0, 0));
 			assert.deepEqual(HSLA.fromRGBA(new RGBA(0, 0, 0, 1)), new HSLA(0, 0, 0, 1));
 			assert.deepEqual(HSLA.fromRGBA(new RGBA(255, 255, 255, 1)), new HSLA(0, 0, 1, 1));
@@ -131,7 +129,7 @@ suite('Color', () => {
 	});
 
 	suite('HSVA', () => {
-		test('HSVA.toRGBA', function () {
+		test('HSVA.toRGBA', () => {
 			assert.deepEqual(HSVA.toRGBA(new HSVA(0, 0, 0, 0)), new RGBA(0, 0, 0, 0));
 			assert.deepEqual(HSVA.toRGBA(new HSVA(0, 0, 0, 1)), new RGBA(0, 0, 0, 1));
 			assert.deepEqual(HSVA.toRGBA(new HSVA(0, 0, 1, 1)), new RGBA(255, 255, 255, 1));

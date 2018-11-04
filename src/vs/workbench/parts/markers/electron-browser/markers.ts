@@ -3,26 +3,27 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { MarkersModel, FilterOptions } from './markersModel';
+import { createDecorator, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { MarkersModel, compareMarkersByUri } from './markersModel';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { IMarkerService, MarkerSeverity, IMarker } from 'vs/platform/markers/common/markers';
 import { IActivityService, NumberBadge } from 'vs/workbench/services/activity/common/activity';
 import { localize } from 'vs/nls';
 import Constants from './constants';
-import URI from 'vs/base/common/uri';
-import { Event, Emitter } from 'vs/base/common/event';
+import { URI } from 'vs/base/common/uri';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
+import { groupBy } from 'vs/base/common/arrays';
 
 export const IMarkersWorkbenchService = createDecorator<IMarkersWorkbenchService>('markersWorkbenchService');
 
+export interface IFilter {
+	filterText: string;
+	useFilesExclude: boolean;
+}
+
 export interface IMarkersWorkbenchService {
 	_serviceBrand: any;
-
-	readonly onDidChangeMarkersForResources: Event<URI[]>;
 	readonly markersModel: MarkersModel;
-
-	filter(filter: string): void;
 }
 
 export class MarkersWorkbenchService extends Disposable implements IMarkersWorkbenchService {
@@ -30,31 +31,27 @@ export class MarkersWorkbenchService extends Disposable implements IMarkersWorkb
 
 	readonly markersModel: MarkersModel;
 
-	private readonly _onDidChangeMarkersForResources: Emitter<URI[]> = this._register(new Emitter<URI[]>());
-	readonly onDidChangeMarkersForResources: Event<URI[]> = this._onDidChangeMarkersForResources.event;
-
 	constructor(
 		@IMarkerService private markerService: IMarkerService,
-		@IActivityService private activityService: IActivityService
+		@IActivityService private activityService: IActivityService,
+		@IInstantiationService instantiationService: IInstantiationService
 	) {
 		super();
-		this.markersModel = this._register(new MarkersModel(this.readMarkers()));
+		this.markersModel = this._register(instantiationService.createInstance(MarkersModel, this.readMarkers()));
+
+		for (const group of groupBy(this.readMarkers(), compareMarkersByUri)) {
+			this.markersModel.setResourceMarkers(group[0].resource, group);
+		}
+
 		this._register(markerService.onMarkerChanged(resources => this.onMarkerChanged(resources)));
 	}
 
-	filter(filter: string): void {
-		this.markersModel.updateFilterOptions(new FilterOptions(filter));
-		this.refreshBadge();
-	}
-
 	private onMarkerChanged(resources: URI[]): void {
-		this.markersModel.updateMarkers(updater => {
-			for (const resource of resources) {
-				updater(resource, this.readMarkers(resource));
-			}
-		});
+		for (const resource of resources) {
+			this.markersModel.setResourceMarkers(resource, this.readMarkers(resource));
+		}
+
 		this.refreshBadge();
-		this._onDidChangeMarkersForResources.fire(resources);
 	}
 
 	private readMarkers(resource?: URI): IMarker[] {
@@ -62,11 +59,10 @@ export class MarkersWorkbenchService extends Disposable implements IMarkersWorkb
 	}
 
 	private refreshBadge(): void {
-		const { total, filtered } = this.markersModel.stats();
-		const message = total === filtered ? localize('totalProblems', 'Total {0} Problems', total) : localize('filteredProblems', 'Showing {0} of {1} Problems', filtered, total);
-		this.activityService.showActivity(Constants.MARKERS_PANEL_ID, new NumberBadge(filtered, () => message));
+		const total = this.markersModel.resourceMarkers.reduce((r, rm) => r + rm.markers.length, 0);
+		const message = localize('totalProblems', 'Total {0} Problems', total);
+		this.activityService.showActivity(Constants.MARKERS_PANEL_ID, new NumberBadge(total, () => message));
 	}
 }
 
-
-registerSingleton(IMarkersWorkbenchService, MarkersWorkbenchService);
+registerSingleton(IMarkersWorkbenchService, MarkersWorkbenchService, true);

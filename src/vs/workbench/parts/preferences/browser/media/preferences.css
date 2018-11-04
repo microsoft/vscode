@@ -4,18 +4,16 @@
  *--------------------------------------------------------------------------------------------*/
 
 .preferences-editor > .preferences-header {
-	display: flex;
-	flex-wrap: wrap;
 	padding-left: 27px;
 	padding-right: 32px;
 	padding-bottom: 11px;
 	padding-top: 11px;
 }
 
-.preferences-editor > .preferences-header.vertical-layout {
-	flex-direction: column;
-	align-items: flex-end;
-	padding-bottom: 5px;
+.preferences-editor > .preferences-header > .new-settings-ad > .open-settings2-button {
+	padding: 0;
+	text-decoration: underline;
+	display: inline;
 }
 
 .preferences-editor > .preferences-editors-container.side-by-side-preferences-editor {
@@ -40,12 +38,16 @@
 .settings-tabs-widget > .monaco-action-bar .action-item .action-label {
 	text-transform: uppercase;
 	font-size: 11px;
-	margin-left: 33px;
 	margin-right: 5px;
 	cursor: pointer;
 	display: flex;
 	overflow: hidden;
 	text-overflow: ellipsis;
+}
+
+.default-preferences-editor-container > .preferences-header-container > .default-preferences-header,
+.preferences-editor .settings-tabs-widget > .monaco-action-bar .action-item .action-label {
+	margin-left: 33px;
 }
 
 .settings-tabs-widget > .monaco-action-bar .action-item .action-label {
@@ -60,6 +62,7 @@
 	justify-content: flex-start;
 }
 
+.default-preferences-editor-container > .preferences-header-container > .default-preferences-header,
 .settings-tabs-widget > .monaco-action-bar .action-item {
 	padding: 3px 0px;
 }
@@ -84,25 +87,6 @@
 
 .settings-tabs-widget .monaco-action-bar .action-item .dropdown-icon.hide {
 	display: none;
-}
-
-.vs .settings-tabs-widget > .monaco-action-bar .action-item .action-label {
-	color: #424242;
-	opacity: 0.75;
-}
-
-.vs-dark .settings-tabs-widget > .monaco-action-bar .action-item .action-label {
-	color: #e7e7e7;
-	opacity: 0.5;
-}
-
-.hc-black .settings-tabs-widget > .monaco-action-bar .action-item .action-label {
-	color: #fff;
-}
-
-.settings-tabs-widget > .monaco-action-bar .action-item:hover .action-label,
-.settings-tabs-widget > .monaco-action-bar .action-item .action-label.checked {
-	opacity: 1;
 }
 
 .preferences-header > .settings-header-widget {

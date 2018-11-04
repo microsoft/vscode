@@ -3,13 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import product from 'vs/platform/node/product';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ILifecycleService } from 'vs/platform/lifecycle/electron-main/lifecycleMain';
 import { IRequestService } from 'vs/platform/request/node/request';
-import { State, IUpdate, AvailableForDownload } from 'vs/platform/update/common/update';
+import { State, IUpdate, AvailableForDownload, UpdateType } from 'vs/platform/update/common/update';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { ILogService } from 'vs/platform/log/common/log';
@@ -17,6 +15,7 @@ import { createUpdateURL, AbstractUpdateService } from 'vs/platform/update/elect
 import { asJson } from 'vs/base/node/request';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { shell } from 'electron';
+import { CancellationToken } from 'vs/base/common/cancellation';
 import { realpath } from 'vs/base/node/pfs';
 import * as path from 'path';
 import { spawn } from 'child_process';
@@ -25,22 +24,19 @@ export class LinuxUpdateService extends AbstractUpdateService {
 
 	_serviceBrand: any;
 
-	private url: string | undefined;
-
 	constructor(
 		@ILifecycleService lifecycleService: ILifecycleService,
 		@IConfigurationService configurationService: IConfigurationService,
 		@ITelemetryService private telemetryService: ITelemetryService,
 		@IEnvironmentService environmentService: IEnvironmentService,
-		@IRequestService private requestService: IRequestService,
+		@IRequestService requestService: IRequestService,
 		@ILogService logService: ILogService
 	) {
-		super(lifecycleService, configurationService, environmentService, logService);
+		super(lifecycleService, configurationService, environmentService, requestService, logService);
 	}
 
-	protected setUpdateFeedUrl(quality: string): boolean {
-		this.url = createUpdateURL(`linux-${process.arch}`, quality);
-		return true;
+	protected buildUpdateFeedUrl(quality: string): string {
+		return createUpdateURL(`linux-${process.arch}`, quality);
 	}
 
 	protected doCheckForUpdates(context: any): void {
@@ -53,18 +49,18 @@ export class LinuxUpdateService extends AbstractUpdateService {
 		if (process.env.SNAP && process.env.SNAP_REVISION) {
 			this.checkForSnapUpdate();
 		} else {
-			this.requestService.request({ url: this.url })
+			this.requestService.request({ url: this.url }, CancellationToken.None)
 				.then<IUpdate>(asJson)
 				.then(update => {
 					if (!update || !update.url || !update.version || !update.productVersion) {
 						/* __GDPR__
 								"update:notAvailable" : {
-									"explicit" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+									"explicit" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true }
 								}
 							*/
 						this.telemetryService.publicLog('update:notAvailable', { explicit: !!context });
 
-						this.setState(State.Idle);
+						this.setState(State.Idle(UpdateType.Archive));
 					} else {
 						this.setState(State.AvailableForDownload(update));
 					}
@@ -73,27 +69,27 @@ export class LinuxUpdateService extends AbstractUpdateService {
 					this.logService.error(err);
 
 					/* __GDPR__
-							"update:notAvailable" : {
-								"explicit" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true }
-							}
+						"update:notAvailable" : {
+							"explicit" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true }
+						}
 						*/
 					this.telemetryService.publicLog('update:notAvailable', { explicit: !!context });
-
-					this.setState(State.Idle);
+					this.setState(State.Idle(UpdateType.Archive, err.message || err));
 				});
 		}
 	}
 
-	private checkForSnapUpdate() {
+	private checkForSnapUpdate(): void {
 		// If the application was installed as a snap, updates happen in the
 		// background automatically, we just need to check to see if an update
 		// has already happened.
 		realpath(`/snap/${product.applicationName}/current`).then(resolvedCurrentSnapPath => {
 			const currentRevision = path.basename(resolvedCurrentSnapPath);
+
 			if (process.env.SNAP_REVISION !== currentRevision) {
 				this.setState(State.Ready(null));
 			} else {
-				this.setState(State.Idle);
+				this.setState(State.Idle(UpdateType.Archive));
 			}
 		});
 	}
@@ -103,12 +99,12 @@ export class LinuxUpdateService extends AbstractUpdateService {
 		// installed and the website download page is more useful than the tarball generally.
 		if (product.downloadUrl && product.downloadUrl.length > 0) {
 			shell.openExternal(product.downloadUrl);
-		} else {
+		} else if (state.update.url) {
 			shell.openExternal(state.update.url);
 		}
-		this.setState(State.Idle);
 
-		return TPromise.as(null);
+		this.setState(State.Idle(UpdateType.Archive));
+		return TPromise.as(void 0);
 	}
 
 	protected doQuitAndInstall(): void {

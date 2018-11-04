@@ -2,13 +2,11 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { TPromise } from 'vs/base/common/winjs.base';
 import { Event } from 'vs/base/common/event';
 import { Color } from 'vs/base/common/color';
-import { ITheme, IThemeService } from 'vs/platform/theme/common/themeService';
+import { ITheme, IThemeService, IIconTheme } from 'vs/platform/theme/common/themeService';
 import { ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
 
 export const IWorkbenchThemeService = createDecorator<IWorkbenchThemeService>('themeService');
@@ -40,7 +38,7 @@ export interface IColorMap {
 	[id: string]: Color;
 }
 
-export interface IFileIconTheme {
+export interface IFileIconTheme extends IIconTheme {
 	readonly id: string;
 	readonly label: string;
 	readonly settingsId: string;
@@ -48,21 +46,22 @@ export interface IFileIconTheme {
 	readonly extensionData: ExtensionData;
 
 	readonly isLoaded: boolean;
-	readonly hasFileIcons?: boolean;
-	readonly hasFolderIcons?: boolean;
-	readonly hidesExplorerArrows?: boolean;
+	readonly hasFileIcons: boolean;
+	readonly hasFolderIcons: boolean;
+	readonly hidesExplorerArrows: boolean;
 }
 
 export interface IWorkbenchThemeService extends IThemeService {
 	_serviceBrand: any;
-	setColorTheme(themeId: string, settingsTarget: ConfigurationTarget): TPromise<IColorTheme>;
+	setColorTheme(themeId: string, settingsTarget: ConfigurationTarget): Thenable<IColorTheme>;
 	getColorTheme(): IColorTheme;
-	getColorThemes(): TPromise<IColorTheme[]>;
+	getColorThemes(): Thenable<IColorTheme[]>;
 	onDidColorThemeChange: Event<IColorTheme>;
+	restoreColorTheme();
 
-	setFileIconTheme(iconThemeId: string, settingsTarget: ConfigurationTarget): TPromise<IFileIconTheme>;
+	setFileIconTheme(iconThemeId: string, settingsTarget: ConfigurationTarget): Thenable<IFileIconTheme>;
 	getFileIconTheme(): IFileIconTheme;
-	getFileIconThemes(): TPromise<IFileIconTheme[]>;
+	getFileIconThemes(): Thenable<IFileIconTheme[]>;
 	onDidFileIconThemeChange: Event<IFileIconTheme>;
 }
 

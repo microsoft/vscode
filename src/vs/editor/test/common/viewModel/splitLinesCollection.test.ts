@@ -2,29 +2,28 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
 import * as assert from 'assert';
+import { IDisposable } from 'vs/base/common/lifecycle';
+import { IViewLineTokens } from 'vs/editor/common/core/lineTokens';
 import { Position } from 'vs/editor/common/core/position';
-import { CharacterHardWrappingLineMapping, CharacterHardWrappingLineMapperFactory } from 'vs/editor/common/viewModel/characterHardWrappingLineMapper';
-import { PrefixSumComputer } from 'vs/editor/common/viewModel/prefixSumComputer';
-import { ILineMapping, SplitLine, SplitLinesCollection, ISimpleModel } from 'vs/editor/common/viewModel/splitLinesCollection';
-import { TestConfiguration } from 'vs/editor/test/common/mocks/testConfiguration';
-import { TextModel } from 'vs/editor/common/model/textModel';
+import { IRange, Range } from 'vs/editor/common/core/range';
+import { TokenizationResult2 } from 'vs/editor/common/core/token';
 import { toUint32Array } from 'vs/editor/common/core/uint';
+import { EndOfLinePreference } from 'vs/editor/common/model';
+import { TextModel } from 'vs/editor/common/model/textModel';
 import * as modes from 'vs/editor/common/modes';
 import { NULL_STATE } from 'vs/editor/common/modes/nullMode';
-import { TokenizationResult2 } from 'vs/editor/common/core/token';
-import { IDisposable } from 'vs/base/common/lifecycle';
+import { CharacterHardWrappingLineMapperFactory, CharacterHardWrappingLineMapping } from 'vs/editor/common/viewModel/characterHardWrappingLineMapper';
+import { PrefixSumComputer } from 'vs/editor/common/viewModel/prefixSumComputer';
+import { ILineMapping, ISimpleModel, SplitLine, SplitLinesCollection } from 'vs/editor/common/viewModel/splitLinesCollection';
 import { ViewLineData } from 'vs/editor/common/viewModel/viewModel';
-import { Range, IRange } from 'vs/editor/common/core/range';
-import { IViewLineTokens } from 'vs/editor/common/core/lineTokens';
-import { EndOfLinePreference } from 'vs/editor/common/model';
+import { TestConfiguration } from 'vs/editor/test/common/mocks/testConfiguration';
 
 suite('Editor ViewModel - SplitLinesCollection', () => {
 	test('SplitLine', () => {
-		var model1 = createModel('My First LineMy Second LineAnd another one');
-		var line1 = createSplitLine([13, 14, 15], '');
+		let model1 = createModel('My First LineMy Second LineAnd another one');
+		let line1 = createSplitLine([13, 14, 15], '');
 
 		assert.equal(line1.getViewLineCount(), 3);
 		assert.equal(line1.getViewLineContent(model1, 1, 0), 'My First Line');
@@ -229,12 +228,12 @@ suite('Editor ViewModel - SplitLinesCollection', () => {
 					if (viewLineNumber < 1) {
 						viewLineNumber = 1;
 					}
-					var lineCount = linesCollection.getViewLineCount();
+					let lineCount = linesCollection.getViewLineCount();
 					if (viewLineNumber > lineCount) {
 						viewLineNumber = lineCount;
 					}
-					var viewMinColumn = linesCollection.getViewLineMinColumn(viewLineNumber);
-					var viewMaxColumn = linesCollection.getViewLineMaxColumn(viewLineNumber);
+					let viewMinColumn = linesCollection.getViewLineMinColumn(viewLineNumber);
+					let viewMaxColumn = linesCollection.getViewLineMaxColumn(viewLineNumber);
 					if (viewColumn < viewMinColumn) {
 						viewColumn = viewMinColumn;
 					}
@@ -323,8 +322,8 @@ suite('SplitLinesCollection', () => {
 		]
 	];
 
-	let model: TextModel = null;
-	let languageRegistration: IDisposable = null;
+	let model: TextModel | null = null;
+	let languageRegistration: IDisposable | null = null;
 
 	setup(() => {
 		let _lineIndex = 0;
@@ -779,6 +778,9 @@ function createModel(text: string): ISimpleModel {
 		},
 		getLineContent: (lineNumber: number) => {
 			return text;
+		},
+		getLineLength: (lineNumber: number) => {
+			return text.length;
 		},
 		getLineMinColumn: (lineNumber: number) => {
 			return 1;

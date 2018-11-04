@@ -43,8 +43,8 @@
 	"folding": {
 		"offSide": true,
 		"markers": {
-			"start": "^\\s*#region\\b",
-			"end": "^\\s*#endregion\\b"
+			"start": "^\\s*#\\s*region\\b",
+			"end": "^\\s*#\\s*endregion\\b"
 		}
 	}
 }

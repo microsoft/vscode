@@ -3,20 +3,16 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import 'vs/css!./quickInput';
 import * as dom from 'vs/base/browser/dom';
-import { InputBox } from 'vs/base/browser/ui/inputbox/inputBox';
-import { localize } from 'vs/nls';
-import { inputBackground, inputForeground, inputBorder } from 'vs/platform/theme/common/colorRegistry';
+import { InputBox, IRange, MessageType } from 'vs/base/browser/ui/inputbox/inputBox';
+import { inputBackground, inputForeground, inputBorder, inputValidationInfoBackground, inputValidationInfoForeground, inputValidationInfoBorder, inputValidationWarningBackground, inputValidationWarningForeground, inputValidationWarningBorder, inputValidationErrorBackground, inputValidationErrorForeground, inputValidationErrorBorder } from 'vs/platform/theme/common/colorRegistry';
 import { ITheme } from 'vs/platform/theme/common/themeService';
 import { dispose, IDisposable } from 'vs/base/common/lifecycle';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
+import Severity from 'vs/base/common/severity';
 
 const $ = dom.$;
-
-const DEFAULT_INPUT_ARIA_LABEL = localize('quickInputBox.ariaLabel', "Type to narrow down results.");
 
 export class QuickInputBox {
 
@@ -28,25 +24,17 @@ export class QuickInputBox {
 		private parent: HTMLElement
 	) {
 		this.container = dom.append(this.parent, $('.quick-input-box'));
-		this.inputBox = new InputBox(this.container, null, {
-			ariaLabel: DEFAULT_INPUT_ARIA_LABEL
-		});
+		this.inputBox = new InputBox(this.container, null);
 		this.disposables.push(this.inputBox);
-
-		// ARIA
-		const inputElement = this.inputBox.inputElement;
-		inputElement.setAttribute('role', 'combobox');
-		inputElement.setAttribute('aria-haspopup', 'false');
-		inputElement.setAttribute('aria-autocomplete', 'list');
 	}
 
-	onKeyDown(handler: (event: StandardKeyboardEvent) => void): IDisposable {
+	onKeyDown = (handler: (event: StandardKeyboardEvent) => void): IDisposable => {
 		return dom.addDisposableListener(this.inputBox.inputElement, dom.EventType.KEY_DOWN, (e: KeyboardEvent) => {
 			handler(new StandardKeyboardEvent(e));
 		});
 	}
 
-	onDidChange(handler: (event: string) => void): IDisposable {
+	onDidChange = (handler: (event: string) => void): IDisposable => {
 		return this.inputBox.onDidChange(handler);
 	}
 
@@ -58,8 +46,48 @@ export class QuickInputBox {
 		this.inputBox.value = value;
 	}
 
+	select(range: IRange | null = null): void {
+		this.inputBox.select(range);
+	}
+
 	setPlaceholder(placeholder: string) {
 		this.inputBox.setPlaceHolder(placeholder);
+	}
+
+	get placeholder() {
+		return this.inputBox.inputElement.getAttribute('placeholder');
+	}
+
+	set placeholder(placeholder: string) {
+		this.inputBox.setPlaceHolder(placeholder);
+	}
+
+	get password() {
+		return this.inputBox.inputElement.type === 'password';
+	}
+
+	set password(password: boolean) {
+		this.inputBox.inputElement.type = password ? 'password' : 'text';
+	}
+
+	set enabled(enabled: boolean) {
+		this.inputBox.setEnabled(enabled);
+	}
+
+	setAttribute(name: string, value: string) {
+		this.inputBox.inputElement.setAttribute(name, value);
+	}
+
+	removeAttribute(name: string) {
+		this.inputBox.inputElement.removeAttribute(name);
+	}
+
+	showDecoration(decoration: Severity): void {
+		if (decoration === Severity.Ignore) {
+			this.inputBox.hideMessage();
+		} else {
+			this.inputBox.showMessage({ type: decoration === Severity.Info ? MessageType.INFO : decoration === Severity.Warning ? MessageType.WARNING : MessageType.ERROR, content: '' });
+		}
 	}
 
 	setFocus(): void {
@@ -74,7 +102,16 @@ export class QuickInputBox {
 		this.inputBox.style({
 			inputForeground: theme.getColor(inputForeground),
 			inputBackground: theme.getColor(inputBackground),
-			inputBorder: theme.getColor(inputBorder)
+			inputBorder: theme.getColor(inputBorder),
+			inputValidationInfoBackground: theme.getColor(inputValidationInfoBackground),
+			inputValidationInfoForeground: theme.getColor(inputValidationInfoForeground),
+			inputValidationInfoBorder: theme.getColor(inputValidationInfoBorder),
+			inputValidationWarningBackground: theme.getColor(inputValidationWarningBackground),
+			inputValidationWarningForeground: theme.getColor(inputValidationWarningForeground),
+			inputValidationWarningBorder: theme.getColor(inputValidationWarningBorder),
+			inputValidationErrorBackground: theme.getColor(inputValidationErrorBackground),
+			inputValidationErrorForeground: theme.getColor(inputValidationErrorForeground),
+			inputValidationErrorBorder: theme.getColor(inputValidationErrorBorder),
 		});
 	}
 
