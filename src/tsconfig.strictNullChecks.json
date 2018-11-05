@@ -401,6 +401,7 @@
 		"./vs/platform/integrity/common/integrity.ts",
 		"./vs/platform/integrity/node/integrityServiceImpl.ts",
 		"./vs/platform/issue/common/issue.ts",
+		"./vs/platform/issue/node/issueIpc.ts",
 		"./vs/platform/jsonschemas/common/jsonContributionRegistry.ts",
 		"./vs/platform/keybinding/common/abstractKeybindingService.ts",
 		"./vs/platform/keybinding/common/keybinding.ts",
