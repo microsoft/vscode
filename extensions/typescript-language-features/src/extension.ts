@@ -20,13 +20,20 @@ import * as ProjectStatus from './utils/projectStatus';
 import { Surveyor } from './utils/surveyor';
 import { PluginConfigProvider } from './typescriptServiceClient';
 
-interface API {
+
+interface ApiV0 {
 	readonly onCompletionAccepted: vscode.Event<vscode.CompletionItem>;
+}
+
+
+
+interface Api {
+	getAPI(version: 0): ApiV0 | undefined;
 }
 
 export function activate(
 	context: vscode.ExtensionContext
-): API {
+): Api {
 	const plugins = getContributedTypeScriptServerPlugins();
 	const pluginConfigProvider = new PluginConfigProvider();
 
@@ -74,8 +81,15 @@ export function activate(
 	}
 
 	return {
-		onCompletionAccepted: onCompletionAccepted.event
-	} as API;
+		getAPI(version) {
+			if (version === 0) {
+				return {
+					onCompletionAccepted: onCompletionAccepted.event
+				} as ApiV0;
+			}
+			return undefined;
+		}
+	} as Api;
 }
 
 function createLazyClientHost(
