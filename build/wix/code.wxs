@@ -23,7 +23,11 @@
     </Upgrade>
     <CustomAction Id="PreventDowngrading" Error="!(loc.NewerVersionInstalled)" />
 
+    <!-- Override wrong install location [LocalAppDataFolder], https://sourceforge.net/p/wix/feature-requests/656/ -->
+    <CustomAction Id="WixSetDefaultPerUserFolderRoaming" Property="WixPerUserFolder" Value="[AppDataFolder]Apps\[ApplicationFolderName]" Execute="immediate"/>
+
     <InstallExecuteSequence>
+      <Custom Action="WixSetDefaultPerUserFolderRoaming" Before="WixSetPerUserFolder" />
       <Custom Action="PreventDowngrading" After="FindRelatedProducts">NEWPRODUCTFOUND</Custom>
       <!--
         In general it seems very hard to track what files may have changed
@@ -42,6 +46,7 @@
       <RemoveExistingProducts After="InstallInitialize" />
     </InstallExecuteSequence>
     <InstallUISequence>
+      <Custom Action="WixSetDefaultPerUserFolderRoaming" Before="WixSetPerUserFolder" />
       <Custom Action="PreventDowngrading" After="FindRelatedProducts">NEWPRODUCTFOUND</Custom>
     </InstallUISequence>
 
@@ -1476,8 +1481,12 @@
     <!-- <WixVariable Id="WixUILicenseRtf" Overridable="yes" Value="$(var.SetupResourcesDir)\licenses\license.$(var.Culture).rtf" /> -->
     <WixVariable Id="WixUIBannerBmp" Value="$(var.SetupResourcesDir)\wix-banner.bmp" />
     <WixVariable Id="WixUIDialogBmp" Value="$(var.SetupResourcesDir)\wix-dialog.bmp" />
+
+    <Property Id="ApplicationFolderName" Value="$(var.AppFolderName)" />
+    <Property Id="WixAppFolder" Value="WixPerMachineFolder" />
+    <WixVariable Id="WixUISupportPerUser" Value="1" />
     <UI>
-      <UIRef Id="WixUI_FeatureTree" />
+      <UIRef Id="WixUI_Advanced" />
       <Publish Dialog="ExitDialog" Control="Finish" Event="DoAction" Value="LaunchApplication">WIXUI_EXITDIALOGOPTIONALCHECKBOX = 1 and NOT Installed</Publish>
     </UI>
 
