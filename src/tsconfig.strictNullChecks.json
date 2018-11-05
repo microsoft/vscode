@@ -28,6 +28,7 @@
 		"./vs/base/browser/ui/contextview/contextview.ts",
 		"./vs/base/browser/ui/countBadge/countBadge.ts",
 		"./vs/base/browser/ui/grid/gridview.ts",
+		"./vs/base/browser/ui/grid/grid.ts",
 		"./vs/base/browser/ui/highlightedlabel/highlightedLabel.ts",
 		"./vs/base/browser/ui/iconLabel/iconLabel.ts",
 		"./vs/base/browser/ui/keybindingLabel/keybindingLabel.ts",
