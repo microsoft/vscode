@@ -269,14 +269,14 @@ export class PreferencesEditor extends BaseEditor {
 			this.sideBySidePreferencesWidget.setResultCount(count.target, count.count);
 		} else if (this.searchWidget.getValue()) {
 			if (countValue === 0) {
-				this.searchWidget.showMessage(nls.localize('noSettingsFound', "No Settings Found"), countValue);
+				this.searchWidget.showMessage(nls.localize('noSettingsFound', "No Settings Found"));
 			} else if (countValue === 1) {
-				this.searchWidget.showMessage(nls.localize('oneSettingFound', "1 Setting Found"), countValue);
+				this.searchWidget.showMessage(nls.localize('oneSettingFound', "1 Setting Found"));
 			} else {
-				this.searchWidget.showMessage(nls.localize('settingsFound', "{0} Settings Found", countValue), countValue);
+				this.searchWidget.showMessage(nls.localize('settingsFound', "{0} Settings Found", countValue));
 			}
 		} else {
-			this.searchWidget.showMessage(nls.localize('totalSettingsMessage', "Total {0} Settings", countValue), countValue);
+			this.searchWidget.showMessage(nls.localize('totalSettingsMessage', "Total {0} Settings", countValue));
 		}
 	}
 
