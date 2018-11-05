@@ -292,6 +292,12 @@ export class Repl extends Panel implements IPrivateReplService, IHistoryNavigati
 			accessibilityProvider: new ReplExpressionsAccessibilityProvider(),
 			controller
 		}, replTreeOptions);
+
+		// Make sure to select the session if debugging is already active
+		const focusedSession = this.debugService.getViewModel().focusedSession;
+		if (focusedSession) {
+			this.selectSession(focusedSession);
+		}
 	}
 
 	private createReplInput(container: HTMLElement): void {
