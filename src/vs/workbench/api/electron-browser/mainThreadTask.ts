@@ -29,6 +29,7 @@ import {
 	TaskDefinitionDTO, TaskExecutionDTO, ProcessExecutionOptionsDTO, TaskPresentationOptionsDTO,
 	ProcessExecutionDTO, ShellExecutionDTO, ShellExecutionOptionsDTO, TaskDTO, TaskSourceDTO, TaskHandleDTO, TaskFilterDTO, TaskProcessStartedDTO, TaskProcessEndedDTO, TaskSystemInfoDTO
 } from 'vs/workbench/api/shared/tasks';
+import { ResolveSet, ResolvedVariables } from 'vs/workbench/parts/tasks/common/taskSystem';
 
 namespace TaskExecutionDTO {
 	export function from(value: TaskExecution): TaskExecutionDTO {
@@ -505,12 +506,18 @@ export class MainThreadTask implements MainThreadTaskShape {
 				return URI.parse(`${info.scheme}://${info.authority}${path}`);
 			},
 			context: this._extHostContext,
-			resolveVariables: (workspaceFolder: IWorkspaceFolder, variables: Set<string>): Promise<Map<string, string>> => {
+			resolveVariables: (workspaceFolder: IWorkspaceFolder, toResolve: ResolveSet): TPromise<ResolvedVariables> => {
 				let vars: string[] = [];
-				variables.forEach(item => vars.push(item));
-				return Promise.resolve(this._proxy.$resolveVariables(workspaceFolder.uri, vars)).then(values => {
-					let result = new Map<string, string>();
-					Object.keys(values).forEach(key => result.set(key, values[key]));
+				toResolve.variables.forEach(item => vars.push(item));
+				return Promise.resolve(this._proxy.$resolveVariables(workspaceFolder.uri, { process: toResolve.process, variables: vars })).then(values => {
+					let result = {
+						process: undefined as string,
+						variables: new Map<string, string>()
+					};
+					Object.keys(values.variables).forEach(key => result.variables.set(key, values[key]));
+					if (Types.isString(values.process)) {
+						result.process = values.process;
+					}
 					return result;
 				});
 			}
