@@ -55,10 +55,10 @@ export class OutputLinkComputer {
 		return null;
 	}
 
-	public computeLinks(uri: string): Promise<ILink[]> | undefined {
+	public computeLinks(uri: string): Promise<ILink[]> {
 		const model = this.getModel(uri);
 		if (!model) {
-			return void 0;
+			return Promise.resolve([]);
 		}
 
 		const links: ILink[] = [];
