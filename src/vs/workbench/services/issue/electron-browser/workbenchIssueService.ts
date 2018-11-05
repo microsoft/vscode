@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IssueReporterStyles, IIssueService, IssueReporterData, ProcessExplorerData } from 'vs/platform/issue/common/issue';
+import { IssueReporterStyles, IIssueService, IssueReporterData, ProcessExplorerData, IssueReporterExtensionData } from 'vs/platform/issue/common/issue';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { ITheme, IThemeService } from 'vs/platform/theme/common/themeService';
 import { textLinkForeground, inputBackground, inputBorder, inputForeground, buttonBackground, buttonHoverBackground, buttonForeground, inputValidationErrorBorder, foreground, inputActiveOptionBorder, scrollbarSliderActiveBackground, scrollbarSliderBackground, scrollbarSliderHoverBackground, editorBackground, editorForeground, listHoverBackground, listHoverForeground, listHighlightForeground, textLinkActiveForeground } from 'vs/platform/theme/common/colorRegistry';
@@ -29,12 +29,28 @@ export class WorkbenchIssueService implements IWorkbenchIssueService {
 	openReporter(dataOverrides: Partial<IssueReporterData> = {}): TPromise<void> {
 		return this.extensionManagementService.getInstalled(LocalExtensionType.User).then(extensions => {
 			const enabledExtensions = extensions.filter(extension => this.extensionEnablementService.isEnabled(extension));
+			const extensionData: IssueReporterExtensionData[] = enabledExtensions.map(extension => {
+				const { manifest } = extension;
+				const manifestKeys = manifest.contributes ? Object.keys(manifest.contributes) : [];
+				const isTheme = !manifest.activationEvents && manifestKeys.length === 1 && manifestKeys[0] === 'themes';
+
+				return {
+					name: manifest.name,
+					publisher: manifest.publisher,
+					version: manifest.version,
+					repositoryUrl: manifest.repository && manifest.repository.url,
+					bugsUrl: manifest.bugs && manifest.bugs.url,
+					displayName: manifest.displayName,
+					id: extension.identifier.id,
+					isTheme: isTheme
+				};
+			});
 			const theme = this.themeService.getTheme();
 			const issueReporterData: IssueReporterData = assign(
 				{
 					styles: getIssueReporterStyles(theme),
 					zoomLevel: webFrame.getZoomLevel(),
-					enabledExtensions
+					enabledExtensions: extensionData
 				},
 				dataOverrides);
 
