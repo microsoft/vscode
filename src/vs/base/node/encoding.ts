@@ -78,7 +78,9 @@ export function toDecodeStream(readable: Readable, options: IDecodeStreamOptions
 				this._decodeStreamConstruction = Promise.resolve(detectEncodingFromBuffer({
 					buffer: Buffer.concat(this._buffer), bytesRead: this._bytesBuffered
 				}, options.guessEncoding)).then(detected => {
-					detected.encoding = options.overwriteEncoding(detected.encoding);
+					if (options.overwriteEncoding && detected.encoding) {
+						detected.encoding = options.overwriteEncoding(detected.encoding);
+					}
 					this._decodeStream = decodeStream(detected.encoding);
 					for (const buffer of this._buffer) {
 						this._decodeStream.write(buffer);
@@ -129,7 +131,7 @@ export function encodingExists(encoding: string): boolean {
 	return iconv.encodingExists(toNodeEncoding(encoding));
 }
 
-export function decodeStream(encoding: string): NodeJS.ReadWriteStream {
+export function decodeStream(encoding: string | null): NodeJS.ReadWriteStream {
 	return iconv.decodeStream(toNodeEncoding(encoding));
 }
 
@@ -137,15 +139,15 @@ export function encodeStream(encoding: string, options?: { addBOM?: boolean }): 
 	return iconv.encodeStream(toNodeEncoding(encoding), options);
 }
 
-function toNodeEncoding(enc: string): string {
-	if (enc === UTF8_with_bom) {
+function toNodeEncoding(enc: string | null): string {
+	if (enc === UTF8_with_bom || enc === null) {
 		return UTF8; // iconv does not distinguish UTF 8 with or without BOM, so we need to help it
 	}
 
 	return enc;
 }
 
-export function detectEncodingByBOMFromBuffer(buffer: Buffer, bytesRead: number): string | null {
+export function detectEncodingByBOMFromBuffer(buffer: Buffer | null, bytesRead: number): string | null {
 	if (!buffer || bytesRead < 2) {
 		return null;
 	}
@@ -181,7 +183,7 @@ export function detectEncodingByBOMFromBuffer(buffer: Buffer, bytesRead: number)
  * Detects the Byte Order Mark in a given file.
  * If no BOM is detected, null will be passed to callback.
  */
-export function detectEncodingByBOM(file: string): Promise<string> {
+export function detectEncodingByBOM(file: string): Promise<string | null> {
 	return stream.readExactlyByFile(file, 3).then(({ buffer, bytesRead }) => detectEncodingByBOMFromBuffer(buffer, bytesRead));
 }
 
@@ -191,7 +193,7 @@ const IGNORE_ENCODINGS = ['ascii', 'utf-8', 'utf-16', 'utf-32'];
 /**
  * Guesses the encoding from buffer.
  */
-export function guessEncodingByBuffer(buffer: Buffer): Promise<string> {
+export function guessEncodingByBuffer(buffer: Buffer): Promise<string | null> {
 	return import('jschardet').then(jschardet => {
 		jschardet.Constants.MINIMUM_THRESHOLD = MINIMUM_THRESHOLD;
 
@@ -266,7 +268,7 @@ const NO_GUESS_BUFFER_MAX_LEN = 512; 			// when not auto guessing the encoding, 
 const AUTO_GUESS_BUFFER_MAX_LEN = 512 * 8; 		// with auto guessing we want a lot more content to be read for guessing
 
 export interface IDetectedEncodingResult {
-	encoding: string;
+	encoding: string | null;
 	seemsBinary: boolean;
 }
 
@@ -280,7 +282,7 @@ export function detectEncodingFromBuffer({ buffer, bytesRead }: stream.ReadResul
 	// Detect 0 bytes to see if file is binary or UTF-16 LE/BE
 	// unless we already know that this file has a UTF-16 encoding
 	let seemsBinary = false;
-	if (encoding !== UTF16be && encoding !== UTF16le) {
+	if (encoding !== UTF16be && encoding !== UTF16le && buffer) {
 		let couldBeUTF16LE = true; // e.g. 0xAA 0x00
 		let couldBeUTF16BE = true; // e.g. 0x00 0xAA
 		let containsZeroByte = false;
@@ -328,7 +330,7 @@ export function detectEncodingFromBuffer({ buffer, bytesRead }: stream.ReadResul
 	}
 
 	// Auto guess encoding if configured
-	if (autoGuessEncoding && !seemsBinary && !encoding) {
+	if (autoGuessEncoding && !seemsBinary && !encoding && buffer) {
 		return guessEncodingByBuffer(buffer.slice(0, bytesRead)).then(guessedEncoding => {
 			return {
 				seemsBinary: false,
