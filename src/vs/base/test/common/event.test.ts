@@ -6,7 +6,6 @@ import * as assert from 'assert';
 import { Event, Emitter, debounceEvent, EventBufferer, once, fromPromise, stopwatch, buffer, echo, EventMultiplexer, latch, AsyncEmitter, IWaitUntil } from 'vs/base/common/event';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import * as Errors from 'vs/base/common/errors';
-import { TPromise } from 'vs/base/common/winjs.base';
 import { timeout } from 'vs/base/common/async';
 
 namespace Samples {
@@ -441,7 +440,7 @@ suite('Event utils', () => {
 			const emitter = new Emitter<void>();
 			const event = stopwatch(emitter.event);
 
-			return new TPromise((c, e) => {
+			return new Promise((c, e) => {
 				event(duration => {
 					try {
 						assert(duration > 0);
