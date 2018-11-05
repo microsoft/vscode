@@ -75,6 +75,7 @@ export class CommentNode extends Disposable {
 		if (comment.userIconPath) {
 			const img = <HTMLImageElement>dom.append(avatar, dom.$('img.avatar'));
 			img.src = comment.userIconPath.toString();
+			img.onerror = _ => img.remove();
 		}
 		const commentDetailsContainer = dom.append(this._domNode, dom.$('.review-comment-contents'));
 
