@@ -191,6 +191,19 @@ class MyCompletionItem extends vscode.CompletionItem {
 	}
 }
 
+class CompositeCommand implements Command {
+	public static readonly ID = '_typescript.composite';
+	public readonly id = CompositeCommand.ID;
+
+	public execute(...commands: vscode.Command[]) {
+		for (const command of commands) {
+			vscode.commands.executeCommand(command.command, ...(command.arguments || []));
+		}
+	}
+}
+
+const completionAcceptedCommandId = '_typescript.onCompletionAccepted';
+
 class ApplyCompletionCodeActionCommand implements Command {
 	public static readonly ID = '_typescript.applyCompletionCodeAction';
 	public readonly id = ApplyCompletionCodeActionCommand.ID;
@@ -273,6 +286,7 @@ class TypeScriptCompletionItemProvider implements vscode.CompletionItemProvider 
 		commandManager: CommandManager
 	) {
 		commandManager.register(new ApplyCompletionCodeActionCommand(this.client));
+		commandManager.register(new CompositeCommand());
 	}
 
 	public async provideCompletionItems(
@@ -387,15 +401,34 @@ class TypeScriptCompletionItemProvider implements vscode.CompletionItemProvider 
 		item.detail = detail.displayParts.length ? Previewer.plain(detail.displayParts) : undefined;
 		item.documentation = this.getDocumentation(detail, item);
 
-		const { command, additionalTextEdits } = this.getCodeActions(detail, filepath);
-		item.command = command;
-		item.additionalTextEdits = additionalTextEdits;
+		const codeAction = this.getCodeActions(detail, filepath);
+		const commands: vscode.Command[] = [{
+			command: completionAcceptedCommandId,
+			title: '',
+			arguments: [item]
+		}];
+		if (codeAction.command) {
+			commands.push(codeAction.command);
+		}
+		item.additionalTextEdits = codeAction.additionalTextEdits;
 
 		if (detail && item.useCodeSnippet) {
 			const shouldCompleteFunction = await this.isValidFunctionCompletionContext(filepath, item.position, token);
 			if (shouldCompleteFunction) {
 				item.insertText = this.snippetForFunctionCall(item, detail);
-				item.command = { title: 'triggerParameterHints', command: 'editor.action.triggerParameterHints' };
+				commands.push({ title: 'triggerParameterHints', command: 'editor.action.triggerParameterHints' });
+			}
+		}
+
+		if (commands.length) {
+			if (commands.length === 1) {
+				item.command = commands[0];
+			} else {
+				item.command = {
+					command: CompositeCommand.ID,
+					title: '',
+					arguments: commands
+				};
 			}
 		}
 
