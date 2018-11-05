@@ -1317,7 +1317,7 @@ export class ProblemMatcherParser extends Parser {
 	private createProblemMatcher(description: Config.ProblemMatcher): ProblemMatcher | null {
 		let result: ProblemMatcher | null = null;
 
-		let owner = description.owner ? description.owner : UUID.generateUuid();
+		let owner = Types.isString(description.owner) ? description.owner : UUID.generateUuid();
 		let source = Types.isString(description.source) ? description.source : undefined;
 		let applyTo = Types.isString(description.applyTo) ? ApplyToKind.fromString(description.applyTo) : ApplyToKind.allDocuments;
 		if (!applyTo) {
@@ -1365,25 +1365,23 @@ export class ProblemMatcherParser extends Parser {
 				let base = ProblemMatcherRegistry.get(variableName.substring(1));
 				if (base) {
 					result = Objects.deepClone(base);
-					if (description.owner) {
+					if (description.owner !== void 0 && owner !== void 0) {
 						result.owner = owner;
 					}
-					if (source) {
+					if (description.source !== void 0 && source !== void 0) {
 						result.source = source;
 					}
-					if (fileLocation) {
+					if (description.fileLocation !== void 0 && fileLocation !== void 0) {
 						result.fileLocation = fileLocation;
-					}
-					if (filePrefix) {
 						result.filePrefix = filePrefix;
 					}
-					if (pattern) {
+					if (description.pattern !== void 0 && pattern !== void 0 && pattern !== null) {
 						result.pattern = pattern;
 					}
-					if (description.severity) {
+					if (description.severity !== void 0 && severity !== void 0) {
 						result.severity = severity;
 					}
-					if (description.applyTo) {
+					if (description.applyTo !== void 0 && applyTo !== void 0) {
 						result.applyTo = applyTo;
 					}
 				}
