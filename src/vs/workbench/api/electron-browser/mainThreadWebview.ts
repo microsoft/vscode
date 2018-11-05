@@ -153,9 +153,9 @@ export class MainThreadWebviews implements MainThreadWebviewsShape, WebviewReviv
 		this._revivers.delete(viewType);
 	}
 
-	public reviveWebview(webview: WebviewEditorInput): TPromise<void> {
+	public reviveWebview(webview: WebviewEditorInput): Promise<void> {
 		const viewType = webview.state.viewType;
-		return this._extensionService.activateByEvent(`onWebviewPanel:${viewType}`).then(() => {
+		return Promise.resolve(this._extensionService.activateByEvent(`onWebviewPanel:${viewType}`).then(() => {
 			const handle = 'revival-' + MainThreadWebviews.revivalPool++;
 			this._webviews.set(handle, webview);
 			webview._events = this.createWebviewEventDelegate(handle);
@@ -173,7 +173,7 @@ export class MainThreadWebviews implements MainThreadWebviewsShape, WebviewReviv
 				.then(undefined, () => {
 					webview.html = MainThreadWebviews.getDeserializationFailedContents(viewType);
 				});
-		});
+		}));
 	}
 
 	public canRevive(webview: WebviewEditorInput): boolean {
