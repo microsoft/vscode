@@ -93,7 +93,7 @@ export class ProcessTaskSystem implements ITaskSystem {
 
 	public run(task: Task): ITaskExecuteResult {
 		if (this.activeTask) {
-			return { kind: TaskExecuteKind.Active, active: { same: this.activeTask._id === task._id, background: this.activeTask.isBackground }, promise: this.activeTaskPromise };
+			return { kind: TaskExecuteKind.Active, task, active: { same: this.activeTask._id === task._id, background: this.activeTask.isBackground }, promise: this.activeTaskPromise };
 		}
 		return this.executeTask(task);
 	}
@@ -193,6 +193,10 @@ export class ProcessTaskSystem implements ITaskSystem {
 				throw new TaskError(Severity.Error, nls.localize('TaskRunnerSystem.unknownError', 'A unknown error has occurred while executing a task. See task output log for details.'), TaskErrors.UnknownError);
 			}
 		}
+	}
+
+	public rerun(): ITaskExecuteResult | undefined {
+		return undefined;
 	}
 
 	private doExecuteTask(task: CustomTask, telemetryEvent: TelemetryEvent): ITaskExecuteResult {
@@ -302,8 +306,8 @@ export class ProcessTaskSystem implements ITaskSystem {
 				return this.handleError(task, error);
 			});
 			let result: ITaskExecuteResult = (<any>task).tscWatch
-				? { kind: TaskExecuteKind.Started, started: { restartOnFileChanges: '**/*.ts' }, promise: this.activeTaskPromise }
-				: { kind: TaskExecuteKind.Started, started: {}, promise: this.activeTaskPromise };
+				? { kind: TaskExecuteKind.Started, task, started: { restartOnFileChanges: '**/*.ts' }, promise: this.activeTaskPromise }
+				: { kind: TaskExecuteKind.Started, task, started: {}, promise: this.activeTaskPromise };
 			return result;
 		} else {
 			this._onDidStateChange.fire(TaskEvent.create(TaskEventKind.Start, task));
@@ -346,7 +350,7 @@ export class ProcessTaskSystem implements ITaskSystem {
 				this._onDidStateChange.fire(TaskEvent.create(TaskEventKind.End, task));
 				return this.handleError(task, error);
 			});
-			return { kind: TaskExecuteKind.Started, started: {}, promise: this.activeTaskPromise };
+			return { kind: TaskExecuteKind.Started, task, started: {}, promise: this.activeTaskPromise };
 		}
 	}
 
