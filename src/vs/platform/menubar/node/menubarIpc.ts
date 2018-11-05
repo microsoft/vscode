@@ -17,14 +17,15 @@ export class MenubarChannel implements IMenubarChannel {
 	constructor(private service: IMenubarService) { }
 
 	listen<T>(event: string, arg?: any): Event<T> {
-		throw new Error('No events');
+		throw new Error(`Event not found: ${event}`);
 	}
 
 	call(command: string, arg?: any): TPromise<any> {
 		switch (command) {
 			case 'updateMenubar': return this.service.updateMenubar(arg[0], arg[1]);
 		}
-		return undefined;
+
+		throw new Error(`Call not found: ${command}`);
 	}
 }
 
