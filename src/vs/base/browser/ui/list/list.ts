@@ -44,7 +44,7 @@ export interface IListGestureEvent<T> {
 
 export interface IListContextMenuEvent<T> {
 	browserEvent: UIEvent;
-	element: T;
+	element: T | undefined;
 	index: number;
-	anchor: HTMLElement | { x: number; y: number; };
+	anchor: HTMLElement | { x: number; y: number; } | undefined;
 }

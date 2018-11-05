@@ -94,9 +94,9 @@ export interface ITreeModel<T, TFilterData, TRef> {
 	getNodeLocation(node: ITreeNode<T, any>): TRef;
 	getParentNodeLocation(location: TRef): TRef | null;
 
-	getParentElement(location: TRef): T | null;
-	getFirstChildElement(location: TRef): T | null;
-	getLastAncestorElement(location: TRef): T | null;
+	getParentElement(location: TRef | null): T | null;
+	getFirstChildElement(location: TRef | null): T | null;
+	getLastAncestorElement(location: TRef | null): T | null;
 
 	isCollapsed(location: TRef): boolean;
 	setCollapsed(location: TRef, collapsed: boolean): boolean;
