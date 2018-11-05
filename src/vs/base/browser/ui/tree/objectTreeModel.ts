@@ -88,7 +88,7 @@ export class ObjectTreeModel<T extends NonNullable<any>, TFilterData = void> imp
 		this.model.refilter();
 	}
 
-	getNode(element: T = null): ITreeNode<T, TFilterData> {
+	getNode(element: T | null = null): ITreeNode<T, TFilterData> {
 		const location = this.getElementLocation(element);
 		return this.model.getNode(location);
 	}
@@ -104,7 +104,7 @@ export class ObjectTreeModel<T extends NonNullable<any>, TFilterData = void> imp
 			throw new Error(`Tree element not found: ${element}`);
 		}
 
-		return node.parent.element;
+		return node.parent!.element;
 	}
 
 	private getElementLocation(element: T | null): number[] {
