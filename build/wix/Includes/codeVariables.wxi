@@ -1,0 +1,27 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Include>
+  <!-- Setup UI strings. -->
+  <?if $(env.Platform)=x86?>
+    <?define ProgramFilesFolder="ProgramFilesFolder" ?>
+    <?define Win64="no" ?>
+    <?define Arch="(x86)" ?>
+  <?else?>
+    <?define ProgramFilesFolder="ProgramFiles64Folder" ?>
+    <?define Win64="yes" ?>
+    <?define Arch="(x64)" ?>
+  <?endif?>
+
+  <?define ProductVersion="$(var.ProductMajorVersion).$(var.ProductMinorVersion).$(var.ProductMaintenanceVersion)" ?>
+  <?define ProductName="!(loc.ProductName)" ?>
+  <?define ProductNameWithVersion="!(loc.ProductName) $(var.ProductMajorVersion).$(var.ProductMinorVersion).$(var.ProductMaintenanceVersion) $(var.Arch)" ?>
+  <?define ProductLanguage="!(loc.ProductLanguage)" ?>
+  <?define AppCodeName="VSCode" ?>
+  <?define AppName="Visual Studio Code" ?>
+  <?define AppFolderName="Microsoft VS Code" ?>
+  <?define ProductManufacturerShort="Microsoft" ?>
+  <?define ProductManufacturerLong="Microsoft Corporation" ?>
+
+  <!-- Static settings, DO NOT TOUCH or upgrades will break! -->
+  <?define ProductUpgradeCode="{AB0DB01E-C017-4AE5-876A-0224C5C7827C}" ?>
+  <?define RTMProductVersion="0.0.1" ?>
+</Include>

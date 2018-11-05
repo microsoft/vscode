@@ -1,0 +1,24 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<WixLocalization Culture="en-us" Codepage="1252" xmlns="http://schemas.microsoft.com/wix/2006/localization">
+  <String Id="ProductLanguage">1033</String>
+  <String Id="ProductName">Microsoft Visual Studio Code</String>
+  <String Id="ProductHelpLink">https://code.visualstudio.com/</String>
+  <String Id="ProductUrlInfoAbout">https://code.visualstudio.com/</String>
+  <String Id="ProductUrlUpdateInfo">https://code.visualstudio.com/</String>
+  <String Id="PackageDescription">Package with Visual Studio Code</String>
+  <String Id="FeatureStartMenuShortcutTitle">Start Menu shortcut</String>
+  <String Id="FeatureStartMenuShortcutDescription">Create a start menu icon.</String>
+  <String Id="FeatureDesktopShortcutTitle">Desktop shortcut</String>
+  <String Id="FeatureDesktopShortcutDescription">Create a desktop icon.</String>
+  <String Id="FeatureFileTypeAssociationsTitle">File Associations</String>
+  <String Id="FeatureFileTypeAssociationsDescription">Register Code as an editor for supported file types.</String>
+  <String Id="FeatureAddContextMenuFilesTitle">Files context menu</String>
+  <String Id="FeatureAddContextMenuFilesDescription">Add "Open with Code" action to Windows Explorer file contect menu.</String>
+  <String Id="FeatureAddContextMenuFoldersTitle">Directory context menu</String>
+  <String Id="FeatureAddContextMenuFoldersDescription">Add "Open with Code" action to Windows Explorer directory contect menu.</String>
+  <String Id="FeatureEnvironmentTitle">Add to PATH</String>
+  <String Id="FeatureEnvironmentDescription">Add Visual Studio Code to PATH environment variable. Available after restart.</String>
+  <String Id="LaunchApplication">Launch Visual Studio Code</String>
+  <String Id="NewerVersionInstalled">Newer version of Visual Studio Code is already installed.</String>
+  <String Id="OSVersionRequired">Windows 7 or later is required.</String>
+</WixLocalization>
