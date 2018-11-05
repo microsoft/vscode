@@ -53,7 +53,7 @@
 		"./vs/base/browser/ui/tree/abstractTree.ts",
 		// "./vs/base/browser/ui/tree/dataTree.ts",
 		// "./vs/base/browser/ui/tree/indexTree.ts",
-		// "./vs/base/browser/ui/tree/indexTreeModel.ts",
+		"./vs/base/browser/ui/tree/indexTreeModel.ts",
 		// "./vs/base/browser/ui/tree/objectTree.ts",
 		// "./vs/base/browser/ui/tree/objectTreeModel.ts",
 		"./vs/base/browser/ui/tree/tree.ts",

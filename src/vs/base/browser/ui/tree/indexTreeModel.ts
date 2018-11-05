@@ -42,7 +42,7 @@ export class IndexTreeModel<T, TFilterData = void> implements ITreeModel<T, TFil
 
 	private root: IMutableTreeNode<T, TFilterData> = {
 		parent: undefined,
-		element: undefined,
+		element: undefined!,
 		children: [],
 		depth: 0,
 		collapsible: false,
@@ -131,7 +131,7 @@ export class IndexTreeModel<T, TFilterData = void> implements ITreeModel<T, TFil
 
 		this.eventBufferer.bufferEvents(() => {
 			while (queue.length > 0) {
-				const node = queue.shift();
+				const node = queue.shift()!;
 				const revealed = listIndex < this.root.children.length;
 				this._setCollapsed(node, listIndex, revealed, true);
 
@@ -294,14 +294,14 @@ export class IndexTreeModel<T, TFilterData = void> implements ITreeModel<T, TFil
 		node.renderNodeCount = node === this.root ? 0 : 1;
 
 		let hasVisibleDescendants = false;
-		if (visibility !== TreeVisibility.Hidden || !node.collapsed) {
+		if (!node.collapsed || visibility! !== TreeVisibility.Hidden) {
 			for (const child of node.children) {
-				hasVisibleDescendants = this._updateNodeAfterFilterChange(child, visibility, result, revealed && !node.collapsed) || hasVisibleDescendants;
+				hasVisibleDescendants = this._updateNodeAfterFilterChange(child, visibility!, result, revealed && !node.collapsed) || hasVisibleDescendants;
 			}
 		}
 
 		if (node !== this.root) {
-			node.visible = visibility === TreeVisibility.Recurse ? hasVisibleDescendants : (visibility === TreeVisibility.Visible);
+			node.visible = visibility! === TreeVisibility.Recurse ? hasVisibleDescendants : (visibility! === TreeVisibility.Visible);
 		}
 
 		if (!node.visible) {
@@ -318,7 +318,7 @@ export class IndexTreeModel<T, TFilterData = void> implements ITreeModel<T, TFil
 		return node.visible;
 	}
 
-	private _updateAncestorsRenderNodeCount(node: IMutableTreeNode<T, TFilterData>, diff: number): void {
+	private _updateAncestorsRenderNodeCount(node: IMutableTreeNode<T, TFilterData> | undefined, diff: number): void {
 		if (diff === 0) {
 			return;
 		}
@@ -346,8 +346,8 @@ export class IndexTreeModel<T, TFilterData = void> implements ITreeModel<T, TFil
 	}
 
 	// cheap
-	private getTreeNode(location: number[], node: IMutableTreeNode<T, TFilterData> = this.root): IMutableTreeNode<T, TFilterData> {
-		if (location.length === 0) {
+	private getTreeNode(location: number[] | null, node: IMutableTreeNode<T, TFilterData> = this.root): IMutableTreeNode<T, TFilterData> {
+		if (!location || location.length === 0) {
 			return node;
 		}
 
