@@ -110,3 +110,7 @@ export interface ITreeRenderer<T, TFilterData, TTemplateData> extends IListRende
 	renderTwistie?(element: T, twistieElement: HTMLElement): boolean;
 	onDidChangeTwistieState?: Event<T>;
 }
+
+export interface ITreeModelOptions<T, TFilterData> {
+	filter?: ITreeFilter<T, TFilterData>;
+}

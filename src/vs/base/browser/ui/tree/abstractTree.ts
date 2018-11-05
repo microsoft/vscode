@@ -11,9 +11,8 @@ import { append, $, toggleClass } from 'vs/base/browser/dom';
 import { Event, Relay, chain } from 'vs/base/common/event';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { KeyCode } from 'vs/base/common/keyCodes';
-import { ITreeModel, ITreeNode, ITreeRenderer } from 'vs/base/browser/ui/tree/tree';
+import { ITreeModel, ITreeNode, ITreeRenderer, ITreeModelOptions } from 'vs/base/browser/ui/tree/tree';
 import { ISpliceable } from 'vs/base/common/sequence';
-import { IIndexTreeModelOptions } from 'vs/base/browser/ui/tree/indexTreeModel';
 
 export function createComposedTreeListOptions<T, R extends { element: T }>(options?: IListOptions<T>): IListOptions<R> {
 	if (!options) {
@@ -168,7 +167,7 @@ function isInputElement(e: HTMLElement): boolean {
 	return e.tagName === 'INPUT' || e.tagName === 'TEXTAREA';
 }
 
-export interface ITreeOptions<T, TFilterData = void> extends IListOptions<T>, IIndexTreeModelOptions<T, TFilterData> { }
+export interface ITreeOptions<T, TFilterData = void> extends IListOptions<T>, ITreeModelOptions<T, TFilterData> { }
 export interface ITreeEvent<T, TFilterData> extends IListEvent<ITreeNode<T, TFilterData>> { }
 export interface ITreeContextMenuEvent<T, TFilterData> extends IListContextMenuEvent<ITreeNode<T, TFilterData>> { }
 

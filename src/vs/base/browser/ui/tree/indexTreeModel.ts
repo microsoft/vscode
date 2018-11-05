@@ -7,7 +7,7 @@ import { ISpliceable } from 'vs/base/common/sequence';
 import { Iterator, ISequence } from 'vs/base/common/iterator';
 import { Emitter, Event, EventBufferer } from 'vs/base/common/event';
 import { tail2 } from 'vs/base/common/arrays';
-import { ITreeFilterDataResult, TreeVisibility, ITreeFilter, ITreeModel, ITreeNode, ITreeElement } from 'vs/base/browser/ui/tree/tree';
+import { ITreeFilterDataResult, TreeVisibility, ITreeFilter, ITreeModel, ITreeNode, ITreeElement, ITreeModelOptions } from 'vs/base/browser/ui/tree/tree';
 
 interface IMutableTreeNode<T, TFilterData> extends ITreeNode<T, TFilterData> {
 	readonly parent: IMutableTreeNode<T, TFilterData> | undefined;
@@ -38,10 +38,6 @@ function getVisibleState(visibility: boolean | TreeVisibility): TreeVisibility {
 	}
 }
 
-export interface IIndexTreeModelOptions<T, TFilterData> {
-	filter?: ITreeFilter<T, TFilterData>;
-}
-
 export class IndexTreeModel<T, TFilterData = void> implements ITreeModel<T, TFilterData, number[]> {
 
 	private root: IMutableTreeNode<T, TFilterData> = {
@@ -66,7 +62,7 @@ export class IndexTreeModel<T, TFilterData = void> implements ITreeModel<T, TFil
 
 	private filter?: ITreeFilter<T, TFilterData>;
 
-	constructor(private list: ISpliceable<ITreeNode<T, TFilterData>>, options: IIndexTreeModelOptions<T, TFilterData> = {}) {
+	constructor(private list: ISpliceable<ITreeNode<T, TFilterData>>, options: ITreeModelOptions<T, TFilterData> = {}) {
 		this.filter = options.filter;
 	}
 
