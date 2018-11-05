@@ -202,7 +202,19 @@ class CompositeCommand implements Command {
 	}
 }
 
-const completionAcceptedCommandId = '_typescript.onCompletionAccepted';
+
+class CompletionAcceptedCommand implements Command {
+	public static readonly ID = '_typescript.onCompletionAccepted';
+	public readonly id = CompletionAcceptedCommand.ID;
+
+	public constructor(
+		private readonly onCompletionAccepted: (item: vscode.CompletionItem) => void,
+	) { }
+
+	public execute(item: vscode.CompletionItem) {
+		this.onCompletionAccepted(item);
+	}
+}
 
 class ApplyCompletionCodeActionCommand implements Command {
 	public static readonly ID = '_typescript.applyCompletionCodeAction';
@@ -283,10 +295,12 @@ class TypeScriptCompletionItemProvider implements vscode.CompletionItemProvider 
 		private readonly modeId: string,
 		private readonly typingsStatus: TypingsStatus,
 		private readonly fileConfigurationManager: FileConfigurationManager,
-		commandManager: CommandManager
+		commandManager: CommandManager,
+		onCompletionAccepted: (item: vscode.CompletionItem) => void
 	) {
 		commandManager.register(new ApplyCompletionCodeActionCommand(this.client));
 		commandManager.register(new CompositeCommand());
+		commandManager.register(new CompletionAcceptedCommand(onCompletionAccepted));
 	}
 
 	public async provideCompletionItems(
@@ -403,7 +417,7 @@ class TypeScriptCompletionItemProvider implements vscode.CompletionItemProvider 
 
 		const codeAction = this.getCodeActions(detail, filepath);
 		const commands: vscode.Command[] = [{
-			command: completionAcceptedCommandId,
+			command: CompletionAcceptedCommand.ID,
 			title: '',
 			arguments: [item]
 		}];
@@ -663,9 +677,10 @@ export function register(
 	typingsStatus: TypingsStatus,
 	fileConfigurationManager: FileConfigurationManager,
 	commandManager: CommandManager,
+	onCompletionAccepted: (item: vscode.CompletionItem) => void
 ) {
 	return new ConfigurationDependentRegistration(modeId, 'suggest.enabled', () =>
 		vscode.languages.registerCompletionItemProvider(selector,
-			new TypeScriptCompletionItemProvider(client, modeId, typingsStatus, fileConfigurationManager, commandManager),
+			new TypeScriptCompletionItemProvider(client, modeId, typingsStatus, fileConfigurationManager, commandManager, onCompletionAccepted),
 			...TypeScriptCompletionItemProvider.triggerCharacters));
 }

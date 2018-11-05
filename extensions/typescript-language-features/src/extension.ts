@@ -20,18 +20,25 @@ import * as ProjectStatus from './utils/projectStatus';
 import { Surveyor } from './utils/surveyor';
 import { PluginConfigProvider } from './typescriptServiceClient';
 
+interface API {
+	readonly onCompletionAccepted: vscode.Event<vscode.CompletionItem>;
+}
 
 export function activate(
 	context: vscode.ExtensionContext
-): void {
+): API {
 	const plugins = getContributedTypeScriptServerPlugins();
-
 	const pluginConfigProvider = new PluginConfigProvider();
 
 	const commandManager = new CommandManager();
 	context.subscriptions.push(commandManager);
 
-	const lazyClientHost = createLazyClientHost(context, plugins, pluginConfigProvider, commandManager);
+	const onCompletionAccepted = new vscode.EventEmitter();
+	context.subscriptions.push(onCompletionAccepted);
+
+	const lazyClientHost = createLazyClientHost(context, plugins, pluginConfigProvider, commandManager, item => {
+		onCompletionAccepted.fire(item);
+	});
 
 	registerCommands(commandManager, lazyClientHost, pluginConfigProvider);
 	context.subscriptions.push(new TypeScriptTaskProviderManager(lazyClientHost.map(x => x.serviceClient)));
@@ -65,13 +72,18 @@ export function activate(
 			break;
 		}
 	}
+
+	return {
+		onCompletionAccepted: onCompletionAccepted.event
+	} as API;
 }
 
 function createLazyClientHost(
 	context: vscode.ExtensionContext,
 	plugins: TypeScriptServerPlugin[],
 	pluginConfigProvider: PluginConfigProvider,
-	commandManager: CommandManager
+	commandManager: CommandManager,
+	onCompletionAccepted: (item: vscode.CompletionItem) => void,
 ): Lazy<TypeScriptServiceClientHost> {
 	return lazy(() => {
 		const logDirectoryProvider = new LogDirectoryProvider(context);
@@ -82,7 +94,8 @@ function createLazyClientHost(
 			plugins,
 			pluginConfigProvider,
 			commandManager,
-			logDirectoryProvider);
+			logDirectoryProvider,
+			onCompletionAccepted);
 
 		context.subscriptions.push(clientHost);
 

@@ -51,7 +51,8 @@ export default class TypeScriptServiceClientHost extends Disposable {
 		plugins: TypeScriptServerPlugin[],
 		pluginConfigProvider: PluginConfigProvider,
 		private readonly commandManager: CommandManager,
-		logDirectoryProvider: LogDirectoryProvider
+		logDirectoryProvider: LogDirectoryProvider,
+		onCompletionAccepted: (item: vscode.CompletionItem) => void,
 	) {
 		super();
 		const handleProjectCreateOrDelete = () => {
@@ -91,7 +92,7 @@ export default class TypeScriptServiceClientHost extends Disposable {
 		this.fileConfigurationManager = this._register(new FileConfigurationManager(this.client));
 
 		for (const description of descriptions) {
-			const manager = new LanguageProvider(this.client, description, this.commandManager, this.client.telemetryReporter, this.typingsStatus, this.fileConfigurationManager);
+			const manager = new LanguageProvider(this.client, description, this.commandManager, this.client.telemetryReporter, this.typingsStatus, this.fileConfigurationManager, onCompletionAccepted);
 			this.languages.push(manager);
 			this._register(manager);
 			this.languagePerId.set(description.id, manager);
@@ -124,7 +125,7 @@ export default class TypeScriptServiceClientHost extends Disposable {
 					diagnosticOwner: 'typescript',
 					isExternal: true
 				};
-				const manager = new LanguageProvider(this.client, description, this.commandManager, this.client.telemetryReporter, this.typingsStatus, this.fileConfigurationManager);
+				const manager = new LanguageProvider(this.client, description, this.commandManager, this.client.telemetryReporter, this.typingsStatus, this.fileConfigurationManager, onCompletionAccepted);
 				this.languages.push(manager);
 				this._register(manager);
 				this.languagePerId.set(description.id, manager);
