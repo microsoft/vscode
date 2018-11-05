@@ -5,7 +5,6 @@
 
 import { ExtHostContext, IExtHostContext, MainContext, MainThreadUrlsShape, ExtHostUrlsShape } from 'vs/workbench/api/node/extHost.protocol';
 import { extHostNamedCustomer } from './extHostCustomers';
-import { TPromise } from 'vs/base/common/winjs.base';
 import { IURLService, IURLHandler } from 'vs/platform/url/common/url';
 import { URI } from 'vs/base/common/uri';
 import { IDisposable } from 'vs/base/common/lifecycle';
@@ -19,12 +18,12 @@ class ExtensionUrlHandler implements IURLHandler {
 		readonly extensionId: string
 	) { }
 
-	handleURL(uri: URI): TPromise<boolean> {
+	handleURL(uri: URI): Promise<boolean> {
 		if (uri.authority !== this.extensionId) {
-			return TPromise.as(false);
+			return Promise.resolve(false);
 		}
 
-		return TPromise.wrap(this.proxy.$handleExternalUri(this.handle, uri)).then(() => true);
+		return Promise.resolve(this.proxy.$handleExternalUri(this.handle, uri)).then(() => true);
 	}
 }
 
@@ -49,14 +48,14 @@ export class MainThreadUrls implements MainThreadUrlsShape {
 		this.handlers.set(handle, { extensionId, disposable });
 		this.inactiveExtensionUrlHandler.registerExtensionHandler(extensionId, handler);
 
-		return TPromise.as(null);
+		return Promise.resolve(null);
 	}
 
 	$unregisterUriHandler(handle: number): Thenable<void> {
 		const tuple = this.handlers.get(handle);
 
 		if (!tuple) {
-			return TPromise.as(null);
+			return Promise.resolve(null);
 		}
 
 		const { extensionId, disposable } = tuple;
@@ -65,7 +64,7 @@ export class MainThreadUrls implements MainThreadUrlsShape {
 		this.handlers.delete(handle);
 		disposable.dispose();
 
-		return TPromise.as(null);
+		return Promise.resolve(null);
 	}
 
 	dispose(): void {

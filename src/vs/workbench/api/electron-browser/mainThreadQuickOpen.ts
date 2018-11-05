@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { TPromise } from 'vs/base/common/winjs.base';
 import { IPickOptions, IInputOptions, IQuickInputService, IQuickInput } from 'vs/platform/quickinput/common/quickInput';
 import { InputBoxOptions } from 'vscode';
 import { ExtHostContext, MainThreadQuickOpenShape, ExtHostQuickOpenShape, TransferQuickPickItems, MainContext, IExtHostContext, TransferQuickInput, TransferQuickInputButton } from 'vs/workbench/api/node/extHost.protocol';
@@ -200,7 +199,7 @@ export class MainThreadQuickOpen implements MainThreadQuickOpenShape {
 				input[param] = params[param];
 			}
 		}
-		return TPromise.as(undefined);
+		return Promise.resolve(undefined);
 	}
 
 	$dispose(sessionId: number): Thenable<void> {
@@ -209,6 +208,6 @@ export class MainThreadQuickOpen implements MainThreadQuickOpenShape {
 			session.input.dispose();
 			this.sessions.delete(sessionId);
 		}
-		return TPromise.as(undefined);
+		return Promise.resolve(undefined);
 	}
 }
