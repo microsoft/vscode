@@ -420,6 +420,34 @@ export class CodeWindow implements ICodeWindow {
 
 		// Handle Workspace events
 		this.toDispose.push(this.workspacesMainService.onUntitledWorkspaceDeleted(e => this.onUntitledWorkspaceDeleted(e)));
+
+		// TODO@Ben workaround for https://github.com/Microsoft/vscode/issues/13612
+		// It looks like smooth scrolling disappears as soon as the window is minimized
+		// and maximized again. Touching some window properties "fixes" it, like toggling
+		// the visibility of the menu.
+		if (isWindows) {
+			const windowConfig = this.configurationService.getValue<IWindowSettings>('window');
+			if (windowConfig && windowConfig.smoothScrollingWorkaround === true) {
+				let minimized = false;
+
+				const restoreSmoothScrolling = () => {
+					if (minimized) {
+						const visibility = this.getMenuBarVisibility();
+						const temporaryVisibility: MenuBarVisibility = (visibility === 'hidden' || visibility === 'toggle') ? 'default' : 'hidden';
+						setTimeout(() => {
+							this.doSetMenuBarVisibility(temporaryVisibility);
+							this.doSetMenuBarVisibility(visibility);
+						}, 0);
+					}
+
+					minimized = false;
+				};
+
+				this._win.on('minimize', () => minimized = true);
+				this._win.on('restore', () => restoreSmoothScrolling());
+				this._win.on('maximize', () => restoreSmoothScrolling());
+			}
+		}
 	}
 
 	private onUntitledWorkspaceDeleted(workspace: IWorkspaceIdentifier): void {
