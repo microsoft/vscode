@@ -38,8 +38,8 @@ export class URLServiceChannelClient implements IURLService {
 
 	constructor(private channel: IChannel) { }
 
-	open(url: URI): TPromise<boolean> {
-		return TPromise.wrap(this.channel.call('open', url.toJSON()));
+	open(url: URI): Thenable<boolean> {
+		return this.channel.call('open', url.toJSON());
 	}
 
 	registerHandler(handler: IURLHandler): IDisposable {
