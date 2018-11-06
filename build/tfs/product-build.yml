@@ -44,7 +44,7 @@ jobs:
   variables:
     VSCODE_ARCH: x64
   container: snapcraft
-  # dependsOn: Linux
+  dependsOn: Linux
   steps:
   - template: linux/snap-build-linux.yml
 
