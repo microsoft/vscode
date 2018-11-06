@@ -14,7 +14,7 @@ import FileConfigurationManager from './features/fileConfigurationManager';
 import LanguageProvider from './languageProvider';
 import * as Proto from './protocol';
 import * as PConst from './protocol.const';
-import TypeScriptServiceClient from './typescriptServiceClient';
+import TypeScriptServiceClient, { PluginConfigProvider } from './typescriptServiceClient';
 import API from './utils/api';
 import { CommandManager } from './utils/commandManager';
 import { Disposable } from './utils/dispose';
@@ -49,8 +49,10 @@ export default class TypeScriptServiceClientHost extends Disposable {
 		descriptions: LanguageDescription[],
 		workspaceState: vscode.Memento,
 		plugins: TypeScriptServerPlugin[],
+		pluginConfigProvider: PluginConfigProvider,
 		private readonly commandManager: CommandManager,
-		logDirectoryProvider: LogDirectoryProvider
+		logDirectoryProvider: LogDirectoryProvider,
+		onCompletionAccepted: (item: vscode.CompletionItem) => void,
 	) {
 		super();
 		const handleProjectCreateOrDelete = () => {
@@ -72,6 +74,7 @@ export default class TypeScriptServiceClientHost extends Disposable {
 			workspaceState,
 			version => this.versionStatus.onDidChangeTypeScriptVersion(version),
 			plugins,
+			pluginConfigProvider,
 			logDirectoryProvider,
 			allModeIds));
 
@@ -89,7 +92,7 @@ export default class TypeScriptServiceClientHost extends Disposable {
 		this.fileConfigurationManager = this._register(new FileConfigurationManager(this.client));
 
 		for (const description of descriptions) {
-			const manager = new LanguageProvider(this.client, description, this.commandManager, this.client.telemetryReporter, this.typingsStatus, this.fileConfigurationManager);
+			const manager = new LanguageProvider(this.client, description, this.commandManager, this.client.telemetryReporter, this.typingsStatus, this.fileConfigurationManager, onCompletionAccepted);
 			this.languages.push(manager);
 			this._register(manager);
 			this.languagePerId.set(description.id, manager);
@@ -122,7 +125,7 @@ export default class TypeScriptServiceClientHost extends Disposable {
 					diagnosticOwner: 'typescript',
 					isExternal: true
 				};
-				const manager = new LanguageProvider(this.client, description, this.commandManager, this.client.telemetryReporter, this.typingsStatus, this.fileConfigurationManager);
+				const manager = new LanguageProvider(this.client, description, this.commandManager, this.client.telemetryReporter, this.typingsStatus, this.fileConfigurationManager, onCompletionAccepted);
 				this.languages.push(manager);
 				this._register(manager);
 				this.languagePerId.set(description.id, manager);

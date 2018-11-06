@@ -27,7 +27,8 @@ export class WatcherChannel implements IWatcherChannel {
 		switch (event) {
 			case 'watch': return this.service.watch(arg);
 		}
-		throw new Error('No events');
+
+		throw new Error(`Event not found: ${event}`);
 	}
 
 	call(command: string, arg?: any): TPromise<any> {
@@ -36,7 +37,8 @@ export class WatcherChannel implements IWatcherChannel {
 			case 'setVerboseLogging': return this.service.setVerboseLogging(arg);
 			case 'stop': return this.service.stop();
 		}
-		return undefined;
+
+		throw new Error(`Call not found: ${command}`);
 	}
 }
 

@@ -116,7 +116,7 @@ class ListElementRenderer implements IListRenderer<ListElement, IListElementTemp
 
 		// Detail
 		const detailContainer = dom.append(row2, $('.quick-input-list-label-meta'));
-		data.detail = new HighlightedLabel(detailContainer);
+		data.detail = new HighlightedLabel(detailContainer, true);
 
 		// Separator
 		data.separator = dom.append(data.entry, $('.quick-input-list-separator'));
@@ -246,6 +246,7 @@ export class QuickInputList {
 		this.list = this.instantiationService.createInstance(WorkbenchList, this.container, delegate, [new ListElementRenderer()], {
 			identityProvider: element => element.label,
 			openController: { shouldOpen: () => false }, // Workaround #58124
+			setRowLineHeight: false,
 			multipleSelectionSupport: false
 		}) as WorkbenchList<ListElement>;
 		this.list.getHTMLElement().id = id;

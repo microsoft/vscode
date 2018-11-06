@@ -73,15 +73,19 @@ class TypeScriptSignatureHelpProvider implements vscode.SignatureHelpProvider {
 
 function toTsTriggerReason(context: vscode.SignatureHelpContext): Proto.SignatureHelpTriggerReason {
 	switch (context.triggerReason) {
-		case vscode.SignatureHelpTriggerReason.Retrigger:
-			return { kind: 'retrigger' };
-
 		case vscode.SignatureHelpTriggerReason.TriggerCharacter:
 			if (context.triggerCharacter) {
-				return { kind: 'characterTyped', triggerCharacter: context.triggerCharacter as any };
+				if (context.isRetrigger) {
+					return { kind: 'retrigger', triggerCharacter: context.triggerCharacter as any };
+				} else {
+					return { kind: 'characterTyped', triggerCharacter: context.triggerCharacter as any };
+				}
 			} else {
 				return { kind: 'invoked' };
 			}
+
+		case vscode.SignatureHelpTriggerReason.ContentChange:
+			return context.isRetrigger ? { kind: 'retrigger' } : { kind: 'invoked' };
 
 		case vscode.SignatureHelpTriggerReason.Invoke:
 		default:

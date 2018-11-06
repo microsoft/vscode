@@ -99,7 +99,7 @@ export class DataTree<T extends NonNullable<any>, TFilterData = void> implements
 
 	private tree: ObjectTree<IDataTreeNode<T>, TFilterData>;
 	private root: IDataTreeNode<T>;
-	private nodes = new Map<T, IDataTreeNode<T>>();
+	private nodes = new Map<T | null, IDataTreeNode<T>>();
 
 	private _onDidChangeNodeState = new Emitter<IDataTreeNode<T>>();
 
@@ -112,9 +112,9 @@ export class DataTree<T extends NonNullable<any>, TFilterData = void> implements
 		private dataSource: IDataSource<T>,
 		options?: ITreeOptions<T, TFilterData>
 	) {
-		const objectTreeDelegate = new ComposedTreeDelegate<T, IDataTreeNode<T>>(delegate);
+		const objectTreeDelegate = new ComposedTreeDelegate<T | null, IDataTreeNode<T>>(delegate);
 		const objectTreeRenderers = renderers.map(r => new DataTreeRenderer(r, this._onDidChangeNodeState.event));
-		const objectTreeOptions = createComposedTreeListOptions<T, IDataTreeNode<T>>(options);
+		const objectTreeOptions = createComposedTreeListOptions<T | null, IDataTreeNode<T>>(options);
 
 		this.tree = new ObjectTree(container, objectTreeDelegate, objectTreeRenderers, objectTreeOptions);
 		this.root = {
@@ -143,7 +143,7 @@ export class DataTree<T extends NonNullable<any>, TFilterData = void> implements
 
 		if (!hasChildren) {
 			this.tree.setChildren(node === this.root ? null : node);
-			return Promise.resolve(null);
+			return Promise.resolve();
 		} else {
 			node.state = DataTreeNodeState.Loading;
 			this._onDidChangeNodeState.fire(node);

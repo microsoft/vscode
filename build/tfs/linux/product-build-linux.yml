@@ -94,3 +94,6 @@ steps:
 
     # SNAP_FILENAME="$(ls $REPO/.build/linux/snap/$ARCH/ | grep .snap)"
     # SNAP_PATH="$REPO/.build/linux/snap/$ARCH/$SNAP_FILENAME"
+
+- task: ms.vss-governance-buildtask.governance-build-task-component-detection.ComponentGovernanceComponentDetection@0
+  displayName: 'Component Detection'

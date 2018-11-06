@@ -863,15 +863,15 @@ class CommandColumn extends Column {
 		this.commandColumn.setAttribute('aria-label', this.getAriaLabel(keybindingItemEntry));
 		let commandLabel: HighlightedLabel;
 		if (keybindingItem.commandLabel) {
-			commandLabel = new HighlightedLabel(this.commandColumn);
+			commandLabel = new HighlightedLabel(this.commandColumn, false);
 			commandLabel.set(keybindingItem.commandLabel, keybindingItemEntry.commandLabelMatches);
 		}
 		if (keybindingItemEntry.commandDefaultLabelMatches) {
-			commandLabel = new HighlightedLabel(DOM.append(this.commandColumn, $('.command-default-label')));
+			commandLabel = new HighlightedLabel(DOM.append(this.commandColumn, $('.command-default-label')), false);
 			commandLabel.set(keybindingItem.commandDefaultLabel, keybindingItemEntry.commandDefaultLabelMatches);
 		}
 		if (keybindingItemEntry.commandIdMatches || !keybindingItem.commandLabel) {
-			commandLabel = new HighlightedLabel(DOM.append(this.commandColumn, $('.code')));
+			commandLabel = new HighlightedLabel(DOM.append(this.commandColumn, $('.code')), false);
 			commandLabel.set(keybindingItem.command, keybindingItemEntry.commandIdMatches);
 		}
 		if (commandLabel) {
@@ -918,7 +918,7 @@ class SourceColumn extends Column {
 	render(keybindingItemEntry: IKeybindingItemEntry): void {
 		DOM.clearNode(this.sourceColumn);
 		this.sourceColumn.setAttribute('aria-label', this.getAriaLabel(keybindingItemEntry));
-		new HighlightedLabel(this.sourceColumn).set(keybindingItemEntry.keybindingItem.source, keybindingItemEntry.sourceMatches);
+		new HighlightedLabel(this.sourceColumn, false).set(keybindingItemEntry.keybindingItem.source, keybindingItemEntry.sourceMatches);
 	}
 
 	private getAriaLabel(keybindingItemEntry: IKeybindingItemEntry): string {
@@ -942,7 +942,7 @@ class WhenColumn extends Column {
 		DOM.toggleClass(this.whenColumn, 'code', !!keybindingItemEntry.keybindingItem.when);
 		DOM.toggleClass(this.whenColumn, 'empty', !keybindingItemEntry.keybindingItem.when);
 		if (keybindingItemEntry.keybindingItem.when) {
-			const whenLabel = new HighlightedLabel(this.whenColumn);
+			const whenLabel = new HighlightedLabel(this.whenColumn, false);
 			whenLabel.set(keybindingItemEntry.keybindingItem.when, keybindingItemEntry.whenMatches);
 			this.whenColumn.title = keybindingItemEntry.keybindingItem.when;
 			whenLabel.element.title = keybindingItemEntry.keybindingItem.when;

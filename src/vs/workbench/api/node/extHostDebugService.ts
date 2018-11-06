@@ -70,7 +70,7 @@ export class ExtHostDebugService implements ExtHostDebugServiceShape {
 
 	private _aexCommands: Map<string, string>;
 	private _debugAdapters: Map<number, IDebugAdapter>;
-	private _debugAdaptersTrackers: Map<number, vscode.IDebugAdapterTracker>;
+	private _debugAdaptersTrackers: Map<number, vscode.DebugAdapterTracker>;
 
 	private _variableResolver: IConfigurationResolverService;
 
@@ -601,7 +601,7 @@ export class ExtHostDebugService implements ExtHostDebugServiceShape {
 		return false;
 	}
 
-	private getDebugAdapterTrackers(sessionDto: IDebugSessionDto, folderUri: UriComponents | undefined, config: vscode.DebugConfiguration): Promise<vscode.IDebugAdapterTracker> {
+	private getDebugAdapterTrackers(sessionDto: IDebugSessionDto, folderUri: UriComponents | undefined, config: vscode.DebugConfiguration): Promise<vscode.DebugAdapterTracker> {
 
 		const session = this.getSession(sessionDto);
 		const folder = this.getFolder(folderUri);
@@ -609,12 +609,24 @@ export class ExtHostDebugService implements ExtHostDebugServiceShape {
 		const type = config.type;
 		const promises = this._providers
 			.filter(pair => pair.provider.provideDebugAdapterTracker && (pair.type === type || pair.type === '*'))
-			.map(pair => pair.provider.provideDebugAdapterTracker(session, folder, config, CancellationToken.None));
+			.map(pair => asThenable(() => pair.provider.provideDebugAdapterTracker(session, folder, config, CancellationToken.None)).then(p => p).catch(err => null));
 
-		return Promise.all(promises).then(trackers => {
-			if (trackers.length > 0) {
-				return new MultiTracker(trackers);
-			}
+		return Promise.race([
+			Promise.all(promises).then(trackers => {
+				trackers = trackers.filter(t => t);	// filter null
+				if (trackers.length > 0) {
+					return new MultiTracker(trackers);
+				}
+				return undefined;
+			}),
+			new Promise((resolve, reject) => {
+				const timeout = setTimeout(() => {
+					clearTimeout(timeout);
+					reject(new Error('timeout'));
+				}, 1000);
+			})
+		]).catch(err => {
+			// ignore errors
 			return undefined;
 		});
 	}
@@ -798,9 +810,9 @@ interface IDapTransport {
 	stop(): void;
 }
 
-class MultiTracker implements vscode.IDebugAdapterTracker {
+class MultiTracker implements vscode.DebugAdapterTracker {
 
-	constructor(private trackers: vscode.IDebugAdapterTracker[]) {
+	constructor(private trackers: vscode.DebugAdapterTracker[]) {
 	}
 
 	startDebugAdapter(): void {

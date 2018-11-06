@@ -597,7 +597,7 @@ export enum CompletionTriggerKind {
 export enum SignatureHelpTriggerReason {
 	Invoke = 1,
 	TriggerCharacter = 2,
-	Retrigger = 3
+	ContentChange = 3
 }
 
 /**

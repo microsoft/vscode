@@ -67,7 +67,7 @@ export class CompositeBar extends Widget implements ICompositeBar {
 	}
 
 	getComposites(): ICompositeBarItem[] {
-		return this.model.items;
+		return [...this.model.items];
 	}
 
 	getPinnedComposites(): ICompositeBarItem[] {

@@ -19,7 +19,7 @@ export class IssueChannel implements IIssueChannel {
 	constructor(private service: IIssueService) { }
 
 	listen<T>(event: string): Event<T> {
-		throw new Error('No event found');
+		throw new Error(`Event not found: ${event}`);
 	}
 
 	call(command: string, arg?: any): TPromise<any> {
@@ -29,7 +29,8 @@ export class IssueChannel implements IIssueChannel {
 			case 'openProcessExplorer':
 				return this.service.openProcessExplorer(arg);
 		}
-		return undefined;
+
+		throw new Error(`Call not found: ${command}`);
 	}
 }
 

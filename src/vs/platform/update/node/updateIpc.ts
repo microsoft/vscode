@@ -30,7 +30,7 @@ export class UpdateChannel implements IUpdateChannel {
 			case 'onStateChange': return this.service.onStateChange;
 		}
 
-		throw new Error('No event found');
+		throw new Error(`Event not found: ${event}`);
 	}
 
 	call(command: string, arg?: any): TPromise<any> {
@@ -42,7 +42,8 @@ export class UpdateChannel implements IUpdateChannel {
 			case '_getInitialState': return TPromise.as(this.service.state);
 			case 'isLatestVersion': return this.service.isLatestVersion();
 		}
-		return undefined;
+
+		throw new Error(`Call not found: ${command}`);
 	}
 }
 

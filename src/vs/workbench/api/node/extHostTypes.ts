@@ -1115,7 +1115,7 @@ export class SignatureHelp {
 export enum SignatureHelpTriggerReason {
 	Invoke = 1,
 	TriggerCharacter = 2,
-	Retrigger = 3,
+	ContentChange = 3,
 }
 
 export enum CompletionTriggerKind {

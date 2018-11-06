@@ -423,7 +423,7 @@ export class DebugService implements IDebugService {
 	private doCreateSession(root: IWorkspaceFolder, configuration: { resolved: IConfig, unresolved: IConfig }): TPromise<boolean> {
 
 		const session = this.instantiationService.createInstance(DebugSession, configuration, root, this.model);
-
+		this.model.addSession(session);
 		// register listeners as the very first thing!
 		this.registerSessionListeners(session);
 
@@ -527,6 +527,7 @@ export class DebugService implements IDebugService {
 				);
 			}
 			session.shutdown();
+			this.endInitializingState();
 			this._onDidEndSession.fire(session);
 
 			const focusedSession = this.viewModel.focusedSession;
@@ -780,7 +781,7 @@ export class DebugService implements IDebugService {
 
 		if (stackFrame) {
 			stackFrame.openInEditor(this.editorService, true).then(undefined, errors.onUnexpectedError);
-			aria.alert(nls.localize('debuggingPaused', "Debugging paused, reason {0}, {1} {2}", thread.stoppedDetails.reason, stackFrame.source ? stackFrame.source.name : '', stackFrame.range.startLineNumber));
+			aria.alert(nls.localize('debuggingPaused', "Debugging paused {0}, {1} {2}", thread.stoppedDetails ? `, reason ${thread.stoppedDetails.reason}` : '', stackFrame.source ? stackFrame.source.name : '', stackFrame.range.startLineNumber));
 		}
 
 		this.viewModel.setFocus(stackFrame, thread, session, explicit);
@@ -1071,9 +1072,9 @@ export class DebugService implements IDebugService {
 		/* __GDPR__
 			"debugAddBreakpoint" : {
 				"context": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-				"hasCondition": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-				"hasHitCondition": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-				"hasLogMessage": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+				"hasCondition": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
+				"hasHitCondition": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
+				"hasLogMessage": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true }
 			}
 		*/
 

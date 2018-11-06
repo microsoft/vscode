@@ -30,14 +30,14 @@ import { Dimension, EventType, addDisposableListener, trackFocus } from 'vs/base
 import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
 import { RawContextKey, IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 
-const SidebarFocusContextId = 'sidebarFocus';
-export const SidebarFocusContext = new RawContextKey<boolean>(SidebarFocusContextId, false);
+const SideBarFocusContextId = 'sideBarFocus';
+export const SidebarFocusContext = new RawContextKey<boolean>(SideBarFocusContextId, false);
 
 export class SidebarPart extends CompositePart<Viewlet> {
 
 	static readonly activeViewletSettingsKey = 'workbench.sidebar.activeviewletid';
 
-	private sidebarFocusContextKey: IContextKey<boolean>;
+	private sideBarFocusContextKey: IContextKey<boolean>;
 	private blockOpeningViewlet: boolean;
 
 	constructor(
@@ -71,7 +71,7 @@ export class SidebarPart extends CompositePart<Viewlet> {
 			{ hasTitle: true, borderWidth: () => (this.getColor(SIDE_BAR_BORDER) || this.getColor(contrastBorder)) ? 1 : 0 }
 		);
 
-		this.sidebarFocusContextKey = SidebarFocusContext.bindTo(contextKeyService);
+		this.sideBarFocusContextKey = SidebarFocusContext.bindTo(contextKeyService);
 	}
 
 	get onDidViewletOpen(): Event<IViewlet> {
@@ -88,10 +88,10 @@ export class SidebarPart extends CompositePart<Viewlet> {
 		const focusTracker = trackFocus(parent);
 
 		focusTracker.onDidFocus(() => {
-			this.sidebarFocusContextKey.set(true);
+			this.sideBarFocusContextKey.set(true);
 		});
 		focusTracker.onDidBlur(() => {
-			this.sidebarFocusContextKey.set(false);
+			this.sideBarFocusContextKey.set(false);
 		});
 	}
 

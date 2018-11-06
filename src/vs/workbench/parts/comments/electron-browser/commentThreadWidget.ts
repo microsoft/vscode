@@ -123,6 +123,16 @@ export class ReviewZoneWidget extends ZoneWidget {
 		return this._onDidCreateThread.event;
 	}
 
+	public getPosition(): IPosition | undefined {
+		let position: IPosition = this.position;
+		if (position) {
+			return position;
+		}
+
+		position = this._commentGlyph.getPosition().position;
+		return position;
+	}
+
 	protected revealLine(lineNumber: number) {
 		// we don't do anything here as we always do the reveal ourselves.
 	}
@@ -279,7 +289,7 @@ export class ReviewZoneWidget extends ZoneWidget {
 		this._commentEditor = this.instantiationService.createInstance(SimpleCommentEditor, this._commentForm, SimpleCommentEditor.getEditorOptions());
 		const modeId = hasExistingComments ? this._commentThread.threadId : ++INMEM_MODEL_ID;
 		const resource = URI.parse(`${COMMENT_SCHEME}:commentinput-${modeId}.md`);
-		const model = this.modelService.createModel(this._pendingComment || '', this.modeService.getOrCreateModeByFilepathOrFirstLine(resource.path), resource, true);
+		const model = this.modelService.createModel(this._pendingComment || '', this.modeService.createByFilepathOrFirstLine(resource.path), resource, true);
 		this._localToDispose.push(model);
 		this._commentEditor.setModel(model);
 		this._localToDispose.push(this._commentEditor);
@@ -324,7 +334,7 @@ export class ReviewZoneWidget extends ZoneWidget {
 		attachButtonStyler(button, this.themeService);
 		button.label = 'Add comment';
 
-		button.enabled = false;
+		button.enabled = model.getValueLength() > 0;
 		this._localToDispose.push(this._commentEditor.onDidChangeModelContent(_ => {
 			if (this._commentEditor.getValue()) {
 				button.enabled = true;

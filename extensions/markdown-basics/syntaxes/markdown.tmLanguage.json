@@ -4,7 +4,7 @@
 		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
 		"Once accepted there, we are happy to receive an update request."
 	],
-	"version": "https://github.com/microsoft/vscode-markdown-tm-grammar/commit/ee6a11d0bbbe8ef6bcf8e664f446c00fb14212f2",
+	"version": "https://github.com/microsoft/vscode-markdown-tm-grammar/commit/11cf764606cb2cde54badb5d0e5a0758a8871c4b",
 	"name": "Markdown",
 	"scopeName": "text.html.markdown",
 	"patterns": [
@@ -119,6 +119,9 @@
 				},
 				{
 					"include": "#fenced_code_block_json"
+				},
+				{
+					"include": "#fenced_code_block_jsonc"
 				},
 				{
 					"include": "#fenced_code_block_less"
@@ -1196,6 +1199,39 @@
 						}
 					]
 				},
+				"fenced_code_block_jsonc": {
+					"begin": "(^|\\G)(\\s*)(`{3,}|~{3,})\\s*(?i:(jsonc)(\\s+[^`~]*)?$)",
+					"name": "markup.fenced_code.block.markdown",
+					"end": "(^|\\G)(\\2|\\s{0,3})(\\3)\\s*$",
+					"beginCaptures": {
+						"3": {
+							"name": "punctuation.definition.markdown"
+						},
+						"5": {
+							"name": "fenced_code.block.language"
+						},
+						"6": {
+							"name": "fenced_code.block.language.attributes"
+						}
+					},
+					"endCaptures": {
+						"3": {
+							"name": "punctuation.definition.markdown"
+						}
+					},
+					"patterns": [
+						{
+							"begin": "(^|\\G)(\\s*)(.*)",
+							"while": "(^|\\G)(?!\\s*([`~]{3,})\\s*$)",
+							"contentName": "meta.embedded.block.jsonc",
+							"patterns": [
+								{
+									"include": "source.json.comments"
+								}
+							]
+						}
+					]
+				},
 				"fenced_code_block_less": {
 					"begin": "(^|\\G)(\\s*)(`{3,}|~{3,})\\s*(?i:(less)(\\s+[^`~]*)?$)",
 					"name": "markup.fenced_code.block.markdown",
@@ -1984,7 +2020,7 @@
 							"name": "punctuation.definition.string.end.markdown"
 						}
 					},
-					"match": "(?x)\n  \\s*            # Leading whitespace\n  (\\[)([\\w ]+?)(\\])(:)    # Reference name\n  [ \\t]*          # Optional whitespace\n  (<?)(\\S+?)(>?)      # The url\n  [ \\t]*          # Optional whitespace\n  (?:\n      ((\\().+?(\\)))    # Match title in quotes…\n    | ((\").+?(\"))    # or in parens.\n  )?            # Title is optional\n  \\s*            # Optional whitespace\n  $\n",
+					"match": "(?x)\n  \\s*            # Leading whitespace\n  (\\[)([^]]+?)(\\])(:)    # Reference name\n  [ \\t]*          # Optional whitespace\n  (<?)(\\S+?)(>?)      # The url\n  [ \\t]*          # Optional whitespace\n  (?:\n      ((\\().+?(\\)))    # Match title in quotes…\n    | ((\").+?(\"))    # or in parens.\n  )?            # Title is optional\n  \\s*            # Optional whitespace\n  $\n",
 					"name": "meta.link.reference.def.markdown"
 				},
 				"list_paragraph": {

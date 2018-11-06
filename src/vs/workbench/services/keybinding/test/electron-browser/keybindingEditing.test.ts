@@ -222,7 +222,7 @@ suite('KeybindingsEditing', () => {
 			.then(() => assert.deepEqual(getUserKeybindings(), []));
 	});
 
-	test('reset mulitple removed keybindings', () => {
+	test('reset multiple removed keybindings', () => {
 		writeToKeybindingsFile({ key: 'alt+c', command: '-b' });
 		writeToKeybindingsFile({ key: 'alt+shift+c', command: '-b' });
 		writeToKeybindingsFile({ key: 'escape', command: '-b' });

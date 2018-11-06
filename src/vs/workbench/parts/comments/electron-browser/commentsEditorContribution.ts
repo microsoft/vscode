@@ -331,14 +331,22 @@ export class ReviewController implements IEditorContribution {
 		if (this._newCommentWidget) {
 			let pendingNewComment = this._newCommentWidget.getPendingComment();
 
-			if (pendingNewComment && e.oldModelUrl) {
-				// we can't fetch zone widget's position as the model is already gone
-				this._pendingNewCommentCache[e.oldModelUrl.toString()] = {
-					lineNumber: this._newCommentWidget.position.lineNumber,
-					ownerId: this._newCommentWidget.owner,
-					replyCommand: this._newCommentWidget.commentThread.reply,
-					pendingComment: pendingNewComment
-				};
+			if (e.oldModelUrl) {
+				if (pendingNewComment) {
+					// we can't fetch zone widget's position as the model is already gone
+					const position = this._newCommentWidget.getPosition();
+					if (position) {
+						this._pendingNewCommentCache[e.oldModelUrl.toString()] = {
+							lineNumber: position.lineNumber,
+							ownerId: this._newCommentWidget.owner,
+							replyCommand: this._newCommentWidget.commentThread.reply,
+							pendingComment: pendingNewComment
+						};
+					}
+				} else {
+					// clear cache if it is empty
+					delete this._pendingNewCommentCache[e.oldModelUrl.toString()];
+				}
 			}
 
 			this._newCommentWidget.dispose();

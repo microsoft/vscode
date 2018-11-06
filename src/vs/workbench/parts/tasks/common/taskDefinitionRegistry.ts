@@ -46,7 +46,7 @@ namespace Configuration {
 		properties?: IJSONSchemaMap;
 	}
 
-	export function from(value: TaskDefinition, extensionId: string, messageCollector: ExtensionMessageCollector): Tasks.TaskDefinition {
+	export function from(value: TaskDefinition, extensionId: string, messageCollector: ExtensionMessageCollector): Tasks.TaskDefinition | undefined {
 		if (!value) {
 			return undefined;
 		}
@@ -137,7 +137,7 @@ class TaskDefinitionRegistryImpl implements ITaskDefinitionRegistry {
 				} else {
 					schema.properties = Object.create(null);
 				}
-				schema.properties.type = {
+				schema.properties!.type = {
 					type: 'string',
 					enum: [definition.taskType]
 				};

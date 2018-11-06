@@ -8,7 +8,7 @@ import { Event, Emitter } from 'vs/base/common/event';
 import { IDisposable, dispose, Disposable, toDisposable } from 'vs/base/common/lifecycle';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { TPromise } from 'vs/base/common/winjs.base';
-import { IAction, IActionItem, ActionRunner } from 'vs/base/common/actions';
+import { IAction, IActionItem, ActionRunner, Action } from 'vs/base/common/actions';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IMenuService, MenuId, MenuItemAction } from 'vs/platform/actions/common/actions';
@@ -23,23 +23,23 @@ import { IExtensionService } from 'vs/workbench/services/extensions/common/exten
 import { IWorkbenchThemeService } from 'vs/workbench/services/themes/common/workbenchThemeService';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import * as DOM from 'vs/base/browser/dom';
-import { isUndefinedOrNull } from 'vs/base/common/types';
 import { IDataSource, ITree, IRenderer, ContextMenuEvent } from 'vs/base/parts/tree/browser/tree';
 import { ResourceLabel } from 'vs/workbench/browser/labels';
 import { ActionBar, IActionItemProvider, ActionItem } from 'vs/base/browser/ui/actionbar/actionbar';
 import { URI } from 'vs/base/common/uri';
 import { basename } from 'vs/base/common/paths';
-import { LIGHT, FileThemeIcon, FolderThemeIcon } from 'vs/platform/theme/common/themeService';
+import { LIGHT, FileThemeIcon, FolderThemeIcon, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { FileKind } from 'vs/platform/files/common/files';
 import { WorkbenchTreeController } from 'vs/platform/list/browser/listService';
 import { ViewletPanel, IViewletPanelOptions } from 'vs/workbench/browser/parts/views/panelViewlet';
 import { IMouseEvent } from 'vs/base/browser/mouseEvent';
 import { localize } from 'vs/nls';
 import { timeout } from 'vs/base/common/async';
+import { CollapseAllAction } from 'vs/base/parts/tree/browser/treeDefaults';
+import { editorFindMatchHighlight, editorFindMatchHighlightBorder } from 'vs/platform/theme/common/colorRegistry';
 
 export class CustomTreeViewPanel extends ViewletPanel {
 
-	private menus: TitleMenus;
 	private treeViewer: ITreeViewer;
 
 	constructor(
@@ -47,15 +47,14 @@ export class CustomTreeViewPanel extends ViewletPanel {
 		@INotificationService private notificationService: INotificationService,
 		@IKeybindingService keybindingService: IKeybindingService,
 		@IContextMenuService contextMenuService: IContextMenuService,
-		@IInstantiationService private instantiationService: IInstantiationService,
 		@IConfigurationService configurationService: IConfigurationService,
 		@IViewsService viewsService: IViewsService,
 	) {
 		super({ ...(options as IViewletPanelOptions), ariaHeaderLabel: options.title }, keybindingService, contextMenuService, configurationService);
-		this.treeViewer = (<ICustomViewDescriptor>ViewsRegistry.getView(options.id)).treeViewer;
+		const { treeViewer } = (<ICustomViewDescriptor>ViewsRegistry.getView(options.id));
+		this.treeViewer = treeViewer;
+		this.treeViewer.onDidChangeActions(() => this.updateActions(), this, this.disposables);
 		this.disposables.push(toDisposable(() => this.treeViewer.setVisibility(false)));
-		this.menus = this.instantiationService.createInstance(TitleMenus, this.id);
-		this.menus.onDidChangeTitle(() => this.updateActions(), this, this.disposables);
 		this.updateTreeVisibility();
 	}
 
@@ -83,11 +82,11 @@ export class CustomTreeViewPanel extends ViewletPanel {
 	}
 
 	getActions(): IAction[] {
-		return [...this.menus.getTitleActions()];
+		return [...this.treeViewer.getPrimaryActions()];
 	}
 
 	getSecondaryActions(): IAction[] {
-		return this.menus.getTitleSecondaryActions();
+		return [...this.treeViewer.getSecondaryActions()];
 	}
 
 	getActionItem(action: IAction): IActionItem {
@@ -180,6 +179,7 @@ export class CustomTreeViewer extends Disposable implements ITreeViewer {
 	private activated: boolean = false;
 	private _hasIconForParentNode = false;
 	private _hasIconForLeafNode = false;
+	private _showCollapseAllAction = false;
 
 	private domNode: HTMLElement;
 	private treeContainer: HTMLElement;
@@ -187,6 +187,7 @@ export class CustomTreeViewer extends Disposable implements ITreeViewer {
 	private tree: FileIconThemableWorkbenchTree;
 	private root: ITreeItem;
 	private elementsToRefresh: ITreeItem[] = [];
+	private menus: TitleMenus;
 
 	private _dataProvider: ITreeViewDataProvider;
 
@@ -202,6 +203,9 @@ export class CustomTreeViewer extends Disposable implements ITreeViewer {
 	private _onDidChangeVisibility: Emitter<boolean> = this._register(new Emitter<boolean>());
 	readonly onDidChangeVisibility: Event<boolean> = this._onDidChangeVisibility.event;
 
+	private _onDidChangeActions: Emitter<void> = this._register(new Emitter<void>());
+	readonly onDidChangeActions: Event<void> = this._onDidChangeActions.event;
+
 	constructor(
 		private id: string,
 		private container: ViewContainer,
@@ -214,6 +218,8 @@ export class CustomTreeViewer extends Disposable implements ITreeViewer {
 	) {
 		super();
 		this.root = new Root();
+		this.menus = this._register(this.instantiationService.createInstance(TitleMenus, this.id));
+		this._register(this.menus.onDidChangeTitle(() => this._onDidChangeActions.fire()));
 		this._register(this.themeService.onDidFileIconThemeChange(() => this.doRefresh([this.root]) /** soft refresh **/));
 		this._register(this.themeService.onThemeChange(() => this.doRefresh([this.root]) /** soft refresh **/));
 		this._register(this.configurationService.onDidChangeConfiguration(e => {
@@ -261,6 +267,30 @@ export class CustomTreeViewer extends Disposable implements ITreeViewer {
 
 	get visible(): boolean {
 		return this.isVisible;
+	}
+
+	get showCollapseAllAction(): boolean {
+		return this._showCollapseAllAction;
+	}
+
+	set showCollapseAllAction(showCollapseAllAction: boolean) {
+		if (this._showCollapseAllAction !== !!showCollapseAllAction) {
+			this._showCollapseAllAction = !!showCollapseAllAction;
+			this._onDidChangeActions.fire();
+		}
+	}
+
+	getPrimaryActions(): IAction[] {
+		if (this.showCollapseAllAction) {
+			const collapseAllAction = new Action('vs.tree.collapse', localize('collapse', "Collapse"), 'monaco-tree-action collapse-all', true, () => this.tree ? new CollapseAllAction(this.tree, true).run() : Promise.resolve());
+			return [...this.menus.getTitleActions(), collapseAllAction];
+		} else {
+			return this.menus.getTitleActions();
+		}
+	}
+
+	getSecondaryActions(): IAction[] {
+		return this.menus.getTitleSecondaryActions();
 	}
 
 	setVisibility(isVisible: boolean): void {
@@ -379,32 +409,22 @@ export class CustomTreeViewer extends Disposable implements ITreeViewer {
 		return Promise.resolve(null);
 	}
 
-	reveal(item: ITreeItem, parentChain: ITreeItem[], options?: { select?: boolean, focus?: boolean }): TPromise<void> {
-		if (this.dataProvider && this.tree && this.isVisible) {
-			options = options ? options : { select: false, focus: false };
-			const select = isUndefinedOrNull(options.select) ? false : options.select;
-			const focus = isUndefinedOrNull(options.focus) ? false : options.focus;
+	expand(itemOrItems: ITreeItem | ITreeItem[]): TPromise<void> {
+		itemOrItems = Array.isArray(itemOrItems) ? itemOrItems : [itemOrItems];
+		return this.tree.expandAll(itemOrItems);
+	}
 
-			const root: Root = this.tree.getInput();
-			const promise: Thenable<void> = root.children ? Promise.resolve(null) : this.refresh(); // Refresh if root is not populated
-			return promise.then(() => {
-				var result = Promise.resolve(null);
-				parentChain.forEach((e) => {
-					result = result.then(() => this.tree.expand(e));
-				});
-				return result.then(() => this.tree.reveal(item))
-					.then(() => {
-						if (select) {
-							this.tree.setSelection([item], { source: 'api' });
-						}
-						if (focus) {
-							this.focus();
-							this.tree.setFocus(item);
-						}
-					});
-			});
-		}
-		return Promise.resolve(null);
+	setSelection(items: ITreeItem[]): void {
+		this.tree.setSelection(items, { source: 'api' });
+	}
+
+	setFocus(item: ITreeItem): void {
+		this.focus();
+		this.tree.setFocus(item);
+	}
+
+	reveal(item: ITreeItem): TPromise<void> {
+		return this.tree.reveal(item);
 	}
 
 	private activate() {
@@ -487,6 +507,19 @@ interface ITreeExplorerTemplateData {
 	aligner: Aligner;
 }
 
+// todo@joh,sandy make this proper and contributable from extensions
+registerThemingParticipant((theme, collector) => {
+
+	const findMatchHighlightColor = theme.getColor(editorFindMatchHighlight);
+	if (findMatchHighlightColor) {
+		collector.addRule(`.file-icon-themable-tree .monaco-tree-row .content .monaco-highlighted-label .highlight { color: unset !important; background-color: ${findMatchHighlightColor}; }`);
+	}
+	const findMatchHighlightColorBorder = theme.getColor(editorFindMatchHighlightBorder);
+	if (findMatchHighlightColorBorder) {
+		collector.addRule(`.file-icon-themable-tree .monaco-tree-row .content .monaco-highlighted-label .highlight { color: unset !important; border: 1px dotted ${findMatchHighlightColorBorder}; box-sizing: border-box; }`);
+	}
+});
+
 class TreeRenderer implements IRenderer {
 
 	private static readonly ITEM_HEIGHT = 22;
@@ -514,7 +547,7 @@ class TreeRenderer implements IRenderer {
 		DOM.addClass(container, 'custom-view-tree-node-item');
 
 		const icon = DOM.append(container, DOM.$('.custom-view-tree-node-item-icon'));
-		const resourceLabel = this.instantiationService.createInstance(ResourceLabel, container, { supportHighlights: true });
+		const resourceLabel = this.instantiationService.createInstance(ResourceLabel, container, { supportHighlights: true, donotSupportOcticons: true });
 		DOM.addClass(resourceLabel.element, 'custom-view-tree-node-item-resourceLabel');
 		const actionsContainer = DOM.append(resourceLabel.element, DOM.$('.actions'));
 		const actionBar = new ActionBar(actionsContainer, {

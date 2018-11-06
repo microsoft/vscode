@@ -170,3 +170,6 @@ steps:
     # publish hockeyapp symbols
     $hockeyAppId = if ("$(VSCODE_ARCH)" -eq "ia32") { "$(VSCODE_HOCKEYAPP_ID_WIN32)" } else { "$(VSCODE_HOCKEYAPP_ID_WIN64)" }
     exec { node build/tfs/common/symbols.js "$(VSCODE_MIXIN_PASSWORD)" "$(VSCODE_HOCKEYAPP_TOKEN)" "$(VSCODE_ARCH)" $hockeyAppId }
+
+- task: ms.vss-governance-buildtask.governance-build-task-component-detection.ComponentGovernanceComponentDetection@0
+  displayName: 'Component Detection'

@@ -5,7 +5,7 @@
 
 import * as assert from 'assert';
 import { IMessagePassingProtocol, IPCServer, ClientConnectionEvent, IPCClient, IChannel } from 'vs/base/parts/ipc/node/ipc';
-import { Emitter, toNativePromise, Event } from 'vs/base/common/event';
+import { Emitter, toPromise, Event } from 'vs/base/common/event';
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 import { canceled } from 'vs/base/common/errors';
 import { timeout } from 'vs/base/common/async';
@@ -202,8 +202,8 @@ suite('Base IPC', function () {
 		const b3 = Buffer.alloc(0);
 		serverProtocol.send(b3);
 
-		const b2 = await toNativePromise(serverProtocol.onMessage);
-		const b4 = await toNativePromise(clientProtocol.onMessage);
+		const b2 = await toPromise(serverProtocol.onMessage);
+		const b4 = await toPromise(clientProtocol.onMessage);
 
 		assert.strictEqual(b1, b2);
 		assert.strictEqual(b3, b4);

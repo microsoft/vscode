@@ -58,19 +58,19 @@ export class DebugContentProvider implements IWorkbenchContribution, ITextModelC
 		}
 		const createErrModel = (errMsg?: string) => {
 			this.debugService.sourceIsNotAvailable(resource);
-			const modePromise = this.modeService.getOrCreateMode(MIME_TEXT);
+			const languageSelection = this.modeService.create(MIME_TEXT);
 			const message = errMsg
 				? localize('canNotResolveSourceWithError', "Could not load source '{0}': {1}.", resource.path, errMsg)
 				: localize('canNotResolveSource', "Could not load source '{0}'.", resource.path);
-			return this.modelService.createModel(message, modePromise, resource);
+			return this.modelService.createModel(message, languageSelection, resource);
 		};
 
 		return session.loadSource(resource).then(response => {
 
 			if (response && response.body) {
 				const mime = response.body.mimeType || guessMimeTypes(resource.path)[0];
-				const modePromise = this.modeService.getOrCreateMode(mime);
-				return this.modelService.createModel(response.body.content, modePromise, resource);
+				const languageSelection = this.modeService.create(mime);
+				return this.modelService.createModel(response.body.content, languageSelection, resource);
 			}
 
 			return createErrModel();

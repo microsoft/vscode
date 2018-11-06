@@ -646,6 +646,7 @@ export class CommandCenter {
 	@command('git.openHEADFile')
 	async openHEADFile(arg?: Resource | Uri): Promise<void> {
 		let resource: Resource | undefined = undefined;
+		const preview = !(arg instanceof Resource);
 
 		if (arg instanceof Resource) {
 			resource = arg;
@@ -666,12 +667,18 @@ export class CommandCenter {
 			return;
 		}
 
-		return await commands.executeCommand<void>('vscode.open', HEAD);
+		const opts: TextDocumentShowOptions = {
+			preview
+		};
+
+		return await commands.executeCommand<void>('vscode.open', HEAD, opts);
 	}
 
 	@command('git.openChange')
 	async openChange(arg?: Resource | Uri, ...resourceStates: SourceControlResourceState[]): Promise<void> {
 		const preserveFocus = arg instanceof Resource;
+		const preview = !(arg instanceof Resource);
+
 		const preserveSelection = arg instanceof Uri || !arg;
 		let resources: Resource[] | undefined = undefined;
 
@@ -698,7 +705,6 @@ export class CommandCenter {
 			return;
 		}
 
-		const preview = resources.length === 1 ? undefined : false;
 		for (const resource of resources) {
 			await this._openResource(resource, preview, preserveFocus, preserveSelection);
 		}

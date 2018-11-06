@@ -113,9 +113,7 @@ export class Repl extends Panel implements IPrivateReplService, IHistoryNavigati
 
 	private registerListeners(): void {
 		this._register(this.debugService.getViewModel().onDidFocusSession(session => {
-			if (this.isVisible()) {
-				this.selectSession(session);
-			}
+			this.selectSession(session);
 		}));
 		this._register(this.debugService.onDidNewSession(() => this.updateTitleArea()));
 		this._register(this.themeService.onThemeChange(() => {
@@ -126,19 +124,15 @@ export class Repl extends Panel implements IPrivateReplService, IHistoryNavigati
 	}
 
 	setVisible(visible: boolean): void {
+		super.setVisible(visible);
 		if (!visible) {
 			dispose(this.model);
 		} else {
 			this.model = this.modelService.createModel('', null, uri.parse(`${DEBUG_SCHEME}:replinput`), true);
 			this.replInput.setModel(this.model);
 			this.updateInputDecoration();
-			const focusedSession = this.debugService.getViewModel().focusedSession;
-			if (focusedSession && this.tree.getInput() !== focusedSession) {
-				this.selectSession(focusedSession);
-			}
+			this.refreshReplElements(true);
 		}
-
-		super.setVisible(visible);
 	}
 
 	get isReadonly(): boolean {
@@ -171,10 +165,10 @@ export class Repl extends Panel implements IPrivateReplService, IHistoryNavigati
 	}
 
 	selectSession(session: IDebugSession): void {
-		if (this.replElementsChangeListener) {
-			this.replElementsChangeListener.dispose();
-		}
 		if (session) {
+			if (this.replElementsChangeListener) {
+				this.replElementsChangeListener.dispose();
+			}
 			this.replElementsChangeListener = session.onDidChangeReplElements(() => {
 				this.refreshReplElements(session.getReplElements().length === 0);
 			});
@@ -298,6 +292,12 @@ export class Repl extends Panel implements IPrivateReplService, IHistoryNavigati
 			accessibilityProvider: new ReplExpressionsAccessibilityProvider(),
 			controller
 		}, replTreeOptions);
+
+		// Make sure to select the session if debugging is already active
+		const focusedSession = this.debugService.getViewModel().focusedSession;
+		if (focusedSession) {
+			this.selectSession(focusedSession);
+		}
 	}
 
 	private createReplInput(container: HTMLElement): void {
@@ -395,7 +395,7 @@ export class Repl extends Panel implements IPrivateReplService, IHistoryNavigati
 				},
 				renderOptions: {
 					after: {
-						contentText: nls.localize('startDebugFirst', "Please start a debug session to evaluate"),
+						contentText: nls.localize('startDebugFirst', "Please start a debug session to evaluate expressions"),
 						color: transparent(editorForeground, 0.4)(this.themeService.getTheme()).toString()
 					}
 				}
