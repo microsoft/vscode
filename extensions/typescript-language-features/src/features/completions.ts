@@ -76,26 +76,30 @@ class MyCompletionItem extends vscode.CompletionItem {
 			}
 		}
 
-		if (tsEntry.kindModifiers && tsEntry.kindModifiers.match(/\boptional\b/)) {
-			if (!this.insertText) {
-				this.insertText = this.label;
+		if (tsEntry.kindModifiers) {
+			const kindModifiers = new Set(tsEntry.kindModifiers.split(/\s+/g));
+
+			if (kindModifiers.has(PConst.KindModifiers.optional)) {
+				if (!this.insertText) {
+					this.insertText = this.label;
+				}
+
+				if (!this.filterText) {
+					this.filterText = this.label;
+				}
+				this.label += '?';
 			}
 
-			if (!this.filterText) {
-				this.filterText = this.label;
-			}
-			this.label += '?';
-		}
-
-		if (tsEntry.kind === PConst.Kind.script && tsEntry.kindModifiers) {
-			for (const extModifier of PConst.KindModifiers.fileExtensionKindModifiers) {
-				if (tsEntry.kindModifiers.match(extModifier.pattern)) {
-					if (tsEntry.name.toLowerCase().endsWith(extModifier.value)) {
-						this.detail = tsEntry.name;
-					} else {
-						this.detail = tsEntry.name + extModifier.value;
+			if (tsEntry.kind === PConst.Kind.script) {
+				for (const extModifier of PConst.KindModifiers.fileExtensionKindModifiers) {
+					if (kindModifiers.has(extModifier)) {
+						if (tsEntry.name.toLowerCase().endsWith(extModifier)) {
+							this.detail = tsEntry.name;
+						} else {
+							this.detail = tsEntry.name + extModifier;
+						}
+						break;
 					}
-					break;
 				}
 			}
 		}

@@ -41,25 +41,22 @@ export class DiagnosticCategory {
 	public static readonly suggestion = 'suggestion';
 }
 
-interface KindModifier {
-	readonly pattern: RegExp;
-	readonly value: string;
-}
-
 export class KindModifiers {
-	public static readonly dtsModifier: KindModifier = { pattern: /(^|\s)\.d\.ts($|\s)/i, value: '.d.ts' };
-	public static readonly tsModifier: KindModifier = { pattern: /(^|\s)\.ts($|\s)/i, value: '.ts' };
-	public static readonly tsxModifier: KindModifier = { pattern: /(^|\s)\.tsx($|\s)/i, value: '.tsx' };
-	public static readonly jsModifier: KindModifier = { pattern: /(^|\s)\.js($|\s)/i, value: '.js' };
-	public static readonly jsxModifier: KindModifier = { pattern: /(^|\s)\.jsx($|\s)/i, value: '.jsx' };
-	public static readonly jsonModifier: KindModifier = { pattern: /(^|\s)\.json($|\s)/i, value: '.json' };
+	public static readonly optional = 'optional';
+
+	public static readonly dtsFile = '.d.ts';
+	public static readonly tsFile = '.ts';
+	public static readonly tsxFile = '.tsx';
+	public static readonly jsFile = '.js';
+	public static readonly jsxFile = '.jsx';
+	public static readonly jsonFile = '.json';
 
 	public static readonly fileExtensionKindModifiers = [
-		KindModifiers.dtsModifier,
-		KindModifiers.tsModifier,
-		KindModifiers.tsxModifier,
-		KindModifiers.jsModifier,
-		KindModifiers.jsxModifier,
-		KindModifiers.jsonModifier,
+		KindModifiers.dtsFile,
+		KindModifiers.tsFile,
+		KindModifiers.tsxFile,
+		KindModifiers.jsFile,
+		KindModifiers.jsxFile,
+		KindModifiers.jsonFile,
 	];
 }
