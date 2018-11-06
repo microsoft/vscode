@@ -654,10 +654,14 @@
 		"./vs/workbench/services/part/common/partService.ts",
 		"./vs/workbench/services/scm/common/scm.ts",
 		"./vs/workbench/services/scm/common/scmService.ts",
+		"./vs/workbench/services/search/common/searchHelpers.ts",
+		"./vs/workbench/services/search/node/fileSearchManager.ts",
 		"./vs/workbench/services/search/node/legacy/search.ts",
+		"./vs/workbench/services/search/node/ripgrepSearchUtils.ts",
 		"./vs/workbench/services/search/node/search.ts",
 		"./vs/workbench/services/search/node/searchHistoryService.ts",
 		"./vs/workbench/services/search/node/searchIpc.ts",
+		"./vs/workbench/services/search/node/textSearchManager.ts",
 		"./vs/workbench/services/textMate/electron-browser/TMGrammars.ts",
 		"./vs/workbench/services/textMate/electron-browser/TMHelper.ts",
 		"./vs/workbench/services/textMate/electron-browser/textMateService.ts",
@@ -669,8 +673,6 @@
 		"./vs/workbench/services/title/common/titleService.ts",
 		"./vs/workbench/services/workspace/common/workspaceEditing.ts",
 		"./vs/workbench/test/electron-browser/api/mock.ts",
-		"./vs/workbench/services/search/node/ripgrepSearchUtils.ts",
-		"./vs/workbench/services/search/node/textSearchManager.ts"
 	],
 	"exclude": [
 		"./typings/require-monaco.d.ts",

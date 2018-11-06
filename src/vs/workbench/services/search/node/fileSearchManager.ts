@@ -36,25 +36,23 @@ export interface IDirectoryTree {
 
 
 class FileSearchEngine {
-	private filePattern: string;
-	private includePattern: glob.ParsedExpression;
-	private maxResults: number;
-	private exists: boolean;
-	private isLimitHit: boolean;
-	private resultCount: number;
-	private isCanceled: boolean;
+	private filePattern?: string;
+	private includePattern?: glob.ParsedExpression;
+	private maxResults?: number;
+	private exists?: boolean;
+	private isLimitHit = false;
+	private resultCount = 0;
+	private isCanceled = false;
 
 	private activeCancellationTokens: Set<CancellationTokenSource>;
 
-	private globalExcludePattern: glob.ParsedExpression;
+	private globalExcludePattern?: glob.ParsedExpression;
 
 	constructor(private config: IFileQuery, private provider: vscode.FileSearchProvider) {
 		this.filePattern = config.filePattern;
 		this.includePattern = config.includePattern && glob.parse(config.includePattern);
-		this.maxResults = config.maxResults || null;
+		this.maxResults = config.maxResults || undefined;
 		this.exists = config.exists;
-		this.resultCount = 0;
-		this.isLimitHit = false;
 		this.activeCancellationTokens = new Set<CancellationTokenSource>();
 
 		this.globalExcludePattern = config.excludePattern && glob.parse(config.excludePattern);
@@ -67,7 +65,7 @@ class FileSearchEngine {
 	}
 
 	public search(_onResult: (match: IInternalFileMatch) => void): TPromise<IInternalSearchComplete> {
-		const folderQueries = this.config.folderQueries;
+		const folderQueries = this.config.folderQueries || [];
 
 		return new TPromise((resolve, reject) => {
 			const onResult = (match: IInternalFileMatch) => {
@@ -101,7 +99,7 @@ class FileSearchEngine {
 			})).then(stats => {
 				resolve({
 					limitHit: this.isLimitHit,
-					stats: stats[0] // Only looking at single-folder workspace stats...
+					stats: stats[0] || undefined // Only looking at single-folder workspace stats...
 				});
 			}, (errs: Error[]) => {
 				const errMsg = errs
@@ -113,7 +111,7 @@ class FileSearchEngine {
 		});
 	}
 
-	private searchInFolder(fq: IFolderQuery<URI>, onResult: (match: IInternalFileMatch) => void): TPromise<IFileSearchProviderStats> {
+	private searchInFolder(fq: IFolderQuery<URI>, onResult: (match: IInternalFileMatch) => void): TPromise<IFileSearchProviderStats | null> {
 		let cancellation = new CancellationTokenSource();
 		return new TPromise((resolve, reject) => {
 			const options = this.getSearchOptionsForFolder(fq);
@@ -267,7 +265,7 @@ class FileSearchEngine {
 	}
 
 	private matchFile(onResult: (result: IInternalFileMatch) => void, candidate: IInternalFileMatch): void {
-		if (!this.includePattern || this.includePattern(candidate.relativePath, candidate.basename)) {
+		if (!this.includePattern || (candidate.relativePath && this.includePattern(candidate.relativePath, candidate.basename))) {
 			if (this.exists || (this.maxResults && this.resultCount >= this.maxResults)) {
 				this.isLimitHit = true;
 				this.cancel();
