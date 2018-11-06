@@ -518,7 +518,6 @@ export interface IDebuggerContribution extends IPlatformSpecificAdapterContribut
 
 export interface IDebugConfigurationProvider {
 	readonly type: string;
-	handle: number;
 	resolveDebugConfiguration?(folderUri: uri | undefined, debugConfiguration: IConfig): Promise<IConfig>;
 	provideDebugConfigurations?(folderUri: uri | undefined): Promise<IConfig[]>;
 	provideDebugAdapter?(session: IDebugSession, folderUri: uri | undefined, config: IConfig): Promise<IAdapterDescriptor>;
@@ -570,9 +569,10 @@ export interface IConfigurationManager {
 	onDidSelectConfiguration: Event<void>;
 
 	needsToRunInExtHost(debugType: string): boolean;
+	hasDebugConfigurationProvider(debugType: string): boolean;
 
-	registerDebugConfigurationProvider(handle: number, debugConfigurationProvider: IDebugConfigurationProvider): void;
-	unregisterDebugConfigurationProvider(handle: number): void;
+	registerDebugConfigurationProvider(debugConfigurationProvider: IDebugConfigurationProvider): IDisposable;
+	unregisterDebugConfigurationProvider(debugConfigurationProvider: IDebugConfigurationProvider): void;
 
 	resolveConfigurationByProviders(folderUri: uri | undefined, type: string | undefined, debugConfiguration: any): Thenable<any>;
 	provideDebugAdapter(session: IDebugSession, folderUri: uri | undefined, config: IConfig): Promise<IAdapterDescriptor | undefined>;

@@ -79,29 +79,34 @@ export class ConfigurationManager implements IConfigurationManager {
 		}
 	}
 
-	public registerDebugConfigurationProvider(handle: number, debugConfigurationProvider: IDebugConfigurationProvider): void {
-		if (!debugConfigurationProvider) {
-			return;
-		}
+	public registerDebugConfigurationProvider(debugConfigurationProvider: IDebugConfigurationProvider): IDisposable {
 
-		debugConfigurationProvider.handle = handle;
-		this.providers = this.providers.filter(p => p.handle !== handle);
 		this.providers.push(debugConfigurationProvider);
-		const dbg = this.getDebugger(debugConfigurationProvider.type);
-		// Check if the provider contributes provideDebugConfigurations method
-		if (dbg && debugConfigurationProvider.provideDebugConfigurations) {
-			dbg.hasConfigurationProvider = true;
+
+		return {
+			dispose: () => {
+				this.unregisterDebugConfigurationProvider(debugConfigurationProvider);
+			}
+		};
+	}
+
+	public unregisterDebugConfigurationProvider(debugConfigurationProvider: IDebugConfigurationProvider): void {
+		const ix = this.providers.indexOf(debugConfigurationProvider);
+		if (ix >= 0) {
+			this.providers.splice(ix, 1);
 		}
+	}
+
+	public hasDebugConfigurationProvider(debugType: string): boolean {
+		// check if there are providers for the given type that contribute a provideDebugConfigurations method
+		const providers = this.providers.filter(p => p.provideDebugConfigurations && (p.type === debugType));
+		return providers.length > 0;
 	}
 
 	public needsToRunInExtHost(debugType: string): boolean {
 		// if the given debugType matches any registered provider that has a provideTracker method, we need to run the DA in the EH
 		const providers = this.providers.filter(p => p.hasTracker && (p.type === debugType || p.type === '*'));
 		return providers.length > 0;
-	}
-
-	public unregisterDebugConfigurationProvider(handle: number): void {
-		this.providers = this.providers.filter(p => p.handle !== handle);
 	}
 
 	public resolveConfigurationByProviders(folderUri: uri | undefined, type: string | undefined, debugConfiguration: IConfig): Thenable<IConfig> {
@@ -358,7 +363,7 @@ export class ConfigurationManager implements IConfigurationManager {
 		}
 
 		if (!candidates) {
-			candidates = this.activateDebuggers('onDebugInitialConfigurations').then(() => this.debuggers.filter(a => a.hasInitialConfiguration() || a.hasConfigurationProvider));
+			candidates = this.activateDebuggers('onDebugInitialConfigurations').then(() => this.debuggers.filter(dbg => dbg.hasInitialConfiguration() || dbg.hasConfigurationProvider()));
 		}
 
 		return candidates.then(debuggers => {

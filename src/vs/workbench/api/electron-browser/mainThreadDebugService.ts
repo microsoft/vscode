@@ -25,6 +25,7 @@ export class MainThreadDebugService implements MainThreadDebugServiceShape, IDeb
 	private _breakpointEventsActive: boolean;
 	private _debugAdapters: Map<number, ExtensionHostDebugAdapter>;
 	private _debugAdaptersHandleCounter = 1;
+	private _debugConfigurationProviders: Map<number, IDebugConfigurationProvider>;
 
 	constructor(
 		extHostContext: IExtHostContext,
@@ -46,7 +47,8 @@ export class MainThreadDebugService implements MainThreadDebugServiceShape, IDeb
 			this._proxy.$acceptDebugSessionActiveChanged(this.getSessionDto(session));
 		}));
 
-		this._debugAdapters = new Map<number, ExtensionHostDebugAdapter>();
+		this._debugAdapters = new Map();
+		this._debugConfigurationProviders = new Map();
 	}
 
 	public dispose(): void {
@@ -166,13 +168,18 @@ export class MainThreadDebugService implements MainThreadDebugServiceShape, IDeb
 				return Promise.resolve(this._proxy.$provideDebugAdapter(handle, this.getSessionDto(session), folder, config));
 			};
 		}
-		this.debugService.getConfigurationManager().registerDebugConfigurationProvider(handle, provider);
+		this._debugConfigurationProviders.set(handle, provider);
+		this._toDispose.push(this.debugService.getConfigurationManager().registerDebugConfigurationProvider(provider));
 
 		return Promise.resolve(undefined);
 	}
 
 	public $unregisterDebugConfigurationProvider(handle: number): Thenable<void> {
-		this.debugService.getConfigurationManager().unregisterDebugConfigurationProvider(handle);
+		const provider = this._debugConfigurationProviders.get(handle);
+		if (provider) {
+			this._debugConfigurationProviders.delete(handle);
+			this.debugService.getConfigurationManager().unregisterDebugConfigurationProvider(provider);
+		}
 		return TPromise.wrap<void>(undefined);
 	}
 

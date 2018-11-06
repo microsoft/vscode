@@ -40,7 +40,6 @@ export class Debugger implements IDebugger {
 		this.mergedExtensionDescriptions = [extensionDescription];
 	}
 
-	public hasConfigurationProvider = false;
 
 	public createDebugAdapter(session: IDebugSession, root: IWorkspaceFolder, config: IConfig, outputService: IOutputService): Promise<IDebugAdapter> {
 		if (this.inExtHost()) {
@@ -147,6 +146,10 @@ export class Debugger implements IDebugger {
 
 	public hasInitialConfiguration(): boolean {
 		return !!this.debuggerContribution.initialConfigurations;
+	}
+
+	public hasConfigurationProvider() {
+		this.configurationManager.hasDebugConfigurationProvider(this.type);
 	}
 
 	public getInitialConfigurationContent(initialConfigs?: IConfig[]): Promise<string> {
