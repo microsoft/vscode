@@ -118,12 +118,12 @@ function prepareRpmPackage(arch) {
 		const desktopUrlHandler = gulp.src('resources/linux/code-url-handler.desktop', { base: '.' })
 			.pipe(rename('BUILD/usr/share/applications/' + product.applicationName + '-url-handler.desktop'));
 
-			const desktops = es.merge(desktop, desktopUrlHandler)
-				.pipe(replace('@@NAME_LONG@@', product.nameLong))
-				.pipe(replace('@@NAME_SHORT@@', product.nameShort))
-				.pipe(replace('@@NAME@@', product.applicationName))
-				.pipe(replace('@@ICON@@', product.applicationName))
-				.pipe(replace('@@URLPROTOCOL@@', product.urlProtocol));
+		const desktops = es.merge(desktop, desktopUrlHandler)
+			.pipe(replace('@@NAME_LONG@@', product.nameLong))
+			.pipe(replace('@@NAME_SHORT@@', product.nameShort))
+			.pipe(replace('@@NAME@@', product.applicationName))
+			.pipe(replace('@@ICON@@', product.applicationName))
+			.pipe(replace('@@URLPROTOCOL@@', product.urlProtocol));
 
 		const appdata = gulp.src('resources/linux/code.appdata.xml', { base: '.' })
 			.pipe(replace('@@NAME_LONG@@', product.nameLong))
@@ -217,7 +217,6 @@ function buildSnapPackage(arch) {
 	const snapBuildPath = getSnapBuildPath(arch);
 	const snapFilename = `${product.applicationName}-${packageJson.version}-${linuxPackageRevision}-${arch}.snap`;
 	return shell.task([
-		`chmod a+x ${snapBuildPath}/electron-launch ${snapBuildPath}/usr/share/${product.applicationName}/snapUpdate.sh`,
 		`snapcraft --version`,
 		`cd ${snapBuildPath} && snapcraft snap --output ../${snapFilename}`
 	]);
