@@ -10,7 +10,6 @@ import { toErrorMessage } from 'vs/base/common/errorMessage';
 import * as glob from 'vs/base/common/glob';
 import * as resources from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
-import { TPromise } from 'vs/base/common/winjs.base';
 import { toCanonicalName } from 'vs/base/node/encoding';
 import * as extfs from 'vs/base/node/extfs';
 import { IExtendedExtensionSearchOptions, IFileMatch, IFolderQuery, IPatternInfo, ISearchCompleteStats, ITextQuery, ITextSearchMatch, ITextSearchContext, ITextSearchResult } from 'vs/platform/search/common/search';
@@ -27,12 +26,12 @@ export class TextSearchManager {
 	constructor(private query: ITextQuery, private provider: vscode.TextSearchProvider, private _extfs: typeof extfs = extfs) {
 	}
 
-	public search(onProgress: (matches: IFileMatch[]) => void, token: CancellationToken): TPromise<ISearchCompleteStats> {
+	public search(onProgress: (matches: IFileMatch[]) => void, token: CancellationToken): Promise<ISearchCompleteStats> {
 		const folderQueries = this.query.folderQueries || [];
 		const tokenSource = new CancellationTokenSource();
 		token.onCancellationRequested(() => tokenSource.cancel());
 
-		return new TPromise<ISearchCompleteStats>((resolve, reject) => {
+		return new Promise<ISearchCompleteStats>((resolve, reject) => {
 			this.collector = new TextSearchResultsCollector(onProgress);
 
 			let isCanceled = false;
@@ -54,7 +53,7 @@ export class TextSearchManager {
 			};
 
 			// For each root folder
-			TPromise.join(folderQueries.map((fq, i) => {
+			Promise.all(folderQueries.map((fq, i) => {
 				return this.searchInFolder(fq, r => onResult(r, i), tokenSource.token);
 			})).then(results => {
 				tokenSource.dispose();
@@ -78,9 +77,9 @@ export class TextSearchManager {
 		});
 	}
 
-	private searchInFolder(folderQuery: IFolderQuery<URI>, onResult: (result: vscode.TextSearchResult) => void, token: CancellationToken): TPromise<vscode.TextSearchComplete | null | undefined> {
+	private searchInFolder(folderQuery: IFolderQuery<URI>, onResult: (result: vscode.TextSearchResult) => void, token: CancellationToken): Promise<vscode.TextSearchComplete | null | undefined> {
 		const queryTester = new QueryGlobTester(this.query, folderQuery);
-		const testingPs: TPromise<void>[] = [];
+		const testingPs: Promise<void>[] = [];
 		const progress = {
 			report: (result: vscode.TextSearchResult) => {
 				// TODO: validate result.ranges vs result.preview.matches
@@ -103,16 +102,16 @@ export class TextSearchManager {
 		};
 
 		const searchOptions = this.getSearchOptionsForFolder(folderQuery);
-		return new TPromise(resolve => process.nextTick(resolve))
+		return new Promise(resolve => process.nextTick(resolve))
 			.then(() => this.provider.provideTextSearchResults(patternInfoToQuery(this.query.contentPattern), searchOptions, progress, token))
 			.then(result => {
-				return TPromise.join(testingPs)
+				return Promise.all(testingPs)
 					.then(() => result);
 			});
 	}
 
-	private readdir(dirname: string): TPromise<string[]> {
-		return new TPromise((resolve, reject) => {
+	private readdir(dirname: string): Promise<string[]> {
+		return new Promise((resolve, reject) => {
 			this._extfs.readdir(dirname, (err, files) => {
 				if (err) {
 					return reject(err);

@@ -377,9 +377,9 @@ export class SearchService implements IRawSearchService {
 		});
 	}
 
-	public clearCache(cacheKey: string): TPromise<void> {
+	public clearCache(cacheKey: string): Promise<void> {
 		delete this.caches[cacheKey];
-		return TPromise.as(undefined);
+		return Promise.resolve(undefined);
 	}
 
 	/**
