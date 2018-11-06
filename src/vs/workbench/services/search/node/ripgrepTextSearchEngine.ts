@@ -257,7 +257,7 @@ export class RipgrepParser extends EventEmitter {
 		})
 			.filter(r => !!r);
 
-		return createTextSearchResult(uri, fullText, ranges, this.previewOptions);
+		return createTextSearchResult(uri, fullText, <Range[]>ranges, this.previewOptions);
 	}
 
 	private createTextSearchContext(data: IRgMatch, uri: URI): vscode.TextSearchContext[] {

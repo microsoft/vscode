@@ -12,7 +12,7 @@ import * as vscode from 'vscode';
 
 suite('TextSearchManager', () => {
 	test('fixes encoding', async () => {
-		let correctEncoding: boolean;
+		let correctEncoding = false;
 		const provider: vscode.TextSearchProvider = {
 			provideTextSearchResults(query: vscode.TextSearchQuery, options: vscode.TextSearchOptions, progress: vscode.Progress<vscode.TextSearchResult>, token: vscode.CancellationToken): vscode.ProviderResult<vscode.TextSearchComplete> {
 				correctEncoding = options.encoding === 'windows-1252';
