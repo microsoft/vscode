@@ -86,6 +86,19 @@ class MyCompletionItem extends vscode.CompletionItem {
 			}
 			this.label += '?';
 		}
+
+		if (tsEntry.kind === PConst.Kind.script && tsEntry.kindModifiers) {
+			for (const extModifier of PConst.KindModifiers.fileExtensionKindModifiers) {
+				if (tsEntry.kindModifiers.match(extModifier.pattern)) {
+					if (tsEntry.name.toLowerCase().endsWith(extModifier.value)) {
+						this.detail = tsEntry.name;
+					} else {
+						this.detail = tsEntry.name + extModifier.value;
+					}
+					break;
+				}
+			}
+		}
 		this.resolveRange(line);
 	}
 
@@ -400,19 +413,16 @@ class TypeScriptCompletionItemProvider implements vscode.CompletionItemProvider 
 			]
 		};
 
-		let details: Proto.CompletionEntryDetails[] | undefined;
 		const response = await this.client.execute('completionEntryDetails', args, token);
-		if (response.type !== 'response') {
+		if (response.type !== 'response' || !response.body) {
 			return item;
 		}
-		const { body } = response;
-		details = body;
 
-		if (!details || !details.length || !details[0]) {
-			return item;
+		const detail = response.body[0];
+
+		if (!item.detail && detail.displayParts.length) {
+			item.detail = Previewer.plain(detail.displayParts);
 		}
-		const detail = details[0];
-		item.detail = detail.displayParts.length ? Previewer.plain(detail.displayParts) : undefined;
 		item.documentation = this.getDocumentation(detail, item);
 
 		const codeAction = this.getCodeActions(detail, filepath);

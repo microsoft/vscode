@@ -40,3 +40,26 @@ export class DiagnosticCategory {
 	public static readonly warning = 'warning';
 	public static readonly suggestion = 'suggestion';
 }
+
+interface KindModifier {
+	readonly pattern: RegExp;
+	readonly value: string;
+}
+
+export class KindModifiers {
+	public static readonly dtsModifier: KindModifier = { pattern: /(^|\s)\.d\.ts($|\s)/i, value: '.d.ts' };
+	public static readonly tsModifier: KindModifier = { pattern: /(^|\s)\.ts($|\s)/i, value: '.ts' };
+	public static readonly tsxModifier: KindModifier = { pattern: /(^|\s)\.tsx($|\s)/i, value: '.tsx' };
+	public static readonly jsModifier: KindModifier = { pattern: /(^|\s)\.js($|\s)/i, value: '.js' };
+	public static readonly jsxModifier: KindModifier = { pattern: /(^|\s)\.jsx($|\s)/i, value: '.jsx' };
+	public static readonly jsonModifier: KindModifier = { pattern: /(^|\s)\.json($|\s)/i, value: '.json' };
+
+	public static readonly fileExtensionKindModifiers = [
+		KindModifiers.dtsModifier,
+		KindModifiers.tsModifier,
+		KindModifiers.tsxModifier,
+		KindModifiers.jsModifier,
+		KindModifiers.jsxModifier,
+		KindModifiers.jsonModifier,
+	];
+}
