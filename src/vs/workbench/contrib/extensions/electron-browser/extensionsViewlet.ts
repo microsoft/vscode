@@ -461,7 +461,6 @@ export class ExtensionsViewlet extends ViewContainerViewlet implements IExtensio
 	protected onDidAddViews(added: IAddedViewDescriptorRef[]): ViewletPanel[] {
 		const addedViews = super.onDidAddViews(added);
 
-		this.searchPromise.cancel();
 		this.searchPromise = createCancelablePromise(token => {
 			return this.progress(Promise.all(addedViews.map(addedView => {
 				return (<ExtensionsListView>addedView).show(this.normalizedQuery(), token).then(model => {
