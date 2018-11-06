@@ -1,3 +1,31 @@
 steps:
+- task: NodeTool@0
+  inputs:
+    versionSpec: "8.12.0"
+
+- task: geeklearningio.gl-vsts-tasks-yarn.yarn-installer-task.YarnInstaller@2
+  inputs:
+    versionSpec: "1.10.1"
+
 - script: |
-    echo hello from the snap build
+    set -e
+    export npm_config_arch="$(VSCODE_ARCH)"
+    if [[ "$(VSCODE_ARCH)" == "ia32" ]]; then
+      export PKG_CONFIG_PATH="/usr/lib/i386-linux-gnu/pkgconfig"
+    fi
+
+    echo "machine monacotools.visualstudio.com password $(VSO_PAT)" > ~/.netrc
+    CHILD_CONCURRENCY=1 yarn
+    npm run gulp -- hygiene
+    npm run monaco-compile-check
+    npm run strict-null-check
+    VSCODE_MIXIN_PASSWORD="$(VSCODE_MIXIN_PASSWORD)" npm run gulp -- mixin
+    node build/tfs/common/installDistro.js
+    node build/lib/builtInExtensions.js
+
+    # SNAP
+    curl https://az764295.vo.msecnd.net/insider/1d0e4299c6ccfe9210252c811b4247cfdc8a6a44/code-insider-1541501316.tar.gz > $TMPDIR/code.tar.gz
+    tar xvzf $TMPDIR/code.tar.gz -C ../VSCode-linux-x64
+    npm run gulp -- vscode-linux-x64-build-snap
+    cd .build/linux/snap/x64/code-oss-x64
+    snapcraft
