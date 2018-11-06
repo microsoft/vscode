@@ -265,6 +265,11 @@ async function publish(commit: string, quality: string, platform: string, type: 
 }
 
 function main(): void {
+	if (process.env['VSCODE_BUILD_SKIP_PUBLISH']) {
+		console.warn('Skipping publish due to VSCODE_BUILD_SKIP_PUBLISH');
+		return;
+	}
+
 	const opts = minimist<PublishOptions>(process.argv.slice(2), {
 		boolean: ['upload-only']
 	});

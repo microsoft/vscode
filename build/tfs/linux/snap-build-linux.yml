@@ -1,0 +1,3 @@
+steps:
+- script: |
+    echo hello from the snap build

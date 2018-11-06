@@ -34,6 +34,16 @@ jobs:
   steps:
   - template: linux/product-build-linux.yml
 
+- job: LinuxSnap
+  condition: eq(variables['VSCODE_BUILD_LINUX'], 'true')
+  pool:
+    vmImage: 'Ubuntu-16.04'
+  variables:
+    VSCODE_ARCH: x64
+  dependsOn: Linux
+  steps:
+  - template: linux/snap-build-linux.yml
+
 - job: Linux32
   condition: eq(variables['VSCODE_BUILD_LINUX_32BIT'], 'true')
   pool:
