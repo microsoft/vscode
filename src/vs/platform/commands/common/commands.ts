@@ -6,7 +6,7 @@
 import { IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { TypeConstraint, validateConstraints } from 'vs/base/common/types';
 import { ServicesAccessor, createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { Event } from 'vs/base/common/event';
+import { Event, Emitter } from 'vs/base/common/event';
 import { LinkedList } from 'vs/base/common/linkedList';
 
 export const ICommandService = createDecorator<ICommandService>('commandService');
@@ -42,6 +42,7 @@ export interface ICommandHandlerDescription {
 }
 
 export interface ICommandRegistry {
+	onDidRegisterCommand: Event<string>;
 	registerCommand(id: string, command: ICommandHandler): IDisposable;
 	registerCommand(command: ICommand): IDisposable;
 	registerCommandAlias(oldId: string, newId: string): IDisposable;
@@ -51,7 +52,10 @@ export interface ICommandRegistry {
 
 export const CommandsRegistry: ICommandRegistry = new class implements ICommandRegistry {
 
-	private _commands = new Map<string, LinkedList<ICommand>>();
+	private readonly _commands = new Map<string, LinkedList<ICommand>>();
+
+	private readonly _onDidRegisterCommand = new Emitter<string>();
+	readonly onDidRegisterCommand: Event<string> = this._onDidRegisterCommand.event;
 
 	registerCommand(idOrCommand: string | ICommand, handler?: ICommandHandler): IDisposable {
 
@@ -90,12 +94,17 @@ export const CommandsRegistry: ICommandRegistry = new class implements ICommandR
 
 		let removeFn = commands.unshift(idOrCommand);
 
-		return toDisposable(() => {
+		let ret = toDisposable(() => {
 			removeFn();
 			if (this._commands.get(id).isEmpty()) {
 				this._commands.delete(id);
 			}
 		});
+
+		// tell the world about this command
+		this._onDidRegisterCommand.fire(id);
+
+		return ret;
 	}
 
 	registerCommandAlias(oldId: string, newId: string): IDisposable {

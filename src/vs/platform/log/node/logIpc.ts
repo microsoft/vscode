@@ -29,14 +29,15 @@ export class LogLevelSetterChannel implements ILogLevelSetterChannel {
 			case 'onDidChangeLogLevel': return this.onDidChangeLogLevel;
 		}
 
-		throw new Error('No event found');
+		throw new Error(`Event not found: ${event}`);
 	}
 
 	call(command: string, arg?: any): TPromise<any> {
 		switch (command) {
 			case 'setLevel': this.service.setLevel(arg); return TPromise.as(null);
 		}
-		return undefined;
+
+		throw new Error(`Call not found: ${command}`);
 	}
 }
 

@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { TPromise } from 'vs/base/common/winjs.base';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IOutputService, IOutputChannel, OUTPUT_PANEL_ID, Extensions, IOutputChannelRegistry } from 'vs/workbench/parts/output/common/output';
 import { IPartService } from 'vs/workbench/services/part/common/partService';
@@ -50,7 +49,7 @@ export class MainThreadOutputService extends Disposable implements MainThreadOut
 		const id = 'extension-output-#' + (MainThreadOutputService._idPool++);
 		Registry.as<IOutputChannelRegistry>(Extensions.OutputChannels).registerChannel({ id, label, file: file ? URI.revive(file) : null, log });
 		this._register(toDisposable(() => this.$dispose(id)));
-		return TPromise.as(id);
+		return Promise.resolve(id);
 	}
 
 	public $append(channelId: string, value: string): Thenable<void> {

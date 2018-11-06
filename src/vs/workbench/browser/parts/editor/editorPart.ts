@@ -877,7 +877,7 @@ export class EditorPart extends Part implements EditorGroupsServiceImpl, IEditor
 		// Create new
 		const groupViews: IEditorGroupView[] = [];
 		const gridWidget = SerializableGrid.deserialize(serializedGrid, {
-			fromJSON: (serializedEditorGroup: ISerializedEditorGroup) => {
+			fromJSON: (serializedEditorGroup: ISerializedEditorGroup | null) => {
 				let groupView: IEditorGroupView;
 				if (reuseGroupViews.length > 0) {
 					groupView = reuseGroupViews.shift();

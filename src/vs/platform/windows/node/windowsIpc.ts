@@ -29,12 +29,12 @@ export interface IWindowsChannel extends IChannel {
 	call(command: 'showMessageBox', arg: [number, MessageBoxOptions]): Thenable<IMessageBoxResult>;
 	call(command: 'showSaveDialog', arg: [number, SaveDialogOptions]): Thenable<string>;
 	call(command: 'showOpenDialog', arg: [number, OpenDialogOptions]): Thenable<string[]>;
-	call(command: 'reloadWindow', arg: [number, ParsedArgs]): Thenable<void>;
-	call(command: 'openDevTools', arg: [number, IDevToolsOptions]): Thenable<void>;
+	call(command: 'reloadWindow', arg: [number, ParsedArgs | undefined]): Thenable<void>;
+	call(command: 'openDevTools', arg: [number, IDevToolsOptions | undefined]): Thenable<void>;
 	call(command: 'toggleDevTools', arg: number): Thenable<void>;
 	call(command: 'closeWorkspace', arg: number): Thenable<void>;
 	call(command: 'enterWorkspace', arg: [number, string]): Thenable<IEnterWorkspaceResult>;
-	call(command: 'createAndEnterWorkspace', arg: [number, IWorkspaceFolderCreationData[], string]): Thenable<IEnterWorkspaceResult>;
+	call(command: 'createAndEnterWorkspace', arg: [number, IWorkspaceFolderCreationData[] | undefined, string | undefined]): Thenable<IEnterWorkspaceResult>;
 	call(command: 'saveAndEnterWorkspace', arg: [number, string]): Thenable<IEnterWorkspaceResult>;
 	call(command: 'toggleFullScreen', arg: number): Thenable<void>;
 	call(command: 'setRepresentedFilename', arg: [number, string]): Thenable<void>;
@@ -59,8 +59,8 @@ export interface IWindowsChannel extends IChannel {
 	call(command: 'onWindowTitleDoubleClick', arg: number): Thenable<void>;
 	call(command: 'setDocumentEdited', arg: [number, boolean]): Thenable<void>;
 	call(command: 'quit'): Thenable<void>;
-	call(command: 'openWindow', arg: [number, URI[], { forceNewWindow?: boolean, forceReuseWindow?: boolean, forceOpenWorkspaceAsFile?: boolean, args?: ParsedArgs }]): Thenable<void>;
-	call(command: 'openNewWindow', arg: INewWindowOptions): Thenable<void>;
+	call(command: 'openWindow', arg: [number, URI[], { forceNewWindow?: boolean, forceReuseWindow?: boolean, forceOpenWorkspaceAsFile?: boolean, args?: ParsedArgs } | undefined]): Thenable<void>;
+	call(command: 'openNewWindow', arg?: INewWindowOptions): Thenable<void>;
 	call(command: 'showWindow', arg: number): Thenable<void>;
 	call(command: 'getWindows'): Thenable<{ id: number; workspace?: IWorkspaceIdentifier; folderUri?: ISingleFolderWorkspaceIdentifier; title: string; filename?: string; }[]>;
 	call(command: 'getWindowCount'): Thenable<number>;
@@ -104,7 +104,7 @@ export class WindowsChannel implements IWindowsChannel {
 			case 'onRecentlyOpenedChange': return this.onRecentlyOpenedChange;
 		}
 
-		throw new Error('No event found');
+		throw new Error(`Event not found: ${event}`);
 	}
 
 	call(command: string, arg?: any): Thenable<any> {
@@ -123,7 +123,7 @@ export class WindowsChannel implements IWindowsChannel {
 			case 'enterWorkspace': return this.service.enterWorkspace(arg[0], arg[1]);
 			case 'createAndEnterWorkspace': {
 				const rawFolders: IWorkspaceFolderCreationData[] = arg[1];
-				let folders: IWorkspaceFolderCreationData[];
+				let folders: IWorkspaceFolderCreationData[] | undefined = undefined;
 				if (Array.isArray(rawFolders)) {
 					folders = rawFolders.map(rawFolder => {
 						return {
@@ -181,7 +181,8 @@ export class WindowsChannel implements IWindowsChannel {
 			case 'openAboutDialog': return this.service.openAboutDialog();
 			case 'resolveProxy': return this.service.resolveProxy(arg[0], arg[1]);
 		}
-		return undefined;
+
+		throw new Error(`Call not found: ${command}`);
 	}
 }
 

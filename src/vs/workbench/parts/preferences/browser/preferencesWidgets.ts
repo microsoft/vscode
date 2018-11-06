@@ -646,7 +646,7 @@ export class SearchWidget extends Widget {
 		return box;
 	}
 
-	public showMessage(message: string, count: number): void {
+	public showMessage(message: string): void {
 		// Avoid setting the aria-label unnecessarily, the screenreader will read the count every time it's set, since it's aria-live:assertive. #50968
 		if (this.countElement && message !== this.countElement.textContent) {
 			this.countElement.textContent = message;

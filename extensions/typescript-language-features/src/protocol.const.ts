@@ -40,3 +40,23 @@ export class DiagnosticCategory {
 	public static readonly warning = 'warning';
 	public static readonly suggestion = 'suggestion';
 }
+
+export class KindModifiers {
+	public static readonly optional = 'optional';
+
+	public static readonly dtsFile = '.d.ts';
+	public static readonly tsFile = '.ts';
+	public static readonly tsxFile = '.tsx';
+	public static readonly jsFile = '.js';
+	public static readonly jsxFile = '.jsx';
+	public static readonly jsonFile = '.json';
+
+	public static readonly fileExtensionKindModifiers = [
+		KindModifiers.dtsFile,
+		KindModifiers.tsFile,
+		KindModifiers.tsxFile,
+		KindModifiers.jsFile,
+		KindModifiers.jsxFile,
+		KindModifiers.jsonFile,
+	];
+}

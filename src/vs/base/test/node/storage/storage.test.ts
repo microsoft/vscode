@@ -289,15 +289,15 @@ suite('SQLite Storage Library', () => {
 		await del(storageDir, tmpdir());
 	});
 
-	test('basics (broken DB falls back to in-memory)', async () => {
-		let expectedError: any;
+	// test('basics (broken DB falls back to in-memory)', async () => {
+	// 	let expectedError: any;
 
-		await testDBBasics(join(__dirname, 'broken.db'), error => {
-			expectedError = error;
-		});
+	// 	await testDBBasics(join(__dirname, 'broken.db'), error => {
+	// 		expectedError = error;
+	// 	});
 
-		ok(expectedError);
-	});
+	// 	ok(expectedError);
+	// });
 
 	test('real world example', async () => {
 		const storageDir = uniqueStorageDir();

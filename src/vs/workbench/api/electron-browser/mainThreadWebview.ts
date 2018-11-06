@@ -5,7 +5,6 @@
 import { dispose, IDisposable } from 'vs/base/common/lifecycle';
 import * as map from 'vs/base/common/map';
 import { URI, UriComponents } from 'vs/base/common/uri';
-import { TPromise } from 'vs/base/common/winjs.base';
 import { localize } from 'vs/nls';
 import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
@@ -142,7 +141,7 @@ export class MainThreadWebviews implements MainThreadWebviewsShape, WebviewReviv
 			editor.sendMessage(message);
 		}
 
-		return TPromise.as(editors.length > 0);
+		return Promise.resolve(editors.length > 0);
 	}
 
 	public $registerSerializer(viewType: string): void {
@@ -153,9 +152,9 @@ export class MainThreadWebviews implements MainThreadWebviewsShape, WebviewReviv
 		this._revivers.delete(viewType);
 	}
 
-	public reviveWebview(webview: WebviewEditorInput): TPromise<void> {
+	public reviveWebview(webview: WebviewEditorInput): Promise<void> {
 		const viewType = webview.state.viewType;
-		return this._extensionService.activateByEvent(`onWebviewPanel:${viewType}`).then(() => {
+		return Promise.resolve(this._extensionService.activateByEvent(`onWebviewPanel:${viewType}`).then(() => {
 			const handle = 'revival-' + MainThreadWebviews.revivalPool++;
 			this._webviews.set(handle, webview);
 			webview._events = this.createWebviewEventDelegate(handle);
@@ -173,7 +172,7 @@ export class MainThreadWebviews implements MainThreadWebviewsShape, WebviewReviv
 				.then(undefined, () => {
 					webview.html = MainThreadWebviews.getDeserializationFailedContents(viewType);
 				});
-		});
+		}));
 	}
 
 	public canRevive(webview: WebviewEditorInput): boolean {
@@ -184,14 +183,13 @@ export class MainThreadWebviews implements MainThreadWebviewsShape, WebviewReviv
 		return this._revivers.has(webview.state.viewType) || !!webview.reviver;
 	}
 
-	private _onWillShutdown(): TPromise<boolean> {
+	private _onWillShutdown(): boolean {
 		this._webviews.forEach((view) => {
 			if (this.canRevive(view)) {
 				view.state.state = view.webviewState;
 			}
 		});
-
-		return TPromise.as(false); // Don't veto shutdown
+		return false; // Don't veto shutdown
 	}
 
 	private createWebviewEventDelegate(handle: WebviewPanelHandle) {

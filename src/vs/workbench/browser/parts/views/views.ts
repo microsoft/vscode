@@ -546,7 +546,7 @@ export class ViewsService extends Disposable implements IViewsService {
 		if (viewDescriptor) {
 			const viewletDescriptor = this.viewletService.getViewlet(viewDescriptor.container.id);
 			if (viewletDescriptor) {
-				return this.viewletService.openViewlet(viewletDescriptor.id)
+				return this.viewletService.openViewlet(viewletDescriptor.id, focus)
 					.then((viewlet: IViewsViewlet) => {
 						if (viewlet && viewlet.openView) {
 							return viewlet.openView(id, focus);

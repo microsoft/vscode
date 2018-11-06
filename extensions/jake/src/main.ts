@@ -81,7 +81,7 @@ class FolderDetector {
 	}
 
 	public start(): void {
-		let pattern = path.join(this._workspaceFolder.uri.fsPath, '{Jakefile,Jakefile.js}');
+		let pattern = path.join(this._workspaceFolder.uri.fsPath, '{node_modules,Jakefile,Jakefile.js}');
 		this.fileWatcher = vscode.workspace.createFileSystemWatcher(pattern);
 		this.fileWatcher.onDidChange(() => this.promise = undefined);
 		this.fileWatcher.onDidCreate(() => this.promise = undefined);

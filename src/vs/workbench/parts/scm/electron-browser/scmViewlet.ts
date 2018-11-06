@@ -1487,7 +1487,9 @@ export class SCMViewlet extends PanelViewlet implements IViewModel, IViewsViewle
 		}
 		panel = this.panels.filter(panel => panel instanceof ViewletPanel && panel.id === id)[0];
 		panel.setExpanded(true);
-		panel.focus();
+		if (focus) {
+			panel.focus();
+		}
 		return TPromise.as(panel);
 	}
 

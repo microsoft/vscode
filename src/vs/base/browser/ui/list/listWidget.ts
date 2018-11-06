@@ -180,7 +180,6 @@ class Trait<T> implements ISpliceable<boolean>, IDisposable {
 	}
 
 	dispose() {
-		this.indexes = null;
 		this._onChange = dispose(this._onChange);
 	}
 }
@@ -224,8 +223,9 @@ class TraitSpliceable<T> implements ISpliceable<T> {
 			return this.trait.splice(start, deleteCount, elements.map(e => false));
 		}
 
-		const pastElementsWithTrait = this.trait.get().map(i => this.getId(this.view.element(i)));
-		const elementsWithTrait = elements.map(e => pastElementsWithTrait.indexOf(this.getId(e)) > -1);
+		const getId = this.getId;
+		const pastElementsWithTrait = this.trait.get().map(i => getId(this.view.element(i)));
+		const elementsWithTrait = elements.map(e => pastElementsWithTrait.indexOf(getId(e)) > -1);
 
 		this.trait.splice(start, deleteCount, elementsWithTrait);
 	}
@@ -357,6 +357,11 @@ class DOMFocusController<T> implements IDisposable {
 		}
 
 		const focusedDomElement = this.view.domElement(focus[0]);
+
+		if (!focusedDomElement) {
+			return;
+		}
+
 		const tabIndexElement = focusedDomElement.querySelector('[tabIndex]');
 
 		if (!tabIndexElement || !(tabIndexElement instanceof HTMLElement) || tabIndexElement.tabIndex === -1) {
@@ -421,7 +426,7 @@ class MouseController<T> implements IDisposable {
 			.map(event => {
 				const index = this.list.getFocus()[0];
 				const element = this.view.element(index);
-				const anchor = this.view.domElement(index);
+				const anchor = this.view.domElement(index) || undefined;
 				return { index, element, anchor, browserEvent: event.browserEvent };
 			})
 			.event;
@@ -436,7 +441,7 @@ class MouseController<T> implements IDisposable {
 			.map(browserEvent => {
 				const index = this.list.getFocus()[0];
 				const element = this.view.element(index);
-				const anchor = this.view.domElement(index);
+				const anchor = this.view.domElement(index) || undefined;
 				return { index, element, anchor, browserEvent };
 			})
 			.filter(({ anchor }) => !!anchor)
@@ -974,10 +979,7 @@ export class List<T> implements ISpliceable<T>, IDisposable {
 
 		this.styleElement = DOM.createStyleSheet(this.view.domNode);
 
-		this.styleController = options.styleController;
-		if (!this.styleController) {
-			this.styleController = new DefaultStyleController(this.styleElement, this.idPrefix);
-		}
+		this.styleController = options.styleController || new DefaultStyleController(this.styleElement, this.idPrefix);
 
 		this.spliceable = new CombinedSpliceable([
 			new TraitSpliceable(this.focus, this.view, options.identityProvider),
@@ -987,8 +989,8 @@ export class List<T> implements ISpliceable<T>, IDisposable {
 
 		this.disposables = [this.focus, this.selection, this.view, this._onDidDispose];
 
-		this.onDidFocus = mapEvent(domEvent(this.view.domNode, 'focus', true), () => null);
-		this.onDidBlur = mapEvent(domEvent(this.view.domNode, 'blur', true), () => null);
+		this.onDidFocus = mapEvent(domEvent(this.view.domNode, 'focus', true), () => null!);
+		this.onDidBlur = mapEvent(domEvent(this.view.domNode, 'blur', true), () => null!);
 
 		this.disposables.push(new DOMFocusController(this, this.view));
 

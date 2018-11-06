@@ -29,7 +29,8 @@ export default class LanguageProvider extends Disposable {
 		private readonly commandManager: CommandManager,
 		private readonly telemetryReporter: TelemetryReporter,
 		private readonly typingsStatus: TypingsStatus,
-		private readonly fileConfigurationManager: FileConfigurationManager
+		private readonly fileConfigurationManager: FileConfigurationManager,
+		private readonly onCompletionAccepted: (item: vscode.CompletionItem) => void,
 	) {
 		super();
 		vscode.workspace.onDidChangeConfiguration(this.configurationChanged, this, this._disposables);
@@ -57,7 +58,7 @@ export default class LanguageProvider extends Disposable {
 
 		const cachedResponse = new CachedNavTreeResponse();
 
-		this._register((await import('./features/completions')).register(selector, this.description.id, this.client, this.typingsStatus, this.fileConfigurationManager, this.commandManager));
+		this._register((await import('./features/completions')).register(selector, this.description.id, this.client, this.typingsStatus, this.fileConfigurationManager, this.commandManager, this.onCompletionAccepted));
 		this._register((await import('./features/definitions')).register(selector, this.client));
 		this._register((await import('./features/directiveCommentCompletions')).register(selector, this.client));
 		this._register((await import('./features/documentHighlight')).register(selector, this.client));

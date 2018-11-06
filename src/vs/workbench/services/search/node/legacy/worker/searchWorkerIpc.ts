@@ -51,7 +51,7 @@ export class SearchWorkerChannel implements ISearchWorkerChannel {
 			case 'search': return this.worker.search(arg);
 			case 'cancel': return this.worker.cancel();
 		}
-		return undefined;
+		throw new Error(`Call not found: ${command}`);
 	}
 }
 

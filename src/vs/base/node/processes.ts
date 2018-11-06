@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as path from 'path';
+import * as fs from 'fs';
 import * as cp from 'child_process';
 import * as nls from 'vs/nls';
 import { TPromise, TValueCallback, ErrorCallback } from 'vs/base/common/winjs.base';
@@ -399,4 +400,52 @@ export function createQueuedSender(childProcess: cp.ChildProcess): IQueuedSender
 	};
 
 	return { send };
+}
+
+export namespace win32 {
+	export function findExecutable(command: string, cwd?: string, paths?: string[]): string {
+		// If we have an absolute path then we take it.
+		if (path.isAbsolute(command)) {
+			return command;
+		}
+		if (cwd === void 0) {
+			cwd = process.cwd();
+		}
+		let dir = path.dirname(command);
+		if (dir !== '.') {
+			// We have a directory and the directory is relative (see above). Make the path absolute
+			// to the current working directory.
+			return path.join(cwd, command);
+		}
+		if (paths === void 0 && Types.isString(process.env.PATH)) {
+			paths = process.env.PATH.split(path.delimiter);
+		}
+		// No PATH environment. Make path absolute to the cwd.
+		if (paths === void 0 || paths.length === 0) {
+			return path.join(cwd, command);
+		}
+		// We have a simple file name. We get the path variable from the env
+		// and try to find the executable on the path.
+		for (let pathEntry of paths) {
+			// The path entry is absolute.
+			let fullPath: string;
+			if (path.isAbsolute(pathEntry)) {
+				fullPath = path.join(pathEntry, command);
+			} else {
+				fullPath = path.join(cwd, pathEntry, command);
+			}
+			if (fs.existsSync(fullPath)) {
+				return fullPath;
+			}
+			let withExtension = fullPath + '.com';
+			if (fs.existsSync(withExtension)) {
+				return withExtension;
+			}
+			withExtension = fullPath + '.exe';
+			if (fs.existsSync(withExtension)) {
+				return withExtension;
+			}
+		}
+		return path.join(cwd, command);
+	}
 }

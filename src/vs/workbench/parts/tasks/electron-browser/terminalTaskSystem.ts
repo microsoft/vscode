@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as fs from 'fs';
 import * as path from 'path';
 
 import * as nls from 'vs/nls';
@@ -18,6 +17,8 @@ import Severity from 'vs/base/common/severity';
 import { Event, Emitter } from 'vs/base/common/event';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import * as TPath from 'vs/base/common/paths';
+
+import { win32 } from 'vs/base/node/processes';
 
 import { IMarkerService, MarkerSeverity } from 'vs/platform/markers/common/markers';
 import { IWorkspaceContextService, WorkbenchState, IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
@@ -36,7 +37,7 @@ import {
 } from 'vs/workbench/parts/tasks/common/tasks';
 import {
 	ITaskSystem, ITaskSummary, ITaskExecuteResult, TaskExecuteKind, TaskError, TaskErrors, ITaskResolver,
-	TelemetryEvent, Triggers, TaskTerminateResponse, TaskSystemInfoResovler, TaskSystemInfo
+	TelemetryEvent, Triggers, TaskTerminateResponse, TaskSystemInfoResovler, TaskSystemInfo, ResolveSet
 } from 'vs/workbench/parts/tasks/common/taskSystem';
 
 interface TerminalData {
@@ -71,6 +72,8 @@ class VariableResolver {
 export class TerminalTaskSystem implements ITaskSystem {
 
 	public static TelemetryEventName: string = 'taskService';
+
+	private static ProcessVarName = '${__process__}';
 
 	private static shellQuotes: IStringDictionary<ShellQuotingOptions> = {
 		'cmd': {
@@ -304,18 +307,60 @@ export class TerminalTaskSystem implements ITaskSystem {
 		if (workspaceFolder) {
 			taskSystemInfo = this.taskSystemInfoResolver(workspaceFolder);
 		}
-		let resolvedVariables: TPromise<Map<string, string>>;
+		let variableResolver: TPromise<VariableResolver>;
+		let isProcess = task.command && task.command.runtime === RuntimeType.Process;
+		let options = task.command && task.command.options ? task.command.options : undefined;
+		let cwd = options ? options.cwd : undefined;
+		let envPath: string | undefined = undefined;
+		if (options && options.env) {
+			for (let key of Object.keys(options.env)) {
+				if (key.toLowerCase() === 'path') {
+					if (Types.isString(options.env[key])) {
+						envPath = options.env[key];
+					}
+					break;
+				}
+			}
+		}
 		if (taskSystemInfo) {
-			resolvedVariables = taskSystemInfo.resolveVariables(workspaceFolder, variables);
+			let resolveSet: ResolveSet = {
+				variables
+			};
+			if (taskSystemInfo.platform === Platform.Platform.Windows && isProcess) {
+				resolveSet.process = { name: CommandString.value(task.command.name) };
+				if (cwd) {
+					resolveSet.process.cwd = cwd;
+				}
+				if (envPath) {
+					resolveSet.process.path = envPath;
+				}
+			}
+			variableResolver = taskSystemInfo.resolveVariables(workspaceFolder, resolveSet).then((resolved) => {
+				let result = new Map<string, string>();
+				resolved.variables.forEach(variable => {
+					result.set(variable, this.configurationResolverService.resolve(workspaceFolder, variable));
+				});
+				if (resolved.process !== void 0) {
+					result.set(TerminalTaskSystem.ProcessVarName, resolved.process);
+				}
+				return new VariableResolver(workspaceFolder, taskSystemInfo, result, undefined);
+			});
 		} else {
 			let result = new Map<string, string>();
 			variables.forEach(variable => {
 				result.set(variable, this.configurationResolverService.resolve(workspaceFolder, variable));
 			});
-			resolvedVariables = TPromise.as(result);
+			if (Platform.isWindows && isProcess) {
+				result.set(TerminalTaskSystem.ProcessVarName, win32.findExecutable(
+					this.configurationResolverService.resolve(workspaceFolder, CommandString.value(task.command.name)),
+					cwd ? this.configurationResolverService.resolve(workspaceFolder, cwd) : undefined,
+					envPath ? envPath.split(path.delimiter).map(p => this.configurationResolverService.resolve(workspaceFolder, p)) : undefined
+				));
+			}
+			variableResolver = TPromise.as(new VariableResolver(workspaceFolder, taskSystemInfo, result, this.configurationResolverService));
 		}
-		return resolvedVariables.then((variables) => {
-			return this.executeInTerminal(task, trigger, new VariableResolver(workspaceFolder, taskSystemInfo, variables, this.configurationResolverService));
+		return variableResolver.then((resolver) => {
+			return this.executeInTerminal(task, trigger, resolver);
 		});
 	}
 
@@ -563,7 +608,7 @@ export class TerminalTaskSystem implements ITaskSystem {
 			}
 			let shellArgs = <string[]>shellLaunchConfig.args.slice(0);
 			let toAdd: string[] = [];
-			let commandLine = this.buildShellCommandLine(shellLaunchConfig.executable, shellOptions, command, originalCommand, args);
+			let commandLine = this.buildShellCommandLine(platform, shellLaunchConfig.executable, shellOptions, command, originalCommand, args);
 			let windowsShellArgs: boolean = false;
 			if (platform === Platform.Platform.Windows) {
 				// Change Sysnative to System32 if the OS is Windows but NOT WoW64. It's
@@ -597,7 +642,7 @@ export class TerminalTaskSystem implements ITaskSystem {
 			} else {
 				if (!shellSpecified) {
 					// Under Mac remove -l to not start it as a login shell.
-					if (Platform.isMacintosh) {
+					if (platform === Platform.Platform.Mac) {
 						let index = shellArgs.indexOf('-l');
 						if (index !== -1) {
 							shellArgs.splice(index, 1);
@@ -621,10 +666,9 @@ export class TerminalTaskSystem implements ITaskSystem {
 				}
 			}
 		} else {
-			let cwd = options && options.cwd ? options.cwd : process.cwd();
-			// On Windows executed process must be described absolute. Since we allowed command without an
-			// absolute path (e.g. "command": "node") we need to find the executable in the CWD or PATH.
-			let executable = Platform.isWindows && !isShellCommand ? this.findExecutable(commandExecutable, cwd, options) : commandExecutable;
+			let executable = !isShellCommand
+				? this.resolveVariable(resolver, TerminalTaskSystem.ProcessVarName)
+				: commandExecutable;
 
 			// When we have a process task there is no need to quote arguments. So we go ahead and take the string value.
 			shellLaunchConfig = {
@@ -717,7 +761,7 @@ export class TerminalTaskSystem implements ITaskSystem {
 		return [result, commandExecutable, undefined];
 	}
 
-	private buildShellCommandLine(shellExecutable: string, shellOptions: ShellConfiguration, command: CommandString, originalCommand: CommandString, args: CommandString[]): string {
+	private buildShellCommandLine(platform: Platform.Platform, shellExecutable: string, shellOptions: ShellConfiguration, command: CommandString, originalCommand: CommandString, args: CommandString[]): string {
 		let basename = path.parse(shellExecutable).name.toLowerCase();
 		let shellQuoteOptions = this.getQuotingOptions(basename, shellOptions);
 
@@ -805,7 +849,7 @@ export class TerminalTaskSystem implements ITaskSystem {
 
 		let commandLine = result.join(' ');
 		// There are special rules quoted command line in cmd.exe
-		if (Platform.isWindows) {
+		if (platform === Platform.Platform.Windows) {
 			if (basename === 'cmd' && commandQuoted && argQuoted) {
 				commandLine = '"' + commandLine + '"';
 			} else if (basename === 'powershell' && commandQuoted) {
@@ -813,7 +857,7 @@ export class TerminalTaskSystem implements ITaskSystem {
 			}
 		}
 
-		if (basename === 'cmd' && Platform.isWindows && commandQuoted && argQuoted) {
+		if (basename === 'cmd' && platform === Platform.Platform.Windows && commandQuoted && argQuoted) {
 			commandLine = '"' + commandLine + '"';
 		}
 		return commandLine;
@@ -902,62 +946,6 @@ export class TerminalTaskSystem implements ITaskSystem {
 		args = this.resolveVariables(resolver, args);
 		let command: CommandString = this.resolveVariable(resolver, commandConfig.name);
 		return { command, args };
-	}
-
-	private findExecutable(command: string, cwd: string, options: CommandOptions): string {
-		// If we have an absolute path then we take it.
-		if (path.isAbsolute(command)) {
-			return command;
-		}
-		let dir = path.dirname(command);
-		if (dir !== '.') {
-			// We have a directory and the directory is relative (see above). Make the path absolute
-			// to the current working directory.
-			return path.join(cwd, command);
-		}
-		let paths: string[] | undefined = undefined;
-		// The options can override the PATH. So consider that PATH if present.
-		if (options && options.env) {
-			// Path can be named in many different ways and for the execution it doesn't matter
-			for (let key of Object.keys(options.env)) {
-				if (key.toLowerCase() === 'path') {
-					if (Types.isString(options.env[key])) {
-						paths = options.env[key].split(path.delimiter);
-					}
-					break;
-				}
-			}
-		}
-		if (paths === void 0 && Types.isString(process.env.PATH)) {
-			paths = process.env.PATH.split(path.delimiter);
-		}
-		// No PATH environment. Make path absolute to the cwd.
-		if (paths === void 0 || paths.length === 0) {
-			return path.join(cwd, command);
-		}
-		// We have a simple file name. We get the path variable from the env
-		// and try to find the executable on the path.
-		for (let pathEntry of paths) {
-			// The path entry is absolute.
-			let fullPath: string;
-			if (path.isAbsolute(pathEntry)) {
-				fullPath = path.join(pathEntry, command);
-			} else {
-				fullPath = path.join(cwd, pathEntry, command);
-			}
-			if (fs.existsSync(fullPath)) {
-				return fullPath;
-			}
-			let withExtension = fullPath + '.com';
-			if (fs.existsSync(withExtension)) {
-				return withExtension;
-			}
-			withExtension = fullPath + '.exe';
-			if (fs.existsSync(withExtension)) {
-				return withExtension;
-			}
-		}
-		return path.join(cwd, command);
 	}
 
 	private resolveVariables(resolver: VariableResolver, value: string[]): string[];
