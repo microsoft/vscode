@@ -93,10 +93,16 @@ steps:
     node build/tfs/common/publish.js "$VSCODE_QUALITY" "$PLATFORM_RPM" package "$RPM_FILENAME" "$VERSION" true "$RPM_PATH"
 
     # Publish Snap
-    # npm run gulp -- "vscode-linux-$(VSCODE_ARCH)-build-snap"
+    npm run gulp -- "vscode-linux-$(VSCODE_ARCH)-build-snap"
     # SNAPCRAFT_MACAROON="$(SNAPCRAFT_MACAROON)" \
     # SNAPCRAFT_UNBOUND_DISCHARGE="$(SNAPCRAFT_UNBOUND_DISCHARGE)" \
     # ./build/tfs/linux/release-snap.sh
 
 - task: ms.vss-governance-buildtask.governance-build-task-component-detection.ComponentGovernanceComponentDetection@0
   displayName: 'Component Detection'
+
+- task: PublishPipelineArtifact@0
+  displayName: 'Publish Pipeline Artifact'
+  inputs:
+    artifactName: snap
+    targetPath: .build/linux/snap
