@@ -34,20 +34,15 @@ export interface IExtensionDescription {
 	enableProposedApi?: boolean;
 }
 
-export const nullExtensionDescription: IExtensionDescription = Object.freeze({
+export const nullExtensionDescription = Object.freeze(<IExtensionDescription>{
 	id: 'nullExtensionDescription',
 	name: 'Null Extension Description',
+	version: '0.0.0',
 	publisher: 'vscode',
-	activationEvents: undefined,
-	contributes: undefined,
 	enableProposedApi: false,
-	engines: undefined,
-	extensionDependencies: undefined,
-	extensionLocation: undefined,
+	engines: { vscode: '' },
+	extensionLocation: URI.parse('void:location'),
 	isBuiltin: false,
-	isUnderDevelopment: false,
-	main: undefined,
-	version: undefined
 });
 
 export const IExtensionService = createDecorator<IExtensionService>('extensionService');
