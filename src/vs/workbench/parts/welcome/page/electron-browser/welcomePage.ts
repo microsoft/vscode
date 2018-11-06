@@ -72,15 +72,19 @@ export class WelcomePageContribution implements IWorkbenchContribution {
 							let foldersChecked = 0;
 							readdir(workSpaceFolder.path, (err, files) => {
 								foldersChecked += 1;
-								for (const content of files) {
-									if (content.toLowerCase().lastIndexOf('readme', 0) === 0) {
-										const readmeLocation = path.join(workSpaceFolder.path, content);
-										if (readmeLocation.toLowerCase().slice(readmeLocation.length - 3) === '.md') {
-											return  !editorService.activeEditor && this.commandService
-											.executeCommand('markdown.showPreview', URI.file(readmeLocation));
+								if (err) {
+									onUnexpectedError(err);
+								} else {
+									for (const content of files) {
+										if (content.toLowerCase().lastIndexOf('readme', 0) === 0) {
+											const readmeLocation = path.join(workSpaceFolder.path, content);
+											if (readmeLocation.toLowerCase().slice(readmeLocation.length - 3) === '.md') {
+												return !editorService.activeEditor && this.commandService
+													.executeCommand('markdown.showPreview', URI.file(readmeLocation));
+											}
+											return !editorService.activeEditor && editorService
+												.openEditor({ resource: URI.file(readmeLocation) });
 										}
-										return !editorService.activeEditor && editorService
-										.openEditor({resource: URI.file(readmeLocation)});
 									}
 								}
 								if (foldersChecked === workSpaceFolders.length - 1) {
