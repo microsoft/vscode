@@ -19,7 +19,7 @@ import { isMacintosh, isLinux } from 'vs/base/common/platform';
 import { Menu, IMenuOptions, SubmenuAction, MENU_MNEMONIC_REGEX, cleanMnemonic, MENU_ESCAPED_MNEMONIC_REGEX } from 'vs/base/browser/ui/menu/menu';
 import { KeyCode, KeyCodeUtils } from 'vs/base/common/keyCodes';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
-import { IConfigurationService, IConfigurationChangeEvent, ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
+import { IConfigurationService, IConfigurationChangeEvent } from 'vs/platform/configuration/common/configuration';
 import { Event, Emitter } from 'vs/base/common/event';
 import { IDisposable, Disposable, dispose } from 'vs/base/common/lifecycle';
 import { domEvent } from 'vs/base/browser/event';
@@ -34,6 +34,7 @@ import { Gesture, EventType, GestureEvent } from 'vs/base/browser/touch';
 import { attachMenuStyler } from 'vs/platform/theme/common/styler';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
+import { IPreferencesService } from 'vs/workbench/services/preferences/common/preferences';
 
 const $ = DOM.$;
 
@@ -128,7 +129,8 @@ export class MenubarControl extends Disposable {
 		@ILabelService private labelService: ILabelService,
 		@IUpdateService private updateService: IUpdateService,
 		@IStorageService private storageService: IStorageService,
-		@INotificationService private notificationService: INotificationService
+		@INotificationService private notificationService: INotificationService,
+		@IPreferencesService private preferencesService: IPreferencesService
 	) {
 
 		super();
@@ -459,9 +461,7 @@ export class MenubarControl extends Disposable {
 				{
 					label: nls.localize('tryIt', "Try it"),
 					run: () => {
-						// Don't recommend this again
-						this.storageService.store('menubar/electronFixRecommended', true, StorageScope.GLOBAL);
-						return this.configurationService.updateValue('window.titleBarStyle', 'custom', ConfigurationTarget.USER);
+						return this.preferencesService.openGlobalSettings(undefined, { query: 'window.titleBarStyle' });
 					}
 				},
 				{
