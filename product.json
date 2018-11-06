@@ -2,6 +2,7 @@
 	"nameShort": "Code - OSS",
 	"nameLong": "Code - OSS",
 	"applicationName": "code-oss",
+	"iconName": "vscode-oss",
 	"dataFolderName": ".vscode-oss",
 	"win32MutexName": "vscodeoss",
 	"licenseName": "MIT",

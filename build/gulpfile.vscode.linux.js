@@ -38,7 +38,7 @@ function prepareDebPackage(arch) {
 			.pipe(replace('@@NAME_LONG@@', product.nameLong))
 			.pipe(replace('@@NAME_SHORT@@', product.nameShort))
 			.pipe(replace('@@NAME@@', product.applicationName))
-			.pipe(replace('@@ICON@@', product.applicationName))
+			.pipe(replace('@@ICON@@', product.iconName))
 			.pipe(replace('@@URLPROTOCOL@@', product.urlProtocol));
 
 		const appdata = gulp.src('resources/linux/code.appdata.xml', { base: '.' })
@@ -122,7 +122,7 @@ function prepareRpmPackage(arch) {
 				.pipe(replace('@@NAME_LONG@@', product.nameLong))
 				.pipe(replace('@@NAME_SHORT@@', product.nameShort))
 				.pipe(replace('@@NAME@@', product.applicationName))
-				.pipe(replace('@@ICON@@', product.applicationName))
+				.pipe(replace('@@ICON@@', product.iconName))
 				.pipe(replace('@@URLPROTOCOL@@', product.urlProtocol));
 
 		const appdata = gulp.src('resources/linux/code.appdata.xml', { base: '.' })
@@ -185,7 +185,7 @@ function prepareSnapPackage(arch) {
 			.pipe(replace('@@NAME_LONG@@', product.nameLong))
 			.pipe(replace('@@NAME_SHORT@@', product.nameShort))
 			.pipe(replace('@@NAME@@', product.applicationName))
-			.pipe(replace('@@ICON@@', `/usr/share/pixmaps/${product.applicationName}.png`))
+			.pipe(replace('@@ICON@@', `/usr/share/pixmaps/${product.iconName}.png`))
 			.pipe(rename(`usr/share/applications/${product.applicationName}.desktop`));
 
 		const icon = gulp.src('resources/linux/code.png', { base: '.' })
