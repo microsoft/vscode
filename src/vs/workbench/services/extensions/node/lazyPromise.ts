@@ -8,8 +8,8 @@ import { onUnexpectedError } from 'vs/base/common/errors';
 export class LazyPromise implements Thenable<any> {
 
 	private _actual: Promise<any> | null;
-	private _actualOk: (value?: any) => any | null;
-	private _actualErr: (err?: any) => any | null;
+	private _actualOk: ((value?: any) => any) | null;
+	private _actualErr: ((err?: any) => any) | null;
 
 	private _hasValue: boolean;
 	private _value: any;
