@@ -34,6 +34,22 @@ export interface IExtensionDescription {
 	enableProposedApi?: boolean;
 }
 
+export const nullExtensionDescription: IExtensionDescription = Object.freeze({
+	id: 'nullExtensionDescription',
+	name: 'Null Extension Description',
+	publisher: 'vscode',
+	activationEvents: undefined,
+	contributes: undefined,
+	enableProposedApi: false,
+	engines: undefined,
+	extensionDependencies: undefined,
+	extensionLocation: undefined,
+	isBuiltin: false,
+	isUnderDevelopment: false,
+	main: undefined,
+	version: undefined
+});
+
 export const IExtensionService = createDecorator<IExtensionService>('extensionService');
 
 export interface IMessage {
