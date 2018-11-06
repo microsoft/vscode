@@ -608,7 +608,7 @@ namespace TaskDTO {
 			if (typeof value.scope === 'number') {
 				scope = value.scope;
 			} else {
-				scope = value.scope.uri.toJSON();
+				scope = value.scope.uri;
 			}
 		}
 		if (!definition || !scope) {
