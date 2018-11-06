@@ -78,7 +78,7 @@ import { LifecycleService } from 'vs/platform/lifecycle/electron-browser/lifecyc
 import { IWindowService, IWindowConfiguration as IWindowSettings, IWindowConfiguration, IPath, MenuBarVisibility } from 'vs/platform/windows/common/windows';
 import { IStatusbarService } from 'vs/platform/statusbar/common/statusbar';
 import { IMenuService, SyncActionDescriptor } from 'vs/platform/actions/common/actions';
-import { MenuService } from 'vs/workbench/services/actions/common/menuService';
+import { MenuService } from 'vs/platform/actions/common/menuService';
 import { IContextMenuService, IContextViewService } from 'vs/platform/contextview/browser/contextView';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IWorkbenchActionRegistry, Extensions } from 'vs/workbench/common/actions';

@@ -25,8 +25,6 @@ import { TextEdit, WorkspaceEdit, isResourceTextEdit } from 'vs/editor/common/mo
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { ITextEditorModel, ITextModelContentProvider, ITextModelService } from 'vs/editor/common/services/resolverService';
 import { ITextResourceConfigurationService, ITextResourcePropertiesService } from 'vs/editor/common/services/resourceConfiguration';
-import { IMenu, IMenuService, MenuId } from 'vs/platform/actions/common/actions';
-import { Menu } from 'vs/platform/actions/common/menu';
 import { CommandsRegistry, ICommand, ICommandEvent, ICommandHandler, ICommandService } from 'vs/platform/commands/common/commands';
 import { IConfigurationChangeEvent, IConfigurationData, IConfigurationOverrides, IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { Configuration, ConfigurationModel, DefaultConfigurationModel } from 'vs/platform/configuration/common/configurationModels';
@@ -476,21 +474,6 @@ export class SimpleResourcePropertiesService implements ITextResourcePropertiesS
 			}
 		}
 		return (isLinux || isMacintosh) ? '\n' : '\r\n';
-	}
-}
-
-export class SimpleMenuService implements IMenuService {
-
-	_serviceBrand: any;
-
-	private readonly _commandService: ICommandService;
-
-	constructor(commandService: ICommandService) {
-		this._commandService = commandService;
-	}
-
-	public createMenu(id: MenuId, contextKeyService: IContextKeyService): IMenu {
-		return new Menu(id, Promise.resolve(true), this._commandService, contextKeyService);
 	}
 }
 

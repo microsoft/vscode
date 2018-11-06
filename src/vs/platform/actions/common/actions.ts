@@ -10,7 +10,7 @@ import { IKeybindings } from 'vs/platform/keybinding/common/keybindingsRegistry'
 import { ContextKeyExpr, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IDisposable } from 'vs/base/common/lifecycle';
-import { Event } from 'vs/base/common/event';
+import { Event, Emitter } from 'vs/base/common/event';
 import { URI, UriComponents } from 'vs/base/common/uri';
 
 export interface ILocalizedString {
@@ -128,6 +128,7 @@ export interface IMenuRegistry {
 	getCommands(): ICommandsMap;
 	appendMenuItem(menu: MenuId, item: IMenuItem | ISubmenuItem): IDisposable;
 	getMenuItems(loc: MenuId): (IMenuItem | ISubmenuItem)[];
+	onDidChangeMenu: Event<MenuId>;
 }
 
 export interface ICommandsMap {
@@ -136,9 +137,11 @@ export interface ICommandsMap {
 
 export const MenuRegistry: IMenuRegistry = new class implements IMenuRegistry {
 
-	private _commands: { [id: string]: ICommandAction } = Object.create(null);
+	private readonly _commands: { [id: string]: ICommandAction } = Object.create(null);
+	private readonly _menuItems: { [loc: string]: (IMenuItem | ISubmenuItem)[] } = Object.create(null);
+	private readonly _onDidChangeMenu = new Emitter<MenuId>();
 
-	private _menuItems: { [loc: string]: (IMenuItem | ISubmenuItem)[] } = Object.create(null);
+	readonly onDidChangeMenu: Event<MenuId> = this._onDidChangeMenu.event;
 
 	addCommand(command: ICommandAction): boolean {
 		const old = this._commands[command.id];
@@ -158,18 +161,20 @@ export const MenuRegistry: IMenuRegistry = new class implements IMenuRegistry {
 		return result;
 	}
 
-	appendMenuItem({ id }: MenuId, item: IMenuItem | ISubmenuItem): IDisposable {
-		let array = this._menuItems[id];
+	appendMenuItem(id: MenuId, item: IMenuItem | ISubmenuItem): IDisposable {
+		let array = this._menuItems[id.id];
 		if (!array) {
-			this._menuItems[id] = array = [item];
+			this._menuItems[id.id] = array = [item];
 		} else {
 			array.push(item);
 		}
+		this._onDidChangeMenu.fire(id);
 		return {
-			dispose() {
+			dispose: () => {
 				const idx = array.indexOf(item);
 				if (idx >= 0) {
 					array.splice(idx, 1);
+					this._onDidChangeMenu.fire(id);
 				}
 			}
 		};

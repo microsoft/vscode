@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Event, Emitter } from 'vs/base/common/event';
+import { Event, Emitter, filterEvent, debounceEvent } from 'vs/base/common/event';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { ContextKeyExpr, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { MenuId, MenuRegistry, MenuItemAction, IMenu, IMenuItem, IMenuActionOptions, ISubmenuItem, SubmenuItemAction, isIMenuItem } from 'vs/platform/actions/common/actions';
@@ -13,59 +13,74 @@ type MenuItemGroup = [string, (IMenuItem | ISubmenuItem)[]];
 
 export class Menu implements IMenu {
 
-	private _menuGroups: MenuItemGroup[] = [];
-	private _disposables: IDisposable[] = [];
-	private _onDidChange = new Emitter<IMenu>();
+	private readonly _onDidChange = new Emitter<IMenu>();
+	private readonly _disposables: IDisposable[] = [];
+
+	private _menuGroups: MenuItemGroup[];
+	private _contextKeys: Set<string>;
 
 	constructor(
-		id: MenuId,
-		startupSignal: Thenable<boolean>,
+		private readonly _id: MenuId,
 		@ICommandService private readonly _commandService: ICommandService,
 		@IContextKeyService private readonly _contextKeyService: IContextKeyService
 	) {
-		startupSignal.then(_ => {
-			const menuItems = MenuRegistry.getMenuItems(id);
-			const keysFilter = new Set<string>();
+		this._build();
 
-			let group: MenuItemGroup | undefined;
-			menuItems.sort(Menu._compareMenuItems);
+		// rebuild this menu whenever the menu registry reports an
+		// event for this MenuId
+		debounceEvent(
+			filterEvent(MenuRegistry.onDidChangeMenu, menuId => menuId === this._id),
+			() => { },
+			100
+		)(this._build, this, this._disposables);
 
-			for (let item of menuItems) {
-				// group by groupId
-				const groupName = item.group;
-				if (!group || group[0] !== groupName) {
-					group = [groupName || '', []];
-					this._menuGroups.push(group);
-				}
-				group![1].push(item);
+		// when context keys change we need to change if the menu also
+		// has changed
+		this._contextKeyService.onDidChangeContext(event => {
+			if (event.affectsSome(this._contextKeys)) {
+				this._onDidChange.fire();
+			}
+		}, this, this._disposables);
+	}
 
-				// keep keys for eventing
-				Menu._fillInKbExprKeys(item.when, keysFilter);
+	private _build(): void {
 
-				// keep precondition keys for event if applicable
-				if (isIMenuItem(item) && item.command.precondition) {
-					Menu._fillInKbExprKeys(item.command.precondition, keysFilter);
-				}
+		// reset
+		this._menuGroups = [];
+		this._contextKeys = new Set();
 
-				// keep toggled keys for event if applicable
-				if (isIMenuItem(item) && item.command.toggled) {
-					Menu._fillInKbExprKeys(item.command.toggled, keysFilter);
-				}
+		const menuItems = MenuRegistry.getMenuItems(this._id);
+
+		let group: MenuItemGroup | undefined;
+		menuItems.sort(Menu._compareMenuItems);
+
+		for (let item of menuItems) {
+			// group by groupId
+			const groupName = item.group;
+			if (!group || group[0] !== groupName) {
+				group = [groupName || '', []];
+				this._menuGroups.push(group);
+			}
+			group![1].push(item);
+
+			// keep keys for eventing
+			Menu._fillInKbExprKeys(item.when, this._contextKeys);
+
+			// keep precondition keys for event if applicable
+			if (isIMenuItem(item) && item.command.precondition) {
+				Menu._fillInKbExprKeys(item.command.precondition, this._contextKeys);
 			}
 
-			// subscribe to context changes
-			this._disposables.push(this._contextKeyService.onDidChangeContext(event => {
-				if (event.affectsSome(keysFilter)) {
-					this._onDidChange.fire();
-				}
-			}));
-
-			this._onDidChange.fire(this);
-		});
+			// keep toggled keys for event if applicable
+			if (isIMenuItem(item) && item.command.toggled) {
+				Menu._fillInKbExprKeys(item.command.toggled, this._contextKeys);
+			}
+		}
+		this._onDidChange.fire(this);
 	}
 
 	dispose() {
-		this._disposables = dispose(this._disposables);
+		dispose(this._disposables);
 		this._onDidChange.dispose();
 	}
 
