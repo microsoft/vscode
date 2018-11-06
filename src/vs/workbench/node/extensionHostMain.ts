@@ -293,7 +293,7 @@ export class ExtensionHostMain {
 
 		// Execute the runner if it follows our spec
 		if (testRunner && typeof testRunner.run === 'function') {
-			return new TPromise<void>((c, e) => {
+			return new Promise<void>((c, e) => {
 				testRunner.run(this._environment.extensionTestsPath, (error, failures) => {
 					if (error) {
 						e(error.toString());

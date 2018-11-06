@@ -110,7 +110,7 @@ suite('KeybindingsEditing', () => {
 	}
 
 	teardown(() => {
-		return new TPromise<void>((c, e) => {
+		return new Promise<void>((c, e) => {
 			if (testDir) {
 				extfs.del(testDir, os.tmpdir(), () => c(null), () => c(null));
 			} else {
