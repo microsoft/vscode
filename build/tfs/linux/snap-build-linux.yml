@@ -6,24 +6,24 @@ steps:
     targetPath: .build/linux/snap
 
 - script: |
-    # set -e
-    # export npm_config_arch="$(VSCODE_ARCH)"
-    # if [[ "$(VSCODE_ARCH)" == "ia32" ]]; then
-    #   export PKG_CONFIG_PATH="/usr/lib/i386-linux-gnu/pkgconfig"
-    # fi
+    set -e
+    REPO="$(pwd)"
+    ROOT="$REPO/.."
+    ARCH="$(VSCODE_ARCH)"
 
-    # echo "machine monacotools.visualstudio.com password $(VSO_PAT)" > ~/.netrc
-    # CHILD_CONCURRENCY=1 yarn
-    # npm run gulp -- hygiene
-    # npm run monaco-compile-check
-    # npm run strict-null-check
-    # VSCODE_MIXIN_PASSWORD="$(VSCODE_MIXIN_PASSWORD)" npm run gulp -- mixin
-    # node build/tfs/common/installDistro.js
-    # node build/lib/builtInExtensions.js
+    BUILDNAME="VSCode-linux-$ARCH"
+    BUILD="$ROOT/$BUILDNAME"
+    BUILD_VERSION="$(date +%s)"
+    SNAP_FILENAME="code-$VSCODE_QUALITY-$BUILD_VERSION.snap"
+    PACKAGEJSON="$BUILD/resources/app/package.json"
+    VERSION=$(node -p "require(\"$PACKAGEJSON\").version")
 
-    # SNAP
-    # curl https://az764295.vo.msecnd.net/insider/1d0e4299c6ccfe9210252c811b4247cfdc8a6a44/code-insider-1541501316.tar.gz > $TMPDIR/code.tar.gz
-    # tar xvzf $TMPDIR/code.tar.gz -C ../VSCode-linux-x64
-    # npm run gulp -- vscode-linux-x64-build-snap
-    cd .build/linux/snap/x64/*
-    snapcraft
+    SNAP_ROOT="$REPO/.build/linux/snap/$ARCH"
+    SNAP_PATH="$SNAP_ROOT/$SNAP_FILENAME"
+
+    (cd "$SNAP_ROOT/*" ; snapcraft -o "$SNAP_PATH")
+
+    AZURE_DOCUMENTDB_MASTERKEY="$(AZURE_DOCUMENTDB_MASTERKEY)" \
+    AZURE_STORAGE_ACCESS_KEY_2="$(AZURE_STORAGE_ACCESS_KEY_2)" \
+    MOONCAKE_STORAGE_ACCESS_KEY="$(MOONCAKE_STORAGE_ACCESS_KEY)" \
+    node build/tfs/common/publish.js "$VSCODE_QUALITY" "linux-snap-$ARCH" package "$SNAP_FILENAME" "$VERSION" true "$SNAP_PATH"
