@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 import * as assert from 'assert';
-import { IDisposable } from 'vs/base/common/lifecycle';
+import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { CommandService } from 'vs/workbench/services/commands/common/commandService';
 import { IExtensionService, ExtensionPointContribution, IExtensionDescription, ProfileSession } from 'vs/workbench/services/extensions/common/extensions';
@@ -139,6 +139,41 @@ suite('CommandService', function () {
 		return r.then(() => {
 			reg.dispose();
 			assert.equal(callCounter, 1);
+		});
+	});
+
+	test('Stop waiting for * extensions to activate when trigger is satisfied #62457', function () {
+
+		let callCounter = 0;
+		let dispoables: IDisposable[] = [];
+		let events: string[] = [];
+		let service = new CommandService(new InstantiationService(), new class extends SimpleExtensionService {
+
+			activateByEvent(event: string): Promise<void> {
+				events.push(event);
+				if (event === '*') {
+					return new Promise(() => { }); //forever promise...
+				}
+				if (event.indexOf('onCommand:') === 0) {
+					return new Promise(resolve => {
+						setTimeout(() => {
+							let reg = CommandsRegistry.registerCommand(event.substr('onCommand:'.length), () => {
+								callCounter += 1;
+							});
+							dispoables.push(reg);
+							resolve();
+						}, 0);
+					});
+				}
+				return Promise.resolve();
+			}
+
+		}, new NullLogService());
+
+		return service.executeCommand('farboo').then(() => {
+			assert.equal(callCounter, 1);
+			assert.deepEqual(events.sort(), ['*', 'onCommand:farboo'].sort());
+			dispose(dispoables);
 		});
 	});
 });

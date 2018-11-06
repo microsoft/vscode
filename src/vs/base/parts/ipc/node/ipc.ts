@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IDisposable, toDisposable, combinedDisposable } from 'vs/base/common/lifecycle';
-import { Event, Emitter, once, filterEvent, toNativePromise, Relay } from 'vs/base/common/event';
+import { Event, Emitter, once, filterEvent, toPromise, Relay } from 'vs/base/common/event';
 import { always, CancelablePromise, createCancelablePromise, timeout } from 'vs/base/common/async';
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 import * as errors from 'vs/base/common/errors';
@@ -447,7 +447,7 @@ export class ChannelClient implements IChannelClient, IDisposable {
 		if (this.state === State.Idle) {
 			return Promise.resolve();
 		} else {
-			return toNativePromise(this.onDidInitialize);
+			return toPromise(this.onDidInitialize);
 		}
 	}
 
