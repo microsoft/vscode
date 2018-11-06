@@ -68,36 +68,35 @@ steps:
     # Publish hockeyapp symbols
     node build/tfs/common/symbols.js "$(VSCODE_MIXIN_PASSWORD)" "$(VSCODE_HOCKEYAPP_TOKEN)" "$(VSCODE_ARCH)" "$(VSCODE_HOCKEYAPP_ID_LINUX64)"
 
-    if [ -z "$VSCODE_SNAP" ]; then
-      # Publish DEB
-      npm run gulp -- "vscode-linux-$(VSCODE_ARCH)-build-deb"
-      PLATFORM_DEB="linux-deb-$ARCH"
-      [[ "$ARCH" == "ia32" ]] && DEB_ARCH="i386" || DEB_ARCH="amd64"
-      DEB_FILENAME="$(ls $REPO/.build/linux/deb/$DEB_ARCH/deb/)"
-      DEB_PATH="$REPO/.build/linux/deb/$DEB_ARCH/deb/$DEB_FILENAME"
+    # Publish DEB
+    npm run gulp -- "vscode-linux-$(VSCODE_ARCH)-build-deb"
+    PLATFORM_DEB="linux-deb-$ARCH"
+    [[ "$ARCH" == "ia32" ]] && DEB_ARCH="i386" || DEB_ARCH="amd64"
+    DEB_FILENAME="$(ls $REPO/.build/linux/deb/$DEB_ARCH/deb/)"
+    DEB_PATH="$REPO/.build/linux/deb/$DEB_ARCH/deb/$DEB_FILENAME"
 
-      AZURE_DOCUMENTDB_MASTERKEY="$(AZURE_DOCUMENTDB_MASTERKEY)" \
-      AZURE_STORAGE_ACCESS_KEY_2="$(AZURE_STORAGE_ACCESS_KEY_2)" \
-      MOONCAKE_STORAGE_ACCESS_KEY="$(MOONCAKE_STORAGE_ACCESS_KEY)" \
-      node build/tfs/common/publish.js "$VSCODE_QUALITY" "$PLATFORM_DEB" package "$DEB_FILENAME" "$VERSION" true "$DEB_PATH"
+    AZURE_DOCUMENTDB_MASTERKEY="$(AZURE_DOCUMENTDB_MASTERKEY)" \
+    AZURE_STORAGE_ACCESS_KEY_2="$(AZURE_STORAGE_ACCESS_KEY_2)" \
+    MOONCAKE_STORAGE_ACCESS_KEY="$(MOONCAKE_STORAGE_ACCESS_KEY)" \
+    node build/tfs/common/publish.js "$VSCODE_QUALITY" "$PLATFORM_DEB" package "$DEB_FILENAME" "$VERSION" true "$DEB_PATH"
 
-      # Publish RPM
-      npm run gulp -- "vscode-linux-$(VSCODE_ARCH)-build-rpm"
-      PLATFORM_RPM="linux-rpm-$ARCH"
-      [[ "$ARCH" == "ia32" ]] && RPM_ARCH="i386" || RPM_ARCH="x86_64"
-      RPM_FILENAME="$(ls $REPO/.build/linux/rpm/$RPM_ARCH/ | grep .rpm)"
-      RPM_PATH="$REPO/.build/linux/rpm/$RPM_ARCH/$RPM_FILENAME"
+    # Publish RPM
+    npm run gulp -- "vscode-linux-$(VSCODE_ARCH)-build-rpm"
+    PLATFORM_RPM="linux-rpm-$ARCH"
+    [[ "$ARCH" == "ia32" ]] && RPM_ARCH="i386" || RPM_ARCH="x86_64"
+    RPM_FILENAME="$(ls $REPO/.build/linux/rpm/$RPM_ARCH/ | grep .rpm)"
+    RPM_PATH="$REPO/.build/linux/rpm/$RPM_ARCH/$RPM_FILENAME"
 
-      AZURE_DOCUMENTDB_MASTERKEY="$(AZURE_DOCUMENTDB_MASTERKEY)" \
-      AZURE_STORAGE_ACCESS_KEY_2="$(AZURE_STORAGE_ACCESS_KEY_2)" \
-      MOONCAKE_STORAGE_ACCESS_KEY="$(MOONCAKE_STORAGE_ACCESS_KEY)" \
-      node build/tfs/common/publish.js "$VSCODE_QUALITY" "$PLATFORM_RPM" package "$RPM_FILENAME" "$VERSION" true "$RPM_PATH"
-    else
-      # Publish Snap
-      SNAPCRAFT_MACAROON="$(SNAPCRAFT_MACAROON)" \
-      SNAPCRAFT_UNBOUND_DISCHARGE="$(SNAPCRAFT_UNBOUND_DISCHARGE)" \
-      ./build/tfs/linux/release-snap.sh
-    fi
+    AZURE_DOCUMENTDB_MASTERKEY="$(AZURE_DOCUMENTDB_MASTERKEY)" \
+    AZURE_STORAGE_ACCESS_KEY_2="$(AZURE_STORAGE_ACCESS_KEY_2)" \
+    MOONCAKE_STORAGE_ACCESS_KEY="$(MOONCAKE_STORAGE_ACCESS_KEY)" \
+    node build/tfs/common/publish.js "$VSCODE_QUALITY" "$PLATFORM_RPM" package "$RPM_FILENAME" "$VERSION" true "$RPM_PATH"
+
+    # Publish Snap
+    # npm run gulp -- "vscode-linux-$(VSCODE_ARCH)-build-snap"
+    # SNAPCRAFT_MACAROON="$(SNAPCRAFT_MACAROON)" \
+    # SNAPCRAFT_UNBOUND_DISCHARGE="$(SNAPCRAFT_UNBOUND_DISCHARGE)" \
+    # ./build/tfs/linux/release-snap.sh
 
 - task: ms.vss-governance-buildtask.governance-build-task-component-detection.ComponentGovernanceComponentDetection@0
   displayName: 'Component Detection'
