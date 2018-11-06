@@ -10,14 +10,13 @@ import { ITelemetryAppender } from 'vs/platform/telemetry/common/telemetryUtils'
 import { optional } from 'vs/platform/instantiation/common/instantiation';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IConfigurationRegistry, Extensions } from 'vs/platform/configuration/common/configurationRegistry';
-import { TPromise } from 'vs/base/common/winjs.base';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { cloneAndChange, mixin } from 'vs/base/common/objects';
 import { Registry } from 'vs/platform/registry/common/platform';
 
 export interface ITelemetryServiceConfig {
 	appender: ITelemetryAppender;
-	commonProperties?: TPromise<{ [name: string]: any }>;
+	commonProperties?: Thenable<{ [name: string]: any }>;
 	piiPaths?: string[];
 }
 
@@ -29,7 +28,7 @@ export class TelemetryService implements ITelemetryService {
 	_serviceBrand: any;
 
 	private _appender: ITelemetryAppender;
-	private _commonProperties: TPromise<{ [name: string]: any; }>;
+	private _commonProperties: Thenable<{ [name: string]: any; }>;
 	private _piiPaths: string[];
 	private _userOptIn: boolean;
 
@@ -41,7 +40,7 @@ export class TelemetryService implements ITelemetryService {
 		@optional(IConfigurationService) private _configurationService: IConfigurationService
 	) {
 		this._appender = config.appender;
-		this._commonProperties = config.commonProperties || TPromise.as({});
+		this._commonProperties = config.commonProperties || Promise.resolve({});
 		this._piiPaths = config.piiPaths || [];
 		this._userOptIn = true;
 
@@ -73,7 +72,7 @@ export class TelemetryService implements ITelemetryService {
 		return this._userOptIn;
 	}
 
-	getTelemetryInfo(): TPromise<ITelemetryInfo> {
+	getTelemetryInfo(): Thenable<ITelemetryInfo> {
 		return this._commonProperties.then(values => {
 			// well known properties
 			let sessionId = values['sessionID'];
@@ -88,10 +87,10 @@ export class TelemetryService implements ITelemetryService {
 		this._disposables = dispose(this._disposables);
 	}
 
-	publicLog(eventName: string, data?: ITelemetryData, anonymizeFilePaths?: boolean): TPromise<any> {
+	publicLog(eventName: string, data?: ITelemetryData, anonymizeFilePaths?: boolean): Thenable<any> {
 		// don't send events when the user is optout
 		if (!this._userOptIn) {
-			return TPromise.as(undefined);
+			return Promise.resolve(undefined);
 		}
 
 		return this._commonProperties.then(values => {

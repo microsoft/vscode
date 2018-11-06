@@ -3,14 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { TPromise } from 'vs/base/common/winjs.base';
 import * as uuid from 'vs/base/common/uuid';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { resolveCommonProperties } from 'vs/platform/telemetry/node/commonProperties';
 
 export const lastSessionDateStorageKey = 'telemetry.lastSessionDate';
 
-export function resolveWorkbenchCommonProperties(storageService: IStorageService, commit: string, version: string, machineId: string, installSourcePath: string): TPromise<{ [name: string]: string }> {
+export function resolveWorkbenchCommonProperties(storageService: IStorageService, commit: string, version: string, machineId: string, installSourcePath: string): Promise<{ [name: string]: string }> {
 	return resolveCommonProperties(commit, version, machineId, installSourcePath).then(result => {
 		// __GDPR__COMMON__ "common.version.shell" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" }
 		result['common.version.shell'] = process.versions && (<any>process).versions['electron'];
