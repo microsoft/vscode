@@ -61,8 +61,6 @@ class ExtensionsViewState extends Disposable implements IExtensionsViewState {
 		this.currentlyFocusedItems.forEach(extension => this._onFocus.fire(extension));
 	}
 }
-=======
->>>>>>> added optional cancelation to ExtensionsListView#show
 
 export class ExtensionsListView extends ViewletPanel {
 
@@ -152,25 +150,19 @@ export class ExtensionsListView extends ViewletPanel {
 		}
 
 		const successCallback = model => {
-			if (token) {
-				if (!token.isCancellationRequested) {
-					this.setModel(model);
-				}
-			} else {
-				this.setModel(model);
+			if (token && token.isCancellationRequested) {
+				return null;
 			}
+			this.setModel(model);
 			return model;
 		};
 		const errorCallback = e => {
 			console.warn('Error querying extensions gallery', e);
-			const model = new PagedModel([]);
-			if (token) {
-				if (!token.isCancellationRequested) {
-					this.setModel(model);
-				}
-			} else {
-				this.setModel(model);
+			if (token && token.isCancellationRequested) {
+				return null;
 			}
+			const model = new PagedModel([]);
+			this.setModel(model);
 			return model;
 		};
 
@@ -809,13 +801,9 @@ export class DefaultRecommendedExtensionsView extends ExtensionsListView {
 		if (query && query.trim() !== this.recommendedExtensionsQuery) {
 			return this.showEmptyModel();
 		}
-<<<<<<< HEAD
-		const model = await super.show(this.recommendedExtensionsQuery);
-		if (!this.extensionsWorkbenchService.local.some(e => e.type === ExtensionType.User)) {
-=======
+
 		const model = await super.show(this.recommendedExtensionsQuery, token);
-		if (!this.extensionsWorkbenchService.local.some(e => e.type === LocalExtensionType.User)) {
->>>>>>> added optional cancelation to ExtensionsListView#show
+		if (!this.extensionsWorkbenchService.local.some(e => e.type === ExtensionType.User) && model) {
 			// This is part of popular extensions view. Collapse if no installed extensions.
 			this.setExpanded(model.length > 0);
 		}

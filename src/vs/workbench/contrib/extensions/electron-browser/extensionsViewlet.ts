@@ -451,7 +451,9 @@ export class ExtensionsViewlet extends ViewContainerViewlet implements IExtensio
 		if (value && !token.isCancellationRequested) {
 			return this.progress(Promise.all(this.panels.map(view => {
 				return (<ExtensionsListView>view).show(value, token).then(model => {
-					this.alertSearchResult(model.length, view.id);
+					if (model) {
+						this.alertSearchResult(model.length, view.id);
+					}
 				});
 			})));
 		}
@@ -464,7 +466,9 @@ export class ExtensionsViewlet extends ViewContainerViewlet implements IExtensio
 		this.searchPromise = createCancelablePromise(token => {
 			return this.progress(Promise.all(addedViews.map(addedView => {
 				return (<ExtensionsListView>addedView).show(this.normalizedQuery(), token).then(model => {
-					this.alertSearchResult(model.length, addedView.id);
+					if (model) {
+						this.alertSearchResult(model.length, addedView.id);
+					}
 				});
 			})));
 		});
