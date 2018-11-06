@@ -12,17 +12,15 @@ steps:
 - script: |
     set -e
     REPO="$(pwd)"
-    ROOT="$REPO/.."
     ARCH="$(VSCODE_ARCH)"
+    SNAP_ROOT="$REPO/.build/linux/snap/$ARCH"
 
-    BUILDNAME="VSCode-linux-$ARCH"
-    BUILD="$ROOT/$BUILDNAME"
+    ls -la "$SNAP_ROOT"
+
     BUILD_VERSION="$(date +%s)"
     SNAP_FILENAME="code-$VSCODE_QUALITY-$BUILD_VERSION.snap"
-    PACKAGEJSON="$BUILD/resources/app/package.json"
+    PACKAGEJSON="$(ls $SNAP_ROOT/code*/usr/share/code*/resources/app/package.json)"
     VERSION=$(node -p "require(\"$PACKAGEJSON\").version")
-
-    SNAP_ROOT="$REPO/.build/linux/snap/$ARCH"
     SNAP_PATH="$SNAP_ROOT/$SNAP_FILENAME"
 
     (cd "$SNAP_ROOT/*" ; snapcraft -o "$SNAP_PATH")
