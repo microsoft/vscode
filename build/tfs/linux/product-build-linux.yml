@@ -98,8 +98,8 @@ steps:
     # SNAPCRAFT_UNBOUND_DISCHARGE="$(SNAPCRAFT_UNBOUND_DISCHARGE)" \
     # ./build/tfs/linux/release-snap.sh
 
-- task: ms.vss-governance-buildtask.governance-build-task-component-detection.ComponentGovernanceComponentDetection@0
-  displayName: 'Component Detection'
+# - task: ms.vss-governance-buildtask.governance-build-task-component-detection.ComponentGovernanceComponentDetection@0
+#   displayName: 'Component Detection'
 
 - task: PublishPipelineArtifact@0
   displayName: 'Publish Pipeline Artifact'
