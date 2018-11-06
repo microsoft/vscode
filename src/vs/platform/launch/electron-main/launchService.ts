@@ -41,6 +41,10 @@ export interface IMainProcessInfo {
 	windows: IWindowInfo[];
 }
 
+function isUri(uri: URI | null): uri is URI {
+	return !!uri;
+}
+
 function parseOpenUrl(args: ParsedArgs): URI[] {
 	if (args['open-url'] && args._urls && args._urls.length > 0) {
 		// --open-url must contain -- followed by the url(s)
@@ -53,7 +57,7 @@ function parseOpenUrl(args: ParsedArgs): URI[] {
 					return null;
 				}
 			})
-			.filter(uri => !!uri);
+			.filter(isUri);
 	}
 
 	return [];
@@ -99,7 +103,7 @@ export class LaunchChannel implements ILaunchChannel {
 				return this.service.getLogsPath();
 		}
 
-		return undefined;
+		throw new Error(`Command '${command}' not found`);
 	}
 }
 
@@ -161,7 +165,7 @@ export class LaunchService implements ILaunchService {
 				}
 			});
 
-			return TPromise.as(null);
+			return TPromise.as(undefined);
 		}
 
 		// Otherwise handle in windows service
@@ -170,7 +174,7 @@ export class LaunchService implements ILaunchService {
 
 	private startOpenWindow(args: ParsedArgs, userEnv: IProcessEnvironment): TPromise<void> {
 		const context = !!userEnv['VSCODE_CLI'] ? OpenContext.CLI : OpenContext.DESKTOP;
-		let usedWindows: ICodeWindow[];
+		let usedWindows: ICodeWindow[] | undefined;
 
 		// Special case extension development
 		if (!!args.extensionDevelopmentPath) {
@@ -231,14 +235,14 @@ export class LaunchService implements ILaunchService {
 		// If the other instance is waiting to be killed, we hook up a window listener if one window
 		// is being used and only then resolve the startup promise which will kill this second instance.
 		// In addition, we poll for the wait marker file to be deleted to return.
-		if (args.wait && args.waitMarkerFilePath && usedWindows.length === 1 && usedWindows[0]) {
+		if (args.wait && args.waitMarkerFilePath && usedWindows && usedWindows.length === 1 && usedWindows[0]) {
 			return Promise.race([
 				this.windowsMainService.waitForWindowCloseOrLoad(usedWindows[0].id),
 				whenDeleted(args.waitMarkerFilePath)
 			]).then(() => void 0, () => void 0);
 		}
 
-		return TPromise.as(null);
+		return TPromise.as(undefined);
 	}
 
 	getMainProcessId(): TPromise<number> {
@@ -279,10 +283,12 @@ export class LaunchService implements ILaunchService {
 		if (window.openedFolderUri) {
 			folderURIs.push(window.openedFolderUri);
 		} else if (window.openedWorkspace) {
-			const rootFolders = this.workspacesMainService.resolveWorkspaceSync(window.openedWorkspace.configPath).folders;
-			rootFolders.forEach(root => {
-				folderURIs.push(root.uri);
-			});
+			const workspace = this.workspacesMainService.resolveWorkspaceSync(window.openedWorkspace.configPath);
+			if (workspace) {
+				workspace.folders.forEach(root => {
+					folderURIs.push(root.uri);
+				});
+			}
 		}
 
 		return this.browserWindowToInfo(window.win, folderURIs);

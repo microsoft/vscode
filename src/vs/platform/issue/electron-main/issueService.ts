@@ -15,14 +15,15 @@ import { IEnvironmentService } from 'vs/platform/environment/common/environment'
 import { isMacintosh, IProcessEnvironment } from 'vs/base/common/platform';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IWindowsService } from 'vs/platform/windows/common/windows';
+import { IWindowState } from 'vs/platform/windows/electron-main/windows';
 
 const DEFAULT_BACKGROUND_COLOR = '#1E1E1E';
 
 export class IssueService implements IIssueService {
 	_serviceBrand: any;
-	_issueWindow: BrowserWindow;
+	_issueWindow: BrowserWindow | null;
 	_issueParentWindow: BrowserWindow;
-	_processExplorerWindow: BrowserWindow;
+	_processExplorerWindow: BrowserWindow | null;
 
 	constructor(
 		private machineId: string,
@@ -108,7 +109,7 @@ export class IssueService implements IIssueService {
 
 		this._issueWindow.focus();
 
-		return TPromise.as(null);
+		return TPromise.as(undefined);
 	}
 
 	openProcessExplorer(data: ProcessExplorerData): TPromise<void> {
@@ -150,7 +151,7 @@ export class IssueService implements IIssueService {
 
 			this._processExplorerWindow.loadURL(`${require.toUrl('vs/code/electron-browser/processExplorer/processExplorer.html')}?config=${encodeURIComponent(JSON.stringify(config))}`);
 
-			this._processExplorerWindow.on('close', () => this._processExplorerWindow = void 0);
+			this._processExplorerWindow.on('close', () => this._processExplorerWindow = null);
 
 			parentWindow.on('close', () => {
 				if (this._processExplorerWindow) {
@@ -163,12 +164,12 @@ export class IssueService implements IIssueService {
 		// Focus
 		this._processExplorerWindow.focus();
 
-		return TPromise.as(null);
+		return TPromise.as(undefined);
 	}
 
-	private getWindowPosition(parentWindow: BrowserWindow, defaultWidth: number, defaultHeight: number) {
+	private getWindowPosition(parentWindow: BrowserWindow, defaultWidth: number, defaultHeight: number): IWindowState {
 		// We want the new window to open on the same display that the parent is in
-		let displayToUse: Electron.Display;
+		let displayToUse: Electron.Display | undefined;
 		const displays = screen.getAllDisplays();
 
 		// Single Display
@@ -196,16 +197,14 @@ export class IssueService implements IIssueService {
 			}
 		}
 
-		let state = {
+		const state: IWindowState = {
 			width: defaultWidth,
-			height: defaultHeight,
-			x: undefined,
-			y: undefined
+			height: defaultHeight
 		};
 
 		const displayBounds = displayToUse.bounds;
-		state.x = displayBounds.x + (displayBounds.width / 2) - (state.width / 2);
-		state.y = displayBounds.y + (displayBounds.height / 2) - (state.height / 2);
+		state.x = displayBounds.x + (displayBounds.width / 2) - (state.width! / 2);
+		state.y = displayBounds.y + (displayBounds.height / 2) - (state.height! / 2);
 
 		if (displayBounds.width > 0 && displayBounds.height > 0 /* Linux X11 sessions sometimes report wrong display bounds */) {
 			if (state.x < displayBounds.x) {
@@ -224,11 +223,11 @@ export class IssueService implements IIssueService {
 				state.y = displayBounds.y; // prevent window from falling out of the screen to the bottom
 			}
 
-			if (state.width > displayBounds.width) {
+			if (state.width! > displayBounds.width) {
 				state.width = displayBounds.width; // prevent window from exceeding display bounds width
 			}
 
-			if (state.height > displayBounds.height) {
+			if (state.height! > displayBounds.height) {
 				state.height = displayBounds.height; // prevent window from exceeding display bounds height
 			}
 		}
@@ -259,7 +258,11 @@ export class IssueService implements IIssueService {
 		});
 	}
 
-	private getIssueReporterPath(data: IssueReporterData, features: IssueReporterFeatures) {
+	private getIssueReporterPath(data: IssueReporterData, features: IssueReporterFeatures): string {
+		if (!this._issueWindow) {
+			throw new Error('Issue window has been disposed');
+		}
+
 		const windowConfiguration = {
 			appRoot: this.environmentService.appRoot,
 			nodeCachedDataDir: this.environmentService.nodeCachedDataDir,
