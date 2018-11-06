@@ -74,96 +74,96 @@ export class IssueService implements IIssueService {
 	}
 
 	openReporter(data: IssueReporterData): Promise<void> {
-		this._issueParentWindow = BrowserWindow.getFocusedWindow();
-		const position = this.getWindowPosition(this._issueParentWindow, 700, 800);
-		if (!this._issueWindow) {
-			this._issueWindow = new BrowserWindow({
-				width: position.width,
-				height: position.height,
-				minWidth: 300,
-				minHeight: 200,
-				x: position.x,
-				y: position.y,
-				title: localize('issueReporter', "Issue Reporter"),
-				backgroundColor: data.styles.backgroundColor || DEFAULT_BACKGROUND_COLOR
-			});
+		return new Promise(_ => {
+			this._issueParentWindow = BrowserWindow.getFocusedWindow();
+			const position = this.getWindowPosition(this._issueParentWindow, 700, 800);
+			if (!this._issueWindow) {
+				this._issueWindow = new BrowserWindow({
+					width: position.width,
+					height: position.height,
+					minWidth: 300,
+					minHeight: 200,
+					x: position.x,
+					y: position.y,
+					title: localize('issueReporter', "Issue Reporter"),
+					backgroundColor: data.styles.backgroundColor || DEFAULT_BACKGROUND_COLOR
+				});
 
-			this._issueWindow.setMenuBarVisibility(false); // workaround for now, until a menu is implemented
+				this._issueWindow.setMenuBarVisibility(false); // workaround for now, until a menu is implemented
 
-			// Modified when testing UI
-			const features: IssueReporterFeatures = {};
+				// Modified when testing UI
+				const features: IssueReporterFeatures = {};
 
-			this.logService.trace('issueService#openReporter: opening issue reporter');
-			this._issueWindow.loadURL(this.getIssueReporterPath(data, features));
+				this.logService.trace('issueService#openReporter: opening issue reporter');
+				this._issueWindow.loadURL(this.getIssueReporterPath(data, features));
 
-			this._issueWindow.on('close', () => this._issueWindow = null);
+				this._issueWindow.on('close', () => this._issueWindow = null);
 
-			this._issueParentWindow.on('closed', () => {
-				if (this._issueWindow) {
-					this._issueWindow.close();
-					this._issueWindow = null;
-				}
-			});
-		}
+				this._issueParentWindow.on('closed', () => {
+					if (this._issueWindow) {
+						this._issueWindow.close();
+						this._issueWindow = null;
+					}
+				});
+			}
 
-		this._issueWindow.focus();
-
-		return null;
+			this._issueWindow.focus();
+		});
 	}
 
 	openProcessExplorer(data: ProcessExplorerData): Promise<void> {
-		// Create as singleton
-		if (!this._processExplorerWindow) {
-			const parentWindow = BrowserWindow.getFocusedWindow();
-			const position = this.getWindowPosition(parentWindow, 800, 300);
-			this._processExplorerWindow = new BrowserWindow({
-				skipTaskbar: true,
-				resizable: true,
-				width: position.width,
-				height: position.height,
-				minWidth: 300,
-				minHeight: 200,
-				x: position.x,
-				y: position.y,
-				backgroundColor: data.styles.backgroundColor,
-				title: localize('processExplorer', "Process Explorer")
-			});
+		return new Promise(_ => {
+			// Create as singleton
+			if (!this._processExplorerWindow) {
+				const parentWindow = BrowserWindow.getFocusedWindow();
+				const position = this.getWindowPosition(parentWindow, 800, 300);
+				this._processExplorerWindow = new BrowserWindow({
+					skipTaskbar: true,
+					resizable: true,
+					width: position.width,
+					height: position.height,
+					minWidth: 300,
+					minHeight: 200,
+					x: position.x,
+					y: position.y,
+					backgroundColor: data.styles.backgroundColor,
+					title: localize('processExplorer', "Process Explorer")
+				});
 
-			this._processExplorerWindow.setMenuBarVisibility(false);
+				this._processExplorerWindow.setMenuBarVisibility(false);
 
-			const windowConfiguration = {
-				appRoot: this.environmentService.appRoot,
-				nodeCachedDataDir: this.environmentService.nodeCachedDataDir,
-				windowId: this._processExplorerWindow.id,
-				userEnv: this.userEnv,
-				machineId: this.machineId,
-				data
-			};
+				const windowConfiguration = {
+					appRoot: this.environmentService.appRoot,
+					nodeCachedDataDir: this.environmentService.nodeCachedDataDir,
+					windowId: this._processExplorerWindow.id,
+					userEnv: this.userEnv,
+					machineId: this.machineId,
+					data
+				};
 
-			const environment = parseArgs(process.argv);
-			const config = objects.assign(environment, windowConfiguration);
-			for (let key in config) {
-				if (config[key] === void 0 || config[key] === null || config[key] === '') {
-					delete config[key]; // only send over properties that have a true value
+				const environment = parseArgs(process.argv);
+				const config = objects.assign(environment, windowConfiguration);
+				for (let key in config) {
+					if (config[key] === void 0 || config[key] === null || config[key] === '') {
+						delete config[key]; // only send over properties that have a true value
+					}
 				}
+
+				this._processExplorerWindow.loadURL(`${require.toUrl('vs/code/electron-browser/processExplorer/processExplorer.html')}?config=${encodeURIComponent(JSON.stringify(config))}`);
+
+				this._processExplorerWindow.on('close', () => this._processExplorerWindow = null);
+
+				parentWindow.on('close', () => {
+					if (this._processExplorerWindow) {
+						this._processExplorerWindow.close();
+						this._processExplorerWindow = null;
+					}
+				});
 			}
 
-			this._processExplorerWindow.loadURL(`${require.toUrl('vs/code/electron-browser/processExplorer/processExplorer.html')}?config=${encodeURIComponent(JSON.stringify(config))}`);
-
-			this._processExplorerWindow.on('close', () => this._processExplorerWindow = null);
-
-			parentWindow.on('close', () => {
-				if (this._processExplorerWindow) {
-					this._processExplorerWindow.close();
-					this._processExplorerWindow = null;
-				}
-			});
-		}
-
-		// Focus
-		this._processExplorerWindow.focus();
-
-		return null;
+			// Focus
+			this._processExplorerWindow.focus();
+		});
 	}
 
 	private getWindowPosition(parentWindow: BrowserWindow, defaultWidth: number, defaultHeight: number): IWindowState {
