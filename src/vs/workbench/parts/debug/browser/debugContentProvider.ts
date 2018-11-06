@@ -5,7 +5,6 @@
 
 import { URI as uri } from 'vs/base/common/uri';
 import { localize } from 'vs/nls';
-import { TPromise } from 'vs/base/common/winjs.base';
 import { guessMimeTypes, MIME_TEXT } from 'vs/base/common/mime';
 import { ITextModel } from 'vs/editor/common/model';
 import { IModelService } from 'vs/editor/common/services/modelService';
@@ -39,7 +38,7 @@ export class DebugContentProvider implements IWorkbenchContribution, ITextModelC
 		textModelResolverService.registerTextModelContentProvider(DEBUG_SCHEME, this);
 	}
 
-	public provideTextContent(resource: uri): TPromise<ITextModel> {
+	public provideTextContent(resource: uri): Promise<ITextModel> {
 
 		let session: IDebugSession;
 

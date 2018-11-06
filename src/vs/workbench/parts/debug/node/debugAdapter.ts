@@ -13,7 +13,6 @@ import * as strings from 'vs/base/common/strings';
 import * as objects from 'vs/base/common/objects';
 import * as platform from 'vs/base/common/platform';
 import { Emitter, Event } from 'vs/base/common/event';
-import { TPromise } from 'vs/base/common/winjs.base';
 import { ExtensionsChannelId } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { IExtensionDescription } from 'vs/workbench/services/extensions/common/extensions';
 import { IOutputService } from 'vs/workbench/parts/output/common/output';
@@ -42,8 +41,8 @@ export abstract class AbstractDebugAdapter implements IDebugAdapter {
 		this._onExit = new Emitter<number>();
 	}
 
-	abstract startSession(): TPromise<void>;
-	abstract stopSession(): TPromise<void>;
+	abstract startSession(): Promise<void>;
+	abstract stopSession(): Promise<void>;
 
 	public dispose(): void {
 	}
@@ -261,7 +260,7 @@ export class SocketDebugAdapter extends StreamDebugAdapter {
 		super();
 	}
 
-	startSession(): TPromise<void> {
+	startSession(): Promise<void> {
 		return new Promise<void>((resolve, reject) => {
 			let connected = false;
 			this.socket = net.createConnection(this.adapterServer.port, this.adapterServer.host || '127.0.0.1', () => {
@@ -286,7 +285,7 @@ export class SocketDebugAdapter extends StreamDebugAdapter {
 		});
 	}
 
-	stopSession(): TPromise<void> {
+	stopSession(): Promise<void> {
 
 		// Cancel all sent promises on disconnect so debug trees are not left in a broken state #3666.
 		this.cancelPending();
@@ -310,7 +309,7 @@ export class ExecutableDebugAdapter extends StreamDebugAdapter {
 		super();
 	}
 
-	startSession(): TPromise<void> {
+	startSession(): Promise<void> {
 
 		return new Promise<void>((resolve, reject) => {
 
@@ -401,7 +400,7 @@ export class ExecutableDebugAdapter extends StreamDebugAdapter {
 		});
 	}
 
-	stopSession(): TPromise<void> {
+	stopSession(): Promise<void> {
 
 		// Cancel all sent promises on disconnect so debug trees are not left in a broken state #3666.
 		this.cancelPending();

@@ -5,7 +5,6 @@
 
 import * as nls from 'vs/nls';
 import * as lifecycle from 'vs/base/common/lifecycle';
-import { TPromise } from 'vs/base/common/winjs.base';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { ScrollbarVisibility } from 'vs/base/common/scrollable';
 import * as dom from 'vs/base/browser/dom';
@@ -140,7 +139,7 @@ export class DebugHoverWidget implements IContentWidget {
 		return this.domNode;
 	}
 
-	public showAt(range: Range, focus: boolean): TPromise<void> {
+	public showAt(range: Range, focus: boolean): Promise<void> {
 		const pos = range.getStartPosition();
 
 		const session = this.debugService.getViewModel().focusedSession;
@@ -152,7 +151,7 @@ export class DebugHoverWidget implements IContentWidget {
 			return Promise.resolve(this.hide());
 		}
 
-		let promise: TPromise<IExpression>;
+		let promise: Promise<IExpression>;
 		if (session.capabilities.supportsEvaluateForHovers) {
 			const result = new Expression(matchingExpression);
 			promise = result.evaluate(session, this.debugService.getViewModel().focusedStackFrame, 'hover').then(() => result);
@@ -179,7 +178,7 @@ export class DebugHoverWidget implements IContentWidget {
 		className: 'hoverHighlight'
 	});
 
-	private doFindExpression(container: IExpressionContainer, namesToFind: string[]): TPromise<IExpression> {
+	private doFindExpression(container: IExpressionContainer, namesToFind: string[]): Promise<IExpression> {
 		if (!container) {
 			return Promise.resolve(null);
 		}
@@ -199,7 +198,7 @@ export class DebugHoverWidget implements IContentWidget {
 		});
 	}
 
-	private findExpressionInStackFrame(namesToFind: string[]): TPromise<IExpression> {
+	private findExpressionInStackFrame(namesToFind: string[]): Promise<IExpression> {
 		return this.debugService.getViewModel().focusedStackFrame.getScopes()
 			.then(scopes => scopes.filter(s => !s.expensive))
 			.then(scopes => Promise.all(scopes.map(scope => this.doFindExpression(scope, namesToFind))))
@@ -208,7 +207,7 @@ export class DebugHoverWidget implements IContentWidget {
 			.then(expressions => (expressions.length > 0 && expressions.every(e => e.value === expressions[0].value)) ? expressions[0] : null);
 	}
 
-	private doShow(position: Position, expression: IExpression, focus: boolean, forceValueHover = false): TPromise<void> {
+	private doShow(position: Position, expression: IExpression, focus: boolean, forceValueHover = false): Thenable<void> {
 		if (!this.domNode) {
 			this.create();
 		}

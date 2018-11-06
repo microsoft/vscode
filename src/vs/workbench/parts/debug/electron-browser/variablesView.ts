@@ -17,7 +17,6 @@ import { MenuId } from 'vs/platform/actions/common/actions';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { twistiePixels, renderViewTree, IVariableTemplateData, BaseDebugController, renderRenameBox, renderVariable } from 'vs/workbench/parts/debug/browser/baseDebugView';
-import { TPromise } from 'vs/base/common/winjs.base';
 import { IAction, IActionItem } from 'vs/base/common/actions';
 import { SetValueAction, AddToWatchExpressionsAction } from 'vs/workbench/parts/debug/browser/debugActions';
 import { CopyValueAction, CopyEvaluatePathAction } from 'vs/workbench/parts/debug/electron-browser/electronDebugActions';
@@ -157,7 +156,7 @@ class VariablesActionProvider implements IActionProvider {
 		return false;
 	}
 
-	public getActions(tree: ITree, element: any): TPromise<IAction[]> {
+	public getActions(tree: ITree, element: any): Promise<IAction[]> {
 		return Promise.resolve([]);
 	}
 
@@ -166,7 +165,7 @@ class VariablesActionProvider implements IActionProvider {
 		return element instanceof Variable && !!element.value;
 	}
 
-	public getSecondaryActions(tree: ITree, element: any): TPromise<IAction[]> {
+	public getSecondaryActions(tree: ITree, element: any): Promise<IAction[]> {
 		const actions: IAction[] = [];
 		const variable = <Variable>element;
 		actions.push(new SetValueAction(SetValueAction.ID, SetValueAction.LABEL, variable, this.debugService, this.keybindingService));
@@ -198,7 +197,7 @@ export class VariablesDataSource implements IDataSource {
 		return variable.hasChildren && !equalsIgnoreCase(variable.value, 'null');
 	}
 
-	public getChildren(tree: ITree, element: any): TPromise<any> {
+	public getChildren(tree: ITree, element: any): Promise<any> {
 		if (element instanceof ViewModel) {
 			const focusedStackFrame = (<ViewModel>element).focusedStackFrame;
 			return focusedStackFrame ? focusedStackFrame.getScopes() : Promise.resolve([]);
@@ -208,7 +207,7 @@ export class VariablesDataSource implements IDataSource {
 		return scope.getChildren();
 	}
 
-	public getParent(tree: ITree, element: any): TPromise<any> {
+	public getParent(tree: ITree, element: any): Promise<any> {
 		return Promise.resolve(null);
 	}
 }

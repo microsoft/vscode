@@ -6,7 +6,6 @@
 import 'vs/css!vs/workbench/parts/debug/browser/media/repl';
 import * as nls from 'vs/nls';
 import { URI as uri } from 'vs/base/common/uri';
-import { TPromise } from 'vs/base/common/winjs.base';
 import * as errors from 'vs/base/common/errors';
 import { IAction, IActionItem, Action } from 'vs/base/common/actions';
 import * as dom from 'vs/base/browser/dom';
@@ -441,7 +440,7 @@ class AcceptReplInputAction extends EditorAction {
 		});
 	}
 
-	run(accessor: ServicesAccessor, editor: ICodeEditor): void | TPromise<void> {
+	run(accessor: ServicesAccessor, editor: ICodeEditor): void | Promise<void> {
 		SuggestController.get(editor).acceptSelectedSuggestion();
 		accessor.get(IPrivateReplService).acceptReplInput();
 	}
@@ -458,7 +457,7 @@ export class ReplCopyAllAction extends EditorAction {
 		});
 	}
 
-	run(accessor: ServicesAccessor, editor: ICodeEditor): void | TPromise<void> {
+	run(accessor: ServicesAccessor, editor: ICodeEditor): void | Promise<void> {
 		clipboard.writeText(accessor.get(IPrivateReplService).getVisibleContent());
 	}
 }
@@ -496,7 +495,7 @@ class SelectReplAction extends Action {
 		super(id, label);
 	}
 
-	run(sessionName: string): TPromise<any> {
+	run(sessionName: string): Promise<any> {
 		const session = this.debugService.getModel().getSessions(true).filter(p => p.getLabel() === sessionName).pop();
 		// If session is already the focused session we need to manualy update the tree since view model will not send a focused change event
 		if (session && session.state !== State.Inactive && session !== this.debugService.getViewModel().focusedSession) {
@@ -520,7 +519,7 @@ class ClearReplAction extends Action {
 		super(id, label, 'debug-action clear-repl');
 	}
 
-	public run(): TPromise<any> {
+	public run(): Promise<any> {
 		this.replService.clearRepl();
 		aria.status(nls.localize('debugConsoleCleared', "Debug console was cleared"));
 

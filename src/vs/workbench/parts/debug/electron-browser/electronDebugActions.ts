@@ -5,7 +5,6 @@
 
 import * as nls from 'vs/nls';
 import { Action } from 'vs/base/common/actions';
-import { TPromise } from 'vs/base/common/winjs.base';
 import { ITree } from 'vs/base/parts/tree/browser/tree';
 import { removeAnsiEscapeCodes } from 'vs/base/common/strings';
 import { Variable } from 'vs/workbench/parts/debug/common/debugModel';
@@ -22,7 +21,7 @@ export class CopyValueAction extends Action {
 		this._enabled = typeof this.value === 'string' || (this.value instanceof Variable && !!this.value.evaluateName);
 	}
 
-	public run(): TPromise<any> {
+	public run(): Promise<any> {
 		if (this.value instanceof Variable) {
 			const frameId = this.debugService.getViewModel().focusedStackFrame.frameId;
 			const session = this.debugService.getViewModel().focusedSession;
@@ -45,7 +44,7 @@ export class CopyEvaluatePathAction extends Action {
 		this._enabled = this.value && !!this.value.evaluateName;
 	}
 
-	public run(): TPromise<any> {
+	public run(): Promise<any> {
 		clipboard.writeText(this.value.evaluateName);
 		return Promise.resolve(undefined);
 	}
@@ -55,7 +54,7 @@ export class CopyAction extends Action {
 	static readonly ID = 'workbench.debug.action.copy';
 	static LABEL = nls.localize('copy', "Copy");
 
-	public run(): TPromise<any> {
+	public run(): Promise<any> {
 		clipboard.writeText(window.getSelection().toString());
 		return Promise.resolve(undefined);
 	}
@@ -70,7 +69,7 @@ export class CopyAllAction extends Action {
 		super(id, label);
 	}
 
-	public run(): TPromise<any> {
+	public run(): Promise<any> {
 		let text = '';
 		const navigator = this.tree.getNavigator();
 		// skip first navigator element - the root node
@@ -90,7 +89,7 @@ export class CopyStackTraceAction extends Action {
 	static readonly ID = 'workbench.action.debug.copyStackTrace';
 	static LABEL = nls.localize('copyStackTrace', "Copy Call Stack");
 
-	public run(frame: IStackFrame): TPromise<any> {
+	public run(frame: IStackFrame): Promise<any> {
 		clipboard.writeText(frame.thread.getCallStack().map(sf => sf.toString()).join(lineDelimiter));
 		return Promise.resolve(undefined);
 	}

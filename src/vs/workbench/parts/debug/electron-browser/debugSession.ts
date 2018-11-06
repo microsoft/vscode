@@ -8,7 +8,6 @@ import * as resources from 'vs/base/common/resources';
 import * as nls from 'vs/nls';
 import * as platform from 'vs/base/common/platform';
 import severity from 'vs/base/common/severity';
-import { TPromise } from 'vs/base/common/winjs.base';
 import { Event, Emitter } from 'vs/base/common/event';
 import { CompletionItem, completionKindFromLegacyString } from 'vs/editor/common/modes';
 import { Position } from 'vs/editor/common/core/position';
@@ -137,7 +136,7 @@ export class DebugSession implements IDebugSession {
 	/**
 	 * create and initialize a new debug adapter for this session
 	 */
-	initialize(dbgr: IDebugger): TPromise<void> {
+	initialize(dbgr: IDebugger): Thenable<void> {
 
 		if (this.raw) {
 			// if there was already a connection make sure to remove old listeners
@@ -177,7 +176,7 @@ export class DebugSession implements IDebugSession {
 	/**
 	 * launch or attach to the debuggee
 	 */
-	launchOrAttach(config: IConfig): TPromise<void> {
+	launchOrAttach(config: IConfig): Promise<void> {
 		if (this.raw) {
 
 			// __sessionID only used for EH debugging (but we add it always for now...)
@@ -193,7 +192,7 @@ export class DebugSession implements IDebugSession {
 	/**
 	 * end the current debug adapter session
 	 */
-	terminate(restart = false): TPromise<void> {
+	terminate(restart = false): Promise<void> {
 		if (this.raw) {
 			if (this.raw.capabilities.supportsTerminateRequest && this._configuration.resolved.request === 'launch') {
 				return this.raw.terminate(restart).then(response => {
@@ -210,7 +209,7 @@ export class DebugSession implements IDebugSession {
 	/**
 	 * end the current debug adapter session
 	 */
-	disconnect(restart = false): TPromise<void> {
+	disconnect(restart = false): Promise<void> {
 		if (this.raw) {
 			return this.raw.disconnect(restart).then(response => {
 				return void 0;
@@ -222,14 +221,14 @@ export class DebugSession implements IDebugSession {
 	/**
 	 * restart debug adapter session
 	 */
-	restart(): TPromise<void> {
+	restart(): Promise<void> {
 		if (this.raw) {
 			return this.raw.restart().then(() => undefined);
 		}
 		return Promise.reject(new Error('no debug adapter'));
 	}
 
-	sendBreakpoints(modelUri: URI, breakpointsToSend: IBreakpoint[], sourceModified: boolean): TPromise<void> {
+	sendBreakpoints(modelUri: URI, breakpointsToSend: IBreakpoint[], sourceModified: boolean): Promise<void> {
 
 		if (!this.raw) {
 			return Promise.reject(new Error('no debug adapter'));
@@ -271,7 +270,7 @@ export class DebugSession implements IDebugSession {
 		});
 	}
 
-	sendFunctionBreakpoints(fbpts: IFunctionBreakpoint[]): TPromise<void> {
+	sendFunctionBreakpoints(fbpts: IFunctionBreakpoint[]): Promise<void> {
 		if (this.raw) {
 			if (this.raw.readyForBreakpoints) {
 				return this.raw.setFunctionBreakpoints({ breakpoints: fbpts }).then(response => {
@@ -285,13 +284,13 @@ export class DebugSession implements IDebugSession {
 				});
 			}
 
-			return TPromise.as(undefined);
+			return Promise.resolve(undefined);
 		}
 
 		return Promise.reject(new Error('no debug adapter'));
 	}
 
-	sendExceptionBreakpoints(exbpts: IExceptionBreakpoint[]): TPromise<void> {
+	sendExceptionBreakpoints(exbpts: IExceptionBreakpoint[]): Promise<void> {
 		if (this.raw) {
 			if (this.raw.readyForBreakpoints) {
 				return this.raw.setExceptionBreakpoints({ filters: exbpts.map(exb => exb.filter) }).then(() => undefined);
@@ -301,21 +300,21 @@ export class DebugSession implements IDebugSession {
 		return Promise.reject(new Error('no debug adapter'));
 	}
 
-	customRequest(request: string, args: any): TPromise<DebugProtocol.Response> {
+	customRequest(request: string, args: any): Promise<DebugProtocol.Response> {
 		if (this.raw) {
 			return this.raw.custom(request, args);
 		}
 		return Promise.reject(new Error('no debug adapter'));
 	}
 
-	stackTrace(threadId: number, startFrame: number, levels: number): TPromise<DebugProtocol.StackTraceResponse> {
+	stackTrace(threadId: number, startFrame: number, levels: number): Promise<DebugProtocol.StackTraceResponse> {
 		if (this.raw) {
 			return this.raw.stackTrace({ threadId, startFrame, levels });
 		}
 		return Promise.reject(new Error('no debug adapter'));
 	}
 
-	exceptionInfo(threadId: number): TPromise<IExceptionInfo> {
+	exceptionInfo(threadId: number): Promise<IExceptionInfo> {
 		if (this.raw) {
 			return this.raw.exceptionInfo({ threadId }).then(response => {
 				if (response) {
@@ -332,98 +331,98 @@ export class DebugSession implements IDebugSession {
 		return Promise.reject(new Error('no debug adapter'));
 	}
 
-	scopes(frameId: number): TPromise<DebugProtocol.ScopesResponse> {
+	scopes(frameId: number): Promise<DebugProtocol.ScopesResponse> {
 		if (this.raw) {
 			return this.raw.scopes({ frameId });
 		}
 		return Promise.reject(new Error('no debug adapter'));
 	}
 
-	variables(variablesReference: number, filter: 'indexed' | 'named', start: number, count: number): TPromise<DebugProtocol.VariablesResponse | undefined> {
+	variables(variablesReference: number, filter: 'indexed' | 'named', start: number, count: number): Promise<DebugProtocol.VariablesResponse | undefined> {
 		if (this.raw) {
 			return this.raw.variables({ variablesReference, filter, start, count });
 		}
 		return Promise.resolve(undefined);
 	}
 
-	evaluate(expression: string, frameId: number, context?: string): TPromise<DebugProtocol.EvaluateResponse> {
+	evaluate(expression: string, frameId: number, context?: string): Promise<DebugProtocol.EvaluateResponse> {
 		if (this.raw) {
 			return this.raw.evaluate({ expression, frameId, context });
 		}
 		return Promise.reject(new Error('no debug adapter'));
 	}
 
-	restartFrame(frameId: number, threadId: number): TPromise<void> {
+	restartFrame(frameId: number, threadId: number): Promise<void> {
 		if (this.raw) {
 			return this.raw.restartFrame({ frameId }, threadId).then(() => undefined);
 		}
 		return Promise.reject(new Error('no debug adapter'));
 	}
 
-	next(threadId: number): TPromise<void> {
+	next(threadId: number): Promise<void> {
 		if (this.raw) {
 			return this.raw.next({ threadId }).then(() => undefined);
 		}
 		return Promise.reject(new Error('no debug adapter'));
 	}
 
-	stepIn(threadId: number): TPromise<void> {
+	stepIn(threadId: number): Promise<void> {
 		if (this.raw) {
 			return this.raw.stepIn({ threadId }).then(() => undefined);
 		}
 		return Promise.reject(new Error('no debug adapter'));
 	}
 
-	stepOut(threadId: number): TPromise<void> {
+	stepOut(threadId: number): Promise<void> {
 		if (this.raw) {
 			return this.raw.stepOut({ threadId }).then(() => undefined);
 		}
 		return Promise.reject(new Error('no debug adapter'));
 	}
 
-	stepBack(threadId: number): TPromise<void> {
+	stepBack(threadId: number): Promise<void> {
 		if (this.raw) {
 			return this.raw.stepBack({ threadId }).then(() => undefined);
 		}
 		return Promise.reject(new Error('no debug adapter'));
 	}
 
-	continue(threadId: number): TPromise<void> {
+	continue(threadId: number): Promise<void> {
 		if (this.raw) {
 			return this.raw.continue({ threadId }).then(() => undefined);
 		}
 		return Promise.reject(new Error('no debug adapter'));
 	}
 
-	reverseContinue(threadId: number): TPromise<void> {
+	reverseContinue(threadId: number): Promise<void> {
 		if (this.raw) {
 			return this.raw.reverseContinue({ threadId }).then(() => undefined);
 		}
 		return Promise.reject(new Error('no debug adapter'));
 	}
 
-	pause(threadId: number): TPromise<void> {
+	pause(threadId: number): Promise<void> {
 		if (this.raw) {
 			return this.raw.pause({ threadId }).then(() => undefined);
 		}
 		return Promise.reject(new Error('no debug adapter'));
 	}
 
-	terminateThreads(threadIds?: number[]): TPromise<void> {
+	terminateThreads(threadIds?: number[]): Promise<void> {
 		if (this.raw) {
 			return this.raw.terminateThreads({ threadIds }).then(() => undefined);
 		}
 		return Promise.reject(new Error('no debug adapter'));
 	}
 
-	setVariable(variablesReference: number, name: string, value: string): TPromise<DebugProtocol.SetVariableResponse> {
+	setVariable(variablesReference: number, name: string, value: string): Promise<DebugProtocol.SetVariableResponse> {
 		if (this.raw) {
 			return this.raw.setVariable({ variablesReference, name, value });
 		}
 		return Promise.reject(new Error('no debug adapter'));
 	}
 
-	loadSource(resource: URI): TPromise<DebugProtocol.SourceResponse> {
+	loadSource(resource: URI): Promise<DebugProtocol.SourceResponse> {
 
 		if (!this.raw) {
 			return Promise.reject(new Error('no debug adapter'));
@@ -451,7 +450,7 @@ export class DebugSession implements IDebugSession {
 		return this.raw.source({ sourceReference: rawSource.sourceReference, source: rawSource });
 	}
 
-	getLoadedSources(): TPromise<Source[]> {
+	getLoadedSources(): Promise<Source[]> {
 		if (this.raw) {
 			return this.raw.loadedSources({}).then(response => {
 				if (response.body && response.body.sources) {
@@ -466,7 +465,7 @@ export class DebugSession implements IDebugSession {
 		return Promise.reject(new Error('no debug adapter'));
 	}
 
-	completions(frameId: number, text: string, position: Position, overwriteBefore: number): TPromise<CompletionItem[]> {
+	completions(frameId: number, text: string, position: Position, overwriteBefore: number): Promise<CompletionItem[]> {
 		if (this.raw) {
 			return this.raw.completions({
 				frameId,
@@ -563,7 +562,7 @@ export class DebugSession implements IDebugSession {
 		}
 	}
 
-	private fetchThreads(stoppedDetails?: IRawStoppedDetails): TPromise<void> {
+	private fetchThreads(stoppedDetails?: IRawStoppedDetails): Promise<void> {
 		return this.raw ? this.raw.threads().then(response => {
 			if (response && response.body && response.body.threads) {
 				response.body.threads.forEach(thread => {
@@ -575,7 +574,7 @@ export class DebugSession implements IDebugSession {
 					});
 				});
 			}
-		}) : TPromise.as(undefined);
+		}) : Promise.resolve(undefined);
 	}
 
 	//---- private
@@ -655,7 +654,7 @@ export class DebugSession implements IDebugSession {
 			this._onDidChangeState.fire();
 		}));
 
-		let outputPromises: TPromise<void>[] = [];
+		let outpuPromises: Promise<void>[] = [];
 		this.rawListeners.push(this.raw.onDidOutput(event => {
 			if (!event.body) {
 				return;
@@ -674,7 +673,7 @@ export class DebugSession implements IDebugSession {
 			}
 
 			// Make sure to append output in the correct order by properly waiting on preivous promises #33822
-			const waitFor = outputPromises.slice();
+			const waitFor = outpuPromises.slice();
 			const source = event.body.source ? {
 				lineNumber: event.body.line,
 				column: event.body.column ? event.body.column : 1,
@@ -682,7 +681,7 @@ export class DebugSession implements IDebugSession {
 			} : undefined;
 			if (event.body.variablesReference) {
 				const container = new ExpressionContainer(this, event.body.variablesReference, generateUuid());
-				outputPromises.push(container.getChildren().then(children => {
+				outpuPromises.push(container.getChildren().then(children => {
 					return Promise.all(waitFor).then(() => children.forEach(child => {
 						// Since we can not display multiple trees in a row, we are displaying these variables one after the other (ignoring their names)
 						child.name = null;
@@ -692,7 +691,7 @@ export class DebugSession implements IDebugSession {
 			} else if (typeof event.body.output === 'string') {
 				Promise.all(waitFor).then(() => this.appendToRepl(event.body.output, outputSeverity, source));
 			}
-			Promise.all(outputPromises).then(() => outputPromises = []);
+			Promise.all(outpuPromises).then(() => outpuPromises = []);
 		}));
 
 		this.rawListeners.push(this.raw.onDidBreakpoint(event => {
@@ -799,7 +798,7 @@ export class DebugSession implements IDebugSession {
 		this._onDidChangeREPLElements.fire();
 	}
 
-	addReplExpression(stackFrame: IStackFrame, name: string): TPromise<void> {
+	addReplExpression(stackFrame: IStackFrame, name: string): Promise<void> {
 		const viewModel = this.debugService.getViewModel();
 		return this.repl.addReplExpression(stackFrame, name)
 			.then(() => this._onDidChangeREPLElements.fire())

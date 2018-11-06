@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as nls from 'vs/nls';
-import { TPromise } from 'vs/base/common/winjs.base';
 import { Client as TelemetryClient } from 'vs/base/parts/ipc/node/ipc.cp';
 import * as strings from 'vs/base/common/strings';
 import * as objects from 'vs/base/common/objects';
@@ -43,7 +42,7 @@ export class Debugger implements IDebugger {
 
 	public hasConfigurationProvider = false;
 
-	public createDebugAdapter(session: IDebugSession, root: IWorkspaceFolder, config: IConfig, outputService: IOutputService): TPromise<IDebugAdapter> {
+	public createDebugAdapter(session: IDebugSession, root: IWorkspaceFolder, config: IConfig, outputService: IOutputService): Promise<IDebugAdapter> {
 		if (this.inExtHost()) {
 			return Promise.resolve(this.configurationManager.createDebugAdapter(session, root, config));
 		} else {
@@ -60,7 +59,7 @@ export class Debugger implements IDebugger {
 		}
 	}
 
-	private getAdapterDescriptor(session: IDebugSession, root: IWorkspaceFolder, config: IConfig): TPromise<IAdapterDescriptor> {
+	private getAdapterDescriptor(session: IDebugSession, root: IWorkspaceFolder, config: IConfig): Promise<IAdapterDescriptor> {
 
 		// a "debugServer" attribute in the launch config takes precedence
 		if (typeof config.debugServer === 'number') {
@@ -94,7 +93,7 @@ export class Debugger implements IDebugger {
 		});
 	}
 
-	public substituteVariables(folder: IWorkspaceFolder, config: IConfig): TPromise<IConfig> {
+	public substituteVariables(folder: IWorkspaceFolder, config: IConfig): Thenable<IConfig> {
 		if (this.inExtHost()) {
 			return this.configurationManager.substituteVariables(this.type, folder, config).then(config => {
 				return this.configurationResolverService.resolveWithCommands(folder, config, this.variables);
@@ -104,7 +103,7 @@ export class Debugger implements IDebugger {
 		}
 	}
 
-	public runInTerminal(args: DebugProtocol.RunInTerminalRequestArguments): TPromise<void> {
+	public runInTerminal(args: DebugProtocol.RunInTerminalRequestArguments): Promise<void> {
 		const config = this.configurationService.getValue<ITerminalSettings>('terminal');
 		return this.configurationManager.runInTerminal(this.inExtHost() ? this.type : '*', args, config);
 	}
@@ -150,7 +149,7 @@ export class Debugger implements IDebugger {
 		return !!this.debuggerContribution.initialConfigurations;
 	}
 
-	public getInitialConfigurationContent(initialConfigs?: IConfig[]): TPromise<string> {
+	public getInitialConfigurationContent(initialConfigs?: IConfig[]): Promise<string> {
 		// at this point we got some configs from the package.json and/or from registered DebugConfigurationProviders
 		let initialConfigurations = this.debuggerContribution.initialConfigurations || [];
 		if (initialConfigs) {
@@ -183,7 +182,7 @@ export class Debugger implements IDebugger {
 	}
 
 	@memoize
-	public getCustomTelemetryService(): TPromise<TelemetryService> {
+	public getCustomTelemetryService(): Thenable<TelemetryService> {
 		if (!this.debuggerContribution.aiKey) {
 			return Promise.resolve(undefined);
 		}

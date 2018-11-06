@@ -6,7 +6,6 @@
 import * as nls from 'vs/nls';
 import severity from 'vs/base/common/severity';
 import { IReplElement, IStackFrame, IExpression, IReplElementSource, IDebugSession } from 'vs/workbench/parts/debug/common/debug';
-import { TPromise } from 'vs/base/common/winjs.base';
 import { Expression, SimpleReplElement, RawObjectReplElement } from 'vs/workbench/parts/debug/common/debugModel';
 import { isUndefinedOrNull, isObject } from 'vs/base/common/types';
 import { basenameOrAuthority } from 'vs/base/common/resources';
@@ -23,7 +22,7 @@ export class ReplModel {
 		return this.replElements;
 	}
 
-	public addReplExpression(stackFrame: IStackFrame, name: string): TPromise<void> {
+	public addReplExpression(stackFrame: IStackFrame, name: string): Promise<void> {
 		const expression = new Expression(name);
 		this.addReplElements([expression]);
 		return expression.evaluate(this.session, stackFrame, 'repl');
