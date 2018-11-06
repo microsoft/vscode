@@ -459,13 +459,13 @@ export class MenubarControl extends Disposable {
 			const message = nls.localize('menubar.electronFixRecommendation', "If you experience hard to read text in the menu bar, we recommend trying out the custom title bar.");
 			this.notificationService.prompt(Severity.Info, message, [
 				{
-					label: nls.localize('tryIt', "Try it"),
+					label: nls.localize('goToSetting', "Open Settings"),
 					run: () => {
 						return this.preferencesService.openGlobalSettings(undefined, { query: 'window.titleBarStyle' });
 					}
 				},
 				{
-					label: nls.localize('moreInfo', "More info"),
+					label: nls.localize('moreInfo', "More Info"),
 					run: () => {
 						window.open('https://go.microsoft.com/fwlink/?linkid=2038566');
 					}
