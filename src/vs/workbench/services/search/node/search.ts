@@ -107,7 +107,7 @@ export class FileMatch implements ISerializedFileMatch {
 /**
  *  Computes the patterns that the provider handles. Discards sibling clauses and 'false' patterns
  */
-export function resolvePatternsForProvider(globalPattern: glob.IExpression, folderPattern: glob.IExpression): string[] {
+export function resolvePatternsForProvider(globalPattern: glob.IExpression | undefined, folderPattern: glob.IExpression | undefined): string[] {
 	const merged = {
 		...(globalPattern || {}),
 		...(folderPattern || {})
