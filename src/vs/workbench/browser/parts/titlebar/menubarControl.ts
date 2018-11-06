@@ -454,10 +454,10 @@ export class MenubarControl extends Disposable {
 				return;
 			}
 
-			const message = nls.localize('menubar.electronFixRecommendation', 'If you experience hard to read text in the menu bar, we recommend trying out the custom title bar.');
+			const message = nls.localize('menubar.electronFixRecommendation', "If you experience hard to read text in the menu bar, we recommend trying out the custom title bar.");
 			this.notificationService.prompt(Severity.Info, message, [
 				{
-					label: nls.localize('tryIt', 'Try it'),
+					label: nls.localize('tryIt', "Try it"),
 					run: () => {
 						// Don't recommend this again
 						this.storageService.store('menubar/electronFixRecommended', true, StorageScope.GLOBAL);
@@ -465,13 +465,13 @@ export class MenubarControl extends Disposable {
 					}
 				},
 				{
-					label: nls.localize('moreInfo', 'More info'),
+					label: nls.localize('moreInfo', "More info"),
 					run: () => {
 						window.open('https://github.com/Microsoft/vscode/issues/62593');
 					}
 				},
 				{
-					label: nls.localize('neverShowAgain', 'Don\'t Show Again'),
+					label: nls.localize('neverShowAgain', "Don't Show Again"),
 					run: () => {
 						this.storageService.store('menubar/electronFixRecommended', true, StorageScope.GLOBAL);
 					}
