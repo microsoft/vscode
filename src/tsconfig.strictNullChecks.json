@@ -469,6 +469,7 @@
 		"./vs/platform/request/electron-main/requestService.ts",
 		"./vs/platform/request/node/request.ts",
 		"./vs/platform/request/node/requestService.ts",
+		"./vs/platform/search/common/replace.ts",
 		"./vs/platform/search/common/search.ts",
 		"./vs/platform/state/common/state.ts",
 		"./vs/platform/statusbar/common/statusbar.ts",
