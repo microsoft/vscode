@@ -16,7 +16,6 @@ import severity from 'vs/base/common/severity';
 import { AbstractDebugAdapter } from 'vs/workbench/parts/debug/node/debugAdapter';
 import { IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import { convertToVSCPaths, convertToDAPaths, stringToUri, uriToString } from 'vs/workbench/parts/debug/common/debugUtils';
-import { deepClone } from 'vs/base/common/objects';
 
 @extHostNamedCustomer(MainContext.MainThreadDebugService)
 export class MainThreadDebugService implements MainThreadDebugServiceShape, IDebugAdapterProvider {
@@ -213,9 +212,7 @@ export class MainThreadDebugService implements MainThreadDebugServiceShape, IDeb
 
 	public $acceptDAMessage(handle: number, message: DebugProtocol.ProtocolMessage) {
 
-		convertToVSCPaths(message, source => uriToString(source));
-
-		this._debugAdapters.get(handle).acceptMessage(message);
+		this._debugAdapters.get(handle).acceptMessage(convertToVSCPaths(message, source => uriToString(source)));
 	}
 
 	public $acceptDAError(handle: number, name: string, message: string, stack: string) {
@@ -293,12 +290,7 @@ class ExtensionHostDebugAdapter extends AbstractDebugAdapter {
 
 	public sendMessage(message: DebugProtocol.ProtocolMessage): void {
 
-		// since we modify Source.paths in the message in place, we need to make a copy of it (see #61129)
-		const msg = deepClone(message);
-
-		convertToDAPaths(msg, source => stringToUri(source));
-
-		this._proxy.$sendDAMessage(this._handle, msg);
+		this._proxy.$sendDAMessage(this._handle, convertToDAPaths(message, source => stringToUri(source)));
 	}
 
 	public stopSession(): TPromise<void> {
