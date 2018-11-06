@@ -8,7 +8,6 @@ import * as nls from 'vs/nls';
 import { URI } from 'vs/base/common/uri';
 import { generateUuid } from 'vs/base/common/uuid';
 import * as Objects from 'vs/base/common/objects';
-import { TPromise } from 'vs/base/common/winjs.base';
 import * as Types from 'vs/base/common/types';
 import * as Platform from 'vs/base/common/platform';
 import { IStringDictionary } from 'vs/base/common/collections';
@@ -30,6 +29,7 @@ import {
 	TaskDefinitionDTO, TaskExecutionDTO, ProcessExecutionOptionsDTO, TaskPresentationOptionsDTO,
 	ProcessExecutionDTO, ShellExecutionDTO, ShellExecutionOptionsDTO, TaskDTO, TaskSourceDTO, TaskHandleDTO, TaskFilterDTO, TaskProcessStartedDTO, TaskProcessEndedDTO, TaskSystemInfoDTO
 } from 'vs/workbench/api/shared/tasks';
+import { ResolveSet, ResolvedVariables } from 'vs/workbench/parts/tasks/common/taskSystem';
 
 namespace TaskExecutionDTO {
 	export function from(value: TaskExecution): TaskExecutionDTO {
@@ -395,7 +395,7 @@ export class MainThreadTask implements MainThreadTaskShape {
 	public $registerTaskProvider(handle: number): Thenable<void> {
 		this._taskService.registerTaskProvider(handle, {
 			provideTasks: (validTypes: IStringDictionary<boolean>) => {
-				return TPromise.wrap(this._proxy.$provideTasks(handle, validTypes)).then((value) => {
+				return Promise.resolve(this._proxy.$provideTasks(handle, validTypes)).then((value) => {
 					let tasks: Task[] = [];
 					for (let task of value.tasks) {
 						let taskTransfer = task._source as any as ExtensionTaskSourceTransfer;
@@ -419,13 +419,13 @@ export class MainThreadTask implements MainThreadTaskShape {
 			}
 		});
 		this._activeHandles[handle] = true;
-		return TPromise.wrap<void>(undefined);
+		return Promise.resolve(undefined);
 	}
 
 	public $unregisterTaskProvider(handle: number): Thenable<void> {
 		this._taskService.unregisterTaskProvider(handle);
 		delete this._activeHandles[handle];
-		return TPromise.wrap<void>(undefined);
+		return Promise.resolve(undefined);
 	}
 
 	public $fetchTasks(filter?: TaskFilterDTO): Thenable<TaskDTO[]> {
@@ -442,7 +442,7 @@ export class MainThreadTask implements MainThreadTaskShape {
 	}
 
 	public $executeTask(value: TaskHandleDTO | TaskDTO): Thenable<TaskExecutionDTO> {
-		return new TPromise<TaskExecutionDTO>((resolve, reject) => {
+		return new Promise<TaskExecutionDTO>((resolve, reject) => {
 			if (TaskHandleDTO.is(value)) {
 				let workspaceFolder = this._workspaceContextServer.getWorkspaceFolder(URI.revive(value.workspaceFolder));
 				this._taskService.getTask(workspaceFolder, value.id, true).then((task: Task) => {
@@ -468,7 +468,7 @@ export class MainThreadTask implements MainThreadTaskShape {
 	}
 
 	public $terminateTask(id: string): Thenable<void> {
-		return new TPromise<void>((resolve, reject) => {
+		return new Promise<void>((resolve, reject) => {
 			this._taskService.getActiveTasks().then((tasks) => {
 				for (let task of tasks) {
 					if (id === task._id) {
@@ -506,12 +506,18 @@ export class MainThreadTask implements MainThreadTaskShape {
 				return URI.parse(`${info.scheme}://${info.authority}${path}`);
 			},
 			context: this._extHostContext,
-			resolveVariables: (workspaceFolder: IWorkspaceFolder, variables: Set<string>): TPromise<Map<string, string>> => {
+			resolveVariables: (workspaceFolder: IWorkspaceFolder, toResolve: ResolveSet): Promise<ResolvedVariables> => {
 				let vars: string[] = [];
-				variables.forEach(item => vars.push(item));
-				return TPromise.wrap(this._proxy.$resolveVariables(workspaceFolder.uri, vars)).then(values => {
-					let result = new Map<string, string>();
-					Object.keys(values).forEach(key => result.set(key, values[key]));
+				toResolve.variables.forEach(item => vars.push(item));
+				return Promise.resolve(this._proxy.$resolveVariables(workspaceFolder.uri, { process: toResolve.process, variables: vars })).then(values => {
+					let result = {
+						process: undefined as string,
+						variables: new Map<string, string>()
+					};
+					Object.keys(values.variables).forEach(key => result.variables.set(key, values[key]));
+					if (Types.isString(values.process)) {
+						result.process = values.process;
+					}
 					return result;
 				});
 			}

@@ -17,6 +17,8 @@ import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { openBreakpointSource } from 'vs/workbench/parts/debug/browser/breakpointsView';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
+import { PanelFocusContext } from 'vs/workbench/browser/parts/panel/panelPart';
+import { MenuRegistry, MenuId } from 'vs/platform/actions/common/actions';
 
 export const TOGGLE_BREAKPOINT_ID = 'editor.debug.action.toggleBreakpoint';
 class ToggleBreakpointAction extends EditorAction {
@@ -98,12 +100,15 @@ class LogPointAction extends EditorAction {
 
 class RunToCursorAction extends EditorAction {
 
+	public static ID = 'editor.debug.action.runToCursor';
+	public static LABEL = nls.localize('runToCursor', "Run to Cursor");
+
 	constructor() {
 		super({
-			id: 'editor.debug.action.runToCursor',
-			label: nls.localize('runToCursor', "Run to Cursor"),
+			id: RunToCursorAction.ID,
+			label: RunToCursorAction.LABEL,
 			alias: 'Debug: Run to Cursor',
-			precondition: ContextKeyExpr.and(CONTEXT_IN_DEBUG_MODE, EditorContextKeys.writable, CONTEXT_DEBUG_STATE.isEqualTo('stopped'), EditorContextKeys.editorTextFocus),
+			precondition: ContextKeyExpr.and(CONTEXT_IN_DEBUG_MODE, PanelFocusContext.toNegated(), CONTEXT_DEBUG_STATE.isEqualTo('stopped'), EditorContextKeys.editorTextFocus),
 			menuOpts: {
 				group: 'debug',
 				order: 2
@@ -113,12 +118,14 @@ class RunToCursorAction extends EditorAction {
 
 	public run(accessor: ServicesAccessor, editor: ICodeEditor): TPromise<void> {
 		const debugService = accessor.get(IDebugService);
-		if (debugService.state !== State.Stopped) {
+		const focusedSession = debugService.getViewModel().focusedSession;
+		if (debugService.state !== State.Stopped || !focusedSession) {
 			return Promise.resolve(null);
 		}
 
 		let breakpointToRemove: IBreakpoint;
-		const oneTimeListener = debugService.onDidChangeState(state => {
+		const oneTimeListener = focusedSession.onDidChangeState(() => {
+			const state = focusedSession.state;
 			if (state === State.Stopped || state === State.Inactive) {
 				if (breakpointToRemove) {
 					debugService.removeBreakpoints(breakpointToRemove.getId());
@@ -290,3 +297,12 @@ registerEditorAction(SelectionToWatchExpressionsAction);
 registerEditorAction(ShowDebugHoverAction);
 registerEditorAction(GoToNextBreakpointAction);
 registerEditorAction(GoToPreviousBreakpointAction);
+MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
+	command: {
+		id: RunToCursorAction.ID,
+		title: RunToCursorAction.LABEL,
+		category: 'Debug'
+	},
+	group: 'debug',
+	when: ContextKeyExpr.and(CONTEXT_IN_DEBUG_MODE, CONTEXT_DEBUG_STATE.isEqualTo('stopped')),
+});

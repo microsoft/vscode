@@ -12,13 +12,13 @@ function editorMatchToTextSearchResult(matches: FindMatch[], model: ITextModel, 
 	const lastLine = matches[matches.length - 1].range.endLineNumber;
 
 	const lineTexts: string[] = [];
-	const numLines = previewOptions ? previewOptions.matchLines : Number.MAX_VALUE;
+	const numLines = (previewOptions && matches.length === 1) ? previewOptions.matchLines : Number.MAX_VALUE;
 	for (let i = firstLine; i <= lastLine && (i - firstLine) < numLines; i++) {
 		lineTexts.push(model.getLineContent(i));
 	}
 
 	return new TextSearchMatch(
-		lineTexts.join('\n'),
+		lineTexts.join('\n') + '\n',
 		matches.map(m => new Range(m.range.startLineNumber - 1, m.range.startColumn - 1, m.range.endLineNumber - 1, m.range.endColumn - 1)),
 		previewOptions);
 }

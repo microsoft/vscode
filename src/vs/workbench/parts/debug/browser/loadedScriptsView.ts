@@ -181,7 +181,7 @@ class BaseTreeItem {
 	}
 
 	private oneChild(): BaseTreeItem {
-		if (SMART && !this._source && !this._showedMoreThanOne && !(this instanceof RootFolderTreeItem)) {
+		if (SMART && !this._source && !this._showedMoreThanOne && !(this instanceof RootFolderTreeItem) && !(this instanceof SessionTreeItem)) {
 			const keys = Object.keys(this._children);
 			if (keys.length === 1) {
 				return this._children[keys[0]];

@@ -189,7 +189,7 @@ suite('KeybindingsEditorModel test', () => {
 		assert.equal(actual.keybindingItem.when, '');
 	});
 
-	test('convert with title and wihtout binding to entry', async () => {
+	test('convert with title and without binding to entry', async () => {
 		const id = 'a' + uuid.generateUuid();
 		registerCommandWithTitle(id, 'some title');
 		prepareKeybindingService();

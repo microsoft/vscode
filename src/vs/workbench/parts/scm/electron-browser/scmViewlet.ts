@@ -1153,6 +1153,12 @@ export class SCMViewlet extends PanelViewlet implements IViewModel, IViewsViewle
 	private onDidChangeRepositories(): void {
 		toggleClass(this.el, 'empty', this.scmService.repositories.length === 0);
 
+		if (this.scmService.repositories.length === 0) {
+			this.el.tabIndex = 0;
+		} else {
+			this.el.removeAttribute('tabIndex');
+		}
+
 		const shouldMainPanelAlwaysBeVisible = this.configurationService.getValue('scm.alwaysShowProviders');
 		const shouldMainPanelBeVisible = shouldMainPanelAlwaysBeVisible || this.scmService.repositories.length > 1;
 
@@ -1182,6 +1188,14 @@ export class SCMViewlet extends PanelViewlet implements IViewModel, IViewsViewle
 
 	private getContributedViewsStartIndex(): number {
 		return (this.mainPanel ? 1 : 0) + this.repositoryPanels.length;
+	}
+
+	focus(): void {
+		if (this.scmService.repositories.length === 0) {
+			this.el.focus();
+		} else {
+			super.focus();
+		}
 	}
 
 	setVisible(visible: boolean): void {

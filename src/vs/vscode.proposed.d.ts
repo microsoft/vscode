@@ -3,7 +3,16 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-// This is the place for API experiments and proposals.
+/**
+ * This is the place for API experiments and proposals.
+ * These API are NOT stable and subject to change. They are only available in the Insiders
+ * distribution and CANNOT be used in published extensions.
+ *
+ * To test these API in local environment:
+ * - Use Insiders release of VS Code.
+ * - Add `"enableProposedApi": true` to your package.json.
+ * - Copy this file to your project.
+ */
 
 declare module 'vscode' {
 
@@ -616,7 +625,7 @@ declare module 'vscode' {
 	/**
 	 * A Debug Adapter Tracker is a means to track the communication between VS Code and a Debug Adapter.
 	 */
-	export interface IDebugAdapterTracker {
+	export interface DebugAdapterTracker {
 		// VS Code -> Debug Adapter
 		startDebugAdapter?(): void;
 		toDebugAdapter?(message: any): void;
@@ -660,7 +669,7 @@ declare module 'vscode' {
 		 * @param config The resolved debug configuration.
 		 * @param token A cancellation token.
 		 */
-		provideDebugAdapterTracker?(session: DebugSession, folder: WorkspaceFolder | undefined, config: DebugConfiguration, token?: CancellationToken): ProviderResult<IDebugAdapterTracker>;
+		provideDebugAdapterTracker?(session: DebugSession, folder: WorkspaceFolder | undefined, config: DebugConfiguration, token?: CancellationToken): ProviderResult<DebugAdapterTracker>;
 
 		/**
 		 * Deprecated, use DebugConfigurationProvider.provideDebugAdapter instead.
@@ -775,8 +784,8 @@ declare module 'vscode' {
 	export interface SourceControlInputBox {
 
 		/**
-		* Whether the input box is visible.
-		*/
+			* Controls whether the input box is visible (default is `true`).
+			*/
 		visible: boolean;
 	}
 
@@ -1196,7 +1205,30 @@ declare module 'vscode' {
 	}
 	//#endregion
 
-	//#region Tree Item Label Highlights
+	//#region Tree View
+
+	/**
+	 * Options for creating a [TreeView](#TreeView]
+	 */
+	export interface TreeViewOptions<T> {
+
+		/**
+		 * A data provider that provides tree data.
+		 */
+		treeDataProvider: TreeDataProvider<T>;
+
+		/**
+		 * Whether to show collapse all action or not.
+		 */
+		showCollapseAll?: boolean;
+	}
+
+	namespace window {
+
+		export function createTreeView<T>(viewId: string, options: TreeViewOptions<T>): TreeView<T>;
+
+	}
+
 	/**
 	 * Label describing the [Tree item](#TreeItem)
 	 */
@@ -1208,7 +1240,8 @@ declare module 'vscode' {
 		label: string;
 
 		/**
-		 * Ranges in the label to highlight.
+		 * Ranges in the label to highlight. A range is defined as a tuple of two number where the
+		 * first is the inclusive start index and the second the exclusive end index
 		 */
 		highlights?: [number, number][];
 

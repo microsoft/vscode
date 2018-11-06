@@ -492,7 +492,7 @@ export class OutputService extends Disposable implements IOutputService, ITextMo
 		}
 
 		this.activeChannel = channel;
-		let promise: TPromise<void> = TPromise.as(null);
+		let promise: TPromise<void>;
 		if (this.isPanelShown()) {
 			promise = this.doShowChannel(channel, preserveFocus);
 		} else {

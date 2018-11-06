@@ -86,7 +86,7 @@ export class DriverChannel implements IDriverChannel {
 			case 'writeInTerminal': return this.driver.writeInTerminal(arg[0], arg[1], arg[2]);
 		}
 
-		return undefined;
+		throw new Error(`Call not found: ${command}`);
 	}
 }
 
@@ -178,7 +178,7 @@ export class WindowDriverRegistryChannel implements IWindowDriverRegistryChannel
 			case 'reloadWindowDriver': return this.registry.reloadWindowDriver(arg);
 		}
 
-		return undefined;
+		throw new Error(`Call not found: ${command}`);
 	}
 }
 
@@ -243,7 +243,7 @@ export class WindowDriverChannel implements IWindowDriverChannel {
 			case 'writeInTerminal': return this.driver.writeInTerminal(arg[0], arg[1]);
 		}
 
-		return undefined;
+		throw new Error(`Call not found: ${command}`);
 	}
 }
 

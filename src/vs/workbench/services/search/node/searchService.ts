@@ -22,7 +22,7 @@ import { IModelService } from 'vs/editor/common/services/modelService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IDebugParams, IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { ILogService } from 'vs/platform/log/common/log';
-import { FileMatch, ICachedSearchStats, IFileMatch, IFileQuery, IFileSearchStats, IFolderQuery, IProgress, ISearchComplete, ISearchConfiguration, ISearchEngineStats, ISearchProgressItem, ISearchQuery, ISearchResultProvider, ISearchService, ITextQuery, pathIncludedInQuery, QueryType, SearchProviderType } from 'vs/platform/search/common/search';
+import { deserializeSearchError, FileMatch, ICachedSearchStats, IFileMatch, IFileQuery, IFileSearchStats, IFolderQuery, IProgress, ISearchComplete, ISearchConfiguration, ISearchEngineStats, ISearchProgressItem, ISearchQuery, ISearchResultProvider, ISearchService, ITextQuery, pathIncludedInQuery, QueryType, SearchError, SearchErrorCode, SearchProviderType } from 'vs/platform/search/common/search';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
@@ -250,11 +250,10 @@ export class SearchService extends Disposable implements ISearchService {
 			errs = errs
 				.filter(e => !!e);
 
-			errs.forEach(e => {
-				this.sendTelemetry(query, endToEndTime, null, e);
-			});
+			const searchError = deserializeSearchError(errs[0] && errs[0].message);
+			this.sendTelemetry(query, endToEndTime, null, searchError);
 
-			throw errs[0];
+			throw searchError;
 		});
 	}
 
@@ -271,7 +270,7 @@ export class SearchService extends Disposable implements ISearchService {
 		return queries;
 	}
 
-	private sendTelemetry(query: ISearchQuery, endToEndTime: number, complete?: ISearchComplete, err?: Error): void {
+	private sendTelemetry(query: ISearchQuery, endToEndTime: number, complete?: ISearchComplete, err?: SearchError): void {
 		const fileSchemeOnly = query.folderQueries.every(fq => fq.folder.scheme === 'file');
 		const otherSchemeOnly = query.folderQueries.every(fq => fq.folder.scheme !== 'file');
 		const scheme = fileSchemeOnly ? 'file' :
@@ -352,11 +351,12 @@ export class SearchService extends Disposable implements ISearchService {
 		} else if (query.type === QueryType.Text) {
 			let errorType: string;
 			if (err) {
-				errorType = err.message.indexOf('Regex parse error') >= 0 ? 'regex' :
-					err.message.indexOf('Unknown encoding') >= 0 ? 'encoding' :
-						err.message.indexOf('Error parsing glob') >= 0 ? 'glob' :
-							err.message.indexOf('The literal') >= 0 ? 'literal' :
-								'other';
+				errorType = err.code === SearchErrorCode.regexParseError ? 'regex' :
+					err.code === SearchErrorCode.unknownEncoding ? 'encoding' :
+						err.code === SearchErrorCode.globParseError ? 'glob' :
+							err.code === SearchErrorCode.invalidLiteral ? 'literal' :
+								err.code === SearchErrorCode.other ? 'other' :
+									'unknown';
 			}
 
 			/* __GDPR__

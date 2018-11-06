@@ -5,7 +5,6 @@
 
 import { TPromise } from 'vs/base/common/winjs.base';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { ILocalExtension } from 'vs/platform/extensionManagement/common/extensionManagement';
 
 export const IIssueService = createDecorator<IIssueService>('issueService');
 
@@ -43,9 +42,20 @@ export interface IssueReporterStyles extends WindowStyles {
 	sliderActiveColor: string;
 }
 
+export interface IssueReporterExtensionData {
+	name: string;
+	publisher: string;
+	version: string;
+	id: string;
+	isTheme: boolean;
+	displayName: string | undefined;
+	repositoryUrl: string | undefined;
+	bugsUrl: string | undefined;
+}
+
 export interface IssueReporterData extends WindowData {
 	styles: IssueReporterStyles;
-	enabledExtensions: ILocalExtension[];
+	enabledExtensions: IssueReporterExtensionData[];
 	issueType?: IssueType;
 }
 

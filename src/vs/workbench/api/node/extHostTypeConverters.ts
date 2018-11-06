@@ -340,7 +340,7 @@ export namespace SymbolKind {
 	_fromMapping[types.SymbolKind.TypeParameter] = modes.SymbolKind.TypeParameter;
 
 	export function from(kind: vscode.SymbolKind): modes.SymbolKind {
-		return _fromMapping[kind] || modes.SymbolKind.Property;
+		return typeof _fromMapping[kind] === 'number' ? _fromMapping[kind] : modes.SymbolKind.Property;
 	}
 
 	export function to(kind: modes.SymbolKind): vscode.SymbolKind {

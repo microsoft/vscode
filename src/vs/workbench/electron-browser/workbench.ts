@@ -358,7 +358,7 @@ export class Workbench extends Disposable implements IPartService {
 
 		// Use themable context menus when custom titlebar is enabled to match custom menubar
 		if (!isMacintosh && this.getCustomTitleBarStyle() === 'custom') {
-			serviceCollection.set(IContextMenuService, new SyncDescriptor(HTMLContextMenuService, null));
+			serviceCollection.set(IContextMenuService, new SyncDescriptor(HTMLContextMenuService, [null]));
 		} else {
 			serviceCollection.set(IContextMenuService, new SyncDescriptor(NativeContextMenuService));
 		}
@@ -444,7 +444,7 @@ export class Workbench extends Disposable implements IPartService {
 		serviceCollection.set(IKeybindingEditingService, this.instantiationService.createInstance(KeybindingsEditingService));
 
 		// Configuration Resolver
-		serviceCollection.set(IConfigurationResolverService, new SyncDescriptor(ConfigurationResolverService, process.env));
+		serviceCollection.set(IConfigurationResolverService, new SyncDescriptor(ConfigurationResolverService, [process.env]));
 
 		// Quick open service (quick open controller)
 		this.quickOpen = this.instantiationService.createInstance(QuickOpenController);
@@ -533,11 +533,8 @@ export class Workbench extends Disposable implements IPartService {
 		if (visible !== this.menubarToggled) {
 			this.menubarToggled = visible;
 
-			if (this.menubarVisibility === 'toggle' || (browser.isFullscreen() && this.menubarVisibility === 'default')) {
-				if (browser.isFullscreen() && this.menubarVisibility === 'default') {
-					this._onTitleBarVisibilityChange.fire();
-				}
-
+			if (browser.isFullscreen() && (this.menubarVisibility === 'toggle' || this.menubarVisibility === 'default')) {
+				this._onTitleBarVisibilityChange.fire();
 				this.layout();
 			}
 		}
@@ -944,7 +941,7 @@ export class Workbench extends Disposable implements IPartService {
 
 		const windowConfig = this.configurationService.getValue<IWindowSettings>();
 		if (windowConfig && windowConfig.window) {
-			const useNativeTabs = windowConfig.window.nativeTabs;
+			const useNativeTabs = isMacintosh && windowConfig.window.nativeTabs;
 			if (useNativeTabs) {
 				return null; // native tabs on sierra do not work with custom title style
 			}

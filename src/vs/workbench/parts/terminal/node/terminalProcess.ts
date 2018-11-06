@@ -37,7 +37,7 @@ export class TerminalProcess implements ITerminalChildProcess, IDisposable {
 	) {
 		let shellName: string;
 		if (os.platform() === 'win32') {
-			shellName = path.basename(shellLaunchConfig.executable);
+			shellName = path.basename(shellLaunchConfig.executable || '');
 		} else {
 			// Using 'xterm-256color' here helps ensure that the majority of Linux distributions will use a
 			// color prompt as defined in the default ~/.bashrc file.
@@ -53,7 +53,7 @@ export class TerminalProcess implements ITerminalChildProcess, IDisposable {
 		};
 
 		try {
-			this._ptyProcess = pty.spawn(shellLaunchConfig.executable, shellLaunchConfig.args, options);
+			this._ptyProcess = pty.spawn(shellLaunchConfig.executable!, shellLaunchConfig.args || [], options);
 			this._processStartupComplete = new Promise<void>(c => {
 				this.onProcessIdReady((pid) => {
 					c();

@@ -7,11 +7,9 @@
 
 import { ISpliceable } from 'vs/base/common/sequence';
 import { Iterator, ISequence } from 'vs/base/common/iterator';
-import { IndexTreeModel, IIndexTreeModelOptions } from 'vs/base/browser/ui/tree/indexTreeModel';
+import { IndexTreeModel } from 'vs/base/browser/ui/tree/indexTreeModel';
 import { Event } from 'vs/base/common/event';
-import { ITreeModel, ITreeNode, ITreeElement } from 'vs/base/browser/ui/tree/tree';
-
-export interface IObjectTreeModelOptions<T, TFilterData> extends IIndexTreeModelOptions<T, TFilterData> { }
+import { ITreeModel, ITreeNode, ITreeElement, ITreeModelOptions } from 'vs/base/browser/ui/tree/tree';
 
 export class ObjectTreeModel<T extends NonNullable<any>, TFilterData = void> implements ITreeModel<T, TFilterData, T> {
 
@@ -23,7 +21,7 @@ export class ObjectTreeModel<T extends NonNullable<any>, TFilterData = void> imp
 
 	get size(): number { return this.nodes.size; }
 
-	constructor(list: ISpliceable<ITreeNode<T, TFilterData>>, options: IObjectTreeModelOptions<T, TFilterData> = {}) {
+	constructor(list: ISpliceable<ITreeNode<T, TFilterData>>, options: ITreeModelOptions<T, TFilterData> = {}) {
 		this.model = new IndexTreeModel(list, options);
 		this.onDidChangeCollapseState = this.model.onDidChangeCollapseState;
 		this.onDidChangeRenderNodeCount = this.model.onDidChangeRenderNodeCount;
@@ -90,7 +88,7 @@ export class ObjectTreeModel<T extends NonNullable<any>, TFilterData = void> imp
 		this.model.refilter();
 	}
 
-	getNode(element: T = null): ITreeNode<T, TFilterData> {
+	getNode(element: T | null = null): ITreeNode<T, TFilterData> {
 		const location = this.getElementLocation(element);
 		return this.model.getNode(location);
 	}
@@ -106,7 +104,7 @@ export class ObjectTreeModel<T extends NonNullable<any>, TFilterData = void> imp
 			throw new Error(`Tree element not found: ${element}`);
 		}
 
-		return node.parent.element;
+		return node.parent!.element;
 	}
 
 	private getElementLocation(element: T | null): number[] {

@@ -45,7 +45,7 @@ function findWindowOnFilePath<W extends ISimpleWindow>(windows: W[], fileUri: UR
 	const workspaceWindows = windows.filter(window => !!window.openedWorkspace);
 	for (let i = 0; i < workspaceWindows.length; i++) {
 		const window = workspaceWindows[i];
-		const resolvedWorkspace = workspaceResolver(window.openedWorkspace);
+		const resolvedWorkspace = workspaceResolver(window.openedWorkspace!);
 		if (resolvedWorkspace && resolvedWorkspace.folders.some(folder => isEqualOrParent(fileUri, folder.uri))) {
 			return window;
 		}
@@ -54,7 +54,7 @@ function findWindowOnFilePath<W extends ISimpleWindow>(windows: W[], fileUri: UR
 	// Then go with single folder windows that are parent of the provided file path
 	const singleFolderWindowsOnFilePath = windows.filter(window => window.openedFolderUri && isEqualOrParent(fileUri, window.openedFolderUri));
 	if (singleFolderWindowsOnFilePath.length) {
-		return singleFolderWindowsOnFilePath.sort((a, b) => -(a.openedFolderUri.path.length - b.openedFolderUri.path.length))[0];
+		return singleFolderWindowsOnFilePath.sort((a, b) => -(a.openedFolderUri!.path.length - b.openedFolderUri!.path.length))[0];
 	}
 
 	return null;
@@ -90,7 +90,7 @@ export function findWindowOnWorkspace<W extends ISimpleWindow>(windows: W[], wor
 export function findWindowOnExtensionDevelopmentPath<W extends ISimpleWindow>(windows: W[], extensionDevelopmentPath: string): W | null {
 	for (const window of windows) {
 		// match on extension development path. The path can be a path or uri string, using paths.isEqual is not 100% correct but good enough
-		if (paths.isEqual(window.extensionDevelopmentPath, extensionDevelopmentPath, !platform.isLinux /* ignorecase */)) {
+		if (window.extensionDevelopmentPath && paths.isEqual(window.extensionDevelopmentPath, extensionDevelopmentPath, !platform.isLinux /* ignorecase */)) {
 			return window;
 		}
 	}

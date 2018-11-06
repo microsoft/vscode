@@ -47,7 +47,7 @@ export interface ITheme {
 	readonly type: ThemeType;
 
 	/**
-	 * Resolves the color of the given color identifer. If the theme does not
+	 * Resolves the color of the given color identifier. If the theme does not
 	 * specify the color, the default color is returned unless <code>useDefault</code> is set to false.
 	 * @param color the id of the color
 	 * @param useDefault specifies if the default color should be used. If not set, the default is used.

@@ -139,10 +139,15 @@ export function getRelativeLocation(rootOrientation: Orientation, location: numb
 
 function indexInParent(element: HTMLElement): number {
 	const parentElement = element.parentElement;
+
+	if (!parentElement) {
+		throw new Error('Invalid grid element');
+	}
+
 	let el = parentElement.firstElementChild;
 	let index = 0;
 
-	while (el !== element && el !== parentElement.lastElementChild) {
+	while (el !== element && el !== parentElement.lastElementChild && el) {
 		el = el.nextElementSibling;
 		index++;
 	}
@@ -157,12 +162,18 @@ function indexInParent(element: HTMLElement): number {
  * This will break as soon as DOM structures of the Splitview or Gridview change.
  */
 function getGridLocation(element: HTMLElement): number[] {
-	if (/\bmonaco-grid-view\b/.test(element.parentElement.className)) {
+	const parentElement = element.parentElement;
+
+	if (!parentElement) {
+		throw new Error('Invalid grid element');
+	}
+
+	if (/\bmonaco-grid-view\b/.test(parentElement.className)) {
 		return [];
 	}
 
-	const index = indexInParent(element.parentElement);
-	const ancestor = element.parentElement.parentElement.parentElement.parentElement;
+	const index = indexInParent(parentElement);
+	const ancestor = parentElement.parentElement!.parentElement!.parentElement!;
 	return [...getGridLocation(ancestor), index];
 }
 
@@ -193,7 +204,7 @@ export class Grid<T extends IView> implements IDisposable {
 	get minimumHeight(): number { return this.gridview.minimumHeight; }
 	get maximumWidth(): number { return this.gridview.maximumWidth; }
 	get maximumHeight(): number { return this.gridview.maximumHeight; }
-	get onDidChange(): Event<{ width: number; height: number; }> { return this.gridview.onDidChange; }
+	get onDidChange(): Event<{ width: number; height: number; } | undefined> { return this.gridview.onDidChange; }
 
 	get element(): HTMLElement { return this.gridview.element; }
 
@@ -368,7 +379,7 @@ export interface ISerializableView extends IView {
 }
 
 export interface IViewDeserializer<T extends ISerializableView> {
-	fromJSON(json: object): T;
+	fromJSON(json: object | null): T;
 }
 
 interface InitialLayoutContext<T extends ISerializableView> {
@@ -379,7 +390,7 @@ interface InitialLayoutContext<T extends ISerializableView> {
 
 export interface ISerializedLeafNode {
 	type: 'leaf';
-	data: object;
+	data: object | null;
 	size: number;
 }
 
@@ -415,18 +426,15 @@ export class SerializableGrid<T extends ISerializableView> extends Grid<T> {
 			throw new Error('Invalid JSON');
 		}
 
-		const type = json.type;
-		const data = json.data;
-
-		if (type === 'branch') {
-			if (!Array.isArray(data)) {
+		if (json.type === 'branch') {
+			if (!Array.isArray(json.data)) {
 				throw new Error('Invalid JSON: \'data\' property of branch must be an array.');
 			}
 
 			const children: GridNode<T>[] = [];
 			let offset = 0;
 
-			for (const child of data) {
+			for (const child of json.data) {
 				if (typeof child.size !== 'number') {
 					throw new Error('Invalid JSON: \'size\' property of node must be a number.');
 				}
@@ -441,8 +449,8 @@ export class SerializableGrid<T extends ISerializableView> extends Grid<T> {
 
 			return { children, box };
 
-		} else if (type === 'leaf') {
-			const view = deserializer.fromJSON(data) as T;
+		} else if (json.type === 'leaf') {
+			const view = deserializer.fromJSON(json.data) as T;
 			return { view, box };
 		}
 
@@ -527,13 +535,13 @@ export class SerializableGrid<T extends ISerializableView> extends Grid<T> {
 		const firstLeaves = node.children.map(c => SerializableGrid.getFirstLeaf(c));
 
 		for (let i = 1; i < firstLeaves.length; i++) {
-			const size = orientation === Orientation.VERTICAL ? firstLeaves[i].box.height : firstLeaves[i].box.width;
-			this.addView(firstLeaves[i].view, size, referenceView, direction);
-			referenceView = firstLeaves[i].view;
+			const size = orientation === Orientation.VERTICAL ? firstLeaves[i]!.box.height : firstLeaves[i]!.box.width;
+			this.addView(firstLeaves[i]!.view, size, referenceView, direction);
+			referenceView = firstLeaves[i]!.view;
 		}
 
 		for (let i = 0; i < node.children.length; i++) {
-			this.restoreViews(firstLeaves[i].view, orthogonal(orientation), node.children[i]);
+			this.restoreViews(firstLeaves[i]!.view, orthogonal(orientation), node.children[i]);
 		}
 	}
 
@@ -611,10 +619,10 @@ function getDimensions(node: ISerializedNode, orientation: Orientation): { width
 
 		if (orientation === Orientation.VERTICAL) {
 			const width = node.size || (childrenDimensions.length === 0 ? undefined : Math.max(...childrenDimensions.map(d => d.width || 0)));
-			const height = childrenDimensions.length === 0 ? undefined : childrenDimensions.reduce((r, d) => r + d.height, 0);
+			const height = childrenDimensions.length === 0 ? undefined : childrenDimensions.reduce((r, d) => r + (d.height || 0), 0);
 			return { width, height };
 		} else {
-			const width = childrenDimensions.length === 0 ? undefined : childrenDimensions.reduce((r, d) => r + d.width, 0);
+			const width = childrenDimensions.length === 0 ? undefined : childrenDimensions.reduce((r, d) => r + (d.width || 0), 0);
 			const height = node.size || (childrenDimensions.length === 0 ? undefined : Math.max(...childrenDimensions.map(d => d.height || 0)));
 			return { width, height };
 		}

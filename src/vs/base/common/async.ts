@@ -242,8 +242,10 @@ export class Delayer<T> implements IDisposable {
  * A helper to delay execution of a task that is being requested often, while
  * preventing accumulation of consecutive executions, while the task runs.
  *
- * Simply combine the two mail men's strategies from the Throttler and Delayer
- * helpers, for an analogy.
+ * The mail man is clever and waits for a certain amount of time, before going
+ * out to deliver letters. While the mail man is going out, more letters arrive
+ * and can only be delivered once he is back. Once he is back the mail man will
+ * do one more trip to deliver the letters that have accumulated while he was out.
  */
 export class ThrottledDelayer<T> extends Delayer<TPromise<T>> {
 

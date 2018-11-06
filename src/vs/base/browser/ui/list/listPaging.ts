@@ -17,8 +17,8 @@ export interface IPagedRenderer<TElement, TTemplateData> extends IListRenderer<T
 }
 
 export interface ITemplateData<T> {
-	data: T;
-	disposable: IDisposable;
+	data?: T;
+	disposable?: IDisposable;
 }
 
 class PagedRenderer<TElement, TTemplateData> implements IListRenderer<number, ITemplateData<TTemplateData>> {
@@ -36,7 +36,13 @@ class PagedRenderer<TElement, TTemplateData> implements IListRenderer<number, IT
 	}
 
 	renderElement(index: number, _: number, data: ITemplateData<TTemplateData>): void {
-		data.disposable.dispose();
+		if (data.disposable) {
+			data.disposable.dispose();
+		}
+
+		if (!data.data) {
+			return;
+		}
 
 		const model = this.modelProvider();
 
@@ -49,7 +55,7 @@ class PagedRenderer<TElement, TTemplateData> implements IListRenderer<number, IT
 		data.disposable = { dispose: () => cts.cancel() };
 
 		this.renderer.renderPlaceholder(index, data.data);
-		promise.then(entry => this.renderer.renderElement(entry, index, data.data));
+		promise.then(entry => this.renderer.renderElement(entry, index, data.data!));
 	}
 
 	disposeElement(): void {
@@ -57,10 +63,14 @@ class PagedRenderer<TElement, TTemplateData> implements IListRenderer<number, IT
 	}
 
 	disposeTemplate(data: ITemplateData<TTemplateData>): void {
-		data.disposable.dispose();
-		data.disposable = null;
-		this.renderer.disposeTemplate(data.data);
-		data.data = null;
+		if (data.disposable) {
+			data.disposable.dispose();
+			data.disposable = undefined;
+		}
+		if (data.data) {
+			this.renderer.disposeTemplate(data.data);
+			data.data = undefined;
+		}
 	}
 }
 
@@ -124,7 +134,7 @@ export class PagedList<T> implements IDisposable {
 	}
 
 	get onContextMenu(): Event<IListContextMenuEvent<T>> {
-		return mapEvent(this.list.onContextMenu, ({ element, index, anchor, browserEvent }) => ({ element: this._model.get(element), index, anchor, browserEvent }));
+		return mapEvent(this.list.onContextMenu, ({ element, index, anchor, browserEvent }) => ({ element: this._model.get(element!), index, anchor, browserEvent }));
 	}
 
 	get model(): IPagedModel<T> {

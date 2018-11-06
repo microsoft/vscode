@@ -39,7 +39,7 @@ export interface IEditOperationBuilder {
 	 * @param selection The selection to track.
 	 * @param trackPreviousOnEmpty If set, and the selection is empty, indicates whether the selection
 	 *           should clamp to the previous or the next character.
-	 * @return A unique identifer.
+	 * @return A unique identifier.
 	 */
 	trackSelection(selection: Selection, trackPreviousOnEmpty?: boolean): string;
 }
@@ -80,7 +80,7 @@ export interface ICommand {
 
 	/**
 	 * Compute the cursor state after the edit operations were applied.
-	 * @param model The model the commad has executed on.
+	 * @param model The model the command has executed on.
 	 * @param helper A helper to get inverse edit operations and to get previously tracked selections.
 	 * @return The cursor state after the command executed.
 	 */

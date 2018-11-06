@@ -186,7 +186,7 @@ export class InstantiationService implements IInstantiationService {
 
 			for (let { data } of roots) {
 				// create instance and overwrite the service collections
-				const instance = this._createServiceInstanceWithOwner(data.id, data.desc.ctor, data.desc.staticArguments, data._trace);
+				const instance = this._createServiceInstanceWithOwner(data.id, data.desc.ctor, data.desc.staticArguments, false, data._trace);
 				this._setServiceInstance(data.id, instance);
 				graph.removeNode(data);
 			}
@@ -195,17 +195,17 @@ export class InstantiationService implements IInstantiationService {
 		return <T>this._getServiceInstanceOrDescriptor(id);
 	}
 
-	private _createServiceInstanceWithOwner<T>(id: ServiceIdentifier<T>, ctor: any, args: any[] = [], _trace: Trace): T {
+	private _createServiceInstanceWithOwner<T>(id: ServiceIdentifier<T>, ctor: any, args: any[] = [], supportsDelayedInstantiation: boolean, _trace: Trace): T {
 		if (this._services.get(id) instanceof SyncDescriptor) {
-			return this._createServiceInstance(ctor, args, _trace);
+			return this._createServiceInstance(ctor, args, supportsDelayedInstantiation, _trace);
 		} else if (this._parent) {
-			return this._parent._createServiceInstanceWithOwner(id, ctor, args, _trace);
+			return this._parent._createServiceInstanceWithOwner(id, ctor, args, supportsDelayedInstantiation, _trace);
 		} else {
 			throw new Error('illegalState - creating UNKNOWN service instance');
 		}
 	}
 
-	protected _createServiceInstance<T>(ctor: any, args: any[] = [], _trace: Trace): T {
+	protected _createServiceInstance<T>(ctor: any, args: any[] = [], supportsDelayedInstantiation: boolean, _trace: Trace): T {
 		return this._createInstance(ctor, args, _trace);
 	}
 }

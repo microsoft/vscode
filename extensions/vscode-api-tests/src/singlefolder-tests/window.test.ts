@@ -422,6 +422,7 @@ suite('window namespace tests', () => {
 			canPickMany: true
 		});
 		const first = new Promise(resolve => resolves.push(resolve));
+		await new Promise(resolve => setTimeout(resolve, 10)); // Allow UI to update.
 		await commands.executeCommand('workbench.action.quickOpenSelectNext');
 		assert.equal(await first, 'eins');
 		await commands.executeCommand('workbench.action.quickPickManyToggle');

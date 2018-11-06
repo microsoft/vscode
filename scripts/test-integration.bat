@@ -5,6 +5,10 @@ pushd %~dp0\..
 
 set VSCODEUSERDATADIR=%TMP%\vscodeuserfolder-%RANDOM%-%TIME:~6,5%
 
+:: Integration & performance tests in AMD
+call .\scripts\test.bat --runGlob **\*.integrationTest.js %*
+if %errorlevel% neq 0 exit /b %errorlevel%
+
 :: Tests in the extension host
 REM call .\scripts\code.bat %~dp0\..\extensions\vscode-api-tests\testWorkspace --extensionDevelopmentPath=%~dp0\..\extensions\vscode-api-tests --extensionTestsPath=%~dp0\..\extensions\vscode-api-tests\out\singlefolder-tests --disableExtensions --user-data-dir=%VSCODEUSERDATADIR%
 REM if %errorlevel% neq 0 exit /b %errorlevel%
@@ -16,10 +20,6 @@ call .\scripts\code.bat %~dp0\..\extensions\vscode-colorize-tests\test --extensi
 if %errorlevel% neq 0 exit /b %errorlevel%
 
 call .\scripts\code.bat $%~dp0\..\extensions\emmet\test-fixtures --extensionDevelopmentPath=%~dp0\..\extensions\emmet --extensionTestsPath=%~dp0\..\extensions\emmet\out\test --disableExtensions --user-data-dir=%VSCODEUSERDATADIR% .
-if %errorlevel% neq 0 exit /b %errorlevel%
-
-:: Integration & performance tests in AMD
-call .\scripts\test.bat --runGlob **\*.integrationTest.js %*
 if %errorlevel% neq 0 exit /b %errorlevel%
 
 # Tests in commonJS (HTML, CSS, JSON language server tests...)

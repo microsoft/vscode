@@ -165,6 +165,57 @@ class InsertCursorAtEndOfEachLineSelected extends EditorAction {
 	}
 }
 
+class InsertCursorAtEndOfLineSelected extends EditorAction {
+
+	constructor() {
+		super({
+			id: 'editor.action.addCursorsToBottom',
+			label: nls.localize('mutlicursor.addCursorsToBottom', "Add Cursors To Bottom"),
+			alias: 'Add Cursors To Bottom',
+			precondition: null
+		});
+	}
+
+	public run(accessor: ServicesAccessor, editor: ICodeEditor): void {
+		const selections = editor.getSelections();
+		const lineCount = editor.getModel().getLineCount();
+
+		let newSelections = [];
+		for (let i = selections[0].startLineNumber; i <= lineCount; i++) {
+			newSelections.push(new Selection(i, selections[0].startColumn, i, selections[0].endColumn));
+		}
+
+		if (newSelections.length > 0) {
+			editor.setSelections(newSelections);
+		}
+	}
+}
+
+class InsertCursorAtTopOfLineSelected extends EditorAction {
+
+	constructor() {
+		super({
+			id: 'editor.action.addCursorsToTop',
+			label: nls.localize('mutlicursor.addCursorsToTop', "Add Cursors To Top"),
+			alias: 'Add Cursors To Top',
+			precondition: null
+		});
+	}
+
+	public run(accessor: ServicesAccessor, editor: ICodeEditor): void {
+		const selections = editor.getSelections();
+
+		let newSelections = [];
+		for (let i = selections[0].startLineNumber; i >= 1; i--) {
+			newSelections.push(new Selection(i, selections[0].startColumn, i, selections[0].endColumn));
+		}
+
+		if (newSelections.length > 0) {
+			editor.setSelections(newSelections);
+		}
+	}
+}
+
 export class MultiCursorSessionResult {
 	constructor(
 		public readonly selections: Selection[],
@@ -943,3 +994,5 @@ registerEditorAction(MoveSelectionToNextFindMatchAction);
 registerEditorAction(MoveSelectionToPreviousFindMatchAction);
 registerEditorAction(SelectHighlightsAction);
 registerEditorAction(CompatChangeAll);
+registerEditorAction(InsertCursorAtEndOfLineSelected);
+registerEditorAction(InsertCursorAtTopOfLineSelected);

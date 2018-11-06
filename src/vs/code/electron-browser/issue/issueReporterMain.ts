@@ -31,9 +31,8 @@ import { resolveCommonProperties } from 'vs/platform/telemetry/node/commonProper
 import { WindowsChannelClient } from 'vs/platform/windows/node/windowsIpc';
 import { EnvironmentService } from 'vs/platform/environment/node/environmentService';
 import { IssueReporterModel } from 'vs/code/electron-browser/issue/issueReporterModel';
-import { IssueReporterData, IssueReporterStyles, IssueType, ISettingsSearchIssueReporterData, IssueReporterFeatures } from 'vs/platform/issue/common/issue';
+import { IssueReporterData, IssueReporterStyles, IssueType, ISettingsSearchIssueReporterData, IssueReporterFeatures, IssueReporterExtensionData } from 'vs/platform/issue/common/issue';
 import BaseHtml from 'vs/code/electron-browser/issue/issueReporterPage';
-import { ILocalExtension } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { createSpdLogService } from 'vs/platform/log/node/spdlogService';
 import { LogLevelSetterChannelClient, FollowerLogService } from 'vs/platform/log/node/logIpc';
 import { ILogService, getLogLevel } from 'vs/platform/log/common/log';
@@ -211,11 +210,9 @@ export class IssueReporter extends Disposable {
 		document.body.style.color = styles.color;
 	}
 
-	private handleExtensionData(extensions: ILocalExtension[]) {
+	private handleExtensionData(extensions: IssueReporterExtensionData[]) {
 		const { nonThemes, themes } = collections.groupBy(extensions, ext => {
-			const manifestKeys = ext.manifest.contributes ? Object.keys(ext.manifest.contributes) : [];
-			const onlyTheme = !ext.manifest.activationEvents && manifestKeys.length === 1 && manifestKeys[0] === 'themes';
-			return onlyTheme ? 'themes' : 'nonThemes';
+			return ext.isTheme ? 'themes' : 'nonThemes';
 		});
 
 		const numberOfThemeExtesions = themes && themes.length;
@@ -457,12 +454,12 @@ export class IssueReporter extends Disposable {
 
 	private getExtensionRepositoryUrl(): string {
 		const selectedExtension = this.issueReporterModel.getData().selectedExtension;
-		return selectedExtension && selectedExtension.manifest && selectedExtension.manifest.repository && selectedExtension.manifest.repository.url;
+		return selectedExtension && selectedExtension.repositoryUrl;
 	}
 
 	private getExtensionBugsUrl(): string {
 		const selectedExtension = this.issueReporterModel.getData().selectedExtension;
-		return selectedExtension && selectedExtension.manifest && selectedExtension.manifest.bugs && selectedExtension.manifest.bugs.url;
+		return selectedExtension && selectedExtension.bugsUrl;
 	}
 
 	private searchVSCodeIssues(title: string, issueDescription: string): void {
@@ -830,7 +827,7 @@ export class IssueReporter extends Disposable {
 		target.innerHTML = `<table>${tableHtml}</table>`;
 	}
 
-	private updateExtensionSelector(extensions: ILocalExtension[]): void {
+	private updateExtensionSelector(extensions: IssueReporterExtensionData[]): void {
 		interface IOption {
 			name: string;
 			id: string;
@@ -838,8 +835,8 @@ export class IssueReporter extends Disposable {
 
 		const extensionOptions: IOption[] = extensions.map(extension => {
 			return {
-				name: extension.manifest.displayName || extension.manifest.name || '',
-				id: extension.identifier.id
+				name: extension.displayName || extension.name || '',
+				id: extension.id
 			};
 		});
 
@@ -865,7 +862,7 @@ export class IssueReporter extends Disposable {
 		this.addEventListener('extension-selector', 'change', (e: Event) => {
 			const selectedExtensionId = (<HTMLInputElement>e.target).value;
 			const extensions = this.issueReporterModel.getData().allExtensions;
-			const matches = extensions.filter(extension => extension.identifier.id === selectedExtensionId);
+			const matches = extensions.filter(extension => extension.id === selectedExtensionId);
 			if (matches.length) {
 				this.issueReporterModel.update({ selectedExtension: matches[0] });
 
@@ -887,7 +884,7 @@ export class IssueReporter extends Disposable {
 		document.querySelector('.block-workspace .block-info code').textContent = '\n' + state.workspaceInfo;
 	}
 
-	private updateExtensionTable(extensions: ILocalExtension[], numThemeExtensions: number): void {
+	private updateExtensionTable(extensions: IssueReporterExtensionData[], numThemeExtensions: number): void {
 		const target = document.querySelector('.block-extensions .block-info');
 
 		if (this.environmentService.disableExtensions) {
@@ -907,7 +904,7 @@ export class IssueReporter extends Disposable {
 		target.innerHTML = `<table>${table}</table>${themeExclusionStr}`;
 	}
 
-	private updateSearchedExtensionTable(extensions: ILocalExtension[]): void {
+	private updateSearchedExtensionTable(extensions: IssueReporterExtensionData[]): void {
 		const target = document.querySelector('.block-searchedExtensions .block-info');
 
 		if (!extensions.length) {
@@ -919,7 +916,7 @@ export class IssueReporter extends Disposable {
 		target.innerHTML = `<table>${table}</table>`;
 	}
 
-	private getExtensionTableHtml(extensions: ILocalExtension[]): string {
+	private getExtensionTableHtml(extensions: IssueReporterExtensionData[]): string {
 		let table = `
 			<tr>
 				<th>Extension</th>
@@ -930,9 +927,9 @@ export class IssueReporter extends Disposable {
 		table += extensions.map(extension => {
 			return `
 				<tr>
-					<td>${extension.manifest.name}</td>
-					<td>${extension.manifest.publisher.substr(0, 3)}</td>
-					<td>${extension.manifest.version}</td>
+					<td>${extension.name}</td>
+					<td>${extension.publisher.substr(0, 3)}</td>
+					<td>${extension.version}</td>
 				</tr>`;
 		}).join('');
 

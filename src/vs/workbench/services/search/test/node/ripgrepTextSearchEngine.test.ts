@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { unicodeEscapesToPCRE2 } from 'vs/workbench/services/search/node/ripgrepTextSearchEngine';
+import { unicodeEscapesToPCRE2, fixRegexEndingPattern } from 'vs/workbench/services/search/node/ripgrepTextSearchEngine';
 
 suite('RipgrepTextSearchEngine', () => {
 	test('unicodeEscapesToPCRE2', async () => {
@@ -19,5 +19,37 @@ suite('RipgrepTextSearchEngine', () => {
 		assert.equal(unicodeEscapesToPCRE2('\\\\u12345'), '\\\\u12345');
 		assert.equal(unicodeEscapesToPCRE2('foo'), 'foo');
 		assert.equal(unicodeEscapesToPCRE2(''), '');
+	});
+
+	test('fixRegexEndingPattern', () => {
+		function testFixRegexEndingPattern([input, expectedResult]: string[]): void {
+			assert.equal(fixRegexEndingPattern(input), expectedResult);
+		}
+
+		[
+			['foo', 'foo'],
+			['', ''],
+			['^foo.*bar\\s+', '^foo.*bar\\s+'],
+			['foo$', 'foo\\r?$'],
+			['$', '\\r?$'],
+			['foo\\$', 'foo\\$'],
+			['foo\\\\$', 'foo\\\\\\r?$'],
+		].forEach(testFixRegexEndingPattern);
+	});
+
+	test('fixRegexEndingPattern', () => {
+		function testFixRegexEndingPattern([input, expectedResult]: string[]): void {
+			assert.equal(fixRegexEndingPattern(input), expectedResult);
+		}
+
+		[
+			['foo', 'foo'],
+			['', ''],
+			['^foo.*bar\\s+', '^foo.*bar\\s+'],
+			['foo$', 'foo\\r?$'],
+			['$', '\\r?$'],
+			['foo\\$', 'foo\\$'],
+			['foo\\\\$', 'foo\\\\\\r?$'],
+		].forEach(testFixRegexEndingPattern);
 	});
 });

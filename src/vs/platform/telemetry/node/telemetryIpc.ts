@@ -23,7 +23,7 @@ export class TelemetryAppenderChannel implements ITelemetryAppenderChannel {
 	constructor(private appender: ITelemetryAppender) { }
 
 	listen<T>(event: string, arg?: any): Event<T> {
-		throw new Error('No events');
+		throw new Error(`Event not found: ${event}`);
 	}
 
 	call(command: string, { eventName, data }: ITelemetryLog): Thenable<any> {
@@ -38,7 +38,7 @@ export class TelemetryAppenderClient implements ITelemetryAppender {
 
 	log(eventName: string, data?: any): any {
 		this.channel.call('log', { eventName, data })
-			.then(null, err => `Failed to log telemetry: ${console.warn(err)}`);
+			.then(undefined, err => `Failed to log telemetry: ${console.warn(err)}`);
 
 		return TPromise.as(null);
 	}

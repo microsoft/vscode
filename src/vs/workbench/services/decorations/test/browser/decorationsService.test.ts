@@ -93,13 +93,16 @@ suite('DecorationsService', function () {
 
 		// un-register -> ensure good event
 		let didSeeEvent = false;
-		let p = toPromise(service.onDidChangeDecorations).then(e => {
-			assert.equal(e.affectsResource(uri), true);
-			assert.deepEqual(service.getDecoration(uri, false), undefined);
-			assert.equal(callCounter, 1);
-			didSeeEvent = true;
+		let p = new Promise(resolve => {
+			service.onDidChangeDecorations(e => {
+				assert.equal(e.affectsResource(uri), true);
+				assert.deepEqual(service.getDecoration(uri, false), undefined);
+				assert.equal(callCounter, 1);
+				didSeeEvent = true;
+				resolve();
+			});
 		});
-		reg.dispose();
+		reg.dispose(); // will clear all data
 		await p;
 		assert.equal(didSeeEvent, true);
 	});

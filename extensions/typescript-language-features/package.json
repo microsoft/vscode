@@ -42,6 +42,7 @@
     "onCommand:typescript.goToProjectConfig",
     "onCommand:typescript.openTsServerLog",
     "onCommand:workbench.action.tasks.runTask",
+    "onCommand:_typescript.configurePlugin",
     "onLanguage:jsonc"
   ],
   "main": "./out/extension",
