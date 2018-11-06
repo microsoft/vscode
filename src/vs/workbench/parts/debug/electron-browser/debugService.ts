@@ -263,9 +263,9 @@ export class DebugService implements IDebugService {
 
 		this.startInitializingState();
 		// make sure to save all files and that the configuration is up to date
-		return this.extensionService.activateByEvent('onDebug').then(() =>
-			this.textFileService.saveAll().then(() => this.configurationService.reloadConfiguration(launch ? launch.workspace : undefined).then(() =>
-				this.extensionService.whenInstalledExtensionsRegistered().then(() => {
+		return this.extensionService.activateByEvent('onDebug').then(() => {
+			return this.textFileService.saveAll().then(() => this.configurationService.reloadConfiguration(launch ? launch.workspace : undefined).then(() => {
+				return this.extensionService.whenInstalledExtensionsRegistered().then(() => {
 
 					let config: IConfig, compound: ICompound;
 					if (!configOrName) {
@@ -332,15 +332,16 @@ export class DebugService implements IDebugService {
 					}
 
 					return this.createSession(launch, config, unresolvedConfig, noDebug);
-				})
-			))).then(success => {
-				// make sure to get out of initializing state, and propagate the result
-				this.endInitializingState();
-				return success;
-			}, err => {
-				this.endInitializingState();
-				return Promise.reject(err);
-			});
+				});
+			}));
+		}).then(success => {
+			// make sure to get out of initializing state, and propagate the result
+			this.endInitializingState();
+			return success;
+		}, err => {
+			this.endInitializingState();
+			return Promise.reject(err);
+		});
 	}
 
 	/**
@@ -503,6 +504,9 @@ export class DebugService implements IDebugService {
 			if (session.state === State.Running && this.viewModel.focusedSession === session) {
 				sessionRunningScheduler.schedule();
 			}
+			if (session === this.viewModel.focusedSession) {
+				this.onStateChange();
+			}
 		}));
 
 		this.toDispose.push(session.onDidEndAdapter(adapterExitEvent => {
@@ -527,7 +531,6 @@ export class DebugService implements IDebugService {
 				);
 			}
 			session.shutdown();
-			this.endInitializingState();
 			this._onDidEndSession.fire(session);
 
 			const focusedSession = this.viewModel.focusedSession;
