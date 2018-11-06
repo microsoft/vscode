@@ -627,6 +627,10 @@ export class DebugService implements IDebugService {
 		}
 
 		const sessions = this.model.getSessions();
+		if (sessions.length === 0) {
+			this.endInitializingState();
+		}
+
 		return Promise.all(sessions.map(s => s.terminate()));
 	}
 
