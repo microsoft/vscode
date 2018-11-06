@@ -268,12 +268,12 @@ export class ThrottledDelayer<T> extends Delayer<TPromise<T>> {
 export class Barrier {
 
 	private _isOpen: boolean;
-	private _promise: TPromise<boolean>;
+	private _promise: Promise<boolean>;
 	private _completePromise: (v: boolean) => void;
 
 	constructor() {
 		this._isOpen = false;
-		this._promise = new TPromise<boolean>((c, e) => {
+		this._promise = new Promise<boolean>((c, e) => {
 			this._completePromise = c;
 		});
 	}
@@ -287,7 +287,7 @@ export class Barrier {
 		this._completePromise(true);
 	}
 
-	wait(): TPromise<boolean> {
+	wait(): Promise<boolean> {
 		return this._promise;
 	}
 }
