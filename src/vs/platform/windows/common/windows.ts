@@ -239,6 +239,7 @@ export interface IWindowSettings {
 	nativeFullScreen: boolean;
 	enableMenuBarMnemonics: boolean;
 	closeWhenEmpty: boolean;
+	smoothScrollingWorkaround: boolean;
 	clickThroughInactive: boolean;
 }
 
