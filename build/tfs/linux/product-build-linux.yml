@@ -28,16 +28,16 @@ steps:
     VSCODE_MIXIN_PASSWORD="$(VSCODE_MIXIN_PASSWORD)" npm run gulp -- vscode-linux-$(VSCODE_ARCH)-min
   name: build
 
-- script: |
-    set -e
-    npm run gulp -- "electron-$(VSCODE_ARCH)"
+# - script: |
+#     set -e
+#     npm run gulp -- "electron-$(VSCODE_ARCH)"
 
-    # xvfb seems to be crashing often, let's make sure it's always up
-    service xvfb start
+#     # xvfb seems to be crashing often, let's make sure it's always up
+#     service xvfb start
 
-    DISPLAY=:10 ./scripts/test.sh --build --tfs "Unit Tests"
-    # yarn smoketest -- --build "$(agent.builddirectory)/VSCode-linux-$(VSCODE_ARCH)"
-  name: test
+#     DISPLAY=:10 ./scripts/test.sh --build --tfs "Unit Tests"
+#     # yarn smoketest -- --build "$(agent.builddirectory)/VSCode-linux-$(VSCODE_ARCH)"
+#   name: test
 
 - script: |
     set -e
@@ -57,43 +57,43 @@ steps:
     PACKAGEJSON="$BUILD/resources/app/package.json"
     VERSION=$(node -p "require(\"$PACKAGEJSON\").version")
 
-    rm -rf $ROOT/code-*.tar.*
-    (cd $ROOT && tar -czf $TARBALL_PATH $BUILDNAME)
+    # rm -rf $ROOT/code-*.tar.*
+    # (cd $ROOT && tar -czf $TARBALL_PATH $BUILDNAME)
 
-    AZURE_DOCUMENTDB_MASTERKEY="$(AZURE_DOCUMENTDB_MASTERKEY)" \
-    AZURE_STORAGE_ACCESS_KEY_2="$(AZURE_STORAGE_ACCESS_KEY_2)" \
-    MOONCAKE_STORAGE_ACCESS_KEY="$(MOONCAKE_STORAGE_ACCESS_KEY)" \
-    node build/tfs/common/publish.js "$VSCODE_QUALITY" "$PLATFORM_LINUX" archive-unsigned "$TARBALL_FILENAME" "$VERSION" true "$TARBALL_PATH"
+    # AZURE_DOCUMENTDB_MASTERKEY="$(AZURE_DOCUMENTDB_MASTERKEY)" \
+    # AZURE_STORAGE_ACCESS_KEY_2="$(AZURE_STORAGE_ACCESS_KEY_2)" \
+    # MOONCAKE_STORAGE_ACCESS_KEY="$(MOONCAKE_STORAGE_ACCESS_KEY)" \
+    # node build/tfs/common/publish.js "$VSCODE_QUALITY" "$PLATFORM_LINUX" archive-unsigned "$TARBALL_FILENAME" "$VERSION" true "$TARBALL_PATH"
 
     # Publish hockeyapp symbols
-    node build/tfs/common/symbols.js "$(VSCODE_MIXIN_PASSWORD)" "$(VSCODE_HOCKEYAPP_TOKEN)" "$(VSCODE_ARCH)" "$(VSCODE_HOCKEYAPP_ID_LINUX64)"
+    # node build/tfs/common/symbols.js "$(VSCODE_MIXIN_PASSWORD)" "$(VSCODE_HOCKEYAPP_TOKEN)" "$(VSCODE_ARCH)" "$(VSCODE_HOCKEYAPP_ID_LINUX64)"
 
     # Publish DEB
-    npm run gulp -- "vscode-linux-$(VSCODE_ARCH)-build-deb"
-    PLATFORM_DEB="linux-deb-$ARCH"
-    [[ "$ARCH" == "ia32" ]] && DEB_ARCH="i386" || DEB_ARCH="amd64"
-    DEB_FILENAME="$(ls $REPO/.build/linux/deb/$DEB_ARCH/deb/)"
-    DEB_PATH="$REPO/.build/linux/deb/$DEB_ARCH/deb/$DEB_FILENAME"
+    # npm run gulp -- "vscode-linux-$(VSCODE_ARCH)-build-deb"
+    # PLATFORM_DEB="linux-deb-$ARCH"
+    # [[ "$ARCH" == "ia32" ]] && DEB_ARCH="i386" || DEB_ARCH="amd64"
+    # DEB_FILENAME="$(ls $REPO/.build/linux/deb/$DEB_ARCH/deb/)"
+    # DEB_PATH="$REPO/.build/linux/deb/$DEB_ARCH/deb/$DEB_FILENAME"
 
-    AZURE_DOCUMENTDB_MASTERKEY="$(AZURE_DOCUMENTDB_MASTERKEY)" \
-    AZURE_STORAGE_ACCESS_KEY_2="$(AZURE_STORAGE_ACCESS_KEY_2)" \
-    MOONCAKE_STORAGE_ACCESS_KEY="$(MOONCAKE_STORAGE_ACCESS_KEY)" \
-    node build/tfs/common/publish.js "$VSCODE_QUALITY" "$PLATFORM_DEB" package "$DEB_FILENAME" "$VERSION" true "$DEB_PATH"
+    # AZURE_DOCUMENTDB_MASTERKEY="$(AZURE_DOCUMENTDB_MASTERKEY)" \
+    # AZURE_STORAGE_ACCESS_KEY_2="$(AZURE_STORAGE_ACCESS_KEY_2)" \
+    # MOONCAKE_STORAGE_ACCESS_KEY="$(MOONCAKE_STORAGE_ACCESS_KEY)" \
+    # node build/tfs/common/publish.js "$VSCODE_QUALITY" "$PLATFORM_DEB" package "$DEB_FILENAME" "$VERSION" true "$DEB_PATH"
 
     # Publish RPM
-    npm run gulp -- "vscode-linux-$(VSCODE_ARCH)-build-rpm"
-    PLATFORM_RPM="linux-rpm-$ARCH"
-    [[ "$ARCH" == "ia32" ]] && RPM_ARCH="i386" || RPM_ARCH="x86_64"
-    RPM_FILENAME="$(ls $REPO/.build/linux/rpm/$RPM_ARCH/ | grep .rpm)"
-    RPM_PATH="$REPO/.build/linux/rpm/$RPM_ARCH/$RPM_FILENAME"
+    # npm run gulp -- "vscode-linux-$(VSCODE_ARCH)-build-rpm"
+    # PLATFORM_RPM="linux-rpm-$ARCH"
+    # [[ "$ARCH" == "ia32" ]] && RPM_ARCH="i386" || RPM_ARCH="x86_64"
+    # RPM_FILENAME="$(ls $REPO/.build/linux/rpm/$RPM_ARCH/ | grep .rpm)"
+    # RPM_PATH="$REPO/.build/linux/rpm/$RPM_ARCH/$RPM_FILENAME"
 
-    AZURE_DOCUMENTDB_MASTERKEY="$(AZURE_DOCUMENTDB_MASTERKEY)" \
-    AZURE_STORAGE_ACCESS_KEY_2="$(AZURE_STORAGE_ACCESS_KEY_2)" \
-    MOONCAKE_STORAGE_ACCESS_KEY="$(MOONCAKE_STORAGE_ACCESS_KEY)" \
-    node build/tfs/common/publish.js "$VSCODE_QUALITY" "$PLATFORM_RPM" package "$RPM_FILENAME" "$VERSION" true "$RPM_PATH"
+    # AZURE_DOCUMENTDB_MASTERKEY="$(AZURE_DOCUMENTDB_MASTERKEY)" \
+    # AZURE_STORAGE_ACCESS_KEY_2="$(AZURE_STORAGE_ACCESS_KEY_2)" \
+    # MOONCAKE_STORAGE_ACCESS_KEY="$(MOONCAKE_STORAGE_ACCESS_KEY)" \
+    # node build/tfs/common/publish.js "$VSCODE_QUALITY" "$PLATFORM_RPM" package "$RPM_FILENAME" "$VERSION" true "$RPM_PATH"
 
     # Publish Snap
-    npm run gulp -- "vscode-linux-$(VSCODE_ARCH)-build-snap"
+    npm run gulp -- "vscode-linux-$(VSCODE_ARCH)-prepare-snap"
     # SNAPCRAFT_MACAROON="$(SNAPCRAFT_MACAROON)" \
     # SNAPCRAFT_UNBOUND_DISCHARGE="$(SNAPCRAFT_UNBOUND_DISCHARGE)" \
     # ./build/tfs/linux/release-snap.sh
