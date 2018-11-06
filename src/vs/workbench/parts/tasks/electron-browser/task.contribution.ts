@@ -444,6 +444,8 @@ class TaskService extends Disposable implements ITaskService {
 	public static OutputChannelId: string = 'tasks';
 	public static OutputChannelLabel: string = nls.localize('tasks', "Tasks");
 
+	private static nextHandle: number = 0;
+
 	private _configHasErrors: boolean;
 	private _schemaVersion: JsonSchemaVersion;
 	private _executionEngine: ExecutionEngine;
@@ -675,15 +677,19 @@ class TaskService extends Disposable implements ITaskService {
 		}
 	}
 
-	public registerTaskProvider(handle: number, provider: ITaskProvider): void {
+	public registerTaskProvider(provider: ITaskProvider): IDisposable {
 		if (!provider) {
-			return;
+			return {
+				dispose: () => { }
+			};
 		}
+		let handle = TaskService.nextHandle++;
 		this._providers.set(handle, provider);
-	}
-
-	public unregisterTaskProvider(handle: number): boolean {
-		return this._providers.delete(handle);
+		return {
+			dispose: () => {
+				this._providers.delete(handle);
+			}
+		};
 	}
 
 	public registerTaskSystem(key: string, info: TaskSystemInfo): void {
