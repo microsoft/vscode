@@ -454,7 +454,7 @@ export class MenubarControl extends Disposable {
 				return;
 			}
 
-			const message = nls.localize('menubar.electronFixRecommendation', 'If you experience a low-contrast issue with the menu bar, we recommend trying out the custom title bar.');
+			const message = nls.localize('menubar.electronFixRecommendation', 'If you experience hard to read text in the menu bar, we recommend trying out the custom title bar.');
 			this.notificationService.prompt(Severity.Info, message, [
 				{
 					label: nls.localize('tryIt', 'Try it'),
