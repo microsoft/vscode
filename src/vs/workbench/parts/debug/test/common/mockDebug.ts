@@ -199,7 +199,7 @@ export class MockSession implements IDebugSession {
 
 	rawUpdate(data: IRawModelUpdate): void { }
 
-	initialize(dbgr: IDebugger): Promise<void> {
+	initialize(dbgr: IDebugger): Thenable<void> {
 		throw new Error('Method not implemented.');
 	}
 	launchOrAttach(config: IConfig): Promise<void> {
