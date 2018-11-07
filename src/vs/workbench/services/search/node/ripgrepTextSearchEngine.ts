@@ -304,7 +304,7 @@ function getNumLinesAndLastNewlineLength(text: string): { numLines: number, last
 }
 
 function getRgArgs(query: vscode.TextSearchQuery, options: vscode.TextSearchOptions): string[] {
-	const args = ['--hidden', '--heading', '--line-number', '--color', 'ansi', '--colors', 'path:none', '--colors', 'line:none', '--colors', 'match:fg:red', '--colors', 'match:style:nobold'];
+	const args = ['--hidden'];
 	args.push(query.isCaseSensitive ? '--case-sensitive' : '--ignore-case');
 
 	options.includes
