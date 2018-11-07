@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import { MarkdownString } from 'vs/base/common/htmlContent';
 import { compare } from 'vs/base/common/strings';
 import { Position } from 'vs/editor/common/core/position';

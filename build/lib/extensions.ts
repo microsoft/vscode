@@ -48,7 +48,6 @@ function fromLocalWebpack(extensionPath: string, sourceMappingURLBase: string | 
 		}
 	}
 
-
 	vsce.listFiles({ cwd: extensionPath, packageManager: vsce.PackageManager.Yarn, packagedDependencies }).then(fileNames => {
 		const files = fileNames
 			.map(fileName => path.join(extensionPath, fileName))
