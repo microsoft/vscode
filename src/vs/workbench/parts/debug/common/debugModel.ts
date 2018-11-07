@@ -346,7 +346,11 @@ export class StackFrame implements IStackFrame {
 	}
 
 	public getSpecificSourceName(): string {
-		const otherSources = this.thread.getCallStack().map(sf => sf.source).filter(s => s !== this.source);
+		// To reduce flashing of the path name and the way we fetch stack frames
+		// We need to compute the source name based on the other frames in the stale call stack
+		let callStack = (<Thread>this.thread).getStaleCallStack();
+		callStack = callStack.length > 0 ? callStack : this.thread.getCallStack();
+		const otherSources = callStack.map(sf => sf.source).filter(s => s !== this.source);
 		let suffixLength = 0;
 		otherSources.forEach(s => {
 			if (s.name === this.source.name) {
@@ -417,7 +421,7 @@ export class Thread implements IThread {
 		return this.callStack;
 	}
 
-	public getStaleCallStack(): IStackFrame[] {
+	public getStaleCallStack(): ReadonlyArray<IStackFrame> {
 		return this.staleCallStack;
 	}
 
