@@ -96,7 +96,8 @@ steps:
     npm run gulp -- "vscode-linux-$(VSCODE_ARCH)-prepare-snap"
 
     # Pack snap tarball artifact, in order to preserve file perms
-    SNAP_TARBALL_PATH="$REPO/.build/linux/snap-$(VSCODE_ARCH).tar.gz"
+    mkdir -p $REPO/.build/linux/snap-tarball
+    SNAP_TARBALL_PATH="$REPO/.build/linux/snap-tarball/snap-$(VSCODE_ARCH).tar.gz"
     rm -rf $SNAP_TARBALL_PATH
     (cd .build/linux && tar -czf $SNAP_TARBALL_PATH snap)
 
@@ -107,4 +108,4 @@ steps:
   displayName: 'Publish Pipeline Artifact'
   inputs:
     artifactName: snap-$(VSCODE_ARCH)
-    targetPath: .build/linux/snap-$(VSCODE_ARCH).tar.gz
+    targetPath: .build/linux/snap-tarball
