@@ -213,6 +213,12 @@ function prepareSnapPackage(arch) {
 	};
 }
 
+function buildSnapPackage(arch) {
+	const snapBuildPath = getSnapBuildPath(arch);
+	const snapFilename = `${product.applicationName}-${packageJson.version}-${linuxPackageRevision}-${arch}.snap`;
+	return shell.task(`cd ${snapBuildPath} && snapcraft snap --output ../${snapFilename}`);
+}
+
 gulp.task('clean-vscode-linux-ia32-deb', util.rimraf('.build/linux/deb/i386'));
 gulp.task('clean-vscode-linux-x64-deb', util.rimraf('.build/linux/deb/amd64'));
 gulp.task('clean-vscode-linux-arm-deb', util.rimraf('.build/linux/deb/armhf'));
@@ -248,3 +254,7 @@ gulp.task('vscode-linux-ia32-prepare-snap', ['clean-vscode-linux-ia32-snap'], pr
 gulp.task('vscode-linux-x64-prepare-snap', ['clean-vscode-linux-x64-snap'], prepareSnapPackage('x64'));
 gulp.task('vscode-linux-arm-prepare-snap', ['clean-vscode-linux-arm-snap'], prepareSnapPackage('arm'));
 gulp.task('vscode-linux-arm64-prepare-snap', ['clean-vscode-linux-arm64-snap'], prepareSnapPackage('arm64'));
+gulp.task('vscode-linux-ia32-build-snap', ['vscode-linux-ia32-prepare-snap'], buildSnapPackage('ia32'));
+gulp.task('vscode-linux-x64-build-snap', ['vscode-linux-x64-prepare-snap'], buildSnapPackage('x64'));
+gulp.task('vscode-linux-arm-build-snap', ['vscode-linux-arm-prepare-snap'], buildSnapPackage('arm'));
+gulp.task('vscode-linux-arm64-build-snap', ['vscode-linux-arm64-prepare-snap'], buildSnapPackage('arm64'));
