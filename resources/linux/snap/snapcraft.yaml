@@ -15,7 +15,6 @@ parts:
     source: .
     stage-packages:
       - libasound2
-      # - libatomic1
       - libc++1
       - libgconf2-4
       - libnotify4
@@ -29,11 +28,13 @@ parts:
       - libgtk-3-0
       - libgdk-pixbuf2.0-0
       - libglib2.0-bin
-      # - libgtk2.0-bin
       - unity-gtk2-module
       - libappindicator1
       - xdg-user-dirs
       - libsecret-1-0
+      # TODO@joao @Tyriar check these deps
+      # - libatomic1
+      # - libgtk2.0-bin
     prime:
       - -usr/share/dh-python
   electron-launch:
