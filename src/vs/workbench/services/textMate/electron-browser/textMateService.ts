@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Event } from 'vs/base/common/event';
-import { TPromise } from 'vs/base/common/winjs.base';
 import { LanguageId } from 'vs/editor/common/modes';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IGrammar } from 'vscode-textmate';
@@ -16,5 +15,5 @@ export interface ITextMateService {
 
 	onDidEncounterLanguage: Event<LanguageId>;
 
-	createGrammar(modeId: string): TPromise<IGrammar>;
+	createGrammar(modeId: string): Promise<IGrammar>;
 }

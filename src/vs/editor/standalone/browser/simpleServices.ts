@@ -12,7 +12,6 @@ import { IDisposable, IReference, ImmortalReference, combinedDisposable, toDispo
 import { OS, isLinux, isMacintosh } from 'vs/base/common/platform';
 import Severity from 'vs/base/common/severity';
 import { URI } from 'vs/base/common/uri';
-import { TPromise } from 'vs/base/common/winjs.base';
 import { ICodeEditor, IDiffEditor, isCodeEditor } from 'vs/editor/browser/editorBrowser';
 import { IBulkEditOptions, IBulkEditResult, IBulkEditService } from 'vs/editor/browser/services/bulkEditService';
 import { isDiffEditorConfigurationKey, isEditorConfigurationKey } from 'vs/editor/common/config/commonEditorConfig';
@@ -58,8 +57,8 @@ export class SimpleModel implements ITextEditorModel {
 		return this._onDispose.event;
 	}
 
-	public load(): TPromise<SimpleModel> {
-		return TPromise.as(this);
+	public load(): Promise<SimpleModel> {
+		return Promise.resolve(this);
 	}
 
 	public get textEditorModel(): ITextModel {
@@ -98,7 +97,7 @@ export class SimpleEditorModelResolverService implements ITextModelService {
 		this.editor = editor;
 	}
 
-	public createModelReference(resource: URI): TPromise<IReference<ITextEditorModel>> {
+	public createModelReference(resource: URI): Promise<IReference<ITextEditorModel>> {
 		let model: ITextModel;
 
 		model = withTypedEditor(this.editor,
@@ -107,10 +106,10 @@ export class SimpleEditorModelResolverService implements ITextModelService {
 		);
 
 		if (!model) {
-			return TPromise.as(new ImmortalReference(null));
+			return Promise.resolve(new ImmortalReference(null));
 		}
 
-		return TPromise.as(new ImmortalReference(new SimpleModel(model)));
+		return Promise.resolve(new ImmortalReference(new SimpleModel(model)));
 	}
 
 	public registerTextModelContentProvider(scheme: string, provider: ITextModelContentProvider): IDisposable {
@@ -482,11 +481,11 @@ export class StandaloneTelemetryService implements ITelemetryService {
 
 	public isOptedIn = false;
 
-	public publicLog(eventName: string, data?: any): TPromise<void> {
-		return TPromise.wrap<void>(null);
+	public publicLog(eventName: string, data?: any): Promise<void> {
+		return Promise.resolve(null);
 	}
 
-	public getTelemetryInfo(): TPromise<ITelemetryInfo> {
+	public getTelemetryInfo(): Promise<ITelemetryInfo> {
 		return null;
 	}
 }

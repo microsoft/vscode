@@ -11,7 +11,6 @@ import { Color } from 'vs/base/common/color';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { escape } from 'vs/base/common/strings';
-import { TPromise } from 'vs/base/common/winjs.base';
 import { ContentWidgetPositionPreference, IActiveCodeEditor, ICodeEditor, IContentWidget, IContentWidgetPosition } from 'vs/editor/browser/editorBrowser';
 import { EditorAction, ServicesAccessor, registerEditorAction, registerEditorContribution } from 'vs/editor/browser/editorExtensions';
 import { Position } from 'vs/editor/common/core/position';
@@ -180,7 +179,7 @@ class InspectTMScopesWidget extends Disposable implements IContentWidget {
 	private readonly _notificationService: INotificationService;
 	private readonly _model: ITextModel;
 	private readonly _domNode: HTMLElement;
-	private readonly _grammar: TPromise<IGrammar>;
+	private readonly _grammar: Promise<IGrammar>;
 
 	constructor(
 		editor: IActiveCodeEditor,
