@@ -111,29 +111,25 @@ export class SnippetCompletionProvider implements CompletionItemProvider {
 				}
 			}
 
-			if (lineOffsets.length === 0) {
-				// no interesting spans found -> pick all snippets
-				suggestions = snippets.map(snippet => new SnippetCompletion(snippet, Range.fromPositions(position)));
+			let availableSnippets = new Set<Snippet>();
+			snippets.forEach(availableSnippets.add, availableSnippets);
+			suggestions = [];
+			for (let start of lineOffsets) {
+				availableSnippets.forEach(snippet => {
+					if (matches(linePrefixLow, start, snippet.prefixLow, 0)) {
+						suggestions.push(new SnippetCompletion(snippet, Range.fromPositions(position.delta(0, -(linePrefixLow.length - start)), position)));
+						availableSnippets.delete(snippet);
+					}
+				});
 			}
-			else {
-				let availableSnippets = new Set<Snippet>();
-				snippets.forEach(availableSnippets.add, availableSnippets);
-				suggestions = [];
-				for (let start of lineOffsets) {
-					availableSnippets.forEach(snippet => {
-						if (matches(linePrefixLow, start, snippet.prefixLow, 0)) {
-							suggestions.push(new SnippetCompletion(snippet, Range.fromPositions(position.delta(0, -(linePrefixLow.length - start)), position)));
-							availableSnippets.delete(snippet);
-						}
-					});
-				}
-				if (endsInWhitespace) {
-					// add remaing snippets when the current prefix ends in whitespace
-					availableSnippets.forEach(snippet => {
-						suggestions.push(new SnippetCompletion(snippet, Range.fromPositions(position)));
-					});
-				}
+			if (endsInWhitespace || lineOffsets.length === 0) {
+				// add remaing snippets when the current prefix ends in whitespace or when no
+				// interesting positions have been found
+				availableSnippets.forEach(snippet => {
+					suggestions.push(new SnippetCompletion(snippet, Range.fromPositions(position)));
+				});
 			}
+
 
 			// dismbiguate suggestions with same labels
 			suggestions.sort(SnippetCompletion.compareByLabel);
