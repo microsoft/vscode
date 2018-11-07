@@ -9,7 +9,6 @@ import { getPathFromAmdModule } from 'vs/base/common/amd';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import * as glob from 'vs/base/common/glob';
 import { URI } from 'vs/base/common/uri';
-import { TPromise } from 'vs/base/common/winjs.base';
 import { IFolderQuery, ISearchRange, ITextQuery, ITextSearchMatch, QueryType, ITextSearchContext, deserializeSearchError, SearchErrorCode } from 'vs/platform/search/common/search';
 import { LegacyTextSearchService } from 'vs/workbench/services/search/node/legacy/rawLegacyTextSearchService';
 import { ISerializedFileMatch } from 'vs/workbench/services/search/node/search';
@@ -32,7 +31,7 @@ const MULTIROOT_QUERIES: IFolderQuery[] = [
 	{ folder: URI.file(MORE_FIXTURES) }
 ];
 
-function doLegacySearchTest(config: ITextQuery, expectedResultCount: number | Function): TPromise<void> {
+function doLegacySearchTest(config: ITextQuery, expectedResultCount: number | Function): Promise<void> {
 	const engine = new LegacyTextSearchService();
 
 	let c = 0;
@@ -49,7 +48,7 @@ function doLegacySearchTest(config: ITextQuery, expectedResultCount: number | Fu
 	});
 }
 
-function doRipgrepSearchTest(query: ITextQuery, expectedResultCount: number | Function): TPromise<ISerializedFileMatch[]> {
+function doRipgrepSearchTest(query: ITextQuery, expectedResultCount: number | Function): Promise<ISerializedFileMatch[]> {
 	let engine = new TextSearchEngineAdapter(query);
 
 	let c = 0;

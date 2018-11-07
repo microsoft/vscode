@@ -11,7 +11,6 @@ import { normalizeDriveLetter } from 'vs/base/common/labels';
 import { Schemas } from 'vs/base/common/network';
 import { isWindows, OS } from 'vs/base/common/platform';
 import { URI } from 'vs/base/common/uri';
-import { TPromise } from 'vs/base/common/winjs.base';
 import { ITree } from 'vs/base/parts/tree/browser/tree';
 import * as nls from 'vs/nls';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
@@ -45,7 +44,7 @@ export function appendKeyBindingLabel(label: string, keyBinding: number | Resolv
 	}
 }
 
-export function openSearchView(viewletService: IViewletService, panelService: IPanelService, focus?: boolean): TPromise<SearchView> {
+export function openSearchView(viewletService: IViewletService, panelService: IPanelService, focus?: boolean): Thenable<SearchView> {
 	if (viewletService.getViewlets().filter(v => v.id === VIEW_ID).length) {
 		return viewletService.openViewlet(VIEW_ID, focus).then(viewlet => <SearchView>viewlet);
 	}
@@ -97,10 +96,10 @@ export class FocusNextInputAction extends Action {
 		super(id, label);
 	}
 
-	public run(): TPromise<any> {
+	public run(): Thenable<any> {
 		const searchView = getSearchView(this.viewletService, this.panelService);
 		searchView.focusNextInputBox();
-		return TPromise.as(null);
+		return Promise.resolve(null);
 	}
 }
 
@@ -115,10 +114,10 @@ export class FocusPreviousInputAction extends Action {
 		super(id, label);
 	}
 
-	public run(): TPromise<any> {
+	public run(): Thenable<any> {
 		const searchView = getSearchView(this.viewletService, this.panelService);
 		searchView.focusPreviousInputBox();
-		return TPromise.as(null);
+		return Promise.resolve(null);
 	}
 }
 
@@ -130,7 +129,7 @@ export abstract class FindOrReplaceInFilesAction extends Action {
 		super(id, label);
 	}
 
-	public run(): TPromise<any> {
+	public run(): Thenable<any> {
 		return openSearchView(this.viewletService, this.panelService, false).then(openedView => {
 			const searchAndReplaceWidget = openedView.searchAndReplaceWidget;
 			searchAndReplaceWidget.toggleReplace(this.expandSearchReplaceWidget);
@@ -165,7 +164,7 @@ export class OpenSearchViewletAction extends FindOrReplaceInFilesAction {
 		super(id, label, viewletService, panelService, /*expandSearchReplaceWidget=*/false);
 	}
 
-	public run(): TPromise<any> {
+	public run(): Thenable<any> {
 
 		// Pass focus to viewlet if not open or focused
 		if (this.otherViewletShowing() || !isSearchViewFocused(this.viewletService, this.panelService)) {
@@ -175,7 +174,7 @@ export class OpenSearchViewletAction extends FindOrReplaceInFilesAction {
 		// Otherwise pass focus to editor group
 		this.editorGroupService.activeGroup.focus();
 
-		return TPromise.as(true);
+		return Promise.resolve(true);
 	}
 
 	private otherViewletShowing(): boolean {
@@ -205,11 +204,11 @@ export class CloseReplaceAction extends Action {
 		super(id, label);
 	}
 
-	public run(): TPromise<any> {
+	public run(): Thenable<any> {
 		const searchView = getSearchView(this.viewletService, this.panelService);
 		searchView.searchAndReplaceWidget.toggleReplace(false);
 		searchView.searchAndReplaceWidget.focus();
-		return TPromise.as(null);
+		return Promise.resolve(null);
 	}
 }
 
@@ -231,12 +230,12 @@ export class RefreshAction extends Action {
 		this.enabled = searchView && searchView.isSearchSubmitted();
 	}
 
-	public run(): TPromise<void> {
+	public run(): Thenable<void> {
 		const searchView = getSearchView(this.viewletService, this.panelService);
 		if (searchView) {
 			searchView.onQueryChanged();
 		}
-		return TPromise.as(null);
+		return Promise.resolve(null);
 	}
 }
 
@@ -258,12 +257,12 @@ export class CollapseDeepestExpandedLevelAction extends Action {
 		this.enabled = searchView && searchView.hasSearchResults();
 	}
 
-	public run(): TPromise<void> {
+	public run(): Thenable<void> {
 		const searchView = getSearchView(this.viewletService, this.panelService);
 		if (searchView) {
 			const viewer = searchView.getControl();
 			if (viewer.getHighlight()) {
-				return TPromise.as(null); // Global action disabled if user is in edit mode from another action
+				return Promise.resolve(null); // Global action disabled if user is in edit mode from another action
 			}
 
 			/**
@@ -299,7 +298,7 @@ export class CollapseDeepestExpandedLevelAction extends Action {
 			viewer.domFocus();
 			viewer.focusFirst();
 		}
-		return TPromise.as(null);
+		return Promise.resolve(null);
 	}
 }
 
@@ -321,12 +320,12 @@ export class ClearSearchResultsAction extends Action {
 		this.enabled = searchView && searchView.isSearchSubmitted();
 	}
 
-	public run(): TPromise<void> {
+	public run(): Thenable<void> {
 		const searchView = getSearchView(this.viewletService, this.panelService);
 		if (searchView) {
 			searchView.clearSearchResults();
 		}
-		return TPromise.as(null);
+		return Promise.resolve(null);
 	}
 }
 
@@ -348,13 +347,13 @@ export class CancelSearchAction extends Action {
 		this.enabled = searchView && searchView.isSearching();
 	}
 
-	public run(): TPromise<void> {
+	public run(): Thenable<void> {
 		const searchView = getSearchView(this.viewletService, this.panelService);
 		if (searchView) {
 			searchView.cancelSearch();
 		}
 
-		return TPromise.as(null);
+		return Promise.resolve(null);
 	}
 }
 
@@ -369,7 +368,7 @@ export class FocusNextSearchResultAction extends Action {
 		super(id, label);
 	}
 
-	public run(): TPromise<any> {
+	public run(): Thenable<any> {
 		return openSearchView(this.viewletService, this.panelService).then(searchView => {
 			searchView.selectNextMatch();
 		});
@@ -387,7 +386,7 @@ export class FocusPreviousSearchResultAction extends Action {
 		super(id, label);
 	}
 
-	public run(): TPromise<any> {
+	public run(): Thenable<any> {
 		return openSearchView(this.viewletService, this.panelService).then(searchView => {
 			searchView.selectPreviousMatch();
 		});
@@ -470,7 +469,7 @@ export class RemoveAction extends AbstractSearchAndReplaceAction {
 		super('remove', RemoveAction.LABEL, 'action-remove');
 	}
 
-	public run(): TPromise<any> {
+	public run(): Thenable<any> {
 		const currentFocusElement = this.viewer.getFocus();
 		const nextFocusElement = !currentFocusElement || currentFocusElement instanceof SearchResult || elementIsEqualOrParent(currentFocusElement, this.element) ?
 			this.getElementToFocusAfterRemoved(this.viewer, this.element) :
@@ -521,7 +520,7 @@ export class ReplaceAllAction extends AbstractSearchAndReplaceAction {
 		super(Constants.ReplaceAllInFileActionId, appendKeyBindingLabel(ReplaceAllAction.LABEL, keyBindingService.lookupKeybinding(Constants.ReplaceAllInFileActionId), keyBindingService), 'action-replace-all');
 	}
 
-	public run(): TPromise<any> {
+	public run(): Thenable<any> {
 		let nextFocusElement = this.getElementToFocusAfterRemoved(this.viewer, this.fileMatch);
 		return this.fileMatch.parent().replace(this.fileMatch).then(() => {
 			if (nextFocusElement) {
@@ -543,7 +542,7 @@ export class ReplaceAllInFolderAction extends AbstractSearchAndReplaceAction {
 		super(Constants.ReplaceAllInFolderActionId, appendKeyBindingLabel(ReplaceAllInFolderAction.LABEL, keyBindingService.lookupKeybinding(Constants.ReplaceAllInFolderActionId), keyBindingService), 'action-replace-all');
 	}
 
-	public run(): TPromise<any> {
+	public run(): Thenable<any> {
 		let nextFocusElement = this.getElementToFocusAfterRemoved(this.viewer, this.folderMatch);
 		return this.folderMatch.replaceAll()
 			.then(() => {
@@ -567,7 +566,7 @@ export class ReplaceAction extends AbstractSearchAndReplaceAction {
 		super(Constants.ReplaceActionId, appendKeyBindingLabel(ReplaceAction.LABEL, keyBindingService.lookupKeybinding(Constants.ReplaceActionId), keyBindingService), 'action-replace');
 	}
 
-	public run(): TPromise<any> {
+	public run(): Thenable<any> {
 		this.enabled = false;
 
 		return this.element.parent().replace(this.element).then(() => {

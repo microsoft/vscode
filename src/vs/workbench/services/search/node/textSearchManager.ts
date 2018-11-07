@@ -66,12 +66,9 @@ export class TextSearchManager {
 						type: 'textSearchProvider'
 					}
 				});
-			}, (errs: Error[]) => {
+			}, (err: Error) => {
 				tokenSource.dispose();
-				const errMsg = errs
-					.map(err => toErrorMessage(err))
-					.filter(msg => !!msg)[0];
-
+				const errMsg = toErrorMessage(err);
 				reject(new Error(errMsg));
 			});
 		});

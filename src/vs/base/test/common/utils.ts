@@ -35,6 +35,39 @@ export class DeferredTPromise<T> extends TPromise<T> {
 	}
 }
 
+export class DeferredPromise<T> {
+
+	private completeCallback: TValueCallback<T>;
+	private errorCallback: (err: any) => void;
+
+	public p: Promise<any>;
+
+	constructor() {
+		this.p = new Promise<any>((c, e) => {
+			this.completeCallback = c;
+			this.errorCallback = e;
+		});
+	}
+
+	public complete(value: T) {
+		process.nextTick(() => {
+			this.completeCallback(value);
+		});
+	}
+
+	public error(err: any) {
+		process.nextTick(() => {
+			this.errorCallback(err);
+		});
+	}
+
+	public cancel() {
+		process.nextTick(() => {
+			this.errorCallback(canceled());
+		});
+	}
+}
+
 export function toResource(this: any, path: string) {
 	return URI.file(paths.join('C:\\', Buffer.from(this.test.fullTitle()).toString('base64'), path));
 }
