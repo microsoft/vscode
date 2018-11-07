@@ -215,7 +215,7 @@ export interface IExtensionService {
 }
 
 export interface ProfileSession {
-	stop(): TPromise<IExtensionHostProfile>;
+	stop(): Promise<IExtensionHostProfile>;
 }
 
 export function checkProposedApiEnabled(extension: IExtensionDescription): void {

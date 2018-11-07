@@ -238,7 +238,7 @@ export class ExtensionHostProcessManager extends Disposable {
 		});
 	}
 
-	public startExtensionHostProfile(): TPromise<ProfileSession> {
+	public startExtensionHostProfile(): Promise<ProfileSession> {
 		if (this._extensionHostProcessWorker) {
 			let port = this._extensionHostProcessWorker.getInspectPort();
 			if (port) {
@@ -564,7 +564,7 @@ export class ExtensionService extends Disposable implements IExtensionService {
 		return false;
 	}
 
-	public startExtensionHostProfile(): TPromise<ProfileSession> {
+	public startExtensionHostProfile(): Promise<ProfileSession> {
 		for (let i = 0, len = this._extensionHostProcessManagers.length; i < len; i++) {
 			const extHostProcessManager = this._extensionHostProcessManagers[i];
 			if (extHostProcessManager.canProfileExtensionHost()) {
