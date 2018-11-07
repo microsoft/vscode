@@ -41,7 +41,7 @@ export interface IPreferencesSearchService {
 }
 
 export interface ISearchProvider {
-	searchModel(preferencesModel: ISettingsEditorModel, token?: CancellationToken): TPromise<ISearchResult>;
+	searchModel(preferencesModel: ISettingsEditorModel, token?: CancellationToken): Promise<ISearchResult>;
 }
 
 export interface IKeybindingsEditor extends IEditor {
