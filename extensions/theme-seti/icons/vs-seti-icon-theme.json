@@ -1162,12 +1162,12 @@
 			"fontColor": "#a074c4"
 		},
 		"_webpack_light": {
-			"fontCharacter": "\\E089",
-			"fontColor": "#498ba7"
+			"fontCharacter": "\\E048",
+			"fontColor": "#b7b73b"
 		},
 		"_webpack": {
-			"fontCharacter": "\\E089",
-			"fontColor": "#519aba"
+			"fontCharacter": "\\E048",
+			"fontColor": "#cbcb41"
 		},
 		"_wgt_light": {
 			"fontCharacter": "\\E08A",
