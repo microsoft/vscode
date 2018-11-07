@@ -138,7 +138,7 @@ export interface Repository {
 	hashObject(data: string): Promise<string>;
 
 	createBranch(name: string, checkout: boolean, ref?: string): Promise<void>;
-	deleteBranch(name: string): Promise<void>;
+	deleteBranch(name: string, force?: boolean): Promise<void>;
 	getBranch(name: string): Promise<Branch>;
 	setBranchUpstream(name: string, upstream: string): Promise<void>;
 
