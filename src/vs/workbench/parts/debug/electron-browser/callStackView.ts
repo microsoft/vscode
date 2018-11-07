@@ -256,15 +256,15 @@ class CallStackActionProvider implements IActionProvider {
 		return false;
 	}
 
-	getActions(tree: ITree, element: any): Promise<IAction[]> {
-		return Promise.resolve([]);
+	getActions(tree: ITree, element: any): IAction[] {
+		return [];
 	}
 
 	hasSecondaryActions(tree: ITree, element: any): boolean {
 		return element !== tree.getInput();
 	}
 
-	getSecondaryActions(tree: ITree, element: any): Promise<IAction[]> {
+	getSecondaryActions(tree: ITree, element: any): IAction[] {
 		const actions: IAction[] = [];
 		if (element instanceof DebugSession) {
 			actions.push(this.instantiationService.createInstance(RestartAction, RestartAction.ID, RestartAction.LABEL));
@@ -289,7 +289,7 @@ class CallStackActionProvider implements IActionProvider {
 			actions.push(new CopyStackTraceAction(CopyStackTraceAction.ID, CopyStackTraceAction.LABEL));
 		}
 
-		return Promise.resolve(actions);
+		return actions;
 	}
 
 	getActionItem(tree: ITree, element: any, action: IAction): IActionItem {

@@ -144,11 +144,11 @@ class WatchExpressionsActionProvider implements IActionProvider {
 		return true;
 	}
 
-	public getActions(tree: ITree, element: any): Promise<IAction[]> {
-		return Promise.resolve([]);
+	public getActions(tree: ITree, element: any): IAction[] {
+		return [];
 	}
 
-	public getSecondaryActions(tree: ITree, element: any): Promise<IAction[]> {
+	public getSecondaryActions(tree: ITree, element: any): IAction[] {
 		const actions: IAction[] = [];
 		if (element instanceof Expression) {
 			const expression = <Expression>element;
@@ -173,7 +173,7 @@ class WatchExpressionsActionProvider implements IActionProvider {
 			actions.push(new RemoveAllWatchExpressionsAction(RemoveAllWatchExpressionsAction.ID, RemoveAllWatchExpressionsAction.LABEL, this.debugService, this.keybindingService));
 		}
 
-		return Promise.resolve(actions);
+		return actions;
 	}
 
 	public getActionItem(tree: ITree, element: any, action: IAction): IActionItem {
