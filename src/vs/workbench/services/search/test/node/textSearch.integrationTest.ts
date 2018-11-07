@@ -354,7 +354,6 @@ suite('Search-integration', function () {
 		};
 
 		return doRipgrepSearchTest(config, 4).then(results => {
-			console.log(JSON.stringify(results));
 			assert.equal(results.length, 4);
 			assert.equal((<ITextSearchContext>results[0].results[0]).lineNumber, 25);
 			assert.equal((<ITextSearchContext>results[0].results[0]).text, '        compiler.addUnit(prog,"input.ts");');
