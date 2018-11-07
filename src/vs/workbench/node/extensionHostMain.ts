@@ -11,6 +11,7 @@ import * as errors from 'vs/base/common/errors';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { Counter } from 'vs/base/common/numbers';
 import { URI, setUriThrowOnMissingScheme } from 'vs/base/common/uri';
+import { IURITransformer } from 'vs/base/common/uriIpc';
 import { TPromise } from 'vs/base/common/winjs.base';
 import * as pfs from 'vs/base/node/pfs';
 import { IMessagePassingProtocol } from 'vs/base/parts/ipc/node/ipc';
@@ -68,7 +69,8 @@ export class ExtensionHostMain {
 	private _mainThreadWorkspace: MainThreadWorkspaceShape;
 
 	constructor(protocol: IMessagePassingProtocol, initData: IInitData) {
-		const rpcProtocol = new RPCProtocol(protocol);
+		const uriTransformer: IURITransformer = null;
+		const rpcProtocol = new RPCProtocol(protocol, null, uriTransformer);
 
 		// ensure URIs are transformed and revived
 		initData = this.transform(initData, rpcProtocol);
