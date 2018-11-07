@@ -8,8 +8,8 @@ import * as types from './extHostTypes';
 import * as search from 'vs/workbench/parts/search/common/search';
 import { ITextEditorOptions } from 'vs/platform/editor/common/editor';
 import { EditorViewColumn } from 'vs/workbench/api/shared/editor';
-import { IDecorationOptions } from 'vs/editor/common/editorCommon';
-import { EndOfLineSequence } from 'vs/editor/common/model';
+import { IDecorationOptions, IThemeDecorationRenderOptions, IDecorationRenderOptions, IContentDecorationRenderOptions } from 'vs/editor/common/editorCommon';
+import { EndOfLineSequence, TrackedRangeStickiness } from 'vs/editor/common/model';
 import * as vscode from 'vscode';
 import { URI } from 'vs/base/common/uri';
 import { ProgressLocation as MainProgressLocation } from 'vs/platform/progress/common/progress';
@@ -249,6 +249,126 @@ export function fromRangeOrRangeWithMessage(ranges: vscode.Range[] | vscode.Deco
 				range: Range.from(r)
 			};
 		});
+	}
+}
+
+function pathOrURIToURI(value: string | URI): URI {
+	if (typeof value === 'undefined') {
+		return value;
+	}
+	if (typeof value === 'string') {
+		return URI.file(value);
+	} else {
+		return value;
+	}
+}
+
+export namespace ThemableDecorationAttachmentRenderOptions {
+	export function from(options: vscode.ThemableDecorationAttachmentRenderOptions): IContentDecorationRenderOptions {
+		if (typeof options === 'undefined') {
+			return options;
+		}
+		return {
+			contentText: options.contentText,
+			contentIconPath: pathOrURIToURI(options.contentIconPath),
+			border: options.border,
+			borderColor: <string | types.ThemeColor>options.borderColor,
+			fontStyle: options.fontStyle,
+			fontWeight: options.fontWeight,
+			textDecoration: options.textDecoration,
+			color: <string | types.ThemeColor>options.color,
+			backgroundColor: <string | types.ThemeColor>options.backgroundColor,
+			margin: options.margin,
+			width: options.width,
+			height: options.height,
+		};
+	}
+}
+
+export namespace ThemableDecorationRenderOptions {
+	export function from(options: vscode.ThemableDecorationRenderOptions): IThemeDecorationRenderOptions {
+		if (typeof options === 'undefined') {
+			return options;
+		}
+		return {
+			backgroundColor: <string | types.ThemeColor>options.backgroundColor,
+			outline: options.outline,
+			outlineColor: <string | types.ThemeColor>options.outlineColor,
+			outlineStyle: options.outlineStyle,
+			outlineWidth: options.outlineWidth,
+			border: options.border,
+			borderColor: <string | types.ThemeColor>options.borderColor,
+			borderRadius: options.borderRadius,
+			borderSpacing: options.borderSpacing,
+			borderStyle: options.borderStyle,
+			borderWidth: options.borderWidth,
+			fontStyle: options.fontStyle,
+			fontWeight: options.fontWeight,
+			textDecoration: options.textDecoration,
+			cursor: options.cursor,
+			color: <string | types.ThemeColor>options.color,
+			opacity: options.opacity,
+			letterSpacing: options.letterSpacing,
+			gutterIconPath: pathOrURIToURI(options.gutterIconPath),
+			gutterIconSize: options.gutterIconSize,
+			overviewRulerColor: <string | types.ThemeColor>options.overviewRulerColor,
+			before: ThemableDecorationAttachmentRenderOptions.from(options.before),
+			after: ThemableDecorationAttachmentRenderOptions.from(options.after),
+		};
+	}
+}
+
+export namespace DecorationRangeBehavior {
+	export function from(value: types.DecorationRangeBehavior): TrackedRangeStickiness {
+		if (typeof value === 'undefined') {
+			return value;
+		}
+		switch (value) {
+			case types.DecorationRangeBehavior.OpenOpen:
+				return TrackedRangeStickiness.AlwaysGrowsWhenTypingAtEdges;
+			case types.DecorationRangeBehavior.ClosedClosed:
+				return TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges;
+			case types.DecorationRangeBehavior.OpenClosed:
+				return TrackedRangeStickiness.GrowsOnlyWhenTypingBefore;
+			case types.DecorationRangeBehavior.ClosedOpen:
+				return TrackedRangeStickiness.GrowsOnlyWhenTypingAfter;
+		}
+	}
+}
+
+export namespace DecorationRenderOptions {
+	export function from(options: vscode.DecorationRenderOptions): IDecorationRenderOptions {
+		return {
+			isWholeLine: options.isWholeLine,
+			rangeBehavior: DecorationRangeBehavior.from(options.rangeBehavior),
+			overviewRulerLane: options.overviewRulerLane,
+			light: ThemableDecorationRenderOptions.from(options.light),
+			dark: ThemableDecorationRenderOptions.from(options.dark),
+
+			backgroundColor: <string | types.ThemeColor>options.backgroundColor,
+			outline: options.outline,
+			outlineColor: <string | types.ThemeColor>options.outlineColor,
+			outlineStyle: options.outlineStyle,
+			outlineWidth: options.outlineWidth,
+			border: options.border,
+			borderColor: <string | types.ThemeColor>options.borderColor,
+			borderRadius: options.borderRadius,
+			borderSpacing: options.borderSpacing,
+			borderStyle: options.borderStyle,
+			borderWidth: options.borderWidth,
+			fontStyle: options.fontStyle,
+			fontWeight: options.fontWeight,
+			textDecoration: options.textDecoration,
+			cursor: options.cursor,
+			color: <string | types.ThemeColor>options.color,
+			opacity: options.opacity,
+			letterSpacing: options.letterSpacing,
+			gutterIconPath: pathOrURIToURI(options.gutterIconPath),
+			gutterIconSize: options.gutterIconSize,
+			overviewRulerColor: <string | types.ThemeColor>options.overviewRulerColor,
+			before: ThemableDecorationAttachmentRenderOptions.from(options.before),
+			after: ThemableDecorationAttachmentRenderOptions.from(options.after),
+		};
 	}
 }
 
