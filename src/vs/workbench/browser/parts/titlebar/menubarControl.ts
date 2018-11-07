@@ -15,7 +15,7 @@ import { ActionRunner, IActionRunner, IAction, Action } from 'vs/base/common/act
 import { Separator } from 'vs/base/browser/ui/actionbar/actionbar';
 import * as DOM from 'vs/base/browser/dom';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { isMacintosh } from 'vs/base/common/platform';
+import { isMacintosh, isLinux } from 'vs/base/common/platform';
 import { Menu, IMenuOptions, SubmenuAction, MENU_MNEMONIC_REGEX, cleanMnemonic, MENU_ESCAPED_MNEMONIC_REGEX } from 'vs/base/browser/ui/menu/menu';
 import { KeyCode, KeyCodeUtils } from 'vs/base/common/keyCodes';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
@@ -32,6 +32,9 @@ import { ILabelService } from 'vs/platform/label/common/label';
 import { IUpdateService, StateType } from 'vs/platform/update/common/update';
 import { Gesture, EventType, GestureEvent } from 'vs/base/browser/touch';
 import { attachMenuStyler } from 'vs/platform/theme/common/styler';
+import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
+import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
+import { IPreferencesService } from 'vs/workbench/services/preferences/common/preferences';
 
 const $ = DOM.$;
 
@@ -124,7 +127,10 @@ export class MenubarControl extends Disposable {
 		@IKeybindingService private keybindingService: IKeybindingService,
 		@IConfigurationService private configurationService: IConfigurationService,
 		@ILabelService private labelService: ILabelService,
-		@IUpdateService private updateService: IUpdateService
+		@IUpdateService private updateService: IUpdateService,
+		@IStorageService private storageService: IStorageService,
+		@INotificationService private notificationService: INotificationService,
+		@IPreferencesService private preferencesService: IPreferencesService
 	) {
 
 		super();
@@ -166,6 +172,8 @@ export class MenubarControl extends Disposable {
 		this.windowService.getRecentlyOpened().then((recentlyOpened) => {
 			this.recentlyOpened = recentlyOpened;
 		});
+
+		this.detectAndRecommendCustomTitlebar();
 
 		this.registerListeners();
 	}
@@ -348,6 +356,7 @@ export class MenubarControl extends Disposable {
 
 		if (event.affectsConfiguration('window.menuBarVisibility')) {
 			this.setUnfocusedState();
+			this.detectAndRecommendCustomTitlebar();
 		}
 	}
 
@@ -434,6 +443,41 @@ export class MenubarControl extends Disposable {
 			this.recentlyOpened = recentlyOpened;
 			this.setupMenubar();
 		});
+	}
+
+	private detectAndRecommendCustomTitlebar(): void {
+		if (!isLinux) {
+			return;
+		}
+
+		if (!this.storageService.getBoolean('menubar/electronFixRecommended', StorageScope.GLOBAL, false)) {
+			if (this.currentMenubarVisibility === 'hidden' || this.currentTitlebarStyleSetting === 'custom') {
+				// Issue will not arise for user, abort notification
+				return;
+			}
+
+			const message = nls.localize('menubar.electronFixRecommendation', "If you experience hard to read text in the menu bar, we recommend trying out the custom title bar.");
+			this.notificationService.prompt(Severity.Info, message, [
+				{
+					label: nls.localize('goToSetting', "Open Settings"),
+					run: () => {
+						return this.preferencesService.openGlobalSettings(undefined, { query: 'window.titleBarStyle' });
+					}
+				},
+				{
+					label: nls.localize('moreInfo', "More Info"),
+					run: () => {
+						window.open('https://go.microsoft.com/fwlink/?linkid=2038566');
+					}
+				},
+				{
+					label: nls.localize('neverShowAgain', "Don't Show Again"),
+					run: () => {
+						this.storageService.store('menubar/electronFixRecommended', true, StorageScope.GLOBAL);
+					}
+				}
+			]);
+		}
 	}
 
 	private registerListeners(): void {
