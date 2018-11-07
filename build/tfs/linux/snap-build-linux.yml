@@ -23,7 +23,7 @@ steps:
     VERSION=$(node -p "require(\"$PACKAGEJSON\").version")
     SNAP_PATH="$SNAP_ROOT/$SNAP_FILENAME"
 
-    (cd $SNAP_ROOT/code-* ; snapcraft -o "$SNAP_PATH")
+    (cd $SNAP_ROOT/code-* && snapcraft --output "$SNAP_PATH")
 
     AZURE_DOCUMENTDB_MASTERKEY="$(AZURE_DOCUMENTDB_MASTERKEY)" \
     AZURE_STORAGE_ACCESS_KEY_2="$(AZURE_STORAGE_ACCESS_KEY_2)" \
