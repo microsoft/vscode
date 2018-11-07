@@ -362,22 +362,38 @@ export class ExtensionHostProcessWorker implements IExtensionHostStarter {
 			// 2) wait for the incoming `initialized` event.
 			return new Promise<IMessagePassingProtocol>((resolve, reject) => {
 
-				let handle = setTimeout(() => {
-					reject('timeout');
-				}, 60 * 1000);
+				let timeoutHandle: NodeJS.Timer;
+				const installTimeoutCheck = () => {
+					timeoutHandle = setTimeout(() => {
+						reject('timeout');
+					}, 60 * 1000);
+				};
+				const uninstallTimeoutCheck = () => {
+					clearTimeout(timeoutHandle);
+				};
+
+				// Wait 60s for the ready message
+				installTimeoutCheck();
 
 				const disposable = protocol.onMessage(msg => {
 
 					if (isMessageOfType(msg, MessageType.Ready)) {
 						// 1) Extension Host is ready to receive messages, initialize it
-						this._createExtHostInitData().then(data => protocol.send(Buffer.from(JSON.stringify(data))));
+						uninstallTimeoutCheck();
+
+						this._createExtHostInitData().then(data => {
+
+							// Wait 60s for the initialized message
+							installTimeoutCheck();
+
+							protocol.send(Buffer.from(JSON.stringify(data)));
+						});
 						return;
 					}
 
 					if (isMessageOfType(msg, MessageType.Initialized)) {
 						// 2) Extension Host is initialized
-
-						clearTimeout(handle);
+						uninstallTimeoutCheck();
 
 						// stop listening for messages here
 						disposable.dispose();
