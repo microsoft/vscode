@@ -202,9 +202,11 @@ function prepareSnapPackage(arch) {
 
 		const snapUpdate = gulp.src('resources/linux/snap/snapUpdate.sh', { base: '.' })
 			.pipe(replace('@@NAME@@', product.applicationName))
+			.pipe(util.setExecutableBit())
 			.pipe(rename(`usr/share/${product.applicationName}/snapUpdate.sh`));
 
 		const electronLaunch = gulp.src('resources/linux/snap/electron-launch', { base: '.' })
+			.pipe(util.setExecutableBit())
 			.pipe(rename('electron-launch'));
 
 		const all = es.merge(desktop, icon, code, snapcraft, electronLaunch, snapUpdate);
