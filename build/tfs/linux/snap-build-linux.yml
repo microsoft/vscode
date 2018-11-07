@@ -30,7 +30,9 @@ steps:
     VERSION=$(node -p "require(\"$PACKAGEJSON\").version")
     SNAP_PATH="$SNAP_ROOT/$SNAP_FILENAME"
 
-    (cd $SNAP_ROOT/code-* && snapcraft snap --output "$SNAP_PATH")
+    (cd $SNAP_ROOT/code-* && \
+        chmod 755 electron-launch usr/share/code*/snapUpdate.sh && \
+        snapcraft snap --output "$SNAP_PATH")
 
     AZURE_DOCUMENTDB_MASTERKEY="$(AZURE_DOCUMENTDB_MASTERKEY)" \
     AZURE_STORAGE_ACCESS_KEY_2="$(AZURE_STORAGE_ACCESS_KEY_2)" \
