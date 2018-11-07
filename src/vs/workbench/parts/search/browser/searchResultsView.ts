@@ -424,7 +424,7 @@ export class SearchTreeController extends WorkbenchTreeController {
 			getActions: () => {
 				const actions: IAction[] = [];
 				fillInContextMenuActions(this.contextMenu, { shouldForwardArgs: true }, actions, this.contextMenuService);
-				return Promise.resolve(actions);
+				return actions;
 			},
 
 			getActionsContext: () => element

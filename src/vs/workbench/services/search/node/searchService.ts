@@ -157,13 +157,6 @@ export class SearchService extends Disposable implements ISearchService {
 					stats: completes[0].stats,
 					results: arrays.flatten(completes.map(c => c.results))
 				};
-			}, errs => {
-				if (!Array.isArray(errs)) {
-					errs = [errs];
-				}
-
-				errs = errs.filter(e => !!e);
-				return Promise.wrapError(errs[0]);
 			});
 
 		return new Promise((resolve, reject) => {
@@ -244,13 +237,10 @@ export class SearchService extends Disposable implements ISearchService {
 				this.sendTelemetry(query, endToEndTime, complete);
 			});
 			return completes;
-		}, errs => {
+		}, err => {
 			const endToEndTime = e2eSW.elapsed();
 			this.logService.trace(`SearchService#search: ${endToEndTime}ms`);
-			errs = errs
-				.filter(e => !!e);
-
-			const searchError = deserializeSearchError(errs[0] && errs[0].message);
+			const searchError = deserializeSearchError(err.message);
 			this.sendTelemetry(query, endToEndTime, null, searchError);
 
 			throw searchError;

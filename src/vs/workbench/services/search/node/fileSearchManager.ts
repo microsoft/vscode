@@ -100,12 +100,8 @@ class FileSearchEngine {
 					limitHit: this.isLimitHit,
 					stats: stats[0] || undefined // Only looking at single-folder workspace stats...
 				});
-			}, (errs: Error[]) => {
-				const errMsg = errs
-					.map(err => toErrorMessage(err))
-					.filter(msg => !!msg)[0];
-
-				reject(new Error(errMsg));
+			}, (err: Error) => {
+				reject(new Error(toErrorMessage(err)));
 			});
 		});
 	}
