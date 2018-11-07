@@ -560,7 +560,7 @@ export class KeybindingsEditor extends BaseEditor implements IKeybindingsEditor 
 			this.selectEntry(<IKeybindingItemEntry>e.element);
 			this.contextMenuService.showContextMenu({
 				getAnchor: () => e.anchor,
-				getActions: () => TPromise.as([
+				getActions: () => [
 					this.createCopyAction(<IKeybindingItemEntry>e.element),
 					this.createCopyCommandAction(<IKeybindingItemEntry>e.element),
 					new Separator(),
@@ -568,7 +568,7 @@ export class KeybindingsEditor extends BaseEditor implements IKeybindingsEditor 
 					this.createRemoveAction(<IKeybindingItemEntry>e.element),
 					this.createResetAction(<IKeybindingItemEntry>e.element),
 					new Separator(),
-					this.createShowConflictsAction(<IKeybindingItemEntry>e.element)])
+					this.createShowConflictsAction(<IKeybindingItemEntry>e.element)]
 			});
 		}
 	}

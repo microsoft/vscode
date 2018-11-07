@@ -221,7 +221,7 @@ export class BaseDebugController extends WorkbenchTreeController {
 				getActions: () => {
 					const actions = this.actionProvider.getSecondaryActions(tree, element);
 					fillInContextMenuActions(this.contributedContextMenu, { arg: this.getContext(element) }, actions, this.contextMenuService);
-					return Promise.resolve(actions);
+					return actions;
 				},
 				onHide: (wasCancelled?: boolean) => {
 					if (wasCancelled) {

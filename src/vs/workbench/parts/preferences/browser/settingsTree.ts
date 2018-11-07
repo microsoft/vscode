@@ -413,7 +413,7 @@ export class SettingsRenderer implements ITreeRenderer {
 		const toolbarElement: HTMLElement = settingDOMElement.querySelector('.toolbar-toggle-more');
 		if (toolbarElement) {
 			this.contextMenuService.showContextMenu({
-				getActions: () => TPromise.wrap(this.settingActions),
+				getActions: () => this.settingActions,
 				getAnchor: () => toolbarElement,
 				getActionsContext: () => element
 			});

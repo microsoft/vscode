@@ -416,7 +416,7 @@ export class FolderSettingsActionItem extends BaseActionItem {
 	private showMenu(): void {
 		this.contextMenuService.showContextMenu({
 			getAnchor: () => this.container,
-			getActions: () => TPromise.as(this.getDropdownMenuActions()),
+			getActions: () => this.getDropdownMenuActions(),
 			getActionItem: () => null,
 			onHide: () => {
 				this.anchorElement.blur();

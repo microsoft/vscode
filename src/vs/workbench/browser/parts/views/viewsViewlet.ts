@@ -318,7 +318,7 @@ export abstract class ViewContainerViewlet extends PanelViewlet implements IView
 		let anchor: { x: number, y: number } = { x: event.posx, y: event.posy };
 		this.contextMenuService.showContextMenu({
 			getAnchor: () => anchor,
-			getActions: () => Promise.resolve(actions)
+			getActions: () => actions
 		});
 	}
 

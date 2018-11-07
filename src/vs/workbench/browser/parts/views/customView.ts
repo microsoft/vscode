@@ -690,9 +690,7 @@ class TreeController extends WorkbenchTreeController {
 		this.contextMenuService.showContextMenu({
 			getAnchor: () => anchor,
 
-			getActions: () => {
-				return Promise.resolve(actions);
-			},
+			getActions: () => actions,
 
 			getActionItem: (action) => {
 				const keybinding = this._keybindingService.lookupKeybinding(action.id);

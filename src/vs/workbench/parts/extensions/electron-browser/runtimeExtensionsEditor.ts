@@ -426,7 +426,7 @@ export class RuntimeExtensionsEditor extends BaseEditor {
 
 			this._contextMenuService.showContextMenu({
 				getAnchor: () => e.anchor,
-				getActions: () => Promise.resolve(actions)
+				getActions: () => actions
 			});
 		});
 	}

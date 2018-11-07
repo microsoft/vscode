@@ -316,7 +316,7 @@ class MainPanel extends ViewletPanel {
 
 		this.contextMenuService.showContextMenu({
 			getAnchor: () => e.anchor,
-			getActions: () => TPromise.as(secondary),
+			getActions: () => secondary,
 			getActionsContext: () => repository.provider
 		});
 	}
@@ -799,12 +799,12 @@ export class RepositoryPanel extends ViewletPanel {
 
 		this.contextMenuService.showContextMenu({
 			getAnchor: () => ({ x: event.posx, y: event.posy }),
-			getActions: () => TPromise.as([<IAction>{
+			getActions: () => [<IAction>{
 				id: `scm.hideRepository`,
 				label: localize('hideRepository', "Hide"),
 				enabled: true,
 				run: () => this.viewModel.hide(this.repository)
-			}]),
+			}],
 		});
 	}
 
@@ -997,7 +997,7 @@ export class RepositoryPanel extends ViewletPanel {
 
 		this.contextMenuService.showContextMenu({
 			getAnchor: () => e.anchor,
-			getActions: () => TPromise.as(actions),
+			getActions: () => actions,
 			getActionsContext: () => element,
 			actionRunner: new MultipleSelectionActionRunner(() => this.getSelectedResources())
 		});
@@ -1406,7 +1406,7 @@ export class SCMViewlet extends PanelViewlet implements IViewModel, IViewsViewle
 		let anchor: { x: number, y: number } = { x: event.posx, y: event.posy };
 		this.contextMenuService.showContextMenu({
 			getAnchor: () => anchor,
-			getActions: () => TPromise.as(actions)
+			getActions: () => actions
 		});
 	}
 
