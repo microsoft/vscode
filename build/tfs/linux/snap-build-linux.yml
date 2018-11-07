@@ -15,12 +15,8 @@ steps:
 
 - script: |
     set -e
-    export npm_config_arch="$(VSCODE_ARCH)"
-    if [[ "$(VSCODE_ARCH)" == "ia32" ]]; then
-      export PKG_CONFIG_PATH="/usr/lib/i386-linux-gnu/pkgconfig"
-    fi
 
-    CHILD_CONCURRENCY=1 yarn
+    (cd build && yarn)
 
     REPO="$(pwd)"
     ARCH="$(VSCODE_ARCH)"
