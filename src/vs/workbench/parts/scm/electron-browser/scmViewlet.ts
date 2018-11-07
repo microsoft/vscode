@@ -1477,7 +1477,7 @@ export class SCMViewlet extends PanelViewlet implements IViewModel, IViewsViewle
 		return super.isSingleView() && this.repositoryPanels.length + this.contributedViews.visibleViewDescriptors.length === 1;
 	}
 
-	openView(id: string, focus?: boolean): TPromise<IView> {
+	openView(id: string, focus?: boolean): IView {
 		if (focus) {
 			this.focus();
 		}
@@ -1490,7 +1490,7 @@ export class SCMViewlet extends PanelViewlet implements IViewModel, IViewsViewle
 		if (focus) {
 			panel.focus();
 		}
-		return TPromise.as(panel);
+		return panel;
 	}
 
 	hide(repository: ISCMRepository): void {

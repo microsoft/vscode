@@ -219,7 +219,7 @@ export interface IView {
 
 export interface IViewsViewlet extends IViewlet {
 
-	openView(id: string, focus?: boolean): TPromise<IView>;
+	openView(id: string, focus?: boolean): IView;
 
 }
 
