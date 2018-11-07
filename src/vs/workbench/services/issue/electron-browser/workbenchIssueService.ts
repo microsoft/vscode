@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IssueReporterStyles, IIssueService, IssueReporterData, ProcessExplorerData, IssueReporterExtensionData } from 'vs/platform/issue/common/issue';
-import { TPromise } from 'vs/base/common/winjs.base';
 import { ITheme, IThemeService } from 'vs/platform/theme/common/themeService';
 import { textLinkForeground, inputBackground, inputBorder, inputForeground, buttonBackground, buttonHoverBackground, buttonForeground, inputValidationErrorBorder, foreground, inputActiveOptionBorder, scrollbarSliderActiveBackground, scrollbarSliderBackground, scrollbarSliderHoverBackground, editorBackground, editorForeground, listHoverBackground, listHoverForeground, listHighlightForeground, textLinkActiveForeground } from 'vs/platform/theme/common/colorRegistry';
 import { SIDE_BAR_BACKGROUND } from 'vs/workbench/common/theme';
@@ -26,7 +25,7 @@ export class WorkbenchIssueService implements IWorkbenchIssueService {
 	) {
 	}
 
-	openReporter(dataOverrides: Partial<IssueReporterData> = {}): TPromise<void> {
+	openReporter(dataOverrides: Partial<IssueReporterData> = {}): Promise<void> {
 		return this.extensionManagementService.getInstalled(LocalExtensionType.User).then(extensions => {
 			const enabledExtensions = extensions.filter(extension => this.extensionEnablementService.isEnabled(extension));
 			const extensionData: IssueReporterExtensionData[] = enabledExtensions.map(extension => {
@@ -58,7 +57,7 @@ export class WorkbenchIssueService implements IWorkbenchIssueService {
 		});
 	}
 
-	openProcessExplorer(): TPromise<void> {
+	openProcessExplorer(): Promise<void> {
 		const theme = this.themeService.getTheme();
 		const data: ProcessExplorerData = {
 			pid: this.windowService.getConfiguration().mainPid,
