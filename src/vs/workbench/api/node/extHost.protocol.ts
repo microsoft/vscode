@@ -68,6 +68,7 @@ export interface IInitData {
 	telemetryInfo: ITelemetryInfo;
 	logLevel: LogLevel;
 	logsLocation: URI;
+	remoteAuthority?: string | null;
 }
 
 export interface IConfigurationInitData extends IConfigurationData {
@@ -80,6 +81,7 @@ export interface IWorkspaceConfigurationChangeEventData {
 }
 
 export interface IExtHostContext extends IRPCProtocol {
+	remoteAuthority: string;
 }
 
 export interface IMainContext extends IRPCProtocol {
