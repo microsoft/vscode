@@ -330,7 +330,7 @@ function getRgArgs(query: vscode.TextSearchQuery, options: vscode.TextSearchOpti
 		args.push('--follow');
 	}
 
-	if (options.encoding) {
+	if (options.encoding && options.encoding !== 'utf8') {
 		args.push('--encoding', options.encoding);
 	}
 
