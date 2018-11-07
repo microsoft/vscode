@@ -284,6 +284,10 @@ export class CodeWindow implements ICodeWindow {
 		return this.currentConfig ? this.currentConfig.folderUri : void 0;
 	}
 
+	get remoteAuthority(): string {
+		return this.currentConfig ? this.currentConfig.remoteAuthority : void 0;
+	}
+
 	setReady(): void {
 		this._readyState = ReadyState.READY;
 

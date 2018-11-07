@@ -68,6 +68,7 @@ export interface ParsedArgs {
 	'upload-logs'?: string;
 	'driver'?: string;
 	'driver-verbose'?: boolean;
+	remote?: string;
 }
 
 export const IEnvironmentService = createDecorator<IEnvironmentService>('environmentService');
