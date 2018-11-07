@@ -146,7 +146,7 @@ export function createApiFactory(
 		// extension should specify then the `file`-scheme, e.g `{ scheme: 'fooLang', language: 'fooLang' }`
 		// We only inform once, it is not a warning because we just want to raise awareness and because
 		// we cannot say if the extension is doing it right or wrong...
-		let checkSelector = (function () {
+		const checkSelector = (function () {
 			let done = (!extension.isUnderDevelopment);
 			function informOnce(selector: vscode.DocumentSelector) {
 				if (!done) {
@@ -168,6 +168,24 @@ export function createApiFactory(
 					}
 				}
 				return selector;
+			};
+		})();
+
+		// Warn when trying to use the vscode.previewHtml command as it does not work properly in all scenarios and
+		// has security concerns.
+		const checkCommand = (() => {
+			let done = !extension.isUnderDevelopment;
+			const informOnce = () => {
+				if (!done) {
+					done = true;
+					console.warn(`Extension '${extension.id}' uses the 'vscode.previewHtml' command which is deprecated and will be removed. Please update your extension to use the Webview API: https://go.microsoft.com/fwlink/?linkid=2039309`);
+				}
+			};
+			return (commandId: string) => {
+				if (commandId === 'vscode.previewHtml') {
+					informOnce();
+				}
+				return commandId;
 			};
 		})();
 
@@ -210,7 +228,7 @@ export function createApiFactory(
 				});
 			}),
 			executeCommand<T>(id: string, ...args: any[]): Thenable<T> {
-				return extHostCommands.executeCommand<T>(id, ...args);
+				return extHostCommands.executeCommand<T>(checkCommand(id), ...args);
 			},
 			getCommands(filterInternal: boolean = false): Thenable<string[]> {
 				return extHostCommands.getCommands(filterInternal);
