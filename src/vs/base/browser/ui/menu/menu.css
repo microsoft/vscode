@@ -74,6 +74,16 @@
 	margin: 0;
 }
 
+.monaco-menu .monaco-action-bar.vertical .action-item {
+	position: static;
+	overflow: visible;
+}
+
+
+.monaco-menu .monaco-action-bar.vertical .action-item .monaco-submenu {
+	position: absolute;
+}
+
 .monaco-menu .monaco-action-bar.vertical .action-label.separator {
 	padding: 0.5em 0 0 0;
 	margin-bottom: 0.5em;

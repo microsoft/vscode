@@ -14,6 +14,9 @@ import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { Color } from 'vs/base/common/color';
+import { DomScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
+import { ScrollbarVisibility } from 'vs/base/common/scrollable';
+import { Event, Emitter } from 'vs/base/common/event';
 
 export const MENU_MNEMONIC_REGEX: RegExp = /\(&{1,2}(.)\)|&{1,2}(.)/;
 export const MENU_ESCAPED_MNEMONIC_REGEX: RegExp = /(?:&amp;){1,2}(.)/;
@@ -52,15 +55,18 @@ interface ISubMenuData {
 export class Menu extends ActionBar {
 	private mnemonics: Map<KeyCode, Array<MenuActionItem>>;
 	private menuDisposables: IDisposable[];
+	private scrollableElement: DomScrollableElement;
+	private menuContainer: HTMLElement;
+
+	private readonly _onScroll: Emitter<void>;
 
 	constructor(container: HTMLElement, actions: IAction[], options: IMenuOptions = {}) {
 
 		addClass(container, 'monaco-menu-container');
 		container.setAttribute('role', 'presentation');
-		let menuContainer = document.createElement('div');
+		const menuContainer = document.createElement('div');
 		addClass(menuContainer, 'monaco-menu');
 		menuContainer.setAttribute('role', 'presentation');
-		container.appendChild(menuContainer);
 
 		super(menuContainer, {
 			orientation: ActionsOrientation.VERTICAL,
@@ -70,6 +76,8 @@ export class Menu extends ActionBar {
 			ariaLabel: options.ariaLabel,
 			triggerKeys: { keys: [KeyCode.Enter], keyDown: true }
 		});
+
+		this._onScroll = new Emitter<void>();
 
 		this.actionsList.setAttribute('role', 'menu');
 
@@ -138,7 +146,35 @@ export class Menu extends ActionBar {
 
 		this.mnemonics = new Map<KeyCode, Array<MenuActionItem>>();
 
+		this.menuContainer = menuContainer;
+
 		this.push(actions, { icon: true, label: true, isMenu: true });
+
+		// Scroll Logic
+		this.scrollableElement = new DomScrollableElement(menuContainer, {
+			alwaysConsumeMouseWheel: true,
+			horizontal: ScrollbarVisibility.Hidden,
+			vertical: ScrollbarVisibility.Auto,
+			verticalScrollbarSize: 5,
+			handleMouseWheel: true,
+			useShadows: true,
+
+		});
+
+		const scrollElement = this.scrollableElement.getDomNode();
+		scrollElement.style.position = null;
+
+		// menuContainer.style.maxHeight = '300px';
+		console.log(`${window.innerHeight}px`);
+		console.log(`${container.offsetTop}px`);
+		menuContainer.style.maxHeight = `${Math.max(10, window.innerHeight - container.offsetTop - 10)}px`;
+
+		this.scrollableElement.onScroll(() => {
+			this._onScroll.fire();
+		}, this, this.menuDisposables);
+
+		container.appendChild(this.scrollableElement.getDomNode());
+		this.scrollableElement.scanDomNode();
 	}
 
 	style(style: IMenuStyles): void {
@@ -161,6 +197,15 @@ export class Menu extends ActionBar {
 				}
 			});
 		}
+	}
+
+	public get onScroll(): Event<void> {
+		return this._onScroll.event;
+	}
+
+	get scrollOffset(): number {
+		console.log(`scroll top: ${this.menuContainer.scrollTop}px`);
+		return this.menuContainer.scrollTop;
 	}
 
 	private focusItemByElement(element: HTMLElement) {
@@ -501,6 +546,11 @@ class SubmenuActionItem extends MenuActionItem {
 				this.hideScheduler.schedule();
 			}
 		}));
+
+		this._register(this.parentData.parent.onScroll(() => {
+			this.parentData.parent.focus(false);
+			this.cleanupExistingSubmenu(false);
+		}));
 	}
 
 	onClick(e: EventLike): void {
@@ -528,6 +578,7 @@ class SubmenuActionItem extends MenuActionItem {
 			this.submenuContainer = append(this.element, $('div.monaco-submenu'));
 			addClasses(this.submenuContainer, 'menubar-menu-items-holder', 'context-view');
 			this.submenuContainer.style.left = `${getClientArea(this.element).width}px`;
+			this.submenuContainer.style.top = `${this.element.offsetTop - this.parentData.parent.scrollOffset}px`;
 
 			this.submenuDisposables.push(addDisposableListener(this.submenuContainer, EventType.KEY_UP, e => {
 				let event = new StandardKeyboardEvent(e as KeyboardEvent);
