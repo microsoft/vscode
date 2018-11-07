@@ -317,7 +317,7 @@ export interface ConfigurationProperties {
 
 export interface CustomTask extends CommandProperties, ConfigurationProperties {
 	/**
-	 * Custom tasks have the type 'custom'
+	 * Custom tasks have the type CUSTOMIZED_TASK_TYPE
 	 */
 	type?: string;
 
@@ -1321,9 +1321,9 @@ namespace CustomTask {
 		}
 		let type = external.type;
 		if (type === void 0 || type === null) {
-			type = 'custom';
+			type = Tasks.CUSTOMIZED_TASK_TYPE;
 		}
-		if (type !== 'custom' && type !== 'shell' && type !== 'process') {
+		if (type !== Tasks.CUSTOMIZED_TASK_TYPE && type !== 'shell' && type !== 'process') {
 			context.problemReporter.error(nls.localize('ConfigurationParser.notCustom', 'Error: tasks is not declared as a custom task. The configuration will be ignored.\n{0}\n', JSON.stringify(external, null, 4)));
 			return undefined;
 		}
@@ -1337,7 +1337,7 @@ namespace CustomTask {
 		}
 
 		let result: Tasks.CustomTask = {
-			type: 'custom',
+			type: Tasks.CUSTOMIZED_TASK_TYPE,
 			_id: context.uuidMap.getUUID(taskName),
 			_source: Objects.assign({}, source, { config: { index, element: external, file: '.vscode\\tasks.json', workspaceFolder: context.workspaceFolder } }),
 			_label: taskName,
@@ -1413,7 +1413,7 @@ namespace CustomTask {
 			_id: configuredProps._id,
 			_source: Objects.assign({}, configuredProps._source, { customizes: contributedTask.defines }),
 			_label: configuredProps.name || contributedTask._label,
-			type: 'custom',
+			type: Tasks.CUSTOMIZED_TASK_TYPE,
 			command: contributedTask.command,
 			name: configuredProps.name || contributedTask.name,
 			identifier: configuredProps.identifier || contributedTask.identifier,
@@ -1460,7 +1460,7 @@ namespace TaskParser {
 	function isCustomTask(value: CustomTask | ConfiguringTask): value is CustomTask {
 		let type = value.type;
 		let customize = (value as any).customize;
-		return customize === void 0 && (type === void 0 || type === null || type === 'custom' || type === 'shell' || type === 'process');
+		return customize === void 0 && (type === void 0 || type === null || type === Tasks.CUSTOMIZED_TASK_TYPE || type === 'shell' || type === 'process');
 	}
 
 	export function from(this: void, externals: (CustomTask | ConfiguringTask)[], globals: Globals, context: ParseContext): TaskParseResult {
@@ -1839,7 +1839,7 @@ class ConfigurationParser {
 				_id: context.uuidMap.getUUID(name),
 				_source: Objects.assign({}, source, { config: { index: -1, element: fileConfig, workspaceFolder: context.workspaceFolder } }),
 				_label: name,
-				type: 'custom',
+				type: Tasks.CUSTOMIZED_TASK_TYPE,
 				name: name,
 				identifier: name,
 				group: Tasks.TaskGroup.Build,
