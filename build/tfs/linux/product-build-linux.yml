@@ -104,5 +104,5 @@ steps:
 - task: PublishPipelineArtifact@0
   displayName: 'Publish Pipeline Artifact'
   inputs:
-    artifactName: snap
+    artifactName: snap-$(VSCODE_ARCH)
     targetPath: .build/linux/snap

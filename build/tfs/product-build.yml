@@ -49,14 +49,26 @@ jobs:
   - template: linux/snap-build-linux.yml
 
 - job: Linux32
-  condition: eq(variables['VSCODE_BUILD_LINUX_32BIT'], 'SNAP')
+  # condition: eq(variables['VSCODE_BUILD_LINUX_32BIT'], 'SNAP')
   pool:
     vmImage: 'Ubuntu-16.04'
   variables:
     VSCODE_ARCH: ia32
+    VSCODE_BUILD_SKIP_PUBLISH: true
   container: vscode-ia32
   steps:
   - template: linux/product-build-linux.yml
+
+- job: LinuxSnap32
+  # condition: eq(variables['VSCODE_BUILD_LINUX'], 'SNAP')
+  pool:
+    vmImage: 'Ubuntu-16.04'
+  variables:
+    VSCODE_ARCH: ia32
+  container: snapcraft
+  dependsOn: Linux32
+  steps:
+  - template: linux/snap-build-linux.yml
 
 - job: macOS
   condition: eq(variables['VSCODE_BUILD_MACOS'], 'SNAP')

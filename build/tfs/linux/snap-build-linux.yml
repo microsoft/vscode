@@ -10,7 +10,7 @@ steps:
 - task: DownloadPipelineArtifact@0
   displayName: 'Download Pipeline Artifact'
   inputs:
-    artifactName: snap
+    artifactName: snap-$(VSCODE_ARCH)
     targetPath: .build/linux/snap
 
 - script: |
