@@ -94,9 +94,11 @@ steps:
 
     # Publish Snap
     npm run gulp -- "vscode-linux-$(VSCODE_ARCH)-prepare-snap"
-    # SNAPCRAFT_MACAROON="$(SNAPCRAFT_MACAROON)" \
-    # SNAPCRAFT_UNBOUND_DISCHARGE="$(SNAPCRAFT_UNBOUND_DISCHARGE)" \
-    # ./build/tfs/linux/release-snap.sh
+
+    # Pack snap tarball artifact, in order to preserve file perms
+    SNAP_TARBALL_PATH="$REPO/.build/linux/snap-$(VSCODE_ARCH).tar.gz"
+    rm -rf $SNAP_TARBALL_PATH
+    (cd .build/linux && tar -czf $SNAP_TARBALL_PATH snap)
 
 - task: ms.vss-governance-buildtask.governance-build-task-component-detection.ComponentGovernanceComponentDetection@0
   displayName: 'Component Detection'
@@ -105,4 +107,4 @@ steps:
   displayName: 'Publish Pipeline Artifact'
   inputs:
     artifactName: snap-$(VSCODE_ARCH)
-    targetPath: .build/linux/snap
+    targetPath: .build/linux/snap-$(VSCODE_ARCH).tar.gz
