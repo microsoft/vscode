@@ -6,7 +6,6 @@
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { URI as uri } from 'vs/base/common/uri';
 import { IDebugService, IConfig, IDebugConfigurationProvider, IBreakpoint, IFunctionBreakpoint, IBreakpointData, ITerminalSettings, IDebugAdapter, IDebugAdapterProvider, IDebugSession } from 'vs/workbench/parts/debug/common/debug';
-import { TPromise } from 'vs/base/common/winjs.base';
 import {
 	ExtHostContext, ExtHostDebugServiceShape, MainThreadDebugServiceShape, DebugSessionUUID, MainContext,
 	IExtHostContext, IBreakpointsDeltaDto, ISourceMultiBreakpointDto, ISourceBreakpointDto, IFunctionBreakpointDto, IDebugSessionDto
@@ -78,7 +77,7 @@ export class MainThreadDebugService implements MainThreadDebugServiceShape, IDeb
 		this._toDispose.push(this.debugService.getConfigurationManager().registerDebugAdapterProvider(debugTypes, this));
 	}
 
-	public $startBreakpointEvents(): Thenable<void> {
+	public $startBreakpointEvents(): void {
 
 		if (!this._breakpointEventsActive) {
 			this._breakpointEventsActive = true;
@@ -113,8 +112,6 @@ export class MainThreadDebugService implements MainThreadDebugServiceShape, IDeb
 				});
 			}
 		}
-
-		return TPromise.wrap<void>(undefined);
 	}
 
 	public $registerBreakpoints(DTOs: (ISourceMultiBreakpointDto | IFunctionBreakpointDto)[]): Thenable<void> {
@@ -174,13 +171,12 @@ export class MainThreadDebugService implements MainThreadDebugServiceShape, IDeb
 		return Promise.resolve(undefined);
 	}
 
-	public $unregisterDebugConfigurationProvider(handle: number): Thenable<void> {
+	public $unregisterDebugConfigurationProvider(handle: number): void {
 		const provider = this._debugConfigurationProviders.get(handle);
 		if (provider) {
 			this._debugConfigurationProviders.delete(handle);
 			this.debugService.getConfigurationManager().unregisterDebugConfigurationProvider(provider);
 		}
-		return TPromise.wrap<void>(undefined);
 	}
 
 	public $startDebugging(_folderUri: uri | undefined, nameOrConfiguration: string | IConfig): Thenable<boolean> {
@@ -189,7 +185,7 @@ export class MainThreadDebugService implements MainThreadDebugServiceShape, IDeb
 		return this.debugService.startDebugging(launch, nameOrConfiguration).then(success => {
 			return success;
 		}, err => {
-			return TPromise.wrapError(new Error(err && err.message ? err.message : 'cannot start debugging'));
+			return Promise.reject(new Error(err && err.message ? err.message : 'cannot start debugging'));
 		});
 	}
 
@@ -200,20 +196,19 @@ export class MainThreadDebugService implements MainThreadDebugServiceShape, IDeb
 				if (response && response.success) {
 					return response.body;
 				} else {
-					return TPromise.wrapError(new Error(response ? response.message : 'custom request failed'));
+					return Promise.reject(new Error(response ? response.message : 'custom request failed'));
 				}
 			});
 		}
-		return TPromise.wrapError(new Error('debug session not found'));
+		return Promise.reject(new Error('debug session not found'));
 	}
 
-	public $appendDebugConsole(value: string): Thenable<void> {
+	public $appendDebugConsole(value: string): void {
 		// Use warning as severity to get the orange color for messages coming from the debug extension
 		const session = this.debugService.getViewModel().focusedSession;
 		if (session) {
 			session.appendToRepl(value, severity.Warning);
 		}
-		return TPromise.wrap<void>(undefined);
 	}
 
 	public $acceptDAMessage(handle: number, message: DebugProtocol.ProtocolMessage) {
