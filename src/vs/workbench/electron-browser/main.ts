@@ -46,7 +46,7 @@ import { Schemas } from 'vs/base/common/network';
 import { sanitizeFilePath, mkdirp } from 'vs/base/node/extfs';
 import { basename, join } from 'path';
 import { createHash } from 'crypto';
-import { parseStorage, StorageObject } from 'vs/platform/storage/common/storageLegacyMigration';
+import { parseStorage, StorageObject, parseFolderStorage } from 'vs/platform/storage/common/storageLegacyMigration';
 import { StorageScope } from 'vs/platform/storage/common/storage';
 import { endsWith } from 'vs/base/common/strings';
 import { IdleValue } from 'vs/base/common/async';
@@ -309,21 +309,20 @@ function createStorageService(payload: IWorkspaceInitializationPayload, environm
 
 				perf.mark('willMigrateWorkspaceStorageKeys');
 				return readdir(environmentService.extensionsPath).then(extensions => {
-
 					// Otherwise, we migrate data from window.localStorage over
 					try {
-						const parsedStorage = parseStorage(window.localStorage);
-
 						let workspaceItems: StorageObject;
-						if (isWorkspaceIdentifier(payload)) {
-							workspaceItems = parsedStorage.multiRoot.get(`root:${payload.id}`);
-						} else if (isSingleFolderWorkspaceInitializationPayload(payload)) {
-							workspaceItems = parsedStorage.folder.get(payload.folder.toString());
-						} else {
-							if (payload.id === 'ext-dev') {
-								workspaceItems = parsedStorage.noWorkspace;
+						{
+							if (isWorkspaceIdentifier(payload)) {
+								workspaceItems = (parseStorage(window.localStorage, 'multiRoot') as Map<string, StorageObject>).get(`root:${payload.id}`);
+							} else if (isSingleFolderWorkspaceInitializationPayload(payload)) {
+								workspaceItems = parseFolderStorage(window.localStorage, payload.folder.toString());
 							} else {
-								workspaceItems = parsedStorage.empty.get(`empty:${payload.id}`);
+								if (payload.id === 'ext-dev') {
+									workspaceItems = parseStorage(window.localStorage, 'noWorkspace') as StorageObject;
+								} else {
+									workspaceItems = (parseStorage(window.localStorage, 'empty') as Map<string, StorageObject>).get(`empty:${payload.id}`);
+								}
 							}
 						}
 
