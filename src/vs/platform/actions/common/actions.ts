@@ -58,49 +58,44 @@ export function isISubmenuItem(item: IMenuItem | ISubmenuItem): item is ISubmenu
 	return (item as ISubmenuItem).submenu !== undefined;
 }
 
-export class MenuId {
-
-	private static ID = 1;
-
-	static readonly EditorTitle = new MenuId();
-	static readonly EditorTitleContext = new MenuId();
-	static readonly EditorContext = new MenuId();
-	static readonly EmptyEditorGroupContext = new MenuId();
-	static readonly ExplorerContext = new MenuId();
-	static readonly OpenEditorsContext = new MenuId();
-	static readonly ProblemsPanelContext = new MenuId();
-	static readonly DebugVariablesContext = new MenuId();
-	static readonly DebugWatchContext = new MenuId();
-	static readonly DebugCallStackContext = new MenuId();
-	static readonly DebugBreakpointsContext = new MenuId();
-	static readonly DebugConsoleContext = new MenuId();
-	static readonly SCMTitle = new MenuId();
-	static readonly SCMSourceControl = new MenuId();
-	static readonly SCMResourceGroupContext = new MenuId();
-	static readonly SCMResourceContext = new MenuId();
-	static readonly SCMChangeContext = new MenuId();
-	static readonly CommandPalette = new MenuId();
-	static readonly ViewTitle = new MenuId();
-	static readonly ViewItemContext = new MenuId();
-	static readonly TouchBarContext = new MenuId();
-	static readonly SearchContext = new MenuId();
-	static readonly MenubarFileMenu = new MenuId();
-	static readonly MenubarEditMenu = new MenuId();
-	static readonly MenubarRecentMenu = new MenuId();
-	static readonly MenubarSelectionMenu = new MenuId();
-	static readonly MenubarViewMenu = new MenuId();
-	static readonly MenubarAppearanceMenu = new MenuId();
-	static readonly MenubarLayoutMenu = new MenuId();
-	static readonly MenubarGoMenu = new MenuId();
-	static readonly MenubarSwitchEditorMenu = new MenuId();
-	static readonly MenubarSwitchGroupMenu = new MenuId();
-	static readonly MenubarDebugMenu = new MenuId();
-	static readonly MenubarNewBreakpointMenu = new MenuId();
-	static readonly MenubarPreferencesMenu = new MenuId();
-	static readonly MenubarHelpMenu = new MenuId();
-	static readonly MenubarTerminalMenu = new MenuId();
-
-	readonly id: string = String(MenuId.ID++);
+export const enum MenuId {
+	EditorTitle,
+	EditorTitleContext,
+	EditorContext,
+	EmptyEditorGroupContext,
+	ExplorerContext,
+	OpenEditorsContext,
+	ProblemsPanelContext,
+	DebugVariablesContext,
+	DebugWatchContext,
+	DebugCallStackContext,
+	DebugBreakpointsContext,
+	DebugConsoleContext,
+	SCMTitle,
+	SCMSourceControl,
+	SCMResourceGroupContext,
+	SCMResourceContext,
+	SCMChangeContext,
+	CommandPalette,
+	ViewTitle,
+	ViewItemContext,
+	TouchBarContext,
+	SearchContext,
+	MenubarFileMenu,
+	MenubarEditMenu,
+	MenubarRecentMenu,
+	MenubarSelectionMenu,
+	MenubarViewMenu,
+	MenubarAppearanceMenu,
+	MenubarLayoutMenu,
+	MenubarGoMenu,
+	MenubarSwitchEditorMenu,
+	MenubarSwitchGroupMenu,
+	MenubarDebugMenu,
+	MenubarNewBreakpointMenu,
+	MenubarPreferencesMenu,
+	MenubarHelpMenu,
+	MenubarTerminalMenu,
 }
 
 export interface IMenuActionOptions {
@@ -162,9 +157,9 @@ export const MenuRegistry: IMenuRegistry = new class implements IMenuRegistry {
 	}
 
 	appendMenuItem(id: MenuId, item: IMenuItem | ISubmenuItem): IDisposable {
-		let array = this._menuItems[id.id];
+		let array = this._menuItems[id];
 		if (!array) {
-			this._menuItems[id.id] = array = [item];
+			this._menuItems[id] = array = [item];
 		} else {
 			array.push(item);
 		}
@@ -180,10 +175,10 @@ export const MenuRegistry: IMenuRegistry = new class implements IMenuRegistry {
 		};
 	}
 
-	getMenuItems({ id }: MenuId): (IMenuItem | ISubmenuItem)[] {
+	getMenuItems(id: MenuId): (IMenuItem | ISubmenuItem)[] {
 		const result = this._menuItems[id] || [];
 
-		if (id === MenuId.CommandPalette.id) {
+		if (id === MenuId.CommandPalette) {
 			// CommandPalette is special because it shows
 			// all commands by default
 			this._appendImplicitItems(result);
