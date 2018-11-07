@@ -617,4 +617,8 @@ export class SimpleUriLabelService implements ILabelService {
 	public registerFormatter(selector: string, formatter: LabelRules): IDisposable {
 		throw new Error('Not implemented');
 	}
+
+	public getHostLabel(): string {
+		return '';
+	}
 }
