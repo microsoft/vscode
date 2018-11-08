@@ -19,11 +19,12 @@ import { IRange } from 'vs/editor/common/core/range';
 import { ISelection } from 'vs/editor/common/core/selection';
 import * as htmlContent from 'vs/base/common/htmlContent';
 import * as languageSelector from 'vs/editor/common/modes/languageSelector';
-import { WorkspaceEditDto, ResourceTextEditDto, ResourceFileEditDto } from 'vs/workbench/api/node/extHost.protocol';
+import { WorkspaceEditDto, ResourceTextEditDto, ResourceFileEditDto, IMarkdownStringDto } from 'vs/workbench/api/node/extHost.protocol';
 import { MarkerSeverity, IRelatedInformation, IMarkerData, MarkerTag } from 'vs/platform/markers/common/markers';
 import { ACTIVE_GROUP, SIDE_GROUP } from 'vs/workbench/services/editor/common/editorService';
 import { ExtHostDocumentsAndEditors } from 'vs/workbench/api/node/extHostDocumentsAndEditors';
 import { isString, isNumber } from 'vs/base/common/types';
+import * as marked from 'vs/base/common/marked/marked';
 
 export interface PositionLike {
 	line: number;
@@ -220,6 +221,29 @@ export namespace MarkdownString {
 			return { value: '' };
 		}
 	}
+
+	export function from2(markup: vscode.MarkedString | vscode.MarkdownString): IMarkdownStringDto {
+		let { value, isTrusted } = from(markup);
+
+		let uris = Object.create(null);
+		let renderer = new marked.Renderer();
+
+		renderer.image = renderer.link = (href: string): string => {
+			try {
+				uris[href] = URI.parse(href, true);
+			} catch (e) {
+				// ignore
+			}
+			return '';
+		};
+		marked(value, { renderer });
+		return {
+			isTrusted,
+			value,
+			uris
+		};
+	}
+
 	export function to(value: htmlContent.IMarkdownString): vscode.MarkdownString {
 		const ret = new htmlContent.MarkdownString(value.value);
 		ret.isTrusted = value.isTrusted;

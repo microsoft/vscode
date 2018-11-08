@@ -274,6 +274,12 @@ export interface ISerializedSignatureHelpProviderMetadata {
 	readonly retriggerCharacters: ReadonlyArray<string>;
 }
 
+export interface IMarkdownStringDto {
+	isTrusted: boolean;
+	value: string;
+	uris: { [n: string]: UriComponents };
+}
+
 export interface MainThreadLanguageFeaturesShape extends IDisposable {
 	$unregister(handle: number): void;
 	$registerOutlineSupport(handle: number, selector: ISerializedDocumentFilter[], extensionId: string): void;
