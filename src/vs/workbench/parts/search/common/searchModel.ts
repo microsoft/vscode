@@ -563,6 +563,7 @@ export class SearchResult extends Disposable {
 	private _otherFilesMatch: FolderMatch;
 	private _folderMatchesMap: TernarySearchTree<FolderMatch> = TernarySearchTree.forPaths<FolderMatch>();
 	private _showHighlights: boolean;
+	private _query: ITextQuery;
 
 	private _rangeHighlightDecorations: RangeHighlightDecorations;
 
@@ -570,6 +571,10 @@ export class SearchResult extends Disposable {
 		@IInstantiationService private instantiationService: IInstantiationService) {
 		super();
 		this._rangeHighlightDecorations = this.instantiationService.createInstance(RangeHighlightDecorations);
+	}
+
+	public get query(): ITextQuery {
+		return this._query;
 	}
 
 	public set query(query: ITextQuery) {
@@ -581,6 +586,7 @@ export class SearchResult extends Disposable {
 		this._folderMatches.forEach(fm => this._folderMatchesMap.set(fm.resource().toString(), fm));
 
 		this._otherFilesMatch = this.createFolderMatch(null, 'otherFiles', this._folderMatches.length + 1, query);
+		this._query = query;
 	}
 
 	private createFolderMatch(resource: URI | null, id: string, index: number, query: ITextQuery): FolderMatch {
