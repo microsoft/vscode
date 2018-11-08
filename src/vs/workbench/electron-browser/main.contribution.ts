@@ -682,7 +682,7 @@ configurationRegistry.registerConfiguration({
 		'workbench.enableLegacyStorage': {
 			'type': 'boolean',
 			'description': nls.localize('workbench.enableLegacyStorage', "Switches back to the previous storage implementation. Only change this setting if advised to do so."),
-			'default': false
+			'default': true
 		}
 	}
 });
