@@ -167,7 +167,7 @@ export class TerminalTaskSystem implements ITaskSystem {
 		}
 
 		try {
-			return { kind: TaskExecuteKind.Started, started: {}, promise: this.executeTask(Object.create(null), task, resolver, trigger) };
+			return { kind: TaskExecuteKind.Started, started: {}, promise: this.executeTask(task, resolver, trigger) };
 		} catch (error) {
 			if (error instanceof TaskError) {
 				throw error;
@@ -254,17 +254,16 @@ export class TerminalTaskSystem implements ITaskSystem {
 		return TPromise.join<TaskTerminateResponse>(promises);
 	}
 
-	private executeTask(startedTasks: IStringDictionary<TPromise<ITaskSummary>>, task: Task, resolver: ITaskResolver, trigger: string): TPromise<ITaskSummary> {
+	private executeTask(task: Task, resolver: ITaskResolver, trigger: string): TPromise<ITaskSummary> {
 		let promises: TPromise<ITaskSummary>[] = [];
 		if (task.dependsOn) {
 			task.dependsOn.forEach((dependency) => {
 				let task = resolver.resolve(dependency.workspaceFolder, dependency.task);
 				if (task) {
 					let key = Task.getMapKey(task);
-					let promise = startedTasks[key];
+					let promise = this.activeTasks[key] ? this.activeTasks[key].promise : undefined;
 					if (!promise) {
-						promise = this.executeTask(startedTasks, task, resolver, trigger);
-						startedTasks[key] = promise;
+						promise = this.executeTask(task, resolver, trigger);
 					}
 					promises.push(promise);
 				} else {
