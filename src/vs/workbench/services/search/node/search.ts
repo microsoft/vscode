@@ -34,7 +34,7 @@ export interface ISearchEngine<T> {
 export interface ISerializedSearchSuccess {
 	type: 'success';
 	limitHit: boolean;
-	stats: IFileSearchStats | ITextSearchStats;
+	stats: IFileSearchStats | ITextSearchStats | null;
 }
 
 export interface ISearchEngineSuccess {
@@ -71,7 +71,7 @@ export function isSerializedFileMatch(arg: ISerializedSearchProgressItem): arg i
 }
 
 export interface ISerializedFileMatch {
-	path: string;
+	path?: string;
 	results?: ITextSearchResult[];
 	numMatches?: number;
 }

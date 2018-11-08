@@ -34,7 +34,7 @@ export interface IRemoteAgentService {
 export interface IRemoteAgentConnection {
 	readonly remoteAuthority: string;
 
-	getEnvironment(): TPromise<IRemoteAgentEnvironment>;
+	getEnvironment(): TPromise<IRemoteAgentEnvironment | null>;
 
 	getChannel<T extends IChannel>(channelName: string): T;
 	registerChannel<T extends IChannel>(channelName: string, channel: T);
