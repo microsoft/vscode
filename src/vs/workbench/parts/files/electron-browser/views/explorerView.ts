@@ -45,7 +45,7 @@ import { IViewletPanelOptions } from 'vs/workbench/browser/parts/views/panelView
 import { ILabelService } from 'vs/platform/label/common/label';
 
 export interface IExplorerViewOptions extends IViewletViewOptions {
-	viewletState: FileViewletState;
+	fileViewletState: FileViewletState;
 }
 
 export class ExplorerView extends TreeViewsViewletPanel implements IExplorerView {
@@ -61,7 +61,7 @@ export class ExplorerView extends TreeViewsViewletPanel implements IExplorerView
 
 	private explorerViewer: WorkbenchTree;
 	private filter: FileFilter;
-	private viewletState: FileViewletState;
+	private fileViewletState: FileViewletState;
 
 	private explorerRefreshDelayer: ThrottledDelayer<void>;
 
@@ -100,7 +100,7 @@ export class ExplorerView extends TreeViewsViewletPanel implements IExplorerView
 		super({ ...(options as IViewletPanelOptions), ariaHeaderLabel: nls.localize('explorerSection', "Files Explorer Section") }, keybindingService, contextMenuService, configurationService);
 
 		this.viewState = options.viewletState;
-		this.viewletState = options.viewletState;
+		this.fileViewletState = options.fileViewletState;
 		this.autoReveal = true;
 
 		this.explorerRefreshDelayer = new ThrottledDelayer<void>(ExplorerView.EXPLORER_FILE_CHANGES_REFRESH_DELAY);
@@ -406,7 +406,7 @@ export class ExplorerView extends TreeViewsViewletPanel implements IExplorerView
 
 	private createViewer(container: HTMLElement): WorkbenchTree {
 		const dataSource = this.instantiationService.createInstance(FileDataSource);
-		const renderer = this.instantiationService.createInstance(FileRenderer, this.viewletState);
+		const renderer = this.instantiationService.createInstance(FileRenderer, this.fileViewletState);
 		const controller = this.instantiationService.createInstance(FileController);
 		this.disposables.push(controller);
 		const sorter = this.instantiationService.createInstance(FileSorter);
