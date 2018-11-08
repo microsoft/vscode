@@ -12,8 +12,8 @@ import { ConfigurationScope } from 'vs/platform/configuration/common/configurati
 import { SettingsTarget } from 'vs/workbench/parts/preferences/browser/preferencesWidgets';
 import { ITOCEntry, knownAcronyms } from 'vs/workbench/parts/preferences/browser/settingsLayout';
 import { IExtensionSetting, ISearchResult, ISetting, SettingValueType } from 'vs/workbench/services/preferences/common/preferences';
+import { MODIFIED_SETTING_TAG } from 'vs/workbench/parts/preferences/common/preferences';
 
-export const MODIFIED_SETTING_TAG = 'modified';
 export const ONLINE_SERVICES_SETTING_TAG = 'usesOnlineServices';
 
 export interface ISettingsEditorViewState {
@@ -523,7 +523,7 @@ export interface IParsedQuery {
 }
 
 const tagRegex = /(^|\s)@tag:("([^"]*)"|[^"]\S*)/g;
-export function parseQuery(query: string): IParsedQuery {
+export function getQueryWithoutTags(query: string): IParsedQuery {
 	const tags: string[] = [];
 	query = query.replace(tagRegex, (_, __, quotedTag, tag) => {
 		tags.push(tag || quotedTag);

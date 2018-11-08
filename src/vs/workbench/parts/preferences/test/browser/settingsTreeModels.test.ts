@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { settingKeyToDisplayFormat, parseQuery, IParsedQuery } from 'vs/workbench/parts/preferences/browser/settingsTreeModels';
+import { settingKeyToDisplayFormat, getQueryWithoutTags, IParsedQuery } from 'vs/workbench/parts/preferences/browser/settingsTreeModels';
 
 suite('SettingsTree', () => {
 	test('settingKeyToDisplayFormat', () => {
@@ -106,7 +106,7 @@ suite('SettingsTree', () => {
 	test('parseQuery', () => {
 		function testParseQuery(input: string, expected: IParsedQuery) {
 			assert.deepEqual(
-				parseQuery(input),
+				getQueryWithoutTags(input),
 				expected,
 				input
 			);

@@ -23,7 +23,7 @@ import {
 	IKeybindingsEditor, IPreferencesSearchService, CONTEXT_KEYBINDING_FOCUS, CONTEXT_KEYBINDINGS_EDITOR, CONTEXT_KEYBINDINGS_SEARCH_FOCUS, KEYBINDINGS_EDITOR_COMMAND_DEFINE, KEYBINDINGS_EDITOR_COMMAND_REMOVE, KEYBINDINGS_EDITOR_COMMAND_SEARCH, KEYBINDINGS_EDITOR_COMMAND_RECORD_SEARCH_KEYS, KEYBINDINGS_EDITOR_COMMAND_SORTBY_PRECEDENCE,
 	KEYBINDINGS_EDITOR_COMMAND_COPY, KEYBINDINGS_EDITOR_COMMAND_RESET, KEYBINDINGS_EDITOR_COMMAND_COPY_COMMAND, KEYBINDINGS_EDITOR_COMMAND_SHOW_SIMILAR, KEYBINDINGS_EDITOR_COMMAND_FOCUS_KEYBINDINGS, KEYBINDINGS_EDITOR_COMMAND_CLEAR_SEARCH_RESULTS, SETTINGS_EDITOR_COMMAND_SEARCH, CONTEXT_SETTINGS_EDITOR, SETTINGS_EDITOR_COMMAND_FOCUS_FILE,
 	CONTEXT_SETTINGS_SEARCH_FOCUS, SETTINGS_EDITOR_COMMAND_CLEAR_SEARCH_RESULTS, SETTINGS_EDITOR_COMMAND_FOCUS_NEXT_SETTING, SETTINGS_EDITOR_COMMAND_FOCUS_PREVIOUS_SETTING, SETTINGS_EDITOR_COMMAND_EDIT_FOCUSED_SETTING, SETTINGS_EDITOR_COMMAND_FOCUS_SETTINGS_FROM_SEARCH, CONTEXT_TOC_ROW_FOCUS, SETTINGS_EDITOR_COMMAND_FOCUS_SETTINGS_LIST,
-	SETTINGS_EDITOR_COMMAND_SHOW_CONTEXT_MENU, KEYBINDINGS_EDITOR_SHOW_DEFAULT_KEYBINDINGS, KEYBINDINGS_EDITOR_SHOW_USER_KEYBINDINGS
+	SETTINGS_EDITOR_COMMAND_SHOW_CONTEXT_MENU, KEYBINDINGS_EDITOR_SHOW_DEFAULT_KEYBINDINGS, KEYBINDINGS_EDITOR_SHOW_USER_KEYBINDINGS, MODIFIED_SETTING_TAG, SETTINGS_EDITOR_COMMAND_FILTER_MODIFIED, SETTINGS_EDITOR_COMMAND_FILTER_ONLINE
 } from 'vs/workbench/parts/preferences/common/preferences';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
@@ -566,6 +566,20 @@ const showContextMenuCommand = new ShowContextMenuCommand({
 });
 showContextMenuCommand.register();
 
+CommandsRegistry.registerCommand(SETTINGS_EDITOR_COMMAND_FILTER_MODIFIED, serviceAccessor => {
+	const control = serviceAccessor.get(IEditorService).activeControl as SettingsEditor2;
+	if (control instanceof SettingsEditor2) {
+		control.focusSearch(`@${MODIFIED_SETTING_TAG}`);
+	}
+});
+
+CommandsRegistry.registerCommand(SETTINGS_EDITOR_COMMAND_FILTER_ONLINE, serviceAccessor => {
+	const control = serviceAccessor.get(IEditorService).activeControl as SettingsEditor2;
+	if (control instanceof SettingsEditor2) {
+		control.focusSearch(`@tag:usesOnlineServices`);
+	}
+});
+
 // Preferences menu
 
 MenuRegistry.appendMenuItem(MenuId.MenubarPreferencesMenu, {
@@ -584,4 +598,40 @@ MenuRegistry.appendMenuItem(MenuId.MenubarPreferencesMenu, {
 		title: nls.localize({ key: 'miOpenKeymap', comment: ['&& denotes a mnemonic'] }, "&&Keyboard Shortcuts")
 	},
 	order: 1
+});
+
+// Editor tool items
+
+MenuRegistry.appendMenuItem(MenuId.EditorTitle, {
+	command: {
+		id: OpenSettingsJsonAction.ID,
+		title: OpenSettingsJsonAction.LABEL,
+		iconLocation: {
+			dark: URI.parse(require.toUrl('vs/workbench/parts/preferences/electron-browser/media/edit-json-inverse.svg')),
+			light: URI.parse(require.toUrl('vs/workbench/parts/preferences/electron-browser/media/edit-json.svg'))
+		}
+	},
+	group: 'navigation',
+	order: 1,
+	when: CONTEXT_SETTINGS_EDITOR
+});
+
+MenuRegistry.appendMenuItem(MenuId.EditorTitle, {
+	command: {
+		id: SETTINGS_EDITOR_COMMAND_FILTER_MODIFIED,
+		title: nls.localize('filterModifiedLabel', "Show modified settings")
+	},
+	group: '1_filter',
+	order: 1,
+	when: CONTEXT_SETTINGS_EDITOR
+});
+
+MenuRegistry.appendMenuItem(MenuId.EditorTitle, {
+	command: {
+		id: SETTINGS_EDITOR_COMMAND_FILTER_ONLINE,
+		title: nls.localize('filterOnlineServicesLabel', "Show settings for online services"),
+	},
+	group: '1_filter',
+	order: 2,
+	when: CONTEXT_SETTINGS_EDITOR
 });
