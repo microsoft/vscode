@@ -46,7 +46,7 @@ import { Schemas } from 'vs/base/common/network';
 import { sanitizeFilePath, mkdirp } from 'vs/base/node/extfs';
 import { basename, join } from 'path';
 import { createHash } from 'crypto';
-import { parseStorage, StorageObject, parseFolderStorage } from 'vs/platform/storage/common/storageLegacyMigration';
+import { StorageObject, parseFolderStorage, parseMultiRootStorage, parseNoWorkspaceStorage, parseEmptyStorage } from 'vs/platform/storage/common/storageLegacyMigration';
 import { StorageScope } from 'vs/platform/storage/common/storage';
 import { endsWith } from 'vs/base/common/strings';
 import { IdleValue } from 'vs/base/common/async';
@@ -314,14 +314,14 @@ function createStorageService(payload: IWorkspaceInitializationPayload, environm
 						let workspaceItems: StorageObject;
 						{
 							if (isWorkspaceIdentifier(payload)) {
-								workspaceItems = (parseStorage(window.localStorage, 'multiRoot') as Map<string, StorageObject>).get(`root:${payload.id}`);
+								workspaceItems = parseMultiRootStorage(window.localStorage).get(`root:${payload.id}`);
 							} else if (isSingleFolderWorkspaceInitializationPayload(payload)) {
 								workspaceItems = parseFolderStorage(window.localStorage, payload.folder.toString());
 							} else {
 								if (payload.id === 'ext-dev') {
-									workspaceItems = parseStorage(window.localStorage, 'noWorkspace') as StorageObject;
+									workspaceItems = parseNoWorkspaceStorage(window.localStorage);
 								} else {
-									workspaceItems = (parseStorage(window.localStorage, 'empty') as Map<string, StorageObject>).get(`empty:${payload.id}`);
+									workspaceItems = parseEmptyStorage(window.localStorage).get(`empty:${payload.id}`);
 								}
 							}
 						}

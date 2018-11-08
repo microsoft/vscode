@@ -41,22 +41,6 @@ export interface IParsedStorage {
 	noWorkspace: StorageObject;
 }
 
-/**
- * Parses the local storage implementation into global, multi root, folder and empty storage.
- */
-export function parseStorage(storage: IStorageLegacy, kind: 'noWorkspace' | 'empty' | 'multiRoot'): Map<string, StorageObject> | StorageObject {
-	switch (kind) {
-		case 'noWorkspace':
-			return parseNoWorkspaceStorage(storage);
-
-		case 'empty':
-			return parseEmptyStorage(storage);
-
-		case 'multiRoot':
-			return parseMultiRootStorage(storage);
-	}
-}
-
 export function parseFolderStorage(storage: IStorageLegacy, folderId: string): StorageObject {
 
 	const workspaces: { prefix: string; resource: string; }[] = [];
@@ -126,7 +110,7 @@ export function parseFolderStorage(storage: IStorageLegacy, folderId: string): S
 
 const noWorkspacePrefix = `${StorageLegacyService.WORKSPACE_PREFIX}__$noWorkspace__`;
 
-function parseNoWorkspaceStorage(storage: IStorageLegacy) {
+export function parseNoWorkspaceStorage(storage: IStorageLegacy) {
 	const noWorkspaceStorage: StorageObject = Object.create(null);
 	for (let i = 0; i < storage.length; i++) {
 		const key = storage.key(i);
@@ -143,12 +127,12 @@ function parseNoWorkspaceStorage(storage: IStorageLegacy) {
 	return noWorkspaceStorage;
 }
 
-function parseEmptyStorage(storage: IStorageLegacy) {
+export function parseEmptyStorage(storage: IStorageLegacy) {
 	const emptyWorkspacesStorage = new Map<string /* empty workspace id */, StorageObject>();
 	for (let i = 0; i < storage.length; i++) {
 		const key = storage.key(i);
 
-		if (startsWith(key, EMPTY_WORKSPACE_PREFIX)) {
+		if (startsWith(key, EMPTY_WORKSPACE_PREFIX) && !endsWith(key, StorageLegacyService.WORKSPACE_IDENTIFIER)) {
 			// storage://workspace/empty:<id>/<key> => <id>
 			const emptyWorkspaceId = key.substring(EMPTY_WORKSPACE_PREFIX.length, key.indexOf('/', EMPTY_WORKSPACE_PREFIX.length));
 			const emptyWorkspaceResource = URI.from({ path: emptyWorkspaceId, scheme: 'empty' }).toString();
@@ -168,12 +152,12 @@ function parseEmptyStorage(storage: IStorageLegacy) {
 	return emptyWorkspacesStorage;
 }
 
-function parseMultiRootStorage(storage: IStorageLegacy) {
+export function parseMultiRootStorage(storage: IStorageLegacy) {
 	const multiRootWorkspacesStorage = new Map<string /* multi root workspace id */, StorageObject>();
 	for (let i = 0; i < storage.length; i++) {
 		const key = storage.key(i);
 
-		if (startsWith(key, MULTI_ROOT_WORKSPACE_PREFIX)) {
+		if (startsWith(key, MULTI_ROOT_WORKSPACE_PREFIX) && !endsWith(key, StorageLegacyService.WORKSPACE_IDENTIFIER)) {
 			// storage://workspace/root:<id>/<key> => <id>
 			const multiRootWorkspaceId = key.substring(MULTI_ROOT_WORKSPACE_PREFIX.length, key.indexOf('/', MULTI_ROOT_WORKSPACE_PREFIX.length));
 			const multiRootWorkspaceResource = URI.from({ path: multiRootWorkspaceId, scheme: 'root' }).toString();
