@@ -71,9 +71,9 @@ suite('Storage Migration', () => {
 				storageToTest = parseFolderStorage(storage, workspaceId);
 				expectedKeyCount++; // workspaceIdentifier gets added!
 			} else if (startsWith(workspaceId, 'empty:')) {
-				storageToTest = parseEmptyStorage(storage).get(workspaceId);
+				storageToTest = parseEmptyStorage(storage, workspaceId);
 			} else if (startsWith(workspaceId, 'root:')) {
-				storageToTest = parseMultiRootStorage(storage).get(workspaceId);
+				storageToTest = parseMultiRootStorage(storage, workspaceId);
 			}
 
 			assert.equal(Object.keys(storageToTest).length, expectedKeyCount, 's');

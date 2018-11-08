@@ -127,8 +127,8 @@ export function parseNoWorkspaceStorage(storage: IStorageLegacy) {
 	return noWorkspaceStorage;
 }
 
-export function parseEmptyStorage(storage: IStorageLegacy) {
-	const emptyWorkspacesStorage = new Map<string /* empty workspace id */, StorageObject>();
+export function parseEmptyStorage(storage: IStorageLegacy, targetWorkspaceId: string): StorageObject {
+	const emptyWorkspaceStorage: StorageObject = Object.create(null);
 	for (let i = 0; i < storage.length; i++) {
 		const key = storage.key(i);
 
@@ -136,24 +136,21 @@ export function parseEmptyStorage(storage: IStorageLegacy) {
 			// storage://workspace/empty:<id>/<key> => <id>
 			const emptyWorkspaceId = key.substring(EMPTY_WORKSPACE_PREFIX.length, key.indexOf('/', EMPTY_WORKSPACE_PREFIX.length));
 			const emptyWorkspaceResource = URI.from({ path: emptyWorkspaceId, scheme: 'empty' }).toString();
-
-			let emptyWorkspaceStorage = emptyWorkspacesStorage.get(emptyWorkspaceResource);
-			if (!emptyWorkspaceStorage) {
-				emptyWorkspaceStorage = Object.create(null);
-				emptyWorkspacesStorage.set(emptyWorkspaceResource, emptyWorkspaceStorage);
+			if (emptyWorkspaceResource !== targetWorkspaceId) {
+				continue;
 			}
 
 			// storage://workspace/empty:<id>/someKey => someKey
 			const storageKey = key.substr(EMPTY_WORKSPACE_PREFIX.length + emptyWorkspaceId.length + 1 /* trailing / */);
-
 			emptyWorkspaceStorage[storageKey] = storage.getItem(key);
 		}
 	}
-	return emptyWorkspacesStorage;
+
+	return emptyWorkspaceStorage;
 }
 
-export function parseMultiRootStorage(storage: IStorageLegacy) {
-	const multiRootWorkspacesStorage = new Map<string /* multi root workspace id */, StorageObject>();
+export function parseMultiRootStorage(storage: IStorageLegacy, targetWorkspaceId: string): StorageObject {
+	const multiRootWorkspaceStorage: StorageObject = Object.create(null);
 	for (let i = 0; i < storage.length; i++) {
 		const key = storage.key(i);
 
@@ -161,19 +158,13 @@ export function parseMultiRootStorage(storage: IStorageLegacy) {
 			// storage://workspace/root:<id>/<key> => <id>
 			const multiRootWorkspaceId = key.substring(MULTI_ROOT_WORKSPACE_PREFIX.length, key.indexOf('/', MULTI_ROOT_WORKSPACE_PREFIX.length));
 			const multiRootWorkspaceResource = URI.from({ path: multiRootWorkspaceId, scheme: 'root' }).toString();
-
-			let multiRootWorkspaceStorage = multiRootWorkspacesStorage.get(multiRootWorkspaceResource);
-			if (!multiRootWorkspaceStorage) {
-				multiRootWorkspaceStorage = Object.create(null);
-				multiRootWorkspacesStorage.set(multiRootWorkspaceResource, multiRootWorkspaceStorage);
+			if (multiRootWorkspaceResource !== targetWorkspaceId) {
+				continue;
 			}
-
 			// storage://workspace/root:<id>/someKey => someKey
 			const storageKey = key.substr(MULTI_ROOT_WORKSPACE_PREFIX.length + multiRootWorkspaceId.length + 1 /* trailing / */);
-
 			multiRootWorkspaceStorage[storageKey] = storage.getItem(key);
 		}
 	}
-
-	return multiRootWorkspacesStorage;
+	return multiRootWorkspaceStorage;
 }

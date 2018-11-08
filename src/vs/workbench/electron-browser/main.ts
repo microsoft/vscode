@@ -314,14 +314,14 @@ function createStorageService(payload: IWorkspaceInitializationPayload, environm
 						let workspaceItems: StorageObject;
 						{
 							if (isWorkspaceIdentifier(payload)) {
-								workspaceItems = parseMultiRootStorage(window.localStorage).get(`root:${payload.id}`);
+								workspaceItems = parseMultiRootStorage(window.localStorage, `root:${payload.id}`);
 							} else if (isSingleFolderWorkspaceInitializationPayload(payload)) {
 								workspaceItems = parseFolderStorage(window.localStorage, payload.folder.toString());
 							} else {
 								if (payload.id === 'ext-dev') {
 									workspaceItems = parseNoWorkspaceStorage(window.localStorage);
 								} else {
-									workspaceItems = parseEmptyStorage(window.localStorage).get(`empty:${payload.id}`);
+									workspaceItems = parseEmptyStorage(window.localStorage, `empty:${payload.id}`);
 								}
 							}
 						}
