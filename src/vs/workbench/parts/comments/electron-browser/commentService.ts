@@ -98,7 +98,7 @@ export class CommentService extends Disposable implements ICommentService {
 	}
 
 	updateComments(ownerId: string, event: CommentThreadChangedEvent): void {
-		const evt = assign({}, event, { ownerId });
+		const evt: ICommentThreadChangedEvent = assign({}, event, { owner: ownerId });
 		this._onDidUpdateCommentThreads.fire(evt);
 	}
 
