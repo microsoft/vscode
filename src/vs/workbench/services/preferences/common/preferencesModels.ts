@@ -722,6 +722,10 @@ export class DefaultSettingsEditorModel extends AbstractSettingsModel implements
 	}
 
 	protected update(): IFilterResult {
+		if (this._model.isDisposed()) {
+			return null;
+		}
+
 		// Grab current result groups, only render non-empty groups
 		const resultGroups = map
 			.values(this._currentResultGroups)
