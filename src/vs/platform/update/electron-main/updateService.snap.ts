@@ -3,18 +3,16 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Event, Emitter } from 'vs/base/common/event';
+import { Event, Emitter, fromNodeEventEmitter, filterEvent, debounceEvent } from 'vs/base/common/event';
 import { Throttler, timeout } from 'vs/base/common/async';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ILifecycleService } from 'vs/platform/lifecycle/electron-main/lifecycleMain';
 import product from 'vs/platform/node/product';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IUpdateService, State, StateType, AvailableForDownload, UpdateType } from 'vs/platform/update/common/update';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { ILogService } from 'vs/platform/log/common/log';
-import { IRequestService } from 'vs/platform/request/node/request';
 import * as path from 'path';
-import { realpath } from 'fs';
+import { realpath, watch } from 'fs';
 import { spawn } from 'child_process';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 
@@ -40,24 +38,10 @@ abstract class AbstractUpdateService2 implements IUpdateService {
 
 	constructor(
 		@ILifecycleService private lifecycleService: ILifecycleService,
-		@IConfigurationService protected configurationService: IConfigurationService,
-		@IEnvironmentService private environmentService: IEnvironmentService,
-		@IRequestService protected requestService: IRequestService,
+		@IEnvironmentService environmentService: IEnvironmentService,
 		@ILogService protected logService: ILogService,
 	) {
-		if (this.environmentService.disableUpdates) {
-			this.logService.info('update#ctor - updates are disabled');
-			return;
-		}
-
-		if (!product.updateUrl || !product.commit) {
-			this.logService.info('update#ctor - updates are disabled');
-			return;
-		}
-
-		const quality = this.getProductQuality();
-
-		if (!quality) {
+		if (environmentService.disableUpdates) {
 			this.logService.info('update#ctor - updates are disabled');
 			return;
 		}
@@ -66,11 +50,6 @@ abstract class AbstractUpdateService2 implements IUpdateService {
 
 		// Start checking for updates after 30 seconds
 		this.scheduleCheckForUpdates(30 * 1000).then(undefined, err => this.logService.error(err));
-	}
-
-	private getProductQuality(): string | undefined {
-		const quality = this.configurationService.getValue<string>('update.channel');
-		return quality === 'none' ? undefined : product.quality;
 	}
 
 	private scheduleCheckForUpdates(delay = 60 * 60 * 1000): Thenable<void> {
@@ -161,30 +140,39 @@ export class SnapUpdateService extends AbstractUpdateService2 {
 
 	constructor(
 		@ILifecycleService lifecycleService: ILifecycleService,
-		@IConfigurationService configurationService: IConfigurationService,
 		@IEnvironmentService environmentService: IEnvironmentService,
-		@IRequestService requestService: IRequestService,
 		@ILogService logService: ILogService,
 		@ITelemetryService private telemetryService: ITelemetryService
 	) {
-		super(lifecycleService, configurationService, environmentService, requestService, logService);
+		super(lifecycleService, environmentService, logService);
+
+		const watcher = watch(path.dirname(process.env.SNAP));
+		const onChange = fromNodeEventEmitter(watcher, 'change', (_, fileName: string) => fileName);
+		const onCurrentChange = filterEvent(onChange, n => n === 'current');
+		const onDebouncedCurrentChange = debounceEvent(onCurrentChange, (_, e) => e, 2000);
+		const listener = onDebouncedCurrentChange(this.checkForUpdates, this);
+
+		lifecycleService.onShutdown(() => {
+			listener.dispose();
+			watcher.close();
+		});
 	}
 
 	protected doCheckForUpdates(context: any): void {
 		this.setState(State.CheckingForUpdates(context));
 
-		this.isLatestVersion().then(result => {
-			if (!result) {
+		this.isUpdateAvailable().then(result => {
+			if (result) {
+				this.setState(State.Ready({ version: 'something', productVersion: 'someting' }));
+			} else {
 				/* __GDPR__
-				"update:notAvailable" : {
-					"explicit" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true }
-				}
-				*/
+					"update:notAvailable" : {
+						"explicit" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true }
+					}
+					*/
 				this.telemetryService.publicLog('update:notAvailable', { explicit: !!context });
 
 				this.setState(State.Idle(UpdateType.Snap));
-			} else {
-				this.setState(State.Ready({ version: 'something', productVersion: 'someting' }));
 			}
 		}, err => {
 			this.logService.error(err);
@@ -209,17 +197,21 @@ export class SnapUpdateService extends AbstractUpdateService2 {
 		});
 	}
 
-	isLatestVersion(): TPromise<boolean | undefined> {
-		return new TPromise(c => {
+	private isUpdateAvailable(): TPromise<boolean> {
+		return new TPromise((c, e) => {
 			realpath(`/snap/${product.applicationName}/current`, (err, resolvedCurrentSnapPath) => {
-				if (err) {
-					this.logService.error('update#checkForSnapUpdate(): Could not get realpath of application.');
-					return c(undefined);
-				}
+				if (err) { return e(err); }
 
 				const currentRevision = path.basename(resolvedCurrentSnapPath);
-				return process.env.SNAP_REVISION === currentRevision;
+				c(process.env.SNAP_REVISION !== currentRevision);
 			});
+		});
+	}
+
+	isLatestVersion(): TPromise<boolean | undefined> {
+		return this.isUpdateAvailable().then(null, err => {
+			this.logService.error('update#checkForSnapUpdate(): Could not get realpath of application.');
+			return undefined;
 		});
 	}
 }

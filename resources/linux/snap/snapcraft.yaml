@@ -37,13 +37,8 @@ parts:
       # - libgtk2.0-bin
     prime:
       - -usr/share/dh-python
-  electron-launch:
-    plugin: dump
-    source: .
-    organize:
-      electron-launch: bin/electron-launch
 
 apps:
   @@NAME@@:
-    command: bin/electron-launch ${SNAP}/usr/share/@@NAME@@/bin/@@NAME@@
+    command: electron-launch ${SNAP}/usr/share/@@NAME@@/bin/@@NAME@@
     desktop: usr/share/applications/@@NAME@@.desktop

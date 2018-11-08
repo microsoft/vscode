@@ -1,2 +1,3 @@
-sleep 5
-code-insiders /Users/daimms/dev/Microsoft/vscode/OSSREADME.json
+#!/bin/sh
+sleep 2
+@@NAME@@
