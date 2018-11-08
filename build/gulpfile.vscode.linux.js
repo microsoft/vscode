@@ -215,7 +215,7 @@ function prepareSnapPackage(arch) {
 
 function buildSnapPackage(arch) {
 	const snapBuildPath = getSnapBuildPath(arch);
-	return shell.task(`cd ${snapBuildPath} && snapcraft cleanbuild`);
+	return shell.task(`cd ${snapBuildPath} && snapcraft build`);
 }
 
 gulp.task('clean-vscode-linux-ia32-deb', util.rimraf('.build/linux/deb/i386'));
