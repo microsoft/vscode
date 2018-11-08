@@ -66,7 +66,7 @@ export class SearchView extends Viewlet implements IViewlet, IPanel {
 	private static readonly MAX_TEXT_RESULTS = 10000;
 
 	private static readonly WIDE_CLASS_NAME = 'wide';
-	private static readonly WIDE_VIEW_SIZE = 600;
+	private static readonly WIDE_VIEW_SIZE = 1000;
 
 	private isDisposed: boolean;
 
