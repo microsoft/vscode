@@ -303,11 +303,14 @@ function createStorageService(payload: IWorkspaceInitializationPayload, environm
 			const storageService = new StorageService(workspaceStorageDBPath, true, logService, environmentService);
 
 			return storageService.init().then(() => {
-				if (exists) {
-					return storageService; // return early if DB was already there
+				// TODO: Verifying fix for #62733. Always run parse part of migration and then check results against existing storage
+				// if (exists) {
+				// 	return storageService; // return early if DB was already there
+				// }
+				if (!exists) {
+					perf.mark('willMigrateWorkspaceStorageKeys');
 				}
 
-				perf.mark('willMigrateWorkspaceStorageKeys');
 				return readdir(environmentService.extensionsPath).then(extensions => {
 					// Otherwise, we migrate data from window.localStorage over
 					try {
@@ -398,6 +401,34 @@ function createStorageService(payload: IWorkspaceInitializationPayload, environm
 						});
 
 						if (workspaceItems) {
+							// TODO: Verifying fix for #62733 in insiders
+							// Remove for VS Code 1.30 release
+							if (exists) {
+								const fallback = '__fallback_value_to_mark_key_that_does_not_exist';
+								supportedKeys.forEach((realCaseKey, lowerCaseKey) => {
+									let storedValue: any = fallback;
+									// dynamic keys
+									if (lowerCaseKey.indexOf('memento/') === 0 || lowerCaseKey.indexOf('viewservice.') === 0 || endsWith(lowerCaseKey, '.state')) {
+										storedValue = storageService.get(lowerCaseKey, StorageScope.WORKSPACE, fallback);
+									} else if (endsWith(lowerCaseKey, '.numberOfVisibleViews'.toLowerCase())) { // fix lowercased ".numberOfVisibleViews"
+										const normalizedKey = realCaseKey.substring(0, realCaseKey.length - '.numberOfVisibleViews'.length) + '.numberOfVisibleViews';
+										storedValue = storageService.get(normalizedKey, StorageScope.WORKSPACE, fallback);
+									} else {
+										storedValue = storageService.get(realCaseKey, StorageScope.WORKSPACE, fallback);
+									}
+
+									if (storedValue === fallback) {
+										return;
+									}
+
+									const parsedValue = workspaceItems[lowerCaseKey];
+									if (parsedValue !== storedValue) {
+										console.warn(`Storage migration error for key '${realCaseKey}'. Parsed value: "${parsedValue}" does not match existing stored value "${storedValue}"`);
+									}
+								});
+								return storageService;
+							}
+
 							Object.keys(workspaceItems).forEach(key => {
 								const value = workspaceItems[key];
 
