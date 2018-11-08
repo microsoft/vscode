@@ -359,8 +359,8 @@ function getRgArgs(query: vscode.TextSearchQuery, options: vscode.TextSearchOpti
 	} else if (query.isRegExp) {
 		let fixedRegexpQuery = fixRegexEndingPattern(query.pattern);
 		fixedRegexpQuery = fixRegexNewline(fixedRegexpQuery);
-		fixedRegexpQuery = fixRegexCRMatchingNonWordClass(fixedRegexpQuery, query.isMultiline);
-		fixedRegexpQuery = fixRegexCRMatchingWhitespaceClass(fixedRegexpQuery, query.isMultiline);
+		fixedRegexpQuery = fixRegexCRMatchingNonWordClass(fixedRegexpQuery, !!query.isMultiline);
+		fixedRegexpQuery = fixRegexCRMatchingWhitespaceClass(fixedRegexpQuery, !!query.isMultiline);
 		args.push('--regexp', fixedRegexpQuery);
 	} else {
 		searchPatternAfterDoubleDashes = pattern;
