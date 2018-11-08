@@ -680,7 +680,8 @@
 		"./vs/workbench/services/themes/common/workbenchThemeService.ts",
 		"./vs/workbench/services/title/common/titleService.ts",
 		"./vs/workbench/services/workspace/common/workspaceEditing.ts",
-		"./vs/workbench/test/electron-browser/api/mock.ts"
+		"./vs/workbench/test/electron-browser/api/mock.ts",
+		"./vs/base/parts/quickopen/common/quickOpenScorer.ts"
 	],
 	"exclude": [
 		"./typings/require-monaco.d.ts",
