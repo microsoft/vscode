@@ -6,7 +6,7 @@
 import * as fs from 'fs';
 
 export interface ReadResult {
-	buffer: Buffer;
+	buffer: Buffer | null;
 	bytesRead: number;
 }
 
@@ -20,7 +20,7 @@ export function readExactlyByFile(file: string, totalBytes: number): Promise<Rea
 				return reject(err);
 			}
 
-			function end(err: Error, resultBuffer: Buffer, bytesRead: number): void {
+			function end(err: Error | null, resultBuffer: Buffer | null, bytesRead: number): void {
 				fs.close(fd, closeError => {
 					if (closeError) {
 						return reject(closeError);
@@ -71,14 +71,14 @@ export function readExactlyByFile(file: string, totalBytes: number): Promise<Rea
  * @param maximumBytesToRead The maximum number of bytes to read before giving up.
  * @param callback The finished callback.
  */
-export function readToMatchingString(file: string, matchingString: string, chunkBytes: number, maximumBytesToRead: number): Promise<string> {
-	return new Promise<string>((resolve, reject) =>
+export function readToMatchingString(file: string, matchingString: string, chunkBytes: number, maximumBytesToRead: number): Promise<string | null> {
+	return new Promise<string | null>((resolve, reject) =>
 		fs.open(file, 'r', null, (err, fd) => {
 			if (err) {
 				return reject(err);
 			}
 
-			function end(err: Error, result: string): void {
+			function end(err: Error | null, result: string | null): void {
 				fs.close(fd, closeError => {
 					if (closeError) {
 						return reject(closeError);

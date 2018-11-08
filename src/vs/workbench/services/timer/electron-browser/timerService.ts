@@ -53,6 +53,8 @@ export interface IMemoryInfo {
 		"timers.ellapsedExtensions" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
 		"timers.ellapsedExtensionsReady" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
 		"timers.ellapsedRequire" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
+		"timers.ellapsedWorkspaceStorageRequire" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
+		"timers.ellapsedWorkspaceStorageInit" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
 		"timers.ellapsedViewletRestore" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
 		"timers.ellapsedPanelRestore" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
 		"timers.ellapsedEditorRestore" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
@@ -191,6 +193,23 @@ export interface IStartupMetrics {
 		 *
 		 */
 		ellapsedWindowLoadToRequire: number;
+
+		/**
+		 * The time it took to require the workspace storage DB.
+		 *
+		 * * Happens in the renderer-process
+		 * * Measured with the `willRequireSQLite` and `didRequireSQLite` performance marks.
+		 */
+		ellapsedWorkspaceStorageRequire: number;
+
+		/**
+		 * The time it took to require the workspace storage DB, connect to it
+		 * and load the initial set of values.
+		 *
+		 * * Happens in the renderer-process
+		 * * Measured with the `willInitWorkspaceStorage` and `didInitWorkspaceStorage` performance marks.
+		 */
+		ellapsedWorkspaceStorageInit: number;
 
 		/**
 		 * The time it took to load the main-bundle of the workbench, e.g `workbench.main.js`.
@@ -369,6 +388,8 @@ class TimerService implements ITimerService {
 				ellapsedWindowLoad: initialStartup ? perf.getDuration('main:appReady', 'main:loadWindow') : undefined,
 				ellapsedWindowLoadToRequire: perf.getDuration('main:loadWindow', 'willLoadWorkbenchMain'),
 				ellapsedRequire: perf.getDuration('willLoadWorkbenchMain', 'didLoadWorkbenchMain'),
+				ellapsedWorkspaceStorageRequire: perf.getDuration('willRequireSQLite', 'didRequireSQLite'),
+				ellapsedWorkspaceStorageInit: perf.getDuration('willInitWorkspaceStorage', 'didInitWorkspaceStorage'),
 				ellapsedExtensions: perf.getDuration('willLoadExtensions', 'didLoadExtensions'),
 				ellapsedEditorRestore: perf.getDuration('willRestoreEditors', 'didRestoreEditors'),
 				ellapsedViewletRestore: perf.getDuration('willRestoreViewlet', 'didRestoreViewlet'),
@@ -397,7 +418,7 @@ class TimerService implements ITimerService {
 
 export const ITimerService = createDecorator<ITimerService>('timerService');
 
-registerSingleton(ITimerService, TimerService);
+registerSingleton(ITimerService, TimerService, true);
 
 //#region cached data logic
 

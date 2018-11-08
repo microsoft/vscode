@@ -4,7 +4,7 @@
 		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
 		"Once accepted there, we are happy to receive an update request."
 	],
-	"version": "https://github.com/MagicStack/MagicPython/commit/b453f26ed856c9b16a053517c41207e3a72cc7d5",
+	"version": "https://github.com/MagicStack/MagicPython/commit/8ff35b3e5fcde471fae62a57ea1ae1c7cd34c9fc",
 	"name": "MagicPython",
 	"scopeName": "source.python",
 	"patterns": [
@@ -97,7 +97,8 @@
 		},
 		"docstring-statement": {
 			"begin": "^(?=\\s*[rR]?(\\'\\'\\'|\\\"\\\"\\\"|\\'|\\\"))",
-			"end": "(?<=\\'\\'\\'|\\\"\\\"\\\"|\\'|\\\")",
+			"comment": "the string either terminates correctly or by the beginning of a new line (this is for single line docstrings that aren't terminated) AND it's not followed by another docstring",
+			"end": "((?<=\\1)|^)(?!\\s*[rR]?(\\'\\'\\'|\\\"\\\"\\\"|\\'|\\\"))",
 			"patterns": [
 				{
 					"include": "#docstring"
@@ -164,7 +165,7 @@
 				{
 					"name": "string.quoted.docstring.single.python",
 					"begin": "(\\'|\\\")",
-					"end": "(\\1)|((?<!\\\\)\\n)",
+					"end": "(\\1)|(\\n)",
 					"beginCaptures": {
 						"1": {
 							"name": "punctuation.definition.string.begin.python"
@@ -190,7 +191,7 @@
 				{
 					"name": "string.quoted.docstring.raw.single.python",
 					"begin": "([rR])(\\'|\\\")",
-					"end": "(\\2)|((?<!\\\\)\\n)",
+					"end": "(\\2)|(\\n)",
 					"beginCaptures": {
 						"1": {
 							"name": "storage.type.string.python"
@@ -247,7 +248,17 @@
 				},
 				{
 					"name": "keyword.control.flow.python",
-					"match": "(?x)\n  \\b(?<!\\.)(\n    as | async | continue | del | assert | break | finally | for\n    | from | elif | else | if | except | pass | raise\n    | return | try | while | with\n  )\\b\n"
+					"comment": "if `as` is eventually followed by `:` or line continuation\nit's probably control flow like:\n    with foo as bar, \\\n         Foo as Bar:\n      try:\n        do_stuff()\n      except Exception as e:\n        pass\n",
+					"match": "\\b(?<!\\.)as\\b(?=.*[:\\\\])"
+				},
+				{
+					"name": "keyword.control.import.python",
+					"comment": "other legal use of `as` is in an import",
+					"match": "\\b(?<!\\.)as\\b"
+				},
+				{
+					"name": "keyword.control.flow.python",
+					"match": "(?x)\n  \\b(?<!\\.)(\n    async | continue | del | assert | break | finally | for\n    | from | elif | else | if | except | pass | raise\n    | return | try | while | with\n  )\\b\n"
 				},
 				{
 					"name": "storage.modifier.declaration.python",
@@ -847,40 +858,45 @@
 			"match": "\\\\$"
 		},
 		"string-formatting": {
-			"name": "constant.character.format.placeholder.other.python",
-			"match": "(?x)\n  % (\\([\\w\\s]*\\))?\n    [-+#0 ]*\n    (\\d+|\\*)? (\\.(\\d+|\\*))?\n    ([hlL])?\n    [diouxXeEfFgGcrsa%]\n"
+			"name": "meta.format.percent.python",
+			"match": "(?x)\n  (\n    % (\\([\\w\\s]*\\))?\n      [-+#0 ]*\n      (\\d+|\\*)? (\\.(\\d+|\\*))?\n      ([hlL])?\n      [diouxXeEfFgGcrsab%]\n  )\n",
+			"captures": {
+				"1": {
+					"name": "constant.character.format.placeholder.other.python"
+				}
+			}
 		},
 		"string-brace-formatting": {
 			"patterns": [
 				{
-					"name": "constant.character.format.placeholder.other.python",
-					"match": "(?x)\n  (?:\n    {{ | }}\n    | (?:\n      {\n        \\w*? (\\.[[:alpha:]_]\\w*? | \\[[^\\]'\"]+\\])*?\n        (![rsa])?\n        ( : \\w? [<>=^]? [-+ ]? \\#?\n          \\d* ,? (\\.\\d+)? [bcdeEfFgGnosxX%]? )?\n      })\n  )\n",
+					"name": "meta.format.brace.python",
+					"match": "(?x)\n  (\n    {{ | }}\n    | (?:\n      {\n        \\w* (\\.[[:alpha:]_]\\w* | \\[[^\\]'\"]+\\])*\n        (![rsa])?\n        ( : \\w? [<>=^]? [-+ ]? \\#?\n          \\d* ,? (\\.\\d+)? [bcdeEfFgGnosxX%]? )?\n      })\n  )\n",
 					"captures": {
-						"2": {
-							"name": "storage.type.format.python"
+						"1": {
+							"name": "constant.character.format.placeholder.other.python"
 						},
 						"3": {
+							"name": "storage.type.format.python"
+						},
+						"4": {
 							"name": "storage.type.format.python"
 						}
 					}
 				},
 				{
-					"name": "constant.character.format.placeholder.other.python",
-					"begin": "(?x)\n    \\{\n      \\w*? (\\.[[:alpha:]_]\\w*? | \\[[^\\]'\"]+\\])*?\n      (![rsa])?\n      (:)\n        (?=[^'\"}\\n]*\\})\n",
-					"end": "\\}",
-					"beginCaptures": {
-						"2": {
-							"name": "storage.type.format.python"
+					"name": "meta.format.brace.python",
+					"match": "(?x)\n  (\n    {\n      \\w* (\\.[[:alpha:]_]\\w* | \\[[^\\]'\"]+\\])*\n      (![rsa])?\n      (:)\n        [^'\"{}\\n]* (?:\n          \\{ [^'\"}\\n]*? \\} [^'\"{}\\n]*\n        )*\n    }\n  )\n",
+					"captures": {
+						"1": {
+							"name": "constant.character.format.placeholder.other.python"
 						},
 						"3": {
 							"name": "storage.type.format.python"
+						},
+						"4": {
+							"name": "storage.type.format.python"
 						}
-					},
-					"patterns": [
-						{
-							"match": "(?x) \\{ [^'\"}\\n]*? \\} (?=.*?\\})\n"
-						}
-					]
+					}
 				}
 			]
 		},
@@ -899,25 +915,43 @@
 			"match": "(}(?!}))"
 		},
 		"import": {
-			"comment": "Import statements\n",
+			"comment": "Import statements used to correctly mark `from`, `import`, and `as`\n",
 			"patterns": [
 				{
-					"match": "(?x)\n  \\s* \\b(from)\\b \\s*(\\.+)\\s* (import)?\n",
-					"captures": {
+					"begin": "\\b(?<!\\.)(from)\\b(?=.+import)",
+					"end": "$|(?=import)",
+					"beginCaptures": {
 						"1": {
 							"name": "keyword.control.import.python"
-						},
-						"2": {
-							"name": "punctuation.separator.period.python"
-						},
-						"3": {
-							"name": "keyword.control.import.python"
 						}
-					}
+					},
+					"patterns": [
+						{
+							"name": "punctuation.separator.period.python",
+							"match": "\\.+"
+						},
+						{
+							"include": "#expression"
+						}
+					]
 				},
 				{
-					"name": "keyword.control.import.python",
-					"match": "\\b(?<!\\.)import\\b"
+					"begin": "\\b(?<!\\.)(import)\\b",
+					"end": "$",
+					"beginCaptures": {
+						"1": {
+							"name": "keyword.control.import.python"
+						}
+					},
+					"patterns": [
+						{
+							"name": "keyword.control.import.python",
+							"match": "\\b(?<!\\.)as\\b"
+						},
+						{
+							"include": "#expression"
+						}
+					]
 				}
 			]
 		},
@@ -1396,11 +1430,14 @@
 		},
 		"decorator": {
 			"name": "meta.function.decorator.python",
-			"begin": "(?x)\n  ^\\s*\n  (@) \\s* (?=[[:alpha:]_]\\w*)\n",
+			"begin": "(?x)\n  ^\\s*\n  ((@)) \\s* (?=[[:alpha:]_]\\w*)\n",
 			"end": "(?x)\n  ( \\) )\n    # trailing whitespace and comments are legal\n    (?: (.*?) (?=\\s*(?:\\#|$)) )\n  | (?=\\n|\\#)\n",
 			"beginCaptures": {
 				"1": {
 					"name": "entity.name.function.decorator.python"
+				},
+				"2": {
+					"name": "punctuation.definition.decorator.python"
 				}
 			},
 			"endCaptures": {
@@ -1430,7 +1467,12 @@
 				},
 				{
 					"name": "entity.name.function.decorator.python",
-					"match": "(?x)\n  ([[:alpha:]_]\\w*) | \\.\n"
+					"match": "(?x)\n  ([[:alpha:]_]\\w*) | (\\.)\n",
+					"captures": {
+						"2": {
+							"name": "punctuation.separator.period.python"
+						}
+					}
 				},
 				{
 					"include": "#line-continuation"
@@ -1512,25 +1554,23 @@
 			]
 		},
 		"function-arguments": {
-			"begin": "(?x)\n  (?:\n    (\\()\n    (?:\\s*(\\*\\*|\\*))?\n  )\n",
+			"begin": "(\\()",
 			"end": "(?=\\))(?!\\)\\s*\\()",
 			"beginCaptures": {
 				"1": {
 					"name": "punctuation.definition.arguments.begin.python"
-				},
-				"2": {
-					"name": "keyword.operator.unpacking.arguments.python"
 				}
 			},
 			"contentName": "meta.function-call.arguments.python",
 			"patterns": [
 				{
-					"match": "(?x)\n  (?:\n    (,)\n    (?:\\s*(\\*\\*|\\*))?\n  )\n",
+					"name": "punctuation.separator.arguments.python",
+					"match": "(,)"
+				},
+				{
+					"match": "(?x)\n  (?:(?<=[,(])|^) \\s* (\\*{1,2})\n",
 					"captures": {
 						"1": {
-							"name": "punctuation.separator.arguments.python"
-						},
-						"2": {
 							"name": "keyword.operator.unpacking.arguments.python"
 						}
 					}
@@ -1609,7 +1649,7 @@
 			"patterns": [
 				{
 					"name": "support.function.builtin.python",
-					"match": "(?x)\n  (?<!\\.) \\b(\n    __import__ | abs | all | any | ascii | bin | callable\n    | chr | compile | copyright | credits | delattr | dir | divmod\n    | enumerate | eval | exec | exit | filter | format | getattr\n    | globals | hasattr | hash | help | hex | id | input\n    | isinstance | issubclass | iter | len | license | locals | map\n    | max | memoryview | min | next | oct | open | ord | pow | print\n    | quit | range | reload | repr | reversed | round\n    | setattr | sorted | sum | vars | zip\n  )\\b\n"
+					"match": "(?x)\n  (?<!\\.) \\b(\n    __import__ | abs | all | any | ascii | bin | breakpoint | callable\n    | chr | compile | copyright | credits | delattr | dir | divmod\n    | enumerate | eval | exec | exit | filter | format | getattr\n    | globals | hasattr | hash | help | hex | id | input\n    | isinstance | issubclass | iter | len | license | locals | map\n    | max | memoryview | min | next | oct | open | ord | pow | print\n    | quit | range | reload | repr | reversed | round\n    | setattr | sorted | sum | vars | zip\n  )\\b\n"
 				},
 				{
 					"name": "variable.legacy.builtin.python",
@@ -1632,7 +1672,7 @@
 		},
 		"magic-variable-names": {
 			"comment": "magic variables which a class/module may have.",
-			"match": "(?x)\n  \\b(\n    __(?:\n      all | bases | builtins | class | code | debug | defaults | dict\n      | doc | file | func | kwdefaults | members\n      | metaclass | methods | module | mro | name\n      | qualname | self | signature | slots | subclasses\n      | version | weakref | wrapped | annotations | classcell\n      | spec | path | package | future | traceback\n    )__\n  )\\b\n",
+			"match": "(?x)\n  \\b(\n    __(?:\n      all | bases | builtins | class | class_getitem | code | debug\n      | defaults | dict | doc | file | func | kwdefaults | members\n      | metaclass | methods | module | mro | mro_entries | name\n      | qualname | post_init | self | signature | slots | subclasses\n      | version | weakref | wrapped | annotations | classcell\n      | spec | path | package | future | traceback\n    )__\n  )\\b\n",
 			"captures": {
 				"1": {
 					"name": "support.variable.magic.python"
@@ -1650,8 +1690,15 @@
 			]
 		},
 		"illegal-names": {
-			"name": "keyword.control.flow.python",
-			"match": "(?x)\n  \\b(\n    and | as | assert | async | await | break | class | continue | def\n    | del | elif | else | except | exec | finally | for | from | global\n    | if | import | in | is | (?<=\\.)lambda | lambda(?=\\s*[\\.=])\n    | nonlocal | not | or | pass | raise | return | try | while | with\n    | yield\n  )\\b\n"
+			"match": "(?x)\n  \\b(?:\n    (\n      and | assert | async | await | break | class | continue | def\n      | del | elif | else | except | finally | for | from | global\n      | if | in | is | (?<=\\.)lambda | lambda(?=\\s*[\\.=])\n      | nonlocal | not | or | pass | raise | return | try | while | with\n      | yield\n    ) | (\n      as | import\n    )\n  )\\b\n",
+			"captures": {
+				"1": {
+					"name": "keyword.control.flow.python"
+				},
+				"2": {
+					"name": "keyword.control.import.python"
+				}
+			}
 		},
 		"special-variables": {
 			"match": "(?x)\n  \\b (?<!\\.) (?:\n    (self) | (cls)\n  )\\b\n",
@@ -4537,7 +4584,7 @@
 		},
 		"string-quoted-single-line": {
 			"name": "string.quoted.single.python",
-			"begin": "(\\b[rR](?=[uU]))?([uU])?((['\"]))",
+			"begin": "(?:\\b([rR])(?=[uU]))?([uU])?((['\"]))",
 			"end": "(\\3)|((?<!\\\\)\\n)",
 			"beginCaptures": {
 				"1": {
@@ -4711,7 +4758,7 @@
 		},
 		"string-quoted-multi-line": {
 			"name": "string.quoted.multi.python",
-			"begin": "(\\b[rR](?=[uU]))?([uU])?('''|\"\"\")",
+			"begin": "(?:\\b([rR])(?=[uU]))?([uU])?('''|\"\"\")",
 			"end": "(\\3)",
 			"beginCaptures": {
 				"1": {

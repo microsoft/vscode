@@ -3,7 +3,16 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-// This is the place for API experiments and proposals.
+/**
+ * This is the place for API experiments and proposals.
+ * These API are NOT stable and subject to change. They are only available in the Insiders
+ * distribution and CANNOT be used in published extensions.
+ *
+ * To test these API in local environment:
+ * - Use Insiders release of VS Code.
+ * - Add `"enableProposedApi": true` to your package.json.
+ * - Copy this file to your project.
+ */
 
 declare module 'vscode' {
 
@@ -181,6 +190,16 @@ declare module 'vscode' {
 		 * See the vscode setting `"files.encoding"`
 		 */
 		encoding?: string;
+
+		/**
+		 * Number of lines of context to include before each match.
+		 */
+		beforeContext?: number;
+
+		/**
+		 * Number of lines of context to include after each match.
+		 */
+		afterContext?: number;
 	}
 
 	/**
@@ -214,7 +233,7 @@ declare module 'vscode' {
 		/**
 		 * The maximum number of results to be returned.
 		 */
-		maxResults: number;
+		maxResults?: number;
 	}
 
 	/**
@@ -225,38 +244,61 @@ declare module 'vscode' {
 	/**
 	 * A preview of the text result.
 	 */
-	export interface TextSearchResultPreview {
+	export interface TextSearchMatchPreview {
 		/**
-		 * The matching line of text, or a portion of the matching line that contains the match.
-		 * For now, this can only be a single line.
+		 * The matching lines of text, or a portion of the matching line that contains the match.
 		 */
 		text: string;
 
 		/**
 		 * The Range within `text` corresponding to the text of the match.
+		 * The number of matches must match the TextSearchMatch's range property.
 		 */
-		match: Range;
+		matches: Range | Range[];
 	}
 
 	/**
 	 * A match from a text search
 	 */
-	export interface TextSearchResult {
+	export interface TextSearchMatch {
 		/**
 		 * The uri for the matching document.
 		 */
 		uri: Uri;
 
 		/**
-		 * The range of the match within the document.
+		 * The range of the match within the document, or multiple ranges for multiple matches.
 		 */
-		range: Range;
+		ranges: Range | Range[];
 
 		/**
-		 * A preview of the text result.
+		 * A preview of the text match.
 		 */
-		preview: TextSearchResultPreview;
+		preview: TextSearchMatchPreview;
 	}
+
+	/**
+	 * A line of context surrounding a TextSearchMatch.
+	 */
+	export interface TextSearchContext {
+		/**
+		 * The uri for the matching document.
+		 */
+		uri: Uri;
+
+		/**
+		 * One line of text.
+		 * previewOptions.charsPerLine applies to this
+		 */
+		text: string;
+
+		/**
+		 * The line number of this line of context.
+		 */
+		lineNumber: number;
+	}
+
+	export type TextSearchResult = TextSearchMatch | TextSearchContext;
 
 	/**
 	 * A FileIndexProvider provides a list of files in the given folder. VS Code will filter that list for searching with quickopen or from other extensions.
@@ -365,6 +407,16 @@ declare module 'vscode' {
 		 * Options to specify the size of the result text preview.
 		 */
 		previewOptions?: TextSearchPreviewOptions;
+
+		/**
+		 * Number of lines of context to include before each match.
+		 */
+		beforeContext?: number;
+
+		/**
+		 * Number of lines of context to include after each match.
+		 */
+		afterContext?: number;
 	}
 
 	export namespace workspace {
@@ -573,7 +625,7 @@ declare module 'vscode' {
 	/**
 	 * A Debug Adapter Tracker is a means to track the communication between VS Code and a Debug Adapter.
 	 */
-	export interface IDebugAdapterTracker {
+	export interface DebugAdapterTracker {
 		// VS Code -> Debug Adapter
 		startDebugAdapter?(): void;
 		toDebugAdapter?(message: any): void;
@@ -617,7 +669,7 @@ declare module 'vscode' {
 		 * @param config The resolved debug configuration.
 		 * @param token A cancellation token.
 		 */
-		provideDebugAdapterTracker?(session: DebugSession, folder: WorkspaceFolder | undefined, config: DebugConfiguration, token?: CancellationToken): ProviderResult<IDebugAdapterTracker>;
+		provideDebugAdapterTracker?(session: DebugSession, folder: WorkspaceFolder | undefined, config: DebugConfiguration, token?: CancellationToken): ProviderResult<DebugAdapterTracker>;
 
 		/**
 		 * Deprecated, use DebugConfigurationProvider.provideDebugAdapter instead.
@@ -720,6 +772,21 @@ declare module 'vscode' {
 		 * An event signaling when the selection state changes.
 		 */
 		readonly onDidChangeSelection: Event<boolean>;
+	}
+
+	//#endregion
+
+	//#region Joao: SCM Input Box
+
+	/**
+	 * Represents the input box in the Source Control viewlet.
+	 */
+	export interface SourceControlInputBox {
+
+		/**
+			* Controls whether the input box is visible (default is `true`).
+			*/
+		visible: boolean;
 	}
 
 	//#endregion
@@ -869,7 +936,7 @@ declare module 'vscode' {
 		replyToCommentThread(document: TextDocument, range: Range, commentThread: CommentThread, text: string, token: CancellationToken): Promise<CommentThread>;
 
 		/**
-		 * Called when a user edits the comment body to the be new text text.
+		 * Called when a user edits the comment body to the be new text.
 		 */
 		editComment?(document: TextDocument, comment: Comment, text: string, token: CancellationToken): Promise<void>;
 
@@ -1079,12 +1146,9 @@ declare module 'vscode' {
 		TriggerCharacter = 2,
 
 		/**
-		 * Signature help was retriggered.
-		 *
-		 * Retriggers occur when the signature help is already active and can be caused by typing a trigger character
-		 * or by a cursor move.
+		 * Signature help was triggered by the cursor moving or by the document content changing.
 		 */
-		Retrigger = 3,
+		ContentChange = 3,
 	}
 
 	/**
@@ -1100,9 +1164,18 @@ declare module 'vscode' {
 		/**
 		 * Character that caused signature help to be requested.
 		 *
-		 * This is `undefined` for manual triggers or retriggers for a cursor move.
+		 * This is `undefined` when signature help is not triggered by typing, such as when invoking signature help
+		 * or when moving the cursor.
 		 */
 		readonly triggerCharacter?: string;
+
+		/**
+		 * Whether or not signature help was previously showing when triggered.
+		 *
+		 * Retriggers occur when the signature help is already active and can be caused by typing a trigger character
+		 * or by a cursor move.
+		 */
+		readonly isRetrigger: boolean;
 	}
 
 	export interface SignatureHelpProvider {
@@ -1132,13 +1205,72 @@ declare module 'vscode' {
 	}
 	//#endregion
 
-	//#region #59232
+	//#region Tree View
 
-	export interface QuickPickItem {
+	/**
+	 * Options for creating a [TreeView](#TreeView]
+	 */
+	export interface TreeViewOptions<T> {
+
 		/**
-		 * Show this item always
+		 * A data provider that provides tree data.
 		 */
-		alwaysShow?: boolean;
+		treeDataProvider: TreeDataProvider<T>;
+
+		/**
+		 * Whether to show collapse all action or not.
+		 */
+		showCollapseAll?: boolean;
+	}
+
+	namespace window {
+
+		export function createTreeView<T>(viewId: string, options: TreeViewOptions<T>): TreeView<T>;
+
+	}
+
+	/**
+	 * Label describing the [Tree item](#TreeItem)
+	 */
+	export interface TreeItemLabel {
+
+		/**
+		 * A human-readable string describing the [Tree item](#TreeItem).
+		 */
+		label: string;
+
+		/**
+		 * Ranges in the label to highlight. A range is defined as a tuple of two number where the
+		 * first is the inclusive start index and the second the exclusive end index
+		 */
+		highlights?: [number, number][];
+
+	}
+
+	export class TreeItem2 extends TreeItem {
+		/**
+		 * Label describing this item. When `falsy`, it is derived from [resourceUri](#TreeItem.resourceUri).
+		 */
+		label?: string | TreeItemLabel | /* for compilation */ any;
+
+		/**
+		 * @param label Label describing this item
+		 * @param collapsibleState [TreeItemCollapsibleState](#TreeItemCollapsibleState) of the tree item. Default is [TreeItemCollapsibleState.None](#TreeItemCollapsibleState.None)
+		 */
+		constructor(label: TreeItemLabel, collapsibleState?: TreeItemCollapsibleState);
 	}
 	//#endregion
+
+	//#region Task
+	/**
+	 * Controls how the task is presented in the UI.
+	 */
+	export interface TaskPresentationOptions {
+		/**
+		 * Controls whether the terminal is cleared before executing the task.
+		 */
+		clear?: boolean;
+	}
+	//#endregion
+
 }

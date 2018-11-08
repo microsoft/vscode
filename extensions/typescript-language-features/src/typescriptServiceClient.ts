@@ -10,7 +10,7 @@ import * as nls from 'vscode-nls';
 import BufferSyncSupport from './features/bufferSyncSupport';
 import { DiagnosticKind, DiagnosticsManager } from './features/diagnostics';
 import * as Proto from './protocol';
-import { TypeScriptServer, TypeScriptServerSpawner } from './server';
+import { TypeScriptServer, TypeScriptServerSpawner } from './tsServer/server';
 import { ITypeScriptServiceClient } from './typescriptService';
 import API from './utils/api';
 import { TsServerLogLevel, TypeScriptServiceConfiguration } from './utils/configuration';
@@ -28,6 +28,22 @@ import { TypeScriptVersionPicker } from './utils/versionPicker';
 import { TypeScriptVersion, TypeScriptVersionProvider } from './utils/versionProvider';
 
 const localize = nls.loadMessageBundle();
+
+export class PluginConfigProvider extends Disposable {
+	private readonly _config = new Map<string, {}>();
+
+	private readonly _onDidUpdateConfig = this._register(new vscode.EventEmitter<{ pluginId: string, config: {} }>());
+	public readonly onDidUpdateConfig = this._onDidUpdateConfig.event;
+
+	public set(pluginId: string, config: {}) {
+		this._config.set(pluginId, config);
+		this._onDidUpdateConfig.fire({ pluginId, config });
+	}
+
+	public entries(): IterableIterator<[string, {}]> {
+		return this._config.entries();
+	}
+}
 
 export interface TsDiagnostics {
 	readonly kind: DiagnosticKind;
@@ -75,6 +91,7 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 		private readonly workspaceState: vscode.Memento,
 		private readonly onDidChangeTypeScriptVersion: (version: TypeScriptVersion) => void,
 		public readonly plugins: TypeScriptServerPlugin[],
+		private readonly pluginConfigProvider: PluginConfigProvider,
 		private readonly logDirectoryProvider: LogDirectoryProvider,
 		allModeIds: string[]
 	) {
@@ -132,6 +149,10 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 		this.telemetryReporter = this._register(new TelemetryReporter(() => this._tsserverVersion || this._apiVersion.versionString));
 
 		this.typescriptServerSpawner = new TypeScriptServerSpawner(this.versionProvider, this.logDirectoryProvider, this.pluginPathsProvider, this.logger, this.telemetryReporter, this.tracer);
+
+		this._register(this.pluginConfigProvider.onDidUpdateConfig(update => {
+			this.configurePlugin(update.pluginId, update.config);
+		}));
 	}
 
 	public get configuration() {
@@ -406,6 +427,11 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 		if (resendModels) {
 			this._onResendModelsRequested.fire();
 		}
+
+		// Reconfigure any plugins
+		for (const [config, pluginName] of this.pluginConfigProvider.entries()) {
+			this.configurePlugin(config, pluginName);
+		}
 	}
 
 	private setCompilerOptionsForInferredProjects(configuration: TypeScriptServiceConfiguration): void {
@@ -560,11 +586,12 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 		return undefined;
 	}
 
-	public execute(command: string, args: any, token: vscode.CancellationToken): Promise<any> {
+	public execute(command: string, args: any, token: vscode.CancellationToken, lowPriority?: boolean): Promise<any> {
 		return this.executeImpl(command, args, {
 			isAsync: false,
 			token,
-			expectsResult: true
+			expectsResult: true,
+			lowPriority
 		});
 	}
 
@@ -584,7 +611,7 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 		});
 	}
 
-	private executeImpl(command: string, args: any, executeInfo: { isAsync: boolean, token?: vscode.CancellationToken, expectsResult: boolean }): Promise<any> {
+	private executeImpl(command: string, args: any, executeInfo: { isAsync: boolean, token?: vscode.CancellationToken, expectsResult: boolean, lowPriority?: boolean }): Promise<any> {
 		const server = this.service();
 		if (!server) {
 			return Promise.reject(new Error('Could not load TS Server'));
@@ -718,8 +745,13 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 		this._apiVersion = API.defaultVersion;
 		this._tsserverVersion = undefined;
 	}
-}
 
+	private configurePlugin(pluginName: string, configuration: {}): any {
+		if (this._apiVersion.gte(API.v314)) {
+			this.executeWithoutWaitingForResponse('configurePlugin', { pluginName, configuration });
+		}
+	}
+}
 
 function getDignosticsKind(event: Proto.Event) {
 	switch (event.event) {

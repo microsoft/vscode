@@ -3,10 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Range } from 'vs/editor/common/core/range';
-import { Position } from 'vs/editor/common/core/position';
-import { EndOfLinePreference } from 'vs/editor/common/model';
 import * as strings from 'vs/base/common/strings';
+import { Position } from 'vs/editor/common/core/position';
+import { Range } from 'vs/editor/common/core/range';
+import { EndOfLinePreference } from 'vs/editor/common/model';
 
 export interface ITextAreaWrapper {
 	getValue(): string;

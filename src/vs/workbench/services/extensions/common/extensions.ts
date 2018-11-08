@@ -3,12 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { Event } from 'vs/base/common/event';
 import Severity from 'vs/base/common/severity';
+import { URI } from 'vs/base/common/uri';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IExtensionPoint } from 'vs/workbench/services/extensions/common/extensionsRegistry';
-import { Event } from 'vs/base/common/event';
-import { URI } from 'vs/base/common/uri';
 
 export interface IExtensionDescription {
 	readonly id: string;
@@ -33,6 +33,17 @@ export interface IExtensionDescription {
 	};
 	enableProposedApi?: boolean;
 }
+
+export const nullExtensionDescription = Object.freeze(<IExtensionDescription>{
+	id: 'nullExtensionDescription',
+	name: 'Null Extension Description',
+	version: '0.0.0',
+	publisher: 'vscode',
+	enableProposedApi: false,
+	engines: { vscode: '' },
+	extensionLocation: URI.parse('void:location'),
+	isBuiltin: false,
+});
 
 export const IExtensionService = createDecorator<IExtensionService>('extensionService');
 
@@ -117,6 +128,11 @@ export class ExtensionPointContribution<T> {
 
 export const ExtensionHostLogFileName = 'exthost';
 
+export interface IWillActivateEvent {
+	readonly event: string;
+	readonly activation: Thenable<void>;
+}
+
 export interface IExtensionService {
 	_serviceBrand: any;
 
@@ -135,6 +151,11 @@ export interface IExtensionService {
 	 * The event contains the ids of the extensions that have changed.
 	 */
 	onDidChangeExtensionsStatus: Event<string[]>;
+
+	/**
+	 * An event that is fired when activation happens.
+	 */
+	onWillActivateByEvent: Event<IWillActivateEvent>;
 
 	/**
 	 * Send an activation event and activate interested extensions.
@@ -194,5 +215,15 @@ export interface IExtensionService {
 }
 
 export interface ProfileSession {
-	stop(): TPromise<IExtensionHostProfile>;
+	stop(): Promise<IExtensionHostProfile>;
+}
+
+export function checkProposedApiEnabled(extension: IExtensionDescription): void {
+	if (!extension.enableProposedApi) {
+		throwProposedApiError(extension);
+	}
+}
+
+export function throwProposedApiError(extension: IExtensionDescription): never {
+	throw new Error(`[${extension.id}]: Proposed API is only available when running out of dev or with the following command line switch: --enable-proposed-api ${extension.id}`);
 }

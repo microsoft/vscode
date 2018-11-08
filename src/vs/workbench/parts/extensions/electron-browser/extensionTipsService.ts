@@ -319,7 +319,7 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 
 		const regEx = new RegExp(EXTENSION_IDENTIFIER_PATTERN);
 
-		const invalidExtensions = [];
+		const invalidExtensions: string[] = [];
 		let message = '';
 
 		const regexFilter = (ids: string[]) => {

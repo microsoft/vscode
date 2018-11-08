@@ -3,13 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 import * as assert from 'assert';
-import { KeyCode, KeyMod, KeyChord, createKeybinding, SimpleKeybinding } from 'vs/base/common/keyCodes';
-import { KeybindingIO } from 'vs/workbench/services/keybinding/common/keybindingIO';
+import { KeyChord, KeyCode, KeyMod, SimpleKeybinding, createKeybinding } from 'vs/base/common/keyCodes';
+import { KeybindingParser } from 'vs/base/common/keybindingParser';
 import { OS, OperatingSystem } from 'vs/base/common/platform';
+import { ScanCode, ScanCodeBinding } from 'vs/base/common/scanCode';
 import { IUserFriendlyKeybinding } from 'vs/platform/keybinding/common/keybinding';
 import { USLayoutResolvedKeybinding } from 'vs/platform/keybinding/common/usLayoutResolvedKeybinding';
-import { ScanCodeBinding, ScanCode } from 'vs/base/common/scanCode';
-import { KeybindingParser } from 'vs/base/common/keybindingParser';
+import { KeybindingIO } from 'vs/workbench/services/keybinding/common/keybindingIO';
 
 suite('keybindingIO', () => {
 

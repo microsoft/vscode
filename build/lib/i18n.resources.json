@@ -167,6 +167,10 @@
 			"project": "vscode-workbench"
 		},
 		{
+			"name": "vs/workbench/services/commands",
+			"project": "vscode-workbench"
+		},
+		{
 			"name": "vs/workbench/services/configuration",
 			"project": "vscode-workbench"
 		},

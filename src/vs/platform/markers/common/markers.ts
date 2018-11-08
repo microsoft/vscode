@@ -37,7 +37,7 @@ export interface IRelatedInformation {
 	endColumn: number;
 }
 
-export enum MarkerTag {
+export const enum MarkerTag {
 	Unnecessary = 1,
 }
 

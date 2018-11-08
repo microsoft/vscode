@@ -4,17 +4,17 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { URI } from 'vs/base/common/uri';
-import { dirname, basename } from 'path';
+import { dirname } from 'path';
 import * as assert from 'vs/base/common/assert';
 import { Event, Emitter } from 'vs/base/common/event';
 import { ResourceMap } from 'vs/base/common/map';
 import { equals, deepClone } from 'vs/base/common/objects';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { Queue } from 'vs/base/common/async';
-import { stat, writeFile } from 'vs/base/node/pfs';
+import { writeFile } from 'vs/base/node/pfs';
 import { IJSONContributionRegistry, Extensions as JSONExtensions } from 'vs/platform/jsonschemas/common/jsonContributionRegistry';
 import { IWorkspaceContextService, Workspace, WorkbenchState, IWorkspaceFolder, toWorkspaceFolders, IWorkspaceFoldersChangeEvent, WorkspaceFolder } from 'vs/platform/workspace/common/workspace';
-import { isLinux, isWindows, isMacintosh } from 'vs/base/common/platform';
+import { isLinux } from 'vs/base/common/platform';
 import { IFileService } from 'vs/platform/files/common/files';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { ConfigurationChangeEvent, ConfigurationModel, DefaultConfigurationModel } from 'vs/platform/configuration/common/configurationModels';
@@ -23,9 +23,7 @@ import { Configuration, WorkspaceConfigurationChangeEvent, AllKeysConfigurationC
 import { IWorkspaceConfigurationService, FOLDER_CONFIG_FOLDER_NAME, defaultSettingsSchemaId, userSettingsSchemaId, workspaceSettingsSchemaId, folderSettingsSchemaId } from 'vs/workbench/services/configuration/common/configuration';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IConfigurationNode, IConfigurationRegistry, Extensions, IConfigurationPropertySchema, allSettings, windowSettings, resourceSettings, applicationSettings } from 'vs/platform/configuration/common/configurationRegistry';
-import { createHash } from 'crypto';
 import { IWorkspaceIdentifier, isWorkspaceIdentifier, IStoredWorkspaceFolder, isStoredWorkspaceFolder, IWorkspaceFolderCreationData, ISingleFolderWorkspaceIdentifier, isSingleFolderWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
-import { IWindowConfiguration } from 'vs/platform/windows/common/windows';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import product from 'vs/platform/node/product';
@@ -39,6 +37,15 @@ import { UserConfiguration } from 'vs/platform/configuration/node/configuration'
 import { IJSONSchema, IJSONSchemaMap } from 'vs/base/common/jsonSchema';
 import { localize } from 'vs/nls';
 import { isEqual } from 'vs/base/common/resources';
+
+export type IMultiFolderWorkspaceInitializationPayload = IWorkspaceIdentifier;
+export interface ISingleFolderWorkspaceInitializationPayload { id: string; folder: ISingleFolderWorkspaceIdentifier; }
+export interface IEmptyWorkspaceInitializationPayload { id: string; }
+export type IWorkspaceInitializationPayload = IMultiFolderWorkspaceInitializationPayload | ISingleFolderWorkspaceInitializationPayload | IEmptyWorkspaceInitializationPayload;
+
+export function isSingleFolderWorkspaceInitializationPayload(obj: any): obj is ISingleFolderWorkspaceInitializationPayload {
+	return isSingleFolderWorkspaceIdentifier((obj.folder as ISingleFolderWorkspaceIdentifier));
+}
 
 export class WorkspaceService extends Disposable implements IWorkspaceConfigurationService, IWorkspaceContextService {
 
@@ -276,8 +283,8 @@ export class WorkspaceService extends Disposable implements IWorkspaceConfigurat
 	inspect<T>(key: string, overrides?: IConfigurationOverrides): {
 		default: T,
 		user: T,
-		workspace: T,
-		workspaceFolder: T,
+		workspace?: T,
+		workspaceFolder?: T,
 		memory?: T,
 		value: T
 	} {
@@ -293,7 +300,7 @@ export class WorkspaceService extends Disposable implements IWorkspaceConfigurat
 		return this._configuration.keys();
 	}
 
-	initialize(arg: IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier | IWindowConfiguration, postInitialisationTask: () => void = () => null): Promise<any> {
+	initialize(arg: IWorkspaceInitializationPayload, postInitialisationTask: () => void = () => null): Promise<any> {
 		return this.createWorkspace(arg)
 			.then(workspace => this.updateWorkspaceAndInitializeConfiguration(workspace, postInitialisationTask));
 	}
@@ -320,12 +327,12 @@ export class WorkspaceService extends Disposable implements IWorkspaceConfigurat
 		this.jsonEditingService = instantiationService.createInstance(JSONEditingService);
 	}
 
-	private createWorkspace(arg: IWorkspaceIdentifier | URI | IWindowConfiguration): Promise<Workspace> {
+	private createWorkspace(arg: IWorkspaceInitializationPayload): Promise<Workspace> {
 		if (isWorkspaceIdentifier(arg)) {
 			return this.createMultiFolderWorkspace(arg);
 		}
 
-		if (isSingleFolderWorkspaceIdentifier(arg)) {
+		if (isSingleFolderWorkspaceInitializationPayload(arg)) {
 			return this.createSingleFolderWorkspace(arg);
 		}
 
@@ -342,35 +349,21 @@ export class WorkspaceService extends Disposable implements IWorkspaceConfigurat
 			});
 	}
 
-	private createSingleFolderWorkspace(folder: URI): Promise<Workspace> {
-		if (folder.scheme === Schemas.file) {
-			return stat(folder.fsPath)
-				.then(workspaceStat => {
-					let ctime: number;
-					if (isLinux) {
-						ctime = workspaceStat.ino; // Linux: birthtime is ctime, so we cannot use it! We use the ino instead!
-					} else if (isMacintosh) {
-						ctime = workspaceStat.birthtime.getTime(); // macOS: birthtime is fine to use as is
-					} else if (isWindows) {
-						if (typeof workspaceStat.birthtimeMs === 'number') {
-							ctime = Math.floor(workspaceStat.birthtimeMs); // Windows: fix precision issue in node.js 8.x to get 7.x results (see https://github.com/nodejs/node/issues/19897)
-						} else {
-							ctime = workspaceStat.birthtime.getTime();
-						}
-					}
+	private createSingleFolderWorkspace(singleFolder: ISingleFolderWorkspaceInitializationPayload): Promise<Workspace> {
+		const folder = singleFolder.folder;
 
-					const id = createHash('md5').update(folder.fsPath).update(ctime ? String(ctime) : '').digest('hex');
-					return new Workspace(id, toWorkspaceFolders([{ path: folder.fsPath }]), null, ctime);
-				});
+		let configuredFolders: IStoredWorkspaceFolder[];
+		if (folder.scheme === 'file') {
+			configuredFolders = [{ path: folder.fsPath }];
 		} else {
-			const id = createHash('md5').update(folder.toString()).digest('hex');
-			return Promise.resolve(new Workspace(id, toWorkspaceFolders([{ uri: folder.toString() }]), null));
+			configuredFolders = [{ uri: folder.toString() }];
 		}
+
+		return Promise.resolve(new Workspace(singleFolder.id, toWorkspaceFolders(configuredFolders)));
 	}
 
-	private createEmptyWorkspace(configuration: IWindowConfiguration): Promise<Workspace> {
-		let id = configuration.backupPath ? URI.from({ path: basename(configuration.backupPath), scheme: 'empty' }).toString() : '';
-		return Promise.resolve(new Workspace(id));
+	private createEmptyWorkspace(emptyWorkspace: IEmptyWorkspaceInitializationPayload): Promise<Workspace> {
+		return Promise.resolve(new Workspace(emptyWorkspace.id));
 	}
 
 	private updateWorkspaceAndInitializeConfiguration(workspace: Workspace, postInitialisationTask: () => void): Promise<void> {

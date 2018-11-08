@@ -26,6 +26,7 @@ import { IEditorService, ACTIVE_GROUP } from 'vs/workbench/services/editor/commo
 import { WebviewEditorInput } from 'vs/workbench/parts/webview/electron-browser/webviewEditorInput';
 import { KeybindingParser } from 'vs/base/common/keybindingParser';
 import { CancellationToken } from 'vs/base/common/cancellation';
+import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 
 function renderBody(
 	body: string,
@@ -60,7 +61,8 @@ export class ReleaseNotesManager {
 		@IRequestService private readonly _requestService: IRequestService,
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 		@IEditorService private readonly _editorService: IEditorService,
-		@IWebviewEditorService private readonly _webviewEditorService: IWebviewEditorService
+		@IWebviewEditorService private readonly _webviewEditorService: IWebviewEditorService,
+		@IExtensionService private readonly _extensionService: IExtensionService
 	) {
 		TokenizationRegistry.onDidChange(async () => {
 			if (!this._currentReleaseNotes || !this._lastText) {
@@ -194,7 +196,10 @@ export class ReleaseNotesManager {
 		const renderer = new marked.Renderer();
 		renderer.code = (code, lang) => {
 			const modeId = this._modeService.getModeIdForLanguageName(lang);
-			result.push(this._modeService.getOrCreateMode(modeId).then(_ => TokenizationRegistry.getPromise(modeId)));
+			result.push(this._extensionService.whenInstalledExtensionsRegistered().then(_ => {
+				this._modeService.triggerMode(modeId);
+				return TokenizationRegistry.getPromise(modeId);
+			}));
 			return '';
 		};
 

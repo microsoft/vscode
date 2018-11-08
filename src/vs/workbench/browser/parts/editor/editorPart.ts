@@ -799,6 +799,7 @@ export class EditorPart extends Part implements EditorGroupsServiceImpl, IEditor
 
 	centerLayout(active: boolean): void {
 		this.centeredLayoutWidget.activate(active);
+		this._activeGroup.focus();
 	}
 
 	isLayoutCentered(): boolean {
@@ -876,7 +877,7 @@ export class EditorPart extends Part implements EditorGroupsServiceImpl, IEditor
 		// Create new
 		const groupViews: IEditorGroupView[] = [];
 		const gridWidget = SerializableGrid.deserialize(serializedGrid, {
-			fromJSON: (serializedEditorGroup: ISerializedEditorGroup) => {
+			fromJSON: (serializedEditorGroup: ISerializedEditorGroup | null) => {
 				let groupView: IEditorGroupView;
 				if (reuseGroupViews.length > 0) {
 					groupView = reuseGroupViews.shift();

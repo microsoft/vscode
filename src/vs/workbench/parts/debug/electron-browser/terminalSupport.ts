@@ -5,7 +5,6 @@
 
 import * as nls from 'vs/nls';
 import { IDisposable } from 'vs/base/common/lifecycle';
-import { TPromise } from 'vs/base/common/winjs.base';
 import { ITerminalService, ITerminalInstance } from 'vs/workbench/parts/terminal/common/terminal';
 import { ITerminalService as IExternalTerminalService } from 'vs/workbench/parts/execution/common/execution';
 import { ITerminalLauncher, ITerminalSettings } from 'vs/workbench/parts/debug/common/debug';
@@ -22,7 +21,7 @@ export class TerminalLauncher implements ITerminalLauncher {
 	) {
 	}
 
-	runInTerminal(args: DebugProtocol.RunInTerminalRequestArguments, config: ITerminalSettings): TPromise<void> {
+	runInTerminal(args: DebugProtocol.RunInTerminalRequestArguments, config: ITerminalSettings): Promise<void> {
 
 		if (args.kind === 'external') {
 			return this.nativeTerminalService.runInTerminal(args.title, args.cwd, args.args, args.env || {});

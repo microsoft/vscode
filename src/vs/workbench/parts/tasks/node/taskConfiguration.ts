@@ -112,6 +112,11 @@ export interface PresentationOptions {
 	 * Controls whether to show the "Terminal will be reused by tasks, press any key to close it" message.
 	 */
 	showReuseMessage?: boolean;
+
+	/**
+	 * Controls whether the terminal should be cleared before running the task.
+	 */
+	clear?: boolean;
 }
 
 export interface TaskIdentifier {
@@ -312,7 +317,7 @@ export interface ConfigurationProperties {
 
 export interface CustomTask extends CommandProperties, ConfigurationProperties {
 	/**
-	 * Custom tasks have the type 'custom'
+	 * Custom tasks have the type CUSTOMIZED_TASK_TYPE
 	 */
 	type?: string;
 
@@ -742,7 +747,7 @@ namespace CommandOptions {
 namespace CommandConfiguration {
 
 	export namespace PresentationOptions {
-		const properties: MetaData<Tasks.PresentationOptions, void>[] = [{ property: 'echo' }, { property: 'reveal' }, { property: 'focus' }, { property: 'panel' }, { property: 'showReuseMessage' }];
+		const properties: MetaData<Tasks.PresentationOptions, void>[] = [{ property: 'echo' }, { property: 'reveal' }, { property: 'focus' }, { property: 'panel' }, { property: 'showReuseMessage' }, { property: 'clear' }];
 
 		interface PresentationOptionsShape extends LegacyCommandProperties {
 			presentation?: PresentationOptions;
@@ -754,6 +759,7 @@ namespace CommandConfiguration {
 			let focus: boolean;
 			let panel: Tasks.PanelKind;
 			let showReuseMessage: boolean;
+			let clear: boolean;
 			if (Types.isBoolean(config.echoCommand)) {
 				echo = config.echoCommand;
 			}
@@ -777,11 +783,14 @@ namespace CommandConfiguration {
 				if (Types.isBoolean(presentation.showReuseMessage)) {
 					showReuseMessage = presentation.showReuseMessage;
 				}
+				if (Types.isBoolean(presentation.clear)) {
+					clear = presentation.clear;
+				}
 			}
 			if (echo === void 0 && reveal === void 0 && focus === void 0 && panel === void 0 && showReuseMessage === void 0) {
 				return undefined;
 			}
-			return { echo, reveal, focus, panel, showReuseMessage };
+			return { echo, reveal, focus, panel, showReuseMessage, clear };
 		}
 
 		export function assignProperties(target: Tasks.PresentationOptions, source: Tasks.PresentationOptions): Tasks.PresentationOptions {
@@ -794,7 +803,7 @@ namespace CommandConfiguration {
 
 		export function fillDefaults(value: Tasks.PresentationOptions, context: ParseContext): Tasks.PresentationOptions {
 			let defaultEcho = context.engine === Tasks.ExecutionEngine.Terminal ? true : false;
-			return _fillDefaults(value, { echo: defaultEcho, reveal: Tasks.RevealKind.Always, focus: false, panel: Tasks.PanelKind.Shared, showReuseMessage: true }, properties, context);
+			return _fillDefaults(value, { echo: defaultEcho, reveal: Tasks.RevealKind.Always, focus: false, panel: Tasks.PanelKind.Shared, showReuseMessage: true, clear: false }, properties, context);
 		}
 
 		export function freeze(value: Tasks.PresentationOptions): Readonly<Tasks.PresentationOptions> {
@@ -1312,9 +1321,9 @@ namespace CustomTask {
 		}
 		let type = external.type;
 		if (type === void 0 || type === null) {
-			type = 'custom';
+			type = Tasks.CUSTOMIZED_TASK_TYPE;
 		}
-		if (type !== 'custom' && type !== 'shell' && type !== 'process') {
+		if (type !== Tasks.CUSTOMIZED_TASK_TYPE && type !== 'shell' && type !== 'process') {
 			context.problemReporter.error(nls.localize('ConfigurationParser.notCustom', 'Error: tasks is not declared as a custom task. The configuration will be ignored.\n{0}\n', JSON.stringify(external, null, 4)));
 			return undefined;
 		}
@@ -1328,7 +1337,7 @@ namespace CustomTask {
 		}
 
 		let result: Tasks.CustomTask = {
-			type: 'custom',
+			type: Tasks.CUSTOMIZED_TASK_TYPE,
 			_id: context.uuidMap.getUUID(taskName),
 			_source: Objects.assign({}, source, { config: { index, element: external, file: '.vscode\\tasks.json', workspaceFolder: context.workspaceFolder } }),
 			_label: taskName,
@@ -1404,7 +1413,7 @@ namespace CustomTask {
 			_id: configuredProps._id,
 			_source: Objects.assign({}, configuredProps._source, { customizes: contributedTask.defines }),
 			_label: configuredProps.name || contributedTask._label,
-			type: 'custom',
+			type: Tasks.CUSTOMIZED_TASK_TYPE,
 			command: contributedTask.command,
 			name: configuredProps.name || contributedTask.name,
 			identifier: configuredProps.identifier || contributedTask.identifier,
@@ -1451,7 +1460,7 @@ namespace TaskParser {
 	function isCustomTask(value: CustomTask | ConfiguringTask): value is CustomTask {
 		let type = value.type;
 		let customize = (value as any).customize;
-		return customize === void 0 && (type === void 0 || type === null || type === 'custom' || type === 'shell' || type === 'process');
+		return customize === void 0 && (type === void 0 || type === null || type === Tasks.CUSTOMIZED_TASK_TYPE || type === 'shell' || type === 'process');
 	}
 
 	export function from(this: void, externals: (CustomTask | ConfiguringTask)[], globals: Globals, context: ParseContext): TaskParseResult {
@@ -1830,7 +1839,7 @@ class ConfigurationParser {
 				_id: context.uuidMap.getUUID(name),
 				_source: Objects.assign({}, source, { config: { index: -1, element: fileConfig, workspaceFolder: context.workspaceFolder } }),
 				_label: name,
-				type: 'custom',
+				type: Tasks.CUSTOMIZED_TASK_TYPE,
 				name: name,
 				identifier: name,
 				group: Tasks.TaskGroup.Build,

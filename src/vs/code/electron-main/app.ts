@@ -68,6 +68,7 @@ import { THEME_STORAGE_KEY, THEME_BG_STORAGE_KEY } from 'vs/code/electron-main/t
 import { nativeSep, join } from 'vs/base/common/paths';
 import { homedir } from 'os';
 import { localize } from 'vs/nls';
+import { SnapUpdateService } from 'vs/platform/update/electron-main/updateService.snap';
 
 export class CodeApplication {
 
@@ -426,15 +427,19 @@ export class CodeApplication {
 		if (process.platform === 'win32') {
 			services.set(IUpdateService, new SyncDescriptor(Win32UpdateService));
 		} else if (process.platform === 'linux') {
-			services.set(IUpdateService, new SyncDescriptor(LinuxUpdateService));
+			if (process.env.SNAP && process.env.SNAP_REVISION) {
+				services.set(IUpdateService, new SyncDescriptor(SnapUpdateService));
+			} else {
+				services.set(IUpdateService, new SyncDescriptor(LinuxUpdateService));
+			}
 		} else if (process.platform === 'darwin') {
 			services.set(IUpdateService, new SyncDescriptor(DarwinUpdateService));
 		}
 
-		services.set(IWindowsMainService, new SyncDescriptor(WindowsManager, machineId));
-		services.set(IWindowsService, new SyncDescriptor(WindowsService, this.sharedProcess));
+		services.set(IWindowsMainService, new SyncDescriptor(WindowsManager, [machineId]));
+		services.set(IWindowsService, new SyncDescriptor(WindowsService, [this.sharedProcess]));
 		services.set(ILaunchService, new SyncDescriptor(LaunchService));
-		services.set(IIssueService, new SyncDescriptor(IssueService, machineId, this.userEnv));
+		services.set(IIssueService, new SyncDescriptor(IssueService, [machineId, this.userEnv]));
 		services.set(IMenubarService, new SyncDescriptor(MenubarService));
 
 		// Telemtry
@@ -445,7 +450,7 @@ export class CodeApplication {
 			const piiPaths = [this.environmentService.appRoot, this.environmentService.extensionsPath];
 			const config: ITelemetryServiceConfig = { appender, commonProperties, piiPaths };
 
-			services.set(ITelemetryService, new SyncDescriptor(TelemetryService, config));
+			services.set(ITelemetryService, new SyncDescriptor(TelemetryService, [config]));
 		} else {
 			services.set(ITelemetryService, NullTelemetryService);
 		}

@@ -86,7 +86,7 @@ export class NotificationsList extends Themable {
 		this._register((this.list.onContextMenu(e => {
 			this.contextMenuService.showContextMenu({
 				getAnchor: () => e.anchor,
-				getActions: () => Promise.resolve([copyAction]),
+				getActions: () => [copyAction],
 				getActionsContext: () => e.element,
 				actionRunner
 			});

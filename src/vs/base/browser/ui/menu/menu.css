@@ -55,8 +55,8 @@
 
 .monaco-menu .monaco-action-bar.vertical .submenu-indicator {
 	height: 100%;
-	-webkit-mask: url('submenu.svg') no-repeat 90% 50%/14px 14px;
-	mask: url('submenu.svg') no-repeat 90% 50%/14px 14px;
+	-webkit-mask: url('submenu.svg') no-repeat 90% 50%/13px 13px;
+	mask: url('submenu.svg') no-repeat 90% 50%/13px 13px;
 }
 
 .monaco-menu .monaco-action-bar.vertical .action-item.disabled .keybinding,
@@ -106,7 +106,7 @@
 /* Context Menu */
 
 .context-view.monaco-menu-container {
-	font-family: "Segoe WPC", "Segoe UI", ".SFNSDisplay-Light", "SFUIText-Light", "HelveticaNeue-Light", sans-serif, "Droid Sans Fallback";
+	font-family: -apple-system, BlinkMacSystemFont, "Segoe WPC", "Segoe UI", "HelveticaNeue-Light", "Ubuntu", "Droid Sans", sans-serif;
 	outline: 0;
 	border: none;
 	-webkit-animation: fadeIn 0.083s linear;

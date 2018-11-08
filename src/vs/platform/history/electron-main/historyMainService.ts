@@ -240,7 +240,7 @@ export class HistoryMainService implements IHistoryMainService {
 
 		// Add currently files to open to the beginning if any
 		if (currentFiles) {
-			files.unshift(...currentFiles.map(f => f.fileUri));
+			files.unshift(...arrays.coalesce(currentFiles.map(f => f.fileUri)));
 		}
 
 		// Clear those dupes
@@ -374,7 +374,8 @@ export class HistoryMainService implements IHistoryMainService {
 					let description;
 					let args;
 					if (isSingleFolderWorkspaceIdentifier(workspace)) {
-						description = nls.localize('folderDesc', "{0} {1}", getBaseLabel(workspace), this.labelService.getUriLabel(dirname(workspace)));
+						const parentFolder = dirname(workspace);
+						description = parentFolder ? nls.localize('folderDesc', "{0} {1}", getBaseLabel(workspace), this.labelService.getUriLabel(parentFolder)) : getBaseLabel(workspace);
 						args = `--folder-uri "${workspace.toString()}"`;
 					} else {
 						description = nls.localize('codeWorkspace', "Code Workspace");

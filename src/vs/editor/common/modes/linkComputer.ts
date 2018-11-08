@@ -3,10 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ILink } from 'vs/editor/common/modes';
 import { CharCode } from 'vs/base/common/charCode';
 import { CharacterClassifier } from 'vs/editor/common/core/characterClassifier';
 import { Uint8Matrix } from 'vs/editor/common/core/uint';
+import { ILink } from 'vs/editor/common/modes';
 
 export interface ILinkComputerTarget {
 	getLineCount(): number;

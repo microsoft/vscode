@@ -12,8 +12,8 @@ import { ConfigurationScope } from 'vs/platform/configuration/common/configurati
 import { SettingsTarget } from 'vs/workbench/parts/preferences/browser/preferencesWidgets';
 import { ITOCEntry, knownAcronyms } from 'vs/workbench/parts/preferences/browser/settingsLayout';
 import { IExtensionSetting, ISearchResult, ISetting, SettingValueType } from 'vs/workbench/services/preferences/common/preferences';
+import { MODIFIED_SETTING_TAG } from 'vs/workbench/parts/preferences/common/preferences';
 
-export const MODIFIED_SETTING_TAG = 'modified';
 export const ONLINE_SERVICES_SETTING_TAG = 'usesOnlineServices';
 
 export interface ISettingsEditorViewState {
@@ -137,7 +137,7 @@ export class SettingsTreeSettingElement extends SettingsTreeElement {
 		const { isConfigured, inspected, targetSelector } = inspectResult;
 
 		const displayValue = isConfigured ? inspected[targetSelector] : inspected.default;
-		const overriddenScopeList = [];
+		const overriddenScopeList: string[] = [];
 		if (targetSelector === 'user' && typeof inspected.workspace !== 'undefined') {
 			overriddenScopeList.push(localize('workspace', "Workspace"));
 		}
@@ -281,7 +281,7 @@ export class SettingsTreeModel {
 		element.parent = parent;
 		element.level = this.getDepth(element);
 
-		const children = [];
+		const children: SettingsTreeGroupChild[] = [];
 		if (tocEntry.settings) {
 			const settingChildren = tocEntry.settings.map(s => this.createSettingsTreeSettingElement(<ISetting>s, element))
 				.filter(el => el.setting.deprecationMessage ? el.isConfigured : true);

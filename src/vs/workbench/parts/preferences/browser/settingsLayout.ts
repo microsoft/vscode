@@ -127,7 +127,7 @@ export const tocData: ITOCEntry = {
 				{
 					id: 'features/search',
 					label: localize('search', "Search"),
-					settings: ['search.*']
+					settings: ['search.*', 'searchRipgrep.*']
 				}
 				,
 				{

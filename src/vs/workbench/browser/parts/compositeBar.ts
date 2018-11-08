@@ -35,7 +35,7 @@ export interface ICompositeBarOptions {
 	getContextMenuActions: () => Action[];
 	openComposite: (compositeId: string) => TPromise<any>;
 	getDefaultCompositeId: () => string;
-	hidePart: () => TPromise<any>;
+	hidePart: () => void;
 }
 
 export class CompositeBar extends Widget implements ICompositeBar {
@@ -67,7 +67,7 @@ export class CompositeBar extends Widget implements ICompositeBar {
 	}
 
 	getComposites(): ICompositeBarItem[] {
-		return this.model.items;
+		return [...this.model.items];
 	}
 
 	getPinnedComposites(): ICompositeBarItem[] {
@@ -401,7 +401,7 @@ export class CompositeBar extends Widget implements ICompositeBar {
 		const event = new StandardMouseEvent(e);
 		this.contextMenuService.showContextMenu({
 			getAnchor: () => { return { x: event.posx, y: event.posy }; },
-			getActions: () => Promise.resolve(this.getContextMenuActions())
+			getActions: () => this.getContextMenuActions()
 		});
 	}
 

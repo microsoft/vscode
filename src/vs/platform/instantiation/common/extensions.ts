@@ -14,8 +14,8 @@ export interface IServiceContribution<T> {
 
 const _registry: IServiceContribution<any>[] = [];
 
-export function registerSingleton<T>(id: ServiceIdentifier<T>, ctor: IConstructorSignature0<T>): void {
-	_registry.push({ id, descriptor: new SyncDescriptor<T>(ctor) });
+export function registerSingleton<T>(id: ServiceIdentifier<T>, ctor: IConstructorSignature0<T>, supportsDelayedInstantiation?: boolean): void {
+	_registry.push({ id, descriptor: new SyncDescriptor<T>(ctor, [], supportsDelayedInstantiation) });
 }
 
 export function getServices(): IServiceContribution<any>[] {

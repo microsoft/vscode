@@ -108,7 +108,7 @@ export class MarkersPanel extends Panel implements IMarkerFilterController {
 		this.setCurrentActiveEditor();
 	}
 
-	public create(parent: HTMLElement): Promise<void> {
+	public create(parent: HTMLElement): void {
 		super.create(parent);
 
 		this.rangeHighlightDecorations = this._register(this.instantiationService.createInstance(RangeHighlightDecorations));
@@ -129,8 +129,6 @@ export class MarkersPanel extends Panel implements IMarkerFilterController {
 		this.onDidBlur(() => this.panelFoucusContextKey.set(false));
 
 		this.render();
-
-		return Promise.resolve(null);
 	}
 
 	public getTitle(): string {
@@ -159,18 +157,16 @@ export class MarkersPanel extends Panel implements IMarkerFilterController {
 		}
 	}
 
-	public setVisible(visible: boolean): Promise<void> {
+	public setVisible(visible: boolean): void {
 		const wasVisible = this.isVisible();
-		return super.setVisible(visible)
-			.then(() => {
-				if (this.isVisible()) {
-					if (!wasVisible) {
-						this.refreshPanel();
-					}
-				} else {
-					this.rangeHighlightDecorations.removeHighlightRange();
-				}
-			});
+		super.setVisible(visible);
+		if (this.isVisible()) {
+			if (!wasVisible) {
+				this.refreshPanel();
+			}
+		} else {
+			this.rangeHighlightDecorations.removeHighlightRange();
+		}
 	}
 
 	public getActions(): IAction[] {
@@ -225,6 +221,9 @@ export class MarkersPanel extends Panel implements IMarkerFilterController {
 		this.filter.options = new FilterOptions(this.filterAction.filterText, excludeExpression);
 		this.tree.refilter();
 		this._onDidFilter.fire();
+
+		const { total, filtered } = this.getFilterStats();
+		dom.toggleClass(this.treeContainer, 'hidden', total > 0 && filtered === 0);
 		this.renderMessage();
 	}
 
@@ -298,7 +297,8 @@ export class MarkersPanel extends Panel implements IMarkerFilterController {
 			renderers,
 			{
 				filter: this.filter,
-				accessibilityProvider
+				accessibilityProvider,
+				identityProvider: (element: TreeElement) => element.hash
 			}
 		) as any as WorkbenchObjectTree<TreeElement, FilterData>;
 
@@ -552,21 +552,23 @@ export class MarkersPanel extends Panel implements IMarkerFilterController {
 		e.browserEvent.preventDefault();
 		e.browserEvent.stopPropagation();
 
-		this.contextMenuService.showContextMenu({
-			getAnchor: () => e.anchor,
-			getActions: () => TPromise.wrap(this._getMenuActions(e.element.element)),
-			getActionItem: (action) => {
-				const keybinding = this.keybindingService.lookupKeybinding(action.id);
-				if (keybinding) {
-					return new ActionItem(action, action, { label: true, keybinding: keybinding.getLabel() });
+		this._getMenuActions(e.element.element).then(actions => {
+			this.contextMenuService.showContextMenu({
+				getAnchor: () => e.anchor,
+				getActions: () => actions,
+				getActionItem: (action) => {
+					const keybinding = this.keybindingService.lookupKeybinding(action.id);
+					if (keybinding) {
+						return new ActionItem(action, action, { label: true, keybinding: keybinding.getLabel() });
+					}
+					return null;
+				},
+				onHide: (wasCancelled?: boolean) => {
+					if (wasCancelled) {
+						this.tree.domFocus();
+					}
 				}
-				return null;
-			},
-			onHide: (wasCancelled?: boolean) => {
-				if (wasCancelled) {
-					this.tree.domFocus();
-				}
-			}
+			});
 		});
 	}
 

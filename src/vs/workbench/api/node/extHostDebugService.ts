@@ -6,11 +6,9 @@
 import * as paths from 'vs/base/common/paths';
 import { Schemas } from 'vs/base/common/network';
 import { URI, UriComponents } from 'vs/base/common/uri';
-import { TPromise } from 'vs/base/common/winjs.base';
 import { Event, Emitter } from 'vs/base/common/event';
 import { asThenable } from 'vs/base/common/async';
 import * as nls from 'vs/nls';
-import { deepClone } from 'vs/base/common/objects';
 import {
 	MainContext, MainThreadDebugServiceShape, ExtHostDebugServiceShape, DebugSessionUUID,
 	IMainContext, IBreakpointsDeltaDto, ISourceMultiBreakpointDto, IFunctionBreakpointDto, IDebugSessionDto
@@ -71,7 +69,7 @@ export class ExtHostDebugService implements ExtHostDebugServiceShape {
 
 	private _aexCommands: Map<string, string>;
 	private _debugAdapters: Map<number, IDebugAdapter>;
-	private _debugAdaptersTrackers: Map<number, vscode.IDebugAdapterTracker>;
+	private _debugAdaptersTrackers: Map<number, vscode.DebugAdapterTracker>;
 
 	private _variableResolver: IConfigurationResolverService;
 
@@ -287,7 +285,7 @@ export class ExtHostDebugService implements ExtHostDebugServiceShape {
 
 	// RPC methods (ExtHostDebugServiceShape)
 
-	public $runInTerminal(args: DebugProtocol.RunInTerminalRequestArguments, config: ITerminalSettings): TPromise<void> {
+	public $runInTerminal(args: DebugProtocol.RunInTerminalRequestArguments, config: ITerminalSettings): Thenable<void> {
 
 		if (args.kind === 'integrated') {
 
@@ -300,7 +298,7 @@ export class ExtHostDebugService implements ExtHostDebugServiceShape {
 				});
 			}
 
-			return new TPromise(resolve => {
+			return new Promise(resolve => {
 				if (this._integratedTerminalInstance) {
 					this._integratedTerminalInstance.processId.then(pid => {
 						resolve(hasChildprocesses(pid));
@@ -318,7 +316,7 @@ export class ExtHostDebugService implements ExtHostDebugServiceShape {
 
 				this._integratedTerminalInstance.show();
 
-				return new TPromise((resolve, error) => {
+				return new Promise((resolve) => {
 					setTimeout(_ => {
 						const command = prepareCommand(args, config);
 						this._integratedTerminalInstance.sendText(command, true);
@@ -337,7 +335,7 @@ export class ExtHostDebugService implements ExtHostDebugServiceShape {
 		return void 0;
 	}
 
-	public $substituteVariables(folderUri: UriComponents | undefined, config: IConfig): TPromise<IConfig> {
+	public $substituteVariables(folderUri: UriComponents | undefined, config: IConfig): Promise<IConfig> {
 		if (!this._variableResolver) {
 			this._variableResolver = new ExtHostVariableResolverService(this._workspaceService, this._editorsService, this._configurationService);
 		}
@@ -353,10 +351,10 @@ export class ExtHostDebugService implements ExtHostDebugServiceShape {
 				}
 			};
 		}
-		return TPromise.wrap(this._variableResolver.resolveAny(ws, config));
+		return Promise.resolve(this._variableResolver.resolveAny(ws, config));
 	}
 
-	public $startDASession(handle: number, sessionDto: IDebugSessionDto, folderUri: UriComponents | undefined, config: vscode.DebugConfiguration): TPromise<void> {
+	public $startDASession(handle: number, sessionDto: IDebugSessionDto, folderUri: UriComponents | undefined, config: vscode.DebugConfiguration): Thenable<void> {
 		const mythis = this;
 
 		return this.getAdapterDescriptor(this._providerByType.get(config.type), sessionDto, folderUri, config).then(adapter => {
@@ -392,17 +390,14 @@ export class ExtHostDebugService implements ExtHostDebugServiceShape {
 
 					da.onMessage(message => {
 
-						// since we modify Source.paths in the message in place, we need to make a copy of it (see #61129)
-						const msg = deepClone(message);
-
 						if (tracker) {
-							tracker.fromDebugAdapter(msg);
+							tracker.fromDebugAdapter(message);
 						}
 
 						// DA -> VS Code
-						convertToVSCPaths(msg, source => stringToUri(source));
+						message = convertToVSCPaths(message, source => stringToUri(source));
 
-						mythis._debugServiceProxy.$acceptDAMessage(handle, msg);
+						mythis._debugServiceProxy.$acceptDAMessage(handle, message);
 					});
 					da.onError(err => {
 						if (tracker) {
@@ -429,9 +424,10 @@ export class ExtHostDebugService implements ExtHostDebugServiceShape {
 		});
 	}
 
-	public $sendDAMessage(handle: number, message: DebugProtocol.ProtocolMessage): TPromise<void> {
+	public $sendDAMessage(handle: number, message: DebugProtocol.ProtocolMessage): Promise<void> {
+
 		// VS Code -> DA
-		convertToDAPaths(message, source => uriToString(source));
+		message = convertToDAPaths(message, source => uriToString(source));
 
 		const tracker = this._debugAdaptersTrackers.get(handle);
 		if (tracker) {
@@ -445,7 +441,7 @@ export class ExtHostDebugService implements ExtHostDebugServiceShape {
 		return void 0;
 	}
 
-	public $stopDASession(handle: number): TPromise<void> {
+	public $stopDASession(handle: number): Thenable<void> {
 
 		const tracker = this._debugAdaptersTrackers.get(handle);
 		this._debugAdaptersTrackers.delete(handle);
@@ -526,10 +522,10 @@ export class ExtHostDebugService implements ExtHostDebugServiceShape {
 	public $provideDebugConfigurations(handle: number, folderUri: UriComponents | undefined): Thenable<vscode.DebugConfiguration[]> {
 		let provider = this._providerByHandle.get(handle);
 		if (!provider) {
-			return TPromise.wrapError<vscode.DebugConfiguration[]>(new Error('no handler found'));
+			return Promise.reject(new Error('no handler found'));
 		}
 		if (!provider.provideDebugConfigurations) {
-			return TPromise.wrapError<vscode.DebugConfiguration[]>(new Error('handler has no method provideDebugConfigurations'));
+			return Promise.reject(new Error('handler has no method provideDebugConfigurations'));
 		}
 		return asThenable(() => provider.provideDebugConfigurations(this.getFolder(folderUri), CancellationToken.None));
 	}
@@ -537,10 +533,10 @@ export class ExtHostDebugService implements ExtHostDebugServiceShape {
 	public $resolveDebugConfiguration(handle: number, folderUri: UriComponents | undefined, debugConfiguration: vscode.DebugConfiguration): Thenable<vscode.DebugConfiguration> {
 		let provider = this._providerByHandle.get(handle);
 		if (!provider) {
-			return TPromise.wrapError<vscode.DebugConfiguration>(new Error('no handler found'));
+			return Promise.reject(new Error('no handler found'));
 		}
 		if (!provider.resolveDebugConfiguration) {
-			return TPromise.wrapError<vscode.DebugConfiguration>(new Error('handler has no method resolveDebugConfiguration'));
+			return Promise.reject(new Error('handler has no method resolveDebugConfiguration'));
 		}
 		return asThenable(() => provider.resolveDebugConfiguration(this.getFolder(folderUri), debugConfiguration, CancellationToken.None));
 	}
@@ -548,10 +544,10 @@ export class ExtHostDebugService implements ExtHostDebugServiceShape {
 	public $provideDebugAdapter(handle: number, sessionDto: IDebugSessionDto, folderUri: UriComponents | undefined, config: vscode.DebugConfiguration): Thenable<vscode.DebugAdapterDescriptor> {
 		let provider = this._providerByHandle.get(handle);
 		if (!provider) {
-			return TPromise.wrapError<vscode.DebugAdapterExecutable>(new Error('no handler found'));
+			return Promise.reject(new Error('no handler found'));
 		}
 		if (!provider.debugAdapterExecutable && !provider.provideDebugAdapter) {
-			return TPromise.wrapError<vscode.DebugAdapterExecutable>(new Error('handler has no methods provideDebugAdapter or debugAdapterExecutable'));
+			return Promise.reject(new Error('handler has no methods provideDebugAdapter or debugAdapterExecutable'));
 		}
 		return this.getAdapterDescriptor(provider, this.getSession(sessionDto), folderUri, config);
 	}
@@ -602,7 +598,7 @@ export class ExtHostDebugService implements ExtHostDebugServiceShape {
 		return false;
 	}
 
-	private getDebugAdapterTrackers(sessionDto: IDebugSessionDto, folderUri: UriComponents | undefined, config: vscode.DebugConfiguration): TPromise<vscode.IDebugAdapterTracker> {
+	private getDebugAdapterTrackers(sessionDto: IDebugSessionDto, folderUri: UriComponents | undefined, config: vscode.DebugConfiguration): Promise<vscode.DebugAdapterTracker> {
 
 		const session = this.getSession(sessionDto);
 		const folder = this.getFolder(folderUri);
@@ -610,12 +606,24 @@ export class ExtHostDebugService implements ExtHostDebugServiceShape {
 		const type = config.type;
 		const promises = this._providers
 			.filter(pair => pair.provider.provideDebugAdapterTracker && (pair.type === type || pair.type === '*'))
-			.map(pair => pair.provider.provideDebugAdapterTracker(session, folder, config, CancellationToken.None));
+			.map(pair => asThenable(() => pair.provider.provideDebugAdapterTracker(session, folder, config, CancellationToken.None)).then(p => p).catch(err => null));
 
-		return TPromise.join(promises).then(trackers => {
-			if (trackers.length > 0) {
-				return new MultiTracker(trackers);
-			}
+		return Promise.race([
+			Promise.all(promises).then(trackers => {
+				trackers = trackers.filter(t => t);	// filter null
+				if (trackers.length > 0) {
+					return new MultiTracker(trackers);
+				}
+				return undefined;
+			}),
+			new Promise((resolve, reject) => {
+				const timeout = setTimeout(() => {
+					clearTimeout(timeout);
+					reject(new Error('timeout'));
+				}, 1000);
+			})
+		]).catch(err => {
+			// ignore errors
 			return undefined;
 		});
 	}
@@ -624,7 +632,7 @@ export class ExtHostDebugService implements ExtHostDebugServiceShape {
 
 		// a "debugServer" attribute in the launch config takes precedence
 		if (typeof config.debugServer === 'number') {
-			return TPromise.wrap(new DebugAdapterServer(config.debugServer));
+			return Promise.resolve(new DebugAdapterServer(config.debugServer));
 		}
 
 		if (debugConfigProvider) {
@@ -649,7 +657,7 @@ export class ExtHostDebugService implements ExtHostDebugServiceShape {
 		}
 
 		// fallback: use executable information from package.json
-		return TPromise.wrap(ExecutableDebugAdapter.platformAdapterExecutable(this._extensionService.getAllExtensionDescriptions(), config.type));
+		return Promise.resolve(ExecutableDebugAdapter.platformAdapterExecutable(this._extensionService.getAllExtensionDescriptions(), config.type));
 	}
 
 	private startBreakpoints() {
@@ -799,9 +807,9 @@ interface IDapTransport {
 	stop(): void;
 }
 
-class MultiTracker implements vscode.IDebugAdapterTracker {
+class MultiTracker implements vscode.DebugAdapterTracker {
 
-	constructor(private trackers: vscode.IDebugAdapterTracker[]) {
+	constructor(private trackers: vscode.DebugAdapterTracker[]) {
 	}
 
 	startDebugAdapter(): void {
@@ -869,8 +877,8 @@ class DirectDebugAdapter extends AbstractDebugAdapter {
 		}
 	}
 
-	startSession(): TPromise<void> {
-		return TPromise.wrap(void 0);
+	startSession(): Promise<void> {
+		return Promise.resolve(void 0);
 	}
 
 	// VSCode -> DA
@@ -878,8 +886,8 @@ class DirectDebugAdapter extends AbstractDebugAdapter {
 		this.transport.sendUp(message);
 	}
 
-	stopSession(): TPromise<void> {
+	stopSession(): Promise<void> {
 		this.transport.stop();
-		return TPromise.wrap(void 0);
+		return Promise.resolve(void 0);
 	}
 }

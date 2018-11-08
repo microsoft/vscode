@@ -29,14 +29,15 @@ export class LocalizationsChannel implements ILocalizationsChannel {
 			case 'onDidLanguagesChange': return this.onDidLanguagesChange;
 		}
 
-		throw new Error('No event found');
+		throw new Error(`Event not found: ${event}`);
 	}
 
 	call(command: string, arg?: any): Thenable<any> {
 		switch (command) {
 			case 'getLanguageIds': return this.service.getLanguageIds(arg);
 		}
-		return undefined;
+
+		throw new Error(`Call not found: ${command}`);
 	}
 }
 

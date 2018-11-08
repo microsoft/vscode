@@ -3,17 +3,17 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { TokenTheme, ITokenThemeRule, generateTokensCSSForColorMap } from 'vs/editor/common/modes/supports/tokenization';
-import { IStandaloneThemeService, BuiltinTheme, IStandaloneThemeData, IStandaloneTheme } from 'vs/editor/standalone/common/standaloneThemeService';
-import { vs, vs_dark, hc_black } from 'vs/editor/standalone/common/themes';
 import * as dom from 'vs/base/browser/dom';
-import { TokenizationRegistry } from 'vs/editor/common/modes';
 import { Color } from 'vs/base/common/color';
-import { Extensions, IColorRegistry, ColorIdentifier } from 'vs/platform/theme/common/colorRegistry';
-import { Extensions as ThemingExtensions, IThemingRegistry, ICssStyleCollector } from 'vs/platform/theme/common/themeService';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { Event, Emitter } from 'vs/base/common/event';
+import { Emitter, Event } from 'vs/base/common/event';
+import { TokenizationRegistry } from 'vs/editor/common/modes';
+import { ITokenThemeRule, TokenTheme, generateTokensCSSForColorMap } from 'vs/editor/common/modes/supports/tokenization';
+import { BuiltinTheme, IStandaloneTheme, IStandaloneThemeData, IStandaloneThemeService } from 'vs/editor/standalone/common/standaloneThemeService';
+import { hc_black, vs, vs_dark } from 'vs/editor/standalone/common/themes';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
+import { Registry } from 'vs/platform/registry/common/platform';
+import { ColorIdentifier, Extensions, IColorRegistry } from 'vs/platform/theme/common/colorRegistry';
+import { Extensions as ThemingExtensions, ICssStyleCollector, IIconTheme, IThemingRegistry } from 'vs/platform/theme/common/themeService';
 
 const VS_THEME_NAME = 'vs';
 const VS_DARK_THEME_NAME = 'vs-dark';
@@ -163,10 +163,12 @@ export class StandaloneThemeServiceImpl implements IStandaloneThemeService {
 	private _styleElement: HTMLStyleElement;
 	private _theme: IStandaloneTheme;
 	private readonly _onThemeChange: Emitter<IStandaloneTheme>;
+	private readonly _onIconThemeChange: Emitter<IIconTheme>;
 	private environment: IEnvironmentService = Object.create(null);
 
 	constructor() {
 		this._onThemeChange = new Emitter<IStandaloneTheme>();
+		this._onIconThemeChange = new Emitter<IIconTheme>();
 
 		this._knownThemes = new Map<string, StandaloneTheme>();
 		this._knownThemes.set(VS_THEME_NAME, newBuiltInTheme(VS_THEME_NAME));
@@ -238,5 +240,17 @@ export class StandaloneThemeServiceImpl implements IStandaloneThemeService {
 		this._onThemeChange.fire(theme);
 
 		return theme.id;
+	}
+
+	public getIconTheme(): IIconTheme {
+		return {
+			hasFileIcons: false,
+			hasFolderIcons: false,
+			hidesExplorerArrows: false
+		};
+	}
+
+	public get onIconThemeChange(): Event<IIconTheme> {
+		return this._onIconThemeChange.event;
 	}
 }

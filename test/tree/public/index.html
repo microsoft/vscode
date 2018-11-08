@@ -51,7 +51,7 @@
 				const renderer = {
 					templateId: 'template',
 					renderTemplate(container) { return container; },
-					renderElement(element, index, container) { container.textContent = element; },
+					renderElement(element, index, container) { container.textContent = element.element; },
 					disposeElement() { },
 					disposeTemplate() { }
 				};
@@ -159,10 +159,10 @@
 					const { tree, treeFilter } = createIndexTree();
 
 					const files = [];
-					for (let i = 0; i < 10000; i++) {
+					for (let i = 0; i < 100000; i++) {
 						const errors = [];
 
-						for (let j = 1; j <= (i % 5) + 1; j++) {
+						for (let j = 1; j <= 3; j++) {
 							errors.push({ element: `error #${j}` });
 						}
 

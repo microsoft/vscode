@@ -384,6 +384,7 @@ suite('window namespace tests', () => {
 
 	test('showQuickPick, accept first', async function () {
 		const pick = window.showQuickPick(['eins', 'zwei', 'drei']);
+		await new Promise(resolve => setTimeout(resolve, 10)); // Allow UI to update.
 		await commands.executeCommand('workbench.action.acceptSelectedQuickOpenItem');
 		assert.equal(await pick, 'eins');
 	});
@@ -421,6 +422,7 @@ suite('window namespace tests', () => {
 			canPickMany: true
 		});
 		const first = new Promise(resolve => resolves.push(resolve));
+		await new Promise(resolve => setTimeout(resolve, 10)); // Allow UI to update.
 		await commands.executeCommand('workbench.action.quickOpenSelectNext');
 		assert.equal(await first, 'eins');
 		await commands.executeCommand('workbench.action.quickPickManyToggle');
@@ -442,6 +444,7 @@ suite('window namespace tests', () => {
 		], {
 				canPickMany: true
 			});
+		await new Promise(resolve => setTimeout(resolve, 10)); // Allow UI to update.
 		await commands.executeCommand('workbench.action.acceptSelectedQuickOpenItem');
 		assert.deepStrictEqual((await picks)!.map(pick => pick.label), ['zwei', 'drei']);
 	});

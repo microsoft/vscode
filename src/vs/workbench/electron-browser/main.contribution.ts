@@ -66,7 +66,7 @@ if (OpenTipsAndTricksUrlAction.AVAILABLE) {
 	workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(OpenTipsAndTricksUrlAction, OpenTipsAndTricksUrlAction.ID, OpenTipsAndTricksUrlAction.LABEL), 'Help: Tips and Tricks', helpCategory);
 }
 
-workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(OpenTwitterUrlAction, OpenTwitterUrlAction.ID, OpenTwitterUrlAction.LABEL), 'Help: Join us on Twitter', helpCategory);
+workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(OpenTwitterUrlAction, OpenTwitterUrlAction.ID, OpenTwitterUrlAction.LABEL), 'Help: Join Us on Twitter', helpCategory);
 workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(OpenRequestFeatureUrlAction, OpenRequestFeatureUrlAction.ID, OpenRequestFeatureUrlAction.LABEL), 'Help: Search Feature Requests', helpCategory);
 workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(OpenLicenseUrlAction, OpenLicenseUrlAction.ID, OpenLicenseUrlAction.LABEL), 'Help: View License', helpCategory);
 workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(OpenPrivacyStatementUrlAction, OpenPrivacyStatementUrlAction.ID, OpenPrivacyStatementUrlAction.LABEL), 'Help: Privacy Statement', helpCategory);
@@ -392,7 +392,7 @@ MenuRegistry.appendMenuItem(MenuId.MenubarHelpMenu, {
 	group: '3_feedback',
 	command: {
 		id: 'workbench.action.openTwitterUrl',
-		title: nls.localize({ key: 'miTwitter', comment: ['&& denotes a mnemonic'] }, "&&Join us on Twitter")
+		title: nls.localize({ key: 'miTwitter', comment: ['&& denotes a mnemonic'] }, "&&Join Us on Twitter")
 	},
 	order: 1
 });
@@ -521,12 +521,12 @@ configurationRegistry.registerConfiguration({
 		},
 		'workbench.editor.enablePreview': {
 			'type': 'boolean',
-			'description': nls.localize('enablePreview', "Controls whether opened editors show as preview. Preview editors are reused until they are kept (e.g. via double click or editing) and show up with an italic font style."),
+			'description': nls.localize('enablePreview', "Controls whether opened editors show as preview. Preview editors are reused until they are pinned (e.g. via double click or editing) and show up with an italic font style."),
 			'default': true
 		},
 		'workbench.editor.enablePreviewFromQuickOpen': {
 			'type': 'boolean',
-			'description': nls.localize('enablePreviewFromQuickOpen', "Controls whether opened editors from Quick Open show as preview. Preview editors are reused until they are kept (e.g. via double click or editing)."),
+			'description': nls.localize('enablePreviewFromQuickOpen', "Controls whether opened editors from Quick Open show as preview. Preview editors are reused until they are pinned (e.g. via double click or editing)."),
 			'default': true
 		},
 		'workbench.editor.closeOnFileDelete': {
@@ -600,7 +600,7 @@ configurationRegistry.registerConfiguration({
 		'workbench.settings.openDefaultKeybindings': {
 			'type': 'boolean',
 			'description': nls.localize('openDefaultKeybindings', "Controls whether opening keybinding settings also opens an editor showing all default keybindings."),
-			'default': false
+			'default': true
 		},
 		'workbench.sideBar.location': {
 			'type': 'string',
@@ -677,6 +677,12 @@ configurationRegistry.registerConfiguration({
 			'description': nls.localize('workbench.enableExperiments', "Fetches experiments to run from a Microsoft online service."),
 			'default': true,
 			'tags': ['usesOnlineServices']
+		},
+		//TODO@Ben remove ('enableLegacyStorage') after a while
+		'workbench.enableLegacyStorage': {
+			'type': 'boolean',
+			'description': nls.localize('workbench.enableLegacyStorage', "Switches back to the previous storage implementation. Only change this setting if advised to do so."),
+			'default': false
 		}
 	}
 });
@@ -817,6 +823,19 @@ configurationRegistry.registerConfiguration({
 			'scope': ConfigurationScope.APPLICATION,
 			'description': nls.localize('window.nativeTabs', "Enables macOS Sierra window tabs. Note that changes require a full restart to apply and that native tabs will disable a custom title bar style if configured."),
 			'included': isMacintosh && parseFloat(os.release()) >= 16 // Minimum: macOS Sierra (10.12.x = darwin 16.x)
+		},
+		'window.nativeFullScreen': {
+			'type': 'boolean',
+			'default': true,
+			'description': nls.localize('window.nativeFullScreen', "Controls if native full-screen should be used on macOS. Disable this option to prevent macOS from creating a new space when going full-screen."),
+			'included': isMacintosh
+		},
+		'window.smoothScrollingWorkaround': {
+			'type': 'boolean',
+			'default': false,
+			'scope': ConfigurationScope.APPLICATION,
+			'markdownDescription': nls.localize('window.smoothScrollingWorkaround', "Enable this workaround if scrolling is no longer smooth after restoring a minimized VS Code window. This is a workaround for an issue (https://github.com/Microsoft/vscode/issues/13612) where scrolling starts to lag on devices with precision trackpads like the Surface devices from Microsoft. Enabling this workaround can result in a little bit of layout flickering after restoring the window from minimized state but is otherwise harmless. Note: in order for this workaround to function, make sure to also set `#window.titleBarStyle#` to `native`."),
+			'included': isWindows
 		},
 		'window.clickThroughInactive': {
 			'type': 'boolean',

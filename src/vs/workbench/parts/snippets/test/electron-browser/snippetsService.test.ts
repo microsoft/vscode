@@ -11,6 +11,7 @@ import { ModeServiceImpl } from 'vs/editor/common/services/modeServiceImpl';
 import { TextModel } from 'vs/editor/common/model/textModel';
 import { ISnippetsService } from 'vs/workbench/parts/snippets/electron-browser/snippets.contribution';
 import { Snippet, SnippetSource } from 'vs/workbench/parts/snippets/electron-browser/snippetsFile';
+import { LanguageConfigurationRegistry } from 'vs/editor/common/modes/languageConfigurationRegistry';
 
 class SimpleSnippetService implements ISnippetsService {
 	_serviceBrand: any;
@@ -324,6 +325,49 @@ suite('SnippetsService', function () {
 
 		let model = TextModel.createFromString('Thisisaverylonglinegoingwithmore100bcharactersandthismakesintellisensebecomea Thisisaverylonglinegoingwithmore100bcharactersandthismakesintellisensebecomea b text_after_b', undefined, modeService.getLanguageIdentifier('fooLang'));
 		let result = await provider.provideCompletionItems(model, new Position(1, 158));
+
+		assert.equal(result.suggestions.length, 1);
+	});
+
+	test('issue #61296: VS code freezes when editing CSS file with emoji', async function () {
+		let toDispose = LanguageConfigurationRegistry.register(modeService.getLanguageIdentifier('fooLang'), {
+			wordPattern: /(#?-?\d*\.\d\w*%?)|(::?[\w-]*(?=[^,{;]*[,{]))|(([@#.!])?[\w-?]+%?|[@#!.])/g
+		});
+		snippetService = new SimpleSnippetService([new Snippet(
+			['fooLang'],
+			'bug',
+			'-a-bug',
+			'',
+			'second',
+			'',
+			SnippetSource.User
+		)]);
+
+		const provider = new SnippetCompletionProvider(modeService, snippetService);
+
+		let model = TextModel.createFromString('.🐷-a-b', undefined, modeService.getLanguageIdentifier('fooLang'));
+		let result = await provider.provideCompletionItems(model, new Position(1, 8));
+
+		assert.equal(result.suggestions.length, 1);
+
+		toDispose.dispose();
+	});
+
+	test('No snippets shown when triggering completions at whitespace on line that already has text #62335', async function () {
+		snippetService = new SimpleSnippetService([new Snippet(
+			['fooLang'],
+			'bug',
+			'bug',
+			'',
+			'second',
+			'',
+			SnippetSource.User
+		)]);
+
+		const provider = new SnippetCompletionProvider(modeService, snippetService);
+
+		let model = TextModel.createFromString('a ', undefined, modeService.getLanguageIdentifier('fooLang'));
+		let result = await provider.provideCompletionItems(model, new Position(1, 3));
 
 		assert.equal(result.suggestions.length, 1);
 	});

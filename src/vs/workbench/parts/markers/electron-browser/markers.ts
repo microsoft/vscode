@@ -65,4 +65,4 @@ export class MarkersWorkbenchService extends Disposable implements IMarkersWorkb
 	}
 }
 
-registerSingleton(IMarkersWorkbenchService, MarkersWorkbenchService);
+registerSingleton(IMarkersWorkbenchService, MarkersWorkbenchService, true);

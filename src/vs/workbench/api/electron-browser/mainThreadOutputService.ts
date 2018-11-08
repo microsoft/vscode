@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { TPromise } from 'vs/base/common/winjs.base';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IOutputService, IOutputChannel, OUTPUT_PANEL_ID, Extensions, IOutputChannelRegistry } from 'vs/workbench/parts/output/common/output';
 import { IPartService } from 'vs/workbench/services/part/common/partService';
@@ -11,7 +10,7 @@ import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 import { MainThreadOutputServiceShape, MainContext, IExtHostContext, ExtHostOutputServiceShape, ExtHostContext } from '../node/extHost.protocol';
 import { extHostNamedCustomer } from 'vs/workbench/api/electron-browser/extHostCustomers';
 import { UriComponents, URI } from 'vs/base/common/uri';
-import { Disposable } from 'vs/base/common/lifecycle';
+import { Disposable, toDisposable } from 'vs/base/common/lifecycle';
 import { anyEvent } from 'vs/base/common/event';
 
 @extHostNamedCustomer(MainContext.MainThreadOutputService)
@@ -46,15 +45,11 @@ export class MainThreadOutputService extends Disposable implements MainThreadOut
 		setVisibleChannel();
 	}
 
-	public dispose(): void {
-		super.dispose();
-		// Leave all the existing channels intact (e.g. might help with troubleshooting)
-	}
-
 	public $register(label: string, log: boolean, file?: UriComponents): Thenable<string> {
 		const id = 'extension-output-#' + (MainThreadOutputService._idPool++);
 		Registry.as<IOutputChannelRegistry>(Extensions.OutputChannels).registerChannel({ id, label, file: file ? URI.revive(file) : null, log });
-		return TPromise.as(id);
+		this._register(toDisposable(() => this.$dispose(id)));
+		return Promise.resolve(id);
 	}
 
 	public $append(channelId: string, value: string): Thenable<void> {
@@ -92,7 +87,7 @@ export class MainThreadOutputService extends Disposable implements MainThreadOut
 	public $close(channelId: string): Thenable<void> {
 		const panel = this._panelService.getActivePanel();
 		if (panel && panel.getId() === OUTPUT_PANEL_ID && channelId === this._outputService.getActiveChannel().id) {
-			return this._partService.setPanelHidden(true);
+			this._partService.setPanelHidden(true);
 		}
 
 		return undefined;

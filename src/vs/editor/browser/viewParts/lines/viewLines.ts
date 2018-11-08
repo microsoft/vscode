@@ -4,20 +4,20 @@
  *--------------------------------------------------------------------------------------------*/
 
 import 'vs/css!./viewLines';
-import { RunOnceScheduler } from 'vs/base/common/async';
 import { FastDomNode } from 'vs/base/browser/fastDomNode';
-import { Range } from 'vs/editor/common/core/range';
-import { Position } from 'vs/editor/common/core/position';
-import { VisibleLinesCollection, IVisibleLinesHost } from 'vs/editor/browser/view/viewLayer';
-import { ViewLineOptions, DomReadingContext, ViewLine } from 'vs/editor/browser/viewParts/lines/viewLine';
+import { RunOnceScheduler } from 'vs/base/common/async';
 import { Configuration } from 'vs/editor/browser/config/configuration';
-import { ViewContext } from 'vs/editor/common/view/viewContext';
-import { ViewportData } from 'vs/editor/common/viewLayout/viewLinesViewportData';
-import { IViewLines, HorizontalRange, LineVisibleRanges } from 'vs/editor/common/view/renderingContext';
-import { Viewport } from 'vs/editor/common/viewModel/viewModel';
-import { ViewPart, PartFingerprint, PartFingerprints } from 'vs/editor/browser/view/viewPart';
-import * as viewEvents from 'vs/editor/common/view/viewEvents';
+import { IVisibleLinesHost, VisibleLinesCollection } from 'vs/editor/browser/view/viewLayer';
+import { PartFingerprint, PartFingerprints, ViewPart } from 'vs/editor/browser/view/viewPart';
+import { DomReadingContext, ViewLine, ViewLineOptions } from 'vs/editor/browser/viewParts/lines/viewLine';
+import { Position } from 'vs/editor/common/core/position';
+import { Range } from 'vs/editor/common/core/range';
 import { ScrollType } from 'vs/editor/common/editorCommon';
+import { HorizontalRange, IViewLines, LineVisibleRanges } from 'vs/editor/common/view/renderingContext';
+import { ViewContext } from 'vs/editor/common/view/viewContext';
+import * as viewEvents from 'vs/editor/common/view/viewEvents';
+import { ViewportData } from 'vs/editor/common/viewLayout/viewLinesViewportData';
+import { Viewport } from 'vs/editor/common/viewModel/viewModel';
 
 class LastRenderedData {
 
@@ -57,7 +57,7 @@ class HorizontalRevealRequest {
 
 export class ViewLines extends ViewPart implements IVisibleLinesHost<ViewLine>, IViewLines {
 	/**
-	 * Adds this ammount of pixels to the right of lines (no-one wants to type near the edge of the viewport)
+	 * Adds this amount of pixels to the right of lines (no-one wants to type near the edge of the viewport)
 	 */
 	private static readonly HORIZONTAL_EXTRA_PX = 30;
 

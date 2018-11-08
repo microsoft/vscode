@@ -3,25 +3,27 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { IPosition } from 'vs/base/browser/ui/contextview/contextview';
+import { always } from 'vs/base/common/async';
 import { illegalArgument } from 'vs/base/common/errors';
 import { URI } from 'vs/base/common/uri';
-import { ServicesAccessor, IConstructorSignature1 } from 'vs/platform/instantiation/common/instantiation';
+import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
+import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
+import { Position } from 'vs/editor/common/core/position';
+import { IEditorContribution } from 'vs/editor/common/editorCommon';
+import { ITextModel } from 'vs/editor/common/model';
+import { IModelService } from 'vs/editor/common/services/modelService';
+import { ITextModelService } from 'vs/editor/common/services/resolverService';
+import { MenuId, MenuRegistry } from 'vs/platform/actions/common/actions';
 import { CommandsRegistry, ICommandHandlerDescription } from 'vs/platform/commands/common/commands';
-import { KeybindingsRegistry, IKeybindings } from 'vs/platform/keybinding/common/keybindingsRegistry';
+import { ContextKeyExpr, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { IConstructorSignature1, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
+import { IKeybindings, KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { Position } from 'vs/editor/common/core/position';
-import * as editorCommon from 'vs/editor/common/editorCommon';
-import { IModelService } from 'vs/editor/common/services/modelService';
-import { MenuId, MenuRegistry } from 'vs/platform/actions/common/actions';
-import { IContextKeyService, ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
-import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
-import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { ITextModel } from 'vs/editor/common/model';
-import { IPosition } from 'vs/base/browser/ui/contextview/contextview';
 
 export type ServicesAccessor = ServicesAccessor;
-export type IEditorContributionCtor = IConstructorSignature1<ICodeEditor, editorCommon.IEditorContribution>;
+export type IEditorContributionCtor = IConstructorSignature1<ICodeEditor, IEditorContribution>;
 
 //#region Command
 
@@ -116,7 +118,7 @@ export abstract class Command {
 export interface IContributionCommandOptions<T> extends ICommandOptions {
 	handler: (controller: T) => void;
 }
-export interface EditorControllerCommand<T extends editorCommon.IEditorContribution> {
+export interface EditorControllerCommand<T extends IEditorContribution> {
 	new(opts: IContributionCommandOptions<T>): EditorCommand;
 }
 export abstract class EditorCommand extends Command {
@@ -124,7 +126,7 @@ export abstract class EditorCommand extends Command {
 	/**
 	 * Create a command class that is bound to a certain editor contribution.
 	 */
-	public static bindToContribution<T extends editorCommon.IEditorContribution>(controllerGetter: (editor: ICodeEditor) => T): EditorControllerCommand<T> {
+	public static bindToContribution<T extends IEditorContribution>(controllerGetter: (editor: ICodeEditor) => T): EditorControllerCommand<T> {
 		return class EditorControllerCommandImpl extends EditorCommand {
 			private _callback: (controller: T) => void;
 
@@ -258,13 +260,23 @@ export function registerDefaultLanguageCommand(id: string, handler: (model: ITex
 		}
 
 		const model = accessor.get(IModelService).getModel(resource);
-		if (!model) {
-			throw illegalArgument('Can not find open model for ' + resource);
+		if (model) {
+			const editorPosition = Position.lift(position);
+			return handler(model, editorPosition, args);
 		}
 
-		const editorPosition = Position.lift(position);
-
-		return handler(model, editorPosition, args);
+		return accessor.get(ITextModelService).createModelReference(resource).then(reference => {
+			return always(new Promise((resolve, reject) => {
+				try {
+					let result = handler(reference.object.textEditorModel, Position.lift(position), args);
+					resolve(result);
+				} catch (err) {
+					reject(err);
+				}
+			}), () => {
+				reference.dispose();
+			});
+		});
 	});
 }
 

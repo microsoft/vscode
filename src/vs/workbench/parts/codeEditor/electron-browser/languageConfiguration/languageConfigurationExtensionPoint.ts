@@ -4,18 +4,19 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as nls from 'vs/nls';
+import { ParseError, parse } from 'vs/base/common/json';
+import { IJSONSchema } from 'vs/base/common/jsonSchema';
 import * as types from 'vs/base/common/types';
-import { parse, ParseError } from 'vs/base/common/json';
-import { CharacterPair, LanguageConfiguration, IAutoClosingPair, IAutoClosingPairConditional, IndentationRule, CommentRule, FoldingRules } from 'vs/editor/common/modes/languageConfiguration';
-import { IModeService } from 'vs/editor/common/services/modeService';
+import { URI } from 'vs/base/common/uri';
+import { LanguageIdentifier } from 'vs/editor/common/modes';
+import { CharacterPair, CommentRule, FoldingRules, IAutoClosingPair, IAutoClosingPairConditional, IndentationRule, LanguageConfiguration } from 'vs/editor/common/modes/languageConfiguration';
 import { LanguageConfigurationRegistry } from 'vs/editor/common/modes/languageConfigurationRegistry';
+import { IModeService } from 'vs/editor/common/services/modeService';
+import { IFileService } from 'vs/platform/files/common/files';
 import { Extensions, IJSONContributionRegistry } from 'vs/platform/jsonschemas/common/jsonContributionRegistry';
 import { Registry } from 'vs/platform/registry/common/platform';
-import { IJSONSchema } from 'vs/base/common/jsonSchema';
-import { LanguageIdentifier } from 'vs/editor/common/modes';
+import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { ITextMateService } from 'vs/workbench/services/textMate/electron-browser/textMateService';
-import { URI } from 'vs/base/common/uri';
-import { IFileService } from 'vs/platform/files/common/files';
 
 interface IRegExp {
 	pattern: string;
@@ -67,12 +68,19 @@ export class LanguageConfigurationFileHandler {
 	constructor(
 		@ITextMateService textMateService: ITextMateService,
 		@IModeService private readonly _modeService: IModeService,
-		@IFileService private readonly _fileService: IFileService
+		@IFileService private readonly _fileService: IFileService,
+		@IExtensionService private readonly _extensionService: IExtensionService
 	) {
 		this._done = [];
 
 		// Listen for hints that a language configuration is needed/usefull and then load it once
-		this._modeService.onDidCreateMode((mode) => this._loadConfigurationsForMode(mode.getLanguageIdentifier()));
+		this._modeService.onDidCreateMode((mode) => {
+			const languageIdentifier = mode.getLanguageIdentifier();
+			// Modes can be instantiated before the extension points have finished registering
+			this._extensionService.whenInstalledExtensionsRegistered().then(() => {
+				this._loadConfigurationsForMode(languageIdentifier);
+			});
+		});
 		textMateService.onDidEncounterLanguage((languageId) => {
 			this._loadConfigurationsForMode(this._modeService.getLanguageIdentifier(languageId));
 		});
@@ -510,7 +518,7 @@ const schema: IJSONSchema = {
 				},
 				decreaseIndentPattern: {
 					type: ['string', 'object'],
-					description: nls.localize('schema.indentationRules.decreaseIndentPattern', 'If a line matches this pattern, then all the lines after it should be unindendented once (until another rule matches).'),
+					description: nls.localize('schema.indentationRules.decreaseIndentPattern', 'If a line matches this pattern, then all the lines after it should be unindented once (until another rule matches).'),
 					properties: {
 						pattern: {
 							type: 'string',

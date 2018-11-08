@@ -62,8 +62,14 @@ const eventPrefix = 'monacoworkbench';
 
 function main(server: Server, initData: ISharedProcessInitData, configuration: ISharedProcessConfiguration): void {
 	const services = new ServiceCollection();
+
 	const disposables: IDisposable[] = [];
-	process.once('exit', () => dispose(disposables));
+
+	const onExit = () => dispose(disposables);
+	process.once('exit', onExit);
+	ipcRenderer.once('handshake:goodbye', onExit);
+
+	disposables.push(server);
 
 	const environmentService = new EnvironmentService(initData.args, process.execPath);
 	const mainRoute = () => TPromise.as('main');
@@ -100,23 +106,22 @@ function main(server: Server, initData: ISharedProcessInitData, configuration: I
 		telemetryLogService.info('===========================================================');
 
 		let appInsightsAppender: ITelemetryAppender | null = NullAppender;
-		if (product.aiConfig && product.aiConfig.asimovKey && isBuilt) {
-			appInsightsAppender = new AppInsightsAppender(eventPrefix, null, product.aiConfig.asimovKey, telemetryLogService);
-			disposables.push(appInsightsAppender); // Ensure the AI appender is disposed so that it flushes remaining data
-		}
-		server.registerChannel('telemetryAppender', new TelemetryAppenderChannel(appInsightsAppender));
-
 		if (!extensionDevelopmentLocationURI && !environmentService.args['disable-telemetry'] && product.enableTelemetry) {
+			if (product.aiConfig && product.aiConfig.asimovKey && isBuilt) {
+				appInsightsAppender = new AppInsightsAppender(eventPrefix, null, product.aiConfig.asimovKey, telemetryLogService);
+				disposables.push(appInsightsAppender); // Ensure the AI appender is disposed so that it flushes remaining data
+			}
 			const config: ITelemetryServiceConfig = {
 				appender: combinedAppender(appInsightsAppender, new LogAppender(logService)),
 				commonProperties: resolveCommonProperties(product.commit, pkg.version, configuration.machineId, installSourcePath),
 				piiPaths: [appRoot, extensionsPath]
 			};
 
-			services.set(ITelemetryService, new SyncDescriptor(TelemetryService, config));
+			services.set(ITelemetryService, new SyncDescriptor(TelemetryService, [config]));
 		} else {
 			services.set(ITelemetryService, NullTelemetryService);
 		}
+		server.registerChannel('telemetryAppender', new TelemetryAppenderChannel(appInsightsAppender));
 
 		services.set(IExtensionManagementService, new SyncDescriptor(ExtensionManagementService));
 		services.set(IExtensionGalleryService, new SyncDescriptor(ExtensionGalleryService));

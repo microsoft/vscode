@@ -5,7 +5,7 @@
 
 import { Uri, commands, Disposable, window, workspace, QuickPickItem, OutputChannel, Range, WorkspaceEdit, Position, LineChange, SourceControlResourceState, TextDocumentShowOptions, ViewColumn, ProgressLocation, TextEditor, MessageOptions, WorkspaceFolder } from 'vscode';
 import { Git, CommitOptions, Stash, ForcePushMode } from './git';
-import { Repository, Resource, Status, ResourceGroupType } from './repository';
+import { Repository, Resource, ResourceGroupType } from './repository';
 import { Model } from './model';
 import { toGitUri, fromGitUri } from './uri';
 import { grep, isDescendant, pathEquals } from './util';
@@ -15,7 +15,7 @@ import { lstat, Stats } from 'fs';
 import * as os from 'os';
 import TelemetryReporter from 'vscode-extension-telemetry';
 import * as nls from 'vscode-nls';
-import { Ref, RefType, Branch, GitErrorCodes } from './api/git';
+import { Ref, RefType, Branch, GitErrorCodes, Status } from './api/git';
 
 const localize = nls.loadMessageBundle();
 
@@ -655,6 +655,7 @@ export class CommandCenter {
 	@command('git.openHEADFile')
 	async openHEADFile(arg?: Resource | Uri): Promise<void> {
 		let resource: Resource | undefined = undefined;
+		const preview = !(arg instanceof Resource);
 
 		if (arg instanceof Resource) {
 			resource = arg;
@@ -675,12 +676,18 @@ export class CommandCenter {
 			return;
 		}
 
-		return await commands.executeCommand<void>('vscode.open', HEAD);
+		const opts: TextDocumentShowOptions = {
+			preview
+		};
+
+		return await commands.executeCommand<void>('vscode.open', HEAD, opts);
 	}
 
 	@command('git.openChange')
 	async openChange(arg?: Resource | Uri, ...resourceStates: SourceControlResourceState[]): Promise<void> {
 		const preserveFocus = arg instanceof Resource;
+		const preview = !(arg instanceof Resource);
+
 		const preserveSelection = arg instanceof Uri || !arg;
 		let resources: Resource[] | undefined = undefined;
 
@@ -707,7 +714,6 @@ export class CommandCenter {
 			return;
 		}
 
-		const preview = resources.length === 1 ? undefined : false;
 		for (const resource of resources) {
 			await this._openResource(resource, preview, preserveFocus, preserveSelection);
 		}

@@ -4,9 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Event } from 'vs/base/common/event';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { IMode, LanguageId, LanguageIdentifier } from 'vs/editor/common/modes';
+import { IDisposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
+import { IMode, LanguageId, LanguageIdentifier } from 'vs/editor/common/modes';
+import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 
 export const IModeService = createDecorator<IModeService>('modeService');
 
@@ -19,6 +20,11 @@ export interface ILanguageExtensionPoint {
 	aliases?: string[];
 	mimetypes?: string[];
 	configuration?: URI;
+}
+
+export interface ILanguageSelection extends IDisposable {
+	readonly languageIdentifier: LanguageIdentifier;
+	readonly onDidChange: Event<LanguageIdentifier>;
 }
 
 export interface IModeService {
@@ -41,8 +47,9 @@ export interface IModeService {
 	getConfigurationFiles(modeId: string): URI[];
 
 	// --- instantiation
-	getMode(commaSeparatedMimetypesOrCommaSeparatedIds: string): IMode | null;
-	getOrCreateMode(commaSeparatedMimetypesOrCommaSeparatedIds: string): Promise<IMode>;
-	getOrCreateModeByLanguageName(languageName: string): Promise<IMode>;
-	getOrCreateModeByFilepathOrFirstLine(filepath: string, firstLine?: string): Promise<IMode>;
+	create(commaSeparatedMimetypesOrCommaSeparatedIds: string): ILanguageSelection;
+	createByLanguageName(languageName: string): ILanguageSelection;
+	createByFilepathOrFirstLine(filepath: string, firstLine?: string): ILanguageSelection;
+
+	triggerMode(commaSeparatedMimetypesOrCommaSeparatedIds: string): void;
 }

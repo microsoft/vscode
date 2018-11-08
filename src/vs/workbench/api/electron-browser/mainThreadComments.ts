@@ -5,7 +5,6 @@
 
 import { Disposable, IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { ICodeEditor, isCodeEditor, isDiffEditor, IDiffEditor } from 'vs/editor/browser/editorBrowser';
-import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import * as modes from 'vs/editor/common/modes';
 import { extHostNamedCustomer } from 'vs/workbench/api/electron-browser/extHostCustomers';
 import { keys } from 'vs/base/common/map';
@@ -16,7 +15,7 @@ import { ICommentService } from 'vs/workbench/parts/comments/electron-browser/co
 import { COMMENTS_PANEL_ID } from 'vs/workbench/parts/comments/electron-browser/commentsPanel';
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 import { URI } from 'vs/base/common/uri';
-import { ReviewController } from 'vs/workbench/parts/comments/electron-browser/commentsEditorContribution';
+import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 
 @extHostNamedCustomer(MainContext.MainThreadComments)
 export class MainThreadComments extends Disposable implements MainThreadCommentsShape {
@@ -26,70 +25,17 @@ export class MainThreadComments extends Disposable implements MainThreadComments
 	private _workspaceProviders = new Map<number, IDisposable>();
 	private _firstSessionStart: boolean;
 
-	private _visibleModels: { [key /** editor widget id */: string]: string /** model id */ };
 	constructor(
 		extHostContext: IExtHostContext,
 		@IEditorService private _editorService: IEditorService,
 		@ICommentService private _commentService: ICommentService,
 		@IPanelService private _panelService: IPanelService,
-		@ICodeEditorService private _codeEditorService: ICodeEditorService
+		@ITelemetryService private _telemetryService: ITelemetryService
 	) {
 		super();
 		this._disposables = [];
 		this._firstSessionStart = true;
-		this._visibleModels = {};
 		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostComments);
-		this._disposables.push(this._editorService.onDidVisibleEditorsChange(e => {
-			const editors = this.getFocusedEditors();
-			const visibleEditors = this.getVisibleEditors();
-
-			const _visibleEditors = {};
-			visibleEditors.forEach(editor => {
-				if (!editor.hasModel()) {
-					return; // we need a model
-				}
-				const id = editor.getId();
-				const model = editor.getModel();
-				if (editors.filter(ed => ed.getId() === id).length > 0) {
-					// it's an active editor, we are going to update this editor's comments anyways
-				} else {
-					if (this._visibleModels[id]) {
-						// it's the same active editor, but we may want to check if the model is still the same
-						let modelId = model.getModeId();
-						if (modelId !== this._visibleModels[id]) {
-							editors.push(editor);
-						}
-					} else {
-						// update
-						editors.push(editor);
-					}
-				}
-
-				_visibleEditors[id] = model.getModeId();
-			});
-
-			this._visibleModels = _visibleEditors;
-
-			if (!editors || !editors.length) {
-				return;
-			}
-
-			editors.forEach(editor => {
-				const controller = ReviewController.get(editor);
-				if (!controller) {
-					return;
-				}
-
-				if (!editor.getModel()) {
-					return;
-				}
-
-				const outerEditorURI = editor.getModel().uri;
-				this.provideDocumentComments(outerEditorURI).then(commentInfos => {
-					this._commentService.setDocumentComments(outerEditorURI, commentInfos.filter(info => info !== null));
-				});
-			});
-		}));
 	}
 
 	$registerDocumentCommentProvider(handle: number): void {
@@ -118,7 +64,7 @@ export class MainThreadComments extends Disposable implements MainThreadComments
 		);
 	}
 
-	$registerWorkspaceCommentProvider(handle: number): void {
+	$registerWorkspaceCommentProvider(handle: number, extensionId: string): void {
 		this._workspaceProviders.set(handle, undefined);
 		this._panelService.setPanelEnablement(COMMENTS_PANEL_ID, true);
 		if (this._firstSessionStart) {
@@ -129,6 +75,15 @@ export class MainThreadComments extends Disposable implements MainThreadComments
 			if (commentThreads) {
 				this._commentService.setWorkspaceComments(handle, commentThreads);
 			}
+		});
+
+		/* __GDPR__
+			"comments:registerWorkspaceCommentProvider" : {
+				"extensionId" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+			}
+		*/
+		this._telemetryService.publicLog('comments:registerWorkspaceCommentProvider', {
+			extensionId: extensionId
 		});
 	}
 
@@ -151,7 +106,7 @@ export class MainThreadComments extends Disposable implements MainThreadComments
 	}
 
 	getVisibleEditors(): ICodeEditor[] {
-		let ret = [];
+		let ret: ICodeEditor[] = [];
 
 		this._editorService.visibleControls.forEach(control => {
 			if (isCodeEditor(control.getControl())) {
@@ -165,27 +120,6 @@ export class MainThreadComments extends Disposable implements MainThreadComments
 		});
 
 		return ret;
-	}
-
-	getFocusedEditors(): ICodeEditor[] {
-		let activeControl = this._editorService.activeControl;
-		if (activeControl) {
-			if (isCodeEditor(activeControl.getControl())) {
-				return [this._editorService.activeControl.getControl() as ICodeEditor];
-			}
-
-			if (isDiffEditor(activeControl.getControl())) {
-				let diffEditor = activeControl.getControl() as IDiffEditor;
-				return [diffEditor.getOriginalEditor(), diffEditor.getModifiedEditor()];
-			}
-		}
-
-		let editor = this._codeEditorService.getFocusedCodeEditor();
-
-		if (editor) {
-			return [editor];
-		}
-		return [];
 	}
 
 	async provideWorkspaceComments(): Promise<modes.CommentThread[]> {
@@ -210,6 +144,5 @@ export class MainThreadComments extends Disposable implements MainThreadComments
 		this._workspaceProviders.clear();
 		this._documentProviders.forEach(value => dispose(value));
 		this._documentProviders.clear();
-		this._visibleModels = {};
 	}
 }

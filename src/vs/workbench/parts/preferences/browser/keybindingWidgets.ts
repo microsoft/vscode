@@ -6,7 +6,6 @@
 import 'vs/css!./media/keybindings';
 import * as nls from 'vs/nls';
 import { OS } from 'vs/base/common/platform';
-import { TPromise } from 'vs/base/common/winjs.base';
 import { Disposable, dispose, toDisposable, IDisposable } from 'vs/base/common/lifecycle';
 import { Event, Emitter } from 'vs/base/common/event';
 import { KeybindingLabel } from 'vs/base/browser/ui/keybindingLabel/keybindingLabel';
@@ -180,9 +179,9 @@ export class DefineKeybindingWidget extends Widget {
 		return this._domNode.domNode;
 	}
 
-	define(): TPromise<string> {
+	define(): Promise<string> {
 		this._keybindingInputWidget.clear();
-		return new TPromise<string>((c, e) => {
+		return new Promise<string>((c) => {
 			if (!this._isVisible) {
 				this._isVisible = true;
 				this._domNode.setDisplay('block');
@@ -331,7 +330,7 @@ export class DefineKeybindingOverlayWidget extends Disposable implements IOverla
 		super.dispose();
 	}
 
-	public start(): TPromise<string> {
+	public start(): Promise<string> {
 		this._editor.revealPositionInCenterIfOutsideViewport(this._editor.getPosition(), ScrollType.Smooth);
 		const layoutInfo = this._editor.getLayoutInfo();
 		this._widget.layout(new dom.Dimension(layoutInfo.width, layoutInfo.height));

@@ -35,7 +35,6 @@ export interface ParsedArgs {
 	'trace-options'?: string;
 	log?: string;
 	logExtensionHostCommunication?: boolean;
-	logStorage?: boolean;
 	'extensions-dir'?: string;
 	'builtin-extensions-dir'?: string;
 	extensionDevelopmentPath?: string;
@@ -69,6 +68,7 @@ export interface ParsedArgs {
 	'upload-logs'?: string;
 	'driver'?: string;
 	'driver-verbose'?: boolean;
+	remote?: string;
 }
 
 export const IEnvironmentService = createDecorator<IEnvironmentService>('environmentService');
@@ -103,6 +103,8 @@ export interface IEnvironmentService {
 	settingsSearchBuildId: number;
 	settingsSearchUrl: string;
 
+	workspaceStorageHome: string;
+
 	backupHome: string;
 	backupWorkspacesPath: string;
 
@@ -119,7 +121,6 @@ export interface IEnvironmentService {
 	debugSearch: IDebugParams;
 
 	logExtensionHostCommunication: boolean;
-	logStorage: boolean;
 
 	isBuilt: boolean;
 	wait: boolean;

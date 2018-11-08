@@ -272,17 +272,12 @@ export class FileDialogService implements IFileDialogService {
 		if (defaultUri && defaultUri.scheme !== Schemas.file) {
 			return Promise.reject(new Error('Not supported - Open-dialogs can only be opened on `file`-uris.'));
 		}
-		const filters = [];
-		if (options.filters) {
-			for (let name in options.filters) {
-				filters.push({ name, extensions: options.filters[name] });
-			}
-		}
+
 		const newOptions: OpenDialogOptions = {
 			title: options.title,
 			defaultPath: defaultUri && defaultUri.fsPath,
 			buttonLabel: options.openLabel,
-			filters,
+			filters: options.filters,
 			properties: []
 		};
 		newOptions.properties.push('createDirectory');

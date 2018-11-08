@@ -5,7 +5,6 @@
 
 import { IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
-import { TPromise } from 'vs/base/common/winjs.base';
 import { IInstantiationService, createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IEditorService, ACTIVE_GROUP_TYPE, SIDE_GROUP_TYPE } from 'vs/workbench/services/editor/common/editorService';
 import { IEditorGroupsService, IEditorGroup } from 'vs/workbench/services/group/common/editorGroupsService';
@@ -66,7 +65,7 @@ export interface WebviewReviver {
 
 	reviveWebview(
 		webview: WebviewEditorInput
-	): TPromise<void>;
+	): Promise<void>;
 }
 
 export interface WebviewEvents {
@@ -138,15 +137,15 @@ export class WebviewEditorService implements IWebviewEditorService {
 			canRevive: (_webview) => {
 				return true;
 			},
-			reviveWebview: (webview: WebviewEditorInput): TPromise<void> => {
-				return TPromise.wrap(this.tryRevive(webview)).then(didRevive => {
+			reviveWebview: (webview: WebviewEditorInput): Promise<void> => {
+				return this.tryRevive(webview).then(didRevive => {
 					if (didRevive) {
-						return TPromise.as(void 0);
+						return Promise.resolve(void 0);
 					}
 
 					// A reviver may not be registered yet. Put into queue and resolve promise when we can revive
 					let resolve: (value: void) => void;
-					const promise = new TPromise<void>(r => { resolve = r; });
+					const promise = new Promise<void>(r => { resolve = r; });
 					this._awaitingRevival.push({ input: webview, resolve });
 					return promise;
 				});

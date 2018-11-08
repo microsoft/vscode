@@ -5,7 +5,7 @@
 
 import { Model } from '../model';
 import { Repository as BaseRepository, Resource } from '../repository';
-import { InputBox, Git, API, Repository, Remote, RepositoryState, Branch, Ref, Submodule, Commit, Change, RepositoryUIState } from './git';
+import { InputBox, Git, API, Repository, Remote, RepositoryState, Branch, Ref, Submodule, Commit, Change, RepositoryUIState, Status } from './git';
 import { Event, SourceControlInputBox, Uri, SourceControl } from 'vscode';
 import { mapEvent } from '../util';
 
@@ -17,7 +17,12 @@ class ApiInputBox implements InputBox {
 
 export class ApiChange implements Change {
 
-	constructor(_resource: Resource) { }
+	get uri(): Uri { return this.resource.resourceUri; }
+	get originalUri(): Uri { return this.resource.original; }
+	get renameUri(): Uri | undefined { return this.resource.renameResourceUri; }
+	get status(): Status { return this.resource.type; }
+
+	constructor(private readonly resource: Resource) { }
 }
 
 export class ApiRepositoryState implements RepositoryState {
@@ -67,6 +72,18 @@ export class ApiRepository implements Repository {
 		return this._repository.setConfig(key, value);
 	}
 
+	getObjectDetails(treeish: string, path: string): Promise<{ mode: string; object: string; size: number; }> {
+		return this._repository.getObjectDetails(treeish, path);
+	}
+
+	detectObjectType(object: string): Promise<{ mimetype: string, encoding?: string }> {
+		return this._repository.detectObjectType(object);
+	}
+
+	buffer(ref: string, filePath: string): Promise<Buffer> {
+		return this._repository.buffer(ref, filePath);
+	}
+
 	show(ref: string, path: string): Promise<string> {
 		return this._repository.show(ref, path);
 	}
@@ -75,8 +92,8 @@ export class ApiRepository implements Repository {
 		return this._repository.getCommit(ref);
 	}
 
-	getObjectDetails(treeish: string, path: string): Promise<{ mode: string; object: string; size: number; }> {
-		return this._repository.getObjectDetails(treeish, path);
+	clean(paths: string[]) {
+		return this._repository.clean(paths.map(p => Uri.file(p)));
 	}
 
 	diffWithHEAD(path: string): Promise<string> {
@@ -111,8 +128,8 @@ export class ApiRepository implements Repository {
 		return this._repository.branch(name, checkout, ref);
 	}
 
-	deleteBranch(name: string): Promise<void> {
-		return this._repository.deleteBranch(name);
+	deleteBranch(name: string, force?: boolean): Promise<void> {
+		return this._repository.deleteBranch(name, force);
 	}
 
 	getBranch(name: string): Promise<Branch> {
@@ -149,6 +166,10 @@ export class ApiRepository implements Repository {
 
 	pull(): Promise<void> {
 		return this._repository.pull();
+	}
+
+	push(remoteName?: string, branchName?: string, setUpstream: boolean = false): Promise<void> {
+		return this._repository.pushTo(remoteName, branchName, setUpstream);
 	}
 }
 

@@ -6,7 +6,6 @@
 import { StorageLegacyService, IStorageLegacy } from 'vs/platform/storage/common/storageLegacyService';
 import { endsWith, startsWith, rtrim } from 'vs/base/common/strings';
 import { URI } from 'vs/base/common/uri';
-import { IWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
 
 /**
  * We currently store local storage with the following format:
@@ -31,6 +30,7 @@ import { IWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
 
 const EMPTY_WORKSPACE_PREFIX = `${StorageLegacyService.COMMON_PREFIX}workspace/empty:`;
 const MULTI_ROOT_WORKSPACE_PREFIX = `${StorageLegacyService.COMMON_PREFIX}workspace/root:`;
+const NO_WORKSPACE_PREFIX = 'storage://workspace/__$noWorkspace__';
 
 export type StorageObject = { [key: string]: string };
 
@@ -39,6 +39,7 @@ export interface IParsedStorage {
 	multiRoot: Map<string, StorageObject>;
 	folder: Map<string, StorageObject>;
 	empty: Map<string, StorageObject>;
+	noWorkspace: StorageObject;
 }
 
 /**
@@ -46,6 +47,7 @@ export interface IParsedStorage {
  */
 export function parseStorage(storage: IStorageLegacy): IParsedStorage {
 	const globalStorage = new Map<string, string>();
+	const noWorkspaceStorage: StorageObject = Object.create(null);
 	const folderWorkspacesStorage = new Map<string /* workspace file resource */, StorageObject>();
 	const emptyWorkspacesStorage = new Map<string /* empty workspace id */, StorageObject>();
 	const multiRootWorkspacesStorage = new Map<string /* multi root workspace id */, StorageObject>();
@@ -57,9 +59,18 @@ export function parseStorage(storage: IStorageLegacy): IParsedStorage {
 		// Workspace Storage (storage://workspace/)
 		if (startsWith(key, StorageLegacyService.WORKSPACE_PREFIX)) {
 
+			// No Workspace key is for extension development windows
+			if (key.indexOf('__$noWorkspace__') > 0) {
+
+				// storage://workspace/__$noWorkspace__someKey => someKey
+				const noWorkspaceStorageKey = key.substr(NO_WORKSPACE_PREFIX.length);
+
+				noWorkspaceStorage[noWorkspaceStorageKey] = storage.getItem(key);
+			}
+
 			// We are looking for key: storage://workspace/<folder>/workspaceIdentifier to be able to find all folder
 			// paths that are known to the storage. is the only way how to parse all folder paths known in storage.
-			if (endsWith(key, StorageLegacyService.WORKSPACE_IDENTIFIER)) {
+			else if (endsWith(key, StorageLegacyService.WORKSPACE_IDENTIFIER)) {
 
 				// storage://workspace/<folder>/workspaceIdentifier => <folder>/
 				let workspace = key.substring(StorageLegacyService.WORKSPACE_PREFIX.length, key.length - StorageLegacyService.WORKSPACE_IDENTIFIER.length);
@@ -164,35 +175,7 @@ export function parseStorage(storage: IStorageLegacy): IParsedStorage {
 		global: globalStorage,
 		multiRoot: multiRootWorkspacesStorage,
 		folder: folderWorkspacesStorage,
-		empty: emptyWorkspacesStorage
+		empty: emptyWorkspacesStorage,
+		noWorkspace: noWorkspaceStorage
 	};
-}
-
-export function migrateStorageToMultiRootWorkspace(fromWorkspaceId: string, toWorkspace: IWorkspaceIdentifier, storage: IStorageLegacy): string {
-	const parsed = parseStorage(storage);
-
-	const newWorkspaceId = URI.from({ path: toWorkspace.id, scheme: 'root' }).toString();
-
-	// Find in which location the workspace storage is to be migrated from
-	let storageForWorkspace: StorageObject;
-	if (parsed.multiRoot.has(fromWorkspaceId)) {
-		storageForWorkspace = parsed.multiRoot.get(fromWorkspaceId);
-	} else if (parsed.empty.has(fromWorkspaceId)) {
-		storageForWorkspace = parsed.empty.get(fromWorkspaceId);
-	} else if (parsed.folder.has(fromWorkspaceId)) {
-		storageForWorkspace = parsed.folder.get(fromWorkspaceId);
-	}
-
-	// Migrate existing storage to new workspace id
-	if (storageForWorkspace) {
-		Object.keys(storageForWorkspace).forEach(key => {
-			if (key === StorageLegacyService.WORKSPACE_IDENTIFIER) {
-				return; // make sure to never migrate the workspace identifier
-			}
-
-			storage.setItem(`${StorageLegacyService.WORKSPACE_PREFIX}${newWorkspaceId}/${key}`, storageForWorkspace[key]);
-		});
-	}
-
-	return newWorkspaceId;
 }

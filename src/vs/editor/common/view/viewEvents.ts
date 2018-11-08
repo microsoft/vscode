@@ -3,12 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Range } from 'vs/editor/common/core/range';
-import { Selection } from 'vs/editor/common/core/selection';
+import * as errors from 'vs/base/common/errors';
+import { Disposable, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { ScrollEvent } from 'vs/base/common/scrollable';
 import { IConfigurationChangedEvent } from 'vs/editor/common/config/editorOptions';
-import * as errors from 'vs/base/common/errors';
-import { IDisposable, Disposable, toDisposable } from 'vs/base/common/lifecycle';
+import { Range } from 'vs/editor/common/core/range';
+import { Selection } from 'vs/editor/common/core/selection';
 import { ScrollType } from 'vs/editor/common/editorCommon';
 
 export const enum ViewEventType {

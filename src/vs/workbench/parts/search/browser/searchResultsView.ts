@@ -10,7 +10,6 @@ import { IAction } from 'vs/base/common/actions';
 import { Disposable, dispose, IDisposable } from 'vs/base/common/lifecycle';
 import * as paths from 'vs/base/common/paths';
 import * as resources from 'vs/base/common/resources';
-import { TPromise } from 'vs/base/common/winjs.base';
 import { ContextMenuEvent, IAccessibilityProvider, IDataSource, IFilter, IRenderer, ISorter, ITree } from 'vs/base/parts/tree/browser/tree';
 import * as nls from 'vs/nls';
 import { fillInContextMenuActions } from 'vs/platform/actions/browser/menuItemActionItem';
@@ -80,15 +79,15 @@ export class SearchDataSource implements IDataSource {
 		return [];
 	}
 
-	public getChildren(tree: ITree, element: any): TPromise<any[]> {
-		return TPromise.as(this._getChildren(element));
+	public getChildren(tree: ITree, element: any): Thenable<any[]> {
+		return Promise.resolve(this._getChildren(element));
 	}
 
 	public hasChildren(tree: ITree, element: any): boolean {
 		return element instanceof FileMatch || element instanceof FolderMatch || element instanceof SearchResult;
 	}
 
-	public getParent(tree: ITree, element: any): TPromise<any> {
+	public getParent(tree: ITree, element: any): Thenable<any> {
 		let value: any = null;
 
 		if (element instanceof Match) {
@@ -99,7 +98,7 @@ export class SearchDataSource implements IDataSource {
 			value = element.parent();
 		}
 
-		return TPromise.as(value);
+		return Promise.resolve(value);
 	}
 
 	public shouldAutoexpand(tree: ITree, element: any): boolean {
@@ -425,7 +424,7 @@ export class SearchTreeController extends WorkbenchTreeController {
 			getActions: () => {
 				const actions: IAction[] = [];
 				fillInContextMenuActions(this.contextMenu, { shouldForwardArgs: true }, actions, this.contextMenuService);
-				return TPromise.as(actions);
+				return actions;
 			},
 
 			getActionsContext: () => element

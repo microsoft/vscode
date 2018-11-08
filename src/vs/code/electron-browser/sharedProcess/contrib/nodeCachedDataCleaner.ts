@@ -41,7 +41,7 @@ export class NodeCachedDataCleaner {
 		const nodeCachedDataRootDir = dirname(this._environmentService.nodeCachedDataDir);
 		const nodeCachedDataCurrent = basename(this._environmentService.nodeCachedDataDir);
 
-		let handle = setTimeout(() => {
+		let handle: any = setTimeout(() => {
 			handle = undefined;
 
 			readdir(nodeCachedDataRootDir).then(entries => {

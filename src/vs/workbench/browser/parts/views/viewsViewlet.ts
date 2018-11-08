@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { TPromise } from 'vs/base/common/winjs.base';
 import * as DOM from 'vs/base/browser/dom';
 import { dispose, IDisposable, combinedDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { IAction } from 'vs/base/common/actions';
@@ -42,12 +41,11 @@ export abstract class TreeViewsViewletPanel extends ViewletPanel {
 		}
 	}
 
-	setVisible(visible: boolean): TPromise<void> {
+	setVisible(visible: boolean): void {
 		if (this.isVisible() !== visible) {
-			return super.setVisible(visible)
-				.then(() => this.updateTreeVisibility(this.tree, visible && this.isExpanded()));
+			super.setVisible(visible);
+			this.updateTreeVisibility(this.tree, visible && this.isExpanded());
 		}
-		return TPromise.wrap(null);
 	}
 
 	focus(): void {
@@ -139,35 +137,34 @@ export abstract class ViewContainerViewlet extends PanelViewlet implements IView
 		this.viewletState = this.getMemento(StorageScope.WORKSPACE);
 
 		this.visibleViewsStorageId = `${id}.numberOfVisibleViews`;
-		this.visibleViewsCountFromCache = this.storageService.getInteger(this.visibleViewsStorageId, this.contextService.getWorkbenchState() === WorkbenchState.EMPTY ? StorageScope.GLOBAL : StorageScope.WORKSPACE, 0);
+		this.visibleViewsCountFromCache = this.storageService.getInteger(this.visibleViewsStorageId, StorageScope.WORKSPACE, 1);
 		this._register(toDisposable(() => this.viewDisposables = dispose(this.viewDisposables)));
 	}
 
-	create(parent: HTMLElement): Promise<void> {
-		return super.create(parent).then(() => {
-			this._register(this.onDidSashChange(() => this.saveViewSizes()));
-			this.viewsModel.onDidAdd(added => this.onDidAddViews(added));
-			this.viewsModel.onDidRemove(removed => this.onDidRemoveViews(removed));
-			const addedViews: IAddedViewDescriptorRef[] = this.viewsModel.visibleViewDescriptors.map((viewDescriptor, index) => {
-				const size = this.viewsModel.getSize(viewDescriptor.id);
-				const collapsed = this.viewsModel.isCollapsed(viewDescriptor.id);
-				return ({ viewDescriptor, index, size, collapsed });
-			});
-			if (addedViews.length) {
-				this.onDidAddViews(addedViews);
-			}
-
-			// Update headers after and title contributed views after available, since we read from cache in the beginning to know if the viewlet has single view or not. Ref #29609
-			this.extensionService.whenInstalledExtensionsRegistered().then(() => {
-				this.areExtensionsReady = true;
-				if (this.panels.length) {
-					this.updateTitleArea();
-					this.updateViewHeaders();
-				}
-			});
-
-			this.focus();
+	create(parent: HTMLElement): void {
+		super.create(parent);
+		this._register(this.onDidSashChange(() => this.saveViewSizes()));
+		this.viewsModel.onDidAdd(added => this.onDidAddViews(added));
+		this.viewsModel.onDidRemove(removed => this.onDidRemoveViews(removed));
+		const addedViews: IAddedViewDescriptorRef[] = this.viewsModel.visibleViewDescriptors.map((viewDescriptor, index) => {
+			const size = this.viewsModel.getSize(viewDescriptor.id);
+			const collapsed = this.viewsModel.isCollapsed(viewDescriptor.id);
+			return ({ viewDescriptor, index, size, collapsed });
 		});
+		if (addedViews.length) {
+			this.onDidAddViews(addedViews);
+		}
+
+		// Update headers after and title contributed views after available, since we read from cache in the beginning to know if the viewlet has single view or not. Ref #29609
+		this.extensionService.whenInstalledExtensionsRegistered().then(() => {
+			this.areExtensionsReady = true;
+			if (this.panels.length) {
+				this.updateTitleArea();
+				this.updateViewHeaders();
+			}
+		});
+
+		this.focus();
 	}
 
 	getContextMenuActions(): IAction[] {
@@ -190,14 +187,13 @@ export abstract class ViewContainerViewlet extends PanelViewlet implements IView
 		return result;
 	}
 
-	setVisible(visible: boolean): Promise<void> {
-		return super.setVisible(visible)
-			.then(() => Promise.all(this.panels.filter(view => view.isVisible() !== visible)
-				.map((view) => view.setVisible(visible))))
-			.then(() => void 0);
+	setVisible(visible: boolean): void {
+		super.setVisible(visible);
+		this.panels.filter(view => view.isVisible() !== visible)
+			.map((view) => view.setVisible(visible));
 	}
 
-	openView(id: string, focus?: boolean): TPromise<IView> {
+	openView(id: string, focus?: boolean): IView {
 		if (focus) {
 			this.focus();
 		}
@@ -210,7 +206,7 @@ export abstract class ViewContainerViewlet extends PanelViewlet implements IView
 		if (focus) {
 			view.focus();
 		}
-		return Promise.resolve(view);
+		return view;
 	}
 
 	movePanel(from: ViewletPanel, to: ViewletPanel): void {
@@ -322,7 +318,7 @@ export abstract class ViewContainerViewlet extends PanelViewlet implements IView
 		let anchor: { x: number, y: number } = { x: event.posx, y: event.posy };
 		this.contextMenuService.showContextMenu({
 			getAnchor: () => anchor,
-			getActions: () => Promise.resolve(actions)
+			getActions: () => actions
 		});
 	}
 

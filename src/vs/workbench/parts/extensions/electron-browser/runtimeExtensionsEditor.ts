@@ -254,6 +254,9 @@ export class RuntimeExtensionsEditor extends BaseEditor {
 			msgIcon: HTMLElement;
 			msgLabel: HTMLElement;
 
+			msgIcon2: HTMLElement;
+			msgLabel2: HTMLElement;
+
 			actionbar: ActionBar;
 			disposables: IDisposable[];
 			elementDisposables: IDisposable[];
@@ -270,6 +273,9 @@ export class RuntimeExtensionsEditor extends BaseEditor {
 				const msgContainer = append(desc, $('div.msg'));
 				const msgIcon = append(msgContainer, $('.'));
 				const msgLabel = append(msgContainer, $('span.msg-label'));
+
+				const msgIcon2 = append(msgContainer, $('.'));
+				const msgLabel2 = append(msgContainer, $('span.msg-label'));
 
 				const timeContainer = append(element, $('.time'));
 				const activationTime = append(timeContainer, $('div.activation-time'));
@@ -295,6 +301,8 @@ export class RuntimeExtensionsEditor extends BaseEditor {
 					profileTimeline,
 					msgIcon,
 					msgLabel,
+					msgIcon2,
+					msgLabel2,
 					disposables,
 					elementDisposables: []
 				};
@@ -365,6 +373,14 @@ export class RuntimeExtensionsEditor extends BaseEditor {
 					data.msgLabel.textContent = '';
 				}
 
+				if (element.description.extensionLocation.scheme !== 'file') {
+					data.msgIcon2.className = 'octicon octicon-rss';
+					data.msgLabel2.textContent = element.description.extensionLocation.authority;
+				} else {
+					data.msgIcon2.className = '';
+					data.msgLabel2.textContent = '';
+				}
+
 				if (this._profileInfo) {
 					data.profileTime.textContent = `Profile: ${(element.profileInfo.totalTime / 1000).toFixed(2)}ms`;
 					const elementSegments = element.profileInfo.segments;
@@ -426,7 +442,7 @@ export class RuntimeExtensionsEditor extends BaseEditor {
 
 			this._contextMenuService.showContextMenu({
 				getAnchor: () => e.anchor,
-				getActions: () => Promise.resolve(actions)
+				getActions: () => actions
 			});
 		});
 	}

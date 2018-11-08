@@ -39,13 +39,14 @@ function fromLocalWebpack(extensionPath: string, sourceMappingURLBase: string | 
 
 	const packagedDependencies: string[] = [];
 	const packageJsonConfig = require(path.join(extensionPath, 'package.json'));
-	const webpackRootConfig = require(path.join(extensionPath, 'extension.webpack.config.js'));
-	for (const key in webpackRootConfig.externals) {
-		if (key in packageJsonConfig.dependencies) {
-			packagedDependencies.push(key);
+	if (Array.isArray(packageJsonConfig.dependencies)) {
+		const webpackRootConfig = require(path.join(extensionPath, 'extension.webpack.config.js'));
+		for (const key in webpackRootConfig.externals) {
+			if (key in packageJsonConfig.dependencies) {
+				packagedDependencies.push(key);
+			}
 		}
 	}
-
 
 	vsce.listFiles({ cwd: extensionPath, packageManager: vsce.PackageManager.Yarn, packagedDependencies }).then(fileNames => {
 		const files = fileNames
@@ -80,8 +81,10 @@ function fromLocalWebpack(extensionPath: string, sourceMappingURLBase: string | 
 			.pipe(packageJsonFilter)
 			.pipe(buffer())
 			.pipe(json((data: any) => {
-				// hardcoded entry point directory!
-				data.main = data.main.replace('/out/', /dist/);
+				if (data.main) {
+					// hardcoded entry point directory!
+					data.main = data.main.replace('/out/', /dist/);
+				}
 				return data;
 			}))
 			.pipe(packageJsonFilter.restore);

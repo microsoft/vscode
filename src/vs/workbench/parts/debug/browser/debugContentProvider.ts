@@ -5,7 +5,6 @@
 
 import { URI as uri } from 'vs/base/common/uri';
 import { localize } from 'vs/nls';
-import { TPromise } from 'vs/base/common/winjs.base';
 import { guessMimeTypes, MIME_TEXT } from 'vs/base/common/mime';
 import { ITextModel } from 'vs/editor/common/model';
 import { IModelService } from 'vs/editor/common/services/modelService';
@@ -39,7 +38,7 @@ export class DebugContentProvider implements IWorkbenchContribution, ITextModelC
 		textModelResolverService.registerTextModelContentProvider(DEBUG_SCHEME, this);
 	}
 
-	public provideTextContent(resource: uri): TPromise<ITextModel> {
+	public provideTextContent(resource: uri): Promise<ITextModel> {
 
 		let session: IDebugSession;
 
@@ -56,20 +55,24 @@ export class DebugContentProvider implements IWorkbenchContribution, ITextModelC
 		if (!session) {
 			return Promise.reject(new Error(localize('unable', "Unable to resolve the resource without a debug session")));
 		}
-		const createErrModel = (message: string) => {
+		const createErrModel = (errMsg?: string) => {
 			this.debugService.sourceIsNotAvailable(resource);
-			const modePromise = this.modeService.getOrCreateMode(MIME_TEXT);
-			return this.modelService.createModel(message, modePromise, resource);
+			const languageSelection = this.modeService.create(MIME_TEXT);
+			const message = errMsg
+				? localize('canNotResolveSourceWithError', "Could not load source '{0}': {1}.", resource.path, errMsg)
+				: localize('canNotResolveSource', "Could not load source '{0}'.", resource.path);
+			return this.modelService.createModel(message, languageSelection, resource);
 		};
 
 		return session.loadSource(resource).then(response => {
-			if (!response) {
-				return createErrModel(localize('canNotResolveSource', "Could not resolve resource {0}, no response from debug extension.", resource.toString()));
+
+			if (response && response.body) {
+				const mime = response.body.mimeType || guessMimeTypes(resource.path)[0];
+				const languageSelection = this.modeService.create(mime);
+				return this.modelService.createModel(response.body.content, languageSelection, resource);
 			}
 
-			const mime = response.body.mimeType || guessMimeTypes(resource.path)[0];
-			const modePromise = this.modeService.getOrCreateMode(mime);
-			return this.modelService.createModel(response.body.content, modePromise, resource);
+			return createErrModel();
 
 		}, (err: DebugProtocol.ErrorResponse) => createErrModel(err.message));
 	}

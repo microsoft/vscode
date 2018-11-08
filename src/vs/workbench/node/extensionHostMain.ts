@@ -4,24 +4,25 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as nls from 'vs/nls';
-import * as pfs from 'vs/base/node/pfs';
-import { TPromise } from 'vs/base/common/winjs.base';
 import { join } from 'path';
-import { ExtHostExtensionService } from 'vs/workbench/api/node/extHostExtensionService';
+import { timeout } from 'vs/base/common/async';
+import { CancellationTokenSource } from 'vs/base/common/cancellation';
+import * as errors from 'vs/base/common/errors';
+import { IDisposable, dispose } from 'vs/base/common/lifecycle';
+import { Counter } from 'vs/base/common/numbers';
+import { URI, setUriThrowOnMissingScheme } from 'vs/base/common/uri';
+import { IURITransformer } from 'vs/base/common/uriIpc';
+import { TPromise } from 'vs/base/common/winjs.base';
+import * as pfs from 'vs/base/node/pfs';
+import { IMessagePassingProtocol } from 'vs/base/parts/ipc/node/ipc';
+import { IEnvironment, IInitData, IWorkspaceData, MainContext, MainThreadWorkspaceShape } from 'vs/workbench/api/node/extHost.protocol';
 import { ExtHostConfiguration } from 'vs/workbench/api/node/extHostConfiguration';
+import { ExtensionActivatedByEvent } from 'vs/workbench/api/node/extHostExtensionActivator';
+import { ExtHostExtensionService } from 'vs/workbench/api/node/extHostExtensionService';
+import { ExtHostLogService } from 'vs/workbench/api/node/extHostLogService';
 import { ExtHostWorkspace } from 'vs/workbench/api/node/extHostWorkspace';
 import { IExtensionDescription } from 'vs/workbench/services/extensions/common/extensions';
-import { IInitData, IEnvironment, IWorkspaceData, MainContext, MainThreadWorkspaceShape } from 'vs/workbench/api/node/extHost.protocol';
-import * as errors from 'vs/base/common/errors';
-import { ExtensionActivatedByEvent } from 'vs/workbench/api/node/extHostExtensionActivator';
-import { IDisposable, dispose } from 'vs/base/common/lifecycle';
-import { IMessagePassingProtocol } from 'vs/base/parts/ipc/node/ipc';
 import { RPCProtocol } from 'vs/workbench/services/extensions/node/rpcProtocol';
-import { URI, setUriThrowOnMissingScheme } from 'vs/base/common/uri';
-import { ExtHostLogService } from 'vs/workbench/api/node/extHostLogService';
-import { timeout } from 'vs/base/common/async';
-import { Counter } from 'vs/base/common/numbers';
-import { CancellationTokenSource } from 'vs/base/common/cancellation';
 
 // we don't (yet) throw when extensions parse
 // uris that have no scheme
@@ -68,7 +69,8 @@ export class ExtensionHostMain {
 	private _mainThreadWorkspace: MainThreadWorkspaceShape;
 
 	constructor(protocol: IMessagePassingProtocol, initData: IInitData) {
-		const rpcProtocol = new RPCProtocol(protocol);
+		const uriTransformer: IURITransformer = null;
+		const rpcProtocol = new RPCProtocol(protocol, null, uriTransformer);
 
 		// ensure URIs are transformed and revived
 		initData = this.transform(initData, rpcProtocol);
@@ -89,7 +91,8 @@ export class ExtensionHostMain {
 		this._extHostLogService.trace('initData', initData);
 
 		this._extHostConfiguration = new ExtHostConfiguration(rpcProtocol.getProxy(MainContext.MainThreadConfiguration), extHostWorkspace, initData.configuration);
-		this._extensionService = new ExtHostExtensionService(initData, rpcProtocol, extHostWorkspace, this._extHostConfiguration, this._extHostLogService);
+		const mainThreadTelemetry = rpcProtocol.getProxy(MainContext.MainThreadTelemetry);
+		this._extensionService = new ExtHostExtensionService(initData, rpcProtocol, extHostWorkspace, this._extHostConfiguration, this._extHostLogService, mainThreadTelemetry);
 
 		// error forwarding and stack trace scanning
 		Error.stackTraceLimit = 100; // increase number of stack frames (from 10, https://github.com/v8/v8/wiki/Stack-Trace-API)
@@ -292,7 +295,7 @@ export class ExtensionHostMain {
 
 		// Execute the runner if it follows our spec
 		if (testRunner && typeof testRunner.run === 'function') {
-			return new TPromise<void>((c, e) => {
+			return new Promise<void>((c, e) => {
 				testRunner.run(this._environment.extensionTestsPath, (error, failures) => {
 					if (error) {
 						e(error.toString());
@@ -315,11 +318,11 @@ export class ExtensionHostMain {
 	}
 
 	private transform(initData: IInitData, rpcProtocol: RPCProtocol): IInitData {
-		initData.extensions.forEach((ext) => (<any>ext).extensionLocation = URI.revive(ext.extensionLocation));
-		initData.environment.appRoot = URI.revive(initData.environment.appRoot);
-		initData.environment.appSettingsHome = URI.revive(initData.environment.appSettingsHome);
-		initData.environment.extensionDevelopmentLocationURI = URI.revive(initData.environment.extensionDevelopmentLocationURI);
-		initData.logsLocation = URI.revive(initData.logsLocation);
+		initData.extensions.forEach((ext) => (<any>ext).extensionLocation = URI.revive(rpcProtocol.transformIncomingURIs(ext.extensionLocation)));
+		initData.environment.appRoot = URI.revive(rpcProtocol.transformIncomingURIs(initData.environment.appRoot));
+		initData.environment.appSettingsHome = URI.revive(rpcProtocol.transformIncomingURIs(initData.environment.appSettingsHome));
+		initData.environment.extensionDevelopmentLocationURI = URI.revive(rpcProtocol.transformIncomingURIs(initData.environment.extensionDevelopmentLocationURI));
+		initData.logsLocation = URI.revive(rpcProtocol.transformIncomingURIs(initData.logsLocation));
 		initData.workspace = rpcProtocol.transformIncomingURIs(initData.workspace);
 		return initData;
 	}

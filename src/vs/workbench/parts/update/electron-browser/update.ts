@@ -424,24 +424,31 @@ export class UpdateContribution implements IGlobalActivity {
 			return;
 		}
 
-		// windows user fast updates and mac
-		this.notificationService.prompt(
-			severity.Info,
-			nls.localize('updateAvailableAfterRestart', "Restart {0} to apply the latest update.", product.nameLong),
-			[{
-				label: nls.localize('updateNow', "Update Now"),
-				run: () => this.updateService.quitAndInstall()
-			}, {
-				label: nls.localize('later', "Later"),
-				run: () => { }
-			}, {
+		const actions = [{
+			label: nls.localize('updateNow', "Update Now"),
+			run: () => this.updateService.quitAndInstall()
+		}, {
+			label: nls.localize('later', "Later"),
+			run: () => { }
+		}];
+
+		// TODO@joao check why snap updates send `update` as falsy
+		if (update.productVersion) {
+			actions.push({
 				label: nls.localize('releaseNotes', "Release Notes"),
 				run: () => {
 					const action = this.instantiationService.createInstance(ShowReleaseNotesAction, update.productVersion);
 					action.run();
 					action.dispose();
 				}
-			}],
+			});
+		}
+
+		// windows user fast updates and mac
+		this.notificationService.prompt(
+			severity.Info,
+			nls.localize('updateAvailableAfterRestart', "Restart {0} to apply the latest update.", product.nameLong),
+			actions,
 			{ sticky: true }
 		);
 	}

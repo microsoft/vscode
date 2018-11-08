@@ -231,7 +231,7 @@ export class LaunchService implements ILaunchService {
 		// If the other instance is waiting to be killed, we hook up a window listener if one window
 		// is being used and only then resolve the startup promise which will kill this second instance.
 		// In addition, we poll for the wait marker file to be deleted to return.
-		if (args.wait && usedWindows.length === 1 && usedWindows[0]) {
+		if (args.wait && args.waitMarkerFilePath && usedWindows.length === 1 && usedWindows[0]) {
 			return Promise.race([
 				this.windowsMainService.waitForWindowCloseOrLoad(usedWindows[0].id),
 				whenDeleted(args.waitMarkerFilePath)

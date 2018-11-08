@@ -3,8 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 import * as assert from 'assert';
-import { IDisposable } from 'vs/base/common/lifecycle';
-import { TPromise } from 'vs/base/common/winjs.base';
+import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { CommandService } from 'vs/workbench/services/commands/common/commandService';
 import { IExtensionService, ExtensionPointContribution, IExtensionDescription, ProfileSession } from 'vs/workbench/services/extensions/common/extensions';
@@ -20,25 +19,26 @@ class SimpleExtensionService implements IExtensionService {
 		return this._onDidRegisterExtensions.event;
 	}
 	onDidChangeExtensionsStatus = null;
-	activateByEvent(activationEvent: string): TPromise<void> {
+	onWillActivateByEvent = null;
+	activateByEvent(activationEvent: string): Promise<void> {
 		return this.whenInstalledExtensionsRegistered().then(() => { });
 	}
-	whenInstalledExtensionsRegistered(): TPromise<boolean> {
-		return TPromise.as(true);
+	whenInstalledExtensionsRegistered(): Promise<boolean> {
+		return Promise.resolve(true);
 	}
-	readExtensionPointContributions<T>(extPoint: IExtensionPoint<T>): TPromise<ExtensionPointContribution<T>[]> {
-		return TPromise.as([]);
+	readExtensionPointContributions<T>(extPoint: IExtensionPoint<T>): Promise<ExtensionPointContribution<T>[]> {
+		return Promise.resolve([]);
 	}
 	getExtensionsStatus() {
 		return undefined;
 	}
-	getExtensions(): TPromise<IExtensionDescription[]> {
-		return TPromise.wrap([]);
+	getExtensions(): Promise<IExtensionDescription[]> {
+		return Promise.resolve([]);
 	}
 	canProfileExtensionHost() {
 		return false;
 	}
-	startExtensionHostProfile(): TPromise<ProfileSession> {
+	startExtensionHostProfile(): Promise<ProfileSession> {
 		throw new Error('Not implemented');
 	}
 	getInspectPort(): number {
@@ -69,7 +69,7 @@ suite('CommandService', function () {
 		let lastEvent: string;
 
 		let service = new CommandService(new InstantiationService(), new class extends SimpleExtensionService {
-			activateByEvent(activationEvent: string): TPromise<void> {
+			activateByEvent(activationEvent: string): Promise<void> {
 				lastEvent = activationEvent;
 				return super.activateByEvent(activationEvent);
 			}
@@ -85,13 +85,17 @@ suite('CommandService', function () {
 		});
 	});
 
-	test('fwd activation error', function () {
+	test('fwd activation error', async function () {
 
-		let service = new CommandService(new InstantiationService(), new class extends SimpleExtensionService {
-			activateByEvent(activationEvent: string): TPromise<void> {
-				return TPromise.wrapError<void>(new Error('bad_activate'));
+		const extensionService = new class extends SimpleExtensionService {
+			activateByEvent(activationEvent: string): Promise<void> {
+				return Promise.reject(new Error('bad_activate'));
 			}
-		}, new NullLogService());
+		};
+
+		let service = new CommandService(new InstantiationService(), extensionService, new NullLogService());
+
+		await extensionService.whenInstalledExtensionsRegistered();
 
 		return service.executeCommand('foo').then(() => assert.ok(false), err => {
 			assert.equal(err.message, 'bad_activate');
@@ -105,7 +109,7 @@ suite('CommandService', function () {
 
 		let service = new CommandService(new InstantiationService(), new class extends SimpleExtensionService {
 			whenInstalledExtensionsRegistered() {
-				return new TPromise<boolean>(_resolve => { /*ignore*/ });
+				return new Promise<boolean>(_resolve => { /*ignore*/ });
 			}
 		}, new NullLogService());
 
@@ -118,7 +122,7 @@ suite('CommandService', function () {
 
 		let callCounter = 0;
 		let resolveFunc: Function;
-		const whenInstalledExtensionsRegistered = new TPromise<boolean>(_resolve => { resolveFunc = _resolve; });
+		const whenInstalledExtensionsRegistered = new Promise<boolean>(_resolve => { resolveFunc = _resolve; });
 
 		let service = new CommandService(new InstantiationService(), new class extends SimpleExtensionService {
 			whenInstalledExtensionsRegistered() {
@@ -135,6 +139,41 @@ suite('CommandService', function () {
 		return r.then(() => {
 			reg.dispose();
 			assert.equal(callCounter, 1);
+		});
+	});
+
+	test('Stop waiting for * extensions to activate when trigger is satisfied #62457', function () {
+
+		let callCounter = 0;
+		let dispoables: IDisposable[] = [];
+		let events: string[] = [];
+		let service = new CommandService(new InstantiationService(), new class extends SimpleExtensionService {
+
+			activateByEvent(event: string): Promise<void> {
+				events.push(event);
+				if (event === '*') {
+					return new Promise(() => { }); //forever promise...
+				}
+				if (event.indexOf('onCommand:') === 0) {
+					return new Promise(resolve => {
+						setTimeout(() => {
+							let reg = CommandsRegistry.registerCommand(event.substr('onCommand:'.length), () => {
+								callCounter += 1;
+							});
+							dispoables.push(reg);
+							resolve();
+						}, 0);
+					});
+				}
+				return Promise.resolve();
+			}
+
+		}, new NullLogService());
+
+		return service.executeCommand('farboo').then(() => {
+			assert.equal(callCounter, 1);
+			assert.deepEqual(events.sort(), ['*', 'onCommand:farboo'].sort());
+			dispose(dispoables);
 		});
 	});
 });

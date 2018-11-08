@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as nls from 'vs/nls';
-import { TPromise } from 'vs/base/common/winjs.base';
 import { URI as uri } from 'vs/base/common/uri';
 import * as paths from 'vs/base/common/paths';
 import * as resources from 'vs/base/common/resources';
@@ -49,16 +48,16 @@ export class Source {
 		if (this.raw.sourceReference > 0) {
 			this.uri = uri.parse(`${DEBUG_SCHEME}:${encodeURIComponent(path)}?session=${encodeURIComponent(sessionId)}&ref=${this.raw.sourceReference}`);
 		} else {
-			if (isUri(path)) {
+			if (isUri(path)) {	// path looks like a uri
 				this.uri = uri.parse(path);
 			} else {
-				// assume path
+				// assume a filesystem path
 				if (paths.isAbsolute_posix(path) || paths.isAbsolute_win32(path)) {
 					this.uri = uri.file(path);
 				} else {
-					// path is relative
-					// should not happen because relative paths always have a sourceReference > 0
-					console.error('cannot handle relative paths without sourceReference');
+					// path is relative: since VS Code cannot deal with this by itself
+					// create a debug url that will result in a DAP 'source' request when the url is resolved.
+					this.uri = uri.parse(`${DEBUG_SCHEME}:${encodeURIComponent(path)}?session=${encodeURIComponent(sessionId)}`);
 				}
 			}
 		}
@@ -84,7 +83,7 @@ export class Source {
 		return this.uri.scheme === DEBUG_SCHEME;
 	}
 
-	public openInEditor(editorService: IEditorService, selection: IRange, preserveFocus?: boolean, sideBySide?: boolean, pinned?: boolean): TPromise<any> {
+	public openInEditor(editorService: IEditorService, selection: IRange, preserveFocus?: boolean, sideBySide?: boolean, pinned?: boolean): Thenable<any> {
 		return !this.available ? Promise.resolve(null) : editorService.openEditor({
 			resource: this.uri,
 			description: this.origin,

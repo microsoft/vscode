@@ -62,7 +62,8 @@ export class ViewletActivityAction extends ActivityAction {
 		// Hide sidebar if selected viewlet already visible
 		if (sideBarVisible && activeViewlet && activeViewlet.getId() === this.activity.id) {
 			this.logAction('hide');
-			return this.partService.setSideBarHidden(true);
+			this.partService.setSideBarHidden(true);
+			return Promise.resolve(null);
 		}
 
 		this.logAction('show');
@@ -96,7 +97,8 @@ export class ToggleViewletAction extends Action {
 
 		// Hide sidebar if selected viewlet already visible
 		if (sideBarVisible && activeViewlet && activeViewlet.getId() === this._viewlet.id) {
-			return this.partService.setSideBarHidden(true);
+			this.partService.setSideBarHidden(true);
+			return Promise.resolve(null);
 		}
 
 		return this.viewletService.openViewlet(this._viewlet.id, true);
@@ -158,7 +160,7 @@ export class GlobalActivityActionItem extends ActivityActionItem {
 
 		this.contextMenuService.showContextMenu({
 			getAnchor: () => location,
-			getActions: () => Promise.resolve(actions),
+			getActions: () => actions,
 			onHide: () => dispose(actions)
 		});
 	}
@@ -194,7 +196,7 @@ export class PlaceHolderToggleCompositePinnedAction extends ToggleCompositePinne
 	}
 }
 
-class SwitchSidebarViewAction extends Action {
+class SwitchSideBarViewAction extends Action {
 
 	constructor(
 		id: string,
@@ -223,10 +225,10 @@ class SwitchSidebarViewAction extends Action {
 	}
 }
 
-export class PreviousSidebarViewAction extends SwitchSidebarViewAction {
+export class PreviousSideBarViewAction extends SwitchSideBarViewAction {
 
-	static readonly ID = 'workbench.action.previousSidebarView';
-	static LABEL = nls.localize('previousSidebarView', 'Previous Sidebar View');
+	static readonly ID = 'workbench.action.previousSideBarView';
+	static LABEL = nls.localize('previousSideBarView', 'Previous Side Bar View');
 
 	constructor(
 		id: string,
@@ -242,10 +244,10 @@ export class PreviousSidebarViewAction extends SwitchSidebarViewAction {
 	}
 }
 
-export class NextSidebarViewAction extends SwitchSidebarViewAction {
+export class NextSideBarViewAction extends SwitchSideBarViewAction {
 
-	static readonly ID = 'workbench.action.nextSidebarView';
-	static LABEL = nls.localize('nextSidebarView', 'Next Sidebar View');
+	static readonly ID = 'workbench.action.nextSideBarView';
+	static LABEL = nls.localize('nextSideBarView', 'Next Side Bar View');
 
 	constructor(
 		id: string,
@@ -262,8 +264,8 @@ export class NextSidebarViewAction extends SwitchSidebarViewAction {
 }
 
 const registry = Registry.as<IWorkbenchActionRegistry>(ActionExtensions.WorkbenchActions);
-registry.registerWorkbenchAction(new SyncActionDescriptor(PreviousSidebarViewAction, PreviousSidebarViewAction.ID, PreviousSidebarViewAction.LABEL), 'View: Open Previous Sidebar View', nls.localize('view', "View"));
-registry.registerWorkbenchAction(new SyncActionDescriptor(NextSidebarViewAction, NextSidebarViewAction.ID, NextSidebarViewAction.LABEL), 'View: Open Next Sidebar View', nls.localize('view', "View"));
+registry.registerWorkbenchAction(new SyncActionDescriptor(PreviousSideBarViewAction, PreviousSideBarViewAction.ID, PreviousSideBarViewAction.LABEL), 'View: Open Previous Side Bar View', nls.localize('view', "View"));
+registry.registerWorkbenchAction(new SyncActionDescriptor(NextSideBarViewAction, NextSideBarViewAction.ID, NextSideBarViewAction.LABEL), 'View: Open Next Side Bar View', nls.localize('view', "View"));
 
 registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
 

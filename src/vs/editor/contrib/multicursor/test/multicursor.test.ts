@@ -3,16 +3,16 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 import * as assert from 'assert';
-import { withTestCodeEditor, TestCodeEditor } from 'vs/editor/test/browser/testCodeEditor';
-import { Selection } from 'vs/editor/common/core/selection';
+import { Event } from 'vs/base/common/event';
 import { Range } from 'vs/editor/common/core/range';
-import { InsertCursorAbove, InsertCursorBelow, MultiCursorSelectionController, SelectHighlightsAction, AddSelectionToNextFindMatchAction } from 'vs/editor/contrib/multicursor/multicursor';
+import { Selection } from 'vs/editor/common/core/selection';
 import { Handler } from 'vs/editor/common/editorCommon';
 import { EndOfLineSequence } from 'vs/editor/common/model';
-import { IStorageService } from 'vs/platform/storage/common/storage';
-import { Event } from 'vs/base/common/event';
-import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { CommonFindController } from 'vs/editor/contrib/find/findController';
+import { AddSelectionToNextFindMatchAction, InsertCursorAbove, InsertCursorBelow, MultiCursorSelectionController, SelectHighlightsAction } from 'vs/editor/contrib/multicursor/multicursor';
+import { TestCodeEditor, withTestCodeEditor } from 'vs/editor/test/browser/testCodeEditor';
+import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
+import { IStorageService } from 'vs/platform/storage/common/storage';
 
 suite('Multicursor', () => {
 

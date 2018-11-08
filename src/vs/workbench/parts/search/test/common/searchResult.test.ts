@@ -7,7 +7,7 @@ import * as sinon from 'sinon';
 import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
 import { Match, FileMatch, SearchResult, SearchModel } from 'vs/workbench/parts/search/common/searchModel';
 import { URI } from 'vs/base/common/uri';
-import { IFileMatch, TextSearchResult, OneLineRange, ITextSearchResult } from 'vs/platform/search/common/search';
+import { IFileMatch, TextSearchMatch, OneLineRange, ITextSearchMatch } from 'vs/platform/search/common/search';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { NullTelemetryService } from 'vs/platform/telemetry/common/telemetryUtils';
 import { Range } from 'vs/editor/common/core/range';
@@ -33,7 +33,7 @@ suite('SearchResult', () => {
 
 	test('Line Match', function () {
 		let fileMatch = aFileMatch('folder/file.txt', null);
-		let lineMatch = new Match(fileMatch, new TextSearchResult('foo bar', new OneLineRange(1, 0, 3)));
+		let lineMatch = new Match(fileMatch, new TextSearchMatch('foo bar', new OneLineRange(1, 0, 3)));
 		assert.equal(lineMatch.text(), 'foo bar');
 		assert.equal(lineMatch.range().startLineNumber, 2);
 		assert.equal(lineMatch.range().endLineNumber, 2);
@@ -43,7 +43,7 @@ suite('SearchResult', () => {
 	});
 
 	test('Line Match - Remove', function () {
-		let fileMatch = aFileMatch('folder/file.txt', aSearchResult(), new TextSearchResult('foo bar', new OneLineRange(1, 0, 3)));
+		let fileMatch = aFileMatch('folder/file.txt', aSearchResult(), new TextSearchMatch('foo bar', new OneLineRange(1, 0, 3)));
 		let lineMatch = fileMatch.matches()[0];
 		fileMatch.remove(lineMatch);
 		assert.equal(fileMatch.matches().length, 0);
@@ -65,8 +65,8 @@ suite('SearchResult', () => {
 		let testObject = aFileMatch(
 			'folder/file.txt',
 			aSearchResult(),
-			new TextSearchResult('foo', new OneLineRange(1, 0, 3)),
-			new TextSearchResult('bar', new OneLineRange(1, 5, 3)));
+			new TextSearchMatch('foo', new OneLineRange(1, 0, 3)),
+			new TextSearchMatch('bar', new OneLineRange(1, 5, 3)));
 
 		testObject.setSelectedMatch(testObject.matches()[0]);
 
@@ -77,8 +77,8 @@ suite('SearchResult', () => {
 		let testObject = aFileMatch(
 			'folder/file.txt',
 			aSearchResult(),
-			new TextSearchResult('foo', new OneLineRange(1, 0, 3)),
-			new TextSearchResult('bar', new OneLineRange(1, 5, 3)));
+			new TextSearchMatch('foo', new OneLineRange(1, 0, 3)),
+			new TextSearchMatch('bar', new OneLineRange(1, 5, 3)));
 		let target = testObject.matches()[0];
 		testObject.remove(target);
 
@@ -91,8 +91,8 @@ suite('SearchResult', () => {
 		let testObject = aFileMatch(
 			'folder/file.txt',
 			aSearchResult(),
-			new TextSearchResult('foo', new OneLineRange(1, 0, 3)),
-			new TextSearchResult('bar', new OneLineRange(1, 5, 3)));
+			new TextSearchMatch('foo', new OneLineRange(1, 0, 3)),
+			new TextSearchMatch('bar', new OneLineRange(1, 5, 3)));
 		let target = testObject.matches()[0];
 		testObject.setSelectedMatch(target);
 
@@ -102,8 +102,8 @@ suite('SearchResult', () => {
 	test('File Match: isSelected return false for un-selected match', function () {
 		let testObject = aFileMatch('folder/file.txt',
 			aSearchResult(),
-			new TextSearchResult('foo', new OneLineRange(1, 0, 3)),
-			new TextSearchResult('bar', new OneLineRange(1, 5, 3)));
+			new TextSearchMatch('foo', new OneLineRange(1, 0, 3)),
+			new TextSearchMatch('bar', new OneLineRange(1, 5, 3)));
 		testObject.setSelectedMatch(testObject.matches()[0]);
 		assert.ok(!testObject.isMatchSelected(testObject.matches()[1]));
 	});
@@ -112,8 +112,8 @@ suite('SearchResult', () => {
 		let testObject = aFileMatch(
 			'folder/file.txt',
 			aSearchResult(),
-			new TextSearchResult('foo', new OneLineRange(1, 0, 3)),
-			new TextSearchResult('bar', new OneLineRange(1, 5, 3)));
+			new TextSearchMatch('foo', new OneLineRange(1, 0, 3)),
+			new TextSearchMatch('bar', new OneLineRange(1, 5, 3)));
 		testObject.setSelectedMatch(testObject.matches()[0]);
 		testObject.setSelectedMatch(null);
 
@@ -124,8 +124,8 @@ suite('SearchResult', () => {
 		let testObject = aFileMatch(
 			'folder/file.txt',
 			aSearchResult(),
-			new TextSearchResult('foo', new OneLineRange(1, 0, 3)),
-			new TextSearchResult('bar', new OneLineRange(1, 5, 3)));
+			new TextSearchMatch('foo', new OneLineRange(1, 0, 3)),
+			new TextSearchMatch('bar', new OneLineRange(1, 5, 3)));
 		testObject.setSelectedMatch(null);
 
 		assert.equal(null, testObject.getSelectedMatch());
@@ -134,7 +134,7 @@ suite('SearchResult', () => {
 	test('Alle Drei Zusammen', function () {
 		let searchResult = instantiationService.createInstance(SearchResult, null);
 		let fileMatch = aFileMatch('far/boo', searchResult);
-		let lineMatch = new Match(fileMatch, new TextSearchResult('foo bar', new OneLineRange(1, 0, 3)));
+		let lineMatch = new Match(fileMatch, new TextSearchMatch('foo bar', new OneLineRange(1, 0, 3)));
 
 		assert(lineMatch.parent() === fileMatch);
 		assert(fileMatch.parent() === searchResult);
@@ -143,9 +143,9 @@ suite('SearchResult', () => {
 	test('Adding a raw match will add a file match with line matches', function () {
 		let testObject = aSearchResult();
 		let target = [aRawMatch('file://c:/',
-			new TextSearchResult('preview 1', new OneLineRange(1, 1, 4)),
-			new TextSearchResult('preview 1', new OneLineRange(1, 4, 11)),
-			new TextSearchResult('preview 2', lineOneRange))];
+			new TextSearchMatch('preview 1', new OneLineRange(1, 1, 4)),
+			new TextSearchMatch('preview 1', new OneLineRange(1, 4, 11)),
+			new TextSearchMatch('preview 2', lineOneRange))];
 
 		testObject.add(target);
 
@@ -172,10 +172,10 @@ suite('SearchResult', () => {
 		let testObject = aSearchResult();
 		let target = [
 			aRawMatch('file://c:/1',
-				new TextSearchResult('preview 1', new OneLineRange(1, 1, 4)),
-				new TextSearchResult('preview 1', new OneLineRange(1, 4, 11))),
+				new TextSearchMatch('preview 1', new OneLineRange(1, 1, 4)),
+				new TextSearchMatch('preview 1', new OneLineRange(1, 4, 11))),
 			aRawMatch('file://c:/2',
-				new TextSearchResult('preview 2', lineOneRange))];
+				new TextSearchMatch('preview 2', lineOneRange))];
 
 		testObject.add(target);
 
@@ -205,9 +205,9 @@ suite('SearchResult', () => {
 		let testObject = aSearchResult();
 		testObject.add([
 			aRawMatch('file://c:/1',
-				new TextSearchResult('preview 1', lineOneRange)),
+				new TextSearchMatch('preview 1', lineOneRange)),
 			aRawMatch('file://c:/2',
-				new TextSearchResult('preview 2', lineOneRange))]);
+				new TextSearchMatch('preview 2', lineOneRange))]);
 
 		testObject.matches()[0].onDispose(target1);
 		testObject.matches()[1].onDispose(target2);
@@ -224,7 +224,7 @@ suite('SearchResult', () => {
 		let testObject = aSearchResult();
 		testObject.add([
 			aRawMatch('file://c:/1',
-				new TextSearchResult('preview 1', lineOneRange))]);
+				new TextSearchMatch('preview 1', lineOneRange))]);
 		let objectRoRemove = testObject.matches()[0];
 		testObject.onChange(target);
 
@@ -239,7 +239,7 @@ suite('SearchResult', () => {
 		let testObject = aSearchResult();
 		testObject.add([
 			aRawMatch('file://c:/1',
-				new TextSearchResult('preview 1', lineOneRange))]);
+				new TextSearchMatch('preview 1', lineOneRange))]);
 		let objectRoRemove = testObject.matches()[0];
 		testObject.onChange(target);
 
@@ -253,7 +253,7 @@ suite('SearchResult', () => {
 		let testObject = aSearchResult();
 		testObject.add([
 			aRawMatch('file://c:/1',
-				new TextSearchResult('preview 1', lineOneRange))]);
+				new TextSearchMatch('preview 1', lineOneRange))]);
 		let target = testObject.matches()[0];
 		let matchToRemove = target.matches()[0];
 		target.remove(matchToRemove);
@@ -270,7 +270,7 @@ suite('SearchResult', () => {
 		let testObject = aSearchResult();
 		testObject.add([
 			aRawMatch('file://c:/1',
-				new TextSearchResult('preview 1', lineOneRange))]);
+				new TextSearchMatch('preview 1', lineOneRange))]);
 
 		testObject.replace(testObject.matches()[0]);
 
@@ -283,7 +283,7 @@ suite('SearchResult', () => {
 		let testObject = aSearchResult();
 		testObject.add([
 			aRawMatch('file://c:/1',
-				new TextSearchResult('preview 1', lineOneRange))]);
+				new TextSearchMatch('preview 1', lineOneRange))]);
 		testObject.onChange(target);
 		let objectRoRemove = testObject.matches()[0];
 
@@ -298,9 +298,9 @@ suite('SearchResult', () => {
 		let testObject = aSearchResult();
 		testObject.add([
 			aRawMatch('file://c:/1',
-				new TextSearchResult('preview 1', lineOneRange)),
+				new TextSearchMatch('preview 1', lineOneRange)),
 			aRawMatch('file://c:/2',
-				new TextSearchResult('preview 2', lineOneRange))]);
+				new TextSearchMatch('preview 2', lineOneRange))]);
 
 		testObject.replaceAll(null);
 
@@ -351,10 +351,10 @@ suite('SearchResult', () => {
 	//    lineHasNoDecoration(oneModel, 2);
 	//});
 
-	function aFileMatch(path: string, searchResult?: SearchResult, ...lineMatches: ITextSearchResult[]): FileMatch {
+	function aFileMatch(path: string, searchResult?: SearchResult, ...lineMatches: ITextSearchMatch[]): FileMatch {
 		let rawMatch: IFileMatch = {
 			resource: URI.file('/' + path),
-			matches: lineMatches
+			results: lineMatches
 		};
 		return instantiationService.createInstance(FileMatch, null, null, null, searchResult, rawMatch);
 	}
@@ -365,8 +365,8 @@ suite('SearchResult', () => {
 		return searchModel.searchResult;
 	}
 
-	function aRawMatch(resource: string, ...matches: ITextSearchResult[]): IFileMatch {
-		return { resource: URI.parse(resource), matches };
+	function aRawMatch(resource: string, ...results: ITextSearchMatch[]): IFileMatch {
+		return { resource: URI.parse(resource), results };
 	}
 
 	function stubModelService(instantiationService: TestInstantiationService): IModelService {

@@ -5,7 +5,6 @@
 
 import 'vs/css!./media/panelviewlet';
 import * as nls from 'vs/nls';
-import { TPromise } from 'vs/base/common/winjs.base';
 import { Event, Emitter, filterEvent } from 'vs/base/common/event';
 import { ColorIdentifier } from 'vs/platform/theme/common/colorRegistry';
 import { attachStyler, IColorMapping } from 'vs/platform/theme/common/styler';
@@ -77,12 +76,10 @@ export abstract class ViewletPanel extends Panel implements IView {
 		this.actionRunner = options.actionRunner;
 	}
 
-	setVisible(visible: boolean): TPromise<void> {
+	setVisible(visible: boolean): void {
 		if (this._isVisible !== visible) {
 			this._isVisible = visible;
 		}
-
-		return TPromise.wrap(null);
 	}
 
 	isVisible(): boolean {
@@ -211,12 +208,11 @@ export class PanelViewlet extends Viewlet {
 		super(id, configurationService, partService, telemetryService, themeService, storageService);
 	}
 
-	create(parent: HTMLElement): Promise<void> {
-		return super.create(parent).then(() => {
-			this.panelview = this._register(new PanelView(parent, this.options));
-			this._register(this.panelview.onDidDrop(({ from, to }) => this.movePanel(from as ViewletPanel, to as ViewletPanel)));
-			this._register(addDisposableListener(parent, EventType.CONTEXT_MENU, (e: MouseEvent) => this.showContextMenu(new StandardMouseEvent(e))));
-		});
+	create(parent: HTMLElement): void {
+		super.create(parent);
+		this.panelview = this._register(new PanelView(parent, this.options));
+		this._register(this.panelview.onDidDrop(({ from, to }) => this.movePanel(from as ViewletPanel, to as ViewletPanel)));
+		this._register(addDisposableListener(parent, EventType.CONTEXT_MENU, (e: MouseEvent) => this.showContextMenu(new StandardMouseEvent(e))));
 	}
 
 	private showContextMenu(event: StandardMouseEvent): void {
@@ -233,7 +229,7 @@ export class PanelViewlet extends Viewlet {
 		let anchor: { x: number, y: number } = { x: event.posx, y: event.posy };
 		this.contextMenuService.showContextMenu({
 			getAnchor: () => anchor,
-			getActions: () => Promise.resolve(this.getContextMenuActions())
+			getActions: () => this.getContextMenuActions()
 		});
 	}
 

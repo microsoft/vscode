@@ -9,7 +9,7 @@ import * as fs from 'fs';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { createSyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { IEditorGroupsService } from 'vs/workbench/services/group/common/editorGroupsService';
-import { ISearchService, IQueryOptions } from 'vs/platform/search/common/search';
+import { ISearchService } from 'vs/platform/search/common/search';
 import { ITelemetryService, ITelemetryInfo } from 'vs/platform/telemetry/common/telemetry';
 import { IUntitledEditorService, UntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
@@ -19,7 +19,6 @@ import { SearchService } from 'vs/workbench/services/search/node/searchService';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { TestEnvironmentService, TestContextService, TestEditorService, TestEditorGroupsService, TestTextResourcePropertiesService } from 'vs/workbench/test/workbenchTestServices';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { TPromise } from 'vs/base/common/winjs.base';
 import { URI } from 'vs/base/common/uri';
 import { InstantiationService } from 'vs/platform/instantiation/common/instantiationService';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
@@ -28,7 +27,7 @@ import { ModelServiceImpl } from 'vs/editor/common/services/modelServiceImpl';
 import { IModelService } from 'vs/editor/common/services/modelService';
 
 import { SearchModel } from 'vs/workbench/parts/search/common/searchModel';
-import { QueryBuilder } from 'vs/workbench/parts/search/common/queryBuilder';
+import { QueryBuilder, ITextQueryBuilderOptions } from 'vs/workbench/parts/search/common/queryBuilder';
 
 import * as event from 'vs/base/common/event';
 import { testWorkspace } from 'vs/platform/workspace/test/common/testWorkspace';
@@ -73,12 +72,12 @@ suite.skip('TextSearch performance (integration)', () => {
 			[ILogService, new NullLogService()]
 		));
 
-		const queryOptions: IQueryOptions = {
+		const queryOptions: ITextQueryBuilderOptions = {
 			maxResults: 2048
 		};
 
 		const searchModel: SearchModel = instantiationService.createInstance(SearchModel);
-		function runSearch(): TPromise<any> {
+		function runSearch(): Promise<any> {
 			const queryBuilder: QueryBuilder = instantiationService.createInstance(QueryBuilder);
 			const query = queryBuilder.text({ pattern: 'static_library(' }, [URI.file(testWorkspacePath)], queryOptions);
 
@@ -107,7 +106,7 @@ suite.skip('TextSearch performance (integration)', () => {
 
 			let resolve;
 			let error;
-			return new TPromise((_resolve, _error) => {
+			return new Promise((_resolve, _error) => {
 				resolve = _resolve;
 				error = _error;
 
@@ -155,15 +154,15 @@ class TestTelemetryService implements ITelemetryService {
 		return this.emitter.event;
 	}
 
-	public publicLog(eventName: string, data?: any): TPromise<void> {
+	public publicLog(eventName: string, data?: any): Promise<void> {
 		const event = { name: eventName, data: data };
 		this.events.push(event);
 		this.emitter.fire(event);
-		return TPromise.wrap<void>(null);
+		return Promise.resolve();
 	}
 
-	public getTelemetryInfo(): TPromise<ITelemetryInfo> {
-		return TPromise.wrap({
+	public getTelemetryInfo(): Promise<ITelemetryInfo> {
+		return Promise.resolve({
 			instanceId: 'someValue.instanceId',
 			sessionId: 'someValue.sessionId',
 			machineId: 'someValue.machineId'
