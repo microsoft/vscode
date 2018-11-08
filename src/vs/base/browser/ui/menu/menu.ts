@@ -56,7 +56,7 @@ export class Menu extends ActionBar {
 	private mnemonics: Map<KeyCode, Array<MenuActionItem>>;
 	private menuDisposables: IDisposable[];
 	private scrollableElement: DomScrollableElement;
-	private menuContainer: HTMLElement;
+	private menuElement: HTMLElement;
 
 	private readonly _onScroll: Emitter<void>;
 
@@ -64,11 +64,11 @@ export class Menu extends ActionBar {
 
 		addClass(container, 'monaco-menu-container');
 		container.setAttribute('role', 'presentation');
-		const menuContainer = document.createElement('div');
-		addClass(menuContainer, 'monaco-menu');
-		menuContainer.setAttribute('role', 'presentation');
+		const menuElement = document.createElement('div');
+		addClass(menuElement, 'monaco-menu');
+		menuElement.setAttribute('role', 'presentation');
 
-		super(menuContainer, {
+		super(menuElement, {
 			orientation: ActionsOrientation.VERTICAL,
 			actionItemProvider: action => this.doGetActionItem(action, options, parentData),
 			context: options.context,
@@ -76,6 +76,8 @@ export class Menu extends ActionBar {
 			ariaLabel: options.ariaLabel,
 			triggerKeys: { keys: [KeyCode.Enter], keyDown: true }
 		});
+
+		this.menuElement = menuElement;
 
 		this._onScroll = new Emitter<void>();
 
@@ -86,7 +88,7 @@ export class Menu extends ActionBar {
 		this.menuDisposables = [];
 
 		if (options.enableMnemonics) {
-			this.menuDisposables.push(addDisposableListener(menuContainer, EventType.KEY_DOWN, (e) => {
+			this.menuDisposables.push(addDisposableListener(menuElement, EventType.KEY_DOWN, (e) => {
 				const key = KeyCodeUtils.fromString(e.key);
 				if (this.mnemonics.has(key)) {
 					EventHelper.stop(e, true);
@@ -146,28 +148,22 @@ export class Menu extends ActionBar {
 
 		this.mnemonics = new Map<KeyCode, Array<MenuActionItem>>();
 
-		this.menuContainer = menuContainer;
-
 		this.push(actions, { icon: true, label: true, isMenu: true });
 
 		// Scroll Logic
-		this.scrollableElement = new DomScrollableElement(menuContainer, {
+		this.scrollableElement = this._register(new DomScrollableElement(menuElement, {
 			alwaysConsumeMouseWheel: true,
 			horizontal: ScrollbarVisibility.Hidden,
 			vertical: ScrollbarVisibility.Auto,
 			verticalScrollbarSize: 5,
 			handleMouseWheel: true,
-			useShadows: true,
-
-		});
+			useShadows: true
+		}));
 
 		const scrollElement = this.scrollableElement.getDomNode();
 		scrollElement.style.position = null;
 
-		// menuContainer.style.maxHeight = '300px';
-		console.log(`${window.innerHeight}px`);
-		console.log(`${container.offsetTop}px`);
-		menuContainer.style.maxHeight = `${Math.max(10, window.innerHeight - container.offsetTop - 10)}px`;
+		menuElement.style.maxHeight = `${Math.max(10, window.innerHeight - container.getBoundingClientRect().top - 30)}px`;
 
 		this.scrollableElement.onScroll(() => {
 			this._onScroll.fire();
@@ -199,13 +195,16 @@ export class Menu extends ActionBar {
 		}
 	}
 
+	getContainer(): HTMLElement {
+		return this.scrollableElement.getDomNode();
+	}
+
 	public get onScroll(): Event<void> {
 		return this._onScroll.event;
 	}
 
 	get scrollOffset(): number {
-		console.log(`scroll top: ${this.menuContainer.scrollTop}px`);
-		return this.menuContainer.scrollTop;
+		return this.menuElement.scrollTop;
 	}
 
 	private focusItemByElement(element: HTMLElement) {
@@ -455,6 +454,10 @@ class MenuActionItem extends BaseActionItem {
 	}
 
 	protected applyStyle(): void {
+		if (!this.menuStyle) {
+			return;
+		}
+
 		const isSelected = hasClass(this.element, 'focused');
 		const fgColor = isSelected && this.menuStyle.selectionForegroundColor ? this.menuStyle.selectionForegroundColor : this.menuStyle.foregroundColor;
 		const bgColor = isSelected && this.menuStyle.selectionBackgroundColor ? this.menuStyle.selectionBackgroundColor : this.menuStyle.backgroundColor;
@@ -625,6 +628,11 @@ class SubmenuActionItem extends MenuActionItem {
 
 	protected applyStyle(): void {
 		super.applyStyle();
+
+		if (!this.menuStyle) {
+			return;
+		}
+
 		const isSelected = hasClass(this.element, 'focused');
 		const fgColor = isSelected && this.menuStyle.selectionForegroundColor ? this.menuStyle.selectionForegroundColor : this.menuStyle.foregroundColor;
 
