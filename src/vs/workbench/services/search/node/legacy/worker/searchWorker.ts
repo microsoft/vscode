@@ -7,7 +7,6 @@ import * as fs from 'fs';
 import * as gracefulFs from 'graceful-fs';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import * as strings from 'vs/base/common/strings';
-import { TPromise } from 'vs/base/common/winjs.base';
 import { bomLength, decode, detectEncodingFromBuffer, encodingExists, UTF16be, UTF16le, UTF8, UTF8_with_bom } from 'vs/base/node/encoding';
 import { Range } from 'vs/editor/common/core/range';
 import { ITextSearchPreviewOptions, TextSearchMatch } from 'vs/platform/search/common/search';
@@ -32,21 +31,21 @@ function onError(error: any): void {
 export class SearchWorker implements ISearchWorker {
 	private currentSearchEngine: SearchWorkerEngine;
 
-	initialize(): TPromise<void> {
+	initialize(): Promise<void> {
 		this.currentSearchEngine = new SearchWorkerEngine();
-		return TPromise.wrap<void>(undefined);
+		return Promise.resolve<void>(undefined);
 	}
 
-	cancel(): TPromise<void> {
+	cancel(): Promise<void> {
 		// Cancel the current search. It will stop searching and close its open files.
 		if (this.currentSearchEngine) {
 			this.currentSearchEngine.cancel();
 		}
 
-		return TPromise.wrap<void>(null);
+		return Promise.resolve<void>(null);
 	}
 
-	search(args: ISearchWorkerSearchArgs): TPromise<ISearchWorkerSearchResult> {
+	search(args: ISearchWorkerSearchArgs): Promise<ISearchWorkerSearchResult> {
 		if (!this.currentSearchEngine) {
 			// Worker timed out during search
 			this.initialize();
@@ -66,13 +65,13 @@ const LF = 0x0a;
 const CR = 0x0d;
 
 export class SearchWorkerEngine {
-	private nextSearch = TPromise.wrap(null);
+	private nextSearch = Promise.resolve(null);
 	private isCanceled = false;
 
 	/**
 	 * Searches some number of the given paths concurrently, and starts searches in other paths when those complete.
 	 */
-	searchBatch(args: ISearchWorkerSearchArgs): TPromise<ISearchWorkerSearchResult> {
+	searchBatch(args: ISearchWorkerSearchArgs): Promise<ISearchWorkerSearchResult> {
 		const contentPattern = strings.createRegExp(args.pattern.pattern, args.pattern.isRegExp, { matchCase: args.pattern.isCaseSensitive, wholeWord: args.pattern.isWordMatch, multiline: false, global: true });
 		const fileEncoding = encodingExists(args.fileEncoding) ? args.fileEncoding : UTF8;
 		return this.nextSearch =
@@ -80,12 +79,12 @@ export class SearchWorkerEngine {
 	}
 
 
-	private _searchBatch(args: ISearchWorkerSearchArgs, contentPattern: RegExp, fileEncoding: string): TPromise<ISearchWorkerSearchResult> {
+	private _searchBatch(args: ISearchWorkerSearchArgs, contentPattern: RegExp, fileEncoding: string): Promise<ISearchWorkerSearchResult> {
 		if (this.isCanceled) {
-			return TPromise.wrap<ISearchWorkerSearchResult>(null);
+			return Promise.resolve<ISearchWorkerSearchResult>(null);
 		}
 
-		return new TPromise<ISearchWorkerSearchResult>(batchDone => {
+		return new Promise<ISearchWorkerSearchResult>(batchDone => {
 			const result: ISearchWorkerSearchResult = {
 				matches: [],
 				numMatches: 0,
@@ -93,7 +92,7 @@ export class SearchWorkerEngine {
 			};
 
 			// Search in the given path, and when it's finished, search in the next path in absolutePaths
-			const startSearchInFile = (absolutePath: string): TPromise<void> => {
+			const startSearchInFile = (absolutePath: string): Promise<void> => {
 				return this.searchInFile(absolutePath, contentPattern, fileEncoding, args.maxResults && (args.maxResults - result.numMatches), args.previewOptions).then(fileResult => {
 					// Finish early if search is canceled
 					if (this.isCanceled) {
@@ -113,7 +112,7 @@ export class SearchWorkerEngine {
 				}, onError);
 			};
 
-			TPromise.join(args.absolutePaths.map(startSearchInFile)).then(() => {
+			Promise.all(args.absolutePaths.map(startSearchInFile)).then(() => {
 				batchDone(result);
 			});
 		});
@@ -123,7 +122,7 @@ export class SearchWorkerEngine {
 		this.isCanceled = true;
 	}
 
-	private searchInFile(absolutePath: string, contentPattern: RegExp, fileEncoding: string, maxResults?: number, previewOptions?: ITextSearchPreviewOptions): TPromise<IFileSearchResult> {
+	private searchInFile(absolutePath: string, contentPattern: RegExp, fileEncoding: string, maxResults?: number, previewOptions?: ITextSearchPreviewOptions): Promise<IFileSearchResult> {
 		let fileMatch: FileMatch | null = null;
 		let limitReached = false;
 		let numMatches = 0;
@@ -154,8 +153,8 @@ export class SearchWorkerEngine {
 			() => fileMatch ? { match: fileMatch, limitReached, numMatches } : null);
 	}
 
-	private readlinesAsync(filename: string, perLineCallback: (line: string, lineNumber: number) => void, options: ReadLinesOptions): TPromise<void> {
-		return new TPromise<void>((resolve, reject) => {
+	private readlinesAsync(filename: string, perLineCallback: (line: string, lineNumber: number) => void, options: ReadLinesOptions): Promise<void> {
+		return new Promise<void>((resolve, reject) => {
 			fs.open(filename, 'r', null, (error: Error, fd: number) => {
 				if (error) {
 					return resolve(null);

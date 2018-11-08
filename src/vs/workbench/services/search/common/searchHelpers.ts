@@ -51,7 +51,7 @@ export function addContextToEditorMatches(matches: ITextSearchMatch[], model: IT
 	let prevLine = -1;
 	for (let i = 0; i < matches.length; i++) {
 		const { start: matchStartLine, end: matchEndLine } = getMatchStartEnd(matches[i]);
-		if (query.beforeContext > 0) {
+		if (typeof query.beforeContext === 'number' && query.beforeContext > 0) {
 			const beforeContextStartLine = Math.max(prevLine + 1, matchStartLine - query.beforeContext);
 			for (let b = beforeContextStartLine; b < matchStartLine; b++) {
 				results.push(<ITextSearchContext>{
@@ -65,7 +65,7 @@ export function addContextToEditorMatches(matches: ITextSearchMatch[], model: IT
 
 		const nextMatch = matches[i + 1];
 		let nextMatchStartLine = nextMatch ? getMatchStartEnd(nextMatch).start : Number.MAX_VALUE;
-		if (query.afterContext > 0) {
+		if (typeof query.afterContext === 'number' && query.afterContext > 0) {
 			const afterContextToLine = Math.min(nextMatchStartLine - 1, matchEndLine + query.afterContext, model.getLineCount() - 1);
 			for (let a = matchEndLine + 1; a <= afterContextToLine; a++) {
 				results.push(<ITextSearchContext>{

@@ -373,7 +373,7 @@ export class CompositeOverflowActivityActionItem extends ActivityActionItem {
 
 		this.contextMenuService.showContextMenu({
 			getAnchor: () => this.element,
-			getActions: () => Promise.resolve(this.actions),
+			getActions: () => this.actions,
 			onHide: () => dispose(this.actions)
 		});
 	}
@@ -598,7 +598,7 @@ export class CompositeActionItem extends ActivityActionItem {
 		this.contextMenuService.showContextMenu({
 			getAnchor: () => anchor,
 			getActionsContext: () => this.activity.id,
-			getActions: () => Promise.resolve(actions)
+			getActions: () => actions
 		});
 	}
 

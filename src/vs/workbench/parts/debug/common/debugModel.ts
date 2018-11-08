@@ -6,7 +6,6 @@
 import * as nls from 'vs/nls';
 import { URI as uri } from 'vs/base/common/uri';
 import * as resources from 'vs/base/common/resources';
-import { TPromise } from 'vs/base/common/winjs.base';
 import * as lifecycle from 'vs/base/common/lifecycle';
 import { Event, Emitter } from 'vs/base/common/event';
 import { generateUuid } from 'vs/base/common/uuid';
@@ -81,7 +80,7 @@ export class RawObjectReplElement extends AbstractReplElement implements IExpres
 		return (Array.isArray(this.valueObj) && this.valueObj.length > 0) || (isObject(this.valueObj) && Object.getOwnPropertyNames(this.valueObj).length > 0);
 	}
 
-	public getChildren(): TPromise<IExpression[]> {
+	public getChildren(): Promise<IExpression[]> {
 		let result: IExpression[] = [];
 		if (Array.isArray(this.valueObj)) {
 			result = (<any[]>this.valueObj).slice(0, RawObjectReplElement.MAX_CHILDREN)
@@ -107,7 +106,7 @@ export class ExpressionContainer implements IExpressionContainer {
 
 	public valueChanged: boolean;
 	private _value: string;
-	protected children: TPromise<IExpression[]>;
+	protected children: Promise<IExpression[]>;
 
 	constructor(
 		protected session: IDebugSession,
@@ -127,7 +126,7 @@ export class ExpressionContainer implements IExpressionContainer {
 		this.children = undefined; // invalidate children cache
 	}
 
-	public getChildren(): TPromise<IExpression[]> {
+	public getChildren(): Promise<IExpression[]> {
 		if (!this.children) {
 			this.children = this.doGetChildren();
 		}
@@ -135,7 +134,7 @@ export class ExpressionContainer implements IExpressionContainer {
 		return this.children;
 	}
 
-	private doGetChildren(): TPromise<IExpression[]> {
+	private doGetChildren(): Promise<IExpression[]> {
 		if (!this.hasChildren) {
 			return Promise.resolve([]);
 		}
@@ -145,7 +144,7 @@ export class ExpressionContainer implements IExpressionContainer {
 		}
 
 		// Check if object has named variables, fetch them independent from indexed variables #9670
-		const childrenThenable: Thenable<Variable[]> = !!this.namedVariables ? this.fetchVariables(undefined, undefined, 'named') : Promise.resolve([]);
+		const childrenThenable = !!this.namedVariables ? this.fetchVariables(undefined, undefined, 'named') : Promise.resolve([]);
 		return childrenThenable.then(childrenArray => {
 			// Use a dynamic chunk size based on the number of elements #9774
 			let chunkSize = ExpressionContainer.BASE_CHUNK_SIZE;
@@ -183,7 +182,7 @@ export class ExpressionContainer implements IExpressionContainer {
 		return this.reference > 0;
 	}
 
-	private fetchVariables(start: number, count: number, filter: 'indexed' | 'named'): TPromise<Variable[]> {
+	private fetchVariables(start: number, count: number, filter: 'indexed' | 'named'): Promise<Variable[]> {
 		return this.session.variables(this.reference, filter, start, count).then(response => {
 			return response && response.body && response.body.variables
 				? distinct(response.body.variables.filter(v => !!v && isString(v.name)), v => v.name).map(
@@ -225,7 +224,7 @@ export class Expression extends ExpressionContainer implements IExpression {
 		}
 	}
 
-	public evaluate(session: IDebugSession, stackFrame: IStackFrame, context: string): TPromise<void> {
+	public evaluate(session: IDebugSession, stackFrame: IStackFrame, context: string): Promise<void> {
 		if (!session || (!stackFrame && context !== 'repl')) {
 			this.value = context === 'repl' ? nls.localize('startDebugFirst', "Please start a debug session to evaluate expressions") : Expression.DEFAULT_VALUE;
 			this.available = false;
@@ -279,7 +278,7 @@ export class Variable extends ExpressionContainer implements IExpression {
 		this.value = value;
 	}
 
-	public setVariable(value: string): TPromise<any> {
+	public setVariable(value: string): Promise<any> {
 		return this.session.setVariable((<ExpressionContainer>this.parent).reference, this.name, value).then(response => {
 			if (response && response.body) {
 				this.value = response.body.value;
@@ -316,7 +315,7 @@ export class Scope extends ExpressionContainer implements IScope {
 
 export class StackFrame implements IStackFrame {
 
-	private scopes: TPromise<Scope[]>;
+	private scopes: Promise<Scope[]>;
 
 	constructor(
 		public thread: IThread,
@@ -334,7 +333,7 @@ export class StackFrame implements IStackFrame {
 		return `stackframe:${this.thread.getId()}:${this.frameId}:${this.index}`;
 	}
 
-	public getScopes(): TPromise<IScope[]> {
+	public getScopes(): Promise<IScope[]> {
 		if (!this.scopes) {
 			this.scopes = this.thread.session.scopes(this.frameId).then(response => {
 				return response && response.body && response.body.scopes ?
@@ -347,7 +346,11 @@ export class StackFrame implements IStackFrame {
 	}
 
 	public getSpecificSourceName(): string {
-		const otherSources = this.thread.getCallStack().map(sf => sf.source).filter(s => s !== this.source);
+		// To reduce flashing of the path name and the way we fetch stack frames
+		// We need to compute the source name based on the other frames in the stale call stack
+		let callStack = (<Thread>this.thread).getStaleCallStack();
+		callStack = callStack.length > 0 ? callStack : this.thread.getCallStack();
+		const otherSources = callStack.map(sf => sf.source).filter(s => s !== this.source);
 		let suffixLength = 0;
 		otherSources.forEach(s => {
 			if (s.name === this.source.name) {
@@ -362,7 +365,7 @@ export class StackFrame implements IStackFrame {
 		return (from > 0 ? '...' : '') + this.source.uri.path.substr(from);
 	}
 
-	public getMostSpecificScopes(range: IRange): TPromise<IScope[]> {
+	public getMostSpecificScopes(range: IRange): Promise<IScope[]> {
 		return this.getScopes().then(scopes => {
 			scopes = scopes.filter(s => !s.expensive);
 			const haveRangeInfo = scopes.some(s => !!s.range);
@@ -376,7 +379,7 @@ export class StackFrame implements IStackFrame {
 		});
 	}
 
-	public restart(): TPromise<void> {
+	public restart(): Promise<void> {
 		return this.thread.session.restartFrame(this.frameId, this.thread.threadId);
 	}
 
@@ -384,7 +387,7 @@ export class StackFrame implements IStackFrame {
 		return `${this.name} (${this.source.inMemory ? this.source.name : this.source.uri.fsPath}:${this.range.startLineNumber})`;
 	}
 
-	public openInEditor(editorService: IEditorService, preserveFocus?: boolean, sideBySide?: boolean, pinned?: boolean): TPromise<any> {
+	public openInEditor(editorService: IEditorService, preserveFocus?: boolean, sideBySide?: boolean, pinned?: boolean): Thenable<any> {
 		return !this.source.available ? Promise.resolve(null) :
 			this.source.openInEditor(editorService, this.range, preserveFocus, sideBySide, pinned);
 	}
@@ -418,7 +421,7 @@ export class Thread implements IThread {
 		return this.callStack;
 	}
 
-	public getStaleCallStack(): IStackFrame[] {
+	public getStaleCallStack(): ReadonlyArray<IStackFrame> {
 		return this.staleCallStack;
 	}
 
@@ -429,7 +432,7 @@ export class Thread implements IThread {
 	 * Only fetches the first stack frame for performance reasons. Calling this method consecutive times
 	 * gets the remainder of the call stack.
 	 */
-	public fetchCallStack(levels = 20): TPromise<void> {
+	public fetchCallStack(levels = 20): Promise<void> {
 		if (!this.stopped) {
 			return Promise.resolve(null);
 		}
@@ -444,7 +447,7 @@ export class Thread implements IThread {
 		});
 	}
 
-	private getCallStackImpl(startFrame: number, levels: number): TPromise<IStackFrame[]> {
+	private getCallStackImpl(startFrame: number, levels: number): Promise<IStackFrame[]> {
 		return this.session.stackTrace(this.threadId, startFrame, levels).then(response => {
 			if (!response || !response.body) {
 				return [];
@@ -476,7 +479,7 @@ export class Thread implements IThread {
 	/**
 	 * Returns exception info promise if the exception was thrown, otherwise null
 	 */
-	public get exceptionInfo(): TPromise<IExceptionInfo> {
+	public get exceptionInfo(): Promise<IExceptionInfo> {
 		if (this.stoppedDetails && this.stoppedDetails.reason === 'exception') {
 			if (this.session.capabilities.supportsExceptionInfoRequest) {
 				return this.session.exceptionInfo(this.threadId);
@@ -489,35 +492,35 @@ export class Thread implements IThread {
 		return Promise.resolve(null);
 	}
 
-	public next(): TPromise<any> {
+	public next(): Promise<any> {
 		return this.session.next(this.threadId);
 	}
 
-	public stepIn(): TPromise<any> {
+	public stepIn(): Promise<any> {
 		return this.session.stepIn(this.threadId);
 	}
 
-	public stepOut(): TPromise<any> {
+	public stepOut(): Promise<any> {
 		return this.session.stepOut(this.threadId);
 	}
 
-	public stepBack(): TPromise<any> {
+	public stepBack(): Promise<any> {
 		return this.session.stepBack(this.threadId);
 	}
 
-	public continue(): TPromise<any> {
+	public continue(): Promise<any> {
 		return this.session.continue(this.threadId);
 	}
 
-	public pause(): TPromise<any> {
+	public pause(): Promise<any> {
 		return this.session.pause(this.threadId);
 	}
 
-	public terminate(): TPromise<any> {
+	public terminate(): Promise<any> {
 		return this.session.terminateThreads([this.threadId]);
 	}
 
-	public reverseContinue(): TPromise<any> {
+	public reverseContinue(): Promise<any> {
 		return this.session.reverseContinue(this.threadId);
 	}
 }
@@ -805,7 +808,7 @@ export class DebugModel implements IDebugModel {
 		}
 	}
 
-	public fetchCallStack(thread: Thread): TPromise<void> {
+	public fetchCallStack(thread: Thread): Promise<void> {
 		if (thread.session.capabilities.supportsDelayedStackTraceLoading) {
 			// For improved performance load the first stack frame and then load the rest async.
 			return thread.fetchCallStack(1).then(() => {

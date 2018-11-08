@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import 'vs/css!vs/editor/contrib/documentSymbols/media/symbol-icons';
-import { TPromise } from 'vs/base/common/winjs.base';
 import * as nls from 'vs/nls';
 import * as types from 'vs/base/common/types';
 import * as strings from 'vs/base/common/strings';
@@ -369,7 +368,7 @@ export class GotoSymbolHandler extends QuickOpenHandler {
 	private rangeHighlightDecorationId: IEditorLineDecoration;
 	private lastKnownEditorViewState: IEditorViewState;
 
-	private cachedOutlineRequest: TPromise<OutlineModel>;
+	private cachedOutlineRequest: Promise<OutlineModel>;
 	private pendingOutlineRequest: CancellationTokenSource;
 
 	constructor(
@@ -391,7 +390,7 @@ export class GotoSymbolHandler extends QuickOpenHandler {
 		this.rangeHighlightDecorationId = void 0;
 	}
 
-	getResults(searchValue: string, token: CancellationToken): TPromise<QuickOpenModel> {
+	getResults(searchValue: string, token: CancellationToken): Promise<QuickOpenModel> {
 		searchValue = searchValue.trim();
 
 		// Support to cancel pending outline requests
@@ -483,7 +482,7 @@ export class GotoSymbolHandler extends QuickOpenHandler {
 		return results;
 	}
 
-	private getOutline(): TPromise<OutlineModel> {
+	private getOutline(): Promise<OutlineModel> {
 		if (!this.cachedOutlineRequest) {
 			this.cachedOutlineRequest = this.doGetActiveOutline();
 		}
@@ -491,7 +490,7 @@ export class GotoSymbolHandler extends QuickOpenHandler {
 		return this.cachedOutlineRequest;
 	}
 
-	private doGetActiveOutline(): TPromise<OutlineModel> {
+	private doGetActiveOutline(): Promise<OutlineModel> {
 		const activeTextEditorWidget = this.editorService.activeTextEditorWidget;
 		if (activeTextEditorWidget) {
 			let model = activeTextEditorWidget.getModel();
@@ -500,13 +499,13 @@ export class GotoSymbolHandler extends QuickOpenHandler {
 			}
 
 			if (model && types.isFunction((<ITextModel>model).getLanguageIdentifier)) {
-				return TPromise.wrap(asThenable(() => getDocumentSymbols(<ITextModel>model, true, this.pendingOutlineRequest.token)).then(entries => {
+				return Promise.resolve(asThenable(() => getDocumentSymbols(<ITextModel>model, true, this.pendingOutlineRequest.token)).then(entries => {
 					return new OutlineModel(this.toQuickOpenEntries(entries));
 				}));
 			}
 		}
 
-		return TPromise.wrap<OutlineModel>(null);
+		return Promise.resolve(null);
 	}
 
 	decorateOutline(fullRange: IRange, startRange: IRange, editor: IEditor, group: IEditorGroup): void {

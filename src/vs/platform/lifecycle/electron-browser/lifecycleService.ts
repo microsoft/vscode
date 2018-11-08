@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { TPromise } from 'vs/base/common/winjs.base';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
 import { ILifecycleService, WillShutdownEvent, ShutdownReason, StartupKind, LifecyclePhase, handleVetos, LifecyclePhaseToString, ShutdownEvent } from 'vs/platform/lifecycle/common/lifecycle';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
@@ -102,7 +101,7 @@ export class LifecycleService extends Disposable implements ILifecycleService {
 		});
 	}
 
-	private handleWillShutdown(reason: ShutdownReason): TPromise<boolean> {
+	private handleWillShutdown(reason: ShutdownReason): Promise<boolean> {
 		const vetos: (boolean | Thenable<boolean>)[] = [];
 
 		this._onWillShutdown.fire({
@@ -130,7 +129,7 @@ export class LifecycleService extends Disposable implements ILifecycleService {
 			reason
 		});
 
-		return TPromise.join(joiners).then(() => void 0, err => {
+		return Promise.all(joiners).then(() => void 0, err => {
 			this.notificationService.error(toErrorMessage(err));
 			onUnexpectedError(err);
 		});

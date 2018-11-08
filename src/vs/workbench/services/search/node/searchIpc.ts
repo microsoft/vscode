@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Event } from 'vs/base/common/event';
-import { TPromise } from 'vs/base/common/winjs.base';
 import { IChannel } from 'vs/base/parts/ipc/node/ipc';
 import { IRawFileQuery, IRawTextQuery } from 'vs/platform/search/common/search';
 import { IRawSearchService, ISerializedSearchComplete, ISerializedSearchProgressItem } from './search';
@@ -12,8 +11,8 @@ import { IRawSearchService, ISerializedSearchComplete, ISerializedSearchProgress
 export interface ISearchChannel extends IChannel {
 	listen(event: 'fileSearch', search: IRawFileQuery): Event<ISerializedSearchProgressItem | ISerializedSearchComplete>;
 	listen(event: 'textSearch', search: IRawTextQuery): Event<ISerializedSearchProgressItem | ISerializedSearchComplete>;
-	call(command: 'clearCache', cacheKey: string): TPromise<void>;
-	call(command: string, arg: any): TPromise<any>;
+	call(command: 'clearCache', cacheKey: string): Promise<void>;
+	call(command: string, arg: any): Promise<any>;
 }
 
 export class SearchChannel implements ISearchChannel {
@@ -28,7 +27,7 @@ export class SearchChannel implements ISearchChannel {
 		throw new Error('Event not found');
 	}
 
-	call(command: string, arg?: any): TPromise<any> {
+	call(command: string, arg?: any): Promise<any> {
 		switch (command) {
 			case 'clearCache': return this.service.clearCache(arg);
 		}
@@ -48,7 +47,7 @@ export class SearchChannelClient implements IRawSearchService {
 		return this.channel.listen('textSearch', search);
 	}
 
-	clearCache(cacheKey: string): TPromise<void> {
+	clearCache(cacheKey: string): Promise<void> {
 		return this.channel.call('clearCache', cacheKey);
 	}
 }

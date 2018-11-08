@@ -10,6 +10,7 @@ import { isThenable } from 'vs/base/common/async';
 
 export function SingleProxyRPCProtocol(thing: any): IExtHostContext {
 	return {
+		remoteAuthority: null,
 		getProxy<T>(): T {
 			return thing;
 		},
@@ -21,6 +22,8 @@ export function SingleProxyRPCProtocol(thing: any): IExtHostContext {
 }
 
 export class TestRPCProtocol implements IExtHostContext {
+
+	public remoteAuthority = null;
 
 	private _callCountValue: number = 0;
 	private _idle: Promise<any>;

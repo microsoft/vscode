@@ -552,21 +552,23 @@ export class MarkersPanel extends Panel implements IMarkerFilterController {
 		e.browserEvent.preventDefault();
 		e.browserEvent.stopPropagation();
 
-		this.contextMenuService.showContextMenu({
-			getAnchor: () => e.anchor,
-			getActions: () => TPromise.wrap(this._getMenuActions(e.element.element)),
-			getActionItem: (action) => {
-				const keybinding = this.keybindingService.lookupKeybinding(action.id);
-				if (keybinding) {
-					return new ActionItem(action, action, { label: true, keybinding: keybinding.getLabel() });
+		this._getMenuActions(e.element.element).then(actions => {
+			this.contextMenuService.showContextMenu({
+				getAnchor: () => e.anchor,
+				getActions: () => actions,
+				getActionItem: (action) => {
+					const keybinding = this.keybindingService.lookupKeybinding(action.id);
+					if (keybinding) {
+						return new ActionItem(action, action, { label: true, keybinding: keybinding.getLabel() });
+					}
+					return null;
+				},
+				onHide: (wasCancelled?: boolean) => {
+					if (wasCancelled) {
+						this.tree.domFocus();
+					}
 				}
-				return null;
-			},
-			onHide: (wasCancelled?: boolean) => {
-				if (wasCancelled) {
-					this.tree.domFocus();
-				}
-			}
+			});
 		});
 	}
 

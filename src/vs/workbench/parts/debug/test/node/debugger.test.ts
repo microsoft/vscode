@@ -10,7 +10,6 @@ import { IDebugAdapterExecutable, IConfigurationManager, IConfig, IDebugSession 
 import { Debugger } from 'vs/workbench/parts/debug/node/debugger';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
 import { URI } from 'vs/base/common/uri';
-import { TPromise } from 'vs/base/common/winjs.base';
 import { ExecutableDebugAdapter } from 'vs/workbench/parts/debug/node/debugAdapter';
 import { TestTextResourcePropertiesService } from 'vs/workbench/test/workbenchTestServices';
 
@@ -118,7 +117,7 @@ suite('Debug - Debugger', () => {
 
 
 	const configurationManager = <IConfigurationManager>{
-		provideDebugAdapter(session: IDebugSession, folderUri: URI | undefined, config: IConfig): TPromise<IDebugAdapterExecutable | undefined> {
+		provideDebugAdapter(session: IDebugSession, folderUri: URI | undefined, config: IConfig): Promise<IDebugAdapterExecutable | undefined> {
 			return Promise.resolve(undefined);
 		}
 	};

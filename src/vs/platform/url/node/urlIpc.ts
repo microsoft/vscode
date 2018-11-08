@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { TPromise } from 'vs/base/common/winjs.base';
 import { IChannel } from 'vs/base/parts/ipc/node/ipc';
 import { URI } from 'vs/base/common/uri';
 import { IDisposable } from 'vs/base/common/lifecycle';
@@ -73,7 +72,7 @@ export class URLHandlerChannelClient implements IURLHandler {
 
 	constructor(private channel: IChannel) { }
 
-	handleURL(uri: URI): TPromise<boolean> {
-		return TPromise.wrap(this.channel.call('handleURL', uri.toJSON()));
+	handleURL(uri: URI): Thenable<boolean> {
+		return this.channel.call('handleURL', uri.toJSON());
 	}
 }

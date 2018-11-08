@@ -181,7 +181,7 @@ export function registerCommands(): void {
 			const manager = accessor.get(IDebugService).getConfigurationManager();
 			if (accessor.get(IWorkspaceContextService).getWorkbenchState() === WorkbenchState.EMPTY) {
 				accessor.get(INotificationService).info(nls.localize('noFolderDebugConfig', "Please first open a folder in order to do advanced debug configuration."));
-				return Promise.resolve(null);
+				return undefined;
 			}
 			const launch = manager.getLaunches().filter(l => l.uri.toString() === launchUri).pop() || manager.selectedConfiguration.launch;
 
@@ -209,14 +209,14 @@ export function registerCommands(): void {
 				.filter(bp => (bp.column === position.column || !bp.column && position.column <= 1)).pop();
 
 			if (bp) {
-				return Promise.resolve(null);
+				return undefined;
 			}
 			if (debugService.getConfigurationManager().canSetBreakpointsIn(widget.getModel())) {
 				return debugService.addBreakpoints(modelUri, [{ lineNumber: position.lineNumber, column: position.column > 1 ? position.column : undefined }], 'debugCommands.inlineBreakpointCommand');
 			}
 		}
 
-		return Promise.resolve(null);
+		return undefined;
 	};
 	KeybindingsRegistry.registerCommandAndKeybindingRule({
 		weight: KeybindingWeight.WorkbenchContrib,
@@ -259,7 +259,7 @@ export function registerCommands(): void {
 				}
 			}
 
-			return Promise.resolve(undefined);
+			return undefined;
 		}
 	});
 }

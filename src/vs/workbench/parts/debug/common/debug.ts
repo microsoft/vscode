@@ -5,7 +5,6 @@
 
 import * as nls from 'vs/nls';
 import { URI as uri } from 'vs/base/common/uri';
-import { TPromise } from 'vs/base/common/winjs.base';
 import severity from 'vs/base/common/severity';
 import { Event } from 'vs/base/common/event';
 import { IJSONSchemaSnippet } from 'vs/base/common/jsonSchema';
@@ -100,7 +99,7 @@ export interface IReplElementSource {
 
 export interface IExpressionContainer extends ITreeElement {
 	readonly hasChildren: boolean;
-	getChildren(): TPromise<ReadonlyArray<IExpression>>;
+	getChildren(): Promise<ReadonlyArray<IExpression>>;
 }
 
 export interface IExpression extends IReplElement, IExpressionContainer {
@@ -111,9 +110,9 @@ export interface IExpression extends IReplElement, IExpressionContainer {
 }
 
 export interface IDebugger {
-	createDebugAdapter(session: IDebugSession, root: IWorkspaceFolder, config: IConfig, outputService: IOutputService): TPromise<IDebugAdapter>;
-	runInTerminal(args: DebugProtocol.RunInTerminalRequestArguments): TPromise<void>;
-	getCustomTelemetryService(): TPromise<TelemetryService>;
+	createDebugAdapter(session: IDebugSession, root: IWorkspaceFolder, config: IConfig, outputService: IOutputService): Promise<IDebugAdapter>;
+	runInTerminal(args: DebugProtocol.RunInTerminalRequestArguments): Promise<void>;
+	getCustomTelemetryService(): Thenable<TelemetryService>;
 }
 
 export enum State {
@@ -156,7 +155,7 @@ export interface IDebugSession extends ITreeElement {
 	getReplElements(): ReadonlyArray<IReplElement>;
 
 	removeReplExpressions(): void;
-	addReplExpression(stackFrame: IStackFrame, name: string): TPromise<void>;
+	addReplExpression(stackFrame: IStackFrame, name: string): Promise<void>;
 	appendToRepl(data: string | IExpression, severity: severity, source?: IReplElementSource): void;
 	logToRepl(sev: severity, args: any[], frame?: { uri: uri, line: number, column: number });
 
@@ -178,37 +177,37 @@ export interface IDebugSession extends ITreeElement {
 
 	// DAP request
 
-	initialize(dbgr: IDebugger): TPromise<void>;
-	launchOrAttach(config: IConfig): TPromise<void>;
-	restart(): TPromise<void>;
-	terminate(restart?: boolean /* false */): TPromise<void>;
-	disconnect(restart?: boolean /* false */): TPromise<void>;
+	initialize(dbgr: IDebugger): Thenable<void>;
+	launchOrAttach(config: IConfig): Promise<void>;
+	restart(): Promise<void>;
+	terminate(restart?: boolean /* false */): Promise<void>;
+	disconnect(restart?: boolean /* false */): Promise<void>;
 
-	sendBreakpoints(modelUri: uri, bpts: IBreakpoint[], sourceModified: boolean): TPromise<void>;
-	sendFunctionBreakpoints(fbps: IFunctionBreakpoint[]): TPromise<void>;
-	sendExceptionBreakpoints(exbpts: IExceptionBreakpoint[]): TPromise<void>;
+	sendBreakpoints(modelUri: uri, bpts: IBreakpoint[], sourceModified: boolean): Promise<void>;
+	sendFunctionBreakpoints(fbps: IFunctionBreakpoint[]): Promise<void>;
+	sendExceptionBreakpoints(exbpts: IExceptionBreakpoint[]): Promise<void>;
 
-	stackTrace(threadId: number, startFrame: number, levels: number): TPromise<DebugProtocol.StackTraceResponse>;
-	exceptionInfo(threadId: number): TPromise<IExceptionInfo>;
-	scopes(frameId: number): TPromise<DebugProtocol.ScopesResponse>;
-	variables(variablesReference: number, filter: 'indexed' | 'named', start: number, count: number): TPromise<DebugProtocol.VariablesResponse>;
-	evaluate(expression: string, frameId?: number, context?: string): TPromise<DebugProtocol.EvaluateResponse>;
-	customRequest(request: string, args: any): TPromise<DebugProtocol.Response>;
+	stackTrace(threadId: number, startFrame: number, levels: number): Promise<DebugProtocol.StackTraceResponse>;
+	exceptionInfo(threadId: number): Promise<IExceptionInfo>;
+	scopes(frameId: number): Promise<DebugProtocol.ScopesResponse>;
+	variables(variablesReference: number, filter: 'indexed' | 'named', start: number, count: number): Promise<DebugProtocol.VariablesResponse>;
+	evaluate(expression: string, frameId?: number, context?: string): Promise<DebugProtocol.EvaluateResponse>;
+	customRequest(request: string, args: any): Promise<DebugProtocol.Response>;
 
-	restartFrame(frameId: number, threadId: number): TPromise<void>;
-	next(threadId: number): TPromise<void>;
-	stepIn(threadId: number): TPromise<void>;
-	stepOut(threadId: number): TPromise<void>;
-	stepBack(threadId: number): TPromise<void>;
-	continue(threadId: number): TPromise<void>;
-	reverseContinue(threadId: number): TPromise<void>;
-	pause(threadId: number): TPromise<void>;
-	terminateThreads(threadIds: number[]): TPromise<void>;
+	restartFrame(frameId: number, threadId: number): Promise<void>;
+	next(threadId: number): Promise<void>;
+	stepIn(threadId: number): Promise<void>;
+	stepOut(threadId: number): Promise<void>;
+	stepBack(threadId: number): Promise<void>;
+	continue(threadId: number): Promise<void>;
+	reverseContinue(threadId: number): Promise<void>;
+	pause(threadId: number): Promise<void>;
+	terminateThreads(threadIds: number[]): Promise<void>;
 
-	completions(frameId: number, text: string, position: Position, overwriteBefore: number): TPromise<CompletionItem[]>;
-	setVariable(variablesReference: number, name: string, value: string): TPromise<DebugProtocol.SetVariableResponse>;
-	loadSource(resource: uri): TPromise<DebugProtocol.SourceResponse>;
-	getLoadedSources(): TPromise<Source[]>;
+	completions(frameId: number, text: string, position: Position, overwriteBefore: number): Promise<CompletionItem[]>;
+	setVariable(variablesReference: number, name: string, value: string): Promise<DebugProtocol.SetVariableResponse>;
+	loadSource(resource: uri): Promise<DebugProtocol.SourceResponse>;
+	getLoadedSources(): Promise<Source[]>;
 }
 
 export interface IThread extends ITreeElement {
@@ -236,7 +235,7 @@ export interface IThread extends ITreeElement {
 	/**
 	 * Information about the exception if an 'exception' stopped event raised and DA supports the 'exceptionInfo' request, otherwise null.
 	 */
-	readonly exceptionInfo: TPromise<IExceptionInfo>;
+	readonly exceptionInfo: Promise<IExceptionInfo>;
 
 	/**
 	 * Gets the callstack if it has already been received from the debug
@@ -255,14 +254,14 @@ export interface IThread extends ITreeElement {
 	 */
 	readonly stopped: boolean;
 
-	next(): TPromise<any>;
-	stepIn(): TPromise<any>;
-	stepOut(): TPromise<any>;
-	stepBack(): TPromise<any>;
-	continue(): TPromise<any>;
-	pause(): TPromise<any>;
-	terminate(): TPromise<any>;
-	reverseContinue(): TPromise<any>;
+	next(): Promise<any>;
+	stepIn(): Promise<any>;
+	stepOut(): Promise<any>;
+	stepBack(): Promise<any>;
+	continue(): Promise<any>;
+	pause(): Promise<any>;
+	terminate(): Promise<any>;
+	reverseContinue(): Promise<any>;
 }
 
 export interface IScope extends IExpressionContainer {
@@ -278,12 +277,12 @@ export interface IStackFrame extends ITreeElement {
 	readonly frameId: number;
 	readonly range: IRange;
 	readonly source: Source;
-	getScopes(): TPromise<ReadonlyArray<IScope>>;
-	getMostSpecificScopes(range: IRange): TPromise<ReadonlyArray<IScope>>;
+	getScopes(): Promise<ReadonlyArray<IScope>>;
+	getMostSpecificScopes(range: IRange): Promise<ReadonlyArray<IScope>>;
 	getSpecificSourceName(): string;
-	restart(): TPromise<any>;
+	restart(): Promise<any>;
 	toString(): string;
-	openInEditor(editorService: IEditorService, preserveFocus?: boolean, sideBySide?: boolean): TPromise<any>;
+	openInEditor(editorService: IEditorService, preserveFocus?: boolean, sideBySide?: boolean): Thenable<any>;
 }
 
 export interface IEnablement extends ITreeElement {
@@ -452,16 +451,16 @@ export interface IDebugAdapter extends IDisposable {
 	readonly onExit: Event<number>;
 	onRequest(callback: (request: DebugProtocol.Request) => void);
 	onEvent(callback: (event: DebugProtocol.Event) => void);
-	startSession(): TPromise<void>;
+	startSession(): Promise<void>;
 	sendMessage(message: DebugProtocol.ProtocolMessage): void;
 	sendResponse(response: DebugProtocol.Response): void;
 	sendRequest(command: string, args: any, clb: (result: DebugProtocol.Response) => void, timemout?: number): void;
-	stopSession(): TPromise<void>;
+	stopSession(): Promise<void>;
 }
 
 export interface IDebugAdapterProvider extends ITerminalLauncher {
 	createDebugAdapter(session: IDebugSession, folder: IWorkspaceFolder, config: IConfig): IDebugAdapter;
-	substituteVariables(folder: IWorkspaceFolder, config: IConfig): TPromise<IConfig>;
+	substituteVariables(folder: IWorkspaceFolder, config: IConfig): Promise<IConfig>;
 }
 
 export interface IDebugAdapterExecutable {
@@ -519,15 +518,14 @@ export interface IDebuggerContribution extends IPlatformSpecificAdapterContribut
 
 export interface IDebugConfigurationProvider {
 	readonly type: string;
-	handle: number;
-	resolveDebugConfiguration?(folderUri: uri | undefined, debugConfiguration: IConfig): TPromise<IConfig>;
-	provideDebugConfigurations?(folderUri: uri | undefined): TPromise<IConfig[]>;
-	provideDebugAdapter?(session: IDebugSession, folderUri: uri | undefined, config: IConfig): TPromise<IAdapterDescriptor>;
+	resolveDebugConfiguration?(folderUri: uri | undefined, debugConfiguration: IConfig): Promise<IConfig>;
+	provideDebugConfigurations?(folderUri: uri | undefined): Promise<IConfig[]>;
+	provideDebugAdapter?(session: IDebugSession, folderUri: uri | undefined, config: IConfig): Promise<IAdapterDescriptor>;
 	hasTracker: boolean;
 }
 
 export interface ITerminalLauncher {
-	runInTerminal(args: DebugProtocol.RunInTerminalRequestArguments, config: ITerminalSettings): TPromise<void>;
+	runInTerminal(args: DebugProtocol.RunInTerminalRequestArguments, config: ITerminalSettings): Promise<void>;
 }
 
 export interface ITerminalSettings {
@@ -571,18 +569,19 @@ export interface IConfigurationManager {
 	onDidSelectConfiguration: Event<void>;
 
 	needsToRunInExtHost(debugType: string): boolean;
+	hasDebugConfigurationProvider(debugType: string): boolean;
 
-	registerDebugConfigurationProvider(handle: number, debugConfigurationProvider: IDebugConfigurationProvider): void;
-	unregisterDebugConfigurationProvider(handle: number): void;
+	registerDebugConfigurationProvider(debugConfigurationProvider: IDebugConfigurationProvider): IDisposable;
+	unregisterDebugConfigurationProvider(debugConfigurationProvider: IDebugConfigurationProvider): void;
 
-	resolveConfigurationByProviders(folderUri: uri | undefined, type: string | undefined, debugConfiguration: any): TPromise<any>;
-	provideDebugAdapter(session: IDebugSession, folderUri: uri | undefined, config: IConfig): TPromise<IAdapterDescriptor | undefined>;
+	resolveConfigurationByProviders(folderUri: uri | undefined, type: string | undefined, debugConfiguration: any): Thenable<any>;
+	provideDebugAdapter(session: IDebugSession, folderUri: uri | undefined, config: IConfig): Promise<IAdapterDescriptor | undefined>;
 
 	registerDebugAdapterProvider(debugTypes: string[], debugAdapterLauncher: IDebugAdapterProvider): IDisposable;
 	createDebugAdapter(session: IDebugSession, folder: IWorkspaceFolder, config: IConfig): IDebugAdapter;
 
-	substituteVariables(debugType: string, folder: IWorkspaceFolder, config: IConfig): TPromise<IConfig>;
-	runInTerminal(debugType: string, args: DebugProtocol.RunInTerminalRequestArguments, config: ITerminalSettings): TPromise<void>;
+	substituteVariables(debugType: string, folder: IWorkspaceFolder, config: IConfig): Promise<IConfig>;
+	runInTerminal(debugType: string, args: DebugProtocol.RunInTerminalRequestArguments, config: ITerminalSettings): Promise<void>;
 }
 
 export interface ILaunch {
@@ -628,7 +627,7 @@ export interface ILaunch {
 	/**
 	 * Opens the launch.json file. Creates if it does not exist.
 	 */
-	openConfigFile(sideBySide: boolean, preserveFocus: boolean, type?: string): TPromise<{ editor: IEditor, created: boolean }>;
+	openConfigFile(sideBySide: boolean, preserveFocus: boolean, type?: string): Thenable<{ editor: IEditor, created: boolean }>;
 }
 
 // Debug service interfaces
@@ -676,7 +675,7 @@ export interface IDebugService {
 	/**
 	 * Adds new breakpoints to the model for the file specified with the uri. Notifies debug adapter of breakpoint changes.
 	 */
-	addBreakpoints(uri: uri, rawBreakpoints: IBreakpointData[], context: string): TPromise<IBreakpoint[]>;
+	addBreakpoints(uri: uri, rawBreakpoints: IBreakpointData[], context: string): Promise<IBreakpoint[]>;
 
 	/**
 	 * Updates the breakpoints.
@@ -687,19 +686,19 @@ export interface IDebugService {
 	 * Enables or disables all breakpoints. If breakpoint is passed only enables or disables the passed breakpoint.
 	 * Notifies debug adapter of breakpoint changes.
 	 */
-	enableOrDisableBreakpoints(enable: boolean, breakpoint?: IEnablement): TPromise<void>;
+	enableOrDisableBreakpoints(enable: boolean, breakpoint?: IEnablement): Promise<void>;
 
 	/**
 	 * Sets the global activated property for all breakpoints.
 	 * Notifies debug adapter of breakpoint changes.
 	 */
-	setBreakpointsActivated(activated: boolean): TPromise<void>;
+	setBreakpointsActivated(activated: boolean): Promise<void>;
 
 	/**
 	 * Removes all breakpoints. If id is passed only removes the breakpoint associated with that id.
 	 * Notifies debug adapter of breakpoint changes.
 	 */
-	removeBreakpoints(id?: string): TPromise<any>;
+	removeBreakpoints(id?: string): Promise<any>;
 
 	/**
 	 * Adds a new function breakpoint for the given name.
@@ -710,19 +709,19 @@ export interface IDebugService {
 	 * Renames an already existing function breakpoint.
 	 * Notifies debug adapter of breakpoint changes.
 	 */
-	renameFunctionBreakpoint(id: string, newFunctionName: string): TPromise<void>;
+	renameFunctionBreakpoint(id: string, newFunctionName: string): Promise<void>;
 
 	/**
 	 * Removes all function breakpoints. If id is passed only removes the function breakpoint with the passed id.
 	 * Notifies debug adapter of breakpoint changes.
 	 */
-	removeFunctionBreakpoints(id?: string): TPromise<void>;
+	removeFunctionBreakpoints(id?: string): Promise<void>;
 
 	/**
 	 * Sends all breakpoints to the passed session.
 	 * If session is not passed, sends all breakpoints to each session.
 	 */
-	sendAllBreakpoints(session?: IDebugSession): TPromise<any>;
+	sendAllBreakpoints(session?: IDebugSession): Promise<any>;
 
 	/**
 	 * Adds a new watch expression and evaluates it against the debug adapter.
@@ -752,17 +751,17 @@ export interface IDebugService {
 	 * Returns true if the start debugging was successfull. For compound launches, all configurations have to start successfuly for it to return success.
 	 * On errors the startDebugging will throw an error, however some error and cancelations are handled and in that case will simply return false.
 	 */
-	startDebugging(launch: ILaunch, configOrName?: IConfig | string, noDebug?: boolean): TPromise<boolean>;
+	startDebugging(launch: ILaunch, configOrName?: IConfig | string, noDebug?: boolean): Thenable<boolean>;
 
 	/**
 	 * Restarts a session or creates a new one if there is no active session.
 	 */
-	restartSession(session: IDebugSession, restartData?: any): TPromise<any>;
+	restartSession(session: IDebugSession, restartData?: any): Thenable<any>;
 
 	/**
 	 * Stops the session. If the session does not exist then stops all sessions.
 	 */
-	stopSession(session: IDebugSession): TPromise<any>;
+	stopSession(session: IDebugSession): Promise<any>;
 
 	/**
 	 * Makes unavailable all sources with the passed uri. Source will appear as grayed out in callstack view.
@@ -788,8 +787,8 @@ export const enum BreakpointWidgetContext {
 }
 
 export interface IDebugEditorContribution extends IEditorContribution {
-	showHover(range: Range, focus: boolean): TPromise<void>;
+	showHover(range: Range, focus: boolean): Promise<void>;
 	showBreakpointWidget(lineNumber: number, column: number, context?: BreakpointWidgetContext): void;
 	closeBreakpointWidget(): void;
-	addLaunchConfiguration(): TPromise<any>;
+	addLaunchConfiguration(): Promise<any>;
 }

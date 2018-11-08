@@ -4,13 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { onUnexpectedError } from 'vs/base/common/errors';
-import { ErrorCallback, TPromise, ValueCallback } from 'vs/base/common/winjs.base';
 
 export class LazyPromise implements Thenable<any> {
 
-	private _actual: TPromise<any> | null;
-	private _actualOk: ValueCallback | null;
-	private _actualErr: ErrorCallback | null;
+	private _actual: Promise<any> | null;
+	private _actualOk: ((value?: any) => any) | null;
+	private _actualErr: ((err?: any) => any) | null;
 
 	private _hasValue: boolean;
 	private _value: any;
@@ -28,9 +27,9 @@ export class LazyPromise implements Thenable<any> {
 		this._err = null;
 	}
 
-	private _ensureActual(): TPromise<any> {
+	private _ensureActual(): Promise<any> {
 		if (!this._actual) {
-			this._actual = new TPromise<any>((c, e) => {
+			this._actual = new Promise<any>((c, e) => {
 				this._actualOk = c;
 				this._actualErr = e;
 

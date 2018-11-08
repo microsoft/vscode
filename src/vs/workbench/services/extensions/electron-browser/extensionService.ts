@@ -133,6 +133,7 @@ export class ExtensionHostProcessManager extends Disposable {
 
 	constructor(
 		extensionHostProcessWorker: IExtensionHostStarter,
+		private readonly _remoteAuthority: string,
 		initialActivationEvents: string[],
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IEnvironmentService private readonly _environmentService: IEnvironmentService,
@@ -193,6 +194,7 @@ export class ExtensionHostProcessManager extends Disposable {
 		this._extensionHostProcessRPCProtocol = new RPCProtocol(protocol, logger);
 		this._register(this._extensionHostProcessRPCProtocol.onDidChangeResponsiveState((responsiveState: ResponsiveState) => this._onDidChangeResponsiveState.fire(responsiveState)));
 		const extHostContext: IExtHostContext = {
+			remoteAuthority: this._remoteAuthority,
 			getProxy: <T>(identifier: ProxyIdentifier<T>): T => this._extensionHostProcessRPCProtocol.getProxy(identifier),
 			set: <T, R extends T>(identifier: ProxyIdentifier<T>, instance: R): R => this._extensionHostProcessRPCProtocol.set(identifier, instance),
 			assertRegistered: (identifiers: ProxyIdentifier<any>[]): void => this._extensionHostProcessRPCProtocol.assertRegistered(identifiers),
@@ -238,7 +240,7 @@ export class ExtensionHostProcessManager extends Disposable {
 		});
 	}
 
-	public startExtensionHostProfile(): TPromise<ProfileSession> {
+	public startExtensionHostProfile(): Promise<ProfileSession> {
 		if (this._extensionHostProcessWorker) {
 			let port = this._extensionHostProcessWorker.getInspectPort();
 			if (port) {
@@ -384,7 +386,7 @@ export class ExtensionService extends Disposable implements IExtensionService {
 		this._stopExtensionHostProcess();
 
 		const extHostProcessWorker = this._instantiationService.createInstance(ExtensionHostProcessWorker, this.getExtensions(), this._extensionHostLogsLocation);
-		const extHostProcessManager = this._instantiationService.createInstance(ExtensionHostProcessManager, extHostProcessWorker, initialActivationEvents);
+		const extHostProcessManager = this._instantiationService.createInstance(ExtensionHostProcessManager, extHostProcessWorker, null, initialActivationEvents);
 		extHostProcessManager.onDidCrash(([code, signal]) => this._onExtensionHostCrashed(code, signal));
 		extHostProcessManager.onDidChangeResponsiveState((responsiveState) => this._onResponsiveStateChanged(responsiveState));
 		this._extensionHostProcessManagers.push(extHostProcessManager);
@@ -564,7 +566,7 @@ export class ExtensionService extends Disposable implements IExtensionService {
 		return false;
 	}
 
-	public startExtensionHostProfile(): TPromise<ProfileSession> {
+	public startExtensionHostProfile(): Promise<ProfileSession> {
 		for (let i = 0, len = this._extensionHostProcessManagers.length; i < len; i++) {
 			const extHostProcessManager = this._extensionHostProcessManagers[i];
 			if (extHostProcessManager.canProfileExtensionHost()) {

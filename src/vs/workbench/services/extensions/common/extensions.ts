@@ -34,6 +34,17 @@ export interface IExtensionDescription {
 	enableProposedApi?: boolean;
 }
 
+export const nullExtensionDescription = Object.freeze(<IExtensionDescription>{
+	id: 'nullExtensionDescription',
+	name: 'Null Extension Description',
+	version: '0.0.0',
+	publisher: 'vscode',
+	enableProposedApi: false,
+	engines: { vscode: '' },
+	extensionLocation: URI.parse('void:location'),
+	isBuiltin: false,
+});
+
 export const IExtensionService = createDecorator<IExtensionService>('extensionService');
 
 export interface IMessage {
@@ -204,7 +215,7 @@ export interface IExtensionService {
 }
 
 export interface ProfileSession {
-	stop(): TPromise<IExtensionHostProfile>;
+	stop(): Promise<IExtensionHostProfile>;
 }
 
 export function checkProposedApiEnabled(extension: IExtensionDescription): void {

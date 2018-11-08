@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { TPromise } from 'vs/base/common/winjs.base';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 
 export const IIssueService = createDecorator<IIssueService>('issueService');
@@ -88,6 +87,6 @@ export interface ProcessExplorerData extends WindowData {
 
 export interface IIssueService {
 	_serviceBrand: any;
-	openReporter(data: IssueReporterData): TPromise<void>;
-	openProcessExplorer(data: ProcessExplorerData): TPromise<void>;
+	openReporter(data: IssueReporterData): Promise<void>;
+	openProcessExplorer(data: ProcessExplorerData): Promise<void>;
 }

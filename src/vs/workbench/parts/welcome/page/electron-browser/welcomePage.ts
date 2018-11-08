@@ -6,6 +6,8 @@
 import 'vs/css!./welcomePage';
 import { URI } from 'vs/base/common/uri';
 import * as path from 'path';
+import { readdir } from 'vs/base/node/extfs';
+import { ICommandService } from 'vs/platform/commands/common/commands';
 import * as arrays from 'vs/base/common/arrays';
 import { WalkThroughInput } from 'vs/workbench/parts/welcome/walkThrough/node/walkThroughInput';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
@@ -55,14 +57,45 @@ export class WelcomePageContribution implements IWorkbenchContribution {
 		@IBackupFileService backupFileService: IBackupFileService,
 		@IWorkspaceContextService contextService: IWorkspaceContextService,
 		@ILifecycleService lifecycleService: ILifecycleService,
+		@ICommandService private commandService: ICommandService,
 	) {
 		const enabled = isWelcomePageEnabled(configurationService, contextService);
 		if (enabled && lifecycleService.startupKind !== StartupKind.ReloadedWindow) {
 			backupFileService.hasBackups().then(hasBackups => {
 				const activeEditor = editorService.activeEditor;
 				if (!activeEditor && !hasBackups) {
-					return instantiationService.createInstance(WelcomePage)
-						.openEditor();
+					const openWithReadme = configurationService.getValue(configurationKey) === 'readme';
+					if (openWithReadme) {
+						const workSpaceFolders = contextService.getWorkspace().folders.map(el => el.uri);
+						for (let i = 0; i < workSpaceFolders.length; i += 1) {
+							const workSpaceFolder = workSpaceFolders[i];
+							let foldersChecked = 0;
+							readdir(workSpaceFolder.path, (err, files) => {
+								foldersChecked += 1;
+								if (err) {
+									onUnexpectedError(err);
+								} else {
+									for (const content of files) {
+										if (content.toLowerCase().lastIndexOf('readme', 0) === 0) {
+											const readmeLocation = path.join(workSpaceFolder.path, content);
+											if (readmeLocation.toLowerCase().slice(readmeLocation.length - 3) === '.md') {
+												return !editorService.activeEditor && this.commandService
+													.executeCommand('markdown.showPreview', URI.file(readmeLocation));
+											}
+											return !editorService.activeEditor && editorService
+												.openEditor({ resource: URI.file(readmeLocation) });
+										}
+									}
+								}
+								if (foldersChecked === workSpaceFolders.length - 1) {
+									return instantiationService.createInstance(WelcomePage).openEditor();
+								}
+								return undefined;
+							});
+						}
+					} else {
+						return instantiationService.createInstance(WelcomePage).openEditor();
+					}
 				}
 				return undefined;
 			}).then(null, onUnexpectedError);
@@ -78,7 +111,7 @@ function isWelcomePageEnabled(configurationService: IConfigurationService, conte
 			return welcomeEnabled.value;
 		}
 	}
-	return startupEditor.value === 'welcomePage' || startupEditor.value === 'welcomePageInEmptyWorkbench' && contextService.getWorkbenchState() === WorkbenchState.EMPTY;
+	return startupEditor.value === 'welcomePage' || startupEditor.value === 'readme' || startupEditor.value === 'welcomePageInEmptyWorkbench' && contextService.getWorkbenchState() === WorkbenchState.EMPTY;
 }
 
 export class WelcomePageAction extends Action {

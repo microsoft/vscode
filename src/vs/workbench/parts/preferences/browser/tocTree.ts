@@ -5,7 +5,6 @@
 
 import * as DOM from 'vs/base/browser/dom';
 import { ScrollbarVisibility } from 'vs/base/common/scrollable';
-import { TPromise } from 'vs/base/common/winjs.base';
 import { IDataSource, IRenderer, ITree, ITreeConfiguration, ITreeOptions } from 'vs/base/parts/tree/browser/tree';
 import { DefaultTreestyler } from 'vs/base/parts/tree/browser/treeDefaults';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -106,8 +105,8 @@ export class TOCDataSource implements IDataSource {
 		return false;
 	}
 
-	getChildren(tree: ITree, element: TOCTreeElement): TPromise<SettingsTreeElement[]> {
-		return TPromise.as(this._getChildren(element));
+	getChildren(tree: ITree, element: TOCTreeElement): Promise<SettingsTreeElement[]> {
+		return Promise.resolve(this._getChildren(element));
 	}
 
 	private _getChildren(element: TOCTreeElement): SettingsTreeElement[] {
@@ -115,8 +114,8 @@ export class TOCDataSource implements IDataSource {
 			.filter(child => child instanceof SettingsTreeGroupElement);
 	}
 
-	getParent(tree: ITree, element: TOCTreeElement): TPromise<any> {
-		return TPromise.wrap(element instanceof SettingsTreeGroupElement && element.parent);
+	getParent(tree: ITree, element: TOCTreeElement): Promise<any> {
+		return Promise.resolve(element instanceof SettingsTreeGroupElement && element.parent);
 	}
 }
 

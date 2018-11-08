@@ -8,7 +8,6 @@ import { Event, Emitter } from 'vs/base/common/event';
 import * as objects from 'vs/base/common/objects';
 import { Action } from 'vs/base/common/actions';
 import * as errors from 'vs/base/common/errors';
-import { TPromise } from 'vs/base/common/winjs.base';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { formatPII } from 'vs/workbench/parts/debug/common/debugUtils';
 import { IDebugAdapter, IConfig, AdapterEndEvent, IDebugger } from 'vs/workbench/parts/debug/common/debug';
@@ -204,7 +203,7 @@ export class RawDebugSession {
 	/**
 	 * Starts the underlying debug adapter and tracks the session time for telemetry.
 	 */
-	public start(): TPromise<void> {
+	public start(): Promise<void> {
 		return this.debugAdapter.startSession().then(() => {
 			this.startTime = new Date().getTime();
 		}, err => {
@@ -215,7 +214,7 @@ export class RawDebugSession {
 	/**
 	 * Send client capabilities to the debug adapter and receive DA capabilities in return.
 	 */
-	public initialize(args: DebugProtocol.InitializeRequestArguments): TPromise<DebugProtocol.InitializeResponse> {
+	public initialize(args: DebugProtocol.InitializeRequestArguments): Promise<DebugProtocol.InitializeResponse> {
 		return this.send('initialize', args).then((response: DebugProtocol.InitializeResponse) => {
 			this.mergeCapabilities(response.body);
 			return response;
@@ -225,13 +224,13 @@ export class RawDebugSession {
 	/**
 	 * Terminate the debuggee and shutdown the adapter
 	 */
-	public disconnect(restart = false): TPromise<any> {
+	public disconnect(restart = false): Promise<any> {
 		return this.shutdown(undefined, restart);
 	}
 
 	//---- DAP requests
 
-	public launchOrAttach(config: IConfig): TPromise<DebugProtocol.Response> {
+	public launchOrAttach(config: IConfig): Promise<DebugProtocol.Response> {
 		return this.send(config.request, config).then(response => {
 			this.mergeCapabilities(response.body);
 			return response;
@@ -241,7 +240,7 @@ export class RawDebugSession {
 	/**
 	 * Try killing the debuggee softly...
 	 */
-	public terminate(restart = false): TPromise<DebugProtocol.TerminateResponse> {
+	public terminate(restart = false): Promise<DebugProtocol.TerminateResponse> {
 		if (this.capabilities.supportsTerminateRequest) {
 			if (!this.terminated) {
 				this.terminated = true;
@@ -252,35 +251,35 @@ export class RawDebugSession {
 		return Promise.reject(new Error('terminated not supported'));
 	}
 
-	public restart(): TPromise<DebugProtocol.RestartResponse> {
+	public restart(): Promise<DebugProtocol.RestartResponse> {
 		if (this.capabilities.supportsRestartRequest) {
 			return this.send('restart', null);
 		}
 		return Promise.reject(new Error('restart not supported'));
 	}
 
-	public next(args: DebugProtocol.NextArguments): TPromise<DebugProtocol.NextResponse> {
+	public next(args: DebugProtocol.NextArguments): Promise<DebugProtocol.NextResponse> {
 		return this.send('next', args).then(response => {
 			this.fireSimulatedContinuedEvent(args.threadId);
 			return response;
 		});
 	}
 
-	public stepIn(args: DebugProtocol.StepInArguments): TPromise<DebugProtocol.StepInResponse> {
+	public stepIn(args: DebugProtocol.StepInArguments): Promise<DebugProtocol.StepInResponse> {
 		return this.send('stepIn', args).then(response => {
 			this.fireSimulatedContinuedEvent(args.threadId);
 			return response;
 		});
 	}
 
-	public stepOut(args: DebugProtocol.StepOutArguments): TPromise<DebugProtocol.StepOutResponse> {
+	public stepOut(args: DebugProtocol.StepOutArguments): Promise<DebugProtocol.StepOutResponse> {
 		return this.send('stepOut', args).then(response => {
 			this.fireSimulatedContinuedEvent(args.threadId);
 			return response;
 		});
 	}
 
-	public continue(args: DebugProtocol.ContinueArguments): TPromise<DebugProtocol.ContinueResponse> {
+	public continue(args: DebugProtocol.ContinueArguments): Promise<DebugProtocol.ContinueResponse> {
 		return this.send<DebugProtocol.ContinueResponse>('continue', args).then(response => {
 			if (response && response.body && response.body.allThreadsContinued !== undefined) {
 				this.allThreadsContinued = response.body.allThreadsContinued;
@@ -290,25 +289,25 @@ export class RawDebugSession {
 		});
 	}
 
-	public pause(args: DebugProtocol.PauseArguments): TPromise<DebugProtocol.PauseResponse> {
+	public pause(args: DebugProtocol.PauseArguments): Promise<DebugProtocol.PauseResponse> {
 		return this.send('pause', args);
 	}
 
-	public terminateThreads(args: DebugProtocol.TerminateThreadsArguments): TPromise<DebugProtocol.TerminateThreadsResponse> {
+	public terminateThreads(args: DebugProtocol.TerminateThreadsArguments): Promise<DebugProtocol.TerminateThreadsResponse> {
 		if (this.capabilities.supportsTerminateThreadsRequest) {
 			return this.send('terminateThreads', args);
 		}
 		return Promise.reject(new Error('terminateThreads not supported'));
 	}
 
-	public setVariable(args: DebugProtocol.SetVariableArguments): TPromise<DebugProtocol.SetVariableResponse> {
+	public setVariable(args: DebugProtocol.SetVariableArguments): Promise<DebugProtocol.SetVariableResponse> {
 		if (this.capabilities.supportsSetVariable) {
 			return this.send<DebugProtocol.SetVariableResponse>('setVariable', args);
 		}
 		return Promise.reject(new Error('setVariable not supported'));
 	}
 
-	public restartFrame(args: DebugProtocol.RestartFrameArguments, threadId: number): TPromise<DebugProtocol.RestartFrameResponse> {
+	public restartFrame(args: DebugProtocol.RestartFrameArguments, threadId: number): Promise<DebugProtocol.RestartFrameResponse> {
 		if (this.capabilities.supportsRestartFrame) {
 			return this.send('restartFrame', args).then(response => {
 				this.fireSimulatedContinuedEvent(threadId);
@@ -318,74 +317,74 @@ export class RawDebugSession {
 		return Promise.reject(new Error('restartFrame not supported'));
 	}
 
-	public completions(args: DebugProtocol.CompletionsArguments): TPromise<DebugProtocol.CompletionsResponse> {
+	public completions(args: DebugProtocol.CompletionsArguments): Promise<DebugProtocol.CompletionsResponse> {
 		if (this.capabilities.supportsCompletionsRequest) {
 			return this.send<DebugProtocol.CompletionsResponse>('completions', args);
 		}
 		return Promise.reject(new Error('completions not supported'));
 	}
 
-	public setBreakpoints(args: DebugProtocol.SetBreakpointsArguments): TPromise<DebugProtocol.SetBreakpointsResponse> {
+	public setBreakpoints(args: DebugProtocol.SetBreakpointsArguments): Promise<DebugProtocol.SetBreakpointsResponse> {
 		return this.send<DebugProtocol.SetBreakpointsResponse>('setBreakpoints', args);
 	}
 
-	public setFunctionBreakpoints(args: DebugProtocol.SetFunctionBreakpointsArguments): TPromise<DebugProtocol.SetFunctionBreakpointsResponse> {
+	public setFunctionBreakpoints(args: DebugProtocol.SetFunctionBreakpointsArguments): Promise<DebugProtocol.SetFunctionBreakpointsResponse> {
 		if (this.capabilities.supportsFunctionBreakpoints) {
 			return this.send<DebugProtocol.SetFunctionBreakpointsResponse>('setFunctionBreakpoints', args);
 		}
 		return Promise.reject(new Error('setFunctionBreakpoints not supported'));
 	}
 
-	public setExceptionBreakpoints(args: DebugProtocol.SetExceptionBreakpointsArguments): TPromise<DebugProtocol.SetExceptionBreakpointsResponse> {
+	public setExceptionBreakpoints(args: DebugProtocol.SetExceptionBreakpointsArguments): Promise<DebugProtocol.SetExceptionBreakpointsResponse> {
 		return this.send<DebugProtocol.SetExceptionBreakpointsResponse>('setExceptionBreakpoints', args);
 	}
 
-	public configurationDone(): TPromise<DebugProtocol.ConfigurationDoneResponse> {
+	public configurationDone(): Promise<DebugProtocol.ConfigurationDoneResponse> {
 		if (this.capabilities.supportsConfigurationDoneRequest) {
 			return this.send('configurationDone', null);
 		}
 		return Promise.reject(new Error('configurationDone not supported'));
 	}
 
-	public stackTrace(args: DebugProtocol.StackTraceArguments): TPromise<DebugProtocol.StackTraceResponse> {
+	public stackTrace(args: DebugProtocol.StackTraceArguments): Promise<DebugProtocol.StackTraceResponse> {
 		return this.send<DebugProtocol.StackTraceResponse>('stackTrace', args);
 	}
 
-	public exceptionInfo(args: DebugProtocol.ExceptionInfoArguments): TPromise<DebugProtocol.ExceptionInfoResponse> {
+	public exceptionInfo(args: DebugProtocol.ExceptionInfoArguments): Promise<DebugProtocol.ExceptionInfoResponse> {
 		if (this.capabilities.supportsExceptionInfoRequest) {
 			return this.send<DebugProtocol.ExceptionInfoResponse>('exceptionInfo', args);
 		}
 		return Promise.reject(new Error('exceptionInfo not supported'));
 	}
 
-	public scopes(args: DebugProtocol.ScopesArguments): TPromise<DebugProtocol.ScopesResponse> {
+	public scopes(args: DebugProtocol.ScopesArguments): Promise<DebugProtocol.ScopesResponse> {
 		return this.send<DebugProtocol.ScopesResponse>('scopes', args);
 	}
 
-	public variables(args: DebugProtocol.VariablesArguments): TPromise<DebugProtocol.VariablesResponse> {
+	public variables(args: DebugProtocol.VariablesArguments): Promise<DebugProtocol.VariablesResponse> {
 		return this.send<DebugProtocol.VariablesResponse>('variables', args);
 	}
 
-	public source(args: DebugProtocol.SourceArguments): TPromise<DebugProtocol.SourceResponse> {
+	public source(args: DebugProtocol.SourceArguments): Promise<DebugProtocol.SourceResponse> {
 		return this.send<DebugProtocol.SourceResponse>('source', args);
 	}
 
-	public loadedSources(args: DebugProtocol.LoadedSourcesArguments): TPromise<DebugProtocol.LoadedSourcesResponse> {
+	public loadedSources(args: DebugProtocol.LoadedSourcesArguments): Promise<DebugProtocol.LoadedSourcesResponse> {
 		if (this.capabilities.supportsLoadedSourcesRequest) {
 			return this.send<DebugProtocol.LoadedSourcesResponse>('loadedSources', args);
 		}
 		return Promise.reject(new Error('loadedSources not supported'));
 	}
 
-	public threads(): TPromise<DebugProtocol.ThreadsResponse> {
+	public threads(): Promise<DebugProtocol.ThreadsResponse> {
 		return this.send<DebugProtocol.ThreadsResponse>('threads', null);
 	}
 
-	public evaluate(args: DebugProtocol.EvaluateArguments): TPromise<DebugProtocol.EvaluateResponse> {
+	public evaluate(args: DebugProtocol.EvaluateArguments): Promise<DebugProtocol.EvaluateResponse> {
 		return this.send<DebugProtocol.EvaluateResponse>('evaluate', args);
 	}
 
-	public stepBack(args: DebugProtocol.StepBackArguments): TPromise<DebugProtocol.StepBackResponse> {
+	public stepBack(args: DebugProtocol.StepBackArguments): Promise<DebugProtocol.StepBackResponse> {
 		if (this.capabilities.supportsStepBack) {
 			return this.send('stepBack', args).then(response => {
 				if (response.body === undefined) {	// TODO@AW why this check?
@@ -397,7 +396,7 @@ export class RawDebugSession {
 		return Promise.reject(new Error('stepBack not supported'));
 	}
 
-	public reverseContinue(args: DebugProtocol.ReverseContinueArguments): TPromise<DebugProtocol.ReverseContinueResponse> {
+	public reverseContinue(args: DebugProtocol.ReverseContinueArguments): Promise<DebugProtocol.ReverseContinueResponse> {
 		if (this.capabilities.supportsStepBack) {
 			return this.send('reverseContinue', args).then(response => {
 				if (response.body === undefined) {	// TODO@AW why this check?
@@ -409,14 +408,14 @@ export class RawDebugSession {
 		return Promise.reject(new Error('reverseContinue not supported'));
 	}
 
-	public custom(request: string, args: any): TPromise<DebugProtocol.Response> {
+	public custom(request: string, args: any): Promise<DebugProtocol.Response> {
 		return this.send(request, args);
 	}
 
 	//---- private
 
 
-	private shutdown(error?: Error, restart = false): TPromise<any> {
+	private shutdown(error?: Error, restart = false): Promise<any> {
 		if (!this.inShutdown) {
 			this.inShutdown = true;
 			if (this.debugAdapter) {
@@ -432,7 +431,7 @@ export class RawDebugSession {
 		return Promise.resolve(undefined);
 	}
 
-	private stopAdapter(error?: Error): TPromise<any> {
+	private stopAdapter(error?: Error): Promise<any> {
 		if (this.debugAdapter) {
 			const da = this.debugAdapter;
 			this.debugAdapter = null;

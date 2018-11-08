@@ -410,10 +410,11 @@ export class QuickFixActionItem extends ActionItem {
 	public onClick(event: DOM.EventLike): void {
 		DOM.EventHelper.stop(event, true);
 		const elementPosition = DOM.getDomNodePagePosition(this.element);
-		this.contextMenuService.showContextMenu({
-			getAnchor: () => ({ x: elementPosition.left + 10, y: elementPosition.top + elementPosition.height }),
-			getActions: () => TPromise.wrap((<QuickFixAction>this.getAction()).getQuickFixActions()),
+		(<QuickFixAction>this.getAction()).getQuickFixActions().then(actions => {
+			this.contextMenuService.showContextMenu({
+				getAnchor: () => ({ x: elementPosition.left + 10, y: elementPosition.top + elementPosition.height }),
+				getActions: () => actions
+			});
 		});
 	}
-
 }
