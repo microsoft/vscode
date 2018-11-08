@@ -66,7 +66,7 @@ function _transformOutgoingURIs(obj: any, transformer: IURITransformer, depth: n
 	return null;
 }
 
-export function transformOutgoingURIs(obj: any, transformer: IURITransformer): any {
+export function transformOutgoingURIs<T>(obj: T, transformer: IURITransformer): T {
 	const result = _transformOutgoingURIs(obj, transformer, 0);
 	if (result === null) {
 		// no change
@@ -101,7 +101,7 @@ function _transformIncomingURIs(obj: any, transformer: IURITransformer, depth: n
 	return null;
 }
 
-function transformIncomingURIs(obj: any, transformer: IURITransformer): any {
+function transformIncomingURIs<T>(obj: T, transformer: IURITransformer): T {
 	const result = _transformIncomingURIs(obj, transformer, 0);
 	if (result === null) {
 		// no change
