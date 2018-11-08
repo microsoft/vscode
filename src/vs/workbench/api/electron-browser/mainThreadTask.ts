@@ -287,7 +287,8 @@ namespace TaskDTO {
 			presentationOptions: task.command ? TaskPresentationOptionsDTO.from(task.command.presentation) : undefined,
 			isBackground: task.isBackground,
 			problemMatchers: [],
-			hasDefinedMatchers: ContributedTask.is(task) ? task.hasDefinedMatchers : false
+			hasDefinedMatchers: ContributedTask.is(task) ? task.hasDefinedMatchers : false,
+			rerunBehavior: task.rerunBehavior,
 		};
 		if (task.group) {
 			result.group = task.group;
@@ -342,7 +343,8 @@ namespace TaskDTO {
 			command: command,
 			isBackground: !!task.isBackground,
 			problemMatchers: task.problemMatchers.slice(),
-			hasDefinedMatchers: task.hasDefinedMatchers
+			hasDefinedMatchers: task.hasDefinedMatchers,
+			rerunBehavior: task.rerunBehavior,
 		};
 		return result;
 	}

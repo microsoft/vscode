@@ -313,6 +313,11 @@ export interface ConfigurationProperties {
 	 * output.
 	 */
 	problemMatcher?: ProblemMatcherConfig.ProblemMatcherType;
+
+	/**
+	 * Task rerun behavior. Controls properties of the task on rerun
+	 */
+	rerunBehavior?: string;
 }
 
 export interface CustomTask extends CommandProperties, ConfigurationProperties {
@@ -1285,7 +1290,8 @@ namespace ConfiguringTask {
 			configures: taskIdentifier,
 			_id: `${typeDeclaration.extensionId}.${taskIdentifier._key}`,
 			_source: Objects.assign({}, source, { config: configElement }),
-			_label: undefined
+			_label: undefined,
+			rerunBehavior: Tasks.RerunBehavior.fromString(external.rerunBehavior),
 		};
 		let configuration = ConfigurationProperties.from(external, context, true);
 		if (configuration) {
@@ -1344,7 +1350,8 @@ namespace CustomTask {
 			name: taskName,
 			identifier: taskName,
 			hasDefinedMatchers: false,
-			command: undefined
+			command: undefined,
+			rerunBehavior: Tasks.RerunBehavior.fromString(external.rerunBehavior),
 		};
 		let configuration = ConfigurationProperties.from(external, context, false);
 		if (configuration) {
@@ -1417,7 +1424,8 @@ namespace CustomTask {
 			command: contributedTask.command,
 			name: configuredProps.name || contributedTask.name,
 			identifier: configuredProps.identifier || contributedTask.identifier,
-			hasDefinedMatchers: false
+			hasDefinedMatchers: false,
+			rerunBehavior: contributedTask.rerunBehavior,
 		};
 		let resultConfigProps: Tasks.ConfigurationProperties = result;
 
@@ -1852,6 +1860,7 @@ class ConfigurationParser {
 				isBackground: isBackground,
 				problemMatchers: matchers,
 				hasDefinedMatchers: false,
+				rerunBehavior: Tasks.RerunBehavior.reevaluate,
 			};
 			let value = GroupKind.from(fileConfig.group);
 			if (value) {

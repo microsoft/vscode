@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { UriComponents } from 'vs/base/common/uri';
+import { RerunBehavior } from 'vs/workbench/parts/tasks/common/tasks';
 
 export interface TaskDefinitionDTO {
 	type: string;
@@ -82,6 +83,7 @@ export interface TaskDTO {
 	presentationOptions: TaskPresentationOptionsDTO;
 	problemMatchers: string[];
 	hasDefinedMatchers: boolean;
+	rerunBehavior: RerunBehavior;
 }
 
 export interface TaskExecutionDTO {

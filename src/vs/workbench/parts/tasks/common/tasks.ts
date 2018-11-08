@@ -174,6 +174,21 @@ export namespace PanelKind {
 	}
 }
 
+export namespace RerunBehavior {
+	export function fromString(value: string | undefined): RerunBehavior {
+		if (!value) {
+			return RerunBehavior.reevaluate;
+		}
+		switch (value.toLowerCase()) {
+			case 'useevaluated':
+				return RerunBehavior.useEvaulated;
+			case 'reevaulate':
+			default:
+				return RerunBehavior.reevaluate;
+		}
+	}
+}
+
 export interface PresentationOptions {
 	/**
 	 * Controls whether the task output is reveal in the user interface.
@@ -419,6 +434,11 @@ export interface ConfigurationProperties {
 	problemMatchers?: (string | ProblemMatcher)[];
 }
 
+export enum RerunBehavior {
+	reevaluate = 1,
+	useEvaulated = 2,
+}
+
 export interface CommonTask {
 
 	/**
@@ -432,6 +452,8 @@ export interface CommonTask {
 	_label: string;
 
 	type: string;
+
+	rerunBehavior: RerunBehavior;
 }
 
 export interface CustomTask extends CommonTask, ConfigurationProperties {

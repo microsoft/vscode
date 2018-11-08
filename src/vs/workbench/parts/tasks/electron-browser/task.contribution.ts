@@ -74,7 +74,7 @@ import { ITaskSystem, ITaskResolver, ITaskSummary, TaskExecuteKind, TaskError, T
 import {
 	Task, CustomTask, ConfiguringTask, ContributedTask, InMemoryTask, TaskEvent,
 	TaskEventKind, TaskSet, TaskGroup, GroupType, ExecutionEngine, JsonSchemaVersion, TaskSourceKind,
-	TaskSorter, TaskIdentifier, KeyedTaskIdentifier, TASK_RUNNING_STATE
+	TaskSorter, TaskIdentifier, KeyedTaskIdentifier, TASK_RUNNING_STATE, RerunBehavior
 } from 'vs/workbench/parts/tasks/common/tasks';
 import { ITaskService, ITaskProvider, RunOptions, CustomizationProperties, TaskFilter } from 'vs/workbench/parts/tasks/common/taskService';
 import { getTemplates as getTaskTemplates } from 'vs/workbench/parts/tasks/common/taskTemplates';
@@ -1172,7 +1172,8 @@ class TaskService extends Disposable implements ITaskService {
 				type: 'inMemory',
 				name: id,
 				identifier: id,
-				dependsOn: extensionTasks.map((task) => { return { workspaceFolder: Task.getWorkspaceFolder(task), task: task._id }; })
+				dependsOn: extensionTasks.map((task) => { return { workspaceFolder: Task.getWorkspaceFolder(task), task: task._id }; }),
+				rerunBehavior: RerunBehavior.reevaluate,
 			};
 			return { task, resolver };
 		}

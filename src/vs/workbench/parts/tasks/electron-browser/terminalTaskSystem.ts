@@ -33,7 +33,7 @@ import { IOutputService, IOutputChannel } from 'vs/workbench/parts/output/common
 import { StartStopProblemCollector, WatchingProblemCollector, ProblemCollectorEventKind } from 'vs/workbench/parts/tasks/common/problemCollectors';
 import {
 	Task, CustomTask, ContributedTask, RevealKind, CommandOptions, ShellConfiguration, RuntimeType, PanelKind,
-	TaskEvent, TaskEventKind, ShellQuotingOptions, ShellQuoting, CommandString, CommandConfiguration
+	TaskEvent, TaskEventKind, ShellQuotingOptions, ShellQuoting, CommandString, CommandConfiguration, RerunBehavior
 } from 'vs/workbench/parts/tasks/common/tasks';
 import {
 	ITaskSystem, ITaskSummary, ITaskExecuteResult, TaskExecuteKind, TaskError, TaskErrors, ITaskResolver,
@@ -219,7 +219,9 @@ export class TerminalTaskSystem implements ITaskSystem {
 
 	public rerun(): ITaskExecuteResult | undefined {
 		if (this.lastTask && this.lastTask.verify()) {
-			this.isRerun = true;
+			if (this.lastTask.task.rerunBehavior === RerunBehavior.useEvaulated) {
+				this.isRerun = true;
+			}
 			const result = this.run(this.lastTask.task, this.lastTask.resolver);
 			this.isRerun = false;
 			return result;

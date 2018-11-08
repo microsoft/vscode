@@ -1271,6 +1271,22 @@ declare module 'vscode' {
 		 */
 		clear?: boolean;
 	}
+
+
+	export enum RerunBehavior {
+		reevaluate = 1,
+		useEvaulated = 2,
+	}
+
+	/**
+	 * A task to execute
+	 */
+	export class Task2 extends Task {
+		/**
+		 * Controls the behavior of a task when it is rerun.
+		 */
+		rerunBehavior?: RerunBehavior;
+	}
 	//#endregion
 
 }

@@ -403,7 +403,8 @@ namespace Tasks {
 			command: command,
 			isBackground: !!task.isBackground,
 			problemMatchers: task.problemMatchers.slice(),
-			hasDefinedMatchers: (task as types.Task).hasDefinedMatchers
+			hasDefinedMatchers: (task as types.Task).hasDefinedMatchers,
+			rerunBehavior: (<vscode.Task2>task).rerunBehavior ? (<vscode.Task2>task).rerunBehavior : tasks.RerunBehavior.reevaluate,
 		};
 		return result;
 	}
@@ -629,7 +630,8 @@ namespace TaskDTO {
 			group: group,
 			presentationOptions: TaskPresentationOptionsDTO.from(value.presentationOptions),
 			problemMatchers: value.problemMatchers,
-			hasDefinedMatchers: (value as types.Task).hasDefinedMatchers
+			hasDefinedMatchers: (value as types.Task).hasDefinedMatchers,
+			rerunBehavior: (<vscode.Task2>value).rerunBehavior ? (<vscode.Task2>value).rerunBehavior : tasks.RerunBehavior.reevaluate,
 		};
 		return result;
 	}

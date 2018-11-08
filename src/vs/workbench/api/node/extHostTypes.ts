@@ -1589,7 +1589,12 @@ export enum TaskScope {
 	Workspace = 2
 }
 
-export class Task implements vscode.Task {
+export enum RerunBehavior {
+	reevaluate = 1,
+	useEvaulated = 2,
+}
+
+export class Task implements vscode.Task2 {
 
 	private __id: string;
 
