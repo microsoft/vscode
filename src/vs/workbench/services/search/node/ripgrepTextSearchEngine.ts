@@ -357,7 +357,11 @@ function getRgArgs(query: vscode.TextSearchQuery, options: vscode.TextSearchOpti
 		const regexpStr = regexp.source.replace(/\\\//g, '/'); // RegExp.source arbitrarily returns escaped slashes. Search and destroy.
 		args.push('--regexp', regexpStr);
 	} else if (query.isRegExp) {
-		args.push('--regexp', fixRegexEndingPattern(query.pattern));
+		let fixedRegexpQuery = fixRegexEndingPattern(query.pattern);
+		fixedRegexpQuery = fixRegexNewline(fixedRegexpQuery);
+		fixedRegexpQuery = fixRegexCRMatchingNonWordClass(fixedRegexpQuery, query.isMultiline);
+		fixedRegexpQuery = fixRegexCRMatchingWhitespaceClass(fixedRegexpQuery, query.isMultiline);
+		args.push('--regexp', fixedRegexpQuery);
 	} else {
 		searchPatternAfterDoubleDashes = pattern;
 		args.push('--fixed-strings');
@@ -435,22 +439,20 @@ export function fixRegexEndingPattern(pattern: string): string {
 		pattern;
 }
 
+export function fixRegexNewline(pattern: string): string {
+	// Replace an unescaped $ at the end of the pattern with \r?$
+	// Match $ preceeded by none or even number of literal \
+	return pattern.replace(/([^\\]|^)(\\\\)*\\n/g, '$1$2\\r?\\n');
+}
+
 export function fixRegexCRMatchingWhitespaceClass(pattern: string, isMultiline: boolean): string {
 	return isMultiline ?
-		pattern.replace(/([^\\]|^)((?:\\\\)*)\\s/, (prefix1, prefix2) => {
-			return prefix1 + prefix2 + '(\\r?\\n|[^\\S\\r])';
-		}) :
-		pattern.replace(/([^\\]|^)((?:\\\\)*)\\s/, (prefix1, prefix2) => {
-			return prefix1 + prefix2 + '[ \\t\\f]';
-		});
+		pattern.replace(/([^\\]|^)((?:\\\\)*)\\s/g, '$1$2(\\r?\\n|[^\\S\\r])') :
+		pattern.replace(/([^\\]|^)((?:\\\\)*)\\s/g, '$1$2[ \\t\\f]');
 }
 
 export function fixRegexCRMatchingNonWordClass(pattern: string, isMultiline: boolean): string {
 	return isMultiline ?
-		pattern.replace(/([^\\]|^)((?:\\\\)*)\\W/, (prefix1, prefix2) => {
-			return prefix1 + prefix2 + '(\\r?\\n|[^\\w\\r])';
-		}) :
-		pattern.replace(/([^\\]|^)((?:\\\\)*)\\W/, (prefix1, prefix2) => {
-			return prefix1 + prefix2 + '[^\\w\\r]';
-		});
+		pattern.replace(/([^\\]|^)((?:\\\\)*)\\W/g, '$1$2(\\r?\\n|[^\\w\\r])') :
+		pattern.replace(/([^\\]|^)((?:\\\\)*)\\W/g, '$1$2[^\\w\\r]');
 }
