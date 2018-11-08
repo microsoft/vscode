@@ -16,26 +16,26 @@ steps:
 - script: |
     set -e
 
-    (cd build && yarn)
-
     REPO="$(pwd)"
     ARCH="$(VSCODE_ARCH)"
     SNAP_ROOT="$REPO/.build/linux/snap/$ARCH"
+
+    # Install build dependencies
+    (cd build && yarn)
 
     # Unpack snap tarball artifact, in order to preserve file perms
     SNAP_TARBALL_PATH="$REPO/.build/linux/snap-tarball/snap-$ARCH.tar.gz"
     (cd .build/linux && tar -xzf $SNAP_TARBALL_PATH)
 
-    ls -la "$SNAP_ROOT"
-
+    # Create snap package
     BUILD_VERSION="$(date +%s)"
     SNAP_FILENAME="code-$VSCODE_QUALITY-$BUILD_VERSION.snap"
     PACKAGEJSON="$(ls $SNAP_ROOT/code*/usr/share/code*/resources/app/package.json)"
     VERSION=$(node -p "require(\"$PACKAGEJSON\").version")
     SNAP_PATH="$SNAP_ROOT/$SNAP_FILENAME"
-
     (cd $SNAP_ROOT/code-* && snapcraft snap --output "$SNAP_PATH")
 
+    # Publish snap package
     AZURE_DOCUMENTDB_MASTERKEY="$(AZURE_DOCUMENTDB_MASTERKEY)" \
     AZURE_STORAGE_ACCESS_KEY_2="$(AZURE_STORAGE_ACCESS_KEY_2)" \
     MOONCAKE_STORAGE_ACCESS_KEY="$(MOONCAKE_STORAGE_ACCESS_KEY)" \
