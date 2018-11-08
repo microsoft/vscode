@@ -88,6 +88,8 @@ import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { DialogService } from 'vs/workbench/services/dialogs/electron-browser/dialogService';
 import { DialogChannel } from 'vs/platform/dialogs/node/dialogIpc';
 import { EventType, addDisposableListener, addClass, scheduleAtNextAnimationFrame } from 'vs/base/browser/dom';
+import { IRemoteAgentService } from 'vs/workbench/services/remote/node/remoteAgentService';
+import { RemoteAgentService } from 'vs/workbench/services/remote/electron-browser/remoteAgentServiceImpl';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { OpenerService } from 'vs/editor/browser/services/openerService';
 import { SearchHistoryService } from 'vs/workbench/services/search/node/searchHistoryService';
@@ -99,6 +101,8 @@ import { IDownloadService } from 'vs/platform/download/common/download';
 import { DownloadService } from 'vs/platform/download/node/downloadService';
 import { runWhenIdle } from 'vs/base/common/async';
 import { TextResourcePropertiesService } from 'vs/workbench/services/textfile/electron-browser/textResourcePropertiesService';
+import { IRemoteAuthorityResolverService } from 'vs/platform/remote/common/remoteAuthorityResolver';
+import { RemoteAuthorityResolverChannelClient, IRemoteAuthorityResolverChannel } from 'vs/platform/remote/node/remoteAuthorityResolverChannel';
 
 /**
  * Services that we require for the Shell
@@ -448,6 +452,13 @@ export class WorkbenchShell extends Disposable {
 		serviceCollection.set(IRequestService, new SyncDescriptor(RequestService));
 		serviceCollection.set(IDownloadService, new SyncDescriptor(DownloadService));
 		serviceCollection.set(IExtensionGalleryService, new SyncDescriptor(ExtensionGalleryService));
+
+		const remoteAuthorityResolverChannel = getDelayedChannel<IRemoteAuthorityResolverChannel>(sharedProcess.then(c => c.getChannel('remoteAuthorityResolver')));
+		const remoteAuthorityResolverService = new RemoteAuthorityResolverChannelClient(remoteAuthorityResolverChannel);
+		serviceCollection.set(IRemoteAuthorityResolverService, remoteAuthorityResolverService);
+
+		const remoteAgentService = new RemoteAgentService(this.configuration, this.notificationService, this.environmentService, remoteAuthorityResolverService);
+		serviceCollection.set(IRemoteAgentService, remoteAgentService);
 
 		const extensionManagementChannel = getDelayedChannel<IExtensionManagementChannel>(sharedProcess.then(c => c.getChannel('extensions')));
 		const extensionManagementChannelClient = new ExtensionManagementChannelClient(extensionManagementChannel, DefaultURITransformer);
