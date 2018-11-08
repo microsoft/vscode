@@ -555,7 +555,6 @@
 		"./vs/workbench/parts/codeEditor/electron-browser/toggleWordWrap.ts",
 		"./vs/workbench/parts/comments/common/commentModel.ts",
 		"./vs/workbench/parts/comments/electron-browser/commentGlyphWidget.ts",
-		"./vs/workbench/parts/comments/electron-browser/commentService.ts",
 		"./vs/workbench/parts/emmet/browser/actions/showEmmetCommands.ts",
 		"./vs/workbench/parts/emmet/browser/emmet.browser.contribution.ts",
 		"./vs/workbench/parts/emmet/electron-browser/actions/expandAbbreviation.ts",
