@@ -13,10 +13,10 @@ import * as comparer from 'vs/base/common/comparers';
 import * as platform from 'vs/base/common/platform';
 import { URI as uri } from 'vs/base/common/uri';
 import { IWorkspaceContextService, Workspace, WorkbenchState } from 'vs/platform/workspace/common/workspace';
-import { WorkspaceService, ISingleFolderWorkspaceInitializationPayload, IMultiFolderWorkspaceInitializationPayload, IEmptyWorkspaceInitializationPayload, IWorkspaceInitializationPayload, isSingleFolderWorkspaceInitializationPayload } from 'vs/workbench/services/configuration/node/configurationService';
+import { WorkspaceService, ISingleFolderWorkspaceInitializationPayload, IMultiFolderWorkspaceInitializationPayload, IEmptyWorkspaceInitializationPayload, IWorkspaceInitializationPayload } from 'vs/workbench/services/configuration/node/configurationService';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
-import { stat, exists, writeFile, readdir } from 'vs/base/node/pfs';
+import { stat, exists, writeFile } from 'vs/base/node/pfs';
 import { EnvironmentService } from 'vs/platform/environment/node/environmentService';
 import * as gracefulFs from 'graceful-fs';
 import { KeyboardMapperFactory } from 'vs/workbench/services/keybinding/electron-browser/keybindingService';
@@ -31,7 +31,7 @@ import { IUpdateService } from 'vs/platform/update/common/update';
 import { URLHandlerChannel, URLServiceChannelClient } from 'vs/platform/url/node/urlIpc';
 import { IURLService } from 'vs/platform/url/common/url';
 import { WorkspacesChannelClient } from 'vs/platform/workspaces/node/workspacesIpc';
-import { IWorkspacesService, ISingleFolderWorkspaceIdentifier, isWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
+import { IWorkspacesService, ISingleFolderWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
 import { createSpdLogService } from 'vs/platform/log/node/spdlogService';
 import * as fs from 'fs';
 import { ConsoleLogService, MultiplexLogService, ILogService } from 'vs/platform/log/common/log';
@@ -46,9 +46,6 @@ import { Schemas } from 'vs/base/common/network';
 import { sanitizeFilePath, mkdirp } from 'vs/base/node/extfs';
 import { basename, join } from 'path';
 import { createHash } from 'crypto';
-import { parseStorage, StorageObject } from 'vs/platform/storage/common/storageLegacyMigration';
-import { StorageScope } from 'vs/platform/storage/common/storage';
-import { endsWith } from 'vs/base/common/strings';
 import { IdleValue } from 'vs/base/common/async';
 
 gracefulFs.gracefulify(fs); // enable gracefulFs
@@ -303,7 +300,9 @@ function createStorageService(payload: IWorkspaceInitializationPayload, environm
 			const storageService = new StorageService(workspaceStorageDBPath, true, logService, environmentService);
 
 			return storageService.init().then(() => {
-				if (exists) {
+				return storageService; // do not migrate this milestone
+
+				/* if (exists) {
 					return storageService; // return early if DB was already there
 				}
 
@@ -429,6 +428,7 @@ function createStorageService(payload: IWorkspaceInitializationPayload, environm
 
 					return storageService;
 				});
+				*/
 			});
 		});
 	});
