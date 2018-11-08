@@ -86,7 +86,8 @@ export class QueryBuilder {
 			maxFileSize: options.maxFileSize,
 			usePCRE2: searchConfig.search.usePCRE2 || fallbackToPCRE || false,
 			beforeContext: options.beforeContext,
-			afterContext: options.afterContext
+			afterContext: options.afterContext,
+			userDisabledExcludesAndIgnoreFiles: options.disregardExcludeSettings && options.disregardIgnoreFiles
 		};
 	}
 
