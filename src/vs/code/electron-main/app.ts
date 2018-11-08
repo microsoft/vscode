@@ -68,6 +68,7 @@ import { THEME_STORAGE_KEY, THEME_BG_STORAGE_KEY } from 'vs/code/electron-main/t
 import { nativeSep, join } from 'vs/base/common/paths';
 import { homedir } from 'os';
 import { localize } from 'vs/nls';
+import { SnapUpdateService } from 'vs/platform/update/electron-main/updateService.snap';
 
 export class CodeApplication {
 
@@ -426,7 +427,11 @@ export class CodeApplication {
 		if (process.platform === 'win32') {
 			services.set(IUpdateService, new SyncDescriptor(Win32UpdateService));
 		} else if (process.platform === 'linux') {
-			services.set(IUpdateService, new SyncDescriptor(LinuxUpdateService));
+			if (process.env.SNAP && process.env.SNAP_REVISION) {
+				services.set(IUpdateService, new SyncDescriptor(SnapUpdateService));
+			} else {
+				services.set(IUpdateService, new SyncDescriptor(LinuxUpdateService));
+			}
 		} else if (process.platform === 'darwin') {
 			services.set(IUpdateService, new SyncDescriptor(DarwinUpdateService));
 		}
