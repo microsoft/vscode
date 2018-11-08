@@ -46,6 +46,7 @@ import { ILabelService } from 'vs/platform/label/common/label';
 
 export interface IExplorerViewOptions extends IViewletViewOptions {
 	viewletState: FileViewletState;
+	viewState: object;
 }
 
 export class ExplorerView extends TreeViewsViewletPanel implements IExplorerView {
@@ -99,7 +100,7 @@ export class ExplorerView extends TreeViewsViewletPanel implements IExplorerView
 	) {
 		super({ ...(options as IViewletPanelOptions), ariaHeaderLabel: nls.localize('explorerSection', "Files Explorer Section") }, keybindingService, contextMenuService, configurationService);
 
-		this.viewState = options.viewletState;
+		this.viewState = options.viewState;
 		this.viewletState = options.viewletState;
 		this.autoReveal = true;
 
