@@ -523,7 +523,7 @@ export interface IParsedQuery {
 }
 
 const tagRegex = /(^|\s)@tag:("([^"]*)"|[^"]\S*)/g;
-export function getQueryWithoutTags(query: string): IParsedQuery {
+export function parseQuery(query: string): IParsedQuery {
 	const tags: string[] = [];
 	query = query.replace(tagRegex, (_, __, quotedTag, tag) => {
 		tags.push(tag || quotedTag);

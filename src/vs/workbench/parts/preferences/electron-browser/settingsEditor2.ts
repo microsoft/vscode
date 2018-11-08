@@ -35,7 +35,7 @@ import { attachSuggestEnabledInputBoxStyler, SuggestEnabledInput } from 'vs/work
 import { SettingsTarget, SettingsTargetsWidget } from 'vs/workbench/parts/preferences/browser/preferencesWidgets';
 import { commonlyUsedData, tocData } from 'vs/workbench/parts/preferences/browser/settingsLayout';
 import { ISettingLinkClickEvent, ISettingOverrideClickEvent, resolveExtensionsSettings, resolveSettingsTree, SettingsDataSource, SettingsRenderer, SettingsTree, SimplePagedDataSource } from 'vs/workbench/parts/preferences/browser/settingsTree';
-import { getQueryWithoutTags, ISettingsEditorViewState, SearchResultIdx, SearchResultModel, SettingsTreeGroupElement, SettingsTreeModel, SettingsTreeSettingElement } from 'vs/workbench/parts/preferences/browser/settingsTreeModels';
+import { parseQuery, ISettingsEditorViewState, SearchResultIdx, SearchResultModel, SettingsTreeGroupElement, SettingsTreeModel, SettingsTreeSettingElement } from 'vs/workbench/parts/preferences/browser/settingsTreeModels';
 import { settingsTextInputBorder } from 'vs/workbench/parts/preferences/browser/settingsWidgets';
 import { TOCRenderer, TOCTree, TOCTreeModel } from 'vs/workbench/parts/preferences/browser/tocTree';
 import { CONTEXT_SETTINGS_EDITOR, CONTEXT_SETTINGS_SEARCH_FOCUS, CONTEXT_TOC_ROW_FOCUS, IPreferencesSearchService, ISearchProvider, MODIFIED_SETTING_TAG, SETTINGS_EDITOR_COMMAND_SHOW_CONTEXT_MENU } from 'vs/workbench/parts/preferences/common/preferences';
@@ -438,6 +438,11 @@ export class SettingsEditor2 extends BaseEditor {
 				this.onDidClickSetting(evt, true);
 			});
 		}
+	}
+
+	public switchToSettingsFile(): Thenable<IEditor> {
+		const query = parseQuery(this.searchWidget.getValue());
+		return this.openSettingsFile(query.query);
 	}
 
 	private openSettingsFile(query?: string): Thenable<IEditor> {
@@ -991,7 +996,7 @@ export class SettingsEditor2 extends BaseEditor {
 	private triggerSearch(query: string): Thenable<void> {
 		this.viewState.tagFilters = new Set<string>();
 		if (query) {
-			const parsedQuery = getQueryWithoutTags(query);
+			const parsedQuery = parseQuery(query);
 			query = parsedQuery.query;
 			parsedQuery.tags.forEach(tag => this.viewState.tagFilters.add(tag));
 		}

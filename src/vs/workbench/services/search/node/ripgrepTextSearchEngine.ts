@@ -434,3 +434,23 @@ export function fixRegexEndingPattern(pattern: string): string {
 		pattern.replace(/\$$/, '\\r?$') :
 		pattern;
 }
+
+export function fixRegexCRMatchingWhitespaceClass(pattern: string, isMultiline: boolean): string {
+	return isMultiline ?
+		pattern.replace(/([^\\]|^)((?:\\\\)*)\\s/, (prefix1, prefix2) => {
+			return prefix1 + prefix2 + '(\\r?\\n|[^\\S\\r])';
+		}) :
+		pattern.replace(/([^\\]|^)((?:\\\\)*)\\s/, (prefix1, prefix2) => {
+			return prefix1 + prefix2 + '[ \\t\\f]';
+		});
+}
+
+export function fixRegexCRMatchingNonWordClass(pattern: string, isMultiline: boolean): string {
+	return isMultiline ?
+		pattern.replace(/([^\\]|^)((?:\\\\)*)\\W/, (prefix1, prefix2) => {
+			return prefix1 + prefix2 + '(\\r?\\n|[^\\w\\r])';
+		}) :
+		pattern.replace(/([^\\]|^)((?:\\\\)*)\\W/, (prefix1, prefix2) => {
+			return prefix1 + prefix2 + '[^\\w\\r]';
+		});
+}

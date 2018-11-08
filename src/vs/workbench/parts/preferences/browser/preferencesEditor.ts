@@ -47,7 +47,7 @@ import { ResourceEditorModel } from 'vs/workbench/common/editor/resourceEditorMo
 import { PREFERENCES_EDITOR_ID } from 'vs/workbench/parts/files/common/files';
 import { DefaultSettingsRenderer, FolderSettingsRenderer, IPreferencesRenderer, UserSettingsRenderer, WorkspaceSettingsRenderer } from 'vs/workbench/parts/preferences/browser/preferencesRenderers';
 import { SearchWidget, SettingsTarget, SettingsTargetsWidget } from 'vs/workbench/parts/preferences/browser/preferencesWidgets';
-import { CONTEXT_SETTINGS_EDITOR, CONTEXT_SETTINGS_SEARCH_FOCUS, IPreferencesSearchService, ISearchProvider } from 'vs/workbench/parts/preferences/common/preferences';
+import { CONTEXT_SETTINGS_EDITOR, CONTEXT_SETTINGS_SEARCH_FOCUS, IPreferencesSearchService, ISearchProvider, CONTEXT_SETTINGS_JSON_EDITOR } from 'vs/workbench/parts/preferences/common/preferences';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IEditorGroup, IEditorGroupsService } from 'vs/workbench/services/group/common/editorGroupsService';
 import { IFilterResult, IPreferencesService, ISearchResult, ISetting, ISettingsEditorModel, ISettingsGroup, SettingsEditorOptions } from 'vs/workbench/services/preferences/common/preferences';
@@ -61,6 +61,7 @@ export class PreferencesEditor extends BaseEditor {
 	public static readonly ID: string = PREFERENCES_EDITOR_ID;
 
 	private defaultSettingsEditorContextKey: IContextKey<boolean>;
+	private defaultSettingsJSONEditorContextKey: IContextKey<boolean>;
 	private searchFocusContextKey: IContextKey<boolean>;
 	private headerContainer: HTMLElement;
 	private searchWidget: SearchWidget;
@@ -98,6 +99,7 @@ export class PreferencesEditor extends BaseEditor {
 	) {
 		super(PreferencesEditor.ID, telemetryService, themeService, storageService);
 		this.defaultSettingsEditorContextKey = CONTEXT_SETTINGS_EDITOR.bindTo(this.contextKeyService);
+		this.defaultSettingsJSONEditorContextKey = CONTEXT_SETTINGS_JSON_EDITOR.bindTo(this.contextKeyService);
 		this.searchFocusContextKey = CONTEXT_SETTINGS_SEARCH_FOCUS.bindTo(this.contextKeyService);
 		this.delayedFilterLogging = new Delayer<void>(1000);
 		this.localSearchDelayer = new Delayer(100);
@@ -154,6 +156,7 @@ export class PreferencesEditor extends BaseEditor {
 
 	public setInput(newInput: PreferencesEditorInput, options: SettingsEditorOptions, token: CancellationToken): Thenable<void> {
 		this.defaultSettingsEditorContextKey.set(true);
+		this.defaultSettingsJSONEditorContextKey.set(true);
 		if (options && options.query) {
 			this.focusSearch(options.query);
 		}
@@ -193,6 +196,7 @@ export class PreferencesEditor extends BaseEditor {
 
 	public clearInput(): void {
 		this.defaultSettingsEditorContextKey.set(false);
+		this.defaultSettingsJSONEditorContextKey.set(false);
 		this.sideBySidePreferencesWidget.clearInput();
 		this.preferencesRenderers.onHidden();
 		super.clearInput();
