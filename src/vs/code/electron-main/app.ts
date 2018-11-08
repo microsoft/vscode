@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { app, ipcMain as ipc, systemPreferences, shell, Event, contentTracing } from 'electron';
+import { app, ipcMain as ipc, systemPreferences, shell, Event, contentTracing, protocol } from 'electron';
 import * as platform from 'vs/base/common/platform';
 import { WindowsManager } from 'vs/code/electron-main/windows';
 import { IWindowsService, OpenContext, ActiveWindowManager } from 'vs/platform/windows/common/windows';
@@ -57,6 +57,7 @@ import { LogLevelSetterChannel } from 'vs/platform/log/node/logIpc';
 import * as errors from 'vs/base/common/errors';
 import { ElectronURLListener } from 'vs/platform/url/electron-main/electronUrlListener';
 import { serve as serveDriver } from 'vs/platform/driver/electron-main/driver';
+import { connectRemoteAgentManagement } from 'vs/platform/remote/node/remoteAgentConnection';
 import { IMenubarService } from 'vs/platform/menubar/common/menubar';
 import { MenubarService } from 'vs/platform/menubar/electron-main/menubarService';
 import { MenubarChannel } from 'vs/platform/menubar/node/menubarIpc';
@@ -68,6 +69,10 @@ import { THEME_STORAGE_KEY, THEME_BG_STORAGE_KEY } from 'vs/code/electron-main/t
 import { nativeSep, join } from 'vs/base/common/paths';
 import { homedir } from 'os';
 import { localize } from 'vs/nls';
+import { REMOTE_HOST_SCHEME } from 'vs/platform/remote/common/remoteHosts';
+import { IRemoteAuthorityResolverChannel, RemoteAuthorityResolverChannelClient } from 'vs/platform/remote/node/remoteAuthorityResolverChannel';
+import { IRemoteAgentFileSystemChannel, REMOTE_FILE_SYSTEM_CHANNEL_NAME } from 'vs/platform/remote/node/remoteAgentFileSystemChannel';
+import { ResolvedAuthority } from 'vs/platform/remote/common/remoteAuthorityResolver';
 import { SnapUpdateService } from 'vs/platform/update/electron-main/updateService.snap';
 
 export class CodeApplication {
@@ -163,6 +168,67 @@ export class CodeApplication {
 
 				shell.openExternal(url);
 			});
+		});
+
+		const connectionPool: Map<string, ActiveConnection> = new Map<string, ActiveConnection>();
+
+		class ActiveConnection {
+			private _authority: string;
+			private _client: TPromise<Client>;
+			private _disposeRunner: RunOnceScheduler;
+
+			constructor(authority: string, connectionInfo: TPromise<ResolvedAuthority>) {
+				this._authority = authority;
+				this._client = connectionInfo.then(({ host, port }) => {
+					return connectRemoteAgentManagement(host, port, `main`);
+				});
+				this._disposeRunner = new RunOnceScheduler(() => this._dispose(), 5000);
+			}
+
+			private _dispose(): void {
+				this._disposeRunner.dispose();
+				connectionPool.delete(this._authority);
+				this._client.then((connection) => {
+					connection.dispose();
+				});
+			}
+
+			public getClient(): TPromise<Client> {
+				this._disposeRunner.schedule();
+				return this._client;
+			}
+		}
+
+		protocol.registerBufferProtocol(REMOTE_HOST_SCHEME, async (request, callback) => {
+			if (request.method !== 'GET') {
+				return callback(null);
+			}
+			const uri = URI.parse(request.url);
+
+			let activeConnection: ActiveConnection = null;
+			if (connectionPool.has(uri.authority)) {
+				activeConnection = connectionPool.get(uri.authority);
+			} else {
+				if (this.sharedProcessClient) {
+					const remoteAuthorityResolverChannel = getDelayedChannel<IRemoteAuthorityResolverChannel>(this.sharedProcessClient.then(c => c.getChannel('remoteAuthorityResolver')));
+					const remoteAuthorityResolverChannelClient = new RemoteAuthorityResolverChannelClient(remoteAuthorityResolverChannel);
+					activeConnection = new ActiveConnection(uri.authority, remoteAuthorityResolverChannelClient.resolveAuthority(uri.authority));
+					connectionPool.set(uri.authority, activeConnection);
+				}
+			}
+			try {
+				const rawClient = await activeConnection.getClient();
+				if (connectionPool.has(uri.authority)) { // not disposed in the meantime
+					const channel = rawClient.getChannel<IRemoteAgentFileSystemChannel>(REMOTE_FILE_SYSTEM_CHANNEL_NAME);
+					const fileContents = await channel.call('readFile', [uri.authority, uri]);
+					callback(Buffer.from(fileContents));
+				} else {
+					callback(null);
+				}
+			} catch (err) {
+				errors.onUnexpectedError(err);
+				callback(null);
+			}
 		});
 
 		let macOpenFileURIs: URI[] = [];

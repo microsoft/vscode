@@ -10,6 +10,7 @@ import { IChannel, getDelayedChannel } from 'vs/base/parts/ipc/node/ipc';
 import { Client } from 'vs/base/parts/ipc/node/ipc.net';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { INotificationService } from 'vs/platform/notification/common/notification';
+import { connectRemoteAgentManagement } from 'vs/platform/remote/node/remoteAgentConnection';
 import { IWindowConfiguration } from 'vs/platform/windows/common/windows';
 import { RemoteExtensionEnvironmentChannelClient } from 'vs/workbench/services/remote/node/remoteAgentEnvironmentChannel';
 import { IRemoteAgentConnection, IRemoteAgentEnvironment, IRemoteAgentService } from 'vs/workbench/services/remote/node/remoteAgentService';
@@ -77,7 +78,7 @@ class RemoteAgentConnection extends Disposable implements IRemoteAgentConnection
 	private _getOrCreateConnection(): TPromise<Client> {
 		if (!this._connection) {
 			this._connection = this._remoteAuthorityResolverService.resolveAuthority(this.remoteAuthority).then((resolvedAuthority) => {
-				throw new Error(`Not implemented`);
+				return connectRemoteAgentManagement(resolvedAuthority.host, resolvedAuthority.port, `renderer`);
 			});
 		}
 		return this._connection;
