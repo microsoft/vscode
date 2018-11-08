@@ -681,7 +681,7 @@ configurationRegistry.registerConfiguration({
 		//TODO@Ben remove ('enableLegacyStorage') after a while
 		'workbench.enableLegacyStorage': {
 			'type': 'boolean',
-			'description': nls.localize('workbench.enableLegacyStorage', "Switches back to the previous storage implementation. Only change this setting if advised to do so."),
+			'markdownDescription': nls.localize('workbench.enableLegacyStorage', "Switches back to the previous storage implementation. Only change this setting if advised to do so. **Disabling legacy storage will drop your storage state.**"),
 			'default': true
 		}
 	}
