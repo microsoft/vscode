@@ -37,7 +37,6 @@ If you find your issue already exists, make relevant comments and add your [reac
 * 👍 - upvote
 * 👎 - downvote
 
-
 If you cannot find an existing issue that describes your bug or feature, create a new issue using the guidelines below.
 
 ### Writing Good Bug Reports and Feature Requests
@@ -92,6 +91,10 @@ We use a bot to help us manage issues. This bot currently:
 * Automatically locks issues 45 days after they are closed.
 
 If you believe the bot got something wrong, please open a new issue and let us know.
+
+## Community Issue Triaging
+
+VS Code receives a high volume of issues every day. As the team has limited bandwidth, we are sometimes unable to respond to issues in a timely manner. However, we have a bot that allows a list of privileged users to label issues. If you would like to offer help in triaging issues, check out this [wiki](https://github.com/Microsoft/vscode/wiki/Community-Issue-Tracking).
 
 ## Contributing Fixes
 
