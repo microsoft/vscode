@@ -63,7 +63,7 @@ export class ReviewZoneWidget extends ZoneWidget {
 	private _collapseAction: Action;
 	private _commentThread: modes.CommentThread;
 	private _commentGlyph: CommentGlyphWidget;
-	private _owner: number;
+	private _owner: string;
 	private _pendingComment: string;
 	private _localToDispose: IDisposable[];
 	private _globalToDispose: IDisposable[];
@@ -71,7 +71,7 @@ export class ReviewZoneWidget extends ZoneWidget {
 	private _styleElement: HTMLStyleElement;
 	private _error: HTMLElement;
 
-	public get owner(): number {
+	public get owner(): string {
 		return this._owner;
 	}
 	public get commentThread(): modes.CommentThread {
@@ -88,7 +88,7 @@ export class ReviewZoneWidget extends ZoneWidget {
 		private dialogService: IDialogService,
 		private notificationService: INotificationService,
 		editor: ICodeEditor,
-		owner: number,
+		owner: string,
 		commentThread: modes.CommentThread,
 		pendingComment: string,
 		options: IOptions = {}
@@ -161,7 +161,7 @@ export class ReviewZoneWidget extends ZoneWidget {
 		if (this._commentEditor) {
 			let model = this._commentEditor.getModel();
 
-			if (model.getValueLength() > 0) { // checking length is cheap
+			if (model && model.getValueLength() > 0) { // checking length is cheap
 				return model.getValue();
 			}
 		}

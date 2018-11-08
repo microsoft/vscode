@@ -1130,7 +1130,6 @@ export interface Command {
  * @internal
  */
 export interface CommentInfo {
-	owner: number;
 	threads: CommentThread[];
 	commentingRanges?: IRange[];
 	reply?: Command;
@@ -1187,7 +1186,6 @@ export interface Comment {
  * @internal
  */
 export interface CommentThreadChangedEvent {
-	readonly owner: number;
 	/**
 	 * Added comment threads.
 	 */

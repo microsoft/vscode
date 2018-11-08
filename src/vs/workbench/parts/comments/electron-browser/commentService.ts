@@ -11,16 +11,23 @@ import { URI } from 'vs/base/common/uri';
 import { Range } from 'vs/editor/common/core/range';
 import { keys } from 'vs/base/common/map';
 import { CancellationToken } from 'vs/base/common/cancellation';
+import { ExtensionCommentProviderHandler } from 'vs/workbench/api/electron-browser/mainThreadComments';
+import { assign } from 'vs/base/common/objects';
+import { ICommentThreadChangedEvent } from 'vs/workbench/parts/comments/common/commentModel';
 
 export const ICommentService = createDecorator<ICommentService>('commentService');
 
 export interface IResourceCommentThreadEvent {
 	resource: URI;
-	commentInfos: CommentInfo[];
+	commentInfos: ICommentInfo[];
+}
+
+export interface ICommentInfo extends CommentInfo {
+	owner: string;
 }
 
 export interface IWorkspaceCommentThreadsEvent {
-	ownerId: number;
+	ownerId: string;
 	commentThreads: CommentThread[];
 }
 
@@ -28,20 +35,20 @@ export interface ICommentService {
 	_serviceBrand: any;
 	readonly onDidSetResourceCommentInfos: Event<IResourceCommentThreadEvent>;
 	readonly onDidSetAllCommentThreads: Event<IWorkspaceCommentThreadsEvent>;
-	readonly onDidUpdateCommentThreads: Event<CommentThreadChangedEvent>;
+	readonly onDidUpdateCommentThreads: Event<ICommentThreadChangedEvent>;
 	readonly onDidSetDataProvider: Event<void>;
-	readonly onDidDeleteDataProvider: Event<number>;
-	setDocumentComments(resource: URI, commentInfos: CommentInfo[]): void;
-	setWorkspaceComments(owner: number, commentsByResource: CommentThread[]): void;
-	removeWorkspaceComments(owner: number): void;
-	registerDataProvider(owner: number, commentProvider: DocumentCommentProvider): void;
-	unregisterDataProvider(owner: number): void;
-	updateComments(event: CommentThreadChangedEvent): void;
-	createNewCommentThread(owner: number, resource: URI, range: Range, text: string): Promise<CommentThread | null>;
-	replyToCommentThread(owner: number, resource: URI, range: Range, thread: CommentThread, text: string): Promise<CommentThread | null>;
-	editComment(owner: number, resource: URI, comment: Comment, text: string): Promise<void>;
-	deleteComment(owner: number, resource: URI, comment: Comment): Promise<boolean>;
-	getComments(resource: URI): Promise<CommentInfo[]>;
+	readonly onDidDeleteDataProvider: Event<string>;
+	setDocumentComments(resource: URI, commentInfos: ICommentInfo[]): void;
+	setWorkspaceComments(owner: string, commentsByResource: CommentThread[]): void;
+	removeWorkspaceComments(owner: string): void;
+	registerDataProvider(owner: string, commentProvider: ExtensionCommentProviderHandler): void;
+	unregisterDataProvider(owner: string): void;
+	updateComments(ownerId: string, event: CommentThreadChangedEvent): void;
+	createNewCommentThread(owner: string, resource: URI, range: Range, text: string): Promise<CommentThread | null>;
+	replyToCommentThread(owner: string, resource: URI, range: Range, thread: CommentThread, text: string): Promise<CommentThread | null>;
+	editComment(owner: string, resource: URI, comment: Comment, text: string): Promise<void>;
+	deleteComment(owner: string, resource: URI, comment: Comment): Promise<boolean>;
+	getComments(resource: URI): Promise<ICommentInfo[]>;
 }
 
 export class CommentService extends Disposable implements ICommentService {
@@ -50,8 +57,8 @@ export class CommentService extends Disposable implements ICommentService {
 	private readonly _onDidSetDataProvider: Emitter<void> = this._register(new Emitter<void>());
 	readonly onDidSetDataProvider: Event<void> = this._onDidSetDataProvider.event;
 
-	private readonly _onDidDeletetDataProvider: Emitter<number> = this._register(new Emitter<number>());
-	readonly onDidDeleteDataProvider: Event<number> = this._onDidDeletetDataProvider.event;
+	private readonly _onDidDeleteDataProvider: Emitter<string> = this._register(new Emitter<string>());
+	readonly onDidDeleteDataProvider: Event<string> = this._onDidDeleteDataProvider.event;
 
 	private readonly _onDidSetResourceCommentInfos: Emitter<IResourceCommentThreadEvent> = this._register(new Emitter<IResourceCommentThreadEvent>());
 	readonly onDidSetResourceCommentInfos: Event<IResourceCommentThreadEvent> = this._onDidSetResourceCommentInfos.event;
@@ -59,42 +66,43 @@ export class CommentService extends Disposable implements ICommentService {
 	private readonly _onDidSetAllCommentThreads: Emitter<IWorkspaceCommentThreadsEvent> = this._register(new Emitter<IWorkspaceCommentThreadsEvent>());
 	readonly onDidSetAllCommentThreads: Event<IWorkspaceCommentThreadsEvent> = this._onDidSetAllCommentThreads.event;
 
-	private readonly _onDidUpdateCommentThreads: Emitter<CommentThreadChangedEvent> = this._register(new Emitter<CommentThreadChangedEvent>());
-	readonly onDidUpdateCommentThreads: Event<CommentThreadChangedEvent> = this._onDidUpdateCommentThreads.event;
+	private readonly _onDidUpdateCommentThreads: Emitter<ICommentThreadChangedEvent> = this._register(new Emitter<ICommentThreadChangedEvent>());
+	readonly onDidUpdateCommentThreads: Event<ICommentThreadChangedEvent> = this._onDidUpdateCommentThreads.event;
 
-	private _commentProviders = new Map<number, DocumentCommentProvider>();
+	private _commentProviders = new Map<string, DocumentCommentProvider>();
 
 	constructor() {
 		super();
 	}
 
-	setDocumentComments(resource: URI, commentInfos: CommentInfo[]): void {
+	setDocumentComments(resource: URI, commentInfos: ICommentInfo[]): void {
 		this._onDidSetResourceCommentInfos.fire({ resource, commentInfos });
 	}
 
-	setWorkspaceComments(owner: number, commentsByResource: CommentThread[]): void {
+	setWorkspaceComments(owner: string, commentsByResource: CommentThread[]): void {
 		this._onDidSetAllCommentThreads.fire({ ownerId: owner, commentThreads: commentsByResource });
 	}
 
-	removeWorkspaceComments(owner: number): void {
+	removeWorkspaceComments(owner: string): void {
 		this._onDidSetAllCommentThreads.fire({ ownerId: owner, commentThreads: [] });
 	}
 
-	registerDataProvider(owner: number, commentProvider: DocumentCommentProvider) {
+	registerDataProvider(owner: string, commentProvider: DocumentCommentProvider) {
 		this._commentProviders.set(owner, commentProvider);
 		this._onDidSetDataProvider.fire();
 	}
 
-	unregisterDataProvider(owner: number): void {
+	unregisterDataProvider(owner: string): void {
 		this._commentProviders.delete(owner);
-		this._onDidDeletetDataProvider.fire(owner);
+		this._onDidDeleteDataProvider.fire(owner);
 	}
 
-	updateComments(event: CommentThreadChangedEvent): void {
-		this._onDidUpdateCommentThreads.fire(event);
+	updateComments(ownerId: string, event: CommentThreadChangedEvent): void {
+		const evt = assign({}, event, { ownerId });
+		this._onDidUpdateCommentThreads.fire(evt);
 	}
 
-	async createNewCommentThread(owner: number, resource: URI, range: Range, text: string): Promise<CommentThread | null> {
+	async createNewCommentThread(owner: string, resource: URI, range: Range, text: string): Promise<CommentThread | null> {
 		const commentProvider = this._commentProviders.get(owner);
 
 		if (commentProvider) {
@@ -104,7 +112,7 @@ export class CommentService extends Disposable implements ICommentService {
 		return null;
 	}
 
-	async replyToCommentThread(owner: number, resource: URI, range: Range, thread: CommentThread, text: string): Promise<CommentThread | null> {
+	async replyToCommentThread(owner: string, resource: URI, range: Range, thread: CommentThread, text: string): Promise<CommentThread | null> {
 		const commentProvider = this._commentProviders.get(owner);
 
 		if (commentProvider) {
@@ -114,7 +122,7 @@ export class CommentService extends Disposable implements ICommentService {
 		return null;
 	}
 
-	editComment(owner: number, resource: URI, comment: Comment, text: string): Promise<void> {
+	editComment(owner: string, resource: URI, comment: Comment, text: string): Promise<void> {
 		const commentProvider = this._commentProviders.get(owner);
 
 		if (commentProvider) {
@@ -124,7 +132,7 @@ export class CommentService extends Disposable implements ICommentService {
 		return Promise.resolve(void 0);
 	}
 
-	deleteComment(owner: number, resource: URI, comment: Comment): Promise<boolean> {
+	deleteComment(owner: string, resource: URI, comment: Comment): Promise<boolean> {
 		const commentProvider = this._commentProviders.get(owner);
 
 		if (commentProvider) {
@@ -134,12 +142,23 @@ export class CommentService extends Disposable implements ICommentService {
 		return Promise.resolve(false);
 	}
 
-	getComments(resource: URI): Promise<CommentInfo[]> {
-		const result: Promise<CommentInfo>[] = [];
-		for (const handle of keys(this._commentProviders)) {
-			const provider = this._commentProviders.get(handle);
-			if ((<DocumentCommentProvider>provider).provideDocumentComments) {
-				result.push((<DocumentCommentProvider>provider).provideDocumentComments(resource, CancellationToken.None));
+	getComments(resource: URI): Promise<ICommentInfo[]> {
+		const result: Promise<ICommentInfo>[] = [];
+		for (const owner of keys(this._commentProviders)) {
+			const provider = this._commentProviders.get(owner);
+			if (provider.provideDocumentComments) {
+				result.push(provider.provideDocumentComments(resource, CancellationToken.None).then(commentInfo => {
+					if (commentInfo) {
+						return <ICommentInfo>{
+							owner: owner,
+							threads: commentInfo.threads,
+							commentingRanges: commentInfo.commentingRanges,
+							reply: commentInfo.reply
+						};
+					} else {
+						return null;
+					}
+				}));
 			}
 		}
 
