@@ -521,7 +521,7 @@ suite('window namespace tests', () => {
 	test('showWorkspaceFolderPick', async function () {
 		const p = window.showWorkspaceFolderPick(undefined);
 
-		await timeout();
+		await timeout(10);
 		await commands.executeCommand('workbench.action.acceptSelectedQuickOpenItem');
 		try {
 			await p;
