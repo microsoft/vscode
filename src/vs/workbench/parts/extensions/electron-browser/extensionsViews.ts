@@ -48,7 +48,6 @@ export class ExtensionsListView extends ViewletPanel {
 	private badge: CountBadge;
 	protected badgeContainer: HTMLElement;
 	private list: WorkbenchPagedList<IExtension>;
-	private searchExperiments: IExperiment[] = [];
 
 	constructor(
 		private options: IViewletViewOptions,
@@ -68,7 +67,6 @@ export class ExtensionsListView extends ViewletPanel {
 		@IExperimentService private experimentService: IExperimentService
 	) {
 		super({ ...(options as IViewletPanelOptions), ariaHeaderLabel: options.title }, keybindingService, contextMenuService, configurationService);
-		this.experimentService.getExperimentsByType(ExperimentActionType.ExtensionSearchResults).then(result => this.searchExperiments = result);
 	}
 
 	protected renderHeader(container: HTMLElement): void {
@@ -361,10 +359,11 @@ export class ExtensionsListView extends ViewletPanel {
 		if (text) {
 			options = assign(options, { text: text.substr(0, 350), source: 'searchText' });
 			if (!hasUserDefinedSortOrder) {
-				for (let i = 0; i < this.searchExperiments.length; i++) {
-					if (text.toLowerCase() === this.searchExperiments[i].action.properties['searchText'] && Array.isArray(this.searchExperiments[i].action.properties['preferredResults'])) {
-						preferredResults = this.searchExperiments[i].action.properties['preferredResults'];
-						options.source += `-experiment-${this.searchExperiments[i].id}`;
+				const searchExperiments = await this.getSearchExperiments();
+				for (let i = 0; i < searchExperiments.length; i++) {
+					if (text.toLowerCase() === searchExperiments[i].action.properties['searchText'] && Array.isArray(searchExperiments[i].action.properties['preferredResults'])) {
+						preferredResults = searchExperiments[i].action.properties['preferredResults'];
+						options.source += `-experiment-${searchExperiments[i].id}`;
 						break;
 					}
 				}
@@ -390,6 +389,14 @@ export class ExtensionsListView extends ViewletPanel {
 		}
 		return this.getPagedModel(pager);
 
+	}
+
+	private _searchExperiments: Thenable<IExperiment[]>;
+	private getSearchExperiments(): Thenable<IExperiment[]> {
+		if (!this._searchExperiments) {
+			this._searchExperiments = this.experimentService.getExperimentsByType(ExperimentActionType.ExtensionSearchResults);
+		}
+		return this._searchExperiments;
 	}
 
 	private sortExtensions(extensions: IExtension[], options: IQueryOptions): IExtension[] {
