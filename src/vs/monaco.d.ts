@@ -151,7 +151,7 @@ declare namespace monaco {
 		 *
 		 * @param value A string which represents an Uri (see `Uri#toString`).
 		 */
-		static parse(value: string, _strict?: boolean): Uri;
+		static parse(value: string): Uri;
 		/**
 		 * Creates a new Uri from a file system path, e.g. `c:\my\files`,
 		 * `/usr/home`, or `\\server\share\some\path`.
@@ -392,13 +392,9 @@ declare namespace monaco {
 		static readonly WinCtrl: number;
 		static chord(firstPart: number, secondPart: number): number;
 	}
-
 	export interface IMarkdownString {
 		value: string;
 		isTrusted?: boolean;
-		uris?: {
-			[href: string]: UriComponents;
-		};
 	}
 
 	export interface IKeyboardEvent {
