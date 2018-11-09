@@ -24,6 +24,7 @@ export namespace Event {
 type Listener = [Function, any] | Function;
 
 export interface EmitterOptions {
+	_trace?: boolean;
 	onFirstListenerAdd?: Function;
 	onFirstListenerDidAdd?: Function;
 	onListenerDidAdd?: Function;
@@ -60,6 +61,8 @@ export class Emitter<T> {
 	private _deliveryQueue: [Listener, (T | undefined)][] | null;
 	protected _listeners: LinkedList<Listener> | null;
 
+	private _traces: string[] = [];
+
 	constructor(private _options: EmitterOptions | null = null) {
 		this._event = null;
 		this._disposed = false;
@@ -92,6 +95,16 @@ export class Emitter<T> {
 
 				if (this._options && this._options.onListenerDidAdd) {
 					this._options.onListenerDidAdd(this, listener, thisArgs);
+				}
+
+				if (this._options && this._options._trace) {
+					this._traces.push(new Error().stack);
+					let len = this._listeners.toArray().length;
+					if (len >= 50 && (len % 5 === 0)) {
+						console.warn(`LEAK? already ${len} listener`);
+						this._traces.forEach(t => console.warn(t));
+						this._traces.length = 0;
+					}
 				}
 
 				let result: IDisposable;
@@ -323,9 +336,9 @@ export function anyEvent<T>(...events: Event<T>[]): Event<T> {
 	return (listener, thisArgs = null, disposables?) => combinedDisposable(events.map(event => event(e => listener.call(thisArgs, e), null, disposables)));
 }
 
-export function debounceEvent<T>(event: Event<T>, merger: (last: T, event: T) => T, delay?: number, leading?: boolean): Event<T>;
-export function debounceEvent<I, O>(event: Event<I>, merger: (last: O | undefined, event: I) => O, delay?: number, leading?: boolean): Event<O>;
-export function debounceEvent<I, O>(event: Event<I>, merger: (last: O | undefined, event: I) => O, delay: number = 100, leading = false): Event<O> {
+export function debounceEvent<T>(event: Event<T>, merger: (last: T, event: T) => T, delay?: number, leading?: boolean, _trace?: boolean): Event<T>;
+export function debounceEvent<I, O>(event: Event<I>, merger: (last: O | undefined, event: I) => O, delay?: number, leading?: boolean, _trace?: boolean): Event<O>;
+export function debounceEvent<I, O>(event: Event<I>, merger: (last: O | undefined, event: I) => O, delay: number = 100, leading = false, _trace?: boolean): Event<O> {
 
 	let subscription: IDisposable;
 	let output: O | undefined = undefined;
@@ -333,6 +346,7 @@ export function debounceEvent<I, O>(event: Event<I>, merger: (last: O | undefine
 	let numDebouncedCalls = 0;
 
 	const emitter = new Emitter<O>({
+		_trace,
 		onFirstListenerAdd() {
 			subscription = event(cur => {
 				numDebouncedCalls++;

@@ -242,7 +242,7 @@ export abstract class AbstractContextKeyService implements IContextKeyService {
 				}
 				prev.collect(cur);
 				return prev;
-			}, 25);
+			}, 25, false, true);
 		}
 		return this._onDidChangeContext;
 	}
