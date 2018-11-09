@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IChannel } from 'vs/base/parts/ipc/node/ipc';
-import { TPromise } from 'vs/base/common/winjs.base';
 import { LogLevel, ILogService, DelegatedLogService } from 'vs/platform/log/common/log';
 import { Event, buffer } from 'vs/base/common/event';
 
@@ -12,8 +11,8 @@ export interface ILogLevelSetterChannel extends IChannel {
 	listen(event: 'onDidChangeLogLevel'): Event<LogLevel>;
 	listen<T>(event: string, arg?: any): Event<T>;
 
-	call(command: 'setLevel', logLevel: LogLevel): TPromise<void>;
-	call(command: string, arg?: any): TPromise<any>;
+	call(command: 'setLevel', logLevel: LogLevel): void;
+	call(command: string, arg?: any): Thenable<any>;
 }
 
 export class LogLevelSetterChannel implements ILogLevelSetterChannel {
@@ -32,9 +31,9 @@ export class LogLevelSetterChannel implements ILogLevelSetterChannel {
 		throw new Error(`Event not found: ${event}`);
 	}
 
-	call(command: string, arg?: any): TPromise<any> {
+	call(command: string, arg?: any): Thenable<any> {
 		switch (command) {
-			case 'setLevel': this.service.setLevel(arg); return TPromise.as(null);
+			case 'setLevel': this.service.setLevel(arg);
 		}
 
 		throw new Error(`Call not found: ${command}`);
@@ -49,8 +48,8 @@ export class LogLevelSetterChannelClient {
 		return this.channel.listen('onDidChangeLogLevel');
 	}
 
-	setLevel(level: LogLevel): TPromise<void> {
-		return this.channel.call('setLevel', level);
+	setLevel(level: LogLevel): void {
+		this.channel.call('setLevel', level);
 	}
 }
 
