@@ -12,7 +12,6 @@ import { Disposable } from 'vs/base/common/lifecycle';
 import { MarshalledObject } from 'vs/base/common/marshalling';
 import { URI } from 'vs/base/common/uri';
 import { IURITransformer } from 'vs/base/common/uriIpc';
-import { TPromise } from 'vs/base/common/winjs.base';
 import { IMessagePassingProtocol } from 'vs/base/parts/ipc/node/ipc';
 import { LazyPromise } from 'vs/workbench/services/extensions/node/lazyPromise';
 import { IRPCProtocol, ProxyIdentifier, getStringIdentifierForProxy } from 'vs/workbench/services/extensions/node/proxyIdentifier';
@@ -444,9 +443,9 @@ export class RPCProtocol extends Disposable implements IRPCProtocol {
 
 	private _invokeHandler(rpcId: number, methodName: string, args: any[]): Thenable<any> {
 		try {
-			return TPromise.as(this._doInvokeHandler(rpcId, methodName, args));
+			return Promise.resolve(this._doInvokeHandler(rpcId, methodName, args));
 		} catch (err) {
-			return TPromise.wrapError(err);
+			return Promise.reject(err);
 		}
 	}
 
@@ -464,7 +463,7 @@ export class RPCProtocol extends Disposable implements IRPCProtocol {
 
 	private _remoteCall(rpcId: number, methodName: string, args: any[]): Thenable<any> {
 		if (this._isDisposed) {
-			return TPromise.wrapError<any>(errors.canceled());
+			return Promise.reject<any>(errors.canceled());
 		}
 		let cancellationToken: CancellationToken | null = null;
 		if (args.length > 0 && CancellationToken.isCancellationToken(args[args.length - 1])) {
@@ -473,7 +472,7 @@ export class RPCProtocol extends Disposable implements IRPCProtocol {
 
 		if (cancellationToken && cancellationToken.isCancellationRequested) {
 			// No need to do anything...
-			return TPromise.wrapError<any>(errors.canceled());
+			return Promise.reject<any>(errors.canceled());
 		}
 
 		const req = ++this._lastMessageId;
