@@ -283,6 +283,7 @@ export class Repl extends Panel implements IPrivateReplService, IHistoryNavigati
 
 		this.renderer = this.instantiationService.createInstance(ReplExpressionsRenderer);
 		const controller = this.instantiationService.createInstance(ReplExpressionsController, new ReplExpressionsActionProvider(this.clearReplAction, this.replInput), MenuId.DebugConsoleContext, { openMode: OpenMode.SINGLE_CLICK, clickBehavior: ClickBehavior.ON_MOUSE_UP /* do not change, to preserve focus behaviour in input field */ });
+		this.toDispose.push(controller);
 		controller.toFocusOnClick = this.replInput;
 
 		this.tree = this.instantiationService.createInstance(WorkbenchTree, this.treeContainer, {

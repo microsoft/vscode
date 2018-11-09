@@ -97,6 +97,7 @@ export class CallStackView extends TreeViewsViewletPanel {
 		this.treeContainer = renderViewTree(container);
 		const actionProvider = new CallStackActionProvider(this.debugService, this.keybindingService, this.instantiationService);
 		const controller = this.instantiationService.createInstance(CallStackController, actionProvider, MenuId.DebugCallStackContext, {});
+		this.disposables.push(controller);
 		this.dataSource = new CallStackDataSource();
 		this.tree = this.instantiationService.createInstance(WorkbenchTree, this.treeContainer, {
 			dataSource: this.dataSource,

@@ -200,6 +200,7 @@ export class BaseDebugController extends WorkbenchTreeController {
 		super(options, configurationService);
 
 		this.contributedContextMenu = menuService.createMenu(menuId, contextKeyService);
+		this.disposables.push(this.contributedContextMenu);
 	}
 
 	public onContextMenu(tree: ITree, element: IEnablement, event: ContextMenuEvent, focusElement = true): boolean {
