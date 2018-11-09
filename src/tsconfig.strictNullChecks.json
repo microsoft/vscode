@@ -338,6 +338,7 @@
 		"./vs/editor/contrib/links/links.ts",
 		"./vs/editor/contrib/markdown/markdownRenderer.ts",
 		"./vs/editor/contrib/message/messageController.ts",
+		"./vs/editor/contrib/parameterHints/parameterHintsWidget.ts",
 		"./vs/editor/contrib/parameterHints/provideSignatureHelp.ts",
 		"./vs/editor/contrib/quickOpen/quickOpen.ts",
 		"./vs/editor/contrib/referenceSearch/referencesModel.ts",
