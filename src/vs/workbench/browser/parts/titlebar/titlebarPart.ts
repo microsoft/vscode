@@ -279,7 +279,6 @@ export class TitlebarPart extends Part implements ITitleService {
 
 	createContentArea(parent: HTMLElement): HTMLElement {
 		this.titleContainer = parent;
-		this.titleContainer.tabIndex = -1;
 
 		// Draggable region that we can manipulate for #52522
 		this.dragRegion = append(this.titleContainer, $('div.titlebar-drag-region'));
