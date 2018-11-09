@@ -766,7 +766,7 @@ export class ExtHostVariableResolverService extends AbstractVariableResolverServ
 				return configurationService.getConfiguration(undefined, folderUri).get<string>(section);
 			},
 			getExecPath: (): string | undefined => {
-				return undefined;	// does not exist in EH
+				return process.env['VSCODE_EXEC_PATH'];
 			},
 			getFilePath: (): string | undefined => {
 				const activeEditor = editorService.activeEditor();
