@@ -146,6 +146,9 @@ export class SnapUpdateService extends AbstractUpdateService2 {
 	) {
 		super(lifecycleService, environmentService, logService);
 
+		if (typeof process.env.SNAP === 'undefined') {
+			throw new Error(`'SNAP' environment variable not set`);
+		}
 		const watcher = watch(path.dirname(process.env.SNAP));
 		const onChange = fromNodeEventEmitter(watcher, 'change', (_, fileName: string) => fileName);
 		const onCurrentChange = filterEvent(onChange, n => n === 'current');
@@ -189,6 +192,10 @@ export class SnapUpdateService extends AbstractUpdateService2 {
 
 	protected doQuitAndInstall(): void {
 		this.logService.trace('update#quitAndInstall(): running raw#quitAndInstall()');
+
+		if (typeof process.env.SNAP === 'undefined') {
+			return;
+		}
 
 		// Allow 3 seconds for VS Code to close
 		spawn('bash', ['-c', path.join(process.env.SNAP, `usr/share/${product.applicationName}/snapUpdate.sh`)], {

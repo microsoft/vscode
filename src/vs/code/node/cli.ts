@@ -132,7 +132,7 @@ export async function main(argv: string[]): Promise<any> {
 				child.stdout.on('data', (data: Buffer) => console.log(data.toString('utf8').trim()));
 				child.stderr.on('data', (data: Buffer) => console.log(data.toString('utf8').trim()));
 
-				return new TPromise<void>(c => child.once('exit', () => c(null)));
+				return new TPromise<void>(c => child.once('exit', () => c()));
 			});
 		}
 
