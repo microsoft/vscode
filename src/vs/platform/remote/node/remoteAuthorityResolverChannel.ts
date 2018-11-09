@@ -48,27 +48,27 @@ export class RemoteAuthorityResolverChannelClient implements IRemoteAuthorityRes
 
 	_serviceBrand: any;
 
-	private _resolveAuthorityCache: { [authority: string]: TPromise<ResolvedAuthority>; };
+	private _resolveAuthorityCache: { [authority: string]: Thenable<ResolvedAuthority>; };
 	get onResolvingProgress(): Event<IResolvingProgressEvent> { return buffer(this.channel.listen('onResolvingProgress'), true); }
 
 	constructor(private channel: IRemoteAuthorityResolverChannel) {
 		this._resolveAuthorityCache = Object.create(null);
 	}
 
-	resolveAuthority(authority: string): TPromise<ResolvedAuthority> {
+	resolveAuthority(authority: string): Thenable<ResolvedAuthority> {
 		if (!this._resolveAuthorityCache[authority]) {
 			this._resolveAuthorityCache[authority] = this._resolveAuthority(authority);
 		}
 		return this._resolveAuthorityCache[authority];
 	}
 
-	getLabel(authority: string): TPromise<string | null> {
+	getLabel(authority: string): Thenable<string | null> {
 		return this.channel.call('getLabel', [authority]);
 	}
 
-	private _resolveAuthority(authority: string): TPromise<ResolvedAuthority> {
+	private _resolveAuthority(authority: string): Thenable<ResolvedAuthority> {
 		if (authority.indexOf('+') >= 0) {
-			return TPromise.wrap(this.channel.call('resolveAuthority', [authority]));
+			return this.channel.call('resolveAuthority', [authority]);
 		} else {
 			const [host, strPort] = authority.split(':');
 			const port = parseInt(strPort, 10);

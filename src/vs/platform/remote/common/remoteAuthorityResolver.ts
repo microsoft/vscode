@@ -6,7 +6,6 @@
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IProgressStep } from 'vs/platform/progress/common/progress';
 import { Event } from 'vs/base/common/event';
-import { TPromise } from 'vs/base/common/winjs.base';
 
 export const IRemoteAuthorityResolverService = createDecorator<IRemoteAuthorityResolverService>('remoteAuthorityResolverService');
 
@@ -27,9 +26,9 @@ export interface IRemoteAuthorityResolverService {
 
 	onResolvingProgress: Event<IResolvingProgressEvent>;
 
-	resolveAuthority(authority: string): TPromise<ResolvedAuthority>;
+	resolveAuthority(authority: string): Thenable<ResolvedAuthority>;
 
-	getLabel(authority: string): TPromise<string | null>;
+	getLabel(authority: string): Thenable<string | null>;
 }
 
 export interface IRemoteAuthorityResolver {
