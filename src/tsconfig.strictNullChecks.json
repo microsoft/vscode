@@ -121,6 +121,7 @@
 		"./vs/code/electron-main/keyboard.ts",
 		"./vs/code/electron-main/sharedProcess.ts",
 		"./vs/code/electron-main/theme.ts",
+		"./vs/code/node/cli.ts",
 		"./vs/code/node/paths.ts",
 		"./vs/code/node/shellEnv.ts",
 		"./vs/code/node/wait.ts",
@@ -702,7 +703,8 @@
 		"./vs/workbench/services/themes/common/workbenchThemeService.ts",
 		"./vs/workbench/services/title/common/titleService.ts",
 		"./vs/workbench/services/workspace/common/workspaceEditing.ts",
-		"./vs/workbench/test/electron-browser/api/mock.ts"
+		"./vs/workbench/test/electron-browser/api/mock.ts",
+		"./vs/platform/backup/electron-main/backupMainService.ts"
 	],
 	"exclude": [
 		"./typings/require-monaco.d.ts"

@@ -77,7 +77,7 @@ export async function main(argv: string[]): Promise<any> {
 		try {
 
 			// Check for readonly status and chmod if so if we are told so
-			let targetMode: number;
+			let targetMode: number = 0;
 			let restoreMode = false;
 			if (!!args['file-chmod']) {
 				targetMode = fs.statSync(target).mode;
@@ -132,11 +132,11 @@ export async function main(argv: string[]): Promise<any> {
 				child.stdout.on('data', (data: Buffer) => console.log(data.toString('utf8').trim()));
 				child.stderr.on('data', (data: Buffer) => console.log(data.toString('utf8').trim()));
 
-				return new TPromise<void>(c => child.once('exit', () => c()));
+				return new TPromise<void>(c => child.once('exit', () => c(void 0)));
 			});
 		}
 
-		let stdinWithoutTty: boolean;
+		let stdinWithoutTty: boolean = false;
 		try {
 			stdinWithoutTty = !process.stdin.isTTY; // Via https://twitter.com/MylesBorins/status/782009479382626304
 		} catch (error) {
@@ -162,7 +162,7 @@ export async function main(argv: string[]): Promise<any> {
 				stdinFilePath = paths.join(os.tmpdir(), `code-stdin-${Math.random().toString(36).replace(/[^a-z]+/g, '').substr(0, 3)}.txt`);
 
 				// open tmp file for writing
-				let stdinFileError: Error;
+				let stdinFileError: Error | undefined;
 				let stdinFileStream: fs.WriteStream;
 				try {
 					stdinFileStream = fs.createWriteStream(stdinFilePath);
@@ -227,7 +227,7 @@ export async function main(argv: string[]): Promise<any> {
 		// and pass it over to the starting instance. We can use this file
 		// to wait for it to be deleted to monitor that the edited file
 		// is closed and then exit the waiting process.
-		let waitMarkerFilePath: string;
+		let waitMarkerFilePath: string | undefined;
 		if (args.wait) {
 			waitMarkerFilePath = await createWaitMarkerFile(verbose);
 			if (waitMarkerFilePath) {
@@ -361,10 +361,10 @@ export async function main(argv: string[]): Promise<any> {
 			return new TPromise<void>(c => {
 
 				// Complete when process exits
-				child.once('exit', () => c(null));
+				child.once('exit', () => c(void 0));
 
 				// Complete when wait marker file is deleted
-				whenDeleted(waitMarkerFilePath).then(c, c);
+				whenDeleted(waitMarkerFilePath!).then(c, c);
 			}).then(() => {
 
 				// Make sure to delete the tmp stdin file if we have any

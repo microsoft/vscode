@@ -182,7 +182,7 @@ export class BackupMainService implements IBackupMainService {
 		this.rootWorkspaces = this.validateWorkspaces(backups.rootWorkspaces);
 
 		// read folder backups
-		let workspaceFolders: URI[];
+		let workspaceFolders: URI[] = [];
 		try {
 			if (Array.isArray(backups.folderURIWorkspaces)) {
 				workspaceFolders = backups.folderURIWorkspaces.map(f => URI.parse(f));
