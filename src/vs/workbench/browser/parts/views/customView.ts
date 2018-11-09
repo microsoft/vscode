@@ -7,7 +7,6 @@ import 'vs/css!./media/views';
 import { Event, Emitter } from 'vs/base/common/event';
 import { IDisposable, dispose, Disposable, toDisposable } from 'vs/base/common/lifecycle';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { TPromise } from 'vs/base/common/winjs.base';
 import { IAction, IActionItem, ActionRunner, Action } from 'vs/base/common/actions';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
@@ -238,7 +237,7 @@ export class CustomTreeViewer extends Disposable implements ITreeViewer {
 	set dataProvider(dataProvider: ITreeViewDataProvider) {
 		if (dataProvider) {
 			this._dataProvider = new class implements ITreeViewDataProvider {
-				getChildren(node?: ITreeItem): TPromise<ITreeItem[]> {
+				getChildren(node?: ITreeItem): Promise<ITreeItem[]> {
 					if (node && node.children) {
 						return Promise.resolve(node.children);
 					}
@@ -394,7 +393,7 @@ export class CustomTreeViewer extends Disposable implements ITreeViewer {
 		return 0;
 	}
 
-	refresh(elements?: ITreeItem[]): TPromise<void> {
+	refresh(elements?: ITreeItem[]): Promise<void> {
 		if (this.dataProvider && this.tree) {
 			elements = elements || [this.root];
 			for (const element of elements) {
@@ -409,7 +408,7 @@ export class CustomTreeViewer extends Disposable implements ITreeViewer {
 		return Promise.resolve(null);
 	}
 
-	expand(itemOrItems: ITreeItem | ITreeItem[]): TPromise<void> {
+	expand(itemOrItems: ITreeItem | ITreeItem[]): Thenable<void> {
 		itemOrItems = Array.isArray(itemOrItems) ? itemOrItems : [itemOrItems];
 		return this.tree.expandAll(itemOrItems);
 	}
@@ -423,7 +422,7 @@ export class CustomTreeViewer extends Disposable implements ITreeViewer {
 		this.tree.setFocus(item);
 	}
 
-	reveal(item: ITreeItem): TPromise<void> {
+	reveal(item: ITreeItem): Thenable<void> {
 		return this.tree.reveal(item);
 	}
 
@@ -441,7 +440,7 @@ export class CustomTreeViewer extends Disposable implements ITreeViewer {
 		}
 	}
 
-	private doRefresh(elements: ITreeItem[]): TPromise<void> {
+	private doRefresh(elements: ITreeItem[]): Promise<void> {
 		if (this.tree) {
 			return Promise.all(elements.map(e => this.tree.refresh(e))).then(() => null);
 		}
@@ -484,7 +483,7 @@ class TreeDataSource implements IDataSource {
 		return this.treeView.dataProvider && node.collapsibleState !== TreeItemCollapsibleState.None;
 	}
 
-	getChildren(tree: ITree, node: ITreeItem): TPromise<any[]> {
+	getChildren(tree: ITree, node: ITreeItem): Promise<any[]> {
 		if (this.treeView.dataProvider) {
 			return this.progressService.withProgress({ location: this.container.id }, () => this.treeView.dataProvider.getChildren(node));
 		}
@@ -495,7 +494,7 @@ class TreeDataSource implements IDataSource {
 		return node.collapsibleState === TreeItemCollapsibleState.Expanded;
 	}
 
-	getParent(tree: ITree, node: any): TPromise<any> {
+	getParent(tree: ITree, node: any): Promise<any> {
 		return Promise.resolve(null);
 	}
 }
@@ -721,7 +720,7 @@ class MultipleSelectionActionRunner extends ActionRunner {
 		super();
 	}
 
-	runAction(action: IAction, context: any): TPromise<any> {
+	runAction(action: IAction, context: any): Thenable<any> {
 		if (action instanceof MenuItemAction) {
 			const selection = this.getSelectedResources();
 			const filteredSelection = selection.filter(s => s !== context);

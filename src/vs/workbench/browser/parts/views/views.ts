@@ -5,7 +5,6 @@
 
 import 'vs/css!./media/views';
 import { Disposable } from 'vs/base/common/lifecycle';
-import { TPromise } from 'vs/base/common/winjs.base';
 import { IViewsService, ViewsRegistry, IViewsViewlet, ViewContainer, IViewDescriptor, IViewContainersRegistry, Extensions as ViewContainerExtensions, TEST_VIEW_CONTAINER_ID, IView, IViewDescriptorCollection } from 'vs/workbench/common/views';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { ViewletRegistry, Extensions as ViewletExtensions } from 'vs/workbench/browser/viewlet';
@@ -541,7 +540,7 @@ export class ViewsService extends Disposable implements IViewsService {
 		return this.viewDescriptorCollections.get(container);
 	}
 
-	openView(id: string, focus: boolean): TPromise<IView> {
+	openView(id: string, focus: boolean): Thenable<IView> {
 		const viewDescriptor = ViewsRegistry.getView(id);
 		if (viewDescriptor) {
 			const viewletDescriptor = this.viewletService.getViewlet(viewDescriptor.container.id);
