@@ -487,7 +487,12 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 
 	private createSettingsIfNotExists(target: ConfigurationTarget, resource: URI): Thenable<void> {
 		if (this.contextService.getWorkbenchState() === WorkbenchState.WORKSPACE && target === ConfigurationTarget.WORKSPACE) {
-			return this.fileService.resolveContent(this.contextService.getWorkspace().configuration)
+			const workspaceConfig = this.contextService.getWorkspace().configuration;
+			if (!workspaceConfig) {
+				return Promise.resolve(null);
+			}
+
+			return this.fileService.resolveContent(workspaceConfig)
 				.then(content => {
 					if (Object.keys(parse(content.value)).indexOf('settings') === -1) {
 						return this.jsonEditingService.write(resource, { key: 'settings', value: {} }, true).then(null, () => { });
