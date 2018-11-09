@@ -13,7 +13,7 @@ import * as extfs from 'vs/base/node/extfs';
 import { isWindows } from 'vs/base/common/platform';
 
 export interface IConfigurationChangeEvent<T> {
-	config?: T;
+	config: T;
 }
 
 export interface IConfigWatcher<T> {
@@ -21,8 +21,8 @@ export interface IConfigWatcher<T> {
 	hasParseErrors: boolean;
 
 	reload(callback: (config: T) => void): void;
-	getConfig(): T | undefined;
-	getValue<V>(key: string, fallback?: V): V | undefined;
+	getConfig(): T;
+	getValue<V>(key: string, fallback?: V): V;
 }
 
 export interface IConfigOptions<T> {
@@ -30,7 +30,7 @@ export interface IConfigOptions<T> {
 	defaultConfig?: T;
 	changeBufferDelay?: number;
 	parse?: (content: string, errors: any[]) => T;
-	initCallback?: (config: T | undefined) => void;
+	initCallback?: (config: T) => void;
 }
 
 /**
@@ -42,11 +42,11 @@ export interface IConfigOptions<T> {
  * - configurable defaults
  */
 export class ConfigWatcher<T> implements IConfigWatcher<T>, IDisposable {
-	private cache?: T;
+	private cache: T;
 	private parseErrors: json.ParseError[];
 	private disposed: boolean;
 	private loaded: boolean;
-	private timeoutHandle: any;
+	private timeoutHandle: NodeJS.Timer | null;
 	private disposables: IDisposable[];
 	private readonly _onDidUpdateConfiguration: Emitter<IConfigurationChangeEvent<T>>;
 	private configName: string;
@@ -85,12 +85,12 @@ export class ConfigWatcher<T> implements IConfigWatcher<T>, IDisposable {
 		});
 	}
 
-	private updateCache(value: T | undefined): void {
+	private updateCache(value: T): void {
 		this.cache = value;
 		this.loaded = true;
 	}
 
-	private loadSync(): T | undefined {
+	private loadSync(): T {
 		try {
 			return this.parse(fs.readFileSync(this._path).toString());
 		} catch (error) {
@@ -98,7 +98,7 @@ export class ConfigWatcher<T> implements IConfigWatcher<T>, IDisposable {
 		}
 	}
 
-	private loadAsync(callback: (config: T | undefined) => void): void {
+	private loadAsync(callback: (config: T) => void): void {
 		fs.readFile(this._path, (error, raw) => {
 			if (error) {
 				return callback(this.options.defaultConfig);
@@ -108,8 +108,8 @@ export class ConfigWatcher<T> implements IConfigWatcher<T>, IDisposable {
 		});
 	}
 
-	private parse(raw: string): T | undefined {
-		let res: T | undefined;
+	private parse(raw: string): T {
+		let res: T;
 		try {
 			this.parseErrors = [];
 			res = this.options.parse ? this.options.parse(raw, this.parseErrors) : json.parse(raw, this.parseErrors);
@@ -156,7 +156,7 @@ export class ConfigWatcher<T> implements IConfigWatcher<T>, IDisposable {
 		));
 	}
 
-	private onConfigFileChange(eventType: string, filename: string | undefined, isParentFolder: boolean): void {
+	private onConfigFileChange(eventType: string, filename: string, isParentFolder: boolean): void {
 		if (isParentFolder) {
 
 			// Windows: in some cases the filename contains artifacts from the absolute path
@@ -177,10 +177,10 @@ export class ConfigWatcher<T> implements IConfigWatcher<T>, IDisposable {
 		}
 
 		// we can get multiple change events for one change, so we buffer through a timeout
-		this.timeoutHandle = global.setTimeout(() => this.reload(), this.options.changeBufferDelay || 0);
+		this.timeoutHandle = global.setTimeout(() => this.reload(), this.options.changeBufferDelay);
 	}
 
-	public reload(callback?: (config: T | undefined) => void): void {
+	public reload(callback?: (config: T) => void): void {
 		this.loadAsync(currentConfig => {
 			if (!objects.equals(currentConfig, this.cache)) {
 				this.updateCache(currentConfig);
@@ -194,13 +194,13 @@ export class ConfigWatcher<T> implements IConfigWatcher<T>, IDisposable {
 		});
 	}
 
-	public getConfig(): T | undefined {
+	public getConfig(): T {
 		this.ensureLoaded();
 
 		return this.cache;
 	}
 
-	public getValue<V>(key: string, fallback?: V): V | undefined {
+	public getValue<V>(key: string, fallback?: V): V {
 		this.ensureLoaded();
 
 		if (!key) {
