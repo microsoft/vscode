@@ -98,7 +98,7 @@ export class Emitter<T> {
 				}
 
 				if (this._options && this._options._trace) {
-					this._traces.push(new Error().stack);
+					this._traces.push(new Error().stack || '');
 					let len = this._listeners.toArray().length;
 					if (len >= 50 && (len % 5 === 0)) {
 						console.warn(`LEAK? already ${len} listener`);
