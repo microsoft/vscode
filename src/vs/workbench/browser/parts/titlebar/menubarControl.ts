@@ -745,6 +745,7 @@ export class MenubarControl extends Disposable {
 							const submenuActions: SubmenuAction[] = [];
 							updateActions(submenu, submenuActions);
 							target.push(new SubmenuAction(action.label, submenuActions));
+							submenu.dispose();
 						} else {
 							action.label = this.calculateActionLabel(action);
 							target.push(action);
