@@ -695,10 +695,13 @@
 		"./vs/workbench/services/themes/common/workbenchThemeService.ts",
 		"./vs/workbench/services/title/common/titleService.ts",
 		"./vs/workbench/services/workspace/common/workspaceEditing.ts",
-		"./vs/workbench/test/electron-browser/api/mock.ts"
+		"./vs/workbench/test/electron-browser/api/mock.ts",
+		"./vs/workbench/parts/terminal/node/windowsShellHelper.ts",
+		"./vs/base/node/ps.ts",
+		"./vs/code/electron-browser/processExplorer/processExplorerMain.ts"
 	],
 	"exclude": [
 		"./typings/require-monaco.d.ts",
-		"../node_modules/windows-process-tree/typings/windows-process-tree.d.ts"
+		"./typings/windows-process-tree.d.ts"
 	]
 }
