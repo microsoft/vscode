@@ -322,6 +322,7 @@
 		"./vs/editor/contrib/folding/test/indentRangeProvider.test.ts",
 		"./vs/editor/contrib/folding/test/syntaxFold.test.ts",
 		"./vs/editor/contrib/fontZoom/fontZoom.ts",
+		"./vs/editor/contrib/format/format.ts",
 		"./vs/editor/contrib/goToDefinition/clickLinkGesture.ts",
 		"./vs/editor/contrib/goToDefinition/goToDefinition.ts",
 		"./vs/editor/contrib/gotoError/gotoError.ts",
