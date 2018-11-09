@@ -418,6 +418,7 @@
 		"./vs/platform/dialogs/node/dialogService.ts",
 		"./vs/platform/download/common/download.ts",
 		"./vs/platform/download/node/downloadService.ts",
+		"./vs/platform/driver/electron-main/driver.ts",
 		"./vs/platform/driver/node/driver.ts",
 		"./vs/platform/editor/common/editor.ts",
 		"./vs/platform/environment/common/environment.ts",

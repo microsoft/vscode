@@ -59,7 +59,7 @@ export class Driver implements IDriver, IWindowDriverRegistry {
 
 	reloadWindowDriver(windowId: number): TPromise<void> {
 		this.reloadingWindowIds.add(windowId);
-		return TPromise.as(null);
+		return TPromise.as(void 0);
 	}
 
 	getWindowIds(): TPromise<number[]> {
@@ -87,12 +87,14 @@ export class Driver implements IDriver, IWindowDriverRegistry {
 	dispatchKeybinding(windowId: number, keybinding: string): TPromise<void> {
 		return this.whenUnfrozen(windowId).then(() => {
 			const [first, second] = KeybindingParser.parseUserBinding(keybinding);
-
+			if (!first) {
+				return undefined;
+			}
 			return this._dispatchKeybinding(windowId, first).then(() => {
 				if (second) {
 					return this._dispatchKeybinding(windowId, second);
 				} else {
-					return TPromise.as(null);
+					return TPromise.as(void 0);
 				}
 			});
 		});
