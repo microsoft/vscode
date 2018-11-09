@@ -11,7 +11,6 @@ import { Edit } from 'vs/base/common/jsonFormatter';
 import { Disposable, IReference } from 'vs/base/common/lifecycle';
 import { isArray } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
-import { TPromise } from 'vs/base/common/winjs.base';
 import { EditOperation } from 'vs/editor/common/core/editOperation';
 import { Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
@@ -33,11 +32,11 @@ export interface IKeybindingEditingService {
 
 	_serviceBrand: ServiceIdentifier<any>;
 
-	editKeybinding(key: string, keybindingItem: ResolvedKeybindingItem): TPromise<void>;
+	editKeybinding(key: string, keybindingItem: ResolvedKeybindingItem): Thenable<void>;
 
-	removeKeybinding(keybindingItem: ResolvedKeybindingItem): TPromise<void>;
+	removeKeybinding(keybindingItem: ResolvedKeybindingItem): Thenable<void>;
 
-	resetKeybinding(keybindingItem: ResolvedKeybindingItem): TPromise<void>;
+	resetKeybinding(keybindingItem: ResolvedKeybindingItem): Thenable<void>;
 }
 
 export class KeybindingsEditingService extends Disposable implements IKeybindingEditingService {
@@ -58,19 +57,19 @@ export class KeybindingsEditingService extends Disposable implements IKeybinding
 		this.queue = new Queue<void>();
 	}
 
-	editKeybinding(key: string, keybindingItem: ResolvedKeybindingItem): TPromise<void> {
+	editKeybinding(key: string, keybindingItem: ResolvedKeybindingItem): Thenable<void> {
 		return this.queue.queue(() => this.doEditKeybinding(key, keybindingItem)); // queue up writes to prevent race conditions
 	}
 
-	resetKeybinding(keybindingItem: ResolvedKeybindingItem): TPromise<void> {
+	resetKeybinding(keybindingItem: ResolvedKeybindingItem): Thenable<void> {
 		return this.queue.queue(() => this.doResetKeybinding(keybindingItem)); // queue up writes to prevent race conditions
 	}
 
-	removeKeybinding(keybindingItem: ResolvedKeybindingItem): TPromise<void> {
+	removeKeybinding(keybindingItem: ResolvedKeybindingItem): Thenable<void> {
 		return this.queue.queue(() => this.doRemoveKeybinding(keybindingItem)); // queue up writes to prevent race conditions
 	}
 
-	private doEditKeybinding(key: string, keybindingItem: ResolvedKeybindingItem): TPromise<void> {
+	private doEditKeybinding(key: string, keybindingItem: ResolvedKeybindingItem): Thenable<void> {
 		return this.resolveAndValidate()
 			.then(reference => {
 				const model = reference.object.textEditorModel;
@@ -84,7 +83,7 @@ export class KeybindingsEditingService extends Disposable implements IKeybinding
 			});
 	}
 
-	private doRemoveKeybinding(keybindingItem: ResolvedKeybindingItem): TPromise<void> {
+	private doRemoveKeybinding(keybindingItem: ResolvedKeybindingItem): Thenable<void> {
 		return this.resolveAndValidate()
 			.then(reference => {
 				const model = reference.object.textEditorModel;
@@ -97,7 +96,7 @@ export class KeybindingsEditingService extends Disposable implements IKeybinding
 			});
 	}
 
-	private doResetKeybinding(keybindingItem: ResolvedKeybindingItem): TPromise<void> {
+	private doResetKeybinding(keybindingItem: ResolvedKeybindingItem): Thenable<void> {
 		return this.resolveAndValidate()
 			.then(reference => {
 				const model = reference.object.textEditorModel;
@@ -109,7 +108,7 @@ export class KeybindingsEditingService extends Disposable implements IKeybinding
 			});
 	}
 
-	private save(): TPromise<any> {
+	private save(): Thenable<any> {
 		return this.textFileService.save(this.resource);
 	}
 
@@ -198,20 +197,20 @@ export class KeybindingsEditingService extends Disposable implements IKeybinding
 	}
 
 
-	private resolveModelReference(): TPromise<IReference<ITextEditorModel>> {
+	private resolveModelReference(): Thenable<IReference<ITextEditorModel>> {
 		return this.fileService.existsFile(this.resource)
 			.then(exists => {
 				const EOL = this.configurationService.getValue('files', { overrideIdentifier: 'json' })['eol'];
-				const result = exists ? TPromise.as(null) : this.fileService.updateContent(this.resource, this.getEmptyContent(EOL), { encoding: 'utf8' });
+				const result: Thenable<any> = exists ? Promise.resolve(null) : this.fileService.updateContent(this.resource, this.getEmptyContent(EOL), { encoding: 'utf8' });
 				return result.then(() => this.textModelResolverService.createModelReference(this.resource));
 			});
 	}
 
-	private resolveAndValidate(): TPromise<IReference<ITextEditorModel>> {
+	private resolveAndValidate(): Thenable<IReference<ITextEditorModel>> {
 
 		// Target cannot be dirty if not writing into buffer
 		if (this.textFileService.isDirty(this.resource)) {
-			return TPromise.wrapError<IReference<ITextEditorModel>>(new Error(localize('errorKeybindingsFileDirty', "Unable to write because the keybindings configuration file is dirty. Please save it first and then try again.")));
+			return Promise.reject(new Error(localize('errorKeybindingsFileDirty', "Unable to write because the keybindings configuration file is dirty. Please save it first and then try again.")));
 		}
 
 		return this.resolveModelReference()
@@ -221,11 +220,11 @@ export class KeybindingsEditingService extends Disposable implements IKeybinding
 				if (model.getValue()) {
 					const parsed = this.parse(model);
 					if (parsed.parseErrors.length) {
-						return TPromise.wrapError<IReference<ITextEditorModel>>(new Error(localize('parseErrors', "Unable to write to the keybindings configuration file. Please open it to correct errors/warnings in the file and try again.")));
+						return Promise.reject(new Error(localize('parseErrors', "Unable to write to the keybindings configuration file. Please open it to correct errors/warnings in the file and try again.")));
 					}
 					if (parsed.result) {
 						if (!isArray(parsed.result)) {
-							return TPromise.wrapError<IReference<ITextEditorModel>>(new Error(localize('errorInvalidConfiguration', "Unable to write to the keybindings configuration file. It has an object which is not of type Array. Please open the file to clean up and try again.")));
+							return Promise.reject(new Error(localize('errorInvalidConfiguration', "Unable to write to the keybindings configuration file. It has an object which is not of type Array. Please open the file to clean up and try again.")));
 						}
 					} else {
 						const content = EOL + '[]';

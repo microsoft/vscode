@@ -11,7 +11,6 @@ import * as json from 'vs/base/common/json';
 import { ChordKeybinding, KeyCode, SimpleKeybinding } from 'vs/base/common/keyCodes';
 import { OS } from 'vs/base/common/platform';
 import * as uuid from 'vs/base/common/uuid';
-import { TPromise } from 'vs/base/common/winjs.base';
 import * as extfs from 'vs/base/node/extfs';
 import { mkdirp } from 'vs/base/node/pfs';
 import { IModeService } from 'vs/editor/common/services/modeService';
@@ -104,9 +103,9 @@ suite('KeybindingsEditing', () => {
 		});
 	});
 
-	function setUpWorkspace(): TPromise<boolean> {
+	async function setUpWorkspace(): Promise<boolean> {
 		testDir = path.join(os.tmpdir(), 'vsctests', uuid.generateUuid());
-		return mkdirp(testDir, 493);
+		return await mkdirp(testDir, 493);
 	}
 
 	teardown(() => {

@@ -5,7 +5,6 @@
 
 import 'vs/css!./media/keybindingsEditor';
 import { localize } from 'vs/nls';
-import { TPromise } from 'vs/base/common/winjs.base';
 import { Delayer } from 'vs/base/common/async';
 import * as DOM from 'vs/base/browser/dom';
 import { OS } from 'vs/base/common/platform';
@@ -154,7 +153,7 @@ export class KeybindingsEditor extends BaseEditor implements IKeybindingsEditor 
 		return focusedElement && focusedElement.templateId === KEYBINDING_ENTRY_TEMPLATE_ID ? <IKeybindingItemEntry>focusedElement : null;
 	}
 
-	defineKeybinding(keybindingEntry: IKeybindingItemEntry): TPromise<any> {
+	defineKeybinding(keybindingEntry: IKeybindingItemEntry): Thenable<any> {
 		this.selectEntry(keybindingEntry);
 		this.showOverlayContainer();
 		return this.defineKeybindingWidget.define().then(key => {
@@ -182,7 +181,7 @@ export class KeybindingsEditor extends BaseEditor implements IKeybindingsEditor 
 		});
 	}
 
-	removeKeybinding(keybindingEntry: IKeybindingItemEntry): TPromise<any> {
+	removeKeybinding(keybindingEntry: IKeybindingItemEntry): Thenable<any> {
 		this.selectEntry(keybindingEntry);
 		if (keybindingEntry.keybindingItem.keybinding) { // This should be a pre-condition
 			this.reportKeybindingAction(KEYBINDINGS_EDITOR_COMMAND_REMOVE, keybindingEntry.keybindingItem.command, keybindingEntry.keybindingItem.keybinding);
@@ -193,10 +192,10 @@ export class KeybindingsEditor extends BaseEditor implements IKeybindingsEditor 
 						this.selectEntry(keybindingEntry);
 					});
 		}
-		return TPromise.as(null);
+		return Promise.resolve(null);
 	}
 
-	resetKeybinding(keybindingEntry: IKeybindingItemEntry): TPromise<any> {
+	resetKeybinding(keybindingEntry: IKeybindingItemEntry): Thenable<any> {
 		this.selectEntry(keybindingEntry);
 		this.reportKeybindingAction(KEYBINDINGS_EDITOR_COMMAND_RESET, keybindingEntry.keybindingItem.command, keybindingEntry.keybindingItem.keybinding);
 		return this.keybindingEditingService.resetKeybinding(keybindingEntry.keybindingItem.keybindingItem)
@@ -212,7 +211,7 @@ export class KeybindingsEditor extends BaseEditor implements IKeybindingsEditor 
 				});
 	}
 
-	copyKeybinding(keybinding: IKeybindingItemEntry): TPromise<any> {
+	copyKeybinding(keybinding: IKeybindingItemEntry): void {
 		this.selectEntry(keybinding);
 		this.reportKeybindingAction(KEYBINDINGS_EDITOR_COMMAND_COPY, keybinding.keybindingItem.command, keybinding.keybindingItem.keybinding);
 		const userFriendlyKeybinding: IUserFriendlyKeybinding = {
@@ -223,14 +222,12 @@ export class KeybindingsEditor extends BaseEditor implements IKeybindingsEditor 
 			userFriendlyKeybinding.when = keybinding.keybindingItem.when;
 		}
 		this.clipboardService.writeText(JSON.stringify(userFriendlyKeybinding, null, '  '));
-		return TPromise.as(null);
 	}
 
-	copyKeybindingCommand(keybinding: IKeybindingItemEntry): TPromise<any> {
+	copyKeybindingCommand(keybinding: IKeybindingItemEntry): void {
 		this.selectEntry(keybinding);
 		this.reportKeybindingAction(KEYBINDINGS_EDITOR_COMMAND_COPY_COMMAND, keybinding.keybindingItem.command, keybinding.keybindingItem.keybinding);
 		this.clipboardService.writeText(keybinding.keybindingItem.command);
-		return TPromise.as(null);
 	}
 
 	focusSearch(): void {
@@ -246,12 +243,11 @@ export class KeybindingsEditor extends BaseEditor implements IKeybindingsEditor 
 		this.searchWidget.clear();
 	}
 
-	showSimilarKeybindings(keybindingEntry: IKeybindingItemEntry): TPromise<any> {
+	showSimilarKeybindings(keybindingEntry: IKeybindingItemEntry): void {
 		const value = `"${keybindingEntry.keybindingItem.keybinding.getAriaLabel()}"`;
 		if (value !== this.searchWidget.getValue()) {
 			this.searchWidget.setValue(value);
 		}
-		return TPromise.as(null);
 	}
 
 	private createAriaLabelElement(parent: HTMLElement): void {
@@ -425,7 +421,7 @@ export class KeybindingsEditor extends BaseEditor implements IKeybindingsEditor 
 		}));
 	}
 
-	private render(preserveFocus: boolean, token: CancellationToken): TPromise<any> {
+	private render(preserveFocus: boolean, token: CancellationToken): Thenable<any> {
 		if (this.input) {
 			return this.input.resolve()
 				.then((keybindingsModel: KeybindingsEditorModel) => {
@@ -450,7 +446,7 @@ export class KeybindingsEditor extends BaseEditor implements IKeybindingsEditor 
 					this.renderKeybindingsEntries(false, preserveFocus);
 				});
 		}
-		return TPromise.as(null);
+		return Promise.resolve();
 	}
 
 	private filterKeybindings(): void {
