@@ -18,7 +18,6 @@ import { mixin } from 'vs/base/common/objects';
 import { Thread, ExpressionContainer, DebugModel } from 'vs/workbench/parts/debug/common/debugModel';
 import { RawDebugSession } from 'vs/workbench/parts/debug/electron-browser/rawDebugSession';
 import product from 'vs/platform/node/product';
-import { INotificationService } from 'vs/platform/notification/common/notification';
 import { IWorkspaceFolder, IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { RunOnceScheduler } from 'vs/base/common/async';
@@ -31,6 +30,7 @@ import { Range } from 'vs/editor/common/core/range';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { ReplModel } from 'vs/workbench/parts/debug/common/replModel';
+import { onUnexpectedError } from 'vs/base/common/errors';
 
 export class DebugSession implements IDebugSession {
 	private id: string;
@@ -54,7 +54,6 @@ export class DebugSession implements IDebugSession {
 		private _configuration: { resolved: IConfig, unresolved: IConfig },
 		public root: IWorkspaceFolder,
 		private model: DebugModel,
-		@INotificationService private notificationService: INotificationService,
 		@IDebugService private debugService: IDebugService,
 		@ITelemetryService private telemetryService: ITelemetryService,
 		@IOutputService private outputService: IOutputService,
@@ -589,7 +588,9 @@ export class DebugSession implements IDebugSession {
 						if (this.raw) {
 							this.raw.disconnect();
 						}
-						this.notificationService.error(e.message);
+						if (e.command !== 'canceled' && e.message !== 'canceled') {
+							onUnexpectedError(e);
+						}
 					});
 				}
 
@@ -642,7 +643,7 @@ export class DebugSession implements IDebugSession {
 		this.rawListeners.push(this.raw.onDidTerminateDebugee(event => {
 			aria.status(nls.localize('debuggingStopped', "Debugging stopped."));
 			if (event.body && event.body.restart) {
-				this.debugService.restartSession(this, event.body.restart).then(null, err => this.notificationService.error(err.message));
+				this.debugService.restartSession(this, event.body.restart).then(null, onUnexpectedError);
 			} else {
 				this.raw.disconnect();
 			}
