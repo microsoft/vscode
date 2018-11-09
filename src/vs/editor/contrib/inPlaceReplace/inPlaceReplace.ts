@@ -55,32 +55,26 @@ class InPlaceReplaceController implements IEditorContribution {
 		return InPlaceReplaceController.ID;
 	}
 
-	public run(source: string, up: boolean): Promise<void> {
+	public run(source: string, up: boolean): Promise<void> | undefined {
 
 		// cancel any pending request
 		if (this.currentRequest) {
 			this.currentRequest.cancel();
 		}
 
-		let selection = this.editor.getSelection();
-		if (selection === null) {
-			return Promise.resolve(void 0);
-		}
-
+		const editorSelection = this.editor.getSelection();
 		const model = this.editor.getModel();
-		if (!model) {
-			return Promise.resolve(void 0);
+		if (!model || !editorSelection) {
+			return undefined;
 		}
-
-		const modelURI = model.uri;
-
+		let selection = editorSelection;
 		if (selection.startLineNumber !== selection.endLineNumber) {
 			// Can't accept multiline selection
-			return Promise.resolve(void 0);
+			return undefined;
 		}
 
 		const state = new EditorState(this.editor, CodeEditorStateFlag.Value | CodeEditorStateFlag.Position);
-
+		const modelURI = model.uri;
 		if (!this.editorWorkerService.canNavigateValueSet(modelURI)) {
 			return Promise.resolve(void 0);
 		}
@@ -155,8 +149,8 @@ class InPlaceReplaceUp extends EditorAction {
 		});
 	}
 
-	public run(accessor: ServicesAccessor, editor: ICodeEditor): Promise<void> {
-		let controller = InPlaceReplaceController.get(editor);
+	public run(accessor: ServicesAccessor, editor: ICodeEditor): Promise<void> | undefined {
+		const controller = InPlaceReplaceController.get(editor);
 		if (!controller) {
 			return Promise.resolve(void 0);
 		}
@@ -180,8 +174,8 @@ class InPlaceReplaceDown extends EditorAction {
 		});
 	}
 
-	public run(accessor: ServicesAccessor, editor: ICodeEditor): Promise<void> {
-		let controller = InPlaceReplaceController.get(editor);
+	public run(accessor: ServicesAccessor, editor: ICodeEditor): Promise<void> | undefined {
+		const controller = InPlaceReplaceController.get(editor);
 		if (!controller) {
 			return Promise.resolve(void 0);
 		}
