@@ -11,6 +11,7 @@ import * as marked from 'vs/base/common/marked/marked';
 import { IMouseEvent } from 'vs/base/browser/mouseEvent';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { onUnexpectedError } from 'vs/base/common/errors';
+import { URI } from 'vs/base/common/uri';
 
 export interface IContentActionHandler {
 	callback: (content: string, event?: IMouseEvent) => void;
@@ -52,6 +53,14 @@ export function renderFormattedText(formattedText: string, options: RenderOption
 export function renderMarkdown(markdown: IMarkdownString, options: RenderOptions = {}): HTMLElement {
 	const element = createElement(options);
 
+	const _href = function (href: string): string {
+		const data = markdown.uris && markdown.uris[href];
+		if (data) {
+			href = URI.revive(data).toString(true);
+		}
+		return href;
+	};
+
 	// signal to code-block render that the
 	// element has been created
 	let signalInnerHTML: Function;
@@ -59,6 +68,7 @@ export function renderMarkdown(markdown: IMarkdownString, options: RenderOptions
 
 	const renderer = new marked.Renderer();
 	renderer.image = (href: string, title: string, text: string) => {
+		href = _href(href);
 		let dimensions: string[] = [];
 		if (href) {
 			const splitted = href.split('|').map(s => s.trim());
@@ -99,6 +109,7 @@ export function renderMarkdown(markdown: IMarkdownString, options: RenderOptions
 		if (href === text) { // raw link case
 			text = removeMarkdownEscapes(text);
 		}
+		href = _href(href);
 		title = removeMarkdownEscapes(title);
 		href = removeMarkdownEscapes(href);
 		if (

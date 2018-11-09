@@ -19,7 +19,7 @@ import { IRange } from 'vs/editor/common/core/range';
 import { ISelection } from 'vs/editor/common/core/selection';
 import * as htmlContent from 'vs/base/common/htmlContent';
 import * as languageSelector from 'vs/editor/common/modes/languageSelector';
-import { WorkspaceEditDto, ResourceTextEditDto, ResourceFileEditDto, IMarkdownStringDto } from 'vs/workbench/api/node/extHost.protocol';
+import { WorkspaceEditDto, ResourceTextEditDto, ResourceFileEditDto } from 'vs/workbench/api/node/extHost.protocol';
 import { MarkerSeverity, IRelatedInformation, IMarkerData, MarkerTag } from 'vs/platform/markers/common/markers';
 import { ACTIVE_GROUP, SIDE_GROUP } from 'vs/workbench/services/editor/common/editorService';
 import { ExtHostDocumentsAndEditors } from 'vs/workbench/api/node/extHostDocumentsAndEditors';
@@ -210,38 +210,32 @@ export namespace MarkdownString {
 	}
 
 	export function from(markup: vscode.MarkdownString | vscode.MarkedString): htmlContent.IMarkdownString {
+		let res: htmlContent.IMarkdownString;
 		if (isCodeblock(markup)) {
 			const { language, value } = markup;
-			return { value: '```' + language + '\n' + value + '\n```\n' };
+			res = { value: '```' + language + '\n' + value + '\n```\n' };
 		} else if (htmlContent.isMarkdownString(markup)) {
-			return markup;
+			res = markup;
 		} else if (typeof markup === 'string') {
-			return { value: <string>markup };
+			res = { value: <string>markup };
 		} else {
-			return { value: '' };
+			res = { value: '' };
 		}
-	}
 
-	export function from2(markup: vscode.MarkedString | vscode.MarkdownString): IMarkdownStringDto {
-		let { value, isTrusted } = from(markup);
-
-		let uris = Object.create(null);
+		// extract uris into a separate object
+		res.uris = Object.create(null);
 		let renderer = new marked.Renderer();
-
 		renderer.image = renderer.link = (href: string): string => {
 			try {
-				uris[href] = URI.parse(href, true);
+				res.uris[href] = URI.parse(href, true);
 			} catch (e) {
 				// ignore
 			}
 			return '';
 		};
-		marked(value, { renderer });
-		return {
-			isTrusted,
-			value,
-			uris
-		};
+		marked(res.value, { renderer });
+
+		return res;
 	}
 
 	export function to(value: htmlContent.IMarkdownString): vscode.MarkdownString {
