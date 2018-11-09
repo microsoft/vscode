@@ -77,7 +77,7 @@ export class CopyAllAction extends Action {
 			if (text) {
 				text += lineDelimiter;
 			}
-			text += (<IReplElement>navigator.current()).toString();
+			text += (<IReplElement>navigator.current()).toString().trimRight();
 		}
 
 		clipboard.writeText(removeAnsiEscapeCodes(text));
