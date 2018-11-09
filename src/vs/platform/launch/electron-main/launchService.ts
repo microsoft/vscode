@@ -19,6 +19,7 @@ import { URI, UriComponents } from 'vs/base/common/uri';
 import { BrowserWindow } from 'electron';
 import { Event } from 'vs/base/common/event';
 import { hasArgs } from 'vs/platform/environment/node/argv';
+import { coalesce } from 'vs/base/common/arrays';
 
 export const ID = 'launchService';
 export const ILaunchService = createDecorator<ILaunchService>(ID);
@@ -45,15 +46,14 @@ function parseOpenUrl(args: ParsedArgs): URI[] {
 	if (args['open-url'] && args._urls && args._urls.length > 0) {
 		// --open-url must contain -- followed by the url(s)
 		// process.argv is used over args._ as args._ are resolved to file paths at this point
-		return args._urls
+		return coalesce(args._urls
 			.map(url => {
 				try {
 					return URI.parse(url);
 				} catch (err) {
 					return null;
 				}
-			})
-			.filter(uri => !!uri);
+			}));
 	}
 
 	return [];
@@ -99,7 +99,7 @@ export class LaunchChannel implements ILaunchChannel {
 				return this.service.getLogsPath();
 		}
 
-		return undefined;
+		throw new Error(`Call not found: ${command}`);
 	}
 }
 
@@ -161,7 +161,7 @@ export class LaunchService implements ILaunchService {
 				}
 			});
 
-			return TPromise.as(null);
+			return TPromise.as(void 0);
 		}
 
 		// Otherwise handle in windows service
@@ -170,7 +170,7 @@ export class LaunchService implements ILaunchService {
 
 	private startOpenWindow(args: ParsedArgs, userEnv: IProcessEnvironment): TPromise<void> {
 		const context = !!userEnv['VSCODE_CLI'] ? OpenContext.CLI : OpenContext.DESKTOP;
-		let usedWindows: ICodeWindow[];
+		let usedWindows: ICodeWindow[] = [];
 
 		// Special case extension development
 		if (!!args.extensionDevelopmentPath) {
@@ -238,7 +238,7 @@ export class LaunchService implements ILaunchService {
 			]).then(() => void 0, () => void 0);
 		}
 
-		return TPromise.as(null);
+		return TPromise.as(void 0);
 	}
 
 	getMainProcessId(): TPromise<number> {
@@ -279,10 +279,13 @@ export class LaunchService implements ILaunchService {
 		if (window.openedFolderUri) {
 			folderURIs.push(window.openedFolderUri);
 		} else if (window.openedWorkspace) {
-			const rootFolders = this.workspacesMainService.resolveWorkspaceSync(window.openedWorkspace.configPath).folders;
-			rootFolders.forEach(root => {
-				folderURIs.push(root.uri);
-			});
+			const resolvedWorkspace = this.workspacesMainService.resolveWorkspaceSync(window.openedWorkspace.configPath);
+			if (resolvedWorkspace) {
+				const rootFolders = resolvedWorkspace.folders;
+				rootFolders.forEach(root => {
+					folderURIs.push(root.uri);
+				});
+			}
 		}
 
 		return this.browserWindowToInfo(window.win, folderURIs);

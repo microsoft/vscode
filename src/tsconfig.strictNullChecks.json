@@ -118,6 +118,7 @@
 		"./vs/code/electron-browser/sharedProcess/contrib/nodeCachedDataCleaner.ts",
 		"./vs/code/electron-main/auth.ts",
 		"./vs/code/electron-main/keyboard.ts",
+		"./vs/code/electron-main/logUploader.ts",
 		"./vs/code/electron-main/sharedProcess.ts",
 		"./vs/code/electron-main/theme.ts",
 		"./vs/code/node/cli.ts",
@@ -400,6 +401,7 @@
 		"./vs/platform/actions/common/menu.ts",
 		"./vs/platform/actions/common/menuService.ts",
 		"./vs/platform/backup/common/backup.ts",
+		"./vs/platform/backup/electron-main/backupMainService.ts",
 		"./vs/platform/broadcast/electron-browser/broadcastService.ts",
 		"./vs/platform/clipboard/common/clipboardService.ts",
 		"./vs/platform/clipboard/electron-browser/clipboardService.ts",
@@ -409,6 +411,7 @@
 		"./vs/platform/configuration/common/configurationRegistry.ts",
 		"./vs/platform/contextkey/browser/contextKeyService.ts",
 		"./vs/platform/contextkey/common/contextkey.ts",
+		"./vs/platform/diagnostics/electron-main/diagnosticsService.ts",
 		"./vs/platform/dialogs/common/dialogs.ts",
 		"./vs/platform/dialogs/node/dialogIpc.ts",
 		"./vs/platform/dialogs/node/dialogService.ts",
@@ -454,6 +457,7 @@
 		"./vs/platform/keybinding/test/common/mockKeybindingService.ts",
 		"./vs/platform/label/common/label.ts",
 		"./vs/platform/label/electron-browser/label.contribution.ts",
+		"./vs/platform/launch/electron-main/launchService.ts",
 		"./vs/platform/lifecycle/common/lifecycle.ts",
 		"./vs/platform/lifecycle/electron-browser/lifecycleService.ts",
 		"./vs/platform/lifecycle/electron-main/lifecycleMain.ts",
@@ -707,8 +711,7 @@
 		"./vs/workbench/services/themes/common/workbenchThemeService.ts",
 		"./vs/workbench/services/title/common/titleService.ts",
 		"./vs/workbench/services/workspace/common/workspaceEditing.ts",
-		"./vs/workbench/test/electron-browser/api/mock.ts",
-		"./vs/platform/backup/electron-main/backupMainService.ts"
+		"./vs/workbench/test/electron-browser/api/mock.ts"
 	],
 	"exclude": [
 		"./typings/require-monaco.d.ts"
