@@ -294,6 +294,7 @@
 		"./vs/editor/contrib/colorPicker/color.ts",
 		"./vs/editor/contrib/colorPicker/colorDetector.ts",
 		"./vs/editor/contrib/colorPicker/colorPickerModel.ts",
+		"./vs/editor/contrib/colorPicker/colorPickerWidget.ts",
 		"./vs/editor/contrib/comment/blockCommentCommand.ts",
 		"./vs/editor/contrib/comment/comment.ts",
 		"./vs/editor/contrib/comment/lineCommentCommand.ts",

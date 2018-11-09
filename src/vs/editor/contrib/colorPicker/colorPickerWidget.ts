@@ -126,7 +126,7 @@ class SaturationBox extends Disposable {
 	private width: number;
 	private height: number;
 
-	private monitor: GlobalMouseMoveMonitor<IStandardMouseMoveEventData>;
+	private monitor: GlobalMouseMoveMonitor<IStandardMouseMoveEventData> | null;
 	private _onDidChange = new Emitter<{ s: number, v: number }>();
 	readonly onDidChange: Event<{ s: number, v: number }> = this._onDidChange.event;
 
@@ -168,8 +168,10 @@ class SaturationBox extends Disposable {
 		const mouseUpListener = dom.addDisposableListener(document, dom.EventType.MOUSE_UP, () => {
 			this._onColorFlushed.fire();
 			mouseUpListener.dispose();
-			this.monitor.stopMonitoring(true);
-			this.monitor = null;
+			if (this.monitor) {
+				this.monitor.stopMonitoring(true);
+				this.monitor = null;
+			}
 		}, true);
 	}
 
@@ -195,7 +197,7 @@ class SaturationBox extends Disposable {
 	private paint(): void {
 		const hsva = this.model.color.hsva;
 		const saturatedColor = new Color(new HSVA(hsva.h, 1, 1, 1));
-		const ctx = this.canvas.getContext('2d');
+		const ctx = this.canvas.getContext('2d')!;
 
 		const whiteGradient = ctx.createLinearGradient(0, 0, this.canvas.width, 0);
 		whiteGradient.addColorStop(0, 'rgba(255, 255, 255, 1)');
@@ -207,7 +209,7 @@ class SaturationBox extends Disposable {
 		blackGradient.addColorStop(1, 'rgba(0, 0, 0, 1)');
 
 		ctx.rect(0, 0, this.canvas.width, this.canvas.height);
-		ctx.fillStyle = Color.Format.CSS.format(saturatedColor);
+		ctx.fillStyle = Color.Format.CSS.format(saturatedColor)!;
 		ctx.fill();
 		ctx.fillStyle = whiteGradient;
 		ctx.fill();
