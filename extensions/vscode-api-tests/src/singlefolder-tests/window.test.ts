@@ -521,6 +521,7 @@ suite('window namespace tests', () => {
 	test('showWorkspaceFolderPick', async function () {
 		const p = window.showWorkspaceFolderPick(undefined);
 
+		await timeout();
 		await commands.executeCommand('workbench.action.acceptSelectedQuickOpenItem');
 		try {
 			await p;
@@ -697,3 +698,7 @@ suite('window namespace tests', () => {
 		});
 	});
 });
+
+async function timeout(ms = 0): Promise<void> {
+	return new Promise<void>(resolve => setTimeout(() => resolve(), ms));
+}
