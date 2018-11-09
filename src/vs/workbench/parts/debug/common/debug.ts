@@ -115,11 +115,20 @@ export interface IDebugger {
 	getCustomTelemetryService(): Thenable<TelemetryService>;
 }
 
-export enum State {
+export const enum State {
 	Inactive,
 	Initializing,
 	Stopped,
 	Running
+}
+
+export function getStateLabel(state: State): string {
+	switch (state) {
+		case State.Initializing: return 'initializing';
+		case State.Stopped: return 'stopped';
+		case State.Running: return 'running';
+		default: return 'inactive';
+	}
 }
 
 export class AdapterEndEvent {
