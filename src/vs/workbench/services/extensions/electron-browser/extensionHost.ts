@@ -94,7 +94,7 @@ export class ExtensionHostProcessWorker implements IExtensionHostStarter {
 	private _messageProtocol: TPromise<IMessagePassingProtocol>;
 
 	constructor(
-		private readonly _extensions: TPromise<IExtensionDescription[]>,
+		private readonly _extensions: Promise<IExtensionDescription[]>,
 		private readonly _extensionHostLogsLocation: URI,
 		@IWorkspaceContextService private readonly _contextService: IWorkspaceContextService,
 		@INotificationService private readonly _notificationService: INotificationService,

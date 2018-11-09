@@ -311,14 +311,14 @@ export class TestExtensionService implements IExtensionService {
 	onDidRegisterExtensions: Event<void> = Event.None;
 	onDidChangeExtensionsStatus: Event<string[]> = Event.None;
 	onWillActivateByEvent: Event<IWillActivateEvent> = Event.None;
-	activateByEvent(_activationEvent: string): TPromise<void> { return TPromise.as(void 0); }
-	whenInstalledExtensionsRegistered(): TPromise<boolean> { return TPromise.as(true); }
-	getExtensions(): TPromise<IExtensionDescription[]> { return TPromise.as([]); }
-	readExtensionPointContributions<T>(_extPoint: IExtensionPoint<T>): TPromise<ExtensionPointContribution<T>[]> { return TPromise.as(Object.create(null)); }
+	activateByEvent(_activationEvent: string): Thenable<void> { return Promise.resolve(void 0); }
+	whenInstalledExtensionsRegistered(): Promise<boolean> { return Promise.resolve(true); }
+	getExtensions(): Promise<IExtensionDescription[]> { return Promise.resolve([]); }
+	readExtensionPointContributions<T>(_extPoint: IExtensionPoint<T>): Promise<ExtensionPointContribution<T>[]> { return Promise.resolve(Object.create(null)); }
 	getExtensionsStatus(): { [id: string]: IExtensionsStatus; } { return Object.create(null); }
 	canProfileExtensionHost(): boolean { return false; }
 	getInspectPort(): number { return 0; }
-	startExtensionHostProfile(): TPromise<ProfileSession> { return TPromise.as(Object.create(null)); }
+	startExtensionHostProfile(): Promise<ProfileSession> { return Promise.resolve(Object.create(null)); }
 	restartExtensionHost(): void { }
 	startExtensionHost(): void { }
 	stopExtensionHost(): void { }

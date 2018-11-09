@@ -6,7 +6,6 @@
 import { Event } from 'vs/base/common/event';
 import Severity from 'vs/base/common/severity';
 import { URI } from 'vs/base/common/uri';
-import { TPromise } from 'vs/base/common/winjs.base';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IExtensionPoint } from 'vs/workbench/services/extensions/common/extensionsRegistry';
 
@@ -160,23 +159,23 @@ export interface IExtensionService {
 	/**
 	 * Send an activation event and activate interested extensions.
 	 */
-	activateByEvent(activationEvent: string): TPromise<void>;
+	activateByEvent(activationEvent: string): Thenable<void>;
 
 	/**
 	 * An promise that resolves when the installed extensions are registered after
 	 * their extension points got handled.
 	 */
-	whenInstalledExtensionsRegistered(): TPromise<boolean>;
+	whenInstalledExtensionsRegistered(): Promise<boolean>;
 
 	/**
 	 * Return all registered extensions
 	 */
-	getExtensions(): TPromise<IExtensionDescription[]>;
+	getExtensions(): Promise<IExtensionDescription[]>;
 
 	/**
 	 * Read all contributions to an extension point.
 	 */
-	readExtensionPointContributions<T>(extPoint: IExtensionPoint<T>): TPromise<ExtensionPointContribution<T>[]>;
+	readExtensionPointContributions<T>(extPoint: IExtensionPoint<T>): Promise<ExtensionPointContribution<T>[]>;
 
 	/**
 	 * Get information about extensions status.
@@ -191,7 +190,7 @@ export interface IExtensionService {
 	/**
 	 * Begin an extension host process profile session.
 	 */
-	startExtensionHostProfile(): TPromise<ProfileSession>;
+	startExtensionHostProfile(): Promise<ProfileSession>;
 
 	/**
 	 * Return the inspect port or 0.

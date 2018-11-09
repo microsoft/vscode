@@ -12,7 +12,6 @@ import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { Counter } from 'vs/base/common/numbers';
 import { URI, setUriThrowOnMissingScheme } from 'vs/base/common/uri';
 import { IURITransformer } from 'vs/base/common/uriIpc';
-import { TPromise } from 'vs/base/common/winjs.base';
 import * as pfs from 'vs/base/node/pfs';
 import { IMessagePassingProtocol } from 'vs/base/parts/ipc/node/ipc';
 import { IEnvironment, IInitData, IWorkspaceData, MainContext, MainThreadWorkspaceShape } from 'vs/workbench/api/node/extHost.protocol';
@@ -130,7 +129,7 @@ export class ExtensionHostMain {
 		this._mainThreadWorkspace = rpcProtocol.getProxy(MainContext.MainThreadWorkspace);
 	}
 
-	start(): TPromise<void> {
+	start(): Thenable<void> {
 		return this._extensionService.onExtensionAPIReady()
 			.then(() => this.handleEagerExtensions())
 			.then(() => this.handleExtensionTests())
@@ -152,7 +151,7 @@ export class ExtensionHostMain {
 			// TODO: write to log once we have one
 		});
 
-		let allPromises: TPromise<void>[] = [];
+		let allPromises: Thenable<void>[] = [];
 		try {
 			const allExtensions = this._extensionService.getAllExtensionDescriptions();
 			const allExtensionsIds = allExtensions.map(ext => ext.id);
@@ -165,7 +164,7 @@ export class ExtensionHostMain {
 			// TODO: write to log once we have one
 		}
 
-		const extensionsDeactivated = TPromise.join(allPromises).then<void>(() => void 0);
+		const extensionsDeactivated = Promise.all(allPromises).then<void>(() => void 0);
 
 		// Give extensions 1 second to wrap up any async dispose, then exit
 		setTimeout(() => {
@@ -174,7 +173,7 @@ export class ExtensionHostMain {
 	}
 
 	// Handle "eager" activation extensions
-	private handleEagerExtensions(): TPromise<void> {
+	private handleEagerExtensions(): Promise<void> {
 		this._extensionService.activateByEvent('*', true).then(null, (err) => {
 			console.error(err);
 		});
@@ -182,22 +181,22 @@ export class ExtensionHostMain {
 		return this.handleWorkspaceContainsEagerExtensions();
 	}
 
-	private handleWorkspaceContainsEagerExtensions(): TPromise<void> {
+	private handleWorkspaceContainsEagerExtensions(): Promise<void> {
 		if (!this._workspace || this._workspace.folders.length === 0) {
-			return TPromise.as(null);
+			return Promise.resolve(null);
 		}
 
-		return TPromise.join(
+		return Promise.all(
 			this._extensionService.getAllExtensionDescriptions().map((desc) => {
 				return this.handleWorkspaceContainsEagerExtension(desc);
 			})
 		).then(() => { });
 	}
 
-	private handleWorkspaceContainsEagerExtension(desc: IExtensionDescription): TPromise<void> {
+	private handleWorkspaceContainsEagerExtension(desc: IExtensionDescription): Promise<void> {
 		const activationEvents = desc.activationEvents;
 		if (!activationEvents) {
-			return TPromise.as(void 0);
+			return Promise.resolve(void 0);
 		}
 
 		const fileNames: string[] = [];
@@ -215,13 +214,13 @@ export class ExtensionHostMain {
 		}
 
 		if (fileNames.length === 0 && globPatterns.length === 0) {
-			return TPromise.as(void 0);
+			return Promise.resolve(void 0);
 		}
 
-		const fileNamePromise = TPromise.join(fileNames.map((fileName) => this.activateIfFileName(desc.id, fileName))).then(() => { });
+		const fileNamePromise = Promise.all(fileNames.map((fileName) => this.activateIfFileName(desc.id, fileName))).then(() => { });
 		const globPatternPromise = this.activateIfGlobPatterns(desc.id, globPatterns);
 
-		return TPromise.join([fileNamePromise, globPatternPromise]).then(() => { });
+		return Promise.all([fileNamePromise, globPatternPromise]).then(() => { });
 	}
 
 	private async activateIfFileName(extensionId: string, fileName: string): Promise<void> {
@@ -244,7 +243,7 @@ export class ExtensionHostMain {
 		this._extHostLogService.trace(`extensionHostMain#activateIfGlobPatterns: fileSearch, extension: ${extensionId}, entryPoint: workspaceContains`);
 
 		if (globPatterns.length === 0) {
-			return TPromise.as(void 0);
+			return Promise.resolve(void 0);
 		}
 
 		const tokenSource = new CancellationTokenSource();
@@ -276,12 +275,12 @@ export class ExtensionHostMain {
 			);
 		}
 
-		return TPromise.as(void 0);
+		return Promise.resolve(void 0);
 	}
 
-	private handleExtensionTests(): TPromise<void> {
+	private handleExtensionTests(): Promise<void> {
 		if (!this._environment.extensionTestsPath || !this._environment.extensionDevelopmentLocationURI) {
-			return TPromise.as(null);
+			return Promise.resolve(null);
 		}
 
 		// Require the test runner via node require from the provided path
@@ -314,7 +313,7 @@ export class ExtensionHostMain {
 			this.gracefulExit(1 /* ERROR */);
 		}
 
-		return TPromise.wrapError<void>(new Error(requireError ? requireError.toString() : nls.localize('extensionTestError', "Path {0} does not point to a valid extension test runner.", this._environment.extensionTestsPath)));
+		return Promise.reject(new Error(requireError ? requireError.toString() : nls.localize('extensionTestError', "Path {0} does not point to a valid extension test runner.", this._environment.extensionTestsPath)));
 	}
 
 	private transform(initData: IInitData, rpcProtocol: RPCProtocol): IInitData {
