@@ -5,7 +5,6 @@
 
 import { OperatingSystem } from 'vs/base/common/platform';
 import { URI } from 'vs/base/common/uri';
-import { TPromise } from 'vs/base/common/winjs.base';
 import { IChannel } from 'vs/base/parts/ipc/node/ipc';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IExtensionDescription } from 'vs/workbench/services/extensions/common/extensions';
@@ -34,7 +33,7 @@ export interface IRemoteAgentService {
 export interface IRemoteAgentConnection {
 	readonly remoteAuthority: string;
 
-	getEnvironment(): TPromise<IRemoteAgentEnvironment | null>;
+	getEnvironment(): Thenable<IRemoteAgentEnvironment | null>;
 
 	getChannel<T extends IChannel>(channelName: string): T;
 	registerChannel<T extends IChannel>(channelName: string, channel: T);

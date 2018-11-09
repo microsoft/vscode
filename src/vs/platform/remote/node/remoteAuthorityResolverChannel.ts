@@ -7,7 +7,6 @@ import { IChannel } from 'vs/base/parts/ipc/node/ipc';
 import { Event, buffer } from 'vs/base/common/event';
 import { ResolvedAuthority, IResolvingProgressEvent, IRemoteAuthorityResolverService } from 'vs/platform/remote/common/remoteAuthorityResolver';
 import { CancellationToken } from 'vs/base/common/cancellation';
-import { TPromise } from 'vs/base/common/winjs.base';
 
 export interface IRemoteAuthorityResolverChannel extends IChannel {
 	listen(event: 'onResolvingProgress'): Event<IResolvingProgressEvent>;
@@ -72,7 +71,7 @@ export class RemoteAuthorityResolverChannelClient implements IRemoteAuthorityRes
 		} else {
 			const [host, strPort] = authority.split(':');
 			const port = parseInt(strPort, 10);
-			return TPromise.as({ authority, host, port });
+			return Promise.resolve({ authority, host, port });
 		}
 	}
 

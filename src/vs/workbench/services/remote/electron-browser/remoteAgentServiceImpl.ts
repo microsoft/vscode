@@ -5,7 +5,6 @@
 
 import { localize } from 'vs/nls';
 import { Disposable } from 'vs/base/common/lifecycle';
-import { TPromise } from 'vs/base/common/winjs.base';
 import { IChannel, getDelayedChannel } from 'vs/base/parts/ipc/node/ipc';
 import { Client } from 'vs/base/parts/ipc/node/ipc.net';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
@@ -41,8 +40,8 @@ export class RemoteAgentService implements IRemoteAgentService {
 class RemoteAgentConnection extends Disposable implements IRemoteAgentConnection {
 
 	readonly remoteAuthority: string;
-	private _connection: TPromise<Client> | null;
-	private _environment: TPromise<IRemoteAgentEnvironment | null> | null;
+	private _connection: Thenable<Client> | null;
+	private _environment: Thenable<IRemoteAgentEnvironment | null> | null;
 
 	constructor(
 		remoteAuthority: string,
@@ -56,7 +55,7 @@ class RemoteAgentConnection extends Disposable implements IRemoteAgentConnection
 		this._environment = null;
 	}
 
-	getEnvironment(): TPromise<IRemoteAgentEnvironment | null> {
+	getEnvironment(): Thenable<IRemoteAgentEnvironment | null> {
 		if (!this._environment) {
 			const client = new RemoteExtensionEnvironmentChannelClient(this.getChannel('remoteextensionsenvironment'));
 
@@ -75,7 +74,7 @@ class RemoteAgentConnection extends Disposable implements IRemoteAgentConnection
 		this._getOrCreateConnection().then(client => client.registerChannel(channelName, channel));
 	}
 
-	private _getOrCreateConnection(): TPromise<Client> {
+	private _getOrCreateConnection(): Thenable<Client> {
 		if (!this._connection) {
 			this._connection = this._remoteAuthorityResolverService.resolveAuthority(this.remoteAuthority).then((resolvedAuthority) => {
 				return connectRemoteAgentManagement(resolvedAuthority.host, resolvedAuthority.port, `renderer`);

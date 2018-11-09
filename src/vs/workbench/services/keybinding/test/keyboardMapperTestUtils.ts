@@ -8,7 +8,6 @@ import * as path from 'path';
 import { getPathFromAmdModule } from 'vs/base/common/amd';
 import { Keybinding, ResolvedKeybinding, SimpleKeybinding } from 'vs/base/common/keyCodes';
 import { ScanCodeBinding } from 'vs/base/common/scanCode';
-import { TPromise } from 'vs/base/common/winjs.base';
 import { readFile, writeFile } from 'vs/base/node/pfs';
 import { IKeyboardEvent } from 'vs/platform/keybinding/common/keybinding';
 import { IKeyboardMapper } from 'vs/workbench/services/keybinding/common/keyboardMapper';
@@ -50,7 +49,7 @@ export function assertResolveUserBinding(mapper: IKeyboardMapper, firstPart: Sim
 	assert.deepEqual(actual, expected);
 }
 
-export function readRawMapping<T>(file: string): TPromise<T> {
+export function readRawMapping<T>(file: string): Promise<T> {
 	return readFile(getPathFromAmdModule(require, `vs/workbench/services/keybinding/test/${file}.js`)).then((buff) => {
 		let contents = buff.toString();
 		let func = new Function('define', contents);
@@ -62,7 +61,7 @@ export function readRawMapping<T>(file: string): TPromise<T> {
 	});
 }
 
-export function assertMapping(writeFileIfDifferent: boolean, mapper: IKeyboardMapper, file: string): TPromise<void> {
+export function assertMapping(writeFileIfDifferent: boolean, mapper: IKeyboardMapper, file: string): Promise<void> {
 	const filePath = path.normalize(getPathFromAmdModule(require, `vs/workbench/services/keybinding/test/${file}`));
 
 	return readFile(filePath).then((buff) => {
