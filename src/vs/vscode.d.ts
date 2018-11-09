@@ -5839,7 +5839,7 @@ declare module 'vscode' {
 		 * @return A thenable that resolves to the returned value of the given command. `undefined` when
 		 * the command handler function doesn't return anything.
 		 */
-		export function executeCommand<T, CommandId extends string = string>(command: CommandId extends 'vscode.previewHtml' ? { '⚠️ The vscode.previewHtml command is deprecated and will be removed. Please switch to using the Webview Api': never } : string, ...rest: any[]): Thenable<T | undefined>;
+		export function executeCommand<T>(command: string, ...rest: any[]): Thenable<T | undefined>;
 
 		/**
 		 * Retrieve the list of all available commands. Commands starting an underscore are
