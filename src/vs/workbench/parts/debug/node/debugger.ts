@@ -149,7 +149,7 @@ export class Debugger implements IDebugger {
 	}
 
 	public hasConfigurationProvider() {
-		this.configurationManager.hasDebugConfigurationProvider(this.type);
+		return this.configurationManager.hasDebugConfigurationProvider(this.type);
 	}
 
 	public getInitialConfigurationContent(initialConfigs?: IConfig[]): Promise<string> {
