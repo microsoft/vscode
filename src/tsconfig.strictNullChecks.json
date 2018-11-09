@@ -701,7 +701,6 @@
 		"./vs/code/electron-browser/processExplorer/processExplorerMain.ts"
 	],
 	"exclude": [
-		"./typings/require-monaco.d.ts",
-		"./typings/windows-process-tree.d.ts"
+		"./typings/require-monaco.d.ts"
 	]
 }
