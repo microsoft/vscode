@@ -323,6 +323,7 @@
 		"./vs/editor/contrib/fontZoom/fontZoom.ts",
 		"./vs/editor/contrib/goToDefinition/clickLinkGesture.ts",
 		"./vs/editor/contrib/goToDefinition/goToDefinition.ts",
+		"./vs/editor/contrib/gotoError/gotoError.ts",
 		"./vs/editor/contrib/gotoError/gotoErrorWidget.ts",
 		"./vs/editor/contrib/hover/getHover.ts",
 		"./vs/editor/contrib/hover/hoverOperation.ts",
