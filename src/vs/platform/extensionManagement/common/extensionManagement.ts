@@ -112,6 +112,8 @@ export interface IExtensionContributions {
 	remoteAuthorityResolvers?: IRemoteAuthorityResolver[];
 }
 
+export type ExtensionKind = 'ui' | 'workspace';
+
 export interface IExtensionManifest {
 	name: string;
 	publisher: string;
@@ -126,6 +128,7 @@ export interface IExtensionManifest {
 	activationEvents?: string[];
 	extensionDependencies?: string[];
 	extensionPack?: string[];
+	extensionKind?: ExtensionKind;
 	contributes?: IExtensionContributions;
 	repository?: {
 		url: string;
