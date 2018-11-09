@@ -337,6 +337,7 @@
 		"./vs/editor/contrib/linesOperations/deleteLinesCommand.ts",
 		"./vs/editor/contrib/linesOperations/moveLinesCommand.ts",
 		"./vs/editor/contrib/linesOperations/sortLinesCommand.ts",
+		"./vs/editor/contrib/linesOperations/linesOperations.ts",
 		"./vs/editor/contrib/links/getLinks.ts",
 		"./vs/editor/contrib/links/links.ts",
 		"./vs/editor/contrib/markdown/markdownRenderer.ts",
