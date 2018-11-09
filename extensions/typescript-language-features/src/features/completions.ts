@@ -90,6 +90,10 @@ class MyCompletionItem extends vscode.CompletionItem {
 				this.label += '?';
 			}
 
+			if (kindModifiers.has(PConst.KindModifiers.color)) {
+				this.kind = vscode.CompletionItemKind.Color;
+			}
+
 			if (tsEntry.kind === PConst.Kind.script) {
 				for (const extModifier of PConst.KindModifiers.fileExtensionKindModifiers) {
 					if (kindModifiers.has(extModifier)) {
