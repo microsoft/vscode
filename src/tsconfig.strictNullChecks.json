@@ -330,6 +330,7 @@
 		"./vs/editor/contrib/hover/hoverWidgets.ts",
 		"./vs/editor/contrib/hover/modesGlyphHover.ts",
 		"./vs/editor/contrib/inPlaceReplace/inPlaceReplaceCommand.ts",
+		"./vs/editor/contrib/indentation/indentation.ts",
 		"./vs/editor/contrib/indentation/indentUtils.ts",
 		"./vs/editor/contrib/linesOperations/copyLinesCommand.ts",
 		"./vs/editor/contrib/linesOperations/deleteLinesCommand.ts",
