@@ -271,7 +271,7 @@ export class ExtensionsViewlet extends ViewContainerViewlet implements IExtensio
 	private defaultRecommendedExtensionsContextKey: IContextKey<boolean>;
 
 	private searchDelayer: ThrottledDelayer<any>;
-	private searchPromise: CancelablePromise<any>;
+	private searchPromises: Map<ViewletPanel, CancelablePromise<any>>;
 
 	private root: HTMLElement;
 
@@ -301,7 +301,7 @@ export class ExtensionsViewlet extends ViewContainerViewlet implements IExtensio
 		super(VIEWLET_ID, `${VIEWLET_ID}.state`, true, configurationService, partService, telemetryService, storageService, instantiationService, themeService, contextMenuService, extensionService, contextService);
 
 		this.searchDelayer = new ThrottledDelayer(500);
-		this.searchPromise = createCancelablePromise(() => undefined);
+		this.searchPromises = new Map();
 		this.nonEmptyWorkspaceContextKey = NonEmptyWorkspaceContext.bindTo(contextKeyService);
 		this.searchExtensionsContextKey = SearchExtensionsContext.bindTo(contextKeyService);
 		this.hasInstalledExtensionsContextKey = HasInstalledExtensionsContext.bindTo(contextKeyService);
@@ -427,20 +427,14 @@ export class ExtensionsViewlet extends ViewContainerViewlet implements IExtensio
 	}
 
 	private triggerSearch(immediate = false): void {
-		this.searchPromise.cancel();
-		const search = () => {
-			this.searchPromise = createCancelablePromise(token => this.doSearch(token));
-			return this.searchPromise;
-		};
-		this.searchDelayer.trigger(search, immediate || !this.searchBox.getValue() ? 0 : 500).then(null, err => this.onError(err));
-
+		this.searchDelayer.trigger(() => this.doSearch(), immediate || !this.searchBox.getValue() ? 0 : 500).then(null, err => this.onError(err));
 	}
 
 	private normalizedQuery(): string {
 		return this.searchBox.getValue().replace(/@category/g, 'category').replace(/@tag:/g, 'tag:').replace(/@ext:/g, 'ext:');
 	}
 
-	private doSearch(token: CancellationToken): Promise<any> {
+	private doSearch(): Promise<any> {
 		const value = this.normalizedQuery();
 		this.searchExtensionsContextKey.set(!!value);
 		this.searchBuiltInExtensionsContextKey.set(ExtensionsListView.isBuiltInExtensionsQuery(value));
@@ -448,14 +442,8 @@ export class ExtensionsViewlet extends ViewContainerViewlet implements IExtensio
 		this.recommendedExtensionsContextKey.set(ExtensionsListView.isRecommendedExtensionsQuery(value));
 		this.nonEmptyWorkspaceContextKey.set(this.contextService.getWorkbenchState() !== WorkbenchState.EMPTY);
 
-		if (value && !token.isCancellationRequested) {
-			return this.progress(Promise.all(this.panels.map(view => {
-				return (<ExtensionsListView>view).show(value, token).then(model => {
-					if (model) {
-						this.alertSearchResult(model.length, view.id);
-					}
-				});
-			})));
+		if (value) {
+			return this.searchOverViews(this.panels);
 		}
 		return Promise.resolve(null);
 	}
@@ -463,16 +451,26 @@ export class ExtensionsViewlet extends ViewContainerViewlet implements IExtensio
 	protected onDidAddViews(added: IAddedViewDescriptorRef[]): ViewletPanel[] {
 		const addedViews = super.onDidAddViews(added);
 
-		this.searchPromise = createCancelablePromise(token => {
-			return this.progress(Promise.all(addedViews.map(addedView => {
-				return (<ExtensionsListView>addedView).show(this.normalizedQuery(), token).then(model => {
-					if (model) {
-						this.alertSearchResult(model.length, addedView.id);
-					}
-				});
-			})));
-		});
+		this.searchOverViews(addedViews);
 		return addedViews;
+	}
+
+	private searchOverViews(views: ViewletPanel[]): Promise<any> {
+		return this.progress(Promise.all(views.map(view => {
+			if (this.searchPromises.has(view)) {
+				this.searchPromises.get(view).cancel();
+			}
+
+			const promise = createCancelablePromise(token => (<ExtensionsListView>view).show(this.normalizedQuery(), token).then(model => {
+				if (model) {
+					this.alertSearchResult(model.length, view.id);
+				}
+				this.searchPromises.delete(view);
+			}));
+
+			this.searchPromises.set(view, promise);
+			return promise;
+		})));
 	}
 
 	private alertSearchResult(count: number, viewId: string) {
