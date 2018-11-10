@@ -4945,6 +4945,26 @@ declare module 'vscode' {
 		options?: ShellExecutionOptions;
 	}
 
+	export class ExtensionCommandExecution {
+		/**
+		 * Creates an extension command execution to be invoked through a task.
+		 * @param command The command identifier to invoke.
+		 * @param args Arguments for executing the command.
+		 */
+		constructor(command: string, ...args: any[]);
+
+		/**
+		 * The command identifier to execute.
+		 * Command must be registered through [registerCommand](#commands.registerCommand).
+		 */
+		command: string;
+
+		/**
+		 * Arguments for executing the command.
+		 */
+		args?: any;
+	}
+
 	/**
 	 * The scope of a task.
 	 */
@@ -4978,7 +4998,7 @@ declare module 'vscode' {
 		 *  or '$eslint'. Problem matchers can be contributed by an extension using
 		 *  the `problemMatchers` extension point.
 		 */
-		constructor(taskDefinition: TaskDefinition, name: string, source: string, execution?: ProcessExecution | ShellExecution, problemMatchers?: string | string[]);
+		constructor(taskDefinition: TaskDefinition, name: string, source: string, execution?: ProcessExecution | ShellExecution | ExtensionCommandExecution, problemMatchers?: string | string[]);
 
 		/**
 		 * Creates a new task.
@@ -4992,7 +5012,7 @@ declare module 'vscode' {
 		 *  or '$eslint'. Problem matchers can be contributed by an extension using
 		 *  the `problemMatchers` extension point.
 		 */
-		constructor(taskDefinition: TaskDefinition, target: WorkspaceFolder | TaskScope.Global | TaskScope.Workspace, name: string, source: string, execution?: ProcessExecution | ShellExecution, problemMatchers?: string | string[]);
+		constructor(taskDefinition: TaskDefinition, target: WorkspaceFolder | TaskScope.Global | TaskScope.Workspace, name: string, source: string, execution?: ProcessExecution | ShellExecution | ExtensionCommandExecution, problemMatchers?: string | string[]);
 
 		/**
 		 * The task's definition.
@@ -5012,7 +5032,7 @@ declare module 'vscode' {
 		/**
 		 * The task's execution engine
 		 */
-		execution: ProcessExecution | ShellExecution;
+		execution: ProcessExecution | ShellExecution | ExtensionCommandExecution;
 
 		/**
 		 * Whether the task is a background task or not.
@@ -5840,7 +5860,6 @@ declare module 'vscode' {
 		 * the command handler function doesn't return anything.
 		 */
 		export function executeCommand<T>(command: string, ...rest: any[]): Thenable<T | undefined>;
-		export function executeCommand<T>(command: 'vscode.previewHtml', error: { '⚠️ The vscode.previewHtml command is deprecated and will be removed. Please switch to using the Webview Api': never }, ...rest: any[]): Thenable<T | undefined>;
 
 		/**
 		 * Retrieve the list of all available commands. Commands starting an underscore are

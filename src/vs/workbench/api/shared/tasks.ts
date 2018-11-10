@@ -60,6 +60,11 @@ export interface ShellExecutionDTO {
 	options?: ShellExecutionOptionsDTO;
 }
 
+export interface ExtensionCommandExecutionDTO {
+	command: string;
+	args: any;
+}
+
 export interface TaskSourceDTO {
 	label: string;
 	extensionId?: string;
@@ -74,7 +79,7 @@ export interface TaskHandleDTO {
 export interface TaskDTO {
 	_id: string;
 	name: string;
-	execution: ProcessExecutionDTO | ShellExecutionDTO;
+	execution: ProcessExecutionDTO | ShellExecutionDTO | ExtensionCommandExecutionDTO;
 	definition: TaskDefinitionDTO;
 	isBackground: boolean;
 	source: TaskSourceDTO;

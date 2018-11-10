@@ -48,13 +48,9 @@ export class Disposable {
 export class Position {
 
 	static Min(...positions: Position[]): Position {
-		if (positions.length === 0) {
-			throw new TypeError();
-		}
-		let result = positions[0];
-		for (let i = 1; i < positions.length; i++) {
-			let p = positions[i];
-			if (p.isBefore(result!)) {
+		let result = positions.pop();
+		for (let p of positions) {
+			if (p.isBefore(result)) {
 				result = p;
 			}
 		}
@@ -62,13 +58,9 @@ export class Position {
 	}
 
 	static Max(...positions: Position[]): Position {
-		if (positions.length === 0) {
-			throw new TypeError();
-		}
-		let result = positions[0];
-		for (let i = 1; i < positions.length; i++) {
-			let p = positions[i];
-			if (p.isAfter(result!)) {
+		let result = positions.pop();
+		for (let p of positions) {
+			if (p.isAfter(result)) {
 				result = p;
 			}
 		}
@@ -587,6 +579,9 @@ export class WorkspaceEdit implements vscode.WorkspaceEdit {
 				res.push(candidate.edit);
 			}
 		}
+		if (res.length === 0) {
+			return undefined;
+		}
 		return res;
 	}
 
@@ -816,7 +811,7 @@ export class Diagnostic {
 		};
 	}
 
-	static isEqual(a: Diagnostic | undefined, b: Diagnostic | undefined): boolean {
+	static isEqual(a: Diagnostic, b: Diagnostic): boolean {
 		if (a === b) {
 			return true;
 		}
@@ -837,7 +832,7 @@ export class Diagnostic {
 export class Hover {
 
 	public contents: vscode.MarkdownString[] | vscode.MarkedString[];
-	public range: Range | undefined;
+	public range: Range;
 
 	constructor(
 		contents: vscode.MarkdownString | vscode.MarkedString | vscode.MarkdownString[] | vscode.MarkedString[],
@@ -921,7 +916,7 @@ export class SymbolInformation {
 	name: string;
 	location: Location;
 	kind: SymbolKind;
-	containerName: string | undefined;
+	containerName: string;
 
 	constructor(name: string, kind: SymbolKind, containerName: string, location: Location);
 	constructor(name: string, kind: SymbolKind, range: Range, uri?: URI, containerName?: string);
@@ -1040,7 +1035,7 @@ export class CodeLens {
 
 	range: Range;
 
-	command: vscode.Command | undefined;
+	command: vscode.Command;
 
 	constructor(range: Range, command?: vscode.Command) {
 		this.range = range;
@@ -1169,7 +1164,7 @@ export enum CompletionItemInsertTextRule {
 export class CompletionItem implements vscode.CompletionItem {
 
 	label: string;
-	kind: CompletionItemKind | undefined;
+	kind: CompletionItemKind;
 	detail: string;
 	documentation: string | MarkdownString;
 	sortText: string;
@@ -1191,7 +1186,7 @@ export class CompletionItem implements vscode.CompletionItem {
 	toJSON(): any {
 		return {
 			label: this.label,
-			kind: this.kind && CompletionItemKind[this.kind],
+			kind: CompletionItemKind[this.kind],
 			detail: this.detail,
 			documentation: this.documentation,
 			sortText: this.sortText,
@@ -1498,6 +1493,43 @@ export class ProcessExecution implements vscode.ProcessExecution {
 	}
 }
 
+export class ExtensionCommandExecution implements vscode.ExtensionCommandExecution {
+	private readonly _command: string;
+	private _args?: any;
+
+	public constructor(command: string, ...args: any[]) {
+		this._command = command;
+		this._args = args;
+	}
+
+	public get args(): any {
+		return this._args;
+	}
+
+	public set args(value: any) {
+		this._args = value;
+	}
+
+	public get command(): string {
+		return this._command;
+	}
+
+	public computeId(): string {
+		const hash = crypto.createHash('md5');
+		hash.update('extensionCommand');
+		hash.update(this.command);
+		if (this._args !== void 0) {
+			// Use best effort attempt to has the arguments.
+			try {
+				const jsonValue: string = JSON.stringify(this._args);
+				hash.update(jsonValue);
+			} catch (e) {
+			}
+		}
+		return hash.digest('hex');
+	}
+}
+
 export class ShellExecution implements vscode.ShellExecution {
 
 	private _commandLine: string;
@@ -1601,7 +1633,7 @@ export class Task implements vscode.Task {
 	private _definition: vscode.TaskDefinition;
 	private _scope: vscode.TaskScope.Global | vscode.TaskScope.Workspace | vscode.WorkspaceFolder;
 	private _name: string;
-	private _execution: ProcessExecution | ShellExecution;
+	private _execution: ProcessExecution | ShellExecution | ExtensionCommandExecution;
 	private _problemMatchers: string[];
 	private _hasDefinedMatchers: boolean;
 	private _isBackground: boolean;
@@ -1609,10 +1641,11 @@ export class Task implements vscode.Task {
 	private _group: TaskGroup;
 	private _presentationOptions: vscode.TaskPresentationOptions;
 
-	constructor(definition: vscode.TaskDefinition, name: string, source: string, execution?: ProcessExecution | ShellExecution, problemMatchers?: string | string[]);
-	constructor(definition: vscode.TaskDefinition, scope: vscode.TaskScope.Global | vscode.TaskScope.Workspace | vscode.WorkspaceFolder, name: string, source: string, execution?: ProcessExecution | ShellExecution, problemMatchers?: string | string[]);
+	constructor(definition: vscode.TaskDefinition, name: string, source: string, execution?: ProcessExecution | ShellExecution | ExtensionCommandExecution, problemMatchers?: string | string[]);
+	constructor(definition: vscode.TaskDefinition, scope: vscode.TaskScope.Global | vscode.TaskScope.Workspace | vscode.WorkspaceFolder, name: string, source: string, execution?: ProcessExecution | ShellExecution | ExtensionCommandExecution, problemMatchers?: string | string[]);
 	constructor(definition: vscode.TaskDefinition, arg2: string | (vscode.TaskScope.Global | vscode.TaskScope.Workspace) | vscode.WorkspaceFolder, arg3: any, arg4?: any, arg5?: any, arg6?: any) {
 		this.definition = definition;
+
 		let problemMatchers: string | string[];
 		if (typeof arg2 === 'string') {
 			this.name = arg2;
@@ -1642,6 +1675,7 @@ export class Task implements vscode.Task {
 			this._problemMatchers = [];
 			this._hasDefinedMatchers = false;
 		}
+
 		this._isBackground = false;
 	}
 
@@ -1668,6 +1702,11 @@ export class Task implements vscode.Task {
 		} else if (this._execution instanceof ShellExecution) {
 			this._definition = {
 				type: 'shell',
+				id: this._execution.computeId()
+			};
+		} else if (this._execution instanceof ExtensionCommandExecution) {
+			this._definition = {
+				type: 'extensionCommand',
 				id: this._execution.computeId()
 			};
 		}
@@ -1706,11 +1745,11 @@ export class Task implements vscode.Task {
 		this._name = value;
 	}
 
-	get execution(): ProcessExecution | ShellExecution {
+	get execution(): ProcessExecution | ShellExecution | ExtensionCommandExecution {
 		return this._execution;
 	}
 
-	set execution(value: ProcessExecution | ShellExecution) {
+	set execution(value: ProcessExecution | ShellExecution | ExtensionCommandExecution) {
 		if (value === null) {
 			value = undefined;
 		}

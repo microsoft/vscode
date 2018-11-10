@@ -30,7 +30,9 @@ import { extHostNamedCustomer } from 'vs/workbench/api/electron-browser/extHostC
 import { ExtHostContext, MainThreadTaskShape, ExtHostTaskShape, MainContext, IExtHostContext } from 'vs/workbench/api/node/extHost.protocol';
 import {
 	TaskDefinitionDTO, TaskExecutionDTO, ProcessExecutionOptionsDTO, TaskPresentationOptionsDTO,
-	ProcessExecutionDTO, ShellExecutionDTO, ShellExecutionOptionsDTO, TaskDTO, TaskSourceDTO, TaskHandleDTO, TaskFilterDTO, TaskProcessStartedDTO, TaskProcessEndedDTO, TaskSystemInfoDTO
+	ProcessExecutionDTO, ShellExecutionDTO, ShellExecutionOptionsDTO, TaskDTO, TaskSourceDTO,
+	TaskHandleDTO, TaskFilterDTO, TaskProcessStartedDTO, TaskProcessEndedDTO, TaskSystemInfoDTO,
+	ExtensionCommandExecutionDTO
 } from 'vs/workbench/api/shared/tasks';
 
 namespace TaskExecutionDTO {
@@ -121,7 +123,7 @@ namespace ProcessExecutionOptionsDTO {
 }
 
 namespace ProcessExecutionDTO {
-	export function is(value: ShellExecutionDTO | ProcessExecutionDTO): value is ProcessExecutionDTO {
+	export function is(value: ShellExecutionDTO | ProcessExecutionDTO | ExtensionCommandExecutionDTO): value is ProcessExecutionDTO {
 		let candidate = value as ProcessExecutionDTO;
 		return candidate && !!candidate.process;
 	}
@@ -190,8 +192,40 @@ namespace ShellExecutionOptionsDTO {
 	}
 }
 
+namespace ExtensionCommandExecutionDTO {
+	export function is(value: ShellExecutionDTO | ProcessExecutionDTO | ExtensionCommandExecutionDTO): value is ExtensionCommandExecutionDTO {
+		let candidate = value as ExtensionCommandExecutionDTO;
+		return candidate && !!candidate.command;
+	}
+
+	export function from(value: CommandConfiguration): ExtensionCommandExecutionDTO {
+		if (value === void 0 || value === null || !Types.isString(value.name)) {
+			return undefined;
+		}
+
+		return {
+			command: value.name,
+			args: value.args
+		};
+	}
+
+	export function to(value: ExtensionCommandExecutionDTO): CommandConfiguration {
+		if (value === void 0 || value === null) {
+			return undefined;
+		}
+		return {
+			runtime: RuntimeType.ExtensionCommand,
+			name: value.command,
+			options: {
+				extensionCommandArguments: value.args
+			},
+			presentation: undefined,
+		};
+	}
+}
+
 namespace ShellExecutionDTO {
-	export function is(value: ShellExecutionDTO | ProcessExecutionDTO): value is ShellExecutionDTO {
+	export function is(value: ShellExecutionDTO | ProcessExecutionDTO | ExtensionCommandExecutionDTO): value is ShellExecutionDTO {
 		let candidate = value as ShellExecutionDTO;
 		return candidate && (!!candidate.commandLine || !!candidate.command);
 	}
@@ -299,6 +333,8 @@ namespace TaskDTO {
 				result.execution = ProcessExecutionDTO.from(task.command);
 			} else if (task.command.runtime === RuntimeType.Shell) {
 				result.execution = ShellExecutionDTO.from(task.command);
+			} else if (task.command.runtime === RuntimeType.ExtensionCommand) {
+				result.execution = ExtensionCommandExecutionDTO.from(task.command);
 			}
 		}
 		if (task.problemMatchers) {
@@ -320,6 +356,8 @@ namespace TaskDTO {
 			command = ShellExecutionDTO.to(task.execution);
 		} else if (ProcessExecutionDTO.is(task.execution)) {
 			command = ProcessExecutionDTO.to(task.execution);
+		} else if (ExtensionCommandExecutionDTO.is(task.execution)) {
+			command = ExtensionCommandExecutionDTO.to(task.execution);
 		}
 		if (!command) {
 			return undefined;

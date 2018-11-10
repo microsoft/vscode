@@ -880,7 +880,7 @@ namespace CommandConfiguration {
 
 		result.name = ShellString.from(config.command);
 		if (Types.isString(config.type)) {
-			if (config.type === 'shell' || config.type === 'process') {
+			if (config.type === 'shell' || config.type === 'process' || config.type === 'extensionCommand') {
 				result.runtime = Tasks.RuntimeType.fromString(config.type);
 			}
 		}
@@ -1323,7 +1323,7 @@ namespace CustomTask {
 		if (type === void 0 || type === null) {
 			type = Tasks.CUSTOMIZED_TASK_TYPE;
 		}
-		if (type !== Tasks.CUSTOMIZED_TASK_TYPE && type !== 'shell' && type !== 'process') {
+		if (type !== Tasks.CUSTOMIZED_TASK_TYPE && type !== 'shell' && type !== 'process' && type !== 'extensionCommand') {
 			context.problemReporter.error(nls.localize('ConfigurationParser.notCustom', 'Error: tasks is not declared as a custom task. The configuration will be ignored.\n{0}\n', JSON.stringify(external, null, 4)));
 			return undefined;
 		}

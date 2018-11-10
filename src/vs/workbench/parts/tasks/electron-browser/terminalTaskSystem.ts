@@ -39,6 +39,7 @@ import {
 	ITaskSystem, ITaskSummary, ITaskExecuteResult, TaskExecuteKind, TaskError, TaskErrors, ITaskResolver,
 	TelemetryEvent, Triggers, TaskTerminateResponse, TaskSystemInfoResovler, TaskSystemInfo, ResolveSet
 } from 'vs/workbench/parts/tasks/common/taskSystem';
+import { ICommandService } from 'vs/platform/commands/common/commands';
 
 interface TerminalData {
 	terminal: ITerminalInstance;
@@ -117,6 +118,7 @@ export class TerminalTaskSystem implements ITaskSystem {
 	private idleTaskTerminals: LinkedMap<string, string>;
 	private sameTaskTerminals: IStringDictionary<string>;
 	private taskSystemInfoResolver: TaskSystemInfoResovler;
+	private readonly _commandService: ICommandService;
 
 	private readonly _onDidStateChange: Emitter<TaskEvent>;
 
@@ -126,7 +128,8 @@ export class TerminalTaskSystem implements ITaskSystem {
 		private telemetryService: ITelemetryService,
 		private contextService: IWorkspaceContextService,
 		outputChannelId: string,
-		taskSystemInfoResolver: TaskSystemInfoResovler) {
+		taskSystemInfoResolver: TaskSystemInfoResovler,
+		commandService: ICommandService) {
 
 		this.outputChannel = this.outputService.getChannel(outputChannelId);
 		this.activeTasks = Object.create(null);
@@ -136,6 +139,7 @@ export class TerminalTaskSystem implements ITaskSystem {
 
 		this._onDidStateChange = new Emitter();
 		this.taskSystemInfoResolver = taskSystemInfoResolver;
+		this._commandService = commandService;
 	}
 
 	public get onDidStateChange(): Event<TaskEvent> {
@@ -167,7 +171,7 @@ export class TerminalTaskSystem implements ITaskSystem {
 		}
 
 		try {
-			return { kind: TaskExecuteKind.Started, started: {}, promise: this.executeTask(task, resolver, trigger) };
+			return { kind: TaskExecuteKind.Started, started: {}, promise: this.executeTask(Object.create(null), task, resolver, trigger) };
 		} catch (error) {
 			if (error instanceof TaskError) {
 				throw error;
@@ -254,16 +258,17 @@ export class TerminalTaskSystem implements ITaskSystem {
 		return TPromise.join<TaskTerminateResponse>(promises);
 	}
 
-	private executeTask(task: Task, resolver: ITaskResolver, trigger: string): TPromise<ITaskSummary> {
+	private executeTask(startedTasks: IStringDictionary<TPromise<ITaskSummary>>, task: Task, resolver: ITaskResolver, trigger: string): TPromise<ITaskSummary> {
 		let promises: TPromise<ITaskSummary>[] = [];
 		if (task.dependsOn) {
 			task.dependsOn.forEach((dependency) => {
 				let task = resolver.resolve(dependency.workspaceFolder, dependency.task);
 				if (task) {
 					let key = Task.getMapKey(task);
-					let promise = this.activeTasks[key] ? this.activeTasks[key].promise : undefined;
+					let promise = startedTasks[key];
 					if (!promise) {
-						promise = this.executeTask(task, resolver, trigger);
+						promise = this.executeTask(startedTasks, task, resolver, trigger);
+						startedTasks[key] = promise;
 					}
 					promises.push(promise);
 				} else {
@@ -298,7 +303,34 @@ export class TerminalTaskSystem implements ITaskSystem {
 		}
 	}
 
+	private executeExtensionCommand(task: CustomTask | ContributedTask, trigger: string): TPromise<ITaskSummary> {
+		return new TPromise<ITaskSummary>((resolve) => {
+			if (Types.isString(task.command.name)) {
+				this._onDidStateChange.fire(TaskEvent.create(TaskEventKind.Active, task));
+				this._onDidStateChange.fire(TaskEvent.create(TaskEventKind.Start, task));
+				if (task.command.options && task.command.options.extensionCommandArguments) {
+					this._commandService.executeCommand(task.command.name, task.command.options.extensionCommandArguments).then(() => {
+						resolve({ exitCode: 0 });
+						this._onDidStateChange.fire(TaskEvent.create(TaskEventKind.End, task));
+					});
+				} else {
+					this._commandService.executeCommand(task.command.name).then(() => {
+						resolve({ exitCode: 0 });
+						this._onDidStateChange.fire(TaskEvent.create(TaskEventKind.End, task));
+					});
+				}
+			} else {
+				resolve({ exitCode: 0 });
+			}
+		});
+	}
+
 	private executeCommand(task: CustomTask | ContributedTask, trigger: string): TPromise<ITaskSummary> {
+		// TODO: Figure out how to do this correctly.
+		if (task.command.runtime === RuntimeType.ExtensionCommand) {
+			return this.executeExtensionCommand(task, trigger);
+		}
+
 		let variables = new Set<string>();
 		this.collectTaskVariables(variables, task);
 		let workspaceFolder = Task.getWorkspaceFolder(task);

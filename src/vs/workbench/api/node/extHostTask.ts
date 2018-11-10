@@ -22,7 +22,7 @@ import { ExtHostWorkspace } from 'vs/workbench/api/node/extHostWorkspace';
 import * as vscode from 'vscode';
 import {
 	TaskDefinitionDTO, TaskExecutionDTO, TaskPresentationOptionsDTO, ProcessExecutionOptionsDTO, ProcessExecutionDTO,
-	ShellExecutionOptionsDTO, ShellExecutionDTO, TaskDTO, TaskHandleDTO, TaskFilterDTO, TaskProcessStartedDTO, TaskProcessEndedDTO, TaskSystemInfoDTO
+	ShellExecutionOptionsDTO, ShellExecutionDTO, TaskDTO, TaskHandleDTO, TaskFilterDTO, TaskProcessStartedDTO, TaskProcessEndedDTO, TaskSystemInfoDTO, ExtensionCommandExecutionDTO
 } from '../shared/tasks';
 import { ExtHostVariableResolverService } from 'vs/workbench/api/node/extHostDebugService';
 import { ExtHostDocumentsAndEditors } from 'vs/workbench/api/node/extHostDocumentsAndEditors';
@@ -353,6 +353,8 @@ namespace Tasks {
 			command = getProcessCommand(execution);
 		} else if (execution instanceof types.ShellExecution) {
 			command = getShellCommand(execution);
+		} else if (execution instanceof types.ExtensionCommandExecution) {
+			command = getExtensionCallbackCommand(execution);
 		} else {
 			return undefined;
 		}
@@ -406,6 +408,21 @@ namespace Tasks {
 			hasDefinedMatchers: (task as types.Task).hasDefinedMatchers
 		};
 		return result;
+	}
+
+	function getExtensionCallbackCommand(value: vscode.ExtensionCommandExecution): tasks.CommandConfiguration {
+		if (value.command === void 0) {
+			return undefined;
+		}
+
+		return {
+			runtime: tasks.RuntimeType.ExtensionCommand,
+			name: value.command,
+			presentation: undefined,
+			options: {
+				extensionCommandArguments: value.args
+			}
+		};
 	}
 
 	function getProcessCommand(value: vscode.ProcessExecution): tasks.CommandConfiguration {
@@ -503,7 +520,7 @@ namespace ProcessExecutionOptionsDTO {
 }
 
 namespace ProcessExecutionDTO {
-	export function is(value: ShellExecutionDTO | ProcessExecutionDTO): value is ProcessExecutionDTO {
+	export function is(value: ShellExecutionDTO | ProcessExecutionDTO | ExtensionCommandExecutionDTO): value is ProcessExecutionDTO {
 		let candidate = value as ProcessExecutionDTO;
 		return candidate && !!candidate.process;
 	}
@@ -528,6 +545,32 @@ namespace ProcessExecutionDTO {
 	}
 }
 
+namespace ExtensionCallbackExecutionDTO {
+	export function is(value: ShellExecutionDTO | ProcessExecutionDTO | ExtensionCommandExecutionDTO): value is ExtensionCommandExecutionDTO {
+		let candidate = value as ExtensionCommandExecutionDTO;
+		return candidate && !!candidate.command;
+	}
+
+	export function from(value: vscode.ExtensionCommandExecution): ExtensionCommandExecutionDTO {
+		if (value === void 0 || value === null) {
+			return undefined;
+		}
+
+		return {
+			command: value.command,
+			args: value.args
+		};
+	}
+
+	export function to(value: ExtensionCommandExecutionDTO): types.ExtensionCommandExecution {
+		if (value === void 0 || value === null) {
+			return undefined;
+		}
+
+		return new types.ExtensionCommandExecution(value.command, value.args);
+	}
+}
+
 namespace ShellExecutionOptionsDTO {
 	export function from(value: vscode.ShellExecutionOptions): ShellExecutionOptionsDTO {
 		if (value === void 0 || value === null) {
@@ -544,7 +587,7 @@ namespace ShellExecutionOptionsDTO {
 }
 
 namespace ShellExecutionDTO {
-	export function is(value: ShellExecutionDTO | ProcessExecutionDTO): value is ShellExecutionDTO {
+	export function is(value: ShellExecutionDTO | ProcessExecutionDTO | ExtensionCommandExecutionDTO): value is ShellExecutionDTO {
 		let candidate = value as ShellExecutionDTO;
 		return candidate && (!!candidate.commandLine || !!candidate.command);
 	}
@@ -637,11 +680,13 @@ namespace TaskDTO {
 		if (value === void 0 || value === null) {
 			return undefined;
 		}
-		let execution: types.ShellExecution | types.ProcessExecution;
+		let execution: types.ShellExecution | types.ProcessExecution | types.ExtensionCommandExecution;
 		if (ProcessExecutionDTO.is(value.execution)) {
 			execution = ProcessExecutionDTO.to(value.execution);
 		} else if (ShellExecutionDTO.is(value.execution)) {
 			execution = ShellExecutionDTO.to(value.execution);
+		} else if (ExtensionCallbackExecutionDTO.is(value.execution)) {
+			execution = ExtensionCallbackExecutionDTO.to(value.execution);
 		}
 		let definition: vscode.TaskDefinition = TaskDefinitionDTO.to(value.definition);
 		let scope: vscode.TaskScope.Global | vscode.TaskScope.Workspace | vscode.WorkspaceFolder;
@@ -656,9 +701,11 @@ namespace TaskDTO {
 				scope = types.TaskScope.Workspace;
 			}
 		}
+
 		if (!definition || !scope) {
 			return undefined;
 		}
+
 		let result = new types.Task(definition, scope, value.name, value.source.label, execution, value.problemMatchers);
 		if (value.isBackground !== void 0) {
 			result.isBackground = value.isBackground;

@@ -90,6 +90,10 @@ export interface ShellConfiguration {
 }
 
 export interface CommandOptions {
+	/**
+	 * Configuration information when the task is a extension command.
+	 */
+	extensionCommandArguments?: any;
 
 	/**
 	 * The shell to use if the task is a shell command.
@@ -214,12 +218,15 @@ export interface PresentationOptions {
 
 export enum RuntimeType {
 	Shell = 1,
-	Process = 2
+	Process = 2,
+	ExtensionCommand = 3
 }
 
 export namespace RuntimeType {
 	export function fromString(value: string): RuntimeType {
 		switch (value.toLowerCase()) {
+			case 'extensionCommand':
+				return RuntimeType.ExtensionCommand;
 			case 'shell':
 				return RuntimeType.Shell;
 			case 'process':
