@@ -270,7 +270,7 @@ interface IDeleteLinesOperation {
 	positionColumn: number;
 }
 
-class DeleteLinesAction extends EditorAction {
+export class DeleteLinesAction extends EditorAction {
 
 	constructor() {
 		super({
@@ -322,14 +322,17 @@ class DeleteLinesAction extends EditorAction {
 
 		// Sort delete operations
 		operations.sort((a, b) => {
+			if (a.startLineNumber === b.startLineNumber) {
+				return a.endLineNumber - b.endLineNumber;
+			}
 			return a.startLineNumber - b.startLineNumber;
 		});
 
-		// Merge delete operations on consecutive lines
+		// Merge delete operations which are adjacent or overlapping
 		let mergedOperations: IDeleteLinesOperation[] = [];
 		let previousOperation = operations[0];
 		for (let i = 1; i < operations.length; i++) {
-			if (previousOperation.endLineNumber + 1 === operations[i].startLineNumber) {
+			if (previousOperation.endLineNumber + 1 >= operations[i].startLineNumber) {
 				// Merge current operations into the previous one
 				previousOperation.endLineNumber = operations[i].endLineNumber;
 			} else {
