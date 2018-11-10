@@ -329,9 +329,9 @@ class TypeScriptCompletionItemProvider implements vscode.CompletionItemProvider 
 		position: vscode.Position,
 		token: vscode.CancellationToken,
 		context: vscode.CompletionContext
-	): Promise<vscode.CompletionItem[] | null> {
+	): Promise<vscode.CompletionList | null> {
 		if (this.typingsStatus.isAcquiringTypings) {
-			return Promise.reject<vscode.CompletionItem[]>({
+			return Promise.reject<vscode.CompletionList>({
 				label: localize(
 					{ key: 'acquiringTypingsLabel', comment: ['Typings refers to the *.d.ts typings files that power our IntelliSense. It should not be localized'] },
 					'Acquiring typings...'),
@@ -363,13 +363,15 @@ class TypeScriptCompletionItemProvider implements vscode.CompletionItemProvider 
 		};
 
 		let isNewIdentifierLocation = true;
-		let msg: ReadonlyArray<Proto.CompletionEntry> | undefined = undefined;
+		let isIncomplete = false;
+		let msg: ReadonlyArray<Proto.CompletionEntry>;
 		if (this.client.apiVersion.gte(API.v300)) {
 			const response = await this.client.interuptGetErr(() => this.client.execute('completionInfo', args, token));
 			if (response.type !== 'response' || !response.body) {
 				return null;
 			}
 			isNewIdentifierLocation = response.body.isNewIdentifierLocation;
+			isIncomplete = (response as any).metadata && (response as any).metadata.isIncomplete;
 			msg = response.body.entries;
 		} else {
 			const response = await this.client.interuptGetErr(() => this.client.execute('completions', args, token));
@@ -381,13 +383,14 @@ class TypeScriptCompletionItemProvider implements vscode.CompletionItemProvider 
 		}
 
 		const isInValidCommitCharacterContext = this.isInValidCommitCharacterContext(document, position);
-		return msg
+		const items = msg
 			.filter(entry => !shouldExcludeCompletionEntry(entry, completionConfiguration))
 			.map(entry => new MyCompletionItem(position, document, line.text, entry, completionConfiguration.useCodeSnippetsOnMethodSuggest, {
 				isNewIdentifierLocation,
 				isInValidCommitCharacterContext,
 				enableCallCompletions: !completionConfiguration.useCodeSnippetsOnMethodSuggest
 			}));
+		return new vscode.CompletionList(items, isIncomplete);
 	}
 
 	private getTsTriggerCharacter(context: vscode.CompletionContext): Proto.CompletionsTriggerCharacter | undefined {
