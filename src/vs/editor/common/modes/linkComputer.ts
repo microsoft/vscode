@@ -205,7 +205,7 @@ class LinkComputer {
 				let resetStateMachine = false;
 				const chCode = line.charCodeAt(j);
 
-				if (state === State.Accept || state === State.End) {
+				if (state === State.Accept) {
 					let chClass: CharacterClass;
 					switch (chCode) {
 						case CharCode.OpenParen:
@@ -245,9 +245,22 @@ class LinkComputer {
 
 					// Check if character terminates link
 					if (chClass === CharacterClass.ForceTermination) {
-						if (state === State.Accept) {
-							result.push(LinkComputer._createLink(classifier, line, i, linkBeginIndex, j));
-						}
+						result.push(LinkComputer._createLink(classifier, line, i, linkBeginIndex, j));
+						resetStateMachine = true;
+					}
+				} else if (state === State.End) {
+
+					let chClass: CharacterClass;
+					if (chCode === CharCode.OpenSquareBracket) {
+						// Allow for the authority part to contain ipv6 addresses which contain [ and ]
+						hasOpenSquareBracket = true;
+						chClass = CharacterClass.None;
+					} else {
+						chClass = classifier.get(chCode);
+					}
+
+					// Check if character terminates link
+					if (chClass === CharacterClass.ForceTermination) {
 						resetStateMachine = true;
 					} else {
 						state = State.Accept;
