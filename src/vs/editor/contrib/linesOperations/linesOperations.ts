@@ -265,7 +265,7 @@ interface IDeleteLinesOperation {
 	positionColumn: number;
 }
 
-class DeleteLinesAction extends EditorAction {
+export class DeleteLinesAction extends EditorAction {
 
 	constructor() {
 		super({
@@ -313,6 +313,9 @@ class DeleteLinesAction extends EditorAction {
 
 		// Sort delete operations
 		operations.sort((a, b) => {
+			if (a.startLineNumber === b.startLineNumber) {
+				return a.endLineNumber - b.endLineNumber;
+			}
 			return a.startLineNumber - b.startLineNumber;
 		});
 
@@ -322,7 +325,7 @@ class DeleteLinesAction extends EditorAction {
 		for (let i = 1; i < operations.length; i++) {
 			if (previousOperation.endLineNumber + 1 >= operations[i].startLineNumber) {
 				// Merge current operations into the previous one
-				previousOperation.endLineNumber = Math.max(previousOperation.endLineNumber, operations[i].endLineNumber);
+				previousOperation.endLineNumber = operations[i].endLineNumber;
 			} else {
 				// Push previous operation
 				mergedOperations.push(previousOperation);
