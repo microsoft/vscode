@@ -324,10 +324,7 @@ export class SearchView extends Viewlet implements IViewlet, IPanel {
 
 		this._register(this.searchWidget.onSearchSubmit(() => this.onQueryChanged()));
 		this._register(this.searchWidget.onSearchCancel(() => this.cancelSearch()));
-		this._register(this.searchWidget.searchInput.onDidOptionChange(() => {
-			this.searchWidget.searchInput.inputBox.addToHistory();
-			this.onQueryChanged(true);
-		}));
+		this._register(this.searchWidget.searchInput.onDidOptionChange(() => this.onQueryChanged(true)));
 
 		this._register(this.searchWidget.onReplaceToggled(() => this.onReplaceToggled()));
 		this._register(this.searchWidget.onReplaceStateChange((state) => {
@@ -1115,6 +1112,7 @@ export class SearchView extends Viewlet implements IViewlet, IPanel {
 	}
 
 	private onQueryTriggered(query: ITextQuery, excludePatternText: string, includePatternText: string): void {
+		this.searchWidget.searchInput.onSearchSubmit();
 		this.inputPatternExcludes.onSearchSubmit();
 		this.inputPatternIncludes.onSearchSubmit();
 
