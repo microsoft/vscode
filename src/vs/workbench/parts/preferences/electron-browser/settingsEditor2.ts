@@ -205,6 +205,10 @@ export class SettingsEditor2 extends BaseEditor {
 				}
 				this._setOptions(options);
 
+				this._register(input.onDispose(() => {
+					this.searchWidget.setValue('');
+				}));
+
 				return this.render(token);
 			})
 			.then(() => {
